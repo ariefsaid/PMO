@@ -2,7 +2,7 @@
 -- basis actual_cost join #1271's rules as a second source in ONE engine (cost_attribution_engine, the 0376 body plus
 -- equipment); cost_attribution_allocations stays as a thin wrapper so none of its four callers changes. One winner per
 -- ledger line across both sources; the winner's pool is split by approved driver share; a pool with no driver is
--- returned as unallocated and reaches no figure. Also: the symmetric tie refusal (a #1271 rule that ties an equipment
+-- returned as unallocated and reaches no figure. Also: the symmetric refusal (a #1271 rule that ties or beats an equipment
 -- setting), the previews/reads gain actual_cost, and a guard so an Admin cannot hard-delete approved usage inside a
 -- costed month (reopen, then archive). Spec: docs/specs/equipment-usage.spec.md. Plan: docs/plans/2026-11-01-equipment-usage.md S3.
 -- Proven by supabase/tests/equipment_actual_cost.test.sql (+ the perf test) and, unchanged, supabase/tests/cost_attribution.test.sql.
@@ -209,18 +209,20 @@ begin
   if v_name is not null then
     raise exception 'conflicts with rule "%": same specificity, overlapping dates and matches', v_name using errcode = '23505';
   end if;
-  -- 0471 (spec delta 4): also refuse a rule that ties an effective actual-cost equipment setting (every effective version,
-  -- not only the current one: older versions keep applying to their dates). A MORE specific rule is allowed and takes the lines.
+  -- 0471 (spec delta 4): also refuse a rule that ties or beats an effective actual-cost equipment setting (every effective
+  -- version, not only the current one: older versions keep applying to their dates). This is exactly the set 0460's
+  -- equipment_costing_assert_no_conflict (b) refuses from the other side (rule specificity >= setting specificity, FR-EQU-034),
+  -- so the two checks agree whichever is saved first.
   select a.code into v_name
     from public.equipment_settings_effective(p_org_id, null) v join public.equipment_assets a on a.id = v.asset_id
-   where v.basis = 'actual_cost' and v.specificity = (p_norm->>'specificity')::int
+   where v.basis = 'actual_cost' and v.specificity <= (p_norm->>'specificity')::int
      and v.window_from <= coalesce(v_to, 'infinity'::date) and v_from <= v.window_to
      and public.cost_attribution_matches_overlap(p_org_id, p_norm->>'account', p_norm->>'account_group', p_norm->>'cost_center',
            p_norm->>'party_type', p_norm->>'party', v.match_account, v.match_account_group, v.match_cost_center,
            v.match_party_type, v.match_party)
    order by a.code limit 1;
   if v_name is not null then
-    raise exception 'conflicts with the equipment costing of asset %: same specificity, overlapping dates and matches', v_name
+    raise exception 'conflicts with the equipment costing of asset %: equal or greater specificity, overlapping dates and matches', v_name
       using errcode = '23505';
   end if;
 end $$;
@@ -267,7 +269,11 @@ returns table(asset_id uuid, asset_code text, project_id uuid, project_name text
               work_rate numeric, standby_rate numeric, pool numeric, driver_value numeric, driver_total numeric,
               share numeric, amount numeric, category public.budget_category, line_count int, entry_count int, unit text)
 language plpgsql stable security definer set search_path = public, pg_temp as $$
-declare v_org uuid := public.auth_org_id();
+declare
+  v_org uuid := public.auth_org_id();
+  -- Director ruling (2026-11-02): ledger-read stays Admin/Finance/Executive (0311). A Project Manager sees their share and the
+  -- non-payroll amounts, but not the pool, its line count, the driver total, or any Employee-party amount.
+  v_pm boolean := coalesce(public.auth_role()::text, '') = 'Project Manager';
 begin
   if not public.is_active_member() or coalesce(public.auth_role()::text, '') not in ('Admin','Finance','Executive','Project Manager') then
     raise exception 'not authorized' using errcode = '42501';
@@ -280,7 +286,7 @@ begin
     -- hire_rate charges
     select c.asset_id, a.code, c.project_id, p.name, c.month, 'hire_rate'::text, c.setting_key, c.version, 'allocated'::text,
            null::text, null::text, c.work_units, c.standby_units, c.work_rate, c.standby_rate, null::numeric, null::numeric,
-           null::numeric, null::numeric, c.amount, c.category, 0, c.entry_count, c.rate_unit
+           null::numeric, null::numeric, c.amount, c.category, case when v_pm then null else 0 end, c.entry_count, c.rate_unit
       from public.equipment_hire_charges(v_org, null, p_project_id) c
       join public.equipment_assets a on a.id = c.asset_id join public.projects p on p.id = c.project_id
      where (p_asset_id is null or c.asset_id = p_asset_id) and c.month between date_trunc('month', p_from)::date and p_to
@@ -289,7 +295,7 @@ begin
     select e.asset_id, a.code, e.project_id, p.name, date_trunc('month', e.work_date)::date, 'none'::text, x.setting_key, x.version,
            'usage_only'::text, null::text, null::text, sum(e.quantity) filter (where e.kind = 'work'),
            sum(e.quantity) filter (where e.kind = 'standby'), null::numeric, null::numeric, null::numeric, null::numeric,
-           null::numeric, null::numeric, null::numeric, null::public.budget_category, 0, count(*)::int, e.unit
+           null::numeric, null::numeric, null::numeric, null::public.budget_category, case when v_pm then null else 0 end, count(*)::int, e.unit
       from public.equipment_usage_entries e
       join public.equipment_assets a on a.id = e.asset_id join public.projects p on p.id = e.project_id
       left join eff x on x.asset_id = e.asset_id and e.work_date between x.window_from and x.window_to
@@ -297,15 +303,21 @@ begin
        and (p_asset_id is null or e.asset_id = p_asset_id) and (p_project_id is null or e.project_id = p_project_id)
        and e.work_date >= date_trunc('month', p_from)::date and e.work_date < (date_trunc('month', p_to) + interval '1 month')::date
        and (coalesce(x.basis, 'none') = 'none' or (x.basis = 'hire_rate' and e.unit <> x.rate_unit))   -- never silently dropped
+       -- 0471: an actual_cost version shares its pool over whole months (PQ-5), so every entry of a covered month already drives the
+       -- allocation (the delete guard's month rule): each entry is counted in exactly one arm
+       and not exists (select 1 from eff y where y.asset_id = e.asset_id and y.basis = 'actual_cost'
+                         and date_trunc('month', e.work_date)::date >= date_trunc('month', y.window_from)::date
+                         and date_trunc('month', e.work_date)::date <= y.window_to)
      group by e.asset_id, a.code, e.project_id, p.name, date_trunc('month', e.work_date), x.setting_key, x.version, e.unit
     union all
     -- 0471: actual_cost pools and shares from the engine (FR-EQU-041/042/044); an unallocated pool is a row, never dropped
     select e.asset_id, a.code, e.project_id, p.name, e.posting_date, 'actual_cost'::text, e.rule_key, e.version, e.status,
            case when e.status = 'unallocated' then 'no_approved_usage' end, e.driver, null::numeric, null::numeric,
-           null::numeric, null::numeric, e.pool, e.driver_value, e.driver_total,
+           null::numeric, null::numeric, case when v_pm then null else e.pool end, e.driver_value,
+           case when v_pm then null else e.driver_total end,
            case when e.status = 'allocated' then round(e.amount / nullif(e.pool, 0), 6) end,
-           case when e.status = 'allocated' then e.amount end,
-           m.category, e.line_count, e.entry_count, x.rate_unit
+           case when e.status = 'allocated' and not (v_pm and e.party_type = 'Employee') then e.amount end,
+           m.category, case when v_pm then null else e.line_count end, e.entry_count, x.rate_unit
       from public.cost_attribution_engine(v_org, null, null, p_project_id, null) e
       join public.equipment_assets a on a.id = e.asset_id
       left join public.projects p on p.id = e.project_id
@@ -322,12 +334,10 @@ end $$;
 -- without the audited reopen (FR-EQU-012). A month is costed when an effective hire_rate or actual_cost version covers the
 -- work date (actual_cost: its whole months, the pool is shared over the month, PQ-5). Draft/Submitted/Rejected rows, archived
 -- rows, and usage on assets with no costing stay deletable; the Admin path for the rest is reopen -> archive/delete.
--- An org cascade is not a user delete: once the organization row is gone the guard stands down.
 create function public.equipment_usage_guard_delete() returns trigger
 language plpgsql security definer set search_path = public, pg_temp as $$
 begin
   if old.status = 'Approved' and old.archived_at is null
-     and exists (select 1 from public.organizations o where o.id = old.org_id)
      and exists (select 1 from public.equipment_settings_effective(old.org_id, null) v
                   where v.asset_id = old.asset_id and v.basis in ('hire_rate', 'actual_cost')
                     and case when v.basis = 'actual_cost'

@@ -116,8 +116,9 @@ None blocks dispatch. Each default is enforcement or reading of a signed require
 3. The single engine stays one function: S3 renames the body to `cost_attribution_engine(...)` (a superset of columns, incl.
    the FR-EQU-044 drill-down fields) and keeps `cost_attribution_allocations` as a thin wrapper with the 0376 columns, so
    no caller changes and no second engine exists (spec §5 "Do not create a second allocation engine").
-4. Symmetric tie refusal: S3 extends `cost_attribution_assert_no_conflict` so a #1271 rule that **ties** a current equipment
-   `actual_cost` setting is refused too (FR-EQU-034 states only the equipment-side refusal). See spec note 4.
+4. Symmetric refusal: S3 extends `cost_attribution_assert_no_conflict` so a #1271 rule that **ties or beats** a current equipment
+   `actual_cost` setting is refused too, the exact set 0460's equipment-side check (b) refuses (`>=`), whichever is saved first
+   (fix round: the first cut refused ties only, which locked Finance out of new setting versions). See spec note 4.
 
 ## Architecture
 
@@ -1355,9 +1356,9 @@ passed there. Run `supabase/tests/cost_attribution.test.sql` unchanged: all 97 r
 Re-create `cost_attribution_assert_no_conflict` = 0376 `:176-214` verbatim, then before the final `raise`, a second lookup
 (marked `-- 0449`): the first `actual_cost` version from `equipment_settings_effective(p_org_id, null)` (every effective
 version, not only the current one: older versions keep applying to their dates) whose window overlaps, whose `specificity`
-equals `(p_norm->>'specificity')::int`, and for which `cost_attribution_matches_overlap(p_org_id, p_norm->>'account',
+is at most `(p_norm->>'specificity')::int` (the rule ties or beats it), and for which `cost_attribution_matches_overlap(p_org_id, p_norm->>'account',
 p_norm->>'account_group', p_norm->>'cost_center', p_norm->>'party_type', p_norm->>'party', v.match_account, …)` holds; raise
-`23505` "conflicts with the equipment costing of asset %: same specificity, overlapping dates and matches".
+`23505` "conflicts with the equipment costing of asset %: equal or greater specificity, overlapping dates and matches".
 
 ### S3.5 Previews and reads gain `actual_cost`
 
@@ -1409,10 +1410,13 @@ the text above, each kept to the spec's behaviour:
   `before delete` guard (`equipment_usage_guard_delete`, definer trigger, no client grant) now refuses to delete an Approved,
   non-archived entry whose work date lies inside an effective `hire_rate` or `actual_cost` version (actual_cost: its whole
   months, PQ-5); the Admin path is reopen, then archive or delete. Drafts, archived rows and usage on assets with no costing
-  stay deletable, and an org cascade stands the guard down.
-- Tests: `equipment_actual_cost.test.sql` (31 rows incl. an actual_cost v1/v2 split, the delete guard and a cross-org ledger
-  line) and `equipment_actual_cost_perf.test.sql` (3 rows). No new client RPC, table or mirror: the 0178 count, the isolation
+  stay deletable. (Fix round: the guard's former "organization still exists" clause was dead, an org delete is FK-blocked by profiles, and was removed.)
+- Tests: `equipment_actual_cost.test.sql` (65 rows incl. an actual_cost v1/v2 split, the delete guard and its edges, a cross-org ledger
+  line, both conflict save orders, the Project Manager audience and the driver/standby/negative-pool/party-type cases) and `equipment_actual_cost_perf.test.sql` (3 rows). No new client RPC, table or mirror: the 0178 count, the isolation
   denominator and the 0136/0137 inventories are unchanged.
+- Fix round: a Project Manager reads null pool, line count and driver total, and null amount on Employee-party rows (DD-EQU-1);
+  the `usage_only` arm skips months an `actual_cost` version covers whole (PQ-5), so each entry is counted in one arm; the delete-guard
+  rows are tagged AC-EQU-007 (they prove FR-EQU-012, the approved-entry contract), not AC-EQU-012; the perf wall-clock bound is 10 s.
 
 ---
 
@@ -1954,11 +1958,10 @@ The spec is not edited. These are defects or gaps found while planning; none blo
    new fields additive": `project_mapped_actuals` gains a ninth column and `get_project_finances` a new key, which a literal
    byte comparison of the whole payload would fail. The proof compares existing fields against a verbatim copy of the 0376/0410
    expressions, and the two dashboards' whole JSON (which gain no field).
-4. **FR-EQU-034 is one-sided.** It refuses an equipment setting that ties or loses to a cost attribution rule, but says nothing
-   about a later #1271 rule that ties an equipment setting. The plan also refuses that tie (spec delta 4), which changes #1271's
-   save behaviour for orgs with equipment settings. A later #1271 rule that is **more** specific than an equipment setting is
-   allowed and silently takes those lines (one winner, no double count), so that equipment pool shrinks; the drill-down shows the
-   new line count. Confirm both are intended.
+4. **FR-EQU-034 was one-sided.** It refused an equipment setting that ties or loses to a cost attribution rule, but said nothing
+   about a later #1271 rule. Resolved in the S3 fix round: the rule side refuses the same set (a rule that ties or beats an
+   equipment setting), so the outcome no longer depends on save order and no rule silently shrinks an equipment pool; the spec
+   text of FR-EQU-034 now says so. This changes #1271's save behaviour for orgs with equipment settings.
 5. **OQ-5 "projects they are a member of"** has no data behind it: PMO has no project membership (scope searched in
    "What ships today"). PQ-1 takes "any project in the caller's org".
 6. **Data-model fields beyond §5:** `count_standby` (OQ-6), `charge_category` (OQ-3), `applies_to` (FR-EQU-045), `specificity`,
