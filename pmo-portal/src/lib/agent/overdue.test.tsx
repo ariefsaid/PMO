@@ -279,3 +279,22 @@ describe('renderOverdueMarkdown / runWhatsOverdue (#787)', () => {
     expect(await runWhatsOverdue({}, ctx('Engineer', client), NOW)).toEqual({ error: 'whats_overdue could not read the overdue items right now.' });
   });
 });
+
+describe('renderOverdueMarkdown — reminder offer (#1639)', () => {
+  const base: OverdueFacts = {
+    asOf: '2026-10-06', numberLocale: 'en-US', callerId: 'u-me', tasksTruncated: false, invoices: null, invoicesTruncated: false,
+    tasks: [
+      { id: 't1', name: 'Pour', projectId: null, projectName: null, assigneeName: 'Site engineer', assigneeId: 'u-2', dueDate: '2026-10-01', daysOverdue: 5 },
+      { id: 't2', name: 'Rebar', projectId: null, projectName: null, assigneeName: 'Planner', assigneeId: 'u-3', dueDate: '2026-10-02', daysOverdue: 4 },
+    ],
+  };
+  it('AC-RMD-023 offers reminders for the 2 people with late tasks', () => {
+    expect(renderOverdueMarkdown(base, { offerReminders: true }))
+      .toMatch(/Say \*remind them\* and I'll prepare reminders for the 2 people with late tasks\.\n\n$/);
+  });
+  it('AC-RMD-023 makes no offer when every task is the caller\'s own, or when reminders are off', () => {
+    const own = { ...base, tasks: base.tasks.map((t) => ({ ...t, assigneeId: 'u-me' })) };
+    expect(renderOverdueMarkdown(own, { offerReminders: true })).not.toMatch(/remind them/);
+    expect(renderOverdueMarkdown(base)).not.toMatch(/remind them/);
+  });
+});

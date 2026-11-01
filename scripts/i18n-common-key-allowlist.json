@@ -195,5 +195,6 @@
   "shell.contextBar.feedback",
   "shell.nav.stock",
   "uxs38.previewGapSummary_one",
-  "uxs38.previewGapSummary_other"
+  "uxs38.previewGapSummary_other",
+  "dashboard.stillToInvoice.daysSinceAcceptance"
 ]

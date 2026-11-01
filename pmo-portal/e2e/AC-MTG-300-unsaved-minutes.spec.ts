@@ -10,7 +10,7 @@ test('AC-MTG-300: dirty minutes breadcrumb offers Stay and Leave without losing 
   await page.goto(`/meetings/${SEEDED_MEETING}`);
 
   const minutesEditor = page.getByTestId('minutes-blocknote').locator('.bn-editor');
-  await expect(minutesEditor).toBeVisible();
+  await expect(minutesEditor).toBeVisible({ timeout: 20_000 }); // lazy BlockNote chunk
   await minutesEditor.click();
   await page.keyboard.press('Control+End');
   await page.keyboard.press('Enter');

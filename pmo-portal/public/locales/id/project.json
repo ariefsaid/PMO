@@ -489,6 +489,23 @@
       "taskCount": "{{done}} dari {{total}} tugas",
       "noCurrentPhase": "Tidak ada fase aktif"
     },
+    "billingMilestones": {
+      "title": "Milestone penagihan",
+      "subline": "Work order klien. Penagihan mengikuti tiap work order.",
+      "error": "Gagal memuat milestone penagihan",
+      "empty": "Belum ada work order.",
+      "openContract": "Buka kontrak & penagihan",
+      "notIssued": "Belum diterbitkan",
+      "dates": "{{start}} – {{end}}",
+      "startOnly": "Mulai {{date}}",
+      "endOnly": "Jatuh tempo {{date}}",
+      "ordered": "Dipesan {{date}}",
+      "noDates": "Tanpa tanggal",
+      "status": { "planned": "Direncanakan", "inProgress": "Berjalan", "invoiced": "Ditagih", "paid": "Lunas" },
+      "statusSource": "Sumber: faktur dan draf work order ini (Kontrak & penagihan).",
+      "invoiceThis": "Tagih ini",
+      "invoiceThisLabel": "Tagih {{order}}"
+    },
     "delivery": {
       "timelineTitle": "Linimasa tahapan",
       "emptyPipeline": "Tahapan direncanakan setelah peluang dimenangkan.",
@@ -809,6 +826,9 @@
       "drawerMoreActions": "Tindakan tugas lainnya"
     },
     "workOrders": {
+      "acceptanceAge": "Hari sejak BAST, belum ditagih: {{days}}",
+      "acceptanceAgeSource": "Dihitung dari BAST terkonfirmasi paling awal yang belum diikuti faktur terkirim.",
+      "cannotInvoiceHere": "Work order ini belum bisa ditagih dari sini.",
       "export": {
         "number": "Surat perintah kerja",
         "title": "Judul",

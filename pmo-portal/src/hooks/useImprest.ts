@@ -7,7 +7,7 @@ import { expenseClaimsAwaitingKey } from './approvalsQueryKeys';
 
 /** Site imprest (#1515) over the repository seam (ADR-0017). Keys carry org_id (tenant scope). */
 export const IMPREST_QUERY_ROOTS = ['imprest-floats', 'imprest-float', 'imprest-position', 'imprest-plan-usage', 'imprest-plans',
-  'imprest-replenishments', 'imprest-counts', 'imprest-float-choices', 'imprest-float-claims', 'imprest-limit', 'imprest-awaiting', 'imprest-float-changes'] as const;
+  'imprest-replenishments', 'imprest-counts', 'imprest-float-choices', 'imprest-float-claims', 'imprest-limit', 'imprest-awaiting', 'imprest-float-changes', 'imprest-posting-states'] as const;
 
 const useOrgId = (): string | undefined => useAuth().currentUser?.org_id;
 
@@ -29,6 +29,14 @@ export function useImprestPosition(floatId: string | undefined) {
   return useQuery({
     queryKey: ['imprest-position', orgId, floatId],
     queryFn: () => repositories.imprest.getPosition(floatId as string),
+    enabled: Boolean(orgId) && Boolean(floatId),
+  });
+}
+export function useImprestPostingStates(floatId: string | undefined) {
+  const orgId = useOrgId();
+  return useQuery({
+    queryKey: ['imprest-posting-states', orgId, floatId],
+    queryFn: () => repositories.imprest.listPostingStates(floatId as string),
     enabled: Boolean(orgId) && Boolean(floatId),
   });
 }
@@ -138,6 +146,7 @@ export const useRequestReplenishment = () => useImprestMutation((a: { floatId: s
   repositories.imprest.requestReplenishment(a.floatId, a.kind));
 export const useTransitionReplenishment = () => useImprestMutation((a: { id: string; to: Transition[1]; notes?: string; paymentReference?: string }) =>
   repositories.imprest.transitionReplenishment(a.id, a.to, { notes: a.notes, paymentReference: a.paymentReference }));
+export const useSetCashAccount = () => useImprestMutation((a: { floatId: string; account: string }) => repositories.imprest.setCashAccount(a.floatId, a.account));
 export const useRecordCount = () => useImprestMutation((a: { floatId: string; counted: number; note?: string }) =>
   repositories.imprest.recordCount(a.floatId, a.counted, a.note));
 export const useSetClaimFloat = () => useImprestMutation((a: { claimId: string; floatId: string | null }) => repositories.imprest.setClaimFloat(a.claimId, a.floatId));

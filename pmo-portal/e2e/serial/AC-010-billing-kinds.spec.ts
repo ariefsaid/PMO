@@ -1,7 +1,7 @@
-// @e2e-isolation: self-isolated - owns its project/invoices/refs and cleans them up.
+// @e2e-isolation: serial - its Ongoing USD 1000 project would shift the seed org's dashboard on-hand totals (read by AC-701/AC-1117) in the parallel lane; owns and cleans its rows.
 import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
-import { signIn, requireServiceRoleKey, waitForFonts } from './helpers';
+import { signIn, requireServiceRoleKey, waitForFonts } from '../helpers';
 
 // AC-010 (billing kinds, #1471) - Finance corrects a paid, already-linked adopted invoice to Other billing.
 //

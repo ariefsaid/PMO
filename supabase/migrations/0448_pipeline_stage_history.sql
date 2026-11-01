@@ -223,6 +223,7 @@ declare
   v_prev numeric;
   v_id   uuid;
 begin
+  perform public.assert_is_active_member();                                     -- mut:amg_add (0173 AC-AMG-001)
   select * into nxt from public.project_stage_entries where id = p_before_entry_id;
   if nxt.id is null then
     raise exception 'stage entry not found' using errcode = 'P0002';
@@ -267,6 +268,7 @@ declare
   v_norm   jsonb := '[]'::jsonb;
   x        jsonb;
 begin
+  perform public.assert_is_active_member();                                     -- mut:amg_import (0173 AC-AMG-001)
   select org_id, status into v_org, v_status from public.projects where id = p_project_id for update;
   if v_org is null then
     raise exception 'project not found' using errcode = 'P0002';
