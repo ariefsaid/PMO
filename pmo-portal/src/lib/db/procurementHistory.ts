@@ -192,45 +192,23 @@ function pickDocRef(
 
   const kind = STATUS_TO_RECORD_KIND[toStatus];
 
-  switch (kind) {
-    case 'purchase_request': {
-      const row = (detail.purchase_requests ?? []).find((r) => !consumed.has(r.id));
-      if (!row) return { docRef: null, consumedId: null };
-      return { docRef: row.pr_number ?? null, consumedId: row.id };
+  // Only fold a docRef in when exactly one record of the kind exists: there is no persisted
+  // transition→record link, so with 2+ (re-quote, re-issued PO) any pick would be a guess.
+  // Those records surface as their own rows instead.
+  const rows: Array<{ id: string; ref: string | null | undefined }> = (() => {
+    switch (kind) {
+      case 'purchase_request': return (detail.purchase_requests ?? []).map((r) => ({ id: r.id, ref: r.pr_number }));
+      case 'rfq': return (detail.rfqs ?? []).map((r) => ({ id: r.id, ref: r.rfq_number }));
+      case 'quotation': return (detail.quotations ?? []).map((r) => ({ id: r.id, ref: r.vq_number }));
+      case 'purchase_order': return (detail.purchase_orders ?? []).map((r) => ({ id: r.id, ref: r.po_number }));
+      case 'receipt': return (detail.receipts ?? []).map((r) => ({ id: r.id, ref: r.gr_number }));
+      case 'invoice': return (detail.invoices ?? []).map((r) => ({ id: r.id, ref: r.vi_number }));
+      case 'payment': return (detail.payments ?? []).map((r) => ({ id: r.id, ref: r.pay_number }));
+      default: return [];
     }
-    case 'rfq': {
-      const row = (detail.rfqs ?? []).find((r) => !consumed.has(r.id));
-      if (!row) return { docRef: null, consumedId: null };
-      return { docRef: row.rfq_number ?? null, consumedId: row.id };
-    }
-    case 'quotation': {
-      const row = (detail.quotations ?? []).find((r) => !consumed.has(r.id));
-      if (!row) return { docRef: null, consumedId: null };
-      return { docRef: row.vq_number ?? null, consumedId: row.id };
-    }
-    case 'purchase_order': {
-      const row = (detail.purchase_orders ?? []).find((r) => !consumed.has(r.id));
-      if (!row) return { docRef: null, consumedId: null };
-      return { docRef: row.po_number ?? null, consumedId: row.id };
-    }
-    case 'receipt': {
-      const row = (detail.receipts ?? []).find((r) => !consumed.has(r.id));
-      if (!row) return { docRef: null, consumedId: null };
-      return { docRef: row.gr_number ?? null, consumedId: row.id };
-    }
-    case 'invoice': {
-      const row = (detail.invoices ?? []).find((r) => !consumed.has(r.id));
-      if (!row) return { docRef: null, consumedId: null };
-      return { docRef: row.vi_number ?? null, consumedId: row.id };
-    }
-    case 'payment': {
-      const row = (detail.payments ?? []).find((r) => !consumed.has(r.id));
-      if (!row) return { docRef: null, consumedId: null };
-      return { docRef: row.pay_number ?? null, consumedId: row.id };
-    }
-    default:
-      return { docRef: null, consumedId: null };
-  }
+  })();
+  const row = rows.length === 1 && !consumed.has(rows[0].id) ? rows[0] : null;
+  return row ? { docRef: row.ref ?? null, consumedId: row.id } : { docRef: null, consumedId: null };
 }
 
 /**

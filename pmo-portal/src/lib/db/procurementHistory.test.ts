@@ -343,6 +343,26 @@ describe('buildProgressionTimeline', () => {
     expect(events[0].at).toBe(t1);
   });
 
+  it('AC-PR-PROG-016: with 2 quotations, the "Quote Selected" transition is left bare and both quotations are their own rows', () => {
+    const t1 = '2026-05-06T10:00:00Z';
+    const quote = (id: string, vq: string) => ({
+      id, org_id: 'org-1', procurement_id: PROC_ID, vq_number: vq, reference_number: null,
+      status: 'Received', date: '2026-05-01', amount: null, created_at: t1,
+    });
+    const detail = makeDetail({
+      statusEvents: [
+        { id: 'ev1', org_id: 'org-1', procurement_id: PROC_ID, from_status: 'Vendor Quoted', to_status: 'Quote Selected', actor_id: 'u', notes: null, created_at: t1 },
+      ] as unknown as ProcurementDetail['statusEvents'],
+      quotations: [quote('q1', 'VQ-1'), quote('q2', 'VQ-2')] as unknown as ProcurementDetail['quotations'],
+    });
+    const events = buildProgressionTimeline(detail, PROC_ID);
+    const transition = events.find((e) => e.kind === 'transition');
+    expect(transition?.docRef).toBeNull();
+    const text = JSON.stringify(events.filter((e) => e.kind === 'record'));
+    expect(text).toContain('VQ-1');
+    expect(text).toContain('VQ-2');
+  });
+
   it('AC-PR-PROG-002: docHref points to /procurement/:id/documents (fallback deep-link)', () => {
     const detail = makeDetail({
       statusEvents: [
