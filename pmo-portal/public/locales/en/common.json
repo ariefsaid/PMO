@@ -1962,12 +1962,7 @@
       "title": "Couldn't load procurements"
     }
   },
-  "taskPush": {
-    "notSent": "Not sent",
-    "notSentReason": "Recorded before the ERP connection, not sent"
-  },
   "procurementLedger": {
-    "preCutover": "Recorded before the ERP connection, not sent",
     "title": "Case ledger",
     "filter": {
       "label": "Filter records",
@@ -3694,7 +3689,6 @@
     "erpSetup": {
       "defaultsFailed": "Could not save ERP defaults. Check the values and try again.",
       "domainFailed": "Could not employ this domain. Check ERP read permissions and try again.",
-      "domainDraftsOpen": "PMO still has {{count}} draft(s) that would be left behind. Submit or cancel them, then try again.",
       "onboarded": "ERP parties are onboarded. Review the Companies list.",
       "onboardFailed": "Party onboarding did not complete. Try again.",
       "unavailable": "ERP setup unavailable",

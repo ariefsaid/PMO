@@ -166,5 +166,8 @@
     "on": "Aktif",
     "off": "Nonaktif",
     "description": "Tombol Masukan di header dan, paling sering sebulan sekali, satu pertanyaan singkat setelah tugas pertama atau tinjauan triwulanan. Tidak pernah muncul saat seseorang mengisi formulir. Jawaban tidak memuat isi data."
+  },
+  "erpSetup": {
+    "domainDraftsOpen": "PMO masih memiliki {{count}} draf yang akan tertinggal. Kirim atau batalkan draf tersebut, lalu coba lagi."
   }
 }

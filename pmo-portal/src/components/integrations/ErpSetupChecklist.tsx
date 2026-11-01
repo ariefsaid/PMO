@@ -25,7 +25,7 @@ export function ErpSetupChecklist(
     onRefreshCompany: () => void;
   },
 ) {
-  const { t } = useTranslation();
+  const { t } = useTranslation(['common', 'administration']);
   const qc = useQueryClient();
   const setup = useQuery({
     queryKey: ['integrations', 'setup', orgId],
@@ -102,7 +102,7 @@ export function ErpSetupChecklist(
         setError(
           drafts
             ? t(
-              'integrations.erpSetup.domainDraftsOpen',
+              'administration:erpSetup.domainDraftsOpen',
               'PMO still has {{count}} draft(s) that would be left behind. Submit or cancel them, then try again.',
               { count: Number(drafts) },
             )

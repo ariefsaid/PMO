@@ -91,7 +91,9 @@
       "needsRequest": "perlu permintaan pembelian dulu",
       "needsApproval": "perlu persetujuan dulu",
       "needsReceipt": "perlu penerimaan barang dulu"
-    }
+    },
+    "preCutover": "Dicatat sebelum terhubung ke ERP, tidak dikirim",
+    "notSent": "Tidak dikirim"
   },
   "gates": {
     "heading": "Aturan pembelian",

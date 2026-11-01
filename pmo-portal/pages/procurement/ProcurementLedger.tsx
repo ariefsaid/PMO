@@ -293,7 +293,7 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
   const [filter, setFilter] = useState<LedgerFilter>('all');
   const [efakturTarget, setEfakturTarget] = useState<LedgerRow | null>(null);
   const focusedInvoiceTarget = useRef<HTMLElement | null>(null);
-  const { t } = useTranslation();
+  const { t } = useTranslation(['common', 'procurement']);
   const may = usePermission();
   // Migration 0350: a role that reads no vendor bills or payments must not read their absence as "none exist".
   // Said once, only where a bill is expected (the case has reached Vendor Invoiced).
@@ -525,7 +525,7 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
         {detail.pre_cutover && (
           // FR-ECA-030: ordered before the ERP connection, so receipts, bills and payments stay in PMO. Information, not an alert.
           <p data-testid="ledger-pre-cutover" className="mb-2.5 text-[12.5px] text-muted-foreground">
-            {t('procurementLedger.preCutover', 'Recorded before the ERP connection, not sent')}
+            {t('procurement:ledger.preCutover', 'Recorded before the ERP connection, not sent')}
           </p>
         )}
         {pendingPush.status !== 'idle' && (
