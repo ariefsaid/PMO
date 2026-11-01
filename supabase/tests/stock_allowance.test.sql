@@ -58,7 +58,7 @@ insert into projects (id, org_id, name, status, contract_value, tax_treatment, t
 insert into boq_items (id, org_id, project_id, item_code, description, unit, quantity, rate) values
   ('15120000-0000-0000-0000-0000000000e3', '15120000-0000-0000-0000-000000000001', '15120000-0000-0000-0000-0000000000c3', 'W-3', 'Other slab', 'm3', 50, 1000);
 
-select plan(10);
+select plan(23);
 select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a3');                                    -- U_PM manages P_ON only
 select lives_ok($$ insert into boq_material_allowances (boq_item_id, item_id, planned_quantity) values ('15120000-0000-0000-0000-0000000000e1', '15120000-0000-0000-0000-000000001001', 100) $$,
   'FR-STK-050 the project''s own PM sets an allowance on a BoQ line of their project');
@@ -80,6 +80,39 @@ reset role;
 select public.stk_t_as_user('15120000-0000-0000-0000-0000000000b1');                                    -- other org
 select throws_ok($$ insert into boq_material_allowances (boq_item_id, item_id, planned_quantity) values ('15120000-0000-0000-0000-0000000000e1', '15120000-0000-0000-0000-000000001001', 1) $$,
   '42501', null, 'AC-STK-019 org B cannot set an allowance on org A''s BoQ line');
+reset role;
+-- #1626 items 1+4: refusal paths of update/delete, and clearing an allowance whose item has since been archived.
+-- Fixture as superuser: X on P_OTHER (the Admin's project, not U_PM's), Y on P_ON for CAB, which is then archived.
+insert into boq_material_allowances (id, org_id, boq_item_id, item_id, planned_quantity) values
+  ('15120000-0000-0000-0000-000000003001', '15120000-0000-0000-0000-000000000001', '15120000-0000-0000-0000-0000000000e3', '15120000-0000-0000-0000-000000001001', 40),
+  ('15120000-0000-0000-0000-000000003002', '15120000-0000-0000-0000-000000000001', '15120000-0000-0000-0000-0000000000e1', '15120000-0000-0000-0000-000000001002', 9);
+update stock_items set archived_at = now() where id = '15120000-0000-0000-0000-000000001002';
+
+select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a6');                                    -- U_ENG: wrong role
+select lives_ok($$ update boq_material_allowances set planned_quantity = 1 where id = '15120000-0000-0000-0000-000000003001' $$, 'AC-STK-024 an Engineer''s update changes nothing');
+select lives_ok($$ delete from boq_material_allowances where id = '15120000-0000-0000-0000-000000003001' $$, 'AC-STK-024 an Engineer''s clear removes nothing');
+reset role;
+select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a3');                                    -- U_PM: another project's line
+select lives_ok($$ update boq_material_allowances set planned_quantity = 1 where id = '15120000-0000-0000-0000-000000003001' $$, 'AC-STK-024 a PM''s update on another project''s allowance changes nothing');
+select lives_ok($$ delete from boq_material_allowances where id = '15120000-0000-0000-0000-000000003001' $$, 'AC-STK-024 a PM''s clear on another project''s allowance removes nothing');
+select throws_ok($$ update boq_material_allowances set item_id = '15120000-0000-0000-0000-000000001001' where id = '15120000-0000-0000-0000-000000003002' $$,
+  '42501', null, 'FR-STK-050 only the planned quantity is updatable (no re-pointing to another item)');
+reset role;
+select public.stk_t_as_user('15120000-0000-0000-0000-0000000000b1');                                    -- other org
+select lives_ok($$ update boq_material_allowances set planned_quantity = 1 where id = '15120000-0000-0000-0000-000000003001' $$, 'AC-STK-019 org B''s update on org A''s allowance changes nothing');
+select lives_ok($$ delete from boq_material_allowances where id = '15120000-0000-0000-0000-000000003001' $$, 'AC-STK-019 org B''s clear on org A''s allowance removes nothing');
+reset role;
+select is((select planned_quantity::text from boq_material_allowances where id = '15120000-0000-0000-0000-000000003001'), '40.000', 'AC-STK-024 the refused writes left the allowance untouched');
+
+select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a3');                                    -- U_PM: the archived item
+select lives_ok($$ update boq_material_allowances set planned_quantity = 99 where id = '15120000-0000-0000-0000-000000003002' $$, 'FR-STK-050 raising an allowance on an archived item is refused');
+reset role;
+select is((select planned_quantity::text from boq_material_allowances where id = '15120000-0000-0000-0000-000000003002'), '9.000', 'FR-STK-050 the refused raise left the archived item''s allowance at 9');
+select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a3');
+select lives_ok($$ delete from boq_material_allowances where id = '15120000-0000-0000-0000-000000003002' $$, '#1626 an allowance on an archived item can be cleared');
+select is((select count(*)::int from boq_material_allowances where id = '15120000-0000-0000-0000-000000003002'), 0, '#1626 the clear on the archived item landed');
+select throws_ok($$ insert into boq_material_allowances (boq_item_id, item_id, planned_quantity) values ('15120000-0000-0000-0000-0000000000e1', '15120000-0000-0000-0000-000000001002', 5) $$,
+  '42501', null, 'FR-STK-050 setting an allowance on an archived item stays refused');
 reset role;
 select * from finish();
 rollback;

@@ -4,6 +4,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router';
 import {
   Button, Card, CardHead, CardPad, ConfirmDialog, DataTable, Drawer, ListState, StatusPill, Tooltip, useToast, type Column,
 } from '@/src/components/ui';
+import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useAuth } from '@/src/auth/useAuth';
 import { usePermission } from '@/src/auth/usePermission';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
@@ -75,6 +76,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
   const [searchParams, setSearchParams] = useSearchParams();
   const may = usePermission();
   const { currentUser } = useAuth();
+  const { realRole, effectiveRole } = useEffectiveRole();
   const { toast } = useToast();
   const erp = useErpItemOptions('sales');
   const revenueMode = useRevenueMode();
@@ -94,7 +96,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
   const [deleteFor, setDeleteFor] = useState<BoqItemRow | null>(null);
   const [allowanceFor, setAllowanceFor] = useState<BoqItemRow | null>(null);
   // #1512 S5: planned material per work item - Finance rank and above, or this project's own PM (PQ-7; RLS decides).
-  const canSetAllowance = may('edit', 'materialAllowance', { currentUserId: currentUser?.id, record: { project_manager_id: projectManagerId } });
+  const canSetAllowance = may('edit', 'materialAllowance', { currentUserId: currentUser?.id, record: { project_manager_id: projectManagerId, viewOnly: realRole !== effectiveRole } });
   const [claimFormOpen, setClaimFormOpen] = useState(false);
   const [assessOpen, setAssessOpen] = useState(false);
   const [contractLinesOpen, setContractLinesOpen] = useState(false);

@@ -76,11 +76,33 @@ describe('Material allowance editor', () => {
     await waitFor(() => expect(allowances.set).toHaveBeenCalledWith({ id: 'a1', boqItemId: 'b1', itemId: 'i1', plannedQuantity: '75' }));
   });
 
-  it('FR-STK-050 Clear removes an allowance', async () => {
+  it('#1626 Clear asks first: nothing is written until confirmed, Cancel keeps the allowance', async () => {
     renderIt();
     const list = await screen.findByRole('list', { name: 'Material allowance' });
     await userEvent.click(within(list).getByRole('button', { name: /Clear/ }));
+    const dialog = await screen.findByRole('alertdialog');
+    expect(dialog).toHaveTextContent('CEM - Cement 50kg');
+    expect(allowances.clear).not.toHaveBeenCalled();
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+    expect(allowances.clear).not.toHaveBeenCalled();
+  });
+
+  it('FR-STK-050 confirming Clear removes the allowance', async () => {
+    renderIt();
+    const list = await screen.findByRole('list', { name: 'Material allowance' });
+    await userEvent.click(within(list).getByRole('button', { name: /Clear/ }));
+    await userEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Clear allowance' }));
     await waitFor(() => expect(allowances.clear).toHaveBeenCalledWith('a1'));
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+  });
+
+  it('#1626 an allowance on an archived item still names the item, so it can be cleared', async () => {
+    master.listItems.mockImplementation(async (includeArchived: boolean) => includeArchived ? [...items, { id: 'i3', code: 'OLD', name: 'Old cement', unit_id: 'u1', archived_at: '2026-10-01' }] : items);
+    allowances.list.mockResolvedValue([{ id: 'a3', boqItemId: 'b1', itemId: 'i3', plannedQuantity: '8' }]);
+    renderIt();
+    const list = await screen.findByRole('list', { name: 'Material allowance' });
+    expect(await within(list).findByText('OLD - Old cement')).toBeInTheDocument();
   });
 
   it('a quantity of 0 or with more than 3 decimals is refused before any write', async () => {

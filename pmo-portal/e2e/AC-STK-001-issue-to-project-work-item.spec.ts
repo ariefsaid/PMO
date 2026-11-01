@@ -49,10 +49,13 @@ test('AC-STK-001: a storekeeper issues 30 of 100 bags to a project work item and
 
   // Then 4: the consumption report shows 30 used this month on that work item, against its allowance of 100
   const byMonth = page.getByRole('table', { name: 'By month' }).getByRole('row').filter({ hasText: item.code }).filter({ hasText: work.item_code });
-  await expect(byMonth, 'this month: 30 issued, 30 net, issued by the Engineer').toContainText('30');
+  // By month columns: 0 Month, 1 Work item, 2 Item, 3 Issued, 4 Returned, 5 Net used. Each figure is checked in its own cell, exactly.
+  await expect(byMonth.getByRole('cell').nth(3), 'this month: 30 issued').toHaveText(/^30$/);
+  await expect(byMonth.getByRole('cell').nth(4), 'nothing returned').toHaveText(/^0$/);
+  await expect(byMonth.getByRole('cell').nth(5), '30 net used').toHaveText(/^30\s+\S+$/);
   await expect(byMonth).toContainText('Tomas Beck');
   const against = page.getByRole('table', { name: 'Against allowance' }).getByRole('row').filter({ hasText: item.code }).filter({ hasText: work.item_code });
-  await expect(against.getByRole('cell').nth(2), 'the allowance is 100').toHaveText(/^100\b/);
-  await expect(against.getByRole('cell').nth(3), '30 used to date').toHaveText(/^30\b/);
+  await expect(against.getByRole('cell').nth(2), 'the allowance is 100').toHaveText(/^100\s+\S+$/);
+  await expect(against.getByRole('cell').nth(3), '30 used to date').toHaveText(/^30\s+\S+$/);
   await expect(against, 'within allowance: no flag').not.toContainText('Over allowance');
 });
