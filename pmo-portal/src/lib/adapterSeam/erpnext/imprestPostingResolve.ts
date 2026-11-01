@@ -22,7 +22,7 @@ export async function resolveImprestPosting(truth: ImprestGateTruth, deps: Impre
   const binding = await deps.readBinding();
   if (!binding.company) return refuse('config-rejected', 'the ERPNext binding names no company');
   if (!binding.headOfficeAccount) {
-    return refuse('imprest-head-office-account-unconfigured', 'the ERPNext binding has no default bank or cash account to fund site floats from');
+    return refuse('imprest-head-office-account-unconfigured', 'the ERPNext binding has no default bank account to fund site floats from');
   }
   const company = await deps.readErpCompany(binding.company);
   if (!company?.currency) return refuse('config-rejected', 'ERPNext states no default currency for the company');

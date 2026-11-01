@@ -3265,10 +3265,11 @@ export function imprestResolveDepsLive(serviceClient: SupabaseClient, org: OrgBi
   const text = (value: unknown): string | null => (typeof value === 'string' && value.trim() ? value.trim() : null);
   const erp = expenseResolveDepsLive(serviceClient, org, cache);
   return {
-    // The head office end is the binding's BANK account first (it funds site cash), the company cash account as the fallback.
+    // The head office end is the binding's BANK account (it funds site cash). No fallback to the company cash account: that
+    // would post a cash-to-cash "Bank Entry"; an unset bank account refuses (imprest-head-office-account-unconfigured).
     readBinding: () => Promise.resolve({
       company: text(org.company),
-      headOfficeAccount: text(org.config.default_bank_account) ?? text(org.config.default_cash_account),
+      headOfficeAccount: text(org.config.default_bank_account),
     }),
     readErpAccounts: erp.readErpAccounts,
     readErpCompany: async (company) => {

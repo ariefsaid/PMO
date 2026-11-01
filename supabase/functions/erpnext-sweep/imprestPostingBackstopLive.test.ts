@@ -5,7 +5,7 @@
 // Verify: cd supabase/functions/erpnext-sweep && deno test imprestPostingBackstopLive.test.ts --config deno.json --allow-env --allow-net --allow-read
 
 (Deno as unknown as { serve: (...a: unknown[]) => unknown }).serve = () => ({ finished: Promise.resolve() });
-const { imprestPostingBackstopDepsLive } = await import('./index.ts');
+const { imprestPostingBackstopDepsLive, imprestResolveDepsLive } = await import('./index.ts');
 type OrgBinding = Parameters<typeof imprestPostingBackstopDepsLive>[1];
 type IntentRow = Parameters<ReturnType<typeof imprestPostingBackstopDepsLive>['findOutbox']>[0];
 function assertEquals(actual: unknown, expected: unknown, msg = ''): void {
@@ -164,4 +164,11 @@ Deno.test('AC-IMP-072 the gate: a refusal class is a recorded refusal, anything 
   thrown = '';
   try { await deps(bad.client).assertGate(intent()); } catch (e) { thrown = (e as Error).message; }
   assertEquals(thrown.includes('imprest-gate-truth-malformed'), true);
+});
+
+Deno.test('AC-IMP-071 head office is the binding\'s bank account; a company cash account alone is not a funding source', async () => {
+  const read = (config: Record<string, unknown>) =>
+    imprestResolveDepsLive(fakeClient().client as never, { ...ORG_BINDING, config } as never).readBinding();
+  assertEquals((await read({ default_bank_account: 'Bank - X', default_cash_account: 'Cash - X' })).headOfficeAccount, 'Bank - X');
+  assertEquals((await read({ default_cash_account: 'Cash - X' })).headOfficeAccount, null);
 });
