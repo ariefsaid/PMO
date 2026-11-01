@@ -87,6 +87,8 @@ select is((select billing_kind from public.sales_invoices where id='04080000-000
 reset role;
 
 -- ── T3: kind-only correction (AC-006) ─────────────────────────────────────────────────────────
+-- the native subject is paid too, so both source types are corrected while paid (restored below)
+update public.sales_invoices set status='Paid', erp_outstanding_amount=0 where id='04080000-0000-0000-0000-0000000000e2';
 -- snapshot of every column except the kind, to prove nothing else moved
 create temp table bk_before as
   select id, to_jsonb(si) - 'billing_kind' as row_data from public.sales_invoices si
@@ -102,7 +104,7 @@ set local request.jwt.claims='{"sub":"04080000-0000-0000-0000-0000000000a1","rol
 select lives_ok($$select public.set_sales_invoice_billing_kind('04080000-0000-0000-0000-0000000000e1','other')$$,
                 'AC-006 Finance corrects the kind of a PAID adopted invoice on the same project');
 select lives_ok($$select public.set_sales_invoice_billing_kind('04080000-0000-0000-0000-0000000000e2','other')$$,
-                'AC-006 Finance corrects the kind of a native invoice');
+                'AC-006 Finance corrects the kind of a PAID native invoice');
 select is((select jsonb_object_agg(id::text, to_jsonb(si) - 'billing_kind') from public.sales_invoices si
             where id in ('04080000-0000-0000-0000-0000000000e1','04080000-0000-0000-0000-0000000000e2')),
           (select jsonb_object_agg(id::text, row_data) from bk_before),
@@ -136,6 +138,7 @@ select throws_ok($$select public.set_sales_invoice_billing_kind('04080000-0000-0
 reset role;
 -- restore the two subjects to contract for the aggregate blocks that follow
 update public.sales_invoices set billing_kind='contract' where id in ('04080000-0000-0000-0000-0000000000e1','04080000-0000-0000-0000-0000000000e2');
+update public.sales_invoices set status='Unpaid', erp_outstanding_amount=200 where id='04080000-0000-0000-0000-0000000000e2';
 
 -- ── T4: native creation carries the kind (AC-011) ─────────────────────────────────────────────
 -- native creation needs an org where no ERP owns revenue

@@ -716,7 +716,8 @@ async function upsertSalesInvoiceMirror(ctx: ReadModelWriterCtx, canonical: PmoR
     const workOrderId = await resolveLinkOrNull(ctx, 'work_orders', record.workOrderId);
     // #1471 (D5): only the two known kinds are written; anything else is ignored so a bad value cannot abort the mirror
     // after the ERP document already exists. Update/transition branches never mention the column (FR-012).
-    const billingKind = record.billingKind === 'contract' || record.billingKind === 'other' ? record.billingKind : null;
+    // A kind only means something on a project-linked invoice, so an unlinked mirror keeps the column default.
+    const billingKind = projectId && (record.billingKind === 'contract' || record.billingKind === 'other') ? record.billingKind : null;
     // project_id and customer_id are machine-set from the command record
     // Luna BLOCK 4: stamp author_user_id = the dispatch caller (creator) so the submit SoD is not a
     // no-op (the RPC skips the approver≠author check when author is null). ctx.callerUserId is

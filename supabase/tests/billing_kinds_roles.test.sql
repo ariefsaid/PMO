@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap;
-select plan(34);   -- set by the plan script below
+select plan(36);   -- set by the plan script below
 
 -- ── fixture ────────────────────────────────────────────────────────────────────────────────────
 insert into public.organizations (id,name) values
@@ -86,8 +86,10 @@ select throws_ok($$select public.set_sales_invoice_billing_kind('04080000-0000-0
 set local request.jwt.claims='{"sub":"04080000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select throws_ok($$select public.set_sales_invoice_billing_kind('04080000-0000-0000-0000-0000000000e9','other')$$, 'P0002', null, 'AC-007 this org''s Finance user cannot reach a foreign invoice');
 select throws_ok($$select public.assign_sales_invoice_project('04080000-0000-0000-0000-0000000000e3','04080000-0000-0000-0000-0000000000d9','other')$$, 'P0002', null, 'AC-007 a foreign project is refused');
+select throws_ok($$select public.assign_sales_invoice_project('04080000-0000-0000-0000-0000000000e9','04080000-0000-0000-0000-0000000000d9','other')$$, 'P0002', null, 'AC-007 this org''s Finance user cannot link or classify a foreign invoice');
 reset role;
 select is((select billing_kind from public.sales_invoices where id='04080000-0000-0000-0000-0000000000e9'), 'contract', 'AC-007 the refused foreign write left the foreign invoice unchanged');
+select is((select project_id from public.sales_invoices where id='04080000-0000-0000-0000-0000000000e9'), '04080000-0000-0000-0000-0000000000d9'::uuid, 'AC-007 the refused foreign link left the foreign invoice''s project unchanged');
 
 -- ── direct-write paths: the missing column grant is the control ───────────────────────────────
 select ok(not has_column_privilege('authenticated','public.sales_invoices','billing_kind','UPDATE')

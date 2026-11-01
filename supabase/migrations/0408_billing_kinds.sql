@@ -76,11 +76,9 @@ begin
   if p_billing_kind is not null and p_billing_kind not in ('contract','other') then
     raise exception 'billing kind must be contract or other' using errcode = '23514', detail = 'billing-kind-invalid';
   end if;
-  select * into v_si from public.sales_invoices where id = p_si_id for update;
+  -- Caller's org folded into the lookup: a foreign invoice is indistinguishable from a missing one (no existence signal).
+  select * into v_si from public.sales_invoices where id = p_si_id and org_id = public.auth_org_id() for update;
   if not found then raise exception 'invoice not found' using errcode = 'P0002'; end if;
-  if v_si.org_id is distinct from public.auth_org_id() then
-    raise exception 'not authorized' using errcode = '42501';
-  end if;
   if p_project_id is null or not exists (
     select 1 from public.projects p where p.id = p_project_id and p.org_id = v_si.org_id
   ) then raise exception 'project not found' using errcode = 'P0002'; end if;

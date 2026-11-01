@@ -259,9 +259,9 @@ Deno.test({
 });
 
 Deno.test({
-  name: 'FR-012 Sales Invoice creation ignores an unknown or absent billing kind so the column default applies',
+  name: 'FR-012 Sales Invoice creation ignores an unknown or absent billing kind, or a kind without a project, so the column default applies',
   fn: async () => {
-    for (const record of [{ billingKind: 'bogus' }, { billingKind: null }, {}]) {
+    for (const record of [{ billingKind: 'bogus' }, { billingKind: null }, {}, { billingKind: 'other', projectId: undefined }]) {
       const { client, calls } = makeFakeClient({ projects: { org_id: 'org-1' }, companies: { org_id: 'org-1' } });
       await getReadModelWriter('revenue').upsert(
         { serviceClient: client as never, orgId: 'org-1' }, siCanonical,
