@@ -9,8 +9,7 @@
 - **Executor:** Orca workers per `docs/orca-dispatch.md`. **S1 changes `transition_project`** (the money/SoD transition RPC,
   win branch untouched): per CLAUDE.md it is Director-dispatched per issue, and **S1 ships alone** (own PR, not batched);
   `security-auditor` at full depth on S1 + S2. S3-S6 are a normal FE lane.
-- **Migration numbers (Lane A range 0430-0439):** `0437` (columns + `transition_project`), `0438` (`get_loss_breakdown`).
-  `0439` is spare. Never hand-roll a renumber: `scripts/renumber-migration.sh`.
+- **Migration numbers:** S1 is `0449` (columns + `transition_project`; renumbered from 0437 because dev passed it), S2 `0438` (`get_loss_breakdown`) is renumbered above the highest number on `origin/dev` when it is built. Never hand-roll a renumber: `scripts/renumber-migration.sh`.
 - **Order:** S1 -> S2 -> S3 are independent of #1637. S4 needs #1637's S2 on the base branch
   (`components/project-status/ProjectTransitionConfirm.tsx`). If it is absent: **stop and ask the Director**, never create a second confirm.
 - **#1638 builds first (pipeline stage history, migrations 0430-0433).** Before writing any SQL: `git fetch origin && git rebase origin/dev`,
@@ -37,9 +36,9 @@
 
 | File | Change | Slice |
 |---|---|---|
-| `supabase/migrations/0437_lost_reason.sql` | new | S1 |
-| `supabase/migrations/rollback/0437_lost_reason_down.sql` | new | S1 |
-| `supabase/tests/0437_lost_reason.test.sql` | new | S1 |
+| `supabase/migrations/0449_lost_reason.sql` | new | S1 |
+| `supabase/migrations/rollback/0449_lost_reason_down.sql` | new | S1 |
+| `supabase/tests/0449_lost_reason.test.sql` | new | S1 |
 | `supabase/tests/0030_project_loss_path.test.sql`, `0236_project_declined_outcome.test.sql` | pass a reason | S1 |
 | `scripts/isolation-probe-denominator.json` | definer entry `transition_project(uuid,project_status,text,date)` -> `transition_project(uuid,project_status,text,date,text,text)` | S1 |
 | `supabase/migrations/0438_loss_breakdown.sql`, `rollback/0438_loss_breakdown_down.sql` | new | S2 |
@@ -74,107 +73,107 @@ so the retained-definer allow-list count is unchanged; the re-created function m
 `get_loss_breakdown` is `security invoker`, not a definer, and is NOT added to the allow-list); i18n parity (`npm run check:i18n`).
 **Isolation denominator guard** (CI `pgtap` job, `.github/workflows/ci.yml:403-406`): it compares every SECURITY DEFINER
 `regprocedure` against `scripts/isolation-probe-denominator.json` in both directions, so the new 6-argument signature is an
-UNLISTED surface and the old 4-argument entry is STALE until S1 swaps the one line (`:400`). `get_loss_breakdown` is not a definer
+UNLISTED surface and the old 4-argument entry is STALE until S1 swaps the one line (`:407`). `get_loss_breakdown` is not a definer
 and is not listed. **`scripts/pmo-load.test.mjs:72`** parses the transition map from the latest file matching
 `create or replace function (public\.)?transition_project\(`: S1 therefore re-creates the function with `create or replace`
-(after the drop), so that test reads 0437's map, not a stale one.
+(after the drop), so that test reads 0449's map, not a stale one.
 
 ---
 
 ## S1: columns + `transition_project` (ships alone; money-path-adjacent)
 
-### S1-T1 Failing pgTAP: `supabase/tests/0437_lost_reason.test.sql` (5 min)
+### S1-T1 Failing pgTAP: `supabase/tests/0449_lost_reason.test.sql` (5 min)
 
 Fixtures: one org, one PM (Project Manager), four projects (Negotiation, Tender Submitted, Leads, PQ Submitted). The role gate is
 unchanged and stays proven by 0027 (S1-T5), so no Engineer fixture is needed here.
 ```sql
--- 0437_lost_reason.test.sql — #1577
--- AC-LR-001..007. Isolated org; UUID prefix 04370000-…
+-- 0449_lost_reason.test.sql — #1577
+-- AC-LR-001..007. Isolated org; UUID prefix 04490000-…
 begin;
 select plan(24);   -- 23 when #1638 is not on the base branch (drop the advance_project_stage assertion)
 
-insert into organizations (id, name) values ('04370000-0000-0000-0000-000000000001', 'Lost Reason Org (0437)');
-insert into auth.users (id, email) values ('04370000-0000-0000-0000-0000000000a1', 'pm@lostreason0437.example');
+insert into organizations (id, name) values ('04490000-0000-0000-0000-000000000001', 'Lost Reason Org (0449)');
+insert into auth.users (id, email) values ('04490000-0000-0000-0000-0000000000a1', 'pm@lostreason0449.example');
 insert into profiles (id, org_id, full_name, email, role) values
-  ('04370000-0000-0000-0000-0000000000a1', '04370000-0000-0000-0000-000000000001',
-   'PM 0437', 'pm@lostreason0437.example', 'Project Manager');
+  ('04490000-0000-0000-0000-0000000000a1', '04490000-0000-0000-0000-000000000001',
+   'PM 0449', 'pm@lostreason0449.example', 'Project Manager');
 insert into projects (id, org_id, code, name, status, project_manager_id, contract_value, tax_treatment, tax_amount) values
-  ('04370000-0000-0000-0000-000000000101','04370000-0000-0000-0000-000000000001','L-A','A','Negotiation','04370000-0000-0000-0000-0000000000a1',0,'exclusive',0),
-  ('04370000-0000-0000-0000-000000000102','04370000-0000-0000-0000-000000000001','L-B','B','Tender Submitted','04370000-0000-0000-0000-0000000000a1',0,'exclusive',0),
-  ('04370000-0000-0000-0000-000000000103','04370000-0000-0000-0000-000000000001','L-C','C','Leads','04370000-0000-0000-0000-0000000000a1',0,'exclusive',0),
-  ('04370000-0000-0000-0000-000000000104','04370000-0000-0000-0000-000000000001','L-D','D','PQ Submitted','04370000-0000-0000-0000-0000000000a1',0,'exclusive',0);
+  ('04490000-0000-0000-0000-000000000101','04490000-0000-0000-0000-000000000001','L-A','A','Negotiation','04490000-0000-0000-0000-0000000000a1',0,'exclusive',0),
+  ('04490000-0000-0000-0000-000000000102','04490000-0000-0000-0000-000000000001','L-B','B','Tender Submitted','04490000-0000-0000-0000-0000000000a1',0,'exclusive',0),
+  ('04490000-0000-0000-0000-000000000103','04490000-0000-0000-0000-000000000001','L-C','C','Leads','04490000-0000-0000-0000-0000000000a1',0,'exclusive',0),
+  ('04490000-0000-0000-0000-000000000104','04490000-0000-0000-0000-000000000001','L-D','D','PQ Submitted','04490000-0000-0000-0000-0000000000a1',0,'exclusive',0);
 
 set local role authenticated;
-set local request.jwt.claims = '{"sub":"04370000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+set local request.jwt.claims = '{"sub":"04490000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 
 -- AC-LR-001
-select lives_ok($$ select transition_project('04370000-0000-0000-0000-000000000101','Loss Tender',null,null,'price','Undercut by 8%') $$,
+select lives_ok($$ select transition_project('04490000-0000-0000-0000-000000000101','Loss Tender',null,null,'price','Undercut by 8%') $$,
   'AC-LR-001: Negotiation -> Loss Tender with a reason succeeds');
-select is((select lost_reason || '|' || lost_note from projects where id='04370000-0000-0000-0000-000000000101'),
+select is((select lost_reason || '|' || lost_note from projects where id='04490000-0000-0000-0000-000000000101'),
   'price|Undercut by 8%', 'AC-LR-001: reason and note stored');
 -- audit_events is readable by own-org Admin/Operator only (0076), so read it as the table owner.
 reset role;
 select is((select detail ->> 'lost_reason' from audit_events where action='project.transition'
-            and entity_id='04370000-0000-0000-0000-000000000101' order by created_at desc limit 1),
+            and entity_id='04490000-0000-0000-0000-000000000101' order by created_at desc limit 1),
   'price', 'AC-LR-001: audit detail carries the reason');
 set local role authenticated;
-set local request.jwt.claims = '{"sub":"04370000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+set local request.jwt.claims = '{"sub":"04490000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 
 -- AC-LR-002 (null / blank / unknown, both lost statuses)
-select throws_ok($$ select transition_project('04370000-0000-0000-0000-000000000102','Loss Tender') $$,
+select throws_ok($$ select transition_project('04490000-0000-0000-0000-000000000102','Loss Tender') $$,
   'P0001', null, 'AC-LR-002: Loss Tender without a reason is refused');
-select throws_ok($$ select transition_project('04370000-0000-0000-0000-000000000102','Declined',null,null,'  ') $$,
+select throws_ok($$ select transition_project('04490000-0000-0000-0000-000000000102','Declined',null,null,'  ') $$,
   'P0001', null, 'AC-LR-002: blank reason refused');
-select throws_ok($$ select transition_project('04370000-0000-0000-0000-000000000102','Declined',null,null,'bogus') $$,
+select throws_ok($$ select transition_project('04490000-0000-0000-0000-000000000102','Declined',null,null,'bogus') $$,
   'P0001', null, 'AC-LR-002: unknown reason key refused');
-select is((select status::text from projects where id='04370000-0000-0000-0000-000000000102'),
+select is((select status::text from projects where id='04490000-0000-0000-0000-000000000102'),
   'Tender Submitted', 'AC-LR-002: refused call left the project unchanged');
 
 -- AC-LR-003
-select throws_ok($$ select transition_project('04370000-0000-0000-0000-000000000102','Loss Tender',null,null,'other',' ') $$,
+select throws_ok($$ select transition_project('04490000-0000-0000-0000-000000000102','Loss Tender',null,null,'other',' ') $$,
   'P0001', null, 'AC-LR-003: other without a note refused');
-select lives_ok($$ select transition_project('04370000-0000-0000-0000-000000000102','Loss Tender',null,null,'other','Client merged') $$,
+select lives_ok($$ select transition_project('04490000-0000-0000-0000-000000000102','Loss Tender',null,null,'other','Client merged') $$,
   'AC-LR-003: other with a note succeeds');
-select throws_ok($$ select transition_project('04370000-0000-0000-0000-000000000103','Declined',null,null,'price', repeat('x',501)) $$,
+select throws_ok($$ select transition_project('04490000-0000-0000-0000-000000000103','Declined',null,null,'price', repeat('x',501)) $$,
   'P0001', null, 'AC-LR-003: a note over 500 characters is refused');
 
 -- AC-LR-004 revive clears, audit keeps, re-lose stores fresh
-select lives_ok($$ select transition_project('04370000-0000-0000-0000-000000000103','Declined',null,null,'capacity',null) $$,
+select lives_ok($$ select transition_project('04490000-0000-0000-0000-000000000103','Declined',null,null,'capacity',null) $$,
   'AC-LR-004: Leads -> Declined with capacity');
-select lives_ok($$ select transition_project('04370000-0000-0000-0000-000000000103','Negotiation') $$,
+select lives_ok($$ select transition_project('04490000-0000-0000-0000-000000000103','Negotiation') $$,
   'AC-LR-004: Declined -> Negotiation (revive)');
-select is((select lost_reason is null and lost_note is null from projects where id='04370000-0000-0000-0000-000000000103'),
+select is((select lost_reason is null and lost_note is null from projects where id='04490000-0000-0000-0000-000000000103'),
   true, 'AC-LR-004: revive cleared the reason and note');
 reset role;
 select is((select count(*)::int from audit_events where action='project.transition'
-            and entity_id='04370000-0000-0000-0000-000000000103' and detail ->> 'lost_reason' = 'capacity'),
+            and entity_id='04490000-0000-0000-0000-000000000103' and detail ->> 'lost_reason' = 'capacity'),
   1, 'AC-LR-004: the earlier reason is still in its audit row');
 set local role authenticated;
-set local request.jwt.claims = '{"sub":"04370000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+set local request.jwt.claims = '{"sub":"04490000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 
-select lives_ok($$ select transition_project('04370000-0000-0000-0000-000000000103','Loss Tender',null,null,'timing',null) $$,
+select lives_ok($$ select transition_project('04490000-0000-0000-0000-000000000103','Loss Tender',null,null,'timing',null) $$,
   'AC-LR-004: re-losing the revived deal succeeds');
-select is((select lost_reason from projects where id='04370000-0000-0000-0000-000000000103'),
+select is((select lost_reason from projects where id='04490000-0000-0000-0000-000000000103'),
   'timing', 'AC-LR-004: the re-loss stores the new reason');
 
 -- AC-LR-005 a reason passed with a non-lost target is never stored
-select lives_ok($$ select transition_project('04370000-0000-0000-0000-000000000104','Quotation Submitted',null,null,'price','x') $$,
+select lives_ok($$ select transition_project('04490000-0000-0000-0000-000000000104','Quotation Submitted',null,null,'price','x') $$,
   'AC-LR-005: non-lost target with a stray reason succeeds');
-select is((select lost_reason is null from projects where id='04370000-0000-0000-0000-000000000104'),
+select is((select lost_reason is null from projects where id='04490000-0000-0000-0000-000000000104'),
   true, 'AC-LR-005: stray reason not stored');
 
 -- AC-LR-007 authenticated cannot write the columns directly
-select throws_ok($$ update projects set lost_reason = 'price' where id='04370000-0000-0000-0000-000000000104' $$,
+select throws_ok($$ update projects set lost_reason = 'price' where id='04490000-0000-0000-0000-000000000104' $$,
   '42501', null, 'AC-LR-007: direct UPDATE of lost_reason is denied');
 select throws_ok($$ insert into projects (id, org_id, code, name, status, lost_reason)
-    values ('04370000-0000-0000-0000-000000000199','04370000-0000-0000-0000-000000000001','L-X','X','Leads','price') $$,
+    values ('04490000-0000-0000-0000-000000000199','04490000-0000-0000-0000-000000000001','L-X','X','Leads','price') $$,
   '42501', null, 'AC-LR-007: an INSERT naming lost_reason is denied (column-granted INSERT, 0173)');
 -- #1638 only (skip and use plan(23) if `advance_project_stage` does not exist): the dated-move wrapper cannot lose a deal.
-select throws_ok($$ select advance_project_stage('04370000-0000-0000-0000-000000000104','Loss Tender', current_date) $$,
+select throws_ok($$ select advance_project_stage('04490000-0000-0000-0000-000000000104','Loss Tender', current_date) $$,
   'P0001', null, 'AC-LR-007: advance_project_stage cannot reach the lost group without a reason');
 
 reset role;
-select throws_ok($$ update projects set lost_reason = 'price' where id='04370000-0000-0000-0000-000000000104' $$,
+select throws_ok($$ update projects set lost_reason = 'price' where id='04490000-0000-0000-0000-000000000104' $$,
   '23514', null, 'AC-LR-007 (FR-LR-009): even the owner cannot put a reason on an open deal');
 select ok(not has_function_privilege('anon', 'public.transition_project(uuid,project_status,text,date,text,text)', 'execute'),
   'AC-LR-007: anon cannot execute transition_project');
@@ -186,7 +185,7 @@ rollback;
 Adjust `plan(N)` to the final assertion count (24 as drafted: count the assertion `select`s).
 When the `advance_project_stage` line runs, AC-LR-005 has already moved project 104 to `Quotation Submitted`, and
 `Quotation Submitted -> Loss Tender` is legal, so the P0001 it gets is the reason check, not the transition map.
-Run it first (RED): `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0437_lost_reason.test.sql'` fails (no such columns).
+Run it first (RED): `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0449_lost_reason.test.sql'` fails (no such columns).
 
 ### S1-T2 AC-LR-006 pgTAP updates (3 min)
 - `supabase/tests/0030_project_loss_path.test.sql:28` -> `transition_project('00300000-…0010','Loss Tender',null,null,'price',null)`.
@@ -197,15 +196,15 @@ Run it first (RED): `scripts/with-db-lock.sh bash -c 'supabase db reset && supab
 - Every other pgTAP call of `transition_project` targets a non-lost status (swept: `grep -rnE "transition_project\([^)]*'(Loss Tender|Declined)'" supabase/tests`
   returns only 0027, 0030, 0032 and 0236), so no other test file changes.
 
-### S1-T3 Migration `supabase/migrations/0437_lost_reason.sql` (10 min)
+### S1-T3 Migration `supabase/migrations/0449_lost_reason.sql` (10 min)
 
 Header comment (public repo: describe what and why, no weakness language):
 ```sql
--- 0437_lost_reason.sql — #1577: a reason is required when a deal is lost or declined.
+-- 0449_lost_reason.sql — #1577: a reason is required when a deal is lost or declined.
 --   AC-LR-001..007. projects gains lost_reason / lost_note (nullable: historic losses stay "Not recorded").
---   transition_project gains p_lost_reason / p_lost_note. Body is 0236's VERBATIM except the six marked edits (⚑ 0437).
+--   transition_project gains p_lost_reason / p_lost_note. Body is 0236's VERBATIM except the six marked edits (⚑ 0449).
 --   A reason exists only on a lost or declined deal (projects_lost_reason_status_check).
--- Reversibility: rollback/0437_lost_reason_down.sql restores 0236's function and drops the columns.
+-- Reversibility: rollback/0449_lost_reason_down.sql restores 0236's function and drops the columns.
 
 alter table public.projects
   add column lost_reason text,
@@ -225,8 +224,8 @@ Then the function. **Build it from the latest body by copy, not by retyping** (`
 ```bash
 cd <worktree root>
 SRC=$(grep -lE "create (or replace )?function (public\.)?transition_project\(" supabase/migrations/*.sql | sort | tail -1)
-test "$SRC" != supabase/migrations/0437_lost_reason.sql || echo "STOP: run this before 0437 has its function"
-sed -nE '/^create or replace function (public\.)?transition_project\(/,/^end; \$\$;/p' "$SRC" >> supabase/migrations/0437_lost_reason.sql
+test "$SRC" != supabase/migrations/0449_lost_reason.sql || echo "STOP: run this before 0449 has its function"
+sed -nE '/^create or replace function (public\.)?transition_project\(/,/^end; \$\$;/p' "$SRC" >> supabase/migrations/0449_lost_reason.sql
 # then apply ONLY edits E1-E6 to the appended function
 ```
 Apply exactly these six edits to the copied function (everything else byte-identical, including every SECURITY comment):
@@ -236,10 +235,10 @@ Apply exactly these six edits to the copied function (everything else byte-ident
   `p_id uuid, p_to project_status, p_customer_contract_ref text default null, p_contract_date date default null,`
   `p_lost_reason text default null, p_lost_note text default null)`.
 - **E2 declare**, after `v_role user_role := auth_role();` add
-  `v_reason text := nullif(btrim(p_lost_reason), '');  -- ⚑ 0437` and `v_note text := nullif(btrim(p_lost_note), '');  -- ⚑ 0437`.
+  `v_reason text := nullif(btrim(p_lost_reason), '');  -- ⚑ 0449` and `v_note text := nullif(btrim(p_lost_note), '');  -- ⚑ 0449`.
 - **E3 validation**, immediately after the "Transition-map legality" `if ... raise exception 'illegal transition ...' end if;` and before `-- Branch on the target`:
 ```sql
-  -- ⚑ 0437 (#1577, FR-LR-002/003): a lost or declined deal must say why. The role, org, membership and legality
+  -- ⚑ 0449 (#1577, FR-LR-002/003): a lost or declined deal must say why. The role, org, membership and legality
   -- checks above run first, so an unauthorized or illegal call still gets its own error.
   if p_to in ('Loss Tender','Declined') then
     if v_reason is null or not (v_reason = any (array['price','competitor','scope_fit','timing','capacity',
@@ -255,9 +254,9 @@ Apply exactly these six edits to the copied function (everything else byte-ident
   end if;
 ```
 - **E4 loss branch** (`elsif p_to in ('Loss Tender','Declined') then`, 0236:167-172): after the line `decided_at  = now(),` insert
-  `lost_reason = v_reason,  -- ⚑ 0437` and `lost_note   = v_note,    -- ⚑ 0437`.
+  `lost_reason = v_reason,  -- ⚑ 0449` and `lost_note   = v_note,    -- ⚑ 0449`.
 - **E5 else (ordinary) branch** (0236:173-177): after the line `status      = p_to,` insert
-  `lost_reason = null,  -- ⚑ 0437 FR-LR-005: a revived deal is no longer lost` and `lost_note   = null,  -- ⚑ 0437`.
+  `lost_reason = null,  -- ⚑ 0449 FR-LR-005: a revived deal is no longer lost` and `lost_note   = null,  -- ⚑ 0449`.
   FR-LR-006: a stray reason on a non-lost target is never read. The win branch is untouched: a win is never legal from the
   lost group (Lost -> Negotiation only), and `projects_lost_reason_status_check` would refuse a won row carrying a reason.
 - **E6 audit detail**, append two keys inside `jsonb_build_object(...)`:
@@ -271,11 +270,11 @@ grant  execute on function public.transition_project(uuid, project_status, text,
 revoke execute on function public.transition_project(uuid, project_status, text, date, text, text) from anon;
 ```
 Verify the body diff shows only E1-E6:
-`diff <(sed -nE '/^create or replace function (public\.)?transition_project\(/,/^end; \$\$;/p' "$SRC") <(sed -n '/^create or replace function public\.transition_project(/,/^end; \$\$;/p' supabase/migrations/0437_lost_reason.sql)`.
-Then swap the definer line in `scripts/isolation-probe-denominator.json` (`:400`):
+`diff <(sed -nE '/^create or replace function (public\.)?transition_project\(/,/^end; \$\$;/p' "$SRC") <(sed -n '/^create or replace function public\.transition_project(/,/^end; \$\$;/p' supabase/migrations/0449_lost_reason.sql)`.
+Then swap the definer line in `scripts/isolation-probe-denominator.json` (`:407`):
 `"transition_project(uuid,project_status,text,date)",` -> `"transition_project(uuid,project_status,text,date,text,text)",` (keep the list order).
 
-### S1-T4 Rollback `supabase/migrations/rollback/0437_lost_reason_down.sql` (3 min)
+### S1-T4 Rollback `supabase/migrations/rollback/0449_lost_reason_down.sql` (3 min)
 `drop function public.transition_project(uuid, project_status, text, date, text, text);` then the `$SRC` function body verbatim
 (`create or replace function transition_project(...)` copied the same way), then the same three grant lines with the 4-argument signature,
 then `alter table public.projects drop constraint projects_lost_reason_status_check, drop constraint projects_lost_note_check, drop constraint projects_lost_reason_check, drop column lost_note, drop column lost_reason;`.
@@ -283,16 +282,16 @@ If #1638 is on the base branch its `advance_project_stage` keeps working across 
 name with four arguments, which resolves to either signature (plpgsql bodies hold no dependency on the dropped one).
 
 ### S1-T5 Green + siblings (5 min)
-`scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0437_lost_reason.test.sql supabase/tests/0030_project_loss_path.test.sql supabase/tests/0236_project_declined_outcome.test.sql supabase/tests/0027_project_transition_authz.test.sql supabase/tests/0028_project_transition_legality.test.sql supabase/tests/0029_project_win_path.test.sql supabase/tests/0031_project_decided_at_preserved.test.sql supabase/tests/0032_pipeline_stage_config_rls.test.sql supabase/tests/0033_project_direct_update_revoked.test.sql supabase/tests/0178_anon_executable_definers.test.sql supabase/tests/0137_service_role_grants.test.sql supabase/tests/0170_delete_path_sod_and_project_money_sod.test.sql supabase/tests/0176_witness_must_be_active.test.sql'`
+`scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0449_lost_reason.test.sql supabase/tests/0030_project_loss_path.test.sql supabase/tests/0236_project_declined_outcome.test.sql supabase/tests/0027_project_transition_authz.test.sql supabase/tests/0028_project_transition_legality.test.sql supabase/tests/0029_project_win_path.test.sql supabase/tests/0031_project_decided_at_preserved.test.sql supabase/tests/0032_pipeline_stage_config_rls.test.sql supabase/tests/0033_project_direct_update_revoked.test.sql supabase/tests/0178_anon_executable_definers.test.sql supabase/tests/0137_service_role_grants.test.sql supabase/tests/0170_delete_path_sod_and_project_money_sod.test.sql supabase/tests/0176_witness_must_be_active.test.sql'`
 (the win/SoD files prove the win branch is unchanged: FR-LR-007). If #1638 is on the base branch, append its
 `supabase/tests/pipeline_stage_history_write.test.sql` to the same command, and in that file append `,null,null,'price',null` to its one
 lost call (`transition_project('16380000-0000-0000-0000-000000000013','Loss Tender')`, #1638 plan Task 4): a step change, the
 AC-PSH-002 date oracle is untouched; grep that file and its siblings `pipeline_stage_history_*.test.sql` for any other lost call.
 Append `&& node scripts/check-isolation-denominator.mjs` inside the same `bash -c '…'` (it reads the freshly reset DB; green = the manifest swap is right). All green.
-Then `node --test scripts/pmo-load.test.mjs scripts/check-isolation-denominator.test.mjs` (AC-CSD-014 reads 0437's map; the manifest still parses) and `npm run check:migrations` (from `pmo-portal/`, no number collision).
+Then `node --test scripts/pmo-load.test.mjs scripts/check-isolation-denominator.test.mjs` (AC-CSD-014 reads 0449's map; the manifest still parses) and `npm run check:migrations` (from `pmo-portal/`, no number collision).
 
 ### S1-T6 Mutation check (3 min)
-Temporarily edit the migration's E3 condition to `if false then` and re-run 0437: AC-LR-002/003 must go RED. Revert. Record in the report.
+Temporarily edit the migration's E3 condition to `if false then` and re-run 0449: AC-LR-002/003 must go RED. Revert. Record in the report.
 Commit: `feat(db): lost reason required on lost/declined transitions (#1577)`.
 
 ---
@@ -370,7 +369,7 @@ grant  execute on function public.get_loss_breakdown(date, date) to authenticate
 Rollback `rollback/0438_loss_breakdown_down.sql`: `drop function if exists public.get_loss_breakdown(date, date);`.
 
 ### S2-T3 Green (3 min)
-`scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0438_loss_breakdown.test.sql supabase/tests/0437_lost_reason.test.sql supabase/tests/0178_anon_executable_definers.test.sql supabase/tests/0040_win_rate_all_time.test.sql supabase/tests/0041_win_rate_timeframe.test.sql'`.
+`scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0438_loss_breakdown.test.sql supabase/tests/0449_lost_reason.test.sql supabase/tests/0178_anon_executable_definers.test.sql supabase/tests/0040_win_rate_all_time.test.sql supabase/tests/0041_win_rate_timeframe.test.sql'`.
 Commit: `feat(db): get_loss_breakdown (#1577)`.
 
 ---
@@ -390,7 +389,7 @@ Test `src/lib/lostReasons.test.ts` (title tags `AC-LR-016`, `FR-LR-014`): the ke
 "Not recorded" for `null`; and every key has an entry in `public/locales/en/lostReason.json` `reasons` and `public/locales/id/lostReason.json`
 (read both with `fs.readFileSync`; fail if any key is missing).
 ```ts
-// src/lib/lostReasons.ts — the nine stored keys (mirror of projects_lost_reason_check in 0437) and the one validity rule.
+// src/lib/lostReasons.ts — the nine stored keys (mirror of projects_lost_reason_check in 0449) and the one validity rule.
 export const LOST_REASON_KEYS = [
   'price', 'competitor', 'scope_fit', 'timing', 'capacity', 'relationship', 'client_cancelled', 'no_decision', 'other',
 ] as const;
@@ -732,7 +731,7 @@ Report: branch, head SHA, commands + pass counts, deviations.
 
 ## 3. Deploy note (NFR-LR-009)
 
-Back to front: `0437`+`0438` (DB), then the FE. Until the FE lands, a user on the old bundle who marks a deal lost sees the
+Back to front: `0449`+`0438` (DB), then the FE. Until the FE lands, a user on the old bundle who marks a deal lost sees the
 server message "a reason is required when a deal is lost or declined" and the deal stays open; a reload picks up the picker.
 No shim, no data loss. S1 can merge to `dev` before S4 only if the Director accepts that window on `dev` (it is the same window prod sees
 between the DB push and the FE push); otherwise hold S1 and merge S1-S4 back to back.
@@ -747,7 +746,7 @@ No other plan or spec is edited. #1637's plan/spec stay as written; this plan ex
 
 | AC | Test |
 |---|---|
-| AC-LR-001..005, 007 | `supabase/tests/0437_lost_reason.test.sql` |
+| AC-LR-001..005, 007 | `supabase/tests/0449_lost_reason.test.sql` |
 | AC-LR-006 | `0027 0028 0029 0030 0031 0032 0033 0236` re-run (S1-T5) |
 | AC-LR-008, 009 | `supabase/tests/0438_loss_breakdown.test.sql` |
 | AC-LR-010, 013 (menu) | `components/ProjectStatusControl.lostReason.test.tsx` |
