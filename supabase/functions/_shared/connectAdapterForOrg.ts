@@ -7,7 +7,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 import type { ConnectAdapter } from '../../../pmo-portal/src/lib/adapterSeam/connect/types.ts';
 import { createErpnextConnectAdapter } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/connectAdapter.ts';
-import { createOdooConnectAdapter } from '../../../pmo-portal/src/lib/adapterSeam/odoo/connectAdapter.ts';
+import { createOdooSetupAdapter } from '../../../pmo-portal/src/lib/adapterSeam/odoo/connectAdapter.ts';
 import { bindCall } from '../../../pmo-portal/src/lib/adapterSeam/odoo/client.ts';
 import { erpClientForOrg } from './erpClientForOrg.ts';
 import { odooClientForOrg } from './odooClientForOrg.ts';
@@ -24,7 +24,7 @@ const FACTORIES: Record<string, (sc: SupabaseClient, orgId: string) => Promise<C
     const r = await odooClientForOrg(sc, orgId);
     if ('refusal' in r) throw refused('odoo', r.refusal);
     const plan = r.config.analytic_plan_id;
-    return createOdooConnectAdapter(bindCall(r.client), {
+    return createOdooSetupAdapter(bindCall(r.client), {
       companyId: r.companyId as number,
       analyticPlanId: Number.isInteger(plan) ? (plan as number) : null,
       unitMap: (r.config.unit_map ?? {}) as Record<string, string>,

@@ -79,7 +79,7 @@ describe('ECA setup verbs — census', () => {
   });
 
   it('Minor 6 a tier whose sweep pass does not exist yet takes no census and starts no run', async () => {
-    const r = await call({ setupAction: 'census', tier: 'odoo' });
+    const r = await call({ setupAction: 'census', tier: 'some-future-erp' });
     assertEquals(r.res.status, 400);
     assertEquals(rpcCall(r.calls, 'start_connect_run').length, 0);
     assertEquals(erpCalls(r.calls).length, 0);

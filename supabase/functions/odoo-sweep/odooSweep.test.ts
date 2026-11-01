@@ -6,7 +6,7 @@
 import { afterAll, describe, it } from '@std/testing/bdd';
 import { assert, assertEquals, assertRejects } from '@std/assert';
 import { createClient } from '@supabase/supabase-js';
-import { installEdgeEnv, jsonResponse, rpcCall, supabaseRpc, supabaseSelect, withFetchMock, type FetchCall, type MockRoute } from '../_shared/testing/edgeTestKit.ts';
+import { countResponse, installEdgeEnv, jsonResponse, rpcCall, supabaseRpc, supabaseSelect, withFetchMock, type FetchCall, type MockRoute } from '../_shared/testing/edgeTestKit.ts';
 import { ODOO_SWEEP_TICK_MAX_CALLS, sweepOdooOrg } from '../_shared/odooSweep.ts';
 import { createFakeOdoo, type FakeOdoo } from '../../../pmo-portal/src/lib/adapterSeam/odoo/fakeOdoo.ts';
 import type { ConnectionRecord } from '../../../pmo-portal/src/lib/adapterSeam/odoo/connectionState.ts';
@@ -21,12 +21,13 @@ const ORG = '0d000000-0000-4000-8000-000000000004';
 const ODOO = 'odoo.example.test';
 const KEY = 'stored-odoo-key';
 const FRESH = new Date().toISOString();
+const BINDING_ID = '0b000000-0000-4000-8000-000000000001';
 const binding = (over: Record<string, unknown> = {}) => ({
-  site_url: `https://${ODOO}`, secret_ref: 'odoo_ref', status: 'active', activated_at: '2026-11-01T00:00:00Z',
+  id: BINDING_ID, site_url: `https://${ODOO}`, secret_ref: 'odoo_ref', status: 'active', activated_at: '2026-11-01T00:00:00Z',
   config: { database: 'db1', odoo_company_id: 1, capabilities: { observed_at: FRESH, missing: [], models: {} } }, ...over,
 });
 
-interface Opts { binding?: Record<string, unknown>; lock?: { held: boolean }; applyError?: boolean; rejectAfter?: number; version?: number | null; prepare?: (f: FakeOdoo) => void }
+interface Opts { pmoProjects?: Array<Record<string, unknown>>; pmoCompanies?: Array<Record<string, unknown>>; run?: Record<string, unknown> | null; accepted?: boolean; runError?: boolean; binding?: Record<string, unknown>; lock?: { held: boolean }; applyError?: boolean; rejectAfter?: number; version?: number | null; prepare?: (f: FakeOdoo) => void }
 
 function harness(o: Opts = {}) {
   const fake = createFakeOdoo({ key: KEY });
@@ -35,6 +36,7 @@ function harness(o: Opts = {}) {
   fake.seed('account.account', [{ id: 1, name: 'Payable', code: '2100', account_type: 'liability_payable', company_ids: [1] }]);
   o.prepare?.(fake);
   const cursors = new Map<string, string>();
+  const staged = new Map<string, Array<{ externalId: string }>>();
   const lock = o.lock ?? { held: false };
   let odooCalls = 0;
   const routes: MockRoute[] = [
@@ -56,6 +58,24 @@ function harness(o: Opts = {}) {
     supabaseRpc('finish_odoo_census', (c) => { const b = c.bodyJson as { p_kind: string; p_cursor: string }; cursors.set(`master:${b.p_kind}`, b.p_cursor); return jsonResponse(0); }),
     supabaseRpc('merge_external_org_binding_config', () => jsonResponse(null)),
     supabaseRpc('log_audit', () => jsonResponse(null)),
+    // S6: the setup run's pass and the partner feed read these; by default there is no run and the party kind was never accepted.
+    supabaseSelect('erp_connect_runs', () => (o.runError ? jsonResponse({ code: 'XX000', message: 'x' }, { status: 500 }) : o.run ? one(o.run) : none())),
+    supabaseSelect('erp_connect_census', () => (o.accepted ? one({ accepted_at: '2026-11-01T00:00:00Z' }) : none())),
+    supabaseSelect('external_master_records', () => jsonResponse([])),
+    supabaseSelect('external_refs', () => jsonResponse([])),
+    supabaseSelect('companies', (c) => jsonResponse(c.url.searchParams.has('erp_tax_id') || c.url.searchParams.has('name') ? [] : (o.pmoCompanies ?? []))),
+    supabaseSelect('projects', () => jsonResponse(o.pmoProjects ?? [])),
+    ...['profiles', 'procurement_items'].map((t) => supabaseSelect(t, () => jsonResponse([]))),
+    { label: 'categories-in-use', method: 'HEAD', pathname: '/rest/v1/budget_line_items', response: () => countResponse(0) },
+    supabaseSelect('erp_connect_staged', (c) => jsonResponse((staged.get(c.url.searchParams.get('kind')!.replace(/^eq\./, '')) ?? []).map((row) => ({ external_id: row.externalId, row })))),
+    supabaseRpc('stage_connect_master_page', (c) => {
+      const b = c.bodyJson as { p_kind: string; p_rows: Array<{ externalId: string }> };
+      staged.set(b.p_kind, [...(staged.get(b.p_kind) ?? []), ...b.p_rows]);
+      return jsonResponse(null);
+    }),
+    supabaseRpc('replace_connect_proposals', () => jsonResponse(null)),
+    supabaseRpc('fail_connect_run', () => jsonResponse('staging')),
+    supabaseRpc('apply_connect_outcome', () => jsonResponse(null)),
     { label: 'odoo-json2', host: ODOO, pathname: /^\/json\/2\//, response: (c: FetchCall) => {
       odooCalls++;
       const key = o.rejectAfter !== undefined && odooCalls > o.rejectAfter ? 'revoked' : (c.headers.get('authorization') ?? '');
@@ -66,6 +86,8 @@ function harness(o: Opts = {}) {
   return { fake, cursors, lock, routes };
 }
 
+const one = (body: unknown) => jsonResponse(body, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } });
+const none = () => new Response('null', { status: 200, headers: { 'content-type': 'application/json' } });
 const client = () => createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
 async function sweep(o: Opts = {}, opts?: Parameters<typeof sweepOdooOrg>[2]) {
   const h = harness(o);
@@ -192,5 +214,67 @@ describe('odooSweep — AC-ODC-025 budget and outcomes', () => {
     const r = await sweep({ prepare: (f) => f.seed('product.product', [{ id: 2, name: 'Other', company_id: [2, 'Other Co'] }]) });
     const rows = rpcCall(r.calls, 'apply_odoo_master_page').flatMap((c) => (c.bodyJson as { p_kind: string; p_rows: { external_id: string }[] }).p_kind === 'product' ? (c.bodyJson as { p_rows: { external_id: string }[] }).p_rows : []);
     assertEquals([...new Set(rows.map((x) => x.external_id))], ['1']);
+  });
+});
+
+const RUN = { id: 'run-1', state: 'staging', cursor: {}, proposed_kinds: [], started_at: new Date().toISOString() };
+const partnerRow = (id: number, over: Record<string, unknown> = {}) => ({ id, name: `Partner ${id}`, vat: false, ref: false, is_company: true, parent_id: false, supplier_rank: 1, customer_rank: 0, ...over });
+
+describe('odooSweep — #1504 S6 the setup run and the partner feed', () => {
+  it('FR-ECA-002 an open setup run of this connection is advanced in the same tick: Odoo parties are staged for it', async () => {
+    const r = await sweep({ run: RUN, prepare: (f) => f.seed('res.partner', [partnerRow(5), partnerRow(6, { supplier_rank: 0, customer_rank: 1 })]) });
+    assert('ok' in r.result);
+    const read = r.calls.find((c) => c.url.pathname === '/rest/v1/erp_connect_runs')!;
+    assertEquals([read.url.searchParams.get('org_id'), read.url.searchParams.get('external_tier'), read.url.searchParams.get('binding_id')], [`eq.${ORG}`, 'eq.odoo', `eq.${BINDING_ID}`]);
+    const staged = rpcCall(r.calls, 'stage_connect_master_page').map((c) => c.bodyJson as { p_org_id: string; p_run_id: string; p_kind: string; p_rows: Array<{ externalId: string }> });
+    assert(staged.every((b) => b.p_org_id === ORG && b.p_run_id === 'run-1'));
+    assertEquals(staged.find((b) => b.p_kind === 'party')?.p_rows.map((x) => x.externalId), ['Vendor:5', 'Client:6']);
+  });
+
+  it('FR-ECA-010 once every kind is staged the next tick step proposes with the shared matcher, for tier odoo, against PMO\'s companies', async () => {
+    const r = await sweep({ run: RUN, pmoCompanies: [{ id: 'c1', name: 'Partner 5', type: 'Vendor', erp_tax_id: null }], prepare: (f) => f.seed('res.partner', [partnerRow(5)]) });
+    const writes = rpcCall(r.calls, 'replace_connect_proposals').map((c) => c.bodyJson as { p_org_id: string; p_tier: string; p_kind: string; p_rows: Array<Record<string, unknown>> });
+    assertEquals(writes.map((w) => [w.p_org_id, w.p_tier, w.p_kind]), [[ORG, 'odoo', 'party']]);
+    assertEquals(writes[0].p_rows.map((x) => [x.outcome, x.pmoIds, x.externalIds]), [['link', ['c1'], ['Vendor:5']]]);
+    assertEquals(rpcCall(r.calls, 'fail_connect_run').length, 0);
+  });
+
+  it('AC-ODC-050 a PMO project links to the cost account carrying its PMO project number, not its client code', async () => {
+    const DONE = { party: null, item: null, project: null, employee: null, account: null };
+    const run = { ...RUN, state: 'proposing', cursor: DONE, proposed_kinds: ['party', 'item'] };
+    const h = harness({ run, pmoProjects: [{ id: 'p1', name: 'Jembatan', pmo_project_number: 'PRJ-26-0001', code: 'CLIENT-9' }] });
+    h.routes.unshift(supabaseSelect('erp_connect_staged', () => jsonResponse([{ external_id: '10', row: { kind: 'project', externalId: '10', code: 'PRJ-26-0001', name: 'PRJ-26-0001 Jembatan', active: true } }])));
+    const r = await withFetchMock(h.routes, async ({ calls }) => (await sweepOdooOrg(client(), ORG), calls));
+    const read = r.find((c) => c.url.pathname === '/rest/v1/projects')!;
+    assert(read.url.searchParams.get('select')!.includes('pmo_project_number'));
+    const write = rpcCall(r, 'replace_connect_proposals').map((c) => c.bodyJson as { p_kind: string; p_rows: Array<Record<string, unknown>> }).find((w) => w.p_kind === 'project')!;
+    assertEquals(write.p_rows.map((x) => [x.outcome, x.pmoIds, x.externalIds, x.key]), [['link', ['p1'], ['10'], 'code']]);
+  });
+
+  it('with no open run the pass reads nothing more from Odoo and stages nothing', async () => {
+    const quiet = await sweep();
+    const running = await sweep({ run: RUN });
+    assertEquals(rpcCall(quiet.calls, 'stage_connect_master_page').length, 0);
+    assert(odoo(running.calls).length > odoo(quiet.calls).length);
+  });
+
+  it('a setup run that cannot be read does not fail the tick: the connection state is still stored', async () => {
+    const r = await sweep({ runError: true });
+    assertEquals('ok' in r.result && r.result.failed, undefined);
+    assertEquals(stored(r.calls)?.connection.state, 'healthy');
+    assertEquals(rpcCall(r.calls, 'release_erp_sweep_lock').length, 1);
+  });
+
+  it('AC-ECA-005 a partner Odoo just changed is matched after the page is saved, once the party kind was accepted', async () => {
+    const r = await sweep({ accepted: true, prepare: (f) => f.seed('res.partner', [partnerRow(9, { write_date: '2026-11-01 00:00:00' })]) });
+    const apply = rpcCall(r.calls, 'apply_connect_outcome').map((c) => c.bodyJson);
+    assertEquals(apply, [{ p_org_id: ORG, p_tier: 'odoo', p_outcome: 'bring-in', p_external_id: 'Vendor:9', p_pmo_id: null, p_kind: 'party', p_snapshot: { name: 'Partner 9', taxId: null, code: null, role: 'vendor' } }]);
+    const pageSaved = r.calls.findIndex((c) => c.url.pathname === '/rest/v1/rpc/apply_odoo_master_page' && (c.bodyJson as { p_kind: string }).p_kind === 'partner');
+    assert(pageSaved >= 0 && pageSaved < r.calls.findIndex((c) => c.url.pathname === '/rest/v1/rpc/apply_connect_outcome'));
+  });
+
+  it('before the first accept the sweep applies nothing', async () => {
+    const r = await sweep({ prepare: (f) => f.seed('res.partner', [partnerRow(9, { write_date: '2026-11-01 00:00:00' })]) });
+    assertEquals(rpcCall(r.calls, 'apply_connect_outcome').length, 0);
   });
 });

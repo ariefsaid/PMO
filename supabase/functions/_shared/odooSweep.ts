@@ -9,6 +9,8 @@ import { fetchOdooVersionMajor } from '../../../pmo-portal/src/lib/adapterSeam/o
 import { discoverCapabilities, DISCOVERY_BUDGET_MS, type CapabilitySnapshot } from '../../../pmo-portal/src/lib/adapterSeam/odoo/discovery.ts';
 import { KIND_SPECS, type DirectoryKind, type DirectoryRow } from '../../../pmo-portal/src/lib/adapterSeam/odoo/kinds.ts';
 import { odooKindReaders, runCensus, runKind, type KindRunDeps } from '../../../pmo-portal/src/lib/adapterSeam/odoo/sweep.ts';
+import { advanceConnectRuns } from './connectRun.ts';
+import { matchNewPartners } from './odooPartyFeed.ts';
 import { odooClientForOrg, recordOdooProbe, type OdooClientRefusal } from './odooClientForOrg.ts';
 
 export const ODOO_KIND_ORDER: DirectoryKind[] = ['company', 'analytic_plan', 'analytic_account', 'account', 'tax', 'uom', 'product', 'warehouse', 'location', 'partner'];
@@ -21,9 +23,20 @@ const DAY_MS = 86_400_000;
 
 type Resolved = Extract<Awaited<ReturnType<typeof odooClientForOrg>>, { client: unknown }>;
 type Budget = { spend: () => boolean; left: () => boolean };
-/** Extension seams: S6 adds the party feed match after `partner` pages, S7/S8 the link reconcile and accepted sends. */
-export const AFTER_APPLY: Partial<Record<DirectoryKind, (sc: SupabaseClient, orgId: string, rows: DirectoryRow[]) => Promise<void>>> = {};
-export const AFTER_SWEEP: Array<(sc: SupabaseClient, orgId: string, r: Resolved, budget: Budget) => Promise<void>> = [];
+/** Extension seams: S6 matches new partners after `partner` pages; S7/S8 add the link reconcile and accepted sends. */
+export const AFTER_APPLY: Partial<Record<DirectoryKind, (sc: SupabaseClient, orgId: string, rows: DirectoryRow[]) => Promise<void>>> = {
+  partner: matchNewPartners,
+};
+/** S6: one bounded step of the org's open setup run (census staging, proposals), the same loop ERPNext's sweep runs. It has its
+ *  own ERP-call cap (`CONNECT_CALLS_PER_TICK`), so a long initial scan cannot starve it, and it never fails the tick. */
+const advanceSetupRun = async (sc: SupabaseClient, orgId: string, r: Resolved) => {
+  try {
+    await advanceConnectRuns(sc, { orgId, bindingId: r.bindingId }, 'odoo');
+  } catch {
+    console.error('odoo setup run step failed');   // the run counts its own failures; a store outage is retried next tick
+  }
+};
+export const AFTER_SWEEP: Array<(sc: SupabaseClient, orgId: string, r: Resolved, budget: Budget) => Promise<void>> = [advanceSetupRun];
 
 export type OdooSweepResult =
   | { skipped: 'lock-held' | OdooClientRefusal }
