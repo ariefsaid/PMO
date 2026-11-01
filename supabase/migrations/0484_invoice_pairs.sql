@@ -468,7 +468,7 @@ revoke all on function public.get_project_finances(uuid) from public,anon,authen
 grant execute on function public.get_project_finances(uuid) to authenticated;
 
 -- §6 candidates: the one rule every pairing step uses. SECURITY INVOKER (RLS and the caller's org apply); a PMO-raised invoice
--- with no live receipt against a submitted ERP invoice of the same client, reference (or ERP number), amount, tax treatment,
+-- with no live receipt against a submitted ERP invoice of the same client, reference (or ERP number), tax-inclusive total,
 -- currency and month (FR-ECA-040). Optional filters let accept re-check a single pair without scanning the org.
 create or replace function public.invoice_pair_candidates(p_pmo_id uuid default null, p_erp_id uuid default null)
   returns table (pmo_invoice_id uuid, erp_invoice_id uuid)
@@ -486,7 +486,11 @@ create or replace function public.invoice_pair_candidates(p_pmo_id uuid default 
      and not exists (select 1 from public.sales_invoices t where t.paired_erp_invoice_id = e.id)
      and ((n.reference_number is not null and n.reference_number = e.reference_number)
           or (n.si_number is not null and n.si_number = e.si_number))
-     and n.amount = e.amount and n.tax_treatment = e.tax_treatment and n.currency = e.currency
+     -- Compared on the tax-inclusive total: PMO invoices are raised exclusive of tax, the ERP mirror stores its grand total (inclusive),
+     -- so equal `amount` and equal `tax_treatment` could never both hold for a real pair.
+     and n.currency = e.currency
+     and case when n.tax_treatment = 'inclusive' then n.amount else n.amount + n.tax_amount end
+       = case when e.tax_treatment = 'inclusive' then e.amount else e.amount + e.tax_amount end
      and date_trunc('month', n.invoice_date) = date_trunc('month', e.invoice_date)
 $$;
 revoke all on function public.invoice_pair_candidates(uuid, uuid) from public, anon;

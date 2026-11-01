@@ -35,14 +35,14 @@ insert into public.external_domain_ownership (org_id, external_tier, domain) val
   ('04840000-0000-0000-0000-000000000001', 'erpnext', 'revenue'),
   ('04840000-0000-0000-0000-000000000002', 'erpnext', 'revenue');
 
--- N1: PMO-raised, same sale as ERP invoice E1 (11,100 incl. 1,100 tax, PO-7, March). N2: PMO-raised, no ERP twin.
+-- N1: PMO-raised (10,000 + 1,100 tax, exclusive as PMO stores it), same sale as ERP invoice E1 (11,100 inclusive, the ERP grand total, PO-7, March). N2: PMO-raised, no ERP twin.
 -- N3: PMO-raised WITH a PMO receipt, ERP twin E3 exists. N5: two ERP candidates (ambiguous).
 insert into public.sales_invoices (id, org_id, project_id, work_order_id, customer_id, invoice_date, amount, erp_outstanding_amount,
                                    tax_treatment, tax_amount, currency, status, reference_number,
                                    native_lines, pmo_native, author_user_id, pmo_number) values
   ('04840000-0000-0000-0000-0000000005a1', '04840000-0000-0000-0000-000000000001', '04840000-0000-0000-0000-0000000000c1',
-   '04840000-0000-0000-0000-0000000000d1', '04840000-0000-0000-0000-0000000000f1', '2026-03-10', 11100, 11100,
-   'inclusive', 1100, 'USD', 'Unpaid', 'PO-7', '[{"description":"n1"}]', true, '04840000-0000-0000-0000-0000000000a1', 'PMO-N1'),
+   '04840000-0000-0000-0000-0000000000d1', '04840000-0000-0000-0000-0000000000f1', '2026-03-10', 10000, 11100,
+   'exclusive', 1100, 'USD', 'Unpaid', 'PO-7', '[{"description":"n1"}]', true, '04840000-0000-0000-0000-0000000000a1', 'PMO-N1'),
   ('04840000-0000-0000-0000-0000000005a2', '04840000-0000-0000-0000-000000000001', '04840000-0000-0000-0000-0000000000c1',
    null, '04840000-0000-0000-0000-0000000000f1', '2026-03-11', 5000, 5000,
    'exclusive', 0, 'USD', 'Unpaid', 'PO-9', '[{"description":"n2"}]', true, '04840000-0000-0000-0000-0000000000a1', 'PMO-N2'),
@@ -62,11 +62,11 @@ insert into public.sales_invoices (id, org_id, project_id, work_order_id, custom
   ('04840000-0000-0000-0000-0000000005e1', '04840000-0000-0000-0000-000000000001', null, null, '04840000-0000-0000-0000-0000000000f1',
    'SI-E1', '2026-03-20', 11100, 11100, 'inclusive', 1100, 'USD', 'Unpaid', 1, 'PO-7'),
   ('04840000-0000-0000-0000-0000000005e3', '04840000-0000-0000-0000-000000000001', null, null, '04840000-0000-0000-0000-0000000000f1',
-   'SI-E3', '2026-03-21', 3000, 3000, 'exclusive', 0, 'USD', 'Unpaid', 1, 'PO-3'),
+   'SI-E3', '2026-03-21', 3000, 3000, 'inclusive', 0, 'USD', 'Unpaid', 1, 'PO-3'),
   ('04840000-0000-0000-0000-0000000005e5', '04840000-0000-0000-0000-000000000001', null, null, '04840000-0000-0000-0000-0000000000f1',
-   'SI-E5A', '2026-03-22', 7000, 7000, 'exclusive', 0, 'USD', 'Unpaid', 1, 'PO-5'),
+   'SI-E5A', '2026-03-22', 7000, 7000, 'inclusive', 0, 'USD', 'Unpaid', 1, 'PO-5'),
   ('04840000-0000-0000-0000-0000000005e6', '04840000-0000-0000-0000-000000000001', null, null, '04840000-0000-0000-0000-0000000000f1',
-   'SI-E5B', '2026-03-23', 7000, 7000, 'exclusive', 0, 'USD', 'Unpaid', 1, 'PO-5');
+   'SI-E5B', '2026-03-23', 7000, 7000, 'inclusive', 0, 'USD', 'Unpaid', 1, 'PO-5');
 -- N7: PMO-raised, no project. A foreign-org ERP invoice F1 carries N7's exact keys AND points at org A's client, so only the
 -- org predicates (not the client join) keep N7 from pairing across orgs.
 insert into public.sales_invoices (id, org_id, project_id, customer_id, invoice_date, amount, erp_outstanding_amount,
@@ -76,7 +76,7 @@ insert into public.sales_invoices (id, org_id, project_id, customer_id, invoice_
 insert into public.sales_invoices (id, org_id, project_id, customer_id, si_number, invoice_date, amount, erp_outstanding_amount,
                                    tax_treatment, tax_amount, currency, status, erp_docstatus, reference_number) values
   ('04840000-0000-0000-0000-0000000005f1', '04840000-0000-0000-0000-000000000002', null, '04840000-0000-0000-0000-0000000000f1',
-   'SI-X1', '2026-03-20', 4200, 4200, 'exclusive', 0, 'USD', 'Unpaid', 1, 'PO-X');
+   'SI-X1', '2026-03-20', 4200, 4200, 'inclusive', 0, 'USD', 'Unpaid', 1, 'PO-X');
 
 -- ── 1. the column and the surface ─────────────────────────────────────────────────────────────
 select has_column('public', 'sales_invoices', 'paired_erp_invoice_id', 'PD-ECA-11 sales_invoices carries paired_erp_invoice_id');
@@ -93,7 +93,7 @@ select throws_ok($$select public.accept_invoice_pairs('[{"pmo":"04840000-0000-00
 set local request.jwt.claims = '{"sub":"04840000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select results_eq($$select pmo_invoice_id, erp_invoice_id from public.propose_invoice_pairs() where not ambiguous$$,
                   $$values ('04840000-0000-0000-0000-0000000005a1'::uuid, '04840000-0000-0000-0000-0000000005e1'::uuid)$$,
-                  'FR-ECA-040 Finance is proposed exactly (N1, E1): same client, reference, amount, tax and month');
+                  'FR-ECA-040 Finance is proposed exactly (N1, E1): same client, reference, tax-inclusive total and month');
 select is((select count(*)::int from public.propose_invoice_pairs() where pmo_invoice_id = '04840000-0000-0000-0000-0000000005a3'), 0,
           'PD-ECA-11 N3 (it has a PMO receipt) is never proposed');
 select is((select count(*)::int from public.propose_invoice_pairs() where pmo_invoice_id = '04840000-0000-0000-0000-0000000005a2'), 0,
@@ -152,7 +152,7 @@ update public.sales_invoices set project_id = '04840000-0000-0000-0000-000000000
 set local session_replication_role = origin;
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"04840000-0000-0000-0000-0000000000a1","role":"authenticated"}';
-select is((public.get_project_finances('04840000-0000-0000-0000-0000000000c1') #>> '{invoices,0,invoiced}')::numeric, 37200::numeric,
+select is((public.get_project_finances('04840000-0000-0000-0000-0000000000c1') #>> '{invoices,0,invoiced}')::numeric, 36100::numeric,
           'before accept: invoiced counts N1 and E1 (the double count) + N2 + N3 + N5');
 select is((public.get_project_finances('04840000-0000-0000-0000-0000000000c1') #>> '{invoices,0,outstanding}')::numeric, 36200::numeric,
           'before accept: receivable counts N1 and E1');
@@ -261,7 +261,7 @@ insert into public.sales_invoices (id, org_id, project_id, customer_id, invoice_
 insert into public.sales_invoices (id, org_id, project_id, customer_id, si_number, invoice_date, amount, erp_outstanding_amount,
                                    tax_treatment, tax_amount, currency, status, erp_docstatus, reference_number) values
   ('04840000-0000-0000-0000-0000000005e7', '04840000-0000-0000-0000-000000000001', null, '04840000-0000-0000-0000-0000000000f1',
-   'SI-E6', '2026-03-24', 2500, 2500, 'exclusive', 0, 'USD', 'Unpaid', 1, 'PO-6');
+   'SI-E6', '2026-03-24', 2500, 2500, 'inclusive', 0, 'USD', 'Unpaid', 1, 'PO-6');
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"04840000-0000-0000-0000-0000000000a3","role":"authenticated"}';
 select is(public.accept_invoice_pairs('[{"pmo":"04840000-0000-0000-0000-0000000005a6","erp":"04840000-0000-0000-0000-0000000005e7"}]'::jsonb), 1,
