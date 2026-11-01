@@ -3,7 +3,7 @@
 -- Fixture F1 + F2 + F3 of docs/plans/2026-11-01-subcontract-acceptance.md, plus S4 extras.
 begin;
 create extension if not exists pgtap;
-select plan(86);
+select plan(98);
 
 -- F1: org A (multi-member), org B (other tenant), org S (sole member). Inserted as superuser, before `set local role`.
 insert into organizations (id, name, default_currency) values
@@ -253,9 +253,9 @@ select lives_ok($$ select decide_po_variation(pg_temp.vid('Extra excavation'), t
   'AC-SCA-003 the senior approver approves');
 select throws_ok($$ select decide_po_variation(pg_temp.vid('Extra excavation'), true, 'Again') $$, '42501', null,
   'FR-SCA-032 a decided variation cannot be decided again');
-select is((select total_value || '/' || approved_total_value || '/' || (amount_approved_by_id = '15130000-0000-0000-0000-0000000000a3')::text
+select is((select total_value || '/' || approved_total_value || '/' || (amount_approved_by_id is null)::text
              from procurements where id = '15130000-0000-0000-0000-0000000000f1'), '14000000.00/14000000.00/true',
-  'PQ-5 approval raises the purchase value and approved value and stamps the variation''s approver');
+  'PQ-5 approval raises the purchase value and approved value and leaves the amount-approval stamp alone');
 select is((select line_used from spend_approval_route('15130000-0000-0000-0000-00000000000a', '15130000-0000-0000-0000-0000000000d1',
              'Subcontractors', 1, 'IDR', null, null, null)), 14000000::numeric,
   'PQ-5 the budget line now counts the approved variation');
@@ -515,6 +515,85 @@ select is((select count(*)::int from audit_events where action = 'po_variation.r
              and entity_id = (select id from po_variations where reason = 'Audited reject')), 1,
   'NFR-SCA-006 a rejection wrote an audit event');
 rollback to savepoint sa;
+
+-- ── PQ-5: every amount approver is refused as payer ───────────────────────────────────────────────────────────
+savepoint ssod;
+select pg_temp.act_as('15130000-0000-0000-0000-0000000000a4');
+select request_po_variation('15130000-0000-0000-0000-000000000101', 'pre_work',
+  '[{"boq_item_id":"15130000-0000-0000-0000-0000000000e1","additional_quantity":5}]', 'Payer one');
+select request_po_variation('15130000-0000-0000-0000-000000000101', 'pre_work',
+  '[{"boq_item_id":"15130000-0000-0000-0000-0000000000e1","additional_quantity":1}]', 'Payer two');
+select pg_temp.act_as('15130000-0000-0000-0000-0000000000a3');
+select decide_po_variation(pg_temp.vid('Payer one'), true, null);
+select pg_temp.act_as('15130000-0000-0000-0000-0000000000a6');
+select decide_po_variation(pg_temp.vid('Payer two'), true, null);
+select pg_temp.act_as('15130000-0000-0000-0000-0000000000a3');
+select throws_like($$ select transition_procurement('15130000-0000-0000-0000-0000000000f1', 'Paid') $$,
+  '%approver cannot pay%', 'PQ-5 a variation approver is refused as payer when two variations were approved by different people');
+reset role;
+select is(procurement_create_refusal('15130000-0000-0000-0000-00000000000a', '15130000-0000-0000-0000-0000000000f1', 'payment',
+            '15130000-0000-0000-0000-0000000000a3'), 'separation_of_duties',
+  'PQ-5 the queued payment refuses a variation approver');
+select is(procurement_amount_approver('15130000-0000-0000-0000-0000000000f1', '15130000-0000-0000-0000-0000000000a3'), true,
+  'PQ-5 the first variation approver is an amount approver');
+select is(procurement_amount_approver('15130000-0000-0000-0000-0000000000f1', '15130000-0000-0000-0000-0000000000a6'), true,
+  'PQ-5 the second variation approver is an amount approver');
+select is(procurement_amount_approver('15130000-0000-0000-0000-0000000000f1', '15130000-0000-0000-0000-0000000000a2'), false,
+  'PQ-5 someone who approved nothing is not an amount approver');
+select is(procurement_amount_approver('15130000-0000-0000-0000-0000000000f1', null), false, 'PQ-5 no payer is not an amount approver');
+set local role authenticated;
+rollback to savepoint ssod;
+
+-- The billed-amount approver (approve_procurement_amount) is refused as payer after a variation is approved.
+savepoint ssod2;
+reset role;
+update procurements set amount_approved_by_id = '15130000-0000-0000-0000-0000000000a2' where id = '15130000-0000-0000-0000-0000000000f1';
+set local role authenticated;
+select pg_temp.act_as('15130000-0000-0000-0000-0000000000a4');
+select request_po_variation('15130000-0000-0000-0000-000000000101', 'pre_work',
+  '[{"boq_item_id":"15130000-0000-0000-0000-0000000000e1","additional_quantity":5}]', 'Stamp kept');
+select pg_temp.act_as('15130000-0000-0000-0000-0000000000a3');
+select decide_po_variation(pg_temp.vid('Stamp kept'), true, null);
+select pg_temp.act_as('15130000-0000-0000-0000-0000000000a2');
+select throws_like($$ select transition_procurement('15130000-0000-0000-0000-0000000000f1', 'Paid') $$,
+  '%approver cannot pay%', 'PQ-5 the billed-amount approver is refused as payer once a variation is approved');
+reset role;
+select is((select amount_approved_by_id from procurements where id = '15130000-0000-0000-0000-0000000000f1'),
+  '15130000-0000-0000-0000-0000000000a2'::uuid, 'PQ-5 a variation approval leaves the billed-amount approver recorded');
+set local role authenticated;
+rollback to savepoint ssod2;
+
+-- ── FR-SCA-032: fractional quantity × rate — the purchase's totals agree exactly with the revised PO ──────────────
+savepoint sround;
+reset role;
+insert into procurements (id, org_id, title, project_id, requested_by_id, status, total_value, approved_total_value,
+                          approved_by_id, budget_category, currency, is_subcontract) values
+  ('15130000-0000-0000-0000-0000000000fc', '15130000-0000-0000-0000-00000000000a', 'SCA fractional sub', '15130000-0000-0000-0000-0000000000d1',
+   '15130000-0000-0000-0000-0000000000a4', 'Ordered', 8.63, 8.63, '15130000-0000-0000-0000-0000000000a6', 'Subcontractors', 'IDR', true);
+insert into purchase_orders (id, org_id, procurement_id, po_number, status, date, currency) values
+  ('15130000-0000-0000-0000-00000000010c', '15130000-0000-0000-0000-00000000000a', '15130000-0000-0000-0000-0000000000fc', 'PO-SCA-12', 'Issued', current_date, 'IDR');
+insert into purchase_order_lines (po_id, revision, boq_item_id, quantity, rate, unit) values
+  ('15130000-0000-0000-0000-00000000010c', 1, '15130000-0000-0000-0000-0000000000e3', 1.111, 7.77, 'ls');
+insert into purchase_order_revisions (po_id, procurement_id, revision, status, total, issued_by, issue_basis) values
+  ('15130000-0000-0000-0000-00000000010c', '15130000-0000-0000-0000-0000000000fc', 1, 'Issued', 8.63, '15130000-0000-0000-0000-0000000000a4', 'standard');
+set local role authenticated;
+select pg_temp.act_as('15130000-0000-0000-0000-0000000000a4');
+select request_po_variation('15130000-0000-0000-0000-00000000010c', 'pre_work',
+  '[{"boq_item_id":"15130000-0000-0000-0000-0000000000e3","additional_quantity":2.222}]', 'Fractional');
+select pg_temp.act_as('15130000-0000-0000-0000-0000000000a3');
+select decide_po_variation(pg_temp.vid('Fractional'), true, null);
+select pg_temp.act_as('15130000-0000-0000-0000-0000000000a2');
+select is(issue_po_revision(pg_temp.vid('Fractional')), 2, 'FR-SCA-032 the fractional revision is issued');
+select is((select amount from purchase_orders where id = '15130000-0000-0000-0000-00000000010c'), 25.90::numeric,
+  'FR-SCA-032 the PO amount is the revised lines'' total');
+select is((select total_value || '/' || approved_total_value from procurements where id = '15130000-0000-0000-0000-0000000000fc'),
+  '25.90/25.90', 'FR-SCA-032 the purchase value and approved value agree with the PO amount to the cent');
+reset role;
+select is((select (detail ->> 'rounding_delta')::numeric from audit_events where action = 'purchase_order_revision.issue'
+             and entity_id = '15130000-0000-0000-0000-00000000010c'), 0.01::numeric,
+  'FR-SCA-032 the realized rounding delta is audited');
+set local role authenticated;
+rollback to savepoint sround;
 
 select * from finish();
 rollback;

@@ -2,9 +2,13 @@
 -- variation becomes a numbered PO revision; a cost variation can be linked to an existing client work order.
 -- Spec docs/specs/subcontract-acceptance.spec.md (signed 2026-11-01) · Plan docs/plans/2026-11-01-subcontract-acceptance.md S4.
 -- Proven by supabase/tests/po_variations.test.sql, subcontract_tenancy.test.sql and the 0178 allow-list.
--- ── REVERSE (also rollback/0474_po_variations_down.sql; refused while rows exist, NFR-SCA-007) ──
+-- ── REVERSE (also rollback/0474_po_variations_down.sql) ──
+-- One-way once any variation exists: variations are never deleted (the guard refuses DELETE under any setting) and issued
+-- PO revisions reference them, so the rollback refuses while a row exists and can only run on a database that never had one.
 --   do $$ begin if exists (select 1 from public.po_variations) or exists (select 1 from public.po_variation_lines)
---     then raise exception 'rollback refused: PO variations exist — export and remove them first'; end if; end $$;
+--     then raise exception 'rollback refused: PO variations exist and cannot be removed'; end if; end $$;
+--   re-create guard_procurement_approved_total from 0368 §2 and procurement_create_refusal from 0373 §1 (without procurement_amount_approver);
+--   drop function if exists public.procurement_amount_approver(uuid, uuid);
 --   drop function if exists public.project_subcontract_exposure(uuid);
 --   drop function if exists public.subcontract_po_position(uuid);   re-create it from 0472_subcontract_bill_caps.sql §5 (no `disputed`);
 --   drop function if exists public.work_order_cost_variations(uuid);
@@ -45,7 +49,7 @@ create table public.po_variations (
   linked_at timestamptz,
   constraint po_variations_link_one check (work_order_id is null or not_passed_reason is null),
   constraint po_variations_approved_pair check ((status in ('Approved','Revised')) = (approved_by is not null and approved_at is not null)),
-  constraint po_variations_rejected_origin check (status <> 'Disputed' or origin = 'post_work'),
+  constraint po_variations_disputed_post_work check (status <> 'Disputed' or origin = 'post_work'),
   constraint po_variations_rejected_pre check (status <> 'Rejected' or origin = 'pre_work'),
   unique (org_id, number)
 );
@@ -123,6 +127,116 @@ create policy po_variation_lines_read on public.po_variation_lines for select
          and exists (select 1 from public.po_variations v where v.id = variation_id));
 revoke all on public.po_variations, public.po_variation_lines from public, anon, authenticated;
 grant select on public.po_variations, public.po_variation_lines to authenticated;
+
+-- Payer separation: every approver of the purchase's amount is refused as payer: the request approver, the billed-amount
+-- approver and each approved variation's approver. Asked by the Paid update guard and procurement_create_refusal (the
+-- queued-payment claim), both below. Internal: service_role and definers only.
+create or replace function public.procurement_amount_approver(p_proc uuid, p_uid uuid) returns boolean
+language sql stable security definer set search_path = public, pg_catalog as $$
+  select p_uid is not null and (
+    exists (select 1 from public.procurements p where p.id = p_proc and (p.approved_by_id = p_uid or p.amount_approved_by_id = p_uid))
+    or exists (select 1 from public.po_variations v where v.procurement_id = p_proc and v.approved_by = p_uid
+                and v.status in ('Approved', 'Revised')))
+$$;
+revoke all on function public.procurement_amount_approver(uuid, uuid) from public, anon, authenticated;
+grant execute on function public.procurement_amount_approver(uuid, uuid) to service_role;
+
+-- 0368 §2 verbatim, with the Paid branch asking the helper (the line marked 0474).
+create or replace function public.guard_procurement_approved_total() returns trigger
+language plpgsql set search_path = public, pg_catalog as $$
+declare v_reason text;                                                                                   -- 0368
+begin
+  if tg_op = 'UPDATE' and not public.actor_bypasses_rls()
+     and (new.approved_total_value is distinct from old.approved_total_value
+          or new.amount_approved_by_id is distinct from old.amount_approved_by_id) then
+    raise exception 'Approved amount is server managed.' using errcode = '42501';
+  end if;
+  if tg_op = 'UPDATE' and old.status = 'Requested' and new.status = 'Approved' then
+    -- The actor whose quote selection returned the request for approval may not approve it.
+    -- Enforced here (not in an RPC branch) so no path and no role, Admin included, skips it.
+    if auth.uid() is not null and auth.uid() = (
+      select e.actor_id from public.procurement_status_events e
+       where e.procurement_id = old.id and e.from_status = 'Vendor Quoted'::procurement_status
+         and e.to_status = 'Requested'::procurement_status
+       order by e.created_at desc, e.id desc limit 1
+    ) then
+      raise exception 'separation of duties: quote selector cannot approve the revised amount' using errcode = '42501';
+    end if;
+    new.approved_total_value := public.procurement_request_amount(new.id);
+    new.amount_approved_by_id := null;
+  elsif tg_op = 'UPDATE' and old.status = 'Vendor Quoted' and new.status = 'Quote Selected'
+        and new.total_value > old.approved_total_value then
+    -- The selected quote is retained, but the old decision is invalid. The normal
+    -- Requested -> Approved transition re-runs spend_approval_route on this amount.
+    new.status := 'Requested';
+    new.approved_by_id := null;
+    new.approved_total_value := null;
+    new.amount_approved_by_id := null;
+  elsif tg_op = 'UPDATE' and new.status = 'Paid' and old.status is distinct from 'Paid' then
+    -- 0362 FR-PFE-016: approver ≠ payer on EVERY path to Paid (transition, a Paid payment, a linked Payment Entry).
+    if auth.uid() is not null and public.procurement_amount_approver(old.id, auth.uid()) then                -- 0474
+      raise exception 'separation of duties: approver cannot pay own procurement' using errcode = '42501';
+    end if;
+    -- 0368: the payment rule (§1) — closed, awaiting approval, or 0362 FR-PFE-017's "never entered approval and
+    -- approval_before_payment OFF" when no approved amount is recorded. This is a BEFORE trigger, so §1 reads the
+    -- row as it stands before this update (the old values).
+    v_reason := public.procurement_payment_allowed(old.id);                                              -- 0368
+    if v_reason is not null then                                                                         -- 0368
+      raise exception '%', case v_reason                                                                 -- 0368
+          when 'awaiting_approval' then public.procurement_gate_message('awaiting_approval')            -- 0368
+          when 'purchase_closed' then 'This purchase is closed.'                                         -- 0368
+          else 'Cannot pay without a recorded approved amount.' end                                      -- 0368
+        using errcode = '23514', detail = v_reason;                                                      -- 0368
+    elsif old.approved_total_value is not null                                                          -- 0368
+          and not coalesce((select c.ok from public.procurement_payment_within_ceiling(old.id) c), false) then
+      raise exception 'Vendor bill exceeds the approved amount or its currency differs; obtain approval or correct the bill before payment.' using errcode = '23514';
+    end if;
+  end if;
+  return new;
+end; $$;
+
+-- 0373 §1 verbatim, with the payer check asking the helper (the line marked 0474). Grants are kept by `create or replace`.
+create or replace function public.procurement_create_refusal(
+  p_org_id uuid, p_procurement_id uuid, p_erp_doc_kind text, p_actor_user_id uuid
+) returns text
+language plpgsql security definer set search_path = public, pg_catalog as $$
+declare
+  v_step public.procurement_status;
+  v_proc public.procurements;
+  v_refusal text;
+begin
+  v_step := case p_erp_doc_kind
+    when 'purchase-order'   then 'Ordered'::public.procurement_status
+    when 'goods-receipt'    then 'Received'::public.procurement_status
+    when 'purchase-invoice' then 'Vendor Invoiced'::public.procurement_status
+    when 'payment'          then 'Paid'::public.procurement_status
+  end;
+  -- The foreground gate asks nothing of other kinds; neither does this.
+  if v_step is null then return null; end if;
+  if p_procurement_id is not null then
+    select * into v_proc from public.procurements
+     where id = p_procurement_id and org_id = p_org_id for update;
+  end if;
+  if v_proc.id is null then return 'purchase_not_found'; end if;
+  -- A payment: 0368's payment rule first (closed / awaiting approval / approval missing), then the order-step rules.
+  if p_erp_doc_kind = 'payment' then
+    v_refusal := public.procurement_payment_allowed(v_proc.id);
+  end if;
+  if v_refusal is null then
+    v_refusal := public.procurement_gate_violation(v_proc.id, v_step);
+  end if;
+  if v_refusal is null and p_erp_doc_kind = 'payment' then
+    if p_actor_user_id is null then
+      v_refusal := 'actor_missing';
+    elsif public.procurement_amount_approver(v_proc.id, p_actor_user_id) then                                 -- 0474
+      v_refusal := 'separation_of_duties';
+    elsif (v_proc.approved_by_id is not null or v_proc.approved_total_value is not null)
+          and not coalesce((select c.ok from public.procurement_payment_within_ceiling(v_proc.id) c), false) then
+      v_refusal := 'exceeds_approved_amount';
+    end if;
+  end if;
+  return v_refusal;
+end $$;
 
 -- §2 request_po_variation. Order (D5): procurements row FOR UPDATE, then the PO lock. The caller's authority is checked
 -- BEFORE any lock, and a purchase the caller may not read answers exactly like a missing PO (RLS does not apply inside a
@@ -206,7 +320,7 @@ grant execute on function public.po_variation_route(uuid) to authenticated;
 create or replace function public.decide_po_variation(p_id uuid, p_approve boolean, p_notes text default null)
   returns void language plpgsql security definer set search_path = public as $$
 declare v public.po_variations; v_proc public.procurements; v_route record; v_uid uuid := auth.uid();
-        v_role user_role := public.auth_role(); v_is_admin boolean := (public.auth_role() = 'Admin');
+        v_role user_role := public.auth_role(); v_is_admin boolean := (v_role = 'Admin');
 begin
   perform public.assert_is_active_member();
   if not v_is_admin and v_role::text not in ('Project Manager','Finance','Executive') then
@@ -238,9 +352,10 @@ begin
   if p_approve then
     update public.po_variations set status = 'Approved', approved_by = v_uid, approved_at = clock_timestamp(),
            decided_by = v_uid, decided_at = clock_timestamp(), decided_notes = nullif(btrim(p_notes), '') where id = p_id;
-    update public.procurements set total_value = coalesce(total_value, 0) + v.amount,                    -- PQ-5: counts against the budget line now
+    -- PQ-5: counts against the budget line now. The approver is recorded on the variation (procurement_amount_approver reads it);
+    -- amount_approved_by_id belongs to approve_procurement_amount.
+    update public.procurements set total_value = coalesce(total_value, 0) + v.amount,
            approved_total_value = case when approved_total_value is null then null else approved_total_value + v.amount end,
-           amount_approved_by_id = v_uid,                                  -- PQ-5: approver ≠ payer now covers the variation's approver
            updated_at = now() where id = v.procurement_id;
   else
     update public.po_variations set status = case when v.origin = 'post_work' then 'Disputed' else 'Rejected' end,
@@ -260,7 +375,7 @@ grant execute on function public.decide_po_variation(uuid, boolean, text) to aut
 create or replace function public.issue_po_revision(p_variation_id uuid) returns integer
   language plpgsql security definer set search_path = public as $$
 declare v public.po_variations; v_proc public.procurements; v_org uuid := public.auth_org_id(); v_new integer;
-        v_basis text := 'standard'; v_sole boolean := false; v_prev numeric; v_total numeric; v_nlines integer;
+        v_basis text := 'standard'; v_sole boolean := false; v_prev numeric; v_total numeric; v_nlines integer; v_delta numeric;
 begin
   perform public.assert_is_active_member();
   if public.auth_role() not in ('Admin','Finance','Project Manager') then
@@ -268,6 +383,9 @@ begin
   select * into v from public.po_variations where id = p_variation_id and org_id = v_org;
   if not found then raise exception 'variation not found' using errcode = 'P0002'; end if;
   select * into v_proc from public.procurements where id = v.procurement_id for update;                  -- D5 row first
+  if v_proc.project_id is not null and v_proc.budget_category is not null then                           -- D5 spend line: the rounding delta moves total_value
+    perform pg_advisory_xact_lock(hashtextextended('spend-line:' || v_proc.project_id::text || ':' || v_proc.budget_category::text, 0));
+  end if;
   perform public.subcontract_po_lock(v.po_id);                                                           -- D5 then the PO
   if v_proc.status::text in ('Cancelled','Rejected') then                                                -- PQ-12
     raise exception 'this purchase is closed' using errcode = '42501'; end if;
@@ -298,11 +416,20 @@ begin
   insert into public.purchase_order_revisions (org_id, po_id, procurement_id, revision, total, variation_id, issued_by, issue_basis)
   values (v_org, v.po_id, v.procurement_id, v_new, v_total, p_variation_id, auth.uid(), v_basis);
   update public.purchase_orders set amount = v_total where id = v.po_id;      -- the revision row above makes the amount guard agree
+  -- Each line rounds on its own, so the revised PO can differ from the approved amount by a few cents: move the purchase's
+  -- totals by that realized delta so a bill for the full revised quantity fits the payment ceiling exactly.
+  v_delta := v_total - v_prev - v.amount;
+  if v_delta <> 0 then
+    update public.procurements set total_value = coalesce(total_value, 0) + v_delta,
+           approved_total_value = case when approved_total_value is null then null else approved_total_value + v_delta end,
+           updated_at = now() where id = v.procurement_id;
+  end if;
   perform set_config('pmo.po_variation_write', 'on', true);
   update public.po_variations set status = 'Revised', revision = v_new where id = p_variation_id;
   perform set_config('pmo.po_variation_write', '', true);
   perform public.log_audit('purchase_order_revision.issue', v_org, auth.uid(), v.po_id,
-    jsonb_build_object('revision', v_new, 'total', v_total, 'variation_id', p_variation_id, 'basis', v_basis));
+    jsonb_build_object('revision', v_new, 'total', v_total, 'variation_id', p_variation_id, 'basis', v_basis,
+      'rounding_delta', v_delta));
   return v_new;
 end $$;
 revoke all on function public.issue_po_revision(uuid) from public, anon;
@@ -410,7 +537,8 @@ begin
     end if;
   end loop;
   if has_function_privilege('authenticated', 'public.guard_po_variation()', 'EXECUTE')
-     or has_function_privilege('authenticated', 'public.guard_po_variation_line()', 'EXECUTE') then
+     or has_function_privilege('authenticated', 'public.guard_po_variation_line()', 'EXECUTE')
+     or has_function_privilege('authenticated', 'public.procurement_amount_approver(uuid,uuid)', 'EXECUTE') then
     raise exception '0474: an internal function is client-executable';
   end if;
   if has_function_privilege('anon', 'public.request_po_variation(uuid,text,jsonb,text)', 'EXECUTE')
@@ -420,7 +548,8 @@ begin
      or has_function_privilege('anon', 'public.po_variation_route(uuid)', 'EXECUTE')
      or has_function_privilege('anon', 'public.work_order_cost_variations(uuid)', 'EXECUTE')
      or has_function_privilege('anon', 'public.subcontract_po_position(uuid)', 'EXECUTE')
-     or has_function_privilege('anon', 'public.project_subcontract_exposure(uuid)', 'EXECUTE') then
+     or has_function_privilege('anon', 'public.project_subcontract_exposure(uuid)', 'EXECUTE')
+     or has_function_privilege('anon', 'public.procurement_amount_approver(uuid,uuid)', 'EXECUTE') then
     raise exception '0474: a variation function is anon-executable';
   end if;
 end $$;
