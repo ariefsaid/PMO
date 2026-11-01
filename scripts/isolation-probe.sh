@@ -225,6 +225,20 @@ else skip "prepare_subcontract_acceptance (purchase_orders)"; fi
 if [ -n "$A_PROC" ] && [ "$A_PROC" != null ]; then
   c=$(rpc capture_subcontract_vendor_invoice "{\"p_procurement_id\":\"$A_PROC\",\"p_status\":\"Received\",\"p_invoice_date\":\"2026-09-08\",\"p_lines\":[{\"boq_item_id\":\"$A_PROC\",\"quantity\":1,\"rate\":1}]}")
 else skip "capture_subcontract_vendor_invoice (procurements)"; fi
+A_VAR=$(jq -r '.[]|select(.table=="po_variations")|.id' "$A_ROWS_JSON")
+A_BOQ=$(jq -r '.[]|select(.table=="boq_items")|.id' "$A_ROWS_JSON")
+if [ -n "$A_PO" ] && [ "$A_PO" != null ] && [ -n "$A_BOQ" ] && [ "$A_BOQ" != null ]; then
+  c=$(rpc request_po_variation "{\"p_po_id\":\"$A_PO\",\"p_origin\":\"pre_work\",\"p_lines\":[{\"boq_item_id\":\"$A_BOQ\",\"additional_quantity\":1}],\"p_reason\":\"probe\"}")
+else skip "request_po_variation (purchase_orders, boq_items)"; fi
+if [ -n "$A_VAR" ] && [ "$A_VAR" != null ]; then
+  c=$(rpc decide_po_variation "{\"p_id\":\"$A_VAR\",\"p_approve\":true}")
+  c=$(rpc issue_po_revision "{\"p_variation_id\":\"$A_VAR\"}")
+  c=$(rpc link_po_variation "{\"p_variation_id\":\"$A_VAR\",\"p_work_order_id\":null,\"p_not_passed_reason\":\"probe\"}")
+else
+  skip "decide_po_variation (po_variations fixture)"
+  skip "issue_po_revision (po_variations fixture)"
+  skip "link_po_variation (po_variations fixture)"
+fi
 if [ -n "$A_SCA" ] && [ "$A_SCA" != null ]; then
   c=$(rpc confirm_subcontract_acceptance "{\"p_id\":\"$A_SCA\"}")
   c=$(rpc withdraw_subcontract_acceptance "{\"p_id\":\"$A_SCA\"}")
