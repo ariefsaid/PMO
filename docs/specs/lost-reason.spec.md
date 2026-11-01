@@ -1,7 +1,8 @@
 # Lost reason: a required reason when a deal is lost, and win/loss by reason and by client (LR)
 
 Issue #1577 (map #459). Source: `docs/reviews/2026-10-31-feature-comparison.md` §3b. Status: **Draft, 2026-11-01**
-(decisions DD-LR-1..8 below are Director-delegate calls with a recommended default; owner may override). Plan:
+(decisions DD-LR-1..8 below are Director-delegate calls with a recommended default; owner may override; spec and plan
+reviewed against the code 2026-11-01, Director accepted the defaults). Plan:
 `docs/plans/2026-11-01-lost-reason.md`. Related, not blocking: board drag and drop `docs/specs/board-drag-drop.spec.md`
 (#1637), pipeline stage history (#1638, owner ruling OD-GRILL-20261101 "Pipeline dates").
 
@@ -31,6 +32,13 @@ later see which reasons and which clients cost it the most bids, and stop guessi
   undated outcomes, a bounded window requires `decided_at` in range. Wins = on-hand statuses, losses = `Loss Tender`;
   `Declined` is reported beside the rate and is in neither denominator (#774).
 - Lost deals are listed through `useLostDeals` (`projects` RLS read, `Loss Tender` + `Declined`).
+- No other caller loses a deal: the CLI load (`scripts/lib/pmo-load.mjs`, `LOAD_STAGE_PATHS`) only walks
+  pre-award and won paths; the pipeline import creates `Leads` rows (origination guard, 0173); no agent tool or edge
+  function calls `transition_project`. INSERT on `projects` is column-granted since 0173, so a new column is not
+  client-insertable either.
+- #1638 (pipeline stage history) leaves `transition_project` byte-identical (its NFR-PSH-002) and adds a definer
+  wrapper `advance_project_stage(p_id, p_to, p_entered_on, p_customer_contract_ref, p_contract_date)` that
+  `perform`s the 4-argument call. The deal page keeps Loss and Decline on plain `transition_project`.
 - `projects.client_id` references the client company; the deal page already shows a "Decision" tile
   (`PipelineLens.tsx:285-292`).
 
@@ -46,7 +54,8 @@ later see which reasons and which clients cost it the most bids, and stop guessi
   countable without cleaning free text; free text alone would need manual tagging. Org-editable lists need an admin
   screen, a tenant-scoped reference table and key-retirement rules: a follow-up if a client asks (see Follow-ups).
 - **DD-LR-2 Storage: two nullable columns on `projects`**, `lost_reason text` (CHECK against the nine keys) and
-  `lost_note text` (CHECK `char_length <= 500`; CHECK `lost_note is null or lost_reason is not null`). No new table,
+  `lost_note text` (CHECK `char_length <= 500`; CHECK `lost_note is null or lost_reason is not null`; CHECK both null
+  unless `status` is `Loss Tender` or `Declined`, FR-LR-009). No new table,
   so the side-mirror inventory (pgTAP 0136) and service_role grants (0137) are untouched. The reason is part of the
   deal's *current* lost state, so it lives on the deal row next to `status` and `decided_at`.
 - **DD-LR-3 The server enforces "required".** `transition_project` gains `p_lost_reason text default null` and
@@ -88,6 +97,11 @@ later see which reasons and which clients cost it the most bids, and stop guessi
 
 - **History rows record *when* and *who*; the reason lives on the deal.** A Lost history entry shows the deal's
   current `lost_reason`/`lost_note` beside its date. Nothing is copied into a history row, so there is one source.
+- **`advance_project_stage` (#1638) cannot lose a deal.** It forwards no reason, so after this work a dated move
+  to `Loss Tender`/`Declined` through it is refused by DD-LR-3 (P0001). That is the intended state, not a break:
+  no UI path uses it for a loss (#1638 plan Task 36), and it closes the one wrapper that could have reached the lost
+  group without a reason. A pgTAP assertion proves it (plan S1-T1). Passing a reason through it is a follow-up only
+  if a dated loss is ever wanted.
 - **A re-lost deal.** After a revive (DD-LR-4) the old reason is cleared on the deal; the earlier Lost entry in
   history keeps its date, and its reason is available from that transition's audit row. #1638 may show it from there
   or show the earlier Lost entry without a reason. Either is acceptable and neither blocks this spec.
@@ -130,8 +144,10 @@ changing `get_win_rate`, `decided_at`, the transition map, or win eligibility; t
 - **FR-LR-006** The system shall ignore a reason passed with a target outside the lost group (it is never stored).
 - **FR-LR-007** The system shall leave the role gate, org re-assertion, active-member check, transition map, win
   branch and `decided_at` stamping of `transition_project` unchanged.
-- **FR-LR-008** The system shall not let `authenticated` write `lost_reason` or `lost_note` except through
-  `transition_project`.
+- **FR-LR-008** The system shall not let `authenticated` write `lost_reason` or `lost_note` (UPDATE or INSERT)
+  except through `transition_project`.
+- **FR-LR-009** The system shall refuse a non-null `lost_reason` or `lost_note` on a project whose status is outside the
+  lost group (row CHECK), so no write path, present or future, can leave a stale or stray reason on an open or won deal.
 
 ### Capture (UI)
 
@@ -176,9 +192,15 @@ changing `get_win_rate`, `decided_at`, the transition map, or win eligibility; t
 - **NFR-LR-003 Privileges.** The changed definer keeps `revoke ... from public, anon` and `grant execute ... to
   authenticated`; `get_loss_breakdown` is `execute` to `authenticated` only. The 0178 retained-definer count is
   unchanged (same `proname`; the invoker function is not a definer).
-- **NFR-LR-004 Reversibility.** Down migrations restore the 0236 function and drop the columns and the new function.
+- **NFR-LR-004 Reversibility.** Down migrations restore the previous `transition_project` (the 0236 body; #1638 does
+  not change it) and drop the columns, the CHECKs and the new function.
+- **NFR-LR-009 Rollout.** Deploy back to front (DB, then FE). Between the DB push and the FE push, a browser on the old
+  bundle that marks a deal lost gets the server message "a reason is required…" and the deal stays open; the user
+  reloads and retries. No data is lost, so no compatibility shim is added.
 - **NFR-LR-005 i18n.** New copy lives in its own namespace `lostReason` (`public/locales/{en,id}/lostReason.json`),
-  en and id key trees identical; enum status values stay untranslated.
+  registered in `NAMESPACES` (`src/lib/i18n/index.ts:15`), en and id key trees identical; every `t()` call carries
+  its literal English default (unit tests run with empty catalogues, `test/setup.ts:137-155`); enum status values
+  stay untranslated.
 - **NFR-LR-006 Accessibility.** The picker is a labelled native `<select>` and `<textarea>`; error text is
   associated (`aria-describedby`); breakdown bars are decorative (`aria-hidden`) with counts in text; no new axe
   violations in the confirm and the tile.
@@ -199,8 +221,10 @@ changing `get_win_rate`, `decided_at`, the transition map, or win eligibility; t
 - **AC-LR-005** Given a call to a non-lost target that also passes a reason, then no reason is stored.
 - **AC-LR-006** Given the existing win and ordinary-transition behaviour, then pgTAP 0027, 0028, 0029, 0030, 0031 and
   0236 still pass with loss calls updated to pass a reason (map, role gate, SoD, decided_at unchanged).
-- **AC-LR-007** Given `authenticated`, when it runs a direct `UPDATE projects SET lost_reason = ...`, then it is
-  denied (column privilege), and `transition_project`/`get_loss_breakdown` ACLs match NFR-LR-003.
+- **AC-LR-007** Given `authenticated`, when it runs a direct `UPDATE projects SET lost_reason = ...` or an INSERT
+  naming `lost_reason`, then it is denied (column privilege), and `transition_project`/`get_loss_breakdown` ACLs match
+  NFR-LR-003. Given the table owner, a row with status `Negotiation` and a reason violates the FR-LR-009 CHECK. Given
+  #1638's `advance_project_stage`, a call targeting `Loss Tender` raises `P0001`.
 - **AC-LR-008** Given lost and declined deals with mixed reasons and a never-recorded historic loss in one org, and a
   deal in another org, when `get_loss_breakdown(null, null)` runs as the first org, then `by_reason` counts equal the
   hand-computed oracle (including the `null` row), the other org's deal is absent, and `by_client` ranks and counts
@@ -224,24 +248,26 @@ changing `get_win_rate`, `decided_at`, the transition map, or win eligibility; t
   renders.
 - **AC-LR-016** Given Indonesian locale, then the picker, deal-page line and breakdown render Indonesian copy and
   `npm run check:i18n` passes.
-- **AC-LR-017** Given a PM and an open deal (real browser, real DB), when they mark it lost from the deal page with
-  reason "Price", then after reload the deal page shows "Price", and the Company dashboard Win rate tile lists "Price"
-  with a count of at least 1. *(Cross-stack journey.)*
+- **AC-LR-017** Given an Executive and an open deal (real browser, real DB), when they mark it lost from the deal page
+  with reason "Price", then after reload the deal page shows "Price", and the Company dashboard Win rate tile lists
+  "Price" with a count of at least 1. *(Cross-stack journey. Executive, not PM: the Company dashboard is the
+  Executive/Finance/Admin hub, `pages/ExecutiveDashboard.tsx:11`; a PM never sees this tile.)*
 - **AC-LR-018** Given the picker confirm and the tile breakdown, then axe reports no violations.
 
 ## Traceability (owning layer, ADR-0010)
 
-| AC | Owning layer | Test (detail in the plan §4) |
+| AC | Owning layer | Test (detail in the plan §5) |
 |---|---|---|
-| 001, 002, 003, 004, 005, 006, 007 | pgTAP | `supabase/tests/0437_lost_reason.test.sql` (0030 and 0236 updated to pass a reason; 0027, 0028, 0029, 0031, 0032 re-run unchanged) |
+| 001, 002, 003, 004, 005, 007 | pgTAP | `supabase/tests/0437_lost_reason.test.sql` |
+| 006 | pgTAP | 0030 and 0236 updated to pass a reason; 0027, 0028, 0029, 0031, 0032, 0033 re-run unchanged |
 | 008, 009 | pgTAP | `supabase/tests/0438_loss_breakdown.test.sql` |
 | 010 | Vitest/RTL | `components/ProjectStatusControl.lostReason.test.tsx` |
 | 011, 013 | Vitest/RTL | `pages/project-detail/__tests__/PipelineLens.lostReason.test.tsx` |
 | 012 | Vitest/RTL | `pages/sales-pipeline/__tests__/DraggableSalesBoard.lostReason.test.tsx` |
 | 014 | Vitest/RTL | `pages/project-detail/__tests__/PipelineLens.lostReason.test.tsx` |
-| 015, 016 | Vitest/RTL | `src/components/dashboard/__tests__/LossBreakdown.test.tsx` |
+| 015, 016, 018 (tile) | Vitest/RTL (+ jest-axe) | `src/components/dashboard/__tests__/LossBreakdown.test.tsx` |
 | (unit) reason model | Vitest | `src/lib/lostReasons.test.ts` (keys, validity, labels complete) |
-| 017, 018 | Playwright (+ axe) | `e2e/AC-LR-017-lost-reason.spec.ts` |
+| 017, 018 (confirm) | Playwright (+ axe) | `e2e/AC-LR-017-lost-reason.spec.ts` |
 
 ## Open questions (owner signs; each has a recommended default)
 
