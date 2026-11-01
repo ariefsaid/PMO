@@ -191,13 +191,7 @@ export async function probeErpByPaymentComposite(
   const names: string[] = [];
   let after = '';
   for (;;) {
-    let page: string[];
-    try {
-      page = await listDocNamesByFilters(deps.client, deps.doctype, after ? [...filters, ['name', '>', after]] : filters, 20, 'name asc');
-    } catch (error) {
-      if (error instanceof Error && error.message === 'Invalid ERP candidate page') return null;
-      throw error;
-    }
+    const page = await listDocNamesByFilters(deps.client, deps.doctype, after ? [...filters, ['name', '>', after]] : filters, 20, 'name asc');
     if (page.some((name, index) => name <= (index === 0 ? after : page[index - 1]))) return null;
     names.push(...page);
     if (page.length < 20) break;

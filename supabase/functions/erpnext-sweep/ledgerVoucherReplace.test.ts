@@ -69,6 +69,7 @@ function fakeDb(gl: Row[]) {
       eq: (c: string, v: unknown) => { filters.push((r) => r[c] === v); return b; },
       lt: (c: string, v: string) => { filters.push((r) => String(r[c]) < v); return b; },
       gt: (c: string, v: string) => { filters.push((r) => String(r[c]) > v); return b; },
+      in: (c: string, vs: unknown[]) => { filters.push((r) => vs.includes(r[c])); return b; },
       order: () => b,
       limit: (n: number) => { limit = n; return b; },
       maybeSingle: () => Promise.resolve({ data: rows()[0] ?? null, error: null }),
@@ -145,7 +146,7 @@ Deno.test('a voucher reposted twice leaves exactly ERPNext\'s current rows, so t
     assert(replace?.args.p_company === COMPANY && replace?.args.p_voucher_no === JV.voucher_no, 'replace is scoped to the company + voucher');
     assert(JSON.stringify(erp.voucherReads[0]) === JSON.stringify([['company', '=', COMPANY], ['voucher_type', '=', JV.voucher_type], ['voucher_no', '=', JV.voucher_no]]),
       'the voucher read is company-scoped and carries no modified cursor');
-    assert(db.watermarks[0].watermark_cursor === '2026-10-25 08:32:12.251858', 'the cursor advances past the batch');
+    assert(db.watermarks[0].watermark_cursor === '2026-10-25 08:32:12.251858|ACC-GLE-2026-01438', 'the cursor advances past the batch');
   } finally {
     erp.restore();
   }
@@ -176,7 +177,7 @@ Deno.test('a voucher too big to read in full is skipped, surfaced as a ledger er
     assert(/Journal Entry ACC-JV-2026-00070 too large to reconcile/.test(r.error ?? ''), `the skip is surfaced: ${r.error}`);
     assert(db.tables.erp_gl_entry_mirror.some((x) => x.erp_name === '9a24980bf8'), 'nothing was removed on a partial read');
     assert(!db.rpcs.some((c) => c.name === 'replace_erp_gl_voucher_rows'), 'no replace ran');
-    assert(db.watermarks[0].watermark_cursor === '2026-10-25 08:32:12.251858', 'the cursor advanced');
+    assert(db.watermarks[0].watermark_cursor === '2026-10-25 08:32:12.251858|ACC-GLE-2026-01438', 'the cursor advanced');
   } finally {
     erp.restore();
   }

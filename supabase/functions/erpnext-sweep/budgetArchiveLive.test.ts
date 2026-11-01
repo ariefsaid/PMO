@@ -747,7 +747,8 @@ Deno.test('archive transaction failure and stale result leave the registered swe
     assertEquals((fixture.tables.budget_archive_cancel_intents as Row[])[0].state, 'pending');
     assertEquals(fixture.erpWrites.length, 0);
     assert(fixture.requests.some((request) => request.path === '/rest/v1/rpc/transition_budget_archive_cancel_intent'), 'the shipped handler must report the transaction outcome');
-    assert(!fixture.requests.some((request) => request.method === 'PATCH' && request.path.includes('/budget_archive_cancel_intents')), 'no separate terminal write follows a failed transaction');
+    // The queue's last-attempt stamp (0427) is a PATCH too; what must not happen is a terminal `state` write.
+    assert(!fixture.requests.some((request) => request.method === 'PATCH' && request.path.includes('/budget_archive_cancel_intents') && 'state' in ((request.body ?? {}) as Row)), 'no separate terminal write follows a failed transaction');
   }
 });
 

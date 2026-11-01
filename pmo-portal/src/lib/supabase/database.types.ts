@@ -834,6 +834,7 @@ export type Database = {
           erp_budget_name: string
           fiscal_year: string
           id: string
+          last_attempt_at: string | null
           last_error: string | null
           org_id: string
           project_id: string
@@ -853,6 +854,7 @@ export type Database = {
           erp_budget_name: string
           fiscal_year: string
           id?: string
+          last_attempt_at?: string | null
           last_error?: string | null
           org_id: string
           project_id: string
@@ -872,6 +874,7 @@ export type Database = {
           erp_budget_name?: string
           fiscal_year?: string
           id?: string
+          last_attempt_at?: string | null
           last_error?: string | null
           org_id?: string
           project_id?: string
@@ -930,6 +933,7 @@ export type Database = {
           erp_modified: string | null
           fiscal_year: string
           id: string
+          last_attempt_at: string | null
           org_id: string
           push_error: string | null
           push_state: string
@@ -950,6 +954,7 @@ export type Database = {
           erp_modified?: string | null
           fiscal_year: string
           id?: string
+          last_attempt_at?: string | null
           org_id?: string
           push_error?: string | null
           push_state?: string
@@ -970,6 +975,7 @@ export type Database = {
           erp_modified?: string | null
           fiscal_year?: string
           id?: string
+          last_attempt_at?: string | null
           org_id?: string
           push_error?: string | null
           push_state?: string
@@ -1113,6 +1119,7 @@ export type Database = {
           erp_modified: string | null
           fiscal_year: string
           id: string
+          last_attempt_at: string | null
           org_id: string
           push_error: string | null
           push_state: string
@@ -1131,6 +1138,7 @@ export type Database = {
           erp_modified?: string | null
           fiscal_year: string
           id?: string
+          last_attempt_at?: string | null
           org_id?: string
           push_error?: string | null
           push_state?: string
@@ -1149,6 +1157,7 @@ export type Database = {
           erp_modified?: string | null
           fiscal_year?: string
           id?: string
+          last_attempt_at?: string | null
           org_id?: string
           push_error?: string | null
           push_state?: string
@@ -8671,6 +8680,7 @@ export type Database = {
           erp_total_costing_amount: number | null
           erp_total_hours: number | null
           id: string
+          last_attempt_at: string | null
           org_id: string
           post_submit_unknown_at: string | null
           push_error: string | null
@@ -8689,6 +8699,7 @@ export type Database = {
           erp_total_costing_amount?: number | null
           erp_total_hours?: number | null
           id?: string
+          last_attempt_at?: string | null
           org_id?: string
           post_submit_unknown_at?: string | null
           push_error?: string | null
@@ -8707,6 +8718,7 @@ export type Database = {
           erp_total_costing_amount?: number | null
           erp_total_hours?: number | null
           id?: string
+          last_attempt_at?: string | null
           org_id?: string
           post_submit_unknown_at?: string | null
           push_error?: string | null

@@ -133,6 +133,12 @@ import { admitsDocForBindingCompany } from '../../../pmo-portal/src/lib/adapterS
 // IDENTICAL guard (round-9 FIX 1). Re-exported below so this module's existing test imports still resolve.
 import { createInFlightAnchorProbe, type InFlightAnchorProbe } from '../_shared/inFlightAnchorProbe.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
+import { findOutboxRowByKey, outboxRowOf } from './outboxRows.ts';
+import {
+  type ErpSweepCadence, fullSweepDue, HOURLY_INVOCATION_DEADLINE_MS, SWEEP_BACKFILL_EVERY_MINUTES, SWEEP_FULL_INTERVAL_MS,
+  SWEEP_RETRY_DELAY_SECONDS, sweepCadenceAt,
+} from './sweepCadence.ts';
+export { type ErpSweepCadence, fullSweepDue, SWEEP_BACKFILL_EVERY_MINUTES, SWEEP_FULL_INTERVAL_MS, SWEEP_RETRY_DELAY_SECONDS, sweepCadenceAt };
 // P3c slice 5 (FR-BUD-141, AC-BUD-023) — the budget push's sweep backstop, pure orchestration.
 import {
   reconcileOrgBudgetPushes,
@@ -507,7 +513,8 @@ export interface ErpSweepCycleDeps {
   /** Native statement collection is independent of raw-ledger catch-up and legacy readiness. */
   refreshNativeStatements?: (org: OrgBinding) => Promise<{ errorCode?: string }>;
   reconcileOrgOutbox: (org: OrgBinding) => Promise<ReconcileOrgOutboxResult>;
-  sweepOrgDoctypes: (org: OrgBinding) => Promise<{ applied: number; error?: string }>;
+  /** `complete: false` = the bounded walk stopped early (budget/page quantum); it resumes next tick. */
+  sweepOrgDoctypes: (org: OrgBinding) => Promise<{ applied: number; error?: string; complete?: boolean }>;
   /** Luna BLOCK 6: the late-link self-heal (receipts adopted before their invoice). Optional so the
    *  existing cycle tests stay byte-for-byte; the live wiring always supplies it. */
   repairOrgLinks?: (org: OrgBinding) => Promise<{ repaired: number; error?: string }>;
@@ -534,7 +541,14 @@ export interface ErpSweepCycleDeps {
   isFullSweepDue?: (org: OrgBinding) => boolean;
   /** 0358: stamp a completed full run — only after the hourly passes ran, and only by the lock holder. */
   markFullSweepDone?: (org: OrgBinding) => Promise<void>;
+  /** THEME-BACK-07: an unfinished or failed full run is deferred, not stamped: due again in `dueInSeconds`. */
+  deferFullSweep?: (org: OrgBinding, dueInSeconds: number) => Promise<void>;
+  /** Invocation-wide clock and the moment past which no further hourly pass starts (money passes still run). */
+  nowMs?: () => number;
+  hourlyDeadlineAtMs?: number;
 }
+
+
 
 /**
  * Supabase Edge Functions document a 150-second wall-clock limit:
@@ -554,13 +568,6 @@ export interface OrgLedgerFeedResult {
   statementReady?: boolean;
   statementError?: string;
 }
-
-/**
- * Owner ruling 2026-10-23: money postings reach ERPNext near-instantly. `full` runs every pass;
- * `money-only` (between the hourly statement windows) runs just the outbound money passes —
- * (1) outbox recovery, (5) budget, (6) timesheets, (7) expenses — still under the per-org lock.
- */
-export type ErpSweepCadence = 'full' | 'money-only';
 
 export interface ErpSweepCycleResult {
   orgs: number;
@@ -584,7 +591,10 @@ export async function runErpSweepCycle(
   cache?: ErpAuthPairCache,
   cadence: ErpSweepCadence = 'full',
 ): Promise<ErpSweepCycleResult> {
-  const orgs = await deps.listEmployingOrgs();
+  // The org whose hourly work waited longest (never-run first) goes first, so a slow org cannot starve the rest.
+  const orgs = [...(await deps.listEmployingOrgs())].sort((a, b) =>
+    (a.lastFullSweepAt ? Date.parse(a.lastFullSweepAt) || 0 : 0) - (b.lastFullSweepAt ? Date.parse(b.lastFullSweepAt) || 0 : 0));
+  const pastDeadline = () => deps.hourlyDeadlineAtMs !== undefined && (deps.nowMs ?? Date.now)() >= deps.hourlyDeadlineAtMs;
   const perOrg: ErpSweepCycleResult['perOrg'] = [];
   for (const org of orgs) {
     const errors: string[] = [];
@@ -662,16 +672,29 @@ export async function runErpSweepCycle(
     let sweep: { applied: number } | undefined;
     let ledger: ErpSweepCycleResult['perOrg'][number]['ledger'];
     if (hourly) {
+      // `truncated`: work was left for the next tick (not an error). `failed`: a pass errored (retry after a delay).
+      let truncated = false; // out of invocation time: later passes wait
+      let walkIncomplete = false; // doctype walk hit its page quantum: later passes still run, the run is deferred
+      let hourlyStarted = false;
+      const hourlyFrom = errors.length; // money-pass errors above never hold the hourly marker back
       try {
-        const r = await deps.sweepOrgDoctypes(org);
-        sweep = { applied: r.applied };
-        if (r.error) errors.push(`sweep:${r.error}`);
+        if (pastDeadline()) {
+          truncated = true;
+        } else {
+          hourlyStarted = true;
+          const r = await deps.sweepOrgDoctypes(org);
+          sweep = { applied: r.applied };
+          if (r.complete === false) walkIncomplete = true;
+          if (r.error) errors.push(`sweep:${r.error}`);
+        }
       } catch (err) {
         errors.push(`sweep:${err instanceof Error ? err.message : String(err)}`);
       }
+      // Past the invocation's hourly deadline the remaining passes wait for the next tick.
+      const stillTime = () => !truncated && !(truncated = pastDeadline());
       // (2b) late-link self-heal — AFTER the doctype sweep, so an invoice adopted THIS tick is already
       //      mapped when the receipts that cite it are re-checked (Luna BLOCK 6).
-      if (deps.repairOrgLinks) {
+      if (deps.repairOrgLinks && stillTime()) {
         try {
           const r = await deps.repairOrgLinks(org);
           if (r.error) errors.push(`repair:${r.error}`);
@@ -680,7 +703,7 @@ export async function runErpSweepCycle(
         }
       }
       // Native report capture is independently resumable; raw ledger readiness never gates it.
-      if (deps.refreshNativeStatements) {
+      if (deps.refreshNativeStatements && stillTime()) {
         try {
           const result = await deps.refreshNativeStatements(org);
           if (result.errorCode) errors.push(`native-statement:${result.errorCode}`);
@@ -689,19 +712,21 @@ export async function runErpSweepCycle(
         }
       }
       // (3) ledger-mirror feed.
-      try {
+      let ledgerBehind = false;
+      if (stillTime()) try {
         const r = await deps.feedOrgLedgers(org);
         ledger = {
           gl: r.gl, ple: r.ple, glCaughtUp: r.glCaughtUp, pleCaughtUp: r.pleCaughtUp,
           ...(r.statementReady === undefined ? {} : { statementReady: r.statementReady }),
         };
+        ledgerBehind = r.glCaughtUp === false || r.pleCaughtUp === false;
         if (r.error) errors.push(`ledger:${r.error}`);
         if (r.statementError) errors.push(`statement:${r.statementError}`);
       } catch (err) {
         errors.push(`ledger:${err instanceof Error ? err.message : String(err)}`);
       }
       // (3b) the read-only ERP purchases list — AFTER the ledger feed, so a PI attributes through fresh GL rows.
-      if (deps.feedOrgPurchases) {
+      if (deps.feedOrgPurchases && stillTime()) {
         try {
           const r = await deps.feedOrgPurchases(org);
           if (r.error) errors.push(`purchases:${r.error}`);
@@ -710,7 +735,9 @@ export async function runErpSweepCycle(
         }
       }
       // (4) refresh only from a complete mirror. A bounded backfill is not a current accounting view.
-      if (!ledger || ledger.glCaughtUp === false || ledger.pleCaughtUp === false) {
+      if (truncated) {
+        // out of invocation time: the whole remainder resumes next tick
+      } else if (!ledger || ledger.glCaughtUp === false || ledger.pleCaughtUp === false) {
         console.warn(`[erpnext-sweep] org ${org.orgId}: accounting refresh deferred until both ledger feeds catch up`);
       } else {
         try {
@@ -720,10 +747,17 @@ export async function runErpSweepCycle(
           errors.push(`accounting:${err instanceof Error ? err.message : String(err)}`);
         }
       }
-      // Stamp the completed full run (0358). A tick that dies before here leaves the org due.
-      if (deps.markFullSweepDone) {
+      // Stamp the completed full run (0358) only when every hourly pass finished and none failed; otherwise defer
+      // (continue next tick when work was left, retry after a delay when a pass failed). Statement-side errors
+      // retry on their own cadence and do not hold the marker back. A tick that dies before here leaves the org due.
+      const failed = errors.slice(hourlyFrom).some((e) => !e.startsWith('native-statement:') && !e.startsWith('statement:'));
+      const unfinished = truncated || walkIncomplete || ledgerBehind;
+      // An org whose hourly work never started keeps its marker: a defer would reset how long it has waited
+      // and let a slow earlier org go first again on every tick.
+      const settle = !hourlyStarted ? undefined : unfinished || failed ? deps.deferFullSweep?.bind(null, org, failed ? SWEEP_RETRY_DELAY_SECONDS : 0) : deps.markFullSweepDone?.bind(null, org);
+      if (settle) {
         try {
-          await deps.markFullSweepDone(org);
+          await settle();
         } catch (err) {
           errors.push(`full-run-mark:${err instanceof Error ? err.message : String(err)}`);
         }
@@ -930,17 +964,6 @@ function statementReportBatchMatchesBinding(
     sameTimestampInstant(batchBinding.activatedAt, context.activatedAt);
 }
 
-/** 0358: an org's hourly work is due once its last completed full run is at least this old. */
-export const SWEEP_FULL_INTERVAL_MS = 55 * 60_000;
-/** A binding still building its first statement publication keeps the full sweep every five minutes. */
-export const SWEEP_BACKFILL_EVERY_MINUTES = 5;
-
-/** Whether an org's hourly work is due: never run, unreadable, or completed at least 55 minutes ago. */
-export function fullSweepDue(lastFullSweepAt: string | null | undefined, nowMs: number): boolean {
-  const last = lastFullSweepAt ? Date.parse(lastFullSweepAt) : Number.NaN;
-  return !Number.isFinite(last) || nowMs - last >= SWEEP_FULL_INTERVAL_MS;
-}
-
 /**
  * The tick-wide decision. Every tick runs the outbound money passes (owner ruling 2026-10-23). The tick
  * forces the full sweep for every org only while some binding lacks its first statement publication,
@@ -955,11 +978,6 @@ export function tickCadenceSummary(cadence: ErpSweepCadence, cycle: ErpSweepCycl
   return ran.size === 1 ? [...ran][0] : 'mixed';
 }
 
-export async function sweepCadenceAt(entryMs: number, allPublished: () => Promise<boolean>): Promise<ErpSweepCadence> {
-  const minute = new Date(entryMs).getUTCMinutes();
-  if (minute % SWEEP_BACKFILL_EVERY_MINUTES !== 0) return 'money-only';
-  return (await allPublished()) ? 'money-only' : 'full';
-}
 
 /**
  * Between an org's hourly runs, the full sweep is forced only while some active binding accepted by
@@ -1119,17 +1137,7 @@ function listCandidatesLive(serviceClient: SupabaseClient): ListOutboxCandidates
     const { data, error } = await serviceClient.rpc('outbox_reconcile_candidates', { p_org_id: orgId });
     if (error) throw new AppError(error.message, error.code);
     const rows = (data as Array<Record<string, unknown>> | null) ?? [];
-    return rows.map((r) => ({
-      id: String(r.id),
-      domain: String(r.domain),
-      pmoRecordId: String(r.pmo_record_id),
-      idempotencyKey: String(r.idempotency_key),
-      state: r.state as OutboxRow['state'],
-      externalRecordId: (r.external_record_id as string | null) ?? null,
-      canonical: (r.canonical as OutboxRow['canonical']) ?? null,
-      claimGeneration: (r.claim_generation as number | undefined) ?? 0,
-      payloadDigest: (r.payload_digest as string | null | undefined) ?? null,
-    }));
+    return rows.map(outboxRowOf);
   };
 }
 
@@ -1238,7 +1246,7 @@ export interface SweepTickBudgetOpts {
  *  operation — never an error — the remaining doctypes resume next tick from their own watermarks.
  *  #916 fix round: the doctypes run LEAST-RECENTLY-ATTEMPTED first (never-run first), so a doctype
  *  the budget keeps skipping cannot starve forever behind an always-busy registry-earlier sibling. */
-export async function sweepOrgDoctypesLive(serviceClient: SupabaseClient, org: OrgBinding, cache?: ErpAuthPairCache, opts: SweepTickBudgetOpts = {}): Promise<{ applied: number; error?: string }> {
+export async function sweepOrgDoctypesLive(serviceClient: SupabaseClient, org: OrgBinding, cache?: ErpAuthPairCache, opts: SweepTickBudgetOpts = {}): Promise<{ applied: number; error?: string; complete: boolean }> {
   const nowMs = opts.nowMs ?? Date.now;
   const tickStartMs = opts.tickStartMs ?? nowMs();
   const tickMaxDocs = opts.tickMaxDocs ?? SWEEP_TICK_MAX_DOCS;
@@ -1257,6 +1265,8 @@ export async function sweepOrgDoctypesLive(serviceClient: SupabaseClient, org: O
   // the watermark only advances after the whole listed batch applies).
   let docsThisTick = 0;
   let walkedDoctypes = 0;
+  // False once any doctype stopped short (tick budget, page quantum) so the caller does not stamp the run complete.
+  let complete = true;
   // BLOCK 1 / round-7 B5: the pull-adopt guard. NOT a snapshot — the probe asks the outbox about each
   // CANDIDATE document at the moment the poll sees it, so neither a stale key set nor PostgREST's
   // `max_rows` ceiling can let a PMO-originated document be pull-adopted into a SECOND PMO row. A read
@@ -1274,6 +1284,7 @@ export async function sweepOrgDoctypesLive(serviceClient: SupabaseClient, org: O
           + `(${docsThisTick}/${tickMaxDocs} docs listed, ${elapsedMs}/${tickTimeBudgetMs} ms elapsed) — the remaining `
           + 'doctypes resume next tick from their persisted watermarks (#916)',
       );
+      complete = false;
       break;
     }
     walkedDoctypes += 1;
@@ -1392,6 +1403,7 @@ export async function sweepOrgDoctypesLive(serviceClient: SupabaseClient, org: O
             // Counted HERE, the moment the listing returns, so the budget is spent regardless of the
             // apply outcome below (including a halt that aborts this doctype mid-batch).
             docsThisTick += listed.listedCount;
+            if (!listed.caughtUp) complete = false;
             return listed;
           },
         },
@@ -1446,7 +1458,7 @@ export async function sweepOrgDoctypesLive(serviceClient: SupabaseClient, org: O
       continue;
     }
   }
-  return { applied, ...(doctypeErrors.length > 0 ? { error: doctypeErrors.join(' | ') } : {}) };
+  return { applied, complete, ...(doctypeErrors.length > 0 ? { error: doctypeErrors.join(' | ') } : {}) };
 }
 
 // ────────────────────────────────────────────────────────────────────────────────────────────────
@@ -1934,31 +1946,7 @@ async function findBudgetOutboxRow(
   versionId: string,
   idempotencyKey: string,
 ): Promise<OutboxRow | null> {
-  const { data, error } = await serviceClient
-    .from('external_command_outbox')
-    .select('id, domain, pmo_record_id, idempotency_key, state, external_record_id, canonical, claim_generation, payload_digest')
-    .eq('org_id', orgId)
-    .eq('domain', ERPNEXT_BUDGET_DOMAIN)
-    .eq('pmo_record_id', versionId)
-    .eq('idempotency_key', idempotencyKey)
-    .maybeSingle();
-  if (error) throw new AppError(error.message, error.code);
-  if (!data) return null;
-  const r = data as {
-    id: string; domain: string; pmo_record_id: string; idempotency_key: string; state: OutboxRow['state'];
-    external_record_id: string | null; canonical: PmoRecord | null; claim_generation: number; payload_digest: string | null;
-  };
-  return {
-    id: r.id,
-    domain: r.domain,
-    pmoRecordId: r.pmo_record_id,
-    idempotencyKey: r.idempotency_key,
-    state: r.state,
-    externalRecordId: r.external_record_id,
-    canonical: r.canonical,
-    claimGeneration: r.claim_generation,
-    payloadDigest: r.payload_digest ?? null,
-  };
+  return findOutboxRowByKey(serviceClient, orgId, ERPNEXT_BUDGET_DOMAIN, versionId, idempotencyKey);
 }
 
 /**
@@ -2042,6 +2030,23 @@ function holdBudgetMirrorRow(
     .is('erp_cancelled_at', null);
 }
 
+/** THEME-BACK-06 (0427): stamp the rows a queue pass just selected, so the next tick serves the rows it
+ *  did NOT select first. Written for rows that are skipped, waiting or failing too — that is the point. */
+async function stampQueueAttempt(serviceClient: SupabaseClient, table: string, orgId: string, column: string, ids: string[]): Promise<void> {
+  if (ids.length === 0) return;
+  const { error } = await serviceClient.from(table)
+    .update({ last_attempt_at: new Date().toISOString() }).eq('org_id', orgId).in(column, ids);
+  if (error) throw new AppError(error.message, error.code);
+}
+
+/** The queues' fair order, as a comparator over the rows' own keys: never attempted first, then the
+ *  longest-waiting, then the oldest, then id (the same total order the SQL `order by` uses). */
+function byQueueFairness(a: { last_attempt_at?: string | null; created_at?: string | null; id?: string | null }, b: { last_attempt_at?: string | null; created_at?: string | null; id?: string | null }): number {
+  return (a.last_attempt_at ?? '').localeCompare(b.last_attempt_at ?? '')
+    || (a.created_at ?? '').localeCompare(b.created_at ?? '')
+    || (a.id ?? '').localeCompare(b.id ?? '');
+}
+
 /** The synthetic candidate state for a budget push whose OUTBOX row exists but whose mirror row does
  *  not — the crash-between-the-ERP-write-and-the-finalize window (⚑ MEDIUM-2). */
 const BUDGET_MIRROR_ABSENT = 'absent';
@@ -2065,13 +2070,13 @@ export function budgetBackstopDepsLive(
     listPendingBudgetPushes: async (orgId, limit) => {
       const [legacyResult, accountResult] = await Promise.all([
         serviceClient.from('budget_version_erp_mirror')
-          .select('id,budget_version_id,push_state,erp_cancelled_at,fiscal_year,created_at')
+          .select('id,budget_version_id,push_state,erp_cancelled_at,fiscal_year,created_at,last_attempt_at')
           .eq('org_id', orgId).in('push_state', ['pending', 'failed']).is('erp_cancelled_at', null)
-          .order('created_at', { ascending: true }).limit(limit),
+          .order('last_attempt_at', { ascending: true, nullsFirst: true }).order('created_at', { ascending: true }).order('id', { ascending: true }).limit(limit),
         serviceClient.from('budget_version_account_erp_mirror')
-          .select('id,budget_version_id,push_state,erp_cancelled_at,fiscal_year,erp_account,budget_intent,created_at')
+          .select('id,budget_version_id,push_state,erp_cancelled_at,fiscal_year,erp_account,budget_intent,created_at,last_attempt_at')
           .eq('org_id', orgId).in('push_state', ['pending', 'failed']).is('erp_cancelled_at', null)
-          .order('created_at', { ascending: true }).limit(limit),
+          .order('last_attempt_at', { ascending: true, nullsFirst: true }).order('created_at', { ascending: true }).order('id', { ascending: true }).limit(limit),
       ]);
       if (legacyResult.error) throw new AppError(legacyResult.error.message, legacyResult.error.code);
       if (accountResult.error) throw new AppError(accountResult.error.message, accountResult.error.code);
@@ -2086,13 +2091,14 @@ export function budgetBackstopDepsLive(
           budget_intent: (r.budget_intent as 'ensure' | 'remove' | null) ?? null,
         } : { erp_account: null, budget_intent: 'ensure' as const }),
         created_at: (r.created_at as string | null) ?? null,
+        last_attempt_at: (r.last_attempt_at as string | null) ?? null,
       });
       const mirrored = [
         ...((legacyResult.data as Array<Record<string, unknown>> | null) ?? []).map((r) => toCandidate(r, false)),
         ...((accountResult.data as Array<Record<string, unknown>> | null) ?? [])
           .filter((r) => typeof r.erp_account === 'string' && r.erp_account !== '')
           .map((r) => toCandidate(r, true)),
-      ].sort((a, b) => (a.created_at ?? '').localeCompare(b.created_at ?? '') || (a.id ?? '').localeCompare(b.id ?? ''))
+      ].sort(byQueueFairness)
         .slice(0, limit);
       // ⚑ MEDIUM-2 — …plus the OUTBOX-ONLY orphans. Nothing writes a `budget_version_erp_mirror` row
       // before the dispatch (every mirror writer lives inside `adapter-dispatch`'s finalize), so a
@@ -2137,8 +2143,14 @@ export function budgetBackstopDepsLive(
           created_at: null,
         }));
       return [...mirrored, ...orphans]
-        .sort((a, b) => (a.created_at ?? '').localeCompare(b.created_at ?? '') || (a.id ?? '').localeCompare(b.id ?? ''))
+        .sort(byQueueFairness)
         .slice(0, limit);
+    },
+    markAttempted: async (orgId, rows) => {
+      // Only rows with a mirror row of their own can be stamped; an `absent` orphan is an outbox row.
+      const real = rows.filter((r) => r.push_state !== BUDGET_MIRROR_ABSENT && typeof r.id === 'string');
+      await stampQueueAttempt(serviceClient, 'budget_version_erp_mirror', orgId, 'id', real.filter((r) => !r.erp_account).map((r) => String(r.id)));
+      await stampQueueAttempt(serviceClient, 'budget_version_account_erp_mirror', orgId, 'id', real.filter((r) => !!r.erp_account).map((r) => String(r.id)));
     },
     readBudgetVersion: async (versionId) => {
       // FR-BUD-102: re-read under SERVICE ROLE (the sweep carries no user JWT) — scoped to this org
@@ -2337,10 +2349,12 @@ async function reconcileOrgBudgetArchiveCancellationsLive(
       const { data, error } = await serviceClient.from('budget_archive_cancel_intents')
         .select('id,org_id,project_id,budget_version_id,source_mirror_id,actor_user_id,fiscal_year,erp_account,erp_budget_name,activated_at_witness,pushed_project_start_date,pushed_project_end_date')
         .eq('org_id', orgId).eq('state', 'pending')
+        .order('last_attempt_at', { ascending: true, nullsFirst: true })
         .order('created_at', { ascending: true }).order('id', { ascending: true }).limit(limit);
       if (error) throw new AppError(error.message, error.code);
       return (data ?? []) as unknown as BudgetArchiveCancelIntent[];
     },
+    markAttempted: (orgId, jobs) => stampQueueAttempt(serviceClient, 'budget_archive_cancel_intents', orgId, 'id', jobs.map((j) => j.id)),
     readLifecycle: (job) => readBudgetArchiveLifecycleLive(serviceClient, job),
     targetIsStillLiveAndOwned: (job) => budgetArchiveTargetStillLiveAndOwnedLive(serviceClient, job),
     driveCancellation: async (job) => {
@@ -2447,42 +2461,6 @@ async function findTimesheetOutboxRow(
   idempotencyKey: string,
 ): Promise<OutboxRow | null> {
   return findOutboxRowByKey(serviceClient, orgId, ERPNEXT_TIMESHEETS_DOMAIN, timesheetId, idempotencyKey);
-}
-
-/** The EXISTING `external_command_outbox` row for a (domain, record, deterministic key), if any — shared by the
- *  timesheet backstop and the expense pass (#775 phase B), whose keys are re-derived identically every tick. */
-async function findOutboxRowByKey(
-  serviceClient: SupabaseClient,
-  orgId: string,
-  domain: string,
-  pmoRecordId: string,
-  idempotencyKey: string,
-): Promise<OutboxRow | null> {
-  const { data, error } = await serviceClient
-    .from('external_command_outbox')
-    .select('id, domain, pmo_record_id, idempotency_key, state, external_record_id, canonical, claim_generation, payload_digest')
-    .eq('org_id', orgId)
-    .eq('domain', domain)
-    .eq('pmo_record_id', pmoRecordId)
-    .eq('idempotency_key', idempotencyKey)
-    .maybeSingle();
-  if (error) throw new AppError(error.message, error.code);
-  if (!data) return null;
-  const r = data as {
-    id: string; domain: string; pmo_record_id: string; idempotency_key: string; state: OutboxRow['state'];
-    external_record_id: string | null; canonical: PmoRecord | null; claim_generation: number; payload_digest: string | null;
-  };
-  return {
-    id: r.id,
-    domain: r.domain,
-    pmoRecordId: r.pmo_record_id,
-    idempotencyKey: r.idempotency_key,
-    state: r.state,
-    externalRecordId: r.external_record_id,
-    canonical: r.canonical,
-    claimGeneration: r.claim_generation,
-    payloadDigest: r.payload_digest ?? null,
-  };
 }
 
 /**
@@ -2692,15 +2670,18 @@ export function timesheetBackstopDepsLive(
       // Index-served on (org_id, push_state) and bounded, ordered oldest-first so the queue is fair.
       const { data, error } = await serviceClient
         .from('timesheet_erp_mirror')
-        .select('timesheet_id, push_state, erp_cancelled_at')
+        .select('id, timesheet_id, push_state, erp_cancelled_at, last_attempt_at')
         .eq('org_id', orgId)
         .in('push_state', ['pending', 'failed'])
         .is('erp_cancelled_at', null)
+        // Fair order (0427): never attempted first, then the longest-waiting — see `stampQueueAttempt`.
+        .order('last_attempt_at', { ascending: true, nullsFirst: true })
         .order('created_at', { ascending: true })
+        .order('id', { ascending: true })
         .limit(limit);
       if (error) throw new AppError(error.message, error.code);
-      const mirrored = ((data as Array<{ timesheet_id: string; push_state: string; erp_cancelled_at: string | null }> | null) ?? [])
-        .map((r) => ({ timesheet_id: r.timesheet_id, push_state: r.push_state, erp_cancelled_at: r.erp_cancelled_at }));
+      const mirrored = ((data as Array<{ timesheet_id: string; push_state: string; erp_cancelled_at: string | null; last_attempt_at: string | null }> | null) ?? [])
+        .map((r) => ({ timesheet_id: r.timesheet_id, push_state: r.push_state, erp_cancelled_at: r.erp_cancelled_at, last_attempt_at: r.last_attempt_at }));
       // …plus the `absent` half: APPROVED sheets that never got a mirror row at all (see
       // `listApprovedSheetsWithoutMirror` — the browser-died-before-the-fetch case this pass exists
       // for). Mirror rows come FIRST, and each half has a bounded budget NEITHER of which the other can
@@ -2709,6 +2690,11 @@ export function timesheetBackstopDepsLive(
       // missed — a saturated `failed` mirror queue cannot blind the stranded-sheet detector.
       const absent = await listApprovedSheetsWithoutMirror(serviceClient, org, absentQueueBudget(limit, mirrored.length));
       return [...mirrored, ...absent];
+    },
+
+    markAttempted: async (orgId, rows) => {
+      await stampQueueAttempt(serviceClient, 'timesheet_erp_mirror', orgId, 'timesheet_id',
+        rows.filter((r) => r.push_state !== 'absent').map((r) => r.timesheet_id));
     },
 
     assertApprovedForPush: async (row) => {
@@ -3482,6 +3468,14 @@ serveWithErrorReporting('erpnext-sweep', withJobRun('erpnext-sweep', async (req:
     reconcileOrgBudgetPushes: (org) => reconcileOrgBudgetPushesLive(serviceClient, org, erpAuth),
     reconcileOrgTimesheetPushes: (org) => reconcileOrgTimesheetPushesLive(serviceClient, org),
     reconcileOrgExpensePostings: (org) => reconcileOrgExpensePostingsLive(serviceClient, org, erpAuth),
+    nowMs: Date.now,
+    hourlyDeadlineAtMs: handlerEntryMs + HOURLY_INVOCATION_DEADLINE_MS,
+    deferFullSweep: async (org, dueInSeconds) => {
+      if (!org.statementLockHolder) throw new Error('no sweep lock held');
+      const { data, error } = await serviceClient.rpc('defer_erp_full_sweep', { p_org_id: org.orgId, p_holder: org.statementLockHolder, p_due_in_seconds: dueInSeconds });
+      if (error) throw new Error(`full-run defer failed: ${error.code ?? 'unknown'}`);
+      if (data !== true) throw new Error('the sweep lock lapsed before the full run was deferred');
+    },
     reconcileOrgImprestPostings: (org) => reconcileOrgImprestPostingsLive(serviceClient, org, erpAuth),
     isFullSweepDue: (org) => fullSweepDue(org.lastFullSweepAt, handlerEntryMs),
     markFullSweepDone: async (org) => {

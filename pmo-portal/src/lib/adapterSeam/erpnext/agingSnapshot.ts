@@ -17,6 +17,7 @@
  * per scope (new snapshot_id → delete prior scope → insert). Importable by Vitest (app) and the slice-8
  * sweep edge fn (Deno) — relative imports only, structural seams.
  */
+import { AdapterError } from '../contract.ts';
 import { fetchAllRowsByKeyset } from '../../pagedRead.ts';
 import { erpnextRequest, ERP_RESPONSE_MAX_BYTES, type ErpClientDeps } from './client.ts';
 import { publishSnapshot, type SnapshotServiceClient } from './actualsSnapshot.ts';
@@ -86,6 +87,17 @@ function toNum(v: unknown): number {
   const n = typeof v === 'number' ? v : Number(v);
   return Number.isFinite(n) ? n : 0;
 }
+/** A money cell the report must carry: absent/blank or non-finite is a malformed report, not zero
+ *  (THEME-DATA-09). `optional` cells (range buckets) may be absent, but a present value must parse. */
+function moneyCell(v: unknown, optional: boolean): number {
+  if (v === null || v === undefined || v === '') {
+    if (optional) return 0;
+    throw new AdapterError('commit-rejected', 'ERP aging report row is missing a required amount');
+  }
+  const n = typeof v === 'number' ? v : Number(v);
+  if (!Number.isFinite(n)) throw new AdapterError('commit-rejected', 'ERP aging report row carries a non-numeric amount');
+  return n;
+}
 function toStr(v: unknown): string | null {
   return v === null || v === undefined || v === '' ? null : String(v);
 }
@@ -132,7 +144,9 @@ function pick(row: Record<string, unknown>, ...keys: string[]): unknown {
 export function parseAgingReport(body: unknown): AgingRow[] {
   const env = unwrapMessage(body);
   const result = (env.result ?? env.data) as unknown;
-  if (!Array.isArray(result)) return [];
+  // A missing/non-array result is a malformed report, not an empty one: only a validated empty
+  // array is "no outstanding balance". Throwing routes refreshAging to its labelled fallback.
+  if (!Array.isArray(result)) throw new AdapterError('commit-rejected', 'ERP aging report response has no result array');
   // Keyed by (party, currency): a party with vouchers in two currencies must yield two rows —
   // collapsing them would sum incomparable amounts into one invalid total (Luna review 2026-07-14).
   const byPartyCurrency = new Map<string, AgingRow>();
@@ -153,11 +167,11 @@ export function parseAgingReport(body: unknown): AgingRow[] {
       range3: 0,
       range4: 0,
     };
-    const outstanding = toNum(pick(row, 'outstanding', 'total', 'Total', 'outstanding_amount'));
-    const r1 = toNum(pick(row, 'range1', '0-30'));
-    const r2 = toNum(pick(row, 'range2', '31-60'));
-    const r3 = toNum(pick(row, 'range3', '61-90'));
-    const r45 = toNum(pick(row, 'range4', '91-120')) + toNum(pick(row, 'range5', '121-Above'));
+    const outstanding = moneyCell(pick(row, 'outstanding', 'total', 'Total', 'outstanding_amount'), false);
+    const r1 = moneyCell(pick(row, 'range1', '0-30'), true);
+    const r2 = moneyCell(pick(row, 'range2', '31-60'), true);
+    const r3 = moneyCell(pick(row, 'range3', '61-90'), true);
+    const r45 = moneyCell(pick(row, 'range4', '91-120'), true) + moneyCell(pick(row, 'range5', '121-Above'), true);
     rec.total += outstanding;
     rec.range1 += r1;
     rec.range2 += r2;
@@ -169,7 +183,7 @@ export function parseAgingReport(body: unknown): AgingRow[] {
     // v15 detail report has no current column of its own). Negative leftovers (credit notes /
     // unallocated advances) land here too, keeping the invariant for every row shape. An explicit
     // `current` column (legacy summary shape) is part of the bucketed amount, not leftover.
-    const explicitCurrent = toNum(pick(row, 'current', 'Current'));
+    const explicitCurrent = moneyCell(pick(row, 'current', 'Current'), true);
     rec.current += explicitCurrent + (outstanding - (explicitCurrent + r1 + r2 + r3 + r45));
     byPartyCurrency.set(key, rec);
   }

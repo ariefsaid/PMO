@@ -216,6 +216,7 @@
     "create_vault_secret_for_org(uuid,text,text,text,uuid)",
     "deactivate_external_binding(uuid,text,uuid)",
     "decide_imprest_float_change(uuid,boolean,text)",
+    "defer_erp_full_sweep(uuid,uuid,integer)",
     "delete_vault_secret(text)",
     "discard_odoo_mirror(uuid,uuid)",
     "disconnect_external_integration(uuid,text,uuid)",
