@@ -1,4 +1,4 @@
-// @e2e-isolation: self-isolated — creates its own uniquely-named project, budget, float, plan and claims each run and deletes them afterwards; the org procurement limit is inserted only when absent and removed only if this run inserted it.
+// @e2e-isolation: self-isolated — creates its own uniquely-named project, budget, float, plan and claims each run and deletes them afterwards; the org procurement limit is inserted only when absent and removed only if this run inserted it. Shared-row dependency: the org-wide imprest settings row and the org senior approver set are read, not owned; the journey assumes the seed's senior set excludes the Executive.
 /**
  * AC-IMP-090 — site imprest (#1515): the cross-stack journey. A float is funded, planned and charged; its custodian asks for
  * a replenishment, a second person approves it and a third pays it. Goal oracle: after payment the float page shows the cash
@@ -185,11 +185,18 @@ test('AC-IMP-090 site imprest: replenish settled receipts and route an out-of-pl
 
   // The project approver is not in the senior route: no Approve. The senior approver (Admin) decides it.
   await signIn(page, 'exec@acme.test');
+  await page.goto('/approvals');
+  await expect(page).toHaveURL(/\/approvals/);
+  await page.waitForLoadState('networkidle');
+  await expect(page.getByText(`${tag} out of plan`)).toHaveCount(0); // the project approver's inbox does not list it
   await page.goto(claimUrl);
   await expect(page.getByTestId('imprest-exception-note')).toContainText('Out of plan', { timeout: 15_000 });
   await expect(page.getByRole('button', { name: /^(Approve|Setujui)$/ })).toHaveCount(0);
 
   await signIn(page, 'admin@acme.test');
+  await page.goto('/approvals');
+  const inboxRow = page.locator('li', { hasText: `${tag} out of plan` });
+  await expect(inboxRow).toContainText('Out of plan', { timeout: 15_000 }); // the deciding inbox lists it, tagged
   await page.goto(claimUrl);
   await page.getByRole('button', { name: /^(Approve|Setujui)$/ }).click();
   await page.getByRole('dialog').getByRole('button', { name: /^(Approve|Setujui)$/ }).click();

@@ -43,7 +43,7 @@ vi.mock('@/src/hooks/useExpenseReceipts', () => ({
 vi.mock('@/src/hooks/useImprest', () => ({
   useImprestFloatChoices: () => ({ data: [] }),
   useImprestFloat: (id?: string | null) => ({
-    data: h.floats.find((f) => f.id === id) ?? null, isPending: h.floatState === 'loading',
+    data: h.floatState === 'loading' ? undefined : h.floats.find((f) => f.id === id) ?? null, isPending: h.floatState === 'loading',
   }),
 }));
 vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => ({ data: h.projects }) }));
