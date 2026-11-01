@@ -260,8 +260,11 @@ record charged to that float (DD-IMP-7.2).
   count is append-only.
 - **FR-IMP-063** Every successful float, plan, change, replenishment and count transition shall write `audit_events`.
 - **FR-IMP-064** The system shall notify, on the #788 pattern: the plan's approvers when a plan is submitted; the author
-  when it is decided; the senior set when an exception awaits approval; Finance members other than the custodian when a
-  replenishment is requested; the custodian when it is approved and when it is paid.
+  when it is decided; the senior set when an exception awaits approval (at submit, or when another approval pushes a
+  waiting item out of plan), minus the claimant, the custodian and the month's plan approver, falling back to Admins
+  when none remain; Finance members other than the custodian and requester when a replenishment is requested, falling
+  back to Admins when none remain; the custodian when it is approved and when it is paid. Nobody is asked to approve a
+  record on a float they hold.
 
 ### Front end (UX only, ADR-0016; the server is the authority)
 - **FR-IMP-070** `/imprest` shall list the floats the viewer may see, each with its position (float, cash, advances out,

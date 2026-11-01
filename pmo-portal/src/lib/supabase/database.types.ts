@@ -10536,6 +10536,15 @@ export type Database = {
         Args: { p_org: string; p_profile: string; p_project: string }
         Returns: boolean
       }
+      imprest_exception_recipients: {
+        Args: {
+          p_claimant: string
+          p_float: string
+          p_month: string
+          p_org: string
+        }
+        Returns: string[]
+      }
       imprest_float_choices: {
         Args: {
           p_category?: Database["public"]["Enums"]["budget_category"]

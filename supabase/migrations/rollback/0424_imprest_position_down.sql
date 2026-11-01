@@ -53,11 +53,12 @@ drop trigger if exists imprest_replenishments_notify_trg on public.imprest_reple
 drop trigger if exists imprest_plans_notify_trg on public.imprest_plans;
 drop function if exists public.notify_imprest_replenishment();
 drop function if exists public.notify_imprest_plan_transition();
+drop function if exists public.imprest_exception_recipients(uuid, uuid, date, uuid);
 -- 3. the reads and the count writer.
 drop function if exists public.imprest_float_choices(uuid, public.budget_category);
 drop function if exists public.get_imprest_position(uuid);
 drop function if exists public.get_imprest_plan_usage(uuid, date);
 drop function if exists public.record_imprest_count(uuid, numeric, text);
--- 4. the counts table (its append-only trigger goes with it), then the trigger function.
+-- 4. the counts table (its append-only and no-truncate triggers go with it), then the trigger function.
 drop table if exists public.imprest_cash_counts;
 drop function if exists public.refuse_imprest_count_change();
