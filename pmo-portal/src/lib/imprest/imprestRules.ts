@@ -96,3 +96,16 @@ export function availableFloatChangeActions(c: FloatChangeCtx): ImprestAction[] 
   if (c.change.status !== 'Proposed' || c.userId === c.change.proposed_by || c.userId === c.custodianId) return [];
   return APPROVAL_RANK.includes(c.realRole) ? ['approveFloatChange', 'rejectFloatChange'] : [];
 }
+
+/** FR-IMP-024/025 for a SUBMITTED float record. The server evaluates the exception at decision time and stamps the flag only on
+ *  Approved, so the record page derives it the same way: above the month's remaining (no plan line = zero) the record goes to the
+ *  senior set (minus the claimant), or to an Admin when none is eligible. `remaining` undefined = unknown: derive nothing, the RPC decides.
+ *  UX only (ADR-0016). The client cannot see a senior member's status or rank, so a stale entry may be listed; the RPC still refuses. */
+export function planExceptionRoute(c: {
+  amount: number | string; remaining: number | string | null | undefined;
+  seniors: Array<{ id: string; fullName: string }>; claimantId: string;
+}): { route: 'org' | 'admin'; approvers: Array<{ id: string; fullName: string }> } | null {
+  if (c.remaining === undefined || !isPlanException(c.amount, c.remaining)) return null;
+  const approvers = c.seniors.filter((s) => s.id !== c.claimantId);
+  return approvers.length > 0 ? { route: 'org', approvers } : { route: 'admin', approvers: [] };
+}

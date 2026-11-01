@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  availableFloatActions, availableReplenishmentActions, availablePlanActions, availableFloatChangeActions, sumCents, toCents, gapCents, isPlanException,
+  availableFloatActions, availableReplenishmentActions, availablePlanActions, availableFloatChangeActions, planExceptionRoute, sumCents, toCents, gapCents, isPlanException,
 } from './imprestRules';
 
 const float = (o: Partial<Parameters<typeof availableFloatActions>[0]> = {}) => ({
@@ -106,6 +106,25 @@ describe('AC-IMP-081 float amount changes follow decide_imprest_float_change', (
     expect(changeCtx('adm', 'Admin', 'Approved')).toEqual([]);
     expect(changeCtx('', 'Admin', 'Proposed')).toEqual([]);
     expect(changeCtx('adm', null, 'Proposed')).toEqual([]);
+  });
+});
+
+describe('AC-IMP-081 the out-of-plan route is derived for a Submitted float record', () => {
+  const seniors = [{ id: 's1', fullName: 'Sam Senior' }, { id: 'claimant', fullName: 'Cleo Claimant' }];
+  it('AC-IMP-081 an item above the month\'s remaining routes to the senior set, minus the claimant', () => {
+    expect(planExceptionRoute({ amount: 700000, remaining: 500000, seniors, claimantId: 'claimant' }))
+      .toEqual({ route: 'org', approvers: [{ id: 's1', fullName: 'Sam Senior' }] });
+  });
+  it('AC-IMP-081 no eligible senior approver routes to an Admin', () => {
+    expect(planExceptionRoute({ amount: 700000, remaining: 500000, seniors: [], claimantId: 'claimant' })).toEqual({ route: 'admin', approvers: [] });
+    expect(planExceptionRoute({ amount: 700000, remaining: 0, seniors: [seniors[1]], claimantId: 'claimant' })).toEqual({ route: 'admin', approvers: [] });
+  });
+  it('AC-IMP-081 an item within the remaining is not an exception; no plan line (null) always is', () => {
+    expect(planExceptionRoute({ amount: 500000, remaining: 500000, seniors, claimantId: 'claimant' })).toBeNull();
+    expect(planExceptionRoute({ amount: 1, remaining: null, seniors: [], claimantId: 'claimant' })).toEqual({ route: 'admin', approvers: [] });
+  });
+  it('AC-IMP-081 an unknown remaining derives nothing (the RPC decides)', () => {
+    expect(planExceptionRoute({ amount: 700000, remaining: undefined, seniors, claimantId: 'claimant' })).toBeNull();
   });
 });
 

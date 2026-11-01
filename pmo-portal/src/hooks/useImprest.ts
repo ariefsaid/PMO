@@ -87,6 +87,16 @@ export function useImprestProcurementLimit() {
   const orgId = useOrgId();
   return useQuery({ queryKey: ['imprest-limit', orgId], queryFn: () => repositories.imprest.getProcurementLimit(), enabled: Boolean(orgId) });
 }
+/** The org-level senior set (FR-IMP-025); shares the admin page's `spend-approvers` cache entry. Every active member reads (RLS). */
+export function useSeniorApprovers() {
+  const orgId = useOrgId();
+  return useQuery({
+    queryKey: ['spend-approvers', orgId],
+    queryFn: () => repositories.orgSettings.listSpendApprovers(),
+    select: (rows) => rows.filter((r) => r.projectId === null).map((r) => ({ id: r.profileId, fullName: r.fullName })),
+    enabled: Boolean(orgId),
+  });
+}
 export function useImprestFloatChoices(projectId: string | undefined, category: BudgetCategory | null) {
   const orgId = useOrgId();
   return useQuery({

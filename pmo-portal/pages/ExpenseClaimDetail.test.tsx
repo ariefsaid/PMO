@@ -17,6 +17,9 @@ const h = vi.hoisted(() => ({
   projects: [] as Array<{ id: string; name: string; short_name?: string | null }>,
   agingRows: [] as Array<Record<string, unknown>>,
   floats: [] as Array<Record<string, unknown>>,
+  usage: undefined as unknown,
+  seniors: [] as Array<{ id: string; fullName: string }>,
+  usageArgs: [] as unknown[][],
   userId: 'eng',
   realRole: 'Engineer',
   m: {
@@ -39,7 +42,11 @@ vi.mock('@/src/hooks/useExpenseReceipts', () => ({
     download: vi.fn(), progress: null, uploadError: null, clearUploadError: vi.fn(),
   }),
 }));
-vi.mock('@/src/hooks/useImprest', () => ({ useImprestFloats: () => ({ data: { rows: h.floats, truncated: false } }) }));
+vi.mock('@/src/hooks/useImprest', () => ({
+  useImprestFloats: () => ({ data: { rows: h.floats, truncated: false } }),
+  useImprestPlanUsage: (...a: unknown[]) => { h.usageArgs.push(a); return { data: h.usage }; },
+  useSeniorApprovers: () => ({ data: h.seniors }),
+}));
 vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => ({ data: h.projects }) }));
 vi.mock('@/src/hooks/useExpensePostingReadiness', () => ({ useExpensePostingReadiness: () => ({ state: 'inactive', retry: vi.fn() }) }));
 // #775 phase B — the Ledger postings card is proven by its own test (AC-EXP-131); it needs a QueryClient this page test does not mount.
@@ -74,6 +81,9 @@ beforeEach(() => {
   h.projects = [];
   h.agingRows = [];
   h.floats = [];
+  h.usage = undefined;
+  h.seniors = [];
+  h.usageArgs = [];
   h.m.update.mutateAsync.mockReset();
   h.m.update.mutateAsync.mockResolvedValue(undefined);
   setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' });
@@ -153,6 +163,77 @@ describe('ExpenseClaimDetail', () => {
     const banner = screen.getByTestId('imprest-exception-note');
     expect(banner).toHaveTextContent('Out of plan');
     expect(banner).toHaveTextContent('Sam Senior');
+  });
+
+  describe('FR-IMP-025 a Submitted float claim above the month\'s remaining (derived: the server stamps the flag only on approval)', () => {
+    const floatClaim = { ...base, status: 'Submitted', imprest_float_id: 'f1', imprest_month: '2026-11-01', is_plan_exception: false };
+    const projectRoute = { claimId: 'c1', route: 'project', reason: 'within_budget', approvers: [{ id: 'pm', fullName: 'Pia Project' }], requestAmount: 300, lineBudget: 500, lineUsed: 0 };
+    beforeEach(() => {
+      h.claim = floatClaim; h.route = projectRoute; h.floats = [{ id: 'f1', custodian_id: 'cust' }];
+      h.usage = [{ budget_category: 'Special expenses', planned: 500, drawn: 400, remaining: 100, exceptions: [] }]; // 300 > 100
+      h.seniors = [{ id: 's1', fullName: 'Sam Senior' }];
+    });
+
+    it('FR-IMP-025 reads the plan usage for the claim\'s float and frozen month', () => {
+      as('pm', 'Project Manager');
+      renderAt();
+      expect(h.usageArgs.at(-1)).toEqual(['f1', '2026-11-01']);
+    });
+    it('FR-IMP-025 the project approver sees no Approve and the banner names the senior set', () => {
+      as('pm', 'Project Manager');
+      renderAt();
+      expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull();
+      expect(screen.getByTestId('imprest-exception-note')).toHaveTextContent('Sam Senior');
+    });
+    it('FR-IMP-025 a senior set member and an Admin may approve', () => {
+      as('s1', 'Executive');
+      const { unmount } = renderAt();
+      expect(screen.getByRole('button', { name: 'Approve' })).toBeInTheDocument();
+      unmount();
+      as('adm', 'Admin');
+      renderAt();
+      expect(screen.getByRole('button', { name: 'Approve' })).toBeInTheDocument();
+    });
+    it('FR-IMP-025 with no eligible senior approver the banner says an Admin decides', () => {
+      h.seniors = [];
+      as('pm', 'Project Manager');
+      renderAt();
+      expect(screen.getByTestId('imprest-exception-note')).toHaveTextContent('Admin');
+      expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull();
+    });
+    it('FR-IMP-025 an item within the remaining is not an exception: the project approver approves it', () => {
+      h.usage = [{ budget_category: 'Special expenses', planned: 500, drawn: 0, remaining: 500, exceptions: [] }];
+      as('pm', 'Project Manager');
+      renderAt();
+      expect(screen.queryByTestId('imprest-exception-note')).toBeNull();
+      expect(screen.getByRole('button', { name: 'Approve' })).toBeInTheDocument();
+    });
+    it('FR-IMP-025 a category with no plan line is an exception', () => {
+      h.usage = [{ budget_category: 'Vehicle', planned: 500, drawn: 0, remaining: 500, exceptions: [] }];
+      as('pm', 'Project Manager');
+      renderAt();
+      expect(screen.getByTestId('imprest-exception-note')).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull();
+    });
+    it('FR-IMP-025 a failed route read still hides Approve from the project approver on a derived exception', () => {
+      h.route = null;
+      as('pm', 'Project Manager');
+      renderAt();
+      expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull();
+    });
+    it('FR-IMP-025 an unknown usage derives nothing: the RPC decides', () => {
+      h.usage = undefined;
+      as('pm', 'Project Manager');
+      renderAt();
+      expect(screen.queryByTestId('imprest-exception-note')).toBeNull();
+      expect(screen.getByRole('button', { name: 'Approve' })).toBeInTheDocument();
+    });
+    it('FR-IMP-025 the claimant (no approval rank) reads no plan usage and sees no derived banner', () => {
+      as('eng', 'Engineer');
+      renderAt();
+      expect(h.usageArgs.at(-1)).toEqual([undefined, undefined]);
+      expect(screen.queryByTestId('imprest-exception-note')).toBeNull();
+    });
   });
 
   it('FR-IMP-025 an in-plan claim shows no exception banner', () => {

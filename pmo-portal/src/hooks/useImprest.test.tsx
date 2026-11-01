@@ -3,7 +3,8 @@ import { renderHook, waitFor, act } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 
-const { imprest } = vi.hoisted(() => ({
+const { imprest, orgSettings } = vi.hoisted(() => ({
+  orgSettings: { listSpendApprovers: vi.fn() },
   imprest: {
     listFloats: vi.fn(), getPosition: vi.fn(), getPlanUsage: vi.fn(), floatChoices: vi.fn(), listPlans: vi.fn(),
     listPlanLines: vi.fn(), listReplenishments: vi.fn(), listCounts: vi.fn(), createPlan: vi.fn(), savePlanLine: vi.fn(),
@@ -12,13 +13,13 @@ const { imprest } = vi.hoisted(() => ({
     recordCount: vi.fn(),
   },
 }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { imprest } }));
+vi.mock('@/src/lib/repositories', () => ({ repositories: { imprest, orgSettings } }));
 let org: string | undefined = 'org-1';
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1', org_id: org } }) }));
 
 import {
   IMPREST_QUERY_ROOTS, useImprestFloats, useImprestPosition, useImprestPlanUsage, useImprestPlans, useImprestReplenishments,
-  useImprestCounts, useImprestFloatChoices, useRequestReplenishment, useTransitionPlan, useRecordCount, useEstablishFloat,
+  useImprestCounts, useImprestFloatChoices, useSeniorApprovers, useRequestReplenishment, useTransitionPlan, useRecordCount, useEstablishFloat,
 } from './useImprest';
 import { EXPENSE_QUERY_ROOTS } from './useExpenseClaims';
 import { expenseClaimsAwaitingKey } from './approvalsQueryKeys';
@@ -88,5 +89,16 @@ describe('AC-IMP-083 imprest hooks', () => {
       const keys = spy.mock.calls.map((c) => JSON.stringify(c[0]?.queryKey));
       for (const root of roots) expect(keys).toContain(JSON.stringify([root]));
     }
+  });
+
+  it('FR-IMP-025 the senior set is the org-level spend approvers only, read under the shared spend-approvers key', async () => {
+    orgSettings.listSpendApprovers.mockResolvedValue([
+      { id: 'a', projectId: null, projectName: null, profileId: 'p1', fullName: 'Sam Senior' },
+      { id: 'b', projectId: 'proj', projectName: 'X', profileId: 'p2', fullName: 'Pia Project' },
+    ]);
+    const client = fresh();
+    const { result } = renderHook(() => useSeniorApprovers(), { wrapper: wrap(client) });
+    await waitFor(() => expect(result.current.data).toEqual([{ id: 'p1', fullName: 'Sam Senior' }]));
+    expect(client.getQueryCache().getAll().map((q) => q.queryKey)).toEqual([['spend-approvers', 'org-1']]);
   });
 });

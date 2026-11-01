@@ -11,7 +11,8 @@ import { useProjects } from '@/src/hooks/useProjects';
 import {
   useExpenseAdvanceOutstanding, useExpenseClaim, useExpenseClaimLines, useExpenseClaimMutations, useExpenseClaimRoute,
 } from '@/src/hooks/useExpenseClaims';
-import { useImprestFloats } from '@/src/hooks/useImprest';
+import { useImprestFloats, useImprestPlanUsage, useSeniorApprovers } from '@/src/hooks/useImprest';
+import { planExceptionRoute } from '@/src/lib/imprest/imprestRules';
 import { availableExpenseActions, settlementPreview } from '@/src/lib/expenses/expenseRules';
 import { approvalRouteNote } from '@/src/lib/procurement/approvalRoute';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
@@ -40,6 +41,12 @@ const ExpenseClaimDetail: React.FC = () => {
   const outstandingQuery = useExpenseAdvanceOutstanding(claim?.kind === 'advance' ? claim.id : claim?.advance_id ?? null);
   const { update } = useExpenseClaimMutations();
   const floats = useImprestFloats();
+  // FR-IMP-024/025: the server stamps is_plan_exception only when a record is approved, so a Submitted float record's exception is
+  // derived here from the month's remaining. Approval rank reads every plan (RLS); a claimant's read would be empty, so skip it.
+  const derivesException = claim?.status === 'Submitted' && Boolean(claim.imprest_float_id && claim.imprest_month && claim.budget_category)
+    && ['Admin', 'Executive', 'Finance', 'Project Manager'].includes(realRole ?? '');
+  const usage = useImprestPlanUsage(derivesException ? claim?.imprest_float_id ?? undefined : undefined, derivesException ? claim?.imprest_month ?? undefined : undefined);
+  const seniors = useSeniorApprovers();
   const { data: projects } = useProjects();
   const advanceOptions = useOwnAdvanceOptions(claim?.advance_id ?? null);
   const projectOptions = useMemo(() => (projects ?? []).map((p) => ({ value: p.id, label: projectDisplayName(p) })), [projects]);
@@ -69,7 +76,17 @@ const ExpenseClaimDetail: React.FC = () => {
     );
   }
 
-  const route = routeQuery.data ?? null;
+  const projectRoute = routeQuery.data ?? null;
+  const derivedException = derivesException && usage.data && seniors.data
+    ? planExceptionRoute({
+      amount: claim.amount, claimantId: claim.claimant_id, seniors: seniors.data,
+      remaining: usage.data.find((u) => u.budget_category === claim.budget_category)?.remaining ?? null,
+    })
+    : null;
+  const route = derivedException
+    ? { claimId: claim.id, reason: 'within_budget' as const, requestAmount: Number(claim.amount), lineBudget: null, lineUsed: null,
+        ...(projectRoute ?? {}), route: derivedException.route, approvers: derivedException.approvers }
+    : projectRoute;
   const outstanding = outstandingQuery.isError ? null : outstandingQuery.data ?? null;
   const actions = availableExpenseActions({
     claim, userId, realRole, route, advanceOutstanding: claim.kind === 'advance' ? outstanding : null,
@@ -162,7 +179,7 @@ const ExpenseClaimDetail: React.FC = () => {
         <p data-testid="approval-route-note" className="mb-4 text-sm">{approvalRouteNote(route, claim.budget_category, t, realRole)}</p>
       )}
 
-      {claim.is_plan_exception && claim.status !== 'Draft' && (
+      {((claim.is_plan_exception && claim.status !== 'Draft') || derivedException) && (
         <p data-testid="imprest-exception-note" role="note" className="mb-4 text-sm">
           <StatusPill variant="warn">{t('imprest:plan.exception', 'Out of plan')}</StatusPill>{' '}
           {route === null ? t('imprest:exception.noRoute', 'This is outside the approved site cash plan, so a senior approver decides it.')
