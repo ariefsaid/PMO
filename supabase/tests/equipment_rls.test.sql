@@ -3,7 +3,7 @@
 -- hard delete (FR-EQU-064). Fixture F1 is docs/plans/2026-11-01-equipment-usage.md "Fixture F1".
 begin;
 create extension if not exists pgtap;
-select plan(37);
+select plan(38);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('15190000-0000-0000-0000-00000000000a', 'EQU Org',   'IDR', 'Asia/Jakarta'),
@@ -151,6 +151,19 @@ select is(pg_temp.rows($$ delete from equipment_usage_entries where id = (select
   'AC-EQU-012 an Admin hard-deletes an entry');
 select is((select count(*)::int from audit_events where entity_id = (select v from _e where k = 'p2') and action = 'equipment_usage.delete'), 1,
   'AC-EQU-012 the hard delete writes an audit row');
+
+reset role;   -- a disabled author with a draft (the archive active-member gate)
+insert into auth.users (id, email) values ('15190000-0000-0000-0000-0000000000a8', 'equ-gone@example.com');
+insert into profiles (id, org_id, full_name, email, role, status) values
+  ('15190000-0000-0000-0000-0000000000a8', '15190000-0000-0000-0000-00000000000a', 'EQU Gone', 'equ-gone@example.com', 'Engineer', 'disabled');
+insert into equipment_usage_entries (org_id, asset_id, project_id, work_date, quantity, unit, status, author_id)
+values ('15190000-0000-0000-0000-00000000000a', '15190000-0000-0000-0000-0000000000d4', '15190000-0000-0000-0000-0000000000c1',
+        '2026-09-06', 2, 'hours', 'Draft', '15190000-0000-0000-0000-0000000000a8');
+insert into _e select 'g1', id from equipment_usage_entries where author_id = '15190000-0000-0000-0000-0000000000a8';
+set local role authenticated;
+select pg_temp.act_as('15190000-0000-0000-0000-0000000000a8');
+select throws_ok($$ select archive_equipment_usage((select v from _e where k = 'g1')) $$,
+  '42501', null, 'AC-EQU-012 a disabled author cannot archive their draft');
 
 reset role;
 select throws_ok($$ update equipment_usage_entries set approver_id = author_id where id = (select v from _e where k = 'p1') $$,

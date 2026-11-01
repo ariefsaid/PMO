@@ -3,7 +3,7 @@
 -- OQ-7/8) and the audit trail. Fixture F1 is docs/plans/2026-11-01-equipment-usage.md "Fixture F1".
 begin;
 create extension if not exists pgtap;
-select plan(40);
+select plan(42);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('15190000-0000-0000-0000-00000000000a', 'EQU Org',   'IDR', 'Asia/Jakarta'),
@@ -140,6 +140,9 @@ select throws_ok($$ select transition_equipment_usage((select v from _e where k=
 -- ── reject, redraft, and SoD for approver-role authors ─────────────────────────────────────────────
 select pg_temp.act_as('15190000-0000-0000-0000-0000000000a6');
 select transition_equipment_usage((select v from _e where k='e2'), 'Submitted');
+select pg_temp.act_as('15190000-0000-0000-0000-0000000000a8');   -- disabled Finance
+select throws_ok($$ select transition_equipment_usage((select v from _e where k='e2'), 'Approved') $$,
+  '42501', null, 'AC-EQU-007 a disabled approver cannot approve');
 select pg_temp.act_as('15190000-0000-0000-0000-0000000000a7');
 select throws_ok($$ select transition_equipment_usage((select v from _e where k='e2'), 'Rejected') $$,
   '42501', null, 'AC-EQU-007 an Engineer cannot reject');
@@ -193,6 +196,9 @@ select save_equipment_usage('{"asset_id":"15190000-0000-0000-0000-0000000000d3",
   "project_id":"15190000-0000-0000-0000-0000000000c1","work_date":"2026-09-17","quantity":1,"unit":"hours"}');
 select transition_equipment_usage((save_equipment_usage('{"asset_id":"15190000-0000-0000-0000-0000000000d3",
   "project_id":"15190000-0000-0000-0000-0000000000c1","work_date":"2026-09-21","quantity":2,"unit":"hours"}')->>'id')::uuid, 'Submitted');
+select pg_temp.act_as('15190000-0000-0000-0000-0000000000a8');
+select throws_ok($$ select approve_equipment_usage_week('15190000-0000-0000-0000-0000000000d3', '2026-09-14') $$,
+  '42501', null, 'AC-EQU-007 a disabled approver cannot bulk-approve');
 select pg_temp.act_as('15190000-0000-0000-0000-0000000000a7');
 select is(approve_equipment_usage_week('15190000-0000-0000-0000-0000000000d3', '2026-09-14'),
   '{"approved":0,"skipped_own":0,"skipped_not_permitted":3}'::jsonb, 'AC-EQU-007 an Engineer bulk-approves nothing');
