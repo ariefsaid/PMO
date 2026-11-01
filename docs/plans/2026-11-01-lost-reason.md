@@ -14,12 +14,12 @@
   (`components/project-status/ProjectTransitionConfirm.tsx`). If it is absent: **stop and ask the Director**, never create a second confirm.
 - **#1638 builds first (pipeline stage history, migrations 0430-0433).** Before writing any SQL: `git fetch origin && git rebase origin/dev`,
   then find the body you copy with
-  `grep -lE "create (or replace )?function (public\.)?transition_project\(" supabase/migrations/*.sql | sort | tail -1`.
+  `grep -lE "create (or replace )?function (public\.)?transition_project\(" supabase/migrations/*.sql | grep -v /rollback/ | sort | tail -1` (the `grep -v` matters: `rollback/` files sort last).
   At review time that is `0236_project_status_declined_rules.sql`, and #1638's plan keeps it so (its D2/NFR-PSH-002: a trigger, not an edit).
   If the command names a later file, copy THAT body and apply E1-E6 to it; never re-derive from 0236 when a newer body exists.
   #1638 also re-creates `get_win_rate` (its Task 15) with the same `decided` CTE; S2 copies the cohort from the latest `get_win_rate`
-  the same way. #1638 adds `advance_project_stage`, which `perform`s the 4-argument `transition_project` call: it keeps working for
-  every non-lost target and is refused for lost targets (spec "Interaction with #1638"); S1-T1 proves that.
+  the same way. #1638 leaves `transition_project` alone (a stage-history trigger only records); Lost goes through
+  `transition_project`, so the reason is required there (spec "Interaction with #1638").
 
 ## 0. Decisions this plan builds
 
@@ -82,6 +82,8 @@ and is not listed. **`scripts/pmo-load.test.mjs:72`** parses the transition map 
 
 ## S1: columns + `transition_project` (ships alone; money-path-adjacent)
 
+> S1 must not reach main before S4 (the UI reason picker); on dev the mark-lost UI paths fail with a clear refusal until S4 lands.
+
 ### S1-T1 Failing pgTAP: `supabase/tests/0449_lost_reason.test.sql` (5 min)
 
 Fixtures: one org, one PM (Project Manager), four projects (Negotiation, Tender Submitted, Leads, PQ Submitted). The role gate is
@@ -90,7 +92,7 @@ unchanged and stays proven by 0027 (S1-T5), so no Engineer fixture is needed her
 -- 0449_lost_reason.test.sql — #1577
 -- AC-LR-001..007. Isolated org; UUID prefix 04490000-…
 begin;
-select plan(24);   -- 23 when #1638 is not on the base branch (drop the advance_project_stage assertion)
+select plan(24);
 
 insert into organizations (id, name) values ('04490000-0000-0000-0000-000000000001', 'Lost Reason Org (0449)');
 insert into auth.users (id, email) values ('04490000-0000-0000-0000-0000000000a1', 'pm@lostreason0449.example');
@@ -168,9 +170,6 @@ select throws_ok($$ update projects set lost_reason = 'price' where id='04490000
 select throws_ok($$ insert into projects (id, org_id, code, name, status, lost_reason)
     values ('04490000-0000-0000-0000-000000000199','04490000-0000-0000-0000-000000000001','L-X','X','Leads','price') $$,
   '42501', null, 'AC-LR-007: an INSERT naming lost_reason is denied (column-granted INSERT, 0173)');
--- #1638 only (skip and use plan(23) if `advance_project_stage` does not exist): the dated-move wrapper cannot lose a deal.
-select throws_ok($$ select advance_project_stage('04490000-0000-0000-0000-000000000104','Loss Tender', current_date) $$,
-  'P0001', null, 'AC-LR-007: advance_project_stage cannot reach the lost group without a reason');
 
 reset role;
 select throws_ok($$ update projects set lost_reason = 'price' where id='04490000-0000-0000-0000-000000000104' $$,
@@ -183,8 +182,6 @@ select * from finish();
 rollback;
 ```
 Adjust `plan(N)` to the final assertion count (24 as drafted: count the assertion `select`s).
-When the `advance_project_stage` line runs, AC-LR-005 has already moved project 104 to `Quotation Submitted`, and
-`Quotation Submitted -> Loss Tender` is legal, so the P0001 it gets is the reason check, not the transition map.
 Run it first (RED): `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0449_lost_reason.test.sql'` fails (no such columns).
 
 ### S1-T2 AC-LR-006 pgTAP updates (3 min)
@@ -223,7 +220,7 @@ Then the function. **Build it from the latest body by copy, not by retyping** (`
 `0236_project_status_declined_rules.sql` at review time):
 ```bash
 cd <worktree root>
-SRC=$(grep -lE "create (or replace )?function (public\.)?transition_project\(" supabase/migrations/*.sql | sort | tail -1)
+SRC=$(grep -lE "create (or replace )?function (public\.)?transition_project\(" supabase/migrations/*.sql | grep -v /rollback/ | sort | tail -1)
 test "$SRC" != supabase/migrations/0449_lost_reason.sql || echo "STOP: run this before 0449 has its function"
 sed -nE '/^create or replace function (public\.)?transition_project\(/,/^end; \$\$;/p' "$SRC" >> supabase/migrations/0449_lost_reason.sql
 # then apply ONLY edits E1-E6 to the appended function
@@ -278,8 +275,7 @@ Then swap the definer line in `scripts/isolation-probe-denominator.json` (`:407`
 `drop function public.transition_project(uuid, project_status, text, date, text, text);` then the `$SRC` function body verbatim
 (`create or replace function transition_project(...)` copied the same way), then the same three grant lines with the 4-argument signature,
 then `alter table public.projects drop constraint projects_lost_reason_status_check, drop constraint projects_lost_note_check, drop constraint projects_lost_reason_check, drop column lost_note, drop column lost_reason;`.
-If #1638 is on the base branch its `advance_project_stage` keeps working across both directions: it calls `transition_project` by
-name with four arguments, which resolves to either signature (plpgsql bodies hold no dependency on the dropped one).
+#1638 holds no call to `transition_project` outside its own tests, so both directions are safe for it.
 
 ### S1-T5 Green + siblings (5 min)
 `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0449_lost_reason.test.sql supabase/tests/0030_project_loss_path.test.sql supabase/tests/0236_project_declined_outcome.test.sql supabase/tests/0027_project_transition_authz.test.sql supabase/tests/0028_project_transition_legality.test.sql supabase/tests/0029_project_win_path.test.sql supabase/tests/0031_project_decided_at_preserved.test.sql supabase/tests/0032_pipeline_stage_config_rls.test.sql supabase/tests/0033_project_direct_update_revoked.test.sql supabase/tests/0178_anon_executable_definers.test.sql supabase/tests/0137_service_role_grants.test.sql supabase/tests/0170_delete_path_sod_and_project_money_sod.test.sql supabase/tests/0176_witness_must_be_active.test.sql'`

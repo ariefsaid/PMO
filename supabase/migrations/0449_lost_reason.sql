@@ -12,6 +12,11 @@ alter table public.projects
   add constraint projects_lost_note_check check (lost_note is null or (lost_reason is not null and char_length(lost_note) <= 500)),
   add constraint projects_lost_reason_status_check check (
     (lost_reason is null and lost_note is null) or status in ('Loss Tender','Declined'));
+-- Change history (0260 gate): both columns are captured, like 0365 does for short_name, so a reason change shows on the deal.
+update public.record_history_config
+   set captured = captured || '{"lost_reason":"text","lost_note":"text"}'::jsonb
+ where table_name = 'projects';
+
 -- No UPDATE or INSERT grant is added: 0075 lists the updatable columns and 0173 the insertable ones explicitly, so
 -- authenticated cannot write these directly. Existing rows are all null, so the constraints validate on apply.
 

@@ -193,3 +193,7 @@ alter table public.projects
   drop constraint projects_lost_reason_check,
   drop column lost_note,
   drop column lost_reason;
+
+update public.record_history_config
+   set captured = captured - 'lost_reason' - 'lost_note'
+ where table_name = 'projects';

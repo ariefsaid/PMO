@@ -36,9 +36,11 @@ later see which reasons and which clients cost it the most bids, and stop guessi
   pre-award and won paths; the pipeline import creates `Leads` rows (origination guard, 0173); no agent tool or edge
   function calls `transition_project`. INSERT on `projects` is column-granted since 0173, so a new column is not
   client-insertable either.
-- #1638 (pipeline stage history) leaves `transition_project` byte-identical (its NFR-PSH-002) and adds a definer
-  wrapper `advance_project_stage(p_id, p_to, p_entered_on, p_customer_contract_ref, p_contract_date)` that
-  `perform`s the 4-argument call. The deal page keeps Loss and Decline on plain `transition_project`.
+- #1638 (pipeline stage history) leaves `transition_project` byte-identical (its NFR-PSH-002): a stage-history
+  trigger only records the move, it never changes `status`. A loss therefore goes only through `transition_project`,
+  which is where the reason is required. #1638's other writers (`add_skipped_stage_entry`,
+  `import_project_stage_history`) accept only pre-award statuses, and `stage_entry_set_date` only redates an existing
+  Lost entry (`decided_at`), so none of them can lose a deal.
 - `projects.client_id` references the client company; the deal page already shows a "Decision" tile
   (`PipelineLens.tsx:285-292`).
 
@@ -97,11 +99,9 @@ later see which reasons and which clients cost it the most bids, and stop guessi
 
 - **History rows record *when* and *who*; the reason lives on the deal.** A Lost history entry shows the deal's
   current `lost_reason`/`lost_note` beside its date. Nothing is copied into a history row, so there is one source.
-- **`advance_project_stage` (#1638) cannot lose a deal.** It forwards no reason, so after this work a dated move
-  to `Loss Tender`/`Declined` through it is refused by DD-LR-3 (P0001). That is the intended state, not a break:
-  no UI path uses it for a loss (#1638 plan Task 36), and it closes the one wrapper that could have reached the lost
-  group without a reason. A pgTAP assertion proves it (plan S1-T1). Passing a reason through it is a follow-up only
-  if a dated loss is ever wanted.
+- **#1638 cannot lose a deal without a reason.** Its stage-history trigger only records a move; Lost is reached
+  only through `transition_project`, so DD-LR-3 (P0001) applies. Its other writers refuse lost statuses (pre-award
+  only) or touch only `decided_at`. Nothing in #1638 needs a reason parameter.
 - **A re-lost deal.** After a revive (DD-LR-4) the old reason is cleared on the deal; the earlier Lost entry in
   history keeps its date, and its reason is available from that transition's audit row. #1638 may show it from there
   or show the earlier Lost entry without a reason. Either is acceptable and neither blocks this spec.
@@ -223,8 +223,9 @@ changing `get_win_rate`, `decided_at`, the transition map, or win eligibility; t
   0236 still pass with loss calls updated to pass a reason (map, role gate, SoD, decided_at unchanged).
 - **AC-LR-007** Given `authenticated`, when it runs a direct `UPDATE projects SET lost_reason = ...` or an INSERT
   naming `lost_reason`, then it is denied (column privilege), and `transition_project`/`get_loss_breakdown` ACLs match
-  NFR-LR-003. Given the table owner, a row with status `Negotiation` and a reason violates the FR-LR-009 CHECK. Given
-  #1638's `advance_project_stage`, a call targeting `Loss Tender` raises `P0001`.
+  NFR-LR-003. Given the table owner, a row with status `Negotiation` and a reason violates the FR-LR-009 CHECK. (A #1638
+  path cannot lose a deal without a reason: the stage-history trigger only records, and Lost goes through
+  `transition_project`.)
 - **AC-LR-008** Given lost and declined deals with mixed reasons and a never-recorded historic loss in one org, and a
   deal in another org, when `get_loss_breakdown(null, null)` runs as the first org, then `by_reason` counts equal the
   hand-computed oracle (including the `null` row), the other org's deal is absent, and `by_client` ranks and counts
