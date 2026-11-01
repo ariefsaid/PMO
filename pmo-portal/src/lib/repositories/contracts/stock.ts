@@ -5,7 +5,8 @@ import type {
 import type {
   IssuableWorkItem, IssueLineRow, StockDocumentDetail, StockDocumentFilters, StockDocumentInput, StockDocumentListRow, StockLineCost,
 } from '@/src/lib/db/stockDocuments';
-import type { StockLedgerFilters, StockLedgerPage, StockLedgerRow, StockOnHandRow } from '@/src/lib/db/stockReports';
+import type { ProjectConsumption, StockLedgerFilters, StockLedgerPage, StockLedgerRow, StockOnHandRow } from '@/src/lib/db/stockReports';
+import type { MaterialAllowance, MaterialAllowanceInput } from '@/src/lib/db/stockAllowances';
 
 /** Stock master data (#1512 S1): units, items, warehouses and keepers.  */
 export interface StockMasterRepository {
@@ -47,8 +48,22 @@ export interface StockReportsRepository {
   ledgerAll(f: StockLedgerFilters): Promise<StockLedgerRow[]>;
 }
 
+/** Project consumption vs allowance (#1512 S5): aggregated in SQL; value keys absent below Project Manager rank. */
+export interface StockConsumptionRepository {
+  report(projectId: string, from: string, to: string): Promise<ProjectConsumption>;
+}
+
+/** Material allowances on BoQ lines (#1512 S5). RLS decides who writes (PQ-7). */
+export interface StockAllowancesRepository {
+  list(projectId: string): Promise<MaterialAllowance[]>;
+  set(input: MaterialAllowanceInput): Promise<void>;
+  clear(id: string): Promise<void>;
+}
+
 export interface StockRepository {
   master: StockMasterRepository;
   documents: StockDocumentsRepository;
   reports: StockReportsRepository;
+  consumption: StockConsumptionRepository;
+  allowances: StockAllowancesRepository;
 }

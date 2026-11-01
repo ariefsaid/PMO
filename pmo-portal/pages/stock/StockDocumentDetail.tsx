@@ -7,7 +7,7 @@ import { useStockErrorText } from '@/src/components/stock/useStockErrorText';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useAuth } from '@/src/auth/useAuth';
-import { useStockDocument, useStockDocumentCosts, useStockDocumentEntries, useStockDocumentMutations, useStockKeepers, useStockOnHand } from '@/src/hooks/useStock';
+import { useProjectConsumption, useStockDocument, useStockDocumentCosts, useStockDocumentEntries, useStockDocumentMutations, useStockKeepers, useStockOnHand } from '@/src/hooks/useStock';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { formatQuantity, formatStockValue, stockValuePreview, subtractDecimal } from '@/src/lib/stockFormat';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
@@ -15,6 +15,22 @@ import { formatInstantDate } from '@/src/lib/format';
 import { statusVariant } from '@/src/components/stock/stockStatus';
 import type { StockDocumentLine } from '@/src/lib/db/stockDocuments';
 import type { StockLedgerRow } from '@/src/lib/db/stockReports';
+
+/** OQ-STK-7: after an issue posts, flag any of its work-item lines now over allowance (to the issue's date). Never blocks. */
+const OverAllowanceNotice: React.FC<{ projectId: string; on: string; lines: StockDocumentLine[] }> = ({ projectId, on, lines }) => {
+  const { t } = useTranslation('stock');
+  const loc = getNumberLocale();
+  const report = useProjectConsumption(projectId, on, on);
+  const over = (report.data?.allowances ?? []).filter((a) => a.overAllowance && lines.some((l) => l.boq_item_id === a.boqItemId && l.item_id === a.itemId));
+  if (over.length === 0) return null;
+  return (
+    <div role="status" className="space-y-1 rounded-md border border-warning/40 bg-warning/12 px-3 py-2 text-sm text-warning-foreground">
+      {over.map((a) => (
+        <p key={a.id}>{t('issueOverAllowance', { workItem: a.boqItemCode, used: formatQuantity(a.netToDate, loc), planned: formatQuantity(a.plannedQuantity, loc), unit: a.unitCode })}</p>
+      ))}
+    </div>
+  );
+};
 
 const StockDocumentDetail: React.FC = () => {
   const { t } = useTranslation('stock');
@@ -145,6 +161,7 @@ const StockDocumentDetail: React.FC = () => {
               </div>
             )}
           />
+          {d.kind === 'issue' && d.status === 'Posted' && d.project_id && <OverAllowanceNotice projectId={d.project_id} on={d.occurred_on} lines={d.lines} />}
           {writeOff && d.status === 'Draft' && isAuthor && <p className="text-sm text-muted-foreground">{t('count.anotherPerson')}</p>}
           <dl className="grid grid-cols-2 gap-3 rounded-lg border border-border bg-card p-4 text-sm md:grid-cols-4">
             <div><dt className="text-xs text-muted-foreground">{t('detail.fields.warehouse')}</dt><dd>{d.warehouse?.code}{d.to_warehouse ? ` → ${d.to_warehouse.code}` : ''}</dd></div>

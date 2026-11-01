@@ -19,6 +19,19 @@ export interface StockLedgerFilters {
 }
 export interface StockLedgerPage { rows: StockLedgerRow[]; nextBeforeSeq: number | null }
 
+/** The project consumption report (#1512 S5, FR-STK-042/043). Per-month rows carry consumption only; allowances are cumulative to `to`. */
+interface ConsumptionKey { boqItemId: string; boqItemCode: string; boqDescription: string; itemId: string; itemCode: string; itemName: string; unitCode: string }
+export interface ConsumptionMonthRow extends ConsumptionKey {
+  month: string; issued: string; returned: string; netConsumed: string; issuedBy: string[]; netValue?: string;
+}
+export interface ConsumptionAllowanceRow extends ConsumptionKey {
+  id: string; plannedQuantity: string; netToDate: string; variance: string; overAllowance: boolean;
+}
+export interface ConsumptionUnplannedRow extends ConsumptionKey { netToDate: string }
+export interface ProjectConsumption {
+  from: string; to: string; months: ConsumptionMonthRow[]; allowances: ConsumptionAllowanceRow[]; unplanned: ConsumptionUnplannedRow[];
+}
+
 type Json = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 const defined = (o: Json) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined));
 const optional = (o: Json, k: string, to: string, out: Json) => { if (o[k] !== undefined) out[to] = o[k]; };
@@ -73,4 +86,29 @@ export async function getStockLedgerAll(f: StockLedgerFilters, opts: { maxPages?
     before = page.nextBeforeSeq;
   }
   throw new AppError('Too many ledger rows to load; narrow the filter.', 'STK_TOO_MANY');
+}
+
+const mapKey = (r: Json): ConsumptionKey => ({
+  boqItemId: r.boq_item_id, boqItemCode: r.boq_item_code, boqDescription: r.boq_description,
+  itemId: r.item_id, itemCode: r.item_code, itemName: r.item_name, unitCode: r.unit_code,
+});
+
+/** Aggregated in SQL (FR-STK-044). A failed or empty response throws: the screen shows an error, never a fabricated zero. */
+export async function getProjectConsumption(projectId: string, from: string, to: string): Promise<ProjectConsumption> {
+  const { data, error } = await supabase.rpc('get_project_consumption', { p_project_id: projectId, p_from: from, p_to: to });
+  if (error) throw toAppError(error);
+  if (!data) throw new AppError('The consumption report could not be computed.', 'STK_INVALID');
+  const d = data as Json;
+  return {
+    from: d.from, to: d.to,
+    months: (d.months as Json[]).map((r) => {
+      const out: Json = { ...mapKey(r), month: r.month, issued: r.issued, returned: r.returned, netConsumed: r.net_consumed, issuedBy: r.issued_by ?? [] };
+      optional(r, 'net_value', 'netValue', out);
+      return out as ConsumptionMonthRow;
+    }),
+    allowances: (d.allowances as Json[]).map((r) => ({
+      ...mapKey(r), id: r.id, plannedQuantity: r.planned_quantity, netToDate: r.net_to_date, variance: r.variance, overAllowance: r.over_allowance === true,
+    })),
+    unplanned: (d.unplanned as Json[]).map((r) => ({ ...mapKey(r), netToDate: r.net_to_date })),
+  };
 }

@@ -312,8 +312,10 @@
   },
   "materials": {
     "title": "Materials",
-    "description": "Stock issued to this project, with who issued it and when.",
-    "issue": "Issue material"
+    "description": "Material used by this project per month and against its allowances, with who issued it.",
+    "issue": "Issue material",
+    "consumption": "Consumption",
+    "movements": "Movements"
   },
   "form": {
     "unknownKind": "Unknown document kind",
@@ -422,5 +424,53 @@
       "costNeeded": "Enter the unit cost: the system holds none of this item."
     },
     "costOnFile": "A unit cost is on file. Leave empty to keep it."
-  }
+  },
+  "consumption": {
+    "from": "From month",
+    "to": "To month",
+    "allowanceTitle": "Against allowance",
+    "allowanceSub": "Net used to the end of the selected months, against the planned quantity for each work item.",
+    "monthTitle": "By month",
+    "monthSub": "Issued, returned and net used per month, with who issued it.",
+    "unplannedTitle": "Issued without an allowance",
+    "unplannedSub": "Material used on a work item that has no planned quantity for it.",
+    "overAllowance": "Over allowance",
+    "noMonths": "Nothing issued in these months.",
+    "empty": "No material issued to this project in these months",
+    "emptySub": "Issues to this project's work items appear here, month by month.",
+    "errorTitle": "Consumption could not be loaded",
+    "errorSub": "The figures are not shown rather than shown wrong. Try again.",
+    "columns": {
+      "month": "Month",
+      "workItem": "Work item",
+      "item": "Item",
+      "allowance": "Allowance",
+      "usedToDate": "Used to date",
+      "variance": "Variance",
+      "status": "Status",
+      "issued": "Issued",
+      "returned": "Returned",
+      "net": "Net used",
+      "value": "Value",
+      "issuedBy": "Issued by"
+    }
+  },
+  "allowance": {
+    "action": "Material allowance",
+    "title": "Material allowance",
+    "description": "Planned quantity of each stock item for {{workItem}}. Issues beyond it are allowed and flagged.",
+    "item": "Item",
+    "quantity": "Planned quantity",
+    "add": "Add item",
+    "save": "Save",
+    "clear": "Clear",
+    "saved": "Allowance saved",
+    "cleared": "Allowance cleared",
+    "none": "No allowance set for this work item yet.",
+    "quantityInvalid": "Enter a quantity above 0, at most 3 decimals.",
+    "itemRequired": "Choose an item.",
+    "duplicate": "This item already has an allowance on this work item; change it in the list.",
+    "loadError": "Allowances could not be loaded."
+  },
+  "issueOverAllowance": "Over allowance: {{workItem}} has now used {{used}} of {{planned}} {{unit}} planned. The issue is posted; this is a flag, not a block."
 }

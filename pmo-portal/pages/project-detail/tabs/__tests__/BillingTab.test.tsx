@@ -186,6 +186,26 @@ describe('BillingTab', () => {
     expect(screen.queryByTestId('billing-billed')).toBeNull();
   });
 
+  it('FR-STK-050 the material allowance editor is offered to the project\'s own PM and Finance, not to an Engineer or another PM', async () => {
+    i18next.addResourceBundle('en', 'stock', { allowance: { action: 'Material allowance' } }, true, true);
+    const offered = () => screen.queryAllByRole('button', { name: 'Material allowance' }).length > 0;
+    h.role = 'Finance'; h.userId = 'u-fin';
+    const a = render(<MemoryRouter><ToastProvider><BillingTab projectId="p1" currency="IDR" clientId="c1" projectManagerId="pm-1" /></ToastProvider></MemoryRouter>);
+    expect(offered()).toBe(true);
+    a.unmount();
+    h.role = 'Project Manager'; h.userId = 'pm-1';
+    const b = render(<MemoryRouter><ToastProvider><BillingTab projectId="p1" currency="IDR" clientId="c1" projectManagerId="pm-1" /></ToastProvider></MemoryRouter>);
+    expect(offered()).toBe(true);
+    b.unmount();
+    h.role = 'Project Manager'; h.userId = 'pm-2';
+    const c = render(<MemoryRouter><ToastProvider><BillingTab projectId="p1" currency="IDR" clientId="c1" projectManagerId="pm-1" /></ToastProvider></MemoryRouter>);
+    expect(offered()).toBe(false);
+    c.unmount();
+    h.role = 'Engineer'; h.userId = 'u-eng';
+    render(<MemoryRouter><ToastProvider><BillingTab projectId="p1" currency="IDR" clientId="c1" projectManagerId="pm-1" /></ToastProvider></MemoryRouter>);
+    expect(offered()).toBe(false);
+  });
+
   it('AC-PB-008 the BoQ shows assessed, claimed and left-to-claim quantities and flags over-claiming', () => {
     renderTab();
     expect(screen.getByTestId('boq-assessed-b1')).toHaveTextContent('6');

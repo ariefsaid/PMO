@@ -7,7 +7,8 @@ import {
 import {
   cancelStockDocument, createStockDocument, getStockDocument, getStockDocumentCosts, listIssuableWorkItems, listProjectIssueLines, listStockDocuments, postStockDocument, saveStockDraft,
 } from '@/src/lib/db/stockDocuments';
-import { getStockLedgerAll, getStockLedgerPage, getStockOnHand } from '@/src/lib/db/stockReports';
+import { getProjectConsumption, getStockLedgerAll, getStockLedgerPage, getStockOnHand } from '@/src/lib/db/stockReports';
+import { clearAllowance, listAllowances, setAllowance } from '@/src/lib/db/stockAllowances';
 import { wrap } from './repositoryErrors';
 import type { StockRepository } from './contracts/stock';
 
@@ -41,5 +42,13 @@ export const stockRepository: StockRepository = {
     onHand: (f) => wrap(() => getStockOnHand(f)),
     ledgerPage: (f) => wrap(() => getStockLedgerPage(f)),
     ledgerAll: (f) => wrap(() => getStockLedgerAll(f)),
+  },
+  consumption: {
+    report: (p, from, to) => wrap(() => getProjectConsumption(p, from, to)),
+  },
+  allowances: {
+    list: (p) => wrap(() => listAllowances(p)),
+    set: (i) => wrap(() => setAllowance(i)),
+    clear: (id) => wrap(() => clearAllowance(id)),
   },
 };

@@ -45,3 +45,20 @@ export function stockValuePreview(qty: string, basis: { unitCost: string } | { v
   const abs = (cents < 0n ? -cents : cents).toString().padStart(3, '0');
   return `${cents < 0n ? '-' : ''}${abs.slice(0, -2)}.${abs.slice(-2)}`;
 }
+
+const pad = (n: number) => String(n).padStart(2, '0');
+const ym = (y: number, m0: number) => `${y}-${pad(m0 + 1)}`;
+
+/** The org's current month and the three before it, as `YYYY-MM` (the native month input's value). `orgDay` is the
+ *  org-timezone today: stock dates are org dates (D9), so the browser's own date could pick the wrong month. */
+export function defaultMonthRange(orgDay: string): { fromMonth: string; toMonth: string } {
+  const [y, m] = orgDay.split('-').map(Number);
+  const from = new Date(Date.UTC(y, m - 1 - 3, 1));
+  return { fromMonth: ym(from.getUTCFullYear(), from.getUTCMonth()), toMonth: ym(y, m - 1) };
+}
+/** Whole months: first day of `fromMonth` .. last day of `toMonth`. */
+export function monthRangeDates(fromMonth: string, toMonth: string): { from: string; to: string } {
+  const [y, m] = toMonth.split('-').map(Number);
+  const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  return { from: `${fromMonth}-01`, to: `${toMonth}-${pad(last)}` };
+}
