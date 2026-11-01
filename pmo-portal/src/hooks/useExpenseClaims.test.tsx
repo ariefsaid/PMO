@@ -7,13 +7,13 @@ const { expenseClaim } = vi.hoisted(() => ({
   expenseClaim: {
     list: vi.fn(), get: vi.fn(), lines: vi.fn(), create: vi.fn(), update: vi.fn(), addLine: vi.fn(),
     updateLine: vi.fn(), removeLine: vi.fn(), transition: vi.fn(), recordReturn: vi.fn(), outstanding: vi.fn(),
-    routes: vi.fn(), aging: vi.fn(),
+    routes: vi.fn(), aging: vi.fn(), agingTotals: vi.fn(),
   },
 }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { expenseClaim } }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' } }) }));
 
-import { expenseClaimsAwaitingKey, useExpenseClaims, useExpenseClaimMutations, useExpenseClaimsAwaitingDecision, EXPENSE_QUERY_ROOTS } from './useExpenseClaims';
+import { expenseClaimsAwaitingKey, useExpenseClaims, useExpenseClaimMutations, useExpenseClaimsAwaitingDecision, useOwnExpenseAdvances, useExpenseAdvanceAgingTotals, EXPENSE_QUERY_ROOTS } from './useExpenseClaims';
 
 const wrap = (client: QueryClient) =>
   function Wrapper({ children }: { children: React.ReactNode }) {
@@ -64,5 +64,23 @@ describe('AC-EXP-053 useExpenseClaims', () => {
     expect(expenseClaim.transition).toHaveBeenCalledWith('c1', 'Submitted', { notes: null, paymentReference: null });
     const keys = spy.mock.calls.map((c) => JSON.stringify(c[0]?.queryKey));
     for (const root of EXPENSE_QUERY_ROOTS) expect(keys).toContain(JSON.stringify([root]));
+  });
+});
+
+describe('AC-EXP-062 advance aging reads', () => {
+  it('AC-EXP-062 the own-advance read asks the server for the signed-in claimant only', async () => {
+    expenseClaim.aging.mockResolvedValue({ rows: [], truncated: false });
+    const client = fresh();
+    const { result } = renderHook(() => useOwnExpenseAdvances(), { wrapper: wrap(client) });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(expenseClaim.aging).toHaveBeenCalledWith({ claimantId: 'u1' });
+  });
+  it('AC-EXP-062 the bucket totals come from the aggregate read, keyed under the aging root', async () => {
+    expenseClaim.agingTotals.mockResolvedValue({ IDR: { '0-30': 5, '31-60': 0, '61-90': 0, '90+': 0 } });
+    const client = fresh();
+    const { result } = renderHook(() => useExpenseAdvanceAgingTotals(), { wrapper: wrap(client) });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data?.IDR['0-30']).toBe(5);
+    expect(client.getQueryData(['expense-advance-aging', 'org-1', 'totals'])).toBe(result.current.data);
   });
 });
