@@ -7,6 +7,7 @@ import type {
 } from '@/src/lib/db/stockDocuments';
 import type { ProjectConsumption, StockLedgerFilters, StockLedgerPage, StockLedgerRow, StockOnHandRow } from '@/src/lib/db/stockReports';
 import type { MaterialAllowance, MaterialAllowanceInput } from '@/src/lib/db/stockAllowances';
+import type { BelowReorderRow, ReorderSuggestion } from '@/src/lib/db/stockReorder';
 
 /** Stock master data (#1512 S1): units, items, warehouses and keepers.  */
 export interface StockMasterRepository {
@@ -60,10 +61,18 @@ export interface StockAllowancesRepository {
   clear(id: string): Promise<void>;
 }
 
+/** Reorder levels (#1512 S6): the suggestion changes nothing; `setLevel` with a null level clears (FR-STK-051/053/054). */
+export interface StockReorderRepository {
+  suggestion(warehouseId: string, itemId: string): Promise<ReorderSuggestion>;
+  worklist(): Promise<BelowReorderRow[]>;
+  setLevel(a: { warehouseId: string; itemId: string; level: string | null; quantity?: string | null }): Promise<void>;
+}
+
 export interface StockRepository {
   master: StockMasterRepository;
   documents: StockDocumentsRepository;
   reports: StockReportsRepository;
   consumption: StockConsumptionRepository;
   allowances: StockAllowancesRepository;
+  reorder: StockReorderRepository;
 }

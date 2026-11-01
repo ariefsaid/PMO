@@ -57,6 +57,16 @@ export const CASES = [
   { id: 'overflag',         fn: 'public.get_project_consumption(uuid,date,date)', from: /('over_allowance', )coalesce\(c\.net, 0\) > al\.planned_quantity\)( as j\s*-- mut:overflag)/, to: '$1false)$2', test: 'supabase/tests/stock_consumption.test.sql' },
   { id: 'cost_consumption', fn: 'public.get_project_consumption(uuid,date,date)', from: /(v_cost := )[^;]+(;\s*-- mut:cost_consumption)/, to: '$1true$2', test: 'supabase/tests/stock_consumption.test.sql' },
   { id: 'consumption_org',  fn: 'public.get_project_consumption(uuid,date,date)', from: /(p\.id = p_project_id and )p\.org_id = v_org(\) then\s*-- mut:consumption_org)/, to: '$1true$2', test: 'supabase/tests/stock_tenant_isolation.test.sql' },
+  // S6 (0418): reorder levels, the suggestion's usage rules and the worklist.
+  { id: 'reorder_rank',  fn: 'public.set_stock_reorder_level(uuid,uuid,numeric,numeric)', from: /(v_ok := )[^;]+(;\s*-- mut:reorder_rank)/, to: '$1true$2', test: 'supabase/tests/stock_reorder.test.sql' },
+  { id: 'suggest_org',   fn: 'public.get_reorder_suggestions(uuid,uuid)', from: /(or not exists \(select 1 from public\.stock_warehouses w where w\.id = p_warehouse_id and )w\.org_id = v_org(\) then\s*-- mut:suggest_org)/, to: '$1true$2', test: 'supabase/tests/stock_tenant_isolation.test.sql' },
+  { id: 'suggest_item_org', fn: 'public.get_reorder_suggestions(uuid,uuid)', from: /(where i\.id = p_item_id and )i\.org_id = v_org(;\s*-- mut:suggest_item_org)/, to: '$1true$2', test: 'supabase/tests/stock_tenant_isolation.test.sql' },
+  { id: 'set_org',       fn: 'public.set_stock_reorder_level(uuid,uuid,numeric,numeric)', from: /(w\.id = p_warehouse_id and )w\.org_id = v_org(\) then\s*-- mut:set_org)/, to: '$1true$2', test: 'supabase/tests/stock_tenant_isolation.test.sql' },
+  { id: 'set_item_org',   fn: 'public.set_stock_reorder_level(uuid,uuid,numeric,numeric)', from: /(if not exists \(select 1 from public\.stock_items i where i\.id = p_item_id and )i\.org_id = v_org(\)\s*-- mut:set_item_org)/, to: '$1true$2', test: 'supabase/tests/stock_tenant_isolation.test.sql' },
+  { id: 'min_history',   fn: 'public.get_reorder_suggestions(uuid,uuid)', from: /(if )v_history < prm\.min_history_days or v_moves < prm\.min_movements or v_usage <= 0( then\s*-- mut:min_history)/, to: '$1false$2', test: 'supabase/tests/stock_reorder.test.sql' },
+  { id: 'central_excl',  fn: 'public.get_reorder_suggestions(uuid,uuid)', from: /(l\.qty_delta < 0 and )not coalesce\(dw\.kind = 'central', false\)(\) as m\s*-- mut:central_excl)/, to: '$1true$2', test: 'supabase/tests/stock_reorder.test.sql' },
+  { id: 'below_cmp',     fn: 'public.get_stock_below_reorder()', from: /coalesce\(b\.qty_on_hand, 0\) <= r\.reorder_level(\), '\[\]'::jsonb\);\s*-- mut:below_cmp)/, to: 'coalesce(b.qty_on_hand, 0) < r.reorder_level$1', test: 'supabase/tests/stock_reorder.test.sql' },
+  { id: 'below_org',     fn: 'public.get_stock_below_reorder()', from: /where r\.org_id = v_org( \/\* mut:below_org \*\/)/, to: 'where true$1', test: 'supabase/tests/stock_tenant_isolation.test.sql' },
 ];
 // S2b / S4 / S5 / S6 append their cases to this table in their own slice (ids named in each slice's mutation task).
 const run = (cmd, args, opts = {}) => spawnSync(cmd, args, { encoding: 'utf8', ...opts });

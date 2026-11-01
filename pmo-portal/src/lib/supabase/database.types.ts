@@ -8118,6 +8118,65 @@ export type Database = {
           },
         ]
       }
+      stock_reorder_levels: {
+        Row: {
+          item_id: string
+          org_id: string
+          reorder_level: number
+          reorder_quantity: number | null
+          set_at: string
+          set_by: string
+          warehouse_id: string
+        }
+        Insert: {
+          item_id: string
+          org_id: string
+          reorder_level: number
+          reorder_quantity?: number | null
+          set_at?: string
+          set_by: string
+          warehouse_id: string
+        }
+        Update: {
+          item_id?: string
+          org_id?: string
+          reorder_level?: number
+          reorder_quantity?: number | null
+          set_at?: string
+          set_by?: string
+          warehouse_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_reorder_levels_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "stock_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_reorder_levels_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_reorder_levels_set_by_fkey"
+            columns: ["set_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_reorder_levels_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "stock_warehouses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       stock_units: {
         Row: {
           archived_at: string | null
@@ -9430,6 +9489,11 @@ export type Database = {
         Args: { p_boq_item_id: string; p_item_id: string }
         Returns: boolean
       }
+      get_reorder_suggestions: {
+        Args: { p_item_id: string; p_warehouse_id: string }
+        Returns: Json
+      }
+      get_stock_below_reorder: { Args: never; Returns: Json }
       normalize_procurement_import_refs: {
         Args: { p_refs: string[] }
         Returns: { input_ref: string; normalized_ref: string }[]
@@ -9437,6 +9501,15 @@ export type Database = {
       lookup_procurement_import_cases: {
         Args: { p_refs: string[]; p_after_key?: string | null; p_after_id?: string | null; p_limit?: number; p_org_id?: string | null }
         Returns: { id: string; import_key: string; import_batch_id: string | null; normalized_ref: string }[]
+      }
+      set_stock_reorder_level: {
+        Args: {
+          p_item_id: string
+          p_level: number
+          p_quantity?: number
+          p_warehouse_id: string
+        }
+        Returns: undefined
       }
       start_procurement_import_run: {
         Args: { p_org_id?: string | null }

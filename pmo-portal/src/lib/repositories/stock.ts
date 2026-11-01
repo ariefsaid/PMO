@@ -9,6 +9,7 @@ import {
 } from '@/src/lib/db/stockDocuments';
 import { getProjectConsumption, getStockLedgerAll, getStockLedgerPage, getStockOnHand } from '@/src/lib/db/stockReports';
 import { clearAllowance, listAllowances, setAllowance } from '@/src/lib/db/stockAllowances';
+import { getBelowReorder, getReorderSuggestion, setReorderLevel } from '@/src/lib/db/stockReorder';
 import { wrap } from './repositoryErrors';
 import type { StockRepository } from './contracts/stock';
 
@@ -50,5 +51,10 @@ export const stockRepository: StockRepository = {
     list: (p) => wrap(() => listAllowances(p)),
     set: (i) => wrap(() => setAllowance(i)),
     clear: (id) => wrap(() => clearAllowance(id)),
+  },
+  reorder: {
+    suggestion: (w, i) => wrap(() => getReorderSuggestion(w, i)),
+    worklist: () => wrap(() => getBelowReorder()),
+    setLevel: (a) => wrap(() => setReorderLevel(a)),
   },
 };
