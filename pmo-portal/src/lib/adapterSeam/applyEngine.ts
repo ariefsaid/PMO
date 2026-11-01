@@ -59,7 +59,7 @@ export interface AtomicAdoptStrategy {
   /** OPTIONAL (#1600): before minting, find an EXISTING PMO row this unmapped external record already is
    *  (e.g. a company the org created before connecting). A hit is linked and updated instead of minted;
    *  an unclear match throws `action-required` and writes nothing. `null` ⇒ no match, mint as usual. */
-  matchExisting?: (canonical: PmoRecord) => Promise<string | null>;
+  matchExisting?: (canonical: PmoRecord, externalRecordId: string) => Promise<string | null>;
 }
 
 /** The narrow dep surface `applyInboundChange` needs — shared by a webhook AND a sweep so both apply
@@ -127,7 +127,7 @@ export async function applyInboundChange(
   // `unique (org_id, domain, external_record_id)` constraint BEFORE any mirror row exists, so the loser
   // leaves no orphan (it reconciles to the winner's mapping on re-run).
   if (deps.adoptAtomically) {
-    const matchedId = await deps.adoptAtomically.matchExisting?.(canonical);
+    const matchedId = await deps.adoptAtomically.matchExisting?.(canonical, externalRecordId);
     if (matchedId) {
       await deps.adoptAtomically.claimExternalRef({ pmoRecordId: matchedId, externalTier: ctx.tier, externalRecordId, domain: ctx.domain });
       await deps.updateMirror(matchedId, { ...canonical, id: matchedId }, sourceUpdatedAtMs);

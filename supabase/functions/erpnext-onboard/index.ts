@@ -26,6 +26,7 @@ import { resolveErpAuthPair } from '../_shared/erpAuthPair.ts';
 import { guardedErpFetch } from '../_shared/erpHostGuard.ts';
 import { findPmoRecordId, insertExternalRef } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
 import { findCompanyCandidates } from '../_shared/companyCandidates.ts';
+import { recordPartyReview } from '../_shared/recordPartyReview.ts';
 import { surfaceActionRequired } from '../_shared/erpnextFeedDeps.ts';
 import { applyErpContact } from '../_shared/erpnextContacts.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
@@ -104,7 +105,7 @@ export async function handleOnboardRequest(req: Request): Promise<Response> {
 
     const result = await onboardParties(sources, {
       findPmoRecordId: (externalRecordId) => findPmoRecordId(serviceClient as never, orgId, 'companies', externalRecordId),
-      findCandidates: (doctype: PartyDoctype, name: string) => findCompanyCandidates(serviceClient, orgId, doctype, name),
+      findCandidates: (doctype: PartyDoctype, name: string, taxId?: string | null) => findCompanyCandidates(serviceClient, orgId, doctype, name, taxId),
       insertCompaniesMirror: async (canonical: PmoRecord) => {
         const { error } = await serviceClient.from('companies').insert({
           id: canonical.id,
@@ -143,6 +144,7 @@ export async function handleOnboardRequest(req: Request): Promise<Response> {
       },
       // Same notification (text + unread dedupe) as the change feed's unclear match.
       notifyUnclearMatch: (entry) => surfaceActionRequired(serviceClient, orgId, 'party-match-unclear', { erpName: entry.name }),
+      recordReview: (entry) => recordPartyReview(serviceClient, orgId, entry),
     });
 
     const contacts = {adopted: 0, reconciled: 0};
