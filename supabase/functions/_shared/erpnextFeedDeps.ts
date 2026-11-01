@@ -789,23 +789,25 @@ async function surfaceWithholdingReview(serviceClient: SupabaseClient, orgId: st
 }
 
 /** Resolve the PMO `customer_id` from the canonical's ERP customer name via `external_refs`
- *  (`Customer:<name>` in the companies domain). `null` when unmapped/absent. */
+ *  (`Customer:<name>` in the companies domain). `null` only when unmapped/absent; a read error throws. */
 async function resolveCustomerId(serviceClient: SupabaseClient, orgId: string, canonical: PmoRecord): Promise<string | null> {
   const customerErpName = (canonical as { customer?: string | null }).customer;
   if (!customerErpName) return null;
-  const { data } = await serviceClient.from('external_refs').select('pmo_record_id')
+  const { data, error } = await serviceClient.from('external_refs').select('pmo_record_id')
     .eq('org_id', orgId).eq('domain', 'companies').eq('external_record_id', `Customer:${customerErpName}`).maybeSingle();
+  if (error) throw new AppError(error.message, error.code);
   return (data as { pmo_record_id?: string } | null)?.pmo_record_id ?? null;
 }
 
 /** Resolve the PMO `sales_invoice_id` a Receive PE's first `references` row cites. `null` when the
- *  cited invoice is not (yet) mapped — the caller must then leave the column alone. */
+ *  cited invoice is not (yet) mapped — the caller must then leave the column alone; a read error throws. */
 async function resolveSalesInvoiceId(serviceClient: SupabaseClient, orgId: string, canonical: PmoRecord): Promise<string | null> {
   const references = (canonical as { references?: Array<{ reference_name?: string | null }> }).references;
   const siErpName = Array.isArray(references) ? references[0]?.reference_name : null;
   if (!siErpName) return null;
-  const { data } = await serviceClient.from('external_refs').select('pmo_record_id')
+  const { data, error } = await serviceClient.from('external_refs').select('pmo_record_id')
     .eq('org_id', orgId).eq('domain', 'revenue').eq('external_record_id', siErpName).maybeSingle();
+  if (error) throw new AppError(error.message, error.code);
   return (data as { pmo_record_id?: string } | null)?.pmo_record_id ?? null;
 }
 

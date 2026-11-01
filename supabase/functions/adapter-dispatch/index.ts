@@ -53,7 +53,7 @@ import { fetchAllRowsByKeyset } from '../../../pmo-portal/src/lib/pagedRead.ts';
 import { budgetPushKey } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/budgetPushKey.ts';
 import { withProbeBudget, ERP_PROBE_TIMEOUT_MS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/client.ts';
 import { fetchWithDeadline } from '../_shared/fetchWithDeadline.ts';
-import { resolvePerOrgSecret } from '../_shared/perOrgSecret.ts';
+import { lookupOrgBindingSecretRef, resolveOrgSecretOrFallback } from '../_shared/perOrgSecret.ts';
 import { resolveErpAuthPair, createErpAuthPairCache, type ErpAuthPairCache } from '../_shared/erpAuthPair.ts';
 import { externalConnectEnabled } from '../_shared/externalConnectEnabled.ts';
 import { guardedErpFetch } from '../_shared/erpHostGuard.ts';
@@ -152,51 +152,28 @@ const clickUpRateLimiter = new ClickUpRateLimiter();
 // Phase 1b (task 1.5): ADDITIVE Vault-first credential resolution behind EXTERNAL_CONNECT_ENABLED flag.
 // When flag is ON and an external_org_bindings row exists with secret_ref, resolve via Vault;
 // otherwise fall back to global CLICKUP_API_TOKEN (legacy behavior unchanged when flag is OFF).
-// FIX-2: tri-state — no-binding → global fallback; resolved → vault token; binding-vault-miss → FAIL CLOSED.
+// FIX-2: tri-state — no-binding → global fallback; resolved → vault token; binding-vault-miss / read-failed → FAIL CLOSED.
 async function resolveClickUpAdapter(ctx: AdapterSelectContext): Promise<Adapter> {
   const connectEnabled = externalConnectEnabled();
   if (!connectEnabled) {
     throw new AppError('external integrations are disabled by the operator', 'config-rejected');
   }
-  let clickUpToken = Deno.env.get('CLICKUP_API_TOKEN') ?? '';
-
-  if (connectEnabled) {
-    // Use shared per-org Vault secret resolution (flag gate + binding lookup + fallback)
-    const result = await resolvePerOrgSecret({
+  // Tri-state: absent binding → global token; resolved → vault token; empty vault secret or a FAILED
+  // binding/vault read → fail closed (never the global identity because a lookup failed).
+  const clickUpToken = await resolveOrgSecretOrFallback(
+    {
       connectEnabled,
       orgId: ctx.orgId,
       tier: 'clickup',
-      lookupBinding: async (orgId, tier) => {
-        const { data, error } = await ctx.serviceClient
-          .from('external_org_bindings')
-          .select('secret_ref')
-          .eq('org_id', orgId)
-          .eq('external_tier', tier)
-          .maybeSingle();
-        if (error) {
-          console.error('external_org_bindings lookup failed', error);
-          return null;
-        }
-        return data as { secret_ref?: string | null } | null;
-      },
+      lookupBinding: lookupOrgBindingSecretRef(ctx.serviceClient),
       readVaultSecret: async (ref) => {
         const { data, error } = await ctx.serviceClient.rpc('read_vault_secret', { p_secret_ref: ref });
-        if (error) {
-          console.error('read_vault_secret failed', error);
-          return null;
-        }
+        if (error) throw new AppError(error.message, error.code);
         return (data as string | null) ?? null;
       },
-    });
-
-    if (result.kind === 'resolved') {
-      clickUpToken = result.secret;
-    } else if (result.kind === 'binding-vault-miss') {
-      // FIX-2: bound org but vault secret missing → fail closed, do NOT fall back to global token
-      throw new AppError('ClickUp credentials unresolved for this org — check the binding secret_ref configuration', 'config-rejected');
-    }
-    // result.kind === 'no-binding' → fall through to global token (legacy fallback)
-  }
+    },
+    Deno.env.get('CLICKUP_API_TOKEN') ?? '',
+  );
 
   return resolveClickUpDispatchAdapter({
     serviceClient: ctx.serviceClient as never,

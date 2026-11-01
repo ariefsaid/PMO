@@ -46,6 +46,7 @@ function fakeMirrorDb(seed: { refs?: Row[]; tasks?: Row[] } = {}) {
   const watermarks: Row[] = [];
   const ops: string[] = [];
   let sourceModReadOverride: ((stored: string | null) => Promise<string | null>) | null = null;
+  const failingReads = new Set<string>();
 
   const client = {
     from(table: string) {
@@ -89,6 +90,9 @@ function fakeMirrorDb(seed: { refs?: Row[]; tasks?: Row[] } = {}) {
           return b;
         },
         maybeSingle: () => {
+          if (failingReads.has(table)) {
+            return Promise.resolve({ data: null, error: { message: 'connection reset by peer', code: '08006' } });
+          }
           let row = tasks.find((r) => matchesEq(r)) ?? null;
           if (table === 'external_refs') row = refs.find((r) => matchesEq(r)) ?? null;
           if (table === 'external_sync_watermarks') row = watermarks.find((r) => matchesEq(r)) ?? null;
@@ -187,6 +191,10 @@ function fakeMirrorDb(seed: { refs?: Row[]; tasks?: Row[] } = {}) {
         return tasks;
       },
     },
+    /** Make every `.maybeSingle()` read on `table` fail with a query error (a transient DB failure). */
+    __failReads: (table: string) => {
+      failingReads.add(table);
+    },
     __setSourceModReadOverride: (hook: ((stored: string | null) => Promise<string | null>) | null) => {
       sourceModReadOverride = hook;
     },
@@ -194,6 +202,7 @@ function fakeMirrorDb(seed: { refs?: Row[]; tasks?: Row[] } = {}) {
   return client as unknown as SupabaseClient & {
     __state: { ops: string[]; refs: Row[]; tasks: Row[] };
     __setSourceModReadOverride: (hook: ((stored: string | null) => Promise<string | null>) | null) => void;
+    __failReads: (table: string) => void;
   };
 }
 
@@ -366,4 +375,75 @@ Deno.test('the strategy mint honors a project_id on the canonical record (the pe
     threw = err;
   }
   assert(threw instanceof AppError, 'a mint with no project anywhere must refuse');
+});
+
+
+// ── T-07 B3 · a lookup ERROR is not an ABSENT row ─────────────────────────────────────────────────
+// Every lookup callback throws on a query error and returns null ONLY for a confirmed absent row, so a
+// transient read failure never reads as "unmapped" / "no timestamp" / "no watermark".
+
+async function rejects(p: Promise<unknown>): Promise<unknown> {
+  try {
+    await p;
+  } catch (e) {
+    return e;
+  }
+  return null;
+}
+
+Deno.test('T-07 B3: resolvePmoRecordId throws on a read error, null only when the ref is absent', async () => {
+  const absent = createClickUpMirrorCallbacks({ serviceClient: fakeMirrorDb(), orgId: ORG, projectId: PROJECT });
+  assert((await absent.resolvePmoRecordId('cu-none')) === null, 'a confirmed absent ref is null');
+
+  const db = fakeMirrorDb({ refs: [mappedRef('cu-1', 'pmo-1')] });
+  db.__failReads('external_refs');
+  const err = await rejects(createClickUpMirrorCallbacks({ serviceClient: db, orgId: ORG, projectId: PROJECT }).resolvePmoRecordId('cu-1'));
+  assert(err instanceof AppError, 'a read error must throw, not report "unmapped"');
+});
+
+Deno.test('T-07 B3: readMirrorSourceMod throws on a read error; null for an absent row or a NULL timestamp', async () => {
+  const none = createClickUpMirrorCallbacks({ serviceClient: fakeMirrorDb(), orgId: ORG, projectId: PROJECT });
+  assert((await none.readMirrorSourceMod('pmo-none')) === null, 'a confirmed absent row is null');
+  const nullTs = createClickUpMirrorCallbacks({
+    serviceClient: fakeMirrorDb({ tasks: [{ ...mirrorTaskRow('pmo-1', 0), source_updated_at: null }] }),
+    orgId: ORG,
+    projectId: PROJECT,
+  });
+  assert((await nullTs.readMirrorSourceMod('pmo-1')) === null, 'a NULL stored timestamp is null');
+
+  const db = fakeMirrorDb({ tasks: [mirrorTaskRow('pmo-1', 1000)] });
+  db.__failReads('tasks');
+  const err = await rejects(createClickUpMirrorCallbacks({ serviceClient: db, orgId: ORG, projectId: PROJECT }).readMirrorSourceMod('pmo-1'));
+  assert(err instanceof AppError, 'a read error must throw, not report "no timestamp"');
+});
+
+Deno.test('T-07 B3: readWatermark throws on a read error, null only when no watermark row exists', async () => {
+  const none = createClickUpMirrorCallbacks({ serviceClient: fakeMirrorDb(), orgId: ORG, projectId: PROJECT });
+  assert((await none.readWatermark()) === null, 'a confirmed absent watermark is null');
+
+  const db = fakeMirrorDb();
+  db.__failReads('external_sync_watermarks');
+  const err = await rejects(createClickUpMirrorCallbacks({ serviceClient: db, orgId: ORG, projectId: PROJECT }).readWatermark());
+  assert(err instanceof AppError, 'a read error must throw, not restart the onboarding scan');
+});
+
+Deno.test('T-07 B3: a failed ref lookup during apply surfaces and never re-adopts a mapped task', async () => {
+  const db = fakeMirrorDb({ refs: [mappedRef('cu-1', 'pmo-1')], tasks: [mirrorTaskRow('pmo-1', 1000)] });
+  db.__failReads('external_refs');
+  const callbacks = createClickUpMirrorCallbacks({ serviceClient: db, orgId: ORG, projectId: PROJECT });
+
+  const err = await rejects(applyInboundChange(CTX, 'cu-1', taskRecord('Renamed') as never, 2000, callbacks));
+  assert(err instanceof AppError, 'the apply must fail, not adopt');
+  assert(db.__state.ops.length === 0, `nothing may be written, ops=${db.__state.ops.join(',')}`);
+  assert(db.__state.refs.length === 1 && db.__state.tasks.length === 1, 'no duplicate ref or mirror');
+});
+
+Deno.test('T-07 B3: a failed mirror-timestamp read during apply surfaces and writes nothing', async () => {
+  const db = fakeMirrorDb({ refs: [mappedRef('cu-1', 'pmo-1')], tasks: [mirrorTaskRow('pmo-1', 5000)] });
+  db.__failReads('tasks');
+  const callbacks = createClickUpMirrorCallbacks({ serviceClient: db, orgId: ORG, projectId: PROJECT });
+
+  const err = await rejects(applyInboundChange(CTX, 'cu-1', taskRecord('Stale') as never, 1000, callbacks));
+  assert(err instanceof AppError, 'the apply must fail, not run on "no timestamp"');
+  assert(db.__state.ops.length === 0, `nothing may be written, ops=${db.__state.ops.join(',')}`);
 });
