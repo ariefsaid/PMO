@@ -343,6 +343,7 @@ const MONEY_ONLY_RPCS = [
   '/rest/v1/rpc/outbox_reconcile_candidates',
   '/rest/v1/rpc/outbox_retry_pending',
   '/rest/v1/rpc/expense_posting_queue',
+  '/rest/v1/rpc/claim_connect_sends', // ECA3-T7 pass (8b): one DB lease per tick; the ERP is reached only when a send is waiting
 ];
 
 function assertMoneyOnlyWork(requests: RecordedRequest[], label: string): void {

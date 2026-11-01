@@ -84,6 +84,7 @@ import { resolveImprestPosting, type ImprestResolveDeps } from '../../../pmo-por
 import { imprestTransferKey } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/imprestTransferKey.ts';
 import { IMPREST_TRANSFER_KEY_RE } from '../../../pmo-portal/src/lib/adapterSeam/imprestTransfer.ts';
 import { advanceConnectRuns } from './connectRun.ts';
+import { drainConnectSends } from './connectSends.ts';
 import { reconcileOrgImprestPostings, type ImprestBackstopDeps, type ImprestIntentRow } from './imprestPostingBackstop.ts';
 import { feedLedgerMirrors } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/ledgerMirrorFeed.ts';
 import { feedPurchaseMirror, type PurchaseFeedServiceClient } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/purchaseMirrorFeed.ts';
@@ -407,6 +408,10 @@ export async function reconcileOrgOutbox(
   let reconciled = 0;
   const errors: Array<{ id: string; error: string }> = [];
   for (const candidate of candidates) {
+    // ECA-3 (#1606): a master send (`seed:<kind>:<id>`) is driven by the connect drain ALONE, which rebuilds its master from the PMO row;
+    // replaying one here as an ordinary command of its domain would post the wrong body. The row is not dropped: its proposal stays
+    // `sending` and the drain finishes it.
+    if (candidate.idempotencyKey.startsWith('seed:')) continue;
     // ⚑ NEW-2/NEW-5 (audit r4): the `budget` domain is owned by pass 5 (`reconcileOrgBudgetPushes`)
     // ALONE. Two originators must never both drive one budget row:
     //   • CORRECTNESS — pass 5 re-asserts the version is STILL `Active` with its stamp, from DB truth
@@ -540,6 +545,8 @@ export interface ErpSweepCycleDeps {
   reconcileOrgImprestPostings?: (org: OrgBinding) => Promise<{ driven: number; error?: string }>;
   /** ECA2-T13 (#1605) — pass (8): advance the org's open connect run by one bounded step. Optional like its siblings; the live wiring always supplies it. */
   advanceConnectRun?: (org: OrgBinding) => Promise<{ state?: string; error?: string }>;
+  /** ECA3-T7 (#1606) — pass (8b): send the masters an Admin accepted as "send", a few per tick. Optional like its siblings. */
+  drainConnectSends?: (org: OrgBinding) => Promise<{ error?: string }>;
   /** 0358: on a money-only tick, whether this org's hourly work is due (its last full run is stale). */
   isFullSweepDue?: (org: OrgBinding) => boolean;
   /** 0358: stamp a completed full run — only after the hourly passes ran, and only by the lock holder. */
@@ -677,6 +684,14 @@ export async function runErpSweepCycle(
         if (r.error) errors.push(`connect:${r.error}`);
       } catch (err) {
         errors.push(`connect:${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+    if (deps.drainConnectSends) {
+      try {
+        const r = await deps.drainConnectSends(org);
+        if (r.error) errors.push(`sends:${r.error}`);
+      } catch (err) {
+        errors.push(`sends:${err instanceof Error ? err.message : String(err)}`);
       }
     }
     // (2) doctype modified-poll sweep. (2)–(4) are the hourly inbound/statement work: a money-only
@@ -3490,6 +3505,7 @@ serveWithErrorReporting('erpnext-sweep', withJobRun('erpnext-sweep', async (req:
     },
     reconcileOrgImprestPostings: (org) => reconcileOrgImprestPostingsLive(serviceClient, org, erpAuth),
     advanceConnectRun: (org) => advanceConnectRuns(serviceClient, org),
+    drainConnectSends: (org) => drainConnectSends(serviceClient, org),
     isFullSweepDue: (org) => fullSweepDue(org.lastFullSweepAt, handlerEntryMs),
     markFullSweepDone: async (org) => {
       if (!org.statementLockHolder) throw new Error('no sweep lock held');
