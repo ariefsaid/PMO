@@ -47,16 +47,20 @@ type TransitionVars = {
  * On success, invalidates the ['projects', orgId] cache so the list refetches.
  * org_id is NEVER sent to the RPC (FR-PR-010).
  */
-export function useProjectTransition(): UseMutationResult<void, Error, TransitionVars> & { erpSetupPending: boolean } {
+export function useProjectTransition(): UseMutationResult<{ erpSetupPending: boolean }, Error, TransitionVars> & { erpSetupPending: boolean } {
   const queryClient = useQueryClient();
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
   const [erpSetupPending, setErpSetupPending] = useState(false);
 
-  const mutation = useMutation<void, Error, TransitionVars>({
-    mutationFn: ({ id, to, opts }) => repositories.project.transition(id, to, opts),
-    onSuccess: async (_data, { id, to }) => {
-      setErpSetupPending(to === 'Won, Pending KoM' && await synchronizeErpProject(id, orgId) === 'pending');
+  const mutation = useMutation<{ erpSetupPending: boolean }, Error, TransitionVars>({
+    mutationFn: async ({ id, to, opts }) => {
+      await repositories.project.transition(id, to, opts);
+      // Also the awaited result, so a caller (the board drop) never reads a stale flag after a second win.
+      return { erpSetupPending: to === 'Won, Pending KoM' && await synchronizeErpProject(id, orgId) === 'pending' };
+    },
+    onSuccess: ({ erpSetupPending }) => {
+      setErpSetupPending(erpSetupPending);
       invalidateProjectProjections(queryClient, orgId);
       queryClient.invalidateQueries({ queryKey: ['integrations', 'bindings', orgId] });
       queryClient.invalidateQueries({ queryKey: ['integrations', 'project-erp', orgId] });
@@ -66,13 +70,22 @@ export function useProjectTransition(): UseMutationResult<void, Error, Transitio
   return { ...mutation, erpSetupPending };
 }
 
+/** Query options for the read-only win preflight, shared by the status menu and the board drop. */
+export const winEligibilityQueryOptions = (
+  user: { org_id?: string; id?: string; role?: string | null; manager_id?: string | null } | null | undefined,
+  projectId: string,
+  revision?: string | null,
+) => ({
+  queryKey: ['project-win-eligibility', user?.org_id, user?.id, user?.role, user?.manager_id, projectId, revision] as const,
+  queryFn: () => repositories.project.winEligibility(projectId),
+  staleTime: 0,
+});
+
 /** Read-only preflight; the transition RPC remains authoritative. */
 export function useProjectWinEligibility(projectId: string, enabled: boolean, revision?: string | null) {
   const { currentUser } = useAuth();
   return useQuery({
-    queryKey: ['project-win-eligibility', currentUser?.org_id, currentUser?.id, currentUser?.role, currentUser?.manager_id, projectId, revision],
-    queryFn: () => repositories.project.winEligibility(projectId),
+    ...winEligibilityQueryOptions(currentUser, projectId, revision),
     enabled: Boolean(enabled && currentUser?.id),
-    staleTime: 0,
   });
 }
