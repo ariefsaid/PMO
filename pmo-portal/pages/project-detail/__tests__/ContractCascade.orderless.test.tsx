@@ -31,7 +31,7 @@ vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => ({ data: [] }) 
 vi.mock('@/src/hooks/useWorkOrderAcceptances', () => ({ useProjectWorkOrderLines: h.childLines, useWorkOrderAcceptances: () => ({ data: [] }), useWorkOrderAcceptanceMutations: () => ({}) }));
 vi.mock('@/src/hooks/useErpItemOptions', () => ({ useErpItemOptions: () => ({ data: [] }) }));
 vi.mock('@/src/hooks/useRevenueMode', () => ({ useRevenueMode: () => 'native' }));
-vi.mock('@/src/hooks/useOwnershipCacheSync', () => ({ useRevenueRouteReady: () => true }));
+vi.mock('@/src/hooks/useOwnershipCacheSync', () => ({ useRevenueRouteReady: () => true, useOwnershipCacheSynced: () => true }));
 
 import { ContractCascade, summarizeInvoiceSettlement } from '../ContractCascade';
 import WorkOrdersTab from '../tabs/WorkOrdersTab';
