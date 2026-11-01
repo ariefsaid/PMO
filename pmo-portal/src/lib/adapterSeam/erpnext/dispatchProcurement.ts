@@ -54,9 +54,16 @@ async function resolveCaseSupplierName(
   return externalId ? stripDoctypePrefix(externalId) : null;
 }
 
+/** `config.item_map`: PMO line name → ERP item code, written by an accepted item link. Anything else in it is ignored. */
+function itemMapOf(config: unknown): Record<string, string> {
+  const raw = (config as { item_map?: unknown } | null | undefined)?.item_map;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  return Object.fromEntries(Object.entries(raw).filter(([, v]) => typeof v === 'string' && v !== '')) as Record<string, string>;
+}
+
 /** The case's line items (`procurement_items`, the shared item list every procurement sub-doctype
  *  draws from) mapped to the PMO-shaped line-item draft `erpnext/bodies/*`'s `toBody`s read. */
-async function resolveCaseItems(serviceClient: DispatchServiceClient, procurementId: string,
+async function resolveCaseItems(serviceClient: DispatchServiceClient, procurementId: string, itemMap: Readonly<Record<string, string>>,
   capture?: (lines: ProcurementSourceLine[]) => void): Promise<ResolvedLineItem[]> {
   const { data, error } = await serviceClient.from('procurement_items').select('name,quantity,rate,description').eq('procurement_id', procurementId);
   if (capture && (error || !Array.isArray(data))) throw new AppError(error?.message ?? 'procurement line items are unavailable', error?.code);
@@ -65,7 +72,7 @@ async function resolveCaseItems(serviceClient: DispatchServiceClient, procuremen
   capture?.(lines);
 
   return lines.map((row) => ({
-    item_code: row.name,
+    item_code: itemMap[row.name] ?? row.name,   // PD-ECA-5: an accepted item link, else the line name is the code
     qty: row.quantity,
     rate: row.rate ?? undefined,
     ...(row.description ? { description: row.description } : {}),
@@ -153,7 +160,7 @@ export async function resolveProcurementOrderRefs(
   let resolvedItems: ResolvedLineItem[] | undefined;
   const hasOwnItems = Array.isArray(record.items) && record.items.length > 0;
   if (!hasOwnItems) {
-    const caseItems = await resolveCaseItems(deps.serviceClient, procurementId, deps.captureProcurementSourceLines);
+    const caseItems = await resolveCaseItems(deps.serviceClient, procurementId, itemMapOf(binding.config), deps.captureProcurementSourceLines);
     resolvedItems = kind === 'purchase-order'
       ? caseItems.map((item) => ({ ...item, schedule_date: record.date ?? todayPlusDaysIso(7) }))
       : caseItems;
