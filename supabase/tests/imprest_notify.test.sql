@@ -1,6 +1,7 @@
 -- imprest_notify.test.sql — #1515 site imprest S3: who hears about plans, exceptions, replenishments and float records
 -- ready to pay. AC-IMP-062 (spec FR-IMP-064; plan S3.5, S3.6, PQ-10). F1 + F2 + a Draft plan by PM1 on F, a Draft
--- out-of-plan float claim by Eng1 on F, and a Paid float claim on F whose receipts wait to be replenished.
+-- out-of-plan float claim by Eng1 on F, and a Paid float claim on F whose receipts wait to be replenished. F2's numbers
+-- are renamed REP-FIXTURE-* (the server mints REP-<yymmdd>0001 first, as in imprest_replenishment).
 begin;
 create extension if not exists pgtap;
 select plan(9);
@@ -52,10 +53,10 @@ $$;
 insert into imprest_replenishments (id, org_id, float_id, kind, number, status, amount, requested_by, approved_by, paid_by,
                                     requested_at, approved_at, paid_at, paid_on) values
   ('15150000-0000-0000-0000-0000000000e1', '15150000-0000-0000-0000-00000000000a', '15150000-0000-0000-0000-0000000000d1',
-   'funding', 'REP-2611010001', 'Paid', 10000000, '15150000-0000-0000-0000-0000000000a2', '15150000-0000-0000-0000-0000000000a3',
+   'funding', 'REP-FIXTURE-F', 'Paid', 10000000, '15150000-0000-0000-0000-0000000000a2', '15150000-0000-0000-0000-0000000000a3',
    '15150000-0000-0000-0000-0000000000a1', now(), now(), now(), current_date),
   ('15150000-0000-0000-0000-0000000000e2', '15150000-0000-0000-0000-00000000000a', '15150000-0000-0000-0000-0000000000d2',
-   'funding', 'REP-2611010002', 'Paid', 5000000, '15150000-0000-0000-0000-0000000000a5', '15150000-0000-0000-0000-0000000000a3',
+   'funding', 'REP-FIXTURE-G', 'Paid', 5000000, '15150000-0000-0000-0000-0000000000a5', '15150000-0000-0000-0000-0000000000a3',
    '15150000-0000-0000-0000-0000000000a1', now(), now(), now(), current_date);
 
 insert into imprest_plans (id, org_id, float_id, month, author_id) values
@@ -105,7 +106,8 @@ select throws_ok($$ select request_imprest_replenishment('15150000-0000-0000-000
   'P0001', null, 'AC-IMP-062 (setup) F is fully funded, so a funding request is refused');
 select request_imprest_replenishment('15150000-0000-0000-0000-0000000000d1', 'replenishment');
 reset role;
-select is((select array_agg(owner_id order by owner_id) from notifications where metadata->'entity'->>'type' = 'imprest_replenishment'),
+select is((select array_agg(owner_id order by owner_id) from notifications where metadata->'entity'->>'id' =
+            (select id::text from imprest_replenishments where float_id = '15150000-0000-0000-0000-0000000000d1' and status = 'Requested')),
   array['15150000-0000-0000-0000-0000000000a3']::uuid[],
   'AC-IMP-062 a replenishment request notifies Finance other than the custodian and requester');
 set local role authenticated;

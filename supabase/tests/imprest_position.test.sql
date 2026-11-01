@@ -53,10 +53,10 @@ $$;
 insert into imprest_replenishments (id, org_id, float_id, kind, number, status, amount, requested_by, approved_by, paid_by,
                                     requested_at, approved_at, paid_at, paid_on) values
   ('15150000-0000-0000-0000-0000000000e1', '15150000-0000-0000-0000-00000000000a', '15150000-0000-0000-0000-0000000000d1',
-   'funding', 'REP-2611010001', 'Paid', 10000000, '15150000-0000-0000-0000-0000000000a2', '15150000-0000-0000-0000-0000000000a3',
+   'funding', 'REP-FIXTURE-F', 'Paid', 10000000, '15150000-0000-0000-0000-0000000000a2', '15150000-0000-0000-0000-0000000000a3',
    '15150000-0000-0000-0000-0000000000a1', now(), now(), now(), current_date),
   ('15150000-0000-0000-0000-0000000000e2', '15150000-0000-0000-0000-00000000000a', '15150000-0000-0000-0000-0000000000d2',
-   'funding', 'REP-2611010002', 'Paid', 5000000, '15150000-0000-0000-0000-0000000000a5', '15150000-0000-0000-0000-0000000000a3',
+   'funding', 'REP-FIXTURE-G', 'Paid', 5000000, '15150000-0000-0000-0000-0000000000a5', '15150000-0000-0000-0000-0000000000a3',
    '15150000-0000-0000-0000-0000000000a1', now(), now(), now(), current_date);
 
 insert into expense_claims (id, org_id, kind, claimant_id, project_id, budget_category, title, amount, status, claim_number,
@@ -70,7 +70,7 @@ insert into expense_advance_returns (org_id, advance_id, amount, recorded_by, re
   ('15150000-0000-0000-0000-00000000000a', '15150000-0000-0000-0000-000000000310', 300000, '15150000-0000-0000-0000-0000000000a5', current_date);
 insert into imprest_replenishments (id, org_id, float_id, kind, number, status, amount, requested_by, approved_by, approved_at) values
   ('15150000-0000-0000-0000-0000000000e9', '15150000-0000-0000-0000-00000000000a', '15150000-0000-0000-0000-0000000000d2',
-   'replenishment', 'REP-2611010009', 'Approved', 500000, '15150000-0000-0000-0000-0000000000a5', '15150000-0000-0000-0000-0000000000a3', now());
+   'replenishment', 'REP-FIXTURE-G9', 'Approved', 500000, '15150000-0000-0000-0000-0000000000a5', '15150000-0000-0000-0000-0000000000a3', now());
 insert into expense_claims (id, org_id, kind, claimant_id, project_id, budget_category, title, amount, status, claim_number,
                             submitted_at, approved_by_id, approved_at, paid_by_id, paid_at, paid_on, imprest_float_id, imprest_month,
                             advance_id, advance_applied, imprest_replenishment_id) values
