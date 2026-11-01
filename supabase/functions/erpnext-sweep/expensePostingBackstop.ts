@@ -112,7 +112,7 @@ export async function reconcileOrgExpensePostings<Row extends { id: string } = E
       if (outbox) {
         const disposition = await deps.replay(row, outbox);
         if (disposition === 'completed') result.replayed += 1;
-        else result[disposition === 'waiting' ? 'waiting' : disposition] += 1;
+        else result[disposition] += 1;
         continue;
       }
       const gate = await deps.assertGate(row);
@@ -150,7 +150,7 @@ export async function reconcileOrgExpensePostings<Row extends { id: string } = E
   return result;
 }
 
-/** The sweep pass's summary: work done, and an error when any intent threw or a replay/drive recorded a failure. */
+/** The sweep pass's summary. `driven` counts fresh drives attempted (a driveFresh that recorded a failure still counts), plus completed replays and finished strandeds; `error` is set when any intent threw or a posting recorded a failure. */
 export function backstopPassResult(result: ReconcileOrgExpensePostingsResult, noun: string): { driven: number; error?: string } {
   const problems = [
     result.errors.length ? `${result.errors.length} ${noun} intent(s) failed` : '',
