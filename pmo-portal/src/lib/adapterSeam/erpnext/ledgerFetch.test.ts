@@ -148,7 +148,7 @@ describe('erpnext/ledgerFetch — fetchGlEntries', () => {
     }
     expect(rows.map((r) => r.name)).toEqual(['GLE-0', 'GLE-1', 'GLE-2']);
     expect(caughtUp).toBe(true); // the short page (not the budget) ended the fetch
-    expect(cursor).toBe('2026-07-12 00:00:02|GLE-2');
+    expect(cursor).toBe('2026-07-12 00:00:02.000000|GLE-2');
   });
 
   it('#901 fix round (High-2) the per-tick page budget stops a full-page source: what was read is returned, caughtUp=false, and NO further page is requested', async () => {
@@ -163,7 +163,7 @@ describe('erpnext/ledgerFetch — fetchGlEntries', () => {
     expect(urls).toHaveLength(2); // the budget, not a short page, ended the fetch
     expect(rows.map((r) => r.name)).toEqual(['GLE-0', 'GLE-1', 'GLE-2', 'GLE-3']);
     expect(caughtUp).toBe(false); // the source was NOT drained — resume from the cursor next tick
-    expect(cursor).toBe('2026-07-12 00:00:03|GLE-3');
+    expect(cursor).toBe('2026-07-12 00:00:03.000000|GLE-3');
   });
 
   it('money fields are returned as decimal-strings (R4) — a Frappe number is coerced, null stays null', async () => {
