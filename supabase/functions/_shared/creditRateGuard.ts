@@ -17,7 +17,7 @@
  * does an atomic check-and-hold via `reserve_credits` (per-org advisory txn lock + counts UNRELEASED
  * reservations against available), so a concurrent second reserve blocks on the lock and is then
  * rejected for insufficient_credits. The release half of the pair — `release_credits(runId)` once the
- * real usage row has landed — is the caller's responsibility (see RESERVE_UNIT + the wiring note below).
+ * real usage row has landed — is `release(runId)` on this guard, called by each call-site in a finally.
  */
 import type { HandlerSupabaseLike } from '../agent-chat/handler.ts';
 
@@ -80,8 +80,23 @@ export interface RateGuardResult {
  */
 export function createCreditRateGuard(deps: CreditRateGuardDeps): {
   check(orgId: string, runId?: string): Promise<RateGuardResult>;
+  release(runId: string): Promise<void>;
 } {
   return {
+    /**
+     * Drop the hold `check(orgId, runId)` placed, once the real usage row has landed (or the turn
+     * ended without one). Idempotent server-side; never throws — a failed release only leaves the
+     * conservative hold in place (logged by code), it must not turn a finished turn into an error.
+     */
+    async release(runId: string): Promise<void> {
+      try {
+        const { error } = await deps.supabase.rpc('release_credits', { p_run_id: runId });
+        if (error) console.error('[credit-guard] RELEASE_FAILED', { errorCode: 'CREDIT_RELEASE_FAILED', code: pgErrCode(error) });
+      } catch {
+        console.error('[credit-guard] RELEASE_FAILED', { errorCode: 'CREDIT_RELEASE_FAILED' });
+      }
+    },
+
     async check(orgId: string, runId?: string): Promise<RateGuardResult> {
       // RESERVE PATH (audit CRITICAL): atomic check-and-hold via reserve_credits. The read-only
       // org_credit_balance probe has a TOCTOU race (N concurrent turns read the same balance, all

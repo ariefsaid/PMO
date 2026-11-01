@@ -9,6 +9,7 @@ import { it, expect, vi } from 'vitest';
 import { composeViewHandler } from '../../../../supabase/functions/compose-view/handler';
 import type { HandlerDeps } from '../../../../supabase/functions/compose-view/handler';
 import { createCreditRateGuard } from '../../../../supabase/functions/_shared/creditRateGuard';
+import { makeCreditLedger } from './creditLedger.fake';
 
 /**
  * compose-view's SupabaseLike needs both the profiles-lookup shape (`.eq().single()`) AND
@@ -23,7 +24,7 @@ function mockProfilesAndOrgBalance(opts: { orgId: string; balance: number }): Ha
         }),
       }),
     })),
-    rpc: vi.fn().mockResolvedValue({ data: opts.balance, error: null }),
+    rpc: makeCreditLedger(opts.balance).rpc,
   } as unknown as HandlerDeps['supabase'];
 }
 
