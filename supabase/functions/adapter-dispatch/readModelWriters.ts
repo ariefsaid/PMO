@@ -79,6 +79,21 @@ const referenceWriter: ReadModelWriter = {
   },
 };
 
+/** The placement the task form sent with an externally-owned write: the milestone (PMO-native — ClickUp
+ *  has no such field) and the parent task. Stamped on the mirror ONLY when the command carries the key
+ *  (an update that does not mention them leaves them alone; an explicit null clears). This writer runs
+ *  as service role, so each referenced row is verified to belong to the caller's org first. */
+async function taskPlacementFields(ctx: ReadModelWriterCtx, command: AdapterCommand): Promise<Record<string, string | null>> {
+  const out: Record<string, string | null> = {};
+  for (const [column, table] of [['milestone_id', 'project_milestones'], ['parent_task_id', 'tasks']] as const) {
+    if (!(column in command.record)) continue;
+    const id = command.record[column];
+    if (typeof id === 'string' && id) await requireOwnOrgLink(ctx, table, id);
+    out[column] = typeof id === 'string' && id ? id : null;
+  }
+  return out;
+}
+
 /** P1 ClickUp `tasks` writer, moved in verbatim from `index.ts`'s pre-1.6 inline branch. */
 const tasksWriter: ReadModelWriter = {
   async upsert(ctx, canonical, command) {
@@ -90,6 +105,7 @@ const tasksWriter: ReadModelWriter = {
       end_date: canonical.end_date ?? null,
       completed_at: (canonical.completed_at as string | null | undefined) ?? null,
       source_updated_at: new Date().toISOString(),
+      ...(await taskPlacementFields(ctx, command)),
     };
     if (command.operation === 'create') {
       const projectId = (command.record as { project_id?: string }).project_id;

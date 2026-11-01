@@ -114,6 +114,60 @@ Deno.test({
 });
 
 Deno.test({
+  name: "READ_MODEL_WRITERS['tasks'].upsert stamps the milestone and parent the form sent on create",
+  fn: async () => {
+    const { client, calls } = makeFakeClient({ project_milestones: { org_id: 'org-1' }, tasks: { org_id: 'org-1' } });
+    await getReadModelWriter('tasks').upsert(
+      { serviceClient: client as never, orgId: 'org-1' },
+      { id: 'pmo-1', name: 'Task A', status: 'To Do' },
+      { domain: 'tasks', operation: 'create', record: { id: 'pmo-1', project_id: 'proj-1', milestone_id: 'ms-1', parent_task_id: 'pmo-parent' } },
+    );
+    const row = calls.find((c) => c.method === 'insert')!.args[0] as Record<string, unknown>;
+    assertEquals(row.milestone_id, 'ms-1');
+    assertEquals(row.parent_task_id, 'pmo-parent');
+  },
+});
+
+Deno.test({
+  name: "READ_MODEL_WRITERS['tasks'].upsert update stamps parent/milestone only when the command carries them (null clears)",
+  fn: async () => {
+    const { client, calls } = makeFakeClient({ project_milestones: { org_id: 'org-1' }, tasks: { org_id: 'org-1' } });
+    const ctx = { serviceClient: client as never, orgId: 'org-1' };
+    const writer = getReadModelWriter('tasks');
+
+    await writer.upsert(ctx, { id: 'pmo-1', name: 'A', status: 'To Do' }, { domain: 'tasks', operation: 'update', record: { id: 'pmo-1', name: 'A' } });
+    const untouched = calls.find((c) => c.method === 'update')!.args[0] as Record<string, unknown>;
+    assert(!('parent_task_id' in untouched) && !('milestone_id' in untouched), 'an update that does not carry them must not touch them');
+
+    calls.length = 0;
+    await writer.upsert(ctx, { id: 'pmo-1', name: 'A', status: 'To Do' }, { domain: 'tasks', operation: 'update', record: { id: 'pmo-1', parent_task_id: 'pmo-parent', milestone_id: null } });
+    const patched = calls.find((c) => c.method === 'update')!.args[0] as Record<string, unknown>;
+    assertEquals(patched.parent_task_id, 'pmo-parent');
+    assertEquals(patched.milestone_id, null);
+  },
+});
+
+Deno.test({
+  name: "READ_MODEL_WRITERS['tasks'].upsert refuses a milestone or parent that belongs to another org",
+  fn: async () => {
+    for (const key of ['milestone_id', 'parent_task_id']) {
+      const { client } = makeFakeClient({ project_milestones: { org_id: 'org-2' }, tasks: { org_id: 'org-2' } });
+      let code = '';
+      try {
+        await getReadModelWriter('tasks').upsert(
+          { serviceClient: client as never, orgId: 'org-1' },
+          { id: 'pmo-1', name: 'A', status: 'To Do' },
+          { domain: 'tasks', operation: 'update', record: { id: 'pmo-1', [key]: 'foreign-id' } },
+        );
+      } catch (e) {
+        code = (e as { code?: string }).code ?? '';
+      }
+      assertEquals(code, 'cross-org-link-rejected', `${key} from another org must be refused`);
+    }
+  },
+});
+
+Deno.test({
   name: 'an unknown domain throws (no silent skip)',
   fn: () => {
     let threw = false;
