@@ -2011,6 +2011,7 @@
     },
     "statusOption": {
       "draft": "Draft",
+      "submitted": "Submitted",
       "requested": "Requested",
       "approved": "Approved",
       "rejected": "Rejected",

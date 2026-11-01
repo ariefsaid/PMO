@@ -57,6 +57,8 @@ Deno.test('AC-629-001: shipped handler scopes cooldown, delivery marking, and ev
     }
 
     const table = url.pathname.slice('/rest/v1/'.length);
+    if (method === 'POST' && table === 'rpc/claim_ops_job_lease') return jsonResponse(true);
+    if (method === 'POST' && table === 'rpc/release_ops_job_lease') return jsonResponse(true);
     if (method === 'GET' && table === 'error_events') {
       return jsonResponse([
         { id: 'a-event', error_code: ERROR_CODE, fn: 'agent-dispatch', context_id: null, org_id: ORG_A, created_at: eventAt },
@@ -132,4 +134,65 @@ Deno.test('AC-629-001: shipped handler scopes cooldown, delivery marking, and ev
     globalThis.fetch = priorFetch;
     for (const key of Object.keys(env)) Deno.env.delete(key);
   }
+});
+
+const MONITOR = 'https://monitor.test/ping';
+
+/** Runs the shipped handler against a mocked fetch; returns status + whether the monitor was pinged. */
+async function runHandler(opts: { secrets: boolean; errorEventsStatus?: number }) {
+  const env: Record<string, string> = {
+    SUPABASE_URL: 'https://pmo-t09-test.supabase.co',
+    SUPABASE_SERVICE_ROLE_KEY: 'synthetic-service-role-key',
+    TELEGRAM_NOTIFY_SECRET: 'synthetic-dispatch-secret',
+    HEARTBEAT_URL: MONITOR,
+    LIVENESS_INTERVAL_HOURS: '24',
+    ...(opts.secrets ? { TELEGRAM_BOT_TOKEN: 'synthetic-token', TELEGRAM_CHAT_ID: 'synthetic-chat' } : {}),
+  };
+  for (const [k, v] of Object.entries(env)) Deno.env.set(k, v);
+  const priorFetch = globalThis.fetch;
+  let pinged = false;
+  globalThis.fetch = async (input: RequestInfo | URL, init?: globalThis.RequestInit) => {
+    const url = new URL(input instanceof Request ? input.url : String(input));
+    const method = (init?.method ?? 'GET').toUpperCase();
+    if (url.href === MONITOR) { pinged = true; return jsonResponse({}); }
+    if (url.hostname === 'api.telegram.org') return jsonResponse({ ok: true });
+    const table = url.pathname.slice('/rest/v1/'.length);
+    if (table === 'rpc/claim_ops_job_lease' || table === 'rpc/release_ops_job_lease') return jsonResponse(true);
+    if (method === 'GET' && table === 'error_events') {
+      return opts.errorEventsStatus ? jsonResponse({ message: 'down' }, opts.errorEventsStatus) : jsonResponse([]);
+    }
+    if (method === 'GET' && table === 'ops_job_heartbeats') {
+      const t = new Date().toISOString();
+      return jsonResponse({ last_run_at: t, last_outbound_at: t });
+    }
+    return jsonResponse([]);
+  };
+  try {
+    const { handleTelegramNotifyRequest } = await import('./index.ts');
+    const res = await handleTelegramNotifyRequest(new Request('https://edge.test/telegram-notify', {
+      method: 'POST', headers: { Authorization: 'Bearer synthetic-dispatch-secret' },
+    }));
+    await res.text();
+    return { status: res.status, pinged };
+  } finally {
+    globalThis.fetch = priorFetch;
+    for (const k of Object.keys(env)) Deno.env.delete(k);
+  }
+}
+
+Deno.test('AC-T09-001: a failed error_events read fails the run and never pings the monitor', async () => {
+  const r = await runHandler({ secrets: true, errorEventsStatus: 500 });
+  assertEquals(r.status, 500);
+  assertEquals(r.pinged, false);
+});
+
+Deno.test('AC-T09-003: unconfigured delivery does not ping the monitor healthy', async () => {
+  const r = await runHandler({ secrets: false });
+  assertEquals(r.pinged, false);
+});
+
+Deno.test('AC-T09-003: a healthy drain pings the monitor', async () => {
+  const r = await runHandler({ secrets: true });
+  assertEquals(r.status, 200);
+  assertEquals(r.pinged, true);
 });

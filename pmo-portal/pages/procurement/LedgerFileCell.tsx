@@ -10,7 +10,7 @@
  *                       On sign failure (e.g. seed rows with no storage object)
  *                       shows a toast-like inline error — never a console error.
  *   has file, multi   → button showing "N files"; click opens the full
- *                       ProcurementFilesSubsection (via onOpenFiles callback).
+ *                       a drawer listing every file of the record (ProcurementFilesSubsection).
  *   no file, canWrite → compact "Attach" icon-button that triggers a hidden
  *                       file input, uploading to this record via useProcurementFiles.
  *   no file, read-only → "—" span.
@@ -18,8 +18,8 @@
  * Compact by design (dense table cell). Reuses existing file helpers + sized Icon.
  * DESIGN.md tokens only; no raw hex/px. WCAG-AA: buttons have aria-label.
  */
-import React, { useRef } from 'react';
-import { Icon, useToast } from '@/src/components/ui';
+import React, { useRef, useState } from 'react';
+import { Drawer, Icon, useToast } from '@/src/components/ui';
 import { procurementFileTarget } from '@/src/components/documents/targets/procurement';
 import { useViewerOnDemand } from '@/src/components/documents/viewerContext';
 import { useProcurementFiles } from '@/src/hooks/useProcurementFiles';
@@ -27,6 +27,7 @@ import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { UploadFailure } from '@/src/lib/m365/uploadClient';
 import { useUploadFailureText } from '@/src/hooks/useUploadDestination';
 import { FILE_INPUT_ACCEPT } from '@/src/lib/fileConstants';
+import { ProcurementFilesSubsection } from './ProcurementFilesSubsection';
 import type { ProcPhase } from '@/src/lib/db/procurementFiles';
 import type { LedgerFileRef, RecordType } from '@/src/lib/db/procurementLedger';
 
@@ -66,11 +67,6 @@ export interface LedgerFileCellProps {
   procurementId: string;
   /** Current user id stamped onto new file rows. */
   uploadedById: string | null;
-  /**
-   * Called when the user wants to open the full files UI for this record
-   * (e.g. when fileCount > 1). The parent mounts ProcurementFilesSubsection.
-   */
-  onOpenFiles?: () => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -206,20 +202,31 @@ export const LedgerFileCell: React.FC<LedgerFileCellProps> = ({
   canWrite,
   procurementId,
   uploadedById,
-  onOpenFiles,
 }) => {
-  // Multiple files → show "N files" count button; clicks open the files panel if provided
+  const [filesOpen, setFilesOpen] = useState(false);
+  // Multiple files → "N files" button opens a drawer listing every file of the record
   if (fileCount > 1) {
     return (
-      <button
-        type="button"
-        onClick={onOpenFiles}
-        aria-label={`${fileCount} files for ${systemNumber ?? type} — click to view all`}
-        className="inline-flex items-center gap-1 text-[12.5px] font-medium text-primary-text hover:underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-      >
-        <Icon name="file" className="size-3.5 shrink-0" />
-        <span>{fileCount} files</span>
-      </button>
+      <>
+        <button
+          type="button"
+          onClick={() => setFilesOpen(true)}
+          aria-label={`${fileCount} files for ${systemNumber ?? type} — click to view all`}
+          className="inline-flex items-center gap-1 text-[12.5px] font-medium text-primary-text hover:underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+        >
+          <Icon name="file" className="size-3.5 shrink-0" />
+          <span>{fileCount} files</span>
+        </button>
+        <Drawer open={filesOpen} title={`Files — ${systemNumber ?? type}`} onClose={() => setFilesOpen(false)}>
+          <ProcurementFilesSubsection
+            phase={PHASE_BY_TYPE[type]}
+            parentId={recordId}
+            procurementId={procurementId}
+            canWrite={canWrite}
+            uploadedById={uploadedById}
+          />
+        </Drawer>
+      </>
     );
   }
 

@@ -4958,18 +4958,24 @@ export type Database = {
           last_detail: Json | null
           last_outbound_at: string | null
           last_run_at: string
+          lease_holder: string | null
+          lease_until: string | null
         }
         Insert: {
           job_name: string
           last_detail?: Json | null
           last_outbound_at?: string | null
           last_run_at: string
+          lease_holder?: string | null
+          lease_until?: string | null
         }
         Update: {
           job_name?: string
           last_detail?: Json | null
           last_outbound_at?: string | null
           last_run_at?: string
+          lease_holder?: string | null
+          lease_until?: string | null
         }
         Relationships: []
       }
@@ -11334,6 +11340,10 @@ export type Database = {
         Args: { p_holder: string; p_org_id: string; p_ttl: string }
         Returns: boolean
       }
+      claim_ops_job_lease: {
+        Args: { p_holder: string; p_job: string; p_ttl: string }
+        Returns: boolean
+      }
       claim_outbox_for_commit: {
         Args: { p_id: string; p_lease?: string }
         Returns: {
@@ -13152,6 +13162,10 @@ export type Database = {
         Returns: string
       }
       release_credits: { Args: { p_run_id: string }; Returns: undefined }
+      release_ops_job_lease: {
+        Args: { p_holder: string; p_job: string }
+        Returns: boolean
+      }
       release_erp_sweep_lock: {
         Args: { p_holder: string; p_org_id: string }
         Returns: boolean

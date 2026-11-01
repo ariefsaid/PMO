@@ -6,7 +6,7 @@
  * shape (the edge fn `supabase/functions/erpnext-onboard/index.ts` is thin wiring around this).
  */
 import { AppError } from '../../appError.ts';
-import { adoptParty, externalIdFor, type ErpPartySource, type PartyCandidate } from './partyAdopt.ts';
+import { adoptParty, externalIdFor, reviewReasonOf, type ErpPartySource, type PartyCandidate } from './partyAdopt.ts';
 import { erpnextRequest, ERP_RESPONSE_MAX_BYTES, type ErpClientDeps } from './client.ts';
 import { getDoc } from './client.ts';
 import { listErpChangesSinceWatermark } from './sweepCursor.ts';
@@ -74,7 +74,7 @@ export interface OnboardPartiesDeps {
   findPmoRecordId: (externalRecordId: string) => Promise<string | null>;
   /** Existing PMO `companies` candidates for a first-time adopt (mixed-state onboarding matching,
    *  FR-ENA-093) — never consulted on the idempotent-retry branch (the mapping is already known). */
-  findCandidates: (doctype: ErpPartySource['doctype'], name: string) => Promise<PartyCandidate[]>;
+  findCandidates: (doctype: ErpPartySource['doctype'], name: string, taxId?: string | null) => Promise<PartyCandidate[]>;
   insertCompaniesMirror: (canonical: PmoRecord) => Promise<void>;
   updateCompaniesMirror: (pmoRecordId: string, canonical: PmoRecord) => Promise<void>;
   /** Insert-only claim of the `external_refs` link. Taken BEFORE any company write: it is the adoption lock the
@@ -85,6 +85,8 @@ export interface OnboardPartiesDeps {
   mirrorExists: (pmoRecordId: string) => Promise<boolean>;
   /** Tell the org's admins an ERP party was neither linked nor brought in (same text and dedupe as the feed). */
   notifyUnclearMatch: (entry: { doctype: ErpPartySource['doctype']; id: string; name: string; reason: string }) => Promise<void>;
+  /** Persist the unclear match as a review row (AC-ECA-006): the ERP party by its doctype-encoded id and the PMO companies it could be. */
+  recordReview: (entry: { pmoIds: string[]; externalId: string; reason: 'ambiguous' | 'tax-conflict' }) => Promise<void>;
 }
 
 export interface OnboardPartiesResult {
@@ -139,11 +141,13 @@ export async function onboardParties(sources: readonly ErpPartySource[], deps: O
       continue;
     }
     let adoptedParty;
+    let looked: PartyCandidate[] = [];
     try {
-      adoptedParty = await adoptParty(source, { findCandidates: deps.findCandidates });
+      adoptedParty = await adoptParty(source, { findCandidates: async (doctype, name, taxId) => (looked = await deps.findCandidates(doctype, name, taxId)) });
     } catch (err) {
       if (!(err instanceof AppError) || err.code !== 'action-required') throw err;
       await flagForDecision({ doctype: source.doctype, id: source.id, name: source.name, reason: err.details ?? 'unclear-match' });
+      await deps.recordReview({ pmoIds: looked.map((c) => c.pmoRecordId).sort(), externalId: externalRecordId, reason: reviewReasonOf(err) });
       continue;
     }
     const { canonical, externalRecordId: mintedExternalId, matched } = adoptedParty;

@@ -181,6 +181,20 @@ describe('useProcurementMutations', () => {
     ).toBe(true);
   });
 
+  it('T-11: transition refreshes the list family and the case project spend', async () => {
+    const { qc, Wrapper } = makeWrapper();
+    qc.setQueryData(['procurement', 'org-1', 'proc-1', 'u', 'r'], { project_id: 'proj-9' });
+    const invalidateSpy = vi.spyOn(qc, 'invalidateQueries');
+    const { result } = renderHook(() => useProcurementMutations('proc-1'), { wrapper: Wrapper });
+    await act(async () => {
+      await result.current.transition.mutateAsync({ to: 'Requested', notes: undefined });
+    });
+    const keys = invalidateSpy.mock.calls.map((c) => c[0]?.queryKey);
+    expect(keys).toContainEqual(['procurements', 'org-1']);
+    expect(keys).toContainEqual(['project-committed-spend', 'org-1', 'proj-9']);
+    expect(keys).toContainEqual(['project-reserved-spend', 'org-1', 'proj-9']);
+  });
+
   it('AC-816 (hook): createReceipt mutation calls repositories.procurement.createReceipt and invalidates the detail key on success', async () => {
     const { qc, Wrapper } = makeWrapper();
     const invalidateSpy = vi.spyOn(qc, 'invalidateQueries');

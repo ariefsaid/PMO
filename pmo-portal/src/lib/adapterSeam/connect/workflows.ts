@@ -12,7 +12,7 @@
 export const WORKFLOWS = {
   // Setup and masters (ECA-1..3)
   'census': { version: 1, summary: 'read-only count of each master kind and money domain on both sides' },
-  'party.match': { version: 1, summary: 'pair an ERP client/vendor with an existing PMO company, never auto-merging a doubtful pair' },
+  'party.match': { version: 2, summary: 'pair an ERP client/vendor with an existing PMO company, never auto-merging a doubtful pair' },
   'party.bring-in': { version: 1, summary: 'create a PMO company for an ERP party with no PMO match' },
   'party.send': { version: 1, summary: 'create an ERP client/vendor for a PMO company that has none' },
   'project.match': { version: 1, summary: 'link a PMO project to an ERP project, with no link when the ERP name is not unique' },

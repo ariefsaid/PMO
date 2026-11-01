@@ -6,23 +6,22 @@
 import type { TierWorkflows } from '../connect/workflows.ts';
 
 // ECA slices that will build the missing behaviour (the ERP-connect-anytime map).
-const SETUP_CENSUS_AND_PROPOSALS = 1605;
 const SEND_TO_EMPTY_ERP = 1606;
 const INVOICE_PAIRING = 1602;
 // Cut-over proofs that live outside Vitest (the SQL revenue guard, the Deno timesheet backstop): shared suite or permanent exception.
 const CUTOVER_PROOFS_OUTSIDE_VITEST = 1676;
 
 export const ERPNEXT_WORKFLOWS: TierWorkflows = {
-  'census': { status: 'pending', version: 1, issue: SETUP_CENSUS_AND_PROPOSALS },
-  'party.match': { status: 'supported', version: 1 },
+  'census': { status: 'supported', version: 1 },
+  'party.match': { status: 'supported', version: 2 },
   'party.bring-in': { status: 'supported', version: 1 },
   'party.send': { status: 'pending', version: 1, issue: SEND_TO_EMPTY_ERP },
   'project.match': { status: 'supported', version: 1 },
   'project.send': { status: 'pending', version: 1, issue: SEND_TO_EMPTY_ERP },
-  'item.match': { status: 'pending', version: 1, issue: SETUP_CENSUS_AND_PROPOSALS },
+  'item.match': { status: 'supported', version: 1 },
   'item.send': { status: 'pending', version: 1, issue: SEND_TO_EMPTY_ERP },
-  'account.match': { status: 'pending', version: 1, issue: SETUP_CENSUS_AND_PROPOSALS },
-  'employee.match': { status: 'pending', version: 1, issue: SETUP_CENSUS_AND_PROPOSALS },
+  'account.match': { status: 'supported', version: 1 },
+  'employee.match': { status: 'supported', version: 1 },
   'employee.send': { status: 'pending', version: 1, issue: SEND_TO_EMPTY_ERP },
   'purchase.push': { status: 'supported', version: 1 },
   'bill.push': { status: 'supported', version: 1 },

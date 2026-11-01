@@ -160,6 +160,28 @@ describe('loadOverdueFacts — invoices (#787)', () => {
     ].sort((a, b) => String(a[1]).localeCompare(String(b[1]))));
   });
 
+  it('a truncated invoice scan with no overdue row in the page is flagged partial', async () => {
+    const page = Array.from({ length: 201 }, (_, i) => inv(`SI-${i}`, '2026-10-05', 30));
+    const { client } = fakeSupabase(world({ sales_invoices: () => page }));
+    const facts = await loadOverdueFacts(ctx('Finance', client), NOW);
+    expect(facts.invoices).toEqual([]);
+    expect(facts.invoicesTruncated).toBe(true);
+    const md = renderOverdueMarkdown(facts);
+    expect(md).not.toContain('nothing is overdue');
+    expect(md).toContain('partial');
+  });
+
+  it('a PM with more than 500 managed projects gets a partial-scope answer', async () => {
+    const ids = Array.from({ length: 501 }, (_, i) => ({ id: `p-${i}` }));
+    const { client, calls } = fakeSupabase(world({ projects: (c) => (c.columns === 'id' ? ids : []) }));
+    const facts = await loadOverdueFacts(ctx('Project Manager', client), NOW);
+    expect(opsOf(calls, 'projects')[0]).toContainEqual(['limit', 501]);
+    expect(facts.scopeTruncated).toBe(true);
+    const md = renderOverdueMarkdown(facts);
+    expect(md).not.toContain('nothing is overdue');
+    expect(md).toContain('first 500 managed projects');
+  });
+
   it('AC-AIN-006 Revenue off → no invoice read, no invoice section', async () => {
     const { client, calls } = fakeSupabase(world({ org_features: () => ({ enabled: false }) }));
     const facts = await loadOverdueFacts(ctx('Finance', client), NOW);

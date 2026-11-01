@@ -47,6 +47,7 @@ import {
 } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/binding.ts';
 import { applyErpSetup, type ErpSetupBody } from './setup.ts';
 import { routeOdoo } from './odoo/router.ts';
+import { CONNECT_ACTIONS, handleConnectAction } from './connect.ts';
 import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
 import { guardedErpFetch, isPermittedErpSiteUrl, isPrivateOrReservedHost } from '../_shared/erpHostGuard.ts';
 
@@ -235,6 +236,23 @@ export async function handleSetCompanyRequest(req: Request): Promise<Response> {
 
   const isAdmin = profile.role === 'Admin';
   const isPlatformOperator = !!isOperator;
+  // ECA setup verbs (#1605): one path for every tier; the verbs gate on role themselves, and a person's decisions run as the caller.
+  if (typeof body.setupAction === 'string' && CONNECT_ACTIONS.has(body.setupAction)) {
+    const anonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
+    if (!anonKey) return errorResponse('Server misconfigured', 'MISCONFIGURED', 500);
+    const { data: state, error: stateError } = await serviceClient.rpc('actor_authorization_state', { p_org_id: profile.org_id, p_user_id: userId });
+    if (stateError || (state as { active?: unknown } | null)?.active !== true) {
+      return errorResponse('Only an active member of this organization can set up its ERP connection', 'FORBIDDEN', 403);
+    }
+    try {
+      const callerClient = createClient(supabaseUrl, anonKey, { ...testSupabaseOptions, global: { headers: { Authorization: `Bearer ${jwt}` } } });
+      return json(await handleConnectAction({ serviceClient, callerClient, orgId: profile.org_id, userId, role: profile.role, body: body as unknown as Record<string, unknown> }));
+    } catch (err) {
+      const code = (err as { code?: string }).code ?? 'INTERNAL';
+      const status: Record<string, number> = { FORBIDDEN: 403, NOT_FOUND: 404, BAD_REQUEST: 400, 'config-rejected': 422, 'external-unreachable': 502 };
+      return errorResponse(err instanceof AppError ? err.message : 'The request could not be completed', code, status[code] ?? 500);
+    }
+  }
   // Odoo (#1504 S2, PQ-12): its router runs the active-member check and per-verb gates itself.
   if (body.tier === 'odoo') {
     return await routeOdoo({

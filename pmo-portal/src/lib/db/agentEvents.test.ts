@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const h = vi.hoisted(() => {
   const result = { value: { data: null as unknown, error: null as unknown } };
+  const pages: Array<{ data: unknown; error: unknown }> = [];
+  const ranges: unknown[] = [];
   const calls = {
     from: [] as unknown[],
     select: [] as unknown[],
@@ -18,12 +20,16 @@ const h = vi.hoisted(() => {
   builder.eq = chain('eq');
   builder.order = chain('order');
   builder.update = chain('update');
-  builder.then = (resolve: (v: unknown) => unknown) => resolve(result.value);
+  builder.range = (...args: unknown[]) => {
+    ranges.push(args);
+    return builder;
+  };
+  builder.then = (resolve: (v: unknown) => unknown) => resolve(pages.length ? pages.shift() : result.value);
   const from = vi.fn((table: string) => {
     calls.from.push(table);
     return builder;
   });
-  return { from, calls, result };
+  return { from, calls, result, pages, ranges };
 });
 
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: h.from } }));
@@ -37,6 +43,8 @@ beforeEach(() => {
     (h.calls[k] as unknown[]).length = 0;
   }
   h.result.value = { data: null, error: null };
+  h.pages.length = 0;
+  h.ranges.length = 0;
 });
 
 describe('AC-AGP-021 listRunEvents', () => {
@@ -97,5 +105,15 @@ describe('AC-AGP-022 rateAgentEvent', () => {
     await expect(rateAgentEvent('e1', 'down', 'too_slow')).rejects.toBeInstanceOf(AppError);
     await expect(rateAgentEvent('e1', 'down', 'too_slow')).rejects.toMatchObject({ code: '42501' });
     expect(h.calls.update.length).toBeGreaterThan(0);
+  });
+});
+
+describe('AC-AGP-021 paging past the row cap (T-10)', () => {
+  it('reads every page, not just the first 1000 rows', async () => {
+    const full = Array.from({ length: 1000 }, (_, i) => ({ id: `r${i}`, seq: i }));
+    h.pages.push({ data: full, error: null }, { data: [{ id: 'last', seq: 1000 }], error: null });
+    const rows = await listRunEvents('run-1');
+    expect(rows).toHaveLength(1001);
+    expect(h.ranges).toEqual([[0, 999], [1000, 1999]]);
   });
 });

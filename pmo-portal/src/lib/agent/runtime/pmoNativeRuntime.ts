@@ -197,7 +197,7 @@ export class PmoNativeRuntime implements AgentRuntime {
         messages: [],
         cancel: { runId },
       };
-      await fetchImpl(this._opts.fnUrl, {
+      const res = await fetchImpl(this._opts.fnUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -205,6 +205,14 @@ export class PmoNativeRuntime implements AgentRuntime {
         },
         body: JSON.stringify(body),
       });
+      // A resolved fetch is not a landed cancel: a non-2xx leaves the server run un-cancelled.
+      if (!res.ok) {
+        console.warn(`[pmo-native-runtime] cancel-POST failed`, {
+          errorCode: 'CANCEL_POST_FAILED',
+          runId,
+          status: res.status,
+        });
+      }
     } catch {
       // Best-effort — a failed cancel-POST leaves the server's run status un-updated
       // (no worse than the pre-fix behavior, which never attempted this at all). BUT this

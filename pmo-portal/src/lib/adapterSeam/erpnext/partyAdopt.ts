@@ -11,7 +11,7 @@
  */
 import { AppError } from '../../appError.ts';
 import type { PmoRecord } from '../contract.ts';
-import { pickPartyCandidate } from '../connect/match.ts';
+import { normaliseName, pickPartyCandidate } from '../connect/match.ts';
 
 export type PartyDoctype = 'Supplier' | 'Customer';
 
@@ -43,8 +43,8 @@ export interface PartyCandidate {
 }
 
 export interface PartyAdoptDeps {
-  /** Existing PMO `companies` candidates matching `(doctype's type, name)` — 0, 1, or many. */
-  findCandidates: (doctype: PartyDoctype, name: string) => Promise<PartyCandidate[]>;
+  /** Existing PMO `companies` candidates matching `(doctype's type, name)` or the tax id — 0, 1, or many. */
+  findCandidates: (doctype: PartyDoctype, name: string, taxId?: string | null) => Promise<PartyCandidate[]>;
 }
 
 export interface AdoptedCompany {
@@ -70,10 +70,8 @@ export function deriveErpPaymentTermsDays(templateCreditDays: number | null | un
 
 /** The ONE party-name comparison key (FR-ECA-011): case-folded, legal-form punctuation dropped
  *  ("PT. Acme, Tbk." = "pt acme tbk"), whitespace collapsed. The shared matcher extends THIS, so setup and the
- *  feed can never disagree on what "the same name" means. */
-export function normalizePartyName(name: string): string {
-  return name.toLowerCase().replace(/[.,]/g, '').replace(/\s+/g, ' ').trim();
-}
+ *  feed can never disagree on what "the same name" means. ECA2-T3: now the shared matcher's `normaliseName`. */
+export const normalizePartyName = normaliseName;
 
 // Same-name, same-type, same-org candidates through the shared matcher (connect/match.ts); a review outcome is
 // `action-required` here, with the ERPNext doctype named.
@@ -95,6 +93,11 @@ export function pickCandidate(source: ErpPartySource, candidates: PartyCandidate
   );
 }
 
+/** The persisted review reason (`erp_connect_proposals.reason`) of an `action-required` match failure. */
+export function reviewReasonOf(err: { details?: string }): 'ambiguous' | 'tax-conflict' {
+  return err.details === 'conflicting-tax-id' ? 'tax-conflict' : 'ambiguous';
+}
+
 /**
  * Map one ERP Supplier/Customer source doc into the PMO `companies` canonical shape + its
  * doctype-encoded external id (FR-ENA-090). Refuses an Internal-shaped source (FR-ENA-091 — never
@@ -108,7 +111,7 @@ export async function adoptParty(source: ErpPartySource, deps: PartyAdoptDeps): 
       'config-rejected',
     );
   }
-  const candidates = await deps.findCandidates(source.doctype, source.name);
+  const candidates = await deps.findCandidates(source.doctype, source.name, source.taxId);
   const matched = pickCandidate(source, candidates);
   const type = DISCRIMINATOR[source.doctype];
 
