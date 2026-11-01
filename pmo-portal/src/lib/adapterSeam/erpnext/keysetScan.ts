@@ -21,7 +21,10 @@
 
 const CURSOR_SEP = '|';
 
-export const formatKeysetCursor = (modified: string, name: string): string => `${modified}${CURSOR_SEP}${name}`;
+/** Frappe drops `.000000` when serialising a whole-second datetime; pad to 6 digits so text order is time order. */
+const padMicros = (m: string): string => /^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d(\.\d{1,6})?$/.test(m) ? m.padEnd(26, m.includes('.') ? '0' : '.000000') : m;
+
+export const formatKeysetCursor = (modified: string, name: string): string => `${padMicros(modified)}${CURSOR_SEP}${name}`;
 
 export function parseKeysetCursor(since: string): { modified: string; name: string | null } {
   const i = since.indexOf(CURSOR_SEP);

@@ -99,3 +99,14 @@ describe('THEME-DATA-03 composite keyset ledger scan', () => {
     expect(seen).toEqual(['PLE-0', 'PLE-1', 'PLE-2', 'PLE-3', 'PLE-4']);
   });
 });
+
+describe('keyset cursor text order', () => {
+  it('a whole-second modified (no fraction, as Frappe serialises it) sorts before a later fraction in the same second', async () => {
+    const { formatKeysetCursor } = await import('./keysetScan.ts');
+    const whole = formatKeysetCursor('2026-11-01 10:00:56', 'X');
+    const frac = formatKeysetCursor('2026-11-01 10:00:56.500000', 'Y');
+    expect(whole).toBe('2026-11-01 10:00:56.000000|X');
+    expect(whole < frac).toBe(true);
+    expect(formatKeysetCursor('2026-11-01 10:00:56.5', 'Z')).toBe('2026-11-01 10:00:56.500000|Z');
+  });
+});
