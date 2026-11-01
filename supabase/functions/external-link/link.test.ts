@@ -385,6 +385,42 @@ describe('external-link — ClickUp branch', () => {
     );
   });
 
+  it('List details OK but task endpoint 404 → 404 not-found, no audit', async () => {
+    await withFetchMock(
+      [
+        supabaseSelect('profiles', () =>
+          jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+        supabaseSelect('platform_operators', () => new Response('null', {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })),
+        supabaseSelect('external_org_bindings', () =>
+          jsonResponse({ secret_ref: 'vault-ref', status: 'active', config: {}, site_url: 'https://erp.example.com' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+        supabaseRpc('read_vault_secret', () => jsonResponse('test-pat-token')),
+        supabaseSelect('projects', () =>
+          jsonResponse({ id: 'proj-1', project_manager_id: 'user-1', org_id: 'org-1' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+        clickup('/api/v2/list/list-1', () => jsonResponse(LINKABLE_LIST)),
+        clickup('/api/v2/list/list-1/task', () => new Response('{}', { status: 404 })),
+      ],
+      async ({ calls }) => {
+        const res = await handleLinkRequest(await authed({
+          tier: 'clickup',
+          projectId: 'proj-1',
+          listId: 'list-1',
+          direction: 'push-seed',
+        }));
+        assertEquals(res.status, 404);
+        assertEquals(rpcCall(calls, 'log_audit').length, 0);
+      },
+    );
+  });
+
   it('mixed content (both non-empty) → 409', async () => {
     await withFetchMock(
       [

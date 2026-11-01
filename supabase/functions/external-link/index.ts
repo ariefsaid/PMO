@@ -136,7 +136,7 @@ async function getListTaskCount(deps: ClickUpDeps, listId: string): Promise<numb
     headers: { Authorization: `Bearer ${deps.token}` },
   });
   if (!res.ok) {
-    if (res.status === 404) return -1; // List not found
+    if (res.status === 404) throw new AppError('ClickUp List not found', 'NOT_FOUND');
     throw new AppError('Failed to fetch ClickUp list tasks', 'external-unreachable');
   }
   const data = (await res.json()) as { tasks: unknown[] };
