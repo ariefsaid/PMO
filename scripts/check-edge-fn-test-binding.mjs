@@ -35,6 +35,7 @@ const REQUIRED = {
   'supabase/functions/external-set-company/discovery.bed.test.ts': 'handleSetCompanyRequest',
   'supabase/functions/external-set-company/connect.test.ts': 'handleSetCompanyRequest',
   'supabase/functions/external-set-company/connect.odoo.test.ts': 'handleSetCompanyRequest',
+  'supabase/functions/external-set-company/odoo.projects.test.ts': 'handleSetCompanyRequest',
   'supabase/functions/imprest-cash-account/index.test.ts': 'handleImprestCashAccountRequest',
   'supabase/functions/external-link/link.test.ts': 'handleLinkRequest',
   'supabase/functions/external-lists/lists.test.ts': 'handleListsRequest',
