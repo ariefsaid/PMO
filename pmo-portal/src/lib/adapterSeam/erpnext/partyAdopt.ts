@@ -11,7 +11,7 @@
  */
 import { AppError } from '../../appError.ts';
 import type { PmoRecord } from '../contract.ts';
-import { pickPartyCandidate } from '../connect/match.ts';
+import { normaliseName, pickPartyCandidate } from '../connect/match.ts';
 
 export type PartyDoctype = 'Supplier' | 'Customer';
 
@@ -70,10 +70,8 @@ export function deriveErpPaymentTermsDays(templateCreditDays: number | null | un
 
 /** The ONE party-name comparison key (FR-ECA-011): case-folded, legal-form punctuation dropped
  *  ("PT. Acme, Tbk." = "pt acme tbk"), whitespace collapsed. The shared matcher extends THIS, so setup and the
- *  feed can never disagree on what "the same name" means. */
-export function normalizePartyName(name: string): string {
-  return name.toLowerCase().replace(/[.,]/g, '').replace(/\s+/g, ' ').trim();
-}
+ *  feed can never disagree on what "the same name" means. ECA2-T3: now the shared matcher's `normaliseName`. */
+export const normalizePartyName = normaliseName;
 
 // Same-name, same-type, same-org candidates through the shared matcher (connect/match.ts); a review outcome is
 // `action-required` here, with the ERPNext doctype named.

@@ -15,7 +15,7 @@ const SHIPPED_TESTS_NOT_YET_SHARED = 1609;
 
 export const ERPNEXT_WORKFLOWS: TierWorkflows = {
   'census': { status: 'pending', version: 1, issue: SETUP_CENSUS_AND_PROPOSALS },
-  'party.match': { status: 'supported', version: 1 },
+  'party.match': { status: 'supported', version: 2 },
   'party.bring-in': { status: 'supported', version: 1 },
   'party.send': { status: 'pending', version: 1, issue: SEND_TO_EMPTY_ERP },
   'project.match': { status: 'supported', version: 1 },
