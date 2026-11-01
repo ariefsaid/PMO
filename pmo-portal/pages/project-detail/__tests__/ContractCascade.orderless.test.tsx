@@ -23,7 +23,7 @@ vi.mock('@/src/hooks/useProgressBilling', () => ({
   useProgressBillingMutations: () => ({}),
 }));
 vi.mock('@/src/hooks/useWorkOrders', () => ({ useProjectWorkOrders: () => h.orders, useProjectDrawdown: () => h.drawdown, useWorkOrderMutations: () => ({}) }));
-vi.mock('@/src/hooks/useWorkOrderBilling', () => ({ useWorkOrderBilling: () => h.orderBilling }));
+vi.mock('@/src/hooks/useWorkOrderBilling', () => ({ useWorkOrderBilling: () => h.orderBilling, useWorkOrderAcceptanceAge: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useRevenue', () => ({ useSalesInvoices: () => h.invoices }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => h.canViewMoney }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: null }) }));
