@@ -165,7 +165,7 @@ export async function auditMint(
   automation: AutomationRow,
   runId: string,
   mintedAt: string,
-): Promise<void> {
+): Promise<string> {
   const sb = mintedClient as MintedClientLike;
 
   // Create the fired run's thread + run (owner RLS stamps owner_id/org_id via DEFAULT). A failed
@@ -210,4 +210,5 @@ export async function auditMint(
   if (eventRes.error) {
     throw new Error('mint audit failed: event');
   }
+  return threadId;
 }

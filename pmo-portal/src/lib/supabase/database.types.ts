@@ -1815,6 +1815,113 @@ export type Database = {
           },
         ]
       }
+      equipment_costing_settings: {
+        Row: {
+          applies_to: string | null
+          asset_id: string
+          basis: string
+          charge_category: Database["public"]["Enums"]["budget_category"] | null
+          count_standby: boolean
+          created_at: string
+          created_by: string | null
+          driver: string | null
+          effective_from: string
+          effective_to: string | null
+          id: string
+          is_current: boolean
+          match_account: string | null
+          match_account_group: string | null
+          match_cost_center: string | null
+          match_party: string | null
+          match_party_type: string | null
+          org_id: string
+          rate_unit: string | null
+          setting_key: string
+          specificity: number
+          standby_rate: number | null
+          version: number
+          work_rate: number | null
+        }
+        Insert: {
+          applies_to?: string | null
+          asset_id: string
+          basis: string
+          charge_category?:
+            | Database["public"]["Enums"]["budget_category"]
+            | null
+          count_standby?: boolean
+          created_at?: string
+          created_by?: string | null
+          driver?: string | null
+          effective_from: string
+          effective_to?: string | null
+          id?: string
+          is_current?: boolean
+          match_account?: string | null
+          match_account_group?: string | null
+          match_cost_center?: string | null
+          match_party?: string | null
+          match_party_type?: string | null
+          org_id: string
+          rate_unit?: string | null
+          setting_key: string
+          specificity?: number
+          standby_rate?: number | null
+          version: number
+          work_rate?: number | null
+        }
+        Update: {
+          applies_to?: string | null
+          asset_id?: string
+          basis?: string
+          charge_category?:
+            | Database["public"]["Enums"]["budget_category"]
+            | null
+          count_standby?: boolean
+          created_at?: string
+          created_by?: string | null
+          driver?: string | null
+          effective_from?: string
+          effective_to?: string | null
+          id?: string
+          is_current?: boolean
+          match_account?: string | null
+          match_account_group?: string | null
+          match_cost_center?: string | null
+          match_party?: string | null
+          match_party_type?: string | null
+          org_id?: string
+          rate_unit?: string | null
+          setting_key?: string
+          specificity?: number
+          standby_rate?: number | null
+          version?: number
+          work_rate?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "equipment_costing_settings_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "equipment_assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "equipment_costing_settings_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "equipment_costing_settings_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       equipment_usage_entries: {
         Row: {
           approved_at: string | null
@@ -3489,6 +3596,7 @@ export type Database = {
           external_tier: string
           id: string
           org_id: string
+          prev_binding: Json | null
           secret_ref: string
           site_url: string
           statement_calendar: Json | null
@@ -3510,6 +3618,7 @@ export type Database = {
           external_tier: string
           id?: string
           org_id?: string
+          prev_binding?: Json | null
           secret_ref: string
           site_url: string
           statement_calendar?: Json | null
@@ -3531,6 +3640,7 @@ export type Database = {
           external_tier?: string
           id?: string
           org_id?: string
+          prev_binding?: Json | null
           secret_ref?: string
           site_url?: string
           statement_calendar?: Json | null
@@ -4848,18 +4958,24 @@ export type Database = {
           last_detail: Json | null
           last_outbound_at: string | null
           last_run_at: string
+          lease_holder: string | null
+          lease_until: string | null
         }
         Insert: {
           job_name: string
           last_detail?: Json | null
           last_outbound_at?: string | null
           last_run_at: string
+          lease_holder?: string | null
+          lease_until?: string | null
         }
         Update: {
           job_name?: string
           last_detail?: Json | null
           last_outbound_at?: string | null
           last_run_at?: string
+          lease_holder?: string | null
+          lease_until?: string | null
         }
         Relationships: []
       }
@@ -5296,6 +5412,208 @@ export type Database = {
           },
         ]
       }
+      po_variations: {
+        Row: {
+          amount: number
+          approved_at: string | null
+          approved_by: string | null
+          decided_at: string | null
+          decided_by: string | null
+          decided_notes: string | null
+          id: string
+          linked_at: string | null
+          linked_by: string | null
+          not_passed_reason: string | null
+          number: string
+          org_id: string
+          origin: string
+          po_id: string
+          procurement_id: string
+          project_id: string
+          reason: string
+          requested_at: string
+          requested_by: string
+          revision: number | null
+          status: string
+          work_order_id: string | null
+        }
+        Insert: {
+          amount: number
+          approved_at?: string | null
+          approved_by?: string | null
+          decided_at?: string | null
+          decided_by?: string | null
+          decided_notes?: string | null
+          id?: string
+          linked_at?: string | null
+          linked_by?: string | null
+          not_passed_reason?: string | null
+          number: string
+          org_id: string
+          origin: string
+          po_id: string
+          procurement_id: string
+          project_id: string
+          reason: string
+          requested_at?: string
+          requested_by: string
+          revision?: number | null
+          status?: string
+          work_order_id?: string | null
+        }
+        Update: {
+          amount?: number
+          approved_at?: string | null
+          approved_by?: string | null
+          decided_at?: string | null
+          decided_by?: string | null
+          decided_notes?: string | null
+          id?: string
+          linked_at?: string | null
+          linked_by?: string | null
+          not_passed_reason?: string | null
+          number?: string
+          org_id?: string
+          origin?: string
+          po_id?: string
+          procurement_id?: string
+          project_id?: string
+          reason?: string
+          requested_at?: string
+          requested_by?: string
+          revision?: number | null
+          status?: string
+          work_order_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "po_variations_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "po_variations_decided_by_fkey"
+            columns: ["decided_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "po_variations_linked_by_fkey"
+            columns: ["linked_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "po_variations_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "po_variations_po_id_fkey"
+            columns: ["po_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "po_variations_procurement_id_fkey"
+            columns: ["procurement_id"]
+            isOneToOne: false
+            referencedRelation: "procurements"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "po_variations_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "po_variations_requested_by_fkey"
+            columns: ["requested_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "po_variations_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_order_billing"
+            referencedColumns: ["work_order_id"]
+          },
+          {
+            foreignKeyName: "po_variations_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_order_uninvoiced_acceptance"
+            referencedColumns: ["work_order_id"]
+          },
+          {
+            foreignKeyName: "po_variations_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      po_variation_lines: {
+        Row: {
+          additional_quantity: number
+          amount: number | null
+          boq_item_id: string
+          org_id: string
+          rate: number
+          variation_id: string
+        }
+        Insert: {
+          additional_quantity: number
+          amount?: number | null
+          boq_item_id: string
+          org_id: string
+          rate: number
+          variation_id: string
+        }
+        Update: {
+          additional_quantity?: number
+          amount?: number | null
+          boq_item_id?: string
+          org_id?: string
+          rate?: number
+          variation_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "po_variation_lines_boq_item_id_fkey"
+            columns: ["boq_item_id"]
+            isOneToOne: false
+            referencedRelation: "boq_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "po_variation_lines_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "po_variation_lines_variation_id_fkey"
+            columns: ["variation_id"]
+            isOneToOne: false
+            referencedRelation: "po_variations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       procurement_doc_counters: {
         Row: {
           doc_date: string
@@ -5592,6 +5910,75 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "procurement_import_runs_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      procurement_invoice_lines: {
+        Row: {
+          amount: number | null
+          attributed_by: string | null
+          boq_item_id: string
+          created_at: string
+          invoice_id: string
+          org_id: string
+          quantity: number
+          rate: number
+        }
+        Insert: {
+          amount?: number | null
+          attributed_by?: string | null
+          boq_item_id: string
+          created_at?: string
+          invoice_id: string
+          org_id: string
+          quantity: number
+          rate: number
+        }
+        Update: {
+          amount?: number | null
+          attributed_by?: string | null
+          boq_item_id?: string
+          created_at?: string
+          invoice_id?: string
+          org_id?: string
+          quantity?: number
+          rate?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "procurement_invoice_lines_attributed_by_fkey"
+            columns: ["attributed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "procurement_invoice_lines_boq_item_id_fkey"
+            columns: ["boq_item_id"]
+            isOneToOne: false
+            referencedRelation: "boq_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "procurement_invoice_lines_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "procurement_invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "procurement_invoice_lines_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "vendor_withholding_bill_register"
+            referencedColumns: ["invoice_id"]
+          },
+          {
+            foreignKeyName: "procurement_invoice_lines_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
@@ -7027,6 +7414,8 @@ export type Database = {
           imported_at: string | null
           last_update: string
           location: string | null
+          lost_note: string | null
+          lost_reason: string | null
           name: string
           short_name: string | null
           org_id: string
@@ -7068,6 +7457,8 @@ export type Database = {
           imported_at?: string | null
           last_update?: string
           location?: string | null
+          lost_note?: string | null
+          lost_reason?: string | null
           name: string
           short_name?: string | null
           org_id?: string
@@ -7109,6 +7500,8 @@ export type Database = {
           imported_at?: string | null
           last_update?: string
           location?: string | null
+          lost_note?: string | null
+          lost_reason?: string | null
           name?: string
           short_name?: string | null
           org_id?: string
@@ -7376,6 +7769,13 @@ export type Database = {
             columns: ["procurement_id"]
             isOneToOne: false
             referencedRelation: "procurements"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_order_revisions_variation_fk"
+            columns: ["variation_id"]
+            isOneToOne: false
+            referencedRelation: "po_variations"
             referencedColumns: ["id"]
           },
         ]
@@ -8813,6 +9213,133 @@ export type Database = {
           },
         ]
       }
+      subcontract_acceptance_lines: {
+        Row: {
+          acceptance_id: string
+          boq_item_id: string
+          quantity: number
+        }
+        Insert: {
+          acceptance_id: string
+          boq_item_id: string
+          quantity: number
+        }
+        Update: {
+          acceptance_id?: string
+          boq_item_id?: string
+          quantity?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subcontract_acceptance_lines_acceptance_id_fkey"
+            columns: ["acceptance_id"]
+            isOneToOne: false
+            referencedRelation: "subcontract_acceptances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subcontract_acceptance_lines_boq_item_id_fkey"
+            columns: ["boq_item_id"]
+            isOneToOne: false
+            referencedRelation: "boq_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      subcontract_acceptances: {
+        Row: {
+          acceptance_date: string
+          confirm_basis: string | null
+          confirmed_at: string | null
+          confirmed_by: string | null
+          document_id: string | null
+          id: string
+          note: string | null
+          org_id: string
+          po_id: string
+          prepared_at: string
+          prepared_by: string
+          project_id: string
+          status: string
+          withdrawn_at: string | null
+        }
+        Insert: {
+          acceptance_date: string
+          confirm_basis?: string | null
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          document_id?: string | null
+          id?: string
+          note?: string | null
+          org_id: string
+          po_id: string
+          prepared_at?: string
+          prepared_by: string
+          project_id: string
+          status?: string
+          withdrawn_at?: string | null
+        }
+        Update: {
+          acceptance_date?: string
+          confirm_basis?: string | null
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          document_id?: string | null
+          id?: string
+          note?: string | null
+          org_id?: string
+          po_id?: string
+          prepared_at?: string
+          prepared_by?: string
+          project_id?: string
+          status?: string
+          withdrawn_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subcontract_acceptances_confirmed_by_fkey"
+            columns: ["confirmed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subcontract_acceptances_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "project_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subcontract_acceptances_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subcontract_acceptances_po_id_fkey"
+            columns: ["po_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subcontract_acceptances_prepared_by_fkey"
+            columns: ["prepared_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subcontract_acceptances_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       task_dependencies: {
         Row: {
           depends_on_id: string
@@ -10058,6 +10585,10 @@ export type Database = {
       }
     }
     Functions: {
+      attribute_subcontract_bill_lines: {
+        Args: { p_invoice_id: string; p_lines: Json }
+        Returns: undefined
+      }
       add_skipped_stage_entry: {
         Args: {
           p_before_entry_id: string
@@ -10109,6 +10640,163 @@ export type Database = {
         Args: { p_boq_item_id: string; p_item_id: string }
         Returns: boolean
       }
+      confirm_subcontract_acceptance: {
+        Args: { p_id: string }
+        Returns: string
+      }
+      decide_po_variation: {
+        Args: { p_approve: boolean; p_id: string; p_notes?: string }
+        Returns: undefined
+      }
+      cost_attribution_allocations: {
+        Args: {
+          p_draft?: Json
+          p_equipment_draft?: Json
+          p_exclude_rule_key?: string
+          p_org_id: string
+          p_project_id?: string
+        }
+        Returns: {
+          account: string
+          amount: number
+          as_of: string
+          fiscal_year: string
+          gl_id: string
+          party_type: string
+          posting_date: string
+          project_id: string
+          rule_id: string
+          rule_key: string
+        }[]
+      }
+      cost_attribution_engine: {
+        Args: {
+          p_draft?: Json
+          p_equipment_draft?: Json
+          p_exclude_rule_key?: string
+          p_org_id: string
+          p_project_id?: string
+        }
+        Returns: {
+          account: string
+          amount: number
+          as_of: string
+          asset_id: string
+          driver: string
+          driver_total: number
+          driver_value: number
+          entry_count: number
+          fiscal_year: string
+          gl_id: string
+          line_count: number
+          party_type: string
+          pool: number
+          posting_date: string
+          project_id: string
+          rule_id: string
+          rule_key: string
+          source: string
+          status: string
+          version: number
+        }[]
+      }
+      cost_attribution_matches_overlap: {
+        Args: {
+          a_account: string
+          a_cc: string
+          a_group: string
+          a_party: string
+          a_ptype: string
+          b_account: string
+          b_cc: string
+          b_group: string
+          b_party: string
+          b_ptype: string
+          p_org: string
+        }
+        Returns: boolean
+      }
+      end_equipment_costing: {
+        Args: {
+          p_effective_to: string
+          p_expected_version: number
+          p_setting_key: string
+        }
+        Returns: Json
+      }
+      equipment_costing_assert_no_conflict: {
+        Args: { p_norm: Json; p_org: string }
+        Returns: undefined
+      }
+      equipment_costing_content: { Args: { p_id: string }; Returns: Json }
+      equipment_costing_normalize: {
+        Args: { p_check_accounts?: boolean; p_org: string; p_setting: Json }
+        Returns: Json
+      }
+      equipment_costing_write: {
+        Args: { p_action: string; p_check_accounts: boolean; p_setting: Json }
+        Returns: Json
+      }
+      equipment_hire_charges: {
+        Args: { p_draft?: Json; p_org_id: string; p_project_id?: string }
+        Returns: {
+          amount: number
+          as_of: string
+          asset_id: string
+          category: Database["public"]["Enums"]["budget_category"]
+          entry_count: number
+          fiscal_year: string
+          month: string
+          project_id: string
+          rate_unit: string
+          setting_id: string
+          setting_key: string
+          standby_rate: number
+          standby_units: number
+          version: number
+          work_rate: number
+          work_units: number
+        }[]
+      }
+      equipment_settings_effective: {
+        Args: { p_draft?: Json; p_org_id: string }
+        Returns: {
+          asset_id: string
+          basis: string
+          charge_category: Database["public"]["Enums"]["budget_category"]
+          count_standby: boolean
+          driver: string
+          id: string
+          match_account: string
+          match_account_group: string
+          match_cost_center: string
+          match_party: string
+          match_party_type: string
+          rate_unit: string
+          setting_key: string
+          specificity: number
+          standby_rate: number
+          version: number
+          window_from: string
+          window_to: string
+          work_rate: number
+        }[]
+      }
+      equipment_usage_by_project: {
+        Args: { p_org_id: string }
+        Returns: {
+          as_of: string
+          asset_id: string
+          entry_count: number
+          fuel_litres: number
+          kind: string
+          month: string
+          project_id: string
+          quantity: number
+          trips: number
+          unit: string
+        }[]
+      }
       get_reorder_suggestions: {
         Args: { p_item_id: string; p_warehouse_id: string }
         Returns: Json
@@ -10117,6 +10805,103 @@ export type Database = {
       imprest_posting_for_push: {
         Args: { p_mirror_id: string; p_org_id: string }
         Returns: Json
+      }
+      link_po_variation: {
+        Args: {
+          p_not_passed_reason: string
+          p_variation_id: string
+          p_work_order_id: string
+        }
+        Returns: undefined
+      }
+      issue_po_revision: { Args: { p_variation_id: string }; Returns: number }
+      list_equipment_allocations: {
+        Args: {
+          p_asset_id: string
+          p_from: string
+          p_project_id?: string
+          p_to: string
+        }
+        Returns: {
+          amount: number
+          asset_code: string
+          asset_id: string
+          basis: string
+          category: Database["public"]["Enums"]["budget_category"]
+          driver: string
+          driver_total: number
+          driver_value: number
+          entry_count: number
+          line_count: number
+          month: string
+          pool: number
+          project_id: string
+          project_name: string
+          reason: string
+          setting_key: string
+          share: number
+          standby_rate: number
+          standby_units: number
+          status: string
+          unit: string
+          version: number
+          work_rate: number
+          work_units: number
+        }[]
+      }
+      list_equipment_costing: {
+        Args: { p_include_history?: boolean }
+        Returns: {
+          asset_code: string
+          asset_id: string
+          asset_name: string
+          basis: string
+          charge_category: Database["public"]["Enums"]["budget_category"]
+          count_standby: boolean
+          created_at: string
+          created_by: string
+          driver: string
+          effective_from: string
+          effective_to: string
+          id: string
+          is_current: boolean
+          match_account: string
+          match_account_group: string
+          match_cost_center: string
+          match_party: string
+          match_party_type: string
+          rate_unit: string
+          setting_key: string
+          specificity: number
+          standby_rate: number
+          version: number
+          voided: boolean
+          window_to: string
+          work_rate: number
+        }[]
+      }
+      list_equipment_usage_totals: {
+        Args: {
+          p_asset_id?: string
+          p_from?: string
+          p_project_id?: string
+          p_to?: string
+        }
+        Returns: {
+          asset_code: string
+          asset_id: string
+          asset_name: string
+          entry_count: number
+          fuel_litres: number
+          month: string
+          project_id: string
+          project_name: string
+          standby_units: number
+          submitted_count: number
+          trips: number
+          unit: string
+          work_units: number
+        }[]
       }
       normalize_procurement_import_refs: {
         Args: { p_refs: string[] }
@@ -10130,6 +10915,67 @@ export type Database = {
         Args: { p_org_id: string }
         Returns: boolean
       }
+      po_revision_push_refusal: {
+        Args: {
+          p_org: string
+          p_po_id: string
+          p_revise_cancels: boolean
+          p_revision: number
+        }
+        Returns: string
+      }
+      po_variation_route: {
+        Args: { p_id: string }
+        Returns: {
+          approver_ids: string[]
+          line_budget: number
+          line_used: number
+          reason: string
+          route: string
+        }[]
+      }
+      prepare_subcontract_acceptance: {
+        Args: {
+          p_acceptance_date: string
+          p_acceptance_id?: string
+          p_document_id?: string
+          p_lines: Json
+          p_note?: string
+          p_po_id: string
+        }
+        Returns: string
+      }
+      request_po_variation: {
+        Args: {
+          p_lines: Json
+          p_origin: string
+          p_po_id: string
+          p_reason: string
+        }
+        Returns: string
+      }
+      project_subcontract_exposure: {
+        Args: { p_project_id: string }
+        Returns: {
+          currency: string
+          disputed_value: number
+          oldest_unresolved_at: string
+          verified_not_on_po_value: number
+        }[]
+      }
+      preview_equipment_costing: {
+        Args: { p_setting: Json }
+        Returns: {
+          amount: number
+          basis: string
+          category: Database["public"]["Enums"]["budget_category"]
+          driver_total: number
+          entry_count: number
+          month: string
+          project_id: string
+        }[]
+      }
+      save_equipment_costing: { Args: { p_setting: Json }; Returns: Json }
       set_stock_reorder_level: {
         Args: {
           p_item_id: string
@@ -10144,6 +10990,43 @@ export type Database = {
         Returns: string
       }
       create_procurement_with_items: { Args: { p_id: string; p_header: Json; p_items: Json }; Returns: Database['public']['Tables']['procurements']['Row'] }
+      subcontract_cap_exceptions: {
+        Args: { p_procurement_id: string }
+        Returns: {
+          amount: number
+          erp_purchase_document_id: string
+          invoice_id: string
+          number: string
+          reason: string
+        }[]
+      }
+      subcontract_po_position: {
+        Args: { p_po_id: string }
+        Returns: {
+          billed: number | null
+          boq_item_id: string
+          description: string
+          disputed: number
+          item_code: string
+          payable: number | null
+          po_qty: number
+          rate: number
+          revision: number
+          unit: string
+          verified: number
+          verified_at: string | null
+          verified_not_on_po: number
+        }[]
+      }
+      subcontract_verified: {
+        Args: { p_po_id: string }
+        Returns: {
+          acceptance_id: string
+          boq_item_id: string
+          confirmed_at: string
+          quantity: number
+        }[]
+      }
       update_procurement_header: { Args: { p_id: string; p_patch: Json }; Returns: boolean }
       procurement_item_values_editable: { Args: { p_case: string }; Returns: boolean }
       budget_version_read_totals: {
@@ -10290,6 +11173,20 @@ export type Database = {
       }
       budget_activation_mode: { Args: { version_id: string }; Returns: string }
       project_win_eligibility: { Args: { p_id: string }; Returns: string }
+      withdraw_subcontract_acceptance: {
+        Args: { p_id: string }
+        Returns: undefined
+      }
+      work_order_cost_variations: {
+        Args: { p_work_order_id: string }
+        Returns: {
+          amount: number
+          id: string
+          number: string
+          po_id: string
+          status: string
+        }[]
+      }
       work_order_issue_eligibility: { Args: { p_ids: string[] }; Returns: { work_order_id: string; reason: string }[] }
       procurement_amount_eligibility: { Args: { p_procurement_id: string; p_amount: number }; Returns: string }
       budget_fiscal_year_token: {
@@ -10319,6 +11216,66 @@ export type Database = {
       cancel_stock_document: {
         Args: { p_document_id: string }
         Returns: undefined
+      }
+      capture_subcontract_vendor_invoice: {
+        Args: {
+          p_amount?: number
+          p_external_ref?: string
+          p_invoice_date: string
+          p_lines: Json
+          p_notes?: string
+          p_procurement_id: string
+          p_reference_number?: string
+          p_status: Database["public"]["Enums"]["procurement_invoice_status"]
+          p_tax_amount?: number
+          p_tax_base_denominator?: number
+          p_tax_base_numerator?: number
+          p_tax_rate?: number
+          p_tax_template?: string
+          p_tax_treatment?: string
+          p_withheld_amount?: number
+          p_withheld_pph_type?: string
+        }
+        Returns: {
+          amount: number | null
+          created_at: string
+          currency: string
+          efaktur_date: string | null
+          efaktur_number: string | null
+          erp_amended_from: string | null
+          erp_cancelled_at: string | null
+          erp_docstatus: number | null
+          erp_modified: string | null
+          erp_outstanding_amount: number | null
+          external_ref: string | null
+          id: string
+          import_batch_id: string | null
+          import_identity_facts: Json | null
+          import_identity_version: number | null
+          import_key: string | null
+          imported_at: string | null
+          invoice_date: string | null
+          org_id: string
+          po_id: string | null
+          procurement_id: string
+          reference_number: string | null
+          status: Database["public"]["Enums"]["procurement_invoice_status"]
+          tax_amount: number
+          tax_base_denominator: number
+          tax_base_numerator: number
+          tax_rate: number | null
+          tax_template: string | null
+          tax_treatment: string
+          vi_number: string | null
+          withheld_amount: number
+          withheld_pph_type: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "procurement_invoices"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       capture_vendor_invoice: {
         Args: {
@@ -10381,6 +11338,10 @@ export type Database = {
       }
       claim_erp_sweep_lock: {
         Args: { p_holder: string; p_org_id: string; p_ttl: string }
+        Returns: boolean
+      }
+      claim_ops_job_lease: {
+        Args: { p_holder: string; p_job: string; p_ttl: string }
         Returns: boolean
       }
       claim_outbox_for_commit: {
@@ -10986,6 +11947,10 @@ export type Database = {
           receipts_waiting: number
           replenishment_in_flight: number
         }[]
+      }
+      get_loss_breakdown: {
+        Args: { p_from?: string; p_to?: string }
+        Returns: Json
       }
       get_management_pack: {
         Args: { p_from?: string; p_to?: string }
@@ -12193,6 +13158,10 @@ export type Database = {
         Returns: string
       }
       release_credits: { Args: { p_run_id: string }; Returns: undefined }
+      release_ops_job_lease: {
+        Args: { p_holder: string; p_job: string }
+        Returns: boolean
+      }
       release_erp_sweep_lock: {
         Args: { p_holder: string; p_org_id: string }
         Returns: boolean
@@ -12655,6 +13624,8 @@ export type Database = {
           p_contract_date?: string
           p_customer_contract_ref?: string
           p_id: string
+          p_lost_note?: string
+          p_lost_reason?: string
           p_to: Database["public"]["Enums"]["project_status"]
         }
         Returns: undefined
@@ -12729,6 +13700,10 @@ export type Database = {
       set_subcontract_po_lines: {
         Args: { p_lines: Json; p_po_id: string }
         Returns: number
+      }
+      subcontract_bill_is_live: {
+        Args: { p_erp_cancelled_at: string; p_erp_docstatus: number }
+        Returns: boolean
       }
       subcontract_po_lock: { Args: { p_po_id: string }; Returns: undefined }
     }

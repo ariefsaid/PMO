@@ -517,3 +517,102 @@ describe('AC-CUA-053 pullAdopt — ClickUp tasks → mirrored read-model, idempo
     });
   });
 });
+
+describe('claim-first pullAdopt — the external_refs claim is the adoption lock; a claim without its mirror is repaired', () => {
+  function basePullDeps(overrides: Partial<PullAdoptDeps> = {}): PullAdoptDeps {
+    return {
+      fetchImpl: vi.fn(async () => new Response('{}', { status: 200 })) as unknown as typeof fetch,
+      token: 'test-token',
+      listId: 'list-1',
+      statusMap,
+      memberMap,
+      readWatermark: vi.fn(async () => null),
+      advanceWatermark: vi.fn(async () => undefined),
+      resolvePmoRecordId: vi.fn(async () => null),
+      mintMirror: vi.fn(async () => 'pmo-new'),
+      updateMirror: vi.fn(async () => undefined),
+      recordExternalRef: vi.fn(async () => undefined),
+      ...overrides,
+    };
+  }
+
+  function recordingStrategy() {
+    const order: string[] = [];
+    const claims: Array<{ externalRecordId: string; pmoRecordId: string }> = [];
+    const mints: Array<{ canonicalId: string; pmoRecordId: string }> = [];
+    const mirrorExistsIds: string[] = [];
+    return {
+      order,
+      claims,
+      mints,
+      mirrorExistsIds,
+      strategy: {
+        newPmoRecordId: () => 'pmo-claimed-onboard',
+        claimExternalRef: async (mapping: { externalRecordId: string; pmoRecordId: string }) => {
+          order.push('claim');
+          claims.push({ externalRecordId: mapping.externalRecordId, pmoRecordId: mapping.pmoRecordId });
+        },
+        mintWithId: async (canonical: { id: string }, _ms: number, pmoRecordId: string) => {
+          order.push('mint');
+          mints.push({ canonicalId: canonical.id, pmoRecordId });
+        },
+        mirrorExists: async (pmoRecordId: string) => {
+          mirrorExistsIds.push(pmoRecordId);
+          return mints.some((m) => m.pmoRecordId === pmoRecordId);
+        },
+      },
+    };
+  }
+
+  async function adoptOneTask(depsOverrides: Partial<PullAdoptDeps>) {
+    const { fetchImpl } = mockFetch([
+      { method: 'GET', urlIncludes: '/list/list-1/task', json: { tasks: [clickUpTask({ id: 'cu-adopt', date_updated: '1700000000000' })], last_page: true } },
+    ]);
+    return pullAdopt('proj-1', basePullDeps({ fetchImpl, ...depsOverrides }));
+  }
+
+  it('an unmapped task adopts CLAIM-FIRST: the ref claim precedes the mint, sharing one pre-generated id (no legacy mint-then-ref)', async () => {
+    const rec = recordingStrategy();
+    const mintMirror = vi.fn(async () => 'pmo-legacy-should-not-happen');
+    const recordExternalRef = vi.fn(async () => undefined);
+
+    const result = await adoptOneTask({ adoptAtomically: rec.strategy, mintMirror, recordExternalRef });
+
+    expect(result.adopted).toBe(1);
+    expect(rec.order).toEqual(['claim', 'mint']);
+    expect(rec.claims).toEqual([{ externalRecordId: 'cu-adopt', pmoRecordId: 'pmo-claimed-onboard' }]);
+    expect(rec.mints).toEqual([{ canonicalId: 'pmo-claimed-onboard', pmoRecordId: 'pmo-claimed-onboard' }]);
+    expect(mintMirror).not.toHaveBeenCalled();
+    expect(recordExternalRef).not.toHaveBeenCalled();
+  });
+
+  it('a LOSING claim (23505) propagates before any mirror mint — the loser writes no mirror row', async () => {
+    const rec = recordingStrategy();
+    rec.strategy.claimExternalRef = async () => {
+      throw Object.assign(new Error('duplicate key value violates unique constraint'), { code: '23505' });
+    };
+    const mintMirror = vi.fn(async () => 'pmo-should-not-happen');
+
+    await expect(adoptOneTask({ adoptAtomically: rec.strategy, mintMirror })).rejects.toMatchObject({ code: '23505' });
+    expect(rec.mints).toEqual([]);
+    expect(mintMirror).not.toHaveBeenCalled();
+  });
+
+  it('a claim whose mirror is missing (crash between claim and mint) is repaired with the SAME pre-claimed id, never re-claimed', async () => {
+    const rec = recordingStrategy();
+    const updateMirror = vi.fn(async () => undefined);
+
+    const result = await adoptOneTask({
+      adoptAtomically: rec.strategy,
+      resolvePmoRecordId: async () => 'pmo-claimed-onboard', // the ref exists (claimed on a crashed run)
+      updateMirror,
+    });
+
+    expect(result.adopted).toBe(1); // repaired — a NEW mirror mint, not a plain refresh
+    expect(result.updated).toBe(0);
+    expect(rec.mirrorExistsIds).toEqual(['pmo-claimed-onboard']); // repair probe ran for the mapped id
+    expect(rec.mints).toEqual([{ canonicalId: 'pmo-claimed-onboard', pmoRecordId: 'pmo-claimed-onboard' }]);
+    expect(rec.claims).toEqual([]); // the existing claim is reused, never re-inserted
+    expect(updateMirror).not.toHaveBeenCalled();
+  });
+});

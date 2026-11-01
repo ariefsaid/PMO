@@ -17,7 +17,7 @@
 // Verify: cd supabase/functions/clickup-webhook-worker && deno test index.test.ts
 
 (Deno as unknown as { serve: (...a: unknown[]) => unknown }).serve = () => ({ finished: Promise.resolve() });
-const { processInboxRow, resolveBindingLive, runWorkerBatch } = await import('./index.ts');
+const { processInboxRow, resolveBindingLive, runWorkerBatch, buildApplyDepsLive } = await import('./index.ts');
 type ProcessRowDeps = Parameters<typeof processInboxRow>[1];
 type WorkerBatchDeps = Parameters<typeof runWorkerBatch>[0];
 type InboxRow = Parameters<typeof processInboxRow>[0];
@@ -293,6 +293,54 @@ Deno.test('OD-INT-11: an unresolvable binding is a faithful ack-and-skip (no-op)
   };
   const outcome = await processInboxRow(row(), deps);
   assert(outcome.kind === 'no-op', `expected no-op, got ${outcome.kind}`);
+});
+
+// ── Claim-first adopt + compare-and-set mirror update wiring (the shipped bag the worker applies
+//    through). The full engine-level interleaving/concurrency proofs live in
+//    supabase/functions/_shared/clickupMirrorDeps.test.ts against the SAME shared factory; this pins
+//    the WORKER's wiring: the live apply deps must carry the strategy and its claim must hit
+//    external_refs (insert-only), never an unconditional upsert. ──────────────────────────────────
+function fakeMirrorWriteClient() {
+  const inserts: Array<{ table: string; row: Record<string, unknown> }> = [];
+  const client = {
+    from(table: string) {
+      // deno-lint-ignore no-explicit-any
+      const q: any = {
+        select: () => q,
+        eq: () => q,
+        or: () => q,
+        update: () => q,
+        insert: (r: Record<string, unknown>) => {
+          inserts.push({ table, row: r });
+          return q;
+        },
+        maybeSingle: async () => ({ data: null, error: null }),
+        then: (resolve: (v: unknown) => unknown) => resolve({ data: null, error: null }),
+      };
+      return q;
+    },
+  };
+  return { client, inserts };
+}
+
+Deno.test('claim-first adopt is wired into the live apply deps: the claim is an INSERT-only external_refs write', async () => {
+  const { client, inserts } = fakeMirrorWriteClient();
+  const binding: ResolvedBinding = { orgId: 'org-1', projectId: 'proj-1', statusMap, memberMap };
+  const deps = buildApplyDepsLive(client as never, binding);
+
+  assert(deps.adoptAtomically !== undefined, 'the live apply deps must carry the claim-first adopt strategy');
+  await deps.adoptAtomically!.claimExternalRef({
+    pmoRecordId: 'pmo-1',
+    externalTier: 'clickup',
+    externalRecordId: 'cu-1',
+    domain: 'tasks',
+  });
+  const refInsert = inserts.find((i) => i.table === 'external_refs');
+  if (!refInsert) throw new Error('the claim must write external_refs via INSERT (refuses a duplicate — the adoption lock)');
+  assert(refInsert.row.pmo_record_id === 'pmo-1' && refInsert.row.external_record_id === 'cu-1', 'the claim records the mapping');
+
+  const repaired = await deps.adoptAtomically!.mirrorExists('pmo-1');
+  assert(repaired === false, 'a mirror row that does not exist is reported absent (drives the same-id repair)');
 });
 
 // ── runWorkerBatch — claim/process/mark bookkeeping. ────────────────────────────────────────────

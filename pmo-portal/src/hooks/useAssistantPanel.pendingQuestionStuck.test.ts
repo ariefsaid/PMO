@@ -20,6 +20,7 @@ import React from 'react';
 import { AgentRuntimeContext } from '../lib/agent/runtime/AgentRuntimeContext';
 import type { AgentEvent, AgentRuntime } from '../lib/agent/runtime/port';
 import { useAssistantPanel } from './useAssistantPanel';
+import { STUCK_RUN_STALE_MS } from '../components/panel/stuckRun.constants';
 
 const h = vi.hoisted(() => ({ getRunHeartbeat: vi.fn() }));
 vi.mock('../lib/db/agentRuns', () => ({ getRunHeartbeat: h.getRunHeartbeat }));
@@ -109,5 +110,29 @@ describe('useAssistantPanel isStuck excludes a pending question (finding 3)', ()
     expect(found).toBeDefined();
 
     expect(result.current.isStuck).toBe(false);
+  });
+
+  it('T-10: a wedged run whose heartbeat never changes becomes stuck once the stale window elapses', async () => {
+    const runId = 'run-wedged';
+    const runtime: AgentRuntime = {
+      createRun: vi.fn().mockResolvedValue({ id: runId, title: 't', status: 'running' }),
+      followUp: vi.fn().mockResolvedValue(undefined),
+      control: vi.fn().mockResolvedValue(undefined),
+      subscribe: vi.fn().mockReturnValue(makeAsyncIterable([])),
+    };
+    const { result } = renderHook(() => useAssistantPanel(), { wrapper: makeWrapper(runtime) });
+    // Server keeps returning the SAME stamp (run wedged): state never changes between polls.
+    h.getRunHeartbeat.mockResolvedValue({ last_progress_at: new Date().toISOString(), status: 'running' });
+
+    await act(async () => {
+      void result.current.send('log a call');
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(result.current.isStuck).toBe(false);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(STUCK_RUN_STALE_MS + 1_000);
+    });
+    expect(result.current.isStuck).toBe(true);
   });
 });

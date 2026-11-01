@@ -17,6 +17,9 @@ function deps(overrides: Partial<Parameters<typeof runDrain>[0]> = {}) {
     cooldownSec: 900,
     livenessIntervalHours: 24,
     secretsConfigured: true,
+    claimLease: vi.fn(async () => true),
+    releaseLease: vi.fn(async () => {}),
+    rollbackLivenessAhead: vi.fn(async () => ({ error: null })),
     selectUnnotified: async () => [row('r1', 'ERP_PUSH_FAILED', '2026-07-25T11:59:00.000Z')],
     selectLastSentByKey: async () => [],
     recordSendAhead: vi.fn(async () => ({ error: null })),
@@ -226,8 +229,7 @@ describe('runDrain liveness (FR-HRD-010)', () => {
 // ── 2026-07-28 review round: C1 (blocking), I2, I3, I4, I7 ────────────────────────────────────
 
 describe('C1 (BLOCKING) — a failed send must not authorise a stamp on a later suppressed tick', () => {
-  it('C1: tick 1 send fails (write-ahead already landed); tick 2 is suppressed by that write-ahead ' +
-    'and must NOT stamp notified_at — the row was never actually delivered', async () => {
+  it('C1/AC-T09-002: failed send is not retried at the same instant, retries and stamps once the cooldown from the attempt passes', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     const store: Record<string, { orgId: string | null; errorCode: string; lastSentAt: string; deliveredAt: string | null }> = {};
     const recordSendAhead = vi.fn(async (orgId: string | null, code: string, atIso: string) => {
@@ -236,22 +238,57 @@ describe('C1 (BLOCKING) — a failed send must not authorise a stamp on a later 
       return { error: null };
     });
     const stampNotified = vi.fn(async () => ({ error: null }));
+    let telegramUp = false;
+    const sendTelegram = vi.fn(async () => ({ ok: telegramUp }));
     const shared = {
       selectUnnotified: async () => [row('r1', 'ERP_PUSH_FAILED', '2026-07-25T11:59:00.000Z')],
       selectLastSentByKey: async () => Object.values(store),
       recordSendAhead,
-      // Telegram down / secrets briefly wrong — every send fails.
-      sendTelegram: vi.fn(async () => ({ ok: false })),
+      markDelivered: vi.fn(async (orgId: string | null, code: string, atIso: string) => {
+        store[alertKey(orgId, code)].deliveredAt = atIso;
+        return { error: null };
+      }),
+      sendTelegram,
       stampNotified,
     };
 
     const tick1 = await runDrain(deps(shared));
     expect(tick1.sendFailures).toBe(1);
-    expect(stampNotified).not.toHaveBeenCalled(); // tick 1 was already correct
+    expect(stampNotified).not.toHaveBeenCalled(); // an undelivered alert never stamps
 
-    const tick2 = await runDrain(deps(shared)); // same still-unnotified row, now inside the write-ahead cooldown
+    telegramUp = true;
+    const tick2 = await runDrain(deps({ ...shared, readHeartbeat: async () => null })); // same instant: cooldown from the attempt holds
     expect(tick2.suppressed).toBe(1);
-    expect(stampNotified).not.toHaveBeenCalled(); // an UNDELIVERED suppression must not stamp
+    expect(tick2.sent).toBe(0);
+    expect(sendTelegram).toHaveBeenCalledTimes(1); // only tick 1's failed attempt
+    expect(stampNotified).not.toHaveBeenCalled();
+    expect(tick2.livenessPinged).toBe(false); // unstamped row still pending: no false all-clear
+
+    const tick3 = await runDrain(deps({ ...shared, now: () => new Date('2026-07-25T12:16:00.000Z') })); // > 900 s later
+    expect(tick3.suppressed).toBe(0);
+    expect(tick3.sent).toBe(1);
+    expect(stampNotified).toHaveBeenCalledTimes(1);
+  });
+
+  it('FR-HRD-002/AC-T09-002: send ok + markDelivered fail + stamp fail => no resend inside the cooldown', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const store: Record<string, { orgId: string | null; errorCode: string; lastSentAt: string; deliveredAt: string | null }> = {};
+    const sendTelegram = vi.fn(async () => ({ ok: true }));
+    const shared = {
+      selectUnnotified: async () => [row('r1', 'ERP_PUSH_FAILED', '2026-07-25T11:59:00.000Z')],
+      selectLastSentByKey: async () => Object.values(store),
+      recordSendAhead: vi.fn(async (orgId: string | null, code: string, atIso: string) => {
+        store[alertKey(orgId, code)] = { orgId, errorCode: code, lastSentAt: atIso, deliveredAt: null };
+        return { error: null };
+      }),
+      markDelivered: vi.fn(async () => ({ error: { code: 'XX000' } })),
+      stampNotified: vi.fn(async () => ({ error: { code: 'XX000' } })),
+      sendTelegram,
+    };
+    await runDrain(deps(shared));
+    await runDrain(deps({ ...shared, now: () => new Date('2026-07-25T12:02:00.000Z') }));
+    await runDrain(deps({ ...shared, now: () => new Date('2026-07-25T12:04:00.000Z') }));
+    expect(sendTelegram).toHaveBeenCalledTimes(1);
   });
 
   it('C1: once the write-ahead cooldown lapses, the never-delivered alert eventually retries and delivers', async () => {
@@ -283,6 +320,30 @@ describe('C1 (BLOCKING) — a failed send must not authorise a stamp on a later 
     expect(sendTelegram).toHaveBeenCalledTimes(1);
     expect(markDelivered).toHaveBeenCalledWith(null, 'ERP_PUSH_FAILED', expect.any(String));
     expect(stampNotified).toHaveBeenCalledWith(null, ['r1'], expect.any(String)); // eventually delivered
+  });
+});
+
+describe('cooldown reference', () => {
+  it('AC-T09-002: a delivered key counts from deliveredAt, not from a newer failed attempt', async () => {
+    const sendTelegram = vi.fn(async () => ({ ok: true }));
+    const r = await runDrain(deps({
+      selectLastSentByKey: async () => [{
+        orgId: null, errorCode: 'ERP_PUSH_FAILED',
+        lastSentAt: '2026-07-25T11:59:00.000Z', deliveredAt: '2026-07-25T11:30:00.000Z', // delivered 30 min ago
+      }],
+      sendTelegram,
+    }));
+    expect(r.suppressed).toBe(0);
+    expect(sendTelegram).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('lease release', () => {
+  it('logs DRAIN_LEASE_RELEASE_FAILED when the release throws, without failing the drain', async () => {
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const r = await runDrain(deps({ releaseLease: vi.fn(async () => { throw new Error('boom'); }) }));
+    expect(r.sent).toBe(1);
+    expect(errSpy).toHaveBeenCalledWith('[telegram-notify] DRAIN_LEASE_RELEASE_FAILED', expect.anything());
   });
 });
 
@@ -424,5 +485,71 @@ describe('I7 — explicit coverage for the write-ahead guard branches', () => {
     expect(r.suppressed).toBe(0);
     expect(r.sent).toBe(1);
     expect(sendTelegram).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('T-09 alert delivery reliability', () => {
+  it('AC-T09-001: a failed read rejects the drain (no silent empty result, nothing sent or stamped)', async () => {
+    const sendTelegram = vi.fn(async () => ({ ok: true }));
+    const writeHeartbeat = vi.fn(async () => ({ error: null }));
+    await expect(runDrain(deps({
+      selectUnnotified: async () => { throw new Error('error_events read failed'); },
+      sendTelegram,
+      writeHeartbeat,
+    }))).rejects.toThrow('read failed');
+    expect(sendTelegram).not.toHaveBeenCalled();
+    expect(writeHeartbeat).not.toHaveBeenCalled();
+  });
+
+  it('AC-T09-003: rows still unnotified after the tick rule out the all-clear', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    // A suppressed group whose stamp keeps failing leaves its rows pending.
+    const sendTelegram = vi.fn(async () => ({ ok: true }));
+    const r = await runDrain(deps({
+      selectUnnotified: async () => [row('r1', 'ERP_PUSH_FAILED', '2026-07-25T11:59:00.000Z')],
+      selectLastSentByKey: async () => [{ orgId: null, errorCode: 'ERP_PUSH_FAILED', lastSentAt: '2026-07-25T11:58:00.000Z', deliveredAt: '2026-07-25T11:58:00.000Z' }],
+      stampNotified: vi.fn(async () => ({ error: { code: '42501' } })), // suppressed group, stamp fails -> still pending
+      sendTelegram,
+      readHeartbeat: async () => null,
+    }));
+    expect(r.suppressed).toBe(1);
+    expect(r.livenessPinged).toBe(false);
+    expect(sendTelegram).not.toHaveBeenCalled();
+  });
+
+  it('AC-T09-005: a failed liveness send rolls the stamp back so the next tick retries', async () => {
+    const rollbackLivenessAhead = vi.fn(async () => ({ error: null }));
+    const r = await runDrain(deps({
+      selectUnnotified: async () => [],
+      readHeartbeat: async () => ({ lastRunAt: '2026-07-23T12:00:00.000Z', lastOutboundAt: '2026-07-23T12:00:00.000Z' }),
+      sendTelegram: vi.fn(async () => ({ ok: false })),
+      rollbackLivenessAhead,
+    }));
+    expect(r.livenessPinged).toBe(false);
+    expect(rollbackLivenessAhead).toHaveBeenCalledWith('telegram-notify', '2026-07-23T12:00:00.000Z');
+  });
+
+  it('AC-T09-005: a confirmed liveness send keeps the stamp (no rollback)', async () => {
+    const rollbackLivenessAhead = vi.fn(async () => ({ error: null }));
+    await runDrain(deps({ selectUnnotified: async () => [], readHeartbeat: async () => null, rollbackLivenessAhead }));
+    expect(rollbackLivenessAhead).not.toHaveBeenCalled();
+  });
+
+  it('AC-T09-004: two concurrent drains sharing one lease -> exactly one sends', async () => {
+    let held = false;
+    const claimLease = vi.fn(async () => { if (held) return false; held = true; return true; });
+    const releaseLease = vi.fn(async () => { held = false; });
+    const sendTelegram = vi.fn(async () => { await new Promise((r) => setTimeout(r, 5)); return { ok: true }; });
+    const shared = { claimLease, releaseLease, sendTelegram };
+    const [a, b] = await Promise.all([runDrain(deps(shared)), runDrain(deps(shared))]);
+    expect(sendTelegram).toHaveBeenCalledTimes(1);
+    expect([a.skipped, b.skipped].sort()).toEqual([undefined, 'lease-held'].sort());
+    expect(releaseLease).toHaveBeenCalledTimes(1); // only the winner releases
+  });
+
+  it('AC-T09-004: the lease is released even when the drain throws', async () => {
+    const releaseLease = vi.fn(async () => {});
+    await expect(runDrain(deps({ releaseLease, selectUnnotified: async () => { throw new Error('boom'); } }))).rejects.toThrow('boom');
+    expect(releaseLease).toHaveBeenCalledTimes(1);
   });
 });

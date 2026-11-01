@@ -22,6 +22,7 @@ import { fakeErp } from './fakeErp.ts';
 import { onboardParties } from './onboarding.ts';
 import { adoptParty } from './partyAdopt.ts';
 import { invertProjectMap } from './projectMap.ts';
+import { createPushAndReadHarness } from './contract.pushAndRead.harness.ts';
 
 const ORG = 'org';
 const ACCOUNTING = new Set(['Account', 'Tax Category', 'Item Tax Template', 'Sales Taxes and Charges Template', 'Purchase Taxes and Charges Template', 'Fiscal Year']);
@@ -139,6 +140,7 @@ export function createErpnextHarness(): ErpHarness {
     tier: 'erpnext',
     transfer: createTransferHarness,
     connect: createConnectHarness,
+    ...createPushAndReadHarness(),
 
     async matchParty(party: ErpPartyInput, existing: readonly PmoPartyCandidate[]): Promise<PartyMatchResult> {
       try {
