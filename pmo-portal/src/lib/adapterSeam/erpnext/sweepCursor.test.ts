@@ -483,9 +483,10 @@ describe('erpnext/sweepCursor — the #916 page budget (a bounded tick, resumabl
     const { client, urls } = erpList([
       ...manyRows('A', '2026-08-01 10:00:01.000000'), ...manyRows('B', '2026-08-01 10:00:02.000000'), ...manyRows('C', '2026-08-01 10:00:03.000000'),
     ]);
-    const { changes, nextCursor } = await listErpChangesSinceWatermark(
+    const { changes, nextCursor, caughtUp } = await listErpChangesSinceWatermark(
       { client, doctype: 'Material Request', fields: DEPS_FIELDS, fromDoc: FROM_DOC, maxPages: 2 }, null,
     );
+    expect(caughtUp).toBe(false); // truncated: the caller must not report the walk complete
     expect(changes).toHaveLength(1000);
     expect(nextCursor).toBe('2026-08-01 10:00:02.000000|B-0500');
     expect(urls.some((u) => decodeURIComponent(u).includes('10:00:03'))).toBe(false); // the third instant was never requested
@@ -493,9 +494,10 @@ describe('erpnext/sweepCursor — the #916 page budget (a bounded tick, resumabl
 
   it('a short page inside the budget drains naturally (no truncation)', async () => {
     const { client } = erpList([...manyRows('A', '2026-08-01 10:00:01.000000'), row('B-0001', '2026-08-01 10:00:02.000000')]);
-    const { changes, nextCursor } = await listErpChangesSinceWatermark(
+    const { changes, nextCursor, caughtUp } = await listErpChangesSinceWatermark(
       { client, doctype: 'Material Request', fields: DEPS_FIELDS, fromDoc: FROM_DOC, maxPages: 2 }, null,
     );
+    expect(caughtUp).toBe(true);
     expect(changes).toHaveLength(501);
     expect(nextCursor).toBe('2026-08-01 10:00:02.000000|B-0001');
   });

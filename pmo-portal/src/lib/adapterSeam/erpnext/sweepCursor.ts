@@ -118,7 +118,7 @@ function decodePage(body: unknown, pageSize: number): Array<Record<string, unkno
 export async function listErpChangesSinceWatermark(
   deps: SweepCursorDeps,
   cursor: string | null,
-): Promise<{ changes: SweepChange[]; nextCursor: string | null; listedCount: number }> {
+): Promise<{ changes: SweepChange[]; nextCursor: string | null; listedCount: number; caughtUp: boolean }> {
   const pageSize = deps.pageSize ?? DEFAULT_PAGE_SIZE;
   // Union the caller's fields with the routing-required ones (deduped, order-stable).
   const fields = Array.from(new Set([
@@ -166,5 +166,5 @@ export async function listErpChangesSinceWatermark(
     };
     changes.push({ record: enriched, sourceModMs: Date.parse(modified) });
   }
-  return { changes, nextCursor, listedCount };
+  return { changes, nextCursor, listedCount, caughtUp: scan.caughtUp };
 }

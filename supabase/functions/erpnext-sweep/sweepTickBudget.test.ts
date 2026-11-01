@@ -274,6 +274,7 @@ Deno.test('#916: tick 1 stops at the doc budget and persists a cursor; tick 2 re
       erp.of('Employee').length === 2,
       `tick 1 must stop at the per-doctype listing quantum (2 pages of 500), fetched ${erp.of('Employee').length} pages`,
     );
+    assert(tick1.complete === false, 'a quantum stop is reported incomplete so the full run is not stamped complete');
     assert(tick1.applied === 1000, `tick 1 applied ${tick1.applied}, expected exactly the 1000-doc budget`);
     assert(
       db.watermarks.get('timesheets::Employee') === frappeCursor(docs[999].modified, docs[999].name),
@@ -285,6 +286,7 @@ Deno.test('#916: tick 1 stops at the doc budget and persists a cursor; tick 2 re
     const employeePagesBefore = erp.of('Employee').length;
     const tick2 = await sweepOrgDoctypesLive(db.client, orgBinding(['timesheets']));
     assert(tick2.error === undefined, `tick 2 must be clean: ${tick2.error}`);
+    assert(tick2.complete === true, 'the drained walk reports complete');
     assert(tick2.applied === 100, `tick 2 applied ${tick2.applied}, expected the 100 remaining`);
     assert(
       erp.of('Employee').length - employeePagesBefore === 1,

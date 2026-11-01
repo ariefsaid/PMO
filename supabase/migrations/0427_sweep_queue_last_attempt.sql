@@ -29,3 +29,29 @@ create index if not exists timesheet_erp_mirror_attempt_idx
 create index if not exists budget_archive_cancel_attempt_idx
   on public.budget_archive_cancel_intents (org_id, last_attempt_at nulls first, created_at, id)
   where state = 'pending';
+
+-- An unfinished or failed full run is not stamped complete (mark_erp_full_sweep_done); it is deferred:
+-- the marker is set so the org falls due again in p_due_in_seconds (0 = on the next tick). Same lock-holder
+-- fence as the completion stamp; service-role only.
+create or replace function public.defer_erp_full_sweep(p_org_id uuid, p_holder uuid, p_due_in_seconds int)
+returns boolean
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+begin
+  if not exists (
+    select 1 from public.erp_sweep_lock
+     where org_id = p_org_id and holder = p_holder and locked_until > now()
+  ) then
+    return false;
+  end if;
+  insert into public.erp_sweep_full_run (org_id, completed_at)
+  values (p_org_id, now() - interval '55 minutes' + make_interval(secs => greatest(coalesce(p_due_in_seconds, 0), 0)))
+  on conflict (org_id) do update set completed_at = excluded.completed_at;
+  return true;
+end;
+$$;
+
+revoke execute on function public.defer_erp_full_sweep(uuid, uuid, int) from public, anon, authenticated;
+grant execute on function public.defer_erp_full_sweep(uuid, uuid, int) to service_role;
