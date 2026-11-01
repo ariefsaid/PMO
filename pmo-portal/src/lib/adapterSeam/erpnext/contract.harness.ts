@@ -18,6 +18,7 @@ import { resolveErpDispatchAdapter, type DispatchServiceClient } from './dispatc
 import { onboardParties } from './onboarding.ts';
 import { adoptParty } from './partyAdopt.ts';
 import { invertProjectMap } from './projectMap.ts';
+import { createPushAndReadHarness } from './contract.pushAndRead.harness.ts';
 
 const ORG = 'org';
 const VERSION_ID = '44444444-4444-4444-8444-444444444444';
@@ -133,6 +134,7 @@ export function createErpnextHarness(): ErpHarness {
   return {
     tier: 'erpnext',
     transfer: createTransferHarness,
+    ...createPushAndReadHarness(),
 
     async matchParty(party: ErpPartyInput, existing: readonly PmoPartyCandidate[]): Promise<PartyMatchResult> {
       try {
