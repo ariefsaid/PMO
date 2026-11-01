@@ -18,13 +18,13 @@
  * - Blocker-4 / CV-OD-002 / FR-CV-018: editable name input pre-filled from payload.title so
  *   "user can rename on Save" is a real affordance, not just rationale.
  */
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router';
 import { HydratedPrimitive } from '@/src/components/dashboard/HydratedPrimitive';
 import { ChartFrame } from '@/src/components/dashboard/ChartFrame';
-import { executeCompiledQuery } from '@/src/lib/viewspec/executor';
-import type { CompiledPanel, CompositionSpec } from '@/src/lib/viewspec/types';
+import type { CompositionSpec } from '@/src/lib/viewspec/types';
 import { useComposeArtifact } from '@/src/hooks/useComposeArtifact';
+import { PANEL_LOADING, usePanelQueries } from '@/src/hooks/usePanelQueries';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -40,14 +40,6 @@ interface ArtifactSlotProps {
   payload: ArtifactSlotPayload;
   /** The run this artifact belongs to — threaded to trackAgentComposeViewSaved (FR-APH-012). */
   runId: string;
-}
-
-// ── Per-panel fetch state ─────────────────────────────────────────────────────
-
-interface PanelDataState {
-  loading: boolean;
-  data: unknown[] | null;
-  error: Error | null;
 }
 
 // ── ArtifactSlot component ────────────────────────────────────────────────────
@@ -67,64 +59,9 @@ export const ArtifactSlot: React.FC<ArtifactSlotProps> = ({ payload, runId }) =>
   // "User can rename on Save" must be a real affordance, not just rationale.
   const [viewName, setViewName] = useState(payload.title);
 
-  // Per-panel fetch state (NFR-CV-PERF-002: parallel queries, per-panel skeleton)
-  const [panelStates, setPanelStates] = useState<PanelDataState[]>([]);
-
-  useEffect(() => {
-    if (!compiledPanels) return;
-    let cancelled = false;
-
-    // Initialize per-panel loading state
-    setPanelStates(compiledPanels.map(() => ({ loading: true, data: null, error: null })));
-
-    // Fire all queries in parallel (NFR-CV-PERF-002)
-    Promise.allSettled(
-      compiledPanels.map((panel: CompiledPanel) => executeCompiledQuery(panel.compiledQuery))
-    ).then((results) => {
-      if (!cancelled) {
-        setPanelStates(
-          results.map((r) =>
-            r.status === 'fulfilled'
-              ? { loading: false, data: r.value as unknown[], error: null }
-              : { loading: false, data: null, error: r.reason as Error }
-          )
-        );
-      }
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [compiledPanels]);
-
-  // Per-panel retry handler (Blocker-3 / FR-VR-038):
-  // Re-fires executeCompiledQuery for a single panel index, mirroring I3 UserViewRenderer parity.
-  const retryPanel = useCallback(
-    (idx: number, panel: CompiledPanel) => {
-      setPanelStates((prev) => {
-        const next = [...prev];
-        next[idx] = { loading: true, data: null, error: null };
-        return next;
-      });
-      executeCompiledQuery(panel.compiledQuery).then(
-        (data) => {
-          setPanelStates((prev) => {
-            const next = [...prev];
-            next[idx] = { loading: false, data: data as unknown[], error: null };
-            return next;
-          });
-        },
-        (err: Error) => {
-          setPanelStates((prev) => {
-            const next = [...prev];
-            next[idx] = { loading: false, data: null, error: err };
-            return next;
-          });
-        },
-      );
-    },
-    [],
-  );
+  // Per-panel fetch state, keyed by panel id (NFR-CV-PERF-002: parallel queries, each panel
+  // settles on its own; a retry finishing after the artifact changed is discarded).
+  const { states: panelStates, retry: retryPanel } = usePanelQueries(compiledPanels);
 
   // ── Validation error state (FR-CV-011) ────────────────────────────────────
   if (validationError !== null) {
@@ -163,8 +100,8 @@ export const ArtifactSlot: React.FC<ArtifactSlotProps> = ({ payload, runId }) =>
 
       {/* Panels (FR-CV-013/014, NFR-CV-PERF-002) */}
       <div className="flex flex-col gap-3">
-        {(compiledPanels ?? []).map((panel, idx) => {
-          const state = panelStates[idx] ?? { loading: true, data: null, error: null };
+        {(compiledPanels ?? []).map((panel) => {
+          const state = panelStates[panel.id] ?? PANEL_LOADING;
           const data = state.data ?? [];
           return (
             <div
@@ -184,7 +121,7 @@ export const ArtifactSlot: React.FC<ArtifactSlotProps> = ({ payload, runId }) =>
                     : 'ready'
                 }
                 emptyTitle={(panel.props?.emptyTitle as string | undefined) ?? 'No data'}
-                onRetry={state.error ? () => retryPanel(idx, panel) : undefined}
+                onRetry={state.error ? () => retryPanel(panel) : undefined}
               >
                 <HydratedPrimitive panel={panel} data={data} />
               </ChartFrame>

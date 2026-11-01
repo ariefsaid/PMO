@@ -26,7 +26,7 @@ import { useNavigate, useParams } from 'react-router';
 import { useUserView } from '@/src/hooks/useUserViews';
 import { useAuth } from '@/src/auth/useAuth';
 import { compileCompositionSpec } from '@/src/lib/viewspec/compiler';
-import { executeCompiledQuery } from '@/src/lib/viewspec/executor';
+import { PANEL_LOADING, usePanelQueries } from '@/src/hooks/usePanelQueries';
 import { ValidationError } from '@/src/lib/viewspec/types';
 import type { CompiledPanel, CompositionSpec } from '@/src/lib/viewspec/types';
 import { ChartFrame } from '@/src/components/dashboard/ChartFrame';
@@ -46,14 +46,6 @@ export interface UserViewRendererProps {
   viewId?: string;
 }
 
-// ── Per-panel state ───────────────────────────────────────────────────────────
-
-interface PanelState {
-  loading: boolean;
-  data: unknown[] | null;
-  error: Error | null;
-}
-
 // ── Main component ────────────────────────────────────────────────────────────
 
 const UserViewRenderer: React.FC<UserViewRendererProps> = ({ viewId: viewIdProp }) => {
@@ -65,19 +57,19 @@ const UserViewRenderer: React.FC<UserViewRendererProps> = ({ viewId: viewIdProp 
   const { currentUser } = useAuth();
   const { data: view, isPending, isError } = useUserView(viewId);
 
-  // Per-panel query state (FR-VR-036..038, FR-VR-042)
-  const [panelStates, setPanelStates] = useState<PanelState[]>([]);
   const [compiledPanels, setCompiledPanels] = useState<CompiledPanel[] | null>(null);
   const [specError, setSpecError] = useState<ValidationError | Error | null>(null);
   // `compiling` is true from when view data arrives until compiledPanels or specError is set.
   // Merged with isPending in the loading guard so we never show a FOUC between the two
   // skeleton variants (view-loading skeleton vs. still-compiling skeleton).
   const [compiling, setCompiling] = useState(false);
+  // Per-panel query state keyed by panel id (FR-VR-036..038, FR-VR-042): each panel settles on
+  // its own; retries and loads from a replaced view are discarded.
+  const { states: panelStates, retry: retryPanel } = usePanelQueries(compiledPanels);
 
   useEffect(() => {
     // Reset when viewId changes
     setCompiledPanels(null);
-    setPanelStates([]);
     setSpecError(null);
     setCompiling(false);
   }, [viewId]);
@@ -110,42 +102,17 @@ const UserViewRenderer: React.FC<UserViewRendererProps> = ({ viewId: viewIdProp 
     }
 
     // Compile (NFR-VR-SEC-004: always compile before execute)
-    let cancelled = false;
     try {
       const ctx = { userId: currentUser.id, orgId: currentUser.org_id };
       const panels = compileCompositionSpec(rawSpec as CompositionSpec, ctx);
       setCompiledPanels(panels);
       setSpecError(null);
       setCompiling(false);
-
-      // Initialize per-panel loading state (FR-VR-036)
-      setPanelStates(panels.map(() => ({ loading: true, data: null, error: null })));
-
-      // Fire all panel queries in parallel (FR-VR-042, NFR-VR-PERF-001)
-      Promise.allSettled(
-        panels.map((panel) => executeCompiledQuery(panel.compiledQuery))
-      ).then((results) => {
-        // Guard against stale updates when the view or viewId changed while
-        // queries were in-flight (prevents overwriting a newer view's panel states).
-        if (!cancelled) {
-          setPanelStates(
-            results.map((r) =>
-              r.status === 'fulfilled'
-                ? { loading: false, data: r.value as unknown[], error: null }
-                : { loading: false, data: null, error: r.reason as Error }
-            )
-          );
-        }
-      });
     } catch (err) {
       setSpecError(err instanceof Error ? err : new Error(String(err)));
       setCompiledPanels(null);
       setCompiling(false);
     }
-
-    return () => {
-      cancelled = true;
-    };
   }, [view, isPending, viewId, currentUser]);
 
   // ── Loading / compiling skeleton (FR-VR-031) ───────────────────────────
@@ -246,15 +213,15 @@ const UserViewRenderer: React.FC<UserViewRendererProps> = ({ viewId: viewIdProp 
   // compiledPanels.length === 0, and the loading/compiling guard above covers the
   // null / still-initializing case. The panelStates.length check is a safety net
   // in case of a React render cycle race.
-  if (!compiledPanels || panelStates.length === 0) return null;
+  if (!compiledPanels) return null;
 
   return (
     <div className="flex flex-col gap-6 p-6">
       <DashPageHead title={view.name} sub={view.description ?? ''} />
       {/* NFR-VR-A11Y-002: DashGrid is inside the shell's <main>; panels use correct heading hierarchy */}
       <DashGrid>
-        {compiledPanels.map((panel, idx) => {
-          const state = panelStates[idx] ?? { loading: true, data: null, error: null };
+        {compiledPanels.map((panel) => {
+          const state = panelStates[panel.id] ?? PANEL_LOADING;
           const data = state.data ?? [];
           const colSpan = panel.layout?.colSpan;
           const panelStyle = colSpan ? { gridColumn: `span ${colSpan}` } : undefined;
@@ -272,30 +239,7 @@ const UserViewRenderer: React.FC<UserViewRendererProps> = ({ viewId: viewIdProp 
                     : 'ready'
                 }
                 emptyTitle={(panel.props?.emptyTitle as string | undefined) ?? 'No data'}
-                onRetry={() => {
-                  // Per-panel retry (FR-VR-038)
-                  setPanelStates((prev) => {
-                    const next = [...prev];
-                    next[idx] = { loading: true, data: null, error: null };
-                    return next;
-                  });
-                  executeCompiledQuery(panel.compiledQuery).then(
-                    (rows) => {
-                      setPanelStates((prev) => {
-                        const next = [...prev];
-                        next[idx] = { loading: false, data: rows as unknown[], error: null };
-                        return next;
-                      });
-                    },
-                    (err: Error) => {
-                      setPanelStates((prev) => {
-                        const next = [...prev];
-                        next[idx] = { loading: false, data: null, error: err };
-                        return next;
-                      });
-                    }
-                  );
-                }}
+                onRetry={() => retryPanel(panel)}
               >
                 <HydratedPrimitive panel={panel} data={data} />
               </ChartFrame>
