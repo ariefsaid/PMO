@@ -122,8 +122,9 @@ describe('PipelineLens — write policy (AC-IXD-WP-004, OD-UX-1)', () => {
     expect(transitionProject).not.toHaveBeenCalled();
 
     // Confirming inside the dialog fires the terminal transition.
+    await userEvent.selectOptions(within(dialog).getByRole('combobox', { name: /Reason/i }), 'price');
     await userEvent.click(within(dialog).getByRole('button', { name: /Mark lost/i }));
-    await waitFor(() => expect(transitionProject).toHaveBeenCalledWith('d1', 'Loss Tender'));
+    await waitFor(() => expect(transitionProject).toHaveBeenCalledWith('d1', 'Loss Tender', { lostReason: 'price', lostNote: undefined }));
   });
 
   // #774: "Decline to bid" is the third terminal outcome — also confirm-gated, writes 'Declined'.
@@ -134,8 +135,9 @@ describe('PipelineLens — write policy (AC-IXD-WP-004, OD-UX-1)', () => {
     const dialog = await screen.findByRole('alertdialog');
     expect(transitionProject).not.toHaveBeenCalled();
 
+    await userEvent.selectOptions(within(dialog).getByRole('combobox', { name: /Reason/i }), 'price');
     await userEvent.click(within(dialog).getByRole('button', { name: /Decline to bid/i }));
-    await waitFor(() => expect(transitionProject).toHaveBeenCalledWith('d1', 'Declined'));
+    await waitFor(() => expect(transitionProject).toHaveBeenCalledWith('d1', 'Declined', { lostReason: 'price', lostNote: undefined }));
   });
 });
 
