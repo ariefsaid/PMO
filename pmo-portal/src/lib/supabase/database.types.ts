@@ -6939,6 +6939,67 @@ export type Database = {
           },
         ]
       }
+      project_stage_entries: {
+        Row: {
+          entered_on: string
+          id: string
+          org_id: string
+          position: number
+          project_id: string
+          recorded_at: string
+          recorded_by: string | null
+          redated_at: string | null
+          source: string
+          stage: Database["public"]["Enums"]["project_status"]
+        }
+        Insert: {
+          entered_on: string
+          id?: string
+          org_id: string
+          position: number
+          project_id: string
+          recorded_at?: string
+          recorded_by?: string | null
+          redated_at?: string | null
+          source: string
+          stage: Database["public"]["Enums"]["project_status"]
+        }
+        Update: {
+          entered_on?: string
+          id?: string
+          org_id?: string
+          position?: number
+          project_id?: string
+          recorded_at?: string
+          recorded_by?: string | null
+          redated_at?: string | null
+          source?: string
+          stage?: Database["public"]["Enums"]["project_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_stage_entries_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_stage_entries_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_stage_entries_recorded_by_fkey"
+            columns: ["recorded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       projects: {
         Row: {
           archived_at: string | null
@@ -9862,6 +9923,53 @@ export type Database = {
       }
     }
     Functions: {
+      add_skipped_stage_entry: {
+        Args: {
+          p_before_entry_id: string
+          p_entered_on: string
+          p_stage: Database["public"]["Enums"]["project_status"]
+        }
+        Returns: string
+      }
+      assert_stage_date_editor: { Args: { p_org: string }; Returns: undefined }
+      backfill_project_stage_entries: {
+        Args: { p_project_id?: string }
+        Returns: number
+      }
+      import_project_stage_history: {
+        Args: { p_entries: Json; p_project_id: string }
+        Returns: undefined
+      }
+      redate_stage_entry: {
+        Args: { p_entered_on: string; p_entry_id: string }
+        Returns: undefined
+      }
+      stage_entries_pull_back: {
+        Args: { p_before: number; p_on: string; p_project_id: string }
+        Returns: undefined
+      }
+      stage_entry_set_date: {
+        Args: { p_entered_on: string; p_entry_id: string }
+        Returns: {
+          entered_on: string
+          id: string
+          org_id: string
+          position: number
+          project_id: string
+          recorded_at: string
+          recorded_by: string | null
+          redated_at: string | null
+          source: string
+          stage: Database["public"]["Enums"]["project_status"]
+        }
+        SetofOptions: {
+          from: "*"
+          to: "project_stage_entries"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      stage_org_date: { Args: { p_at: string; p_org: string }; Returns: string }
       boq_allowance_ok: {
         Args: { p_boq_item_id: string; p_item_id: string }
         Returns: boolean
