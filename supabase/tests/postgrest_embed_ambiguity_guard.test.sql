@@ -121,7 +121,15 @@ select set_eq(
             -- ships first MUST qualify each embed with !constraint_name.
             ('stock_documents -> profiles'),
             ('stock_documents -> stock_warehouses'),
-            ('stock_ledger -> stock_document_lines') $$,
+            ('stock_ledger -> stock_document_lines'),
+            -- 0422 (#1515 S1): imprest_floats, imprest_replenishments, imprest_plans and imprest_float_changes each
+            -- carry custodian/author/decider person columns -> profiles. The custodian FK stays (integrity). CHECKED
+            -- BEFORE ADDING: no DAL, repository or edge-function code reads these tables (only database.types.ts
+            -- mentions them); whatever ships first MUST qualify each profiles embed with !constraint_name.
+            ('imprest_floats -> profiles'),
+            ('imprest_replenishments -> profiles'),
+            ('imprest_plans -> profiles'),
+            ('imprest_float_changes -> profiles') $$,
   'AC-EMBED-001 the set of multi-FK table pairs is EXACTLY the known set — a new pair here means '
   'every unqualified PostgREST embed of that target is now a runtime error (0177 shipped one, and '
   'it took 19 e2e specs down). Before updating this list: grep the DAL for embeds of the target '
