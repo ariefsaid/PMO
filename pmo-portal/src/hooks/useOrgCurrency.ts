@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { getOrgDefaultCurrency } from '@/src/lib/db/orgs';
+import { repositories } from '@/src/lib/repositories';
 import { useAuth } from '@/src/auth/useAuth';
 
 /**
@@ -14,7 +14,7 @@ function useOrgCurrencyQuery() {
   const { currentUser } = useAuth();
   return useQuery<string>({
     queryKey: ['org-currency', currentUser?.org_id],
-    queryFn: () => getOrgDefaultCurrency(),
+    queryFn: () => repositories.orgSettings.getDefaultCurrency(),
     enabled: Boolean(currentUser),
     staleTime: Infinity,
     placeholderData: 'USD',
