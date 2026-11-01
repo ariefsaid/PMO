@@ -140,6 +140,8 @@
 -- read. Proven by imprest_position pgTAP.
 -- ⚑ 0426 (#1515 fix round) adds no definer: get_expense_claim_approval_routes and get_imprest_position stay invoker, re-created under
 -- their own names, so the retained count stays 104 (recounted by hand from the list below: 104 rows).
+-- ⚑ AMENDED BY 0442 (#1639): preview_task_reminders and send_task_reminders join the retained set (+2; merged with 0447 the count is 110). Each
+-- asserts active membership and the caller's org in its body; proven by supabase/tests/task_reminders.test.sql.
 -- ⚑ AMENDED BY 0410 (#1471): `set_sales_invoice_billing_kind` joins the retained set (+1, count 104 on dev's 103, re-derived by hand from the list). SECURITY
 -- DEFINER writer under a member's JWT; re-asserts active membership, Admin/Finance and the caller's org; paired with
 -- supabase/tests/billing_kinds_roles.test.sql (AC-007). `assign_sales_invoice_project` and
@@ -148,6 +150,7 @@
 -- `archive_equipment_usage` join the retained set (+4, count 108 on dev's 104, re-derived by hand from the list). SECURITY
 -- DEFINER writers (entries have no client INSERT/UPDATE grant); each re-asserts active membership and the JWT org, the
 -- transition checks approver ≠ author before the approver role; proved by equipment_usage / equipment_rls pgTAP.
+-- ⚑ AMENDED BY 0448 (#1638): redate_stage_entry, add_skipped_stage_entry and import_project_stage_history join the retained set (+3, count 113 on dev's 110, re-derived by hand from the list). Each re-asserts org, active membership and role rank >= Project Manager through assert_stage_date_editor; proven by pipeline_stage_history_write.test.sql.
 --
 -- The budget import and procurement import-run commands retain authenticated access;
 -- their owning proofs are 0397_budget_import_protocol.test.sql and
@@ -183,6 +186,7 @@ select plan(6);
 create temp table client_callable_rpc_names (proname text primary key) on commit drop;
 insert into client_callable_rpc_names (proname) values
   ('activate_budget_version'),
+  ('add_skipped_stage_entry'),
   ('assign_sales_invoice_project'),
   ('admin_set_user_status'),
   ('approve_procurement_amount'),
@@ -229,6 +233,7 @@ insert into client_callable_rpc_names (proname) values
   ('get_sales_pipeline'),
   ('get_win_rate'),
   ('import_budget_line_v2'),
+  ('import_project_stage_history'),
   ('is_operator'),
   ('link_erp_purchase_documents'),
   ('link_procurement_sharepoint_item'),
@@ -248,6 +253,7 @@ insert into client_callable_rpc_names (proname) values
   ('operator_set_org_lifecycle_state'),
   ('operator_list_orgs'),
   ('post_stock_document'),
+  ('preview_task_reminders'),
   ('operator_toggle_feature'),
   ('operator_usage_summary'),
   ('org_agent_run_stats'),
@@ -257,11 +263,13 @@ insert into client_callable_rpc_names (proname) values
   ('record_imprest_count'),
   ('record_native_receipt'),
   ('recategorise_budget_lines'),
+  ('redate_stage_entry'),
   ('release_credits'),
   ('release_outbox_hold'),
   ('request_imprest_replenishment'),
   ('reserve_credits'),
   ('save_timesheet_week'),
+  ('send_task_reminders'),
   ('select_procurement_quote'),
   ('set_procurement_invoice_efaktur'),
   ('set_procurement_gates'),
@@ -311,8 +319,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  108,
-  'AC-ACL-002 all 108 retained client-callable RPC names still have a public function');
+  113,
+  'AC-ACL-002 all 113 retained client-callable RPC names still have a public function');
 
 select is(
   (select count(*)::int
@@ -321,8 +329,8 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  108,
-  'AC-ACL-003 all 108 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  113,
+  'AC-ACL-003 all 113 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
 -- granted to both roles from being named twice. Retained names exempt authenticated grants only;

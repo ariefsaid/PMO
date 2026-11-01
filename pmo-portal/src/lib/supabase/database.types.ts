@@ -6939,6 +6939,67 @@ export type Database = {
           },
         ]
       }
+      project_stage_entries: {
+        Row: {
+          entered_on: string
+          id: string
+          org_id: string
+          position: number
+          project_id: string
+          recorded_at: string
+          recorded_by: string | null
+          redated_at: string | null
+          source: string
+          stage: Database["public"]["Enums"]["project_status"]
+        }
+        Insert: {
+          entered_on: string
+          id?: string
+          org_id: string
+          position: number
+          project_id: string
+          recorded_at?: string
+          recorded_by?: string | null
+          redated_at?: string | null
+          source: string
+          stage: Database["public"]["Enums"]["project_status"]
+        }
+        Update: {
+          entered_on?: string
+          id?: string
+          org_id?: string
+          position?: number
+          project_id?: string
+          recorded_at?: string
+          recorded_by?: string | null
+          redated_at?: string | null
+          source?: string
+          stage?: Database["public"]["Enums"]["project_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_stage_entries_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_stage_entries_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_stage_entries_recorded_by_fkey"
+            columns: ["recorded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       projects: {
         Row: {
           archived_at: string | null
@@ -9512,6 +9573,62 @@ export type Database = {
           },
         ]
       }
+      task_reminders: {
+        Row: {
+          created_at: string
+          id: string
+          org_id: string
+          recipient_id: string
+          sender_id: string
+          task_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          org_id: string
+          recipient_id: string
+          sender_id: string
+          task_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          org_id?: string
+          recipient_id?: string
+          sender_id?: string
+          task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_reminders_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_reminders_recipient_id_fkey"
+            columns: ["recipient_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_reminders_sender_id_fkey"
+            columns: ["sender_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_reminders_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       erp_financial_statement_availability: {
@@ -9812,6 +9929,53 @@ export type Database = {
       }
     }
     Functions: {
+      add_skipped_stage_entry: {
+        Args: {
+          p_before_entry_id: string
+          p_entered_on: string
+          p_stage: Database["public"]["Enums"]["project_status"]
+        }
+        Returns: string
+      }
+      assert_stage_date_editor: { Args: { p_org: string }; Returns: undefined }
+      backfill_project_stage_entries: {
+        Args: { p_project_id?: string }
+        Returns: number
+      }
+      import_project_stage_history: {
+        Args: { p_entries: Json; p_project_id: string }
+        Returns: undefined
+      }
+      redate_stage_entry: {
+        Args: { p_entered_on: string; p_entry_id: string }
+        Returns: undefined
+      }
+      stage_entries_pull_back: {
+        Args: { p_before: number; p_on: string; p_project_id: string }
+        Returns: undefined
+      }
+      stage_entry_set_date: {
+        Args: { p_entered_on: string; p_entry_id: string }
+        Returns: {
+          entered_on: string
+          id: string
+          org_id: string
+          position: number
+          project_id: string
+          recorded_at: string
+          recorded_by: string | null
+          redated_at: string | null
+          source: string
+          stage: Database["public"]["Enums"]["project_status"]
+        }
+        SetofOptions: {
+          from: "*"
+          to: "project_stage_entries"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      stage_org_date: { Args: { p_at: string; p_org: string }; Returns: string }
       boq_allowance_ok: {
         Args: { p_boq_item_id: string; p_item_id: string }
         Returns: boolean
@@ -11555,6 +11719,7 @@ export type Database = {
           project_id: string
         }[]
       }
+      preview_task_reminders: { Args: { p_task_ids: string[] }; Returns: Json }
       procurement_evidenced_step: {
         Args: { p_procurement_id: string }
         Returns: Database["public"]["Enums"]["procurement_status"]
@@ -11978,6 +12143,7 @@ export type Database = {
           to_status: string
         }[]
       }
+      send_task_reminders: { Args: { p_task_ids: string[] }; Returns: Json }
       set_budget_push_account: {
         Args: { p_map_id: string }
         Returns: undefined
@@ -12305,6 +12471,17 @@ export type Database = {
         Args: { p_project_id: string }
         Returns: boolean
       }
+      task_reminder_check: {
+        Args: { p_org: string; p_sender: string; p_task: string }
+        Returns: {
+          due_date: string
+          outcome: string
+          recipient_id: string
+          task_name: string
+        }[]
+      }
+      task_reminder_daily_cap: { Args: never; Returns: number }
+      task_reminder_window: { Args: never; Returns: unknown }
       telegram_notify_tick: { Args: never; Returns: undefined }
       timesheet_push_key_witness: { Args: { p_key: string }; Returns: string }
       transition_document_status: {
