@@ -31,6 +31,8 @@ export const BoardDnd: React.FC<BoardDndProps> = ({ onMove, renderOverlay, child
       <div data-dragging={activeId ? 'true' : undefined}>
         <DndContext
           sensors={sensors}
+          // Narrow edge zones: the default 20% band scrolled a wide board past the column the pointer was aiming at.
+          autoScroll={{ threshold: { x: 0.08, y: 0.15 }, acceleration: 5 }}
           onDragStart={(e: DragStartEvent) => setActiveId(String(e.active.id))}
           onDragEnd={end}
           onDragCancel={() => setActiveId(null)}
