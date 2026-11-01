@@ -352,7 +352,7 @@ describe('erpnext/ledgerMirrorFeed — MEDIUM-1: the staleness guard sees the WH
     vi.spyOn(ledgerFetch, 'fetchPaymentLedgerEntries').mockResolvedValue({ rows: [], caughtUp: true });
     const res = await feedLedgerMirrors(sc, { client, orgId: 'org-1', company: 'PMO Smoke Co' });
     expect(res.glFed).toBe(1);
-    const mine = sc.fake.rowsOf('erp_gl_entry_mirror').find((r) => r.org_id === 'org-1' && r.erp_name === 'GLE-1');
+    const mine = h(sc).fake.rowsOf('erp_gl_entry_mirror').find((r) => r.org_id === 'org-1' && r.erp_name === 'GLE-1');
     expect(mine).toMatchObject({ account: 'Creditors - PSC' });
   });
 
