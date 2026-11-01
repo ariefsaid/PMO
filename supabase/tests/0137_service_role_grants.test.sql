@@ -39,6 +39,8 @@ select ok(has_table_privilege('service_role', 'public.projects', 'SELECT'),
 -- Also the four stock tables (0413, ADR-0097 §1): append-only ledger, single-writer balances and the
 -- RPC-written documents/lines; service_role's writes are revoked on purpose. Proof:
 -- stock_immutability_idempotency.test.sql (service role cannot insert/update/delete/truncate them).
+-- Also imprest_cash_counts (0424): write-once cash counts, written only by record_imprest_count; service_role's
+-- writes are revoked on purpose.
 -- Uses pg_class BY OID (relkind 'r'), which is authoritative —
 -- no name-resolution phantoms, unlike information_schema. If a future migration adds an ordinary
 -- table without the default-priv grant landing, this fails loud.
@@ -54,7 +56,8 @@ select is(
         'stock_documents',
         'stock_document_lines',
         'stock_ledger',
-        'stock_balances'
+        'stock_balances',
+        'imprest_cash_counts'
       )
       and not has_table_privilege('service_role', c.oid, 'INSERT')),
   0,

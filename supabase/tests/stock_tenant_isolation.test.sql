@@ -52,7 +52,7 @@ begin
 end $$;
 -- usage: select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a4'); ... reset role;
 
-select plan(32);  -- S1: the four `is` counts, the foreign-warehouse refusal, the unchanged-row proof (6); S2a: 12; S2b: 4; S3: 4; S4: 2; S5: 4
+select plan(40);  -- S1: the four `is` counts, the foreign-warehouse refusal, the unchanged-row proof (6); S2a: 12; S2b: 4; S3: 4; S4: 2; S5: 4; S6: 8
 select public.stk_t_as_user('15120000-0000-0000-0000-0000000000b1');   -- U_XORG sees none of org A
 select is((select count(*)::int from stock_units),      0, 'AC-STK-019 stock_units: org B reads none of org A');
 select is((select count(*)::int from stock_items),      0, 'AC-STK-019 stock_items: org B reads none of org A');
@@ -157,6 +157,25 @@ select is((select planned_quantity::text from public.boq_material_allowances whe
   'AC-STK-019 org B''s update and delete left org A''s allowance untouched');
 select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a1');
 select lives_ok($$ select public.get_project_consumption('15120000-0000-0000-0000-0000000000c1', current_date - 60, current_date) $$, 'AC-STK-019 org A reads its own report');
+reset role;
+-- S6: org B cannot read org A's reorder suggestion, worklist or levels, nor set a level on org A's item (0418).
+insert into public.stock_reorder_levels (org_id, item_id, warehouse_id, reorder_level, set_by) values
+  ('15120000-0000-0000-0000-000000000001', '15120000-0000-0000-0000-000000001002', '15120000-0000-0000-0000-000000002001', 5, '15120000-0000-0000-0000-0000000000a1');
+select public.stk_t_as_user('15120000-0000-0000-0000-0000000000b1');
+select throws_like($$ select public.get_reorder_suggestions('15120000-0000-0000-0000-000000002001', '15120000-0000-0000-0000-000000001002') $$,
+  'STK_NOT_FOUND%', 'AC-STK-019 org B reading org A''s reorder suggestion is refused');
+select throws_like($$ select public.set_stock_reorder_level('15120000-0000-0000-0000-000000002001', '15120000-0000-0000-0000-000000001002', 1, null) $$,
+  'STK_NOT_FOUND%', 'AC-STK-019 org B setting a level on org A''s item is refused');
+select throws_like($$ select public.get_reorder_suggestions('15120000-0000-0000-0000-000000002001', '15120000-0000-0000-0000-000000001019') $$,
+  'STK_NOT_FOUND%', 'AC-STK-019 org B''s own item at org A''s warehouse gets no reorder suggestion');
+select throws_like($$ select public.set_stock_reorder_level('15120000-0000-0000-0000-000000002001', '15120000-0000-0000-0000-000000001019', 1, null) $$,
+  'STK_NOT_FOUND%', 'AC-STK-019 org B''s own item cannot take a level at org A''s warehouse');
+select throws_like($$ select public.get_reorder_suggestions('15120000-0000-0000-0000-000000002009', '15120000-0000-0000-0000-000000001002') $$,
+  'STK_NOT_FOUND%', 'AC-STK-019 org B''s own warehouse gets no reorder suggestion for org A''s item');
+select throws_like($$ select public.set_stock_reorder_level('15120000-0000-0000-0000-000000002009', '15120000-0000-0000-0000-000000001002', 1, null) $$,
+  'STK_NOT_FOUND%', 'AC-STK-019 org B''s own warehouse cannot take a level for org A''s item');
+select is(public.get_stock_below_reorder(), '[]'::jsonb, 'AC-STK-019 org B''s worklist shows no org A row');
+select is((select count(*)::int from public.stock_reorder_levels), 0, 'AC-STK-019 org B reads no org A reorder level');
 reset role;
 select * from finish();
 rollback;

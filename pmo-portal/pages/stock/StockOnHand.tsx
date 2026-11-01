@@ -6,7 +6,7 @@ import { StockTabs } from '@/src/components/stock/StockTabs';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useAuth } from '@/src/auth/useAuth';
-import { useStockKeepers, useStockOnHand, useStockWarehouses } from '@/src/hooks/useStock';
+import { useBelowReorder, useStockKeepers, useStockOnHand, useStockWarehouses } from '@/src/hooks/useStock';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { formatQuantity, formatStockValue } from '@/src/lib/stockFormat';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
@@ -25,19 +25,32 @@ const StockOnHand: React.FC = () => {
   const [warehouseId, setWarehouseId] = useState('');
   const [includeZero, setIncludeZero] = useState(false);
   const [search, setSearch] = useState('');
+  const [belowOnly, setBelowOnly] = useState(false);
 
   const warehouses = useStockWarehouses(false);
   const keepers = useStockKeepers();
-  const onHand = useStockOnHand({ ...(warehouseId ? { warehouseId } : {}), ...(includeZero ? { includeZero } : {}) });
+  const below = useBelowReorder(belowOnly);
+  const onHand = useStockOnHand({ ...(warehouseId ? { warehouseId } : {}), ...(includeZero || belowOnly ? { includeZero: true } : {}) });
 
   const isKeeper = (keepers.data ?? []).some((k) => k.user_id === me);
   const canMove = may('create', 'stockDocument', { record: { isKeeper, viewOnly: realRole !== effectiveRole } });
 
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const all = onHand.data ?? [];
+    const have = new Set((onHand.data ?? []).map((r) => `${r.itemId}:${r.warehouseId}`));
+    const low = new Set((below.data ?? []).map((b) => `${b.itemId}:${b.warehouseId}`));
+    const all = (onHand.data ?? []).filter((r) => !belowOnly || low.has(`${r.itemId}:${r.warehouseId}`));
+    // A level set on a never-stocked pair is on the worklist but has no balance row: show it at 0 so the two screens agree.
+    if (belowOnly) {
+      for (const b of below.data ?? []) {
+        const w = (warehouses.data ?? []).find((x) => x.id === b.warehouseId);
+        if (have.has(`${b.itemId}:${b.warehouseId}`) || !w || (warehouseId && warehouseId !== b.warehouseId)) continue;
+        all.push({ itemId: b.itemId, itemCode: b.itemCode, itemName: b.itemName, unitCode: b.unitCode, wholeOnly: false,
+          warehouseId: b.warehouseId, warehouseCode: b.warehouseCode, warehouseName: w.name, warehouseKind: w.kind as 'central' | 'site', qtyOnHand: b.qtyOnHand });
+      }
+    }
     return q ? all.filter((r) => `${r.itemCode} ${r.itemName}`.toLowerCase().includes(q)) : all;
-  }, [onHand.data, search]);
+  }, [onHand.data, search, belowOnly, below.data, warehouses.data, warehouseId]);
   // Cost columns follow the DATA, not the role: if the server omitted them they are absent, never a fabricated 0.
   const showCost = (onHand.data ?? []).some((r) => r.valueOnHand !== undefined);
 
@@ -78,7 +91,7 @@ const StockOnHand: React.FC = () => {
     return cols;
   }, [t, loc, currency, showCost]);
 
-  const lookupError = warehouses.isError || keepers.isError;
+  const lookupError = warehouses.isError || keepers.isError || (belowOnly && below.isError);
   const state: 'loading' | 'empty' | 'error' | undefined =
     onHand.isError || lookupError ? 'error' : onHand.isPending ? 'loading' : rows.length === 0 ? 'empty' : undefined;
   const tooMany = parseStockError(onHand.error)?.code === 'STK_TOO_MANY';
@@ -114,6 +127,10 @@ const StockOnHand: React.FC = () => {
           />
           <TextField label={t('onHand.filters.search')} hideLabel value={search} onChange={setSearch} placeholder={t('onHand.filters.search')} type="search" />
           <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={belowOnly} onChange={(e) => setBelowOnly(e.target.checked)} />
+            {t('onHand.filters.belowReorder')}
+          </label>
+          <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" checked={includeZero} onChange={(e) => setIncludeZero(e.target.checked)} />
             {t('onHand.filters.includeZero')}
           </label>
@@ -139,15 +156,15 @@ const StockOnHand: React.FC = () => {
           title={t(tooMany ? 'onHand.states.tooManyTitle' : 'states.errorTitle')}
           sub={t(tooMany ? 'errors.STK_TOO_MANY' : 'states.errorSub')}
           retryLabel={t('actions.retry')}
-          onRetry={() => { void onHand.refetch(); void warehouses.refetch(); void keepers.refetch(); }}
+          onRetry={() => { void onHand.refetch(); void warehouses.refetch(); void keepers.refetch(); void below.refetch(); }}
         />
       )}
       {state === 'empty' && (
         <ListState
           variant="empty"
           icon="folder"
-          title={t(search || warehouseId ? 'onHand.states.noMatch' : 'empty.noStock')}
-          sub={t(search || warehouseId ? 'onHand.states.noMatchSub' : 'onHand.states.emptySub')}
+          title={t(search || warehouseId || belowOnly ? 'onHand.states.noMatch' : 'empty.noStock')}
+          sub={t(search || warehouseId || belowOnly ? 'onHand.states.noMatchSub' : 'onHand.states.emptySub')}
         />
       )}
       {state === undefined && (

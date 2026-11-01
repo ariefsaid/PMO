@@ -151,3 +151,25 @@ export function useAllowanceMutations() {
     clear: useMutation({ mutationFn: (id: string) => repositories.stock.allowances.clear(id), onSuccess: refresh }),
   };
 }
+
+/** Reorder levels (#1512 S6). The suggestion changes nothing; only `setLevel` writes, then both reads refresh. */
+export function useReorderSuggestion(warehouseId: string | undefined, itemId: string | undefined) {
+  const orgId = useAuth().currentUser?.org_id;
+  return useQuery({
+    queryKey: ['stock-reorder-suggestion', orgId, warehouseId, itemId],
+    queryFn: () => repositories.stock.reorder.suggestion(warehouseId as string, itemId as string),
+    enabled: Boolean(orgId && warehouseId && itemId),
+  });
+}
+export function useBelowReorder(enabled = true) {
+  const orgId = useAuth().currentUser?.org_id;
+  return useQuery({ queryKey: ['stock-below-reorder', orgId], queryFn: () => repositories.stock.reorder.worklist(), enabled: enabled && Boolean(orgId) });
+}
+export function useSetReorderLevel() {
+  const qc = useQueryClient();
+  const orgId = useAuth().currentUser?.org_id;
+  return useMutation({
+    mutationFn: (a: { warehouseId: string; itemId: string; level: string | null; quantity?: string | null }) => repositories.stock.reorder.setLevel(a),
+    onSuccess: () => { for (const k of ['stock-below-reorder', 'stock-reorder-suggestion']) void qc.invalidateQueries({ queryKey: [k, orgId] }); },
+  });
+}
