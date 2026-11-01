@@ -3,7 +3,8 @@
  * factory and feed code with the transport mocked and answers in PMO terms. No behaviour lives here.
  */
 import type { AdapterCommand } from '../contract.ts';
-import type { ErpHarness, PreflightResult, TimesheetPushScenario } from '../contractSuite/harness.ts';
+import type { ErpHarness, LinkOwner, PreflightResult, ProcurementPushScenario, Tenant, TimesheetPushScenario } from '../contractSuite/harness.ts';
+import { mirrorPurchases } from './contract.reads.harness.ts';
 import { resolveErpDispatchAdapter, type DispatchServiceClient } from './dispatchFactory.ts';
 
 type PushAndRead = Pick<ErpHarness, 'pushTimesheet' | 'pushProcurement' | 'pushRevenue' | 'pushBudgetVersion' | 'readActuals' | 'classifyPayment' | 'mirrorPurchases'>;
@@ -96,14 +97,76 @@ function pushTimesheet(s: TimesheetPushScenario): Promise<PreflightResult> {
   });
 }
 
+// --- purchase.push, bill.push, vendor-payment.push ---------------------------------------------------------------
+
+const PROCUREMENT_BINDING = {
+  site_url: 'https://erp.example.com', version_major: 15, activated_at: '2026-07-11T00:00:00.000Z',
+  config: { company: 'PMO Smoke Co', default_payable_account: 'Creditors - PSC' },
+};
+
+/** `<table>:<id>` -> the row's REAL org_id, so a link owned by the other tenant is told apart by its id alone. */
+const TWO_TENANT_ROWS: Record<string, { org_id: string } & Record<string, unknown>> = {
+  'organizations:org-1': { org_id: 'org-1', default_currency: 'IDR' },
+  'procurements:proc-1': { org_id: 'org-1' },
+  'procurements:proc-org2': { org_id: 'org-2' },
+  'companies:vendor-1': { org_id: 'org-1' },
+  'companies:vendor-org2': { org_id: 'org-2' },
+  'procurement_invoices:vi-1': { org_id: 'org-1', procurement_id: 'proc-1', erp_outstanding_amount: 1090000, vi_number: 'ACC-PINV-2026-00001', currency: 'IDR' },
+  'procurement_invoices:vi-org2': { org_id: 'org-2' },
+};
+
+function procurementClient(): DispatchServiceClient {
+  return {
+    from: (table: string) => ({
+      select: () => {
+        let filters: Record<string, string> = {};
+        const chain = {
+          eq: (col: string, val: string) => { filters = { ...filters, [col]: val }; return chain; },
+          order: () => chain,
+          limit: () => chain,
+          maybeSingle: async () => {
+            if (table === 'external_org_bindings') return { data: PROCUREMENT_BINDING, error: null };
+            if (table === 'external_refs') {
+              // The payment gate resolves the bill's ERP name; every other reference stays empty.
+              const mapped = filters.domain === 'procurement' && filters.pmo_record_id === 'vi-1';
+              return { data: mapped ? { external_record_id: 'ACC-PINV-2026-00001' } : null, error: null };
+            }
+            return { data: TWO_TENANT_ROWS[`${table}:${filters.id}`] ?? null, error: null };
+          },
+          then: (resolve: (v: { data: unknown; error: null }) => unknown) => resolve({ data: [], error: null }),
+        };
+        return chain;
+      },
+    }),
+  } as unknown as DispatchServiceClient;
+}
+
+const ORG: Record<Tenant, string> = { A: 'org-1', B: 'org-2' };
+const PROCUREMENT_ID: Record<LinkOwner, string> = { A: 'proc-1', B: 'proc-org2', nobody: 'proc-nope' };
+const VENDOR_ID: Record<LinkOwner, string> = { A: 'vendor-1', B: 'vendor-org2', nobody: 'vendor-nope' };
+const INVOICE_ID: Record<LinkOwner, string> = { A: 'vi-1', B: 'vi-org2', nobody: 'vi-nope' };
+const ERP_DOC_KIND: Record<ProcurementPushScenario['doc'], string> = {
+  'purchase-order': 'purchase-order', 'quotation': 'quotation', 'bill': 'purchase-invoice', 'vendor-payment': 'payment', 'supplier': 'supplier',
+};
+
+function pushProcurement(s: ProcurementPushScenario): Promise<PreflightResult> {
+  const record: Record<string, unknown> = { id: 'pmo-1', erp_doc_kind: ERP_DOC_KIND[s.doc] };
+  if (s.procurement) record.procurementId = PROCUREMENT_ID[s.procurement];
+  if (s.vendor) record.vendorId = VENDOR_ID[s.vendor];
+  if (s.invoice) record.invoiceId = INVOICE_ID[s.invoice];
+  if (s.doc === 'supplier') record.name = 'Acme';
+  if (s.doc === 'vendor-payment') Object.assign(record, { paid_amount: 1090000, date: '2026-10-08' });
+  return preflight(procurementClient(), ORG[s.caller], { domain: 'procurement', operation: 'create', record } as AdapterCommand);
+}
+
 export function createPushAndReadHarness(): PushAndRead {
   return {
     pushTimesheet,
-    pushProcurement: notYet('pushProcurement'),
+    pushProcurement,
     pushRevenue: notYet('pushRevenue'),
     pushBudgetVersion: notYet('pushBudgetVersion'),
     readActuals: notYet('readActuals'),
     classifyPayment: notYet('classifyPayment'),
-    mirrorPurchases: notYet('mirrorPurchases'),
+    mirrorPurchases,
   };
 }
