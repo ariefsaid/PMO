@@ -141,7 +141,9 @@ select ok(
                        'erp_linked_documents_total',
                        -- AMENDED BY 0386: PMO + linked document basis and its refresh triggers.
                        'procurement_document_total','refresh_procurement_recorded_total',
-                       'refresh_native_purchase_total_on_erp_document_update'))
+                       'refresh_native_purchase_total_on_erp_document_update',
+                       -- AMENDED BY 0475 (#1513 S5): linked ERP Purchase Invoices only block payment / a PO revision push; neither feeds actuals.
+                       'subcontract_cap_exceptions','po_revision_push_refusal'))
   and not exists (select 1 from pg_views where schemaname = 'public' and definition ilike '%erp_purchase_documents%'
                     and viewname not in ('erp_purchase_documents_linked','erp_purchase_orphans','erp_purchase_orphans_all')),
   'AC-EPR-006 (re-baselined by AC-PFE-005) ERP purchases never feed actuals; only named link/commitment readers and refresh triggers touch the table');

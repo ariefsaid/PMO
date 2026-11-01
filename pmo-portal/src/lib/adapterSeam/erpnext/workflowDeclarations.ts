@@ -44,4 +44,5 @@ export const ERPNEXT_WORKFLOWS: TierWorkflows = {
   'budget.unowned-occupant': { status: 'supported', version: 1 },
   'timesheet.push': { status: 'supported', version: 1 },
   'imprest.transfer': { status: 'supported', version: 1 },
+  'purchase-order.revise': { status: 'pending', version: 1, issue: 1505 }, // #1505 carries the revise transport
 };
