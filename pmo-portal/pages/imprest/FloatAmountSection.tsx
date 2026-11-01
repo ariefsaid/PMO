@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, Card, CardHead, CardPad, ConfirmDialog, ListState, TextArea, TextField, useToast } from '@/src/components/ui';
+import { Button, Card, CardHead, CardPad, ConfirmDialog, DataTable, ListState, StatusPill, TextArea, TextField, useToast, type Column } from '@/src/components/ui';
 import { CanWrite } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useDecideFloatChange, useImprestFloatChanges, useProposeFloatAmount } from '@/src/hooks/useImprest';
 import { availableFloatChangeActions } from '@/src/lib/imprest/imprestRules';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import type { ImprestFloatChangeListRow } from '@/src/lib/db/imprest';
+import { workflowVariant } from '@/src/lib/status/statusVariants';
 import { formatCurrencyAuto, parseMoneyInputAtScale } from '@/src/lib/format';
 import { imprestStatusLabel } from './imprestLabels';
 
@@ -27,6 +29,14 @@ export const FloatAmountSection: React.FC<{ floatId: string; custodianId: string
   const rows = changes.data?.rows ?? [];
   const open = rows.find((c) => c.status === 'Proposed');
   const actions = open ? availableFloatChangeActions({ userId, realRole, custodianId, change: open }) : [];
+  const history = rows.filter((c) => c.status !== 'Proposed');
+  const columns: Column<ImprestFloatChangeListRow>[] = [
+    { key: 'date', header: t('imprest:amount.history.date', 'Date'), rowHeader: true, cell: (r) => <span className="whitespace-nowrap">{r.proposed_at.slice(0, 10)}</span> },
+    { key: 'amount', header: t('imprest:amount.history.amount', 'Amount'), align: 'num', cell: (r) => <span className="tabular-nums">{money(r.proposed_amount)}</span> },
+    { key: 'status', header: t('imprest:amount.history.status', 'Status'), cell: (r) => <StatusPill variant={workflowVariant(r.status)}>{imprestStatusLabel(r.status, t)}</StatusPill> },
+    { key: 'who', header: t('imprest:amount.history.who', 'Proposed by'), cell: (r) => <span>{r.proposer?.full_name ?? '—'}{r.decider ? <span className="text-muted-foreground">{t('imprest:amount.history.decidedBy', ' · decided by {{name}}', { name: r.decider.full_name })}</span> : null}</span> },
+    { key: 'note', header: t('imprest:amount.history.note', 'Note'), cell: (r) => r.notes ? <span className="block max-w-xs truncate text-muted-foreground" title={r.notes}>{r.notes}</span> : null },
+  ];
   const parsed = parseMoneyInputAtScale(amount, 2);
   const close = () => { setDialog(null); setNotes(''); setAmount(''); };
   const run = async (work: () => Promise<unknown>, success: string) => {
@@ -35,9 +45,9 @@ export const FloatAmountSection: React.FC<{ floatId: string; custodianId: string
   };
 
   return (
-    <Card variant="bare" className="mb-4">
+    <Card className="mb-4">
       <CardHead>{t('imprest:amount.title', 'Float amount')}</CardHead>
-      <CardPad>
+      <CardPad className="pt-0">
         {changes.isPending && <ListState variant="loading" rows={2} />}
         {!changes.isPending && (changes.isError || !changes.data) && (
           <ListState variant="error" title={t('imprest:amount.error', "Couldn't load the float amount changes")} onRetry={() => void changes.refetch()} />
@@ -57,17 +67,8 @@ export const FloatAmountSection: React.FC<{ floatId: string; custodianId: string
                 <Button variant="outline" size="sm" onClick={() => setDialog('propose')}>{t('imprest:amount.propose', 'Propose new amount')}</Button>
               </CanWrite>
             )}
-            {rows.filter((c) => c.status !== 'Proposed').length > 0 && (
-              <ul className="divide-y divide-border text-muted-foreground">
-                {rows.filter((c) => c.status !== 'Proposed').map((c) => (
-                  <li key={c.id} className="flex flex-wrap gap-x-3 py-1">
-                    <span>{c.proposed_at.slice(0, 10)}</span>
-                    <span className="tabular-nums">{money(c.proposed_amount)}</span>
-                    <span>{imprestStatusLabel(c.status, t)}</span>
-                    {c.notes && <span className="min-w-0 flex-1 truncate" title={c.notes}>{c.notes}</span>}
-                  </li>
-                ))}
-              </ul>
+            {history.length > 0 && (
+              <DataTable<ImprestFloatChangeListRow> rows={history} columns={columns} rowKey={(r) => r.id} tableId="imprest-float-changes" />
             )}
           </div>
         )}

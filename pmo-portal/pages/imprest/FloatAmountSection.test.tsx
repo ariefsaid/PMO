@@ -17,7 +17,7 @@ vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole
 
 import { FloatAmountSection } from './FloatAmountSection';
 
-const change = (over: Record<string, unknown> = {}) => ({ id: 'c1', float_id: 'f1', proposed_amount: 5000000, proposed_by: 'u-fin', status: 'Proposed', proposed_at: '2026-11-02T00:00:00Z', notes: null, ...over });
+const change = (over: Record<string, unknown> = {}) => ({ id: 'c1', float_id: 'f1', proposed_amount: 5000000, proposed_by: 'u-fin', proposer: { full_name: 'Finn Finance' }, decider: null, status: 'Proposed', proposed_at: '2026-11-02T00:00:00Z', notes: null, ...over });
 const renderIt = () => render(<ToastProvider><FloatAmountSection floatId="f1" custodianId="u-cust" currency="IDR" floatAmount={0} /></ToastProvider>);
 
 describe('FR-IMP-002 float amount', () => {
@@ -66,6 +66,15 @@ describe('FR-IMP-002 float amount', () => {
     h.role = 'Executive';
     renderIt();
     expect(screen.queryByRole('button', { name: 'Propose new amount' })).toBeNull();
+  });
+
+  it('FR-IMP-002 decided changes are a table with date, amount, status and who', () => {
+    h.changes = ok({ rows: [change({ id: 'c0', status: 'Approved', proposed_amount: 4000000, decider: { full_name: 'Sam Senior' } })], truncated: false });
+    render(<ToastProvider><FloatAmountSection floatId="f1" custodianId="u-cust" currency="IDR" floatAmount={4000000} /></ToastProvider>);
+    const row = screen.getByRole('row', { name: /4,000,000/ });
+    expect(within(row).getByText('Approved')).toBeInTheDocument();
+    expect(within(row).getByText(/Finn Finance/)).toBeInTheDocument();
+    expect(within(row).getByText(/decided by Sam Senior/)).toBeInTheDocument();
   });
 
   it('FR-IMP-002 a failed read shows an error, not a missing amount', () => {

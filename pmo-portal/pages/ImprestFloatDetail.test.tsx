@@ -15,7 +15,7 @@ const h = vi.hoisted(() => ({
 }));
 vi.mock('./imprest/FloatAmountSection', () => ({ FloatAmountSection: () => null })); // proven by its own test
 vi.mock('@/src/hooks/useImprest', () => ({
-  useImprestFloats: () => h.floats,
+  useImprestFloat: () => h.floats,
   useImprestPosition: () => h.position,
   useImprestPlans: () => h.plans,
   useImprestPlanLines: () => h.planLines,
@@ -38,7 +38,7 @@ import ImprestFloatDetail from './ImprestFloatDetail';
 const FLOAT = { id: 'f1', project_id: 'p1', custodian_id: 'u-cust', currency: 'IDR', float_amount: 5000000, project: { name: 'Site Alpha' }, custodian: { full_name: 'Cass Custodian' } };
 const POSITION = {
   float_id: 'f1', float_amount: 5000000, cash_book: 1000000, advances_out: 500000, receipts_waiting: 3500000, replenishment_in_flight: 0,
-  gap: 0, last_count_at: '2026-10-30T00:00:00Z', last_count_variance: -5000, month: '2026-11-01',
+  gap: 0, funded_total: 5000000, last_count_at: '2026-10-30T00:00:00Z', last_count_variance: -5000, month: '2026-11-01',
   plan_lines: [
     { budget_category: 'Vehicle', planned: 800000, drawn: 300000, remaining: 500000, exceptions: [] },
     { budget_category: 'Materials', planned: 0, drawn: 700000, remaining: 0, exceptions: [{ id: 'c9', number: 'EXP-9', kind: 'claim', amount: '700000.00', status: 'Approved' }] },
@@ -53,7 +53,7 @@ const renderPage = () => render(
 describe('/imprest/:floatId (AC-IMP-082)', () => {
   beforeEach(() => {
     setViewer('u-fin', 'Finance');
-    h.floats = ok({ rows: [FLOAT], truncated: false });
+    h.floats = ok(FLOAT);
     h.position = ok(POSITION);
     h.plans = ok({ rows: [], truncated: false });
     h.planLines = ok([]);
@@ -110,10 +110,39 @@ describe('/imprest/:floatId (AC-IMP-082)', () => {
     expect(screen.getByRole('button', { name: 'Request replenishment' })).toBeInTheDocument();
   });
 
-  it('AC-IMP-082 a non-zero gap is flagged in text', () => {
-    h.position = ok({ ...POSITION, gap: 100000 });
+  it('AC-IMP-082 funded cash the holdings do not explain is flagged as books not balancing, by the shortfall', () => {
+    h.position = ok({ ...POSITION, cash_book: 900000, gap: 100000 });
     renderPage();
     expect(screen.getByText('Books do not balance')).toBeInTheDocument();
+    expect(within(screen.getByTestId('figure-gap')).getByText(/100,000/)).toBeInTheDocument();
+  });
+
+  it('AC-IMP-003 a float not yet funded reads Not yet funded, not a red gap, and the custodian can request funding', () => {
+    setViewer('u-cust', 'Finance');
+    h.position = ok({ ...POSITION, cash_book: 0, advances_out: 0, receipts_waiting: 0, gap: 5000000, funded_total: 0, last_count_at: null, last_count_variance: null });
+    h.reps = ok({ rows: [], truncated: false });
+    renderPage();
+    expect(screen.getByText('Not yet funded')).toBeInTheDocument();
+    expect(screen.queryByText('Books do not balance')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Request funding' })).toBeInTheDocument();
+  });
+
+  it('AC-IMP-003 an enlarged float shows the top-up due, not a defect', () => {
+    h.position = ok({ ...POSITION, float_amount: 6000000, gap: 1000000 });
+    renderPage();
+    expect(screen.getByText(/Top-up due/)).toBeInTheDocument();
+    expect(screen.queryByText('Books do not balance')).toBeNull();
+  });
+
+  it('AC-IMP-082 the replenishment confirm names the amount being requested, not every waiting receipt', async () => {
+    const user = userEvent.setup();
+    setViewer('u-cust', 'Finance');
+    h.reps = ok({ rows: [{ ...REP, amount: 1000000 }], truncated: false }); // 1,000,000 of the 3,500,000 waiting is already requested
+    renderPage();
+    await user.click(screen.getByRole('button', { name: 'Request replenishment' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog).toHaveTextContent(/2,500,000/);
+    expect(dialog).not.toHaveTextContent(/3,500,000/);
   });
 
   it('AC-IMP-082 paying a replenishment confirms and sends the payment reference', async () => {
@@ -177,7 +206,7 @@ describe('/imprest/:floatId (AC-IMP-082)', () => {
   });
 
   it('AC-IMP-082 a float the viewer cannot see is not found', () => {
-    h.floats = ok({ rows: [], truncated: false });
+    h.floats = ok(null);
     renderPage();
     expect(screen.getByText('Float not found')).toBeInTheDocument();
   });

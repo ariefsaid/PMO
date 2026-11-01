@@ -91,9 +91,9 @@ export const PlansSection: React.FC<{ floatId: string; custodianId: string; curr
     run(() => transition.mutateAsync({ id: plan.id, to: TO[action] as PlanTo, ...extra }), t('imprest:plan.toast.updated', 'Plan updated'));
 
   return (
-    <Card variant="bare" className="mb-4">
+    <Card className="mb-4">
       <CardHead>{t('imprest:plan.sectionTitle', 'Plans')}</CardHead>
-      <CardPad>
+      <CardPad className="pt-0">
         <CanWrite entity="imprestPlan" action="create">
           <div className="mb-3 flex flex-wrap items-end gap-2">
             <SelectField label={t('imprest:plan.month', 'Month')} value={month} onChange={setMonth}

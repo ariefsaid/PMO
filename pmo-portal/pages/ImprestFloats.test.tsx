@@ -31,7 +31,7 @@ import ImprestFloatsPage from './ImprestFloats';
 
 const pos = (over: Record<string, unknown> = {}) => ({
   float_id: 'f1', float_amount: 5000000, cash_book: 1200000, advances_out: 300000, receipts_waiting: 3500000,
-  replenishment_in_flight: 0, gap: 0, last_count_at: null, last_count_variance: null, month: '2026-11-01', plan_lines: [], ...over,
+  replenishment_in_flight: 0, gap: 0, funded_total: 5000000, last_count_at: null, last_count_variance: null, month: '2026-11-01', plan_lines: [], ...over,
 });
 const float = (id: string, project: string, custodian: string) => ({
   id, project_id: 'p1', custodian_id: 'u-fin', currency: 'IDR', float_amount: 5000000, archived_at: null,
@@ -43,7 +43,7 @@ describe('/imprest list (AC-IMP-082)', () => {
   beforeEach(() => {
     realRole = 'Finance';
     h.floats = { data: { rows: [float('f1', 'Site Alpha', 'Finn Finance'), float('f2', 'Site Beta', 'Pia Manager')], truncated: false }, isPending: false, isError: false, refetch: vi.fn() };
-    h.positions = { f1: pos(), f2: pos({ float_id: 'f2', gap: 250000 }) };
+    h.positions = { f1: pos(), f2: pos({ float_id: 'f2', cash_book: 950000, gap: 250000 }) };
   });
 
   it('AC-IMP-082 the list shows each float\'s position', () => {
@@ -60,6 +60,22 @@ describe('/imprest list (AC-IMP-082)', () => {
     renderPage();
     expect(within(screen.getByRole('row', { name: /Site Beta/ })).getByText('Books do not balance')).toBeInTheDocument();
     expect(within(screen.getByRole('row', { name: /Site Alpha/ })).queryByText('Books do not balance')).toBeNull();
+  });
+
+  it('AC-IMP-003 a float not yet funded reads Not yet funded, never a red Books do not balance', () => {
+    h.positions = { f1: pos({ cash_book: 0, advances_out: 0, receipts_waiting: 0, gap: 5000000, funded_total: 0 }), f2: pos({ float_id: 'f2' }) };
+    renderPage();
+    const row = screen.getByRole('row', { name: /Site Alpha/ });
+    expect(within(row).getByText('Not yet funded')).toBeInTheDocument();
+    expect(within(row).queryByText('Books do not balance')).toBeNull();
+  });
+
+  it('FR-IMP-070 a count variance is flagged on the row, a matched count is not', () => {
+    h.positions = { f1: pos({ last_count_at: '2026-10-30T00:00:00Z', last_count_variance: -5000 }), f2: pos({ float_id: 'f2', last_count_at: '2026-10-30T00:00:00Z', last_count_variance: 0 }) };
+    renderPage();
+    expect(within(screen.getByRole('row', { name: /Site Alpha/ })).getByText('Count variance')).toBeInTheDocument();
+    expect(within(screen.getByRole('row', { name: /Site Beta/ })).queryByText('Count variance')).toBeNull();
+    expect(within(screen.getByRole('row', { name: /Site Beta/ })).getByText('Matched')).toBeInTheDocument();
   });
 
   it('AC-IMP-082 a failed read shows the error state, never a zero', () => {

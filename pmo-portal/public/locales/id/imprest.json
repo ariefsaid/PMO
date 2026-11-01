@@ -14,6 +14,14 @@
     "approveTitle": "Setujui jumlah kas lapangan yang diusulkan?",
     "current": "Kas lapangan saat ini: {{amount}}",
     "error": "Gagal memuat perubahan jumlah kas lapangan",
+    "history": {
+      "amount": "Jumlah",
+      "date": "Tanggal",
+      "decidedBy": " · diputuskan oleh {{name}}",
+      "note": "Catatan",
+      "status": "Status",
+      "who": "Diusulkan oleh"
+    },
     "newAmount": "Jumlah kas lapangan baru",
     "open": "Diusulkan {{amount}} pada {{date}}: menunggu penyetuju senior.",
     "propose": "Usulkan jumlah baru",
@@ -88,6 +96,7 @@
   },
   "form": {
     "chargeToFloat": "Bebankan ke kas lapangan",
+    "currentFloat": "Kas lapangan yang dibebani",
     "exceptionHint": "Ini melebihi rencana bulan ini: diteruskan ke penyetuju senior sebagai item di luar rencana.",
     "helper": "Uang tunai yang dibayarkan dari kas lapangan yang dipegang pemegang kas.",
     "limitHint": "Di atas batas pengadaan ({{limit}}): kas lapangan akan menolak ini. Ajukan sebagai permintaan pengadaan.",
@@ -100,6 +109,7 @@
       "custodian": "Pemegang kas",
       "project": "Proyek"
     },
+    "countOk": "Sesuai",
     "description": "Uang tunai di lokasi, per kas lapangan: yang ada di tangan, yang keluar sebagai uang muka, dan yang menunggu penggantian.",
     "empty": "Belum ada kas lapangan",
     "emptySub": "Keuangan atau Admin menetapkan kas lapangan untuk proyek dan menunjuk pemegang kasnya.",
@@ -161,7 +171,10 @@
     "gapFlag": "Pembukuan tidak seimbang",
     "inFlight": "Penggantian dalam proses",
     "lastCount": "Hitung terakhir {{date}}: selisih {{variance}}",
+    "lastCountColumn": "Hitung terakhir",
+    "notFunded": "Belum didanai",
     "receiptsWaiting": "Kuitansi menunggu",
+    "topUp": "Tambahan dana {{amount}}",
     "varianceFlag": "Selisih hitung kas"
   },
   "receipts": {

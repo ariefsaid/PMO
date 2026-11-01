@@ -14,6 +14,14 @@
     "approveTitle": "Approve the proposed float amount?",
     "current": "Current float: {{amount}}",
     "error": "Couldn't load the float amount changes",
+    "history": {
+      "amount": "Amount",
+      "date": "Date",
+      "decidedBy": " · decided by {{name}}",
+      "note": "Note",
+      "status": "Status",
+      "who": "Proposed by"
+    },
     "newAmount": "New float amount",
     "open": "Proposed {{amount}} on {{date}}: awaiting a senior approver.",
     "propose": "Propose new amount",
@@ -88,6 +96,7 @@
   },
   "form": {
     "chargeToFloat": "Charge to site float",
+    "currentFloat": "The float it is charged to",
     "exceptionHint": "This is above this month's plan: it goes to a senior approver as an out-of-plan item.",
     "helper": "Cash paid out of site cash held by the custodian.",
     "limitHint": "Above the procurement limit ({{limit}}): site cash will refuse this. Raise it as a procurement request.",
@@ -100,6 +109,7 @@
       "custodian": "Custodian",
       "project": "Project"
     },
+    "countOk": "Matched",
     "description": "Cash held on site, by float: what is in hand, what is out as advances and what is waiting to be replenished.",
     "empty": "No site floats yet",
     "emptySub": "Finance or an Admin establishes a float for a project and names its custodian.",
@@ -161,7 +171,10 @@
     "gapFlag": "Books do not balance",
     "inFlight": "Replenishment in flight",
     "lastCount": "Last count {{date}}: variance {{variance}}",
+    "lastCountColumn": "Last count",
+    "notFunded": "Not yet funded",
     "receiptsWaiting": "Receipts waiting",
+    "topUp": "Top-up due {{amount}}",
     "varianceFlag": "Count variance"
   },
   "receipts": {

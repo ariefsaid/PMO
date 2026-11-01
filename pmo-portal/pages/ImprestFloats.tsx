@@ -10,13 +10,13 @@ import { useImprestFloats, useImprestPosition, useEstablishFloat } from '@/src/h
 import { useProjects } from '@/src/hooks/useProjects';
 import { useUsers } from '@/src/hooks/useUsers';
 import { LIST_LIMIT, type ImprestFloatRow } from '@/src/lib/db/imprest';
-import { toCents } from '@/src/lib/imprest/imprestRules';
+import { booksState, toCents } from '@/src/lib/imprest/imprestRules';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatCurrencyAuto, parseMoneyInputAtScale } from '@/src/lib/format';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 
 type FloatListRow = ImprestFloatRow & { project: { name: string } | null; custodian: { full_name: string } | null };
-type Figure = 'cash_book' | 'advances_out' | 'receipts_waiting' | 'gap';
+type Figure = 'cash_book' | 'advances_out' | 'receipts_waiting' | 'gap' | 'count';
 
 /** One figure of one float's position. A failed or pending read shows text, never a zero (money-path primer). */
 const PositionFigure: React.FC<{ floatId: string; currency: string; figure: Figure }> = ({ floatId, currency, figure }) => {
@@ -24,12 +24,29 @@ const PositionFigure: React.FC<{ floatId: string; currency: string; figure: Figu
   const { data, isPending, isError } = useImprestPosition(floatId);
   if (isPending) return <span className="text-muted-foreground">…</span>;
   if (isError || !data) return <span className="text-muted-foreground">{t('imprest:list.positionUnavailable', 'Unavailable')}</span>;
-  const value = data[figure];
-  if (figure === 'gap' && toCents(value) !== 0) {
-    return <span className="whitespace-nowrap font-medium text-destructive-text" role="status">
-      {t('imprest:position.gapFlag', 'Books do not balance')} <span className="tabular-nums">({formatCurrencyAuto(Number(value), currency)})</span>
-    </span>;
+  if (figure === 'count') {
+    if (data.last_count_variance == null) return <span className="text-muted-foreground">—</span>;
+    return toCents(data.last_count_variance) !== 0
+      ? <span className="whitespace-nowrap font-medium text-destructive-text" role="status">
+        {t('imprest:position.varianceFlag', 'Count variance')} <span className="tabular-nums">({formatCurrencyAuto(Number(data.last_count_variance), currency)})</span>
+      </span>
+      : <span className="text-muted-foreground">{t('imprest:list.countOk', 'Matched')}</span>;
   }
+  if (figure === 'gap') {
+    // Measured against funded cash: an unfunded or enlarged float is waiting for funding, not out of balance.
+    const books = booksState(data);
+    if (books.kind === 'broken') {
+      return <span className="whitespace-nowrap font-medium text-destructive-text" role="status">
+        {t('imprest:position.gapFlag', 'Books do not balance')} <span className="tabular-nums">({formatCurrencyAuto(books.short, currency)})</span>
+      </span>;
+    }
+    if (books.kind === 'unfunded') return <span className="whitespace-nowrap text-muted-foreground">{t('imprest:position.notFunded', 'Not yet funded')}</span>;
+    if (books.kind === 'topUp') {
+      return <span className="whitespace-nowrap text-muted-foreground">{t('imprest:position.topUp', 'Top-up due {{amount}}', { amount: formatCurrencyAuto(books.due, currency) })}</span>;
+    }
+    return <span className="tabular-nums">{formatCurrencyAuto(0, currency)}</span>;
+  }
+  const value = data[figure];
   return <span className="tabular-nums">{formatCurrencyAuto(Number(value), currency)}</span>;
 };
 
@@ -116,6 +133,7 @@ const ImprestFloatsPage: React.FC = () => {
     { key: 'advances', header: t('imprest:position.advancesOut', 'Advances out'), align: 'num', cell: (r) => <PositionFigure floatId={r.id} currency={r.currency} figure="advances_out" /> },
     { key: 'receipts', header: t('imprest:position.receiptsWaiting', 'Receipts waiting'), align: 'num', cell: (r) => <PositionFigure floatId={r.id} currency={r.currency} figure="receipts_waiting" /> },
     { key: 'gap', header: t('imprest:position.gap', 'Gap'), align: 'num', cell: (r) => <PositionFigure floatId={r.id} currency={r.currency} figure="gap" /> },
+    { key: 'count', header: t('imprest:position.lastCountColumn', 'Last count'), cell: (r) => <PositionFigure floatId={r.id} currency={r.currency} figure="count" /> },
   ];
   return (
     <ListPage
