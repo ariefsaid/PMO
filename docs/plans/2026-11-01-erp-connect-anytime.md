@@ -8,13 +8,14 @@
   OD-GRILL-20261101; `docs/plans/2026-10-31-odoo-connect-master-data.md` (Odoo O1, the parity partner).
 - **Evidence baseline:** `origin/dev` at `6440a961` (2026-11-01). The spec cites `3e0096605`; 364 commits have landed
   since, including PR #1610 (`a4c193f2`), which shipped most of ECA-1 and ECA-7. §0 re-baselines every slice. File:line
-  citations below are at `6440a961`.
+  citations below are at `6440a961`; the Opus review (2026-11-01) re-read them at `b52aa48a` (docs-only delta) and corrected
+  the ones that had drifted.
 - **Role contract:** `.claude/agents/eng-planner.md`. Builders: `implementer` / `ui-implementer` role contracts handed to
   Orca workers (`docs/orca-dispatch.md`); money-path slices are Director-dispatched per issue.
-- **Migrations:** written `<NNNN>_<slug>.sql` with `supabase/migrations/rollback/<NNNN>_<slug>_down.sql`. The coordinator
-  assigns numbers at build (`scripts/renumber-migration.sh` on a collision). Five migrations: ECA-2 (`<NNNN>_erp_connect_setup`),
-  ECA-3 (`<NNNN>_erp_connect_sends`), ECA-4 (`<NNNN>_process_domain_cutover`), ECA-5 (`<NNNN>_invoice_pairs`),
-  ECA-6 (`<NNNN>_budget_occupant_resolution`).
+- **Migrations (Director, 2026-11-01):** each with `supabase/migrations/rollback/<number>_<slug>_down.sql`. Five migrations:
+  ECA-2 `0451_erp_connect_setup`, ECA-3 `0452_erp_connect_sends`, ECA-4 `0453_process_domain_cutover`, ECA-5
+  `0454_invoice_pairs`, ECA-6 `0455_budget_occupant_resolution` (0450 is #1614's). A collision at build is fixed with
+  `scripts/renumber-migration.sh`, never by hand.
 - **IDs:** plan decisions `PD-ECA-#`; questions for the Director `PQ-ECA-#`; tasks `<slice>-T<n>`.
 
 ---
@@ -23,7 +24,7 @@
 
 | Slice | Issue | State at `6440a961` | What remains (this plan) |
 |---|---|---|---|
-| ECA-7 registry + shared suite | #1604 (open) | **Shipped** in #1610: `connect/workflows.ts` (27 workflows, versions), `erpnext/workflowDeclarations.ts:128-156`, `odoo/workflowDeclarations.ts`, `contractSuite/{harness,index,parity,tiers,tierBranch,party,project,budget,cutover,send,imprestTransfer}`, AC-ECA-040..043 tagged in `parity.test.ts:14-107` and `tierBranch.test.ts:78`. 13 shipped workflows still declared `pending #1609`. | ECA7-T1 closeout evidence. Moving the 13 shipped workflows into suites is **#1609** (separate issue, not re-planned here). |
+| ECA-7 registry + shared suite | #1604 (open) | **Shipped** in #1610: `connect/workflows.ts` (27 workflows, versions), `erpnext/workflowDeclarations.ts:17-45`, `odoo/workflowDeclarations.ts`, `contractSuite/{harness,index,parity,tiers,tierBranch,party,project,budget,cutover,send,imprestTransfer}`, AC-ECA-040..043 tagged in `parity.test.ts:14-107` and `tierBranch.test.ts:78`. 10 shipped workflows still declared `pending #1609` in ERPNext (`purchase.push`, `bill.push`, `vendor-payment.push`, `purchase.link-existing`, `cutover.timesheet`, `invoice.push`, `receipt.read`, `actuals.read`, `budget.push`, `timesheet.push`). | ECA7-T1 closeout evidence. Moving those 10 workflows into suites is **#1609** (separate issue, not re-planned here). |
 | ECA-1 party bring-in | #1600 (open) | **Mostly shipped** in #1610: onboarding links instead of inserting (`erpnext/onboarding.ts:149-166`), per-party outcomes (`:141-148`, `needsDecision`), feed runs the match before minting (`_shared/erpnextFeedDeps.ts:233-251`), one candidate lookup (`_shared/companyCandidates.ts:11-29`); real-uniqueness Deno tests (`erpnext-onboard/index.test.ts:147-268`, `_shared/erpnextFeedDeps.partyMatch.test.ts:80-163`). | AC-id tagging; the `party.bring-in` shared suite (still `pending #1600` in both tiers); the persisted review row of AC-ECA-005/006 lands with ECA-2's table (ECA2-T14). |
 | ECA-2 matcher, census, one-pass setup | #1605 | `connect/match.ts:12-17` holds only `pickPartyCandidate`; `connect/types.ts` holds `ConnectAdapter`/`NormalisedMaster`/`PmoMaster`. No census, no proposal storage, no accept-all. | Whole slice. |
 | ECA-3 send PMO masters | #1606 | Shared send suites exist (`contractSuite/send.suite.ts`), Odoo passes them (`odoo/connectAdapter.ts:87-114`). ERPNext has no `ConnectAdapter`; `ensure-project` still creates on no-match (`external-set-company/setup.ts:532-546`). | Whole slice for ERPNext. |
@@ -36,9 +37,12 @@
 
 - **PD-ECA-1 — Proposal and census storage is one migration in ECA-2, tier-keyed.** Odoo's plan defers to it ("Proposal and
   review rows are ECA-2's storage", Odoo plan §2.5). Three tables: `erp_connect_runs` (one run per org × tier, its paging
-  cursor and state), `erp_connect_census` (per kind counts and scenario), `erp_connect_proposals` (one row per outcome).
-  ERP master pages stage in the shipped tier-generic `external_master_records` (`0421_odoo_master_records.sql:14-36`), whose
-  `kind` check gains `project` and `employee`. No second staging table.
+  cursor and state), `erp_connect_census` (per kind or domain: counts, scenario, `accepted_at`), `erp_connect_proposals` (one
+  row per outcome), plus `erp_connect_staged` (the ERP master pages of one run, deleted with the run). *Review correction:* the
+  draft staged pages in Odoo's `external_master_records` mirror. That table is Odoo's live directory: its census finish
+  tombstones every row the mirror sweep did not see (`0421` `finish_odoo_census`), its pickers list every `partner` row, and its
+  read policy hides only accounts, taxes and partners, so staged ERP employee names would be readable by every member. A
+  run-scoped staging table touches none of that and is Admin-only.
 - **PD-ECA-2 — The matcher is TypeScript (DD-ECA-2); applying is SQL.** `proposeMatches()` runs in the edge function / sweep
   and writes rows through one service-only RPC. Accepting is one SECURITY DEFINER RPC per call that applies every accepted
   row in one transaction, with `external_refs` uniqueness (`0088_external_refs.sql:16` + 0093's reverse unique) as the
@@ -46,8 +50,8 @@
   time, so accept never calls the ERP.
 - **PD-ECA-3 — Census counts are immediate; the proposal is paged by the sweep.** `countDomain` is one call per kind, so the
   `census` verb answers FR-ECA-002's first two numbers synchronously. Listing every master (NFR-ECA-005: 50k parties, 100k
-  items) is paged inside the sweep tick budget into `external_master_records`; when every kind is staged the same tick runs
-  `proposeMatches` and the screen fills "9 are the same". The setup screen polls `connect-status`.
+  items) is paged inside the sweep tick budget into `erp_connect_staged`; once every kind is staged, each following tick runs
+  `proposeMatches` for one kind and the screen fills "9 are the same". The setup screen polls `connect-status`.
 - **PD-ECA-4 — Kind policy is data, not branches.** Which outcomes a kind can have is one table in `connect/match.ts`:
   `party` link/bring-in/send/review; `project` link/send/review (projects are PMO-owned; ERP-only projects stay read-only,
   Odoo plan §2.2); `item` link/send/review (ERP catalogue is the picker; nothing brought in); `employee` link/send/review
@@ -67,28 +71,51 @@
 - **PD-ECA-8 — Sends ride the money outbox through one tier-agnostic wrapper.** `connect/sendViaOutbox.ts` turns
   `ConnectAdapter.sendMaster` into an `Adapter.commit` for `dispatchMoneyWrite` (`adapterSeam/dispatch.ts:619`), key
   `seed:<kind>:<pmo_record_id>` (FR-ECA-021), outbox domain `companies` / `projects` / `items` / `employees`. Odoo's S8 (PD-8
-  of its plan) uses the same wrapper.
+  of its plan) uses the same wrapper. The outbox's recovery probe (`probeByRemarksKey`, required by
+  `createDbMoneyOutboxDeps`, `adapter-dispatch/moneyOutboxDeps.ts:134-141`) is the lookup half of `sendMaster`, so a lost
+  response is adopted, never re-POSTed; a probe that cannot decide holds the row (`command-held`) and the proposal returns as
+  *review* "We could not confirm whether the ERP created this record" (NFR-ECA-004). Only `companies` writes `external_refs`
+  through the outbox; project, item and employee links land only through `record_connect_send_result` (one link store per kind).
 - **PD-ECA-9 — Cut-over for a procurement case = its first purchase order row predates `activated_at`.** The PO is the first
   ERP-bound document of a purchase (`dispatchProcurement.ts:133-176`). Same instant the timesheet rule uses
   (`erpnext-sweep/index.ts:2617-2637`, `approved_at >= activated_at`). A case whose PO is created after connect pushes
-  normally even if the case was drafted before.
+  normally even if the case was drafted before. *Review correction:* "finish in PMO only" (OQ-ECA-1) needs a PMO write path.
+  Once `procurement` is employed the repository routes every receipt, bill and payment to dispatch
+  (`repositories/procurement.ts:66-95`, `routeDomainWrite`) and the native RPCs refuse
+  (`create_procurement_receipt` `0180`, `create_procurement_invoice` and `create_payment` `0373`, plus the three
+  `*_native_mirror_guard`s). Refusing the push alone would leave the store keeper unable to record the receipt at all. ECA-4
+  therefore exempts a pre-cut-over case from those refusals and routes it to the native path; the dispatch refusal stays as the
+  backstop.
 - **PD-ECA-10 — Invoice pairing is SQL, not the master matcher.** It pairs money documents already in one table
   (`sales_invoices`, native rows and ERP-brought-in rows alike), so it is tier-agnostic by construction. The per-tier
   obligation is that the adapter's inbound mapping fills the pairing keys; that is what `invoice.pair-existing`'s shared
   suite asserts.
 - **PD-ECA-11 — Count-once is one column every revenue reader filters on.** `sales_invoices.paired_erp_invoice_id` (set
-  only by `accept_invoice_pairs`) and `and si.paired_erp_invoice_id is null` added to each reader in ECA5-T4's list. No
-  view rewrite, no new invoice state.
+  only by `accept_invoice_pairs`) and `and si.paired_erp_invoice_id is null` added to each reader in ECA5-T3's list (SQL
+  definers, the two views, and the client and agent readers). No new invoice state. Only a native invoice with **no receipt**
+  can be paired, so no receipt is ever counted twice; a native invoice with receipts stays listed as unpaired with the reason
+  "PMO already recorded a payment on this invoice".
 - **PD-ECA-12 — "Replace the ERP budget" needs a server-recorded consent naming the exact ERP budget.** The dispatch payload
   is never trusted to assert it (ADR-0059 §3.3); `dispatchBudget.ts` reads a live, unconsumed consent row for the same org,
   project, account, year and ERP document name before it relaxes the ownership refusal.
 - **PD-ECA-13 — A new registry workflow `budget.resolve-occupant` (v1)** carries ECA-6's two actions. Adding it breaks
   typecheck for both tiers until each declares it (FR-ECA-050), which is the point; Odoo declares `pending #1507`.
-- **PD-ECA-14 — `party.match` bumps to v2 in ECA-2** (tax id first, legal-form suffixes stripped, FR-ECA-011). Odoo pins v1
-  today, so `parity.test.ts` fails for Odoo until it re-declares v2; Odoo already matches through `connect/match.ts`, so it
-  passes the v2 suite without code change.
+- **PD-ECA-14 — `party.match` bumps to v2 in ECA-2** (tax id first, legal-form suffixes stripped, two same-name candidates
+  are a review even when one has no tax id, FR-ECA-011). v2 changes two v1 cases of `party.suite.ts` on purpose (`:32` becomes
+  review, `:45` becomes a tax link). `pickPartyCandidate` becomes a thin wrapper over `proposeMatches`, so every caller
+  (`partyAdopt.ts:80`, the feed, onboarding, `odoo/contract.harness.ts:58`) moves to v2 in the same change; Odoo re-declares v2
+  and passes with no Odoo code change.
+- **PD-ECA-15 — "Set up once" is a per-kind `accepted_at` (FR-ECA-016).** The first bulk accept of a kind stamps
+  `erp_connect_census.accepted_at`. From then on new outcomes of that kind apply without a person: the ERPNext feed already
+  links and brings in through the matcher (ECA2-T14); a new PMO item on an open purchase is sent by the sweep (ECA3-T12); the
+  admin sees only new review rows. Odoo's feed (its S6-T5 "auto-apply after setup") reads the same column.
+- **PD-ECA-16 — Names match on legal-form *suffixes* only, as FR-ECA-011 says.** Leading forms (PT, CV, UD) are kept: "PT Acme"
+  and "CV Acme" are different legal entities, and linking them would push one company's bills against the other's tax id.
+  Trailing forms (Tbk, Ltd, Inc, Co, …), case, punctuation and spacing are stripped.
 
 ## 2. Questions for the Director (`PQ-ECA-#`; default taken if unanswered)
+
+**Lane C, 2026-11-01: PQ-ECA-1, PQ-ECA-2 and PQ-ECA-3 — default taken.**
 
 | # | Question | Default |
 |---|---|---|
@@ -132,6 +159,10 @@
 | `supabase/functions/erpnext-sweep/index.ts` (connect pass) | ECA-2 | ECA-3 |
 | `supabase/functions/adapter-dispatch/{index.ts,cutoverGuard.ts (new),budgetOccupant.ts (new)}` | ECA-4 / ECA-6 | — |
 | `scripts/check-edge-fn-test-binding.mjs` (`REQUIRED` map) | ECA-2 | ECA-4, 6 |
+| `pmo-portal/src/lib/adapterSeam/contractSuite/party.suite.ts` (v2 cases), `erpnext/partyAdopt.ts` (shared normaliser) | ECA-2 | — |
+| `pmo-portal/src/lib/repositories/procurement.ts` (pre-cut-over cases take the native path) | ECA-4 | — |
+| `pmo-portal/src/lib/db/revenue.ts`, `supabase/functions/agent-chat/overdue.ts` (count-once client and agent readers) | ECA-5 | — |
+| `supabase/tests/0178_anon_executable_definers.test.sql` (client-callable allow-list + count) | ECA-2 | ECA-5, 6 |
 | `scripts/check-e2e-skips.mjs` (allowlist) | ECA-8 | — |
 | `pmo-portal/e2e/serial/AC-ECA-050-*.spec.ts`, `AC-ECA-051-*.spec.ts` (new) | ECA-8 | — |
 
@@ -165,7 +196,8 @@ ECA-6 (after ECA-7) ────────────────┘
 |---|---|---|---|
 | ECA-7 closeout | Orca worker (haiku-grade) | no | — |
 | ECA-1 remainder | Orca worker | no | security-auditor (service-role writers) |
-| ECA-2 | Orca UI worker after a 30-second owner sketch glance of the setup screen | no | security-auditor (new RPCs, RLS) |
+| ECA-2 data (T1–T16) | Director-dispatched | **ships alone** (the accept writes party links, the budget account map and the employee cost identity of 0148) | security-auditor (new RPCs, RLS, grants) |
+| ECA-2 screen (T17–T18) | Orca UI worker after a 30-second owner sketch glance of the setup screen | no | — |
 | ECA-3 | Director-dispatched | **ships alone** (writes to the money outbox) | security-auditor |
 | ECA-4 | Director-dispatched | **ships alone** (money path) | security-auditor |
 | ECA-5 | Director-dispatched | **ships alone** (money path: revenue figures) | security-auditor |
@@ -180,7 +212,8 @@ ECA-6 (after ECA-7) ────────────────┘
 (`contractSuite/tiers.contract.test.ts`).
 
 ### ECA7-T1 — closeout evidence (AC-ECA-040..043)
-No code. Run and paste the output into #1604, then close it with a link to #1609 for the 13 remaining workflows:
+No code. **Run by the lane orchestrator; the Director posts the #1604 comment and closes it** (workers do not post to
+GitHub), linking #1609 for the 10 remaining workflows. Command:
 ```bash
 V src/lib/adapterSeam/contractSuite/parity.test.ts src/lib/adapterSeam/contractSuite/tierBranch.test.ts \
   src/lib/adapterSeam/contractSuite/tiers.contract.test.ts src/lib/adapterSeam/erpnext/contract.test.ts
@@ -239,7 +272,7 @@ export function bringInSuite(h: ErpHarness): void {
   });
 }
 ```
-Register `'party.bring-in': bringInSuite` in `contractSuite/index.ts`. Flip `erpnext/workflowDeclarations.ts:131` to
+Register `'party.bring-in': bringInSuite` in `contractSuite/index.ts`. Flip `erpnext/workflowDeclarations.ts:20` to
 `{ status: 'supported', version: 1 }`.
 Verify: `V src/lib/adapterSeam/contractSuite/tiers.contract.test.ts` → **red** (`erpnext declares party.bring-in supported but has no bringIn()`).
 
@@ -294,7 +327,10 @@ export type MatchOutcome =
   | { outcome: 'send'; pmoId: string }
   | { outcome: 'review'; pmoIds: string[]; externalIds: string[]; reason: ReviewReason };
 export type Scenario = 'none' | 'S-A' | 'S-C' | 'S-D'; // 'none' = both sides empty
-export interface CensusRow { kind: MasterKind; pmoCount: number; erpCount: number; scenario: Scenario }
+/** FR-ECA-001: money domains are counted on both sides too. */
+export type CensusDomain = 'budget' | 'purchase' | 'invoice' | 'receipt' | 'payment' | 'timesheet';
+/** `erpCount`/`scenario` null = this ERP cannot count the domain yet (shown as "not checked", never as 0). */
+export interface CensusRow { kind: MasterKind | CensusDomain; pmoCount: number; erpCount: number | null; scenario: Scenario | null }
 ```
 Add `active?: boolean` to `PmoMaster` (default true; archived companies are not candidates, `companyCandidates.ts:9`).
 Verify: `TC`.
@@ -316,7 +352,7 @@ describe('AC-ECA-002 proposeMatches gives every row exactly one outcome and neve
     pmo('p-dup1', 'Delta'), pmo('p-dup2', 'Delta'), pmo('p-conf', 'Eps', { taxId: '111' }), pmo('p-only', 'Zeta'),
   ];
   const E = [
-    erp('E-tax', 'Alpha', { taxId: '01234' }), erp('E-code', 'Beta Ltd', { code: 'b-1' }), erp('E-name', 'gamma'),
+    erp('E-tax', 'Alpha', { taxId: '01234' }), erp('E-code', 'Beta Ltd', { code: 'b-1' }), erp('E-name', 'pt gamma'),
     erp('E-dup', 'Delta'), erp('E-conf', 'Eps', { taxId: '222' }), erp('E-only', 'Theta'), erp('E-off', 'Iota', { active: false }),
   ];
   const out = proposeMatches('party', P, E);
@@ -325,7 +361,7 @@ describe('AC-ECA-002 proposeMatches gives every row exactly one outcome and neve
 
   it('unique tax id links on tax even when names differ', () => expect(of('E-tax')).toEqual([{ outcome: 'link', pmoId: 'p-tax', externalId: 'E-tax', key: 'tax' }]));
   it('unique code links on code, case-insensitive', () => expect(of('E-code')).toEqual([{ outcome: 'link', pmoId: 'p-code', externalId: 'E-code', key: 'code' }]));
-  it('unique normalised name links (legal form and punctuation stripped)', () => expect(of('E-name')).toEqual([{ outcome: 'link', pmoId: 'p-name', externalId: 'E-name', key: 'name' }]));
+  it('unique normalised name links (case, punctuation and a trailing legal form stripped)', () => expect(of('E-name')).toEqual([{ outcome: 'link', pmoId: 'p-name', externalId: 'E-name', key: 'name' }]));
   it('two name matches are one review, no link', () => expect(of('E-dup')).toEqual([{ outcome: 'review', pmoIds: ['p-dup1', 'p-dup2'], externalIds: ['E-dup'], reason: 'ambiguous' }]));
   it('a name match with conflicting tax ids is a review', () => expect(of('E-conf')).toEqual([{ outcome: 'review', pmoIds: ['p-conf'], externalIds: ['E-conf'], reason: 'tax-conflict' }]));
   it('ERP-only becomes bring-in, PMO-only becomes send', () => {
@@ -349,25 +385,39 @@ describe('AC-ECA-002 proposeMatches gives every row exactly one outcome and neve
     expect(proposeMatches('party', [pmo('p', 'Acme', { role: 'client' })], [erp('E', 'Acme')]))
       .toEqual([{ outcome: 'bring-in', externalId: 'E' }, { outcome: 'send', pmoId: 'p' }]);
   });
-  it('normaliseName strips case, punctuation, spacing and legal forms', () => {
-    expect(normaliseName('PT. ACME  Tbk')).toBe('acme');
+  it('PD-ECA-16 normaliseName strips case, punctuation, spacing and trailing legal forms, never a leading one', () => {
+    expect(normaliseName('PT. ACME  Tbk')).toBe('pt acme');
     expect(normaliseName('Acme Co., Ltd')).toBe('acme');
+    expect(normaliseName('PT Acme')).not.toBe(normaliseName('CV Acme'));
+  });
+  it('FR-ECA-011 two same-name candidates are a review even when only one has a tax id that differs', () => {
+    expect(proposeMatches('party', [pmo('a', 'Acme', { taxId: '2' }), pmo('b', 'Acme')], [erp('E', 'Acme', { taxId: '1' })]))
+      .toEqual([{ outcome: 'review', pmoIds: ['a', 'b'], externalIds: ['E'], reason: 'tax-conflict' }]);
+  });
+  it('doubtful claims that share a PMO row merge into one review, so no row has two outcomes', () => {
+    const r = proposeMatches('party', [pmo('p1', 'Acme', { code: 'A-1' }), pmo('p2', 'Acme')], [erp('E1', 'Acme'), erp('E2', 'Other', { code: 'a-1' })]);
+    expect(r).toEqual([{ outcome: 'review', pmoIds: ['p1', 'p2'], externalIds: ['E1', 'E2'], reason: 'ambiguous' }]);
+  });
+  it('PQ-ECA-2 an inactive ERP row links on a strong key only, never on a name', () => {
+    expect(proposeMatches('party', [pmo('k', 'Other', { taxId: '77' })], [erp('E', 'Kappa', { taxId: '77', active: false })]))
+      .toEqual([{ outcome: 'link', pmoId: 'k', externalId: 'E', key: 'tax' }]);
+    expect(proposeMatches('party', [pmo('l', 'Lambda')], [erp('E', 'Lambda', { active: false })]))
+      .toEqual([{ outcome: 'send', pmoId: 'l' }]);
   });
 });
 ```
 Verify: `V src/lib/adapterSeam/connect/match.test.ts` → red (no export `proposeMatches`).
 
 ### ECA2-T3 — `proposeMatches` (green; party.match v2)
-Replace `connect/match.ts` body below the existing `pickPartyCandidate` (kept: the feed and onboarding still call it until
-ECA2-T14):
+Replace `connect/match.ts` with:
 ```ts
 import type { MasterKind, MatchOutcome, NormalisedMaster, PmoMaster } from './types.ts';
 
-const LEGAL_FORMS = new Set(['pt', 'cv', 'tbk', 'persero', 'ud', 'fa', 'ltd', 'limited', 'inc', 'llc', 'co', 'corp', 'gmbh', 'bv', 'sa', 'plc']);
+// PD-ECA-16: trailing legal forms only. A leading PT / CV / UD names a different legal entity and is kept.
+const LEGAL_SUFFIXES = new Set(['tbk', 'persero', 'ltd', 'limited', 'inc', 'llc', 'co', 'corp', 'gmbh', 'bv', 'sa', 'plc']);
 export function normaliseName(name: string): string {
   const words = name.toLowerCase().replace(/[.,()]/g, ' ').split(/\s+/).filter(Boolean);
-  while (words.length > 1 && LEGAL_FORMS.has(words[0])) words.shift();
-  while (words.length > 1 && LEGAL_FORMS.has(words[words.length - 1])) words.pop();
+  while (words.length > 1 && LEGAL_SUFFIXES.has(words[words.length - 1])) words.pop();
   return words.join(' ');
 }
 const normTax = (t?: string | null) => (t ?? '').replace(/[^0-9a-z]/gi, '').toLowerCase();
@@ -381,8 +431,8 @@ const POLICY: Record<MasterKind, { bringIn: boolean; send: boolean }> = {
 
 type Claim = { erp: NormalisedMaster; pmoIds: string[]; key: 'tax' | 'code' | 'name'; conflict: boolean };
 
-/** The one matcher (DD-ECA-2, FR-ECA-010/011). Deterministic: tax id, then code, then normalised name; a key that
- *  matches several rows, a name match whose tax ids differ, or two ERP rows claiming one PMO row is a review. */
+/** The one matcher (DD-ECA-2, FR-ECA-010/011). Deterministic: tax id, then code, then normalised name. A key that matches
+ *  several rows, a name match whose tax ids differ, or two ERP rows claiming one PMO row is a review. */
 export function proposeMatches(kind: MasterKind, pmo: readonly PmoMaster[], erp: readonly NormalisedMaster[]): MatchOutcome[] {
   const policy = POLICY[kind];
   const live = pmo.filter((p) => p.active !== false);
@@ -394,56 +444,85 @@ export function proposeMatches(kind: MasterKind, pmo: readonly PmoMaster[], erp:
   };
   const byTax = index((p) => normTax(p.taxId)), byCode = index((p) => normCode(p.code)), byName = index((p) => normaliseName(p.name));
   const claims: Claim[] = [];
-  const rows = [...erp].filter((e) => !e.internal).sort((a, b) => a.externalId.localeCompare(b.externalId));
+  const rows = erp.filter((e) => !e.internal).sort((a, b) => a.externalId.localeCompare(b.externalId));
   for (const e of rows) {
     const pick = (m: Map<string, PmoMaster[]>, k: string) => (k ? (m.get(k) ?? []).filter((p) => sameRole(p, e)) : []);
     const tax = pick(byTax, normTax(e.taxId));
     const code = tax.length ? [] : pick(byCode, normCode(e.code));
-    const name = tax.length || code.length ? [] : pick(byName, normaliseName(e.name))
-      .filter((p) => !(e.taxId && p.taxId) || normTax(p.taxId) === normTax(e.taxId));
-    const nameAll = tax.length || code.length ? [] : pick(byName, normaliseName(e.name));
+    // PQ-ECA-2: an inactive ERP row is a link target for a strong key only.
+    const name = tax.length || code.length || !e.active ? [] : pick(byName, normaliseName(e.name));
     const hit = tax.length ? { c: tax, key: 'tax' as const } : code.length ? { c: code, key: 'code' as const } : { c: name, key: 'name' as const };
-    if (hit.c.length === 0 && nameAll.length > 0) { claims.push({ erp: e, pmoIds: nameAll.map((p) => p.id), key: 'name', conflict: true }); continue; }
     if (hit.c.length === 0) continue;
-    claims.push({ erp: e, pmoIds: hit.c.map((p) => p.id).sort(), key: hit.key, conflict: false });
+    // Both tax ids set on a name match means they differ (equal ids would have matched on tax): a review.
+    const conflict = hit.key === 'name' && normTax(e.taxId) !== '' && hit.c.some((p) => normTax(p.taxId) !== '');
+    claims.push({ erp: e, pmoIds: hit.c.map((p) => p.id).sort(), key: hit.key, conflict });
   }
-  // A PMO row claimed by more than one ERP row is ambiguous for all of them.
+  // A PMO row claimed by more than one ERP row is doubtful for all of them.
   const claimCount = new Map<string, number>();
   for (const c of claims) for (const id of c.pmoIds) claimCount.set(id, (claimCount.get(id) ?? 0) + 1);
   const out: MatchOutcome[] = []; const touchedPmo = new Set<string>(); const touchedErp = new Set<string>();
-  const shared = new Map<string, Claim[]>();
+  const doubtful: Claim[] = [];
   for (const c of claims) {
     touchedErp.add(c.erp.externalId); c.pmoIds.forEach((id) => touchedPmo.add(id));
-    if (c.conflict) { out.push({ outcome: 'review', pmoIds: c.pmoIds, externalIds: [c.erp.externalId], reason: 'tax-conflict' }); continue; }
-    if (c.pmoIds.length === 1 && claimCount.get(c.pmoIds[0]) === 1) { out.push({ outcome: 'link', pmoId: c.pmoIds[0], externalId: c.erp.externalId, key: c.key }); continue; }
-    const k = c.pmoIds.join('|'); shared.set(k, [...(shared.get(k) ?? []), c]);
+    if (!c.conflict && c.pmoIds.length === 1 && claimCount.get(c.pmoIds[0]) === 1) out.push({ outcome: 'link', pmoId: c.pmoIds[0], externalId: c.erp.externalId, key: c.key });
+    else doubtful.push(c);
   }
-  for (const [k, cs] of shared) out.push({ outcome: 'review', pmoIds: k.split('|'), externalIds: cs.map((c) => c.erp.externalId).sort(), reason: 'ambiguous' });
+  // Doubtful claims sharing a PMO row merge into one review (union-find on PMO ids): every row gets exactly one outcome.
+  const root = new Map<string, string>();
+  const find = (id: string): string => { const r = root.get(id) ?? id; return r === id ? id : find(r); };
+  for (const c of doubtful) for (const id of c.pmoIds.slice(1)) root.set(find(id), find(c.pmoIds[0]));
+  const reviews = new Map<string, Claim[]>();
+  for (const c of doubtful) { const k = find(c.pmoIds[0]); reviews.set(k, [...(reviews.get(k) ?? []), c]); }
+  for (const cs of reviews.values()) out.push({ outcome: 'review', pmoIds: [...new Set(cs.flatMap((c) => c.pmoIds))].sort(),
+    externalIds: cs.map((c) => c.erp.externalId).sort(), reason: cs.some((c) => c.conflict) ? 'tax-conflict' : 'ambiguous' });
   if (policy.bringIn) for (const e of rows) if (e.active && !touchedErp.has(e.externalId)) out.push({ outcome: 'bring-in', externalId: e.externalId });
   if (policy.send) for (const p of live) if (!touchedPmo.has(p.id)) out.push({ outcome: 'send', pmoId: p.id });
   return out;
 }
-```
-(Two ERP rows sharing several PMO ids with different sets each produce their own review row — still one outcome per ERP row.
-A PMO row that is in two different shared sets appears twice; the test "every row exactly once" guards that; if it fires,
-merge overlapping sets with a union-find over `shared` keys before emitting.)
 
-Bump `connect/workflows.ts` `'party.match'` to `version: 2`; set `erpnext/workflowDeclarations.ts` `'party.match'` to
-`version: 2` and `odoo/workflowDeclarations.ts` `'party.match'` to `version: 2` (PD-ECA-14). Add to `contractSuite/party.suite.ts`:
+export type PartyPick<C> =
+  | { outcome: 'link'; candidate: C }
+  | { outcome: 'none' }
+  | { outcome: 'review'; reason: 'tax-conflict' | 'ambiguous'; eligible: number };
+
+/** The shipped single-party entry point (feed, onboarding, Odoo harness), now a thin wrapper so every caller is v2.
+ *  The caller's lookup supplies same-name, same-role candidates (and, after ECA2-T14, same-tax-id ones). */
+export function pickPartyCandidate<C extends { taxId: string | null }>(taxId: string | null | undefined, candidates: readonly C[]): PartyPick<C> {
+  if (candidates.length === 0) return { outcome: 'none' };
+  const out = proposeMatches('party', candidates.map((c, i) => ({ id: String(i), name: 'candidate', taxId: c.taxId })),
+    [{ kind: 'party', externalId: 'source', name: 'candidate', taxId: taxId ?? null, active: true }]);
+  const hit = out.find((o) => o.outcome === 'link' || o.outcome === 'review');
+  if (hit?.outcome === 'link') return { outcome: 'link', candidate: candidates[Number(hit.pmoId)] };
+  if (hit?.outcome === 'review') return { outcome: 'review', reason: hit.reason === 'tax-conflict' ? 'tax-conflict' : 'ambiguous', eligible: hit.pmoIds.length };
+  return { outcome: 'none' };
+}
+```
+`erpnext/partyAdopt.ts:74` `normalizePartyName` becomes `export const normalizePartyName = normaliseName;` (one normaliser; the
+ECA2-T14 candidate lookup uses it, so the feed and the setup screen agree on what "the same name" is).
+
+Bump `connect/workflows.ts` `'party.match'` to `version: 2`; set `erpnext/workflowDeclarations.ts:19` and
+`odoo/workflowDeclarations.ts:23` `'party.match'` to `version: 2` (PD-ECA-14). In `contractSuite/party.suite.ts` (the v2
+behaviour change, so the bump is honest):
+- `:32-38` becomes `it.each([null, ''])('FR-ECA-011 v2: a same-name candidate with an unset tax id next to a conflicting one is a review (%s)', …)` → `expect(r.outcome).toBe('review')`;
+- `:45-51` becomes `'FR-ECA-011 v2: a unique tax id links even when an unset-tax candidate shares the name'` → `expect(r).toMatchObject({ outcome: 'link', pmoId: 'pmo-a' })`;
+- add
 ```ts
     it('FR-ECA-011 v2: a unique tax id links even when the names differ', async () => {
       const r = await h.matchParty({ role: 'vendor', externalId: 'EXT-1', name: 'Other Name', taxId: 'TAX-1' }, [{ pmoId: 'pmo-1', taxId: 'TAX-1' }]);
       expect(r).toMatchObject({ outcome: 'link', pmoId: 'pmo-1' });
     });
 ```
-and re-point the ERPNext harness `matchParty` (`erpnext/contract.harness.ts:136-151`) at `proposeMatches('party', existing→PmoMaster with name = party.name unless the candidate supplies none, [party])`,
-mapping `link`→`link`, `bring-in`→`bring-in`, `review`→`review`, internal→`refused` (the shipped `config-rejected` path).
-Verify: `V src/lib/adapterSeam/connect/match.test.ts src/lib/adapterSeam/contractSuite/tiers.contract.test.ts src/lib/adapterSeam/contractSuite/parity.test.ts` → green; `TC`.
+No harness change: both harnesses reach `pickPartyCandidate` (ERPNext through `adoptParty`, Odoo directly at
+`odoo/contract.harness.ts:58`). Then run the shipped callers' own tests; a v1 narrowing assertion there changes the same way and
+is named in the PR as a deliberate v2 change.
+Verify: `V src/lib/adapterSeam/connect/match.test.ts src/lib/adapterSeam/contractSuite/tiers.contract.test.ts src/lib/adapterSeam/contractSuite/parity.test.ts src/lib/adapterSeam/erpnext/partyAdopt.test.ts src/lib/adapterSeam/erpnext/onboarding.test.ts`
+→ green; `DENO adapter-dispatch ../_shared/erpnextFeedDeps.partyMatch.test.ts && DENO erpnext-onboard index.test.ts` → green; `TC`.
 
-### ECA2-T4 — census (AC-ECA-001, unit part)
+### ECA2-T4 — census (AC-ECA-001, unit part; FR-ECA-001 money domains)
 New `connect/census.ts`:
 ```ts
-import type { CensusRow, ConnectAdapter, MasterKind, Scenario } from './types.ts';
+import { AdapterError } from '../contract.ts';
+import type { CensusDomain, CensusRow, ConnectAdapter, MasterKind, Scenario } from './types.ts';
 /** DD-ECA-1: the scenario is per kind. */
 export function scenarioOf(pmoCount: number, erpCount: number): Scenario {
   if (pmoCount === 0 && erpCount === 0) return 'none';
@@ -452,63 +531,94 @@ export function scenarioOf(pmoCount: number, erpCount: number): Scenario {
   return 'S-D';
 }
 export const CENSUS_KINDS: readonly MasterKind[] = ['party', 'item', 'project', 'employee', 'account'];
-/** FR-ECA-001/003: one count call per kind, read-only. `pmoCounts` comes from the database, never the request. */
-export async function takeCensus(adapter: ConnectAdapter, pmoCounts: Readonly<Record<MasterKind, number>>): Promise<CensusRow[]> {
+export const CENSUS_DOMAINS: readonly CensusDomain[] = ['budget', 'purchase', 'invoice', 'receipt', 'payment', 'timesheet'];
+/** FR-ECA-001/003: one count call per kind or domain, read-only. `pmoCounts` comes from the database, never the request. */
+export async function takeCensus(adapter: ConnectAdapter, pmoCounts: Readonly<Record<MasterKind | CensusDomain, number>>): Promise<CensusRow[]> {
   const rows: CensusRow[] = [];
-  for (const kind of CENSUS_KINDS) {
-    const erpCount = await adapter.countDomain(kind);
-    rows.push({ kind, pmoCount: pmoCounts[kind] ?? 0, erpCount, scenario: scenarioOf(pmoCounts[kind] ?? 0, erpCount) });
+  for (const kind of [...CENSUS_KINDS, ...CENSUS_DOMAINS]) {
+    const pmoCount = pmoCounts[kind] ?? 0;
+    let erpCount: number | null;
+    try { erpCount = await adapter.countDomain(kind); } catch (e) {
+      // A tier that cannot count a money domain yet says so; a master kind must always be countable.
+      if (!(e instanceof AdapterError) || e.code !== 'commit-rejected' || (CENSUS_KINDS as readonly string[]).includes(kind)) throw e;
+      erpCount = null;
+    }
+    rows.push({ kind, pmoCount, erpCount, scenario: erpCount === null ? null : scenarioOf(pmoCount, erpCount) });
   }
   return rows;
 }
 ```
-`connect/census.test.ts`: `it('AC-ECA-001 scenarioOf', …)` covering the four cells, and a fake adapter whose
-`sendMaster` throws, asserting `takeCensus` returns one row per kind and never calls `sendMaster`.
+`connect/census.test.ts`: `it('AC-ECA-001 scenarioOf', …)` covering the four cells; a fake adapter whose `sendMaster` throws,
+asserting `takeCensus` returns 11 rows (5 kinds + 6 domains) and never calls `sendMaster`; a fake whose `countDomain('timesheet')`
+throws `AdapterError('commit-rejected')` gives that row `erpCount: null, scenario: null`; the same throw for `party` propagates.
 Verify: `V src/lib/adapterSeam/connect/census.test.ts` red → implement → green.
 
 ### ECA2-T5 — failing pgTAP for the setup tables (AC-ECA-004, AC-ECA-007)
-New `supabase/tests/erp_connect_setup.test.sql`. Fixture: orgs A and B; in A an Admin, a Finance user and an Engineer;
-an activated `erpnext` binding for A; PMO vendor `V1` (no ref); a run `R` with proposal rows written by
+New `supabase/tests/erp_connect_setup.test.sql` (namespaced UUIDs, `begin … rollback`, `finish()`). Fixture: orgs A and B; in
+A an Admin, a Finance user and an Engineer; an activated `erpnext` binding for A; PMO vendor `V1` (no ref); PMO profile `U1`
+and an `erp_employees` row with `employee_number = 'HR-EMP-1'`; a run `R` with proposal rows written by
 `replace_connect_proposals` as the service role: `link(V1 ↔ 'Supplier:ACME')`, `bring-in('Supplier:NEW', snapshot {name:'New Co', taxId:'9'})`,
-`review(ambiguous)`. Assertions (each description starts with its AC id):
-1. `AC-ECA-004` two `accept_connect_proposals(A, 'party', array[bring-in id])` calls in one test (second as the same Admin)
-   → one `companies` row named `New Co`, one `external_refs` row for `Supplier:NEW`; the second call returns `applied = 0`.
+`link(employee U1 ↔ 'HR-EMP-1')`, `link(employee U2 ↔ 'HR-EMP-404')` (no such `erp_employees` row), `review(ambiguous)`.
+Assertions (each description starts with its AC id):
+1. `AC-ECA-004` two `accept_connect_proposals('erpnext', 'party', array[bring-in id])` calls in one test (second as the same
+   Admin) → one `companies` row named `New Co`, one `external_refs` row for `Supplier:NEW`; the second call returns `bring_in = 0`.
 2. `AC-ECA-004` a bring-in accepted after the feed already inserted `external_refs(Supplier:NEW)` → no second company; the
    proposal is marked `applied` (reconciled), not an error.
 3. `AC-ECA-007` one accept writes exactly one `audit_log` row with action `integration.connect_accept`, detail
-   `{kind:'party', link:1, bring_in:1}`, actor = the Admin.
-4. `AC-ECA-007` `unlink_connect_match(A, link id)` deletes the `external_refs` row and writes audit; after re-linking and
-   inserting a procurement for vendor `V1` whose purchase order has an `external_refs(procurement)` row, unlinking → throws `link in use`.
-5. RLS: the Engineer selects 0 proposal rows; Finance selects rows of kind `account` only; B's Admin selects 0 of A's rows;
-   `authenticated` cannot `insert`/`update` any of the three tables; the Engineer calling `accept_connect_proposals` → `42501`.
-6. Review rows are untouched by accept-all: the `review` row stays `open`.
+   `{kinds:{party:{link:1, bring_in:1, send:0, left_open:0}}}`, actor = the Admin; the census row's `accepted_at` for `party` is set.
+4. `AC-ECA-007` `unlink_connect_match(link id)` deletes the `external_refs` row and writes audit; after re-linking and giving
+   `V1` a procurement case with ERP evidence (an `external_refs(procurement)` row on its purchase order), unlinking → `link in use`.
+   Same refusal for a client with a pushed native invoice (`external_refs(revenue, si.id)`).
+5. Employee links: `U1 ↔ HR-EMP-1` applies (`link_state = 'confirmed'`, `linked_by` = the Admin); `U2 ↔ HR-EMP-404` stays `open`
+   with `reason_text` 'This person has not been read from the ERP yet' and does **not** abort the batch (both in one accept call).
+6. `accept_connect_proposals('erpnext', null, null)` as the Admin applies every open non-review row of every kind; as Finance
+   it applies `account` rows only.
+7. RLS and grants: the Engineer selects 0 proposal rows; Finance selects rows of kind `account` only; B's Admin selects 0 of
+   A's rows; `authenticated` cannot `insert`/`update` any of the four tables and cannot select `erp_connect_staged`; the Engineer
+   calling `accept_connect_proposals` → `42501`; `anon` cannot execute any of the new functions; `service_role` has
+   select/insert/update/delete on the four tables.
+8. Review rows are untouched by accept-all: the `review` row stays `open`.
+9. `replace_connect_proposals` sets the census row's `linked_count` to the number of `link` rows of that kind.
 
-Verify: `PGT supabase/tests/erp_connect_setup.test.sql` → red (relations missing).
+Also update `supabase/tests/0178_anon_executable_definers.test.sql`: add `accept_connect_proposals`, `decide_connect_review`,
+`unlink_connect_match` to `client_callable_rpc_names` and raise both counts (`AC-ACL-002`, `AC-ACL-003`) by 3.
+Verify: `PGT supabase/tests/erp_connect_setup.test.sql supabase/tests/0178_anon_executable_definers.test.sql supabase/tests/0137_service_role_grants.test.sql`
+→ red (relations missing); grep the output for `Parse errors` (an aborted file reports 0 tests).
 
-### ECA2-T6 — migration `<NNNN>_erp_connect_setup.sql` (green)
+### ECA2-T6 — migration `0451_erp_connect_setup.sql` (green)
 ```sql
 -- ECA-2 (#1605): census, match proposals and one-pass accept (FR-ECA-001..016). Tier-keyed, shared by ERPNext and Odoo.
-alter table public.external_master_records drop constraint external_master_records_kind_check;
-alter table public.external_master_records add constraint external_master_records_kind_check check (kind in
-  ('company','partner','product','uom','warehouse','location','account','tax','analytic_plan','analytic_account','project','employee'));
-
+-- Reversal: rollback/0451_erp_connect_setup_down.sql.
 create table public.erp_connect_runs (
   id uuid primary key default gen_random_uuid(),
   org_id uuid not null references public.organizations(id) on delete cascade,
   external_tier text not null,
   state text not null default 'staging' check (state in ('staging','proposing','ready','failed')),
   cursor jsonb not null default '{}'::jsonb check (jsonb_typeof(cursor) = 'object'),   -- {kind: next cursor|null}
+  proposed_kinds text[] not null default '{}',                                         -- kinds proposed so far (one per tick)
   started_by uuid references public.profiles(id), started_at timestamptz not null default now(),
   finished_at timestamptz, error_class text
 );
 create unique index erp_connect_runs_one_open on public.erp_connect_runs (org_id, external_tier) where state in ('staging','proposing');
 
+-- PD-ECA-1: one run's ERP master pages. Never Odoo's directory mirror; deleted with the run.
+create table public.erp_connect_staged (
+  run_id uuid not null references public.erp_connect_runs(id) on delete cascade,
+  org_id uuid not null references public.organizations(id) on delete cascade,
+  kind text not null check (kind in ('party','item','project','employee','account')),
+  external_id text not null,
+  row jsonb not null check (jsonb_typeof(row) = 'object'),   -- the NormalisedMaster
+  primary key (run_id, kind, external_id)
+);
+
 create table public.erp_connect_census (
   org_id uuid not null references public.organizations(id) on delete cascade,
   external_tier text not null,
-  kind text not null check (kind in ('party','item','project','employee','account')),
-  pmo_count int not null, erp_count int not null, linked_count int not null default 0, inactive_erp_count int not null default 0,
-  scenario text not null check (scenario in ('none','S-A','S-C','S-D')),
+  kind text not null check (kind in ('party','item','project','employee','account',
+                                     'budget','purchase','invoice','receipt','payment','timesheet')),
+  pmo_count int not null, erp_count int, linked_count int not null default 0, inactive_erp_count int not null default 0,
+  scenario text check (scenario in ('none','S-A','S-C','S-D')),   -- null: this ERP cannot count the domain yet
+  accepted_at timestamptz,                                          -- PD-ECA-15: first bulk accept of this kind
   taken_at timestamptz not null default now(),
   primary key (org_id, external_tier, kind)
 );
@@ -523,7 +633,7 @@ create table public.erp_connect_proposals (
   identity text not null,                      -- outcome|sorted pmo ids|sorted external ids: re-proposal upserts
   pmo_ids text[] not null default '{}', external_ids text[] not null default '{}',
   match_key text check (match_key in ('tax','code','name')),
-  reason text check (reason in ('ambiguous','tax-conflict','rejected')),
+  reason text check (reason in ('ambiguous','tax-conflict','rejected','held')),
   reason_text text,                            -- plain words, never ERP vocabulary (FR-ECA-022)
   snapshot jsonb not null default '{}'::jsonb,  -- the ERP fields a link/bring-in applies (PD-ECA-2)
   state text not null default 'open' check (state in ('open','sending','applied','dismissed')),
@@ -533,8 +643,9 @@ create table public.erp_connect_proposals (
 );
 create index erp_connect_proposals_queue on public.erp_connect_proposals (org_id, external_tier, kind, outcome, state);
 
-alter table public.erp_connect_runs enable row level security;     alter table public.erp_connect_runs force row level security;
-alter table public.erp_connect_census enable row level security;   alter table public.erp_connect_census force row level security;
+alter table public.erp_connect_runs enable row level security;      alter table public.erp_connect_runs force row level security;
+alter table public.erp_connect_staged enable row level security;    alter table public.erp_connect_staged force row level security;
+alter table public.erp_connect_census enable row level security;    alter table public.erp_connect_census force row level security;
 alter table public.erp_connect_proposals enable row level security; alter table public.erp_connect_proposals force row level security;
 create policy erp_connect_runs_select on public.erp_connect_runs for select
   using (org_id = public.auth_org_id() and public.is_active_member() and public.auth_role() in ('Admin','Finance'));
@@ -543,97 +654,158 @@ create policy erp_connect_census_select on public.erp_connect_census for select
 create policy erp_connect_proposals_select on public.erp_connect_proposals for select
   using (org_id = public.auth_org_id() and public.is_active_member()
          and (public.auth_role() = 'Admin' or (public.auth_role() = 'Finance' and kind = 'account')));
-revoke all on public.erp_connect_runs, public.erp_connect_census, public.erp_connect_proposals from anon, authenticated;
+-- erp_connect_staged: no client policy and no client grant (it holds raw ERP names, including people).
+revoke all on public.erp_connect_runs, public.erp_connect_staged, public.erp_connect_census, public.erp_connect_proposals from anon, authenticated;
 grant select on public.erp_connect_runs, public.erp_connect_census, public.erp_connect_proposals to authenticated;
+grant select, insert, update, delete on public.erp_connect_runs, public.erp_connect_staged, public.erp_connect_census,
+  public.erp_connect_proposals to service_role;
 
--- FR-ODC-073 / FR-ECA-015: the ONE re-link check. A link is in use once an ERP document that names the master exists
--- (a pushed purchase of the vendor, an ERP-held invoice of the client, a pushed purchase or budget of the project).
+-- FR-ODC-073 / FR-ECA-015: the ONE re-link check. A link is in use once an ERP document that names the master exists.
 -- Later slices (Odoo O2+, inventory) extend THIS function; they never add a second check.
 create or replace function public.connect_link_in_use(p_org_id uuid, p_domain text, p_pmo_record_id text) returns boolean
 language sql stable security definer set search_path = public as $$
   select case p_domain
     when 'companies' then exists (
-        select 1 from public.procurements p join public.purchase_orders po on po.procurement_id = p.id
-          join public.external_refs r on r.org_id = p.org_id and r.domain = 'procurement' and r.pmo_record_id = po.id::text
-         where p.org_id = p_org_id and p.vendor_id::text = p_pmo_record_id)
+        select 1 from public.procurements p
+         where p.org_id = p_org_id and p.vendor_id::text = p_pmo_record_id
+           and public.procurement_case_has_external_evidence(p_org_id, p.id))      -- outbox, #1319 links, any ref (0393)
       or exists (select 1 from public.sales_invoices si where si.org_id = p_org_id and si.customer_id::text = p_pmo_record_id
-                    and not si.pmo_native and si.erp_docstatus is not null)
+                    and (not si.pmo_native and si.erp_docstatus is not null
+                         or exists (select 1 from public.external_refs r where r.org_id = p_org_id and r.domain = 'revenue'
+                                       and r.pmo_record_id = si.id::text)))
     when 'projects' then exists (
-        select 1 from public.procurements p join public.purchase_orders po on po.procurement_id = p.id
-          join public.external_refs r on r.org_id = p.org_id and r.domain = 'procurement' and r.pmo_record_id = po.id::text
-         where p.org_id = p_org_id and p.project_id::text = p_pmo_record_id)
+        select 1 from public.procurements p
+         where p.org_id = p_org_id and p.project_id::text = p_pmo_record_id
+           and public.procurement_case_has_external_evidence(p_org_id, p.id))
       or exists (select 1 from public.sales_invoices si where si.org_id = p_org_id and si.project_id::text = p_pmo_record_id
-                    and not si.pmo_native and si.erp_docstatus is not null)
-    else false end
+                    and (not si.pmo_native and si.erp_docstatus is not null
+                         or exists (select 1 from public.external_refs r where r.org_id = p_org_id and r.domain = 'revenue'
+                                       and r.pmo_record_id = si.id::text)))
+      or exists (select 1 from public.budget_version_account_erp_mirror m join public.budget_versions v on v.id = m.budget_version_id
+                  where m.org_id = p_org_id and v.project_id::text = p_pmo_record_id)
+    when 'employees' then exists (
+        select 1 from public.timesheets t join public.external_refs r
+          on r.org_id = t.org_id and r.domain = 'timesheets' and r.pmo_record_id = t.id::text
+         where t.org_id = p_org_id and t.user_id::text = p_pmo_record_id)
+    when 'accounts' then exists (
+        select 1 from public.budget_version_account_erp_mirror m join public.budget_category_account_map a
+          on a.org_id = m.org_id and a.erp_account = m.erp_account
+         where m.org_id = p_org_id and a.category::text = p_pmo_record_id)
+    else false end   -- items: a pushed line carries its code; unlinking changes only future lines
 $$;
 revoke all on function public.connect_link_in_use(uuid,text,text) from public, anon, authenticated;
 ```
+(The builder confirms the `external_refs.pmo_record_id` shape for `timesheets` and `revenue` at head before writing the
+predicate; `0410_billing_kinds.sql:88` is the revenue precedent.)
+
 Service-only writers (`revoke all … from public, anon, authenticated; grant execute … to service_role`), each scoping by
 `p_org_id` resolved by the caller from the binding (NFR-ECA-003):
 - `start_connect_run(p_org_id uuid, p_tier text, p_actor uuid) returns uuid` — inserts a `staging` run; on the
   `erp_connect_runs_one_open` conflict returns the open run's id.
-- `write_connect_census(p_org_id uuid, p_tier text, p_rows jsonb)` — upsert per kind from `[{kind,pmoCount,erpCount,scenario}]`.
-- `stage_connect_master_page(p_org_id uuid, p_tier text, p_run_id uuid, p_kind text, p_rows jsonb, p_next_cursor text)` —
-  upserts `external_master_records` (`kind` mapped `party→partner`, `item→product`, others same; `source_write_date` =
-  `to_char(now() at time zone 'utc','YYYY-MM-DD HH24:MI:SS')` for tiers with no write date; `census_seen_at = run.started_at`)
-  and writes `cursor[kind] = p_next_cursor` (JSON null when done) in the same statement block; flips the run to
-  `proposing` when every kind's cursor is JSON null.
-- `replace_connect_proposals(p_org_id uuid, p_tier text, p_run_id uuid, p_kind text, p_rows jsonb)` — upserts rows by
-  `identity` (`on conflict … do update set run_id, snapshot, reason` only `where state = 'open'`), then deletes `open`
-  rows of that kind whose `run_id` is not `p_run_id` (a stale proposal disappears; applied history stays).
+- `write_connect_census(p_org_id uuid, p_tier text, p_rows jsonb)` — upsert per kind from `[{kind,pmoCount,erpCount,scenario}]`
+  (keeps `accepted_at` and `linked_count`).
+- `stage_connect_master_page(p_org_id uuid, p_run_id uuid, p_kind text, p_rows jsonb, p_next_cursor text)` — upserts
+  `erp_connect_staged` (`on conflict (run_id, kind, external_id) do update set row = excluded.row`) and writes
+  `cursor[kind] = p_next_cursor` (JSON null when done) in the same statement block; flips the run to `proposing` when every
+  kind's cursor is JSON null. Refuses a run of another org.
+- `replace_connect_proposals(p_org_id uuid, p_tier text, p_run_id uuid, p_kind text, p_rows jsonb, p_last boolean)` — upserts rows by
+  `identity` (`on conflict … do update set run_id, snapshot, reason` only `where state = 'open'`); deletes `open` rows of that
+  kind whose `run_id` is not `p_run_id` (a stale proposal disappears; applied history stays); sets the census row's
+  `linked_count` (link rows of the kind) and `inactive_erp_count` (staged rows of the kind with `row->>'active' = 'false'`);
+  appends the kind to `proposed_kinds`, and when all five are proposed sets the run `ready`, `finished_at = now()` and deletes
+  its `erp_connect_staged` rows. Called once per chunk of ≤ 1,000 rows (`p_rows`); the stale-row delete, the census counts and the `proposed_kinds` append run
+only when `p_last` (the kind's final chunk).
 - `record_connect_review(p_org_id uuid, p_tier text, p_kind text, p_pmo_ids text[], p_external_ids text[], p_reason text, p_reason_text text)`
   — the feed's single-row review (ECA2-T14); same upsert-by-identity.
+- `apply_connect_outcome(p_org_id uuid, p_tier text, p_kind text, p_outcome text, p_pmo_id text, p_external_id text, p_snapshot jsonb) returns text`
+  — one link or bring-in through the same internal appliers as the accept (null = applied, else the plain reason). This is the
+  tier-agnostic service-role entry the Odoo feed calls (Odoo plan S6-T2 then runs against it and S6-T3 is skipped).
 
-Actor-checked writers (SECURITY DEFINER, `auth.uid()` actor, re-assert org + active member + role inside the body, like
-`0148_confirm_erp_employee_link.sql:22-40`):
+Internal appliers (definer, `revoke all … from public, anon, authenticated`, no grant), each `returns text` — `null` when
+applied, else the plain reason the row stays `open` with (so one bad row never aborts a batch):
+- `apply_connect_link(p_org uuid, p_tier text, p_kind text, p_pmo text, p_ext text, p_snapshot jsonb, p_actor uuid)`:
+  `party` → `insert into external_refs (org_id, domain, pmo_record_id, external_tier, external_record_id) values
+  (p_org,'companies',p_pmo,p_tier,p_ext) on conflict do nothing`; when it landed, `update companies set erp_tax_id =
+  coalesce(erp_tax_id, p_snapshot->>'taxId') where id = p_pmo::uuid and org_id = p_org`; when it did not land and the existing ref
+  names the same pair → `null` (reconciled); another pair → 'This record is already linked to another ERP record'.
+  `project` → `public.connect_link_project(p_org, p_tier, p_pmo, p_ext)`: for `erpnext`, `update external_org_bindings set
+  config = jsonb_set(config,'{project_map}', coalesce(config->'project_map','{}'::jsonb) || jsonb_build_object(p_pmo, p_ext))
+  where org_id = p_org and external_tier = p_tier and status = 'active' and not coalesce(config->'project_map','{}'::jsonb) ? p_pmo`
+  (never re-points; no row updated → 'This project is already linked'); any other tier → 'Project links for this ERP are not
+  available yet'. Odoo S6-T7 adds its `link_odoo_cost_account` arm to **this** function (one project-link writer per tier, one
+  caller).
+  `item` → same as the ERPNext project arm on `config.item_map`, keyed by the line name (PD-ECA-5).
+  `employee` → `update erp_employees set profile_id = p_pmo::uuid, link_state = 'confirmed', linked_by = p_actor, linked_at =
+  now() where org_id = p_org and employee_number = p_ext and link_state <> 'confirmed'` (the 0148 semantics; the bulk accept is
+  the reviewed first match, DD-UX-1 §5). No row → 'This person has not been read from the ERP yet'; `unique_violation`
+  (`erp_employees_org_profile_confirmed_uidx`, one confirmed employee per person) → 'This person is already linked to another
+  ERP employee'. The ERP employee id (`employee_number`) is the proposal's external id; `erp_employees.id` is never used here.
+  `account` → `insert into budget_category_account_map (org_id, category, erp_account) values (p_org,
+  p_pmo::public.budget_category, p_ext) on conflict do nothing` (both `unique (org_id, category)` and `unique (org_id,
+  erp_account)` hold, `0137_budget_push_seam.sql:94-95`); nothing inserted → 'This account is already used by another category'.
+- `apply_connect_bring_in(p_org uuid, p_tier text, p_kind text, p_ext text, p_snapshot jsonb)` — `party` only: claim first
+  (`insert into external_refs … on conflict (org_id, domain, external_record_id) do nothing returning pmo_record_id`, the order of
+  `onboarding.ts:150-162`), then insert `companies (id, org_id, name, type, erp_tax_id, erp_party_type)` with the claimed id, so a
+  lost race writes no company and returns `null` (reconciled).
+
+Actor-checked writers (SECURITY DEFINER; `revoke all … from public, anon; grant execute … to authenticated`; actor =
+`auth.uid()`; org, active member and role re-asserted in the body exactly as `0148_confirm_erp_employee_link.sql:55-58`):
 ```sql
-create or replace function public.accept_connect_proposals(p_tier text, p_kind text, p_ids uuid[])
+create or replace function public.accept_connect_proposals(p_tier text, p_kind text default null, p_ids uuid[] default null)
 returns jsonb language plpgsql security definer set search_path = public, pg_temp as $$
-declare v_actor uuid := auth.uid(); v_org uuid; v_role text; r record; v_link int := 0; v_in int := 0; v_send int := 0; v_ext text; v_pmo text;
+declare v_actor uuid := auth.uid(); v_org uuid := public.auth_org_id(); v_role text := public.auth_role()::text;
+        r record; v_reason text; v_counts jsonb := '{}'::jsonb; v_k text; v_field text;
 begin
-  select org_id, role::text into v_org, v_role from public.profiles where id = v_actor;
-  if v_org is null or not public.is_active_member() then raise exception 'not an active member' using errcode = '42501'; end if;
-  if not (v_role = 'Admin' or (v_role = 'Finance' and p_kind = 'account')) then raise exception 'not allowed' using errcode = '42501'; end if;
+  if v_actor is null or v_org is null or not public.is_active_member() or v_role not in ('Admin','Finance') then
+    raise exception 'not allowed' using errcode = '42501';
+  end if;
+  if v_role = 'Finance' and coalesce(p_kind, 'account') <> 'account' then raise exception 'not allowed' using errcode = '42501'; end if;
+  -- p_kind null = every kind the actor may accept; p_ids null = every open non-review row (FR-ECA-012 "all", at any size).
   for r in select * from public.erp_connect_proposals
-            where org_id = v_org and external_tier = p_tier and kind = p_kind and id = any(p_ids)
-              and state = 'open' and outcome <> 'review' order by id for update loop
+            where org_id = v_org and external_tier = p_tier and state = 'open' and outcome <> 'review'
+              and (kind = p_kind or (p_kind is null and (v_role = 'Admin' or kind = 'account')))
+              and (p_ids is null or id = any(p_ids))
+            order by kind, id for update loop
+    v_reason := null;
     if r.outcome = 'link' then
-      perform public.apply_connect_link(v_org, p_tier, r.kind, r.pmo_ids[1], r.external_ids[1], r.snapshot, v_actor); v_link := v_link + 1;
-      update public.erp_connect_proposals set state = 'applied', decided_by = v_actor, decided_at = now() where id = r.id;
+      v_reason := public.apply_connect_link(v_org, p_tier, r.kind, r.pmo_ids[1], r.external_ids[1], r.snapshot, v_actor);
     elsif r.outcome = 'bring-in' then
-      perform public.apply_connect_bring_in(v_org, p_tier, r.kind, r.external_ids[1], r.snapshot); v_in := v_in + 1;
-      update public.erp_connect_proposals set state = 'applied', decided_by = v_actor, decided_at = now() where id = r.id;
-    else -- send: queued for ECA-3's drain; nothing is reported done before the ERP confirms (NFR-ECA-004)
-      update public.erp_connect_proposals set state = 'sending', decided_by = v_actor, decided_at = now() where id = r.id; v_send := v_send + 1;
+      v_reason := public.apply_connect_bring_in(v_org, p_tier, r.kind, r.external_ids[1], r.snapshot);
     end if;
+    if r.outcome = 'send' then   -- queued for ECA-3's drain; nothing is reported done before the ERP confirms (NFR-ECA-004)
+      update public.erp_connect_proposals set state = 'sending', decided_by = v_actor, decided_at = now() where id = r.id;
+      v_field := 'send';
+    elsif v_reason is null then
+      update public.erp_connect_proposals set state = 'applied', decided_by = v_actor, decided_at = now() where id = r.id;
+      v_field := replace(r.outcome, '-', '_');
+    else
+      update public.erp_connect_proposals set reason_text = v_reason where id = r.id;
+      v_field := 'left_open';
+    end if;
+    v_counts := jsonb_set(v_counts, array[r.kind], coalesce(v_counts->r.kind, '{"link":0,"bring_in":0,"send":0,"left_open":0}'::jsonb));
+    v_counts := jsonb_set(v_counts, array[r.kind, v_field], to_jsonb((v_counts #>> array[r.kind, v_field])::int + 1));
   end loop;
-  perform public.log_audit('integration.connect_accept', v_org, v_actor, null,
-    jsonb_build_object('tier', p_tier, 'kind', p_kind, 'link', v_link, 'bring_in', v_in, 'send', v_send));
-  return jsonb_build_object('link', v_link, 'bring_in', v_in, 'send', v_send);
+  for v_k in select jsonb_object_keys(v_counts) loop
+    update public.erp_connect_census set accepted_at = coalesce(accepted_at, now())
+     where org_id = v_org and external_tier = p_tier and kind = v_k;
+  end loop;
+  perform public.log_audit('integration.connect_accept', v_org, v_actor, null, jsonb_build_object('tier', p_tier, 'kinds', v_counts));
+  return v_counts;
 end $$;
+revoke all on function public.accept_connect_proposals(text,text,uuid[]) from public, anon;
+grant execute on function public.accept_connect_proposals(text,text,uuid[]) to authenticated;
 ```
-`apply_connect_link` per kind (internal, not granted): `party` → `insert into external_refs (org_id, domain, pmo_record_id,
-external_tier, external_record_id) values (v_org,'companies',pmo,tier,ext) on conflict do nothing` then, when the insert
-landed, `update companies set erp_tax_id = coalesce(erp_tax_id, snapshot->>'taxId'), erp_party_type = …`; when it did not
-land and the existing ref names the same pair → reconciled; a different pair → `raise exception 'already linked'`.
-`project` → `update external_org_bindings set config = jsonb_set(config,'{project_map}', coalesce(config->'project_map','{}'::jsonb) || jsonb_build_object(pmo, ext))
-where … and not coalesce(config->'project_map','{}'::jsonb) ? pmo` (never re-points). `item` → same on `config.item_map`
-keyed by the line name (PD-ECA-5). `employee` → `update erp_employees set profile_id = pmo::uuid, link_state = 'confirmed',
-linked_by = v_actor, linked_at = now() where org_id = v_org and id = ext::uuid and link_state <> 'confirmed'` (the 0148
-semantics; the bulk accept is the reviewed first match, DD-UX-1 §5). `account` → `insert into budget_category_account_map
-(org_id, category, erp_account) values (v_org, pmo::public.budget_category, ext) on conflict do nothing` (both `unique (org_id, category)`
-and `unique (org_id, erp_account)` hold, `0137_budget_push_seam.sql:94-95`; a conflict leaves the proposal `open` with
-`reason_text` 'This account is already used by another category').
-`apply_connect_bring_in` exists only for `party`: insert `companies (id, org_id, name, type, erp_tax_id, erp_party_type)` with
-a fresh id **after** `insert into external_refs … on conflict (org_id, domain, external_record_id) do nothing returning
-pmo_record_id` claims the link (the claim-first order of `onboarding.ts:150-162`), so a lost race writes no company.
-`decide_connect_review(p_id uuid, p_choice jsonb)` — Admin (Finance for account): `{action:'link', pmoId, externalId}`
-applies one link from the row's candidates; `{action:'dismiss'}` sets `dismissed`. Audited.
-`unlink_connect_match(p_id uuid)` — Admin: refuses when `connect_link_in_use(org, domain, pmo)`; otherwise deletes the
-`external_refs` row (or the config key), sets the proposal back to `open`, audit `integration.connect_unlink`.
-Rollback `supabase/migrations/rollback/<NNNN>_erp_connect_setup_down.sql`: drop the nine functions and three tables, restore
-the original `external_master_records_kind_check` list.
-Verify: `PGT supabase/tests/erp_connect_setup.test.sql` → green.
+One call is one audit row naming every kind it touched with its counts (FR-ECA-015).
+`decide_connect_review(p_id uuid, p_choice jsonb)` — Admin (Finance for account): `{action:'link', pmoId, externalId}` applies one
+link from the row's own candidates through `apply_connect_link` (a non-null reason is raised as the error message);
+`{action:'dismiss'}` sets `dismissed`. Audited `integration.connect_review`.
+`unlink_connect_match(p_id uuid)` — Admin: maps the kind to its domain (`party→companies`, `project→projects`,
+`employee→employees`, `account→accounts`, `item→items`), refuses with 'link in use' when `connect_link_in_use(org, domain,
+pmo)`; otherwise removes the link (the `external_refs` row, the config key, the `budget_category_account_map` row, or the
+`erp_employees` link back to `unlinked`), sets the proposal back to `open`, audit `integration.connect_unlink`.
+Rollback `supabase/migrations/rollback/0451_erp_connect_setup_down.sql`: drop the twelve functions and four tables.
+Verify: `PGT supabase/tests/erp_connect_setup.test.sql supabase/tests/0178_anon_executable_definers.test.sql supabase/tests/0137_service_role_grants.test.sql`
+→ green, no `Parse errors`; mutation check: replace the role re-assertion with `if false then` → the Engineer case goes red; restore.
 
 ### ECA2-T7 — ERPNext `ConnectAdapter` reads (failing test first)
 `erpnext/connectAdapter.test.ts` with a fake fetch answering `GET /api/resource/<Doctype>?…` from in-memory arrays and
@@ -642,14 +814,19 @@ Verify: `PGT supabase/tests/erp_connect_setup.test.sql` → green.
   `'Supplier:<last name>'`, then `'Customer:…'`, then `null`; rows normalised `{kind:'party', externalId:'Supplier:SUP-1',
   role:'vendor', taxId, name: supplier_name, active: disabled !== 1, internal: is_internal_supplier === 1}`.
 - `listMasters('project'|'item'|'employee'|'account')` map `Project{name, project_name, status}` (code = `name`),
-  `Item{name, item_name, disabled}` (code = `name`), `Employee{name, employee_name, company_email, status}`, `Account{name,
-  account_name, account_number, parent_account, root_type, is_group, disabled}` with `code = accountCategoryKey(...)` (ECA2-T9).
-- `countDomain(kind)` sums the doctypes' `get_count` and issues **no** POST/PUT (assert the fake saw only GETs).
+  `Item{name, item_name, disabled}` (code = `name`), `Employee{name, employee_name, company_email, user_id, status}` (code =
+  the lower-cased `company_email`, else `user_id`: the work-email key of OQ-TSP-10(C), so people link on a key, not on a name),
+  `Account{name,
+  account_name, account_number, parent_account, root_type, is_group, disabled}` with `code = accountCategoryKey(...)` (ECA2-T8: build T8 before this task).
+- `countDomain(kind)` sums the doctypes' `get_count` and issues **no** POST/PUT (assert the fake saw only GETs); for the six
+  money domains it counts submitted documents (`docstatus = 1`, company-filtered): `budget` Budget, `purchase` Purchase
+  Order + Purchase Receipt + Purchase Invoice, `invoice` Sales Invoice, `receipt` Payment Entry `payment_type = Receive`,
+  `payment` Payment Entry `payment_type = Pay`, `timesheet` Timesheet.
 - Every request is filtered by `company = <binding company>` where the doctype has a company field (Project, Employee, Account).
 Then `erpnext/connectAdapter.ts`:
 ```ts
 import { AdapterError } from '../contract.ts';
-import type { ConnectAdapter, MasterKind, NormalisedMaster } from '../connect/types.ts';
+import type { CensusDomain, ConnectAdapter, MasterKind, NormalisedMaster } from '../connect/types.ts';
 import { erpnextRequest, type ErpClientDeps } from './client.ts';
 import { accountCategoryKey } from '../../budget/categoryAccountMap.ts';
 export const ERP_CONNECT_PAGE = 200;
@@ -664,10 +841,18 @@ const SPECS: Partial<Record<MasterKind, Array<{ doctype: string; fields: string[
     map: (r) => ({ kind: 'project', externalId: String(r.name), code: String(r.name), name: String(r.project_name ?? r.name), active: r.status !== 'Cancelled' }) }],
   item: [{ doctype: 'Item', fields: ['name', 'item_name', 'disabled'], company: false,
     map: (r) => ({ kind: 'item', externalId: String(r.name), code: String(r.name), name: String(r.item_name ?? r.name), active: r.disabled !== 1 }) }],
-  employee: [{ doctype: 'Employee', fields: ['name', 'employee_name', 'status'], company: true,
-    map: (r) => ({ kind: 'employee', externalId: String(r.name), name: String(r.employee_name ?? r.name), active: r.status === 'Active' }) }],
+  employee: [{ doctype: 'Employee', fields: ['name', 'employee_name', 'company_email', 'user_id', 'status'], company: true,
+    map: (r) => ({ kind: 'employee', externalId: String(r.name), code: String(r.company_email ?? r.user_id ?? '').toLowerCase() || null,
+      name: String(r.employee_name ?? r.name), active: r.status === 'Active' }) }],
   account: [{ doctype: 'Account', fields: ['name', 'account_name', 'account_number', 'parent_account', 'root_type', 'is_group', 'disabled'], company: true,
     map: (r) => ({ kind: 'account', externalId: String(r.name), code: accountCategoryKey({ account: String(r.name), accountName: String(r.account_name ?? ''), accountNumber: (r.account_number as string) ?? null, parentAccount: (r.parent_account as string) ?? null, rootType: String(r.root_type ?? ''), isGroup: r.is_group === 1, disabled: r.disabled === 1 }), name: String(r.account_name ?? r.name), active: r.disabled !== 1 && r.is_group !== 1 }) }],
+};
+/** FR-ECA-001 money domains: submitted documents only. */
+const DOMAIN_COUNTS: Record<CensusDomain, Array<{ doctype: string; extra?: unknown[][] }>> = {
+  budget: [{ doctype: 'Budget' }], invoice: [{ doctype: 'Sales Invoice' }], timesheet: [{ doctype: 'Timesheet' }],
+  purchase: [{ doctype: 'Purchase Order' }, { doctype: 'Purchase Receipt' }, { doctype: 'Purchase Invoice' }],
+  receipt: [{ doctype: 'Payment Entry', extra: [['payment_type', '=', 'Receive']] }],
+  payment: [{ doctype: 'Payment Entry', extra: [['payment_type', '=', 'Pay']] }],
 };
 export function createErpnextConnectAdapter(client: ErpClientDeps, company: string): ConnectAdapter {
   const specOf = (kind: string) => { const s = SPECS[kind as MasterKind]; if (!s) throw new AdapterError('commit-rejected', `kind ${kind} unavailable`); return s; };
@@ -686,6 +871,12 @@ export function createErpnextConnectAdapter(client: ErpClientDeps, company: stri
     },
     async countDomain(kind) {
       let total = 0;
+      const money = DOMAIN_COUNTS[kind as CensusDomain];
+      for (const d of money ?? []) {
+        const q = new URLSearchParams({ doctype: d.doctype, filters: JSON.stringify([['company', '=', company], ['docstatus', '=', 1], ...(d.extra ?? [])]) });
+        total += Number((await erpnextRequest(client, { method: 'GET', path: `/api/method/frappe.client.get_count?${q}` }) as { message?: number }).message ?? 0);
+      }
+      if (money) return total;
       for (const s of specOf(kind)) {
         const q = new URLSearchParams({ doctype: s.doctype, filters: JSON.stringify(filters(s.company, null)) });
         total += Number((await erpnextRequest(client, { method: 'GET', path: `/api/method/frappe.client.get_count?${q}` }) as { message?: number }).message ?? 0);
@@ -726,8 +917,9 @@ Extend `ConnectHarness` in `contractSuite/harness.ts`:
   calls(): { reads: number; writes: number };
 ```
 New `contractSuite/census.suite.ts` (`census`): load S-A (ERP 3 parties, PMO 0), S-C (ERP 0 items, PMO 2), S-D (ERP 2
-projects, PMO 2) and assert `takeCensus(c.adapter, {party:0,item:2,project:2,employee:0,account:0})` scenarios
-`S-A/S-C/S-D/none/none` and `c.calls().writes === 0` — test title `'AC-ECA-001 …'`.
+projects, PMO 2) and assert `takeCensus(c.adapter, {party:0,item:2,project:2,employee:0,account:0, budget:0,purchase:0,invoice:0,receipt:0,payment:0,timesheet:0})`
+gives the five kind rows `S-A/S-C/S-D/none/none`, six domain rows (a number or `null`, never an error), and
+`c.calls().writes === 0` — test title `'AC-ECA-001 …'`. The ERPNext fake answers `get_count` for the money doctypes with 0.
 New `contractSuite/match.suite.ts` exporting `matchSuite(kind)` for `item`, `account`, `employee`: load ERP rows through the
 harness, page them with `listMasters` until `nextCursor === null` (assert ≥ 2 pages by loading `ERP_CONNECT_PAGE + 1` rows
 for `item`), run `proposeMatches(kind, pmo, rows)` and assert one exact-code link, one review, no write.
@@ -746,15 +938,17 @@ import type { ConnectAdapter, MasterKind, MatchOutcome, NormalisedMaster, PmoMas
 export const RUN_KINDS: readonly MasterKind[] = ['party', 'item', 'project', 'employee', 'account'];
 export interface ConnectRunDeps {
   adapter: ConnectAdapter;
-  run: { id: string; state: 'staging' | 'proposing' | 'ready' | 'failed'; cursor: Partial<Record<MasterKind, string | null>> };
+  run: { id: string; state: 'staging' | 'proposing' | 'ready' | 'failed'; cursor: Partial<Record<MasterKind, string | null>>; proposedKinds: MasterKind[] };
   stagePage(kind: MasterKind, rows: NormalisedMaster[], nextCursor: string | null): Promise<void>;
-  stagedErp(kind: MasterKind): Promise<NormalisedMaster[]>;   // read back from external_master_records, paged under max_rows
+  stagedErp(kind: MasterKind): Promise<NormalisedMaster[]>;   // read back from erp_connect_staged, keyset pages of 1,000 (< max_rows)
   pmoMasters(kind: MasterKind): Promise<PmoMaster[]>;          // org-scoped from the binding's org
+  /** Writes in chunks of ≤ 1,000 rows through replace_connect_proposals; the last chunk marks the kind proposed. */
   writeProposals(kind: MasterKind, rows: MatchOutcome[], snapshot: (externalId: string) => NormalisedMaster | undefined): Promise<void>;
-  finish(): Promise<void>;
   budget: { calls: number };                                     // ERP calls left this tick
 }
-/** One bounded step (NFR-ECA-005): page masters until the budget is spent, then propose once every kind is staged. */
+/** One bounded step (NFR-ECA-005): page masters until the budget is spent; once every kind is staged, propose ONE kind per
+ *  call. ponytail: one kind's whole staged set is matched in memory (100k items ≈ tens of MB); shard by name prefix if a
+ *  tenant outgrows a tick. */
 export async function advanceConnectRun(d: ConnectRunDeps): Promise<'more' | 'ready'> {
   for (const kind of RUN_KINDS) {
     let cursor = d.run.cursor[kind];
@@ -768,17 +962,19 @@ export async function advanceConnectRun(d: ConnectRunDeps): Promise<'more' | 're
     }
     if (cursor !== null) return 'more';
   }
-  for (const kind of RUN_KINDS) {
-    const erp = await d.stagedErp(kind);
-    const byId = new Map(erp.map((e) => [e.externalId, e]));
-    await d.writeProposals(kind, proposeMatches(kind, await d.pmoMasters(kind), erp), (id) => byId.get(id));
-  }
-  await d.finish();
-  return 'ready';
+  const kind = RUN_KINDS.find((k) => !d.run.proposedKinds.includes(k));
+  if (kind === undefined) return 'ready';
+  const erp = await d.stagedErp(kind);
+  const byId = new Map(erp.map((e) => [e.externalId, e]));
+  await d.writeProposals(kind, proposeMatches(kind, await d.pmoMasters(kind), erp), (id) => byId.get(id));
+  d.run.proposedKinds.push(kind);
+  return d.run.proposedKinds.length === RUN_KINDS.length ? 'ready' : 'more';
 }
 ```
-`connect/run.test.ts`: a fake adapter with 450 parties and budget 2 → first call `'more'` with 400 staged; second `'ready'`
-and `writeProposals` called once per kind; a thrown `listMasters` propagates and leaves the cursor at the last good page.
+(`replace_connect_proposals` sets the run `ready` when the fifth kind lands, ECA2-T6.)
+`connect/run.test.ts`: a fake adapter with 450 parties and budget 2 → first call `'more'` with 400 staged; then one call per
+kind, each calling `writeProposals` once for that kind, the fifth returning `'ready'`; a thrown `listMasters` propagates and
+leaves the cursor at the last good page.
 Verify: `V src/lib/adapterSeam/connect/run.test.ts` red → green.
 
 ### ECA2-T12 — setup verbs (Deno, failing first)
@@ -787,7 +983,8 @@ with `globalThis.fetch` mocked (repo rule, `scripts/check-edge-fn-test-binding.m
 - `census` as Admin → `start_connect_run` + `write_connect_census` called with `orgId` from the caller's profile even when the
   body carries another `orgId` (NFR-ECA-003); response `{runId, census:[…5 rows]}`; ERP saw no POST.
 - `accept-proposals` as Engineer → 403 before any RPC; as Admin → calls `accept_connect_proposals` with the **caller's JWT
-  client** (not the service client), passes `{tier, kind, ids}`, returns the RPC's counts.
+  client** (not the service client), passes `{tier, kind, ids}` (`kind`/`ids` may be absent = all), returns the RPC's counts.
+- `census` as Finance → 403 even with `kind: 'account'` in the body (Finance may only list, accept and decide account rows).
 - `list-proposals` → reads `erp_connect_proposals` via the caller client, 200 per page by `id`, filter by `outcome`.
 - `connect-status` → the run row + census rows.
 - `decide-review`, `unlink-match` → their RPCs via the caller client.
@@ -798,7 +995,7 @@ export const CONNECT_ACTIONS = new Set(['census', 'connect-status', 'list-propos
 export async function handleConnectAction(ctx: { serviceClient: SupabaseClient; callerClient: SupabaseClient; orgId: string; userId: string; role: string; body: Record<string, unknown> }): Promise<unknown> {
   const tier = String(ctx.body.tier);
   const action = String(ctx.body.setupAction);
-  const finance = ctx.role === 'Finance' && ctx.body.kind === 'account';
+  const finance = ctx.role === 'Finance' && ctx.body.kind === 'account' && ['list-proposals', 'accept-proposals', 'decide-review'].includes(action);
   if (ctx.role !== 'Admin' && !finance && action !== 'connect-status') throw new AppError('Admin role required', 'FORBIDDEN');
   if (action === 'census') {
     const adapter = await connectAdapterForOrg(ctx.serviceClient, ctx.orgId, tier);
@@ -807,7 +1004,7 @@ export async function handleConnectAction(ctx: { serviceClient: SupabaseClient; 
     await rpc(ctx.serviceClient, 'write_connect_census', { p_org_id: ctx.orgId, p_tier: tier, p_rows: census });
     return { runId, census };
   }
-  if (action === 'accept-proposals') return await rpc(ctx.callerClient, 'accept_connect_proposals', { p_tier: tier, p_kind: ctx.body.kind, p_ids: ctx.body.ids });
+  if (action === 'accept-proposals') return await rpc(ctx.callerClient, 'accept_connect_proposals', { p_tier: tier, p_kind: ctx.body.kind ?? null, p_ids: ctx.body.ids ?? null });
   if (action === 'decide-review') return await rpc(ctx.callerClient, 'decide_connect_review', { p_id: ctx.body.id, p_choice: ctx.body.choice });
   if (action === 'unlink-match') return await rpc(ctx.callerClient, 'unlink_connect_match', { p_id: ctx.body.id });
   if (action === 'list-proposals') return await listProposals(ctx.callerClient, tier, ctx.body);
@@ -815,8 +1012,10 @@ export async function handleConnectAction(ctx: { serviceClient: SupabaseClient; 
 }
 ```
 `pmoMasterCounts` counts live `companies` (type Client/Vendor, not archived), distinct `procurement_items.name` on
-procurements not `Paid`/`Cancelled`, `projects` not archived, active `profiles`, budget categories in use — all
-`.eq('org_id', orgId)` with `{ count: 'exact', head: true }` (never a row read, so no `max_rows` cap applies).
+procurements not `Paid`/`Cancelled`, `projects` not archived, active `profiles`, budget categories in use, and the six money
+domains (`budget_versions` Active, `procurements` not Cancelled, native `sales_invoices` not Cancelled, native
+`incoming_payments`, `payments`, Approved `timesheets`) — all `.eq('org_id', orgId)` with `{ count: 'exact', head: true }`
+(never a row read, so no `max_rows` cap applies). Distinct item names need a row read: page them by keyset at 1,000.
 New `supabase/functions/_shared/connectAdapterForOrg.ts`: `const FACTORIES: Record<string, (sc, orgId) => Promise<ConnectAdapter>> = { erpnext: …erpClientForOrg + createErpnextConnectAdapter(client, config.company), odoo: …odooClientForOrg + createOdooConnectAdapter }`;
 unknown tier or a refusal → `AppError('config-rejected')`. A record lookup is not a tier branch (`tierBranch.test.ts:22-28`).
 `external-set-company/index.ts`: before the Odoo split at `:239`, insert
@@ -828,11 +1027,13 @@ Verify: `DENO external-set-company connect.test.ts` red → green; `npm --prefix
 ### ECA2-T13 — sweep pass: advance open runs
 In `erpnext-sweep/index.ts`, after the party feed pass, add a pass `advanceConnectRuns(serviceClient, org, budget)` that
 loads the org's `staging|proposing` run for tier `erpnext`, builds `ConnectRunDeps` over the RPCs of T6 and calls
-`advanceConnectRun` with `budget.calls = 20` per tick. `writeProposals` maps outcomes to rows with
+`advanceConnectRun` with `budget.calls = 20` per tick. `pmoMasters('employee')` returns active profiles with `code` = the
+lower-cased profile email. `writeProposals` maps outcomes to rows with
 `identity = outcome|pmoIds.sorted.join(',')|externalIds.sorted.join(',')`, `snapshot = {name, taxId, code, role}` of the ERP
 row, `reason_text` from `CONNECT_REVIEW_TEXT[reason]` (`'Two or more records could be this one'`, `'Tax numbers do not match'`).
 Deno test `erpnext-sweep/connectRun.test.ts`: org A has a staging run; a tick with 450 fake suppliers advances the cursor
-and does not touch org B's run; a second tick writes proposals and marks the run `ready`.
+and does not touch org B's run; the next five ticks each write one kind's proposals and the fifth marks the run `ready`;
+2,500 outcomes for one kind reach `replace_connect_proposals` as three chunks.
 Verify: `DENO erpnext-sweep connectRun.test.ts` red → green.
 
 ### ECA2-T14 — feed and onboarding use the shared matcher; review rows persist (AC-ECA-005, AC-ECA-006, FR-ECA-016)
@@ -840,15 +1041,15 @@ Extend the tagged tests from ECA1-T1 first (red): `AC-ECA-005 … two PMO vendor
 `record_connect_review` call with `p_kind='party'`, `p_external_ids=['Supplier:ACME']`, `p_reason='ambiguous'`; `AC-ECA-006 …
 ambiguous …` asserts the same for onboarding. Add `'AC-ECA-005 a tax-id match with a different name links the existing company'`.
 Then:
-- `_shared/companyCandidates.ts`: add a second query `erp_tax_id = <normalised tax>` (same org/type/unarchived/unlinked
-  filters) unioned with the name query, so tax-first matching has its candidates; drop the "two ERP parties … belongs to
-  ECA-2" comment.
-- `_shared/erpnextFeedDeps.ts:233-251`: replace `pickCandidate(...)` with
-  `proposeMatches('party', candidates.map(toPmoMaster), [normalised])`; `link` → its pmoId; `bring-in` → `null` (mint);
-  `review` → `record_connect_review(...)` **and** the shipped `surfaceActionRequired(...)`, then throw `party-match-unclear`
-  as today.
-- `erpnext/onboarding.ts:141-148`: same replacement; `flagForDecision` additionally calls a new dep
-  `recordReview(entry)`, wired in `erpnext-onboard/index.ts` to `record_connect_review`.
+- `_shared/companyCandidates.ts`: add a second query `erp_tax_id = <tax>` (same org/type/unarchived/unlinked filters)
+  unioned with the name query, so tax-first matching has its candidates; the name compare uses `normaliseName` (through
+  `normalizePartyName`, now its alias, ECA2-T3) so the feed and the setup screen agree; drop the "two ERP parties … belongs to
+  ECA-2" comment. Test in `erpnextFeedDeps.partyMatch.test.ts`: `'PD-ECA-16 "Acme Ltd" matches "Acme"; "CV Acme" never matches "PT Acme"'`.
+- `_shared/erpnextFeedDeps.ts:233-251`: keep `pickCandidate(...)` (it is v2 through `pickPartyCandidate` since ECA2-T3); on
+  its `action-required` throw, call `record_connect_review(...)` **and** the shipped `surfaceActionRequired(...)`, then throw
+  `party-match-unclear` as today. The review's `p_external_ids` is the doctype-encoded id (`externalIdFor`), never the name.
+- `erpnext/onboarding.ts:114-117`: `flagForDecision` additionally calls a new dep `recordReview(entry)`, wired in
+  `erpnext-onboard/index.ts` to `record_connect_review`.
 Verify: `DENO adapter-dispatch ../_shared/erpnextFeedDeps.partyMatch.test.ts && DENO erpnext-onboard index.test.ts && V src/lib/adapterSeam/erpnext/onboarding.test.ts` → green.
 
 ### ECA2-T15 — item map in the line resolver (PD-ECA-5)
@@ -862,12 +1063,13 @@ Verify: `V src/lib/adapterSeam/erpnext/dispatchFactory.test.ts` → green.
 `repositories/contracts/integrations.ts`: add
 ```ts
 export type ConnectKind = 'party' | 'item' | 'project' | 'employee' | 'account';
-export interface ConnectCensusRow { kind: ConnectKind; pmo_count: number; erp_count: number; linked_count: number; inactive_erp_count: number; scenario: 'none' | 'S-A' | 'S-C' | 'S-D' }
+export type ConnectDomain = 'budget' | 'purchase' | 'invoice' | 'receipt' | 'payment' | 'timesheet';
+export interface ConnectCensusRow { kind: ConnectKind | ConnectDomain; pmo_count: number; erp_count: number | null; linked_count: number; inactive_erp_count: number; scenario: 'none' | 'S-A' | 'S-C' | 'S-D' | null; accepted_at: string | null }
 export interface ConnectProposal { id: string; kind: ConnectKind; outcome: 'link' | 'bring-in' | 'send' | 'review'; pmo_ids: string[]; external_ids: string[]; reason_text: string | null; snapshot: { name?: string; code?: string }; state: 'open' | 'sending' | 'applied' | 'dismissed' }
 export interface ConnectStatus { run: { id: string; state: 'staging' | 'proposing' | 'ready' | 'failed' } | null; census: ConnectCensusRow[] }
 ```
 and on `IntegrationsRepository`: `startConnectCensus(tier)`, `getConnectStatus(tier)`, `listConnectProposals(tier, kind, outcome, afterId)`,
-`acceptConnectProposals(tier, kind, ids)`, `decideConnectReview(tier, id, choice)`, `unlinkConnectMatch(tier, id)` — each a
+`acceptConnectProposals(tier, kind | null, ids | null)` (null = all), `decideConnectReview(tier, id, choice)`, `unlinkConnectMatch(tier, id)` — each a
 one-line `erpSetupRequest(<verb>, {...}, tier)` in `repositories/integrations.ts`. Test in
 `repositories/integrations.test.ts`: each method posts the verb and tier.
 Verify: `V src/lib/repositories/integrations.test.ts`; `TC`.
@@ -876,8 +1078,14 @@ Verify: `V src/lib/repositories/integrations.test.ts`; `TC`.
 `components/integrations/ConnectProposalReview.test.tsx` (RTL, repository mocked):
 `it('AC-ECA-003 accept all applies 35 rows after one confirm stating the counts and leaves 2 review rows open', …)` —
 30 link + 5 bring-in + 2 review proposals for `party`; click "Accept all"; the `ConfirmDialog` text reads "Link 30 records and
-bring 5 into PMO? 2 need a decision and are left as they are."; confirm → `acceptConnectProposals('erpnext','party', <35 ids>)`
-called once; the two review rows still render with "Needs a decision". Also: per-kind census line "12 vendors in PMO, 40 in
+bring 5 into PMO? 2 need a decision and are left as they are." (counts from the census and proposal totals, not from the loaded
+page); confirm → `acceptConnectProposals('erpnext','party', null)` called once; the two review rows still render with "Needs a
+decision". Also `'FR-ECA-012 "Accept everything" accepts every kind in one action after one confirm'` →
+`acceptConnectProposals('erpnext', null, null)`; a row left open by the accept shows its plain reason.
+`'FR-ECA-042 purchase documents in the ERP are counted and point to the purchase link screen'` — census `purchase` with
+`erp_count 7` renders "7 purchase documents are in the ERP. Link them to PMO purchases" linking to the procurement page's
+ERP-documents section (`pages/procurement/ErpOrphansSection.tsx`, #1319); a domain row with `erp_count null` reads "Not checked
+for this ERP yet", never "0". Also: per-kind census line "12 vendors in PMO, 40 in
 the ERP, 9 are the same" (FR-ECA-002); no doctype words (`Supplier`, `Customer`, `Item`) in the rendered text (NFR-ECA-006);
 review row "Choose" opens a Combobox of its candidates and calls `decideConnectReview`; staging state shows "Reading records
 from the ERP…" and polls `getConnectStatus` every 5 s until `ready`.
@@ -892,9 +1100,9 @@ Verify: `V src/components/integrations/ConnectProposalReview.test.tsx src/compon
 
 ### ECA2-T18 — retire the per-party onboarding verb's UI path, tier-branch allowlist
 `repositories/integrations.ts:27` `onboardErpParties` stays (operator recovery), no UI caller. If T17 removed a tier
-comparison from `IntegrationsView.tsx`, decrement its count in `tierBranch.test.ts:31`; if it added one, move the branch
+comparison from `IntegrationsView.tsx`, decrement its count in `tierBranch.test.ts` `ALLOWED` (`IntegrationsView.tsx: 14`); if it added one, move the branch
 behind the repository instead (the allowlist must not grow).
-Verify: `V src/lib/adapterSeam/contractSuite/tierBranch.test.ts`; full ECA-2 gate: `TC`, `LINT <touched>`, the touched files
+Verify: `V src/lib/adapterSeam/contractSuite/tierBranch.test.ts`; full ECA-2 gate: `TC`, `LINT` on every file T1–T18 created or edited (`git diff --name-only origin/dev -- pmo-portal | sed 's#^pmo-portal/##'`), the touched files
 above, `PGT supabase/tests/erp_connect_setup.test.sql`.
 
 ---
@@ -942,7 +1150,7 @@ Replace the stub in `erpnext/connectAdapter.ts`:
         return { externalId: found ?? await create('Project', { project_name: record.name, company }) };
       }
       if (kind === 'item') {
-        const found = await one('Item', [['item_code', '=', record.code ?? record.name]]);
+        const found = await one('Item', [['item_code', '=', record.code ?? record.name]]) ?? await one('Item', [['item_name', '=', record.name]]);
         return { externalId: found ?? await create('Item', { item_code: record.code ?? record.name, item_name: record.name, item_group: 'All Item Groups', stock_uom: 'Nos', is_stock_item: 0, is_purchase_item: 1 }) };
       }
       throw new AdapterError('commit-rejected', `send ${kind} unavailable`);
@@ -955,32 +1163,50 @@ Verify: `V src/lib/adapterSeam/contractSuite/tiers.contract.test.ts src/lib/adap
 ### ECA3-T4 — `sendViaOutbox` (PD-ECA-8; failing test first)
 `connect/sendViaOutbox.test.ts`: with an in-memory `DispatchMoneyOutboxDeps` (the fake used in `dispatch.money.test.ts`),
 sending the same record twice under key `seed:party:c-1` claims once and calls `sendMaster` once; a `lost-response` fault then
-a retry calls `sendMaster` twice and finalizes one external ref; a `commit-rejected` marks the outbox row `failed`.
+a retry adopts the first document through the probe (`sendMaster` called once, `probe` once) and finalizes one external ref; a
+`commit-rejected` marks the outbox row `failed`; a probe that throws a non-transport error holds the row (`command-held`);
+`recordExternalRef` is called for `party` and never for `project` / `item` / `employee`.
 `connect/sendViaOutbox.ts`:
 ```ts
-import type { Adapter, AdapterCommand, CommandResult } from '../contract.ts';
+import type { Adapter, AdapterCommand, CommandResult, ExternalRefMapping } from '../contract.ts';
 import { dispatchMoneyWrite, type DispatchMoneyWriteDeps } from '../dispatch.ts';
 import type { ConnectAdapter, MasterKind, PmoMaster } from './types.ts';
-export const SEND_DOMAIN: Record<Exclude<MasterKind, 'contact' | 'account'>, string> = { party: 'companies', project: 'projects', item: 'items', employee: 'employees' };
+export type SendKind = Exclude<MasterKind, 'contact' | 'account'>;
+export const SEND_DOMAIN: Record<SendKind, string> = { party: 'companies', project: 'projects', item: 'items', employee: 'employees' };
 export const sendKey = (kind: MasterKind, pmoId: string) => `seed:${kind}:${pmoId}`;
 /** An Adapter whose only command is "make sure the ERP holds this master" (lookup-then-create inside sendMaster). */
-export function masterSendAdapter(connect: ConnectAdapter, kind: MasterKind, record: PmoMaster): Adapter {
+export function masterSendAdapter(connect: ConnectAdapter, kind: SendKind, record: PmoMaster): Pick<Adapter, 'tier' | 'capabilityMap' | 'commit'> {
   return {
+    tier: connect.tier,
+    capabilityMap: { [SEND_DOMAIN[kind]]: true } as Adapter['capabilityMap'],
     async commit(_c: AdapterCommand): Promise<CommandResult> {
       const { externalId } = await connect.sendMaster(kind, record, sendKey(kind, record.id));
       return { externalRecordId: externalId, canonical: { id: record.id } };
     },
-  } as Adapter;
+  };
 }
-export async function sendMasterOnce(deps: Omit<DispatchMoneyWriteDeps, 'adapter' | 'command'>, connect: ConnectAdapter, kind: Exclude<MasterKind, 'contact' | 'account'>, record: PmoMaster): Promise<CommandResult> {
+/** PD-ECA-8: one outbox row per master; only companies keep their link in external_refs (one link store per kind). */
+export async function sendMasterOnce(
+  deps: Omit<DispatchMoneyWriteDeps, 'adapter' | 'command' | 'recordExternalRef' | 'writeReadModel'> & { recordExternalRef: (m: ExternalRefMapping) => Promise<void> },
+  connect: ConnectAdapter, kind: SendKind, record: PmoMaster,
+): Promise<CommandResult> {
   return dispatchMoneyWrite({
     ...deps,
     adapter: masterSendAdapter(connect, kind, record),
     command: { domain: SEND_DOMAIN[kind], operation: 'create', record: { id: record.id }, idempotencyKey: sendKey(kind, record.id) },
-  } as DispatchMoneyWriteDeps);
+    writeReadModel: async () => {},
+    recordExternalRef: kind === 'party' ? deps.recordExternalRef : async () => {},
+  });
 }
 ```
-(Match the exact `Adapter`/`CommandResult` member names in `adapterSeam/contract.ts` when building; the test is the oracle.)
+(Match the exact `CapabilityMap` shape in `adapterSeam/contract.ts:105-112` when building; the test is the oracle.) The
+ERPNext probe lives next to `sendMaster`: `erpnextSendProbe(client, company, kind, record)` in `erpnext/connectAdapter.ts` runs
+the same lookup `sendMaster` does and returns `{ externalRecordId }`, `null`, or throws `commit-rejected` on two hits (held).
+Callers pass it as `probeByRemarksKey: () => erpnextSendProbe(…)` to `createDbMoneyOutboxDeps` (required there,
+`adapter-dispatch/moneyOutboxDeps.ts:139`), with `reissueOnInconclusiveAbsence: kind !== 'party'`: ERPNext rejects a second
+Project with the same `project_name` and a second Item with the same `item_code`, so a probe miss proves the create never
+landed; a Supplier/Customer name is not unique in ERPNext and can be edited in Desk, so a party miss is held for a person
+(the Odoo S8 rule for the same reason).
 Verify: `V src/lib/adapterSeam/connect/sendViaOutbox.test.ts` red → green.
 
 ### ECA3-T5 — failing pgTAP for send results (AC-ECA-010 DB half, AC-ECA-012 DB half)
@@ -991,31 +1217,40 @@ New `supabase/tests/erp_connect_sends.test.sql`: proposals in `sending` for part
 3. project result writes `config.project_map.P1`; item result whose external id equals the line name writes nothing to `item_map`.
 4. `record_connect_send_result(A, <item proposal>, null, 'The ERP refused this item: unit missing')` → proposal
    `outcome='review'`, `reason='rejected'`, `reason_text` set, `state='open'`; the other two unaffected (FR-ECA-022).
+   `record_connect_send_held(A, <project proposal>)` → `outcome='review'`, `reason='held'`, `reason_text` 'We could not confirm
+   whether the ERP created this record', `state='open'` (NFR-ECA-004).
 5. No row in any accounts or tax table is written by any of the above (assert `count(*)` of `budget_category_account_map` unchanged).
 6. `authenticated` cannot execute either function.
 Verify: `PGT supabase/tests/erp_connect_sends.test.sql` → red.
 
-### ECA3-T6 — migration `<NNNN>_erp_connect_sends.sql` (green)
+### ECA3-T6 — migration `0452_erp_connect_sends.sql` (green)
 - `claim_connect_sends(p_org_id uuid, p_tier text, p_limit int) returns setof erp_connect_proposals` — `update … set
   decided_at = now() where id in (select id from erp_connect_proposals where org_id = p_org_id and external_tier = p_tier and
   state = 'sending' and (decided_at is null or decided_at < now() - interval '5 minutes') order by decided_at nulls first, id
   limit p_limit for update skip locked) returning *` (the 5-minute lease equals the outbox quarantine window, primer
   "Numeric relationships").
-- `record_connect_send_result(p_org_id uuid, p_id uuid, p_external_id text, p_rejection text)` — success: the same per-kind
-  link writer as `apply_connect_link` (party → `external_refs`; project → `project_map`; item → `item_map` only when the
-  code differs from the line name; employee → `erp_employees` link), then `state='applied'`; rejection: `outcome='review',
-  reason='rejected', reason_text=p_rejection, state='open'`. Both scope by `p_org_id` and refuse a proposal of another org.
-- Both service-only. Rollback drops both.
+- `record_connect_send_result(p_org_id uuid, p_id uuid, p_external_id text, p_rejection text)` — success: the same
+  `apply_connect_link` (0451) with the proposal's `decided_by` as actor (party → `external_refs`, already present from the
+  outbox finalize → reconciled; project → `project_map`; item → `item_map` only when the code differs from the line name;
+  employee → `erp_employees` link), then `state='applied'`; a non-null reason from it → `outcome='review', reason='rejected'`;
+  rejection: `outcome='review', reason='rejected', reason_text=p_rejection, state='open'`.
+- `record_connect_send_held(p_org_id uuid, p_id uuid)` — `outcome='review', reason='held'`, the fixed plain `reason_text`.
+- All three scope by `p_org_id`, refuse a proposal of another org, and are service-only (`revoke all … from public, anon,
+  authenticated; grant execute … to service_role`). Rollback drops all three.
 Verify: `PGT supabase/tests/erp_connect_sends.test.sql` → green.
 
 ### ECA3-T7 — sweep drain (Deno, failing first)
 `erpnext-sweep/connectSends.test.ts`: org A has three `sending` proposals; a tick calls `claim_connect_sends`, builds each
 `PmoMaster` from the DB row (company/project/line name — never from the proposal snapshot), calls `sendMasterOnce` with
-`createDbMoneyOutboxDeps({serviceClient, orgId, externalTier:'erpnext', operation:'create'})`, and records results; an
+the outbox deps below, and records results; an
 `AdapterError('commit-rejected')` records a rejection with copy from `CONNECT_SEND_REJECTION_TEXT` (plain words); an
-`external-unreachable` records nothing (the lease retries next tick). Org B untouched.
+`external-unreachable` or `command-in-flight-for-record` records nothing (the lease retries next tick); `command-held` calls
+`record_connect_send_held`. The outbox deps are `createDbMoneyOutboxDeps({ serviceClient, orgId, externalTier: 'erpnext',
+operation: 'create', probeByRemarksKey: () => erpnextSendProbe(client, company, kind, record), reissueOnInconclusiveAbsence:
+kind !== 'party' })`. Org B untouched.
 Implement `drainConnectSends(serviceClient, org, budget)` in `erpnext-sweep/index.ts` after `advanceConnectRuns`, budget
-10 sends per tick.
+10 sends per tick. `reconcileOrgOutbox` (`:392`) skips rows whose key starts with `seed:` (the drain owns them; replaying one as
+an ordinary `companies` commit would post the wrong body) — test `'a seed: outbox row is never replayed by the reconcile pass'`.
 Verify: `DENO erpnext-sweep connectSends.test.ts` red → green.
 
 ### ECA3-T8 — shared `sendAll` suite (AC-ECA-010, AC-ECA-012)
@@ -1039,13 +1274,17 @@ shows employee `send` rows as "Add in the ERP" with no accept action.
 Verify: `V src/components/integrations/erpSetupIncompleteness.test.ts src/lib/adapterSeam/contractSuite/parity.test.ts`.
 
 ### ECA3-T10 — `ensure-project` sends instead of creating (PD-ECA-7)
-Red first in `external-set-company/setup.test.ts`: the `AC-SETUP-001 AC-003 #1325` case (`:643`) now expects no direct
+Red first in `external-set-company/setup.test.ts`: the `AC-SETUP-001 AC-003 #1325` case (`:646`) now expects no direct
 `POST /api/resource/Project` from `ensure-project`; instead an `external_command_outbox` claim with key
 `seed:project:<id>` and the same final `project_map` entry; a retry reuses the outbox row (no second POST). Rename the test
 `'AC-SETUP-001 project creation goes through the outbox send …'` (the goal oracle — linked to the real ERP project, retry
 reuses it — is unchanged; the step changes, per the BDD authoring rule).
-`setup.ts:532-546`: replace `matches[0] ?? await createDoc(...)` with `matches[0]?.name ?? (await sendMasterOnce(outboxDeps,
-createErpnextConnectAdapter(ctx.client, ctx.company), 'project', { id: project.id, name: project.name, code: project.code })).externalRecordId`.
+`setup.ts:542-546`: replace `matches[0] ?? await createDoc(...)` with `matches[0]?.name ?? (await sendMasterOnce(outboxDeps,
+createErpnextConnectAdapter(ctx.client, ctx.company), 'project', { id: project.id, name: project.name, code: project.code })).externalRecordId`,
+where `outboxDeps = createDbMoneyOutboxDeps({ serviceClient, orgId, externalTier: 'erpnext', operation: 'create',
+probeByRemarksKey: () => erpnextSendProbe(ctx.client, ctx.company, 'project', record), reissueOnInconclusiveAbsence: true,
+actorUserId })` (import from `../adapter-dispatch/moneyOutboxDeps.ts`, the precedent `erpnext-sweep/index.ts` already uses).
+The caller set stays the shipped one (`index.ts:246`: Admin, Operator, Executive, Project Manager, Finance).
 `e2e/serial/AC-SETUP-001-project-erp-link.spec.ts`: its assertions already read `erpProject` back; no step change needed
 beyond what the served function does. Run it: `scripts/with-erpnext-lock.sh scripts/e2e-local.sh AC-SETUP-001`.
 Verify: `DENO external-set-company setup.test.ts` → green.
@@ -1054,6 +1293,19 @@ Verify: `DENO external-set-company setup.test.ts` → green.
 `ConnectProposalReview.test.tsx`: `'NFR-ECA-004 an accepted send shows "Sending to the ERP" until the ERP confirms; a
 rejection returns as "Needs a decision" with the reason'`. Rows in `sending` render a status pill, never "Done".
 Verify: `V src/components/integrations/ConnectProposalReview.test.tsx`; `scripts/ux-proof.sh /integrations`.
+
+### ECA3-T12 — after setup, new items are sent without a person (FR-ECA-016, FR-ECA-020, PD-ECA-15)
+Who breaks without it: a buyer adds a new line "Kabel 10 mm" to a purchase after setup; the order push is refused because the
+ERP has no such item — the S-C failure again, one item at a time.
+pgTAP (append to `erp_connect_sends.test.sql`): `enqueue_new_item_sends(A, 'erpnext')` (service-only) inserts one `send`
+proposal in state `sending` (`decided_by` null, `snapshot {auto:true}`) for each distinct `procurement_items.name` on a case not
+`Paid`/`Cancelled` that has no `config.item_map` key and no proposal of kind `item` naming it — **only** when the `item` census
+row's `accepted_at` is set; a second call inserts nothing; before the first accept it inserts nothing. Add it to `0452`.
+Sweep: `drainConnectSends` calls it once per tick before claiming. The send's lookup (`sendMaster` item branch) also tries
+`item_name = <line name>` when `item_code` misses, so an ERP item keyed differently links instead of duplicating (two hits →
+rejected → review).
+Verify: `PGT supabase/tests/erp_connect_sends.test.sql`; `DENO erpnext-sweep connectSends.test.ts` with a case
+`'FR-ECA-016 a new line after setup is sent once and the admin sees nothing'`.
 
 ---
 
@@ -1072,11 +1324,15 @@ New `supabase/tests/process_domain_cutover.test.sql`: org A, activated binding, 
 2. `AC-ECA-021` same for `expenses` with one `expense_claims` row in `Draft`; a `Submitted` or `Approved` claim does not block
    (the shipped DD-EXP-12..22 cut-off already keeps pre-enable claims from posting).
 3. `pre_cutover_procurement(<case>)`: a case whose first `purchase_orders.created_at` < `activated_at` → true; created after →
-   false; no PO → false.
+   false; no PO → false; a case of another org called by an org-A user → null (the caller fails closed on null).
 4. The revenue guard (`0275`) still fires for revenue (regression).
+5. `AC-ECA-020` (DB half) with `procurement` employed, as the store keeper: `create_procurement_receipt` on a **pre-cut-over**
+   case succeeds; on a post-cut-over case it still raises `42501` (shipped refusal). Same pair for `create_procurement_invoice`
+   and `create_payment`, and for an `update … set status` through `procurement_receipts_native_mirror_guard`,
+   `procurement_invoices_native_mirror_guard` and `payments_native_mirror_guard`.
 Verify: `PGT supabase/tests/process_domain_cutover.test.sql` → red.
 
-### ECA4-T2 — migration `<NNNN>_process_domain_cutover.sql` (green)
+### ECA4-T2 — migration `0453_process_domain_cutover.sql` (green)
 ```sql
 -- ECA-4 (#1601, FR-ECA-030/031): employing procurement or expenses is refused while PMO holds drafts that would be stranded,
 -- generalising 0275 §7. Serialises with the org row exactly as assert_revenue_employable does.
@@ -1102,17 +1358,29 @@ create trigger external_domain_ownership_process_employable
   before insert or update of domain, org_id on public.external_domain_ownership
   for each row execute function public.assert_process_domain_employable();
 
--- PD-ECA-9: a purchase started before the connection = its first PO row predates activated_at.
+-- PD-ECA-9: a purchase started before the connection = its first PO row predates activated_at. Definer so the answer does not
+-- depend on what the caller's RLS shows (an invisible binding must not read as "not pre-cut-over"); a case outside the
+-- caller's org answers null, and every caller treats null as a refusal (fail closed).
 create or replace function public.pre_cutover_procurement(p_procurement_id uuid) returns boolean
-language sql stable security invoker set search_path = public as $$
-  select coalesce((select min(po.created_at) from public.purchase_orders po where po.procurement_id = p_procurement_id)
-                  < (select b.activated_at from public.external_org_bindings b join public.procurements p on p.org_id = b.org_id
-                      where p.id = p_procurement_id and b.status = 'active' and b.activated_at is not null
-                      order by b.activated_at limit 1), false)
+language sql stable security definer set search_path = public as $$
+  select case when p.id is null or (auth.uid() is not null and p.org_id is distinct from public.auth_org_id()) then null
+              else coalesce((select min(po.created_at) from public.purchase_orders po where po.procurement_id = p.id)
+                            < (select b.activated_at from public.external_org_bindings b
+                                where b.org_id = p.org_id and b.status = 'active' and b.activated_at is not null
+                                order by b.activated_at limit 1), false) end
+    from (select 1) one left join public.procurements p on p.id = p_procurement_id
 $$;
-grant execute on function public.pre_cutover_procurement(uuid) to authenticated;
+revoke all on function public.pre_cutover_procurement(uuid) from public, anon;
+grant execute on function public.pre_cutover_procurement(uuid) to authenticated, service_role;
 ```
-`security invoker`: the caller's RLS decides whether they can see the case at all. Rollback drops trigger and both functions.
+Then re-create **verbatim from their latest migration** `create_procurement_receipt` (`0180_rpc_active_member_gate.sql`),
+`create_procurement_invoice` and `create_payment` (`0373_procurement_queue_gate_and_currency.sql`), and the three guards
+`procurement_receipts_native_mirror_guard` (`0099`), `procurement_invoices_native_mirror_guard` (`0273`),
+`payments_native_mirror_guard` (`0189`), each with one change: the `domain_externally_owned(<org>, 'procurement')` refusal
+becomes `domain_externally_owned(<org>, 'procurement') and not coalesce(public.pre_cutover_procurement(<case id>), false)`
+(OQ-ECA-1: such a purchase finishes in PMO). Grants unchanged (the 0275 §9-style check: assert in the test that
+`authenticated` still executes the three RPCs and `anon` does not). Rollback restores the six bodies from those migrations and
+drops the trigger and both new functions.
 Verify: `PGT supabase/tests/process_domain_cutover.test.sql` → green.
 
 ### ECA4-T3 — failing shared suite `cutover.purchase` (AC-ECA-020)
@@ -1145,21 +1413,37 @@ export async function assertNotPreCutover(client: { rpc(fn: string, args: Record
   if (command.domain !== 'procurement' || !LATER_STEPS.has(String(command.record.erp_doc_kind))) return;
   if (typeof command.record.procurementId !== 'string') throw new AppError('purchase reference missing', 'commit-rejected');
   const { data, error } = await client.rpc('pre_cutover_procurement', { p_procurement_id: command.record.procurementId });
-  if (error) throw new AppError('could not check the connection date', 'commit-rejected');
+  if (error || typeof data !== 'boolean') throw new AppError('could not check the connection date', 'commit-rejected');
   if (data === true) throw new AppError('recorded before the ERP connection, not sent', 'pre-cutover');
 }
 ```
 Call it in `supabase/functions/adapter-dispatch/index.ts` right after the authorization gate (`:843-853`) with
-`callerClient`, mapping `pre-cutover` to HTTP 409 `{error:'pre-cutover'}`; and in the sweep's procurement recovery path
-before it reconstructs a command (so the backstop never re-drives it). The ERPNext harness `pushPurchaseStep` builds a fake
+`callerClient`, mapping `pre-cutover` to HTTP 409 `{error:'pre-cutover'}`; and in the sweep's outbox replay for
+procurement rows (`erpnext-sweep/index.ts` `reconcileOrgOutbox`, `:392`; the replay authorisation at `:3535`) before it rebuilds a
+command, so the backstop never re-drives it. The ERPNext harness `pushPurchaseStep` builds a fake
 caller client whose `rpc('pre_cutover_procurement')` answers `orderedBeforeConnect` and runs `assertNotPreCutover` then
 `resolveErpDispatchAdapter`, counting calls like `pushPurchase` (`erpnext/contract.harness.ts:181-194`).
 Deno test `adapter-dispatch/cutoverGuard.served.test.ts` imports the shipped handler, mocks fetch, and asserts a 409 with no
 outbox insert and no ERP request for a pre-cutover receipt.
 Verify: `V src/lib/adapterSeam/contractSuite/tiers.contract.test.ts src/lib/adapterSeam/cutoverGate.test.ts && DENO adapter-dispatch cutoverGuard.served.test.ts`.
 
+### ECA4-T4b — pre-cut-over purchases take the PMO path (OQ-ECA-1 "finish in PMO only")
+Who breaks without it: a store keeper receives goods on a purchase ordered before the connection; dispatch refuses (T4) and
+the native RPC refuses (`domain_externally_owned`), so the receipt cannot be recorded anywhere.
+Failing unit test in `src/lib/repositories/procurement.external.test.ts` (the shipped routing suite): `'AC-ECA-020 a receipt, bill or payment on a pre-cut-over
+purchase is recorded through PMO, never dispatched'` — with `routeDomainWrite('procurement') === 'external'` and the case's
+`preCutover: true`, `createReceipt` / `createInvoice` / `createPayment` call the DAL and never `dispatchCreate`; with
+`preCutover: false` they dispatch as today.
+`db/procurement*` detail read adds `pre_cutover` from `rpc('pre_cutover_procurement', { p_procurement_id })` (one call per
+case detail); `repositories/procurement.ts:66-95` routes on `routeDomainWrite(...) === 'external' && !preCutover`. The
+contract (`repositories/contracts/procurement.ts`) gains `preCutover?: boolean` on the three create inputs; pages pass the
+detail's flag through. Sibling suites that mock `procurementRepository` (`grep -rl "procurementRepository" pmo-portal/pages pmo-portal/src --include=*.test.tsx`) are run.
+Verify: `V src/lib/repositories/procurement.external.test.ts` plus every file the grep above lists;
+`PGT supabase/tests/process_domain_cutover.test.sql`.
+
 ### ECA4-T5 — label (FR-ECA-030 "wherever its push state would show")
-`pushErrorCopy.ts`: map code `pre-cutover` → `t('integrations.push.preCutover', 'Recorded before the ERP connection, not sent')`,
+`pushErrorCopy.ts`: map code `pre-cutover` → `t('integrations.push.preCutover', 'Recorded before the ERP connection, not sent')`
+(also the steady label on a pre-cut-over purchase's receipts, bills and payments, from the detail's `pre_cutover` flag),
 severity `info` (not a failure). `pendingPush.ts`: a `pre-cutover` result is terminal — no retry button. Tests
 `pushErrorCopy.test.ts` `'FR-ECA-030 pre-cutover reads as information, never an error, and offers no retry'`.
 en/id strings in `administration.json`.
@@ -1187,14 +1471,18 @@ through its revenue mapping.
 New `supabase/tests/invoice_pairs.test.sql`. Org A, client C, project P with a contract work order; a native PMO invoice
 `N1` (Unpaid, `amount` 11,100,000, `reference_number` `PO-7`, March); ERP owns revenue; a brought-in ERP invoice `E1` (not
 native, Unpaid, `erp_docstatus` 1, same `customer_id`, `reference_number = 'PO-7'`, 11,100,000, same `tax_treatment`, March,
-`project_id` and `work_order_id` null); an unpaired native `N2`.
+`project_id` and `work_order_id` null); an unpaired native `N2`; a native `N3` with one native receipt and a matching ERP
+invoice `E3`.
 1. `propose_invoice_pairs()` as Finance returns exactly `(N1, E1)`; changing `E1`'s amount by 1 → no pair; a second ERP
    candidate with the same keys → `N1` is listed with `ambiguous = true` and not proposed.
 2. Before accept: `get_project_finances(P)` billed = N1 + E1 + N2 (the double count the slice fixes).
 3. `AC-ECA-030` `accept_invoice_pairs('[{"pmo":"N1","erp":"E1"}]')` → billed = E1 + N2, receivable counts E1 once;
    `N1.paired_erp_invoice_id = E1`; `E1.project_id = P` and its work order copied from N1.
-4. `AC-ECA-030` `N2` still counts and appears in `list_unpaired_native_invoices()`.
-5. Same once-only figure in `get_management_pack`, `get_projects_money_collection`, `work_order_billing`.
+4. `AC-ECA-030` `N2` still counts and appears in `list_unpaired_native_invoices()`; `N3` is never proposed (it has a PMO
+   receipt) and is listed with reason `has-receipt`; `accept_invoice_pairs` for `(N3, E3)` → refused.
+5. Same once-only figure in `get_management_pack`, `get_executive_dashboard`, `get_pm_dashboard_projects`,
+   `get_projects_money_collection`, `get_project_billing`, and in the views `sales_invoice_work_billed` and
+   `work_order_billing_lines` (select the paired row: absent).
 6. Engineer → `42501`; another org's Finance cannot pair A's rows; accepting a pair twice → no-op; pairing `N1` to a second
    ERP invoice → refused (`unique` on `paired_erp_invoice_id` and `N1` already paired).
 Verify: `PGT supabase/tests/invoice_pairs.test.sql` → red.
@@ -1206,7 +1494,8 @@ alter table public.sales_invoices add column paired_erp_invoice_id uuid referenc
 create unique index sales_invoices_one_pair on public.sales_invoices (paired_erp_invoice_id) where paired_erp_invoice_id is not null;
 ```
 `propose_invoice_pairs() returns table (pmo_invoice_id uuid, erp_invoice_id uuid, ambiguous boolean)` — SECURITY INVOKER,
-Admin/Finance: native rows (`pmo_native`, status in `Unpaid`,`Paid`, `paired_erp_invoice_id is null`) joined to non-native
+Admin/Finance: native rows (`pmo_native`, status `Unpaid`, `paired_erp_invoice_id is null`, **no** `incoming_payments` row
+with `sales_invoice_id` = the native id — PD-ECA-11, so no receipt is counted twice) joined to non-native
 rows (`erp_docstatus = 1`, `erp_cancelled_at is null`, not already a pair target) on same `customer_id`, and
 (`reference_number` equal and not null, or `si_number` equal and not null), equal `amount`, equal `tax_treatment`,
 `date_trunc('month', invoice_date)` equal (FR-ECA-040); `ambiguous` when either side has more than one candidate (those are listed, never proposed for accept).
@@ -1217,34 +1506,59 @@ shipped `assign_sales_invoice_project`; one `log_audit('revenue.invoice_pair', �
 `sales_invoices_native_mirror_guard` (latest `0410_billing_kinds.sql`): re-create verbatim plus
 `if current_setting('pmo.invoice_pairing', true) = 'on' then return new; end if;` scoped to a change of only the three
 `paired_*` columns (compare `old` and `new` with those columns blanked; any other change still falls through to the guard).
-`list_unpaired_native_invoices()` — native, not paired, created before revenue was employed.
+`list_unpaired_native_invoices()` — native, not paired, created before revenue was employed, with `reason` (`no-match`,
+`ambiguous`, `has-receipt`).
+Add `accept_invoice_pairs` to `0178_anon_executable_definers.test.sql`'s `client_callable_rpc_names` and raise both counts by 1;
+`revoke all … from public, anon; grant execute … to authenticated`. Mutation check: drop the receipt predicate from the
+accept's re-check → assertion 4's refusal goes red; restore.
 Rollback: drop the functions, restore the guard from 0410, drop the index and columns.
 
 ### ECA5-T3 — migration part 2: count-once in every reader (green for 2, 5)
-Re-create each reader **verbatim from its latest migration** with `and si.paired_erp_invoice_id is null` (or the alias it
-uses) added to each `sales_invoices` predicate that sums or lists billed/receivable amounts:
-`get_project_finances` (`0410_billing_kinds.sql:283`), `get_management_pack` (`0323_management_pack_invoice_presence.sql`),
-`get_executive_dashboard`, `get_pm_dashboard_projects`, `get_projects_money_collection` (`0396_project_commitment_position.sql`),
-`get_project_billing`, `get_project_drawdown`, `work_order_billing` (`0337_contract_quantities.sql:1010`),
-`get_unbilled_work_orders`, `sales_invoice_work_billed` (`0262_billing_by_work_order.sql`),
-`get_finance_budget_review` (`0322_finance_actual_alignment.sql`). Before writing, list every definer that reads the table at
-head so none is missed: `scripts/prior-art.sh sales_invoices` plus
-`grep -lE "from (public\.)?sales_invoices" supabase/migrations/*.sql` and keep the last definition of each function; any
-reader found that sums amounts and is not in the list above joins it in this task (record it in the PR). Rollback re-creates
-each from its prior migration.
-Verify: `PGT supabase/tests/invoice_pairs.test.sql` → green; `supabase test db` for the readers' own pgTAP files touched
-(`project_finances*.test.sql`, `management_pack*.test.sql`, `work_order_billing*.test.sql` under `supabase/tests/`).
+Find every reader at head first (the draft's list missed both views and the client and agent readers):
+```bash
+python3 - <<'EOF'   # last definition of each function/view that names sales_invoices, plus its migration
+import re,glob,os
+last={}
+for f in sorted(glob.glob('supabase/migrations/[0-9]*.sql')):
+    s=open(f).read()
+    for m in re.finditer(r'create\s+(?:or\s+replace\s+)?(function|view)\s+(?:public\.)?([a-z0-9_]+)(.*?)(?=\ncreate\s+(?:or\s+replace\s+)?(?:function|view|table|trigger|policy|index|unique)|\Z)',s,re.S|re.I):
+        last[m.group(2)]=(os.path.basename(f),'sales_invoices' in m.group(3))
+print('\n'.join(f'{n} {f}' for n,(f,r) in sorted(last.items()) if r))
+EOF
+grep -rlE "sales_invoices|sales_invoice_work_billed|work_order_billing_lines" pmo-portal/src pmo-portal/pages supabase/functions | grep -v '\.test\.'
+```
+Of what it prints, the ones that **sum or list billed / receivable amounts** take the filter; writers, guards and triggers do not.
+At `b52aa48a` that is:
+- Views (re-created verbatim from `0262_billing_by_work_order.sql` with `and si.paired_erp_invoice_id is null`):
+  `sales_invoice_work_billed` (every management-pack, dashboard and finance reader that goes through it inherits the filter)
+  and `work_order_billing_lines`.
+- Functions reading the table directly (re-created verbatim from their latest migration with the filter on each
+  `sales_invoices` predicate that sums or lists): `get_project_finances` (`0410_billing_kinds.sql`), `get_management_pack`
+  (`0323`), `get_executive_dashboard` and `get_pm_dashboard_projects` (`0396`), `get_project_billing` (`0337`), plus
+  `get_projects_money_collection` (`0396`), `get_project_drawdown`, `work_order_billing` (`0337`) and `get_unbilled_work_orders`
+  (`0262`) where their bodies touch the table.
+- Client and agent readers (unit-tested in ECA5-T4): the revenue-by-project aggregate in `src/lib/db/revenue.ts` (the open-AR
+  loop over `sales_invoices`, `:431-445`) and `listSalesInvoices` (`:170-190`, `.is('paired_erp_invoice_id', null)` unless the
+  caller asks for paired rows); the agent's overdue tool `supabase/functions/agent-chat/overdue.ts:107` (an unpaid paired PMO
+  copy would be reported overdue next to its ERP twin).
+Any other reader the sweep prints that sums amounts joins this task and is named in the PR. Rollback re-creates each from its
+prior migration.
+Verify: `PGT supabase/tests/invoice_pairs.test.sql` → green; the readers' own pgTAP files under the same lock
+(`ls supabase/tests | grep -E "project_finances|management_pack|work_order_billing|executive_dashboard|pm_dashboard"`);
+`DENO agent-chat overdue.test.ts` with a paired-copy case.
 
 ### ECA5-T4 — repository, figure rule and review screen (AC-ECA-030 unit part)
-`repositories/revenue` (the revenue repository file under `src/lib/repositories/`): `proposeInvoicePairs()`,
-`acceptInvoicePairs(pairs)`, `listUnpairedNativeInvoices()` via `supabase.rpc`. The invoice list maps
-`paired_erp_invoice_id` to a "Counted as ERP invoice <number>" chip and excludes paired rows from any client-side total it
-computes; unit test `'AC-ECA-030 a paired PMO invoice is excluded from the client-side billed total and shows its ERP invoice'`.
+`src/lib/repositories/revenue.ts` over `src/lib/db/revenue.ts`: `proposeInvoicePairs()`, `acceptInvoicePairs(pairs)`,
+`listUnpairedNativeInvoices()` via `supabase.rpc`. The invoice list maps `paired_erp_invoice_id` to a "Counted as ERP invoice
+<number>" chip; the revenue-by-project aggregate skips paired rows; unit test in `src/lib/db/revenue.test.ts`
+`'AC-ECA-030 a paired PMO invoice is excluded from the client-side billed and open totals and shows its ERP invoice'`.
 `components/integrations/InvoicePairReview.tsx` (+RTL test): pairs table with "Accept all" behind a `ConfirmDialog` ("Count
 14 invoices once, as the ERP copy?"), ambiguous rows listed separately with "Needs a decision", unpaired native invoices
 listed with their amount; Admin/Finance only (`<CanWrite>`). Linked from the setup checklist when the census shows invoices on
 both sides (FR-ECA-042 pattern) and from the revenue page.
-Verify: `V <the two tests>`; `LINT <touched>`; `scripts/ux-proof.sh /integrations` and the invoices route.
+Verify: `V src/lib/db/revenue.test.ts src/components/integrations/InvoicePairReview.test.tsx`;
+`LINT src/lib/db/revenue.ts src/lib/repositories/revenue.ts src/components/integrations/InvoicePairReview.tsx`;
+`scripts/ux-proof.sh /integrations` and `scripts/ux-proof.sh /finance/receivables`.
 
 ### ECA5-T5 — `invoice.pair-existing` suite
 Harness: `mapInboundInvoice?(doc: { client: string; number: string; poRef: string | null; total: string; tax: 'ppn' | 'none'; date: string }): Promise<Record<string, unknown>>` —
@@ -1280,10 +1594,11 @@ Verify: `TC` (red without both declarations — that is AC-ECA-040 doing its job
 3. `'AC-ECA-031 replace: with a consent row naming DESK-BUDGET the push amends it through the push path and consumes the consent'`
    → cancel + amend calls, `external_refs` written for the new document, consent `consumed_at` set, one audit row.
 4. A consent naming `OTHER-BUDGET` does not unlock `DESK-BUDGET`; a consent from org B does not unlock org A.
+4b. Use as draft with an ERP account that has no category mapping → 422 naming the account, no RPC call.
 5. Engineer → 403 for both actions.
 Verify: `DENO adapter-dispatch budgetOccupant.served.test.ts` → red.
 
-### ECA6-T3 — migration `<NNNN>_budget_occupant_resolution.sql`
+### ECA6-T3 — migration `0455_budget_occupant_resolution.sql`
 ```sql
 create table public.budget_occupant_consents (
   id uuid primary key default gen_random_uuid(),
@@ -1298,16 +1613,22 @@ alter table public.budget_occupant_consents enable row level security; alter tab
 create policy budget_occupant_consents_select on public.budget_occupant_consents for select
   using (org_id = public.auth_org_id() and public.is_active_member() and public.auth_role() in ('Admin','Finance'));
 revoke all on public.budget_occupant_consents from anon, authenticated; grant select on public.budget_occupant_consents to authenticated;
+grant select, insert, update, delete on public.budget_occupant_consents to service_role;
 ```
 `consent_budget_occupant_replace(p_project_id uuid, p_fiscal_year text, p_erp_account text, p_erp_budget_name text) returns uuid`
 — SECURITY DEFINER; actor = `auth.uid()`; re-asserts org of the project = actor's org, active member, role Admin/Finance; the
 project has an `Active` budget version (nothing to push otherwise); upsert resets `consumed_at` to null; audit
-`budget.occupant_replace_consent`. `consume_budget_occupant_consent(p_org_id, p_id)` service-only.
+`budget.occupant_replace_consent`; `revoke all … from public, anon; grant execute … to authenticated`, and add it to
+`0178_anon_executable_definers.test.sql`'s allow-list (+1 on both counts). `consume_budget_occupant_consent(p_org_id, p_id)`
+service-only, idempotent (a consumed row stays consumed).
 `create_budget_draft_from_erp(p_project_id uuid, p_erp_budget_name text, p_lines jsonb) returns uuid` — SECURITY INVOKER (RLS
 and the 0176/0178 authorship triggers apply to the caller): inserts a `Draft` `budget_versions` row at `max(version)+1` named
 `'From ERP ' || p_erp_budget_name` with `import_batch_id = gen_random_uuid()`, `imported_at = now()`, then one
 `budget_line_items` per line with `import_key = 'erp-budget:' || p_erp_budget_name || ':' || category` (the provenance shape
-of `db/budgets.ts:242-270,328-360`; `actual_amount` never written).
+of `db/budgets.ts:242-270,328-360`; `actual_amount` never written). Lines go through the shipped
+`import_budget_line_v2(version, category, 'From ERP budget ' || name, amount, fiscal_year, batch, imported_at,
+'erp-budget:<name>:<category>', 'erp-budget:<name>:<category>', false)` (`0397_budget_import_protocol.sql:36`), so the Draft-only
+and role checks stay the import protocol's, not a second copy.
 pgTAP `supabase/tests/budget_occupant_resolution.test.sql`: Engineer refused; Finance consent ok and audited; draft created with
 two lines and `Draft` status; another org's project refused.
 Verify: `PGT supabase/tests/budget_occupant_resolution.test.sql`.
@@ -1316,14 +1637,21 @@ Verify: `PGT supabase/tests/budget_occupant_resolution.test.sql`.
 `pmo-portal/src/lib/adapterSeam/erpnext/dispatchBudget.ts:333-341`: before throwing `budget-unowned-live-occupant`, read
 `budget_occupant_consents` with `deps.serviceClient` `.eq('org_id', deps.orgId).eq('project_id', <project>).eq('fiscal_year', fiscalYear)
 .eq('erp_account', selectedAccount).eq('erp_budget_name', live[0]).is('consumed_at', null).maybeSingle()`; a read error →
-throw (fail closed); a row → continue on the shipped owned-occupant path (`refs.self = live[0]`), and after finalize call
-`consume_budget_occupant_consent`; no row → throw as today.
+throw (fail closed); a row → `refs.self = live[0]` and `refs.occupantConsentId = <id>`, **skipping** the `owner` /
+`parseBudgetIdentity` / `budget_version_account_erp_mirror` witness checks below (they prove PMO authored the document, which a
+consent replaces; without the skip the v16 path throws on `parseBudgetIdentity(null)`); no row → throw as today. After
+`dispatchMoneyWrite` returns success, `adapter-dispatch/index.ts` calls `consume_budget_occupant_consent` when the resolved refs
+carry `occupantConsentId`; a lost response is adopted by the outbox probe and consumes on that reply (consumption is idempotent).
 New `supabase/functions/adapter-dispatch/budgetOccupant.ts`: for `erp_doc_kind === 'budget-occupant'` and
 `action === 'use-as-draft'`, under the shipped authorization gate (Admin/Finance), read the ERP Budget via the adapter's read
 path (`GET Budget/<name>`, the grain lookup of `dispatchBudget.ts:213` for the name), map each account row to its category with
-`budget_category_account_map` (org-scoped), and call `create_budget_draft_from_erp` with `callerClient`; reply
+`budget_category_account_map` (org-scoped) — an ERP account with no category refuses the action naming the accounts ("Map
+these ERP accounts to a budget category first: …"), never a draft that silently totals less than the ERP budget — and call
+`create_budget_draft_from_erp` with `callerClient`; reply
 `{draftVersionId}`. No outbox row (read-only toward the ERP). Wire it in `index.ts` before the idempotency-key check (it is a
-read). Add both files to `REQUIRED` in `scripts/check-edge-fn-test-binding.mjs`.
+read). The authorization gate (`checkErpnextCommandAuthorization`, called at `adapter-dispatch/index.ts:842`) must know the
+new `erp_doc_kind` `budget-occupant` (Admin, Finance), or every call is refused before this code runs; T2 case 5 covers it.
+Add both files to `REQUIRED` in `scripts/check-edge-fn-test-binding.mjs`.
 Verify: `DENO adapter-dispatch budgetOccupant.served.test.ts bfyUnownedLiveOccupant.test.ts` → green (the shipped refusal test
 stays green: no consent → same refusal).
 
@@ -1365,7 +1693,8 @@ Allowlist entry in `scripts/check-e2e-skips.mjs` next to `AC-SETUP-001`'s (`:108
 ### ECA8-T2 — S-D journey (AC-ECA-051)
 `pmo-portal/e2e/serial/AC-ECA-051-connect-erp-with-data.spec.ts`: bench company pre-loaded with 2 of the 3 vendors (one by
 tax id under a different name), 1 of the 2 projects (same code), and a Sales Invoice equal to one PMO native invoice.
-Journey: connect → Match records → Accept all (parties, projects) → Invoices on both sides → Accept all. Oracles: each
+The paired PMO invoice has no PMO receipt (PD-ECA-11). Journey: connect → Match records → Accept all (parties, projects) →
+Invoices on both sides → Accept all. Oracles: each
 overlapping vendor/project has exactly one PMO row and one ERP document (bench count by name/tax id); `get_project_finances`
 billed for the project equals the ERP figure; no duplicate Supplier/Project on the bench.
 Verify (both): `scripts/with-erpnext-lock.sh scripts/e2e-local.sh AC-ECA-05` → green; `node scripts/check-e2e-skips.mjs --self-test`.
@@ -1386,7 +1715,7 @@ Verify (both): `scripts/with-erpnext-lock.sh scripts/e2e-local.sh AC-ECA-05` →
 | AC-ECA-010 | Shared suite | `contractSuite/sendAll.suite.ts` "AC-ECA-010 …" (DB half `erp_connect_sends.test.sql`) | ECA3-T8, T5 |
 | AC-ECA-011 | Shared suite | `contractSuite/send.suite.ts:43` "AC-ECA-011 …" (shipped; ERPNext joins in ECA3-T3) | ECA3-T3 |
 | AC-ECA-012 | Shared suite | `contractSuite/sendAll.suite.ts` "AC-ECA-012 …" (DB half `erp_connect_sends.test.sql` case 4) | ECA3-T8, T5 |
-| AC-ECA-020 | Shared suite | `contractSuite/cutoverPurchase.suite.ts` "AC-ECA-020 …" | ECA4-T3/T4 |
+| AC-ECA-020 | Shared suite | `contractSuite/cutoverPurchase.suite.ts` "AC-ECA-020 …" (DB half `process_domain_cutover.test.sql` case 5; PMO path `repositories/procurement.external.test.ts`) | ECA4-T2..T4b |
 | AC-ECA-021 | pgTAP | `supabase/tests/process_domain_cutover.test.sql` "AC-ECA-021 …" | ECA4-T1/T2 |
 | AC-ECA-022 | Existing | `AC-XING-001`, `AC-XING-003` (not re-tested) | — |
 | AC-ECA-030 | pgTAP (count-once) + Unit (figure rule) | `supabase/tests/invoice_pairs.test.sql` "AC-ECA-030 …"; revenue repository test "AC-ECA-030 …" | ECA5-T1..T4 |
@@ -1396,6 +1725,9 @@ Verify (both): `scripts/with-erpnext-lock.sh scripts/e2e-local.sh AC-ECA-05` →
 | AC-ECA-042 | Shared suite | `contractSuite/tiers.contract.test.ts` + `parity.test.ts:14-64` (shipped; grows per slice) | ECA7-T1 + every slice |
 | AC-ECA-043 | Unit | `contractSuite/tierBranch.test.ts:78` (shipped) | ECA7-T1, ECA2-T18 |
 | AC-ECA-050 | Served e2e (ERPNext bed) | `e2e/serial/AC-ECA-050-connect-empty-erp.spec.ts` | ECA8-T1 |
+| *(no spec AC)* FR-ECA-001 money domains | Unit | `connect/census.test.ts` (11 rows; null for an uncountable domain) | ECA2-T4 |
+| *(no spec AC)* FR-ECA-012 all kinds · FR-ECA-042 | Unit (RTL) | `ConnectProposalReview.test.tsx` "FR-ECA-012 …", "FR-ECA-042 …" | ECA2-T17 |
+| *(no spec AC)* FR-ECA-016 | pgTAP + Deno | `erp_connect_sends.test.sql` (`enqueue_new_item_sends`), `connectSends.test.ts` "FR-ECA-016 …" | ECA3-T12 |
 | AC-ECA-051 | Served e2e (ERPNext bed) | `e2e/serial/AC-ECA-051-connect-erp-with-data.spec.ts` | ECA8-T2 |
 
 ## 15. Registry after this plan (ERPNext / Odoo)
@@ -1403,7 +1735,7 @@ Verify (both): `scripts/with-erpnext-lock.sh scripts/e2e-local.sh AC-ECA-05` →
 | Workflow | ERPNext after | Odoo after (owner of the flip) |
 |---|---|---|
 | `census` | supported (ECA2-T10) | supported when its harness implements `load`/`calls` (O1) |
-| `party.match` | supported v2 (ECA2-T3) | supported v2 (re-declared in ECA2-T3) |
+| `party.match` | supported v2 (ECA2-T3) | supported v2 (re-declared in ECA2-T3; passes through `pickPartyCandidate`, no Odoo code change) |
 | `party.bring-in` | supported (ECA1-T3) | O1 S6 |
 | `party.send` · `project.send` · `item.send` | supported (ECA3) | supported (shipped) |
 | `project.match` | supported (shipped) | O1 S7 |
@@ -1414,4 +1746,4 @@ Verify (both): `scripts/with-erpnext-lock.sh scripts/e2e-local.sh AC-ECA-05` →
 | `cutover.revenue` | pending #1609 (SQL guard, ECA4-T6) | O3 |
 | `invoice.pair-existing` | supported (ECA5-T5) | O3 (#1506) |
 | `budget.resolve-occupant` | supported (ECA6-T6) | O4 decides (#1507) |
-| the 13 shipped workflows | pending #1609 | per Odoo route items |
+| the 10 shipped workflows | pending #1609 | per Odoo route items |
