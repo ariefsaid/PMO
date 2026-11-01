@@ -1,7 +1,6 @@
 import { supabase } from '@/src/lib/supabase/client';
 import type { Tables } from '@/src/lib/supabase/database.types';
 import { fetchAllRowsByKeyset } from '@/src/lib/pagedRead';
-import { resolveRange, type PageParams } from '@/src/lib/pagination';
 import { attachApprovalRoutes } from './approvalRoutes';
 import type { ApprovalRoute } from '@/src/lib/procurement/approvalRoute';
 
@@ -149,20 +148,14 @@ export async function getProjectReservedSpend(projectId: string): Promise<Projec
 
 /**
  * List procurements for the caller's org. org_id is NEVER sent — RLS (org_id = auth_org_id())
- * scopes rows (FR-DAL-PROC-001). Paginated (data-layer performance hardening #4, OPT-IN):
- * passing `params.page`/`params.pageSize` range-bounds the query; omitting `params` entirely
- * preserves the original unbounded read for every existing caller (e.g. the ⌘K CommandPalette
- * record search, which indexes the full cached list).
+ * scopes rows (FR-DAL-PROC-001). Unbounded read: the ⌘K CommandPalette record search indexes
+ * the full cached list.
  */
 export async function listProcurements(
-  params?: PageParams,
   opts?: { withRefs?: boolean; withSharedDetails?: boolean },
 ): Promise<ProcurementWithRefs[]> {
-  const range = resolveRange(params);
   const selection = opts?.withSharedDetails ? SELECT_WITH_SHARED_DETAILS : opts?.withRefs ? SELECT_WITH_REFS : SELECT;
-  let q = supabase.from('procurements').select(selection);
-  if (range) q = q.range(range.from, range.to);
-  const { data, error } = await q;
+  const { data, error } = await supabase.from('procurements').select(selection);
   if (error) throw new Error(error.message);
   return attachApprovalRoutes((data ?? []) as unknown as ProcurementWithRefs[]);
 }

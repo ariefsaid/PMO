@@ -119,11 +119,6 @@ describe('listTimesheets', () => {
     expect(mockRange).not.toHaveBeenCalled();
   });
 
-  it('data-layer perf hardening #4: applies an explicit page/pageSize range', async () => {
-    builderResolving({ data: [], error: null });
-    await listTimesheets('u1', { page: 1, pageSize: 12 });
-    expect(mockRange).toHaveBeenCalledWith(12, 23);
-  });
 });
 
 // ---------------------------------------------------------------------------

@@ -85,11 +85,6 @@ describe('FR-AAN-035 listNotifications', () => {
     expect(h.calls.range).toEqual([]);
   });
 
-  it('data-layer perf hardening #4: applies an explicit page/pageSize range', async () => {
-    h.result.value = { data: [], error: null, count: null };
-    await listNotifications({ page: 1, pageSize: 30 });
-    expect(h.calls.range).toContainEqual([30, 59]);
-  });
 });
 
 describe('FR-AAN-034 listUnreadCount', () => {

@@ -12,8 +12,7 @@ const state = vi.hoisted(() => ({
   getBinding: vi.fn(async () => ({ status: 'active', config: { company: 'Test Co' } })),
 }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { org_id: state.orgId } }) }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { integrations: { listItems: state.listItems, getBinding: state.getBinding } } }));
-vi.mock('@/src/lib/db/externalDomainOwnership', () => ({ listOwnExternalDomainOwnership: state.ownership }));
+vi.mock('@/src/lib/repositories', () => ({ repositories: { integrations: { listItems: state.listItems, getBinding: state.getBinding }, externalDomainOwnership: { listOwn: state.ownership } } }));
 vi.mock('@/src/lib/adapterSeam/ownershipCache', () => ({ routeDomainWrite: () => state.external ? 'external' : 'pmo' }));
 
 beforeEach(() => {

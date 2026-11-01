@@ -5,7 +5,6 @@ import { isProjectFinances, parseContractExcess, parseProjectReceiptCash, type P
 import { revenueRefusalCode } from '@/src/lib/db/revenueNative';
 import type { BillingKind } from '@/src/lib/billingKind';
 import { REVENUE_STATUSES } from '@/src/lib/projectInvoicing';
-import { resolveRange, type PageParams } from '@/src/lib/pagination';
 import type { ReceiptAllocation } from '@/src/lib/revenue/receiptAllocation';
 import { fetchAllPages, fetchAllRowsByKeyset, type PageResult } from '@/src/lib/pagedRead';
 
@@ -141,11 +140,10 @@ function throwWrite(error: PostgrestErrorLike): never {
  * Ordered by invoice_date desc for a stable, scannable list.
  * Includes customer's payment terms (erp_payment_terms_days) for due-date derivation.
  *
- * Money-safety (read-model audit S6): with no explicit `page`/`pageSize` this scans the WHOLE
- * list in `PAGE_SCAN_SIZE` pages. A single unpaged request is silently capped at PostgREST's
- * `max_rows`, so past 1000 invoices the list — and the client-side search that indexes it —
- * saw only the newest 1000 and answered "No invoices match your filters" for an invoice that
- * exists. An explicit `page`/`pageSize` still issues exactly one bounded request.
+ * Money-safety (read-model audit S6): this scans the WHOLE list in `PAGE_SCAN_SIZE` pages. A
+ * single unpaged request is silently capped at PostgREST's `max_rows`, so past 1000 invoices the
+ * list — and the client-side search that indexes it — saw only the newest 1000 and answered
+ * "No invoices match your filters" for an invoice that exists.
  */
 /**
  * The invoice projection every SI read shares: the row, the customer's payment terms, and the
@@ -172,7 +170,7 @@ function toSalesInvoiceRow(row: Record<string, unknown>): SalesInvoiceRow {
 }
 
 export async function listSalesInvoices(
-  params?: { projectId?: string; status?: SalesInvoiceStatus; nativeOnly?: boolean } & PageParams,
+  params?: { projectId?: string; status?: SalesInvoiceStatus; nativeOnly?: boolean },
 ): Promise<SalesInvoiceRow[]> {
   const build = (from: number, to: number) => {
     let query = supabase
@@ -189,17 +187,9 @@ export async function listSalesInvoices(
       .range(from, to);
   };
 
-  const range = resolveRange(params);
-  let data: Array<Record<string, unknown>>;
-  if (range) {
-    const res = await build(range.from, range.to);
-    if (res.error) throwWrite(res.error);
-    data = (res.data ?? []) as Array<Record<string, unknown>>;
-  } else {
-    data = await fetchAllPages<Record<string, unknown>>((from, to) =>
-      build(from, to) as unknown as PromiseLike<PageResult<Record<string, unknown>>>,
-    );
-  }
+  const data = await fetchAllPages<Record<string, unknown>>((from, to) =>
+    build(from, to) as unknown as PromiseLike<PageResult<Record<string, unknown>>>,
+  );
   return data.map(toSalesInvoiceRow);
 }
 
@@ -243,11 +233,11 @@ function toIncomingPaymentRow(row: Record<string, unknown>): IncomingPaymentRow 
  * invoice either by the native FK or by an ERP-reported JSON allocation, before paging.
  * Ordered by date desc then created_at desc, with an `id` tiebreaker so the scan is stable.
  *
- * Same money-safety contract as `listSalesInvoices` (audit S6): unpaged callers get the WHOLE
- * list via successive pages, never a silently-capped first 1000.
+ * Same money-safety contract as `listSalesInvoices` (audit S6): callers get the WHOLE list via
+ * successive pages, never a silently-capped first 1000.
  */
 export async function listIncomingPayments(
-  params?: { customerId?: string; salesInvoiceId?: string } & PageParams,
+  params?: { customerId?: string; salesInvoiceId?: string },
 ): Promise<IncomingPaymentRow[]> {
   const build = (from: number, to: number) => {
     let query = supabase.from('incoming_payments').select(INCOMING_PAYMENT_SELECT);
@@ -266,12 +256,6 @@ export async function listIncomingPayments(
       .range(from, to);
   };
 
-  const range = resolveRange(params);
-  if (range) {
-    const { data, error } = await build(range.from, range.to);
-    if (error) throwWrite(error);
-    return ((data ?? []) as Array<Record<string, unknown>>).map(toIncomingPaymentRow);
-  }
   const data = await fetchAllPages<Record<string, unknown>>((from, to) =>
     build(from, to) as unknown as PromiseLike<PageResult<Record<string, unknown>>>,
   );

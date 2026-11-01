@@ -9,7 +9,6 @@ import type { listPushesNeedingAttention, confirmEmployeeLink, getPushState } fr
 import type { TimesheetRow, TimesheetWithEntries } from '@/src/lib/db/timesheets';
 import type { TimesheetApprovalViewerRole, TimesheetAwaitingApproval } from '@/src/lib/db/timesheetTransition';
 import type { EntryUpsert } from '@/src/lib/timesheet-edit';
-import type { PageParams } from '@/src/lib/pagination';
 
 export interface TimesheetRepository {
   saveWeek: typeof saveTimesheetWeek;
@@ -20,7 +19,7 @@ export interface TimesheetRepository {
   confirmEmployeeLink: typeof confirmEmployeeLink;
   getPushState: typeof getPushState;
 
-  list(userId: string, params?: PageParams): Promise<TimesheetWithEntries[]>;
+  list(userId: string): Promise<TimesheetWithEntries[]>;
   createDraft(weekStartDate: string, userId: string): Promise<TimesheetRow>;
   upsertEntries(entries: EntryUpsert[]): Promise<void>;
   deleteEntry(id: string): Promise<void>;

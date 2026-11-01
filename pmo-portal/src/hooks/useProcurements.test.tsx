@@ -46,7 +46,7 @@ describe('useProcurements', () => {
     );
     const { result } = renderHook(() => useProcurements({ withRefs: true, withSharedDetails: true }), { wrapper });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(listProcurements).toHaveBeenCalledWith(undefined, { withRefs: true, withSharedDetails: true });
+    expect(listProcurements).toHaveBeenCalledWith({ withRefs: true, withSharedDetails: true });
     expect(client.getQueryData(procurementsKey('org-1', true, true))).toBe(result.current.data);
   });
 });
