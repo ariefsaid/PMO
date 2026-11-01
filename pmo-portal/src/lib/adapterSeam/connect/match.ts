@@ -1,4 +1,4 @@
-import type { MasterKind, MatchOutcome, NormalisedMaster, PmoMaster } from './types.ts';
+import type { MasterKind, MatchOutcome, NormalisedMaster, PmoMaster, ReviewReason } from './types.ts';
 
 // PD-ECA-16: trailing legal forms only. A leading PT / CV / UD names a different legal entity and is kept.
 const LEGAL_SUFFIXES = new Set(['tbk', 'persero', 'ltd', 'limited', 'inc', 'llc', 'co', 'corp', 'gmbh', 'bv', 'sa', 'plc']);
@@ -86,4 +86,13 @@ export function pickPartyCandidate<C extends { taxId: string | null }>(taxId: st
   if (hit?.outcome === 'link') return { outcome: 'link', candidate: candidates[Number(hit.pmoId)] };
   if (hit?.outcome === 'review') return { outcome: 'review', reason: hit.reason === 'tax-conflict' ? 'tax-conflict' : 'ambiguous', eligible: hit.pmoIds.length };
   return { outcome: 'none' };
+}
+
+/** FR-ECA-022: why a row needs a person, in PMO's words. A one-to-one review is a name hit on a kind that never links on a name. */
+export function reviewReasonText(kind: MasterKind, o: { reason: ReviewReason | 'held'; pmoIds: readonly string[]; externalIds: readonly string[] }): string {
+  if (o.reason === 'held') return 'We could not confirm whether the ERP created this record';
+  if (o.reason === 'rejected') return 'An administrator declined this pairing';
+  if (o.reason === 'tax-conflict') return kind === 'employee' ? 'Work emails do not match' : 'Tax numbers do not match';
+  return o.pmoIds.length === 1 && o.externalIds.length === 1
+    ? 'The names match, but nothing else confirms it is the same record' : 'Two or more records could be this one';
 }

@@ -83,6 +83,7 @@ import { buildImprestPostingCommand, parseImprestGateTruth } from '../../../pmo-
 import { resolveImprestPosting, type ImprestResolveDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/imprestPostingResolve.ts';
 import { imprestTransferKey } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/imprestTransferKey.ts';
 import { IMPREST_TRANSFER_KEY_RE } from '../../../pmo-portal/src/lib/adapterSeam/imprestTransfer.ts';
+import { advanceConnectRuns } from './connectRun.ts';
 import { reconcileOrgImprestPostings, type ImprestBackstopDeps, type ImprestIntentRow } from './imprestPostingBackstop.ts';
 import { feedLedgerMirrors } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/ledgerMirrorFeed.ts';
 import { feedPurchaseMirror, type PurchaseFeedServiceClient } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/purchaseMirrorFeed.ts';
@@ -530,6 +531,8 @@ export interface ErpSweepCycleDeps {
   reconcileOrgExpensePostings?: (org: OrgBinding) => Promise<{ driven: number; error?: string }>;
   /** #1515 S6 — pass (7b), the originator of site float transfers (same ownership as pass (7)). Optional like its siblings. */
   reconcileOrgImprestPostings?: (org: OrgBinding) => Promise<{ driven: number; error?: string }>;
+  /** ECA2-T13 (#1605) — pass (8): advance the org's open connect run by one bounded step. Optional like its siblings; the live wiring always supplies it. */
+  advanceConnectRun?: (org: OrgBinding) => Promise<{ state?: string; error?: string }>;
   /** 0358: on a money-only tick, whether this org's hourly work is due (its last full run is stale). */
   isFullSweepDue?: (org: OrgBinding) => boolean;
   /** 0358: stamp a completed full run — only after the hourly passes ran, and only by the lock holder. */
@@ -655,6 +658,15 @@ export async function runErpSweepCycle(
         if (r.error) errors.push(`imprest:${r.error}`);
       } catch (err) {
         errors.push(`imprest:${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+    // (8) ECA2-T13 — a person is waiting on the connect screen, so this runs on every tick, money-only included.
+    if (deps.advanceConnectRun) {
+      try {
+        const r = await deps.advanceConnectRun(org);
+        if (r.error) errors.push(`connect:${r.error}`);
+      } catch (err) {
+        errors.push(`connect:${err instanceof Error ? err.message : String(err)}`);
       }
     }
     // (2) doctype modified-poll sweep. (2)–(4) are the hourly inbound/statement work: a money-only
@@ -3483,6 +3495,7 @@ serveWithErrorReporting('erpnext-sweep', withJobRun('erpnext-sweep', async (req:
     reconcileOrgTimesheetPushes: (org) => reconcileOrgTimesheetPushesLive(serviceClient, org),
     reconcileOrgExpensePostings: (org) => reconcileOrgExpensePostingsLive(serviceClient, org, erpAuth),
     reconcileOrgImprestPostings: (org) => reconcileOrgImprestPostingsLive(serviceClient, org, erpAuth),
+    advanceConnectRun: (org) => advanceConnectRuns(serviceClient, org),
     isFullSweepDue: (org) => fullSweepDue(org.lastFullSweepAt, handlerEntryMs),
     markFullSweepDone: async (org) => {
       if (!org.statementLockHolder) throw new Error('no sweep lock held');

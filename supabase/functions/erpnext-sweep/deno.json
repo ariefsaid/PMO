@@ -1,9 +1,16 @@
 {
   "imports": {
     "@supabase/supabase-js": "npm:@supabase/supabase-js@2.110.0",
-    "@/": "../../../pmo-portal/"
+    "@/": "../../../pmo-portal/",
+    "jose": "npm:jose@6.2.3",
+    "@std/assert": "jsr:@std/assert@1.0.0",
+    "@std/testing/bdd": "jsr:@std/testing@1.0.0/bdd",
+    "@std/testing/mock": "jsr:@std/testing@1.0.0/mock"
   },
   "test": {
-    "exclude": ["budgetBackstop.test.ts", "timesheetBackstop.test.ts"]
+    "exclude": [
+      "budgetBackstop.test.ts",
+      "timesheetBackstop.test.ts"
+    ]
   }
 }

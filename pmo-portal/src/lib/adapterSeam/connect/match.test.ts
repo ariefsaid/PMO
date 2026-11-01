@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { normaliseName, proposeMatches } from './match.ts';
+import { normaliseName, proposeMatches, reviewReasonText } from './match.ts';
 import type { NormalisedMaster, PmoMaster } from './types.ts';
 
 const erp = (externalId: string, name: string, o: Partial<NormalisedMaster> = {}): NormalisedMaster =>
@@ -87,5 +87,21 @@ describe('C1 a person or an account never links on a bare name', () => {
   it('other kinds still link on a unique name', () => {
     expect(proposeMatches('item', [{ id: 'i', name: 'Semen' }], [{ kind: 'item', externalId: 'I', name: 'Semen', active: true }]))
       .toEqual([{ outcome: 'link', pmoId: 'i', externalId: 'I', key: 'name' }]);
+  });
+});
+
+describe('reviewReasonText says why a row needs a person, in plain words', () => {
+  it('names the reason for each kind of doubt', () => {
+    expect(reviewReasonText('party', { reason: 'ambiguous', pmoIds: ['a', 'b'], externalIds: ['x'] })).toBe('Two or more records could be this one');
+    expect(reviewReasonText('employee', { reason: 'ambiguous', pmoIds: ['a'], externalIds: ['x'] })).toBe('The names match, but nothing else confirms it is the same record');
+    expect(reviewReasonText('party', { reason: 'tax-conflict', pmoIds: ['a'], externalIds: ['x'] })).toBe('Tax numbers do not match');
+    expect(reviewReasonText('employee', { reason: 'tax-conflict', pmoIds: ['a'], externalIds: ['x'] })).toBe('Work emails do not match');
+    expect(reviewReasonText('party', { reason: 'rejected', pmoIds: ['a'], externalIds: ['x'] })).toBe('An administrator declined this pairing');
+    expect(reviewReasonText('party', { reason: 'held', pmoIds: ['a'], externalIds: [] })).toBe('We could not confirm whether the ERP created this record');
+  });
+  it('never carries ERP vocabulary', () => {
+    for (const reason of ['ambiguous', 'tax-conflict', 'rejected', 'held'] as const) {
+      expect(reviewReasonText('account', { reason, pmoIds: ['a'], externalIds: ['x'] })).not.toMatch(/doctype|supplier|customer|frappe/i);
+    }
   });
 });
