@@ -6963,6 +6963,8 @@ export type Database = {
           imported_at: string | null
           last_update: string
           location: string | null
+          lost_note: string | null
+          lost_reason: string | null
           name: string
           short_name: string | null
           org_id: string
@@ -7004,6 +7006,8 @@ export type Database = {
           imported_at?: string | null
           last_update?: string
           location?: string | null
+          lost_note?: string | null
+          lost_reason?: string | null
           name: string
           short_name?: string | null
           org_id?: string
@@ -7045,6 +7049,8 @@ export type Database = {
           imported_at?: string | null
           last_update?: string
           location?: string | null
+          lost_note?: string | null
+          lost_reason?: string | null
           name?: string
           short_name?: string | null
           org_id?: string
@@ -10688,6 +10694,10 @@ export type Database = {
           replenishment_in_flight: number
         }[]
       }
+      get_loss_breakdown: {
+        Args: { p_from?: string; p_to?: string }
+        Returns: Json
+      }
       get_management_pack: {
         Args: { p_from?: string; p_to?: string }
         Returns: Json
@@ -12343,6 +12353,8 @@ export type Database = {
           p_contract_date?: string
           p_customer_contract_ref?: string
           p_id: string
+          p_lost_note?: string
+          p_lost_reason?: string
           p_to: Database["public"]["Enums"]["project_status"]
         }
         Returns: undefined
