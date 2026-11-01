@@ -20,6 +20,7 @@ const h = vi.hoisted(() => ({
   claims: [] as unknown[],
   mode: 'erp' as 'erp' | 'native' | undefined,
   routeReady: true,
+  synced: true,
   role: 'Finance' as string,
 }));
 vi.mock('@/src/hooks/useWorkOrders', () => ({
@@ -47,7 +48,10 @@ vi.mock('@/src/hooks/useWorkOrderBilling', () => ({ useWorkOrderBilling: () => h
 vi.mock('@/src/hooks/useRevenue', () => ({ useSalesInvoices: () => h.invoices }));
 vi.mock('@/src/hooks/useErpItemOptions', () => ({ useErpItemOptions: () => ({ connected: true }) }));
 vi.mock('@/src/hooks/useRevenueMode', () => ({ useRevenueMode: () => h.mode }));
-vi.mock('@/src/hooks/useOwnershipCacheSync', () => ({ useRevenueRouteReady: (mode: unknown) => h.routeReady && mode !== undefined }));
+vi.mock('@/src/hooks/useOwnershipCacheSync', () => ({
+  useRevenueRouteReady: (mode: unknown) => h.routeReady && mode !== undefined,
+  useOwnershipCacheSynced: () => h.synced,
+}));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.role, effectiveRole: h.role }) }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u-1', org_id: 'org-1' }, role: h.role }) }));
 vi.mock('../InvoiceWorkOrderModal', () => ({
@@ -77,10 +81,10 @@ const bill = (over: Partial<WorkOrderBillingRow> = {}): WorkOrderBillingRow => (
   workOrderId: 'wo-1', projectId: 'p1', status: 'Issued', currency: 'USD', orderNet: 500_000, invoiced: 330_000,
   pending: 90_000, paid: 100_000, remaining: 80_000, figuresComplete: true, lineCount: 6, unpaidCount: 3, ...over,
 });
-const renderTab = (role: Role = 'Finance', clientId: string | null = 'c-1', focusWorkOrderId: string | null = null, initialEntry = '/') => {
+const renderTab = (role: Role = 'Finance', clientId: string | null = 'c-1', focusWorkOrderId: string | null = null, initialEntry = '/', autoInvoiceWorkOrderId: string | null = null) => {
   h.role = role;
   return render(
-    <MemoryRouter initialEntries={[initialEntry]}><ToastProvider><WorkOrdersTab projectId="p1" currency="USD" clientId={clientId} focusWorkOrderId={focusWorkOrderId} /><RouteSearch /></ToastProvider></MemoryRouter>,
+    <MemoryRouter initialEntries={[initialEntry]}><ToastProvider><WorkOrdersTab projectId="p1" currency="USD" clientId={clientId} focusWorkOrderId={focusWorkOrderId} autoInvoiceWorkOrderId={autoInvoiceWorkOrderId} /><RouteSearch /></ToastProvider></MemoryRouter>,
   );
 };
 
@@ -100,6 +104,7 @@ beforeEach(() => {
   h.claims = [];
   h.mode = 'erp';
   h.routeReady = true;
+  h.synced = true;
 });
 
 describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
@@ -809,5 +814,146 @@ describe('WorkOrdersTab — days since acceptance (#1640)', () => {
     h.age = { data: [{ workOrderId: 'wo-1', anchorDate: '2026-10-22', days: 10 }], isPending: false, isError: false, refetch: vi.fn() };
     renderTab('Engineer');
     expect(screen.queryByText(/Days since acceptance/)).toBeNull();
+  });
+});
+
+describe('WorkOrdersTab — Invoice this from the plan (#1640)', () => {
+  const REFUSAL = "This work order can't be invoiced from here right now.";
+  const arrive = (role: Role = 'Finance', clientId: string | null = 'c-1', arrange: () => void = () => {}) => {
+    h.list.data = [wo(), wo({ id: 'wo-2', wo_number: 'WO-2' })];
+    h.billing.data = [bill(), bill({ workOrderId: 'wo-2', remaining: 40_000 })];
+    arrange();
+    return renderTab(role, clientId, 'wo-2', '/?wo=wo-2&invoice=1', 'wo-2');
+  };
+
+  const BOQ = [{ id: 'boq-1', item_code: 'SURVEY', description: 'Survey route', unit: 'km', quantity: 100, rate: 1_000, earning_basis: 'unit_rate' }];
+  const LINE = { id: 'line-1', work_order_id: 'wo-2', boq_item_id: 'boq-1', quantity: 100 };
+  const billingWith = (contractLines: unknown[]) => ({ data: {
+    currency: 'USD', contractNet: 100_000, workBilled: 0, dpBilled: 0, dpRecovered: 0, notSubmitted: 0,
+    assessment: null, claimedByBoqItem: {}, assessedByBoqItem: {}, earnedValue: 98_000, contractLines,
+  }, isPending: false, isError: false, refetch: vi.fn() });
+  const ALLOCATED = [{ boqItemId: 'boq-1', earningBasis: 'unit_rate', lineNo: 1, orderedQuantity: 100,
+    acceptedQuantity: 98, closedFinal: 0, earnedQuantity: 98, contractBalance: 0,
+    allocations: [{ workOrderId: 'wo-2', boqItemId: 'boq-1', quantity: 100, claimedQuantity: 20, acceptedQuantity: 98, final: true }] }];
+  const withContractLines = () => {
+    h.boq = { data: BOQ, isPending: false, isError: false, refetch: vi.fn() };
+    h.orderLines = { data: [LINE], isPending: false, isError: false, refetch: vi.fn() };
+    h.projectBilling = billingWith(ALLOCATED);
+  };
+
+  it('AC-WOMS-013 ?invoice=1 opens the shipped invoice dialog for that work order with what is left, then clears the flag', async () => {
+    arrive();
+    expect(await screen.findByTestId('invoice-modal')).toHaveTextContent('wo-2|40000|c-1');
+    await vi.waitFor(() => expect(screen.getByTestId('route-search')).toHaveTextContent('?wo=wo-2'));
+    expect(screen.getByTestId('route-search')).not.toHaveTextContent('invoice=1');
+  });
+
+  it('AC-WOMS-013 a work order with contract lines opens the claim dialog with it preselected', async () => {
+    h.boq = { data: [{ id: 'boq-1', item_code: 'SURVEY', description: 'Survey route', unit: 'km', quantity: 100, rate: 1_000, earning_basis: 'unit_rate' }], isPending: false, isError: false, refetch: vi.fn() };
+    h.orderLines = { data: [{ id: 'line-1', work_order_id: 'wo-2', boq_item_id: 'boq-1', quantity: 100 }], isPending: false, isError: false, refetch: vi.fn() };
+    h.projectBilling = { data: {
+      currency: 'USD', contractNet: 100_000, workBilled: 0, dpBilled: 0, dpRecovered: 0, notSubmitted: 0,
+      assessment: null, claimedByBoqItem: {}, assessedByBoqItem: {}, earnedValue: 98_000,
+      contractLines: [{ boqItemId: 'boq-1', earningBasis: 'unit_rate', lineNo: 1, orderedQuantity: 100,
+        acceptedQuantity: 98, closedFinal: 0, earnedQuantity: 98, contractBalance: 0,
+        allocations: [{ workOrderId: 'wo-2', boqItemId: 'boq-1', quantity: 100, claimedQuantity: 20, acceptedQuantity: 98, final: true }] }],
+    }, isPending: false, isError: false, refetch: vi.fn() };
+    arrive();
+    expect(await screen.findByLabelText('Bills')).toHaveValue('wo-2');
+    expect(screen.queryByTestId('invoice-modal')).toBeNull();
+  });
+
+  it.each([
+    ['a Project Manager', () => {}, 'Project Manager' as Role, 'c-1'],
+    ['nothing left', () => { h.billing.data = [bill(), bill({ workOrderId: 'wo-2', remaining: 0, pending: 0 })]; }, 'Finance' as Role, 'c-1'],
+    ['a revenue route that is not ready', () => { h.routeReady = false; }, 'Finance' as Role, 'c-1'],
+    ['no project client', () => {}, 'Finance' as Role, null],
+    ['a work order that is not in this project', () => { h.list.data = [wo()]; }, 'Finance' as Role, 'c-1'],
+  ])('AC-WOMS-013 when the shipped gate refuses (%s) nothing opens, the refusal is announced and the flag is cleared', async (_label, arrange, role, clientId) => {
+    arrive(role, clientId, arrange);
+    expect(await screen.findByText(REFUSAL)).toBeInTheDocument();
+    expect(screen.getByText(REFUSAL)).toHaveAttribute('role', 'status');
+    expect(screen.queryByTestId('invoice-modal')).toBeNull();
+    expect(screen.getByTestId('route-search')).not.toHaveTextContent('invoice=1');
+  });
+
+  it('AC-WOMS-013 the dialog opens once: closing it does not reopen it', async () => {
+    const user = userEvent.setup();
+    arrive();
+    const modal = await screen.findByTestId('invoice-modal');
+    await vi.waitFor(() => expect(screen.getByTestId('route-search')).not.toHaveTextContent('invoice=1'));
+    // The mock modal's only exit is the created callback, which closes it exactly as the real one does.
+    await user.click(within(modal).getByRole('button', { name: 'modal-created-unnamed' }));
+    expect(screen.queryByTestId('invoice-modal')).toBeNull();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(screen.queryByTestId('invoice-modal')).toBeNull();
+  });
+
+  it('AC-WOMS-013 a Project Manager arriving at a work order with contract lines gets the refusal, never the claim dialog', async () => {
+    withContractLines();
+    arrive('Project Manager');
+    expect(await screen.findByText(REFUSAL)).toBeInTheDocument();
+    expect(screen.queryByLabelText('Bills')).toBeNull();
+    expect(screen.queryByTestId('invoice-modal')).toBeNull();
+  });
+
+  it('AC-WOMS-013 it waits for the contract lines: pending first, then the claim dialog opens — never the direct invoice dialog', async () => {
+    h.boq = { data: BOQ, isPending: false, isError: false, refetch: vi.fn() };
+    h.projectBilling = billingWith([]);
+    h.orderLines = { data: undefined, isPending: true, isError: false, refetch: vi.fn() };
+    const view = arrive();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(screen.queryByTestId('invoice-modal')).toBeNull();
+    expect(screen.queryByText(REFUSAL)).toBeNull();
+    expect(screen.getByTestId('route-search')).toHaveTextContent('invoice=1');
+    h.orderLines = { data: [LINE], isPending: false, isError: false, refetch: vi.fn() };
+    h.projectBilling = billingWith(ALLOCATED);
+    view.rerender(
+      <MemoryRouter initialEntries={['/?wo=wo-2&invoice=1']}><ToastProvider><WorkOrdersTab projectId="p1" currency="USD" clientId="c-1" focusWorkOrderId="wo-2" autoInvoiceWorkOrderId="wo-2" /><RouteSearch /></ToastProvider></MemoryRouter>,
+    );
+    expect(await screen.findByLabelText('Bills')).toHaveValue('wo-2');
+    expect(screen.queryByTestId('invoice-modal')).toBeNull();
+  });
+
+  it('AC-WOMS-013 the hand-off acts once: re-rendering with the flag still present does not reopen the dialog', async () => {
+    const user = userEvent.setup();
+    const view = arrive();
+    const modal = await screen.findByTestId('invoice-modal');
+    await user.click(within(modal).getByRole('button', { name: 'modal-created-unnamed' }));
+    expect(screen.queryByTestId('invoice-modal')).toBeNull();
+    // Same arrival props, flag still handed in by the parent: the one shot is spent.
+    h.list = { ...h.list, data: [...(h.list.data as unknown[])] };
+    view.rerender(
+      <MemoryRouter initialEntries={['/?wo=wo-2&invoice=1']}><ToastProvider><WorkOrdersTab projectId="p1" currency="USD" clientId="c-1" focusWorkOrderId="wo-2" autoInvoiceWorkOrderId="wo-2" /><RouteSearch /></ToastProvider></MemoryRouter>,
+    );
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(screen.queryByTestId('invoice-modal')).toBeNull();
+  });
+
+  it.each([
+    ['the contract-lines read fails', () => { h.orderLines = { data: undefined, isPending: false, isError: true, refetch: vi.fn() }; }],
+    ['the project-billing read fails', () => { h.projectBilling = { data: null, isPending: false, isError: true, refetch: vi.fn() }; }],
+  ])('AC-WOMS-013 fails closed when %s: refusal announced, no direct invoice dialog (hand-off and card button)', async (_label, arrange) => {
+    arrive('Finance', 'c-1', arrange);
+    expect(await screen.findByText(REFUSAL)).toBeInTheDocument();
+    expect(screen.queryByTestId('invoice-modal')).toBeNull();
+    expect(screen.queryByLabelText('Bills')).toBeNull();
+    expect(screen.queryAllByRole('button', { name: /^Raise invoice/ })).toHaveLength(0);
+  });
+
+  it('AC-WOMS-013 it waits for the revenue route to sync: no refusal is announced while the route is still settling', async () => {
+    h.synced = false;
+    h.routeReady = false;
+    const view = arrive();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(screen.queryByTestId('invoice-modal')).toBeNull();
+    expect(screen.queryByText(REFUSAL)).toBeNull();
+    expect(screen.getByTestId('route-search')).toHaveTextContent('invoice=1');
+    h.synced = true;
+    h.routeReady = true;
+    view.rerender(
+      <MemoryRouter initialEntries={['/?wo=wo-2&invoice=1']}><ToastProvider><WorkOrdersTab projectId="p1" currency="USD" clientId="c-1" focusWorkOrderId="wo-2" autoInvoiceWorkOrderId="wo-2" /><RouteSearch /></ToastProvider></MemoryRouter>,
+    );
+    expect(await screen.findByTestId('invoice-modal')).toHaveTextContent('wo-2|40000|c-1');
   });
 });

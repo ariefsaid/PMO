@@ -129,6 +129,7 @@ const AreaContent: React.FC<{ project: ProjectWithRefs; area: Exclude<Area, 'ove
           <div className="flex min-w-0 flex-col gap-4">
             <WorkOrdersTab projectId={project.id} currency={project.currency} clientId={project.client_id ?? null}
               focusWorkOrderId={new URLSearchParams(window.location.search).get('wo')}
+              autoInvoiceWorkOrderId={new URLSearchParams(window.location.search).get('invoice') === '1' ? new URLSearchParams(window.location.search).get('wo') : null}
               projectManagerId={project.project_manager_id ?? null} showSettlementNote={false}
               projectName={project.name} projectStatus={project.status} />
           </div>

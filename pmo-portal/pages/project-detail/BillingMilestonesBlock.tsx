@@ -1,12 +1,13 @@
 import React, { useMemo } from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { ListState, StatusPill, TaxBasisLabel, Tooltip, type StatusVariant } from '@/src/components/ui';
+import { buttonClasses, ListState, StatusPill, TaxBasisLabel, Tooltip, type StatusVariant } from '@/src/components/ui';
 import { Block } from './ProjectBlocks';
 import { usePermission } from '@/src/auth/usePermission';
 import { useProjectWorkOrders } from '@/src/hooks/useWorkOrders';
 import { useWorkOrderAcceptanceAge, useWorkOrderBilling } from '@/src/hooks/useWorkOrderBilling';
 import { deriveBillingMilestoneStatus, sortBillingMilestones, type BillingMilestoneStatus } from '@/src/lib/billingMilestones';
+import { canInvoiceWorkOrder } from '@/src/lib/workOrderBilling';
 import { formatCurrencyAuto, formatDateOnly } from '@/src/lib/format';
 
 const TONE: Record<BillingMilestoneStatus, StatusVariant> = { unknown: 'warn', planned: 'open', 'in-progress': 'progress', invoiced: 'neutral', paid: 'won' };
@@ -14,6 +15,8 @@ const TONE: Record<BillingMilestoneStatus, StatusVariant> = { unknown: 'warn', p
 /** #1640: the client's work orders as billing milestones (same records as Contract & billing; no second entry). */
 const Body: React.FC<{ projectId: string }> = ({ projectId }) => {
   const { t } = useTranslation('project');
+  const may = usePermission();
+  const canCreate = may('create', 'salesInvoice');
   const orders = useProjectWorkOrders(projectId);
   const billing = useWorkOrderBilling(projectId);
   const age = useWorkOrderAcceptanceAge(projectId);
@@ -72,7 +75,14 @@ const Body: React.FC<{ projectId: string }> = ({ projectId }) => {
               {derived && <Tooltip content={t('projectDetail.billingMilestones.statusSource', "Source: this work order's invoices and drafts (Contract & billing).")}>
                 <span tabIndex={0}><StatusPill variant={TONE[derived.status]}>{statusLabel[derived.status]}</StatusPill></span></Tooltip>}
               {derived?.overInvoiced && <StatusPill variant="lost">{t('common:projectDetail.workOrders.billing.status.overInvoiced', 'Over-invoiced')}</StatusPill>}
-              {/* S3 adds Invoice this here. */}
+              {/* Navigation into the shipped flow, never a second dialog: WorkOrdersTab re-applies the full gate on arrival (#1640 D5). */}
+              {canCreate && b && canInvoiceWorkOrder(w.status, b) && (
+                <Link to={`${contractHref}?wo=${encodeURIComponent(w.id)}&invoice=1`}
+                  aria-label={t('projectDetail.billingMilestones.invoiceThisLabel', 'Invoice {{order}}', { order: w.wo_number ?? w.title })}
+                  className={buttonClasses('primary', 'sm')}>
+                  {t('projectDetail.billingMilestones.invoiceThis', 'Invoice this')}
+                </Link>
+              )}
             </div>
           </li>
         );
