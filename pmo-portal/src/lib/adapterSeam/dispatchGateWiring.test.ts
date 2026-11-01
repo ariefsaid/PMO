@@ -297,3 +297,16 @@ describe('H-1: the budget backstop gates its re-POST on outbox eligibility', () 
     expect(SWEEP_CODE).toMatch(/eligibleOutboxIds[\s\S]{0,400}listCandidatesLive\(/);
   });
 });
+
+describe('FR-SCA-022: the PO revise guard is wired into the dispatch entry point', () => {
+  it('FR-SCA-022 the revise guard is wired before outbox enqueue', () => {
+    expect(INDEX).toMatch(/import \{[^}]*checkPoRevise[^}]*\} from '\.\/poReviseGuard\.ts'/);
+    const guard = at('await checkPoRevise(');
+    expect(guard, 'an imported-but-uncalled guard lets a revise cancel a billed ERP order').toBeGreaterThan(-1);
+    expect(guard, 'checkPoRevise must run before resolveMoneyOutbox').toBeLessThan(at('await resolveMoneyOutbox('));
+    expect(CODE).toMatch(/String\(command\.operation\) === 'revise'/);
+    const refusal = CODE.slice(guard, guard + 400);
+    expect(refusal).toContain("error: 'commit-rejected'");
+    expect(refusal).toMatch(/status: poRevise\.status/);
+  });
+});

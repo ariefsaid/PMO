@@ -10402,6 +10402,10 @@ export type Database = {
       }
     }
     Functions: {
+      attribute_subcontract_bill_lines: {
+        Args: { p_invoice_id: string; p_lines: Json }
+        Returns: undefined
+      }
       boq_allowance_ok: {
         Args: { p_boq_item_id: string; p_item_id: string }
         Returns: boolean
@@ -10443,6 +10447,15 @@ export type Database = {
       org_employs_imprest_postings: {
         Args: { p_org_id: string }
         Returns: boolean
+      }
+      po_revision_push_refusal: {
+        Args: {
+          p_org: string
+          p_po_id: string
+          p_revise_cancels: boolean
+          p_revision: number
+        }
+        Returns: string
       }
       po_variation_route: {
         Args: { p_id: string }
@@ -10497,6 +10510,16 @@ export type Database = {
         Returns: string
       }
       create_procurement_with_items: { Args: { p_id: string; p_header: Json; p_items: Json }; Returns: Database['public']['Tables']['procurements']['Row'] }
+      subcontract_cap_exceptions: {
+        Args: { p_procurement_id: string }
+        Returns: {
+          amount: number
+          erp_purchase_document_id: string
+          invoice_id: string
+          number: string
+          reason: string
+        }[]
+      }
       subcontract_po_position: {
         Args: { p_po_id: string }
         Returns: {

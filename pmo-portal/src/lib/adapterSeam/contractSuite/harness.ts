@@ -82,6 +82,15 @@ export interface ErpHarness {
   connect?: () => ConnectHarness;
   /** imprest.transfer: each call starts an empty fake ERP. Absent until the tier posts site cash. */
   transfer?: () => TransferHarness;
+  /** purchase-order.revise: each call starts an empty fake ERP. Absent until the tier carries PO revisions (#1505). */
+  revise?: () => ReviseHarness;
+}
+
+export interface ReviseHarness {
+  post(r: import('../purchaseOrderRevise.ts').PurchaseOrderRevise): Promise<{ externalId: string }>;
+  /** Documents the fake ERP now holds, by the PMO revision key each carries. */
+  documents(): Array<{ externalId: string; key: string }>;
+  failNextWrite(fault: 'transport' | 'lost-response'): void;
 }
 
 export interface TransferHarness {
