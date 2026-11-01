@@ -15,10 +15,10 @@ import { classifyMutationError } from '@/src/lib/classifyMutationError';
  * proven in AC-DND-015. Only the repository seam, auth and milestones are controlled.
  */
 const dnd = vi.hoisted(() => ({
-  props: null as null | { onMove: (c: string, k: string) => void; canDrop: (c: string, k: string) => boolean },
+  props: null as null | { onMove: (c: string, k: string) => void; canDrop: (c: string, k: string) => boolean; isHome: (c: string, k: string) => boolean },
 }));
 vi.mock('@/src/components/kanban/BoardDnd', () => ({
-  BoardDnd: (p: { children: React.ReactNode; onMove: never; canDrop: never }) => { dnd.props = p; return <>{p.children}</>; },
+  BoardDnd: (p: { children: React.ReactNode; onMove: never; canDrop: never; isHome: never }) => { dnd.props = p; return <>{p.children}</>; },
   DroppableColumn: ({ children, testId }: { children: (s: undefined) => React.ReactNode; testId?: string }) => <div data-testid={testId}>{children(undefined)}</div>,
   DraggableCard: ({ children, moveState, disabled }: { children: React.ReactNode; moveState?: string | null; disabled?: boolean }) => (
     <div data-drag-state={moveState ?? undefined} data-drag-disabled={disabled ? 'true' : undefined}>{children}</div>
@@ -111,6 +111,13 @@ describe('TasksTab board drag', () => {
     expect(dnd.props!.canDrop('t1', 'To Do')).toBe(false);
     await drop('t1', 'To Do');
     expect(taskRepo.updateStatus).not.toHaveBeenCalled();
+  });
+
+  it("AC-DND-012: a task's own column is home (no drop cue); another column is not", async () => {
+    renderBoard('Project Manager', 'pm-1');
+    await waitFor(() => expect(cardIn('To Do')).toBeInTheDocument());
+    expect(dnd.props!.isHome('t1', 'To Do')).toBe(true);
+    expect(dnd.props!.isHome('t1', 'Done')).toBe(false);
   });
 
   it('AC-DND-010: a failed task drop rolls the card back to its column and shows the classified error', async () => {

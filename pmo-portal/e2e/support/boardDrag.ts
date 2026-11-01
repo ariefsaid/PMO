@@ -1,7 +1,13 @@
 import type { Locator, Page } from '@playwright/test';
 
 /** Real pointer drag through dnd-kit's MouseSensor (6 px activation), then a stepped move onto the column. */
-export async function dragCardTo(page: Page, card: Locator, column: Locator): Promise<void> {
+export async function dragCardTo(
+  page: Page,
+  card: Locator,
+  column: Locator,
+  /** Runs while the card is held over the column, before the pointer is released (mid-drag assertions). */
+  whileDragging?: () => Promise<void>,
+): Promise<void> {
   await card.scrollIntoViewIfNeeded();
   const from = await card.boundingBox();
   const to = await column.boundingBox();
@@ -15,6 +21,7 @@ export async function dragCardTo(page: Page, card: Locator, column: Locator): Pr
   await page.mouse.down();
   await page.mouse.move(x + 12, y, { steps: 3 });
   await page.mouse.move(to.x + to.width / 2, targetY, { steps: 15 });
+  await whileDragging?.();
   await page.mouse.up();
   // dnd-kit's drop animation runs ~250 ms; a drag started inside it is ignored, so let it settle.
   await page.waitForTimeout(500);

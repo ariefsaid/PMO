@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Kanban, KanbanColumn, KanbanStageIndicator, StatusPill, Badge, TaxBasisLabel } from '@/src/components/ui';
+import { Kanban, KanbanColumn, KanbanStageIndicator, StatusPill, Badge, TaxBasisLabel, type DropState } from '@/src/components/ui';
 import { useKanbanMobileScroll } from '@/src/components/kanban/useKanbanMobileScroll';
 import { BoardDnd, DraggableCard, DroppableColumn } from '@/src/components/kanban/BoardDnd';
 import type { MoveState } from '@/src/components/kanban/useOptimisticMoves';
@@ -39,6 +39,7 @@ interface SalesKanbanBoardProps {
     stateOf: (projectId: string) => MoveState | null;
     canDrag: (project: PipelineProject) => boolean;
     canDrop: (projectId: string, columnId: string) => boolean;
+    isHome: (projectId: string, columnId: string) => boolean;
     onMove: (projectId: string, columnId: string) => void;
   };
 }
@@ -231,13 +232,17 @@ const SalesKanbanBoardView: React.FC<SalesKanbanBoardProps> = ({
     drag ? (
       <BoardDnd
         canDrop={drag.canDrop}
+        isHome={drag.isHome}
         onMove={drag.onMove}
         cardLabel={(id) => { const p = byId.get(id); return p ? projectDisplayName(p) : ''; }}
         columnLabel={(id) => { const c = SALES_COLUMNS.find((x) => x.testId === id); return c ? stageLabel(c) : id; }}
         renderOverlay={(id) => {
           const p = byId.get(id);
+          // The card being held, at its own width (dnd-kit sizes the overlay to the source card). Inert: a picture, not a control.
           return p ? (
-            <div className="rounded-lg border border-border bg-card p-3 text-[13px] font-semibold shadow-[0_10px_30px_hsl(240_10%_8%/0.16)]">{projectDisplayName(p)}</div>
+            <div inert aria-hidden="true" className="pointer-events-none w-full shadow-[0_10px_30px_hsl(240_10%_8%/0.16)]">
+              <DealCard project={p} selected={false} onActivate={() => undefined} />
+            </div>
           ) : null;
         }}
       >
@@ -281,7 +286,7 @@ const SalesKanbanBoardView: React.FC<SalesKanbanBoardProps> = ({
                 })}
               </span>
             ) : undefined;
-          const column = (dropState?: 'allowed' | 'blocked') => (
+          const column = (dropState?: DropState) => (
             <KanbanColumn
               title={colTitle}
               dotColor={col.dotColor}

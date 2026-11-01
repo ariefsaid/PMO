@@ -47,16 +47,20 @@ type TransitionVars = {
  * On success, invalidates the ['projects', orgId] cache so the list refetches.
  * org_id is NEVER sent to the RPC (FR-PR-010).
  */
-export function useProjectTransition(): UseMutationResult<void, Error, TransitionVars> & { erpSetupPending: boolean } {
+export function useProjectTransition(): UseMutationResult<{ erpSetupPending: boolean }, Error, TransitionVars> & { erpSetupPending: boolean } {
   const queryClient = useQueryClient();
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
   const [erpSetupPending, setErpSetupPending] = useState(false);
 
-  const mutation = useMutation<void, Error, TransitionVars>({
-    mutationFn: ({ id, to, opts }) => repositories.project.transition(id, to, opts),
-    onSuccess: async (_data, { id, to }) => {
-      setErpSetupPending(to === 'Won, Pending KoM' && await synchronizeErpProject(id, orgId) === 'pending');
+  const mutation = useMutation<{ erpSetupPending: boolean }, Error, TransitionVars>({
+    mutationFn: async ({ id, to, opts }) => {
+      await repositories.project.transition(id, to, opts);
+      // Also the awaited result, so a caller (the board drop) never reads a stale flag after a second win.
+      return { erpSetupPending: to === 'Won, Pending KoM' && await synchronizeErpProject(id, orgId) === 'pending' };
+    },
+    onSuccess: ({ erpSetupPending }) => {
+      setErpSetupPending(erpSetupPending);
       invalidateProjectProjections(queryClient, orgId);
       queryClient.invalidateQueries({ queryKey: ['integrations', 'bindings', orgId] });
       queryClient.invalidateQueries({ queryKey: ['integrations', 'project-erp', orgId] });

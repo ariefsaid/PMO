@@ -1,7 +1,8 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
-import { EntityFormModal, useToast } from '@/src/components/ui';
+import { EntityFormModal, useToast, type SubmitError } from '@/src/components/ui';
+import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { useAuth } from '@/src/auth/useAuth';
 import { usePermission } from '@/src/auth/usePermission';
 import { useProjectTransition, winEligibilityQueryOptions } from '@/src/hooks/useProjectTransitions';
@@ -18,10 +19,13 @@ import { winDetailsComplete, winEligibilityMessage } from '../../components/proj
 
 type Pending =
   | { kind: 'confirm'; project: PipelineProject; target: ProjectStatus; choice?: ProjectStatus[] }
-  | { kind: 'win'; project: PipelineProject };
+  | { kind: 'win'; project: PipelineProject }
+  // The win-eligibility read is in flight: a second drop is ignored until it answers.
+  | { kind: 'checking'; project: PipelineProject };
 
 const BOARD_ROOTS = ['sales-pipeline', 'won-deals', 'lost-deals'] as const;
 const colById = (id: string) => SALES_COLUMNS.find((c) => c.testId === id)!;
+const colByStatus = (status: string) => SALES_COLUMNS.find((c) => c.statuses.includes(status))!;
 
 /**
  * Sales Pipeline drop controller (DND, #1637). A drop is a second way to ask for the transition the
@@ -44,35 +48,46 @@ export const DraggableSalesBoard: React.FC<{
   const [pending, setPending] = useState<Pending | null>(null);
   const [contractRef, setContractRef] = useState('');
   const [contractDate, setContractDate] = useState('');
+  const [saveError, setSaveError] = useState<SubmitError | null>(null);
   const byId = useMemo(() => new Map(projects.map((p) => [p.id, p])), [projects]);
   const mayTransition = may('transition', 'project');
-
-  // The board has no inline slot for the menu's ERP-linking note, so it surfaces as a toast.
-  useEffect(() => {
-    if (mutation.erpSetupPending)
-      toast(t('projectDetail.erpLink.statusPending', 'Project status saved. ERP linking needs attention; retry from the project page.'), undefined, 'info');
-  }, [mutation.erpSetupPending, toast, t]);
 
   // Awaits the refetch `invalidateProjectProjections` already started, without cancelling it.
   const refreshBoard = () => Promise.all(BOARD_ROOTS.map((root) =>
     qc.invalidateQueries({ queryKey: [root, currentUser?.org_id] }, { cancelRefetch: false })));
 
-  const reset = () => { setPending(null); setContractRef(''); setContractDate(''); };
+  const reset = () => { setPending(null); setContractRef(''); setContractDate(''); setSaveError(null); };
   const cancel = () => { if (pending) moves.release(pending.project.id); reset(); };
 
+  // The confirm and the win form stay open while the write runs. A refused win keeps the form, its typed
+  // details and the card held (error shown in the form); any other refusal toasts and rolls the card back.
   const commit = async (project: PipelineProject, to: ProjectStatus, opts?: TransitionProjectOpts) => {
-    reset();
+    const isWin = pending?.kind === 'win';
+    setSaveError(null);
     moves.save(project.id);
+    let outcome: Awaited<ReturnType<typeof mutation.mutateAsync>>;
     try {
-      await mutation.mutateAsync({ id: project.id, to, opts });
-      toast('Project updated', `Moved to ${to}`, 'success');
-      await refreshBoard();
-      // Let the refetched rows render before the card stops being held, so it never flickers back (FR-DND-033).
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      outcome = await mutation.mutateAsync({ id: project.id, to, opts });
     } catch (err) {
+      if (isWin) {
+        setSaveError(classifyMutationError(err));
+        moves.hold(project.id, colByStatus(to).testId);
+        return;
+      }
+      reset();
       toast('Status change failed', err instanceof Error ? err.message : undefined, 'warning');
-    } finally {
       moves.release(project.id);
+      return;
+    }
+    reset();
+    try {
+      toast('Project updated', `Moved to ${to}`, 'success');
+      // The board has no inline slot for the menu's ERP-linking note, so it surfaces as a toast.
+      if (outcome.erpSetupPending)
+        toast(t('projectDetail.erpLink.statusPending', 'Project status saved. ERP linking needs attention; retry from the project page.'), undefined, 'info');
+      await refreshBoard();
+    } finally {
+      await moves.releaseAfterRender(project.id);
     }
   };
 
@@ -94,8 +109,10 @@ export const DraggableSalesBoard: React.FC<{
     if (r.kind === 'choice') { setPending({ kind: 'confirm', project, target: r.options[0], choice: r.options }); return; }
     if (r.to !== 'Won, Pending KoM') { setPending({ kind: 'confirm', project, target: r.to }); return; }
     // Win: the same read-only preflight the menu uses. Anything but 'allowed' (or a failed check) refuses.
+    setPending({ kind: 'checking', project });
     const decision: string | null = await qc.fetchQuery(winEligibilityQueryOptions(currentUser, project.id)).catch(() => null);
     if (decision === 'allowed') { setPending({ kind: 'win', project }); return; }
+    reset();
     moves.release(projectId);
     toast(t('boardDrag:refusedTitle', 'Move not allowed'), winEligibilityMessage(t, decision), 'warning');
   };
@@ -105,6 +122,11 @@ export const DraggableSalesBoard: React.FC<{
     if (!p) return false;
     const k = resolveProjectDrop(p.status as ProjectStatus, colById(columnId)).kind;
     return k === 'target' || k === 'choice';
+  };
+
+  const isHome = (projectId: string, columnId: string) => {
+    const p = byId.get(projectId);
+    return !!p && resolveProjectDrop(p.status as ProjectStatus, colById(columnId)).kind === 'noop';
   };
 
   return (
@@ -118,6 +140,7 @@ export const DraggableSalesBoard: React.FC<{
           stateOf: moves.stateOf,
           canDrag: (p) => mayTransition && (LEGAL_PROJECT_TRANSITIONS[p.status] ?? []).length > 0,
           canDrop,
+          isHome,
           onMove: (id, col) => void onMove(id, col),
         }}
       />
@@ -135,6 +158,8 @@ export const DraggableSalesBoard: React.FC<{
           open
           title="Win — enter contract details"
           submitLabel="Confirm"
+          loading={mutation.isPending}
+          submitError={saveError}
           submitDisabled={!winDetailsComplete(contractRef, contractDate)}
           dirty={contractRef !== '' || contractDate !== ''}
           onClose={cancel}

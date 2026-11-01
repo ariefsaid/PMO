@@ -10,7 +10,7 @@ import { dragCardTo } from './support/boardDrag';
 // Journey: an Exec opens /sales with a self-created deal in Quotation. Dragging it back to Leads is
 // refused (no write, message shown); dragging it to Tender asks the status menu's confirm and, once
 // confirmed, survives a reload in Tender; dragging it to Won asks for the contract details and, once
-// submitted, survives a reload in Won. axe runs on the idle board and with the confirm open.
+// submitted, survives a reload in Won. axe runs on the idle board, mid-drag and with the confirm open.
 //
 // ISOLATION: unique deal per run, deleted (history first) in afterEach even on failure.
 
@@ -60,12 +60,23 @@ test('AC-DND-014 Exec drags a deal: illegal drop refused, Quotation→Tender con
   expect(idle.violations).toEqual([]);
 
   // 1. Illegal move: refused, nothing written, the card stays in Quotation.
+  const writes: string[] = [];
+  page.on('request', (r) => { if (r.url().includes('/rpc/transition_project')) writes.push(r.url()); });
   await dragCardTo(page, card(), page.getByTestId('stage-Leads'));
   await expect(visibleToast(page, `${DEAL} can't move from Quotation to Leads.`)).toBeVisible();
   await expect(page.getByTestId('stage-Quotation Submitted').getByText(DEAL)).toBeVisible();
+  expect(writes).toHaveLength(0);
 
   // 2. Legal move: the status menu's confirm, then it persists.
-  await dragCardTo(page, card(), page.getByTestId('stage-Tender Submitted'));
+  await dragCardTo(page, card(), page.getByTestId('stage-Tender Submitted'), async () => {
+    // AC-DND-016: axe passes mid-drag. The card's own column carries no cue; a legal column says so; an illegal one says so.
+    await expect(page.getByTestId('stage-Tender Submitted').getByText('Drop to move here')).toBeVisible();
+    await expect(page.getByTestId('stage-Leads').getByText("Can't move here")).toBeVisible();
+    await expect(page.getByTestId('stage-Quotation Submitted').getByText("Can't move here")).toHaveCount(0);
+    await expect(page.getByTestId('stage-Quotation Submitted').getByText('Drop to move here')).toHaveCount(0);
+    const midDrag = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
+    expect(midDrag.violations).toEqual([]);
+  });
   await expect(page.getByText('Move project to Tender Submitted?')).toBeVisible();
   const confirmOpen = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
   expect(confirmOpen.violations).toEqual([]);

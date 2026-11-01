@@ -8,6 +8,9 @@ describe('KanbanColumn drop state', () => {
     expect(screen.getByText('Drop to move here')).toBeInTheDocument();
     rerender(<KanbanColumn title="Tender" count={0} dropState="blocked" />);
     expect(screen.getByText("Can't move here")).toBeInTheDocument();
+    rerender(<KanbanColumn title="Tender" count={0} dropState="target" />);
+    expect(screen.getByText('Drop to move here')).toBeInTheDocument();
+    expect(screen.getByText('Tender').closest('[data-drop-state]')).toHaveAttribute('data-drop-state', 'target');
     rerender(<KanbanColumn title="Tender" count={0} />);
     expect(screen.queryByText("Can't move here")).toBeNull();
   });

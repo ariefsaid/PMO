@@ -61,7 +61,14 @@ test('AC-DND-015 PM drags a task To Do → Done and it persists', async ({ page 
   const idle = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
   expect(idle.violations).toEqual([]);
 
-  await dragCardTo(page, card, done);
+  await dragCardTo(page, card, done, async () => {
+    // AC-DND-016: axe passes mid-drag, and the card's own column carries no "can't move" cue.
+    await expect(done.getByText('Drop to move here')).toBeVisible();
+    await expect(toDo.getByText("Can't move here")).toHaveCount(0);
+    await expect(toDo.getByText('Drop to move here')).toHaveCount(0);
+    const midDrag = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
+    expect(midDrag.violations).toEqual([]);
+  });
   await expect(visibleToast(page, 'Status updated')).toBeVisible({ timeout: 15_000 });
   await expect(done.getByRole('button', { name: `Open task ${TASK}`, exact: true })).toBeVisible();
 

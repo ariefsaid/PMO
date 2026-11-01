@@ -1,5 +1,5 @@
 import { renderHook, act } from '@testing-library/react';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { useOptimisticMoves } from '../useOptimisticMoves';
 
 describe('useOptimisticMoves', () => {
@@ -14,5 +14,18 @@ describe('useOptimisticMoves', () => {
     act(() => result.current.release('a'));
     expect(result.current.columnOf('a', 'Leads')).toBe('Leads');
     expect(result.current.stateOf('a')).toBeNull();
+  });
+
+  it('AC-DND-008: releaseAfterRender keeps the card held for one tick, then releases it (no flicker back)', async () => {
+    vi.useFakeTimers();
+    try {
+      const { result } = renderHook(() => useOptimisticMoves());
+      act(() => result.current.hold('a', 'Tender'));
+      let done!: Promise<void>;
+      act(() => { done = result.current.releaseAfterRender('a'); });
+      expect(result.current.stateOf('a')).toBe('held');
+      await act(async () => { await vi.runAllTimersAsync(); await done; });
+      expect(result.current.stateOf('a')).toBeNull();
+    } finally { vi.useRealTimers(); }
   });
 });

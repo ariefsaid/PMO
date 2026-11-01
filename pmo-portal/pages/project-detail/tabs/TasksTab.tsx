@@ -977,25 +977,27 @@ const TaskBoard: React.FC<TaskBoardProps> = ({
     if (!task || !canSetStatus(task) || to === task.status) return;
     moves.hold(id, to);
     moves.save(id);
+    let ok = false;
     try {
-      const ok = await onStatusChange(task, to);
-      if (ok) {
-        await qc.invalidateQueries({ queryKey: ['tasks', orgId, projectId] }, { cancelRefetch: false });
-        // Let the refetched rows render before the card stops being held, so it never flickers back.
-        await new Promise((resolve) => setTimeout(resolve, 0));
-      }
+      ok = await onStatusChange(task, to);
+      if (ok) await qc.invalidateQueries({ queryKey: ['tasks', orgId, projectId] }, { cancelRefetch: false });
     } finally {
-      moves.release(id);
+      if (ok) await moves.releaseAfterRender(id);
+      else moves.release(id);
     }
   };
   return (
     <BoardDnd
       canDrop={(id, col) => { const task = byId.get(id); return !!task && canSetStatus(task) && col !== task.status; }}
+      isHome={(id, col) => byId.get(id)?.status === col}
       onMove={(id, col) => void dropTask(id, col as TaskStatus)}
       cardLabel={(id) => byId.get(id)?.name ?? ''}
       columnLabel={(id) => id}
       renderOverlay={(id) => (
-        <div className="rounded-md border border-border bg-card px-3 py-2.5 text-[13px] font-semibold shadow-[0_10px_30px_hsl(240_10%_8%/0.16)]">{byId.get(id)?.name}</div>
+        // The card being held, at its own width (dnd-kit sizes the overlay to the source card).
+        <div className="w-full min-w-0 rounded-md border border-border bg-card px-3 py-2.5 shadow-[0_10px_30px_hsl(240_10%_8%/0.16)]">
+          <span className="block whitespace-normal break-words text-[13px] font-semibold leading-snug">{byId.get(id)?.name}</span>
+        </div>
       )}
     >
     <Kanban className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
