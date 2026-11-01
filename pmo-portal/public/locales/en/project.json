@@ -17,6 +17,11 @@
   "billedWork": "Billed-work revenue",
   "billedWorkQualifier": "Net of tax; advances excluded",
   "projectFinances": {
+    "excessTitle": "Invoiced above contract by {{amount}}",
+    "excessInvoices": "Contract invoices behind the excess",
+    "excessInvoiceNoNumber": "Invoice",
+    "excessDetailUnavailable": "The invoices behind this excess could not be verified.",
+    "contractComparisonUnavailable": "Contract comparison unavailable: the contract value is not recorded, or a contract invoice cannot be compared (currency or tax basis).",
     "currencyUnavailable": "Currency unavailable",
     "pmoPartial": "Partial position; other currencies or unavailable amounts are excluded.",
     "contractAfterCostSource": "Contract value minus comparable recorded Actual.",

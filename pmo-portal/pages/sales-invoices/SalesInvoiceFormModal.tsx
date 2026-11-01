@@ -1,13 +1,14 @@
 import React, { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
-import { Button, Combobox, EntityFormModal, FormGrid, FormSection, Icon, NumberField, TextField, type ComboboxOption, type SubmitError } from '@/src/components/ui';
+import { Button, Combobox, EntityFormModal, FormGrid, FormSection, Icon, NumberField, SelectField, TextField, type ComboboxOption, type SubmitError } from '@/src/components/ui';
 import { useEntityForm } from '@/src/components/ui/useEntityForm';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { useClientCompanyOptions, useInvoiceProjectOptions } from '@/src/hooks/useFkOptions';
 import { useCommandIntent } from '@/src/hooks/useCommandIntent';
 import { useErpItemOptions } from '@/src/hooks/useErpItemOptions';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { DEFAULT_BILLING_KIND, type BillingKind } from '@/src/lib/billingKind';
 import { currencySymbol, formatCurrencyCents } from '@/src/lib/format';
 import type { PendingPushState } from '@/src/lib/adapterSeam/pendingPush';
 import type { CommandIntent } from '@/src/lib/repositories/types';
@@ -22,7 +23,7 @@ interface SalesInvoiceFormModalProps {
   onClose: () => void;
   /** `intent` is the modal's OWN command identity — stable for this form session (BLOCK 2). */
   onCreate: (
-    input: { customerId: string; projectId: string | null; lineItems: LineItem[] },
+    input: { customerId: string; projectId: string | null; lineItems: LineItem[]; billingKind?: BillingKind },
     intent: CommandIntent,
   ) => Promise<void>;
   pendingPush: PendingPushState;
@@ -67,6 +68,7 @@ export const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
     initialValues: {
       customerId: initialContext?.customerId ?? '',
       projectId: initialContext?.projectId ?? null,
+      billingKind: DEFAULT_BILLING_KIND,
       lineItems: [EMPTY_LINE],
     },
     validate: (values) => validate(values, t, native, projectById(values.projectId), erpItems.connected),
@@ -149,7 +151,7 @@ export const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
         if (qty === null || !isValidQuantity(item.qty) || rate === null) return;
         lineItems.push({ item_code: item.item_code, qty, rate, ...(item.description?.trim() ? { description: item.description.trim() } : {}) });
       }
-      const input = { customerId: values.customerId, projectId: values.projectId, lineItems };
+      const input = { customerId: values.customerId, projectId: values.projectId, lineItems, ...(values.projectId ? { billingKind: values.billingKind } : {}) };
       try {
         await onCreate(input, intent);
       } catch (err) {
@@ -264,6 +266,22 @@ export const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
             loadOptions={loadProjects}
             noun="project"
           />
+          {projectField.value && (
+            <SelectField
+              id={form.fieldProps('billingKind').id}
+              label={t('finance:billingKind.label', 'Billing kind')}
+              value={form.values.billingKind}
+              disabled={form.isSubmitting}
+              options={[
+                { value: 'contract', label: t('finance:billingKind.contract', 'Contract billing') },
+                { value: 'other', label: t('finance:billingKind.other', 'Other billing') },
+              ]}
+              helper={form.values.billingKind === 'contract'
+                ? t('finance:billingKind.contractHelp', 'Counts against the contract: reduces Remaining to invoice, and counts toward revenue and margin.')
+                : t('finance:billingKind.otherHelp', 'Licences, reimbursables and work outside the contract: counts toward revenue and margin, never reduces Remaining to invoice.')}
+              onChange={(value) => form.setValue('billingKind', value as BillingKind)}
+            />
+          )}
         </FormGrid>
       </FormSection>
 

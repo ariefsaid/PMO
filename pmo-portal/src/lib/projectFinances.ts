@@ -1,4 +1,5 @@
 import { parseExactCents, formatExactCents } from './exactDecimal';
+import type { BillingKind } from './billingKind';
 import { formatExactMoney } from './format';
 
 export type ExactMoney = string;
@@ -24,9 +25,22 @@ export type ProjectReceiptCash =
   | { state: 'incomplete'; buckets: []; receipt_count: number; reasons: ReceiptCashReason[] }
   | { state: 'unavailable'; buckets: []; reason: 'not-reported' | 'invalid-reading' };
 
+export interface ContractExcessContributor {
+  invoice_id: string;
+  invoice_number: string | null;
+  invoice_date: string | null;
+  /** Normalized contribution on the contract's tax basis (exact decimal text). */
+  contribution: ExactMoney;
+}
+export type ContractExcess =
+  | { state: 'known'; amount: ExactMoney; contractBilling: ExactMoney; contributors: ContractExcessContributor[] }
+  | { state: 'incomplete'; amount: ExactMoney };
+
 export interface ProjectFinances {
   project_id: string;
   cash_received?: ProjectReceiptCash;
+  /** #1471: present only when comparable Contract billing exceeds a known contract value. Absent on a payload from before 0410. */
+  contract_excess?: ContractExcess | null;
   contract_invoiced: ExactMoney | null;
   remaining_to_invoice: ExactMoney | null;
   invoices: InvoiceFinanceBucket[];
@@ -241,6 +255,8 @@ export interface AssignInvoiceProjectInput {
   siId: string;
   projectId: string;
   oldProjectId: string | null;
+  /** #1471: with the same project this is the kind-only correction; omitted = leave the stored kind. */
+  billingKind?: BillingKind;
 }
 
 export function moneyUnits(value: ExactMoney | null): bigint | null {
@@ -258,6 +274,32 @@ const receiptCashReasons: readonly ReceiptCashReason[] = [
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+/** The excess is always derived from `remaining_to_invoice` (so a negative is never shown bare); the contributor
+ *  detail is trusted only if it reconciles exactly to the contract billing and to that excess. */
+export function parseContractExcess(raw: unknown, remaining: ExactMoney | null): ContractExcess | null {
+  const remainingUnits = moneyUnits(remaining);
+  if (remainingUnits === null || remainingUnits >= 0n) return null;
+  const amount = moneyText(-remainingUnits);
+  const incomplete: ContractExcess = { state: 'incomplete', amount };
+  if (!isRecord(raw) || typeof raw.amount !== 'string' || typeof raw.contract_billing !== 'string'
+      || !Array.isArray(raw.contributors)) return incomplete;
+  if (moneyUnits(raw.amount) !== -remainingUnits) return incomplete;
+  const billing = moneyUnits(raw.contract_billing);
+  const contributors: ContractExcessContributor[] = [];
+  let sum = 0n;
+  for (const c of raw.contributors) {
+    if (!isRecord(c) || typeof c.invoice_id !== 'string' || typeof c.contribution !== 'string') return incomplete;
+    const units = moneyUnits(c.contribution);
+    if (units === null) return incomplete;
+    sum += units;
+    contributors.push({ invoice_id: c.invoice_id,
+      invoice_number: typeof c.invoice_number === 'string' ? c.invoice_number : null,
+      invoice_date: typeof c.invoice_date === 'string' ? c.invoice_date : null, contribution: c.contribution });
+  }
+  if (billing === null || sum !== billing || contributors.length === 0) return incomplete;
+  return { state: 'known', amount, contractBilling: raw.contract_billing, contributors };
 }
 
 function isReceiptCount(value: unknown): value is number {

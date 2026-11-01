@@ -82,6 +82,7 @@ export function fieldLabels(t: TFunction): Record<string, string> {
     pmo_native: t('history.field.pmo_native', 'PMO-created'),
     pmo_number: t('history.field.pmo_number', 'PMO invoice number'),
     native_lines: t('history.field.native_lines', 'Invoice lines'),
+    billing_kind: t('finance:billingKind.label', 'Billing kind'),
     withheld_amount: t('history.field.withheld_amount', 'Tax withheld'),
     withheld_pph_type: t('history.field.withheld_pph_type', 'Withholding tax type'),
     slip_number: t('history.field.slip_number', 'Slip number'),

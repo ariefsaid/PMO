@@ -113,6 +113,7 @@ const StockDocumentDetailPage = React.lazy(() => import('./pages/stock/StockDocu
 const StockLedgerPage = React.lazy(() => import('./pages/stock/StockLedger'));
 const StockMovementFormPage = React.lazy(() => import('./pages/stock/StockMovementForm'));
 const StockCountPage = React.lazy(() => import('./pages/stock/StockCount'));
+const StockReorderPage = React.lazy(() => import('./pages/stock/StockReorder'));
 
 /**
  * Model B (ADR-0020, AC-IXD-PROJ-002): the legacy `/sales/:opportunityId` deep link redirects
@@ -265,6 +266,7 @@ export const appRouteConfig: RouteObject[] = [
   { path: '/stock/documents/:documentId', element: <StockDocumentDetailPage /> },
   { path: '/stock/documents/:documentId/edit', element: <StockCountPage /> },
   { path: '/stock/ledger', element: <StockLedgerPage /> },
+  { path: '/stock/reorder', element: <StockReorderPage /> },
   { path: '/stock/new/:kind', element: <StockMovementFormPage /> },
   { path: '*', element: <NotFoundPage /> },
 ];

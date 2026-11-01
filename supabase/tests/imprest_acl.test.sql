@@ -1,6 +1,6 @@
 -- imprest_acl.test.sql — #1515 site imprest: the ACL shape of every imprest function (AC-IMP-060; plan S1.11). Client
 -- RPCs: authenticated only, never anon. Internals: neither.
-begin; create extension if not exists pgtap; select plan(30);
+begin; create extension if not exists pgtap; select plan(31);
 select ok(not has_function_privilege('anon', p, 'EXECUTE'), 'AC-IMP-060 anon cannot execute ' || p)
   from unnest(array['public.set_imprest_procurement_limit(numeric)', 'public.establish_imprest_float(uuid, uuid, numeric)',
                     'public.propose_imprest_float_amount(uuid, numeric)', 'public.decide_imprest_float_change(uuid, boolean, text)',
@@ -20,5 +20,6 @@ select ok(not has_function_privilege('anon', p, 'EXECUTE') and not has_function_
   from unnest(array['public.imprest_custodian_eligible(uuid, uuid, uuid)', 'public.imprest_senior_route(uuid, uuid)',
                     'public.imprest_lock_float(uuid)', 'public.check_expense_claim_float()',
                     'public.refuse_imprest_count_change()', 'public.notify_imprest_plan_transition()',
-                    'public.notify_imprest_replenishment()', 'public.notify_expense_claim_transition()']) p;
+                    'public.notify_imprest_replenishment()', 'public.notify_expense_claim_transition()',
+                    'public.imprest_exception_recipients(uuid, uuid, date, uuid)']) p;
 select * from finish(); rollback;

@@ -14,3 +14,9 @@ it('AC-BWO-003 carries the work order an invoice bills', () => {
   expect(salesInvoiceCreateFields({ customerId: 'c', projectId: 'p', items, workOrderId: 'wo-1' }))
     .toEqual({ customerId: 'c', projectId: 'p', items, workOrderId: 'wo-1', erp_doc_kind: 'sales-invoice' });
 });
+
+it('FR-012 carries the billing kind alongside erp_doc_kind as PMO metadata', () => {
+  const items = [{ item_code: 'SVC', qty: 1, rate: 100 }];
+  expect(salesInvoiceCreateFields({ customerId: 'c', items, projectId: 'p', billingKind: 'other' }))
+    .toEqual({ customerId: 'c', items, projectId: 'p', billingKind: 'other', erp_doc_kind: 'sales-invoice' });
+});

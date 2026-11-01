@@ -5,7 +5,6 @@
 begin;
 create extension if not exists pgtap;
 select plan(11);
-create extension if not exists dblink;
 
 
 insert into organizations (id, name, default_currency, default_timezone) values

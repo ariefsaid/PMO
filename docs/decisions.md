@@ -3597,5 +3597,17 @@ A requester or same-organization Admin may edit the existing procurement header 
 is Draft or Rejected. The header command checks active membership, the procurement feature, referenced
 records and case ownership, and leaves identity, lifecycle and accounting fields outside its input.
 
+### DD-BKIND-1 — billing kinds on project invoices (Director, 2026-10-31)
+
+A project invoice carries one billing kind, `contract` (default) or `other`, as a constrained column on
+`sales_invoices`. Only Contract billing draws down the contract value; `get_project_finances` is the single
+calculation authority and Other billing stays in revenue, settlement, outstanding and margin. When Contract
+billing exceeds a known contract value the same payload carries the exact excess and every contributing
+Contract invoice, so the list reconciles to the headline by construction and cannot be truncated. Kind is
+written by three definer paths only (project assignment, a kind-only correction for any linked invoice, native
+creation) plus the connected-creation mirror writer; an omitted kind keeps the stored one, so a classified
+invoice is never silently flipped. It is PMO metadata and never reaches an ERP body. Rollback refuses while any
+Other invoice exists, so no classification silently changes meaning.
+
 ### OD-ERP-ANYTIME-1 — PMO syncs with the ERP whenever the connection is made (owner, 2026-10-31)
 PMO must sync with the ERP in all four cases: a new org whose ERP already holds data; a new org with no ERP (connected later); an operational org connecting to a new, empty ERP (PMO's data is pushed out); an operational org connecting to an ERP that already holds data (match both sides, no duplicates, no double count). Setup maps once with bulk-accepted auto-proposals. ERPNext and Odoo follow the same sync workflow through one adapter contract with one contract test suite; an ERPNext sync-workflow change is made in the shared seam or replicated to Odoo where the ERP allows. Spec: `docs/specs/erp-connect-anytime.spec.md`.

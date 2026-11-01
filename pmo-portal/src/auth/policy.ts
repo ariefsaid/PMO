@@ -104,7 +104,8 @@ export type Entity =
   | 'stockUnit'
   | 'warehouse'
   | 'stockDocument'
-  | 'materialAllowance';
+  | 'materialAllowance'
+  | 'reorderLevel';
 
 export interface PolicyContext {
   /** The REAL JWT role (not the impersonated effectiveRole). */
@@ -277,6 +278,8 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     edit: (role, ctx) => allowanceWriter(role, ctx),
     delete: (role, ctx) => allowanceWriter(role, ctx),
   },
+  /** Reorder levels (#1512 S6, PQ-6): everyone reads; rank >= 20 sets, edits or clears. UX only; the RPC is the authority. */
+  reorderLevel: { view: allow(ALL), edit: allowUnlessViewOnly(MASTER_DATA) },
   /** Stock documents (#1512 S3): mirrors FR-STK-061/062. `isKeeper` is supplied by the screen from the keeper list. UX only; RLS/RPC is the authority. */
   stockDocument: {
     view: allow(ALL),

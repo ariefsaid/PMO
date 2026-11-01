@@ -16,6 +16,7 @@ import type { SalesInvoiceEvidence } from '@/src/lib/adapterSeam/erpnext/invoice
 import { getSalesInvoiceEvidence } from '@/src/lib/repositories/invoiceEvidence';
 import type { CommandIntent } from '@/src/lib/repositories/types';
 import type { AssignInvoiceProjectInput } from '@/src/lib/projectFinances';
+import type { BillingKind } from '@/src/lib/billingKind';
 import { efakturRefusal } from '@/src/lib/efaktur';
 import { nativeDraftInvoicesKey } from './approvalsQueryKeys';
 
@@ -130,7 +131,7 @@ export function useRevenueMutations() {
   };
 
   const create = useMutation({
-    mutationFn: ({ intent, ...input }: { customerId: string; projectId?: string | null; workOrderId?: string | null; items: Array<{ item_code: string; qty: number; rate: number; description?: string }>; intent?: CommandIntent }) =>
+    mutationFn: ({ intent, ...input }: { customerId: string; projectId?: string | null; workOrderId?: string | null; billingKind?: BillingKind; items: Array<{ item_code: string; qty: number; rate: number; description?: string }>; intent?: CommandIntent }) =>
       repositories.revenue.createInvoice(input, intent),
     onMutate: () => {
       if (isExternal) setPendingPush(beginPush(IDLE_PENDING_PUSH));
@@ -236,8 +237,13 @@ export function useAssignInvoiceProject() {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
   return useMutation({
-    mutationFn: ({ siId, projectId }: AssignInvoiceProjectInput) =>
-      repositories.revenue.setProject(siId, projectId),
+    mutationFn: ({ siId, projectId, oldProjectId, billingKind }: AssignInvoiceProjectInput) => {
+      // Same project + a kind: the narrow correction (works for native, authored and paid invoices too, FR-004).
+      if (billingKind !== undefined && oldProjectId === projectId) return repositories.revenue.setBillingKind(siId, billingKind);
+      return billingKind === undefined
+        ? repositories.revenue.setProject(siId, projectId)
+        : repositories.revenue.setProject(siId, projectId, billingKind);
+    },
     onSuccess: (_data, { siId, projectId, oldProjectId }) => {
       const projectIds = [...new Set([oldProjectId, projectId].filter((id): id is string => Boolean(id)))];
       const keys: readonly (readonly unknown[])[] = [

@@ -17,6 +17,11 @@
   "billedWork": "Pendapatan pekerjaan tertagih",
   "billedWorkQualifier": "Tanpa pajak; tidak termasuk uang muka",
   "projectFinances": {
+    "excessTitle": "Ditagihkan melebihi kontrak sebesar {{amount}}",
+    "excessInvoices": "Tagihan kontrak di balik kelebihan ini",
+    "excessInvoiceNoNumber": "Tagihan",
+    "excessDetailUnavailable": "Rincian tagihan di balik kelebihan ini tidak dapat diverifikasi.",
+    "contractComparisonUnavailable": "Perbandingan kontrak tidak tersedia: nilai kontrak belum dicatat, atau tagihan kontrak tidak dapat dibandingkan (mata uang atau dasar pajak).",
     "currencyUnavailable": "Mata uang tidak tersedia",
     "pmoPartial": "Posisi belum lengkap; mata uang lain atau jumlah yang tidak tersedia tidak disertakan.",
     "contractAfterCostSource": "Nilai kontrak dikurangi Aktual tercatat yang dapat dibandingkan.",

@@ -4,11 +4,12 @@
 -- 0178 allow-list and expense_claims_notify (the re-created notifier's existing proof).
 -- ⚑ notify_expense_claim_transition below is 0247 §10 VERBATIM plus the lines marked `-- 0424`.
 -- ── REVERSE (manual, in this order; also rollback/0424_imprest_position_down.sql) ───────────────────────────────────
---   re-create public.notify_expense_claim_transition from 0247 §10 (this file's text minus `-- 0424` lines)
+--   re-create public.notify_expense_claim_transition from 0247 §10 (copy it from the rollback file, never from this file)
 --   drop trigger if exists imprest_replenishments_notify_trg on public.imprest_replenishments;
 --   drop trigger if exists imprest_plans_notify_trg on public.imprest_plans;
 --   drop function if exists public.notify_imprest_replenishment();
 --   drop function if exists public.notify_imprest_plan_transition();
+--   drop function if exists public.imprest_exception_recipients(uuid, uuid, date, uuid);
 --   drop function if exists public.imprest_float_choices(uuid, public.budget_category);
 --   drop function if exists public.get_imprest_position(uuid);
 --   drop function if exists public.get_imprest_plan_usage(uuid, date);
@@ -40,7 +41,9 @@ create policy imprest_cash_counts_select on public.imprest_cash_counts for selec
          and exists (select 1 from public.imprest_floats f where f.id = imprest_cash_counts.float_id));
 revoke all on public.imprest_cash_counts from public, anon, authenticated;
 grant select on public.imprest_cash_counts to authenticated;
--- append-only for every writer, service role included (FR-IMP-062)
+-- only record_imprest_count writes (0413 stock-ledger shape): the service role reads, never writes or truncates
+revoke insert, update, delete, truncate, trigger, references on public.imprest_cash_counts from service_role;
+-- append-only for every writer, TRUNCATE included (FR-IMP-062)
 create or replace function public.refuse_imprest_count_change() returns trigger
   language plpgsql set search_path = public, pg_temp as $$
 begin
@@ -49,6 +52,8 @@ end; $$;
 revoke all on function public.refuse_imprest_count_change() from public, anon, authenticated;
 create trigger imprest_cash_counts_append_only before update or delete on public.imprest_cash_counts
   for each row execute function public.refuse_imprest_count_change();
+create trigger imprest_cash_counts_no_truncate before truncate on public.imprest_cash_counts
+  for each statement execute function public.refuse_imprest_count_change();
 
 create or replace function public.record_imprest_count(p_float uuid, p_counted numeric, p_note text default null)
 returns uuid language plpgsql security definer set search_path = public, pg_temp as $$
@@ -189,9 +194,11 @@ declare r record; v_f public.imprest_floats%rowtype; v_noun text := case new.kin
 begin
   select * into v_f from public.imprest_floats where id = new.float_id;
   if tg_op = 'INSERT' then
-    for r in select p.id from public.profiles p
-              where p.org_id = new.org_id and p.role = 'Finance'
-                and p.id is distinct from v_f.custodian_id and p.id is distinct from new.requested_by
+    -- Finance other than the custodian and requester; with none, the Admins (who may also approve it)
+    for r in with x as (select p.id, p.role from public.profiles p
+                      where p.org_id = new.org_id and p.role in ('Finance','Admin')
+                        and p.id is distinct from v_f.custodian_id and p.id is distinct from new.requested_by)
+          select x.id from x where x.role = 'Finance' or not exists (select 1 from x where x.role = 'Finance')
     loop
       perform public.notify_workflow_user(new.org_id, r.id, v_noun || ' requested', new.number, 'info',
                                           'imprest_replenishment', new.id, new.number);
@@ -206,6 +213,25 @@ revoke all on function public.notify_imprest_replenishment() from public, anon, 
 create trigger imprest_replenishments_notify_trg after insert or update of status on public.imprest_replenishments
   for each row execute function public.notify_imprest_replenishment();
 
+-- FR-IMP-064: who may still decide an out-of-plan item — the senior set minus the claimant, the custodian (DD-IMP-7.1)
+-- and this month's plan approver (FR-IMP-024); with nobody left, the Admins minus the same people (the senior route's
+-- own fallback). Mirrors the refusals in transition_expense_claim (0423), so nobody is told who would be refused.
+create or replace function public.imprest_exception_recipients(p_org uuid, p_float uuid, p_month date, p_claimant uuid)
+returns setof uuid language sql stable security invoker set search_path = public, pg_temp as $$
+  with x as (select array_remove(array[p_claimant,
+                      (select f.custodian_id from public.imprest_floats f where f.id = p_float),
+                      (select p.approved_by from public.imprest_plans p
+                        where p.float_id = p_float and p.month = p_month and p.status = 'Approved')], null) as ids),
+       s as (select p.id from public.profiles p cross join x cross join lateral public.imprest_senior_route(p_org, p_claimant) r
+              where p.org_id = p_org and r.route = 'org' and p.id = any (r.approver_ids) and p.id <> all (x.ids))
+  select s.id from s
+  union all
+  select p.id from public.profiles p cross join x
+   where p.org_id = p_org and p.role = 'Admin' and p.status = 'active' and p.id <> all (x.ids)
+     and not exists (select 1 from s)
+$$;
+revoke all on function public.imprest_exception_recipients(uuid, uuid, date, uuid) from public, anon, authenticated;
+
 -- notify_expense_claim_transition: 0247 §10 VERBATIM plus the lines marked `-- 0424` (FR-IMP-064 exceptions, PQ-10
 -- a float record is ready to pay for its custodian only). The trigger from 0247 stays bound.
 create or replace function public.notify_expense_claim_transition() returns trigger
@@ -215,6 +241,7 @@ declare
   v_route record;
   v_noun  text := case new.kind when 'advance' then 'Cash advance' else 'Expense claim' end;
   v_label text := coalesce(new.claim_number, new.title);
+  v_left  numeric;                                                                          -- 0424
 begin
   if new.status is not distinct from old.status then
     return new;
@@ -226,6 +253,8 @@ begin
     for r in select p.id from public.profiles p
               where p.org_id = new.org_id
                 and p.id is distinct from new.claimant_id
+                and (new.imprest_float_id is null or p.id is distinct from                        -- 0424 DD-IMP-7.1
+                     (select f.custodian_id from public.imprest_floats f where f.id = new.imprest_float_id))  -- 0424
                 and case coalesce(v_route.route, 'admin')
                       when 'flat'  then public.holds_spend_approval_authority(p.role)
                       when 'admin' then p.role = 'Admin'
@@ -237,10 +266,8 @@ begin
     end loop;
     if new.imprest_float_id is not null                                                     -- 0424 FR-IMP-064
        and new.amount > public.imprest_remaining(new.imprest_float_id, new.imprest_month, new.budget_category) then  -- 0424
-      for r in select p.id from public.profiles p cross join lateral                        -- 0424
-                 public.imprest_senior_route(new.org_id, new.claimant_id) s                  -- 0424
-                where p.org_id = new.org_id and p.id is distinct from new.claimant_id        -- 0424
-                  and case s.route when 'org' then p.id = any (s.approver_ids) else p.role = 'Admin' end  -- 0424
+      for r in select x as id from public.imprest_exception_recipients(new.org_id, new.imprest_float_id,  -- 0424
+                                      new.imprest_month, new.claimant_id) x                -- 0424
       loop                                                                                  -- 0424
         perform public.notify_workflow_user(new.org_id, r.id, 'Out-of-plan site cash item awaiting your approval',  -- 0424
           new.title, 'warning', 'expense_claim', new.id, v_label);                          -- 0424
@@ -249,6 +276,26 @@ begin
   elsif old.status = 'Submitted' and new.status = 'Approved' then
     perform public.notify_workflow_user(new.org_id, new.claimant_id, 'Your ' || lower(v_noun) || ' was approved',
       coalesce(nullif(btrim(new.approval_notes), ''), new.title), 'info', 'expense_claim', new.id, v_label);
+    if new.imprest_float_id is not null then                                                -- 0424 FR-IMP-024: this
+      -- approval may push a waiting item on the line out of plan; alert only those that just crossed.  -- 0424
+      -- ponytail: the approved amount stands in for its draw (an advance's outstanding equals it at approval).  -- 0424
+      v_left := coalesce((select l.planned_amount from public.imprest_plans p                -- 0424
+                            join public.imprest_plan_lines l on l.plan_id = p.id              -- 0424
+                           where p.float_id = new.imprest_float_id and p.month = new.imprest_month  -- 0424
+                             and p.status = 'Approved' and l.budget_category = new.budget_category), 0)  -- 0424
+                - public.imprest_drawn(new.imprest_float_id, new.imprest_month, new.budget_category);  -- 0424
+      for r in select c.id as claim_id, c.title, coalesce(c.claim_number, c.title) as label, x as id  -- 0424
+                 from public.expense_claims c                                                -- 0424
+                 cross join lateral public.imprest_exception_recipients(c.org_id, c.imprest_float_id,  -- 0424
+                                      c.imprest_month, c.claimant_id) x                      -- 0424
+                where c.imprest_float_id = new.imprest_float_id and c.imprest_month = new.imprest_month  -- 0424
+                  and c.budget_category = new.budget_category and c.status = 'Submitted' and c.id <> new.id  -- 0424
+                  and c.amount > greatest(v_left, 0) and c.amount <= v_left + new.amount     -- 0424
+      loop                                                                                  -- 0424
+        perform public.notify_workflow_user(new.org_id, r.id, 'Out-of-plan site cash item awaiting your approval',  -- 0424
+          r.title, 'warning', 'expense_claim', r.claim_id, r.label);                        -- 0424
+      end loop;                                                                             -- 0424
+    end if;                                                                                 -- 0424
     for r in select p.id from public.profiles p
               where p.org_id = new.org_id
                 and ((new.imprest_float_id is null and p.role = 'Finance')                   -- 0424 PQ-10
@@ -280,13 +327,15 @@ begin
     end if;
   end loop;
   foreach v in array array['public.refuse_imprest_count_change()', 'public.notify_imprest_plan_transition()',
-    'public.notify_imprest_replenishment()', 'public.notify_expense_claim_transition()'] loop
+    'public.notify_imprest_replenishment()', 'public.notify_expense_claim_transition()',
+    'public.imprest_exception_recipients(uuid, uuid, date, uuid)'] loop
     if has_function_privilege('anon', v, 'EXECUTE') or has_function_privilege('authenticated', v, 'EXECUTE') then
       raise exception '0424: internal % is client-executable', v;
     end if;
   end loop;
   if has_table_privilege('authenticated', 'public.imprest_cash_counts', 'INSERT,UPDATE,DELETE,TRUNCATE')
-     or has_table_privilege('anon', 'public.imprest_cash_counts', 'SELECT,INSERT,UPDATE,DELETE,TRUNCATE') then
+     or has_table_privilege('anon', 'public.imprest_cash_counts', 'SELECT,INSERT,UPDATE,DELETE,TRUNCATE')
+     or has_table_privilege('service_role', 'public.imprest_cash_counts', 'INSERT,UPDATE,DELETE,TRUNCATE') then
     raise exception '0424: imprest_cash_counts is client-writable';
   end if;
 end $$;

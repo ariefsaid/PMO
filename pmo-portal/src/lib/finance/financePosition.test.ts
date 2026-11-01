@@ -11,7 +11,7 @@ function invoice(id: string, dueDate: string, overrides: Partial<SalesInvoiceRow
     id,
     org_id: 'org-1',
     project_id: null,
-    erp_project: null,
+    erp_project: null, billing_kind: 'contract',
     customer_id: null,
     customer_name: 'Client',
     si_number: `SI-${id}`,

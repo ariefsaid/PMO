@@ -642,6 +642,8 @@ describe('SalesInvoices — a Finance user can actually raise an invoice (BLOCK 
       customerId: 'cust-1',
       projectId: 'proj-1',
       items: [{ item_code: 'ITEM-001', qty: 2, rate: 25000 }],
+      // #1471: a chosen project always carries its billing kind; the default is Contract billing.
+      billingKind: 'contract',
       // BLOCK 2 (ADR-0058): the form session's command identity rides along with the body.
       intent: { id: expect.any(String), idempotencyKey: expect.any(String) },
     });
@@ -749,4 +751,113 @@ it('keeps unsupported edit out of the invoice actions', async () => {
   renderPage();
   await user.click(screen.getByRole('button', { name: /row actions/i }));
   expect(screen.queryByRole('menuitem', { name: /^edit$/i })).not.toBeInTheDocument();
+});
+
+// ── #1471 AC-014: the billing kind chosen beside the project ─────────────────────────────────
+it('AC-014 the billing kind control appears once a project is chosen and defaults to Contract billing', async () => {
+  const user = userEvent.setup();
+  renderPage();
+  await openForm(user);
+  expect(screen.queryByRole('combobox', { name: 'Billing kind' })).not.toBeInTheDocument();
+  await pick(user, 'Customer', 'Acme Energy');
+  await pick(user, 'Project', 'Alpha Platform');
+  expect(screen.getByRole('combobox', { name: 'Billing kind' })).toHaveValue('contract');
+});
+
+it('AC-014 submits the chosen kind with the project', async () => {
+  const user = userEvent.setup();
+  renderPage();
+  await openForm(user);
+  await pick(user, 'Customer', 'Acme Energy');
+  await pick(user, 'Project', 'Alpha Platform');
+  await user.type(screen.getByLabelText('Description'), 'Licence fee');
+  await user.clear(screen.getByLabelText(/Rate/));
+  await user.type(screen.getByLabelText(/Rate/), '100');
+  await user.selectOptions(screen.getByRole('combobox', { name: 'Billing kind' }), 'other');
+  await user.click(screen.getByRole('button', { name: /Create invoice/i }));
+  expect(hoisted.createMutate).toHaveBeenCalledWith(expect.objectContaining({ projectId: 'proj-1', billingKind: 'other' }));
+});
+
+it('AC-014 submits Contract billing by default', async () => {
+  const user = userEvent.setup();
+  renderPage();
+  await openForm(user);
+  await pick(user, 'Customer', 'Acme Energy');
+  await pick(user, 'Project', 'Alpha Platform');
+  await user.type(screen.getByLabelText('Description'), 'Support work');
+  await user.clear(screen.getByLabelText(/Rate/));
+  await user.type(screen.getByLabelText(/Rate/), '100');
+  await user.click(screen.getByRole('button', { name: /Create invoice/i }));
+  expect(hoisted.createMutate).toHaveBeenCalledWith(expect.objectContaining({ projectId: 'proj-1', billingKind: 'contract' }));
+});
+
+it('AC-014 connected (ERP) creation carries the kind with a project and none without one', async () => {
+  hoisted.revenueMode = 'erp';
+  hoisted.connected = true;
+  const user = userEvent.setup();
+  renderPage();
+  await openForm(user);
+  await pick(user, 'Customer', 'Acme Energy');
+  const fillLine = async () => {
+    await user.click(screen.getByRole('combobox', { name: 'ERP item' }));
+    await user.type(screen.getByRole('searchbox', { name: /ERP items/i }), 'Test service');
+    await user.click(await screen.findByRole('option', { name: /ITEM-TEST/ }));
+    await user.clear(screen.getByLabelText(/Rate/));
+    await user.type(screen.getByLabelText(/Rate/), '100');
+  };
+  await fillLine();
+  await user.click(screen.getByRole('button', { name: /Create invoice/i }));
+  expect(hoisted.createMutate).toHaveBeenCalledTimes(1);
+  expect((hoisted.createMutate.mock.calls[0] as unknown as [Record<string, unknown>])[0]).not.toHaveProperty('billingKind');
+});
+
+it('AC-014 connected (ERP) creation with a project sends the chosen kind', async () => {
+  hoisted.revenueMode = 'erp';
+  hoisted.connected = true;
+  const user = userEvent.setup();
+  renderPage();
+  await openForm(user);
+  await pick(user, 'Customer', 'Acme Energy');
+  await pick(user, 'Project', 'Alpha Platform');
+  await user.click(screen.getByRole('combobox', { name: 'ERP item' }));
+  await user.type(screen.getByRole('searchbox', { name: /ERP items/i }), 'Test service');
+  await user.click(await screen.findByRole('option', { name: /ITEM-TEST/ }));
+  await user.clear(screen.getByLabelText(/Rate/));
+  await user.type(screen.getByLabelText(/Rate/), '100');
+  await user.selectOptions(screen.getByRole('combobox', { name: 'Billing kind' }), 'other');
+  await user.click(screen.getByRole('button', { name: /Create invoice/i }));
+  expect(hoisted.createMutate).toHaveBeenCalledWith(expect.objectContaining({ projectId: 'proj-1', billingKind: 'other' }));
+});
+
+it('AC-014 a failed create keeps the project, kind and lines and allows retry', async () => {
+  hoisted.createMutate.mockRejectedValueOnce(new Error('temporary save failure'));
+  const user = userEvent.setup();
+  renderPage();
+  await openForm(user);
+  await pick(user, 'Customer', 'Acme Energy');
+  await pick(user, 'Project', 'Alpha Platform');
+  await user.type(screen.getByLabelText('Description'), 'Licence fee');
+  await user.selectOptions(screen.getByRole('combobox', { name: 'Billing kind' }), 'other');
+  await user.click(screen.getByRole('button', { name: /Create invoice/i }));
+  expect(await screen.findByTestId('entity-modal-save-error')).toBeInTheDocument();
+  const dialog = screen.getByRole('dialog', { name: 'New invoice' });
+  expect(within(dialog).getByRole('combobox', { name: 'Project' })).toHaveTextContent('Alpha Platform');
+  expect(within(dialog).getByRole('combobox', { name: 'Billing kind' })).toHaveValue('other');
+  expect(within(dialog).getByLabelText('Description')).toHaveValue('Licence fee');
+  await user.click(within(dialog).getByRole('button', { name: /Create invoice/i }));
+  expect(hoisted.createMutate).toHaveBeenCalledTimes(2);
+  expect(hoisted.createMutate).toHaveBeenLastCalledWith(expect.objectContaining({ projectId: 'proj-1', billingKind: 'other' }));
+});
+
+it('AC-014 cancel writes nothing', async () => {
+  const user = userEvent.setup();
+  renderPage();
+  await openForm(user);
+  await pick(user, 'Customer', 'Acme Energy');
+  await pick(user, 'Project', 'Alpha Platform');
+  await user.selectOptions(screen.getByRole('combobox', { name: 'Billing kind' }), 'other');
+  await user.click(screen.getByRole('button', { name: 'Cancel' }));
+  const discard = screen.queryByRole('button', { name: 'Discard' });
+  if (discard) await user.click(discard);
+  expect(hoisted.createMutate).not.toHaveBeenCalled();
 });

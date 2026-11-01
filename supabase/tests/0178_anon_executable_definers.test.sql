@@ -131,10 +131,17 @@
 --
 -- ⚑ AMENDED BY 0423 (#1515): two replenishment writers join (+2, count 101). transition_expense_claim and
 -- record_expense_advance_return were already retained. Proven by imprest_replenishment pgTAP.
+-- ⚑ AMENDED BY 0418 (#1512 S6): `set_stock_reorder_level` joins the retained set (+1, count 102, re-derived by hand from the list). A SECURITY
+-- DEFINER writer (reorder levels have no client write grant); it gates on active membership, rank >= 20 and the JWT org;
+-- stock_reorder.test.sql proves the contract.
 --
--- ⚑ AMENDED BY 0424 (#1515): record_imprest_count joins (+1, count 102); it re-asserts org, active membership and
+-- ⚑ AMENDED BY 0424 (#1515): record_imprest_count joins (+1, count 103 with 0418, re-derived by hand from the list); it re-asserts org, active membership and
 -- custodian-eligible-or-Finance/Admin in its body. The position/usage reads are invoker; imprest_float_choices is a
 -- read. Proven by imprest_position pgTAP.
+-- ⚑ AMENDED BY 0410 (#1471): `set_sales_invoice_billing_kind` joins the retained set (+1, count 104 on dev's 103, re-derived by hand from the list). SECURITY
+-- DEFINER writer under a member's JWT; re-asserts active membership, Admin/Finance and the caller's org; paired with
+-- supabase/tests/billing_kinds_roles.test.sql (AC-007). `assign_sales_invoice_project` and
+-- `create_native_sales_invoice` changed signature only (proname unchanged).
 --
 -- The budget import and procurement import-run commands retain authenticated access;
 -- their owning proofs are 0397_budget_import_protocol.test.sql and
@@ -250,8 +257,10 @@ insert into client_callable_rpc_names (proname) values
   ('set_procurement_invoice_efaktur'),
   ('set_procurement_gates'),
   ('set_project_contract_value'),
+  ('set_sales_invoice_billing_kind'),
   ('set_sales_invoice_efaktur'),
   ('set_sales_invoice_received_date'),
+  ('set_stock_reorder_level'),
   ('set_stock_warehouse_keeper'),
   ('set_imprest_procurement_limit'),
   ('set_vendor_tax_defaults'),
@@ -292,8 +301,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  102,
-  'AC-ACL-002 all 102 retained client-callable RPC names still have a public function');
+  104,
+  'AC-ACL-002 all 104 retained client-callable RPC names still have a public function');
 
 select is(
   (select count(*)::int
@@ -302,8 +311,8 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  102,
-  'AC-ACL-003 all 102 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  104,
+  'AC-ACL-003 all 104 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
 -- granted to both roles from being named twice. Retained names exempt authenticated grants only;

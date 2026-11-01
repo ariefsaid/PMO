@@ -623,3 +623,77 @@ describe('ProjectFinancesSection reading states', () => {
     );
   });
 });
+
+describe('ProjectFinancesSection billing kinds (#1471)', () => {
+  const onHandProject = { ...project, status: 'Ongoing Project' } as ProjectWithRefs;
+  const usdBucket = (invoiced: string) => ({ currency: 'USD', invoice_count: 3, invoiced, settled: '0.00', outstanding: invoiced,
+    missing_amount: 0, missing_outstanding: 0, tax_basis: 'inclusive' as const, work_revenue: invoiced, missing_work: 0 });
+  const renderSection = (p: ProjectWithRefs = onHandProject) => render(<MemoryRouter><ProjectFinancesSection project={p} /></MemoryRouter>);
+
+  it('AC-004 says "Invoiced above contract by 100" with both contract invoices, never a bare negative', async () => {
+    h.query.data = payload({
+      contract_invoiced: '1100.00', remaining_to_invoice: '-100.00', invoices: [usdBucket('1350.00')],
+      contract_excess: { state: 'known', amount: '100.00', contractBilling: '1100.00', contributors: [
+        { invoice_id: 'inv-a', invoice_number: 'SI-A', invoice_date: '2026-03-03', contribution: '700.00' },
+        { invoice_id: 'inv-b', invoice_number: 'SI-B', invoice_date: '2026-03-01', contribution: '400.00' },
+      ] },
+    });
+    const { container } = renderSection();
+    const excess = screen.getByTestId('contract-excess');
+    expect(within(excess).getByText('Invoiced above contract by 100')).toBeInTheDocument();
+    expect(screen.queryByText('Remaining to invoice')).not.toBeInTheDocument();
+    expect(screen.queryByText(/-100|−100/)).not.toBeInTheDocument();
+    const links = within(excess).getAllByRole('link');
+    expect(links.map((a) => a.textContent)).toEqual(['SI-A', 'SI-B']);
+    expect(links.map((a) => a.getAttribute('href'))).toEqual(['/sales-invoices/inv-a', '/sales-invoices/inv-b']);
+    const rows = within(excess).getAllByRole('listitem');
+    expect(rows[0]).toHaveTextContent('700');
+    expect(rows[1]).toHaveTextContent('400');
+    expect(rows).toHaveLength(2);
+    // Graduated from the rendered pass: the excess block once sat inside the <dl> (axe definition-list).
+    expect(await axe(container)).toHaveNoViolations();
+  });
+
+  it('AC-004 derives the excess and explains missing detail when the contributor list cannot be verified', async () => {
+    h.query.data = payload({
+      contract_invoiced: '1100.00', remaining_to_invoice: '-100.00', invoices: [usdBucket('1100.00')],
+      contract_excess: { state: 'incomplete', amount: '100.00' },
+    });
+    renderSection();
+    expect(screen.getByText('Invoiced above contract by 100')).toBeInTheDocument();
+    expect(screen.getByText(/could not be verified/)).toBeInTheDocument();
+    expect(screen.queryByRole('listitem')).not.toBeInTheDocument();
+    fireEvent.click(within(screen.getByTestId('contract-excess')).getByRole('button', { name: 'Retry' }));
+    await waitFor(() => expect(h.query.refetch).toHaveBeenCalledOnce());
+  });
+
+  it('AC-013 shows distinct loading, error-with-retry, empty and unavailable states without fabricating an excess or zero', async () => {
+    h.query.isPending = true;
+    const view = renderSection();
+    expect(screen.getByRole('status')).toHaveTextContent('Loading project finances…');
+    expect(screen.queryByText(/Invoiced above contract/)).not.toBeInTheDocument();
+
+    h.query.isPending = false; h.query.isError = true;
+    view.rerender(<MemoryRouter><ProjectFinancesSection project={onHandProject} /></MemoryRouter>);
+    expect(screen.getByRole('alert')).toHaveTextContent("Couldn't load project finances.");
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    await waitFor(() => expect(h.query.refetch).toHaveBeenCalledOnce());
+
+    h.query.isError = false; h.query.data = payload();
+    view.rerender(<MemoryRouter><ProjectFinancesSection project={onHandProject} /></MemoryRouter>);
+    expect(screen.getByTestId('project-no-invoices')).toBeInTheDocument();
+    expect(screen.queryByText(/Remaining to invoice|Invoiced above contract/)).not.toBeInTheDocument();
+
+    h.query.data = payload({ contract_invoiced: null, remaining_to_invoice: null, invoices: [usdBucket('50.00')], contract_excess: null });
+    view.rerender(<MemoryRouter><ProjectFinancesSection project={onHandProject} /></MemoryRouter>);
+    expect(screen.getByTestId('contract-comparison-unavailable')).toHaveTextContent('Contract comparison unavailable');
+    expect(screen.queryByText(/Remaining to invoice|Invoiced above contract/)).not.toBeInTheDocument();
+  });
+
+  it('AC-013 within the contract still shows invoiced and remaining', () => {
+    h.query.data = payload({ contract_invoiced: '600.00', remaining_to_invoice: '400.00', invoices: [usdBucket('900.00')], contract_excess: null });
+    renderSection();
+    expect(screen.getByText('Remaining to invoice')).toBeInTheDocument();
+    expect(screen.queryByTestId('contract-excess')).not.toBeInTheDocument();
+  });
+});

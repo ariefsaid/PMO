@@ -178,7 +178,8 @@
     "onHand": "Persediaan",
     "documents": "Dokumen",
     "ledger": "Buku stok",
-    "setup": "Pengaturan"
+    "setup": "Pengaturan",
+    "reorder": "Pemesanan ulang"
   },
   "onHand": {
     "title": "Persediaan stok",
@@ -194,6 +195,7 @@
       "warehouse": "Gudang",
       "allWarehouses": "Semua gudang",
       "search": "Cari barang",
+      "belowReorder": "Di bawah level pemesanan ulang",
       "includeZero": "Tampilkan saldo nol"
     },
     "tiles": {
@@ -472,5 +474,62 @@
     "duplicate": "Barang ini sudah punya jatah pada item pekerjaan ini; ubah di daftar.",
     "loadError": "Jatah tidak dapat dimuat."
   },
-  "issueOverAllowance": "Melebihi jatah: {{workItem}} kini memakai {{used}} dari {{planned}} {{unit}} yang direncanakan. Pengeluaran tetap tercatat; ini penanda, bukan penghalang."
+  "issueOverAllowance": "Melebihi jatah: {{workItem}} kini memakai {{used}} dari {{planned}} {{unit}} yang direncanakan. Pengeluaran tetap tercatat; ini penanda, bukan penghalang.",
+  "reorder": {
+    "title": "Level pemesanan ulang",
+    "description": "Tentukan kapan setiap barang perlu dipesan. Saran dari pemakaian lalu tampil di samping angkanya; tidak ada yang berubah sampai Anda menerimanya atau menyimpan nilai.",
+    "panel": {
+      "title": "Atur level pemesanan ulang",
+      "item": "Barang",
+      "warehouse": "Gudang",
+      "warehousePlaceholder": "Pilih gudang",
+      "pick": "Pilih barang dan gudang untuk melihat saran.",
+      "current": "Level berlaku: {{level}} {{unit}}",
+      "currentQuantity": "pesan {{quantity}} {{unit}}",
+      "noCurrent": "Belum ada level pemesanan ulang di sini.",
+      "suggestedLevel": "Saran level",
+      "suggestedQuantity": "Saran jumlah pesanan",
+      "basis": "Berdasarkan pemakaian {{usage}} {{unit}} selama {{days}} hari ({{avg}} per hari), lead time {{lead}} hari ditambah {{safety}} hari cadangan, dan siklus pesan {{cycle}} hari.",
+      "insufficient": "Riwayat belum cukup untuk memberi saran. Perlu minimal {{minDays}} hari riwayat dan {{minMoves}} pergerakan pemakaian; barang ini punya {{days}} hari dan {{moves}}.",
+      "level": "Level pemesanan ulang",
+      "quantity": "Jumlah pesanan (opsional)",
+      "accept": "Terima saran",
+      "edit": "Ubah",
+      "save": "Simpan level",
+      "cancel": "Batal",
+      "clear": "Hapus level",
+      "setManually": "Atur level"
+    },
+    "worklist": {
+      "title": "Di bawah level pemesanan ulang",
+      "emptyTitle": "Tidak ada yang di bawah level pemesanan ulang",
+      "emptySub": "Barang muncul di sini saat stok di suatu gudang turun ke levelnya.",
+      "columns": {
+        "item": "Barang",
+        "warehouse": "Gudang",
+        "onHand": "Tersedia",
+        "level": "Level pemesanan ulang",
+        "orderQuantity": "Jumlah pesanan",
+        "actions": "Aksi"
+      },
+      "edit": "Ubah",
+      "clear": "Hapus",
+      "rowEdit": "Ubah level untuk {{item}}",
+      "rowClear": "Hapus level untuk {{item}}"
+    },
+    "confirmClear": {
+      "title": "Hapus level pemesanan ulang ini",
+      "description": "{{item}} di {{warehouse}} tidak akan muncul lagi di daftar di bawah.",
+      "confirm": "Hapus level"
+    },
+    "toast": {
+      "saved": "Level pemesanan ulang disimpan",
+      "cleared": "Level pemesanan ulang dihapus",
+      "failed": "Level pemesanan ulang tidak dapat diubah"
+    },
+    "errors": {
+      "levelInvalid": "Masukkan level 0 atau lebih, maksimal 3 desimal.",
+      "quantityInvalid": "Masukkan jumlah di atas 0, maksimal 3 desimal, atau kosongkan."
+    }
+  }
 }

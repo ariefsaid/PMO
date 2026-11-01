@@ -4,8 +4,7 @@
 -- then an Approved plan on G with one exception item. Plan delta 8: AC-IMP-050's 800,000 is 500,000 here.
 begin;
 create extension if not exists pgtap;
-select plan(19);
-create extension if not exists dblink;
+select plan(24);
 
 
 insert into organizations (id, name, default_currency, default_timezone) values
@@ -117,6 +116,11 @@ select is((select last_count_variance from get_imprest_position('15150000-0000-0
   'AC-IMP-051 the position shows the last count''s variance');
 select throws_ok($$ update imprest_cash_counts set counted_amount = 1 $$, '42501', null, 'AC-IMP-051 a count cannot be updated');
 select throws_ok($$ delete from imprest_cash_counts $$, '42501', null, 'AC-IMP-051 a count cannot be deleted');
+reset role;
+select throws_ok($$ truncate imprest_cash_counts $$, '42501', null, 'AC-IMP-051 counts cannot be truncated, even by the table owner');
+select ok(not has_table_privilege('service_role', 'public.imprest_cash_counts', 'INSERT,UPDATE,DELETE,TRUNCATE'),
+  'AC-IMP-051 the service role cannot write counts: only the count RPC inserts');
+set local role authenticated;
 select pg_temp.act_as('15150000-0000-0000-0000-0000000000a3');  -- Fin2, Finance, not a custodian
 select lives_ok($$ select record_imprest_count('15150000-0000-0000-0000-0000000000d2', 4000000, null) $$,
   'AC-IMP-051 Finance records a count that matches the book without a note');
@@ -152,6 +156,16 @@ select is((select planned from get_imprest_plan_usage('15150000-0000-0000-0000-0
 select is((select jsonb_array_length(exceptions) from get_imprest_plan_usage('15150000-0000-0000-0000-0000000000d2',
              date_trunc('month', now() at time zone 'Asia/Jakarta')::date) where budget_category = 'Vehicle'), 1,
   'AC-IMP-052 and the exception item, with drawn and remaining beside it');
+-- drawn = advance outstanding 500,000 + claim paid 500,000 + exception approved 100,000; remaining = 3,000,000 − that
+select is((select row(drawn, remaining)::text from get_imprest_plan_usage('15150000-0000-0000-0000-0000000000d2',
+             date_trunc('month', now() at time zone 'Asia/Jakarta')::date) where budget_category = 'Vehicle'),
+  row(1100000.00, 1900000.00)::text, 'AC-IMP-052 plan usage shows the category''s drawn and remaining');
+select is((select row((plan_lines->0->>'planned')::numeric, (plan_lines->0->>'drawn')::numeric,
+                      (plan_lines->0->>'remaining')::numeric)::text
+             from get_imprest_position('15150000-0000-0000-0000-0000000000d2')),
+  row(3000000.00, 1100000.00, 1900000.00)::text, 'AC-IMP-052 the position carries the same planned, drawn and remaining');
+select is((select jsonb_array_length(plan_lines) from get_imprest_position('15150000-0000-0000-0000-0000000000d2')), 1,
+  'AC-IMP-052 one plan line per category');
 reset role;
 
 select * from finish();

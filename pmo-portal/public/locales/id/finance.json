@@ -536,5 +536,14 @@
   },
   "budgetMap": {
     "overheadsHint": "Biaya langsung proyek, bukan biaya overhead perusahaan."
+  },
+  "billingKind": {
+    "label": "Jenis penagihan",
+    "contract": "Penagihan kontrak",
+    "other": "Penagihan lainnya",
+    "contractHelp": "Dihitung terhadap kontrak: mengurangi Sisa untuk ditagihkan, dan dihitung dalam pendapatan serta margin.",
+    "otherHelp": "Lisensi, penggantian biaya, dan pekerjaan di luar kontrak: dihitung dalam pendapatan dan margin, tidak pernah mengurangi Sisa untuk ditagihkan.",
+    "change": "Ubah jenis penagihan",
+    "save": "Simpan jenis penagihan"
   }
 }
