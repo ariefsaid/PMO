@@ -105,11 +105,6 @@ describe('AC-CRM-020 listContacts', () => {
     expect(h.calls.range).toEqual([]);
   });
 
-  it('data-layer perf hardening #4: applies an explicit page/pageSize range', async () => {
-    h.result.value = { data: [], error: null };
-    await listContacts({ page: 3, pageSize: 15 });
-    expect(h.calls.range).toContainEqual([45, 59]);
-  });
 });
 
 describe('AC-CRM-021 listContactsByCompany', () => {

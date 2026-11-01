@@ -6,17 +6,13 @@ import React from 'react';
 vi.mock('@/src/lib/db/projects', () => ({
   listProjects: vi.fn().mockResolvedValue([{ id: 'p1', name: 'X', client: null, pm: null }]),
 }));
-vi.mock('@/src/lib/db/companies', () => ({
-  listClientCompanies: vi.fn().mockResolvedValue([{ id: 'c1', name: 'Acme', type: 'Client' }]),
-}));
-vi.mock('@/src/lib/db/profiles', () => ({
-  listProjectManagers: vi.fn().mockResolvedValue([{ id: 'u1', full_name: 'Alice Manager', role: 'Project Manager' }]),
-}));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Project Manager' }),
 }));
 
-const { milestoneDatesForProjects, repoCreate, repoUpdateHeader, repoList } = vi.hoisted(() => ({
+const { milestoneDatesForProjects, repoCreate, repoUpdateHeader, repoList, listClientCompanies, listProjectManagers } = vi.hoisted(() => ({
+  listClientCompanies: vi.fn().mockResolvedValue([{ id: 'c1', name: 'Acme', type: 'Client' }]),
+  listProjectManagers: vi.fn().mockResolvedValue([{ id: 'u1', full_name: 'Alice Manager', role: 'Project Manager' }]),
   milestoneDatesForProjects: vi.fn().mockResolvedValue([]),
   repoList: vi.fn().mockResolvedValue([{ id: 'p1', name: 'X', client: null, pm: null }]),
   repoCreate: vi.fn().mockResolvedValue({ id: 'new' }),
@@ -25,6 +21,8 @@ const { milestoneDatesForProjects, repoCreate, repoUpdateHeader, repoList } = vi
 vi.mock('@/src/lib/repositories', () => ({
   repositories: {
     milestone: { milestoneDatesForProjects },
+    company: { listClients: listClientCompanies },
+    profile: { listProjectManagers },
     project: {
       list: repoList,
       create: repoCreate,
@@ -43,8 +41,6 @@ import {
   useProjectsMilestoneDates,
   useProjectMutations,
 } from './useProjects';
-import { listClientCompanies } from '@/src/lib/db/companies';
-import { listProjectManagers } from '@/src/lib/db/profiles';
 
 /** Fresh QueryClient per test to avoid cross-test cache bleed. */
 const makeWrapper = () => {

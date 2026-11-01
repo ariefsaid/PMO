@@ -6,8 +6,8 @@ import {
   type ProjectHeaderInput,
   type SetProjectContractValueInput,
 } from '@/src/lib/db/projects';
-import { listClientCompanies, type CompanyRow } from '@/src/lib/db/companies';
-import { listProjectManagers, type ProfileRow } from '@/src/lib/db/profiles';
+import type { CompanyRow } from '@/src/lib/db/companies';
+import type { ProfileRow } from '@/src/lib/db/profiles';
 import { repositories } from '@/src/lib/repositories';
 import { useAuth } from '@/src/auth/useAuth';
 import { useStartRecordFolder } from '@/src/hooks/useStartRecordFolder';
@@ -71,7 +71,7 @@ export function useClientCompanies() {
   const orgId = currentUser?.org_id;
   return useQuery<CompanyRow[]>({
     queryKey: ['companies', 'client', orgId],
-    queryFn: () => listClientCompanies(),
+    queryFn: () => repositories.company.listClients(),
     enabled: Boolean(orgId),
   });
 }
@@ -81,7 +81,7 @@ export function useProjectManagers() {
   const orgId = currentUser?.org_id;
   return useQuery<ProfileRow[]>({
     queryKey: ['profiles', 'pm', orgId],
-    queryFn: () => listProjectManagers(),
+    queryFn: () => repositories.profile.listProjectManagers(),
     enabled: Boolean(orgId),
   });
 }
