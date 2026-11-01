@@ -176,6 +176,10 @@ export interface PipelineProject extends ProjectClassification {
   last_update?: string;
   /** Last recorded project status change, falling back to created_at when no status event exists. */
   stage_started_at?: string;
+  /** #1638: won deals — the Signed date. Projected by toPipelineProject for the Won column. */
+  contract_date?: string | null;
+  /** #1638: lost/declined deals — the decision instant. Projected by toPipelineProject for the Lost column. */
+  decided_at?: string | null;
   /**
    * The project manager's full name (profiles.full_name resolved via the pm join).
    * AVAILABILITY: same as last_update — supplied for open pipeline rows by get_sales_pipeline()

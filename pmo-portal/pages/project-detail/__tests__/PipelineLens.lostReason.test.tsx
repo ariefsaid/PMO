@@ -37,6 +37,11 @@ const pipelineState = {
 };
 vi.mock('@/src/hooks/useDashboard', () => ({ useSalesPipeline: () => pipelineState }));
 vi.mock('@/src/hooks/useProjectTransitions', () => ({ useProjectWinEligibility: () => ({ data: 'allowed' }) }));
+vi.mock('@/src/hooks/useProjectStageEntries', () => ({
+  useProjectStageEntries: () => ({ data: [], isLoading: false, error: null }),
+  useStageEntryMutations: () => ({ redate: { mutateAsync: vi.fn() }, addSkipped: { mutateAsync: vi.fn() } }),
+}));
+vi.mock('@/src/hooks/useOrgToday', () => ({ useOrgToday: () => '2026-11-01' }));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u-alice', org_id: 'org-1' }, role: 'Project Manager' }),
 }));

@@ -23,6 +23,10 @@ const { transitionProject, repositoryTransition, invalidateQueries } = vi.hoiste
 // FR-L10N-020: this component reads useOrgCurrency for its ACROSS-record aggregates. Pinned here
 // rather than left to a real query. ⚑ At LINE-START on purpose — inserted inside a neighbouring
 // vi.mock call it parses as a syntax error and hides every real error beneath it.
+vi.mock('@/src/hooks/useProjectStageEntries', () => ({
+  useProjectStageEntries: () => ({ data: [], isLoading: false, error: null }),
+  useStageEntryMutations: () => ({ redate: { mutateAsync: vi.fn() }, addSkipped: { mutateAsync: vi.fn() } }),
+}));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/lib/db/projectTransitions', async (orig) => {
   const actual = await (orig() as Promise<Record<string, unknown>>);

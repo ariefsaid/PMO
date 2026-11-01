@@ -15,6 +15,8 @@ import {
 } from '@/src/components/ui';
 import { useProjectWinEligibility } from '@/src/hooks/useProjectTransitions';
 import { invalidateProjectProjections } from '@/src/hooks/projectQueryKeys';
+import StageHistory from './StageHistory';
+import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { useSalesPipeline } from '@/src/hooks/useDashboard';
 import { useAuth } from '@/src/auth/useAuth';
 import { usePermission } from '@/src/auth/usePermission';
@@ -121,6 +123,7 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState }) =
   const showDetails = isDesktop || detailsOpen;
   const [contractRef, setContractRef] = useState('');
   const [contractDate, setContractDate] = useState('');
+  const today = useOrgToday(); // caps the win date: the server refuses the next move after a future-dated win
   const [refError, setRefError] = useState<string | null>(null);
   const [dateError, setDateError] = useState<string | null>(null);
 
@@ -319,6 +322,7 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState }) =
         aria-label={t('projectDetail.pipeline.journeyAriaLabel', 'Project stage journey')}
         className="[&_span]:text-xs"
       />
+      <StageHistory projectId={project.id} />
     </section>
   );
 
@@ -455,7 +459,7 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState }) =
                     </div>
                     <div className="flex flex-col gap-1">
                       <label htmlFor="won-date" className="text-xs font-semibold">{t('projectDetail.pipeline.contractDateLabel', 'Contract date')}</label>
-                      <input id="won-date" type="date" value={contractDate} onChange={(e) => { setContractDate(e.target.value); setDateError(null); }} aria-invalid={!!dateError} aria-describedby={dateError ? 'won-date-err' : undefined} className={`h-8 rounded-md border bg-background px-2.5 text-[13.5px] outline-none ${dateError ? 'border-destructive' : 'border-input'}`} />
+                      <input id="won-date" type="date" max={today} value={contractDate} onChange={(e) => { setContractDate(e.target.value); setDateError(null); }} aria-invalid={!!dateError} aria-describedby={dateError ? 'won-date-err' : undefined} className={`h-8 rounded-md border bg-background px-2.5 text-[13.5px] outline-none ${dateError ? 'border-destructive' : 'border-input'}`} />
                       {dateError && <span id="won-date-err" className="text-xs text-destructive">{dateError}</span>}
                     </div>
                     <div className="flex gap-2">

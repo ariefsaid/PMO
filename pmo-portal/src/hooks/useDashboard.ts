@@ -108,6 +108,8 @@ function toPipelineProject(row: ProjectWithRefs, winProbability: number): Pipeli
     end_client_name: row.end_client ? companyDisplayName(row.end_client) : null,
     end_client_legal_name: row.end_client?.name ?? null,
     last_update: row.last_update,
+    contract_date: row.contract_date,
+    decided_at: row.decided_at,
     pm_name: row.pm?.full_name ?? null,
   };
 }
