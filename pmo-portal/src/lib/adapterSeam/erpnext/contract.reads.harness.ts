@@ -3,7 +3,8 @@
  * answers in PMO terms. No behaviour lives here.
  */
 import { FakePostgrest } from '@/test/postgrestFake.ts';
-import type { ErpHarness, ErpPurchaseDoc, MirroredPurchase } from '../contractSuite/harness.ts';
+import type { ActualsLine, ActualsReadScenario, ErpHarness, ErpPurchaseDoc, MirroredPurchase } from '../contractSuite/harness.ts';
+import { refreshActuals } from './actualsSnapshot.ts';
 import { KIND_DOMAIN, KIND_MIRROR_TABLE, kindFromDoctypeAndPaymentType } from './feedKinds.ts';
 import { feedPurchaseMirror } from './purchaseMirrorFeed.ts';
 
@@ -60,3 +61,19 @@ export const classifyPayment: ErpHarness['classifyPayment'] = (direction) => {
   if (kind === 'payment') return { kind: 'vendor-payment', domain: KIND_DOMAIN[kind] as 'procurement', table: KIND_MIRROR_TABLE[kind] as 'payments' };
   return { kind: 'skipped' };
 };
+
+/** Sums the mirrored ledger through the shipped refresh and returns the snapshot it published. */
+export async function readActuals({ ledger, projectLinks }: ActualsReadScenario): Promise<ActualsLine[]> {
+  const rows = ledger.map((l, i) => ({
+    id: `gl-${String(i).padStart(8, '0')}`, org_id: 'org-1', project: l.project, cost_center: l.costCentre ?? null,
+    account: l.account, fiscal_year: l.fiscalYear, debit: l.debit, credit: l.credit, is_cancelled: false,
+  }));
+  const fake = new FakePostgrest({ erp_gl_entry_mirror: rows, erp_actuals_snapshot: [] });
+  const client = { from: (table: string) => fake.from(table), rpc: (fn: string, args: Record<string, unknown>) => fake.rpc(fn, args) };
+  await refreshActuals(client as never, 'org-1', { projectMap: projectLinks });
+  const published = fake.rpcCalls.filter((c) => c.fn === 'replace_erp_snapshot' && c.args.p_table === 'erp_actuals_snapshot');
+  return published.flatMap((c) => (c.args.p_rows ?? []) as Array<Record<string, unknown>>).map((r) => ({
+    pmoProjectId: (r.project_id as string | null) ?? null, costCentre: (r.cost_center as string | null) ?? null,
+    account: String(r.account), fiscalYear: String(r.fiscal_year), debit: Number(r.debit), credit: Number(r.credit), net: Number(r.net),
+  }));
+}

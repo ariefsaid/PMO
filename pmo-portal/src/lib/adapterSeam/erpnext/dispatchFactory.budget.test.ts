@@ -136,45 +136,7 @@ describe('P3c dispatch wiring — the budget domain', () => {
     expect(result.canonical).not.toHaveProperty('accounts');
   });
 
-  it('AC-BUD-011 ⚑ an UNMAPPED category refuses the whole push with ZERO ERP calls (no partial budget)', async () => {
-    const fetchImpl = erpFetch();
-    await expect(
-      commitBudget(
-        {
-          ...VERSION_RECORD,
-          line_items: [
-            { category: 'Labor', budgeted_amount: '50000.00' }, // mapped
-            { category: 'Contingency', budgeted_amount: '10000.00' }, // UNMAPPED
-          ],
-        },
-        { fetchImpl },
-      ),
-    ).rejects.toMatchObject({ code: 'budget-category-unmapped' });
-    expect(fetchImpl).not.toHaveBeenCalled();
-  });
-
-  it('AC-BUD-011 an org with NO map rows pushes nothing at all (fail closed, not an empty budget)', async () => {
-    const fetchImpl = erpFetch();
-    await expect(commitBudget(VERSION_RECORD, { fetchImpl, mapRows: [] })).rejects.toMatchObject({
-      code: 'budget-category-unmapped',
-    });
-    expect(fetchImpl).not.toHaveBeenCalled();
-  });
-
-  it('AC-BUD-012 a projectId owned by ANOTHER org is rejected before any ERP write (cross-org pre-flight)', async () => {
-    const fetchImpl = erpFetch();
-    await expect(
-      commitBudget({ ...VERSION_RECORD, projectId: 'proj-org2' }, { fetchImpl }),
-    ).rejects.toMatchObject({ code: 'cross-org-link-rejected' });
-    expect(fetchImpl).not.toHaveBeenCalled();
-  });
-
-  it('AC-BUD-012 a command with NO project is rejected — never an unattributed, org-wide budget', async () => {
-    const fetchImpl = erpFetch();
-    const { projectId: _omitted, ...noProject } = VERSION_RECORD;
-    await expect(commitBudget(noProject, { fetchImpl })).rejects.toMatchObject({ code: 'commit-rejected' });
-    expect(fetchImpl).not.toHaveBeenCalled();
-  });
+  // The category-map and project refusals (AC-BUD-011/012) moved to the shared budget.push suite (contractSuite/budgetPush.suite.ts).
 
   // ──────────────────────────────────────────────────────────────────────────────────────────────
   // AC-BUD-031 / FR-BUD-121 — THE UPSERT. ERPNext enforces at most one live `Budget` per

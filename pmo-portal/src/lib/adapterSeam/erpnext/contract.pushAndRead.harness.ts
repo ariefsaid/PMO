@@ -3,13 +3,12 @@
  * factory and feed code with the transport mocked and answers in PMO terms. No behaviour lives here.
  */
 import type { AdapterCommand } from '../contract.ts';
-import type { ErpHarness, LinkOwner, PreflightResult, ProcurementPushScenario, RevenuePushScenario, Tenant, TimesheetPushScenario } from '../contractSuite/harness.ts';
-import { classifyPayment, mirrorPurchases } from './contract.reads.harness.ts';
+import type { BudgetVersionScenario, ErpHarness, LinkOwner, PreflightResult, ProcurementPushScenario, RevenuePushScenario, Tenant, TimesheetPushScenario } from '../contractSuite/harness.ts';
+import { classifyPayment, mirrorPurchases, readActuals } from './contract.reads.harness.ts';
+import { DOCTYPE_BODIES } from './doctypeBodies.ts';
 import { resolveErpDispatchAdapter, type DispatchServiceClient } from './dispatchFactory.ts';
 
 type PushAndRead = Pick<ErpHarness, 'pushTimesheet' | 'pushProcurement' | 'pushRevenue' | 'pushBudgetVersion' | 'readActuals' | 'classifyPayment' | 'mirrorPurchases'>;
-
-const notYet = (name: string) => () => { throw new Error(`erpnext harness ${name} is not wired yet`); };
 
 /** Counts every call that reaches the (fake) ERP. */
 function countingTransport() {
@@ -248,13 +247,72 @@ async function pushRevenue(s: RevenuePushScenario): Promise<PreflightResult> {
   }
 }
 
+// --- budget.push ----------------------------------------------------------------------------------------------------
+
+const BUDGET_BINDING = {
+  site_url: 'https://erp.example.com', version_major: 15, activated_at: '2026-07-11T00:00:00.000Z',
+  config: { company: 'PMO Smoke Co', project_map: { 'proj-1': 'PROJ-0001' } },
+};
+const BUDGET_PROJECT: Record<'own' | 'other-tenant', string> = { 'own': 'proj-1', 'other-tenant': 'proj-org2' };
+const BUDGET_PROJECT_ROWS: Record<string, { org_id: string }> = { 'projects:proj-1': { org_id: 'org-1' }, 'projects:proj-org2': { org_id: 'org-2' } };
+
+function budgetClient(mapRows: unknown[]): DispatchServiceClient {
+  return {
+    from: (table: string) => ({
+      select: () => {
+        let filters: Record<string, string> = {};
+        const chain = {
+          eq: (col: string, val: string) => { filters = { ...filters, [col]: val }; return chain; },
+          order: () => chain,
+          limit: () => chain,
+          maybeSingle: async () => {
+            if (table === 'external_org_bindings') return { data: BUDGET_BINDING, error: null };
+            // The ownership witness: every scenario here is PMO revising a budget PMO itself pushed.
+            if (table === 'external_refs') return { data: filters.external_record_id ? { pmo_record_id: 'ver-previous' } : null, error: null };
+            return { data: BUDGET_PROJECT_ROWS[`${table}:${filters.id}`] ?? null, error: null };
+          },
+          then: (resolve: (v: { data: unknown; error: null }) => unknown) => resolve({ data: table === 'budget_category_account_map' ? mapRows : [], error: null }),
+        };
+        return chain;
+      },
+    }),
+  } as unknown as DispatchServiceClient;
+}
+
+async function pushBudgetVersion(s: BudgetVersionScenario): Promise<PreflightResult> {
+  const stats = { calls: 0 };
+  const fetchImpl = (async (_url: string, init?: RequestInit) => {
+    stats.calls += 1;
+    if (init?.method === 'POST') return new Response(JSON.stringify({ name: 'BUDGET-2026-00001' }), { status: 200 });
+    if (init?.method === 'PUT') return new Response(JSON.stringify({ name: 'BUDGET-2026-00001', docstatus: 1 }), { status: 200 });
+    return new Response(JSON.stringify({ name: 'BUDGET-2026-00001', docstatus: 1, modified: '2026-07-20 10:00:00', fiscal_year: '2026' }), { status: 200 });
+  }) as unknown as typeof fetch;
+  const record: Record<string, unknown> = {
+    id: 'ver-1', erp_doc_kind: 'budget', fiscal_year: '2026',
+    line_items: s.categories.map((category) => ({ category, budgeted_amount: '1000.00' })),
+  };
+  if (s.project !== 'none') record.projectId = BUDGET_PROJECT[s.project];
+  const mapRows = s.mappedCategories.map((category) => ({ category, erp_account: `${category} - PSC` }));
+  const command = { domain: 'budget', operation: 'create', record } as AdapterCommand;
+  try {
+    const adapter = await resolveErpDispatchAdapter({
+      serviceClient: budgetClient(mapRows), orgId: 'org-1', command, fetchImpl, apiKey: 'k', apiSecret: 's', doctypeBodies: DOCTYPE_BODIES,
+    });
+    await adapter.commit({ ...command, idempotencyKey: '11111111-1111-4111-8111-111111111111' } as never);
+    return { outcome: 'accepted', erpCalls: stats.calls };
+  } catch (error) {
+    const e = error as Error & { code?: string };
+    return { outcome: 'refused', code: e.code, message: e.message, erpCalls: stats.calls };
+  }
+}
+
 export function createPushAndReadHarness(): PushAndRead {
   return {
     pushTimesheet,
     pushProcurement,
     pushRevenue,
-    pushBudgetVersion: notYet('pushBudgetVersion'),
-    readActuals: notYet('readActuals'),
+    pushBudgetVersion,
+    readActuals,
     classifyPayment,
     mirrorPurchases,
   };

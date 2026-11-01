@@ -4,6 +4,8 @@ import { cutoverSuite } from './cutover.suite.ts';
 import type { Suite } from './harness.ts';
 import { imprestTransferSuite } from './imprestTransfer.suite.ts';
 import { partySuite } from './party.suite.ts';
+import { actualsReadSuite } from './actuals.suite.ts';
+import { budgetPushSuite } from './budgetPush.suite.ts';
 import { billPushSuite, purchaseLinkExistingSuite, purchasePushSuite, vendorPaymentPushSuite } from './procurement.suite.ts';
 import { invoicePushSuite, receiptReadSuite } from './revenue.suite.ts';
 import { timesheetPushSuite } from './timesheet.suite.ts';
@@ -25,6 +27,8 @@ export const SUITES: Readonly<Partial<Record<WorkflowId, Suite>>> = {
   'purchase.link-existing': purchaseLinkExistingSuite,
   'invoice.push': invoicePushSuite,
   'receipt.read': receiptReadSuite,
+  'actuals.read': actualsReadSuite,
+  'budget.push': budgetPushSuite,
   'timesheet.push': timesheetPushSuite,
   'imprest.transfer': imprestTransferSuite,
 };
