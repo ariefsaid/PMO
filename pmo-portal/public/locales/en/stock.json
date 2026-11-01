@@ -455,7 +455,8 @@
       "net": "Net used",
       "value": "Value",
       "issuedBy": "Issued by"
-    }
+    },
+    "rangeReversed": "The first month is after the last month. Choose a start month on or before the end month."
   },
   "allowance": {
     "action": "Material allowance",
@@ -472,7 +473,10 @@
     "quantityInvalid": "Enter a quantity above 0, at most 3 decimals.",
     "itemRequired": "Choose an item.",
     "duplicate": "This item already has an allowance on this work item; change it in the list.",
-    "loadError": "Allowances could not be loaded."
+    "loadError": "Allowances could not be loaded.",
+    "clearConfirmTitle": "Clear allowance",
+    "clearConfirmDescription": "Remove the planned quantity of {{item}} for {{workItem}}? Quantities already issued are kept.",
+    "clearConfirm": "Clear allowance"
   },
   "issueOverAllowance": "Over allowance: {{workItem}} has now used {{used}} of {{planned}} {{unit}} planned. The issue is posted; this is a flag, not a block.",
   "reorder": {

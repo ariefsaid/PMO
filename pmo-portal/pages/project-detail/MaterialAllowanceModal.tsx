@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, EntityFormModal, FormGrid, ListState, TextField, type SubmitError } from '@/src/components/ui';
+import { Button, ConfirmDialog, EntityFormModal, FormGrid, ListState, TextField, type SubmitError } from '@/src/components/ui';
 import { ItemPicker } from '@/src/components/stock/ItemPicker';
 import { useAllowanceMutations, useAllowances, useStockItems } from '@/src/hooks/useStock';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
@@ -22,11 +22,12 @@ const MaterialAllowanceModal: React.FC<MaterialAllowanceModalProps> = ({ project
   const { t } = useTranslation('stock');
   const loc = getNumberLocale();
   const list = useAllowances(projectId);
-  const items = useStockItems(false);
+  const items = useStockItems(true);                                                                       // archived too: an allowance on one must still be named and clearable (#1626)
   const m = useAllowanceMutations();
   const [itemId, setItemId] = useState<string | null>(null);
   const [qty, setQty] = useState('');
   const [qtyError, setQtyError] = useState<string | null>(null);
+  const [clearFor, setClearFor] = useState<{ id: string; item: string } | null>(null);
   const [saveError, setSaveError] = useState<SubmitError | null>(null);
 
   const mine = (list.data ?? []).filter((a) => a.boqItemId === workItem.id);
@@ -55,6 +56,7 @@ const MaterialAllowanceModal: React.FC<MaterialAllowanceModalProps> = ({ project
   };
 
   return (
+    <>
     <EntityFormModal
       open
       title={t('allowance.title')}
@@ -79,7 +81,7 @@ const MaterialAllowanceModal: React.FC<MaterialAllowanceModalProps> = ({ project
                 <span className="ml-auto tabular-nums">{formatQuantity(a.plannedQuantity, loc)}</span>
                 <Button type="button" variant="ghost" size="sm" disabled={m.clear.isPending}
                   aria-label={`${t('allowance.clear')} ${label(a.itemId)}`}
-                  onClick={() => m.clear.mutate(a.id, { onError: fail })}>{t('allowance.clear')}</Button>
+                  onClick={() => setClearFor({ id: a.id, item: label(a.itemId) })}>{t('allowance.clear')}</Button>
               </li>
             ))}
           </ul>
@@ -89,6 +91,17 @@ const MaterialAllowanceModal: React.FC<MaterialAllowanceModalProps> = ({ project
         <TextField label={t('allowance.quantity')} value={qty} onChange={(v) => { setQty(v); setQtyError(null); }} inputMode="decimal" required error={qtyError ?? undefined} />
       </FormGrid>
     </EntityFormModal>
+    <ConfirmDialog
+      open={clearFor !== null}
+      tone="destructive"
+      title={t('allowance.clearConfirmTitle')}
+      description={t('allowance.clearConfirmDescription', { item: clearFor?.item ?? '', workItem: `${workItem.item_code} ${workItem.description}` })}
+      confirmLabel={t('allowance.clearConfirm')}
+      loading={m.clear.isPending}
+      onConfirm={() => { if (clearFor) m.clear.mutate(clearFor.id, { onError: fail, onSettled: () => setClearFor(null) }); }}
+      onCancel={() => setClearFor(null)}
+    />
+    </>
   );
 };
 

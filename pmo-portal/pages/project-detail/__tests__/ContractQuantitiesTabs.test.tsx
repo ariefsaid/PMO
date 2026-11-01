@@ -27,6 +27,7 @@ const h = vi.hoisted(() => ({
   acc: {} as Record<string, { mutateAsync: ReturnType<typeof vi.fn>; isPending: boolean }>,
   wom: {} as Record<string, { mutateAsync: ReturnType<typeof vi.fn>; isPending: boolean }>,
 }));
+vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.role, effectiveRole: h.role }) }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: h.userId, org_id: 'org-1', role: h.role } }) }));
 vi.mock('@/src/auth/usePermission', async () => {
   const { can } = await vi.importActual<typeof import('@/src/auth/policy')>('@/src/auth/policy');
