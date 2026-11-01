@@ -13,7 +13,7 @@
 - **Role contract:** `.claude/agents/eng-planner.md`. Builders: `implementer` / `ui-implementer` role contracts handed to
   Orca workers (`docs/orca-dispatch.md`); money-path slices are Director-dispatched per issue.
 - **Migrations (Director, 2026-11-01):** each with `supabase/migrations/rollback/<number>_<slug>_down.sql`. Five migrations:
-  ECA-2 `0451_erp_connect_setup`, ECA-3 `0452_erp_connect_sends`, ECA-4 `0453_process_domain_cutover`, ECA-5
+  ECA-2 `0451_erp_connect_setup`, ECA-3 `0452_erp_connect_sends`, ECA-4 `0481_process_domain_cutover`, ECA-5
   `0454_invoice_pairs`, ECA-6 `0455_budget_occupant_resolution` (0450 is #1614's). A collision at build is fixed with
   `scripts/renumber-migration.sh`, never by hand.
 - **IDs:** plan decisions `PD-ECA-#`; questions for the Director `PQ-ECA-#`; tasks `<slice>-T<n>`.
@@ -1332,7 +1332,7 @@ New `supabase/tests/process_domain_cutover.test.sql`: org A, activated binding, 
    `procurement_invoices_native_mirror_guard` and `payments_native_mirror_guard`.
 Verify: `PGT supabase/tests/process_domain_cutover.test.sql` → red.
 
-### ECA4-T2 — migration `0453_process_domain_cutover.sql` (green)
+### ECA4-T2 — migration `0481_process_domain_cutover.sql` (green)
 ```sql
 -- ECA-4 (#1601, FR-ECA-030/031): employing procurement or expenses is refused while PMO holds drafts that would be stranded,
 -- generalising 0275 §7. Serialises with the org row exactly as assert_revenue_employable does.
