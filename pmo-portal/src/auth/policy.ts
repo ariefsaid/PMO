@@ -717,17 +717,25 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   },
   // #1513 S6: subcontract lines, acceptances, and variations. UX ONLY — RPCs and RLS are the authority.
   subcontractLines: {
-    edit: allow(['Admin', 'Finance', 'Project Manager']),
+    edit: allowUnlessViewOnly(['Admin', 'Finance', 'Project Manager']),
   },
   subcontractAcceptance: {
-    prepare: allow(['Admin', 'Finance', 'Executive', 'Project Manager']),
-    confirm: allow(['Admin', 'Finance']),
+    prepare: (role, ctx) =>
+      ctx.record?.viewOnly !== true &&
+      (has(MONEY_AUTHORITY, role) ||
+        (role === 'Project Manager' &&
+          !!ctx.currentUserId &&
+          ctx.record?.project_manager_id === ctx.currentUserId)),
+    confirm: allowUnlessViewOnly(['Admin', 'Finance']),
   },
   poVariation: {
-    request: allow(ALL),
-    decide: allow(['Admin', 'Finance', 'Executive', 'Project Manager']),
-    revise: allow(['Admin', 'Finance', 'Project Manager']),
-    link: allow(['Admin', 'Finance', 'Project Manager']),
+    request: (role, ctx) =>
+      ctx.record?.viewOnly !== true &&
+      (has(MASTER_DATA, role) ||
+        (has(ALL, role) && !!ctx.currentUserId && ctx.record?.requested_by_id === ctx.currentUserId)),
+    decide: allowUnlessViewOnly(['Admin', 'Finance', 'Executive', 'Project Manager']),
+    revise: allowUnlessViewOnly(['Admin', 'Finance', 'Project Manager']),
+    link: allowUnlessViewOnly(['Admin', 'Finance', 'Project Manager']),
   },
 };
 

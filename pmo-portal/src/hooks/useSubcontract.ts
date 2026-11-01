@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '@/src/auth/useAuth';
 import { repositories } from '@/src/lib/repositories';
 import type {
   SetPoLinesInput,
@@ -7,71 +8,109 @@ import type {
   AttributeSubcontractBillLineInput,
 } from '@/src/lib/db/subcontracts';
 
+// ---------------------------------------------------------------------------
+// Query key factory — org-scoped (mirrors useProcurementDetail pattern, AC-816)
+// ---------------------------------------------------------------------------
+export const subcontractKeys = {
+  all: (orgId: string | undefined) => ['subcontract', orgId] as const,
+  po: (orgId: string | undefined, poId: string | undefined) => ['subcontract', orgId, poId] as const,
+  poPosition: (orgId: string | undefined, poId: string | undefined) =>
+    ['subcontract', orgId, poId, 'position'] as const,
+  acceptances: (orgId: string | undefined, poId: string | undefined) =>
+    ['subcontract', orgId, poId, 'acceptances'] as const,
+  variations: (orgId: string | undefined, poId: string | undefined) =>
+    ['subcontract', orgId, poId, 'variations'] as const,
+  variationRoute: (orgId: string | undefined, id: string | undefined) =>
+    ['subcontract', orgId, 'variation-route', id] as const,
+  projectExposure: (orgId: string | undefined, projectId: string | undefined) =>
+    ['subcontract', orgId, 'project-exposure', projectId] as const,
+  workOrderVariations: (orgId: string | undefined, workOrderId: string | undefined) =>
+    ['subcontract', orgId, 'work-order-variations', workOrderId] as const,
+  capExceptions: (orgId: string | undefined, procurementId: string | undefined) =>
+    ['subcontract', orgId, 'cap-exceptions', procurementId] as const,
+};
+
 export function usePoPosition(poId: string | undefined) {
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
   return useQuery({
-    queryKey: ['subcontract', poId, 'position'],
+    queryKey: subcontractKeys.poPosition(orgId, poId),
     queryFn: () => repositories.subcontracts.getPoPosition(poId!),
-    enabled: Boolean(poId),
+    enabled: Boolean(orgId && poId),
   });
 }
 
 export function useSubcontractAcceptances(poId: string | undefined) {
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
   return useQuery({
-    queryKey: ['subcontract', poId, 'acceptances'],
+    queryKey: subcontractKeys.acceptances(orgId, poId),
     queryFn: () => repositories.subcontracts.listSubcontractAcceptances(poId!),
-    enabled: Boolean(poId),
+    enabled: Boolean(orgId && poId),
   });
 }
 
 export function usePoVariations(poId: string | undefined) {
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
   return useQuery({
-    queryKey: ['subcontract', poId, 'variations'],
+    queryKey: subcontractKeys.variations(orgId, poId),
     queryFn: () => repositories.subcontracts.listPoVariations(poId!),
-    enabled: Boolean(poId),
+    enabled: Boolean(orgId && poId),
   });
 }
 
 export function useVariationRoute(id: string | undefined) {
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
   return useQuery({
-    queryKey: ['subcontract', 'variation-route', id],
+    queryKey: subcontractKeys.variationRoute(orgId, id),
     queryFn: () => repositories.subcontracts.getVariationRoute(id!),
-    enabled: Boolean(id),
+    enabled: Boolean(orgId && id),
   });
 }
 
 export function useProjectSubcontractExposure(projectId: string | undefined) {
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
   return useQuery({
-    queryKey: ['subcontract', 'project-exposure', projectId],
+    queryKey: subcontractKeys.projectExposure(orgId, projectId),
     queryFn: () => repositories.subcontracts.getProjectSubcontractExposure(projectId!),
-    enabled: Boolean(projectId),
+    enabled: Boolean(orgId && projectId),
   });
 }
 
 export function useWorkOrderCostVariations(workOrderId: string | undefined) {
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
   return useQuery({
-    queryKey: ['subcontract', 'work-order-variations', workOrderId],
+    queryKey: subcontractKeys.workOrderVariations(orgId, workOrderId),
     queryFn: () => repositories.subcontracts.listWorkOrderCostVariations(workOrderId!),
-    enabled: Boolean(workOrderId),
+    enabled: Boolean(orgId && workOrderId),
   });
 }
 
 export function useSubcontractCapExceptions(procurementId: string | undefined) {
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
   return useQuery({
-    queryKey: ['subcontract', 'cap-exceptions', procurementId],
+    queryKey: subcontractKeys.capExceptions(orgId, procurementId),
     queryFn: () => repositories.subcontracts.listSubcontractCapExceptions(procurementId!),
-    enabled: Boolean(procurementId),
+    enabled: Boolean(orgId && procurementId),
   });
 }
 
 export function useSubcontractMutations(poId: string, procurementId?: string) {
   const qc = useQueryClient();
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
 
   const invalidate = () => {
-    void qc.invalidateQueries({ queryKey: ['subcontract', poId] });
+    void qc.invalidateQueries({ queryKey: subcontractKeys.po(orgId, poId) });
     if (procurementId) {
-      void qc.invalidateQueries({ queryKey: ['procurement'] });
+      void qc.invalidateQueries({ queryKey: ['procurement', orgId, procurementId] });
     } else {
-      void qc.invalidateQueries({ queryKey: ['procurement'] });
+      void qc.invalidateQueries({ queryKey: ['procurement', orgId] });
     }
   };
 

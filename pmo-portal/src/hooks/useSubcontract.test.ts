@@ -3,6 +3,11 @@ import { renderHook, waitFor, act } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 
+const actor = vi.hoisted(() => ({ id: 'u1', org_id: 'org-1' as string | null, role: 'Project Manager' }));
+vi.mock('@/src/auth/useAuth', () => ({
+  useAuth: () => ({ currentUser: actor.org_id ? { id: actor.id, org_id: actor.org_id, role: actor.role } : null, role: actor.role }),
+}));
+
 const h = vi.hoisted(() => ({
   getPoPosition: vi.fn(),
   listSubcontractAcceptances: vi.fn(),
@@ -30,12 +35,14 @@ vi.mock('@/src/lib/repositories', () => ({
 }));
 
 import {
+  subcontractKeys,
   usePoPosition,
   useSubcontractAcceptances,
   usePoVariations,
   useVariationRoute,
   useProjectSubcontractExposure,
   useWorkOrderCostVariations,
+  useSubcontractCapExceptions,
   useSubcontractMutations,
 } from './useSubcontract';
 
@@ -47,10 +54,32 @@ function makeWrapper() {
 }
 
 beforeEach(() => {
+  actor.org_id = 'org-1';
   vi.clearAllMocks();
 });
 
 describe('useSubcontract hooks (src/hooks/useSubcontract.ts)', () => {
+  describe('subcontractKeys factory — org-scoped (mirrors useProcurementDetail pattern, AC-816)', () => {
+    it('produces org-scoped query keys for every subcontract slice', () => {
+      expect(subcontractKeys.all('org-1')).toEqual(['subcontract', 'org-1']);
+      expect(subcontractKeys.po('org-1', 'po-1')).toEqual(['subcontract', 'org-1', 'po-1']);
+      expect(subcontractKeys.poPosition('org-1', 'po-1')).toEqual(['subcontract', 'org-1', 'po-1', 'position']);
+      expect(subcontractKeys.acceptances('org-1', 'po-1')).toEqual(['subcontract', 'org-1', 'po-1', 'acceptances']);
+      expect(subcontractKeys.variations('org-1', 'po-1')).toEqual(['subcontract', 'org-1', 'po-1', 'variations']);
+      expect(subcontractKeys.variationRoute('org-1', 'var-1')).toEqual(['subcontract', 'org-1', 'variation-route', 'var-1']);
+      expect(subcontractKeys.projectExposure('org-1', 'proj-1')).toEqual(['subcontract', 'org-1', 'project-exposure', 'proj-1']);
+      expect(subcontractKeys.workOrderVariations('org-1', 'wo-1')).toEqual(['subcontract', 'org-1', 'work-order-variations', 'wo-1']);
+      expect(subcontractKeys.capExceptions('org-1', 'proc-1')).toEqual(['subcontract', 'org-1', 'cap-exceptions', 'proc-1']);
+    });
+  });
+
+  it('usePoPosition is disabled when org_id is missing', () => {
+    actor.org_id = null;
+    const { Wrapper } = makeWrapper();
+    const { result } = renderHook(() => usePoPosition('po-1'), { wrapper: Wrapper });
+    expect(result.current.fetchStatus).toBe('idle');
+    expect(h.getPoPosition).not.toHaveBeenCalled();
+  });
   it('usePoPosition fetches position for poId', async () => {
     const { Wrapper } = makeWrapper();
     h.getPoPosition.mockResolvedValueOnce([{ boq_item_id: 'b1', item_code: 'L1', po_qty: 100 }]);
@@ -117,7 +146,18 @@ describe('useSubcontract hooks (src/hooks/useSubcontract.ts)', () => {
     expect(result.current.data).toEqual([{ id: 'var-1', amount: 1000 }]);
   });
 
-  it('useSubcontractMutations provides mutations that invalidate [subcontract, poId] and procurement detail', async () => {
+  it('useSubcontractCapExceptions fetches cap exceptions for procurementId', async () => {
+    const { Wrapper } = makeWrapper();
+    h.listSubcontractCapExceptions.mockResolvedValueOnce([{ id: 'exc-1', unbilled_excess: 500 }]);
+
+    const { result } = renderHook(() => useSubcontractCapExceptions('proc-1'), { wrapper: Wrapper });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(h.listSubcontractCapExceptions).toHaveBeenCalledWith('proc-1');
+    expect(result.current.data).toEqual([{ id: 'exc-1', unbilled_excess: 500 }]);
+  });
+
+  it('useSubcontractMutations provides mutations that invalidate [subcontract, orgId, poId] and procurement detail', async () => {
     const { qc, Wrapper } = makeWrapper();
     const invalidateSpy = vi.spyOn(qc, 'invalidateQueries');
 
@@ -201,7 +241,22 @@ describe('useSubcontract hooks (src/hooks/useSubcontract.ts)', () => {
     expect(h.attributeSubcontractBillLines).toHaveBeenCalledWith('inv-1', []);
 
     const calls = invalidateSpy.mock.calls.map((c) => JSON.stringify(c[0]));
-    expect(calls.some((c) => c.includes('"subcontract"') && c.includes('"po-1"'))).toBe(true);
-    expect(calls.some((c) => c.includes('"procurement"'))).toBe(true);
+    expect(calls.some((c) => c.includes('"subcontract"') && c.includes('"org-1"') && c.includes('"po-1"'))).toBe(true);
+    expect(calls.some((c) => c.includes('"procurement"') && c.includes('"org-1"') && c.includes('"proc-1"'))).toBe(true);
+  });
+
+  it('useSubcontractMutations without procurementId invalidates org-scoped procurement collection', async () => {
+    const { qc, Wrapper } = makeWrapper();
+    const invalidateSpy = vi.spyOn(qc, 'invalidateQueries');
+    h.issuePoLines.mockResolvedValueOnce(1);
+
+    const { result } = renderHook(() => useSubcontractMutations('po-1'), { wrapper: Wrapper });
+    await act(async () => {
+      await result.current.issuePoLines.mutateAsync();
+    });
+
+    const calls = invalidateSpy.mock.calls.map((c) => JSON.stringify(c[0]));
+    expect(calls.some((c) => c.includes('"subcontract"') && c.includes('"org-1"') && c.includes('"po-1"'))).toBe(true);
+    expect(calls.some((c) => c.includes('"procurement"') && c.includes('"org-1"'))).toBe(true);
   });
 });

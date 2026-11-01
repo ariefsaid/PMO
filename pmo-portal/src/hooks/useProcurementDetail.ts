@@ -28,6 +28,7 @@ import {
   captureSubcontractVendorInvoice as captureSubcontractVendorInvoiceDal,
   type CaptureSubcontractVendorInvoiceInput,
 } from '@/src/lib/db/subcontracts';
+import { subcontractKeys } from '@/src/hooks/useSubcontract';
 
 // ---------------------------------------------------------------------------
 // Query key factory — org-scoped (mirrors useBudget pattern, AC-816)
@@ -206,7 +207,7 @@ export function useProcurementMutations(id: string) {
     mutationFn: (input) => captureSubcontractVendorInvoiceDal({ ...input, procurementId: id }),
     onSuccess: () => {
       invalidateDetail();
-      queryClient.invalidateQueries({ queryKey: ['subcontract'] });
+      queryClient.invalidateQueries({ queryKey: subcontractKeys.all(orgId) });
     },
   });
 

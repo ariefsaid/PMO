@@ -333,7 +333,7 @@ describe('useProcurementMutations', () => {
     });
     const calls = invalidateSpy.mock.calls.map((c) => JSON.stringify(c[0]));
     expect(calls.some((c) => c.includes('"procurement"') && c.includes('"org-1"'))).toBe(true);
-    expect(calls.some((c) => c.includes('"subcontract"'))).toBe(true);
+    expect(calls.some((c) => c.includes('"subcontract"') && c.includes('"org-1"'))).toBe(true);
   });
 
   it('mutations are exposed: transition, createQuotation, createReceipt, createInvoice, captureVendorInvoice, pendingPush', () => {
