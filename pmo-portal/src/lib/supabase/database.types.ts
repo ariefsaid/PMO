@@ -1815,6 +1815,113 @@ export type Database = {
           },
         ]
       }
+      equipment_costing_settings: {
+        Row: {
+          applies_to: string | null
+          asset_id: string
+          basis: string
+          charge_category: Database["public"]["Enums"]["budget_category"] | null
+          count_standby: boolean
+          created_at: string
+          created_by: string | null
+          driver: string | null
+          effective_from: string
+          effective_to: string | null
+          id: string
+          is_current: boolean
+          match_account: string | null
+          match_account_group: string | null
+          match_cost_center: string | null
+          match_party: string | null
+          match_party_type: string | null
+          org_id: string
+          rate_unit: string | null
+          setting_key: string
+          specificity: number
+          standby_rate: number | null
+          version: number
+          work_rate: number | null
+        }
+        Insert: {
+          applies_to?: string | null
+          asset_id: string
+          basis: string
+          charge_category?:
+            | Database["public"]["Enums"]["budget_category"]
+            | null
+          count_standby?: boolean
+          created_at?: string
+          created_by?: string | null
+          driver?: string | null
+          effective_from: string
+          effective_to?: string | null
+          id?: string
+          is_current?: boolean
+          match_account?: string | null
+          match_account_group?: string | null
+          match_cost_center?: string | null
+          match_party?: string | null
+          match_party_type?: string | null
+          org_id: string
+          rate_unit?: string | null
+          setting_key: string
+          specificity?: number
+          standby_rate?: number | null
+          version: number
+          work_rate?: number | null
+        }
+        Update: {
+          applies_to?: string | null
+          asset_id?: string
+          basis?: string
+          charge_category?:
+            | Database["public"]["Enums"]["budget_category"]
+            | null
+          count_standby?: boolean
+          created_at?: string
+          created_by?: string | null
+          driver?: string | null
+          effective_from?: string
+          effective_to?: string | null
+          id?: string
+          is_current?: boolean
+          match_account?: string | null
+          match_account_group?: string | null
+          match_cost_center?: string | null
+          match_party?: string | null
+          match_party_type?: string | null
+          org_id?: string
+          rate_unit?: string | null
+          setting_key?: string
+          specificity?: number
+          standby_rate?: number | null
+          version?: number
+          work_rate?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "equipment_costing_settings_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "equipment_assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "equipment_costing_settings_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "equipment_costing_settings_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       equipment_usage_entries: {
         Row: {
           approved_at: string | null
@@ -10118,6 +10225,103 @@ export type Database = {
         Args: { p_boq_item_id: string; p_item_id: string }
         Returns: boolean
       }
+      cost_attribution_matches_overlap: {
+        Args: {
+          a_account: string
+          a_cc: string
+          a_group: string
+          a_party: string
+          a_ptype: string
+          b_account: string
+          b_cc: string
+          b_group: string
+          b_party: string
+          b_ptype: string
+          p_org: string
+        }
+        Returns: boolean
+      }
+      end_equipment_costing: {
+        Args: {
+          p_effective_to: string
+          p_expected_version: number
+          p_setting_key: string
+        }
+        Returns: Json
+      }
+      equipment_costing_assert_no_conflict: {
+        Args: { p_norm: Json; p_org: string }
+        Returns: undefined
+      }
+      equipment_costing_content: { Args: { p_id: string }; Returns: Json }
+      equipment_costing_normalize: {
+        Args: { p_check_accounts?: boolean; p_org: string; p_setting: Json }
+        Returns: Json
+      }
+      equipment_costing_write: {
+        Args: { p_action: string; p_check_accounts: boolean; p_setting: Json }
+        Returns: Json
+      }
+      equipment_hire_charges: {
+        Args: { p_draft?: Json; p_org_id: string; p_project_id?: string }
+        Returns: {
+          amount: number
+          as_of: string
+          asset_id: string
+          category: Database["public"]["Enums"]["budget_category"]
+          entry_count: number
+          fiscal_year: string
+          month: string
+          project_id: string
+          rate_unit: string
+          setting_id: string
+          setting_key: string
+          standby_rate: number
+          standby_units: number
+          version: number
+          work_rate: number
+          work_units: number
+        }[]
+      }
+      equipment_settings_effective: {
+        Args: { p_draft?: Json; p_org_id: string }
+        Returns: {
+          asset_id: string
+          basis: string
+          charge_category: Database["public"]["Enums"]["budget_category"]
+          count_standby: boolean
+          driver: string
+          id: string
+          match_account: string
+          match_account_group: string
+          match_cost_center: string
+          match_party: string
+          match_party_type: string
+          rate_unit: string
+          setting_key: string
+          specificity: number
+          standby_rate: number
+          version: number
+          window_from: string
+          window_to: string
+          work_rate: number
+        }[]
+      }
+      equipment_usage_by_project: {
+        Args: { p_org_id: string }
+        Returns: {
+          as_of: string
+          asset_id: string
+          entry_count: number
+          fuel_litres: number
+          kind: string
+          month: string
+          project_id: string
+          quantity: number
+          trips: number
+          unit: string
+        }[]
+      }
       get_reorder_suggestions: {
         Args: { p_item_id: string; p_warehouse_id: string }
         Returns: Json
@@ -10126,6 +10330,94 @@ export type Database = {
       imprest_posting_for_push: {
         Args: { p_mirror_id: string; p_org_id: string }
         Returns: Json
+      }
+      list_equipment_allocations: {
+        Args: {
+          p_asset_id: string
+          p_from: string
+          p_project_id?: string
+          p_to: string
+        }
+        Returns: {
+          amount: number
+          asset_code: string
+          asset_id: string
+          basis: string
+          category: Database["public"]["Enums"]["budget_category"]
+          driver: string
+          driver_total: number
+          driver_value: number
+          entry_count: number
+          line_count: number
+          month: string
+          pool: number
+          project_id: string
+          project_name: string
+          reason: string
+          setting_key: string
+          share: number
+          standby_rate: number
+          standby_units: number
+          status: string
+          unit: string
+          version: number
+          work_rate: number
+          work_units: number
+        }[]
+      }
+      list_equipment_costing: {
+        Args: { p_include_history?: boolean }
+        Returns: {
+          asset_code: string
+          asset_id: string
+          asset_name: string
+          basis: string
+          charge_category: Database["public"]["Enums"]["budget_category"]
+          count_standby: boolean
+          created_at: string
+          created_by: string
+          driver: string
+          effective_from: string
+          effective_to: string
+          id: string
+          is_current: boolean
+          match_account: string
+          match_account_group: string
+          match_cost_center: string
+          match_party: string
+          match_party_type: string
+          rate_unit: string
+          setting_key: string
+          specificity: number
+          standby_rate: number
+          version: number
+          voided: boolean
+          window_to: string
+          work_rate: number
+        }[]
+      }
+      list_equipment_usage_totals: {
+        Args: {
+          p_asset_id?: string
+          p_from?: string
+          p_project_id?: string
+          p_to?: string
+        }
+        Returns: {
+          asset_code: string
+          asset_id: string
+          asset_name: string
+          entry_count: number
+          fuel_litres: number
+          month: string
+          project_id: string
+          project_name: string
+          standby_units: number
+          submitted_count: number
+          trips: number
+          unit: string
+          work_units: number
+        }[]
       }
       normalize_procurement_import_refs: {
         Args: { p_refs: string[] }
@@ -10139,6 +10431,19 @@ export type Database = {
         Args: { p_org_id: string }
         Returns: boolean
       }
+      preview_equipment_costing: {
+        Args: { p_setting: Json }
+        Returns: {
+          amount: number
+          basis: string
+          category: Database["public"]["Enums"]["budget_category"]
+          driver_total: number
+          entry_count: number
+          month: string
+          project_id: string
+        }[]
+      }
+      save_equipment_costing: { Args: { p_setting: Json }; Returns: Json }
       set_stock_reorder_level: {
         Args: {
           p_item_id: string
