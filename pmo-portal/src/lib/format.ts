@@ -709,6 +709,11 @@ export function formatDateTime(d: Date): string {
   }).format(d);
 }
 
+/** "03:45 PM" — time of day only, in the org's zone (a state banner's "as of"). */
+export function formatClockTime(d: Date): string {
+  return dateFormatterFor('clockTime', getDateLocale(), { hour: '2-digit', minute: '2-digit', timeZone: getActiveLocale().timezone }).format(d);
+}
+
 /** "6/14/2026" — numeric M/D/YYYY; byte-identical to bare toLocaleDateString() in en-US. */
 export function formatDateNumeric(d: Date): string {
   return dateFormatterFor('dateNumeric', getDateLocale(), {
@@ -818,6 +823,11 @@ export function formatList(items: readonly string[]): string {
 }
 
 /** Exact decimal STRING formatting (stock quantities and unit costs, #1512): the digits are never routed through a JS float. */
+/** Currency style with up to 4 decimals (a stock unit cost); the string input keeps every digit exact. */
+export function formatCurrencyDecimal4(value: string, currency: string, locale: string): string {
+  return numberFormatterFor('cur-dec4', locale, currency, { style: 'currency', currency, minimumFractionDigits: 2, maximumFractionDigits: 4 }).format(value as unknown as number);
+}
+
 export function formatDecimalString(value: string, locale: string, maxFractionDigits: number): string {
   return numberFormatterFor(`dec${maxFractionDigits}`, locale, undefined, { maximumFractionDigits: maxFractionDigits }).format(value as unknown as number);
 }

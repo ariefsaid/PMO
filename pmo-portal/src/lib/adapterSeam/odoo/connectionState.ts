@@ -52,3 +52,6 @@ export function displayedConnection(
   const stale = !rec.last_checked_at || now.getTime() - Date.parse(rec.last_checked_at) > 2 * sweepIntervalMs;
   return stale && ['healthy', 'credential-expiring', 'degraded'].includes(rec.state) ? 'unverified' : rec.state;
 }
+
+/** The binding-config key the S8 first-send step writes and the setup checklist reads; both sides import this name. */
+export const SENDS_FINISHED_KEY = 'sends_finished_at';

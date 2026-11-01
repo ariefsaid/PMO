@@ -3202,6 +3202,65 @@ export type Database = {
           },
         ]
       }
+      external_master_records: {
+        Row: {
+          active: boolean
+          as_of: string
+          attrs: Json
+          census_seen_at: string | null
+          code: string | null
+          external_id: string
+          external_tier: string
+          id: string
+          kind: string
+          name: string
+          org_id: string
+          parent_external_id: string | null
+          source_write_date: string
+          tombstoned_at: string | null
+        }
+        Insert: {
+          active?: boolean
+          as_of?: string
+          attrs?: Json
+          census_seen_at?: string | null
+          code?: string | null
+          external_id: string
+          external_tier: string
+          id?: string
+          kind: string
+          name: string
+          org_id?: string
+          parent_external_id?: string | null
+          source_write_date: string
+          tombstoned_at?: string | null
+        }
+        Update: {
+          active?: boolean
+          as_of?: string
+          attrs?: Json
+          census_seen_at?: string | null
+          code?: string | null
+          external_id?: string
+          external_tier?: string
+          id?: string
+          kind?: string
+          name?: string
+          org_id?: string
+          parent_external_id?: string | null
+          source_write_date?: string
+          tombstoned_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "external_master_records_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       external_org_bindings: {
         Row: {
           activated_at: string | null
@@ -7718,6 +7777,7 @@ export type Database = {
           procurement_id: string | null
           project_id: string | null
           reason: string | null
+          revision: number
           status: string
           to_warehouse_id: string | null
           warehouse_id: string
@@ -7739,6 +7799,7 @@ export type Database = {
           procurement_id?: string | null
           project_id?: string | null
           reason?: string | null
+          revision?: number
           status?: string
           to_warehouse_id?: string | null
           warehouse_id: string
@@ -7760,6 +7821,7 @@ export type Database = {
           procurement_id?: string | null
           project_id?: string | null
           reason?: string | null
+          revision?: number
           status?: string
           to_warehouse_id?: string | null
           warehouse_id?: string
@@ -10214,6 +10276,7 @@ export type Database = {
         }[]
       }
       get_sales_pipeline: { Args: never; Returns: Json }
+      get_stock_document_costs: { Args: { p_document_id: string }; Returns: Json }
       get_stock_ledger: {
         Args: {
           p_before_seq?: number
@@ -11083,7 +11146,10 @@ export type Database = {
         }
         Returns: number
       }
-      post_stock_document: { Args: { p_document_id: string }; Returns: string }
+      post_stock_document: {
+        Args: { p_document_id: string; p_expected_revision?: number }
+        Returns: string
+      }
       prepare_work_order_acceptance: {
         Args: {
           p_acceptance_date: string

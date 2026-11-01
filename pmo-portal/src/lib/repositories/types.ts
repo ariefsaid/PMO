@@ -92,6 +92,8 @@ import type {
   WorkOrderRepository,
 } from './contracts/workOrders';
 
+import type { OdooRepository } from './odoo';
+
 export interface Repositories {
   fxRates: FxRatesRepository;
   m365DocumentSettings: M365DocumentSettingsRepository;
@@ -132,6 +134,7 @@ export interface Repositories {
   companyCollections: CompanyCollectionsRepository;
   financialStatements: FinancialStatementsRepository;
   integrations: IntegrationsRepository;
+  odoo: OdooRepository;
   reports: ReportsRepository;
 }
 

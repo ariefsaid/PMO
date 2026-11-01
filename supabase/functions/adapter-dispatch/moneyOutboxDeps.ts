@@ -17,6 +17,7 @@
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 import type { DispatchMoneyOutboxDeps, ExternalRefMapping, OutboxRow } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
 import type { PmoRecord } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
+import { emitErpPushOutcome, stableOutcomeCode } from '../_shared/erpPushOutcome.ts';
 
 /** Structural service-role client seam this module needs: `.from(t).{select,insert,update}` +
  *  `.rpc(fn,args)`. The real supabase-js client satisfies this at runtime but is not nominally
@@ -53,6 +54,8 @@ interface OutboxDbRow {
   canonical: PmoRecord | null;
   claim_generation: number;
   payload_digest: string | null;
+  attempt_count?: number;
+  claimed_at?: string | null;
 }
 
 function mapRow(row: OutboxDbRow): OutboxRow {
@@ -98,7 +101,9 @@ export function isQueuedProcurementRefusal(message: unknown): boolean {
 /** RPC helper: `claim_outbox_for_commit`/`quarantine_committing` both return a single composite row or
  *  `NULL` (not-claimable-now) — never a Postgrest error for the "not claimable" case. A real error
  *  (connectivity, bad grant) throws. */
-async function callRowRpc(client: OutboxServiceClient, fn: string, id: string): Promise<OutboxRow | null> {
+async function callRowRpc(
+  client: OutboxServiceClient, fn: string, id: string, onRaw?: (raw: OutboxDbRow) => void,
+): Promise<OutboxRow | null> {
   const { data, error } = await client.rpc(fn, { p_id: id });
   if (error) {
     // The claim refuses a queued procurement create the org's current purchase rules would refuse (0368/0373): nothing
@@ -112,6 +117,7 @@ async function callRowRpc(client: OutboxServiceClient, fn: string, id: string): 
   // state:null row here and 500'd in reconcileOutbox instead of backing off. Unit deps return real
   // nulls and pgTAP sees SQL NULL; only the served PostgREST boundary exposes this.)
   if (!data || (data as OutboxDbRow).id == null) return null;
+  onRaw?.(data as OutboxDbRow);
   return mapRow(data as OutboxDbRow);
 }
 
@@ -174,10 +180,31 @@ export interface DbMoneyOutboxDepsOpts {
   reauthorizeRecoveryReissue?: () => Promise<{ ok: boolean; message: string }>;
 }
 
+/** attempt number + claim time from a raw outbox row, for erp_push_outcome on the recovery paths. */
+function claimInfo(raw: OutboxDbRow): { attempt?: number; claimedAtMs?: number } {
+  const t = raw.claimed_at ? Date.parse(raw.claimed_at) : NaN;
+  return { attempt: raw.attempt_count, claimedAtMs: Number.isNaN(t) ? undefined : t };
+}
+
 /** Builds the DB-backed `DispatchMoneyOutboxDeps` for ONE request's org/tier/operation. */
 export function createDbMoneyOutboxDeps(opts: DbMoneyOutboxDepsOpts): DispatchMoneyOutboxDeps {
   const { serviceClient, orgId, externalTier, operation } = opts;
   const encodeExternalRecordId = opts.encodeExternalRecordId ?? ((m: ExternalRefMapping) => m.externalRecordId);
+
+  // #1532 S4: erp_push_outcome, emitted only when a fenced write-back reports THIS call transitioned the row
+  // (count 1 / a quarantined row). Fire-and-forget after the write returned: never gates, retries or alters it.
+  const meta = new Map<string, { domain: string; attempt?: number; claimedAtMs?: number }>();
+  const outcome = (id: string, kind: 'confirmed' | 'failed' | 'quarantined' | 'held', code?: string): void => {
+    const m = meta.get(id);
+    if (!m) return; // never emit an event without a domain
+    try {
+      void emitErpPushOutcome({
+        tier: externalTier, domain: m.domain, operation, outcome: kind, errorCode: code,
+        attemptCount: m.attempt, durationMs: m.claimedAtMs ? Date.now() - m.claimedAtMs : undefined,
+        orgId, outboxId: id,
+      }).catch(() => undefined);
+    } catch { /* NFR-PHO-REL-001: a telemetry fault never touches the outbox */ }
+  };
 
   return {
     async readOutbox(domain, pmoRecordId, idempotencyKey) {
@@ -193,7 +220,10 @@ export function createDbMoneyOutboxDeps(opts: DbMoneyOutboxDepsOpts): DispatchMo
         .eq('idempotency_key', idempotencyKey)
         .maybeSingle();
       if (error) throw new AppError(error.message, error.code);
-      return data ? mapRow(data as OutboxDbRow) : null;
+      if (!data) return null;
+      const row = mapRow(data as OutboxDbRow);
+      meta.set(row.id, { ...meta.get(row.id), domain: row.domain });
+      return row;
     },
 
     async insertOutboxPending(domain, pmoRecordId, idempotencyKey) {
@@ -270,8 +300,18 @@ export function createDbMoneyOutboxDeps(opts: DbMoneyOutboxDepsOpts): DispatchMo
       return mapRow(data as OutboxDbRow);
     },
 
-    claimOutboxForCommit: (id) => callRowRpc(serviceClient, 'claim_outbox_for_commit', id),
-    quarantineCommitting: (id) => callRowRpc(serviceClient, 'quarantine_committing', id),
+    claimOutboxForCommit: (id) => callRowRpc(serviceClient, 'claim_outbox_for_commit', id, (raw) =>
+      meta.set(raw.id, { domain: raw.domain, attempt: raw.attempt_count, claimedAtMs: Date.now() })),
+    async quarantineCommitting(id) {
+      let raw: OutboxDbRow | undefined;
+      const row = await callRowRpc(serviceClient, 'quarantine_committing', id, (r) => { raw = r; });
+      // 0096: a row comes back only when THIS call moved committing → quarantined (null otherwise).
+      if (row && row.state === 'quarantined') {
+        meta.set(id, { ...meta.get(id), domain: row.domain, ...(raw ? claimInfo(raw) : {}) });
+        outcome(id, 'quarantined', 'committing-lease-expired');
+      }
+      return row;
+    },
 
     async markOutboxCommitted(id, externalRecordId, canonical, claimGeneration) {
       const { data, error } = await serviceClient
@@ -298,12 +338,18 @@ export function createDbMoneyOutboxDeps(opts: DbMoneyOutboxDepsOpts): DispatchMo
       }),
 
     // H-1: the fenced committed→confirmed promotion (run LAST, after the mirror).
-    confirmOutbox: (id, claimGeneration) =>
-      callCountRpc(serviceClient, 'confirm_outbox', { p_id: id, p_generation: claimGeneration }),
+    async confirmOutbox(id, claimGeneration) {
+      const n = await callCountRpc(serviceClient, 'confirm_outbox', { p_id: id, p_generation: claimGeneration });
+      if (n === 1) outcome(id, 'confirmed');
+      return n;
+    },
 
     // C-1 (PE mutable anchor): the fenced committing→held transition for a recovery-inconclusive PE.
-    markOutboxHeld: (id, reason, claimGeneration) =>
-      callCountRpc(serviceClient, 'mark_outbox_held', { p_id: id, p_generation: claimGeneration, p_reason: reason }),
+    async markOutboxHeld(id, reason, claimGeneration) {
+      const n = await callCountRpc(serviceClient, 'mark_outbox_held', { p_id: id, p_generation: claimGeneration, p_reason: reason });
+      if (n === 1) outcome(id, 'held', stableOutcomeCode(reason));
+      return n;
+    },
 
     reissueOnInconclusiveAbsence: opts.reissueOnInconclusiveAbsence ?? true,
 
@@ -316,7 +362,9 @@ export function createDbMoneyOutboxDeps(opts: DbMoneyOutboxDepsOpts): DispatchMo
         .eq('claim_generation', String(claimGeneration))
         .select('id');
       if (error) throw new AppError(error.message, error.code);
-      return data?.length ?? 0;
+      const n = data?.length ?? 0;
+      if (n === 1) outcome(id, 'failed', stableOutcomeCode(lastError));
+      return n;
     },
 
     probeByRemarksKey: opts.probeByRemarksKey,

@@ -3,7 +3,7 @@ import type {
   StockItemInput, StockItemRow, StockKeeperRow, StockUnitInput, StockUnitRow, StockWarehouseInput, StockWarehouseRow,
 } from '@/src/lib/db/stockMaster';
 import type {
-  IssuableWorkItem, IssueLineRow, StockDocumentDetail, StockDocumentFilters, StockDocumentInput, StockDocumentListRow,
+  IssuableWorkItem, IssueLineRow, StockDocumentDetail, StockDocumentFilters, StockDocumentInput, StockDocumentListRow, StockLineCost,
 } from '@/src/lib/db/stockDocuments';
 import type { StockLedgerFilters, StockLedgerPage, StockLedgerRow, StockOnHandRow } from '@/src/lib/db/stockReports';
 
@@ -30,7 +30,10 @@ export interface StockDocumentsRepository {
   get(id: string): Promise<StockDocumentDetail | null>;
   create(input: StockDocumentInput, opts: { post: boolean; clientRequestId: string }): Promise<string>;
   saveDraft(id: string, input: StockDocumentInput): Promise<void>;
-  post(id: string): Promise<void>;
+  /** `revision`: the one the approver reviewed (FR-STK-062). */
+  post(id: string, revision?: number): Promise<void>;
+  /** Line unit costs, the cost itself only at rank >= 20 (FR-STK-063). */
+  costs(id: string): Promise<StockLineCost[]>;
   cancel(id: string): Promise<void>;
   issuableWorkItems(projectId: string): Promise<IssuableWorkItem[]>;
   /** Posted issue lines of a project: what a Return may cite. */

@@ -7,9 +7,9 @@ import { useStockErrorText } from '@/src/components/stock/useStockErrorText';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useAuth } from '@/src/auth/useAuth';
-import { useStockDocument, useStockDocumentEntries, useStockDocumentMutations, useStockKeepers } from '@/src/hooks/useStock';
+import { useStockDocument, useStockDocumentCosts, useStockDocumentEntries, useStockDocumentMutations, useStockKeepers, useStockOnHand } from '@/src/hooks/useStock';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
-import { formatQuantity, formatStockValue } from '@/src/lib/stockFormat';
+import { formatQuantity, formatStockValue, stockValuePreview, subtractDecimal } from '@/src/lib/stockFormat';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import { formatInstantDate } from '@/src/lib/format';
 import { statusVariant } from '@/src/components/stock/stockStatus';
@@ -39,6 +39,29 @@ const StockDocumentDetail: React.FC = () => {
   const ctx = { currentUserId: me, record };
   const canCancel = may('withdraw', 'stockDocument', ctx);
   const canPost = d?.status === 'Draft' && may('post', 'stockDocument', ctx);
+  const writeOff = d?.kind === 'adjustment' || d?.kind === 'count';
+  const isAuthor = !!me && d?.created_by === me;
+  // FR-STK-062: the author of a write-off Draft reopens it; another person (rank >= 20) posts it.
+  const canEdit = writeOff && d?.status === 'Draft' && isAuthor && may('create', 'stockDocument', ctx);
+  // The approver of a Draft write-off reviews what it WILL post: live system quantity, difference and, at rank >= 20, value (FR-STK-062/063).
+  const liveDraft = writeOff && d?.status === 'Draft';
+  const seeCost = may('create', 'stockItem');
+  const onHand = useStockOnHand({ warehouseId: d?.warehouse_id, includeZero: true }, Boolean(liveDraft && d?.warehouse_id));
+  const costs = useStockDocumentCosts(d?.id, liveDraft && seeCost);
+  const balanceOf = (itemId: string) => (onHand.data ? onHand.data.find((r) => r.itemId === itemId && r.warehouseId === d?.warehouse_id) ?? { qtyOnHand: '0', valueOnHand: '0' } : undefined);
+  const costOf = (lineId: string) => costs.data?.find((c) => c.lineId === lineId)?.unitCost;
+  const systemOf = (l: StockDocumentLine) => (liveDraft ? balanceOf(l.item_id)?.qtyOnHand ?? null : l.expected_quantity);
+  const varianceOf = (l: StockDocumentLine) => { const sys = systemOf(l); return sys === null || l.counted_quantity === null ? null : subtractDecimal(l.counted_quantity, sys); };
+  // Signed change of the line, valued as the server will: a stated in-cost, else the moving average (0416).
+  const valueOf = (l: StockDocumentLine): string | undefined => {
+    const b = balanceOf(l.item_id);
+    const delta = d?.kind === 'count' ? varianceOf(l) : l.quantity && (l.direction === 'out' ? `-${l.quantity}` : l.quantity);
+    if (!b || !delta || delta === '0') return undefined;
+    const cost = costOf(l.id);
+    const atAvg = b.valueOnHand !== undefined ? stockValuePreview(delta, { valueOnHand: b.valueOnHand, qtyOnHand: b.qtyOnHand }) : undefined;
+    if (delta.startsWith('-')) return atAvg;
+    return d?.kind === 'adjustment' && cost ? stockValuePreview(delta, { unitCost: cost }) : atAvg ?? (cost ? stockValuePreview(delta, { unitCost: cost }) : undefined);
+  };
 
   const lineCols: Column<StockDocumentLine>[] = useMemo(() => [
     { key: 'no', header: '#', cell: (l) => <span className="tabular-nums">{l.line_no}</span>, exportValue: (l) => l.line_no },
@@ -48,11 +71,39 @@ const StockDocumentDetail: React.FC = () => {
       exportValue: (l) => l.item?.code ?? '',
     },
     {
-      key: 'qty', header: t('detail.columns.quantity'), align: 'num',
+      key: 'qty', header: d?.kind === 'count' ? t('count.detail.counted') : t('detail.columns.quantity'), align: 'num',
       cell: (l) => <span className="tabular-nums">{formatQuantity(l.quantity ?? l.counted_quantity ?? '0', loc)} <span className="text-muted-foreground">{l.item?.unit.code}</span></span>,
       exportValue: (l) => l.quantity ?? l.counted_quantity ?? '',
     },
-  ], [t, loc]);
+    ...(d?.kind === 'adjustment' ? [{
+      key: 'dir', header: t('count.detail.direction'), cell: (l: StockDocumentLine) => <span className="text-sm">{l.direction === 'in' ? t('count.in') : t('count.out')}</span>,
+      exportValue: (l: StockDocumentLine) => l.direction ?? '',
+    }] : []),
+    ...(d?.kind === 'count' ? [{
+      key: 'expected', header: liveDraft ? t('count.systemNow') : t('count.detail.expected'), align: 'num' as const,
+      cell: (l: StockDocumentLine) => { const sys = systemOf(l); return <span className="tabular-nums">{sys === null ? '—' : formatQuantity(sys, loc)}</span>; },
+      exportValue: (l: StockDocumentLine) => systemOf(l) ?? '',
+    }, {
+      key: 'variance', header: t('count.variance'), align: 'num' as const,
+      cell: (l: StockDocumentLine) => {
+        const v = varianceOf(l);
+        if (v === null) return <span className="text-muted-foreground">—</span>;
+        return <span className="font-semibold tabular-nums">{v === '0' || v.startsWith('-') ? '' : '+'}{formatQuantity(v, loc)}</span>;
+      },
+      exportValue: (l: StockDocumentLine) => varianceOf(l) ?? '',
+    }] : []),
+    ...(liveDraft && seeCost && d?.kind === 'adjustment' ? [{
+      key: 'cost', header: t('count.detail.unitCost'), align: 'num' as const,
+      cell: (l: StockDocumentLine) => { const c = l.direction === 'in' ? costOf(l.id) : undefined; return c ? <span className="tabular-nums">{formatStockValue(c, currency, loc)}</span> : <span className="text-xs text-muted-foreground">{t('count.detail.atAverage')}</span>; },
+      exportValue: (l: StockDocumentLine) => costOf(l.id) ?? '',
+    }] : []),
+    ...(liveDraft && seeCost ? [{
+      key: 'value', header: t('detail.columns.value'), align: 'num' as const,
+      cell: (l: StockDocumentLine) => { const v = valueOf(l); return <span className="tabular-nums">{v === undefined ? '—' : formatStockValue(v, currency, loc)}</span>; },
+      exportValue: (l: StockDocumentLine) => valueOf(l) ?? '',
+    }] : []),
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- the helpers read onHand/costs, listed below
+  ], [t, loc, d?.kind, d?.warehouse_id, liveDraft, seeCost, currency, onHand.data, costs.data]);
 
   const entryRows = entries.data ?? [];
   const showCost = entryRows.some((r) => r.valueDelta !== undefined);
@@ -86,13 +137,15 @@ const StockDocumentDetail: React.FC = () => {
             meta={`${t(`kinds.${d.kind}`)} · ${d.occurred_on}`}
             status={<StatusPill variant={statusVariant(d.status)}>{t(`documents.status.${d.status}`)}</StatusPill>}
             statusInline
-            actions={(canPost || canCancel) && (
+            actions={(canPost || canCancel || canEdit) && (
               <div className="flex gap-2">
-                {canPost && <Button variant="primary" size="sm" loading={m.post.isPending} onClick={() => void run(() => m.post.mutateAsync(d.id), 'detail.posted')}>{t('detail.post')}</Button>}
+                {canEdit && <Button variant="outline" size="sm" onClick={() => navigate(`/stock/documents/${d.id}/edit`)}>{t('count.editDraft')}</Button>}
+                {canPost && <Button variant="primary" size="sm" loading={m.post.isPending} onClick={() => void run(() => m.post.mutateAsync({ id: d.id, revision: d.revision }), 'detail.posted')}>{t('detail.post')}</Button>}
                 {canCancel && <Button variant="outline" size="sm" onClick={() => setConfirmCancel(true)}>{t('detail.cancelDraft')}</Button>}
               </div>
             )}
           />
+          {writeOff && d.status === 'Draft' && isAuthor && <p className="text-sm text-muted-foreground">{t('count.anotherPerson')}</p>}
           <dl className="grid grid-cols-2 gap-3 rounded-lg border border-border bg-card p-4 text-sm md:grid-cols-4">
             <div><dt className="text-xs text-muted-foreground">{t('detail.fields.warehouse')}</dt><dd>{d.warehouse?.code}{d.to_warehouse ? ` → ${d.to_warehouse.code}` : ''}</dd></div>
             <div><dt className="text-xs text-muted-foreground">{t('detail.fields.project')}</dt><dd>{d.project ? <Link className="hover:underline" to={`/projects/${d.project_id}`}>{d.project.name}</Link> : '–'}</dd></div>

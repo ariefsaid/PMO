@@ -51,8 +51,9 @@ export async function saveStockDraft(documentId: string, input: StockDocumentInp
   const { error } = await supabase.rpc('save_stock_draft', { p_document_id: documentId, p_header: header(input), p_lines: lines(input) });
   if (error) throw toAppError(error);
 }
-export async function postStockDocument(documentId: string): Promise<void> {
-  const { error } = await supabase.rpc('post_stock_document', { p_document_id: documentId });
+/** `revision` is the one the approver reviewed (FR-STK-062): a write-off whose draft changed since is refused STK_STALE. */
+export async function postStockDocument(documentId: string, revision?: number): Promise<void> {
+  const { error } = await supabase.rpc('post_stock_document', { p_document_id: documentId, ...(revision === undefined ? {} : { p_expected_revision: revision }) });
   if (error) throw toAppError(error);
 }
 export async function cancelStockDocument(documentId: string): Promise<void> {
@@ -60,11 +61,11 @@ export async function cancelStockDocument(documentId: string): Promise<void> {
   if (error) throw toAppError(error);
 }
 
-const DOC_COLS = 'id, number, kind, status, warehouse_id, to_warehouse_id, project_id, procurement_id, reason, note, occurred_on, created_by, created_at, posted_by, posted_at, cancelled_at';
+const DOC_COLS = 'id, number, kind, status, revision, warehouse_id, to_warehouse_id, project_id, procurement_id, reason, note, occurred_on, created_by, created_at, posted_by, posted_at, cancelled_at';
 const DOC_LIST_SELECT = `${DOC_COLS}, warehouse:stock_warehouses!warehouse_id(code,name), to_warehouse:stock_warehouses!to_warehouse_id(code,name), project:projects(name), author:profiles!created_by(full_name)`;
 
 export interface StockDocumentListRow {
-  id: string; number: string; kind: StockDocumentKind; status: StockDocumentStatus;
+  id: string; number: string; kind: StockDocumentKind; status: StockDocumentStatus; revision: number;
   warehouse_id: string; to_warehouse_id: string | null; project_id: string | null; occurred_on: string; created_by: string; created_at: string;
   warehouse: { code: string; name: string } | null; to_warehouse: { code: string; name: string } | null;
   project: { name: string } | null; author: { full_name: string } | null;
@@ -108,6 +109,15 @@ export async function getStockDocument(id: string): Promise<StockDocumentDetail 
   const lines = [...(ls ?? [])].sort((a, b) => a.line_no - b.line_no)
     .map((l) => ({ ...l, quantity: dec(l.quantity), counted_quantity: dec(l.counted_quantity), expected_quantity: dec(l.expected_quantity) }));
   return { ...doc, lines };
+}
+
+export interface StockLineCost { lineId: string; hasCost: boolean; unitCost?: string }
+/** Line unit costs of one document (FR-STK-063): `unitCost` only at rank >= 20; `hasCost` for everyone. */
+export async function getStockDocumentCosts(documentId: string): Promise<StockLineCost[]> {
+  const { data, error } = await supabase.rpc('get_stock_document_costs', { p_document_id: documentId });
+  if (error) throw toAppError(error);
+  return ((data ?? []) as Array<{ line_id: string; has_cost: boolean; unit_cost?: string }>)
+    .map((c) => ({ lineId: c.line_id, hasCost: c.has_cost, unitCost: c.unit_cost }));
 }
 
 export interface IssuableWorkItem { id: string; line_no: number | null; item_code: string; description: string; unit: string | null }

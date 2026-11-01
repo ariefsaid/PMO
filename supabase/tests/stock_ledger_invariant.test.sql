@@ -53,7 +53,7 @@ begin
 end $$;
 -- usage: select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a4'); ... reset role;
 
-select plan(6);
+select plan(7);
 create function public.stk_t_rcv(p_wh uuid, p_item uuid, p_qty numeric, p_cost numeric) returns uuid language sql as $$
   select public.create_stock_document(jsonb_build_object('kind','receive','warehouse_id',p_wh),
     jsonb_build_array(jsonb_build_object('item_id',p_item,'quantity',p_qty,'unit_cost',p_cost)), true) $$;
@@ -89,6 +89,31 @@ select public.stk_t_rcv('15120000-0000-0000-0000-000000002002', '15120000-0000-0
 select public.stk_t_issue('15120000-0000-0000-0000-000000002002', '15120000-0000-0000-0000-000000001002', 7.5);
 reset role;
 
+-- S4: adjustment and count on central cement (Admin authors, the PM posts; on hand 110 before this block).
+create function public.stk_t_draft(p_kind text, p_line jsonb) returns uuid language sql as $$
+  select public.create_stock_document(jsonb_build_object('kind',p_kind,'warehouse_id','15120000-0000-0000-0000-000000002001','reason','damaged'),
+    jsonb_build_array(p_line || jsonb_build_object('item_id','15120000-0000-0000-0000-000000001001'))) $$;
+select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a1');
+select set_config('stk.s4a', public.stk_t_draft('adjustment', '{"quantity":3,"direction":"out"}')::text, false);
+select set_config('stk.s4b', public.stk_t_draft('adjustment', '{"quantity":2,"direction":"in"}')::text, false);
+reset role;
+select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a3');
+select public.post_stock_document(current_setting('stk.s4a')::uuid, 1);                                  -- 107
+select public.post_stock_document(current_setting('stk.s4b')::uuid, 1);                                  -- 109, at the moving average
+reset role;
+select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a1');
+select set_config('stk.s4c', public.stk_t_draft('count', '{"counted_quantity":100}')::text, false);   -- deficit 9
+reset role;
+select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a3');
+select public.post_stock_document(current_setting('stk.s4c')::uuid, 1);
+reset role;
+select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a1');
+select set_config('stk.s4d', public.stk_t_draft('count', '{"counted_quantity":104}')::text, false);   -- surplus 4
+reset role;
+select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a3');
+select public.post_stock_document(current_setting('stk.s4d')::uuid, 1);
+reset role;
+
 select is((select count(*)::int from (
   select coalesce(s.item_id, b.item_id) i, coalesce(s.warehouse_id, b.warehouse_id) w
     from (select item_id, warehouse_id, sum(qty_delta) q, sum(value_delta) v from public.stock_ledger group by 1, 2) s
@@ -102,5 +127,9 @@ select is((select count(*)::int from (
 select is((select count(*)::int from public.stock_balances where qty_on_hand < 0 or value_on_hand < 0), 0, 'AC-STK-004 no balance is negative');
 select is((select count(*)::int from public.stock_ledger where qty_delta < 0 and value_delta > 0 or qty_delta > 0 and value_delta < 0), 0, 'AC-STK-004 quantity and value move the same way');
 select is((select sum(value_delta)::text from public.stock_ledger where kind = 'transfer'), '0.00', 'FR-STK-032 transfers conserve value across the whole sequence');
+select is((select count(*)::int from public.stock_ledger e where e.kind = 'count' and e.document_id in (
+  select d.id from public.stock_documents d where d.status = 'Posted'
+     and exists (select 1 from public.stock_document_lines l where l.document_id = d.id and l.expected_quantity is null))), 0,
+  'AC-STK-004 every posted count stamped its system quantity on every line');
 select * from finish();
 rollback;

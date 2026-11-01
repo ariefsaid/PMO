@@ -60,9 +60,9 @@ export function useStockKeeperCandidates() {
 const DOC_PAGE = 50;
 
 /** Stock reads and document writes (#1512 S3). Quantities and money are decimal strings. */
-export function useStockOnHand(f: { warehouseId?: string; itemId?: string; includeZero?: boolean }) {
+export function useStockOnHand(f: { warehouseId?: string; itemId?: string; includeZero?: boolean }, enabled = true) {
   const orgId = useAuth().currentUser?.org_id;
-  return useQuery({ queryKey: ['stock-on-hand', orgId, f], queryFn: () => repositories.stock.reports.onHand(f), enabled: Boolean(orgId) });
+  return useQuery({ queryKey: ['stock-on-hand', orgId, f], queryFn: () => repositories.stock.reports.onHand(f), enabled: Boolean(orgId) && enabled });
 }
 export function useStockLedger(f: StockLedgerFilters) {
   const orgId = useAuth().currentUser?.org_id;
@@ -92,6 +92,10 @@ export function useStockDocument(id: string | undefined) {
   const orgId = useAuth().currentUser?.org_id;
   return useQuery({ queryKey: ['stock-document', orgId, id], queryFn: () => repositories.stock.documents.get(id as string), enabled: Boolean(orgId && id) });
 }
+export function useStockDocumentCosts(id: string | undefined, enabled = true) {
+  const orgId = useAuth().currentUser?.org_id;
+  return useQuery({ queryKey: ['stock-document', orgId, id, 'costs'], queryFn: () => repositories.stock.documents.costs(id as string), enabled: Boolean(orgId && id) && enabled });
+}
 export function useIssuableWorkItems(projectId: string | undefined) {
   const orgId = useAuth().currentUser?.org_id;
   return useQuery({ queryKey: ['stock-work-items', orgId, projectId], queryFn: () => repositories.stock.documents.issuableWorkItems(projectId as string), enabled: Boolean(orgId && projectId) });
@@ -118,7 +122,7 @@ export function useStockDocumentMutations() {
   return {
     create: useMutation({ mutationFn: (a: { input: StockDocumentInput; post: boolean; clientRequestId: string }) => d.create(a.input, a), onSuccess: refresh }),
     saveDraft: useMutation({ mutationFn: (a: { id: string; input: StockDocumentInput }) => d.saveDraft(a.id, a.input), onSuccess: refresh }),
-    post: useMutation({ mutationFn: (id: string) => d.post(id), onSuccess: refresh }),
+    post: useMutation({ mutationFn: (a: { id: string; revision?: number }) => d.post(a.id, a.revision), onSuccess: refresh, onError: refresh }),
     cancel: useMutation({ mutationFn: (id: string) => d.cancel(id), onSuccess: refresh }),
   };
 }

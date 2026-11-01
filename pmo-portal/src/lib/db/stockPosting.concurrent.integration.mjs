@@ -34,6 +34,15 @@ async function waitForLock(appName) {
   }
   throw new Error(`${appName} never waited on a lock`);
 }
+// The holding session has run every statement before its pg_sleep (so its locks are taken): no fixed delay to flake under load.
+async function waitForSleep(appName) {
+  const deadline = Date.now() + 10_000;
+  while (Date.now() < deadline) {
+    if (await run(`select count(*) from pg_stat_activity where application_name='${appName}' and wait_event='PgSleep';`) === '1') return;
+    await sleep(20);
+  }
+  throw new Error(`${appName} never reached its pg_sleep`);
+}
 const assert = (cond, msg) => { if (!cond) throw new Error(`FAIL ${msg}`); };
 const asKeeper = `set local request.jwt.claims='{"sub":"${ids.keeper}","role":"authenticated"}'; set local role authenticated;`;
 const lines = (item, qty, extra = '') => `jsonb_build_array(jsonb_build_object('item_id','${item}','quantity',${qty}${extra}))`;
@@ -75,8 +84,8 @@ await run(`begin; ${asKeeper} ${receive(whA, ids.itemSell, 10)} ${receive(whA, i
 
 // 1. Oversell: two issues of 6 against 10 on hand; B waits for A's balance lock, then is refused.
 {
-  const a = session(`begin; ${asKeeper} ${issue(whA, ids.itemSell, 6)} select pg_sleep(1.5); commit;`);
-  await sleep(150);
+  const a = session(`begin; ${asKeeper} ${issue(whA, ids.itemSell, 6)} select pg_sleep(1.5); commit;`, app('hold'));
+  await waitForSleep(a.appName);
   const b = session(`begin; ${asKeeper} ${issue(whA, ids.itemSell, 6)} commit;`, app('oversell-b'));
   await waitForLock(b.appName);
   const [ra, rb] = [await a.done, await b.done];
@@ -89,8 +98,8 @@ await run(`begin; ${asKeeper} ${receive(whA, ids.itemSell, 10)} ${receive(whA, i
 
 // 2. Lock order, forward: S1 holds B; a transfer A -> B blocks on B while already holding A.
 {
-  const hold = session(holdRow(ids.itemLock, whB, 3));
-  await sleep(300);
+  const hold = session(holdRow(ids.itemLock, whB, 3), app('hold'));
+  await waitForSleep(hold.appName);
   const s2 = session(`begin; ${asKeeper} ${transfer(whA, whB, ids.itemLock, 1)} commit;`, app('fwd'));
   await waitForLock(s2.appName);
   const probe = await tryRow(ids.itemLock, whA);
@@ -102,8 +111,8 @@ await run(`begin; ${asKeeper} ${receive(whA, ids.itemSell, 10)} ${receive(whA, i
 
 // 3. Lock order, reverse: S1 holds A; a transfer B -> A blocks on A holding nothing, so B is free.
 {
-  const hold = session(holdRow(ids.itemLock, whA, 3));
-  await sleep(300);
+  const hold = session(holdRow(ids.itemLock, whA, 3), app('hold'));
+  await waitForSleep(hold.appName);
   const s2 = session(`begin; ${asKeeper} ${transfer(whB, whA, ids.itemLock, 1)} commit;`, app('rev'));
   await waitForLock(s2.appName);
   const probe = await tryRow(ids.itemLock, whB);
@@ -129,8 +138,8 @@ await run(`begin; ${asKeeper} ${receive(whA, ids.itemSell, 10)} ${receive(whA, i
 
 // 5. Idempotent race (AC-STK-012, unique-index path): one client_request_id, two sessions at once.
 {
-  const a = session(`begin; ${asKeeper} ${receive(whA, ids.itemIdem, 5, ids.crid)} select pg_sleep(1); commit;`);
-  await sleep(150);
+  const a = session(`begin; ${asKeeper} ${receive(whA, ids.itemIdem, 5, ids.crid)} select pg_sleep(1); commit;`, app('hold'));
+  await waitForSleep(a.appName);
   const b = session(`begin; ${asKeeper} ${receive(whA, ids.itemIdem, 5, ids.crid)} commit;`, app('idem-b'));
   await waitForLock(b.appName);
   const [ra, rb] = [await a.done, await b.done];
@@ -146,8 +155,8 @@ await run(`begin; ${asKeeper} ${receive(whA, ids.itemSell, 10)} ${receive(whA, i
 // 6. Archive vs post, post first: an item with no stock is archived while its first receipt is in flight.
 //    The archive must wait for the post, then be refused STK_HAS_STOCK (never an archived item holding stock).
 {
-  const p = session(`begin; ${asKeeper} ${receive(whA, ids.itemArch, 5)} select pg_sleep(1.5); commit;`);
-  await sleep(300);
+  const p = session(`begin; ${asKeeper} ${receive(whA, ids.itemArch, 5)} select pg_sleep(1.5); commit;`, app('hold'));
+  await waitForSleep(p.appName);
   const r = session(`update public.stock_items set archived_at = now() where id = '${ids.itemArch}';`, app('arch-item'));
   await waitForLock(r.appName);
   const [rp, rr] = [await p.done, await r.done];
@@ -160,8 +169,8 @@ await run(`begin; ${asKeeper} ${receive(whA, ids.itemSell, 10)} ${receive(whA, i
 // 7. Archive vs post, archive first: a warehouse with no stock is being archived when a receipt into it posts.
 //    The post must wait for the archive, then be refused STK_ARCHIVED (never stock in an archived warehouse).
 {
-  const r = session(`begin; update public.stock_warehouses set archived_at = now() where id = '${ids.whArch}'; select pg_sleep(1.5); commit;`);
-  await sleep(300);
+  const r = session(`begin; update public.stock_warehouses set archived_at = now() where id = '${ids.whArch}'; select pg_sleep(1.5); commit;`, app('hold'));
+  await waitForSleep(r.appName);
   const p = session(`begin; ${asKeeper} ${receive(ids.whArch, ids.itemSell, 5)} commit;`, app('arch-wh'));
   await waitForLock(p.appName);
   const [rr, rp] = [await r.done, await p.done];
@@ -185,8 +194,8 @@ const ret = (wh, item, src, qty, post = true) =>
   const src = await issueLine(ids.itemRet);
   // Drafts first, then post: create-and-post would already serialise on the per-org document number.
   const [dA, dB] = [await run(`begin; ${asKeeper} ${ret(whA, ids.itemRet, src, 2, false)} commit;`), await run(`begin; ${asKeeper} ${ret(whB, ids.itemRet, src, 2, false)} commit;`)];
-  const a = session(`begin; ${asKeeper} select public.post_stock_document('${dA}'); select pg_sleep(1.5); commit;`);
-  await sleep(300);
+  const a = session(`begin; ${asKeeper} select public.post_stock_document('${dA}'); select pg_sleep(1.5); commit;`, app('hold'));
+  await waitForSleep(a.appName);
   const b = session(`begin; ${asKeeper} select public.post_stock_document('${dB}'); commit;`, app('retcap-b'));
   await waitForLock(b.appName);                       // B must queue on the cited line (it shares no balance row with A)
   const rs = [await a.done, await b.done];
@@ -202,8 +211,8 @@ const ret = (wh, item, src, qty, post = true) =>
   const src = await issueLine(ids.itemRet2);
   const draft = await run(`begin; ${asKeeper} ${ret(whA, ids.itemRet2, src, 1, false)} commit;`);
   const s1 = session(`begin; select 1 from public.stock_document_lines where id='${src}' for key share; select pg_sleep(1.5);
-    ${asKeeper} select public.post_stock_document('${draft}'); commit;`);
-  await sleep(400);
+    ${asKeeper} select public.post_stock_document('${draft}'); commit;`, app('hold'));
+  await waitForSleep(s1.appName);
   const s2 = session(`begin; ${asKeeper} ${ret(whA, ids.itemRet2, src, 1)} commit;`, app('retdead'));
   const [r1, r2] = [await s1.done, await s2.done];
   assert(!r1.err.includes('deadlock detected') && !r2.err.includes('deadlock detected'), `return deadlock: no victim (${r1.err}${r2.err})`);
