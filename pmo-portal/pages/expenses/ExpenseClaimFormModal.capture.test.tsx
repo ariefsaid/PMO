@@ -8,6 +8,8 @@ vi.mock('@/src/hooks/useExpensePostingReadiness', () => ({
   useExpensePostingReadiness: () => ({ state: 'inactive', retry: vi.fn() }),
 }));
 
+vi.mock('@/src/hooks/useImprest', () => ({ useImprestFloatChoices: () => ({ data: [] }) }));
+
 import { ExpenseClaimFormModal, type ExpenseCategoryPrecedent } from './ExpenseClaimFormModal';
 
 describe('AC-S29-001 receipt or first expense starts a new claim', () => {

@@ -36,6 +36,7 @@ const ExpenseClaimNew: React.FC = () => {
   const currentUserId = useAuth().currentUser?.id;
   const { data: projects } = useProjects();
   const { data: claims } = useExpenseClaims({ kind: 'claim' });
+  const { data: advances } = useExpenseClaims({ kind: 'advance' });
   const capture = useExpenseCapture();
   const saveInFlight = useRef(false);
   const [title, setTitle] = useState('');
@@ -46,7 +47,7 @@ const ExpenseClaimNew: React.FC = () => {
   const [purpose, setPurpose] = useState('');
   const [advanceId, setAdvanceId] = useState('');
   const [floatId, setFloatId] = useState('');
-  const advanceOptions = useOwnAdvanceOptions();
+  const ownAdvanceOptions = useOwnAdvanceOptions();
   const currency = useOrgCurrency();
   const setClaimFloat = useSetClaimFloat();
   const floatChoices = useImprestFloatChoices(projectId || undefined, (category || null) as BudgetCategory | null).data ?? [];
@@ -76,6 +77,9 @@ const ExpenseClaimNew: React.FC = () => {
   }));
   const chosenFloat = floatChoices.find((choice) => choice.float_id === floatId);
   const chargedFloatId = chosenFloat ? floatId : '';
+  // PQ-7: a claim settles only an advance on its own float (or an off-float advance when it is off-float).
+  const advanceFloat = new Map((advances?.rows ?? []).map((row) => [row.id, row.imprest_float_id ?? '']));
+  const advanceOptions = ownAdvanceOptions.filter((option) => (advanceFloat.get(option.value) ?? '') === chargedFloatId);
   const totalCents = toCents(lineInputs.reduce((sum, line) => sum + line.amount, 0));
   const floatHint = chosenFloat && totalCents > 0 ? {
     remaining: category && chosenFloat.remaining != null ? formatCurrencyAuto(Number(chosenFloat.remaining), currency) : null,
@@ -141,12 +145,12 @@ const ExpenseClaimNew: React.FC = () => {
       <FormSection legend={t('expenses.form.sections.details', 'Details')}>
         <FormGrid>
           <TextField label={t('expenses.form.title.label', 'Title')} required value={title} onChange={(value) => { setTitle(value); setTitleEdited(true); }} fullWidth />
-          <SelectField label={t('expenses.form.project.label', 'Project')} value={projectId} onChange={(value) => { setProjectId(value); setFloatId(''); if (!categoryEdited) setCategory(value ? categoryPrecedents.get(value)?.budgetCategory ?? '' : ''); }} options={[{ value: '', label: t('expenses.form.project.none', 'Overhead (no project)') }, ...options]} />
+          <SelectField label={t('expenses.form.project.label', 'Project')} value={projectId} onChange={(value) => { setProjectId(value); if (floatId) setAdvanceId(''); setFloatId(''); if (!categoryEdited) setCategory(value ? categoryPrecedents.get(value)?.budgetCategory ?? '' : ''); }} options={[{ value: '', label: t('expenses.form.project.none', 'Overhead (no project)') }, ...options]} />
           <SelectField label={t('expenses.form.category.label', 'Budget category')} value={category} onChange={(value) => { setCategory(value); setCategoryEdited(true); }} options={categories} helper={t('expenses.form.category.helper', "Decides who approves: spend within the project's budget for this category goes to the project's approver.")} />
           {!categoryEdited && categoryPrecedents.get(projectId) && <p className="col-span-full text-xs text-muted-foreground" role="note">{t('uxs29.expenseCapture.categorySource', 'Suggested from your most recent same-project claim: {{title}}.', { title: categoryPrecedents.get(projectId)?.sourceTitle })}</p>}
           <TextField label={t('expenses.form.purpose.label', 'Purpose')} value={purpose} onChange={setPurpose} fullWidth />
           {floatChoices.length > 0 && <>
-            <SelectField label={t('imprest:form.chargeToFloat', 'Charge to site float')} value={floatId} onChange={setFloatId}
+            <SelectField label={t('imprest:form.chargeToFloat', 'Charge to site float')} value={floatId} onChange={(value) => { setFloatId(value); setAdvanceId(''); }}
               options={[{ value: '', label: t('imprest:form.noFloat', 'Not charged to a float') },
                 ...floatChoices.map((choice) => ({ value: choice.float_id, label: choice.custodian_name }))]}
               helper={t('imprest:form.helper', 'Cash paid out of site cash held by the custodian.')} />

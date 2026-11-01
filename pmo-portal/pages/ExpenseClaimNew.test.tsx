@@ -118,6 +118,15 @@ describe('Charge to site float (AC-IMP-084, FR-IMP-072)', () => {
     expect(h.choicesArgs.at(-1)?.[0]).toBe('p2');
   });
 
+  it('AC-IMP-084 settle against advance lists only advances on the chosen float, and only off-float ones when none is chosen', () => {
+    h.claims = [{ id: 'adv-1', kind: 'advance', imprest_float_id: 'f1' }];
+    renderPage();
+    fireEvent.change(screen.getByLabelText('Project'), { target: { value: 'p1' } });
+    expect(screen.queryByLabelText('Settle against advance')).toBeNull(); // adv-1 is on f1, nothing is charged to f1 yet
+    fireEvent.change(screen.getByLabelText('Charge to site float'), { target: { value: 'f1' } });
+    expect(within(screen.getByLabelText('Settle against advance')).getByRole('option', { name: /EXP-1/ })).toHaveValue('adv-1');
+  });
+
   it('AC-IMP-084 the field is absent when the project has no float for the viewer', () => {
     h.choices = [];
     renderPage();
