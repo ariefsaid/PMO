@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { cn } from './cn';
 
 export interface KanbanColumnProps {
@@ -15,6 +16,8 @@ export interface KanbanColumnProps {
   emptyMessage?: string;
   /** Marks the column as the one a surrounding control (e.g. a funnel stage) has selected. */
   selected?: boolean;
+  /** Drag feedback while a card is being dragged (DND, #1637): where it may or may not land. */
+  dropState?: 'allowed' | 'blocked';
 }
 
 /** Base kanban column shell — sticky header, scrollable body. Surface issues
@@ -28,16 +31,21 @@ export const KanbanColumn: React.FC<KanbanColumnProps> = ({
   children,
   emptyMessage = 'No items',
   selected = false,
+  dropState,
 }) => {
+  const { t } = useTranslation('boardDrag');
   const empty = React.Children.count(children) === 0;
   return (
     <div
       data-selected={selected ? 'true' : undefined}
       aria-current={selected ? 'true' : undefined}
+      data-drop-state={dropState}
       className={cn(
         'flex min-w-0 flex-col rounded-lg border',
         // ring = the non-colour cue (matches the selected card treatment)
         selected ? 'border-primary ring-2 ring-primary/40 bg-primary/[0.04]' : 'border-transparent bg-secondary/50',
+        dropState === 'allowed' && 'border-primary ring-2 ring-primary/40',
+        dropState === 'blocked' && 'opacity-60',
       )}
     >
       <div className="kcol-head-sticky border-b border-border px-3 pb-2 pt-3">
@@ -58,6 +66,11 @@ export const KanbanColumn: React.FC<KanbanColumnProps> = ({
           </span>
         </div>
         {totals && <div className="mt-2 flex items-baseline gap-2">{totals}</div>}
+        {dropState && (
+          <p className="mt-1 text-[11.5px] text-muted-foreground">
+            {dropState === 'allowed' ? t('boardDrag:dropHere', 'Drop to move here') : t('boardDrag:cantMoveHere', "Can't move here")}
+          </p>
+        )}
       </div>
       <div className="flex min-h-[60px] flex-col gap-2 overflow-y-auto p-2">
         {empty ? (
