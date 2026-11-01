@@ -1,9 +1,9 @@
--- 0430_pipeline_stage_history.sql — #1638 CRM-grade pipeline stage history.
+-- 0448_pipeline_stage_history.sql — #1638 CRM-grade pipeline stage history.
 -- Spec: docs/specs/pipeline-stage-history.spec.md · Plan: docs/plans/2026-11-01-pipeline-stage-history.md
 -- §1 table + RLS + grants · §2 ordering constraint + append trigger · §3 correction RPCs · §4 import RPC
 -- §5 audit registration · §6 stage age reads (0385 bodies, lateral swapped) · §7 backfill · §8 self-assertion
 -- transition_project (0236) is NOT modified (NFR-PSH-002).
--- Reversibility: rollback/0430_pipeline_stage_history_down.sql.
+-- Reversibility: rollback/0448_pipeline_stage_history_down.sql.
 
 -- §1 ─────────────────────────────────────────────────────────────────────────────────────────────
 create table public.project_stage_entries (
@@ -667,16 +667,16 @@ begin
   if exists (select 1 from public.projects p
               where p.status is distinct from (select e.stage from public.project_stage_entries e
                                                 where e.project_id = p.id order by e.position desc limit 1)) then
-    raise exception '0430: a project''s latest stage entry does not match its status';
+    raise exception '0448: a project''s latest stage entry does not match its status';
   end if;
   if (select count(*) from pg_trigger where not tgisinternal and tgname in
        ('projects_zy_stage_entry','project_stage_entries_order','project_stage_entries_zz_record_change')) <> 3 then
-    raise exception '0430: stage history triggers missing';
+    raise exception '0448: stage history triggers missing';
   end if;
   if has_table_privilege('authenticated', 'public.project_stage_entries', 'INSERT')
      or has_table_privilege('authenticated', 'public.project_stage_entries', 'UPDATE')
      or has_table_privilege('authenticated', 'public.project_stage_entries', 'DELETE') then
-    raise exception '0430: clients must not write project_stage_entries directly';
+    raise exception '0448: clients must not write project_stage_entries directly';
   end if;
   if has_function_privilege('authenticated', 'public.backfill_project_stage_entries(uuid)', 'EXECUTE')
      or has_function_privilege('authenticated', 'public.stage_entry_set_date(uuid, date)', 'EXECUTE')
@@ -685,6 +685,6 @@ begin
      or has_function_privilege('anon', 'public.redate_stage_entry(uuid, date)', 'EXECUTE')
      or has_function_privilege('anon', 'public.add_skipped_stage_entry(uuid, project_status, date)', 'EXECUTE')
      or has_function_privilege('anon', 'public.import_project_stage_history(uuid, jsonb)', 'EXECUTE') then
-    raise exception '0430: internal stage functions must not be client-callable';
+    raise exception '0448: internal stage functions must not be client-callable';
   end if;
 end $$;

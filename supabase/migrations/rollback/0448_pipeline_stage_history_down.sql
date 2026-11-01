@@ -1,4 +1,4 @@
--- 0430_pipeline_stage_history_down.sql — reverses 0430. Loses stage history; business rows untouched
+-- 0448_pipeline_stage_history_down.sql — reverses 0448. Loses stage history; business rows untouched
 -- (contract_date / decided_at keep whatever re-dates set them to; the audit trail keeps the old values).
 begin;
 drop trigger if exists projects_zy_stage_entry on public.projects;
