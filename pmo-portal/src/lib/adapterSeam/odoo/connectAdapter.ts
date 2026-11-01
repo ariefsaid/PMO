@@ -114,3 +114,19 @@ export function createOdooConnectAdapter(call: OdooCall, ctx: OdooConnectCtx): C
     },
   };
 }
+
+/**
+ * What the shared setup (census, run, proposals) sees of Odoo: a kind Odoo cannot serve yet is empty, not an error, so
+ * one unserved kind never fails the census. People wait for O7 (#1510); cost accounts wait for the Admin to choose the
+ * analytic plan. Neither can be sent until then, so setup proposes no send for them.
+ */
+export function createOdooSetupAdapter(call: OdooCall, ctx: OdooConnectCtx): ConnectAdapter {
+  const inner = createOdooConnectAdapter(call, ctx);
+  const unserved = (kind: string) => kind === 'employee' || (kind === 'project' && ctx.analyticPlanId === null);
+  return {
+    ...inner,
+    listMasters: async (kind, cursor) => (unserved(kind) ? { rows: [], nextCursor: null } : await inner.listMasters(kind, cursor)),
+    countDomain: async (domain) => (unserved(domain) ? 0 : await inner.countDomain(domain)),
+    canSend: (kind) => !unserved(kind),
+  };
+}

@@ -49,6 +49,17 @@ describe('ECA2-T11 advanceConnectRun', () => {
     expect(h.writeProposals.mock.calls.map((c) => (c as unknown as [MasterKind])[0])).toEqual([...RUN_KINDS]);
   });
 
+  it('a send for a kind the ERP cannot serve is not proposed (canSend), links and bring-ins are', async () => {
+    const h = harness();
+    h.d.budget.calls = 20;
+    h.d.adapter.canSend = (kind) => kind !== 'party';
+    h.d.pmoMasters = async () => [{ id: 'c1', name: 'Only in PMO', role: 'vendor' }];
+    await advanceConnectRun(h.d);   // proposes party
+    const [, outcomes] = h.writeProposals.mock.calls[0] as unknown as [MasterKind, Array<{ outcome: string }>];
+    expect(outcomes.filter((o) => o.outcome === 'send')).toEqual([]);
+    expect(outcomes.filter((o) => o.outcome === 'bring-in').length).toBe(450);
+  });
+
   it('a thrown listMasters propagates and leaves the cursor at the last good page', async () => {
     const h = harness();
     h.listMasters.mockImplementationOnce(async () => ({ rows: parties(200), nextCursor: '200' }))

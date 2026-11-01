@@ -40,7 +40,9 @@ export async function advanceConnectRun(d: ConnectRunDeps): Promise<'more' | 're
   if (kind === undefined) return 'ready';
   const erp = await d.stagedErp(kind);
   const byId = new Map(erp.map((e) => [e.externalId, e]));
-  await d.writeProposals(kind, proposeMatches(kind, await d.pmoMasters(kind), erp), (id) => byId.get(id));
+  const outcomes = proposeMatches(kind, await d.pmoMasters(kind), erp)
+    .filter((o) => o.outcome !== 'send' || (d.adapter.canSend?.(kind) ?? true));
+  await d.writeProposals(kind, outcomes, (id) => byId.get(id));
   d.run.proposedKinds.push(kind);
   return d.run.proposedKinds.length === RUN_KINDS.length ? 'ready' : 'more';
 }
