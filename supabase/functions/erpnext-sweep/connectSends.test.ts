@@ -42,12 +42,14 @@ interface Opts {
   noCompany?: boolean;
   archivedProject?: boolean;
   itemOnOpenPurchase?: boolean;
+  /** Outbox rows that exist before the tick (an earlier attempt that left the create undecided). */
+  outbox?: Array<Record<string, unknown>>;
 }
 
 function routes(o: Opts) {
   const tables = o.tables ?? {};
   const erp = fakeErp(tables);
-  const outbox: Array<Record<string, unknown>> = [];
+  const outbox: Array<Record<string, unknown>> = [...(o.outbox ?? [])];
   const f = (c: FetchCall, k: string) => c.url.searchParams.get(k)?.replace(/^eq\./, '');
   const r: MockRoute[] = [
     supabaseSelect('external_org_bindings', () => one({ site_url: `https://${ERP}`, secret_ref: 'ref', status: 'active', activated_at: '2026-11-01T00:00:00Z', config: o.noCompany ? {} : { company: 'Test Co' } })),
@@ -184,6 +186,16 @@ describe('ECA3-T7 drainConnectSends', () => {
     assertEquals(erpPosts(calls).length, 0);
     assertEquals(outbox[0].state, 'held');
     assertEquals(result.held, 1);
+  });
+
+  it('a company whose earlier create left no trace is held for a person; a project or item is created again (ERPNext refuses a duplicate of either)', async () => {
+    const earlier = (domain: string, id: string, key: string) => ({ id: 'ob-0', domain, pmo_record_id: id, idempotency_key: key, state: 'quarantined', external_record_id: null, canonical: null, claim_generation: 1, payload_digest: null });
+    const party = await tick({ claimed: [P.party], outbox: [earlier('companies', 'c-1', 'seed:party:c-1')] });
+    assertEquals(party.result, { sent: 0, rejected: 0, held: 1, pending: 0 });
+    assertEquals(erpPosts(party.calls).length, 0);
+    const project = await tick({ claimed: [P.project], outbox: [earlier('projects', 'p-1', 'seed:project:p-1')] });
+    assertEquals(project.result, { sent: 1, rejected: 0, held: 0, pending: 0 });
+    assertEquals(erpPosts(project.calls).length, 1);
   });
 
   it('a person is never sent: the ERP needs personal details PMO does not hold, so the row asks to be added there', async () => {

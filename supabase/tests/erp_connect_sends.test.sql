@@ -2,7 +2,7 @@
 -- AC-ECA-010 (DB half: one external reference per sent company, nothing written to accounts or taxes) and AC-ECA-012 (DB half:
 -- a rejected send becomes a review row with a plain reason and leaves the others alone), NFR-ECA-004 (a held send says so).
 begin;
-select plan(34);
+select plan(38);
 
 insert into organizations (id, name) values
  ('a4520000-0000-0000-0000-000000000001','Sends A'),
@@ -137,6 +137,21 @@ set local request.jwt.claims = '{"role":"service_role"}';
 select public.record_connect_send_result('a4520000-0000-0000-0000-000000000001', (select id from ids where pmo='Pasir'), 'ITM-0007', null);
 reset role;
 select is((select finished_at is not null from erp_connect_runs where id = current_setting('a452.run')::uuid), true, 'settling the last waiting send completes the run');
+
+-- 7. the money outbox carries a send in each of the four domains end to end: claim, commit, one fenced reference write, confirm.
+set local role service_role;
+set local request.jwt.claims = '{"role":"service_role"}';
+insert into external_command_outbox (org_id, domain, pmo_record_id, idempotency_key, external_tier, operation, state)
+  select 'a4520000-0000-0000-0000-000000000001', d, 'rec-' || d, 'seed:' || k || ':rec-' || d, 'erpnext', 'create', 'pending'
+    from (values ('companies','party'),('projects','project'),('items','item'),('employees','employee')) v(d, k);
+select is((select count(*)::int from external_command_outbox o, lateral public.claim_outbox_for_commit(o.id) c
+            where o.idempotency_key like 'seed:%' and c.state = 'committing'), 4, 'the outbox claims a send in each of the four domains');
+update external_command_outbox set state = 'committed', external_record_id = 'EXT-' || domain where idempotency_key like 'seed:%';
+select is((select sum(public.record_outbox_ref(o.id, o.claim_generation, o.domain, o.pmo_record_id, 'erpnext', o.external_record_id))::int
+             from external_command_outbox o where o.idempotency_key like 'seed:%'), 4, 'a fenced reference write is accepted for each send domain');
+select is((select sum(public.confirm_outbox(o.id, o.claim_generation))::int from external_command_outbox o where o.idempotency_key like 'seed:%'), 4, 'each send confirms');
+select is((select count(*)::int from external_command_outbox where idempotency_key like 'seed:%' and state = 'confirmed'), 4, 'all four sends are confirmed');
+reset role;
 
 -- 6. grants: service role only.
 select is((has_function_privilege('authenticated', 'public.claim_connect_sends(uuid,text,int)', 'execute')
