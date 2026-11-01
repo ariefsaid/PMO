@@ -1962,7 +1962,12 @@
       "title": "Gagal memuat pengadaan"
     }
   },
+  "taskPush": {
+    "notSent": "Tidak dikirim",
+    "notSentReason": "Dicatat sebelum terhubung ke ERP, tidak dikirim"
+  },
   "procurementLedger": {
+    "preCutover": "Dicatat sebelum terhubung ke ERP, tidak dikirim",
     "title": "Buku besar kasus",
     "filter": {
       "label": "Filter catatan",
@@ -3689,6 +3694,7 @@
     "erpSetup": {
       "defaultsFailed": "Gagal menyimpan nilai bawaan ERP. Periksa nilainya lalu coba lagi.",
       "domainFailed": "Gagal menggunakan domain ini. Periksa izin baca ERP lalu coba lagi.",
+      "domainDraftsOpen": "PMO masih memiliki {{count}} draf yang akan tertinggal. Kirim atau batalkan draf tersebut, lalu coba lagi.",
       "onboarded": "Pihak ERP telah dihubungkan. Tinjau daftar Perusahaan.",
       "onboardFailed": "Penghubungan pihak ERP belum selesai. Coba lagi.",
       "unavailable": "Pengaturan ERP tidak tersedia",

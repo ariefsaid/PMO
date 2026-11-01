@@ -113,22 +113,30 @@ export function useProcurementRecordMutations(procurementId: string) {
   // Shared pending-push state across the four record-creation kinds — only one capture form is
   // open at a time (LedgerCaptureRow, task FIX-1). Stays idle for PMO-owned orgs.
   const [pendingPush, setPendingPush] = useState<PendingPushState>(IDLE_PENDING_PUSH);
-  const isExternal = () => routeDomainWrite('procurement') === 'external';
-  const onMutate = () => {
-    if (isExternal()) {
-      qc.setQueryData(['procurement-item-eligibility', orgId, procurementId], false);
-      setPendingPush(beginPush(IDLE_PENDING_PUSH));
-    }
-  };
-  const onSettledOk = () => {
-    invalidateDetail();
-    if (isExternal()) setPendingPush(pendingPushAfterWrite('external', { ok: true }));
-  };
-  const onSettledErr = (err: unknown) => {
-    if (isExternal()) {
-      qc.invalidateQueries({ queryKey: ['procurement-item-eligibility', orgId, procurementId] });
-      setPendingPush(pendingPushAfterWrite('external', { ok: false, err }));
-    }
+  // FR-ECA-030: a payment on a purchase ordered before the ERP connection is recorded in PMO (the repository routes it
+  // there), so it has no push state. The flag rides the loaded detail; the other kinds on that case are still sent.
+  const isPreCutover = () =>
+    qc.getQueriesData<{ pre_cutover?: boolean }>({ queryKey: procurementDetailKey(orgId, procurementId) }).some(([, d]) => d?.pre_cutover === true);
+  const handlers = (payment: boolean) => {
+    const isExternal = () => routeDomainWrite('procurement') === 'external' && !(payment && isPreCutover());
+    return {
+      onMutate: () => {
+        if (isExternal()) {
+          qc.setQueryData(['procurement-item-eligibility', orgId, procurementId], false);
+          setPendingPush(beginPush(IDLE_PENDING_PUSH));
+        }
+      },
+      onSuccess: () => {
+        invalidateDetail();
+        if (isExternal()) setPendingPush(pendingPushAfterWrite('external', { ok: true }));
+      },
+      onError: (err: unknown) => {
+        if (isExternal()) {
+          qc.invalidateQueries({ queryKey: ['procurement-item-eligibility', orgId, procurementId] });
+          setPendingPush(pendingPushAfterWrite('external', { ok: false, err }));
+        }
+      },
+    };
   };
 
   const createPurchaseRequestMut = useMutation<
@@ -140,17 +148,13 @@ export function useProcurementRecordMutations(procurementId: string) {
       externalRef
         ? repositories.procurement.createPurchaseRequest(procurementId, referenceNumber, status, date, amount, intent, externalRef)
         : repositories.procurement.createPurchaseRequest(procurementId, referenceNumber, status, date, amount, intent),
-    onMutate,
-    onSuccess: onSettledOk,
-    onError: onSettledErr,
+    ...handlers(false),
   });
 
   const createRfqMut = useMutation<RfqRow, ProcurementError, CreateRfqInput>({
     mutationFn: ({ referenceNumber, status, date, amount, intent }) =>
       repositories.procurement.createRfq(procurementId, referenceNumber, status, date, amount, intent),
-    onMutate,
-    onSuccess: onSettledOk,
-    onError: onSettledErr,
+    ...handlers(false),
   });
 
   const createPurchaseOrderMut = useMutation<
@@ -162,17 +166,13 @@ export function useProcurementRecordMutations(procurementId: string) {
       externalRef
         ? repositories.procurement.createPurchaseOrder(procurementId, referenceNumber, status, date, amount, intent, externalRef)
         : repositories.procurement.createPurchaseOrder(procurementId, referenceNumber, status, date, amount, intent),
-    onMutate,
-    onSuccess: onSettledOk,
-    onError: onSettledErr,
+    ...handlers(false),
   });
 
   const createPaymentMut = useMutation<PaymentRow, ProcurementError, CreatePaymentInput>({
     mutationFn: ({ invoiceId, referenceNumber, status, date, amount, intent }) =>
       repositories.procurement.createPayment(procurementId, invoiceId, referenceNumber, status, date, amount, intent),
-    onMutate,
-    onSuccess: onSettledOk,
-    onError: onSettledErr,
+    ...handlers(true),
   });
 
   return {

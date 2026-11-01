@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Icon } from '@/src/components/ui';
 import type { PendingPushState } from '@/src/lib/adapterSeam/pendingPush';
 
@@ -28,7 +29,24 @@ export interface TaskPushBadgeProps {
 }
 
 export const TaskPushBadge: React.FC<TaskPushBadgeProps> = ({ state }) => {
+  const { t } = useTranslation();
   if (state.status === 'idle') return null;
+
+  // FR-ECA-030: the purchase predates the ERP connection and finishes in PMO. Information, not a failure: neutral, no alert icon.
+  if (state.status === 'not-sent') {
+    const reason = state.error?.headline ?? t('taskPush.notSentReason', 'Recorded before the ERP connection, not sent');
+    return (
+      <span
+        role="status"
+        aria-label={reason}
+        title={reason}
+        className="inline-flex items-center gap-1 rounded-full border border-border bg-secondary px-2 py-0.5 text-[11.5px] font-semibold text-muted-foreground"
+      >
+        <Icon name="info" className="size-3" />
+        {t('taskPush.notSent', 'Not sent')}
+      </span>
+    );
+  }
 
   if (state.status === 'pushing') {
     return (

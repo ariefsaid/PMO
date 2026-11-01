@@ -522,6 +522,12 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
 
       {/* Capture affordance + note */}
       <CardPad>
+        {detail.pre_cutover && (
+          // FR-ECA-030: ordered before the ERP connection, so receipts, bills and payments stay in PMO. Information, not an alert.
+          <p data-testid="ledger-pre-cutover" className="mb-2.5 text-[12.5px] text-muted-foreground">
+            {t('procurementLedger.preCutover', 'Recorded before the ERP connection, not sent')}
+          </p>
+        )}
         {pendingPush.status !== 'idle' && (
           <div className="mb-2.5 flex justify-end">
             <TaskPushBadge state={pendingPush} />

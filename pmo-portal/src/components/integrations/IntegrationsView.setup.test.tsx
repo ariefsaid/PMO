@@ -195,6 +195,19 @@ describe('ERP domain setup actions', () => {
     expect(erpSetup.employErpDomain).toHaveBeenCalledTimes(2);
     expect(erpSetup.onboardErpParties).toHaveBeenCalledTimes(2);
   });
+  it('AC-ECA-021 names the number of drafts when switching a domain on is refused for open drafts, and shows no other detail', async () => {
+    const erpBinding={...mockBinding,external_tier:'erpnext' as const,config:{company:'Example Company'}};
+    vi.mocked(useExternalDomainOwnership).mockReturnValue(baseExternalDomainReturn as never);
+    vi.mocked(useIntegrations).mockReturnValue(bindingMapIntegrations({getBinding:(tier:string)=>tier==='erpnext'?erpBinding:undefined}) as never);
+    vi.mocked(useProjects).mockReturnValue({data:[],isPending:false,isError:false} as never);
+    erpSetup.employErpDomain.mockRejectedValueOnce(Object.assign(new Error('submit or cancel the 2 draft(s) in PMO before the ERP takes this over'),{code:'config-rejected'}));
+    wrapWithRole('Admin',<IntegrationsView/>);
+    fireEvent.click(await screen.findByRole('button',{name:'Choose information to keep updated'}));
+    fireEvent.change(screen.getByRole('combobox',{name:'Business information'}),{target:{value:'procurement'}});
+    fireEvent.click(screen.getByRole('button',{name:'Save information choices'}));
+    expect(await screen.findByText('PMO still has 2 draft(s) that would be left behind. Submit or cancel them, then try again.')).toBeInTheDocument();
+    expect(screen.queryByText(/Check ERP read permissions/)).not.toBeInTheDocument();
+  });
   it('shows an unavailable checklist and retries its authenticated read', async () => {
     const erpBinding={...mockBinding,external_tier:'erpnext' as const,config:{company:'Example Company'}};
     vi.mocked(useExternalDomainOwnership).mockReturnValue(baseExternalDomainReturn as never);

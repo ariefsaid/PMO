@@ -82,7 +82,11 @@ export function useProcurementMutations(id: string) {
   // the ones that actually route external per FR-ENA-131). Single (not per-id) because only one
   // capture affordance is open at a time on the detail page. Stays idle for PMO-owned orgs.
   const [pendingPush, setPendingPush] = useState<PendingPushState>(IDLE_PENDING_PUSH);
-  const isExternal = () => routeDomainWrite('procurement') === 'external';
+  // FR-ECA-030: a purchase ordered before the ERP connection is recorded in PMO (the repository routes it there), so it has
+  // no push state to show. The flag rides the loaded detail.
+  const isPreCutover = () =>
+    queryClient.getQueriesData<ProcurementDetail>({ queryKey: procurementDetailKey(orgId, id) }).some(([, d]) => d?.pre_cutover === true);
+  const isExternal = () => routeDomainWrite('procurement') === 'external' && !isPreCutover();
 
   // Error type is ProcurementError so consumers can read `.code` (P0001 /
   // 42501) type-safely and classify the toast (no code-dropping).

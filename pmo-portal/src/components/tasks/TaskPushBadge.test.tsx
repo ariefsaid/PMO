@@ -76,3 +76,15 @@ describe('TaskPushBadge — AA contrast + register + a11y (review fix #8)', () =
     expect(badge.getAttribute('aria-label')).toBe('push failed: external system unreachable — try again');
   });
 });
+
+describe('TaskPushBadge — FR-ECA-030 not-sent is information', () => {
+  const notSent: PendingPushState = { status: 'not-sent', error: { headline: 'Recorded before the ERP connection, not sent', detail: 'recorded before the ERP connection, not sent' } };
+  it('names the state in words, carries the reason, and is not styled as a failure', () => {
+    render(<TaskPushBadge state={notSent} />);
+    const badge = screen.getByRole('status');
+    expect(badge.textContent).toContain('Not sent');
+    expect(badge.getAttribute('title')).toBe('Recorded before the ERP connection, not sent');
+    expect(badge.getAttribute('style') ?? '').not.toContain('--status-lost-text');
+    expect(badge.className).not.toContain('destructive');
+  });
+});

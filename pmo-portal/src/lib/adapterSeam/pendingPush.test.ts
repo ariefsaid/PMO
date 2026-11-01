@@ -49,3 +49,19 @@ describe('AC-EAS-062 PMO-owned writes introduce no pending-push state', () => {
     expect(pendingPushAfterWrite('pmo', { ok: false, err: new Error('x') })).toEqual(IDLE_PENDING_PUSH);
   });
 });
+
+describe('FR-ECA-030 a pre-cutover result is information, not a failed push', () => {
+  const preCutover = new AppError('recorded before the ERP connection, not sent', 'pre-cutover');
+  it('FR-ECA-030 an external write answered pre-cutover ends as not-sent, with the plain headline', () => {
+    const state = pendingPushAfterWrite('external', { ok: false, err: preCutover });
+    expect(state.status).toBe('not-sent');
+    expect(state.error?.headline).toBe('Recorded before the ERP connection, not sent');
+  });
+  it('failPush and classifyExternalError agree', () => {
+    expect(failPush(beginPush(IDLE_PENDING_PUSH), preCutover).status).toBe('not-sent');
+    expect(classifyExternalError(preCutover).headline).toBe('Recorded before the ERP connection, not sent');
+  });
+  it('other failures still end as push-failed', () => {
+    expect(pendingPushAfterWrite('external', { ok: false, err: new AppError('m', 'commit-rejected') }).status).toBe('push-failed');
+  });
+});

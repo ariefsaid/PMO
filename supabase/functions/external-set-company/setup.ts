@@ -175,6 +175,8 @@ async function employErpDomain(body: ErpSetupBody, ctx: ErpSetupContext) {
       p_actor_id: ctx.actorId,
     },
   );
+  // FR-ECA-031: PMO still holds drafts the ERP would strand. The trigger's message already names the count and the action.
+  if (error?.details === "process-drafts-open") throw new AppError(error.message, "config-rejected");
   if (error) throw new AppError(error.message, error.code);
   return { ok: true };
 }

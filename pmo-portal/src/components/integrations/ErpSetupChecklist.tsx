@@ -93,9 +93,20 @@ export function ErpSetupChecklist(
           );}
         setEditing(null);
         await refresh();
-      } catch {
+      } catch (err) {
+        // FR-ECA-031: switching a domain on is refused while PMO holds drafts it would strand. Only this refusal's count is
+        // shown (parsed from the server's sentence); every other failure stays the generic line, with no server detail.
+        const drafts = editing === 'domain' && (err as { code?: string })?.code === 'config-rejected'
+          ? /^submit or cancel the (\d+) draft/.exec(err instanceof Error ? err.message : '')?.[1]
+          : undefined;
         setError(
-          editing === 'defaults'
+          drafts
+            ? t(
+              'integrations.erpSetup.domainDraftsOpen',
+              'PMO still has {{count}} draft(s) that would be left behind. Submit or cancel them, then try again.',
+              { count: Number(drafts) },
+            )
+            : editing === 'defaults'
             ? t(
               'integrations.erpSetup.defaultsFailed',
               'Could not save ERP defaults. Check the values and try again.',
