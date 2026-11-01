@@ -121,7 +121,10 @@ export interface ActualsLine {
   net: number;
 }
 
-export type PaymentClassification = { kind: 'receipt'; domain: 'revenue' } | { kind: 'vendor-payment'; domain: 'procurement' } | { kind: 'skipped' };
+export type PaymentClassification =
+  | { kind: 'receipt'; domain: 'revenue'; table: 'incoming_payments' }
+  | { kind: 'vendor-payment'; domain: 'procurement'; table: 'payments' }
+  | { kind: 'skipped' };
 
 export interface ErpPurchaseDoc {
   kind: 'purchase-order' | 'bill';
@@ -167,7 +170,7 @@ export interface ErpHarness {
   /** actuals.read: the ERP ledger as PMO sums it per project, account and year. */
   readActuals(scenario: ActualsReadScenario): Promise<ActualsLine[]>;
   /** receipt.read: what PMO does with a payment the ERP reports, by the direction the ERP states. */
-  classifyPayment(direction: 'received' | 'paid' | 'unknown' | 'absent'): PaymentClassification;
+  classifyPayment(direction: 'received' | 'paid' | 'unrecognised' | 'blank' | 'absent'): PaymentClassification;
   /** purchase.link-existing: ERP-native purchase documents as PMO mirrors them (one row per document). */
   mirrorPurchases(docs: readonly ErpPurchaseDoc[]): Promise<MirroredPurchase[]>;
   /** party.send, project.send, item.send: each call starts an empty fake ERP. Absent until the tier sends masters. */

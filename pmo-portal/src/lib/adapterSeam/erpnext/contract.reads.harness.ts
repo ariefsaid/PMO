@@ -3,7 +3,8 @@
  * answers in PMO terms. No behaviour lives here.
  */
 import { FakePostgrest } from '@/test/postgrestFake.ts';
-import type { ErpPurchaseDoc, MirroredPurchase } from '../contractSuite/harness.ts';
+import type { ErpHarness, ErpPurchaseDoc, MirroredPurchase } from '../contractSuite/harness.ts';
+import { KIND_DOMAIN, KIND_MIRROR_TABLE, kindFromDoctypeAndPaymentType } from './feedKinds.ts';
 import { feedPurchaseMirror } from './purchaseMirrorFeed.ts';
 
 const DOCTYPE: Record<ErpPurchaseDoc['kind'], string> = { 'purchase-order': 'Purchase Order', 'bill': 'Purchase Invoice' };
@@ -48,3 +49,14 @@ export async function mirrorPurchases(docs: readonly ErpPurchaseDoc[]): Promise<
   const rows = mirrored as Array<{ erp_doctype: string; erp_name: string; grand_total: string | null }>;
   return rows.filter((r) => KIND_OF[r.erp_doctype]).map((r) => ({ kind: KIND_OF[r.erp_doctype], reference: r.erp_name, total: r.grand_total }));
 }
+
+const PAYMENT_TYPE: Record<Parameters<ErpHarness['classifyPayment']>[0], string | undefined> = {
+  received: 'Receive', paid: 'Pay', unrecognised: 'Unknown', blank: '', absent: undefined,
+};
+
+export const classifyPayment: ErpHarness['classifyPayment'] = (direction) => {
+  const kind = kindFromDoctypeAndPaymentType('Payment Entry', PAYMENT_TYPE[direction]);
+  if (kind === 'incoming-payment') return { kind: 'receipt', domain: KIND_DOMAIN[kind] as 'revenue', table: KIND_MIRROR_TABLE[kind] as 'incoming_payments' };
+  if (kind === 'payment') return { kind: 'vendor-payment', domain: KIND_DOMAIN[kind] as 'procurement', table: KIND_MIRROR_TABLE[kind] as 'payments' };
+  return { kind: 'skipped' };
+};
