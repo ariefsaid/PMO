@@ -58,6 +58,7 @@ vi.mock('@/src/lib/db/progressBilling', async (importOriginal) => ({ ...(await i
 vi.mock('@/src/lib/db/workOrderAcceptances', async (importOriginal) => ({ ...(await importOriginal<object>()), listProjectAcceptances: vi.fn() }));
 vi.mock('@/src/lib/db/procurementFiles', async (importOriginal) => ({ ...(await importOriginal<object>()), listProcurementFiles: vi.fn() }));
 vi.mock('@/src/lib/db/expenseClaims', async (importOriginal) => ({ ...(await importOriginal<object>()), listExpenseClaims: vi.fn() }));
+vi.mock('@/src/lib/db/imprest', async (importOriginal) => ({ ...(await importOriginal<object>()), listCounts: vi.fn() }));
 vi.mock('@/src/lib/db/expenseReceipts', async (importOriginal) => ({ ...(await importOriginal<object>()), listExpenseReceipts: vi.fn() }));
 vi.mock('@/src/lib/db/contacts', async (importOriginal) => ({ ...(await importOriginal<object>()), listContacts: vi.fn() }));
 vi.mock('@/src/lib/db/meetings', async (importOriginal) => ({ ...(await importOriginal<object>()), listMeetings: vi.fn() }));
@@ -113,6 +114,7 @@ const ROWS: Row[] = [
   { member: 'workOrderAcceptance', method: 'listByProject', mod: '@/src/lib/db/workOrderAcceptances', fn: 'listProjectAcceptances', args: ['p1'] },
   { member: 'procurementFiles', method: 'list', mod: '@/src/lib/db/procurementFiles', fn: 'listProcurementFiles', args: ['quotation', 'p1'] },
   { member: 'expenseClaim', method: 'list', mod: '@/src/lib/db/expenseClaims', fn: 'listExpenseClaims', args: [], mode: 'called' },
+  { member: 'imprest', method: 'listCounts', mod: '@/src/lib/db/imprest', fn: 'listCounts', args: ['f1'] },
   { member: 'expenseReceipts', method: 'list', mod: '@/src/lib/db/expenseReceipts', fn: 'listExpenseReceipts', args: ['c1'] },
   { member: 'expensePostings', method: 'listAccountMap', mod: '@/src/lib/supabase/client', fn: 'supabase', args: [], mode: 'called' },
   { member: 'erpPurchases', method: 'list', mod: '@/src/lib/pagedRead', fn: 'fetchAllRowsByKeyset', args: [], mode: 'called', resolve: [] },
