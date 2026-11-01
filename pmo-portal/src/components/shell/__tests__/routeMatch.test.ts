@@ -49,6 +49,14 @@ describe('UXS-007 shell label consistency', () => {
   });
 });
 
+describe('stock setup breadcrumb (#1512)', () => {
+  it('FR-STK-007 /stock/setup resolves its own title instead of falling through to Not found', () => {
+    const crumbs = breadcrumbForPath('/stock/setup');
+    expect(crumbs.map((c) => c.label)).toEqual(['Stock setup']);
+    expect(crumbs[0].i18nKey).toBe('stock:setup.title');
+  });
+});
+
 describe('UXS-006 shared route vocabulary', () => {
   it('every navigable module owns the translation key used across shell surfaces', () => {
     expect(MODULES.every((module) => typeof module.labelKey === 'string')).toBe(true);
@@ -385,3 +393,26 @@ describe('review 7: /erp-purchases breadcrumb', () => {
   });
 });
 
+
+describe('breadcrumbForPath: Stock module (#1512 S3)', () => {
+  it('/stock reads [Stock]', () => {
+    const crumbs = breadcrumbForPath('/stock');
+    expect(crumbs).toHaveLength(1);
+    expect(crumbs[0].label).toBe('Stock');
+  });
+  it('/stock/documents/:id reads [Stock > <record>]', () => {
+    const crumbs = breadcrumbForPath('/stock/documents/d1', 'ISS-1');
+    expect(crumbs).toHaveLength(2);
+    expect(crumbs[0].label).toBe('Stock');
+    expect(crumbs[1].label).toBe('ISS-1');
+  });
+  it.each([['/stock/ledger', 'Ledger'], ['/stock/documents', 'Documents'], ['/stock/new/issue', 'Issue to project'], ['/stock/new/receive', 'Receive'], ['/stock/new/count', 'Stock count'], ['/stock/new/adjustment', 'Adjustment']])('%s reads [Stock > %s]', (p, label) => {
+    const crumbs = breadcrumbForPath(p);
+    expect(crumbs.map((c) => c.label)).toEqual(['Stock', label]);
+  });
+  it('/stock/setup is never "Not found" or "Dashboard"', () => {
+    const labels = breadcrumbForPath('/stock/setup').map((c) => c.label);
+    expect(labels).not.toContain('Not found');
+    expect(labels).not.toContain('Dashboard');
+  });
+});

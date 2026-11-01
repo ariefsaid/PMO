@@ -6,6 +6,7 @@ import { I18nextProvider } from 'react-i18next';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { axe } from 'jest-axe';
+import 'jest-axe/extend-expect'; // global registration moved out of test/setup.ts (unit-speed #1584)
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 import { InvoiceProjectModal } from './InvoiceProjectModal';
 

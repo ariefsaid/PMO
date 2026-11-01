@@ -1,0 +1,11 @@
+drop function if exists public.set_stock_warehouse_keeper(uuid, uuid, boolean);
+drop table if exists public.stock_warehouse_keepers;
+drop table if exists public.stock_warehouses;
+drop table if exists public.stock_items;
+drop table if exists public.stock_units;
+drop function if exists public.audit_stock_master();
+drop function if exists public.check_stock_warehouse_parent();
+drop function if exists public.check_stock_item_parent();
+drop function if exists public.stock_admin();
+drop function if exists public.stock_master_writer();
+drop function if exists public.stock_can_see_cost();

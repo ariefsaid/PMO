@@ -17,13 +17,22 @@
  *   C3-13 Content gutter — main content uses the responsive page-gutter token
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, act, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, act, waitFor, fireEvent, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, useLocation } from 'react-router';
 import React from 'react';
 import { AppShell } from '../AppShell';
 import { Breadcrumb } from '../Breadcrumb';
 import { BackBar } from '../BackBar';
+import { ContextBar } from '../ContextBar';
+import { Rail } from '../Rail';
+
+vi.mock('@/src/auth/useIsOperator', () => ({ useIsOperator: () => false }));
+vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ effectiveRole: 'Executive', realRole: 'Executive', canImpersonate: false, viewAs: vi.fn() }) }));
+vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1' }, role: 'Executive', signOut: vi.fn() }) }));
+vi.mock('@/src/hooks/useOrgFeatures', () => ({ useOrgFeatures: () => ({ data: { crm: true, procurement: true, timesheets: true }, isPending: false }) }));
+vi.mock('@/src/hooks/useUserViews', () => ({ useUserViews: () => ({ data: [], isPending: false, isError: false }) }));
+vi.mock('@/src/components/shell/NotificationBell', () => ({ NotificationBell: () => null }));
 
 const wrap = (ui: React.ReactNode) => render(<MemoryRouter>{ui}</MemoryRouter>);
 
@@ -243,6 +252,31 @@ describe('AC-IXD-MOBILE-W4-C3 C3-6: focus management', () => {
     await userEvent.setup().keyboard('{Escape}');
     await waitFor(() => expect(trigger).toHaveFocus());
   });
+});
+
+it('UIP-002: the menu glyph opens navigation, a route closes it, and Escape returns focus', async () => {
+  function Harness() {
+    const [open, setOpen] = React.useState(false);
+    const location = useLocation();
+    return <AppShell
+      rail={<Rail onNavigate={() => setOpen(false)} />}
+      header={<ContextBar breadcrumb={[{ label: 'Dashboard' }]} onOpenPalette={() => {}} onToggleRail={() => setOpen((value) => !value)} />}
+      railOpen={open}
+      onCloseRail={() => setOpen(false)}
+    ><h1>{location.pathname === '/projects' ? 'Projects' : 'Dashboard'}</h1></AppShell>;
+  }
+  const user = userEvent.setup();
+  wrap(<Harness />);
+  const trigger = screen.getByRole('button', { name: 'Open navigation menu' });
+  expect(trigger.querySelector('svg')).toHaveAttribute('data-icon', 'menu');
+  await user.click(trigger);
+  const drawer = screen.getByRole('dialog', { name: 'Navigation menu' });
+  await user.click(within(drawer).getByRole('link', { name: 'Projects' }));
+  expect(screen.queryByRole('dialog', { name: 'Navigation menu' })).not.toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: 'Projects' })).toBeInTheDocument();
+  await user.click(trigger);
+  await user.keyboard('{Escape}');
+  await waitFor(() => expect(trigger).toHaveFocus());
 });
 
 // ---------------------------------------------------------------------------

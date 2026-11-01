@@ -4,6 +4,7 @@ import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ToastProvider } from '@/src/components/ui';
 import { axe, toHaveNoViolations } from 'jest-axe';
+import 'jest-axe/extend-expect'; // global registration moved out of test/setup.ts (unit-speed #1584)
 expect.extend(toHaveNoViolations);
 vi.mock('@/src/hooks/useOrgTaxDefault', () => ({ useOrgTaxDefault: () => undefined, useTaxTreatmentPreselect: () => undefined }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));

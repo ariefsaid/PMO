@@ -210,7 +210,8 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
       // path impossible invites "fixing" a non-insertable column with a TABLE-level grant — the
       // silent no-op trap 0193 §5 exists to prevent.
       // 'workOrderAcceptance' from contract quantities (migration 0337, ADR-0091): allocations + BAST RPCs.
-      ['agentAttachment', 'budget', 'company', 'companyCollections', 'contact', 'credits', 'document', 'erpPurchases', 'erpSnapshots', 'expenseClaim', 'expensePostings', 'expenseReceipts', 'externalDomainOwnership', 'financialStatements', 'fxRates', 'incident', 'integrations', 'm365DocumentSettings', 'm365RecordFolders', 'meeting', 'milestone', 'operator', 'orgFeature', 'orgSettings', 'procurement', 'procurementFiles', 'profile', 'progressBilling', 'project', 'recordHistory', 'reports', 'revenue', 'task', 'timesheet', 'usage', 'userView', 'vendorWithholdingSlips', 'workOrder', 'workOrderAcceptance'].sort(),
+      // 'stock' from inventory master data (#1512 S1, migration 0412); S2a+ add documents and reports to it.
+      ['agentAttachment', 'budget', 'company', 'companyCollections', 'contact', 'credits', 'document', 'erpPurchases', 'erpSnapshots', 'expenseClaim', 'expensePostings', 'expenseReceipts', 'externalDomainOwnership', 'financialStatements', 'fxRates', 'incident', 'integrations', 'm365DocumentSettings', 'm365RecordFolders', 'meeting', 'milestone', 'odoo', 'operator', 'orgFeature', 'orgSettings', 'procurement', 'procurementFiles', 'profile', 'progressBilling', 'project', 'recordHistory', 'reports', 'revenue', 'stock', 'task', 'timesheet', 'usage', 'userView', 'vendorWithholdingSlips', 'workOrder', 'workOrderAcceptance'].sort(),
     );
   });
 
@@ -252,7 +253,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
 
   it('procurementFiles exposes its expected methods', () => {
     expect(Object.keys(repositories.procurementFiles).sort()).toEqual(
-      ['archive', 'cleanupObject', 'confirmUpload', 'getSignedUrl', 'list', 'prepareUpload'].sort(),
+      ['archive', 'cleanupObject', 'confirmMicrosoftUpload', 'confirmUpload', 'getSignedUrl', 'list', 'prepareUpload'].sort(),
     );
   });
 
@@ -267,6 +268,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
     );
     expect(Object.keys(repositories.document).sort()).toEqual(
       [
+        'attachMicrosoftUpload',
         'cleanupObject',
         'confirmUpload',
         'create',

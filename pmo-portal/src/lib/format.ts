@@ -1,4 +1,8 @@
-import { parseISO, formatDistanceToNow } from 'date-fns';
+// Deep date-fns imports (see src/lib/locale/activeLocale.ts): format.ts is in
+// nearly every test file's module graph, and the `date-fns` root barrel costs
+// ~770 ms/file under Vitest per-file isolation (measured 2026-10-31, #1584).
+import { parseISO } from 'date-fns/parseISO';
+import { formatDistanceToNow } from 'date-fns/formatDistanceToNow';
 import { getActiveLocale, getDateFnsLocale, getDateLocale, getNumberLocale } from '@/src/lib/locale/activeLocale';
 
 /**
@@ -705,6 +709,11 @@ export function formatDateTime(d: Date): string {
   }).format(d);
 }
 
+/** "03:45 PM" — time of day only, in the org's zone (a state banner's "as of"). */
+export function formatClockTime(d: Date): string {
+  return dateFormatterFor('clockTime', getDateLocale(), { hour: '2-digit', minute: '2-digit', timeZone: getActiveLocale().timezone }).format(d);
+}
+
 /** "6/14/2026" — numeric M/D/YYYY; byte-identical to bare toLocaleDateString() in en-US. */
 export function formatDateNumeric(d: Date): string {
   return dateFormatterFor('dateNumeric', getDateLocale(), {
@@ -772,6 +781,15 @@ export function formatUtcMonthYear(d: Date): string {
   }).format(d);
 }
 
+/** UTC "Jun 2026" in the viewer's date locale: month + 4-digit year, so it never reads as a day. */
+export function formatUtcMonthYearFull(d: Date): string {
+  return dateFormatterFor('utcMonthYearFull', getDateLocale(), {
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'UTC',
+  }).format(d);
+}
+
 /** UTC "15 Mar '25" — S-curve axis: en-GB day-month + quoted 2-digit year (AC-SC-AXIS-004/005).
  *  formatToParts + manual join so the apostrophe is explicit; stays Intl (not date-fns format)
  *  because date-fns is LOCAL-tz and would drift the day in behind-UTC zones. */
@@ -802,4 +820,14 @@ export function formatList(items: readonly string[]): string {
     formatterCache.set(key, formatter);
   }
   return formatter.format(items);
+}
+
+/** Exact decimal STRING formatting (stock quantities and unit costs, #1512): the digits are never routed through a JS float. */
+/** Currency style with up to 4 decimals (a stock unit cost); the string input keeps every digit exact. */
+export function formatCurrencyDecimal4(value: string, currency: string, locale: string): string {
+  return numberFormatterFor('cur-dec4', locale, currency, { style: 'currency', currency, minimumFractionDigits: 2, maximumFractionDigits: 4 }).format(value as unknown as number);
+}
+
+export function formatDecimalString(value: string, locale: string, maxFractionDigits: number): string {
+  return numberFormatterFor(`dec${maxFractionDigits}`, locale, undefined, { maximumFractionDigits: maxFractionDigits }).format(value as unknown as number);
 }

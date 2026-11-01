@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
-import { matchRoutes, MemoryRouter, Route, Routes, useLocation } from 'react-router';
+import { matchRoutes, MemoryRouter, Route, Routes, useLocation, useRoutes } from 'react-router';
 import React from 'react';
 const permissionState = vi.hoisted(() => ({ role: 'Finance' }));
 vi.mock('@/src/auth/usePermission', () => ({
@@ -30,6 +30,12 @@ describe('Application route table', () => {
       expect(route?.path, url).toBe(path);
       expect(React.isValidElement(route?.element), url).toBe(true);
     }
+  });
+
+  it('FR-STK-007: /stock/setup resolves to its own page, not the not-found catch-all', () => {
+    const route = matchRoutes(appRouteConfig, '/stock/setup')?.at(-1)?.route;
+    expect(route?.path).toBe('/stock/setup');
+    expect(React.isValidElement(route?.element)).toBe(true);
   });
 
   it('AC-1405-ROUTE-002: legacy Finance list URLs redirect to their canonical area', () => {
@@ -101,6 +107,14 @@ describe('Application route table', () => {
       expect(route?.path, path).not.toBe('*');
       expect(React.isValidElement(route?.element), path).toBe(true);
     }
+  });
+
+  it('AC-M365SEP-018: the old /admin/integrations target resolves to the not-found page', async () => {
+    const route = matchRoutes(appRouteConfig, '/admin/integrations')?.at(-1)?.route;
+    expect(route?.path).toBe('*');
+    const MatchedRoute = () => useRoutes(appRouteConfig);
+    render(<MemoryRouter initialEntries={['/admin/integrations']}><React.Suspense fallback={null}><MatchedRoute /></React.Suspense></MemoryRouter>);
+    expect(await screen.findByText('Page not found')).toBeVisible();
   });
 
   it('AC-ADMIA-003: unknown Administration sections resolve to their section fallback', () => {

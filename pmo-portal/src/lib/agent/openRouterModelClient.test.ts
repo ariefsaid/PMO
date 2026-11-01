@@ -95,6 +95,20 @@ it('sends no model fallback list when fallbacks are disabled or the primary is t
   expect(JSON.parse(fetchMock.mock.calls[1][1].body as string).models).toBeUndefined();
 });
 
+it('noFallback: true sends only the requested model even when fallbacks are configured (#1532 judge)', async () => {
+  const fetchMock = mockFetchOnce({
+    model: 'm',
+    choices: [{ finish_reason: 'stop', message: { role: 'assistant', content: 'hi' } }],
+  });
+  await new OpenRouterModelClient({ apiKey: 'k', fallbackModels: ['x/y'] }).create({
+    model: 'm', max_tokens: 10, messages: [{ role: 'user', content: 'hi' }], noFallback: true,
+  });
+  const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+  expect(body.model).toBe('m');
+  expect(body.models).toBeUndefined();
+  expect(body.noFallback).toBeUndefined();
+});
+
 it('fallbackModelsFromEnv: unset keeps the default, empty disables, a list replaces it', () => {
   expect(fallbackModelsFromEnv(undefined)).toEqual(['openai/gpt-6-luna']);
   expect(fallbackModelsFromEnv('')).toEqual([]);

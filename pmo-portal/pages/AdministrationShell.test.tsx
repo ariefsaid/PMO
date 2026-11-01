@@ -261,6 +261,14 @@ describe('Administration route-backed shell', () => {
     expect(panelMounts.features).toBe(0);
   });
 
+  it('AC-ACD-010: an Operator opens Usage from Administration', async () => {
+    renderShell('/administration', 'Admin', true);
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/administration/users'));
+    await userEvent.click(screen.getByRole('link', { name: 'Usage' }));
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/administration/usage'));
+    expect(screen.getByTestId('administration-panel-usage')).toBeInTheDocument();
+  });
+
   it('AC-CAT-018: an Admin can open Cost attribution from the Administration section navigation', async () => {
     renderShell('/administration/cost-attribution');
     const nav = await screen.findByRole('navigation', { name: 'Administration sections' });
@@ -340,6 +348,15 @@ describe('Administration route-backed shell', () => {
     renderShell('/administration/users', 'Executive');
 
     expect(screen.getByText(/only an Admin can add, edit, or disable users/i)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /invite user/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /row actions/i })).not.toBeInTheDocument();
+  });
+
+  it('AC-AU-002b: an Engineer reaching /administration sees the Administration gate, not the directory', async () => {
+    renderShell('/administration', 'Engineer');
+
+    expect(await screen.findByText(/Administration is an Admin, Executive, or platform Operator area/i)).toBeVisible();
+    expect(screen.queryByTestId('administration-panel-users')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /invite user/i })).not.toBeInTheDocument();
   });
 

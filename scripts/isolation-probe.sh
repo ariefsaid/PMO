@@ -244,6 +244,13 @@ if [ -n "$A_SLIP" ] && [ "$A_SLIP" != null ]; then
 else skip "correct_vendor_withholding_slip (vendor_withholding_slips)"; skip "void_vendor_withholding_slip (vendor_withholding_slips)"; fi
 if [ -n "$A_CLAIM" ] && [ "$A_CLAIM" != null ]; then c=$(rpc record_expense_advance_return "{\"p_id\":\"$A_CLAIM\",\"p_amount\":0.01,\"p_reference\":\"probe\"}"); else skip "record_expense_advance_return (expense_claims)"; fi
 if [ -n "$A_BUDGET" ] && [ "$A_BUDGET" != null ]; then c=$(rpc activate_budget_version "{\"version_id\":\"$A_BUDGET\"}"); else skip "activate_budget_version (budget_versions)"; fi
+A_IMPREST_FLOAT=$(jq -r '.[]|select(.table=="imprest_floats")|.id' "$A_ROWS_JSON")
+A_IMPREST_CHANGE=$(jq -r '.[]|select(.table=="imprest_float_changes")|.id' "$A_ROWS_JSON")
+A_IMPREST_PLAN=$(jq -r '.[]|select(.table=="imprest_plans")|.id' "$A_ROWS_JSON")
+if [ -n "$A_PROJECT" ] && [ "$A_PROJECT" != null ]; then c=$(rpc establish_imprest_float "{\"p_project\":\"$A_PROJECT\",\"p_custodian\":\"b0000000-0000-4000-8000-0000000000aa\",\"p_amount\":1}"); else skip "establish_imprest_float (projects)"; fi
+if [ -n "$A_IMPREST_FLOAT" ] && [ "$A_IMPREST_FLOAT" != null ]; then c=$(rpc propose_imprest_float_amount "{\"p_float\":\"$A_IMPREST_FLOAT\",\"p_amount\":1}"); else skip "propose_imprest_float_amount (imprest_floats)"; fi
+if [ -n "$A_IMPREST_CHANGE" ] && [ "$A_IMPREST_CHANGE" != null ]; then c=$(rpc decide_imprest_float_change "{\"p_change\":\"$A_IMPREST_CHANGE\",\"p_approve\":false}"); else skip "decide_imprest_float_change (imprest_float_changes)"; fi
+if [ -n "$A_IMPREST_PLAN" ] && [ "$A_IMPREST_PLAN" != null ]; then c=$(rpc transition_imprest_plan "{\"p_id\":\"$A_IMPREST_PLAN\",\"p_to\":\"Cancelled\"}"); else skip "transition_imprest_plan (imprest_plans)"; fi
 A_BUDGET_LINE=$(jq -r '.[]|select(.table=="budget_line_items")|.id' "$A_ROWS_JSON")
 if [ -n "$A_BUDGET_LINE" ] && [ "$A_BUDGET_LINE" != null ]; then c=$(rpc recategorise_budget_lines "{\"p_line_ids\":[\"$A_BUDGET_LINE\"],\"p_category\":\"Vehicle\"}"); else skip "recategorise_budget_lines (budget_line_items)"; fi
 checks=$(wc -l < "$_work/checks" | tr -d ' ')

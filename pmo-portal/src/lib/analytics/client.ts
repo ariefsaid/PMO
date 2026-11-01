@@ -107,6 +107,16 @@ function redactExceptionProperties(
       typeof v === 'string' ? redactExceptionText(v) : v,
     );
   }
+  // #1532 S9: a survey answer is free text the SDK sends itself (it bypasses buildEventProperties), so
+  // it gets the same scrubber. Numbers (rating, NPS) pass through; choice answers are string arrays.
+  if (captureResult.event === 'survey sent') {
+    for (const key of Object.keys(properties)) {
+      if (key !== '$survey_response' && !key.startsWith('$survey_response_')) continue;
+      const v = properties[key];
+      if (typeof v === 'string') properties[key] = redactExceptionText(v);
+      else if (Array.isArray(v)) properties[key] = v.map((x) => (typeof x === 'string' ? redactExceptionText(x) : x));
+    }
+  }
   return captureResult;
 }
 
@@ -222,6 +232,10 @@ export function buildPosthogInitOptions(config: AnalyticsConfig): Parameters<typ
     // signal available at all, since $rageclick is emitted from inside the autocapture code path
     // and is unreachable with autocapture:false.
     capture_heatmaps: true,
+    // #1532 S9: the SDK never pops a survey by itself (that would ignore "not during a write or a form",
+    // first week and the org switch). SurveyHost / the Feedback button render them through
+    // `analyticsClient.surveys`; PostHog still decides eligibility (wait period, targeting, already seen).
+    disable_surveys_automatic_display: true,
     // SECURITY (2026-07-27, must stay false): `capture_dead_clicks:true` enables a SEPARATE,
     // autocapture-gated dead-click producer (posthog-js's own `isDeadClicksEnabledForAutocapture`)
     // that emits a `$dead_click` event carrying `$el_text` / `$elements_chain` / `attr__title` —
@@ -265,6 +279,8 @@ function doInit(config: AnalyticsConfig): void {
   if (!config.enabled || initialized || !config.posthogKey || readOptOut() || isDoNotTrack()) return;
   posthog.init(config.posthogKey, buildPosthogInitOptions(config));
   initialized = true;
+  // AC-PHO-012: same id the source-map upload uses, so PostHog filters issues by release.
+  posthog.register({ release: __GIT_SHA__ });
 }
 
 export const analyticsClient = {
@@ -322,6 +338,43 @@ export const analyticsClient = {
       err.componentStack = input.componentStack;
     }
     posthog.captureException(err);
+  },
+
+  /** #1532 S9. Every method is inert unless analytics is live (init'd, enabled, not opted out). */
+  surveys: {
+    /** The id of the published survey with exactly this name, or null (not published / analytics off). */
+    find(name: string, done: (id: string | null) => void) {
+      if (!initialized || !activeConfig?.enabled || readOptOut()) return done(null);
+      posthog.getSurveys((all) => done((all.find((x) => x?.name === name)?.id as string | undefined) ?? null));
+    },
+    /** PostHog's own verdict: running, targeting flag, wait period passed, not already seen. */
+    canRender(id: string): boolean {
+      if (!initialized || !activeConfig?.enabled || readOptOut()) return false;
+      return posthog.canRenderSurvey(id)?.visible === true;
+    },
+    /**
+     * Show survey `id` as PostHog's own popover (its chrome records shown / sent / dismissed and the
+     * 30-day wait). `properties` ride on the answer event; `nextTo` anchors it beside an element.
+     * Eligibility (wait period, targeting) is checked by the caller via `canRender` for prompted surveys.
+     */
+    show(id: string, properties: SafeProperties, nextTo?: string) {
+      if (!initialized || !activeConfig?.enabled || readOptOut()) return;
+      // The shipped SDK has `displaySurvey`; the published typings omit it.
+      (posthog as unknown as { displaySurvey: (id: string, o: object) => void }).displaySurvey(id, {
+        displayType: 'popover',
+        ignoreConditions: true,
+        ignoreDelay: true,
+        properties,
+        ...(nextTo ? { position: 'next_to_trigger', selector: nextTo } : {}),
+      });
+    },
+    /** Calls `cb(event, properties)` for every event the SDK captures; returns the unsubscribe. No-op when analytics is off. */
+    onCaptured(cb: (event: string, properties: Record<string, unknown>) => void): () => void {
+      if (!initialized || !activeConfig?.enabled || readOptOut()) return () => {};
+      return posthog.on('eventCaptured', (e: { event?: string; properties?: Record<string, unknown> }) => {
+        if (typeof e?.event === 'string') cb(e.event, e.properties ?? {});
+      });
+    },
   },
 
   identify(input: { userId: string; role: string; orgId: string }) {

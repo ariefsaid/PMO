@@ -17,6 +17,7 @@ import type { AgentEvent, AgentRuntime, AgentRun } from '@/src/lib/agent/runtime
 import { AssistantPanel } from './AssistantPanel';
 import { useAssistantHotkey } from '@/src/hooks/useAssistantHotkey';
 import { axeViolations } from '../__tests__/axe';
+import * as features from '@/src/lib/features';
 
 // ADR-0043 (D7): ThreadList fetches via listAgentThreads() when its region is
 // expanded — mocked here so these component tests never touch the real
@@ -159,6 +160,7 @@ describe('AssistantPanel', () => {
   });
 
   afterEach(() => {
+    vi.restoreAllMocks();
     // Restore body scroll-lock if set
     document.body.style.overflow = '';
   });
@@ -363,6 +365,29 @@ describe('AssistantPanel', () => {
       expect(bubbles).toHaveLength(1);
       expect(bubbles[0]).toHaveTextContent('Hello world.');
     });
+  });
+
+  it('AC-AXP-011: an over-budget answer renders an inline data table', async () => {
+    vi.spyOn(features, 'isFeatureEnabled').mockImplementation((key) => key === 'agentAssistant');
+    const user = userEvent.setup();
+    const runId = 'table-run';
+    const runtime = makeFakeRuntime([
+      makeEvent('assistant', { runId, text: 'Here are the over-budget projects:' }),
+      makeEvent('artifact', { runId, payload: { kind: 'widget', widget: {
+        kind: 'data_table',
+        columns: [{ key: 'name', label: 'Project' }, { key: 'variance', label: 'Variance' }],
+        rows: [{ id: 'p-alpha', name: 'Refinery Expansion Alpha', variance: '$42,000' }, { id: 'p-beta', name: 'Pipeline Retrofit Beta', variance: '$8,500' }],
+        caption: 'Over-budget projects',
+      } } }),
+      makeEvent('status', { runId, payload: { status: 'completed' } }),
+    ], runId);
+    const { container } = renderPanel({ runtime });
+    await user.type(screen.getByRole('textbox', { name: /ask a question/i }), 'show me over-budget projects{Enter}');
+    expect(await screen.findByRole('columnheader', { name: 'Project' })).toBeVisible();
+    expect(screen.getByRole('cell', { name: 'Refinery Expansion Alpha' })).toBeVisible();
+    expect(screen.getByRole('cell', { name: 'Pipeline Retrofit Beta' })).toBeVisible();
+    expect(screen.queryByText(/\| Project \|/)).not.toBeInTheDocument();
+    expect(container.querySelector('pre')).toBeNull();
   });
 
   it('AC-AP-013 tool event → tool card with entity text, no bubble', async () => {
@@ -690,6 +715,44 @@ describe('AssistantPanel', () => {
   // ── Integrated hotkey + Rail open (Tasks 20/23, Blocker 1) ────────────────
   // AC-AP-003: ⌘J → panel not inert; ⌘J again → panel inert (panel-level boundary test).
   // These complement the hook-isolation tests in useAssistantHotkey.test.tsx.
+
+  it('AC-AR-013: shortcut opens assistant and streamed answer completes before shortcut closes it', async () => {
+    const user = userEvent.setup();
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const runId = 'journey-run';
+    const runtime = makeFakeRuntime([], runId);
+    runtime.subscribeSpy.mockReturnValue({
+      [Symbol.asyncIterator]: async function* () {
+        await gate;
+        yield makeEvent('tool', { runId, payload: { entity: 'projects', rowCount: 5 } });
+        yield makeEvent('assistant', { runId, text: 'You have 5 active projects.' });
+        yield makeEvent('status', { runId, payload: { status: 'completed' } });
+      },
+    });
+    const Journey = () => {
+      const [open, setOpen] = React.useState(false);
+      const togglePanel = React.useCallback(() => setOpen((value) => !value), []);
+      useAssistantHotkey({ enabled: true, onToggle: togglePanel });
+      return <AgentRuntimeContext.Provider value={{ runtime, open, togglePanel, openPanel: () => setOpen(true), closePanel: () => setOpen(false) }}><MemoryRouter><AssistantPanel /></MemoryRouter></AgentRuntimeContext.Provider>;
+    };
+    render(<Journey />);
+    const toggle = () => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'j', ctrlKey: true, bubbles: true }));
+    act(toggle);
+    const panel = screen.getByRole('complementary', { name: /agent assistant/i });
+    expect(panel).not.toHaveAttribute('inert');
+    expect(screen.getByText(/ask your agent/i)).toBeVisible();
+    await user.type(screen.getByRole('textbox', { name: /ask a question/i }), 'How many active projects do I have?{Enter}');
+    try {
+      expect(await screen.findByRole('button', { name: /stop generating/i })).toBeVisible();
+    } finally { release(); }
+    expect(await screen.findByText(/looked up projects/i)).toBeVisible();
+    expect(await screen.findByText(/5 active projects/i)).toBeVisible();
+    await waitFor(() => expect(screen.getByRole('button', { name: /send message/i })).toBeVisible());
+    expect(screen.queryByRole('button', { name: /stop generating/i })).not.toBeInTheDocument();
+    act(toggle);
+    expect(panel).toHaveAttribute('inert');
+  });
 
   it('AC-AP-003 ⌘J toggles the panel open then closed (integrated panel boundary)', async () => {
     // PanelWithHotkey: a wrapper that integrates useAssistantHotkey with the panel context,

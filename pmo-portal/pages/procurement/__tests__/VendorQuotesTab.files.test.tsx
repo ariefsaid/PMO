@@ -17,6 +17,10 @@ vi.mock('@/src/lib/repositories', () => ({
     },
   },
 }));
+vi.mock('@/src/hooks/useUploadDestination', async (orig) => ({
+  ...(await orig<typeof import('@/src/hooks/useUploadDestination')>()),
+  useUploadDestination: () => ({ kind: 'private' }),
+}));
 vi.mock('@/src/hooks/useFkOptions', () => ({ useVendorOptions: () => ({ data: [] }) }));
 vi.mock('@/src/components/ui', async (orig) => {
   const actual = await orig<typeof import('@/src/components/ui')>();

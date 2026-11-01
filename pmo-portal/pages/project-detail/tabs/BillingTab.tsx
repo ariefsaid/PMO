@@ -18,6 +18,7 @@ import { useProjectWorkOrderLines } from '@/src/hooks/useWorkOrderAcceptances';
 import { useDocuments } from '@/src/hooks/useDocuments';
 import { useErpItemOptions } from '@/src/hooks/useErpItemOptions';
 import BoqItemFormModal from '../BoqItemFormModal';
+import MaterialAllowanceModal from '../MaterialAllowanceModal';
 import ProgressAssessmentModal from '../ProgressAssessmentModal';
 import ProgressClaimModal from '../ProgressClaimModal';
 import ClaimEvidenceModal from '../ClaimEvidenceModal';
@@ -91,6 +92,9 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
   const [boqDetailFor, setBoqDetailFor] = useState<BoqItemRow | null>(null);
   const [claimDetailFor, setClaimDetailFor] = useState<ProgressClaimWithInvoice | null>(null);
   const [deleteFor, setDeleteFor] = useState<BoqItemRow | null>(null);
+  const [allowanceFor, setAllowanceFor] = useState<BoqItemRow | null>(null);
+  // #1512 S5: planned material per work item - Finance rank and above, or this project's own PM (PQ-7; RLS decides).
+  const canSetAllowance = may('edit', 'materialAllowance', { currentUserId: currentUser?.id, record: { project_manager_id: projectManagerId } });
   const [claimFormOpen, setClaimFormOpen] = useState(false);
   const [assessOpen, setAssessOpen] = useState(false);
   const [contractLinesOpen, setContractLinesOpen] = useState(false);
@@ -313,6 +317,9 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
       <div className="flex gap-1.5">
         {may('edit', 'boqItem') && (
           <Button variant="ghost" size="sm" onClick={() => setBoqFormFor(row)}>{t('projectDetail.billing.boq.edit', 'Edit')}</Button>
+        )}
+        {canSetAllowance && (
+          <Button variant="ghost" size="sm" onClick={() => setAllowanceFor(row)}>{t('stock:allowance.action')}</Button>
         )}
         {may('delete', 'boqItem') && (
           <Button variant="ghost" size="sm" className="text-destructive-text hover:bg-destructive/10 hover:text-destructive-text"
@@ -560,6 +567,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
         </Drawer>
         {boqDetailDrawer}
         {claimDetailDrawer}
+        {allowanceFor && <MaterialAllowanceModal projectId={projectId} workItem={allowanceFor} onClose={() => setAllowanceFor(null)} />}
         {boqFormFor !== undefined && (
           <BoqItemFormModal item={boqFormFor} currencySymbolPrefix={currencySymbol(currency)}
             onClose={() => setBoqFormFor(undefined)} onSave={saveBoq} onError={fail} />
@@ -667,6 +675,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
         </>
       )}
 
+      {allowanceFor && <MaterialAllowanceModal projectId={projectId} workItem={allowanceFor} onClose={() => setAllowanceFor(null)} />}
       {boqFormFor !== undefined && (
         <BoqItemFormModal item={boqFormFor} currencySymbolPrefix={currencySymbol(currency)}
           onClose={() => setBoqFormFor(undefined)} onSave={saveBoq} onError={fail} />

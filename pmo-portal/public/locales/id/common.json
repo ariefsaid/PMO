@@ -1656,13 +1656,8 @@
       "attachAria": "Pilih berkas bukti",
       "attached": "Bukti terlampir",
       "download": "Unduh {{name}}",
-      "downloadOriginal": "Unduh berkas asli",
       "empty": "Belum ada bukti terlampir.",
       "preview": "Pratinjau bukti",
-      "previewError": "Berkas ini tidak dapat dipratinjau.",
-      "previewLoading": "Memuat bukti…",
-      "unsupported": "Pratinjau tidak tersedia untuk jenis berkas ini.",
-      "close": "Tutup",
       "error": "Gagal memuat bukti.",
       "loading": "Memuat bukti…",
       "remove": "Hapus {{name}}",
@@ -3323,7 +3318,8 @@
       "themeDark": "Gelap",
       "themeHeading": "Tema",
       "themeLight": "Terang",
-      "viewAsRoleHeading": "Lihat sebagai role"
+      "viewAsRoleHeading": "Lihat sebagai role",
+      "feedback": "Masukan"
     },
     "drawer": {
       "close": "Tutup menu navigasi",
@@ -3352,7 +3348,8 @@
       "profileSettings": "Profil & preferensi",
       "expenses": "Biaya",
       "financialStatements": "Laporan keuangan",
-      "managementPack": "Laporan"
+      "managementPack": "Laporan",
+      "stock": "Stok"
     },
     "notifications": {
       "empty": "Belum ada notifikasi.",
@@ -3671,6 +3668,10 @@
         "badRequest": "Permintaan tidak valid. Silakan coba lagi.",
         "graphError": "Microsoft Graph sedang tidak tersedia. Silakan coba lagi sebentar lagi.",
         "internalError": "Terjadi kesalahan di sisi kami. Silakan coba lagi.",
+        "sourceAccessDenied": "Anda tidak memiliki akses ke berkas ini di Microsoft 365. Minta pemiliknya membagikannya kepada Anda.",
+        "sourceNotFound": "Berkas ini tidak ditemukan di Microsoft 365. Mungkin sudah dipindahkan atau dihapus.",
+        "previewUnsupported": "Jenis berkas ini tidak dapat dipratinjau di sini. Buka di Microsoft 365.",
+        "recordFolderUnavailable": "Folder Microsoft 365 untuk catatan ini tidak tersedia. Periksa tautan folder, lalu coba lagi.",
         "disconnectFailureHeadline": "Kami tidak dapat memastikan pemutusan koneksi. Status koneksi terakhir yang terkonfirmasi masih terhubung.",
         "disconnectFailureGuidance": "Anda dapat mencoba lagi atau membatalkan.",
         "statusFallback": "Kami tidak dapat mengonfirmasi status koneksi Microsoft 365 Anda. Muat ulang halaman untuk mencoba lagi.",

@@ -6,6 +6,7 @@ import { MemoryRouter, useLocation, useNavigate } from 'react-router';
 import React from 'react';
 import type { Role } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components/ui';
+import { DocumentViewerProvider } from '@/src/components/documents';
 import { AppError } from '@/src/lib/appError';
 
 // ── Repository-seam-backed hooks are mocked; the tab is the unit under test. ──
@@ -49,6 +50,12 @@ const { listState, childDocs, mutations, fileUploadState, revisionState, reposit
     isError: false,
     refetch: vi.fn(),
   },
+}));
+
+const destinationState = vi.hoisted(() => ({ value: { kind: 'private' } as { kind: 'private' | 'microsoft' | 'unknown' } }));
+vi.mock('@/src/hooks/useUploadDestination', async (orig) => ({
+  ...(await orig<typeof import('@/src/hooks/useUploadDestination')>()),
+  useUploadDestination: () => destinationState.value,
 }));
 
 vi.mock('@/src/hooks/useDocuments', () => ({
@@ -165,13 +172,14 @@ const renderTab = (role: Role = 'Admin', uid = 'admin-1', initialEntry = '/', sh
       <MemoryRouter initialEntries={[initialEntry]}>
         <RouteSearch />
         {showBack && <RouteBack />}
-        <DocumentsTab projectId="p1" onCountChange={onCountChange} />
+        <DocumentViewerProvider><DocumentsTab projectId="p1" onCountChange={onCountChange} /></DocumentViewerProvider>
       </MemoryRouter>
     </ToastProvider></QueryClientProvider>,
   );
 };
 
 beforeEach(() => {
+  destinationState.value = { kind: 'private' };
   listState.data = seed;
   listState.isPending = false;
   listState.isError = false;
@@ -449,6 +457,8 @@ describe('DocumentsTab — RBAC affordance gating (AC-DOC-007)', () => {
   it('AC-DOC-007: Engineer is read-only — no Add, edit, delete, or money columns', async () => {
     renderTab('Engineer', 'eng-1');
     expect(screen.queryByRole('button', { name: /Add document/i })).not.toBeInTheDocument();
+    // D13: the deferred upload is signposted by copy, never by a dead disabled "Attach file" button.
+    expect(screen.queryByRole('button', { name: /attach file/i })).not.toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: /Row actions/i }).length).toBeGreaterThan(0);
     expect(screen.queryByRole('columnheader', { name: /Budget|Cost|Value/i })).not.toBeInTheDocument();
     await userEvent.click(within(screen.getByText('Site Plan').closest('tr')!).getByRole('button', { name: /Row actions/i }));
@@ -763,6 +773,21 @@ describe('DocumentsTab — file upload integration (AC-DOC-050 / AC-DOC-080 / AC
     expect(within(preview).getByRole('button', { name: /Upload file for Site Plan/i })).toBeInTheDocument();
   });
 
+  it('AC-DOC-090 AC-DOC-091: a disallowed file type shows the type error, starts no upload, and Remove restores the no-file state', async () => {
+    const user = userEvent.setup({ applyAccept: false });
+    renderTab('Project Manager', 'pm-1');
+    const fileInput = screen.getByTestId('file-input') as HTMLInputElement;
+    await user.click(screen.getByRole('button', { name: 'View Site Plan' }));
+    const preview = screen.getByRole('complementary');
+    await user.click(within(preview).getByRole('button', { name: /Upload file for Site Plan/i }));
+    await user.upload(fileInput, new File(['PK'], 'not-allowed.zip', { type: 'application/zip' }));
+    expect(within(preview).getByRole('alert')).toHaveTextContent('File type not allowed (.zip)');
+    expect(fileUploadState.upload.mutate).not.toHaveBeenCalled();
+    await user.click(within(preview).getByRole('button', { name: /Remove failed upload for Site Plan/i }));
+    expect(within(preview).queryByRole('alert')).not.toBeInTheDocument();
+    expect(within(preview).getByRole('button', { name: /Upload file for Site Plan/i })).toBeInTheDocument();
+  });
+
   it('AC-DOC-020: selecting a valid file from Upload dispatches the upload mutation', async () => {
     renderTab('Admin', 'admin-1');
     const fileInput = screen.getByTestId('file-input') as HTMLInputElement;
@@ -771,7 +796,38 @@ describe('DocumentsTab — file upload integration (AC-DOC-050 / AC-DOC-080 / AC
     await userEvent.click(screen.getByRole('button', { name: 'View Site Plan' }));
     await userEvent.click(within(screen.getByRole('complementary')).getByRole('button', { name: /Upload file for Site Plan/i }));
     await userEvent.upload(fileInput, file);
-    expect(fileUploadState.upload.mutate).toHaveBeenCalledWith({ docId: 'd1', file });
+    expect(fileUploadState.upload.mutate).toHaveBeenCalledWith({ docId: 'd1', file, destination: 'private', oldPath: null });
+  });
+
+  it('document-preview AC-009: a connected organisation sends the upload to SharePoint; the replace carries the old private path', async () => {
+    destinationState.value = { kind: 'microsoft' };
+    listState.data = seed.map((doc) => doc.id === 'd1' ? { ...doc, file_path: 'org-1/p1/d1/site-plan.pdf' } : doc);
+    renderTab('Admin', 'admin-1');
+    const file = new File(['x'], 'drawing.pdf', { type: 'application/pdf' });
+    await userEvent.click(screen.getByRole('button', { name: 'View Site Plan' }));
+    await userEvent.click(within(screen.getByRole('complementary')).getByRole('button', { name: /Replace file for Site Plan/i }));
+    await userEvent.upload(screen.getByTestId('file-input') as HTMLInputElement, file);
+    expect(fileUploadState.replace.mutate).toHaveBeenCalledWith({ docId: 'd1', file, destination: 'microsoft', oldPath: 'org-1/p1/d1/site-plan.pdf' });
+  });
+
+  it('document-preview AC-008: while the destination is unknown no Upload or Replace is offered', async () => {
+    destinationState.value = { kind: 'unknown' };
+    renderTab('Admin', 'admin-1');
+    await userEvent.click(screen.getByRole('button', { name: 'View Site Plan' }));
+    expect(within(screen.getByRole('complementary')).queryByRole('button', { name: /Upload file for Site Plan|Replace file for Site Plan/i })).toBeNull();
+  });
+
+  it('document-preview AC-008: a destination that turns unknown while the chooser is open never uploads privately', async () => {
+    renderTab('Admin', 'admin-1');
+    const fileInput = screen.getByTestId('file-input') as HTMLInputElement;
+    const file = new File(['x'], 'drawing.pdf', { type: 'application/pdf' });
+    await userEvent.click(screen.getByRole('button', { name: 'View Site Plan' }));
+    await userEvent.click(within(screen.getByRole('complementary')).getByRole('button', { name: /Upload file for Site Plan/i }));
+    destinationState.value = { kind: 'unknown' }; // the settings read failed while the OS chooser was open
+    await userEvent.click(screen.getByRole('button', { name: 'Close preview' })); // any re-render picks up the new destination
+    await userEvent.upload(fileInput, file);
+    expect(fileUploadState.upload.mutate).not.toHaveBeenCalled();
+    expect(fileUploadState.replace.mutate).not.toHaveBeenCalled();
   });
 
   it('AC-DOC-021: selecting a valid file from Replace dispatches the replace mutation', async () => {
@@ -783,7 +839,7 @@ describe('DocumentsTab — file upload integration (AC-DOC-050 / AC-DOC-080 / AC
     await userEvent.click(screen.getByRole('button', { name: 'View Site Plan' }));
     await userEvent.click(within(screen.getByRole('complementary')).getByRole('button', { name: /Replace file for Site Plan/i }));
     await userEvent.upload(fileInput, file);
-    expect(fileUploadState.replace.mutate).toHaveBeenCalledWith({ docId: 'd1', file });
+    expect(fileUploadState.replace.mutate).toHaveBeenCalledWith({ docId: 'd1', file, destination: 'private', oldPath: 'org-1/p1/d1/site-plan.pdf' });
   });
 
   it('AC-DOC-040: download affordances generate a signed URL in the preview', async () => {
@@ -803,13 +859,14 @@ describe('DocumentsTab — file upload integration (AC-DOC-050 / AC-DOC-080 / AC
     expect(repositoryState.document.getSignedUrl).toHaveBeenCalledWith('org-1/p1/d5/structural-calc-rev-a.pdf', { download: true });
   });
 
-  it('AC-DOC-041: preview affordances open the signed URL in a new tab', async () => {
+  it('AC-DOC-041: preview affordances open the side-panel viewer with a fresh signed URL (document-preview AC-001)', async () => {
     const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
     renderTab('Admin', 'admin-1');
     await userEvent.click(screen.getByRole('button', { name: 'View Survey Report' }));
     await userEvent.click(within(screen.getByRole('complementary')).getByRole('button', { name: /Preview file for Survey Report/i }));
-    expect(repositoryState.document.getSignedUrl).toHaveBeenCalledWith('org-1/p1/d3/survey-report-rev-a.pdf');
-    expect(openSpy).toHaveBeenCalledWith('https://signed.example.com/file', '_blank', 'noopener,noreferrer');
+    expect(await screen.findByRole('dialog', { name: 'Survey Report' })).toBeInTheDocument();
+    expect(repositoryState.document.getSignedUrl).toHaveBeenCalledWith('org-1/p1/d3/survey-report-rev-a.pdf', undefined);
+    expect(openSpy).not.toHaveBeenCalled();
   });
 
   it('AC-DOC-083: preview file actions are available after opening a document', async () => {

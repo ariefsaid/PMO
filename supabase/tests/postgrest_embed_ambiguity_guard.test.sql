@@ -102,7 +102,34 @@ select set_eq(
             ('vendor_withholding_slips -> profiles'),
             -- 0364 (#1319 AC-13): erp_purchase_document_marks carries set_aside_by and updated_by -> profiles.
             -- No DAL code embeds profiles from it; whatever ships first MUST qualify it with !constraint_name.
-            ('erp_purchase_document_marks -> profiles') $$,
+            ('erp_purchase_document_marks -> profiles'),
+            -- 0409 (#1474): the seven purchase attachment tables gained ms_linked_by -> profiles beside
+            -- their existing uploaded_by_id. CHECKED BEFORE ADDING: no DAL, repository, edge-function or
+            -- e2e code embeds profiles from any of them (procurementFiles.ts reads select('*'); the
+            -- procurementLifecycle.ts file sub-selects list scalar columns only), so nothing broke.
+            -- Whatever ships first MUST qualify it with !constraint_name.
+            ('procurement_receipt_files -> profiles'),
+            ('rfq_files -> profiles'),
+            ('procurement_quotation_files -> profiles'),
+            ('purchase_request_files -> profiles'),
+            ('purchase_order_files -> profiles'),
+            ('payment_files -> profiles'),
+            ('procurement_invoice_files -> profiles'),
+            -- 0413 (#1512 S2a): stock_documents carries created_by, posted_by and cancelled_by -> profiles and
+            -- warehouse_id + to_warehouse_id -> stock_warehouses; stock_ledger carries line_id + source_line_id ->
+            -- stock_document_lines. CHECKED BEFORE ADDING: no DAL code reads these tables yet (S3 ships it); whatever
+            -- ships first MUST qualify each embed with !constraint_name.
+            ('stock_documents -> profiles'),
+            ('stock_documents -> stock_warehouses'),
+            ('stock_ledger -> stock_document_lines'),
+            -- 0422 (#1515 S1): imprest_floats, imprest_replenishments, imprest_plans and imprest_float_changes each
+            -- carry custodian/author/decider person columns -> profiles. The custodian FK stays (integrity). CHECKED
+            -- BEFORE ADDING: no DAL, repository or edge-function code reads these tables (only database.types.ts
+            -- mentions them); whatever ships first MUST qualify each profiles embed with !constraint_name.
+            ('imprest_floats -> profiles'),
+            ('imprest_replenishments -> profiles'),
+            ('imprest_plans -> profiles'),
+            ('imprest_float_changes -> profiles') $$,
   'AC-EMBED-001 the set of multi-FK table pairs is EXACTLY the known set — a new pair here means '
   'every unqualified PostgREST embed of that target is now a runtime error (0177 shipped one, and '
   'it took 19 e2e specs down). Before updating this list: grep the DAL for embeds of the target '

@@ -10,11 +10,9 @@ import { login } from '../helpers';
  *   AC-AU-003  edit a user's role → the high-impact confirm appears → the role pill updates
  *   AC-AU-004  assign a user's manager → the manager column updates
  *
- * Plus separate gate assertions:
- *   AC-AU-002a Executive sees a READ-ONLY directory (no "New user", no row actions)
- *   AC-AU-002b a non-admin/non-exec role (Engineer) reaching the route sees an Admin-only gate
+ * (AC-AU-002a Executive read-only and AC-AU-002b Engineer gate live in AdminUsers.test.tsx and AdministrationShell.test.tsx.)
  *
- * Roles: admin@acme.test (full management), exec@acme.test (read-only), engineer@acme.test (gate).
+ * Roles: admin@acme.test (full management).
  * Seed (supabase/seed.sql): Erin Adebayo (Admin) / Mara Lindqvist (Exec) / Diego Salvatierra (PM) /
  *   Priya Ramanathan (Finance) / Tomas Beck (Engineer); Tomas→Diego manager chain. The journey
  *   edits Tomas (Engineer) so it never collides with another slice's fixtures, and restores BOTH
@@ -132,47 +130,5 @@ test(
     await mgrRestoreDialog.getByRole('button', { name: /save manager/i }).click();
     await expect(mgrRestoreDialog).not.toBeVisible({ timeout: 15_000 });
     await expect(userRow(page, engineerEmail).getByText(seedManager)).toBeVisible({ timeout: 15_000 });
-  },
-);
-
-// ── AC-AU-002a — Executive read-only directory ──
-
-test(
-  'AC-AU-002a gating: an Executive sees a read-only user directory — no invite CTA, no row actions',
-  async ({ page }) => {
-    await login(page, 'exec@acme.test');
-    await page.goto('/administration');
-    await waitReady(page);
-
-    // Exec CAN see the directory…
-    await expect(userRow(page, 'admin@acme.test')).toBeVisible({ timeout: 10_000 });
-    // …but the management chrome is absent (not merely disabled). The "Invite user" invite affordance
-    // (FR-INV-004) is Admin/Operator-only — an Executive never sees it.
-    await expect(page.getByRole('button', { name: /invite user/i })).not.toBeVisible();
-    await expect(page.getByRole('button', { name: /row actions/i })).not.toBeVisible();
-    // and the directory's read-only explanation is shown. Matched on its full sentence: since #548
-    // the org tax-default card on this page carries its own "Only an Admin can change this." note,
-    // and a loose /only an Admin can/ resolved to both (strict-mode violation at the 2026-09-02
-    // promote, #599). A locator that can resolve to N elements is not an oracle.
-    await expect(
-      page.getByText(/only an Admin can add, edit, or disable users/i),
-    ).toBeVisible();
-  },
-);
-
-// ── AC-AU-002b — non-admin/non-exec is gated out of the surface ──
-
-test(
-  'AC-AU-002b gating: an Engineer reaching /administration sees an Admin-only gate, not the directory',
-  async ({ page }) => {
-    await login(page, 'engineer@acme.test');
-    await page.goto('/administration');
-
-    // GOAL ORACLE: an Admin-only gate is shown and the directory rows are NOT rendered.
-    // Copy since #676: "Administration is an Admin, Executive, or platform Operator area."
-    await expect(
-      page.getByText(/Administration is an Admin, Executive, or platform Operator area/i),
-    ).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByRole('button', { name: /invite user/i })).not.toBeVisible();
   },
 );

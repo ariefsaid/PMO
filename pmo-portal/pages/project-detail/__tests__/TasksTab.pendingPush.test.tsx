@@ -143,6 +143,41 @@ describe('TasksTab — pending-push badge (AC-CUA-060)', () => {
     );
   });
 
+  it('AC-CUA-090: a board status change on a flipped task is dispatched once, walks pushing → pushed, and still reads Done after a reload', async () => {
+    setTaskOwnership([{ domain: 'tasks', externalTier: 'clickup' }]);
+    setProjectBindings([{ projectId: 'p1', externalTier: 'clickup' }]);
+    const first = renderTab();
+    await switchToBoard();
+
+    let resolveUpdate!: (v: unknown) => void;
+    taskRepo.updateStatus.mockImplementation(async (id: string, status: string) => {
+      taskState.current = taskState.current.map((t) => (t.id === id ? { ...t, status } : t));
+      return new Promise((r) => {
+        resolveUpdate = r;
+      });
+    });
+    await userEvent.selectOptions(screen.getByLabelText(/status for survey the site/i), 'Done');
+    await waitFor(() => expect(screen.getByRole('status', { name: /pushing/i })).toBeInTheDocument());
+    // Exactly one dispatch through the repository seam (which routes a flipped task to adapter-dispatch,
+    // never to a direct tasks write: AC-CUA-001 in task.external.test.ts).
+    expect(taskRepo.updateStatus).toHaveBeenCalledTimes(1);
+    expect(taskRepo.updateStatus).toHaveBeenCalledWith('t1', 'Done', 'p1');
+    resolveUpdate({ id: 't1', status: 'Done' });
+    await waitFor(() => expect(screen.getByRole('status', { name: /pushed/i })).toBeInTheDocument());
+    await waitFor(() =>
+      expect((screen.getByLabelText(/status for survey the site/i) as HTMLSelectElement).value).toBe('Done'),
+    );
+    expect(taskRepo.create).not.toHaveBeenCalled();
+    expect(taskRepo.update).not.toHaveBeenCalled();
+    expect(taskRepo.delete).not.toHaveBeenCalled();
+
+    // Reload: a fresh mount reads the persisted read model and shows the mirrored status.
+    first.unmount();
+    renderTab();
+    await switchToBoard();
+    expect((await screen.findByLabelText(/status for survey the site/i) as HTMLSelectElement).value).toBe('Done');
+  });
+
   it('AC-CUA-060: a rejected dispatch shows push-failed and the card reverts to the prior status', async () => {
     setTaskOwnership([{ domain: 'tasks', externalTier: 'clickup' }]);
     setProjectBindings([{ projectId: 'p1', externalTier: 'clickup' }]);

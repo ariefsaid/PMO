@@ -1,4 +1,4 @@
-import { parseISO } from 'date-fns';
+import { parseISO } from 'date-fns/parseISO';
 import type { MilestoneWithProgress } from '@/src/lib/db/milestones';
 import { formatUtcDayMonthYear } from '../format';
 

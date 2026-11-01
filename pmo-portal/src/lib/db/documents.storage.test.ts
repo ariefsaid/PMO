@@ -300,4 +300,10 @@ describe('documents DAL — storage operations', () => {
     expect(h.storageCalls.createSignedUrl).toContainEqual(['org-1/proj-1/doc-1/file.pdf', 3600]);
     expect(result).toBe('https://example.com/signed');
   });
+
+  it('document-preview AC-005 (DAL): a shorter expiry is honoured for the public Office viewer', async () => {
+    h.storageResult.value = { data: { signedUrl: 'https://example.com/signed' }, error: null };
+    await getSignedDownloadUrl('org-1/proj-1/doc-1/file.docx', { expiresIn: 300 });
+    expect(h.storageCalls.createSignedUrl).toContainEqual(['org-1/proj-1/doc-1/file.docx', 300]);
+  });
 });

@@ -5,6 +5,7 @@ import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { vendorChunkFor } from './src/lib/build/vendorChunk';
+import { isDeployBuild } from '../scripts/sourcemapPolicy.mjs';
 
 // ADR-0042 §4: inline the product version + the deployed commit sha at build
 // time so a running instance always reports its exact `vX.Y.Z · <sha>`.
@@ -58,6 +59,47 @@ const NODE_LOGIC_INCLUDE = [
   // P3b task 6.4: `timesheetBackstop.test.ts` is the exact sibling of the entry above — same reason,
   // same shape (a Deno- AND Vitest-importable pure-orchestration module beside its Deno-native tests).
   '../supabase/functions/erpnext-sweep/timesheetBackstop.test.ts',
+  // ── unit-speed (#1584 scope 4, profiled 2026-10-31): pure-logic suites that lived on the
+  // jsdom project but never touch the DOM. jsdom environment load measured ~460-680 ms/file
+  // (612 s summed across the suite); these 70 files run under `node` after proving green
+  // there (606 tests incl. `CardHead.children.scan`, which stayed on jsdom for its docblock).
+  // Every entry was screened for DOM/RTL/axe/storage usage and then run under
+  // `environment: 'node'` before moving. New pure-logic suites outside `src/lib` should be
+  // added here; anything DOM-adjacent stays on the jsdom project below.
+  'src/auth/*.test.ts',
+  'src/auth/__tests__/policy.meeting.test.ts',
+  'src/components/dashboard/restructure/*.test.ts',
+  'src/components/dashboard/procurementStatusTone.test.ts',
+  'src/components/dashboard/hub/pm/__tests__/metrics.atRisk.test.ts',
+  'src/components/shell/__tests__/*.test.ts',
+  'src/components/history/__tests__/historyLabels.test.ts',
+  'src/components/history/__tests__/historyPresentation.test.ts',
+  'src/components/integrations/erpSetupIncompleteness.test.ts',
+  'src/components/integrations/integrationLabels.test.ts',
+  'src/components/meetings/lazyChunk.test.ts',
+  'src/components/meetings/minutesCopy.test.ts',
+  'src/components/meetings/minutesDictionary.test.ts',
+  'src/components/meetings/minutesSchema.test.ts',
+  'src/components/meetings/minutesSlashMenu.test.ts',
+  'src/components/meetings/minutesTailwind.css.test.ts',
+  'src/components/timesheets/employeeChoiceLabels.test.ts',
+  'src/components/ui/__tests__/DataTable.tableIds.test.ts',
+  'src/components/ui/__tests__/checkboxBorderContrast.test.ts',
+  'src/components/ui/__tests__/destructiveTintContrast.test.ts',
+  'components/*.test.ts',
+  'components/__tests__/*.test.ts',
+  'pages/__tests__/AdminUsers.avatarContrast.test.ts',
+  'pages/__tests__/drawer-guard.test.ts',
+  'pages/admin/costAttributionDraft.test.ts',
+  'pages/budget-projection/forecastInterpretation.test.ts',
+  'pages/finance/payablesPosition.test.ts',
+  'pages/procurement/*.test.ts',
+  'pages/procurement/blocks/__tests__/*.test.ts',
+  'pages/procurement/list/model.test.ts',
+  'pages/sales-pipeline/__tests__/*.test.ts',
+  'pages/project-detail/budget/__tests__/budgetModel.test.ts',
+  'test/securityHeaders.test.ts',
+  'test/smoke.test.ts',
 ];
 
 const sharedTestOptions = {
@@ -122,6 +164,8 @@ export default defineConfig({
     },
   },
   build: {
+    // AC-PHO-011: 'hidden' writes maps without the sourceMappingURL comment; postbuild uploads then deletes them.
+    sourcemap: isDeployBuild(process.env) ? 'hidden' : false,
     rollupOptions: {
       output: {
         // Vite 8 (rolldown) only accepts the function form of manualChunks.

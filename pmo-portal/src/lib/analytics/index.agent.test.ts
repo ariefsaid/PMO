@@ -39,7 +39,7 @@ describe('agent analytics wrappers — gating', () => {
     trackAgentApprovalShown('run-1');
     trackAgentApprovalDecided('run-1', 'approved');
     trackAgentThreadResumed('thread-1', 'run-1', 3);
-    trackAgentFeedbackRated('up', undefined);
+    trackAgentFeedbackRated('up', undefined, 'run-1');
     trackAgentComposeViewSaved('run-1');
     expect(mockCapture).not.toHaveBeenCalled();
   });

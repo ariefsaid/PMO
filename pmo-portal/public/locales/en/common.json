@@ -1656,13 +1656,8 @@
       "attachAria": "Choose a receipt file",
       "attached": "Receipt attached",
       "download": "Download {{name}}",
-      "downloadOriginal": "Download original",
       "empty": "No receipts attached.",
       "preview": "Preview receipt",
-      "previewError": "Couldn't preview this file.",
-      "previewLoading": "Loading receipt…",
-      "unsupported": "Preview is not available for this file type.",
-      "close": "Close",
       "error": "Couldn't load receipts.",
       "loading": "Loading receipts…",
       "remove": "Remove {{name}}",
@@ -3323,7 +3318,8 @@
       "themeDark": "Dark",
       "themeHeading": "Theme",
       "themeLight": "Light",
-      "viewAsRoleHeading": "View as role"
+      "viewAsRoleHeading": "View as role",
+      "feedback": "Feedback"
     },
     "drawer": {
       "close": "Close navigation menu",
@@ -3352,7 +3348,8 @@
       "profileSettings": "Profile & preferences",
       "expenses": "Expenses",
       "financialStatements": "Financial statements",
-      "managementPack": "Reports"
+      "managementPack": "Reports",
+      "stock": "Stock"
     },
     "notifications": {
       "empty": "No notifications yet.",
@@ -3671,6 +3668,10 @@
         "badRequest": "The request was invalid. Please try again.",
         "graphError": "Microsoft Graph is unavailable right now. Please try again shortly.",
         "internalError": "Something went wrong on our end. Please try again.",
+        "sourceAccessDenied": "You don't have access to this file in Microsoft 365. Ask its owner to share it with you.",
+        "sourceNotFound": "This file couldn't be found in Microsoft 365. It may have been moved or deleted.",
+        "previewUnsupported": "This file type can't be previewed here. Open it in Microsoft 365 instead.",
+        "recordFolderUnavailable": "This record's Microsoft 365 folder isn't available. Check the folder link, then try again.",
         "disconnectFailureHeadline": "We couldn't confirm the disconnect. The last confirmed status is still connected.",
         "disconnectFailureGuidance": "You can retry or cancel.",
         "statusFallback": "We couldn't confirm your Microsoft 365 connection status. Refresh the page to try again.",

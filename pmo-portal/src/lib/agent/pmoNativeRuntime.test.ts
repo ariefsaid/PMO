@@ -388,7 +388,7 @@ it('Blocker-5 AC-AW-adapter: on needs-approval, re-POST messages include assista
 
 // ── ADR-0045 §2 (Task Q7): control('answer') stashes AgentAnswer → re-POST carries answer ──
 
-it('AC-ATC-adapter: control(answer) stashes AgentAnswer; next subscribe re-POSTs with req.answer', async () => {
+it('AC-ATC-017 AC-AXP-013 adapter: control(answer) stashes AgentAnswer; next subscribe re-POSTs with req.answer', async () => {
   const questionEvent: AgentEvent = {
     id: 'q-evt-1',
     runId: 'r-q1',
@@ -434,8 +434,13 @@ it('AC-ATC-adapter: control(answer) stashes AgentAnswer; next subscribe re-POSTs
   }
 
   expect(fetchMock).toHaveBeenCalledTimes(2);
+  const firstCall = fetchMock.mock.calls[0] as [string, RequestInit];
+  const firstBody = JSON.parse(firstCall[1].body as string) as AgentChatRequest;
   const secondCall = fetchMock.mock.calls[1] as [string, RequestInit];
   const body = JSON.parse(secondCall[1].body as string) as AgentChatRequest;
+  expect(firstBody.runId).toBe(run.id);
+  expect(firstBody.answer).toBeUndefined();
+  expect(body.runId).toBe(firstBody.runId);
   expect(body.answer).toEqual({ questionId: 'q1', optionId: 'a' });
 
   expect(events2.some((e) => (e.payload as { status?: string })?.status === 'completed')).toBe(true);

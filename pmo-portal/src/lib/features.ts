@@ -66,6 +66,7 @@ export const FEATURE_KEYS = [
   'user_views',
   'revenue',
   'm365_integration',
+  'feedback_surveys',
 ] as const;
 export type OrgFeatureKey = (typeof FEATURE_KEYS)[number];
 
@@ -105,6 +106,7 @@ export const FEATURE_ENV_DEFAULT: Record<OrgFeatureKey, boolean> = {
   revenue: false,
   user_views: import.meta.env.VITE_FEATURES_USERVIEWS !== 'false', // ON BY DEFAULT (owner 2026-07-14)
   m365_integration: false,
+  feedback_surveys: true, // absence = on; an org Admin switches it off (admin_set_feedback_surveys, 0419)
 };
 
 /**
@@ -119,6 +121,7 @@ export const FEATURE_LABELS: Record<EntitleableKey, string> = {
   agent_assistant: 'Agent Assistant',
   user_views: 'User Views',
   m365_integration: 'Microsoft 365 integration',
+  feedback_surveys: 'Feedback and surveys',
   projects: 'Projects',
   dashboard: 'Dashboard',
   approvals: 'Approvals',

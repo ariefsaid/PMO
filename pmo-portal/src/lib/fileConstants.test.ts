@@ -4,7 +4,7 @@ import {
   MAX_FILE_SIZE_MB,
   ALLOWED_FILE_TYPES,
   SIGNED_URL_EXPIRY_SECONDS,
-  PREVIEWABLE_EXTENSIONS,
+  VIEWABLE_EXTENSIONS,
   FILE_MIME_BY_EXT,
 } from './fileConstants';
 
@@ -54,7 +54,7 @@ describe('fileConstants', () => {
     expect(SIGNED_URL_EXPIRY_SECONDS).toBe(3600);
   });
 
-  it('PREVIEWABLE_EXTENSIONS = pdf, png, jpg, jpeg, webp', () => {
-    expect(PREVIEWABLE_EXTENSIONS).toEqual(['.pdf', '.png', '.jpg', '.jpeg', '.webp']);
+  it('VIEWABLE_EXTENSIONS = images, pdf and Office files', () => {
+    expect(VIEWABLE_EXTENSIONS).toEqual(['.pdf', '.png', '.jpg', '.jpeg', '.webp', '.docx', '.xlsx', '.pptx', '.doc', '.xls', '.ppt']);
   });
 });

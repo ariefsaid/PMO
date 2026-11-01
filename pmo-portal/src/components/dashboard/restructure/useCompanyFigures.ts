@@ -6,6 +6,7 @@ import type { DashboardPeriod } from './usePeriod';
 import { periodDateRange } from './usePeriod';
 import { useDashboard, useSalesPipeline, useWinRate } from '@/src/hooks/useDashboard';
 import { useManagementPack } from '@/src/hooks/useManagementPack';
+import { selectInvoicedTrend, trendWindow, type InvoicedTrend } from '@/src/lib/dashboardTrend';
 import { useSalesInvoices, useIncomingPayments } from '@/src/hooks/useRevenue';
 import { useProcurements } from '@/src/hooks/useProcurements';
 import { useUnbilledWorkOrders } from '@/src/hooks/useWorkOrderBilling';
@@ -43,6 +44,11 @@ export interface CompanyFiguresResult {
   organizationToday: string | null;
   organizationDayPending: boolean;
   isEmpty: boolean;
+  /** #1597: the headline invoiced figure's monthly line; null = nothing invoiced yet. */
+  invoicedTrend: InvoicedTrend | null;
+  trendPending: boolean;
+  trendError: boolean;
+  trendRetry: () => void;
 }
 
 export function selectInvoicedTotals(pack: ManagementPack | undefined, from: string | null, to: string | null) {
@@ -153,6 +159,10 @@ export function useCompanyFigures(period: DashboardPeriod): CompanyFiguresResult
     from: period.from ? `${period.from}-01` : undefined,
     to: period.to ? `${period.to}-01` : undefined,
   });
+
+  const trendRange = trendWindow(orgDay.day);
+  const trendPack = useManagementPack(trendRange, Boolean(trendRange.to));
+  const invoicedTrend = useMemo(() => selectInvoicedTrend(trendPack.data, orgCurrency), [trendPack.data, orgCurrency]);
 
   const overdue = useMemo(() => selectOverdueInvoices(invoices.data, orgDay.day), [invoices.data, orgDay.day]);
   // L12: the supplier total reads linked accounting documents, the same amount as Payables and the record.
@@ -311,5 +321,9 @@ export function useCompanyFigures(period: DashboardPeriod): CompanyFiguresResult
     organizationToday: orgDay.day,
     organizationDayPending: orgDay.isPending,
     isEmpty,
+    invoicedTrend,
+    trendPending: Boolean(trendRange.to) && trendPack.isPending,
+    trendError: trendPack.isError,
+    trendRetry: () => { void trendPack.refetch(); },
   };
 }

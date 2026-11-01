@@ -33,6 +33,7 @@ export type GraphRoute = {
   respond: (call: FetchCall, path: string) => Response | Promise<Response>;
 };
 export const gget = (match: string | RegExp, respond: GraphRoute["respond"]): GraphRoute => ({ method: "GET", match, respond });
+export const gput = (match: string | RegExp, respond: GraphRoute["respond"]): GraphRoute => ({ method: "PUT", match, respond });
 export const gpost = (match: string | RegExp, respond: GraphRoute["respond"]): GraphRoute => ({ method: "POST", match, respond });
 
 export interface World {
@@ -42,6 +43,14 @@ export interface World {
   parentError?: unknown;
   /** Rows returned for the folder register read. */
   documents: unknown[] | ((call: FetchCall) => unknown[]);
+  /** Rows for any other caller-RLS table read (e.g. budget links, purchase file tables), keyed by table name. */
+  tables?: Record<string, unknown[] | ((call: FetchCall) => unknown[])>;
+  /** When true the project/procurement document reads never answer until the request is aborted. */
+  hangDocuments?: boolean;
+  /** `org_features.enabled` for the m365 entitlement (default true). */
+  entitled?: boolean;
+  /** `m365_membership_state.state` (default active). */
+  memberState?: "active" | "disabled" | "banned" | "missing";
   settings: unknown[] | { error: { code: string; message: string } };
   scopes: string[];
   connectionStatus: "active" | "stale" | "revoked";
@@ -128,10 +137,20 @@ function routesFor(world: World, connection: Record<string, unknown>): MockRoute
   });
   const rows = (data: unknown[]) => jsonResponse(data);
   const parentRows = async (call: FetchCall) => rows(typeof world.parent === "function" ? await world.parent(call) : world.parent);
-  const documentRows = (call: FetchCall) => rows(typeof world.documents === "function" ? world.documents(call) : world.documents);
+  const documentRows = (call: FetchCall) =>
+    world.hangDocuments
+      ? new Promise<Response>((_resolve, reject) => call.signal.addEventListener("abort", () => reject(new Error("aborted"))))
+      : rows(typeof world.documents === "function" ? world.documents(call) : world.documents);
+  const extraTables = Object.keys(world.tables ?? {}).map((name) =>
+    table(name, (call) => {
+      const source = world.tables![name]!;
+      return rows(typeof source === "function" ? source(call) : source);
+    })
+  );
   return [
-    { label: "membership", pathname: "/rest/v1/rpc/m365_membership_state", response: () => jsonResponse({ state: "active", org_id: ORG, role: world.role }) },
-    table("org_features", () => jsonResponse({ enabled: true }, OBJECT_HEADERS)),
+    ...extraTables,
+    { label: "membership", pathname: "/rest/v1/rpc/m365_membership_state", response: () => jsonResponse({ state: world.memberState ?? "active", org_id: ORG, role: world.role }) },
+    table("org_features", () => jsonResponse({ enabled: world.entitled ?? true }, OBJECT_HEADERS)),
     table("projects", (call) => world.parentError ? jsonResponse(world.parentError, { status: 500 }) : parentRows(call)),
     table("procurements", (call) => world.parentError ? jsonResponse(world.parentError, { status: 500 }) : parentRows(call)),
     table("project_documents", documentRows),

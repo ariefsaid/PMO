@@ -169,6 +169,38 @@ export async function linkMicrosoftDocument(
   assertWriteLanded(data, 'Document not found or you do not have permission to edit it.');
 }
 
+/**
+ * Attach a file already stored in SharePoint (by the custody upload) to a Draft document, replacing any
+ * private upload on the row in the SAME statement (`source: upload -> onedrive`, `file_path -> null`). One
+ * UPDATE, so a refused write leaves the previous attachment untouched; migration 0409's guard and the
+ * source check are the authority (Draft, author or Admin).
+ */
+export async function attachMicrosoftUpload(
+  id: string,
+  reference: MicrosoftReferenceInput,
+): Promise<void> {
+  try {
+    assertMicrosoftReference(reference);
+  } catch {
+    throw new AppError('Cannot attach this file.', '23514', 'm365-reference-invalid');
+  }
+  const { data, error } = await supabase
+    .from('project_documents')
+    .update({
+      source: 'onedrive',
+      file_path: null,
+      ms_drive_id: reference.drive_id,
+      ms_item_id: reference.item_id,
+      ms_web_url: reference.web_url,
+      ms_item_name: reference.name,
+      ms_item_kind: 'file',
+    })
+    .eq('id', id)
+    .select('id');
+  if (error) throwWrite(error);
+  assertWriteLanded(data, 'Document not found or you do not have permission to edit it.');
+}
+
 export async function unlinkMicrosoftDocument(id: string): Promise<void> {
   const { data, error } = await supabase
     .from('project_documents')
@@ -345,13 +377,13 @@ export async function cleanupStorageObject(filePath: string): Promise<void> {
  */
 export async function getSignedDownloadUrl(
   filePath: string,
-  opts?: { download?: boolean },
+  opts?: { download?: boolean; expiresIn?: number },
 ): Promise<string> {
   const { data, error } = await supabase.storage
     .from(BUCKET)
     .createSignedUrl(
       filePath,
-      SIGNED_URL_EXPIRY_SECONDS,
+      opts?.expiresIn ?? SIGNED_URL_EXPIRY_SECONDS,
       opts?.download ? { download: filePath.split('/').pop() || 'file' } : undefined,
     );
   if (error) throw toStorageAppError(error);

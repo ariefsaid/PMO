@@ -38,7 +38,6 @@ export {
   type ConfirmTone,
   type ConfirmSurface,
 } from './ConfirmDialog';
-export { ReceiptPreview, type ReceiptPreviewProps } from './ReceiptPreview';
 export { DecisionContextSummary, type DecisionContextSummaryProps } from './DecisionContextSummary';
 export { Drawer, type DrawerProps } from './Drawer';
 

@@ -42,6 +42,7 @@ function detailKeyFor(pathname: string, orgId: string | undefined, actorId: stri
     ['/meetings/', 'meeting'],
     ['/expenses/', 'expense-claim'],
     ['/views/', 'user_view'],
+    ['/stock/documents/', 'stock-document'],
   ];
   for (const [prefix, key] of routes) {
     if (!pathname.startsWith(prefix)) continue;
@@ -106,6 +107,7 @@ export function useCachedRecordLists(pathname: string): CachedRecordLists {
       meetings: one(meetings.data, at('/meetings/')),
       expenses: one(undefined, at('/expenses/')) as RecordLists['expenses'],
       userViews: one(userViews.data?.map((v) => ({ id: v.id, name: v.name })), at('/views/')),
+      stockDocuments: one(undefined, at('/stock/documents/')) as RecordLists['stockDocuments'],
     };
     const listSettled =
       (pathname.startsWith('/projects/') && projects.settled && pipeline.settled && lostDeals.settled) ||

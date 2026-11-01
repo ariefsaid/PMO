@@ -64,6 +64,15 @@ export const MODULES: ModuleDef[] = [
     // Projects: all roles (every role has the Projects nav item — rbac-visibility §B).
   },
   {
+    module: 'stock',
+    icon: 'grid',
+    label: 'Stock', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
+    labelKey: 'shell.nav.stock',
+    path: '/stock',
+    detail: { pattern: '/stock/documents/:documentId', param: 'documentId' },
+    // Mirror Rail: every role (quantities are visible to all active members; the Engineer is the interim storekeeper).
+  },
+  {
     module: 'timesheets',
     icon: 'clock',
     label: 'Timesheets', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
@@ -262,6 +271,8 @@ export const PLACEHOLDER_TITLES: Record<string, string> = {
   '/sales-invoices': 'Sales Invoices',
   '/incoming-payments': 'Incoming Payments',
   '/revenue-by-project': 'Revenue by Project',
+  // #1512: the Stock module's sub-pages that are not detail records.
+  '/stock/setup': 'Stock setup',
 };
 
 /**
@@ -271,6 +282,15 @@ export const PLACEHOLDER_TITLES: Record<string, string> = {
 export const RAIL_PARENT_FOR_PATH: Record<string, string> = {
   // FR-PFE-041: the org-wide list of ERPNext documents not yet in a purchase is part of Procurement.
   '/erp-purchases': '/procurement',
+  // #1512: Stock's sub-pages read [Stock > <page>] and keep the Stock rail item lit.
+  '/stock/documents': '/stock',
+  '/stock/ledger': '/stock',
+  '/stock/new/receive': '/stock',
+  '/stock/new/transfer': '/stock',
+  '/stock/new/issue': '/stock',
+  '/stock/new/return': '/stock',
+  '/stock/new/count': '/stock',
+  '/stock/new/adjustment': '/stock',
 };
 
 /** Finance record routes remain addressable while their list parent is the Receivables area. */
@@ -281,6 +301,14 @@ export function railParentForPath(pathname: string): string | undefined {
 
 const CHILD_PAGE_CRUMB: Record<string, { label: string; i18nKey: string }> = {
   '/erp-purchases': { label: 'ERPNext documents not in a purchase', i18nKey: 'finance:erpLinks.orphansTitle' }, // i18n-exempt: fallback label is replaced from i18nKey at render
+  '/stock/documents': { label: 'Documents', i18nKey: 'stock:tabs.documents' }, // i18n-exempt: fallback label is replaced from i18nKey at render
+  '/stock/ledger': { label: 'Ledger', i18nKey: 'stock:tabs.ledger' }, // i18n-exempt: fallback label is replaced from i18nKey at render
+  '/stock/new/receive': { label: 'Receive', i18nKey: 'stock:kinds.receive' }, // i18n-exempt: fallback label is replaced from i18nKey at render
+  '/stock/new/transfer': { label: 'Transfer', i18nKey: 'stock:kinds.transfer' }, // i18n-exempt: fallback label is replaced from i18nKey at render
+  '/stock/new/issue': { label: 'Issue to project', i18nKey: 'stock:kinds.issue' }, // i18n-exempt: fallback label is replaced from i18nKey at render
+  '/stock/new/return': { label: 'Return from project', i18nKey: 'stock:kinds.return' }, // i18n-exempt: fallback label is replaced from i18nKey at render
+  '/stock/new/count': { label: 'Stock count', i18nKey: 'stock:kinds.count' }, // i18n-exempt: fallback label is replaced from i18nKey at render
+  '/stock/new/adjustment': { label: 'Adjustment', i18nKey: 'stock:kinds.adjustment' }, // i18n-exempt: fallback label is replaced from i18nKey at render
 };
 
 /** Canonical Administration child routes and their route-derived breadcrumb labels (English source). */
@@ -426,6 +454,16 @@ export function breadcrumbForPath(
     ];
   }
 
+  if (/^\/master-data\/[^/]+$/.test(pathname)) {
+    // Reached from the Odoo card on Organization integrations, so the trail is its parent trail.
+    return [
+      { label: 'Administration', i18nKey: 'shell.nav.administration', href: '/administration/users', onClick: () => navigate?.('/administration/users') }, // i18n-exempt: translated from i18nKey by Breadcrumb
+      { label: ADMINISTRATION_SECTION_LABELS.integrations, i18nKey: ADMINISTRATION_SECTION_I18N_KEY.integrations, href: '/administration/integrations', onClick: () => navigate?.('/administration/integrations') },
+      { label: 'Odoo directories', // i18n-exempt: translated from i18nKey by Breadcrumb
+        i18nKey: 'administration:odoo.master.title' },
+    ];
+  }
+
   const childCrumb = CHILD_PAGE_CRUMB[pathname];
   const childParent = MODULES.find((m) => m.path === RAIL_PARENT_FOR_PATH[pathname]);
   if (childCrumb && childParent) {
@@ -456,6 +494,7 @@ export function breadcrumbForPath(
       '/incoming-payments': 'shell.nav.incomingPayments',
       '/revenue-by-project': 'shell.nav.revenueByProject',
       '/my-tasks': 'shell.nav.myTasks',
+      '/stock/setup': 'stock:setup.title',
     };
     const i18nKey = PLACEHOLDER_I18N_KEY[pathname];
     return i18nKey
@@ -578,6 +617,8 @@ export interface RecordLists {
   expenses?: { id: string; claim_number?: string | null; title?: string | null }[];
   /** I3: user views — the record "name" is view.name, resolved from the useUserViews() cache. */
   userViews?: { id: string; name: string }[];
+  /** #1512: stock documents resolve from the detail query cache; the label is the document number. */
+  stockDocuments?: { id: string; number: string }[];
 }
 
 /** Cached lists carrying a status (for stage-aware breadcrumb ancestry, Model B). */
@@ -699,6 +740,9 @@ export function recordLabelForPath(
   // I3: user views — resolve view name from the useUserViews() cache (FR-VR-082).
   const viewId = idFrom('/views');
   if (viewId) return lists.userViews?.find((v) => v.id === viewId)?.name;
+
+  const stockDocumentId = idFrom('/stock/documents');
+  if (stockDocumentId) return lists.stockDocuments?.find((d) => d.id === stockDocumentId)?.number;
 
   return undefined;
 }

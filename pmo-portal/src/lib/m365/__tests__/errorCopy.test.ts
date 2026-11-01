@@ -44,7 +44,7 @@ async function makeT(lng: 'en' | 'id', withCatalogue: boolean) {
 describe('AC-M365LOC-006: shared M365 error copy', () => {
   it('AC-M365LOC-006: the table covers exactly the wire codes the edge function emits', () => {
     const wire = wireCodes();
-    expect(wire.length).toBe(15);
+    expect(wire.length).toBe(19);
     expect([...M365_ERROR_CODES].sort()).toEqual([...wire].sort());
   });
 

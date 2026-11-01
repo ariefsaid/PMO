@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { clearOwnershipCache, setDomainOwnership } from '@/src/lib/adapterSeam/ownershipCache';
+import { clearOwnershipCache, setTaskOwnership } from '@/src/lib/adapterSeam/ownershipCache';
 const itemEligibility = vi.hoisted(() => ({ data: true, isPending: false, isError: false, isFetching: false, refetch: vi.fn() }));
 const recordPush = vi.hoisted(() => ({ status: 'idle' as string, error: null }));
 vi.mock('@/src/hooks/useDomainOwnershipMode', async () => await import('@/test/domainOwnershipMock'));
@@ -18,7 +18,7 @@ vi.mock('@/src/hooks/useOrgTaxDefault', async (orig) => {
   return { ...actual, useOrgTaxDefault: () => orgDefault.value };
 });
 
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within, cleanup } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router';
@@ -807,6 +807,42 @@ describe('Document trail renders PR/VQ/PO/GR/VI numbers (AC-816 data)', () => {
     expect(screen.getAllByText('Partial').length).toBeGreaterThanOrEqual(1);
   });
 
+  it('AC-PR-019 one page shows the stage tracker, history, both IDs per record, without navigating away', async () => {
+    mockEffectiveRole = 'Admin';
+    detailState.data = {
+      ...paidProcurement,
+      purchase_requests: [
+        { ...orderedProcurement.purchase_requests[0], pr_number: 'PR-2509100001', reference_number: 'REQ-2025-0142' },
+      ],
+      purchase_orders: [
+        { ...orderedProcurement.purchase_orders[0], po_number: 'PO-2509200001', reference_number: 'PO-SV-2509-0142' },
+      ],
+      statusEvents: [
+        { id: 'event-1', procurement_id: 'proc-001', from_status: 'Requested', to_status: 'Approved', actor_id: 'u-finance', notes: 'Within approved project budget', created_at: '2026-06-04T00:00:00Z', org_id: 'org-1', actor: { full_name: 'Finance User' } },
+      ],
+    };
+    renderPage();
+
+    expect(screen.getByTestId('procurement-stage-tracker')).toBeInTheDocument();
+    const timeline = screen.getByTestId('procurement-timeline');
+    expect(within(timeline).getAllByRole('listitem').length).toBeGreaterThan(0);
+
+    // The Files tab is reached through the tab bar (navigation is stubbed here, so land on it by URL).
+    await userEvent.click(screen.getByRole('tab', { name: /^Files/ }));
+    expect(navigate).toHaveBeenCalledWith(expect.stringContaining('/procurement/proc-001/files'), expect.anything());
+    cleanup();
+    renderPage('proc-001', 'files');
+    const ledger = await screen.findByTestId('procurement-ledger');
+    expect(within(ledger).getByText('System #')).toBeInTheDocument();
+    expect(within(ledger).getByText('External ref')).toBeInTheDocument();
+    expect(within(ledger).getAllByText('PR-2509100001').length).toBeGreaterThanOrEqual(1);
+    expect(within(ledger).getByText('REQ-2025-0142')).toBeInTheDocument();
+    expect(within(ledger).getAllByText('PO-2509200001').length).toBeGreaterThanOrEqual(1);
+    expect(within(ledger).getByText('PO-SV-2509-0142')).toBeInTheDocument();
+    // Still the same case page (the shell never left it).
+    expect(screen.getByTestId('record-header')).toBeInTheDocument();
+  });
+
   it('renders VI number and status from Paid procurement', () => {
     detailState.data = paidProcurement;
     renderPage();
@@ -1340,7 +1376,7 @@ describe('CRUD slice: line items, quotations, header-edit, documents (AC-PROC-00
   });
 
   it('keeps external item values read-only when the case has external evidence', async () => {
-    setDomainOwnership([{ domain: 'procurement', externalTier: 'erpnext' }]);
+    setTaskOwnership([{ domain: 'procurement', externalTier: 'erpnext' }]);
     itemEligibility.data = false;
     renderPage('proc-001', 'items');
     await userEvent.click(screen.getByRole('button', { name: /edit welding wire/i }));
@@ -1351,7 +1387,7 @@ describe('CRUD slice: line items, quotations, header-edit, documents (AC-PROC-00
   });
 
   it('keeps values read-only while a case command is being submitted', async () => {
-    setDomainOwnership([{ domain: 'procurement', externalTier: 'erpnext' }]);
+    setTaskOwnership([{ domain: 'procurement', externalTier: 'erpnext' }]);
     recordPush.status = 'pushing';
     renderPage('proc-001', 'items');
     await userEvent.click(screen.getByRole('button', { name: /edit welding wire/i }));
@@ -1509,6 +1545,7 @@ describe('UI-POLISH: procurement detail surface refinements', () => {
     const header = screen.getByTestId('record-header');
     await userEvent.click(within(header).getByRole('button', { name: /^Reject$/ }));
     const dialog = await screen.findByRole('alertdialog');
+    expect(within(dialog).getByRole('button', { name: /^Reject$/ })).toBeVisible();
     expect(mockTransition).not.toHaveBeenCalled();
     expect(screen.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Requested');
     await userEvent.click(within(dialog).getByRole('button', { name: /cancel/i }));

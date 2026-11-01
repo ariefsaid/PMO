@@ -172,7 +172,7 @@ const companiesWriter: ReadModelWriter = {
 };
 
 /** Round-7 B10 — the REQUIRED-link org guard for the procurement mirrors (the defence-in-depth half;
- *  `dispatchFactory.assertCommandLinksSameOrg` is the pre-flight that refuses before any ERP write).
+ *  `dispatchPreflight.assertCommandLinksSameOrg` is the pre-flight that refuses before any ERP write).
  *
  *  These writers run as SERVICE ROLE, so RLS does not protect them: they used to copy the command's
  *  `procurementId`/`vendorId`/`invoiceId` verbatim into an insert stamped with the CALLER's org_id,

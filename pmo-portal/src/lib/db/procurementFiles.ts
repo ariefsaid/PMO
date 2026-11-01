@@ -8,6 +8,7 @@ import {
   SIGNED_URL_EXPIRY_SECONDS,
 } from '@/src/lib/fileConstants';
 import type { Tables } from '@/src/lib/supabase/database.types';
+import { assertMicrosoftReference, type MicrosoftReferenceInput } from '@/src/lib/m365/reference';
 
 /**
  * Procurement attachments DAL — many files per procurement PHASE row (ADR-0023).
@@ -51,6 +52,10 @@ export interface ProcurementFileRow {
   archived_at: string | null;
   /** The owning parent id (quotation_id | receipt_id | invoice_id | …), normalized. */
   parent_id: string;
+  /** `onedrive` = a SharePoint-backed attachment (no `file_path`); null = a private-Storage upload (migration 0409). */
+  source?: 'upload' | 'onedrive' | null;
+  ms_web_url?: string | null;
+  ms_item_name?: string | null;
 }
 
 /** Phase → the parent FK column on its child table (used to normalize rows). */
@@ -155,6 +160,9 @@ function normalizeRow(phase: ProcPhase, row: Record<string, unknown>): Procureme
     created_at: row.created_at as string,
     archived_at: (row.archived_at as string | null) ?? null,
     parent_id: row[parentCol] as string,
+    source: (row.source as ProcurementFileRow['source']) ?? null,
+    ms_web_url: (row.ms_web_url as string | null) ?? null,
+    ms_item_name: (row.ms_item_name as string | null) ?? null,
   };
 }
 
@@ -348,6 +356,43 @@ export async function confirmUpload(
 }
 
 /**
+ * Record a file already stored in SharePoint (by the custody upload) as a phase attachment: the same
+ * insert as `confirmUpload` but `source: onedrive` with the Microsoft reference and no `file_path`
+ * (migration 0409). The table comes from `FILE_TABLE_BY_PHASE`, so there is no per-phase copy.
+ */
+export async function confirmMicrosoftUpload(
+  phase: ProcPhase,
+  parentId: string,
+  reference: MicrosoftReferenceInput,
+  title: string | null,
+  uploadedById: string | null,
+): Promise<ProcurementFileRow> {
+  try {
+    assertMicrosoftReference(reference);
+  } catch {
+    throw new AppError('Cannot attach this file.', '23514', 'm365-reference-invalid');
+  }
+  const row = {
+    [PARENT_COL_BY_PHASE[phase]]: parentId,
+    source: 'onedrive',
+    file_path: null,
+    ms_drive_id: reference.drive_id,
+    ms_item_id: reference.item_id,
+    ms_web_url: reference.web_url,
+    ms_item_name: reference.name,
+    title: nullable(title),
+    uploaded_by_id: uploadedById,
+  };
+  const { data, error } = await supabase
+    .from(FILE_TABLE_BY_PHASE[phase])
+    .insert(row as never)
+    .select()
+    .single();
+  if (error) throwWrite(error);
+  return normalizeRow(phase, data as Record<string, unknown>);
+}
+
+/**
  * Soft-archive a procurement file (FR-PF-005, ADR-0018) — sets archived_at = now() so the
  * row drops out of the default list. org_id is NEVER sent — RLS scopes the update.
  */
@@ -397,13 +442,13 @@ async function patchProcurementFile(
  */
 export async function getSignedDownloadUrl(
   filePath: string,
-  opts?: { download?: boolean },
+  opts?: { download?: boolean; expiresIn?: number },
 ): Promise<string> {
   const { data, error } = await supabase.storage
     .from(BUCKET)
     .createSignedUrl(
       filePath,
-      SIGNED_URL_EXPIRY_SECONDS,
+      opts?.expiresIn ?? SIGNED_URL_EXPIRY_SECONDS,
       opts?.download ? { download: filePath.split('/').pop() || 'file' } : undefined,
     );
   if (error) throwStorage(error);

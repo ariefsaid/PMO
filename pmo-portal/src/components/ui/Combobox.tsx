@@ -43,6 +43,21 @@ export interface ComboboxOption {
   color?: string;
 }
 
+/** Server-search mode: the caller owns the options (searched and paged on the server); Combobox keeps the keyboard, focus and ARIA model and skips its own load and filter. */
+export interface ComboboxServerSearch {
+  options: ComboboxOption[];
+  status: 'loading' | 'ready' | 'error';
+  /** Called with the typed text on every change (and '' on close); debounce in the caller. */
+  onQueryChange: (query: string) => void;
+  onOpenChange?: (open: boolean) => void;
+  onRetry: () => void;
+  hasMore?: boolean;
+  /** Next page; also fired by ArrowDown on the last option. */
+  onLoadMore?: () => void;
+  /** Label of the Show more button (translated by the caller's namespace). */
+  moreLabel?: string;
+}
+
 export interface ComboboxProps {
   label: React.ReactNode;
   /** Selected option value, or null. */
@@ -51,7 +66,8 @@ export interface ComboboxProps {
   selectedOption?: ComboboxOption | null;
   onChange: (value: string, option: ComboboxOption) => void;
   /** Async option loader (the DAL FK source). Re-invoked on retry. */
-  loadOptions: () => Promise<ComboboxOption[]>;
+  loadOptions?: () => Promise<ComboboxOption[]>;
+  serverSearch?: ComboboxServerSearch;
   placeholder?: string;
   required?: boolean;
   error?: React.ReactNode;
@@ -74,6 +90,8 @@ export interface ComboboxProps {
   /** Stable DOM id for form error-summary focus links. */
   id?: string;
   className?: string;
+  /** Size/fill the trigger like the shared form controls (SelectField/TextField). */
+  formControl?: boolean;
 }
 
 type LoadState = 'idle' | 'loading' | 'ready' | 'error';
@@ -84,6 +102,7 @@ export const Combobox: React.FC<ComboboxProps> = ({
   selectedOption,
   onChange,
   loadOptions,
+  serverSearch,
   placeholder = 'Select…',
   required,
   error,
@@ -97,6 +116,7 @@ export const Combobox: React.FC<ComboboxProps> = ({
   clearWhileDisabled,
   id,
   className,
+  formControl,
 }) => {
   const { t } = useTranslation();
   const baseId = useId();
@@ -106,8 +126,13 @@ export const Combobox: React.FC<ComboboxProps> = ({
 
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
-  const [state, setState] = useState<LoadState>('idle');
-  const [options, setOptions] = useState<ComboboxOption[]>([]);
+  const [localState, setState] = useState<LoadState>('idle');
+  const [localOptions, setOptions] = useState<ComboboxOption[]>([]);
+  const ss = serverSearch;
+  const ssRef = useRef(ss);
+  ssRef.current = ss;
+  const state: LoadState = ss ? ss.status : localState;
+  const options = ss ? ss.options : localOptions;
   // -1 = nothing highlighted yet; the first ArrowDown lands on index 0.
   const [active, setActive] = useState(-1);
   const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null);
@@ -142,13 +167,14 @@ export const Combobox: React.FC<ComboboxProps> = ({
 
   const filtered = useMemo(() => {
     const q = normalizeForSearch(query.trim());
-    if (!q) return options;
+    if (ss || !q) return options;
     return options.filter(
       (o) => normalizeForSearch(o.label).includes(q) || (o.sub && normalizeForSearch(o.sub).includes(q)),
     );
-  }, [options, query]);
+  }, [options, query, ss]);
 
   const load = useCallback(() => {
+    if (!loadOptions) return;
     const id = ++loadIdRef.current;
     setState('loading');
     loadOptions()
@@ -166,8 +192,8 @@ export const Combobox: React.FC<ComboboxProps> = ({
 
   // Load once per open (lazy — never fetches until the picker is opened).
   useEffect(() => {
-    if (open && state === 'idle') load();
-  }, [open, state, load]);
+    if (open && localState === 'idle') load();
+  }, [open, localState, load]);
 
   // Re-load when the option SOURCE changes while the picker is open (the async FK
   // source — e.g. useClientCompanies — may resolve to [] on the very first open
@@ -176,9 +202,12 @@ export const Combobox: React.FC<ComboboxProps> = ({
   // exactly when the underlying data source changed, not on unrelated re-renders.
   const loadRef = useRef(load);
   useEffect(() => {
-    if (open && state !== 'idle' && loadRef.current !== load) load();
+    if (open && localState !== 'idle' && loadRef.current !== load) load();
     loadRef.current = load;
-  }, [open, state, load]);
+  }, [open, localState, load]);
+
+  useEffect(() => { ssRef.current?.onOpenChange?.(open); }, [open]);
+  useEffect(() => { ssRef.current?.onQueryChange(query); }, [query]);
 
   // On close, invalidate any in-flight load so its late resolution is ignored,
   // and reset a still-loading state to idle so the next open re-fetches cleanly
@@ -255,6 +284,7 @@ export const Combobox: React.FC<ComboboxProps> = ({
   const onSearchKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'ArrowDown') {
       e.preventDefault();
+      if (ss?.hasMore && active >= filtered.length - 1) ss.onLoadMore?.();
       setActive((a) => Math.min(a + 1, filtered.length - 1));
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
@@ -289,8 +319,8 @@ export const Combobox: React.FC<ComboboxProps> = ({
     ) : null;
 
   return (
-    <div className={cn('flex flex-col gap-1.5', className)}>
-      <span id={labelId} className="text-[12px] font-semibold leading-[1.3] text-foreground">
+    <div className={cn('flex flex-col', formControl ? 'gap-2' : 'gap-1.5', className)}>
+      <span id={labelId} className={cn('font-semibold text-foreground', formControl ? 'text-control' : 'text-[12px] leading-[1.3]')}>
         {label}
         {required && (
           <span aria-hidden className="ml-0.5 text-destructive">
@@ -316,7 +346,10 @@ export const Combobox: React.FC<ComboboxProps> = ({
           disabled={disabled}
           onClick={() => !disabled && setOpen((o) => !o)}
           className={cn(
-            'flex h-8 w-full items-center gap-2 rounded-md border bg-background px-[10px] text-[13.5px] text-foreground',
+            'flex w-full items-center gap-2 rounded-md border text-foreground',
+            formControl
+              ? 'h-[var(--control-height)] bg-card px-3 text-control [@media(pointer:coarse)]:h-11'
+              : 'h-8 bg-background px-[10px] text-[13.5px]',
             'hover:border-primary/50 disabled:cursor-not-allowed disabled:bg-secondary disabled:text-muted-foreground',
             error ? 'border-destructive' : 'border-border hover:border-input',
           )}
@@ -394,7 +427,7 @@ export const Combobox: React.FC<ComboboxProps> = ({
                 {t('combobox.error.title', { defaultValue: "Couldn't load {{noun}}s.", noun })}
                 <button
                   type="button"
-                  onClick={() => load()}
+                  onClick={() => (ss ? ss.onRetry() : load())}
                   className="mt-2 inline-flex items-center gap-1.5 font-semibold text-primary"
                 >
                   <Icon name="refresh" className="size-[14px]" />
@@ -408,6 +441,7 @@ export const Combobox: React.FC<ComboboxProps> = ({
                 ref={listRef}
                 id={listId}
                 role="listbox"
+                tabIndex={-1}
                 aria-label={t('combobox.listLabel', { defaultValue: '{{noun}}s', noun })}
                 className="max-h-[220px] overflow-y-auto p-1.5"
               >
@@ -480,6 +514,12 @@ export const Combobox: React.FC<ComboboxProps> = ({
                   </li>
                 )}
               </ul>
+            )}
+
+            {state === 'ready' && ss?.hasMore && ss.onLoadMore && (
+              <button type="button" onClick={ss.onLoadMore} className="w-full border-t border-border px-3 py-2 text-[12.5px] font-semibold text-primary hover:bg-accent">
+                {ss.moreLabel ?? 'Show more'}
+              </button>
             )}
           </div>,
           document.body,

@@ -485,6 +485,42 @@ describe('TasksTab — status update (AC-TASK-005)', () => {
   });
 });
 
+describe('TasksTab — ClickUp round trip (AC-EAC-018)', () => {
+  it('AC-EAC-018: an edited task status is confirmed to the editor, and a ClickUp-side change shows up as the converged status after reload', async () => {
+    realRole = 'Admin';
+    const first = renderTab('Admin', 'admin-1');
+    await userEvent.click(screen.getByRole('button', { name: /status for survey the site/i }));
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: /status for survey the site/i }), 'In Progress');
+    await waitFor(() => expect(mutations.updateStatus.mutateAsync).toHaveBeenCalledWith({ id: 't1', status: 'In Progress' }));
+    expect(await screen.findByText('Status updated')).toBeInTheDocument();
+    first.unmount();
+
+    // The webhook has moved the task to Done on the PMO read model; a reload reads that.
+    listState.data = seed.map((task) => (task.id === 't1' ? { ...task, status: 'Done' } : task));
+    renderTab('Admin', 'admin-1');
+    await userEvent.click(screen.getByRole('button', { name: '1 done' }));
+    await userEvent.click(screen.getByRole('button', { name: /status for survey the site/i }));
+    expect(screen.getByRole('combobox', { name: /status for survey the site/i })).toHaveValue('Done');
+  });
+});
+
+describe('TasksTab — inbound ClickUp change (AC-CUA-091)', () => {
+  it('AC-CUA-091: a ClickUp-side status change applied to the read model shows on the board after a refresh', async () => {
+    const demolition = { ...seed[1], id: 't9', name: 'Demolition', status: 'Done', dependencies: [] };
+    listState.data = [demolition];
+    const first = renderTab('Admin', 'admin-1');
+    await userEvent.click(screen.getByRole('tab', { name: /^board$/i }));
+    expect(screen.getByRole('combobox', { name: 'Status for Demolition' })).toHaveValue('Done');
+    first.unmount();
+
+    // The signed webhook has been applied server-side: the read model now says In Progress.
+    listState.data = [{ ...demolition, status: 'In Progress' }];
+    renderTab('Admin', 'admin-1');
+    await userEvent.click(screen.getByRole('tab', { name: /^board$/i }));
+    expect(screen.getByRole('combobox', { name: 'Status for Demolition' })).toHaveValue('In Progress');
+  });
+});
+
 describe('TasksTab — Mine / All list scope', () => {
   it('defaults Engineers to Mine and lets them reveal All tasks', async () => {
     renderTab('Engineer', 'eng-1');

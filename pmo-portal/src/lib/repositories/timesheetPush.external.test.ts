@@ -22,7 +22,7 @@ vi.mock('@/src/lib/adapterSeam/dispatchClient', () => ({
 }));
 vi.mock('@/src/lib/adapterSeam/ownershipCache', () => ({
   clearOwnershipCache: vi.fn(),
-  setDomainOwnership: vi.fn(),
+  setTaskOwnership: vi.fn(),
   routeDomainWrite: vi.fn(),
 }));
 vi.mock('@/src/lib/db/timesheetPush', () => ({

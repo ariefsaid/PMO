@@ -113,11 +113,29 @@
 -- It checks active membership, org, requester/Admin authority and editable state;
 -- supabase/tests/procurement_header_requester.test.sql exercises its contract and ACL.
 --
--- ⚑ AMENDED BY 0408 (#1471): `set_sales_invoice_billing_kind` joins the retained set (+1, count 89). SECURITY
+-- ⚑ AMENDED BY 0419 (#1532 S9): `admin_set_feedback_surveys` joins the retained set (+1, count 89 on top of dev's 88,
+-- re-derived by hand). Active-Admin writer under a member's JWT; supabase/tests/0419_feedback_surveys_switch.test.sql proves it.
+-- Anonymous grants remain subject to the sweep even for retained names.
+--
+-- ⚑ AMENDED BY 0412 (#1512): `set_stock_warehouse_keeper` joins the retained set (+1, count 90 once both 0419 and 0412 are on dev). A SECURITY
+-- DEFINER writer (the keeper table has no client write grant); its body gates on active membership, org and
+-- Admin rank; supabase/tests/stock_master_data.test.sql proves the contract.
+--
+-- ⚑ AMENDED BY 0413 (#1512 S2a): `create_stock_document`, `save_stock_draft`, `post_stock_document` and
+-- `cancel_stock_document` join the retained set (+4, count 94 on dev's 90, re-derived by hand from the list). SECURITY DEFINER
+-- writers (documents, lines, ledger and balances have no client write grant); each gates on active membership and
+-- the JWT org, and posting on keeper-or-Admin; stock_posting_guards / stock_tenant_isolation prove the contract.
+--
+-- ⚑ AMENDED BY 0422 (#1515): five imprest writers join the retained set (+5, count 99). Each re-asserts org, active
+-- membership and role (or the plan author / route) in its body; proven by imprest_floats/imprest_plans pgTAP.
+--
+-- ⚑ AMENDED BY 0423 (#1515): two replenishment writers join (+2, count 101). transition_expense_claim and
+-- record_expense_advance_return were already retained. Proven by imprest_replenishment pgTAP.
+--
+-- ⚑ AMENDED BY 0408 (#1471): `set_sales_invoice_billing_kind` joins the retained set (+1, count 102 on dev's 101, re-derived by hand from the list). SECURITY
 -- DEFINER writer under a member's JWT; re-asserts active membership, Admin/Finance and the caller's org; paired with
 -- supabase/tests/billing_kinds_roles.test.sql (AC-007). `assign_sales_invoice_project` and
 -- `create_native_sales_invoice` changed signature only (proname unchanged).
--- Anonymous grants remain subject to the sweep even for retained names.
 --
 -- The budget import and procurement import-run commands retain authenticated access;
 -- their owning proofs are 0397_budget_import_protocol.test.sql and
@@ -161,6 +179,7 @@ insert into client_callable_rpc_names (proname) values
   ('attach_claim_evidence'),
   ('attest_timesheet_no_erp_document'),
   ('cancel_native_receipt'),
+  ('cancel_stock_document'),
   ('capture_vendor_invoice'),
   ('claim_sales_invoice_author'),
   ('clone_budget_version'),
@@ -170,6 +189,10 @@ insert into client_callable_rpc_names (proname) values
   ('create_payment'),
   ('create_procurement_invoice'),
   ('create_procurement_with_items'),
+  ('create_stock_document'),
+  ('decide_imprest_float_change'),
+  ('establish_imprest_float'),
+  ('propose_imprest_float_amount'),
   ('record_vendor_withholding_slip'),
   ('correct_vendor_withholding_slip'),
   ('void_vendor_withholding_slip'),
@@ -198,8 +221,10 @@ insert into client_callable_rpc_names (proname) values
   ('mark_erp_purchase_documents'),
   ('link_m365_documents_batch'),
   ('save_cost_attribution_rule'),
+  ('save_stock_draft'),
   ('end_cost_attribution_rule'),
   ('admin_change_domain_ownership'),
+  ('admin_set_feedback_surveys'),
   ('list_budget_fiscal_years'),
   ('operator_agent_run_stats'),
   ('operator_create_org'),
@@ -207,6 +232,7 @@ insert into client_callable_rpc_names (proname) values
   ('operator_set_domain_ownership'),
   ('operator_set_org_lifecycle_state'),
   ('operator_list_orgs'),
+  ('post_stock_document'),
   ('operator_toggle_feature'),
   ('operator_usage_summary'),
   ('org_agent_run_stats'),
@@ -217,6 +243,7 @@ insert into client_callable_rpc_names (proname) values
   ('recategorise_budget_lines'),
   ('release_credits'),
   ('release_outbox_hold'),
+  ('request_imprest_replenishment'),
   ('reserve_credits'),
   ('save_timesheet_week'),
   ('select_procurement_quote'),
@@ -226,12 +253,16 @@ insert into client_callable_rpc_names (proname) values
   ('set_sales_invoice_billing_kind'),
   ('set_sales_invoice_efaktur'),
   ('set_sales_invoice_received_date'),
+  ('set_stock_warehouse_keeper'),
+  ('set_imprest_procurement_limit'),
   ('set_vendor_tax_defaults'),
   ('set_work_order_value'),
   ('start_procurement_import_run'),
   ('submit_sales_invoice'),
   ('transition_document_status'),
   ('transition_expense_claim'),
+  ('transition_imprest_plan'),
+  ('transition_imprest_replenishment'),
   ('transition_native_sales_invoice'),
   ('transition_procurement'),
   ('transition_project'),
@@ -262,8 +293,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  89,
-  'AC-ACL-002 all 89 retained client-callable RPC names still have a public function');
+  102,
+  'AC-ACL-002 all 102 retained client-callable RPC names still have a public function');
 
 select is(
   (select count(*)::int
@@ -272,8 +303,8 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  89,
-  'AC-ACL-003 all 89 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  102,
+  'AC-ACL-003 all 102 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
 -- granted to both roles from being named twice. Retained names exempt authenticated grants only;

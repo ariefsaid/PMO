@@ -36,6 +36,11 @@ export const M365_ERROR_ENGLISH = {
   BAD_REQUEST: 'The request was invalid. Please try again.',
   GRAPH_ERROR: 'Microsoft Graph is unavailable right now. Please try again shortly.',
   INTERNAL_ERROR: 'Something went wrong on our end. Please try again.',
+  // Document preview and record-file upload (#1474).
+  SOURCE_ACCESS_DENIED: "You don't have access to this file in Microsoft 365. Ask its owner to share it with you.",
+  SOURCE_NOT_FOUND: "This file couldn't be found in Microsoft 365. It may have been moved or deleted.",
+  PREVIEW_UNSUPPORTED: "This file type can't be previewed here. Open it in Microsoft 365 instead.",
+  RECORD_FOLDER_UNAVAILABLE: "This record's Microsoft 365 folder isn't available. Check the folder link, then try again.",
 } as const;
 
 export type M365KnownCode = keyof typeof M365_ERROR_ENGLISH;
@@ -76,6 +81,14 @@ export function knownM365ErrorReason(t: TFunction, code: string | undefined): st
       return t('integrations.personalM365.errors.graphError', en.GRAPH_ERROR);
     case 'INTERNAL_ERROR':
       return t('integrations.personalM365.errors.internalError', en.INTERNAL_ERROR);
+    case 'SOURCE_ACCESS_DENIED':
+      return t('integrations.personalM365.errors.sourceAccessDenied', en.SOURCE_ACCESS_DENIED);
+    case 'SOURCE_NOT_FOUND':
+      return t('integrations.personalM365.errors.sourceNotFound', en.SOURCE_NOT_FOUND);
+    case 'PREVIEW_UNSUPPORTED':
+      return t('integrations.personalM365.errors.previewUnsupported', en.PREVIEW_UNSUPPORTED);
+    case 'RECORD_FOLDER_UNAVAILABLE':
+      return t('integrations.personalM365.errors.recordFolderUnavailable', en.RECORD_FOLDER_UNAVAILABLE);
     default:
       return null;
   }

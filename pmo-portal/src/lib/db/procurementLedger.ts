@@ -32,6 +32,14 @@ import { workflowVariant } from '@/src/lib/status/statusVariants';
 
 export type RecordType = 'PR' | 'RFQ' | 'Quote' | 'PO' | 'GR' | 'Invoice' | 'Payment';
 
+/** What the viewer needs to open the first attached file: its row id and, for a SharePoint-backed file, the reference. */
+export interface LedgerFileRef {
+  id: string;
+  source: 'upload' | 'onedrive' | null;
+  ms_web_url: string | null;
+  ms_item_name: string | null;
+}
+
 export interface LedgerRow {
   /** Unique ID for this row — `<type>-<recordId>` to avoid cross-type collisions. */
   id: string;
@@ -100,6 +108,8 @@ export interface LedgerRow {
    * 0 when no files are attached.
    */
   fileCount: number;
+  /** The first file row (id + SharePoint reference) so the viewer can address it. Absent when no file. */
+  fileRef?: LedgerFileRef;
   /**
    * true = this record type has a monetary commitment (PR / Quote / PO / Invoice / Payment).
    * false = process milestone without a direct financial value (RFQ / GR).
@@ -129,8 +139,12 @@ function isFinancial(type: RecordType): boolean {
 
 /** Minimal shape of the file rows embedded in the bundle. */
 interface EmbeddedFileRow {
+  id?: string;
   title?: string | null;
   file_path?: string | null;
+  source?: 'upload' | 'onedrive' | null;
+  ms_web_url?: string | null;
+  ms_item_name?: string | null;
   archived_at?: string | null;
 }
 
@@ -142,19 +156,24 @@ function fileBasename(path: string): string {
 
 /**
  * Derive file presence (href, title, count) from the embedded file rows.
- * Filters out archived rows (archived_at != null). Zero network calls.
+ * Filters out archived rows (archived_at != null). A SharePoint-backed row has no storage path, so it counts
+ * by its browser link and `fileHref` carries that link. Zero network calls.
  */
 function filePresence(files: EmbeddedFileRow[] | undefined): {
   fileHref: string | null;
   fileTitle: string | null;
   fileCount: number;
+  fileRef?: LedgerFileRef;
 } {
-  const active = (files ?? []).filter((f) => f.archived_at == null && f.file_path);
+  const active = (files ?? []).filter((f) => f.archived_at == null && (f.file_path || (f.source === 'onedrive' && f.ms_web_url)));
   if (active.length === 0) return { fileHref: null, fileTitle: null, fileCount: 0 };
   const first = active[0];
-  const path = first.file_path!;
-  const title = first.title ? first.title : fileBasename(path);
-  return { fileHref: path, fileTitle: title, fileCount: active.length };
+  const href = first.file_path ?? first.ms_web_url!;
+  const title = first.title || first.ms_item_name || fileBasename(href);
+  const fileRef = first.id
+    ? { id: first.id, source: first.source ?? null, ms_web_url: first.ms_web_url ?? null, ms_item_name: first.ms_item_name ?? null }
+    : undefined;
+  return { fileHref: href, fileTitle: title, fileCount: active.length, ...(fileRef ? { fileRef } : {}) };
 }
 
 /** Per-type optional row facts (a PR/PO carries only `groupRef`; a vendor invoice carries its tax basis too). */
@@ -188,7 +207,7 @@ function makeRow(
   const { groupRef, taxTreatment, taxRate, taxBaseNumerator, taxBaseDenominator, taxBaseUnknown, taxAmount, withheldAmount,
     efakturNumber, efakturDate, efakturLocked } = extra;
   const businessDate = date ?? createdAt;
-  const { fileHref, fileTitle, fileCount } = filePresence(files);
+  const { fileHref, fileTitle, fileCount, fileRef } = filePresence(files);
   return {
     id: `${type}-${recordId}`,
     date: businessDate,
@@ -202,6 +221,7 @@ function makeRow(
     fileHref,
     fileTitle,
     fileCount,
+    ...(fileRef ? { fileRef } : {}),
     financial: isFinancial(type),
     recordId,
     currency,

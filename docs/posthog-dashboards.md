@@ -44,3 +44,117 @@ PostHog UI and re-run.
 Upsert-by-name skips existing insights — it does **not** re-push an edited query onto an insight that
 already exists. That's the right trade for provisioning; edit-in-place would fight manual UI tweaks.
 Add a `--force` re-push flag only if the spec starts changing often.
+
+---
+
+# Operations dashboards, alerts and click-paths (#1532)
+
+Dashboard fragments live in `scripts/posthog/spec/{ai,jobs,pushes,usage,demo}.mjs`, one owner each. Settings that need the owner's PostHog login (alert destinations, survey publishing) are written here as click-paths, not done from code. Each slice edits only its own section below.
+
+## S1 AI
+
+_Owned by slice S1 (#1532)._ Dashboard **[PMO] AI · Cost & Quality** (`scripts/posthog/spec/ai.mjs`, provisioned by `provision-dashboards.mjs`).
+
+| Tile | Source |
+|---|---|
+| AI cost per org per day / per day (alert source) | `$ai_generation` sum `$ai_total_cost_usd`, breakdown `org_id` |
+| AI cost per user per day (consenting users only) | same, breakdown `user_id` (set only when the user's analytics is on) |
+| AI tokens by model, cost by model, generations by model | `$ai_generation`, breakdown `$ai_model` |
+| AI tool calls / tool errors by tool | `$ai_span` by `$ai_span_name`; errors filter `$ai_is_error = true` |
+| AI slowest tools (p95 seconds) | `$ai_span` p95 of `$ai_latency` |
+| AI runs per day, run errors per day (alert source), errors by code | `$ai_trace` |
+| AI feedback by rating | `agent_feedback_rated` by `rating` |
+| AI thumbs-down rate by model | SQL insight: `agent_feedback_rated` joined to the run's latest non-judge `$ai_generation` on `$ai_trace_id` |
+| AI judge (eval) cost per day | `$ai_generation` sum `$ai_total_cost_usd`, filter `action = eval` (the online-eval judge's own calls; also included in every cost tile above, so tiles match the provider bill) |
+| AI online-eval verdicts / failures by name | `ai_eval` by `eval_name`; failures filter `eval_pass = false` |
+
+**Thumbs-down rate by model** is a SQL insight (a cross-event join is not expressible in a `TrendsQuery`). The answering model is the run's latest non-judge generation, so a run that fell back to another model counts under the model that finally answered.
+
+**Owner click-paths (need the owner's PostHog login; not done from code):**
+
+1. **Cost and error alerts.** Open insight "AI cost per day (alert source)" > Alerts > New alert: condition "value above", threshold set after 7 days of data (do not guess a number now), check daily. Repeat on "AI run errors per day (alert source)" (condition above, small threshold, check hourly). Destination per the S2 alert-channel setup.
+2. **PostHog-native judge for the demo org (optional, only where text exists).** LLM analytics > Evaluations > New: type LLM judge, filter `org_id` equals the demo org's id (or event property `$ai_input` is set), run on every generation. Judge provider key: a non-Claude model (owner rule: no Claude via OpenRouter). Real-org traces carry no text, so this evaluator would have nothing to score there: their verdicts come from the in-function `ai_eval` events.
+3. **Replay link.** On a demo-org generation open LLM analytics > the generation; the session link opens the replay when `$session_id` is set (consenting demo sessions).
+
+## S2 Alerts and source maps
+
+No dashboard tiles: error tracking lives in PostHog's own Error tracking view. Alert click-path, source-map upload and the fire-drill are in `docs/runbooks/posthog-operations.md` § S2. Browser exceptions carry a `release` property (7-char commit id); filter issues by it after a deploy.
+
+## S3 Jobs
+
+Dashboard `[PMO] Jobs` (tiles in `scripts/posthog/spec/jobs.mjs`, source `job_run`): runs by job, runs per hour, failure rate (all runs vs failed), failed runs by job and by error code, items processed, duration p95. Run `node scripts/posthog/provision-dashboards.mjs` to create it (idempotent).
+
+### Alert click-path (owner account; not done by the build)
+
+Alerts and destinations need the owner's PostHog account.
+
+1. Open the `[PMO] Jobs` dashboard, then the tile `Jobs — runs per hour`. Insight menu, **Alerts**, **New alert**.
+2. **Missing run** (one per job): series `job_run`, add a filter `job = <job>`, interval hour (minute jobs: use the tile's finest interval). Condition: value **is less than 1**, check **every hour**. Window per job (3x its cadence): `erpnext-sweep` 5 min, `clickup-webhook-worker` 5 min, `clickup-sweep` 20 min, `agent-dispatch` 3 h, `telegram-notify` 3 h. Use the finest check interval the alert offers; if it cannot go below an hour, the minute jobs' absence is caught within that hour, which is acceptable.
+3. **Failed run**: tile `Jobs — failed runs by job`. Condition: value **is greater than 0**, check hourly.
+4. Destination: the operator channel configured for error alerts (same as S2). Subscribers only; no customer addresses.
+5. The missing-run alert counts every `job_run` of the job whatever its status, so a `skipped` or `failed` run satisfies it: an environment with no ERP-bound org (job reports `skipped`) stays quiet, and failures are the failed-run alert's job (step 3), not this one's.
+6. **Partial ERP org failure** (`erpnext-sweep` reports `failed` only when every bound org errors): on the same dashboard add an alert on `job_run` filtered `job = erpnext-sweep`, math sum of `org_error_count`, condition **is greater than 0**, check hourly. A single failing org then surfaces without a failed run.
+
+## S4 Push outcomes
+
+Dashboard `[PMO] Money pushes` (tiles in `scripts/posthog/spec/pushes.mjs`, source `erp_push_outcome`): outcomes per domain per day, outcomes by kind, failure rate per day, top error codes (not confirmed), held or quarantined in the last 7 days, quarantined per domain per day (alert C), push duration p95. Held/quarantined counts transitions, not what is held now: the outbox row is the record. Empty when PMO is standalone (no external tier), by design (ADR-0094). Run `node scripts/posthog/provision-dashboards.mjs` to create it (idempotent).
+
+### Alert click-path (owner account; not done by the build)
+
+1. Open `[PMO] Money pushes`, tile `Money pushes — outcomes per domain per day`. Insight menu, **Alerts**, **New alert**.
+2. **Alert A, money push failed:** series `erp_push_outcome`, filters `outcome = failed` and `domain` in `budget`, `revenue`, `procurement`, `expenses`. Condition: value **is greater than 0** (≥ 1), check every 15 minutes (or the finest interval offered).
+3. **Alert B, a command needs a person:** series `erp_push_outcome`, filter `needs_human = true`, any domain, any attempt count. Condition **is greater than 0**, same check interval.
+4. **Alert C, ERP outage (quarantined):** tile `Money pushes — quarantined per domain per day`; filter `domain` in `budget`, `revenue`, `procurement`, `expenses`. Condition **is greater than 0** over the check window (15 minutes or the finest interval offered). An unreachable ERP marks no `failed` row: the claim goes stale and the sweep quarantines it, so this is the alert that fires in an outage.
+5. Destination: the operator channel used for error alerts (S2). Subscribers only; no customer addresses.
+6. Other domains (`timesheets`, `companies`, …) are emitted and charted but not alerted.
+7. Create all three only on an environment with an ERP binding; a standalone deployment never emits the event.
+
+## S5 Business events
+
+`[PMO] Usage per org (observed use)` (`scripts/posthog/spec/usage.mjs`): one table tile, the four business
+events (budgets activated, invoices issued, payments recorded, purchases approved) per week, broken down by
+`org_id`. The dashboard description reads: "Observed use — browser events, best effort (ad blockers, opt-out).
+Not a record; nothing commercial reads from it." No PostHog-side setting is needed; `node scripts/check-dashboard-tiles.mjs`
+fails if any of the four events loses its call site.
+
+## S6 Demo funnels
+
+The funnel sits on the existing `[PMO] Demo · Prospect Funnel` dashboard (persona → login → module, unchanged).
+Run the provisioning script as usual; it adds the tile and leaves the other four alone (second run is
+`+0 / =all`).
+
+**Dashboard note (FR-PHO-051).** The funnel shows the furthest step each demo account reaches. A persona whose
+role cannot perform a step (budget activation, purchase approval and invoice approval are role- and
+separation-of-duties-gated, `src/auth/policy.ts`) stops there; no event is invented for a step nobody did. The
+new description is applied when the dashboard is first created. On an environment where the dashboard already
+exists, add the sentence by hand: Dashboards, open the Demo dashboard, Edit, Description.
+
+## S7 Logs (conditional)
+
+_Owned by slice S7 (#1532)._ **Status: pending owner check. Nothing is built; no forwarder, no env switch.**
+
+**Owner click-path (needs the owner's PostHog login; not done from code).** In the live project: Settings > Billing (organization level) > the Logs product row. Record three things:
+1. **Free allowance**: GB of logs per month before billing starts.
+2. **Retention**: days logs are kept.
+3. **Ingestion endpoint**: Logs > Start sending logs (or the Logs product docs link on that page) shows the OTLP/HTTP logs URL for your region.
+
+**Decide:**
+- **Drop S7** if there is no free allowance, or retention is not materially longer than Supabase's edge-function log retention. Write the two numbers and the reason under this heading and close the slice.
+- **Keep S7** otherwise. Hand the Director the allowance, retention and endpoint. The builder then adds the error-line forwarder (`_shared/posthogLogs.ts`, one line in `logStructuredError`) behind a non-secret switch that is off by default (name to confirm, OQ-P10), and a Logs quota resource is added after a live capture (slice Q).
+
+## S9 Feedback and surveys
+
+_Owned by slice S9 (#1532)._ Dashboard **[PMO] Feedback & Surveys** (`scripts/posthog/spec/feedback.mjs`): shown / answered / dismissed per survey, NPS and first-core-flow answer distributions, feedback by module, answers by org, "what went wrong" per day. It sits beside "[PMO] Usage per org" and "[PMO] AI · Cost & Quality".
+
+**Owner click-path: create and publish the four surveys (needs the owner's PostHog login; not done from code).** Surveys > New survey. For every one: **Type: API** (the app decides when to open it), **Targeting: all users**, leave "Display conditions" empty except where stated, appearance: PostHog's default light theme, thank-you message on.
+
+| Name (exact, including the prefix) | Questions | Specific settings |
+|---|---|---|
+| `[PMO] Feedback` | 1. Open text, required: "What's on your mind? Please don't include customer names or amounts." | repeatable: yes; wait period: none (the user asked) |
+| `[PMO] Assistant: what went wrong?` | 1. Open text, **optional**: "What went wrong? (optional)" | repeatable: yes; wait period: none |
+| `[PMO] First core flow` | 1. Rating 1-5 (number scale), required: "How easy was that?" 2. Open text, optional: "Anything we should change?" | repeatable: no; **Wait period: 30 days** ("Don't show to users who have seen any survey in the last 30 days") |
+| `[PMO] NPS` | 1. Rating 0-10 (NPS), required: "How likely are you to recommend this product to a colleague?" 2. Open text, optional: "What is the main reason?" | repeatable: yes, **every 90 days** (survey schedule); **Wait period: 30 days** |
+
+Then press **Launch** on each. Until a survey is launched the app simply shows nothing for it (the Feedback button stays hidden). The names are matched exactly; renaming one hides it.
+
+Checks after launching: in a normal session the Feedback button appears in the header; clicking it opens the survey beside the button; submitting adds a `survey sent` event with `module` and `route`. Opt out on /privacy and reload: the button disappears and no survey loads. Administration > Organization integrations > Feedback and surveys off: the same.

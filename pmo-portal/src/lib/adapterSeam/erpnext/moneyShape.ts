@@ -10,12 +10,6 @@ import { AdapterError } from '../contract.ts';
 /** `numeric(14,2)`: 14 total digits, 2 after the decimal point -> at most 12 integer digits. */
 const NUMERIC_14_2_INTEGER_DIGIT_LIMIT = 12;
 
-/** Documents the `procurement_items.amount` GENERATED-column divergence (design decision #4): PMO
- *  cannot set the DB-generated `amount` (`quantity*rate` STORED, migration 0001), so the ERP line
- *  `amount` mirrors into `erp_line_amount` instead — THAT column is the money oracle for a line, the
- *  generated `amount` is a display convenience only, never ERP truth. */
-export const PROCUREMENT_ITEMS_AMOUNT_ORACLE_COLUMN = 'erp_line_amount';
-
 /**
  * Convert decimal text to cents, rounding ties away from zero. Numeric inputs use their canonical
  * decimal representation; precision already lost before this boundary cannot be recovered.

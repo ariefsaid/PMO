@@ -3608,3 +3608,6 @@ written by three definer paths only (project assignment, a kind-only correction 
 creation) plus the connected-creation mirror writer; an omitted kind keeps the stored one, so a classified
 invoice is never silently flipped. It is PMO metadata and never reaches an ERP body. Rollback refuses while any
 Other invoice exists, so no classification silently changes meaning.
+
+### OD-ERP-ANYTIME-1 — PMO syncs with the ERP whenever the connection is made (owner, 2026-10-31)
+PMO must sync with the ERP in all four cases: a new org whose ERP already holds data; a new org with no ERP (connected later); an operational org connecting to a new, empty ERP (PMO's data is pushed out); an operational org connecting to an ERP that already holds data (match both sides, no duplicates, no double count). Setup maps once with bulk-accepted auto-proposals. ERPNext and Odoo follow the same sync workflow through one adapter contract with one contract test suite; an ERPNext sync-workflow change is made in the shared seam or replicated to Odoo where the ERP allows. Spec: `docs/specs/erp-connect-anytime.spec.md`.

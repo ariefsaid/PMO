@@ -89,7 +89,8 @@ select is(
   'AC-EAC-003 binding row inserted for org A clickup'
 );
 
--- Test 7: Verify secret_ref was set
+-- Test 7: Verify secret_ref was set (as the session superuser: since 0420 no signed-in role reads secret_ref)
+reset role;
 select is(
   (select secret_ref from external_org_bindings where org_id = '11111111-1111-1111-1111-111111111111' and external_tier = 'clickup'),
   'clickup_token_org_a_1',

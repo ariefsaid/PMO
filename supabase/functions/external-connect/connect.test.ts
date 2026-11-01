@@ -354,6 +354,8 @@ describe('external-connect — ERPNext branch', () => {
           headers: { 'content-type': 'application/json' },
         })),
 
+        // FR-ODC-008 one-ERP-tier check: no active Odoo binding (fixture sync only)
+        supabaseSelect('external_org_bindings', () => new Response('null', { status: 200, headers: { 'content-type': 'application/json' } })),
         supabaseRpc('create_vault_secret_for_org', (call) => {
           const body = call.bodyJson as Record<string, unknown>;
           assertEquals(body.p_org_id, 'org-1');
@@ -627,6 +629,8 @@ describe('external-connect — JWT validation', () => {
           { status: 200, headers: { 'content-type': 'application/json' } })),
         erp('erp.example.com', '/api/method/frappe.auth.get_logged_user',
           () => jsonResponse({ message: 'erp-user@example.com' })),
+        // FR-ODC-008 one-ERP-tier check: no active Odoo binding (fixture sync only)
+        supabaseSelect('external_org_bindings', () => new Response('null', { status: 200, headers: { 'content-type': 'application/json' } })),
         supabaseRpc('create_vault_secret_for_org', () => jsonResponse('erpnext_token_org-1_1')),
         supabaseRpc('set_external_binding_site_url', (call) => {
           const body = call.bodyJson as Record<string, unknown>;
@@ -655,6 +659,8 @@ describe('external-connect — JWT validation', () => {
           { status: 200, headers: { 'content-type': 'application/json' } })),
         erp('erp.example.com', '/api/method/frappe.auth.get_logged_user',
           () => jsonResponse({ message: 'erp-user@example.com' })),
+        // FR-ODC-008 one-ERP-tier check: no active Odoo binding (fixture sync only)
+        supabaseSelect('external_org_bindings', () => new Response('null', { status: 200, headers: { 'content-type': 'application/json' } })),
         supabaseRpc('create_vault_secret_for_org', () => jsonResponse('erpnext_token_org-1_1')),
         supabaseRpc('set_external_binding_site_url', () =>
           jsonResponse({ message: 'no active binding for this org and tier', code: 'P0001' }, { status: 400 })),
@@ -787,6 +793,8 @@ describe('external-connect — ERPNext host guard (#751)', () => {
     await withFetchMock(
       [
         ...prelude(),
+        // FR-ODC-008 one-ERP-tier check: no active Odoo binding (fixture sync only)
+        supabaseSelect('external_org_bindings', () => new Response('null', { status: 200, headers: { 'content-type': 'application/json' } })),
         supabaseRpc('create_vault_secret_for_org', () => jsonResponse('erpnext_token_org-1_1')),
         supabaseRpc('set_external_binding_site_url', () => jsonResponse('set')),
         erp(HOST, '/api/method/frappe.auth.get_logged_user', () => jsonResponse({ message: 'api-user@example.com' })),
@@ -827,6 +835,8 @@ describe('external-connect — ERPNext host guard (#751)', () => {
     await withFetchMock(
       [
         ...prelude(),
+        // FR-ODC-008 one-ERP-tier check: no active Odoo binding (fixture sync only)
+        supabaseSelect('external_org_bindings', () => new Response('null', { status: 200, headers: { 'content-type': 'application/json' } })),
         supabaseRpc('create_vault_secret_for_org', () => jsonResponse('erpnext_token_org-1_1')),
         supabaseRpc('set_external_binding_site_url', () => jsonResponse('set')),
         erp(HOST, '/api/method/frappe.auth.get_logged_user', () => jsonResponse({ message: 'api-user@example.com' })),

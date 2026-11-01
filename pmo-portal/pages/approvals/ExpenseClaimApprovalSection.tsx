@@ -1,12 +1,13 @@
 import React, { useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, Card, CardHead, DecisionContextSummary, ListState, ReceiptPreview } from '@/src/components/ui';
+import { Button, Card, CardHead, DecisionContextSummary, ListState } from '@/src/components/ui';
 import { useAuth } from '@/src/auth/useAuth';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useExpenseClaimsAwaitingDecision, type ExpenseClaimAwaiting } from '@/src/hooks/useExpenseClaims';
 import { claimsAwaitingViewer } from '@/src/lib/expenses/expenseRules';
 import { formatCurrencyAuto } from '@/src/lib/format';
+import { ReceiptPreviewButton } from '@/src/components/documents/targets/ReceiptPreviewButton';
 import { useExpenseReceipts } from '@/src/hooks/useExpenseReceipts';
 import type { ExpenseReceiptRow } from '@/src/lib/db/expenseReceipts';
 
@@ -37,7 +38,7 @@ const ExpenseClaimEvidencePreview: React.FC<{ claim: ExpenseClaimAwaiting['claim
         const name = receiptName(file.file_path);
         return <li key={file.id} className="flex flex-wrap items-center gap-2">
           <span className="min-w-0 flex-1 truncate text-xs" title={name}>{name}</span>
-          <ReceiptPreview fileName={name} getPreviewUrl={() => download(file.file_path)} onDownload={() => downloadOriginal(file.file_path)} />
+          <ReceiptPreviewButton id={file.id} fileName={name} filePath={file.file_path} getSignedUrl={download} onDownload={() => downloadOriginal(file.file_path)} />
         </li>;
       })}
       </ul>

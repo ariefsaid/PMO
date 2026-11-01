@@ -55,6 +55,8 @@ async function makeAdapter(unit: ReturnType<typeof record>, fetchImpl: typeof fe
   });
 }
 
+// Refusing a live budget PMO did not create (and two live budgets) moved to the shared `budget.unowned-occupant`
+// suite (contractSuite/budget.suite.ts). What stays here is ERPNext's own request shape.
 describe('v16 budget factory binding and selected account', () => {
   it('AC-BV16-005 derives v16 body from binding and emits only the selected account', async () => {
     calls.length = 0;
@@ -69,21 +71,6 @@ describe('v16 budget factory binding and selected account', () => {
     const transport = fetcher();
     await expect(makeAdapter(record('Forged'), transport)).rejects.toMatchObject({ code: 'commit-rejected' });
     expect(transport).not.toHaveBeenCalled();
-  });
-
-  it('refuses unowned and ambiguous live account occupants with account/year context and no writes', async () => {
-    const cases: Array<[Array<Record<string, unknown>>, string]> = [
-      [[{ name: 'DESK-BUDGET', docstatus: 1 }], 'budget-unowned-live-occupant'],
-      [[{ name: 'LIVE-1', docstatus: 1 }, { name: 'LIVE-2', docstatus: 1 }], 'commit-rejected'],
-    ];
-    for (const [grain, expectedCode] of cases) {
-      const transport = fetcher(grain);
-      const error = await makeAdapter(record('Salary'), transport).then(() => null, (caught) => caught as Error & { code?: string });
-      expect(error).toMatchObject({ code: expectedCode });
-      expect(error?.message).toMatch(/Salary.*2026|2026.*Salary/);
-      expect((transport as unknown as ReturnType<typeof vi.fn>).mock.calls.every((call: unknown[]) =>
-        !['POST', 'PUT'].includes(String((call[1] as RequestInit)?.method)))).toBe(true);
-    }
   });
 
   it('AC-BV16-005 probes only the v16 account/year grain and refuses a draft without writes', async () => {

@@ -336,6 +336,7 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
           fileHref={row.fileHref}
           fileTitle={row.fileTitle}
           fileCount={row.fileCount}
+          fileRef={row.fileRef}
           canWrite={canWrite}
           procurementId={procurementId}
           uploadedById={uploadedById}
