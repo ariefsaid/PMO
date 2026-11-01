@@ -34,7 +34,7 @@
 import type { PmoRecord } from '../contract.ts';
 import { CLICKUP_TIER, CLICKUP_TASKS_DOMAIN } from './adapter.ts';
 import { clickUpTaskToPmoRecord } from './mapping.ts';
-import { applyInboundChange, type ExternalRefSeed } from '../applyEngine.ts';
+import { applyInboundChange, type AtomicAdoptStrategy, type ExternalRefSeed } from '../applyEngine.ts';
 import { clickUpListRawChangesAcrossLists, type ClickUpListBindingRef } from './reads.ts';
 import type { ClickUpClientDeps } from './client.ts';
 import type { ClickUpStatusMap } from './statusMap.ts';
@@ -61,11 +61,20 @@ export interface MultiListSweepDeps {
   /** Resolve the project an EXISTING mirror actually belongs to (SEC-HIGH-2's deterministic-resolution
    *  source of truth), independent of which List tagged the task this cycle. */
   readMirrorProjectId: (pmoRecordId: string) => Promise<string | null>;
-  updateMirror: (pmoRecordId: string, canonical: PmoRecord, sourceUpdatedAtMs: number) => Promise<void>;
+  /** Compare-and-set mirror update: returns whether it applied — `false` = a newer state was already
+   *  stored (an older change arriving after a newer one is a no-op, never an overwrite). */
+  updateMirror: (pmoRecordId: string, canonical: PmoRecord, sourceUpdatedAtMs: number) => Promise<void | boolean>;
   mintMirror: (canonical: PmoRecord, sourceUpdatedAtMs: number, projectId: string) => Promise<string>;
   recordExternalRef: (mapping: ExternalRefSeed) => Promise<void>;
   /** SEC-MEDIUM-6: archive an existing mirror for a ClickUp task now reported as archived. */
   archiveMirror: (pmoRecordId: string) => Promise<void>;
+  /** Claim-first adopt (supplied by the shared mirror-callback factory in the clickup-sweep wiring):
+   *  an UNMAPPED task's `external_refs` claim is taken BEFORE the mirror mint, so a concurrent
+   *  webhook/sweep adoption of one task mints exactly one mirror (the losing claim refuses 23505
+   *  before any mirror row exists, and the cycle aborts without advancing — the next tick reconciles
+   *  to the winner). `mintWithId` is re-pointed per change to the change's deterministically-resolved
+   *  project below, since the sweep resolves the project PER task (SEC-HIGH-2). */
+  adoptAtomically?: AtomicAdoptStrategy;
   /** OD-INT-9 parent sync (inbound): resolve ClickUp `parent` to a PMO task id via `external_refs`
    *  (same table the dispatch factory uses). Optional — when absent or unresolvable, the child
    *  flows through as a flat task; the next sweep re-applies and resolves it once the parent exists. */
@@ -182,6 +191,20 @@ export async function runMultiListSweep(deps: MultiListSweepDeps): Promise<Multi
       statusMap: effectiveBinding.statusMap,
       memberMap: effectiveBinding.memberMap,
     }, undefined, resolvedParentPmoId);
+    // Claim-first adopt: the strategy's mint must land in THIS change's deterministically-resolved
+    // project (SEC-HIGH-2) — the sweep overrides `mintWithId` to carry the project on the canonical
+    // record (the shared factory's mint reads it when no ctx project is bound).
+    const adoptAtomically = deps.adoptAtomically
+      ? {
+        ...deps.adoptAtomically,
+        mintWithId: (c: PmoRecord, sourceUpdatedAtMs: number, pmoRecordId: string) =>
+          deps.adoptAtomically!.mintWithId(
+            { ...c, project_id: mintProjectId ?? effectiveBinding.projectId },
+            sourceUpdatedAtMs,
+            pmoRecordId,
+          ),
+      }
+      : undefined;
     const outcome = await applyInboundChange(
       { tier: CLICKUP_TIER, domain: CLICKUP_TASKS_DOMAIN },
       taskId,
@@ -193,6 +216,7 @@ export async function runMultiListSweep(deps: MultiListSweepDeps): Promise<Multi
         updateMirror: deps.updateMirror,
         mintMirror: (c, mod) => deps.mintMirror(c, mod, mintProjectId ?? effectiveBinding.projectId),
         recordExternalRef: deps.recordExternalRef,
+        ...(adoptAtomically ? { adoptAtomically } : {}),
       },
     );
     if (outcome.kind === 'upserted') applied += 1;

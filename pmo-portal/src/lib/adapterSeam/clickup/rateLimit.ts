@@ -84,6 +84,8 @@ export interface WithBackoffOptions {
   sleep?: (ms: number) => Promise<void>;
   /** Injectable clock (default `Date.now`) — lets tests compute an `X-RateLimit-Reset` wait deterministically. */
   now?: () => number;
+  /** Which responses are retried (default: 429 or 5xx). A non-idempotent create passes 429-only. */
+  retryOn?: (res: Response) => boolean;
 }
 
 const defaultSleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
@@ -139,7 +141,7 @@ export async function withBackoff(
   let attempt = 0;
   for (;;) {
     const res = await fn();
-    const transient = res.status === 429 || res.status >= 500;
+    const transient = (opts.retryOn ?? ((r: Response) => r.status === 429 || r.status >= 500))(res);
     if (!transient || attempt >= maxRetries) return res;
     attempt += 1;
     const retryAfterHeader = res.headers.get('Retry-After');

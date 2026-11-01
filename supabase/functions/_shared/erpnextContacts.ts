@@ -161,7 +161,9 @@ export async function applyErpContact(
       deps.adoptAtomically = {
         ...atomic,
         newPmoRecordId: () => id,
-        mintWithId: async (rec, ms, pmoId) => deps.updateMirror(pmoId, rec, ms),
+        mintWithId: async (rec, ms, pmoId) => {
+          await deps.updateMirror(pmoId, rec, ms);
+        },
       };
     }
   }
