@@ -184,7 +184,7 @@ const ImprestFloatDetail: React.FC = () => {
           <Card className="mb-4">
             <CardHead>{t('imprest:plan.title', 'This month\'s plan ({{month}})', { month: pos.month.slice(0, 7) })}</CardHead>
             <CardPad className="pt-0">
-              <DataTable<PlanLineUsage> rows={planLines} columns={planColumns} rowKey={(r) => r.budget_category}
+              <DataTable<PlanLineUsage> embedded rows={planLines} columns={planColumns} rowKey={(r) => r.budget_category}
                 state={planLines.length === 0 ? 'empty' : undefined}
                 emptyTitle={t('imprest:plan.none', 'No approved plan this month')}
                 emptySub={t('imprest:plan.noneSub', 'Spend this month is out of plan until a plan is approved.')}
@@ -227,7 +227,7 @@ const ImprestFloatDetail: React.FC = () => {
         <CardHead>{t('imprest:rep.title', 'Replenishments')}</CardHead>
         <CardPad className="pt-0">
           {reps.isError ? <ListState variant="error" title={t('imprest:rep.error', "Couldn't load replenishments")} onRetry={() => void reps.refetch()} />
-            : <DataTable<ImprestReplenishmentRow> rows={repRows} columns={repColumns} rowKey={(r) => r.id}
+            : <DataTable<ImprestReplenishmentRow> embedded rows={repRows} columns={repColumns} rowKey={(r) => r.id}
               state={reps.isPending ? 'loading' : repRows.length === 0 ? 'empty' : undefined}
               emptyTitle={t('imprest:rep.none', 'No replenishments yet')} emptySub={t('imprest:rep.noneSub', 'The custodian requests one when receipts are waiting.')}
               tableId="imprest-replenishments" />}

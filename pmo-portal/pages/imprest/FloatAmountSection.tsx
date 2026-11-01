@@ -68,7 +68,7 @@ export const FloatAmountSection: React.FC<{ floatId: string; custodianId: string
               </CanWrite>
             )}
             {history.length > 0 && (
-              <DataTable<ImprestFloatChangeListRow> rows={history} columns={columns} rowKey={(r) => r.id} tableId="imprest-float-changes" />
+              <DataTable<ImprestFloatChangeListRow> embedded rows={history} columns={columns} rowKey={(r) => r.id} tableId="imprest-float-changes" />
             )}
           </div>
         )}
