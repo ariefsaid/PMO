@@ -1,6 +1,6 @@
 -- NFR-STK-003 record (#1512 S5.6): the consumption report at 200,000 ledger rows over 20 projects x 10 work items x 12 items x 24 months.
 -- NOT part of `supabase test db`. Run on the LOCAL stack only, under the lock:
---   scripts/with-db-lock.sh bash -c 'psql "$DB_URL" -f supabase/tests/perf/stock_consumption_explain.sql'
+--   scripts/with-db-lock.sh bash -c 'psql "$DB_URL" -f scripts/perf/stock_consumption_explain.sql'
 -- One scratch transaction that rolls back. Bulk rows go in with session_replication_role = replica (FK and guard triggers off,
 -- CHECK constraints still on), so the load needs no documents; the report only joins boq_items, stock_items, stock_units, profiles.
 \timing on
