@@ -196,7 +196,7 @@ import { buildExpensePostingCommand, parseExpenseGateTruth } from '../../../pmo-
 import { resolveExpensePosting, type ExpenseResolveDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/expensePostingResolve.ts';
 import { EXPENSE_POSTING_KEY_PREFIX, expenseOutboxIdentity, expensePostingIdentity, expensePostingKey, type ExpensePosting } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/expensePostingKey.ts';
 import type { ErpAccountFacts } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/expenseAccountRules.ts';
-import { reconcileOrgExpensePostings, type ExpenseBackstopDeps, type ExpenseIntentRow, type ExpenseOutcome } from './expensePostingBackstop.ts';
+import { reconcileOrgExpensePostings, backstopPassResult, type ExpenseBackstopDeps, type ExpenseIntentRow, type ExpenseOutcome } from './expensePostingBackstop.ts';
 // P3b task 6.4 (FR-TSP-045, AC-TSP-022) — the timesheet push's sweep backstop, pure orchestration.
 import {
   reconcileOrgTimesheetPushes,
@@ -3037,9 +3037,9 @@ export function expensePostingBackstopDepsLive(
       const outbox = ref as OutboxRow;
       if (!eligibleOutboxIds.has(outbox.id)) {
         // Not due yet: a lease or quarantine window (0131), or a failed row's retry delay (0357).
-        if (outbox.state === 'committing' || outbox.state === 'quarantined' || retryPendingIds.has(outbox.id)) return;
+        if (outbox.state === 'committing' || outbox.state === 'quarantined' || retryPendingIds.has(outbox.id)) return 'waiting';
         await recordOutcome(row, { state: 'held', reason: expenseOutboxHoldReason(outbox.state) });
-        return;
+        return 'held';
       }
       // A replay that may issue a NEW ERP write re-asserts the recorded actor's CURRENT role/rank — the gate's actor
       // half (0270 §5), which the generic replay authorization (active membership only for expenses) does not run.
@@ -3049,7 +3049,7 @@ export function expensePostingBackstopDepsLive(
         if (error) {
           if (error.code === '42501' || error.code === 'P0002') {
             await recordOutcome(row, { state: 'failed', reason: error.message });
-            return;
+            return 'refused';
           }
           throw new AppError(error.message, error.code);
         }
@@ -3059,8 +3059,11 @@ export function expensePostingBackstopDepsLive(
       } catch (err) {
         // A stranded finish (the intent is already pushed) has nothing to record: the pass reports it and retries.
         if (row.push_state === 'pushed') throw err;
-        await recordOutcome(row, classify(err));
+        const outcome = classify(err);
+        await recordOutcome(row, outcome);
+        return outcome.state === 'held' ? 'held' : 'failed';
       }
+      return 'completed';
     },
     assertGate: async (row) => {
       const { data, error } = await serviceClient.rpc('expense_posting_for_push', { p_org_id: org.orgId, p_mirror_id: row.id });
@@ -3111,10 +3114,7 @@ async function reconcileOrgExpensePostingsLive(
     for (const e of result.errors) {
       console.warn(`[erpnext-sweep] org ${org.orgId} expense intent ${e.intentId}: ${e.error}`);
     }
-    return {
-      driven: result.driven + result.replayed + result.finished,
-      error: result.errors.length ? `${result.errors.length} expense intent(s) failed` : undefined,
-    };
+    return backstopPassResult(result, 'expense');
   } catch (err) {
     return { driven: 0, error: err instanceof Error ? err.message : String(err) };
   }
@@ -3218,9 +3218,9 @@ export function imprestPostingBackstopDepsLive(
     replay: async (row, ref) => {
       const outbox = ref as OutboxRow;
       if (!eligibleOutboxIds.has(outbox.id)) {
-        if (outbox.state === 'committing' || outbox.state === 'quarantined' || retryPendingIds.has(outbox.id)) return;
+        if (outbox.state === 'committing' || outbox.state === 'quarantined' || retryPendingIds.has(outbox.id)) return 'waiting';
         await recordOutcome(row, { state: 'held', reason: expenseOutboxHoldReason(outbox.state) });
-        return;
+        return 'held';
       }
       // A replay that may issue a NEW ERP write re-asserts the gate (status, stamp, recorded actor's CURRENT standing).
       if (replayMayIssueErpWrite(outbox.state)) {
@@ -3228,7 +3228,7 @@ export function imprestPostingBackstopDepsLive(
         if (error) {
           if (error.code === '42501' || error.code === 'P0001' || error.code === 'P0002') {
             await recordOutcome(row, { state: 'failed', reason: error.message });
-            return;
+            return 'refused';
           }
           throw new AppError(error.message, error.code);
         }
@@ -3237,8 +3237,11 @@ export function imprestPostingBackstopDepsLive(
         await dispatchMoneyWrite(await buildReconcileDepsLive(serviceClient, org, outbox, cache));
       } catch (err) {
         if (row.push_state === 'pushed') throw err;
-        await recordOutcome(row, classify(err));
+        const outcome = classify(err);
+        await recordOutcome(row, outcome);
+        return outcome.state === 'held' ? 'held' : 'failed';
       }
+      return 'completed';
     },
     assertGate: async (row) => {
       const { data, error } = await serviceClient.rpc('imprest_posting_for_push', { p_org_id: org.orgId, p_mirror_id: row.id });
@@ -3289,10 +3292,7 @@ async function reconcileOrgImprestPostingsLive(
     for (const e of result.errors) {
       console.warn(`[erpnext-sweep] org ${org.orgId} imprest intent ${e.intentId}: ${e.error}`);
     }
-    return {
-      driven: result.driven + result.replayed + result.finished,
-      error: result.errors.length ? `${result.errors.length} imprest intent(s) failed` : undefined,
-    };
+    return backstopPassResult(result, 'imprest');
   } catch (err) {
     return { driven: 0, error: err instanceof Error ? err.message : String(err) };
   }

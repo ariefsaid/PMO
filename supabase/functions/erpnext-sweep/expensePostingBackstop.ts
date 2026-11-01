@@ -58,10 +58,14 @@ export interface ExpenseOutcome {
   erpName?: string | null;
 }
 
+/** What a replay did: finished the command, left it for a later tick (not due), parked it held, was refused by the
+ *  actor re-check, or hit a dispatch failure. The last three are already recorded on the intent. */
+export type ReplayDisposition = 'completed' | 'waiting' | 'held' | 'refused' | 'failed';
+
 export interface ExpenseBackstopDeps<Row extends { id: string } = ExpenseIntentRow, Truth = ExpenseGateTruth, Refs = ExpenseResolvedRefs> {
   listPending(orgId: string, limit: number): Promise<Row[]>;
   findOutbox(row: Row): Promise<ExpenseOutboxRef | null>;
-  replay(row: Row, outbox: ExpenseOutboxRef): Promise<void>;
+  replay(row: Row, outbox: ExpenseOutboxRef): Promise<ReplayDisposition>;
   assertGate(row: Row): Promise<ExpenseGateOutcome<Truth>>;
   resolve(truth: Truth): Promise<BackstopResolution<Refs>>;
   recordOutcome(row: Row, outcome: ExpenseOutcome): Promise<void>;
@@ -78,7 +82,11 @@ export interface ReconcileOrgExpensePostingsResult {
   driven: number;
   replayed: number;
   waiting: number;
+  /** Replays parked held (recorded on the intent). */
+  held: number;
   refused: number;
+  /** Replays whose dispatch failed (recorded on the intent, retried later). */
+  failed: number;
   errors: Array<{ intentId: string; error: string }>;
 }
 
@@ -86,11 +94,11 @@ export async function reconcileOrgExpensePostings<Row extends { id: string } = E
   deps: ExpenseBackstopDeps<Row, Truth, Refs>,
   org: { orgId: string },
 ): Promise<ReconcileOrgExpensePostingsResult> {
-  const result: ReconcileOrgExpensePostingsResult = { finished: 0, driven: 0, replayed: 0, waiting: 0, refused: 0, errors: [] };
+  const result: ReconcileOrgExpensePostingsResult = { finished: 0, driven: 0, replayed: 0, waiting: 0, held: 0, refused: 0, failed: 0, errors: [] };
   for (const { row, outbox } of await deps.listStranded(org.orgId)) {
     try {
-      await deps.replay(row, outbox);
-      result.finished += 1;
+      // Only a completed finish counts; a not-due or recorded outcome is retried next tick.
+      if ((await deps.replay(row, outbox)) === 'completed') result.finished += 1;
     } catch (err) {
       // The intent is already pushed: nothing to record on it; the next tick retries the finalize.
       result.errors.push({ intentId: row.id, error: err instanceof Error ? err.message : String(err) });
@@ -102,8 +110,9 @@ export async function reconcileOrgExpensePostings<Row extends { id: string } = E
     try {
       const outbox = await deps.findOutbox(row);
       if (outbox) {
-        await deps.replay(row, outbox);
-        result.replayed += 1;
+        const disposition = await deps.replay(row, outbox);
+        if (disposition === 'completed') result.replayed += 1;
+        else result[disposition === 'waiting' ? 'waiting' : disposition] += 1;
         continue;
       }
       const gate = await deps.assertGate(row);
@@ -139,4 +148,13 @@ export async function reconcileOrgExpensePostings<Row extends { id: string } = E
     }
   }
   return result;
+}
+
+/** The sweep pass's summary: work done, and an error when any intent threw or a replay/drive recorded a failure. */
+export function backstopPassResult(result: ReconcileOrgExpensePostingsResult, noun: string): { driven: number; error?: string } {
+  const problems = [
+    result.errors.length ? `${result.errors.length} ${noun} intent(s) failed` : '',
+    result.failed ? `${result.failed} ${noun} posting(s) failed` : '',
+  ].filter(Boolean);
+  return { driven: result.driven + result.replayed + result.finished, ...(problems.length ? { error: problems.join('; ') } : {}) };
 }
