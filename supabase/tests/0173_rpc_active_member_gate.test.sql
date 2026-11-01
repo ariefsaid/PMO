@@ -189,10 +189,12 @@ select throws_ok(
   '42501', 'your account is not an active member of this organisation, so it cannot write — an offboarded or suspended account is refused even while its session token is still valid',
   'AC-AMG-001 admin_change_domain_ownership refuses a disabled Admin (JWT path)');
 
+-- ⚑ 0450 (#1614): create_vault_secret_for_org is service-role only, so a JWT call is refused at the grant,
+--   before its body. The active-member gate on its body is proven on the service-role path (sections 4–5).
 select throws_ok(
   $$ select create_vault_secret_for_org('01730000-0000-0000-0000-000000000001','clickup','amg-deny-token','amg_secret_deny') $$,
-  '42501', 'your account is not an active member of this organisation, so it cannot write — an offboarded or suspended account is refused even while its session token is still valid',
-  'AC-AMG-001 create_vault_secret_for_org refuses a disabled Admin (JWT path)');
+  '42501', 'permission denied for function create_vault_secret_for_org',
+  'AC-AMG-001 create_vault_secret_for_org refuses a disabled Admin''s JWT call at the grant (service-role only)');
 
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
 -- SECTION 2 — AC-AMG-001, second half: "and NO ROW is written". The refusal must be a refusal, not a
@@ -268,8 +270,11 @@ select lives_ok($$ select transition_timesheet('01730000-0000-0000-0000-00000000
 set local request.jwt.claims = '{"sub":"01730000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select lives_ok($$ select admin_change_domain_ownership('01730000-0000-0000-0000-000000000001','erpnext','reference','employ') $$,
   'AC-AMG-002 admin_change_domain_ownership still works for an active Admin (JWT path)');
-select lives_ok($$ select create_vault_secret_for_org('01730000-0000-0000-0000-000000000001','clickup','amg-ok-token','amg_secret_ok') $$,
-  'AC-AMG-002 create_vault_secret_for_org still works for an active Admin (JWT path)');
+-- ⚑ 0450 (#1614): no JWT path remains for create_vault_secret_for_org; its no-over-blocking control is the
+--   service-role call by an active Admin (AC-AMG-003 below). Here: even an ACTIVE Admin's JWT is refused.
+select throws_ok($$ select create_vault_secret_for_org('01730000-0000-0000-0000-000000000001','clickup','amg-ok-token','amg_secret_ok') $$,
+  '42501', 'permission denied for function create_vault_secret_for_org',
+  'AC-AMG-002 create_vault_secret_for_org is service-role only: an active Admin''s JWT call is refused at the grant');
 
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
 -- SECTION 4 — THE §2 TRAP. The service_role path (auth.uid() IS NULL, actor supplied as p_actor_id).
@@ -309,10 +314,11 @@ select throws_ok(
   $$ select admin_change_domain_ownership('01730000-0000-0000-0000-000000000001','clickup','tasks','employ','01730000-0000-0000-0000-0000000000a2') $$,
   '42501', 'your account is not an active member of this organisation, so it cannot write — an offboarded or suspended account is refused even while its session token is still valid',
   'AC-AMG-004 a DISABLED Admin cannot launder the write through p_actor_id (auth.uid() resolves FIRST)');
+-- ⚑ 0450 (#1614): the laundering attempt now stops at the grant — a JWT caller cannot reach the body at all.
 select throws_ok(
   $$ select create_vault_secret_for_org('01730000-0000-0000-0000-000000000001','clickup','amg-spoof','amg_secret_spoof','01730000-0000-0000-0000-0000000000a2') $$,
-  '42501', 'your account is not an active member of this organisation, so it cannot write — an offboarded or suspended account is refused even while its session token is still valid',
-  'AC-AMG-004 a DISABLED Admin cannot mint a vault secret through an active colleague''s p_actor_id');
+  '42501', 'permission denied for function create_vault_secret_for_org',
+  'AC-AMG-004 a DISABLED Admin cannot mint a vault secret through an active colleague''s p_actor_id (refused at the grant)');
 
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
 -- SECTION 5 — AC-AMG-005. A RAW BAN (auth.users.banned_until in the future, profile still 'active').
