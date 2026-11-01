@@ -3660,6 +3660,64 @@ export type Database = {
           },
         ]
       }
+      imprest_cash_counts: {
+        Row: {
+          book_amount: number
+          counted_amount: number
+          counted_at: string
+          counted_by: string
+          float_id: string
+          id: string
+          note: string | null
+          org_id: string
+          variance: number
+        }
+        Insert: {
+          book_amount: number
+          counted_amount: number
+          counted_at?: string
+          counted_by: string
+          float_id: string
+          id?: string
+          note?: string | null
+          org_id: string
+          variance: number
+        }
+        Update: {
+          book_amount?: number
+          counted_amount?: number
+          counted_at?: string
+          counted_by?: string
+          float_id?: string
+          id?: string
+          note?: string | null
+          org_id?: string
+          variance?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "imprest_cash_counts_counted_by_fkey"
+            columns: ["counted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "imprest_cash_counts_float_id_fkey"
+            columns: ["float_id"]
+            isOneToOne: false
+            referencedRelation: "imprest_floats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "imprest_cash_counts_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       imprest_float_changes: {
         Row: {
           decided_at: string | null
@@ -10327,6 +10385,32 @@ export type Database = {
         }[]
       }
       get_finance_budget_review: { Args: never; Returns: Json }
+      get_imprest_plan_usage: {
+        Args: { p_float: string; p_month: string }
+        Returns: {
+          budget_category: Database["public"]["Enums"]["budget_category"]
+          drawn: number
+          exceptions: Json
+          planned: number
+          remaining: number
+        }[]
+      }
+      get_imprest_position: {
+        Args: { p_float: string }
+        Returns: {
+          advances_out: number
+          cash_book: number
+          float_amount: number
+          float_id: string
+          gap: number
+          last_count_at: string
+          last_count_variance: number
+          month: string
+          plan_lines: Json
+          receipts_waiting: number
+          replenishment_in_flight: number
+        }[]
+      }
       get_management_pack: {
         Args: { p_from?: string; p_to?: string }
         Returns: Json
@@ -10524,6 +10608,26 @@ export type Database = {
       imprest_custodian_eligible: {
         Args: { p_org: string; p_profile: string; p_project: string }
         Returns: boolean
+      }
+      imprest_exception_recipients: {
+        Args: {
+          p_claimant: string
+          p_float: string
+          p_month: string
+          p_org: string
+        }
+        Returns: string[]
+      }
+      imprest_float_choices: {
+        Args: {
+          p_category?: Database["public"]["Enums"]["budget_category"]
+          p_project: string
+        }
+        Returns: {
+          custodian_name: string
+          float_id: string
+          remaining: number
+        }[]
       }
       imprest_funded: { Args: { p_float: string }; Returns: number }
       imprest_lock_float: { Args: { p_float: string }; Returns: undefined }
@@ -11423,6 +11527,10 @@ export type Database = {
       record_history_visible: {
         Args: { p_entity_id: string; p_entity_type: string }
         Returns: boolean
+      }
+      record_imprest_count: {
+        Args: { p_counted: number; p_float: string; p_note?: string }
+        Returns: string
       }
       record_native_receipt: {
         Args: {
