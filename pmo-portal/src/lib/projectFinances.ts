@@ -39,7 +39,7 @@ export type ContractExcess =
 export interface ProjectFinances {
   project_id: string;
   cash_received?: ProjectReceiptCash;
-  /** #1471: present only when comparable Contract billing exceeds a known contract value. Absent on a payload from before 0408. */
+  /** #1471: present only when comparable Contract billing exceeds a known contract value. Absent on a payload from before 0410. */
   contract_excess?: ContractExcess | null;
   contract_invoiced: ExactMoney | null;
   remaining_to_invoice: ExactMoney | null;

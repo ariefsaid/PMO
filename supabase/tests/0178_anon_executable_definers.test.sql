@@ -132,7 +132,7 @@
 -- ⚑ AMENDED BY 0423 (#1515): two replenishment writers join (+2, count 101). transition_expense_claim and
 -- record_expense_advance_return were already retained. Proven by imprest_replenishment pgTAP.
 --
--- ⚑ AMENDED BY 0408 (#1471): `set_sales_invoice_billing_kind` joins the retained set (+1, count 102 on dev's 101, re-derived by hand from the list). SECURITY
+-- ⚑ AMENDED BY 0410 (#1471): `set_sales_invoice_billing_kind` joins the retained set (+1, count 102 on dev's 101, re-derived by hand from the list). SECURITY
 -- DEFINER writer under a member's JWT; re-asserts active membership, Admin/Finance and the caller's org; paired with
 -- supabase/tests/billing_kinds_roles.test.sql (AC-007). `assign_sales_invoice_project` and
 -- `create_native_sales_invoice` changed signature only (proname unchanged).

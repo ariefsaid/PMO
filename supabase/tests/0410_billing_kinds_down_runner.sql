@@ -7,11 +7,11 @@ select * from finish();
 \endif
 create function pg_temp.run_bk_down() returns void language plpgsql as $runner$
 begin execute $down$
--- 0408_billing_kinds_down.sql - reverses 0408. Refuses while Other billing classifications exist: dropping the column
+-- 0410_billing_kinds_down.sql - reverses 0410. Refuses while Other billing classifications exist: dropping the column
 -- would silently turn them into contract drawdown. Export or reclassify them first.
 do $$ begin
   if exists (select 1 from public.sales_invoices where billing_kind = 'other') then
-    raise exception 'export or reclassify Other billing invoices before rolling back 0408 (billing_kind=other rows exist); rollback refused'
+    raise exception 'export or reclassify Other billing invoices before rolling back 0410 (billing_kind=other rows exist); rollback refused'
       using errcode = 'P0001';
   end if;
 end $$;

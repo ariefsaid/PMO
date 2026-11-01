@@ -88,7 +88,9 @@ reset role;
 
 -- ── T3: kind-only correction (AC-006) ─────────────────────────────────────────────────────────
 -- the native subject is paid too, so both source types are corrected while paid (restored below)
+set local session_replication_role = replica;  -- fixture-only state change: no guard, no history row
 update public.sales_invoices set status='Paid', erp_outstanding_amount=0 where id='04080000-0000-0000-0000-0000000000e2';
+set local session_replication_role = origin;
 -- snapshot of every column except the kind, to prove nothing else moved
 create temp table bk_before as
   select id, to_jsonb(si) - 'billing_kind' as row_data from public.sales_invoices si
@@ -138,7 +140,9 @@ select throws_ok($$select public.set_sales_invoice_billing_kind('04080000-0000-0
 reset role;
 -- restore the two subjects to contract for the aggregate blocks that follow
 update public.sales_invoices set billing_kind='contract' where id in ('04080000-0000-0000-0000-0000000000e1','04080000-0000-0000-0000-0000000000e2');
+set local session_replication_role = replica;
 update public.sales_invoices set status='Unpaid', erp_outstanding_amount=200 where id='04080000-0000-0000-0000-0000000000e2';
+set local session_replication_role = origin;
 
 -- ── T4: native creation carries the kind (AC-011) ─────────────────────────────────────────────
 -- native creation needs an org where no ERP owns revenue

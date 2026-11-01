@@ -11,7 +11,7 @@ insert into public.sales_invoices (id,org_id,project_id,si_number,invoice_date,a
 values ('04080000-0000-0000-0000-0000000000e1','04080000-0000-0000-0000-000000000001','04080000-0000-0000-0000-0000000000d1','SI-BK-ROLLBACK','2026-01-01',10,'exclusive',0,'USD','Unpaid',1,'other');
 
 \set bk_embedded 1
-\ir 0408_billing_kinds_down_runner.sql
+\ir 0410_billing_kinds_down_runner.sql
 select throws_ok('select pg_temp.run_bk_down()','P0001',null,
                  'NFR-005 rollback refuses while Other billing exists');
 select has_column('public','sales_invoices','billing_kind','NFR-005 a refused rollback leaves the column in place');
