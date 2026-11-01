@@ -1761,6 +1761,162 @@ export type Database = {
           },
         ]
       }
+      equipment_assets: {
+        Row: {
+          archived_at: string | null
+          code: string
+          created_at: string
+          created_by: string | null
+          default_unit: string
+          external_ref: string | null
+          external_tier: string | null
+          id: string
+          name: string
+          org_id: string
+        }
+        Insert: {
+          archived_at?: string | null
+          code: string
+          created_at?: string
+          created_by?: string | null
+          default_unit?: string
+          external_ref?: string | null
+          external_tier?: string | null
+          id?: string
+          name: string
+          org_id?: string
+        }
+        Update: {
+          archived_at?: string | null
+          code?: string
+          created_at?: string
+          created_by?: string | null
+          default_unit?: string
+          external_ref?: string | null
+          external_tier?: string | null
+          id?: string
+          name?: string
+          org_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "equipment_assets_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "equipment_assets_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      equipment_usage_entries: {
+        Row: {
+          approved_at: string | null
+          approver_id: string | null
+          archived_at: string | null
+          asset_id: string
+          author_id: string
+          created_at: string
+          decision_notes: string | null
+          fuel_litres: number | null
+          id: string
+          kind: string
+          note: string | null
+          org_id: string
+          project_id: string
+          quantity: number
+          status: string
+          trips: number | null
+          unit: string
+          updated_at: string
+          work_date: string
+        }
+        Insert: {
+          approved_at?: string | null
+          approver_id?: string | null
+          archived_at?: string | null
+          asset_id: string
+          author_id: string
+          created_at?: string
+          decision_notes?: string | null
+          fuel_litres?: number | null
+          id?: string
+          kind?: string
+          note?: string | null
+          org_id: string
+          project_id: string
+          quantity: number
+          status?: string
+          trips?: number | null
+          unit: string
+          updated_at?: string
+          work_date: string
+        }
+        Update: {
+          approved_at?: string | null
+          approver_id?: string | null
+          archived_at?: string | null
+          asset_id?: string
+          author_id?: string
+          created_at?: string
+          decision_notes?: string | null
+          fuel_litres?: number | null
+          id?: string
+          kind?: string
+          note?: string | null
+          org_id?: string
+          project_id?: string
+          quantity?: number
+          status?: string
+          trips?: number | null
+          unit?: string
+          updated_at?: string
+          work_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "equipment_usage_entries_approver_id_fkey"
+            columns: ["approver_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "equipment_usage_entries_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "equipment_assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "equipment_usage_entries_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "equipment_usage_entries_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "equipment_usage_entries_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       erp_account_mirror: {
         Row: {
           account_currency: string
@@ -12228,6 +12384,34 @@ export type Database = {
         }[]
       }
       withdraw_progress_claim: { Args: { p_id: string }; Returns: undefined }
+      approve_equipment_usage_week: {
+        Args: { p_asset_id: string; p_week_start: string }
+        Returns: Json
+      }
+      archive_equipment_usage: { Args: { p_id: string }; Returns: undefined }
+      equipment_can_approve: {
+        Args: {
+          p_org: string
+          p_project: string
+          p_role: Database["public"]["Enums"]["user_role"]
+          p_uid: string
+        }
+        Returns: boolean
+      }
+      equipment_entry_locked_unit: {
+        Args: { p_asset: string; p_date: string; p_org: string }
+        Returns: string
+      }
+      equipment_org_today: { Args: { p_org: string }; Returns: string }
+      equipment_usage_transition_core: {
+        Args: { p_id: string; p_notes: string; p_to: string }
+        Returns: string
+      }
+      save_equipment_usage: { Args: { p_entry: Json }; Returns: Json }
+      transition_equipment_usage: {
+        Args: { p_id: string; p_notes?: string; p_to: string }
+        Returns: string
+      }
     }
     Enums: {
       budget_category:
