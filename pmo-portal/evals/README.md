@@ -98,3 +98,12 @@ The suite only proposes — it never approves — so it never creates an ERP doc
 
 **No-ERP org (#1595).** The suite may also run as Finance in an org with Revenue on and no revenue ownership row; the
 proposal is then native, but no case asserts `path: 'native'` (unit tests own that), so this is not a native-path proof.
+
+## Reminder fixture (#1639)
+
+`evals/cases/remind-overdue.eval.ts` runs as the same eval test user (Finance, whole-org overdue scope, DD-AIN-2). The org
+needs: an open task named **`EVAL overdue task for reminder`**, with an end date earlier than every other open task in
+the org (so it is among the 10 oldest a proposal carries), assigned to **another active member**, not reminded in the
+last 24 hours; and an open task named **`EVAL own overdue task`**, past its end date, assigned to the
+eval user. The suite only proposes, never approves, so it sends nothing and uses none of the daily allowance.
+

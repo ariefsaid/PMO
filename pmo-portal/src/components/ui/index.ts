@@ -41,7 +41,7 @@ export {
 export { DecisionContextSummary, type DecisionContextSummaryProps } from './DecisionContextSummary';
 export { Drawer, type DrawerProps } from './Drawer';
 
-export { Kanban, KanbanColumn, KanbanCard, type KanbanColumnProps, type KanbanCardProps } from './Kanban';
+export { Kanban, KanbanColumn, KanbanCard, type KanbanColumnProps, type KanbanCardProps, type DropState } from './Kanban';
 export { KanbanStageIndicator, type KanbanStageItem, type KanbanStageIndicatorProps } from './KanbanStageIndicator';
 export {
   LifecycleStepper,

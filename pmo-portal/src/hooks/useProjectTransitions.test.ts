@@ -200,7 +200,10 @@ describe('ERP setup after winning',()=>{
     integrations.getBinding.mockResolvedValueOnce({status:'active',config:{company:'Example Company'}} as never);
     integrations.ensureErpProject.mockRejectedValueOnce(new Error('unavailable'));
     const {Wrapper}=makeWrapper();const {result}=renderHook(()=>useProjectTransition(),{wrapper:Wrapper});
-    await act(async()=>{await result.current.mutateAsync({id:'proj-2',to:'Won, Pending KoM',opts:{customerContractRef:'CPO-9',contractDate:'2026-03-01'}});});
+    let outcome: unknown;
+    await act(async()=>{outcome=await result.current.mutateAsync({id:'proj-2',to:'Won, Pending KoM',opts:{customerContractRef:'CPO-9',contractDate:'2026-03-01'}});});
+    // the caller learns the ERP-linking outcome from the awaited result, not from a flag it may read stale
+    expect(outcome).toEqual({erpSetupPending:true});
     expect(result.current.isSuccess).toBe(true);
     expect(result.current).toMatchObject({erpSetupPending:true});
     expect(integrations.ensureErpProject).toHaveBeenCalledWith('proj-2');

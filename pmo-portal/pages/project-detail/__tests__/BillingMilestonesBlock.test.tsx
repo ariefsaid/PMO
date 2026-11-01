@@ -121,6 +121,19 @@ describe('BillingMilestonesBlock (#1640)', () => {
     expect(within(row).queryByRole('link', { name: /Invoice WO-1/ })).toBeNull();
   });
 
+  it('AC-WOMS-012 Invoice this links to the work order in Contract & billing with the invoice hand-off', () => {
+    h.list = q([wo(), wo({ id: 'wo-2', wo_number: 'WO-2' }), wo({ id: 'wo-3', wo_number: 'WO-3', status: 'Draft' })]);
+    h.billing = q([
+      bill({ remaining: 80_000 }),
+      bill({ workOrderId: 'wo-2', paid: 1000, invoiced: 1000, remaining: 0 }),
+      bill({ workOrderId: 'wo-3', status: 'Draft' }),
+    ]);
+    renderBlock();
+    expect(screen.getByRole('link', { name: 'Invoice WO-1' })).toHaveAttribute('href', '/projects/p1/contract?wo=wo-1&invoice=1');
+    expect(screen.queryByRole('link', { name: 'Invoice WO-2' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Invoice WO-3' })).toBeNull();
+  });
+
   it('AC-WOMS-015 a pending or failed read shows loading or error with retry, never a status, value or age', async () => {
     h.list = { ...q(undefined), isPending: true };
     const first = renderBlock();
