@@ -1,6 +1,43 @@
 -- 0423_imprest_cash_down.sql — reverse of 0423 (#1515 site imprest S2), reverse dependency order.
+-- 0. the two posting enqueue triggers back to their 0270 §4 text (verbatim).
+create or replace function public.enqueue_expense_claim_postings() returns trigger
+  language plpgsql security definer set search_path = public, pg_temp as $$
+begin
+  if not public.org_employs_expense_postings(new.org_id) then
+    return new;
+  end if;
+  if new.kind = 'claim' and new.status = 'Approved' then
+    perform public.enqueue_expense_posting(new.org_id, new.id, null, 'approval', new.approved_at, new.approved_by_id);
+  elsif new.kind = 'claim' and new.status = 'Paid' then
+    if new.amount - new.advance_applied > 0 then
+      perform public.enqueue_expense_posting(new.org_id, new.id, null, 'claim-payment', new.paid_at, new.paid_by_id);
+    end if;
+    if new.advance_applied > 0 then
+      perform public.enqueue_expense_posting(new.org_id, new.id, null, 'settlement', new.paid_at, new.paid_by_id);
+    end if;
+  elsif new.kind = 'advance' and new.status = 'Paid' then
+    perform public.enqueue_expense_posting(new.org_id, new.id, null, 'advance-payment', new.paid_at, new.paid_by_id);
+  elsif new.kind = 'claim' and old.status = 'Approved' and new.status = 'Cancelled'
+        and exists (select 1 from public.expense_posting_erp_mirror m
+                     where m.org_id = new.org_id and m.posting_identity = new.id::text || ':approval') then
+    perform public.enqueue_expense_posting(new.org_id, new.id, null, 'approval-cancel', new.cancelled_at, auth.uid());
+  end if;
+  return new;
+end; $$;
+revoke all on function public.enqueue_expense_claim_postings() from public, anon, authenticated, service_role;
+
+create or replace function public.enqueue_expense_return_posting() returns trigger
+  language plpgsql security definer set search_path = public, pg_temp as $$
+begin
+  if public.org_employs_expense_postings(new.org_id) then
+    perform public.enqueue_expense_posting(new.org_id, new.advance_id, new.id, 'advance-return', new.recorded_at,
+                                           new.recorded_by);
+  end if;
+  return new;
+end; $$;
+revoke all on function public.enqueue_expense_return_posting() from public, anon, authenticated, service_role;
+
 -- 1. record_expense_advance_return back to its 0270 §1 text (verbatim).
--- 0247 §9 VERBATIM except the one marked insert. Reverse: rollback/0270 restores the 0247 text.
 create or replace function public.record_expense_advance_return(p_id uuid, p_amount numeric, p_reference text default null)
 returns void language plpgsql security definer set search_path = public as $$
 declare
@@ -39,6 +76,10 @@ begin
   insert into public.expense_advance_returns (org_id, advance_id, amount, reference, recorded_by, returned_on)
   values (v_row.org_id, p_id, p_amount, nullif(btrim(p_reference), ''), v_uid,
           (now() at time zone coalesce((select o.default_timezone from public.organizations o where o.id = v_row.org_id),
+                                       'UTC'))::date);
+  perform public.log_audit('expense_advance.return', v_row.org_id, v_uid, p_id,
+    jsonb_build_object('amount', p_amount, 'reference', nullif(btrim(p_reference), ''), 'outstanding_after', v_out - p_amount));
+end; $$;
 
 -- 2. transition_expense_claim back to its 0247 §7 text (verbatim).
 create or replace function public.transition_expense_claim(

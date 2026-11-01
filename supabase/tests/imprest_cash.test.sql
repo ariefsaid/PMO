@@ -1,8 +1,12 @@
 -- imprest_cash.test.sql — #1515 site imprest S2: paying from a float. AC-IMP-030..034 (spec docs/specs/site-imprest.spec.md;
 -- plan S2.7). F1 + F2 + the S2.6 project-approver fixture, then Approved float records waiting to be paid.
+-- Also: the pay path waits for the float lock, an archived float is never approved or paid from, and (PQ-11) a float
+-- with no cash account posts nothing to the ERP even in an org that employs expense postings.
+-- password=postgres is the Supabase LOCAL default (the lock test's dblink session); runs only under `supabase test db`.
 begin;
 create extension if not exists pgtap;
-select plan(20);
+select plan(31);
+create extension if not exists dblink;
 
 
 insert into organizations (id, name, default_currency, default_timezone) values
@@ -110,6 +114,73 @@ insert into expense_claims (id, org_id, kind, claimant_id, project_id, budget_ca
    '15150000-0000-0000-0000-0000000000d2', date_trunc('month', now() at time zone 'Asia/Jakarta')::date,
    '15150000-0000-0000-0000-000000000310', 200000);
 
+-- The org employs expense postings on an activated ERPNext binding (0270 fixture shape). No float has a cash account.
+insert into external_org_bindings (org_id, external_tier, site_url, secret_ref, config, activated_at) values
+  ('15150000-0000-0000-0000-00000000000a', 'erpnext', 'https://erp.example.test', 'test-ref-imp', '{"company":"Example Co"}'::jsonb, now());
+insert into external_domain_ownership (org_id, external_tier, domain) values
+  ('15150000-0000-0000-0000-00000000000a', 'erpnext', 'expenses');
+-- Float K: P1, custodian Fin2, funded 1,000,000, with an Approved and a Submitted claim and a Requested replenishment;
+-- then archived.
+insert into imprest_floats (id, org_id, project_id, custodian_id, float_amount, currency, created_by) values
+  ('15150000-0000-0000-0000-0000000000d6', '15150000-0000-0000-0000-00000000000a', '15150000-0000-0000-0000-0000000000c1',
+   '15150000-0000-0000-0000-0000000000a3', 1000000, 'IDR', '15150000-0000-0000-0000-0000000000a1');
+insert into imprest_replenishments (id, org_id, float_id, kind, number, status, amount, requested_by, approved_by, paid_by,
+                                    requested_at, approved_at, paid_at, paid_on) values
+  ('15150000-0000-0000-0000-0000000000e6', '15150000-0000-0000-0000-00000000000a', '15150000-0000-0000-0000-0000000000d6',
+   'funding', 'REP-FIXTURE-K1', 'Paid', 1000000, '15150000-0000-0000-0000-0000000000a3', '15150000-0000-0000-0000-0000000000a2',
+   '15150000-0000-0000-0000-0000000000a1', now(), now(), now(), current_date);
+insert into imprest_replenishments (id, org_id, float_id, kind, number, status, amount, requested_by) values
+  ('15150000-0000-0000-0000-0000000000e7', '15150000-0000-0000-0000-00000000000a', '15150000-0000-0000-0000-0000000000d6',
+   'replenishment', 'REP-FIXTURE-K2', 'Requested', 50000, '15150000-0000-0000-0000-0000000000a3');
+insert into expense_claims (id, org_id, kind, claimant_id, project_id, budget_category, title, amount, status, claim_number,
+                            submitted_at, approved_by_id, approved_at, imprest_float_id, imprest_month) values
+  ('15150000-0000-0000-0000-000000000320', '15150000-0000-0000-0000-00000000000a', 'claim', '15150000-0000-0000-0000-0000000000a6',
+   '15150000-0000-0000-0000-0000000000c1', 'Vehicle', 'on K approved', 100000, 'Approved', 'EXP-2611010320', now(),
+   '15150000-0000-0000-0000-0000000000a4', now(), '15150000-0000-0000-0000-0000000000d6', date_trunc('month', now() at time zone 'Asia/Jakarta')::date);
+insert into expense_claims (id, org_id, kind, claimant_id, project_id, budget_category, title, amount, status, claim_number,
+                            submitted_at, imprest_float_id, imprest_month) values
+  ('15150000-0000-0000-0000-000000000321', '15150000-0000-0000-0000-00000000000a', 'claim', '15150000-0000-0000-0000-0000000000a6',
+   '15150000-0000-0000-0000-0000000000c1', 'Vehicle', 'on K submitted', 100000, 'Submitted', 'EXP-2611010321', now(),
+   '15150000-0000-0000-0000-0000000000d6', date_trunc('month', now() at time zone 'Asia/Jakarta')::date);
+update imprest_floats set archived_at = now() where id = '15150000-0000-0000-0000-0000000000d6';
+
+-- NFR-IMP-004 / DD-IMP-3: a second session holds float F's lock; the custodian's payment from F must wait for it.
+select dblink_connect('imp_pay', format(
+  'dbname=%s user=%s password=postgres host=%s port=%s',
+  current_database(), current_user,
+  coalesce(host(inet_server_addr()), 'supabase_db_pmo-portal'),
+  coalesce(inet_server_port(), 5432)));
+select dblink_exec('imp_pay', 'begin');
+select ok(
+  (select count(*)::int from dblink('imp_pay', format($q$select pg_advisory_xact_lock(%s)$q$,
+     hashtextextended('imprest-float:15150000-0000-0000-0000-0000000000d1', 0))) as t(a text)) = 1,
+  'NFR-IMP-004 a second session holds float F''s lock');
+set local lock_timeout = '200ms';
+set local role authenticated;
+select pg_temp.act_as('15150000-0000-0000-0000-0000000000a2');  -- Fin1 = F's custodian
+select throws_ok($$ select transition_expense_claim('15150000-0000-0000-0000-000000000303', 'Paid') $$,
+  '55P03', 'canceling statement due to lock timeout',
+  'NFR-IMP-004 a payment from a float waits for the float lock, so two payments cannot both draw the same cash');
+reset role;
+select dblink_exec('imp_pay', 'commit');
+select dblink_disconnect('imp_pay');
+set local lock_timeout = 0;
+
+-- An archived float is never decided or paid from.
+set local role authenticated;
+select pg_temp.act_as('15150000-0000-0000-0000-0000000000a7');  -- Exec, senior approver
+select throws_like($$ select transition_expense_claim('15150000-0000-0000-0000-000000000321', 'Approved') $$,
+  '%archived%', 'an expense claim on an archived float cannot be approved');
+select pg_temp.act_as('15150000-0000-0000-0000-0000000000a3');  -- Fin2 = K's custodian
+select throws_like($$ select transition_expense_claim('15150000-0000-0000-0000-000000000320', 'Paid') $$,
+  '%archived%', 'an expense claim on an archived float cannot be paid');
+select pg_temp.act_as('15150000-0000-0000-0000-0000000000a2');  -- Fin1, neither custodian nor requester of K's request
+select throws_like($$ select transition_imprest_replenishment('15150000-0000-0000-0000-0000000000e7', 'Approved') $$,
+  '%archived%', 'a replenishment of an archived float cannot be approved');
+select lives_ok($$ select transition_imprest_replenishment('15150000-0000-0000-0000-0000000000e7', 'Cancelled') $$,
+  'a replenishment of an archived float may still be cancelled');
+reset role;
+
 set local role authenticated;
 select pg_temp.act_as('15150000-0000-0000-0000-0000000000a2');  -- Fin1 = F's custodian
 select is(imprest_cash_book('15150000-0000-0000-0000-0000000000d1'), 800000::numeric, 'AC-IMP-030 (setup) cash on hand is 800,000');
@@ -161,6 +232,22 @@ select pg_temp.act_as('15150000-0000-0000-0000-0000000000a4');  -- PM1 now manag
 select throws_ok($$ select record_expense_advance_return('15150000-0000-0000-0000-000000000310', 1, null) $$,
   '42501', null, 'AC-IMP-033 the project''s new PM who is not the custodian cannot record a return on a float advance');
 reset role;
+
+-- PQ-11: a float with no cash account posts nothing to the ERP; off-float records keep their postings.
+set local role authenticated;
+select pg_temp.act_as('15150000-0000-0000-0000-0000000000a3');  -- Fin2 pays the off-float claim (FR-EXP-024)
+select lives_ok($$ select transition_expense_claim('15150000-0000-0000-0000-000000000305', 'Paid') $$,
+  'PQ-11 (control) Finance pays an off-float claim in the posting org');
+reset role;
+select is((select count(*)::int from expense_posting_erp_mirror where claim_id = '15150000-0000-0000-0000-000000000305'
+             and posting = 'claim-payment'),
+  1, 'PQ-11 (control) the off-float payment writes its claim-payment intent');
+select is((select count(*)::int from expense_posting_erp_mirror where claim_id = '15150000-0000-0000-0000-000000000302'),
+  0, 'PQ-11 a Finance custodian''s payment from a float with no cash account writes no posting intent');
+select is((select count(*)::int from expense_posting_erp_mirror where claim_id = '15150000-0000-0000-0000-000000000304'),
+  0, 'PQ-11 a PM custodian''s payment from a float with no cash account writes no posting intent');
+select is((select count(*)::int from expense_posting_erp_mirror where claim_id = '15150000-0000-0000-0000-000000000310'),
+  0, 'PQ-11 an advance return into a float with no cash account writes no posting intent');
 
 select * from finish();
 rollback;

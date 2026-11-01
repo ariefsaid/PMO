@@ -6,6 +6,7 @@
 --   is 0270 §1 VERBATIM plus the lines marked `-- 0423`. Reverse = re-create each from this text minus the marked lines.
 -- ── REVERSE (manual, in this order; also rollback/0423_imprest_cash_down.sql) ───────────────────────────────────────
 --   re-create public.record_expense_advance_return from 0270 §1 (this file's text minus `-- 0423` lines)
+--   re-create public.enqueue_expense_return_posting + enqueue_expense_claim_postings from 0270 §4 (this file's text minus `-- 0423` lines)
 --   re-create public.transition_expense_claim from 0247 §7 (this file's text minus `-- 0423` lines)
 --   drop function if exists public.transition_imprest_replenishment(uuid, text, text, text);
 --   drop function if exists public.request_imprest_replenishment(uuid, text);
@@ -172,6 +173,10 @@ begin
   end if;
   if v_row.imprest_float_id is not null then                                               -- 0423
     select * into v_float from public.imprest_floats where id = v_row.imprest_float_id;    -- 0423
+    if v_float.archived_at is not null and p_to in ('Approved','Paid') then                -- 0423
+      raise exception 'this site float is archived: its records can no longer be approved or paid'  -- 0423
+        using errcode = 'P0001';                                                           -- 0423
+    end if;                                                                                -- 0423
     v_tz := coalesce((select o.default_timezone from public.organizations o                -- 0423
                        where o.id = v_row.org_id), 'UTC');                                 -- 0423
   end if;                                                                                  -- 0423
@@ -469,6 +474,9 @@ begin
     raise exception 'a payment reference belongs only to the payment step' using errcode = 'P0001';
   end if;
   select * into v_f from public.imprest_floats where id = v_r.float_id;
+  if v_f.archived_at is not null and p_to in ('Approved','Paid') then  -- an archived float's requests may still be closed
+    raise exception 'this site float is archived: its requests can no longer be approved or paid' using errcode = 'P0001';
+  end if;
   perform public.imprest_lock_float(v_r.float_id);
   -- SoD (FR-IMP-052/053), for every caller including an Admin: site finance never tops up its own float.
   if p_to in ('Approved','Rejected','Paid') and (v_uid = v_f.custodian_id or v_uid = v_r.requested_by) then
@@ -509,7 +517,53 @@ end; $$;
 revoke all on function public.transition_imprest_replenishment(uuid, text, text, text) from public, anon;
 grant execute on function public.transition_imprest_replenishment(uuid, text, text, text) to authenticated;
 
--- §6 closing self-assertion (0422 §8 style): fail the migration if the ACL shape is wrong.
+-- §6 PQ-11 (moved forward from S6 so this slice ships alone): a float record whose float has no ERP cash account posts
+-- nothing — no approval, payment, settlement or return. Off-float records keep phase B. 0270 §4 VERBATIM plus the lines
+-- marked `-- 0423`; rollback/0423 restores the 0270 text.
+create or replace function public.enqueue_expense_claim_postings() returns trigger
+  language plpgsql security definer set search_path = public, pg_temp as $$
+begin
+  if not public.org_employs_expense_postings(new.org_id) then
+    return new;
+  end if;
+  if new.imprest_float_id is not null and not exists (select 1 from public.imprest_floats f      -- 0423 PQ-11
+       where f.id = new.imprest_float_id and f.erp_cash_account_ref is not null) then           -- 0423
+    return new;                                                                                 -- 0423
+  end if;                                                                                       -- 0423
+  if new.kind = 'claim' and new.status = 'Approved' then
+    perform public.enqueue_expense_posting(new.org_id, new.id, null, 'approval', new.approved_at, new.approved_by_id);
+  elsif new.kind = 'claim' and new.status = 'Paid' then
+    if new.amount - new.advance_applied > 0 then
+      perform public.enqueue_expense_posting(new.org_id, new.id, null, 'claim-payment', new.paid_at, new.paid_by_id);
+    end if;
+    if new.advance_applied > 0 then
+      perform public.enqueue_expense_posting(new.org_id, new.id, null, 'settlement', new.paid_at, new.paid_by_id);
+    end if;
+  elsif new.kind = 'advance' and new.status = 'Paid' then
+    perform public.enqueue_expense_posting(new.org_id, new.id, null, 'advance-payment', new.paid_at, new.paid_by_id);
+  elsif new.kind = 'claim' and old.status = 'Approved' and new.status = 'Cancelled'
+        and exists (select 1 from public.expense_posting_erp_mirror m
+                     where m.org_id = new.org_id and m.posting_identity = new.id::text || ':approval') then
+    perform public.enqueue_expense_posting(new.org_id, new.id, null, 'approval-cancel', new.cancelled_at, auth.uid());
+  end if;
+  return new;
+end; $$;
+revoke all on function public.enqueue_expense_claim_postings() from public, anon, authenticated, service_role;
+
+create or replace function public.enqueue_expense_return_posting() returns trigger
+  language plpgsql security definer set search_path = public, pg_temp as $$
+begin
+  if public.org_employs_expense_postings(new.org_id)
+     and not exists (select 1 from public.expense_claims a join public.imprest_floats f on f.id = a.imprest_float_id  -- 0423 PQ-11
+                      where a.id = new.advance_id and f.erp_cash_account_ref is null) then                           -- 0423 (edited: `then` moved down)
+    perform public.enqueue_expense_posting(new.org_id, new.advance_id, new.id, 'advance-return', new.recorded_at,
+                                           new.recorded_by);
+  end if;
+  return new;
+end; $$;
+revoke all on function public.enqueue_expense_return_posting() from public, anon, authenticated, service_role;
+
+-- §7 closing self-assertion (0422 §8 style): fail the migration if the ACL shape is wrong.
 do $$
 declare v text;
 begin
