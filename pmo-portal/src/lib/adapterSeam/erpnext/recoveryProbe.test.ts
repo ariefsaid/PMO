@@ -362,7 +362,7 @@ describe('Luna BLOCK 1 — anchor collision: a Receive probe never adopts a Pay 
         expect(decoded).toContain('"party_type","=","Customer"');
         return new Response(JSON.stringify({ data: [] }), { status: 200 });
       }
-      return new Response(JSON.stringify({}), { status: 200 });
+      return new Response(JSON.stringify({ data: [] }), { status: 200 });
     };
     const result = await probeErpByPaymentComposite(
       { client: client(fetchImpl), doctype: 'Payment Entry', anchorField: 'reference_no', fromDoc: (d) => ({ id: (d as { name: string }).name }), pmoRecordId: 'pmo-pe-recv-1' },
@@ -383,7 +383,7 @@ describe('Luna BLOCK 1 — anchor collision: a Receive probe never adopts a Pay 
         expect(decoded).toContain('"party_type","=","Supplier"');
         return new Response(JSON.stringify({ data: [] }), { status: 200 });
       }
-      return new Response(JSON.stringify({}), { status: 200 });
+      return new Response(JSON.stringify({ data: [] }), { status: 200 });
     };
     const result = await probeErpByPaymentComposite(
       { client: client(fetchImpl), doctype: 'Payment Entry', anchorField: 'reference_no', fromDoc: (d) => ({ id: (d as { name: string }).name }), pmoRecordId: 'pmo-pe-pay-1' },
@@ -423,6 +423,7 @@ describe('Luna BLOCK 1 — anchor collision: a Receive probe never adopts a Pay 
       if (decoded.includes('"reference_no","like"')) {
         return new Response(JSON.stringify({ data: [{ name: 'ACC-PE-PAY-2026-00001' }] }), { status: 200 });
       }
+      if (decoded.includes('filters=')) return new Response(JSON.stringify({ data: [] }), { status: 200 }); // composite query: no candidates
       // The fetched doc is a Pay doc — a Receive probe must NOT adopt it.
       return new Response(
         JSON.stringify({ name: 'ACC-PE-PAY-2026-00001', docstatus: 1, payment_type: 'Pay', party_type: 'Supplier', references: [{ reference_name: 'ACC-PINV-2026-00001' }] }),
@@ -568,6 +569,7 @@ it.each(['boundary', 'duplicate', 'out-of-order', 'malformed', 'query-error'])('
     'key', { partyType: 'Customer', party: 'Customer', paidAmount: '10', piNames: [], siNames: ['SI-1'], createdAfter: '2026-01-01', paymentType: 'Receive' },
   );
   if (scenario === 'query-error') await expect(result).rejects.toThrow();
+  else if (scenario === 'malformed') await expect(result).rejects.toMatchObject({ code: 'external-unreachable' });
   else expect(await result).toBeNull();
   expect(adopt).not.toHaveBeenCalled();
 });
@@ -575,5 +577,14 @@ it.each(['boundary', 'duplicate', 'out-of-order', 'malformed', 'query-error'])('
 it('keeps unordered list behavior for default callers', async () => {
   const { listDocNamesByFilters } = await import('./client.ts');
   expect(await listDocNamesByFilters(client(async () => new Response(JSON.stringify({ data: [{ name: 'B' }, {}, { name: 'A' }] }))), 'Payment Entry', [])).toEqual(['B', 'A']);
-  expect(await listDocNamesByFilters(client(async () => new Response(JSON.stringify({ data: null }))), 'Payment Entry', [])).toEqual([]);
+  // THEME-DATA-07: a non-array envelope is an unconfirmed read, not an empty list.
+  await expect(listDocNamesByFilters(client(async () => new Response(JSON.stringify({ data: null }))), 'Payment Entry', [])).rejects.toMatchObject({ code: 'external-unreachable' });
+  expect(await listDocNamesByFilters(client(async () => new Response(JSON.stringify({ data: [] }))), 'Payment Entry', [])).toEqual([]);
+});
+
+it.each([{}, { data: 'x' }, null])('THEME-DATA-07 an anchor probe over a malformed list envelope %j is unconfirmed, not a miss', async (body) => {
+  const fetchImpl = async () => new Response(JSON.stringify(body), { status: 200 });
+  await expect(probeErpByAnchorKey(
+    { client: client(fetchImpl), doctype: 'Purchase Invoice', anchorField: 'remarks', fromDoc: () => ({ id: 'x' }), pmoRecordId: 'pmo' }, 'key',
+  )).rejects.toMatchObject({ code: 'external-unreachable' });
 });

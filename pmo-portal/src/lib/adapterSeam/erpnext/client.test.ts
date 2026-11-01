@@ -16,6 +16,7 @@ import {
   unwrapFrappeDoc,
   escapeLikePattern,
   listDocNamesByAnchor,
+  listDocsByFilters,
   ERP_REQUEST_TIMEOUT_MS,
   ERP_QUARANTINE_WINDOW_MS,
   ERP_RESPONSE_MAX_BYTES,
@@ -401,6 +402,27 @@ describe('erpnext/client', () => {
       const fetchMock = deps.fetchImpl as unknown as ReturnType<typeof vi.fn>;
       const filters = new URL(fetchMock.mock.calls[0][0] as string).searchParams.get('filters');
       expect(JSON.parse(filters!)).toEqual([['remarks', 'like', '%a\\%b\\_c%']]);
+    });
+  });
+
+  describe('THEME-DATA-07 a malformed successful list envelope is unconfirmed, never an empty confirmed miss', () => {
+    const bad: Array<[string, () => Promise<Response>]> = [
+      ['no data member', async () => jsonResponse(200, {})],
+      ['non-array data', async () => jsonResponse(200, { data: 'oops' })],
+      ['null data', async () => jsonResponse(200, { data: null })],
+      ['malformed JSON', async () => new Response('<html>gateway</html>', { status: 200 })],
+      ['empty body', async () => new Response('', { status: 200 })],
+    ];
+    it.each(bad)('listDocNamesByAnchor rejects external-unreachable on %s', async (_l, f) => {
+      await expect(listDocNamesByAnchor(fetchDeps(f), 'Purchase Invoice', 'remarks', 'k')).rejects.toMatchObject({ code: 'external-unreachable' });
+    });
+    it.each(bad)('listDocsByFilters rejects external-unreachable on %s', async (_l, f) => {
+      await expect(listDocsByFilters(fetchDeps(f), 'Purchase Invoice', [], ['name'])).rejects.toMatchObject({ code: 'external-unreachable' });
+    });
+    it('a validated empty array is still an empty result', async () => {
+      const deps = fetchDeps(async () => jsonResponse(200, { data: [] }));
+      expect(await listDocNamesByAnchor(deps, 'Purchase Invoice', 'remarks', 'k')).toEqual([]);
+      expect(await listDocsByFilters(deps, 'Purchase Invoice', [], ['name'])).toEqual([]);
     });
   });
 

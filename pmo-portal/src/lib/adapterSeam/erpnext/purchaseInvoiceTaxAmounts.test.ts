@@ -77,6 +77,7 @@ function erpFetch() {
       writes.push(body);
       return Response.json({ data: { ...body, name: 'SYNTHETIC-PI-876', docstatus: 0, grand_total: 222, outstanding_amount: 222 } });
     }
+    if (new URL(String(url)).searchParams.has('limit_page_length')) return Response.json({ data: [] }); // list query: no rows
     return Response.json({ data: { name: 'SYNTHETIC-PI-876', docstatus: 1, grand_total: 222, outstanding_amount: 222 } });
   });
   return { writes, fetchImpl };

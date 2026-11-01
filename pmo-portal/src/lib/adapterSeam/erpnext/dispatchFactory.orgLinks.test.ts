@@ -82,7 +82,7 @@ async function resolve(record: Record<string, unknown>, orgId = 'org-1', fetchIm
     serviceClient: serviceClient(),
     orgId,
     command: commandFor(record) as never,
-    fetchImpl: fetchImpl ?? (vi.fn(async () => new Response('{}', { status: 200 })) as unknown as typeof fetch),
+    fetchImpl: fetchImpl ?? (vi.fn(async () => new Response('{"data":[]}', { status: 200 })) as unknown as typeof fetch),
     apiKey: 'k',
     apiSecret: 's',
   });
