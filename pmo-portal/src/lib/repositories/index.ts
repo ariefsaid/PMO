@@ -48,6 +48,7 @@ import { commentRepository } from './comments';
 import { meetingRepository } from './meetings';
 import { incidentRepository } from './incidents';
 import { procurementRepository, procurementFilesRepository } from './procurement';
+import { subcontractRepository } from './subcontracts';
 import { revenueRepository } from './revenue';
 import { timesheetRepository } from './timesheets';
 import { stockRepository } from './stock';
@@ -97,6 +98,7 @@ export const repositories: Repositories = {
   agentAttachment: agentAttachmentRepository,
   profile: profileRepository,
   procurement: procurementRepository,
+  subcontracts: subcontractRepository,
   revenue: revenueRepository,
   timesheet: timesheetRepository,
   budget: budgetRepository,

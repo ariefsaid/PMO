@@ -710,3 +710,33 @@ describe('can() — ERPNext document links (FR-PFE-020/031; link_erp_purchase_do
     expect(allowedRoles('delete', 'erpPurchaseLink')).toEqual(['Admin', 'Finance']);
   });
 });
+
+describe('can() — subcontract acceptance, caps and variations (#1513; server RPCs/RLS are the authority)', () => {
+  it('FR-SCA-001 subcontractLines edit is allowed for Admin, Finance and Project Manager only', () => {
+    expect(allowedRoles('edit', 'subcontractLines')).toEqual(['Admin', 'Project Manager', 'Finance']);
+  });
+
+  it('FR-SCA-010 subcontractAcceptance prepare is allowed for Admin, Executive, Project Manager and Finance (may_record_project_progress UX mirror)', () => {
+    expect(allowedRoles('prepare', 'subcontractAcceptance')).toEqual(['Admin', 'Executive', 'Project Manager', 'Finance']);
+  });
+
+  it('FR-SCA-011 subcontractAcceptance confirm is allowed for Admin and Finance only', () => {
+    expect(allowedRoles('confirm', 'subcontractAcceptance')).toEqual(['Admin', 'Finance']);
+  });
+
+  it('FR-SCA-030 poVariation request is allowed for every active role', () => {
+    expect(allowedRoles('request', 'poVariation')).toEqual(ALL_ROLES);
+  });
+
+  it('FR-SCA-031 poVariation decide is allowed for Admin, Executive, Project Manager and Finance', () => {
+    expect(allowedRoles('decide', 'poVariation')).toEqual(['Admin', 'Executive', 'Project Manager', 'Finance']);
+  });
+
+  it('FR-SCA-032 poVariation revise is allowed for Admin, Finance and Project Manager only', () => {
+    expect(allowedRoles('revise', 'poVariation')).toEqual(['Admin', 'Project Manager', 'Finance']);
+  });
+
+  it('FR-SCA-040 poVariation link is allowed for Admin, Finance and Project Manager only', () => {
+    expect(allowedRoles('link', 'poVariation')).toEqual(['Admin', 'Project Manager', 'Finance']);
+  });
+});

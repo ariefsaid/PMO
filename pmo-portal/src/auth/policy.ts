@@ -44,7 +44,12 @@ export type Action =
   | 'upload'
   | 'withdraw'
   | 'post'
-  | 'confirm';
+  | 'confirm'
+  | 'prepare'
+  | 'request'
+  | 'decide'
+  | 'revise'
+  | 'link';
 
 export type Entity =
   | 'project'
@@ -105,7 +110,10 @@ export type Entity =
   | 'warehouse'
   | 'stockDocument'
   | 'materialAllowance'
-  | 'reorderLevel';
+  | 'reorderLevel'
+  | 'subcontractLines'
+  | 'subcontractAcceptance'
+  | 'poVariation';
 
 export interface PolicyContext {
   /** The REAL JWT role (not the impersonated effectiveRole). */
@@ -706,6 +714,20 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
       (role === 'Project Manager' &&
         !!ctx.currentUserId &&
         ctx.record?.project_manager_id === ctx.currentUserId),
+  },
+  // #1513 S6: subcontract lines, acceptances, and variations. UX ONLY — RPCs and RLS are the authority.
+  subcontractLines: {
+    edit: allow(['Admin', 'Finance', 'Project Manager']),
+  },
+  subcontractAcceptance: {
+    prepare: allow(['Admin', 'Finance', 'Executive', 'Project Manager']),
+    confirm: allow(['Admin', 'Finance']),
+  },
+  poVariation: {
+    request: allow(ALL),
+    decide: allow(['Admin', 'Finance', 'Executive', 'Project Manager']),
+    revise: allow(['Admin', 'Finance', 'Project Manager']),
+    link: allow(['Admin', 'Finance', 'Project Manager']),
   },
 };
 
