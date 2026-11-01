@@ -10,11 +10,11 @@ const SETUP_CENSUS_AND_PROPOSALS = 1605;
 const SEND_TO_EMPTY_ERP = 1606;
 const CUTOVER_PROCESS_DOMAINS = 1601;
 const INVOICE_PAIRING = 1602;
-// Documented exception (#1609): `cutover.timesheet` is shipped, but its only proof is Deno-side (the sweep's
-// timesheet backstop in `supabase/functions/erpnext-sweep`, plus pgTAP). The shared suites run in Vitest through a
+// Documented exception (#1601): `cutover.timesheet` is shipped, but its only proof is Deno-side (the sweep's
+// timesheet backstop in `supabase/functions/erpnext-sweep`). The shared suites run in Vitest through a
 // tier harness over a mocked transport, and that code is not importable there (it boots `Deno.serve`). It stays
-// pending against the issue that owns a shared Deno-side suite; the Deno test keeps running in the meantime.
-const DENO_SIDE_PROOF_ONLY = 1609;
+// pending against the open cut-over issue that owns a shared Deno-side suite; the Deno test keeps running in the meantime.
+const DENO_SIDE_PROOF_ONLY = 1601;
 
 export const ERPNEXT_WORKFLOWS: TierWorkflows = {
   'census': { status: 'pending', version: 1, issue: SETUP_CENSUS_AND_PROPOSALS },

@@ -10,10 +10,11 @@ import { resolveErpDispatchAdapter, type DispatchServiceClient } from './dispatc
 
 type PushAndRead = Pick<ErpHarness, 'pushTimesheet' | 'pushProcurement' | 'pushRevenue' | 'pushBudgetVersion' | 'readActuals' | 'classifyPayment' | 'mirrorPurchases'>;
 
-/** Counts every call that reaches the (fake) ERP. */
+/** Counts every call that reaches the (fake) ERP. List reads must parse to `{data:[...]}` or the read is
+ *  unconfirmed (`external-unreachable`), so the generic answer is a validated empty list. */
 function countingTransport() {
   const stats = { calls: 0 };
-  const fetchImpl = (async () => { stats.calls += 1; return new Response('{}', { status: 200 }); }) as unknown as typeof fetch;
+  const fetchImpl = (async () => { stats.calls += 1; return new Response('{"data":[]}', { status: 200 }); }) as unknown as typeof fetch;
   return { stats, fetchImpl };
 }
 
@@ -281,10 +282,12 @@ function budgetClient(mapRows: unknown[]): DispatchServiceClient {
 
 async function pushBudgetVersion(s: BudgetVersionScenario): Promise<PreflightResult> {
   const stats = { calls: 0 };
-  const fetchImpl = (async (_url: string, init?: RequestInit) => {
+  const fetchImpl = (async (url: string, init?: RequestInit) => {
     stats.calls += 1;
     if (init?.method === 'POST') return new Response(JSON.stringify({ name: 'BUDGET-2026-00001' }), { status: 200 });
     if (init?.method === 'PUT') return new Response(JSON.stringify({ name: 'BUDGET-2026-00001', docstatus: 1 }), { status: 200 });
+    // List reads (the grain probe, `?filters=`) need a validated `{data:[...]}` envelope; the doc re-fetch keeps its shape.
+    if (new URL(url).search) return new Response(JSON.stringify({ data: [] }), { status: 200 });
     return new Response(JSON.stringify({ name: 'BUDGET-2026-00001', docstatus: 1, modified: '2026-07-20 10:00:00', fiscal_year: '2026' }), { status: 200 });
   }) as unknown as typeof fetch;
   const record: Record<string, unknown> = {
