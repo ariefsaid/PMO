@@ -163,3 +163,13 @@ describe('FR-IMP-073 awaiting reads', () => {
     await expect(dal.listAwaitingImprest()).rejects.toMatchObject({ code: '42501' });
   });
 });
+
+describe('FR-IMP-002 float amount changes', () => {
+  it('FR-IMP-002 listFloatChanges reads the float\'s changes bounded at 200 + 1', async () => {
+    h.result.value = { data: Array.from({ length: 201 }, (_, i) => ({ id: String(i) })), error: null };
+    const r = await dal.listFloatChanges('f1');
+    expect(r.truncated).toBe(true);
+    expect(h.calls.from).toEqual(['imprest_float_changes']);
+    expect(h.calls.eq).toContainEqual(['float_id', 'f1']);
+  });
+});

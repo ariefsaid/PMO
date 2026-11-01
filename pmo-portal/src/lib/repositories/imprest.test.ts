@@ -15,6 +15,7 @@ describe('imprestRepository', () => {
     ['listPlans', 'listPlans', ['f1']],
     ['listPlanLines', 'listPlanLines', ['pl1']],
     ['listReplenishments', 'listReplenishments', ['f1']],
+    ['listFloatChanges', 'listFloatChanges', ['f1']],
     ['listCounts', 'listCounts', ['f1']],
     ['listFloatClaims', 'listFloatClaims', ['f1']],
     ['listAwaitingImprest', 'listAwaitingImprest', []],

@@ -18,6 +18,7 @@ import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatCurrencyAuto, parseMoneyInputAtScale } from '@/src/lib/format';
 import { workflowVariant } from '@/src/lib/status/statusVariants';
 import { PlansSection } from './imprest/PlansSection';
+import { FloatAmountSection } from './imprest/FloatAmountSection';
 import { imprestStatusLabel } from './imprest/imprestLabels';
 import { expenseStatusLabel } from './expenses/expenseLabels';
 
@@ -30,8 +31,8 @@ type Dialog =
   | null;
 const REP_TO = { approveReplenishment: 'Approved', rejectReplenishment: 'Rejected', payReplenishment: 'Paid', cancelReplenishment: 'Cancelled' } as const;
 
-const Figure: React.FC<{ label: string; value: React.ReactNode }> = ({ label, value }) => (
-  <div><dt className="text-xs text-muted-foreground">{label}</dt><dd className="font-semibold tabular-nums">{value}</dd></div>
+const Figure: React.FC<{ label: string; value: React.ReactNode; id: string }> = ({ label, value, id }) => (
+  <div data-testid={`figure-${id}`}><dt className="text-xs text-muted-foreground">{label}</dt><dd className="font-semibold tabular-nums">{value}</dd></div>
 );
 
 /** `/imprest/:floatId` (FR-IMP-071): position, month plan, plans, receipts, replenishments and counts. The RPCs decide; this hides. */
@@ -73,9 +74,19 @@ const ImprestFloatDetail: React.FC = () => {
   const money = (v: number | string) => formatCurrencyAuto(Number(v), cur);
   const pos = position.data ?? null;
   const repRows = reps.data?.rows ?? [];
+  // A receipt is replenished only once the replenishment it was swept into is Paid (the position's receipts-waiting rule).
+  const settlement = (repId: string | null): 'paid' | 'requested' | 'waiting' => {
+    const rep = repId ? repRows.find((r) => r.id === repId) : undefined;
+    return !rep ? 'waiting' : rep.status === 'Paid' ? 'paid' : 'requested';
+  };
   const openFunding = repRows.some((r) => r.kind === 'funding' && (r.status === 'Requested' || r.status === 'Approved'));
+  // Receipts already swept into an open replenishment request are still "waiting" in the position until it is Paid, but cannot
+  // be requested again; unknown (reps not loaded) hides the button, the RPC refuses a duplicate either way.
+  const inOpenRequest = repRows.filter((r) => r.kind === 'replenishment' && (r.status === 'Requested' || r.status === 'Approved'))
+    .reduce((sum, r) => sum + toCents(r.amount), 0);
+  const requestable = pos && reps.data ? Math.max(0, toCents(pos.receipts_waiting) - inOpenRequest) : 0;
   const floatActions = pos
-    ? availableFloatActions({ userId, realRole, custodianId: flt.custodian_id, receiptsWaiting: pos.receipts_waiting, gap: pos.gap, openFunding })
+    ? availableFloatActions({ userId, realRole, custodianId: flt.custodian_id, receiptsWaiting: (requestable / 100).toFixed(2), gap: pos.gap, openFunding })
     : [];
   const planLines = (pos?.plan_lines ?? []) as unknown as PlanLineUsage[];
 
@@ -144,12 +155,12 @@ const ImprestFloatDetail: React.FC = () => {
             <CardHead>{t('imprest:detail.position', 'Position')}</CardHead>
             <CardPad>
               <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-                <Figure label={t('imprest:position.float', 'Float')} value={money(pos.float_amount)} />
-                <Figure label={t('imprest:position.cash', 'Cash in hand')} value={money(pos.cash_book)} />
-                <Figure label={t('imprest:position.advancesOut', 'Advances out')} value={money(pos.advances_out)} />
-                <Figure label={t('imprest:position.receiptsWaiting', 'Receipts waiting')} value={money(pos.receipts_waiting)} />
-                <Figure label={t('imprest:position.inFlight', 'Replenishment in flight')} value={money(pos.replenishment_in_flight)} />
-                <Figure label={t('imprest:position.gap', 'Gap')} value={toCents(pos.gap) === 0 ? money(pos.gap) : (
+                <Figure id="float" label={t('imprest:position.float', 'Float')} value={money(pos.float_amount)} />
+                <Figure id="cash" label={t('imprest:position.cash', 'Cash in hand')} value={money(pos.cash_book)} />
+                <Figure id="advances" label={t('imprest:position.advancesOut', 'Advances out')} value={money(pos.advances_out)} />
+                <Figure id="receipts" label={t('imprest:position.receiptsWaiting', 'Receipts waiting')} value={money(pos.receipts_waiting)} />
+                <Figure id="in-flight" label={t('imprest:position.inFlight', 'Replenishment in flight')} value={money(pos.replenishment_in_flight)} />
+                <Figure id="gap" label={t('imprest:position.gap', 'Gap')} value={toCents(pos.gap) === 0 ? money(pos.gap) : (
                   <span role="status" className="text-destructive-text"><span>{t('imprest:position.gapFlag', 'Books do not balance')}</span> ({money(pos.gap)})</span>)} />
               </dl>
               {pos.last_count_at && (
@@ -179,6 +190,8 @@ const ImprestFloatDetail: React.FC = () => {
         </>
       )}
 
+      <FloatAmountSection floatId={flt.id} custodianId={flt.custodian_id} currency={cur} floatAmount={flt.float_amount} />
+
       <PlansSection floatId={flt.id} custodianId={flt.custodian_id} currency={cur} currentMonth={pos?.month ?? new Date().toISOString().slice(0, 7) + '-01'} />
 
       <Card variant="bare" className="mb-4">
@@ -195,9 +208,11 @@ const ImprestFloatDetail: React.FC = () => {
                   {c.is_plan_exception && <StatusPill variant="warn">{t('imprest:plan.exception', 'Out of plan')}</StatusPill>}
                   <span className="tabular-nums">{money(c.amount)}</span>
                   <StatusPill variant={workflowVariant(c.status)}>{expenseStatusLabel(c.status, t)}</StatusPill>
-                  {c.kind === 'claim' && c.status === 'Paid' && (c.imprest_replenishment_id
+                  {c.kind === 'claim' && c.status === 'Paid' && (settlement(c.imprest_replenishment_id) === 'paid'
                     ? <span className="text-muted-foreground">{t('imprest:receipts.replenished', 'Replenished')}</span>
-                    : <span>{t('imprest:receipts.waiting', 'Waiting')}</span>)}
+                    : settlement(c.imprest_replenishment_id) === 'requested'
+                      ? <span>{t('imprest:receipts.inRequest', 'In a replenishment request')}</span>
+                      : <span>{t('imprest:receipts.waiting', 'Waiting')}</span>)}
                 </li>
               ))}
             </ul>}

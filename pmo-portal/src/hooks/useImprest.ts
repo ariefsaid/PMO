@@ -7,7 +7,7 @@ import { expenseClaimsAwaitingKey } from './approvalsQueryKeys';
 
 /** Site imprest (#1515) over the repository seam (ADR-0017). Keys carry org_id (tenant scope). */
 export const IMPREST_QUERY_ROOTS = ['imprest-floats', 'imprest-position', 'imprest-plan-usage', 'imprest-plans',
-  'imprest-replenishments', 'imprest-counts', 'imprest-float-choices', 'imprest-float-claims', 'imprest-limit', 'imprest-awaiting'] as const;
+  'imprest-replenishments', 'imprest-counts', 'imprest-float-choices', 'imprest-float-claims', 'imprest-limit', 'imprest-awaiting', 'imprest-float-changes'] as const;
 
 const useOrgId = (): string | undefined => useAuth().currentUser?.org_id;
 
@@ -52,6 +52,14 @@ export function useImprestReplenishments(floatId: string | undefined) {
   return useQuery({
     queryKey: ['imprest-replenishments', orgId, floatId],
     queryFn: () => repositories.imprest.listReplenishments(floatId as string),
+    enabled: Boolean(orgId) && Boolean(floatId),
+  });
+}
+export function useImprestFloatChanges(floatId: string | undefined) {
+  const orgId = useOrgId();
+  return useQuery({
+    queryKey: ['imprest-float-changes', orgId, floatId],
+    queryFn: () => repositories.imprest.listFloatChanges(floatId as string),
     enabled: Boolean(orgId) && Boolean(floatId),
   });
 }

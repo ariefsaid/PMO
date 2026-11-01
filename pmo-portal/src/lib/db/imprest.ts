@@ -11,6 +11,7 @@ export type ImprestFloatRow = Tables<'imprest_floats'>;
 export type ImprestPlanRow = Tables<'imprest_plans'>;
 export type ImprestPlanLineRow = Tables<'imprest_plan_lines'>;
 export type ImprestReplenishmentRow = Tables<'imprest_replenishments'>;
+export type ImprestFloatChangeRow = Tables<'imprest_float_changes'>;
 export type ImprestCountRow = Tables<'imprest_cash_counts'>;
 export type BudgetCategory = Database['public']['Enums']['budget_category'];
 export type ImprestPosition = Database['public']['Functions']['get_imprest_position']['Returns'][number];
@@ -59,6 +60,12 @@ export async function listPlanLines(planId: string): Promise<ImprestPlanLineRow[
 export async function listReplenishments(floatId: string): Promise<Bounded<ImprestReplenishmentRow>> {
   const { data, error } = await supabase.from('imprest_replenishments').select('*').eq('float_id', floatId)
     .order('requested_at', { ascending: false }).limit(LIST_LIMIT + 1);
+  fail(error);
+  return bounded(data);
+}
+export async function listFloatChanges(floatId: string): Promise<Bounded<ImprestFloatChangeRow>> {
+  const { data, error } = await supabase.from('imprest_float_changes').select('*').eq('float_id', floatId)
+    .order('proposed_at', { ascending: false }).limit(LIST_LIMIT + 1);
   fail(error);
   return bounded(data);
 }

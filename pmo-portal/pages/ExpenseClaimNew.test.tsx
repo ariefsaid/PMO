@@ -167,6 +167,18 @@ describe('Charge to site float (AC-IMP-084, FR-IMP-072)', () => {
     expect(h.setFloat).not.toHaveBeenCalled();
   });
 
+  it('AC-IMP-084 changing the project drops the chosen float', async () => {
+    renderPage();
+    fireEvent.change(screen.getByLabelText('Project'), { target: { value: 'p1' } });
+    fireEvent.change(screen.getByLabelText('Charge to site float'), { target: { value: 'f1' } });
+    fireEvent.change(screen.getByLabelText('Project'), { target: { value: 'p2' } });
+    expect(screen.getByLabelText('Charge to site float')).toHaveValue('');
+    fill('100000');
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(h.navigate).toHaveBeenCalled());
+    expect(h.setFloat).not.toHaveBeenCalled();
+  });
+
   it('AC-IMP-084 a refused float link lands on the saved draft and says so', async () => {
     h.setFloat.mockRejectedValueOnce(Object.assign(new Error('float is not on this project'), { code: 'P0001' }));
     renderPage();

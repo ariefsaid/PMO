@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, within, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import type { Role } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components/ui';
@@ -88,5 +89,23 @@ describe('/imprest list (AC-IMP-082)', () => {
     realRole = 'Project Manager';
     renderPage();
     expect(screen.queryByRole('button', { name: 'Establish float' })).toBeNull();
+  });
+
+  it('AC-IMP-082 the custodian picker offers only Finance members and the chosen project\'s manager, and establishing sends the ids', async () => {
+    const user = userEvent.setup();
+    h.establish.mutateAsync.mockResolvedValue('f9');
+    renderPage();
+    await user.click(screen.getByRole('button', { name: 'Establish float' }));
+    const dialog = await screen.findByRole('dialog');
+    await user.click(within(dialog).getByRole('combobox', { name: /Project/ }));
+    await user.click(await screen.findByRole('option', { name: /Site Alpha/ }));
+    await user.click(within(dialog).getByRole('combobox', { name: /Custodian/ }));
+    expect(await screen.findByRole('option', { name: /Pia Manager/ })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: /Finn Finance/ })).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: /Eli Engineer/ })).toBeNull();
+    await user.click(screen.getByRole('option', { name: /Finn Finance/ }));
+    await user.type(within(dialog).getByLabelText(/Float amount/), '5000000');
+    await user.click(within(dialog).getByRole('button', { name: 'Establish float' }));
+    await waitFor(() => expect(h.establish.mutateAsync).toHaveBeenCalledWith({ projectId: 'p1', custodianId: 'u-fin', amount: 5000000 }));
   });
 });

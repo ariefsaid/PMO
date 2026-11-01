@@ -10,6 +10,19 @@
     "requestReplenishment": "Request replenishment",
     "submitPlan": "Submit plan"
   },
+  "amount": {
+    "approveTitle": "Approve the proposed float amount?",
+    "current": "Current float: {{amount}}",
+    "error": "Couldn't load the float amount changes",
+    "newAmount": "New float amount",
+    "open": "Proposed {{amount}} on {{date}}: awaiting a senior approver.",
+    "propose": "Propose new amount",
+    "proposeConfirm": "Propose amount",
+    "proposeTitle": "Propose a new float amount",
+    "proposed": "Amount proposed",
+    "rejectTitle": "Reject the proposed float amount?",
+    "title": "Float amount"
+  },
   "approvals": {
     "error": "Couldn't load site cash awaiting you",
     "errorSub": "Everything else below is unaffected.",
@@ -153,6 +166,7 @@
   },
   "receipts": {
     "error": "Couldn't load the float's records",
+    "inRequest": "In a replenishment request",
     "none": "Nothing has been charged to this float yet.",
     "replenished": "Replenished",
     "title": "Receipts",

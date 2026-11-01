@@ -10,6 +10,19 @@
     "requestReplenishment": "Minta penggantian",
     "submitPlan": "Ajukan rencana"
   },
+  "amount": {
+    "approveTitle": "Setujui jumlah kas lapangan yang diusulkan?",
+    "current": "Kas lapangan saat ini: {{amount}}",
+    "error": "Gagal memuat perubahan jumlah kas lapangan",
+    "newAmount": "Jumlah kas lapangan baru",
+    "open": "Diusulkan {{amount}} pada {{date}}: menunggu penyetuju senior.",
+    "propose": "Usulkan jumlah baru",
+    "proposeConfirm": "Usulkan jumlah",
+    "proposeTitle": "Usulkan jumlah kas lapangan baru",
+    "proposed": "Jumlah diusulkan",
+    "rejectTitle": "Tolak jumlah kas lapangan yang diusulkan?",
+    "title": "Jumlah kas lapangan"
+  },
   "approvals": {
     "error": "Gagal memuat kas lapangan yang menunggu Anda",
     "errorSub": "Yang lain di bawah tidak terpengaruh.",
@@ -153,6 +166,7 @@
   },
   "receipts": {
     "error": "Gagal memuat catatan kas lapangan",
+    "inRequest": "Dalam permintaan penggantian",
     "none": "Belum ada yang dibebankan ke kas lapangan ini.",
     "replenished": "Sudah diganti",
     "title": "Kuitansi",

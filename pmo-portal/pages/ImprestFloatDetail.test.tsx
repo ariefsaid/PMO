@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within, waitFor } from '@testing-library/react';
+import { render, screen, within, waitFor, cleanup } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import type { Role } from '@/src/auth/AuthContext';
@@ -13,6 +13,7 @@ const h = vi.hoisted(() => ({
   reps: null as unknown, counts: null as unknown, claims: null as unknown,
   m: {} as Record<string, { mutateAsync: ReturnType<typeof vi.fn>; isPending: boolean }>,
 }));
+vi.mock('./imprest/FloatAmountSection', () => ({ FloatAmountSection: () => null })); // proven by its own test
 vi.mock('@/src/hooks/useImprest', () => ({
   useImprestFloats: () => h.floats,
   useImprestPosition: () => h.position,
@@ -75,6 +76,11 @@ describe('/imprest/:floatId (AC-IMP-082)', () => {
   it('AC-IMP-082 the custodian sees Request replenishment and not Approve', () => {
     setViewer('u-cust', 'Finance');
     renderPage();
+    expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Request replenishment' })).toBeNull(); // the Requested one already covers the waiting receipts
+    h.reps = ok({ rows: [], truncated: false });
+    cleanup();
+    renderPage();
     expect(screen.getByRole('button', { name: 'Request replenishment' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull();
   });
@@ -91,6 +97,17 @@ describe('/imprest/:floatId (AC-IMP-082)', () => {
     expect(screen.getByText("Couldn't load this float's position")).toBeInTheDocument();
     expect(screen.queryByText(/Books do not balance/)).toBeNull();
     expect(screen.queryByRole('row', { name: /Vehicle/ })).toBeNull();
+  });
+
+  it('AC-IMP-082 receipts already in an open replenishment request cannot be requested again', () => {
+    setViewer('u-cust', 'Finance');
+    h.reps = ok({ rows: [{ ...REP, status: 'Approved', approved_by: 'u-fin' }], truncated: false });
+    renderPage();
+    expect(screen.queryByRole('button', { name: 'Request replenishment' })).toBeNull();
+    cleanup();
+    h.reps = ok({ rows: [{ ...REP, amount: 1000000 }], truncated: false }); // only part of the waiting receipts is covered
+    renderPage();
+    expect(screen.getByRole('button', { name: 'Request replenishment' })).toBeInTheDocument();
   });
 
   it('AC-IMP-082 a non-zero gap is flagged in text', () => {
@@ -113,6 +130,7 @@ describe('/imprest/:floatId (AC-IMP-082)', () => {
   it('AC-IMP-082 requesting a replenishment confirms before sending', async () => {
     const user = userEvent.setup();
     setViewer('u-cust', 'Finance');
+    h.reps = ok({ rows: [], truncated: false });
     renderPage();
     await user.click(screen.getByRole('button', { name: 'Request replenishment' }));
     expect(h.m.requestReplenishment.mutateAsync).not.toHaveBeenCalled();
@@ -134,7 +152,21 @@ describe('/imprest/:floatId (AC-IMP-082)', () => {
     await waitFor(() => expect(h.m.recordCount.mutateAsync).toHaveBeenCalledWith({ floatId: 'f1', counted: 990000, note: 'short by petty items' }));
   });
 
+  it('AC-IMP-082 a receipt is Replenished only once its replenishment is Paid', () => {
+    h.reps = ok({ rows: [{ ...REP, id: 'r0', status: 'Paid' }, { ...REP, id: 'r5', status: 'Requested' }], truncated: false });
+    h.claims = ok({ rows: [
+      { id: 'c1', claim_number: 'EXP-1', kind: 'claim', title: 'Diesel', amount: 300000, status: 'Paid', imprest_replenishment_id: 'r0', is_plan_exception: false, currency: 'IDR' },
+      { id: 'c3', claim_number: 'EXP-3', kind: 'claim', title: 'Oil', amount: 100000, status: 'Paid', imprest_replenishment_id: 'r5', is_plan_exception: false, currency: 'IDR' },
+      { id: 'c2', claim_number: 'EXP-2', kind: 'claim', title: 'Tyres', amount: 200000, status: 'Paid', imprest_replenishment_id: null, is_plan_exception: false, currency: 'IDR' },
+    ], truncated: false });
+    renderPage();
+    expect(within(screen.getByText('EXP-1').closest('li') as HTMLElement).getByText('Replenished')).toBeInTheDocument();
+    expect(within(screen.getByText('EXP-3').closest('li') as HTMLElement).getByText('In a replenishment request')).toBeInTheDocument();
+    expect(within(screen.getByText('EXP-2').closest('li') as HTMLElement).getByText('Waiting')).toBeInTheDocument();
+  });
+
   it('AC-IMP-082 a settled receipt is marked replenished', () => {
+    h.reps = ok({ rows: [{ ...REP, id: 'r0', status: 'Paid' }], truncated: false });
     h.claims = ok({ rows: [
       { id: 'c1', claim_number: 'EXP-1', kind: 'claim', title: 'Diesel', amount: 300000, status: 'Paid', imprest_replenishment_id: 'r0', is_plan_exception: false, currency: 'IDR' },
       { id: 'c2', claim_number: 'EXP-2', kind: 'claim', title: 'Tyres', amount: 200000, status: 'Paid', imprest_replenishment_id: null, is_plan_exception: false, currency: 'IDR' },

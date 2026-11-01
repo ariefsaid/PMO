@@ -4,7 +4,8 @@ import type { Role } from '@/src/auth/AuthContext';
 export type ImprestAction =
   | 'requestReplenishment' | 'requestFunding' | 'recordCount'
   | 'approveReplenishment' | 'rejectReplenishment' | 'payReplenishment' | 'cancelReplenishment'
-  | 'submitPlan' | 'reopenPlan' | 'cancelPlan' | 'approvePlan' | 'rejectPlan';
+  | 'submitPlan' | 'reopenPlan' | 'cancelPlan' | 'approvePlan' | 'rejectPlan'
+  | 'approveFloatChange' | 'rejectFloatChange';
 
 const APPROVAL_RANK: readonly Role[] = ['Admin', 'Executive', 'Finance', 'Project Manager'];
 const FINANCE_OR_ADMIN: readonly Role[] = ['Admin', 'Finance'];
@@ -80,4 +81,18 @@ export function availablePlanActions(c: PlanCtx): ImprestAction[] {
     out.push('approvePlan', 'rejectPlan');
   }
   return out;
+}
+
+export interface FloatChangeCtx {
+  userId: string | null | undefined;
+  realRole: Role | null | undefined;
+  custodianId: string;
+  change: { status: string; proposed_by: string };
+}
+/** decide_imprest_float_change: the proposer and the custodian never decide; the senior set (not readable by the client) and
+ *  Admin break-glass decide, so approval rank is the UX gate and the RPC refuses the rest. */
+export function availableFloatChangeActions(c: FloatChangeCtx): ImprestAction[] {
+  if (!c.userId || !c.realRole) return [];
+  if (c.change.status !== 'Proposed' || c.userId === c.change.proposed_by || c.userId === c.custodianId) return [];
+  return APPROVAL_RANK.includes(c.realRole) ? ['approveFloatChange', 'rejectFloatChange'] : [];
 }

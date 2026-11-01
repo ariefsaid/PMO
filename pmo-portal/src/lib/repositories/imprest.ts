@@ -11,6 +11,7 @@ export const imprestRepository: ImprestRepository = {
   listPlans: (floatId) => wrap(() => dal.listPlans(floatId)),
   listPlanLines: (planId) => wrap(() => dal.listPlanLines(planId)),
   listReplenishments: (floatId) => wrap(() => dal.listReplenishments(floatId)),
+  listFloatChanges: (floatId) => wrap(() => dal.listFloatChanges(floatId)),
   listCounts: (floatId) => wrap(() => dal.listCounts(floatId)),
   listFloatClaims: (floatId) => wrap(() => dal.listFloatClaims(floatId)),
   listAwaitingImprest: () => wrap(() => dal.listAwaitingImprest()),

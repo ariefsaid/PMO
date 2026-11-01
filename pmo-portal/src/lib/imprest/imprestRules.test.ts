@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  availableFloatActions, availableReplenishmentActions, availablePlanActions, sumCents, toCents, gapCents, isPlanException,
+  availableFloatActions, availableReplenishmentActions, availablePlanActions, availableFloatChangeActions, sumCents, toCents, gapCents, isPlanException,
 } from './imprestRules';
 
 const float = (o: Partial<Parameters<typeof availableFloatActions>[0]> = {}) => ({
@@ -88,6 +88,24 @@ describe('AC-IMP-081 plan actions follow transition_imprest_plan', () => {
   it('AC-IMP-081 no user or role gives nothing', () => {
     expect(planCtx('', 'Finance', 'Draft')).toEqual([]);
     expect(planCtx('fin', null, 'Draft')).toEqual([]);
+  });
+});
+
+const changeCtx = (userId: string, realRole: Parameters<typeof availableFloatChangeActions>[0]['realRole'], status: string) =>
+  availableFloatChangeActions({ userId, realRole, custodianId: 'cust', change: { status, proposed_by: 'prop' } });
+
+describe('AC-IMP-081 float amount changes follow decide_imprest_float_change', () => {
+  it('AC-IMP-081 a Proposed change is decided by approval rank who is neither proposer nor custodian', () => {
+    expect(changeCtx('adm', 'Admin', 'Proposed')).toEqual(['approveFloatChange', 'rejectFloatChange']);
+    expect(changeCtx('exec', 'Executive', 'Proposed')).toContain('approveFloatChange');
+    for (const [u, r] of [['prop', 'Finance'], ['cust', 'Project Manager'], ['eng', 'Engineer']] as const) {
+      expect(changeCtx(u, r, 'Proposed')).toEqual([]);
+    }
+  });
+  it('AC-IMP-081 a decided change offers nothing and no user or role gives nothing', () => {
+    expect(changeCtx('adm', 'Admin', 'Approved')).toEqual([]);
+    expect(changeCtx('', 'Admin', 'Proposed')).toEqual([]);
+    expect(changeCtx('adm', null, 'Proposed')).toEqual([]);
   });
 });
 
