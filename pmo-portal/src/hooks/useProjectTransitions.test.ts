@@ -168,7 +168,7 @@ describe('useProjectTransition', () => {
 
   it('refreshes cached project projections for the current organization after a transition', async () => {
     const { qc, Wrapper } = makeWrapper();
-    const roots = ['projects', 'project', 'sales-pipeline', 'lost-deals', 'won-deals', 'win-rate', 'dashboard'];
+    const roots = ['projects', 'project', 'sales-pipeline', 'lost-deals', 'won-deals', 'win-rate', 'loss-breakdown', 'dashboard'];
     for (const root of roots) {
       qc.setQueryData([root, 'org-1', 'detail'], 'old');
       qc.setQueryData([root, 'org-2', 'detail'], 'other');

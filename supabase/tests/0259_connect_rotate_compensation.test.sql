@@ -93,7 +93,7 @@ select is((select count(*)::int from external_org_bindings where org_id='a259000
 -- AC-EAC-006: a later successful first-connect rotate revokes the abandoned attempt's credential.
 select public.stage_vault_secret_for_org('a2590000-0000-0000-0000-000000000001','clickup','abandoned-1','a259_abandoned_1','a2590000-0000-0000-0000-0000000000a1');
 select public.stage_vault_secret_for_org('a2590000-0000-0000-0000-000000000001','clickup','abandoned-2','a259_abandoned_2','a2590000-0000-0000-0000-0000000000a1');
-select is((select config->'prev_binding'->>'secret_ref' from external_org_bindings
+select is((select prev_binding->>'secret_ref' from external_org_bindings
             where org_id='a2590000-0000-0000-0000-000000000001' and external_tier='clickup'), 'a259_abandoned_1',
   'AC-EAC-006 later stage records the abandoned first-connect credential as its prior binding');
 select is(public.finalize_external_connect('a2590000-0000-0000-0000-000000000001','clickup','a259_abandoned_2',true,true,'a2590000-0000-0000-0000-0000000000a1'), 'active',
@@ -102,7 +102,7 @@ select is((select count(*)::int from vault.secrets where name='a259_abandoned_1'
   'AC-EAC-006 successful later rotate revokes the abandoned attempt credential');
 select is((select secret_ref from external_org_bindings where org_id='a2590000-0000-0000-0000-000000000001' and external_tier='clickup'), 'a259_abandoned_2',
   'AC-EAC-006 binding points at the successful later credential');
-select is((select config ? 'prev_binding' from external_org_bindings where org_id='a2590000-0000-0000-0000-000000000001' and external_tier='clickup'), false,
+select is((select prev_binding is not null from external_org_bindings where org_id='a2590000-0000-0000-0000-000000000001' and external_tier='clickup'), false,
   'AC-EAC-006 successful later rotate clears its prior-binding marker');
 delete from external_org_bindings where org_id='a2590000-0000-0000-0000-000000000001' and external_tier='clickup';
 -- The generic Vault-delete RPC is intentionally no longer callable by service_role (0341). Reset to
@@ -117,16 +117,16 @@ insert into external_org_bindings (org_id, external_tier, site_url, secret_ref, 
  values ('a2590000-0000-0000-0000-000000000001','clickup','','a259_dead','disconnected','{"clickup_team_id":"t1"}',
          'a2590000-0000-0000-0000-0000000000a1','2026-01-01T00:00:00Z','2026-02-01T00:00:00Z');
 create temp table a259_before as
-  select status, secret_ref, connected_by, connected_at, disconnected_at, config from external_org_bindings
+  select status, secret_ref, connected_by, connected_at, disconnected_at, config, prev_binding from external_org_bindings
    where org_id='a2590000-0000-0000-0000-000000000001' and external_tier='clickup';
 grant select on a259_before to service_role;
 set local role service_role;
 select public.stage_vault_secret_for_org('a2590000-0000-0000-0000-000000000001','clickup','re','a259_re','a2590000-0000-0000-0000-0000000000a1');
-select is((select config->'prev_binding'->>'status' from external_org_bindings where org_id='a2590000-0000-0000-0000-000000000001' and external_tier='clickup'), 'disconnected',
+select is((select prev_binding->>'status' from external_org_bindings where org_id='a2590000-0000-0000-0000-000000000001' and external_tier='clickup'), 'disconnected',
   'AC-653-6 staging over a disconnected binding records it as disconnected, not as a live secret to retain');
 select is(public.finalize_external_connect('a2590000-0000-0000-0000-000000000001','clickup','a259_re',true,false,'a2590000-0000-0000-0000-0000000000a1'), 'rejected', 'AC-653-6 failed reconnect over a disconnected binding is rejected');
 select results_eq(
-  $$select status, secret_ref, connected_by, connected_at, disconnected_at, config from external_org_bindings
+  $$select status, secret_ref, connected_by, connected_at, disconnected_at, config, prev_binding from external_org_bindings
      where org_id='a2590000-0000-0000-0000-000000000001' and external_tier='clickup'$$,
   $$select * from a259_before$$,
   'AC-653-6 failed reconnect (finalize) leaves the disconnected binding exactly as before');
@@ -138,7 +138,7 @@ select is((select count(*)::int from vault.secrets where name='a259_re'), 0, 'AC
 select public.stage_vault_secret_for_org('a2590000-0000-0000-0000-000000000001','clickup','re2','a259_re2','a2590000-0000-0000-0000-0000000000a1');
 select public.cleanup_external_connect_attempt('a2590000-0000-0000-0000-000000000001','clickup','a259_re2','a2590000-0000-0000-0000-0000000000a1');
 select results_eq(
-  $$select status, secret_ref, connected_by, connected_at, disconnected_at, config from external_org_bindings
+  $$select status, secret_ref, connected_by, connected_at, disconnected_at, config, prev_binding from external_org_bindings
      where org_id='a2590000-0000-0000-0000-000000000001' and external_tier='clickup'$$,
   $$select * from a259_before$$,
   'AC-653-6 failed reconnect (cleanup) leaves the disconnected binding exactly as before');
@@ -151,7 +151,7 @@ select public.stage_vault_secret_for_org('a2590000-0000-0000-0000-000000000001',
 select public.stage_vault_secret_for_org('a2590000-0000-0000-0000-000000000001','clickup','re4','a259_re4','a2590000-0000-0000-0000-0000000000a1');
 select public.cleanup_external_connect_attempt('a2590000-0000-0000-0000-000000000001','clickup','a259_re4','a2590000-0000-0000-0000-0000000000a1');
 select results_eq(
-  $$select status, secret_ref, connected_by, connected_at, disconnected_at, config from external_org_bindings
+  $$select status, secret_ref, connected_by, connected_at, disconnected_at, config, prev_binding from external_org_bindings
      where org_id='a2590000-0000-0000-0000-000000000001' and external_tier='clickup'$$,
   $$select * from a259_before$$,
   'AC-653-6 a re-staged attempt still restores the original disconnected state');
@@ -159,7 +159,7 @@ select results_eq(
 -- A successful reconnect over a disconnected binding goes active on the new secret.
 select public.stage_vault_secret_for_org('a2590000-0000-0000-0000-000000000001','clickup','re5','a259_re5','a2590000-0000-0000-0000-0000000000a1');
 select is(public.finalize_external_connect('a2590000-0000-0000-0000-000000000001','clickup','a259_re5',true,true,'a2590000-0000-0000-0000-0000000000a1'), 'active', 'AC-653-6 a successful reconnect over a disconnected binding finalizes');
-select is((select status || ':' || secret_ref || ':' || (config ? 'prev_binding')::text from external_org_bindings
+select is((select status || ':' || secret_ref || ':' || (prev_binding is not null)::text from external_org_bindings
             where org_id='a2590000-0000-0000-0000-000000000001' and external_tier='clickup'), 'active:a259_re5:false',
   'AC-653-6 the reconnected binding is active on the new secret with no in-flight marker');
 
@@ -180,7 +180,7 @@ select results_eq(
      where org_id='a2590000-0000-0000-0000-000000000001' and external_tier='clickup'$$,
   $$select * from a259_disc$$,
   'AC-653-7 a failed reconnect after a disconnect leaves the binding disconnected (no revival of the pre-attempt secret)');
-select is((select config ? 'prev_binding' from external_org_bindings
+select is((select prev_binding is not null from external_org_bindings
             where org_id='a2590000-0000-0000-0000-000000000001' and external_tier='clickup'), false,
   'AC-653-7 no in-flight marker survives the compensation');
 select finish(); rollback;
