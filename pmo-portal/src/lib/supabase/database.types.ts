@@ -5599,6 +5599,75 @@ export type Database = {
           },
         ]
       }
+      procurement_invoice_lines: {
+        Row: {
+          amount: number | null
+          attributed_by: string | null
+          boq_item_id: string
+          created_at: string
+          invoice_id: string
+          org_id: string
+          quantity: number
+          rate: number
+        }
+        Insert: {
+          amount?: number | null
+          attributed_by?: string | null
+          boq_item_id: string
+          created_at?: string
+          invoice_id: string
+          org_id: string
+          quantity: number
+          rate: number
+        }
+        Update: {
+          amount?: number | null
+          attributed_by?: string | null
+          boq_item_id?: string
+          created_at?: string
+          invoice_id?: string
+          org_id?: string
+          quantity?: number
+          rate?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "procurement_invoice_lines_attributed_by_fkey"
+            columns: ["attributed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "procurement_invoice_lines_boq_item_id_fkey"
+            columns: ["boq_item_id"]
+            isOneToOne: false
+            referencedRelation: "boq_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "procurement_invoice_lines_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "procurement_invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "procurement_invoice_lines_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "vendor_withholding_bill_register"
+            referencedColumns: ["invoice_id"]
+          },
+          {
+            foreignKeyName: "procurement_invoice_lines_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       procurement_invoices: {
         Row: {
           amount: number | null
@@ -10122,6 +10191,23 @@ export type Database = {
         Returns: string
       }
       create_procurement_with_items: { Args: { p_id: string; p_header: Json; p_items: Json }; Returns: Database['public']['Tables']['procurements']['Row'] }
+      subcontract_po_position: {
+        Args: { p_po_id: string }
+        Returns: {
+          billed: number
+          boq_item_id: string
+          description: string
+          item_code: string
+          payable: number
+          po_qty: number
+          rate: number
+          revision: number
+          unit: string
+          verified: number
+          verified_at: string
+          verified_not_on_po: number
+        }[]
+      }
       subcontract_verified: {
         Args: { p_po_id: string }
         Returns: {
@@ -10294,6 +10380,66 @@ export type Database = {
           p_denominator: number
           p_numerator: number
           p_rate: number
+      capture_subcontract_vendor_invoice: {
+        Args: {
+          p_amount?: number
+          p_external_ref?: string
+          p_invoice_date: string
+          p_lines: Json
+          p_notes?: string
+          p_procurement_id: string
+          p_reference_number?: string
+          p_status: Database["public"]["Enums"]["procurement_invoice_status"]
+          p_tax_amount?: number
+          p_tax_base_denominator?: number
+          p_tax_base_numerator?: number
+          p_tax_rate?: number
+          p_tax_template?: string
+          p_tax_treatment?: string
+          p_withheld_amount?: number
+          p_withheld_pph_type?: string
+        }
+        Returns: {
+          amount: number | null
+          created_at: string
+          currency: string
+          efaktur_date: string | null
+          efaktur_number: string | null
+          erp_amended_from: string | null
+          erp_cancelled_at: string | null
+          erp_docstatus: number | null
+          erp_modified: string | null
+          erp_outstanding_amount: number | null
+          external_ref: string | null
+          id: string
+          import_batch_id: string | null
+          import_identity_facts: Json | null
+          import_identity_version: number | null
+          import_key: string | null
+          imported_at: string | null
+          invoice_date: string | null
+          org_id: string
+          po_id: string | null
+          procurement_id: string
+          reference_number: string | null
+          status: Database["public"]["Enums"]["procurement_invoice_status"]
+          tax_amount: number
+          tax_base_denominator: number
+          tax_base_numerator: number
+          tax_rate: number | null
+          tax_template: string | null
+          tax_treatment: string
+          vi_number: string | null
+          withheld_amount: number
+          withheld_pph_type: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "procurement_invoices"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
           p_treatment: string
         }
         Returns: number

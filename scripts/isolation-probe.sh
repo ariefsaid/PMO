@@ -222,6 +222,9 @@ else skip "set_subcontract_po_lines (purchase_orders)"; skip "issue_subcontract_
 if [ -n "$A_PO" ] && [ "$A_PO" != null ]; then
   c=$(rpc prepare_subcontract_acceptance "{\"p_po_id\":\"$A_PO\",\"p_acceptance_date\":\"2026-09-08\",\"p_lines\":[{\"boq_item_id\":\"$A_PO\",\"quantity\":1}]}")
 else skip "prepare_subcontract_acceptance (purchase_orders)"; fi
+if [ -n "$A_PROC" ] && [ "$A_PROC" != null ]; then
+  c=$(rpc capture_subcontract_vendor_invoice "{\"p_procurement_id\":\"$A_PROC\",\"p_status\":\"Received\",\"p_invoice_date\":\"2026-09-08\",\"p_lines\":[{\"boq_item_id\":\"$A_PROC\",\"quantity\":1,\"rate\":1}]}")
+else skip "capture_subcontract_vendor_invoice (procurements)"; fi
 if [ -n "$A_SCA" ] && [ "$A_SCA" != null ]; then
   c=$(rpc confirm_subcontract_acceptance "{\"p_id\":\"$A_SCA\"}")
   c=$(rpc withdraw_subcontract_acceptance "{\"p_id\":\"$A_SCA\"}")
