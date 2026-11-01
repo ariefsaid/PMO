@@ -61,7 +61,7 @@ describe('ECA2-T11 advanceConnectRun', () => {
 describe('Minor 8 tickConnectRun: a stuck run ends', () => {
   it('records a failed tick by class only (never the message) and keeps the run going', async () => {
     const h = harness();
-    h.listMasters.mockRejectedValueOnce(new AdapterError('external-unreachable', 'secret-host.internal said no'));
+    h.listMasters.mockRejectedValueOnce(new AdapterError('external-unreachable', 'erp.example.test said no'));
     expect(await tickConnectRun(h.d)).toBe('more');
     expect(h.d.failRun).toHaveBeenCalledWith('external-unreachable', false);
   });
