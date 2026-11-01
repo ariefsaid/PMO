@@ -18,6 +18,7 @@ const STATEMENT_NON_VIEW_ACTIONS: Exclude<Action, 'view'>[] = [
   'download_pdf',
   'record_efaktur',
   'assign_project',
+  'pair_invoices',
   'manage_external_bindings',
   'view_financial_directory',
   'manage',
@@ -356,6 +357,11 @@ describe('can() — CRM RBAC (W3-CRM)', () => {
 });
 
 describe('can() — revenue (P3a) reachability + SoD (owner ruling 2026-07-20)', () => {
+  it('AC-ECA-030 pair_invoices on salesInvoice is Admin and Finance only (the RPC re-asserts it)', () => {
+    expect(allowedRoles('pair_invoices', 'salesInvoice')).toEqual(['Admin', 'Finance']);
+    expect(can('pair_invoices', 'salesInvoice', { realRole: 'Project Manager' })).toBe(false);
+    expect(can('pair_invoices', 'salesInvoice', { realRole: null })).toBe(false);
+  });
   it('AC-PFIN-009 assign_project on salesInvoice is Admin and Finance only under the real role', () => {
     expect(allowedRoles('assign_project', 'salesInvoice')).toEqual(['Admin', 'Finance']);
     expect(can('assign_project', 'salesInvoice', { realRole: 'Admin', record: { viewOnly: true } })).toBe(true);

@@ -166,5 +166,35 @@
     "on": "Aktif",
     "off": "Nonaktif",
     "description": "Tombol Masukan di header dan, paling sering sebulan sekali, satu pertanyaan singkat setelah tugas pertama atau tinjauan triwulanan. Tidak pernah muncul saat seseorang mengisi formulir. Jawaban tidak memuat isi data."
+  },
+  "invoicePairs": {
+    "title": "Faktur di kedua sisi",
+    "intro": "Sebagian faktur yang dibuat di PMO juga ada di ERP Anda. Hitung setiap penjualan sekali saja, sebagai salinan ERP. Salinan PMO tetap tersimpan dan terhubung ke faktur ERP, tetapi tidak lagi menambah pendapatan dan piutang.",
+    "col": {
+      "pmo": "Faktur PMO",
+      "erp": "Faktur ERP",
+      "customer": "Pelanggan",
+      "amount": "Jumlah"
+    },
+    "acceptAll": "Hitung masing-masing sekali",
+    "needsDecision": "Perlu keputusan",
+    "needsDecisionHelp": "Faktur ini cocok dengan lebih dari satu faktur. Buka di ERP untuk membedakannya; PMO tidak akan memilih untuk Anda.",
+    "stillPmo": "Masih dihitung sebagai faktur PMO",
+    "reason": {
+      "noMatch": "Tidak ada faktur ERP yang cocok",
+      "ambiguous": "Lebih dari satu faktur ERP yang cocok",
+      "hasReceipt": "PMO sudah mencatat pembayaran pada faktur ini"
+    },
+    "countOne": "1 faktur",
+    "countOther": "{{count}} faktur",
+    "doneOne": "1 faktur kini dihitung sekali.",
+    "doneOther": "{{count}} faktur kini dihitung sekali.",
+    "failed": "Tidak ada faktur yang diubah. Daftar mungkin sudah usang; daftar telah dimuat ulang. Coba lagi.",
+    "alreadyOne": "1 faktur sudah dihitung sekali",
+    "alreadyOther": "{{count}} faktur sudah dihitung sekali",
+    "countedAs": "dihitung sebagai faktur ERP {{number}}",
+    "confirmTitle": "Hitung faktur ini sekali saja?",
+    "confirmBody": "Hitung {{what}} sekali saja, sebagai salinan ERP?",
+    "confirmAction": "Hitung sekali"
   }
 }

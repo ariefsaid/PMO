@@ -36,6 +36,7 @@ export type Action =
   | 'download_pdf'
   | 'record_efaktur'
   | 'assign_project'
+  | 'pair_invoices'
   | 'manage_external_bindings'
   | 'view_financial_directory'
   | 'manage'
@@ -593,6 +594,8 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     record_efaktur: allow(REVENUE_WRITE),
     // PMO project attribution remains separate from the ERP invoice body and is role-gated server-side.
     assign_project: allow(REVENUE_WRITE),
+    // ECA-5: accept PMO↔ERP invoice pairs (accept_invoice_pairs re-asserts Admin/Finance; this is UX only).
+    pair_invoices: allow(REVENUE_WRITE),
     // Approve/submit an invoice = the revenue write set (Admin + Finance). Migration 0114 gates the
     // `submit_sales_invoice` RPC on exactly these roles, so offering Exec/PM the affordance would
     // render a button that 403s.

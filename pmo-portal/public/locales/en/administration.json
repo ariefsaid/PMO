@@ -166,5 +166,35 @@
     "on": "On",
     "off": "Off",
     "description": "A Feedback button in the header and, at most once every 30 days, a short question after a first task or a quarterly check-in. Never shown while someone is filling in a form. Answers carry no record contents."
+  },
+  "invoicePairs": {
+    "title": "Invoices on both sides",
+    "intro": "Some invoices PMO raised are also in your ERP. Count each sale once, as the ERP copy. The PMO copy stays on record, linked to it, and stops adding to revenue and receivables.",
+    "col": {
+      "pmo": "PMO invoice",
+      "erp": "ERP invoice",
+      "customer": "Customer",
+      "amount": "Amount"
+    },
+    "acceptAll": "Count each once",
+    "needsDecision": "Needs a decision",
+    "needsDecisionHelp": "These match more than one invoice. Open them in the ERP to tell them apart; PMO will not choose for you.",
+    "stillPmo": "Still counted as PMO invoices",
+    "reason": {
+      "noMatch": "No matching ERP invoice",
+      "ambiguous": "More than one ERP invoice matches",
+      "hasReceipt": "PMO already recorded a payment on this invoice"
+    },
+    "countOne": "1 invoice",
+    "countOther": "{{count}} invoices",
+    "doneOne": "1 invoice now counts once.",
+    "doneOther": "{{count}} invoices now count once.",
+    "failed": "No invoice was changed. The list may be out of date; it has been reloaded. Try again.",
+    "alreadyOne": "1 invoice already counts once",
+    "alreadyOther": "{{count}} invoices already count once",
+    "countedAs": "counted as ERP invoice {{number}}",
+    "confirmTitle": "Count these invoices once?",
+    "confirmBody": "Count {{what}} once, as the ERP copy?",
+    "confirmAction": "Count once"
   }
 }

@@ -64,6 +64,17 @@ export interface ConnectHarness {
   failNextWrite(fault: 'transport' | 'lost-response'): void;
 }
 
+/** An ERP invoice as the ERP states it, in PMO terms. `total` is the tax-inclusive grand total. */
+export interface InboundInvoiceDoc {
+  client: string;
+  number: string;
+  poRef: string | null;
+  total: string;
+  taxAmount: string;
+  date: string;
+  currency: string;
+}
+
 export interface ErpHarness {
   readonly tier: string;
   /** party.match */
@@ -80,6 +91,8 @@ export interface ErpHarness {
   pushPurchase(connection: 'activated' | 'not-activated' | 'absent'): Promise<PushBeforeConnectionResult>;
   /** party.send, project.send, item.send: each call starts an empty fake ERP. Absent until the tier sends masters. */
   connect?: () => ConnectHarness;
+  /** invoice.pair-existing: the tier's inbound mapper applied to an ERP invoice; the row the feed writes, in PMO column names. */
+  mapInboundInvoice?: (doc: InboundInvoiceDoc) => Promise<Record<string, unknown>>;
   /** imprest.transfer: each call starts an empty fake ERP. Absent until the tier posts site cash. */
   transfer?: () => TransferHarness;
 }
