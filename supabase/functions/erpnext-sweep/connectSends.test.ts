@@ -365,6 +365,18 @@ describe('ECA3-T12 new items on open purchases are sent by the sweep, without a 
     assert(/no longer an Admin/.test(String(results(orphan.calls)[0].p_rejection)));
   });
 
+  it('FR-ECA-016 the no-Admin exemption is for items only: another kind marked automatic is still rejected', async () => {
+    const { calls } = await tick({ claimed: [{ ...P.party, decided_by: null, snapshot: { auto: true } }] });
+    assertEquals(erpPosts(calls).length, 0);
+    assert(/no longer an Admin/.test(String(results(calls)[0].p_rejection)));
+  });
+
+  it('FR-ECA-016 a queueing error is kept next to a later send error, not overwritten', async () => {
+    const { result } = await tick({ claimed: [P.party], enqueueError: '57014', resultError: { 'prop-party': '57014' } });
+    assert(String(result.error).includes('enqueue:'), String(result.error));
+    assert(String(result.error).includes('party:'), String(result.error));
+  });
+
   it('FR-ECA-016 an item that already has its link is not sent again', async () => {
     const { result, calls, outbox } = await newItem({ linked: { 'Kabel 10 mm': 'ITM-77' } });
     assertEquals(calls.filter((c) => c.url.host === ERP).length, 0);

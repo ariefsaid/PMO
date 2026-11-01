@@ -77,8 +77,8 @@ export async function drainConnectSends(sc: SupabaseClient, org: { orgId: string
   let queueError: string | undefined;
   try { await check(sc.rpc('enqueue_new_item_sends', { p_org_id: org.orgId, p_tier: TIER }), 'send queue'); }
   catch (err) { queueError = `enqueue:${err instanceof Error ? err.message : String(err)}`; }
-  const claimed = await check(sc.rpc('claim_connect_sends', { p_org_id: org.orgId, p_tier: TIER, p_limit: budget }), 'send claim') as Claimed[];
   if (queueError) out.error = queueError;
+  const claimed = await check(sc.rpc('claim_connect_sends', { p_org_id: org.orgId, p_tier: TIER, p_limit: budget }), 'send claim') as Claimed[];
   if (claimed.length === 0) return out;
 
   const conn = await erpClientForOrg(sc, org.orgId, { requireCompany: true });
@@ -105,7 +105,7 @@ export async function drainConnectSends(sc: SupabaseClient, org: { orgId: string
       const master = await pmoMasterOf(sc, org.orgId, kind, c.pmo_ids[0]);
       if (!master) { await reject(c, CONNECT_SEND_REJECTION_TEXT.gone); continue; }
       // a send the sweep queued itself (T12) has no accepting Admin; every other send still needs the Admin to hold the role
-      const queuedBySweep = c.decided_by === null && c.snapshot?.auto === true;
+      const queuedBySweep = c.kind === 'item' && c.decided_by === null && c.snapshot?.auto === true;
       if (!queuedBySweep && !(await actorIsAdmin(sc, org.orgId, c.decided_by))) { await reject(c, CONNECT_SEND_REJECTION_TEXT.actor); continue; }
       let ambiguous = false;
       const money = createDbMoneyOutboxDeps({
@@ -135,7 +135,7 @@ export async function drainConnectSends(sc: SupabaseClient, org: { orgId: string
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      out.error = `${c.kind}:${msg}`;
+      out.error = [out.error, `${c.kind}:${msg}`].filter(Boolean).join('; ');
       try {
         // I1: a link clash (the ERP record belongs to another PMO record) can never succeed by trying again: it ends as a decision in plain words.
         // Anything else unknown is counted and ends the same way after five ticks; until then the lease runs out and a later tick looks again
