@@ -2,7 +2,7 @@
 -- drafts and their lines (S1 half of AC-IMP-061; plan S1.11). F1 + F2 + one Draft plan by PM1 on float F.
 begin;
 create extension if not exists pgtap;
-select plan(21);
+select plan(23);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('15150000-0000-0000-0000-00000000000a', 'IMP Org',       'IDR', 'Asia/Jakarta'),
@@ -110,6 +110,11 @@ select is((select array_agg(row(float_id, remaining)::text) from imprest_float_c
   array[row('15150000-0000-0000-0000-0000000000d2'::uuid, 0::numeric)::text],
   'AC-IMP-061 an Engineer picks a float through the narrow chooser and still reads no float row');
 select is((select count(*)::int from imprest_floats), 0, 'AC-IMP-061 the chooser leaves the float table hidden from an Engineer');
+select is((select row(currency, project_name)::text from imprest_float_choices('15150000-0000-0000-0000-0000000000c2', 'Vehicle')),
+  row('IDR'::text, 'IMP Site Two'::text)::text,
+  '#1635 the chooser hands an Engineer the float currency and project name while the float table stays hidden');
+select is((select count(*)::int from pg_proc p join pg_namespace n on n.oid=p.pronamespace, unnest(p.proargnames) a where n.nspname='public' and p.proname='imprest_float_choices' and a='float_amount'), 0,
+  '#1635 AC-IMP-061 the chooser does not expose the float amount (0424)');
 select pg_temp.act_as('15150000-0000-0000-0000-0000000000b1');
 select is((select count(*)::int from imprest_float_choices('15150000-0000-0000-0000-0000000000c2', 'Vehicle')), 0,
   'AC-IMP-061 another org''s caller gets no float choices');

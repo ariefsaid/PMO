@@ -999,7 +999,7 @@ const ProcurementDetails: React.FC = () => {
         }
         meta={meta.length ? <span>{meta}</span> : undefined}
         actions={<div className="flex flex-wrap items-center justify-end gap-2">
-          {waitingNote && <span className="whitespace-nowrap text-[12px] text-muted-foreground">{waitingNote}</span>}
+          {waitingNote && <span className="min-w-0 text-[12px] text-muted-foreground">{waitingNote}</span>}
           {(recordKinds.length > 0 || canAddQuote || canLinkAccounting) && <div className="relative hidden sm:block">
             <Button variant="outline" size="sm" aria-expanded={recordMenuOpen} onClick={() => setRecordMenuOpen((open) => !open)}>
               {t('procurementRecord:recordAnother', 'Record another document')} <Icon name="chev" className="size-3.5 rotate-90" />
