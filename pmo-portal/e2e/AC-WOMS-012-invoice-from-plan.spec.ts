@@ -5,6 +5,7 @@ import { test, expect } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { requireServiceRoleKey, signIn } from './helpers';
 import { requireMatchingLocalSupabaseUrls } from '../src/lib/testing/localSupabaseUrl';
+import { formatMoneyInputValue } from '../src/lib/format';
 
 test.setTimeout(60_000);
 
@@ -76,7 +77,10 @@ test('AC-WOMS-012 Finance invoices a work order from the project plan', async ({
       && url.searchParams.get('wo') === workOrderId && !url.searchParams.has('invoice'));
     const form = page.getByRole('dialog');
     await expect(form.getByRole('heading', { name: localized('Invoice this work order', 'Tagih Work Order ini') })).toBeVisible();
-    await form.getByLabel(/amount \(excl\. PPN\)|jumlah \(belum termasuk PPN\)/i).fill(String(amount));
+    const amountField = form.getByLabel(/amount \(excl\. PPN\)|jumlah \(belum termasuk PPN\)/i);
+    // Nothing is invoiced yet, so what is left on this work order is its whole value.
+    await expect(amountField).toHaveValue(formatMoneyInputValue(1_000_000, 'en-US'));
+    await amountField.fill(String(amount));
     await form.getByRole('button', { name: /create draft invoice|buat draf faktur/i }).click();
     await expect(form).toBeHidden();
 

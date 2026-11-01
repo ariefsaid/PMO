@@ -826,6 +826,21 @@ describe('WorkOrdersTab — Invoice this from the plan (#1640)', () => {
     return renderTab(role, clientId, 'wo-2', '/?wo=wo-2&invoice=1', 'wo-2');
   };
 
+  const BOQ = [{ id: 'boq-1', item_code: 'SURVEY', description: 'Survey route', unit: 'km', quantity: 100, rate: 1_000, earning_basis: 'unit_rate' }];
+  const LINE = { id: 'line-1', work_order_id: 'wo-2', boq_item_id: 'boq-1', quantity: 100 };
+  const billingWith = (contractLines: unknown[]) => ({ data: {
+    currency: 'USD', contractNet: 100_000, workBilled: 0, dpBilled: 0, dpRecovered: 0, notSubmitted: 0,
+    assessment: null, claimedByBoqItem: {}, assessedByBoqItem: {}, earnedValue: 98_000, contractLines,
+  }, isPending: false, isError: false, refetch: vi.fn() });
+  const ALLOCATED = [{ boqItemId: 'boq-1', earningBasis: 'unit_rate', lineNo: 1, orderedQuantity: 100,
+    acceptedQuantity: 98, closedFinal: 0, earnedQuantity: 98, contractBalance: 0,
+    allocations: [{ workOrderId: 'wo-2', boqItemId: 'boq-1', quantity: 100, claimedQuantity: 20, acceptedQuantity: 98, final: true }] }];
+  const withContractLines = () => {
+    h.boq = { data: BOQ, isPending: false, isError: false, refetch: vi.fn() };
+    h.orderLines = { data: [LINE], isPending: false, isError: false, refetch: vi.fn() };
+    h.projectBilling = billingWith(ALLOCATED);
+  };
+
   it('AC-WOMS-013 ?invoice=1 opens the shipped invoice dialog for that work order with what is left, then clears the flag', async () => {
     arrive();
     expect(await screen.findByTestId('invoice-modal')).toHaveTextContent('wo-2|40000|c-1');
@@ -872,6 +887,58 @@ describe('WorkOrdersTab — Invoice this from the plan (#1640)', () => {
     expect(screen.queryByTestId('invoice-modal')).toBeNull();
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(screen.queryByTestId('invoice-modal')).toBeNull();
+  });
+
+  it('AC-WOMS-013 a Project Manager arriving at a work order with contract lines gets the refusal, never the claim dialog', async () => {
+    withContractLines();
+    arrive('Project Manager');
+    expect(await screen.findByText(REFUSAL)).toBeInTheDocument();
+    expect(screen.queryByLabelText('Bills')).toBeNull();
+    expect(screen.queryByTestId('invoice-modal')).toBeNull();
+  });
+
+  it('AC-WOMS-013 it waits for the contract lines: pending first, then the claim dialog opens — never the direct invoice dialog', async () => {
+    h.boq = { data: BOQ, isPending: false, isError: false, refetch: vi.fn() };
+    h.projectBilling = billingWith([]);
+    h.orderLines = { data: undefined, isPending: true, isError: false, refetch: vi.fn() };
+    const view = arrive();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(screen.queryByTestId('invoice-modal')).toBeNull();
+    expect(screen.queryByText(REFUSAL)).toBeNull();
+    expect(screen.getByTestId('route-search')).toHaveTextContent('invoice=1');
+    h.orderLines = { data: [LINE], isPending: false, isError: false, refetch: vi.fn() };
+    h.projectBilling = billingWith(ALLOCATED);
+    view.rerender(
+      <MemoryRouter initialEntries={['/?wo=wo-2&invoice=1']}><ToastProvider><WorkOrdersTab projectId="p1" currency="USD" clientId="c-1" focusWorkOrderId="wo-2" autoInvoiceWorkOrderId="wo-2" /><RouteSearch /></ToastProvider></MemoryRouter>,
+    );
+    expect(await screen.findByLabelText('Bills')).toHaveValue('wo-2');
+    expect(screen.queryByTestId('invoice-modal')).toBeNull();
+  });
+
+  it('AC-WOMS-013 the hand-off acts once: re-rendering with the flag still present does not reopen the dialog', async () => {
+    const user = userEvent.setup();
+    const view = arrive();
+    const modal = await screen.findByTestId('invoice-modal');
+    await user.click(within(modal).getByRole('button', { name: 'modal-created-unnamed' }));
+    expect(screen.queryByTestId('invoice-modal')).toBeNull();
+    // Same arrival props, flag still handed in by the parent: the one shot is spent.
+    h.list = { ...h.list, data: [...(h.list.data as unknown[])] };
+    view.rerender(
+      <MemoryRouter initialEntries={['/?wo=wo-2&invoice=1']}><ToastProvider><WorkOrdersTab projectId="p1" currency="USD" clientId="c-1" focusWorkOrderId="wo-2" autoInvoiceWorkOrderId="wo-2" /><RouteSearch /></ToastProvider></MemoryRouter>,
+    );
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(screen.queryByTestId('invoice-modal')).toBeNull();
+  });
+
+  it.each([
+    ['the contract-lines read fails', () => { h.orderLines = { data: undefined, isPending: false, isError: true, refetch: vi.fn() }; }],
+    ['the project-billing read fails', () => { h.projectBilling = { data: null, isPending: false, isError: true, refetch: vi.fn() }; }],
+  ])('AC-WOMS-013 fails closed when %s: refusal announced, no direct invoice dialog (hand-off and card button)', async (_label, arrange) => {
+    arrive('Finance', 'c-1', arrange);
+    expect(await screen.findByText(REFUSAL)).toBeInTheDocument();
+    expect(screen.queryByTestId('invoice-modal')).toBeNull();
+    expect(screen.queryByLabelText('Bills')).toBeNull();
+    expect(screen.queryAllByRole('button', { name: /^Raise invoice/ })).toHaveLength(0);
   });
 
   it('AC-WOMS-013 it waits for the revenue route to sync: no refusal is announced while the route is still settling', async () => {

@@ -305,6 +305,8 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
   const canBill = may('create', 'progressClaim') && erp.connected && Boolean(clientId) && claimScopeReady && Boolean(summary);
   /** The card's Raise invoice and the plan's Invoice this share ONE gate and ONE opener (#1640 D5). */
   const orderInvoiceAction = (row: WorkOrderRow): (() => void) | null => {
+    // Fail closed: if either read that tells claim-path from direct-path failed, we can't know which applies.
+    if (lines.isError || projectBilling.isError) return null;
     const hasOrderLines = (projectBilling.data?.contractLines ?? []).some((line) => line.allocations.some((a) => a.workOrderId === row.id))
       || (allocationsByWo.get(row.id) ?? []).length > 0;
     const billingRow = billingById.get(row.id);
