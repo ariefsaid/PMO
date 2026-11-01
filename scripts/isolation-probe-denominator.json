@@ -227,6 +227,8 @@
     "disconnect_external_integration(uuid,text,uuid)",
     "end_cost_attribution_rule(uuid,date,integer)",
     "end_equipment_costing(uuid,date,integer)",
+    "equipment_charge_org_actuals(text)",
+    "equipment_charge_project_actuals(uuid,text)",
     "erp_ledger_voucher_replace_check(uuid,text,text,text,jsonb,text[])",
     "erp_supplier_company(uuid,text,text)",
     "erpnext_sweep_tick()",
