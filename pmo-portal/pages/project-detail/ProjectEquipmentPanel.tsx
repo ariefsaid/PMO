@@ -57,8 +57,8 @@ export const ProjectEquipmentPanel: React.FC<{ projectId: string; currency: stri
   const charge = equipmentChargeTotal && !isZero(equipmentChargeTotal) ? formatExactMoney(equipmentChargeTotal, currency, getNumberLocale(), { wholeUnits: true }) : null;
   const columns: Column<AssetLine>[] = [
     { key: 'asset', header: t('equipment:panel.columns.equipment', 'Equipment'), kind: 'primary', rowHeader: true, cell: (l) => <span className="font-medium">{l.name}</span> },
-    { key: 'work', header: t('equipment:usage.kindWork', 'Work'), align: 'num', cell: (l) => <span className="whitespace-nowrap tabular-nums">{formatNumberMax2(l.work)} {unitLabel(t, l.unit)}</span> },
-    { key: 'standby', header: t('equipment:usage.kindStandby', 'Standby'), align: 'num', cell: (l) => <span className="whitespace-nowrap tabular-nums">{formatNumberMax2(l.standby)} {unitLabel(t, l.unit)}</span> },
+    { key: 'work', header: t('equipment:usage.kindWork', 'Work'), align: 'num', cell: (l) => <span className="whitespace-nowrap tabular-nums">{formatNumberMax2(l.work)} {unitLabel(t, l.unit, l.work)}</span> },
+    { key: 'standby', header: t('equipment:usage.kindStandby', 'Standby'), align: 'num', cell: (l) => <span className="whitespace-nowrap tabular-nums">{formatNumberMax2(l.standby)} {unitLabel(t, l.unit, l.standby)}</span> },
     { key: 'waiting', header: t('equipment:usage.waiting', 'Waiting approval'), align: 'num', cell: (l) => <span className="tabular-nums">{l.waiting}</span> },
     ...(canSeeAmounts ? [
       { key: 'amount', header: t('equipment:panel.columns.allocated', 'Allocated'), align: 'num' as const,

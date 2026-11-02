@@ -154,7 +154,11 @@
   },
   "unit": {
     "days": "hari",
-    "hours": "jam"
+    "days_one": "hari",
+    "days_other": "hari",
+    "hours": "jam",
+    "hours_one": "jam",
+    "hours_other": "jam"
   },
   "usage": {
     "addRow": "Tambah baris",

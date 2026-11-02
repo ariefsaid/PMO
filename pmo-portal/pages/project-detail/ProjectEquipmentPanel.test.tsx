@@ -41,6 +41,20 @@ describe('ProjectEquipmentPanel (FR-EQU-071, FR-EQU-051)', () => {
     expect(within(row).getByText('1')).toBeInTheDocument();         // waiting approval
   });
 
+  it('AC-EQU-017 equipment unit labels use singular and plural forms', () => {
+    h.totals = ok({ rows: [
+      total({ asset_id: 'a1', asset_code: 'EQU-1', asset_name: 'Truck 1', unit: 'days', work_units: 1, standby_units: 0 }),
+      total({ asset_id: 'a2', asset_code: 'EQU-2', asset_name: 'Truck 2', unit: 'days', work_units: 2, standby_units: 0 }),
+    ], truncated: false });
+    h.allocations = ok({ rows: [], truncated: false });
+
+    renderPanel();
+
+    const panel = screen.getByTestId('project-equipment-panel');
+    expect(within(panel).getByText('1 day')).toBeInTheDocument();
+    expect(within(panel).getByText('2 days')).toBeInTheDocument();
+  });
+
   it('AC-EQU-017 an Engineer sees hours but no amounts, and never asks for allocations', () => {
     h.role = 'Engineer';
     h.allocations = ok({ rows: [], truncated: false });

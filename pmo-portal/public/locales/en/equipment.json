@@ -154,7 +154,11 @@
   },
   "unit": {
     "days": "days",
-    "hours": "hours"
+    "days_one": "day",
+    "days_other": "days",
+    "hours": "hours",
+    "hours_one": "hour",
+    "hours_other": "hours"
   },
   "usage": {
     "addRow": "Add row",

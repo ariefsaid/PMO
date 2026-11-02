@@ -17,6 +17,13 @@ export function driverLabel(t: TFunction, driver: string | null): string {
     default: return driver ?? '';
   }
 }
-export function unitLabel(t: TFunction, unit: string | null): string {
-  return unit === 'days' ? t('equipment:unit.days', 'days') : t('equipment:unit.hours', 'hours');
+export function unitLabel(t: TFunction, unit: string | null, count?: number): string {
+  if (unit === 'days') {
+    return count == null
+      ? t('equipment:unit.days', 'days')
+      : t('equipment:unit.days', { count, defaultValue: 'days', defaultValue_one: 'day', defaultValue_other: 'days' });
+  }
+  return count == null
+    ? t('equipment:unit.hours', 'hours')
+    : t('equipment:unit.hours', { count, defaultValue: 'hours', defaultValue_one: 'hour', defaultValue_other: 'hours' });
 }
