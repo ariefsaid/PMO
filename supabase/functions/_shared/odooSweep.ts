@@ -13,7 +13,7 @@ import { advanceConnectRuns } from './connectRun.ts';
 import { matchNewPartners } from './odooPartyFeed.ts';
 import { odooClientForOrg, recordOdooProbe, type OdooClientRefusal } from './odooClientForOrg.ts';
 
-export const ODOO_KIND_ORDER: DirectoryKind[] = ['company', 'analytic_plan', 'analytic_account', 'account', 'tax', 'uom', 'product', 'warehouse', 'location', 'partner'];
+export const ODOO_KIND_ORDER: DirectoryKind[] = ['company', 'analytic_plan', 'analytic_account', 'account', 'tax', 'journal', 'uom', 'product', 'warehouse', 'location', 'partner'];
 export const ODOO_SWEEP_TICK_MAX_CALLS = 60;
 export const ODOO_SWEEP_TICK_TIME_BUDGET_MS = 100_000;
 const LOCK_TTL = '15 minutes';

@@ -24,6 +24,8 @@ const FIXTURES: Record<DirectoryKind, { raw: Record<string, unknown>; row: Recor
     row: { external_id: '4', code: null, name: 'Projects', parent_external_id: null, active: true, attrs: {} } },
   analytic_account: { raw: { id: 11, name: 'Gedung A', code: 'PRJ-1', plan_id: [4, 'Projects'], company_id: [1, 'Contoh'], active: true, write_date: W },
     row: { external_id: '11', code: 'PRJ-1', name: 'Gedung A', parent_external_id: '4', active: true, attrs: { company_id: '1' } } },
+  journal: { raw: { id: 6, name: 'Bank Utama', code: 'BNK1', type: 'bank', company_id: [1, 'Contoh'], active: true, write_date: W },
+    row: { external_id: '6', code: 'BNK1', name: 'Bank Utama', parent_external_id: null, active: true, attrs: { type: 'bank', company_id: '1' } } },
 };
 
 const nameField = (k: DirectoryKind) => (k === 'location' ? 'complete_name' : 'name');
@@ -56,6 +58,13 @@ describe('odoo/kinds — AC-ODC-024', () => {
   it('AC-ODC-024 an account row carries its companies; a malformed company set rejects the row', () => {
     expect(KIND_SPECS.account.parse({ ...FIXTURES.account.raw, company_ids: 'x' })).toBeNull();
     expect(KIND_SPECS.account.parse({ ...FIXTURES.account.raw, company_ids: [[1, 'Main']] })).toBeNull();
+  });
+
+  it('FR-OPP-093 a journal carries its type, so the picker can offer bank and cash books only', () => {
+    expect(KIND_SPECS.journal.model).toBe('account.journal');
+    expect(KIND_SPECS.journal.parse({ ...FIXTURES.journal.raw, type: 'cash' })?.attrs).toEqual({ type: 'cash', company_id: '1' });
+    expect(KIND_SPECS.journal.parse({ ...FIXTURES.journal.raw, type: false })?.attrs).toEqual({ type: null, company_id: '1' });
+    expect(companyDomain(KIND_SPECS.journal, 3)).toEqual([['company_id', 'in', [3, false]]]);
   });
 
   it('a many2one of false is no parent, never a malformed row', () => {
