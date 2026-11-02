@@ -45,7 +45,6 @@ import {
   hasActiveStanding,
   isAdminOrOperator,
   type AdminOrOperatorClient,
-  type AuthorizationStateClient,
 } from '../_shared/adminOrOperator.ts';
 import { fetchBounded, FetchDeadlineError } from '../_shared/fetchWithDeadline.ts';
 import { isPrivateOrReservedHost } from '../_shared/erpHostGuard.ts';
@@ -287,7 +286,7 @@ export async function handleConnectRequest(req: Request): Promise<Response> {
   // 4. Standing gate: the roles below authorize only while the membership is active NOW. A
   // deactivated or banned caller with an unexpired JWT stops here, before any Vault write.
   if (!(await hasActiveStanding({
-    stateClient: serviceClient as unknown as AuthorizationStateClient,
+    stateClient: serviceClient,
     orgId: profile.org_id,
     userId,
     profileStatus: profile.status,

@@ -508,6 +508,44 @@ describe('external-companies — current standing', () => {
     });
   });
 
+  it('an Admin whose profile is active but whose RPC standing is inactive (banned) is refused → 403, no Vault read', async () => {
+    await withFetchMock([
+      supabaseSelect('profiles', () =>
+        jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, {
+          headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+        })),
+      supabaseRpc('actor_authorization_state', () => jsonResponse({ role: 'Admin', active: false })),
+      supabaseSelect('platform_operators', () => new Response('null', {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })),
+    ], async ({ calls }) => {
+      const res = await handleCompaniesRequest(await authed({ tier: 'erpnext' }));
+      assertEquals(res.status, 403);
+      assertEquals(rpcCall(calls, 'read_vault_secret').length, 0);
+      assertEquals(calls.filter((c) => c.url.host === 'erp.example.com').length, 0);
+    });
+  });
+
+  it('a disabled profile is refused even when the RPC reports active → 403, no Vault read', async () => {
+    await withFetchMock([
+      supabaseSelect('profiles', () =>
+        jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'disabled' }, {
+          headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+        })),
+      supabaseRpc('actor_authorization_state', () => jsonResponse({ role: 'Admin', active: true })),
+      supabaseSelect('platform_operators', () => new Response('null', {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })),
+    ], async ({ calls }) => {
+      const res = await handleCompaniesRequest(await authed({ tier: 'erpnext' }));
+      assertEquals(res.status, 403);
+      assertEquals(rpcCall(calls, 'read_vault_secret').length, 0);
+      assertEquals(calls.filter((c) => c.url.host === 'erp.example.com').length, 0);
+    });
+  });
+
   it('fails closed when standing cannot be resolved → 403, no Vault read', async () => {
     await withFetchMock([
       supabaseSelect('profiles', () =>

@@ -26,31 +26,15 @@ import {
   clickup,
   createAuthedRequest,
   createTestJwksResolver,
-  type FetchCall,
 } from '../_shared/testing/edgeTestKit.ts';
 
 /**
- * Every route list is wrapped: the default standing answer (active, for whatever role the profiles
- * mock returned) is appended LAST, so an actor_authorization_state route a test supplies itself
- * wins (first match) — the standing-failure tests below rely on that.
+ * Every route list is wrapped: the default standing answer (active) is appended LAST, so an
+ * actor_authorization_state route a test supplies itself wins (first match) — the standing-failure
+ * tests below rely on that.
  */
-const withFetchMock: typeof baseWithFetchMock = (routes, run) => {
-  let role: string | undefined;
-  const wrapped = routes.map((route) => route.label === 'supabase-select-profiles'
-    ? { ...route, response: async (call: FetchCall) => {
-      const response = typeof route.response === 'function' ? await route.response(call) : route.response;
-      if (call.url.searchParams.has('id')) {
-        const profile = await response.clone().json();
-        role = profile?.role;
-      }
-      return response;
-    } }
-    : route);
-  return baseWithFetchMock(
-    [...wrapped, supabaseRpc('actor_authorization_state', () => jsonResponse({ active: true, role }))],
-    run,
-  );
-};
+const withFetchMock: typeof baseWithFetchMock = (routes, run) =>
+  baseWithFetchMock([...routes, supabaseRpc('actor_authorization_state', () => jsonResponse({ active: true }))], run);
 
 // One stable authority + env per test module (see TEST-ARCH.md _jwks memoization nuance)
 const env = installEdgeEnv();
@@ -653,6 +637,44 @@ describe('external-lists — current standing', () => {
         jsonResponse({ user_id: 'user-1' }, {
           headers: { 'content-type': 'application/vnd.pgrst.object+json' },
         })),
+    ], async ({ calls }) => {
+      const res = await handleListsRequest(await authed({ tier: 'clickup' }));
+      assertEquals(res.status, 403);
+      assertEquals(rpcCall(calls, 'read_vault_secret').length, 0);
+      assertEquals(calls.filter((c) => c.url.host === 'api.clickup.com').length, 0);
+    });
+  });
+
+  it('an Admin whose profile is active but whose RPC standing is inactive (banned) is refused → 403, no Vault read', async () => {
+    await withFetchMock([
+      supabaseSelect('profiles', () =>
+        jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, {
+          headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+        })),
+      supabaseRpc('actor_authorization_state', () => jsonResponse({ role: 'Admin', active: false })),
+      supabaseSelect('platform_operators', () => new Response('null', {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })),
+    ], async ({ calls }) => {
+      const res = await handleListsRequest(await authed({ tier: 'clickup' }));
+      assertEquals(res.status, 403);
+      assertEquals(rpcCall(calls, 'read_vault_secret').length, 0);
+      assertEquals(calls.filter((c) => c.url.host === 'api.clickup.com').length, 0);
+    });
+  });
+
+  it('a disabled profile is refused even when the RPC reports active → 403, no Vault read', async () => {
+    await withFetchMock([
+      supabaseSelect('profiles', () =>
+        jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'disabled' }, {
+          headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+        })),
+      supabaseRpc('actor_authorization_state', () => jsonResponse({ role: 'Admin', active: true })),
+      supabaseSelect('platform_operators', () => new Response('null', {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })),
     ], async ({ calls }) => {
       const res = await handleListsRequest(await authed({ tier: 'clickup' }));
       assertEquals(res.status, 403);

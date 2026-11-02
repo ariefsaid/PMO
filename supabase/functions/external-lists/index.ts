@@ -32,7 +32,7 @@ import {
 } from '../../../pmo-portal/src/lib/auth/verifyCallerJwt.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
-import { hasActiveStanding, type AuthorizationStateClient } from '../_shared/adminOrOperator.ts';
+import { hasActiveStanding } from '../_shared/adminOrOperator.ts';
 import { fetchBounded } from '../_shared/fetchWithDeadline.ts';
 
 interface ListsBody {
@@ -286,7 +286,7 @@ export async function handleListsRequest(req: Request): Promise<Response> {
   // the PM allowance included. A deactivated or banned caller with an unexpired JWT stops here,
   // before any Vault read or ClickUp request.
   if (!(await hasActiveStanding({
-    stateClient: serviceClient as unknown as AuthorizationStateClient,
+    stateClient: serviceClient,
     orgId: profile.org_id,
     userId,
     profileStatus: profile.status,

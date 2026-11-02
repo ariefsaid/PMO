@@ -34,7 +34,7 @@ import {
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
 import { guardedErpFetch, isPrivateOrReservedHost } from '../_shared/erpHostGuard.ts';
-import { hasActiveStanding, type AuthorizationStateClient } from '../_shared/adminOrOperator.ts';
+import { hasActiveStanding } from '../_shared/adminOrOperator.ts';
 
 interface CompaniesBody {
   tier: 'erpnext';
@@ -193,7 +193,7 @@ export async function handleCompaniesRequest(req: Request): Promise<Response> {
   // 3b. Standing gate: the role gate below authorizes only while the membership is active NOW. A
   // deactivated or banned caller with an unexpired JWT stops here, before any Vault read.
   if (!(await hasActiveStanding({
-    stateClient: serviceClient as unknown as AuthorizationStateClient,
+    stateClient: serviceClient,
     orgId: profile.org_id,
     userId,
     profileStatus: profile.status,

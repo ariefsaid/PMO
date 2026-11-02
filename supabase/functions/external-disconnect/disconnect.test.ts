@@ -7,9 +7,13 @@ import { describe, it, afterAll } from '@std/testing/bdd';
 import { assertEquals } from '@std/assert';
 import { handleDisconnectRequest, setTestJwks } from './index.ts';
 import {
-  createJwtAuthority, installEdgeEnv, withFetchMock, supabaseRpc, supabaseSelect,
+  createJwtAuthority, installEdgeEnv, withFetchMock as baseWithFetchMock, supabaseRpc, supabaseSelect,
   restCall, rpcCall, jsonResponse, createAuthedRequest, createTestJwksResolver,
 } from '../_shared/testing/edgeTestKit.ts';
+
+// Default standing answer (active) is appended LAST so a test's own actor_authorization_state route wins.
+const withFetchMock: typeof baseWithFetchMock = (routes, run) =>
+  baseWithFetchMock([...routes, supabaseRpc('actor_authorization_state', () => jsonResponse({ active: true }))], run);
 
 const env = installEdgeEnv();
 const auth = await createJwtAuthority(env.SUPABASE_URL);
@@ -136,4 +140,26 @@ describe('external-disconnect', () => {
       },
     );
   });
+});
+
+describe('external-disconnect — current standing', () => {
+  const profileWith = (status: string) => supabaseSelect('profiles', () =>
+    jsonResponse({ org_id: 'org-1', role: 'Admin', status },
+      { headers: { 'content-type': 'application/vnd.pgrst.object+json' } }));
+  const refused = (name: string, routes: Parameters<typeof withFetchMock>[0]) => it(name, async () => {
+    await withFetchMock([...routes, notOperator()], async ({ calls }) => {
+      const res = await handleDisconnectRequest(await authed({ tier: 'erpnext' }));
+      assertEquals(res.status, 403);
+      assertEquals(rpcCall(calls, 'disconnect_external_integration').length, 0);
+      assertEquals(rpcCall(calls, 'delete_vault_secret').length, 0);
+    });
+  });
+  refused('a disabled profile with inactive RPC standing is refused → 403, no revocation',
+    [profileWith('disabled'), supabaseRpc('actor_authorization_state', () => jsonResponse({ active: false }))]);
+  refused('an active profile whose RPC standing is inactive (banned) is refused → 403, no revocation',
+    [profileWith('active'), supabaseRpc('actor_authorization_state', () => jsonResponse({ active: false }))]);
+  refused('a disabled profile is refused even when the RPC reports active → 403',
+    [profileWith('disabled'), supabaseRpc('actor_authorization_state', () => jsonResponse({ active: true }))]);
+  refused('fails closed when standing cannot be resolved → 403',
+    [profileWith('active'), supabaseRpc('actor_authorization_state', () => new Response('{"message":"unavailable"}', { status: 500, headers: { 'content-type': 'application/json' } }))]);
 });
