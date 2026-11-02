@@ -3,7 +3,6 @@ import { agentChatHandler } from '../../../../supabase/functions/agent-chat/hand
 import type { HandlerDeps } from '../../../../supabase/functions/agent-chat/handler';
 import {
   AGENT_ATTACHMENT_TEXT_CHAR_CAP,
-  buildAttachmentContextMessages,
   createAttachmentResolver,
 } from '../../../../supabase/functions/agent-chat/attachments';
 import type { ModelMessage } from '../../../../supabase/functions/_shared/modelClient';
@@ -112,18 +111,38 @@ describe('agent-chat attachment boundary', () => {
     );
   });
 
-  it('AC-AT2-005 attachment context builder caps text and labels it untrusted', () => {
+  it('AC-AT2-005 the shipped resolver caps attachment text and labels it untrusted', async () => {
     const tooLong = 'A'.repeat(AGENT_ATTACHMENT_TEXT_CHAR_CAP + 20);
+    const supabase = {
+      from: vi.fn(() => ({
+        select: vi.fn(() => ({
+          in: vi.fn(() => ({
+            limit: vi.fn().mockResolvedValue({
+              data: [
+                {
+                  id: 'att-1',
+                  original_filename: 'quote.pdf',
+                  mime_type: 'application/pdf',
+                  storage_path: 'org/org-1/agent-attachments/att-1',
+                  extracted_text_status: 'ready',
+                  extracted_text: tooLong,
+                  archived_at: null,
+                },
+              ],
+              error: null,
+            }),
+          })),
+        })),
+      })),
+    };
+    const resolver = createAttachmentResolver();
 
-    const messages = buildAttachmentContextMessages([
-      {
-        id: 'att-1',
-        originalFilename: 'quote.pdf',
-        mimeType: 'application/pdf',
-        extractedTextStatus: 'ready',
-        extractedText: tooLong,
-      },
-    ]);
+    const messages = await resolver.resolveAttachmentMessages(['att-1'], {
+      jwt: 'jwt',
+      userId: 'user-1',
+      orgId: 'org-1',
+      supabase: supabase as never,
+    });
 
     expect(messages).toHaveLength(1);
     expect(messages[0].role).toBe('user');
@@ -425,16 +444,37 @@ describe('agent-chat attachment boundary', () => {
     expect(content).not.toMatch(/\.pdf|\.png|\.txt/i);
   });
 
-  it('AC-AT2-001 image attachments degrade honestly until ModelMessage supports vision blocks', async () => {
-    const messages = buildAttachmentContextMessages([
-      {
-        id: 'img-1',
-        originalFilename: 'photo.webp',
-        mimeType: 'image/webp',
-        extractedTextStatus: 'skipped',
-        extractedText: null,
-      },
-    ]);
+  it('AC-AT2-001 image attachments degrade honestly through the shipped resolver', async () => {
+    const supabase = {
+      from: vi.fn(() => ({
+        select: vi.fn(() => ({
+          in: vi.fn(() => ({
+            limit: vi.fn().mockResolvedValue({
+              data: [
+                {
+                  id: 'img-1',
+                  original_filename: 'photo.webp',
+                  mime_type: 'image/webp',
+                  storage_path: 'org/org-1/agent-attachments/img-1',
+                  extracted_text_status: 'skipped',
+                  extracted_text: null,
+                  archived_at: null,
+                },
+              ],
+              error: null,
+            }),
+          })),
+        })),
+      })),
+    };
+    const resolver = createAttachmentResolver();
+
+    const messages = await resolver.resolveAttachmentMessages(['img-1'], {
+      jwt: 'jwt',
+      userId: 'user-1',
+      orgId: 'org-1',
+      supabase: supabase as never,
+    });
 
     expect(messages[0].content).toContain('image/webp');
     // IMPORTANT-6: an unreadable/skipped file is announced honestly — name + reason +
@@ -444,16 +484,45 @@ describe('agent-chat attachment boundary', () => {
     expect(messages[0].content).toMatch(/do not fabricate|do not invent|do not guess/i);
   });
 
-  it('IMPORTANT-6 a skipped/unreadable file is announced honestly and not fabricated', () => {
-    const messages = buildAttachmentContextMessages([
-      {
-        id: 'att-skip',
-        originalFilename: 'scan.pdf',
-        mimeType: 'application/pdf',
-        extractedTextStatus: 'skipped',
-        extractedText: null,
+  it('IMPORTANT-6 a skipped/unreadable file is announced honestly and not fabricated', async () => {
+    const supabase = {
+      from: vi.fn(() => ({
+        select: vi.fn(() => ({
+          in: vi.fn(() => ({
+            limit: vi.fn().mockResolvedValue({
+              data: [
+                {
+                  id: 'att-skip',
+                  original_filename: 'scan.pdf',
+                  mime_type: 'application/pdf',
+                  storage_path: 'org/org-1/agent-attachments/att-skip',
+                  extracted_text_status: 'pending',
+                  extracted_text: null,
+                  archived_at: null,
+                },
+              ],
+              error: null,
+            }),
+          })),
+        })),
+        update: vi.fn(() => ({ eq: vi.fn().mockResolvedValue({ data: null, error: null }) })),
+      })),
+      storage: {
+        from: vi.fn(() => ({
+          download: vi.fn().mockResolvedValue({ data: new Blob(['pdf bytes']), error: null }),
+        })),
       },
-    ]);
+    };
+    const resolver = createAttachmentResolver({
+      extractPdfText: async () => ({ text: null, status: 'skipped' }),
+    });
+
+    const messages = await resolver.resolveAttachmentMessages(['att-skip'], {
+      jwt: 'jwt',
+      userId: 'user-1',
+      orgId: 'org-1',
+      supabase: supabase as never,
+    });
 
     // ADR-0039: always a bounded role:'user' block, never a system instruction.
     expect(messages).toHaveLength(1);

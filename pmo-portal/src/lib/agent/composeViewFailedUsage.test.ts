@@ -47,19 +47,30 @@ const INVALID_SPEC: CompositionSpec = {
 const MODEL = 'deepseek/deepseek-v4-flash';
 const USAGE = { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30, total_cost: 0.25 };
 
-function mockModelClientSequence(items: (CompositionSpec | 'throw')[]) {
+/**
+ * One scripted model response. `'throw'` = the call rejects before a response (nothing consumed);
+ * `'bad_tool_name'` / `'bad_json'` = the provider RESOLVED a response (usage is on the wire) but the
+ * payload cannot be used — the usage must still be metered (FN3R01-005 / THEME-BACK-05).
+ */
+type ModelStep = CompositionSpec | 'throw' | 'bad_tool_name' | 'bad_json';
+
+function mockModelClientSequence(items: ModelStep[]) {
   let callCount = 0;
   const create = vi.fn().mockImplementation(() => {
     const idx = callCount++;
     const item = items[idx];
     if (item === 'throw') return Promise.reject(new Error('SECRET upstream error'));
+    const toolCall =
+      item === 'bad_tool_name'
+        ? { id: `c${idx}`, type: 'function', function: { name: 'other_tool', arguments: JSON.stringify(VALID_SPEC) } }
+        : {
+            id: `c${idx}`,
+            type: 'function',
+            function: { name: 'compose_view', arguments: item === 'bad_json' ? '{"version":1,' : JSON.stringify(item) },
+          };
     return Promise.resolve({
       finish_reason: 'tool_calls',
-      message: {
-        role: 'assistant',
-        content: null,
-        tool_calls: [{ id: `c${idx}`, type: 'function', function: { name: 'compose_view', arguments: JSON.stringify(item) } }],
-      },
+      message: { role: 'assistant', content: null, tool_calls: [toolCall] },
       usage: { ...USAGE },
       model: MODEL,
     });
@@ -182,6 +193,59 @@ it('an upstream error on the first call consumed nothing and writes no usage row
   expect(result.status).toBe(502);
   expect(modelClient.create).toHaveBeenCalledTimes(1);
   expect(svc.inserted).toHaveLength(0);
+});
+
+it('a resolved response carrying no compose_view tool call still meters the tokens it consumed', async () => {
+  const svc = mockServiceClient();
+  const modelClient = mockModelClientSequence(['bad_tool_name']);
+
+  const result = await composeViewHandler(
+    REQ,
+    baseDeps({ modelClient: { create: modelClient.create }, usage: { serviceClient: svc.client } }),
+  );
+
+  expect(result.status).toBe(502);
+  expect(modelClient.create).toHaveBeenCalledTimes(1);
+  // Usage is on the wire: the provider charged for this call even though the payload was unusable.
+  expect(svc.inserted).toHaveLength(1);
+  const row = svc.inserted[0];
+  expect(row.owner_id).toBe('u-1');
+  expect(row.org_id).toBe('org-1');
+  expect(row.completion_tokens).toBe(USAGE.total_tokens);
+  expect(row.provider_cost_usd).toBeCloseTo(USAGE.total_cost, 10);
+  expect(row.action).toBe('compose');
+});
+
+it('a resolved response whose arguments are not valid JSON still meters the tokens it consumed', async () => {
+  const svc = mockServiceClient();
+  const modelClient = mockModelClientSequence(['bad_json']);
+
+  const result = await composeViewHandler(
+    REQ,
+    baseDeps({ modelClient: { create: modelClient.create }, usage: { serviceClient: svc.client } }),
+  );
+
+  expect(result.status).toBe(502);
+  expect(modelClient.create).toHaveBeenCalledTimes(1);
+  expect(svc.inserted).toHaveLength(1);
+  expect(svc.inserted[0].completion_tokens).toBe(USAGE.total_tokens);
+  expect(svc.inserted[0].provider_cost_usd).toBeCloseTo(USAGE.total_cost, 10);
+});
+
+it('a malformed response on the LAST call of a sequence does not drop the earlier calls usage', async () => {
+  const svc = mockServiceClient();
+  const modelClient = mockModelClientSequence([INVALID_SPEC, 'bad_json']);
+
+  const result = await composeViewHandler(
+    REQ,
+    baseDeps({ modelClient: { create: modelClient.create }, usage: { serviceClient: svc.client } }),
+  );
+
+  expect(result.status).toBe(502);
+  expect(modelClient.create).toHaveBeenCalledTimes(2);
+  expect(svc.inserted).toHaveLength(1);
+  expect(svc.inserted[0].completion_tokens).toBe(USAGE.total_tokens * 2);
+  expect(svc.inserted[0].provider_cost_usd).toBeCloseTo(USAGE.total_cost * 2, 10);
 });
 
 it('a usage-recording failure on the error path never masks the compose error response', async () => {

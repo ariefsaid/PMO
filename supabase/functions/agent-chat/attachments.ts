@@ -99,15 +99,6 @@ function contextForAttachment(attachment: ResolvedAttachment): string {
   ].filter(Boolean).join('\n');
 }
 
-export function buildAttachmentContextMessages(
-  attachments: ResolvedAttachment[],
-): ModelMessage[] {
-  return attachments.map((attachment) => ({
-    role: 'user',
-    content: contextForAttachment(attachment),
-  }));
-}
-
 /**
  * IMPORTANT-7 (FR-AT2-ATT-009, T-10 #1538 slice 2): a requested attachment id that resolved
  * to NO row — deleted, archived, another conversation, or a failed lookup — is announced as

@@ -13,7 +13,7 @@
  *
  * Provider swap (docs/specs/agent-model-client.spec.md, FR-MC-019/020):
  *   - ComposeSpecDeps.anthropic (AnthropicLike) → ComposeSpecDeps.modelClient (ModelClient) + model.
- *   - tool_choice forces compose_view via the OpenAI shape (FR-MC-020).
+ *   - tool_choice forces compose_view via the OpenAI shape (FR-MC-004).
  *   - a failed attempt is fed back as the model's own echoed tool call plus a role:'tool'
  *     validation-error turn (FR-MC-020, as amended for #1538 slice 2).
  */
@@ -83,7 +83,8 @@ async function callModel(
   model: string,
   system: string,
   messages: ModelMessage[],
-): Promise<{ spec: CompositionSpec; tokensUsed: number; providerCost: number; toolCall: ModelToolCall }> {
+  recordUsage: (tokensUsed: number, providerCost: number) => void,
+): Promise<{ spec: CompositionSpec; toolCall: ModelToolCall }> {
   const response = await modelClient.create({
     model,
     max_tokens: 4096,
@@ -101,17 +102,22 @@ async function callModel(
     tool_choice: { type: 'function', function: { name: 'compose_view' } },
   });
 
+  // FN3R01-005 / THEME-BACK-05: the provider RESOLVED this call, so the tokens are spent —
+  // record them BEFORE any tool-call/JSON validation can throw. Otherwise a malformed payload
+  // (missing or misnamed tool call, unparsable arguments) consumes provider tokens with no
+  // usage row written at all (single call) or drops the last call's usage (multi-call).
+  recordUsage(
+    (response.usage?.prompt_tokens ?? 0) + (response.usage?.completion_tokens ?? 0),
+    typeof response.usage?.total_cost === 'number' ? response.usage.total_cost : 0,
+  );
+
   const toolCall = response.message.tool_calls?.[0];
   if (!toolCall || toolCall.function.name !== 'compose_view') {
     throw new Error('Model did not return a compose_view tool call');
   }
 
-  const tokensUsed = (response.usage?.prompt_tokens ?? 0) + (response.usage?.completion_tokens ?? 0);
-
   return {
     spec: JSON.parse(toolCall.function.arguments) as CompositionSpec,
-    tokensUsed,
-    providerCost: typeof response.usage?.total_cost === 'number' ? response.usage.total_cost : 0,
     toolCall,
   };
 }
@@ -153,12 +159,15 @@ export async function composeSpec(
   let repairAttempts = 0;
   let totalTokensUsed = 0;
   let totalProviderCost = 0;
+  // Accumulate inside the loop the moment each response resolves (see callModel).
+  const recordUsage = (tokensUsed: number, providerCost: number): void => {
+    totalTokensUsed += tokensUsed;
+    totalProviderCost += providerCost;
+  };
 
   try {
     while (true) {
-      const { spec, tokensUsed, providerCost, toolCall } = await callModel(modelClient, model, system, conversationMessages);
-      totalTokensUsed += tokensUsed;
-      totalProviderCost += providerCost;
+      const { spec, toolCall } = await callModel(modelClient, model, system, conversationMessages, recordUsage);
 
       try {
         compileCompositionSpec(spec, ctx);
