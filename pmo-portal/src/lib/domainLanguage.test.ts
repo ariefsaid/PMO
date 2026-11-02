@@ -1,6 +1,6 @@
 // @vitest-environment node
 /**
- * T-36 (#1568) domain-language guards: `docs/GLOSSARY.md` is the binding domain vocabulary
+ * T-36 (#1568) domain-language guards: `docs/glossary.md` is the binding domain vocabulary
  * (its header: "when everyday usage conflicts with a definition below, the definition wins").
  * These guards pin the financial/purchasing language decisions at their lowest sufficient layer
  * so a future edit cannot silently reintroduce the contradictions the 2026-10-29 audit found:
@@ -25,7 +25,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const ROOT = join(__dirname, '../../..');
-const GLOSSARY = readFileSync(join(ROOT, 'docs', 'GLOSSARY.md'), 'utf8');
+const GLOSSARY = readFileSync(join(ROOT, 'docs', 'glossary.md'), 'utf8');
 
 /**
  * One glossary entry: from its `**Term**` heading (at line start — mid-line mentions in other
