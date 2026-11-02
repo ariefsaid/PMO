@@ -1,4 +1,4 @@
-import type { HistoryEvent } from '@/src/lib/repositories/recordHistory';
+import type { HistoryEvent } from '@/src/lib/repositories/types';
 import type { TFunction } from 'i18next';
 import { humanizeColumn } from './historyFields';
 import { auditActionLabel, kindLabels } from './historyLabels';

@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Combobox } from '@/src/components/ui/Combobox';
 import { useMasterRecordsInfinite } from '@/src/hooks/useOdoo';
-import type { MasterRecord } from '@/src/lib/repositories/odoo';
+import type { MasterRecord } from '@/src/lib/repositories/types';
 
 const STEP = 25;
 
