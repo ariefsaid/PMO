@@ -16,7 +16,7 @@ describe('runDraftInvoice (#787)', () => {
       record: { customerId: PREPARED.customerId, projectId: PREPARED.projectId, items: PREPARED.items, reference_number: 'PO-778', erp_doc_kind: 'sales-invoice', id: PREPARED.commandId },
     } });
     expect(JSON.stringify(invoke.mock.calls[0][1])).not.toMatch(/submit|transition|verb/);
-    expect(out).toMatchObject({ ok: true, status: 'Draft', siNumber: 'ACC-SINV-2026-00099', link: '/sales-invoices?q=ACC-SINV-2026-00099' });
+    expect(out).toMatchObject({ ok: true, status: 'Draft', siNumber: 'ACC-SINV-2026-00099', link: '/finance/receivables?q=ACC-SINV-2026-00099' });
   });
   it('AC-BWO-005 the approved draft dispatches the work order with the create', async () => {
     const invoke = vi.fn<Invoker>(async () => ({ data: { canonical: { id: PREPARED.commandId, si_number: 'ACC-SINV-2026-00100' } }, error: null }));

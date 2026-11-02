@@ -368,7 +368,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
         </section>
         <WinRateCard currency={orgCurrency} range={figures.winRateRange} hidePeriodControl embedded />
       </AreaPanel>;
-      case 'billing': return <AreaPanel key={id} title={t('dashboard:hub.company.billing', 'Billing and collections')} openHref="/sales-invoices" openLabel={t('dashboard:hub.company.openInvoices', 'Open invoices')}>
+      case 'billing': return <AreaPanel key={id} title={t('dashboard:hub.company.billing', 'Billing and collections')} openHref="/finance/receivables" openLabel={t('dashboard:hub.company.openInvoices', 'Open invoices')}>
         <FigureGroup heading={t('dashboard:hub.company.billingFigures', 'Billing results')} figures={[{ ...periodMini('invoiced'), help: help('invoiced') }, { ...periodMini('collected'), help: help('collected') }]} isPending={figures.periodPending} isError={figures.periodError} onRetry={figures.periodRetry} hideHeading />
         {finance && <ClientAgingBlock />}
       </AreaPanel>;
