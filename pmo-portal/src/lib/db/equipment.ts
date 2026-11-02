@@ -90,6 +90,12 @@ export async function updateAsset(
   fail(error);
   assertWriteLanded(data, 'the asset was not saved: you cannot edit the equipment reference');
 }
+/** Admin-only hard delete (ADR-0019): a referenced asset FK-blocks (23503 -> "in use"); archive is the normal path. */
+export async function deleteAsset(id: string): Promise<void> {
+  const { data, error } = await supabase.from('equipment_assets').delete().eq('id', id).select('id');
+  fail(error);
+  assertWriteLanded(data, 'the asset was not deleted: only an Admin deletes the equipment reference');
+}
 
 // ── usage (0447): reads over granted columns, every write an RPC ──────────────────────────────────
 export async function listUsage(

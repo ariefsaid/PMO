@@ -11,11 +11,11 @@ const h = vi.hoisted(() => {
   const calls = {
     from: [] as string[], rpc: [] as Array<[string, unknown]>, insert: [] as unknown[], update: [] as unknown[],
     select: [] as unknown[], eq: [] as unknown[], gte: [] as unknown[], lte: [] as unknown[], is: [] as unknown[],
-    order: [] as unknown[], limit: [] as unknown[], single: 0,
+    order: [] as unknown[], limit: [] as unknown[], delete: [] as unknown[], single: 0,
   };
   const builder: Record<string, unknown> = {};
   const chain = (name: keyof typeof calls) => (...a: unknown[]) => { (calls[name] as unknown[]).push(a.length === 1 ? a[0] : a); return builder; };
-  for (const k of ['select', 'eq', 'gte', 'lte', 'is', 'order', 'limit', 'insert', 'update'] as const) builder[k] = chain(k);
+  for (const k of ['select', 'eq', 'gte', 'lte', 'is', 'order', 'limit', 'insert', 'update', 'delete'] as const) builder[k] = chain(k);
   builder.single = () => { calls.single++; return builder; };
   builder.then = (resolve: (v: unknown) => unknown) => resolve(result.value);
   const from = vi.fn((t: string) => { calls.from.push(t); return builder; });
@@ -122,6 +122,19 @@ describe('AC-EQU-017 asset reference reads and writes', () => {
     expect(h.calls.eq).toEqual([['id', 'a1']]);
     h.result.value = { data: [], error: null };
     await expect(dal.updateAsset('a1', { name: 'Loader 2' })).rejects.toMatchObject({ code: '42501' });
+  });
+});
+
+describe('AC-EQU-017 asset delete', () => {
+  it('AC-EQU-017 deleteAsset deletes by id, keeps a 23503 "in use" code, and a no-row result is a 42501', async () => {
+    h.result.value = { data: [{ id: 'a1' }], error: null };
+    await dal.deleteAsset('a1');
+    expect(h.calls.from).toEqual(['equipment_assets']);
+    expect(h.calls.eq).toEqual([['id', 'a1']]);
+    h.result.value = { data: null, error: { message: 'in use', code: '23503' } };
+    await expect(dal.deleteAsset('a1')).rejects.toMatchObject({ code: '23503' });
+    h.result.value = { data: [], error: null };
+    await expect(dal.deleteAsset('a1')).rejects.toMatchObject({ code: '42501' });
   });
 });
 

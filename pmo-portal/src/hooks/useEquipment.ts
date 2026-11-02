@@ -66,6 +66,11 @@ function useEquipmentMutation<A, R>(fn: (a: A) => Promise<R>) {
   });
 }
 
+export const useCreateAsset = () =>
+  useEquipmentMutation((input: { code: string; name: string; default_unit: 'hours' | 'days' }) => repositories.equipment.createAsset(input));
+export const useUpdateAsset = () =>
+  useEquipmentMutation((a: { id: string; patch: Parameters<typeof repositories.equipment.updateAsset>[1] }) => repositories.equipment.updateAsset(a.id, a.patch));
+export const useDeleteAsset = () => useEquipmentMutation((id: string) => repositories.equipment.deleteAsset(id));
 export const useSaveUsage = () => useEquipmentMutation((input: UsageInput) => repositories.equipment.saveUsage(input));
 export const useTransitionUsage = () =>
   useEquipmentMutation((a: { id: string; to: UsageStatus; notes?: string }) => repositories.equipment.transitionUsage(a.id, a.to, a.notes));

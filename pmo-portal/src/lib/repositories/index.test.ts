@@ -243,7 +243,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
 
   it('exposes the equipment repository (#1519 S5): assets, usage, costing and allocations', () => {
     expect(Object.keys(repositories.equipment).sort()).toEqual(
-      ['approveWeek', 'archiveUsage', 'createAsset', 'endCosting', 'listAllocations', 'listAssets', 'listCosting',
+      ['approveWeek', 'archiveUsage', 'createAsset', 'deleteAsset', 'endCosting', 'listAllocations', 'listAssets', 'listCosting',
         'listUsage', 'listUsageTotals', 'previewCosting', 'saveCosting', 'saveUsage', 'transitionUsage', 'updateAsset'].sort(),
     );
   });

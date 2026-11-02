@@ -5,6 +5,7 @@ export interface EquipmentRepository {
   listAssets: typeof dal.listAssets;
   createAsset: typeof dal.createAsset;
   updateAsset: typeof dal.updateAsset;
+  deleteAsset: typeof dal.deleteAsset;
   listUsage: typeof dal.listUsage;
   saveUsage: typeof dal.saveUsage;
   transitionUsage: typeof dal.transitionUsage;

@@ -8,6 +8,7 @@ export const equipmentRepository: EquipmentRepository = {
   listAssets: () => wrap(() => dal.listAssets()),
   createAsset: (input) => wrap(() => dal.createAsset(input)),
   updateAsset: (id, patch) => wrap(() => dal.updateAsset(id, patch)),
+  deleteAsset: (id) => wrap(() => dal.deleteAsset(id)),
   listUsage: (range) => wrap(() => dal.listUsage(range)),
   saveUsage: (input) => wrap(() => dal.saveUsage(input)),
   transitionUsage: (id, to, notes) => wrap(() => dal.transitionUsage(id, to, notes)),
