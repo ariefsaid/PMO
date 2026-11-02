@@ -1,8 +1,10 @@
 -- 0064_milestone_checks_and_input_clear.test.sql — weight/input_pct CHECK constraints +
--- clearing input_pct reverts effective % to calculated (AC-DEL-020).
+-- clearing input_pct reverts effective % to calculated (AC-DEL-020). Also proves input_pct
+-- precedence while present (AC-DEL-003): effective % = the PM's input, not the calculated one —
+-- the SQL-path coverage transferred from the deleted pmo-portal delivery oracle (OE17R02-001).
 -- Fixture namespace: 00640000-… (unique to this test).
 begin;
-select plan(5);
+select plan(6);
 
 -- ── Fixtures (table owner, bypassing RLS) ───────────────────────────────────
 insert into auth.users (id, email) values
@@ -41,6 +43,15 @@ insert into tasks (id, org_id, project_id, milestone_id, name, status) values
 -- ── As PM: clear input_pct → effective % should revert to calculated (40). ──
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"00640000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+
+-- AC-DEL-003: while input_pct is present (75) it WINS over the calculated percent (40).
+-- Transferred from the deleted TS delivery oracle (OE17R02-001) so the shipped RPC, not a
+-- parallel implementation, owns this proof.
+select is(
+  (select effective_pct from get_project_milestones('00640000-0000-0000-0000-000000000020')
+    where id = '00640000-0000-0000-0000-000000000030'),
+  75::numeric,
+  'AC-DEL-003: effective % = input_pct (75) while present, overriding calculated (40)');
 
 select lives_ok(
   $$ update project_milestones set input_pct = null

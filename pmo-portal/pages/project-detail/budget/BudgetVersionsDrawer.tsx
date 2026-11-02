@@ -86,7 +86,7 @@ export default function BudgetVersionsDrawer({
                     <span className="font-semibold">{version.name}</span>
                     <StatusPill variant={budgetVersionVariant(version.status)}>{statusLabel(version.status, t)}</StatusPill>
                     {version.activation_basis === 'sole_operator' && (
-                      <StatusPill variant="neutral">{t('financeCopy.activatedBySoleOperator', 'Activated by sole operator')}</StatusPill>
+                      <StatusPill variant="neutral">{t('financeCopy.activatedBySoleOperator', 'Activated by sole member')}</StatusPill>
                     )}
                   </p>
                   <p className="mt-1 text-sm text-muted-foreground">
