@@ -190,6 +190,10 @@
 -- from the list). Only external-connect calls it, through the service role with p_actor_id; the frontend never did.
 -- With it off the list, a renewed authenticated grant fails AC-ACL-004 by name.
 --
+-- ⚑ AMENDED BY 0494 (#1606): `retry_connect_send` joins the retained set (+1; final count 130 after ECA-6's 0495 grant, re-derived from the merged list). A SECURITY DEFINER writer under a member's JWT; it re-asserts the
+-- org, active membership and the Admin role in its body (a held send is released and queued again, audited); proved by
+-- supabase/tests/erp_connect_sends.test.sql. The other 0494 functions are service-role-only or internal.
+--
 -- The budget import and procurement import-run commands retain authenticated access;
 -- their owning proofs are 0397_budget_import_protocol.test.sql and
 -- 0399_procurement_import_identity_authority.test.sql. Atomic draft creation is
@@ -319,6 +323,7 @@ insert into client_callable_rpc_names (proname) values
   ('request_imprest_replenishment'),
   ('request_po_variation'),
   ('reserve_credits'),
+  ('retry_connect_send'),
   ('save_timesheet_week'),
   ('send_task_reminders'),
   ('select_procurement_quote'),
@@ -373,8 +378,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  129,
-  'AC-ACL-002 all 129 retained client-callable RPC names still have a public function');
+  130,
+  'AC-ACL-002 all 130 retained client-callable RPC names still have a public function');
 
 select is(
   (select count(*)::int
@@ -383,8 +388,8 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  129,
-  'AC-ACL-003 all 129 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  130,
+  'AC-ACL-003 all 130 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
 -- granted to both roles from being named twice. Retained names exempt authenticated grants only;
