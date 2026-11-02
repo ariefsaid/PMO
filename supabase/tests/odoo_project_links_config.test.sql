@@ -3,7 +3,7 @@
 -- (un-link is audited and refused through the one shared in-use check), the analytic-plan choice, and the setup accept /
 -- unlink paths for tier odoo (ECA-2's accept, decide and unlink reach the same writer).
 begin;
-select plan(123);
+select plan(125);
 
 insert into organizations (id, name) values
  ('a6050000-0000-0000-0000-000000000001','Odoo Links A'),
@@ -288,6 +288,8 @@ select throws_ok($$select public.set_odoo_org_config('a6050000-0000-0000-0000-00
 select throws_ok($$select public.set_odoo_org_config('a6050000-0000-0000-0000-000000000001','a6050000-0000-0000-0000-0000000000a1','database','"other"')$$, '22023', null, 'the connection''s database cannot be overwritten through the setter');
 select throws_ok($$select public.set_odoo_org_config('a6050000-0000-0000-0000-000000000001','a6050000-0000-0000-0000-0000000000a1','analytic_plan_id','8')$$, '22023', null, 'the analytic plan cannot be overwritten through the setter');
 select throws_ok($$select public.set_odoo_org_config('a6050000-0000-0000-0000-000000000001','a6050000-0000-0000-0000-0000000000a1','account_defaults_set_by','"x"')$$, '22023', null, 'the recorded setter cannot be forged through the setter');
+select throws_ok($$select public.set_odoo_org_config('a6050000-0000-0000-0000-000000000001','a6050000-0000-0000-0000-0000000000a1','database','{"payable":"11"}')$$, '22023', null, 'even a well-shaped object cannot be written to the connection''s database key');
+select throws_ok($$select public.set_odoo_org_config('a6050000-0000-0000-0000-000000000001','a6050000-0000-0000-0000-0000000000a1','odoo_company_id','{"payable":"11"}')$$, '22023', null, 'nor to the connection''s company key');
 select is((select config->>'database' || '|' || (config->>'analytic_plan_id') from external_org_bindings where org_id='a6050000-0000-0000-0000-000000000001' and external_tier='odoo'), 'db1|7', 'the refused patches changed nothing');
 
 -- AC-ODC-041 unit map and default warehouse

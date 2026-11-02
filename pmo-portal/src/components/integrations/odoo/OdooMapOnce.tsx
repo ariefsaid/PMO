@@ -6,7 +6,7 @@
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, Card, ListState, SelectField, StatusPill } from '@/src/components/ui';
-import { DEFAULT_TYPES, UNUSABLE_ACCOUNT_TYPES } from '@/src/lib/adapterSeam/odoo/configProposal';
+import { DEFAULT_TYPES } from '@/src/lib/adapterSeam/odoo/configProposal';
 import { useOdooConfigProposal, useOdooConnection, useOdooSetup } from '@/src/hooks/useOdoo';
 import { odooErrorMessage } from './odooErrors';
 
@@ -50,11 +50,11 @@ export function OdooMapOnce() {
 
   const stale = new Set(p.attention);
   const candidatesOf = (key: string) => { const x = p.proposals.find((y) => y.key === key); return x && 'candidates' in x ? x.candidates : null; };
-  const usable = (type: string | null) => !UNUSABLE_ACCOUNT_TYPES.includes(type ?? '');
   const accountOptions = (k: string) => {
     const offered = candidatesOf(`account_defaults.${k}`);
     return p.accounts
-      .filter((a) => usable(a.type) && DEFAULT_TYPES[k].includes(a.type ?? '') && (offered === null || offered.length === 0 || offered.includes(a.id) || a.id === values[`account_defaults.${k}`]))
+      // by type: a group or off-balance account matches no default
+      .filter((a) => DEFAULT_TYPES[k].includes(a.type ?? '') && (offered === null || offered.length === 0 || offered.includes(a.id) || a.id === values[`account_defaults.${k}`]))
       .map((a) => ({ value: a.id, label: [a.code, a.name].filter(Boolean).join(' ') }));
   };
   const asOptions = (list: Array<{ id: string; name: string; code?: string | null }>) => list.map((x) => ({ value: x.id, label: [x.code, x.name].filter(Boolean).join(' ') }));

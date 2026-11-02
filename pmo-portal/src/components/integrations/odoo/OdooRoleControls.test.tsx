@@ -73,3 +73,14 @@ it.each(DIRECTORY)('AC-ODC-082 directory tabs for %s (view-as %s): financial tab
   expect(names.includes('Accounts') && names.includes('Taxes')).toBe(financial);
   expect(names).toContain('Items');
 });
+
+const PROPOSAL = { proposals: [], accounts: [], uoms: [], warehouses: [], units: [], current: { account_defaults: {}, unit_map: {}, default_warehouse_id: null }, attention: [] };
+it.each([['Admin', false, true], ['Finance', false, true], ['Executive', false, false], ['Project Manager', false, false], ['Engineer', false, false], ['Admin', true, false]] as Array<[string, boolean, boolean]>)(
+  'AC-ODC-070 the map-once screen for %s (view-as %s): shown %s', async (role, viewAs, shown) => {
+    h.setup.mockResolvedValue(PROPOSAL);
+    mount(role, <OdooIntegrationSection />, '/x', viewAs);
+    expect(await screen.findByText('PT Contoh')).toBeInTheDocument();
+    if (shown) expect(await screen.findByTestId('odoo-map-once')).toBeInTheDocument();
+    else expect(screen.queryByTestId('odoo-map-once')).not.toBeInTheDocument();
+    expect(h.setup.mock.calls.some(([verb]) => verb === 'propose-config')).toBe(shown);
+  });
