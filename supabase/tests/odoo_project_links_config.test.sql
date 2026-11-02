@@ -1,4 +1,4 @@
--- #1504 S6-T6/T7 (migration 0486): a PMO project links to one Odoo cost account (an analytic account of the chosen plan),
+-- #1504 S6-T6/T7 (migration 0496): a PMO project links to one Odoo cost account (an analytic account of the chosen plan),
 -- without the Project app. AC-ODC-050 (who may link, one account per project, one project per account), AC-ODC-053
 -- (un-link is audited and refused through the one shared in-use check), the analytic-plan choice, and the setup accept /
 -- unlink paths for tier odoo (ECA-2's accept, decide and unlink reach the same writer).

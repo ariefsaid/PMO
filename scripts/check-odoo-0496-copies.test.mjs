@@ -1,7 +1,7 @@
-// Migration 0486 re-creates three ECA-2 functions (migration 0480) with an Odoo arm, because 0480 is not merged yet and is
-// another branch's file. A later ECA-2 fix to the same function would be reverted silently by 0486, so this fails when a
-// 0486 copy differs from the last earlier definition by anything but its `-- odoo-arm` lines.
-// Fix on failure: take the earlier definition's new body into 0486 and re-add the odoo-arm lines.
+// Migration 0496 re-creates three ECA-2 functions (migration 0480) with an Odoo arm, because 0480 is not merged yet and is
+// another branch's file. A later ECA-2 fix to the same function would be reverted silently by 0496, so this fails when a
+// 0496 copy differs from the last earlier definition by anything but its `-- odoo-arm` lines.
+// Fix on failure: take the earlier definition's new body into 0496 and re-add the odoo-arm lines.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
@@ -9,7 +9,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const dir = join(dirname(fileURLToPath(import.meta.url)), '..', 'supabase', 'migrations');
-const OWN = '0486_odoo_project_links_config.sql';
+const OWN = '0496_odoo_project_links_config.sql';
 const COPIED = ['accept_connect_proposals', 'unlink_connect_match', 'connect_link_project'];
 
 export function definition(sql, fn) {
@@ -46,7 +46,7 @@ const earlier = (fn) => {
 };
 
 for (const fn of COPIED) {
-  test(`0486's ${fn} is the earlier definition plus its Odoo arm, nothing else`, () => {
+  test(`0496's ${fn} is the earlier definition plus its Odoo arm, nothing else`, () => {
     const mine = definition(readFileSync(join(dir, OWN), 'utf8'), fn);
     assert.ok(mine, `${OWN} no longer defines ${fn}`);
     assert.ok(mine.split('\n').some((l) => l.includes('-- odoo-arm')), `${fn}: no odoo-arm line left in the copy`);

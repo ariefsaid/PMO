@@ -1,4 +1,4 @@
--- Reverses 0486_odoo_project_links_config.sql: ECA-2's three bodies come back as migration 0480 wrote them; the Odoo writers go.
+-- Reverses 0496_odoo_project_links_config.sql: ECA-2's three bodies come back as migration 0480 wrote them; the Odoo writers go.
 -- Odoo project bindings written meanwhile stay (they are data); only the functions are removed.
 create or replace function public.connect_link_project(p_org uuid, p_tier text, p_pmo text, p_ext text) returns text
 language plpgsql security definer set search_path = public, pg_temp as $$

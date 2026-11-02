@@ -1,6 +1,6 @@
 -- #1504 S6 (Odoo O1): a PMO project links to one Odoo cost account (an analytic account of the chosen plan; the Project app is
 -- not needed), and ECA-2's accept, decide and unlink reach that link for tier 'odoo'. Part 1 of the Odoo project-links and
--- config migration; S7 appends the config setter. Reversal: rollback/0486_odoo_project_links_config_down.sql.
+-- config migration; S7 appends the config setter. Reversal: rollback/0496_odoo_project_links_config_down.sql.
 --
 -- One writer: `connect_link_odoo_project` is the only code that inserts an Odoo project binding. The actor-checked
 -- `link_odoo_cost_account` (a person, service role) and ECA-2's setup paths (accept, decide, the sweep) all call it.
