@@ -17,7 +17,7 @@ Migration numbers used: **0500, 0501, 0502, 0503, 0504** (dev head is 0493). Eac
 | Fan-out per fiscal year; `planBudgetAccountIntents` is year-filtered; mirror slots upserted on `(org_id,budget_version_id,fiscal_year,erp_account)` | `adapter-dispatch/index.ts` ≈L1040-1145; `budgetAccountPlan.ts` |
 | Calendar-aware span, overlapping FYs refused, **open-ended project = start FY only** (matches owner ruling 1) | `pmo-portal/src/lib/budget/budgetGate.ts` `fiscalYearContaining`, `resolveSpanOrFailClosed` (≈L208-290) |
 | Grain probe filters `account = X AND from_fiscal_year = <year>`; a single PMO-owned live occupant becomes `refs.self` and is **cancelled+amended** | `adapterSeam/erpnext/dispatchBudget.ts` `resolveBudgetRefs` (≈L190-330) |
-| `activate_budget_version` archives the predecessor with a bare `update … status='Archived'`: **no cancel intent** | `0298_budget_sole_operator_activation.sql:72-73` |
+| `activate_budget_version` archives the predecessor with a bare `update … status='Archived'`: **no cancel intent** | `0366_budget_travel_vehicle_categories.sql:214-257` (latest forward definition) |
 | `archive_budget_version_with_cancel_intent` refuses when an Active successor exists and snapshots `fiscal_year` (no range) | `0387_budget_archive_cancel_intents.sql` (≈L85-190); fence `0388` |
 | Sweep rebuilds identity from `job.fiscal_year` + account | `erpnext-sweep/index.ts` ≈L2188, 2343, 2374, 3748, 3887 |
 | Inbound feed picks mirror table by `parseBudgetIdentity(...).erpAccount` | `_shared/erpnextFeedDeps.ts:113,134,158` |
@@ -73,13 +73,13 @@ Migration numbers used: **0500, 0501, 0502, 0503, 0504** (dev head is 0493). Eac
 | 1 | v16 yearly-distribution rehearsal spike (field contract) | none | docs + script only | batch with 2 |
 | 2 | Pure `budgetDistribution.ts` (exact allocation, validation, span) | none | pure code | batch with 1 |
 | 3 | Storage + roles: mode, plans/rows tables, `save_budget_distribution`, clone, activation validation | 0500, 0501 | **alone** (auth/SoD) | PR-A |
-| 4 | Range identity + body + gate recompute + dispatch fan-out + sweep + feed + mirror writer + status | 0502 (mirror/intent range columns, SQL identity, status, `record_outbox_ref`) | **alone** (money) | PR-B |
-| 5 | Predecessor cancellation at activation + ordering hold | 0503 | **alone** (money) | PR-C |
+| 4 | Range identity + body + gate recompute + dispatch fan-out + sweep + feed + mirror writer + status | 0502 (mirror/intent range columns, SQL identity, status, `record_outbox_ref`) | **alone with 5** (money) | PR-B |
+| 5 | Predecessor cancellation at activation + ordering hold | 0503 | **alone with 4** (money) | PR-B |
 | 6 | Repository/hooks + authoring UI (mode, totals, distribution grid, readiness, stale banner) | none | batch | PR-D |
 | 7 | All-years comparison RPC + Forecast scope selector | 0504 | batch with 6 | PR-D |
 | 8 | Curated e2e AC-018 + isolated ERP rehearsal evidence | none | alone (release evidence) | PR-E |
 
-Order: 1 → 2 → 3 → 4 → 5 → (6, 7) → 8. Slice 4 needs 1 and 3; 5 needs 4. All branch off `origin/dev`; rebase translation files (`public/locales/en` + `id`) right before each PR.
+Order: 1 → 2 → 3 → 4+5 → (6, 7) → 8. Slices 4 and 5 form one indivisible money PR, after 1 and 3. Until that PR lands, all entry points must refuse whole-project activation and dispatch; test this deployment fence in Slice 3. Remove the fence atomically with Slice 4+5. All branch off `origin/dev`; rebase translation files (`public/locales/en` + `id`) right before each PR.
 
 ---
 
@@ -88,7 +88,7 @@ Order: 1 → 2 → 3 → 4 → 5 → (6, 7) → 8. Slice 4 needs 1 and 3; 5 need
 Files: `docs/spikes/2026-11-02-erpnext-v16-budget-yearly-distribution.md` (new), `scripts/bv16-rehearsal.mjs` (extend), `scripts/bv16-rehearsal.test.mjs`.
 Rules: rehearsal copy only, rolled back; never print credentials/hostnames (the script already reads config from FD3).
 
-- [ ] 1.1 **Failing test first** (`scripts/bv16-rehearsal.test.mjs`): `buildRangeProbeBody({from:'FY-A',to:'FY-C',years:[…3],amounts:['100.00','0.00','200.00']})` returns a body whose yearly rows sum to `budget_amount` and keeps the zero year. Run: `node --test scripts/bv16-rehearsal.test.mjs` → red.
+- [ ] 1.1 **Failing test first** (`scripts/bv16-rehearsal.test.mjs`): `buildRangeProbeBody({from:'FY-A',to:'FY-C',years:['FY-A','FY-B','FY-C'],amounts:['100.00','0.00','200.00']})` returns a body whose yearly rows sum to `budget_amount` and keeps the zero year. Run: `node --test scripts/bv16-rehearsal.test.mjs` → red.
 - [ ] 1.2 Add `buildRangeProbeBody` (hypothesis body from design 5) to `bv16-rehearsal.mjs`; green.
 - [ ] 1.3 Director-run (needs the rehearsal route): insert the 3-year body with `distribution_frequency` = `Yearly`, `distribute_equally` = 0, submit, read back, then cancel + roll back. Record in the spike doc: accepted field names, whether `percent` or `amount` is authoritative, behaviour of a zero year, rounding on read-back, and whether ERP refuses a second overlapping Budget (`DuplicateBudgetError`) for per-year predecessor vs range. If the hypothesis fails, the doc states the working body and design 5 is amended **before** Slice 4.
 - Verify: `node --test scripts/*.test.mjs`. Evidence goes in the PR body.
@@ -145,7 +145,7 @@ describe('budget-whole-project', () => {
 });
 ```
   Run `cd pmo-portal && npx vitest run src/lib/budget/budgetDistribution.test.ts` → red (module missing).
-- [ ] 2.2 Implement (all arithmetic in bigint cents; no floats; dates via `Date.UTC`, timezone-free):
+- [ ] 2.2 Implement (all arithmetic in bigint cents; no floats; dates via strict validated civil dates and `Date.UTC`, timezone-free):
 
 ```ts
 import { parseExactCents, formatExactCents } from '../exactDecimal.ts';
@@ -207,7 +207,7 @@ alter table public.budget_versions
 
 create table public.budget_distribution_plans (
   budget_version_id uuid primary key references public.budget_versions(id) on delete cascade,
-  org_id uuid not null default coalesce(public.auth_org_id(),'00000000-0000-0000-0000-000000000001')
+  org_id uuid not null default public.auth_org_id()
     references public.organizations(id) on delete cascade,
   method text not null check (method in ('by_days','percent_by_year','amount_by_year')),
   inputs jsonb not null default '{}'::jsonb,   -- budget-wide year -> entered value (text)
@@ -217,7 +217,7 @@ create table public.budget_distribution_plans (
 );
 create table public.budget_year_distributions (
   id uuid primary key default gen_random_uuid(),
-  org_id uuid not null default coalesce(public.auth_org_id(),'00000000-0000-0000-0000-000000000001')
+  org_id uuid not null default public.auth_org_id()
     references public.organizations(id) on delete cascade,
   budget_version_id uuid not null references public.budget_versions(id) on delete cascade,
   category public.budget_category not null,
@@ -234,8 +234,8 @@ create table public.budget_year_distributions (
 ```
   Rollback refuses (raise exception) if any `whole_project` version or distribution row exists; otherwise drops the objects and column.
 
-**0501_budget_distribution_rpc.sql**: `save_budget_distribution(p_version uuid, p_method text, p_inputs jsonb, p_basis jsonb, p_rows jsonb) returns void`, definer, `set search_path = public, pg_temp`:
-auth gate identical to `activate_budget_version` (four roles, `is_active_member()`, version org = `auth_org_id()`, project org match); version must be `Draft` and `whole_project`; rows validated: no duplicate (category, year), years ⊆ `basis.years`, amounts ≥ 0, every category with Σ lines > 0 has exactly one row per basis year, and Σ years = Σ lines (`numeric`, exact) — failures raise `P0001` with the category name; delete+insert both tables in one statement block; `insert into budget_version_editors … on conflict do nothing` (authorship). Also `budget_distribution_gaps(p_version uuid) returns setof text` (stable, invoker) reused by activation. `clone_budget_version` replaced (copy the current body, add): copies `budget_mode`, plan and rows. `activate_budget_version` replaced (copy the `0298` body verbatim; add): when `budget_mode = 'whole_project'`, raise `P0001` if `budget_distribution_gaps` is non-empty. Re-issue `revoke … from public, anon` / `grant execute … to authenticated` for each; update the `0178` allow-list test only if the anon-executable count moves (it must not).
+**0501_budget_distribution_rpc.sql** (until PR-B, reject whole-project activation and dispatch despite a valid distribution): `save_budget_distribution(p_version uuid, p_method text, p_inputs jsonb, p_basis jsonb, p_rows jsonb) returns void`, definer, `set search_path = public, pg_temp`:
+auth gate identical to `activate_budget_version` (four roles, `is_active_member()`, version org = `auth_org_id()`, project org match); version must be `Draft` and `whole_project`; rows validated: no duplicate (category, year), years ⊆ `basis.years`, amounts ≥ 0, every category with source lines, including a zero total, has exactly one row per basis year, and Σ years = Σ lines (`numeric`, exact) — failures raise `P0001` with the category name; delete+insert both tables in one statement block; `insert into budget_version_editors … on conflict do nothing` (authorship). Also `budget_distribution_gaps(p_version uuid) returns setof text` (stable, invoker) reused by activation. `clone_budget_version` replaced (copy the current body, add): copies `budget_mode`, plan and rows. `activate_budget_version` replaced (copy the current `0366` body verbatim; add): when `budget_mode = 'whole_project'`, raise `P0001` if `budget_distribution_gaps` is non-empty. Re-issue `revoke … from public, anon` / `grant execute … to authenticated` for each; update the `0178` allow-list test only if the anon-executable count moves (it must not).
 
 pgTAP (write first; `supabase/tests/`; `begin; … rollback;`, namespaced UUIDs, `select finish();`):
 - `budget_whole_project_storage.test.sql` — **AC-007**: save → reload equals; clone copies mode/plan/rows/is_override; second save replaces atomically (no duplicates); a row set that misses a year or does not sum fails and leaves the prior plan intact.
@@ -244,7 +244,7 @@ pgTAP (write first; `supabase/tests/`; `begin; … rollback;`, namespaced UUIDs,
 Mutation: replace the Σ check with `true` in the RPC → the AC-007 mismatch test must go red; restore.
 Verify (one lock hold): `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/budget_whole_project_storage.test.sql supabase/tests/budget_whole_project_roles.test.sql supabase/tests/budget_whole_project_compatibility.test.sql supabase/tests/budget_archive_cancel_intents.test.sql supabase/tests/budget_sole_operator.test.sql supabase/tests/budget_second_activator.test.sql'`. Grep output for `Parse errors`. Also run the 0136/0137/0178 guards' files. Regenerate types: update `database.types.ts` for the new tables/columns/RPCs (hand-edit minimal, or the repo's generator).
 
-## Slice 4: range identity, body, gate, fan-out, sweep, feed, mirror — migration 0502 (PR-B, alone)
+## Slice 4: range identity, body, gate, fan-out, sweep, feed, mirror — migration 0502 (PR-B, together with Slice 5)
 
 Precondition: Slice 1 spike doc exists and design 5 matches it.
 
@@ -252,7 +252,7 @@ Precondition: Slice 1 spike doc exists and design 5 matches it.
 `alter table budget_version_account_erp_mirror add column to_fiscal_year text;` same on `budget_archive_cancel_intents`; `budget_account_identity(uuid,text,text,text)` 4-arg overload producing the `:r:` form (immutable, invoker, anon cannot execute); `get_budget_push_status` and `budget_push_mirror_rows` expose `to_fiscal_year`; `record_outbox_ref` (0293/0379 logic) matches `(version, fiscal_year, to_fiscal_year, account)` identity: legacy rows keep the 3-arg form, range rows the 4-arg form. Pin with `supabase/tests/budget_v16_identity.test.sql` additions (range bytes equal the TS output; the 3-arg result is unchanged — AC-011/010).
 
 TS tasks, each test-first (vitest unless noted; Deno tests import the shipped handler and mock `globalThis.fetch`):
-- [ ] 4.1 `budgetAccountIdentity.test.ts`: `budgetRangeIdentity(vid,'FY/2026:','FY2028','Salary: α')` round-trips through `parseBudgetIdentity` to `{fiscalYear, toFiscalYear, erpAccount}`; a legacy `:a:` identity parses with `toFiscalYear: null`; `from > to` or empty token rejected; `isBudgetAccountPushKey('bud16:'+rangeIdentity+':1700000000000')` true. Implement `budgetRangeIdentity`, extend `BudgetIdentity` with `toFiscalYear: string | null`, `parseBudgetIdentity` branch `rest.startsWith('r:')`, canonical re-encode check as the `a:` branch does. Check the key length against the guard's limit: add a test with a 140-char account.
+- [ ] 4.1 `budgetAccountIdentity.test.ts`: `budgetRangeIdentity(vid,'FY/2026:','FY2028','Salary: α')` round-trips through `parseBudgetIdentity` to `{fiscalYear, toFiscalYear, erpAccount}`; a legacy `:a:` identity parses with `toFiscalYear: null`; empty tokens rejected; chronological order validated against fiscal-year dates (names are opaque); `isBudgetAccountPushKey('bud16:'+rangeIdentity+':1700000000000')` true. Implement `budgetRangeIdentity`, extend `BudgetIdentity` with `toFiscalYear: string | null`, `parseBudgetIdentity` branch `rest.startsWith('r:')`, canonical re-encode check as the `a:` branch does. Check the key length against the guard's limit: add a test with a 140-char account.
 - [ ] 4.2 **AC-009** `bodies/budget.v16.test.ts`: two years × two categories → exactly one body per account, `from_fiscal_year`≠`to_fiscal_year`, `distribution_frequency: 'Yearly'`, `distribute_equally: 0`, yearly rows sum to `budget_amount`, a zero year retained, no `Monthly`, still sends all six `action_if_*` and `applicable_on_*`. Implement `v16RangeBody` in `bodies/budget.ts`; record carries `to_fiscal_year` + `year_amounts: {year, amount}[]`. Header amount is `Number(...)` as today; yearly cell amounts are asserted by exact-cents sum before conversion (throw `commit-rejected` on mismatch).
 - [ ] 4.3 **AC-017** `bodies/budget.test.ts`: the v15 body for an annual fixture is byte-identical to today's (snapshot copied from the current test); a whole-project record on a v15 binding throws `commit-rejected` with an "unsupported" message and issues no ERP call.
 - [ ] 4.4 `budgetAccountPlan.test.ts`: `planRangeAccountIntents(range, desired, prior)` → `ensure` for each desired account; `remove` only for a PMO-witnessed live prior of the **same range** whose account is no longer desired; prior docs of other ranges never become predecessors (they are the cancel-intent path).
@@ -263,7 +263,7 @@ TS tasks, each test-first (vitest unless noted; Deno tests import the shipped ha
 - [ ] 4.9 Mutation checks: (a) make `parseBudgetIdentity` accept `:a:` as a range → 4.1/4.7 red; (b) make the probe treat any occupant as `refs.self` → 4.5 red; (c) sum rows without the cents check → 4.2 red. Restore each.
 - Gate: `npm run check:guards`, `npm run typecheck`, eslint on touched files, touched vitest files, `scripts/deno-test-edge-fns.sh` for `adapter-dispatch`, `erpnext-sweep`, `_shared`; pgTAP under `with-db-lock.sh` (reset+test one hold): `budget_v16_identity`, `budget_v16_accounts`, `budget_v16_status`, `budget_v16_fresh_ref`, `budget_v16_ref_handoff`, `budget_v16_rollback`, `budget_erp_mirror_rls`.
 
-## Slice 5: predecessor cancellation at activation + ordering hold — migration 0503 (PR-C, alone)
+## Slice 5: predecessor cancellation at activation + ordering hold — migration 0503 (PR-B, together with Slice 4)
 
 **0503_budget_activation_cancels_predecessor.sql** (+rollback restoring the 0501 `activate_budget_version` and the 0387 archive body):
 1. `queue_budget_archive_cancel(p_version uuid, p_actor uuid, p_request uuid) returns jsonb` (definer, internal; `revoke all from public, anon, authenticated`) = the request + intents + mirror `remove` marking block of `archive_budget_version_with_cancel_intent`, copying `to_fiscal_year`. The archive RPC now calls it; behaviour identical.
@@ -280,7 +280,7 @@ Tests (write first):
 Files: `src/lib/db/budgets.ts`, `src/lib/repositories/budget.ts` + `contracts/budget.ts`, `src/hooks/useBudget.ts`, `pages/ProjectBudget.tsx`, `pages/project-detail/tabs/BudgetTab.tsx`, new `src/components/budget/DistributionGrid.tsx`, `public/locales/{en,id}/*.json`. Design tokens only; existing primitives (`SelectField`, `TextField`, `FormGrid`, `FieldError`, `ConfirmDialog`).
 
 - [ ] 6.1 **AC-001** `pages/ProjectBudget.test.tsx`: a new budget is created with `budget_mode: 'whole_project'`, by-days selected, and the category totals form has no fiscal-year control. Implement: `createBudgetVersion` sends `budget_mode: 'whole_project'` (import path passes none, test asserts); lines created in this mode send `fiscal_year: null`.
-- [ ] 6.2 **AC-005** same file: budget-wide method + one category override render "inherited"/"overridden"; an inherited amount vector that does not fit a category total is rejected at that category.
+- [ ] 6.2 **AC-005** same file: budget-wide method + one category override render "inherited"/"overridden"; budget-wide amounts are converted to proportions and allocated to each inheriting category; a category override must sum to its own total.
 - [ ] 6.3 **AC-006** same file: incomplete year, out-of-span year, negative/non-finite, % ≠ 100, amounts ≠ total → the field is named, entered values preserved, `Activate` blocked, totals unchanged.
 - [ ] 6.4 Preview grid (FR-004): category totals + year × category grid, yearly sums equal totals, method labels; keyboard reachable, labelled. Repository: `saveDistribution(versionId, plan)` → `save_budget_distribution` (never sends `org_id`); `getDistribution(versionId)`. Preview is computed by `budgetDistribution.ts` from the precheck's calendar (extend `runBudgetActivationPrecheck` result to carry `fiscalYears` with dates, not only `fiscalYearNames`; update `budgetGate.activationPrecheck.test.ts`). Save happens on "Confirm distribution"; activation requires a saved plan whose `basis` matches the live one.
 - [ ] 6.5 Stale banner (owner ruling 3, FR-022): when project dates/calendar differ from the Active plan's `basis`, show "the project now runs to <date>; this budget covers <years>" with a "Prepare new draft" action = `cloneVersion` (copies lines + method) then re-preview; nothing is pushed or mutated on read.
@@ -290,7 +290,7 @@ Files: `src/lib/db/budgets.ts`, `src/lib/repositories/budget.ts` + `contracts/bu
 
 ## Slice 7: all-years comparison — migration 0504 (PR-D)
 
-**0504_budget_comparison.sql** (+rollback = `drop function`): `get_budget_comparison(p_project_id uuid, p_fiscal_year text default null) returns table(category budget_category, budget_total numeric, recorded numeric, recorded_as_of timestamptz, mapped boolean, has_ledger boolean, remaining numeric, percent_used numeric)`, `stable`, `security invoker`, `set search_path = public, pg_temp`, `revoke from public, anon`, `grant to authenticated`. Null year: `budget_total` = Σ Active-version lines per category (counted once); `recorded` from `project_mapped_actuals(p_project_id, null)` (already generation-correct, attribution included). With a year: whole-project version → `budget_year_distributions.amount`; per-year version → the existing phased total. Server aggregation only (NFR-005); `remaining`/`percent_used` null when budget or ledger unknown or budget = 0; a known zero distribution is `0`, absent is `null`.
+**0504_budget_comparison.sql** (+rollback = `drop function`): `get_budget_comparison(p_project_id uuid, p_fiscal_year text default null) returns table(category budget_category, budget_total numeric, recorded numeric, recorded_as_of timestamptz, mapped boolean, has_ledger boolean, remaining numeric, percent_used numeric)`, `stable`, `security invoker`, `set search_path = public, pg_temp`, `revoke from public, anon`, `grant to authenticated`. Null year: `budget_total` = Σ Active-version lines per category (counted once); `recorded` from `project_mapped_actuals(p_project_id, null)` (already generation-correct, attribution included). With a year: whole-project version → `budget_year_distributions.amount`; per-year version → the existing phased total. Server aggregation only (NFR-005); `remaining` null when budget or ledger unknown; `percent_used` null when budget or ledger unknown or budget = 0; a known zero distribution is `0`, absent is `null`.
 
 - [ ] 7.1 **AC-014** `supabase/tests/budget_whole_project_comparison.test.sql`: ledger across two years in the current snapshot → totals counted once, recorded not doubled, remaining = total − recorded (not EAC); an older snapshot generation ignored; unmapped category → `mapped=false`, nulls; other org sees nothing; > 1000 category-year inputs not truncated (the RPC returns ≤ one row per category).
 - [ ] 7.2 **AC-013/015** `pages/BudgetProjection.test.tsx`: multi-year project opens on `All years (project to date)`, can switch to a year, scope label visible; single-year project keeps its default; zero vs unknown vs unmapped vs missing-ledger render distinctly with provenance, no invented percent. Implement via `fetchBudgetComparison` in `src/lib/repositories/budgetProjection.ts`, scope select in `pages/BudgetProjection.tsx`, pure mapping in `src/lib/budget/budgetProjection.ts`. ETC/EAC columns stay on the per-year view only.
@@ -324,14 +324,14 @@ Non-AC proofs: FR-007 outage-informational → `budgetGate.activationPrecheck.te
 
 ## 4. What ships alone
 
-PR-A (3: auth/SoD), PR-B (4: money push), PR-C (5: money cancellation), PR-E (8). Batchable: PR-D (6+7, UI + read-only RPC), and Slices 1+2 as one pure/docs PR. Each money PR: Sol review, the mutation checks above, served-handler tests against the frozen body. Dev PRs run `verify` + `pgtap`; browser e2e on the release PR. No push to `dev` while a release PR's CI runs.
+PR-A (3: auth/SoD), PR-B (4+5: indivisible money push and cancellation), PR-E (8). Batchable: PR-D (6+7, UI + read-only RPC), and Slices 1+2 as one pure/docs PR. Each money PR: Sol review, the mutation checks above, served-handler tests against the frozen body. Dev PRs run `verify` + `pgtap`; browser e2e on the release PR. No push to `dev` while a release PR's CI runs.
 
 ## 5. Open questions and the default taken
 
 1. **Yearly child-row field names / `Yearly` frequency behaviour.** Default: hypothesis in design 5; Slice 1 freezes it; Slice 4 blocked until then.
 2. **Range changes on a live whole-project budget (same mode, different range).** Default: treated like a per-year predecessor (cancel via intents, new range created); identical range = amend in place.
 3. **When is the plan saved?** Default: on "Confirm distribution" in the Draft; activation requires a saved, non-stale plan (no auto-save of an unreviewed proposal).
-4. **Category with zero total.** Default: no distribution rows; not pushed (existing zero-amount behaviour).
+4. **Category with zero total.** Default: persist zero rows for every in-range year for a category with an explicit zero total, preserving known zero in comparison; do not push a zero account. Otherwise a manager viewing a year sees unknown instead of the explicitly approved zero.
 5. **Percent precision.** Default: up to 4 decimals, Σ exactly 100.
 6. **Cancellation failure policy.** Default: successor stays Active in PMO, range units `pending` with the visible reason until intents settle; operator retries/releases through the existing held-intent recovery. No automatic forced create.
 7. **Server cannot recompute by-days (calendar is in ERP).** Default: DB enforces shape + exact sums; gate enforces calendar/basis freshness at precheck and push.
@@ -344,9 +344,19 @@ PR-A (3: auth/SoD), PR-B (4: money push), PR-C (5: money cancellation), PR-E (8)
 
 ## 7. Spec corrections found while grounding (for the owner/Director)
 
-1. FR-013/AC-012 assume activation already goes through the archive-cancel path. It does not: `activate_budget_version` flips the predecessor with a bare update (`0298:72-73`), and the archive RPC refuses while an Active successor exists (`0387`). Slice 5 adds the missing step (design 7).
-2. FR-010 "aggregated from mapped categories": the account map is one category per account and a shared account is refused (`resolveV16BudgetAccounts`), so aggregation is a no-op; keep the refusal.
-3. The shipped grain probe would adopt a per-year predecessor in the first year as an upsert target (cancel+amend). The spec lists identity/mirror but not the probe; Slice 4.5 covers it.
-4. AC-016's owning file `budgetGate.fiscalYear.test.ts` exists; the stale-basis rule needs `runBudgetActivationPrecheck` to return calendar dates (it returns names only today).
-5. All-years actuals need no new ledger SQL: `project_mapped_actuals(…, null)` already does it (`0376:459`); only the budget side is new.
-6. The identity key needs no new prefix or guard change (`bud16:` + `:r:` identity), unlike what "add whole-range grain" might suggest; the SQL twin and sweep call sites do need the range form.
+1. FR-013/AC-012 specify the future cancellation outcome; they do not claim the activation path already provides it. The latest forward activation definition is `0366` (not `0298`); Slice 5 implements the specified transition using the archive-cancel workflow.
+2. FR-010 is amended in the spec to preserve the shipped shared-account refusal; aggregation must not imply changing that rule.
+3. The existing grain probe is account/start-year based and a PMO-owned live occupant can enter the amend path. The spec now explicitly requires range-aware matching; Slice 4.5 covers it.
+4. AC-016 specifies future behavior, not an existing calendar-date return. Precheck currently returns names; Slice 6.4 extends it to return dates.
+5. All-years actuals already have a nullable-year source in `0376:459`; the spec never claims otherwise. Slice 7 adds the comparison read, not a second ledger source.
+6. A new prefix is not required if the existing key guard accepts the canonical range identity; prove this in served-handler tests. SQL and sweep need matching range identities.
+
+## 8. Money-path review gates (2026-11-02)
+
+- **Deployment and concurrency:** PR-A must refuse whole-project activation and push on every entry point until PR-B atomically enables both range dispatch and predecessor cancellation. Lock the project and predecessor during activation, serialize concurrent activation/dispatch/cancellation, and fence outstanding predecessor commands before snapshotting targets. A mirror-only snapshot is insufficient while a create can still be in flight: reconcile to a confirmed exact ERP target or hold; never start successor creates on an inconclusive probe. Test interleavings in a real concurrent harness, not only single-session pgTAP.
+- **Recovery:** bind stable outbox identity and request IDs to the approved activation and immutable payload; test simultaneous foreground/sweep, timeout after ERP create, lost finalize, stale generation and repeated cancel after timeout. An inconclusive recovery holds without a second POST; stale claimants cannot mint a second document. Cancel only the witnessed exact predecessor; verify ERP cancellation before settling. A superseded intent is not proof of cancellation: hold successor until its live-target absence is positively established. Cancellation and create failures remain visible and retryable without duplicate documents.
+- **Same-range revisions:** prove same-range amend ownership and recovery across cancel/create interruption, changed or removed accounts, and concurrent retries; do not use identical endpoints alone as ownership proof. Preserve and fence prior outbox generations. ERP coverage during cancellation-to-create is an operational gap to show visibly; do not report the transition complete until all required accounts settle.
+- **Rollback:** every down migration checks for whole-project versions, range mirrors, references, live or unsettled outbox commands and archive intents before removing data or behavior; refuse if any would be stranded, including completed live ERP documents. Rollback never cancels or converts ERP documents implicitly. Test refusal and clean rollback in reverse migration order.
+- **Validation:** reject invalid civil dates, overlapping or incomplete calendar coverage and reversed dates; validate project/calendar witnesses and all category override inputs, uniqueness and year membership server-side. Save source-line changes and distribution validation under the same version lock, and revalidate immediately on activation. Persist explicit override inputs as well as resolved amounts so clone and reload reproduce the approved plan. Tests must exercise direct RPC calls and concurrent edits, not just UI validation.
+- **Rehearsal is a blocking discovery, not a payload specification:** replace the hypothetical body with the actual ERP v16 schema and accepted, read-back behavior before implementing or merging PR-B. If ERP does not enforce the required whole-project total with yearly figures, stop for the owner; do not infer a workaround. Recheck migration numbers against the integration base immediately before implementation and coordinate reservations.
+- **Release evidence:** AC-018 and real ERP rehearsal are release blockers and run before feature release, with ERP and DB locks in the prescribed order. Every PR uses the local final gates applicable to its touched files; money PR-B receives Sol review, mutation checks and served-handler tests. UI proof and both translations accompany PR-D.
