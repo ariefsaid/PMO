@@ -1,3 +1,9 @@
 {
-  "editUnavailable": "You cannot edit this view."
+  "editUnavailable": "You cannot edit this view.",
+  "viewLoadError": "Could not load this view.",
+  "viewLoadErrorDescription": "Check your connection and retry.",
+  "serverVersionChanged": "The saved view changed while you were editing.",
+  "reloadSavedView": "Reload saved view",
+  "continueEditing": "Continue editing",
+  "invalidProjectFilter": "Enter a valid project ID."
 }

@@ -8,11 +8,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, act, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter, Route, Routes } from 'react-router';
+import { Link, MemoryRouter, Route, Routes } from 'react-router';
 import React from 'react';
 import { axe } from 'jest-axe';
 import 'jest-axe/extend-expect'; // global registration moved out of test/setup.ts (unit-speed #1584)
 import type { UserViewRow } from '@/src/lib/db/userViews';
+import type { PanelSpec } from '@/src/lib/viewspec/types';
 
 // ── Hoisted mocks ─────────────────────────────────────────────────────────────
 // IMPORTANT: mockUseAuth must return a STABLE currentUser object reference.
@@ -27,7 +28,6 @@ const {
   mockCompile,
   mockUseAuth,
   mockToast,
-  mockBlocker,
   mockIsFeatureEnabled,
   mockAICompose,
   roleState,
@@ -56,7 +56,6 @@ const {
       signOut: vi.fn(),
     })),
     mockToast: vi.fn(),
-    mockBlocker: vi.fn(() => ({ state: 'unblocked', proceed: vi.fn(), reset: vi.fn() })),
     // Feature flag — default false so existing tests are unaffected
     mockIsFeatureEnabled: vi.fn((key: string) => key === 'userViews' ? false : false),
     mockAICompose: vi.fn(),
@@ -81,7 +80,6 @@ vi.mock('@/src/lib/viewspec/compiler', () => ({
   compileCompositionSpec: mockCompile,
   compileQuerySpec: vi.fn((qs: unknown) => ({
     entity: (qs as { entity: string }).entity,
-    repositoryMethod: 'company.list',
     resolvedFilters: [],
     resolvedSelect: ['id', 'name'],
   })),
@@ -92,10 +90,6 @@ vi.mock('@/src/lib/viewspec/executor', () => ({
 vi.mock('@/src/components/ui', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/src/components/ui')>();
   return { ...actual, useToast: () => ({ toast: mockToast }) };
-});
-vi.mock('react-router', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('react-router')>();
-  return { ...actual, useBlocker: mockBlocker };
 });
 // Stub ViewPreview: these tests focus on the builder state machine, not the preview
 // component. The real ViewPreview has an async useEffect that can cause OOM in
@@ -149,7 +143,7 @@ import ViewBuilderPage from '@/pages/ViewBuilderPage';
 import MyViewsPage from '@/pages/MyViewsPage';
 import { ValidationError } from '@/src/lib/viewspec/types';
 
-// A minimal PanelSpec that can be added to the list via direct prop injection
+// Minimal PanelSpecs passed through the same navigation-state boundary used by the AI compose flow.
 const PANEL_A = {
   id: 'a',
   primitive: 'DataTable',
@@ -166,14 +160,15 @@ const PANEL_C = {
   querySpec: { entity: 'companies' as const, select: ['name'] },
 };
 
-function renderCreate() {
+function renderCreate(panels: PanelSpec[] = []) {
   return render(
-    <MemoryRouter initialEntries={['/views/new']}>
+    <MemoryRouter initialEntries={[{ pathname: '/views/new', state: panels.length ? { composedSpec: { version: 1, panels } } : null }]}>
       <Routes>
         <Route path="/views/new" element={<ViewBuilderPage mode="create" />} />
         <Route path="/views/:viewId" element={<div data-testid="renderer" />} />
         <Route path="/views" element={<div data-testid="list-page" />} />
       </Routes>
+      <Link to="/views">My views</Link>
     </MemoryRouter>,
   );
 }
@@ -200,14 +195,12 @@ beforeEach(() => {
       primitive: 'DataTable',
       compiledQuery: {
         entity: 'companies',
-        repositoryMethod: 'company.list',
         resolvedFilters: [],
         resolvedSelect: ['id', 'name'],
       },
     },
   ]);
   mockUseUserView.mockReturnValue({ data: null, isPending: false, isError: false });
-  mockBlocker.mockReturnValue({ state: 'unblocked', proceed: vi.fn(), reset: vi.fn() });
 });
 
 describe('ViewBuilderPage — guard states', () => {
@@ -280,12 +273,88 @@ describe('ViewBuilderPage — guard states', () => {
     // Save button should say "Update view"
     expect(screen.getByRole('button', { name: /update view/i })).toBeInTheDocument();
   });
+
+  it('PGA06-008: edit query failure offers retry instead of rendering the not-found state', async () => {
+    const refetch = vi.fn();
+    mockUseUserView.mockReturnValue({ data: null, isPending: false, isError: true, refetch });
+    renderEdit('v1');
+
+    expect(screen.getByRole('alert')).toHaveTextContent(/could not load this view/i);
+    expect(screen.queryByText(/view not found/i)).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /retry/i }));
+    expect(refetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('PGA06-009: a same-version refetch preserves a dirty draft and its original baseline', async () => {
+    const view = {
+      id: 'v1', name: 'Saved name', description: 'Saved description', scope: 'private',
+      spec: { version: 1, panels: [PANEL_A] }, archived_at: null, org_id: 'org1', user_id: 'u1',
+      created_at: '2026-06-01T00:00:00Z', updated_at: '2026-06-28T00:00:00Z',
+    };
+    mockUseUserView.mockReturnValue({ data: view, isPending: false, isError: false });
+    const { rerender } = renderEdit('v1');
+    const name = screen.getByRole('textbox', { name: /view name/i });
+    await userEvent.clear(name);
+    await userEvent.type(name, 'My unsaved draft');
+
+    mockUseUserView.mockReturnValue({ data: { ...view }, isPending: false, isError: false });
+    rerender(
+      <MemoryRouter initialEntries={['/views/v1/edit']}>
+        <Routes><Route path="/views/:viewId/edit" element={<ViewBuilderPage mode="edit" />} /></Routes>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole('textbox', { name: /view name/i })).toHaveValue('My unsaved draft');
+    await userEvent.click(screen.getByRole('button', { name: /cancel/i }));
+    expect(screen.getByRole('alertdialog')).toBeInTheDocument();
+  });
+
+  it('PGA06-009: a newer server version keeps the draft and offers reload or continue editing', async () => {
+    const view = {
+      id: 'v1', name: 'Saved name', description: 'Saved description', scope: 'private',
+      spec: { version: 1, panels: [PANEL_A] }, archived_at: null, org_id: 'org1', user_id: 'u1',
+      created_at: '2026-06-01T00:00:00Z', updated_at: '2026-06-28T00:00:00Z',
+    };
+    mockUseUserView.mockReturnValue({ data: view, isPending: false, isError: false });
+    const { rerender } = renderEdit('v1');
+    const name = screen.getByRole('textbox', { name: /view name/i });
+    await userEvent.clear(name);
+    await userEvent.type(name, 'My unsaved draft');
+
+    mockUseUserView.mockReturnValue({
+      data: { ...view, name: 'Remote version', updated_at: '2026-06-29T00:00:00Z' },
+      isPending: false,
+      isError: false,
+    });
+    rerender(
+      <MemoryRouter initialEntries={['/views/v1/edit']}>
+        <Routes><Route path="/views/:viewId/edit" element={<ViewBuilderPage mode="edit" />} /></Routes>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole('textbox', { name: /view name/i })).toHaveValue('My unsaved draft');
+    expect(screen.getByRole('alert')).toHaveTextContent(/saved view changed/i);
+    await userEvent.click(screen.getByRole('button', { name: /reload saved view/i }));
+    expect(screen.getByRole('textbox', { name: /view name/i })).toHaveValue('Remote version');
+    expect(screen.queryByText(/saved view changed/i)).not.toBeInTheDocument();
+  });
+
+  it('PGA06-007: an internal app link holds a dirty draft until the user confirms leaving', async () => {
+    renderCreate();
+    await userEvent.type(screen.getByRole('textbox', { name: /view name/i }), 'Unsaved');
+    await userEvent.click(screen.getByRole('link', { name: /my views/i }));
+    expect(screen.getByRole('alertdialog')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /keep editing/i }));
+    expect(screen.getByRole('textbox', { name: /view name/i })).toHaveValue('Unsaved');
+
+    await userEvent.click(screen.getByRole('link', { name: /my views/i }));
+    await userEvent.click(screen.getByRole('button', { name: /discard/i }));
+    expect(screen.getByTestId('list-page')).toBeInTheDocument();
+  });
 });
 
 describe('ViewBuilderPage — compile-before-save', () => {
   it('AC-VB-007b: navigating away from an unmodified edit view does NOT trigger the discard dialog', () => {
-    // blocker stays unblocked (its condition isDirty must be false when nothing has changed)
-    mockBlocker.mockReturnValue({ state: 'unblocked', proceed: vi.fn(), reset: vi.fn() });
     mockUseUserView.mockReturnValue({
       data: {
         id: 'v1',
@@ -303,9 +372,7 @@ describe('ViewBuilderPage — compile-before-save', () => {
       isError: false,
     });
     renderEdit('v1');
-    // With no user changes the discard dialog must not be present (isDirty=false ⇒
-    // no beforeunload guard armed, no dialog). The dirty-guard no longer depends on
-    // react-router's useBlocker — the app uses BrowserRouter (a non-data router).
+    // With no user changes the discard dialog must not be present.
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
   });
 
@@ -313,26 +380,10 @@ describe('ViewBuilderPage — compile-before-save', () => {
     mockCompile.mockImplementation(() => {
       throw new ValidationError('UNKNOWN_ENTITY', 'companies');
     });
-    const { rerender } = renderCreate();
+    renderCreate([PANEL_A]);
     // Seed name field
     const nameField = screen.getByRole('textbox', { name: /view name/i });
     await userEvent.type(nameField, 'My View');
-    // Seed a panel by using the test hook: ViewBuilderPage accepts __testPanels prop
-    rerender(
-      <MemoryRouter initialEntries={['/views/new']}>
-        <Routes>
-          <Route
-            path="/views/new"
-            element={
-              <ViewBuilderPage
-                mode="create"
-                __testPanels={[PANEL_A]}
-              />
-            }
-          />
-        </Routes>
-      </MemoryRouter>,
-    );
     const saveBtn = screen.getByRole('button', { name: /save view/i });
     await userEvent.click(saveBtn);
     expect(mockCreate).not.toHaveBeenCalled();
@@ -341,20 +392,9 @@ describe('ViewBuilderPage — compile-before-save', () => {
 
   it('AC-VB-008: create mode calls create with {name,description,spec,scope} — no org_id/user_id', async () => {
     mockCompile.mockReturnValue([]);
-    const { rerender } = renderCreate();
+    renderCreate([PANEL_A]);
     const nameField = screen.getByRole('textbox', { name: /view name/i });
     await userEvent.type(nameField, 'My View');
-    rerender(
-      <MemoryRouter initialEntries={['/views/new']}>
-        <Routes>
-          <Route
-            path="/views/new"
-            element={<ViewBuilderPage mode="create" __testPanels={[PANEL_A]} />}
-          />
-          <Route path="/views/:viewId" element={<div data-testid="renderer" />} />
-        </Routes>
-      </MemoryRouter>,
-    );
     const saveBtn = screen.getByRole('button', { name: /save view/i });
     await userEvent.click(saveBtn);
     await waitFor(() => expect(mockCreate).toHaveBeenCalledTimes(1));
@@ -384,23 +424,11 @@ describe('ViewBuilderPage — compile-before-save', () => {
       isPending: false,
       isError: false,
     });
-    const { rerender } = renderEdit('v1');
+    renderEdit('v1');
     // Clear the pre-populated name and type a new one
     const nameField = screen.getByRole('textbox', { name: /view name/i });
     await userEvent.clear(nameField);
     await userEvent.type(nameField, 'Updated Name');
-    // Seed a panel via __testPanels prop
-    rerender(
-      <MemoryRouter initialEntries={['/views/v1/edit']}>
-        <Routes>
-          <Route
-            path="/views/:viewId/edit"
-            element={<ViewBuilderPage mode="edit" __testPanels={[PANEL_A]} />}
-          />
-          <Route path="/views/:viewId" element={<div data-testid="renderer" />} />
-        </Routes>
-      </MemoryRouter>,
-    );
     const updateBtn = screen.getByRole('button', { name: /update view/i });
     await userEvent.click(updateBtn);
     await waitFor(() => expect(mockUpdate).toHaveBeenCalledTimes(1));
@@ -417,19 +445,9 @@ describe('ViewBuilderPage — compile-before-save', () => {
     mockCompile.mockReturnValue([]);
     const appError = Object.assign(new Error('rls reject'), { code: '42501' });
     mockCreate.mockRejectedValue(appError);
-    const { rerender } = renderCreate();
+    renderCreate([PANEL_A]);
     const nameField = screen.getByRole('textbox', { name: /view name/i });
     await userEvent.type(nameField, 'My View');
-    rerender(
-      <MemoryRouter initialEntries={['/views/new']}>
-        <Routes>
-          <Route
-            path="/views/new"
-            element={<ViewBuilderPage mode="create" __testPanels={[PANEL_A]} />}
-          />
-        </Routes>
-      </MemoryRouter>,
-    );
     await userEvent.click(screen.getByRole('button', { name: /save view/i }));
     await waitFor(() =>
       expect(
@@ -444,16 +462,7 @@ describe('ViewBuilderPage — compile-before-save', () => {
 describe('ViewBuilderPage — panel reorder and remove', () => {
   it('AC-VB-014: Move down on A gives [B,A,C]; then Move up on C gives [B,C,A]', async () => {
     const user = userEvent.setup();
-    render(
-      <MemoryRouter initialEntries={['/views/new']}>
-        <Routes>
-          <Route
-            path="/views/new"
-            element={<ViewBuilderPage mode="create" __testPanels={[PANEL_A, PANEL_B, PANEL_C]} />}
-          />
-        </Routes>
-      </MemoryRouter>,
-    );
+    renderCreate([PANEL_A, PANEL_B, PANEL_C]);
     // [A, B, C] — Move down on panel 1 (A)
     await user.click(screen.getByRole('button', { name: 'Move panel 1 down' }));
     // Now [B, A, C] — click Move up on panel 3 (C)
@@ -468,16 +477,7 @@ describe('ViewBuilderPage — panel reorder and remove', () => {
 
   it('AC-VB-015: Remove panel A; list = [B]; no mutation called', async () => {
     const user = userEvent.setup();
-    render(
-      <MemoryRouter initialEntries={['/views/new']}>
-        <Routes>
-          <Route
-            path="/views/new"
-            element={<ViewBuilderPage mode="create" __testPanels={[PANEL_A, PANEL_B]} />}
-          />
-        </Routes>
-      </MemoryRouter>,
-    );
+    renderCreate([PANEL_A, PANEL_B]);
     await user.click(screen.getByRole('button', { name: 'Remove panel 1' }));
     // Only B should remain
     const items = screen.getAllByRole('listitem');
@@ -489,16 +489,7 @@ describe('ViewBuilderPage — panel reorder and remove', () => {
 
 describe('ViewBuilderPage + MyViewsPage — axe-core a11y', () => {
   it('AC-VB-018: no a11y violations on ViewBuilderPage (one panel, modal closed)', async () => {
-    const { container } = render(
-      <MemoryRouter initialEntries={['/views/new']}>
-        <Routes>
-          <Route
-            path="/views/new"
-            element={<ViewBuilderPage mode="create" __testPanels={[PANEL_A]} />}
-          />
-        </Routes>
-      </MemoryRouter>,
-    );
+    const { container } = renderCreate([PANEL_A]);
     const results = await axe(container);
     expect(results).toHaveNoViolations();
     // FR-VB-021: description field must be a <textarea> (multiline), not a single-line input
@@ -650,7 +641,7 @@ describe('ViewBuilderPage — AI Composer wiring', () => {
     mockCompile.mockReturnValue([]);
     mockCreate.mockResolvedValue({ id: 'new-id', name: 'AI View' });
 
-    const { rerender } = renderCreate();
+    renderCreate();
 
     // Enable the button and populate via AI
     await userEvent.click(screen.getByRole('button', { name: /compose view with ai/i }));
@@ -664,16 +655,6 @@ describe('ViewBuilderPage — AI Composer wiring', () => {
     // Type a name so Save is enabled
     const nameField = screen.getByRole('textbox', { name: /view name/i });
     await userEvent.type(nameField, 'AI View');
-
-    // Rerender to ensure __testPanels aren't resetting our AI panels
-    rerender(
-      <MemoryRouter initialEntries={['/views/new']}>
-        <Routes>
-          <Route path="/views/new" element={<ViewBuilderPage mode="create" />} />
-          <Route path="/views/:viewId" element={<div data-testid="renderer" />} />
-        </Routes>
-      </MemoryRouter>,
-    );
 
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /save view/i })).not.toBeDisabled();

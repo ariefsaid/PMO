@@ -1,3 +1,9 @@
 {
-  "editUnavailable": "Anda tidak dapat mengedit tampilan ini."
+  "editUnavailable": "Anda tidak dapat mengedit tampilan ini.",
+  "viewLoadError": "Tampilan ini tidak dapat dimuat.",
+  "viewLoadErrorDescription": "Periksa koneksi Anda lalu coba lagi.",
+  "serverVersionChanged": "Tampilan tersimpan berubah saat Anda mengedit.",
+  "reloadSavedView": "Muat ulang tampilan tersimpan",
+  "continueEditing": "Lanjutkan mengedit",
+  "invalidProjectFilter": "Masukkan ID proyek yang valid."
 }
