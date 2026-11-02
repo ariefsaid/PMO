@@ -34,6 +34,18 @@ describe('Toast accessibility and timing', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('Ask your administrator for Print access');
   });
 
+  it('keeps the dismiss button clickable on success toasts with click-through bodies', () => {
+    renderToast();
+    act(() => fire('Saved', undefined, 'success'));
+
+    const dismiss = screen.getByRole('button', { name: 'Dismiss notification' });
+    expect(dismiss.parentElement).toHaveClass('pointer-events-none');
+    expect(dismiss).toHaveClass('pointer-events-auto');
+
+    act(() => dismiss.click());
+    expect(screen.queryByText('Saved')).not.toBeInTheDocument();
+  });
+
   it('auto-dismisses info and success after max(4s, 60ms per character), capped at 10s', () => {
     renderToast();
     act(() => fire('Saved', undefined, 'success'));
