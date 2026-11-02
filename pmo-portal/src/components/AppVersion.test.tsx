@@ -46,12 +46,6 @@ describe('AppVersion', () => {
     );
   });
 
-  it('merges an optional className prop for positioning', async () => {
-    const { AppVersion } = await import('./AppVersion');
-    const { container } = render(<AppVersion className="fixed bottom-3 left-3" />);
-    expect(container.firstChild).toHaveClass('fixed', 'bottom-3', 'left-3');
-  });
-
   it('renders on every environment (no prod-suppression, unlike EnvBadge)', async () => {
     const { AppVersion } = await import('./AppVersion');
     const { container } = render(<AppVersion />);

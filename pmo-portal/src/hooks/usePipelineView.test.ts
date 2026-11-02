@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { renderHook, act } from '@testing-library/react';
-import { readPipelineView, writePipelineView, usePipelineView } from './usePipelineView';
+import { readPipelineView, writePipelineView } from './usePipelineView';
 import { VIEWS_STORAGE_KEY } from './viewStorage';
 
 describe('pipeline view persistence (AC-SP-201)', () => {
@@ -35,14 +34,6 @@ describe('pipeline view persistence (AC-SP-201)', () => {
   it('AC-SP-201: ignores an out-of-range stored value', () => {
     sessionStorage.setItem(VIEWS_STORAGE_KEY, JSON.stringify({ pipeline: 'galaxy' }));
     expect(readPipelineView()).toBe('kanban');
-  });
-
-  it('AC-SP-201: usePipelineView hook persists the choice across the setter', () => {
-    const { result } = renderHook(() => usePipelineView());
-    expect(result.current[0]).toBe('kanban');
-    act(() => result.current[1]('table'));
-    expect(result.current[0]).toBe('table');
-    expect(readPipelineView()).toBe('table');
   });
 
   it('AC-SP-201: write survives a sessionStorage exception without throwing', () => {

@@ -1,0 +1,36 @@
+{
+  "actions": {
+    "restore": "Pulihkan",
+    "restoring": "Memulihkan…"
+  },
+  "attendees": {
+    "loadError": "Peserta tidak dapat dimuat. Coba lagi untuk melihat daftar akses.",
+    "retry": "Coba lagi memuat peserta"
+  },
+  "confirm": {
+    "unsavedChanges": {
+      "description": "Judul atau notulen rapat ini memiliki perubahan yang belum disimpan. Tinggalkan halaman ini dan buang perubahan tersebut?",
+      "leave": "Tinggalkan",
+      "stay": "Tetap di halaman",
+      "title": "Perubahan rapat belum disimpan"
+    }
+  },
+  "filters": {
+    "showArchived": "Tampilkan yang diarsipkan"
+  },
+  "pill": {
+    "archived": "Diarsipkan"
+  },
+  "sharing": {
+    "loadError": "Detail berbagi tidak dapat dimuat. Coba lagi untuk memeriksa akses.",
+    "loading": "Memuat detail berbagi…",
+    "retry": "Coba lagi memuat berbagi"
+  },
+  "states": {
+    "archivedEmptySub": "Rapat yang Anda arsipkan akan muncul di sini sampai dipulihkan.",
+    "archivedEmptyTitle": "Tidak ada rapat untuk ditampilkan"
+  },
+  "toast": {
+    "restored": "Rapat dipulihkan"
+  }
+}

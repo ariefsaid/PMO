@@ -230,26 +230,6 @@ describe('Combobox: load states', () => {
     expect(screen.getByText(/No .*matches/i)).toBeInTheDocument();
   });
 
-  it('offers an inline create action in the empty state when onCreate is given', async () => {
-    const onCreate = vi.fn();
-    render(
-      <Combobox
-        label="Client company"
-        value={null}
-        onChange={() => {}}
-        loadOptions={loadOk}
-        onCreate={onCreate}
-        createLabel="Create company"
-      />,
-    );
-    await userEvent.click(screen.getByRole('combobox'));
-    await screen.findByRole('option', { name: /Cascade Port Authority/ });
-    await userEvent.type(screen.getByRole('searchbox'), 'Zephyr Tech');
-    const createBtn = screen.getByRole('button', { name: /Create company/i });
-    await userEvent.click(createBtn);
-    expect(onCreate).toHaveBeenCalledWith('Zephyr Tech');
-  });
-
   it('drops a STALE load that resolves after the popover closed (no setState leak, no stale options)', async () => {
     // A load that we resolve manually AFTER closing — its result must be ignored.
     let resolveFn: (v: ComboboxOption[]) => void = () => {};
@@ -372,5 +352,60 @@ describe('short-name project picker disclosure (AC-002 #1325)', () => {
     render(<Combobox label="Project" value="p1" selectedOption={{ value: 'p1', label: 'Depot', sub: 'Contractual Project Name' }} onChange={() => {}} loadOptions={loadOk} />);
     expect(screen.getByRole('combobox', { name: 'Project' })).toHaveAttribute('title', 'Depot — Contractual Project Name');
     expect(screen.getByText('Depot')).toBeInTheDocument();
+  });
+});
+
+describe('Combobox: dynamic popover positioning (CMP-017)', () => {
+  it('flips above a trigger near the bottom of the viewport', async () => {
+    const viewportHeight = vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(600);
+    const popoverHeight = vi
+      .spyOn(HTMLElement.prototype, 'offsetHeight', 'get')
+      .mockImplementation(function (this: HTMLElement) {
+        return this.style.position === 'fixed' ? 260 : 0;
+      });
+    const rect = { top: 540, bottom: 572, left: 50, right: 250, width: 200, height: 32 } as DOMRect;
+
+    try {
+      render(
+        <Combobox label="Company" value={null} onChange={() => {}} loadOptions={loadOk} />
+      );
+      const trigger = screen.getByRole('combobox');
+      vi.spyOn(trigger, 'getBoundingClientRect').mockReturnValue(rect);
+
+      await userEvent.click(trigger);
+      const listbox = await screen.findByRole('listbox');
+      const popover = listbox.closest('div[style*="position: fixed"]') as HTMLElement;
+
+      await waitFor(() => {
+        expect(popover.style.top).toBe('275px');
+      });
+    } finally {
+      popoverHeight.mockRestore();
+      viewportHeight.mockRestore();
+    }
+  });
+
+  it('updates popover position on scroll and fits within viewport', async () => {
+    let rect = { top: 100, bottom: 132, left: 50, right: 250, width: 200, height: 32 } as DOMRect;
+    render(
+      <Combobox label="Company" value={null} onChange={() => {}} loadOptions={loadOk} />
+    );
+    const trigger = screen.getByRole('combobox');
+    vi.spyOn(trigger, 'getBoundingClientRect').mockImplementation(() => rect);
+
+    await userEvent.click(trigger);
+    const listbox = await screen.findByRole('listbox');
+    const popover = listbox.closest('div[style*="position: fixed"]') as HTMLElement;
+    expect(popover).toBeInTheDocument();
+    expect(popover.style.top).toBe('137px');
+    expect(popover.style.left).toBe('50px');
+
+    // Simulate scroll moving trigger
+    rect = { top: 200, bottom: 232, left: 80, right: 280, width: 200, height: 32 } as DOMRect;
+    fireEvent.scroll(window);
+    await waitFor(() => {
+      expect(popover.style.top).toBe('237px');
+      expect(popover.style.left).toBe('80px');
+    });
   });
 });

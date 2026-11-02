@@ -1752,13 +1752,7 @@
       "archiveTitle": "Arsipkan rapat ini?",
       "deleteConfirm": "Hapus rapat",
       "deleteDescription": "Tindakan ini menghapus rapat beserta notulennya secara permanen. Rapat yang action item-nya masih ada sebagai tugas tidak dapat dihapus; arsipkan saja.",
-      "deleteTitle": "Hapus rapat ini?",
-      "unsavedMinutes": {
-        "description": "Notulen rapat memiliki perubahan yang belum disimpan. Tinggalkan halaman ini dan buang perubahan tersebut?",
-        "leave": "Tinggalkan",
-        "stay": "Tetap di halaman",
-        "title": "Notulen belum disimpan"
-      }
+      "deleteTitle": "Hapus rapat ini?"
     },
     "delete": "Hapus",
     "error": {
@@ -1768,7 +1762,7 @@
     "form": {
       "errors": {
         "titleRequired": "Judul rapat wajib diisi.",
-        "whenInvalid": "Masukkan tanggal dan waktu yang valid."
+        "whenInvalid": "Pilih tanggal yang valid dan waktu lokal yang benar-benar ada."
       },
       "location": {
         "label": "Lokasi"
@@ -1811,7 +1805,6 @@
       "title": "Rapat tidak ditemukan"
     },
     "pill": {
-      "archived": "Diarsipkan",
       "meeting": "Rapat"
     },
     "share": {

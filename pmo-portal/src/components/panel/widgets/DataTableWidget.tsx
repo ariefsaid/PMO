@@ -11,7 +11,7 @@
  * only exports a component — registry.tsx exports the non-component
  * `renderWidget` function too, which trips react-refresh/only-export-components.
  */
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useState } from 'react';
 import { DataTable, type Column } from '@/src/components/ui/DataTable';
 import type { DataTableWidget as DataTableWidgetPayload } from '@/src/lib/agent/widgets/schema';
 
@@ -24,17 +24,7 @@ function tableIdForWidget(widget: DataTableWidgetPayload): string {
 }
 
 export function DataTableWidget({ widget }: { widget: DataTableWidgetPayload }): React.ReactElement {
-  const scrollRef = useRef<HTMLDivElement>(null);
   const [isOverflowing, setIsOverflowing] = useState(false);
-
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    const check = () => setIsOverflowing(el.scrollWidth > el.clientWidth);
-    check();
-    window.addEventListener('resize', check);
-    return () => window.removeEventListener('resize', check);
-  }, [widget]);
 
   const columns: Column<Record<string, unknown>>[] = widget.columns.map((c) => ({
     key: c.key,
@@ -55,12 +45,14 @@ export function DataTableWidget({ widget }: { widget: DataTableWidgetPayload }):
           {widget.caption}
         </p>
       )}
-      <div ref={scrollRef} className="relative">
+      <div className="relative">
         <DataTable
           rows={widget.rows}
           columns={columns}
           rowKey={(row) => String(row.id ?? JSON.stringify(row))}
-        tableId={tableIdForWidget(widget)} />
+          tableId={tableIdForWidget(widget)}
+          onOverflowChange={setIsOverflowing}
+        />
         {isOverflowing && (
           <div
             data-testid="data-table-widget-scroll-mask"

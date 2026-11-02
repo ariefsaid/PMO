@@ -44,19 +44,21 @@ describe('ErrorBoundary (reliability harden #4 — render throw must not white-s
   });
 
   it('retry resets the boundary so a recovered child renders again', () => {
-    // The child throws while `crash` is true; after clicking retry with a now-healthy
+    // The child throws while `shouldCrash` is true; after clicking retry with a now-healthy
     // child, the boundary must clear its error state and re-render children.
-    function Harness(): React.ReactElement {
-      const [crash, setCrash] = React.useState(true);
-      return (
-        <ErrorBoundary onReset={() => setCrash(false)}>
-          <Boom crash={crash} />
-        </ErrorBoundary>
-      );
+    let shouldCrash = true;
+    function MaybeBoom(): React.ReactElement {
+      if (shouldCrash) throw new Error('kaboom');
+      return <div>recovered content</div>;
     }
-    render(<Harness />);
+    render(
+      <ErrorBoundary>
+        <MaybeBoom />
+      </ErrorBoundary>,
+    );
     expect(screen.getByRole('alert')).toBeInTheDocument();
 
+    shouldCrash = false;
     fireEvent.click(screen.getByRole('button', { name: /try again/i }));
 
     expect(screen.getByText('recovered content')).toBeInTheDocument();

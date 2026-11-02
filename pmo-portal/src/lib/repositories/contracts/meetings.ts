@@ -2,6 +2,7 @@
 import type {
   MeetingRow,
   MeetingWithRefs,
+  MeetingListItem,
   ContactMeetingRef,
   MeetingInput,
   MeetingPatch,
@@ -20,7 +21,7 @@ import type {
  */
 export interface MeetingRepository {
   /** Visible meetings, newest-first, capped; optional project filter + notes/title search. */
-  list(params?: MeetingListParams): Promise<MeetingWithRefs[]>;
+  list(params?: MeetingListParams): Promise<MeetingListItem[]>;
   /** Meetings a CONTACT attended, RLS-filtered to what the viewer may read (DD-MTG-6 timeline). */
   listForContact(contactId: string): Promise<ContactMeetingRef[]>;
   /** A single meeting by id, or null when not found / not readable (attendance-scoped). */
@@ -31,6 +32,8 @@ export interface MeetingRepository {
   update(id: string, patch: MeetingPatch): Promise<void>;
   /** Soft-archive (stamps archived_at, ADR-0018). */
   archive(id: string): Promise<void>;
+  /** Restore an archived meeting; the database applies the same author/Admin rule as archive. */
+  restore(id: string): Promise<void>;
   /** Hard-delete (Admin-only at RLS); rejects 23503 while tasks reference the meeting. */
   delete(id: string): Promise<void>;
   /** A meeting's attendees with profile/contact identity. */

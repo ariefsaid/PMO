@@ -28,7 +28,6 @@ import { workflowVariant } from '@/src/lib/status/statusVariants';
 import { formatCurrency } from '@/src/lib/format';
 import { PushStateBadge } from '@/src/components/timesheets/PushStateBadge';
 import { EmployeeLinkConfirm } from '@/src/components/timesheets/EmployeeLinkConfirm';
-import { employeeChoiceLabels } from '@/src/components/timesheets/employeeChoiceLabels';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import { REOPENABLE_WINDOW_DAYS } from '@/src/lib/db/timesheetTransition';
 import type { TimesheetAwaitingApproval } from '@/src/lib/db/timesheetTransition';
@@ -317,13 +316,15 @@ function EmployeeLinkConfirmSection() {
   const may = usePermission();
   const { links, profiles, confirm } = useEmployeeLinkConfirm();
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
-  const profileOptions = useMemo(() => employeeChoiceLabels(
-    (Array.isArray(profiles) ? profiles : []).map((profile) => ({
-      value: profile.id,
-      name: profile.full_name,
-      email: profile.email,
-    })),
-  ), [profiles]);
+  const profileOptions = useMemo(
+    () =>
+      (Array.isArray(profiles) ? profiles : []).map((profile) => ({
+        value: profile.id,
+        name: profile.full_name,
+        email: profile.email,
+      })),
+    [profiles],
+  );
 
   if (links.isPending || links.isError || !links.data || links.data.length === 0) return null;
 
