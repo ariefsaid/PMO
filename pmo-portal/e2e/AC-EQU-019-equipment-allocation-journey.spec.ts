@@ -123,7 +123,7 @@ test('AC-EQU-019 log on two projects, approve, set actual-cost basis, see both a
   await expect(dialog).toBeHidden({ timeout: 20_000 });
 
   // 4. Goal oracle: each project's Finances panel carries its own allocated amount.
-  await signIn(page, 'pm@acme.test');
+  await signIn(page, 'finance@acme.test');
   for (const [projectId, amount] of [[projectA, /600/], [projectB, /200/]] as const) {
     await page.goto(`/projects/${projectId}`);
     await page.getByRole('region', { name: 'Money position' }).getByRole('button', { name: 'Details', exact: true }).click();
