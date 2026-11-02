@@ -58,6 +58,9 @@ import { useVendorTaxDefault } from '@/src/hooks/useVendorTaxDefault';
 import { useNativeVendorTax } from '@/src/hooks/useVendorBillTax';
 import { NativeWithholdingField, TaxSuggestedFrom } from './VendorBillTaxFields';
 import { itemsNetTotal } from '@/src/lib/vendorWithholding';
+import { SubcontractBillLines } from './SubcontractBillLines';
+import type { SubcontractBillLineInput } from '@/src/lib/db/subcontracts';
+import { formatMoneyInputValue } from '@/src/lib/format';
 
 /**
  * What the inline VI capture hands up to the page (#505). Derived from the DAL's
@@ -65,7 +68,10 @@ import { itemsNetTotal } from '@/src/lib/vendorWithholding';
  * breaks THIS FORM at compile time instead of at the RPC. `procurementId` comes from the route and
  * `notes` from the decision zone's own notes box, so both are the page's to supply.
  */
-export type VendorInvoiceCapture = Omit<CaptureVendorInvoiceInput, 'procurementId' | 'notes'>;
+export type VendorInvoiceCapture = Omit<CaptureVendorInvoiceInput, 'procurementId' | 'notes'> & {
+  /** Present for a subcontract purchase with issued BoQ lines (#1513 S7.4): routes to the capped capture RPC. */
+  lines?: SubcontractBillLineInput[];
+};
 
 type ActionVariant = 'primary' | 'success' | 'destructive' | 'outline';
 
@@ -264,6 +270,7 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
             <VIInlineCapture
               vendorId={p.vendor_id}
               currency={p.currency}
+              subcontractPoId={p.is_subcontract ? p.purchase_orders[0]?.id : undefined}
               busy={mutations.transition.isPending || mutations.createInvoice.isPending}
               onSubmit={(capture) => void submitVICapture(capture)}
               onCancel={() => { setShowVICapture(false); setMutationError(null); }}
@@ -416,9 +423,11 @@ interface VIInlineCaptureProps {
   vendorId?: string | null;
   /** The purchase's currency: the bill is recorded in it (no conversion), so the amount field names it. */
   currency?: string | null;
+  /** A subcontract purchase's PO: its issued BoQ lines, when it has any, replace the free amount (#1513 S7.4). */
+  subcontractPoId?: string;
 }
 
-const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCancel, vendorId = null, currency = null }) => {
+const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCancel, vendorId = null, currency = null, subcontractPoId }) => {
   const { t } = useTranslation();
   // Hidden on an ERP-owned org: the dispatched create never carries it (see groupRefIsPmoAuthored).
   const showGroupRef = groupRefIsPmoAuthored();
@@ -428,6 +437,13 @@ const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCan
   const [groupRef, setGroupRef] = React.useState('');
   const [amtStr, setAmtStr] = React.useState('');
   const [amtError, setAmtError] = React.useState<string | undefined>(undefined);
+  // #1513 S7.4: set once the PO has issued lines; the amount is then computed from them, not typed.
+  const [bill, setBill] = React.useState<{ lines: SubcontractBillLineInput[]; amount: number } | null>(null);
+  const onBillChange = React.useCallback((lines: SubcontractBillLineInput[], amount: number) => {
+    setBill({ lines, amount });
+    setAmtStr(formatMoneyInputValue(amount));
+    setAmtError(undefined);
+  }, []);
   const amtErrorId = React.useId();
   // #505: the empty string is "not answered yet", not a value. Submit stays disabled until the
   // control holds one of the two (see `tax` below), so nothing can be recorded with a marker nobody
@@ -482,6 +498,7 @@ const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCan
       referenceNumber: ref,
       ...(showGroupRef && groupRef.trim() ? { externalRef: groupRef.trim() } : {}),
       amount: amt,
+      ...(bill ? { lines: bill.lines } : {}),
       taxTreatment: tax.taxTreatment,
       taxAmount: tax.taxAmount,
       ...(pmoAuthorsTax && taxFields.facts ? { taxRate: taxFields.facts.taxRate, taxBaseNumerator: taxFields.facts.taxBaseNumerator, taxBaseDenominator: taxFields.facts.taxBaseDenominator } : {}),
@@ -531,6 +548,7 @@ const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCan
             ref={amtMask.ref}
             value={amtStr}
             onChange={amtMask.onChange}
+            readOnly={bill !== null}
             aria-invalid={amtError ? true : undefined}
             aria-describedby={amtError ? amtErrorId : undefined}
             placeholder="0.00"
@@ -607,11 +625,12 @@ const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCan
         <NativeWithholdingField formId="vi-inline" tax={nativeTax} />
         </>
         )}
+        {subcontractPoId && <SubcontractBillLines poId={subcontractPoId} currency={currency ?? ''} onChange={onBillChange} />}
         <Button
           variant="primary"
           size="sm"
           loading={busy}
-          disabled={!invoiceDate || !tax || withheldInvalid}
+          disabled={!invoiceDate || !tax || withheldInvalid || (bill !== null && bill.lines.length === 0)}
           data-testid="btn-submit-vi-capture"
           onClick={handleSubmit}
         >

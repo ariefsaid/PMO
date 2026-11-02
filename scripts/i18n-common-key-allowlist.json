@@ -196,5 +196,6 @@
   "shell.nav.stock",
   "uxs38.previewGapSummary_one",
   "uxs38.previewGapSummary_other",
-  "dashboard.stillToInvoice.daysSinceAcceptance"
+  "dashboard.stillToInvoice.daysSinceAcceptance",
+  "procurementDetail.statusOption.submitted"
 ]

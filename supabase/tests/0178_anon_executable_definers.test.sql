@@ -179,13 +179,26 @@
 -- `po_revision_push_refusal` is service-role only; neither is listed. Proven by supabase/tests/subcontract_erp_guards.test.sql.
 -- ⚑ AMENDED BY 0448 (#1638): redate_stage_entry, add_skipped_stage_entry and import_project_stage_history join the retained set (+3, count 113 on dev's 110, re-derived by hand from the list). Each re-asserts org, active membership and role rank >= Project Manager through assert_stage_date_editor; proven by pipeline_stage_history_write.test.sql.
 --
--- ⚑ AMENDED BY 0484 (#1602 ECA-5): `accept_invoice_pairs` and `unpair_invoice` join the retained set (+2, count 127 on dev's 125, re-derived by hand from the 127 rows of the list). SECURITY DEFINER
--- writers under a member's JWT: re-assert active membership, org and role Admin/Finance (accept also the ERP-owns-revenue gate and re-checks every pair on locked rows);
--- proven by supabase/tests/invoice_pairs.test.sql. `propose_invoice_pairs`, `list_unpaired_native_invoices`, `invoice_pair_candidates` are INVOKER and not listed.
---
+-- ⚑ AMENDED BY 0480 (#1605): `accept_connect_proposals`, `decide_connect_review` and `unlink_connect_match` join the retained
+-- set (+3, count 128 on dev's 125, re-derived by hand from the list). SECURITY DEFINER writers under a member's JWT; each re-asserts the
+-- org, active membership and the Admin (Finance for account rows) role in its body; proved by
+-- supabase/tests/erp_connect_setup.test.sql (AC-ECA-004/007). The seven other 0480 functions are service-role-only or internal.
+-- ⚑ AMENDED BY 0495 (#1603 ECA-6, renumbered from 0483): `consent_budget_occupant_replace` joins the retained set (+1, count 129 on
+-- dev's 128, derived from the database after a reset, which matches the 129 rows of the list). A SECURITY DEFINER
+-- writer under a member's JWT; it re-asserts org, active membership and Admin/Finance; proven by budget_occupant_resolution.test.sql.
 -- ⚑ AMENDED BY 0450 (#1614): `create_vault_secret_for_org` LEAVES the retained set (-1, count 109, re-derived by hand
 -- from the list). Only external-connect calls it, through the service role with p_actor_id; the frontend never did.
 -- With it off the list, a renewed authenticated grant fails AC-ACL-004 by name.
+--
+-- ⚑ AMENDED BY 0494 (#1606): `retry_connect_send` joins the retained set (+1; final count 130 after ECA-6's 0495 grant, re-derived from the merged list). A SECURITY DEFINER writer under a member's JWT; it re-asserts the
+-- org, active membership and the Admin role in its body (a held send is released and queued again, audited); proved by
+-- supabase/tests/erp_connect_sends.test.sql. The other 0494 functions are service-role-only or internal.
+--
+-- ⚑ AMENDED BY 0498 (#1602 ECA-5, renumbered from 0484): `accept_invoice_pairs` and `unpair_invoice` join the retained
+-- set (+2; final count 132 from dev's 130, re-derived by hand from the merged list). SECURITY DEFINER writers
+-- under a member's JWT: re-assert active membership, org and Admin/Finance (accept also the ERP-owns-revenue gate
+-- and re-checks every pair on locked rows); proven by supabase/tests/invoice_pairs.test.sql. The proposal and candidate
+-- functions are INVOKER and not listed.
 --
 -- The budget import and procurement import-run commands retain authenticated access;
 -- their owning proofs are 0397_budget_import_protocol.test.sql and
@@ -220,6 +233,7 @@ select plan(6);
 -- frontend calls plus six existing authenticated RPC contracts).
 create temp table client_callable_rpc_names (proname text primary key) on commit drop;
 insert into client_callable_rpc_names (proname) values
+  ('accept_connect_proposals'),
   ('activate_budget_version'),
   ('add_skipped_stage_entry'),
   ('assign_sales_invoice_project'),
@@ -241,7 +255,9 @@ insert into client_callable_rpc_names (proname) values
   ('confirm_erp_employee_link'),
   ('confirm_subcontract_acceptance'),
   ('confirm_work_order_acceptance'),
+  ('consent_budget_occupant_replace'),
   ('create_native_sales_invoice'),
+  ('decide_connect_review'),
   ('create_payment'),
   ('create_procurement_invoice'),
   ('create_procurement_with_items'),
@@ -314,6 +330,7 @@ insert into client_callable_rpc_names (proname) values
   ('request_imprest_replenishment'),
   ('request_po_variation'),
   ('reserve_credits'),
+  ('retry_connect_send'),
   ('save_timesheet_week'),
   ('send_task_reminders'),
   ('select_procurement_quote'),
@@ -342,6 +359,7 @@ insert into client_callable_rpc_names (proname) values
   ('transition_project'),
   ('transition_timesheet'),
   ('transition_work_order'),
+  ('unlink_connect_match'),
   ('unlink_erp_purchase_document'),
   ('update_procurement_header'),
   ('withdraw_progress_claim'),
@@ -368,8 +386,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  127,
-  'AC-ACL-002 all 127 retained client-callable RPC names still have a public function');
+  132,
+  'AC-ACL-002 all 132 retained client-callable RPC names still have a public function');
 
 select is(
   (select count(*)::int
@@ -378,8 +396,8 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  127,
-  'AC-ACL-003 all 127 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  132,
+  'AC-ACL-003 all 132 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
 -- granted to both roles from being named twice. Retained names exempt authenticated grants only;

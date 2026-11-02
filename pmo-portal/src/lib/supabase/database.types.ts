@@ -760,6 +760,64 @@ export type Database = {
           },
         ]
       }
+      budget_occupant_consents: {
+        Row: {
+          consented_at: string
+          consented_by: string
+          consumed_at: string | null
+          erp_account: string
+          erp_budget_name: string
+          fiscal_year: string
+          id: string
+          org_id: string
+          project_id: string
+        }
+        Insert: {
+          consented_at?: string
+          consented_by: string
+          consumed_at?: string | null
+          erp_account: string
+          erp_budget_name: string
+          fiscal_year: string
+          id?: string
+          org_id: string
+          project_id: string
+        }
+        Update: {
+          consented_at?: string
+          consented_by?: string
+          consumed_at?: string | null
+          erp_account?: string
+          erp_budget_name?: string
+          fiscal_year?: string
+          id?: string
+          org_id?: string
+          project_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budget_occupant_consents_consented_by_fkey"
+            columns: ["consented_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budget_occupant_consents_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budget_occupant_consents_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       budget_projections: {
         Row: {
           category: Database["public"]["Enums"]["budget_category"]
@@ -4958,18 +5016,24 @@ export type Database = {
           last_detail: Json | null
           last_outbound_at: string | null
           last_run_at: string
+          lease_holder: string | null
+          lease_until: string | null
         }
         Insert: {
           job_name: string
           last_detail?: Json | null
           last_outbound_at?: string | null
           last_run_at: string
+          lease_holder?: string | null
+          lease_until?: string | null
         }
         Update: {
           job_name?: string
           last_detail?: Json | null
           last_outbound_at?: string | null
           last_run_at?: string
+          lease_holder?: string | null
+          lease_until?: string | null
         }
         Relationships: []
       }
@@ -10624,6 +10688,14 @@ export type Database = {
         Args: { p_project_id?: string }
         Returns: number
       }
+      consume_budget_occupant_consent: {
+        Args: { p_actor_id: string; p_id: string; p_org_id: string }
+        Returns: undefined
+      }
+      create_budget_draft_from_erp: {
+        Args: { p_erp_budget_name: string; p_lines: Json; p_project_id: string }
+        Returns: string
+      }
       import_project_stage_history: {
         Args: { p_entries: Json; p_project_id: string }
         Returns: undefined
@@ -11362,6 +11434,10 @@ export type Database = {
         Args: { p_holder: string; p_org_id: string; p_ttl: string }
         Returns: boolean
       }
+      claim_ops_job_lease: {
+        Args: { p_holder: string; p_job: string; p_ttl: string }
+        Returns: boolean
+      }
       claim_outbox_for_commit: {
         Args: { p_id: string; p_lease?: string }
         Returns: {
@@ -11418,6 +11494,10 @@ export type Database = {
       confirm_outbox: {
         Args: { p_generation: number; p_id: string }
         Returns: number
+      }
+      consent_budget_occupant_replace: {
+        Args: { p_erp_account: string; p_erp_budget_name: string; p_fiscal_year: string; p_project_id: string }
+        Returns: string
       }
       correct_vendor_withholding_slip: {
         Args: {
@@ -11923,6 +12003,15 @@ export type Database = {
           project_name: string
           returned: number
           settled: number
+        }[]
+      }
+      get_expense_advance_aging_totals: {
+        Args: never
+        Returns: {
+          advance_count: number
+          bucket: string
+          currency: string
+          outstanding: number
         }[]
       }
       get_expense_claim_approval_routes: {
@@ -12836,6 +12925,10 @@ export type Database = {
         Args: { p_org_id: string; p_holder: string; p_binding: Json }
         Returns: undefined
       }
+      pre_cutover_procurement: {
+        Args: { p_invoice_id?: string; p_procurement_id: string }
+        Returns: boolean
+      }
       preview_cost_attribution: {
         Args: { p_rule: Json }
         Returns: {
@@ -13209,6 +13302,10 @@ export type Database = {
         Returns: string
       }
       release_credits: { Args: { p_run_id: string }; Returns: undefined }
+      release_ops_job_lease: {
+        Args: { p_holder: string; p_job: string }
+        Returns: boolean
+      }
       release_erp_sweep_lock: {
         Args: { p_holder: string; p_org_id: string }
         Returns: boolean

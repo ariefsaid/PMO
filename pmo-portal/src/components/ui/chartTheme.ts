@@ -39,11 +39,6 @@ export const chartTheme = {
   ],
 } as const;
 
-export type ChartTheme = typeof chartTheme;
-
-/** Tint percentage for status bar fills — the Tinted-Status Rule (~12-18%). */
-export const STATUS_BAR_TINT = 18;
-
 /**
  * Tints a resolvable status-hue color string (`hsl(var(--token))`) to the
  * Tinted-Status fill used for status-bar charts — the bar's MEANING is its

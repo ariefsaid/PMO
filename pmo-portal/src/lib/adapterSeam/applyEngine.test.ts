@@ -321,6 +321,16 @@ describe('applyEngine.applyInboundChange — atomic adopt (Luna BLOCK 7)', () =>
     expect(deps.minted).toHaveLength(0);
   });
 
+  it('a matched existing row whose compare-and-set update applies nothing is reported as a no-op', async () => {
+    const deps = makeAtomicDeps({ mappedPmoId: null });
+    deps.updateMirror = async () => false;
+    deps.adoptAtomically!.matchExisting = async () => 'pmo-existing-1';
+
+    const outcome = await applyInboundChange(ctx, 'SINV-001', { id: 'ignored', amount: '1' }, 1000, deps);
+
+    expect(outcome).toEqual({ kind: 'no-op' });
+  });
+
   it('#1600 an unclear match throws before any claim or mint', async () => {
     const deps = makeAtomicDeps({ mappedPmoId: null });
     deps.adoptAtomically!.matchExisting = async () => { throw new Error('unclear'); };

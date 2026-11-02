@@ -91,7 +91,10 @@
       "needsRequest": "needs a purchase request first",
       "needsApproval": "needs an approval first",
       "needsReceipt": "needs a goods receipt first"
-    }
+    },
+    "preCutover": "Recorded before the ERP connection, not sent",
+    "notSent": "Not sent",
+    "notSentReason": "Not sent: this purchase started before the ERP connection"
   },
   "gates": {
     "heading": "Purchase rules",
@@ -375,5 +378,123 @@
       "default": "Ready to advance. Select an action below to move this procurement to its next stage."
     },
     "sodPreannounce": "Submitting hands this to another approver. You can't approve your own procurement record."
+  },
+  "subcontract": {
+    "form": {
+      "noLines": "Enter a quantity for at least one line",
+      "quantity": "Quantity must be more than 0 with at most 3 decimal places"
+    },
+    "editor": {
+      "title": "Set BoQ lines",
+      "subtitle": "The contract lines this purchase order covers, at the BoQ rate. Saving replaces the draft; issuing freezes it.",
+      "save": "Save lines",
+      "legend": "Quantity per line",
+      "noBoq": "This project has no BoQ items yet.",
+      "line": "{{item}} ({{unit}})",
+      "rate": "Rate {{rate}}"
+    },
+    "attribute": {
+      "title": "Attribute lines to bill {{number}}",
+      "subtitle": "This bill of {{amount}} was recorded without line quantities. State what it covers, at the PO rate.",
+      "save": "Attribute lines",
+      "legend": "Quantity billed per line",
+      "helper": "PO {{po}}, verified {{verified}}, rate {{rate}}"
+    },
+    "lines": {
+      "title": "Subcontract BoQ lines",
+      "loadError": "Could not load the subcontract position.",
+      "retry": "Retry",
+      "setLines": "Set BoQ lines",
+      "empty": "No BoQ lines issued",
+      "draftCount": "{{count}} draft lines, not yet issued. Issuing freezes revision 1.",
+      "issue": "Issue lines",
+      "emptyHint": "Set the BoQ lines this purchase order covers, then issue them to freeze revision 1.",
+      "billedTotal": "Billed value",
+      "billLinesTotal": "Bill lines total",
+      "issueTitle": "Issue BoQ lines?",
+      "issueBody": "Issuing freezes revision 1 of this purchase order. Later changes go through a variation.",
+      "issueConfirm": "Issue",
+      "issued": "BoQ lines issued",
+      "notOnPoAge_one": "verified, not on PO for {{count}} day",
+      "notOnPoAge_other": "verified, not on PO for {{count}} days"
+    },
+    "exceptions": {
+      "reason": {
+        "no_lines": "billed without line quantities",
+        "other": "could not be checked against the cap ({{reason}})"
+      },
+      "title": "Bills the cap could not check",
+      "attribute": "Attribute lines"
+    },
+    "acceptance": {
+      "record": "Record acceptance",
+      "title": "Acceptances",
+      "loadError": "Could not load the acceptances.",
+      "empty": "No acceptances recorded",
+      "document": "Signed document: {{title}}",
+      "noDocument": "No signed document linked",
+      "soleOperator": "Confirmed by the only active member",
+      "review": "Review draft",
+      "prepared": "Acceptance saved as a draft",
+      "confirmed": "Acceptance confirmed",
+      "withdrawn": "Acceptance withdrawn",
+      "form": {
+        "errors": {
+          "date": "Enter the acceptance date",
+          "quantity": "Enter 0 or more with at most 3 decimal places",
+          "belowConfirmed": "This is cumulative and cannot be less than the last confirmed {{qty}}",
+          "noLines": "Enter a verified quantity for at least one line"
+        },
+        "noDocument": "None yet",
+        "titleEdit": "Edit acceptance",
+        "titleNew": "Record acceptance",
+        "subtitle": "Work verified on site, as cumulative quantities to date. Someone else confirms it with the signed document; it does not create a bill.",
+        "save": "Save acceptance",
+        "prepare": "Prepare acceptance",
+        "details": "Acceptance",
+        "date": "Period date",
+        "document": "Signed acceptance document",
+        "noEligibleDocument": "Upload and issue the signed document in the project register first. It is needed to confirm.",
+        "documentHelp": "From this project’s register: issued or approved, with a file. It is needed to confirm.",
+        "quantities": "Verified to date",
+        "quantityLine": "{{item}}: verified to date ({{unit}})",
+        "ordered": "PO {{qty}} {{unit}}{{confirmed}}",
+        "lastConfirmed": ", last confirmed {{qty}}",
+        "overPo": "{{item}}: {{qty}} {{unit}} more than the PO, shown as verified, not on PO.",
+        "noteLegend": "Note",
+        "note": "Note (optional)",
+        "decide": "Decide",
+        "confirm": "Confirm acceptance",
+        "withdraw": "Withdraw draft"
+      },
+      "selfConfirmHint": "You prepared this. Another Admin or Finance user must confirm it, unless you are the only active member.",
+      "status": {
+        "Draft": "Draft",
+        "Confirmed": "Confirmed",
+        "Withdrawn": "Withdrawn"
+      }
+    },
+    "col": {
+      "line": "Line",
+      "unit": "Unit",
+      "rate": "Rate",
+      "po": "PO qty",
+      "verified": "Verified",
+      "billed": "Billed",
+      "payable": "Payable",
+      "notOnPo": "Verified, not on PO",
+      "disputed": "Disputed"
+    },
+    "cap": {
+      "capRefused": "This bill is more than the accepted work allows",
+      "linesRequired": "This purchase has no issued BoQ lines to bill against",
+      "nothingPayable": "{{code}}: nothing payable — {{verified}} verified, {{po}} on the PO, {{billed}} already billed"
+    },
+    "bill": {
+      "clamped": "{{code}} limited to {{max}}, the most still payable",
+      "loading": "Loading the BoQ lines…",
+      "title": "Bill these BoQ lines (up to what is still payable)",
+      "payable": "payable {{max}} at {{rate}}"
+    }
   }
 }

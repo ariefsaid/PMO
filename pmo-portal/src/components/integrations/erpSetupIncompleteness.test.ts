@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ErpSetupReadiness } from '@/src/lib/repositories/types';
-import { getErpSetupIncompleteness, requiredBudgetCategories } from './erpSetupIncompleteness';
+import { getErpSetupIncompleteness, missingAccountCategories, requiredBudgetCategories } from './erpSetupIncompleteness';
 
 const ORIGINAL_EIGHT = ['Labor', 'Materials', 'Subcontractors', 'Equipment', 'Permits & Fees', 'Overheads', 'Contingency', 'Special expenses'];
 
@@ -27,5 +27,18 @@ describe('getErpSetupIncompleteness — budget (#1326)', () => {
 
   it('a missing original category is still incomplete, whatever the optional ones', () => {
     expect(getErpSetupIncompleteness(setup({ budgetMappedCategories: ORIGINAL_EIGHT.slice(1) })).budget).toBe(true);
+  });
+});
+
+describe('FR-ECA-020 missingAccountCategories', () => {
+  it('FR-ECA-020 a category with no direct-cost account is a setup task for the accountant', () => {
+    expect(missingAccountCategories(setup({ budgetMappedCategories: ORIGINAL_EIGHT.filter((c) => c !== 'Labor' && c !== 'Equipment') }))).toEqual(['Labor', 'Equipment']);
+  });
+  it('every required category linked: no task', () => {
+    expect(missingAccountCategories(setup())).toEqual([]);
+  });
+  it('an optional category nobody budgets in is not a task; once budgeted it is', () => {
+    expect(missingAccountCategories(setup({ budgetMappedCategories: ORIGINAL_EIGHT }))).toEqual([]);
+    expect(missingAccountCategories(setup({ budgetUsedOptionalCategories: ['Vehicle'] }))).toEqual(['Vehicle']);
   });
 });

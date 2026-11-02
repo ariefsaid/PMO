@@ -334,6 +334,7 @@ const MONEY_ONLY_READS = [
   '/rest/v1/timesheets?',
   '/rest/v1/expense_posting_erp_mirror',
   '/rest/v1/imprest_posting_erp_mirror', // #1515 S6 pass (7b)
+  '/rest/v1/erp_connect_runs', // ECA2-T13 pass (8): one DB read per tick for an open setup run; its ERP and staging work only happens with a run open
   '/rest/v1/budget_archive_cancel_intents?',
 ];
 const MONEY_ONLY_RPCS = [
@@ -342,6 +343,7 @@ const MONEY_ONLY_RPCS = [
   '/rest/v1/rpc/outbox_reconcile_candidates',
   '/rest/v1/rpc/outbox_retry_pending',
   '/rest/v1/rpc/expense_posting_queue',
+  '/rest/v1/rpc/claim_connect_sends', // ECA3-T7 pass (8b): one DB lease per tick; the ERP is reached only when a send is waiting
 ];
 
 function assertMoneyOnlyWork(requests: RecordedRequest[], label: string): void {

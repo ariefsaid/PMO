@@ -204,5 +204,18 @@
     "undoBody": "The PMO invoice goes back into revenue and receivables. The ERP invoice {{erp}} stays, so if both count, the sale shows twice until you pair them again.",
     "undoDone": "{{number}} counts on its own again.",
     "undoFailed": "Nothing was changed. The pair may already be undone; the list has been reloaded."
+  },
+  "integrations": {
+    "send": {
+      "title": "Records going to the ERP",
+      "sending": "Sending to the ERP",
+      "waiting": "{{count}} waiting for the ERP to confirm.",
+      "needsDecision": "Needs a decision",
+      "retry": "It is not there: send it again",
+      "retryFailed": "We could not send it again. Try again in a moment.",
+      "unnamed": "A record",
+      "addPeople": "Add these people in the ERP. It asks for a birth date and gender, which PMO does not hold.",
+      "accountantTask": "Ask your accountant to add a direct-cost account for: {{categories}}"
+    }
   }
 }

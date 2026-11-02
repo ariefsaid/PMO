@@ -53,7 +53,7 @@ import { fetchAllRowsByKeyset } from '../../../pmo-portal/src/lib/pagedRead.ts';
 import { budgetPushKey } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/budgetPushKey.ts';
 import { withProbeBudget, ERP_PROBE_TIMEOUT_MS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/client.ts';
 import { fetchWithDeadline } from '../_shared/fetchWithDeadline.ts';
-import { resolvePerOrgSecret } from '../_shared/perOrgSecret.ts';
+import { lookupOrgBindingSecretRef, resolveOrgSecretOrFallback } from '../_shared/perOrgSecret.ts';
 import { resolveErpAuthPair, createErpAuthPairCache, type ErpAuthPairCache } from '../_shared/erpAuthPair.ts';
 import { externalConnectEnabled } from '../_shared/externalConnectEnabled.ts';
 import { guardedErpFetch } from '../_shared/erpHostGuard.ts';
@@ -78,6 +78,8 @@ import { dispatchErrorStatus } from './dispatchErrorStatus.ts';
 import { maybeFault, type FaultGate } from './faultSeams.ts';
 import { isRevenueSiSubmitTransition, grantSiSubmitClearance, requiresSiAuthorClaim, claimSiAuthor, releaseSiSubmitClearance } from './sodGuard.ts';
 import { checkErpnextCommandAuthorization } from './authGuard.ts';
+import { authorizeBudgetOccupant, isBudgetOccupantCommand, runBudgetOccupant } from './budgetOccupant.ts';
+import { assertNotPreCutover } from '../../../pmo-portal/src/lib/adapterSeam/cutoverGate.ts';
 import { authorizeClickUpTaskCommand } from './taskAuthorization.ts';
 import { enforcePaymentGate, isProcurementPaymentCreate } from './paymentGate.ts';
 import { checkSiProjectGate } from './projectGateGuard.ts';
@@ -136,6 +138,8 @@ interface AdapterSelectContext {
   replay?: boolean;
   trustedReceiptSnapshot?: boolean;
   captureProcurementSourceLines?: (lines: ProcurementSourceLine[]) => void;
+  /** ECA-6: told the recorded consent a budget push used to amend an ERP budget PMO did not create (spent after the push). */
+  captureOccupantConsent?: (consentId: string) => void;
   procurementSnapshot?: { caseId: string; lines: ProcurementSourceLine[] };
   procurementInputDigest?: string;
 }
@@ -152,51 +156,28 @@ const clickUpRateLimiter = new ClickUpRateLimiter();
 // Phase 1b (task 1.5): ADDITIVE Vault-first credential resolution behind EXTERNAL_CONNECT_ENABLED flag.
 // When flag is ON and an external_org_bindings row exists with secret_ref, resolve via Vault;
 // otherwise fall back to global CLICKUP_API_TOKEN (legacy behavior unchanged when flag is OFF).
-// FIX-2: tri-state — no-binding → global fallback; resolved → vault token; binding-vault-miss → FAIL CLOSED.
+// FIX-2: tri-state — no-binding → global fallback; resolved → vault token; binding-vault-miss / read-failed → FAIL CLOSED.
 async function resolveClickUpAdapter(ctx: AdapterSelectContext): Promise<Adapter> {
   const connectEnabled = externalConnectEnabled();
   if (!connectEnabled) {
     throw new AppError('external integrations are disabled by the operator', 'config-rejected');
   }
-  let clickUpToken = Deno.env.get('CLICKUP_API_TOKEN') ?? '';
-
-  if (connectEnabled) {
-    // Use shared per-org Vault secret resolution (flag gate + binding lookup + fallback)
-    const result = await resolvePerOrgSecret({
+  // Tri-state: absent binding → global token; resolved → vault token; empty vault secret or a FAILED
+  // binding/vault read → fail closed (never the global identity because a lookup failed).
+  const clickUpToken = await resolveOrgSecretOrFallback(
+    {
       connectEnabled,
       orgId: ctx.orgId,
       tier: 'clickup',
-      lookupBinding: async (orgId, tier) => {
-        const { data, error } = await ctx.serviceClient
-          .from('external_org_bindings')
-          .select('secret_ref')
-          .eq('org_id', orgId)
-          .eq('external_tier', tier)
-          .maybeSingle();
-        if (error) {
-          console.error('external_org_bindings lookup failed', error);
-          return null;
-        }
-        return data as { secret_ref?: string | null } | null;
-      },
+      lookupBinding: lookupOrgBindingSecretRef(ctx.serviceClient),
       readVaultSecret: async (ref) => {
         const { data, error } = await ctx.serviceClient.rpc('read_vault_secret', { p_secret_ref: ref });
-        if (error) {
-          console.error('read_vault_secret failed', error);
-          return null;
-        }
+        if (error) throw new AppError(error.message, error.code);
         return (data as string | null) ?? null;
       },
-    });
-
-    if (result.kind === 'resolved') {
-      clickUpToken = result.secret;
-    } else if (result.kind === 'binding-vault-miss') {
-      // FIX-2: bound org but vault secret missing → fail closed, do NOT fall back to global token
-      throw new AppError('ClickUp credentials unresolved for this org — check the binding secret_ref configuration', 'config-rejected');
-    }
-    // result.kind === 'no-binding' → fall through to global token (legacy fallback)
-  }
+    },
+    Deno.env.get('CLICKUP_API_TOKEN') ?? '',
+  );
 
   return resolveClickUpDispatchAdapter({
     serviceClient: ctx.serviceClient as never,
@@ -265,6 +246,7 @@ async function resolveErpAdapter(ctx: AdapterSelectContext): Promise<Adapter> {
     replay: ctx.replay,
     trustedReceiptSnapshot: ctx.trustedReceiptSnapshot,
     captureProcurementSourceLines: ctx.captureProcurementSourceLines,
+    onOccupantConsent: ctx.captureOccupantConsent,
     rateLimiter: erpRateLimiter,
     // The (kind)->{toBody,fromDoc} side table (task 4.3): additive across slices 3-6, never a
     // per-slice edit to another kind's entry (confinement, FR-ENA-014).
@@ -838,7 +820,8 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
       );
     }
   }
-  if (isErpDomain) {
+  // `budget-occupant` (ECA-6) is a request, not an ERP document kind: it has its own Admin/Finance gate below.
+  if (isErpDomain && !isBudgetOccupantCommand(command)) {
     // The guard reads only the authorization inputs (domain + the named ERP document kind).
     const auth = await checkErpnextCommandAuthorization(callerClient as never, orgId, userId, {
       domain: command.domain,
@@ -850,6 +833,20 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
         headers,
       });
     }
+  }
+
+  // ── ECA-4 (FR-ECA-030, OQ-ECA-1) — a purchase ordered before the ERP connection pushes no later step. Runs on the
+  // deputy `callerClient` BEFORE the outbox, adapter selection and any ERP call, for every ERP tier alike; the
+  // verdict is read from PMO's tables, never from the payload. A check that cannot answer refuses (fail closed).
+  try {
+    await assertNotPreCutover(callerClient as never, command);
+  } catch (error) {
+    const code = error instanceof AppError ? error.code : undefined;
+    const message = error instanceof Error ? error.message : 'could not check the connection date';
+    return new Response(JSON.stringify({ error: code === 'pre-cutover' ? 'pre-cutover' : 'commit-rejected', message }), {
+      status: code === 'pre-cutover' ? 409 : 422,
+      headers,
+    });
   }
 
   // ── P3b FR-TSP-010 — THE APPROVED-ONLY GATE (ADR-0059 §3.3). BEFORE the outbox, BEFORE adapter
@@ -941,11 +938,34 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
       }), { status: gateError ? 422 : 500, headers });
     }
   }
+  // ── ECA-6 (#1603): the read-only ways forward when the ERP already holds a budget PMO did not create. It reads
+  // the ERP and may create a PMO Draft under the CALLER's RLS; it never writes the ERP and uses no outbox row.
+  if (isBudgetOccupantCommand(command)) {
+    const allowed = await authorizeBudgetOccupant(callerClient as never, orgId, userId);
+    if (!allowed.ok) {
+      return new Response(JSON.stringify({ error: 'commit-rejected', message: allowed.message }), { status: allowed.status, headers });
+    }
+    try {
+      if (!externalConnectEnabled()) throw new AppError('external integrations are disabled by the operator', 'config-rejected');
+      const binding = await resolveErpBindingRow(serviceClient, orgId);
+      const { apiKey, apiSecret } = await resolveErpAuthPair(serviceClient, { orgId, secretRef: binding.secret_ref }, createErpAuthPairCache());
+      const reply = await runBudgetOccupant({
+        command, orgId, callerClient: callerClient as never, serviceClient: serviceClient as never, binding,
+        erp: { fetchImpl: guardedErpFetch(binding.site_url), apiKey, apiSecret, baseUrl: binding.site_url, rateLimiter: erpRateLimiter },
+      });
+      return new Response(JSON.stringify(reply.body), { status: reply.status, headers });
+    } catch (err) {
+      const code = (err as { code?: unknown }).code;
+      return new Response(JSON.stringify({ error: typeof code === 'string' ? code : 'DISPATCH_FAILED', message: err instanceof Error ? err.message : 'failed' }), {
+        status: dispatchErrorStatus(code, 500), headers,
+      });
+    }
+  }
   if (command.domain === CLICKUP_TASKS_DOMAIN) {
     const taskAuthorization = await authorizeClickUpTaskCommand(serviceClient as never, orgId, userId, command);
     if (!taskAuthorization.ok) {
       return new Response(JSON.stringify({ error: 'commit-rejected', message: taskAuthorization.message }), {
-        status: 403,
+        status: taskAuthorization.status ?? 403,
         headers,
       });
     }
@@ -1509,8 +1529,10 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
   ): Promise<{ ok: true; result: unknown } | { ok: false; response: Response }> => {
   let adapter: Adapter;
   let money: DispatchMoneyOutboxDeps | undefined;
+  let occupantConsentId: string | undefined;
   try {
     const context: AdapterSelectContext = { orgId, command, serviceClient, faultGate, userId, erpAuth };
+    context.captureOccupantConsent = (id) => { occupantConsentId = id; };
     const record = command.record as Record<string, unknown>;
     const isReceiptCreate = command.domain === ERPNEXT_PROCUREMENT_DOMAIN && command.operation === 'create'
       && record.erp_doc_kind === 'goods-receipt';
@@ -1661,6 +1683,14 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
       // for every other domain ⇒ `command.record.id`, byte-for-byte).
       outboxRecordId,
     });
+    // ECA-6: the push has landed, so the consent that allowed it is spent. A failure here is logged, not surfaced: the ERP
+    // write already happened, and the consent names a document that no longer exists, so it cannot unlock another.
+    if (occupantConsentId) {
+      const { error: spendError } = await serviceClient.rpc('consume_budget_occupant_consent', {
+        p_org_id: orgId, p_id: occupantConsentId, p_actor_id: userId,
+      });
+      if (spendError) console.error('[adapter-dispatch] could not spend the budget replace consent:', spendError.message);
+    }
     return { ok: true, result };
   } catch (err) {
     // Server-side diagnostics only — the client body stays generic/typed. Without this, an

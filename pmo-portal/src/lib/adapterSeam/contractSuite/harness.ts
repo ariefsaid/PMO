@@ -37,6 +37,9 @@ export interface BudgetPushScenario {
   fiscalYear: string;
   /** Documents already live on that grain, none created by PMO. */
   occupant: 'none' | 'one-live' | 'two-live' | 'draft';
+  /** budget.resolve-occupant: the recorded "replace the ERP budget" consent the push can find. `matching` names the
+   *  live document; `other` names a different one; absent or `none` records nothing. */
+  consent?: 'matching' | 'other' | 'none';
 }
 
 export interface BudgetPushResult {
@@ -47,6 +50,8 @@ export interface BudgetPushResult {
   /** Create or update calls that reached the ERP. */
   erpWrites: number;
 }
+
+export type PurchaseStep = 'goods-receipt' | 'purchase-invoice' | 'payment';
 
 export interface PushBeforeConnectionResult {
   outcome: 'pushed' | 'refused';
@@ -147,6 +152,18 @@ export interface ConnectHarness {
   documents(kind: MasterKind): NormalisedMaster[];
   /** The next create or update fails: before it reaches the ERP (`transport`), or after the ERP applied it (`lost-response`). */
   failNextWrite(fault: 'transport' | 'lost-response'): void;
+  /** The next create is refused by the ERP (a validation error): it throws `commit-rejected`, nothing is created. */
+  rejectNextWrite(): void;
+  /** Kinds whose ERP key the ERP assigns itself, so the PMO code is not carried on the document. */
+  ownKeys?: readonly MasterKind[];
+  /** True when any request reached the ERP's accounts, taxes or fiscal years (read or write): a send must never. */
+  touchedAccounting(): boolean;
+  /** census / item.match / account.match / employee.match: place ERP masters in the fake ERP (PMO terms). Absent until the tier runs those suites. */
+  load?(kind: MasterKind, rows: readonly Omit<NormalisedMaster, 'kind'>[]): void;
+  /** Requests that reached the fake ERP, split by read and write. */
+  calls?(): { reads: number; writes: number };
+  /** Rows the tier's `listMasters` returns per page; the match suites load more than this to prove paging. */
+  pageSize?: number;
 }
 
 /** An ERP invoice as the ERP states it, in PMO terms. `total` is the tax-inclusive grand total. */
@@ -170,7 +187,7 @@ export interface ErpHarness {
     Promise<{ companies: number; refs: number; linked: string[]; review: number }>;
   /** project.match: `links` maps PMO project id to the ERP project name it is linked to. */
   resolveProjectLink(links: Readonly<Record<string, unknown>> | undefined, erpProjectName: string): ProjectLinkResult;
-  /** budget.unowned-occupant */
+  /** budget.unowned-occupant, budget.resolve-occupant */
   pushBudget(scenario: BudgetPushScenario): Promise<BudgetPushResult>;
   /** cutover.activation: a purchase push on a connection that is `activated` or not. */
   pushPurchase(connection: 'activated' | 'not-activated' | 'absent'): Promise<PushBeforeConnectionResult>;
@@ -188,6 +205,9 @@ export interface ErpHarness {
   classifyPayment(direction: 'received' | 'paid' | 'unrecognised' | 'blank' | 'absent'): PaymentClassification;
   /** purchase.link-existing: ERP-native purchase documents as PMO mirrors them (one row per document). */
   mirrorPurchases(docs: readonly ErpPurchaseDoc[]): Promise<MirroredPurchase[]>;
+  /** cutover.purchase: a later purchase step, on a purchase ordered before the connection or after it. `unknown` = the
+   *  PMO check cannot answer (the step must then be refused, never pushed). Absent until the tier pushes purchases. */
+  pushPurchaseStep?: (step: PurchaseStep, orderedBeforeConnect: boolean | 'unknown') => Promise<PushBeforeConnectionResult>;
   /** party.send, project.send, item.send: each call starts an empty fake ERP. Absent until the tier sends masters. */
   connect?: () => ConnectHarness;
   /** invoice.pair-existing: the tier's inbound mapper applied to an ERP invoice; the row the feed writes, in PMO column names. */

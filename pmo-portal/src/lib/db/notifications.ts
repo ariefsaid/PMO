@@ -14,21 +14,6 @@ function throwWrite(error: PostgrestErrorLike): never {
   throw new AppError(error.message, error.code);
 }
 
-/**
- * List the caller's own notifications, most recent first (FR-AAN-035, AC-AAN-033).
- * org_id/owner_id are NEVER sent — owner-only RLS scopes the rows entirely; a caller never
- * receives another user's notification. Throws an `AppError` (code preserved) on a genuine
- * query error.
- */
-export async function listNotifications(): Promise<NotificationRow[]> {
-  const { data, error } = await supabase
-    .from('notifications')
-    .select('*')
-    .order('created_at', { ascending: false });
-  if (error) throwWrite(error);
-  return data ?? [];
-}
-
 /** Columns the inbox list renders — explicit list, never `select('*')` (#843). */
 const NOTIFICATION_LIST_COLUMNS = 'id,title,body,severity,metadata,read_at,created_at';
 

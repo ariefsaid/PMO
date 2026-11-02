@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useQueries, useQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
 import { repositories } from '@/src/lib/repositories';
 import { useCompanies } from '@/src/hooks/useCompanies';
@@ -20,11 +20,6 @@ export type RefMaps = Record<RefSource | NameSource, Map<string, string>>;
 export interface HistoryRefsResult {
   refs: RefMaps;
   nameLookupFailed: boolean;
-}
-
-/** Stable `combine` for the by-id company lookups (module scope, so TanStack keeps the result referentially stable). */
-function namesOf(results: { data?: { id: string; name: string; short_name?: string | null } | null }[]): [string, string][] {
-  return results.flatMap((r) => (r.data ? [[r.data.id, companyDisplayName(r.data)] as [string, string]] : []));
 }
 
 const joinName = (...parts: (string | null | undefined)[]) => parts.filter(Boolean).join(' ');
@@ -96,15 +91,17 @@ export function useHistoryRefs(args: {
 
   const activeCompanyIds = useMemo(() => new Set((companies.data ?? []).map((c) => c.id)), [companies.data]);
   const missingCompanyIds = companies.isSuccess ? companyIds.filter((id) => !activeCompanyIds.has(id)) : [];
-  const archivedCompanies = useQueries({
-    queries: missingCompanyIds.map((id) => ({
-      queryKey: ['company', orgId, id],
-      queryFn: () => repositories.company.get(id),
-      enabled: Boolean(orgId) && enabled,
-      staleTime: 5 * 60_000,
-    })),
-    combine: namesOf,
+  // One batched read for every id missing from the active list; ids the caller cannot read stay absent.
+  const archivedQuery = useQuery({
+    queryKey: ['company-by-ids', orgId, [...missingCompanyIds].sort()],
+    queryFn: () => repositories.company.getMany(missingCompanyIds),
+    enabled: Boolean(orgId) && enabled && missingCompanyIds.length > 0,
+    staleTime: 5 * 60_000,
   });
+  const archivedCompanies = useMemo(
+    () => (archivedQuery.data ?? []).map((c) => [c.id, companyDisplayName(c)] as [string, string]),
+    [archivedQuery.data],
+  );
 
   return useMemo(() => {
     const versions = budgetVersions.data ?? [];

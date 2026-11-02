@@ -16,6 +16,7 @@ vi.mock('@/src/lib/db/orgs', () => ({
   getOrgLifecycleState: vi.fn(),
 }));
 vi.mock('@/src/lib/db/agentEvents', () => ({ listRunEvents: vi.fn(), rateAgentEvent: vi.fn() }));
+vi.mock('@/src/lib/db/agentThreads', () => ({ listAgentThreads: vi.fn() }));
 vi.mock('@/src/lib/db/agentRuns', () => ({ getRunHeartbeat: vi.fn() }));
 vi.mock('@/src/lib/db/projectMoney', () => ({ getProjectsMoneyCollection: vi.fn() }));
 vi.mock('@/src/lib/db/procurements', () => ({
@@ -35,6 +36,7 @@ import * as dashboardDal from '@/src/lib/db/dashboard';
 import * as orgsDal from '@/src/lib/db/orgs';
 import * as agentEventsDal from '@/src/lib/db/agentEvents';
 import * as agentRunsDal from '@/src/lib/db/agentRuns';
+import * as agentThreadsDal from '@/src/lib/db/agentThreads';
 import * as projectMoneyDal from '@/src/lib/db/projectMoney';
 import * as procurementsDal from '@/src/lib/db/procurements';
 import * as lifecycleDal from '@/src/lib/db/procurementLifecycle';
@@ -92,6 +94,14 @@ describe('agentRun repository', () => {
     expect(agentEventsDal.listRunEvents).toHaveBeenCalledWith('r1');
     await expect(repositories.agentRun.getHeartbeat('r1')).resolves.toEqual({ status: 'running', last_progress_at: null });
     expect(agentRunsDal.getRunHeartbeat).toHaveBeenCalledWith('r1');
+  });
+
+  it('delegates thread listing and event rating', async () => {
+    vi.mocked(agentThreadsDal.listAgentThreads).mockResolvedValue([{ id: 't1' }] as never);
+    vi.mocked(agentEventsDal.rateAgentEvent).mockResolvedValue(undefined);
+    await expect(repositories.agentRun.listThreads()).resolves.toEqual([{ id: 't1' }]);
+    await repositories.agentRun.rateEvent('e1', 'down', 'wrong');
+    expect(agentEventsDal.rateAgentEvent).toHaveBeenCalledWith('e1', 'down', 'wrong');
   });
 
   it('normalizes errors', async () => {
