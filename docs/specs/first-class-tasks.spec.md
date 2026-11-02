@@ -322,12 +322,11 @@ be reviewed on its own diff.
   bare `auth.uid()` anywhere in it is not. #462 predicts this test "**will** go red the moment that
   policy is edited" — it will not (see §7). Do **not** treat a green here as evidence the rewrite was
   reviewed.
-- ⚑ **`repositoryMethod` is vestigial on the view path.** `executeCompiledQuery` builds a PostgREST
-  chain from `entityEntry.table` (`executor.ts:110-121`) and never calls
-  `repositories.task.list`. So repealing `OD-2` does **not** require a `task.listAll()` DAL method,
-  and the `'task.list'` string at `types.ts:238` is not a call site. Do not "fix" `listTasks` to
-  accept an optional project id on account of the repeal — it stays the per-project read that
-  `useTasks` and the project detail tabs use.
+- ⚑ **The view path dispatches by the entity table.** `executeCompiledQuery` builds its PostgREST
+  chain from `entityEntry.table` and does not call `repositories.task.list`. Repealing `OD-2` does
+  not require a `task.listAll()` DAL method. Do not "fix" `listTasks` to accept an optional project
+  id on account of the repeal — it stays the per-project read that `useTasks` and the project detail
+  tabs use.
 - ⚑ **`prompt.test.ts:49` cannot detect the repeal.** It asserts the prompt contains `project_id`,
   which remains true afterwards because `project_id` is also an ordinary allowed column
   (`types.ts:241`). Replace it with an assertion on the absence of the `REQUIRED FILTER` line
