@@ -283,7 +283,10 @@ const AutoDismiss: React.FC<{
   useEffect(() => {
     start();
     return () => {
-      if (timer.current !== null) clearTimeout(timer.current);
+      if (timer.current !== null) {
+        clearTimeout(timer.current);
+        timer.current = null;
+      }
     };
   }, [start]);
 

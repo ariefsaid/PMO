@@ -79,6 +79,14 @@ describe('Toast accessibility and timing', () => {
     expect(screen.getByRole('status')).toBeEmptyDOMElement();
   });
 
+  it('auto-dismisses a routine toast under StrictMode effect replay', () => {
+    render(<React.StrictMode><ToastProvider><Harness /></ToastProvider></React.StrictMode>);
+    act(() => fire('Status updated', undefined, 'success'));
+    act(() => vi.advanceTimersByTime(4_000));
+    expect(screen.getByRole('status')).toBeEmptyDOMElement();
+    expect(screen.queryByRole('button', { name: 'Dismiss notification' })).not.toBeInTheDocument();
+  });
+
   it('pauses the auto-dismiss timer while the dismiss button is focused', () => {
     renderToast();
     act(() => fire('Saved', undefined, 'success'));
