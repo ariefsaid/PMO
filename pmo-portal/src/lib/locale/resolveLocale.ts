@@ -41,6 +41,15 @@ export function isUsableTimeZone(zone: string): boolean {
   return usable;
 }
 
+/**
+ * The timezone used by server-bounded business dates, independent of the viewer's profile override.
+ * The SQL date guards use `coalesce(organizations.default_timezone, 'UTC')`, so UTC is the matching
+ * fallback when no usable organization value is available.
+ */
+export function resolveOrgBusinessTimezone(org: Pick<OrgLocaleDefaults, 'defaultTimezone'>): string {
+  return usable(org.defaultTimezone, isUsableTimeZone) ?? 'UTC';
+}
+
 function usable(value: string | null | undefined, isUsable: (v: string) => boolean): string | null {
   return value != null && isUsable(value) ? value : null;
 }

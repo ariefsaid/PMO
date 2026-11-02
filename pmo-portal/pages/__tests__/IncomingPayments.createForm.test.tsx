@@ -52,6 +52,7 @@ const hoisted = vi.hoisted(() => ({
   paymentsState: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
   invoicesState: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
   ownershipState: { data: [] as unknown[], isError: false },
+  orgTimezone: 'UTC',
   navigateMock: vi.fn(),
   clientOptions: [
     { value: 'cust-1', label: 'Acme Energy', sub: 'Client' },
@@ -82,6 +83,9 @@ vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => true }))
 
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u-fin', org_id: 'org-1' }, role: 'Finance' }),
+}));
+vi.mock('@/src/hooks/useResolvedLocale', () => ({
+  useOrgBusinessTimezone: () => hoisted.orgTimezone,
 }));
 
 vi.mock('@/src/lib/adapterSeam/ownershipCache', () => ({ routeDomainWrite: vi.fn(() => 'pmo') }));
@@ -132,7 +136,11 @@ beforeEach(async () => {
   setActiveLocale(EN_LOCALE);
   await financeTestI18n.changeLanguage('en');
 });
-afterEach(() => resetActiveLocale());
+afterEach(() => {
+  vi.useRealTimers();
+  hoisted.orgTimezone = 'UTC';
+  resetActiveLocale();
+});
 
 describe('IncomingPayments — a Finance user can actually record a receipt (BLOCK 1)', () => {
   it('AC-S27-001: labels settlement and cash plainly, and keeps native no-withholding prefill in the existing payload', async () => {
@@ -618,5 +626,21 @@ describe('IncomingPayments — a Finance user can actually record a receipt (BLO
     await user.click(screen.getByText('ACC-PAY-0001'));
 
     expect(hoisted.navigateMock).not.toHaveBeenCalled();
+  });
+
+  it('PGA03-007: derives payment default and max from the organization day across a profile day boundary', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-06-13T18:00:00.000Z'));
+    hoisted.orgTimezone = 'America/Los_Angeles';
+    setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'Asia/Tokyo' });
+    hoisted.ownershipState.data = [];
+    hoisted.invoicesState.data = [invoice({ id: 'si-pga-date', si_number: 'SI-PGA-DATE', pmo_native: true })];
+    const user = userEvent.setup();
+    renderPage();
+    await openForm(user);
+    const dateInput = screen.getByLabelText(/Payment date/i);
+    expect(dateInput).toHaveAttribute('type', 'date');
+    expect(dateInput).toHaveValue('2026-06-13');
+    expect(dateInput).toHaveAttribute('max', '2026-06-13');
   });
 });

@@ -42,4 +42,16 @@ describe('buildExportRows', () => {
     expect(header).toEqual(['Name', 'Value', 'Icon']);
     expect(body).toHaveLength(0);
   });
+
+  it('LIB02-003: carries explicit export cell types through buildExportRows', () => {
+    type RowWithDate = { name: string; amount: number; date: string; ref: string };
+    const typedCols: Column<RowWithDate>[] = [
+      { key: 'name', header: 'Name', cell: (r) => r.name, exportValue: (r) => r.name },
+      { key: 'amount', header: 'Amount', cell: (r) => r.amount, exportValue: (r) => r.amount, kind: 'money' },
+      { key: 'date', header: 'Date', cell: (r) => r.date, exportValue: (r) => r.date, exportType: 'date' },
+      { key: 'ref', header: 'Reference', cell: (r) => r.ref, exportValue: (r) => r.ref, exportType: 'text' },
+    ];
+    const { types } = buildExportRows<RowWithDate>([], typedCols);
+    expect(types).toEqual(['text', 'number', 'date', 'text']);
+  });
 });

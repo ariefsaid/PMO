@@ -30,7 +30,7 @@ import {
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
-export interface ProcurementCycleImportWizardProps {
+interface ProcurementCycleImportWizardProps {
   requestedById: string;
   projectLookup: RefLookup;
   vendorLookup: RefLookup;
