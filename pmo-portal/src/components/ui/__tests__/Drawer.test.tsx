@@ -125,6 +125,48 @@ describe('Drawer: RecordHeader anatomy in the header (CW-3a)', () => {
     const labelId = dialog.getAttribute('aria-labelledby');
     expect(document.getElementById(labelId!)?.textContent).toContain('Cascade Port Authority');
   });
+
+  it('CMP-010: wires aria-describedby to subtitle anchor in record-header mode', () => {
+    render(
+      <Drawer {...baseProps} icon="C" subtitle="Client Subtitle">
+        <p>body</p>
+      </Drawer>,
+    );
+    const dialog = screen.getByRole('dialog');
+    const descId = dialog.getAttribute('aria-describedby');
+    expect(descId).toBeTruthy();
+    expect(document.getElementById(descId!)?.textContent).toContain('Client Subtitle');
+  });
+
+  it('CMP-009: acquires background inert on the app shell while open and releases on close', () => {
+    const shell = document.createElement('div');
+    shell.setAttribute('data-app-shell', 'root');
+    document.body.appendChild(shell);
+    try {
+      const { rerender } = render(
+        <Drawer {...baseProps} open={false}>
+          <p>body</p>
+        </Drawer>,
+      );
+      expect(shell).not.toHaveAttribute('inert');
+
+      rerender(
+        <Drawer {...baseProps} open={true}>
+          <p>body</p>
+        </Drawer>,
+      );
+      expect(shell).toHaveAttribute('inert');
+
+      rerender(
+        <Drawer {...baseProps} open={false}>
+          <p>body</p>
+        </Drawer>,
+      );
+      expect(shell).not.toHaveAttribute('inert');
+    } finally {
+      shell.remove();
+    }
+  });
 });
 
 describe('Drawer: close paths (AC-W5-C6-DRAWER)', () => {

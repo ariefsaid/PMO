@@ -5,6 +5,7 @@ import { Icon } from './icons';
 import { Button } from './Button';
 import { RecordHeader } from './RecordHeader';
 import { overlayBackdropClassName, overlayBackdropStyle } from './OverlaySurface';
+import { acquireBackgroundInert } from './backgroundInert';
 
 // ---------------------------------------------------------------------------
 // Drawer — a right-side quick-view sheet (Wave-5 Cluster 6, D11/D12).
@@ -106,6 +107,12 @@ export const Drawer: React.FC<DrawerProps> = ({
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [open, nestedOpen, requestClose]);
 
+  // AC-A11Y-MODAL-001 / CMP-009: background inert while open. Declared before focus effect.
+  useEffect(() => {
+    if (!open) return;
+    return acquireBackgroundInert();
+  }, [open]);
+
   // Focus: capture the trigger, move focus into the panel on open, restore on
   // close. Works for BOTH close patterns:
   //   • re-render to open=false (EntityFormModal-style): the else-if branch fires.
@@ -130,13 +137,6 @@ export const Drawer: React.FC<DrawerProps> = ({
           triggerRef.current = null;
         }
       };
-    } else if (triggerRef.current) {
-      // Re-render path (open=false): the cleanup above already fired and nulled
-      // the ref, so this branch handles the edge case where the effect runs
-      // without the cleanup having fired (e.g. if open was never true in this
-      // mount cycle and someone set a triggerRef manually). Guard is harmless.
-      triggerRef.current.focus();
-      triggerRef.current = null;
     }
   }, [open]);
 
@@ -214,6 +214,11 @@ export const Drawer: React.FC<DrawerProps> = ({
               <span id={titleId} className="sr-only">
                 {title}
               </span>
+              {subtitle && (
+                <span id={subId} className="sr-only">
+                  {subtitle}
+                </span>
+              )}
               <RecordHeader
                 variant="drawer"
                 icon={null}

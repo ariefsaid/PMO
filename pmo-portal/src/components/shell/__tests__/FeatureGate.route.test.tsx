@@ -31,7 +31,6 @@ vi.mock('@/src/hooks/useUserViews', () => ({
   useUserViews: () => ({ data: [], isPending: false, isError: false }),
 }));
 
-import { FeatureGate } from '@/src/auth/useFeature';
 import { FeatureRoute } from '@/src/components/FeatureRoute';
 import { Rail } from '@/src/components/shell/Rail';
 
@@ -46,22 +45,7 @@ const wrap = (ui: React.ReactNode, initial = '/crm') =>
     </QueryClientProvider>,
   );
 
-describe('AC-ENT-003 — FeatureGate + FeatureRoute hide CRM affordances', () => {
-  it('<FeatureGate> renders children when the feature is enabled', () => {
-    featuresState.value = { crm: true };
-    wrap(
-      <FeatureGate feature="crm"><div>CRM content</div></FeatureGate>,
-    );
-    expect(screen.getByText('CRM content')).toBeInTheDocument();
-  });
-
-  it('<FeatureGate> omits children when the feature is disabled', () => {
-    featuresState.value = { crm: false };
-    wrap(
-      <FeatureGate feature="crm"><div>CRM content</div></FeatureGate>,
-    );
-    expect(screen.queryByText('CRM content')).toBeNull();
-  });
+describe('AC-ENT-003 — FeatureRoute hides CRM affordances', () => {
 
   it('<FeatureRoute> redirects a /crm deep-link to / when crm is disabled', () => {
     featuresState.value = { crm: false };

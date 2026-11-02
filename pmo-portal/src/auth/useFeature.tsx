@@ -1,4 +1,3 @@
-import React from 'react';
 import { useOrgFeatures } from '@/src/hooks/useOrgFeatures';
 import {
   FEATURE_ENV_DEFAULT,
@@ -20,7 +19,6 @@ import {
  * server-enforced (ADR-0049). The interim `isFeatureEnabled` env-flag reads for the env-only
  * sub-flags (`agentAssistant`/`userViews`/`aiComposer`) remain at their call sites (plan M5).
  */
-// eslint-disable-next-line react-refresh/only-export-components -- hook co-located with its <FeatureGate> render-gate; HMR-only lint concern
 export function useFeature(key: EntitleableKey): boolean {
   // Hooks must run unconditionally (rules-of-hooks) — call the query even for core keys, then
   // short-circuit the resolution. The query is a no-op cost when every consumer is core-only
@@ -31,16 +29,3 @@ export function useFeature(key: EntitleableKey): boolean {
   const row = data?.[k];
   return row ?? FEATURE_ENV_DEFAULT[k];
 }
-
-/**
- * <FeatureGate> — content gate: renders children when `useFeature(feature)` is true, else null.
- * The content analog of <FeatureRoute> (which redirects the route element). Use for in-page
- * affordances; use <FeatureRoute> for whole routes.
- */
-export const FeatureGate: React.FC<{
-  feature: EntitleableKey;
-  children: React.ReactNode;
-}> = ({ feature, children }) => {
-  if (!useFeature(feature)) return null;
-  return <React.Fragment>{children}</React.Fragment>;
-};

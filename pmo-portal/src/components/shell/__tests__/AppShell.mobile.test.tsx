@@ -303,6 +303,24 @@ describe('AC-IXD-MOBILE-W4-C3 C3-7: background content is inert while drawer is 
     expect(main).toHaveAttribute('inert');
   });
 
+  it('CMP-027: header and assistant are inert while the drawer is open', () => {
+    const { container } = wrap(
+      <AppShell
+        rail={<div>nav</div>}
+        header={<header data-testid="test-header">Header</header>}
+        assistant={<div data-testid="test-assistant">Assistant</div>}
+        railOpen
+        onCloseRail={vi.fn()}
+      >
+        <div>x</div>
+      </AppShell>
+    );
+    const headerWrapper = container.querySelector('.shell-header');
+    expect(headerWrapper).toHaveAttribute('inert');
+    const assistantEl = screen.getByTestId('test-assistant');
+    expect(assistantEl.parentElement).toHaveAttribute('inert');
+  });
+
   it('background is NOT inert when drawer is closed', () => {
     const { container } = wrap(
       <AppShell rail={<div>nav</div>} header={null} railOpen={false} onCloseRail={vi.fn()}>

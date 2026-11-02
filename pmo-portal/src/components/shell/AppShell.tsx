@@ -256,7 +256,13 @@ export const AppShell: React.FC<AppShellProps> = ({
         {rail}
       </div>
 
-      {header}
+      <div
+        className="shell-header contents"
+        style={{ gridArea: 'header' }}
+        inert={railOpen || undefined}
+      >
+        {header}
+      </div>
 
       <main
         id="main"
@@ -289,6 +295,7 @@ export const AppShell: React.FC<AppShellProps> = ({
           data-assistant-dock-slot={assistantDocked ? 'true' : undefined}
           className={assistantDocked ? 'min-h-0 min-w-0' : 'contents'}
           style={assistantDocked ? { gridArea: 'assistant' } : undefined}
+          inert={railOpen || undefined}
         >
           {assistant}
         </div>

@@ -104,6 +104,7 @@ function renderMobilePanel(opts: RenderMobilePanelOptions = {}) {
         {/* #main and .rail-persistent elements the panel makes inert on mobile */}
         <div id="main">Main content</div>
         <div className="rail-persistent">Rail</div>
+        <div className="shell-header">Header</div>
         <AssistantPanel />
       </MemoryRouter>
     </Wrapper>,
@@ -131,6 +132,7 @@ describe('AssistantPanel — mobile modal path (D-A2-1, design-plan §1.2/§5.2)
     document.body.style.overflow = '';
     document.getElementById('main')?.removeAttribute('inert');
     document.querySelector('.rail-persistent')?.removeAttribute('inert');
+    document.querySelector('.shell-header')?.removeAttribute('inert');
   });
 
   it('mobile open → role="dialog" and aria-modal (not complementary)', () => {
@@ -180,6 +182,15 @@ describe('AssistantPanel — mobile modal path (D-A2-1, design-plan §1.2/§5.2)
     await waitFor(() => {
       const main = document.getElementById('main');
       expect(main).toHaveAttribute('inert');
+    });
+  });
+
+  it('CMP-027: mobile open → background header gets inert attribute', async () => {
+    renderMobilePanel({ open: true });
+
+    await waitFor(() => {
+      const header = document.querySelector('.shell-header');
+      expect(header).toHaveAttribute('inert');
     });
   });
 

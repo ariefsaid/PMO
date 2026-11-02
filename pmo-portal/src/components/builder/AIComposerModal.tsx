@@ -13,6 +13,7 @@ import React, { useEffect, useId, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { createPortal } from 'react-dom';
 import { Button } from '@/src/components/ui/Button';
+import { acquireBackgroundInert } from '@/src/components/ui/backgroundInert';
 import { useAIComposer } from '@/src/hooks/useAIComposer';
 import type { CompositionSpec } from '@/src/lib/viewspec/types';
 
@@ -65,6 +66,12 @@ const AIComposerModal: React.FC<AIComposerModalProps> = ({
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [open, isLoading, onClose]);
+
+  // AC-A11Y-MODAL-001 / CMP-009: background inert while open. Declared before focus effect.
+  useEffect(() => {
+    if (!open) return;
+    return acquireBackgroundInert();
+  }, [open]);
 
   // Focus management: move focus in on open; restore on close
   useEffect(() => {

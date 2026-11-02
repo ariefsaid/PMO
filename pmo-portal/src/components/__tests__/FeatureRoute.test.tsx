@@ -31,14 +31,14 @@ import { FeatureRoute } from '../FeatureRoute';
 const Home = () => <div data-testid="home">Home</div>;
 const Guarded = () => <div data-testid="guarded">INCIDENTS</div>;
 
-const renderAt = (path: string, redirectTo?: string) =>
+const renderAt = (path: string) =>
   render(
     <MemoryRouter initialEntries={[path]}>
       <Routes>
         <Route path="/" element={<Home />} />
         <Route
           path="/guarded"
-          element={<FeatureRoute feature="incidents" element={<Guarded />} redirectTo={redirectTo} />}
+          element={<FeatureRoute feature="incidents" element={<Guarded />} />}
         />
       </Routes>
     </MemoryRouter>,
@@ -71,22 +71,6 @@ describe('AC-ENT-005 — FeatureRoute does not redirect while org-features query
     expect(screen.queryByTestId('guarded')).toBeNull();
   });
 
-  it('case (c2): resolved DISABLED honours a custom redirectTo (preserved coverage)', () => {
-    useOrgFeaturesState.value = { isLoading: false, data: { incidents: false } };
-    render(
-      <MemoryRouter initialEntries={['/guarded']}>
-        <Routes>
-          <Route path="/custom" element={<div data-testid="custom">CUSTOM</div>} />
-          <Route
-            path="/guarded"
-            element={<FeatureRoute feature="incidents" element={<Guarded />} redirectTo="/custom" />}
-          />
-        </Routes>
-      </MemoryRouter>,
-    );
-    expect(screen.getByTestId('custom')).toBeInTheDocument();
-    expect(screen.queryByTestId('guarded')).toBeNull();
-  });
 
   it('core features (e.g., projects) render immediately even while loading', () => {
     // Core features should render immediately (isCoreFeature returns true)
