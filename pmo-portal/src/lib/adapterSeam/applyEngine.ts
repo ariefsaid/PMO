@@ -59,7 +59,7 @@ export interface AtomicAdoptStrategy {
   /** OPTIONAL (#1600): before minting, find an EXISTING PMO row this unmapped external record already is
    *  (e.g. a company the org created before connecting). A hit is linked and updated instead of minted;
    *  an unclear match throws `action-required` and writes nothing. `null` ⇒ no match, mint as usual. */
-  matchExisting?: (canonical: PmoRecord) => Promise<string | null>;
+  matchExisting?: (canonical: PmoRecord, externalRecordId: string) => Promise<string | null>;
 }
 
 /** The narrow dep surface `applyInboundChange` needs — shared by a webhook AND a sweep so both apply
@@ -69,8 +69,14 @@ export interface ApplyChangeDeps {
   resolvePmoRecordId: (externalRecordId: string) => Promise<string | null>;
   /** Read the mirrored row's stored source-modification timestamp (epoch-ms), or `null` if none. */
   readMirrorSourceMod: (pmoRecordId: string) => Promise<number | null>;
-  /** Upsert native fields on an existing mirror + stamp `source_updated_at` (epoch-ms provided). */
-  updateMirror: (pmoRecordId: string, canonical: PmoRecord, sourceUpdatedAtMs: number) => Promise<void>;
+  /** Upsert native fields on an existing mirror + stamp `source_updated_at` (epoch-ms provided).
+   *  COMPARE-AND-SET: the update itself must compare the incoming modified-time against the STORED one
+   *  and return whether it applied — `false` means a newer state was already stored and this write
+   *  applied nothing (an older update arriving after a newer one is a no-op, never an overwrite). The
+   *  returned flag is the authority; `applyInboundChange`'s pre-read guard is only a fast path, since
+   *  two concurrent appliers can read the same stored timestamp before either write lands. A legacy
+   *  implementation that returns `void` is treated as applied (byte-for-byte back-compat). */
+  updateMirror: (pmoRecordId: string, canonical: PmoRecord, sourceUpdatedAtMs: number) => Promise<void | boolean>;
   /** Mint a new mirrored row for an adopted record + stamp `source_updated_at`; return its PMO id. */
   mintMirror: (canonical: PmoRecord, sourceUpdatedAtMs: number) => Promise<string>;
   /** Record the `external_refs` mapping for a newly-minted mirror. */
@@ -118,7 +124,11 @@ export async function applyInboundChange(
       return { kind: 'no-op' };
     }
     const canonicalPinned: PmoRecord = { ...canonical, id: existingId };
-    await deps.updateMirror(existingId, canonicalPinned, sourceUpdatedAtMs);
+    const applied = await deps.updateMirror(existingId, canonicalPinned, sourceUpdatedAtMs);
+    // The CAS flag is the write-time authority: a concurrent applier can store a NEWER
+    // source-modification between the guard read above and this write — when the write reports it
+    // applied nothing, this change is stale and must be reported (and counted) as a no-op.
+    if (applied === false) return { kind: 'no-op' };
     return { kind: 'upserted', pmoRecordId: existingId, adopted: false };
   }
 
@@ -127,10 +137,11 @@ export async function applyInboundChange(
   // `unique (org_id, domain, external_record_id)` constraint BEFORE any mirror row exists, so the loser
   // leaves no orphan (it reconciles to the winner's mapping on re-run).
   if (deps.adoptAtomically) {
-    const matchedId = await deps.adoptAtomically.matchExisting?.(canonical);
+    const matchedId = await deps.adoptAtomically.matchExisting?.(canonical, externalRecordId);
     if (matchedId) {
       await deps.adoptAtomically.claimExternalRef({ pmoRecordId: matchedId, externalTier: ctx.tier, externalRecordId, domain: ctx.domain });
-      await deps.updateMirror(matchedId, { ...canonical, id: matchedId }, sourceUpdatedAtMs);
+      const applied = await deps.updateMirror(matchedId, { ...canonical, id: matchedId }, sourceUpdatedAtMs);
+      if (applied === false) return { kind: 'no-op' };
       return { kind: 'upserted', pmoRecordId: matchedId, adopted: false };
     }
     const claimedId = deps.adoptAtomically.newPmoRecordId();

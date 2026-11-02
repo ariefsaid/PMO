@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-const { create } = vi.hoisted(() => ({ create: vi.fn().mockResolvedValue({ id: 'new-id' }) }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { project: { create } } }));
+const { create, importHistory } = vi.hoisted(() => ({ create: vi.fn().mockResolvedValue({ id: 'new-id' }), importHistory: vi.fn() }));
+vi.mock('@/src/lib/repositories', () => ({ repositories: { project: { create }, projectStage: { importHistory } } }));
 
 import { makeProjectImportDescriptor } from '../projectDescriptor';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
@@ -148,5 +148,38 @@ describe('makeProjectImportDescriptor', () => {
     const input = d.toInput({ name: 'X', status: 'Leads', client_id: '', project_manager_id: '', contract_value: '', start_date: '', end_date: '' });
     await d.create(input);
     expect(create).toHaveBeenCalledWith(input);
+  });
+});
+
+describe('#1638 stage dates', () => {
+  beforeEach(() => { create.mockClear(); importHistory.mockClear(); });
+  afterEach(() => { vi.useRealTimers(); });
+  it('AC-PSH-015: stage dates out of order are rejected at preview, on the later column', () => {
+    const d = makeProjectImportDescriptor([], []);
+    expect(d.validateRow!({ name: 'X', status: 'Leads', pq_submitted_on: '2026-07-15', quoted_on: '2026-07-01' }))
+      .toEqual({ quoted_on: 'Stage dates must not go backwards.' });
+  });
+  it('AC-PSH-015: a future stage date is rejected', () => {
+    vi.useFakeTimers({ now: new Date('2026-11-01T05:00:00Z'), toFake: ['Date'] });
+    const d = makeProjectImportDescriptor([], []);
+    expect(d.validateRow!({ name: 'X', status: 'Leads', quoted_on: '2026-11-03' }))
+      .toEqual({ quoted_on: 'A stage date cannot be in the future.' });
+  });
+  it('AC-PSH-015: an Internal Project row cannot carry stage dates', () => {
+    const d = makeProjectImportDescriptor([], []);
+    expect(d.validateRow!({ name: 'X', status: 'Internal Project', quoted_on: '2026-07-01' }))
+      .toEqual({ quoted_on: 'Only a lead can carry stage dates.' });
+  });
+  it('AC-PSH-015: in-order past dates pass and ride to the history call', () => {
+    const d = makeProjectImportDescriptor([], []);
+    const cells = { name: 'X', status: 'Leads', lead_on: '2026-06-20', pq_submitted_on: '2026-07-01', quoted_on: '2026-07-15' };
+    expect(d.validateRow!(cells)).toEqual({});
+    expect(d.toInput(cells)).toMatchObject({ lead_on: '2026-06-20', pq_submitted_on: '2026-07-01', quoted_on: '2026-07-15' });
+  });
+  it('AC-PSH-015: create writes the project, then its stage history, without the date columns on the project', async () => {
+    const d = makeProjectImportDescriptor([], []);
+    await d.create(d.toInput({ name: 'X', status: 'Leads', pq_submitted_on: '2026-07-01' }));
+    expect(create).toHaveBeenCalledWith(expect.not.objectContaining({ pq_submitted_on: expect.anything() }));
+    expect(importHistory).toHaveBeenCalledWith('new-id', [{ stage: 'PQ Submitted', entered_on: '2026-07-01' }]);
   });
 });

@@ -16,5 +16,20 @@
       "sub": "Projects marked won will appear here.",
       "title": "No won projects"
     }
+  },
+  "stageDate": {
+    "lead": "Lead",
+    "pq": "Pre-qual sent",
+    "quoted": "Quoted",
+    "tender": "Tender sent",
+    "negotiation": "Negotiation",
+    "signed": "Signed",
+    "lost": "Lost",
+    "declined": "Declined",
+    "started": "Started",
+    "onHold": "On hold",
+    "closedOut": "Closed out",
+    "internal": "Internal",
+    "daysShort": "d"
   }
 }

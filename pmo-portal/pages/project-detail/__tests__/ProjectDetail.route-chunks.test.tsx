@@ -33,6 +33,10 @@ const routeChunkState = vi.hoisted(() => {
   };
 });
 
+vi.mock('@/src/hooks/useProjectStageEntries', () => ({
+  useProjectStageEntries: () => ({ data: [], isLoading: false, error: null }),
+  useStageEntryMutations: () => ({ redate: { mutateAsync: vi.fn() }, addSkipped: { mutateAsync: vi.fn() } }),
+}));
 vi.mock('../tabs/BudgetTab', () => {
   routeChunkState.loads.budget += 1;
   return { default: () => <div data-testid="tab-budget">Budget panel</div> };

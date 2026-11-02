@@ -1,6 +1,6 @@
 -- 0385_dashboard_open_bids.test.sql — #1380 / #1441
 -- The win-rate card combines decided outcomes by decided_at with currently-open bids by created_at.
--- Staleness uses the last project status change, falling back to project creation for legacy rows.
+-- Staleness uses the latest stage entry's business date (#1638), falling back to project creation.
 begin;
 select plan(9);
 
@@ -42,14 +42,15 @@ values
    'X-IDR', 'Other Org Bid', 'Tender Submitted', null,
    9000000, 0, 0, null, 'exclusive', 0, 'IDR', now() - interval '3 days', null);
 
--- Synthetic update events provide deterministic stage-age witnesses; INSERT events are excluded
--- because an insert starts the first stage at projects.created_at.
-insert into record_changes (org_id, entity_type, entity_id, op, changes, currency, created_at)
-values
-  ('03850000-0000-0000-0000-000000000001', 'project', '38500000-0000-0000-0000-000000000104', 'update',
-   '{"status":{"old":"Leads","new":"PQ Submitted"}}', 'IDR', now() - interval '95 days'),
-  ('03850000-0000-0000-0000-000000000001', 'project', '38500000-0000-0000-0000-000000000105', 'update',
-   '{"status":{"old":"Quotation Submitted","new":"Negotiation"}}', 'USD', now() - interval '20 days');
+-- Stage-age witnesses: each row's origination entry (#1638), re-dated as postgres.
+update project_stage_entries set entered_on = current_date - 95
+ where project_id = '38500000-0000-0000-0000-000000000104';
+update project_stage_entries set entered_on = current_date - 20
+ where project_id = '38500000-0000-0000-0000-000000000105';
+-- stage_org_date is revoked from authenticated: compute the creation-day witness as postgres.
+create temp table psh_expected on commit drop as
+  select stage_org_date(org_id, created_at) as d from projects where id = '38500000-0000-0000-0000-000000000106';
+grant select on psh_expected to authenticated;
 
 set local role authenticated;
 set local request.jwt.claims to '{"sub":"03850000-0000-0000-0000-0000000000a1","role":"authenticated"}';
@@ -94,16 +95,15 @@ select is(
   (select (p ->> 'stage_started_at')::timestamptz
      from json_array_elements(get_sales_pipeline() -> 'projects') p
     where p ->> 'id' = '38500000-0000-0000-0000-000000000104'),
-  (select created_at from record_changes
-    where entity_id = '38500000-0000-0000-0000-000000000104' and op = 'update'),
-  'AC-1441: pipeline row uses the last recorded status change'
+  ((current_date - 95)::timestamp at time zone 'UTC'),
+  'AC-1441: pipeline row uses its latest stage entry date'
 );
 select is(
   (select (p ->> 'stage_started_at')::timestamptz
      from json_array_elements(get_sales_pipeline() -> 'projects') p
     where p ->> 'id' = '38500000-0000-0000-0000-000000000106'),
-  (select created_at from projects where id = '38500000-0000-0000-0000-000000000106'),
-  'AC-1441: pipeline row without a status event falls back to project creation'
+  ((select d from psh_expected)::timestamp at time zone 'UTC'),
+  'AC-1441: a row never moved starts its stage on its creation day'
 );
 select ok(
   has_function_privilege('authenticated', 'public.get_win_rate(date,date)', 'EXECUTE')

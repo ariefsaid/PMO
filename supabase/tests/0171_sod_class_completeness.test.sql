@@ -32,7 +32,7 @@
 -- shape, the Draft budget line-item editor, an Admin's project hard-delete, and the whole legitimate
 -- two-person win.
 begin;
-select plan(109);
+select plan(121);
 
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
 -- Fixtures (as postgres — an unattributed BYPASSRLS authority, exempt by design).
@@ -1060,6 +1060,87 @@ set local request.jwt.claims = '{"sub":"01710000-0000-0000-0000-0000000000a5","r
 select is(public.project_win_eligibility('01710000-0000-0000-0000-0000000000b5'), null::text, 'inactive callers receive no win eligibility detail');
 reset role;
 select ok(not has_function_privilege('anon','public.project_win_eligibility(uuid)','EXECUTE'), 'anonymous callers cannot read win eligibility');
+
+
+-- ════════════════════════════════════════════════════════════════════════════════════════════════
+-- L. equipment_usage_entries / equipment_costing_settings (0447 / 0460, #1519) — usage becomes money once approved
+--    (hire-rate charges, attributed cost). Entries move only through transition_equipment_usage (approver ≠ author,
+--    checked before authority); settings are written only by the Admin/Finance RPCs. The same-person two-step is the
+--    cell this section closes: an Admin or Finance author must not be able to approve their own usage.
+-- ════════════════════════════════════════════════════════════════════════════════════════════════
+reset role;
+set local request.jwt.claims = '{}';
+insert into equipment_assets (id, org_id, code, name) values
+  ('01710000-0000-0000-0000-0000000000d1','01710000-0000-0000-0000-000000000001','SCC-EQ','SCC loader');
+insert into equipment_usage_entries (id, org_id, asset_id, project_id, work_date, quantity, unit, status, author_id) values
+  ('01710000-0000-0000-0000-0000000000d2','01710000-0000-0000-0000-000000000001','01710000-0000-0000-0000-0000000000d1',
+   '01710000-0000-0000-0000-0000000000b1','2026-09-01',8,'hours','Submitted','01710000-0000-0000-0000-0000000000a4'),   -- Finance's own
+  ('01710000-0000-0000-0000-0000000000d3','01710000-0000-0000-0000-000000000001','01710000-0000-0000-0000-0000000000d1',
+   '01710000-0000-0000-0000-0000000000b1','2026-09-02',8,'hours','Submitted','01710000-0000-0000-0000-0000000000a3'),   -- Admin's own
+  ('01710000-0000-0000-0000-0000000000d4','01710000-0000-0000-0000-000000000001','01710000-0000-0000-0000-0000000000d1',
+   '01710000-0000-0000-0000-0000000000b1','2026-09-03',8,'hours','Submitted','01710000-0000-0000-0000-0000000000a2');   -- the Colleague's
+select is(
+  (select count(*)::int from information_schema.table_privileges
+    where table_schema = 'public' and table_name in ('equipment_usage_entries','equipment_costing_settings')
+      and grantee in ('authenticated','anon') and privilege_type in ('INSERT','UPDATE')),
+  0,
+  'AC-SCC-098 no client role holds a TABLE-level INSERT/UPDATE on equipment usage entries or costing settings');
+select is(
+  (select count(*)::int from information_schema.column_privileges
+    where table_schema = 'public' and table_name in ('equipment_usage_entries','equipment_costing_settings')
+      and grantee in ('authenticated','anon') and privilege_type in ('INSERT','UPDATE')),
+  0,
+  'AC-SCC-099 no client role holds a COLUMN-level INSERT/UPDATE on them either: the RPCs are the sole writers');
+select is(
+  (select count(*)::int from information_schema.table_privileges
+    where table_schema = 'public' and table_name = 'equipment_costing_settings'
+      and grantee in ('authenticated','anon') and privilege_type = 'DELETE'),
+  0,
+  'AC-SCC-100 no client role can delete a costing setting');
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"01710000-0000-0000-0000-0000000000a4","role":"authenticated"}';
+select throws_ok(
+  $$ select transition_equipment_usage('01710000-0000-0000-0000-0000000000d2','Approved') $$,
+  '42501', 'separation of duties: cannot decide own equipment usage',
+  'AC-SCC-101 a Finance author cannot approve their own equipment usage');
+set local request.jwt.claims = '{"sub":"01710000-0000-0000-0000-0000000000a3","role":"authenticated"}';
+select throws_ok(
+  $$ select transition_equipment_usage('01710000-0000-0000-0000-0000000000d3','Approved') $$,
+  '42501', 'separation of duties: cannot decide own equipment usage',
+  'AC-SCC-102 an Admin author cannot approve their own equipment usage');
+set local request.jwt.claims = '{"sub":"01710000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select throws_ok(
+  $$ select transition_equipment_usage('01710000-0000-0000-0000-0000000000d4','Approved') $$,
+  '42501', 'not authorized',
+  'AC-SCC-103 a Project Manager who does not manage the project cannot approve its usage');
+set local request.jwt.claims = '{"sub":"01710000-0000-0000-0000-0000000000a5","role":"authenticated"}';
+select throws_ok(
+  $$ select transition_equipment_usage('01710000-0000-0000-0000-0000000000d4','Approved') $$,
+  '42501', null,
+  'AC-SCC-104 a disabled approver is refused');
+set local request.jwt.claims = '{"sub":"01710000-0000-0000-0000-0000000000a3","role":"authenticated"}';
+select lives_ok(
+  $$ select transition_equipment_usage('01710000-0000-0000-0000-0000000000d2','Approved') $$,
+  'AC-SCC-105 …but a second person (Admin) approves the Finance author''s usage — the gate closes the forgery, not the workflow');
+set local request.jwt.claims = '{"sub":"01710000-0000-0000-0000-0000000000a4","role":"authenticated"}';
+select lives_ok(
+  $$ select transition_equipment_usage('01710000-0000-0000-0000-0000000000d3','Approved') $$,
+  'AC-SCC-106 …and Finance approves the Admin author''s usage');
+set local request.jwt.claims = '{"sub":"01710000-0000-0000-0000-0000000000a3","role":"authenticated"}';
+select throws_ok(
+  $$ select transition_equipment_usage('01710000-0000-0000-0000-0000000000d3','Draft') $$,
+  '42501', 'separation of duties: cannot reopen own equipment usage',
+  'AC-SCC-107 an Admin cannot reopen their own approved usage');
+set local request.jwt.claims = '{"sub":"01710000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select throws_ok(
+  $$ select save_equipment_costing('{"asset_id":"01710000-0000-0000-0000-0000000000d1","basis":"none","effective_from":"2026-01-01"}') $$,
+  '42501', 'not authorized',
+  'AC-SCC-108 a Project Manager approves hours but cannot set what an hour is worth');
+set local request.jwt.claims = '{"sub":"01710000-0000-0000-0000-0000000000a4","role":"authenticated"}';
+select lives_ok(
+  $$ select save_equipment_costing('{"asset_id":"01710000-0000-0000-0000-0000000000d1","basis":"none","effective_from":"2026-01-01"}') $$,
+  'AC-SCC-109 Finance saves a costing setting');
+reset role;
 
 select * from finish();
 rollback;

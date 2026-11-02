@@ -69,17 +69,19 @@ select is(
 -- TESTS: public.create_vault_secret_for_org(...)
 -- ============================================================================
 
--- Test 5: Admin of org can create vault secret and binding (auth.uid() path)
-set local role authenticated;
-set local request.jwt.claims = '{"sub":"aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa","role":"authenticated"}';
+-- Test 5: Admin of org can create vault secret and binding. ⚑ 0450 (#1614): the RPC is service-role only;
+-- external-connect calls it with p_actor_id = the verified caller, which is the path exercised here.
+reset role;
+set local request.jwt.claims = '{}';
 select lives_ok(
   $$ select public.create_vault_secret_for_org(
     '11111111-1111-1111-1111-111111111111',
     'clickup',
     'valid-clickup-token-123',
-    'clickup_token_org_a_1'
+    'clickup_token_org_a_1',
+    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'  -- p_actor_id = Admin A
   ) $$,
-  'AC-EAC-003 Admin auth.uid() path succeeds'
+  'AC-EAC-003 Admin connect through the service-role path (p_actor_id) succeeds'
 );
 
 -- Test 6: Verify binding row was inserted
@@ -112,7 +114,8 @@ select is(
   'AC-EAC-019 audit event logged for connect'
 );
 
--- Test 10: Non-Admin (Engineer) is DENIED (42501)
+-- Test 10: Non-Admin (Engineer) is DENIED (42501) — since 0450 at the grant (no JWT path); the body's
+-- non-Admin refusal is Test 17.
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb","role":"authenticated"}';
 select throws_ok(
@@ -122,8 +125,8 @@ select throws_ok(
     'bad-token',
     'clickup_token_org_a_2'
   ) $$,
-  '42501', null,
-  'AC-EAC-004 non-Admin denied (42501)'
+  '42501', 'permission denied for function create_vault_secret_for_org',
+  'AC-EAC-004 non-Admin JWT call denied at the grant (42501)'
 );
 
 -- Test 11: Verify no second binding row
@@ -133,7 +136,8 @@ select is(
   'AC-EAC-004 no binding row created for non-Admin'
 );
 
--- Test 12: Cross-org Admin (Admin B) cannot create for Org A (42501)
+-- Test 12: Cross-org Admin (Admin B) cannot create for Org A (42501) — at the grant since 0450; the body's
+-- cross-org refusal is Test 18.
 set local request.jwt.claims = '{"sub":"cccccccc-cccc-cccc-cccc-cccccccccccc","role":"authenticated"}';
 select throws_ok(
   $$ select public.create_vault_secret_for_org(
@@ -142,20 +146,22 @@ select throws_ok(
     'cross-org-token',
     'clickup_token_cross'
   ) $$,
-  '42501', null,
-  'AC-EAC-005 cross-org Admin denied (42501)'
+  '42501', 'permission denied for function create_vault_secret_for_org',
+  'AC-EAC-005 cross-org Admin JWT call denied at the grant (42501)'
 );
 
--- Test 13: Platform Operator can create for any org via auth.uid() path (Operator is Admin in Org A)
-set local request.jwt.claims = '{"sub":"dddddddd-dddd-dddd-dddd-dddddddddddd","role":"authenticated"}';
+-- Test 13: Platform Operator can create for its own org (service-role path with p_actor_id since 0450)
+reset role;
+set local request.jwt.claims = '{}';
 select lives_ok(
   $$ select public.create_vault_secret_for_org(
     '11111111-1111-1111-1111-111111111111',
     'erpnext',
     'erpnext-api-key:erpnext-api-secret',
-    'erpnext_token_org_a_1'
+    'erpnext_token_org_a_1',
+    'dddddddd-dddd-dddd-dddd-dddddddddddd'  -- p_actor_id = Operator
   ) $$,
-  'AC-EAC-003 Operator auth.uid() path succeeds for own org'
+  'AC-EAC-003 Operator connect through the service-role path succeeds for own org'
 );
 
 -- Test 14: Verify ERPNext binding created
@@ -345,11 +351,11 @@ select is(
   'read_vault_secret NOT executable by authenticated'
 );
 
--- Test 32: create_vault_secret_for_org granted to authenticated
+-- Test 32: create_vault_secret_for_org is NOT granted to authenticated (service-role only since 0450)
 select is(
   (select has_function_privilege('authenticated', 'public.create_vault_secret_for_org(uuid,text,text,text,uuid)', 'execute')),
-  true,
-  'create_vault_secret_for_org executable by authenticated'
+  false,
+  'create_vault_secret_for_org NOT executable by authenticated'
 );
 
 -- Test 33: create_vault_secret_for_org granted to service_role
@@ -359,8 +365,8 @@ select is(
   'create_vault_secret_for_org executable by service_role'
 );
 
--- Test 34: Actor spoof prevention - authenticated caller with p_actor_id=Admin should be denied
--- The effective actor should be auth.uid() (the caller's JWT), not the passed p_actor_id
+-- Test 34: Actor spoof prevention - authenticated caller with p_actor_id=Admin should be denied.
+-- Since 0450 a JWT caller is refused at the grant, before p_actor_id is ever read.
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb","role":"authenticated"}';
 select throws_ok(
@@ -371,8 +377,8 @@ select throws_ok(
     'clickup_token_spoof',
     'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'  -- p_actor_id = Admin A (trying to spoof)
   ) $$,
-  '42501', null,
-  'AC-EAC-004 actor spoof denied: authenticated non-Admin cannot override via p_actor_id'
+  '42501', 'permission denied for function create_vault_secret_for_org',
+  'AC-EAC-004 actor spoof denied: authenticated non-Admin cannot override via p_actor_id (refused at the grant)'
 );
 
 -- Test 35: Service role with p_actor_id still works (sanity check - service_role has auth.uid()=null)

@@ -20,6 +20,7 @@ vi.mock('@/src/lib/db/subcontracts', () => ({
   listWorkOrderCostVariations: vi.fn(),
   listSubcontractCapExceptions: vi.fn(),
   attributeSubcontractBillLines: vi.fn(),
+  captureSubcontractVendorInvoice: vi.fn(),
 }));
 
 import * as dal from '@/src/lib/db/subcontracts';
@@ -77,6 +78,24 @@ describe('subcontract repository (src/lib/repositories/subcontracts.ts)', () => 
     const rows = await repo().getPoPosition('po-1');
     expect(rows).toEqual(normal);
     expect(dal.getPoPosition).toHaveBeenCalledWith('po-1');
+  });
+
+  it('captureSubcontractVendorInvoice delegates to the DAL, passing procurementId through (#1513 S6, #1632 seam rule)', async () => {
+    vi.mocked(dal.captureSubcontractVendorInvoice).mockResolvedValue({ id: 'invoice-sub-1' } as never);
+    const input = {
+      procurementId: 'proc-1',
+      status: 'Received' as const,
+      invoiceDate: '2026-06-04',
+      referenceNumber: 'INV-SUB-1',
+      amount: 12000000,
+      notes: 'captured',
+      taxTreatment: 'exclusive' as const,
+      taxAmount: 1320000,
+      lines: [{ boqItemId: 'b1', quantity: 100, rate: 120000 }],
+    };
+
+    await expect(repo().captureSubcontractVendorInvoice(input)).resolves.toEqual({ id: 'invoice-sub-1' });
+    expect(dal.captureSubcontractVendorInvoice).toHaveBeenCalledWith(input);
   });
 
   it('delegates reads and non-capture writes directly to the DAL', async () => {

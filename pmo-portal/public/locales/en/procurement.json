@@ -91,7 +91,10 @@
       "needsRequest": "needs a purchase request first",
       "needsApproval": "needs an approval first",
       "needsReceipt": "needs a goods receipt first"
-    }
+    },
+    "preCutover": "Recorded before the ERP connection, not sent",
+    "notSent": "Not sent",
+    "notSentReason": "Not sent: this purchase started before the ERP connection"
   },
   "gates": {
     "heading": "Purchase rules",

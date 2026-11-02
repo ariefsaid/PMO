@@ -10,6 +10,76 @@ Each released section pins the full deploy manifest (app sha · DB migration hig
 edge-function state) so "what's in production" is unambiguous. The DB schema version (migration
 high-water mark) moves independently of the product tag.
 
+## [0.30.0](https://github.com/ariefsaid/PMO/compare/v0.29.0...v0.30.0) (2026-11-02)
+
+
+### Features
+
+* **#1605:** feed and onboarding match tax id first and persist a review row for an unclear party (ECA2-T14) ([3e6f30c](https://github.com/ariefsaid/PMO/commit/3e6f30ceedf43c28c8f3b0771bfae274b4507caf))
+* **#1605:** purchase lines use the item map an accepted item link writes (ECA2-T15) ([2e6c44a](https://github.com/ariefsaid/PMO/commit/2e6c44aac12b6b2c5eb10aac3b956fd98655acef))
+* **#1605:** repository verbs for census, status, proposals, accept-all loop, decide, unlink (ECA2-T16) ([586a9d4](https://github.com/ariefsaid/PMO/commit/586a9d4f8b29c210da6fdaacaae89cc607268a31))
+* **#1605:** sweep pass advances open connect runs, one bounded step per tick (ECA2-T13) ([573e687](https://github.com/ariefsaid/PMO/commit/573e68748a3994610c25f96b2e94083641c158ff))
+* **#1605:** the connect run loop with fail and expire (ECA2-T11) ([39434e5](https://github.com/ariefsaid/PMO/commit/39434e5b30318ca7a93e76ba5df4d4178a9462f9))
+* **assistant:** 'Remind this person' action, eval suite and journey ([#1639](https://github.com/ariefsaid/PMO/issues/1639) S2–S4) ([006101c](https://github.com/ariefsaid/PMO/commit/006101ce313845bd00136ac7c12079c58f523b08))
+* **assistant:** task reminder ledger with preview and send ([#1639](https://github.com/ariefsaid/PMO/issues/1639) S1) ([02801ff](https://github.com/ariefsaid/PMO/commit/02801ffbbbdf18f3bfe03ebd6caa53a027c43705))
+* **db:** PO variations, revisions and client link ([#1513](https://github.com/ariefsaid/PMO/issues/1513) S4) ([8e213e8](https://github.com/ariefsaid/PMO/commit/8e213e8558a16a89fa88fda2930049337aa7c8fd))
+* **db:** subcontract bill caps ([#1513](https://github.com/ariefsaid/PMO/issues/1513) S3) ([8765259](https://github.com/ariefsaid/PMO/commit/8765259341fa7b960dd940af81c3aece14e25e38))
+* **eca-4:** a pre-cut-over purchase records its receipt, bill and payment through PMO ([#1601](https://github.com/ariefsaid/PMO/issues/1601)) ([9f68ddd](https://github.com/ariefsaid/PMO/commit/9f68ddd88f6d21c40ae782f01819bf690b4c992e))
+* **eca-4:** cut-over guard before adapter selection and in sweep replay; shared suite cutover.purchase ([#1601](https://github.com/ariefsaid/PMO/issues/1601)) ([277d5ac](https://github.com/ariefsaid/PMO/commit/277d5ac2c6ab431cacf814d83f8d92d09c1fa2f2))
+* **eca-4:** new labels in feature namespaces; bind setup tests to the shipped handler ([#1601](https://github.com/ariefsaid/PMO/issues/1601)) ([28f03eb](https://github.com/ariefsaid/PMO/commit/28f03ebf7d4e71d5e7f59ab32116630c9ebbbb6c))
+* **eca-4:** pre-cut-over label, employ refusal copy and declarations ([#1601](https://github.com/ariefsaid/PMO/issues/1601)) ([f9cdf57](https://github.com/ariefsaid/PMO/commit/f9cdf57de2cbdcb0a0f634319abca3bf90a50e35))
+* **equipment:** costing settings, hire-rate charges and reads ([#1519](https://github.com/ariefsaid/PMO/issues/1519) S2) ([9a9b313](https://github.com/ariefsaid/PMO/commit/9a9b3138b4aa627ad450d7e3cbe91f4cebe9064c))
+* **equipment:** equipment cost allocated through cost attribution ([#1519](https://github.com/ariefsaid/PMO/issues/1519) S3) ([e9b7cea](https://github.com/ariefsaid/PMO/commit/e9b7cea7897ae3da50314a5a88fcc9c479c24401))
+* **erp:** connect at any time — setup census, proposals and accept ([#1605](https://github.com/ariefsaid/PMO/issues/1605) data half) ([a6cbc51](https://github.com/ariefsaid/PMO/commit/a6cbc5102823852c6a8b694749025908d25ce637))
+* **erp:** cut-over for purchases and claims in flight when the ERP connection is switched on ([#1601](https://github.com/ariefsaid/PMO/issues/1601)) ([7c739f8](https://github.com/ariefsaid/PMO/commit/7c739f8d5af12efe567ad619ec6559ea727d24f9))
+* **erp:** subcontract cap and revise guards fail closed ([#1513](https://github.com/ariefsaid/PMO/issues/1513) S5) ([aa48a79](https://github.com/ariefsaid/PMO/commit/aa48a7967e29c2d6735581377a6840472e769dee))
+* **pipeline:** required lost reason, win/loss by reason ([#1577](https://github.com/ariefsaid/PMO/issues/1577)) ([ce5323c](https://github.com/ariefsaid/PMO/commit/ce5323c89abbc71307e2752f9ee6d5d0400d87e6))
+* **pipeline:** stage dates on cards, Signed pill, stage history editor, import date columns ([#1638](https://github.com/ariefsaid/PMO/issues/1638)) ([8b43efa](https://github.com/ariefsaid/PMO/commit/8b43efa126af0aa77a20a27bf0282a04db2ef2c2))
+* **pipeline:** stage history records, backdating and import ([#1638](https://github.com/ariefsaid/PMO/issues/1638) database half) ([f49f135](https://github.com/ariefsaid/PMO/commit/f49f1350e410956584128f4ce37847f690129871))
+* **subcontract:** ERP guards — exceptions block payment, bill-line attribution under the cap ([#1513](https://github.com/ariefsaid/PMO/issues/1513) S5) ([a6094aa](https://github.com/ariefsaid/PMO/commit/a6094aac2e6a8893538c920b225f8f25d074053e))
+* **subcontract:** PO variations, revisions, client link and Disputed position ([#1513](https://github.com/ariefsaid/PMO/issues/1513) S4) ([aaa26d2](https://github.com/ariefsaid/PMO/commit/aaa26d28b2664502df1bc7a626bda31f227658f0))
+* **subcontract:** subcontract acceptance, prepare and confirm ([#1513](https://github.com/ariefsaid/PMO/issues/1513) S2) ([87df0e3](https://github.com/ariefsaid/PMO/commit/87df0e30edef2c663071b0a9cc7a05b1b933d4a8))
+* **subcontract:** subcontract flag, purchase-order lines, revision 1 ([#1513](https://github.com/ariefsaid/PMO/issues/1513) S1) ([aecb59c](https://github.com/ariefsaid/PMO/commit/aecb59c5270bfcef33061c2fb771e26198971330))
+* **subcontract:** vendor bill caps against accepted work ([#1513](https://github.com/ariefsaid/PMO/issues/1513) S3) ([81ef048](https://github.com/ariefsaid/PMO/commit/81ef048e681c433eabcdeda2be3f1fedfc4da74e))
+
+
+### Bug Fixes
+
+* **#1513:** name S5's linked-ERP-invoice readers in the actuals guard; drop the revise contract suite until a tier supports it ([#1505](https://github.com/ariefsaid/PMO/issues/1505)) ([e168a93](https://github.com/ariefsaid/PMO/commit/e168a93e6c9292a5ebb1a374d261938fdf6ea706))
+* **#1605:** ECA-2 part A review round (name never links a person or account, binding-scoped proposals, bounded accept, audit trail) ([6f4fb74](https://github.com/ariefsaid/PMO/commit/6f4fb74f662435349a4d34dbd869055a9046df60))
+* **#1605:** ECA-2 part B review round (disconnect purge, bound org-guard test, one map merge per accept, Minors 1-4, 6-7) ([2523e85](https://github.com/ariefsaid/PMO/commit/2523e85cbae7a6a5bd874498a669e66af0150ed1))
+* **agent-dispatch:** conditional triggers leave no visible trace and notify once per automation ([9c73a79](https://github.com/ariefsaid/PMO/commit/9c73a79cf2ca45fd8e28651ee5037d2c4a95ff3e))
+* **agent-dispatch:** reserve credit per automation unit and meter trigger conditions ([5d85b64](https://github.com/ariefsaid/PMO/commit/5d85b640a59f7d63ad760bc826c2b705cdf68c51))
+* **agent:** hold assistant credit per request and release on every exit ([#1538](https://github.com/ariefsaid/PMO/issues/1538) T-10) ([9ecb8d9](https://github.com/ariefsaid/PMO/commit/9ecb8d9f87e9c082947a3e08cce769671b8a78cc))
+* **agent:** hold credit atomically per chat and compose request, release on every exit ([b2a09b1](https://github.com/ariefsaid/PMO/commit/b2a09b19b55b77e23c4610afd4e351257698b744))
+* **agent:** overdue report says partial when a scan or project scope is cut off ([578d3ea](https://github.com/ariefsaid/PMO/commit/578d3eadad91b448baf8f97cf23fb06c95b90f84))
+* **agent:** page full result sets in user, event and thread lists; warn on rejected cancel request; tighten runtime cancel contract ([50d6b00](https://github.com/ariefsaid/PMO/commit/50d6b00867e029743a468b54721ccdd3bb847399))
+* **assistant:** serialize attachment uploads, wait for uploads before send, re-evaluate stuck runs, ignore stale inbox loads, route thread list and rating via repository ([26ffd8f](https://github.com/ariefsaid/PMO/commit/26ffd8f40fb2f5e31544cd1c6deed7051abad91f))
+* audit batch D1 — task-sync safety, ClickUp list picker, overdue honesty, assistant panel races ([#1535](https://github.com/ariefsaid/PMO/issues/1535) [#1537](https://github.com/ariefsaid/PMO/issues/1537) [#1538](https://github.com/ariefsaid/PMO/issues/1538)) ([fbce7a1](https://github.com/ariefsaid/PMO/commit/fbce7a11e83f56f7c1501468c374799c1e599f78))
+* audit batch D2 — alert delivery, assistant lists, procurement lists and forms ([#1537](https://github.com/ariefsaid/PMO/issues/1537) [#1538](https://github.com/ariefsaid/PMO/issues/1538) [#1539](https://github.com/ariefsaid/PMO/issues/1539)) ([b0ec08a](https://github.com/ariefsaid/PMO/commit/b0ec08a4937b7542d0dc8145b0b2c25cf4ebd175))
+* **clickup-client:** attempt a create exactly once and surface the outcome as unconfirmed ([e9398c1](https://github.com/ariefsaid/PMO/commit/e9398c17114406508ec3df5eca17caec8d917a6c))
+* **clickup-sync:** compare-and-set mirror updates and claim-first adoption ([883e18a](https://github.com/ariefsaid/PMO/commit/883e18ae1c8a732f03a02957dd601c499fff0f4b))
+* **clickup:** pin NULL-timestamp CAS branch; retry 429 on create POST; honor CAS result on matched adopt ([750db81](https://github.com/ariefsaid/PMO/commit/750db81faa3508c2acd285521952a9f952a65e3c))
+* **db:** subcontract bill caps — shared billed figure, clear refusal, normalised audit, types ([#1513](https://github.com/ariefsaid/PMO/issues/1513) S3) ([6f589d7](https://github.com/ariefsaid/PMO/commit/6f589d7c5803a13e4dd50b5810f62465455e9c31))
+* **eca-4:** cut-over instant, bill-first purchases, ERP-held rows stay read-only; drop the procurement/expenses employ guard ([#1601](https://github.com/ariefsaid/PMO/issues/1601)) ([8b695eb](https://github.com/ariefsaid/PMO/commit/8b695eb73a2c2e5b24094b437beda665b5f59659))
+* **expenses:** advance load is a required prop of the claim form; drop unused agingTotals rule ([8959e15](https://github.com/ariefsaid/PMO/commit/8959e150c55bf2ddbf03757c91bc065e6065cd71))
+* **expenses:** advance picker past 500 rows, Save waits for advances, aging totals from the server ([#1540](https://github.com/ariefsaid/PMO/issues/1540) T-12) ([26f430e](https://github.com/ariefsaid/PMO/commit/26f430e80bdfa357c1f9b7f69308211947167786))
+* **expenses:** claim form lists the caller's own advances past the page cap and waits for them; advance-aging totals cover every advance ([d57ffc8](https://github.com/ariefsaid/PMO/commit/d57ffc8a5341130ba33712306c157d04ebd4a904))
+* **odoo:** three Odoo connect follow-ups from the O1 review ([#1614](https://github.com/ariefsaid/PMO/issues/1614)) ([1816322](https://github.com/ariefsaid/PMO/commit/1816322c935d32581acc702300140f1b8513e1ff))
+* **pipeline:** wire StageDateDialog submitError and add projectStage to repository shape test ([#1638](https://github.com/ariefsaid/PMO/issues/1638)) ([c862442](https://github.com/ariefsaid/PMO/commit/c862442fb1a9d0e740afb2251af1b48afab9fb8b))
+* prevent routine toast hover from blocking actions ([f0995ee](https://github.com/ariefsaid/PMO/commit/f0995eed3aa9cf40318ec9e7e51b923ad443152a))
+* **procurement:** align PR/RFQ capture statuses to stored domain, open multi-file list from ledger, stop guessing timeline doc refs ([a798021](https://github.com/ariefsaid/PMO/commit/a798021c2cbb909f0bc73c70670f3541a576e5bd))
+* **procurement:** import the shared procurementDetailKey after the dev merge ([#1601](https://github.com/ariefsaid/PMO/issues/1601)) ([f4aface](https://github.com/ariefsaid/PMO/commit/f4afacec5a13b1f7c9c53d1669777ae79036783c))
+* **procurement:** load the full purchase list by keyset and show loading/error with retry in the ERP link dialog ([75ee2c1](https://github.com/ariefsaid/PMO/commit/75ee2c19728d2342dfdc804ae75d122cc13a8ef6))
+* **procurement:** refresh list and project spend after detail-page changes; share procurement and ownership query keys ([6661941](https://github.com/ariefsaid/PMO/commit/6661941a960fb89ee0580aaa10489fb44917d703))
+* **projects:** keep the sales-history doorway off the phone fold ([#1701](https://github.com/ariefsaid/PMO/issues/1701)) ([cb3ee5b](https://github.com/ariefsaid/PMO/commit/cb3ee5b9fffcb11b8c5a04aeb0c4b5198af6e4e1))
+* **telegram-notify:** bound re-alerts by the cooldown from the last attempt, longer drain lease, log release failure ([e1b3a52](https://github.com/ariefsaid/PMO/commit/e1b3a525b5d93eaef8505f3bb798bee3365bb913))
+* **telegram-notify:** reliable alert delivery, retry after failed send, single drainer lease ([128338e](https://github.com/ariefsaid/PMO/commit/128338e8aff8d7080a54646af1fa72a38f69fff1))
+* **toast:** auto-dismiss restarts after effect cleanup, so a success toast never sticks (v0.30.0 release round 3) ([5f3c0c7](https://github.com/ariefsaid/PMO/commit/5f3c0c7f54aea072f92f92a7b2601b126031a625))
+* unblock task status controls and update fixture history proof ([9b8b045](https://github.com/ariefsaid/PMO/commit/9b8b04547124328744fce6ce2e379ca96642600b))
+* v0.30.0 release browser failures — toasts block clicks, phone fold on project pages ([0191a04](https://github.com/ariefsaid/PMO/commit/0191a041d167b4ec2f6e4de6b815ffd3ea043565))
+* v0.30.0 release round 2 — hovering a routine toast no longer pauses it; stage-dates journey time limit ([4ee655a](https://github.com/ariefsaid/PMO/commit/4ee655acfa00dae89623c56bd7230a9fc4967d2f))
+
 ## [0.29.0](https://github.com/ariefsaid/PMO/compare/v0.25.1...v0.29.0) (2026-11-01)
 
 

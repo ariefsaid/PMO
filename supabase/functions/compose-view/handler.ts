@@ -62,7 +62,9 @@ export interface SupabaseLike {
  * RPC failure. Injected as a testable interface so enabling it later is config, not a rewrite.
  */
 export interface RateGuard {
-  check(orgId: string): Promise<{ exceeded: boolean; retryAfterSeconds: number; reason: 'out_of_credits' | 'meter_error' }>;
+  /** `runId` selects the atomic reserve path (creditRateGuard); `release` drops that hold. */
+  check(orgId: string, runId?: string): Promise<{ exceeded: boolean; retryAfterSeconds: number; reason: 'out_of_credits' | 'meter_error' }>;
+  release?(runId: string): Promise<void>;
 }
 
 export interface HandlerDeps {
@@ -94,7 +96,8 @@ type HandlerResult =
   | { status: 401; body: ComposeViewError }
   | { status: 422; body: ComposeViewError }
   | { status: 429; body: ComposeViewError }
-  | { status: 502; body: ComposeViewError };
+  | { status: 502; body: ComposeViewError }
+  | { status: 503; body: ComposeViewError };
 
 // ── Main handler ───────────────────────────────────────────────────────────────
 
@@ -105,7 +108,7 @@ type HandlerResult =
  *   (1) 401 — userId empty (AC-AS-004)
  *   (2) 400 — prompt empty or > 2000 chars (AC-AS-006)
  *   (3) 400 — org mismatch via profiles lookup (AC-AS-005, Recon #4)
- *   (4) 429 — rate guard exceeded (AC-AS-008, optional)
+ *   (4) 429 — rate guard exceeded (AC-AS-008, optional); 503 METER_UNAVAILABLE — the meter itself failed
  *   (5) composeSpec() → 200 / 422 (REPAIR_EXHAUSTED) (AC-AS-001,002,003)
  *   (6) 502 — upstream error, raw SDK error scrubbed (AC-AS-007)
  *
@@ -115,6 +118,19 @@ type HandlerResult =
 export async function composeViewHandler(
   req: ComposeViewRequest,
   deps: HandlerDeps,
+): Promise<HandlerResult> {
+  const holds: string[] = [];
+  try {
+    return await composeViewHandlerInner(req, deps, holds);
+  } finally {
+    for (const id of holds) await deps.rateGuard?.release?.(id);
+  }
+}
+
+async function composeViewHandlerInner(
+  req: ComposeViewRequest,
+  deps: HandlerDeps,
+  holds: string[],
 ): Promise<HandlerResult> {
   const { modelClient, model, supabase, userId, rateGuard } = deps;
 
@@ -173,9 +189,19 @@ export async function composeViewHandler(
   }
 
   // ── Gate (4): rate guard (AC-AS-008, AS-OD-002 — disabled by default) ───────
+  // The hold is placed under a fresh id (atomic reserve_credits — concurrent requests cannot both
+  // spend the same balance); composeViewHandler's finally releases it on every exit path.
   if (rateGuard) {
-    const rateResult = await rateGuard.check(profileOrgId);
+    const holdId = crypto.randomUUID();
+    const rateResult = await rateGuard.check(profileOrgId, holdId);
     if (rateResult.exceeded) {
+      // A failing meter is not an exhausted balance: still fail closed, but say so honestly.
+      if (rateResult.reason === 'meter_error') {
+        return {
+          status: 503,
+          body: { status: 503, error: 'METER_UNAVAILABLE', detail: 'credit metering unavailable' },
+        };
+      }
       return {
         status: 429,
         body: {
@@ -185,6 +211,7 @@ export async function composeViewHandler(
         },
       };
     }
+    holds.push(holdId);
   }
 
   // ── Gate (5): compose+repair via composeSpec() (AC-AS-001,002,003) ──────────

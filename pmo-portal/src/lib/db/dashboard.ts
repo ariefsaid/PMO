@@ -176,6 +176,10 @@ export interface PipelineProject extends ProjectClassification {
   last_update?: string;
   /** Last recorded project status change, falling back to created_at when no status event exists. */
   stage_started_at?: string;
+  /** #1638: won deals — the Signed date. Projected by toPipelineProject for the Won column. */
+  contract_date?: string | null;
+  /** #1638: lost/declined deals — the decision instant. Projected by toPipelineProject for the Lost column. */
+  decided_at?: string | null;
   /**
    * The project manager's full name (profiles.full_name resolved via the pm join).
    * AVAILABILITY: same as last_update — supplied for open pipeline rows by get_sales_pipeline()
@@ -214,6 +218,21 @@ export async function getWinRate(from?: Date, to?: Date): Promise<WinRate> {
   const { data, error } = await supabase.rpc('get_win_rate', { p_from, p_to });
   if (error) throw new Error(error.message);
   return data as unknown as WinRate;
+}
+
+/** Loss counts by reason and by client for the same cohort and window as get_win_rate (#1577). */
+export interface LossBreakdown {
+  by_reason: Array<{ reason: string | null; losses_count: number; declined_count: number }>;
+  by_client: Array<{ client_id: string | null; client_name: string | null; wins_count: number; losses_count: number }>;
+}
+
+/** security invoker, counts only, no org_id — RLS scopes to the caller's org. On RPC error throws. */
+export async function getLossBreakdown(from?: Date, to?: Date): Promise<LossBreakdown> {
+  const p_from = from ? toIso(from) : undefined;
+  const p_to = to ? toIso(to) : undefined;
+  const { data, error } = await supabase.rpc('get_loss_breakdown', { p_from, p_to });
+  if (error) throw new Error(error.message);
+  return data as unknown as LossBreakdown;
 }
 
 /**

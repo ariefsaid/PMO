@@ -210,7 +210,7 @@ export async function forceLocale(page: Page, locale: Locale) {
   await page.route('**/rest/v1/profiles?*', async (route) => {
     const url = new URL(route.request().url());
     if (route.request().method() !== 'GET' || !url.searchParams.has('id')) return route.fallback();
-    const response = await route.fetch();
+    const response = await route.fetch({ maxRetries: 2 });
     const body: unknown = await response.json();
     const patch = (row: unknown) => row && !Array.isArray(row) && typeof row === 'object'
       ? { ...(row as Record<string, unknown>), locale, number_locale: locale === 'id' ? 'id-ID' : 'en-US' }

@@ -8,6 +8,10 @@ import { ImpersonationProvider } from '@/src/auth/impersonation';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { createListReturnContext, LIST_RETURN_CONTEXT_KEY, LIST_SCROLL_RESTORE_STATE_KEY } from '@/src/lib/listReturnContext';
 
+vi.mock('@/src/hooks/useProjectStageEntries', () => ({
+  useProjectStageEntries: () => ({ data: [], isLoading: false, error: null }),
+  useStageEntryMutations: () => ({ redate: { mutateAsync: vi.fn() }, addSkipped: { mutateAsync: vi.fn() } }),
+}));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/components/ui/useIsDesktop', () => ({ useIsDesktop: () => true }));
 vi.mock('@/src/hooks/useDashboard', () => ({

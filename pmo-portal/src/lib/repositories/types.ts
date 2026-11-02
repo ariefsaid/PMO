@@ -16,6 +16,7 @@
  * every contract, so the external import surface of the seam is unchanged.
  */
 import type { RecordHistoryRepository } from './recordHistory';
+import type { ProjectStageRepository } from './projectStages';
 import type { ProjectMoneyRepository } from './contracts/projectMoney';
 import type { DashboardRepository } from './contracts/dashboard';
 import type { AgentRunRepository } from './contracts/agentRuns';
@@ -112,7 +113,9 @@ import type {
   WorkOrderCostVariationRow,
   SubcontractCapExceptionRow,
   AttributeSubcontractBillLineInput,
+  CaptureSubcontractVendorInvoiceInput,
 } from '@/src/lib/db/subcontracts';
+import type { ProcurementInvoiceRow } from '@/src/lib/db/procurementLifecycle';
 
 export interface SubcontractRepository {
   getPoPosition(poId: string): Promise<SubcontractPoPositionRow[]>;
@@ -134,6 +137,7 @@ export interface SubcontractRepository {
   listWorkOrderCostVariations(workOrderId: string): Promise<WorkOrderCostVariationRow[]>;
   listSubcontractCapExceptions(procurementId: string): Promise<SubcontractCapExceptionRow[]>;
   attributeSubcontractBillLines(invoiceId: string, lines: AttributeSubcontractBillLineInput[]): Promise<void>;
+  captureSubcontractVendorInvoice(input: CaptureSubcontractVendorInvoiceInput): Promise<ProcurementInvoiceRow>;
 }
 
 export interface Repositories {
@@ -143,6 +147,7 @@ export interface Repositories {
   recordHistory: RecordHistoryRepository;
   vendorWithholdingSlips: VendorWithholdingSlipsRepository;
   project: ProjectRepository;
+  projectStage: ProjectStageRepository;
   company: CompanyRepository;
   document: DocumentRepository;
   agentAttachment: AgentAttachmentRepository;
@@ -187,6 +192,7 @@ export interface Repositories {
 }
 
 export type { CommandIntent } from './contracts/commandIntent';
+export type { CaptureSubcontractVendorInvoiceInput } from '@/src/lib/db/subcontracts';
 export type { ProjectRepository } from './contracts/projects';
 export type { CompanyCollectionsRepository, CompanyRepository, ContactRepository } from './contracts/companies';
 export type { TaskRepository } from './contracts/tasks';

@@ -7,6 +7,7 @@ export type {
   ExecutiveDashboard,
   PMDashboardProject,
   WinRate,
+  LossBreakdown,
   SalesPipeline,
   PipelineProject,
   BudgetReviewRow,
