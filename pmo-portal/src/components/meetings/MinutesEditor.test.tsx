@@ -4,7 +4,8 @@ import userEvent from '@testing-library/user-event';
 import React from 'react';
 import i18n from 'i18next';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { notesToText, type NoteBlock } from '@/src/lib/meetingNotes';
+import type { NoteBlock } from '@/src/lib/meetingNotes';
+import { notesToText } from '@/test/meetingNotes';
 
 const { getTask } = vi.hoisted(() => ({ getTask: vi.fn() }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { task: { get: getTask } } }));

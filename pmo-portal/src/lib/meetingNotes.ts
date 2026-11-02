@@ -45,15 +45,6 @@ export function upgradeNotes(notes: Json | unknown, version?: number): NoteBlock
   return notes.map((b) => (isV2Block(b) ? (b as NoteBlock) : lineToParagraph(b)));
 }
 
-/** Top-level text of each block's inline runs (and v1 `text`), one string per block — for tests/previews. */
-export function notesToText(blocks: NoteBlock[]): string[] {
-  return blocks.map((b) => {
-    const c = b.content;
-    if (!Array.isArray(c)) return typeof b.text === 'string' ? b.text : '';
-    return c.map((r) => (isObject(r) && typeof r.text === 'string' ? r.text : '')).join('');
-  });
-}
-
 /** Every non-empty `props.taskId` of an `actionItem` block, document order, nesting included. */
 export function actionItemTaskIds(blocks: NoteBlock[]): string[] {
   const out: string[] = [];

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildTaskRenderOrder, depthByTask, collectDescendants } from './taskTree';
+import { buildTaskRenderOrder, collectDescendants } from './taskTree';
 import type { TaskWithRefs } from '@/src/lib/db/tasks';
 
 /**
@@ -13,7 +13,6 @@ import type { TaskWithRefs } from '@/src/lib/db/tasks';
  * AC-SUB-TREE-004  a subtask whose parent is NOT in the slice (filtered out / other group)
  *                  is an ORPHAN → renders at depth 0 so the user never loses it.
  * AC-SUB-TREE-005  a parent with no subtasks renders alone at depth 0.
- * AC-SUB-TREE-006  depthByTask agrees with buildTaskRenderOrder's depths.
  * AC-SUB-TREE-007  collectDescendants returns ALL descendants (not self), deep chain included.
  * AC-SUB-TREE-008  collectDescendants is cycle-safe (no infinite loop on malformed data).
  * AC-SUB-TREE-009  collectDescendants on an unknown id / leaf returns the empty set.
@@ -77,17 +76,6 @@ describe('OD-INT-9 subtask tree helpers', () => {
     const order = buildTaskRenderOrder(tasks);
     expect(ids(order)).toEqual(['lonely']);
     expect(depths(order)).toEqual([0]);
-  });
-
-  it('AC-SUB-TREE-006: depthByTask agrees with buildTaskRenderOrder', () => {
-    const tasks = [t('gp'), t('p', 'gp'), t('c', 'p'), t('sib')];
-    const depth = depthByTask(tasks);
-    expect(depth.get('gp')).toBe(0);
-    expect(depth.get('p')).toBe(1);
-    expect(depth.get('c')).toBe(2);
-    expect(depth.get('sib')).toBe(0);
-    // unknown id → undefined (callers coerce to 0)
-    expect(depth.get('nope')).toBeUndefined();
   });
 
   it('AC-SUB-TREE-007: collectDescendants returns ALL descendants (not self), deep chain included', () => {

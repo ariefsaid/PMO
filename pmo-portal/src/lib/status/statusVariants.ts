@@ -143,21 +143,9 @@ export function crmActivityVariant(kind: string): StatusVariant {
 //    or the action-blue).
 // ───────────────────────────────────────────────────────────────────────────
 
-/**
- * User role pill — neutral-only. The role label carries identity; no single role is
- * visually elevated as a category accent, and no role borrows workflow/status colours.
- */
-const ROLE_VARIANT: Record<string, StatusVariant> = {
-  Admin: 'neutral',
-  Executive: 'neutral',
-  'Project Manager': 'neutral',
-  Finance: 'neutral',
-  Engineer: 'neutral',
-};
-
-/** User role → categorical StatusPill variant. Unknown roles fall back to `neutral`. */
-export function roleVariant(role: string): StatusVariant {
-  return ROLE_VARIANT[role] ?? 'neutral';
+/** Roles communicate identity and always use the neutral StatusPill variant. */
+export function roleVariant(_role: string): StatusVariant {
+  return 'neutral';
 }
 
 /**
@@ -203,7 +191,6 @@ export const ALL_REGISTRY_VARIANTS: readonly StatusVariant[] = [
   ...new Set<StatusVariant>([
     ...Object.values(WORKFLOW_VARIANT),
     ...Object.values(SEVERITY_VARIANT),
-    ...Object.values(ROLE_VARIANT),
     ...Object.values(BUDGET_VERSION_VARIANT),
     'violet',
     'neutral',
