@@ -35,7 +35,7 @@ import { useRevenueRouteReady } from '@/src/hooks/useOwnershipCacheSync';
  * Figures come from get_project_billing and are derived with the management pack's helpers (DD-PBL-9).
  * ⚑ Nothing ERP-bound or destructive writes on one click; the server is the authority on every rule.
  */
-export interface BillingTabProps {
+interface BillingTabProps {
   projectId: string;
   currency: string;
   /** The project's client — the invoice customer. No client, no billing buttons. */

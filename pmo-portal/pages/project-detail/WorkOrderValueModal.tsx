@@ -78,7 +78,7 @@ const validate = (v: FormValues, t: TFunction): Partial<Record<keyof FormValues,
   return errors;
 };
 
-export interface WorkOrderValueModalProps {
+interface WorkOrderValueModalProps {
   workOrder: WorkOrderRow;
   /** Rendered read-only context: the figure on the row today, already formatted with its basis. */
   currentValueText: string;

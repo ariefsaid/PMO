@@ -12,7 +12,7 @@ import { milli, type ContractLineFacts } from '@/src/lib/progressBilling';
  * on its own — the table API offers no atomic multi-row save, so none is promised: every operation persists
  * alone and the caller refetches the authoritative list. Over-ordering is shown in words, never blocked.
  */
-export interface WorkOrderLinesModalProps {
+interface WorkOrderLinesModalProps {
   workOrder: { id: string; wo_number: string | null; title: string; status: string };
   boqItems: BoqItemRow[];
   /** Server facts per BoQ line — the contract balance not yet ordered. */
