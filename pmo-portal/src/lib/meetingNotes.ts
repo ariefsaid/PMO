@@ -45,22 +45,6 @@ export function upgradeNotes(notes: Json | unknown, version?: number): NoteBlock
   return notes.map((b) => (isV2Block(b) ? (b as NoteBlock) : lineToParagraph(b)));
 }
 
-/** Every non-empty `props.taskId` of an `actionItem` block, document order, nesting included. */
-export function actionItemTaskIds(blocks: NoteBlock[]): string[] {
-  const out: string[] = [];
-  const walk = (list: NoteBlock[]) => {
-    for (const b of list) {
-      if (b.type === 'actionItem') {
-        const id = b.props?.taskId;
-        if (typeof id === 'string' && id) out.push(id);
-      }
-      if (Array.isArray(b.children)) walk(b.children);
-    }
-  };
-  walk(blocks);
-  return out;
-}
-
 /**
  * FR-MTG-022 backstop: the persisted document may hold no embedded binary. The palette excludes
  * media blocks, so this should never fire; it is the save-time guard if a paste path slips past it.

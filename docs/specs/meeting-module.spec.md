@@ -437,8 +437,10 @@ and do not design around the restriction as this spec's first draft did.
 
 | AC | Owning layer | Location |
 |---|---|---|
-| AC-MTG-001/002/008/009 | Unit (Vitest) | serialisation + template-copy of the block schema |
-| AC-MTG-003/005/006/007 | Unit (Vitest/RTL) | the `actionItem` renderer against a mocked task repository |
+| AC-MTG-001/002/009 | Unit (Vitest) | serialisation of the block schema (`minutesSchema.test.ts`) |
+| AC-MTG-003/005/007 | Unit (Vitest/RTL) | the `actionItem` renderer against a mocked task repository |
+| AC-MTG-006 | Unit (Vitest) | `minutesSchema.test.ts` — duplicating a block through the shipped schema yields two references to the same task, no task data copied (FR-MTG-020; #1710 re-home) |
+| AC-MTG-008 | Unit (Vitest/RTL) | `ActionItemView.test.tsx` — an empty `taskId` (a fresh template-copy block) is a tombstone with no lookup and no write; the schema default keeps new blocks reference-free (FR-MTG-021 copy-on-create stays deferred, DD-MTG-9; #1710 re-home) |
 | AC-MTG-004 | **Integration (pgTAP)** | the block delete path must not touch `tasks` — a DB fact, not a render fact |
 | AC-MTG-010/011/012/013/014 | Integration (pgTAP) | the projection trigger + `notes_search` |
 | AC-MTG-015/016/017/018/019/020 (DB half) | Integration (pgTAP) | RLS, the `CHECK`, the org stamp, the FK block |

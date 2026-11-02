@@ -254,7 +254,8 @@ finds no AC-8xx). Each AC names its id as the leading token (traceability) and i
   Given the map+role logic, When a requester cancels at `Requested` Then allowed; When a requester cancels
   at `Ordered` Then denied (only PM/Finance/Exec late); When already `Paid`/`Cancelled` Then no cancel.
   *(FR-PROC-002/009)*
-- **AC-803** *(Unit)* — Reference-number formatter.
+- **AC-803** *(pgTAP)* — Reference-number formatter (the shipped minter `next_procurement_doc_number`,
+  `supabase/tests/procurement_doc_number_format.test.sql`).
   Given prefix `PO`, server date 2026-06-04, sequence 1, When the number is formatted, Then it equals
   `PO-2606040001`; And sequence 42 → `PO-2606040042` (width-4 zero-pad). *(FR-PROC-010)*
 - **AC-804** *(Unit)* — Lifecycle view loading / empty / error+retry states.
@@ -323,7 +324,7 @@ finds no AC-8xx). Each AC names its id as the leading token (traceability) and i
 | FR-PROC-007 (rework `Rejected → Draft`) | AC-800/802 (map) | Unit |
 | FR-PROC-008 (sourcing/PO/receipt roles) | AC-808, AC-816 | pgTAP (E2E end-to-end) |
 | FR-PROC-009 (pay SoD-b + cancel boundary) | AC-810, AC-802 | pgTAP (boundary logic at Unit) |
-| FR-PROC-010 (ref-number format + uniqueness) | AC-803, AC-812 | Unit (format) + pgTAP (uniqueness) |
+| FR-PROC-010 (ref-number format + uniqueness) | AC-803, AC-812 | pgTAP (format + uniqueness) |
 | FR-PROC-011 (mint PR/VQ/PO/GR/VI; immutable) | AC-811, AC-816 | pgTAP (E2E end-to-end) |
 | FR-PROC-012 (procurements/quotation columns) | AC-811 | pgTAP |
 | FR-PROC-013 (`procurement_receipts` table) | AC-813, AC-816 | pgTAP (E2E end-to-end) |
@@ -336,10 +337,10 @@ finds no AC-8xx). Each AC names its id as the leading token (traceability) and i
 | NFR-PROC-SEQ-001 (concurrent ref-number) | AC-812 | pgTAP |
 | NFR-PROC-UI-001 (loading/empty/error states) | AC-804, AC-816 | Unit (E2E end-to-end) |
 
-Per-layer AC split: **Unit** AC-800/801/802/803/804/805/806 (**7**) · **pgTAP** AC-807/808/809/810/811/812/
-813/814/815 (**9**) · **E2E** AC-816 (**1**, curated full procure-to-pay journey). Authorization, SoD,
+Per-layer AC split: **Unit** AC-800/801/802/804/805/806 (**6**) · **pgTAP** AC-803/807/808/809/810/811/812/
+813/814/815 (**10**) · **E2E** AC-816 (**1**, curated full procure-to-pay journey). Authorization, SoD,
 transition atomicity, tenancy, ref-number uniqueness, and the Committed-status contract all sit at
-**pgTAP** (the DB is the real gate); transition-map logic, ref-number formatting, DAL error surfacing, and
+**pgTAP** (the DB is the real gate); transition-map logic, DAL error surfacing, and
 UI states sit at **Unit**; one end-to-end happy path at **E2E**. No AC is pushed up a layer to satisfy a
 convention (ADR-0010); ACs referenced at multiple layers name a single owning layer above.
 
