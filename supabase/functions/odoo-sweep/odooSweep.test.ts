@@ -146,6 +146,16 @@ describe('odooSweep — AC-ODC-025 budget and outcomes', () => {
     for (const kind of ['warehouse', 'location', 'partner']) assert(r.cursors.get(`master:${kind}`), `${kind} got no budget`);
   });
 
+  it('AC-OPP-093 the journal directory is swept with its type, so Finance can pick a bank or cash book', async () => {
+    const r = await sweep({ prepare: (f) => f.seed('account.journal', [{ id: 5, name: 'Bank Utama', code: 'BNK1', type: 'bank', company_id: [1, 'Main Co'] }]) });
+    assert(r.cursors.has('master:journal'), 'the journal kind has a cursor');
+    const rows = rpcCall(r.calls, 'apply_odoo_master_page').flatMap((c) => {
+      const b = c.bodyJson as { p_kind: string; p_rows: Array<{ external_id: string; attrs: { type: string } }> };
+      return b.p_kind === 'journal' ? b.p_rows : [];
+    });
+    assertEquals(rows.map((x) => [x.external_id, x.attrs.type]), [['5', 'bank']]);
+  });
+
   it('AC-ODC-025 a spent time budget makes no Odoo call', async () => {
     const r = await sweep({}, { timeBudgetMs: 0 });
     assertEquals(odoo(r.calls).length, 0);

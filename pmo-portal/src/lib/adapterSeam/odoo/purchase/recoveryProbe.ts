@@ -1,0 +1,58 @@
+/**
+ * "Did Odoo already commit this document?" (AC-OPP-053, FR-OPP-072, primer bucket 2). Pure over an `OdooCall`; every Odoo field
+ * and model name for the anchor lives here and in anchors.ts (NFR-OPP-009).
+ *
+ * Order, transfer and bill anchor on a stock external identifier (`ir.model.data`, module `pmo`); the payment anchors on its
+ * memo, which a clerk can edit. All lookups are EQUALITY on a key `anchorValue` has already validated as a PMO purchase key,
+ * so no LIKE metacharacter can reach a query and one key cannot match another. A payment whose memo was edited falls back to a
+ * composite (vendor, amount, window), excluding any payment that carries another PMO anchor; the result must be unique.
+ * ponytail: the composite has no bill conjunct yet. Odoo's reconciled-bill field is computed and unverified on the bed (V-OPP7);
+ * P6-T6 adds it once pinned. Until then a doubtful match is null, which the payment kind turns into a hold, never a reissue.
+ */
+import { AdapterError } from '../../contract.ts';
+import type { OdooCall } from '../client.ts';
+import { anchorValue, externalIdentifier } from './anchors.ts';
+import type { PurchaseKind } from './nextStep.ts';
+
+const MODEL: Record<PurchaseKind, string> = { order: 'purchase.order', receipt: 'stock.picking', bill: 'account.move', payment: 'account.payment' };
+
+export interface PaymentComposite { partnerId: number; amount: string | number; createdAfter: string }
+export type ProbeHit = { externalRecordId: string } | null;
+
+const ambiguous = () => new AdapterError('commit-rejected', 'ambiguous-anchor');
+
+async function byIdentifier(call: OdooCall, kind: PurchaseKind, key: string): Promise<ProbeHit> {
+  const { module, name } = externalIdentifier(key);
+  const rows = await call<Array<{ res_id: number }>>('ir.model.data', 'search_read', {
+    domain: [['module', '=', module], ['name', '=', name], ['model', '=', MODEL[kind]]], fields: ['res_id'], limit: 2,
+  });
+  if (rows.length > 1) throw ambiguous();
+  return rows.length === 1 ? { externalRecordId: String(rows[0].res_id) } : null;
+}
+
+const OUTBOUND = [['payment_type', '=', 'outbound'], ['partner_type', '=', 'supplier']];
+
+async function byMemo(call: OdooCall, key: string, composite?: PaymentComposite): Promise<ProbeHit> {
+  const anchor = anchorValue(key);
+  const exact = await call<Array<{ id: number }>>('account.payment', 'search_read', {
+    domain: [...OUTBOUND, ['memo', '=', anchor]], fields: ['id'], limit: 2, context: { active_test: false },
+  });
+  if (exact.length > 1) throw ambiguous();
+  if (exact.length === 1) return { externalRecordId: String(exact[0].id) };
+  if (!composite) return null;
+  // 21 rows is more than any honest window holds; the filter below then needs exactly one survivor.
+  const rows = await call<Array<{ id: number; memo: unknown }>>('account.payment', 'search_read', {
+    domain: [...OUTBOUND, ['partner_id', '=', composite.partnerId], ['amount', '=', Number(composite.amount)], ['state', '!=', 'canceled'], ['create_date', '>=', composite.createdAfter]],
+    fields: ['id', 'memo'], limit: 21, context: { active_test: false },
+  });
+  const memo = (r: { memo: unknown }) => (typeof r.memo === 'string' ? r.memo : '');
+  const ours = rows.filter((r) => memo(r).includes(anchor));
+  const survivors = ours.length ? ours : rows.filter((r) => !memo(r).startsWith('pmo:'));
+  return survivors.length === 1 ? { externalRecordId: String(survivors[0].id) } : null;
+}
+
+/** Throws for a key that is not a PMO purchase key (before any call) and for an ambiguous exact anchor. */
+export async function probeOdooByAnchor(call: OdooCall, kind: PurchaseKind, key: string, composite?: PaymentComposite): Promise<ProbeHit> {
+  anchorValue(key);
+  return kind === 'payment' ? byMemo(call, key, composite) : byIdentifier(call, kind, key);
+}
