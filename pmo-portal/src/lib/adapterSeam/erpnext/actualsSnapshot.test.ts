@@ -81,26 +81,7 @@ function makeClient(glRows: Record<string, unknown>[], maxRows = DEFAULT_MAX_ROW
 }
 
 describe('erpnext/actualsSnapshot — refreshActuals (AC-ENA-060)', () => {
-  it('sums mirrored GL rows per (cost_center, account, fiscal_year); net = debit − credit', async () => {
-    const client = makeClient([
-      { org_id: 'org-1', cost_center: 'Main - PSC', account: 'Creditors - PSC', fiscal_year: '2026', debit: 0, credit: 50000, is_cancelled: false },
-      { org_id: 'org-1', cost_center: 'Main - PSC', account: 'Stock Received But Not Billed - PSC', fiscal_year: '2026', debit: 50000, credit: 0, is_cancelled: false },
-      // a second Creditors row in the SAME group → must ADD into the group sum
-      { org_id: 'org-1', cost_center: 'Main - PSC', account: 'Creditors - PSC', fiscal_year: '2026', debit: 0, credit: 25000, is_cancelled: false },
-      // a different fiscal year → its own group
-      { org_id: 'org-1', cost_center: 'Main - PSC', account: 'Creditors - PSC', fiscal_year: '2025', debit: 1000, credit: 0, is_cancelled: false },
-    ]);
-    await refreshActuals(client as unknown as never, 'org-1', {});
-    expect(client.tables).toContain('erp_gl_entry_mirror');
-    expect(client.tables).toContain('erp_actuals_snapshot');
-    expect(client.inserted).toHaveLength(1);
-    const rows = client.inserted[0]!;
-    const byKey = Object.fromEntries(rows.map((r) => [`${r.cost_center}|${r.account}|${r.fiscal_year}`, r]));
-    expect(byKey['Main - PSC|Creditors - PSC|2026']).toMatchObject({ debit: 0, credit: 75000, net: -75000 });
-    expect(byKey['Main - PSC|Stock Received But Not Billed - PSC|2026']).toMatchObject({ debit: 50000, credit: 0, net: 50000 });
-    expect(byKey['Main - PSC|Creditors - PSC|2025']).toMatchObject({ debit: 1000, credit: 0, net: 1000 });
-    expect(rows).toHaveLength(3); // 3 distinct groups
-  });
+  // The per-group sums and net = debit - credit moved to the shared actuals.read suite (contractSuite/actuals.suite.ts).
 
   it('AC-actuals: selects decimal text and parses high precision amounts without a JS-number round trip', async () => {
     const client = makeClient([
@@ -257,7 +238,6 @@ describe('erpnext/actualsSnapshot — refreshActuals (AC-ENA-060)', () => {
  */
 describe('erpnext/actualsSnapshot — NEW-1 project attribution from the GL project dimension', () => {
   const PROJ_A = '11111111-1111-4111-8111-111111111111';
-  const PROJ_B = '22222222-2222-4222-8222-222222222222';
 
   it('reads the GL `project` dimension (it cannot attribute a column it never selects)', async () => {
     const client = makeClient([]);
@@ -265,61 +245,7 @@ describe('erpnext/actualsSnapshot — NEW-1 project attribution from the GL proj
     expect(client.selectedColumns[0]).toContain('project');
   });
 
-  it('stamps the PMO project_id resolved from the binding project_map — NOT a caller-supplied scope', async () => {
-    const client = makeClient([
-      { project: 'PROJ-0001', cost_center: 'Main - PSC', account: '5100 - Direct Costs - PSC', fiscal_year: '2026', debit: 600000, credit: 0 },
-    ]);
-    await refreshActuals(client as unknown as never, 'org-1', { projectMap: { [PROJ_A]: 'PROJ-0001' } });
-    expect(client.inserted[0]).toEqual([
-      expect.objectContaining({ project_id: PROJ_A, account: '5100 - Direct Costs - PSC', fiscal_year: '2026', net: 600000 }),
-    ]);
-  });
-
-  it('sums per PROJECT — two projects on the same account+FY never merge into one bucket', async () => {
-    const client = makeClient([
-      { project: 'PROJ-0001', cost_center: null, account: '5100', fiscal_year: '2026', debit: 100, credit: 0 },
-      { project: 'PROJ-0002', cost_center: null, account: '5100', fiscal_year: '2026', debit: 40, credit: 0 },
-      { project: 'PROJ-0001', cost_center: null, account: '5100', fiscal_year: '2026', debit: 25, credit: 0 },
-    ]);
-    await refreshActuals(client as unknown as never, 'org-1', {
-      projectMap: { [PROJ_A]: 'PROJ-0001', [PROJ_B]: 'PROJ-0002' },
-    });
-    const rows = client.inserted[0]!;
-    const byProject = Object.fromEntries(rows.map((r) => [String(r.project_id), r]));
-    expect(byProject[PROJ_A]).toMatchObject({ net: 125 });
-    expect(byProject[PROJ_B]).toMatchObject({ net: 40 });
-    expect(rows).toHaveLength(2);
-  });
-
-  it('a GL row stating NO project is unattributed (project_id null) — never folded into a mapped project', async () => {
-    const client = makeClient([
-      { project: 'PROJ-0001', cost_center: null, account: '5100', fiscal_year: '2026', debit: 100, credit: 0 },
-      { project: null, cost_center: null, account: '5100', fiscal_year: '2026', debit: 999, credit: 0 },
-    ]);
-    await refreshActuals(client as unknown as never, 'org-1', { projectMap: { [PROJ_A]: 'PROJ-0001' } });
-    const rows = client.inserted[0]!;
-    expect(rows.find((r) => r.project_id === PROJ_A)).toMatchObject({ net: 100 });
-    expect(rows.find((r) => r.project_id === null)).toMatchObject({ net: 999 });
-    expect(rows).toHaveLength(2);
-  });
-
-  it('a GL project this binding does not map is unattributed, never silently attributed to another project', async () => {
-    const client = makeClient([
-      { project: 'PROJ-9999', cost_center: null, account: '5100', fiscal_year: '2026', debit: 500, credit: 0 },
-    ]);
-    await refreshActuals(client as unknown as never, 'org-1', { projectMap: { [PROJ_A]: 'PROJ-0001' } });
-    expect(client.inserted[0]).toEqual([expect.objectContaining({ project_id: null, net: 500 })]);
-  });
-
-  it('an AMBIGUOUS inverse (two PMO projects claim one ERP project) attributes to NEITHER', async () => {
-    const client = makeClient([
-      { project: 'PROJ-0001', cost_center: null, account: '5100', fiscal_year: '2026', debit: 700, credit: 0 },
-    ]);
-    await refreshActuals(client as unknown as never, 'org-1', {
-      projectMap: { [PROJ_A]: 'PROJ-0001', [PROJ_B]: 'PROJ-0001' },
-    });
-    expect(client.inserted[0]).toEqual([expect.objectContaining({ project_id: null, net: 700 })]);
-  });
+  // Project attribution (stamping, per-project sums, unattributed and ambiguous lines) moved to the shared actuals.read suite.
 
   /**
    * ⚑ NEW-1 companion (audit round 4) — the UNDATED fiscal year. `erp_actuals_snapshot.fiscal_year` is

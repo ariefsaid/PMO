@@ -11,7 +11,7 @@ import {
   type ProjectStatus,
 } from '@/src/lib/db/projectTransitions';
 import { workflowVariant } from '@/src/lib/status/statusVariants';
-import { formatPercent as formatLocalizedPercent } from '@/src/lib/format';
+import { formatPercent as formatLocalizedPercent, formatDayMonth } from '@/src/lib/format';
 import { OPEN_BID_STATUSES, STALE_BID_THRESHOLD_DAYS } from '@/src/lib/dashboardConstants';
 
 /**
@@ -222,4 +222,45 @@ export function dealJourneySteps(status: PipelineProject['status']): LifecycleSt
     }),
     { label: 'Won', state: 'upcoming' },
   ];
+}
+
+/** #1638 — key-date label per stage: [i18n key, English default]. Spec §3. */
+export const STAGE_KEY_DATE_LABEL: Record<string, readonly [string, string]> = {
+  'Leads': ['sales:stageDate.lead', 'Lead'],
+  'PQ Submitted': ['sales:stageDate.pq', 'Pre-qual sent'],
+  'Quotation Submitted': ['sales:stageDate.quoted', 'Quoted'],
+  'Tender Submitted': ['sales:stageDate.tender', 'Tender sent'],
+  'Negotiation': ['sales:stageDate.negotiation', 'Negotiation'],
+  'Won, Pending KoM': ['sales:stageDate.signed', 'Signed'],
+  'Loss Tender': ['sales:stageDate.lost', 'Lost'],
+  'Declined': ['sales:stageDate.declined', 'Declined'],
+  'Ongoing Project': ['sales:stageDate.started', 'Started'],
+  'On Hold': ['sales:stageDate.onHold', 'On hold'],
+  'Close Out': ['sales:stageDate.closedOut', 'Closed out'],
+  'Internal Project': ['sales:stageDate.internal', 'Internal'],
+};
+
+/** Whole calendar days from `fromIso` to `toIso` (both 'YYYY-MM-DD'); 0 when from is after to. */
+export function daysBetweenDates(fromIso: string, toIso: string): number {
+  const a = Date.UTC(+fromIso.slice(0, 4), +fromIso.slice(5, 7) - 1, +fromIso.slice(8, 10));
+  const b = Date.UTC(+toIso.slice(0, 4), +toIso.slice(5, 7) - 1, +toIso.slice(8, 10));
+  return Math.max(0, Math.round((b - a) / 86_400_000));
+}
+
+type Translate = (key: string, defaultValue: string) => string;
+
+/**
+ * A 'YYYY-MM-DD' calendar date as "12 Oct". formatDayMonth formats in the BROWSER's timezone, so the Date must be
+ * local midnight — `T00:00:00Z` would print the day before in any browser west of UTC (spec T15).
+ */
+export function formatIsoDayMonth(iso: string): string {
+  return formatDayMonth(new Date(+iso.slice(0, 4), +iso.slice(5, 7) - 1, +iso.slice(8, 10)));
+}
+
+/** The card's one line for the latest stage entry: "Quoted 12 Oct · 20 d" (FR-PSH-013). */
+export function stageLine(status: string, enteredOn: string, todayIso: string, t: Translate): string {
+  const [key, fallback] = STAGE_KEY_DATE_LABEL[status] ?? ['', status];
+  const label = key ? t(key, fallback) : fallback;
+  const day = enteredOn.slice(0, 10);
+  return `${label} ${formatIsoDayMonth(day)} · ${daysBetweenDates(day, todayIso)} ${t('sales:stageDate.daysShort', 'd')}`;
 }

@@ -83,6 +83,7 @@ import { buildImprestPostingCommand, parseImprestGateTruth } from '../../../pmo-
 import { resolveImprestPosting, type ImprestResolveDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/imprestPostingResolve.ts';
 import { imprestTransferKey } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/imprestTransferKey.ts';
 import { IMPREST_TRANSFER_KEY_RE } from '../../../pmo-portal/src/lib/adapterSeam/imprestTransfer.ts';
+import { advanceConnectRuns } from './connectRun.ts';
 import { reconcileOrgImprestPostings, type ImprestBackstopDeps, type ImprestIntentRow } from './imprestPostingBackstop.ts';
 import { feedLedgerMirrors } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/ledgerMirrorFeed.ts';
 import { feedPurchaseMirror, type PurchaseFeedServiceClient } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/purchaseMirrorFeed.ts';
@@ -123,6 +124,7 @@ import { guardedErpFetch, isPermittedErpSiteUrl } from '../_shared/erpHostGuard.
 import { resolveErpAuthPair, createErpAuthPairCache, type ErpAuthPairCache } from '../_shared/erpAuthPair.ts';
 import { canonicalCommandDigest, createDbMoneyOutboxDeps } from '../adapter-dispatch/moneyOutboxDeps.ts';
 import { checkErpnextCommandAuthorization, checkOutboxReplayAuthorization, replayMayIssueErpWrite } from '../adapter-dispatch/authGuard.ts';
+import { assertNotPreCutover } from '../../../pmo-portal/src/lib/adapterSeam/cutoverGate.ts';
 import { checkQueuedProcurementCreate } from '../adapter-dispatch/procurementGateGuard.ts';
 import { getReadModelWriter } from '../adapter-dispatch/readModelWriters.ts';
 import { recordExternalRef as recordExternalRefWrite } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
@@ -196,7 +198,7 @@ import { buildExpensePostingCommand, parseExpenseGateTruth } from '../../../pmo-
 import { resolveExpensePosting, type ExpenseResolveDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/expensePostingResolve.ts';
 import { EXPENSE_POSTING_KEY_PREFIX, expenseOutboxIdentity, expensePostingIdentity, expensePostingKey, type ExpensePosting } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/expensePostingKey.ts';
 import type { ErpAccountFacts } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/expenseAccountRules.ts';
-import { reconcileOrgExpensePostings, type ExpenseBackstopDeps, type ExpenseIntentRow, type ExpenseOutcome } from './expensePostingBackstop.ts';
+import { reconcileOrgExpensePostings, backstopPassResult, type ExpenseBackstopDeps, type ExpenseIntentRow, type ExpenseOutcome } from './expensePostingBackstop.ts';
 // P3b task 6.4 (FR-TSP-045, AC-TSP-022) — the timesheet push's sweep backstop, pure orchestration.
 import {
   reconcileOrgTimesheetPushes,
@@ -537,6 +539,8 @@ export interface ErpSweepCycleDeps {
   reconcileOrgExpensePostings?: (org: OrgBinding) => Promise<{ driven: number; error?: string }>;
   /** #1515 S6 — pass (7b), the originator of site float transfers (same ownership as pass (7)). Optional like its siblings. */
   reconcileOrgImprestPostings?: (org: OrgBinding) => Promise<{ driven: number; error?: string }>;
+  /** ECA2-T13 (#1605) — pass (8): advance the org's open connect run by one bounded step. Optional like its siblings; the live wiring always supplies it. */
+  advanceConnectRun?: (org: OrgBinding) => Promise<{ state?: string; error?: string }>;
   /** 0358: on a money-only tick, whether this org's hourly work is due (its last full run is stale). */
   isFullSweepDue?: (org: OrgBinding) => boolean;
   /** 0358: stamp a completed full run — only after the hourly passes ran, and only by the lock holder. */
@@ -665,6 +669,15 @@ export async function runErpSweepCycle(
         if (r.error) errors.push(`imprest:${r.error}`);
       } catch (err) {
         errors.push(`imprest:${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+    // (8) ECA2-T13 — a person is waiting on the connect screen, so this runs on every tick, money-only included.
+    if (deps.advanceConnectRun) {
+      try {
+        const r = await deps.advanceConnectRun(org);
+        if (r.error) errors.push(`connect:${r.error}`);
+      } catch (err) {
+        errors.push(`connect:${err instanceof Error ? err.message : String(err)}`);
       }
     }
     // (2) doctype modified-poll sweep. (2)–(4) are the hourly inbound/statement work: a money-only
@@ -3037,9 +3050,9 @@ export function expensePostingBackstopDepsLive(
       const outbox = ref as OutboxRow;
       if (!eligibleOutboxIds.has(outbox.id)) {
         // Not due yet: a lease or quarantine window (0131), or a failed row's retry delay (0357).
-        if (outbox.state === 'committing' || outbox.state === 'quarantined' || retryPendingIds.has(outbox.id)) return;
+        if (outbox.state === 'committing' || outbox.state === 'quarantined' || retryPendingIds.has(outbox.id)) return 'waiting';
         await recordOutcome(row, { state: 'held', reason: expenseOutboxHoldReason(outbox.state) });
-        return;
+        return 'held';
       }
       // A replay that may issue a NEW ERP write re-asserts the recorded actor's CURRENT role/rank — the gate's actor
       // half (0270 §5), which the generic replay authorization (active membership only for expenses) does not run.
@@ -3049,7 +3062,7 @@ export function expensePostingBackstopDepsLive(
         if (error) {
           if (error.code === '42501' || error.code === 'P0002') {
             await recordOutcome(row, { state: 'failed', reason: error.message });
-            return;
+            return 'refused';
           }
           throw new AppError(error.message, error.code);
         }
@@ -3059,8 +3072,11 @@ export function expensePostingBackstopDepsLive(
       } catch (err) {
         // A stranded finish (the intent is already pushed) has nothing to record: the pass reports it and retries.
         if (row.push_state === 'pushed') throw err;
-        await recordOutcome(row, classify(err));
+        const outcome = classify(err);
+        await recordOutcome(row, outcome);
+        return outcome.state === 'held' ? 'held' : 'failed';
       }
+      return 'completed';
     },
     assertGate: async (row) => {
       const { data, error } = await serviceClient.rpc('expense_posting_for_push', { p_org_id: org.orgId, p_mirror_id: row.id });
@@ -3111,10 +3127,7 @@ async function reconcileOrgExpensePostingsLive(
     for (const e of result.errors) {
       console.warn(`[erpnext-sweep] org ${org.orgId} expense intent ${e.intentId}: ${e.error}`);
     }
-    return {
-      driven: result.driven + result.replayed + result.finished,
-      error: result.errors.length ? `${result.errors.length} expense intent(s) failed` : undefined,
-    };
+    return backstopPassResult(result, 'expense');
   } catch (err) {
     return { driven: 0, error: err instanceof Error ? err.message : String(err) };
   }
@@ -3218,9 +3231,9 @@ export function imprestPostingBackstopDepsLive(
     replay: async (row, ref) => {
       const outbox = ref as OutboxRow;
       if (!eligibleOutboxIds.has(outbox.id)) {
-        if (outbox.state === 'committing' || outbox.state === 'quarantined' || retryPendingIds.has(outbox.id)) return;
+        if (outbox.state === 'committing' || outbox.state === 'quarantined' || retryPendingIds.has(outbox.id)) return 'waiting';
         await recordOutcome(row, { state: 'held', reason: expenseOutboxHoldReason(outbox.state) });
-        return;
+        return 'held';
       }
       // A replay that may issue a NEW ERP write re-asserts the gate (status, stamp, recorded actor's CURRENT standing).
       if (replayMayIssueErpWrite(outbox.state)) {
@@ -3228,7 +3241,7 @@ export function imprestPostingBackstopDepsLive(
         if (error) {
           if (error.code === '42501' || error.code === 'P0001' || error.code === 'P0002') {
             await recordOutcome(row, { state: 'failed', reason: error.message });
-            return;
+            return 'refused';
           }
           throw new AppError(error.message, error.code);
         }
@@ -3237,8 +3250,11 @@ export function imprestPostingBackstopDepsLive(
         await dispatchMoneyWrite(await buildReconcileDepsLive(serviceClient, org, outbox, cache));
       } catch (err) {
         if (row.push_state === 'pushed') throw err;
-        await recordOutcome(row, classify(err));
+        const outcome = classify(err);
+        await recordOutcome(row, outcome);
+        return outcome.state === 'held' ? 'held' : 'failed';
       }
+      return 'completed';
     },
     assertGate: async (row) => {
       const { data, error } = await serviceClient.rpc('imprest_posting_for_push', { p_org_id: org.orgId, p_mirror_id: row.id });
@@ -3289,10 +3305,7 @@ async function reconcileOrgImprestPostingsLive(
     for (const e of result.errors) {
       console.warn(`[erpnext-sweep] org ${org.orgId} imprest intent ${e.intentId}: ${e.error}`);
     }
-    return {
-      driven: result.driven + result.replayed + result.finished,
-      error: result.errors.length ? `${result.errors.length} imprest intent(s) failed` : undefined,
-    };
+    return backstopPassResult(result, 'imprest');
   } catch (err) {
     return { driven: 0, error: err instanceof Error ? err.message : String(err) };
   }
@@ -3477,6 +3490,7 @@ serveWithErrorReporting('erpnext-sweep', withJobRun('erpnext-sweep', async (req:
       if (data !== true) throw new Error('the sweep lock lapsed before the full run was deferred');
     },
     reconcileOrgImprestPostings: (org) => reconcileOrgImprestPostingsLive(serviceClient, org, erpAuth),
+    advanceConnectRun: (org) => advanceConnectRuns(serviceClient, org),
     isFullSweepDue: (org) => fullSweepDue(org.lastFullSweepAt, handlerEntryMs),
     markFullSweepDone: async (org) => {
       if (!org.statementLockHolder) throw new Error('no sweep lock held');
@@ -3530,6 +3544,10 @@ export async function buildReconcileDepsLive(serviceClient: SupabaseClient, org:
     payload,
   });
   if (!replayAuth.ok) throw new AppError(replayAuth.message, 'commit-rejected');
+  // ECA-4 backstop (FR-ECA-030): dispatch refuses a later step of a purchase ordered before the connection, so no such
+  // row should exist; one that does (queued before this rule) is held here, before credentials, rather than re-driven.
+  // Same states as the authorization above: only a replay that can mint a new ERP document is checked.
+  if (replayMayIssueErpWrite(row.state)) await assertNotPreCutover(serviceClient as never, { domain: row.domain, record: payload });
 
   let trustedReceiptSnapshot = false;
   if (rowExtra.procurement_input_digest != null) {

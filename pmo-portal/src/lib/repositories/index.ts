@@ -17,6 +17,7 @@
  */
 import { companyCollectionsRepository } from './companyCollections';
 import { recordHistoryRepository } from './recordHistory';
+import { projectStageRepository } from './projectStages';
 import { vendorWithholdingSlipsRepository } from './vendorWithholdingSlips';
 import { fxRatesRepository } from './fxRates';
 import { financialStatementsRepository } from './financialStatements';
@@ -90,6 +91,7 @@ export const repositories: Repositories = {
   recordHistory: recordHistoryRepository,
   vendorWithholdingSlips: vendorWithholdingSlipsRepository,
   project: projectRepository,
+  projectStage: projectStageRepository,
   projectMoney: projectMoneyRepository,
   dashboard: dashboardRepository,
   agentRun: agentRunRepository,

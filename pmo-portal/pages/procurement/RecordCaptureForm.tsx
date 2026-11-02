@@ -54,8 +54,8 @@ export type RecordKind =
   | 'vendor_invoice';
 
 const STATUS_OPTIONS: Record<RecordKind, string[]> = {
-  purchase_request: ['Draft', 'Requested', 'Approved', 'Rejected'],
-  rfq: ['Draft', 'Sent', 'Received', 'Closed'],
+  purchase_request: ['Draft', 'Submitted', 'Approved', 'Closed'],
+  rfq: ['Draft', 'Issued', 'Closed'],
   purchase_order: ['Draft', 'Issued', 'Acknowledged', 'Closed'],
   payment: ['Pending', 'Processed', 'Cleared'],
   // GR: default Complete (the field-config below sorts Partial first then Complete,
@@ -127,6 +127,7 @@ function localizedRecordKindLabel(kind: RecordKind, t: TFunction): string {
 function statusOptionLabel(value: string, t: (key: string, fallback: string) => string): string {
   switch (value) {
     case 'Draft': return t('procurementDetail.statusOption.draft', 'Draft');
+    case 'Submitted': return t('procurementDetail.statusOption.submitted', 'Submitted');
     case 'Requested': return t('procurementDetail.statusOption.requested', 'Requested');
     case 'Approved': return t('procurementDetail.statusOption.approved', 'Approved');
     case 'Rejected': return t('procurementDetail.statusOption.rejected', 'Rejected');

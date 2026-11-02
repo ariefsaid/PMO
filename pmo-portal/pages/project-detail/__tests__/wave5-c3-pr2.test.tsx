@@ -20,6 +20,10 @@ import { ToastProvider } from '@/src/components/ui';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import type { Role } from '@/src/auth/AuthContext';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
+vi.mock('@/src/hooks/useProjectStageEntries', () => ({
+  useProjectStageEntries: () => ({ data: [], isLoading: false, error: null }),
+  useStageEntryMutations: () => ({ redate: { mutateAsync: vi.fn() }, addSkipped: { mutateAsync: vi.fn() } }),
+}));
 vi.mock('@/pages/project-detail/ProjectFinancesSection', () => ({ ProjectFinancesSection: () => null }));
 
 vi.mock('@/src/hooks/useProjectVatEditability', () => ({ useProjectVatEditability: () => ({ data: { eligible: true, reason: null, hasInvoices: false }, isPending: false, isFetching: false, isError: false, refetch: vi.fn() }) }));
@@ -363,7 +367,7 @@ describe('SUB-I: opportunity lens figures and notices', () => {
 
   it('SUB-I: a lost deal shows Value, Owner, Decision — never a 0% win probability or a zero weighted value', () => {
     renderLens({ ...pipelineRow, status: 'Loss Tender' } as unknown as ProjectWithRefs);
-    expect(tileLabels()).toEqual(['Value', 'Owner', 'Decision']);
+    expect(tileLabels()).toEqual(['Value', 'Owner', 'Decision', 'Lost reason']);
     expect(screen.queryByText('0%')).not.toBeInTheDocument();
     expect(screen.getByText(/marked lost/i)).toBeInTheDocument();
   });

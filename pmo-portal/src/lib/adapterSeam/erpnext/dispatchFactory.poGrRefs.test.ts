@@ -50,9 +50,9 @@ function multiTableClient(tables: Record<string, TableResponder>): DispatchServi
   } as unknown as DispatchServiceClient;
 }
 
-function erpFetch(poDocItems: Array<{ item_code: string; name: string }>): typeof fetch {
+function erpFetch(poDocItems: Array<{ item_code: string; name: string }>, itemNames: string[] = ['SPIKE-ITEM-1']): typeof fetch {
   return (vi.fn(async (_url: string, init?: RequestInit) => {
-    if (new URL(_url).pathname === '/api/resource/Item') return Response.json({ data: [{ name: 'SPIKE-ITEM-1', item_name: 'Test item', disabled: 0, is_sales_item: 1, is_purchase_item: 1 }] });
+    if (new URL(_url).pathname === '/api/resource/Item') return Response.json({ data: itemNames.map((name) => ({ name, item_name: 'Test item', disabled: 0, is_sales_item: 1, is_purchase_item: 1 })) });
     if (init?.method === 'POST') return new Response(JSON.stringify({ name: 'MAT-PRE-2026-00001' }), { status: 200 });
     if (init?.method === 'PUT') return new Response(JSON.stringify({ name: 'MAT-PRE-2026-00001', docstatus: 1 }), { status: 200 });
     // GET — either the PO doc fetch (ref resolution) or the post-submit re-fetch; both return
@@ -103,6 +103,46 @@ describe('erpnext/dispatchFactory — Slice 5 PO/GR cross-doctype ref resolution
     expect(body.items).toHaveLength(1);
     expect(body.items[0]).toMatchObject({ item_code: 'SPIKE-ITEM-1', qty: 2, rate: 100000 });
     expect(body.items[0].schedule_date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+
+  // PD-ECA-5 / ECA2-T15: an accepted item link writes config.item_map[<line name>] = <ERP item code>.
+  async function purchaseOrderBody(config: Record<string, unknown>, lines: Array<{ name: string; quantity: number; rate: number }>, itemNames: string[]) {
+    const client = multiTableClient({
+      external_org_bindings: { ...ACTIVATED_ROW, config: { ...ACTIVATED_ROW.config, ...config } },
+      procurements: { org_id: 'org-1', vendor_id: 'company-1' },
+      external_refs: [{ external_record_id: 'Supplier:Spike Supplier' }],
+      procurement_items: lines,
+    });
+    const fetchImpl = erpFetch([], itemNames);
+    const command = { domain: 'procurement' as const, operation: 'create' as const, record: { id: 'pmo-po-1', procurementId: 'proc-1', erp_doc_kind: 'purchase-order' } };
+    const adapter = await resolveErpDispatchAdapter({
+      serviceClient: client, orgId: 'org-1', command, fetchImpl, apiKey: 'k', apiSecret: 's',
+      doctypeBodies: (await import('./doctypeBodies.ts')).DOCTYPE_BODIES,
+    });
+    await adapter.commit(command);
+    const calls = (fetchImpl as unknown as { mock: { calls: unknown[][] } }).mock.calls;
+    const post = calls.find(([, init]) => (init as RequestInit)?.method === 'POST');
+    return JSON.parse((post![1] as RequestInit).body as string) as { items: Array<{ item_code: string }> };
+  }
+
+  it('ECA2-T15 a line whose name is in the binding item map goes to the mapped ERP item code', async () => {
+    const body = await purchaseOrderBody({ item_map: { 'Semen 50 kg': 'SMN-50' } }, [{ name: 'Semen 50 kg', quantity: 3, rate: 70000 }], ['SMN-50']);
+    expect(body.items.map((i) => i.item_code)).toEqual(['SMN-50']);
+  });
+
+  it('ECA2-T15 a line absent from the map keeps its own name as the item code', async () => {
+    const body = await purchaseOrderBody({ item_map: { 'Semen 50 kg': 'SMN-50' } }, [{ name: 'Pasir', quantity: 1, rate: 1 }, { name: 'Semen 50 kg', quantity: 1, rate: 1 }], ['Pasir', 'SMN-50']);
+    expect(body.items.map((i) => i.item_code)).toEqual(['Pasir', 'SMN-50']);
+  });
+
+  it('Minor 3 a line named like a JavaScript built-in keeps its own name as the item code', async () => {
+    const body = await purchaseOrderBody({ item_map: { Pasir: 'PSR-1' } }, [{ name: 'toString', quantity: 1, rate: 1 }, { name: 'constructor', quantity: 1, rate: 1 }], ['toString', 'constructor']);
+    expect(body.items.map((i) => i.item_code)).toEqual(['toString', 'constructor']);
+  });
+
+  it('ECA2-T15 no item map at all changes nothing', async () => {
+    const body = await purchaseOrderBody({}, [{ name: 'SPIKE-ITEM-1', quantity: 1, rate: 1 }], ['SPIKE-ITEM-1']);
+    expect(body.items.map((i) => i.item_code)).toEqual(['SPIKE-ITEM-1']);
   });
 
   it('a goods-receipt command additionally resolves the case PO + the PO-item child-row name (never a raw PMO id)', async () => {

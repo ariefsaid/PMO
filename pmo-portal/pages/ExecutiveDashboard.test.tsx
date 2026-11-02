@@ -53,6 +53,7 @@ vi.mock('@/src/hooks/useDashboard', () => ({
   useSalesPipeline: () => pipelineState,
   useFinanceBudgetReview: () => budgetReviewState,
   useWinRate: () => ({ data: { wins_count: 2, losses_count: 1, wins_value: 500, losses_value: 250, win_rate_count: 2 / 3, win_rate_value: 2 / 3 }, isPending: false, isError: false, refetch: vi.fn() }),
+  useLossBreakdown: () => ({ data: undefined, isPending: true, isError: false, refetch: vi.fn() }),
 }));
 vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => procurementsState }));
 vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => projectsState }));

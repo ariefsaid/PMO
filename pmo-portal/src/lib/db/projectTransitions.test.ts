@@ -163,6 +163,20 @@ describe('transitionProject', () => {
     // No org_id in any call
     expect(JSON.stringify(mockRpc.mock.calls)).not.toContain('org_id');
   });
+
+  it('AC-LR-001 / FR-LR-012: transitionProject sends the lost reason and a trimmed note; a blank note is omitted', async () => {
+    makeRpcBuilder({ data: null, error: null });
+    await transitionProject('p1', 'Loss Tender', { lostReason: 'price', lostNote: ' undercut ' });
+    expect(mockRpc).toHaveBeenLastCalledWith('transition_project', {
+      p_id: 'p1',
+      p_to: 'Loss Tender',
+      p_lost_reason: 'price',
+      p_lost_note: 'undercut',
+    });
+    makeRpcBuilder({ data: null, error: null });
+    await transitionProject('p1', 'Declined', { lostReason: 'capacity', lostNote: '  ' });
+    expect(mockRpc.mock.lastCall?.[1]).toEqual({ p_id: 'p1', p_to: 'Declined', p_lost_reason: 'capacity' });
+  });
 });
 
 // ---------------------------------------------------------------------------

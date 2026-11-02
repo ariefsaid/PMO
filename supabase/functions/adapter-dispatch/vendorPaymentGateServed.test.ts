@@ -116,6 +116,7 @@ function routes(unexpected: FetchCall[], caller: string, ceilingOk = true, amoun
     supabaseRpc('domain_owned_by_tier', () => jsonResponse(true)),
     supabaseRpc('org_has_active_erpnext_binding', () => jsonResponse(true)),
     supabaseRpc('actor_authorization_state', () => jsonResponse({ role: 'Finance', active: true })),
+    supabaseRpc('pre_cutover_procurement', () => jsonResponse(false)), // ECA-4: a purchase ordered after the connection
     // FR-PFE-010 (#1319): the org's purchase gates, read before any ERP work — all OFF here (the owner's default).
     supabaseRpc('procurement_gate_violation', () => jsonResponse(world.gateViolation ?? null)),
     // #1319 slice G review (C1): the database's one payment rule — allowed (null) unless the world says otherwise.

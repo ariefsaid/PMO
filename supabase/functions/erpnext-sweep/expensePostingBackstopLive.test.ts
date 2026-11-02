@@ -267,3 +267,30 @@ Deno.test('AC-EXP-121 a fresh posting whose recorded actor is no longer active i
   assertEquals((update?.payload as Record<string, unknown>).push_state, 'failed');
   assertEquals(String((update?.payload as Record<string, unknown>).push_error).includes('not an active member'), true);
 });
+
+Deno.test('AC-EXP-121 replay dispositions: not-due waiting, parked held, refused actor, failed dispatch, completed', async () => {
+  const noticeResp = (c: { table: string; op: string }) =>
+    (c.table === 'profiles' ? { data: [{ id: 'admin-1' }], error: null } : { data: c.op === 'select' ? [] : null, error: null });
+  // not due (committing / retry delay) -> waiting, nothing written
+  const f1 = fakeClient();
+  assertEquals(await deps(f1.client).replay(intent(), { id: 'ob-1', state: 'committing' } as never), 'waiting');
+  const retrying = expensePostingBackstopDepsLive(f1.client as never, ORG_BINDING, [], undefined, new Set(['ob-2']));
+  assertEquals(await retrying.replay(intent({ push_state: 'failed' }), { id: 'ob-2', state: 'failed' } as never), 'waiting');
+  // not offered by 0131 and not in a wait window -> held
+  const f2 = fakeClient({ respond: noticeResp });
+  assertEquals(await deps(f2.client).replay(intent(), { id: 'ob-3', state: 'confirmed' } as never), 'held');
+  // actor re-check refusal -> refused
+  const f3 = fakeClient({
+    rpc: () => ({ data: null, error: { code: '42501', message: 'expense-posting-actor-not-authorized' } }),
+    respond: noticeResp,
+  });
+  assertEquals(await deps(f3.client, ['ob-4']).replay(intent(), { id: 'ob-4', state: 'failed' } as never), 'refused');
+});
+
+Deno.test('AC-EXP-121 a replay whose dispatch throws on a pending intent is recorded and reported failed', async () => {
+  const f = fakeClient({ respond: (c) => (c.table === 'profiles' ? { data: [{ id: 'admin-1' }], error: null } : { data: c.op === 'select' ? [] : null, error: null }) });
+  const disposition = await deps(f.client, [outboxRow('ob-1', 'committed')]).replay(intent(), outboxRow('ob-1', 'committed') as never);
+  assertEquals(disposition, 'failed');
+  const update = f.calls.find((c) => c.table === 'expense_posting_erp_mirror' && c.op === 'update');
+  assertEquals((update?.payload as Record<string, unknown>).push_state, 'failed');
+});

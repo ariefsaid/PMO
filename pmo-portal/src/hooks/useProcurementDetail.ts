@@ -29,13 +29,12 @@ import {
   type CaptureSubcontractVendorInvoiceInput,
 } from '@/src/lib/db/subcontracts';
 import { subcontractKeys } from '@/src/hooks/useSubcontract';
+import { procurementDetailKey, cachedProcurementProjectId, invalidateProcurementCase } from '@/src/hooks/procurementQueryKeys';
 
 // ---------------------------------------------------------------------------
 // Query key factory — org-scoped (mirrors useBudget pattern, AC-816)
 // ---------------------------------------------------------------------------
 
-const procurementDetailKey = (orgId: string | undefined, id: string | undefined) =>
-  ['procurement', orgId, id] as const;
 
 // ---------------------------------------------------------------------------
 // Read hook (C1)
@@ -79,7 +78,7 @@ export function useProcurementMutations(id: string) {
   const realRole = useOptionalRealRole();
 
   const invalidateDetail = () => {
-    queryClient.invalidateQueries({ queryKey: procurementDetailKey(orgId, id) });
+    invalidateProcurementCase(queryClient, orgId, id, [cachedProcurementProjectId(queryClient, orgId, id)]);
     queryClient.invalidateQueries({ queryKey: ['procurement-item-eligibility', orgId, id] });
   };
 
@@ -87,7 +86,11 @@ export function useProcurementMutations(id: string) {
   // the ones that actually route external per FR-ENA-131). Single (not per-id) because only one
   // capture affordance is open at a time on the detail page. Stays idle for PMO-owned orgs.
   const [pendingPush, setPendingPush] = useState<PendingPushState>(IDLE_PENDING_PUSH);
-  const isExternal = () => routeDomainWrite('procurement') === 'external';
+  // FR-ECA-030: a purchase ordered before the ERP connection is recorded in PMO (the repository routes it there), so it has
+  // no push state to show. The flag rides the loaded detail.
+  const isPreCutover = () =>
+    queryClient.getQueriesData<ProcurementDetail>({ queryKey: procurementDetailKey(orgId, id) }).some(([, d]) => d?.pre_cutover === true);
+  const isExternal = () => routeDomainWrite('procurement') === 'external' && !isPreCutover();
 
   // Error type is ProcurementError so consumers can read `.code` (P0001 /
   // 42501) type-safely and classify the toast (no code-dropping).

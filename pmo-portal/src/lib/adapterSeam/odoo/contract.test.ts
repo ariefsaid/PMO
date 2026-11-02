@@ -25,5 +25,12 @@ describe('odoo contract', () => {
     expect(() => harness.resolveProjectLink({}, 'x')).toThrow(/pending/);
     await expect(harness.pushBudget({ account: 'a', fiscalYear: '2026', occupant: 'none' })).rejects.toThrow(/pending/);
     await expect(harness.pushPurchase('activated')).rejects.toThrow(/pending/);
+    await expect(harness.pushTimesheet({ employeeLink: 'confirmed', entries: [], activityType: 'configured' })).rejects.toThrow(/pending/);
+    await expect(harness.pushProcurement({ doc: 'purchase-order', caller: 'A' })).rejects.toThrow(/pending/);
+    await expect(harness.pushRevenue({ doc: 'sales-invoice', caller: 'A' })).rejects.toThrow(/pending/);
+    await expect(harness.pushBudgetVersion({ categories: [], mappedCategories: [], project: 'own' })).rejects.toThrow(/pending/);
+    await expect(harness.readActuals({ ledger: [], projectLinks: {} })).rejects.toThrow(/pending/);
+    expect(() => harness.classifyPayment('received')).toThrow(/pending/);
+    await expect(harness.mirrorPurchases([])).rejects.toThrow(/pending/);
   });
 });

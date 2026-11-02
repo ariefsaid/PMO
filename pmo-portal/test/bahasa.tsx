@@ -26,18 +26,20 @@ const EN_ASSISTANT_PANEL = JSON.parse(readFileSync(join(process.cwd(), 'public/l
 const ID_ASSISTANT_PANEL = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/id/assistantPanel.json'), 'utf8'));
 const EN_PROJECT = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/en/project.json'), 'utf8'));
 const ID_PROJECT = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/id/project.json'), 'utf8'));
+const EN_LOST_REASON = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/en/lostReason.json'), 'utf8'));
+const ID_LOST_REASON = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/id/lostReason.json'), 'utf8'));
 
 function makeBahasaI18n(locale: 'en' | 'id') {
   const i18n = i18next.createInstance();
   void i18n.init({
     lng: locale,
     fallbackLng: 'en',
-    ns: ['common', 'dashboard', 'finance', 'procurement', 'recordFolders', 'assistantPanel', 'project'],
+    ns: ['common', 'dashboard', 'finance', 'procurement', 'recordFolders', 'assistantPanel', 'project', 'lostReason'],
     defaultNS: 'common',
     fallbackNS: 'common',
     resources: {
-      id: { common: ID, dashboard: ID_DASHBOARD, finance: ID_FINANCE, financeHub: ID_FINANCE_HUB, procurement: ID_PROCUREMENT, recordFolders: ID_RECORD_FOLDERS, assistantPanel: ID_ASSISTANT_PANEL, project: ID_PROJECT },
-      en: { common: EN, dashboard: EN_DASHBOARD, finance: EN_FINANCE, financeHub: EN_FINANCE_HUB, procurement: EN_PROCUREMENT, recordFolders: EN_RECORD_FOLDERS, assistantPanel: EN_ASSISTANT_PANEL, project: EN_PROJECT },
+      id: { common: ID, dashboard: ID_DASHBOARD, finance: ID_FINANCE, financeHub: ID_FINANCE_HUB, procurement: ID_PROCUREMENT, recordFolders: ID_RECORD_FOLDERS, assistantPanel: ID_ASSISTANT_PANEL, project: ID_PROJECT, lostReason: ID_LOST_REASON },
+      en: { common: EN, dashboard: EN_DASHBOARD, finance: EN_FINANCE, financeHub: EN_FINANCE_HUB, procurement: EN_PROCUREMENT, recordFolders: EN_RECORD_FOLDERS, assistantPanel: EN_ASSISTANT_PANEL, project: EN_PROJECT, lostReason: EN_LOST_REASON },
     },
     initImmediate: false,
     interpolation: { escapeValue: false },

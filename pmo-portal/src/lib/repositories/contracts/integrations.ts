@@ -145,6 +145,41 @@ export interface ErpProjectOption { name: string; project_name: string; company:
 
 export interface ErpProjectLink { ok: true; erpProject: string }
 
+export type ConnectTier = 'erpnext' | 'odoo';
+export type ConnectKind = 'party' | 'item' | 'project' | 'employee' | 'account';
+export type ConnectDomain = 'budget' | 'purchase' | 'invoice' | 'receipt' | 'payment' | 'timesheet';
+/** One census row (FR-ECA-001/002). `erp_count`/`scenario` null = this ERP cannot count the domain yet: shown as "not checked", never 0. */
+export interface ConnectCensusRow {
+  kind: ConnectKind | ConnectDomain;
+  pmo_count: number;
+  erp_count: number | null;
+  linked_count: number;
+  inactive_erp_count: number;
+  scenario: 'none' | 'S-A' | 'S-C' | 'S-D' | null;
+  accepted_at: string | null;
+}
+export interface ConnectProposal {
+  id: string;
+  kind: ConnectKind;
+  outcome: 'link' | 'bring-in' | 'send' | 'review';
+  pmo_ids: string[];
+  external_ids: string[];
+  reason_text: string | null;
+  snapshot: { name?: string; code?: string };
+  state: 'open' | 'sending' | 'applied' | 'dismissed';
+}
+export interface ConnectStatus {
+  /** The latest run for the tier. `ready` with `finished_at` null means the proposals are in and sends are still waiting. */
+  run: { id: string; state: 'staging' | 'proposing' | 'ready' | 'failed'; finished_at: string | null; error_class: string | null } | null;
+  census: ConnectCensusRow[];
+  /** Sends queued for the ERP and not yet confirmed (shown as "waiting for send", never as done). */
+  waitingForSend: number;
+}
+export type ConnectCounts = Record<string, { link: number; bring_in: number; send: number; left_open: number }>;
+/** `remaining` > 0 after the repository stopped means a request applied nothing more: the rest need a person. */
+export interface ConnectAcceptResult { counts: ConnectCounts; remaining: number }
+export type ConnectReviewChoice = { action: 'dismiss' } | { action: 'link'; pmoId: string; externalId: string };
+
 export interface IntegrationsRepository {
   getErpSetup(): Promise<ErpSetupReadiness>;
   saveErpDefaults(input: { activityType: string; receivableAccount: string }): Promise<{ ok: true }>;
@@ -181,6 +216,15 @@ export interface IntegrationsRepository {
   listItems(purpose: 'sales' | 'purchase'): Promise<Array<{ code: string; name: string }>>;
   /** #520: the ERP company's enabled Purchase Taxes and Charges Templates (flipped-org vendor-invoice picker). */
   listPurchaseTaxTemplates(): Promise<Array<{ name: string }>>;
+  /** ECA-2: count both sides and start the one-pass setup run (Admin). */
+  startConnectCensus(tier: ConnectTier): Promise<{ runId: string; census: Array<{ kind: string; pmoCount: number; erpCount: number | null; scenario: string | null }> }>;
+  getConnectStatus(tier: ConnectTier): Promise<ConnectStatus>;
+  /** One page of proposals (200) after `afterId`; `nextAfterId` is null on the last page. */
+  listConnectProposals(tier: ConnectTier, kind: ConnectKind | null, outcome: ConnectProposal['outcome'] | null, afterId: string | null, state?: ConnectProposal['state']): Promise<{ proposals: ConnectProposal[]; nextAfterId: string | null }>;
+  /** Accept every open row of a kind (or all kinds, or the given ids); loops over bounded requests until none are left or one applies nothing. */
+  acceptConnectProposals(tier: ConnectTier, kind: ConnectKind | null, ids: string[] | null): Promise<ConnectAcceptResult>;
+  decideConnectReview(tier: ConnectTier, id: string, choice: ConnectReviewChoice): Promise<void>;
+  unlinkConnectMatch(tier: ConnectTier, id: string): Promise<void>;
   /** Set ERPNext company on org binding (calls external-set-company edge fn). */
   setCompany(orgId: string, tier: ExternalTier, companyId: string): Promise<{ ok: true; companyId: string }>;
 }

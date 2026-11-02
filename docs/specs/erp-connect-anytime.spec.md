@@ -41,7 +41,8 @@ same way for every ERP, with one setup pass.
 ## 2. Terms
 
 - **Connect** — the admin activates an ERP binding (`external_org_bindings.activated_at`). **Cut-over** is that
-  instant: the epoch the shipped code already reads (`erpnext-crossing.spec.md` notes; `pmo_epoch_at` is not built).
+  instant: the epoch the shipped code already reads (`erpnext-crossing.spec.md` notes; `pmo_epoch_at` is not built). For a
+  process domain that is employed after connecting, its cut-over is the later of activation and the employ time.
 - **Census** — a read-only count of each master kind and each money domain on both sides, taken at connect and on
   demand. It decides the scenario **per kind**, not per org: one org can be S-C for items and S-D for clients.
 - **Match proposal** — for one master kind, every row on either side sorted into exactly one outcome:
@@ -69,7 +70,7 @@ only requirement is that a later connect behaves as S-C or S-D, so it has no col
 | **Sales invoices / receipts** | Revenue flip brings in every ERP invoice and receipt, all dates (`erpnextFeedDeps.ts:465-530`; poll filters are company/type only, `erpnext-sweep/index.ts:362-381`). Works (ERP is SoT). | Employing revenue is refused while PMO draft invoices are open; unpaid PMO invoices are stamped with the amount to carry as one opening entry (`0275_native_revenue.sql:820-847`). Works. | Nothing detects that a PMO invoice and a brought-in ERP invoice are the same sale. **Breaks:** if the accountant loads past invoices individually (not as the one opening entry the ADR-0055 addendum expects), Finance sees revenue and receivables **counted twice** on the project and in the management pack. **G-5** |
 | **Payments (vendor)** | Mirrored read-only; link per #1319. Works. | Same in-flight rule as purchases. **G-4** | As S-A. |
 | **Timesheets / employees** | ERP timesheets never brought in (Posture B). Employees brought in as `unlinked`; each must be confirmed by an Admin one at a time (`erpnextFeedDeps.ts:416`, `confirm_erp_employee_link`). **G-2** | Weeks approved before cut-over never sent (`erpnext-sweep/index.ts:2711-2744`). Correct. Empty ERP has no employees, so no week can push until someone keys them. **G-3** | As S-A; employee pairing per person. **G-2** |
-| **Expense postings** | Enabling `expenses` is the cut-off; nothing before it posts (DD-EXP-12..22). Works. | As S-A. | As S-A. |
+| **Expense postings** | Enabling `expenses` is the cut-off for posting a claim's approval (DD-EXP-12..22). A claim approved before it and paid after posts its payment and settlement with no approval entry; the operator carries the approval in the opening balance (FR-EXP-110, Q8). Labelled "recorded before the ERP connection" (FR-ECA-030). Works. | As S-A. | As S-A. |
 | **Tasks** | Not an ERP domain (PMO, or ClickUp when employed — ADR-0055 §7). No ERP behaviour exists or is needed. | n/a | n/a |
 | **Stock** | Not built for ERPNext. Inventory spec FR-STK-073 defers the crossing to #1508. | — | — |
 
@@ -129,12 +130,19 @@ there is no workflow registry and no test suite that a second ERP adapter must p
 
 ### 4.4 Cut-over for records in flight
 
-- **FR-ECA-030** — While a process domain is employed, a PMO purchase, vendor payment or expense claim whose first
-  ERP-bound step happened before cut-over SHALL NOT push any later step (OQ-ECA-1) and SHALL show "recorded before
-  the ERP connection, not sent" wherever its push state would show.
+- **FR-ECA-030** — While a process domain is employed:
+  - a PMO purchase whose first document PMO made itself (order, receipt or bill) predates cut-over SHALL NOT push any
+    later step (OQ-ECA-1); the step is recorded in PMO and the purchase SHALL show "recorded before the ERP
+    connection, not sent" wherever its push state would show. A row the ERP holds never counts as a PMO-made document,
+    stays read-only, and a bill the ERP holds is paid in the ERP.
+  - an expense claim approved before cut-over and paid after it posts its payment and settlement without an approval
+    entry (FR-EXP-110, Q8): the operator carries the approval in the opening balance. No posting changes. Such a claim
+    SHALL show "recorded before the ERP connection" (id: "dicatat sebelum terhubung ke ERP").
 - **FR-ECA-031** — Employing a process domain SHALL be refused while PMO holds drafts of that domain that would be
-  stranded, generalising the shipped revenue guard (`0275` §7) to procurement and expenses, and to inventory when
-  #1508 lands (FR-STK-073). The refusal SHALL name the count and the action.
+  stranded: the shipped revenue guard (`0275` §7), and inventory when #1508 lands (FR-STK-073). It does not apply to
+  procurement or expenses (ruling 2026-11-02): their drafts push normally after employing, because the first ERP step
+  of a draft purchase (the order) and of a draft claim (the approval) happens after the employ, so nothing is stranded.
+  The refusal SHALL name the count and the action.
 - **FR-ECA-032** — Records before cut-over SHALL remain readable and SHALL keep counting in PMO figures where they
   counted before; the ERP's own history SHALL be read-only in PMO for Posture-B domains (shipped) and brought in for
   Posture-A domains (shipped).
@@ -306,8 +314,8 @@ Layers: **U** Vitest · **D** Deno edge-function test (shipped handler, `fetch` 
 - **AC-ECA-020 (FR-030; S, cutover.suite)** — Given a PMO purchase ordered before cut-over, when its goods are
   received after cut-over, then no ERP document is created and the purchase shows "recorded before the ERP
   connection, not sent".
-- **AC-ECA-021 (FR-031; P)** — Given an open PMO purchase draft, when an Admin employs procurement, then the employ is
-  refused with the count; after the draft is submitted or cancelled, the employ succeeds. Same for expenses.
+- **AC-ECA-021 (FR-031; P)** — Given an open PMO purchase draft, when an Admin employs procurement, then the employ
+  succeeds and the draft pushes normally when its order is placed. (Revenue's refusal stays: `0275_native_revenue_crossing`.)
 - **AC-ECA-022 (FR-032; existing)** — Pre-cut-over timesheets not sent: owned by `AC-XING-001`; ERP history never
   adopted: `AC-XING-003`. Not re-tested.
 
@@ -356,7 +364,7 @@ Layers: **U** Vitest · **D** Deno edge-function test (shipped handler, `fetch` 
 | **ECA-1** Fix party bring-in at connect | onboarding match branch updates instead of inserting; per-party outcomes (one review row does not abort the run); sweep bring-in runs the match before inserting | 005, 006 | ERPNext now | Orca worker; `security-auditor` (service-role writers) | #1600 |
 | **ECA-2** Shared matcher, census and one-pass setup | `connect/match.ts`, `census.ts`; one setup screen per kind with accept-all; parties, projects, items, employees, category→account move onto it; project "link" stops creating on no-match (send is explicit) | 001–004, 007 | ERPNext now; Odoo O1 reuses | Orca UI worker (impeccable, taste, ui-ux-pro-max) after a 30-second owner sketch glance | #1605 |
 | **ECA-3** Send PMO masters to the ERP | `ConnectAdapter.sendMaster` for ERPNext; outbox with `seed:` keys; lookup-before-create; account setup task | 010–012 | ERPNext now; Odoo O1 (partners, cost accounts), O7 (employees) | Director-dispatched (outbox) | #1606 |
-| **ECA-4** Cut-over for records in flight | later steps of pre-cut-over purchases, payments and claims not sent and labelled; employ guards for procurement and expenses | 020, 021 | ERPNext now; Odoo O2, O6; inventory #1508 | Director-dispatched (money) | #1601 |
+| **ECA-4** Cut-over for records in flight | later steps of pre-cut-over purchases and payments not sent and labelled; claims approved before cut-over labelled | 020, 021 | ERPNext now; Odoo O2, O6; inventory #1508 | Director-dispatched (money) | #1601 |
 | **ECA-5** Pair PMO and ERP invoices | pair proposal, bulk accept, count-once in revenue figures | 030 | ERPNext now; Odoo O3 | Director-dispatched (money) | #1602 |
 | **ECA-6** Existing ERP budget | *use as draft* / *replace* actions on the refused push | 031 | ERPNext now; Odoo O4 decides | Director-dispatched (money) | #1603 |
 | **ECA-7** Workflow registry and shared contract suite | `workflows.ts`, `contractSuite/*`, ERPNext harness; move existing behaviour tests for party, project, budget-occupant and cut-over into suites; parity and tier-branch guards | 040–043 | ERPNext now; **every Odoo slice from O1 registers and runs it** | Orca worker | #1604 |

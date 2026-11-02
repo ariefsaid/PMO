@@ -86,8 +86,9 @@
   asset whose entries mix hours and days shall be refused for `units` (one unit per asset per setting).
 - FR-EQU-033 Only Admin and Finance shall save or end a setting (security-definer RPCs, as FR-CAT-040).
 - FR-EQU-034 The system shall refuse `actual_cost` for an asset whose match would overlap a cost attribution
-  rule of equal or greater specificity over the same window, and shall refuse a second current setting for an
-  asset over overlapping dates. At read time one line goes to exactly one winner (no double count; FR-CAT-031).
+  rule of equal or greater specificity over the same window, and shall refuse a cost attribution rule that would
+  overlap an `actual_cost` setting of equal or lesser specificity (the same set, whichever is saved first), and
+  shall refuse a second current setting for an asset over overlapping dates. At read time one line goes to exactly one winner (no double count; FR-CAT-031).
 
 **AC-5 Allocation (the acceptance)**
 - FR-EQU-040 For `hire_rate`: allocated amount per (asset, period, project) = approved work units × work rate
@@ -102,7 +103,9 @@
 - FR-EQU-043 When the asset has no costing setting, or `basis = none`, the system shall show usage totals per
   project and shall show no amount. This is a valid state, not an error.
 - FR-EQU-044 Every allocated amount shall expose its inputs: units, rate or pool, share, driver, setting
-  version, and the contributing entry count, so a user can recompute it by hand.
+  version, and the contributing entry count, so a user can recompute it by hand. A Project Manager reads their
+  share and the non-Employee-party amounts, but not the pool, its line count, the driver total or any
+  Employee-party amount (DD-EQU-1).
 - FR-EQU-045 A rate or setting change shall apply from its `effective_from`; earlier periods keep the version
   that was current on their dates (no silent restatement).
 
@@ -123,6 +126,8 @@
   approver ≠ author rule applies to all of them.
 - FR-EQU-062 Usage and allocations shall be readable by Admin, Finance, Executive and Project Manager; an
   Engineer reads their own entries and each asset's usage totals but no amounts. Other orgs read nothing.
+  The ledger-grain fields of an `actual_cost` allocation (pool, line count, driver total, Employee-party
+  amounts) are for Admin, Finance and Executive only, as the ledger itself is (DD-EQU-1).
 - FR-EQU-063 Clients have no direct INSERT/UPDATE/DELETE on settings or allocations; entries are written through
   RPCs or column-pinned own-row policies, with `org_id` stamped by default/trigger, never sent.
 - FR-EQU-064 Entries are soft-archived (`archived_at`), never hard-deleted, except by Admin (ADR-0018/0019).

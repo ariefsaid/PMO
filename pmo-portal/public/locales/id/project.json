@@ -1,6 +1,14 @@
 {
-  "workOrderEligibility": {"checking": "Memeriksa kelayakan penerbitan…", "unavailable": "Kelayakan penerbitan tidak dapat diperiksa. Muat ulang halaman ini dan coba lagi."},
-  "winEligibility": {"checking": "Memeriksa kelayakan memenangkan proyek…", "unavailable": "Kelayakan memenangkan proyek tidak tersedia. Muat ulang halaman ini dan coba lagi.", "reviewer": "Minta atasan atau peninjau yang lebih senior untuk memastikan nilai sebelum memenangkan proyek ini.", "inactive": "Minta atasan yang aktif atau peninjau yang lebih senior untuk memastikan nilai."},
+  "workOrderEligibility": {
+    "checking": "Memeriksa kelayakan penerbitan…",
+    "unavailable": "Kelayakan penerbitan tidak dapat diperiksa. Muat ulang halaman ini dan coba lagi."
+  },
+  "winEligibility": {
+    "checking": "Memeriksa kelayakan memenangkan proyek…",
+    "unavailable": "Kelayakan memenangkan proyek tidak tersedia. Muat ulang halaman ini dan coba lagi.",
+    "reviewer": "Minta atasan atau peninjau yang lebih senior untuk memastikan nilai sebelum memenangkan proyek ini.",
+    "inactive": "Minta atasan yang aktif atau peninjau yang lebih senior untuk memastikan nilai."
+  },
   "finishSpendingSetup": "Selesaikan penyiapan pengeluaran",
   "spendingAdminHandoff": "Minta administrator menyelesaikan penyiapan pengeluaran.",
   "spendingSetupPrompt": "Pengeluaran tercatat akan muncul setelah penyiapan akun selesai.",
@@ -871,7 +879,31 @@
       "empty": "Belum ada baris kontrak atau pesanan pelanggan.",
       "noOrders": "Belum ada pesanan pelanggan."
     },
-    "loadingTitle": "Memuat proyek"
+    "loadingTitle": "Memuat proyek",
+    "stageHistory": {
+      "heading": "Riwayat tahap",
+      "listLabel": "Riwayat tahap",
+      "date": "Tanggal tahap",
+      "outOfRange": "Pilih tanggal antara {{min}} dan {{max}}",
+      "system": "Sistem",
+      "redated": "Tanggal diubah",
+      "added": "Ditambahkan kemudian",
+      "changeDate": "Ubah tanggal",
+      "addSkipped": "Tambah tahap terlewat",
+      "save": "Simpan tanggal",
+      "salesHistory": "Riwayat penjualan",
+      "loadError": "Riwayat tahap gagal dimuat",
+      "stage": "Tahap",
+      "notAfter": "Pilih tanggal paling lambat {{max}}",
+      "currentDate": "Saat ini {{date}}",
+      "source": {
+        "origination": "Pembuatan",
+        "transition": "Transisi pipeline",
+        "added": "Ditambahkan kemudian",
+        "import": "Impor",
+        "backfill": "Pengisian awal"
+      }
+    }
   },
   "common": {
     "retry": "Coba lagi",

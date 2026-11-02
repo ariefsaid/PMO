@@ -965,7 +965,7 @@ export async function assertResponsiveRailAndDrawer(page: Page, email = 'exec@ac
   await page.route('**/rest/v1/profiles?*', async (route) => {
     const url = route.request().url();
     if (route.request().method() !== 'GET' || !/[?&]id=eq\./.test(url)) return route.fallback();
-    const response = await route.fetch();
+    const response = await route.fetch({ maxRetries: 2 });
     const body: unknown = await response.json();
     if (body && !Array.isArray(body) && typeof body === 'object' && 'locale' in body) {
       return route.fulfill({ response, json: { ...body, locale: 'en', number_locale: 'en-US' } });

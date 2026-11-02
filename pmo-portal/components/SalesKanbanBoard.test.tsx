@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
@@ -241,5 +241,30 @@ describe('OD-TAX-1 §2: a pipeline deal card states its own tax basis (#578)', (
   it('AC-TAX-310: renders NOTHING for a deal whose basis is unknown — a guess would be a claim the row does not make', () => {
     render(<SalesKanbanBoard projects={projects} onOpen={vi.fn()} />);
     expect(within(cardFor('Unpriced Deal')).queryByTestId('tax-basis')).toBeNull();
+  });
+});
+
+describe('SalesKanbanBoard stage line + Signed pill (#1638)', () => {
+  beforeEach(() => { vi.useFakeTimers({ now: new Date('2026-11-01T05:00:00Z'), toFake: ['Date'] }); });
+  afterEach(() => { vi.useRealTimers(); });
+
+  it('AC-PSH-011: an open deal card shows one stage line for its latest entry', () => {
+    render(<SalesKanbanBoard projects={[{ ...projects[0], id: 'd1', stage_started_at: '2026-10-12T00:00:00+00:00' }]} onOpen={vi.fn()} />);
+    const lines = screen.getAllByTestId('stage-line-d1');
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toHaveTextContent('Quoted 12 Oct · 20 d');
+  });
+  it('AC-PSH-011: a lost deal dates its line from the decision', () => {
+    render(<SalesKanbanBoard projects={[{ ...projects[3], id: 'l9', decided_at: '2026-10-04T02:00:00+00:00' }]} onOpen={vi.fn()} />);
+    expect(screen.getByTestId('stage-line-l9')).toHaveTextContent('Lost 04 Oct · 28 d');
+  });
+  it('AC-PSH-012: a won deal shows a Signed pill with its contract date and no stage line', () => {
+    render(<SalesKanbanBoard projects={[{ ...projects[2], id: 'w1', contract_date: '2026-09-03', stage_started_at: '2026-09-03T00:00:00+00:00' }]} onOpen={vi.fn()} />);
+    expect(screen.getByTestId('signed-pill-w1')).toHaveTextContent('Signed 03 Sep');
+    expect(screen.queryByTestId('stage-line-w1')).toBeNull();
+  });
+  it('AC-PSH-012: a won deal without a contract date shows "Signed" alone', () => {
+    render(<SalesKanbanBoard projects={[{ ...projects[2], id: 'w2', status: 'Ongoing Project', contract_date: null }]} onOpen={vi.fn()} />);
+    expect(screen.getByTestId('signed-pill-w2')).toHaveTextContent(/^Signed$/);
   });
 });

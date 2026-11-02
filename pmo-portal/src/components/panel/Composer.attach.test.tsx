@@ -170,3 +170,13 @@ describe('Composer attachment affordance', () => {
     );
   });
 });
+
+describe('Composer send while an upload is in flight (T-10)', () => {
+  it('disables Send and ignores Enter while uploading', async () => {
+    const user = userEvent.setup();
+    const props = renderComposer({ value: 'with the file', uploading: true });
+    expect(screen.getByRole('button', { name: 'Send message' })).toBeDisabled();
+    await user.type(screen.getByRole('textbox', { name: 'Ask a question' }), '{Enter}');
+    expect(props.onSend).not.toHaveBeenCalled();
+  });
+});
