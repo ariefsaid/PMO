@@ -214,17 +214,13 @@ export const Drawer: React.FC<DrawerProps> = ({
               <span id={titleId} className="sr-only">
                 {title}
               </span>
-              {subtitle && (
-                <span id={subId} className="sr-only">
-                  {subtitle}
-                </span>
-              )}
               <RecordHeader
                 variant="drawer"
                 icon={null}
                 name={title}
                 status={status}
                 meta={subtitle}
+                metaId={subtitle ? subId : undefined}
                 actions={headerActions}
               />
             </div>

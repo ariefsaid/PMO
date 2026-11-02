@@ -12,6 +12,7 @@ export interface RecordHeaderProps {
   /** Keep a long record name full width on mobile, with status below its metadata. */
   statusBelowMetaOnMobile?: boolean;
   meta?: React.ReactNode;
+  metaId?: string;
   /** Optional in-header metric strip. */
   stats?: PageStat[];
   /**
@@ -44,6 +45,7 @@ export const RecordHeader: React.FC<RecordHeaderProps> = ({
   status,
   statusBelowMetaOnMobile = false,
   meta,
+  metaId,
   stats,
   actions,
   variant = 'page',
@@ -62,6 +64,7 @@ export const RecordHeader: React.FC<RecordHeaderProps> = ({
     statusInline
     statusBelowMetaOnMobile={statusBelowMetaOnMobile}
     meta={meta}
+    metaId={metaId}
     stats={stats}
     actions={
       actions ? (
