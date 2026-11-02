@@ -221,7 +221,7 @@ ACs: 080, 081, 082 (or 082b), 083, 084. Migration **0514** (conditional).
 ACs: 090, 091, 092.
 
 - **C8-T1 (red→green)** `src/components/revenue/OdooOutcome.tsx` + test: plain-words outcome class, age of last read, next step per *pending / held / needs attention / refused*; unhealthy connection shows last data with its age and fails Odoo actions honestly with nothing queued (AC-OCI-090).
-- **C8-T2 (red→green)** `pages/SalesInvoices.tsx` + tests: Odoo document number, project attribution, payments and credit notes against the invoice, the e-Faktur record, and the Odoo-held tax-document block **only if C7 proved it**; a plain invoice renders exactly as today (AC-OCI-091, 103).
+- **C8-T2 (red→green)** `pages/SalesInvoices.tsx` + tests: Odoo document number, project attribution, payments and credit notes against the invoice, the e-Faktur record, and the Odoo-held tax-document block **only if C7 proved it**; a plain invoice renders exactly as today (AC-OCI-091, FR-OCI-103).
 - **C8-T3 (red→green)** receipt form: settled / cash / withheld figures shown only for a withheld receipt; journal picker from the mirror, disabled with a reason when empty or stale; `ConfirmDialog` for the money action (AC-OCI-091).
 - **C8-T4 (red→green)** held-rows list for Admin and Finance with the two resolve actions (the O2 component extended to revenue kinds).
 - **C8-T5 (U)** AC-OCI-092: each role and an impersonating Admin; i18n parity (en/id) and axe; 320 px without horizontal scroll.
