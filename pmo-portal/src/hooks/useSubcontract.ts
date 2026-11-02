@@ -26,6 +26,8 @@ export const subcontractKeys = {
     ['subcontract', orgId, 'project-exposure', projectId] as const,
   workOrderVariations: (orgId: string | undefined, workOrderId: string | undefined) =>
     ['subcontract', orgId, 'work-order-variations', workOrderId] as const,
+  draftLines: (orgId: string | undefined, poId: string | undefined) =>
+    ['subcontract', orgId, poId, 'draft-lines'] as const,
   capExceptions: (orgId: string | undefined, procurementId: string | undefined) =>
     ['subcontract', orgId, 'cap-exceptions', procurementId] as const,
 };
@@ -37,6 +39,17 @@ export function usePoPosition(poId: string | undefined) {
     queryKey: subcontractKeys.poPosition(orgId, poId),
     queryFn: () => repositories.subcontracts.getPoPosition(poId!),
     enabled: Boolean(orgId && poId),
+  });
+}
+
+/** Revision-1 lines of a PO that has no issued revision yet (the editable draft). */
+export function usePoDraftLines(poId: string | undefined, enabled = true) {
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
+  return useQuery({
+    queryKey: subcontractKeys.draftLines(orgId, poId),
+    queryFn: () => repositories.subcontracts.listPoLines(poId!, 1),
+    enabled: Boolean(orgId && poId && enabled),
   });
 }
 
