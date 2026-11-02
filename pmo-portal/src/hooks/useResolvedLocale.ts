@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { repositories, type OrgLocaleDefaultsRow } from '@/src/lib/repositories';
 import { useAuth } from '@/src/auth/useAuth';
-import { resolveLocale, type ResolvedLocale } from '@/src/lib/locale/resolveLocale';
+import { resolveLocale, resolveOrgBusinessTimezone, type ResolvedLocale } from '@/src/lib/locale/resolveLocale';
 
 const NO_ORG_DEFAULTS: OrgLocaleDefaultsRow = {
   defaultLocale: null,
@@ -26,6 +26,11 @@ export function useOrgLocaleDefaults(): OrgLocaleDefaultsRow {
     placeholderData: NO_ORG_DEFAULTS,
   });
   return data ?? NO_ORG_DEFAULTS;
+}
+
+/** The organization's own date boundary, used when a client date must match a server guard. */
+export function useOrgBusinessTimezone(): string {
+  return resolveOrgBusinessTimezone(useOrgLocaleDefaults());
 }
 
 /**

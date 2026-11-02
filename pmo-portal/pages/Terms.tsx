@@ -10,7 +10,7 @@ import { LEGAL_ENTITY_NAME, DOMAIN, CONTACT_EMAIL } from '@/src/lib/legalConfig'
  * so no bracket placeholder ever renders (FR-LEG-008).
  */
 const Terms: React.FC = () => (
-  <LegalPageLayout eyebrow="Legal" title="Terms of Service" variant="terms">
+  <LegalPageLayout title="Terms of Service" variant="terms">
     <LegalSection title="Acceptance of Terms">
       <p className="text-muted-foreground">
         By accessing or using {LEGAL_ENTITY_NAME} ({DOMAIN}), you agree to be bound by these Terms

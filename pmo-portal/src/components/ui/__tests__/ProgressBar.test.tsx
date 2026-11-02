@@ -9,6 +9,7 @@ describe('ProgressBar', () => {
     expect(bar).toHaveAttribute('aria-valuenow', '62');
     expect(bar).toHaveAttribute('aria-valuemin', '0');
     expect(bar).toHaveAttribute('aria-valuemax', '100');
+    expect(bar).toHaveAttribute('aria-valuetext', '62%');
   });
 
   it('fill width equals the percent', () => {
@@ -35,7 +36,8 @@ describe('ProgressBar', () => {
     const fill = screen.getByTestId('progress-fill');
     expect(fill.style.width).toBe('100%');
     expect(fill.className).toContain('bg-destructive');
-    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '140');
+    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '100');
+    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuetext', '140%');
   });
 
   it('renders a trailing tabular value when showValue', () => {

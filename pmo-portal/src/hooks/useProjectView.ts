@@ -1,5 +1,4 @@
-import { useCallback, useState } from 'react';
-import { VIEWS_STORAGE_KEY } from './viewStorage';
+import { createViewStorage } from './viewStorage';
 
 /** The Projects index body layouts (ViewToggle options): table, cards, calendar, or kanban board. */
 export const PROJECT_VIEWS = ['table', 'cards', 'calendar', 'kanban'] as const;
@@ -7,60 +6,7 @@ export type ProjectView = (typeof PROJECT_VIEWS)[number];
 
 export const DEFAULT_PROJECT_VIEW: ProjectView = 'table';
 
-function isProjectView(v: unknown): v is ProjectView {
-  return (PROJECT_VIEWS as readonly unknown[]).includes(v);
-}
+const storage = createViewStorage('project', PROJECT_VIEWS, DEFAULT_PROJECT_VIEW);
 
-/**
- * Reads the persisted Projects index view from the per-surface views map in
- * sessionStorage (`VIEWS_STORAGE_KEY`, `project` key). Defaults to `table`
- * (index-first per IA-3) when nothing is stored, the map is unparseable, or the
- * stored value is out of range. Only the `project` key is read — the map is
- * shared with sibling surfaces.
- */
-export function readProjectView(): ProjectView {
-  if (typeof sessionStorage === 'undefined') return DEFAULT_PROJECT_VIEW;
-  try {
-    const raw = sessionStorage.getItem(VIEWS_STORAGE_KEY);
-    if (!raw) return DEFAULT_PROJECT_VIEW;
-    const map = JSON.parse(raw) as Record<string, unknown>;
-    return isProjectView(map.project) ? map.project : DEFAULT_PROJECT_VIEW;
-  } catch {
-    return DEFAULT_PROJECT_VIEW;
-  }
-}
-
-/**
- * Persists the Projects index view, merging into the shared views map so
- * sibling surfaces' view keys are preserved. Storage failures (quota / private
- * mode) are swallowed — view persistence is best-effort, never load-bearing.
- */
-export function writeProjectView(view: ProjectView): void {
-  if (typeof sessionStorage === 'undefined') return;
-  try {
-    let map: Record<string, unknown> = {};
-    const raw = sessionStorage.getItem(VIEWS_STORAGE_KEY);
-    if (raw) {
-      try {
-        const parsed = JSON.parse(raw);
-        if (parsed && typeof parsed === 'object') map = parsed as Record<string, unknown>;
-      } catch {
-        /* corrupt map — overwrite with a fresh one */
-      }
-    }
-    map.project = view;
-    sessionStorage.setItem(VIEWS_STORAGE_KEY, JSON.stringify(map));
-  } catch {
-    /* non-fatal */
-  }
-}
-
-/** Stateful Projects index view selection, persisted per-surface. */
-export function useProjectView(): [ProjectView, (view: ProjectView) => void] {
-  const [view, setView] = useState<ProjectView>(readProjectView);
-  const update = useCallback((next: ProjectView) => {
-    setView(next);
-    writeProjectView(next);
-  }, []);
-  return [view, update];
-}
+export const readProjectView = storage.read;
+export const writeProjectView = storage.write;

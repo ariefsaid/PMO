@@ -82,6 +82,24 @@ describe('AIComposerModal — accessibility (AC-AS-013)', () => {
     expect(textarea.tagName).toBe('TEXTAREA');
   });
 
+  it('CMP-009: acquires background inert on the app shell while open and releases on close', () => {
+    const shell = document.createElement('div');
+    shell.setAttribute('data-app-shell', 'root');
+    document.body.appendChild(shell);
+    try {
+      const { rerender } = renderModal({ open: false });
+      expect(shell).not.toHaveAttribute('inert');
+
+      rerender(<AIComposerModal open={true} onClose={vi.fn()} onComposed={vi.fn()} />);
+      expect(shell).toHaveAttribute('inert');
+
+      rerender(<AIComposerModal open={false} onClose={vi.fn()} onComposed={vi.fn()} />);
+      expect(shell).not.toHaveAttribute('inert');
+    } finally {
+      shell.remove();
+    }
+  });
+
   it('AC-AS-013 focus moves into the dialog on open', () => {
     renderModal();
     // Some focusable element within the dialog should have focus

@@ -48,11 +48,12 @@ describe('useExport', () => {
       await result.current.exportXlsx([{ name: 'Acme', value: 1500 }], cols, 'Companies');
     });
 
-    // toWorkbookBuffer received the built header/body keyed by the entity sheet name.
+    // toWorkbookBuffer received the built header/body and typed columns keyed by the entity sheet name.
     expect(toWorkbookBuffer).toHaveBeenCalledWith({
       sheetName: 'Companies',
       header: ['Name', 'Value'],
       body: [['Acme', 1500]],
+      types: ['text', 'text'],
     });
     // A download anchor was clicked and the object URL was released.
     expect(clickSpy).toHaveBeenCalledOnce();

@@ -31,14 +31,22 @@ export interface AssignManagerArgs {
 /**
  * Admin user-management mutations over the repository seam: change a role, assign a manager,
  * invite a new user (FR-INV-004), and disable/re-enable a user (FR-INV-002/003, AC-INV-003/004).
- * Each invalidates the `['users', …]` query family on success so the directory refetches. Errors
- * propagate as `AppError` (code preserved — Postgres codes like `42501`/`P0001`, or the
- * admin-invite-user edge fn's `DUPLICATE_EMAIL`/`INVITE_UNAUTHORIZED`/etc.) for the caller to
- * classify via `classifyMutationError`.
+ * Each invalidates the `['users', …]` query family on success so the directory refetches, and
+ * (HKA-019) also invalidates the org-profile and project-manager picker families — the task
+ * assignee picker (`['org-profiles', …]`) and the PM picker (`['profiles', 'pm', …]`) cache their
+ * own profile lists with a five-minute stale window, so a role/manager/status change that only
+ * busted `['users']` left those pickers serving stale people. Errors propagate as `AppError`
+ * (code preserved — Postgres codes like `42501`/`P0001`, or the admin-invite-user edge fn's
+ * `DUPLICATE_EMAIL`/`INVITE_UNAUTHORIZED`/etc.) for the caller to classify via
+ * `classifyMutationError`.
  */
 export function useUserMutations() {
   const qc = useQueryClient();
-  const invalidate = () => qc.invalidateQueries({ queryKey: ['users'] });
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ['users'] });
+    qc.invalidateQueries({ queryKey: ['org-profiles'] });
+    qc.invalidateQueries({ queryKey: ['profiles', 'pm'] });
+  };
 
   const updateRole = useMutation({
     mutationFn: ({ id, role }: UpdateRoleArgs) => repositories.profile.updateUserRole(id, role),

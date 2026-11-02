@@ -312,20 +312,16 @@ describe('DataTable', () => {
     expect(onRetry).toHaveBeenCalled();
   });
 
-  it('Toolbar/SearchMini/TableFoot render their content', async () => {
-    const { Toolbar, SearchMini, TableFoot } = await import('../DataTable');
+  it('Toolbar/SearchMini render their content', async () => {
+    const { Toolbar, SearchMini } = await import('../DataTable');
     render(
       <div>
         <Toolbar standalone>
           <SearchMini placeholder="Find…" />
         </Toolbar>
-        <TableFoot>
-          <span>Total: 2,180</span>
-        </TableFoot>
       </div>
     );
     expect(screen.getByPlaceholderText('Find…')).toBeInTheDocument();
-    expect(screen.getByText('Total: 2,180')).toBeInTheDocument();
   });
 
   it('SearchMini focuses its input when its expanded hit area is clicked', async () => {

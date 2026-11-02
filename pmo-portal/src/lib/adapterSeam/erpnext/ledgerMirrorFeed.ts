@@ -91,9 +91,6 @@ export interface FeedLedgerMirrorsOpts {
   orgId: string;
   /** `external_org_bindings.config.company` — the ERP Company the rows are scoped to. */
   company: string;
-  pageSize?: number;
-  /** Test/operations override; production defaults to the bounded ledger-fetch budget. */
-  maxPages?: number;
   /** Full historical statement replay: fetch all GL pages and fail closed before any mirror/watermark write if incomplete. */
   fullReplay?: boolean;
 }
@@ -118,18 +115,14 @@ export async function feedLedgerMirrors(
   serviceClient: LedgerFeedServiceClient,
   opts: FeedLedgerMirrorsOpts,
 ): Promise<FeedLedgerMirrorsResult> {
-  const { client, orgId, company, pageSize, maxPages, fullReplay = false } = opts;
+  const { client, orgId, company, fullReplay = false } = opts;
 
   const glCursor = await readWm(serviceClient, orgId, LEDGER_GL_WM_DOMAIN);
   const glRepair = fullReplay ? null : await readWm(serviceClient, orgId, repairWmDomain(LEDGER_GL_WM_DOMAIN));
-  // A caller-supplied small budget is used to exercise/limit the initial backfill. Resumed ticks use
-  // the production default budget so the inclusive boundary row does not consume an entire override
-  // budget before the next unseen page can be observed; production remains bounded on every tick.
   const glResult = await fetchGlEntries(client, {
     company,
     since: fullReplay ? undefined : earlierCursor(glCursor, glRepair) ?? undefined,
-    pageSize,
-    maxPages: fullReplay ? (maxPages ?? 300) : maxPages,
+    ...(fullReplay ? { maxPages: 300 } : {}),
   });
   if (fullReplay && !glResult.caughtUp) throw new AppError('Full statement replay page budget exhausted; mirror and watermark were not changed', 'external-unreachable');
   const replayId = fullReplay ? crypto.randomUUID() : null;
@@ -163,8 +156,6 @@ export async function feedLedgerMirrors(
   const pleResult = await fetchPaymentLedgerEntries(client, {
     company,
     since: earlierCursor(pleCursor, pleRepair) ?? undefined,
-    pageSize,
-    maxPages,
   });
   const ple = await upsertMirrorRows(serviceClient, PLE_LEDGER, orgId, company, pleResult.rows.map(pleRowToMirror),
     async (voucher) => {

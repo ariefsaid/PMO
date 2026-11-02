@@ -8,7 +8,7 @@
  * B-IMP-2 (AC-S6-2): SoD pre-announce on draft state for the author
  *   When the PR is in Draft and the current user is the requester (author),
  *   show inline copy "Submitting hands this to another approver — you can't
- *   approve your own procurement record." so the author understands SoD before submitting.
+ *   approve your own procurement case." so the author understands SoD before submitting.
  *
  * C-IMP-1 (AC-S6-3): BackBar on success render at <=921px
  *   The BackBar is rendered (conditionally visible via CSS) on the success render
@@ -314,11 +314,11 @@ describe('AC-S6-2 (B-IMP-2): SoD pre-announce shown to author on Draft', () => {
     expect(notice).toHaveTextContent(/can.?t approve your own procurement/i);
   });
 
-  it('AC-S6-2: localizes the procurement-record SoD pre-announce in Bahasa', () => {
+  it('AC-S6-2: localizes the procurement SoD pre-announce in Bahasa', () => {
     detailState.data = { ...draftByAlice };
     renderBahasaPage();
     expect(screen.getByTestId('sod-pre-announce')).toHaveTextContent(
-      'Mengirim ini ke peninjau lain. Anda tidak dapat menyetujui catatan pengadaan Anda sendiri.',
+      'Mengirim ini ke peninjau lain. Anda tidak dapat menyetujui kasus pengadaan Anda sendiri.',
     );
   });
 
@@ -416,7 +416,7 @@ describe('C1/O18: the no-access page names the record a procurement and carries 
     renderPage();
     expect(screen.getByRole('heading', { level: 1 })).toBeInTheDocument();
     const page = screen.getByTestId('procurement-no-access');
-    expect(page).toHaveTextContent('This procurement record either doesn\'t exist');
+    expect(page).toHaveTextContent('This procurement case either doesn\'t exist');
     expect(page).not.toHaveTextContent(/request/i);
     detailState.isError = false;
     detailState.error = null;

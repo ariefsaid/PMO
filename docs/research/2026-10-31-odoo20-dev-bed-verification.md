@@ -131,3 +131,36 @@ The bed leaves `base_automation` installed after this run.
 - Webhook receivers must be idempotent: dedupe on `_model,_id`, re-read the record, rely on the watermark sweep.
 - Deletes show only through webhooks or an id reconcile.
 - The service user needs an `hr.employee` row before it can write timesheets.
+
+## 9. O2 findings
+
+| Claim | Verdict | Evidence |
+|---|---|---|
+| V-OPP1 | **Verified.** | A tuple-based order confirmed to `purchase`; above the two-step threshold a purchase user obtained `to approve`, and `button_approve` completed the approval. |
+| V-OPP2 | **Decision pending.** | Candidate fields survived the exercised transitions, matched `ilike`, and were API-editable by a second user. A second user saved order Source, pending-transfer Source, posted-bill narration, and payment Memo in the UI; the completed transfer's Source and Note appeared read-only. Bill purchase auto-completion rewrote `invoice_origin`. An external identifier survived each tested transaction step, but is a separate write and required the Access Rights administrator group; the normal user received an access error in the UI. See the candidate table below. |
+| V-OPP3 | **Verified for the exercised flows.** | The confirmed order created one incoming transfer; the move's `quantity` held the done quantity. A complete lot-tracked receipt refused validation without a lot and completed after a lot was assigned. The partial result is recorded under V-OPP4. |
+| V-OPP4 | **Completable.** | On a ten-unit incoming transfer with six units entered, `button_validate` returned a `stock.backorder.confirmation` action. Creating that wizard using the returned context and calling `process` completed the transfer and created a separate outstanding backorder. On an untracked transfer with no entered quantity, validation instead completed the full ordered quantity without a wizard. The probe checks the partial quantities and both resulting states. |
+| V-OPP5 | **Verified.** | A directly created bill retained its PO-line link, analytic distribution and invoice origin; after posting, the linked line’s billed quantity advanced and the partially billed order remained `to invoice`. A second `action_post` returned 422. |
+| V-OPP6 | **Partial.** | The stock Indonesian chart exposed purchase VAT but no PPh 23 or PPh 4(2) named tax. A separately configured synthetic -2% purchase tax, assigned to a liability account, combined with an 11% VAT tax on a 100 service line yielded untaxed 100, tax 9, total and residual 109, and tax lines +11 and -2. A second synthetic -2.5% tax also accepted a liability repartition account and was not price-included. These check configured shapes, not the absent stock PPh definitions. |
+| V-OPP7 | **Verified.** | A supplier payment can be posted and reconciled through `account.move.line/reconcile`. A payment of 40 against 100 left a residual of 60 and state `partial`; a subsequent 61 cleared the bill and left 1 on the payment line. With an outstanding payment account, the stock bed showed `paid` with zero residual even while the payment remained unmatched to a bank statement; its Community implementation maps this state to `paid`. |
+| V-OPP8 | **Verified.** | For each purchase model, 1,001 synthetic records were read once each using `(write_date, id)` keyset ordering at page sizes 200 and 1,000; all timestamps matched `YYYY-MM-DD HH:MM:SS`. Bill and payment queries included the proposed supplier filters. The probe removes its records afterwards. |
+| V-OPP9 | **Verified for the exercised API calls.** | Adding a line succeeded and removing it returned 422. Reducing quantity below received or billed amounts succeeded, as did an edit after locking; the adapter must apply its own revision guard. |
+| V-OPP10 | **Verified for the exercised calls.** | An internal user with Purchase User, Inventory User and Accounting Invoice groups completed the purchase-to-payment path, a partial backorder, lot creation, revision and directory reads. Removing each app group individually blocked an exercised operation. This is the smallest set tested on this bed, not a universal result for customized installations. |
+| V-OPP11 | **Verified for exercised failures; payment-post ceiling.** | Validation failures on creation, confirmation, line removal, receipt validation, backorder processing, bill posting and reconciliation returned HTTP 422 with `name`, `message`, `arguments`, `timestamp`, `context`, and `debug` fields. A repeat manual payment post was accepted with a null response; no payment-post validation failure was observed for that stock method. The probe prints types only. |
+
+### `ODOO_ANCHORS` candidate findings — pending decision
+
+All tested visible fields are API-editable; the second user also saved the order Source, pending-transfer
+Source, bill narration and payment Memo through the UI. The completed transfer's Source and Note appeared
+read-only in that user's UI. Other onchanges and user roles were not exhaustively tested.
+
+| Kind | Candidate verdict | Recommendation pending decision |
+|---|---|---|
+| Order | `origin` is a visible Source field; `note` is HTML terms text. Both survived the tested confirmation and matched `ilike`. | Neither should be reserved without a decision on preserving existing business content. An external identifier may supplement the primary anchor. |
+| Transfer | `origin` is visible Source and Odoo populates it with the PO reference; `note` is HTML. Both survived validation and matched `ilike`. | Preserve the order reference and existing note; use an external identifier only as a supplement pending a primary-anchor decision. |
+| Bill | `invoice_origin` is plain text but purchase auto-completion rewrites it. `narration` survived that onchange but is HTML terms text. | Preserve existing terms and order references; an external identifier may supplement the primary anchor pending a decision. |
+| Payment | `memo` is plain text, survives posting/reconciliation and is UI-editable. | The signed payment flow already specifies `memo`; retain that recommendation subject to the same pending anchor decision. |
+| All four | A stock `ir.model.data` external identifier with a safe name was created and searched, and survived the exercised document transitions. A normal UI user received an access error; JSON-2 read and create were denied until the Access Rights administrator group was added. | The identifier is a separate HTTP write after document creation, so an interruption between those writes leaves a document without it. It cannot by itself satisfy recovery after create; use it only as a supplement unless that gap is resolved. |
+
+The `ODOO_ANCHORS` table remains pending a Director decision. Bill HTML values require HTML-aware extraction
+before comparing a plain anchor, and inconclusive recovery must hold as required by the purchase spec.

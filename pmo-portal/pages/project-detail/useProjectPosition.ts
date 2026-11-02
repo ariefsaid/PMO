@@ -84,7 +84,7 @@ export function useOverdueReceivables(project: ProjectWithRefs, enabled = true) 
       oldest: Math.max(...overdue.map((x) => x.age)),
       balance: balanceKnown ? overdue.reduce((sum, x) => sum + Number(x.inv.erp_outstanding_amount ?? 0), 0) : null,
       // The org-wide invoice list already filters by project + overdue (oldest first): the chase surface.
-      to: `/sales-invoices?project=${project.id}&overdue=true`,
+      to: `/finance/receivables?project=${project.id}&overdue=true`,
     };
   }, [canSeeInvoices, isPending, isError, invoices.data, orgToday, project.id]);
   const refetch = () => Promise.all([

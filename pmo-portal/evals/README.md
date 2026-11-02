@@ -107,3 +107,10 @@ the org (so it is among the 10 oldest a proposal carries), assigned to **another
 last 24 hours; and an open task named **`EVAL own overdue task`**, past its end date, assigned to the
 eval user. The suite only proposes, never approves, so it sends nothing and uses none of the daily allowance.
 
+## Stock fixture (#1721)
+
+`evals/cases/stock-on-hand.eval.ts` runs as the same eval test user. The org needs the seed stock master data loaded
+(supabase/seed.sql, #1512): item **`Solar panel mounting rail`** (code `PANEL-PV`, unit pcs) with **80 pcs on hand** in
+the **`Central store`** (code `CENTRAL`) — 120 received minus the 40 transferred out. The suite is read-only
+(`query_stock` is a pure read; it never approves a write), so a run mutates nothing.
+

@@ -1,17 +1,29 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { en } from '@blocknote/core/locales';
-import { minutesDictionary, PALETTE_SLASH_KEYS } from './minutesDictionary';
+import { BlockNoteEditor } from '@blocknote/core';
+import { minutesSchema } from './minutesSchema';
+import { minutesSlashItems } from './minutesSlashMenu';
+import { minutesDictionary } from './minutesDictionary';
+
+const editor = () => BlockNoteEditor.create({ schema: minutesSchema });
+const t = ((_key: string, fallback: string) => fallback) as never;
 
 describe('minutesDictionary (FR-MTG-023)', () => {
   it('AC-MTG-025 under id, no palette slash entry keeps its English title, subtext or group', () => {
     const id = minutesDictionary('id');
-    for (const k of PALETTE_SLASH_KEYS) {
+    const items = minutesSlashItems(editor(), { t, tasksExternal: false, onRequestAction: vi.fn() });
+    const paletteKeys = items
+      .map((i) => (i as { key?: string }).key)
+      .filter((k): k is keyof typeof en.slash_menu => Boolean(k && k in en.slash_menu));
+
+    expect(paletteKeys.length).toBeGreaterThan(0);
+    for (const k of paletteKeys) {
       const e = en.slash_menu[k];
-      const t = id.slash_menu[k];
+      const trans = id.slash_menu[k];
       // 'Emoji' is a loanword; every other title/subtext/group must differ from English.
-      if (k !== 'emoji') expect(t.title, `${k}.title`).not.toBe(e.title);
-      expect(t.subtext, `${k}.subtext`).not.toBe(e.subtext);
-      expect(t.group, `${k}.group`).not.toBe(e.group);
+      if (k !== 'emoji') expect(trans.title, `${k}.title`).not.toBe(e.title);
+      expect(trans.subtext, `${k}.subtext`).not.toBe(e.subtext);
+      expect(trans.group, `${k}.group`).not.toBe(e.group);
     }
   });
 
@@ -43,10 +55,5 @@ describe('minutesDictionary (FR-MTG-023)', () => {
       expect(keys, k).not.toContain(k);
     }
     expect(minutesDictionary(lang).placeholders.default).toBeTruthy();
-  });
-
-  it('AC-MTG-025 the check-list entry is no longer part of the palette keys', () => {
-    expect(PALETTE_SLASH_KEYS).not.toContain('check_list');
-    expect(PALETTE_SLASH_KEYS).toContain('bullet_list');
   });
 });

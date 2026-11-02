@@ -1,22 +1,56 @@
-// @e2e-isolation: dedicated-row — owns the seeded 'Fit-out' task and restores its original status before/after the journey.
+// @e2e-isolation: self-isolated — service-role seeds one uniquely named In-Progress task assigned to engineer@acme.test per attempt and deletes it in afterEach; the shared 'Demolition' completed seed row is only read, never written.
 import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 import { login, requireServiceRoleKey } from './helpers';
 
 const SUPABASE_URL =
   process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL ?? 'http://127.0.0.1:54321';
-const FIT_OUT_TASK_ID = '80000000-0000-0000-0000-000000000002';
 
-async function restoreFitOutTask() {
+/** The task row this attempt owns; set by the journey, deleted by the afterEach cleanup. */
+let ownTaskId = '';
+
+/** House pattern (AC-RMD-024 / AC-MTG-060): service-role setup + cleanup of the attempt's OWN
+ *  uniquely-named row. #994: the journey no longer writes the shared seeded 'Fit-out' row. */
+async function seedOwnTask(name: string): Promise<string> {
   const key = requireServiceRoleKey();
-  if (!key) throw new Error('Service role key is required to restore the dedicated task fixture.');
+  if (!key) {
+    throw new Error(
+      'AC-W2-IXD-001 seeds its own task via service role: run it via scripts/e2e-local.sh, which exports the key',
+    );
+  }
   const admin = createClient(SUPABASE_URL, key, { auth: { persistSession: false } });
-  const { error } = await admin.from('tasks').update({ status: 'In Progress' }).eq('id', FIT_OUT_TASK_ID);
+  const { data: eng, error: engError } = await admin
+    .from('profiles')
+    .select('id, org_id')
+    .eq('email', 'engineer@acme.test')
+    .single();
+  if (engError) throw engError;
+  const { data: proj, error: projError } = await admin
+    .from('projects')
+    .select('id')
+    .eq('org_id', eng!.org_id)
+    .is('archived_at', null)
+    .limit(1)
+    .single();
+  if (projError) throw projError;
+  const { data: task, error } = await admin
+    .from('tasks')
+    .insert({ org_id: eng!.org_id, project_id: proj!.id, name, status: 'In Progress', assignee_id: eng!.id })
+    .select('id')
+    .single();
   if (error) throw error;
+  return task!.id;
 }
 
-test.beforeEach(restoreFitOutTask);
-test.afterEach(restoreFitOutTask);
+test.afterEach(async () => {
+  if (!ownTaskId) return;
+  const key = requireServiceRoleKey();
+  if (!key) return; // local best-effort: the row is uniquely named and the next db reset clears it
+  const admin = createClient(SUPABASE_URL, key, { auth: { persistSession: false } });
+  const { error } = await admin.from('tasks').delete().eq('id', ownTaskId);
+  if (error) throw error;
+  ownTaskId = '';
+});
 
 /**
  * AC-W2-IXD-001 (B-1, Wave 2 IxD naturalness): An Engineer reaches their assigned
@@ -26,10 +60,11 @@ test.afterEach(restoreFitOutTask);
  * asserts that goal directly. The My Tasks nav item takes the Engineer straight
  * to their task list, and changing a task status there persists (round-trip).
  *
- * Seed: engineer@acme.test (a4) has two tasks assigned:
- *   - "Demolition" on P001 — status "Done"
- *   - "Fit-out" on P001 — status "In Progress"
- * This spec updates "Fit-out" to "Done" and confirms the change persists.
+ * Isolation (#994): the journey used to mark the shared seeded "Fit-out" row Done and
+ * restore it — a shared-row write that collides with other engineer-adjacent journeys
+ * under workers:4. It now seeds its OWN uniquely-named In-Progress task (service role,
+ * per attempt) and keeps the seeded "Demolition" row (Done) as a READ-ONLY completed
+ * seed check. The journey's goal oracle is unchanged.
  *
  * Owning layer: e2e (Playwright) — AC-W2-IXD-001.
  */
@@ -39,6 +74,10 @@ test.setTimeout(60_000);
 test(
   'AC-W2-IXD-001: Engineer reaches their own tasks via the My Tasks nav item, not the financial table',
   async ({ page }) => {
+    // Unique per ATTEMPT (AC-MTG-060 pattern): a retry never collides with attempt 1's row.
+    const taskName = `AC-W2-IXD-001 my task ${Date.now()}`;
+    ownTaskId = await seedOwnTask(taskName);
+
     await login(page, 'engineer@acme.test');
 
     // Goal 1: The My Tasks nav item exists in the sidebar — the IC can reach their work
@@ -52,24 +91,22 @@ test(
     await expect(page).toHaveURL(/\/my-tasks/);
 
     // Goal 2: The My Tasks page shows the Engineer's own assigned tasks (not all org tasks).
-    // The seed has "Demolition" (Done) and "Fit-out" (In Progress) assigned to engineer@acme.test.
-    // The documented working-queue default hides completed work; completed access is verified below.
-    // NB: the parent project is "Innovate Corp HQ Fit-Out", so a loose /Fit-out/i also matches
-    // the project group heading — use exact text to target the TASK row, not the heading.
-    await expect(page.getByText('Fit-out', { exact: true })).toBeVisible({ timeout: 15_000 });
+    // The attempt's own task is visible; the completed seed "Demolition" stays hidden by the
+    // documented working-queue default (completed access is verified below). NB: exact text
+    // targets the TASK row, not a project group heading.
+    await expect(page.getByText(taskName, { exact: true })).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText('Demolition', { exact: true })).not.toBeVisible();
 
-    // Goal 3: A status update round-trips — the Engineer can mark their work done.
-    // Find the status select for "Fit-out" and change it to "Done".
-    const statusSelect = page.getByRole('combobox', { name: /change status of Fit-out/i });
+    // Goal 3: A status update round-trips — the Engineer can mark their own work done.
+    const statusSelect = page.getByRole('combobox', { name: new RegExp(`change status of ${taskName}`, 'i') });
     await expect(statusSelect).toBeVisible({ timeout: 10_000 });
     await statusSelect.selectOption('Done');
 
     // Done leaves the default Open queue. Switch to the explicitly provided Completed queue
-    // and assert both seeded completed work and the changed task are available there.
+    // and assert both the seeded completed work (read-only check) and the changed task are there.
     await expect(page.getByRole('button', { name: 'Completed' })).toBeVisible();
     await page.getByRole('button', { name: 'Completed' }).click();
     await expect(page.getByText('Demolition', { exact: true })).toBeVisible();
-    await expect(page.getByRole('combobox', { name: /change status of Fit-out/i })).toHaveValue('Done', { timeout: 15_000 });
+    await expect(page.getByRole('combobox', { name: new RegExp(`change status of ${taskName}`, 'i') })).toHaveValue('Done', { timeout: 15_000 });
   },
 );

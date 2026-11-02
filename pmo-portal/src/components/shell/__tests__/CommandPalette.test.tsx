@@ -85,6 +85,42 @@ describe('CommandPalette', () => {
     expect(screen.getByTestId('cmdk-backdrop').className).toContain('bg-foreground/40');
   });
 
+  it('CMP-028: Tab cycles focus between input and Retry button when error is displayed', async () => {
+    setReferenceResult({ isError: true });
+    render(<CommandPalette open items={items} onClose={vi.fn()} />);
+    const input = screen.getByRole('combobox');
+    await userEvent.type(input, 'pr');
+    const retry = await screen.findByRole('button', { name: 'Retry' });
+    expect(input).toHaveFocus();
+
+    await userEvent.keyboard('{Tab}');
+    expect(retry).toHaveFocus();
+
+    await userEvent.keyboard('{Tab}');
+    expect(input).toHaveFocus();
+
+    await userEvent.keyboard('{Shift>}{Tab}{/Shift}');
+    expect(retry).toHaveFocus();
+  });
+
+  it('CMP-009: acquires background inert on the app shell while open and releases on close', () => {
+    const shell = document.createElement('div');
+    shell.setAttribute('data-app-shell', 'root');
+    document.body.appendChild(shell);
+    try {
+      const { rerender } = render(<CommandPalette open={false} items={items} onClose={vi.fn()} />);
+      expect(shell).not.toHaveAttribute('inert');
+
+      rerender(<CommandPalette open={true} items={items} onClose={vi.fn()} />);
+      expect(shell).toHaveAttribute('inert');
+
+      rerender(<CommandPalette open={false} items={items} onClose={vi.fn()} />);
+      expect(shell).not.toHaveAttribute('inert');
+    } finally {
+      shell.remove();
+    }
+  });
+
   it('DS-SPACING: command rows use the shared compact spacing scale', () => {
     render(<CommandPalette open items={items} onClose={vi.fn()} />);
     const row = screen.getAllByRole('option')[0];
