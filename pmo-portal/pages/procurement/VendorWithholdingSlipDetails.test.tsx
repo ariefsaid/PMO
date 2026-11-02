@@ -48,7 +48,7 @@ describe('AC-BUPOT-018 withholding-slip details', () => {
     const onOpenProcurement = vi.fn();
     render(<FinanceI18nTestProvider><VendorWithholdingSlipDetails slipId="slip-1" canWrite={false} onClose={vi.fn()} onOpenProcurement={onOpenProcurement} /></FinanceI18nTestProvider>);
     expect(screen.getByText(locale === 'en' ? 'Supplier invoice reference: SUP-INV-002' : 'Referensi faktur pemasok: SUP-INV-002')).toBeInTheDocument();
-    expect(screen.getByText(locale === 'en' ? 'System VI number: VI-002' : 'Nomor VI sistem: VI-002')).toBeInTheDocument();
+    expect(screen.getByText(locale === 'en' ? 'Supplier invoice no. (accounting): VI-002' : 'No. faktur pemasok (akuntansi): VI-002')).toBeInTheDocument();
     expect(document.body).toHaveTextContent(locale === 'en' ? 'Case: Case two' : 'Kasus: Case two');
     expect(document.body).toHaveTextContent('Harbor works');
     expect(screen.getByText(locale === 'en' ? 'Supplier invoice reference not recorded' : 'Referensi faktur pemasok belum dicatat')).toBeInTheDocument();
@@ -71,7 +71,7 @@ describe('AC-BUPOT-018 withholding-slip details', () => {
     expect(screen.queryAllByText(/^(needs-review|reconciled|active|void|pph23)$/i, { selector: 'dd' })).toHaveLength(0);
     if (overrides.status === 'active') expect(screen.getByText('Active')).toBeInTheDocument();
     expect(screen.getAllByText(/IDR.?20,000\.00/)).toHaveLength(2);
-    expect(screen.getByText('System VI number: VI-002')).toBeInTheDocument();
+    expect(screen.getByText('Supplier invoice no. (accounting): VI-002')).toBeInTheDocument();
     expect(screen.getByText('Slip change history')).toBeInTheDocument();
     if (overrides.status === 'void') expect(screen.getByText(/Duplicate entry/)).toBeInTheDocument();
     if (overrides.validation_state === 'needs-review') { expect(screen.getByText('Needs review')).toBeInTheDocument(); expect(screen.getByText(/Verify the source/)).toBeInTheDocument(); }
