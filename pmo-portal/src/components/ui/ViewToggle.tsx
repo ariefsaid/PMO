@@ -12,14 +12,6 @@ export interface ViewOption<V extends string = string> {
   /** Optional test id on the option's button (for AC-tagged assertions). */
   testId?: string;
   /**
-   * Optional Tailwind classes applied to the individual option button.
-   * NOTE: Because `cn` is clsx-only (no tailwind-merge), adding a display utility here
-   * (e.g. `"hidden"`) will NOT override the base `inline-flex` class that ViewToggle
-   * emits — both land in the class string and `inline-flex` wins. Use `wrapperClassName`
-   * instead when you need to control visibility on the per-option level.
-   */
-  optionClassName?: string;
-  /**
    * Optional Tailwind classes applied to a `<span>` wrapper rendered around the option
    * button. Because the wrapper carries no competing display utility, a class like
    * `"hidden md:block"` reliably hides the option below the breakpoint.
@@ -65,22 +57,40 @@ export function ViewToggle<V extends string = string>({
   semantics = 'tabs',
 }: ViewToggleProps<V>) {
   const isToggle = semantics === 'toggle';
+  const rootRef = React.useRef<HTMLDivElement>(null);
+
+  const focusOption = (v: V) => {
+    const root = rootRef.current;
+    if (!root) return;
+    const btn = root.querySelector<HTMLButtonElement>(`button[data-value="${CSS.escape(String(v))}"]`);
+    btn?.focus();
+  };
 
   const onKeyDown = (e: React.KeyboardEvent) => {
     // Arrow-key roving only applies to the tablist semantics variant.
     if (isToggle) return;
-    if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+    if (e.altKey || e.metaKey || e.ctrlKey) return;
+    const isNext = e.key === 'ArrowRight';
+    const isPrev = e.key === 'ArrowLeft';
+    const isHome = e.key === 'Home';
+    const isEnd = e.key === 'End';
+    if (!isNext && !isPrev && !isHome && !isEnd) return;
     e.preventDefault();
     const idx = options.findIndex((o) => o.value === value);
-    const next =
-      e.key === 'ArrowRight'
-        ? options[(idx + 1) % options.length]
-        : options[(idx - 1 + options.length) % options.length];
+    const next = isNext
+      ? options[(idx + 1) % options.length]
+      : isPrev
+        ? options[(idx - 1 + options.length) % options.length]
+        : isHome
+          ? options[0]
+          : options[options.length - 1];
+    focusOption(next.value);
     onChange(next.value);
   };
 
   return (
     <div
+      ref={rootRef}
       role={isToggle ? 'group' : 'tablist'}
       aria-label={ariaLabel}
       onKeyDown={onKeyDown}
@@ -92,6 +102,7 @@ export function ViewToggle<V extends string = string>({
           <button
             key={opt.value}
             type="button"
+            data-value={opt.value}
             // tabs: role="tab" + aria-selected + roving tabIndex
             // toggle: no role override + aria-pressed + always focusable
             {...(!isToggle && { role: 'tab', 'aria-selected': on, tabIndex: on ? 0 : -1 })}
@@ -105,7 +116,6 @@ export function ViewToggle<V extends string = string>({
               on
                 ? 'bg-background font-semibold text-foreground shadow-[0_1px_2px_hsl(240_6%_10%/0.1)]'
                 : 'text-muted-foreground hover:text-foreground',
-              opt.optionClassName,
             )}
           >
             {opt.icon && <Icon name={opt.icon} />}

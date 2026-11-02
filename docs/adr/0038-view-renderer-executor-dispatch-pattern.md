@@ -1,4 +1,4 @@
-# ADR-0038 — View-Renderer Executor: direct Supabase PostgREST chaining over repository method dispatch
+# ADR-0038 — View-Renderer Executor: direct Supabase PostgREST chaining
 
 - **Status:** Accepted
 - **Date:** 2026-06-29
@@ -10,8 +10,8 @@
 
 ## Context
 
-`FR-VR-020` calls for `executeCompiledQuery` to dispatch to `repositories.*` methods based on
-`compiled.repositoryMethod`. The existing repository methods have **typed, bounded signatures**
+At acceptance, `FR-VR-020` called for `executeCompiledQuery` to dispatch to `repositories.*` methods
+based on a `compiled.repositoryMethod` descriptor. The existing repository methods have **typed, bounded signatures**
 that do not accept arbitrary filter chains:
 
 | Entity | Repository method | Existing signature |
@@ -69,6 +69,7 @@ existing DAL function starts with.
 - `between` and `date-range` ops both map to `.gte(column, values[0]).lte(column, values[1])` chains
   (PostgREST does not have a native `between` verb; the compiler produces a `date-range` filter
   which the executor expands to two half-open inequalities).
-- Future I4/I5: if a smarter dispatch through repository methods proves needed, the `ENTITY_WHITELIST`
-  `repositoryMethod` field (already present) is the hook — the executor can be refactored to use it
-  at that time without changing the compiler or the renderer.
+- Current compiler contract (T-19): `CompiledQuery` contains the whitelisted entity and resolved
+  filters/select/order/aggregate fields. It does not carry an unused repository-method name; the
+  executor continues to dispatch by `ENTITY_WHITELIST.table`. A future change to repository dispatch
+  requires a consumer-backed contract and a deliberate update to this decision.

@@ -1,0 +1,36 @@
+{
+  "actions": {
+    "restore": "Restore",
+    "restoring": "Restoring…"
+  },
+  "attendees": {
+    "loadError": "Attendees could not be loaded. Retry to view the access list.",
+    "retry": "Retry attendees"
+  },
+  "confirm": {
+    "unsavedChanges": {
+      "description": "Your meeting header or minutes have unsaved changes. Leave this page and discard them?",
+      "leave": "Leave",
+      "stay": "Stay",
+      "title": "Unsaved meeting changes"
+    }
+  },
+  "filters": {
+    "showArchived": "Show archived"
+  },
+  "pill": {
+    "archived": "Archived"
+  },
+  "sharing": {
+    "loadError": "Sharing details could not be loaded. Retry to check who has access.",
+    "loading": "Loading shares…",
+    "retry": "Retry sharing"
+  },
+  "states": {
+    "archivedEmptySub": "Meetings you archive will appear here until you restore them.",
+    "archivedEmptyTitle": "No meetings to show"
+  },
+  "toast": {
+    "restored": "Meeting restored"
+  }
+}

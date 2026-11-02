@@ -1,19 +1,23 @@
-import React, { useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
+import React, { useContext, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { getCoreRowModel, useReactTable, type ColumnDef, type RowSelectionState, type Updater } from '@tanstack/react-table';
 import { useTranslation } from 'react-i18next';
 import { cn } from './cn';
 import { Icon } from './icons';
 import { Checkbox } from './Checkbox';
 import { ListState } from './ListState';
-import { buttonClasses } from './buttonClasses';
 import { useIsDesktop } from './useIsDesktop';
-import { trackSearchUsed } from '@/src/lib/analytics';
 import { AuthContext } from '@/src/auth/AuthContext';
+import { RowMenu, MenuButton, type RowMenuItem } from './RowMenu';
+import { Toolbar, SearchMini, type SearchMiniProps } from './TableControls';
+import {
+  useTableColumnSizing,
+  columnMinSize,
+  columnMaxSize,
+  columnDefaultSize,
+} from './useTableColumnSizing';
 
-/** `search_used`'s debounce idle window (2026-07-13 wiring plan) — fire once per
- * search intent, never per keystroke. */
-const SEARCH_USED_DEBOUNCE_MS = 500;
+export { RowMenu, MenuButton, type RowMenuItem };
+export { Toolbar, SearchMini, type SearchMiniProps };
 /** Sticky row-actions column (⋯). Chromium sticky-table-cell paint quirks, pinned empirically
  *  (2026-10-08 fix round, AC-TBL-STICKY-001):
  *  1. In a `border-collapse` table the cell's collapsed `border-l` does NOT travel with a sticky
@@ -94,18 +98,6 @@ export interface DataTableSelection<Row> {
   rowLabel?: (row: Row) => string;
 }
 
-export interface RowMenuItem {
-  label: string;
-  onClick: () => void;
-  danger?: boolean;
-  /** Dimmed, announced disabled and unclickable — e.g. a per-row action already in flight (AC-PDF-011).
-   *  WAI-ARIA menu pattern: rendered as `aria-disabled="true"`, NOT the HTML `disabled` attribute —
-   *  a disabled button is unfocusable, so a disabled FIRST item would strand open-focus on the
-   *  trigger (arrows/Escape dead). Staying focusable gives the roving focus a landing spot; the
-   *  activate guard below makes Enter/click a no-op. */
-  disabled?: boolean;
-}
-
 export interface DataTableProps<Row> {
   rows: Row[];
   columns: Column<Row>[];
@@ -171,6 +163,8 @@ export interface DataTableProps<Row> {
   totals?: Array<{ key: string; label: React.ReactNode; values?: Record<string, React.ReactNode> }>;
   /** Optional controlled multi-row selection. */
   selection?: DataTableSelection<Row>;
+  /** Callback notifying when the table's inner scrollport has overflowing content on the right. */
+  onOverflowChange?: (overflowing: boolean) => void;
 }
 
 /** Whether `ref`'s width is below `below` px — measured before paint, then followed with a ResizeObserver. An unmeasured
@@ -201,6 +195,7 @@ function useStickyRowMenuSeam(
   scrollportRef: React.RefObject<HTMLDivElement | null>,
   tableRef: React.RefObject<HTMLTableElement | null>,
   enabled: boolean,
+  onOverflowChange?: (overflowing: boolean) => void,
 ): boolean {
   const [hasHiddenRightContent, setHasHiddenRightContent] = useState(false);
 
@@ -209,12 +204,14 @@ function useStickyRowMenuSeam(
     const table = tableRef.current;
     if (!enabled || !scrollport || !table) {
       setHasHiddenRightContent(false);
+      onOverflowChange?.(false);
       return;
     }
 
     const measure = () => {
       const overflowing = scrollport.scrollWidth - scrollport.clientWidth - scrollport.scrollLeft > 1;
       setHasHiddenRightContent((current) => current === overflowing ? current : overflowing);
+      onOverflowChange?.(overflowing);
     };
 
     measure();
@@ -234,7 +231,7 @@ function useStickyRowMenuSeam(
       if (observer) observer.disconnect();
       else window.removeEventListener('resize', measure);
     };
-  }, [enabled, scrollportRef, tableRef]);
+  }, [enabled, onOverflowChange, scrollportRef, tableRef]);
 
   return hasHiddenRightContent;
 }
@@ -243,42 +240,6 @@ function alignClass(align?: ColAlign) {
   if (align === 'num') return 'text-right';
   if (align === 'center') return 'text-center';
   return 'text-left';
-}
-
-function columnMinSize<Row>(column: Column<Row>): number | undefined {
-  const contractMin = column.kind === 'primary' ? 240 : column.kind === 'status' ? 112 : undefined;
-  return contractMin === undefined ? column.minSize : Math.max(contractMin, column.minSize ?? contractMin);
-}
-
-function columnMaxSize<Row>(column: Column<Row>): number | undefined {
-  const contractMax = column.kind === 'primary' ? 640 : column.kind === 'status' ? 220 : undefined;
-  const maximum = column.maxSize ?? contractMax;
-  const minimum = columnMinSize(column);
-  return maximum === undefined ? undefined : Math.max(maximum, minimum ?? 0);
-}
-
-function columnDefaultSize<Row>(column: Column<Row>): number | undefined {
-  return column.size ?? (column.kind === 'primary' ? 320 : column.kind === 'status' ? 140 : undefined);
-}
-
-function readColumnSizing(tableId: string | undefined, userId: string | undefined, columns: Column<unknown>[]): Record<string, number> {
-  if (!tableId || !userId || typeof window === 'undefined') return {};
-  try {
-    const saved = window.localStorage.getItem(`pmo.table.${tableId}.widths.v1:${userId}`);
-    if (!saved) return {};
-    const value: unknown = JSON.parse(saved);
-    if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
-    const known = new Map(columns.map((column) => [column.key, column]));
-    return Object.fromEntries(Object.entries(value).flatMap(([key, width]) => {
-      const column = known.get(key);
-      if (!column || typeof width !== 'number' || !Number.isFinite(width)) return [];
-      const min = columnMinSize(column) ?? 20;
-      const max = columnMaxSize(column) ?? 900;
-      return [[key, Math.min(max, Math.max(min, width))]];
-    }));
-  } catch {
-    return {};
-  }
 }
 
 /**
@@ -350,19 +311,17 @@ export function DataTable<Row>({
   groupHeaderSpan = false,
   totals,
   selection,
+  onOverflowChange,
 }: DataTableProps<Row>) {
   const { t } = useTranslation('projects');
   const columns = useMemo(() => allColumns.filter((column) => !column.exportOnly), [allColumns]);
   const userId = useContext(AuthContext)?.currentUser?.id;
-  const [columnSizing, setColumnSizing] = useState<Record<string, number>>(() => readColumnSizing(tableId, userId, columns as Column<unknown>[]));
+  const { columnSizing, onColumnSizingChange } = useTableColumnSizing(
+    tableId,
+    userId,
+    columns as Column<unknown>[],
+  );
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => new Set());
-  const widthIdentity = `${tableId ?? ''}:${userId ?? ''}`;
-  const previousWidthIdentity = useRef(widthIdentity);
-  useEffect(() => {
-    if (previousWidthIdentity.current === widthIdentity) return;
-    previousWidthIdentity.current = widthIdentity;
-    setColumnSizing(readColumnSizing(tableId, userId, columns as Column<unknown>[]));
-  }, [tableId, userId, widthIdentity, columns]);
   const tableInstanceId = useId().replace(/:/g, '');
   const caveatId = `datatable-caveat-${tableInstanceId}`;
   const keyboardResizeStart = useRef<Record<string, number>>({});
@@ -421,19 +380,7 @@ export function DataTable<Row>({
       rowSelection: rowSelectionState,
     },
     onRowSelectionChange: updateSelection,
-    onColumnSizingChange: (updater) => {
-      setColumnSizing((current) => {
-        const next = typeof updater === 'function' ? updater(current) : updater;
-        if (tableId && userId && typeof window !== 'undefined') {
-          try {
-            window.localStorage.setItem(`pmo.table.${tableId}.widths.v1:${userId}`, JSON.stringify(next));
-          } catch {
-            // Storage is an enhancement; live resizing remains available when it is denied.
-          }
-        }
-        return next;
-      });
-    },
+    onColumnSizingChange,
   });
   const modelRows = table.getRowModel().rows;
   const toggleGroup = (group: string) => setCollapsedGroups((current) => {
@@ -460,7 +407,12 @@ export function DataTable<Row>({
     </button>
   );
   const modelHeaders = table.getHeaderGroups()[0]?.headers ?? [];
-  const hasHiddenRightContent = useStickyRowMenuSeam(tableBranchRef, tableRef, isDesktop && Boolean(rowMenu));
+  const hasHiddenRightContent = useStickyRowMenuSeam(
+    tableBranchRef,
+    tableRef,
+    isDesktop && (Boolean(rowMenu) || Boolean(onOverflowChange)),
+    onOverflowChange,
+  );
   // A column hidden with CSS (colClassName "hidden", e.g. the Age column on a project tab) must
   // not drive the table's min width: its size still sits in getTotalSize(), and counting it makes
   // the table overflow by that amount even when every visible column fits — which then trips the
@@ -977,355 +929,3 @@ function PrimaryCell({ title, titleText, secondary }: { title: React.ReactNode; 
     {secondary != null && <span className="block truncate text-[12px] font-normal text-muted-foreground">{secondary}</span>}
   </span>;
 }
-
-/**
- * Per-row overflow (⋯) menu.
- *
- * Clip-escape (AC-W6-IXD-MENU): the open `role="menu"` is PORTALED to
- * `document.body` and positioned `fixed` against the trigger's bounding box —
- * so it can never be clipped by the table branch's `overflow-x-auto` or the
- * card wrapper's `overflow-hidden` (the recurring "tests green, render clipped"
- * defect). It is right-aligned to the trigger, flips UP when the trigger sits
- * within the menu's height of the viewport bottom, and is clamped horizontally
- * to the `max-[921px]:px-4` (16px) gutter so it never bleeds off-screen at 375.
- *
- * a11y: focus moves to the first menuitem on open and returns to the trigger on
- * every close (Esc / click-outside / item-activate / toggle-off / Tab);
- * ArrowDown/Up rove (wrap), Home/End jump, Enter/Space activate; the menu is
- * `aria-orientation="vertical"`. Items inherit the global :focus-visible ring.
- *
- * stopPropagation (load-bearing, guards PR-B): the trigger wrapper AND the
- * portaled menu both stopPropagation so neither the ⋯ nor a menu item ever
- * fires the row's onActivate.
- */
-const GUTTER = 16; // matches the compact page gutter (DESIGN.md spacing role)
-const MENU_GAP = 4; // `mt-1` equivalent between trigger and menu (DESIGN.md spacing.1)
-
-/**
- * The row-actions menu. Default trigger: the compact ⋯ ("Row actions"). With `label`, the trigger is a
- * small outline button showing that text (e.g. "Link…") — exported as `MenuButton` for one labelled action
- * per row; `ariaLabel` names the trigger for its row (e.g. "Link PINV-1").
- */
-const RowMenu: React.FC<{ items: RowMenuItem[]; label?: string; ariaLabel?: string }> = ({ items, label, ariaLabel }) => {
-  const { t } = useTranslation('projects');
-  const [open, setOpen] = useState(false);
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
-  // -1 until the menu opens; open() lands focus on index 0.
-  const [active, setActive] = useState(-1);
-  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
-
-  // The flat list of menuitem indices (separators are not focusable stops).
-  const itemCount = items.length;
-
-  const close = useCallback((restoreFocus = true) => {
-    setOpen(false);
-    setActive(-1);
-    if (restoreFocus) triggerRef.current?.focus();
-  }, []);
-
-  // Position the portaled menu against the trigger: right-aligned, flip-up near
-  // the viewport bottom, clamped within the gutters. Runs before paint so the
-  // menu never flashes at (0,0).
-  useLayoutEffect(() => {
-    if (!open || !triggerRef.current) return;
-    const compute = () => {
-      const t = triggerRef.current;
-      const menu = menuRef.current;
-      if (!t || !menu) return;
-      const r = t.getBoundingClientRect();
-      const mw = menu.offsetWidth;
-      const mh = menu.offsetHeight;
-      const vw = window.innerWidth;
-      const vh = window.innerHeight;
-
-      // Right-align the menu's right edge to the trigger's right edge.
-      let left = r.right - mw;
-      // Clamp horizontally within the gutters.
-      left = Math.min(left, vw - GUTTER - mw);
-      left = Math.max(left, GUTTER);
-
-      // Open downward by default; flip up if it would overflow the bottom,
-      // then clamp when neither direction has enough room. maxHeight below
-      // keeps the menu scrollable on unusually short viewports.
-      const below = r.bottom + MENU_GAP;
-      const above = r.top - MENU_GAP - mh;
-      const flipUp = below + mh > vh - GUTTER && above >= GUTTER;
-      const preferredTop = flipUp ? above : below;
-      const top = Math.max(GUTTER, Math.min(preferredTop, vh - GUTTER - mh));
-
-      setPos({ top, left });
-    };
-    compute();
-    window.addEventListener('resize', compute);
-    window.addEventListener('scroll', compute, true);
-    return () => {
-      window.removeEventListener('resize', compute);
-      window.removeEventListener('scroll', compute, true);
-    };
-  }, [open]);
-
-  // On open, move focus to the first menuitem.
-  useEffect(() => {
-    if (!open) return;
-    setActive(0);
-  }, [open]);
-
-  // Keep the DOM focus on the active menuitem as the roving index changes.
-  useEffect(() => {
-    if (!open || active < 0) return;
-    const el = menuRef.current?.querySelector<HTMLButtonElement>(
-      `[data-menuitem-index="${active}"]`,
-    );
-    el?.focus();
-  }, [open, active]);
-
-  // Close on outside pointer-down (not on the trigger — that toggles).
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (e: MouseEvent) => {
-      const target = e.target as Node;
-      if (menuRef.current?.contains(target) || triggerRef.current?.contains(target)) return;
-      close(false); // outside click: don't yank focus back to the trigger
-    };
-    document.addEventListener('mousedown', onDown);
-    return () => document.removeEventListener('mousedown', onDown);
-  }, [open, close]);
-
-  const onMenuKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Escape') {
-      e.preventDefault();
-      close();
-    } else if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      setActive((a) => (a + 1) % itemCount);
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      setActive((a) => (a - 1 + itemCount) % itemCount);
-    } else if (e.key === 'Home') {
-      e.preventDefault();
-      setActive(0);
-    } else if (e.key === 'End') {
-      e.preventDefault();
-      setActive(itemCount - 1);
-    } else if (e.key === 'Tab') {
-      // Menus are not internal tab-stops: Tab/Shift+Tab close + restore focus.
-      close();
-    }
-    // Enter/Space activate the focused <button> natively (no handler needed).
-  };
-
-  const activate = (item: RowMenuItem) => {
-    // Load-bearing since the aria-disabled switch: an aria-disabled <button> still fires
-    // click (there is no HTML `disabled` to swallow it) — this guard is the no-op.
-    if (item.disabled) return;
-    item.onClick();
-    close();
-  };
-
-  return (
-    <div className="contents" onClick={(e) => e.stopPropagation()}>
-      <button
-        ref={triggerRef}
-        type="button"
-        aria-label={ariaLabel ?? (label ? undefined : t('table.rowActions', 'Row actions'))}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        onClick={() => (open ? close() : setOpen(true))}
-        // B-4 (AC-W2-IXD-006): always-visible trigger — removed `opacity-0 group-hover:opacity-100`
-        // which made the ⋯ undiscoverable on touch + keyboard. The trigger is now visible by
-        // default so every row's actions are reachable without a hover event. Touch targets ≥44px
-        // come from the `.touch-target` utility (coarse-pointer min hit area).
-        className={label
-          ? buttonClasses('outline', 'sm', 'touch-target gap-1')
-          : 'touch-target grid size-7 place-items-center rounded-md text-muted-foreground transition-[opacity,background-color] hover:bg-accent hover:text-foreground'}
-      >
-        {label ? (
-          <>
-            {label}
-            <Icon name="chev" aria-hidden className="size-3.5 rotate-90 text-muted-foreground" />
-          </>
-        ) : (
-          <span aria-hidden className="text-base leading-none">
-            ⋯
-          </span>
-        )}
-      </button>
-      {open &&
-        createPortal(
-          <div
-            ref={menuRef}
-            role="menu"
-            aria-orientation="vertical"
-            onClick={(e) => e.stopPropagation()}
-            onKeyDown={onMenuKeyDown}
-            style={{
-              position: 'fixed',
-              top: pos?.top ?? -9999,
-              left: pos?.left ?? -9999,
-              // The fixed toast stack is z-[1000] and may overlap the bottom row;
-              // keep row actions above it so the toast cannot intercept menu clicks.
-              zIndex: 1010,
-              visibility: pos ? 'visible' : 'hidden',
-            }}
-            className="min-w-[160px] max-h-[calc(100vh-32px)] overflow-y-auto rounded-lg border border-border bg-popover p-[5px] shadow-[0_10px_30px_hsl(240_10%_8%/0.16)]"
-          >
-            {items.map((item, i) => {
-              // destructive-nav-separation: spatially separate the first danger item
-              // from the non-danger items above it with a hairline divider (matches the
-              // crud-companies.html `.menu-sep` above Delete). No separator when the
-              // danger item is first/only, or for consecutive danger items.
-              const needsSep = item.danger && i > 0 && !items[i - 1].danger;
-              return (
-                <React.Fragment key={item.label}>
-                  {needsSep && <div role="separator" className="my-1 h-px bg-border" />}
-                  <button
-                    role="menuitem"
-                    type="button"
-                    aria-disabled={item.disabled || undefined}
-                    tabIndex={i === active ? 0 : -1}
-                    data-menuitem-index={i}
-                    onMouseEnter={() => setActive(i)}
-                    onClick={() => activate(item)}
-                    className={cn(
-                      'flex h-8 w-full items-center rounded-md px-2.5 text-left text-[13.5px] hover:bg-accent',
-                      item.danger && 'text-destructive',
-                      item.disabled && 'cursor-not-allowed text-muted-foreground hover:bg-transparent'
-                    )}
-                  >
-                    {item.label}
-                  </button>
-                </React.Fragment>
-              );
-            })}
-          </div>,
-          document.body
-        )}
-    </div>
-  );
-};
-
-/** Toolbar seamed to the table top (or `standalone` fully rounded). */
-export const Toolbar: React.FC<
-  React.HTMLAttributes<HTMLDivElement> & { standalone?: boolean }
-> = ({ standalone = false, className, children, ...rest }) => (
-  <div
-    className={cn(
-      'flex flex-wrap items-center gap-2 border border-border bg-card px-[var(--space-content-inset)] py-2',
-      standalone ? 'mb-[var(--space-group)] rounded-lg' : 'rounded-t-lg border-b-0',
-      className
-    )}
-    {...rest}
-  >
-    {children}
-  </div>
-);
-
-export interface SearchMiniProps extends React.InputHTMLAttributes<HTMLInputElement> {
-  containerClassName?: string;
-  /**
-   * `search_used` analytics (2026-07-13 wiring plan) — a stable id for this search
-   * surface (e.g. 'companies-list'). Tracking is opt-in: omit `searchSurface` or
-   * `module` to skip it entirely. Fires once per search intent (500ms idle, or
-   * immediately on Enter) — never per keystroke, and NEVER the query text itself.
-   */
-  searchSurface?: string;
-  /** See `searchSurface`. The module this search surface belongs to. */
-  module?: string;
-  /** The current result count AFTER filtering by `value` — read only at fire time. */
-  resultCount?: number;
-}
-
-/** Borderless search field shell. */
-export const SearchMini: React.FC<SearchMiniProps> = ({
-  containerClassName,
-  className,
-  searchSurface,
-  module,
-  resultCount,
-  value,
-  onKeyDown,
-  ...rest
-}) => {
-  // `resultCount` changes every keystroke (the parent's filtered list recomputes) but
-  // must never itself restart/duplicate the debounce — read the latest value via a ref
-  // at fire time instead of putting it in the effect's dependency list.
-  const resultCountRef = useRef(resultCount);
-  resultCountRef.current = resultCount;
-  const timerRef = useRef<number | undefined>(undefined);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  const fire = useCallback(() => {
-    if (!searchSurface || !module) return;
-    trackSearchUsed(searchSurface, resultCountRef.current ?? 0, module);
-  }, [searchSurface, module]);
-
-  useEffect(() => {
-    if (!searchSurface || !module) return undefined;
-    const str = typeof value === 'string' ? value : '';
-    if (!str.trim()) return undefined;
-    timerRef.current = window.setTimeout(() => {
-      fire();
-      timerRef.current = undefined;
-    }, SEARCH_USED_DEBOUNCE_MS);
-    return () => {
-      if (timerRef.current !== undefined) window.clearTimeout(timerRef.current);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- `fire` reads searchSurface/module/resultCountRef; only `value` should restart the debounce.
-  }, [value, searchSurface, module]);
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      if (timerRef.current !== undefined) {
-        window.clearTimeout(timerRef.current);
-        timerRef.current = undefined;
-      }
-      const str = typeof value === 'string' ? value : '';
-      if (str.trim()) fire();
-    }
-    onKeyDown?.(e);
-  };
-
-  return (
-    <div
-      className={cn(
-        'touch-target relative flex h-[var(--control-height)] min-w-[190px] items-center gap-2 rounded-md border border-border hover:border-input bg-card px-3 text-control [&_svg]:size-[15px] [&_svg]:text-muted-foreground',
-        containerClassName
-      )}
-      onClick={() => inputRef.current?.focus()}
-    >
-      <Icon name="search" />
-      <input
-        ref={inputRef}
-        type="search"
-        value={value}
-        onKeyDown={handleKeyDown}
-        className={cn(
-          'w-full border-none bg-transparent text-control outline-none placeholder:text-muted-foreground',
-          className
-        )}
-        {...rest}
-      />
-    </div>
-  );
-};
-
-/** Totals footer row. */
-export const TableFoot: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({
-  className,
-  children,
-  ...rest
-}) => (
-  <div
-    className={cn(
-      'flex flex-wrap items-center gap-4 border-t-[1.5px] border-border bg-secondary/40 px-[var(--space-content-inset)] py-3 text-control tabular',
-      className
-    )}
-    {...rest}
-  >
-    {children}
-  </div>
-);
-
-/** A labelled menu trigger for a row's single action group (the row-actions menu with a text button). */
-export const MenuButton = RowMenu;

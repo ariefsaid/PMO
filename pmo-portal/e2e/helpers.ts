@@ -172,6 +172,35 @@ export async function waitForFonts(page: Page): Promise<void> {
 export const login = signIn;
 
 /**
+ * Pin the interface language WITHOUT a persisted profile write (one shared helper for the
+ * English-pinned shell journeys — AC-1201 / AC-AUTH-003 / UIP-002 lineage, #994; same
+ * technique as UXS-006).
+ *
+ * I18nProvider resolves the language ONLY from the signed-in profile (FR-L10N-003), so this
+ * rewrites the profile row the AuthProvider reads (`select=*&id=eq.<uid>`) to carry
+ * `locale: 'en'`. Read-only + parallel-safe, and immune to another session having drifted the
+ * shared local profile's saved locale. Install it BEFORE sign-in/sign-out (signIn/login/goto)
+ * so no DOM label ever observes the drifted locale.
+ */
+export async function pinEnglishLocale(page: Page): Promise<void> {
+  await page.route('**/rest/v1/profiles?*', async (route) => {
+    const url = route.request().url();
+    if (route.request().method() !== 'GET' || !/[?&]id=eq\./.test(url)) return route.fallback();
+    const response = await route.fetch({ maxRetries: 2 });
+    let body: unknown;
+    try {
+      body = await response.json();
+    } catch {
+      return route.fulfill({ response });
+    }
+    if (body && !Array.isArray(body) && typeof body === 'object' && 'locale' in body) {
+      return route.fulfill({ response, json: { ...body, locale: 'en', number_locale: 'en-US' } });
+    }
+    return route.fulfill({ response, json: body });
+  });
+}
+
+/**
  * Robustly pick an option from one of the app's async FK Comboboxes (src/components/ui/Combobox.tsx).
  *
  * The Combobox lazy-loads its options on open: it renders a `combo-loading` skeleton first, and the

@@ -18,7 +18,7 @@ export function useDocumentFiles(projectId: string, all: ProjectDocumentRow[], c
   const { toast } = useToast();
   const viewer = useViewerOnDemand();
   const destination = useUploadDestination();
-  const { upload, replace, progress, uploadErrors, cancelUpload, clearUploadError } = useFileUpload(projectId);
+  const { upload, progress, uploadErrors, cancelUpload, clearUploadError } = useFileUpload(projectId);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [activeFileDoc, setActiveFileDoc] = useState<{ docId: string; mode: 'upload' | 'replace' } | null>(null);
   const [clientUploadErrors, setClientUploadErrors] = useState<Record<string, string>>({});
@@ -67,11 +67,9 @@ export function useDocumentFiles(projectId: string, all: ProjectDocumentRow[], c
     }
     const where = destination.kind === 'microsoft' ? 'microsoft' : 'private';
     const args = { docId: activeFileDoc.docId, file, destination: where, oldPath: target.file_path } as const;
-    if (activeFileDoc.mode === 'upload') {
-      upload.mutate(args);
-    } else {
-      replace.mutate(args);
-    }
+    // OE13R01-001: upload and replace share ONE hook mutation; `mode` only records which user
+    // action opened the chooser (labels, dedupe of identical args).
+    upload.mutate(args);
 
     if (fileInputRef.current) fileInputRef.current.value = '';
     setActiveFileDoc(null);

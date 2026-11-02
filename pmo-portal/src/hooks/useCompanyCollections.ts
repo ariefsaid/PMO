@@ -40,7 +40,6 @@ function exactCustomerIds(rows: readonly ErpAgingSnapshotRow[]): string[] {
  */
 export function useCompanyCollections(
   companyIds: readonly string[],
-  options?: { enabled?: boolean },
 ): CompanyCollectionsHookResult {
   const { currentUser } = useAuth();
   const may = usePermission();
@@ -49,7 +48,9 @@ export function useCompanyCollections(
     () => [...new Set(companyIds.filter((id) => id.trim().length > 0))].sort((left, right) => left.localeCompare(right)),
     [companyIds],
   );
-  const isEnabled = Boolean(orgId) && may('view', 'salesInvoice') && options?.enabled !== false;
+  // OE13R01-002: the former `options.enabled` switch had no production caller — both callers omit
+  // it. Activation stays governed by the org and permission gates only.
+  const isEnabled = Boolean(orgId) && may('view', 'salesInvoice');
 
   const arAging = useArAgingSnapshot({ enabled: isEnabled });
   const rows = arAging.data ?? EMPTY_AGING_ROWS;

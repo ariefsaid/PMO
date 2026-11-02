@@ -190,7 +190,7 @@
 -- from the list). Only external-connect calls it, through the service role with p_actor_id; the frontend never did.
 -- With it off the list, a renewed authenticated grant fails AC-ACL-004 by name.
 --
--- ⚑ AMENDED BY 0494 (#1606): `retry_connect_send` joined the prior retained set (+1; count 130). S1 plans adds five Operator writers and two authenticated projections (+7; current count 137). A SECURITY DEFINER writer under a member's JWT; it re-asserts the
+-- ⚑ AMENDED BY 0494 (#1606): `retry_connect_send` joined the prior retained set (+1; count 130). S1 plans adds five Operator writers and two authenticated projections (+7; current count 141). A SECURITY DEFINER writer under a member's JWT; it re-asserts the
 -- org, active membership and the Admin role in its body (a held send is released and queued again, audited); proved by
 -- supabase/tests/erp_connect_sends.test.sql. The other 0494 functions are service-role-only or internal.
 --
@@ -258,6 +258,7 @@ insert into client_callable_rpc_names (proname) values
   ('create_stock_document'),
   ('decide_imprest_float_change'),
   ('decide_po_variation'),
+  ('end_contract_rate_line'),  -- ⚑ AMENDED BY 0515 (#1514)
   ('establish_imprest_float'),
   ('propose_imprest_float_amount'),
   ('record_vendor_withholding_slip'),
@@ -271,6 +272,7 @@ insert into client_callable_rpc_names (proname) values
   ('create_purchase_order'),
   ('create_purchase_request'),
   ('create_rfq'),
+  ('end_contract_rate_assignee'),  -- ⚑ AMENDED BY 0515 (#1514)
   ('get_budget_projection'),
   ('get_budget_push_status'),
   ('get_executive_dashboard'),
@@ -292,6 +294,7 @@ insert into client_callable_rpc_names (proname) values
   ('mark_erp_purchase_documents'),
   ('link_m365_documents_batch'),
   ('save_cost_attribution_rule'),
+  ('save_contract_rate_line'),  -- ⚑ AMENDED BY 0515 (#1514)
   ('save_equipment_usage'),
   ('save_equipment_costing'),
   ('save_stock_draft'),
@@ -335,6 +338,7 @@ insert into client_callable_rpc_names (proname) values
   ('send_task_reminders'),
   ('select_procurement_quote'),
   ('set_procurement_invoice_efaktur'),
+  ('set_contract_rate_assignee'),  -- ⚑ AMENDED BY 0515 (#1514)
   ('set_procurement_gates'),
   ('set_project_contract_value'),
   ('set_sales_invoice_billing_kind'),
@@ -385,8 +389,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  137,
-  'AC-ACL-002 all 137 retained client-callable RPC names still have a public function');
+  141,
+  'AC-ACL-002 all 141 retained client-callable RPC names still have a public function');
 
 select is(
   (select count(*)::int
@@ -395,8 +399,8 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  137,
-  'AC-ACL-003 all 137 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  141,
+  'AC-ACL-003 all 141 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
 -- granted to both roles from being named twice. Retained names exempt authenticated grants only;

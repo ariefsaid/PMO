@@ -44,14 +44,15 @@ function validateAttachmentUpload(input: PrepareAgentAttachmentUploadInput): voi
 }
 
 /**
- * Prepare a per-conversation attachment upload.
+ * Prepare a per-conversation attachment upload (internal step of
+ * `prepareAgentAttachmentFileUpload` — OE17R02-002: not a supported public entry point).
  *
  * Creates the RLS-scoped metadata row first so the Storage policy can verify
  * the signed-upload object's path against an owner-private `agent_attachments`
  * row. org_id/owner_id/storage_path are stamped by the database trigger and
  * policy; the client supplies only thread + file metadata.
  */
-export async function prepareAgentAttachmentUpload(
+async function prepareAgentAttachmentUpload(
   input: PrepareAgentAttachmentUploadInput,
 ): Promise<PreparedAgentAttachmentUpload> {
   validateAttachmentUpload(input);

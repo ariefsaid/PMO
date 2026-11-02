@@ -301,7 +301,7 @@
     "view": "Lihat bukti potong",
     "record": "Catat bukti potong",
     "setVendor": "Tentukan pemasok",
-    "vendorRequired": "Atur pemasok pada catatan pengadaan sebelum mencatat bukti potong.",
+    "vendorRequired": "Atur pemasok pada kasus pengadaan sebelum mencatat bukti potong.",
     "vendorSet": "Pemasok ditetapkan",
     "vendorAlreadySet": "Pemasok sudah ditetapkan. Muat ulang untuk melihatnya.",
     "selectVendor": "Pilih pemasok…",
@@ -721,13 +721,13 @@
       },
       "confirm": {
         "title": "Hapus {{name}}?",
-        "description": "Mereka tidak lagi menyetujui catatan pengadaan. Catatan yang sudah diputuskan tidak berubah.",
+        "description": "Mereka tidak lagi menyetujui kasus pengadaan. Kasus yang sudah diputuskan tidak berubah.",
         "confirm": "Hapus"
       },
       "form": {
         "orgTitle": "Tambah penyetuju overhead",
         "projectTitle": "Tambah penyetuju proyek",
-        "subtitle": "Cukup satu penyetuju yang terdaftar untuk menyetujui catatan pengadaan.",
+        "subtitle": "Cukup satu penyetuju yang terdaftar untuk menyetujui kasus pengadaan.",
         "legend": "Penyetuju",
         "person": "Orang",
         "personPlaceholder": "Pilih orang…",
@@ -737,8 +737,7 @@
         "projectRequired": "Pilih proyek.",
         "save": "Tambah"
       }
-    },
-    "vendorTaxAccounts": {}
+    }
   },
   "approvals": {
     "salesInvoices": {
@@ -821,9 +820,9 @@
     "entryOther": "entri",
     "group": {
       "procurement": {
-        "emptySub": "Catatan pengadaan yang memerlukan persetujuan Anda akan tampil di sini.",
-        "emptyTitle": "Tidak ada catatan pengadaan yang menunggu keputusan Anda",
-        "title": "Catatan pengadaan"
+        "emptySub": "Kasus pengadaan yang memerlukan persetujuan Anda akan tampil di sini.",
+        "emptyTitle": "Tidak ada kasus pengadaan yang menunggu keputusan Anda",
+        "title": "Kasus pengadaan"
       },
       "timesheets": {
         "emptySub": "Timesheet yang diajukan oleh bawahan Anda akan muncul di sini untuk ditinjau.",
@@ -833,7 +832,7 @@
     },
     "noProjectLinked": "Tidak ada proyek tertaut",
     "previewEmpty": {
-      "sub": "Pratinjau dan tindakan akan muncul saat ada catatan pengadaan yang menunggu persetujuan.",
+      "sub": "Pratinjau dan tindakan akan muncul saat ada kasus pengadaan yang menunggu persetujuan.",
       "title": "Pilih item persetujuan"
     },
     "previewError": {
@@ -873,7 +872,7 @@
     },
     "scope": {
       "all": "Semua yang menunggu",
-      "procurement": "Catatan pengadaan",
+      "procurement": "Kasus pengadaan",
       "timesheets": "Timesheet",
       "expense": "Klaim biaya",
       "invoice": "Faktur pelanggan"
@@ -964,6 +963,10 @@
       "clientNumberSegment": {
         "label": "Segmen nomor klien",
         "placeholder": "mis. RIS"
+      },
+      "partialSave": {
+        "headline": "Perusahaan tersimpan, tetapi satu perubahan tidak bertahan",
+        "segmentDetail": "Segmen nomor klien tidak dapat disimpan. Periksa kembali dan simpan lagi."
       }
     },
     "search": {
@@ -971,7 +974,7 @@
       "placeholder": "Cari perusahaan…"
     },
     "states": {
-      "emptySub": "Tambahkan klien atau pemasok pertama Anda untuk mulai menautkan proyek dan catatan pengadaan ke direktori.",
+      "emptySub": "Tambahkan klien atau pemasok pertama Anda untuk mulai menautkan proyek dan kasus pengadaan ke direktori.",
       "emptyTitle": "Belum ada perusahaan",
       "errorSub": "Permintaan gagal. Periksa koneksi Anda dan coba lagi.",
       "errorTitle": "Gagal memuat perusahaan"
@@ -1030,11 +1033,7 @@
       "note": "Catatan"
     },
     "addContact": {
-      "legendContact": "Detail kontak",
-      "legendIdentity": "Identitas",
-      "submitLabel": "Buat kontak",
-      "subtitle": "Tambahkan orang di perusahaan ini",
-      "title": "Kontak baru"
+      "subtitle": "Tambahkan orang di perusahaan ini"
     },
     "archive": "Arsipkan",
     "archiveConfirm": {
@@ -1057,47 +1056,15 @@
       "title": "Kontak"
     },
     "edit": "Edit",
-    "editActivity": {
-      "legend": "Detail",
-      "submitLabel": "Simpan",
-      "subtitle": "Perbarui entri log aktivitas ini",
-      "title": "Edit aktivitas"
-    },
-    "editCompany": {
-      "legendIdentity": "Identitas",
-      "submitLabel": "Simpan perusahaan",
-      "subtitle": "Perbarui data perusahaan ini",
-      "title": "Edit perusahaan"
-    },
     "error": {
       "sub": "Terjadi kesalahan saat mengambil data perusahaan ini.",
       "title": "Gagal memuat perusahaan"
     },
     "field": {
-      "company": "Perusahaan",
-      "companyName": "Nama perusahaan",
-      "companyNamePlaceholder": "mis. Cascade Port Authority",
-      "email": "Email",
-      "emailPlaceholder": "name@example.com",
-      "fullName": "Nama lengkap",
-      "fullNamePlaceholder": "mis. Jane Doe",
       "name": "Nama",
-      "notes": "Catatan",
-      "notesPlaceholder": "Hal yang perlu diingat tentang kontak ini",
-      "phone": "Telepon",
-      "phonePlaceholder": "mis. +1 555 010 0000",
       "primaryContact": "Kontak utama",
-      "title": "Jabatan",
-      "titlePlaceholder": "mis. Procurement Lead",
       "type": "Tipe",
-      "clientNumberSegment": "Segmen nomor klien",
-      "clientNumberSegmentPlaceholder": "mis. RIS"
-    },
-    "form": {
-      "errors": {
-        "companyNameRequired": "Nama perusahaan wajib diisi.",
-        "contactNameRequired": "Nama kontak wajib diisi."
-      }
+      "clientNumberSegment": "Segmen nomor klien"
     },
     "notFound": {
       "sub": "Perusahaan ini tidak ada atau tidak terlihat oleh Anda. Kembali ke direktori untuk mencarinya.",
@@ -1124,11 +1091,6 @@
       "archived": "Perusahaan diarsipkan",
       "contactCreated": "Kontak dibuat",
       "updated": "Perusahaan diperbarui"
-    },
-    "type": {
-      "client": "Klien",
-      "internal": "Internal",
-      "vendor": "Pemasok"
     },
     "vendorTax": {
       "hint": "Mengisi otomatis tagihan baru dari pemasok ini. Jumlahnya tetap dapat diubah di setiap tagihan.",
@@ -1196,36 +1158,18 @@
       "subtitle": "Perbarui entri log aktivitas ini",
       "title": "Edit aktivitas"
     },
-    "editContact": {
-      "legendContact": "Detail kontak",
-      "legendIdentity": "Identitas",
-      "submitLabel": "Simpan kontak",
-      "subtitle": "Perbarui data kontak ini",
-      "title": "Edit kontak"
-    },
     "error": {
       "sub": "Terjadi kesalahan saat mengambil data kontak ini.",
       "title": "Gagal memuat kontak"
     },
     "field": {
       "company": "Perusahaan",
-      "companyPlaceholder": "Pilih perusahaan…",
       "email": "Email",
-      "emailPlaceholder": "name@example.com",
-      "fullName": "Nama lengkap",
-      "fullNamePlaceholder": "mis. Jane Doe",
       "notes": "Catatan",
-      "notesPlaceholder": "Hal yang perlu diingat tentang kontak ini",
       "phone": "Telepon",
-      "phonePlaceholder": "mis. +1 555 010 0000",
       "title": "Jabatan",
-      "titlePlaceholder": "mis. Procurement Lead"
-    },
-    "form": {
-      "errors": {
-        "companyRequired": "Perusahaan wajib diisi.",
-        "nameRequired": "Nama kontak wajib diisi."
-      }
+      "companyUnavailable": "Perusahaan ini tidak ada di direktori perusahaan Anda.",
+      "companyArchived": "Diarsipkan"
     },
     "meetings": {
       "error": "Rapat bernotulen tidak dapat dimuat.",
@@ -1279,7 +1223,9 @@
     "form": {
       "company": {
         "label": "Perusahaan",
-        "placeholder": "Pilih perusahaan…"
+        "placeholder": "Pilih perusahaan…",
+        "loading": "Memuat perusahaan…",
+        "loadFailed": "Perusahaan tidak dapat dimuat."
       },
       "editSubmit": "Simpan kontak",
       "editSubtitle": "Perbarui data kontak ini",
@@ -1337,7 +1283,8 @@
       "created": "Kontak dibuat",
       "deleted": "Kontak dihapus",
       "updated": "Kontak diperbarui"
-    }
+    },
+    "companiesUnavailable": "Direktori perusahaan tidak dapat dimuat. Nama perusahaan, penyaringan, dan ekspor tidak tersedia."
   },
   "dashboard": {
     "winRate": {
@@ -1412,7 +1359,7 @@
       "procStatus": {
         "chartLabel": "Pengadaan menurut status",
         "empty": "Belum ada aktivitas pengadaan",
-        "noun": "catatan pengadaan"
+        "noun": "kasus pengadaan"
       }
     },
     "kpi": {
@@ -1752,13 +1699,7 @@
       "archiveTitle": "Arsipkan rapat ini?",
       "deleteConfirm": "Hapus rapat",
       "deleteDescription": "Tindakan ini menghapus rapat beserta notulennya secara permanen. Rapat yang action item-nya masih ada sebagai tugas tidak dapat dihapus; arsipkan saja.",
-      "deleteTitle": "Hapus rapat ini?",
-      "unsavedMinutes": {
-        "description": "Notulen rapat memiliki perubahan yang belum disimpan. Tinggalkan halaman ini dan buang perubahan tersebut?",
-        "leave": "Tinggalkan",
-        "stay": "Tetap di halaman",
-        "title": "Notulen belum disimpan"
-      }
+      "deleteTitle": "Hapus rapat ini?"
     },
     "delete": "Hapus",
     "error": {
@@ -1768,7 +1709,7 @@
     "form": {
       "errors": {
         "titleRequired": "Judul rapat wajib diisi.",
-        "whenInvalid": "Masukkan tanggal dan waktu yang valid."
+        "whenInvalid": "Pilih tanggal yang valid dan waktu lokal yang benar-benar ada."
       },
       "location": {
         "label": "Lokasi"
@@ -1811,7 +1752,6 @@
       "title": "Rapat tidak ditemukan"
     },
     "pill": {
-      "archived": "Diarsipkan",
       "meeting": "Rapat"
     },
     "share": {
@@ -1944,7 +1884,7 @@
       "toggle": "Tampilkan pratinjau untuk {{title}}",
       "loadErrorSub": "Terjadi kesalahan saat mengambil pratinjau.",
       "lineItems": "Rincian barang",
-      "viewFullRequest": "Lihat catatan pengadaan"
+      "viewFullRequest": "Lihat kasus pengadaan"
     },
     "filter": {
       "paid": "Lunas"
@@ -1958,7 +1898,7 @@
       "vq": "Penawaran Pemasok"
     },
     "error": {
-      "sub": "Terjadi kesalahan saat mengambil catatan pengadaan Anda.",
+      "sub": "Terjadi kesalahan saat mengambil kasus pengadaan Anda.",
       "title": "Gagal memuat pengadaan"
     }
   },
@@ -1991,7 +1931,7 @@
   },
   "procurementDetail": {
     "accessDenied": {
-      "sub": "Catatan pengadaan ini tidak ada atau tidak terlihat untuk peran Anda. Jika Anda membuatnya, buka dari daftar pengadaan.",
+      "sub": "Kasus pengadaan ini tidak ada atau tidak terlihat untuk peran Anda. Jika Anda membuatnya, buka dari daftar pengadaan.",
       "title": "Anda tidak memiliki akses ke data ini"
     },
     "action": {
@@ -2066,7 +2006,7 @@
       "approveBody": "Setujui <money/>?",
       "cancelTitle": "Batalkan pengadaan ini?",
       "destructiveTitle": "{{action}} pengadaan ini",
-      "grBody": "Ini mencatat penerimaan barang berstatus {{status}} untuk catatan pengadaan {{request}}.",
+      "grBody": "Ini mencatat penerimaan barang berstatus {{status}} untuk kasus pengadaan {{request}}.",
       "grTitle": "Catat penerimaan barang ini?",
       "keepRequest": "Pertahankan pengadaan",
       "markPaidBody": "Catat {{amount}} sebagai dibayar? Ini mencatat bukti pembayaran, bukan mentransfer dana.",
@@ -2076,7 +2016,7 @@
       "saveGR": "Simpan GR",
       "saveVI": "Simpan faktur pemasok",
       "terminal": "Ini tindakan akhir untuk pengadaan ini dan tidak dapat dibatalkan.",
-      "viBody": "Ini mencatat faktur pemasok untuk catatan pengadaan {{request}}.",
+      "viBody": "Ini mencatat faktur pemasok untuk kasus pengadaan {{request}}.",
       "viTitle": "Catat invoice pemasok ini?"
     },
     "detail": {
@@ -2200,8 +2140,7 @@
         "toast": {
           "deleted": "Baris bill of quantities dihapus",
           "saved": "Baris bill of quantities disimpan"
-        },
-        "source": {}
+        }
       },
       "boqForm": {
         "description": "Deskripsi",
@@ -2289,8 +2228,7 @@
           "withdrawn": "Tagihan ditarik"
         },
         "withdraw": "Tarik",
-        "withdrawn": "Ditarik",
-        "source": {}
+        "withdrawn": "Ditarik"
       },
       "evidence": {
         "document": "Dokumen bukti",
@@ -2312,8 +2250,7 @@
         "notSubmitted": "Klaim diterbitkan, belum dikirim",
         "remaining": "Kontrak belum ditagih",
         "title": "Ringkasan penagihan"
-      },
-      "source": {}
+      }
     },
     "documents": {
       "action": {
@@ -2652,15 +2589,13 @@
     },
     "procurement": {
       "empty": {
-        "title": "Belum ada catatan pengadaan untuk proyek ini"
+        "title": "Belum ada kasus pengadaan untuk proyek ini"
       },
       "error": {
-        "sub": "Terjadi kesalahan saat mengambil catatan pengadaan proyek ini.",
+        "sub": "Terjadi kesalahan saat mengambil kasus pengadaan proyek ini.",
         "title": "Gagal memuat pengadaan"
       },
-      "group": {},
       "newRequest": "Buat pengadaan",
-      "summary": {},
       "title": "Pengadaan"
     },
     "rail": {
@@ -3006,7 +2941,6 @@
       "placeholder": "Tetapkan PM…",
       "noun": "manajer"
     },
-    "code": {},
     "stage": {
       "label": "Tahap awal",
       "helper": "Status on-hand hanya dicapai dengan memenangkan proyek di pipeline, tidak pernah dibuat langsung."
@@ -4599,14 +4533,14 @@
   },
   "uxs32": {
     "roleList": "{{first}}, {{second}}, {{third}} atau {{fourth}}",
-    "roleRoute": "Aturan standar: {{roles}} dapat menyetujui catatan pengadaan orang lain.",
+    "roleRoute": "Aturan standar: {{roles}} dapat menyetujui kasus pengadaan orang lain.",
     "holders": "Saat ini: {{names}}.",
     "holdersNone": "Saat ini tidak ada anggota aktif yang memegang peran ini.",
     "holdersUnavailable": "Belum bisa memeriksa siapa yang memegang peran ini.",
     "routeUnavailable": "Belum bisa memastikan siapa yang dapat menyetujui saat ini.",
-    "noEligible": "Tidak ada orang di daftar yang dapat menyetujui saat ini. Hanya Admin yang dapat memutuskan catatan pengadaan ini sampai ada yang memenuhi syarat ditambahkan.",
-    "escalate": "Tidak ada orang di daftar yang dapat menyetujui saat ini. Catatan pengadaan ini diteruskan ke penyetuju overhead.",
-    "projectEmpty": "Belum ada penyetuju proyek. Catatan pengadaan dalam anggaran mengikuti aturan standar: {{roles}} dapat menyetujui. Catatan pengadaan yang melebihi garis anggaran, atau ketika garis anggaran tidak dapat diperiksa, diteruskan ke penyetuju overhead."
+    "noEligible": "Tidak ada orang di daftar yang dapat menyetujui saat ini. Hanya Admin yang dapat memutuskan kasus pengadaan ini sampai ada yang memenuhi syarat ditambahkan.",
+    "escalate": "Tidak ada orang di daftar yang dapat menyetujui saat ini. Kasus pengadaan ini diteruskan ke penyetuju overhead.",
+    "projectEmpty": "Belum ada penyetuju proyek. Kasus pengadaan dalam anggaran mengikuti aturan standar: {{roles}} dapat menyetujui. Kasus pengadaan yang melebihi garis anggaran, atau ketika garis anggaran tidak dapat diperiksa, diteruskan ke penyetuju overhead."
   },
   "uxs38": {
     "emptyScope": "Kurs referensi hanya memengaruhi ekuivalen rupiah yang ditampilkan. Catatan akuntansi tidak pernah diubah.",
@@ -4754,7 +4688,7 @@
       "vendorInvoiced": "Catat pembayaran"
     },
     "nextStepPrefix": "Langkah berikutnya:",
-    "projectEmptyScope": "Daftar ini hanya memuat catatan pengadaan PMO. Pembelian yang tercatat di ERPNext tampil di bawah."
+    "projectEmptyScope": "Daftar ini hanya memuat pembelian yang dicatat di PMO. Pembelian yang tercatat di ERPNext tampil di bawah."
   },
   "uxs29": {
     "expenseCapture": {

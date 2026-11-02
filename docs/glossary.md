@@ -67,25 +67,49 @@ of an O&M contract. Spine 9 in the spine model.
 (Commercial, Cost/AP, Delivery, Revenue/AR, CRM, HSE/Quality, Documents, Resources/Assets,
 Service/O&M). Defined in `docs/roadmap-spines.md`.
 
-**Active contract value** — the sum of signed contract values across projects currently in delivery (status = Ongoing). Excludes closed-out and won-but-not-started projects. Smaller than *Revenue on hand* because revenue also accrues on completed work; the two figures are intentionally compared side by side to make the scope difference self-evident.
+**Active contract value** (shown on dashboards as **Contract on hand**) — the sum of signed contract values of projects whose status is Ongoing (its own status filter: won-but-not-started and closed-out projects are excluded). Positions are shown per currency and never blended. It is **not** earned revenue: revenue accrues only on work performed and billed, while contract value on hand is the value still to deliver. Delivery-risk figures and delivery charts each qualify their own cohort in their help text; "delivery" alone is not a status filter.
 
-**Committed spend** (canonical: OD-BUDGET-2) — Σ `total_value` of all procurement records in statuses `Ordered`, `Received`, `Vendor Invoiced`, `Paid` for a given project. This is the single live spend basis used throughout the app: project header "Committed" tile, the Finance dashboard, the Delivery summary, and the at-risk threshold. The stored `projects.spent` column (seeded to 0, never auto-populated) is **not** this value and is not read by any tile. Code reference: `COMMITTED_STATUSES` in `pmo-portal/src/lib/db/procurements.ts`.
+**Committed spend** (canonical: OD-BUDGET-2) — a project's open purchase commitment: Σ open commitment over its procurement cases in statuses `Ordered`, `Received`, `Vendor Invoiced`, `Paid`. Each case counts in its own currency — positions are never blended across currencies. Where the organisation reads its ledger from its ERP, a case contributes its total minus the amounts the ledger already holds for it (never below zero); otherwise the full case total is the commitment (the PMO-proxy basis). This is the single live committed basis used throughout the app: project header "Committed" tile, the Finance dashboard, the Delivery summary, and the at-risk threshold. The stored `projects.spent` column (seeded to 0, never auto-populated) is **not** this value and is not read by any tile. Code reference: `COMMITTED_STATUSES` in `pmo-portal/src/lib/db/procurements.ts`; SQL `project_committed_spend`.
 
-**Actual / Realized spend** — a UI label for **Committed spend** (same number, same basis). In the project header stat-strip and the Finance dashboard "BvA" card, the tile labeled "Actual" displays the committed-PO sum (Ordered..Paid), not a separately tracked actual-cost figure. The two words are deliberately synonymous here because the committed-PO basis IS the realized-cost proxy until a time-and-materials actuals system is added. If a future feature introduces a separate "actuals" ledger distinct from PO commitments, rename the UI tile at that point and add a new glossary entry.
+**Actual (Recorded spending)** — the one cost figure every money surface shows for a project. Where the organisation reads its ledger from its ERP, it is the project's mapped ledger cost; otherwise it is **Committed spend** — the committed-purchase proxy. It is therefore not always the same number as Committed spend (the two coincide only on the proxy basis), and it is never a separately tracked second total. The Finance view labels it "Recorded spending" and shows its basis and freshness; "Actual" is the tile label on the project header and the "Budget vs Actual" card.
+
+**Budget version** — a named, versioned project budget with a currency and lifecycle status, made up of budget line items. Planned money — distinct from **Committed spend**, which measures purchases already ordered.
+
+**Budget line item** — an amount and description for a budget category and fiscal year within a budget version.
+
+**Budget projection** — a project/category/fiscal-year estimate to complete, with an optional explanatory note and currency.
+
+**Cost attribution rule** — a versioned, effective-dated rule matching external cost attributes to percentage allocations across projects; its targets carry the project shares.
 
 **PMO Project Number** — the human-readable identifier PMO assigns to a project. It is unique within the organisation and independent of the organisation's own **Client Project Code** and any identifier assigned by an external system. (OD-ID-1.)
 
 **Client Project Code** — the optional, free-form code the organisation uses for the same project. It is shown and searched alongside the PMO Project Number, but is never used as PMO's identifier. (OD-ID-1.)
 
-**Procurement (case)** — one procure-to-pay effort, modeled as a **case folder**: the thing that carries a title, a project, a requester, a type, and a current lifecycle status. It is **not** itself a Purchase Request or any single document — it is the folder those documents hang under. (ADR-0033.)
+**Procurement (case)** — one procure-to-pay effort, modeled as a **case folder**: the thing that carries a title, an optional project link, a requester, a type, and a current lifecycle status. It is **not** itself a Purchase Request or any single document — it is the folder those documents hang under. The UI speaks of a **purchase** (and of the **supplier**, not vendor) for the case; case-directed copy should prefer "purchase" or "procurement case" for the aggregate — "**Procurement record**" always means a typed child document. (ADR-0033.)
 
-**Procurement record** — a real document that hangs under a Procurement case: a **Purchase Request, RFQ, Quotation, Purchase Order, Goods Receipt, Vendor Invoice,** or **Payment**. Each is its own typed entity, of which a case may have **many** (e.g. several partial Goods Receipts, multiple Vendor Invoices, progress Payments). A record is **evidence** of where the case stands; it is not the authority for the case's status (that is the declared lifecycle status — see **Committed spend**). (ADR-0033.)
+**Procurement record** — a real document that hangs under a Procurement case: a **Purchase Request, RFQ, Quotation, Purchase Order, Goods Receipt, Vendor Invoice,** or **Payment**. Each is its own typed entity, of which a case may have **many** (e.g. several partial Goods Receipts, multiple Vendor Invoices, progress Payments). A record is **evidence** of where the case stands; it is not the authority for the case's status (that is the declared lifecycle status — see **Committed spend**). The kinds are defined below. (ADR-0033.)
+
+**Purchase request** — a numbered, dated request record under a procurement case, with a status and amount; the case's opening document.
+
+**Purchase order** — a numbered, dated order record under a procurement case, with a status and amount.
+
+**Goods receipt** — a numbered receipt record under a procurement case, optionally linked to a purchase order, with a receipt date and status.
+
+**Vendor invoice** (UI: **Supplier invoice**) — a supplier billing record under a procurement case, optionally linked to a purchase order, carrying an amount, date, status and tax details.
+
+**Procurement payment** — a dated payment record under a procurement case, optionally linked to a vendor invoice, with an amount and status.
+
+**Procurement item** — a named quantity and rate on a procurement case, with a calculated or recorded amount.
 
 **System-assigned number** — the identifier PMO mints when a Procurement record is created through the standard PMO flow. It uses the per-org daily sequence and type prefix defined in OD-PROC-3 (for example, `PR-YYMMDD####`). Distinct from the optional **External reference number**.
 
-**External reference number** — the optional, free-form identifier a Procurement record has in the *outside* world — the vendor's quotation number, the real PO number, or the supplier's invoice number. It can be captured alongside the **System-assigned number** so the record is findable from either side. (ADR-0033.)
+**External reference number** — the optional, free-form identifier the *outside* document behind a procurement record carries — the vendor's quotation reference, the real PO number, or the supplier's invoice number. It is shown as "External ref" and captured where the record type supports it; a record need not carry one. (ADR-0033.)
+
+**Group reference** — the optional reference the client group assigns to a case's Purchase Request, Purchase Order or Vendor Invoice: the group's own number for that document, shown as "Group ref". Distinct from the **External reference number**, which is the outside document's reference — a record can carry either, both, or neither.
 
 **RFQ (Request for Quotation)** — a Procurement record representing a formal request for pricing issued to a set of vendors. One RFQ may gather **many** Quotations (1:N); a Quotation may cite the RFQ it answers. (ADR-0033.)
+
+**Quotation** — a vendor's priced response associated with a procurement case and, optionally, the RFQ it answers, carrying validity and selection information.
 
 **Assistant** — the in-app agent a signed-in user converses with to explore their data, perform writes (always with the user's explicit approval), and compose views. The Assistant is a **deputy**: it acts under the user's own identity and permissions and can never see or do more than that user could in the UI. It is an end-user product feature, not an admin or developer tool. (ADR-0036, ADR-0040.)
 
@@ -171,6 +195,44 @@ established and yet unusable. (Clarified 2026-07-29 after "a proven live connect
 covering both legs when only the connect leg had ever run — four documents went stale on the
 ambiguity, and a feature was nearly built on the unproven leg.)
 _Avoid_: "live connection" unqualified — always name the leg.
+
+---
+
+## Progress & billing
+
+**Bill of quantities item** — a project work item with a code, description, unit, quantity, rate and earning basis, used for measured work and billing.
+
+**Project progress entry** — a dated monthly record of a project's percent complete and an optional note.
+
+**Progress assessment quantity** — the quantity completed to date for a bill-of-quantities item in a project progress entry.
+
+**Progress claim** — a project billing claim, optionally associated with a work order, for progress or a down payment, recording gross value and any down-payment recovery.
+
+**Progress claim line** — the quantity, rate and amount claimed for a bill-of-quantities item on a progress claim.
+
+**Claim evidence** — a document revision and its status attached to support a progress claim.
+
+**Sales invoice** — a customer-facing invoice associated with a project and optionally a work order, carrying amount, currency, status and tax details.
+
+**Incoming payment** — a customer payment record, optionally linked to a sales invoice, carrying amount, currency, status and receipt/withholding details.
+
+---
+
+## Expenses & vendor tax
+
+**Expense claim** — a claimant's numbered staff expense record, whose amount is the sum of its lines, with purpose, currency, approval and payment state, optionally assigned to a project.
+
+**Cash advance** — a staff request for an entered amount in advance of expenses, which can later be applied to claims or partly returned.
+
+**Expense claim line** — a dated, typed expense with a description and amount under a claim.
+
+**Advance return** — an amount returned against an expense advance, with its date, reference and recorder.
+
+**Expense claim evidence** — a file attached to an expense claim as supporting documentation.
+
+**Vendor withholding slip** — a numbered vendor tax record for a tax period, currency, withholding type, tax base and withheld amount, with status and revision.
+
+**Vendor withholding slip bill** — an association of a slip to a vendor invoice preserving the withheld amount, type and currency at recording.
 
 ---
 

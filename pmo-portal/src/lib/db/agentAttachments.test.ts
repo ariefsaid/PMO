@@ -70,7 +70,7 @@ const h = vi.hoisted(() => {
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: h.from, storage: h.storage } }));
 
 import {
-  prepareAgentAttachmentUpload,
+  prepareAgentAttachmentFileUpload,
   confirmAgentAttachmentUpload,
   cleanupAgentAttachmentObject,
 } from './agentAttachments';
@@ -94,7 +94,7 @@ beforeEach(() => {
 });
 
 describe('agent attachment DAL', () => {
-  it('AC-AT2-004 prepares upload by inserting metadata first and creating a signed URL for the row path', async () => {
+  it('AC-AT2-004 prepares an upload via the public file op: metadata row first, then a signed URL for the row path', async () => {
     h.result.value = {
       data: {
         id: 'att-1',
@@ -103,12 +103,10 @@ describe('agent attachment DAL', () => {
       error: null,
     };
 
-    const res = await prepareAgentAttachmentUpload({
-      threadId: 'thread-1',
-      fileName: 'Quote.pdf',
-      mimeType: 'application/pdf',
-      sizeBytes: 512,
-    });
+    // OE17R02-002: the direct tests moved from the privatized prepareAgentAttachmentUpload to the
+    // public prepareAgentAttachmentFileUpload; a 512-byte File carries the same facts.
+    const file = new File([new Uint8Array(512)], 'Quote.pdf', { type: 'application/pdf' });
+    const res = await prepareAgentAttachmentFileUpload('thread-1', file);
 
     expect(h.calls.from).toContain('agent_attachments');
     expect(h.calls.insert[0]).toEqual({
@@ -126,14 +124,10 @@ describe('agent attachment DAL', () => {
     });
   });
 
-  it('AC-AT2-004 rejects disallowed MIME before inserting an attachment row', async () => {
+  it('AC-AT2-004 rejects a disallowed MIME before inserting an attachment row (public file op)', async () => {
+    const file = new File([new Uint8Array(10)], 'evil.exe', { type: 'application/x-msdownload' });
     await expect(
-      prepareAgentAttachmentUpload({
-        threadId: 'thread-1',
-        fileName: 'evil.exe',
-        mimeType: 'application/x-msdownload',
-        sizeBytes: 10,
-      }),
+      prepareAgentAttachmentFileUpload('thread-1', file),
     ).rejects.toMatchObject({ code: 'P0001' });
     expect(h.calls.from).toHaveLength(0);
     expect(h.storageCalls.createSignedUploadUrl).toHaveLength(0);

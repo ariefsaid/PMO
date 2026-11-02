@@ -359,11 +359,14 @@ export const AssistantPanel: React.FC = () => {
       // Make the background inert on mobile (the panel is modal)
       const main = document.getElementById('main');
       const railPersistent = document.querySelector('.rail-persistent');
+      const header = document.querySelector('.shell-header') || document.querySelector('header');
       if (main) main.setAttribute('inert', '');
       if (railPersistent) railPersistent.setAttribute('inert', '');
+      if (header) header.setAttribute('inert', '');
       return () => {
         if (main) main.removeAttribute('inert');
         if (railPersistent) railPersistent.removeAttribute('inert');
+        if (header) header.removeAttribute('inert');
       };
     }
   }, [open, isDesktop]);

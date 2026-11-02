@@ -219,6 +219,7 @@ language plpgsql security definer set search_path = public as $$
 declare
   v_previous_plan text;
 begin
+  if not public.is_active_member() then raise exception 'inactive' using errcode = '42501'; end if;
   perform public.assert_active_operator();
   perform 1 from public.organizations o where o.id = p_org_id for update;
   if not found then
@@ -244,6 +245,7 @@ language plpgsql security definer set search_path = public as $$
 declare
   v_previous boolean;
 begin
+  if not public.is_active_member() then raise exception 'inactive' using errcode = '42501'; end if;
   perform public.assert_active_operator();
   perform public.assert_switchable_feature_key(p_key);
   if p_enabled is null then
@@ -265,6 +267,7 @@ create or replace function public.operator_toggle_feature(
 ) returns void
 language plpgsql security definer set search_path = public as $$
 begin
+  if not public.is_active_member() then raise exception 'inactive' using errcode = '42501'; end if;
   perform public.assert_active_operator();
   perform public.assert_switchable_feature_key(p_key);
   if p_enabled is null then
@@ -285,6 +288,7 @@ grant execute on function public.operator_toggle_feature(uuid, text, boolean) to
 create or replace function public.operator_clear_feature_override(p_org_id uuid, p_key text) returns void
 language plpgsql security definer set search_path = public as $$
 begin
+  if not public.is_active_member() then raise exception 'inactive' using errcode = '42501'; end if;
   perform public.assert_active_operator();
   perform public.assert_switchable_feature_key(p_key);
   perform 1 from public.organizations o where o.id = p_org_id for update;
@@ -303,6 +307,7 @@ language plpgsql security definer set search_path = public as $$
 declare
   v_previous boolean;
 begin
+  if not public.is_active_member() then raise exception 'inactive' using errcode = '42501'; end if;
   perform public.assert_active_operator();
   if not exists (select 1 from public.plans p where p.id = p_plan_id) then
     raise exception 'unknown_plan' using errcode = '23503';
@@ -334,6 +339,7 @@ declare
   v_previous_projects integer;
   v_previous_ai integer;
 begin
+  if not public.is_active_member() then raise exception 'inactive' using errcode = '42501'; end if;
   perform public.assert_active_operator();
   if p_seat_limit is not null and p_seat_limit < 0
      or p_project_limit is not null and p_project_limit < 0

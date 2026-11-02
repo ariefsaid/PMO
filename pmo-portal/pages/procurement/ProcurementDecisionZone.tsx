@@ -153,7 +153,7 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
         return requester
           ? tProcurement(
               'procurementDetail.sodPreannounce',
-              'Submitting hands this to another approver — you can\'t approve your own procurement record.',
+              'Submitting hands this to another approver — you can\'t approve your own procurement case.',
             )
           : tProcurement('procurementDetail.readyHint.draftOther', 'Ready to submit this procurement for approval.');
       case 'Requested':
@@ -228,7 +228,7 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
               data-testid="sod-pre-announce"
               className="text-[13px] text-muted-foreground"
             >
-              Submitting hands this to another approver — you can&apos;t approve your own procurement.
+              Submitting hands this to another approver — you can&apos;t approve your own procurement case.
             </p>
           )}
 

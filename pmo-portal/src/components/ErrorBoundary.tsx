@@ -18,8 +18,6 @@ import { safeTrack } from '@/src/lib/analytics';
  */
 export interface ErrorBoundaryProps {
   children: React.ReactNode;
-  /** Called when the user clicks "Try again", alongside the internal state reset. */
-  onReset?: () => void;
 }
 
 interface ErrorBoundaryState {
@@ -48,7 +46,6 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
 
   private handleReset = (): void => {
     this.setState({ error: null });
-    this.props.onReset?.();
   };
 
   private handleReload = (): void => {

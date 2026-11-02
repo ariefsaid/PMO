@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { readProjectView, writeProjectView } from './useProjectView';
 import { VIEWS_STORAGE_KEY } from './viewStorage';
 
-describe('useProjectView persistence (VIEW.project)', () => {
+describe('project view persistence (VIEW.project)', () => {
   beforeEach(() => sessionStorage.clear());
 
   it('defaults to table when nothing is stored', () => {

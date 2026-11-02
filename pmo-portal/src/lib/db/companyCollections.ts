@@ -1,5 +1,5 @@
 import { supabase } from '@/src/lib/supabase/client';
-import { fetchAllRowsByKeyset, type PageResult } from '@/src/lib/pagedRead';
+import { fetchAllRowsByKeyset, mapBounded, type PageResult } from '@/src/lib/pagedRead';
 import type { Tables } from '@/src/lib/supabase/database.types';
 
 /** A canonical PMO company to ERP Customer document-name mapping, read under external_refs RLS. */
@@ -12,6 +12,10 @@ type ExternalRefRow = Pick<Tables<'external_refs'>, 'id' | 'pmo_record_id' | 'ex
 
 const INPUT_CHUNK_SIZE = 100;
 const CUSTOMER_PREFIX = 'Customer:';
+// DAL01-006/DAL03-007: the input chunks are independent (each has its own keyset cursor), so they
+// fetch in parallel instead of paying one round trip per chunk serially. The bound keeps a huge
+// company set from opening unbounded sockets; each chunk's keyset traversal stays sequential.
+const CHUNK_CONCURRENCY = 4;
 
 function uniqueNonBlank(values: readonly string[]): string[] {
   return [...new Set(values.filter((value) => value.trim().length > 0))].sort((left, right) => left.localeCompare(right));
@@ -25,9 +29,14 @@ async function listRefsBy(column: 'pmo_record_id' | 'external_record_id', values
   const matches = uniqueNonBlank(values);
   if (matches.length === 0) return [];
 
-  const refs: CompanyCustomerRef[] = [];
+  const chunks: string[][] = [];
   for (let offset = 0; offset < matches.length; offset += INPUT_CHUNK_SIZE) {
-    const chunk = matches.slice(offset, offset + INPUT_CHUNK_SIZE);
+    chunks.push(matches.slice(offset, offset + INPUT_CHUNK_SIZE));
+  }
+
+  // Bounded-concurrent chunks (DAL01-006); each chunk's keyset traversal stays sequential and the
+  // flattened results keep input-chunk order, so the final dedupe + sort below are deterministic.
+  const chunkRefs = await mapBounded(chunks, CHUNK_CONCURRENCY, async (chunk) => {
     const rows = await fetchAllRowsByKeyset<ExternalRefRow>((afterId, limit) => {
       let query = supabase
         .from('external_refs')
@@ -40,11 +49,14 @@ async function listRefsBy(column: 'pmo_record_id' | 'external_record_id', values
       return query.limit(limit) as unknown as PromiseLike<PageResult<ExternalRefRow>>;
     });
 
+    const found: CompanyCustomerRef[] = [];
     for (const row of rows) {
       if (!isExactErpCustomerId(row.external_record_id) && !(includeSuppliers && /^Supplier:.+$/.test(row.external_record_id))) continue;
-      refs.push({ companyId: row.pmo_record_id, erpCustomerId: row.external_record_id });
+      found.push({ companyId: row.pmo_record_id, erpCustomerId: row.external_record_id });
     }
-  }
+    return found;
+  });
+  const refs = chunkRefs.flat();
 
   const uniqueRefs = new Map<string, CompanyCustomerRef>();
   for (const ref of refs) uniqueRefs.set(`${ref.companyId}\u0000${ref.erpCustomerId}`, ref);

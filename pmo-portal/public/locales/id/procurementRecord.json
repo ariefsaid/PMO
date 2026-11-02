@@ -64,7 +64,7 @@
     "approverHint": "Anda dapat menyetujui atau menolak pengadaan ini. Pemohon tidak dapat menyetujui pengadaannya sendiri. Pemisahan tugas memerlukan peninjau lain.",
     "approverCannotPay": "Pembayaran harus dirilis oleh pengguna keuangan lain. Penyetuju tidak dapat juga membayar pengadaan ini.",
     "payerHint": "Merilis pembayaran: penyetuju tidak dapat juga membayar (pemisahan tugas).",
-    "preAnnounce": "Mengirim ini ke peninjau lain. Anda tidak dapat menyetujui catatan pengadaan Anda sendiri."
+    "preAnnounce": "Mengirim ini ke peninjau lain. Anda tidak dapat menyetujui kasus pengadaan Anda sendiri."
   },
   "gate": {
     "addLineItem": "Tambahkan setidaknya satu item baris sebelum mengajukan."

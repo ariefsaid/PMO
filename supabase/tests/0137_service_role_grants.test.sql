@@ -10,7 +10,7 @@
 -- security-definer lock-order RPCs (0105/0106) are the only mutation path (closing the child→parent
 -- deadlock seam). The catalog backstop below excludes it; the exception is asserted explicitly.
 begin;
-select plan(24);
+select plan(28);
 
 -- profiles: the exact table the promote e2e failed on (admin-invite-user inserts here).
 select ok(has_table_privilege('service_role', 'public.profiles', 'INSERT'),
@@ -19,6 +19,14 @@ select ok(has_table_privilege('service_role', 'public.profiles', 'SELECT'),
   'AC-SVCROLE-002 service_role has SELECT on profiles');
 select ok(has_table_privilege('service_role', 'public.profiles', 'UPDATE'),
   'AC-SVCROLE-003 service_role has UPDATE on profiles');
+select ok(has_table_privilege('service_role', 'public.contract_rate_lines', 'INSERT'),
+  'AC-SVCROLE-021 service_role has INSERT on contract_rate_lines');
+select ok(has_table_privilege('service_role', 'public.contract_rate_lines', 'SELECT'),
+  'AC-SVCROLE-021 service_role has SELECT on contract_rate_lines');
+select ok(has_table_privilege('service_role', 'public.contract_rate_assignees', 'INSERT'),
+  'AC-SVCROLE-022 service_role has INSERT on contract_rate_assignees');
+select ok(has_table_privilege('service_role', 'public.contract_rate_assignees', 'SELECT'),
+  'AC-SVCROLE-022 service_role has SELECT on contract_rate_assignees');
 
 -- A spread of other business tables the backend/dispatcher touches via service_role.
 select ok(has_table_privilege('service_role', 'public.agent_runs', 'INSERT'),
