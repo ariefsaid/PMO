@@ -10,6 +10,7 @@ import type {
 } from '../contractSuite/harness.ts';
 import type { ImprestTransfer } from '../imprestTransfer.ts';
 import { createErpAdapter } from './adapter.ts';
+import { assertNotPreCutover } from '../cutoverGate.ts';
 import { imprestTransferToBody } from './bodies/imprestTransfer.ts';
 import { probeErpByAnchorKey } from './recoveryProbe.ts';
 import { expenseJournalFromDoc } from './bodies/expenseJournal.ts';
@@ -52,7 +53,7 @@ function serviceClient(binding: unknown, categoryAccount = 'Salary'): DispatchSe
   return { from(table: string) { return { select() {
     const chain = {
       eq() { return chain; }, order() { return chain; }, limit() { return chain; }, gt() { return chain; },
-      maybeSingle: async () => ({ data: table === 'external_org_bindings' ? binding : table === 'projects' ? { org_id: ORG } : null, error: null }),
+      maybeSingle: async () => ({ data: table === 'external_org_bindings' ? binding : table === 'projects' || table === 'procurements' ? { org_id: ORG } : null, error: null }),
       then(resolve: (value: unknown) => unknown) {
         resolve({ data: table === 'budget_category_account_map' ? [{ category: 'Labor', erp_account: categoryAccount }] : [], error: null });
       },
@@ -212,6 +213,23 @@ export function createErpnextHarness(): ErpHarness {
       } catch (error) {
         const e = error as Error & { code?: string };
         return { outcome: 'refused', code: e.code, message: e.message, erpWrites: stats.writes };
+      }
+    },
+
+    async pushPurchaseStep(step, orderedBeforeConnect): Promise<PushBeforeConnectionResult> {
+      const { stats, fetchImpl } = erpTransport();
+      // The caller's own client, as dispatch holds it: `pre_cutover_procurement` answers null when it cannot decide.
+      const callerClient = { rpc: async () => ({ data: orderedBeforeConnect === 'unknown' ? null : orderedBeforeConnect, error: null }) };
+      const command = { domain: 'procurement', operation: 'create', record: { id: 'pmo-1', procurementId: 'case-1', erp_doc_kind: step } } as never;
+      try {
+        await assertNotPreCutover(callerClient, command);
+        await resolveErpDispatchAdapter({
+          serviceClient: serviceClient(ACTIVATED_BINDING), orgId: ORG, command,
+          fetchImpl, apiKey: 'key', apiSecret: 'secret',
+        });
+        return { outcome: 'pushed', erpCalls: stats.calls };
+      } catch (error) {
+        return { outcome: 'refused', code: (error as { code?: string }).code, erpCalls: stats.calls };
       }
     },
 

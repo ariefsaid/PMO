@@ -41,7 +41,7 @@ const ExpenseClaimDetail: React.FC = () => {
   const { update } = useExpenseClaimMutations();
   const float = useImprestFloat(claim?.imprest_float_id);
   const { data: projects } = useProjects();
-  const advanceOptions = useOwnAdvanceOptions(claim?.advance_id ?? null);
+  const ownAdvances = useOwnAdvanceOptions(claim?.advance_id ?? null);
   const projectOptions = useMemo(() => (projects ?? []).map((p) => ({ value: p.id, label: projectDisplayName(p) })), [projects]);
   const [editOpen, setEditOpen] = useState(false);
   const backLabel = t('expenses.detail.back', 'Expenses');
@@ -187,7 +187,8 @@ const ExpenseClaimDetail: React.FC = () => {
         <ExpenseClaimFormModal
           kind={claim.kind}
           projectOptions={projectOptions}
-          advanceOptions={advanceOptions}
+          advanceOptions={ownAdvances.options}
+          advanceLoad={ownAdvances}
           initial={{
             title: claim.title, projectId: claim.project_id, budgetCategory: claim.budget_category,
             purpose: claim.purpose, amount, advanceId: claim.advance_id, imprestFloatId: claim.imprest_float_id,

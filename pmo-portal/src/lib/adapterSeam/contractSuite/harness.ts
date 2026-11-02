@@ -48,6 +48,8 @@ export interface BudgetPushResult {
   erpWrites: number;
 }
 
+export type PurchaseStep = 'goods-receipt' | 'purchase-invoice' | 'payment';
+
 export interface PushBeforeConnectionResult {
   outcome: 'pushed' | 'refused';
   code?: string;
@@ -183,6 +185,9 @@ export interface ErpHarness {
   classifyPayment(direction: 'received' | 'paid' | 'unrecognised' | 'blank' | 'absent'): PaymentClassification;
   /** purchase.link-existing: ERP-native purchase documents as PMO mirrors them (one row per document). */
   mirrorPurchases(docs: readonly ErpPurchaseDoc[]): Promise<MirroredPurchase[]>;
+  /** cutover.purchase: a later purchase step, on a purchase ordered before the connection or after it. `unknown` = the
+   *  PMO check cannot answer (the step must then be refused, never pushed). Absent until the tier pushes purchases. */
+  pushPurchaseStep?: (step: PurchaseStep, orderedBeforeConnect: boolean | 'unknown') => Promise<PushBeforeConnectionResult>;
   /** party.send, project.send, item.send: each call starts an empty fake ERP. Absent until the tier sends masters. */
   connect?: () => ConnectHarness;
   /** imprest.transfer: each call starts an empty fake ERP. Absent until the tier posts site cash. */

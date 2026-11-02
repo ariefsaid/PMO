@@ -352,6 +352,7 @@
     "outbox_reconcile_candidates(uuid)",
     "outbox_retry_pending(uuid)",
     "po_revision_push_refusal(uuid,uuid,integer,boolean)",
+    "pre_cutover_procurement(uuid,uuid)",
     "post_stock_document(uuid,integer)",
     "prepare_subcontract_acceptance(uuid,date,jsonb,uuid,text,uuid)",
     "prepare_work_order_acceptance(uuid,date,boolean,jsonb,uuid,text,uuid)",

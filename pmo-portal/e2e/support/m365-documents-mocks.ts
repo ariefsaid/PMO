@@ -115,7 +115,7 @@ export async function seedLinkedRows(page: Page) {
   await page.route('**/rest/v1/project_documents?*', async (route) => {
     const request = route.request();
     if (request.method() !== 'GET' || !request.url().includes(`project_id=eq.${PROJECT_ID}`)) return route.fallback();
-    const response = await route.fetch();
+    const response = await route.fetch({ maxRetries: 2 });
     let rows: unknown;
     try {
       rows = await response.json();
@@ -131,7 +131,7 @@ export async function seedLinkedRows(page: Page) {
 /** The record-folder UI is gated by the m365_integration entitlement: grant it by rewriting this page's org_features read. */
 export async function enableM365Feature(page: Page) {
   await page.route('**/rest/v1/org_features*', async (route) => {
-    const response = await route.fetch();
+    const response = await route.fetch({ maxRetries: 2 });
     if (!response.ok()) return route.fulfill({ response });
     const rows = (await response.json()) as Array<{ feature_key?: string; enabled?: boolean }>;
     return route.fulfill({
@@ -145,7 +145,7 @@ export async function enableM365Feature(page: Page) {
 export async function forceDocumentsLocale(page: Page, locale: 'en' | 'id') {
   await page.route('**/rest/v1/profiles?*', async (route) => {
     if (route.request().method() !== 'GET' || !/[?&]id=eq\./.test(route.request().url())) return route.fallback();
-    const response = await route.fetch();
+    const response = await route.fetch({ maxRetries: 2 });
     let body: unknown;
     try {
       body = await response.json();

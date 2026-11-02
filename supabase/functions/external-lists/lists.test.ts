@@ -17,7 +17,7 @@ import { handleListsRequest, setTestJwks } from './index.ts';
 import {
   createJwtAuthority,
   installEdgeEnv,
-  withFetchMock,
+  withFetchMock as baseWithFetchMock,
   supabaseRpc,
   supabaseSelect,
   restCall,
@@ -27,6 +27,14 @@ import {
   createAuthedRequest,
   createTestJwksResolver,
 } from '../_shared/testing/edgeTestKit.ts';
+
+/**
+ * Every route list is wrapped: the default standing answer (active) is appended LAST, so an
+ * actor_authorization_state route a test supplies itself wins (first match) — the standing-failure
+ * tests below rely on that.
+ */
+const withFetchMock: typeof baseWithFetchMock = (routes, run) =>
+  baseWithFetchMock([...routes, supabaseRpc('actor_authorization_state', () => jsonResponse({ active: true }))], run);
 
 // One stable authority + env per test module (see TEST-ARCH.md _jwks memoization nuance)
 const env = installEdgeEnv();
@@ -47,7 +55,7 @@ describe('external-lists — ClickUp branch', () => {
     await withFetchMock(
       [
         supabaseSelect('profiles', () =>
-          jsonResponse({ org_id: 'org-1', role: 'Admin' }, {
+          jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, {
             headers: { 'content-type': 'application/vnd.pgrst.object+json' },
           })),
 
@@ -129,7 +137,7 @@ describe('external-lists — ClickUp branch', () => {
     await withFetchMock(
       [
         supabaseSelect('profiles', () =>
-          jsonResponse({ org_id: 'org-1', role: 'Project Manager' }, {
+          jsonResponse({ org_id: 'org-1', role: 'Project Manager', status: 'active' }, {
             headers: { 'content-type': 'application/vnd.pgrst.object+json' },
           })),
 
@@ -159,7 +167,7 @@ describe('external-lists — ClickUp branch', () => {
     await withFetchMock(
       [
         supabaseSelect('profiles', () =>
-          jsonResponse({ org_id: 'org-1', role: 'Engineer' }, {
+          jsonResponse({ org_id: 'org-1', role: 'Engineer', status: 'active' }, {
             headers: { 'content-type': 'application/vnd.pgrst.object+json' },
           })),
 
@@ -189,7 +197,7 @@ describe('external-lists — ClickUp branch', () => {
     await withFetchMock(
       [
         supabaseSelect('profiles', () =>
-          jsonResponse({ org_id: 'org-1', role: 'Engineer' }, {
+          jsonResponse({ org_id: 'org-1', role: 'Engineer', status: 'active' }, {
             headers: { 'content-type': 'application/vnd.pgrst.object+json' },
           })),
 
@@ -209,7 +217,7 @@ describe('external-lists — ClickUp branch', () => {
     await withFetchMock(
       [
         supabaseSelect('profiles', () =>
-          jsonResponse({ org_id: 'org-1', role: 'Admin' }, {
+          jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, {
             headers: { 'content-type': 'application/vnd.pgrst.object+json' },
           })),
 
@@ -234,7 +242,7 @@ describe('external-lists — ClickUp branch', () => {
     await withFetchMock(
       [
         supabaseSelect('profiles', () =>
-          jsonResponse({ org_id: 'org-1', role: 'Admin' }, {
+          jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, {
             headers: { 'content-type': 'application/vnd.pgrst.object+json' },
           })),
 
@@ -259,7 +267,7 @@ describe('external-lists — ClickUp branch', () => {
     await withFetchMock(
       [
         supabaseSelect('profiles', () =>
-          jsonResponse({ org_id: 'org-1', role: 'Admin' }, {
+          jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, {
             headers: { 'content-type': 'application/vnd.pgrst.object+json' },
           })),
 
@@ -286,7 +294,7 @@ describe('external-lists — ClickUp branch', () => {
     await withFetchMock(
       [
         supabaseSelect('profiles', () =>
-          jsonResponse({ org_id: 'org-1', role: 'Admin' }, {
+          jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, {
             headers: { 'content-type': 'application/vnd.pgrst.object+json' },
           })),
 
@@ -315,7 +323,7 @@ describe('external-lists — ClickUp branch', () => {
     await withFetchMock(
       [
         supabaseSelect('profiles', () =>
-          jsonResponse({ org_id: 'org-1', role: 'Admin' }, {
+          jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, {
             headers: { 'content-type': 'application/vnd.pgrst.object+json' },
           })),
 
@@ -346,7 +354,7 @@ describe('external-lists — ClickUp branch', () => {
     await withFetchMock(
       [
         supabaseSelect('profiles', () =>
-          jsonResponse({ org_id: 'org-1', role: 'Admin' }, {
+          jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, {
             headers: { 'content-type': 'application/vnd.pgrst.object+json' },
           })),
 
@@ -389,7 +397,7 @@ describe('external-lists — ClickUp branch', () => {
 describe('external-lists — hierarchy honesty', () => {
   const baseMocks = () => [
     supabaseSelect('profiles', () =>
-      jsonResponse({ org_id: 'org-1', role: 'Admin' }, {
+      jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, {
         headers: { 'content-type': 'application/vnd.pgrst.object+json' },
       })),
     supabaseSelect('platform_operators', () => new Response('null', {
@@ -571,5 +579,121 @@ describe('external-lists — hierarchy honesty', () => {
     if (started > startedAtFailureEnd) {
       throw new Error(`${started - startedAtFailureEnd} calls started after the failure`);
     }
+  });
+});
+
+// ============================================================================
+// Current standing: the Admin/PM/Operator gate answers only while the membership is active NOW —
+// the PM allowance included. A deactivated or banned caller carrying an unexpired JWT must get
+// 403 BEFORE any Vault read or ClickUp request, and an unresolvable standing answer fails closed.
+// ============================================================================
+describe('external-lists — current standing', () => {
+  it('a deactivated Admin is refused → 403, no Vault read, no ClickUp request', async () => {
+    await withFetchMock([
+      supabaseSelect('profiles', () =>
+        jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'disabled' }, {
+          headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+        })),
+      supabaseRpc('actor_authorization_state', () => jsonResponse({ role: 'Admin', active: false })),
+      supabaseSelect('platform_operators', () => new Response('null', {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })),
+    ], async ({ calls }) => {
+      const res = await handleListsRequest(await authed({ tier: 'clickup' }));
+      assertEquals(res.status, 403);
+      assertEquals(rpcCall(calls, 'read_vault_secret').length, 0);
+      assertEquals(calls.filter((c) => c.url.host === 'api.clickup.com').length, 0);
+    });
+  });
+
+  it('a deactivated Project Manager is refused → 403 (standing covers the PM allowance too)', async () => {
+    await withFetchMock([
+      supabaseSelect('profiles', () =>
+        jsonResponse({ org_id: 'org-1', role: 'Project Manager', status: 'disabled' }, {
+          headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+        })),
+      supabaseRpc('actor_authorization_state', () => jsonResponse({ role: 'Project Manager', active: false })),
+      supabaseSelect('platform_operators', () => new Response('null', {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })),
+    ], async ({ calls }) => {
+      const res = await handleListsRequest(await authed({ tier: 'clickup' }));
+      assertEquals(res.status, 403);
+      assertEquals(rpcCall(calls, 'read_vault_secret').length, 0);
+      assertEquals(calls.filter((c) => c.url.host === 'api.clickup.com').length, 0);
+    });
+  });
+
+  it('a currently-inactive operator is refused → 403 before the operator branch is consulted', async () => {
+    await withFetchMock([
+      supabaseSelect('profiles', () =>
+        jsonResponse({ org_id: 'org-1', role: 'Engineer', status: 'disabled' }, {
+          headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+        })),
+      supabaseRpc('actor_authorization_state', () => jsonResponse({ role: 'Engineer', active: false })),
+      supabaseSelect('platform_operators', () =>
+        jsonResponse({ user_id: 'user-1' }, {
+          headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+        })),
+    ], async ({ calls }) => {
+      const res = await handleListsRequest(await authed({ tier: 'clickup' }));
+      assertEquals(res.status, 403);
+      assertEquals(rpcCall(calls, 'read_vault_secret').length, 0);
+      assertEquals(calls.filter((c) => c.url.host === 'api.clickup.com').length, 0);
+    });
+  });
+
+  it('an Admin whose profile is active but whose RPC standing is inactive (banned) is refused → 403, no Vault read', async () => {
+    await withFetchMock([
+      supabaseSelect('profiles', () =>
+        jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, {
+          headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+        })),
+      supabaseRpc('actor_authorization_state', () => jsonResponse({ role: 'Admin', active: false })),
+      supabaseSelect('platform_operators', () => new Response('null', {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })),
+    ], async ({ calls }) => {
+      const res = await handleListsRequest(await authed({ tier: 'clickup' }));
+      assertEquals(res.status, 403);
+      assertEquals(rpcCall(calls, 'read_vault_secret').length, 0);
+      assertEquals(calls.filter((c) => c.url.host === 'api.clickup.com').length, 0);
+    });
+  });
+
+  it('a disabled profile is refused even when the RPC reports active → 403, no Vault read', async () => {
+    await withFetchMock([
+      supabaseSelect('profiles', () =>
+        jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'disabled' }, {
+          headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+        })),
+      supabaseRpc('actor_authorization_state', () => jsonResponse({ role: 'Admin', active: true })),
+      supabaseSelect('platform_operators', () => new Response('null', {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })),
+    ], async ({ calls }) => {
+      const res = await handleListsRequest(await authed({ tier: 'clickup' }));
+      assertEquals(res.status, 403);
+      assertEquals(rpcCall(calls, 'read_vault_secret').length, 0);
+      assertEquals(calls.filter((c) => c.url.host === 'api.clickup.com').length, 0);
+    });
+  });
+
+  it('fails closed when standing cannot be resolved → 403, no Vault read', async () => {
+    await withFetchMock([
+      supabaseSelect('profiles', () =>
+        jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, {
+          headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+        })),
+      supabaseRpc('actor_authorization_state', () => new Response('{"message":"unavailable"}', { status: 500, headers: { 'content-type': 'application/json' } })),
+    ], async ({ calls }) => {
+      const res = await handleListsRequest(await authed({ tier: 'clickup' }));
+      assertEquals(res.status, 403);
+      assertEquals(rpcCall(calls, 'read_vault_secret').length, 0);
+    });
   });
 });
