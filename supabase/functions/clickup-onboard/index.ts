@@ -230,9 +230,10 @@ serveWithErrorReporting('clickup-onboard', async (req: Request): Promise<Respons
     // push-seed + pull-adopt both need the resolved binding.
     const binding = await resolveBinding();
     // Shared mirror-callback bag (review fix #3): push-seed + pull-adopt both reuse its recordExternalRef
-    // (and pull-adopt reuses readWatermark/advanceWatermark/resolvePmoRecordId too). No projectId —
-    // pull-adopt overrides mintMirror/updateMirror (no per-row source-mod); push-seed doesn't mint.
-    const mirrorCallbacks = createClickUpMirrorCallbacks({ serviceClient, orgId });
+    // (and pull-adopt reuses readWatermark/advanceWatermark/resolvePmoRecordId too). The project IS bound
+    // here so pull-adopt's CLAIM-FIRST mint (`adoptAtomically.mintWithId`) lands in this project; the
+    // pull-adopt mintMirror/updateMirror overrides stay (no per-row source-mod), and push-seed doesn't mint.
+    const mirrorCallbacks = createClickUpMirrorCallbacks({ serviceClient, orgId, projectId });
 
     // ── push-seed ──
     if (operation === 'push-seed') {

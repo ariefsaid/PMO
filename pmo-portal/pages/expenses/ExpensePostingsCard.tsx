@@ -58,7 +58,7 @@ function postingReason(t: TFunction, pushError: string): string {
  * State is text plus a dot (Quiet-Status Rule), never colour alone.
  */
 export const ExpensePostingsCard: React.FC<{ claimId: string }> = ({ claimId }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation(['common', 'expenseClaims']);
   const { data, isPending, isError, refetch } = useQuery<ExpensePostingRow[]>({
     queryKey: ['expense-postings', claimId],
     queryFn: () => repositories.expensePostings.listForClaim(claimId),
@@ -103,11 +103,20 @@ export const ExpensePostingsCard: React.FC<{ claimId: string }> = ({ claimId }) 
       </p>
     );
   }
+  // FR-EXP-110, Q8: a claim approved before the org employed expenses has no approval entry, yet its payment and settlement
+  // still post (the operator carries the approval in the opening balance). Say so, in the claim's own words.
+  const recordedBefore = data.some((r) => r.posting === 'claim-payment' || r.posting === 'settlement')
+    && !data.some((r) => r.posting === 'approval');
   return (
     // The same shell as the Receipts card beside it; the title is a real heading for screen-reader navigation.
     <Card variant="bare" className="mb-4" aria-labelledby="expense-postings-heading" role="region">
       <CardHead level={2} id="expense-postings-heading">{t('expenses.postings.title', 'Ledger postings')}</CardHead>
       <CardPad>
+        {recordedBefore && (
+          <p data-testid="expense-recorded-before-connection" className="mb-2 text-[12.5px] text-muted-foreground">
+            {t('expenseClaims:postings.recordedBeforeConnection', 'Recorded before the ERP connection')}
+          </p>
+        )}
         <ul className="flex flex-col gap-2">
           {data.map((row) => (
             <li key={row.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13.5px]">

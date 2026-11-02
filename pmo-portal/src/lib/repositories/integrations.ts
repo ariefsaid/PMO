@@ -3,7 +3,7 @@ import { parseErpActivationRefusal, withErpActivationRefusal } from './erpActiva
 import { supabase } from '@/src/lib/supabase/client';
 import { invokeWithTimeout } from '@/src/lib/supabase/invokeWithTimeout';
 import { wrap, throwInvokeError } from './repositoryErrors';
-import type { ClickUpListItem, ConnectCredential, ConnectResponse, DisconnectResponse, ErpProjectLink, ErpProjectOption, ErpSetupReadiness, ExternalTier, IntegrationBinding, IntegrationHealth, IntegrationsRepository, LinkInput, LinkResponse, ProjectBinding, UnlinkInput, UnlinkResponse } from './contracts/integrations';
+import type { ClickUpListItem, ConnectAcceptResult, ConnectCounts, ConnectCredential, ConnectResponse, DisconnectResponse, ErpProjectLink, ErpProjectOption, ErpSetupReadiness, ExternalTier, IntegrationBinding, IntegrationHealth, IntegrationsRepository, LinkInput, LinkResponse, ProjectBinding, UnlinkInput, UnlinkResponse } from './contracts/integrations';
 
 export async function erpSetupRequest<T>(setupAction: string, input: Record<string, unknown> = {}, tier: 'erpnext' | 'odoo' = 'erpnext'): Promise<T> {
   return wrap(async () => {
@@ -13,6 +13,15 @@ export async function erpSetupRequest<T>(setupAction: string, input: Record<stri
     if (error) await throwInvokeError(error);
     return data as T;
   });
+}
+
+const ACCEPT_REQUESTS_MAX = 50;   // each request makes up to 20 bounded calls of 500 rows
+
+function addCounts(into: ConnectCounts, from: ConnectCounts): void {
+  for (const [kind, fields] of Object.entries(from)) {
+    const row = (into[kind] ??= { link: 0, bring_in: 0, send: 0, left_open: 0 });
+    for (const f of ['link', 'bring_in', 'send', 'left_open'] as const) row[f] += fields[f] ?? 0;
+  }
 }
 
 export const integrationsRepository: IntegrationsRepository = {
@@ -25,6 +34,22 @@ export const integrationsRepository: IntegrationsRepository = {
   saveExpenseAccount: (input) => erpSetupRequest<{ ok: true }>('save-expense-account', input),
   clearExpenseAccount: (accountKey) => erpSetupRequest<{ ok: true }>('clear-expense-account', { accountKey }),
   onboardErpParties: () => erpSetupRequest<{ ok: true }>('onboard-parties'),
+  startConnectCensus: (tier) => erpSetupRequest('census', {}, tier),
+  getConnectStatus: (tier) => erpSetupRequest('connect-status', {}, tier),
+  listConnectProposals: (tier, kind, outcome, afterId, state) =>
+    erpSetupRequest('list-proposals', { kind, outcome, afterId, ...(state ? { state } : {}) }, tier),
+  acceptConnectProposals: async (tier, kind, ids) => {
+    const total: ConnectAcceptResult = { counts: {}, remaining: 0 };
+    for (let i = 0; i < ACCEPT_REQUESTS_MAX; i += 1) {
+      const r = await erpSetupRequest<ConnectAcceptResult>('accept-proposals', { kind, ids }, tier);
+      addCounts(total.counts, r.counts);
+      total.remaining = r.remaining;
+      if (r.remaining === 0 || Object.keys(r.counts).length === 0) break;
+    }
+    return total;
+  },
+  decideConnectReview: async (tier, id, choice) => { await erpSetupRequest('decide-review', { id, choice }, tier); },
+  unlinkConnectMatch: async (tier, id) => { await erpSetupRequest('unlink-match', { id }, tier); },
   getBinding: async (orgId: string, tier: ExternalTier): Promise<IntegrationBinding | null> => {
     return wrap(async () => {
       const { data, error } = await supabase

@@ -2011,6 +2011,7 @@
     },
     "statusOption": {
       "draft": "Draf",
+      "submitted": "Diajukan",
       "requested": "Diajukan",
       "approved": "Disetujui",
       "rejected": "Ditolak",

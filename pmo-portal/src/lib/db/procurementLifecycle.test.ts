@@ -29,6 +29,7 @@ import {
   captureVendorInvoice,
   createQuotation,
   setProcurementInvoiceEfaktur,
+  isPreCutoverProcurement,
   ProcurementError,
 } from './procurementLifecycle';
 
@@ -502,5 +503,20 @@ describe('createQuotation', () => {
   it('AC-816 (DAL): createQuotation throws on RPC error', async () => {
     makeRpcBuilder({ data: null, error: { message: 'quotation error' } });
     await expect(createQuotation('proc-1', 'vendor-1', 50000, '2026-06-04')).rejects.toThrow('quotation error');
+  });
+});
+
+describe('isPreCutoverProcurement (FR-ECA-030)', () => {
+  beforeEach(() => mockRpc.mockReset());
+
+  it.each([[true, true], [false, false], [null, false]])('asks the server, never sends org_id, and reads %s as %s', async (answer, expected) => {
+    makeRpcBuilder({ data: answer, error: null });
+    await expect(isPreCutoverProcurement('proc-1')).resolves.toBe(expected);
+    expect(mockRpc).toHaveBeenCalledWith('pre_cutover_procurement', { p_procurement_id: 'proc-1' });
+  });
+
+  it('throws the server error so the caller can fall back to the dispatch gate', async () => {
+    makeRpcBuilder({ data: null, error: { message: 'boom', code: '42501' } });
+    await expect(isPreCutoverProcurement('proc-1')).rejects.toMatchObject({ code: '42501' });
   });
 });

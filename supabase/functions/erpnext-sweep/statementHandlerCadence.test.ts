@@ -334,6 +334,7 @@ const MONEY_ONLY_READS = [
   '/rest/v1/timesheets?',
   '/rest/v1/expense_posting_erp_mirror',
   '/rest/v1/imprest_posting_erp_mirror', // #1515 S6 pass (7b)
+  '/rest/v1/erp_connect_runs', // ECA2-T13 pass (8): one DB read per tick for an open setup run; its ERP and staging work only happens with a run open
   '/rest/v1/budget_archive_cancel_intents?',
 ];
 const MONEY_ONLY_RPCS = [

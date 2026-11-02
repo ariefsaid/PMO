@@ -5,7 +5,8 @@
  */
 import { AppError } from '../appError.ts';
 
-export type PendingPushStatus = 'idle' | 'pushing' | 'pushed' | 'push-failed';
+/** `not-sent` (FR-ECA-030): the purchase predates the ERP connection and stays in PMO; information, terminal, nothing to retry. */
+export type PendingPushStatus = 'idle' | 'pushing' | 'pushed' | 'push-failed' | 'not-sent';
 
 export interface PendingPushState {
   status: PendingPushStatus;
@@ -21,7 +22,8 @@ export function completePush(_state: PendingPushState): PendingPushState {
   return { status: 'pushed', error: null };
 }
 export function failPush(_state: PendingPushState, err: unknown): PendingPushState {
-  return { status: 'push-failed', error: classifyExternalError(err) };
+  const status = errorCode(err) === 'pre-cutover' ? 'not-sent' : 'push-failed';
+  return { status, error: classifyExternalError(err) };
 }
 
 export type WriteOutcome = { ok: true } | { ok: false; err: unknown };
@@ -32,9 +34,16 @@ export function pendingPushAfterWrite(route: 'pmo' | 'external', outcome: WriteO
   return failPush(beginPush(IDLE_PENDING_PUSH), 'err' in outcome ? outcome.err : undefined);
 }
 
+function errorCode(err: unknown): string | undefined {
+  return typeof (err as { code?: unknown })?.code === 'string' ? (err as { code: string }).code : undefined;
+}
+
 export function classifyExternalError(err: unknown): { headline: string; detail: string } {
   const detail = err instanceof Error ? err.message : 'An error occurred';
-  const code = typeof (err as { code?: unknown })?.code === 'string' ? (err as { code: string }).code : undefined;
+  const code = errorCode(err);
+  if (code === 'pre-cutover') {
+    return { headline: 'Not sent: this purchase started before the ERP connection', detail };
+  }
   if (code === 'external-unreachable') {
     return { headline: 'external system unreachable — try again', detail };
   }

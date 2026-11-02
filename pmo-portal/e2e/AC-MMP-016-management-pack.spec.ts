@@ -38,7 +38,7 @@ test('AC-MMP-016: Finance records progress and exports the monthly management pa
   if (iErr) throw new Error(`seed invoice failed: ${iErr.message}`);
   try {
     await page.route('**/rest/v1/org_features*', async (route) => {
-      const response = await route.fetch();
+      const response = await route.fetch({ maxRetries: 2 });
       if (!response.ok()) {
         await route.fulfill({ response });
         return;

@@ -4,20 +4,25 @@
  */
 import { AppError } from '../../appError.ts';
 import type {
+  ConnectHarness,
   BudgetPushResult, BudgetPushScenario, ErpHarness, ErpPartyInput, PartyMatchResult, PmoPartyCandidate,
   ProjectLinkResult, PushBeforeConnectionResult, TransferHarness,
 } from '../contractSuite/harness.ts';
 import type { ImprestTransfer } from '../imprestTransfer.ts';
 import { createErpAdapter } from './adapter.ts';
+import { assertNotPreCutover } from '../cutoverGate.ts';
 import { imprestTransferToBody } from './bodies/imprestTransfer.ts';
 import { probeErpByAnchorKey } from './recoveryProbe.ts';
 import { expenseJournalFromDoc } from './bodies/expenseJournal.ts';
 import { budgetAccountIdentity } from './budgetAccountIdentity.ts';
 import { DOCTYPE_BODIES } from './doctypeBodies.ts';
 import { resolveErpDispatchAdapter, type DispatchServiceClient } from './dispatchFactory.ts';
+import { createErpnextConnectAdapter, ERP_CONNECT_PAGE } from './connectAdapter.ts';
+import { fakeErp } from './fakeErp.ts';
 import { onboardParties } from './onboarding.ts';
 import { adoptParty } from './partyAdopt.ts';
 import { invertProjectMap } from './projectMap.ts';
+import { createPushAndReadHarness } from './contract.pushAndRead.harness.ts';
 
 const ORG = 'org';
 const VERSION_ID = '44444444-4444-4444-8444-444444444444';
@@ -48,11 +53,11 @@ function serviceClient(binding: unknown, categoryAccount = 'Salary', consentRow:
   return { from(table: string) { return { select() {
     const filters: Record<string, string | boolean> = {};
     const chain = {
-      eq(column: string, value: string | boolean) { filters[column] = value; return chain; },
+      eq(column: string, value: string | boolean | number) { filters[column] = value; return chain; },
       is() { return chain; }, gte() { return chain; }, order() { return chain; }, limit() { return chain; }, gt() { return chain; },
       // A consent is found only when every equality filter the code sent matches the recorded row.
       maybeSingle: async () => ({
-        data: table === 'external_org_bindings' ? binding : table === 'projects' ? { org_id: ORG }
+        data: table === 'external_org_bindings' ? binding : table === 'projects' || table === 'procurements' ? { org_id: ORG }
           : table === 'budget_occupant_consents' && consentRow && Object.entries(filters).every(([k, v]) => consentRow[k] === v) ? { id: 'consent-1' } : null,
         error: null,
       }),
@@ -140,6 +145,8 @@ export function createErpnextHarness(): ErpHarness {
   return {
     tier: 'erpnext',
     transfer: createTransferHarness,
+    connect: createConnectHarness,
+    ...createPushAndReadHarness(),
 
     async matchParty(party: ErpPartyInput, existing: readonly PmoPartyCandidate[]): Promise<PartyMatchResult> {
       try {
@@ -182,6 +189,7 @@ export function createErpnextHarness(): ErpHarness {
           },
           mirrorExists: async (id) => companies.has(id),
           notifyUnclearMatch: async () => { review += 1; },
+          recordReview: async () => {},   // the persisted row is the database's; the suite counts the decision
         });
       }
       return { companies: companies.size, refs: refs.size, linked, review: review / runs };
@@ -218,6 +226,23 @@ export function createErpnextHarness(): ErpHarness {
       }
     },
 
+    async pushPurchaseStep(step, orderedBeforeConnect): Promise<PushBeforeConnectionResult> {
+      const { stats, fetchImpl } = erpTransport();
+      // The caller's own client, as dispatch holds it: `pre_cutover_procurement` answers null when it cannot decide.
+      const callerClient = { rpc: async () => ({ data: orderedBeforeConnect === 'unknown' ? null : orderedBeforeConnect, error: null }) };
+      const command = { domain: 'procurement', operation: 'create', record: { id: 'pmo-1', procurementId: 'case-1', erp_doc_kind: step } } as never;
+      try {
+        await assertNotPreCutover(callerClient, command);
+        await resolveErpDispatchAdapter({
+          serviceClient: serviceClient(ACTIVATED_BINDING), orgId: ORG, command,
+          fetchImpl, apiKey: 'key', apiSecret: 'secret',
+        });
+        return { outcome: 'pushed', erpCalls: stats.calls };
+      } catch (error) {
+        return { outcome: 'refused', code: (error as { code?: string }).code, erpCalls: stats.calls };
+      }
+    },
+
     async pushPurchase(connection): Promise<PushBeforeConnectionResult> {
       const { stats, fetchImpl } = erpTransport();
       const binding = connection === 'absent' ? null : { ...ACTIVATED_BINDING, activated_at: connection === 'activated' ? ACTIVATED_BINDING.activated_at : null };
@@ -230,6 +255,38 @@ export function createErpnextHarness(): ErpHarness {
         return { outcome: 'pushed', erpCalls: stats.calls };
       } catch (error) {
         return { outcome: 'refused', code: (error as { code?: string }).code, erpCalls: stats.calls };
+      }
+    },
+  };
+}
+
+/** A fake ERPNext behind the connect adapter, loaded in PMO terms. Reads only until ECA-3 teaches it to send. */
+function createConnectHarness(): ConnectHarness {
+  const tables: Record<string, Array<Record<string, unknown>>> = {};
+  const { client, seen } = fakeErp(tables);
+  const put = (doctype: string, row: Record<string, unknown>) => { (tables[doctype] ??= []).push({ company: 'Test Co', ...row }); };
+  const notYet = () => { throw new Error('erpnext sends arrive with ECA-3'); };
+  return {
+    adapter: createErpnextConnectAdapter(client, 'Test Co'),
+    pageSize: ERP_CONNECT_PAGE,
+    documents: notYet,
+    failNextWrite: notYet,
+    calls: () => ({ reads: seen.filter((r) => r.method === 'GET').length, writes: seen.filter((r) => r.method !== 'GET').length }),
+    load(kind, rows) {
+      for (const r of rows) {
+        const disabled = r.active ? 0 : 1;
+        if (kind === 'party') {
+          const vendor = r.role !== 'client';
+          put(vendor ? 'Supplier' : 'Customer', vendor
+            ? { name: r.externalId, supplier_name: r.name, tax_id: r.taxId ?? null, disabled, is_internal_supplier: r.internal ? 1 : 0 }
+            : { name: r.externalId, customer_name: r.name, tax_id: r.taxId ?? null, disabled, is_internal_customer: r.internal ? 1 : 0 });
+        } else if (kind === 'project') put('Project', { name: r.externalId, project_name: r.name, status: r.active ? 'Open' : 'Cancelled' });
+        else if (kind === 'item') put('Item', { name: r.externalId, item_name: r.name, disabled });
+        else if (kind === 'employee') put('Employee', { name: r.externalId, employee_name: r.name, company_email: r.code ?? null, user_id: null, status: r.active ? 'Active' : 'Left' });
+        else if (kind === 'account') {
+          // The adapter derives the category from the account itself, so the account is named for the category it carries.
+          put('Account', { name: r.externalId, account_name: r.name, account_number: '5100', parent_account: 'Cost of Sales - TC', root_type: 'Expense', is_group: 0, disabled });
+        }
       }
     },
   };

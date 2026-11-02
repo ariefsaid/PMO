@@ -26,6 +26,8 @@ export interface PmoMaster {
   role?: 'client' | 'vendor';
   taxId?: string | null;
   code?: string | null;
+  /** Archived records are not candidates (ECA-2). Default true. */
+  active?: boolean;
   /** The PMO unit of an item, mapped to the ERP's unit by the adapter. */
   unit?: string | null;
 }
@@ -39,3 +41,16 @@ export interface ConnectAdapter {
   /** Lookup-then-create: a retry with the same record finds the first attempt's document instead of creating another. */
   sendMaster(kind: MasterKind, record: PmoMaster, key: string): Promise<{ externalId: string }>;
 }
+
+export type MatchKey = 'tax' | 'code' | 'name';
+export type ReviewReason = 'ambiguous' | 'tax-conflict' | 'rejected';
+export type MatchOutcome =
+  | { outcome: 'link'; pmoId: string; externalId: string; key: MatchKey }
+  | { outcome: 'bring-in'; externalId: string }
+  | { outcome: 'send'; pmoId: string }
+  | { outcome: 'review'; pmoIds: string[]; externalIds: string[]; reason: ReviewReason };
+export type Scenario = 'none' | 'S-A' | 'S-C' | 'S-D'; // 'none' = both sides empty
+/** FR-ECA-001: money domains are counted on both sides too. */
+export type CensusDomain = 'budget' | 'purchase' | 'invoice' | 'receipt' | 'payment' | 'timesheet';
+/** `erpCount`/`scenario` null = this ERP cannot count the domain yet (shown as "not checked", never as 0). */
+export interface CensusRow { kind: MasterKind | CensusDomain; pmoCount: number; erpCount: number | null; scenario: Scenario | null }
