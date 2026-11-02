@@ -51,22 +51,6 @@ export interface MeetingNoteBlock {
   text: string;
 }
 
-/**
- * Coerce a stored `notes` JSON value into the v1 block array, defensively: the schema asserts
- * only "array" (FR-MTG-002), so unknown block shapes flatten to their `text` (or '') rather than
- * crashing the page — a forward-compatibility guard, not a validation layer.
- */
-export function parseNoteBlocks(notes: Json): MeetingNoteBlock[] {
-  if (!Array.isArray(notes)) return [];
-  return notes.map((b) => {
-    if (b && typeof b === 'object' && !Array.isArray(b)) {
-      const text = (b as { text?: unknown }).text;
-      return { type: 'p' as const, text: typeof text === 'string' ? text : '' };
-    }
-    return { type: 'p' as const, text: typeof b === 'string' ? b : '' };
-  });
-}
-
 /** The fields a create form supplies. org_id / created_by_id are NEVER among them — RLS + the
  *  0205 stamp trigger are the authority; `notes` starts as the column default `[]`. */
 export interface MeetingInput {
