@@ -4,7 +4,6 @@ import { useTranslation } from 'react-i18next';
 import { repositories } from '@/src/lib/repositories';
 import {
   Button,
-  ConfirmDialog,
   EntityFormModal,
   FormGrid,
   ListState,
@@ -16,6 +15,7 @@ import { domainLabel } from './integrationLabels';
 import { EXPENSES_EMPLOYABLE } from '@/src/lib/adapterSeam/erpnext/expenseEnablement';
 import { COMPANY_DEFAULTS, getErpSetupIncompleteness, requiredBudgetCategories } from './erpSetupIncompleteness';
 import { ProjectMatchReview } from './ProjectMatchReview';
+import { ConnectProposalReview } from './ConnectProposalReview';
 
 // #775 phase B — `expenses` is offered only once its release guard (#901) is open (FR-EXP-118, DD-EXP-22).
 const ERP_DOMAINS = ['companies', 'procurement', 'revenue', 'timesheets', ...(EXPENSES_EMPLOYABLE ? ['expenses'] : [])];
@@ -34,11 +34,9 @@ export function ErpSetupChecklist(
     retry: false,
   });
   const [editing, setEditing] = useState<'defaults' | 'domain' | null>(null);
-  const [onboarding, setOnboarding] = useState(false);
+  const [matchReviewOpen, setMatchReviewOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [onboardError, setOnboardError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
   const defaults = useEntityForm({
     initialValues: { activityType: '', receivableAccount: '' },
     requiredFields: ['activityType', 'receivableAccount'],
@@ -110,30 +108,7 @@ export function ErpSetupChecklist(
       }
     });
   };
-  const onboard = async () => {
-    setBusy(true);
-    setOnboardError(null);
-    try {
-      await repositories.integrations.onboardErpParties();
-      setOnboarding(false);
-      setNotice(
-        t(
-          'integrations.erpSetup.onboarded',
-          'ERP parties are onboarded. Review the Companies list.',
-        ),
-      );
-      await refresh();
-    } catch {
-      setOnboardError(
-        t(
-          'integrations.erpSetup.onboardFailed',
-          'Party onboarding did not complete. Try again.',
-        ),
-      );
-    } finally {
-      setBusy(false);
-    }
-  };
+
   const domainNames: Record<string, string> = {
     companies: t('integrations.erpSetup.domainNames.companies', 'Companies'),
     procurement: t('integrations.erpSetup.domainNames.procurement', 'Procurement'),
@@ -171,15 +146,20 @@ export function ErpSetupChecklist(
         : setup.isError && !setup.data
         ? (
           <div className='space-y-2'>
-            <ListState
-              variant='error'
-              title={t(
-                'integrations.erpSetup.unavailable',
-                'ERP setup unavailable',
-              )}
-              sub={t('uxs07.setupUnavailableHelp', 'Readiness is unknown. Retry, or ask your PMO administrator to review ERP setup.')}
-              onRetry={() => void setup.refetch()}
-            />
+            {/* In-card error: the checklist lives inside the ERPNext card, so this renders as
+             * plain text + retry (no bordered box — craft floor: nested cards are always
+             * wrong, and any bordered container inside the card reads as one). */}
+            <div role='status' className='text-sm'>
+              <p className='font-medium text-foreground'>
+                {t('integrations.erpSetup.unavailable', 'ERP setup unavailable')}
+              </p>
+              <p className='mt-1 text-muted-foreground'>
+                {t('uxs07.setupUnavailableHelp', 'Readiness is unknown. Retry, or ask your PMO administrator to review ERP setup.')}
+              </p>
+              <Button variant='ghost' size='sm' className='mt-1 px-2' onClick={() => void setup.refetch()}>
+                {t('ux.retry', 'Retry')}
+              </Button>
+            </div>
             <a className={actionLink} href='/administration/accounting#budget-account-map'>
               {t('uxs07.operatorHandoff', 'Open accounting setup')}
             </a>
@@ -338,12 +318,9 @@ export function ErpSetupChecklist(
               <Button
                 variant='outline'
                 size='sm'
-                onClick={() => {
-                  setOnboarding(true);
-                  setOnboardError(null);
-                }}
+                onClick={() => setMatchReviewOpen(true)}
               >
-                {t('uxs08.partiesAction', 'Review company connections')}
+                {t('integrations.connect.matchRecords', 'Match records')}
               </Button>
               <a className={actionLink} href='/companies'>
                 {t('integrations.erpSetup.reviewParties', 'Review companies')}
@@ -360,11 +337,6 @@ export function ErpSetupChecklist(
             </div>
           </>
         )}
-      {notice && (
-        <p role='status' className='mt-3 text-sm text-muted-foreground'>
-          {notice}
-        </p>
-      )}
       {editing && (
         <EntityFormModal
           open
@@ -423,22 +395,16 @@ export function ErpSetupChecklist(
             )}
         </EntityFormModal>
       )}
-      <ConfirmDialog
-        open={onboarding}
-        title={t('uxs08.onboardDialog', 'Review company connections?')}
-        description={onboardError ??
-          t(
-            'uxs08.onboardDescription',
-            'Review company connections from the connected business system. Existing confirmed links are kept.',
-          )}
-        confirmLabel={t(
-          'uxs08.onboardSubmit',
-          'Review connections',
-        )}
-        loading={busy}
-        onConfirm={() => void onboard()}
-        onCancel={() => setOnboarding(false)}
-      />
+      {matchReviewOpen && (
+        <div className='mt-6'>
+          <ConnectProposalReview
+            tier='erpnext'
+            orgId={orgId}
+            open={matchReviewOpen}
+            onClose={() => setMatchReviewOpen(false)}
+          />
+        </div>
+      )}
     </section>
   );
 }

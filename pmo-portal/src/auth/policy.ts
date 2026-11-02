@@ -116,6 +116,9 @@ export interface PolicyContext {
   record?: {
     /** Feature-local view-as fence for evidence writes; callers compare effective and real roles. */
     viewOnly?: boolean;
+    /** Which master kind a connector surface acts on (ECA2-T17): Finance may accept
+     *  account matches only; every other integration manage affordance is Admin-only. */
+    kind?: string;
     status?: string | null;
     assignee_id?: string | null;
     /** Project task write ownership and saved-view owner for record-scoped checks. */
@@ -650,8 +653,12 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   },
   integration: {
     // Admin self-serve connect/disconnect (UX gate). Server (edge fn + RPC) re-enforces
-    // Admin OR platform Operator. FE is stricter (Admin only).
-    manage: allow(ADMIN),   // no view-as fence: it predates the fence, and the ERPNext/ClickUp cards share it
+    // Admin OR platform Operator. FE is stricter (Admin only; Finance for accounts, ECA2-T17).
+    manage: (role, ctx) => {
+      if (has(ADMIN, role)) return true;
+      if (role === 'Finance' && ctx?.record?.kind === 'account') return true;
+      return false;
+    },
     // Odoo (#1504 S5, AC-ODC-082). UX ONLY: the edge-function routers + RPCs are the authority. The `viewOnly` fence is
     // the view-as case (effective role differs from the real one): an impersonating Admin sees no write control.
     manage_external_bindings: (role, ctx) => has(ADMIN, role) && ctx.record?.viewOnly !== true,

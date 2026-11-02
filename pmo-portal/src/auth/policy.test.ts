@@ -508,8 +508,10 @@ describe('can() — integration entity (AC-EAC-003/004, FR-EAC-004)', () => {
     expect(can('manage', 'integration', { realRole: 'Executive' })).toBe(false);
   });
 
-  it('AC-EAC-004: can(\'manage\', \'integration\') is false for Finance', () => {
+  it('AC-EAC-004: can(\'manage\', \'integration\') is false for Finance without account context, true with account context (ECA2-T17)', () => {
     expect(can('manage', 'integration', { realRole: 'Finance' })).toBe(false);
+    expect(can('manage', 'integration', { realRole: 'Finance', record: { kind: 'party' } })).toBe(false);
+    expect(can('manage', 'integration', { realRole: 'Finance', record: { kind: 'account' } })).toBe(true);
   });
 
   it('AC-EAC-004: can(\'manage\', \'integration\') is false for Operator (server-gated only)', () => {

@@ -29,6 +29,16 @@ const erpSetup = vi.hoisted(() => ({
   })),
   employErpDomain: vi.fn(async () => ({ ok: true })),
   onboardErpParties: vi.fn(async () => ({ ok: true })),
+  getConnectStatus: vi.fn(async () => ({
+    run: { id: 'r1', state: 'ready' as const, finished_at: 'now', error_class: null },
+    census: [],
+    waitingForSend: 0,
+  })),
+  listConnectProposals: vi.fn(async () => ({ proposals: [], nextAfterId: null })),
+  acceptConnectProposals: vi.fn(async () => ({ counts: {}, remaining: 0 })),
+  decideConnectReview: vi.fn(async () => undefined),
+  startConnectCensus: vi.fn(async () => ({ runId: 'r1', census: [] })),
+  unlinkConnectMatch: vi.fn(async () => undefined),
 }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { integrations: erpSetup } }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { org_id: 'org-1' } }) }));
@@ -171,13 +181,12 @@ describe('ERP domain setup actions', () => {
     expect(await screen.findByText('6 of 6 configured')).toBeInTheDocument();
     expect(setCompany.mutateAsync).toHaveBeenCalledWith('Example Company');
   });
-  it('keeps a failed domain assignment and party onboarding open for a safe retry', async () => {
+  it('keeps a failed domain assignment open for a safe retry', async () => {
     const erpBinding={...mockBinding,external_tier:'erpnext' as const,config:{company:'Example Company'}};
     vi.mocked(useExternalDomainOwnership).mockReturnValue(baseExternalDomainReturn as never);
     vi.mocked(useIntegrations).mockReturnValue(bindingMapIntegrations({getBinding:(tier:string)=>tier==='erpnext'?erpBinding:undefined}) as never);
     vi.mocked(useProjects).mockReturnValue({data:[],isPending:false,isError:false} as never);
     erpSetup.employErpDomain.mockRejectedValueOnce(new Error('private domain detail'));
-    erpSetup.onboardErpParties.mockRejectedValueOnce(new Error('private onboarding detail'));
     wrapWithRole('Admin',<IntegrationsView/>);
     fireEvent.click(await screen.findByRole('button',{name:'Choose information to keep updated'}));
     fireEvent.change(screen.getByRole('combobox',{name:'Business information'}),{target:{value:'timesheets'}});
@@ -186,14 +195,7 @@ describe('ERP domain setup actions', () => {
     expect(screen.getByRole('combobox',{name:'Business information'})).toHaveValue('timesheets');
     fireEvent.click(screen.getByRole('button',{name:'Save information choices'}));
     await waitFor(()=>expect(screen.queryByRole('dialog',{name:'Information to keep updated'})).not.toBeInTheDocument());
-    fireEvent.click(screen.getByRole('button',{name:'Review company connections'}));
-    fireEvent.click(screen.getByRole('button',{name:'Review connections'}));
-    expect(await screen.findByText('Party onboarding did not complete. Try again.')).toBeInTheDocument();
-    expect(screen.queryByText(/private .* detail/)).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button',{name:'Review connections'}));
-    expect(await screen.findByText('ERP parties are onboarded. Review the Companies list.')).toBeInTheDocument();
     expect(erpSetup.employErpDomain).toHaveBeenCalledTimes(2);
-    expect(erpSetup.onboardErpParties).toHaveBeenCalledTimes(2);
   });
   it('shows an unavailable checklist and retries its authenticated read', async () => {
     const erpBinding={...mockBinding,external_tier:'erpnext' as const,config:{company:'Example Company'}};
@@ -257,7 +259,7 @@ describe('ERP domain setup actions', () => {
     fireEvent.click(screen.getByRole('button',{name:'Save information choices'}));
     await waitFor(()=>expect(erpSetup.employErpDomain).toHaveBeenCalledWith('expenses'));
   });
-  it('Admin confirms a domain assignment and can run the existing party onboarding action', async () => {
+  it('Admin confirms a domain assignment and can open the match records review', async () => {
     const erpBinding={...mockBinding,external_tier:'erpnext' as const,config:{company:'Example Company'}};
     vi.mocked(useExternalDomainOwnership).mockReturnValue(baseExternalDomainReturn as never);
     vi.mocked(useIntegrations).mockReturnValue(bindingMapIntegrations({getBinding:(tier:string)=>tier==='erpnext'?erpBinding:undefined}) as never);
@@ -268,8 +270,7 @@ describe('ERP domain setup actions', () => {
     fireEvent.click(screen.getByRole('button',{name:'Save information choices'}));
     await waitFor(()=>expect(erpSetup.employErpDomain).toHaveBeenCalledWith('timesheets'));
     await waitFor(()=>expect(screen.queryByRole('dialog', {name:'Information to keep updated'})).not.toBeInTheDocument());
-    fireEvent.click(screen.getByRole('button',{name:'Review company connections'}));
-    fireEvent.click(screen.getByRole('button',{name:'Review connections'}));
-    await waitFor(()=>expect(erpSetup.onboardErpParties).toHaveBeenCalled());
+    fireEvent.click(screen.getByRole('button',{name:'Match records'}));
+    expect(await screen.findByTestId('connect-proposal-review')).toBeInTheDocument();
   });
 })
