@@ -30,17 +30,16 @@ vi.mock('@/src/lib/db/procurementLifecycle', async (importOriginal) => {
   };
 });
 
-vi.mock('@/src/lib/db/subcontracts', () => ({
-  captureSubcontractVendorInvoice: vi.fn().mockResolvedValue({ id: 'invoice-sub-1' }),
-}));
-
-const { procurement } = vi.hoisted(() => ({
+const { procurement, subcontractsRepo } = vi.hoisted(() => ({
   procurement: {
     transition: vi.fn().mockResolvedValue(undefined),
     createQuotation: vi.fn().mockResolvedValue({ id: 'quote-1' }),
     createReceipt: vi.fn().mockResolvedValue({ id: 'receipt-1' }),
     createInvoice: vi.fn().mockResolvedValue({ id: 'invoice-1' }),
     approveAmount: vi.fn().mockResolvedValue(undefined),
+  },
+  subcontractsRepo: {
+    captureSubcontractVendorInvoice: vi.fn().mockResolvedValue({ id: 'invoice-sub-1' }),
   },
 }));
 // `get` and `captureVendorInvoice` delegate to the mocked DAL so the read/capture assertions below stay on the DAL calls.
@@ -53,6 +52,7 @@ vi.mock('@/src/lib/repositories', async () => {
         get: (id: string) => dal.getProcurementDetail(id),
         captureVendorInvoice: (input: Parameters<typeof dal.captureVendorInvoice>[0]) => dal.captureVendorInvoice(input),
       },
+      subcontracts: subcontractsRepo,
     },
   };
 });
@@ -64,7 +64,7 @@ vi.mock('@/src/auth/useAuth', () => ({
 
 import { useProcurementDetail, useProcurementMutations } from './useProcurementDetail';
 import { getProcurementDetail, captureVendorInvoice } from '@/src/lib/db/procurementLifecycle';
-import { captureSubcontractVendorInvoice } from '@/src/lib/db/subcontracts';
+import { repositories } from '@/src/lib/repositories';
 import { clearOwnershipCache, setTaskOwnership } from '@/src/lib/adapterSeam/ownershipCache';
 
 // ---------------------------------------------------------------------------
@@ -315,7 +315,7 @@ describe('useProcurementMutations', () => {
     expect(calls.some((c) => c.includes('"procurement"') && c.includes('"org-1"'))).toBe(true);
   });
 
-  it('harden #2 mirror: captureSubcontractVendorInvoice mutation calls the DAL directly and invalidates detail key and subcontract queries', async () => {
+  it('harden #2 mirror: captureSubcontractVendorInvoice mutation routes through the repository seam (#1632, ADR-0017) and invalidates detail key and subcontract queries', async () => {
     const { qc, Wrapper } = makeWrapper();
     const invalidateSpy = vi.spyOn(qc, 'invalidateQueries');
 
@@ -334,7 +334,7 @@ describe('useProcurementMutations', () => {
       });
     });
 
-    expect(captureSubcontractVendorInvoice).toHaveBeenCalledWith({
+    expect(vi.mocked(repositories.subcontracts.captureSubcontractVendorInvoice)).toHaveBeenCalledWith({
       procurementId: 'proc-1',
       status: 'Received',
       invoiceDate: '2026-06-04',

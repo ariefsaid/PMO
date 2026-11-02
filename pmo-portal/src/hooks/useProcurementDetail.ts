@@ -21,13 +21,9 @@ import {
   type PendingPushState,
 } from '@/src/lib/adapterSeam/pendingPush';
 import type { Tables } from '@/src/lib/supabase/database.types';
-import type { CommandIntent } from '@/src/lib/repositories/types';
+import type { CommandIntent, CaptureSubcontractVendorInvoiceInput } from '@/src/lib/repositories/types';
 import { efakturRefusal } from '@/src/lib/efaktur';
 import { useStartRecordFolder } from '@/src/hooks/useStartRecordFolder';
-import {
-  captureSubcontractVendorInvoice as captureSubcontractVendorInvoiceDal,
-  type CaptureSubcontractVendorInvoiceInput,
-} from '@/src/lib/db/subcontracts';
 import { subcontractKeys } from '@/src/hooks/useSubcontract';
 import { procurementDetailKey, cachedProcurementProjectId, invalidateProcurementCase } from '@/src/hooks/procurementQueryKeys';
 
@@ -207,7 +203,7 @@ export function useProcurementMutations(id: string) {
     ProcurementError,
     Omit<CaptureSubcontractVendorInvoiceInput, 'procurementId'>
   >({
-    mutationFn: (input) => captureSubcontractVendorInvoiceDal({ ...input, procurementId: id }),
+    mutationFn: (input) => repositories.subcontracts.captureSubcontractVendorInvoice({ ...input, procurementId: id }),
     onSuccess: () => {
       invalidateDetail();
       queryClient.invalidateQueries({ queryKey: subcontractKeys.all(orgId) });
