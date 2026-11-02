@@ -3,7 +3,7 @@
 -- docs/plans/2026-11-01-equipment-usage.md "Fixture F1" / "Ledger Fixture F2".
 begin;
 create extension if not exists pgtap;
-select plan(65);
+select plan(66);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('15190000-0000-0000-0000-00000000000a', 'EQU Org',   'IDR', 'Asia/Jakarta'),
@@ -98,7 +98,9 @@ insert into erp_gl_entry_mirror (id, org_id, erp_name, company, account, cost_ce
   ('15190000-0000-0000-0000-0000000001b3','15190000-0000-0000-0000-00000000000a','EQ-GL-B3','EQ','Repairs - EQ','Pmx-1 - EQ','2027',null,'Supplier','SUP-1','2027-04-10',0,200.00,false,'1'),
   ('15190000-0000-0000-0000-0000000001b4','15190000-0000-0000-0000-00000000000a','EQ-GL-B4','EQ','Repairs - EQ','Sby-1 - EQ','2027',null,'Supplier','SUP-1','2027-03-15',400.00,0,false,'1'),
   ('15190000-0000-0000-0000-0000000001b5','15190000-0000-0000-0000-00000000000a','EQ-GL-B5','EQ','Repairs - EQ','Trp-1 - EQ','2027',null,'Supplier','SUP-1','2027-03-15',400.00,0,false,'1'),
-  ('15190000-0000-0000-0000-0000000001b6','15190000-0000-0000-0000-00000000000a','EQ-GL-B6','EQ','Repairs - EQ','Mid-1 - EQ','2027',null,'Supplier','SUP-1','2027-05-20',600.00,0,false,'1');
+  ('15190000-0000-0000-0000-0000000001b6','15190000-0000-0000-0000-00000000000a','EQ-GL-B6','EQ','Repairs - EQ','Mid-1 - EQ','2027',null,'Supplier','SUP-1','2027-05-20',600.00,0,false,'1'),
+  -- B7: a null party type keeps its allocation amount visible to the PM (AC-EQU-012).
+  ('15190000-0000-0000-0000-0000000001b7','15190000-0000-0000-0000-00000000000a','EQ-GL-B7','EQ','Repairs - EQ','Pmx-1 - EQ','2027',null,null,null,'2027-03-15',80.00,0,false,'1');
 -- PMX-1: 3 h / 1 h in March and April on P1 / P2
 select pg_temp.usage('15190000-0000-0000-0000-0000000000d5','15190000-0000-0000-0000-0000000000c1','2027-03-05',3,'hours');
 select pg_temp.usage('15190000-0000-0000-0000-0000000000d5','15190000-0000-0000-0000-0000000000c2','2027-03-06',1,'hours');
@@ -298,19 +300,19 @@ select lives_ok($$ select save_equipment_costing('{"asset_id":"15190000-0000-000
   "rate_unit":"hours","account":"Repairs - EQ","cost_center":"Pmx-1 - EQ","effective_from":"2027-01-01"}') $$,
   'AC-EQU-001 the payroll-mix setting saves');
 select is(array(select amount::text as x from list_equipment_allocations('15190000-0000-0000-0000-0000000000d5','2027-03-01','2027-03-31') order by amount),
-  array['75.00','225.00','250.00','750.00'], 'AC-EQU-001 several party types in one month pool separately (1000.00 Employee, 300.00 Supplier) and share 3:1');
+  array['20.00','60.00','75.00','225.00','250.00','750.00'], 'AC-EQU-001 several party types in one month pool separately (1000.00 Employee, 300.00 Supplier, 80.00 null) and share 3:1');
 select is(array(select distinct pool::text from list_equipment_allocations('15190000-0000-0000-0000-0000000000d5','2027-03-01','2027-03-31') order by 1),
-  array['1000.00','300.00'], 'AC-EQU-001 Finance reads each party-type pool');
+  array['1000.00','300.00','80.00'], 'AC-EQU-001 Finance reads each party-type pool');
 select is((select sum(line_count)::int from list_equipment_allocations('15190000-0000-0000-0000-0000000000d5','2027-03-01','2027-03-31')),
-  4, 'AC-EQU-001 Finance reads the line count');
+  6, 'AC-EQU-001 Finance reads the line count');
 select is((select max(driver_total) from list_equipment_allocations('15190000-0000-0000-0000-0000000000d5','2027-03-01','2027-03-31')),
   4.00::numeric, 'AC-EQU-001 Finance reads the driver total');
 select pg_temp.act_as('15190000-0000-0000-0000-0000000000a5');   -- Executive
 select is((select row(count(pool), count(amount))::text from list_equipment_allocations('15190000-0000-0000-0000-0000000000d5','2027-03-01','2027-03-31')),
-  '(4,4)', 'AC-EQU-012 an Executive reads every pool and amount');
+  '(6,6)', 'AC-EQU-012 an Executive reads every pool and amount');
 select pg_temp.act_as('15190000-0000-0000-0000-0000000000a3');   -- Project Manager
 select is((select count(*)::int from list_equipment_allocations('15190000-0000-0000-0000-0000000000d5','2027-03-01','2027-03-31')),
-  4, 'AC-EQU-012 a Project Manager still reads the allocation rows');
+  6, 'AC-EQU-012 a Project Manager still reads the allocation rows');
 select is((select count(pool)::int from list_equipment_allocations('15190000-0000-0000-0000-0000000000d5','2027-03-01','2027-03-31')),
   0, 'AC-EQU-012 a Project Manager reads no pool');
 select is((select count(line_count)::int from list_equipment_allocations('15190000-0000-0000-0000-0000000000d5','2027-03-01','2027-03-31')),
@@ -319,9 +321,12 @@ select is((select count(driver_total)::int from list_equipment_allocations('1519
   0, 'AC-EQU-012 a Project Manager reads no driver total');
 select is((select count(*)::int from list_equipment_allocations('15190000-0000-0000-0000-0000000000d5','2027-03-01','2027-03-31') where amount is null),
   2, 'AC-EQU-012 a Project Manager reads no Employee-party amount');
+select is(array(select amount::text from list_equipment_allocations('15190000-0000-0000-0000-0000000000d5','2027-03-01','2027-03-31')
+                 where amount in (20.00,60.00) order by amount),
+  array['20.00','60.00'], 'AC-EQU-012 a Project Manager sees amounts for a null party type');
 select is(array(select amount::text as x from list_equipment_allocations('15190000-0000-0000-0000-0000000000d5','2027-03-01','2027-03-31')
                  where amount is not null order by amount),
-  array['75.00','225.00'], 'AC-EQU-012 a Project Manager still reads the non-Employee amounts');
+  array['20.00','60.00','75.00','225.00'], 'AC-EQU-012 a Project Manager still reads the non-Employee amounts');
 select pg_temp.act_as('15190000-0000-0000-0000-0000000000a2');   -- Finance
 -- a negative pool (a credit-only month) shares out negatively and sums back exactly
 select is(array(select amount::text as x from list_equipment_allocations('15190000-0000-0000-0000-0000000000d5','2027-04-01','2027-04-30') order by amount),
