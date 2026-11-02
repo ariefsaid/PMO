@@ -7,6 +7,7 @@ import type { PphType } from '@/src/lib/vendorWithholding';
 import { formatSlipCents, parsePositiveSlipMoney, parseDecimalCents, sumSlipMoney, bupotRefusal, type RecordSlipInput } from '@/src/lib/vendorWithholdingSlip';
 import { formatCurrencyCents, parseMoneyInputAtScale } from '@/src/lib/format';
 import { useVendorWithholdingBillContexts, useVendorWithholdingCandidates } from '@/src/hooks/useVendorWithholdingSlips';
+import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { VendorInvoiceIdentity } from '@/src/components/procurement/VendorInvoiceIdentity';
 import { vendorInvoiceIdentityAccessibleLabel } from '@/src/components/procurement/vendorInvoiceIdentityLabels';
 
@@ -20,14 +21,15 @@ export interface VendorWithholdingSlipModalProps {
   onSave: (input: RecordSlipInput) => Promise<unknown>;
 }
 type Selected = { bill: BillRow; declared: boolean };
-const today = () => new Date().toISOString().slice(0, 10);
 const parseMonth = (value: string) => /^\d{4}-\d{2}-01$/.test(value) && !Number.isNaN(Date.parse(value)) ? value : null;
 
 export function VendorWithholdingSlipModal({ invoice, vendorId, vendorName, open, loading = false, onClose, onSave }: VendorWithholdingSlipModalProps) {
   const { t } = useTranslation();
+  const today = useOrgToday();
+  const currentMonth = `${today.slice(0, 7)}-01`;
   const [number, setNumber] = useState('');
-  const [slipDate, setSlipDate] = useState(today());
-  const [period, setPeriod] = useState(`${today().slice(0, 7)}-01`);
+  const [slipDate, setSlipDate] = useState(today);
+  const [period, setPeriod] = useState(currentMonth);
   const [pphType, setPphType] = useState<PphType>((invoice.withheld_pph_type as PphType) || 'pph23');
   const [base, setBase] = useState('');
   const [amount, setAmount] = useState('');
@@ -47,6 +49,8 @@ export function VendorWithholdingSlipModal({ invoice, vendorId, vendorName, open
     const candidate = candidates.find((bill) => bill.invoice_id === invoice.id);
     if (!initialized.current) {
       initialized.current = true;
+      setSlipDate(today);
+      setPeriod(currentMonth);
       // The initiating invoice is already in the parent detail projection. Seed it independently
       // of candidate pagination so a later page cannot determine whether it starts selected.
       const startingBill: BillRow = candidate ?? {
@@ -59,7 +63,7 @@ export function VendorWithholdingSlipModal({ invoice, vendorId, vendorName, open
     } else if (candidate) {
       setSelected((old) => old[invoice.id] ? { ...old, [invoice.id]: { ...old[invoice.id], bill: candidate } } : old);
     }
-  }, [candidates, invoice, open, vendorId]);
+  }, [candidates, currentMonth, invoice, open, today, vendorId]);
   const selectedBills = Object.values(selected);
   const sum = sumSlipMoney(selectedBills.map(({ bill }) => bill.withheld_amount));
   const localizedCents = (raw: string) => {
@@ -70,7 +74,7 @@ export function VendorWithholdingSlipModal({ invoice, vendorId, vendorName, open
   const parsedBase = localizedCents(base);
   const selectedAmount = sum === null ? null : formatSlipCents(sum);
   const exactMatch = sum !== null && entered !== null && sum === (parseDecimalCents(entered) ?? -1);
-  const canSubmit = Boolean(number.trim() && slipDate && slipDate <= today() && parsedBase && entered && exactMatch && selectedBills.length > 0 && selectedBills.length <= 100 && selectedBills.every(({ bill, declared }) => (bill.withheld_pph_type === null ? declared : bill.withheld_pph_type === pphType)) && parseMonth(period) && period <= `${today().slice(0, 7)}-01` && (parseDecimalCents(entered) ?? -1) <= (parseDecimalCents(parsedBase) ?? -1));
+  const canSubmit = Boolean(number.trim() && slipDate && slipDate <= today && parsedBase && entered && exactMatch && selectedBills.length > 0 && selectedBills.length <= 100 && selectedBills.every(({ bill, declared }) => (bill.withheld_pph_type === null ? declared : bill.withheld_pph_type === pphType)) && parseMonth(period) && period <= currentMonth && (parseDecimalCents(entered) ?? -1) <= (parseDecimalCents(parsedBase) ?? -1));
 
   // The initiating bill is retained even if the candidate page changes or it has already moved out of the page.
   const toggle = (bill: BillRow, checked: boolean) => setSelected((old) => {
@@ -113,8 +117,8 @@ export function VendorWithholdingSlipModal({ invoice, vendorId, vendorName, open
     <p className="mb-3 text-sm text-foreground">{t('bupot.vendor', 'Supplier')}: {vendorName || t('bupot.vendorUnavailable', 'Supplier details not recorded')} · {invoice.currency}</p>
     <div className="grid gap-3 sm:grid-cols-2">
       <TextField label={t('bupot.slipNumber', 'Issued slip number')} value={number} onChange={setNumber} required maxLength={100} />
-      <TextField label={t('bupot.slipDate', 'Slip date')} type="date" value={slipDate} onChange={setSlipDate} required />
-      <TextField label={t('bupot.taxPeriodMonth', 'Tax period (month)')} type="month" value={period.slice(0, 7)} onChange={(value) => setPeriod(`${value}-01`)} required />
+      <TextField label={t('bupot.slipDate', 'Slip date')} type="date" max={today} value={slipDate} onChange={setSlipDate} required />
+      <TextField label={t('bupot.taxPeriodMonth', 'Tax period (month)')} type="month" max={today.slice(0, 7)} value={period.slice(0, 7)} onChange={(value) => setPeriod(`${value}-01`)} required />
       <SelectField label={t('bupot.type', 'PPh type')} value={pphType} onChange={(value) => {
         const next = value as PphType; setPphType(next);
         setSelected((old) => Object.fromEntries(Object.entries(old).flatMap(([id, entry]) => entry.bill.withheld_pph_type && entry.bill.withheld_pph_type !== next ? [] : [[id, { ...entry, declared: entry.bill.withheld_pph_type === null ? false : entry.declared }]])));
@@ -123,7 +127,7 @@ export function VendorWithholdingSlipModal({ invoice, vendorId, vendorName, open
       />
       <TextField label={`${t('bupot.taxBase', 'Tax base')} (${invoice.currency})`} value={base} onChange={setBase} onBlur={() => setBaseTouched(true)} error={baseTouched && !parsedBase ? t('bupot.invalidAmount', 'Enter a positive amount with at most two decimal places.') : undefined} inputMode="decimal" required />
       <TextField label={`${t('bupot.withheldAmount', 'Issued withheld amount')} (${invoice.currency})`} value={amount} onChange={setAmount} onBlur={() => setAmountTouched(true)} error={amountTouched && !entered ? t('bupot.invalidAmount', 'Enter a positive amount with at most two decimal places.') : amountTouched && parsedBase && entered && (parseDecimalCents(entered) ?? -1) > (parseDecimalCents(parsedBase) ?? -1) ? t('bupot.amountExceedsBase', 'Issued withholding cannot exceed the tax base.') : undefined} inputMode="decimal" required />
-      {!canSubmit && (period > `${today().slice(0, 7)}-01` || !parseMonth(period)) && <FieldError>{t('bupot.invalidTaxPeriod', 'Choose a tax month no later than the current month.')}</FieldError>}
+      {!canSubmit && (period > currentMonth || !parseMonth(period)) && <FieldError>{t('bupot.invalidTaxPeriod', 'Choose a tax month no later than the current month.')}</FieldError>}
     </div>
     <p className="mt-2 text-xs text-foreground">{t('bupot.typeWarning', 'Confirm the PPh type from the issued external slip. PMO does not issue or cancel tax documents.')}</p>
     <div className="mt-4 flex items-center justify-between gap-3"><h3 className="font-semibold">{t('bupot.candidates', 'Eligible bills')}</h3><span className="text-sm tabular-nums">{t('bupot.selectedTotal', 'Selected total: {{currency}} {{amount}}', { currency: invoice.currency, amount: selectedAmount ?? '—' })}</span></div>

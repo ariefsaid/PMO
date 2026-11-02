@@ -4,8 +4,9 @@ import { EntityFormModal, TextField, NumberField, Combobox, FormGrid, FormSectio
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { useSalesInvoices } from '@/src/hooks/useRevenue';
 import { useClientCompanyOptions } from '@/src/hooks/useFkOptions';
+import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { currencySymbol, formatCurrencyCents, formatMoneyInputValue, instantToZonedDatetimeLocal, parseMoneyInputAtScale } from '@/src/lib/format';
+import { currencySymbol, formatCurrencyCents, formatMoneyInputValue, parseMoneyInputAtScale } from '@/src/lib/format';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 import { invoiceNumber } from '@/src/lib/revenue/nativeInvoice';
 import { nativeRevenueHeadlines } from '@/src/lib/revenue/nativeRevenueErrors';
@@ -35,14 +36,12 @@ function parsePaymentAmount(raw: string): number | null {
   return n !== null && n > 0 ? n : null;
 }
 
-/** #784 (DD-NAR-17): today in the org's time zone — the latest payment date the server accepts. */
-const orgToday = (): string => instantToZonedDatetimeLocal(new Date()).slice(0, 10);
-
 const validate = (
   v: FormValues,
   t: (key: string, fallback: string) => string,
   native = false,
   invoiceDate?: string | null,
+  today?: string,
 ): Partial<Record<keyof FormValues, string>> => {
   const errors: Partial<Record<keyof FormValues, string>> = {};
   if (!v.customerId.trim()) errors.customerId = t('financeCopy.customerRequired', 'Customer is required.');
@@ -67,7 +66,7 @@ const validate = (
   }
   if (!v.date) errors.date = t('financeCopy.paymentDateRequired', 'Date is required.');
   // #784 (DD-NAR-17): the server refuses a future payment date; say so before the round trip.
-  else if (native && v.date > orgToday()) errors.date = t('financeCopy.paymentDateNotFuture', 'The payment date cannot be in the future.');
+  else if (native && today && v.date > today) errors.date = t('financeCopy.paymentDateNotFuture', 'The payment date cannot be in the future.');
   // The server refuses a payment dated before its invoice (0275); say so before the round trip.
   else if (native && invoiceDate && v.date < invoiceDate) errors.date = t('financeCopy.paymentDateBeforeInvoice', 'The payment date cannot be before the invoice date.');
   const withheld = v.withheldAmount.trim() ? parseMoneyInputAtScale(v.withheldAmount, 2) : 0;
@@ -148,6 +147,7 @@ export const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> =
   native,
 }) => {
   const { t } = useTranslation();
+  const today = useOrgToday();
   // A PMO receipt uses its invoice's currency; otherwise use the organization's currency.
   const orgCurrency = useOrgCurrency();
   // BLOCK 2 (ADR-0058): ONE command identity per form session. This modal is mounted only while the
@@ -167,10 +167,10 @@ export const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> =
       withheldAmount: '0',
       withholdingSlipNumber: '',
       // #784 (DD-NAR-17): a PMO receipt's payment date starts at today in the org's time zone.
-      date: native ? orgToday() : new Date().toISOString().split('T')[0],
+      date: today,
     },
     validate: (values) => {
-      const errors = validate(values, t, native, invoiceDateOf(values.salesInvoiceId));
+      const errors = validate(values, t, native, invoiceDateOf(values.salesInvoiceId), today);
       if (values.salesInvoiceId && !invoices?.some((invoice) => invoice.id === values.salesInvoiceId && invoice.customer_id === values.customerId)) {
         errors.salesInvoiceId = t('financeCopy.salesInvoiceRequired', 'Choose the invoice this receipt settles.');
       }
@@ -254,7 +254,7 @@ export const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> =
     e.preventDefault();
     // Expand before EntityFormModal focuses the first invalid field after submit. The
     // existing validator remains the authority; this read only keeps that field visible.
-    const withholdingErrors = validate(form.values, t, native, invoiceDateOf(form.values.salesInvoiceId));
+    const withholdingErrors = validate(form.values, t, native, invoiceDateOf(form.values.salesInvoiceId), today);
     const nativeBalanceNeedsWithholding = native
       && Boolean(withholdingErrors.receivedAmount)
       && withheldForSummary !== null
@@ -423,7 +423,7 @@ export const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> =
           <TextField
             id={dateField.id}
             label={native ? t('financeCopy.paymentDateLabel', 'Payment date') : t('financeCopy.date', "Date")}
-            max={native ? orgToday() : undefined}
+            max={native ? today : undefined}
             min={native ? chosenInvoice?.invoice_date ?? undefined : undefined}
             value={dateField.value}
             onChange={dateField.onChange}

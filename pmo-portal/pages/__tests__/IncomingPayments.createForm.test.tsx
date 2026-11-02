@@ -619,4 +619,18 @@ describe('IncomingPayments — a Finance user can actually record a receipt (BLO
 
     expect(hoisted.navigateMock).not.toHaveBeenCalled();
   });
+
+  it('PGA03-007: derives payment default and max date via timezone-aware reactive useOrgToday()', async () => {
+    setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'Asia/Tokyo' });
+    hoisted.ownershipState.data = [];
+    hoisted.invoicesState.data = [invoice({ id: 'si-pga-date', si_number: 'SI-PGA-DATE', pmo_native: true })];
+    const user = userEvent.setup();
+    renderPage();
+    await openForm(user);
+    const dateInput = screen.getByLabelText(/Payment date/i);
+    expect(dateInput).toHaveAttribute('type', 'date');
+    const today = dateInput.getAttribute('value')!;
+    expect(today).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(dateInput).toHaveAttribute('max', today);
+  });
 });

@@ -27,6 +27,7 @@ import {
   ERP_AUTHORED_TAX,
 } from './vendorInvoiceTax';
 import { useCommandIntent } from '@/src/hooks/useCommandIntent';
+import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { usePurchaseTaxTemplates } from '@/src/hooks/usePurchaseTaxTemplates';
 import { useVendorTaxDefault } from '@/src/hooks/useVendorTaxDefault';
 import { useErpVendorTax, useNativeVendorTax } from '@/src/hooks/useVendorBillTax';
@@ -367,8 +368,9 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
   const [groupRef, setGroupRef] = useState('');
   // Hidden on an ERP-owned org: the dispatched create never carries it (see groupRefIsPmoAuthored).
   const hasGroupRef = GROUP_REF_KINDS.has(kind) && groupRefIsPmoAuthored();
+  const today = useOrgToday();
   const [status, setStatus] = useState(cfg.defaultStatus);
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(today);
   const [amountStr, setAmountStr] = useState('');
   const [amountError, setAmountError] = useState<string | undefined>(undefined);
   // #505: vendor-invoice tax facts. '' is "not answered yet", never a value (see vendorInvoiceTax.ts).

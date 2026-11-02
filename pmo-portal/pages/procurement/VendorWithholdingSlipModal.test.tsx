@@ -253,4 +253,36 @@ describe('AC-BUPOT-017 capture form', () => {
     expect(await screen.findByText(/issued amount does not match/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/issued slip number/i)).toHaveValue('DJ-TEST-2');
   });
+
+  it('PGB-006 constrains slip date and tax period month to org today', async () => {
+    setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'Asia/Tokyo' });
+    h.data = { pages: [{ rows: [bill] }] };
+    render(<VendorWithholdingSlipModal invoice={invoice} vendorId="vendor-a" open onClose={vi.fn()} onSave={h.save} />);
+    const slipDateInput = await screen.findByLabelText(/slip date/i);
+    const taxPeriodInput = screen.getByLabelText(/tax period/i);
+    expect(slipDateInput).toHaveAttribute('type', 'date');
+    expect(slipDateInput).toHaveAttribute('max');
+    const maxDate = slipDateInput.getAttribute('max')!;
+    expect(maxDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(taxPeriodInput).toHaveAttribute('type', 'month');
+    expect(taxPeriodInput).toHaveAttribute('max', maxDate.slice(0, 7));
+
+    fireEvent.change(screen.getByLabelText(/issued slip number/i), { target: { value: 'DJ-MAX-1' } });
+    fireEvent.change(screen.getByLabelText(/tax base/i), { target: { value: '100000' } });
+    fireEvent.change(screen.getByLabelText(/issued withheld amount/i), { target: { value: '20000' } });
+
+    // Future slip date disables submission
+    fireEvent.change(slipDateInput, { target: { value: '2099-12-31' } });
+    const recordBtn = screen.getByRole('button', { name: /record bukti potong/i });
+    expect(recordBtn).toBeDisabled();
+
+    // Valid slip date, future tax period disables submission
+    fireEvent.change(slipDateInput, { target: { value: maxDate } });
+    fireEvent.change(taxPeriodInput, { target: { value: '2099-12' } });
+    expect(recordBtn).toBeDisabled();
+
+    // Valid tax period enables submission
+    fireEvent.change(taxPeriodInput, { target: { value: maxDate.slice(0, 7) } });
+    expect(recordBtn).toBeEnabled();
+  });
 });
