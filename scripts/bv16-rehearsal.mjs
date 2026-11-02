@@ -825,7 +825,10 @@ export async function runRangeProbe(configInput, deps = {}) {
     return name;
   };
   const submitAndRead = async (name) => {
-    await erp('/api/method/frappe.client.submit', { method: 'POST', body: { doc: { doctype: 'Budget', name } } });
+    const draft = (await erp(`/api/resource/Budget/${encodeURIComponent(name)}`))?.data;
+    if (draft?.doctype !== 'Budget' || draft.name !== name || draft.docstatus !== 0
+      || typeof draft.modified !== 'string' || !draft.modified) fail('Budget draft read-back before submit failed');
+    await erp('/api/method/frappe.client.submit', { method: 'POST', body: { doc: draft } });
     return (await erp(`/api/resource/Budget/${encodeURIComponent(name)}`))?.data;
   };
   const createSubmitRead = async (body) => submitAndRead(await createDraft(body));
