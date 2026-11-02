@@ -446,4 +446,56 @@ describe('erpnext/ledgerFetch — T1a real-response source boundary', () => {
     expect(urls).toHaveLength(2);
     expect(urls.every((url) => url.includes('/api/resource/GL%20Entry'))).toBe(true);
   });
+
+  it('a malformed later GL page leaves both mirrors and watermarks unchanged and cannot finish a full replay', async () => {
+    const [{ feedLedgerMirrors }, { FakePostgrest }] = await Promise.all([
+      import('./ledgerMirrorFeed.ts'),
+      import('@/test/postgrestFake.ts'),
+    ]);
+    const initialTables = {
+      erp_gl_entry_mirror: [{ id: 'gl-existing', org_id: 'org-1', erp_name: 'GL-EXISTING', erp_modified: '2026-01-01' }],
+      erp_payment_ledger_mirror: [{ id: 'ple-existing', org_id: 'org-1', erp_name: 'PLE-EXISTING', erp_modified: '2026-01-01' }],
+      external_sync_watermarks: [
+        { id: 'wm-gl', org_id: 'org-1', external_tier: 'erpnext', domain: 'ledger::GL Entry', watermark_cursor: '2026-01-01' },
+        { id: 'wm-ple', org_id: 'org-1', external_tier: 'erpnext', domain: 'ledger::Payment Ledger Entry', watermark_cursor: '2026-01-01' },
+      ],
+    };
+    const fake = new FakePostgrest(initialTables, {
+      upsertKeys: {
+        erp_gl_entry_mirror: ['org_id', 'erp_name'],
+        erp_payment_ledger_mirror: ['org_id', 'erp_name'],
+        external_sync_watermarks: ['org_id', 'external_tier', 'domain'],
+      },
+    });
+    const before = Object.fromEntries(Object.keys(initialTables).map((table) => [table, structuredClone(fake.rowsOf(table))]));
+    const urls: string[] = [];
+    const firstPage = Array.from({ length: 500 }, (_, i) => ({
+      name: `GL-${String(i).padStart(3, '0')}`,
+      company: 'Synthetic Co',
+      account: 'Cash',
+      debit: '1.00',
+      credit: '0.00',
+      modified: `2026-01-${String(Math.floor(i / 1440) + 2).padStart(2, '0')} ${String(Math.floor((i % 1440) / 60)).padStart(2, '0')}:${String(i % 60).padStart(2, '0')}:00`,
+    }));
+    const fetchImpl = vi.fn(async (url: string) => {
+      urls.push(url);
+      return urls.length === 1
+        ? rawLedgerResponse(JSON.stringify({ data: firstPage }))
+        : rawLedgerResponse('{"data":[');
+    });
+    const rpc = vi.fn(async () => ({ data: { deleted: 0 }, error: null }));
+    const serviceClient = Object.assign(fake, { rpc });
+
+    await expect(feedLedgerMirrors(serviceClient as never, {
+      client: client(fetchImpl), orgId: 'org-1', company: 'Synthetic Co', fullReplay: true,
+    })).rejects.toMatchObject({ name: 'AppError', code: 'external-unreachable' });
+
+    for (const table of Object.keys(initialTables)) {
+      expect(fake.rowsOf(table)).toEqual(before[table as keyof typeof before]);
+    }
+    expect(rpc).not.toHaveBeenCalledWith('finish_erp_gl_replay', expect.anything());
+    expect(urls).toHaveLength(2);
+    expect(urls.every((url) => url.includes('/api/resource/GL%20Entry'))).toBe(true);
+    expect(new URL(urls[0]!).searchParams.get('limit_page_length')).toBe('500');
+  });
 });

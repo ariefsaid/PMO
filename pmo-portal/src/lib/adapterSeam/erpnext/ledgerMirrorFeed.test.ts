@@ -494,6 +494,49 @@ describe('erpnext/ledgerMirrorFeed — #901 fix round: bounded + ordered + monot
     expect(h(sc).watermarks.get(`erpnext::${LEDGER_GL_WM_DOMAIN}`)).toBe('2026-10-07 10:04:00.000000|GLE-4');
   });
 
+  it('uses production page and tick bounds, then resumes a real tie group without losing rows', async () => {
+    const sc = fakeServiceClient();
+    const tiedModified = '2026-10-07 10:00:00.000000';
+    const tie = Array.from({ length: 10_001 }, (_, i) => glRow(`GLE-T${String(i).padStart(5, '0')}`, {
+      modified: tiedModified, voucher_type: null, voucher_no: null,
+    }));
+    const late = glRow('GLE-LATE', {
+      modified: '2026-10-07 10:05:00.000000', voucher_type: null, voucher_no: null,
+    });
+    const erp = fakeErp([...tie, late]);
+
+    const tick1 = await feedLedgerMirrors(sc, { client: erp.client, orgId: 'org-1', company: 'PMO Smoke Co' });
+    const firstTickUrls = erp.urls.filter((url) => url.includes('/api/resource/GL%20Entry'));
+    expect(tick1.glFed).toBe(10_000);
+    expect(tick1.glCaughtUp).toBe(false);
+    expect(tick1.glCursor).toBe(`${tiedModified}|GLE-T09999`);
+    expect(h(sc).watermarks.get(`erpnext::${LEDGER_GL_WM_DOMAIN}`)).toBe(`${tiedModified}|GLE-T09999`);
+    expect(firstTickUrls).toHaveLength(20);
+    for (const url of firstTickUrls) {
+      const params = new URL(url).searchParams;
+      expect(params.get('limit_page_length')).toBe('500');
+      expect(params.has('limit_start')).toBe(false);
+    }
+
+    const tick2 = await feedLedgerMirrors(sc, { client: erp.client, orgId: 'org-1', company: 'PMO Smoke Co' });
+    const allGlUrls = erp.urls.filter((url) => url.includes('/api/resource/GL%20Entry'));
+    const resumedUrls = allGlUrls.slice(firstTickUrls.length);
+    expect(tick2.glFed).toBe(2);
+    expect(tick2.glCaughtUp).toBe(true);
+    expect(tick2.glCursor).toBe('2026-10-07 10:05:00.000000|GLE-LATE');
+    expect(resumedUrls).toHaveLength(2);
+    expect(JSON.parse(new URL(resumedUrls[0]!).searchParams.get('filters') ?? '[]')).toEqual([
+      ['company', '=', 'PMO Smoke Co'],
+      ['modified', '=', tiedModified],
+      ['name', '>', 'GLE-T09999'],
+    ]);
+    expect(JSON.parse(new URL(resumedUrls[1]!).searchParams.get('filters') ?? '[]')).toEqual([
+      ['company', '=', 'PMO Smoke Co'],
+      ['modified', '>', tiedModified],
+    ]);
+    expect(Array.from(h(sc).gl.keys()).sort()).toEqual([...tie.map((row) => row.name), late.name].sort());
+  });
+
   it('persists a partial page cursor, resumes after it, then reports caught up without re-reading rows', async () => {
     const sc = fakeServiceClient();
     const erp = fakeErp([]);
