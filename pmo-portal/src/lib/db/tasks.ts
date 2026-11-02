@@ -167,15 +167,15 @@ export async function getTask(id: string): Promise<TaskWithRefs | null> {
  * direct DAL (this branch) whenever the ownership cache is empty/never-loaded (FR-CUA-030/031).
  *
  * OD-INT-9: parent_task_id IS forwarded to the external dispatch; the dispatch factory resolves
- * it via `external_refs` to a ClickUp `parent` id. Unresolvable parents create a flat task
- * (reconciled later). milestone_id is forwarded too: ClickUp has no such field and ignores it, but the
+ * it via `external_refs` to a ClickUp `parent` id. An unmapped parent refuses the dispatch
+ * (commit-rejected — nothing is created). milestone_id is forwarded too: ClickUp has no such field and ignores it, but the
  * dispatch's mirror write stamps it so the task lands in the chosen group.
  */
 export async function createTask(input: TaskInput): Promise<TaskRow> {
   if (routeTaskWrite(input.project_id) === 'external') {
     // OD-INT-9: parent_task_id IS forwarded to the external dispatch; the dispatch factory
-    // resolves it via `external_refs` to a ClickUp `parent` id. Unresolvable parents create
-    // a flat task (reconciled later by the sweep).
+    // resolves it via `external_refs` to a ClickUp `parent` id. An unmapped parent refuses
+    // the dispatch (commit-rejected — nothing is created).
     const res = await dispatchTaskCommand('create', {
       id: crypto.randomUUID(),
       project_id: input.project_id,
