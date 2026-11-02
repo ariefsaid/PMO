@@ -12,6 +12,7 @@ import {
 import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
 import { usePermission } from '@/src/auth/usePermission';
 import { useMilestones, useMilestoneMutations } from '@/src/hooks/useMilestones';
+import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { pct, formatDayMonth } from '@/src/lib/format';
 import type { MilestoneWithProgress, MilestoneInput, MilestonePatch } from '@/src/lib/db/milestones';
@@ -29,25 +30,23 @@ export interface MilestoneStripProps {
   summary?: boolean;
 }
 
-const todayIso = () => new Date().toISOString().slice(0, 10);
-
 /** I1/I4: A phase is 'overdue' only if it has STARTED (effective>0 or has tasks) AND past its target AND <100%. */
 const hasStarted = (milestone: MilestoneWithProgress) =>
   milestone.effective_pct > 0 || milestone.task_count > 0;
 
-const isOverdueMilestone = (milestone: MilestoneWithProgress) =>
+const isOverdueMilestone = (milestone: MilestoneWithProgress, today: string) =>
   Boolean(
     milestone.target_date &&
-    milestone.target_date < todayIso() &&
+    milestone.target_date < today &&
     milestone.effective_pct < 100 &&
     hasStarted(milestone),
   );
 
 /** I1: priority: done(100%)→success, current→primary, overdue(started+past+<100%)→warning, else→primary (future/not-started). */
-const fillClass = (milestone: MilestoneWithProgress, isCurrent: boolean) => {
+const fillClass = (milestone: MilestoneWithProgress, isCurrent: boolean, today: string) => {
   if (milestone.effective_pct >= 100) return 'bg-success';
   if (isCurrent) return 'bg-primary';
-  if (isOverdueMilestone(milestone)) return 'bg-warning';
+  if (isOverdueMilestone(milestone, today)) return 'bg-warning';
   return 'bg-primary';
 };
 
@@ -57,6 +56,7 @@ const percentStyle = (value: number) => `${Number(value.toFixed(2))}%`;
 
 const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId, compactWhenEmpty = false, summary = false }) => {
   const { t } = useTranslation('project');
+  const today = useOrgToday();
   const location = useLocation();
   const may = usePermission();
   const { toast } = useToast();
@@ -125,8 +125,8 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId, compactWhenE
     // PD-A: the compact line renders only with phases (or a load error); loading and empty say nothing.
     if (isPending || (!isError && all.length === 0)) return null;
     const current = all.find(milestone => milestone.id === currentMilestoneId);
-    const overdueElsewhere = all.find(milestone => milestone.id !== current?.id && isOverdueMilestone(milestone));
-    const hasOverdue = all.some(isOverdueMilestone);
+    const overdueElsewhere = all.find(milestone => milestone.id !== current?.id && isOverdueMilestone(milestone, today));
+    const hasOverdue = all.some(milestone => isOverdueMilestone(milestone, today));
     return (
       <div data-testid="milestone-summary" className="mb-1 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
         {isError ? (
@@ -146,7 +146,7 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId, compactWhenE
                 {t('projectDetail.milestones.currentPhase', 'Current: {{name}}', { name: current.name })}
               </span>
             )}
-            {current && isOverdueMilestone(current) ? (
+            {current && isOverdueMilestone(current, today) ? (
               <span className="font-semibold text-warning-foreground">
                 {t('projectDetail.milestones.overdue', 'Overdue')}
               </span>
@@ -243,7 +243,7 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId, compactWhenE
                 <div className="delivery-track flex h-3 overflow-hidden rounded-full bg-secondary">
                   {deliverySegments.map(({ milestone, width }) => (
                       <span
-                        className={`delivery-fill block h-full ${fillClass(milestone, currentMilestoneId === milestone.id)}`}
+                        className={`delivery-fill block h-full ${fillClass(milestone, currentMilestoneId === milestone.id, today)}`}
                         style={{ width: percentStyle(width) }}
                         key={milestone.id}
                       />
@@ -368,11 +368,12 @@ const MilestoneMobileRow: React.FC<MilestoneMobileRowProps> = ({
   onEdit,
 }) => {
   const { t } = useTranslation('project');
+  const today = useOrgToday();
   const weightShare = totalWeight > 0 ? Math.round((milestone.weight / totalWeight) * 100) : null;
-  const overdue = isOverdueMilestone(milestone);
+  const overdue = isOverdueMilestone(milestone, today);
   // The date is formatted by format.ts FIRST; i18next only ever sees the finished string.
   const targetLabel = milestone.target_date
-    ? overdue && getYear(parseISO(milestone.target_date)) !== new Date().getFullYear()
+    ? overdue && getYear(parseISO(milestone.target_date)) !== Number(today.slice(0, 4))
       ? t('uxs13.overdueTargetDateWithYear', 'Target {{date}}, {{year}}', {
           date: formatDayMonth(parseISO(milestone.target_date)),
           year: getYear(parseISO(milestone.target_date)),
@@ -387,7 +388,7 @@ const MilestoneMobileRow: React.FC<MilestoneMobileRowProps> = ({
       <div className="h-2 overflow-hidden rounded-full bg-secondary" aria-hidden="true">
         <span
           data-testid="milestone-mobile-fill"
-          className={`block h-full ${fillClass(milestone, isCurrent)}`}
+          className={`block h-full ${fillClass(milestone, isCurrent, today)}`}
           style={{ width: percentStyle(clampPct(milestone.effective_pct)) }}
         />
       </div>
@@ -467,13 +468,14 @@ const MilestonePhaseCard: React.FC<MilestonePhaseCardProps> = ({
   onUpdateInputPct,
 }) => {
   const { t } = useTranslation('project');
+  const today = useOrgToday();
   const [editing, setEditing] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [inputVal, setInputVal] = useState('');
   const [inputError, setInputError] = useState<string | null>(null);
 
   // M3: hoist to avoid computing isOverdueMilestone(milestone) twice per render.
-  const isOverdue = isOverdueMilestone(milestone);
+  const isOverdue = isOverdueMilestone(milestone, today);
   // C1: guard refs to prevent double-save (blur+click) and to suppress blur-save on Cancel.
   const cancellingRef = React.useRef(false);
   const savedRef = React.useRef(false);
