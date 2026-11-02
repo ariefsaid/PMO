@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { Drawer } from '../Drawer';
@@ -136,6 +136,7 @@ describe('Drawer: RecordHeader anatomy in the header (CW-3a)', () => {
     const descId = dialog.getAttribute('aria-describedby');
     expect(descId).toBeTruthy();
     expect(document.getElementById(descId!)?.textContent).toContain('Client Subtitle');
+    expect(within(dialog).getAllByText('Client Subtitle')).toHaveLength(1);
   });
 
   it('CMP-009: acquires background inert on the app shell while open and releases on close', () => {
