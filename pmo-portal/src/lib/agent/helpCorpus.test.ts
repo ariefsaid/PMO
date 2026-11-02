@@ -20,6 +20,19 @@ it('help corpus contains the load-bearing anchors (term + role-scoped screen)', 
   expect(HELP_CORPUS).toContain('Engineer');
 });
 
+it('XD1-004 task model: a task may be project-less, may carry subtasks, and only top-level non-archived tasks roll up', () => {
+  expect(HELP_CORPUS).toMatch(/may belong to a project or stand alone/);
+  expect(HELP_CORPUS).toMatch(/may carry subtasks/);
+  expect(HELP_CORPUS).toMatch(/only top-level, non-archived tasks count toward progress/);
+});
+
+it('XD1-007/DD-VOCAB-1 the corpus speaks Phase and maps it to the internal milestone term', () => {
+  expect(HELP_CORPUS).toMatch(/\*\*Phase\*\* — a named chunk of delivery work/);
+  expect(HELP_CORPUS).toMatch(/called a milestone in some internal documents/);
+  expect(HELP_CORPUS).toContain('How do I create or edit a phase?');
+  expect(HELP_CORPUS).not.toContain('How do I create or edit a milestone?');
+});
+
 it('gives grounded document source, revision, and verification guidance', () => {
   expect(HELP_CORPUS).toMatch(/PMO-held upload/);
   expect(HELP_CORPUS).toMatch(/linked Microsoft 365 file/);

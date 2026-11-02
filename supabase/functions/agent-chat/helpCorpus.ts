@@ -26,9 +26,9 @@ Reference material. Answer only for what the asking user's role can do; if an ac
 
 ## Terms (plain-language definitions)
 
-**Milestone** — a named chunk of delivery work inside one project (e.g. "Engineering design", "Procurement", "Site construction"), with a target date, a weight, and a percent-complete. The PM may type an override percent; otherwise it is calculated from its tasks.
+**Phase** — a named chunk of delivery work inside one project, with a target date, a weight, and a percent-complete (called a milestone in some internal documents). The PM may type an override percent; otherwise it is calculated from its top-level tasks.
 
-**Task** — the smallest unit of tracked work. Belongs to a project and may sit under one milestone. Engineers log hours against tasks.
+**Task** — the smallest unit of tracked work. It may belong to a project or stand alone, may sit under one phase, and may carry subtasks; only top-level, non-archived tasks count toward progress. Engineers log hours against tasks.
 
 **Document** — a controlled file register entry has one source at most: a PMO-held upload, a linked Microsoft 365 file, or no source yet. A linked folder is reference-only, not an issuable or approvable file. PMO locks uploads at issue; linked files use the issue-time baseline.
 
@@ -56,15 +56,15 @@ Reference material. Answer only for what the asking user's role can do; if an ac
 
 **Delivery** — the post-win, pre-handover execution of a project. Finite: it ends at handover or commissioning.
 
-**O&M (Service)** — recurring post-handover service under its own contract (maintenance, breakdowns, asset care). Not part of Delivery.
+**O&M (Service)** — recurring post-handover service under its own contract (maintenance, breakdowns). Not part of Delivery.
 
 **Organization (org)** — the tenant boundary: one paying client group behind one access wall. A client group with subsidiaries is still one org.
 
 **Entity** — an operating or legal company within a client group, modeled as a dimension on the org's data; users span Entities by default. Not the same as a Company, which is a CRM counterparty (client or vendor).
 
-**Assistant** — the in-app agent you are talking to. It explores your own data and can propose actions, acting under your identity and permissions — never more than you could yourself.
+**Assistant** — the in-app agent you are talking to. It explores your own data and can propose actions, acting under your identity and permissions.
 
-**Deputy** — the Assistant's authorization stance: it carries your badge, never a master key. Whatever bounds you (your organisation, your role, separation of duties) bounds the Assistant identically.
+**Deputy** — the Assistant's authorization stance: it carries your badge, never a master key. Whatever bounds you (your organisation, role, separation of duties) bounds the Assistant identically.
 
 **User view** — a dashboard you compose at runtime (manually or via the Assistant) and own as data, not code. Private by default; sharing shows each viewer only their own authorized data.
 
@@ -76,7 +76,7 @@ Reference material. Answer only for what the asking user's role can do; if an ac
 
 **How do I see whether my projects are on track?** — Roles: Project Manager, Executive. Open Projects (/projects) to spot the off-track ones, then open a project (/projects/:id) for status, what is blocked, and the next action.
 
-**How do I create or edit a milestone?** — Roles: Project Manager, Admin. Inside a project's detail view, add or edit a milestone. Only PM and Admin can write milestones; other roles can view them.
+**How do I create or edit a phase?** — Roles: Project Manager, Admin. Inside a project's detail view, add or edit a phase. Only PM and Admin can write phases; other roles can view them.
 
 **How do I run or advance a procurement case?** — Roles: Admin, Project Manager, Finance (procurement-admin hat). Open the case (/procurement/:id) and capture each record — PR, RFQ, quotes, Purchase Order, goods receipt, invoice, payment — with its reference number and file, then advance the case.
 

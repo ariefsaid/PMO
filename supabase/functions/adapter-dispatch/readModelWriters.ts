@@ -2,6 +2,12 @@
  * Multi-domain read-model writer registry. Domain implementations live beside this file in
  * `readModel/`; this module keeps the existing registry and compatibility exports for callers.
  * Relative imports only so this stays Deno-importable.
+ *
+ * Vocabulary: the writers here maintain PMO's external-SoT read-models — local projections of
+ * externally-authoritative records, written FROM the external system (docs/GLOSSARY.md
+ * "Read-model"). The opposite direction (PMO-authoritative records pushed out, tracked by
+ * external-side / push-state mirrors such as `timesheet_erp_mirror`) is NOT a read model and
+ * does not live in this registry.
  */
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 import { budgetWriter } from './readModel/budget.ts';

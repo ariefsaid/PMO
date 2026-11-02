@@ -525,26 +525,26 @@ describe('ProjectBudget version status display', () => {
     versionsState.data = [{ ...activeVersion, activation_basis: 'sole_operator' }];
     const soleView = renderPage();
     await userEvent.click(screen.getByRole('button', { name: /^(Manage versions|Kelola versi)$/i }));
-    expect(screen.getByText('Activated by sole operator')).toBeInTheDocument();
+    expect(screen.getByText('Activated by sole member')).toBeInTheDocument();
     soleView.unmount();
 
     versionsState.data = [{ ...activeVersion, activation_basis: 'standard' }];
     const standardView = renderPage();
     await userEvent.click(screen.getByRole('button', { name: /^(Manage versions|Kelola versi)$/i }));
-    expect(screen.queryByText('Activated by sole operator')).not.toBeInTheDocument();
+    expect(screen.queryByText('Activated by sole member')).not.toBeInTheDocument();
     standardView.unmount();
 
     await financeTestI18n.changeLanguage('id');
     versionsState.data = [{ ...activeVersion, activation_basis: 'sole_operator' }];
     const idSoleView = renderPage();
     await userEvent.click(screen.getByRole('button', { name: /^(Manage versions|Kelola versi)$/i }));
-    expect(screen.getByText('Diaktifkan oleh operator tunggal')).toBeInTheDocument();
+    expect(screen.getByText('Diaktifkan oleh anggota tunggal')).toBeInTheDocument();
     idSoleView.unmount();
 
     versionsState.data = [{ ...activeVersion, activation_basis: null }];
     const legacyView = renderPage();
     await userEvent.click(screen.getByRole('button', { name: /^(Manage versions|Kelola versi)$/i }));
-    expect(screen.queryByText('Diaktifkan oleh operator tunggal')).not.toBeInTheDocument();
+    expect(screen.queryByText('Diaktifkan oleh anggota tunggal')).not.toBeInTheDocument();
     legacyView.unmount();
   });
   it('shows Draft status in the Versions drawer', async () => {
