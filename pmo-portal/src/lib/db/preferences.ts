@@ -16,25 +16,6 @@ export interface MyLocalePreferences {
   timezone: string | null;
 }
 
-const PREFERENCE_COLUMNS = 'locale,number_locale,timezone';
-
-/**
- * Reads the caller's own three preference columns. `null` when the profile row is not visible.
- *
- * `org_id` is NEVER sent — RLS scopes the read (`profiles_select`, ADR-0016/0017). The `id` filter is
- * a row selector, not a tenancy substitute.
- */
-export async function getMyLocalePreferences(userId: string): Promise<MyLocalePreferences | null> {
-  const { data, error } = await supabase
-    .from('profiles')
-    .select(PREFERENCE_COLUMNS)
-    .eq('id', userId)
-    .maybeSingle();
-  if (error) throw toAppError(error);
-  if (!data) return null;
-  return { locale: data.locale, numberLocale: data.number_locale, timezone: data.timezone };
-}
-
 /**
  * Writes the caller's own three preference columns. Pass nulls to reset to the org default.
  *
