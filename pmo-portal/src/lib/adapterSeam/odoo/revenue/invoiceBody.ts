@@ -57,7 +57,7 @@ export function buildInvoiceBody(invoice: PmoInvoice, maps: InvoiceMaps): Invoic
     if (unitId === undefined) return refuse('unit', line.unit);
     if (line.kind) {
       const advance = maps.downPayment;
-      if (!advance || advance.itemId !== line.itemId || item.incomeAccountId !== advance.advanceAccountId) return refuse('down-payment-account', line.itemId);
+      if (line.incomeAccountId !== undefined || !advance || advance.itemId !== line.itemId || item.incomeAccountId !== advance.advanceAccountId) return refuse('down-payment-account', line.itemId);
     } else if (line.incomeAccountId === undefined && item.incomeAccountId === null) {
       return refuse('income-account', line.itemId);
     }

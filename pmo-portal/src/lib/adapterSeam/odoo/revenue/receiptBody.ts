@@ -5,7 +5,7 @@
  * account (cash + withheld = settled). Every refusal comes before any write; the recorder is passed in from the verified
  * subject and never read from the payload.
  */
-import { anchorMemo, ODOO_REVENUE_ANCHORS } from './anchors.ts';
+import { anchorMemo, ODOO_REVENUE_ANCHORS, REVENUE_KEY_RE } from './anchors.ts';
 import { centsOf, centsToDecimal } from './moneyHeader.ts';
 
 type Money = number | string | null | undefined;
@@ -31,7 +31,7 @@ export interface ReceiptDefaults {
   accountCurrencies?: { receivable: string; cash: string };
 }
 export type ReceiptRefusal = 'invoice' | 'invoice-not-posted' | 'currency' | 'client' | 'amount' | 'over-receipt' | 'amounts'
-  | 'tax-prepaid-account' | 'withholding-slip' | 'account-currency' | 'journal';
+  | 'withheld-partial' | 'receipt' | 'tax-prepaid-account' | 'withholding-slip' | 'account-currency' | 'journal';
 export type ReceiptBodyResult =
   | { outcome: 'ready'; body: Record<string, unknown>; writeOff: { accountId: number; amount: number; label: string } | null; recordedBy: string }
   | { outcome: 'refused'; code: 'config-rejected' | 'cross-org-link-rejected'; thing: ReceiptRefusal };
@@ -40,6 +40,7 @@ const refuse = (thing: ReceiptRefusal, code: 'config-rejected' | 'cross-org-link
 const SLIP_MAX = 140;
 
 export function buildReceiptBody(receipt: ReceiptInput, invoice: ReceiptInvoice | null, defaults: ReceiptDefaults, recordedBy: string): ReceiptBodyResult {
+  if (!REVENUE_KEY_RE.test(`ip:${receipt.id}`)) return refuse('receipt');
   if (!invoice) return refuse('invoice');
   if (invoice.orgId !== receipt.orgId) return refuse('invoice', 'cross-org-link-rejected');
   if (invoice.state !== 'posted') return refuse('invoice-not-posted');
@@ -56,6 +57,8 @@ export function buildReceiptBody(receipt: ReceiptInput, invoice: ReceiptInvoice 
 
   const slip = typeof receipt.slipNumber === 'string' ? receipt.slipNumber.trim() : '';
   if (withheld > 0n) {
+    // Odoo's wizard writes off residual - amount, not the withheld figure, so a partial settle would lose receivable.
+    if (settled !== outstanding) return refuse('withheld-partial');
     if (defaults.taxPrepaidAccountId === null) return refuse('tax-prepaid-account');
     if (slip === '' || slip.length > SLIP_MAX) return refuse('withholding-slip');
     if (!defaults.accountCurrencies || defaults.accountCurrencies.receivable !== defaults.accountCurrencies.cash) return refuse('account-currency');

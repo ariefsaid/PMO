@@ -70,6 +70,11 @@ describe('AC-OCI-045 tax withheld by the client: cash + withheld = settled, each
   ] as const)('refuses %s', (_l, patch, d, thing) => {
     expect(build(patch as Partial<ReceiptInput>, invoice, d as ReceiptDefaults)).toMatchObject(refusal(thing));
   });
+  it('a withheld receipt must settle the whole outstanding: partial + withheld is refused, full + withheld is ready', () => {
+    expect(build({ settled: 70000, cash: 68000, withheld: 2000, slipNumber: 'BP-1' })).toMatchObject(refusal('withheld-partial'));
+    expect(build({ settled: 111000, cash: 109000, withheld: 2000, slipNumber: 'BP-1' }).outcome).toBe('ready');
+    expect(build({ settled: 70000, cash: 70000 }).outcome).toBe('ready');
+  });
   it('withheld still cannot take the settled amount above the outstanding', () => {
     expect(build({ settled: 112000, cash: 110000, withheld: 2000, slipNumber: 'BP-1' })).toMatchObject(refusal('over-receipt'));
   });
@@ -85,7 +90,7 @@ describe('AC-OCI-046 the recorder is the verified subject, never the payload', (
 });
 
 describe('invalid receipt keys never build', () => {
-  it('refuses an id that is not a uuid (the anchor key would be invalid)', () => {
-    expect(() => build({ id: 'not-a-uuid' })).toThrow();
+  it('refuses an id that is not a uuid (the anchor key would be invalid), never throws', () => {
+    expect(build({ id: 'not-a-uuid' })).toMatchObject(refusal('receipt'));
   });
 });

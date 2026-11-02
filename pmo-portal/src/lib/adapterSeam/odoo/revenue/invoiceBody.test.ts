@@ -117,6 +117,7 @@ describe('AC-OCI-022 the down-payment item must sit on the configured advance ac
     ['no advance account configured', dp, { ...maps, downPayment: undefined }],
     ['the item has no account in the directory', dp, { ...maps, items: { ...maps.items, 'item-dp': { productId: 72, incomeAccountId: null } } }],
     ['the line names another item', { ...dp, lines: [{ ...dp.lines[0], itemId: 'item-km' }] }, maps],
+    ['the line carries its own income account', { ...dp, lines: [{ ...dp.lines[0], incomeAccountId: 149 }] }, maps],
   ] as const)('refuses config-rejected naming the item: %s', (_label, inv, m) => {
     expect(buildInvoiceBody(inv as PmoInvoice, m as InvoiceMaps)).toMatchObject({ outcome: 'refused', code: 'config-rejected', thing: 'down-payment-account' });
   });
