@@ -12,8 +12,6 @@ const repo = vi.hoisted(() => ({
   updateItem: vi.fn(),
   deleteItem: vi.fn(),
   selectQuote: vi.fn(),
-  createDocument: vi.fn(),
-  deleteDocument: vi.fn(),
 }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { procurement: repo } }));
 vi.mock('@/src/auth/useAuth', () => ({
@@ -41,8 +39,6 @@ beforeEach(() => {
   repo.updateItem.mockResolvedValue(undefined);
   repo.deleteItem.mockResolvedValue(undefined);
   repo.selectQuote.mockResolvedValue(undefined);
-  repo.createDocument.mockResolvedValue({ id: 'd1' });
-  repo.deleteDocument.mockResolvedValue(undefined);
 });
 
 describe('AC-PROC-001 useCreateProcurement', () => {
@@ -130,32 +126,10 @@ describe('AC-PROC-002..005 useProcurementCrudMutations (detail-scoped, invalidat
     expect(calls.some((c) => c.includes('"pr1"'))).toBe(true);
   });
 
-  it('AC-PROC-005: createDocument / deleteDocument delegate + invalidate the detail key', async () => {
-    const { qc, Wrapper } = makeWrapper();
-    const invalidateSpy = vi.spyOn(qc, 'invalidateQueries');
-    const { result } = renderHook(() => useProcurementCrudMutations('pr1'), { wrapper: Wrapper });
-
-    await act(async () => {
-      await result.current.createDocument.mutateAsync({
-        type: 'PO',
-        referenceNumber: 'PO-1',
-        status: 'Draft',
-      });
-    });
-    expect(repo.createDocument).toHaveBeenCalledWith('pr1', {
-      type: 'PO',
-      referenceNumber: 'PO-1',
-      status: 'Draft',
-    });
-
-    await act(async () => {
-      await result.current.deleteDocument.mutateAsync('d1');
-    });
-    expect(repo.deleteDocument).toHaveBeenCalledWith('d1');
-
-    const calls = invalidateSpy.mock.calls.map((c) => JSON.stringify(c[0]));
-    expect(calls.some((c) => c.includes('"pr1"'))).toBe(true);
-  });
+  // OE13R02-002: the former createDocument/deleteDocument hook mutations are removed — no UI ever
+  // invoked them. The AC-PROC-005 document-metadata behavior keeps its owning layer
+  // (src/lib/db/procurementCrud.test.ts over the shipped DAL operations) and the repository
+  // methods stay available for a future wired surface.
 });
 
 describe('T-11 detail mutations refresh list and spend', () => {

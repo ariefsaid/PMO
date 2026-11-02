@@ -13,6 +13,7 @@
  */
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { acquireBackgroundInert } from '@/src/components/ui/backgroundInert';
 import { Button, Icon, StatusPill } from '@/src/components/ui';
 import { cn } from '@/src/components/ui/cn';
 import type { RefLookup } from '@/src/lib/import';
@@ -87,6 +88,11 @@ export function ProcurementCycleImportWizard({
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [requestClose]);
+
+  // AC-A11Y-MODAL-001 / CMP-009: background inert while open. Declared before focus effect.
+  useEffect(() => {
+    return acquireBackgroundInert();
+  }, []);
 
   // Focus-in on open; restore trigger on unmount.
   useEffect(() => {

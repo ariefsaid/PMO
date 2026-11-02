@@ -62,10 +62,6 @@ vi.mock('@/src/hooks/useProcurements', () => ({
 vi.mock('@/src/hooks/useProcurementCrud', () => ({
   useCreateProcurement: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
-vi.mock('@/src/hooks/useProcurementView', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/src/hooks/useProcurementView')>()),
-  useProcurementView: () => ['table', vi.fn()],
-}));
 
 // ── Projects ────────────────────────────────────────────────────────────────
 const proj = (id: string, name: string, contract_value: number, currency: string) => ({
@@ -95,10 +91,6 @@ vi.mock('@/src/hooks/useProjects', () => ({
   useProjectsMilestoneDates: () => ({ data: [], isPending: false }),
 }));
 vi.mock('@/src/hooks/useMyTasks', () => ({ useMyTasks: () => ({ data: [] }) }));
-vi.mock('@/src/hooks/useProjectView', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/src/hooks/useProjectView')>()),
-  useProjectView: () => ['table', vi.fn()],
-}));
 vi.mock('@/src/hooks/useProjectsDelivery', () => ({
   useProjectsDelivery: () => ({ data: {} }),
   useProjectsDeliverySummary: () => ({ data: {} }),

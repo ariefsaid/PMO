@@ -1,11 +1,5 @@
 import React from 'react';
-import { cn } from '@/src/components/ui/cn';
 import { APP_VERSION, BUILD_TIME, GIT_SHA } from '@/src/lib/version';
-
-export interface AppVersionProps {
-  /** Positioning/layout overrides for the mount site (e.g. fixed corner). */
-  className?: string;
-}
 
 /**
  * A muted, always-rendered "what's live" label: `v<version> · <sha>`. Unlike
@@ -18,15 +12,12 @@ export interface AppVersionProps {
  *
  * Token-only (DESIGN.md muted-foreground) at EnvBadge's 11px scale.
  */
-export const AppVersion: React.FC<AppVersionProps> = ({ className }) => {
+export const AppVersion: React.FC = () => {
   return (
     <div
       data-testid="app-version"
       title={BUILD_TIME}
-      className={cn(
-        'pointer-events-none select-none text-[11px] text-muted-foreground',
-        className,
-      )}
+      className="pointer-events-none select-none text-[11px] text-muted-foreground"
     >
       <span>v{APP_VERSION}</span>
       <span aria-hidden> · </span>

@@ -73,11 +73,13 @@ describe('renderWidget registry (FR-ATC-005)', () => {
   });
 
   it('item 5 data_table renders the scroll-mask affordance when content overflows (scrollWidth>clientWidth)', () => {
-    // jsdom never computes real layout — force the overflow condition the
-    // component's effect checks so the RED/GREEN proof is real, not vacuous.
+    // jsdom never computes real layout — only DataTable's inner scrollport
+    // overflows; the enclosing widget wrappers remain fitting scrollports.
     const scrollWidthSpy = vi
       .spyOn(HTMLElement.prototype, 'scrollWidth', 'get')
-      .mockReturnValue(600);
+      .mockImplementation(function (this: HTMLElement) {
+        return this.matches('[data-testid="dt-table-branch"]') ? 600 : 300;
+      });
     const clientWidthSpy = vi
       .spyOn(HTMLElement.prototype, 'clientWidth', 'get')
       .mockReturnValue(300);

@@ -6,16 +6,7 @@
 
 // ── Token values (FR-VC-011 / FR-VC-035) ──────────────────────────────────────
 
-export type TokenValue =
-  | '$current_user'
-  | '$current_team'
-  | '$current_org'
-  | '$current_project'
-  | '$today'
-  | '$start_of_month'
-  | '$end_of_month';
-
-export const VALID_TOKENS = new Set<string>([
+export const TOKEN_VALUES = [
   '$current_user',
   '$current_team',
   '$current_org',
@@ -23,24 +14,16 @@ export const VALID_TOKENS = new Set<string>([
   '$today',
   '$start_of_month',
   '$end_of_month',
-]);
+] as const;
+
+export type TokenValue = (typeof TOKEN_VALUES)[number];
+export const VALID_TOKENS = new Set<string>(TOKEN_VALUES);
 
 // ── Filter operator (FR-VC-011) ────────────────────────────────────────────────
 
-export type FilterOp =
-  | 'eq'
-  | 'neq'
-  | 'in'
-  | 'gt'
-  | 'gte'
-  | 'lt'
-  | 'lte'
-  | 'between'
-  | 'date-range';
-
-export const VALID_FILTER_OPS = new Set<string>([
-  'eq', 'neq', 'in', 'gt', 'gte', 'lt', 'lte', 'between', 'date-range',
-]);
+export const FILTER_OP_VALUES = ['eq', 'neq', 'in', 'gt', 'gte', 'lt', 'lte', 'between', 'date-range'] as const;
+export type FilterOp = (typeof FILTER_OP_VALUES)[number];
+export const VALID_FILTER_OPS = new Set<string>(FILTER_OP_VALUES);
 
 // ── Aggregate (FR-VC-012) ──────────────────────────────────────────────────────
 
@@ -145,20 +128,12 @@ export interface ResolvedAggregate {
   alias: string;
 }
 
-export interface ResolvedTimeRange {
-  column: string;
-  from: string;
-  to: string;
-}
-
 export interface CompiledQuery {
   entity: WhitelistedEntity;
-  repositoryMethod: string;
   resolvedFilters: ResolvedFilter[];
   resolvedSelect: string[];
   resolvedGroupBy?: string;
   resolvedAggregate?: ResolvedAggregate;
-  resolvedTimeRange?: ResolvedTimeRange;
   resolvedOrderBy?: { column: string; dir: 'asc' | 'desc' };
   limit?: number;
 }
@@ -179,10 +154,8 @@ export interface CompiledPanel {
 // ── Entity whitelist (FR-VC-020 / FR-VC-021 / FR-VC-022) ──────────────────────
 
 export interface EntityWhitelistEntry {
-  /** Postgres table name — for documentation only; compiler never interpolates it. */
+  /** Postgres table name, passed to supabase.from() by the view executor. */
   table: string;
-  /** The repository method the renderer (I3) will call; e.g. 'project.list'. */
-  repositoryMethod: string;
   /** All column names permitted in select/filters/groupBy/orderBy. */
   allowedColumns: ReadonlySet<string>;
   /** Subset of allowedColumns that are numeric (permitted for sum/avg/min/max). */
@@ -215,7 +188,6 @@ export const ENTITY_WHITELIST: Readonly<Record<WhitelistedEntity, EntityWhitelis
   Object.freeze({
     projects: {
       table: 'projects',
-      repositoryMethod: 'project.list',
       allowedColumns: new Set([
         'id', 'name', 'status', 'start_date', 'end_date',
         'contract_value', 'created_at', 'client_id',
@@ -227,7 +199,6 @@ export const ENTITY_WHITELIST: Readonly<Record<WhitelistedEntity, EntityWhitelis
     },
     companies: {
       table: 'companies',
-      repositoryMethod: 'company.list',
       allowedColumns: new Set(['id', 'name', 'type', 'created_at']),
       numericColumns: new Set<string>(),
       dateColumns: new Set(['created_at']),
@@ -235,7 +206,6 @@ export const ENTITY_WHITELIST: Readonly<Record<WhitelistedEntity, EntityWhitelis
     },
     tasks: {
       table: 'tasks',
-      repositoryMethod: 'task.list',
       allowedColumns: new Set([
         'id', 'name', 'status', 'start_date', 'end_date',
         'project_id', 'assignee_id', 'created_at',
@@ -247,7 +217,6 @@ export const ENTITY_WHITELIST: Readonly<Record<WhitelistedEntity, EntityWhitelis
     },
     incidents: {
       table: 'incident_reports',
-      repositoryMethod: 'incident.list',
       allowedColumns: new Set([
         'id', 'type', 'severity', 'status', 'incident_date',
         'location', 'project_id', 'created_at',
@@ -258,7 +227,6 @@ export const ENTITY_WHITELIST: Readonly<Record<WhitelistedEntity, EntityWhitelis
     },
     contacts: {
       table: 'contacts',
-      repositoryMethod: 'contact.list',
       allowedColumns: new Set([
         'id', 'full_name', 'email', 'title', 'company_id', 'created_at',
       ]),
@@ -268,7 +236,6 @@ export const ENTITY_WHITELIST: Readonly<Record<WhitelistedEntity, EntityWhitelis
     },
     user_views: {
       table: 'user_views',
-      repositoryMethod: 'userView.list',
       allowedColumns: new Set(['id', 'name', 'scope', 'created_at', 'updated_at']),
       numericColumns: new Set<string>(),
       dateColumns: new Set(['created_at', 'updated_at']),

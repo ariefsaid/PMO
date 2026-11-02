@@ -131,9 +131,9 @@ describe('AC-IXD-DASH-W5-C2A — Executive dashboard KPI drills', () => {
   const executiveDrills = [
     // AC-IXD-DASH-W5-C2A (dev oracle): the figure opens the ongoing projects it sums.
     ['Contract on hand', '/projects?filter=Ongoing'],
-    ['Margin on billed work', '/sales-invoices'],
+    ['Margin on billed work', '/finance/receivables'],
     ['Pipeline (weighted)', '/sales'],
-    ['Owed by clients · overdue', '/sales-invoices?overdue=true'],
+    ['Owed by clients · overdue', '/finance/receivables?overdue=true'],
     ['Owed to suppliers', '/procurement?status=Vendor+Invoiced'],
     ['Still to invoice on work orders', '/projects'],
   ] as const;
@@ -162,7 +162,7 @@ describe('AC-IXD-DASH-W5-C2A — Executive dashboard KPI drills', () => {
     expect(marginTile).toHaveTextContent('$1M');
     // C4: the always-empty percent line is not rendered as a value; the help tooltip states why it is unknown.
     expect(marginTile).not.toHaveTextContent(/Percent of billed work/);
-    expect(within(marginTile).getByRole('link')).toHaveAttribute('href', '/sales-invoices');
+    expect(within(marginTile).getByRole('link')).toHaveAttribute('href', '/finance/receivables');
   });
 
   it('AC-IXD-DASH-W5-C2A-EXEC-6: pipeline forecast margin is shown as a sub-line, not a separate drill tile', () => {

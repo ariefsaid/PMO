@@ -12,6 +12,7 @@ export interface PageHeaderProps {
   iconColor?: string;
   name: React.ReactNode;
   meta?: React.ReactNode;
+  metaId?: string;
   /** Status pill or other badge node. */
   status?: React.ReactNode;
   /** Keep a record's status in the title row at every width. */
@@ -41,6 +42,7 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
   iconColor,
   name,
   meta,
+  metaId,
   status,
   statusInline = false,
   statusBelowMetaOnMobile = false,
@@ -88,7 +90,7 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
             statusBelowMetaOnMobile && 'col-span-2 row-start-3 justify-self-start sm:col-span-1 sm:row-start-auto',
           )}>{status}</span>}
         </div>
-        {meta && <div className={cn(
+        {meta && <div id={metaId} className={cn(
           'mt-1 text-control font-normal text-muted-foreground',
           statusBelowMetaOnMobile && 'col-span-2 row-start-2 sm:row-start-auto',
         )}>{meta}</div>}

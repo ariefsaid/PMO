@@ -18,7 +18,6 @@ import {
 } from './OverlaySurface';
 
 export type ConfirmTone = 'default' | 'destructive';
-export type ConfirmSurface = 'modal' | 'popover';
 
 export interface ConfirmDialogProps {
   open: boolean;
@@ -32,8 +31,6 @@ export interface ConfirmDialogProps {
   cancelLabel?: string;
   /** 'destructive' -> red confirm + alertdialog + scrim; 'default' -> primary confirm */
   tone?: ConfirmTone;
-  /** derived: destructive => 'modal', default => 'popover'. Overridable. */
-  surface?: ConfirmSurface;
   /** confirm in-flight: spinner + disabled (reuses Button loading); blocks Esc/scrim close */
   loading?: boolean;
   /** Gate the confirm button — for a dialog that hosts a required input (e.g. an attestation reason).

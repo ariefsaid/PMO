@@ -1,5 +1,6 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError } from '@/src/lib/appError';
+import { fetchAllRowsByKeyset, type PageResult } from '@/src/lib/pagedRead';
 import type { Tables } from '@/src/lib/supabase/database.types';
 
 export type CommentEntityType = 'project' | 'task';
@@ -17,20 +18,31 @@ export interface CommentInput {
 /**
  * Live comments on one record, oldest first (newest last). Archived (soft-deleted) rows are filtered
  * here. org_id is never sent — RLS scopes to readers of the parent; author_id defaults to the caller.
+ *
+ * DAL01-005: reads EVERY keyset page (ordered by id — the only unique, total order) so a long
+ * discussion stays complete past PostgREST's single-response cap; the oldest-first contract is
+ * restored in memory (created_at asc, id as the total tie-break). A page error throws
+ * (code preserved) — a partial discussion can never be mistaken for a complete one.
  */
 export async function listComments(
   entityType: CommentEntityType,
   entityId: string,
 ): Promise<CommentWithAuthor[]> {
-  const { data, error } = await supabase
-    .from('comments')
-    .select('*, author:profiles!comments_author_id_fkey(id, full_name)')
-    .eq('entity_type', entityType)
-    .eq('entity_id', entityId)
-    .is('archived_at', null)
-    .order('created_at', { ascending: true });
-  if (error) throw new AppError(error.message, error.code);
-  return (data ?? []) as CommentWithAuthor[];
+  const rows = await fetchAllRowsByKeyset<CommentWithAuthor>((afterId, limit) => {
+    let query = supabase
+      .from('comments')
+      .select('*, author:profiles!comments_author_id_fkey(id, full_name)')
+      .eq('entity_type', entityType)
+      .eq('entity_id', entityId)
+      .is('archived_at', null)
+      .order('id', { ascending: true })
+      .limit(limit);
+    if (afterId !== null) query = query.gt('id', afterId);
+    return query as unknown as PromiseLike<PageResult<CommentWithAuthor>>;
+  });
+  return rows.sort(
+    (a, b) => a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id),
+  );
 }
 
 export async function createComment(input: CommentInput): Promise<void> {

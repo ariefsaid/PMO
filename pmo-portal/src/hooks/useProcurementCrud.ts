@@ -10,8 +10,6 @@ import {
   type ProcurementItemInput,
   type ProcurementItemPatch,
   type ProcurementItemRow,
-  type ProcurementDocumentInput,
-  type ProcurementDocumentRow,
 } from '@/src/lib/repositories';
 import {
   procurementDetailKey,
@@ -30,9 +28,6 @@ import type { Tables } from '@/src/lib/supabase/database.types';
 //     ['procurement', orgId, id] so the open detail page refetches.
 // All errors propagate as AppError (code preserved) for classifyMutationError.
 // ---------------------------------------------------------------------------
-
-const procurementDocsKey = (orgId: string | undefined, id: string) =>
-  ['procurement-docs', orgId, id] as const;
 
 /**
  * Raise a new Purchase Request (AC-PROC-001). The requester id is supplied from
@@ -98,12 +93,6 @@ export function useProcurementCrudMutations(id: string) {
   const orgId = currentUser?.org_id;
   const invalidate = (extraProjectIds: ReadonlyArray<string | null> = []) =>
     invalidateProcurementCase(qc, orgId, id, [cachedProcurementProjectId(qc, orgId, id), ...extraProjectIds]);
-  // Document mutations refresh both the detail key (in case a count surfaces there)
-  // and the dedicated document-register query.
-  const invalidateDocs = () => {
-    qc.invalidateQueries({ queryKey: procurementDetailKey(orgId, id) });
-    qc.invalidateQueries({ queryKey: procurementDocsKey(orgId, id) });
-  };
 
   const updateHeader = useMutation<void, AppError, ProcurementHeaderPatch>({
     mutationFn: (patch) => repositories.procurement.updateHeader(id, patch),
@@ -136,15 +125,9 @@ export function useProcurementCrudMutations(id: string) {
     onSuccess: () => invalidate(),
   });
 
-  const createDocument = useMutation<ProcurementDocumentRow, AppError, ProcurementDocumentInput>({
-    mutationFn: (input) => repositories.procurement.createDocument(id, input),
-    onSuccess: invalidateDocs,
-  });
+  // OE13R02-002: the former createDocument/deleteDocument mutations had no production consumer
+  // (document metadata CRUD stays reachable at repositories.procurement + the DAL, AC-PROC-005);
+  // they only dressed uncalled paths as live hook operations.
 
-  const deleteDocument = useMutation<void, AppError, string>({
-    mutationFn: (docId) => repositories.procurement.deleteDocument(docId),
-    onSuccess: invalidateDocs,
-  });
-
-  return { updateHeader, updateVendor, createItem, updateItem, deleteItem, selectQuote, createDocument, deleteDocument };
+  return { updateHeader, updateVendor, createItem, updateItem, deleteItem, selectQuote };
 }

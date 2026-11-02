@@ -409,6 +409,13 @@ jobs:
       - name: pgTAP integration tests
         run: supabase test db
 
+      # AC-CQ-003 (issue #1281): contract-quantities upgrade/reversal round trip. The harness
+      # inlines migration 0337 and its rollback into a generated pgTAP file (deleted on exit)
+      # and runs it against the DB reset above — the suite is transactional, so migrations are
+      # still at HEAD here.
+      - name: Contract quantities rollback harness
+        run: scripts/test-contract-quantities-rollback.sh
+
       # A push to `dev` is the full suite that backstops every PR's narrowed run; when it fails, say
       # which merge it ran on (a squash merge's subject ends in the PR number).
       - name: Name the merged change

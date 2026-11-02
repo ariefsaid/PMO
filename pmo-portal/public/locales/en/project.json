@@ -464,6 +464,7 @@
       "categoryOver": "{{category}} is {{amount}} over budget",
       "categoryOverSub": "Spent {{spent}} of its {{budget}} budget",
       "within": "Within budget",
+      "withinOnSpend": "Within budget on spend",
       "withinSub": "Spent {{spent}} of {{budget}}",
       "commitmentsError": "Couldn't check commitments",
       "spendingChecking": "Checking spending…",
@@ -481,6 +482,7 @@
       "snapshotUse": "{{percent}}% used",
       "snapshotRemaining": "{{amount}} remaining",
       "snapshotOver": "{{amount}} over budget",
+      "snapshotOverOnCommitments": "{{amount}} over once committed orders land",
       "atRisk": "At risk",
       "rowBudgetOnly": "{{budget}} budgeted"
     },
