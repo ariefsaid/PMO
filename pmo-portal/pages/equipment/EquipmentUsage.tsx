@@ -168,13 +168,13 @@ const EquipmentUsagePage: React.FC = () => {
   const submittable = canLog && mine.some((e) => e.status === 'Draft' || e.status === 'Rejected');
 
   const columns: Column<GridRow>[] = [
-    { key: 'asset', header: t('equipment:usage.columns.equipment', 'Equipment'), kind: 'primary', rowHeader: true, stickyLeft: true,
+    { key: 'asset', header: t('equipment:usage.columns.equipment', 'Equipment'), kind: 'primary', rowHeader: true, stickyLeft: true, size: 170, minSize: 140,
       cell: (r) => r.field === 'quantity'
         ? <span className="font-medium">{assetName(r.assetId)}{r.kind === 'standby' && <span className="ml-1 text-xs font-normal text-muted-foreground">{t('equipment:usage.standby', 'standby')}</span>}</span>
         : <span className="pl-3 text-xs text-muted-foreground">{r.field === 'fuel_litres' ? t('equipment:usage.fuel', 'Fuel (litres)') : t('equipment:usage.trips', 'Trips')}</span> },
-    { key: 'project', header: t('equipment:usage.columns.project', 'Project'), cell: (r) => r.field === 'quantity' ? projectName(r.projectId) : null },
+    { key: 'project', header: t('equipment:usage.columns.project', 'Project'), size: 150, minSize: 110, cell: (r) => r.field === 'quantity' ? projectName(r.projectId) : null },
     ...days.map<Column<GridRow>>((d) => ({
-      key: d, header: <span className={d === today ? 'font-semibold text-foreground' : undefined}>{dayHead(d)}</span>, align: 'num', colClassName: 'px-1',
+      key: d, header: <span className={d === today ? 'font-semibold text-foreground' : undefined}>{dayHead(d)}</span>, align: 'num', colClassName: 'px-1', size: 76, minSize: 68,
       cell: (r) => {
         const entry = byCell.get(cellKey(r.assetId, r.projectId, r.kind, d));
         const unit = entry?.unit ?? assetById.get(r.assetId)?.default_unit ?? 'hours';
@@ -184,21 +184,21 @@ const EquipmentUsagePage: React.FC = () => {
         return <UsageCell label={`${assetName(r.assetId)} · ${projectName(r.projectId)} · ${dayLabel(d)}, ${suffix}`} stored={stored} disabled={locked}
           onCommit={(text) => void commit(r, d, text)} />;
       } })),
-    { key: 'total', header: t('equipment:usage.columns.total', 'Total'), align: 'num',
+    { key: 'total', header: t('equipment:usage.columns.total', 'Total'), align: 'num', size: 84,
       cell: (r) => {
         if (r.field !== 'quantity') return null;
         const rowEntries = mine.filter((e) => rowKey(e.asset_id, e.project_id, e.kind) === r.key);
         const unit = rowEntries[0]?.unit ?? assetById.get(r.assetId)?.default_unit ?? 'hours';
         return <span className="whitespace-nowrap tabular-nums">{formatNumberMax2(rowEntries.reduce((s, e) => s + Number(e.quantity), 0))} {unit}</span>;
       } },
-    { key: 'status', header: t('equipment:usage.columns.status', 'Status'),
+    { key: 'status', header: t('equipment:usage.columns.status', 'Status'), size: 96,
       cell: (r) => {
         if (r.field !== 'quantity') return null;
         const states = [...new Set(mine.filter((e) => rowKey(e.asset_id, e.project_id, e.kind) === r.key).map((e) => e.status))];
         if (states.length === 0) return <span className="text-muted-foreground">—</span>;
         return <span className="flex flex-wrap gap-1">{states.map((s) => <StatusPill key={s} variant={STATUS_VARIANT[s as Status]}>{statusLabel(t, s as Status)}</StatusPill>)}</span>;
       } },
-    { key: 'more', header: <span className="sr-only">{t('equipment:usage.columns.fuelTrips', 'Fuel · trips')}</span>,
+    { key: 'more', size: 48, header: <span className="sr-only">{t('equipment:usage.columns.fuelTrips', 'Fuel · trips')}</span>,
       cell: (r) => r.field !== 'quantity' ? null : (
         <Button variant="ghost" size="sm" aria-expanded={opened.has(r.key)}
           aria-label={t('equipment:usage.fuelTripsToggle', 'Fuel and trips for {{asset}} · {{project}}', { asset: assetName(r.assetId), project: projectName(r.projectId) })}
