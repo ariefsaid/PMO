@@ -27,7 +27,7 @@ orca orchestration worker-start --spec "<brief or path>" --agent <harness> \
 ## Model routing (defaults; right-size per task)
 
 **Intelligence ranking (owner, 2026-10-29; DeepSeek added 2026-11-02):** Sol > Terra > DeepSeek V4.1 Flash > Gemini 3.8 Flash > GLM-5.3-flash > Luna. GLM runs at most
-**2 parallel tasks**. Match the model to
+**2 parallel tasks**; DeepSeek free at most **3** (no published cap; raise once sustained load holds). Heavy local runs (DB, e2e) stay capped at 2 across all workers. Match the model to
 the task's difficulty (e.g. money, auth and data-loss fixes → Terra; bounded UI fixes and refactors →
 Flash; mechanical deletions and renames → Luna; orchestration and final review → Sol).
 
