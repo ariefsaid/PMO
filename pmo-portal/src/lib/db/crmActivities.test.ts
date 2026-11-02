@@ -7,6 +7,8 @@ const h = vi.hoisted(() => {
     select: [] as unknown[],
     eq: [] as unknown[],
     order: [] as unknown[],
+    gt: [] as unknown[],
+    limit: [] as unknown[],
     insert: [] as unknown[],
     update: [] as unknown[],
     delete: 0,
@@ -24,6 +26,8 @@ const h = vi.hoisted(() => {
   builder.select = chain('select');
   builder.eq = chain('eq');
   builder.order = chain('order');
+  builder.gt = chain('gt');
+  builder.limit = chain('limit');
   builder.insert = chain('insert');
   builder.update = chain('update');
   builder.delete = chain('delete');
@@ -61,12 +65,13 @@ beforeEach(() => {
 });
 
 describe('AC-CRM-023 listActivities', () => {
-  it('AC-CRM-023: selects a contact\'s activities ordered occurred_at desc, never sends org_id', async () => {
+  it('AC-CRM-023: selects a contact\'s activities, never sends org_id, reads the complete keyset (DAL01-005)', async () => {
     h.result.value = { data: [{ id: 'a1', kind: 'Call' }], error: null };
     const rows = await listActivities('ct1');
     expect(h.calls.from).toEqual(['crm_activities']);
     expect(h.calls.eq).toContainEqual(['contact_id', 'ct1']);
-    expect(h.calls.order).toContainEqual(['occurred_at', { ascending: false }]);
+    expect(h.calls.order).toContainEqual(['id', { ascending: true }]);
+    expect(h.calls.limit).toContainEqual(1000);
     expect(JSON.stringify(h.calls)).not.toContain('org_id');
     expect(rows[0].id).toBe('a1');
   });

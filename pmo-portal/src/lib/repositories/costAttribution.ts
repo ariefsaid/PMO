@@ -76,8 +76,10 @@ function readTargets(value: Json): CostAttributionTarget[] {
   });
 }
 
-export async function listCostAttributionRules(includeHistory = false): Promise<CostAttributionRule[]> {
-  const rows = await call(() => supabase.rpc('list_cost_attribution_rules', { p_include_history: includeHistory }));
+export async function listCostAttributionRules(): Promise<CostAttributionRule[]> {
+  // OE20-006: the former includeHistory option had no production caller (the admin UI always wants
+  // the current rules); the flag is now stated literally instead of pretending to be a supported mode.
+  const rows = await call(() => supabase.rpc('list_cost_attribution_rules', { p_include_history: false }));
   return (rows ?? []).map((row) => ({ ...row, targets: readTargets(row.targets) }));
 }
 

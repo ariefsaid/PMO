@@ -737,8 +737,7 @@
         "projectRequired": "Pilih proyek.",
         "save": "Tambah"
       }
-    },
-    "vendorTaxAccounts": {}
+    }
   },
   "approvals": {
     "salesInvoices": {
@@ -964,6 +963,10 @@
       "clientNumberSegment": {
         "label": "Segmen nomor klien",
         "placeholder": "mis. RIS"
+      },
+      "partialSave": {
+        "headline": "Perusahaan tersimpan, tetapi satu perubahan tidak bertahan",
+        "segmentDetail": "Segmen nomor klien tidak dapat disimpan. Periksa kembali dan simpan lagi."
       }
     },
     "search": {
@@ -1030,11 +1033,7 @@
       "note": "Catatan"
     },
     "addContact": {
-      "legendContact": "Detail kontak",
-      "legendIdentity": "Identitas",
-      "submitLabel": "Buat kontak",
-      "subtitle": "Tambahkan orang di perusahaan ini",
-      "title": "Kontak baru"
+      "subtitle": "Tambahkan orang di perusahaan ini"
     },
     "archive": "Arsipkan",
     "archiveConfirm": {
@@ -1057,47 +1056,15 @@
       "title": "Kontak"
     },
     "edit": "Edit",
-    "editActivity": {
-      "legend": "Detail",
-      "submitLabel": "Simpan",
-      "subtitle": "Perbarui entri log aktivitas ini",
-      "title": "Edit aktivitas"
-    },
-    "editCompany": {
-      "legendIdentity": "Identitas",
-      "submitLabel": "Simpan perusahaan",
-      "subtitle": "Perbarui data perusahaan ini",
-      "title": "Edit perusahaan"
-    },
     "error": {
       "sub": "Terjadi kesalahan saat mengambil data perusahaan ini.",
       "title": "Gagal memuat perusahaan"
     },
     "field": {
-      "company": "Perusahaan",
-      "companyName": "Nama perusahaan",
-      "companyNamePlaceholder": "mis. Cascade Port Authority",
-      "email": "Email",
-      "emailPlaceholder": "name@example.com",
-      "fullName": "Nama lengkap",
-      "fullNamePlaceholder": "mis. Jane Doe",
       "name": "Nama",
-      "notes": "Catatan",
-      "notesPlaceholder": "Hal yang perlu diingat tentang kontak ini",
-      "phone": "Telepon",
-      "phonePlaceholder": "mis. +1 555 010 0000",
       "primaryContact": "Kontak utama",
-      "title": "Jabatan",
-      "titlePlaceholder": "mis. Procurement Lead",
       "type": "Tipe",
-      "clientNumberSegment": "Segmen nomor klien",
-      "clientNumberSegmentPlaceholder": "mis. RIS"
-    },
-    "form": {
-      "errors": {
-        "companyNameRequired": "Nama perusahaan wajib diisi.",
-        "contactNameRequired": "Nama kontak wajib diisi."
-      }
+      "clientNumberSegment": "Segmen nomor klien"
     },
     "notFound": {
       "sub": "Perusahaan ini tidak ada atau tidak terlihat oleh Anda. Kembali ke direktori untuk mencarinya.",
@@ -1124,11 +1091,6 @@
       "archived": "Perusahaan diarsipkan",
       "contactCreated": "Kontak dibuat",
       "updated": "Perusahaan diperbarui"
-    },
-    "type": {
-      "client": "Klien",
-      "internal": "Internal",
-      "vendor": "Pemasok"
     },
     "vendorTax": {
       "hint": "Mengisi otomatis tagihan baru dari pemasok ini. Jumlahnya tetap dapat diubah di setiap tagihan.",
@@ -1196,36 +1158,18 @@
       "subtitle": "Perbarui entri log aktivitas ini",
       "title": "Edit aktivitas"
     },
-    "editContact": {
-      "legendContact": "Detail kontak",
-      "legendIdentity": "Identitas",
-      "submitLabel": "Simpan kontak",
-      "subtitle": "Perbarui data kontak ini",
-      "title": "Edit kontak"
-    },
     "error": {
       "sub": "Terjadi kesalahan saat mengambil data kontak ini.",
       "title": "Gagal memuat kontak"
     },
     "field": {
       "company": "Perusahaan",
-      "companyPlaceholder": "Pilih perusahaan…",
       "email": "Email",
-      "emailPlaceholder": "name@example.com",
-      "fullName": "Nama lengkap",
-      "fullNamePlaceholder": "mis. Jane Doe",
       "notes": "Catatan",
-      "notesPlaceholder": "Hal yang perlu diingat tentang kontak ini",
       "phone": "Telepon",
-      "phonePlaceholder": "mis. +1 555 010 0000",
       "title": "Jabatan",
-      "titlePlaceholder": "mis. Procurement Lead"
-    },
-    "form": {
-      "errors": {
-        "companyRequired": "Perusahaan wajib diisi.",
-        "nameRequired": "Nama kontak wajib diisi."
-      }
+      "companyUnavailable": "Perusahaan ini tidak ada di direktori perusahaan Anda.",
+      "companyArchived": "Diarsipkan"
     },
     "meetings": {
       "error": "Rapat bernotulen tidak dapat dimuat.",
@@ -1279,7 +1223,9 @@
     "form": {
       "company": {
         "label": "Perusahaan",
-        "placeholder": "Pilih perusahaan…"
+        "placeholder": "Pilih perusahaan…",
+        "loading": "Memuat perusahaan…",
+        "loadFailed": "Perusahaan tidak dapat dimuat."
       },
       "editSubmit": "Simpan kontak",
       "editSubtitle": "Perbarui data kontak ini",
@@ -1337,7 +1283,8 @@
       "created": "Kontak dibuat",
       "deleted": "Kontak dihapus",
       "updated": "Kontak diperbarui"
-    }
+    },
+    "companiesUnavailable": "Direktori perusahaan tidak dapat dimuat. Nama perusahaan, penyaringan, dan ekspor tidak tersedia."
   },
   "dashboard": {
     "winRate": {
@@ -2193,8 +2140,7 @@
         "toast": {
           "deleted": "Baris bill of quantities dihapus",
           "saved": "Baris bill of quantities disimpan"
-        },
-        "source": {}
+        }
       },
       "boqForm": {
         "description": "Deskripsi",
@@ -2282,8 +2228,7 @@
           "withdrawn": "Tagihan ditarik"
         },
         "withdraw": "Tarik",
-        "withdrawn": "Ditarik",
-        "source": {}
+        "withdrawn": "Ditarik"
       },
       "evidence": {
         "document": "Dokumen bukti",
@@ -2305,8 +2250,7 @@
         "notSubmitted": "Klaim diterbitkan, belum dikirim",
         "remaining": "Kontrak belum ditagih",
         "title": "Ringkasan penagihan"
-      },
-      "source": {}
+      }
     },
     "documents": {
       "action": {
@@ -2651,9 +2595,7 @@
         "sub": "Terjadi kesalahan saat mengambil catatan pengadaan proyek ini.",
         "title": "Gagal memuat pengadaan"
       },
-      "group": {},
       "newRequest": "Buat pengadaan",
-      "summary": {},
       "title": "Pengadaan"
     },
     "rail": {
@@ -2999,7 +2941,6 @@
       "placeholder": "Tetapkan PM…",
       "noun": "manajer"
     },
-    "code": {},
     "stage": {
       "label": "Tahap awal",
       "helper": "Status on-hand hanya dicapai dengan memenangkan proyek di pipeline, tidak pernah dibuat langsung."

@@ -1,5 +1,4 @@
 import { useDomainOwnershipMode } from '@/src/hooks/useDomainOwnershipMode';
-import { companyIdentityChanged } from '@/src/lib/crmOwnership';
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import React, { useMemo, useState } from 'react';
 import {
@@ -10,18 +9,11 @@ import {
   DataTable,
   StatusPill,
   ConfirmDialog,
-  EntityFormModal,
-  TextField,
-  SelectField,
-  FormSection,
-  FormGrid,
   GateNotice,
   AccessDenied,
-  useEntityForm,
   useToast,
   Button,
   Icon,
-  type SubmitError,
   type Column,
   type RowMenuItem,
 } from '@/src/components/ui';
@@ -30,7 +22,6 @@ import { ImportButton } from '@/src/components/import';
 import { companyImportDescriptor } from '@/src/lib/import';
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import type { TFunction } from 'i18next';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useCompanies, useCompanyMutations } from '@/src/hooks/useCompanies';
@@ -39,10 +30,11 @@ import { trackFilterApplied } from '@/src/lib/analytics';
 import { useListSearchWorkingSet } from '@/src/hooks/useListSearchWorkingSet';
 import { useListReturn } from '@/src/hooks/useListReturn';
 import type { CompanyTypeFilter } from '@/src/lib/listWorkingSet';
-import type { CompanyRow, CompanyType, CompanyInput } from '@/src/lib/db/companies';
+import type { CompanyRow } from '@/src/lib/db/companies';
 import { companyTypeVariant } from '@/src/lib/status/statusVariants';
-import { TaskPushBadge } from '@/src/components/tasks/TaskPushBadge';
-import { IDLE_PENDING_PUSH, type PendingPushState } from '@/src/lib/adapterSeam/pendingPush';
+import { CompanyFormModal } from './company/CompanyFormModal';
+import { typeLabels } from './company/companyTypeLabels';
+import { IDLE_PENDING_PUSH } from '@/src/lib/adapterSeam/pendingPush';
 
 /** Type filter segments: All + the three company_type enum values (Internal / Client / Vendor).
  *  Reuses the URL codec's own `CompanyTypeFilter` type so the toolbar and the `type`/`q` URL
@@ -55,38 +47,6 @@ const TYPE_FILTERS: TypeFilter[] = ['All', 'Internal', 'Client', 'Vendor'];
 // Vendor / Internal = `neutral`. Per the Freed-Blue Status Rule, a type pill never
 // uses the action-blue (`open`) and never borrows a workflow tint (`won`/`lost`);
 // the distinct LABEL carries identity, so the types read apart by label + dot.
-
-/**
- * The display label for each `company_type` value, resolved once per render. The VALUE is the
- * database enum and is never translated (it is filter state, an export cell, and a policy input);
- * only the label a person reads is. One map so the filter segment, the form's Type select and the
- * row pill can never drift into three different words for the same type.
- */
-const typeLabels = (t: TFunction): Record<CompanyType, string> => ({
-  Client: t('companies.type.client', 'Client'),
-  Vendor: t('companies.type.vendor', 'Supplier'),
-  Internal: t('companies.type.internal', 'Internal'),
-});
-
-interface FormValues {
-  name: string;
-  short_name: string;
-  type: CompanyType;
-  clientNumberSegment: string;
-}
-
-/**
- * `t` has to be threaded in: the message is user-visible, and a module-level literal cannot reach
- * the active locale. The validation SHAPE is unchanged — same fields, same trigger, same keys.
- */
-const makeValidate =
-  (t: TFunction) =>
-  (v: FormValues): Partial<Record<keyof FormValues, string>> => {
-    const errors: Partial<Record<keyof FormValues, string>> = {};
-    if (!v.name.trim())
-      errors.name = t('companies.form.errors.nameRequired', 'Company name is required.');
-    return errors;
-  };
 
 const Companies: React.FC = () => {
   const { t } = useTranslation();
@@ -416,7 +376,11 @@ const Companies: React.FC = () => {
         tableId="companies-table" />
       )}
 
-      {/* Create / edit modal */}
+      {/* Create / edit modal — the ONE shared company form (PGA02-003/OE01-005). The record
+          page's edit modal uses the same module, so field/validation/error behavior can only
+          ever be one thing. The edit save separates the company row from the client-number
+          segment: a segment failure after the row committed is reported as PARTIAL success
+          in-dialog (PGA02-001), not as a failed save that invites a blind retry. */}
       {formTarget && (
         <CompanyFormModal
           company={formTarget.company}
@@ -430,7 +394,12 @@ const Companies: React.FC = () => {
           }}
           onUpdate={async (id, input, segment) => {
             await update.mutateAsync({ id, input });
-            await setProjectNumberSegment.mutateAsync({ id, segment });
+            try {
+              await setProjectNumberSegment.mutateAsync({ id, segment });
+            } catch (segmentSaveError) {
+              // The company row is already saved — the shared form states the partial truth.
+              return { segmentSaveError };
+            }
             toast(t('companies.toast.updated', 'Company updated'), input.name, 'success');
             setFormTarget(null);
           }}
@@ -480,181 +449,6 @@ const Companies: React.FC = () => {
         onCancel={() => setDeleteTarget(null)}
       />
     </ListPage>
-  );
-};
-
-// ── Create / edit form modal ────────────────────────────────────────────────
-
-interface CompanyFormModalProps {
-  company: CompanyRow | null;
-  ownership: 'pmo' | 'external' | 'unknown' | 'error';
-  onClose: () => void;
-  onCreate: (input: CompanyInput) => Promise<void>;
-  onUpdate: (id: string, input: CompanyInput, segment: string | null) => Promise<void>;
-  onError: (err: unknown) => void;
-  /** ADR-0056/FR-EAS-060..063 pending-push state for a flipped org's Vendor/Client write. */
-  pendingPush: PendingPushState;
-}
-
-function ownershipReadyForForm(mode: CompanyFormModalProps['ownership']) { return mode === 'pmo' || mode === 'external'; }
-
-const CompanyFormModal: React.FC<CompanyFormModalProps> = ({
-  company,
-  ownership,
-  onClose,
-  onCreate,
-  onUpdate,
-  onError,
-  pendingPush,
-}) => {
-  const { t } = useTranslation();
-  const isEdit = !!company;
-  const nativeReadOnly = !ownershipReadyForForm(ownership) || (isEdit && company.type !== 'Internal' && ownership === 'external');
-  // Identity changes only when `t` does (i.e. on a language change), so `useEntityForm`'s
-  // `runValidate` memo behaves exactly as it did with the old module-level function.
-  const validate = useMemo(() => makeValidate(t), [t]);
-  const typeOptions = useMemo(() => {
-    const labels = typeLabels(t);
-    return [
-      { value: 'Client', label: labels.Client },
-      { value: 'Vendor', label: labels.Vendor },
-      ...(!isEdit && ownership === 'external' ? [] : [{ value: 'Internal', label: labels.Internal }]),
-    ];
-  }, [t, isEdit, ownership]);
-  const form = useEntityForm<FormValues>({
-    initialValues: { name: company?.name ?? '', short_name: company?.short_name ?? '', type: company?.type ?? 'Client', clientNumberSegment: company?.client_number_segment ?? '' },
-    validate,
-    idPrefix: 'company-form',
-    // F8 (AC-IXD-FORM-F8): submit stays disabled until the required name is present.
-    requiredFields: ['name'],
-    module: 'companies',
-  });
-
-  const nameField = form.fieldProps('name');
-  const shortNameField = form.fieldProps('short_name');
-  const typeField = form.fieldProps('type');
-  const clientNumberSegmentField = form.fieldProps('clientNumberSegment');
-
-  // AC-ERR-001: a rejected save gets PERSISTENT in-dialog evidence, not only the corner
-  // toast (which auto-dismisses, leaving the modal indistinguishable from a pristine form
-  // with data in it). `suppressCapture` because the page's `onError` classifies the same
-  // rejection for the toast and owns the single `save_failed` event.
-  const [saveError, setSaveError] = useState<SubmitError | null>(null);
-
-  const errorSummary = form.errors.name
-    ? [{ fieldId: nameField.id, message: form.errors.name }]
-    : undefined;
-  const identityChanged = ownership === 'external' && company !== null && companyIdentityChanged(form.values, company);
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    void form.handleSubmit(async (values) => {
-      if (!ownershipReadyForForm(ownership) || (!isEdit && ownership === 'external' && values.type === 'Internal')
-        || (ownership === 'external' && company && companyIdentityChanged(values, company))) return;
-      const input: CompanyInput = {
-        name: nativeReadOnly && company ? company.name : values.name.trim(),
-        type: values.type,
-        ...(nativeReadOnly || values.short_name.trim() || company?.short_name
-          ? { short_name: values.short_name.trim() || null }
-          : {}),
-      };
-      try {
-        if (isEdit && company) {
-          await onUpdate(company.id, input, values.clientNumberSegment.trim() || null);
-        } else await onCreate(input);
-      } catch (err) {
-        const { headline, detail } = classifyMutationError(err, undefined, {
-          module: 'companies',
-          operation: isEdit ? 'update' : 'create',
-          suppressCapture: true,
-        });
-        setSaveError({ headline, detail });
-        onError(err);
-      }
-    });
-  };
-
-  return (
-    <EntityFormModal
-      open
-      title={
-        isEdit
-          ? t('companies.form.editTitle', 'Edit company')
-          : t('companies.form.newTitle', 'New company')
-      }
-      subtitle={
-        isEdit
-          ? t('companies.form.editSubtitle', 'Update this company record')
-          : t('companies.form.newSubtitle', 'Add a client or supplier to the directory')
-      }
-      submitLabel={
-        isEdit
-          ? t('companies.form.editSubmit', 'Save company')
-          : t('companies.form.newSubmit', 'Create company')
-      }
-      onSubmit={handleSubmit}
-      onClose={onClose}
-      loading={form.isSubmitting}
-      dirty={form.isDirty}
-      submitDisabled={!form.isComplete || !ownershipReadyForForm(ownership) || identityChanged || (!isEdit && ownership === 'external' && form.values.type === 'Internal')}
-      errorSummary={errorSummary}
-      submitError={saveError}
-    >
-      {identityChanged && <p className="mb-3 text-sm text-muted-foreground">{t('crm:ownershipChanged', 'Ownership changed while you were editing. Close and reopen the form to continue.')}</p>}
-      {pendingPush.status !== 'idle' && (
-        <div className="mb-3.5 flex justify-end">
-          <TaskPushBadge state={pendingPush} />
-        </div>
-      )}
-      <FormSection legend={t('companies.form.sections.identity', 'Identity')}>
-        <FormGrid>
-          <TextField
-            disabled={nativeReadOnly}
-            id={nameField.id}
-            label={t('companies.form.name.label', 'Company name')}
-            required
-            value={nameField.value}
-            onChange={nameField.onChange}
-            onBlur={nameField.onBlur}
-            error={nameField.error}
-            placeholder={t('companies.form.name.placeholder', 'e.g. Cascade Port Authority')}
-            autoComplete="organization"
-            fullWidth
-          />
-          <TextField
-            id={shortNameField.id}
-            label={t('companies.form.shortName.label', 'Short name')}
-            helper={t('companies.form.shortName.hint', 'Optional display name used across PMO. The legal name stays unchanged.')}
-            value={shortNameField.value}
-            onChange={shortNameField.onChange}
-            onBlur={shortNameField.onBlur}
-            fullWidth
-          />
-          <SelectField
-            disabled={nativeReadOnly || (isEdit && ownership === 'external')}
-            id={typeField.id}
-            label={t('companies.form.type.label', 'Type')}
-            required
-            value={typeField.value}
-            onChange={(v) => typeField.onChange(v as CompanyType)}
-            onBlur={typeField.onBlur}
-            options={typeOptions}
-          />
-          {!isEdit && ownership === 'external' && form.values.type === 'Internal' && <p className="text-sm text-muted-foreground">{t('crm:chooseParty', 'Choose a client or supplier to continue.')}</p>}
-          {isEdit && (
-            <TextField
-              id={clientNumberSegmentField.id}
-              label={t('companies.form.clientNumberSegment.label', 'Client number segment')}
-              value={clientNumberSegmentField.value}
-              onChange={clientNumberSegmentField.onChange}
-              onBlur={clientNumberSegmentField.onBlur}
-              placeholder={t('companies.form.clientNumberSegment.placeholder', 'e.g. RIS')}
-              mono
-            />
-          )}
-        </FormGrid>
-      </FormSection>
-    </EntityFormModal>
   );
 };
 

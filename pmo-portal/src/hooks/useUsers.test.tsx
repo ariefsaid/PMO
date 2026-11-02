@@ -11,6 +11,8 @@ const { profile } = vi.hoisted(() => ({
     assignUserManager: vi.fn(),
     inviteUser: vi.fn(),
     setUserStatus: vi.fn(),
+    listOrgProfiles: vi.fn(),
+    listProjectManagers: vi.fn(),
   },
 }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { profile } }));
@@ -19,6 +21,8 @@ vi.mock('@/src/auth/useAuth', () => ({
 }));
 
 import { useUsers, useUserMutations } from './useUsers';
+import { useAssignableProfiles } from './useTasks';
+import { useProjectManagers } from './useProjects';
 
 const wrap = (client: QueryClient) =>
   function Wrapper({ children }: { children: React.ReactNode }) {
@@ -37,6 +41,8 @@ beforeEach(() => {
   profile.assignUserManager.mockResolvedValue(undefined);
   profile.inviteUser.mockResolvedValue(undefined);
   profile.setUserStatus.mockResolvedValue(undefined);
+  profile.listOrgProfiles.mockResolvedValue([]);
+  profile.listProjectManagers.mockResolvedValue([]);
 });
 
 describe('useUsers', () => {
@@ -96,5 +102,32 @@ describe('useUserMutations', () => {
     });
     expect(profile.setUserStatus).toHaveBeenCalledWith({ id: 'u4', status: 'disabled', orgId: 'org-1' });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['users'] });
+  });
+
+  // HKA-019: the task assignee picker (['org-profiles', orgId], useAssignableProfiles) and the
+  // project-manager picker (['profiles', 'pm', orgId], useProjectManagers) cache their own profile
+  // lists with a 5-minute stale window. A user-management mutation that only invalidates
+  // ['users'] leaves those pickers serving stale people (a disabled user stays assignable; a new
+  // manager is missing) until the stale window lapses.
+  it.each([
+    ['updateRole', (m: ReturnType<typeof useUserMutations>) => m.updateRole.mutateAsync({ id: 'u2', role: 'Project Manager' })],
+    ['assignManager', (m: ReturnType<typeof useUserMutations>) => m.assignManager.mutateAsync({ id: 'u2', managerId: null })],
+    ['invite', (m: ReturnType<typeof useUserMutations>) => m.invite.mutateAsync({ email: 'n@x.com', role: 'Engineer' })],
+    ['setStatus', (m: ReturnType<typeof useUserMutations>) => m.setStatus.mutateAsync({ id: 'u2', status: 'disabled', orgId: 'org-1' })],
+  ])('%s refetches the assignee and project-manager pickers', async (_name, run) => {
+    const client = freshClient();
+    const { result } = renderHook(
+      () => ({ muts: useUserMutations(), assignees: useAssignableProfiles(), managers: useProjectManagers() }),
+      { wrapper: wrap(client) },
+    );
+    await waitFor(() => expect(result.current.assignees.isSuccess).toBe(true));
+    await waitFor(() => expect(result.current.managers.isSuccess).toBe(true));
+    expect(profile.listOrgProfiles).toHaveBeenCalledTimes(1);
+    expect(profile.listProjectManagers).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      await run(result.current.muts);
+    });
+    await waitFor(() => expect(profile.listOrgProfiles).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(profile.listProjectManagers).toHaveBeenCalledTimes(2));
   });
 });
