@@ -8,6 +8,10 @@ import {
   cleanupPlan,
   sanitizeEvidence,
   parseArgs,
+  buildRangeProbeBody,
+  buildErpRangeProbeBody,
+  createRangeProbeFetch,
+  runRangeProbe,
 } from './bv16-rehearsal.mjs';
 
 const config = () => ({
@@ -28,11 +32,81 @@ const config = () => ({
 });
 
 test('AC-BV16-008 CLI accepts only the plan-specified FD3 config and optional retain flag', () => {
-  assert.deepEqual(parseArgs(['--config-fd', '3']), { retainRun: false, configFd: 3 });
-  assert.deepEqual(parseArgs(['--config-fd', '3', '--retain-run']), { retainRun: true, configFd: 3 });
+  assert.deepEqual(parseArgs(['--config-fd', '3']), { retainRun: false, rangeProbe: false, configFd: 3 });
+  assert.deepEqual(parseArgs(['--config-fd', '3', '--retain-run']), { retainRun: true, rangeProbe: false, configFd: 3 });
   for (const args of [['--config-fd', '4'], ['--config-fd'], ['3'], ['--config-fd', '3', '--config-fd', '3']]) {
     assert.throws(() => parseArgs(args), /arguments/i);
   }
+  assert.deepEqual(parseArgs(['--config-fd', '3', '--range-probe']), { retainRun: false, rangeProbe: true, configFd: 3 });
+  assert.throws(() => parseArgs(['--range-probe', '--retain-run']), /arguments/i);
+});
+
+test('budget-whole-project Slice 1 builds yearly amounts that reconcile and retain an explicit zero year', () => {
+  const body = buildRangeProbeBody({
+    from: 'FY-A',
+    to: 'FY-C',
+    years: ['FY-A', 'FY-B', 'FY-C'],
+    amounts: ['100.00', '0.00', '200.00'],
+  });
+
+  assert.equal(body.budget_amount, 300);
+  assert.equal(body.distribution_frequency, 'Yearly');
+  assert.equal(body.distribute_equally, 0);
+  assert.deepEqual(body.yearAmounts, [
+    { year: 'FY-A', amount: '100.00', percent: 33.333 },
+    { year: 'FY-B', amount: '0.00', percent: 0 },
+    { year: 'FY-C', amount: '200.00', percent: 66.667 },
+  ]);
+  assert.equal(body.yearAmounts.reduce((sum, row) => sum + Number(row.amount), 0), body.budget_amount);
+});
+
+test('budget-whole-project Slice 1 materializes ERP date rows from Fiscal Year records', () => {
+  const proposal = buildRangeProbeBody({
+    from: 'FY-A',
+    to: 'FY-C',
+    years: ['FY-A', 'FY-B', 'FY-C'],
+    amounts: ['100.00', '0.00', '200.00'],
+  });
+
+  const body = buildErpRangeProbeBody({
+    proposal,
+    company: 'Example Co',
+    project: 'PROJ-RANGE',
+    account: 'Salary - EX',
+    fiscalYears: [
+      { name: 'FY-A', year_start_date: '2026-01-01', year_end_date: '2026-12-31' },
+      { name: 'FY-B', year_start_date: '2027-01-01', year_end_date: '2027-12-31' },
+      { name: 'FY-C', year_start_date: '2028-01-01', year_end_date: '2028-12-31' },
+    ],
+  });
+
+  assert.equal(body.from_fiscal_year, 'FY-A');
+  assert.equal(body.to_fiscal_year, 'FY-C');
+  assert.deepEqual(body.budget_distribution, [
+    { start_date: '2026-01-01', end_date: '2026-12-31', amount: 100, percent: 33.333 },
+    { start_date: '2027-01-01', end_date: '2027-12-31', amount: 0, percent: 0 },
+    { start_date: '2028-01-01', end_date: '2028-12-31', amount: 200, percent: 66.667 },
+  ]);
+});
+
+test('budget-whole-project Slice 1 live rehearsal refuses without explicit opt-in before network access', async () => {
+  let calls = 0;
+  await assert.rejects(runRangeProbe(config(), { fetchImpl: async () => { calls += 1; } }), /explicit opt-in/i);
+  assert.equal(calls, 0);
+});
+
+test('budget-whole-project Slice 1 range probe route scopes writes to its opted-in run project', async () => {
+  const cfg = config();
+  let calls = 0;
+  const fakeFetch = async () => { calls += 1; return new Response('{"data":{}}'); };
+  const base = { project: 'PROJ-RANGE', runToken: 'run-token', allowedAccounts: [cfg.salaryAccount, cfg.cogsAccount], fiscalYears: ['FY-A', 'FY-B', 'FY-C'] };
+  const disabled = createRangeProbeFetch(cfg, fakeFetch, base);
+  await assert.rejects(disabled(`${cfg.rehearsalOrigin}/api/resource/Project`, { method: 'POST', body: JSON.stringify({ project_name: 'PMO-BV16-RANGE-run-token', company: cfg.company }) }), /explicit opt-in/i);
+  assert.equal(calls, 0);
+
+  const enabled = createRangeProbeFetch(cfg, fakeFetch, { ...base, explicitOptIn: true });
+  await assert.rejects(enabled(`${cfg.rehearsalOrigin}/api/resource/Budget`, { method: 'POST', body: JSON.stringify({ company: cfg.company, budget_against: 'Project', project: 'OTHER-PROJECT', account: cfg.salaryAccount }) }), /allowlist/i);
+  assert.equal(calls, 0);
 });
 
 test('AC-BV16-008 guard accepts an explicit isolated local-to-HTTPS rehearsal config', () => {

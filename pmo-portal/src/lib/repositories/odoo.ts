@@ -3,26 +3,14 @@ import { supabase } from '@/src/lib/supabase/client';
 import { wrap } from './repositoryErrors';
 import { erpSetupRequest } from './integrations';
 import { SENDS_FINISHED_KEY, type ConnectionRecord } from '@/src/lib/adapterSeam/odoo/connectionState';
-
-export interface MasterRecord { id: string; external_id: string; code: string | null; name: string; parent_external_id: string | null; active: boolean; tombstoned_at: string | null; attrs: Record<string, unknown>; as_of: string }
-export type DirectoryKind = 'product' | 'uom' | 'warehouse' | 'location' | 'account' | 'tax' | 'analytic_account';
-export interface ListMasterInput { kind: DirectoryKind; search?: string; page: number; pageSize: number; purpose?: 'purchase' | 'sale'; includeInactive?: boolean;
-  /** Only these records (units for the visible rows). */ externalIds?: string[];
-  /** Only locations of these warehouses. */ warehouseIds?: string[] }
-export interface OdooConnectionRead {
-  status: string;
-  activated: boolean;
-  connection: ConnectionRecord | null;
-  capabilities: { missing?: string[]; version_major?: number } | null;
-  config: Record<string, unknown>;
-}
+import type { DirectoryKind, ListMasterInput, MasterRecord, OdooConnectionRead, OdooRepository } from './contracts/odoo';
 
 // ilike pattern inside a double-quoted PostgREST value: commas and parens are then literal. LIKE wildcards get a `\` escape, then `\` and `"` are escaped for the quoting.
 const likeAny = (s: string) => `"%${s.replace(/[\\%_]/g, '\\$&').replace(/[\\"]/g, '\\$&')}%"`;
 
 const CONFIG_KEYS = ['database', 'odoo_company_name', 'key_expires_on', 'account_defaults', 'unit_map', 'default_warehouse_id', SENDS_FINISHED_KEY];
 
-export const odooRepository = {
+export const odooRepository: OdooRepository = {
   listMasterRecords: (input: ListMasterInput) => wrap(async () => {
     let q = supabase.from('external_master_records').select('id,external_id,code,name,parent_external_id,active,tombstoned_at,attrs,as_of', { count: 'exact' })
       .eq('external_tier', 'odoo').eq('kind', input.kind);
@@ -63,4 +51,3 @@ export const odooRepository = {
   }),
   setup: <T>(setupAction: string, input: Record<string, unknown> = {}) => erpSetupRequest<T>(setupAction, input, 'odoo'),
 };
-export type OdooRepository = typeof odooRepository;

@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { ListState, Button } from '@/src/components/ui';
 import { useRecordHistory } from '@/src/hooks/useRecordHistory';
-import type { HistoryEvent, FieldChange, HistoryNameKind } from '@/src/lib/repositories/recordHistory';
+import type { HistoryEvent, FieldChange, HistoryNameKind } from '@/src/lib/repositories/types';
 import {
   formatCurrency, formatDateOnly, formatDateTime, formatMonthYear, formatNumber, formatRelativeTime,
 } from '@/src/lib/format';

@@ -15,8 +15,9 @@
  * by domain. This module keeps the `Repositories` aggregate plus TYPE-ONLY re-exports of
  * every contract, so the external import surface of the seam is unchanged.
  */
-import type { RecordHistoryRepository } from './recordHistory';
-import type { ProjectStageRepository } from './projectStages';
+import type { RecordHistoryRepository } from './contracts/recordHistory';
+import type { ProjectStageRepository } from './contracts/projectStages';
+import type { SubcontractRepository } from './contracts/subcontracts';
 import type { ProjectMoneyRepository } from './contracts/projectMoney';
 import type { DashboardRepository } from './contracts/dashboard';
 import type { AgentRunRepository } from './contracts/agentRuns';
@@ -98,47 +99,7 @@ import type {
   WorkOrderRepository,
 } from './contracts/workOrders';
 
-import type { OdooRepository } from './odoo';
-import type {
-  SubcontractPoPositionRow,
-  PurchaseOrderRevisionRow,
-  PurchaseOrderLineRow,
-  SetPoLinesInput,
-  SubcontractAcceptanceWithLines,
-  PrepareSubcontractAcceptanceInput,
-  PoVariationWithLines,
-  RequestPoVariationInput,
-  VariationRouteRow,
-  ProjectSubcontractExposureRow,
-  WorkOrderCostVariationRow,
-  SubcontractCapExceptionRow,
-  AttributeSubcontractBillLineInput,
-  CaptureSubcontractVendorInvoiceInput,
-} from '@/src/lib/db/subcontracts';
-import type { ProcurementInvoiceRow } from '@/src/lib/db/procurementLifecycle';
-
-export interface SubcontractRepository {
-  getPoPosition(poId: string): Promise<SubcontractPoPositionRow[]>;
-  listPoRevisions(poId: string): Promise<PurchaseOrderRevisionRow[]>;
-  listPoLines(poId: string, revision?: number): Promise<PurchaseOrderLineRow[]>;
-  setPoLines(poId: string, lines: SetPoLinesInput[]): Promise<number>;
-  issuePoLines(poId: string): Promise<number>;
-  listSubcontractAcceptances(poId: string): Promise<SubcontractAcceptanceWithLines[]>;
-  prepareSubcontractAcceptance(input: PrepareSubcontractAcceptanceInput): Promise<string>;
-  confirmSubcontractAcceptance(id: string): Promise<string>;
-  withdrawSubcontractAcceptance(id: string): Promise<void>;
-  listPoVariations(poId: string): Promise<PoVariationWithLines[]>;
-  requestPoVariation(input: RequestPoVariationInput): Promise<string>;
-  decidePoVariation(id: string, approve: boolean, notes?: string | null): Promise<void>;
-  issuePoRevision(variationId: string): Promise<number>;
-  linkPoVariation(variationId: string, workOrderId: string | null, reason: string | null): Promise<void>;
-  getVariationRoute(variationId: string): Promise<VariationRouteRow | null>;
-  getProjectSubcontractExposure(projectId: string): Promise<ProjectSubcontractExposureRow[]>;
-  listWorkOrderCostVariations(workOrderId: string): Promise<WorkOrderCostVariationRow[]>;
-  listSubcontractCapExceptions(procurementId: string): Promise<SubcontractCapExceptionRow[]>;
-  attributeSubcontractBillLines(invoiceId: string, lines: AttributeSubcontractBillLineInput[]): Promise<void>;
-  captureSubcontractVendorInvoice(input: CaptureSubcontractVendorInvoiceInput): Promise<ProcurementInvoiceRow>;
-}
+import type { OdooRepository } from './contracts/odoo';
 
 export interface Repositories {
   fxRates: FxRatesRepository;
@@ -192,7 +153,10 @@ export interface Repositories {
 }
 
 export type { CommandIntent } from './contracts/commandIntent';
-export type { CaptureSubcontractVendorInvoiceInput } from '@/src/lib/db/subcontracts';
+export type { SubcontractRepository, CaptureSubcontractVendorInvoiceInput } from './contracts/subcontracts';
+export type { FieldChange, HistoryCursor, HistoryEvent, HistoryNameKind, HistoryPage, RecordHistoryRepository } from './contracts/recordHistory';
+export type { ProjectStageRepository } from './contracts/projectStages';
+export type { DirectoryKind, ListMasterInput, MasterRecord, OdooConnectionRead, OdooRepository } from './contracts/odoo';
 export type { ProjectRepository } from './contracts/projects';
 export type { CompanyCollectionsRepository, CompanyRepository, ContactRepository } from './contracts/companies';
 export type { TaskRepository } from './contracts/tasks';
