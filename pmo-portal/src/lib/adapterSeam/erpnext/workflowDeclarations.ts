@@ -6,8 +6,6 @@
 import type { TierWorkflows } from '../connect/workflows.ts';
 
 // ECA slices that will build the missing behaviour (the ERP-connect-anytime map).
-const CUTOVER_PROCESS_DOMAINS = 1601;
-const SEND_TO_EMPTY_ERP = 1606;
 const INVOICE_PAIRING = 1602;
 // Cut-over proofs that live outside Vitest (the SQL revenue guard, the Deno timesheet backstop): shared suite or permanent exception.
 const CUTOVER_PROOFS_OUTSIDE_VITEST = 1676;
