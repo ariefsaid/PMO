@@ -17,12 +17,16 @@ const h = vi.hoisted(() => ({
   listSpy: vi.fn(),
   list: { data: { rows: [] as unknown[], truncated: false }, isPending: false, isError: false, refetch: vi.fn() },
   aging: { data: { rows: [] as unknown[], truncated: false }, isPending: false, isError: false, refetch: vi.fn() },
+  totals: { data: {} as Record<string, unknown>, isPending: false, isError: false, refetch: vi.fn() },
+  own: { data: { rows: [] as unknown[], truncated: false } as unknown, isPending: false, isError: false, refetch: vi.fn() },
   create: { mutateAsync: vi.fn(), isPending: false },
   capture: { capture: vi.fn(), cleanupUnlinkedAttachment: vi.fn(), recovery: null as null | Record<string, unknown>, progress: null as number | null },
 }));
 vi.mock('@/src/hooks/useExpenseClaims', () => ({
   useExpenseClaims: (filters: unknown) => { h.listSpy(filters); return h.list; },
   useExpenseAdvanceAging: () => h.aging,
+  useExpenseAdvanceAgingTotals: () => h.totals,
+  useOwnExpenseAdvances: () => h.own,
   useExpenseClaimMutations: () => ({ create: h.create }),
 }));
 vi.mock('@/src/hooks/useExpenseCapture', async () => {

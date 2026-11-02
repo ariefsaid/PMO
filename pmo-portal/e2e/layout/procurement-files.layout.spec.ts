@@ -208,7 +208,7 @@ async function runWithFixture(
 
 async function installLocaleOverride(page: Page, locale: Locale): Promise<void> {
   await page.route('**/rest/v1/profiles?*', async (route) => {
-    const response = await route.fetch();
+    const response = await route.fetch({ maxRetries: 2 });
     const profile = await response.json() as Record<string, unknown> | Record<string, unknown>[];
     const localized = Array.isArray(profile)
       ? profile.map((row) => ({ ...row, locale }))
