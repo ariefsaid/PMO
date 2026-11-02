@@ -1,5 +1,5 @@
--- 0484_invoice_pairs_rollback.test.sql - the ECA-5 rollback refuses while a pair exists (it would count the sale twice), then
--- restores the prior readers and removes the column. The runner (0484_invoice_pairs_down_runner.sql) embeds the rollback file.
+-- 0498_invoice_pairs_rollback.test.sql - the ECA-5 rollback refuses while a pair exists (it would count the sale twice), then
+-- restores the prior readers and removes the column. The runner (0498_invoice_pairs_down_runner.sql) embeds the rollback file.
 begin;
 create extension if not exists pgtap;
 select plan(9);
@@ -17,7 +17,7 @@ update public.sales_invoices set paired_erp_invoice_id = '04840000-0000-0000-000
 set local session_replication_role = origin;
 
 \set ip_embedded 1
-\ir 0484_invoice_pairs_down_runner.sql
+\ir 0498_invoice_pairs_down_runner.sql
 select throws_ok('select pg_temp.run_ip_down()', 'P0001', null, 'rollback refuses while a pair exists');
 select has_column('public', 'sales_invoices', 'paired_erp_invoice_id', 'a refused rollback leaves the column in place');
 set local session_replication_role = replica;

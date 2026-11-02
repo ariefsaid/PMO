@@ -1,6 +1,6 @@
--- 0484_invoice_pairs.sql - ECA-5 (#1602): pair an invoice PMO raised with the same invoice already in the ERP, so revenue and
+-- 0498_invoice_pairs.sql - ECA-5 (#1602): pair an invoice PMO raised with the same invoice already in the ERP, so revenue and
 -- receivables count the sale once (spec erp-connect-anytime.spec.md FR-ECA-040, AC-ECA-030; plan §11; PD-ECA-10, PD-ECA-11).
--- Rollback: migrations/rollback/0484_invoice_pairs_down.sql.
+-- Rollback: migrations/rollback/0498_invoice_pairs_down.sql.
 --
 -- ⚑ Count-once is ONE column. sales_invoices.paired_erp_invoice_id is set only by accept_invoice_pairs (a person's Admin/Finance
 --   accept; nothing pairs on its own) and every figure that sums or lists billed or receivable invoices reads past a paired
@@ -39,7 +39,7 @@ create or replace function public.sales_invoices_native_mirror_guard() returns t
   language plpgsql set search_path = public as $$
 begin
   if coalesce(auth.jwt() ->> 'role', '') = 'service_role' then return new; end if;
-  -- 0484 (#1602): the pair columns are written only by accept_invoice_pairs (a definer, current_user = postgres, flag set
+  -- 0498 (#1602): the pair columns are written only by accept_invoice_pairs (a definer, current_user = postgres, flag set
   -- in its own transaction). Pinned before the externally-owned early return: a person never sets them directly.
   if (new.paired_erp_invoice_id is distinct from old.paired_erp_invoice_id
       or new.paired_at is distinct from old.paired_at
@@ -80,7 +80,7 @@ begin
      or new.tax_rate is distinct from old.tax_rate               -- 0188 (#478)
      or new.tax_template is distinct from old.tax_template       -- 0188 (#478)
      or (new.work_order_id is distinct from old.work_order_id    -- 0193 (#498): which scope grant this bills
-         and not (current_user = 'postgres' and coalesce(current_setting('pmo.invoice_pairing', true), '') = 'on')) -- 0484: accept fills an empty one, unpair clears what it filled
+         and not (current_user = 'postgres' and coalesce(current_setting('pmo.invoice_pairing', true), '') = 'on')) -- 0498: accept fills an empty one, unpair clears what it filled
      or new.pmo_native is distinct from old.pmo_native           -- 0275 (#784)
      or new.pmo_number is distinct from old.pmo_number           -- 0275 (#784)
      or new.native_lines is distinct from old.native_lines       -- 0275 (#784)
@@ -109,7 +109,7 @@ create or replace view public.sales_invoice_work_billed with (security_invoker =
          si.work_order_id
     from public.sales_invoices si
     left join public.progress_claims pc on pc.id = si.id and pc.org_id = si.org_id
-   where si.paired_erp_invoice_id is null;   -- 0484 (#1602, PD-ECA-11): a paired PMO copy counts through its ERP invoice only
+   where si.paired_erp_invoice_id is null;   -- 0498 (#1602, PD-ECA-11): a paired PMO copy counts through its ERP invoice only
 revoke all on public.sales_invoice_work_billed from public, anon, authenticated;
 grant select on public.sales_invoice_work_billed to authenticated;
 
@@ -136,7 +136,7 @@ begin
     where si.org_id = public.auth_org_id() and si.project_id = p_project_id
       and si.status in ('Submitted','Unpaid','Paid')
       and coalesce(si.erp_docstatus,1) <> 2 and si.erp_cancelled_at is null
-      and si.paired_erp_invoice_id is null   -- 0484 (#1602, PD-ECA-11): count the ERP copy once
+      and si.paired_erp_invoice_id is null   -- 0498 (#1602, PD-ECA-11): count the ERP copy once
   ), invoice_gross as (
     select i.*, case
       when i.amount is null or i.amount::text in ('NaN','Infinity','-Infinity') then null
@@ -192,7 +192,7 @@ begin
     select si.*
       from public.sales_invoices si
      where si.org_id = public.auth_org_id() and si.project_id = p_project_id
-       and si.paired_erp_invoice_id is null   -- 0484 (#1602): a paired copy never carries receipts, and none is read through it
+       and si.paired_erp_invoice_id is null   -- 0498 (#1602): a paired copy never carries receipts, and none is read through it
   ), candidate_receipt_ids as (
     -- UNION deduplicates the receipt before any allocation fan-out, regardless of which identity path matched.
     select ip.id

@@ -1,5 +1,5 @@
 -- invoice_pairs.test.sql — ECA-5 (#1602): pair a PMO-raised invoice with the same invoice already in the ERP, so revenue
--- and receivables count it once (AC-ECA-030; PD-ECA-10/11). Migration under test: 0484_invoice_pairs.sql.
+-- and receivables count it once (AC-ECA-030; PD-ECA-10/11). Migration under test: 0498_invoice_pairs.sql.
 -- Fixtures load with no JWT (a server load); every assertion runs as a real caller.
 begin;
 create extension if not exists pgtap;

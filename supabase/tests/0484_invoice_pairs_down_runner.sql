@@ -7,7 +7,7 @@ select * from finish();
 \endif
 create function pg_temp.run_ip_down() returns void language plpgsql as $runner$
 begin execute $down$
--- 0484_invoice_pairs_down.sql - reverses 0484. Refuses while any invoice is paired: dropping the column would put every paired
+-- 0498_invoice_pairs_down.sql - reverses 0498. Refuses while any invoice is paired: dropping the column would put every paired
 -- PMO copy back into revenue and receivables next to its ERP invoice (a double count). Unpair each pair first (unpair_invoice, Admin or Finance).
 do $$ begin
   if exists (select 1 from public.sales_invoices where paired_erp_invoice_id is not null) then
