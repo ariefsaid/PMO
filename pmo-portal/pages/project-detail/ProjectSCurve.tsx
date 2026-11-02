@@ -12,7 +12,7 @@ import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { useTasks } from '@/src/hooks/useTasks';
 import { buildSCurve, evenAxisTicks, formatSCurveAxisDate } from '@/src/lib/delivery/sCurve';
 
-export interface ProjectSCurveProps {
+interface ProjectSCurveProps {
   projectId: string;
 }
 

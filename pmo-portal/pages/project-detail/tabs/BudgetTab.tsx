@@ -4,7 +4,7 @@ import { ListState } from '@/src/components/ui';
 import { useProject } from '@/src/hooks/useProjects';
 import ProjectBudget from '../../ProjectBudget';
 
-export interface BudgetTabProps {
+interface BudgetTabProps {
   projectId: string;
 }
 

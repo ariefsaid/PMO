@@ -101,7 +101,7 @@ describe('C4: Gantt reversed-range bar.width is clamped to 0', () => {
       end_date: '2026-06-05', // end < start
     });
 
-    const model = buildGanttModel([task], [], '2026-06-08');
+    const model = buildGanttModel([task], [], '2026-06-08', { scale: 'month', rowHeight: 40, laneHeaderHeight: 36 });
     const lane = model.lanes.find((l) =>
       l.bars.some((b) => b.id === 't1'),
     );
@@ -119,7 +119,7 @@ describe('C4: Gantt reversed-range bar.width is clamped to 0', () => {
       end_date: '2026-06-10',
     });
 
-    const model = buildGanttModel([task], [], '2026-06-05');
+    const model = buildGanttModel([task], [], '2026-06-05', { scale: 'month', rowHeight: 40, laneHeaderHeight: 36 });
     const lane = model.lanes.find((l) =>
       l.bars.some((b) => b.id === 't2'),
     );

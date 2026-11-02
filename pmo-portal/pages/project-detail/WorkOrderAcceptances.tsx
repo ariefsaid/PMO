@@ -14,7 +14,7 @@ import type { WorkOrderAcceptanceWithLines } from '@/src/lib/db/workOrderAccepta
  * active operator confirm their own preparation and refuses it otherwise with its reason — with a hint, never a
  * silent hide. `can()` is UX only; the database decides.
  */
-export interface WorkOrderAcceptancesProps {
+interface WorkOrderAcceptancesProps {
   workOrder: { id: string; status: string };
   boqItems: BoqItemRow[];
   documents: ProjectDocumentRow[];
