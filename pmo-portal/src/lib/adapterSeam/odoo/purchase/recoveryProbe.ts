@@ -46,8 +46,8 @@ async function byMemo(call: OdooCall, key: string, composite?: PaymentComposite)
     fields: ['id', 'memo'], limit: 21, context: { active_test: false },
   });
   const memo = (r: { memo: unknown }) => (typeof r.memo === 'string' ? r.memo : '');
-  const ours = rows.filter((r) => memo(r).includes(anchor));
-  const survivors = ours.length ? ours : rows.filter((r) => !memo(r).startsWith('pmo:'));
+  // Only an exact memo adopts (above). Any memo that still carries a PMO anchor is held, never adopted.
+  const survivors = rows.filter((r) => !memo(r).includes('pmo:'));
   return survivors.length === 1 ? { externalRecordId: String(survivors[0].id) } : null;
 }
 

@@ -115,4 +115,5 @@ begin
   );
 end;
 $$;
--- Grants are those of 0210 (service-role only); `create or replace` keeps them.
+-- Grants are those of 0210 §2 (anon revoked) and 0185 (allow-listed): `authenticated` keeps EXECUTE, so the in-body
+-- Admin/Operator gate is the only gate on this JWT-callable writer. `create or replace` keeps the grants.

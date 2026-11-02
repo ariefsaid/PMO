@@ -73,10 +73,10 @@ describe('AC-OPP-053 the payment composite probe (the memo is editable)', () => 
     expect(await probeOdooByAnchor(call, 'payment', key, COMPOSITE)).toEqual({ externalRecordId: '90' });
   });
 
-  it('adopts a payment whose edited memo still carries our anchor', async () => {
+  it('holds (does not adopt) a payment whose memo was edited to carry extra text after our anchor', async () => {
     const { call, payment } = bed();
     payment({ id: 90, memo: `${anchorValue(key)} paid on Friday` });
-    expect(await probeOdooByAnchor(call, 'payment', key, COMPOSITE)).toEqual({ externalRecordId: '90' });
+    expect(await probeOdooByAnchor(call, 'payment', key, COMPOSITE)).toBeNull();
   });
 
   it('never adopts a payment that carries another PMO payment\'s anchor (wrong-document adoption)', async () => {
