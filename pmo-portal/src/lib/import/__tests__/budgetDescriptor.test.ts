@@ -45,7 +45,10 @@ describe('makeBudgetImportDescriptor', () => {
     budget.importLine.mockReset().mockResolvedValue({ outcome: 'created', line_id: 'line-new' });
     setActiveLocale(EN_LOCALE);
   });
-  afterEach(() => resetActiveLocale());
+  afterEach(() => {
+    vi.useRealTimers();
+    resetActiveLocale();
+  });
 
   const make = () => makeBudgetImportDescriptor(projects, 'batch-1');
 
@@ -86,14 +89,26 @@ describe('makeBudgetImportDescriptor', () => {
   });
 
   it('AC-BIMP-004: exposes no actual_amount field, and never sends one', async () => {
-    const d = make();
-    expect(d.fields.map((f) => f.key)).not.toContain('actual_amount');
-    expect(d.fields.map((f) => f.key)).not.toContain('actualAmount');
-    // A sheet that HAS the column still cannot reach actual_amount: unmapped cells are ignored.
-    await d.create(d.toInput({ ...cells(), actual_amount: '999' }));
-    const { item } = budget.importLine.mock.calls[0][0];
-    expect(item).not.toHaveProperty('actual_amount');
-    expect(JSON.stringify(budget.importLine.mock.calls[0])).not.toMatch(/999/);
+    // Freeze the clock at ms = 999 to guard against substring false positives (#1285)
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-21T12:00:00.999Z'));
+    try {
+      const d = make();
+      expect(d.fields.map((f) => f.key)).not.toContain('actual_amount');
+      expect(d.fields.map((f) => f.key)).not.toContain('actualAmount');
+      // A sheet that HAS the column still cannot reach actual_amount: unmapped cells are ignored.
+      await d.create(d.toInput({ ...cells(), actual_amount: '999' }));
+      const [callArg] = budget.importLine.mock.calls[0];
+      const { item } = callArg;
+      expect(item).not.toHaveProperty('actual_amount');
+      expect(item).not.toHaveProperty('actualAmount');
+      expect(callArg).not.toHaveProperty('actual_amount');
+      expect(callArg).not.toHaveProperty('actualAmount');
+      expect(item.budgeted_amount).toBe(1000);
+      expect(JSON.stringify(item)).not.toMatch(/999/);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('never sends currency — 0187 stamp_currency owns it (FR-BIMP-006)', async () => {
