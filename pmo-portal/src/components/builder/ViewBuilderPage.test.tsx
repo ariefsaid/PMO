@@ -285,6 +285,72 @@ describe('ViewBuilderPage — guard states', () => {
     expect(refetch).toHaveBeenCalledTimes(1);
   });
 
+  it('keeps the discard and browser-exit guards active while a save is pending', async () => {
+    let rejectCreate!: (error: Error) => void;
+    mockCreate.mockReturnValue(new Promise((_resolve, reject) => {
+      rejectCreate = reject;
+    }));
+    renderCreate([PANEL_A]);
+    await userEvent.type(screen.getByRole('textbox', { name: /view name/i }), 'Pending view');
+
+    await userEvent.click(screen.getByRole('button', { name: /save view/i }));
+    expect(mockCreate).toHaveBeenCalledTimes(1);
+
+    const beforeUnload = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(beforeUnload);
+    expect(beforeUnload.defaultPrevented).toBe(true);
+
+    await userEvent.click(screen.getByRole('button', { name: /cancel/i }));
+    expect(screen.getByRole('alertdialog')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /keep editing/i }));
+    expect(screen.getByRole('textbox', { name: /view name/i })).toHaveValue('Pending view');
+
+    await act(async () => {
+      rejectCreate(new Error('request failed'));
+    });
+    await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument());
+    await userEvent.click(screen.getByRole('button', { name: /cancel/i }));
+    expect(screen.getByRole('alertdialog')).toBeInTheDocument();
+  });
+
+  it('requires an explicit choice before saving an edit after a cached-view refetch error', async () => {
+    const refetch = vi.fn();
+    mockUseUserView.mockReturnValue({
+      data: {
+        id: 'v1',
+        name: 'Saved name',
+        description: null,
+        scope: 'private',
+        spec: { version: 1, panels: [PANEL_A] },
+        archived_at: null,
+        org_id: 'org1',
+        user_id: 'u1',
+        created_at: '2026-06-01T00:00:00Z',
+        updated_at: '2026-06-28T00:00:00Z',
+      },
+      isPending: false,
+      isError: true,
+      errorUpdatedAt: 1,
+      refetch,
+    });
+    renderEdit('v1');
+
+    expect(screen.getByRole('alert')).toHaveTextContent(/could not refresh this view/i);
+    const name = screen.getByRole('textbox', { name: /view name/i });
+    await userEvent.clear(name);
+    await userEvent.type(name, 'Updated from cached version');
+    const updateButton = screen.getByRole('button', { name: /update view/i });
+    expect(updateButton).toBeDisabled();
+    await userEvent.click(updateButton);
+    expect(mockUpdate).not.toHaveBeenCalled();
+
+    await userEvent.click(screen.getByRole('button', { name: /continue with last loaded version/i }));
+    expect(updateButton).not.toBeDisabled();
+    await userEvent.click(updateButton);
+    await waitFor(() => expect(mockUpdate).toHaveBeenCalledTimes(1));
+    expect(mockUpdate.mock.calls[0][0].input.name).toBe('Updated from cached version');
+  });
+
   it('PGA06-009: a same-version refetch preserves a dirty draft and its original baseline', async () => {
     const view = {
       id: 'v1', name: 'Saved name', description: 'Saved description', scope: 'private',

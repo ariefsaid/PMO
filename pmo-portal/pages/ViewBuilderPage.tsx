@@ -66,6 +66,7 @@ const ViewBuilderPage: React.FC<{ mode: 'create' | 'edit' }> = ({ mode }) => {
     data: existingView,
     isPending: viewLoading,
     isError: viewError,
+    errorUpdatedAt: viewErrorUpdatedAt,
     refetch: refetchView,
   } = useUserView(viewId);
 
@@ -100,6 +101,11 @@ const ViewBuilderPage: React.FC<{ mode: 'create' | 'edit' }> = ({ mode }) => {
   // ── Save error state ──────────────────────────────────────────────────────
   const [saveError, setSaveError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [useCachedView, setUseCachedView] = useState(false);
+
+  useEffect(() => {
+    setUseCachedView(false);
+  }, [viewError, viewErrorUpdatedAt]);
 
   // ── Original values ref — populated when edit mode loads (for dirty detection) ──
   const initialValuesRef = useRef({
@@ -164,7 +170,7 @@ const ViewBuilderPage: React.FC<{ mode: 'create' | 'edit' }> = ({ mode }) => {
   const [showDiscardDialog, setShowDiscardDialog] = useState(false);
   const [pendingLeave, setPendingLeave] = useState<(() => void) | null>(null);
   const guardLeave = useUnsavedChangesGuard({
-    dirty: isDirty && !isSaving,
+    dirty: isDirty,
     guardHistory: true,
     onBlocked: (leave) => {
       setPendingLeave(() => leave);
@@ -286,6 +292,14 @@ const ViewBuilderPage: React.FC<{ mode: 'create' | 'edit' }> = ({ mode }) => {
   const nameIsEmpty = name.trim() === '';
   const noPanel = panels.length === 0;
   const saveDisabled = nameIsEmpty || noPanel || isSaving;
+  const hasCachedViewError =
+    mode === 'edit' &&
+    !viewLoading &&
+    viewError &&
+    existingView !== undefined &&
+    existingView !== null &&
+    existingView.archived_at === null;
+  const saveBlockedByCachedViewError = hasCachedViewError && !useCachedView;
 
   // ── Edit-mode guard states (FR-VB-071/072) ───────────────────────────────
   if (mode === 'edit' && viewLoading) {
@@ -303,7 +317,10 @@ const ViewBuilderPage: React.FC<{ mode: 'create' | 'edit' }> = ({ mode }) => {
         variant="error"
         title={t('viewBuilder:viewLoadError', 'Could not load this view.')}
         sub={t('viewBuilder:viewLoadErrorDescription', 'Check your connection and retry.')}
-        onRetry={() => { void refetchView(); }}
+        onRetry={() => {
+          setUseCachedView(false);
+          void refetchView();
+        }}
       />
     );
   }
@@ -363,8 +380,8 @@ const ViewBuilderPage: React.FC<{ mode: 'create' | 'edit' }> = ({ mode }) => {
           </Button>
           <Button
             variant="primary"
-            disabled={saveDisabled}
-            aria-disabled={saveDisabled}
+            disabled={saveDisabled || saveBlockedByCachedViewError}
+            aria-disabled={saveDisabled || saveBlockedByCachedViewError}
             onClick={handleSave}
           >
             {mode === 'create' ? t('viewBuilder.saveView', 'Save view') : t('viewBuilder.updateView', 'Update view')}
@@ -379,6 +396,32 @@ const ViewBuilderPage: React.FC<{ mode: 'create' | 'edit' }> = ({ mode }) => {
           className="mb-4 rounded-md border border-destructive/30 bg-destructive/[0.07] px-3.5 py-3 text-[13px] text-destructive-text"
         >
           {saveError}
+        </div>
+      )}
+
+      {hasCachedViewError && (
+        <div role="alert" className="mb-4 rounded-md border border-warning/30 bg-warning/[0.07] px-3.5 py-3 text-[13px]">
+          <p>{t('viewBuilder:cachedViewLoadError', 'Could not refresh this view. The last loaded version may be out of date; using it could overwrite newer changes.')}</p>
+          {useCachedView && (
+            <p className="mt-1">{t('viewBuilder:usingCachedView', 'You chose to continue with the last loaded version. Saving may overwrite newer changes.')}</p>
+          )}
+          <div className="mt-2 flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setUseCachedView(false);
+                void refetchView();
+              }}
+            >
+              {t('viewBuilder:retryView', 'Retry')}
+            </Button>
+            {!useCachedView && (
+              <Button variant="ghost" size="sm" onClick={() => setUseCachedView(true)}>
+                {t('viewBuilder:useCachedView', 'Continue with last loaded version')}
+              </Button>
+            )}
+          </div>
         </div>
       )}
 
