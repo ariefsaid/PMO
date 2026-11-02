@@ -88,6 +88,11 @@ only by the Operator.
 global switch is off; otherwise the org override if one exists; otherwise the plan's value. Core keys
 (D5) shall always resolve *on* and shall be rejected by every write RPC.
 
+**FR-PLN-005a — Receivables display rule (plan 2026-11-02).** Where no org override exists, the
+receivables (`revenue`) screens shall additionally hide when an ERP owns revenue (today's behaviour,
+OD-NAR-2). This is a display rule only: server enforcement keys `revenue` on global / override / plan, so
+ERP invoice sync for such an org keeps working.
+
 **FR-PLN-005 — One resolver.** `org_has_feature` (DB), `useFeature` (FE) and the assistant's tool list
 shall all read the same resolved result; no layer re-implements the order.
 
@@ -158,7 +163,7 @@ assistant read tool.
   opens the app and asks the assistant about stock, then the warehouse is absent from navigation, its
   URL shows not-available, and the assistant says it is not on the plan; a user of org B still sees it.
 - **AC-PLN-016 [pgTAP]** Given existing orgs after migration, then each resolves as Enterprise and every
-  key resolves exactly as before the migration.
+  key's user-visible value is unchanged (for `revenue`: the display rule in FR-PLN-005a).
 
 ## Slices (planner refines)
 

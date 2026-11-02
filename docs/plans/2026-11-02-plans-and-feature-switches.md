@@ -43,6 +43,12 @@ A source search of `pmo-portal`, `supabase/functions`, and migrations found no p
 
 ## S1 — resolution core (0530, 0531, 0532)
 
+> **Director ruling (no upgrade harness):** AC-PLN-016 is proven after migration by inserting fixture orgs
+> (absent / explicit on / explicit off rows; ERP-owned and not, for revenue) and comparing the new resolver
+> to a reference expression of the old rule written inline in the test (0070's CASE, plus the FE revenue
+> ownership rule). Existing orgs are backfilled to Enterprise (all on) with overrides untouched, so that
+> equivalence is the whole proof. The spec now carries the receivables exception as FR-PLN-005a.
+
 ### Task 1 — registry and compatibility (AC-PLN-016)
 
 **Files:** create `supabase/migrations/0530_plan_registry.sql`, `supabase/migrations/0531_plan_catalogue.sql`, matching files under `supabase/migrations/rollback/`, and `supabase/tests/plans_compatibility.test.sql`.
