@@ -380,7 +380,7 @@ const ProcurementDetails: React.FC = () => {
             title={t('procurementDetail.accessDenied.title', "You don't have access to this record")}
             sub={t(
               'procurementDetail.accessDenied.sub',
-              "This procurement record either doesn't exist or isn't visible to your role. If you created it, open it from your procurement list.",
+              "This procurement case either doesn't exist or isn't visible to your role. If you created it, open it from your procurement list.",
             )}
           />
         </div>
@@ -422,7 +422,7 @@ const ProcurementDetails: React.FC = () => {
   if (!recordInScope) {
     return <>
       <div data-testid="mobile-back-bar" className="hidden max-[920px]:block"><BackBar label={t('procurementDetail.backToProcurement', 'Procurement')} onBack={goBack} /></div>
-      <div data-testid="procurement-no-access"><ListState variant="empty" icon="lock" titleAsPageHeading title={t('procurementDetail.accessDenied.title', "You don't have access to this record")} sub={t('procurementDetail.accessDenied.sub', "This procurement record either doesn't exist or isn't visible to your role. If you created it, open it from your procurement list.")} /></div>
+      <div data-testid="procurement-no-access"><ListState variant="empty" icon="lock" titleAsPageHeading title={t('procurementDetail.accessDenied.title', "You don't have access to this record")} sub={t('procurementDetail.accessDenied.sub', "This procurement case either doesn't exist or isn't visible to your role. If you created it, open it from your procurement list.")} /></div>
     </>;
   }
   const isRequester = p.requested_by_id === currentUser?.id;
@@ -1060,7 +1060,7 @@ const ProcurementDetails: React.FC = () => {
       {approverLimitLine && <p className="mt-2 text-[12.5px] font-medium text-muted-foreground">{approverLimitLine}</p>}
       {decisionContextNote && <p data-testid="sod-ready-hint" className="mb-3 text-[12.5px] text-muted-foreground">{decisionContextNote}</p>}
       {isDraft && p.items.length === 0 && mainAction?.to === 'Requested' && <p data-testid="line-items-gate" className="mb-3 text-[12.5px] text-muted-foreground">{t('procurementRecord:gate.addLineItem', 'Add at least one line item before submitting.')}</p>}
-      {isDraft && isRequester && <p data-testid="sod-pre-announce" className="mb-3 text-[12.5px] text-muted-foreground">{t('procurementRecord:sod.preAnnounce', "Submitting hands this to another approver. You can't approve your own procurement.")}</p>}
+      {isDraft && isRequester && <p data-testid="sod-pre-announce" className="mb-3 text-[12.5px] text-muted-foreground">{t('procurementRecord:sod.preAnnounce', "Submitting hands this to another approver. You can't approve your own procurement case.")}</p>}
       {routeNote && !(showVICapture || showCreateGR || showCreateVI) && <p data-testid="approval-route-note" className="mb-3 text-[12.5px] text-muted-foreground">{routeNote}</p>}
       {mainAction?.to === 'Approved' && <label className="mb-4 mt-2 block max-w-xl text-[12px] font-medium text-muted-foreground">{t('procurementRecord:approval.note', 'Approval note (optional)')}
         <textarea data-testid="procurement-notes-input" value={notesInput} onChange={(event) => setNotesInput(event.target.value)} rows={2} className="mt-1 block w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-[13px] text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" />
@@ -1419,12 +1419,12 @@ const ProcurementDetails: React.FC = () => {
             : pendingConfirm?.kind === 'createGR'
               ? t(
                   'procurementDetail.confirm.grBody',
-                  'This records a {{status}} goods receipt against procurement record {{request}}.',
+                  'This records a {{status}} goods receipt against procurement case {{request}}.',
                   { status: pendingConfirm.status.toLowerCase(), request: p.title },
                 )
               : t(
                   'procurementDetail.confirm.viBody',
-                  'This records a supplier invoice against procurement record {{request}}.',
+                  'This records a supplier invoice against procurement case {{request}}.',
                   { request: p.title },
                 )
         }

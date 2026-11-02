@@ -276,7 +276,7 @@ describe('AC-PR-LEDGER-010: ProcurementLedger renders DataTable', () => {
     const onSetVendor = vi.fn();
     setCoverage({ data: [{ invoice_id: 'vi-1', coverage_state: 'not-recorded', active_slip_id: null } as never] });
     wrap(<ProcurementLedger {...BASE_PROPS} detail={makeDetail({ status: 'Draft', vendor_id: null })} rows={[SAMPLE_ROWS[1]]} invoices={[{ id: 'vi-1', amount: 100, currency: 'USD' } as never]} canWriteWithholdingSlip vendorMissing onSetVendor={onSetVendor} />);
-    expect(screen.getByText('Set a supplier on this procurement before recording this slip.')).toBeInTheDocument();
+    expect(screen.getByText('Set a supplier on this procurement case before recording this slip.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Record bukti potong' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Set supplier' })).toBeInTheDocument();
     expect(screen.queryByRole('dialog')).toBeNull();
