@@ -23,6 +23,7 @@ import {
   ListState,
   ProjectNameLink,
   StatusPill,
+  TextArea,
   useToast,
 } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
@@ -60,6 +61,8 @@ export const ProcurementApprovalPreview: React.FC<ProcurementApprovalPreviewProp
   const detail = useProcurementDetail(row.id);
   const { transition } = useProcurementMutations(row.id);
   const [pending, setPending] = useState<PendingAction | null>(null);
+  const [rejectionComment, setRejectionComment] = useState('');
+  const rejectionCommentId = useId();
 
   const canTransition = may('transition', 'procurement');
   const isInline = surface === 'inline';
@@ -67,10 +70,11 @@ export const ProcurementApprovalPreview: React.FC<ProcurementApprovalPreviewProp
   const handleConfirm = () => {
     if (!pending) return;
     transition.mutate(
-      { to: pending },
+      { to: pending, ...(pending === 'Rejected' ? { notes: rejectionComment.trim() } : {}) },
       {
         onSuccess: () => {
           setPending(null);
+          setRejectionComment('');
           queryClient.invalidateQueries({ queryKey: ['procurements', currentUser?.org_id] });
           toast(
             pending === 'Approved'
@@ -84,6 +88,7 @@ export const ProcurementApprovalPreview: React.FC<ProcurementApprovalPreviewProp
         },
         onError: (err) => {
           setPending(null);
+          setRejectionComment('');
           const { headline, detail: errDetail } = classifyMutationError(err);
           toast(headline, errDetail, 'warning');
         },
@@ -105,7 +110,10 @@ export const ProcurementApprovalPreview: React.FC<ProcurementApprovalPreviewProp
       <Button
         variant="outline"
         size="sm"
-        onClick={() => setPending('Rejected')}
+        onClick={() => {
+          setRejectionComment('');
+          setPending('Rejected');
+        }}
         loading={transition.isPending}
       >
         {t('approvalRow.rejectShort', 'Reject')}
@@ -269,13 +277,30 @@ export const ProcurementApprovalPreview: React.FC<ProcurementApprovalPreviewProp
                   title: row.title,
                   amount: formatCurrency(row.total_value, row.currency),
                 })
-              : t('approvalRow.rejectDescription', 'Reject {{title}}? The requester will be notified and may revise and resubmit.', {
-                  title: row.title,
-                })
+              : (
+                <div className="space-y-3">
+                  <p>{t('approvalRow.rejectDescription', 'Reject {{title}}? The requester will be notified and may revise and resubmit.', {
+                    title: row.title,
+                  })}</p>
+                  <TextArea
+                    id={rejectionCommentId}
+                    label={t('approvalRow.rejectionComment', 'Rejection comment')}
+                    value={rejectionComment}
+                    onChange={setRejectionComment}
+                    required
+                    maxLength={1000}
+                    helper={t('approvalRow.rejectionCommentHelp', 'Add a comment for the requester before rejecting this purchase.')}
+                  />
+                </div>
+              )
           }
           confirmLabel={pending === 'Approved' ? t('approvalRow.approve', 'Approve') : t('approvalRow.reject', 'Reject procurement')}
           loading={transition.isPending}
-          onCancel={() => setPending(null)}
+          confirmDisabled={pending === 'Rejected' && rejectionComment.trim().length === 0}
+          onCancel={() => {
+            setPending(null);
+            setRejectionComment('');
+          }}
           onConfirm={handleConfirm}
         />
       )}

@@ -16,6 +16,8 @@ import { useAuth } from '@/src/auth/useAuth';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { TimesheetApprovalPreview } from './timesheets/ApprovalsQueue';
 import { TimesheetBulkConfirm, TimesheetBulkSelect, TimesheetBulkToolbar, useTimesheetBulkApprove, weekLabel, type BulkController } from './timesheets/TimesheetBulkApprove';
+import { ProcurementBulkConfirm, ProcurementBulkSelect, ProcurementBulkToolbar } from './approvals/ProcurementBulkApprove';
+import { useProcurementBulkApprove, type ProcurementBulkController } from './approvals/useProcurementBulkApprove';
 import { ExpenseClaimApprovalSection } from './approvals/ExpenseClaimApprovalSection';
 import { ImprestApprovalSection } from './approvals/ImprestApprovalSection';
 import { SalesInvoiceApprovalSection } from './approvals/SalesInvoiceApprovalSection';
@@ -69,16 +71,19 @@ function QueueButton({
   selected,
   onSelect,
   bulk,
+  procurementBulk,
 }: {
   item: QueueItem;
   selected: boolean;
   onSelect: () => void;
   bulk?: BulkController;
+  procurementBulk?: ProcurementBulkController;
 }) {
   const { t } = useTranslation();
   if (item.kind === 'procurement') {
     const row = item.row;
-    return (
+    const canSelect = procurementBulk?.approvableIds.has(row.id) ?? false;
+    const rowButton = (
       <button
         type="button"
         onClick={onSelect}
@@ -103,6 +108,17 @@ function QueueButton({
         </div>
       </button>
     );
+    return procurementBulk?.selecting && canSelect ? (
+      <div className="flex items-center gap-2">
+        <Checkbox
+          checked={procurementBulk.selected.has(row.id)}
+          onChange={() => procurementBulk.toggleSelected(row.id)}
+          label={t('procurement:procurementBulk.rowSelect', 'Select {{title}}', { title: row.title })}
+          disabled={procurementBulk.running}
+        />
+        {rowButton}
+      </div>
+    ) : rowButton;
   }
 
   const row = item.row;
@@ -161,6 +177,7 @@ function QueueGroup({
   emptyTitle,
   emptySub,
   bulk,
+  procurementBulk,
 }: {
   title: string;
   count: number;
@@ -173,6 +190,7 @@ function QueueGroup({
   emptyTitle: string;
   emptySub: string;
   bulk?: BulkController;
+  procurementBulk?: ProcurementBulkController;
 }) {
   const { t } = useTranslation();
   return (
@@ -208,6 +226,7 @@ function QueueGroup({
               selected={selectedKey === item.key}
               onSelect={() => onSelect(item.key)}
               bulk={bulk}
+              procurementBulk={procurementBulk}
             />
           ))}
         </div>
@@ -665,6 +684,7 @@ const ApprovalsPage: React.FC = () => {
   );
   const timesheetRows = useMemo(() => tsError ? [] : timesheets ?? [], [timesheets, tsError]);
   const timesheetBulk = useTimesheetBulkApprove(timesheetRows, true);
+  const procurementBulk = useProcurementBulkApprove(procurementRows);
 
   const canShowExpenses = canApproveExpenses && (expenseRows.length > 0 || expenseQuery.isPending || expenseQuery.isError);
   const canShowInvoices = canApproveInvoices && (invoices.rows.length > 0 || invoices.isPending || invoices.isError);
@@ -888,8 +908,9 @@ const ApprovalsPage: React.FC = () => {
                   )}
                 </p>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 {(activeScope === 'all' || activeScope === 'timesheets') && canApproveTimesheets && <TimesheetBulkSelect controller={timesheetBulk} />}
+                {(activeScope === 'all' || activeScope === 'procurement') && canApproveProcurement && <ProcurementBulkSelect controller={procurementBulk} />}
                 <Badge>{queueItems.length}</Badge>
               </div>
             </div>
@@ -898,6 +919,13 @@ const ApprovalsPage: React.FC = () => {
               <>
                 <TimesheetBulkToolbar controller={timesheetBulk} />
                 <TimesheetBulkConfirm controller={timesheetBulk} sheets={timesheetRows} />
+              </>
+            )}
+
+            {(activeScope === 'all' || activeScope === 'procurement') && canApproveProcurement && (
+              <>
+                <ProcurementBulkToolbar controller={procurementBulk} />
+                <ProcurementBulkConfirm controller={procurementBulk} procurements={procurementRows} />
               </>
             )}
 
@@ -920,6 +948,7 @@ const ApprovalsPage: React.FC = () => {
                     'approvals.group.procurement.emptySub',
                     'Procurement cases that need your approval will appear here.',
                   )}
+                  procurementBulk={procurementBulk}
                 />
               )}
 

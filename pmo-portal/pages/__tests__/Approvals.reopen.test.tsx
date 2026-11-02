@@ -45,6 +45,11 @@ vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
 
+vi.mock('@/src/hooks/useProcurementDetail', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/src/hooks/useProcurementDetail')>();
+  return { ...actual, useProcurementBulkTransition: () => ({ mutateAsync: vi.fn() }) };
+});
+
 vi.mock('@/src/hooks/useTimesheetApproval', () => ({
   useTimesheetsAwaitingApproval: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   usePushesNeedingAttention: () => ({ data: [], isPending: false, isError: false, retry: { mutate: vi.fn(), isPending: false } }),
