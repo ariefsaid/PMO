@@ -10,6 +10,7 @@ import type {
   ExpenseKind,
   ExpenseClaimRoute,
   ExpenseAdvanceAgingRow,
+  AgingBucket,
 } from '@/src/lib/db/expenseClaims';
 import type { ExpenseReceiptRow } from '@/src/lib/db/expenseReceipts';
 import type { ExpenseAccountMapRow, ExpensePostingRow } from '../expensePostings';
@@ -32,7 +33,9 @@ export interface ExpenseClaimRepository {
   recordReturn(id: string, amount: number, reference: string | null): Promise<void>;
   outstanding(advanceId: string): Promise<number | null>;
   routes(ids: string[]): Promise<ExpenseClaimRoute[]>;
-  aging(): Promise<{ rows: ExpenseAdvanceAgingRow[]; truncated: boolean }>;
+  aging(opts?: { claimantId?: string }): Promise<{ rows: ExpenseAdvanceAgingRow[]; truncated: boolean }>;
+  /** Bucket totals per currency over every advance the caller can see (not the capped `aging` page). */
+  agingTotals(): Promise<Record<string, Record<AgingBucket, number>>>;
 }
 
 export interface ExpenseReceiptRepository {

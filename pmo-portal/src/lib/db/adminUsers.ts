@@ -1,4 +1,5 @@
 import { supabase } from '@/src/lib/supabase/client';
+import { fetchAllPages } from '@/src/lib/pagedRead';
 import { AppError, assertWriteLanded } from '@/src/lib/appError';
 import { invokeWithTimeout } from '@/src/lib/supabase/invokeWithTimeout';
 import type { Tables } from '@/src/lib/supabase/database.types';
@@ -36,9 +37,10 @@ function throwWrite(error: PostgrestErrorLike): never {
  * (code preserved) on failure.
  */
 export async function listUsers(): Promise<UserRow[]> {
-  const { data, error } = await supabase.from('profiles').select('*').order('full_name');
-  if (error) throwWrite(error);
-  return data ?? [];
+  // `id` tiebreak keeps the offset scan's order total (equal names would otherwise reorder across pages).
+  return fetchAllPages<UserRow>((from, to) =>
+    supabase.from('profiles').select('*').order('full_name').order('id').range(from, to),
+  );
 }
 
 /**

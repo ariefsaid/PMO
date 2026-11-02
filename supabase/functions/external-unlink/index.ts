@@ -24,6 +24,7 @@ import {
   type JwksResolver,
 } from '../../../pmo-portal/src/lib/auth/verifyCallerJwt.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
+import { hasActiveStanding } from '../_shared/adminOrOperator.ts';
 import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
 
 interface UnlinkBody {
@@ -127,7 +128,17 @@ export async function handleUnlinkRequest(req: Request): Promise<Response> {
     return errorResponse('Profile not found', 'FORBIDDEN', 403);
   }
 
-  if (profile.status !== 'active') return errorResponse('Active organization member required', 'FORBIDDEN', 403);
+  // Standing gate: the roles below authorizes only while the membership is active NOW (not just
+  // a profile row with an unexpired JWT). Stops before any Vault or external call.
+  if (!(await hasActiveStanding({
+    stateClient: serviceClient,
+    orgId: profile.org_id,
+    userId,
+    profileStatus: profile.status,
+  }))) {
+    return errorResponse('Active organization member required', 'FORBIDDEN', 403);
+  }
+
 
   // 4. Check platform operator status
   const { data: isOperator } = await serviceClient

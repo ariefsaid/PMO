@@ -35,6 +35,8 @@ function fakeServiceClient(options: {
   single?: Record<string, Record<string, unknown> | null>;
   list?: Record<string, Array<Record<string, unknown>>>;
   insertError?: Record<string, { message: string; code?: string }>;
+  /** Make a `.maybeSingle()` read fail with a query error when the predicate matches its filters. */
+  selectError?: (table: string, eq: Array<[string, unknown]>) => { message: string; code?: string } | null;
 } = {}) {
   const calls: Call[] = [];
 
@@ -48,6 +50,8 @@ function fakeServiceClient(options: {
       limit(_n: number) { return b; },
       maybeSingle() {
         record();
+        const error = options.selectError?.(table, eq) ?? null;
+        if (error) return Promise.resolve({ data: null, error });
         return Promise.resolve({ data: options.single?.[table] ?? null, error: null });
       },
       then(resolve: (v: { data: unknown; error: unknown }) => void) {
@@ -467,4 +471,82 @@ Deno.test('AC-EFK-003 inbound feed refresh, cancel and amend never write PMO-own
       assert(!('efaktur_date' in patch), `${table} feed patch must omit efaktur_date`);
     }
   }
+});
+
+// ── T-07 B3 · a lookup ERROR is not an ABSENT link ─────────────────────────────────────────────────
+// A failed customer / invoice-ref read must throw (so the feed cursor does not advance past the event)
+// instead of persisting an empty link; a confirmed absent ref stays null.
+
+const lookupFailsFor = (domain: string) => (table: string, eq: Array<[string, unknown]>) =>
+  table === 'external_refs' && eq.some(([c, v]) => c === 'domain' && v === domain)
+    ? { message: 'connection reset by peer', code: '08006' }
+    : null;
+
+async function rejectsWith(p: Promise<unknown>): Promise<unknown> {
+  try {
+    await p;
+  } catch (e) {
+    return e;
+  }
+  return null;
+}
+
+Deno.test('T-07 B3: a failed customer lookup on an SI update throws and writes nothing', async () => {
+  const { client, calls } = fakeServiceClient({ selectError: lookupFailsFor('companies') });
+  const deps = createErpFeedDeps(client, 'org-1', 'sales-invoice');
+  const err = await rejectsWith(deps.updateMirror('pmo-si-1', { id: 'pmo-si-1', erp_docstatus: 1, customer: 'ACME' }, 1000));
+  assert(err !== null, 'expected the lookup failure to surface');
+  assert(!findUpdate(calls, 'sales_invoices'), 'expected no update with an empty customer link');
+});
+
+Deno.test('T-07 B3: a failed customer lookup on an SI adopt throws and mints nothing', async () => {
+  const { client, calls } = fakeServiceClient({ selectError: lookupFailsFor('companies') });
+  const deps = createErpFeedDeps(client, 'org-1', 'sales-invoice');
+  const id = deps.adoptAtomically!.newPmoRecordId();
+  const err = await rejectsWith(deps.adoptAtomically!.mintWithId({ id, si_number: 'SINV-9', erp_docstatus: 1, customer: 'ACME' }, 1000, id));
+  assert(err !== null, 'expected the lookup failure to surface');
+  assert(!findInsert(calls, 'sales_invoices'), 'expected no mirror minted with an empty customer link');
+});
+
+Deno.test('T-07 B3: a failed invoice-ref lookup on a payment update throws and writes nothing', async () => {
+  const { client, calls } = fakeServiceClient({ selectError: lookupFailsFor('revenue') });
+  const deps = createErpFeedDeps(client, 'org-1', 'incoming-payment');
+  const err = await rejectsWith(deps.updateMirror('pmo-ip-1', {
+    id: 'pmo-ip-1',
+    erp_docstatus: 1,
+    references: [{ reference_doctype: 'Sales Invoice', reference_name: 'SINV-0007' }],
+  }, 1000));
+  assert(err !== null, 'expected the lookup failure to surface');
+  assert(!findUpdate(calls, 'incoming_payments'), 'expected no update when the invoice link could not be read');
+});
+
+Deno.test('T-07 B3: a failed invoice-ref lookup on a payment adopt throws and mints nothing', async () => {
+  const { client, calls } = fakeServiceClient({ selectError: lookupFailsFor('revenue') });
+  const deps = createErpFeedDeps(client, 'org-1', 'incoming-payment');
+  const id = deps.adoptAtomically!.newPmoRecordId();
+  const err = await rejectsWith(deps.adoptAtomically!.mintWithId({
+    id,
+    erp_docstatus: 1,
+    references: [{ reference_doctype: 'Sales Invoice', reference_name: 'SINV-0007' }],
+  }, 1000, id));
+  assert(err !== null, 'expected the lookup failure to surface');
+  assert(!findInsert(calls, 'incoming_payments'), 'expected no payment minted with an empty invoice link');
+});
+
+Deno.test('T-07 B3: a confirmed absent customer / invoice ref stays null (the adopt proceeds unlinked)', async () => {
+  const si = fakeServiceClient();
+  const siDeps = createErpFeedDeps(si.client, 'org-1', 'sales-invoice');
+  const siId = siDeps.adoptAtomically!.newPmoRecordId();
+  await siDeps.adoptAtomically!.mintWithId({ id: siId, si_number: 'SINV-9', erp_docstatus: 1, customer: 'ACME' }, 1000, siId);
+  assert((findInsert(si.calls, 'sales_invoices')?.payload as Record<string, unknown>).customer_id === null, 'absent customer → null link');
+
+  const ip = fakeServiceClient();
+  const ipDeps = createErpFeedDeps(ip.client, 'org-1', 'incoming-payment');
+  const ipId = ipDeps.adoptAtomically!.newPmoRecordId();
+  await ipDeps.adoptAtomically!.mintWithId({
+    id: ipId,
+    erp_docstatus: 1,
+    references: [{ reference_doctype: 'Sales Invoice', reference_name: 'SINV-0007' }],
+  }, 1000, ipId);
+  assert((findInsert(ip.calls, 'incoming_payments')?.payload as Record<string, unknown>).sales_invoice_id === null, 'absent invoice → null link');
 });

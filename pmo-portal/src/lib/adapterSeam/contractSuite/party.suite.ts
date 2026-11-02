@@ -1,4 +1,4 @@
-/** party.match (v1) — moved from the ERPNext partyAdopt tests; the behaviour every ERP adapter must show. */
+/** party.match (v2) — moved from the ERPNext partyAdopt tests; the behaviour every ERP adapter must show. */
 import { describe, expect, it } from 'vitest';
 import type { ErpHarness, PartyRole } from './harness.ts';
 
@@ -29,12 +29,12 @@ export function partySuite(h: ErpHarness): void {
       expect(r).toMatchObject({ outcome: 'link', pmoId: 'pmo-matching' });
     });
 
-    it.each([null, ''])('a candidate whose tax id is unset (%s) is eligible next to a conflicting one', async (taxId) => {
+    it.each([null, ''])('FR-ECA-011 v2: a same-name candidate with an unset tax id next to a conflicting one is a review (%s)', async (taxId) => {
       const r = await h.matchParty({ role: 'vendor', externalId: 'EXT-1', name: 'Test party', taxId: 'TAX-1' }, [
         { pmoId: 'pmo-other', taxId: 'TAX-2' },
         { pmoId: 'pmo-unset', taxId },
       ]);
-      expect(r).toMatchObject({ outcome: 'link', pmoId: 'pmo-unset' });
+      expect(r.outcome).toBe('review');
     });
 
     it.each(ROLES)('AC-ENA-093b %s refuses the only same-name candidate with a differing tax id', async (role) => {
@@ -42,12 +42,17 @@ export function partySuite(h: ErpHarness): void {
       expect(r.outcome).toBe('review');
     });
 
-    it('AC-ENA-041 a matching and an unset-tax candidate are both eligible, so it goes to review, never auto-merged', async () => {
+    it('FR-ECA-011 v2: a unique tax id links even when an unset-tax candidate shares the name', async () => {
       const r = await h.matchParty({ role: 'vendor', externalId: 'EXT-1', name: 'Acme Co', taxId: 'TAX-1' }, [
         { pmoId: 'pmo-a', taxId: 'TAX-1' },
         { pmoId: 'pmo-b', taxId: null },
       ]);
-      expect(r.outcome).toBe('review');
+      expect(r).toMatchObject({ outcome: 'link', pmoId: 'pmo-a' });
+    });
+
+    it('FR-ECA-011 v2: a unique tax id links even when the names differ', async () => {
+      const r = await h.matchParty({ role: 'vendor', externalId: 'EXT-1', name: 'Other Name', taxId: 'TAX-1' }, [{ pmoId: 'pmo-1', taxId: 'TAX-1' }]);
+      expect(r).toMatchObject({ outcome: 'link', pmoId: 'pmo-1' });
     });
 
     it('AC-ENA-041 several candidates and no source tax id goes to review', async () => {

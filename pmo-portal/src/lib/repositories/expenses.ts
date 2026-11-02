@@ -13,6 +13,7 @@ import {
   getExpenseAdvanceOutstanding,
   getExpenseClaimRoutes,
   getExpenseAdvanceAging,
+  getExpenseAdvanceAgingTotals,
 } from '@/src/lib/db/expenseClaims';
 import {
   listExpenseReceipts,
@@ -38,7 +39,8 @@ export const expenseClaimRepository: ExpenseClaimRepository = {
   recordReturn: (id, amount, reference) => wrap(() => recordExpenseAdvanceReturn(id, amount, reference)),
   outstanding: (advanceId) => wrap(() => getExpenseAdvanceOutstanding(advanceId)),
   routes: (ids) => wrap(() => getExpenseClaimRoutes(ids)),
-  aging: () => wrap(() => getExpenseAdvanceAging()),
+  aging: (opts) => wrap(() => getExpenseAdvanceAging(opts)),
+  agingTotals: () => wrap(() => getExpenseAdvanceAgingTotals()),
 };
 
 export const expenseReceiptsRepository: ExpenseReceiptRepository = {

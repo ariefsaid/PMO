@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { availableExpenseActions, settlementPreview, claimsAwaitingViewer, agingTotals } from './expenseRules';
+import { availableExpenseActions, settlementPreview, claimsAwaitingViewer } from './expenseRules';
 
 const claim = (o: Partial<{ kind: 'claim' | 'advance'; status: string; claimant_id: string; approved_by_id: string | null }> = {}) =>
   ({ kind: 'claim', status: 'Draft', claimant_id: 'eng', approved_by_id: null, ...o }) as never;
@@ -38,16 +38,6 @@ describe('AC-EXP-052 money is cent-exact', () => {
     expect(settlementPreview(900, 700)).toEqual({ applied: 700, cash: 200 });
     expect(settlementPreview(0.3, 0.1)).toEqual({ applied: 0.1, cash: 0.2 });
     expect(settlementPreview(50, null)).toEqual({ applied: 0, cash: 50 });
-  });
-  it('AC-EXP-052 aging totals sum per currency per bucket in cents', () => {
-    expect(agingTotals([
-      { currency: 'IDR', bucket: '0-30', outstanding: 0.1 },
-      { currency: 'IDR', bucket: '0-30', outstanding: 0.2 },
-      { currency: 'USD', bucket: '90+', outstanding: 5 },
-    ])).toEqual({
-      IDR: { '0-30': 0.3, '31-60': 0, '61-90': 0, '90+': 0 },
-      USD: { '0-30': 0, '31-60': 0, '61-90': 0, '90+': 5 },
-    });
   });
 });
 
