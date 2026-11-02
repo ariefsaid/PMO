@@ -80,6 +80,29 @@ function makeFakeClient(rows: Record<string, unknown> = {}) {
 }
 
 Deno.test({
+  name: "READ_MODEL_WRITERS['reference'].upsert writes the scoped canonical record to the generic mirror",
+  fn: async () => {
+    const { client, calls } = makeFakeClient();
+    const canonical = { id: 'pmo-record-1', name: 'Canonical name', status: 'open', extra: { source: 'adapter' } };
+
+    await READ_MODEL_WRITERS.reference.upsert(
+      { serviceClient: client as never, orgId: 'org-1' },
+      canonical,
+      { domain: 'reference', operation: 'create', record: { id: canonical.id, name: 'Requested name' } },
+    );
+
+    assertEquals(calls, [{
+      table: 'external_reference_items',
+      method: 'upsert',
+      args: [
+        { org_id: 'org-1', pmo_record_id: 'pmo-record-1', payload: canonical },
+        { onConflict: 'org_id,pmo_record_id' },
+      ],
+    }], 'reference writer must persist the canonical record with the tenant scope and conflict key');
+  },
+});
+
+Deno.test({
   name: "READ_MODEL_WRITERS['tasks'].upsert writes a task row via insert on create (moved ClickUp writer)",
   fn: async () => {
     const { client, calls } = makeFakeClient();

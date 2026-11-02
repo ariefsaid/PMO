@@ -21,8 +21,6 @@ export interface StatementAccountSourceRow extends Record<string, unknown> {
 
 export interface AccountFetchOptions {
   company: string;
-  pageSize?: number;
-  maxPages?: number;
 }
 
 const ACCOUNT_FIELDS = [
@@ -48,25 +46,20 @@ function flag(value: unknown, field: string, index: number): boolean {
  * must restate the complete hierarchy before the mirror is reconciled. */
 export async function fetchStatementAccounts(client: ErpClientDeps, opts: AccountFetchOptions): Promise<StatementAccountSourceRow[]> {
   if (typeof opts.company !== 'string' || !opts.company.trim()) throw new AppError('ERPNext company is required for Account scan', 'config-rejected');
-  const pageSize = opts.pageSize ?? PAGE_SIZE;
-  const maxPages = opts.maxPages ?? MAX_PAGES;
-  if (!Number.isInteger(pageSize) || pageSize < 1 || !Number.isInteger(maxPages) || maxPages < 1) {
-    throw new AppError('Invalid Account scan page budget', 'config-rejected');
-  }
   const rows: Record<string, unknown>[] = [];
   const filters = encodeURIComponent(JSON.stringify([['company', '=', opts.company]]));
   const fields = encodeURIComponent(JSON.stringify(ACCOUNT_FIELDS));
-  for (let page = 0; page < maxPages; page += 1) {
-    const path = `/api/resource/Account?filters=${filters}&fields=${fields}&limit_page_length=${pageSize}&limit_start=${page * pageSize}&order_by=${encodeURIComponent('lft asc, name asc')}`;
+  for (let page = 0; page < MAX_PAGES; page += 1) {
+    const path = `/api/resource/Account?filters=${filters}&fields=${fields}&limit_page_length=${PAGE_SIZE}&limit_start=${page * PAGE_SIZE}&order_by=${encodeURIComponent('lft asc, name asc')}`;
     const body = await erpnextRequest(client, { method: 'GET', path });
     const data = (body as { data?: unknown } | null)?.data;
     if (!Array.isArray(data)) throw new AppError('Malformed Account page response', 'commit-rejected');
     if (data.length === 0) return normalizeRows(rows, opts.company);
     if (data.some((row) => !row || typeof row !== 'object' || Array.isArray(row))) throw new AppError('Malformed Account row', 'commit-rejected');
     rows.push(...data as Record<string, unknown>[]);
-    if (data.length < pageSize) return normalizeRows(rows, opts.company);
+    if (data.length < PAGE_SIZE) return normalizeRows(rows, opts.company);
   }
-  throw new AppError(`Account scan exceeded ${maxPages} pages; chart is incomplete`, 'external-unreachable');
+  throw new AppError(`Account scan exceeded ${MAX_PAGES} pages; chart is incomplete`, 'external-unreachable');
 }
 
 function normalizeRows(rows: Record<string, unknown>[], company: string): StatementAccountSourceRow[] {

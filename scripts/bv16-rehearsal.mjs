@@ -11,6 +11,9 @@
  * Run (Director only, plan task 46):
  *   scripts/with-erpnext-lock.sh scripts/with-db-lock.sh \
  *     scripts/serve-functions.sh -- node scripts/bv16-rehearsal.mjs --config-fd 3 [--retain-run]
+ *
+ * Slice 1 direct range probe (Director only; explicit opt-in and ERP lock required):
+ *   scripts/with-erpnext-lock.sh node scripts/bv16-rehearsal.mjs --config-fd 3 --range-probe
  */
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -102,6 +105,187 @@ export function createRoutedFetch(config, fetchImpl = globalThis.fetch, policy =
       if (values.length === 0 || values.some((v) => !v.startsWith('eq.') || v.includes('*') || v.length <= 3)) fail('Refusing an unscoped local write');
     }
     return fetchImpl(url, { ...init, redirect: 'manual' });
+  };
+}
+
+const RANGE_PROBE_LIST_FIELDS = Object.freeze(['name', 'project', 'docstatus']);
+const RANGE_PROBE_YEAR_FIELDS = Object.freeze(['name', 'year_start_date', 'year_end_date']);
+
+function moneyToCents(value) {
+  if (typeof value !== 'string' || !/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/.test(value)) fail('Invalid yearly range amount');
+  const [whole, fraction = ''] = value.split('.');
+  return BigInt(whole) * 100n + BigInt(fraction.padEnd(2, '0'));
+}
+
+function centsToMoney(cents) {
+  const whole = cents / 100n;
+  const fraction = String(cents % 100n).padStart(2, '0');
+  return `${whole}.${fraction}`;
+}
+
+function centsToNumber(cents) {
+  if (!Number.isSafeInteger(Number(cents))) fail('Yearly range total is too large');
+  return Number(cents) / 100;
+}
+
+function percentMilliUnits(amounts) {
+  const total = amounts.reduce((sum, amount) => sum + amount, 0n);
+  if (total <= 0n) fail('Yearly range total must be positive');
+  const shares = amounts.map((amount, index) => {
+    const numerator = amount * 100_000n;
+    return { index, units: numerator / total, remainder: numerator % total };
+  });
+  let missing = 100_000n - shares.reduce((sum, share) => sum + share.units, 0n);
+  const order = [...shares].sort((a, b) => a.remainder === b.remainder
+    ? a.index - b.index
+    : a.remainder > b.remainder ? -1 : 1);
+  for (let i = 0; missing > 0n; i += 1, missing -= 1n) order[i].units += 1n;
+  return shares.map(({ units }) => Number(units) / 1_000);
+}
+
+/** A year-keyed proposal; the ERP child rows need dates, so materialize them from Fiscal Year reads below. */
+export function buildRangeProbeBody({ from, to, years, amounts }) {
+  if (typeof from !== 'string' || !from || typeof to !== 'string' || !to
+    || !Array.isArray(years) || years.length === 0 || years.some((year) => typeof year !== 'string' || !year)
+    || new Set(years).size !== years.length || years[0] !== from || years.at(-1) !== to
+    || !Array.isArray(amounts) || amounts.length !== years.length) {
+    fail('Invalid yearly range proposal');
+  }
+  const amountCents = amounts.map(moneyToCents);
+  const totalCents = amountCents.reduce((sum, amount) => sum + amount, 0n);
+  if (totalCents <= 0n) fail('Yearly range total must be positive');
+  const percentages = percentMilliUnits(amountCents);
+  return Object.freeze({
+    from_fiscal_year: from,
+    to_fiscal_year: to,
+    budget_amount: centsToNumber(totalCents),
+    distribution_frequency: 'Yearly',
+    distribute_equally: 0,
+    yearAmounts: Object.freeze(years.map((year, index) => Object.freeze({
+      year,
+      amount: centsToMoney(amountCents[index]),
+      percent: percentages[index],
+    }))),
+  });
+}
+
+function civilDateDay(value) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value ?? ''));
+  if (!match) fail('Invalid Fiscal Year dates');
+  const day = Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  if (new Date(day).toISOString().slice(0, 10) !== value) fail('Invalid Fiscal Year dates');
+  return day;
+}
+
+/** Map the abstract proposal to the exact v16 child-row field names, using the returned Fiscal Year dates. */
+export function buildErpRangeProbeBody({ proposal, company, project, account, fiscalYears }) {
+  if (!proposal || !Array.isArray(proposal.yearAmounts) || !proposal.yearAmounts.length
+    || !company || !project || !account || !Array.isArray(fiscalYears)) fail('Invalid ERP range probe inputs');
+  const byName = new Map(fiscalYears.map((year) => [year?.name, year]));
+  const selected = proposal.yearAmounts.map(({ year }) => byName.get(year));
+  if (selected.some((year) => !year)
+    || selected[0].name !== proposal.from_fiscal_year
+    || selected.at(-1).name !== proposal.to_fiscal_year) fail('Fiscal Year records do not cover the proposed range');
+  const rows = selected.map((year, index) => {
+    const start = civilDateDay(year.year_start_date);
+    const end = civilDateDay(year.year_end_date);
+    if (start > end || (index > 0 && start !== civilDateDay(selected[index - 1].year_end_date) + 86_400_000)) fail('Fiscal Year records do not cover the proposed range');
+    return {
+      start_date: year.year_start_date,
+      end_date: year.year_end_date,
+      amount: centsToNumber(moneyToCents(proposal.yearAmounts[index].amount)),
+      percent: proposal.yearAmounts[index].percent,
+    };
+  });
+  const rowTotal = rows.reduce((sum, row) => sum + moneyToCents(String(row.amount.toFixed(2))), 0n);
+  const total = moneyToCents(String(proposal.budget_amount.toFixed(2)));
+  const percentTotal = rows.reduce((sum, row) => sum + Math.round(row.percent * 1_000), 0);
+  if (rowTotal !== total || percentTotal !== 100_000) fail('Yearly range rows do not reconcile');
+  return Object.freeze({
+    budget_against: 'Project',
+    company,
+    project,
+    account,
+    from_fiscal_year: proposal.from_fiscal_year,
+    to_fiscal_year: proposal.to_fiscal_year,
+    budget_amount: proposal.budget_amount,
+    distribution_frequency: 'Yearly',
+    distribute_equally: 0,
+    budget_distribution: Object.freeze(rows.map((row) => Object.freeze(row))),
+  });
+}
+
+/** Separate, opt-in route for the Director-only field probe; the AC-BV16-008 guard stays read-only for Budgets. */
+export function createRangeProbeFetch(configInput, fetchImpl = globalThis.fetch, policy = {}) {
+  const config = validateConfig(configInput);
+  const enabled = policy.explicitOptIn === true;
+  const runToken = policy.runToken;
+  const fiscalYears = new Set(policy.fiscalYears ?? config.rangeFiscalYears ?? []);
+  const allowedAccounts = new Set(policy.allowedAccounts ?? [config.salaryAccount, config.cogsAccount]);
+  const state = policy.state ?? { project: policy.project ?? null, budgetNames: new Set(), budgetPosts: new Map() };
+
+  return async (input, init = {}) => {
+    const url = new URL(input instanceof Request ? input.url : String(input));
+    const path = decodeURIComponent(url.pathname);
+    if (url.origin !== config.rehearsalOrigin) fail('Request outside the rehearsal allowlist');
+    const method = String(init.method ?? (input instanceof Request ? input.method : 'GET')).toUpperCase();
+    const bodyText = init.body ?? (input instanceof Request ? await input.clone().text() : '');
+    let body = {};
+    if (bodyText) {
+      try { body = JSON.parse(bodyText); } catch { fail('Invalid rehearsal request'); }
+    }
+
+    if (['GET', 'HEAD'].includes(method)) {
+      if (path === '/api/method/frappe.utils.change_log.get_versions' && method === 'GET') return fetchImpl(url, { ...init, redirect: 'manual' });
+      if (path === '/api/resource/Fiscal Year' && method === 'GET') {
+        let filters;
+        try { filters = JSON.parse(url.searchParams.get('filters') ?? '[]'); } catch { fail('Fiscal Year read is outside the rehearsal allowlist'); }
+        const names = filters.find((filter) => Array.isArray(filter) && filter[0] === 'name' && filter[1] === 'in')?.[2];
+        if (!Array.isArray(names) || names.length !== fiscalYears.size || names.some((name) => !fiscalYears.has(name))) fail('Fiscal Year read is outside the rehearsal allowlist');
+        return fetchImpl(url, { ...init, redirect: 'manual' });
+      }
+      if (path === '/api/resource/Budget' && method === 'GET') {
+        let filters;
+        try { filters = JSON.parse(url.searchParams.get('filters') ?? '[]'); } catch { fail('Budget read is outside the rehearsal allowlist'); }
+        if (!state.project || !filters.some((filter) => Array.isArray(filter) && filter[0] === 'project' && filter[1] === '=' && filter[2] === state.project)) fail('Budget read is outside the rehearsal allowlist');
+        return fetchImpl(url, { ...init, redirect: 'manual' });
+      }
+      if (path.startsWith('/api/resource/Budget/')) {
+        const name = path.slice('/api/resource/Budget/'.length);
+        if (state.budgetNames.has(name)) return fetchImpl(url, { ...init, redirect: 'manual' });
+      }
+      fail('Read outside the rehearsal allowlist');
+    }
+
+    if (!enabled) fail('Range probe writes require explicit opt-in');
+    if (method === 'POST' && path === '/api/resource/Project') {
+      if (!/^[a-f0-9]{32}$/.test(String(runToken ?? '')) || body.company !== config.company || body.project_name !== `PMO-BV16-RANGE-${runToken}`) fail('Project write is outside the rehearsal allowlist');
+      return fetchImpl(url, { ...init, redirect: 'manual' });
+    }
+    if (method === 'POST' && path === '/api/resource/Budget') {
+      const count = state.budgetPosts.get(body.account) ?? 0;
+      if (!state.project || body.project !== state.project || body.company !== config.company
+        || !allowedAccounts.has(body.account) || !fiscalYears.has(body.from_fiscal_year) || !fiscalYears.has(body.to_fiscal_year)
+        || body.distribution_frequency !== 'Yearly' || ![0, 1].includes(Number(body.distribute_equally))
+        || !Number.isFinite(Number(body.budget_amount)) || Number(body.budget_amount) <= 0 || count >= 2) fail('Budget write is outside the rehearsal allowlist');
+      state.budgetPosts.set(body.account, count + 1);
+      return fetchImpl(url, { ...init, redirect: 'manual' });
+    }
+    if (method === 'POST' && path === '/api/method/frappe.client.submit') {
+      if (body.doc?.doctype !== 'Budget' || !state.budgetNames.has(body.doc?.name)) fail('Budget submit is outside the rehearsal allowlist');
+      return fetchImpl(url, { ...init, redirect: 'manual' });
+    }
+    if (path.startsWith('/api/resource/Budget/')) {
+      const name = path.slice('/api/resource/Budget/'.length);
+      if (!state.budgetNames.has(name)) fail('Budget write is outside the rehearsal allowlist');
+      if (method === 'PUT' && Object.keys(body).length === 1 && body.docstatus === 2) return fetchImpl(url, { ...init, redirect: 'manual' });
+      if (method === 'PUT' && Object.keys(body).length === 1 && Array.isArray(body.budget_distribution)
+        && body.budget_distribution.every((row) => typeof row.start_date === 'string' && typeof row.end_date === 'string'
+          && Number.isFinite(Number(row.amount)) && Number.isFinite(Number(row.percent)))) return fetchImpl(url, { ...init, redirect: 'manual' });
+      if (method === 'PUT' && Object.keys(body).length === 1 && Number.isFinite(body.budget_amount) && body.budget_amount > 0) return fetchImpl(url, { ...init, redirect: 'manual' });
+      if (method === 'DELETE' && !bodyText) return fetchImpl(url, { ...init, redirect: 'manual' });
+    }
+    fail('Write outside the rehearsal allowlist');
   };
 }
 
@@ -538,6 +722,243 @@ export async function runRehearsal(configInput, deps = {}) {
   }
 }
 
+function validateRangeProbeConfig(input) {
+  const config = validateConfig(input);
+  if (!Array.isArray(config.rangeFiscalYears) || config.rangeFiscalYears.length !== 3
+    || config.rangeFiscalYears.some((year) => typeof year !== 'string' || !year.trim())
+    || new Set(config.rangeFiscalYears).size !== config.rangeFiscalYears.length) fail('Invalid range probe configuration');
+  return config;
+}
+
+function assertRangeProbeReadback(doc, expected, { docstatus = 1 } = {}) {
+  if (!doc || doc.docstatus !== docstatus || doc.project !== expected.project || doc.account !== expected.account
+    || doc.from_fiscal_year !== expected.from_fiscal_year || doc.to_fiscal_year !== expected.to_fiscal_year
+    || Number(doc.budget_amount) !== expected.budget_amount || doc.distribution_frequency !== 'Yearly'
+    || Number(doc.distribute_equally) !== 0 || !Array.isArray(doc.budget_distribution)
+    || doc.budget_distribution.length !== expected.budget_distribution.length) fail('Yearly range read-back failed');
+  for (let index = 0; index < expected.budget_distribution.length; index += 1) {
+    const actual = doc.budget_distribution[index];
+    const wanted = expected.budget_distribution[index];
+    if (actual.start_date !== wanted.start_date || actual.end_date !== wanted.end_date
+      || Number(actual.amount) !== wanted.amount || Math.abs(Number(actual.percent) - wanted.percent) > 0.001) fail('Yearly range read-back failed');
+  }
+  return doc.budget_distribution.length;
+}
+
+async function expectDuplicateBudget(fetcher, config, state, body) {
+  const response = await fetcher(`${config.rehearsalOrigin}/api/resource/Budget`, {
+    method: 'POST',
+    headers: { Authorization: config.erpAuthorization, Accept: 'application/json', 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const text = await response.text();
+  if (!response.ok && /DuplicateBudgetError/.test(text)) return true;
+  if (response.ok) {
+    try {
+      const result = JSON.parse(text);
+      if (typeof result?.data?.name === 'string') state.budgetNames.add(result.data.name);
+    } catch { /* cleanup will also discover any created doc by the run-owned Project */ }
+  }
+  fail('ERP did not reject the overlapping Budget with DuplicateBudgetError');
+}
+
+async function cleanupRangeProbe(erp, state) {
+  const listUrl = `/api/resource/Budget?${qs({
+    filters: JSON.stringify([['project', '=', state.project]]),
+    fields: JSON.stringify(RANGE_PROBE_LIST_FIELDS),
+    limit_page_length: '100',
+  })}`;
+  const rows = (await erp(listUrl))?.data;
+  if (!Array.isArray(rows) || rows.some((row) => row.project !== state.project || typeof row.name !== 'string')) fail('Range probe cleanup could not identify run-owned Budgets');
+  let cancelled = 0;
+  for (const row of rows) {
+    state.budgetNames.add(row.name);
+    if (row.docstatus === 1) {
+      await erp(`/api/resource/Budget/${encodeURIComponent(row.name)}`, { method: 'PUT', body: { docstatus: 2 } });
+      cancelled += 1;
+    } else if (row.docstatus === 0) {
+      await erp(`/api/resource/Budget/${encodeURIComponent(row.name)}`, { method: 'DELETE' });
+    } else if (row.docstatus !== 2) fail('Range probe cleanup found an unexpected Budget state');
+  }
+  const remaining = (await erp(listUrl))?.data;
+  if (!Array.isArray(remaining) || remaining.some((row) => row.project !== state.project || row.docstatus !== 2)) fail('Range probe cleanup did not settle every run-owned Budget');
+  return cancelled;
+}
+
+/** Direct ERP probe; never runs without a distinct CLI opt-in and always cleans only its run-owned Project. */
+export async function runRangeProbe(configInput, deps = {}) {
+  if (deps.explicitOptIn !== true) fail('Range probe requires explicit opt-in');
+  const config = validateRangeProbeConfig(configInput);
+  const {
+    fetchImpl = globalThis.fetch,
+    stdout = (value) => process.stdout.write(value),
+    stderr = (value) => process.stderr.write(value),
+    newId = randomUUID,
+    evidenceDir = resolve(tmpdir(), 'pmo-bv16-range-probe'),
+  } = deps;
+  const runToken = String(newId()).replaceAll('-', '');
+  if (!/^[a-f0-9]{32}$/.test(runToken)) fail('Invalid range probe run identity');
+  const state = { project: null, budgetNames: new Set(), budgetPosts: new Map() };
+  const fetcher = createRangeProbeFetch(config, fetchImpl, {
+    explicitOptIn: true,
+    runToken,
+    fiscalYears: config.rangeFiscalYears,
+    allowedAccounts: [config.salaryAccount, config.cogsAccount],
+    state,
+  });
+  const { erp } = clients(config, fetcher);
+  let stage = 'verify-version';
+  let failureStage = null;
+  let cleanupFailed = false;
+  let cancelledBudgets = 0;
+  let rangeYearCount = 0;
+  let yearlyRows = 0;
+  let zeroYearRetained = false;
+  let overlapRejections = 0;
+
+  const createDraft = async (body) => {
+    const created = await erp('/api/resource/Budget', { method: 'POST', body });
+    const name = created?.data?.name;
+    if (typeof name !== 'string' || !name) fail('ERP Budget creation did not return a name');
+    state.budgetNames.add(name);
+    await erp(`/api/resource/Budget/${encodeURIComponent(name)}`, { method: 'PUT', body: { budget_distribution: body.budget_distribution } });
+    return name;
+  };
+  const submitAndRead = async (name) => {
+    const draft = (await erp(`/api/resource/Budget/${encodeURIComponent(name)}`))?.data;
+    if (draft?.doctype !== 'Budget' || draft.name !== name || draft.docstatus !== 0
+      || typeof draft.modified !== 'string' || !draft.modified) fail('Budget draft read-back before submit failed');
+    await erp('/api/method/frappe.client.submit', { method: 'POST', body: { doc: draft } });
+    return (await erp(`/api/resource/Budget/${encodeURIComponent(name)}`))?.data;
+  };
+  const createSubmitRead = async (body) => submitAndRead(await createDraft(body));
+
+  try {
+    const version = (await erp('/api/method/frappe.utils.change_log.get_versions'))?.message?.erpnext;
+    if (typeof version !== 'string' || Number(version.split('.')[0]) !== 16) fail('ERPNext major version is not 16');
+
+    stage = 'create-project';
+    const project = await erp('/api/resource/Project', {
+      method: 'POST',
+      body: { project_name: `PMO-BV16-RANGE-${runToken}`, company: config.company },
+    });
+    if (typeof project?.data?.name !== 'string' || !project.data.name) fail('ERP Project setup did not return a name');
+    state.project = project.data.name;
+
+    stage = 'read-fiscal-years';
+    const yearQuery = qs({
+      filters: JSON.stringify([['name', 'in', config.rangeFiscalYears]]),
+      fields: JSON.stringify(RANGE_PROBE_YEAR_FIELDS),
+      limit_page_length: '10',
+    });
+    const yearRows = (await erp(`/api/resource/Fiscal%20Year?${yearQuery}`))?.data;
+    stage = 'validate-fiscal-year-read';
+    if (!Array.isArray(yearRows) || yearRows.length !== 3) fail('Fiscal Year read-back failed');
+    const byName = new Map(yearRows.map((row) => [row.name, row]));
+    const fiscalYears = config.rangeFiscalYears.map((name) => byName.get(name));
+    if (fiscalYears.some((row) => !row)) fail('Fiscal Year read-back failed');
+    rangeYearCount = fiscalYears.length;
+
+    stage = 'build-yearly-proposal';
+    const proposal = buildRangeProbeBody({
+      from: fiscalYears[0].name,
+      to: fiscalYears.at(-1).name,
+      years: fiscalYears.map((year) => year.name),
+      amounts: ['100.00', '0.00', '200.00'],
+    });
+    const rangeBody = (account) => buildErpRangeProbeBody({
+      proposal,
+      company: config.company,
+      project: state.project,
+      account,
+      fiscalYears,
+    });
+
+    stage = 'range-read-back';
+    const sourceRangeBody = rangeBody(config.salaryAccount);
+    const rangeName = await createDraft(sourceRangeBody);
+    const proportionalRows = (await erp(`/api/resource/Budget/${encodeURIComponent(rangeName)}`))?.data;
+    assertRangeProbeReadback(proportionalRows, sourceRangeBody, { docstatus: 0 });
+    // First read the 100/0/200 allocation with derived percentages; then mismatch only the
+    // percentages and change the parent total to establish which stored field drives recalculation.
+    const authorityProbeBody = {
+      ...sourceRangeBody,
+      budget_distribution: sourceRangeBody.budget_distribution.map((row, index) => ({
+        ...row,
+        percent: [25, 0, 75][index],
+      })),
+    };
+    await erp(`/api/resource/Budget/${encodeURIComponent(rangeName)}`, { method: 'PUT', body: { budget_distribution: authorityProbeBody.budget_distribution } });
+    const manualRows = (await erp(`/api/resource/Budget/${encodeURIComponent(rangeName)}`))?.data;
+    assertRangeProbeReadback(manualRows, authorityProbeBody, { docstatus: 0 });
+    await erp(`/api/resource/Budget/${encodeURIComponent(rangeName)}`, { method: 'PUT', body: { budget_amount: 400 } });
+    const percentExpected = {
+      ...authorityProbeBody,
+      budget_amount: 400,
+      budget_distribution: authorityProbeBody.budget_distribution.map((row, index) => ({
+        ...row,
+        amount: [100, 0, 300][index],
+      })),
+    };
+    const recalculatedRows = (await erp(`/api/resource/Budget/${encodeURIComponent(rangeName)}`))?.data;
+    assertRangeProbeReadback(recalculatedRows, percentExpected, { docstatus: 0 });
+    const rangeDoc = await submitAndRead(rangeName);
+    yearlyRows = assertRangeProbeReadback(rangeDoc, percentExpected);
+    zeroYearRetained = rangeDoc.budget_distribution.some((row) => Number(row.amount) === 0);
+    if (!zeroYearRetained) fail('Yearly range read-back failed');
+    const percentRecalculation = Number(rangeDoc.budget_distribution[0].percent) === 25
+      && Number(rangeDoc.budget_distribution[2].percent) === 75
+      && Number(rangeDoc.budget_distribution[0].amount) === 100
+      && Number(rangeDoc.budget_distribution[2].amount) === 300;
+    if (!percentRecalculation) fail('Yearly percent recalculation read-back failed');
+
+    stage = 'overlap-check';
+    const middleYear = fiscalYears[1].name;
+    const annualProposal = buildRangeProbeBody({ from: middleYear, to: middleYear, years: [middleYear], amounts: ['1.00'] });
+    const annualBody = (account, amountProposal = annualProposal) => buildErpRangeProbeBody({
+      proposal: amountProposal,
+      company: config.company,
+      project: state.project,
+      account,
+      fiscalYears,
+    });
+    await expectDuplicateBudget(fetcher, config, state, annualBody(config.salaryAccount));
+    overlapRejections += 1;
+
+    const annualPredecessor = await createSubmitRead(annualBody(config.cogsAccount, buildRangeProbeBody({
+      from: middleYear,
+      to: middleYear,
+      years: [middleYear],
+      amounts: ['300.00'],
+    })));
+    if (annualPredecessor?.docstatus !== 1) fail('Annual Budget setup did not submit');
+    await expectDuplicateBudget(fetcher, config, state, rangeBody(config.cogsAccount));
+    overlapRejections += 1;
+  } catch {
+    failureStage = stage;
+  }
+
+  if (state.project) {
+    try {
+      stage = 'cleanup';
+      cancelledBudgets = await cleanupRangeProbe(erp, state);
+    } catch {
+      cleanupFailed = true;
+    }
+  }
+
+  if (failureStage || cleanupFailed) {
+    if (cleanupFailed) {
+      try { writePrivate(evidenceDir, `${runToken}.cleanup.json`, { runToken, project: state.project, budgetNames: [...state.budgetNames], cleanupFailed: true }); } catch { /* the opaque token remains actionable */ }
+    }
+    stderr(`ERPNext v16 range probe failed during ${failureStage ?? 'cleanup'}${cleanupFailed ? `; cleanup manifest token ${runToken}` : ''}\n`);
+    return { exitCode: cleanupFailed ? 2 : 1 };
+  }
+
+  stdout(`ERPNext v16 range probe: PASS\n${JSON.stringify({ rangeYears: rangeYearCount, yearlyRows, zeroYearRetained, percentRecalculation: true, overlapRejections, cancelledBudgets })}\n`);
+  return { exitCode: 0 };
+}
+
 function readConfigFromFd(fd) {
   const text = readFileSync(fd, { encoding: 'utf8' });
   try { return validateConfig(JSON.parse(text)); } catch { return configError(); }
@@ -545,10 +966,13 @@ function readConfigFromFd(fd) {
 
 export function parseArgs(argv) {
   let retainRun = false;
+  let rangeProbe = false;
   let configFd;
   for (let i = 0; i < argv.length; i += 1) {
     if (argv[i] === '--retain-run' && !retainRun) {
       retainRun = true;
+    } else if (argv[i] === '--range-probe' && !rangeProbe) {
+      rangeProbe = true;
     } else if (argv[i] === '--config-fd' && configFd === undefined && argv[i + 1] === '3') {
       configFd = 3;
       i += 1;
@@ -556,7 +980,8 @@ export function parseArgs(argv) {
       throw new Error('Invalid rehearsal CLI arguments');
     }
   }
-  return { retainRun, configFd: configFd ?? 3 };
+  if (rangeProbe && retainRun) throw new Error('Invalid rehearsal CLI arguments');
+  return { retainRun, rangeProbe, configFd: configFd ?? 3 };
 }
 
 async function main() {
@@ -571,7 +996,10 @@ async function main() {
     return;
   }
   try {
-    const { exitCode } = await runRehearsal(config, { retainRun: args.retainRun });
+    const result = args.rangeProbe
+      ? await runRangeProbe(config, { explicitOptIn: true })
+      : await runRehearsal(config, { retainRun: args.retainRun });
+    const { exitCode } = result;
     process.exitCode = exitCode;
   } catch {
     process.stderr.write('Budget v16 rehearsal did not complete; no pass evidence was emitted.\n');
