@@ -55,10 +55,6 @@ const base = (id: string, title: string) => ({
 vi.mock('@/src/hooks/useProcurementCrud', () => ({
   useCreateProcurement: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
-vi.mock('@/src/hooks/useProcurementView', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/src/hooks/useProcurementView')>()),
-  useProcurementView: () => ['table', vi.fn()],
-}));
 vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => ({ data: [] }), useProject: () => ({ data: null }) }));
 const procState = vi.hoisted(() => ({ current: null as null | { data: unknown[]; isPending: boolean; isError: boolean; refetch: () => void } }));
 vi.mock('@/src/hooks/useProcurements', () => ({
