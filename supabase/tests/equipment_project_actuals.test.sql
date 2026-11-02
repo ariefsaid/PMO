@@ -4,7 +4,7 @@
 -- Fixture F1 + F2 are docs/plans/2026-11-01-equipment-usage.md "Fixture F1" / "Ledger Fixture F2".
 begin;
 create extension if not exists pgtap;
-select plan(59);
+select plan(61);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('15190000-0000-0000-0000-00000000000a', 'EQU Org',   'IDR', 'Asia/Jakarta'),
@@ -27,6 +27,9 @@ insert into profiles (id, org_id, full_name, email, role, status) values
   ('15190000-0000-0000-0000-0000000000a6', '15190000-0000-0000-0000-00000000000a', 'EQU Eng1',  'equ-eng1@example.com',  'Engineer', 'active'),
   ('15190000-0000-0000-0000-0000000000a7', '15190000-0000-0000-0000-00000000000a', 'EQU Eng2',  'equ-eng2@example.com',  'Engineer', 'active'),
   ('15190000-0000-0000-0000-0000000000b1', '15190000-0000-0000-0000-00000000000b', 'EQU XOrg',  'equ-xorg@example.com',  'Admin', 'active');
+insert into public.external_org_bindings (org_id, external_tier, site_url, secret_ref, status, connected_by, connected_at)
+values ('15190000-0000-0000-0000-00000000000a', 'erpnext', 'https://erp.example.test', 'test-ref', 'active',
+        '15190000-0000-0000-0000-0000000000a1', now());
 insert into projects (id, org_id, name, status, project_manager_id) values
   ('15190000-0000-0000-0000-0000000000c1', '15190000-0000-0000-0000-00000000000a', 'EQU P1', 'Ongoing Project', '15190000-0000-0000-0000-0000000000a3'),
   ('15190000-0000-0000-0000-0000000000c2', '15190000-0000-0000-0000-00000000000a', 'EQU P2', 'Ongoing Project', '15190000-0000-0000-0000-0000000000a4'),
@@ -260,6 +263,18 @@ select is((select c->>'equipment_charge_amount' from jsonb_array_elements(get_pr
             where c->>'category' = 'Equipment'), '580.00', 'AC-EQU-010 the Equipment category states its charge');
 select is((get_project_finances('15190000-0000-0000-0000-0000000000c1')->'actuals'->>'attributed_total')::numeric,
   600.00::numeric, 'AC-EQU-010 attributed_total never contains the charge (it is outside the ledger)');
+reset role;
+update public.external_org_bindings set status = 'disconnected'
+ where org_id = '15190000-0000-0000-0000-00000000000a' and external_tier = 'erpnext';
+set local role authenticated;
+select is((get_project_finances('15190000-0000-0000-0000-0000000000c1')->'actuals'->>'equipment_charge_total')::numeric,
+  580.00::numeric, 'AC-EQU-010 PMO actuals retain the internal charge');
+select is((get_project_finances('15190000-0000-0000-0000-0000000000c1')->'actuals'->>'total')::numeric,
+  580.00::numeric, 'AC-EQU-010 PMO actuals include the internal charge without a ledger binding');
+reset role;
+update public.external_org_bindings set status = 'active'
+ where org_id = '15190000-0000-0000-0000-00000000000a' and external_tier = 'erpnext';
+set local role authenticated;
 select ok((select coalesce(sum(tagged_to_date), 0) + coalesce(sum(attributed_to_date), 0) from project_mapped_actuals_all(null)
             where category = 'Equipment') <= (select v from _c where k = 'ledger'),
   'AC-EQU-010 org-wide tagged + attributed never exceeds the ledger (the charge is outside both)');
