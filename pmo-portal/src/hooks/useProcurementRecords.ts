@@ -37,7 +37,7 @@ import {
   pendingPushAfterWrite,
   type PendingPushState,
 } from '@/src/lib/adapterSeam/pendingPush';
-import { cachedProcurementProjectId, invalidateProcurementCase } from '@/src/hooks/procurementQueryKeys';
+import { cachedProcurementProjectId, invalidateProcurementCase, procurementDetailKey } from '@/src/hooks/procurementQueryKeys';
 import type { CommandIntent } from '@/src/lib/repositories/types';
 
 // ---------------------------------------------------------------------------
