@@ -11,6 +11,8 @@ import {
   useToast,
   Button,
   Icon,
+  StatusPill,
+  Switch,
   type Column,
   type RowMenuItem,
 } from '@/src/components/ui';
@@ -24,7 +26,7 @@ import { trackFilterApplied } from '@/src/lib/analytics';
 import { useListSearchWorkingSet } from '@/src/hooks/useListSearchWorkingSet';
 import { useListReturn } from '@/src/hooks/useListReturn';
 import { formatDateTime } from '@/src/lib/format';
-import type { MeetingWithRefs } from '@/src/lib/db/meetings';
+import type { MeetingListItem } from '@/src/lib/db/meetings';
 
 /**
  * Meetings — the reverse-chronological list (#526, FR-MTG-028..030).
@@ -38,6 +40,7 @@ import type { MeetingWithRefs } from '@/src/lib/db/meetings';
 
 const Meetings: React.FC = () => {
   const { t } = useTranslation();
+  const { t: tMeetings } = useTranslation('meetings');
   const may = usePermission();
   const { realRole } = useEffectiveRole();
   const { currentUser } = useAuth();
@@ -52,11 +55,13 @@ const Meetings: React.FC = () => {
   const { workingSet, setWorkingSet, search, setSearch, clearFilters } =
     useListSearchWorkingSet('meetings');
   const projectFilter = workingSet.project;
+  const showArchived = workingSet.archived;
   const deferredSearch = useDeferredValue(search);
 
   const { data, isPending, isError, isPlaceholderData, refetch } = useMeetings({
     projectId: projectFilter === 'All' ? undefined : projectFilter,
     search: deferredSearch.trim() || undefined,
+    includeArchived: showArchived,
   });
   const rows = useMemo(() => data ?? [], [data]);
   // A filter/search change keeps the PREVIOUS query's rows on screen (placeholderData in the
@@ -69,9 +74,9 @@ const Meetings: React.FC = () => {
     contentReady: !isPending && !isError && !isPlaceholderData,
   });
   const { data: projects } = useProjects();
-  const { archive, remove } = useMeetingMutations();
-  const [archiveTarget, setArchiveTarget] = useState<MeetingWithRefs | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<MeetingWithRefs | null>(null);
+  const { archive, restore, remove } = useMeetingMutations();
+  const [archiveTarget, setArchiveTarget] = useState<MeetingListItem | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<MeetingListItem | null>(null);
 
   const canCreate = may('create', 'meeting');
 
@@ -108,7 +113,7 @@ const Meetings: React.FC = () => {
       ? 'error'
       : awaitingRows
         ? undefined
-        : rows.length === 0 && !search.trim() && projectFilter === 'All'
+          : rows.length === 0 && !search.trim() && projectFilter === 'All'
           ? 'empty'
           : undefined;
 
@@ -116,13 +121,16 @@ const Meetings: React.FC = () => {
   // `state === undefined` (the collection-empty case is the `state === 'empty'` branch below), so
   // a zero-match result there is always a filtered zero-match.
 
-  const columns: Column<MeetingWithRefs>[] = [
+  const columns: Column<MeetingListItem>[] = [
     {
       key: 'title',
       header: t('meetings.columns.title', 'Meeting'),
       cell: (m) => (
-        <span className="truncate font-semibold" title={m.title}>
-          {m.title}
+        <span className="flex min-w-0 items-center gap-2" title={m.title}>
+          <span className={m.archived_at ? 'truncate font-semibold text-muted-foreground' : 'truncate font-semibold'}>
+            {m.title}
+          </span>
+          {m.archived_at && <StatusPill variant="neutral">{tMeetings('pill.archived', 'Archived')}</StatusPill>}
         </span>
       ),
       exportValue: (m) => m.title,
@@ -130,24 +138,24 @@ const Meetings: React.FC = () => {
     {
       key: 'occurred_at',
       header: t('meetings.columns.when', 'When'),
-      cell: (m) => <span className="whitespace-nowrap">{formatDateTime(new Date(m.occurred_at))}</span>,
+      cell: (m) => <span className={m.archived_at ? 'whitespace-nowrap text-muted-foreground' : 'whitespace-nowrap'}>{formatDateTime(new Date(m.occurred_at))}</span>,
       exportValue: (m) => m.occurred_at,
     },
     {
       key: 'project',
       header: t('meetings.columns.project', 'Project'),
-      cell: (m) => <span className="truncate" title={m.project?.name}>{m.project ? projectDisplayName(m.project) : '—'}</span>,
+      cell: (m) => <span className={m.archived_at ? 'truncate text-muted-foreground' : 'truncate'} title={m.project?.name}>{m.project ? projectDisplayName(m.project) : '—'}</span>,
       exportValue: (m) => m.project?.name ?? '',
     },
     {
       key: 'location',
       header: t('meetings.columns.location', 'Location'),
-      cell: (m) => <span className="truncate">{m.location ?? '—'}</span>,
+      cell: (m) => <span className={m.archived_at ? 'truncate text-muted-foreground' : 'truncate'}>{m.location ?? '—'}</span>,
       exportValue: (m) => m.location ?? '',
     },
   ];
 
-  const rowMenu = (m: MeetingWithRefs): RowMenuItem[] => {
+  const rowMenu = (m: MeetingListItem): RowMenuItem[] => {
     const items: RowMenuItem[] = [];
     // M13: Open is NAVIGATION, not a write — every viewer who can see the row may open it
     // (RLS already scoped the row set to what they can read). Never gate it on edit rights.
@@ -155,16 +163,24 @@ const Meetings: React.FC = () => {
       label: t('meetings.actions.open', 'Open'),
       onClick: () => openRecord(`/meetings/${m.id}`),
     });
-    if (
-      may('archive', 'meeting', {
-        currentUserId,
-        record: { created_by_id: m.created_by_id },
-      })
-    )
+    const mayArchive = may('archive', 'meeting', {
+      currentUserId,
+      record: { created_by_id: m.created_by_id },
+    });
+    if (mayArchive && m.archived_at) {
+      items.push({
+        label: restore.isPending
+          ? tMeetings('actions.restoring', 'Restoring…')
+          : tMeetings('actions.restore', 'Restore'),
+        disabled: restore.isPending,
+        onClick: () => void onRestore(m),
+      });
+    } else if (mayArchive) {
       items.push({
         label: t('meetings.actions.archive', 'Archive'),
         onClick: () => setArchiveTarget(m),
       });
+    }
     if (may('delete', 'meeting'))
       items.push({
         label: t('meetings.actions.delete', 'Delete'),
@@ -172,6 +188,16 @@ const Meetings: React.FC = () => {
         danger: true,
       });
     return items;
+  };
+
+  const onRestore = async (meeting: MeetingListItem) => {
+    try {
+      await restore.mutateAsync(meeting.id);
+      toast(tMeetings('toast.restored', 'Meeting restored'), meeting.title, 'success');
+    } catch (err) {
+      const { headline, detail } = classifyMutationError(err);
+      toast(headline, detail, 'warning');
+    }
   };
 
   const onArchiveConfirm = async () => {
@@ -220,16 +246,28 @@ const Meetings: React.FC = () => {
       }
       filters={
         state !== 'loading' && (
-          <SelectField
-            label={t('meetings.filters.projectLabel', 'Filter by project')}
-            hideLabel
-            value={projectFilter}
-            onChange={(v) => {
-              setWorkingSet((ws) => ({ ...ws, project: v }));
-              trackFilterApplied('project', projectOptions.length, 'meetings');
-            }}
-            options={projectFilterOptions}
-          />
+          <div className="flex flex-wrap items-center gap-3">
+            <SelectField
+              label={t('meetings.filters.projectLabel', 'Filter by project')}
+              hideLabel
+              value={projectFilter}
+              onChange={(v) => {
+                setWorkingSet((ws) => ({ ...ws, project: v }));
+                trackFilterApplied('project', projectOptions.length, 'meetings');
+              }}
+              options={projectFilterOptions}
+            />
+            <div className="inline-flex min-h-11 items-center gap-2">
+              <span id="meetings-show-archived-label" className="text-control font-medium">
+                {tMeetings('filters.showArchived', 'Show archived')}
+              </span>
+              <Switch
+                checked={showArchived}
+                onChange={(archived) => setWorkingSet((ws) => ({ ...ws, archived }))}
+                labelledBy="meetings-show-archived-label"
+              />
+            </div>
+          </div>
         )
       }
       search={
@@ -266,16 +304,17 @@ const Meetings: React.FC = () => {
         <ListState
           variant="empty"
           icon="cal"
-          title={t('meetings.states.emptyTitle', 'No meetings yet')}
-          sub={t(
-            'meetings.states.emptySub',
-            'Minute your first meeting to capture notes, attendees and action items in one place.',
-          )}
+          title={showArchived
+            ? tMeetings('states.archivedEmptyTitle', 'No meetings to show')
+            : t('meetings.states.emptyTitle', 'No meetings yet')}
+          sub={showArchived
+            ? tMeetings('states.archivedEmptySub', 'Meetings you archive will appear here until you restore them.')
+            : t('meetings.states.emptySub', 'Minute your first meeting to capture notes, attendees and action items in one place.')}
           stateId="meetings-empty"
           role={realRole ?? undefined}
           module="meetings"
           action={
-            canCreate
+            canCreate && !showArchived
               ? {
                   label: t('meetings.actions.new', 'New meeting'),
                   onClick: () => openRecord('/meetings/new'),
@@ -286,7 +325,7 @@ const Meetings: React.FC = () => {
       )}
 
       {state === undefined && !awaitingRows && (
-        <DataTable<MeetingWithRefs>
+        <DataTable<MeetingListItem>
           rows={rows}
           columns={columns}
           rowKey={(m) => m.id}
