@@ -370,6 +370,7 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
                   vendorId={p.vendor_id}
                   itemsNet={itemsNetTotal(p.items)}
                   currency={p.currency}
+                  subcontractPoId={p.is_subcontract ? p.purchase_orders[0]?.id : undefined}
                   busy={mutations.createInvoice.isPending}
                   onCreate={() => Promise.resolve()}
                   onStage={(staged) => {

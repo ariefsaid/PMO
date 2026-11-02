@@ -242,6 +242,7 @@ describe('useSubcontract hooks (src/hooks/useSubcontract.ts)', () => {
 
     const calls = invalidateSpy.mock.calls.map((c) => JSON.stringify(c[0]));
     expect(calls.some((c) => c.includes('"subcontract"') && c.includes('"org-1"') && c.includes('"po-1"'))).toBe(true);
+    expect(calls.some((c) => c.includes('"work-order-variations"'))).toBe(true);
     expect(calls.some((c) => c.includes('"procurement"') && c.includes('"org-1"') && c.includes('"proc-1"'))).toBe(true);
   });
 

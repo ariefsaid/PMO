@@ -102,4 +102,16 @@ describe('TaskPushBadge — FR-ECA-030 not-sent is information', () => {
       await act(async () => { await i18next.changeLanguage('en'); });
     }
   });
+
+  it('shows a specific transient not-sent reason when a connected write is refused', () => {
+    render(<TaskPushBadge state={{ status: 'not-sent', error: {
+      headline: 'Tidak dikirim: revisi ERP belum tersedia',
+      detail: 'Variasi tetap tersimpan di PMO; tidak ada revisi PO yang diterbitkan.',
+    } }} />);
+    const badge = screen.getByRole('status');
+    expect(badge.textContent).toContain('Not sent');
+    expect(badge.getAttribute('aria-label')).toBe('Tidak dikirim: revisi ERP belum tersedia');
+    expect(badge.getAttribute('title')).toBe('Variasi tetap tersimpan di PMO; tidak ada revisi PO yang diterbitkan.');
+    expect(badge.className).not.toContain('destructive');
+  });
 });
