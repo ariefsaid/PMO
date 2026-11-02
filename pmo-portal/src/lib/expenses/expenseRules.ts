@@ -1,6 +1,6 @@
 import type { Role } from '@/src/auth/AuthContext';
 import { mayDecideRoutedApproval, type ApprovalRoute } from '@/src/lib/procurement/approvalRoute';
-import type { AgingBucket, ExpenseAdvanceAgingRow, ExpenseClaimRow } from '@/src/lib/db/expenseClaims';
+import type { AgingBucket, ExpenseClaimRow } from '@/src/lib/db/expenseClaims';
 
 /**
  * #775 — the FE projection of `transition_expense_claim` / `record_expense_advance_return` (0247 §7/§9).
@@ -83,18 +83,3 @@ export function claimsAwaitingViewer<T extends AwaitingRow>(rows: T[], userId: s
 }
 
 export const AGING_BUCKETS: readonly AgingBucket[] = ['0-30', '31-60', '61-90', '90+'];
-
-export function agingTotals(
-  rows: Pick<ExpenseAdvanceAgingRow, 'currency' | 'bucket' | 'outstanding'>[],
-): Record<string, Record<AgingBucket, number>> {
-  const cents: Record<string, Record<AgingBucket, number>> = {};
-  for (const r of rows) {
-    if (!cents[r.currency]) cents[r.currency] = { '0-30': 0, '31-60': 0, '61-90': 0, '90+': 0 };
-    cents[r.currency][r.bucket] += toCents(r.outstanding);
-  }
-  const out: Record<string, Record<AgingBucket, number>> = {};
-  for (const [currency, b] of Object.entries(cents)) {
-    out[currency] = { '0-30': b['0-30'] / 100, '31-60': b['31-60'] / 100, '61-90': b['61-90'] / 100, '90+': b['90+'] / 100 };
-  }
-  return out;
-}

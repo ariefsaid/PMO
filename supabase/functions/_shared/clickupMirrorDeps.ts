@@ -64,22 +64,24 @@ export function createClickUpMirrorCallbacks(ctx: MirrorCallbackCtx): ClickUpMir
   const { serviceClient, orgId, projectId } = ctx;
   return {
     resolvePmoRecordId: async (externalRecordId) => {
-      const { data } = await serviceClient
+      const { data, error } = await serviceClient
         .from('external_refs')
         .select('pmo_record_id')
         .eq('org_id', orgId)
         .eq('domain', CLICKUP_TASKS_DOMAIN)
         .eq('external_record_id', externalRecordId)
         .maybeSingle();
+      if (error) throw new AppError(error.message, error.code);
       return (data as { pmo_record_id: string } | null)?.pmo_record_id ?? null;
     },
     readMirrorSourceMod: async (pmoRecordId) => {
-      const { data } = await serviceClient
+      const { data, error } = await serviceClient
         .from('tasks')
         .select('source_updated_at')
         .eq('org_id', orgId)
         .eq('id', pmoRecordId)
         .maybeSingle();
+      if (error) throw new AppError(error.message, error.code);
       const iso = (data as { source_updated_at: string | null } | null)?.source_updated_at;
       return iso ? Date.parse(iso) : null;
     },
@@ -137,13 +139,14 @@ export function createClickUpMirrorCallbacks(ctx: MirrorCallbackCtx): ClickUpMir
       return pmoRecordId;
     },
     readWatermark: async () => {
-      const { data } = await serviceClient
+      const { data, error } = await serviceClient
         .from('external_sync_watermarks')
         .select('watermark_cursor')
         .eq('org_id', orgId)
         .eq('external_tier', CLICKUP_TIER)
         .eq('domain', CLICKUP_TASKS_DOMAIN)
         .maybeSingle();
+      if (error) throw new AppError(error.message, error.code);
       return (data as { watermark_cursor: string | null } | null)?.watermark_cursor ?? null;
     },
     advanceWatermark: async (cursor) => {

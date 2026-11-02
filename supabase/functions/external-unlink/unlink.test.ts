@@ -47,7 +47,7 @@ async function authed(body: unknown, sub = 'user-1') {
 }
 
 async function withFetchMock(routes: Parameters<typeof withEdgeFetchMock>[0], run: Parameters<typeof withEdgeFetchMock>[1]) {
-  return withEdgeFetchMock([...routes, supabaseRpc('unlink_external_integration', () => jsonResponse(1))], run);
+  return withEdgeFetchMock([...routes, supabaseRpc('unlink_external_integration', () => jsonResponse(1)), supabaseRpc('actor_authorization_state', () => jsonResponse({ active: true }))], run);
 }
 
 describe('external-unlink — ClickUp branch', () => {
@@ -498,4 +498,25 @@ describe('external-unlink — ERPNext branch', () => {
       },
     );
   });
+});
+describe('external-unlink — current standing', () => {
+  const profileWith = (status: string) => supabaseSelect('profiles', () =>
+    jsonResponse({ org_id: 'org-1', role: 'Admin', status },
+      { headers: { 'content-type': 'application/vnd.pgrst.object+json' } }));
+  const refused = (name: string, routes: Parameters<typeof withFetchMock>[0]) => it(name, async () => {
+    await withFetchMock(routes, async ({ calls }) => {
+      const res = await handleUnlinkRequest(await authed({ tier: 'clickup', projectId: 'proj-1' }));
+      assertEquals(res.status, 403);
+      assertEquals(rpcCall(calls, 'unlink_external_integration').length, 0);
+      assertEquals(rpcCall(calls, 'log_audit').length, 0);
+    });
+  });
+  refused('a disabled profile with inactive RPC standing is refused → 403, no unlink',
+    [profileWith('disabled'), supabaseRpc('actor_authorization_state', () => jsonResponse({ active: false }))]);
+  refused('an active profile whose RPC standing is inactive (banned) is refused → 403, no unlink',
+    [profileWith('active'), supabaseRpc('actor_authorization_state', () => jsonResponse({ active: false }))]);
+  refused('a disabled profile is refused even when the RPC reports active → 403',
+    [profileWith('disabled'), supabaseRpc('actor_authorization_state', () => jsonResponse({ active: true }))]);
+  refused('fails closed when standing cannot be resolved → 403',
+    [profileWith('active'), supabaseRpc('actor_authorization_state', () => new Response('{"message":"unavailable"}', { status: 500, headers: { 'content-type': 'application/json' } }))]);
 });

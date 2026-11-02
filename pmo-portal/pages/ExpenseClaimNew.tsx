@@ -23,6 +23,7 @@ import { BackBar } from '@/src/components/shell';
 import { expenseTypeLabel } from './expenses/expenseLabels';
 import { PostingReadinessNote } from './expenses/ExpenseClaimFormModal';
 import { useOwnAdvanceOptions } from './expenses/useOwnAdvanceOptions';
+import { AdvanceLoadNotice } from './expenses/AdvanceLoadNotice';
 
 type DraftLine = { date: string; type: string; description: string; amount: string };
 const blankLine = (): DraftLine => ({ date: '', type: '', description: '', amount: '' });
@@ -48,7 +49,9 @@ const ExpenseClaimNew: React.FC = () => {
   const [purpose, setPurpose] = useState('');
   const [advanceId, setAdvanceId] = useState('');
   const [floatId, setFloatId] = useState('');
-  const ownAdvanceOptions = useOwnAdvanceOptions();
+  const ownAdvances = useOwnAdvanceOptions();
+  // An unloaded list is "unknown", never "no advance": a new claim is not saved until it has loaded.
+  const advancesNotReady = ownAdvances.isPending || ownAdvances.isError;
   const currency = useOrgCurrency();
   const setClaimFloat = useSetClaimFloat();
   const floatChoices = useImprestFloatChoices(projectId || undefined, (category || null) as BudgetCategory | null).data ?? [];
@@ -80,7 +83,7 @@ const ExpenseClaimNew: React.FC = () => {
   const chargedFloatId = chosenFloat ? floatId : '';
   // PQ-7: a claim settles only an advance on its own float (or an off-float advance when it is off-float).
   const advanceFloat = new Map((advances?.rows ?? []).map((row) => [row.id, row.imprest_float_id ?? '']));
-  const advanceOptions = ownAdvanceOptions.filter((option) => (advanceFloat.get(option.value) ?? '') === chargedFloatId);
+  const advanceOptions = ownAdvances.options.filter((option) => (advanceFloat.get(option.value) ?? '') === chargedFloatId);
   const totalCents = toCents(lineInputs.reduce((sum, line) => sum + line.amount, 0));
   const floatHint = chosenFloat && totalCents > 0 ? {
     remaining: category && chosenFloat.remaining != null ? formatCurrencyAuto(Number(chosenFloat.remaining), chosenFloat.currency ?? currency) : null,
@@ -91,7 +94,7 @@ const ExpenseClaimNew: React.FC = () => {
 
   const save = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (saveInFlight.current) return;
+    if (saveInFlight.current || advancesNotReady) return;
     if (!title.trim() || invalidLine) {
       setError(t('expenseClaims:new.validation', 'Enter a title and complete any expense line you start.')); return;
     }
@@ -161,6 +164,7 @@ const ExpenseClaimNew: React.FC = () => {
               {floatHint.overLimit && <p>{t('imprest:form.limitHint', 'Above the procurement limit ({{limit}}): site cash will refuse this. Raise it as a procurement request.', { limit: formatCurrencyAuto(procurementLimit as number, currency) })}</p>}
             </div>}
           </>}
+          <AdvanceLoadNotice advances={ownAdvances} />
           {advanceOptions.length > 0 && <SelectField label={t('expenses.form.advance.label', 'Settle against advance')} value={advanceId} onChange={setAdvanceId} options={[{ value: '', label: t('expenses.form.advance.none', 'No advance') }, ...advanceOptions]} />}
         </FormGrid>
       </FormSection>
@@ -178,7 +182,7 @@ const ExpenseClaimNew: React.FC = () => {
         <div className="mt-3 flex flex-wrap items-center gap-2"><label className="text-sm font-medium" htmlFor="new-expense-receipt">{t('uxs29.expenseCapture.receipt', 'Receipt (optional)')}</label><input id="new-expense-receipt" type="file" accept={RECEIPT_INPUT_ACCEPT} onChange={(event) => { const file = event.target.files?.[0] ?? null; setReceipt(file); if (file && !titleEdited && !lines[0]?.description.trim()) setTitle(file.name.replace(/\.[^.]+$/, '')); }} />{receipt && <span className="text-sm text-muted-foreground">{receipt.name}</span>}</div>
       </FormSection>
       {error && <p role="alert" className="mb-3 text-sm text-destructive-text">{error}</p>}
-      <div className="sticky bottom-0 flex justify-end gap-2 border-t border-border bg-background py-3"><Button type="button" variant="outline" onClick={() => guardLeave(() => navigate('/expenses'))}>{t('expenses.actions.cancel', 'Cancel')}</Button><Button type="submit" variant="primary" disabled={saving}>{saving ? t('expenseClaims:new.saving', 'Saving…') : t('expenses.form.submitSave', 'Save')}</Button></div>
+      <div className="sticky bottom-0 flex justify-end gap-2 border-t border-border bg-background py-3"><Button type="button" variant="outline" onClick={() => guardLeave(() => navigate('/expenses'))}>{t('expenses.actions.cancel', 'Cancel')}</Button><Button type="submit" variant="primary" disabled={saving || advancesNotReady}>{saving ? t('expenseClaims:new.saving', 'Saving…') : t('expenses.form.submitSave', 'Save')}</Button></div>
     </form>
     <ConfirmDialog open={blockedLeave !== null} tone="default" title={t('expenseClaims:new.discardTitle', 'Discard unsaved claim?')} description={t('expenseClaims:new.discardBody', 'Your claim details and lines have not been saved. Leave and discard them?')} confirmLabel={t('expenseClaims:new.discardLeave', 'Leave')} cancelLabel={t('expenseClaims:new.discardStay', 'Stay')} onCancel={() => setBlockedLeave(null)} onConfirm={() => { const leave = blockedLeave; setBlockedLeave(null); leave?.(); }} />
   </div>;

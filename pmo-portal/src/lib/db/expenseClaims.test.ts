@@ -20,18 +20,26 @@ const h = vi.hoisted(() => {
   builder.single = () => { calls.single++; return builder; };
   builder.maybeSingle = () => { calls.maybeSingle++; return builder; };
   builder.then = (resolve: (v: unknown) => unknown) => resolve(result.value);
+  // `table` (when set) stands in for the server: PostgREST applies `.eq` filters BEFORE `.range` on a set-returning rpc.
+  const rpcServer = { table: null as Array<Record<string, unknown>> | null, eq: [] as Array<[string, unknown]>, range: null as [number, number] | null };
   const rpcBuilder: Record<string, unknown> = {};
-  rpcBuilder.range = (...args: unknown[]) => { calls.range.push(args); return rpcBuilder; };
-  rpcBuilder.then = (resolve: (v: unknown) => unknown) => resolve(rpcResult.value);
+  rpcBuilder.range = (...args: unknown[]) => { calls.range.push(args); rpcServer.range = args as [number, number]; return rpcBuilder; };
+  rpcBuilder.eq = (col: string, val: unknown) => { rpcServer.eq.push([col, val]); return rpcBuilder; };
+  rpcBuilder.then = (resolve: (v: unknown) => unknown) => {
+    if (!rpcServer.table) return resolve(rpcResult.value);
+    let rows = rpcServer.table.filter((r) => rpcServer.eq.every(([c, v]) => r[c] === v));
+    if (rpcServer.range) rows = rows.slice(rpcServer.range[0], rpcServer.range[1] + 1);
+    return resolve({ data: rows, error: null });
+  };
   const from = vi.fn((table: string) => { calls.from.push(table); return builder; });
   const rpc = vi.fn((name: string, args?: unknown) => { calls.rpc.push([name, args]); return rpcBuilder; });
-  return { from, rpc, calls, result, rpcResult };
+  return { from, rpc, calls, result, rpcResult, rpcServer };
 });
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: h.from, rpc: h.rpc } }));
 
 import {
   listExpenseClaims, createExpenseClaim, updateExpenseClaim, removeExpenseLine, transitionExpenseClaim,
-  getExpenseClaimRoutes, getExpenseAdvanceAging, recordExpenseAdvanceReturn, EXPENSE_LIST_LIMIT,
+  getExpenseClaimRoutes, getExpenseAdvanceAging, getExpenseAdvanceAgingTotals, recordExpenseAdvanceReturn, EXPENSE_LIST_LIMIT,
 } from './expenseClaims';
 
 beforeEach(() => {
@@ -42,6 +50,7 @@ beforeEach(() => {
   }
   h.result.value = { data: null, error: null };
   h.rpcResult.value = { data: null, error: null };
+  h.rpcServer.table = null; h.rpcServer.eq.length = 0; h.rpcServer.range = null;
 });
 
 describe('AC-EXP-050 create', () => {
@@ -145,5 +154,37 @@ describe('AC-EXP-050 reads through RPCs', () => {
     expect(h.calls.range).toEqual([[0, 500]]);
     expect(out.rows[0]).toMatchObject({ advanceId: 'a1', outstanding: 400, returned: 100, ageDays: 45, bucket: '31-60' });
     expect(out.truncated).toBe(false);
+  });
+});
+
+describe('AC-EXP-062 advance aging beyond the page cap', () => {
+  const agingRow = (i: number, claimantId: string) => ({
+    advance_id: `a${i}`, claim_number: `ADV-${i}`, claimant_id: claimantId, claimant_name: null, project_id: null, project_name: null,
+    currency: 'IDR', amount: '100', settled: '0', returned: '0', outstanding: '100', paid_on: '2026-01-01', age_days: 10, bucket: '0-30',
+  });
+  it('AC-EXP-062 the own-advance read filters by claimant before the cap, so the claimant\'s 601st-oldest advance is returned', async () => {
+    h.rpcServer.table = [...Array.from({ length: 600 }, (_, i) => agingRow(i, 'someone-else')), agingRow(600, 'me')];
+    const out = await getExpenseAdvanceAging({ claimantId: 'me' });
+    expect(out.rows.map((r) => r.advanceId)).toEqual(['a600']);
+    expect(out.truncated).toBe(false);
+  });
+  it('AC-EXP-062 the unfiltered read stays capped and flags truncation', async () => {
+    h.rpcServer.table = Array.from({ length: 600 }, (_, i) => agingRow(i, 'someone-else'));
+    const out = await getExpenseAdvanceAging();
+    expect(out.rows).toHaveLength(500);
+    expect(out.truncated).toBe(true);
+  });
+  it('AC-EXP-062 bucket totals come from the aggregate rpc as numbers, not from the capped rows', async () => {
+    h.rpcResult.value = { data: [
+      { currency: 'IDR', bucket: '0-30', outstanding: '1250000.50', advance_count: 3 },
+      { currency: 'IDR', bucket: '90+', outstanding: '40', advance_count: 1 },
+    ], error: null };
+    const out = await getExpenseAdvanceAgingTotals();
+    expect(h.calls.rpc.at(-1)?.[0]).toBe('get_expense_advance_aging_totals');
+    expect(out).toEqual({ IDR: { '0-30': 1250000.5, '31-60': 0, '61-90': 0, '90+': 40 } });
+  });
+  it('AC-EXP-062 a failed totals read throws instead of returning zeros', async () => {
+    h.rpcResult.value = { data: null, error: { message: 'boom', code: '57014' } };
+    await expect(getExpenseAdvanceAgingTotals()).rejects.toThrow('boom');
   });
 });

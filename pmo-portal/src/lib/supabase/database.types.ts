@@ -11907,6 +11907,15 @@ export type Database = {
           settled: number
         }[]
       }
+      get_expense_advance_aging_totals: {
+        Args: never
+        Returns: {
+          advance_count: number
+          bucket: string
+          currency: string
+          outstanding: number
+        }[]
+      }
       get_expense_claim_approval_routes: {
         Args: { p_ids: string[] }
         Returns: {

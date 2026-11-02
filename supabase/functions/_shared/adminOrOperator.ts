@@ -15,6 +15,36 @@ export interface AdminOrOperatorClient {
   };
 }
 
+export interface AuthorizationStateClient {
+  rpc(fn: string, params: Record<string, unknown>): PromiseLike<{ data: unknown; error: unknown }>;
+}
+
+/**
+ * Current-standing gate for caller-JWT integration surfaces: the actor must be an ACTIVE member of
+ * the org right now, not merely hold a role in a profile row while carrying an unexpired JWT.
+ *
+ * `actor_authorization_state.active` is the same predicate as `is_active_member()` (0095):
+ * profiles.status='active' AND auth.users.banned_until null-or-past, conjoined with membership of
+ * the org being asked about. The freshly loaded `profile.status` is asserted alongside it. The two
+ * answers come from the same request lifetime, so a deactivated or banned caller stops before any
+ * Vault read or external request.
+ *
+ * FAILS CLOSED: an RPC error or a missing payload denies.
+ */
+export async function hasActiveStanding(params: {
+  stateClient: AuthorizationStateClient;
+  orgId: string;
+  userId: string;
+  profileStatus: unknown;
+}): Promise<boolean> {
+  const { data, error } = await params.stateClient.rpc('actor_authorization_state', {
+    p_org_id: params.orgId,
+    p_user_id: params.userId,
+  });
+  if (error || !data) return false;
+  return (data as { active?: unknown }).active === true && params.profileStatus === 'active';
+}
+
 export async function isAdminOrOperator(params: {
   profile: unknown;
   operatorClient: AdminOrOperatorClient;
