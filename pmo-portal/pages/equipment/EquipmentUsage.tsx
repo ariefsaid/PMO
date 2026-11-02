@@ -306,13 +306,8 @@ const EquipmentUsagePage: React.FC = () => {
         <>
           {usageQ.data.truncated && <p role="status" className="mb-2 text-sm text-muted-foreground">
             {t('equipment:usage.truncated', 'Showing the first {{count}} entries. Pick one machine to see the rest.', { count: LIST_LIMIT })}</p>}
-          <DataTable<GridRow> embedded rows={gridRows} columns={columns} rowKey={(r) => r.key} tableId="equipment-usage-grid"
-            accessibleName={t('equipment:usage.gridLabel', 'Equipment usage this week')}
-            state={gridRows.length === 0 ? 'empty' : undefined}
-            emptyTitle={t('equipment:usage.empty', 'No equipment logged this week')}
-            emptySub={t('equipment:usage.emptySub', 'Add a row for a machine and a project, then type the hours for each day.')} />
           <CanWrite entity="equipmentUsage" action="create" ctx={writeCtx}>
-            <div className="mt-3">
+            <div className="mb-3">
               {!adding
                 ? <Button variant="outline" onClick={() => setAdding(true)}><Icon name="plus" />{t('equipment:usage.addRow', 'Add row')}</Button>
                 : <div className="flex flex-wrap items-end gap-2 rounded-card border border-border p-3">
@@ -329,6 +324,11 @@ const EquipmentUsagePage: React.FC = () => {
                 </div>}
             </div>
           </CanWrite>
+          <DataTable<GridRow> embedded rows={gridRows} columns={columns} rowKey={(r) => r.key} tableId="equipment-usage-grid"
+            accessibleName={t('equipment:usage.gridLabel', 'Equipment usage this week')}
+            state={gridRows.length === 0 ? 'empty' : undefined}
+            emptyTitle={t('equipment:usage.empty', 'No equipment logged this week')}
+            emptySub={t('equipment:usage.emptySub', 'Add a row for a machine and a project, then type the hours for each day.')} />
         </>
       )}
       {!usageQ.isPending && !usageQ.isError && usageQ.data && tab === 'approvals' && canApproveTab && (
