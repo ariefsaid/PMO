@@ -710,3 +710,47 @@ describe('can() — ERPNext document links (FR-PFE-020/031; link_erp_purchase_do
     expect(allowedRoles('delete', 'erpPurchaseLink')).toEqual(['Admin', 'Finance']);
   });
 });
+
+describe('can() — equipment usage and costing (#1519; transition_equipment_usage / save_equipment_costing are the authority)', () => {
+  it('AC-EQU-017 the author never transitions their own entry, even as Admin', () => {
+    for (const realRole of ALL_ROLES) {
+      expect(can('transition', 'equipmentUsage', {
+        realRole, currentUserId: 'u1', record: { author_id: 'u1', project_manager_id: 'u2' },
+      })).toBe(false);
+    }
+  });
+
+  it('AC-EQU-017 a Project Manager transitions only on a project they manage; other approvers do not need one', () => {
+    const ctx = (pm: string) => ({ currentUserId: 'u1', record: { author_id: 'u2', project_manager_id: pm } });
+    expect(can('transition', 'equipmentUsage', { realRole: 'Project Manager', ...ctx('u1') })).toBe(true);
+    expect(can('transition', 'equipmentUsage', { realRole: 'Project Manager', ...ctx('u9') })).toBe(false);
+    expect(can('transition', 'equipmentUsage', { realRole: 'Project Manager', ...ctx(null as unknown as string) })).toBe(false);
+    for (const realRole of ['Admin', 'Executive', 'Finance'] as const) {
+      expect(can('transition', 'equipmentUsage', { realRole, ...ctx('u9') })).toBe(true);
+    }
+  });
+
+  it('AC-EQU-017 an Engineer cannot approve, and reads no other member\'s usage or any amount', () => {
+    expect(can('transition', 'equipmentUsage', { realRole: 'Engineer', currentUserId: 'u1', record: { author_id: 'u2' } })).toBe(false);
+    expect(allowedRoles('view', 'equipmentUsage')).toEqual(['Admin', 'Executive', 'Project Manager', 'Finance']);
+    expect(allowedRoles('view', 'equipmentCosting')).toEqual(['Admin', 'Executive', 'Project Manager', 'Finance']);
+  });
+
+  it('AC-EQU-017 everyone logs usage; only Admin and PM keep the asset reference', () => {
+    expect(allowedRoles('create', 'equipmentUsage')).toEqual(ALL_ROLES);
+    expect(allowedRoles('view', 'equipmentAsset')).toEqual(ALL_ROLES);
+    expect(allowedRoles('create', 'equipmentAsset')).toEqual(['Admin', 'Project Manager']);
+    expect(allowedRoles('edit', 'equipmentAsset')).toEqual(['Admin', 'Project Manager']);
+    expect(allowedRoles('delete', 'equipmentAsset')).toEqual(['Admin']);
+  });
+
+  it('AC-EQU-017 only Admin and Finance set what an hour is worth — never a PM or an Executive', () => {
+    expect(allowedRoles('manage', 'equipmentCosting')).toEqual(['Admin', 'Finance']);
+    expect(can('manage', 'equipmentCosting', { realRole: 'Project Manager' })).toBe(false);
+    expect(can('manage', 'equipmentCosting', { realRole: 'Executive' })).toBe(false);
+    for (const entity of ['equipmentAsset', 'equipmentUsage', 'equipmentCosting'] as const) {
+      expect(can('view', entity, { realRole: null })).toBe(false);
+      expect(can('manage', entity, { realRole: null })).toBe(false);
+    }
+  });
+});
