@@ -139,7 +139,7 @@ export const ReadyToPayTable: React.FC<ReadyToPayTableProps> = ({
       columns={columns}
       rowKey={(r) => r.id}
       onActivate={(r) => navigate(`/procurement/${r.id}`)}
-      rowLabel={(r) => t('dashboard:finance.openRequest', 'Open procurement record: {{request}}', { request: r.title })}
+      rowLabel={(r) => t('dashboard:finance.openRequest', 'Open procurement case: {{request}}', { request: r.title })}
       state={tableState}
       emptyTitle={t('dashboard:finance.nothingAwaitingPayment', 'Nothing awaiting payment')}
       emptySub={t('dashboard:finance.allInvoicesPaid', 'All supplier invoices have been paid or none are awaiting action.')}
@@ -542,7 +542,7 @@ export const FinanceDashboard: React.FC = () => {
             ) : (
               <StatusBarChart data={procByStatus} toneFor={procurementStatusTone}
                 label={t('dashboard.chart.procStatus.chartLabel', 'Procurement by status')}
-                noun={t('dashboard.chart.procStatus.noun', 'procurement records')}
+                noun={t('dashboard.chart.procStatus.noun', 'procurement cases')}
                 labelFor={procurementStatusLabel} />
             )}
           </div>

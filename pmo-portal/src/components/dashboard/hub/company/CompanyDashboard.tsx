@@ -321,7 +321,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
       'billed-margin': t('dashboard:hub.company.help.margin', 'Known margin is billed-work revenue less recorded spending. It is not cash received. The margin amount is available, while the percentage is unavailable until billed revenue is available company-wide.'),
       pipeline: t('dashboard:hub.company.help.pipeline', 'Weighted pipeline is project value multiplied by stage win probability across open opportunities. The forecast margin is shown when the source can compute it.'),
       'client-overdue': t('dashboard:hub.company.help.clientOverdue', 'Count of submitted or unpaid client invoices whose recorded due date has passed. Amounts include only known balances.'),
-      'supplier-payables': t('dashboard:hub.company.help.supplierPayables', 'Sum of procurement records in the supplier-invoiced state awaiting payment.'),
+      'supplier-payables': t('dashboard:hub.company.help.supplierPayables', 'Sum of procurement cases in the supplier-invoiced state awaiting payment.'),
       'still-to-invoice': t('dashboard:hub.company.help.unbilled', 'Remaining amount and count from open work orders that are not fully invoiced.'),
       invoiced: t('dashboard:hub.company.help.invoiced', 'Sum of invoices issued within the selected period, excluding tax. Source: management pack by currency.'),
       collected: t('dashboard:hub.company.help.collected', 'Sum of recorded incoming payments received within the selected period. Source: incoming payment records.'),

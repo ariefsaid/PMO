@@ -726,7 +726,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
         cell: (row) => {
           const owner = row.requested_by?.full_name ?? t('projectDetail.procurement.unassigned', 'Unassigned');
           return (
-            <Tooltip content={t('projectDetail.procurement.ownerTooltip', 'Requested by {{name}}. Source: procurement record.', { name: owner })}>
+            <Tooltip content={t('projectDetail.procurement.ownerTooltip', 'Requested by {{name}}. Source: procurement case.', { name: owner })}>
               <span tabIndex={0} className="inline-flex max-w-full items-center gap-2 rounded-sm text-[12px] text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
                 <span aria-hidden="true" className="grid size-6 shrink-0 place-items-center rounded-full bg-secondary text-[11px] font-bold text-foreground">{initials(owner)}</span>
                 <span className="truncate">{owner}</span>
@@ -850,8 +850,8 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
               ? pendingProcurementApprovals(stageRows, currentUser?.id, role === 'Admin').length
               : 0;
             const countTooltip = projectId
-              ? t('projectDetail.procurement.stageCountTooltip', 'Count of procurements currently in {{stage}}. Source: project procurement records.', { stage: stageLabel })
-              : t('procurement.stageCountTooltip', 'Count of procurements currently in {{stage}}. Source: company procurement records.', { stage: stageLabel });
+              ? t('projectDetail.procurement.stageCountTooltip', 'Count of procurements currently in {{stage}}. Source: project procurement cases.', { stage: stageLabel })
+              : t('procurement.stageCountTooltip', 'Count of procurements currently in {{stage}}. Source: company procurement cases.', { stage: stageLabel });
             const source = canSeeMoney ? `${countTooltip} ${moneyTooltip}` : countTooltip;
             return (
               <Tooltip key={key} content={source} block>
