@@ -8,21 +8,19 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
  */
 const h = vi.hoisted(() => {
   const result = { value: { data: null as unknown, error: null as unknown } };
-  let current = '';
   const calls = {
     from: [] as string[], rpc: [] as Array<[string, unknown]>, insert: [] as unknown[], update: [] as unknown[],
     select: [] as unknown[], eq: [] as unknown[], gte: [] as unknown[], lte: [] as unknown[], is: [] as unknown[],
-    in: [] as unknown[], order: [] as unknown[], limit: [] as unknown[], single: 0, maybeSingle: 0,
+    order: [] as unknown[], limit: [] as unknown[], single: 0,
   };
   const builder: Record<string, unknown> = {};
   const chain = (name: keyof typeof calls) => (...a: unknown[]) => { (calls[name] as unknown[]).push(a.length === 1 ? a[0] : a); return builder; };
-  for (const k of ['select', 'eq', 'gte', 'lte', 'is', 'in', 'order', 'limit', 'insert', 'update'] as const) builder[k] = chain(k);
+  for (const k of ['select', 'eq', 'gte', 'lte', 'is', 'order', 'limit', 'insert', 'update'] as const) builder[k] = chain(k);
   builder.single = () => { calls.single++; return builder; };
-  builder.maybeSingle = () => { calls.maybeSingle++; return builder; };
   builder.then = (resolve: (v: unknown) => unknown) => resolve(result.value);
-  const from = vi.fn((t: string) => { calls.from.push(t); current = t; return builder; });
+  const from = vi.fn((t: string) => { calls.from.push(t); return builder; });
   const rpc = vi.fn((n: string, a?: unknown) => { calls.rpc.push([n, a]); return Promise.resolve(result.value); });
-  return { from, rpc, calls, result, current: () => current };
+  return { from, rpc, calls, result };
 });
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: h.from, rpc: h.rpc } }));
 

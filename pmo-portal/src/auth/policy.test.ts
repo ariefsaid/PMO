@@ -721,10 +721,10 @@ describe('can() — equipment usage and costing (#1519; transition_equipment_usa
   });
 
   it('AC-EQU-017 a Project Manager transitions only on a project they manage; other approvers do not need one', () => {
-    const ctx = (pm: string) => ({ currentUserId: 'u1', record: { author_id: 'u2', project_manager_id: pm } });
+    const ctx = (project_manager_id: string | null) => ({ currentUserId: 'u1', record: { author_id: 'u2', project_manager_id } });
     expect(can('transition', 'equipmentUsage', { realRole: 'Project Manager', ...ctx('u1') })).toBe(true);
     expect(can('transition', 'equipmentUsage', { realRole: 'Project Manager', ...ctx('u9') })).toBe(false);
-    expect(can('transition', 'equipmentUsage', { realRole: 'Project Manager', ...ctx(null as unknown as string) })).toBe(false);
+    expect(can('transition', 'equipmentUsage', { realRole: 'Project Manager', ...ctx(null) })).toBe(false);
     for (const realRole of ['Admin', 'Executive', 'Finance'] as const) {
       expect(can('transition', 'equipmentUsage', { realRole, ...ctx('u9') })).toBe(true);
     }
