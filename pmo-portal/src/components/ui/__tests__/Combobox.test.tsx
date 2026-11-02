@@ -356,6 +356,35 @@ describe('short-name project picker disclosure (AC-002 #1325)', () => {
 });
 
 describe('Combobox: dynamic popover positioning (CMP-017)', () => {
+  it('flips above a trigger near the bottom of the viewport', async () => {
+    const viewportHeight = vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(600);
+    const popoverHeight = vi
+      .spyOn(HTMLElement.prototype, 'offsetHeight', 'get')
+      .mockImplementation(function (this: HTMLElement) {
+        return this.style.position === 'fixed' ? 260 : 0;
+      });
+    const rect = { top: 540, bottom: 572, left: 50, right: 250, width: 200, height: 32 } as DOMRect;
+
+    try {
+      render(
+        <Combobox label="Company" value={null} onChange={() => {}} loadOptions={loadOk} />
+      );
+      const trigger = screen.getByRole('combobox');
+      vi.spyOn(trigger, 'getBoundingClientRect').mockReturnValue(rect);
+
+      await userEvent.click(trigger);
+      const listbox = await screen.findByRole('listbox');
+      const popover = listbox.closest('div[style*="position: fixed"]') as HTMLElement;
+
+      await waitFor(() => {
+        expect(popover.style.top).toBe('275px');
+      });
+    } finally {
+      popoverHeight.mockRestore();
+      viewportHeight.mockRestore();
+    }
+  });
+
   it('updates popover position on scroll and fits within viewport', async () => {
     let rect = { top: 100, bottom: 132, left: 50, right: 250, width: 200, height: 32 } as DOMRect;
     render(

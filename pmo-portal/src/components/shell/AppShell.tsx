@@ -232,13 +232,6 @@ export const AppShell: React.FC<AppShellProps> = ({
           : '"rail header" "rail main"',
       }}
     >
-      <a
-        href="#main"
-        className="sr-only z-[1000] rounded-md bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground focus:not-sr-only focus:absolute focus:left-3 focus:top-3"
-      >
-        {t('shell.skipLink.mainContent', 'Skip to main content')}
-      </a>
-
       {/* Persistent grid-area rail. Hidden ≤920px by the SAME index.css media
           query that zeroes --rail-w (single source of truth) via .rail-persistent.
           The hide lives HERE, on the grid-area wrapper — never on the Rail
@@ -261,6 +254,13 @@ export const AppShell: React.FC<AppShellProps> = ({
         style={{ gridArea: 'header' }}
         inert={railOpen || undefined}
       >
+        <a
+          href="#main"
+          data-shell-skip-link
+          className="sr-only z-[1000] rounded-md bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground focus:not-sr-only focus:absolute focus:left-3 focus:top-3"
+        >
+          {t('shell.skipLink.mainContent', 'Skip to main content')}
+        </a>
         {header}
       </div>
 

@@ -319,6 +319,7 @@ describe('AC-IXD-MOBILE-W4-C3 C3-7: background content is inert while drawer is 
     expect(headerWrapper).toHaveAttribute('inert');
     const assistantEl = screen.getByTestId('test-assistant');
     expect(assistantEl.parentElement).toHaveAttribute('inert');
+    expect(screen.getByText('Skip to main content').closest('.shell-header')).toBe(headerWrapper);
   });
 
   it('background is NOT inert when drawer is closed', () => {
