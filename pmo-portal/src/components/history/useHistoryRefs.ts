@@ -13,7 +13,7 @@ import { useBudgetVersions } from '@/src/hooks/useBudget';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import type { NameSource, RefSource } from './historyFields';
-import type { HistoryNameKind } from '@/src/lib/repositories/recordHistory';
+import type { HistoryNameKind } from '@/src/lib/repositories/types';
 
 /** id → display name, per source list. A miss renders "Unavailable" (never a raw uuid). */
 export type RefMaps = Record<RefSource | NameSource, Map<string, string>>;

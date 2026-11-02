@@ -1,6 +1,6 @@
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
-import type { HistoryCursor, HistoryPage } from '@/src/lib/repositories/recordHistory';
+import type { HistoryCursor, HistoryPage } from '@/src/lib/repositories/types';
 import { useAuth } from '@/src/auth/useAuth';
 
 export interface UseRecordHistoryArgs {
