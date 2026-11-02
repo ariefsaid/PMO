@@ -38,11 +38,11 @@ Reference material. Answer only for what the asking user's role can do; if an ac
 
 **Superseded** — terminal, read-only status for a revision replaced by an Approved successor. Only its immediate Issued or Approved predecessor transitions.
 
-**Committed spend** — the sum of all procurement records (Purchase Orders, etc.) in statuses Ordered, Received, Vendor Invoiced, or Paid for a project — the single live spend number on the project header ("Committed"), the Finance dashboard, and the Delivery summary.
+**Committed spend** — a project's open purchase commitment: purchases in Ordered, Received, Vendor Invoiced, or Paid, counted in their own currencies. When your organisation reads its ledger, a purchase counts its total minus what the ledger already holds; otherwise its full amount counts.
 
-**Actual / Realized spend** — the same number as Committed spend, shown under the label "Actual" on the project stat strip and the Finance "Budget vs Actual" card. No separate actuals ledger exists today; committed purchase orders are the realized-cost proxy.
+**Recorded spending** ("Actual") — the one cost figure every money screen shows: ledger cost when your organisation reads its ledger, otherwise Committed spend as the proxy. Never a second total.
 
-**Procurement case** — one procure-to-pay effort modeled as a folder that carries a title, project, requester, type, and lifecycle status. It is the folder the records hang under, not a single document.
+**Procurement case** — one procure-to-pay effort modeled as a folder that carries a title, an optional project, a requester, a type, and a lifecycle status. The app also calls it a purchase; it is the folder the records hang under, not a single document.
 
 **Procurement record** — a real document under a case: Purchase Request, RFQ, Quotation, Purchase Order, Goods Receipt, Vendor Invoice, or Payment. A case may hold many of each.
 
@@ -52,7 +52,7 @@ Reference material. Answer only for what the asking user's role can do; if an ac
 
 **External reference number** — optional, free-form outside identifier for lookup from either side.
 
-**Active contract value** — the sum of signed contract values across projects currently in delivery. Smaller than "revenue on hand" because revenue also accrues on completed work.
+**Contract on hand** — the signed contract value of ongoing projects, shown per currency and never blended. It is not earned revenue: revenue comes from work performed and billed.
 
 **Delivery** — the post-win, pre-handover execution of a project. Finite: it ends at handover or commissioning.
 

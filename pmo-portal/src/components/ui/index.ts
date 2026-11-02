@@ -18,7 +18,6 @@ export {
   MenuButton,
   Toolbar,
   SearchMini,
-  TableFoot,
   type Column,
   type ColumnKind,
   type ColAlign,
@@ -36,7 +35,6 @@ export {
   ConfirmDialog,
   type ConfirmDialogProps,
   type ConfirmTone,
-  type ConfirmSurface,
 } from './ConfirmDialog';
 export { DecisionContextSummary, type DecisionContextSummaryProps } from './DecisionContextSummary';
 export { Drawer, type DrawerProps } from './Drawer';
@@ -85,7 +83,6 @@ export {
   NumberField,
   TextArea,
   SelectField,
-  FormRow,
   FormGrid,
   FormSection,
   FormActions,

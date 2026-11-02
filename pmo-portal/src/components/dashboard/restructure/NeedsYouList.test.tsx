@@ -6,7 +6,7 @@ import type { NeedsItem } from './useNeedsYou';
 
 const items: NeedsItem[] = [
   { id: 'approvals', count: 2, label: 'approvals waiting for you', href: '/approvals', tone: 'warn' },
-  { id: 'overdue', count: 1, label: 'client invoice overdue', amount: 'USD 1,250', href: '/sales-invoices?overdue=true', tone: 'lost' },
+  { id: 'overdue', count: 1, label: 'client invoice overdue', amount: 'USD 1,250', href: '/finance/receivables?overdue=true', tone: 'lost' },
 ];
 
 const renderList = (props: Partial<React.ComponentProps<typeof NeedsYouList>> = {}) =>
@@ -19,7 +19,7 @@ describe('NeedsYouList', () => {
     const approvals = screen.getByTestId('needs-row-approvals');
     const overdue = screen.getByTestId('needs-row-overdue');
     expect(approvals).toHaveAttribute('href', '/approvals');
-    expect(overdue).toHaveAttribute('href', '/sales-invoices?overdue=true');
+    expect(overdue).toHaveAttribute('href', '/finance/receivables?overdue=true');
     expect(approvals).toHaveTextContent('2');
     expect(approvals).toHaveTextContent('approvals waiting for you');
     expect(approvals).not.toHaveTextContent(/2 approvals waiting/);

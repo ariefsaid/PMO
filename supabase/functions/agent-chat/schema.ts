@@ -214,6 +214,63 @@ export const WHATS_OVERDUE_SCHEMA = {
   properties: {},
 };
 
+/**
+ * QUERY_STOCK_SCHEMA (#1721) — JSON Schema for the query_stock tool input.
+ * One read tool for the two stock surfaces the generic query_entity path cannot serve (0413 leaves
+ * stock_balances/stock_ledger without a client SELECT grant): on-hand balances and the movement
+ * ledger. `item`/`warehouse` accept a name fragment (resolved server-side under the caller's RLS)
+ * or a raw id — the demo question names both.
+ */
+export const QUERY_STOCK_SCHEMA = {
+  type: 'object' as const,
+  required: ['topic'] as string[],
+  additionalProperties: false,
+  properties: {
+    topic: {
+      type: 'string' as const,
+      enum: ['on_hand', 'movements'] as string[],
+      description:
+        '"on_hand" = current stock on hand per item × warehouse (the "what is in stock?" question). "movements" = the stock ledger: what moved in/out, when, and the running quantity after.',
+    },
+    item: {
+      type: 'string' as const,
+      maxLength: 200,
+      description: 'Stock item: its name (a fragment like "solar panel" works) or its id. Omit for all items.',
+    },
+    warehouse: {
+      type: 'string' as const,
+      maxLength: 200,
+      description: 'Warehouse/store: its name (a fragment like "central" works) or its id. Omit for all warehouses.',
+    },
+    includeZero: {
+      type: 'boolean' as const,
+      description: 'topic "on_hand" only: include rows with zero on hand (default false).',
+    },
+    projectId: {
+      type: 'string' as const,
+      description: 'topic "movements" only: a project id to scope the movements to.',
+    },
+    documentId: {
+      type: 'string' as const,
+      description: 'topic "movements" only: a stock document id to scope the movements to.',
+    },
+    from: {
+      type: 'string' as const,
+      description: 'topic "movements" only: YYYY-MM-DD lower bound on the movement date.',
+    },
+    to: {
+      type: 'string' as const,
+      description: 'topic "movements" only: YYYY-MM-DD upper bound on the movement date.',
+    },
+    limit: {
+      type: 'integer' as const,
+      minimum: 1,
+      maximum: 200,
+      description: 'topic "movements" only: maximum movements to return (1–200, default 100).',
+    },
+  },
+};
+
 /** remind_overdue (#1639) — the model's REQUEST; the server resolves recipients from the caller's overdue tasks. */
 export const REMIND_OVERDUE_SCHEMA = {
   type: 'object' as const,

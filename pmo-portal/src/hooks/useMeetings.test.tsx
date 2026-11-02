@@ -11,6 +11,7 @@ const { repoMock } = vi.hoisted(() => ({
       create: vi.fn(),
       update: vi.fn(),
       archive: vi.fn(),
+      restore: vi.fn(),
       delete: vi.fn(),
       listAttendees: vi.fn(),
       addAttendee: vi.fn(),
@@ -55,6 +56,30 @@ describe('useMeetings', () => {
     );
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(repoMock.meeting.list).toHaveBeenCalledWith({ projectId: 'p1', search: 'pipeline' });
+  });
+
+  it('requests the full set, including archived rows, through a distinct repository query', async () => {
+    repoMock.meeting.list.mockResolvedValue([]);
+    const { result } = renderHook(() => useMeetings({ includeArchived: true }), { wrapper });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(repoMock.meeting.list).toHaveBeenCalledWith({ includeArchived: true });
+  });
+});
+
+describe('useMeetingMutations.restore', () => {
+  it('restores through the repository and invalidates meeting queries', async () => {
+    repoMock.meeting.restore.mockResolvedValue(undefined);
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(['meetings', 'org-1', 'all', '', 'archived'], ['stale']);
+    const localWrapper = ({ children }: { children: React.ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+    const { result } = renderHook(() => useMeetingMutations(), { wrapper: localWrapper });
+
+    await result.current.restore.mutateAsync('m1');
+
+    expect(repoMock.meeting.restore).toHaveBeenCalledWith('m1');
+    expect(client.getQueryState(['meetings', 'org-1', 'all', '', 'archived'])?.isInvalidated).toBe(true);
   });
 });
 

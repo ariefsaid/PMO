@@ -45,7 +45,7 @@
     "vendor": "Pemasok",
     "selectVendor": "Opsional: pilih pemasok…",
     "budgetCategory": "Kategori anggaran",
-    "denied": "Anda tidak memiliki izin untuk membuat catatan pengadaan.",
+    "denied": "Anda tidak memiliki izin untuk membuat kasus pengadaan.",
     "unsaved": {
       "title": "Pengadaan belum disimpan",
       "description": "Pengadaan ini belum disimpan. Tinggalkan halaman dan buang?",
@@ -210,8 +210,8 @@
         "accessibleName": "Pengadaan proyek"
       },
       "noSupplier": "Tidak ada pemasok",
-      "ownerTooltip": "Diminta oleh {{name}}. Sumber: catatan pengadaan.",
-      "stageCountTooltip": "Jumlah pengadaan yang saat ini berada di tahap {{stage}}. Sumber: catatan pengadaan proyek.",
+      "ownerTooltip": "Diminta oleh {{name}}. Sumber: kasus pengadaan.",
+      "stageCountTooltip": "Jumlah pengadaan yang saat ini berada di tahap {{stage}}. Sumber: kasus pengadaan proyek.",
       "forYou": "{{count}} untuk Anda",
       "selection": {
         "selectRow": "Pilih {{name}}",
@@ -302,7 +302,7 @@
     "ageShort": "Umur",
     "ageInStageDays": "{{count}} hari",
     "raisedBy": "Dibuat oleh",
-    "stageCountTooltip": "Jumlah pengadaan yang saat ini berada di tahap {{stage}}. Sumber: catatan pengadaan perusahaan.",
+    "stageCountTooltip": "Jumlah pengadaan yang saat ini berada di tahap {{stage}}. Sumber: kasus pengadaan perusahaan.",
     "table": {
       "accessibleName": "Pengadaan"
     },
@@ -377,7 +377,7 @@
       "vendorInvoiced": "Untuk merilis pembayaran, penyetuju tidak boleh sekaligus menjadi pembayar (pemisahan tugas). Anda dapat menandai pengadaan ini sebagai lunas di bawah.",
       "default": "Siap melanjutkan. Pilih tindakan di bawah untuk memindahkan pengadaan ini ke tahap berikutnya."
     },
-    "sodPreannounce": "Mengirim ini ke peninjau lain. Anda tidak dapat menyetujui catatan pengadaan Anda sendiri."
+    "sodPreannounce": "Mengirim ini ke peninjau lain. Anda tidak dapat menyetujui kasus pengadaan Anda sendiri."
   },
   "subcontract": {
     "form": {

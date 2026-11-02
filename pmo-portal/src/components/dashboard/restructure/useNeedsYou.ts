@@ -123,7 +123,7 @@ export function buildNeedsItems(role: Role | null, facts: NeedsYouFacts, t: Tran
       const unknown = overdue.unknownBalances > 0
         ? ` · ${t('needs.unknownBalanceDays', '{{count}} balance unknown; {{days}} days overdue', { count: overdue.unknownBalances, days: overdue.oldestDays ?? '—' })}`
         : '';
-      add({ id: 'overdue-invoices', count: overdue.count, label: base + unknown, amount: amountsText(overdue.knownTotals, t), href: '/sales-invoices?overdue=true', tone: 'lost' });
+      add({ id: 'overdue-invoices', count: overdue.count, label: base + unknown, amount: amountsText(overdue.knownTotals, t), href: '/finance/receivables?overdue=true', tone: 'lost' });
     }
     if (facts.supplierInvoices) add({
       id: 'supplier-invoices', count: facts.supplierInvoices.count,

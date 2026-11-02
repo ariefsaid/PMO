@@ -15,10 +15,11 @@ interface RouteRpcRow {
 const num = (v: number | string | null): number | null => (v == null ? null : Number(v));
 
 /**
- * #803 FR-APR-021 — one RPC for every listed request. org_id is NEVER sent: the RPC is SECURITY INVOKER
- * and procurements RLS is the org boundary.
+ * #803 FR-APR-021 — one RPC for every listed request (internal step of `attachApprovalRoutes`,
+ * OE17R02-002: not a supported public entry point). org_id is NEVER sent: the RPC is SECURITY
+ * INVOKER and procurements RLS is the org boundary.
  */
-export async function getProcurementApprovalRoutes(ids: string[]): Promise<ApprovalRoute[]> {
+async function getProcurementApprovalRoutes(ids: string[]): Promise<ApprovalRoute[]> {
   if (ids.length === 0) return [];
   const { data, error } = (await supabase.rpc('get_procurement_approval_routes', { p_ids: ids })) as unknown as {
     data: RouteRpcRow[] | null;

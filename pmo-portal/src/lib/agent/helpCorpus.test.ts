@@ -39,3 +39,21 @@ it('NFR-DH-SEC-003 help corpus contains no internal-only citations or data-row s
   expect(HELP_CORPUS).not.toMatch(/ADR-\d|OD-[A-Z]|NFR-|FR-DH|AC-DH|STRIDE|OWASP|\bRLS\b|\borg_id\b/);
   expect(HELP_CORPUS).not.toMatch(/\{"id":/);
 });
+
+it('T-36 (#1568): money language states the shipped committed/actual basis, never the retired definitions', () => {
+  // Committed spend is per-currency open commitment; a ledger-reading org nets out held amounts (XD1-001/XD2-001).
+  expect(HELP_CORPUS).toMatch(/open purchase commitment/);
+  expect(HELP_CORPUS).toMatch(/own currencies/);
+  expect(HELP_CORPUS).toMatch(/minus what the ledger already holds/);
+  // Actual follows the one-figure rule: ledger cost when read, else the proxy — never "the same number".
+  expect(HELP_CORPUS).toMatch(/Recorded spending/);
+  expect(HELP_CORPUS).not.toMatch(/the same number as Committed spend/);
+  expect(HELP_CORPUS).not.toMatch(/No separate actuals ledger exists today/);
+  // Contract on hand is unearned contract value, per currency — no "revenue on hand" tile claim (XD1-002/XD1-009).
+  expect(HELP_CORPUS).toMatch(/Contract on hand/);
+  expect(HELP_CORPUS).toMatch(/not earned revenue/);
+  expect(HELP_CORPUS).not.toMatch(/revenue on hand/);
+  // The case is optionally project-linked and the purchase alias is recorded (XD2-002/XD2-003).
+  expect(HELP_CORPUS).toMatch(/an optional project/);
+  expect(HELP_CORPUS).toMatch(/calls it a purchase/);
+});

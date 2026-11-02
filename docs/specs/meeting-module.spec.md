@@ -342,6 +342,7 @@ and do not design around the restriction as this spec's first draft did.
   when no project filter is applied, and shall exclude templates and archived meetings by default.
 - **FR-MTG-035** — *Ubiquitous.* The list shall be bounded by an explicit row cap and explicit
   ordering rather than a required filter — the same correction `DD-TASK-3` applied to tasks.
+- **FR-MTG-041** — *When* a user opts to show archived meetings, the list shall include all otherwise-visible active and archived meetings. Archived meetings shall carry an `Archived` label and may be restored by their author or an Admin; restore shall clear `archived_at` while retaining the meeting's other content. The default list shall continue to hide archived meetings (ADR-0018).
 
 ---
 
@@ -428,6 +429,7 @@ and do not design around the restriction as this spec's first draft did.
   ordered newest-first and templates and archived meetings are absent.
 - **AC-MTG-028** — *Given* a project filter, *when* it is applied, *then* only that project's meetings
   show; *when* it is cleared, *then* project-less meetings are included.
+- **AC-MTG-303** — *Given* an author-created meeting with minutes and an external guest, *when* the author archives it, chooses Show archived, and restores it, *then* it appears in the default active list with its minutes and guest preserved.
 
 ---
 
@@ -449,6 +451,7 @@ and do not design around the restriction as this spec's first draft did.
 | AC-MTG-025 | Unit (Vitest/RTL) | render under a stub locale |
 | AC-MTG-026 | Unit (Vitest) | the paste handler |
 | AC-MTG-027/028 | **E2E (Playwright)** | one curated journey: open the list, filter, find a meeting by searching its notes |
+| AC-MTG-303 | **E2E (Playwright)** | self-isolated author journey: create, archive, show archived, restore, and reopen the meeting |
 
 One curated e2e journey covers `AC-MTG-027/028` and the `DD-MTG-5` find story end to end; everything
 else sits at the lowest sufficient layer (ADR-0010).

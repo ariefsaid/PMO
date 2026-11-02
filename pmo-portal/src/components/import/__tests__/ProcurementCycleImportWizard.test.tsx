@@ -140,6 +140,27 @@ describe('ProcurementCycleImportWizard', () => {
 
   // ── Upload step ──────────────────────────────────────────────────────────
 
+  it('CMP-009: acquires background inert on the app shell while open and releases on close', () => {
+    const shell = document.createElement('div');
+    shell.setAttribute('data-app-shell', 'root');
+    document.body.appendChild(shell);
+    try {
+      const { unmount } = render(
+        <ProcurementCycleImportWizard
+          requestedById="user-1"
+          projectLookup={projectLookup}
+          vendorLookup={vendorLookup}
+          onClose={vi.fn()}
+        />,
+      );
+      expect(shell).toHaveAttribute('inert');
+      unmount();
+      expect(shell).not.toHaveAttribute('inert');
+    } finally {
+      shell.remove();
+    }
+  });
+
   it('AC-IMP-CYCLE-U1: renders upload step as a dialog with xlsx file input and row-cap hint', () => {
     renderWizard();
     const dialog = screen.getByRole('dialog');

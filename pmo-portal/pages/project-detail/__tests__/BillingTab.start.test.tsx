@@ -86,10 +86,10 @@ describe('AC-S15-001 / M18 project billing start', () => {
     renderTab('Finance', 'client-synthetic', 'contract-tools');
 
     const contractInvoice = screen.getByRole('link', { name: 'Contract invoice' });
-    expect(contractInvoice).toHaveAttribute('href', '/sales-invoices?create=1&project=project-synthetic');
+    expect(contractInvoice).toHaveAttribute('href', '/finance/receivables?create=1&project=project-synthetic');
     await user.click(contractInvoice);
 
-    expect(screen.getByTestId('route')).toHaveTextContent('/sales-invoices?create=1&project=project-synthetic');
+    expect(screen.getByTestId('route')).toHaveTextContent('/finance/receivables?create=1&project=project-synthetic');
   });
 
   it.each([
@@ -110,7 +110,7 @@ describe('AC-S15-001 / M18 project billing start', () => {
 
     expect(screen.getByRole('link', { name: 'Contract invoice' })).toHaveAttribute(
       'href',
-      '/sales-invoices?create=1&project=project-synthetic',
+      '/finance/receivables?create=1&project=project-synthetic',
     );
   });
 
@@ -123,7 +123,7 @@ describe('AC-S15-001 / M18 project billing start', () => {
     expect(screen.getByRole('dialog', { name: 'Start invoice' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Contract invoice/ })).toHaveAttribute(
       'href',
-      '/sales-invoices?create=1&project=project-synthetic',
+      '/finance/receivables?create=1&project=project-synthetic',
     );
     expect(screen.getByRole('button', { name: /Customer work order/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Quantity or progress claim/ })).toBeInTheDocument();
@@ -146,7 +146,7 @@ describe('AC-S15-001 / M18 project billing start', () => {
     await user.click(screen.getByRole('button', { name: 'Raise invoice' }));
     await user.click(screen.getByRole('link', { name: /Contract invoice/ }));
 
-    expect(screen.getByTestId('route')).toHaveTextContent('/sales-invoices?create=1&project=project-synthetic');
+    expect(screen.getByTestId('route')).toHaveTextContent('/finance/receivables?create=1&project=project-synthetic');
     expect(screen.queryByRole('dialog', { name: 'Start invoice' })).not.toBeInTheDocument();
   });
 

@@ -22,7 +22,7 @@ test('AC-MTG-300: dirty minutes breadcrumb offers Stay and Leave without losing 
     .getByRole('link', { name: 'Meetings', exact: true });
   await meetingsCrumb.click();
 
-  const dialog = page.getByRole('dialog', { name: 'Unsaved minutes' });
+  const dialog = page.getByRole('dialog', { name: 'Unsaved meeting changes' });
   await expect(dialog).toBeVisible();
   await dialog.getByRole('button', { name: 'Stay', exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/meetings/${SEEDED_MEETING}$`));
@@ -30,8 +30,8 @@ test('AC-MTG-300: dirty minutes breadcrumb offers Stay and Leave without losing 
   await expect(page.getByTestId('minutes-save')).toBeEnabled();
 
   await meetingsCrumb.click();
-  await expect(page.getByRole('dialog', { name: 'Unsaved minutes' })).toBeVisible();
-  await page.getByRole('dialog', { name: 'Unsaved minutes' }).getByRole('button', { name: 'Leave', exact: true }).click();
+  await expect(page.getByRole('dialog', { name: 'Unsaved meeting changes' })).toBeVisible();
+  await page.getByRole('dialog', { name: 'Unsaved meeting changes' }).getByRole('button', { name: 'Leave', exact: true }).click();
   await expect(page).toHaveURL(/\/meetings$/);
   await expect(page.getByRole('heading', { name: /meetings/i }).first()).toBeVisible();
 });

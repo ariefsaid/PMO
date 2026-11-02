@@ -407,6 +407,10 @@ begin
   end if;
 end; $$;
 revoke all on function public.assert_work_order_invoiceable(uuid,uuid,uuid,text,numeric,text) from public,anon,authenticated;
+-- 0441 later added a view over work_order_billing + work_order_acceptances; it postdates this
+-- reversal's target state (pre-0337 has neither relation), so dropping it here is part of the
+-- reversal. "if exists" keeps this idempotent and a no-op when 0441 has already been reversed.
+drop view if exists public.work_order_uninvoiced_acceptance;
 drop view public.work_order_billing;
 create view public.work_order_billing with (security_invoker = true) as
   select wo.id as work_order_id, wo.org_id, wo.project_id, wo.status, wo.wo_number, wo.title, wo.closed_at, wo.currency,

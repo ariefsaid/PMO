@@ -38,8 +38,8 @@ export function useExport() {
     async <Row,>(rows: Row[], columns: Column<Row>[], entity: string) => {
       setBusy(true);
       try {
-        const { header, body } = buildExportRows(rows, columns);
-        const buf = await toWorkbookBuffer({ sheetName: entity, header, body });
+        const { header, body, types } = buildExportRows(rows, columns);
+        const buf = await toWorkbookBuffer({ sheetName: entity, header, body, types });
         triggerBlobDownload(new Blob([buf], { type: XLSX_MIME }), exportFilename(entity));
       } catch (err) {
         reportFailure(err);

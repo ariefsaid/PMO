@@ -29,7 +29,8 @@ describe('the BlockNote editor stays out of the initial bundle (FR-MTG-026)', ()
   it('AC-MTG-024 nothing imports the editor module family statically — the route reaches it via import()', () => {
     const offenders: string[] = [];
     for (const f of files) {
-      if (rel(f).startsWith('src/components/meetings/')) continue;
+      const modulePath = rel(f).replace(/\.(tsx?|css)$/, '');
+      if (EDITOR_FILES.includes(modulePath)) continue;
       const src = readFileSync(f, 'utf8');
       for (const m of src.matchAll(/^import\s+(?!type\b)[^;]*?from\s+['"]([^'"]+)['"]/gms)) {
         if (EDITOR_FILES.some((e) => m[1].replace('@/', '') === e || m[1].endsWith(e.split('/').pop()!))) {
@@ -40,8 +41,10 @@ describe('the BlockNote editor stays out of the initial bundle (FR-MTG-026)', ()
     expect(offenders).toEqual([]);
   });
 
-  it('AC-MTG-024 MeetingDetail loads the editor with React.lazy(() => import(…))', () => {
-    const src = readFileSync(join(root, 'pages/MeetingDetail.tsx'), 'utf8');
-    expect(src).toMatch(/React\.lazy\(\(\)\s*=>\s*import\('@\/src\/components\/meetings\/MinutesEditor'\)\)/);
+  it('AC-MTG-024 MeetingDetail reaches the editor through MeetingMinutes React.lazy import', () => {
+    const detail = readFileSync(join(root, 'pages/MeetingDetail.tsx'), 'utf8');
+    const minutes = readFileSync(join(root, 'src/components/meetings/MeetingMinutes.tsx'), 'utf8');
+    expect(detail).toMatch(/import MeetingMinutes[^;]*from ['"]@\/src\/components\/meetings\/MeetingMinutes['"]/);
+    expect(minutes).toMatch(/React\.lazy\(\(\)\s*=>\s*import\('@\/src\/components\/meetings\/MinutesEditor'\)\)/);
   });
 });

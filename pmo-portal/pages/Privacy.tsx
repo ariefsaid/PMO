@@ -14,7 +14,7 @@ import {
  * Bare public page for everyone — no AppShell. Template-grade; counsel refines.
  */
 const Privacy: React.FC = () => (
-  <LegalPageLayout eyebrow="Legal" title="Privacy Policy" variant="privacy">
+  <LegalPageLayout title="Privacy Policy" variant="privacy">
     <LegalSection title="Data We Collect">
       <p className="text-muted-foreground">
         {LEGAL_ENTITY_NAME} ({DOMAIN}) collects the data you enter to operate the service — account
