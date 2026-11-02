@@ -51,7 +51,7 @@ function erpTransport(grain: Array<Record<string, unknown>> = [], budget?: { acc
 /** A fake service client answering only what dispatch resolution reads. */
 function serviceClient(binding: unknown, categoryAccount = 'Salary', consentRow: Record<string, string> | null = null): DispatchServiceClient {
   return { from(table: string) { return { select() {
-    const filters: Record<string, string | boolean> = {};
+    const filters: Record<string, string | boolean | number> = {};
     const chain = {
       eq(column: string, value: string | boolean | number) { filters[column] = value; return chain; },
       is() { return chain; }, gte() { return chain; }, order() { return chain; }, limit() { return chain; }, gt() { return chain; },

@@ -1608,7 +1608,7 @@ Verify: `TC` (red without both declarations — that is AC-ECA-040 doing its job
 5. Engineer → 403 for both actions.
 Verify: `DENO adapter-dispatch budgetOccupant.served.test.ts` → red.
 
-### ECA6-T3 — migration `0483_budget_occupant_resolution.sql`
+### ECA6-T3 — migration `0495_budget_occupant_resolution.sql`
 ```sql
 create table public.budget_occupant_consents (
   id uuid primary key default gen_random_uuid(),

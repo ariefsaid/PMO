@@ -1,4 +1,4 @@
--- budget_occupant_resolution.test.sql — 0483 (ECA-6, #1603). Owns the database half of AC-ECA-031 (docs/specs/erp-connect-anytime.spec.md):
+-- budget_occupant_resolution.test.sql — 0495 (ECA-6, #1603). Owns the database half of AC-ECA-031 (docs/specs/erp-connect-anytime.spec.md):
 -- the recorded, single-use replace consent and the Draft built from an ERP budget.
 begin;
 create extension if not exists pgtap;

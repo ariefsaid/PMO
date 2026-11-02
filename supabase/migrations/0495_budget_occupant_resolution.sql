@@ -1,10 +1,10 @@
--- 0483_budget_occupant_resolution.sql — ECA-6 (#1603, PD-ECA-12): the two ways forward when the ERP already holds a
+-- 0495_budget_occupant_resolution.sql — ECA-6 (#1603, PD-ECA-12): the two ways forward when the ERP already holds a
 -- budget PMO did not create for a project, account and year.
 --   • "Replace the ERP budget" is a RECORDED, single-use consent naming the exact ERP document. adapter-dispatch reads it
 --     with the service role before it relaxes the ownership refusal; the request payload never asserts it.
 --   • "Use the ERP figures as a draft" creates a PMO Draft version holding the ERP figures. It runs as the caller (SECURITY
 --     INVOKER), so RLS and the budget authorship triggers apply, and it reuses the import protocol's line writer.
--- Rollback: supabase/migrations/rollback/0483_budget_occupant_resolution_down.sql
+-- Rollback: supabase/migrations/rollback/0495_budget_occupant_resolution_down.sql
 
 create table public.budget_occupant_consents (
   id uuid primary key default gen_random_uuid(),
