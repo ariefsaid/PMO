@@ -964,6 +964,10 @@
       "clientNumberSegment": {
         "label": "Segmen nomor klien",
         "placeholder": "mis. RIS"
+      },
+      "partialSave": {
+        "headline": "Perusahaan tersimpan, tetapi satu perubahan tidak bertahan",
+        "segmentDetail": "Segmen nomor klien tidak dapat disimpan. Periksa kembali dan simpan lagi."
       }
     },
     "search": {
@@ -1279,7 +1283,9 @@
     "form": {
       "company": {
         "label": "Perusahaan",
-        "placeholder": "Pilih perusahaan…"
+        "placeholder": "Pilih perusahaan…",
+        "loading": "Memuat perusahaan…",
+        "loadFailed": "Perusahaan tidak dapat dimuat."
       },
       "editSubmit": "Simpan kontak",
       "editSubtitle": "Perbarui data kontak ini",
@@ -1337,7 +1343,8 @@
       "created": "Kontak dibuat",
       "deleted": "Kontak dihapus",
       "updated": "Kontak diperbarui"
-    }
+    },
+    "companiesUnavailable": "Direktori perusahaan tidak dapat dimuat. Nama perusahaan, penyaringan, dan ekspor tidak tersedia."
   },
   "dashboard": {
     "winRate": {

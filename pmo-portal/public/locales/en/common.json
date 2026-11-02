@@ -964,6 +964,10 @@
       "clientNumberSegment": {
         "label": "Client number segment",
         "placeholder": "e.g. RIS"
+      },
+      "partialSave": {
+        "headline": "Company saved, but one change did not persist",
+        "segmentDetail": "The client-number segment could not be saved. Review it and save again."
       }
     },
     "search": {
@@ -1279,7 +1283,9 @@
     "form": {
       "company": {
         "label": "Company",
-        "placeholder": "Select a company…"
+        "placeholder": "Select a company…",
+        "loading": "Loading companies…",
+        "loadFailed": "Companies could not be loaded."
       },
       "editSubmit": "Save contact",
       "editSubtitle": "Update this contact record",
@@ -1337,7 +1343,8 @@
       "created": "Contact created",
       "deleted": "Contact deleted",
       "updated": "Contact updated"
-    }
+    },
+    "companiesUnavailable": "The company directory could not be loaded. Company names, filtering and export are unavailable."
   },
   "dashboard": {
     "winRate": {
