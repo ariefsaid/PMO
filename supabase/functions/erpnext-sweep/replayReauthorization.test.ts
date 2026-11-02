@@ -60,6 +60,8 @@ function fakeServiceClient(opts: {
   actorState?: { role: string | null; active: boolean } | null;
   payload?: Record<string, unknown>;
   inputDigest?: string | null;
+  /** What `pre_cutover_procurement` answers (ECA-4). */
+  preCutover?: boolean | null;
 }) {
   const rpcCalls: RpcCall[] = [];
   const client = {
@@ -89,6 +91,7 @@ function fakeServiceClient(opts: {
       if (fn === 'actor_authorization_state') {
         return { data: opts.actorState === undefined ? { role: 'Finance', active: true } : opts.actorState, error: null };
       }
+      if (fn === 'pre_cutover_procurement') return { data: opts.preCutover === undefined ? false : opts.preCutover, error: null };
       return { data: null, error: { message: `unexpected rpc ${fn}` } };
     },
   } as unknown as SupabaseClient;
@@ -207,4 +210,39 @@ Deno.test('B6: through the real pass, a refused candidate is reported and its ro
     result.errors[0].error.includes('not replayed'),
     `the operator must see WHY the row is held — got: ${result.errors[0].error}`,
   );
+});
+
+const PURCHASE = '00000000-0000-4000-8000-0000000000dd';
+const stepPayload = (kind: string) => ({ id: 'step-1', procurementId: PURCHASE, erp_doc_kind: kind });
+const stepRow = (state: OutboxRow['state']): OutboxRow => ({ ...outboxRow(state), domain: 'procurement' });
+
+for (const kind of ['goods-receipt', 'purchase-invoice', 'payment']) {
+  Deno.test(`AC-ECA-020: a PENDING ${kind} of a purchase ordered before the connection is never replayed to the ERP`, async () => {
+    const { client, rpcCalls } = fakeServiceClient({ actorUserId: ACTOR, payload: stepPayload(kind), preCutover: true });
+    const { error, envReads } = await buildAndCatch(client, stepRow('pending'));
+    assert((error as { code?: string })?.code === 'pre-cutover', `expected the pre-cutover refusal, got: ${error?.message}`);
+    assert(rpcCalls.some((c) => c.fn === 'pre_cutover_procurement' && c.args.p_procurement_id === PURCHASE), 'asks PMO, not the payload');
+    assert(envReads === 0, 'refused before credential resolution: no ERP call');
+  });
+}
+
+Deno.test('AC-ECA-020: a replay whose cut-over check cannot answer is held (fail closed)', async () => {
+  const { client } = fakeServiceClient({ actorUserId: ACTOR, payload: stepPayload('goods-receipt'), preCutover: null });
+  const { error, envReads } = await buildAndCatch(client, stepRow('failed'));
+  assert((error as { code?: string })?.code === 'commit-rejected', `expected a fail-closed refusal, got: ${error?.message}`);
+  assert(envReads === 0, 'no credential resolution');
+});
+
+Deno.test('AC-ECA-020: a replay of a purchase ordered after the connection proceeds past the check', async () => {
+  const { client } = fakeServiceClient({ actorUserId: ACTOR, payload: stepPayload('goods-receipt'), preCutover: false });
+  const { error, envReads } = await buildAndCatch(client, stepRow('pending'));
+  assert((error as { code?: string })?.code === 'config-rejected', `expected the flow to reach credential resolution, got: ${error?.message}`);
+  assert(envReads > 0, 'admitted');
+});
+
+Deno.test('AC-ECA-020: a COMMITTED step (the ERP document already exists) is finalized, not re-gated', async () => {
+  const { client, rpcCalls } = fakeServiceClient({ actorUserId: ACTOR, payload: stepPayload('goods-receipt'), preCutover: true });
+  const { error } = await buildAndCatch(client, stepRow('committed'));
+  assert((error as { code?: string })?.code === 'config-rejected', `a committed row must proceed to finalize, got: ${error?.message}`);
+  assert(!rpcCalls.some((c) => c.fn === 'pre_cutover_procurement'), 'no cut-over check for a finalize-only replay');
 });

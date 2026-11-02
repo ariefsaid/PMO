@@ -83,6 +83,8 @@ export type ProcurementDetail = Omit<
   /** The server payment ceiling, read only while the request awaits payment (Vendor Invoiced). */
   paymentCeiling?: ProcurementPaymentCeiling | null;
   paymentEligibility?: string | null;
+  /** ECA-4: this purchase was ordered before the ERP connection, so its later steps are recorded in PMO only. Set only for an org that employs procurement. */
+  pre_cutover?: boolean;
 };
 
 // ---------------------------------------------------------------------------
@@ -248,6 +250,20 @@ export async function transitionProcurement(
     p_notes: notes,
   })) as unknown as { data: null; error: RpcErrorLike | null };
   if (error) throwRpc(error);
+}
+
+/**
+ * ECA-4 (FR-ECA-030, PD-ECA-9): was this purchase started before the ERP connection? A payment names its bill: one the
+ * ERP holds is paid there. The server answers from PMO's own tables; `null` (a case the caller cannot see) reads as "no".
+ * The ERP write gate re-checks, so this only picks a route.
+ */
+export async function isPreCutoverProcurement(procurementId: string, invoiceId?: string): Promise<boolean> {
+  const { data, error } = (await supabase.rpc('pre_cutover_procurement', {
+    p_procurement_id: procurementId,
+    ...(invoiceId ? { p_invoice_id: invoiceId } : {}),
+  })) as unknown as { data: boolean | null; error: RpcErrorLike | null };
+  if (error) throwRpc(error);
+  return data === true;
 }
 
 /** DD-EFK-1: set PMO-owned supplier e-Faktur facts directly; no procurement/ERP command is created. */

@@ -153,3 +153,47 @@ describe('task FIX-1 — flipped ownership map routes createPurchaseOrder extern
     expect(result.current.pendingPush.status).toBe('push-failed');
   });
 });
+
+describe('FR-ECA-030 a payment on a purchase ordered before the ERP connection is recorded in PMO', () => {
+  beforeEach(() => setTaskOwnership([{ domain: 'procurement', externalTier: 'erpnext' }]));
+
+  function renderWithDetail(preCutover: boolean) {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    qc.setQueryData(['procurement', 'org1', 'proc1', 'u1', 'Finance'], { id: 'proc1', pre_cutover: preCutover });
+    const w = ({ children }: { children: React.ReactNode }) => React.createElement(QueryClientProvider, { client: qc }, children);
+    return renderHook(() => useProcurementRecordMutations('proc1'), { wrapper: w });
+  }
+  const payment = { invoiceId: 'vi-1', referenceNumber: null, status: 'Scheduled', date: '2026-07-13', amount: 100 };
+
+  it('shows no push state for the payment', async () => {
+    let resolveCreate!: (v: unknown) => void;
+    procurement.createPayment.mockReturnValue(new Promise((res) => (resolveCreate = res)));
+    const { result } = renderWithDetail(true);
+    let pending!: Promise<unknown>;
+    act(() => { pending = result.current.createPayment.mutateAsync(payment); });
+    await waitFor(() => expect(result.current.createPayment.isPending).toBe(true));
+    expect(result.current.pendingPush.status).toBe('idle');
+    await act(async () => { resolveCreate({ id: 'pay-1' }); await pending; });
+    expect(result.current.pendingPush.status).toBe('idle');
+  });
+
+  it('still shows the push state for a purchase order on the same case (that one is sent)', async () => {
+    let resolveCreate!: (v: unknown) => void;
+    procurement.createPurchaseOrder.mockReturnValue(new Promise((res) => (resolveCreate = res)));
+    const { result } = renderWithDetail(true);
+    let pending!: Promise<unknown>;
+    act(() => { pending = result.current.createPurchaseOrder.mutateAsync({ referenceNumber: 'PO-1', status: 'Draft', date: '2026-07-13', amount: 1 }); });
+    await waitFor(() => expect(result.current.pendingPush.status).toBe('pushing'));
+    await act(async () => { resolveCreate({ id: 'po-1' }); await pending; });
+  });
+
+  it('a purchase ordered after the connection shows the push state for its payment', async () => {
+    let resolveCreate!: (v: unknown) => void;
+    procurement.createPayment.mockReturnValue(new Promise((res) => (resolveCreate = res)));
+    const { result } = renderWithDetail(false);
+    let pending!: Promise<unknown>;
+    act(() => { pending = result.current.createPayment.mutateAsync(payment); });
+    await waitFor(() => expect(result.current.pendingPush.status).toBe('pushing'));
+    await act(async () => { resolveCreate({ id: 'pay-1' }); await pending; });
+  });
+});

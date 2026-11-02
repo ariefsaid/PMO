@@ -391,3 +391,34 @@ describe('task FIX-1 — flipped ownership map routes createReceipt externally +
     expect(result.current.pendingPush).toEqual({ status: 'idle', error: null });
   });
 });
+
+describe('FR-ECA-030 a pre-cut-over purchase is recorded in PMO, so no push state is shown for it', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    setTaskOwnership([{ domain: 'procurement', externalTier: 'erpnext' }]);
+  });
+  afterEach(() => clearOwnershipCache());
+
+  it('createReceipt on a purchase whose loaded detail says pre_cutover never leaves idle', async () => {
+    const dal = await import('@/src/lib/db/procurementLifecycle');
+    vi.mocked(dal.getProcurementDetail).mockResolvedValueOnce({ id: 'proc-1', status: 'Ordered', pre_cutover: true } as never);
+    let resolveCreate!: (v: unknown) => void;
+    procurement.createReceipt.mockReturnValue(new Promise((res) => (resolveCreate = res)));
+
+    const { Wrapper } = makeWrapper();
+    const { result } = renderHook(() => ({ detail: useProcurementDetail('proc-1'), m: useProcurementMutations('proc-1') }), { wrapper: Wrapper });
+    await waitFor(() => expect(result.current.detail.data?.pre_cutover).toBe(true));
+
+    let mutatePromise!: Promise<unknown>;
+    act(() => {
+      mutatePromise = result.current.m.createReceipt.mutateAsync({ status: 'Complete', receiptDate: '2026-07-13' });
+    });
+    await waitFor(() => expect(result.current.m.createReceipt.isPending).toBe(true));
+    expect(result.current.m.pendingPush.status).toBe('idle');
+    await act(async () => {
+      resolveCreate({ id: 'gr-1' });
+      await mutatePromise;
+    });
+    expect(result.current.m.pendingPush.status).toBe('idle');
+  });
+});

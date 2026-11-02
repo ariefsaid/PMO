@@ -7,13 +7,9 @@ import type { TierWorkflows } from '../connect/workflows.ts';
 
 // ECA slices that will build the missing behaviour (the ERP-connect-anytime map).
 const SEND_TO_EMPTY_ERP = 1606;
-const CUTOVER_PROCESS_DOMAINS = 1601;
 const INVOICE_PAIRING = 1602;
-// Documented exception (#1601): `cutover.timesheet` is shipped, but its only proof is Deno-side (the sweep's
-// timesheet backstop in `supabase/functions/erpnext-sweep`). The shared suites run in Vitest through a
-// tier harness over a mocked transport, and that code is not importable there (it boots `Deno.serve`). It stays
-// pending against the open cut-over issue that owns a shared Deno-side suite; the Deno test keeps running in the meantime.
-const DENO_SIDE_PROOF_ONLY = 1601;
+// Cut-over proofs that live outside Vitest (the SQL revenue guard, the Deno timesheet backstop): shared suite or permanent exception.
+const CUTOVER_PROOFS_OUTSIDE_VITEST = 1676;
 
 export const ERPNEXT_WORKFLOWS: TierWorkflows = {
   'census': { status: 'supported', version: 1 },
@@ -31,13 +27,14 @@ export const ERPNEXT_WORKFLOWS: TierWorkflows = {
   'bill.push': { status: 'supported', version: 1 },
   'vendor-payment.push': { status: 'supported', version: 1 },
   'purchase.link-existing': { status: 'supported', version: 1 },
-  'cutover.purchase': { status: 'pending', version: 1, issue: CUTOVER_PROCESS_DOMAINS },
-  'cutover.timesheet': { status: 'pending', version: 1, issue: DENO_SIDE_PROOF_ONLY },
+  'cutover.purchase': { status: 'supported', version: 1 },
+  'cutover.timesheet': { status: 'pending', version: 1, issue: CUTOVER_PROOFS_OUTSIDE_VITEST },
   'cutover.activation': { status: 'supported', version: 1 },
   'invoice.push': { status: 'supported', version: 1 },
   'receipt.read': { status: 'supported', version: 1 },
   'invoice.pair-existing': { status: 'pending', version: 1, issue: INVOICE_PAIRING },
-  'cutover.revenue': { status: 'pending', version: 1, issue: CUTOVER_PROCESS_DOMAINS },
+  // SQL guard, tier-agnostic, proven by pgTAP (0275 §7); the shared suite or a documented exception is #1676.
+  'cutover.revenue': { status: 'pending', version: 1, issue: CUTOVER_PROOFS_OUTSIDE_VITEST },
   'actuals.read': { status: 'supported', version: 1 },
   'budget.push': { status: 'supported', version: 1 },
   'budget.unowned-occupant': { status: 'supported', version: 1 },

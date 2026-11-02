@@ -9,6 +9,9 @@
     "discardStay": "Stay",
     "saving": "Saving…"
   },
+  "postings": {
+    "recordedBeforeConnection": "Recorded before the ERP connection"
+  },
   "advances": {
     "loadError": "Couldn't load your advances. Saving is paused so this claim isn't filed without its advance.",
     "loading": "Loading your advances…",

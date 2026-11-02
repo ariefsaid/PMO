@@ -27,6 +27,7 @@ vi.mock('@/src/lib/db/procurementLifecycle', async (importOriginal) => {
     createReceipt: vi.fn(),
     createInvoice: vi.fn(),
     setProcurementInvoiceEfaktur: vi.fn(),
+    isPreCutoverProcurement: vi.fn(),
   };
 });
 vi.mock('@/src/lib/db/companies', () => ({
@@ -54,6 +55,8 @@ import {
   createReceipt,
   createInvoice,
   setProcurementInvoiceEfaktur,
+  isPreCutoverProcurement,
+  getProcurementDetail,
   ProcurementError,
 } from '@/src/lib/db/procurementLifecycle';
 import { createCompany, updateCompany } from '@/src/lib/db/companies';
@@ -494,5 +497,113 @@ describe('task 3.8 (finding-3 path fix) — a flipped org routes company writes 
     expect(createCompany).toHaveBeenCalledWith({ name: 'PMO Internal', type: 'Internal' });
     expect(result).toBe(row);
     expect(dispatchSpy).not.toHaveBeenCalled();
+  });
+});
+
+// ECA-4 (#1601, OQ-ECA-1 "finish in PMO only"): once procurement is employed the repository sends every receipt, bill and
+// payment to dispatch, and the native RPCs refuse. A purchase ordered before the ERP connection has no ERP order to
+// attach them to, so those three go through PMO. The server decides (`pre_cutover_procurement`); a check that cannot
+// answer leaves the write on dispatch, whose own gate refuses.
+describe('AC-ECA-020 a receipt, bill or payment on a pre-cut-over purchase is recorded through PMO, never dispatched', () => {
+  const invoiceInput = { procurementId: 'proc-1', status: 'Received' as const, invoiceDate: '2026-07-11', taxTreatment: 'exclusive' as const, taxAmount: 0 };
+  beforeEach(() => {
+    setTaskOwnership([{ domain: 'procurement', externalTier: 'erpnext' }]);
+  });
+  afterEach(() => {
+    clearOwnershipCache();
+  });
+
+  it('with the purchase pre-cut-over, createReceipt / createInvoice / createPayment call the DAL and never dispatch', async () => {
+    vi.mocked(isPreCutoverProcurement).mockResolvedValue(true);
+    vi.mocked(createReceipt).mockResolvedValue({ id: 'gr-1' } as never);
+    vi.mocked(createInvoice).mockResolvedValue({ id: 'vi-1' } as never);
+    vi.mocked(createPayment).mockResolvedValue({ id: 'pay-1' } as never);
+    await repositories.procurement.createReceipt('proc-1', 'Complete', '2026-07-11');
+    await repositories.procurement.createInvoice(invoiceInput);
+    await repositories.procurement.createPayment('proc-1', 'vi-1', null, 'Scheduled', '2026-07-11', 100);
+    expect(isPreCutoverProcurement).toHaveBeenCalledWith('proc-1');
+    expect(createReceipt).toHaveBeenCalledWith('proc-1', 'Complete', '2026-07-11');
+    expect(createInvoice).toHaveBeenCalledWith(invoiceInput);
+    expect(createPayment).toHaveBeenCalledWith('proc-1', 'vi-1', null, 'Scheduled', '2026-07-11', 100);
+    expect(dispatchSpy).not.toHaveBeenCalled();
+  });
+
+  it('with the purchase ordered after the connection, all three still dispatch', async () => {
+    vi.mocked(isPreCutoverProcurement).mockResolvedValue(false);
+    dispatchSpy.mockResolvedValue({ externalRecordId: 'X-1', canonical: { id: 'pmo-1' } });
+    await repositories.procurement.createReceipt('proc-1', 'Complete', '2026-07-11');
+    await repositories.procurement.createInvoice(invoiceInput);
+    await repositories.procurement.createPayment('proc-1', 'vi-1', null, 'Scheduled', '2026-07-11', 100);
+    expect(dispatchSpy).toHaveBeenCalledTimes(3);
+    expect(createReceipt).not.toHaveBeenCalled();
+    expect(createInvoice).not.toHaveBeenCalled();
+    expect(createPayment).not.toHaveBeenCalled();
+  });
+
+  it('a payment asks about the bill it pays, so a bill the ERP holds is dispatched', async () => {
+    vi.mocked(isPreCutoverProcurement).mockResolvedValue(false);
+    dispatchSpy.mockResolvedValue({ externalRecordId: 'X-1', canonical: { id: 'pmo-1' } });
+    await repositories.procurement.createPayment('proc-1', 'vi-erp', null, 'Scheduled', '2026-07-11', 100);
+    expect(isPreCutoverProcurement).toHaveBeenCalledWith('proc-1', 'vi-erp');
+    expect(dispatchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('a pre-cutover answer from dispatch (the client check was stale) falls through to PMO, so the write is recorded or refused there, never lost', async () => {
+    vi.mocked(isPreCutoverProcurement).mockResolvedValue(false);
+    dispatchSpy.mockRejectedValue(new AppError('not sent', 'pre-cutover'));
+    vi.mocked(createReceipt).mockResolvedValue({ id: 'gr-1' } as never);
+    vi.mocked(createInvoice).mockResolvedValue({ id: 'vi-1' } as never);
+    vi.mocked(createPayment).mockResolvedValue({ id: 'pay-1' } as never);
+    await expect(repositories.procurement.createReceipt('proc-1', 'Complete', '2026-07-11')).resolves.toEqual({ id: 'gr-1' });
+    await expect(repositories.procurement.createInvoice(invoiceInput)).resolves.toEqual({ id: 'vi-1' });
+    await expect(repositories.procurement.createPayment('proc-1', 'vi-1', null, 'Scheduled', '2026-07-11', 100)).resolves.toEqual({ id: 'pay-1' });
+    expect(createReceipt).toHaveBeenCalledWith('proc-1', 'Complete', '2026-07-11');
+    expect(createInvoice).toHaveBeenCalledWith(invoiceInput);
+    expect(createPayment).toHaveBeenCalledWith('proc-1', 'vi-1', null, 'Scheduled', '2026-07-11', 100);
+  });
+
+  it('a native refusal after that fall-through reaches the user as an error', async () => {
+    vi.mocked(isPreCutoverProcurement).mockResolvedValue(false);
+    dispatchSpy.mockRejectedValue(new AppError('not sent', 'pre-cutover'));
+    vi.mocked(createReceipt).mockRejectedValue(new ProcurementError('procurement is externally-owned', 'forbidden'));
+    await expect(repositories.procurement.createReceipt('proc-1', 'Complete', '2026-07-11')).rejects.toThrow('externally-owned');
+  });
+
+  it('any other dispatch failure is not swallowed', async () => {
+    vi.mocked(isPreCutoverProcurement).mockResolvedValue(false);
+    dispatchSpy.mockRejectedValue(new AppError('unreachable', 'external-unreachable'));
+    await expect(repositories.procurement.createReceipt('proc-1', 'Complete', '2026-07-11')).rejects.toMatchObject({ code: 'external-unreachable' });
+    expect(createReceipt).not.toHaveBeenCalled();
+  });
+
+  it('a check that fails leaves the write on dispatch (the server gate there is the authority)', async () => {
+    vi.mocked(isPreCutoverProcurement).mockRejectedValue(new Error('network'));
+    dispatchSpy.mockResolvedValue({ externalRecordId: 'X-1', canonical: { id: 'pmo-1' } });
+    await repositories.procurement.createReceipt('proc-1', 'Complete', '2026-07-11');
+    expect(dispatchSpy).toHaveBeenCalledTimes(1);
+    expect(createReceipt).not.toHaveBeenCalled();
+  });
+
+  it('the purchase order and earlier steps never ask', async () => {
+    dispatchSpy.mockResolvedValue({ externalRecordId: 'X-1', canonical: { id: 'pmo-1' } });
+    await repositories.procurement.createPurchaseOrder('proc-1', 'PO-1', 'Draft', '2026-07-11', 100);
+    expect(isPreCutoverProcurement).not.toHaveBeenCalled();
+  });
+
+  it('on a PMO-owned org the check is never made (byte-for-byte)', async () => {
+    clearOwnershipCache();
+    vi.mocked(createReceipt).mockResolvedValue({ id: 'gr-1' } as never);
+    await repositories.procurement.createReceipt('proc-1', 'Complete', '2026-07-11');
+    expect(isPreCutoverProcurement).not.toHaveBeenCalled();
+  });
+
+  it('the detail carries pre_cutover for an employing org, and is untouched otherwise', async () => {
+    vi.mocked(getProcurementDetail).mockResolvedValue({ id: 'proc-1' } as never);
+    vi.mocked(isPreCutoverProcurement).mockResolvedValue(true);
+    expect(await repositories.procurement.get('proc-1')).toEqual({ id: 'proc-1', pre_cutover: true });
+    clearOwnershipCache();
+    vi.mocked(isPreCutoverProcurement).mockClear();
+    expect(await repositories.procurement.get('proc-1')).toEqual({ id: 'proc-1' });
+    expect(isPreCutoverProcurement).not.toHaveBeenCalled();
   });
 });

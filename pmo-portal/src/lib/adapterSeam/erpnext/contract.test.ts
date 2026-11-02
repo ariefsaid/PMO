@@ -19,8 +19,8 @@ describe('erpnext contract', () => {
     for (const [id] of supported) expect(SUITES, id).toHaveProperty([id]);
   });
 
-  it('shares every shipped workflow except cutover.timesheet, whose proof is Deno-side only (#1601)', () => {
-    const unshared = Object.entries(ERPNEXT_WORKFLOWS).filter(([, d]) => d.status === 'pending' && d.issue === 1601).map(([id]) => id);
-    expect(unshared).toEqual(['cutover.purchase', 'cutover.timesheet', 'cutover.revenue']);
+  it('shares every shipped workflow except the two cut-over proofs that live outside Vitest (#1676)', () => {
+    const unshared = Object.entries(ERPNEXT_WORKFLOWS).filter(([, d]) => d.status === 'pending' && d.issue === 1676).map(([id]) => id);
+    expect(unshared).toEqual(['cutover.timesheet', 'cutover.revenue']);
   });
 });
