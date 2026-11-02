@@ -108,6 +108,23 @@ export function buildAttachmentContextMessages(
   }));
 }
 
+/**
+ * IMPORTANT-7 (FR-AT2-ATT-009, T-10 #1538 slice 2): a requested attachment id that resolved
+ * to NO row — deleted, archived, another conversation, or a failed lookup — is announced as
+ * an explicit bounded 'unavailable' block. The turn must show the model the file could not
+ * be read (name the id, forbid fabrication) instead of silently pretending the file was
+ * never mentioned. Carries no row content, so nothing leaks about other conversations/orgs.
+ */
+function unavailableAttachmentContext(attachmentId: string): string {
+  return [
+    `[Attachment unavailable: ${attachmentId}]`,
+    `Attachment id: ${attachmentId}`,
+    `The attachment with id "${attachmentId}" could not be loaded — it may have been deleted, archived, or belong to a different conversation.`,
+    `Do not fabricate, invent, or guess the contents of this file. Tell the user you could not read this file.`,
+    `[/Attachment unavailable]`,
+  ].join('\n');
+}
+
 async function blobToBytes(blob: Blob): Promise<Uint8Array> {
   return new Uint8Array(await blob.arrayBuffer());
 }
@@ -221,11 +238,29 @@ export function createAttachmentResolver(
   const extractPdfText = opts.extractPdfText ?? defaultExtractPdfText;
   return {
     async resolveAttachmentMessages(attachmentIds, deputyCtx, threadId) {
+      const cleanIds = [...new Set(attachmentIds.map((id) => id.trim()).filter(Boolean))];
       const rows = await resolveAttachmentRows(attachmentIds, deputyCtx, threadId);
       const resolved = await Promise.all(
         rows.map((row) => resolveOneAttachment(row, deputyCtx, extractPdfText)),
       );
-      return buildAttachmentContextMessages(resolved);
+      // IMPORTANT-7: emit one message per requested id, in requested order — the resolved
+      // attachment's bounded context where the row resolved, an explicit unavailable
+      // placeholder where it did not (missing/archived/cross-thread/failed lookup). A
+      // requested file can never silently vanish from the turn.
+      const resolvedById = new Map(resolved.map((attachment) => [attachment.id, attachment]));
+      const emitted = new Set<string>();
+      const messages: ModelMessage[] = [];
+      for (const id of cleanIds) {
+        if (emitted.has(id)) continue;
+        emitted.add(id);
+        const attachment = resolvedById.get(id);
+        messages.push(
+          attachment
+            ? { role: 'user', content: contextForAttachment(attachment) }
+            : { role: 'user', content: unavailableAttachmentContext(id) },
+        );
+      }
+      return messages;
     },
   };
 }

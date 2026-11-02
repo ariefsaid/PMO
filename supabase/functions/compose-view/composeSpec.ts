@@ -13,8 +13,9 @@
  *
  * Provider swap (docs/specs/agent-model-client.spec.md, FR-MC-019/020):
  *   - ComposeSpecDeps.anthropic (AnthropicLike) → ComposeSpecDeps.modelClient (ModelClient) + model.
- *   - tool_choice forces compose_view via the OpenAI shape (FR-MC-004).
- *   - the repair-loop feedback is a single role:'user' text turn (FR-MC-020) — no placeholder.
+ *   - tool_choice forces compose_view via the OpenAI shape (FR-MC-020).
+ *   - a failed attempt is fed back as the model's own echoed tool call plus a role:'tool'
+ *     validation-error turn (FR-MC-020, as amended for #1538 slice 2).
  */
 
 // Relative imports — no .ts extension; no @-alias (Deno + Node/Vitest both resolve these).
@@ -23,7 +24,7 @@ import { ValidationError, ENTITY_WHITELIST, MAX_PANELS_PER_VIEW } from '../../..
 import { registry } from '../../../pmo-portal/src/lib/viewspec/registry.ts';
 import { COMPOSITION_SPEC_SCHEMA } from './schema.ts';
 import { buildSystemPrompt } from './prompt.ts';
-import type { ModelClient, ModelMessage } from '../_shared/modelClient.ts';
+import type { ModelClient, ModelMessage, ModelToolCall } from '../_shared/modelClient.ts';
 import type { CompositionSpec } from '../../../pmo-portal/src/lib/viewspec/types.ts';
 
 // ── Constants (shared with handler.ts) ───────────────────────────────────────
@@ -55,18 +56,22 @@ export class ComposeSpecError extends Error {
   code: 'REPAIR_EXHAUSTED' | 'UPSTREAM_ERROR';
   repairAttempts: number;
   tokensUsed: number;
+  /** Provider-reported cost accumulated across every model call consumed by the attempt. */
+  providerCost: number;
   validationError?: { code: string; detail?: string };
 
   constructor(
     code: 'REPAIR_EXHAUSTED' | 'UPSTREAM_ERROR',
     repairAttempts: number,
     tokensUsed: number,
+    providerCost: number,
     validationError?: { code: string; detail?: string },
   ) {
     super(`composeSpec failed: ${code}`);
     this.code = code;
     this.repairAttempts = repairAttempts;
     this.tokensUsed = tokensUsed;
+    this.providerCost = providerCost;
     this.validationError = validationError;
   }
 }
@@ -78,7 +83,7 @@ async function callModel(
   model: string,
   system: string,
   messages: ModelMessage[],
-): Promise<{ spec: CompositionSpec; tokensUsed: number; providerCost: number }> {
+): Promise<{ spec: CompositionSpec; tokensUsed: number; providerCost: number; toolCall: ModelToolCall }> {
   const response = await modelClient.create({
     model,
     max_tokens: 4096,
@@ -107,6 +112,7 @@ async function callModel(
     spec: JSON.parse(toolCall.function.arguments) as CompositionSpec,
     tokensUsed,
     providerCost: typeof response.usage?.total_cost === 'number' ? response.usage.total_cost : 0,
+    toolCall,
   };
 }
 
@@ -150,7 +156,7 @@ export async function composeSpec(
 
   try {
     while (true) {
-      const { spec, tokensUsed, providerCost } = await callModel(modelClient, model, system, conversationMessages);
+      const { spec, tokensUsed, providerCost, toolCall } = await callModel(modelClient, model, system, conversationMessages);
       totalTokensUsed += tokensUsed;
       totalProviderCost += providerCost;
 
@@ -174,6 +180,7 @@ export async function composeSpec(
             'REPAIR_EXHAUSTED',
             MAX_REPAIR_ATTEMPTS,
             totalTokensUsed,
+            totalProviderCost,
             { code: err.code, detail: err.detail },
           );
         }
@@ -182,9 +189,13 @@ export async function composeSpec(
           ? `Validation failed: ${err.code} — ${err.detail}. Fix and re-emit a valid CompositionSpec.`
           : `Validation failed: ${err.code}. Fix and re-emit a valid CompositionSpec.`;
 
-        // FR-MC-020: a single role:'user' text turn — no placeholder tool_use echo
-        // needed under the OpenAI message shape (unlike Anthropic's requirement).
-        conversationMessages.push({ role: 'user', content: repairFeedback });
+        // The follow-up call must show the model its own failed tool call plus the matching
+        // validation error as the tool result — without the echo, each repair attempt re-derives
+        // the same offending properties from scratch and the repair budget burns on repeat
+        // failures. OpenAI message sequencing: an assistant tool_calls turn is answered by the
+        // role:'tool' turn carrying the same tool_call_id.
+        conversationMessages.push({ role: 'assistant', content: null, tool_calls: [toolCall] });
+        conversationMessages.push({ role: 'tool', tool_call_id: toolCall.id, content: repairFeedback });
 
         repairAttempts++;
       }
@@ -199,6 +210,6 @@ export async function composeSpec(
       repairAttempts,
       tokensUsed: totalTokensUsed,
     });
-    throw new ComposeSpecError('UPSTREAM_ERROR', repairAttempts, totalTokensUsed);
+    throw new ComposeSpecError('UPSTREAM_ERROR', repairAttempts, totalTokensUsed, totalProviderCost);
   }
 }

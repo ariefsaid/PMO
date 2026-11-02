@@ -48,6 +48,16 @@ function getJwks(supabaseUrl: string): JwksResolver {
   return _jwks;
 }
 
+/**
+ * Body-shape gate for the parsed JSON request: it must be a plain non-null object (an array
+ * body is malformed for this API) before it is handed to the pure handler (the handler owns
+ * field-level validation, e.g. the string prompt). Exported for the Deno unit test that pins
+ * this gate against the real module.
+ */
+export function isComposeViewRequestBody(value: unknown): value is ComposeViewRequest {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
 serveWithErrorReporting('compose-view', async (req: Request): Promise<Response> => {
   // AUDIT quick-win (2026-07-07): same origin-narrowing seam as agent-chat/index.ts —
   // set AGENT_ALLOWED_ORIGIN in prod; falls back to SITE_URL, then '' (fail-closed — never '*').
@@ -170,6 +180,15 @@ serveWithErrorReporting('compose-view', async (req: Request): Promise<Response> 
   try {
     body = await req.json() as ComposeViewRequest;
   } catch {
+    return new Response(
+      JSON.stringify({ status: 400, error: 'BAD_REQUEST', detail: 'invalid JSON body' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    );
+  }
+  // A parsed body that is not a non-null object (the literal JSON `null`, a string, number,
+  // boolean, array) is a malformed request, not a handler crash: it gets the same typed 400
+  // as a parse failure instead of surfacing as an unhandled failure inside the handler.
+  if (!isComposeViewRequestBody(body)) {
     return new Response(
       JSON.stringify({ status: 400, error: 'BAD_REQUEST', detail: 'invalid JSON body' }),
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },

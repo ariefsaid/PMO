@@ -110,7 +110,7 @@ describe('runComposeView', () => {
 
   it('AC-CV-004 returns { error, code:REPAIR_EXHAUSTED } when composeSpec exhausts repair', async () => {
     vi.mocked(mockComposeSpec).mockRejectedValueOnce(
-      new ComposeSpecError('REPAIR_EXHAUSTED', 2, 100, { code: 'UNKNOWN_ENTITY' }),
+      new ComposeSpecError('REPAIR_EXHAUSTED', 2, 100, 0, { code: 'UNKNOWN_ENTITY' }),
     );
 
     const result = await runComposeView({ prompt: 'x' }, mockCtx, mockDeps);
@@ -122,7 +122,7 @@ describe('runComposeView', () => {
 
   it('AC-CV-016 returns { error, code:UPSTREAM_ERROR } when composeSpec throws upstream', async () => {
     vi.mocked(mockComposeSpec).mockRejectedValueOnce(
-      new ComposeSpecError('UPSTREAM_ERROR', 0, 0),
+      new ComposeSpecError('UPSTREAM_ERROR', 0, 0, 0),
     );
 
     const result = await runComposeView({ prompt: 'x' }, mockCtx, mockDeps);

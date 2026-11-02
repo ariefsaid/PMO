@@ -153,3 +153,96 @@ it('AC-MC-016 composeSpec throws ComposeSpecError UPSTREAM_ERROR when the model 
     return true;
   });
 });
+
+// ── T-10 #1538 slice 2: repair history + failed-call cost preservation ──────
+
+/** Sequence mock whose every non-throwing response reports the given provider usage. */
+function mockSequenceWithUsage(
+  items: (CompositionSpec | 'throw')[],
+  usage: { prompt_tokens: number; completion_tokens: number; total_tokens: number; total_cost: number },
+) {
+  let callCount = 0;
+  const create = vi.fn().mockImplementation(() => {
+    const idx = callCount++;
+    const item = items[idx];
+    if (item === 'throw') return Promise.reject(new Error('SECRET upstream error'));
+    return Promise.resolve({
+      finish_reason: 'tool_calls',
+      message: {
+        role: 'assistant',
+        content: null,
+        tool_calls: [{ id: `c${idx}`, type: 'function', function: { name: 'compose_view', arguments: JSON.stringify(item) } }],
+      },
+      usage,
+      model: 'deepseek/deepseek-v4-flash',
+    });
+  });
+  return { create, _create: create };
+}
+
+type RepairHistoryMessage = {
+  role: string;
+  content: string | null;
+  tool_calls?: Array<{ id: string; function: { name: string; arguments: string } }>;
+  tool_call_id?: string;
+};
+
+it('the follow-up repair call shows the model its own failed compose_view tool call plus the validation error as the tool result', async () => {
+  const { create, _create } = mockSequenceWithUsage(
+    [INVALID_SPEC, VALID_SPEC],
+    { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30, total_cost: 0.25 },
+  );
+
+  const result = await composeSpec('show projects', 'org-1', BASE_DEPS({ create }));
+  expect(result.repairAttempts).toBe(1);
+
+  const secondMessages = _create.mock.calls[1][0].messages as RepairHistoryMessage[];
+  // The model's own invalid tool call is echoed back verbatim…
+  const echoIdx = secondMessages.findIndex(
+    (m) => m.role === 'assistant' && m.tool_calls?.some((tc) => tc.function.name === 'compose_view'),
+  );
+  expect(echoIdx).toBeGreaterThan(0);
+  expect(secondMessages[echoIdx].tool_calls?.[0]?.id).toBe('c0');
+  expect(secondMessages[echoIdx].tool_calls?.[0]?.function.arguments).toBe(JSON.stringify(INVALID_SPEC));
+  // …and the validation error rides the matching tool-result turn.
+  const toolResult = secondMessages[echoIdx + 1];
+  expect(toolResult.role).toBe('tool');
+  expect(toolResult.tool_call_id).toBe('c0');
+  expect(toolResult.content).toContain('UNKNOWN_ENTITY');
+});
+
+it('REPAIR_EXHAUSTED carries the accumulated provider cost alongside tokensUsed', async () => {
+  const { create } = mockSequenceWithUsage(
+    Array(MAX_REPAIR_ATTEMPTS + 1).fill(INVALID_SPEC),
+    { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30, total_cost: 0.25 },
+  );
+
+  await expect(
+    composeSpec('show projects', 'org-1', BASE_DEPS({ create })),
+  ).rejects.toSatisfy((e: unknown) => {
+    expect(e).toBeInstanceOf(ComposeSpecError);
+    const err = e as ComposeSpecError;
+    expect(err.code).toBe('REPAIR_EXHAUSTED');
+    expect(err.tokensUsed).toBe(30 * (MAX_REPAIR_ATTEMPTS + 1));
+    expect(err.providerCost).toBeCloseTo(0.25 * (MAX_REPAIR_ATTEMPTS + 1), 10);
+    return true;
+  });
+});
+
+it('UPSTREAM_ERROR after a consumed repair attempt preserves the tokens and cost already spent', async () => {
+  const { create } = mockSequenceWithUsage(
+    [INVALID_SPEC, 'throw'],
+    { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30, total_cost: 0.4 },
+  );
+
+  await expect(
+    composeSpec('show projects', 'org-1', BASE_DEPS({ create })),
+  ).rejects.toSatisfy((e: unknown) => {
+    expect(e).toBeInstanceOf(ComposeSpecError);
+    const err = e as ComposeSpecError;
+    expect(err.code).toBe('UPSTREAM_ERROR');
+    expect(err.tokensUsed).toBe(30);
+    expect(err.providerCost).toBeCloseTo(0.4, 10);
+    return true;
+  });
+});
