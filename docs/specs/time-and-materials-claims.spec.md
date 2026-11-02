@@ -1,6 +1,6 @@
 # Spec: Time-and-materials claims (#1514)
 
-> **Status:** proposed, pending owner sign-off of the §10 decisions (each carries a default).
+> **Status:** Signed by the owner 2026-11-02 with every owner-decision default as written (OD-SIGN-20261102).
 > Route: `docs/plans/2026-10-30-epc-odoo-build-route.md` item T3 (owner-signed 2026-10-30); owner ruling in #1488
 > (standard time-and-materials billing) and the billing-kinds ruling #1443.
 > IDs: `FR-TM-###`, `NFR-TM-###`, `AC-TM-###`. Executor: Director-dispatched (money / SoD), one fresh worker per slice.
