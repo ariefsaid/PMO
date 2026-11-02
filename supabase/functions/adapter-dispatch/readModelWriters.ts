@@ -79,15 +79,25 @@ const referenceWriter: ReadModelWriter = {
   },
 };
 
-/** The placement the task form sent with an externally-owned write: the milestone (PMO-native — ClickUp
- *  has no such field) and the parent task. Stamped on the mirror ONLY when the command carries the key
- *  (an update that does not mention them leaves them alone; an explicit null clears). This writer runs
- *  as service role, so each referenced row is verified to belong to the caller's org first. */
-async function taskPlacementFields(ctx: ReadModelWriterCtx, command: AdapterCommand): Promise<Record<string, string | null>> {
+/** The placement of a task the form changed: the milestone (PMO-native — ClickUp has no such field, so it
+ *  comes from the command) and the parent (taken from ClickUp's own response on the canonical record, so
+ *  the mirror never records a nesting ClickUp did not accept). Placement belongs to `create` and `update`
+ *  ONLY: a status transition (which an assignee-only member may send) never changes it. Stamped only when
+ *  the key is present (an explicit null clears). This writer runs as service role, so each referenced row
+ *  is verified to belong to the caller's org first. */
+async function taskPlacementFields(
+  ctx: ReadModelWriterCtx,
+  command: AdapterCommand,
+  canonical: PmoRecord,
+): Promise<Record<string, string | null>> {
   const out: Record<string, string | null> = {};
-  for (const [column, table] of [['milestone_id', 'project_milestones'], ['parent_task_id', 'tasks']] as const) {
-    if (!(column in command.record)) continue;
-    const id = command.record[column];
+  if (command.operation !== 'create' && command.operation !== 'update') return out;
+  for (const [column, table, source] of [
+    ['milestone_id', 'project_milestones', command.record],
+    ['parent_task_id', 'tasks', canonical],
+  ] as const) {
+    if (!(column in source)) continue;
+    const id = source[column];
     if (typeof id === 'string' && id) await requireOwnOrgLink(ctx, table, id);
     out[column] = typeof id === 'string' && id ? id : null;
   }
@@ -105,7 +115,7 @@ const tasksWriter: ReadModelWriter = {
       end_date: canonical.end_date ?? null,
       completed_at: (canonical.completed_at as string | null | undefined) ?? null,
       source_updated_at: new Date().toISOString(),
-      ...(await taskPlacementFields(ctx, command)),
+      ...(await taskPlacementFields(ctx, command, canonical)),
     };
     if (command.operation === 'create') {
       const projectId = (command.record as { project_id?: string }).project_id;

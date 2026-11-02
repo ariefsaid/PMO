@@ -922,7 +922,7 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
     const taskAuthorization = await authorizeClickUpTaskCommand(serviceClient as never, orgId, userId, command);
     if (!taskAuthorization.ok) {
       return new Response(JSON.stringify({ error: 'commit-rejected', message: taskAuthorization.message }), {
-        status: 403,
+        status: taskAuthorization.status ?? 403,
         headers,
       });
     }

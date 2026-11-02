@@ -106,10 +106,10 @@ export async function resolveClickUpDispatchAdapter(deps: ClickUpDispatchFactory
         .eq('domain', CLICKUP_TASKS_DOMAIN)
         .eq('pmo_record_id', pmoParentTaskId)
         .maybeSingle();
-      if (error || !data) {
-        console.warn(`[clickup-dispatch] parent task ${pmoParentTaskId} not yet mirrored to ClickUp (no external_refs row); child will be created flat`);
-        return null;
-      }
+      // A read error is not "unmapped": it must fail the command, not read as a parent with no ClickUp
+      // mapping (which the command refuses with its own clear message).
+      if (error) throw new AppError(error.message, error.code);
+      if (!data) return null;
       return (data as { external_record_id: string }).external_record_id;
     },
   });

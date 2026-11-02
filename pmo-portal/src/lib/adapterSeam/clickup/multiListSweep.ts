@@ -82,6 +82,9 @@ export interface MultiListSweepDeps {
   /** The mapped mirror's CURRENT PMO status — feeds the status stickiness (a `pmo-only` status is
    *  never moved out of by an inbound change). */
   readMirrorStatus?: (pmoRecordId: string) => Promise<string | null>;
+  /** Epoch ms after which no further ClickUp page is read this invocation (the edge wall-clock budget,
+   *  shared by every org). A List cut short is reported `incomplete` and resumes from its keyset cursor. */
+  readDeadlineAtMs?: number;
 }
 
 export interface MultiListSweepPerListResult {
@@ -122,6 +125,7 @@ export async function runMultiListSweep(deps: MultiListSweepDeps): Promise<Multi
   const { changes: tagged, archivedTaskIds, perListNextCursor, incompleteListIds, notFoundListIds } = await clickUpListRawChangesAcrossLists(
     listsWithCursor,
     deps.clientDeps,
+    { deadlineAtMs: deps.readDeadlineAtMs },
   );
 
   for (const listId of notFoundListIds) {
@@ -227,10 +231,14 @@ export async function runMultiListSweep(deps: MultiListSweepDeps): Promise<Multi
   //    re-read the CURRENT stored cursor right before writing (belt-and-braces against a concurrent
   //    sweep instance for the same org racing this one — mirrors applyEngine.ts's
   //    advanceWatermarkMonotonic) so this write can never rewind a cursor a concurrent run already
-  //    advanced further. ──
+  //    advanced further. A cursor still equal to the one THIS read started from was moved by nobody, so
+  //    the candidate is authoritative as-is (it may legitimately drop a drained tie's page offset);
+  //    only a cursor someone else moved is compared by (timestamp, page). ──
+  const startCursorByList = new Map(listsWithCursor.map((l) => [l.listId, l.cursor]));
   for (const [listId, candidateCursor] of Object.entries(perListNextCursor)) {
     const current = await deps.readListWatermark(listId);
-    await deps.advanceListWatermark(listId, current !== null ? laterReadCursor(current, candidateCursor) : candidateCursor);
+    const untouched = current === null || current === startCursorByList.get(listId);
+    await deps.advanceListWatermark(listId, untouched ? candidateCursor : laterReadCursor(current, candidateCursor));
   }
 
   return { applied, archived, skippedAmbiguous, perList };

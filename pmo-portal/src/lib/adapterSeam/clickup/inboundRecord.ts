@@ -6,8 +6,9 @@
  *   - current PMO status (OD-INT-10 stickiness: a `pmo-only` status is never moved out of, an explicit
  *     collapse never downgrades) — only for an already-mapped task;
  *   - parent link (OD-INT-9): a ClickUp `parent` resolves through `external_refs`; an unmirrored parent
- *     or one in another project yields `null` (flat until it converges). A task with NO ClickUp parent
- *     leaves `parent_task_id` OMITTED so an existing PMO link is never flattened by an unrelated sync.
+ *     or one in another project yields `null` (flat until it converges). An explicit `parent: null`
+ *     (a top-level task) clears `parent_task_id`; an ABSENT `parent` key leaves it OMITTED, so a payload
+ *     that simply does not carry the field never flattens an existing PMO link.
  * Every dep is optional: absent = that facet is simply not resolved (the pre-existing behavior).
  */
 import type { PmoRecord } from '../contract.ts';
@@ -46,11 +47,14 @@ export async function resolveInboundRecord(
     parentPmoId = await deps.resolveParentPmoId(task.parent);
     if (parentPmoId && deps.readMirrorProjectId && ctx.childProjectId) {
       const parentProjectId = await deps.readMirrorProjectId(parentPmoId);
-      if (parentProjectId && parentProjectId !== ctx.childProjectId) {
+      // Fail closed: a parent whose project cannot be read (null) is not provably in the child's project.
+      if (parentProjectId !== ctx.childProjectId) {
         console.warn(`[clickup] cross-project parent refused: parent ${parentPmoId} in project ${parentProjectId}, child in ${ctx.childProjectId}`);
         parentPmoId = null;
       }
     }
+  } else if (task.parent === null) {
+    parentPmoId = null;
   }
 
   return clickUpTaskToPmoRecord(task, maps, currentPmoStatus, parentPmoId);

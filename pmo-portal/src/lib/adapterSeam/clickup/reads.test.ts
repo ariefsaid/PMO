@@ -3,6 +3,8 @@ import {
   clickUpListChangesSinceWatermark,
   clickUpListRawChangesSinceWatermark,
   clickUpListRawChangesAcrossLists,
+  laterReadCursor,
+  SWEEP_LIST_PAGE_CAP,
   clickUpGetByExternalId,
   clickUpGetTaskRaw,
   type ClickUpReadDeps,
@@ -34,6 +36,51 @@ function baseDeps(fetchImpl: typeof fetch): ClickUpReadDeps {
   return { fetchImpl, token: 't', listId: 'list-1', statusMap, memberMap };
 }
 
+
+type FakeTask = ReturnType<typeof task>;
+
+/**
+ * An in-memory ClickUp list endpoint that honours `date_updated_gt`, `page` and `reverse` like the real
+ * one (page-size rows, `last_page` on the final page). `reverseMeansOldestFirst: false` models a server
+ * whose `reverse=true` is newest-first; `listPagesBackwards` keeps each page the OLDEST window but lists
+ * its rows newest-first. `onRequest(n)` runs before the n-th request is answered (to edit tasks mid-read).
+ */
+function listServer(
+  initial: FakeTask[],
+  opts: { pageSize: number; reverseMeansOldestFirst?: boolean; listPagesBackwards?: boolean; onRequest?: (n: number, tasks: FakeTask[]) => void },
+) {
+  const tasks = [...initial];
+  const urls: string[] = [];
+  const fetchImpl = vi.fn(async (url: string) => {
+    urls.push(url);
+    opts.onRequest?.(urls.length, tasks);
+    const q = new URL(url).searchParams;
+    const gt = q.has('date_updated_gt') ? Number(q.get('date_updated_gt')) : -1;
+    const page = Number(q.get('page'));
+    const oldestFirst = (q.get('reverse') === 'true') === (opts.reverseMeansOldestFirst ?? true);
+    const rows = tasks
+      .filter((t) => Number(t.date_updated) > gt)
+      .sort((a, b) => (Number(a.date_updated) - Number(b.date_updated) || a.id.localeCompare(b.id)) * (oldestFirst ? 1 : -1));
+    const slice = rows.slice(page * opts.pageSize, (page + 1) * opts.pageSize);
+    if (opts.listPagesBackwards) slice.sort((a, b) => Number(b.date_updated) - Number(a.date_updated));
+    return new Response(JSON.stringify({ tasks: slice, last_page: (page + 1) * opts.pageSize >= rows.length }), { status: 200 });
+  });
+  return { fetchImpl: fetchImpl as unknown as typeof fetch, urls, tasks };
+}
+
+/** Drain a list through capped reads, resuming from each returned cursor, until a read completes. */
+async function drain(fetchImpl: typeof fetch, maxPages: number, from: string | null = null) {
+  const ids: string[] = [];
+  let cursor = from;
+  for (let reads = 0; reads < 50; reads += 1) {
+    const r = await clickUpListRawChangesSinceWatermark(cursor, { ...baseDeps(fetchImpl), maxPages });
+    ids.push(...r.changes.map((t) => t.id));
+    cursor = r.nextCursor ?? cursor;
+    if (r.complete) return { ids, cursor, reads: reads + 1 };
+  }
+  throw new Error('did not drain');
+}
+
 describe('buildListQuery emits the full non-default-excluding filter set (read-hygiene fix)', () => {
   it('every page read carries include_closed, subtasks, archived, and include_timl', async () => {
     const fetchImpl = vi.fn(async (url: string) => {
@@ -54,28 +101,15 @@ describe('buildListQuery emits the full non-default-excluding filter set (read-h
 
 describe('AC-CUA-035 listChangesSinceWatermark pages through changes and advances the cursor', () => {
   it('AC-CUA-035 two mocked pages combine into canonical records + a max-date_updated nextCursor', async () => {
-    let call = 0;
-    const fetchImpl = vi.fn(async (url: string) => {
-      call += 1;
-      expect(url).toContain('date_updated_gt=999'); // inclusive boundary: cursor(1000) - 1ms
-      // Live-smoke finding (2026-07-11): without include_closed ClickUp omits closed-status
-      // tasks and completions never reach the change-feed. Pin the param on every page read.
-      expect(url).toContain('include_closed=true');
-      if (call === 1) {
-        expect(url).toContain('page=0');
-        return new Response(
-          JSON.stringify({ tasks: [task('cu-1', '1500'), task('cu-2', '1800')], last_page: false }),
-          { status: 200 },
-        );
-      }
-      expect(url).toContain('page=1');
-      return new Response(JSON.stringify({ tasks: [task('cu-3', '2000')], last_page: true }), { status: 200 });
-    });
-    const page = await clickUpListChangesSinceWatermark('tasks', '1000', baseDeps(fetchImpl as unknown as typeof fetch));
-    expect(page.changes).toHaveLength(3);
+    const server = listServer([task('cu-1', '1500'), task('cu-2', '1800'), task('cu-3', '2000')], { pageSize: 2 });
+    const page = await clickUpListChangesSinceWatermark('tasks', '1000', baseDeps(server.fetchImpl));
     expect(page.changes.map((r) => r.id)).toEqual(['cu-1', 'cu-2', 'cu-3']);
     expect(page.nextCursor).toBe('2000');
-    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(server.urls).toHaveLength(2);
+    expect(server.urls[0]).toContain('date_updated_gt=999'); // inclusive boundary: cursor(1000) - 1ms
+    // keyset step: the second page asks past the greatest timestamp read, at page 0 (no offset)
+    expect(server.urls[1]).toContain('date_updated_gt=1799');
+    expect(server.urls[1]).toContain('page=0');
   });
 
   it('AC-CUA-035 no changes since the cursor -> empty changes and a null nextCursor (exhaustion)', async () => {
@@ -319,66 +353,145 @@ describe('clickUpGetTaskRaw — the WORKER re-GET (OD-INT-11): the RAW task incl
   });
 });
 
-describe('ADP-023 a read that hits the page cap reports incomplete enumeration and resumes without skipping', () => {
-  const PAGE_CAP = 1000;
+describe('ADP-023 keyset paging: a capped read is incomplete and resumable, and never skips a row', () => {
+  const ids = (n: number, ms: (i: number) => number, prefix = 'cu') =>
+    Array.from({ length: n }, (_, i) => task(`${prefix}-${String(i).padStart(2, '0')}`, String(ms(i))));
 
-  /** A server that never signals `last_page` for `pagesBeforeLast` pages, each page carrying `tasksOf(pageIndex)`. */
-  function endlessServer(tasksOf: (page: number) => ReturnType<typeof task>[], pagesBeforeLast = Infinity) {
-    const urls: string[] = [];
-    const fetchImpl = vi.fn(async (url: string) => {
-      urls.push(url);
-      const page = Number(new URL(`http://x${url.replace(/^https?:\/\/[^/]+/, '')}`).searchParams.get('page'));
-      return new Response(JSON.stringify({ tasks: tasksOf(page), last_page: page + 1 >= pagesBeforeLast }), { status: 200 });
+  it('sends reverse=true (oldest first) on the first request', async () => {
+    const server = listServer([], { pageSize: 2 });
+    await clickUpListRawChangesSinceWatermark(null, baseDeps(server.fetchImpl));
+    expect(server.urls[0]).toContain('reverse=true');
+  });
+
+  it('editing an already-read task mid-read skips nothing (offset paging would drop the first row of the next page)', async () => {
+    const all = ids(6, (i) => 1001 + i);
+    const server = listServer(all, {
+      pageSize: 2,
+      // after page 0 (cu-00, cu-01) is served, cu-00 is edited and moves to the end of the feed
+      onRequest: (n, tasks) => {
+        if (n === 2) tasks.find((t) => t.id === 'cu-00')!.date_updated = '2000';
+      },
     });
-    return { fetchImpl: fetchImpl as unknown as typeof fetch, urls };
-  }
-
-  it('reads oldest-first so the max observed timestamp is a safe resume point', async () => {
-    const { fetchImpl, urls } = endlessServer(() => [], 1);
-    await clickUpListRawChangesSinceWatermark(null, baseDeps(fetchImpl));
-    expect(urls[0]).toContain('reverse=true');
-  });
-
-  it('a feed longer than the cap is reported incomplete and the cursor stops at the newest task actually read', async () => {
-    const { fetchImpl, urls } = endlessServer((p) => [task(`cu-${p}`, String(10_000 + p))]);
-    const result = await clickUpListRawChangesSinceWatermark('10000', baseDeps(fetchImpl));
-    expect(urls).toHaveLength(PAGE_CAP);
-    expect(result.complete).toBe(false);
-    expect(result.changes).toHaveLength(PAGE_CAP);
-    expect(result.nextCursor).toBe(String(10_000 + PAGE_CAP - 1));
-  });
-
-  it('a feed that ends inside the cap is complete', async () => {
-    const { fetchImpl } = endlessServer((p) => [task(`cu-${p}`, String(1000 + p))], 3);
-    const result = await clickUpListRawChangesSinceWatermark(null, baseDeps(fetchImpl));
+    const result = await clickUpListRawChangesSinceWatermark(null, baseDeps(server.fetchImpl));
     expect(result.complete).toBe(true);
-    expect(result.nextCursor).toBe('1002');
+    expect([...new Set(result.changes.map((t) => t.id))].sort()).toEqual(all.map((t) => t.id));
+    expect(result.changes.find((t) => t.id === 'cu-00')!.date_updated).toBe('2000'); // the edited state wins
+    expect(result.nextCursor).toBe('2000');
   });
 
-  it('a tie wider than the cap drains over several reads: the cursor remembers the page offset and the tie is never abandoned', async () => {
-    const tied = (p: number) => [task(`cu-${p}`, '5000')];
-    const first = endlessServer(tied);
-    const r1 = await clickUpListRawChangesSinceWatermark('5000', baseDeps(first.fetchImpl));
-    expect(r1.complete).toBe(false);
-    expect(r1.nextCursor).toBe(`5000:${PAGE_CAP}`);
+  it('a tie wider than one page drains inside one read (page offset only within the tie), then moves on', async () => {
+    const tie = ids(5, () => 5000, 'tie');
+    const server = listServer([...tie, task('later', '6000')], { pageSize: 2 });
+    const result = await clickUpListRawChangesSinceWatermark(null, baseDeps(server.fetchImpl));
+    expect(result.changes.map((t) => t.id).sort()).toEqual(['later', ...tie.map((t) => t.id)].sort());
+    expect(result.complete).toBe(true);
+    expect(result.nextCursor).toBe('6000');
+  });
 
-    // Resume from the offset: starts at that page of the SAME window (not page 0, not past the tie).
-    const second = endlessServer((p) => (p < PAGE_CAP + 2 ? [task(`cu-${p}`, '5000')] : []), PAGE_CAP + 2);
-    const r2 = await clickUpListRawChangesSinceWatermark(r1.nextCursor, baseDeps(second.fetchImpl));
-    expect(second.urls[0]).toContain(`page=${PAGE_CAP}`);
-    expect(second.urls[0]).toContain('date_updated_gt=4999');
-    expect(r2.changes.map((t) => t.id)).toEqual([`cu-${PAGE_CAP}`, `cu-${PAGE_CAP + 1}`]);
+  it('a page cap reports incomplete with a keyset cursor, and resuming from it reads every row exactly once more', async () => {
+    const all = ids(10, (i) => 1001 + i);
+    const server = listServer(all, { pageSize: 2 });
+    const first = await clickUpListRawChangesSinceWatermark(null, { ...baseDeps(server.fetchImpl), maxPages: 2 });
+    expect(first.complete).toBe(false);
+    expect(first.changes).toHaveLength(3); // pages overlap by the boundary row (inclusive re-read)
+    expect(first.nextCursor).toBe('1003');
+    const drained = await drain(server.fetchImpl, 2, null);
+    expect([...new Set(drained.ids)].sort()).toEqual(all.map((t) => t.id));
+    expect(drained.cursor).toBe('1010');
+  });
+
+  it('a tie wider than the page CAP resumes at its page offset, then drops the offset once drained', async () => {
+    const tie = ids(5, () => 5000, 'tie');
+    const server = listServer(tie, { pageSize: 2 });
+    const r1 = await clickUpListRawChangesSinceWatermark(null, { ...baseDeps(server.fetchImpl), maxPages: 2 });
+    expect(r1.complete).toBe(false);
+    expect(r1.nextCursor).toBe('5000:2');
+    const r2 = await clickUpListRawChangesSinceWatermark(r1.nextCursor, { ...baseDeps(server.fetchImpl), maxPages: 2 });
+    expect(server.urls.at(-1)).toContain('date_updated_gt=4999');
+    expect(server.urls.at(-1)).toContain('page=2');
+    expect(r2.changes.map((t) => t.id)).toEqual(['tie-04']);
     expect(r2.complete).toBe(true);
     expect(r2.nextCursor).toBe('5000');
   });
 
+  it('a deadline already passed reads nothing: incomplete, no cursor to advance', async () => {
+    const server = listServer(ids(4, (i) => 1001 + i), { pageSize: 2 });
+    const r = await clickUpListRawChangesSinceWatermark(null, { ...baseDeps(server.fetchImpl), deadlineAtMs: Date.now() - 1 });
+    expect(server.urls).toHaveLength(0);
+    expect(r).toMatchObject({ complete: false, nextCursor: null, changes: [] });
+  });
+
+  it('a deadline that passes mid-read stops with a resumable cursor', async () => {
+    const server = listServer(ids(10, (i) => 1001 + i), { pageSize: 2 });
+    let now = 0;
+    const spy = vi.spyOn(Date, 'now').mockImplementation(() => now);
+    try {
+      const timed = (async (...args: Parameters<typeof fetch>) => {
+        now += 10; // each request burns 10ms of a 25ms budget
+        return server.fetchImpl(...args);
+      }) as typeof fetch;
+      const r = await clickUpListRawChangesSinceWatermark(null, { ...baseDeps(timed), deadlineAtMs: 25 });
+      expect(server.urls).toHaveLength(3);
+      expect(r.complete).toBe(false);
+      expect(r.nextCursor).not.toBeNull();
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('works when the server answers newest-first under reverse=true: reverse is flipped and every row is read', async () => {
+    const all = ids(6, (i) => 1001 + i);
+    const server = listServer(all, { pageSize: 2, reverseMeansOldestFirst: false });
+    const drained = await drain(server.fetchImpl, 50);
+    expect([...new Set(drained.ids)].sort()).toEqual(all.map((t) => t.id));
+    expect(server.urls.some((u) => u.includes('reverse=false'))).toBe(true);
+  });
+
+  it('works when each page is the oldest window but lists its rows newest-first (no flip needed)', async () => {
+    const all = ids(6, (i) => 1001 + i);
+    const server = listServer(all, { pageSize: 2, listPagesBackwards: true });
+    const drained = await drain(server.fetchImpl, 50);
+    expect([...new Set(drained.ids)].sort()).toEqual(all.map((t) => t.id));
+    expect(server.urls.every((u) => u.includes('reverse=true'))).toBe(true);
+  });
+
+  it('refuses a partial read when the server is newest-first under both reverse settings', async () => {
+    const all = ids(6, (i) => 1001 + i);
+    const base = listServer(all, { pageSize: 2, reverseMeansOldestFirst: false });
+    const alwaysNewestFirst = vi.fn(async (url: string) => base.fetchImpl(url.replace('reverse=false', 'reverse=true'))) as unknown as typeof fetch;
+    await expect(clickUpListRawChangesSinceWatermark(null, baseDeps(alwaysNewestFirst))).rejects.toThrow(/newest-first/);
+  });
+
   it('the multi-List read lists every List that came back incomplete', async () => {
-    const { fetchImpl } = endlessServer((p) => [task(`cu-${p}`, String(10_000 + p))]);
+    const server = listServer(ids(30, (i) => 10_000 + i), { pageSize: 2 });
     const result = await clickUpListRawChangesAcrossLists(
       [{ listId: 'list-1', statusMap, memberMap, cursor: null }],
-      { fetchImpl, token: 't' },
+      { fetchImpl: server.fetchImpl, token: 't' },
+      { maxPagesPerList: 3 },
     );
     expect(result.incompleteListIds).toEqual(['list-1']);
-    expect(result.perListNextCursor['list-1']).toBe(String(10_000 + PAGE_CAP - 1));
+    expect(result.perListNextCursor['list-1']).toBe('10003');
+  });
+
+  it('the multi-List read caps each List at SWEEP_LIST_PAGE_CAP pages by default', async () => {
+    const server = listServer(ids(60, (i) => 10_000 + i), { pageSize: 2 });
+    const result = await clickUpListRawChangesAcrossLists([{ listId: 'list-1', statusMap, memberMap, cursor: null }], {
+      fetchImpl: server.fetchImpl,
+      token: 't',
+    });
+    expect(server.urls).toHaveLength(SWEEP_LIST_PAGE_CAP);
+    expect(result.incompleteListIds).toEqual(['list-1']);
+  });
+});
+
+describe('laterReadCursor — a concurrent writer is compared by (timestamp, page offset)', () => {
+  it('a higher page offset at the same timestamp wins, in either argument order', () => {
+    expect(laterReadCursor('5000', '5000:3')).toBe('5000:3');
+    expect(laterReadCursor('5000:3', '5000')).toBe('5000:3');
+    expect(laterReadCursor('5000:2', '5000:3')).toBe('5000:3');
+  });
+  it('a later timestamp beats any offset on an earlier one', () => {
+    expect(laterReadCursor('5000:9', '5001')).toBe('5001');
+    expect(laterReadCursor('5001', '5000:9')).toBe('5001');
   });
 });

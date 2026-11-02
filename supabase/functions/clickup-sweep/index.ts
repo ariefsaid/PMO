@@ -42,6 +42,11 @@ import {
 import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
 import { withJobRun, type JobSummary } from '../_shared/jobRun.ts';
 
+/** Wall-clock the invocation may spend READING ClickUp, shared by every org. The edge function is killed at
+ *  150 s (see `_shared/jobRun.ts`); the serial applies, archives and watermark writes need the remainder,
+ *  so reads stop at 60 s and the List resumes from its keyset cursor next tick. */
+export const CLICKUP_SWEEP_READ_BUDGET_MS = 60_000;
+
 // Shared across invocations of this isolate (NFR-CUA-PERF-003). Bulk lane: the sweep yields to any
 // in-flight interactive write.
 const rateLimiter = new ClickUpRateLimiter();
@@ -146,10 +151,12 @@ export function buildSweepDepsLive(
   orgId: string,
   token: string,
   bindings: MultiListSweepBinding[],
+  readDeadlineAtMs?: number,
 ): MultiListSweepDeps {
   const mirrorCallbacks = createClickUpMirrorCallbacks({ serviceClient, orgId });
   return {
     bindings,
+    readDeadlineAtMs,
     clientDeps: { fetchImpl: fetch, token, rateLimiter },
     readListWatermark: (listId) => readListWatermark(serviceClient, orgId, listId),
     advanceListWatermark: (listId, cursor) => advanceListWatermark(serviceClient, orgId, listId, cursor),
@@ -174,6 +181,7 @@ async function sweepOrg(
   serviceClient: SupabaseClient,
   orgId: string,
   token: string,
+  readDeadlineAtMs: number,
 ): Promise<{ applied: number; archived: number; skippedAmbiguous: number; perList: MultiListSweepPerListResult[]; error?: string }> {
   // Load the org's ClickUp bindings (one List per bound project).
   const { data: bindingRows, error: bindingError } = await serviceClient
@@ -192,7 +200,7 @@ async function sweepOrg(
   });
 
   try {
-    return await runMultiListSweep(buildSweepDepsLive(serviceClient, orgId, token, bindings));
+    return await runMultiListSweep(buildSweepDepsLive(serviceClient, orgId, token, bindings, readDeadlineAtMs));
   } catch (err) {
     // AC-CUA-044: an unreachable adapter (or any apply failure) leaves every List's watermark + the
     // read-model untouched (runMultiListSweep throws before advancing). Surface the per-org failure;
@@ -276,6 +284,7 @@ serveWithErrorReporting('clickup-sweep', withJobRun('clickup-sweep', async (req:
   if (ownershipError) return json({ error: ownershipError.code ?? 'OWNERSHIP_READ_FAILED', message: ownershipError.message }, 500);
   const orgIds = Array.from(new Set(((ownership as Array<{ org_id: string }> | null) ?? []).map((r) => r.org_id)));
 
+  const readDeadlineAtMs = Date.now() + CLICKUP_SWEEP_READ_BUDGET_MS;
   const perOrg = [];
   const failures = [];
   let totalApplied = 0;
@@ -285,7 +294,7 @@ serveWithErrorReporting('clickup-sweep', withJobRun('clickup-sweep', async (req:
     // the failure and continue; the org's watermark simply does not advance and retries next schedule.
     try {
       const token = await resolveOrgClickUpToken(serviceClient, orgId);
-      const result = await sweepOrg(serviceClient, orgId, token);
+      const result = await sweepOrg(serviceClient, orgId, token, readDeadlineAtMs);
       totalApplied += result.applied;
       perOrg.push({ orgId, ...result });
     } catch (err) {

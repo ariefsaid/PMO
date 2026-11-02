@@ -53,6 +53,12 @@ describe('resolveInboundRecord — parent link', () => {
     expect('parent_task_id' in rec).toBe(false);
   });
 
+  it('an explicit parent: null (task un-nested in ClickUp) clears parent_task_id, distinct from an absent key', async () => {
+    const rec = await resolveInboundRecord(task({ parent: null }), maps, { resolveParentPmoId: async () => 'x' }, { mappedPmoId: 'pmo-1' });
+    expect('parent_task_id' in rec).toBe(true);
+    expect(rec.parent_task_id).toBeNull();
+  });
+
   it('resolves a mirrored parent to its PMO id', async () => {
     const resolveParentPmoId = vi.fn(async () => 'pmo-parent');
     const rec = await resolveInboundRecord(task({ parent: 'cu-p' }), maps, { resolveParentPmoId }, { mappedPmoId: 'pmo-1' });
@@ -83,5 +89,15 @@ describe('resolveInboundRecord — parent link', () => {
       { mappedPmoId: null, childProjectId: 'proj-a' },
     );
     expect(rec.parent_task_id).toBe('pmo-parent');
+  });
+
+  it('fails closed when the parent mirror project cannot be read (null): the parent is not stamped', async () => {
+    const rec = await resolveInboundRecord(
+      task({ parent: 'cu-p' }),
+      maps,
+      { resolveParentPmoId: async () => 'pmo-parent', readMirrorProjectId: async () => null },
+      { mappedPmoId: null, childProjectId: 'proj-a' },
+    );
+    expect(rec.parent_task_id).toBeNull();
   });
 });

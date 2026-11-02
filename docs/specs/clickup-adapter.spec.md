@@ -762,8 +762,8 @@ employs ClickUp — this survives the repository wiring only if the routing shor
 | AC-CUA-040 | FR-CUA-041, NFR-CUA-SEC-002 | Vitest (unit) | `pmo-portal/src/lib/adapterSeam/clickup/webhookApply.test.ts` |
 | AC-CUA-041 | FR-CUA-042, FR-CUA-043 | Vitest (unit) | `pmo-portal/src/lib/adapterSeam/clickup/webhookApply.test.ts` |
 | AC-CUA-042 | FR-CUA-044, FR-CUA-062 | Vitest (unit) | `pmo-portal/src/lib/adapterSeam/clickup/webhookApply.test.ts` |
-| AC-CUA-043 | FR-CUA-045, FR-CUA-046 | Vitest (unit) | `pmo-portal/src/lib/adapterSeam/clickup/sweep.test.ts` |
-| AC-CUA-044 | FR-CUA-047 | Vitest (unit) | `pmo-portal/src/lib/adapterSeam/clickup/sweep.test.ts` |
+| AC-CUA-043 | FR-CUA-045, FR-CUA-046 | Vitest (unit) | `pmo-portal/src/lib/adapterSeam/clickup/multiListSweep.test.ts` |
+| AC-CUA-044 | FR-CUA-047 | Vitest (unit) | `pmo-portal/src/lib/adapterSeam/clickup/multiListSweep.test.ts` |
 | AC-CUA-045 | FR-CUA-049 | Vitest (unit) | `pmo-portal/src/lib/adapterSeam/clickup/webhookApply.test.ts` |
 | AC-CUA-050 | FR-CUA-050, FR-CUA-051 | Vitest (unit) | `pmo-portal/src/lib/adapterSeam/clickup/onboarding.test.ts` |
 | AC-CUA-051 | FR-CUA-051, FR-CUA-092 | Vitest (unit) | `pmo-portal/src/lib/adapterSeam/clickup/onboarding.test.ts` |

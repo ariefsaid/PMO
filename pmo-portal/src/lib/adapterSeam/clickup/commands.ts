@@ -22,9 +22,16 @@ export interface ClickUpCommandDeps extends ClickUpClientDeps {
    * — omitted (or unresolvable) degrades to "no prior assignee known" rather than failing the write. */
   resolvePreviousAssigneeIds?: (pmoRecordId: string) => Promise<number[]>;
   /** Resolve a PMO parent_task_id to its mapped ClickUp task id (the `external_refs` lookup, injected).
-   * Optional — when omitted or unresolvable, the child task is created/updated WITHOUT a parent
-   * (flat task), and reconciliation happens on a later sweep. */
+   * `null` = the parent has no ClickUp mapping; a command that names such a parent is REFUSED (it must
+   * never reach ClickUp as a task with no parent while PMO records the nesting). */
   resolveParentExternalId?: (pmoParentTaskId: string) => Promise<string | null>;
+}
+
+/** The ClickUp id of the parent a command names, or a clear refusal when it has no ClickUp mapping. */
+async function mappedParentClickUpId(deps: ClickUpCommandDeps, pmoParentTaskId: string): Promise<string> {
+  const id = deps.resolveParentExternalId ? await deps.resolveParentExternalId(pmoParentTaskId) : null;
+  if (!id) throw new AdapterError('commit-rejected', 'The chosen parent task is not linked to ClickUp yet, so it cannot be used as a parent.');
+  return id;
 }
 
 /** Commit one task command against ClickUp REST v2 (FR-CUA-002..008, AC-CUA-031/032/033). */
@@ -35,18 +42,8 @@ export async function commitClickUpTaskCommand(
   const maps: ClickUpMaps = { statusMap: deps.statusMap, memberMap: deps.memberMap };
 
   if (command.operation === 'create') {
-    let parentClickUpId: string | null | undefined;
     const record = command.record as PmoRecord & { parent_task_id?: string | null };
-    if (record.parent_task_id && deps.resolveParentExternalId) {
-      try {
-        parentClickUpId = await deps.resolveParentExternalId(record.parent_task_id);
-      } catch {
-        // Unresolvable parent — log and proceed without parent (flat task).
-        // The periodic sweep will reconcile once the parent is mirrored.
-        console.warn(`[clickup] parent_task_id ${record.parent_task_id} unresolvable for child ${record.id}; creating flat`);
-        parentClickUpId = null;
-      }
-    }
+    const parentClickUpId = record.parent_task_id ? await mappedParentClickUpId(deps, record.parent_task_id) : undefined;
     const body = pmoTaskToClickUpBody(record, maps, { mode: 'create', parentClickUpId });
     const raw = (await clickUpRequest(deps, {
       method: 'POST',
@@ -54,7 +51,7 @@ export async function commitClickUpTaskCommand(
       body,
       priority: 'interactive',
     })) as ClickUpTask;
-    return toResult(command.record.id, raw, maps);
+    return toResult(command.record.id, raw, maps, undefined, parentClickUpId ? { pmoId: record.parent_task_id!, clickUpId: parentClickUpId } : undefined);
   }
 
   if (command.operation === 'delete') {
@@ -68,35 +65,41 @@ export async function commitClickUpTaskCommand(
     const previousAssigneeIds = deps.resolvePreviousAssigneeIds
       ? await deps.resolvePreviousAssigneeIds(command.record.id)
       : [];
-    let parentClickUpId: string | null | undefined;
     const record = command.record as PmoRecord & { parent_task_id?: string | null };
-    if ('parent_task_id' in record && deps.resolveParentExternalId) {
-      if (record.parent_task_id) {
-        try {
-          parentClickUpId = await deps.resolveParentExternalId(record.parent_task_id);
-        } catch {
-          console.warn(`[clickup] parent_task_id ${record.parent_task_id} unresolvable for child ${record.id}; updating without parent change`);
-          parentClickUpId = undefined; // no parent change
-        }
-      } else {
-        // Explicit null = promote to top-level
-        parentClickUpId = null;
-      }
-    }
-    const body = pmoTaskToClickUpBody(record, maps, { mode: 'update', previousAssigneeIds, parentClickUpId });
+    // Placement is an `update` concern only: a status transition never carries it to ClickUp.
+    // A null parent is NOT sent: ClickUp's Update Task cannot convert a subtask to a task ("You cannot
+    // convert a subtask to a task by setting parent to null"), so the dispatch refuses a clear before it
+    // gets here and a null reaching this point (no parent to clear) changes nothing.
+    const parent =
+      command.operation === 'update' && record.parent_task_id
+        ? { pmoId: record.parent_task_id, clickUpId: await mappedParentClickUpId(deps, record.parent_task_id) }
+        : undefined;
+    const body = pmoTaskToClickUpBody(record, maps, { mode: 'update', previousAssigneeIds, parentClickUpId: parent?.clickUpId });
     const raw = (await clickUpRequest(deps, {
       method: 'PUT',
       path: `/task/${externalId}`,
       body,
       priority: 'interactive',
     })) as ClickUpTask;
-    return toResult(command.record.id, raw, maps, externalId);
+    return toResult(command.record.id, raw, maps, externalId, parent);
   }
 
   throw new AdapterError('commit-rejected', `unsupported ClickUp operation "${command.operation}"`);
 }
 
-function toResult(pmoRecordId: string, raw: ClickUpTask, maps: ClickUpMaps, externalIdOverride?: string): CommandResult {
-  const canonical: PmoRecord = { ...clickUpTaskToPmoRecord(raw, maps), id: pmoRecordId };
+/** The canonical result. `parent_task_id` is stamped ONLY when ClickUp's own response confirms the parent
+ *  the command asked for (`raw.parent`): the mirror records what ClickUp accepted, never the request. */
+function toResult(
+  pmoRecordId: string,
+  raw: ClickUpTask,
+  maps: ClickUpMaps,
+  externalIdOverride?: string,
+  requestedParent?: { pmoId: string; clickUpId: string },
+): CommandResult {
+  const canonical: PmoRecord = {
+    ...clickUpTaskToPmoRecord(raw, maps),
+    id: pmoRecordId,
+    ...(requestedParent && raw.parent === requestedParent.clickUpId ? { parent_task_id: requestedParent.pmoId } : {}),
+  };
   return { externalRecordId: externalIdOverride ?? raw.id, canonical };
 }

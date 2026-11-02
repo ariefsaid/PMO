@@ -96,7 +96,7 @@ describe('AC-CUA-104: the reconciliation sweep enumerates only bound Lists', () 
 });
 
 describe('SEC-HIGH-1: each bound List advances on its OWN watermark, independent of a sibling List', () => {
-  it('a 404d List keeps its watermark UNTOUCHED while a healthy sibling List still advances', async () => {
+  it('AC-CUA-043 a 404d List keeps its watermark UNTOUCHED while a healthy sibling List still advances (the sweep applies what changed and advances)', async () => {
     const fetchImpl = vi.fn(async (url: string) => {
       if (url.includes('/list/list-gone/')) return new Response('not found', { status: 404 });
       if (url.includes('/list/list-ok/')) {
@@ -250,7 +250,7 @@ describe('SEC-MEDIUM-6: an archived ClickUp task archives its EXISTING PMO mirro
 });
 
 describe('failure isolation: a non-404 read failure aborts the WHOLE cycle (no partial watermark advance)', () => {
-  it('propagates a non-404 error and advances NO List watermark this cycle, even one already read successfully', async () => {
+  it('AC-CUA-044 propagates a non-404 error and advances NO List watermark this cycle, even one already read successfully', async () => {
     const fetchImpl = vi.fn(async (url: string) => {
       if (url.includes('/list/list-a/')) {
         return new Response(JSON.stringify({ tasks: [task('cu-1', '2000')], last_page: true }), { status: 200 });
@@ -445,11 +445,23 @@ describe('mapped tasks resolve current status, parent and project through the sh
 });
 
 describe('ADP-023 an incomplete List read is reported and advances only to its partial cursor', () => {
+  /** Two rows per answer, always newer than the requested `date_updated_gt`: the feed never ends. */
   const endless = () =>
     vi.fn(async (url: string) => {
-      const page = Number(new URL(url).searchParams.get('page'));
-      return new Response(JSON.stringify({ tasks: [task(`cu-${page}`, String(10_000 + page))], last_page: false }), { status: 200 });
+      const gt = Number(new URL(url).searchParams.get('date_updated_gt'));
+      return new Response(
+        JSON.stringify({ tasks: [task(`cu-${gt + 1}`, String(gt + 1)), task(`cu-${gt + 2}`, String(gt + 2))], last_page: false }),
+        { status: 200 },
+      );
     }) as unknown as typeof fetch;
+  /** A tie that never ends: every answer is a full page of rows sharing one timestamp. */
+  const endlessTie = () =>
+    vi.fn(async (url: string) => {
+      const page = new URL(url).searchParams.get('page');
+      return new Response(JSON.stringify({ tasks: [task(`cu-${page}-a`, '5000'), task(`cu-${page}-b`, '5000')], last_page: false }), { status: 200 });
+    }) as unknown as typeof fetch;
+  const oneTask = () =>
+    vi.fn(async () => new Response(JSON.stringify({ tasks: [task('cu-1', '5000')], last_page: true }), { status: 200 })) as unknown as typeof fetch;
 
   it('flags the List incomplete, applies what was read, and stores the partial cursor', async () => {
     const harness = makeFakeDeps({ clientDeps: { fetchImpl: endless(), token: 't' } });
@@ -457,19 +469,54 @@ describe('ADP-023 an incomplete List read is reported and advances only to its p
 
     const result = await runMultiListSweep({ ...harness.deps, bindings: [binding('list-a', 'proj-a')] });
 
-    expect(result.perList[0]).toMatchObject({ listId: 'list-a', incomplete: true, nextCursor: '10999' });
-    expect(result.applied).toBe(1000);
-    expect(harness.watermarks.get('list-a')).toBe('10999');
+    expect(result.perList[0]).toMatchObject({ listId: 'list-a', incomplete: true, nextCursor: '10010' });
+    expect(result.applied).toBe(11);
+    expect(harness.watermarks.get('list-a')).toBe('10010');
   });
 
-  it('never rewinds a stored offset cursor with a plain one at the same timestamp', async () => {
-    const harness = makeFakeDeps({
-      clientDeps: { fetchImpl: vi.fn(async () => new Response(JSON.stringify({ tasks: [task('cu-1', '5000')], last_page: true }), { status: 200 })) as unknown as typeof fetch, token: 't' },
-    });
+  it('a plain stored cursor plus a tie wider than the page cap advances the watermark to the page offset', async () => {
+    const harness = makeFakeDeps({ clientDeps: { fetchImpl: endlessTie(), token: 't' } });
+    harness.watermarks.set('list-a', '5000');
+
+    const result = await runMultiListSweep({ ...harness.deps, bindings: [binding('list-a', 'proj-a')] });
+
+    expect(result.perList[0]).toMatchObject({ incomplete: true, nextCursor: '5000:10' });
+    expect(harness.watermarks.get('list-a')).toBe('5000:10');
+  });
+
+  it('a drained tie replaces the stored offset cursor with the plain timestamp (the offset is not kept forever)', async () => {
+    const harness = makeFakeDeps({ clientDeps: { fetchImpl: oneTask(), token: 't' } });
     harness.watermarks.set('list-a', '5000:2000');
 
     await runMultiListSweep({ ...harness.deps, bindings: [binding('list-a', 'proj-a')] });
 
-    expect(harness.watermarks.get('list-a')).toBe('5000:2000');
+    expect(harness.watermarks.get('list-a')).toBe('5000');
+  });
+
+  it('a cursor another sweep advanced while this one ran is never rewound', async () => {
+    const harness = makeFakeDeps({ clientDeps: { fetchImpl: oneTask(), token: 't' } });
+    harness.watermarks.set('list-a', '5000');
+    let reads = 0;
+    const deps = {
+      ...harness.deps,
+      // the first read is this run's own start cursor; the re-read before the write sees a concurrent run's progress
+      readListWatermark: async () => (reads++ === 0 ? '5000' : '5000:7'),
+    };
+
+    await runMultiListSweep({ ...deps, bindings: [binding('list-a', 'proj-a')] });
+
+    expect(harness.watermarks.get('list-a')).toBe('5000:7');
+  });
+
+  it('a read deadline that has already passed reads nothing, reports the List incomplete and moves no cursor', async () => {
+    const fetchImpl = endless();
+    const harness = makeFakeDeps({ clientDeps: { fetchImpl, token: 't' } });
+    harness.watermarks.set('list-a', '10000');
+
+    const result = await runMultiListSweep({ ...harness.deps, bindings: [binding('list-a', 'proj-a')], readDeadlineAtMs: Date.now() - 1 });
+
+    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(result.perList[0]).toMatchObject({ incomplete: true, nextCursor: null });
+    expect(harness.watermarks.get('list-a')).toBe('10000');
   });
 });

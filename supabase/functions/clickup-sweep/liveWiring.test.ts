@@ -4,7 +4,9 @@
 //   • an unrelated inbound change keeps a mapped task's PMO-only status;
 //   • a ClickUp task with no parent never flattens a linked PMO subtask;
 //   • a ClickUp parent resolves to its mirrored PMO id;
-//   • an adopted subtask is minted with its resolved parent, claim-first.
+//   • an explicit ClickUp `parent: null` un-nests the mirror;
+//   • an adopted subtask is minted with its resolved parent, claim-first;
+//   • the invocation's read deadline reaches the reader.
 (Deno as unknown as { serve: (...a: unknown[]) => unknown }).serve = () => ({ finished: Promise.resolve() });
 const { buildSweepDepsLive } = await import('./index.ts');
 import { runMultiListSweep } from '../../../pmo-portal/src/lib/adapterSeam/clickup/multiListSweep.ts';
@@ -57,7 +59,7 @@ function clickUpTask(id: string, extra: Row = {}): Row {
   return { id, name: `Task ${id}`, status: { status: 'to do' }, assignees: [], start_date: null, due_date: null, date_updated: '9000', ...extra };
 }
 
-async function sweep(db: ReturnType<typeof fakeDb>, tasks: Row[], pmoOnly = false) {
+async function sweep(db: ReturnType<typeof fakeDb>, tasks: Row[], pmoOnly = false, readDeadlineAtMs?: number) {
   const origFetch = globalThis.fetch;
   globalThis.fetch = (() => Promise.resolve(new Response(JSON.stringify({ tasks, last_page: true }), { status: 200 }))) as typeof fetch;
   try {
@@ -68,7 +70,7 @@ async function sweep(db: ReturnType<typeof fakeDb>, tasks: Row[], pmoOnly = fals
       ...(pmoOnly ? { pmoOnlyStatuses: ['Blocked'] } : {}),
     };
     const bindings = [{ listId: LIST, projectId: PROJECT, statusMap, memberMap: { pmoToClickUp: {}, clickUpToPmo: {} } }];
-    return await runMultiListSweep(buildSweepDepsLive(db.client as never, ORG, 'tok', bindings));
+    return await runMultiListSweep(buildSweepDepsLive(db.client as never, ORG, 'tok', bindings, readDeadlineAtMs));
   } finally {
     globalThis.fetch = origFetch;
   }
@@ -102,4 +104,17 @@ Deno.test('live sweep adopts a subtask claim-first with its resolved parent', as
   assert(minted!.parent_task_id === 'pmo-p', 'the adopted subtask carries its resolved parent');
   assert(minted!.project_id === PROJECT, 'it lands in the bound List\'s project');
   assert(db.tables.external_refs.some((r) => r.external_record_id === 'cu-new' && r.pmo_record_id === minted!.id), 'the ref claim is recorded');
+});
+
+Deno.test('live sweep: an explicit ClickUp parent: null (un-nested in ClickUp) clears the PMO parent', async () => {
+  const db = fakeDb({ refs: [ref('cu-1', 'pmo-1'), ref('cu-p', 'pmo-p')], tasks: [mirror('pmo-1', { parent_task_id: 'pmo-p' }), mirror('pmo-p')] });
+  await sweep(db, [clickUpTask('cu-1', { parent: null })]);
+  assert(db.tables.tasks[0].parent_task_id === null, 'a task that is top-level in ClickUp must not stay nested in PMO');
+});
+
+Deno.test('live sweep: the invocation read deadline reaches the reader (a passed deadline reads and applies nothing)', async () => {
+  const db = fakeDb({ refs: [ref('cu-1', 'pmo-1')], tasks: [mirror('pmo-1')] });
+  const result = await sweep(db, [clickUpTask('cu-1', { name: 'Renamed' })], false, Date.now() - 1);
+  assert(db.tables.tasks[0].name === 'old', 'nothing was read, so nothing applied');
+  assert(result.perList[0].incomplete === true, 'the List is reported incomplete');
 });

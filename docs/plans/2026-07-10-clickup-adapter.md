@@ -668,8 +668,8 @@ the required US-hosted data-locality note (NFR-CUA-LOCALITY-001).
 | AC-CUA-040 | D · D1/D2/D8 | Vitest (unit) | `pmo-portal/src/lib/adapterSeam/clickup/webhookApply.test.ts` (+ `signature.test.ts`) |
 | AC-CUA-041 | D · D2 | Vitest (unit) | `pmo-portal/src/lib/adapterSeam/clickup/webhookApply.test.ts` |
 | AC-CUA-042 | D · D3 | Vitest (unit) | `pmo-portal/src/lib/adapterSeam/clickup/webhookApply.test.ts` |
-| AC-CUA-043 | D · D5 | Vitest (unit) | `pmo-portal/src/lib/adapterSeam/clickup/sweep.test.ts` |
-| AC-CUA-044 | D · D5 | Vitest (unit) | `pmo-portal/src/lib/adapterSeam/clickup/sweep.test.ts` |
+| AC-CUA-043 | D · D5 | Vitest (unit) | `pmo-portal/src/lib/adapterSeam/clickup/multiListSweep.test.ts` |
+| AC-CUA-044 | D · D5 | Vitest (unit) | `pmo-portal/src/lib/adapterSeam/clickup/multiListSweep.test.ts` |
 | AC-CUA-045 | D · D3 | Vitest (unit) | `pmo-portal/src/lib/adapterSeam/clickup/webhookApply.test.ts` |
 | AC-CUA-050 | E · E2 | Vitest (unit) | `pmo-portal/src/lib/adapterSeam/clickup/onboarding.test.ts` |
 | AC-CUA-051 | E · E2 | Vitest (unit) | `pmo-portal/src/lib/adapterSeam/clickup/onboarding.test.ts` |
