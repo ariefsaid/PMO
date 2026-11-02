@@ -29,3 +29,5 @@ language sql stable security invoker set search_path = public, pg_catalog as $$
     when public.org_reads_erp_ledger() then greatest(0::numeric, coalesce(p.total_value, 0) - coalesce(public.procurement_ledger_held(p.id), 0))
     else coalesce(p.total_value, 0)::numeric end
 $$;
+
+drop function public.procurement_paid_pre_tax(public.procurements);

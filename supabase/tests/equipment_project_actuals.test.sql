@@ -4,7 +4,7 @@
 -- Fixture F1 + F2 are docs/plans/2026-11-01-equipment-usage.md "Fixture F1" / "Ledger Fixture F2".
 begin;
 create extension if not exists pgtap;
-select plan(61);
+select plan(62);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('15190000-0000-0000-0000-00000000000a', 'EQU Org',   'IDR', 'Asia/Jakarta'),
@@ -270,8 +270,15 @@ set local role authenticated;
 select is((get_project_finances('15190000-0000-0000-0000-0000000000c1')->'actuals'->>'equipment_charge_total')::numeric,
   580.00::numeric, 'AC-EQU-010 PMO actuals retain the internal charge');
 select is((get_project_finances('15190000-0000-0000-0000-0000000000c1')->'actuals'->>'total')::numeric,
-  1480.00::numeric, 'AC-EQU-010 without a ledger binding the total is unchanged: snapshot and attributed terms plus the internal charge');
+  580.00::numeric, 'AC-EQU-010 PMO actuals include the internal charge without a ledger binding');
 reset role;
+update public.projects set currency = 'USD' where id = '15190000-0000-0000-0000-0000000000c1';
+set local role authenticated;
+select is((select c->>'amount' from jsonb_array_elements(get_project_finances('15190000-0000-0000-0000-0000000000c1')->'actuals'->'categories') c
+            where c->>'category' = 'Equipment'), null,
+  'AC-EQU-010 an org-currency charge on a project in another currency is unknown, never labelled as the project currency');
+reset role;
+update public.projects set currency = 'IDR' where id = '15190000-0000-0000-0000-0000000000c1';
 update public.external_org_bindings set status = 'active'
  where org_id = '15190000-0000-0000-0000-00000000000a' and external_tier = 'erpnext';
 set local role authenticated;

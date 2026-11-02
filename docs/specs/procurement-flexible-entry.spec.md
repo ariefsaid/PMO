@@ -160,10 +160,17 @@ linking, by the ERP mirror, or by the record forms as today).
   currency and ERP status, marked "From ERPNext".
 
 ### No double counting
-- **FR-PFE-035** Actuals shall come only from the ERP ledger (GL mirror → `project_mapped_actuals`), as today. No
-  linked document, link row or purchase total shall feed actuals.
+- **FR-PFE-035** For an org that reads the ERP ledger, actuals shall come only from the ERP ledger (GL mirror →
+  `project_mapped_actuals`), as today. No linked document, link row or purchase total shall feed actuals. An org
+  without an active ERP binding reads no ledger term (0307); its actuals are PMO paid purchases at their pre-tax
+  amount plus the internal equipment charge, in the project currency (#1530, OD-1530-COMMIT).
 - **FR-PFE-036** A purchase's **open commitment** shall be: 0 when Cancelled or Rejected; when the org reads the ERP
-  ledger (`org_reads_erp_ledger()`), `greatest(0, total_value − ledger-held amount)`; otherwise `total_value`.
+  ledger (`org_reads_erp_ledger()`), `greatest(0, total_value − ledger-held amount)`; for a purchase linked from
+  the ERP (`origin = erp_link`), `total_value`; otherwise `greatest(0, total_value − pre-tax paid amount)`
+  (OD-1530-COMMIT). The pre-tax paid amount is the sum of Paid payments scaled by the purchase's invoices'
+  pre-tax ÷ payable ratio (payments carry exclusive VAT and are net of withholding). When a paid amount is unusable
+  or in another currency than the purchase, the open commitment is the full `total_value`, never NULL, so
+  committed spend never loses the purchase.
 - **FR-PFE-037** Committed spend of a project shall be Σ open commitment over its purchases in the committed
   statuses (Ordered, Received, Vendor Invoiced, Paid) — `project_committed_spend(project_id)` — and the client's
   `getProjectCommittedSpend` and the procurement list summary shall read the server's open commitment rather than
@@ -172,8 +179,9 @@ linking, by the ERP mirror, or by the record forms as today).
   surface showing the project-currency figure names the other-currency amounts beside it.
 - **NFR-PFE-001** The budget-line routing figure (`spend_approval_route.line_used`) stays procurement-sourced and
   unchanged: it has no ledger term, so a linked purchase's full value counts once on its line.
-- **NFR-PFE-002** For an org that does not read the ERP ledger every figure is unchanged (open commitment =
-  `total_value`).
+- **NFR-PFE-002** For an org that does not read the ERP ledger, no amount counts twice: paid spend is an actual,
+  so the open commitment is the unpaid remainder (FR-PFE-036), and budget − actuals − commitment stays the true
+  headroom (OD-1530-COMMIT).
 
 ### Orphans
 - **FR-PFE-040** The sweep shall mirror submitted and cancelled Purchase Receipts and supplier Payment Entries
@@ -241,7 +249,8 @@ AC-7 → 007 · AC-8 → 008 · AC-9 → 009, 017 · AC-10 → 010 · AC-11 → 
 - **AC-PFE-005** (pgTAP) Given an ERP-ledger org, a project with mapped actuals A and an Ordered purchase of
   total 1,000 with a linked submitted invoice of net 600, Then `project_mapped_actuals` still totals A,
   `procurement_open_commitment` is 400 and `project_committed_spend` counts 400 for it; a linked return of net −100
-  raises it to 500; Given a non-ledger org, Then open commitment equals `total_value`.
+  raises it to 500; Given a non-ledger org, Then open commitment equals `total_value` minus the pre-tax paid
+  amount (0 once fully paid; a 1,000 invoice with 110 exclusive VAT half paid leaves 500) — `0560_budget_pmo_paid_actuals.test.sql`.
 - **AC-PFE-006** (unit, `ErpOrphansSection.test.tsx`) Given three orphans of a project, When the tab renders, Then
   each row offers "Link to purchase" and "New purchase from this", and selecting two shows bulk "Link 2 to purchase"
   and "New purchase from 2".
