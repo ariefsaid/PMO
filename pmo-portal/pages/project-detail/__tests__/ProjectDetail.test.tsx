@@ -531,4 +531,11 @@ describe('ProjectDetail shell (decomposition)', () => {
     const back = screen.getByRole('button', { name: /Back to Projects/i });
     expect(back.parentElement!.className).toContain('max-[920px]:flex');
   });
+
+  it('AC-PSH-013: the won-page "Sales history" disclosure contains only its summary heading without duplicate Stage history h2', async () => {
+    await renderAt('/projects/p1');
+    const summary = screen.getByText('Sales history');
+    expect(summary).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { level: 2, name: /stage history/i })).not.toBeInTheDocument();
+  });
 });

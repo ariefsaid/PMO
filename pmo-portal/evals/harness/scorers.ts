@@ -196,6 +196,17 @@ export function proposesAction(name: string, check?: (args: Record<string, unkno
   };
 }
 
+/** The run did NOT propose the named action (over-trigger guard). */
+export function noProposal(name: string): Scorer {
+  return (run) => {
+    const hit = run.events.some((e) => {
+      const p = e.payload as { status?: string; actionName?: string } | undefined;
+      return e.type === 'status' && p?.status === 'needs-approval' && p.actionName === name;
+    });
+    return hit ? { pass: false, reason: `unexpected needs-approval proposal for "${name}"` } : { pass: true, reason: `no "${name}" proposal` };
+  };
+}
+
 /** Repeated-run bar: a case passes iff at least `minPasses` of its runs passed (NFR-AIN-QUAL-001). */
 export function summarizeRuns(results: boolean[], minPasses: number): { pass: boolean; passes: number; runs: number } {
   const passes = results.filter(Boolean).length;

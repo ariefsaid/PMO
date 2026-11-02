@@ -58,7 +58,8 @@ async function withBedEnv<T>(run: (auth: Awaited<ReturnType<typeof createJwtAuth
 
 function supabaseRoutes(order: string[], finalize: (args: Record<string, unknown>) => Response = () => jsonResponse('active')): MockRoute[] {
   return [
-    supabaseSelect('profiles', () => one({ org_id: 'org-1', role: 'Admin' })),
+    supabaseSelect('profiles', () => one({ org_id: 'org-1', role: 'Admin', status: 'active' })),
+    supabaseRpc('actor_authorization_state', () => one({ active: true, role: 'Admin' })),
     supabaseSelect('platform_operators', none),
     supabaseSelect('external_org_bindings', none),
     supabaseRpc('stage_vault_secret_for_org', () => { order.push('stage'); return jsonResponse('odoo_ref'); }),

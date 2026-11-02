@@ -20,6 +20,7 @@ describe('AC-S29-001 receipt or first expense starts a new claim', () => {
           kind="claim"
           projectOptions={[{ value: 'p1', label: 'Harbour Upgrade' }]}
           advanceOptions={[]}
+          advanceLoad={{ isPending: false, isError: false, refetch: vi.fn() }}
           categoryPrecedents={categoryPrecedents}
           onClose={vi.fn()}
           onSubmit={onSubmit}

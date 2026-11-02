@@ -8,6 +8,7 @@ import {
   type ProjectStatus,
 } from '@/src/lib/db/projectTransitions';
 import { ProjectTransitionConfirm } from './project-status/ProjectTransitionConfirm';
+import type { LostReasonValue } from './project-status/LostReasonFields';
 import { WinDetailsFields } from './project-status/WinDetailsFields';
 import { winDetailsComplete, winEligibilityMessage } from './project-status/projectTransitionCopy';
 
@@ -137,11 +138,15 @@ const ProjectStatusControl: React.FC<ProjectStatusControlProps> = ({
 
   // Commit the staged target and toast on resolve (§6.7). mutateAsync surfaces
   // RPC errors verbatim (the inline alert + warning toast both keep the message).
-  const commitConfirm = async () => {
+  const commitConfirm = async (lost?: LostReasonValue) => {
     const target = confirmTarget;
     if (!target) return;
     try {
-      await mutation.mutateAsync({ id: project.id, to: target, opts: undefined });
+      await mutation.mutateAsync({
+        id: project.id,
+        to: target,
+        opts: lost ? { lostReason: lost.reason, lostNote: lost.note.trim() || undefined } : undefined,
+      });
       setConfirmTarget(null);
       toast('Project updated', `Moved to ${target}`, 'success');
     } catch (err) {
@@ -268,7 +273,7 @@ const ProjectStatusControl: React.FC<ProjectStatusControlProps> = ({
           target={confirmTarget}
           loading={mutation.isPending}
           onCancel={() => setConfirmTarget(null)}
-          onConfirm={() => void commitConfirm()}
+          onConfirm={(_to, lost) => void commitConfirm(lost)}
         />
       )}
     </div>

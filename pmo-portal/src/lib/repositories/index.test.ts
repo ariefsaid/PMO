@@ -212,7 +212,8 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
       // 'workOrderAcceptance' from contract quantities (migration 0337, ADR-0091): allocations + BAST RPCs.
       // 'imprest' from site cash (#1515 S4+S5).
       // 'stock' from inventory master data (#1512 S1, migration 0412); S2a+ add documents and reports to it.
-      ['agentAttachment', 'agentRun', 'budget', 'comment', 'company', 'companyCollections', 'contact', 'credits', 'dashboard', 'document', 'erpPurchases', 'erpSnapshots', 'expenseClaim', 'expensePostings', 'expenseReceipts', 'externalDomainOwnership', 'financialStatements', 'fxRates', 'imprest', 'incident', 'integrations', 'm365DocumentSettings', 'm365RecordFolders', 'meeting', 'milestone', 'odoo', 'operator', 'orgFeature', 'orgSettings', 'procurement', 'procurementFiles', 'profile', 'progressBilling', 'project', 'projectMoney', 'recordHistory', 'reports', 'revenue', 'stock', 'task', 'timesheet', 'usage', 'userView', 'vendorWithholdingSlips', 'workOrder', 'workOrderAcceptance'].sort(),
+      // 'projectStage' from stage history (#1638).
+      ['agentAttachment', 'agentRun', 'budget', 'comment', 'company', 'companyCollections', 'contact', 'credits', 'dashboard', 'document', 'erpPurchases', 'erpSnapshots', 'expenseClaim', 'expensePostings', 'expenseReceipts', 'externalDomainOwnership', 'financialStatements', 'fxRates', 'imprest', 'incident', 'integrations', 'm365DocumentSettings', 'm365RecordFolders', 'meeting', 'milestone', 'odoo', 'operator', 'orgFeature', 'orgSettings', 'procurement', 'procurementFiles', 'profile', 'progressBilling', 'project', 'projectMoney', 'projectStage', 'recordHistory', 'reports', 'revenue', 'stock', 'task', 'timesheet', 'usage', 'userView', 'vendorWithholdingSlips', 'workOrder', 'workOrderAcceptance'].sort(),
     );
   });
 

@@ -25,6 +25,7 @@ import type { PmoRecord } from '../contract.ts';
 import { clickUpRequest, type ClickUpClientDeps } from './client.ts';
 import { pmoTaskToClickUpBody, type ClickUpMaps } from './mapping.ts';
 import { clickUpListChangesSinceWatermark } from './reads.ts';
+import type { AtomicAdoptStrategy } from '../applyEngine.ts';
 import type { ClickUpStatusMap } from './statusMap.ts';
 import type { ClickUpMemberMap } from './memberMap.ts';
 import type { ClickUpTask } from './types.ts';
@@ -253,6 +254,12 @@ export interface PullAdoptDeps extends ClickUpBoundClientDeps {
   updateMirror: (pmoRecordId: string, canonical: PmoRecord) => Promise<void>;
   /** Record the `external_refs` mapping for a newly-minted mirror. */
   recordExternalRef: (mapping: ExternalRefSeed) => Promise<void>;
+  /** OPTIONAL claim-first adopt (Luna BLOCK 7 — supplied by the shared mirror-callback factory in the
+   *  clickup-onboard wiring). Absent ⇒ the legacy mint-then-ref path. When present, the `external_refs`
+   *  CLAIM is taken BEFORE the mirror mint, so a losing concurrent adopter writes no mirror row at all
+   *  (its claim refuses 23505 against the A8 unique constraint), and a claim whose mirror is missing
+   *  (a crash between claim and mint) is repaired on the next run with the SAME pre-claimed id. */
+  adoptAtomically?: AtomicAdoptStrategy;
 }
 
 export interface PullAdoptResult {
@@ -281,11 +288,33 @@ export async function pullAdopt(projectId: string, deps: PullAdoptDeps): Promise
   for (const canonical of changes) {
     const existingId = await deps.resolvePmoRecordId(canonical.id);
     if (existingId) {
+      // Repair (Luna BLOCK 7): the ref was claimed but the mirror never landed (the process died
+      // between the two writes). Re-mint with the SAME pre-claimed id so the mapping stays intact —
+      // otherwise the record is mapped to a row that does not exist and every later update patches 0
+      // rows silently. Counts as an adopt (a NEW mirror mint), not a plain refresh.
+      if (deps.adoptAtomically && !(await deps.adoptAtomically.mirrorExists(existingId))) {
+        await deps.adoptAtomically.mintWithId({ ...canonical, id: existingId }, Date.now(), existingId);
+        adopted += 1;
+        continue;
+      }
       // Idempotent re-apply: refresh the mirror in place (no new mint, no duplicate mapping).
       await deps.updateMirror(existingId, { ...canonical, id: existingId });
       updated += 1;
+    } else if (deps.adoptAtomically) {
+      // Claim-first pull-adopt (FR-CUA-062 + Luna BLOCK 7): the claim is the adoption lock — a
+      // concurrent adopt that races us fails the A8 unique constraint BEFORE any mirror row exists,
+      // so the loser leaves no orphan (it reconciles to the winner's mapping on re-run).
+      const claimedId = deps.adoptAtomically.newPmoRecordId();
+      await deps.adoptAtomically.claimExternalRef({
+        pmoRecordId: claimedId,
+        externalTier: 'clickup',
+        externalRecordId: canonical.id,
+        domain: 'tasks',
+      });
+      await deps.adoptAtomically.mintWithId({ ...canonical, id: claimedId }, Date.now(), claimedId);
+      adopted += 1;
     } else {
-      // Pull-adopt (FR-CUA-062): mint a new mirror + mapping. A concurrent adopt that races us
+      // Legacy (no strategy): mint a new mirror + mapping. A concurrent adopt that races us
       // fails the A8 unique constraint; the loser reconciles to the existing mapping on re-run.
       const pmoRecordId = await deps.mintMirror(canonical);
       await deps.recordExternalRef({

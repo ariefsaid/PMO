@@ -80,7 +80,7 @@ select is(public.finalize_odoo_connect('a4200000-0000-0000-0000-000000000001','a
 reset role;
 select is((select site_url || '|' || (config->>'database') || '|' || (config->>'key_expires_on') from external_org_bindings where org_id='a4200000-0000-0000-0000-000000000001' and external_tier='odoo'),
   'https://o.example.test|db1|2027-01-31', 'FR-ODC-003 finalize records site, database and declared expiry');
-select ok((select not (config ? 'prev_binding') and activated_at is null from external_org_bindings where org_id='a4200000-0000-0000-0000-000000000001' and external_tier='odoo'), 'FR-ODC-005 a fresh connect is not activated and carries no rotation marker');
+select ok((select prev_binding is null and not (config ? 'prev_binding') and activated_at is null from external_org_bindings where org_id='a4200000-0000-0000-0000-000000000001' and external_tier='odoo'), 'FR-ODC-005 a fresh connect is not activated and carries no rotation marker');
 
 -- AC-ODC-005 set-once activation.
 set local role service_role;
@@ -121,7 +121,7 @@ select ok((select config->>'database' = 'db1' and not (config ? 'prev_binding') 
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"a4200000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select throws_ok($$select public.create_vault_secret_for_org('a4200000-0000-0000-0000-000000000001','odoo','k-jwt','a420_old3')$$,
-  'P0001', 'odoo connects through stage and finalize', 'FR-ODC-008 an Admin JWT calling the old connect RPC cannot connect Odoo');
+  '42501', 'permission denied for function create_vault_secret_for_org', 'FR-ODC-008 an Admin JWT calling the old connect RPC is refused at the grant (service-role only since 0450)');
 reset role;
 select is((select count(*)::int from vault.secrets where name in ('a420_old1','a420_old2','a420_old3')), 0, 'FR-ODC-008 the refused old-RPC calls stored no key');
 select is((select status from external_org_bindings where org_id='a4200000-0000-0000-0000-000000000001' and external_tier='erpnext'), 'disconnected', 'FR-ODC-008 the ERPNext row stays disconnected');
@@ -193,7 +193,7 @@ select ok((select status = 'disconnected' and config->>'odoo_company_id' = '1' f
 select is((select count(*)::int from external_domain_ownership where org_id='a4200000-0000-0000-0000-000000000001' and external_tier='odoo'), 0, 'AC-ODC-007 Odoo ownership is released');
 select is((select count(*)::int from vault.secrets where name='a420_s7'), 0, 'AC-ODC-007 the secret is deleted');
 select is((select count(*)::int from vault.secrets where name='a420_s8'), 0, 'AC-ODC-007 a stranded attempt''s new key is deleted');
-select ok((select not (config ? 'prev_binding') from external_org_bindings where org_id='a4200000-0000-0000-0000-000000000001' and external_tier='odoo'), 'AC-ODC-007 disconnect drops the rotation marker');
+select ok((select prev_binding is null and not (config ? 'prev_binding') from external_org_bindings where org_id='a4200000-0000-0000-0000-000000000001' and external_tier='odoo'), 'AC-ODC-007 disconnect drops the rotation marker');
 select is((select count(*)::int from audit_events where org_id='a4200000-0000-0000-0000-000000000001' and action='integration.domain_ownership.release' and detail->>'tier'='odoo'), 1,
   'AC-ODC-007 the second disconnect writes no second ownership-release audit');
 
@@ -201,7 +201,7 @@ select is((select count(*)::int from audit_events where org_id='a4200000-0000-00
 select is((select array_agg(column_name::text order by column_name) from information_schema.columns c
             where c.table_schema='public' and c.table_name='external_org_bindings'
               and not has_column_privilege('authenticated','public.external_org_bindings', c.column_name, 'SELECT')),
-  array['secret_ref','webhook_secret_ref'], 'AC-ODC-009 authenticated can read every binding column except the two secret references');
+  array['prev_binding','secret_ref','webhook_secret_ref'], 'AC-ODC-009 authenticated can read every binding column except the two secret references and the rotation marker');
 select is((select count(*)::int from information_schema.columns c where c.table_schema='public' and c.table_name='external_org_bindings'
               and has_column_privilege('anon','public.external_org_bindings', c.column_name, 'SELECT')), 0, 'AC-ODC-009 anon reads no binding column');
 set local role authenticated;

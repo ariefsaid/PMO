@@ -16,6 +16,7 @@
  * every contract, so the external import surface of the seam is unchanged.
  */
 import type { RecordHistoryRepository } from './recordHistory';
+import type { ProjectStageRepository } from './projectStages';
 import type { ProjectMoneyRepository } from './contracts/projectMoney';
 import type { DashboardRepository } from './contracts/dashboard';
 import type { AgentRunRepository } from './contracts/agentRuns';
@@ -106,6 +107,7 @@ export interface Repositories {
   recordHistory: RecordHistoryRepository;
   vendorWithholdingSlips: VendorWithholdingSlipsRepository;
   project: ProjectRepository;
+  projectStage: ProjectStageRepository;
   company: CompanyRepository;
   document: DocumentRepository;
   agentAttachment: AgentAttachmentRepository;

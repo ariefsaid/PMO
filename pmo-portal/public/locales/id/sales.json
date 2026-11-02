@@ -16,5 +16,20 @@
       "sub": "Proyek yang ditandai menang akan muncul di sini.",
       "title": "Tidak ada proyek yang menang"
     }
+  },
+  "stageDate": {
+    "lead": "Prospek",
+    "pq": "Prakualifikasi dikirim",
+    "quoted": "Penawaran",
+    "tender": "Tender dikirim",
+    "negotiation": "Negosiasi",
+    "signed": "Ditandatangani",
+    "lost": "Kalah",
+    "declined": "Ditolak",
+    "started": "Dimulai",
+    "onHold": "Ditunda",
+    "closedOut": "Ditutup",
+    "internal": "Internal",
+    "daysShort": "h"
   }
 }

@@ -56,7 +56,9 @@ Screen-by-screen UX/IA/IxD work runs with the `/restructure` skill.
 
 ## Briefs
 
-A worker sees nothing of your session; the brief stands alone:
+A worker sees nothing of your session; the brief stands alone.
+A CI-failure fix brief also says: download the run's artifacts, state the root cause from the trace and video, and fix that,
+not the symptom (CLAUDE.md, "Don't waste CI minutes").
 
 1. The task in one line, with the role contract (`.claude/agents/<role>.md`) it works to.
 2. A read-first list of exact paths (spec, plan, reference slice, ADRs); the worker reads them itself.

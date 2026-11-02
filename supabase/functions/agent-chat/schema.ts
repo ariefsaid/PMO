@@ -214,6 +214,16 @@ export const WHATS_OVERDUE_SCHEMA = {
   properties: {},
 };
 
+/** remind_overdue (#1639) — the model's REQUEST; the server resolves recipients from the caller's overdue tasks. */
+export const REMIND_OVERDUE_SCHEMA = {
+  type: 'object' as const,
+  required: [] as string[],
+  additionalProperties: false,
+  properties: {
+    task: { type: 'string', maxLength: 200, description: 'Optional: the overdue task the user named. Omit to remind everyone whose overdue task is shown.' },
+  },
+};
+
 /** draft_invoice (#787, ADR-0079) — the model's REQUEST; the server resolves it before the chip. */
 export const DRAFT_INVOICE_SCHEMA = {
   type: 'object' as const,

@@ -135,13 +135,17 @@ export const NotificationBell: React.FC = () => {
     generation.current += 1;
     setLoadingMore(false);
     setLoadMoreError(false);
+    const gen = generation.current;
     setInbox({ status: 'loading' });
     listNotificationsPage()
       .then(({ rows, nextCursor }) => {
+        if (gen !== generation.current) return;
         setInbox({ status: 'ready', rows, nextCursor });
         refreshUnreadCount();
       })
-      .catch(() => setInbox({ status: 'error' }));
+      .catch(() => {
+        if (gen === generation.current) setInbox({ status: 'error' });
+      });
   }, [refreshUnreadCount]);
 
   // Keyset "Load more" (#843): append the next page; a failure keeps the rows already shown.
