@@ -728,16 +728,17 @@ describe('AC-805: Approve/Reject notes input (OD-PROC-1 optional Notes)', () => 
     );
   });
 
-  it('AC-805 / P2: entering notes + Reject opens a destructive confirm; confirm passes the notes', async () => {
+  it('AC-805 / #1578: Reject confirm requires a rejection comment, then passes it as the notes', async () => {
     detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-other' };
     renderPage();
-    await userEvent.type(screen.getByTestId('procurement-notes-input'), 'Over budget.');
     const header = screen.getByTestId('record-header');
     await userEvent.click(within(header).getByRole('button', { name: /more procurement actions/i }));
     await userEvent.click(within(header).getByRole('menuitem', { name: /reject/i }));
     // Reject is destructive → alertdialog surface
-    expect(await screen.findByRole('alertdialog')).toBeInTheDocument();
+    const dialog = await screen.findByRole('alertdialog');
     expect(mockTransition).not.toHaveBeenCalled();
+    expect(within(dialog).getByRole('button', { name: /reject/i })).toBeDisabled();
+    await userEvent.type(within(dialog).getByLabelText(/rejection comment/i), 'Over budget.');
     await confirmInDialog(/reject/i);
     await waitFor(() =>
       expect(mockTransition).toHaveBeenCalledWith(
@@ -975,7 +976,7 @@ describe('Action bar covers mid-flow transitions', () => {
     // Staged, not written: nothing is created and nothing is toasted until the confirm.
     expect(mockCreateReceipt).not.toHaveBeenCalled();
     expect(toast).not.toHaveBeenCalled();
-    expect(await screen.findByText(/This records a complete goods receipt against procurement record/)).toBeInTheDocument();
+    expect(await screen.findByText(/This records a complete goods receipt against procurement case/)).toBeInTheDocument();
     await confirmInDialog(/save gr/i);
     await waitFor(() => expect(mockCreateReceipt).toHaveBeenCalledTimes(1));
     expect(mockCreateReceipt).toHaveBeenCalledWith(expect.objectContaining({ status: 'Complete' }));

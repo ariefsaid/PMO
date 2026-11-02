@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { Button, DataTable, Icon, StatusPill, type Column, type StatusVariant } from '@/src/components/ui';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/src/components/ui/cn';
+import { acquireBackgroundInert } from '@/src/components/ui/backgroundInert';
 import type { ImportDescriptor, ImportField } from '@/src/lib/import';
 import { MAX_IMPORT_ROWS } from '@/src/lib/import';
 import { useImportWizard, type WizardStep } from './useImportWizard';
@@ -69,6 +70,11 @@ export function ImportWizard<Input>({ descriptor, onClose }: ImportWizardProps<I
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [requestClose]);
+
+  // AC-A11Y-MODAL-001 / CMP-009: background inert while open. Declared before focus effect.
+  useEffect(() => {
+    return acquireBackgroundInert();
+  }, []);
 
   // Focus in on open, restore to the trigger on unmount (mirrors EntityFormModal).
   useEffect(() => {

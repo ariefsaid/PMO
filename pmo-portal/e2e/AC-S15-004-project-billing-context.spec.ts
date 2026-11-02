@@ -208,7 +208,7 @@ test('AC-S15-004 Finance starts a work-order invoice from the project, saves the
     await expect(page.getByRole('tab', { name: localized('Contract & billing', 'Kontrak & penagihan'), selected: true })).toBeVisible();
 
     const contractInvoice = page.getByRole('link', { name: localized('Contract invoice', 'Faktur kontrak'), exact: true });
-    await expect(contractInvoice).toHaveAttribute('href', `/sales-invoices?create=1&project=${encodeURIComponent(projectId)}`);
+    await expect(contractInvoice).toHaveAttribute('href', `/finance/receivables?create=1&project=${encodeURIComponent(projectId)}`);
     if (discoverOutputDir) {
       discoverGeometry.push({
         ...(await captureDiscoverScreen(page, discoverOutputDir, 'project-contract-entry-390-en-light')),

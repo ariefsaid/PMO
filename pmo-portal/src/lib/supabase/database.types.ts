@@ -34,6 +34,153 @@ export type Database = {
   }
   public: {
     Tables: {
+      contract_rate_assignees: {
+        Row: {
+          created_at: string
+          created_by: string
+          effective_from: string
+          effective_to: string | null
+          id: string
+          line_key: string
+          org_id: string
+          project_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          effective_from: string
+          effective_to?: string | null
+          id?: string
+          line_key: string
+          org_id: string
+          project_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          effective_from?: string
+          effective_to?: string | null
+          id?: string
+          line_key?: string
+          org_id?: string
+          project_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contract_rate_assignees_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contract_rate_assignees_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contract_rate_assignees_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contract_rate_assignees_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contract_rate_lines: {
+        Row: {
+          applies_to: string | null
+          asset_id: string | null
+          created_at: string
+          created_by: string
+          effective_from: string
+          effective_to: string | null
+          id: string
+          is_current: boolean
+          kind: string
+          label: string
+          line_key: string
+          org_id: string
+          project_id: string
+          rate: number
+          standby_rate: number | null
+          unit: string
+          version: number
+        }
+        Insert: {
+          applies_to?: string | null
+          asset_id?: string | null
+          created_at?: string
+          created_by: string
+          effective_from: string
+          effective_to?: string | null
+          id?: string
+          is_current?: boolean
+          kind: string
+          label: string
+          line_key: string
+          org_id: string
+          project_id: string
+          rate: number
+          standby_rate?: number | null
+          unit: string
+          version: number
+        }
+        Update: {
+          applies_to?: string | null
+          asset_id?: string | null
+          created_at?: string
+          created_by?: string
+          effective_from?: string
+          effective_to?: string | null
+          id?: string
+          is_current?: boolean
+          kind?: string
+          label?: string
+          line_key?: string
+          org_id?: string
+          project_id?: string
+          rate?: number
+          standby_rate?: number | null
+          unit?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contract_rate_lines_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contract_rate_lines_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contract_rate_lines_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       agent_attachments: {
         Row: {
           archived_at: string | null
@@ -10671,6 +10818,39 @@ export type Database = {
     Functions: {
       accept_invoice_pairs: { Args: { p_pairs: Json }; Returns: number }
       unpair_invoice: { Args: { p_pmo_id: string }; Returns: undefined }
+      contract_rate_line_content: { Args: { p_id: string }; Returns: Json }
+      contract_rate_line_normalize: {
+        Args: { p_line: Json; p_org: string }
+        Returns: Json
+      }
+      contract_rate_line_write: {
+        Args: { p_action: string; p_line: Json }
+        Returns: Json
+      }
+      end_contract_rate_line: {
+        Args: {
+          p_effective_to: string
+          p_expected_version: number
+          p_line_key: string
+          p_project: string
+        }
+        Returns: Json
+      }
+      save_contract_rate_line: { Args: { p_line: Json }; Returns: Json }
+      end_contract_rate_assignee: {
+        Args: { p_assignee: string; p_effective_to: string; p_project: string }
+        Returns: undefined
+      }
+      set_contract_rate_assignee: {
+        Args: {
+          p_from: string
+          p_line_key: string
+          p_project: string
+          p_to: string
+          p_user: string
+        }
+        Returns: string
+      }
       attribute_subcontract_bill_lines: {
         Args: { p_invoice_id: string; p_lines: Json }
         Returns: undefined

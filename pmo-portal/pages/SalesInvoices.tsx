@@ -388,7 +388,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
       : (viewTarget.status === 'Submitted' || viewTarget.status === 'Unpaid') && !viewTarget.received_date && canRecordReceipt && !(viewTarget.pmo_native && !native)
         ? { label: t('finance:receivables.markReceived', 'Mark received'), onClick: () => setReceiptTarget(viewTarget) }
         : (viewTarget.status === 'Submitted' || viewTarget.status === 'Unpaid') && (viewTarget.erp_outstanding_amount ?? 0) > 0 && may('create', 'incomingPayment')
-          ? { label: t('finance:receivables.recordPayment', 'Record payment'), onClick: () => navigate(`/incoming-payments?invoice=${encodeURIComponent(viewTarget.id)}&create=1`) }
+          ? { label: t('finance:receivables.recordPayment', 'Record payment'), onClick: () => navigate(`/finance/receivables?view=payments&invoice=${encodeURIComponent(viewTarget.id)}&create=1`) }
           : null
     : null;
 

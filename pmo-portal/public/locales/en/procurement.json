@@ -45,7 +45,7 @@
     "vendor": "Supplier",
     "selectVendor": "Optional: select a supplier…",
     "budgetCategory": "Budget category",
-    "denied": "You do not have permission to create procurement records.",
+    "denied": "You do not have permission to create procurement cases.",
     "unsaved": {
       "title": "Unsaved procurement",
       "description": "This procurement has not been saved. Leave this page and discard it?",
@@ -210,8 +210,8 @@
         "accessibleName": "Project procurement"
       },
       "noSupplier": "No supplier",
-      "ownerTooltip": "Requested by {{name}}. Source: procurement record.",
-      "stageCountTooltip": "Count of procurements currently in {{stage}}. Source: project procurement records.",
+      "ownerTooltip": "Requested by {{name}}. Source: procurement case.",
+      "stageCountTooltip": "Count of procurements currently in {{stage}}. Source: project procurement cases.",
       "forYou": "{{count}} for you",
       "selection": {
         "selectRow": "Select {{name}}",
@@ -253,7 +253,9 @@
         "returnManyTitle": "Return these procurements?",
         "returnTitle": "Return this procurement?",
         "cancelDescription": "This procurement will be marked as cancelled.",
-        "returnDescription": "The procurement goes back to the person who raised it."
+        "returnDescription": "The procurement goes back to the person who raised it.",
+        "returnComment": "Return comment",
+        "returnCommentHelp": "Say what the requester needs to change."
       },
       "stage": {
         "cancelled": "Cancelled",
@@ -302,7 +304,7 @@
     "ageShort": "Age",
     "ageInStageDays": "{{count}}d",
     "raisedBy": "Raised by",
-    "stageCountTooltip": "Count of procurements currently in {{stage}}. Source: company procurement records.",
+    "stageCountTooltip": "Count of procurements currently in {{stage}}. Source: company procurement cases.",
     "table": {
       "accessibleName": "Procurement"
     },
@@ -324,11 +326,11 @@
     "selectionDescription": "The selected quote sets the procurement value and supplier. If it is above the approved amount, the procurement goes back for approval."
   },
   "approvalSection": {
-    "heading": "Procurement records awaiting you ({{total}})",
-    "error": "Couldn't load procurement records",
+    "heading": "Procurement cases awaiting you ({{total}})",
+    "error": "Couldn't load procurement cases",
     "errorSub": "Something went wrong fetching requests awaiting you.",
-    "empty": "No procurement records awaiting your decision",
-    "emptySub": "Procurement records that need your approval will appear here."
+    "empty": "No procurement cases awaiting your decision",
+    "emptySub": "Procurement cases that need your approval will appear here."
   },
   "approvalRow": {
     "approve": "Approve",
@@ -353,7 +355,9 @@
     "rejected": "Procurement rejected",
     "reject": "Reject procurement",
     "approveDescription": "Approve {{title}} ({{amount}})? This will advance the procurement to the ordering stage.",
-    "rejectDescription": "Reject {{title}}? The requester will be notified and may revise and resubmit."
+    "rejectDescription": "Reject {{title}}? The requester will be notified and may revise and resubmit.",
+    "rejectionComment": "Rejection comment",
+    "rejectionCommentHelp": "Add a comment for the requester before rejecting this purchase."
   },
   "decisionSupport": {
     "thisProcurement": "This procurement",
@@ -377,7 +381,7 @@
       "vendorInvoiced": "Releasing payment: the approver can't also pay (separation of duties). You may mark this as paid below.",
       "default": "Ready to advance. Select an action below to move this procurement to its next stage."
     },
-    "sodPreannounce": "Submitting hands this to another approver. You can't approve your own procurement record."
+    "sodPreannounce": "Submitting hands this to another approver. You can't approve your own procurement case."
   },
   "subcontract": {
     "form": {
@@ -495,6 +499,38 @@
       "loading": "Loading the BoQ lines…",
       "title": "Bill these BoQ lines (up to what is still payable)",
       "payable": "payable {{max}} at {{rate}}"
+    }
+  },
+  "procurementBulk": {
+    "approveN": "Approve {{count}}",
+    "clear": "Clear",
+    "confirmDescription": "Each purchase is approved separately. If one cannot be approved, the others can still be completed.",
+    "confirmMore": "{{count}} more selected",
+    "confirmTitleMany": "Approve {{count}} purchase requests?",
+    "confirmTitleOne": "Approve 1 purchase request?",
+    "groupLabel": "Bulk approve purchases",
+    "rowSelect": "Select {{title}}",
+    "scopeAll": "All {{count}} purchase requests in this queue can be approved.",
+    "scopeOne": "The 1 purchase request in this queue can be approved.",
+    "scopeSome": "{{eligible}} of {{total}} purchase requests in this queue can be approved.",
+    "select": "Select purchases",
+    "selectAll": "Select all purchase requests",
+    "selectedCount": "{{count}} selected",
+    "toast": {
+      "allOk": {
+        "detail": "{{count}} approved",
+        "headline": "Purchases approved"
+      },
+      "failureRows": "Could not approve: {{titles}}{{more}}",
+      "more": " and {{count}} more",
+      "noneOk": {
+        "detail": "{{count}} failed. {{rows}}",
+        "headline": "Couldn't approve purchases"
+      },
+      "partial": {
+        "detail": "{{ok}} approved, {{failed}} failed. {{rows}}",
+        "headline": "Partially approved"
+      }
     }
   }
 }

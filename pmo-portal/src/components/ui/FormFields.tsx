@@ -208,9 +208,6 @@ export const TextField: React.FC<TextFieldProps> = ({
             <button
               type="button"
               onClick={() => setRevealed((r) => !r)}
-              // Keep it out of the tab order between fields; it is a progressive affordance, and the
-              // label already announces the field. Reachable via the a11y tree + click.
-              tabIndex={-1}
               aria-label={revealed ? 'Hide value' : 'Show value'}
               aria-pressed={revealed}
               className="touch-target absolute inset-y-0 right-0 flex w-8 items-center justify-center text-muted-foreground hover:text-foreground"
@@ -453,11 +450,6 @@ export const FormGrid: React.FC<FormGridProps> = ({ children, className }) => (
   >
     {children}
   </div>
-);
-
-/** A single horizontal row of controls (used outside the grid, e.g. inline edits). */
-export const FormRow: React.FC<FormGridProps> = ({ children, className }) => (
-  <div className={cn('flex flex-wrap items-end gap-3', className)}>{children}</div>
 );
 
 export interface FormSectionProps {

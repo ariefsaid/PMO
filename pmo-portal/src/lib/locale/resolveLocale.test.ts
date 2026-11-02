@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveLocale, FALLBACK_LOCALE, FALLBACK_TIMEZONE } from './resolveLocale';
+import { resolveLocale, resolveOrgBusinessTimezone, FALLBACK_LOCALE, FALLBACK_TIMEZONE } from './resolveLocale';
 const org = (o: Partial<Parameters<typeof resolveLocale>[1]> = {}) => ({ defaultLocale: 'en', defaultNumberLocale: null, defaultTimezone: 'Asia/Jakarta', ...o });
 describe('FR-L10N-003 resolveLocale', () => {
   it('AC-L10N-001 profile NULL inherits the org default', () => {
@@ -20,6 +20,16 @@ describe('FR-L10N-003 resolveLocale', () => {
   it('resolves timezone and fails closed', () => {
     expect(resolveLocale({ timezone: 'UTC' }, org()).timezone).toBe('UTC');
     expect(resolveLocale({}, {})).toEqual({ locale: FALLBACK_LOCALE, numberLocale: FALLBACK_LOCALE, timezone: FALLBACK_TIMEZONE });
+  });
+});
+
+describe('server-bounded business dates', () => {
+  it('uses the organization timezone directly, independent of profile overrides', () => {
+    expect(resolveOrgBusinessTimezone(org({ defaultTimezone: 'America/Los_Angeles' }))).toBe('America/Los_Angeles');
+  });
+
+  it.each([null, 'Mars/Olympus'])('uses UTC when the organization timezone is unavailable (%s)', (defaultTimezone) => {
+    expect(resolveOrgBusinessTimezone(org({ defaultTimezone }))).toBe('UTC');
   });
 });
 

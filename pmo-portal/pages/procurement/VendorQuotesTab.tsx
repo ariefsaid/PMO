@@ -16,6 +16,7 @@ import {
   type ComboboxOption,
 } from '@/src/components/ui';
 import { useVendorOptions } from '@/src/hooks/useFkOptions';
+import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { trackComingSoonClicked } from '@/src/lib/analytics';
 import { currencySymbol, formatCurrencyAuto, formatDateOnly, parseMoneyInputAtScale } from '@/src/lib/format';
 import type { Tables } from '@/src/lib/supabase/database.types';
@@ -128,6 +129,7 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
   currency,
 }) => {
   const { t } = useTranslation(['common', 'procurement']);
+  const today = useOrgToday();
   const [adding, setAdding] = useState(false);
   const [vendorId, setVendorId] = useState<string | null>(null);
   const [total, setTotal] = useState('');
@@ -167,7 +169,7 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
       await onAdd({
         vendorId,
         totalAmount: parsed,
-        receivedDate: new Date().toISOString().slice(0, 10),
+        receivedDate: today,
         intent: quoteIntents.intentFor(ADD_QUOTE_INTENT_KEY),
       });
       resetAdd();

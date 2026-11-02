@@ -22,7 +22,7 @@ drop function public.list_unpaired_native_invoices();
 drop function public.propose_invoice_pairs();
 drop function public.invoice_pair_candidates(uuid, uuid, boolean);
 
--- readers back to their prior definitions (view: 0262; get_project_finances and the guard: 0410)
+-- readers back to their prior definitions (view: 0262; get_project_finances: 0497; the guard: 0410)
 create or replace view public.sales_invoice_work_billed with (security_invoker = true) as
   select si.id, si.org_id, si.project_id, si.currency, si.invoice_date, si.status,
          coalesce(pc.kind = 'down_payment', false) as is_down_payment,
@@ -378,10 +378,15 @@ begin
       'attributed_total',(select case when count(*) filter(where mapped) = 0
                                   or count(*) filter(where mapped and attributed_to_date is null) > 0 then null
                           else sum(attributed_to_date) filter(where mapped) end::text from gl),
+      -- 0497 (#1519, FR-EQU-051): the hire-rate internal charge, inside `total`, stated on its own.
+      'equipment_charge_total',(select case when count(*) filter(where mapped) = 0
+                                  or count(*) filter(where mapped and equipment_charge_to_date is null) > 0 then null
+                          else sum(equipment_charge_to_date) filter(where mapped) end::text from gl),
       'categories',(select jsonb_agg(jsonb_build_object('category',category,'mapped',mapped,
                                                        'amount',actuals_to_date::text,
                                                        'tagged_amount',tagged_to_date::text,
-                                                       'attributed_amount',attributed_to_date::text) order by category) from gl)
+                                                       'attributed_amount',attributed_to_date::text,
+                                                       'equipment_charge_amount',equipment_charge_to_date::text) order by category) from gl)  -- 0497
     )
   ) into v_result from public.projects p join public.organizations o on o.id = p.org_id
     cross join contract_sum cs where p.id = p_project_id;

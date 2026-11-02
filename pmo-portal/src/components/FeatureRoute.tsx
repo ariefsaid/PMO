@@ -24,8 +24,7 @@ import type { EntitleableKey } from '@/src/lib/features';
 export const FeatureRoute: React.FC<{
   feature: EntitleableKey;
   element: React.ReactNode;
-  redirectTo?: string;
-}> = ({ feature, element, redirectTo = '/' }) => {
+}> = ({ feature, element }) => {
   const { isLoading } = useOrgFeatures();
   const enabled = useFeature(feature);
 
@@ -35,5 +34,5 @@ export const FeatureRoute: React.FC<{
     return null;
   }
 
-  return enabled ? <>{element}</> : <Navigate to={redirectTo} replace />;
+  return enabled ? <>{element}</> : <Navigate to="/" replace />;
 };

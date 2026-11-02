@@ -54,6 +54,7 @@ import type { useProcurementMutations } from '@/src/hooks/useProcurementDetail';
 import { TaskPushBadge } from '@/src/components/tasks/TaskPushBadge';
 import { IDLE_PENDING_PUSH } from '@/src/lib/adapterSeam/pendingPush';
 import { useOrgTaxDefault, useTaxTreatmentPreselect } from '@/src/hooks/useOrgTaxDefault';
+import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { useVendorTaxDefault } from '@/src/hooks/useVendorTaxDefault';
 import { useNativeVendorTax } from '@/src/hooks/useVendorBillTax';
 import { NativeWithholdingField, TaxSuggestedFrom } from './VendorBillTaxFields';
@@ -152,7 +153,7 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
         return requester
           ? tProcurement(
               'procurementDetail.sodPreannounce',
-              'Submitting hands this to another approver — you can\'t approve your own procurement record.',
+              'Submitting hands this to another approver — you can\'t approve your own procurement case.',
             )
           : tProcurement('procurementDetail.readyHint.draftOther', 'Ready to submit this procurement for approval.');
       case 'Requested':
@@ -227,7 +228,7 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
               data-testid="sod-pre-announce"
               className="text-[13px] text-muted-foreground"
             >
-              Submitting hands this to another approver — you can&apos;t approve your own procurement.
+              Submitting hands this to another approver — you can&apos;t approve your own procurement case.
             </p>
           )}
 
@@ -429,10 +430,11 @@ interface VIInlineCaptureProps {
 
 const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCancel, vendorId = null, currency = null, subcontractPoId }) => {
   const { t } = useTranslation();
+  const today = useOrgToday();
   // Hidden on an ERP-owned org: the dispatched create never carries it (see groupRefIsPmoAuthored).
   const showGroupRef = groupRefIsPmoAuthored();
   const [viStatus, setViStatus] = React.useState<'Received' | 'Scheduled'>('Received');
-  const [invoiceDate, setInvoiceDate] = React.useState(new Date().toISOString().slice(0, 10));
+  const [invoiceDate, setInvoiceDate] = React.useState(today);
   const [refNum, setRefNum] = React.useState('');
   const [groupRef, setGroupRef] = React.useState('');
   const [amtStr, setAmtStr] = React.useState('');

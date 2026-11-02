@@ -2,7 +2,7 @@
 -- restores the prior readers and removes the column. The runner (0498_invoice_pairs_down_runner.sql) embeds the rollback file.
 begin;
 create extension if not exists pgtap;
-select plan(9);
+select plan(10);
 
 insert into public.organizations (id, name) values ('04840000-0000-0000-0000-0000000000f0', 'Pairs rollback org');
 insert into auth.users (id, email) values ('04840000-0000-0000-0000-0000000000f9', 'pair-rb@example.test');
@@ -32,6 +32,8 @@ select ok(position('paired_erp_invoice_id' in pg_get_viewdef('public.sales_invoi
           'rollback restores the billed-work view without the filter');
 select ok(position('paired_erp_invoice_id' in pg_get_functiondef('public.get_project_finances(uuid)'::regprocedure)) = 0,
           'rollback restores the prior finance aggregate');
+select ok(position('equipment_charge_total' in pg_get_functiondef('public.get_project_finances(uuid)'::regprocedure)) > 0,
+          'rollback restores the 0497 finance aggregate, equipment charge included');
 select ok(position('invoice_pairing' in pg_get_functiondef('public.sales_invoices_native_mirror_guard()'::regprocedure)) = 0,
           'rollback restores the mirror guard without the pair pin');
 select ok(not exists (select 1 from public.record_history_config where entity_type = 'sales_invoice' and captured ? 'paired_erp_invoice_id'),

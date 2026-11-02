@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { breadcrumbForPath, recordLabelForPath, recordContractualNameForPath, MODULES, RAIL_PARENT_FOR_PATH } from '../routeMatch';
+import { breadcrumbForPath, recordLabelForPath, recordContractualNameForPath, MODULES, RAIL_PARENT_FOR_PATH, railParentForPath } from '../routeMatch';
 import {
   createListReturnContext,
   LIST_RETURN_CONTEXT_KEY,
@@ -414,6 +414,22 @@ describe('breadcrumbForPath: Stock module (#1512 S3)', () => {
     const labels = breadcrumbForPath('/stock/setup').map((c) => c.label);
     expect(labels).not.toContain('Not found');
     expect(labels).not.toContain('Dashboard');
+  });
+});
+
+describe('#1519 equipment routes', () => {
+  it('AC-EQU-017 /equipment, /equipment/assets and /equipment/assets/:id read Equipment > Assets > the asset name', () => {
+    expect(breadcrumbForPath('/equipment')).toEqual([{ label: 'Equipment', i18nKey: 'equipment:nav.equipment' }]);
+    expect(breadcrumbForPath('/equipment/assets')).toEqual([
+      { label: 'Equipment', i18nKey: 'equipment:nav.equipment', href: '/equipment', onClick: expect.any(Function) },
+      { label: 'Assets', i18nKey: 'equipment:nav.assets' },
+    ]);
+    expect(breadcrumbForPath('/equipment/assets/a1', 'Loader 1')).toEqual([
+      { label: 'Equipment', i18nKey: 'equipment:nav.equipment', href: '/equipment', onClick: expect.any(Function) },
+      { label: 'Loader 1' },
+    ]);
+    expect(recordLabelForPath('/equipment/assets/a1', { equipmentAssets: [{ id: 'a1', name: 'Loader 1' }] })).toBe('Loader 1');
+    expect(railParentForPath('/equipment/assets')).toBe('/equipment');
   });
 });
 

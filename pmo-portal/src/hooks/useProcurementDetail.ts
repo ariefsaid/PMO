@@ -234,3 +234,29 @@ export function useProcurementMutations(id: string) {
 
   return { transition, createQuotation, createReceipt, createInvoice, captureVendorInvoice, captureSubcontractVendorInvoice, setEfaktur, approveAmount, pendingPush };
 }
+
+/**
+ * One mutation instance for the approvals inbox's multi-select action. Each selected procurement
+ * still calls the same repository transition as the single-row action, so the server rechecks its
+ * route and separation-of-duties rules independently for every record.
+ */
+export function useProcurementBulkTransition() {
+  const queryClient = useQueryClient();
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
+  const realRole = useOptionalRealRole();
+
+  return useMutation<
+    void,
+    ProcurementError,
+    { id: string; to: ProcurementStatus; notes?: string }
+  >({
+    mutationFn: ({ id, to, notes }) => repositories.procurement.transition(id, to, notes),
+    onSuccess: (_data, { id, to }) => {
+      invalidateProcurementCase(queryClient, orgId, id, [cachedProcurementProjectId(queryClient, orgId, id)]);
+      queryClient.invalidateQueries({ queryKey: ['procurements', orgId] });
+      queryClient.invalidateQueries({ queryKey: ['procurement-item-eligibility', orgId, id] });
+      if (to === 'Approved') safeTrack(() => trackPurchaseApproved(realRole ?? 'unknown'));
+    },
+  });
+}

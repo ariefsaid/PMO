@@ -8,6 +8,14 @@ export type MeetingRow = Tables<'meetings'>;
 export type MeetingAttendeeRow = Tables<'meeting_attendees'>;
 export type MeetingGrantRow = Tables<'meeting_access_grants'>;
 
+/** The list needs meeting identity, header and archive fields, never the potentially large minutes. */
+export type MeetingListItem = Pick<
+  MeetingRow,
+  'id' | 'title' | 'occurred_at' | 'location' | 'project_id' | 'created_by_id' | 'archived_at'
+> & {
+  project: { id: string; name: string; short_name: string | null } | null;
+};
+
 /**
  * A meeting row joined with its project (name + PM) for the list/detail surfaces. The PM ride-along
  * feeds FR-MTG-034: the share panel PRE-SUGGESTS the project's PM as a one-click add (they get no
@@ -90,11 +98,15 @@ function throwWrite(error: PostgrestErrorLike): never {
  *  one FK). */
 const SELECT =
   '*, project:projects!meetings_project_id_fkey(id, name, short_name, project_manager_id, pm:profiles!projects_project_manager_id_fkey(id, full_name))';
+const LIST_SELECT =
+  'id, title, occurred_at, location, project_id, created_by_id, archived_at, project:projects!meetings_project_id_fkey(id, name, short_name)';
 
 export interface MeetingListParams {
   projectId?: string;
   /** Free-text search over `notes_search` (title + notes projection, FR-MTG-011/012). */
   search?: string;
+  /** Include archived meetings alongside active meetings. */
+  includeArchived?: boolean;
 }
 
 /**
@@ -139,14 +151,14 @@ function ilikeAnyOf(columns: readonly string[], term: string): string {
  * `?q=` list URL — so it is built with `ilikeAnyOf`, which PostgREST-quotes each value. The term can
  * never close its value and add a condition to the `or` filter.
  */
-export async function listMeetings(params?: MeetingListParams): Promise<MeetingWithRefs[]> {
+export async function listMeetings(params?: MeetingListParams): Promise<MeetingListItem[]> {
   const q = params?.search?.trim();
   const build = (leg?: 'fts' | 'substring') => {
     let query = supabase
       .from('meetings')
-      .select(SELECT)
-      .eq('is_template', false)
-      .is('archived_at', null);
+      .select(LIST_SELECT)
+      .eq('is_template', false);
+    if (!params?.includeArchived) query = query.is('archived_at', null);
     if (params?.projectId) query = query.eq('project_id', params.projectId);
     if (q && leg === 'fts') {
       query = query.textSearch('notes_search', q, { type: 'websearch', config: 'simple' });
@@ -159,7 +171,7 @@ export async function listMeetings(params?: MeetingListParams): Promise<MeetingW
   if (!q) {
     const { data, error } = await build();
     if (error) throwWrite(error);
-    return (data ?? []) as unknown as MeetingWithRefs[];
+    return (data ?? []) as unknown as MeetingListItem[];
   }
 
   // A term of only wildcard / escape symbols leaves nothing to match; its substring leg would be
@@ -167,16 +179,16 @@ export async function listMeetings(params?: MeetingListParams): Promise<MeetingW
   if (!substringText(q)) {
     const { data, error } = await build('fts');
     if (error) throwWrite(error);
-    return (data ?? []) as unknown as MeetingWithRefs[];
+    return (data ?? []) as unknown as MeetingListItem[];
   }
 
   const [fts, substring] = await Promise.all([build('fts'), build('substring')]);
   if (substring.error) throwWrite(substring.error);
-  const substringRows = (substring.data ?? []) as unknown as MeetingWithRefs[];
+  const substringRows = (substring.data ?? []) as unknown as MeetingListItem[];
   if (fts.error) return substringRows;
 
-  const byId = new Map<string, MeetingWithRefs>();
-  for (const row of [...((fts.data ?? []) as unknown as MeetingWithRefs[]), ...substringRows]) {
+  const byId = new Map<string, MeetingListItem>();
+  for (const row of [...((fts.data ?? []) as unknown as MeetingListItem[]), ...substringRows]) {
     if (!byId.has(row.id)) byId.set(row.id, row);
   }
   return [...byId.values()]
@@ -246,6 +258,18 @@ export async function archiveMeeting(id: string): Promise<void> {
     .select('id');
   if (error) throwWrite(error);
   assertWriteLanded(data, 'Meeting not found or you do not have permission to archive it.');
+}
+
+/** Restore an archived meeting through the same author/Admin RLS authority as its archive. */
+export async function restoreMeeting(id: string): Promise<void> {
+  const { data, error } = await supabase
+    .from('meetings')
+    .update({ archived_at: null })
+    .eq('id', id)
+    .not('archived_at', 'is', null)
+    .select('id');
+  if (error) throwWrite(error);
+  assertWriteLanded(data, 'Meeting not found or you do not have permission to restore it.');
 }
 
 /**

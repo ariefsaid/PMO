@@ -127,6 +127,23 @@ describe('Procurement drawer header (B4)', () => {
     await waitFor(() => expect(transitionSpy).toHaveBeenCalledWith('p-1', 'Approved'));
   });
 
+  it('AC-1578: Return from the list needs a comment and sends it with the rejection', async () => {
+    transitionSpy.mockClear();
+    procState.data = [row({ status: 'Requested', procurement_invoices: [], approved_by_id: null })];
+    renderBlock('/procurement');
+    await userEvent.click(screen.getAllByRole('button', { name: 'Row actions' })[0]!);
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Return' }));
+    const confirm = await screen.findByRole('dialog', { name: 'Return this procurement?' });
+    const send = within(confirm).getByRole('button', { name: 'Return' });
+    expect(send).toBeDisabled();
+    await userEvent.type(within(confirm).getByLabelText(/Return comment/), '   ');
+    expect(send).toBeDisabled();
+    await userEvent.type(within(confirm).getByLabelText(/Return comment/), 'Quantities need revising');
+    expect(send).toBeEnabled();
+    fireEvent.click(send);
+    await waitFor(() => expect(transitionSpy).toHaveBeenCalledWith('p-1', 'Rejected', 'Quantities need revising'));
+  });
+
   it('shows no main action when the viewer has no step to take', () => {
     authState.role = 'Engineer';
     authState.userId = 'u-engineer';

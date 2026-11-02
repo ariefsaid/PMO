@@ -212,10 +212,11 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
       // silent no-op trap 0193 §5 exists to prevent.
       // 'workOrderAcceptance' from contract quantities (migration 0337, ADR-0091): allocations + BAST RPCs.
       // 'imprest' from site cash (#1515 S4+S5).
+      // 'equipment' from equipment usage and allocation (#1519 S5, plan S5.2): assets, usage, costing and allocations.
       // 'stock' from inventory master data (#1512 S1, migration 0412); S2a+ add documents and reports to it.
       // 'subcontracts' from subcontract acceptance, caps and variations (#1513 S6).
       // 'projectStage' from stage history (#1638).
-      ['agentAttachment', 'agentRun', 'budget', 'comment', 'company', 'companyCollections', 'contact', 'credits', 'dashboard', 'document', 'erpPurchases', 'erpSnapshots', 'expenseClaim', 'expensePostings', 'expenseReceipts', 'externalDomainOwnership', 'financialStatements', 'fxRates', 'imprest', 'incident', 'integrations', 'm365DocumentSettings', 'm365RecordFolders', 'meeting', 'milestone', 'odoo', 'operator', 'orgFeature', 'orgSettings', 'procurement', 'procurementFiles', 'profile', 'progressBilling', 'project', 'projectMoney', 'projectStage', 'recordHistory', 'reports', 'revenue', 'stock', 'subcontracts', 'task', 'timesheet', 'usage', 'userView', 'vendorWithholdingSlips', 'workOrder', 'workOrderAcceptance'].sort(),
+      ['agentAttachment', 'agentRun', 'budget', 'comment', 'company', 'companyCollections', 'contact', 'credits', 'dashboard', 'document', 'equipment', 'erpPurchases', 'erpSnapshots', 'expenseClaim', 'expensePostings', 'expenseReceipts', 'externalDomainOwnership', 'financialStatements', 'fxRates', 'imprest', 'incident', 'integrations', 'm365DocumentSettings', 'm365RecordFolders', 'meeting', 'milestone', 'odoo', 'operator', 'orgFeature', 'orgSettings', 'procurement', 'procurementFiles', 'profile', 'progressBilling', 'project', 'projectMoney', 'projectStage', 'recordHistory', 'reports', 'revenue', 'stock', 'subcontracts', 'task', 'timesheet', 'usage', 'userView', 'vendorWithholdingSlips', 'workOrder', 'workOrderAcceptance'].sort(),
     );
   });
 
@@ -241,6 +242,13 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
 
   it('expensePostings exposes the two read methods (#775 phase B, ADR-0017)', () => {
     expect(Object.keys(repositories.expensePostings).sort()).toEqual(['listAccountMap', 'listForClaim']);
+  });
+
+  it('exposes the equipment repository (#1519 S5): assets, usage, costing and allocations', () => {
+    expect(Object.keys(repositories.equipment).sort()).toEqual(
+      ['approveWeek', 'archiveUsage', 'createAsset', 'deleteAsset', 'endCosting', 'listAllocations', 'listAssets', 'listCosting',
+        'listUsage', 'listUsageTotals', 'previewCosting', 'saveCosting', 'saveUsage', 'transitionUsage', 'updateAsset'].sort(),
+    );
   });
 
   it('contact exposes its expected methods (W3-CRM)', () => {
@@ -304,7 +312,9 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
       // #526 (OD-MTG-1/2): grants are add/revoke ONLY — no update method on purpose (a grant is
       // created and revoked, never edited; 0205 ships no UPDATE grant and no UPDATE policy).
       // 'listForContact' added with the I7 review round — the DD-MTG-6 contact-timeline union.
-      ['addAttendee', 'addGrant', 'archive', 'create', 'delete', 'get', 'list', 'listAttendees', 'listForContact', 'listGrants', 'removeAttendee', 'revokeGrant', 'update'].sort(),
+      // 'restore' added with the author/Admin archived-meeting restore flow (#1542); repository delegation,
+      // mutation, and visible UI behavior are covered by focused meeting tests.
+      ['addAttendee', 'addGrant', 'archive', 'create', 'delete', 'get', 'list', 'listAttendees', 'listForContact', 'listGrants', 'removeAttendee', 'restore', 'revokeGrant', 'update'].sort(),
     );
     expect(Object.keys(repositories.procurement).sort()).toEqual(
       // 'setEfaktur' added deliberately with #893 (DD-EFK-1): the PMO-only vendor e-Faktur setter.

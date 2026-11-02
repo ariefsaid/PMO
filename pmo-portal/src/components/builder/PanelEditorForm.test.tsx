@@ -42,6 +42,43 @@ function openForm(props?: Partial<React.ComponentProps<typeof PanelEditorForm>>)
 }
 
 describe('PanelEditorForm — whitelist constraints', () => {
+  it('CMP-002: editing owned panel fields preserves unedited layout and display properties', async () => {
+    const user = userEvent.setup();
+    const onConfirm = vi.fn();
+    const initialPanel = {
+      id: 'kept-id',
+      primitive: 'DataTable',
+      querySpec: { entity: 'companies' as const, select: ['id', 'name'] },
+      layout: { colSpan: 2, rowSpan: 3 },
+      props: {
+        label: 'Old label',
+        tone: 'green',
+        icon: 'briefcase',
+        title: 'Work summary',
+        emptyTitle: 'No rows',
+      },
+    };
+
+    openForm({ initialPanel, onConfirm });
+    await user.clear(screen.getByRole('textbox', { name: /panel label/i }));
+    await user.type(screen.getByRole('textbox', { name: /panel label/i }), 'Updated label');
+    await user.clear(screen.getByRole('textbox', { name: /column span/i }));
+    await user.type(screen.getByRole('textbox', { name: /column span/i }), '4');
+    await user.click(screen.getByRole('button', { name: /update panel/i }));
+
+    expect(onConfirm).toHaveBeenCalledWith({
+      ...initialPanel,
+      layout: { colSpan: 4, rowSpan: 3 },
+      props: {
+        label: 'Updated label',
+        tone: 'green',
+        icon: 'briefcase',
+        title: 'Work summary',
+        emptyTitle: 'No rows',
+      },
+    });
+  });
+
   it('AC-VB-002: entity change resets entity-dependent fields (selectedColumns, filters, groupBy)', async () => {
     const user = userEvent.setup();
     openForm();
@@ -164,11 +201,58 @@ describe('PanelEditorForm — whitelist constraints', () => {
     const filterOpSelect = screen.getAllByRole('combobox', { name: /filter operator/i })[0];
     await user.selectOptions(filterOpSelect, 'eq');
     const filterValInput = screen.getAllByRole('textbox', { name: /filter value/i })[0];
-    await user.type(filterValInput, 'proj-123');
+    await user.type(filterValInput, '123e4567-e89b-12d3-a456-426614174000');
     // Also need to select at least one column (required)
     const colCheckbox = screen.getAllByRole('checkbox')[0];
     await user.click(colCheckbox);
     // Confirm button should now be enabled
     expect(confirmBtn).not.toBeDisabled();
+  });
+
+  it('CMP-003: tasks require a valid nonempty project ID before the panel can be confirmed', async () => {
+    const user = userEvent.setup();
+    openForm();
+    await user.selectOptions(screen.getByRole('combobox', { name: /primitive/i }), 'DataTable');
+    await user.selectOptions(screen.getByRole('combobox', { name: /entity/i }), 'tasks');
+    await user.click(screen.getByRole('checkbox', { name: 'id' }));
+    await user.click(screen.getByRole('button', { name: /add filter/i }));
+    await user.selectOptions(screen.getByRole('combobox', { name: /filter column/i }), 'project_id');
+    await user.selectOptions(screen.getByRole('combobox', { name: /filter operator/i }), 'eq');
+
+    const confirmBtn = screen.getByRole('button', { name: /add panel|confirm/i });
+    const filterValue = screen.getByRole('textbox', { name: /filter value/i });
+    expect(confirmBtn).toBeDisabled();
+    expect(screen.getByText(/enter a valid project id/i)).toBeInTheDocument();
+
+    await user.type(filterValue, 'not-a-project-id');
+    expect(confirmBtn).toBeDisabled();
+    expect(screen.getByText(/enter a valid project id/i)).toBeInTheDocument();
+
+    await user.clear(filterValue);
+    await user.type(filterValue, '123e4567-e89b-12d3-a456-426614174000');
+    expect(confirmBtn).not.toBeDisabled();
+    expect(screen.queryByText(/enter a valid project id/i)).not.toBeInTheDocument();
+  });
+
+  it('CMP-003: every project ID in a tasks in-filter must be valid', async () => {
+    const user = userEvent.setup();
+    openForm();
+    await user.selectOptions(screen.getByRole('combobox', { name: /primitive/i }), 'DataTable');
+    await user.selectOptions(screen.getByRole('combobox', { name: /entity/i }), 'tasks');
+    await user.click(screen.getByRole('checkbox', { name: 'id' }));
+    await user.click(screen.getByRole('button', { name: /add filter/i }));
+    await user.selectOptions(screen.getByRole('combobox', { name: /filter column/i }), 'project_id');
+    await user.selectOptions(screen.getByRole('combobox', { name: /filter operator/i }), 'in');
+    const filterValue = screen.getByRole('textbox', { name: /filter value/i });
+    const confirmBtn = screen.getByRole('button', { name: /add panel|confirm/i });
+
+    await user.type(filterValue, '123e4567-e89b-12d3-a456-426614174000,not-a-uuid');
+    expect(confirmBtn).toBeDisabled();
+    expect(screen.getByText(/enter a valid project id/i)).toBeInTheDocument();
+
+    await user.clear(filterValue);
+    await user.type(filterValue, '123e4567-e89b-12d3-a456-426614174000,550e8400-e29b-41d4-a716-446655440000');
+    expect(confirmBtn).not.toBeDisabled();
+    expect(screen.queryByText(/enter a valid project id/i)).not.toBeInTheDocument();
   });
 });

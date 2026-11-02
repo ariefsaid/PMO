@@ -27,32 +27,19 @@ import { useUserView } from '@/src/hooks/useUserViews';
 import { useAuth } from '@/src/auth/useAuth';
 import { compileCompositionSpec } from '@/src/lib/viewspec/compiler';
 import { PANEL_LOADING, usePanelQueries } from '@/src/hooks/usePanelQueries';
-import { ValidationError } from '@/src/lib/viewspec/types';
+import { MAX_PANELS_PER_VIEW, ValidationError } from '@/src/lib/viewspec/types';
 import type { CompiledPanel, CompositionSpec } from '@/src/lib/viewspec/types';
 import { ChartFrame } from '@/src/components/dashboard/ChartFrame';
 import { DashGrid, DashPageHead } from '@/src/components/dashboard/layout';
 import { ListState } from '@/src/components/ui/ListState';
 import { HydratedPrimitive } from '@/src/components/dashboard/HydratedPrimitive';
 
-// Re-export HydratedPrimitive so any relative importers/tests using UserViewRenderer
-// as the import source continue to resolve without breakage (FR-CV-013 D5).
-export { HydratedPrimitive };
-
-/** Maximum panels per view (OD-9, FR-VR-010 extension). */
-const MAX_PANELS_PER_VIEW = 20;
-
-export interface UserViewRendererProps {
-  /** Optional: if provided, overrides the :viewId route param (for tests). */
-  viewId?: string;
-}
-
 // ── Main component ────────────────────────────────────────────────────────────
 
-const UserViewRenderer: React.FC<UserViewRendererProps> = ({ viewId: viewIdProp }) => {
+const UserViewRenderer: React.FC = () => {
   const navigate = useNavigate();
   const params = useParams<{ viewId: string }>();
-  // Accept prop (for tests) or fall back to route param
-  const viewId = viewIdProp ?? params.viewId ?? '';
+  const viewId = params.viewId ?? '';
 
   const { currentUser } = useAuth();
   const { data: view, isPending, isError } = useUserView(viewId);

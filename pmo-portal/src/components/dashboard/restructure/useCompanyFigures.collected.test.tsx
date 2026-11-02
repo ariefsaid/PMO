@@ -21,5 +21,5 @@ import { useCompanyFigures } from './useCompanyFigures';
 
 it('shows the collected KPI for fractional receipts in the selected period', () => {
   const { result } = renderHook(() => useCompanyFigures({ key: 'custom', label: 'January', from: '2026-01', to: '2026-01' }));
-  expect(result.current.period.find((figure) => figure.id === 'collected')).toMatchObject({ value: '$1', lines: ['$1'], href: '/incoming-payments' });
+  expect(result.current.period.find((figure) => figure.id === 'collected')).toMatchObject({ value: '$1', lines: ['$1'], href: '/finance/receivables?view=payments' });
 });

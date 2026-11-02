@@ -9,6 +9,7 @@ import {
   formatInstantDateNumeric,
   formatRelativeTime,
   instantToZonedDatetimeLocal,
+  firstInstantOfZonedCalendarDay,
   zonedDatetimeLocalToInstant,
 } from './format';
 
@@ -152,5 +153,20 @@ describe('zonedDatetimeLocalToInstant (#684 FR-PLC-006)', () => {
   it('returns null for a malformed value', () => {
     expect(zonedDatetimeLocalToInstant('not-a-date', 'UTC')).toBeNull();
     expect(zonedDatetimeLocalToInstant('', 'UTC')).toBeNull();
+  });
+
+  it('rejects invalid calendar fields and nonexistent local times, and picks the earlier repeated instant', () => {
+    expect(zonedDatetimeLocalToInstant('2026-02-30T12:00', 'UTC')).toBeNull();
+    expect(zonedDatetimeLocalToInstant('2026-13-01T12:00', 'UTC')).toBeNull();
+    expect(zonedDatetimeLocalToInstant('2026-03-08T02:30', 'America/Los_Angeles')).toBeNull();
+    // A repeated wall time resolves to its first occurrence (PDT, UTC-7) by policy.
+    expect(zonedDatetimeLocalToInstant('2026-11-01T01:30', 'America/Los_Angeles')?.toISOString())
+      .toBe('2026-11-01T08:30:00.000Z');
+  });
+
+  it('finds the first real instant of a calendar day whose midnight is skipped', () => {
+    expect(zonedDatetimeLocalToInstant('2024-09-08T00:00', 'America/Santiago')).toBeNull();
+    expect(firstInstantOfZonedCalendarDay('2024-09-08', 'America/Santiago')?.toISOString())
+      .toBe('2024-09-08T04:00:00.000Z');
   });
 });

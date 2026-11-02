@@ -113,7 +113,7 @@ create or replace view public.sales_invoice_work_billed with (security_invoker =
 revoke all on public.sales_invoice_work_billed from public, anon, authenticated;
 grant select on public.sales_invoice_work_billed to authenticated;
 
--- §5 get_project_finances (0410 verbatim + the filter on the two invoice sets it reads directly).
+-- §5 get_project_finances (0497 verbatim, which carries the equipment charge, + the filter on the two invoice sets it reads directly).
 CREATE OR REPLACE FUNCTION public.get_project_finances(p_project_id uuid)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -460,10 +460,15 @@ begin
       'attributed_total',(select case when count(*) filter(where mapped) = 0
                                   or count(*) filter(where mapped and attributed_to_date is null) > 0 then null
                           else sum(attributed_to_date) filter(where mapped) end::text from gl),
+      -- 0497 (#1519, FR-EQU-051): the hire-rate internal charge, inside `total`, stated on its own.
+      'equipment_charge_total',(select case when count(*) filter(where mapped) = 0
+                                  or count(*) filter(where mapped and equipment_charge_to_date is null) > 0 then null
+                          else sum(equipment_charge_to_date) filter(where mapped) end::text from gl),
       'categories',(select jsonb_agg(jsonb_build_object('category',category,'mapped',mapped,
                                                        'amount',actuals_to_date::text,
                                                        'tagged_amount',tagged_to_date::text,
-                                                       'attributed_amount',attributed_to_date::text) order by category) from gl)
+                                                       'attributed_amount',attributed_to_date::text,
+                                                       'equipment_charge_amount',equipment_charge_to_date::text) order by category) from gl)  -- 0497
     )
   ) into v_result from public.projects p join public.organizations o on o.id = p.org_id
     cross join contract_sum cs where p.id = p_project_id;

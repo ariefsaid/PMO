@@ -247,7 +247,7 @@ describe('renderOverdueMarkdown / runWhatsOverdue (#787)', () => {
     const md = renderOverdueMarkdown(base);
     expect(md).toContain('**Overdue as of 6 Oct** — 1 task, 1 invoice');
     expect(md).toContain(`[\\[x\\]\\(https:\u200B//evil.example\\)](/projects/${P1}/tasks) — Harbor · due 2 Oct (4 days late) · Budi`);
-    expect(md).toContain('[ACC-SINV-2026-00012](/sales-invoices?q=ACC-SINV-2026-00012) — PT Client · $1,500.50 outstanding (incl. tax) · due 1 Oct (5 days late)');
+    expect(md).toContain('[ACC-SINV-2026-00012](/finance/receivables?q=ACC-SINV-2026-00012) — PT Client · $1,500.50 outstanding (incl. tax) · due 1 Oct (5 days late)');
   });
 
   it('FR-AIN-008 every user-authored field renders as inert text (customer, assignee, project, name)', () => {
@@ -286,7 +286,7 @@ describe('renderOverdueMarkdown / runWhatsOverdue (#787)', () => {
     };
     const md = renderOverdueMarkdown(f);
     expect(md).not.toContain('x/../../admin');
-    expect(md).toContain('/sales-invoices?q=A%20%281%29%26q%3D2%20%23x)');
+    expect(md).toContain('/finance/receivables?q=A%20%281%29%26q%3D2%20%23x)');
   });
 
   it('caps each section at 10 rows and says how many more', () => {

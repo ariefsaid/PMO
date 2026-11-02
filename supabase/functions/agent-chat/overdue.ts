@@ -252,7 +252,7 @@ export function renderOverdueMarkdown(f: OverdueFacts, opts: { offerReminders?: 
     lines.push('', '**Invoices**');
     for (const i of f.invoices.slice(0, OVERDUE_LIST_SHOWN)) {
       const label = escapeMarkdownText(i.siNumber ?? 'Invoice');
-      const href = i.siNumber ? `/sales-invoices?q=${hrefParam(i.siNumber)}` : '/sales-invoices';
+      const href = i.siNumber ? `/finance/receivables?q=${hrefParam(i.siNumber)}` : '/finance/receivables';
       const who = i.customerName ? ` — ${escapeMarkdownText(i.customerName)}` : '';
       const b = basis(i.taxTreatment);
       const money = i.outstanding !== null
@@ -261,7 +261,7 @@ export function renderOverdueMarkdown(f: OverdueFacts, opts: { offerReminders?: 
       lines.push(`- [${label}](${href})${who}${money} · due ${formatShortDate(i.dueDate)} (${late(i.daysOverdue)})`);
     }
     const rest = f.invoices.length - Math.min(f.invoices.length, OVERDUE_LIST_SHOWN);
-    if (rest > 0 || f.invoicesTruncated) lines.push(`- …and ${rest}${f.invoicesTruncated ? '+' : ''} more on [Sales Invoices](/sales-invoices)`);
+    if (rest > 0 || f.invoicesTruncated) lines.push(`- …and ${rest}${f.invoicesTruncated ? '+' : ''} more on [Sales Invoices](/finance/receivables)`);
   }
   if (opts.offerReminders) {
     const people = new Set(f.tasks.map((t) => t.assigneeId).filter((id): id is string => !!id && id !== f.callerId));

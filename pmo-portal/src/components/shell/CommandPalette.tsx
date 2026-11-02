@@ -1,7 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
 import { cn } from '@/src/components/ui/cn';
+import { acquireBackgroundInert } from '@/src/components/ui/backgroundInert';
 import { Icon, type IconName } from '@/src/components/ui/icons';
 import { filterAndCap } from '@/src/hooks/useRecordSearch';
 import { useReferenceRecordSearch } from '@/src/hooks/useReferenceRecordSearch';
@@ -236,6 +238,12 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
   const showAskAi = !!onAskAi && !showLoading && flatItems.length === 0 && askAiQuery.length > 0;
   const resultCount = flatItems.length + (showAskAi ? 1 : 0);
 
+  // AC-A11Y-MODAL-001 / CMP-009: background inert while open. Declared before focus effect.
+  useEffect(() => {
+    if (!open) return;
+    return acquireBackgroundInert();
+  }, [open]);
+
   // Reset + focus the input on open.
   useEffect(() => {
     if (open) {
@@ -283,9 +291,21 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
         onClose();
       }
     } else if (e.key === 'Tab') {
-      // Trap focus inside the panel (single focusable: the input).
-      e.preventDefault();
-      inputRef.current?.focus();
+      const root = panelRef.current;
+      if (!root) return;
+      const focusables = root.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      );
+      if (focusables.length === 0) return;
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
     }
   };
 
@@ -298,7 +318,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     return name;
   };
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-[950] flex items-start justify-center pt-[12vh]"
       onKeyDown={onKeyDown}
@@ -481,6 +501,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 };

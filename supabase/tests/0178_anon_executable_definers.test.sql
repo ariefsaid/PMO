@@ -195,7 +195,7 @@
 -- supabase/tests/erp_connect_sends.test.sql. The other 0494 functions are service-role-only or internal.
 --
 -- ⚑ AMENDED BY 0498 (#1602 ECA-5, renumbered from 0484): `accept_invoice_pairs` and `unpair_invoice` join the retained
--- set (+2; final count 132 from dev's 130, re-derived by hand from the merged list). SECURITY DEFINER writers
+-- set (+2; final count 136 from dev's 134, re-derived by hand from the merged list). SECURITY DEFINER writers
 -- under a member's JWT: re-assert active membership, org and Admin/Finance (accept also the ERP-owns-revenue gate
 -- and re-checks every pair on locked rows); proven by supabase/tests/invoice_pairs.test.sql. The proposal and candidate
 -- functions are INVOKER and not listed.
@@ -264,6 +264,7 @@ insert into client_callable_rpc_names (proname) values
   ('create_stock_document'),
   ('decide_imprest_float_change'),
   ('decide_po_variation'),
+  ('end_contract_rate_line'),  -- ⚑ AMENDED BY 0515 (#1514)
   ('establish_imprest_float'),
   ('propose_imprest_float_amount'),
   ('record_vendor_withholding_slip'),
@@ -278,6 +279,7 @@ insert into client_callable_rpc_names (proname) values
   ('create_purchase_order'),
   ('create_purchase_request'),
   ('create_rfq'),
+  ('end_contract_rate_assignee'),  -- ⚑ AMENDED BY 0515 (#1514)
   ('get_budget_projection'),
   ('get_budget_push_status'),
   ('get_executive_dashboard'),
@@ -299,6 +301,7 @@ insert into client_callable_rpc_names (proname) values
   ('mark_erp_purchase_documents'),
   ('link_m365_documents_batch'),
   ('save_cost_attribution_rule'),
+  ('save_contract_rate_line'),  -- ⚑ AMENDED BY 0515 (#1514)
   ('save_equipment_usage'),
   ('save_equipment_costing'),
   ('save_stock_draft'),
@@ -335,6 +338,7 @@ insert into client_callable_rpc_names (proname) values
   ('send_task_reminders'),
   ('select_procurement_quote'),
   ('set_procurement_invoice_efaktur'),
+  ('set_contract_rate_assignee'),  -- ⚑ AMENDED BY 0515 (#1514)
   ('set_procurement_gates'),
   ('set_project_contract_value'),
   ('set_sales_invoice_billing_kind'),
@@ -386,8 +390,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  132,
-  'AC-ACL-002 all 132 retained client-callable RPC names still have a public function');
+  136,
+  'AC-ACL-002 all 136 retained client-callable RPC names still have a public function');
 
 select is(
   (select count(*)::int
@@ -396,8 +400,8 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  132,
-  'AC-ACL-003 all 132 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  136,
+  'AC-ACL-003 all 136 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
 -- granted to both roles from being named twice. Retained names exempt authenticated grants only;

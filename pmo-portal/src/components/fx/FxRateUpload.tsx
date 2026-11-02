@@ -22,7 +22,7 @@ interface UploadError {
   code: string;
 }
 
-export interface FxRateUploadProps {
+interface FxRateUploadProps {
   today: string;
   onClose: () => void;
   onCommitted: (counts: { new: number; changed: number; unchanged: number }) => void;
@@ -87,7 +87,6 @@ const FxRateUpload: React.FC<FxRateUploadProps> = ({ today, onClose, onCommitted
   const [parsed, setParsed] = useState<FxParsed | null>(null);
   const [preview, setPreview] = useState<FxPreview | null>(null);
   const [error, setError] = useState<UploadError | null>(null);
-  const [selected, setSelected] = useState(false);
   const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
   const columns: Column<FxRateInput>[] = [
     {
@@ -123,7 +122,6 @@ const FxRateUpload: React.FC<FxRateUploadProps> = ({ today, onClose, onCommitted
 
   const selectFile = async (file: File) => {
     const request = ++generation.current;
-    setSelected(true);
     setSelectedFileName(file.name);
     setParsed(null);
     setPreview(null);
@@ -150,13 +148,6 @@ const FxRateUpload: React.FC<FxRateUploadProps> = ({ today, onClose, onCommitted
 
   const close = () => {
     generation.current += 1;
-    setParsed(null);
-    setPreview(null);
-    setError(null);
-    setSubmitError(null);
-    setConfirmOpen(false);
-    setState('choose');
-    setSelectedFileName(null);
     onClose();
   };
 
@@ -188,7 +179,6 @@ const FxRateUpload: React.FC<FxRateUploadProps> = ({ today, onClose, onCommitted
       setState('done');
       setParsed(null);
       setPreview(null);
-      setSelected(false);
       setSelectedFileName(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
       onCommitted(counts);
@@ -226,7 +216,7 @@ const FxRateUpload: React.FC<FxRateUploadProps> = ({ today, onClose, onCommitted
             preview.rows.length === 0 ||
             preview.rejected.length > 0
           }
-          dirty={selected}
+          dirty={selectedFileName !== null}
           loading={state === 'committing'}
           submitError={submitError}
         >

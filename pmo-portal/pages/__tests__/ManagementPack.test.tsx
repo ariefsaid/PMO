@@ -333,7 +333,8 @@ describe('RF-035, RF-036, RF-038 and RF-039 report honesty', () => {
     const row = within(screen.getByText('Alpha').closest('tr')!);
     const progress = row.getByRole('progressbar');
 
-    expect(progress).toHaveAttribute('aria-valuenow', String(percent));
+    expect(progress).toHaveAttribute('aria-valuenow', String(Math.min(percent, 100)));
+    expect(progress).toHaveAttribute('aria-valuetext', `${percent}%`);
     expect(within(progress).getByTestId('progress-fill')).toHaveClass(tone);
     expect(row.getByText(`${percent}% complete`)).toBeInTheDocument();
     expect(row.getByText(/·\s*Apr/)).toBeInTheDocument();
