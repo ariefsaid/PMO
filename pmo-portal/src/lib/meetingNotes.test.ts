@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { upgradeNotes, assertNoBinary, actionItemTaskIds, notesToText } from './meetingNotes';
+import { upgradeNotes, assertNoBinary, actionItemTaskIds } from './meetingNotes';
+import { notesToText } from '@/test/meetingNotes';
 
 describe('upgradeNotes (one-way v1 → BlockNote)', () => {
   it('AC-MTG-201 maps every v1 line to a paragraph with the same text — no data loss', () => {
