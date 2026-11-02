@@ -340,7 +340,7 @@ const Companies: React.FC = () => {
           title={t('companies.states.emptyTitle', 'No companies yet')}
           sub={t(
             'companies.states.emptySub',
-            'Add your first client or supplier to start linking projects and procurement records to a directory.',
+            'Add your first client or supplier to start linking projects and procurement cases to a directory.',
           )}
           stateId="companies-empty"
           role={realRole ?? undefined}

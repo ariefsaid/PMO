@@ -45,7 +45,7 @@
     "vendor": "Supplier",
     "selectVendor": "Optional: select a supplier…",
     "budgetCategory": "Budget category",
-    "denied": "You do not have permission to create procurement records.",
+    "denied": "You do not have permission to create procurement cases.",
     "unsaved": {
       "title": "Unsaved procurement",
       "description": "This procurement has not been saved. Leave this page and discard it?",
@@ -210,8 +210,8 @@
         "accessibleName": "Project procurement"
       },
       "noSupplier": "No supplier",
-      "ownerTooltip": "Requested by {{name}}. Source: procurement record.",
-      "stageCountTooltip": "Count of procurements currently in {{stage}}. Source: project procurement records.",
+      "ownerTooltip": "Requested by {{name}}. Source: procurement case.",
+      "stageCountTooltip": "Count of procurements currently in {{stage}}. Source: project procurement cases.",
       "forYou": "{{count}} for you",
       "selection": {
         "selectRow": "Select {{name}}",
@@ -302,7 +302,7 @@
     "ageShort": "Age",
     "ageInStageDays": "{{count}}d",
     "raisedBy": "Raised by",
-    "stageCountTooltip": "Count of procurements currently in {{stage}}. Source: company procurement records.",
+    "stageCountTooltip": "Count of procurements currently in {{stage}}. Source: company procurement cases.",
     "table": {
       "accessibleName": "Procurement"
     },
@@ -324,11 +324,11 @@
     "selectionDescription": "The selected quote sets the procurement value and supplier. If it is above the approved amount, the procurement goes back for approval."
   },
   "approvalSection": {
-    "heading": "Procurement records awaiting you ({{total}})",
-    "error": "Couldn't load procurement records",
+    "heading": "Procurement cases awaiting you ({{total}})",
+    "error": "Couldn't load procurement cases",
     "errorSub": "Something went wrong fetching requests awaiting you.",
-    "empty": "No procurement records awaiting your decision",
-    "emptySub": "Procurement records that need your approval will appear here."
+    "empty": "No procurement cases awaiting your decision",
+    "emptySub": "Procurement cases that need your approval will appear here."
   },
   "approvalRow": {
     "approve": "Approve",
@@ -377,7 +377,7 @@
       "vendorInvoiced": "Releasing payment: the approver can't also pay (separation of duties). You may mark this as paid below.",
       "default": "Ready to advance. Select an action below to move this procurement to its next stage."
     },
-    "sodPreannounce": "Submitting hands this to another approver. You can't approve your own procurement record."
+    "sodPreannounce": "Submitting hands this to another approver. You can't approve your own procurement case."
   },
   "subcontract": {
     "form": {

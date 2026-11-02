@@ -29,9 +29,9 @@ const financePositionState = vi.hoisted(() => ({
 }));
 const defaultToday = [
   { id: 'contract-on-hand', label: 'Contract on hand', value: '$1,000', subline: 'Left after spending: $500', href: '/projects', unavailableReason: 'Contract amount is not available.' },
-  { id: 'billed-margin', label: 'Known margin on billed work', value: '$200', subline: 'Known margin amount shown', href: '/sales-invoices' },
+  { id: 'billed-margin', label: 'Known margin on billed work', value: '$200', subline: 'Known margin amount shown', href: '/finance/receivables' },
   { id: 'pipeline', label: 'Pipeline (weighted)', value: '$300', subline: 'Gross: $600 · Forecast margin: 20%', href: '/sales' },
-  { id: 'client-overdue', label: 'Owed by clients · overdue', value: '2', subline: '$400 · Oldest 14 days overdue', href: '/sales-invoices?overdue=true' },
+  { id: 'client-overdue', label: 'Owed by clients · overdue', value: '2', subline: '$400 · Oldest 14 days overdue', href: '/finance/receivables?overdue=true' },
   { id: 'supplier-payables', label: 'Owed to suppliers', value: '$100', href: '/procurement?status=Vendor+Invoiced' },
   { id: 'still-to-invoice', label: 'Still to invoice on work orders', value: '$250', href: '/projects' },
 ];
@@ -84,8 +84,8 @@ vi.mock('@/src/components/dashboard/EngineerDashboard', () => ({ EngineerDashboa
 vi.mock('@/src/components/dashboard/PMDashboard', () => ({ PMDashboard: () => <div data-testid="pm-dashboard">My projects</div> }));
 
 const periodFigures = [
-  { id: 'invoiced', label: 'Invoiced · excl. tax', value: '$2,000', href: '/sales-invoices' },
-  { id: 'collected', label: 'Collected', value: '$1,000', href: '/incoming-payments' },
+  { id: 'invoiced', label: 'Invoiced · excl. tax', value: '$2,000', href: '/finance/receivables' },
+  { id: 'collected', label: 'Collected', value: '$1,000', href: '/finance/receivables?view=payments' },
   { id: 'won', label: 'Won', value: '2 · $500', href: '/projects?status=Won' },
   { id: 'win-rate', label: 'Win rate', value: '66.7%', href: '/sales' },
 ];
@@ -156,14 +156,14 @@ describe('company area hub (#1403)', () => {
   it('L6: overdue and supplier amounts appear once, in their tiles, not again in the area panels', () => {
     state.role = 'Finance';
     needsState.areaItems = [
-      { id: 'overdue-invoices', count: 2, label: 'client invoices overdue', amount: '$400', href: '/sales-invoices?overdue=true', tone: 'lost' },
+      { id: 'overdue-invoices', count: 2, label: 'client invoices overdue', amount: '$400', href: '/finance/receivables?overdue=true', tone: 'lost' },
       { id: 'supplier-invoices', count: 1, label: 'supplier invoice to pay', amount: '$100', href: '/procurement?status=Vendor+Invoiced', tone: 'warn' },
       { id: 'procurement-approvals', count: 3, label: 'procurements awaiting approval', href: '/procurement?status=Requested', tone: 'warn' },
     ] as typeof needsState.areaItems;
     renderPage();
     expect(screen.getAllByText(/\$400/)).toHaveLength(1);
     expect(screen.getAllByText(/\$100/)).toHaveLength(1);
-    expect(screen.getByRole('link', { name: 'Open related records for Owed by clients · overdue.' })).toHaveAttribute('href', '/sales-invoices?overdue=true');
+    expect(screen.getByRole('link', { name: 'Open related records for Owed by clients · overdue.' })).toHaveAttribute('href', '/finance/receivables?overdue=true');
     // A complementary item with no tile stays in its panel.
     expect(screen.getByRole('link', { name: /3 procurements awaiting approval/ })).toHaveAttribute('href', '/procurement?status=Requested');
   });

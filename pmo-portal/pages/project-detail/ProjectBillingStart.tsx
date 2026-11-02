@@ -33,7 +33,7 @@ const ProjectBillingStart: React.FC<ProjectBillingStartProps> = ({ projectId, cl
       >
         <div className="flex flex-col gap-2.5 overflow-y-auto p-4">
           <Link
-            to={`/sales-invoices?create=1&project=${encodeURIComponent(projectId)}`}
+            to={`/finance/receivables?create=1&project=${encodeURIComponent(projectId)}`}
             onClick={() => setOpen(false)}
             className={methodClassName}
           >
