@@ -42,7 +42,7 @@ const ExpenseClaims: React.FC = () => {
   const { data, isPending, isError, refetch } = useExpenseClaims(filters);
   const { data: projects } = useProjects();
   const { create } = useExpenseClaimMutations();
-  const advanceOptions = useOwnAdvanceOptions();
+  const ownAdvances = useOwnAdvanceOptions();
   const [formKind, setFormKind] = useState<ExpenseKind | null>(null);
   const canCreate = may('create', 'expenseClaim');
   const rows = data?.rows;
@@ -139,7 +139,8 @@ const ExpenseClaims: React.FC = () => {
         <ExpenseClaimFormModal
           kind={formKind}
           projectOptions={projectOptions}
-          advanceOptions={advanceOptions}
+          advanceOptions={ownAdvances.options}
+          advanceLoad={ownAdvances}
           onClose={() => setFormKind(null)}
           onSubmit={async (input) => {
             const claimId = (await create.mutateAsync(input)).id;

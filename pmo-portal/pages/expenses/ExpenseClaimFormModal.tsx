@@ -13,6 +13,8 @@ import { useExpensePostingReadiness } from '@/src/hooks/useExpensePostingReadine
 import { floatChoiceOptions } from '@/src/lib/imprest/floatDisplay';
 import { useImprestFloatChoices } from '@/src/hooks/useImprest';
 import { expenseTypeLabel } from './expenseLabels';
+import { AdvanceLoadNotice } from './AdvanceLoadNotice';
+import type { OwnAdvanceOptions } from './useOwnAdvanceOptions';
 
 /** S-12 (RF-060): before a NEW draft exists, say plainly when it will not reach accounting. PMO-only capture
  *  stays available; this is display only — it never blocks, switches posting on, or re-queues older claims. */
@@ -77,6 +79,8 @@ export interface ExpenseClaimFormModalProps {
   kind: ExpenseKind;
   projectOptions: { value: string; label: string }[];
   advanceOptions: { value: string; label: string }[];
+  /** Load state of `advanceOptions`: a NEW claim is not saved while it is pending or failed (unknown is not "no advance"). */
+  advanceLoad: Pick<OwnAdvanceOptions, 'isPending' | 'isError' | 'refetch'>;
   categoryPrecedents?: ExpenseCategoryPrecedent[];
   captureRecovery?: ExpenseCaptureRecoveryView | null;
   initial?: ExpenseClaimFormInitial;
@@ -86,7 +90,7 @@ export interface ExpenseClaimFormModalProps {
 }
 
 export const ExpenseClaimFormModal: React.FC<ExpenseClaimFormModalProps> = ({
-  kind, projectOptions, advanceOptions, categoryPrecedents = [], captureRecovery = null, initial, onClose, onOpenSavedDraft, onSubmit,
+  kind, projectOptions, advanceOptions, advanceLoad, categoryPrecedents = [], captureRecovery = null, initial, onClose, onOpenSavedDraft, onSubmit,
 }) => {
   const { t } = useTranslation();
   const validate = useMemo(
@@ -182,8 +186,11 @@ export const ExpenseClaimFormModal: React.FC<ExpenseClaimFormModalProps> = ({
   const currentCategoryPrecedent = categoryPrecedents.find((item) => item.projectId === projectField.value);
   const recoveryPending = Boolean(captureRecovery?.draftSaved && captureRecovery.phase !== 'complete');
 
+  const advancesNotReady = kind === 'claim' && !initial && (advanceLoad.isPending || advanceLoad.isError);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (advancesNotReady) return;
     void form.handleSubmit(async (values) => {
       const input: ExpenseClaimInput = {
         kind,
@@ -242,7 +249,7 @@ export const ExpenseClaimFormModal: React.FC<ExpenseClaimFormModalProps> = ({
       onClose={() => { if (!recoveryPending) onClose(); }}
       loading={form.isSubmitting}
       dirty={form.isDirty || receiptFile !== null}
-      submitDisabled={!form.isComplete}
+      submitDisabled={!form.isComplete || advancesNotReady}
       errorSummary={errorSummary}
       submitError={saveError}
     >
@@ -359,6 +366,7 @@ export const ExpenseClaimFormModal: React.FC<ExpenseClaimFormModalProps> = ({
               options={[{ value: '', label: t('imprest:form.noFloat', 'Not charged to a float') }, ...floatOptions]}
               helper={t('imprest:form.helper', 'Cash paid out of site cash held by the custodian.')} />
           )}
+          {kind === 'claim' && <AdvanceLoadNotice advances={advanceLoad} />}
           {kind === 'claim' && advanceOptions.length > 0 && (
             <SelectField id={advanceField.id} label={t('expenses.form.advance.label', 'Settle against advance')} value={advanceField.value}
               onChange={(v) => advanceField.onChange(v)} onBlur={advanceField.onBlur}
