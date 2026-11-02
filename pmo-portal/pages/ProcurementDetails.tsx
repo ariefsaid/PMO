@@ -41,6 +41,8 @@ import { withTabSwitchNavState } from '@/src/lib/tabSwitchNav';
 import { useAuth } from '@/src/auth/useAuth';
 import { formatCurrency } from '@/src/lib/format';
 import { LineItemsSection } from './procurement/LineItemsSection';
+import { SubcontractLinesSection } from './procurement/SubcontractLinesSection';
+import { classifySubcontractBillError } from './procurement/subcontractBillError';
 import { VendorQuotesTab } from './procurement/VendorQuotesTab';
 import { PaymentCeilingNotice } from './procurement/PaymentCeilingNotice';
 import { ProcurementHeaderEdit } from './procurement/ProcurementHeaderEdit';
@@ -780,10 +782,13 @@ const ProcurementDetails: React.FC = () => {
   const submitVICapture = async (capture: VendorInvoiceCapture) => {
     setMutationError(null);
     try {
-      await mutations.captureVendorInvoice.mutateAsync({
+      const { lines, ...rest } = capture;
+      // #1513 S7.4: a subcontract bill with BoQ lines goes through the capped RPC (SC001 refusal, in words).
+      if (lines) await mutations.captureSubcontractVendorInvoice.mutateAsync({ ...rest, lines, notes: notesInput || undefined });
+      else await mutations.captureVendorInvoice.mutateAsync({
         // #505: `capture` is `CaptureVendorInvoiceInput` minus procurementId/notes, so the tax facts
         // travel through by construction — there is no field list here to forget to update.
-        ...capture,
+        ...rest,
         notes: notesInput || undefined,
       });
       setNotesInput('');
@@ -796,7 +801,7 @@ const ProcurementDetails: React.FC = () => {
     } catch (err) {
       // Keep the form open (do NOT close) — the atomic RPC rolled everything back, so the user
       // can fix the input and resubmit from the same panel.
-      const { headline, detail } = classifyMutationError(err);
+      const { headline, detail } = classifySubcontractBillError(err, t) ?? classifyMutationError(err);
       toast(headline, detail, 'warning');
       setMutationError(detail);
     }
@@ -806,7 +811,8 @@ const ProcurementDetails: React.FC = () => {
     mutations.transition.isPending ||
     mutations.createReceipt.isPending ||
     mutations.createInvoice.isPending ||
-    mutations.captureVendorInvoice.isPending;
+    mutations.captureVendorInvoice.isPending ||
+    mutations.captureSubcontractVendorInvoice?.isPending;
 
   // The separator goes BETWEEN present parts only — a purchase with no request number (e.g. one created from an ERPNext
   // document) must not start with a stray "·".
@@ -1128,6 +1134,16 @@ const ProcurementDetails: React.FC = () => {
             }}
             currency={p.currency}
           />
+          {p.is_subcontract && p.project_id && p.purchase_orders[0] && (
+            <SubcontractLinesSection
+              poId={p.purchase_orders[0].id}
+              procurementId={p.id}
+              projectId={p.project_id}
+              currency={p.currency}
+              currentUserId={currentUserId ?? undefined}
+              projectManagerId={managerId}
+            />
+          )}
           </div>
         )}
 

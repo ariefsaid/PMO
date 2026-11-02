@@ -429,7 +429,25 @@ describe('erpnext/ledgerFetch — T1a real-response source boundary', () => {
     });
   }
 
-  it('does not mutate mirror or watermark state or finish a full replay after a real GL page is followed by malformed JSON', async () => {
+  it('the lower-level fetch rejects a malformed page after returning an earlier full page', async () => {
+    const urls: string[] = [];
+    const fetchImpl = vi.fn(async (url: string) => {
+      urls.push(url);
+      if (urls.length === 1) {
+        return rawLedgerResponse(JSON.stringify({ data: [
+          { name: 'GL-1', company: 'Synthetic Co', account: 'Cash', debit: '1.00', credit: '0.00', modified: '2026-01-02' },
+          { name: 'GL-2', company: 'Synthetic Co', account: 'Cash', debit: '2.00', credit: '0.00', modified: '2026-01-03' },
+        ] }));
+      }
+      return rawLedgerResponse('{"data":[');
+    });
+    await expect(fetchGlEntries(client(fetchImpl), { company: 'Synthetic Co', pageSize: 2, maxPages: 2 }))
+      .rejects.toMatchObject({ name: 'AppError', code: 'external-unreachable' });
+    expect(urls).toHaveLength(2);
+    expect(urls.every((url) => url.includes('/api/resource/GL%20Entry'))).toBe(true);
+  });
+
+  it('a malformed later GL page leaves both mirrors and watermarks unchanged and cannot finish a full replay', async () => {
     const [{ feedLedgerMirrors }, { FakePostgrest }] = await Promise.all([
       import('./ledgerMirrorFeed.ts'),
       import('@/test/postgrestFake.ts'),
@@ -451,27 +469,33 @@ describe('erpnext/ledgerFetch — T1a real-response source boundary', () => {
     });
     const before = Object.fromEntries(Object.keys(initialTables).map((table) => [table, structuredClone(fake.rowsOf(table))]));
     const urls: string[] = [];
+    const firstPage = Array.from({ length: 500 }, (_, i) => ({
+      name: `GL-${String(i).padStart(3, '0')}`,
+      company: 'Synthetic Co',
+      account: 'Cash',
+      debit: '1.00',
+      credit: '0.00',
+      modified: `2026-01-${String(Math.floor(i / 1440) + 2).padStart(2, '0')} ${String(Math.floor((i % 1440) / 60)).padStart(2, '0')}:${String(i % 60).padStart(2, '0')}:00`,
+    }));
     const fetchImpl = vi.fn(async (url: string) => {
       urls.push(url);
-      const start = Number(new URL(url).searchParams.get('limit_start') ?? 0);
-      if (start === 0) {
-        return rawLedgerResponse(JSON.stringify({ data: [
-          { name: 'GL-1', company: 'Synthetic Co', account: 'Cash', debit: '1.00', credit: '0.00', modified: '2026-01-02' },
-          { name: 'GL-2', company: 'Synthetic Co', account: 'Cash', debit: '2.00', credit: '0.00', modified: '2026-01-03' },
-        ] }));
-      }
-      return rawLedgerResponse('{"data":[');
+      return urls.length === 1
+        ? rawLedgerResponse(JSON.stringify({ data: firstPage }))
+        : rawLedgerResponse('{"data":[');
     });
     const rpc = vi.fn(async () => ({ data: { deleted: 0 }, error: null }));
     const serviceClient = Object.assign(fake, { rpc });
 
     await expect(feedLedgerMirrors(serviceClient as never, {
-      client: client(fetchImpl), orgId: 'org-1', company: 'Synthetic Co', fullReplay: true, pageSize: 2, maxPages: 2,
+      client: client(fetchImpl), orgId: 'org-1', company: 'Synthetic Co', fullReplay: true,
     })).rejects.toMatchObject({ name: 'AppError', code: 'external-unreachable' });
 
-    for (const table of Object.keys(initialTables)) expect(fake.rowsOf(table)).toEqual(before[table as keyof typeof before]);
+    for (const table of Object.keys(initialTables)) {
+      expect(fake.rowsOf(table)).toEqual(before[table as keyof typeof before]);
+    }
     expect(rpc).not.toHaveBeenCalledWith('finish_erp_gl_replay', expect.anything());
     expect(urls).toHaveLength(2);
     expect(urls.every((url) => url.includes('/api/resource/GL%20Entry'))).toBe(true);
+    expect(new URL(urls[0]!).searchParams.get('limit_page_length')).toBe('500');
   });
 });

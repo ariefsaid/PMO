@@ -53,4 +53,26 @@ describe('toWorkbookBuffer (unmocked exceljs serialization)', () => {
       else process.env.TZ = previousTimezone;
     }
   });
+
+  it('LIB02-003: serializes only declared date fields as dates and leaves invalid calendar text unchanged', async () => {
+    const buf = await toWorkbookBuffer({
+      sheetName: 'Payments',
+      header: ['Company Name', 'Valid Date', 'Invalid Date'],
+      body: [['2026-06-13', '2026-06-13', '2026-02-30']],
+      types: ['text', 'date', 'date'],
+    });
+
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(new Uint8Array(buf));
+    const sheet = workbook.getWorksheet('Payments');
+
+    // Text column with date-shaped value stays text
+    expect(sheet?.getCell('A2').value).toBe('2026-06-13');
+    // Declared date column with valid calendar date becomes Excel date
+    const validDate = sheet?.getCell('B2').value;
+    expect(validDate).toBeInstanceOf(Date);
+    expect((validDate as Date).toISOString()).toBe('2026-06-13T00:00:00.000Z');
+    // Declared date column with invalid calendar date leaves text unchanged
+    expect(sheet?.getCell('C2').value).toBe('2026-02-30');
+  });
 });

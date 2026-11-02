@@ -44,7 +44,12 @@ export type Action =
   | 'upload'
   | 'withdraw'
   | 'post'
-  | 'confirm';
+  | 'confirm'
+  | 'prepare'
+  | 'request'
+  | 'decide'
+  | 'revise'
+  | 'link';
 
 export type Entity =
   | 'project'
@@ -105,7 +110,10 @@ export type Entity =
   | 'warehouse'
   | 'stockDocument'
   | 'materialAllowance'
-  | 'reorderLevel';
+  | 'reorderLevel'
+  | 'subcontractLines'
+  | 'subcontractAcceptance'
+  | 'poVariation';
 
 export interface PolicyContext {
   /** The REAL JWT role (not the impersonated effectiveRole). */
@@ -706,6 +714,28 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
       (role === 'Project Manager' &&
         !!ctx.currentUserId &&
         ctx.record?.project_manager_id === ctx.currentUserId),
+  },
+  // #1513 S6: subcontract lines, acceptances, and variations. UX ONLY — RPCs and RLS are the authority.
+  subcontractLines: {
+    edit: allowUnlessViewOnly(['Admin', 'Finance', 'Project Manager']),
+  },
+  subcontractAcceptance: {
+    prepare: (role, ctx) =>
+      ctx.record?.viewOnly !== true &&
+      (has(MONEY_AUTHORITY, role) ||
+        (role === 'Project Manager' &&
+          !!ctx.currentUserId &&
+          ctx.record?.project_manager_id === ctx.currentUserId)),
+    confirm: allowUnlessViewOnly(['Admin', 'Finance']),
+  },
+  poVariation: {
+    request: (role, ctx) =>
+      ctx.record?.viewOnly !== true &&
+      (has(MASTER_DATA, role) ||
+        (has(ALL, role) && !!ctx.currentUserId && ctx.record?.requested_by_id === ctx.currentUserId)),
+    decide: allowUnlessViewOnly(['Admin', 'Finance', 'Executive', 'Project Manager']),
+    revise: allowUnlessViewOnly(['Admin', 'Finance', 'Project Manager']),
+    link: allowUnlessViewOnly(['Admin', 'Finance', 'Project Manager']),
   },
 };
 

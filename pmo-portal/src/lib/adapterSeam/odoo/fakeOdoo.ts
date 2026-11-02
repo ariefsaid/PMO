@@ -17,10 +17,15 @@ const FIELDS: Record<string, string[]> = {
   'account.tax': ['name', 'amount', 'type_tax_use', 'company_id', 'active', 'write_date'],
   'account.analytic.plan': ['name', 'write_date'],
   'account.analytic.account': ['name', 'code', 'plan_id', 'company_id', 'active', 'write_date'],
-  'purchase.order': ['name', 'write_date'],
+  'purchase.order': ['name', 'state', 'write_date'],
+  'purchase.order.line': ['name', 'write_date'],
+  'account.payment': ['state', 'memo', 'write_date'],
+  'account.journal': ['name', 'write_date'],
   'account.move': ['name', 'write_date'],
-  'stock.picking': ['name', 'write_date'],
-  'stock.move': ['name', 'write_date'],
+  'account.move.line': ['balance', 'amount_residual', 'write_date'],
+  'stock.picking': ['name', 'state', 'move_ids', 'backorder_id', 'backorder_ids', 'purchase_id', 'write_date'],
+  'stock.move': ['name', 'state', 'picking_id', 'product_id', 'quantity', 'product_uom_qty', 'write_date'],
+  'stock.quant': ['product_id', 'quantity', 'write_date'],
   'account.analytic.line': ['name', 'write_date'],
   'fleet.vehicle': ['name', 'write_date'],
   'maintenance.equipment': ['name', 'write_date'],
@@ -105,6 +110,89 @@ export function createFakeOdoo({ key }: { key: string }): FakeOdoo {
   };
   const pick = (r: Row, fields?: string[]) => (fields?.length ? Object.fromEntries([['id', r.id], ...fields.map((f) => [f, r[f] ?? false])]) : { ...r });
 
+  const quantities = (move: Row) => {
+    const planned = Number(move.product_uom_qty ?? move.quantity ?? 0);
+    const entered = Number(move.quantity ?? 0);
+    const done = entered === 0 ? planned : entered;
+    return { planned, done, remaining: Math.max(0, planned - done) };
+  };
+
+  const pickingIdsFromContext = (context: Record<string, unknown>) => {
+    const ids = context.button_validate_picking_ids;
+    if (Array.isArray(ids)) return ids.map(Number);
+    const defaults = context.default_pick_ids;
+    return Array.isArray(defaults)
+      ? defaults.flatMap((command) => Array.isArray(command) && command[0] === 4 ? [Number(command[1])] : [])
+      : [];
+  };
+
+  const receive = (product: unknown, quantity: number) => {
+    if (quantity <= 0) return;
+    const productId = scalar(product);
+    let quant = [...table('stock.quant').values()].find((q) => scalar(q.product_id) === productId);
+    if (!quant) {
+      const quantId = nextId++;
+      quant = { id: quantId, product_id: productId, quantity: 0 };
+      table('stock.quant').set(quantId, quant);
+    }
+    quant.quantity = Number(quant.quantity) + quantity;
+    quant.write_date = fmt(++clock);
+  };
+
+  const completePicking = (picking: Row) => {
+    const moveIds = Array.isArray(picking.move_ids) ? picking.move_ids as number[] : [];
+    const completedMoveIds: number[] = [];
+    const remaining: Array<{ move: Row; quantity: number }> = [];
+
+    for (const moveId of moveIds) {
+      const move = table('stock.move').get(moveId);
+      if (!move) continue;
+      const amounts = quantities(move);
+      Object.assign(move, {
+        quantity: amounts.done,
+        product_uom_qty: amounts.done,
+        state: 'done',
+        write_date: fmt(++clock),
+      });
+      receive(move.product_id, amounts.done);
+      completedMoveIds.push(moveId);
+      if (amounts.remaining > 0) remaining.push({ move, quantity: amounts.remaining });
+    }
+
+    Object.assign(picking, { state: 'done', move_ids: completedMoveIds, write_date: fmt(++clock) });
+    if (!remaining.length) return;
+
+    const backorderId = nextId++;
+    const backorderMoveIds = remaining.map(({ move, quantity }) => {
+      const id = nextId++;
+      table('stock.move').set(id, {
+        ...move,
+        id,
+        picking_id: backorderId,
+        quantity: 0,
+        product_uom_qty: quantity,
+        state: 'assigned',
+        write_date: fmt(++clock),
+      });
+      return id;
+    });
+    table('stock.picking').set(backorderId, {
+      ...picking,
+      id: backorderId,
+      state: 'assigned',
+      move_ids: backorderMoveIds,
+      backorder_id: picking.id,
+      write_date: fmt(++clock),
+    });
+    picking.backorder_ids = [...(Array.isArray(picking.backorder_ids) ? picking.backorder_ids as number[] : []), backorderId];
+    picking.write_date = fmt(++clock);
+  };
+
+  const transition = (model: string, body: Record<string, unknown>, state: string) => {
+    for (const id of body.ids as number[]) { const row = table(model).get(id); if (row) Object.assign(row, { state, write_date: fmt(++clock) }); }
+    return true;
+  };
+
   const methods: Record<string, (model: string, body: Record<string, unknown>) => unknown> = {
     search_read: (m, b) => select(m, b).map((r) => pick(r, b.fields as string[] | undefined)),
     search: (m, b) => select(m, b).map((r) => r.id),
@@ -122,6 +210,55 @@ export function createFakeOdoo({ key }: { key: string }): FakeOdoo {
     unlink: (m, b) => { for (const id of b.ids as number[]) table(m).delete(id); return true; },
     fields_get: (m) => Object.fromEntries(fields[m].map((f) => [f, { type: 'char' }])),
     has_access: (m, b) => !denied.has(`${m}:${b.operation}`),
+    button_confirm: (m, b) => transition(m, b, 'purchase'),
+    button_validate: (m, b) => {
+      const ids = b.ids as number[];
+      const hasPartialMove = ids.some((id) => {
+        const picking = table(m).get(id);
+        if (!picking || picking.state === 'done') return false;
+        return ((picking.move_ids as number[] | undefined) ?? []).some((moveId) => {
+          const move = table('stock.move').get(moveId);
+          return move !== undefined && quantities(move).remaining > 0;
+        });
+      });
+      if (hasPartialMove) {
+        return {
+          type: 'ir.actions.act_window',
+          res_model: 'stock.backorder.confirmation',
+          context: {
+            button_validate_picking_ids: ids,
+            default_pick_ids: ids.map((id) => [4, id]),
+          },
+        };
+      }
+      for (const id of ids) {
+        const picking = table(m).get(id);
+        if (picking && picking.state !== 'done') completePicking(picking);
+      }
+      return true;
+    },
+    process: (_m, b) => {
+      const context = (b.context ?? {}) as Record<string, unknown>;
+      for (const id of pickingIdsFromContext(context)) {
+        const picking = table('stock.picking').get(id);
+        if (picking && picking.state !== 'done') completePicking(picking);
+      }
+      return true;
+    },
+    action_post: (m, b) => transition(m, b, m === 'account.payment' ? 'paid' : 'posted'),
+    reconcile: (m, b) => {
+      const rows = (b.ids as number[]).flatMap((id) => { const row = table(m).get(id); return row ? [row] : []; });
+      const debits = rows.filter((r) => Number(r.amount_residual ?? r.balance) > 0);
+      const credits = rows.filter((r) => Number(r.amount_residual ?? r.balance) < 0);
+      for (const debit of debits) for (const credit of credits) {
+        const d = Math.round(Number(debit.amount_residual ?? debit.balance) * 100);
+        const c = Math.round(Number(credit.amount_residual ?? credit.balance) * 100);
+        const applied = Math.min(d, -c);
+        debit.amount_residual = (d - applied) / 100;
+        credit.amount_residual = (c + applied) / 100;
+      }
+      return true;
+    },
   };
 
   const fetchImpl = (async (url: string | URL | Request, init?: RequestInit) => {

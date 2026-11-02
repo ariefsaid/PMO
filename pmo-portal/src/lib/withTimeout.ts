@@ -31,34 +31,25 @@ import { AppError } from './appError';
  *  `classifyMutationError` to render a dedicated "Request timed out" headline. */
 export const REQUEST_TIMEOUT_CODE = 'REQUEST_TIMEOUT';
 
-/** A sensible default deadline (ms) for an awaited mutation call site that doesn't pass its own. */
-export const DEFAULT_MUTATION_TIMEOUT_MS = 15_000;
+/** Shared deadline for app promises that must not leave the UI waiting indefinitely. */
+const DEFAULT_MUTATION_TIMEOUT_MS = 15_000;
 
 /**
- * Races `promise` against a `ms`-millisecond deadline.
+ * Races `promise` against the shared deadline.
  *
  * - If `promise` settles first, `withTimeout` resolves/rejects with exactly that outcome
  *   (the original error is passed through unchanged — no reclassification).
- * - If `ms` elapses first, `withTimeout` rejects with the timeout error: `onTimeoutError`
- *   if given (a message string, or a factory returning any `Error`), otherwise an
- *   `AppError` with `REQUEST_TIMEOUT_CODE` and a generic message.
+ * - If the deadline elapses first, `withTimeout` rejects with an `AppError` carrying
+ *   `REQUEST_TIMEOUT_CODE` and a generic message.
  *
  * The deadline timer is always cleared once either promise settles, so a fast call leaves
  * no dangling timer.
  */
-export function withTimeout<T>(
-  promise: Promise<T>,
-  ms: number,
-  onTimeoutError?: string | (() => Error),
-): Promise<T> {
+export function withTimeout<T>(promise: Promise<T>): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const timer = setTimeout(() => {
-      if (typeof onTimeoutError === 'function') {
-        reject(onTimeoutError());
-      } else {
-        reject(new AppError(onTimeoutError ?? 'The request timed out', REQUEST_TIMEOUT_CODE));
-      }
-    }, ms);
+      reject(new AppError('The request timed out', REQUEST_TIMEOUT_CODE));
+    }, DEFAULT_MUTATION_TIMEOUT_MS);
 
     promise.then(
       (value) => {

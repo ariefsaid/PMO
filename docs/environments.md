@@ -513,6 +513,12 @@ Seeded modules (Community only): `purchase stock account project analytic hr_tim
 and any probe run (it creates and deletes records). The ERPNext example above lists db before erpnext; the
 binding order is the one stated here.
 
+For the exercised purchase-to-payment calls, an internal user with Purchase User, Inventory User, and
+Accounting Invoice groups completed order confirmation, partial and complete receipts, a backorder wizard,
+lot creation, revision, bill and payment posting, and reconciliation. Removing each app group separately
+blocked an exercised operation. This is the smallest set tested on this bed, not a proof for every possible
+customized installation; see the O2 findings below.
+
 What the bed showed about the Odoo API, including where the research docs were wrong:
 `docs/research/2026-10-31-odoo20-dev-bed-verification.md`.
 
