@@ -501,7 +501,12 @@
       "endOnly": "Due {{date}}",
       "ordered": "Ordered {{date}}",
       "noDates": "No dates",
-      "status": { "planned": "Planned", "inProgress": "In progress", "invoiced": "Invoiced", "paid": "Paid" },
+      "status": {
+        "planned": "Planned",
+        "inProgress": "In progress",
+        "invoiced": "Invoiced",
+        "paid": "Paid"
+      },
       "statusSource": "Source: this work order's invoices and drafts (Contract & billing).",
       "invoiceThis": "Invoice this",
       "invoiceThisLabel": "Invoice {{order}}"
@@ -929,5 +934,19 @@
       "failed": "Couldn't check with Microsoft. This status may be out of date.",
       "retry": "Retry check"
     }
+  },
+  "budgetOccupant": {
+    "useAsDraft": "Use the ERP figures as a draft",
+    "replace": "Replace the ERP budget with this version",
+    "draftCreated": "Draft created",
+    "draftCreatedDetail": "The ERP figures are now a draft version. Review it, then activate it when you are ready.",
+    "replaced": "ERP budget replaced",
+    "replacedDetail": "ERPNext now holds PMO’s active budget.",
+    "notReplaced": "The ERP budget was not replaced",
+    "notReplacedDetail": "The push did not complete. The reason is shown on the budget.",
+    "confirmTitle": "Replace ERP budget {{name}}?",
+    "confirmDescription": "Replace ERP budget {{name}} for {{account}}, {{year}}, with PMO’s active version? The ERP copy will be amended.",
+    "confirmDescriptionYear": "Replace ERP budget {{name}} for {{year}} with PMO’s active version? The ERP copy will be amended.",
+    "confirmLabel": "Replace ERP budget"
   }
 }
