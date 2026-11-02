@@ -8,7 +8,7 @@ const { repo } = vi.hoisted(() => ({
   repo: {
     recordHistory: { list: vi.fn() },
     profile: { listOrgProfiles: vi.fn() },
-    company: { list: vi.fn(), get: vi.fn() },
+    company: { list: vi.fn(), getMany: vi.fn() },
   },
 }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: repo }));
