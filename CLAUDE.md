@@ -152,6 +152,12 @@ Dev remains the ceiling. This supersedes older per-slice browser and single-disp
 merge a PR to dev once its `verify`, `unit` and (when run) `pgtap` checks are green. CI's `integration` job runs the browser suite on the release PR
 to `main`; a red run there is fixed on `dev`. `scripts/ci-e2e.sh` on a dev branch only to diagnose.
 
+**Don't waste CI minutes (owner, 2026-11-02; v0.30.0 spent 3 release runs on one test):** a red release test is fixed only
+after its root cause is stated from the run's trace and video (`gh run download <run>`). A workaround that doesn't explain
+the failure is rejected, and a local green is not proof. Same test red twice: stop and re-diagnose; don't patch again.
+Batch release fixes into one PR to `dev`. Never push to `dev` (docs included) while the release PR's CI runs; it restarts it.
+No scheduled CI runs: agent evals run manually and locally (the `agent-evals` workflow is disabled).
+
 - **CI is the full-suite gate for every PR (owner 2026-09-29/30):** PRs to `dev` gate on CI's `verify` +
   `pgtap`; PRs to `main` gate on CI's `verify` + `integration` (pgTAP, both e2e lanes, consent, visual,
   served-fn smoke), which runs automatically on the PR. Don't repeat the full suite on the shared Mac; run
