@@ -24,7 +24,6 @@ vi.mock('@/src/lib/viewspec/compiler', () => ({
   compileCompositionSpec: vi.fn(),
   compileQuerySpec: vi.fn((qs: unknown) => ({
     entity: (qs as { entity: string }).entity,
-    repositoryMethod: 'company.list',
     resolvedFilters: [],
     resolvedSelect: ['id', 'name'],
     resolvedAggregate: undefined,
@@ -37,15 +36,16 @@ vi.mock('@/src/auth/useAuth', () => ({
 // Stub heavy dashboard components to avoid jsdom OOM from large component trees
 vi.mock('@/src/components/dashboard/ChartFrame', () => ({
   ChartFrame: ({ state, children }: { state: string; children: React.ReactNode }) =>
-    state === 'ready' ? <div data-testid="chart-ready">{children}</div> : <div data-testid={`chart-${state}`} />,
+    state === 'ready' || state === 'empty' ? <div data-testid={`chart-${state}`}>{children}</div> : <div data-testid={`chart-${state}`} />,
 }));
 vi.mock('@/src/components/dashboard/layout', () => ({
   DashGrid: ({ children }: { children: React.ReactNode }) => <div data-testid="dash-grid">{children}</div>,
 }));
-vi.mock('@/src/components/ui/KPITile', () => ({
-  KPITile: (props: Record<string, unknown>) => <div data-testid="kpi-tile">{String(props.value ?? '')}</div>,
+vi.mock('@/src/components/dashboard/HydratedPrimitive', () => ({
+  HydratedPrimitive: ({ panel, data }: { panel: { primitive: string }; data: unknown[] }) => (
+    <div data-testid={`hydrated-${panel.primitive}`}>{data.length} hydrated rows</div>
+  ),
 }));
-
 import ViewPreview from '@/src/components/builder/ViewPreview';
 import type { CompositionSpec } from '@/src/lib/viewspec/types';
 
@@ -99,5 +99,13 @@ describe('ViewPreview', () => {
     mockExecute.mockClear();
     rerender(<ViewPreview spec={TWO_PANEL_SPEC} />);
     await waitFor(() => expect(mockExecute).toHaveBeenCalledTimes(2));
+  });
+
+  it('CMP-004: previews every supported primitive through the shared hydration component', async () => {
+    mockExecute.mockResolvedValue([{ id: 'row1', name: 'Project' }]);
+    render(<ViewPreview spec={ONE_PANEL_SPEC} />);
+
+    expect(await screen.findByTestId('hydrated-DataTable')).toHaveTextContent('1 hydrated rows');
+    expect(screen.queryByText(/\{"id": "row1"/)).not.toBeInTheDocument();
   });
 });

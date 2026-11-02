@@ -35,17 +35,11 @@ interface PreviewPanelState {
 }
 
 // ── Primitive hydration ───────────────────────────────────────────────────────
-// KPITile hydrates through the dashboard HydratedPrimitive (one source with saved views);
-// every other primitive keeps the builder's raw JSON preview.
+// All supported dashboard primitives use the same hydration path as saved views.
 
 function PreviewPrimitive({ panel, data }: { panel: CompiledPanel; data: unknown[] }) {
-  if (panel.primitive === 'KPITile') return <HydratedPrimitive panel={panel} data={data} />;
   if (!registry.get(panel.primitive)) return null;
-  return (
-    <pre className="overflow-auto rounded p-3 text-[12px]">
-      {JSON.stringify(data, null, 2)}
-    </pre>
-  );
+  return <HydratedPrimitive panel={panel} data={data} />;
 }
 
 // ── Main component ────────────────────────────────────────────────────────────

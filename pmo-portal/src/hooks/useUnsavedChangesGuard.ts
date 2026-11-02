@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 
 export interface UnsavedChangesGuardOptions {
@@ -10,6 +10,8 @@ export interface UnsavedChangesGuardOptions {
    * the confirm dialog's Leave; drop it on Stay.
    */
   onBlocked: (leave: () => void) => void;
+  /** Also hold browser Back/Forward changes. Only enable on BrowserRouter pages that need it. */
+  guardHistory?: boolean;
 }
 
 const isPlainPrimaryClick = (event: MouseEvent): boolean =>
@@ -20,6 +22,11 @@ const isPlainPrimaryClick = (event: MouseEvent): boolean =>
   !event.shiftKey &&
   !event.altKey;
 
+const browserHistoryIndex = (): number | null => {
+  const index = (window.history.state as { idx?: unknown } | null)?.idx;
+  return typeof index === 'number' ? index : null;
+};
+
 /**
  * FR-MTG-040 / DD-MTG-11 — hold in-app exits while `dirty`.
  *
@@ -27,12 +34,15 @@ const isPlainPrimaryClick = (event: MouseEvent): boolean =>
  *   root listener). Modified clicks, `target` other than `_self`, `download` and cross-origin
  *   links are left to the browser — they do not discard this tab's edits.
  * - `beforeunload` is cancelled so reload / tab close / external URL get the browser's prompt.
+ * - `guardHistory` holds BrowserRouter Back/Forward changes and replays the requested delta on
+ *   Leave. It is opt-in because the app's other consumers only guard explicit exits and links.
  * - The returned `guard(leave)` routes a non-anchor exit (e.g. a Back button) through the same
  *   `onBlocked`, or runs it immediately while pristine.
  */
 export function useUnsavedChangesGuard({
   dirty,
   onBlocked,
+  guardHistory = false,
 }: UnsavedChangesGuardOptions): (leave: () => void) => void {
   const navigate = useNavigate();
   const location = useLocation();
@@ -45,6 +55,17 @@ export function useUnsavedChangesGuard({
   }, [onBlocked]);
   // True while Leave replays the held click, so the replay is not held again.
   const replayingRef = useRef(false);
+  const lastHistoryIndexRef = useRef(browserHistoryIndex());
+  const restoreInFlightRef = useRef(false);
+  const replayHistoryDeltaRef = useRef<number | null>(null);
+  const replayAfterRestoreRef = useRef(false);
+
+  // BrowserRouter writes its new index as it commits a navigation. Remember that index before
+  // the next browser popstate arrives, when history.state already points at the destination.
+  useLayoutEffect(() => {
+    const index = browserHistoryIndex();
+    if (index !== null && !restoreInFlightRef.current) lastHistoryIndexRef.current = index;
+  });
 
   useEffect(() => {
     if (!dirty) return;
@@ -100,13 +121,48 @@ export function useUnsavedChangesGuard({
       });
     };
 
+    const handlePopState = (event: PopStateEvent) => {
+      const targetIndex = browserHistoryIndex();
+      const lastIndex = lastHistoryIndexRef.current;
+      if (targetIndex === null || lastIndex === null) return;
+
+      if (restoreInFlightRef.current) {
+        restoreInFlightRef.current = false;
+        if (replayAfterRestoreRef.current) {
+          replayAfterRestoreRef.current = false;
+          const delta = replayHistoryDeltaRef.current;
+          if (delta !== null) window.history.go(delta);
+        }
+        return;
+      }
+
+      const delta = targetIndex - lastIndex;
+      if (delta === 0) return;
+      if (replayHistoryDeltaRef.current === delta) {
+        replayHistoryDeltaRef.current = null;
+        lastHistoryIndexRef.current = targetIndex;
+        return;
+      }
+
+      event.stopImmediatePropagation();
+      restoreInFlightRef.current = true;
+      window.history.go(-delta);
+      onBlockedRef.current(() => {
+        replayHistoryDeltaRef.current = delta;
+        if (restoreInFlightRef.current) replayAfterRestoreRef.current = true;
+        else window.history.go(delta);
+      });
+    };
+
     window.addEventListener('beforeunload', handleBeforeUnload);
     document.addEventListener('click', handleDocumentClick, true);
+    if (guardHistory) window.addEventListener('popstate', handlePopState, true);
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
       document.removeEventListener('click', handleDocumentClick, true);
+      if (guardHistory) window.removeEventListener('popstate', handlePopState, true);
     };
-  }, [dirty, currentPath, navigate]);
+  }, [dirty, currentPath, navigate, guardHistory]);
 
   return useCallback(
     (leave: () => void) => {

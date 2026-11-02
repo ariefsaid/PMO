@@ -145,16 +145,15 @@ The **deputy authorization model** (ADR-0036 §2 / §5 rule 2) governs all rende
 
 - **FR-VR-020** (ubiquitous) The system shall provide an `executeCompiledQuery(compiled:
   CompiledQuery): Promise<unknown[]>` function exported from `src/lib/viewspec/executor.ts`. It
-  dispatches to the existing `repositories.*` methods (the same methods the existing DAL uses) based
-  on `compiled.repositoryMethod`, passing any required parameters extracted from
-  `compiled.resolvedFilters` (e.g. `project_id` eq-filter → `projectId` for `repositories.task.list`).
+  dispatches through the whitelisted `entity → table` mapping and applies validated query parameters
+  from the compiled descriptor using the viewer-scoped PostgREST client.
 - **FR-VR-021** (ubiquitous) `executeCompiledQuery` shall use the **same RLS-scoped Supabase client**
   that the rest of the DAL uses (`src/lib/supabase/client`) — it shall NEVER import or reference the
   service-role key or any bypass-RLS path (ADR-0036 §2 / NFR-VR-SEC-001). The client's JWT is the
   current viewer's JWT; RLS scopes every row returned.
 - **FR-VR-022** (ubiquitous) When `compiled.resolvedGroupBy` and/or `compiled.resolvedAggregate` are
   present, `executeCompiledQuery` shall apply the groupBy and aggregate **in-memory** on the full
-  result returned by the repository method (OD-3 from I2: in-memory aggregation, with row cap ≤ 500
+  result returned by the PostgREST query (OD-3 from I2: in-memory aggregation, with row cap ≤ 500
   bounding memory use). The aggregated result is returned as an array of plain objects.
 - **FR-VR-023** (ubiquitous) `executeCompiledQuery` shall apply `compiled.resolvedFilters` as
   query-time PostgREST filters on the Supabase client call (e.g. `.eq('column', value)`, `.in(...)`,
@@ -162,7 +161,7 @@ The **deputy authorization model** (ADR-0036 §2 / §5 rule 2) governs all rende
   apply `compiled.limit` as `.limit(n)` when present. It shall apply `compiled.resolvedOrderBy` as
   `.order(column, { ascending: dir === 'asc' })` when present. It shall apply
   `compiled.resolvedSelect` as `.select(columns.join(','))` to restrict the returned columns.
-- **FR-VR-024** (event-driven) When the Supabase client returns an error from the repository call,
+- **FR-VR-024** (event-driven) When the Supabase client returns an error from the query,
   `executeCompiledQuery` shall throw an `AppError` (consistent with the repository seam contract,
   ADR-0017) so the renderer can classify it via `classifyMutationError` or show a per-panel error
   state.
@@ -517,9 +516,9 @@ The **deputy authorization model** (ADR-0036 §2 / §5 rule 2) governs all rende
   has a descriptive text node; error state retry button has an accessible name; ready state KPITile
   panel heading and group label are present and correct. (NFR-VR-A11Y-001..004)
 
-- **AC-VR-013** — `executeCompiledQuery` dispatches to the correct repository method and applies
+- **AC-VR-013** — `executeCompiledQuery` dispatches to the whitelisted table and applies
   filters/limit/order.
-  **Given** a `CompiledQuery` with `entity: 'companies'`, `repositoryMethod: 'company.list'`,
+  **Given** a `CompiledQuery` with `entity: 'companies'`,
   `resolvedFilters: [{ column: 'type', op: 'eq', value: 'Client' }]`, `limit: 10`,
   `resolvedOrderBy: { column: 'name', dir: 'asc' }`, `resolvedSelect: ['id', 'name', 'type']`,
   **and** the `supabase` client is mocked to capture calls,

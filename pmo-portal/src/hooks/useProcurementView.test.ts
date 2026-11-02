@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { readProcurementView, writeProcurementView } from './useProcurementView';
 import { VIEWS_STORAGE_KEY } from './viewStorage';
 
-describe('useProcurementView — persisted Table/Board toggle (Issue 3)', () => {
+describe('procurement view persistence — Table/Board toggle (Issue 3)', () => {
   beforeEach(() => sessionStorage.clear());
 
   it('defaults to table when nothing is stored', () => {
