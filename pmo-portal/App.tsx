@@ -76,6 +76,9 @@ const ProcurementCreate = React.lazy(() => import('./pages/ProcurementCreate'));
 const TimesheetsPage = React.lazy(() => import('./pages/Timesheets'));
 const ImprestFloatsPage = React.lazy(() => import('./pages/ImprestFloats'));
 const ImprestFloatDetailPage = React.lazy(() => import('./pages/ImprestFloatDetail'));
+const EquipmentUsagePage = React.lazy(() => import('./pages/equipment/EquipmentUsage'));
+const EquipmentAssetsPage = React.lazy(() => import('./pages/equipment/EquipmentAssets'));
+const EquipmentAssetDetailPage = React.lazy(() => import('./pages/equipment/EquipmentAssetDetail'));
 const ApprovalsPage = React.lazy(() => import('./pages/Approvals'));
 const CompaniesPage = React.lazy(() => import('./pages/Companies'));
 const MasterDataPage = React.lazy(() => import('./pages/MasterData'));
@@ -216,6 +219,10 @@ export const appRouteConfig: RouteObject[] = [
   { path: '/expenses/:claimId', element: <ExpenseClaimDetailPage /> },
   { path: '/imprest', element: <ImprestFloatsPage /> },
   { path: '/imprest/:floatId', element: <ImprestFloatDetailPage /> },
+  // #1519: equipment usage grid, asset reference and per-asset costing.
+  { path: '/equipment', element: <EquipmentUsagePage /> },
+  { path: '/equipment/assets', element: <EquipmentAssetsPage /> },
+  { path: '/equipment/assets/:assetId', element: <EquipmentAssetDetailPage /> },
   { path: '/reports', element: <FinanceLegacyRedirect to="/finance/reports" /> },
   { path: '/administration', element: <AdministrationEntryRedirect /> },
   { path: '/administration/users', element: <AdministrationPage /> },

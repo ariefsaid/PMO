@@ -76,6 +76,13 @@ describe('Rail — Site cash (FR-IMP-074)', () => {
   });
 });
 
+describe('Rail — Equipment (#1519)', () => {
+  it.each(['Finance', 'Project Manager', 'Admin', 'Executive', 'Engineer'])('AC-EQU-017: %s sees the Equipment item', (role) => {
+    renderRailAs(role);
+    expect(screen.getByRole('link', { name: 'Equipment' })).toHaveAttribute('href', '/equipment');
+  });
+});
+
 describe('Rail — role-shaped nav Approvals (B-2, AC-W2-IXD-003)', () => {
   it('AC-W2-IXD-003: a PM sees the Approvals nav item (authorized approver)', () => {
     renderRailAs('Project Manager');

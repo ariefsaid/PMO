@@ -16,6 +16,7 @@ import { formatExactMoney, formatInstantDate } from '@/src/lib/format';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import FxEquivalent from '@/src/components/fx/FxEquivalent';
+import { ProjectEquipmentPanel } from './ProjectEquipmentPanel';
 
 export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }) {
   const { t } = useTranslation('project');
@@ -285,6 +286,8 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
           </div>
         </details>}
       </div>}
+      {/* #1519 S6: equipment usage per asset, and for approval rank the allocated amount (FR-EQU-071). Renders nothing without usage. */}
+      <ProjectEquipmentPanel projectId={project.id} currency={project.currency} equipmentChargeTotal={actuals.equipment_charge_total} />
       {needsCategorySetup && canInspectAccounting && (
         <p className="text-sm text-muted-foreground" data-testid="spending-setup-prompt">
           {canManageAccounting

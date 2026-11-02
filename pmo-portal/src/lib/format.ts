@@ -740,6 +740,11 @@ export function formatWeekdayMonthDay(d: Date): string {
   }).format(d);
 }
 
+/** "Sun 14" — a compact column heading (weekday and day of month). */
+export function formatWeekdayDay(d: Date): string {
+  return dateFormatterFor('weekdayDay', getDateLocale(), { weekday: 'short', day: 'numeric' }).format(d);
+}
+
 /** UTC "Jun 14, 2026" — zone-stable business dates (a 23:00Z instant must not drift a day). */
 export function formatDateUtc(d: Date): string {
   // ⛔ `timeZone: 'UTC'` is load-bearing and is NOT the resolved profile timezone: this formatter
