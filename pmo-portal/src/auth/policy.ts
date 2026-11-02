@@ -124,7 +124,7 @@ export interface PolicyContext {
     /** Project task write ownership and saved-view owner for record-scoped checks. */
     externallyOwned?: boolean;
     user_id?: string | null;
-    /** Author id — for the document-edit author rule (A-7). */
+    /** Author id — for equipment usage visibility and the document-edit author rule (A-7). */
     author_id?: string | null;
     /** Task creator — DD-TASK-8. Trigger-stamped server-side (`0204`), never client-set, so it is
      *  safe to read as an edit right here. Distinct from `assignee_id`: a task you created and
@@ -693,20 +693,23 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
    */
   equipmentAsset: {
     view: allow(ALL),
-    create: allow(['Admin', 'Project Manager']),
-    edit: allow(['Admin', 'Project Manager']),
-    delete: allow(ADMIN),
+    create: allowUnlessViewOnly(['Admin', 'Project Manager']),
+    edit: allowUnlessViewOnly(['Admin', 'Project Manager']),
+    delete: allowUnlessViewOnly(ADMIN),
   },
   equipmentUsage: {
-    create: allow(ALL),
+    create: allowUnlessViewOnly(ALL),
     transition: (role, ctx) =>
+      ctx.record?.viewOnly !== true &&
       has(EQUIPMENT_APPROVE, role) &&
       !!ctx.currentUserId &&
       ctx.record?.author_id !== ctx.currentUserId &&
       (role !== 'Project Manager' || ctx.record?.project_manager_id === ctx.currentUserId),
-    view: allow(EQUIPMENT_APPROVE), // amounts and other members' entries
+    view: (role, ctx) => has(EQUIPMENT_APPROVE, role) || (
+      role === 'Engineer' && !!ctx.currentUserId && ctx.record?.author_id === ctx.currentUserId
+    ), // Engineers may read their own entries; the audience above may read amounts and others' entries.
   },
-  equipmentCosting: { manage: allow(EQUIPMENT_COSTING_WRITE), view: allow(EQUIPMENT_APPROVE) },
+  equipmentCosting: { manage: allowUnlessViewOnly(EQUIPMENT_COSTING_WRITE), view: allow(EQUIPMENT_APPROVE) },
   // #876 slice 2: a vendor's default VAT / PPh treatment. UX ONLY — set_vendor_tax_defaults is the authority.
   vendorTaxDefault: { manage: allow(TAX_SETUP) },
   orgProjectNumbering: {

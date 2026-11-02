@@ -736,6 +736,27 @@ describe('can() — equipment usage and costing (#1519; transition_equipment_usa
     expect(allowedRoles('view', 'equipmentCosting')).toEqual(['Admin', 'Executive', 'Project Manager', 'Finance']);
   });
 
+  it('AC-EQU-017 an Engineer reads only their own usage entry', () => {
+    expect(can('view', 'equipmentUsage', {
+      realRole: 'Engineer', currentUserId: 'u1', record: { author_id: 'u1' },
+    })).toBe(true);
+    expect(can('view', 'equipmentUsage', {
+      realRole: 'Engineer', currentUserId: 'u1', record: { author_id: 'u2' },
+    })).toBe(false);
+    expect(can('view', 'equipmentUsage', { realRole: 'Engineer', currentUserId: 'u1' })).toBe(false);
+  });
+
+  it('AC-EQU-017 view-as context hides every equipment write affordance', () => {
+    for (const action of ['create', 'edit', 'delete'] as const) {
+      expect(can(action, 'equipmentAsset', { realRole: 'Admin', record: { viewOnly: true } })).toBe(false);
+    }
+    expect(can('create', 'equipmentUsage', { realRole: 'Engineer', record: { viewOnly: true } })).toBe(false);
+    expect(can('transition', 'equipmentUsage', {
+      realRole: 'Admin', currentUserId: 'u1', record: { author_id: 'u2', viewOnly: true },
+    })).toBe(false);
+    expect(can('manage', 'equipmentCosting', { realRole: 'Finance', record: { viewOnly: true } })).toBe(false);
+  });
+
   it('AC-EQU-017 everyone logs usage; only Admin and PM keep the asset reference', () => {
     expect(allowedRoles('create', 'equipmentUsage')).toEqual(ALL_ROLES);
     expect(allowedRoles('view', 'equipmentAsset')).toEqual(ALL_ROLES);
