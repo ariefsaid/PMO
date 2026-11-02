@@ -494,4 +494,22 @@ describe('NotificationBell', () => {
     resolveMore({ rows: [], nextCursor: null });
     await waitFor(() => expect(screen.queryByRole('button', { name: /loading…/i })).not.toBeInTheDocument());
   });
+
+  it('T-10: a slow first-page response from an earlier open does not overwrite the newer one', async () => {
+    const user = userEvent.setup();
+    let resolveFirst!: (v: unknown) => void;
+    listNotifications
+      .mockReturnValueOnce(new Promise((r) => { resolveFirst = r; }))
+      .mockResolvedValueOnce([row({ id: 'n-new', title: 'Newer item' })]);
+    renderBell();
+    const bell = await screen.findByRole('button', { name: /notifications/i });
+    await user.click(bell); // open -> slow load #1
+    await user.click(bell); // close
+    await user.click(bell); // reopen -> load #2 resolves first
+    expect(await screen.findByText('Newer item')).toBeInTheDocument();
+    resolveFirst([row({ id: 'n-old', title: 'Older item' })]);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(screen.queryByText('Older item')).not.toBeInTheDocument();
+    expect(screen.getByText('Newer item')).toBeInTheDocument();
+  });
 });

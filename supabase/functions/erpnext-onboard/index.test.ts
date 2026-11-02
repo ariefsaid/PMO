@@ -25,9 +25,10 @@ function makeFakeState() {
   let recordRefCount = 0;
 
   const notified: string[] = [];
+  const reviews: Array<{ pmoIds: string[]; externalId: string; reason: string }> = [];
   const deps = {
     findPmoRecordId: async (externalRecordId: string) => externalRefs.get(externalRecordId) ?? null,
-    findCandidates: async (_doctype: ErpPartySource['doctype'], _name: string): Promise<PartyCandidate[]> => [],
+    findCandidates: async (_doctype: ErpPartySource['doctype'], _name: string, _taxId?: string | null): Promise<PartyCandidate[]> => [],
     // REAL insert semantics (the old fake overwrote on a duplicate id, which hid #1600): the primary key
     // and both external_refs uniques refuse, like Postgres does.
     insertCompaniesMirror: async (canonical: PmoRecord) => {
@@ -49,8 +50,9 @@ function makeFakeState() {
     },
     mirrorExists: async (pmoRecordId: string) => companies.has(pmoRecordId),
     notifyUnclearMatch: async (entry: { name: string }) => { notified.push(entry.name); },
+    recordReview: async (entry: { pmoIds: string[]; externalId: string; reason: string }) => { reviews.push(entry); },
   };
-  return { deps, companies, externalRefs, notified, counts: () => ({ insertCount, updateCount, recordRefCount }) };
+  return { deps, companies, externalRefs, notified, reviews, counts: () => ({ insertCount, updateCount, recordRefCount }) };
 }
 
 Deno.test({
@@ -173,7 +175,7 @@ Deno.test('same-name adoption narrows a tax match and links it, no second compan
 });
 
 Deno.test('#1600 a conflicting tax ID becomes a needs-a-decision row with no writes, and the rest still apply', async () => {
-  const { deps, companies, externalRefs, counts } = makeFakeState();
+  const { deps, companies, externalRefs, counts, reviews } = makeFakeState();
   deps.findCandidates = async (_doctype, name) =>
     name === 'Test party' ? [{ pmoRecordId: 'pmo-other', taxId: 'TAX-TEST-2' }] : [];
   const result = await onboardParties([
@@ -185,10 +187,27 @@ Deno.test('#1600 a conflicting tax ID becomes a needs-a-decision row with no wri
   assertEquals(counts(), { insertCount: 1, updateCount: 0, recordRefCount: 1 });
   assertEquals([...externalRefs.keys()], ['Supplier:ERP-TEST-002']);
   assertEquals(companies.size, 1);
+  assertEquals(reviews.map((r) => [r.externalId, r.reason]), [['Supplier:ERP-TEST-001', 'tax-conflict']]);
+});
+
+Deno.test('AC-ECA-006 a party that links or brings in cleanly records no review row', async () => {
+  const { deps, reviews } = makeFakeState();
+  await onboardParties([{ doctype: 'Supplier', id: 'ERP-TEST-009', name: 'Fine party' }], deps);
+  assertEquals(reviews, []);
+});
+
+Deno.test('AC-ECA-006 the tax id reaches the candidate lookup, so a tax-id match with a different name can be found', async () => {
+  const { deps, companies, externalRefs } = makeFakeState();
+  companies.set('pmo-tax', { id: 'pmo-tax', name: 'Legacy Name', type: 'Vendor' });
+  let askedWith: string | null | undefined;
+  deps.findCandidates = async (_doctype, _name, taxId) => { askedWith = taxId; return [{ pmoRecordId: 'pmo-tax', taxId: 'TAX-1' }]; };
+  await onboardParties([{ doctype: 'Supplier', id: 'ERP-TEST-010', name: 'Another Name', taxId: 'TAX-1' }], deps);
+  assertEquals(askedWith, 'TAX-1');
+  assertEquals(externalRefs.get('Supplier:ERP-TEST-010'), 'pmo-tax');
 });
 
 Deno.test('AC-ECA-006 an ambiguous match becomes a needs-a-decision row and the rest apply', async () => {
-  const { deps, externalRefs } = makeFakeState();
+  const { deps, externalRefs, reviews } = makeFakeState();
   deps.findCandidates = async (_doctype, name) =>
     name === 'Test party' ? [{ pmoRecordId: 'pmo-a', taxId: null }, { pmoRecordId: 'pmo-b', taxId: null }] : [];
   const result = await onboardParties([
@@ -197,6 +216,8 @@ Deno.test('AC-ECA-006 an ambiguous match becomes a needs-a-decision row and the 
   ], deps);
   assertEquals([result.adopted, result.needsDecision.map((row) => row.reason)], [1, ['ambiguous-match']]);
   assertEquals([...externalRefs.keys()], ['Customer:ERP-TEST-003']);
+  // the persisted review row (AC-ECA-006): the ERP party by its document id, and the PMO companies it could be
+  assertEquals(reviews, [{ pmoIds: ['pmo-a', 'pmo-b'], externalId: 'Supplier:ERP-TEST-001', reason: 'ambiguous' }]);
 });
 
 Deno.test('#1600 setup loses the race to the sweep: the claim is refused, NO second company is written, the run goes on', async () => {

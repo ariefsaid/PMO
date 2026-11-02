@@ -48,6 +48,8 @@ export interface BudgetPushResult {
   erpWrites: number;
 }
 
+export type PurchaseStep = 'goods-receipt' | 'purchase-invoice' | 'payment';
+
 export interface PushBeforeConnectionResult {
   outcome: 'pushed' | 'refused';
   code?: string;
@@ -147,6 +149,12 @@ export interface ConnectHarness {
   documents(kind: MasterKind): NormalisedMaster[];
   /** The next create or update fails: before it reaches the ERP (`transport`), or after the ERP applied it (`lost-response`). */
   failNextWrite(fault: 'transport' | 'lost-response'): void;
+  /** census / item.match / account.match / employee.match: place ERP masters in the fake ERP (PMO terms). Absent until the tier runs those suites. */
+  load?(kind: MasterKind, rows: readonly Omit<NormalisedMaster, 'kind'>[]): void;
+  /** Requests that reached the fake ERP, split by read and write. */
+  calls?(): { reads: number; writes: number };
+  /** Rows the tier's `listMasters` returns per page; the match suites load more than this to prove paging. */
+  pageSize?: number;
 }
 
 export interface ErpHarness {
@@ -177,6 +185,9 @@ export interface ErpHarness {
   classifyPayment(direction: 'received' | 'paid' | 'unrecognised' | 'blank' | 'absent'): PaymentClassification;
   /** purchase.link-existing: ERP-native purchase documents as PMO mirrors them (one row per document). */
   mirrorPurchases(docs: readonly ErpPurchaseDoc[]): Promise<MirroredPurchase[]>;
+  /** cutover.purchase: a later purchase step, on a purchase ordered before the connection or after it. `unknown` = the
+   *  PMO check cannot answer (the step must then be refused, never pushed). Absent until the tier pushes purchases. */
+  pushPurchaseStep?: (step: PurchaseStep, orderedBeforeConnect: boolean | 'unknown') => Promise<PushBeforeConnectionResult>;
   /** party.send, project.send, item.send: each call starts an empty fake ERP. Absent until the tier sends masters. */
   connect?: () => ConnectHarness;
   /** imprest.transfer: each call starts an empty fake ERP. Absent until the tier posts site cash. */

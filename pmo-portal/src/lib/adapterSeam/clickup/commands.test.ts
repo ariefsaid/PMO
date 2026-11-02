@@ -59,6 +59,18 @@ describe('AC-CUA-031 create issues a POST to the List task endpoint with the map
     expect(result.externalRecordId).toBe('cu-task-1');
     expect(result.canonical).toMatchObject({ id: 'pmo-1', name: 'Wire the widget', status: 'To Do' });
   });
+
+  it('sync-integrity a 5xx while creating attempts the POST exactly once and throws — no duplicate task is minted by an auto-retry', async () => {
+    const fetchImpl = vi.fn(async () => new Response(null, { status: 503 }));
+    const command: AdapterCommand = {
+      domain: 'tasks',
+      operation: 'create',
+      record: { id: 'pmo-1', name: 'Wire the widget', status: 'To Do' },
+    };
+    await expect(commitClickUpTaskCommand(command, baseDeps(fetchImpl as unknown as typeof fetch)))
+      .rejects.toThrow(AdapterError);
+    expect(fetchImpl).toHaveBeenCalledTimes(1); // one create attempt — a re-send could duplicate the task
+  });
 });
 
 describe('AC-CUA-032 update/transition/delete resolve the ClickUp task id from the injected mapping', () => {

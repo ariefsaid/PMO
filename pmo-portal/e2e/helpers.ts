@@ -332,7 +332,7 @@ export async function openPipelineCard(page: Page, dealName: string, within?: Lo
  */
 export async function grantM365EntitlementFixture(page: Page): Promise<void> {
   await page.route('**/rest/v1/org_features*', async (route) => {
-    const response = await route.fetch();
+    const response = await route.fetch({ maxRetries: 2 });
     if (!response.ok()) {
       await route.fulfill({ response });
       return;

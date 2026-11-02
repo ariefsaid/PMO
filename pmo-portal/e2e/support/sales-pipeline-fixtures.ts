@@ -142,7 +142,7 @@ export async function installSyntheticPipeline(page: Page, locale: 'en' | 'id') 
   await page.route('**/rest/v1/profiles?*', async (route) => {
     const url = new URL(route.request().url());
     if (route.request().method() !== 'GET' || !url.searchParams.has('id')) return route.fallback();
-    const response = await route.fetch();
+    const response = await route.fetch({ maxRetries: 2 });
     let body: unknown;
     try {
       body = await response.json();

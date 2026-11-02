@@ -775,6 +775,18 @@ export function useAssistantPanel(): UseAssistantPanel {
   // STUCK_RUN_STALE_MS with no fresh heartbeat (the server has no more work to do until
   // the user answers, so its heartbeat genuinely stops advancing — that is expected, not
   // a symptom of being stuck).
+  // A wedged run's heartbeat stops changing, so no state update re-renders the hook: schedule one
+  // render for the moment the stale window is crossed.
+  const [, setStaleTick] = useState(0);
+  const runActive = phase === 'running' || phase === 'needs-approval';
+  useEffect(() => {
+    if (!runActive || lastProgressAt === null) return;
+    const remaining = STUCK_RUN_STALE_MS - (Date.now() - new Date(lastProgressAt).getTime());
+    if (remaining <= 0) return;
+    const id = window.setTimeout(() => setStaleTick((n) => n + 1), remaining + 1);
+    return () => window.clearTimeout(id);
+  }, [runActive, lastProgressAt]);
+
   const isStuck =
     !hasPendingQuestion &&
     (phase === 'running' || phase === 'needs-approval') &&
