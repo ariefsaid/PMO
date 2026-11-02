@@ -262,3 +262,11 @@ These close the open questions raised while drafting; they override any proposal
 The ERP child-row names/percentage-versus-amount representation are a technical discovery item,
 not an unanswered owner decision: the required externally observable result is one explicit
 figure per year reconciling to the whole-range account total, proven against ERPNext v16.
+
+## Implementation-grounding amendments (2026-11-02)
+
+- **FR-010 clarification:** retain the existing refusal when multiple non-zero categories map to the same ERP account. The current account planner rejects that mapping, so the feature must not silently broaden the account-mapping contract; each accepted account body carries its mapped category's reconciled figures.
+- **FR-012 clarification:** range-aware ownership and overlap checks apply to the ERP grain probe as well as outbox, mirror and inbound identities. The existing probe uses account and starting fiscal year, which does not distinguish all range endpoints. A different range must not be treated as the same unit.
+- **FR-013 clarification:** activation must atomically arrange predecessor cancellation using the durable archive workflow. The latest forward activation definition (`0366`) archives the predecessor; the archive RPC's independent lifecycle contract cannot simply be invoked after a successor is active. This is an implementation requirement, not a change to the owner's transition decision.
+- **Owner resolution 2 alignment:** budget-wide amount inputs are proportions for all inheriting categories; only a category-specific amount override must sum to that category's total. This overrides conflicting vocabulary and AC-005 text above; AC-005 shall prove proportional inheritance for different totals and rejection of an invalid category override.
+- **Zero clarification:** a category with an explicit zero total retains a known zero for each year in comparison, without an ERP zero-account push. This preserves FR-018's distinction between known zero and absent attribution.
