@@ -123,6 +123,7 @@ export function receiptColumns({ t, embedded, location, invoiceNumberById }: {
     {
       key: 'date',
       header: t('financeCopy.date', "Date"),
+      kind: 'date',
       cell: (p) => (p.date ? formatDateOnly(p.date) : '—'),
       exportValue: (p) => p.date ?? '',
     },
