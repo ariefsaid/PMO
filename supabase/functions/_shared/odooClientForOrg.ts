@@ -11,7 +11,7 @@ import type { CapabilitySnapshot } from '../../../pmo-portal/src/lib/adapterSeam
 
 export type OdooClientRefusal = 'not-found' | 'inactive' | 'invalid-site' | 'credentials' | 'company-not-set' | 'kill-switch';
 export type OdooClientForOrgResult =
-  | { client: OdooClientDeps; config: Record<string, unknown>; companyId: number | null }
+  | { client: OdooClientDeps; config: Record<string, unknown>; companyId: number | null; bindingId: string | null }
   | { refusal: OdooClientRefusal };
 
 /** Requests per second for one client: `paceFor`, or lower when the deployment sets ODOO_PACE_RPS. It never raises the plan's cap. */
@@ -28,7 +28,7 @@ export async function odooClientForOrg(
   options: { requireActivated?: boolean; requireCompany?: boolean } = {},
 ): Promise<OdooClientForOrgResult> {
   if (!externalConnectEnabled()) return { refusal: 'kill-switch' };
-  const { data: b, error } = await sc.from('external_org_bindings').select('site_url,secret_ref,status,activated_at,config')
+  const { data: b, error } = await sc.from('external_org_bindings').select('id,site_url,secret_ref,status,activated_at,config')
     .eq('org_id', orgId).eq('external_tier', 'odoo').maybeSingle();
   if (error || !b) return { refusal: 'not-found' };
   if (b.status !== 'active' || (options.requireActivated !== false && !b.activated_at)) return { refusal: 'inactive' };
@@ -43,6 +43,7 @@ export async function odooClientForOrg(
     client: { baseUrl: b.site_url, apiKey: key, database: String(config.database ?? ''), fetchImpl: guardedErpFetch(b.site_url), pace: createPacer(paceRps(b.site_url)) },
     config,
     companyId,
+    bindingId: typeof b.id === 'string' ? b.id : null,
   };
 }
 

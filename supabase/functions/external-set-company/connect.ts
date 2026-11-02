@@ -20,7 +20,7 @@ const ACCEPT_CALLS_PER_REQUEST = 20;
 /** ... and stops once this much time has passed, so one request ends before the platform's request limit. */
 const ACCEPT_BUDGET_MS = 60_000;
 /** Tiers whose sweep pass advances a setup run. A census starts a run, so a tier without a pass would leave it open forever. */
-const CENSUS_TIERS = new Set(['erpnext']);
+const CENSUS_TIERS = new Set(['erpnext', 'odoo']);
 
 export interface ConnectCtx {
   serviceClient: SupabaseClient;
