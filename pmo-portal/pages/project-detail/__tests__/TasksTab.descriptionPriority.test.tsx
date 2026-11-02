@@ -216,3 +216,13 @@ describe('TasksTab — edit pre-fills and clears description + priority (AC-TASK
     expect(arg.patch.description).toBeNull();
   });
 });
+
+describe('DAL03-005 — an edit that leaves the parent alone does not re-send it', () => {
+  it('saving an edit without touching the parent omits parent_task_id from the update patch (a flat mirror is never re-asserted as top-level on the connected system)', async () => {
+    renderTab();
+    const dialog = await openEditFor('Pour the slab');
+    await userEvent.click(within(dialog).getByRole('button', { name: /save task/i }));
+    await waitFor(() => expect(mutations.update.mutateAsync).toHaveBeenCalled());
+    expect(mutations.update.mutateAsync.mock.calls[0][0].patch).not.toHaveProperty('parent_task_id');
+  });
+});

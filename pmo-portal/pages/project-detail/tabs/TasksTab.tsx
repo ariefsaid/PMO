@@ -1222,7 +1222,13 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
           };
           await onUpdate(
             task.id,
-            { ...base, milestone_id: milestoneId, parent_task_id: parentTaskId },
+            // The parent is sent only when the user changed it: on an externally-owned project it
+            // becomes a write to the connected system, so an untouched parent must not be re-asserted.
+            {
+              ...base,
+              milestone_id: milestoneId,
+              ...(parentTaskId !== initialParentTaskId ? { parent_task_id: parentTaskId } : {}),
+            },
             delta,
           );
         } else {
