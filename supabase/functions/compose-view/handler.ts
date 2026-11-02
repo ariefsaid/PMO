@@ -99,6 +99,35 @@ type HandlerResult =
   | { status: 502; body: ComposeViewError }
   | { status: 503; body: ComposeViewError };
 
+// ── Usage recording (the single compose-view choke point) ───────────────────────
+
+/**
+ * Write the compose attempt's metered usage: one agent_usage row via the configured usage
+ * dep. Used by BOTH outcomes — a successful compose, and a failed one whose model calls
+ * still consumed provider tokens (the tokens/cost ride the thrown ComposeSpecError).
+ */
+async function recordComposeUsage(
+  deps: HandlerDeps,
+  userId: string,
+  orgId: string,
+  model: string,
+  tokensUsed: number,
+  providerCost: number,
+): Promise<void> {
+  if (deps.usage?.serviceClient) {
+    const { recordTrustedUsage } = await import('../_shared/usage.ts');
+    await recordTrustedUsage({ serviceClient: deps.usage.serviceClient, userId, orgId, runId: null }, {
+      model, finish_reason: 'stop', message: { role: 'assistant', content: null },
+      usage: { prompt_tokens: 0, completion_tokens: tokensUsed, total_tokens: tokensUsed, total_cost: providerCost },
+    }, 'compose');
+  } else if (deps.usage?.supabase) {
+    await insertUsageRow(
+      { supabase: deps.usage.supabase as unknown as import('../_shared/usage.ts').UsageDeps['supabase'], runId: null },
+      { model, prompt_tokens: 0, completion_tokens: tokensUsed, cost: 0, action: 'compose' },
+    );
+  }
+}
+
 // ── Main handler ───────────────────────────────────────────────────────────────
 
 /**
@@ -143,13 +172,18 @@ async function composeViewHandlerInner(
   }
 
   // ── Gate (2): input validation — prompt (AC-AS-006, FR-AS-012) ─────────────
-  if (!req.prompt || req.prompt.length === 0) {
+  // The body must be an object carrying a string prompt: a non-string prompt value that
+  // passed a truthy/.length probe used to flow straight into the model request payload,
+  // and a non-object body (JSON null) crashed on property access before any gate. Both
+  // read as the typed 400 the wrapper reserves for a malformed body — never a thrown
+  // TypeError, never a non-string reaching the model payload.
+  if (!req || typeof req !== 'object' || typeof req.prompt !== 'string' || req.prompt.length === 0) {
     return {
       status: 400,
       body: { status: 400, error: 'BAD_REQUEST', detail: 'prompt' },
     };
   }
-  if (req.prompt.length > 2000) {
+  if (req.prompt.length > 2000) { // narrowed: req.prompt is a string here
     return {
       status: 400,
       body: { status: 400, error: 'BAD_REQUEST', detail: 'prompt' },
@@ -238,21 +272,10 @@ async function composeViewHandlerInner(
     // FR-AUC-002/015: one agent_usage row per compose-view invocation (the single choke
     // point — composeSpec() has already resolved, meaning at least one modelClient.create()
     // call succeeded). tokensUsed → completion_tokens is a coarse proxy: composeSpec/
-    // ComposeViewResponse does not surface a prompt/completion split or a total_cost today
-    // (see docs/plans/2026-07-03-agent-usage-credits.md Open Question 2) — cost stays the
+    // ComposeViewResponse does not surface a prompt/completion split (see
+    // docs/plans/2026-07-03-agent-usage-credits.md Open Question 2) — cost stays the
     // FR-AUC-001-sanctioned default 0 when the provider does not report cost.
-    if (deps.usage?.serviceClient) {
-      const { recordTrustedUsage } = await import('../_shared/usage.ts');
-      await recordTrustedUsage({ serviceClient: deps.usage.serviceClient, userId, orgId: profileOrgId, runId: null }, {
-        model, finish_reason: 'stop', message: { role: 'assistant', content: null },
-        usage: { prompt_tokens: 0, completion_tokens: tokensUsed, total_tokens: tokensUsed, total_cost: providerCost },
-      }, 'compose');
-    } else if (deps.usage?.supabase) {
-      await insertUsageRow(
-        { supabase: deps.usage.supabase as unknown as import('../_shared/usage.ts').UsageDeps['supabase'], runId: null },
-        { model, prompt_tokens: 0, completion_tokens: tokensUsed, cost: 0, action: 'compose' },
-      );
-    }
+    await recordComposeUsage(deps, userId, profileOrgId, model, tokensUsed, providerCost ?? 0);
 
     aiGeneration(false, tokensUsed, clampUsageValue(providerCost));
     return {
@@ -261,6 +284,19 @@ async function composeViewHandlerInner(
     };
   } catch (err) {
     if (err instanceof ComposeSpecError) {
+      // The failed attempt's model calls still consumed provider tokens; meter them like a
+      // success (the tokens/cost ride the error). A metering failure here is logged by code
+      // and never masks the compose outcome — the client still gets the honest 422/502.
+      if (err.tokensUsed > 0 || err.providerCost > 0) {
+        try {
+          await recordComposeUsage(deps, userId, profileOrgId, model, err.tokensUsed, err.providerCost);
+        } catch (meterErr) {
+          console.error('[compose-view] FAILED_COMPOSE_USAGE_UNRECORDED', {
+            errorCode: 'FAILED_COMPOSE_USAGE_UNRECORDED',
+            code: meterErr instanceof Error ? meterErr.name : 'unknown',
+          });
+        }
+      }
       if (err.code === 'REPAIR_EXHAUSTED') {
         // 422 REPAIR_EXHAUSTED (AC-AS-003)
         return {
