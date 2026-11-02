@@ -98,6 +98,25 @@ org boundary, so operator powers are granted by a separate platform-level mechan
 by the in-org role enum. Contrast **Admin**, the client's own in-org administrator role.
 (Decided 2026-07-04.)
 
+**Assistant thread** — one user's named conversation context with the Assistant. A thread
+is private to its owner (owner-scoped RLS; no cross-owner read, not even Admin) and may be
+pinned to hold the top of the thread list. Archiving removes a thread from the list without
+deleting its history. (ADR-0040; FR-AGP-007/008.)
+
+**Assistant automation** — an owner's Assistant prompt that runs on a schedule or on a data
+event, with an optional condition narrowing when it fires. Each automation is enabled or
+disabled by its owner; a disabled automation never fires. Individual runs, delivery state
+and credit reservations are operational detail, not part of the definition.
+
+**AI credit grant** — an amount of AI credit granted to an organization (or to one of its
+users) by an Operator, recorded with its grantor and an optional note. Credits are an
+append-only ledger: the balance is the sum of grants less usage, never an in-place edit.
+
+**Organization feature entitlement** — one organization's enabled or disabled access to a
+named product feature. Entitlements are toggled per org by the Operator; a feature with no
+entitlement row resolves to its environment's default for that feature. A member's access
+follows the org's entitlement on top of their role.
+
 **Organization (org)** — the tenant boundary: one paying client **group**, holding all its
 users and data behind one RLS wall. An org is a commercial/contract boundary, not a legal
 entity — a client group with subsidiaries is still **one** org (decided 2026-07-04). Two

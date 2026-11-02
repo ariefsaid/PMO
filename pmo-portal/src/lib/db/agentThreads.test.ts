@@ -126,6 +126,14 @@ describe('AC-AGP-019 listAgentThreads', () => {
 });
 
 describe('createAgentThread', () => {
+  it('defaults the title to "New conversation" — an Assistant thread is a named conversation context (attachment-first path)', async () => {
+    // useAgentAttachments creates the thread with no title, so the default name is the product path.
+    h.result.value = { data: { id: 'thread-default', title: 'New conversation' }, error: null };
+    await createAgentThread();
+
+    expect(h.calls.insert).toEqual([{ title: 'New conversation' }]);
+  });
+
   it('AC-AT2-001 creates a caller-owned thread for attachment-first upload without sending org_id/owner_id', async () => {
     h.result.value = { data: { id: 'thread-1', title: 'New conversation' }, error: null };
     const thread = await createAgentThread('New conversation');

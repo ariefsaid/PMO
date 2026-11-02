@@ -38,7 +38,7 @@ Reference material. Answer only for what the asking user's role can do; if an ac
 
 **Superseded** — terminal, read-only status for a revision replaced by an Approved successor. Only its immediate Issued or Approved predecessor transitions.
 
-**Committed spend** — the sum of all procurement records (Purchase Orders, etc.) in statuses Ordered, Received, Vendor Invoiced, or Paid for a project — the single live spend number on the project header ("Committed"), the Finance dashboard, and the Delivery summary.
+**Committed spend** — the sum of the total values of a project's procurement records in statuses Ordered, Received, Vendor Invoiced, or Paid — the single live spend number on the project header ("Committed"), the Finance dashboard, the Delivery summary, and the at-risk threshold.
 
 **Actual / Realized spend** — the same number as Committed spend, shown under the label "Actual" on the project stat strip and the Finance "Budget vs Actual" card. No separate actuals ledger exists today; committed purchase orders are the realized-cost proxy.
 
