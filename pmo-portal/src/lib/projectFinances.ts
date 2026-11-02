@@ -59,6 +59,9 @@ export interface ProjectFinances {
     /** #1271 (0376): `total` = tagged (ERP project) + attributed (cost rule). Absent on a payload from before 0376. */
     tagged_total?: ExactMoney | null;
     attributed_total?: ExactMoney | null;
+    /** #1519 (0473, OQ-3): the hire-rate equipment charge already inside `total`, stated separately. Absent on a payload
+     *  from before 0473; null when the charge exists but cannot be stated (an unmapped category). */
+    equipment_charge_total?: ExactMoney | null;
     excludes_restricted_rows: boolean;
     categories: Array<{
       category: string;
@@ -66,6 +69,8 @@ export interface ProjectFinances {
       amount: ExactMoney | null;
       tagged_amount?: ExactMoney | null;
       attributed_amount?: ExactMoney | null;
+      /** #1519 (0473, OQ-3): this category's share of the hire-rate equipment charge. Absent before 0473. */
+      equipment_charge_amount?: ExactMoney | null;
     }>;
   };
 }
