@@ -46,9 +46,10 @@ menu does.
 `pmo-portal/components/ProjectStatusControl.tsx` ("Change status", mounted on the project/opportunity detail header
 `pages/project-detail/ProjectDetailHeader.tsx:523` and rail `ProjectDetailRail.tsx:117`):
 
-- Rule table: `LEGAL_PROJECT_TRANSITIONS` in `pmo-portal/src/lib/db/projectTransitions.ts:36-49`, documented as the
-  "single TS source, mirrors the SQL literal inside transition_project()" (`:30-33`), with
-  `isLegalProjectTransition` (`:82-87`) and `projectStatusGroup` (`:93-98`). The menu offers exactly
+- Rule table: `LEGAL_PROJECT_TRANSITIONS` in `pmo-portal/src/lib/db/projectTransitions.ts`, documented as the
+  affordance seam mirroring the SQL literal inside `transition_project()` — the RPC (pgTAP
+  `project_transition_map.test.sql`, AC-1000) is the only enforcement authority — with `projectStatusGroup`.
+  The menu offers exactly
   `LEGAL_PROJECT_TRANSITIONS[status]` (`ProjectStatusControl.tsx:66`, `:215-226`).
 - Role gate: hidden unless `can('transition','project')` (`:67`, `:122`); hidden when no legal targets (`:125`).
 - **Win** (`Won, Pending KoM`): offered only when the read-only preflight `project_win_eligibility`

@@ -20,7 +20,6 @@ vi.mock('@/src/lib/supabase/client', () => ({
 }));
 
 import {
-  isLegalTimesheetTransition,
   timesheetActions,
   submitTimesheet,
   approveTimesheet,
@@ -67,24 +66,9 @@ beforeEach(() => {
 });
 
 // ---------------------------------------------------------------------------
-// B1/B2 — Transition map (AC-900)
+// B1/B2 — Transition map (AC-900) lives at pgTAP now: the RPC transition_timesheet (0180) is the
+// enforcement authority — supabase/tests/timesheet_transition_map.test.sql (#1710 re-home).
 // ---------------------------------------------------------------------------
-
-describe('isLegalTimesheetTransition', () => {
-  it('AC-900: timesheet transition map accepts legal pairs, rejects illegal jumps and terminal exits (FR-TS-001)', () => {
-    // Legal transitions
-    expect(isLegalTimesheetTransition('Draft', 'Submitted')).toBe(true);
-    expect(isLegalTimesheetTransition('Submitted', 'Approved')).toBe(true);
-    expect(isLegalTimesheetTransition('Submitted', 'Rejected')).toBe(true);
-    expect(isLegalTimesheetTransition('Rejected', 'Draft')).toBe(true);
-    // Slice A (FR-TSC-001): Approved is no longer terminal — an approver may re-open it to Draft.
-    expect(isLegalTimesheetTransition('Approved', 'Draft')).toBe(true);
-
-    // Illegal jumps
-    expect(isLegalTimesheetTransition('Draft', 'Approved')).toBe(false);
-    expect(isLegalTimesheetTransition('Submitted', 'Draft')).toBe(false);
-  });
-});
 
 // ---------------------------------------------------------------------------
 // B3 — Action-gate helper (AC-901)

@@ -42,8 +42,8 @@ sheet the line manager rejects it back to Draft via the existing `transition_tim
   - `timesheet_entries_write` (`FOR ALL`) — **USING** = entry's parent timesheet is the caller's own and
     `status='Draft'`; **but WITH CHECK is only `org_id = auth_org_id()`** (`:181`). **This is a known
     security hole** (the spec hardens it — see §1.2).
-- **Lifecycle:** `transition_timesheet` (`0007_timesheet_approval.sql`) owns all status changes;
-  `LEGAL_TIMESHEET_TRANSITIONS` (`src/lib/db/timesheetTransition.ts:20`) includes `Rejected → Draft`, so the
+- **Lifecycle:** `transition_timesheet` (`0007_timesheet_approval.sql` and its re-creations, 0180 final)
+  owns all status changes; its map includes `Rejected → Draft`, so the
   manager's reject **returns a sheet to Draft** and re-opens it for editing — no new "recall" affordance is
   needed (see Open Question OQ-3).
 - **Confirm-before-write rule (binding, `docs/plans/2026-06-07-confirm-mutations.md`):** *NOTHING writes to
