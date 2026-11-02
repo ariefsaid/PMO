@@ -136,7 +136,7 @@ async function getListTaskCount(deps: ClickUpDeps, listId: string): Promise<numb
     headers: { Authorization: `Bearer ${deps.token}` },
   });
   if (!res.ok) {
-    if (res.status === 404) return -1; // List not found
+    if (res.status === 404) throw new AppError('ClickUp List not found', 'NOT_FOUND');
     throw new AppError('Failed to fetch ClickUp list tasks', 'external-unreachable');
   }
   const data = (await res.json()) as { tasks: unknown[] };
@@ -179,7 +179,7 @@ async function getListMembers(deps: ClickUpDeps, listId: string): Promise<Array<
  * Build the per-project member map (OD-INT-10 §4): join PMO profiles to ClickUp List members by
  * email. Best-effort and NEVER blocks the link — a fetch failure, or a List with no members yet,
  * simply degrades to an empty map (unmapped assignees are the routine, non-fatal case already
- * handled by toClickUpAssignee/fromClickUpAssignee).
+ * handled by toClickUpAssigneeId/fromClickUpAssignee).
  */
 async function buildProjectMemberMap(
   deps: ClickUpDeps,

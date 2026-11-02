@@ -34,7 +34,6 @@ import { executeCompiledQuery } from './executor';
 
 const BASE_COMPILED: CompiledQuery = {
   entity: 'companies',
-  repositoryMethod: 'company.list',
   resolvedFilters: [],
   resolvedSelect: ['id', 'name', 'type'],
 };
@@ -129,7 +128,6 @@ describe('executeCompiledQuery — AC-VR-013', () => {
     mockChain.limit.mockResolvedValue({ data: rows, error: null });
     const compiled: CompiledQuery = {
       entity: 'projects',
-      repositoryMethod: 'project.list',
       resolvedFilters: [],
       resolvedSelect: ['contract_value'],
       resolvedAggregate: { fn: 'sum', column: 'contract_value', alias: 'total' },
@@ -144,7 +142,6 @@ describe('executeCompiledQuery — AC-VR-013', () => {
     mockChain.limit.mockResolvedValue({ data: [], error: null });
     const compiled: CompiledQuery = {
       entity: 'projects',
-      repositoryMethod: 'project.list',
       resolvedFilters: [{ column: 'created_at', op: 'date-range', value: ['2026-01-01', '2026-12-31'] }],
       resolvedSelect: ['id'],
       limit: 10,

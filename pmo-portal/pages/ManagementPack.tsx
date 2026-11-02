@@ -509,7 +509,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
           icon="table"
           title={t('managementPack.emptyTitle', 'No projects to report')}
           sub={t('managementPack.emptySub', 'Won and ongoing projects, and any project invoiced in this period, appear here.')}
-          action={may('create', 'salesInvoice') ? { label: t('financeHub:hub.newInvoice', 'New invoice'), onClick: () => navigate('/sales-invoices?create=1') } : undefined}
+          action={may('create', 'salesInvoice') ? { label: t('financeHub:hub.newInvoice', 'New invoice'), onClick: () => navigate('/finance/receivables?create=1') } : undefined}
         />
       )}
 

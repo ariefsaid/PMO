@@ -18,7 +18,7 @@ import { handleConnectRequest, setTestJwks, testSupabaseOptions } from './index.
 import {
   createJwtAuthority,
   installEdgeEnv,
-  withFetchMock,
+  withFetchMock as baseWithFetchMock,
   supabaseRpc,
   supabaseSelect,
   restCall,
@@ -28,7 +28,31 @@ import {
   erp,
   createAuthedRequest,
   createTestJwksResolver,
+  type FetchCall,
 } from '../_shared/testing/edgeTestKit.ts';
+
+/**
+ * Every route list is wrapped: the default standing answer (active, for whatever role the profiles
+ * mock returned) is appended LAST, so an actor_authorization_state route a test supplies itself
+ * wins (first match) — the standing-failure tests below rely on that.
+ */
+const withFetchMock: typeof baseWithFetchMock = (routes, run) => {
+  let role: string | undefined;
+  const wrapped = routes.map((route) => route.label === 'supabase-select-profiles'
+    ? { ...route, response: async (call: FetchCall) => {
+      const response = typeof route.response === 'function' ? await route.response(call) : route.response;
+      if (call.url.searchParams.has('id')) {
+        const profile = await response.clone().json();
+        role = profile?.role;
+      }
+      return response;
+    } }
+    : route);
+  return baseWithFetchMock(
+    [...wrapped, supabaseRpc('actor_authorization_state', () => jsonResponse({ active: true, role }))],
+    run,
+  );
+};
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 
 // One stable authority + env per test module (see TEST-ARCH.md _jwks memoization nuance)
@@ -56,7 +80,7 @@ describe('external-connect — ClickUp branch', () => {
     await withFetchMock(
       [
         supabaseSelect('profiles', () =>
-          jsonResponse({ org_id: 'org-1', role: 'Admin' }, {
+          jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, {
             headers: { 'content-type': 'application/vnd.pgrst.object+json' },
           })),
 
@@ -120,7 +144,7 @@ describe('external-connect — ClickUp branch', () => {
     await withFetchMock(
       [
         supabaseSelect('profiles', () =>
-          jsonResponse({ org_id: 'org-1', role: 'Engineer' }, {
+          jsonResponse({ org_id: 'org-1', role: 'Engineer', status: 'active' }, {
             headers: { 'content-type': 'application/vnd.pgrst.object+json' },
           })),
 
@@ -154,7 +178,7 @@ describe('external-connect — ClickUp branch', () => {
     await withFetchMock(
       [
         supabaseSelect('profiles', () =>
-          jsonResponse({ org_id: 'org-1', role: 'Project Manager' }, {
+          jsonResponse({ org_id: 'org-1', role: 'Project Manager', status: 'active' }, {
             headers: { 'content-type': 'application/vnd.pgrst.object+json' },
           })),
 
@@ -177,7 +201,7 @@ describe('external-connect — ClickUp branch', () => {
     await withFetchMock(
       [
         supabaseSelect('profiles', () =>
-          jsonResponse({ org_id: 'org-1', role: 'Admin' }, {
+          jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, {
             headers: { 'content-type': 'application/vnd.pgrst.object+json' },
           })),
 
@@ -213,7 +237,7 @@ describe('external-connect — ClickUp branch', () => {
 
   it('AC-IEM-005 readiness failure is safe and leaves no active connection', async () => {
     await withFetchMock([
-      supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Admin' }, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
+      supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
       supabaseSelect('platform_operators', () => new Response('null', { status: 200 })),
       clickup('/api/v2/user', () => jsonResponse({ user: { id: 123 } })),
       clickup('/api/v2/team', () => jsonResponse({ teams: [{ id: 'team-123' }] })),
@@ -233,7 +257,7 @@ describe('external-connect — ClickUp branch', () => {
   });
 
   const rotateMocks = (stageRef: string, finalize: () => Response, vaultRead: string | null = 'valid-token') => [
-    supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Admin' }, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
+    supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
     supabaseSelect('platform_operators', () => new Response('null', { status: 200 })),
     clickup('/api/v2/user', () => jsonResponse({ user: { id: 123 } })),
     clickup('/api/v2/team', () => jsonResponse({ teams: [{ id: 'team-123' }] })),
@@ -299,7 +323,7 @@ describe('external-connect — ClickUp branch', () => {
     Deno.env.set('EXTERNAL_CONNECT_ENABLED', 'false');
     try {
       await withFetchMock([
-        supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Admin' }, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
+        supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
         supabaseSelect('platform_operators', () => new Response('null', { status: 200 })),
       ], async ({ calls }) => {
         const res = await handleConnectRequest(await authed({ tier: 'clickup', credential: { token: 'secret-token' } }));
@@ -319,7 +343,7 @@ describe('external-connect — ClickUp branch', () => {
     await withFetchMock(
       [
         supabaseSelect('profiles', () =>
-          jsonResponse({ org_id: 'org-1', role: 'Admin' }, {
+          jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, {
             headers: { 'content-type': 'application/vnd.pgrst.object+json' },
           })),
 
@@ -345,7 +369,7 @@ describe('external-connect — ERPNext branch', () => {
     await withFetchMock(
       [
         supabaseSelect('profiles', () =>
-          jsonResponse({ org_id: 'org-1', role: 'Admin' }, {
+          jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, {
             headers: { 'content-type': 'application/vnd.pgrst.object+json' },
           })),
 
@@ -389,7 +413,7 @@ describe('external-connect — ERPNext branch', () => {
     await withFetchMock(
       [
         supabaseSelect('profiles', () =>
-          jsonResponse({ org_id: 'org-1', role: 'Admin' }, {
+          jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, {
             headers: { 'content-type': 'application/vnd.pgrst.object+json' },
           })),
 
@@ -414,7 +438,7 @@ describe('external-connect — ERPNext branch', () => {
     await withFetchMock(
       [
         supabaseSelect('profiles', () =>
-          jsonResponse({ org_id: 'org-1', role: 'Admin' }, {
+          jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, {
             headers: { 'content-type': 'application/vnd.pgrst.object+json' },
           })),
 
@@ -445,7 +469,7 @@ describe('external-connect — ERPNext branch', () => {
       await withFetchMock(
         [
           supabaseSelect('profiles', () =>
-            jsonResponse({ org_id: 'org-1', role: 'Admin' }, {
+            jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, {
               headers: { 'content-type': 'application/vnd.pgrst.object+json' },
             })),
 
@@ -474,7 +498,7 @@ describe('external-connect — ERPNext branch', () => {
     await withFetchMock(
       [
         supabaseSelect('profiles', () =>
-          jsonResponse({ org_id: 'org-1', role: 'Admin' }, {
+          jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, {
             headers: { 'content-type': 'application/vnd.pgrst.object+json' },
           })),
 
@@ -503,7 +527,7 @@ describe('external-connect — ERPNext branch', () => {
     await withFetchMock(
       [
         supabaseSelect('profiles', () =>
-          jsonResponse({ org_id: 'org-1', role: 'Admin' }, {
+          jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, {
             headers: { 'content-type': 'application/vnd.pgrst.object+json' },
           })),
 
@@ -524,6 +548,90 @@ describe('external-connect — ERPNext branch', () => {
         assertEquals((await res.json()).error, 'config-rejected');
         assertEquals(rpcCall(calls, 'create_vault_secret_for_org').length, 0);
         assertEquals(rpcCall(calls, 'stage_vault_secret_for_org').length, 0);
+      },
+    );
+  });
+});
+
+// FR-ODC-011 parity (#1614): an ERPNext connect refusal leaves the same audit row as an Odoo one — the outcome
+// class only, never the credential or an upstream body.
+describe('external-connect — ERPNext refusal audit', () => {
+  const KEY = 'erp-key-sentinel-1614';
+  const SECRET = 'erp-secret-sentinel-1614';
+  const prelude = () => [
+    supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' },
+      { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
+    supabaseSelect('platform_operators', () => new Response('null',
+      { status: 200, headers: { 'content-type': 'application/json' } })),
+    supabaseRpc('log_audit', () => jsonResponse(null)),
+  ];
+  const request = () => authed({ tier: 'erpnext', credential: { siteUrl: 'https://erp.example.com', apiKey: KEY, apiSecret: SECRET } });
+  const assertOneRefusalAudit = (calls: Parameters<typeof rpcCall>[0], outcomeClass: string) => {
+    const audits = rpcCall(calls, 'log_audit');
+    assertEquals(audits.length, 1);
+    assertEquals((audits[0].bodyJson as Record<string, unknown>).p_action, 'integration.connect.refused');
+    assertEquals((audits[0].bodyJson as { p_detail: unknown }).p_detail, { tier: 'erpnext', actor: 'user-1', outcome_class: outcomeClass });
+    assertEquals(audits[0].bodyText!.includes(KEY) || audits[0].bodyText!.includes(SECRET), false);
+  };
+
+  it('FR-ODC-011 a rejected ERPNext credential writes one audit row with its outcome class, never the key', async () => {
+    await withFetchMock(
+      [...prelude(), erp('erp.example.com', '/api/method/frappe.auth.get_logged_user', () => jsonResponse({ exc: 'auth' }, { status: 401 }))],
+      async ({ calls }) => {
+        const res = await handleConnectRequest(await request());
+        assertEquals(res.status, 422);
+        assertOneRefusalAudit(calls, 'config-rejected');
+      },
+    );
+  });
+
+  it('FR-ODC-011 an ERPNext connect refused beside an active Odoo writes one audit row', async () => {
+    await withFetchMock(
+      [
+        ...prelude(),
+        erp('erp.example.com', '/api/method/frappe.auth.get_logged_user', () => jsonResponse({ message: 'erp-user@example.com' })),
+        supabaseSelect('external_org_bindings', () => jsonResponse({ external_tier: 'odoo' },
+          { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
+      ],
+      async ({ calls }) => {
+        const res = await handleConnectRequest(await request());
+        assertEquals(res.status, 409);
+        assertOneRefusalAudit(calls, 'another-erp-active');
+        assertEquals(rpcCall(calls, 'create_vault_secret_for_org').length, 0);
+      },
+    );
+  });
+
+  it('FR-ODC-011 a failed ERPNext site-URL save writes one audit row', async () => {
+    await withFetchMock(
+      [
+        ...prelude(),
+        erp('erp.example.com', '/api/method/frappe.auth.get_logged_user', () => jsonResponse({ message: 'erp-user@example.com' })),
+        supabaseSelect('external_org_bindings', () => new Response('null', { status: 200, headers: { 'content-type': 'application/json' } })),
+        supabaseRpc('create_vault_secret_for_org', () => jsonResponse('erpnext_token_org-1_1')),
+        supabaseRpc('set_external_binding_site_url', () => jsonResponse({ message: 'refused', code: 'P0001' }, { status: 400 })),
+      ],
+      async ({ calls }) => {
+        const res = await handleConnectRequest(await request());
+        assertEquals(res.status, 500);
+        assertOneRefusalAudit(calls, 'SITE_URL_NOT_PERSISTED');
+      },
+    );
+  });
+
+  it('FR-ODC-011 a successful ERPNext connect writes no refusal audit', async () => {
+    await withFetchMock(
+      [
+        ...prelude(),
+        erp('erp.example.com', '/api/method/frappe.auth.get_logged_user', () => jsonResponse({ message: 'erp-user@example.com' })),
+        supabaseSelect('external_org_bindings', () => new Response('null', { status: 200, headers: { 'content-type': 'application/json' } })),
+        supabaseRpc('create_vault_secret_for_org', () => jsonResponse('erpnext_token_org-1_1')),
+        supabaseRpc('set_external_binding_site_url', () => jsonResponse('set')),
+      ],
+      async ({ calls }) => {
+        const res = await handleConnectRequest(await request());
+        assertEquals(res.status, 200);
+        assertEquals(rpcCall(calls, 'log_audit').length, 0);
       },
     );
   });
@@ -564,7 +672,7 @@ describe('external-connect — JWT validation', () => {
     await withFetchMock(
       [
         supabaseSelect('profiles', () =>
-          jsonResponse({ org_id: 'org-1', role: 'Admin' }, {
+          jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, {
             headers: { 'content-type': 'application/vnd.pgrst.object+json' },
           })),
 
@@ -584,7 +692,7 @@ describe('external-connect — JWT validation', () => {
     await withFetchMock(
       [
         supabaseSelect('profiles', () =>
-          jsonResponse({ org_id: 'org-1', role: 'Admin' }, {
+          jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, {
             headers: { 'content-type': 'application/vnd.pgrst.object+json' },
           })),
 
@@ -604,7 +712,7 @@ describe('external-connect — JWT validation', () => {
     await withFetchMock(
       [
         supabaseSelect('profiles', () =>
-          jsonResponse({ org_id: 'org-1', role: 'Admin' }, {
+          jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, {
             headers: { 'content-type': 'application/vnd.pgrst.object+json' },
           })),
 
@@ -623,7 +731,7 @@ describe('external-connect — JWT validation', () => {
   it('AC-EAC-101 an ERPNext connect persists the submitted site URL', async () => {
     await withFetchMock(
       [
-        supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Admin' },
+        supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' },
           { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
         supabaseSelect('platform_operators', () => new Response('null',
           { status: 200, headers: { 'content-type': 'application/json' } })),
@@ -653,7 +761,7 @@ describe('external-connect — JWT validation', () => {
   it('AC-EAC-102 a failed site-URL persist returns 500 SITE_URL_NOT_PERSISTED and activates nothing', async () => {
     await withFetchMock(
       [
-        supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Admin' },
+        supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' },
           { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
         supabaseSelect('platform_operators', () => new Response('null',
           { status: 200, headers: { 'content-type': 'application/json' } })),
@@ -686,7 +794,7 @@ describe('external-connect — JWT validation', () => {
 describe('external-connect — EDGE_JWT_ISSUER override (#659)', () => {
   const profileMocks = () => [
     supabaseSelect('profiles', () =>
-      jsonResponse({ org_id: 'org-1', role: 'Admin' }, {
+      jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, {
         headers: { 'content-type': 'application/vnd.pgrst.object+json' },
       })),
     supabaseSelect('platform_operators', () => new Response('null', {
@@ -757,7 +865,7 @@ describe('external-connect — ERPNext host guard (#751)', () => {
     });
   const prelude = () => [
     supabaseSelect('profiles', () =>
-      jsonResponse({ org_id: 'org-1', role: 'Admin' }, {
+      jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, {
         headers: { 'content-type': 'application/vnd.pgrst.object+json' },
       })),
     supabaseSelect('platform_operators', () => new Response('null', {
@@ -861,5 +969,102 @@ describe('external-connect — ERPNext host guard (#751)', () => {
         assertEquals(rpcCall(calls, 'create_vault_secret_for_org').length, 0);
         assertEquals(calls.filter((c) => c.url.host === HOST).length, 0);
       }));
+  });
+});
+
+// ============================================================================
+// Current standing: the activation gate answers only while the membership is active NOW. A
+// deactivated or banned caller carrying an unexpired JWT must get 403 BEFORE any Vault write or
+// external request, and an unresolvable standing answer fails closed.
+// ============================================================================
+describe('external-connect — current standing', () => {
+  it('a deactivated Admin is refused → 403, no staging, no external request', async () => {
+    await withFetchMock([
+      supabaseSelect('profiles', () =>
+        jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'disabled' }, {
+          headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+        })),
+      supabaseRpc('actor_authorization_state', () => jsonResponse({ role: 'Admin', active: false })),
+      supabaseSelect('platform_operators', () => new Response('null', {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })),
+    ], async ({ calls }) => {
+      const res = await handleConnectRequest(await authed({ tier: 'clickup', credential: { token: 'valid-token' } }));
+      assertEquals(res.status, 403);
+      assertEquals(rpcCall(calls, 'stage_vault_secret_for_org').length, 0);
+      assertEquals(calls.filter((c) => c.url.host === 'api.clickup.com').length, 0);
+    });
+  });
+
+  it('a currently-inactive operator is refused → 403 before the operator branch is consulted', async () => {
+    await withFetchMock([
+      supabaseSelect('profiles', () =>
+        jsonResponse({ org_id: 'org-1', role: 'Engineer', status: 'disabled' }, {
+          headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+        })),
+      supabaseRpc('actor_authorization_state', () => jsonResponse({ role: 'Engineer', active: false })),
+      supabaseSelect('platform_operators', () =>
+        jsonResponse({ user_id: 'user-1' }, {
+          headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+        })),
+    ], async ({ calls }) => {
+      const res = await handleConnectRequest(await authed({ tier: 'clickup', credential: { token: 'valid-token' } }));
+      assertEquals(res.status, 403);
+      assertEquals(rpcCall(calls, 'stage_vault_secret_for_org').length, 0);
+      assertEquals(calls.filter((c) => c.url.host === 'api.clickup.com').length, 0);
+    });
+  });
+
+  it('an Admin whose profile is active but whose RPC standing is inactive (banned) is refused → 403, no staging', async () => {
+    await withFetchMock([
+      supabaseSelect('profiles', () =>
+        jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, {
+          headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+        })),
+      supabaseRpc('actor_authorization_state', () => jsonResponse({ role: 'Admin', active: false })),
+      supabaseSelect('platform_operators', () => new Response('null', {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })),
+    ], async ({ calls }) => {
+      const res = await handleConnectRequest(await authed({ tier: 'clickup', credential: { token: 'valid-token' } }));
+      assertEquals(res.status, 403);
+      assertEquals(rpcCall(calls, 'stage_vault_secret_for_org').length, 0);
+      assertEquals(calls.filter((c) => c.url.host === 'api.clickup.com').length, 0);
+    });
+  });
+
+  it('a disabled profile is refused even when the RPC reports active → 403, no staging', async () => {
+    await withFetchMock([
+      supabaseSelect('profiles', () =>
+        jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'disabled' }, {
+          headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+        })),
+      supabaseRpc('actor_authorization_state', () => jsonResponse({ role: 'Admin', active: true })),
+      supabaseSelect('platform_operators', () => new Response('null', {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })),
+    ], async ({ calls }) => {
+      const res = await handleConnectRequest(await authed({ tier: 'clickup', credential: { token: 'valid-token' } }));
+      assertEquals(res.status, 403);
+      assertEquals(rpcCall(calls, 'stage_vault_secret_for_org').length, 0);
+      assertEquals(calls.filter((c) => c.url.host === 'api.clickup.com').length, 0);
+    });
+  });
+
+  it('fails closed when standing cannot be resolved → 403, no staging', async () => {
+    await withFetchMock([
+      supabaseSelect('profiles', () =>
+        jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, {
+          headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+        })),
+      supabaseRpc('actor_authorization_state', () => new Response('{"message":"unavailable"}', { status: 500, headers: { 'content-type': 'application/json' } })),
+    ], async ({ calls }) => {
+      const res = await handleConnectRequest(await authed({ tier: 'clickup', credential: { token: 'valid-token' } }));
+      assertEquals(res.status, 403);
+      assertEquals(rpcCall(calls, 'stage_vault_secret_for_org').length, 0);
+    });
   });
 });

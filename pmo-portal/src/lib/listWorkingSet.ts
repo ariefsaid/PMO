@@ -70,6 +70,7 @@ export interface ContactsWorkingSet {
 export interface MeetingsWorkingSet {
   project: string;
   q: string;
+  archived: boolean;
 }
 
 export interface ListWorkingSetByName {
@@ -455,10 +456,12 @@ const LIST_WORKING_SET_SCHEMAS: Schemas = {
     parse: (params) => ({
       project: referenceValue(params.get('project')),
       q: searchValue(params),
+      archived: params.get('archived') === '1',
     }),
     serialize: (params, value) => {
       putParam(params, 'project', value.project, 'All');
       putParam(params, 'q', value.q);
+      putParam(params, 'archived', value.archived ? '1' : '');
       return params;
     },
   },

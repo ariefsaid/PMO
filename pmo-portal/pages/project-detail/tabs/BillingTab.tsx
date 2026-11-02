@@ -554,7 +554,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
           {canStartInvoice && <Link
             className="touch-target inline-flex min-h-11 items-center rounded-sm text-sm font-medium text-primary-text underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-            to={`/sales-invoices?create=1&project=${encodeURIComponent(projectId)}`}
+            to={`/finance/receivables?create=1&project=${encodeURIComponent(projectId)}`}
           >
             {t('uxs15.contractInvoice', 'Contract invoice')}
           </Link>}

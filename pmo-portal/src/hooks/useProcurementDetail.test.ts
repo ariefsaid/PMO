@@ -30,13 +30,16 @@ vi.mock('@/src/lib/db/procurementLifecycle', async (importOriginal) => {
   };
 });
 
-const { procurement } = vi.hoisted(() => ({
+const { procurement, subcontractsRepo } = vi.hoisted(() => ({
   procurement: {
     transition: vi.fn().mockResolvedValue(undefined),
     createQuotation: vi.fn().mockResolvedValue({ id: 'quote-1' }),
     createReceipt: vi.fn().mockResolvedValue({ id: 'receipt-1' }),
     createInvoice: vi.fn().mockResolvedValue({ id: 'invoice-1' }),
     approveAmount: vi.fn().mockResolvedValue(undefined),
+  },
+  subcontractsRepo: {
+    captureSubcontractVendorInvoice: vi.fn().mockResolvedValue({ id: 'invoice-sub-1' }),
   },
 }));
 // `get` and `captureVendorInvoice` delegate to the mocked DAL so the read/capture assertions below stay on the DAL calls.
@@ -49,6 +52,7 @@ vi.mock('@/src/lib/repositories', async () => {
         get: (id: string) => dal.getProcurementDetail(id),
         captureVendorInvoice: (input: Parameters<typeof dal.captureVendorInvoice>[0]) => dal.captureVendorInvoice(input),
       },
+      subcontracts: subcontractsRepo,
     },
   };
 });
@@ -60,6 +64,7 @@ vi.mock('@/src/auth/useAuth', () => ({
 
 import { useProcurementDetail, useProcurementMutations } from './useProcurementDetail';
 import { getProcurementDetail, captureVendorInvoice } from '@/src/lib/db/procurementLifecycle';
+import { repositories } from '@/src/lib/repositories';
 import { clearOwnershipCache, setTaskOwnership } from '@/src/lib/adapterSeam/ownershipCache';
 
 // ---------------------------------------------------------------------------
@@ -181,6 +186,20 @@ describe('useProcurementMutations', () => {
     ).toBe(true);
   });
 
+  it('T-11: transition refreshes the list family and the case project spend', async () => {
+    const { qc, Wrapper } = makeWrapper();
+    qc.setQueryData(['procurement', 'org-1', 'proc-1', 'u', 'r'], { project_id: 'proj-9' });
+    const invalidateSpy = vi.spyOn(qc, 'invalidateQueries');
+    const { result } = renderHook(() => useProcurementMutations('proc-1'), { wrapper: Wrapper });
+    await act(async () => {
+      await result.current.transition.mutateAsync({ to: 'Requested', notes: undefined });
+    });
+    const keys = invalidateSpy.mock.calls.map((c) => c[0]?.queryKey);
+    expect(keys).toContainEqual(['procurements', 'org-1']);
+    expect(keys).toContainEqual(['project-committed-spend', 'org-1', 'proj-9']);
+    expect(keys).toContainEqual(['project-reserved-spend', 'org-1', 'proj-9']);
+  });
+
   it('AC-816 (hook): createReceipt mutation calls repositories.procurement.createReceipt and invalidates the detail key on success', async () => {
     const { qc, Wrapper } = makeWrapper();
     const invalidateSpy = vi.spyOn(qc, 'invalidateQueries');
@@ -296,6 +315,41 @@ describe('useProcurementMutations', () => {
     expect(calls.some((c) => c.includes('"procurement"') && c.includes('"org-1"'))).toBe(true);
   });
 
+  it('harden #2 mirror: captureSubcontractVendorInvoice mutation routes through the repository seam (#1632, ADR-0017) and invalidates detail key and subcontract queries', async () => {
+    const { qc, Wrapper } = makeWrapper();
+    const invalidateSpy = vi.spyOn(qc, 'invalidateQueries');
+
+    const { result } = renderHook(() => useProcurementMutations('proc-1'), { wrapper: Wrapper });
+
+    await act(async () => {
+      await result.current.captureSubcontractVendorInvoice.mutateAsync({
+        status: 'Received',
+        invoiceDate: '2026-06-04',
+        referenceNumber: 'INV-SUB-1',
+        amount: 12000000,
+        notes: 'captured',
+        taxTreatment: 'exclusive',
+        taxAmount: 1320000,
+        lines: [{ boqItemId: 'b1', quantity: 100, rate: 120000 }],
+      });
+    });
+
+    expect(vi.mocked(repositories.subcontracts.captureSubcontractVendorInvoice)).toHaveBeenCalledWith({
+      procurementId: 'proc-1',
+      status: 'Received',
+      invoiceDate: '2026-06-04',
+      referenceNumber: 'INV-SUB-1',
+      amount: 12000000,
+      notes: 'captured',
+      taxTreatment: 'exclusive',
+      taxAmount: 1320000,
+      lines: [{ boqItemId: 'b1', quantity: 100, rate: 120000 }],
+    });
+    const calls = invalidateSpy.mock.calls.map((c) => JSON.stringify(c[0]));
+    expect(calls.some((c) => c.includes('"procurement"') && c.includes('"org-1"'))).toBe(true);
+    expect(calls.some((c) => c.includes('"subcontract"') && c.includes('"org-1"'))).toBe(true);
+  });
+
   it('mutations are exposed: transition, createQuotation, createReceipt, createInvoice, captureVendorInvoice, pendingPush', () => {
     const { Wrapper } = makeWrapper();
     const { result } = renderHook(() => useProcurementMutations('proc-1'), { wrapper: Wrapper });
@@ -304,6 +358,7 @@ describe('useProcurementMutations', () => {
     expect(typeof result.current.createReceipt.mutateAsync).toBe('function');
     expect(typeof result.current.createInvoice.mutateAsync).toBe('function');
     expect(typeof result.current.captureVendorInvoice.mutateAsync).toBe('function');
+    expect(typeof result.current.captureSubcontractVendorInvoice.mutateAsync).toBe('function');
     expect(result.current.pendingPush).toEqual({ status: 'idle', error: null });
   });
 });
@@ -375,5 +430,36 @@ describe('task FIX-1 — flipped ownership map routes createReceipt externally +
 
     expect(procurement.transition).toHaveBeenCalledWith('proc-1', 'Requested', undefined);
     expect(result.current.pendingPush).toEqual({ status: 'idle', error: null });
+  });
+});
+
+describe('FR-ECA-030 a pre-cut-over purchase is recorded in PMO, so no push state is shown for it', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    setTaskOwnership([{ domain: 'procurement', externalTier: 'erpnext' }]);
+  });
+  afterEach(() => clearOwnershipCache());
+
+  it('createReceipt on a purchase whose loaded detail says pre_cutover never leaves idle', async () => {
+    const dal = await import('@/src/lib/db/procurementLifecycle');
+    vi.mocked(dal.getProcurementDetail).mockResolvedValueOnce({ id: 'proc-1', status: 'Ordered', pre_cutover: true } as never);
+    let resolveCreate!: (v: unknown) => void;
+    procurement.createReceipt.mockReturnValue(new Promise((res) => (resolveCreate = res)));
+
+    const { Wrapper } = makeWrapper();
+    const { result } = renderHook(() => ({ detail: useProcurementDetail('proc-1'), m: useProcurementMutations('proc-1') }), { wrapper: Wrapper });
+    await waitFor(() => expect(result.current.detail.data?.pre_cutover).toBe(true));
+
+    let mutatePromise!: Promise<unknown>;
+    act(() => {
+      mutatePromise = result.current.m.createReceipt.mutateAsync({ status: 'Complete', receiptDate: '2026-07-13' });
+    });
+    await waitFor(() => expect(result.current.m.createReceipt.isPending).toBe(true));
+    expect(result.current.m.pendingPush.status).toBe('idle');
+    await act(async () => {
+      resolveCreate({ id: 'gr-1' });
+      await mutatePromise;
+    });
+    expect(result.current.m.pendingPush.status).toBe('idle');
   });
 });

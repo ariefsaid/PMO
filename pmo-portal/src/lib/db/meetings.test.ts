@@ -10,6 +10,7 @@ const h = vi.hoisted(() => {
     select: [] as unknown[],
     eq: [] as unknown[],
     is: [] as unknown[],
+    not: [] as unknown[],
     or: [] as unknown[],
     textSearch: [] as unknown[],
     order: [] as unknown[],
@@ -32,6 +33,7 @@ const h = vi.hoisted(() => {
   builder.select = chain('select');
   builder.eq = chain('eq');
   builder.is = chain('is');
+  builder.not = chain('not');
   builder.or = chain('or');
   builder.textSearch = chain('textSearch');
   builder.order = chain('order');
@@ -55,13 +57,13 @@ vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: h.from } }));
 
 import {
   MEETING_LIST_CAP,
-  parseNoteBlocks,
   listMeetings,
   listMeetingsForContact,
   getMeeting,
   createMeeting,
   updateMeeting,
   archiveMeeting,
+  restoreMeeting,
   deleteMeeting,
   listMeetingAttendees,
   addMeetingAttendee,
@@ -82,25 +84,6 @@ beforeEach(() => {
   h.queue.push({ data: null, error: null });
 });
 
-describe('parseNoteBlocks (FR-MTG-002 — the schema asserts only "array")', () => {
-  it('coerces a valid block array', () => {
-    expect(parseNoteBlocks([{ type: 'p', text: 'Kickoff' }])).toEqual([
-      { type: 'p', text: 'Kickoff' },
-    ]);
-  });
-  it('non-array notes flatten to an empty document, never a crash', () => {
-    expect(parseNoteBlocks({} as never)).toEqual([]);
-    expect(parseNoteBlocks(null as never)).toEqual([]);
-  });
-  it('unknown block shapes keep their text (or empty), never crash the page', () => {
-    expect(parseNoteBlocks([{ type: 'h1', text: 'Heading' }, { bogus: true }, 'raw'])).toEqual([
-      { type: 'p', text: 'Heading' },
-      { type: 'p', text: '' },
-      { type: 'p', text: 'raw' },
-    ]);
-  });
-});
-
 describe('listMeetings (FR-MTG-028/029/035)', () => {
   it('excludes templates + archived, orders occurred_at DESC, and caps rows explicitly', async () => {
     h.queue[0] = { data: [{ id: 'm1', title: 'Kickoff' }], error: null };
@@ -111,6 +94,26 @@ describe('listMeetings (FR-MTG-028/029/035)', () => {
     expect(h.calls.order).toContainEqual(['occurred_at', { ascending: false }]);
     expect(h.calls.limit).toContainEqual(MEETING_LIST_CAP);
     expect(rows[0].title).toBe('Kickoff');
+  });
+
+  it('uses a summary projection for the list while detail keeps the complete row', async () => {
+    h.queue[0] = { data: [{ id: 'm1', title: 'Kickoff' }], error: null };
+    await listMeetings();
+    const listProjection = String(h.calls.select[0]);
+    expect(listProjection).toContain('occurred_at');
+    expect(listProjection).toContain('project:projects!meetings_project_id_fkey');
+    expect(listProjection).not.toContain('notes');
+    expect(listProjection).not.toContain('*');
+
+    await getMeeting('m1');
+    expect(String(h.calls.select[1])).toContain('*');
+  });
+
+  it('includes active and archived meetings when requested', async () => {
+    h.queue[0] = { data: [{ id: 'm-live' }, { id: 'm-archived' }], error: null };
+    await listMeetings({ includeArchived: true });
+    expect(h.calls.not).not.toContainEqual(['archived_at', 'is', null]);
+    expect(h.calls.is).not.toContainEqual(['archived_at', null]);
   });
 
   it('applies the project filter when given (FR-MTG-029)', async () => {
@@ -385,6 +388,14 @@ describe('archive / delete (FR-MTG-016)', () => {
     await archiveMeeting('m1');
     const sent = h.calls.update[0] as Record<string, unknown>;
     expect(typeof sent.archived_at).toBe('string');
+  });
+
+  it('restore clears archived_at only for an archived row', async () => {
+    h.queue[0] = { data: [{ id: 'm1' }], error: null };
+    await restoreMeeting('m1');
+    expect(h.calls.update[0]).toEqual({ archived_at: null });
+    expect(h.calls.eq).toContainEqual(['id', 'm1']);
+    expect(h.calls.not).toContainEqual(['archived_at', 'is', null]);
   });
 
   it('delete preserves the 23503 FK-block code for the "in use" toast', async () => {

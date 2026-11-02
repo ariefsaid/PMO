@@ -722,7 +722,7 @@ Deno.test('AC-005: full replay page exhaustion fetches all allowed pages before 
   try {
     let rejected = false;
     try {
-      await feedLedgerMirrors(harness.db as unknown as Parameters<typeof feedLedgerMirrors>[0], { client: { fetchImpl: globalThis.fetch, apiKey: 'synthetic-key', apiSecret: 'synthetic-secret', baseUrl: org.siteUrl }, orgId: org.orgId, company: org.company, fullReplay: true, maxPages: 1 });
+      await feedLedgerMirrors(harness.db as unknown as Parameters<typeof feedLedgerMirrors>[0], { client: { fetchImpl: globalThis.fetch, apiKey: 'synthetic-key', apiSecret: 'synthetic-secret', baseUrl: org.siteUrl }, orgId: org.orgId, company: org.company, fullReplay: true });
     } catch (error) {
       rejected = true;
       assert((error as Error).message.includes('page budget exhausted'), `unexpected replay exhaustion error: ${String(error)}`);

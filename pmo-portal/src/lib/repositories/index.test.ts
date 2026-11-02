@@ -26,12 +26,13 @@ vi.mock('@/src/lib/db/projects', () => ({
   deleteProject: vi.fn(),
   setProjectContractValue: vi.fn(),
 }));
-vi.mock('@/src/lib/db/opportunity', () => ({ getOpportunity: vi.fn() }));
+vi.mock('@/src/lib/db/opportunity', () => ({ getOpportunity: vi.fn(), getOpportunitiesByIds: vi.fn() }));
 vi.mock('@/src/lib/db/projectTransitions', () => ({ transitionProject: vi.fn(), getProjectWinEligibility: vi.fn(), listPipelineStageConfig: vi.fn() }));
 vi.mock('@/src/lib/db/companies', () => ({
   listClientCompanies: vi.fn(),
   listCompanies: vi.fn(),
   getCompany: vi.fn(),
+  getCompaniesByIds: vi.fn(),
   createCompany: vi.fn(),
   updateCompany: vi.fn(),
   archiveCompany: vi.fn(),
@@ -212,7 +213,9 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
       // 'workOrderAcceptance' from contract quantities (migration 0337, ADR-0091): allocations + BAST RPCs.
       // 'imprest' from site cash (#1515 S4+S5).
       // 'stock' from inventory master data (#1512 S1, migration 0412); S2a+ add documents and reports to it.
-      ['agentAttachment', 'agentRun', 'budget', 'comment', 'company', 'companyCollections', 'contact', 'credits', 'dashboard', 'document', 'erpPurchases', 'erpSnapshots', 'expenseClaim', 'expensePostings', 'expenseReceipts', 'externalDomainOwnership', 'financialStatements', 'fxRates', 'imprest', 'incident', 'integrations', 'm365DocumentSettings', 'm365RecordFolders', 'meeting', 'milestone', 'odoo', 'operator', 'orgFeature', 'orgSettings', 'procurement', 'procurementFiles', 'profile', 'progressBilling', 'project', 'projectMoney', 'recordHistory', 'reports', 'revenue', 'stock', 'task', 'timesheet', 'usage', 'userView', 'vendorWithholdingSlips', 'workOrder', 'workOrderAcceptance'].sort(),
+      // 'subcontracts' from subcontract acceptance, caps and variations (#1513 S6).
+      // 'projectStage' from stage history (#1638).
+      ['agentAttachment', 'agentRun', 'budget', 'comment', 'company', 'companyCollections', 'contact', 'credits', 'dashboard', 'document', 'erpPurchases', 'erpSnapshots', 'expenseClaim', 'expensePostings', 'expenseReceipts', 'externalDomainOwnership', 'financialStatements', 'fxRates', 'imprest', 'incident', 'integrations', 'm365DocumentSettings', 'm365RecordFolders', 'meeting', 'milestone', 'odoo', 'operator', 'orgFeature', 'orgSettings', 'procurement', 'procurementFiles', 'profile', 'progressBilling', 'project', 'projectMoney', 'projectStage', 'recordHistory', 'reports', 'revenue', 'stock', 'subcontracts', 'task', 'timesheet', 'usage', 'userView', 'vendorWithholdingSlips', 'workOrder', 'workOrderAcceptance'].sort(),
     );
   });
 
@@ -262,10 +265,10 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
     expect(Object.keys(repositories.project).sort()).toEqual(
       // 'getWithRefs'/'listByClient'/'listPipelineStageConfig' added with 2d97e91d5 (project &
       // task projection refresh). Exhaustive API-seam contract — extend only deliberately.
-      ['archive', 'create', 'delete', 'get', 'getVatEditability', 'getWithRefs', 'list', 'listByClient', 'listIdentity', 'listPipelineStageConfig', 'proposeNumber', 'setContractValue', 'transition', 'updateHeader', 'winEligibility'].sort(),
+      ['archive', 'create', 'delete', 'get', 'getMany', 'getVatEditability', 'getWithRefs', 'list', 'listByClient', 'listIdentity', 'listPipelineStageConfig', 'proposeNumber', 'setContractValue', 'transition', 'updateHeader', 'winEligibility'].sort(),
     );
     expect(Object.keys(repositories.company).sort()).toEqual(
-      ['archive', 'create', 'delete', 'get', 'list', 'listClients', 'setProjectNumberSegment', 'setTaxDefaults', 'update'].sort(),
+      ['archive', 'create', 'delete', 'get', 'getMany', 'list', 'listClients', 'setProjectNumberSegment', 'setTaxDefaults', 'update'].sort(),
     );
     expect(Object.keys(repositories.document).sort()).toEqual(
       [
@@ -301,7 +304,9 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
       // #526 (OD-MTG-1/2): grants are add/revoke ONLY — no update method on purpose (a grant is
       // created and revoked, never edited; 0205 ships no UPDATE grant and no UPDATE policy).
       // 'listForContact' added with the I7 review round — the DD-MTG-6 contact-timeline union.
-      ['addAttendee', 'addGrant', 'archive', 'create', 'delete', 'get', 'list', 'listAttendees', 'listForContact', 'listGrants', 'removeAttendee', 'revokeGrant', 'update'].sort(),
+      // 'restore' added with the author/Admin archived-meeting restore flow (#1542); repository delegation,
+      // mutation, and visible UI behavior are covered by focused meeting tests.
+      ['addAttendee', 'addGrant', 'archive', 'create', 'delete', 'get', 'list', 'listAttendees', 'listForContact', 'listGrants', 'removeAttendee', 'restore', 'revokeGrant', 'update'].sort(),
     );
     expect(Object.keys(repositories.procurement).sort()).toEqual(
       // 'setEfaktur' added deliberately with #893 (DD-EFK-1): the PMO-only vendor e-Faktur setter.
@@ -376,6 +381,12 @@ describe('delegation — methods pass args through and return the DAL result', (
     const result = await repositories.project.list(params);
     expect(projectsDal.listProjects).toHaveBeenCalledWith(params);
     expect(result).toBe(rows);
+  });
+
+  it('project.getMany delegates to getOpportunitiesByIds', async () => {
+    vi.mocked(opportunityDal.getOpportunitiesByIds).mockResolvedValue([]);
+    await repositories.project.getMany(['o1', 'o2']);
+    expect(opportunityDal.getOpportunitiesByIds).toHaveBeenCalledWith(['o1', 'o2']);
   });
 
   it('project.get delegates to getOpportunity', async () => {

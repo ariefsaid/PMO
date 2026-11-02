@@ -1,5 +1,6 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError, assertWriteLanded } from '@/src/lib/appError';
+import { fetchAllRowsByKeyset, type PageResult } from '@/src/lib/pagedRead';
 import type { Tables } from '@/src/lib/supabase/database.types';
 
 export type ContactRow = Tables<'contacts'>;
@@ -30,32 +31,46 @@ function throwWrite(error: PostgrestErrorLike): never {
 
 /**
  * List the caller's org non-archived contacts ordered by name (AC-CRM-020). org_id is NEVER
- * sent — RLS (contacts_select: org_id = auth_org_id()) scopes rows. Throws an `AppError`
- * (code preserved) on failure.
+ * sent — RLS (contacts_select: org_id = auth_org_id()) scopes rows.
+ *
+ * DAL01-005: reads EVERY keyset page (ordered by id — the only unique, total order) so the
+ * directory, pickers and export stay complete past PostgREST's single-response cap; the
+ * name-ordered contract is restored in memory. A page error throws (code preserved) — a partial
+ * directory can never be mistaken for a complete one.
  */
 export async function listContacts(): Promise<ContactRow[]> {
-  const { data, error } = await supabase
-    .from('contacts')
-    .select('*')
-    .is('archived_at', null)
-    .order('full_name');
-  if (error) throwWrite(error);
-  return data ?? [];
+  const rows = await fetchAllRowsByKeyset<ContactRow>((afterId, limit) => {
+    let query = supabase
+      .from('contacts')
+      .select('*')
+      .is('archived_at', null)
+      .order('id', { ascending: true })
+      .limit(limit);
+    if (afterId !== null) query = query.gt('id', afterId);
+    return query as unknown as PromiseLike<PageResult<ContactRow>>;
+  });
+  return rows.sort((a, b) => a.full_name.localeCompare(b.full_name));
 }
 
 /**
  * List a company's non-archived contacts (AC-CRM-021), ordered by name. org_id is NEVER sent —
- * RLS scopes the rows. Throws an `AppError` (code preserved) on failure.
+ * RLS scopes the rows. DAL01-005: reads EVERY keyset page (ordered by id) so the company's
+ * contact directory stays complete past PostgREST's single-response cap; the name-ordered
+ * contract is restored in memory. Throws an `AppError` (code preserved) on failure.
  */
 export async function listContactsByCompany(companyId: string): Promise<ContactRow[]> {
-  const { data, error } = await supabase
-    .from('contacts')
-    .select('*')
-    .eq('company_id', companyId)
-    .is('archived_at', null)
-    .order('full_name');
-  if (error) throwWrite(error);
-  return data ?? [];
+  const rows = await fetchAllRowsByKeyset<ContactRow>((afterId, limit) => {
+    let query = supabase
+      .from('contacts')
+      .select('*')
+      .eq('company_id', companyId)
+      .is('archived_at', null)
+      .order('id', { ascending: true })
+      .limit(limit);
+    if (afterId !== null) query = query.gt('id', afterId);
+    return query as unknown as PromiseLike<PageResult<ContactRow>>;
+  });
+  return rows.sort((a, b) => a.full_name.localeCompare(b.full_name));
 }
 
 /**

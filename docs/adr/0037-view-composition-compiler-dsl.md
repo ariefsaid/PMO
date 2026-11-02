@@ -54,11 +54,9 @@ time surfaces the missing context explicitly and prevents silent data mismatches
 ### 3. `timeRange` is normalized to two `date-range` filter clauses (OQ-3)
 
 The DSL exposes both a top-level `timeRange?: TimeRangeSpec` and a `filters[].op: 'date-range'`
-operator. To avoid dual representation, the compiler normalizes `timeRange` into two appended
-`resolvedFilters` entries (from and to as a `[string, string]` tuple with op `date-range`) and
-also populates `resolvedTimeRange` as a standalone descriptor for the renderer's convenience. The
-renderer (I3) uses `resolvedTimeRange` to render date-range pickers; it uses `resolvedFilters` for
-the actual data-fetch call. The two representations are always consistent.
+operator. The compiler normalizes `timeRange` into one `resolvedFilters` clause whose value holds
+the resolved endpoints. The renderer and executor consume this canonical filter representation;
+there is no duplicate compiled range descriptor to drift from it.
 
 ### 4. Numeric column whitelist includes `budget` and `spent` for `projects` (OD-1)
 

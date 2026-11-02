@@ -1,6 +1,14 @@
 {
-  "workOrderEligibility": {"checking": "Checking issue eligibility…", "unavailable": "Issue eligibility could not be checked. Refresh this page and try again."},
-  "winEligibility": {"checking": "Checking win eligibility…", "unavailable": "Win eligibility is unavailable. Refresh this page and try again.", "reviewer": "Ask your supervisor or a more senior reviewer to confirm the value before winning this project.", "inactive": "Ask an active supervisor or a more senior reviewer to confirm the value."},
+  "workOrderEligibility": {
+    "checking": "Checking issue eligibility…",
+    "unavailable": "Issue eligibility could not be checked. Refresh this page and try again."
+  },
+  "winEligibility": {
+    "checking": "Checking win eligibility…",
+    "unavailable": "Win eligibility is unavailable. Refresh this page and try again.",
+    "reviewer": "Ask your supervisor or a more senior reviewer to confirm the value before winning this project.",
+    "inactive": "Ask an active supervisor or a more senior reviewer to confirm the value."
+  },
   "finishSpendingSetup": "Finish spending setup",
   "spendingAdminHandoff": "Ask an administrator to complete spending setup.",
   "spendingSetupPrompt": "Recorded spending will appear after account setup is complete.",
@@ -456,6 +464,7 @@
       "categoryOver": "{{category}} is {{amount}} over budget",
       "categoryOverSub": "Spent {{spent}} of its {{budget}} budget",
       "within": "Within budget",
+      "withinOnSpend": "Within budget on spend",
       "withinSub": "Spent {{spent}} of {{budget}}",
       "commitmentsError": "Couldn't check commitments",
       "spendingChecking": "Checking spending…",
@@ -473,6 +482,7 @@
       "snapshotUse": "{{percent}}% used",
       "snapshotRemaining": "{{amount}} remaining",
       "snapshotOver": "{{amount}} over budget",
+      "snapshotOverOnCommitments": "{{amount}} over once committed orders land",
       "atRisk": "At risk",
       "rowBudgetOnly": "{{budget}} budgeted"
     },
@@ -493,7 +503,12 @@
       "endOnly": "Due {{date}}",
       "ordered": "Ordered {{date}}",
       "noDates": "No dates",
-      "status": { "planned": "Planned", "inProgress": "In progress", "invoiced": "Invoiced", "paid": "Paid" },
+      "status": {
+        "planned": "Planned",
+        "inProgress": "In progress",
+        "invoiced": "Invoiced",
+        "paid": "Paid"
+      },
       "statusSource": "Source: this work order's invoices and drafts (Contract & billing).",
       "invoiceThis": "Invoice this",
       "invoiceThisLabel": "Invoice {{order}}"
@@ -871,7 +886,31 @@
       "empty": "No contract lines or customer orders yet.",
       "noOrders": "No customer orders yet."
     },
-    "loadingTitle": "Loading project"
+    "loadingTitle": "Loading project",
+    "stageHistory": {
+      "heading": "Stage history",
+      "listLabel": "Stage history",
+      "date": "Stage date",
+      "outOfRange": "Pick a date between {{min}} and {{max}}",
+      "system": "System",
+      "redated": "Date changed",
+      "added": "Added later",
+      "changeDate": "Change date",
+      "addSkipped": "Add skipped stage",
+      "save": "Save date",
+      "salesHistory": "Sales history",
+      "loadError": "Stage history could not load",
+      "stage": "Stage",
+      "notAfter": "Pick a date on or before {{max}}",
+      "currentDate": "Currently {{date}}",
+      "source": {
+        "origination": "Origination",
+        "transition": "Transition",
+        "added": "Added later",
+        "import": "Import",
+        "backfill": "Backfill"
+      }
+    }
   },
   "common": {
     "retry": "Retry",
@@ -897,5 +936,19 @@
       "failed": "Couldn't check with Microsoft. This status may be out of date.",
       "retry": "Retry check"
     }
+  },
+  "budgetOccupant": {
+    "useAsDraft": "Use the ERP figures as a draft",
+    "replace": "Replace the ERP budget with this version",
+    "draftCreated": "Draft created",
+    "draftCreatedDetail": "The ERP figures are now a draft version. Review it, then activate it when you are ready.",
+    "replaced": "ERP budget replaced",
+    "replacedDetail": "ERPNext now holds PMO’s active budget.",
+    "notReplaced": "The ERP budget was not replaced",
+    "notReplacedDetail": "The push did not complete. The reason is shown on the budget.",
+    "confirmTitle": "Replace ERP budget {{name}}?",
+    "confirmDescription": "Replace ERP budget {{name}} for {{account}}, {{year}}, with PMO’s active version? The ERP copy will be amended.",
+    "confirmDescriptionYear": "Replace ERP budget {{name}} for {{year}} with PMO’s active version? The ERP copy will be amended.",
+    "confirmLabel": "Replace ERP budget"
   }
 }

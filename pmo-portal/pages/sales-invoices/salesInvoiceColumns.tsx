@@ -248,11 +248,11 @@ export function salesInvoiceColumns({ t, all, embedded, native, location, orgCur
     statusColumn,
     amountColumn,
     outstandingColumn,
-    { key: 'invoice_date', header: t('financeCopy.date', "Date"), cell: (inv) => inv.invoice_date, exportValue: (inv) => inv.invoice_date ?? '' },
-    { key: 'received_date', header: t('financeCopy.receivedDate', "Received"), cell: (inv) => inv.received_date, exportValue: (inv) => inv.received_date ?? '' },
+    { key: 'invoice_date', header: t('financeCopy.date', "Date"), kind: 'date', cell: (inv) => inv.invoice_date, exportValue: (inv) => inv.invoice_date ?? '' },
+    { key: 'received_date', header: t('financeCopy.receivedDate', "Received"), kind: 'date', cell: (inv) => inv.received_date, exportValue: (inv) => inv.received_date ?? '' },
     dueColumn,
     { key: 'efaktur_number', header: t('efaktur.number', 'e-Faktur number'), cell: (inv) => inv.efaktur_number, exportValue: (inv) => inv.efaktur_number ?? '' },
-    { key: 'efaktur_date', header: t('efaktur.date', 'e-Faktur date'), cell: (inv) => inv.efaktur_date, exportValue: (inv) => inv.efaktur_date ?? '' },
+    { key: 'efaktur_date', header: t('efaktur.date', 'e-Faktur date'), kind: 'date', cell: (inv) => inv.efaktur_date, exportValue: (inv) => inv.efaktur_date ?? '' },
   ], 'amount', (r) => r.currency);
 
   const mobileCardDetails = (inv: SalesInvoiceRow) => {

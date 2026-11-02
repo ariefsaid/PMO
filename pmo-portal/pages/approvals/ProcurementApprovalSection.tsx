@@ -46,7 +46,7 @@ export const ProcurementApprovalSection: React.FC = () => {
   return (
     <Card seam>
       <CardHead className="rounded-t-lg">
-        {t('approvalSection.heading', 'Procurement records awaiting you ({{total}})', { total: countLabel })}
+        {t('approvalSection.heading', 'Procurement cases awaiting you ({{total}})', { total: countLabel })}
       </CardHead>
 
       {isPending && (
@@ -60,7 +60,7 @@ export const ProcurementApprovalSection: React.FC = () => {
       {!isPending && isError && (
         <ListState
           variant="error"
-          title={t('approvalSection.error', "Couldn't load procurement records")}
+          title={t('approvalSection.error', "Couldn't load procurement cases")}
           sub={t('approvalSection.errorSub', 'Something went wrong fetching requests awaiting you.')}
           onRetry={() => refetch()}
           className="rounded-b-lg"
@@ -71,8 +71,8 @@ export const ProcurementApprovalSection: React.FC = () => {
         <ListState
           variant="empty"
           icon="inbox"
-          title={t('approvalSection.empty', 'No procurement records awaiting your decision')}
-          sub={t('approvalSection.emptySub', 'Procurement records that need your approval will appear here.')}
+          title={t('approvalSection.empty', 'No procurement cases awaiting your decision')}
+          sub={t('approvalSection.emptySub', 'Procurement cases that need your approval will appear here.')}
           className="rounded-b-lg"
         />
       )}

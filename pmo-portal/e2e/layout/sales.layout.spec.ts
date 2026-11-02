@@ -37,7 +37,7 @@ async function forceBahasa(page: Page) {
   await page.route('**/rest/v1/profiles?*', async (route) => {
     const url = route.request().url();
     if (route.request().method() !== 'GET' || !/[?&]id=eq\./.test(url)) return route.fallback();
-    const response = await route.fetch();
+    const response = await route.fetch({ maxRetries: 2 });
     let body: unknown;
     try {
       body = await response.json();

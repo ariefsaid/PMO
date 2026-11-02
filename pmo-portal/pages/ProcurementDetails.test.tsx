@@ -98,6 +98,7 @@ vi.mock('@/src/hooks/useProcurementDetail', () => ({
     createReceipt: { mutateAsync: mockCreateReceipt, isPending: false, error: null },
     createInvoice: { mutateAsync: mockCreateInvoice, isPending: false, error: null },
     captureVendorInvoice: { mutateAsync: mockCaptureVendorInvoice, isPending: false, error: null },
+    captureSubcontractVendorInvoice: { mutateAsync: vi.fn(), isPending: false, error: null },
     setEfaktur: { mutateAsync: vi.fn(), isPending: false },
     approveAmount: { mutateAsync: mockApproveAmount, isPending: false },
   }),
@@ -974,7 +975,7 @@ describe('Action bar covers mid-flow transitions', () => {
     // Staged, not written: nothing is created and nothing is toasted until the confirm.
     expect(mockCreateReceipt).not.toHaveBeenCalled();
     expect(toast).not.toHaveBeenCalled();
-    expect(await screen.findByText(/This records a complete goods receipt against procurement record/)).toBeInTheDocument();
+    expect(await screen.findByText(/This records a complete goods receipt against procurement case/)).toBeInTheDocument();
     await confirmInDialog(/save gr/i);
     await waitFor(() => expect(mockCreateReceipt).toHaveBeenCalledTimes(1));
     expect(mockCreateReceipt).toHaveBeenCalledWith(expect.objectContaining({ status: 'Complete' }));

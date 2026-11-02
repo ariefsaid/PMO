@@ -29,7 +29,7 @@
  *      (FR-AAN-026/028) — all under the SAME owner, mirroring the minted-owner-client write shape
  *      (never service_role business-data writes at the app layer; the seed uses service_role only
  *      as the test's own out-of-band fixture mechanism, identical to AC-AGP-023).
- * The bell/inbox step then exercises the REAL `listUnreadCount`/`listNotifications`/
+ * The bell/inbox step then exercises the REAL `listUnreadCount`/`listNotificationsPage`/
  * `markNotificationRead` DAL against REAL Postgres + REAL owner-only RLS (0048 migration) — the
  * actual goal-oracle (badge increments; cross-user denial) is proven against the real backend.
  *

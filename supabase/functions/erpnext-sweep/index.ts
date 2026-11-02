@@ -100,7 +100,7 @@ export const STATEMENT_SOURCE_READ_REQUEST_TIMEOUT_MS = 5_000;
 export const STATEMENT_SOURCE_READ_STAGE_TIMEOUT_MS = 7_000;
 import { feedAccountMirror } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/accountMirrorFeed.ts';
 import { refreshAccountingSnapshots, type OrgAccountingScope } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/accountingFanout.ts';
-import { dispatchMoneyWrite, type DispatchMoneyWriteDeps, type ExternalRefMapping, type OutboxRow } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
+import { dispatchMoneyWrite as dispatchMoneyWriteCore, type DispatchMoneyWriteDeps, type ExternalRefMapping, type OutboxRow } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
 import type { AdapterCommand, PmoRecord } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
 import { erpnextRequest, ErpError, getDoc, withProbeBudget, ERP_PROBE_TIMEOUT_MS, type ErpClientDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/client.ts';
 import { AdapterError } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
@@ -125,6 +125,7 @@ import { guardedErpFetch, isPermittedErpSiteUrl } from '../_shared/erpHostGuard.
 import { resolveErpAuthPair, createErpAuthPairCache, type ErpAuthPairCache } from '../_shared/erpAuthPair.ts';
 import { canonicalCommandDigest, createDbMoneyOutboxDeps } from '../adapter-dispatch/moneyOutboxDeps.ts';
 import { checkErpnextCommandAuthorization, checkOutboxReplayAuthorization, replayMayIssueErpWrite } from '../adapter-dispatch/authGuard.ts';
+import { assertNotPreCutover } from '../../../pmo-portal/src/lib/adapterSeam/cutoverGate.ts';
 import { checkQueuedProcurementCreate } from '../adapter-dispatch/procurementGateGuard.ts';
 import { getReadModelWriter } from '../adapter-dispatch/readModelWriters.ts';
 import { recordExternalRef as recordExternalRefWrite } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
@@ -198,7 +199,7 @@ import { buildExpensePostingCommand, parseExpenseGateTruth } from '../../../pmo-
 import { resolveExpensePosting, type ExpenseResolveDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/expensePostingResolve.ts';
 import { EXPENSE_POSTING_KEY_PREFIX, expenseOutboxIdentity, expensePostingIdentity, expensePostingKey, type ExpensePosting } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/expensePostingKey.ts';
 import type { ErpAccountFacts } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/expenseAccountRules.ts';
-import { reconcileOrgExpensePostings, type ExpenseBackstopDeps, type ExpenseIntentRow, type ExpenseOutcome } from './expensePostingBackstop.ts';
+import { reconcileOrgExpensePostings, backstopPassResult, type ExpenseBackstopDeps, type ExpenseIntentRow, type ExpenseOutcome } from './expensePostingBackstop.ts';
 // P3b task 6.4 (FR-TSP-045, AC-TSP-022) — the timesheet push's sweep backstop, pure orchestration.
 import {
   reconcileOrgTimesheetPushes,
@@ -3065,9 +3066,9 @@ export function expensePostingBackstopDepsLive(
       const outbox = ref as OutboxRow;
       if (!eligibleOutboxIds.has(outbox.id)) {
         // Not due yet: a lease or quarantine window (0131), or a failed row's retry delay (0357).
-        if (outbox.state === 'committing' || outbox.state === 'quarantined' || retryPendingIds.has(outbox.id)) return;
+        if (outbox.state === 'committing' || outbox.state === 'quarantined' || retryPendingIds.has(outbox.id)) return 'waiting';
         await recordOutcome(row, { state: 'held', reason: expenseOutboxHoldReason(outbox.state) });
-        return;
+        return 'held';
       }
       // A replay that may issue a NEW ERP write re-asserts the recorded actor's CURRENT role/rank — the gate's actor
       // half (0270 §5), which the generic replay authorization (active membership only for expenses) does not run.
@@ -3077,7 +3078,7 @@ export function expensePostingBackstopDepsLive(
         if (error) {
           if (error.code === '42501' || error.code === 'P0002') {
             await recordOutcome(row, { state: 'failed', reason: error.message });
-            return;
+            return 'refused';
           }
           throw new AppError(error.message, error.code);
         }
@@ -3087,8 +3088,11 @@ export function expensePostingBackstopDepsLive(
       } catch (err) {
         // A stranded finish (the intent is already pushed) has nothing to record: the pass reports it and retries.
         if (row.push_state === 'pushed') throw err;
-        await recordOutcome(row, classify(err));
+        const outcome = classify(err);
+        await recordOutcome(row, outcome);
+        return outcome.state === 'held' ? 'held' : 'failed';
       }
+      return 'completed';
     },
     assertGate: async (row) => {
       const { data, error } = await serviceClient.rpc('expense_posting_for_push', { p_org_id: org.orgId, p_mirror_id: row.id });
@@ -3139,10 +3143,7 @@ async function reconcileOrgExpensePostingsLive(
     for (const e of result.errors) {
       console.warn(`[erpnext-sweep] org ${org.orgId} expense intent ${e.intentId}: ${e.error}`);
     }
-    return {
-      driven: result.driven + result.replayed + result.finished,
-      error: result.errors.length ? `${result.errors.length} expense intent(s) failed` : undefined,
-    };
+    return backstopPassResult(result, 'expense');
   } catch (err) {
     return { driven: 0, error: err instanceof Error ? err.message : String(err) };
   }
@@ -3246,9 +3247,9 @@ export function imprestPostingBackstopDepsLive(
     replay: async (row, ref) => {
       const outbox = ref as OutboxRow;
       if (!eligibleOutboxIds.has(outbox.id)) {
-        if (outbox.state === 'committing' || outbox.state === 'quarantined' || retryPendingIds.has(outbox.id)) return;
+        if (outbox.state === 'committing' || outbox.state === 'quarantined' || retryPendingIds.has(outbox.id)) return 'waiting';
         await recordOutcome(row, { state: 'held', reason: expenseOutboxHoldReason(outbox.state) });
-        return;
+        return 'held';
       }
       // A replay that may issue a NEW ERP write re-asserts the gate (status, stamp, recorded actor's CURRENT standing).
       if (replayMayIssueErpWrite(outbox.state)) {
@@ -3256,7 +3257,7 @@ export function imprestPostingBackstopDepsLive(
         if (error) {
           if (error.code === '42501' || error.code === 'P0001' || error.code === 'P0002') {
             await recordOutcome(row, { state: 'failed', reason: error.message });
-            return;
+            return 'refused';
           }
           throw new AppError(error.message, error.code);
         }
@@ -3265,8 +3266,11 @@ export function imprestPostingBackstopDepsLive(
         await dispatchMoneyWrite(await buildReconcileDepsLive(serviceClient, org, outbox, cache));
       } catch (err) {
         if (row.push_state === 'pushed') throw err;
-        await recordOutcome(row, classify(err));
+        const outcome = classify(err);
+        await recordOutcome(row, outcome);
+        return outcome.state === 'held' ? 'held' : 'failed';
       }
+      return 'completed';
     },
     assertGate: async (row) => {
       const { data, error } = await serviceClient.rpc('imprest_posting_for_push', { p_org_id: org.orgId, p_mirror_id: row.id });
@@ -3317,10 +3321,7 @@ async function reconcileOrgImprestPostingsLive(
     for (const e of result.errors) {
       console.warn(`[erpnext-sweep] org ${org.orgId} imprest intent ${e.intentId}: ${e.error}`);
     }
-    return {
-      driven: result.driven + result.replayed + result.finished,
-      error: result.errors.length ? `${result.errors.length} imprest intent(s) failed` : undefined,
-    };
+    return backstopPassResult(result, 'imprest');
   } catch (err) {
     return { driven: 0, error: err instanceof Error ? err.message : String(err) };
   }
@@ -3560,6 +3561,10 @@ export async function buildReconcileDepsLive(serviceClient: SupabaseClient, org:
     payload,
   });
   if (!replayAuth.ok) throw new AppError(replayAuth.message, 'commit-rejected');
+  // ECA-4 backstop (FR-ECA-030): dispatch refuses a later step of a purchase ordered before the connection, so no such
+  // row should exist; one that does (queued before this rule) is held here, before credentials, rather than re-driven.
+  // Same states as the authorization above: only a replay that can mint a new ERP document is checked.
+  if (replayMayIssueErpWrite(row.state)) await assertNotPreCutover(serviceClient as never, { domain: row.domain, record: payload });
 
   let trustedReceiptSnapshot = false;
   if (rowExtra.procurement_input_digest != null) {
@@ -3626,12 +3631,26 @@ export function moneyWriteReadModelContext(args: { orgId: string; actorUserId: s
   };
 }
 
+/** Runs after a swept money write lands (set by `buildMoneyWriteDepsLive`). */
+type SweepAfterSuccess = { afterSuccess?: () => Promise<void> };
+
+/**
+ * ECA-6: every sweep dispatch goes through here, so a replace the sweep finishes spends its consent exactly as the
+ * foreground push does. Runs only after `dispatchMoneyWrite` resolves; a spend failure is logged, not surfaced (the
+ * consent names a document that is now cancelled, so it unlocks nothing).
+ */
+export async function dispatchMoneyWrite(deps: DispatchMoneyWriteDeps & SweepAfterSuccess): ReturnType<typeof dispatchMoneyWriteCore> {
+  const result = await dispatchMoneyWriteCore(deps);
+  await deps.afterSuccess?.();
+  return result;
+}
+
 export async function buildMoneyWriteDepsLive(
   serviceClient: SupabaseClient,
   org: OrgBinding,
   args: { command: AdapterCommand; actorUserId: string | null; outboxRecordId: string; persistPayload: boolean; trustedReceiptSnapshot?: boolean },
   cache?: ErpAuthPairCache,
-): Promise<DispatchMoneyWriteDeps> {
+): Promise<DispatchMoneyWriteDeps & SweepAfterSuccess> {
   const command = args.command;
   const operation = command.operation as 'create' | 'update' | 'transition';
   const payload = command.record as Record<string, unknown>;
@@ -3649,6 +3668,8 @@ export async function buildMoneyWriteDepsLive(
   // consuming the whole 300s quarantine window and letting a claimant POST after its own reissue.
   const client = withProbeBudget({ fetchImpl: guardedErpFetch(org.siteUrl), apiKey, apiSecret, baseUrl: org.siteUrl });
 
+  // ECA-6: a budget replace the sweep finishes names its recorded consent; it is spent once the write lands.
+  let occupantConsentId: string | null = null;
   const adapter = await resolveErpDispatchAdapter({
     serviceClient: serviceClient as never,
     orgId: org.orgId,
@@ -3657,6 +3678,7 @@ export async function buildMoneyWriteDepsLive(
     apiKey,
     apiSecret,
     rateLimiter: { acquire: async () => {} },
+    onOccupantConsent: (id) => { occupantConsentId = id; },
     doctypeBodies: DOCTYPE_BODIES,
     // #858: recovery replays the persisted items/taxes (inside the digest) and makes no ERPNext read to rebuild them.
     // Fresh expense commands carry their own frozen payload and must use the ordinary first-build path.
@@ -3729,7 +3751,14 @@ export async function buildMoneyWriteDepsLive(
   // FR-BFY-032: the outbox row + `external_refs` are keyed on the row's OWN `pmo_record_id` — the
   // year-qualified `<vid>:<encoded_fy>` for a budget fan-out, the bare record id for every other
   // domain (where the two are the same string, so this is byte-for-byte).
-  return { adapter, command, writeReadModel, recordExternalRef, money, outboxRecordId: args.outboxRecordId };
+  const afterSuccess = async (): Promise<void> => {
+    if (!occupantConsentId) return;
+    const { error: spendError } = await serviceClient.rpc('consume_budget_occupant_consent', {
+      p_org_id: org.orgId, p_id: occupantConsentId, p_actor_id: args.actorUserId,
+    });
+    if (spendError) console.error('[erpnext-sweep] could not spend the budget replace consent:', spendError.message);
+  };
+  return { adapter, command, writeReadModel, recordExternalRef, money, outboxRecordId: args.outboxRecordId, afterSuccess };
 }
 
 /**

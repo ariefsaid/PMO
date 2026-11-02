@@ -8,7 +8,7 @@ select ok(not has_function_privilege('authenticated', 'public.read_vault_secret(
 select ok(has_function_privilege('service_role', 'public.read_vault_secret(text)', 'EXECUTE'), 'AC-GRANT-0210-3 service_role can execute read_vault_secret');
 
 select ok(not has_function_privilege('anon', 'public.create_vault_secret_for_org(uuid, text, text, text, uuid)', 'EXECUTE'), 'AC-GRANT-0210-4 anon cannot execute create_vault_secret_for_org');
-select ok(has_function_privilege('authenticated', 'public.create_vault_secret_for_org(uuid, text, text, text, uuid)', 'EXECUTE'), 'AC-GRANT-0210-5 authenticated keeps create_vault_secret_for_org (body-guarded, p_actor_id path)');
+select ok(not has_function_privilege('authenticated', 'public.create_vault_secret_for_org(uuid, text, text, text, uuid)', 'EXECUTE'), 'AC-GRANT-0210-5 authenticated cannot execute create_vault_secret_for_org (service-role only since 0450; external-connect calls it with p_actor_id)');
 select ok(has_function_privilege('service_role', 'public.create_vault_secret_for_org(uuid, text, text, text, uuid)', 'EXECUTE'), 'AC-GRANT-0210-6 service_role can execute create_vault_secret_for_org');
 
 select ok(not has_function_privilege('anon', 'public.outbox_reconcile_candidates(uuid)', 'EXECUTE'), 'AC-GRANT-0210-7 anon cannot execute outbox_reconcile_candidates');

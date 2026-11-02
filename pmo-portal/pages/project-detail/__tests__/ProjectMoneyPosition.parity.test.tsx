@@ -22,6 +22,8 @@ import { setActiveLocale } from '@/src/lib/locale/activeLocale';
 const h = vi.hoisted(() => ({
   getProjectFinances: vi.fn(),
   versions: { data: [] as unknown[] | undefined, isPending: false, isError: false },
+  procurements: { data: [] as unknown[], isPending: false, isError: false },
+  committed: { data: 0, commitmentSource: 'not-tracked' as string },
 }));
 
 vi.mock('@/src/lib/repositories', () => ({ repositories: { revenue: { getProjectFinances: h.getProjectFinances } } }));
@@ -34,8 +36,8 @@ vi.mock('@/src/hooks/useBudget', () => ({
   useBudgetVersions: () => ({ ...h.versions, refetch: vi.fn() }),
 }));
 vi.mock('@/src/hooks/useProcurements', () => ({
-  useProjectProcurements: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
-  useProjectCommittedSpend: () => ({ data: 0, otherCurrencies: [], commitmentSource: 'not-tracked', ledgerBasis: 'erp', isPending: false, isError: false, refetch: vi.fn() }),
+  useProjectProcurements: () => ({ ...h.procurements, refetch: vi.fn() }),
+  useProjectCommittedSpend: () => ({ data: h.committed.data, otherCurrencies: [], commitmentSource: h.committed.commitmentSource, ledgerBasis: 'erp', isPending: false, isError: false, refetch: vi.fn() }),
 }));
 vi.mock('@/src/hooks/useProgressBilling', () => ({
   useBoqItems: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
@@ -96,6 +98,8 @@ beforeEach(() => {
   h.getProjectFinances.mockReset();
   h.getProjectFinances.mockResolvedValue(reading());
   h.versions = { data: [activeVersion([['Labor', 30], ['Materials', 10]])], isPending: false, isError: false };
+  h.procurements = { data: [], isPending: false, isError: false };
+  h.committed = { data: 0, commitmentSource: 'not-tracked' };
   setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' });
 });
 
@@ -217,6 +221,20 @@ describe('Budget vs actual block carries the snapshot behaviours', () => {
     expect(await within(costBlock()).findByText(/100 remaining/)).toBeInTheDocument();
     expect(within(costBlock()).getByText('Within budget')).toBeInTheDocument();
     expect(within(costBlock()).queryByText(/over budget/i)).not.toBeInTheDocument();
+  });
+
+  it('issue-1531: spend within budget but commitments over it reads as one verdict that states its basis, not two opposite verdicts', async () => {
+    // Spent 30 of 100 — within on spend; plus an 80 committed purchase order — 110% used, 10 over.
+    h.getProjectFinances.mockResolvedValue(reading({ actuals: actuals([{ category: 'Labor', mapped: true, amount: '30.00' }], '30.00') }));
+    h.versions = { data: [activeVersion([['Labor', 100]])], isPending: false, isError: false };
+    h.procurements = { data: [{ status: 'Ordered', budget_category: 'Labor', currency: 'USD', open_commitment: 80 }], isPending: false, isError: false };
+    h.committed = { data: 80, commitmentSource: 'pmo' };
+    renderOverviewMoney();
+    // The headline states its basis instead of a bare "Within budget" verdict contradicting the line below it.
+    expect(await within(costBlock()).findByText('Within budget on spend')).toBeInTheDocument();
+    expect(within(costBlock()).getByText(/110% used/)).toBeInTheDocument();
+    expect(within(costBlock()).getByText(/10 over once committed orders land/)).toBeInTheDocument();
+    expect(within(costBlock()).queryByText('Within budget')).not.toBeInTheDocument();
   });
 
   it('item F: by-category figures are money amounts, never a raw "Nh" hours suffix', async () => {

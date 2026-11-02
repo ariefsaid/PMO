@@ -77,6 +77,7 @@ vi.mock('@/src/hooks/useDashboard', () => ({
     h.winRateKeys.push(range.key);
     return { data: winRateOracle, isPending: false, isError: false, refetch: vi.fn() };
   },
+  useLossBreakdown: () => ({ data: undefined, isPending: true, isError: false, refetch: vi.fn() }),
 }));
 vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useErpSnapshots', () => ({

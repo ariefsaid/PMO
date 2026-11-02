@@ -27,6 +27,7 @@ import {
   ERP_AUTHORED_TAX,
 } from './vendorInvoiceTax';
 import { useCommandIntent } from '@/src/hooks/useCommandIntent';
+import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { usePurchaseTaxTemplates } from '@/src/hooks/usePurchaseTaxTemplates';
 import { useVendorTaxDefault } from '@/src/hooks/useVendorTaxDefault';
 import { useErpVendorTax, useNativeVendorTax } from '@/src/hooks/useVendorBillTax';
@@ -54,8 +55,8 @@ export type RecordKind =
   | 'vendor_invoice';
 
 const STATUS_OPTIONS: Record<RecordKind, string[]> = {
-  purchase_request: ['Draft', 'Requested', 'Approved', 'Rejected'],
-  rfq: ['Draft', 'Sent', 'Received', 'Closed'],
+  purchase_request: ['Draft', 'Submitted', 'Approved', 'Closed'],
+  rfq: ['Draft', 'Issued', 'Closed'],
   purchase_order: ['Draft', 'Issued', 'Acknowledged', 'Closed'],
   payment: ['Pending', 'Processed', 'Cleared'],
   // GR: default Complete (the field-config below sorts Partial first then Complete,
@@ -127,6 +128,7 @@ function localizedRecordKindLabel(kind: RecordKind, t: TFunction): string {
 function statusOptionLabel(value: string, t: (key: string, fallback: string) => string): string {
   switch (value) {
     case 'Draft': return t('procurementDetail.statusOption.draft', 'Draft');
+    case 'Submitted': return t('procurementDetail.statusOption.submitted', 'Submitted');
     case 'Requested': return t('procurementDetail.statusOption.requested', 'Requested');
     case 'Approved': return t('procurementDetail.statusOption.approved', 'Approved');
     case 'Rejected': return t('procurementDetail.statusOption.rejected', 'Rejected');
@@ -366,8 +368,9 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
   const [groupRef, setGroupRef] = useState('');
   // Hidden on an ERP-owned org: the dispatched create never carries it (see groupRefIsPmoAuthored).
   const hasGroupRef = GROUP_REF_KINDS.has(kind) && groupRefIsPmoAuthored();
+  const today = useOrgToday();
   const [status, setStatus] = useState(cfg.defaultStatus);
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(today);
   const [amountStr, setAmountStr] = useState('');
   const [amountError, setAmountError] = useState<string | undefined>(undefined);
   // #505: vendor-invoice tax facts. '' is "not answered yet", never a value (see vendorInvoiceTax.ts).

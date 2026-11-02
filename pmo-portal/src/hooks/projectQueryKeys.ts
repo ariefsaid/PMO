@@ -9,7 +9,7 @@ export const projectKeys = {
 export function invalidateProjectProjections(qc: QueryClient, orgId: string | undefined) {
   if (!orgId) return;
   void qc.invalidateQueries({ queryKey: projectKeys.all(orgId) });
-  for (const root of ['project', 'opportunity', 'sales-pipeline', 'lost-deals', 'won-deals', 'win-rate', 'dashboard', 'pm-dashboard-projects', 'finance-budget-review', 'project-identity']) {
+  for (const root of ['project', 'opportunity', 'sales-pipeline', 'lost-deals', 'won-deals', 'win-rate', 'loss-breakdown', 'dashboard', 'pm-dashboard-projects', 'finance-budget-review', 'project-identity', 'project-stage-entries']) {
     void qc.invalidateQueries({ queryKey: [root, orgId] });
   }
 }

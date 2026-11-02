@@ -7,7 +7,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   kindFromDoctype,
-  kindFromDoctypeAndPaymentType,
   KIND_DOMAIN,
   KIND_MIRROR_TABLE,
   externalIdForKind,
@@ -16,25 +15,7 @@ import {
 import { DOCTYPE_REGISTRY } from './doctypeRegistry.ts';
 
 describe('erpnext/feedKinds — Payment Entry disambiguation (AC-SAR-060)', () => {
-  it('Payment Entry with payment_type=Receive → incoming-payment (revenue domain)', () => {
-    const kind = kindFromDoctypeAndPaymentType('Payment Entry', 'Receive');
-    expect(kind).toBe('incoming-payment');
-    expect(KIND_DOMAIN[kind!]).toBe('revenue');
-    expect(KIND_MIRROR_TABLE[kind!]).toBe('incoming_payments');
-  });
-
-  it('Payment Entry with payment_type=Pay → payment (procurement domain)', () => {
-    const kind = kindFromDoctypeAndPaymentType('Payment Entry', 'Pay');
-    expect(kind).toBe('payment');
-    expect(KIND_DOMAIN[kind!]).toBe('procurement');
-    expect(KIND_MIRROR_TABLE[kind!]).toBe('payments');
-  });
-
-  it('Payment Entry with unknown/absent payment_type → undefined (ack-and-skip, lossy hint)', () => {
-    expect(kindFromDoctypeAndPaymentType('Payment Entry', 'Unknown')).toBeUndefined();
-    expect(kindFromDoctypeAndPaymentType('Payment Entry', undefined)).toBeUndefined();
-    expect(kindFromDoctypeAndPaymentType('Payment Entry', '')).toBeUndefined();
-  });
+  // The Receive / Pay / unrecognised routing moved to the shared receipt.read suite (contractSuite/revenue.suite.ts).
 
   it('Sales Invoice is a unique doctype → sales-invoice (no disambiguation)', () => {
     const kind = kindFromDoctype('Sales Invoice');
@@ -110,6 +91,13 @@ describe('erpnext/feedKinds — sweepKindsForOrg (the sweep poll scope, #656)', 
       ['goods-receipt', 'payment', 'purchase-invoice', 'purchase-order', 'purchase-request', 'quotation', 'rfq'],
     );
     for (const { kind, doctype } of kinds) expect(doctype).toBe(DOCTYPE_REGISTRY[kind].doctype);
+  });
+
+  it('an org that owns every current domain can poll each registry doctype exactly once', () => {
+    const ownedDomains = [...new Set(Object.values(KIND_DOMAIN))];
+    const actual = sweepKindsForOrg(ownedDomains);
+    const registeredKinds = Object.keys(DOCTYPE_REGISTRY) as Array<keyof typeof DOCTYPE_REGISTRY>;
+    expect(actual).toEqual(registeredKinds.map((kind) => ({ kind, doctype: DOCTYPE_REGISTRY[kind].doctype })));
   });
 
   it('unions multiple owned domains and ignores unknown ones', () => {

@@ -150,7 +150,13 @@ export const DraggableSalesBoard: React.FC<{
           choice={pending.choice}
           loading={mutation.isPending}
           onCancel={cancel}
-          onConfirm={(to) => void commit(pending.project, to)}
+          onConfirm={(to, lost) =>
+            void commit(
+              pending.project,
+              to,
+              lost ? { lostReason: lost.reason, lostNote: lost.note.trim() || undefined } : undefined,
+            )
+          }
         />
       )}
       {pending?.kind === 'win' && (

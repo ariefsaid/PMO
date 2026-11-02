@@ -5,7 +5,9 @@ import {
   type ProjectStatus,
   type TaxTreatment,
 } from '@/src/lib/db/projects';
-import { parseNeutralMoneyInputAtScale } from '@/src/lib/format';
+import { parseNeutralMoneyInputAtScale, formatCalendarDayInTimeZone } from '@/src/lib/format';
+import { getActiveLocale } from '@/src/lib/locale/activeLocale';
+import type { ImportStageDate } from '@/src/lib/db/projectStageEntries';
 import { TAX_TREATMENT_OPTIONS, parseNeutralTaxFacts } from '@/src/lib/taxTreatment';
 import type { ImportDescriptor } from './types';
 import { makeRefLookup, refValidate, refId } from './refLookup';
@@ -31,6 +33,41 @@ function moneyCellError(raw: string, label: string): string | null {
     : `${label} must be a non-negative number with no more than 2 decimal places.`;
 }
 
+/** #1638 FR-PSH-020: one optional date column per pre-award stage, in canonical order. */
+const STAGE_DATE_COLUMNS = [
+  { key: 'lead_on', label: 'Lead date', stage: 'Leads' },
+  { key: 'pq_submitted_on', label: 'PQ submitted date', stage: 'PQ Submitted' },
+  { key: 'quoted_on', label: 'Quoted date', stage: 'Quotation Submitted' },
+  { key: 'tender_sent_on', label: 'Tender sent date', stage: 'Tender Submitted' },
+  { key: 'negotiation_on', label: 'Negotiation date', stage: 'Negotiation' },
+] as const satisfies readonly { key: string; label: string; stage: ProjectStatus }[];
+type StageDateKey = (typeof STAGE_DATE_COLUMNS)[number]['key'];
+export type ProjectImportInput = CreateProjectInput & Partial<Record<StageDateKey, string>>;
+
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/u;
+
+function stageDatesOf(cells: Partial<Record<StageDateKey, string>>): ImportStageDate[] {
+  return STAGE_DATE_COLUMNS.flatMap((c) => {
+    const v = cells[c.key]?.trim();
+    return v ? [{ stage: c.stage, entered_on: v }] : [];
+  });
+}
+
+/** Preview check (zero writes): keyed to the column the user must fix. */
+function stageDateErrors(cells: Record<string, string>): Partial<Record<StageDateKey, string>> {
+  const dated = STAGE_DATE_COLUMNS.filter((c) => cells[c.key]?.trim());
+  if (dated.length === 0) return {};
+  if (cells.status?.trim() !== 'Leads') return { [dated[0].key]: 'Only a lead can carry stage dates.' };
+  const today = formatCalendarDayInTimeZone(new Date(), getActiveLocale().timezone);
+  for (let i = 0; i < dated.length; i++) {
+    const v = cells[dated[i].key].trim();
+    if (!ISO_DATE.test(v)) return { [dated[i].key]: 'Stage dates must be YYYY-MM-DD.' };
+    if (v > today) return { [dated[i].key]: 'A stage date cannot be in the future.' };
+    if (i > 0 && v < cells[dated[i - 1].key].trim()) return { [dated[i].key]: 'Stage dates must not go backwards.' };
+  }
+  return {};
+}
+
 /**
  * Projects import descriptor (ADR-0027 fast-follow). Factory: closes over the org's companies
  * (→ `client_id`) and project managers (→ `project_manager_id`). Status is constrained to the
@@ -50,7 +87,7 @@ function moneyCellError(raw: string, label: string): string | null {
 export function makeProjectImportDescriptor(
   companies: readonly { id: string; name: string }[],
   managers: readonly { id: string; name: string }[],
-): ImportDescriptor<CreateProjectInput> {
+): ImportDescriptor<ProjectImportInput> {
   const client = makeRefLookup(companies, 'Company');
   const pm = makeRefLookup(managers, 'Project manager');
   return {
@@ -101,12 +138,14 @@ export function makeProjectImportDescriptor(
       },
       { key: 'start_date', label: 'Start date', required: false, validate: () => null },
       { key: 'end_date', label: 'End date', required: false, validate: () => null },
+      ...STAGE_DATE_COLUMNS.map((c) => ({ key: c.key, label: c.label, required: false, validate: () => null })),
     ],
     // The cross-field half of 0197's CHECK. Keyed to the cells the user must fix, so the preview
     // shows the message on the offending columns rather than as a row-level aside.
     validateRow: (cells) => {
+      const stageErrors = stageDateErrors(cells);
       const value = parsedMoney(cells.contract_value);
-      if (value === null || value <= 0) return {};
+      if (value === null || value <= 0) return stageErrors;
       const errors: Partial<Record<string, string>> = {};
       if (!TAX_TREATMENTS.includes(cells.tax_treatment?.trim() as TaxTreatment)) {
         errors.tax_treatment =
@@ -117,7 +156,7 @@ export function makeProjectImportDescriptor(
         errors.tax_amount =
           'A row with a contract value must state its tax amount (enter 0 when there is no tax).';
       }
-      return errors;
+      return { ...stageErrors, ...errors };
     },
     toInput: (cells) => {
       const base = {
@@ -127,6 +166,7 @@ export function makeProjectImportDescriptor(
         project_manager_id: refId(pm, cells.project_manager_id ?? ''),
         start_date: cells.start_date?.trim() || null,
         end_date: cells.end_date?.trim() || null,
+        ...Object.fromEntries(STAGE_DATE_COLUMNS.flatMap((c) => (cells[c.key]?.trim() ? [[c.key, cells[c.key].trim()]] : []))),
       };
       const value = parsedMoney(cells.contract_value);
       if (value === null || value <= 0) return { ...base, contract_value: 0 };
@@ -154,6 +194,12 @@ export function makeProjectImportDescriptor(
         tax_amount: tax.taxAmount,
       };
     },
-    create: (input) => repositories.project.create(input),
+    create: async (input) => {
+      const dated = stageDatesOf(input);
+      const { lead_on: _l, pq_submitted_on: _p, quoted_on: _q, tender_sent_on: _t, negotiation_on: _n, ...project } = input;
+      const row = await repositories.project.create(project as CreateProjectInput);
+      if (dated.length > 0) await repositories.projectStage.importHistory(row.id, dated);
+      return row;
+    },
   };
 }

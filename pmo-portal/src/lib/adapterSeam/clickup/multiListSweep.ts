@@ -33,9 +33,9 @@
  */
 import type { PmoRecord } from '../contract.ts';
 import { CLICKUP_TIER, CLICKUP_TASKS_DOMAIN } from './adapter.ts';
-import { clickUpTaskToPmoRecord } from './mapping.ts';
-import { applyInboundChange, type ExternalRefSeed } from '../applyEngine.ts';
-import { clickUpListRawChangesAcrossLists, type ClickUpListBindingRef } from './reads.ts';
+import { resolveInboundRecord } from './inboundRecord.ts';
+import { applyInboundChange, type AtomicAdoptStrategy, type ExternalRefSeed } from '../applyEngine.ts';
+import { clickUpListRawChangesAcrossLists, laterReadCursor, type ClickUpListBindingRef } from './reads.ts';
 import type { ClickUpClientDeps } from './client.ts';
 import type { ClickUpStatusMap } from './statusMap.ts';
 import type { ClickUpMemberMap } from './memberMap.ts';
@@ -61,21 +61,39 @@ export interface MultiListSweepDeps {
   /** Resolve the project an EXISTING mirror actually belongs to (SEC-HIGH-2's deterministic-resolution
    *  source of truth), independent of which List tagged the task this cycle. */
   readMirrorProjectId: (pmoRecordId: string) => Promise<string | null>;
-  updateMirror: (pmoRecordId: string, canonical: PmoRecord, sourceUpdatedAtMs: number) => Promise<void>;
+  /** Compare-and-set mirror update: returns whether it applied — `false` = a newer state was already
+   *  stored (an older change arriving after a newer one is a no-op, never an overwrite). */
+  updateMirror: (pmoRecordId: string, canonical: PmoRecord, sourceUpdatedAtMs: number) => Promise<void | boolean>;
   mintMirror: (canonical: PmoRecord, sourceUpdatedAtMs: number, projectId: string) => Promise<string>;
   recordExternalRef: (mapping: ExternalRefSeed) => Promise<void>;
   /** SEC-MEDIUM-6: archive an existing mirror for a ClickUp task now reported as archived. */
   archiveMirror: (pmoRecordId: string) => Promise<void>;
+  /** Claim-first adopt (supplied by the shared mirror-callback factory in the clickup-sweep wiring):
+   *  an UNMAPPED task's `external_refs` claim is taken BEFORE the mirror mint, so a concurrent
+   *  webhook/sweep adoption of one task mints exactly one mirror (the losing claim refuses 23505
+   *  before any mirror row exists, and the cycle aborts without advancing — the next tick reconciles
+   *  to the winner). `mintWithId` is re-pointed per change to the change's deterministically-resolved
+   *  project below, since the sweep resolves the project PER task (SEC-HIGH-2). */
+  adoptAtomically?: AtomicAdoptStrategy;
   /** OD-INT-9 parent sync (inbound): resolve ClickUp `parent` to a PMO task id via `external_refs`
    *  (same table the dispatch factory uses). Optional — when absent or unresolvable, the child
    *  flows through as a flat task; the next sweep re-applies and resolves it once the parent exists. */
   resolveParentPmoId?: (clickUpParentId: string) => Promise<string | null>;
+  /** The mapped mirror's CURRENT PMO status — feeds the status stickiness (a `pmo-only` status is
+   *  never moved out of by an inbound change). */
+  readMirrorStatus?: (pmoRecordId: string) => Promise<string | null>;
+  /** Epoch ms after which no further ClickUp page is read this invocation (the edge wall-clock budget,
+   *  shared by every org). A List cut short is reported `incomplete` and resumes from its keyset cursor. */
+  readDeadlineAtMs?: number;
 }
 
 export interface MultiListSweepPerListResult {
   listId: string;
   nextCursor: string | null;
   notFound?: boolean;
+  /** The read stopped at the page cap with more still unread: the cursor is a partial resume point
+   *  and the next cycle continues from it. */
+  incomplete?: boolean;
 }
 
 export interface MultiListSweepResult {
@@ -104,9 +122,10 @@ export async function runMultiListSweep(deps: MultiListSweepDeps): Promise<Multi
       cursor: await deps.readListWatermark(b.listId),
     })),
   );
-  const { changes: tagged, archivedTaskIds, perListNextCursor, notFoundListIds } = await clickUpListRawChangesAcrossLists(
+  const { changes: tagged, archivedTaskIds, perListNextCursor, incompleteListIds, notFoundListIds } = await clickUpListRawChangesAcrossLists(
     listsWithCursor,
     deps.clientDeps,
+    { deadlineAtMs: deps.readDeadlineAtMs },
   );
 
   for (const listId of notFoundListIds) {
@@ -117,6 +136,7 @@ export async function runMultiListSweep(deps: MultiListSweepDeps): Promise<Multi
     listId: b.listId,
     nextCursor: perListNextCursor[b.listId] ?? null,
     ...(notFoundListIds.includes(b.listId) ? { notFound: true } : {}),
+    ...(incompleteListIds.includes(b.listId) ? { incomplete: true } : {}),
   }));
 
   // ── 2. Dedup: the SAME ClickUp task can be tagged under more than one bound List this cycle
@@ -157,31 +177,28 @@ export async function runMultiListSweep(deps: MultiListSweepDeps): Promise<Multi
     const effectiveBinding = resolvedBinding ?? bindingByListId.get(listId);
     if (!effectiveBinding) continue; // defensive: no binding resolvable at all (shouldn't happen)
 
-    // OD-INT-9 parent sync (inbound): resolve ClickUp `parent` to a PMO task id via `external_refs`.
-    // The pure mapper has no DB access, so the lookup happens here and the resolved PMO id is
-    // threaded in — exactly like `currentPmoStatus` in the webhook path. When the parent is
-    // unresolvable (not yet mirrored), the child flows through as a flat task; the next sweep
-    // re-applies and resolves it.
-    let resolvedParentPmoId: string | null | undefined;
-    if (task.parent && deps.resolveParentPmoId) {
-      resolvedParentPmoId = await deps.resolveParentPmoId(task.parent);
-      // Cross-project parent guard: if the resolved parent is in a different project than the
-      // child's binding, refuse the link (log and null it). The child's project is the binding's
-      // project (effectiveBinding.projectId for this task).
-      if (resolvedParentPmoId) {
-        const parentProjectId = await deps.readMirrorProjectId(resolvedParentPmoId);
-        const childProjectId = effectiveBinding.projectId;
-        if (parentProjectId && childProjectId && parentProjectId !== childProjectId) {
-          console.warn(`[clickup-sweep] cross-project parent refused: parent ${resolvedParentPmoId} in project ${parentProjectId}, child in ${childProjectId}`);
-          resolvedParentPmoId = null;
-        }
+    // Status stickiness + parent link + cross-project guard resolve through the SAME routine the
+    // webhook worker uses (`resolveInboundRecord`), so the two live paths cannot drift.
+    const canonical = await resolveInboundRecord(
+      task,
+      { statusMap: effectiveBinding.statusMap, memberMap: effectiveBinding.memberMap },
+      deps,
+      { mappedPmoId: existingPmoId, childProjectId: effectiveBinding.projectId },
+    );
+    // Claim-first adopt: the strategy's mint must land in THIS change's deterministically-resolved
+    // project (SEC-HIGH-2) — the sweep overrides `mintWithId` to carry the project on the canonical
+    // record (the shared factory's mint reads it when no ctx project is bound).
+    const adoptAtomically = deps.adoptAtomically
+      ? {
+        ...deps.adoptAtomically,
+        mintWithId: (c: PmoRecord, sourceUpdatedAtMs: number, pmoRecordId: string) =>
+          deps.adoptAtomically!.mintWithId(
+            { ...c, project_id: mintProjectId ?? effectiveBinding.projectId },
+            sourceUpdatedAtMs,
+            pmoRecordId,
+          ),
       }
-    }
-
-    const canonical = clickUpTaskToPmoRecord(task, {
-      statusMap: effectiveBinding.statusMap,
-      memberMap: effectiveBinding.memberMap,
-    }, undefined, resolvedParentPmoId);
+      : undefined;
     const outcome = await applyInboundChange(
       { tier: CLICKUP_TIER, domain: CLICKUP_TASKS_DOMAIN },
       taskId,
@@ -193,6 +210,7 @@ export async function runMultiListSweep(deps: MultiListSweepDeps): Promise<Multi
         updateMirror: deps.updateMirror,
         mintMirror: (c, mod) => deps.mintMirror(c, mod, mintProjectId ?? effectiveBinding.projectId),
         recordExternalRef: deps.recordExternalRef,
+        ...(adoptAtomically ? { adoptAtomically } : {}),
       },
     );
     if (outcome.kind === 'upserted') applied += 1;
@@ -213,13 +231,14 @@ export async function runMultiListSweep(deps: MultiListSweepDeps): Promise<Multi
   //    re-read the CURRENT stored cursor right before writing (belt-and-braces against a concurrent
   //    sweep instance for the same org racing this one — mirrors applyEngine.ts's
   //    advanceWatermarkMonotonic) so this write can never rewind a cursor a concurrent run already
-  //    advanced further. ──
+  //    advanced further. A cursor still equal to the one THIS read started from was moved by nobody, so
+  //    the candidate is authoritative as-is (it may legitimately drop a drained tie's page offset);
+  //    only a cursor someone else moved is compared by (timestamp, page). ──
+  const startCursorByList = new Map(listsWithCursor.map((l) => [l.listId, l.cursor]));
   for (const [listId, candidateCursor] of Object.entries(perListNextCursor)) {
     const current = await deps.readListWatermark(listId);
-    const currentMs = current !== null ? Number(current) : null;
-    const candidateMs = Number(candidateCursor);
-    const advanced = currentMs !== null && currentMs > candidateMs ? currentMs : candidateMs;
-    await deps.advanceListWatermark(listId, String(advanced));
+    const untouched = current === null || current === startCursorByList.get(listId);
+    await deps.advanceListWatermark(listId, untouched ? candidateCursor : laterReadCursor(current, candidateCursor));
   }
 
   return { applied, archived, skippedAmbiguous, perList };

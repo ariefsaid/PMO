@@ -28,6 +28,7 @@ import { useTranslation } from 'react-i18next';
 import { ListState, StatusPill, Button, useIsNarrow, type RowMenuItem } from '@/src/components/ui';
 import { ViewToggle } from '@/src/components/ui/ViewToggle';
 import { usePrefersReducedMotion } from '@/src/components/dashboard/usePrefersReducedMotion';
+import { useOrgToday } from '@/src/hooks/useOrgToday';
 import {
   buildGanttModel,
   type GanttAxisTick,
@@ -123,7 +124,7 @@ const ProjectGantt: React.FC<ProjectGanttProps> = ({ tasks, milestones, onActiva
     };
   }, [scrollport]);
 
-  const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const today = useOrgToday();
 
   const scaleOptions = useMemo(
     () => [

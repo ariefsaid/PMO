@@ -148,6 +148,51 @@ export class FakePostgrest {
         const target = opts?.onConflict ? opts.onConflict.split(',').map((c) => c.trim()) : ['id'];
         const sameKey = (keys: string[], a: FakeRow, b: FakeRow) =>
           keys.every((k) => a[k] !== undefined && a[k] !== null && a[k] === b[k]);
+        const keyToken = (keys: string[], row: FakeRow): string | null => {
+          const values: Array<[string, string | number | boolean]> = [];
+          for (const key of keys) {
+            const value = row[key];
+            if (value === undefined || value === null) return null;
+            if (typeof value === 'number' && !Number.isFinite(value)) return null;
+            if (typeof value !== 'string' && typeof value !== 'number' && typeof value !== 'boolean') return null;
+            values.push([typeof value, value]);
+          }
+          return JSON.stringify(values);
+        };
+        const indexRows = (source: FakeRow[], keys: string[]): Map<string, number[]> => {
+          const index = new Map<string, number[]>();
+          source.forEach((row, rowIndex) => {
+            const token = keyToken(keys, row);
+            if (token === null) return;
+            const matches = index.get(token) ?? [];
+            matches.push(rowIndex);
+            index.set(token, matches);
+          });
+          return index;
+        };
+        const targetIndex = indexRows(this.data[table] ?? [], target);
+        const uniqueIndex = unique ? indexRows(this.data[table] ?? [], unique) : null;
+        const findIndex = (index: Map<string, number[]>, keys: string[], row: FakeRow, source: FakeRow[]): number => {
+          const token = keyToken(keys, row);
+          if (token === null) return source.findIndex((existing) => sameKey(keys, row, existing));
+          return index.get(token)?.[0] ?? -1;
+        };
+        const addIndex = (index: Map<string, number[]>, keys: string[], row: FakeRow, rowIndex: number): void => {
+          const token = keyToken(keys, row);
+          if (token === null) return;
+          const matches = index.get(token) ?? [];
+          if (!matches.includes(rowIndex)) matches.push(rowIndex);
+          index.set(token, matches);
+        };
+        const removeIndex = (index: Map<string, number[]>, keys: string[], row: FakeRow, rowIndex: number): void => {
+          const token = keyToken(keys, row);
+          if (token === null) return;
+          const matches = index.get(token);
+          if (!matches) return;
+          const at = matches.indexOf(rowIndex);
+          if (at >= 0) matches.splice(at, 1);
+          if (matches.length === 0) index.delete(token);
+        };
         if (opts?.onConflict && target.join(',') !== 'id' && (!unique || target.join(',') !== unique.join(','))) {
           return Promise.resolve({ error: { message: 'there is no unique or exclusion constraint matching the ON CONFLICT specification', code: '42P10' } as PgError });
         }
@@ -156,10 +201,13 @@ export class FakePostgrest {
           // is left UNTOUCHED (its stored value wins over the payload), only absent rows are added.
           const next = [...(this.data[table] ?? [])];
           for (const row of list) {
-            const hit = next.findIndex((r) => sameKey(target, row, r));
+            const hit = findIndex(targetIndex, target, row, next);
             if (hit >= 0) continue;
-            if (unique && next.some((r) => sameKey(unique, row, r))) continue;
+            if (unique && uniqueIndex && findIndex(uniqueIndex, unique, row, next) >= 0) continue;
+            const rowIndex = next.length;
             next.push({ ...row });
+            addIndex(targetIndex, target, row, rowIndex);
+            if (unique && uniqueIndex) addIndex(uniqueIndex, unique, row, rowIndex);
           }
           this.data[table] = next;
           return Promise.resolve({ error: null as PgError });
@@ -167,12 +215,21 @@ export class FakePostgrest {
         // One statement: work on a copy and commit only if no row violates a non-target unique key.
         const next = [...(this.data[table] ?? [])];
         for (const row of list) {
-          const hit = next.findIndex((r) => sameKey(target, row, r));
-          if (hit >= 0) { next[hit] = { ...next[hit], ...row }; continue; }
-          if (unique && next.some((r) => sameKey(unique, row, r))) {
+          const hit = findIndex(targetIndex, target, row, next);
+          if (hit >= 0) {
+            const existing = next[hit]!;
+            if (unique && uniqueIndex) removeIndex(uniqueIndex, unique, existing, hit);
+            next[hit] = { ...existing, ...row };
+            if (unique && uniqueIndex) addIndex(uniqueIndex, unique, next[hit]!, hit);
+            continue;
+          }
+          if (unique && uniqueIndex && findIndex(uniqueIndex, unique, row, next) >= 0) {
             return Promise.resolve({ error: { message: `duplicate key value violates unique constraint on (${unique.join(', ')})`, code: '23505' } as PgError });
           }
+          const rowIndex = next.length;
           next.push({ ...row });
+          addIndex(targetIndex, target, row, rowIndex);
+          if (unique && uniqueIndex) addIndex(uniqueIndex, unique, row, rowIndex);
         }
         this.data[table] = next;
         return Promise.resolve({ error: null as PgError });

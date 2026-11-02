@@ -28,7 +28,6 @@ import { workflowVariant } from '@/src/lib/status/statusVariants';
 import { formatCurrency } from '@/src/lib/format';
 import { PushStateBadge } from '@/src/components/timesheets/PushStateBadge';
 import { EmployeeLinkConfirm } from '@/src/components/timesheets/EmployeeLinkConfirm';
-import { employeeChoiceLabels } from '@/src/components/timesheets/employeeChoiceLabels';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import { REOPENABLE_WINDOW_DAYS } from '@/src/lib/db/timesheetTransition';
 import type { TimesheetAwaitingApproval } from '@/src/lib/db/timesheetTransition';
@@ -317,13 +316,15 @@ function EmployeeLinkConfirmSection() {
   const may = usePermission();
   const { links, profiles, confirm } = useEmployeeLinkConfirm();
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
-  const profileOptions = useMemo(() => employeeChoiceLabels(
-    (Array.isArray(profiles) ? profiles : []).map((profile) => ({
-      value: profile.id,
-      name: profile.full_name,
-      email: profile.email,
-    })),
-  ), [profiles]);
+  const profileOptions = useMemo(
+    () =>
+      (Array.isArray(profiles) ? profiles : []).map((profile) => ({
+        value: profile.id,
+        name: profile.full_name,
+        email: profile.email,
+      })),
+    [profiles],
+  );
 
   if (links.isPending || links.isError || !links.data || links.data.length === 0) return null;
 
@@ -711,7 +712,7 @@ const ApprovalsPage: React.FC = () => {
   const countFor = (kind: Scope) => allPopulation.filter((entry: ApprovalPopulationEntry) => entry.kind === kind).length;
   const scopeLabels: Record<Scope, string> = {
     all: t('approvals.scope.all', 'All pending'),
-    procurement: t('approvals.scope.procurement', 'Procurement records'),
+    procurement: t('approvals.scope.procurement', 'Procurement cases'),
     timesheets: t('approvals.scope.timesheets', 'Timesheets'),
     expense: t('approvals.scope.expense', 'Expense claims'),
     invoice: t('approvals.scope.invoice', 'Customer invoices'),
@@ -802,7 +803,7 @@ const ApprovalsPage: React.FC = () => {
         title={t('approvals.previewEmpty.title', 'Select an approval item')}
         sub={t(
           'approvals.previewEmpty.sub',
-          'When a pending procurement record is available, its preview and actions appear here.',
+          'When a pending procurement case is available, its preview and actions appear here.',
         )}
       />
     );
@@ -903,7 +904,7 @@ const ApprovalsPage: React.FC = () => {
             <div className="space-y-5">
               {(activeScope === 'all' || activeScope === 'procurement') && canApproveProcurement && (
                 <QueueGroup
-                  title={t('approvals.group.procurement.title', 'Procurement records')}
+                  title={t('approvals.group.procurement.title', 'Procurement cases')}
                   count={pendingProc}
                   items={procurementRows.map((row) => ({ key: `procurement:${row.id}`, kind: 'procurement' as const, row }))}
                   selectedKey={selectedKey}
@@ -913,11 +914,11 @@ const ApprovalsPage: React.FC = () => {
                   onRetry={() => refetchProc()}
                   emptyTitle={t(
                     'approvals.group.procurement.emptyTitle',
-                    'No procurement records awaiting your decision',
+                    'No procurement cases awaiting your decision',
                   )}
                   emptySub={t(
                     'approvals.group.procurement.emptySub',
-                    'Procurement records that need your approval will appear here.',
+                    'Procurement cases that need your approval will appear here.',
                   )}
                 />
               )}

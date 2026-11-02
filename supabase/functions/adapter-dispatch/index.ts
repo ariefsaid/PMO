@@ -26,64 +26,39 @@
  */
 
 // Deno-native imports (not in pmo-portal/package.json)
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { dispatchExternallyOwnedWrite, redactErrorForOutbox, toDispatchError } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
-import { recordExternalRef as recordExternalRefWrite } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
-import { createReferenceAdapter, REFERENCE_DOMAIN } from '../../../pmo-portal/src/lib/adapterSeam/referenceAdapter.ts';
+import { createClient } from '@supabase/supabase-js';
 import { CLICKUP_TASKS_DOMAIN } from '../../../pmo-portal/src/lib/adapterSeam/clickup/adapter.ts';
-import { resolveClickUpDispatchAdapter } from '../../../pmo-portal/src/lib/adapterSeam/clickup/dispatchFactory.ts';
-import { ClickUpRateLimiter } from '../../../pmo-portal/src/lib/adapterSeam/clickup/rateLimit.ts';
 import { ERPNEXT_BUDGET_DOMAIN, ERPNEXT_COMPANIES_DOMAIN, ERPNEXT_PROCUREMENT_DOMAIN, ERPNEXT_REVENUE_DOMAIN, ERPNEXT_TIMESHEETS_DOMAIN, ERPNEXT_TIER } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
-import { resolveErpDispatchAdapter, withPaymentTypeDiscriminator, readCategoryAccountMap, readBudgetLineItems, type ProcurementSourceLine } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/dispatchFactory.ts';
 import {
-  runBudgetGate,
   runBudgetActivationPrecheck,
-  type FiscalYearRow,
   BudgetGateError,
-  type BudgetGateDeps,
-  type BudgetVersionGateRow,
-  type BudgetGateProjectRow,
 } from '../../../pmo-portal/src/lib/budget/budgetGate.ts';
-import { encodeFiscalYear } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/fiscalYearEncoding.ts';
-import { budgetAccountIdentity, budgetAccountPushKey, parseBudgetIdentity } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/budgetAccountIdentity.ts';
-import { planBudgetAccountIntents, resolveV16BudgetAccounts } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/budgetAccountPlan.ts';
-import { fetchAllRowsByKeyset } from '../../../pmo-portal/src/lib/pagedRead.ts';
-// BFY (FR-BFY-031/032): the canonical fiscal-year encoding + the per-year deterministic key. Both are
-// server-side ONLY — the client cannot derive either (it cannot read the client's Fiscal Year doctype).
-import { budgetPushKey } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/budgetPushKey.ts';
-import { withProbeBudget, ERP_PROBE_TIMEOUT_MS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/client.ts';
-import { fetchWithDeadline } from '../_shared/fetchWithDeadline.ts';
-import { resolvePerOrgSecret } from '../_shared/perOrgSecret.ts';
-import { resolveErpAuthPair, createErpAuthPairCache, type ErpAuthPairCache } from '../_shared/erpAuthPair.ts';
+import { resolveErpAuthPair, createErpAuthPairCache } from '../_shared/erpAuthPair.ts';
 import { externalConnectEnabled } from '../_shared/externalConnectEnabled.ts';
 import { guardedErpFetch } from '../_shared/erpHostGuard.ts';
 // The runtime (kind)->{toBody,fromDoc} side table (task 5.2) — ADDITIVE across slices 3/4/5/6, each
 // wiring only the kinds it owns; an un-wired kind is `commit-rejected` at commit time, never a
 // silent no-op (adapter.ts's `requireBodyFns`). Slice 3's supplier/customer entries now live in this
 // same shared table (doctypeBodies.ts) rather than a parallel local const — one side table, never two.
-import { DOCTYPE_BODIES } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeBodies.ts';
-import { DOCTYPE_REGISTRY, reissueOnInconclusiveAbsence, type ErpDocKind } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeRegistry.ts';
-import { erpDatetime, probeErpByAnchorKey, probeErpByPaymentComposite, withholdingMatchFromPayload } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/recoveryProbe.ts';
-import { resolveExternalRef } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
 import { AppError, type CommandHeldOutboxMarker } from '../../../pmo-portal/src/lib/appError.ts';
-import type { Adapter, AdapterCommand, PmoRecord } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
-import type { DispatchMoneyOutboxDeps, ExternalRefMapping, SupersededDocumentMarker } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
-import { getReadModelWriter, heldIdentityFor, markTimesheetPushOutcome } from './readModelWriters.ts';
-import { surfaceActionRequired } from '../_shared/erpnextFeedDeps.ts';
+import type { AdapterCommand } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
+import type { DispatchMoneyOutboxDeps } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
+import { heldIdentityFor, markTimesheetPushOutcome } from './readModelWriters.ts';
 import { applyCanonicalTimesheetTruth, enforceTimesheetApproved, isTimesheetPush, type ApprovedTimesheet } from './approvalGuard.ts';
-// M-2: what a rejected budget push MEANS for the durable mirror state (a 409 is not a failure).
-import { classifyBudgetPushOutcome } from './budgetPushOutcome.ts';
 // AC-TSP-031: the ONE code→HTTP-status map for both failure exits (pre-flight select + dispatch).
 import { dispatchErrorStatus } from './dispatchErrorStatus.ts';
-import { maybeFault, type FaultGate } from './faultSeams.ts';
+import type { FaultGate } from './faultSeams.ts';
 import { isRevenueSiSubmitTransition, grantSiSubmitClearance, requiresSiAuthorClaim, claimSiAuthor, releaseSiSubmitClearance } from './sodGuard.ts';
 import { checkErpnextCommandAuthorization } from './authGuard.ts';
+import { authorizeBudgetOccupant, isBudgetOccupantCommand, runBudgetOccupant } from './budgetOccupant.ts';
+import { assertNotPreCutover } from '../../../pmo-portal/src/lib/adapterSeam/cutoverGate.ts';
 import { authorizeClickUpTaskCommand } from './taskAuthorization.ts';
 import { enforcePaymentGate, isProcurementPaymentCreate } from './paymentGate.ts';
 import { checkSiProjectGate } from './projectGateGuard.ts';
-import { checkProcurementGate, checkQueuedProcurementCreate } from './procurementGateGuard.ts';
+import { checkProcurementGate } from './procurementGateGuard.ts';
+import { checkPoRevise } from './poReviseGuard.ts';
 import { checkCreateTargetUnmapped, checkRevenueErpPathTarget, checkTransitionTargetBinding, isCanonicalUuid, isOpaqueIdempotencyKey } from './transitionTargetGuard.ts';
-import { canonicalCommandDigest, createDbMoneyOutboxDeps } from './moneyOutboxDeps.ts';
+
 import {
   verifyCallerJwt,
   bearerToken,
@@ -92,7 +67,27 @@ import {
   type JwksResolver,
 } from '../../../pmo-portal/src/lib/auth/verifyCallerJwt.ts';
 import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
-import { reportEdgeError } from '../_shared/reportEdgeError.ts';
+import { ADAPTER_REGISTRY, erpRateLimiter, resolveErpBindingRow, type AdapterSelectContext } from './dispatchAdapters.ts';
+import { runDispatchAttempt } from './dispatchAttempt.ts';
+import {
+  buildBudgetDispatchPlan,
+  buildBudgetGateDeps,
+  isBudgetPushCommand,
+  orgEmploysErpnext,
+  recordBudgetPushFailure,
+} from './budgetDispatch.ts';
+import { resolveErpMoneyOutboxDeps as resolveErpMoneyOutboxDepsModule } from './erpMoneyOutbox.ts';
+
+export { resolveErpBindingRow, resolveErpAdapter } from './dispatchAdapters.ts';
+export type { AdapterSelectContext } from './dispatchAdapters.ts';
+export { buildPaymentCompositePayload, readOutboxCompositePayload } from './erpMoneyOutbox.ts';
+
+export const resolveErpMoneyOutboxDeps = (ctx: AdapterSelectContext): Promise<DispatchMoneyOutboxDeps> =>
+  resolveErpMoneyOutboxDepsModule(ctx, resolveErpBindingRow);
+
+const MONEY_OUTBOX_RESOLVERS: Record<string, (ctx: AdapterSelectContext) => Promise<DispatchMoneyOutboxDeps>> = {
+  [ERPNEXT_TIER]: resolveErpMoneyOutboxDeps,
+};
 
 // ADR-0057: one cached, rate-limited JWKS resolver, memoized across warm invocations. Built lazily
 // so an empty SUPABASE_URL can't throw a URL error before the handler can return a typed 401/500.
@@ -116,394 +111,6 @@ export const testSupabaseOptions = {
   auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
 };
 
-/** The adapter-select context: the caller's org, the parsed command, and the service-role client for
- * per-request config lookups (project binding, external_refs resolution). Never used for adapter.commit(). */
-interface AdapterSelectContext {
-  orgId: string;
-  command: AdapterCommand;
-  serviceClient: SupabaseClient;
-  /** The VERIFIED caller's user id (`verified.sub` — never a client-supplied body field). Persisted
-   *  onto the money-outbox row as `actor_user_id` (0108 §C) so a LATER sweep finalize — which has no
-   *  request JWT — can still attribute `sales_invoices.author_user_id` and keep the submit SoD real. */
-  userId: string;
-  /** Read-only pass-through so a tier's factory can wire an in-flow fault seam (e.g. ERPNext's
-   *  two-step submit, task 2.14) — factories that don't need it (P0/P1) simply ignore this field. */
-  faultGate: FaultGate;
-  /** #651: the per-REQUEST auth-pair memo. Not module-level — a shared isolate must never hold one
-   *  tenant's credential across requests, and a rotated credential must not outlive a request. */
-  erpAuth: ErpAuthPairCache;
-  replay?: boolean;
-  trustedReceiptSnapshot?: boolean;
-  captureProcurementSourceLines?: (lines: ProcurementSourceLine[]) => void;
-  procurementSnapshot?: { caseId: string; lines: ProcurementSourceLine[] };
-  procurementInputDigest?: string;
-}
-
-type AdapterFactory = (ctx: AdapterSelectContext) => Promise<Adapter>;
-
-// Shared across invocations of this isolate (module scope) — the token bucket's budget is real
-// only if it persists across requests, not recreated per-call (NFR-CUA-PERF-003).
-const clickUpRateLimiter = new ClickUpRateLimiter();
-
-// ClickUp adapter factory (review fix #9): all ClickUp config/member resolution lives OPAQUELY in the
-// pure `clickup/dispatchFactory.ts` — this dispatcher passes the caller's org + command + an injected
-// service-client seam + ClickUp client deps and never sees ClickUp vocabulary (confinement, FR-CUA-012).
-// Phase 1b (task 1.5): ADDITIVE Vault-first credential resolution behind EXTERNAL_CONNECT_ENABLED flag.
-// When flag is ON and an external_org_bindings row exists with secret_ref, resolve via Vault;
-// otherwise fall back to global CLICKUP_API_TOKEN (legacy behavior unchanged when flag is OFF).
-// FIX-2: tri-state — no-binding → global fallback; resolved → vault token; binding-vault-miss → FAIL CLOSED.
-async function resolveClickUpAdapter(ctx: AdapterSelectContext): Promise<Adapter> {
-  const connectEnabled = externalConnectEnabled();
-  if (!connectEnabled) {
-    throw new AppError('external integrations are disabled by the operator', 'config-rejected');
-  }
-  let clickUpToken = Deno.env.get('CLICKUP_API_TOKEN') ?? '';
-
-  if (connectEnabled) {
-    // Use shared per-org Vault secret resolution (flag gate + binding lookup + fallback)
-    const result = await resolvePerOrgSecret({
-      connectEnabled,
-      orgId: ctx.orgId,
-      tier: 'clickup',
-      lookupBinding: async (orgId, tier) => {
-        const { data, error } = await ctx.serviceClient
-          .from('external_org_bindings')
-          .select('secret_ref')
-          .eq('org_id', orgId)
-          .eq('external_tier', tier)
-          .maybeSingle();
-        if (error) {
-          console.error('external_org_bindings lookup failed', error);
-          return null;
-        }
-        return data as { secret_ref?: string | null } | null;
-      },
-      readVaultSecret: async (ref) => {
-        const { data, error } = await ctx.serviceClient.rpc('read_vault_secret', { p_secret_ref: ref });
-        if (error) {
-          console.error('read_vault_secret failed', error);
-          return null;
-        }
-        return (data as string | null) ?? null;
-      },
-    });
-
-    if (result.kind === 'resolved') {
-      clickUpToken = result.secret;
-    } else if (result.kind === 'binding-vault-miss') {
-      // FIX-2: bound org but vault secret missing → fail closed, do NOT fall back to global token
-      throw new AppError('ClickUp credentials unresolved for this org — check the binding secret_ref configuration', 'config-rejected');
-    }
-    // result.kind === 'no-binding' → fall through to global token (legacy fallback)
-  }
-
-  return resolveClickUpDispatchAdapter({
-    serviceClient: ctx.serviceClient as never,
-    orgId: ctx.orgId,
-    command: ctx.command,
-    fetchImpl: fetch,
-    token: clickUpToken,
-    baseUrl: Deno.env.get('CLICKUP_API_BASE_URL') ?? undefined,
-    rateLimiter: clickUpRateLimiter,
-  });
-}
-
-// ERPNext adapter factory (task 2.14): one tier ('erpnext'), two PMO domains ('companies' and
-// 'procurement') — the routeDomainWrite generalization (FR-ENA-010). No test/prod org is flipped
-// (`external_domain_ownership` ships empty) except a served-fn e2e that seeds its own binding; a
-// mis-flip would still resolve correctly (never a silent no-op), matching the `notWired`
-// read-model-writer discipline (task 1.6) one layer up.
-//
-// Credentials (Slice 6 pre-task, NFR-ENA-SEC-002 — the flagged global placeholder is now REMOVED):
-// each org's `external_org_bindings.secret_ref` NAMES a per-org credential source; `resolveErpAdapter`
-// resolves it through the ONE shared `_shared/erpAuthPair.ts` resolver (Vault first, env pair only on
-// a clean negative, refuse when a store cannot answer — FR-ENA-015..019, ADR-0072), failing CLOSED
-// (`config-rejected`) when neither store holds a pair — no single global credential, no cross-org key
-// reuse. The binding row is authoritative for the ref; the factory (`resolveErpDispatchAdapter`)
-// re-reads the SAME row for site_url/config/activation (its confinement invariant: it never reads
-// secret_ref/env itself — the resolved creds are passed in).
-const erpRateLimiter = { acquire: async () => {} };
-
-interface ErpBindingRow {
-  site_url: string;
-  secret_ref: string;
-  version_major: number | null;
-  config: Record<string, unknown> | null;
-  activated_at: string | null;
-}
-
-async function resolveErpBindingRow(serviceClient: SupabaseClient, orgId: string): Promise<ErpBindingRow> {
-  const { data, error } = await serviceClient
-    .from('external_org_bindings')
-    .select('site_url, secret_ref, version_major, config, activated_at')
-    .eq('org_id', orgId)
-    .eq('external_tier', ERPNEXT_TIER)
-    .maybeSingle();
-  if (error || !data) {
-    throw new AppError('no erpnext binding configured for this org', error?.code ?? 'BINDING_NOT_FOUND');
-  }
-  return data as ErpBindingRow;
-}
-
-async function resolveErpAdapter(ctx: AdapterSelectContext): Promise<Adapter> {
-  if (!externalConnectEnabled()) {
-    throw new AppError('external integrations are disabled by the operator', 'config-rejected');
-  }
-  const binding = await resolveErpBindingRow(ctx.serviceClient, ctx.orgId);
-  if (isBudgetPushCommand(ctx.command) && binding.version_major !== 15 && binding.version_major !== 16) {
-    throw new AppError('budget push requires an ERP binding with supported version major 15 or 16', 'config-rejected');
-  }
-  const { apiKey, apiSecret } = await resolveErpAuthPair(ctx.serviceClient, { orgId: ctx.orgId, secretRef: binding.secret_ref }, ctx.erpAuth);
-  return resolveErpDispatchAdapter({
-    serviceClient: ctx.serviceClient as never,
-    orgId: ctx.orgId,
-    command: ctx.command,
-    fetchImpl: guardedErpFetch(binding.site_url),
-    apiKey,
-    apiSecret,
-    replay: ctx.replay,
-    trustedReceiptSnapshot: ctx.trustedReceiptSnapshot,
-    captureProcurementSourceLines: ctx.captureProcurementSourceLines,
-    rateLimiter: erpRateLimiter,
-    // The (kind)->{toBody,fromDoc} side table (task 4.3): additive across slices 3-6, never a
-    // per-slice edit to another kind's entry (confinement, FR-ENA-014).
-    doctypeBodies: DOCTYPE_BODIES,
-    // The 'after-submit-before-mirror' fault seam (FR-ENA-003): fires inside the adapter's two-step
-    // submit, between the submit PUT and the post-submit re-fetch — the ONLY tier with a two-step
-    // commit (P0/P1 have none, so they never wire this hook).
-    afterSubmitHook: () => maybeFault('after-submit-before-mirror', ctx.faultGate),
-    afterCancelHook: () => maybeFault('after-cancel-before-create', ctx.faultGate),
-  });
-}
-
-/**
- * Task 6.4 (ADR-0058) — the DB-backed money-idempotency outbox deps for ONE erpnext non-read-only
- * command. Re-resolves the org's binding (a second small read alongside `resolveErpAdapter`'s own —
- * an acceptable per-request cost for the isolation of never smuggling credentials between the two
- * concerns) purely to build the tier-specific `probeByRemarksKey` closure (ERPNext's `remarks`-stamp
- * anchor, ADR-0058 §3): the recovery probe needs the SAME client creds/site_url as the adapter plus
- * the command's `erp_doc_kind`'s doctype + `fromDoc` mapper — none of which the generic
- * `DispatchMoneyOutboxDeps` interface carries (it is tier-agnostic, `moneyOutboxDeps.ts`). Every other
- * outbox operation (claim/mark/verify/insert/read) is the tier-agnostic DB implementation.
- */
-async function resolveErpMoneyOutboxDeps(ctx: AdapterSelectContext): Promise<DispatchMoneyOutboxDeps> {
-  if (!externalConnectEnabled()) {
-    throw new AppError('external integrations are disabled by the operator', 'config-rejected');
-  }
-  // The outbox `operation` column (0095) is CHECK-constrained to create|update|transition — 'delete'
-  // never reaches it (the erpnext adapter itself rejects delete, OQ-8, cancel-only); reject loud here
-  // too, before any DB write, rather than letting a raw CHECK-violation surface.
-  if ((ctx.command.operation as string) === 'delete') {
-    throw new AppError('erpnext adapter does not support delete — cancel-only (OQ-8)', 'commit-rejected');
-  }
-  const binding = await resolveErpBindingRow(ctx.serviceClient, ctx.orgId);
-  const { apiKey, apiSecret } = await resolveErpAuthPair(ctx.serviceClient, { orgId: ctx.orgId, secretRef: binding.secret_ref }, ctx.erpAuth);
-
-  const kind = (ctx.command.record as { erp_doc_kind?: unknown }).erp_doc_kind;
-  const entry = typeof kind === 'string' && kind in DOCTYPE_REGISTRY ? DOCTYPE_REGISTRY[kind as ErpDocKind] : undefined;
-  const bodyFns = typeof kind === 'string' ? DOCTYPE_BODIES[kind as ErpDocKind] : undefined;
-  if (!entry || !bodyFns) {
-    throw new AppError(`erpnext doctype body for '${String(kind)}' is not yet wired`, 'commit-rejected');
-  }
-
-  // `entry.anchorField === null` (live-bench finding, doctypeRegistry.ts): this doctype has no
-  // queryable anchor field that survives ERPNext's validate — Frappe rejects the probe's filtered
-  // GET outright (or, for PE's `remarks`, the stamp is silently overwritten). Skip the query
-  // entirely (resolve null immediately) rather than issue an erroring request; the DB claim
-  // (createDbMoneyOutboxDeps' claimOutboxForCommit) remains the sole R1 concurrent-duplicate guard
-  // regardless, so this degrades only R3 orphan-adoption for these kinds. PI/Purchase Receipt anchor
-  // on 'remarks'; Payment Entry anchors on 'reference_no' (the DIRECTOR RULING — PE's validate
-  // overwrites remarks; reference_no survives, ADR-0058 §3 amended). Captured in a const here so the
-  // probe closure sees the narrowed `string` type (entry.anchorField is `string | null` on the record).
-  const anchorField = entry.anchorField;
-  // Money-safety audit BLOCK 1: the probe client carries the PROBE budget (one attempt, tighter
-  // deadline). Un-budgeted, this GET retries 3× at 120 s = ~483 s — longer than the whole 300 s
-  // quarantine window — so the claim winner could finish probing only after its row had been
-  // reclaimed and REISSUED, and then still POST a second money document. `dispatch.ts`'s claim budget
-  // refuses that POST; this stops the probe eating the budget in the first place.
-  const client = withProbeBudget({ fetchImpl: guardedErpFetch(binding.site_url), apiKey, apiSecret, baseUrl: binding.site_url });
-  const probeDeps = { client, doctype: entry.doctype, anchorField: anchorField ?? '', fromDoc: bodyFns.fromDoc, pmoRecordId: ctx.command.record.id };
-
-  // C-1 (companies "<Doctype>:<name>" encoding): now that external_refs is written INSIDE the fenced
-  // finalize_outbox RPC (H-1), the companies-domain doctype prefix that used to live in the
-  // recordExternalRef wrapper is applied here, threaded into the fenced write (identity elsewhere).
-  const encodeExternalRecordId = (mapping: ExternalRefMapping): string =>
-    mapping.domain === ERPNEXT_COMPANIES_DOMAIN ? `${entry.doctype}:${mapping.externalRecordId}` : mapping.externalRecordId;
-
-  // The outbox payload ALWAYS carries `erp_doc_kind` so the SWEEP recovery path can reconstruct the
-  // command (the outbox has only domain+pmo_record_id, and a domain spans several kinds). A MUTABLE-anchor
-  // money doc (Payment Entry) additionally persists its composite-probe inputs (party_type+party+
-  // paid_amount+referenced-PI names + the claim-window start) so BOTH the sync retry and the sweep
-  // resolve a landed PE deterministically from OUR OWN outbox payload — never from live state (C-1).
-  const payload: Record<string, unknown> = {
-    ...(ctx.command.record as Record<string, unknown>),
-    erp_doc_kind: kind,
-    ...(entry.anchorMutable ? await buildPaymentCompositePayload(ctx) : {}),
-  };
-
-  // M-3: bind the idempotency key to the exact payload persisted in the outbox (reject key-reuse
-  // with a different amount/party/refs, including changes made to the persisted recovery payload).
-  // `created_after` is a per-attempt probe-window bound, not command material; excluding it keeps
-  // retries of the same persisted command stable while all money/party/reference fields remain bound.
-  const { created_after: _createdAfter, ...digestPayload } = payload;
-  const payloadDigest = await canonicalCommandDigest({
-    domain: ctx.command.domain,
-    operation: ctx.command.operation as string,
-    record: digestPayload,
-  });
-  // A budget unit no longer carries the Retry's `target_fiscal_year` (see the fan-out). A row a Retry
-  // stored before that change bound it to the unit's own year, so that digest still names this command.
-  const legacyPayloadDigests = isBudgetPushCommand(ctx.command) && typeof digestPayload.fiscal_year === 'string'
-    ? [await canonicalCommandDigest({
-        domain: ctx.command.domain,
-        operation: ctx.command.operation as string,
-        record: { ...digestPayload, target_fiscal_year: digestPayload.fiscal_year },
-      })]
-    : undefined;
-
-  return createDbMoneyOutboxDeps({
-    serviceClient: ctx.serviceClient as never,
-    orgId: ctx.orgId,
-    externalTier: ERPNEXT_TIER,
-    operation: ctx.command.operation as 'create' | 'update' | 'transition',
-    // BLOCK 7 (0108 §C): persist the VERIFIED dispatching actor on the outbox row. The sweep finalizes
-    // committed-but-unmirrored rows with no request JWT — without this the author is unrecoverable and
-    // the mirrored SI's author_user_id lands NULL, silently voiding the approver≠author SoD.
-    actorUserId: ctx.userId,
-    // C-1 per-kind reissue policy: a mutable-anchor (PE) inconclusive recovery is HELD, never reissued.
-    // ⚑ HIGH-1: an `upsertOnGrain` kind (ERP `Budget`) has no anchor at ALL, but ERP itself enforces its
-    // natural grain, so the dispatch factory's server-derived grain read is a conclusive probe and a
-    // recovery may reissue — holding instead made the upsert's unenforced-grain window PERMANENT. The
-    // rule lives in ONE place (`reissueOnInconclusiveAbsence`, doctypeRegistry.ts) so the sync dispatch
-    // and the sweep can never disagree about whether a money command may be re-minted.
-    reissueOnInconclusiveAbsence: reissueOnInconclusiveAbsence(entry),
-    payload,
-    payloadDigest,
-    procurementSnapshot: ctx.procurementSnapshot,
-    procurementInputDigest: ctx.procurementInputDigest,
-    legacyPayloadDigests,
-    encodeExternalRecordId,
-    // A quarantined procurement create whose probe finds nothing is reissued as a NEW ERP document; the org's purchase
-    // rules are asked again at that moment (under a lock on the purchase), as the outbox claim does for pending and
-    // failed rows. A refusal holds the row for an operator; an adopt of a document that already landed never asks.
-    ...(ctx.command.domain === 'procurement' && String(ctx.command.operation) === 'create'
-      ? { reauthorizeRecoveryReissue: () => checkQueuedProcurementCreate(ctx.serviceClient as never, ctx.orgId, ctx.command as never, ctx.userId) }
-      : {}),
-    probeByRemarksKey: !anchorField
-      ? async () => null
-      : !entry.anchorMutable
-        // Immutable anchor (PI/Purchase Receipt `remarks`): the anchor `like` filter is conclusive.
-        ? (_domain, idempotencyKey) => probeErpByAnchorKey(probeDeps, idempotencyKey)
-        // Mutable anchor (PE `reference_no`): the COMPOSITE probe — anchor OR the deterministic
-        // conjunction, every input read back from our persisted outbox payload (ADR-0058 §4 amended).
-        // Handles both PE-pay (payment_type=Pay, pi_names) and PE-receive (payment_type=Receive, si_names).
-        : async (domain, idempotencyKey) => {
-            const p = await readOutboxCompositePayload(ctx.serviceClient, ctx.orgId, domain, ctx.command.record.id, idempotencyKey);
-            // Luna re-audit BLOCK #1: the FALLBACK anchor probe (no persisted composite payload yet —
-            // e.g. a first attempt that crashed before the outbox insert landed its payload) must STILL
-            // carry the `payment_type` discriminator. 'Pay' and 'Receive' Payment Entries share one
-            // doctype, and `reference_no` is ERP-side editable, so an unfiltered anchor `like` can adopt
-            // a Pay entry for a Receive recovery (and vice-versa) whenever the two share a reference_no
-            // — mirroring a PMO incoming payment onto someone's outgoing payment document. The
-            // discriminator is derived from the command's OWN `erp_doc_kind`, never from live ERP state.
-            const fallbackProbeDeps = withPaymentTypeDiscriminator(probeDeps, kind);
-            if (!p || !p.party || p.paid_amount == null) return probeErpByAnchorKey(fallbackProbeDeps, idempotencyKey);
-            const paymentType = String(p.payment_type ?? 'Pay') as 'Pay' | 'Receive';
-            return probeErpByPaymentComposite(probeDeps, idempotencyKey, {
-              partyType: String(p.party_type ?? 'Supplier'),
-              party: String(p.party),
-              paidAmount: p.paid_amount as string | number,
-              piNames: Array.isArray(p.pi_names) ? (p.pi_names as string[]) : [],
-              siNames: Array.isArray(p.si_names) ? (p.si_names as string[]) : [],
-              createdAfter: String(p.created_after ?? ''),
-              paymentType,
-              ...withholdingMatchFromPayload(p),
-            });
-          },
-  });
-}
-
-/** Build the Payment Entry composite-probe payload from the command (persisted at outbox INSERT).
- *  Handles both PE-pay (procurement) and PE-receive (revenue).
- *  - PE-pay: supplier `party` via external_refs (companies domain), `piNames` from `references`.
- *  - PE-receive: customer `party` via external_refs (companies domain), `siNames` from `references`.
- *  `created_after` bounds the candidate set to this attempt's window. */
-async function buildPaymentCompositePayload(ctx: AdapterSelectContext): Promise<Record<string, unknown>> {
-  const rec = ctx.command.record as Record<string, unknown>;
-  const kind = typeof rec.erp_doc_kind === 'string' ? rec.erp_doc_kind : '';
-  const isReceive = kind === 'incoming-payment';
-
-  if (isReceive) {
-    // PE-receive (revenue): customer party + SI references
-    const customerPmoId = typeof rec.customerId === 'string' ? rec.customerId : undefined;
-    let party: string | null = null;
-    if (customerPmoId) {
-      const resolved = await resolveExternalRef(ctx.serviceClient as never, ctx.orgId, ERPNEXT_COMPANIES_DOMAIN, customerPmoId);
-      // external_refs stores companies "<Doctype>:<name>" encoding — strip to bare Customer name.
-      party = resolved ? resolved.slice(resolved.indexOf(':') + 1) : null;
-    }
-    const siNames = Array.isArray(rec.references)
-      ? (rec.references as Array<{ reference_name?: unknown }>).map((r) => String(r.reference_name)).filter((n) => n && n !== 'undefined')
-      : [];
-    // DD-RCPT-1: with tax withheld, ERPNext stores the CASH in `paid_amount` (peReceiveToBody sends it
-    // there), so the fallback match must look for the cash; otherwise the gross it was sent as.
-    const withheld = Number(rec.withheld_amount ?? 0) > 0;
-    return {
-      party_type: 'Customer',
-      party,
-      paid_amount: (withheld ? rec.received_amount : rec.paid_amount) ?? null,
-      // …and that cash alone also matches a plain receipt of the same cash, so a withholding receipt is
-      // matched on its deduction and its gross invoice allocation too.
-      ...(withheld ? { withheld_amount: rec.withheld_amount, allocated_amount: rec.paid_amount ?? null } : {}),
-      pi_names: [],
-      si_names: siNames,
-      payment_type: 'Receive',
-      // A 1-minute pre-dispatch buffer so a doc created just before the outbox row is still in-window.
-      created_after: erpDatetime(Date.now() - 60_000),
-    };
-  }
-
-  // PE-pay (procurement): supplier party + PI references
-  const supplierPmoId = typeof rec.supplier === 'string' ? rec.supplier : undefined;
-  let party: string | null = null;
-  if (supplierPmoId) {
-    const resolved = await resolveExternalRef(ctx.serviceClient as never, ctx.orgId, ERPNEXT_COMPANIES_DOMAIN, supplierPmoId);
-    party = resolved ? resolved.slice(resolved.indexOf(':') + 1) : null;
-  }
-  const piNames = Array.isArray(rec.references)
-    ? (rec.references as Array<{ reference_name?: unknown }>).map((r) => String(r.reference_name)).filter((n) => n && n !== 'undefined')
-    : [];
-  return {
-    party_type: 'Supplier',
-    party,
-    paid_amount: rec.paid_amount ?? null,
-    pi_names: piNames,
-    si_names: [],
-    payment_type: 'Pay',
-    created_after: erpDatetime(Date.now() - 60_000),
-  };
-}
-
-/** Read the persisted composite-probe payload for one command's outbox row (the ruling's "read from our
- *  own outbox row payload"). Returns null when no row/payload exists yet (first attempt). */
-async function readOutboxCompositePayload(
-  serviceClient: SupabaseClient,
-  orgId: string,
-  domain: string,
-  pmoRecordId: string,
-  idempotencyKey: string,
-): Promise<Record<string, unknown> | null> {
-  const { data } = await serviceClient
-    .from('external_command_outbox')
-    .select('payload')
-    .eq('org_id', orgId)
-    .eq('domain', domain)
-    .eq('pmo_record_id', pmoRecordId)
-    .eq('idempotency_key', idempotencyKey)
-    .maybeSingle();
-  return (data as { payload?: Record<string, unknown> | null } | null)?.payload ?? null;
-}
-
 // ============================================================================
 // P3c — THE BUDGET GATE wiring (ADR-0059 §3.3, the missing half of slice 3). `runBudgetGate`
 // (pmo-portal/src/lib/budget/budgetGate.ts) is the pure orchestration; everything below wires it to the
@@ -511,171 +118,6 @@ async function readOutboxCompositePayload(
 // Admin-administered category→account map, matching `dispatchFactory.ts`'s OWN map read exactly (the
 // SAME `readCategoryAccountMap`) so the gate and the real push can never disagree about "mapped".
 // ============================================================================
-
-/** Does this command push a PMO budget version to ERPNext (and therefore need the gate)? */
-function isBudgetPushCommand(cmd: { domain: string; record: Record<string, unknown> }): boolean {
-  return cmd.domain === ERPNEXT_BUDGET_DOMAIN && cmd.record.erp_doc_kind === 'budget';
-}
-
-/** Does this org have an ACTIVATED erpnext binding at all? A non-employing org's budget push is a
- *  BENIGN NO-OP — same posture as the timesheet "no chargeable hours" skip above — never a rejection, and
- *  critically the GATE never runs for it: a non-employing org legitimately carries zero
- *  `budget_category_account_map` rows, and running the map check anyway would record a spurious
- *  'budget-category-unmapped' failure into `budget_version_erp_mirror` for every org that will never use
- *  this feature (AC-BUD-001 — a non-employing org must stay byte-for-byte). */
-async function orgEmploysErpnext(serviceClient: SupabaseClient, orgId: string): Promise<boolean> {
-  const { data } = await serviceClient
-    .from('external_org_bindings')
-    .select('activated_at')
-    .eq('org_id', orgId)
-    .eq('external_tier', ERPNEXT_TIER)
-    .maybeSingle();
-  return !!(data as { activated_at: string | null } | null)?.activated_at;
-}
-
-/** Wire `runBudgetGate`'s readers: the three PMO tables under the CALLER's own JWT (RLS is the org
- *  boundary — ADR-0059 §3.3), the map via the service-role reader `dispatchFactory.ts` already uses for
- *  the real push. */
-function buildBudgetGateDeps(callerClient: SupabaseClient, serviceClient: SupabaseClient, orgId: string, versionId: string, erpAuth: ErpAuthPairCache): BudgetGateDeps {
-  return {
-    orgId,
-    versionId,
-    readVersion: async (id) => {
-      const { data } = await callerClient
-        .from('budget_versions')
-        .select('id, org_id, project_id, status, activated_at')
-        .eq('id', id)
-        .maybeSingle();
-      return (data as BudgetVersionGateRow | null) ?? null;
-    },
-    readProject: async (id) => {
-      const { data } = await callerClient.from('projects').select('id, org_id, start_date, end_date').eq('id', id).maybeSingle();
-      return (data as BudgetGateProjectRow | null) ?? null;
-    },
-    // ⚑ PAGED + fail-closed (audit round 8). The SHIPPED reader lives in `dispatchFactory.ts` beside
-    // `readCategoryAccountMap` — one definition, unit-bound — because an unpaged read here silently
-    // capped at PostgREST's 1000 rows and would push an UNDERSTATED Budget into the client's ERP.
-    readLineItems: (id) => readBudgetLineItems(callerClient as never, id),
-    readCategoryMap: () => readCategoryAccountMap(serviceClient as never, orgId),
-    readFiscalYears: () => readErpFiscalYears(serviceClient, orgId, erpAuth),
-  };
-}
-
-/**
- * ⚑ OQ-BUD-3b (owner ruling 2026-07-21) — read the CLIENT'S OWN fiscal calendar from ERPNext.
- *
- * A fiscal year is whatever the client declares (Apr–Mar, Jul–Jun, …) and Budget's `fiscal_year` is a
- * **Link by NAME** (spike §3). Deriving the calendar year of `start_date` — what this shipped as —
- * sends a value that for a non-calendar client names the WRONG Fiscal Year or none at all: an invalid
- * Link, and a real overspend control enforced against the wrong period.
- *
- * This is the ONE extra read per budget push the ruling accepts. It is deliberately NOT cached: the
- * cost of a stale calendar here is a budget filed against the wrong year, which is exactly the failure
- * being removed. Errors propagate — `runBudgetGate` fails closed on an unresolvable calendar rather
- * than falling back (the fallback IS the bug).
- */
-async function readErpFiscalYears(serviceClient: SupabaseClient, orgId: string, cache: ErpAuthPairCache): Promise<FiscalYearRow[]> {
-  const binding = await resolveErpBindingRow(serviceClient, orgId);
-  const { apiKey, apiSecret } = await resolveErpAuthPair(serviceClient, { orgId, secretRef: binding.secret_ref }, cache);
-  const url = new URL('/api/resource/Fiscal Year', binding.site_url);
-  url.searchParams.set('fields', JSON.stringify(['name', 'year_start_date', 'year_end_date']));
-  url.searchParams.set('limit_page_length', '0'); // all of them — a client may declare many years
-  // ⚑ Server-side hang guard (money path): this raw read bypasses the bounded `erpnextRequest` client,
-  // so a slow/down ERPNext would otherwise block the edge worker on this fetch forever. Bound it at the
-  // same probe budget the recovery reads use; a deadline (or any network failure) fails CLOSED as
-  // `external-unreachable`, exactly like a non-2xx — the budget gate then refuses rather than filing
-  // against a guessed calendar, and the sweep backstop re-drives it.
-  let res: Response;
-  try {
-    res = await fetchWithDeadline(
-      guardedErpFetch(binding.site_url),
-      url.toString(),
-      // #655: never follow a redirect off the admin-nominated host; a 3xx fails the `!res.ok` check below.
-      { headers: { Authorization: `token ${apiKey}:${apiSecret}`, Accept: 'application/json' }, redirect: 'manual' },
-      ERP_PROBE_TIMEOUT_MS,
-    );
-  } catch {
-    throw new AppError('could not read the ERPNext fiscal calendar (unreachable)', 'external-unreachable');
-  }
-  if (!res.ok) {
-    throw new AppError(`could not read the ERPNext fiscal calendar (HTTP ${res.status})`, 'external-unreachable');
-  }
-  const body = (await res.json()) as { data?: unknown };
-  const rows = Array.isArray(body.data) ? body.data : [];
-  return rows.filter(
-    (r): r is FiscalYearRow =>
-      typeof (r as FiscalYearRow)?.name === 'string' &&
-      typeof (r as FiscalYearRow)?.year_start_date === 'string' &&
-      typeof (r as FiscalYearRow)?.year_end_date === 'string',
-  );
-}
-
-async function reportBudgetMirrorWriteFailure(orgId: string, versionId: string): Promise<void> {
-  try {
-    await reportEdgeError({
-      fn: 'adapter-dispatch', errorCode: 'BUDGET_FAILURE_MIRROR_WRITE_FAILED',
-      ...(isCanonicalUuid(versionId) ? { contextId: versionId } : {}), orgId,
-    });
-  } catch {
-    // Reporting must never replace the original budget rejection.
-  }
-}
-
-/** Record the gate's durable failure into the ADR-0059 §6 side mirror — BEFORE returning the rejection —
- *  so the operator surface + the sweep backstop's work queue both see it. Only written when the gate had
- *  already resolved a `fiscalYear` (the mirror's grain): an earlier rejection (version/project unreadable,
- *  no activation stamp) has no fiscal year to key a row on, and `budget_version_erp_mirror`'s own writer
- *  (`readModelWriters.ts`) already refuses a fiscal-year-less row for the identical reason. Best-effort —
- *  a failure to record this must never mask the rejection the caller already gets. */
-async function recordBudgetGateFailure(serviceClient: SupabaseClient, orgId: string, versionId: string, err: BudgetGateError, versionMajor?: number | null): Promise<void> {
-  if (!err.fiscalYear) return;
-  try {
-    const row = {
-      org_id: orgId,
-      budget_version_id: versionId,
-      fiscal_year: err.fiscalYear,
-      push_state: 'failed',
-      push_error: err.code,
-      unmapped_categories: err.unmappedCategories ?? null,
-    };
-    if (versionMajor === 16) {
-      const { error } = await serviceClient.from('budget_version_account_erp_mirror').upsert({
-        ...row, erp_account: '', budget_intent: 'ensure', created_at: new Date().toISOString(),
-      }, { onConflict: 'org_id,budget_version_id,fiscal_year,erp_account' });
-      if (error) throw error;
-    } else {
-      const { error } = await serviceClient.from('budget_version_erp_mirror').upsert(row, {
-        onConflict: 'org_id,budget_version_id,fiscal_year',
-      });
-      if (error) throw error;
-    }
-  } catch (mirrorErr) {
-    console.error('[adapter-dispatch] failed to record budget gate failure:', mirrorErr);
-    await reportBudgetMirrorWriteFailure(orgId, versionId);
-  }
-}
-
-// Adapter registry, keyed by the PMO domain the tier natively owns. 'reference' is the P0 synthetic
-// domain (ADR-0055 §"out of scope"); 'tasks' is ClickUp's P1 domain (ADR-0055 P1, FR-CUA-001);
-// 'companies'/'procurement' are ERPNext's P2 domains (FR-ENA-010, task 2.14).
-const ADAPTER_REGISTRY: Record<string, AdapterFactory> = {
-  [REFERENCE_DOMAIN]: async () => createReferenceAdapter('commit-success'),
-  [CLICKUP_TASKS_DOMAIN]: resolveClickUpAdapter,
-  [ERPNEXT_COMPANIES_DOMAIN]: resolveErpAdapter,
-  [ERPNEXT_PROCUREMENT_DOMAIN]: resolveErpAdapter,
-  [ERPNEXT_REVENUE_DOMAIN]: resolveErpAdapter,
-  // P3c — the budget push (ADR-0055 §6). Same tier, same adapter; the domain is additive.
-  [ERPNEXT_BUDGET_DOMAIN]: resolveErpAdapter,
-  // P3b — the timesheets push (ADR-0059 Posture B). Same tier, same adapter, same outbox: Posture B
-  // reuses the shipped machinery wholesale; only its GATE and its key derivation differ.
-  [ERPNEXT_TIMESHEETS_DOMAIN]: resolveErpAdapter,
-};
-
-// The tiers whose non-read commands take the money-idempotency outbox (ADR-0058), keyed by tier like the
-// registry above. A new ERP tier registers its resolver here; the dispatch below never names a tier.
-const MONEY_OUTBOX_RESOLVERS: Record<string, (ctx: AdapterSelectContext) => Promise<DispatchMoneyOutboxDeps>> = {
-  [ERPNEXT_TIER]: resolveErpMoneyOutboxDeps,
-};
 
 // Same origin-narrowing seam as agent-chat/compose-view (AUDIT quick-win 2026-07-07): set
 // AGENT_ALLOWED_ORIGIN in prod; falls back to SITE_URL, then '' (fail-closed — never '*').
@@ -837,7 +279,8 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
       );
     }
   }
-  if (isErpDomain) {
+  // `budget-occupant` (ECA-6) is a request, not an ERP document kind: it has its own Admin/Finance gate below.
+  if (isErpDomain && !isBudgetOccupantCommand(command)) {
     // The guard reads only the authorization inputs (domain + the named ERP document kind).
     const auth = await checkErpnextCommandAuthorization(callerClient as never, orgId, userId, {
       domain: command.domain,
@@ -849,6 +292,20 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
         headers,
       });
     }
+  }
+
+  // ── ECA-4 (FR-ECA-030, OQ-ECA-1) — a purchase ordered before the ERP connection pushes no later step. Runs on the
+  // deputy `callerClient` BEFORE the outbox, adapter selection and any ERP call, for every ERP tier alike; the
+  // verdict is read from PMO's tables, never from the payload. A check that cannot answer refuses (fail closed).
+  try {
+    await assertNotPreCutover(callerClient as never, command);
+  } catch (error) {
+    const code = error instanceof AppError ? error.code : undefined;
+    const message = error instanceof Error ? error.message : 'could not check the connection date';
+    return new Response(JSON.stringify({ error: code === 'pre-cutover' ? 'pre-cutover' : 'commit-rejected', message }), {
+      status: code === 'pre-cutover' ? 409 : 422,
+      headers,
+    });
   }
 
   // ── P3b FR-TSP-010 — THE APPROVED-ONLY GATE (ADR-0059 §3.3). BEFORE the outbox, BEFORE adapter
@@ -927,7 +384,7 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
   if (budgetActivationPrecheckVersionId) {
     try {
       const result = await runBudgetActivationPrecheck(
-        buildBudgetGateDeps(callerClient, serviceClient, orgId, budgetActivationPrecheckVersionId, createErpAuthPairCache()),
+        buildBudgetGateDeps(callerClient, serviceClient, orgId, budgetActivationPrecheckVersionId, createErpAuthPairCache(), resolveErpBindingRow),
         await orgEmploysErpnext(serviceClient, orgId),
       );
       return new Response(JSON.stringify(result), { status: 200, headers });
@@ -940,11 +397,34 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
       }), { status: gateError ? 422 : 500, headers });
     }
   }
+  // ── ECA-6 (#1603): the read-only ways forward when the ERP already holds a budget PMO did not create. It reads
+  // the ERP and may create a PMO Draft under the CALLER's RLS; it never writes the ERP and uses no outbox row.
+  if (isBudgetOccupantCommand(command)) {
+    const allowed = await authorizeBudgetOccupant(callerClient as never, orgId, userId);
+    if (!allowed.ok) {
+      return new Response(JSON.stringify({ error: 'commit-rejected', message: allowed.message }), { status: allowed.status, headers });
+    }
+    try {
+      if (!externalConnectEnabled()) throw new AppError('external integrations are disabled by the operator', 'config-rejected');
+      const binding = await resolveErpBindingRow(serviceClient, orgId);
+      const { apiKey, apiSecret } = await resolveErpAuthPair(serviceClient, { orgId, secretRef: binding.secret_ref }, createErpAuthPairCache());
+      const reply = await runBudgetOccupant({
+        command, orgId, callerClient: callerClient as never, serviceClient: serviceClient as never, binding,
+        erp: { fetchImpl: guardedErpFetch(binding.site_url), apiKey, apiSecret, baseUrl: binding.site_url, rateLimiter: erpRateLimiter },
+      });
+      return new Response(JSON.stringify(reply.body), { status: reply.status, headers });
+    } catch (err) {
+      const code = (err as { code?: unknown }).code;
+      return new Response(JSON.stringify({ error: typeof code === 'string' ? code : 'DISPATCH_FAILED', message: err instanceof Error ? err.message : 'failed' }), {
+        status: dispatchErrorStatus(code, 500), headers,
+      });
+    }
+  }
   if (command.domain === CLICKUP_TASKS_DOMAIN) {
     const taskAuthorization = await authorizeClickUpTaskCommand(serviceClient as never, orgId, userId, command);
     if (!taskAuthorization.ok) {
       return new Response(JSON.stringify({ error: 'commit-rejected', message: taskAuthorization.message }), {
-        status: 403,
+        status: taskAuthorization.status ?? 403,
         headers,
       });
     }
@@ -968,200 +448,19 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
     });
   }
 
-  // ── P3c — THE BUDGET GATE (ADR-0059 §3.3, the missing half of slice 3). Before adapter selection,
-  // before the outbox, before any ERP call: re-read the version's status, the project's org + fiscal
-  // year, and the line items — from the DB under the CALLER's own JWT — and resolve the category→account
-  // map (FR-BUD-113) BEFORE any ERP call. A non-employing org is a benign no-op (see `orgEmploysErpnext`).
-  // On a PASS, server truth (never the payload) REPLACES the fields the push body is built from.
-  /** BFY: one per-year dispatch unit of the gate's push plan (null for every non-budget command). */
-  let budgetVersionMajor: 15 | 16 | null = null;
-  let budgetUnits: Array<{
-    fiscalYear: string;
-    erpAccount: string | null;
-    /** `<budget_version_id>:<encoded_fiscal_year>` — the outbox + external_refs identity. */
-    identity: string;
-    idempotencyKey: string;
-    record: AdapterCommand['record'];
-  }> | null = null;
-
-  if (isBudgetPushCommand(command)) {
-    if (!(await orgEmploysErpnext(serviceClient, orgId))) {
-      return new Response(
-        JSON.stringify({ externalRecordId: null, canonical: { id: command.record.id }, skipped: 'org-not-employing-erpnext' }),
-        { status: 200, headers },
-      );
-    }
-
-    const versionId = String(command.record.id);
-    // ⚑ HIGH 5 (FR-BFY-056) — a PER-YEAR retry. The client names the ONE fiscal year the operator is
-    // retrying (`record.target_fiscal_year`); activation sends none and still fans out to every plan
-    // year below. Validated against the gate's plan (the live-ERP-checked calendar), never trusted: a
-    // year that is not a phased plan entry is refused, never silently widened to the whole fan-out.
-    const targetFiscalYearRaw = (command.record as { target_fiscal_year?: unknown }).target_fiscal_year;
-    const targetFiscalYear = typeof targetFiscalYearRaw === 'string' && targetFiscalYearRaw.length > 0 ? targetFiscalYearRaw : null;
-    try {
-      const bindingSnapshot = await resolveErpBindingRow(serviceClient, orgId);
-      const versionMajor = bindingSnapshot.version_major;
-      if (versionMajor !== 15 && versionMajor !== 16) {
-        throw new BudgetGateError('config-rejected', 'budget push requires a supported ERP binding version');
-      }
-      budgetVersionMajor = versionMajor;
-      const gate = await runBudgetGate(buildBudgetGateDeps(callerClient, serviceClient, orgId, versionId, erpAuth));
-      // ⚑ BFY FR-BFY-030/031/032/036 — THE FAN-OUT. The gate returns a per-year PLAN; each entry
-      // becomes one command with:
-      //   • `record.id` UNCHANGED — the bare `budget_version_id` UUID. It is the gate's own query key,
-      //     the mirror's FK, and the inbound feed's lookup; a year in it makes all three wrong.
-      //   • `outbox_identity` = `<vid>:<encoded-fy>` — the SEPARATE, year-qualified identity the outbox
-      //     row and `external_refs` are keyed on, so the outbox unique/one-in-flight indexes (0096/0134)
-      //     and `external_refs` (0088) scope per year: two years can be in flight at once, and a retry
-      //     of year 2 with year 1 terminal is a retry, not a duplicate.
-      //   • `idempotency_key` = `bud:<vid>:<encoded-fy>:<epoch>` — derived HERE, from DB truth, so the
-      //     foreground and the sweep land on the identical string with no shared client state.
-      //   • `project_start_date`/`project_end_date` — the FR-BFY-080 push-time span witness, carried on
-      //     a NON-body field (they are not ERP `Budget` fields) for the mirror writer to stamp.
-      // Server truth REPLACES the payload for every field the push body is built from (ADR-0059 §3.3):
-      // `projectId` (camelCase) feeds the cross-org pre-flight + ERP-project resolution;
-      // `fiscal_year`/`line_items` (snake_case) feed `bodies/budget.ts`'s `budgetToBody`, ONE YEAR AT A
-      // TIME (no body-level split — the split is the plan's, and the plan is PMO's own line items).
-      // ⚑ HIGH 5 (FR-BFY-056): scope the fan-out to the retried year, if one was named. Fail closed on a
-      // year the plan does not contain — a retry must act on exactly the row the operator clicked.
-      // ⚑ `target_fiscal_year` only scopes WHICH units this request drives; it is not part of any unit's
-      // command. Left on the unit record it entered the outbox payload digest, so an operator's per-year
-      // Retry no longer matched the digest its own activation saved under the same key: an account
-      // already confirmed in ERPNext was refused as a key-reuse mismatch, recorded `failed`, and then
-      // parked `held` by the sweep with nothing left to re-send it. Activation and Retry build the same unit.
-      const { target_fiscal_year: _targetFiscalYear, ...unitRecordBase } = command.record as AdapterCommand['record'] & { target_fiscal_year?: unknown };
-      const planEntries = targetFiscalYear === null
-        ? gate.plan
-        : gate.plan.filter((entry) => entry.fiscal_year === targetFiscalYear);
-      if (targetFiscalYear !== null && planEntries.length === 0 &&
-          !(versionMajor === 16 && gate.inSpanFiscalYears.includes(targetFiscalYear))) {
-        throw new BudgetGateError(
-          'commit-rejected',
-          `budget push: fiscal year "${targetFiscalYear}" is not a phased year of this budget version`,
-          undefined,
-          targetFiscalYear,
-        );
-      }
-      if (versionMajor === 16) {
-        const history = await fetchAllRowsByKeyset<{ id: string; fiscal_year: string; erp_account: string; erp_budget_name: string | null; erp_cancelled_at: string | null; erp_docstatus: number | null }>((afterId, limit) => {
-          let query = serviceClient.from('budget_version_account_erp_mirror')
-            .select('id,fiscal_year,erp_account,erp_budget_name,erp_cancelled_at,erp_docstatus,budget_versions!inner(project_id)')
-            .eq('org_id', orgId)
-            .eq('budget_versions.project_id', gate.projectId)
-            .order('id', { ascending: true })
-            .limit(limit);
-          if (afterId !== null) query = query.gt('id', afterId);
-          return query as never;
-        });
-        const outOfSpan = history.find((row) => row.erp_account && row.erp_budget_name && !row.erp_cancelled_at && row.erp_docstatus !== 2 && !gate.inSpanFiscalYears.includes(row.fiscal_year));
-        if (outOfSpan) {
-          throw new BudgetGateError(
-            'commit-rejected',
-            `budget push: prior account ${outOfSpan.erp_account} for fiscal year ${outOfSpan.fiscal_year} is outside the current project span and requires operator action`,
-            undefined,
-            outOfSpan.fiscal_year,
-          );
-        }
-        const prior = history.flatMap((row) => row.erp_account && row.erp_budget_name
-          ? [{ fiscalYear: row.fiscal_year, erpAccount: row.erp_account, erpBudgetName: row.erp_budget_name, cancelledAt: row.erp_cancelled_at }]
-          : []);
-        const byYear = new Map(planEntries.map((entry) => [entry.fiscal_year, entry]));
-        const accountYears = (targetFiscalYear ? [targetFiscalYear] : gate.inSpanFiscalYears)
-          .filter((year) => gate.inSpanFiscalYears.includes(year));
-        budgetUnits = accountYears.flatMap((year) => {
-          const entry = byYear.get(year) ?? { fiscal_year: year, line_items: [] };
-          const desired = resolveV16BudgetAccounts(entry.line_items, gate.categoryMap);
-          return planBudgetAccountIntents(year, desired, prior).map((intent) => {
-            const identity = budgetAccountIdentity(gate.versionId, intent.fiscalYear, intent.erpAccount);
-            return {
-              fiscalYear: intent.fiscalYear,
-              erpAccount: intent.erpAccount,
-              identity,
-              idempotencyKey: budgetAccountPushKey(identity, gate.activatedAt),
-              record: {
-                ...unitRecordBase,
-                id: gate.versionId,
-                erp_doc_kind: 'budget',
-                projectId: gate.projectId,
-                fiscal_year: intent.fiscalYear,
-                line_items: entry.line_items,
-                erp_account: intent.erpAccount,
-                budget_intent: intent.intent,
-                budget_predecessor: intent.predecessor,
-                outbox_identity: identity,
-                project_start_date: gate.projectStartDate,
-                project_end_date: gate.projectEndDate,
-                activated_at: gate.activatedAt,
-              } as AdapterCommand['record'],
-            };
-          });
-        });
-      } else {
-        budgetUnits = planEntries.map((entry) => {
-          const encodedFiscalYear = encodeFiscalYear(entry.fiscal_year);
-          const identity = `${gate.versionId}:${encodedFiscalYear}`;
-          return {
-            fiscalYear: entry.fiscal_year,
-            erpAccount: null,
-            identity,
-            idempotencyKey: budgetPushKey(gate.versionId, encodedFiscalYear, gate.activatedAt),
-            record: {
-              ...unitRecordBase,
-              projectId: gate.projectId,
-              fiscal_year: entry.fiscal_year,
-              line_items: entry.line_items,
-              outbox_identity: identity,
-              project_start_date: gate.projectStartDate,
-              project_end_date: gate.projectEndDate,
-              activated_at: gate.activatedAt,
-            } as AdapterCommand['record'],
-          };
-        });
-      }
-      // The FINAL server-derived key is validated at the served boundary, never trusted (FR-BFY-031).
-      // An unencodable/unparseable year is refused BEFORE the outbox, exactly like a client key would be.
-      for (const unit of budgetUnits) {
-        if (!isOpaqueIdempotencyKey(unit.idempotencyKey)) {
-          throw new BudgetGateError(
-            'commit-rejected',
-            `budget push: the server-derived idempotency key for fiscal year "${unit.fiscalYear}" is not a valid opaque key`,
-            undefined,
-            unit.fiscalYear,
-          );
-        }
-      }
-      if (versionMajor === 16 && budgetUnits.length > 0) {
-        const slots = budgetUnits.map((unit) => ({
-          org_id: orgId,
-          budget_version_id: gate.versionId,
-          fiscal_year: unit.fiscalYear,
-          erp_account: unit.erpAccount,
-          budget_intent: (unit.record as Record<string, unknown>).budget_intent,
-          push_state: 'pending',
-          activated_at_witness: gate.activatedAt,
-          pushed_project_start_date: gate.projectStartDate,
-          pushed_project_end_date: gate.projectEndDate,
-        }));
-        const { error: slotError } = await serviceClient.from('budget_version_account_erp_mirror').upsert(slots, {
-          onConflict: 'org_id,budget_version_id,fiscal_year,erp_account',
-          ignoreDuplicates: true,
-        });
-        if (slotError) throw new BudgetGateError('commit-rejected', 'budget push: could not persist the account unit queue');
-        // The account-grained queue is now durable for every unit in this attempt. Retire any prior
-        // gate-failure sentinel so it cannot outrank the account outcomes from this retry.
-        const { error: sentinelError } = await serviceClient.from('budget_version_account_erp_mirror').delete()
-          .eq('org_id', orgId).eq('budget_version_id', gate.versionId).eq('erp_account', '')
-          .in('fiscal_year', [...new Set(budgetUnits.map((unit) => unit.fiscalYear))]);
-        if (sentinelError) throw new BudgetGateError('commit-rejected', 'budget push: could not clear the prior gate-failure status');
-      }
-    } catch (err) {
-      const gateErr = err instanceof BudgetGateError ? err : new BudgetGateError('commit-rejected', err instanceof Error ? err.message : 'budget gate failed');
-      await recordBudgetGateFailure(serviceClient, orgId, versionId, gateErr, budgetVersionMajor);
-      return new Response(JSON.stringify({ error: 'commit-rejected', message: gateErr.message }), { status: 422, headers });
-    }
-  }
-
+  // ── P3c — THE BUDGET GATE (ADR-0059 §3.3). Before adapter selection, the budget module re-reads
+  // server truth, resolves the calendar/category plan, and persists the v16 account queue.
+  const budgetPlan = await buildBudgetDispatchPlan({
+    command,
+    callerClient,
+    serviceClient,
+    orgId,
+    erpAuth,
+    headers,
+    resolveBinding: resolveErpBindingRow,
+  });
+  if (budgetPlan instanceof Response) return budgetPlan;
+  const { versionMajor: budgetVersionMajor, units: budgetUnits } = budgetPlan;
   // ── Slice 3 / round-7 B8: the `require_project_on_si` process gate (FR-SAR-191, AC-SAR-070), for
   // EVERY Sales-Invoice command that puts revenue on the ERP ledger — the body-building ones
   // (create / update / amend) AND the **submit**, whose authority is the PMO mirror row rather than the
@@ -1189,6 +488,20 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
     if (!procurementGate.ok) {
       return new Response(JSON.stringify({ error: 'commit-rejected', message: procurementGate.message }), {
         status: procurementGate.status,
+        headers,
+      });
+    }
+  }
+
+  // AC-SCA-012 (#1513) — a PO revise never cancels a billed ERP order. Reached by no command until #1505 registers the
+  // revise operation; the guard is wired now so that registration cannot ship without it. ponytail: reviseCancels is
+  // true (the strict ERPNext amend); the Odoo edit-style tier relaxes it when #1505 adds that tier.
+  if (command.domain === 'procurement' && String(command.operation) === 'revise') {
+    const rec = (command as { record?: { poId?: unknown; revision?: unknown } }).record ?? {};
+    const poRevise = await checkPoRevise(serviceClient as never, orgId, { poId: rec.poId, revision: rec.revision }, { reviseCancels: true });
+    if (!poRevise.ok) {
+      return new Response(JSON.stringify({ error: 'commit-rejected', message: poRevise.message }), {
+        status: poRevise.status,
         headers,
       });
     }
@@ -1362,100 +675,6 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
     }
   };
 
-  /**
-   * Luna re-audit HIGH-2 (2026-07-21), ADR-0059 §6/FR-BUD-123 — record a POST-GATE budget push
-   * failure as DURABLE, operator-visible state. `recordBudgetGateFailure` (above) covers only a
-   * REJECTION BY THE GATE ITSELF (unmapped category, multi-FY, unresolved fiscal year) — a failure
-   * from adapter-select or the ERP write ITSELF (the money-safety-audit's concrete scenario: a
-   * revision's own outbox/ERP round-trip rejected by ERP's `(company, project, fiscal_year, account)`
-   * duplicate guard) landed NO mirror row at all, so `get_budget_projection.push_state` stayed `NULL`
-   * — indistinguishable from "never pushed" — and the sweep backstop (which only re-drives
-   * `pending`/`failed` rows) had nothing to pick up. ADR-0059 §3.2 STANDS: the swallow itself is
-   * correct — activation must never fail because ERP failed — but "swallowed" must mean "recorded and
-   * surfaced", never "lost". Keyed on the mirror's own `(org_id, budget_version_id, fiscal_year)`
-   * grain; the gate REPLACES `command.record.fiscal_year` with its own server-resolved value on a
-   * PASS (line ~772), so by the time either catch block below runs it is real, not a payload guess.
-   * Best-effort, like every other action-required surface — never masks the caller's own error.
-   */
-  const recordBudgetPushFailure = async (failure: AppError): Promise<void> => {
-    if (!isBudgetPushCommand(command)) return;
-    // ⚑ M-2 (Luna audit round 3) — a 409 is not a push failure. `command-in-flight-for-record` is the
-    // normal outcome of a double-clicked Retry (or the backstop racing the operator): the command that
-    // IS settling owns the outcome, so recording one here raised a false money alarm and could
-    // overwrite the winner's `pushed` with `failed`. `command-held` is real but belongs in `held`, the
-    // state the backstop deliberately excludes because a human must resolve it. See budgetPushOutcome.ts.
-    const outcome = classifyBudgetPushOutcome(failure.code);
-    if (!outcome.record) return;
-    const fiscalYear = (command.record as { fiscal_year?: unknown }).fiscal_year;
-    if (typeof fiscalYear !== 'string' || fiscalYear === '') return; // the gate never resolved one — recordBudgetGateFailure already owns that rejection
-    const versionId = String(command.record.id);
-    // ⚑ HIGH-1 (audit round 5): when THIS attempt cancelled the previous ERP Budget and then failed to
-    // create its replacement, ERPNext is enforcing NOTHING for that project/fiscal year — and a bare
-    // `push_error='external-unreachable'` does not say so. Record the money statement (bounded +
-    // token-scrubbed by the same redactor the outbox uses) under its own named reason, so the operator
-    // surface reports "the control is currently OFF", not merely "the push failed".
-    const superseded = (failure as AppError & SupersededDocumentMarker).cancelledExternalRecordId;
-    const reason = superseded ? 'budget-enforcement-absent' : (failure.code ?? 'DISPATCH_FAILED');
-    const pushError = superseded ? `${reason}: ${redactErrorForOutbox(failure)}` : reason;
-    try {
-      // ⚑ FR-BFY-080: the push-time span witness is stamped on EVERY mirror outcome, failed included.
-      // The gate put the project's own dates on the command; a post-gate failure therefore records the
-      // span it was judged against. (§3a consults the witness only on a `pushed` row — F-A — so this is
-      // provenance for the operator surface, never an attribution input.)
-      const witnessStart = (command.record as { project_start_date?: unknown }).project_start_date;
-      const witnessEnd = (command.record as { project_end_date?: unknown }).project_end_date;
-      // ⚑ #479: the activation witness is stamped on EVERY outcome, failed included — same reasoning
-      // as the span witness above. A failed row that records WHICH activation was attempted is what
-      // lets an operator tell "this push failed" from "a later activation superseded it".
-      const witnessActivatedAt = (command.record as { activated_at?: unknown }).activated_at;
-      const failureRow = {
-        org_id: orgId,
-        budget_version_id: versionId,
-        fiscal_year: fiscalYear,
-        push_state: outcome.pushState,
-        push_error: pushError,
-        ...(typeof witnessActivatedAt === 'string' && witnessActivatedAt !== ''
-          ? { activated_at_witness: witnessActivatedAt }
-          : {}),
-        ...(typeof witnessStart === 'string' && witnessStart !== ''
-          ? {
-              pushed_project_start_date: witnessStart,
-              pushed_project_end_date: typeof witnessEnd === 'string' && witnessEnd !== '' ? witnessEnd : null,
-            }
-          : {}),
-      };
-      const accountRecord = command.record as { outbox_identity?: unknown; erp_account?: unknown; budget_intent?: unknown };
-      const accountIdentity = typeof accountRecord.outbox_identity === 'string'
-        ? parseBudgetIdentity(accountRecord.outbox_identity)
-        : null;
-      if (accountIdentity?.erpAccount) {
-        const { error } = await serviceClient.from('budget_version_account_erp_mirror').upsert({
-          ...failureRow,
-          erp_account: accountIdentity.erpAccount,
-          budget_intent: accountRecord.budget_intent === 'remove' ? 'remove' : 'ensure',
-        }, { onConflict: 'org_id,budget_version_id,fiscal_year,erp_account' });
-        if (error) throw error;
-      } else if (budgetVersionMajor === 16) {
-        const { error } = await serviceClient.from('budget_version_account_erp_mirror').upsert({
-          ...failureRow, erp_account: '', budget_intent: 'ensure', created_at: new Date().toISOString(),
-        }, { onConflict: 'org_id,budget_version_id,fiscal_year,erp_account' });
-        if (error) throw error;
-      } else {
-        const { error } = await serviceClient.from('budget_version_erp_mirror').upsert(failureRow, {
-          onConflict: 'org_id,budget_version_id,fiscal_year',
-        });
-        if (error) throw error;
-      }
-    } catch (recordErr) {
-      console.error('[adapter-dispatch] failed to record budget push failure:', recordErr);
-      await reportBudgetMirrorWriteFailure(orgId, versionId);
-    }
-    await surfaceActionRequired(serviceClient as never, orgId, superseded ? 'budget-enforcement-absent' : 'budget-push-failed', {
-      versionId,
-      reason: superseded ? pushError : (failure.code ?? failure.message),
-    });
-  };
-
   // ── Named server-side fault seams (Slice 0 task 0.7, FR-ENA-003, plan §2 decision 5; host
   // allowlist added fix-round finding 5): read the gate ONCE per request and thread it through.
   // `maybeFault` re-checks ALL THREE conditions per named seam, so this is a pure no-op in every
@@ -1477,219 +696,22 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
     );
   }
 
-  /**
-   * ⚑ BFY FR-BFY-030/033 — ONE dispatch attempt for the command as it currently stands.
-   *
-   * Extracted (byte-for-byte from the previous inline body) so the budget fan-out can run it ONCE PER
-   * PHASED FISCAL YEAR: adapter select, refs resolution and the outbox all depend on
-   * `command.record.fiscal_year`/`line_items`, so a year is a whole dispatch, not a body variant.
-   * Every other domain runs it exactly once, with `command` untouched — byte-for-byte.
-   *
-   * Returns the terminal outcome rather than a Response so the caller can keep going after a failing
-   * year: a partial fan-out must leave year 1 enforcing and year 2 recorded, never abort year 2's
-   * durable record because year 1 threw (or vice versa).
-   */
-  const runOneDispatch = async (
-    outboxRecordId?: string,
-  ): Promise<{ ok: true; result: unknown } | { ok: false; response: Response }> => {
-  let adapter: Adapter;
-  let money: DispatchMoneyOutboxDeps | undefined;
-  try {
-    const context: AdapterSelectContext = { orgId, command, serviceClient, faultGate, userId, erpAuth };
-    const record = command.record as Record<string, unknown>;
-    const isReceiptCreate = command.domain === ERPNEXT_PROCUREMENT_DOMAIN && command.operation === 'create'
-      && record.erp_doc_kind === 'goods-receipt';
-    let rawReceiptDigest: string | undefined;
-    if (isReceiptCreate) {
-      rawReceiptDigest = await canonicalCommandDigest({ domain: command.domain, operation: command.operation, record });
-      const { data, error } = await serviceClient.from('external_command_outbox')
-        .select('payload,payload_digest,procurement_input_digest')
-        .eq('org_id', orgId).eq('domain', command.domain).eq('pmo_record_id', command.record.id)
-        .eq('idempotency_key', command.idempotencyKey!).maybeSingle();
-      if (error) throw new AppError(error.message, error.code);
-      if (data) {
-        context.replay = true;
-        const stored = data as { payload: Record<string, unknown> | null; payload_digest: string | null; procurement_input_digest: string | null };
-        if (stored.procurement_input_digest != null) {
-          const snapshot = stored.payload?.pmo_gr_snapshot as { raw_digest?: unknown; supplier?: unknown; po?: unknown } | undefined;
-          const { created_after: _createdAfter, ...material } = stored.payload ?? {};
-          const storedDigest = await canonicalCommandDigest({ domain: command.domain, operation: command.operation, record: material });
-          if (!/^[0-9a-f]{64}$/.test(stored.procurement_input_digest) || !snapshot || snapshot.raw_digest !== stored.procurement_input_digest
-              || (snapshot.supplier !== null && typeof snapshot.supplier !== 'string')
-              || (snapshot.po !== null && typeof snapshot.po !== 'string')
-              || stored.payload_digest !== storedDigest || rawReceiptDigest !== stored.procurement_input_digest) {
-            throw new AppError('idempotency-key-payload-mismatch', 'commit-rejected');
-          }
-          command.record = stored.payload as PmoRecord;
-          context.trustedReceiptSnapshot = true;
-        }
-      }
-    }
-    let sourceLines: ProcurementSourceLine[] | undefined;
-    if (!context.replay && command.domain === ERPNEXT_PROCUREMENT_DOMAIN && command.operation === 'create'
-        && ['purchase-order', 'goods-receipt', 'purchase-invoice'].includes(String(record.erp_doc_kind))) {
-      context.captureProcurementSourceLines = (lines) => { sourceLines = lines; };
-    }
-    adapter = await adapterFactory(context);
-    const snapshot = command.record.pmo_gr_snapshot as Record<string, unknown> | undefined;
-    if (isReceiptCreate && !context.replay && snapshot && rawReceiptDigest) {
-      snapshot.raw_digest = rawReceiptDigest;
-      context.procurementInputDigest = rawReceiptDigest;
-    }
-    if (sourceLines !== undefined && typeof command.record.procurementId === 'string') {
-      context.procurementSnapshot = { caseId: command.record.procurementId, lines: sourceLines };
-    }
-    // Task 6.4 (ADR-0058): every non-read-only erpnext command routes through the money-idempotency
-    // outbox — `dispatchExternallyOwnedWrite` requires `money` to be set for this tier (it throws
-    // "dispatched without outbox deps" otherwise, the exact failure this task closes). P0/P1 (every
-    // other tier) never resolves this — `money` stays `undefined`, their path is byte-for-byte.
-    const resolveMoneyOutbox = MONEY_OUTBOX_RESOLVERS[adapter.tier];
-    if (resolveMoneyOutbox && (command.operation as string) !== 'read') {
-      money = await resolveMoneyOutbox(context);
-    }
-  } catch (err) {
-    // The submit never reaches ERP — end the body-rewrite freeze now rather than in five minutes.
-    await releaseSubmitClearance();
-    // ⚑ LOW-1 (audit round 5): classify with the SAME shared rule as the dispatch exit below. The old
-    // hand-rolled `new AppError(err.message)` dropped a structurally-present `.code`, and adapter select
-    // now legitimately throws one: `resolveBudgetRefs` runs the real `resolveBudgetAccounts` pre-flight
-    // (AC-BUD-011's zero-ERP-calls contract) and raises `BudgetCategoryUnmappedError` — a plain `Error`
-    // subclass with `code = 'budget-category-unmapped'`. Dropping it gave the operator a bare 400 /
-    // ADAPTER_SELECT_FAILED instead of the 422 that NAMES the unmapped categories.
-    const appError = err instanceof AppError ? err : toDispatchError(err);
-    // A timesheet push fails MOST often right here: the fail-closed ref pre-flight (employee-unlinked /
-    // project-unmapped / activity-type-unconfigured / cross-org-link-rejected / daily-hours-exceed-24)
-    // runs inside the factory, deliberately BEFORE the outbox claim and any ERP call.
-    await recordTimesheetPushFailure(appError);
-    await recordBudgetPushFailure(appError); // HIGH-2: an adapter-select-time budget rejection is durable too
-    // AC-TSP-031 — a CLASSIFIED business rejection raised here (the fail-closed ref pre-flight above)
-    // is unprocessable-entity, not "malformed request": the body was fine, the RULE refused it. Same
-    // ladder as the dispatch catch below (`dispatchErrorStatus`), so the two exits cannot drift; an
-    // unclassified failure keeps this exit's own 400.
-    return {
-      ok: false,
-      response: new Response(JSON.stringify({ error: appError.code ?? 'ADAPTER_SELECT_FAILED', message: appError.message }), {
-        status: dispatchErrorStatus(appError.code, 400),
-        headers,
-      }),
-    };
-  }
-
-  // Fault-seam-injected wrapper (short-circuit before/at commit, FR-ENA-003): 'unreachable' /
-  // 'reject-validation' / 'timeout' fire here, before the real adapter.commit() ever runs — each a
-  // no-op unless its header matches. Wrapping the adapter (not editing dispatch.ts) means the seam's
-  // thrown AdapterError still passes through dispatchExternallyOwnedWrite's own AdapterError→AppError
-  // classification unmodified, so that pure/unit-tested module (dispatch.test.ts) needs no changes.
-  const dispatchAdapter: Adapter = {
-    ...adapter,
-    commit: async (cmd: AdapterCommand) => {
-      await maybeFault('unreachable', faultGate);
-      await maybeFault('reject-validation', faultGate);
-      await maybeFault('timeout', faultGate);
-      return adapter.commit(cmd);
-    },
-  };
-
-  try {
-    // ── 4/5/6. command invoke → read-model update → external_refs record → return
-    // (AC-EAS-033 steps 3/4/5, in that exact order — enforced inside dispatchExternallyOwnedWrite). ──
-    const result = await dispatchExternallyOwnedWrite({
-      adapter: dispatchAdapter,
+  const runOneDispatch = (outboxRecordId?: string): Promise<{ ok: true; result: unknown } | { ok: false; response: Response }> =>
+    runDispatchAttempt({
       command,
-      // Multi-domain read-model writer registry (task 1.6) — replaces the inline if-chain. An
-      // unknown domain throws (no silent skip); ClickUp's `tasks` writer is byte-for-byte moved.
-      writeReadModel: async (canonical: PmoRecord, options?: { isReplay?: boolean }) => {
-        // Fault seam: between commit and mirror (FR-ENA-003) — a no-op unless armed. Runs before
-        // the per-domain mirror write; commit has already returned (dispatch.ts's fixed order).
-        await maybeFault('after-commit-before-mirror', faultGate);
-        // Multi-domain read-model writer registry (task 1.6) — supersedes slice 0's inline
-        // if-chain (its ClickUp/reference branches moved byte-for-byte into readModelWriters.ts).
-        const writer = getReadModelWriter(command.domain);
-        // ⚑ BLOCKER 2 (FU-2): thread the replay flag so the budget writer refuses to resurrect a
-        // Desk-cancelled Budget from a stored-canonical replay (no fresh ERP success).
-        await writer.upsert({ serviceClient: serviceClient as never, orgId, callerUserId: userId, isReplay: options?.isReplay ?? false }, canonical, command);
-      },
-      // Cast: the real supabase-js client's .from().upsert() returns a thenable
-      // PostgrestFilterBuilder, not a plain Promise — structurally satisfies
-      // ServiceRoleTableClient at runtime but is not nominally assignable (same
-      // documented cast pattern as agent-dispatch/index.ts).
-      //
-      // Companies-domain STORAGE-layer encoding (task 6.4 fix-round, live-bench-discovered
-      // 2026-07-12): `external_refs.external_record_id` for a party (Supplier/Customer) is ALWAYS
-      // "<Doctype>:<name>" (task 3.2's collision rule, partyAdopt.ts's `externalIdFor` — the SAME
-      // encoding the dispatch factory's shared `stripDoctypePrefix` (erpnext/dispatchRefs.ts) already
-      // strips back off on every READ path). The adapter's own return value (`mapping.externalRecordId`,
-      // also the served-fn HTTP response body) stays the BARE ERP name (AC-ENA-040: Supplier autonames
-      // by `field:supplier_name`) — only THIS write applies the prefix, never the wire contract.
-      recordExternalRef: (mapping) => {
-        const kind = (command.record as { erp_doc_kind?: unknown }).erp_doc_kind;
-        const entry = typeof kind === 'string' && kind in DOCTYPE_REGISTRY ? DOCTYPE_REGISTRY[kind as ErpDocKind] : undefined;
-        const externalRecordId =
-          mapping.domain === ERPNEXT_COMPANIES_DOMAIN && entry ? `${entry.doctype}:${mapping.externalRecordId}` : mapping.externalRecordId;
-        return recordExternalRefWrite(serviceClient as never, { ...mapping, externalRecordId, orgId });
-      },
-      // Delete-aware dispatch (Slice C, AC-CUA-038, FR-CUA-026): a ClickUp-native delete
-      // tombstones the mirrored `tasks` row (OD-CUA-2) — dependency/milestone rows are
-      // preserved (no cascade), and the external_refs mapping is kept as-is (dispatch.ts
-      // never calls recordExternalRef on a delete). Routed through the same registry (task
-      // 1.6) — only domains whose writer defines `tombstone` support the delete branch;
-      // others don't wire this dep (an omitted callback = no-op via dispatch.ts's optional
-      // chaining, though only `tasks` reaches delete today).
-      tombstoneReadModel: getReadModelWriter(command.domain).tombstone
-        ? (pmoRecordId: string) =>
-            getReadModelWriter(command.domain).tombstone!({ serviceClient: serviceClient as never, orgId }, pmoRecordId)
-        : undefined,
-      // The money-idempotency outbox (task 6.4, ADR-0058) — set only for a non-read-only erpnext
-      // command (built above); every other tier's `money` stays `undefined` (byte-for-byte).
-      money,
-      // BFY FR-BFY-032: the year-qualified identity for the outbox row + `external_refs` (undefined
-      // for every other domain ⇒ `command.record.id`, byte-for-byte).
+      serviceClient,
+      orgId,
+      adapterFactory,
+      faultGate,
+      userId,
+      erpAuth,
+      moneyOutboxResolvers: MONEY_OUTBOX_RESOLVERS,
+      budgetVersionMajor,
+      headers,
       outboxRecordId,
+      releaseSubmitClearance,
+      recordTimesheetPushFailure,
     });
-    return { ok: true, result };
-  } catch (err) {
-    // Server-side diagnostics only — the client body stays generic/typed. Without this, an
-    // external-unreachable's underlying cause (which upstream status? fetch error? which path?)
-    // is unrecoverable from any log.
-    console.error('[adapter-dispatch] dispatch failed:', err instanceof Error ? (err.stack ?? err.message) : String(err));
-    const appError = err instanceof AppError ? err : new AppError(err instanceof Error ? err.message : 'adapter dispatch failed');
-    // 'command-held' (C-1): a mutable-anchor money doc held for operator resolution — a 409 Conflict
-    // (retrying will NOT help; an operator must resolve), distinct from the transient 502 unreachable.
-    // WIRE 4: `command-in-flight-for-record` (0116's one-in-flight-per-record index, classified in
-    // dispatch.ts) is a genuine CONFLICT — another command for this PMO record is still settling.
-    // Retrying now cannot help, but retrying LATER can, so it is a 409 like `command-held`, never a 500
-    // carrying the raw index name.
-    await recordTimesheetPushFailure(appError);
-    // P3c defense-in-depth: the budget gate above already refuses an unmapped category / multi-FY
-    // project BEFORE this try block ever runs, so this branch is unreachable in the normal path — but
-    // `BudgetCategoryUnmappedError` (categoryAccountMap.ts) is a plain `Error` subclass, not an
-    // `AppError`/`AdapterError`, so were it ever to bubble up from here (a race between the gate's map
-    // read and `bodies/budget.ts`'s own re-check at commit time) the generic `new AppError(err.message)`
-    // above would silently DROP its `.code`/`.unmappedCategories` and fall through to a bare 500. Budget
-    // is a money-adjacent surface, so its own classified codes are preserved explicitly here.
-    const isBudgetCode = (code: unknown): code is string => code === 'budget-category-unmapped' || code === 'budget-multi-fiscal-year';
-    const budgetAppError: AppError =
-      isBudgetPushCommand(command) && err instanceof Error && isBudgetCode((err as { code?: unknown }).code)
-        ? new AppError(err.message, (err as unknown as { code: string }).code)
-        : appError;
-    // HIGH-2 — THE concrete gap the money-safety audit found: a budget push that clears the gate but
-    // is then rejected by the ERP write ITSELF (the everyday "revise an already-pushed budget" path —
-    // ERP's own `(company, project, fiscal_year, account)` duplicate guard rejects it, doctypeRegistry.ts
-    // ~136-141) landed no mirror row at all, so `get_budget_projection.push_state` stayed indistinguishable
-    // from "never pushed" and the sweep backstop had nothing to re-drive. Recorded with the BEST-classified
-    // error (`budgetAppError`, not the generic `appError`) so the operator surface names the real reason.
-    await recordBudgetPushFailure(budgetAppError);
-    return {
-      ok: false,
-      response: new Response(JSON.stringify({ error: budgetAppError.code ?? 'DISPATCH_FAILED', message: budgetAppError.message }), {
-        // AC-TSP-031: the SAME ladder the adapter-select exit uses (unreachable 502 / classified business
-        // rejection 422 / held-or-in-flight 409), with THIS exit's own 500 for an unclassified failure.
-        status: dispatchErrorStatus(budgetAppError.code, 500),
-        headers,
-      }),
-    };
-  }
-  };
 
   try {
     // ── 4/5/6, ONCE for every domain — or ONCE PER PHASED FISCAL YEAR for a budget fan-out. ──
@@ -1727,7 +749,7 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
       const createTarget = await checkCreateTargetUnmapped(serviceClient as never, orgId, command, unit.idempotencyKey);
       if (!createTarget.ok) {
         const rejected = new AppError(createTarget.message, 'commit-rejected');
-        await recordBudgetPushFailure(rejected);
+        await recordBudgetPushFailure({ serviceClient, orgId, command, budgetVersionMajor, failure: rejected });
         yearOutcomes.push({ fiscal_year: unit.fiscalYear, pushed: false });
         firstFailure ??= new Response(
           JSON.stringify({ error: 'commit-rejected', message: createTarget.message }),

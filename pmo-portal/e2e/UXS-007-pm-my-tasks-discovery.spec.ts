@@ -1,31 +1,14 @@
 // @e2e-isolation: read-only — rail/palette discovery of the PM's own task list; no DB writes.
-import { test, expect, type Page } from '@playwright/test';
-import { signIn } from './helpers';
+import { test, expect } from '@playwright/test';
+import { pinEnglishLocale, signIn } from './helpers';
 
 /**
- * Pin the interface language WITHOUT a persisted profile write: I18nProvider
- * resolves the language ONLY from the signed-in profile (FR-L10N-003), so the
- * pass rewrites the profile row the AuthProvider reads (`select=*&id=eq.<uid>`,
- * single object) to carry `locale: 'en'`. Read-only + parallel-safe, and immune
+ * Pin the interface language WITHOUT a persisted profile write — the shared `pinEnglishLocale`
+ * helper from `./helpers` (#994 lifted the repeated inline route pin). I18nProvider resolves
+ * the language ONLY from the signed-in profile (FR-L10N-003), so the helper rewrites the
+ * profile row the AuthProvider reads to `locale: 'en'`. Read-only + parallel-safe, and immune
  * to another session having drifted the shared local profile's saved locale.
  */
-async function forceEnglish(page: Page) {
-  await page.route('**/rest/v1/profiles?*', async (route) => {
-    const url = route.request().url();
-    if (route.request().method() !== 'GET' || !/[?&]id=eq\./.test(url)) return route.fallback();
-    const response = await route.fetch();
-    let body: unknown;
-    try {
-      body = await response.json();
-    } catch {
-      return route.fulfill({ response });
-    }
-    if (body && !Array.isArray(body) && typeof body === 'object' && 'locale' in body) {
-      body = { ...(body as Record<string, unknown>), locale: 'en', number_locale: 'en-US' };
-    }
-    return route.fulfill({ response, json: body });
-  });
-}
 
 /**
  * UXS-007 (2026-10-10 owner ruling): a Project Manager with assigned work can
@@ -46,7 +29,7 @@ async function forceEnglish(page: Page) {
 
 test.describe('UXS-007: PM discovers assigned work without typing a URL', () => {
   test('rail entry leads to the assignee-scoped list with its cross-project meaning', async ({ page }) => {
-    await forceEnglish(page);
+    await pinEnglishLocale(page);
     await signIn(page, 'pm@acme.test');
 
     // Discover: the rail names the personal doorway — no URL knowledge required.

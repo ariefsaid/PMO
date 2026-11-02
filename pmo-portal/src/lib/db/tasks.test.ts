@@ -507,7 +507,7 @@ describe('AC-TASK-003 createTask — description + priority (external dispatch b
     expect(record.priority).toBeNull();
   });
 
-  it('OD-INT-9: NEVER forwards milestone_id in the dispatch record (PMO-native enhancement, excluded)', async () => {
+  it('DAL03-005: forwards the chosen milestone in the dispatch record so the mirror keeps the grouping', async () => {
     ext.route = 'external';
     await createTask({
       project_id: 'p1',
@@ -519,7 +519,7 @@ describe('AC-TASK-003 createTask — description + priority (external dispatch b
       priority: 'Low',
     });
     const record = ext.dispatch.mock.calls[0][1] as Record<string, unknown>;
-    expect(record).not.toHaveProperty('milestone_id');
+    expect(record.milestone_id).toBe('m1');
     expect(record.description).toBe('d');
     expect(record.priority).toBe('Low');
   });
@@ -560,6 +560,20 @@ describe('AC-TASK-004 updateTask — description + priority (direct branch)', ()
 });
 
 describe('AC-TASK-004 updateTask — description + priority (external dispatch branch)', () => {
+  it('DAL03-005: forwards a re-parent (and an explicit promote-to-top-level) in the update dispatch record', async () => {
+    ext.route = 'external';
+    await updateTask('t1', { parent_task_id: 'parent-t' });
+    expect(ext.dispatch.mock.calls[0][1]).toMatchObject({ id: 't1', parent_task_id: 'parent-t' });
+    await updateTask('t1', { parent_task_id: null });
+    expect(ext.dispatch.mock.calls[1][1]).toHaveProperty('parent_task_id', null);
+  });
+
+  it('DAL03-005: an update that does not mention the parent sends no parent_task_id', async () => {
+    ext.route = 'external';
+    await updateTask('t1', { name: 'Renamed' });
+    expect(ext.dispatch.mock.calls[0][1]).not.toHaveProperty('parent_task_id');
+  });
+
   it('OD-INT-9: forwards description + priority in the update dispatch record', async () => {
     ext.route = 'external';
     await updateTask('t1', { description: 'Revised.', priority: 'Urgent' });

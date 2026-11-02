@@ -80,6 +80,29 @@ function makeFakeClient(rows: Record<string, unknown> = {}) {
 }
 
 Deno.test({
+  name: "READ_MODEL_WRITERS['reference'].upsert writes the scoped canonical record to the generic mirror",
+  fn: async () => {
+    const { client, calls } = makeFakeClient();
+    const canonical = { id: 'pmo-record-1', name: 'Canonical name', status: 'open', extra: { source: 'adapter' } };
+
+    await READ_MODEL_WRITERS.reference.upsert(
+      { serviceClient: client as never, orgId: 'org-1' },
+      canonical,
+      { domain: 'reference', operation: 'create', record: { id: canonical.id, name: 'Requested name' } },
+    );
+
+    assertEquals(calls, [{
+      table: 'external_reference_items',
+      method: 'upsert',
+      args: [
+        { org_id: 'org-1', pmo_record_id: 'pmo-record-1', payload: canonical },
+        { onConflict: 'org_id,pmo_record_id' },
+      ],
+    }], 'reference writer must persist the canonical record with the tenant scope and conflict key');
+  },
+});
+
+Deno.test({
   name: "READ_MODEL_WRITERS['tasks'].upsert writes a task row via insert on create (moved ClickUp writer)",
   fn: async () => {
     const { client, calls } = makeFakeClient();
@@ -110,6 +133,91 @@ Deno.test({
     assert(updateCall !== undefined, 'expected an update call for a task update');
     const eqCalls = calls.filter((c) => c.method === 'update.eq');
     assertEquals(eqCalls.length, 2, 'expected two scoping .eq() calls (org_id, id)');
+  },
+});
+
+Deno.test({
+  name: "READ_MODEL_WRITERS['tasks'].upsert stamps the milestone and parent the form sent on create",
+  fn: async () => {
+    const { client, calls } = makeFakeClient({ project_milestones: { org_id: 'org-1' }, tasks: { org_id: 'org-1' } });
+    await getReadModelWriter('tasks').upsert(
+      { serviceClient: client as never, orgId: 'org-1' },
+      { id: 'pmo-1', name: 'Task A', status: 'To Do', parent_task_id: 'pmo-parent' }, // the parent ClickUp confirmed
+      { domain: 'tasks', operation: 'create', record: { id: 'pmo-1', project_id: 'proj-1', milestone_id: 'ms-1', parent_task_id: 'pmo-parent' } },
+    );
+    const row = calls.find((c) => c.method === 'insert')!.args[0] as Record<string, unknown>;
+    assertEquals(row.milestone_id, 'ms-1');
+    assertEquals(row.parent_task_id, 'pmo-parent');
+  },
+});
+
+Deno.test({
+  name: "READ_MODEL_WRITERS['tasks'].upsert update stamps parent/milestone only when the command carries them (null clears)",
+  fn: async () => {
+    const { client, calls } = makeFakeClient({ project_milestones: { org_id: 'org-1' }, tasks: { org_id: 'org-1' } });
+    const ctx = { serviceClient: client as never, orgId: 'org-1' };
+    const writer = getReadModelWriter('tasks');
+
+    await writer.upsert(ctx, { id: 'pmo-1', name: 'A', status: 'To Do' }, { domain: 'tasks', operation: 'update', record: { id: 'pmo-1', name: 'A' } });
+    const untouched = calls.find((c) => c.method === 'update')!.args[0] as Record<string, unknown>;
+    assert(!('parent_task_id' in untouched) && !('milestone_id' in untouched), 'an update that does not carry them must not touch them');
+
+    calls.length = 0;
+    await writer.upsert(ctx, { id: 'pmo-1', name: 'A', status: 'To Do', parent_task_id: 'pmo-parent' }, { domain: 'tasks', operation: 'update', record: { id: 'pmo-1', parent_task_id: 'pmo-parent', milestone_id: null } });
+    const patched = calls.find((c) => c.method === 'update')!.args[0] as Record<string, unknown>;
+    assertEquals(patched.parent_task_id, 'pmo-parent');
+    assertEquals(patched.milestone_id, null);
+  },
+});
+
+Deno.test({
+  name: "READ_MODEL_WRITERS['tasks'].upsert refuses a milestone or parent that belongs to another org",
+  fn: async () => {
+    for (const key of ['milestone_id', 'parent_task_id']) {
+      const { client } = makeFakeClient({ project_milestones: { org_id: 'org-2' }, tasks: { org_id: 'org-2' } });
+      let code = '';
+      try {
+        await getReadModelWriter('tasks').upsert(
+          { serviceClient: client as never, orgId: 'org-1' },
+          { id: 'pmo-1', name: 'A', status: 'To Do', ...(key === 'parent_task_id' ? { parent_task_id: 'foreign-id' } : {}) },
+          { domain: 'tasks', operation: 'update', record: { id: 'pmo-1', [key]: 'foreign-id' } },
+        );
+      } catch (e) {
+        code = (e as { code?: string }).code ?? '';
+      }
+      assertEquals(code, 'cross-org-link-rejected', `${key} from another org must be refused`);
+    }
+  },
+});
+
+Deno.test({
+  name: "READ_MODEL_WRITERS['tasks'].upsert stamps the parent ClickUp confirmed on the canonical record, never the one the command asked for",
+  fn: async () => {
+    const { client, calls } = makeFakeClient({ project_milestones: { org_id: 'org-1' }, tasks: { org_id: 'org-1' } });
+    const ctx = { serviceClient: client as never, orgId: 'org-1' };
+    // ClickUp did not accept the re-parent: the canonical carries no parent, so the mirror keeps its own
+    await getReadModelWriter('tasks').upsert(
+      ctx,
+      { id: 'pmo-1', name: 'A', status: 'To Do' },
+      { domain: 'tasks', operation: 'update', record: { id: 'pmo-1', parent_task_id: 'pmo-requested' } },
+    );
+    const patch = calls.find((c) => c.method === 'update')!.args[0] as Record<string, unknown>;
+    assert(!('parent_task_id' in patch), 'a parent ClickUp did not confirm must not be stamped');
+  },
+});
+
+Deno.test({
+  name: "READ_MODEL_WRITERS['tasks'].upsert: a TRANSITION command carrying placement keys does not change milestone or parent",
+  fn: async () => {
+    const { client, calls } = makeFakeClient({ project_milestones: { org_id: 'org-1' }, tasks: { org_id: 'org-1' } });
+    await getReadModelWriter('tasks').upsert(
+      { serviceClient: client as never, orgId: 'org-1' },
+      { id: 'pmo-1', name: 'A', status: 'Done', parent_task_id: 'pmo-parent' },
+      { domain: 'tasks', operation: 'transition', record: { id: 'pmo-1', status: 'Done', milestone_id: 'ms-1', parent_task_id: 'pmo-parent' } },
+    );
+    const patch = calls.find((c) => c.method === 'update')!.args[0] as Record<string, unknown>;
+    assert(!('milestone_id' in patch) && !('parent_task_id' in patch), 'a status transition must not move placement');
+    assertEquals(patch.status, 'Done');
   },
 });
 

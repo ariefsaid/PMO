@@ -13,6 +13,8 @@ const h = vi.hoisted(() => {
     select: [] as unknown[],
     in: [] as unknown[],
     order: [] as unknown[],
+    gt: [] as unknown[],
+    limit: [] as unknown[],
   };
   const builder: Record<string, unknown> = {};
   const chain = (name: keyof typeof calls) => (...args: unknown[]) => {
@@ -22,6 +24,8 @@ const h = vi.hoisted(() => {
   builder.select = chain('select');
   builder.in = chain('in');
   builder.order = chain('order');
+  builder.gt = chain('gt');
+  builder.limit = chain('limit');
   builder.then = (resolve: (v: unknown) => unknown) => resolve(result.value);
   const from = vi.fn((table: string) => {
     calls.from.push(table);
@@ -61,8 +65,10 @@ describe('C3: listActivitiesForContacts — single batch query', () => {
     expect(h.calls.in).toHaveLength(1);
     expect(h.calls.in[0]).toEqual(['contact_id', ['ct1', 'ct2']]);
 
-    // ordered newest-first
-    expect(h.calls.order).toContainEqual(['occurred_at', { ascending: false }]);
+    // DAL01-005: keyset traversal — ordered by id (unique total order), each page bounded;
+    // newest-first contract is restored on the returned rows (directory.paging.test.ts).
+    expect(h.calls.order).toContainEqual(['id', { ascending: true }]);
+    expect(h.calls.limit).toContainEqual(1000);
 
     // org_id never sent
     expect(JSON.stringify(h.calls)).not.toContain('org_id');

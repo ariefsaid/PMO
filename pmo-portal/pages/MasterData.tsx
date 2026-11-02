@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Navigate, useNavigate, useParams } from 'react-router';
 import { AccessDenied, Button, DataTable, Icon, ListPage, SearchMini, StatusPill, Tabs, tabId, tabPanelId, type Column } from '@/src/components/ui';
 import { useMasterRecords, useMasterSummary, useOdooConnection } from '@/src/hooks/useOdoo';
-import type { DirectoryKind, MasterRecord } from '@/src/lib/repositories/odoo';
+import type { DirectoryKind, MasterRecord } from '@/src/lib/repositories/types';
 import { OdooConnectionBanner } from '@/src/components/integrations/odoo/OdooConnectionBanner';
 import { useOdooCan } from '@/src/components/integrations/odoo/useOdooCan';
 import { missingForKind } from '@/src/lib/adapterSeam/odoo/kinds';

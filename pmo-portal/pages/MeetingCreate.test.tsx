@@ -110,6 +110,46 @@ describe('AC-MTG1-001 one-page meeting creation', () => {
     }));
   });
 
+  it('saves a typed guest when the meeting form is submitted', async () => {
+    renderPage();
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText(/Title/), 'Design review');
+    await user.type(screen.getByLabelText(/External guest/), 'Guest One');
+    await user.click(screen.getByRole('button', { name: 'Save meeting' }));
+
+    await waitFor(() => expect(screen.getByTestId('path')).toHaveTextContent('/meetings/meeting-new'));
+    expect(mutations.addAttendee.mutateAsync).toHaveBeenCalledWith({
+      meetingId: 'meeting-new',
+      identity: { display_name: 'Guest One' },
+    });
+  });
+
+  it('retains a typed-but-not-added guest after failure and retries it once on the same meeting', async () => {
+    mutations.addAttendee.mutateAsync.mockRejectedValueOnce(new Error('attendee write failed'));
+    renderPage();
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText(/Title/), 'Design review');
+    await user.type(screen.getByLabelText(/External guest/), 'Guest One');
+    await user.click(screen.getByRole('button', { name: 'Save meeting' }));
+
+    expect(await screen.findByText(/some details were not saved/i)).toHaveAttribute('role', 'alert');
+    expect(screen.getByTestId('path')).toHaveTextContent('/meetings/new');
+    expect(screen.getByText('Guest One')).toBeVisible();
+    expect(mutations.create.mutateAsync).toHaveBeenCalledTimes(1);
+    expect(mutations.addAttendee.mutateAsync).toHaveBeenCalledTimes(1);
+
+    await user.click(screen.getByRole('button', { name: 'Save meeting' }));
+    await waitFor(() => expect(screen.getByTestId('path')).toHaveTextContent('/meetings/meeting-new'));
+    expect(mutations.create.mutateAsync).toHaveBeenCalledTimes(1);
+    expect(mutations.addAttendee.mutateAsync).toHaveBeenCalledTimes(2);
+    expect(mutations.addAttendee.mutateAsync.mock.calls[0][0]).toEqual({
+      meetingId: 'meeting-new', identity: { display_name: 'Guest One' },
+    });
+    expect(mutations.addAttendee.mutateAsync.mock.calls[1][0]).toEqual({
+      meetingId: 'meeting-new', identity: { display_name: 'Guest One' },
+    });
+  });
+
   it('AC-MTG1-002 keeps meeting editors disabled while attendee writes are pending', async () => {
     let resolveAttendee!: (value: unknown) => void;
     mutations.addAttendee.mutateAsync.mockImplementationOnce(() => new Promise((resolve) => { resolveAttendee = resolve; }));

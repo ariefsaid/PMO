@@ -56,7 +56,7 @@ select transition_project('16380000-0000-0000-0000-000000000012','PQ Submitted')
 select transition_project('16380000-0000-0000-0000-000000000012','Quotation Submitted');
 -- contract_value is 0 → the win SoD has nothing to ratify (0236 clause (i)).
 select transition_project('16380000-0000-0000-0000-000000000012','Won, Pending KoM','PO-PSH-1', (now() at time zone 'Asia/Jakarta')::date);
-select transition_project('16380000-0000-0000-0000-000000000013','Loss Tender');
+select transition_project('16380000-0000-0000-0000-000000000013','Loss Tender',null,null,'price',null);
 -- Deal recorded after it was signed (spec T17): every earlier entry is dated today, the contract 10 days ago.
 select transition_project('16380000-0000-0000-0000-000000000015','PQ Submitted');
 select transition_project('16380000-0000-0000-0000-000000000015','Quotation Submitted');

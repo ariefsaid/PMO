@@ -28,7 +28,6 @@ import type {
   FilterClause,
   ResolvedFilter,
   ResolvedAggregate,
-  ResolvedTimeRange,
   TokenValue,
 } from './types.ts';
 import { validatePrimitive } from './registry.ts';
@@ -221,7 +220,6 @@ export function compileQuerySpec(spec: QuerySpec, ctx: CompilerContext): Compile
   }
 
   // ── 8. Validate timeRange (FR-VC-032 / FR-VC-035 / OQ-3) ───────────────────
-  let resolvedTimeRange: ResolvedTimeRange | undefined;
   if (spec.timeRange !== undefined) {
     const { column, from, to } = spec.timeRange;
     if (!allowedColumns.has(column)) {
@@ -237,7 +235,6 @@ export function compileQuerySpec(spec: QuerySpec, ctx: CompilerContext): Compile
     const resolvedTo = resolveValue(to, ctx) as string;
     // Normalize to a date-range filter clause (OQ-3 — timeRange is syntactic sugar).
     resolvedFilters.push({ column, op: 'date-range', value: [resolvedFrom, resolvedTo] });
-    resolvedTimeRange = { column, from: resolvedFrom, to: resolvedTo };
   }
 
   // ── 9. Enforce required filter (OD-2 — tasks requires project_id) ──────────
@@ -258,12 +255,10 @@ export function compileQuerySpec(spec: QuerySpec, ctx: CompilerContext): Compile
   // no supabase.from() call, no supabase.rpc() call. (NFR-VC-SEC-001/002)
   const compiled: CompiledQuery = {
     entity: spec.entity,
-    repositoryMethod: entityEntry.repositoryMethod,
     resolvedFilters,
     resolvedSelect: spec.select,
     ...(spec.groupBy !== undefined && { resolvedGroupBy: spec.groupBy }),
     ...(resolvedAggregate !== undefined && { resolvedAggregate }),
-    ...(resolvedTimeRange !== undefined && { resolvedTimeRange }),
     ...(spec.orderBy !== undefined && { resolvedOrderBy: spec.orderBy }),
     ...(effectiveLimit !== undefined && { limit: effectiveLimit }),
   };

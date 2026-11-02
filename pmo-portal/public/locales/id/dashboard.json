@@ -28,7 +28,7 @@
     "netUnavailableReason": "Snapshot sumber tidak menyediakan nilai neto.",
     "nothingAwaitingPayment": "Tidak ada yang menunggu pembayaran",
     "oneDay": "1 hari",
-    "openRequest": "Buka catatan pengadaan {{request}}",
+    "openRequest": "Buka kasus pengadaan: {{request}}",
     "party": "Pihak",
     "payables": "Utang kepada pemasok",
     "payablesDetail": "Ditagih oleh pemasok, menunggu pembayaran",
@@ -411,7 +411,7 @@
         "margin": "Margin yang diketahui adalah pendapatan pekerjaan tertagih dikurangi pengeluaran tercatat. Ini bukan kas yang diterima. Jumlah margin tersedia, sedangkan persentasenya belum tersedia sampai pendapatan tertagih dapat dihitung untuk seluruh perusahaan. Mata uang dengan nilai sumber yang tidak tersedia ditampilkan sebagai —.",
         "pipeline": "Pipeline tertimbang adalah nilai proyek dikalikan probabilitas menang pada tahapnya untuk peluang yang masih terbuka. Margin prakiraan ditampilkan jika sumber datanya dapat menghitungnya. Nilai mata uang yang tidak dapat dibandingkan ditampilkan sebagai —.",
         "clientOverdue": "Jumlah faktur klien berstatus terkirim atau belum dibayar yang tanggal jatuh temponya telah lewat. Umur yang ditampilkan adalah tunggakan terlama; jumlah uang hanya mencakup saldo yang diketahui.",
-        "supplierPayables": "Jumlah catatan pengadaan berstatus ditagihkan pemasok yang menunggu pembayaran. Saldo yang tidak diketahui tidak dijumlahkan dan ditampilkan hitungannya di bawah jumlah.",
+        "supplierPayables": "Jumlah kasus pengadaan berstatus ditagihkan pemasok yang menunggu pembayaran. Saldo yang tidak diketahui tidak dijumlahkan dan ditampilkan hitungannya di bawah jumlah.",
         "unbilled": "Sisa jumlah dan jumlah perintah kerja yang belum ditagihkan sepenuhnya. Jika ada nilai yang tidak dapat dihitung, hitungannya ditampilkan.",
         "period": "Hasil dalam rentang tanggal yang dipilih.",
         "invoiced": "Jumlah faktur yang diterbitkan dalam periode terpilih, tidak termasuk pajak. Sumber: management pack per mata uang.",
@@ -554,7 +554,7 @@
       "procStatus": {
         "chartLabel": "Pengadaan menurut status",
         "empty": "Belum ada aktivitas pengadaan",
-        "noun": "catatan pengadaan"
+        "noun": "kasus pengadaan"
       }
     }
   },
@@ -563,7 +563,7 @@
     "pmoPurchasingScope": "Pembelian langsung melalui ERP tidak termasuk dalam grafik permintaan PMO ini."
   },
   "uxs19": {
-    "dashboardEmpty": "Tidak ada catatan pengadaan untuk ditampilkan"
+    "dashboardEmpty": "Tidak ada kasus pengadaan untuk ditampilkan"
   },
   "winRate": {
     "title": "Tingkat kemenangan",

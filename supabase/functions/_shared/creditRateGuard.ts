@@ -17,7 +17,8 @@
  * does an atomic check-and-hold via `reserve_credits` (per-org advisory txn lock + counts UNRELEASED
  * reservations against available), so a concurrent second reserve blocks on the lock and is then
  * rejected for insufficient_credits. The release half of the pair — `release_credits(runId)` once the
- * real usage row has landed — is the caller's responsibility (see RESERVE_UNIT + the wiring note below).
+ * real usage row has landed — is `release(runId)` on this guard, called by each call-site in a finally.
+ * Every production call-site (agent-chat, compose-view, agent-dispatch) now passes a fresh hold id.
  */
 import type { HandlerSupabaseLike } from '../agent-chat/handler.ts';
 
@@ -74,14 +75,28 @@ export interface RateGuardResult {
  * `runId` selects the atomic RESERVE path (audit CRITICAL); when omitted, the read-only
  * `org_credit_balance` path is used (unchanged behavior — the existing tests + any call-site that
  * has not yet been wired to thread a run id keep working). A function accepting `(orgId, runId?)` is
- * structurally assignable to the handler `RateGuard.check(orgId: string)` interface, so wiring the
- * reserve path at the call-sites is a no-op interface change (just pass the run id) — deferred to the
- * Director (see the wiring note in the file header + this issue's summary).
+ * structurally assignable to the handler `RateGuard.check(orgId: string)` interface, so the reserve
+ * path is wired at the call-sites by just passing the hold id.
  */
 export function createCreditRateGuard(deps: CreditRateGuardDeps): {
   check(orgId: string, runId?: string): Promise<RateGuardResult>;
+  release(runId: string): Promise<void>;
 } {
   return {
+    /**
+     * Drop the hold `check(orgId, runId)` placed, once the real usage row has landed (or the turn
+     * ended without one). Idempotent server-side; never throws — a failed release only leaves the
+     * conservative hold in place (logged by code), it must not turn a finished turn into an error.
+     */
+    async release(runId: string): Promise<void> {
+      try {
+        const { error } = await deps.supabase.rpc('release_credits', { p_run_id: runId });
+        if (error) console.error('[credit-guard] RELEASE_FAILED', { errorCode: 'CREDIT_RELEASE_FAILED', code: pgErrCode(error) });
+      } catch {
+        console.error('[credit-guard] RELEASE_FAILED', { errorCode: 'CREDIT_RELEASE_FAILED' });
+      }
+    },
+
     async check(orgId: string, runId?: string): Promise<RateGuardResult> {
       // RESERVE PATH (audit CRITICAL): atomic check-and-hold via reserve_credits. The read-only
       // org_credit_balance probe has a TOCTOU race (N concurrent turns read the same balance, all
@@ -108,10 +123,9 @@ export function createCreditRateGuard(deps: CreditRateGuardDeps): {
         return { exceeded: false, retryAfterSeconds: 0, reason: 'out_of_credits' };
       }
 
-      // READ-ONLY PATH (unchanged): org_credit_balance probe. Retained for call-sites without a runId
-      // (e.g. compose-view, which has no agent_run) and to keep the existing guard tests green. It does
-      // NOT close the race on its own — only the reserve path above does. Call-sites that have been
-      // wired to pass a runId get the race-closed behavior automatically.
+      // READ-ONLY PATH (unchanged): org_credit_balance probe. No production call-site uses it any more
+      // (all pass a hold id); it remains for the guard's own tests. It does NOT close the race on its
+      // own — only the reserve path above does.
       const { data, error } = await deps.supabase.rpc('org_credit_balance', { p_org_id: orgId });
       // org_credit_balance asserts p_org_id = auth_org_id() server-side. On RPC error (or a
       // non-numeric result), fail-OPEN is WRONG for a meter — fail closed (exceeded:true) BUT
@@ -127,6 +141,27 @@ export function createCreditRateGuard(deps: CreditRateGuardDeps): {
       // interprets retryAfterSeconds<=0 on RATE_LIMITED as "out of credits" (convention, not a
       // new wire field — spec Open Question 2).
       return { exceeded: data <= 0, retryAfterSeconds: 0, reason: 'out_of_credits' };
+    },
+  };
+}
+
+/**
+ * The agent-dispatch rate guard: the credit guard built per call against the MINTED OWNER client
+ * (balance and holds run under owner RLS, never service_role), forwarding the unit's reservation id
+ * and releasing it by that id. With enforcement off it neither checks nor releases.
+ */
+export function createDispatchRateGuard(creditsEnforced: boolean): {
+  check(orgId: string, mintedClient?: unknown, reservationId?: string): Promise<RateGuardResult | { exceeded: false; retryAfterSeconds: 0 }>;
+  release(mintedClient: unknown, reservationId: string): Promise<void>;
+} {
+  return {
+    check: async (orgId, mintedClient, reservationId) => {
+      if (!creditsEnforced || !mintedClient) return { exceeded: false, retryAfterSeconds: 0 };
+      return createCreditRateGuard({ supabase: mintedClient as never }).check(orgId, reservationId);
+    },
+    release: async (mintedClient, reservationId) => {
+      if (!creditsEnforced || !mintedClient) return;
+      await createCreditRateGuard({ supabase: mintedClient as never }).release(reservationId);
     },
   };
 }

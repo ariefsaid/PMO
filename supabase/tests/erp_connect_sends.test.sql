@@ -1,4 +1,4 @@
--- ECA-3 (#1606, migration 0482): the send drain's three service-only functions.
+-- ECA-3 (#1606, migration 0494): the send drain's three service-only functions.
 -- AC-ECA-010 (DB half: one external reference per sent company, nothing written to accounts or taxes) and AC-ECA-012 (DB half:
 -- a rejected send becomes a review row with a plain reason and leaves the others alone), NFR-ECA-004 (a held send says so).
 begin;

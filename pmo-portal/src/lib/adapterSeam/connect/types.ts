@@ -43,6 +43,8 @@ export interface ConnectAdapter {
   countDomain(domain: string): Promise<number>;
   /** Lookup-then-create: a retry with the same record finds the first attempt's document instead of creating another. */
   sendMaster(kind: MasterKind, record: PmoMaster, key: string, opts?: SendOptions): Promise<{ externalId: string }>;
+  /** False for a kind this ERP cannot create yet: setup proposes no send for it. Absent means it can. */
+  canSend?(kind: MasterKind): boolean;
 }
 
 export type MatchKey = 'tax' | 'code' | 'name';

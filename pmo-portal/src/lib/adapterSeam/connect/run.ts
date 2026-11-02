@@ -42,7 +42,13 @@ export async function advanceConnectRun(d: ConnectRunDeps): Promise<'more' | 're
   const byId = new Map(erp.map((e) => [e.externalId, e]));
   const pmo = await d.pmoMasters(kind);
   const names = new Map(pmo.map((m) => [m.id, m.name]));   // a send row names its PMO record, so the Admin sees who is waiting or refused
-  await d.writeProposals(kind, proposeMatches(kind, pmo, erp), (id) => byId.get(id), (id) => names.get(id));
+  // A party the ERP gives no role cannot be linked or brought in (a company needs one): it is a review row, so a person can decide (FR-ODC-052).
+  const noRole = (e: NormalisedMaster) => kind === 'party' && e.role === undefined;
+  const outcomes = [
+    ...proposeMatches(kind, pmo, erp.filter((e) => !noRole(e))).filter((o) => o.outcome !== 'send' || (d.adapter.canSend?.(kind) ?? true)),
+    ...erp.filter((e) => noRole(e) && e.active && !e.internal).map((e): MatchOutcome => ({ outcome: 'review', pmoIds: [], externalIds: [e.externalId], reason: 'ambiguous' })),
+  ];
+  await d.writeProposals(kind, outcomes, (id) => byId.get(id), (id) => names.get(id));
   d.run.proposedKinds.push(kind);
   return d.run.proposedKinds.length === RUN_KINDS.length ? 'ready' : 'more';
 }

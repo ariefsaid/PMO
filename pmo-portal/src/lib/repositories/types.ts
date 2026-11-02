@@ -15,7 +15,9 @@
  * by domain. This module keeps the `Repositories` aggregate plus TYPE-ONLY re-exports of
  * every contract, so the external import surface of the seam is unchanged.
  */
-import type { RecordHistoryRepository } from './recordHistory';
+import type { RecordHistoryRepository } from './contracts/recordHistory';
+import type { ProjectStageRepository } from './contracts/projectStages';
+import type { SubcontractRepository } from './contracts/subcontracts';
 import type { ProjectMoneyRepository } from './contracts/projectMoney';
 import type { DashboardRepository } from './contracts/dashboard';
 import type { AgentRunRepository } from './contracts/agentRuns';
@@ -97,7 +99,7 @@ import type {
   WorkOrderRepository,
 } from './contracts/workOrders';
 
-import type { OdooRepository } from './odoo';
+import type { OdooRepository } from './contracts/odoo';
 
 export interface Repositories {
   fxRates: FxRatesRepository;
@@ -106,11 +108,13 @@ export interface Repositories {
   recordHistory: RecordHistoryRepository;
   vendorWithholdingSlips: VendorWithholdingSlipsRepository;
   project: ProjectRepository;
+  projectStage: ProjectStageRepository;
   company: CompanyRepository;
   document: DocumentRepository;
   agentAttachment: AgentAttachmentRepository;
   profile: ProfileRepository;
   procurement: ProcurementRepository;
+  subcontracts: SubcontractRepository;
   revenue: RevenueRepository;
   timesheet: TimesheetRepository;
   budget: BudgetRepository;
@@ -149,6 +153,10 @@ export interface Repositories {
 }
 
 export type { CommandIntent } from './contracts/commandIntent';
+export type { SubcontractRepository, CaptureSubcontractVendorInvoiceInput } from './contracts/subcontracts';
+export type { FieldChange, HistoryCursor, HistoryEvent, HistoryNameKind, HistoryPage, RecordHistoryRepository } from './contracts/recordHistory';
+export type { ProjectStageRepository } from './contracts/projectStages';
+export type { DirectoryKind, ListMasterInput, MasterRecord, OdooConnectionRead, OdooRepository } from './contracts/odoo';
 export type { ProjectRepository } from './contracts/projects';
 export type { CompanyCollectionsRepository, CompanyRepository, ContactRepository } from './contracts/companies';
 export type { TaskRepository } from './contracts/tasks';
