@@ -15,7 +15,7 @@ import { useProjects } from '@/src/hooks/useProjects';
 import { useUsers } from '@/src/hooks/useUsers';
 import { LIST_LIMIT, type EquipmentAssetRow, type EquipmentUsageRow, type UsageInput } from '@/src/lib/db/equipment';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { formatNumberMax2, formatWeekdayMonthDay } from '@/src/lib/format';
+import { formatNumberMax2, formatWeekdayDay, formatWeekdayMonthDay } from '@/src/lib/format';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { addDays, fromIso, mondayOf, toIso, weekDays } from './equipmentWeek';
 
@@ -33,6 +33,8 @@ const STATUS_VARIANT: Record<Status, StatusVariant> = {
 const cellKey = (assetId: string, projectId: string, kind: string, date: string) => `${assetId}|${projectId}|${kind}|${date}`;
 const rowKey = (assetId: string, projectId: string, kind: string) => `${assetId}|${projectId}|${kind}`;
 const dayLabel = (iso: string) => formatWeekdayMonthDay(fromIso(iso));
+/** Column heading: weekday and day number only, so seven days fit beside the totals. The cell's accessible name keeps the full date. */
+const dayHead = (iso: string) => formatWeekdayDay(fromIso(iso));
 const isEditable = (e: EquipmentUsageRow | undefined) => !e || e.status === 'Draft' || e.status === 'Rejected';
 
 /** One grid input. Saves on blur or Enter, and only when the text changed; the stored value re-syncs after a refetch. */
@@ -43,7 +45,7 @@ const UsageCell: React.FC<{ label: string; stored: string; disabled: boolean; on
   return (
     <TextField label={label} hideLabel inputMode="decimal" value={text} onChange={setText} disabled={disabled}
       onBlur={commit} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); commit(); } }}
-      className="w-16 text-right tabular-nums" />
+      className="w-14 px-1.5 text-right tabular-nums" />
   );
 };
 
@@ -170,18 +172,9 @@ const EquipmentUsagePage: React.FC = () => {
       cell: (r) => r.field === 'quantity'
         ? <span className="font-medium">{assetName(r.assetId)}{r.kind === 'standby' && <span className="ml-1 text-xs font-normal text-muted-foreground">{t('equipment:usage.standby', 'standby')}</span>}</span>
         : <span className="pl-3 text-xs text-muted-foreground">{r.field === 'fuel_litres' ? t('equipment:usage.fuel', 'Fuel (litres)') : t('equipment:usage.trips', 'Trips')}</span> },
-    { key: 'project', header: t('equipment:usage.columns.project', 'Project'),
-      cell: (r) => r.field === 'quantity'
-        ? <span className="flex items-center gap-1">
-          <span>{projectName(r.projectId)}</span>
-          <Button variant="ghost" size="sm" aria-expanded={opened.has(r.key)}
-            aria-label={t('equipment:usage.fuelTripsToggle', 'Fuel and trips for {{asset}} · {{project}}', { asset: assetName(r.assetId), project: projectName(r.projectId) })}
-            onClick={() => setOpened((s) => { const n = new Set(s); if (n.has(r.key)) n.delete(r.key); else n.add(r.key); return n; })}>
-            <Icon name="chev" />
-          </Button>
-        </span> : null },
+    { key: 'project', header: t('equipment:usage.columns.project', 'Project'), cell: (r) => r.field === 'quantity' ? projectName(r.projectId) : null },
     ...days.map<Column<GridRow>>((d) => ({
-      key: d, header: <span className={d === today ? 'font-semibold text-foreground' : undefined}>{dayLabel(d)}</span>, align: 'num',
+      key: d, header: <span className={d === today ? 'font-semibold text-foreground' : undefined}>{dayHead(d)}</span>, align: 'num', colClassName: 'px-1',
       cell: (r) => {
         const entry = byCell.get(cellKey(r.assetId, r.projectId, r.kind, d));
         const unit = entry?.unit ?? assetById.get(r.assetId)?.default_unit ?? 'hours';
@@ -205,6 +198,13 @@ const EquipmentUsagePage: React.FC = () => {
         if (states.length === 0) return <span className="text-muted-foreground">—</span>;
         return <span className="flex flex-wrap gap-1">{states.map((s) => <StatusPill key={s} variant={STATUS_VARIANT[s as Status]}>{statusLabel(t, s as Status)}</StatusPill>)}</span>;
       } },
+    { key: 'more', header: <span className="sr-only">{t('equipment:usage.columns.fuelTrips', 'Fuel · trips')}</span>,
+      cell: (r) => r.field !== 'quantity' ? null : (
+        <Button variant="ghost" size="sm" aria-expanded={opened.has(r.key)}
+          aria-label={t('equipment:usage.fuelTripsToggle', 'Fuel and trips for {{asset}} · {{project}}', { asset: assetName(r.assetId), project: projectName(r.projectId) })}
+          onClick={() => setOpened((st) => { const n = new Set(st); if (n.has(r.key)) n.delete(r.key); else n.add(r.key); return n; })}>
+          <Icon name="chev" />
+        </Button>) },
   ];
 
   const addRow = () => {

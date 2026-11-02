@@ -72,7 +72,7 @@ describe('/equipment/assets/:assetId (AC-EQU-001 FE reference, FR-EQU-044/071)',
     expect(detail).toHaveTextContent(/6 of 8/);
     expect(detail).toHaveTextContent(/75%/);
     expect(detail).toHaveTextContent(/Version 2/);
-    expect(detail).toHaveTextContent(/3 entries/);
+    expect(detail).toHaveTextContent(/Entries: 3/);
   });
 
   it('AC-EQU-001 a hire-rate row shows units, rate and the version it used', async () => {

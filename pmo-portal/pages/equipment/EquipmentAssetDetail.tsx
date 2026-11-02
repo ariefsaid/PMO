@@ -29,12 +29,12 @@ const Calculation: React.FC<{ r: EquipmentAllocationRow; t: T; money: (n: number
     rows.push([t('equipment:calc.work', 'Work'), t('equipment:calc.workLine', 'Work {{units}} {{unit}} at {{rate}} per {{perUnit}}', { units: formatNumberMax2(Number(r.work_units ?? 0)), unit, rate: formatNumberMax2(Number(r.work_rate ?? 0)), perUnit: unit })]);
     if (r.standby_rate != null) rows.push([t('equipment:calc.standby', 'Standby'), t('equipment:calc.standbyLine', 'Standby {{units}} {{unit}} at {{rate}} per {{perUnit}}', { units: formatNumberMax2(Number(r.standby_units ?? 0)), unit, rate: formatNumberMax2(Number(r.standby_rate)), perUnit: unit })]);
   } else {
-    if (r.pool != null) rows.push([t('equipment:calc.pool', 'Pool'), t('equipment:calc.poolLine', 'Pool {{amount}}', { amount: money(Number(r.pool)) }) + (r.line_count ? ` · ${t('equipment:calc.lines', '{{count}} ledger lines', { count: r.line_count })}` : '')]);
+    if (r.pool != null) rows.push([t('equipment:calc.pool', 'Pool'), t('equipment:calc.poolLine', 'Pool {{amount}}', { amount: money(Number(r.pool)) }) + (r.line_count ? ` · ${t('equipment:calc.lines', 'Ledger lines: {{count}}', { count: r.line_count })}` : '')]);
     rows.push([t('equipment:calc.driver', 'Driver'), t('equipment:calc.driverLine', 'Shared by {{driver}}', { driver: driverLabel(t, r.driver) })]);
     if (r.driver_value != null) rows.push([t('equipment:calc.share', 'Share'),
       `${t('equipment:calc.driverOf', '{{value}} of {{total}}', { value: formatNumberMax2(Number(r.driver_value)), total: r.driver_total != null ? formatNumberMax2(Number(r.driver_total)) : '—' })}${r.share != null ? ` · ${formatNumberMax2(Number(r.share) * 100)}%` : ''}`]);
   }
-  rows.push([t('equipment:calc.version', 'Setting'), t('equipment:calc.versionLine', 'Version {{version}}', { version: r.version }) + ` · ${t('equipment:calc.entries', '{{count}} entries', { count: r.entry_count })}`]);
+  rows.push([t('equipment:calc.version', 'Setting'), t('equipment:calc.versionLine', 'Version {{version}}', { version: r.version }) + ` · ${t('equipment:calc.entries', 'Entries: {{count}}', { count: r.entry_count })}`]);
   return (
     <div role="group" aria-label={t('equipment:calc.label', 'Calculation')} className="grid gap-1 py-2 text-sm sm:grid-cols-[8rem_1fr]">
       {rows.map(([k, v]) => <React.Fragment key={k}><span className="text-muted-foreground">{k}</span><span className="tabular-nums">{v}</span></React.Fragment>)}
