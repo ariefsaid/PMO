@@ -464,6 +464,7 @@
       "categoryOver": "{{category}} melebihi anggaran sebesar {{amount}}",
       "categoryOverSub": "Terpakai {{spent}} dari anggaran {{budget}}",
       "within": "Sesuai anggaran",
+      "withinOnSpend": "Sesuai anggaran untuk belanja",
       "withinSub": "Terpakai {{spent}} dari {{budget}}",
       "commitmentsError": "Tidak dapat memeriksa komitmen",
       "spendingChecking": "Memeriksa pengeluaran…",
@@ -481,6 +482,7 @@
       "snapshotUse": "{{percent}}% terpakai",
       "snapshotRemaining": "tersisa {{amount}}",
       "snapshotOver": "{{amount}} melebihi anggaran",
+      "snapshotOverOnCommitments": "{{amount}} lebih begitu pesanan terikat masuk",
       "atRisk": "Berisiko",
       "rowBudgetOnly": "{{budget}} dianggarkan"
     },

@@ -294,6 +294,17 @@ const ActiveCostBlock: React.FC<{ project: ProjectWithRefs; onOpenBudget?: () =>
     : null;
   const hasComparisons = !pos.canSeeActual || pos.rows.length > 0;
 
+  // L12: "used" and "remaining" mean what the Budget tab's "% used" and "Left" mean — spent plus committed — whenever
+  // the committed figure is known, so the Overview and the Budget tab never show two different headrooms.
+  const commitmentsUnavailable = canReadProcurements && committed.commitmentSource !== 'not-tracked' && committedFigure === null;
+  const spentAndCommitted = pos.spent === null || commitmentsUnavailable ? null : pos.spent + (committedFigure ?? 0);
+  const usedPercent = pos.budget > 0 && spentAndCommitted !== null ? pctOf(spentAndCommitted, pos.budget) : null;
+  const remaining = spentAndCommitted === null ? null : pos.budget - spentAndCommitted;
+  // Issue 1531: when spend alone sits within the budget but spent plus committed purchase orders exceeds it, the
+  // headline states its basis ("Within budget on spend") and the use line names commitments — one verdict per basis,
+  // never a bare "Within budget" directly above an "over budget" figure.
+  const overOnceCommitted = remaining !== null && remaining < 0 && pos.projectOver === null && !worst;
+
   const answer = !pos.canSeeActual || pos.spent === null ? (
     <Headline tooltip={summaryTooltip}>{t('projectDetail.cost.budgetOnly', 'Budget {{budget}}', { budget: whole(pos.budget) })}</Headline>
   ) : pos.projectOver !== null ? (
@@ -309,17 +320,13 @@ const ActiveCostBlock: React.FC<{ project: ProjectWithRefs; onOpenBudget?: () =>
     </>
   ) : pos.spent !== null ? (
     <>
-      <Headline tooltip={summaryTooltip}>{t('projectDetail.cost.within', 'Within budget')}</Headline>
+      <Headline tooltip={summaryTooltip}>{overOnceCommitted
+        ? t('projectDetail.cost.withinOnSpend', 'Within budget on spend')
+        : t('projectDetail.cost.within', 'Within budget')}</Headline>
       <Sub tooltip={summaryTooltip}>{t('projectDetail.cost.withinSub', 'Spent {{spent}} of {{budget}}', { spent: whole(pos.spent), budget: whole(pos.budget) })}</Sub>
     </>
   ) : null;
 
-  // L12: "used" and "remaining" mean what the Budget tab's "% used" and "Left" mean — spent plus committed — whenever
-  // the committed figure is known, so the Overview and the Budget tab never show two different headrooms.
-  const commitmentsUnavailable = canReadProcurements && committed.commitmentSource !== 'not-tracked' && committedFigure === null;
-  const spentAndCommitted = pos.spent === null || commitmentsUnavailable ? null : pos.spent + (committedFigure ?? 0);
-  const usedPercent = pos.budget > 0 && spentAndCommitted !== null ? pctOf(spentAndCommitted, pos.budget) : null;
-  const remaining = spentAndCommitted === null ? null : pos.budget - spentAndCommitted;
   const atRisk = isMoneyAtRisk({
     status: project.status as string,
     budget: pos.budget,
@@ -336,7 +343,9 @@ const ActiveCostBlock: React.FC<{ project: ProjectWithRefs; onOpenBudget?: () =>
       {usedPercent !== null && <Sub>
         {t('projectDetail.cost.snapshotUse', '{{percent}}% used', { percent: usedPercent })}
         {remaining !== null && <> · {remaining < 0
-          ? t('projectDetail.cost.snapshotOver', '{{amount}} over budget', { amount: whole(Math.abs(remaining)) })
+          ? overOnceCommitted
+            ? t('projectDetail.cost.snapshotOverOnCommitments', '{{amount}} over once committed orders land', { amount: whole(Math.abs(remaining)) })
+            : t('projectDetail.cost.snapshotOver', '{{amount}} over budget', { amount: whole(Math.abs(remaining)) })
           : t('projectDetail.cost.snapshotRemaining', '{{amount}} remaining', { amount: whole(remaining) })}</>}
         {atRisk && <span className="ml-2 font-semibold text-warning-foreground">{t('projectDetail.cost.atRisk', 'At risk')}</span>}
       </Sub>}
