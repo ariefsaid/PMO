@@ -2,7 +2,7 @@
 -- Fixture F1: docs/plans/2026-11-02-time-and-materials-claims.md.
 begin;
 create extension if not exists pgtap;
-select plan(40);
+select plan(50);
 
 -- ── Fixture F1 ──────────────────────────────────────────────────────────────────────────────
 insert into organizations (id, name, default_currency, default_timezone) values
@@ -190,6 +190,73 @@ select throws_ok($q$select end_contract_rate_line('15140000-0000-0000-0000-00000
 set local request.jwt.claims = '{"sub":"15140000-0000-0000-0000-0000000000b3","role":"authenticated"}';
 select lives_ok($q$select save_contract_rate_line('{"line_key":"15140000-0000-0000-0000-0000000000e6","project_id":"15140000-0000-0000-0000-0000000000c1","kind":"labour","label":"Admin rate","unit":"hour","rate":1,"currency":"IDR","effective_from":"2026-01-01"}')$q$,
   'AC-TM-011 an Admin can save a rate');
+
+set local request.jwt.claims = '{"sub":"15140000-0000-0000-0000-0000000000b4","role":"authenticated"}';
+select throws_ok($q$select end_contract_rate_assignee(
+  '15140000-0000-0000-0000-0000000000c1',
+  (select id from contract_rate_assignees where project_id='15140000-0000-0000-0000-0000000000c1'
+     and line_key='15140000-0000-0000-0000-0000000000e1' and user_id='15140000-0000-0000-0000-0000000000b6'),
+  '2026-10-31')$q$,
+  '42501', null, 'AC-TM-011 a Project Manager cannot end an assignee window');
+set local request.jwt.claims = '{"sub":"15140000-0000-0000-0000-0000000000b6","role":"authenticated"}';
+select throws_ok($q$select end_contract_rate_assignee(
+  '15140000-0000-0000-0000-0000000000c1',
+  (select id from contract_rate_assignees where project_id='15140000-0000-0000-0000-0000000000c1'
+     and line_key='15140000-0000-0000-0000-0000000000e1' and user_id='15140000-0000-0000-0000-0000000000b6'),
+  '2026-10-31')$q$,
+  '42501', null, 'AC-TM-011 an Engineer cannot end an assignee window');
+
+set local request.jwt.claims = '{"sub":"15140000-0000-0000-0000-0000000000b1","role":"authenticated"}';
+select lives_ok($q$select end_contract_rate_assignee(
+  '15140000-0000-0000-0000-0000000000c1',
+  (select id from contract_rate_assignees where project_id='15140000-0000-0000-0000-0000000000c1'
+     and line_key='15140000-0000-0000-0000-0000000000e1' and user_id='15140000-0000-0000-0000-0000000000b6'),
+  '2026-10-31')$q$,
+  'AC-TM-011 Finance can end an assignee window');
+select is((select effective_to from contract_rate_assignees
+            where project_id='15140000-0000-0000-0000-0000000000c1'
+              and line_key='15140000-0000-0000-0000-0000000000e1'
+              and user_id='15140000-0000-0000-0000-0000000000b6'),
+  '2026-10-31'::date, 'AC-TM-011 ending an assignee window stores its final day');
+reset role;
+select ok(exists(
+  select 1 from audit_events
+   where action='contract_rate_assignee.end'
+     and entity_id=(select id from contract_rate_assignees where project_id='15140000-0000-0000-0000-0000000000c1'
+                     and line_key='15140000-0000-0000-0000-0000000000e1'
+                     and user_id='15140000-0000-0000-0000-0000000000b6')
+     and actor_id='15140000-0000-0000-0000-0000000000b1'
+     and detail #>> '{before,effective_to}' = '2026-12-31'
+     and detail #>> '{after,effective_to}' = '2026-10-31'),
+  'AC-TM-011 ending an assignee window writes its before-and-after audit row');
+
+set local role authenticated;
+select throws_ok($q$select set_contract_rate_assignee(
+  '15140000-0000-0000-0000-0000000000c1','15140000-0000-0000-0000-0000000000e6',
+  '15140000-0000-0000-0000-0000000000b6','2026-10-31',null)$q$,
+  '23505', null, 'AC-TM-011 the assignee end day remains inclusive for overlap checks');
+select lives_ok($q$insert into _state select 'next_assignment', jsonb_build_object('id', set_contract_rate_assignee(
+  '15140000-0000-0000-0000-0000000000c1','15140000-0000-0000-0000-0000000000e6',
+  '15140000-0000-0000-0000-0000000000b6','2026-11-01',null))$q$,
+  'AC-TM-011 a new assignee window can start the day after the old one ends');
+
+set local request.jwt.claims = '{"sub":"15140000-0000-0000-0000-0000000000b8","role":"authenticated"}';
+select throws_ok($q$select end_contract_rate_assignee(
+  '15140000-0000-0000-0000-0000000000c1',
+  (select (v->>'id')::uuid from _state where k='next_assignment'),
+  '2026-11-30')$q$,
+  'P0002', null, 'AC-TM-011 an Admin from another organization cannot end an assignee window');
+
+set local request.jwt.claims = '{"sub":"15140000-0000-0000-0000-0000000000b3","role":"authenticated"}';
+select lives_ok($q$select end_contract_rate_assignee(
+  '15140000-0000-0000-0000-0000000000c1',
+  (select (v->>'id')::uuid from _state where k='next_assignment'),
+  '2026-12-31')$q$,
+  'AC-TM-011 an Admin can end an assignee window');
+select is((select effective_to from contract_rate_assignees
+            where id=(select (v->>'id')::uuid from _state where k='next_assignment')),
+  '2026-12-31'::date, 'AC-TM-011 the Admin end date is recorded');
+
 set local request.jwt.claims = '{"sub":"15140000-0000-0000-0000-0000000000b9","role":"authenticated"}';
 select ok(pg_temp.tm_rate_count(null, null) > 0, 'Executive can read contract rates');
 set local request.jwt.claims = '{"sub":"15140000-0000-0000-0000-0000000000b1","role":"authenticated"}';

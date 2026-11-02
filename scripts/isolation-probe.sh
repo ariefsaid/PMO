@@ -184,6 +184,7 @@ if [ -n "$A_PROJECT" ] && [ "$A_PROJECT" != null ]; then
   rate_key=b0000000-0000-4000-8000-0000000000ac
   c=$(rpc save_contract_rate_line "$(jq -nc --arg project "$A_PROJECT" '{p_line:{project_id:$project,line_key:"b0000000-0000-4000-8000-0000000000ac",kind:"labour",label:"Isolation probe",unit:"hour",rate:1,currency:"IDR",effective_from:"2026-01-01"}}')")
   c=$(rpc end_contract_rate_line "{\"p_project\":\"$A_PROJECT\",\"p_line_key\":\"$rate_key\",\"p_effective_to\":\"2026-01-01\",\"p_expected_version\":1}")
+  c=$(rpc end_contract_rate_assignee "{\"p_project\":\"$A_PROJECT\",\"p_assignee\":\"$A_PROFILE\",\"p_effective_to\":\"2026-01-01\"}")
   c=$(rpc set_contract_rate_assignee "{\"p_project\":\"$A_PROJECT\",\"p_line_key\":\"$rate_key\",\"p_user\":\"$A_PROFILE\",\"p_from\":\"2026-01-01\",\"p_to\":\"2026-01-01\"}")
   c=$(rpc get_financial_statement_catalogue "$(jq -nc --arg project "$A_PROJECT" '{p_project_id:$project}')")
   c=$(rpc get_financial_statement "$(jq -nc --arg project "$A_PROJECT" '{p_period_kind:"month",p_period_start:"2026-09-01",p_statement:"profit_and_loss",p_project_id:$project,p_view_kind:"project_totals",p_unassigned:false}')")

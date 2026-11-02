@@ -1,3 +1,4 @@
+drop function if exists public.end_contract_rate_assignee(uuid, uuid, date);
 drop function if exists public.set_contract_rate_assignee(uuid, uuid, uuid, date, date);
 drop function if exists public.end_contract_rate_line(uuid, uuid, date, integer);
 drop function if exists public.save_contract_rate_line(jsonb);

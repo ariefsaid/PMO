@@ -10809,6 +10809,10 @@ export type Database = {
         Returns: Json
       }
       save_contract_rate_line: { Args: { p_line: Json }; Returns: Json }
+      end_contract_rate_assignee: {
+        Args: { p_assignee: string; p_effective_to: string; p_project: string }
+        Returns: undefined
+      }
       set_contract_rate_assignee: {
         Args: {
           p_from: string

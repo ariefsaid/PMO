@@ -291,18 +291,48 @@ begin
   return v_id;
 end $$;
 
+create function public.end_contract_rate_assignee(p_project uuid, p_assignee uuid, p_effective_to date) returns void
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_org uuid := public.auth_org_id();
+  v_a public.contract_rate_assignees;
+begin
+  perform public.assert_is_active_member();
+  if coalesce(public.auth_role()::text, '') not in ('Admin', 'Finance') then
+    raise exception 'not authorized to end contract rate assignments' using errcode = '42501';
+  end if;
+  if p_effective_to is null then raise exception 'effective_to is required' using errcode = '22023'; end if;
+  perform pg_advisory_xact_lock(hashtextextended('contract_rates:' || v_org::text, 0));
+  select * into v_a from public.contract_rate_assignees a
+   where a.id = p_assignee and a.org_id = v_org and a.project_id = p_project for update;
+  if not found then raise exception 'assignment not found' using errcode = 'P0002'; end if;
+  if p_effective_to < v_a.effective_from or (v_a.effective_to is not null and p_effective_to > v_a.effective_to) then
+    raise exception 'assignment end date is invalid' using errcode = '22023';
+  end if;
+  update public.contract_rate_assignees set effective_to = p_effective_to where id = v_a.id;
+  perform public.log_audit(
+    'contract_rate_assignee.end', v_org, auth.uid(), v_a.id,
+    jsonb_build_object('project_id', p_project, 'line_key', v_a.line_key, 'user_id', v_a.user_id,
+      'before', jsonb_build_object('effective_to', v_a.effective_to),
+      'after', jsonb_build_object('effective_to', p_effective_to))
+  );
+end $$;
+
 revoke all on function public.contract_rate_line_normalize(uuid, jsonb) from public, anon, authenticated;
 revoke all on function public.contract_rate_line_content(uuid) from public, anon, authenticated;
 revoke all on function public.contract_rate_line_write(jsonb, text) from public, anon, authenticated;
 revoke all on function public.save_contract_rate_line(jsonb) from public, anon, authenticated;
 revoke all on function public.end_contract_rate_line(uuid, uuid, date, integer) from public, anon, authenticated;
 revoke all on function public.set_contract_rate_assignee(uuid, uuid, uuid, date, date) from public, anon, authenticated;
+revoke all on function public.end_contract_rate_assignee(uuid, uuid, date) from public, anon, authenticated;
 grant execute on function public.save_contract_rate_line(jsonb) to authenticated;
 grant execute on function public.end_contract_rate_line(uuid, uuid, date, integer) to authenticated;
 grant execute on function public.set_contract_rate_assignee(uuid, uuid, uuid, date, date) to authenticated;
+grant execute on function public.end_contract_rate_assignee(uuid, uuid, date) to authenticated;
 alter function public.save_contract_rate_line(jsonb) owner to postgres;
 alter function public.end_contract_rate_line(uuid, uuid, date, integer) owner to postgres;
 alter function public.set_contract_rate_assignee(uuid, uuid, uuid, date, date) owner to postgres;
+alter function public.end_contract_rate_assignee(uuid, uuid, date) owner to postgres;
 
 do $$
 declare v_bad text;
@@ -312,7 +342,8 @@ begin
    where n.nspname = 'public'
      and p.proname in (
        'contract_rate_line_normalize', 'contract_rate_line_content', 'contract_rate_line_write',
-       'save_contract_rate_line', 'end_contract_rate_line', 'set_contract_rate_assignee'
+       'save_contract_rate_line', 'end_contract_rate_line', 'set_contract_rate_assignee',
+       'end_contract_rate_assignee'
      )
      and (
        (p.proname in ('contract_rate_line_normalize', 'contract_rate_line_content', 'contract_rate_line_write')
