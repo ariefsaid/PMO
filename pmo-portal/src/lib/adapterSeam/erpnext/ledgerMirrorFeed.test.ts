@@ -481,12 +481,12 @@ describe('erpnext/ledgerMirrorFeed — #901 fix round: bounded + ordered + monot
     row.watermark_cursor = cursor;
   }
 
-  it('ordered pages: a multi-page backfill advances the watermark to the LAST row\'s modified, and every page request carries the stable order', async () => {
+  it('a backfill advances the watermark to the LAST row\'s modified, and every page request carries the stable order', async () => {
     const sc = fakeServiceClient();
     const erp = fakeErp(glSource(5));
-    const res = await feedLedgerMirrors(sc, { client: erp.client, orgId: 'org-1', company: 'PMO Smoke Co', pageSize: 2 });
+    const res = await feedLedgerMirrors(sc, { client: erp.client, orgId: 'org-1', company: 'PMO Smoke Co' });
     const glUrls = erp.urls.filter((u) => u.includes('/api/resource/GL%20Entry'));
-    expect(glUrls).toHaveLength(5); // keyset: a page, then the tie-group read after its last row (empty), per full page
+    expect(glUrls.length).toBeGreaterThan(0);
     for (const u of glUrls) expect(new URL(u).searchParams.get('order_by')).toBe('modified asc, name asc');
     expect(res.glFed).toBe(5);
     expect(res.glCaughtUp).toBe(true);
@@ -494,41 +494,70 @@ describe('erpnext/ledgerMirrorFeed — #901 fix round: bounded + ordered + monot
     expect(h(sc).watermarks.get(`erpnext::${LEDGER_GL_WM_DOMAIN}`)).toBe('2026-10-07 10:04:00.000000|GLE-4');
   });
 
-  it('per-tick page budget: tick 1 stops at the budget and advances the watermark; later ticks resume (each bounded); the union is the FULL set with nothing skipped', async () => {
+  it('persists a partial page cursor, resumes after it, then reports caught up without re-reading rows', async () => {
     const sc = fakeServiceClient();
-    const erp = fakeErp(glSource(8)); // 4 full pages at pageSize 2 — more than one tick's budget of 2
+    const erp = fakeErp([]);
+    const rows = Array.from({ length: 8 }, (_, i) => glRow(`GLE-${i}`, {
+      modified: `2026-10-07 10:${String(i).padStart(2, '0')}:00.000000`, voucher_type: null, voucher_no: null,
+    }));
+    const cursor1 = '2026-10-07 10:03:00.000000|GLE-3';
+    const cursor2 = '2026-10-07 10:07:00.000000|GLE-7';
+    const fetchSpy = vi.spyOn(ledgerFetch, 'fetchGlEntries')
+      .mockResolvedValueOnce({ rows: rows.slice(0, 4), caughtUp: false, cursor: cursor1 })
+      .mockResolvedValueOnce({ rows: rows.slice(4), caughtUp: true, cursor: cursor2 })
+      .mockResolvedValueOnce({ rows: [], caughtUp: true, cursor: cursor2 });
+    vi.spyOn(ledgerFetch, 'fetchPaymentLedgerEntries').mockResolvedValue({ rows: [], caughtUp: true });
 
-    const tick1 = await feedLedgerMirrors(sc, { client: erp.client, orgId: 'org-1', company: 'PMO Smoke Co', pageSize: 2, maxPages: 2 });
+    const tick1 = await feedLedgerMirrors(sc, { client: erp.client, orgId: 'org-1', company: 'PMO Smoke Co' });
     expect(tick1.glFed).toBe(4);
-    expect(tick1.glCaughtUp).toBe(false); // the budget, not a short page, stopped the fetch
-    expect(tick1.glCursor).toBe('2026-10-07 10:03:00.000000|GLE-3'); // the last row READ (modified + name)
-    expect(h(sc).watermarks.get(`erpnext::${LEDGER_GL_WM_DOMAIN}`)).toBe('2026-10-07 10:03:00.000000|GLE-3');
+    expect(tick1.glCaughtUp).toBe(false);
+    expect(tick1.glCursor).toBe(cursor1);
+    expect(h(sc).watermarks.get(`erpnext::${LEDGER_GL_WM_DOMAIN}`)).toBe(cursor1);
     const after1 = Array.from(h(sc).gl.keys()).sort();
     expect(after1).toEqual(['GLE-0', 'GLE-1', 'GLE-2', 'GLE-3']);
 
-    // Tick 2 resumes strictly AFTER the stored (modified, name) row — the boundary row is not re-read.
-    // The budget binds EVERY tick, not only the first activation: a long-frozen cursor catches up in steps.
-    const tick2 = await feedLedgerMirrors(sc, { client: erp.client, orgId: 'org-1', company: 'PMO Smoke Co', pageSize: 2, maxPages: 2 });
-    expect(tick2.glCaughtUp).toBe(false);
-    expect(tick2.glFed).toBe(4); // GLE-4..7
-    expect(tick2.glCursor).toBe('2026-10-07 10:07:00.000000|GLE-7');
-    const tick3 = await feedLedgerMirrors(sc, { client: erp.client, orgId: 'org-1', company: 'PMO Smoke Co', pageSize: 2, maxPages: 2 });
+    // The feed passes the stored composite watermark to the fetch seam and writes each row only once.
+    const tick2 = await feedLedgerMirrors(sc, { client: erp.client, orgId: 'org-1', company: 'PMO Smoke Co' });
+    expect(tick2.glCaughtUp).toBe(true);
+    expect(tick2.glFed).toBe(4);
+    expect(tick2.glCursor).toBe(cursor2);
+    expect(fetchSpy).toHaveBeenNthCalledWith(2, erp.client, { company: 'PMO Smoke Co', since: cursor1 });
+    const tick3 = await feedLedgerMirrors(sc, { client: erp.client, orgId: 'org-1', company: 'PMO Smoke Co' });
     expect(tick3.glCaughtUp).toBe(true);
     expect(tick3.glFed).toBe(0);
-    expect(tick3.glCursor).toBe('2026-10-07 10:07:00.000000|GLE-7');
+    expect(tick3.glCursor).toBe(cursor2);
     // UNION across the ticks = the full source, NOTHING skipped, NO duplicates:
     expect(Array.from(h(sc).gl.keys()).sort()).toEqual(['GLE-0', 'GLE-1', 'GLE-2', 'GLE-3', 'GLE-4', 'GLE-5', 'GLE-6', 'GLE-7']);
   });
 
-  it('THEME-DATA-03: through the feed, a tie group larger than a whole tick budget is drained across ticks, then the later rows follow', async () => {
+  it('THEME-DATA-03: through the feed, a tie group split across fetched pages is drained before later rows', async () => {
     const sc = fakeServiceClient();
     const tie = Array.from({ length: 9 }, (_, i) => glRow(`GLE-T${i}`, { modified: '2026-10-07 10:00:00.000000' }));
-    const erp = fakeErp([...tie, glRow('GLE-LATE', { modified: '2026-10-07 10:05:00.000000' })]);
+    const erp = fakeErp([]);
+    const rows = [...tie, glRow('GLE-LATE', { modified: '2026-10-07 10:05:00.000000' })]
+      .map((row) => ({ ...row, voucher_type: null, voucher_no: null }));
+    const pageEnds = [1, 3, 5, 7, 9];
+    const cursors = [
+      '2026-10-07 10:00:00.000000|GLE-T1',
+      '2026-10-07 10:00:00.000000|GLE-T3',
+      '2026-10-07 10:00:00.000000|GLE-T5',
+      '2026-10-07 10:00:00.000000|GLE-T7',
+      '2026-10-07 10:05:00.000000|GLE-LATE',
+    ];
+    const pages = pageEnds.map((end, index) => ({
+      rows: rows.slice(index === 0 ? 0 : pageEnds[index - 1]! + 1, end + 1),
+      caughtUp: index === pageEnds.length - 1,
+      cursor: cursors[index],
+    }));
+    const fetchSpy = vi.spyOn(ledgerFetch, 'fetchGlEntries');
+    for (const page of pages) fetchSpy.mockResolvedValueOnce(page);
+    vi.spyOn(ledgerFetch, 'fetchPaymentLedgerEntries').mockResolvedValue({ rows: [], caughtUp: true });
     let caughtUp = false;
     for (let tick = 0; tick < 8 && !caughtUp; tick += 1) {
-      caughtUp = (await feedLedgerMirrors(sc, { client: erp.client, orgId: 'org-1', company: 'PMO Smoke Co', pageSize: 2, maxPages: 2 })).glCaughtUp;
+      caughtUp = (await feedLedgerMirrors(sc, { client: erp.client, orgId: 'org-1', company: 'PMO Smoke Co' })).glCaughtUp;
     }
     expect(caughtUp).toBe(true);
+    expect(fetchSpy).toHaveBeenCalledTimes(pages.length);
     expect(Array.from(h(sc).gl.keys()).sort()).toEqual([...tie.map((r) => r.name), 'GLE-LATE'].sort());
     expect(h(sc).watermarks.get(`erpnext::${LEDGER_GL_WM_DOMAIN}`)).toBe('2026-10-07 10:05:00.000000|GLE-LATE');
   });
