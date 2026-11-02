@@ -5,7 +5,13 @@
 
 import { assert, assertEquals } from 'https://deno.land/std@0.224.0/assert/mod.ts';
 import { spy, assertSpyCalls } from 'https://deno.land/std@0.224.0/testing/mock.ts';
-import { resolvePerOrgSecret, type PerOrgSecretDeps, type PerOrgSecretResult } from './perOrgSecret.ts';
+import {
+  lookupOrgBindingSecretRef,
+  resolveOrgSecretOrFallback,
+  resolvePerOrgSecret,
+  type PerOrgSecretResult,
+} from './perOrgSecret.ts';
+import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 
 Deno.test({
   name: 'AC-EAC-009: flag=false → no-binding (never calls lookup/vault)',
@@ -149,4 +155,123 @@ Deno.test({
     assertSpyCalls(lookupBinding, 1);
     assertSpyCalls(readVaultSecret, 0);
   },
+});
+
+// ── T-07 B3: a FAILED read is not an absent binding ───────────────────────────────────────────────
+// Tri-state: found / absent / failed. Only a confirmed absence may fall back to the global credential;
+// a failed binding or vault read must fail closed (the write would otherwise go out under the wrong identity).
+
+Deno.test('T-07 B3: lookupBinding throws → read-failed (never no-binding), vault untouched', async () => {
+  const readVaultSecret = spy(async () => 'vault-token');
+  const result = await resolvePerOrgSecret({
+    connectEnabled: true,
+    orgId: 'org-1',
+    tier: 'clickup',
+    lookupBinding: async () => {
+      throw new AppError('connection reset', '08006');
+    },
+    readVaultSecret,
+  });
+  assertEquals(result.kind, 'read-failed');
+  assertSpyCalls(readVaultSecret, 0);
+});
+
+Deno.test('T-07 B3: readVaultSecret throws → read-failed (not a vault miss, not resolved)', async () => {
+  const result = await resolvePerOrgSecret({
+    connectEnabled: true,
+    orgId: 'org-1',
+    tier: 'clickup',
+    lookupBinding: async () => ({ secret_ref: 'ref-1' }),
+    readVaultSecret: async () => {
+      throw new AppError('rpc timeout', '57014');
+    },
+  });
+  assertEquals(result.kind, 'read-failed');
+});
+
+async function fallbackOutcome(deps: Partial<Parameters<typeof resolvePerOrgSecret>[0]>): Promise<string | AppError> {
+  try {
+    return await resolveOrgSecretOrFallback(
+      {
+        connectEnabled: true,
+        orgId: 'org-1',
+        tier: 'clickup',
+        lookupBinding: async () => null,
+        readVaultSecret: async () => null,
+        ...deps,
+      },
+      'GLOBAL-TOKEN',
+    );
+  } catch (e) {
+    return e as AppError;
+  }
+}
+
+Deno.test('T-07 B3: confirmed absent binding falls back to the global credential', async () => {
+  assertEquals(await fallbackOutcome({ lookupBinding: async () => null }), 'GLOBAL-TOKEN');
+});
+
+Deno.test('T-07 B3: a FAILED binding read fails closed — never the global credential', async () => {
+  const out = await fallbackOutcome({
+    lookupBinding: async () => {
+      throw new AppError('db down', '57P03');
+    },
+  });
+  assert(out instanceof AppError, 'expected a thrown AppError, not a token');
+  assertEquals(out.code, 'external-unreachable');
+});
+
+Deno.test('T-07 B3: a FAILED vault read fails closed — never the global credential', async () => {
+  const out = await fallbackOutcome({
+    lookupBinding: async () => ({ secret_ref: 'ref-1' }),
+    readVaultSecret: async () => {
+      throw new AppError('vault down', '57P03');
+    },
+  });
+  assert(out instanceof AppError, 'expected a thrown AppError, not a token');
+  assertEquals(out.code, 'external-unreachable');
+});
+
+Deno.test('T-07 B3: bound org with an empty vault secret fails closed (config-rejected)', async () => {
+  const out = await fallbackOutcome({
+    lookupBinding: async () => ({ secret_ref: 'ref-1' }),
+    readVaultSecret: async () => null,
+  });
+  assert(out instanceof AppError, 'expected a thrown AppError, not a token');
+  assertEquals(out.code, 'config-rejected');
+});
+
+Deno.test('T-07 B3: a resolved vault secret wins over the global credential', async () => {
+  assertEquals(
+    await fallbackOutcome({
+      lookupBinding: async () => ({ secret_ref: 'ref-1' }),
+      readVaultSecret: async () => 'ORG-TOKEN',
+    }),
+    'ORG-TOKEN',
+  );
+});
+
+/** Minimal PostgREST-shaped stand-in: the chain ends in `.maybeSingle()` resolving `{data,error}`. */
+function bindingClient(result: { data: unknown; error: { message: string; code?: string } | null }) {
+  const b: Record<string, unknown> = {};
+  for (const m of ['from', 'select', 'eq']) b[m] = () => b;
+  b.maybeSingle = () => Promise.resolve(result);
+  return b as never;
+}
+
+Deno.test('T-07 B3: lookupOrgBindingSecretRef throws on a query error, null only for a confirmed absent row', async () => {
+  const failed = lookupOrgBindingSecretRef(bindingClient({ data: null, error: { message: 'boom', code: '57P03' } }));
+  let thrown: unknown = null;
+  try {
+    await failed('org-1', 'clickup');
+  } catch (e) {
+    thrown = e;
+  }
+  assert(thrown instanceof AppError, 'a query error must throw, not read as absence');
+
+  assertEquals(await lookupOrgBindingSecretRef(bindingClient({ data: null, error: null }))('org-1', 'clickup'), null);
+  assertEquals(
+    await lookupOrgBindingSecretRef(bindingClient({ data: { secret_ref: 'ref-1' }, error: null }))('org-1', 'clickup'),
+    { secret_ref: 'ref-1' },
+  );
 });

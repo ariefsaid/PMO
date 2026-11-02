@@ -8,6 +8,10 @@ import { signIn } from '../helpers';
 // override in afterEach, keeping the spec retry-safe and un-poisoning later serial tests.
 const PROJECT_ID = '40000000-0000-0000-0000-000000000001';
 
+// P001's Contract figure is its BoQ total once the seed carries BoQ lines (#1512 S5: 1200*18 + 800*32 + 2500*6 + 6000*2.1 = 74,800),
+// not the 5,000,000 header contract_value. The goal here is the locale shape of a money figure, not which basis it sums.
+const P001_CONTRACT_USD = 74_800;
+
 // The expected formatted strings, computed with the SAME Intl shapes the plan dictates so the
 // assertion certifies the viewer's resolved locale rather than a hardcoded translation.
 const MONEY_ID = new Intl.NumberFormat('id-ID', {
@@ -15,7 +19,7 @@ const MONEY_ID = new Intl.NumberFormat('id-ID', {
   currency: 'USD',
   minimumFractionDigits: 0,
   maximumFractionDigits: 0,
-}).format(5_000_000);
+}).format(P001_CONTRACT_USD);
 const DATE_ID = new Intl.DateTimeFormat('id-ID', {
   year: 'numeric',
   month: 'short',

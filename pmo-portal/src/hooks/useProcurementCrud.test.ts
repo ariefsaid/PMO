@@ -157,3 +157,31 @@ describe('AC-PROC-002..005 useProcurementCrudMutations (detail-scoped, invalidat
     expect(calls.some((c) => c.includes('"pr1"'))).toBe(true);
   });
 });
+
+describe('T-11 detail mutations refresh list and spend', () => {
+  it('updateHeader with a project change refreshes old and new project spend and the list family', async () => {
+    const { qc, Wrapper } = makeWrapper();
+    qc.setQueryData(['procurement', 'org-1', 'pr1', 'u1', 'r'], { project_id: 'pOld' });
+    const spy = vi.spyOn(qc, 'invalidateQueries');
+    const { result } = renderHook(() => useProcurementCrudMutations('pr1'), { wrapper: Wrapper });
+    await act(async () => {
+      await result.current.updateHeader.mutateAsync({ title: 'T', projectId: 'pNew', vendorId: null });
+    });
+    const keys = spy.mock.calls.map((c) => c[0]?.queryKey);
+    expect(keys).toContainEqual(['procurements', 'org-1']);
+    for (const p of ['pOld', 'pNew']) {
+      expect(keys).toContainEqual(['project-committed-spend', 'org-1', p]);
+      expect(keys).toContainEqual(['project-reserved-spend', 'org-1', p]);
+    }
+  });
+
+  it('selectQuote refreshes the list family', async () => {
+    const { qc, Wrapper } = makeWrapper();
+    const spy = vi.spyOn(qc, 'invalidateQueries');
+    const { result } = renderHook(() => useProcurementCrudMutations('pr1'), { wrapper: Wrapper });
+    await act(async () => {
+      await result.current.selectQuote.mutateAsync('q1');
+    });
+    expect(spy.mock.calls.map((c) => c[0]?.queryKey)).toContainEqual(['procurements', 'org-1']);
+  });
+});

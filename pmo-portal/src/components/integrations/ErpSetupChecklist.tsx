@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
+import { externalDomainOwnershipKey } from '@/src/hooks/approvalsQueryKeys';
 import { repositories } from '@/src/lib/repositories';
 import {
   Button,
@@ -52,7 +53,7 @@ export function ErpSetupChecklist(
   const refresh = async () => {
     await setup.refetch();
     void qc.invalidateQueries({
-      queryKey: ['external-domain-ownership', orgId],
+      queryKey: externalDomainOwnershipKey(orgId),
     });
     void qc.invalidateQueries({
       queryKey: ['integrations', 'bindings', orgId],

@@ -110,7 +110,7 @@ function toIdr(node: unknown, key?: string): unknown {
 const json = (body: unknown) => (route: Route) => route.fulfill({ json: body });
 
 async function rewriteRead(route: Route, rewrite: (body: unknown) => unknown) {
-  const response = await route.fetch();
+  const response = await route.fetch({ maxRetries: 2 });
   if (!response.ok()) return route.fulfill({ response });
   let body: unknown;
   try {

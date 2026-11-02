@@ -92,6 +92,98 @@ describe('AC-CUA-081 an exhausted 429 retry budget fails cleanly through the Ada
   });
 });
 
+describe('sync-integrity a non-idempotent create (POST) is never auto-retried on an ambiguous failure', () => {
+  it('a 5xx on a POST create is attempted ONCE (no backoff retry) and surfaces as unconfirmed', async () => {
+    const fetchImpl = vi.fn(async () => new Response(null, { status: 502 }));
+    let thrown: unknown;
+    try {
+      await clickUpRequest({ fetchImpl: fetchImpl as unknown as typeof fetch, token: 't' }, {
+        method: 'POST',
+        path: '/list/list-1/task',
+        body: { name: 'New task' },
+      });
+    } catch (err) {
+      thrown = err;
+    }
+    expect(thrown).toBeInstanceOf(ClickUpHttpError);
+    expect((thrown as ClickUpHttpError).code).toBe('external-unreachable');
+    expect((thrown as ClickUpHttpError).status).toBe(502);
+    expect((thrown as ClickUpHttpError).message).toMatch(/unconfirmed/);
+    // The server may have recorded the create — re-sending it would mint a duplicate task.
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it('a timed-out POST create is attempted once and surfaces as unconfirmed', async () => {
+    vi.useFakeTimers();
+    const fetchImpl = vi.fn(
+      (_url: unknown, init?: RequestInit) =>
+        new Promise<Response>((_res, reject) => {
+          init?.signal?.addEventListener('abort', () => reject(new Error('aborted')));
+        }),
+    );
+    const settled = clickUpRequest({ fetchImpl: fetchImpl as unknown as typeof fetch, token: 't' }, {
+      method: 'POST',
+      path: '/list/list-1/task',
+      body: { name: 'New task' },
+    }).then(() => null, (e: unknown) => e);
+    await vi.advanceTimersByTimeAsync(CLICKUP_REQUEST_TIMEOUT_MS);
+    const err = await settled;
+    expect(err).toBeInstanceOf(ClickUpHttpError);
+    expect((err as ClickUpHttpError).code).toBe('external-unreachable');
+    expect((err as ClickUpHttpError).message).toMatch(/unconfirmed/);
+    expect(fetchImpl).toHaveBeenCalledTimes(1); // one create attempt — never a blind resend
+    vi.useRealTimers();
+  });
+
+  it('idempotent methods keep their bounded retry: a PUT 5xx is retried and succeeds', async () => {
+    vi.useFakeTimers();
+    const fetchImpl = vi.fn()
+      .mockResolvedValueOnce(new Response(null, { status: 500 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true }), { status: 200 }));
+    const settled = clickUpRequest({ fetchImpl: fetchImpl as unknown as typeof fetch, token: 't' }, {
+      method: 'PUT',
+      path: '/task/cu-1',
+      body: { name: 'Renamed' },
+    }).then(() => null, (e: unknown) => e);
+    // 5xx with no rate-limit headers -> the linear fallback (500ms) before attempt 2.
+    await vi.advanceTimersByTimeAsync(500);
+    const err = await settled;
+    expect(err).toBeNull();
+    expect(fetchImpl).toHaveBeenCalledTimes(2); // reads/updates stay retryable
+    vi.useRealTimers();
+  });
+
+  it('a 429 on a POST create IS retried (ClickUp never processed it) and succeeds', async () => {
+    vi.useFakeTimers();
+    const fetchImpl = vi.fn()
+      .mockResolvedValueOnce(new Response(null, { status: 429 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 't1' }), { status: 200 }));
+    const settled = clickUpRequest({ fetchImpl: fetchImpl as unknown as typeof fetch, token: 't' }, {
+      method: 'POST',
+      path: '/list/list-1/task',
+    }).then((v) => v, (e: unknown) => e);
+    await vi.advanceTimersByTimeAsync(500);
+    expect(await settled).toEqual({ id: 't1' });
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    vi.useRealTimers();
+  });
+
+  it('a POST whose 429 never clears exhausts the budget as a plain rate-limit failure, not "unconfirmed"', async () => {
+    vi.useFakeTimers();
+    const fetchImpl = vi.fn(async () => new Response(null, { status: 429 }));
+    const settled = clickUpRequest({ fetchImpl: fetchImpl as unknown as typeof fetch, token: 't' }, {
+      method: 'POST',
+      path: '/list/list-1/task',
+    }).then(() => null, (e: unknown) => e);
+    await vi.advanceTimersByTimeAsync(10_000);
+    const err = await settled;
+    expect(err).toBeInstanceOf(ClickUpHttpError);
+    expect((err as ClickUpHttpError).message).not.toMatch(/unconfirmed/);
+    expect(fetchImpl).toHaveBeenCalledTimes(4);
+    vi.useRealTimers();
+  });
+});
+
 describe('AC-OUT-841 clickUpRequest is deadline-bounded', () => {
   afterEach(() => vi.useRealTimers());
 

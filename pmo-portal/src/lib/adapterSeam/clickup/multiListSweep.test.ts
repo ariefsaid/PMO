@@ -269,3 +269,86 @@ describe('failure isolation: a non-404 read failure aborts the WHOLE cycle (no p
     expect(harness.watermarks.get('list-b')).toBe('1000');
   });
 });
+
+describe('claim-first adoption: the sweep forwards the atomic-adopt strategy and resolves the project per mint', () => {
+  function recordingStrategy() {
+    const order: string[] = [];
+    const mints: Array<{ canonicalId: string; projectId: unknown; pmoRecordId: string }> = [];
+    const claims: Array<{ externalRecordId: string; pmoRecordId: string }> = [];
+    return {
+      order,
+      mints,
+      claims,
+      strategy: {
+        newPmoRecordId: () => 'pmo-claimed-sweep',
+        claimExternalRef: async (mapping: { externalRecordId: string; pmoRecordId: string }) => {
+          order.push('claim');
+          claims.push({ externalRecordId: mapping.externalRecordId, pmoRecordId: mapping.pmoRecordId });
+        },
+        mintWithId: async (canonical: { id: string; project_id?: string }, _ms: number, pmoRecordId: string) => {
+          order.push('mint');
+          mints.push({ canonicalId: canonical.id, projectId: canonical.project_id, pmoRecordId });
+        },
+        mirrorExists: async () => true,
+      },
+    };
+  }
+
+  it('an unmapped task adopts CLAIM-FIRST: the ref claim precedes the mint and the mint lands in the binding\'s project', async () => {
+    const fetchImpl = vi.fn(async (url: string) => {
+      if (url.includes('/list/list-a/')) {
+        return new Response(JSON.stringify({ tasks: [task('cu-adopt-me', '6000')], last_page: true }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ tasks: [], last_page: true }), { status: 200 });
+    });
+    const harness = makeFakeDeps({ clientDeps: { fetchImpl: fetchImpl as unknown as typeof fetch, token: 't' } });
+    const rec = recordingStrategy();
+
+    const result = await runMultiListSweep({
+      ...harness.deps,
+      bindings: [binding('list-a', 'proj-a')],
+      adoptAtomically: rec.strategy,
+    });
+
+    expect(result.applied).toBe(1);
+    expect(rec.order).toEqual(['claim', 'mint']); // the claim is the adoption lock
+    expect(rec.claims).toEqual([{ externalRecordId: 'cu-adopt-me', pmoRecordId: 'pmo-claimed-sweep' }]);
+    expect(rec.mints).toEqual([
+      { canonicalId: 'pmo-claimed-sweep', projectId: 'proj-a', pmoRecordId: 'pmo-claimed-sweep' },
+    ]);
+    expect(harness.minted).toEqual([]); // the legacy mint-then-ref path is not used
+  });
+
+  it('a LOSING claim (23505) aborts the sweep cycle before any mint or watermark advance', async () => {
+    const fetchImpl = vi.fn(async (url: string) => {
+      if (url.includes('/list/list-a/')) {
+        return new Response(JSON.stringify({ tasks: [task('cu-loser', '6000')], last_page: true }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ tasks: [], last_page: true }), { status: 200 });
+    });
+    const harness = makeFakeDeps({ clientDeps: { fetchImpl: fetchImpl as unknown as typeof fetch, token: 't' } });
+    harness.watermarks.set('list-a', '1000');
+    const conflict = Object.assign(new Error('duplicate key value violates unique constraint'), { code: '23505' });
+
+    await expect(
+      runMultiListSweep({
+        ...harness.deps,
+        bindings: [binding('list-a', 'proj-a')],
+        adoptAtomically: {
+          newPmoRecordId: () => 'pmo-lose',
+          claimExternalRef: async () => {
+            throw conflict;
+          },
+          mintWithId: async () => {
+            throw new Error('mintWithId must never run after a lost claim');
+          },
+          mirrorExists: async () => true,
+        },
+      }),
+    ).rejects.toMatchObject({ code: '23505' });
+
+    // No mirror was minted and the cursor stays where it was — the next tick reconciles to the winner.
+    expect(harness.minted).toEqual([]);
+    expect(harness.watermarks.get('list-a')).toBe('1000');
+  });
+});

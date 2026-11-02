@@ -128,6 +128,7 @@ export async function handleCheckDocuments(
       .map((response) => [response.id as string, response]),
   );
 
+  let committed = 0;
   for (let index = 0; index < claimed.length; index += 1) {
     const doc = claimed[index]!;
     const response = byId.get(String(index + 1));
@@ -143,7 +144,7 @@ export async function handleCheckDocuments(
       parent?.driveId === doc.ms_drive_id;
     const success = response?.status === 200 && file && identityMatches &&
       !!name.trim() && validMicrosoftBrowserUrl(url) && !!cTag.trim();
-    await deps.serviceClient.rpc("m365_commit_document_check", {
+    const commit = await deps.serviceClient.rpc("m365_commit_document_check", {
       p_actor_id: deps.userId,
       p_doc_id: doc.id,
       p_claim: doc.ms_check_claim,
@@ -155,10 +156,17 @@ export async function handleCheckDocuments(
       p_content_tag: success ? cTag : "",
       p_success: success,
     });
+    // The RPC answers true only when this claim's result was written; an error or false (superseded claim) is not
+    // a verified check, and the claim's lease runs to its expiry.
+    if (!commit.error && commit.data === true) committed += 1;
   }
 
   if (result.status !== 200) return result;
-  return { status: 200, body: { checked: claimed.length }, headers: HEADERS };
+  return {
+    status: 200,
+    body: { checked: committed, uncommitted: claimed.length - committed },
+    headers: HEADERS,
+  };
 }
 
 export async function handleIssueMicrosoftDocument(

@@ -139,7 +139,7 @@ inbox about an overdue task.
   server-written body naming the sender, the task and its due date, and `metadata.entity = {type: 'task', id, label}` so
   the bell opens My tasks (`NotificationBell.tsx:63-68`).
 - **FR-RMD-018** (ubiquitous) The preview RPC shall apply the same checks as the send RPC (one shared internal function)
-  without writing anything, and shall return each task's outcome, the recipient's id and name for eligible tasks, and
+  without writing anything, and shall return each task's outcome, the recipient's name for eligible tasks, and
   the sender's remaining allowance.
 
 ### Ledger visibility
@@ -172,7 +172,7 @@ inbox about an overdue task.
 - **NFR-RMD-SEC-003** The notification body is built on the server from stored fields; no model text reaches another
   user's inbox. Task and sender names are rendered as text by the bell.
 - **NFR-RMD-SEC-004** The preview RPC returns information only about tasks in the caller's org, which the caller can
-  already read, plus each eligible assignee's id and name (already visible to the caller through the overdue list).
+  already read, plus each eligible assignee's name (already visible to the caller through the overdue list).
 - **NFR-RMD-PERF-001** The cap count uses an index on `(sender_id, created_at)`; de-duplication uses an index on
   `(task_id, recipient_id, created_at)`. One send is at most 10 items.
 - **NFR-RMD-QUAL-001** Tool selection on the deployed model is proven by the eval suite at 9 of 10 runs per case

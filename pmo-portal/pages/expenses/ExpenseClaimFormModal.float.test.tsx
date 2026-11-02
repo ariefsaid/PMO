@@ -17,7 +17,7 @@ const renderForm = (props: Partial<React.ComponentProps<typeof ExpenseClaimFormM
   render(
     <ToastProvider>
       <ExpenseClaimFormModal kind="advance" projectOptions={[{ value: 'p1', label: 'Harbour Upgrade' }]} advanceOptions={[]}
-        onClose={vi.fn()} onSubmit={onSubmit} {...props} />
+        advanceLoad={{ isPending: false, isError: false, refetch: vi.fn() }} onClose={vi.fn()} onSubmit={onSubmit} {...props} />
     </ToastProvider>,
   );
   return onSubmit;

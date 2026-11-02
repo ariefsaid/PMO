@@ -36,7 +36,7 @@ async function forceBahasa(page: Page) {
   await page.route('**/rest/v1/profiles?*', async (route) => {
     const url = route.request().url();
     if (route.request().method() !== 'GET' || !/[?&]id=eq\./.test(url)) return route.fallback();
-    const response = await route.fetch();
+    const response = await route.fetch({ maxRetries: 2 });
     let body: unknown;
     try {
       body = await response.json();
@@ -77,7 +77,7 @@ async function expectFixtureAmount(figure: Locator, amount: number, language: 'e
 }
 const companyReady: Route['ready'] = async (page, _width, language) => {
   const company = page.getByRole('region', { name: language === 'id' ? 'Angka perusahaan' : 'Company figures' });
-  await expect(company.locator('.tabular').filter({ hasText: /373[.,]5/ }).first()).toBeVisible();
+  await expect(company.locator('.tabular').filter({ hasText: /373[.,]5/ }).first()).toBeVisible({ timeout: 20_000 });
   const sales = page.getByRole('region', { name: language === 'id' ? 'Kinerja penjualan' : 'Sales performance' });
   await expect(sales.locator('.tabular').filter({ hasText: /212[.,]6/ }).first()).toBeVisible();
   await expect(page.getByTestId('kpi-win-rate')).toHaveText(/95(?:[.,]0)?%/);

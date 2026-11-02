@@ -15,6 +15,7 @@ import { daysBetween, escapeMarkdownText, formatMoney, formatShortDate, isoDateI
 
 export const OVERDUE_TASK_CAP = 50;
 export const OVERDUE_INVOICE_SCAN_CAP = 200;
+export const MANAGED_PROJECT_CAP = 500;
 const OPEN_TASK_STATUSES = ['To Do', 'In Progress', 'Blocked'] as const;
 
 interface TaskRow { id: string; name: string; end_date: string; project_id: string | null; assignee_id: string | null }
@@ -26,7 +27,7 @@ interface InvoiceRow {
 
 export interface OverdueTask {
   id: string; name: string; projectId: string | null; projectName: string | null;
-  assigneeName: string | null; dueDate: string; daysOverdue: number;
+  assigneeName: string | null; assigneeId?: string | null; dueDate: string; daysOverdue: number;
 }
 export interface OverdueInvoice {
   id: string; siNumber: string | null; customerName: string | null; outstanding: number | null;
@@ -40,8 +41,11 @@ export interface OverdueFacts {
   /** null = not shown (role may not view invoices, or Revenue is off) — DD-AIN-2. */
   invoices: OverdueInvoice[] | null;
   invoicesTruncated: boolean;
+  /** A Project Manager's managed-project scope hit MANAGED_PROJECT_CAP, so every answer is partial. */
+  scopeTruncated?: boolean;
   /** Project names already fetched for overdue task/invoice project IDs. */
   projectNames?: ReadonlyMap<string, string>;
+  callerId?: string;
 }
 
 const unique = (xs: Array<string | null>): string[] => [...new Set(xs.filter((x): x is string => !!x))];
@@ -60,11 +64,15 @@ export async function loadOverdueFacts(ctx: DeputyContext, now: Date): Promise<O
   const asOf = isoDateInZone(now, profile?.timezone || org?.default_timezone || 'UTC');
 
   // DD-AIN-2: a PM's "their projects" = the projects they manage (plus anything assigned to them).
-  const managedIds: string[] | null = role === 'Project Manager'
-    ? (await readRows<{ id: string }>(
-        sb.from('projects').select('id').eq('project_manager_id', ctx.userId).is('archived_at', null).limit(500),
-      )).map((p) => p.id)
-    : null;
+  let scopeTruncated = false;
+  let managedIds: string[] | null = null;
+  if (role === 'Project Manager') {
+    const rows = await readRows<{ id: string }>(
+      sb.from('projects').select('id').eq('project_manager_id', ctx.userId).is('archived_at', null).limit(MANAGED_PROJECT_CAP + 1),
+    );
+    scopeTruncated = rows.length > MANAGED_PROJECT_CAP;
+    managedIds = rows.slice(0, MANAGED_PROJECT_CAP).map((p) => p.id);
+  }
 
   const overdueTasks = (scope: (q: LooseQuery) => LooseQuery) =>
     readRows<TaskRow>(
@@ -141,10 +149,11 @@ export async function loadOverdueFacts(ctx: DeputyContext, now: Date): Promise<O
     projectId: task.project_id,
     projectName: task.project_id ? projectName.get(task.project_id) ?? null : null,
     assigneeName: task.assignee_id ? personName.get(task.assignee_id) ?? null : null,
+    assigneeId: task.assignee_id,
     dueDate: task.end_date,
     daysOverdue: daysBetween(task.end_date, asOf),
   }));
-  return { asOf, numberLocale: resolveNumberLocale(org), tasks, tasksTruncated, invoices, invoicesTruncated, projectNames: projectName };
+  return { asOf, numberLocale: resolveNumberLocale(org), tasks, tasksTruncated, invoices, invoicesTruncated, scopeTruncated, projectNames: projectName, callerId: ctx.userId };
 }
 
 export const OVERDUE_LIST_SHOWN = 10;
@@ -160,7 +169,7 @@ export interface OverdueProjectCount {
 
 export interface OverdueModelResult {
   partial: boolean;
-  tasks: Array<Omit<OverdueTask, 'id'>>;
+  tasks: Array<Omit<OverdueTask, 'id' | 'assigneeId'>>;
   invoices: Array<Omit<OverdueInvoice, 'id'>> | null;
   projectCounts: OverdueProjectCount[];
 }
@@ -174,7 +183,7 @@ export interface OverdueAnswer {
 }
 
 export function buildOverdueModelResult(facts: OverdueFacts): OverdueModelResult {
-  const partial = facts.tasksTruncated || facts.invoicesTruncated;
+  const partial = facts.tasksTruncated || facts.invoicesTruncated || !!facts.scopeTruncated;
   const projectNames = new Map(facts.projectNames ?? []);
   for (const task of facts.tasks) {
     if (task.projectId && task.projectName) projectNames.set(task.projectId, task.projectName);
@@ -199,7 +208,7 @@ export function buildOverdueModelResult(facts: OverdueFacts): OverdueModelResult
   }
   return {
     partial,
-    tasks: facts.tasks.map(({ id: _id, ...task }) => task),
+    tasks: facts.tasks.map(({ id: _id, assigneeId: _assigneeId, ...task }) => task),
     invoices: facts.invoices?.map(({ id: _id, ...invoice }) => ({ ...invoice, projectId: invoice.projectId ?? null })) ?? null,
     projectCounts: [...buckets.values()],
   };
@@ -213,9 +222,14 @@ const basis = (t: string) => (t === 'inclusive' ? 'incl. tax' : t === 'exclusive
 const hrefParam = (v: string) => encodeURIComponent(v).replace(/\(/g, '%28').replace(/\)/g, '%29');
 
 /** DD-AIN-7: the deterministic, server-written answer. Every user-authored string is escaped (FR-AIN-008). */
-export function renderOverdueMarkdown(f: OverdueFacts): string {
+export function renderOverdueMarkdown(f: OverdueFacts, opts: { offerReminders?: boolean } = {}): string {
   const head = `**Overdue as of ${formatShortDate(f.asOf)}**`;
-  if (f.tasks.length === 0 && (f.invoices === null || f.invoices.length === 0)) return `${head} — nothing is overdue.\n\n`;
+  const scopeNote = f.scopeTruncated ? `\n\n_Partial: only the first ${MANAGED_PROJECT_CAP} managed projects were checked._` : '';
+  if (f.tasks.length === 0 && (f.invoices === null || f.invoices.length === 0)) {
+    return f.invoicesTruncated || f.tasksTruncated || f.scopeTruncated
+      ? `${head} — none found in the part checked; this list is partial.${scopeNote}\n\n`
+      : `${head} — nothing is overdue.\n\n`;
+  }
   const counts = [count(f.tasks.length, f.tasksTruncated, 'task', 'tasks')];
   if (f.invoices) counts.push(count(f.invoices.length, f.invoicesTruncated, 'invoice', 'invoices'));
   const lines = [`${head} — ${counts.join(', ')}`];
@@ -248,20 +262,27 @@ export function renderOverdueMarkdown(f: OverdueFacts): string {
     const rest = f.invoices.length - Math.min(f.invoices.length, OVERDUE_LIST_SHOWN);
     if (rest > 0 || f.invoicesTruncated) lines.push(`- …and ${rest}${f.invoicesTruncated ? '+' : ''} more on [Sales Invoices](/sales-invoices)`);
   }
+  if (opts.offerReminders) {
+    const people = new Set(f.tasks.map((t) => t.assigneeId).filter((id): id is string => !!id && id !== f.callerId));
+    if (people.size > 0) {
+      lines.push('', `Say *remind them* and I'll prepare reminders for the ${people.size} ${people.size === 1 ? 'person' : 'people'} with late tasks.`);
+    }
+  }
   // Blank-line tail: the panel concatenates consecutive assistant events with no separator, so the model's
   // closing sentence would otherwise run on from the last list row.
-  return `${lines.join('\n')}\n\n`;
+  return `${lines.join('\n')}${scopeNote}\n\n`;
 }
 
 export async function runWhatsOverdue(
   _input: unknown,
   ctx: DeputyContext,
   now: Date = new Date(),
+  opts: { offerReminders?: boolean } = {},
 ): Promise<OverdueAnswer | { error: string }> {
   try {
     const facts = await withTimeout(loadOverdueFacts(ctx, now), OVERDUE_TIMEOUT_MS);
     return {
-      markdown: renderOverdueMarkdown(facts),
+      markdown: renderOverdueMarkdown(facts, opts),
       receipt: {
         ...buildOverdueModelResult(facts),
         ok: true,
@@ -270,7 +291,7 @@ export async function runWhatsOverdue(
         overdueInvoices: facts.invoices ? facts.invoices.length : null,
         tasksTruncated: facts.tasksTruncated,
         invoicesTruncated: facts.invoicesTruncated,
-        note: `The overdue panel is already shown. If the user asks for a table with specific columns or sort, a grouping, which project has the most, or a follow-up about these rows, answer from these rows in exactly the requested shape; otherwise add at most one short sentence. query_entity counts cover all tasks the user can see, which may differ from this panel's own/managed scope.${facts.tasksTruncated || facts.invoicesTruncated ? ' Totals and per-project counts cover fetched rows only and are partial. Use query_entity with group_by for complete counts on supported entities, and check its truncated flag before claiming completeness.' : ''}`,
+        note: `The overdue panel is already shown. If the user asks for a table with specific columns or sort, a grouping, which project has the most, or a follow-up about these rows, answer from these rows in exactly the requested shape; otherwise add at most one short sentence. query_entity counts cover all tasks the user can see, which may differ from this panel's own/managed scope.${facts.tasksTruncated || facts.invoicesTruncated || facts.scopeTruncated ? ' Totals and per-project counts cover fetched rows only and are partial. Use query_entity with group_by for complete counts on supported entities, and check its truncated flag before claiming completeness.' : ''}`,
       },
     };
   } catch {
@@ -278,12 +299,16 @@ export async function runWhatsOverdue(
   }
 }
 
-export const whatsOverdueAction: AgentAction = {
-  name: 'whats_overdue',
-  description:
-    "One call: the user's overdue tasks across their projects, plus overdue invoices when their role may see invoices. The list is shown to the user automatically.",
-  inputSchema: WHATS_OVERDUE_SCHEMA,
-  surfaces: ['agent'],
-  confirm: false,
-  run: (input: unknown, ctx: DeputyContext) => runWhatsOverdue(input, ctx),
-};
+export function makeWhatsOverdueAction(opts: { offerReminders: boolean }): AgentAction {
+  return {
+    name: 'whats_overdue',
+    description:
+      "One call: the user's overdue tasks across their projects, plus overdue invoices when their role may see invoices. The list is shown to the user automatically.",
+    inputSchema: WHATS_OVERDUE_SCHEMA,
+    surfaces: ['agent'],
+    confirm: false,
+    run: (input: unknown, ctx: DeputyContext) => runWhatsOverdue(input, ctx, new Date(), opts),
+  };
+}
+/** Unchanged default for existing importers (no offer line). The handler registers makeWhatsOverdueAction(...). */
+export const whatsOverdueAction: AgentAction = makeWhatsOverdueAction({ offerReminders: false });
