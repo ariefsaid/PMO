@@ -58,6 +58,9 @@ select set_eq(
             -- any future parent-document embed must name the intended constraint.
             ('project_documents -> project_documents'),
             ('task_dependencies -> tasks'),
+            -- 0516 (T&M claims): tm_claims has prepared_by AND confirmed_by, both -> profiles. Checked before
+            -- adding: nothing embeds profiles from it yet (only database.types.ts mentions the table).
+            ('tm_claims -> profiles'),
             -- 0204 (#551, DD-TASK-8): tasks gained `created_by` alongside `assignee_id`, so this
             -- pair is new. ⚑ CHECKED BEFORE ADDING, as this assertion's own message demands: the
             -- only embed of profiles from tasks is `src/lib/db/tasks.ts:77`, and it is ALREADY
