@@ -325,6 +325,9 @@ export function previewPasteRows(
     if (previewErrors.some((error) => error.field === 'mode' && error.code === 'mode-required')) {
       errors.push({ field: 'mode', code: 'mode-required' });
     }
+    if (selectedMode === null && !previewErrors.some((error) => error.field === 'mode')) {
+      errors.push({ field: 'amount', code: 'mapping-required' });
+    }
     if (selectedMode === 'amount' && missingMappings.has('amount')) errors.push({ field: 'amount', code: 'mapping-required' });
     if (selectedMode === 'quantity-rate') {
       if (missingMappings.has('quantity')) errors.push({ field: 'quantity', code: 'mapping-required' });

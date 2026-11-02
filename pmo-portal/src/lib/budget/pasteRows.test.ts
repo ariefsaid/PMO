@@ -87,6 +87,16 @@ describe('budget paste rows', () => {
     }
   });
 
+  it('AC-002 enforces the 128-character direct amount input boundary', () => {
+    const atLimit = `1.${'0'.repeat(126)}`;
+    const overLimit = `1.${'0'.repeat(127)}`;
+
+    expect(atLimit).toHaveLength(128);
+    expect(overLimit).toHaveLength(129);
+    expect(parsePasteAmount(atLimit)).toBe('1.00');
+    expect(parsePasteAmount(overLimit)).toBeNull();
+  });
+
   it('AC-002 multiplies decimal operands using exact cents and rejects non-cent products', () => {
     expect(multiplyPasteAmount('0.1', '0.2')).toBe('0.02');
     expect(multiplyPasteAmount('0.1', '0.1')).toBe('0.01');
@@ -97,6 +107,16 @@ describe('budget paste rows', () => {
     for (const [quantity, rate] of [['0', '2'], ['2', '0'], ['-1', '3'], ['Infinity', '2'], ['2', 'NaN']]) {
       expect(multiplyPasteAmount(quantity, rate), `${quantity} × ${rate}`).toBeNull();
     }
+  });
+
+  it('AC-002 enforces the 128-character quantity and rate input boundaries', () => {
+    const atLimit = `1.${'0'.repeat(126)}`;
+    const overLimit = `1.${'0'.repeat(127)}`;
+
+    expect(multiplyPasteAmount(atLimit, '1')).toBe('1.00');
+    expect(multiplyPasteAmount(overLimit, '1')).toBeNull();
+    expect(multiplyPasteAmount('1', atLimit)).toBe('1.00');
+    expect(multiplyPasteAmount('1', overLimit)).toBeNull();
   });
 
   it('AC-001 AC-002 resolves active English and Indonesian labels against the budget enum', () => {
@@ -202,6 +222,19 @@ describe('budget paste rows', () => {
     expect(missingAmount.errors).toContainEqual({ field: 'amount', code: 'mapping-required' });
     expect(missingAmount.invalidCount).toBe(1);
     expect(unknownCategory.rows[0].errors).toContainEqual({ field: 'category', code: 'unknown-category' });
+  });
+
+  it('AC-001 AC-002 marks rows invalid when no money source is mapped and mode is unset', () => {
+    const inputRows = rows(['Labor']);
+    const noMoneyMapping = mapping({ amount: null, quantity: null, rate: null });
+    const preview = previewPasteRows(inputRows, noMoneyMapping, false, null, {});
+
+    expect(preview.errors).toContainEqual({ field: 'amount', code: 'mapping-required' });
+    expect(preview.rows[0].amount).toBeNull();
+    expect(preview.rows[0].errors).toContainEqual({ field: 'amount', code: 'mapping-required' });
+    expect(preview.validCount).toBe(0);
+    expect(preview.invalidCount).toBe(1);
+    expect(preview.totalCents).toBe(0n);
   });
 
   it('AC-001 AC-002 accepts 500 nonblank rows and rejects 501 without truncating', () => {
