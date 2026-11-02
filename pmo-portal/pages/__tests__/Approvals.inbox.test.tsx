@@ -80,6 +80,7 @@ vi.mock('@/src/auth/useAuth', () => ({
 // A request's own line items, keyed by id, so a test can prove the preview follows the selection.
 const detailItems: Record<string, Array<{ id: string; name: string; quantity: number; rate: number; amount: number; description: null }>> = {};
 vi.mock('@/src/hooks/useProcurementDetail', () => ({
+  useProcurementBulkTransition: () => ({ mutateAsync: vi.fn() }),
   useProcurementDetail: (id?: string) => ({
     data: {
       id: id ?? 'pr1',
