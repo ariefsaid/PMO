@@ -117,6 +117,7 @@ const Incidents: React.FC = () => {
     {
       key: 'incident_date',
       header: 'Date',
+      kind: 'date',
       cell: (i) => <span className="tabular text-muted-foreground">{i.incident_date}</span>,
       exportValue: (i) => i.incident_date,
       colClassName: 'hidden sm:table-cell',

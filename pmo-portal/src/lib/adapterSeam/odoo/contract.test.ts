@@ -24,13 +24,19 @@ describe('odoo contract', () => {
   it('refuses workflows it has not built yet instead of pretending', async () => {
     expect(() => harness.resolveProjectLink({}, 'x')).toThrow(/pending/);
     await expect(harness.pushBudget({ account: 'a', fiscalYear: '2026', occupant: 'none' })).rejects.toThrow(/pending/);
-    await expect(harness.pushPurchase('activated')).rejects.toThrow(/pending/);
     await expect(harness.pushTimesheet({ employeeLink: 'confirmed', entries: [], activityType: 'configured' })).rejects.toThrow(/pending/);
-    await expect(harness.pushProcurement({ doc: 'purchase-order', caller: 'A' })).rejects.toThrow(/pending/);
     await expect(harness.pushRevenue({ doc: 'sales-invoice', caller: 'A' })).rejects.toThrow(/pending/);
     await expect(harness.pushBudgetVersion({ categories: [], mappedCategories: [], project: 'own' })).rejects.toThrow(/pending/);
     await expect(harness.readActuals({ ledger: [], projectLinks: {} })).rejects.toThrow(/pending/);
     expect(() => harness.classifyPayment('received')).toThrow(/pending/);
-    await expect(harness.mirrorPurchases([])).rejects.toThrow(/pending/);
   });
+  it('keeps purchase declarations pending while the harness exercises the P1 seam', async () => {
+    for (const id of ['purchase.push', 'bill.push', 'vendor-payment.push', 'purchase.link-existing', 'cutover.purchase', 'cutover.activation', 'purchase-order.revise'] as const) {
+      expect(ODOO_WORKFLOWS[id].status).toBe('pending');
+    }
+    expect(await harness.pushPurchase('activated')).toMatchObject({ outcome: 'pushed' });
+    expect(await harness.pushProcurement({ doc: 'bill', caller: 'A', procurement: 'B' })).toMatchObject({ outcome: 'refused', erpCalls: 0 });
+    expect(await harness.mirrorPurchases([{ kind: 'bill', reference: 'B1', supplier: 'Vendor', total: 10, modifiedAt: '2026-01-01' }])).toEqual([{ kind: 'bill', reference: 'B1', total: '10' }]);
+  });
+
 });

@@ -120,7 +120,7 @@ function parseCursor(value: string | null): PurchaseCursor | null {
 function encodeCursor(cursor: PurchaseCursor): string { return JSON.stringify(cursor); }
 
 async function readPage(client: ErpClientDeps, doctype: PurchaseDoctype, company: string, cursor: PurchaseCursor | null,
-  equalBoundary: boolean, offset: number, timeoutMs: number) {
+  equalBoundary: boolean, timeoutMs: number) {
   const filters: unknown[] = [['company', '=', company], ['docstatus', 'in', [1, 2]]];
   filters.push(...(EXTRA_FILTERS[doctype] ?? []));
   if (cursor) {
@@ -130,7 +130,7 @@ async function readPage(client: ErpClientDeps, doctype: PurchaseDoctype, company
     } else filters.push(['modified', '>', cursor.modified]);
   }
   const qs = `filters=${encodeURIComponent(JSON.stringify(filters))}&fields=${encodeURIComponent(JSON.stringify(FIELDS[doctype]))}`
-    + `&limit_page_length=${PAGE_SIZE}&limit_start=${offset}&order_by=${encodeURIComponent('modified asc, name asc')}`;
+    + `&limit_page_length=${PAGE_SIZE}&limit_start=0&order_by=${encodeURIComponent('modified asc, name asc')}`;
   const body = await erpnextRequest({ ...client, timeoutMs }, { method: 'GET', path: `/api/resource/${encodeURIComponent(doctype)}?${qs}` });
   const rows = (body as { data?: unknown } | null)?.data;
   if (!Array.isArray(rows) || !rows.every((r) => r && typeof r === 'object' && typeof (r as Record<string, unknown>).name === 'string'
@@ -259,7 +259,7 @@ export async function feedPurchaseMirror(sc: PurchaseFeedServiceClient, opts: { 
     const { doctype, domain } = state;
     if (!state.page) {
       const phase: Phase = !state.cursor ? 'all' : state.equalityDone ? 'after' : 'equal';
-      const rows = await readPage(transport, doctype, opts.company, state.cursor, phase === 'equal', 0, Math.min(REQUEST_TIMEOUT_MS, remainingMs));
+      const rows = await readPage(transport, doctype, opts.company, state.cursor, phase === 'equal', Math.min(REQUEST_TIMEOUT_MS, remainingMs));
       reads += 1;
       if (rows.length === 0) {
         // A finished boundary always continues with the strictly-later read; anything else is caught up.

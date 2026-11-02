@@ -71,6 +71,8 @@ export interface Column<Row> {
    * without `exportValue` are serialized as an empty string in the export.
    */
   exportValue?: (row: Row) => string | number | boolean;
+  /** Explicit cell type for spreadsheet export ('number' | 'date' | 'text'). */
+  exportType?: 'number' | 'date' | 'text';
   /** Pin this column to the left edge while the table scrolls sideways (header, cells and total rows). */
   stickyLeft?: boolean;
   /** Carried on the column list for the export seam only; never rendered (header, cell or card line). */

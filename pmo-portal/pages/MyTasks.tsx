@@ -3,8 +3,9 @@ import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { ListState, SearchMini, StatusPill, SelectField, useToast, ViewToggle } from '@/src/components/ui';
 import { useMyTasks, useMyTaskMutations } from '@/src/hooks/useMyTasks';
+import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { TaskCommentsDrawer } from '@/src/components/comments/TaskCommentsDrawer';
-import { formatDateOnly, formatCalendarDayInTimeZone, firstInstantOfZonedCalendarDay } from '@/src/lib/format';
+import { formatDateOnly, formatCalendarDayInTimeZone } from '@/src/lib/format';
 import { getActiveLocale } from '@/src/lib/locale/activeLocale';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import type { TaskStatus } from '@/src/lib/db/tasks';
@@ -35,41 +36,7 @@ function urgencyKey(
  * PGA03-008: Reactive today date in the user's timezone that automatically
  * updates when midnight rolls over without requiring a page refresh.
  */
-function useZonedToday(): string {
-  const timezone = getActiveLocale().timezone;
-  const [today, setToday] = React.useState(() => todayIso(timezone));
-
-  React.useEffect(() => {
-    let timer: ReturnType<typeof setTimeout> | undefined;
-
-    function schedule() {
-      const now = new Date();
-      const current = formatCalendarDayInTimeZone(now, timezone);
-      setToday(current);
-
-      const [yearStr, monthStr, dayStr] = current.split('-');
-      const year = Number(yearStr);
-      const month = Number(monthStr);
-      const day = Number(dayStr);
-      const nextDayDate = new Date(Date.UTC(year, month - 1, day + 1));
-      const nextDayStr = nextDayDate.toISOString().slice(0, 10);
-
-      const nextDayStart = firstInstantOfZonedCalendarDay(nextDayStr, timezone);
-      const msUntilDayChanges = nextDayStart ? nextDayStart.getTime() - Date.now() : 86400000;
-      const delay = Math.max(100, msUntilDayChanges + 50);
-
-      timer = setTimeout(schedule, delay);
-    }
-
-    schedule();
-
-    return () => {
-      if (timer) clearTimeout(timer);
-    };
-  }, [timezone]);
-
-  return today;
-}
+const useZonedToday = useOrgToday;
 
 /**
  * B-1 — "My Tasks" IC landing (AC-W2-IXD-001/002, OUTSTANDING D1 · Blocker).
