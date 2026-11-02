@@ -30,12 +30,13 @@
 | SD-5 | Research claim "confirm with `action_confirm`" | Wrong on the bed (bed report row 2): `button_confirm`. V-OPP1 re-verifies; tests use the bed's answer. |
 | SD-6 | P5/P9 localized tax bed setup | The stock Indonesian chart did not supply named PPh 23 or PPh 4(2) taxes. Seed explicit synthetic purchase withholding taxes with liability repartition accounts before the withholding bed cases; the configured tax remains explicit in PMO. |
 | SD-7 | V-OPP7 / payment-state fixtures | The stock Community bed reports a fully reconciled bill as `paid` even before the payment is bank-matched. Keep `in_payment` as an accepted inbound state where supplied, but do not require that state in the stock-bed test. |
-| SD-8 | PD-5 / order anchor | Order `origin` is the visible Source and `note` is HTML terms text. Preserve existing business content; recommend a stock external identifier only as a supplement while the primary anchor remains pending. |
-| SD-9 | PD-5 / transfer anchor | Transfer `origin` carries the order reference and `note` is HTML. Preserve both business fields; recommend a stock external identifier only as a supplement while the primary anchor remains pending. |
-| SD-10 | PD-5 / bill anchor | Purchase auto-completion rewrites `invoice_origin`; `narration` is HTML terms text. Preserve those fields; recommend a stock external identifier only as a supplement while the primary anchor remains pending. |
-| SD-11 | PD-5 / payment anchor | `memo` is plain text and editable, as the signed payment flow already anticipates. Recommend retaining it, subject to the pending cross-model decision. |
-| SD-12 | PD-5 / stock external identifier | The identifier survived the tested transitions and ordinary UI/API access was denied; Access Rights administrator permission allowed creation. Its separate write leaves a create-to-anchor interruption gap, so it is not sufficient as the sole recovery anchor. `ODOO_ANCHORS` remains pending Director decision. |
+| SD-8 | PD-5 / order anchor | Order `origin` is the visible Source and `note` is HTML terms text. Preserve existing business content; use the stock external identifier as the anchor under amended PD-5. |
+| SD-9 | PD-5 / transfer anchor | Transfer `origin` carries the order reference and `note` is HTML. Preserve both business fields; use the stock external identifier as the anchor under amended PD-5. |
+| SD-10 | PD-5 / bill anchor | Purchase auto-completion rewrites `invoice_origin`; `narration` is HTML terms text. Preserve those fields; use the stock external identifier as the anchor under amended PD-5. |
+| SD-11 | PD-5 / payment anchor | `memo` is plain text and editable, as the signed payment flow already anticipates. Retain it as the payment anchor under amended PD-5. |
+| SD-12 | PD-5 / stock external identifier | The identifier survived the tested transitions and ordinary UI/API access was denied; Access Rights administrator permission allowed creation. Its separate write leaves a create-to-anchor interruption gap, so it is not sufficient as the sole recovery anchor. The amended PD-5 adds a composite probe for that gap. |
 | SD-13 | V-OPP2 order candidate spelling | The stock order field is `note`, singular, not `notes`; its value is HTML terms text. |
+| SD-14 | P1-T11 / P2 | P2 wires the client and dispatch to the P1 purchase constants. |
 
 ## 2. Design
 

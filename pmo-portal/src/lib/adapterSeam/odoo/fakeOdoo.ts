@@ -17,10 +17,15 @@ const FIELDS: Record<string, string[]> = {
   'account.tax': ['name', 'amount', 'type_tax_use', 'company_id', 'active', 'write_date'],
   'account.analytic.plan': ['name', 'write_date'],
   'account.analytic.account': ['name', 'code', 'plan_id', 'company_id', 'active', 'write_date'],
-  'purchase.order': ['name', 'write_date'],
+  'purchase.order': ['name', 'state', 'write_date'],
+  'purchase.order.line': ['name', 'write_date'],
+  'account.payment': ['state', 'memo', 'write_date'],
+  'account.journal': ['name', 'write_date'],
   'account.move': ['name', 'write_date'],
+  'account.move.line': ['balance', 'amount_residual', 'write_date'],
   'stock.picking': ['name', 'write_date'],
   'stock.move': ['name', 'write_date'],
+  'stock.quant': ['product_id', 'quantity', 'write_date'],
   'account.analytic.line': ['name', 'write_date'],
   'fleet.vehicle': ['name', 'write_date'],
   'maintenance.equipment': ['name', 'write_date'],
@@ -105,6 +110,11 @@ export function createFakeOdoo({ key }: { key: string }): FakeOdoo {
   };
   const pick = (r: Row, fields?: string[]) => (fields?.length ? Object.fromEntries([['id', r.id], ...fields.map((f) => [f, r[f] ?? false])]) : { ...r });
 
+  const transition = (model: string, body: Record<string, unknown>, state: string) => {
+    for (const id of body.ids as number[]) { const row = table(model).get(id); if (row) Object.assign(row, { state, write_date: fmt(++clock) }); }
+    return true;
+  };
+
   const methods: Record<string, (model: string, body: Record<string, unknown>) => unknown> = {
     search_read: (m, b) => select(m, b).map((r) => pick(r, b.fields as string[] | undefined)),
     search: (m, b) => select(m, b).map((r) => r.id),
@@ -122,6 +132,41 @@ export function createFakeOdoo({ key }: { key: string }): FakeOdoo {
     unlink: (m, b) => { for (const id of b.ids as number[]) table(m).delete(id); return true; },
     fields_get: (m) => Object.fromEntries(fields[m].map((f) => [f, { type: 'char' }])),
     has_access: (m, b) => !denied.has(`${m}:${b.operation}`),
+    button_confirm: (m, b) => transition(m, b, 'purchase'),
+    button_validate: (m, b) => {
+      for (const id of b.ids as number[]) {
+        const row = table(m).get(id);
+        if (!row || row.state === 'done') continue;
+        for (const moveId of (row.move_ids as number[] | undefined) ?? []) {
+          const move = table('stock.move').get(moveId);
+          if (!move) continue;
+          const product = scalar(move.product_id);
+          let quant = [...table('stock.quant').values()].find((q) => scalar(q.product_id) === product);
+          if (!quant) {
+            const quantId = nextId++;
+            quant = { id: quantId, product_id: product, quantity: 0 };
+            table('stock.quant').set(quantId, quant);
+          }
+          quant.quantity = Number(quant.quantity) + Number(move.quantity ?? 0);
+          move.state = 'done';
+        }
+      }
+      return transition(m, b, 'done');
+    },
+    action_post: (m, b) => transition(m, b, m === 'account.payment' ? 'paid' : 'posted'),
+    reconcile: (m, b) => {
+      const rows = (b.ids as number[]).flatMap((id) => { const row = table(m).get(id); return row ? [row] : []; });
+      const debits = rows.filter((r) => Number(r.amount_residual ?? r.balance) > 0);
+      const credits = rows.filter((r) => Number(r.amount_residual ?? r.balance) < 0);
+      for (const debit of debits) for (const credit of credits) {
+        const d = Math.round(Number(debit.amount_residual ?? debit.balance) * 100);
+        const c = Math.round(Number(credit.amount_residual ?? credit.balance) * 100);
+        const applied = Math.min(d, -c);
+        debit.amount_residual = (d - applied) / 100;
+        credit.amount_residual = (c + applied) / 100;
+      }
+      return true;
+    },
   };
 
   const fetchImpl = (async (url: string | URL | Request, init?: RequestInit) => {

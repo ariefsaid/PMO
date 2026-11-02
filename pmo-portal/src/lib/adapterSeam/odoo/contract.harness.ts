@@ -8,6 +8,7 @@ import type { ConnectHarness, ErpHarness, ErpPartyInput, PartyMatchResult, PmoPa
 import { bindCall } from './client.ts';
 import { createOdooSetupAdapter, LIST_PAGE, type OdooConnectCtx } from './connectAdapter.ts';
 import { createFakeOdoo, type FakeOdoo } from './fakeOdoo.ts';
+import { procurementPreflight } from './purchase/preflight.ts';
 import { normaliseItem, normaliseParty, normaliseProject } from './normalise.ts';
 
 const KEY = 'test-key';
@@ -116,14 +117,48 @@ export function createOdooHarness(): ErpHarness {
 
     resolveProjectLink() { throw pending('project.match', 1504); },
     pushBudget() { return Promise.reject(pending('budget.unowned-occupant', 1507)); },
-    pushPurchase() { return Promise.reject(pending('cutover.activation', 1505)); },
+    async pushPurchase(connection) {
+      const result = procurementPreflight({ caller: 'A', activated: connection === 'activated' });
+      return result.outcome === 'accepted' ? { outcome: 'pushed', erpCalls: 0 } : { outcome: 'refused', code: result.code, erpCalls: 0 };
+    },
+    async pushPurchaseStep(_step, beforeCutover) {
+      const result = procurementPreflight({ caller: 'A', beforeCutover });
+      return result.outcome === 'accepted' ? { outcome: 'pushed', erpCalls: 0 } : { outcome: 'refused', code: result.code, erpCalls: 0 };
+    },
     pushTimesheet() { return Promise.reject(pending('timesheet.push', 1510)); },
-    pushProcurement() { return Promise.reject(pending('purchase.push', 1505)); },
+    async pushProcurement(scenario) { return procurementPreflight(scenario); },
     pushRevenue() { return Promise.reject(pending('invoice.push', 1506)); },
     pushBudgetVersion() { return Promise.reject(pending('budget.push', 1507)); },
     readActuals() { return Promise.reject(pending('actuals.read', 1507)); },
     classifyPayment() { throw pending('receipt.read', 1506); },
-    mirrorPurchases() { return Promise.reject(pending('purchase.link-existing', 1505)); },
+    async mirrorPurchases(docs) {
+      const { fake } = fakeConnection();
+      docs.forEach((doc, i) => fake.seed(doc.kind === 'bill' ? 'account.move' : 'purchase.order', [{ id: i + 1, name: doc.reference, amount_total: doc.total, write_date: doc.modifiedAt }]));
+      const latest = new Map<string, { kind: 'purchase-order' | 'bill'; reference: string; total: string; modifiedAt: string }>();
+      for (const kind of ['purchase-order', 'bill'] as const) {
+        for (const row of fake.rows(kind === 'bill' ? 'account.move' : 'purchase.order')) {
+          const doc = { kind, reference: String(row.name), total: String(row.amount_total), modifiedAt: String(row.write_date) };
+          const key = `${kind}:${doc.reference}`;
+          if (!latest.has(key) || latest.get(key)!.modifiedAt < doc.modifiedAt) latest.set(key, doc);
+        }
+      }
+      return [...latest.values()].map(({ kind, reference, total }) => ({ kind, reference, total }));
+    },
+
+    revise() {
+      const { fake } = fakeConnection();
+      return {
+        async post(revision) {
+          const found = fake.rows('purchase.order').find((row) => row.revision_key === revision.key);
+          if (found) return { externalId: String(found.id) };
+          const call = bindCall({ baseUrl: 'https://odoo.example.test', apiKey: KEY, database: 'db1', fetchImpl: fake.fetch });
+          const ids = await call<number[]>('purchase.order', 'create', { vals_list: [{ revision_key: revision.key, lines: revision.lines }] });
+          return { externalId: String(ids[0]) };
+        },
+        documents() { return fake.rows('purchase.order').map((row) => ({ externalId: String(row.id), key: String(row.revision_key) })); },
+        failNextWrite: (fault) => fake.failNext(fault),
+      };
+    },
 
     connect(): ConnectHarness {
       const { fake, adapter, armWrite } = fakeConnection();
