@@ -143,7 +143,7 @@ describe('/equipment/assets/:assetId (AC-EQU-001 FE reference, FR-EQU-044/071)',
     await user.type(within(dialog).getByRole('textbox', { name: /Ledger account$/ }), 'Depreciation');
     await user.click(within(dialog).getByRole('button', { name: 'Preview' }));
     const draftSent = h.preview.mock.calls[0][0];
-    expect(draftSent).toMatchObject({ asset_id: 'a1', basis: 'actual_cost', driver: 'units', account: 'Depreciation', setting_key: 'sk1', expected_version: 2 });
+    expect(draftSent).toMatchObject({ asset_id: 'a1', basis: 'actual_cost', driver: 'units', rate_unit: 'hours', account: 'Depreciation', setting_key: 'sk1', expected_version: 2 });
     const table = await within(dialog).findByRole('table', { name: /preview/i });
     expect(within(table).getByText('EQU P1')).toBeInTheDocument();
     expect(within(table).getByText(/600/)).toBeInTheDocument();

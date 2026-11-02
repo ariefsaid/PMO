@@ -44,6 +44,8 @@ export const EquipmentCostingForm: React.FC<{
     ...(v.basis === 'hire_rate' ? { work_rate: num(v.workRate), standby_rate: num(v.standbyRate), rate_unit: v.rateUnit as 'hours' | 'days' } : {}),
     ...(v.basis === 'actual_cost' ? {
       driver: v.driver as 'units' | 'fuel' | 'trips', count_standby: v.countStandby,
+      ...(v.driver === 'units' ? { rate_unit: v.rateUnit as 'hours' | 'days' } : {}), // the unit the shared hours or days are counted in
+
       ...(v.account.trim() ? { account: v.account.trim() } : {}), ...(v.accountGroup.trim() ? { account_group: v.accountGroup.trim() } : {}),
       cost_center: v.costCenter.trim() || null, party_type: v.partyType.trim() || null, party: v.party.trim() || null,
     } : {}),
@@ -109,6 +111,8 @@ export const EquipmentCostingForm: React.FC<{
           <TextField label={t('equipment:costing.party', 'Party (optional)')} value={v.party} onChange={(x) => set('party', x)} />
           <SelectField label={t('equipment:costing.driver', 'Share by')} value={v.driver} onChange={(x) => set('driver', x)}
             options={[{ value: 'units', label: t('equipment:driver.unitsOption', 'Logged hours or days') }, { value: 'fuel', label: t('equipment:driver.fuelOption', 'Fuel litres') }, { value: 'trips', label: t('equipment:driver.tripsOption', 'Trips') }]} />
+          {v.driver === 'units' && <SelectField label={t('equipment:costing.usageUnit', 'Count usage in')} value={v.rateUnit} onChange={(x) => set('rateUnit', x)}
+            options={[{ value: 'hours', label: unitLabel(t, 'hours') }, { value: 'days', label: unitLabel(t, 'days') }]} />}
           <label className="flex items-center gap-2 self-end text-sm">
             <Checkbox checked={v.countStandby} onChange={(x) => set('countStandby', x)} label={t('equipment:costing.countStandby', 'Count standby toward the share')} />
             {t('equipment:costing.countStandby', 'Count standby toward the share')}

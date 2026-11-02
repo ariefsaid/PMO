@@ -118,6 +118,7 @@
     "standbyRateLine": "Standby {{rate}} per {{unit}}",
     "state": "State",
     "title": "Costing",
+    "usageUnit": "Count usage in",
     "version": "Version",
     "voided": "Voided",
     "workRate": "Work rate per unit",

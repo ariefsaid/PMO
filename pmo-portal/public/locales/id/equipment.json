@@ -118,6 +118,7 @@
     "standbyRateLine": "Siaga {{rate}} per {{unit}}",
     "state": "Status",
     "title": "Penetapan biaya",
+    "usageUnit": "Hitung pemakaian dalam",
     "version": "Versi",
     "voided": "Dibatalkan",
     "workRate": "Tarif kerja per satuan",
