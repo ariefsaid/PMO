@@ -85,6 +85,7 @@ type FixtureSnapshot = {
   activeClickUpBindingCount: number;
   projectBindingCount: number;
   projectBindings: { id: string; external_container_id: string; direction: string | null; linked_by: string | null }[];
+  stageEntries: { id: string; stage: string; source: string; recorded_by: string | null }[];
   projectTaskCount: number;
   domainOwnershipCount: number;
   externalRefsCount: number;
@@ -120,6 +121,7 @@ let primaryFailure: unknown = null;
 let cleanupFailed = false;
 let cleanupFailureErrors: Error[] = [];
 let projectCreated = false;
+let stageEntryId: string | null = null;
 let bindingCreated = false;
 let projectDeleted = false;
 let fixturePreflightPassed = false;
@@ -255,6 +257,7 @@ async function queryFixtureSnapshot(status: LocalStatus, fixture: Fixture, proje
         FROM public.external_project_bindings b, s21_values p
         WHERE b.org_id = p.org_id AND b.project_id = p.project_id AND b.external_tier = 'clickup'
       ), '[]'::jsonb),
+      'stageEntries', coalesce((SELECT jsonb_agg(jsonb_build_object('id', e.id, 'stage', e.stage, 'source', e.source, 'recorded_by', e.recorded_by)) FROM public.project_stage_entries e, s21_values p WHERE e.org_id = p.org_id), '[]'::jsonb),
       'projectTaskCount', (SELECT count(*) FROM public.tasks t, s21_values p WHERE t.org_id = p.org_id),
       'domainOwnershipCount', (SELECT count(*) FROM public.external_domain_ownership d, s21_values p WHERE d.org_id = p.org_id),
       'externalRefsCount', (SELECT count(*) FROM public.external_refs r, s21_values p WHERE r.org_id = p.org_id),
@@ -298,7 +301,7 @@ function assertInitialAbsence(snapshot: FixtureSnapshot): void {
   ];
   if (
     counts.some((count) => count !== 0) || snapshot.vaultReaderPresent || snapshot.auditEvents.length ||
-    snapshot.historyEvents.length || snapshot.projectHistoryVisible
+    snapshot.historyEvents.length || snapshot.stageEntries.length || snapshot.projectHistoryVisible
   ) {
     throw safeFailure('S21_FIXTURE_ID_COLLISION_OR_NONEMPTY_BASELINE');
   }
@@ -530,11 +533,11 @@ async function assertFinalFixtureState(
   ].sort();
   const actualActions = snapshot.auditEvents.map((event) => event.action).sort();
   const exactHistory = projectCreated
-    ? snapshot.historyEvents.length === 1 &&
-      snapshot.historyEvents[0].entity_type === 'project' &&
-      snapshot.historyEvents[0].entity_id === fixture.projectId &&
-      snapshot.historyEvents[0].op === 'insert' &&
-      snapshot.historyEvents[0].actor_id === fixture.userId
+    ? snapshot.historyEvents.length === 2 &&
+      snapshot.historyEvents.some((event) => event.entity_type === 'project' &&
+        event.entity_id === fixture.projectId && event.op === 'insert' && event.actor_id === fixture.userId) &&
+      snapshot.historyEvents.some((event) => event.entity_type === 'project_stage_entry' &&
+        event.entity_id === stageEntryId && event.op === 'insert' && event.actor_id === fixture.userId)
     : snapshot.historyEvents.length === 0;
   if (
     snapshot.organizationCount !== (ledger.steps.organization === 'verified' ? 1 : 0) ||
@@ -545,7 +548,7 @@ async function assertFinalFixtureState(
     snapshot.authUserIdCount !== 0 || snapshot.authEmailCount !== 0 || snapshot.profileCount !== 0 ||
     snapshot.projectCount !== 0 || snapshot.projectCodeCount !== 0 || snapshot.projectNameCount !== 0 ||
     snapshot.orgBindingCount !== 0 || snapshot.activeClickUpBindingCount !== 0 ||
-    snapshot.projectBindingCount !== 0 || snapshot.projectTaskCount !== 0 ||
+    snapshot.projectBindingCount !== 0 || snapshot.stageEntries.length !== 0 || snapshot.projectTaskCount !== 0 ||
     snapshot.domainOwnershipCount !== 0 || snapshot.externalRefsCount !== 0 || snapshot.outboxCount !== 0 ||
     snapshot.vaultSecretCount !== 0 || snapshot.vaultReaderPresent ||
     JSON.stringify(actualActions) !== JSON.stringify(expectedActions) || !exactHistory ||
@@ -688,6 +691,7 @@ test.beforeAll(async ({ playwright: _playwright }, testInfo) => {
   cleanupFailed = false;
   cleanupFailureErrors = [];
   projectCreated = false;
+  stageEntryId = null;
   bindingCreated = false;
   projectDeleted = false;
   fixturePreflightPassed = false;
@@ -808,10 +812,17 @@ test.beforeAll(async ({ playwright: _playwright }, testInfo) => {
     // The exact authenticated row readback is authoritative after an unknown insert response.
     void projectWrite;
     const projectStart = await queryFixtureSnapshot(status, fixture);
+    const stageEntry = projectStart.stageEntries[0];
+    stageEntryId = stageEntry?.id ?? null;
     if (
       projectStart.auditEvents.filter((event) => event.action === 'project.create').length !== 1 ||
-      projectStart.historyEvents.length !== 1 || projectStart.historyEvents[0].op !== 'insert' ||
-      projectStart.historyEvents[0].actor_id !== fixture.userId
+      projectStart.stageEntries.length !== 1 || stageEntry?.stage !== 'Internal Project' ||
+      stageEntry.source !== 'origination' || stageEntry.recorded_by !== fixture.userId ||
+      projectStart.historyEvents.length !== 2 ||
+      !projectStart.historyEvents.some((event) => event.entity_type === 'project' &&
+        event.entity_id === fixture.projectId && event.op === 'insert' && event.actor_id === fixture.userId) ||
+      !projectStart.historyEvents.some((event) => event.entity_type === 'project_stage_entry' &&
+        event.entity_id === stageEntryId && event.op === 'insert' && event.actor_id === fixture.userId)
     ) throw safeFailure('S21_PROJECT_CREATE_AUDIT_OR_HISTORY_MISMATCH');
     ledger.steps.project = 'verified';
     await saveLedger(ledgerPath, ledger);
