@@ -4,6 +4,7 @@ import { Button, Card, CardHead, CardPad, ConfirmDialog, EntityFormModal, Status
 import { RecordHistory } from '@/src/components/history/RecordHistory';
 import { useVendorWithholdingBillContexts, useVendorWithholdingSlip, useVendorWithholdingSlipMutations } from '@/src/hooks/useVendorWithholdingSlips';
 import { useOrgToday } from '@/src/hooks/useOrgToday';
+import { useOrgBusinessTimezone } from '@/src/hooks/useResolvedLocale';
 import { VendorInvoiceIdentity } from '@/src/components/procurement/VendorInvoiceIdentity';
 import { vendorInvoiceIdentityAccessibleLabel } from '@/src/components/procurement/vendorInvoiceIdentityLabels';
 import { bupotRefusal, type CorrectSlipInput, type VoidSlipInput } from '@/src/lib/vendorWithholdingSlip';
@@ -26,7 +27,8 @@ export function VendorWithholdingSlipDetails({ slipId, canWrite, onClose, onOpen
   const [period, setPeriod] = useState('');
   const [reason, setReason] = useState('');
   const [correctionDatesTouched, setCorrectionDatesTouched] = useState(false);
-  const today = useOrgToday();
+  const orgTimezone = useOrgBusinessTimezone();
+  const today = useOrgToday(orgTimezone);
   const currentMonth = `${today.slice(0, 7)}-01`;
   const isCorrectionDateValid = Boolean(date && date <= today);
   const isCorrectionPeriodValid = Boolean(/^\d{4}-\d{2}-01$/.test(period) && period <= currentMonth);

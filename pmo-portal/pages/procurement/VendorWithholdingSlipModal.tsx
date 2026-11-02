@@ -8,6 +8,7 @@ import { formatSlipCents, parsePositiveSlipMoney, parseDecimalCents, sumSlipMone
 import { formatCurrencyCents, parseMoneyInputAtScale } from '@/src/lib/format';
 import { useVendorWithholdingBillContexts, useVendorWithholdingCandidates } from '@/src/hooks/useVendorWithholdingSlips';
 import { useOrgToday } from '@/src/hooks/useOrgToday';
+import { useOrgBusinessTimezone } from '@/src/hooks/useResolvedLocale';
 import { VendorInvoiceIdentity } from '@/src/components/procurement/VendorInvoiceIdentity';
 import { vendorInvoiceIdentityAccessibleLabel } from '@/src/components/procurement/vendorInvoiceIdentityLabels';
 
@@ -25,7 +26,8 @@ const parseMonth = (value: string) => /^\d{4}-\d{2}-01$/.test(value) && !Number.
 
 export function VendorWithholdingSlipModal({ invoice, vendorId, vendorName, open, loading = false, onClose, onSave }: VendorWithholdingSlipModalProps) {
   const { t } = useTranslation();
-  const today = useOrgToday();
+  const orgTimezone = useOrgBusinessTimezone();
+  const today = useOrgToday(orgTimezone);
   const currentMonth = `${today.slice(0, 7)}-01`;
   const [number, setNumber] = useState('');
   const [slipDate, setSlipDate] = useState(today);

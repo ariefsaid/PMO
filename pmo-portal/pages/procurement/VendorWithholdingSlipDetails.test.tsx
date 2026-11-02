@@ -1,12 +1,14 @@
 import React from 'react';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 import { FinanceI18nTestProvider } from '../__tests__/financeI18nTestProvider';
 import { financeTestI18n, financeTestI18nReady } from '../__tests__/financeI18nTestInstance';
 
 const state = vi.hoisted(() => ({
   detail: { isLoading: false, isError: false, data: null as unknown, refetch: vi.fn() },
   contexts: {} as Record<string, { state: 'ready' | 'pending' | 'unavailable'; caseTitle?: string; projectName?: string; pmoProjectNumber?: string }>,
+  orgTimezone: 'UTC',
   correct: vi.fn(), voidSlip: vi.fn(),
 }));
 vi.mock('@/src/hooks/useVendorWithholdingSlips', () => ({
@@ -15,6 +17,7 @@ vi.mock('@/src/hooks/useVendorWithholdingSlips', () => ({
   useVendorWithholdingSlipMutations: () => ({ correct: { mutateAsync: state.correct, isPending: false }, void: { mutateAsync: state.voidSlip, isPending: false } }),
 }));
 vi.mock('@/src/components/history/RecordHistory', () => ({ RecordHistory: () => <div>Slip change history</div> }));
+vi.mock('@/src/hooks/useResolvedLocale', () => ({ useOrgBusinessTimezone: () => state.orgTimezone }));
 
 import { VendorWithholdingSlipDetails } from './VendorWithholdingSlipDetails';
 
@@ -31,6 +34,11 @@ beforeEach(() => {
   state.contexts = { 'invoice-1': { state: 'ready', caseTitle: 'Case two', projectName: 'Harbor works', pmoProjectNumber: 'PRJ-2642' } };
   state.correct.mockReset(); state.correct.mockResolvedValue({ slipId: 'slip-1', revision: 8 });
   state.voidSlip.mockReset(); state.voidSlip.mockResolvedValue({ slipId: 'slip-1', revision: 8 });
+});
+afterEach(() => {
+  vi.useRealTimers();
+  state.orgTimezone = 'UTC';
+  resetActiveLocale();
 });
 
 describe('AC-BUPOT-018 withholding-slip details', () => {
@@ -196,6 +204,21 @@ describe('AC-BUPOT-018 withholding-slip details', () => {
     expect(screen.getByText('Choose a tax month no later than the current month.')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
     expect(state.correct).not.toHaveBeenCalled();
+  });
+
+  it('AC-BUPOT-018 bounds correction dates and months to the organization day across the month boundary', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-07-01T00:30:00.000Z'));
+    state.orgTimezone = 'America/Los_Angeles';
+    setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'Asia/Tokyo' });
+    renderPanel();
+    fireEvent.click(screen.getByRole('button', { name: 'Correct metadata' }));
+
+    const dialog = screen.getByRole('dialog', { name: 'Correct metadata' });
+    const dateInput = dialog.querySelector('input[type="date"]')!;
+    const monthInput = dialog.querySelector('input[type="month"]')!;
+    expect(dateInput).toHaveAttribute('max', '2026-06-30');
+    expect(monthInput).toHaveAttribute('max', '2026-06');
   });
 
   it('requires confirmation and a reason before voiding; copy does not claim the tax-office document is cancelled', async () => {

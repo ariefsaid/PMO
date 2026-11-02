@@ -5,6 +5,7 @@ import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { useSalesInvoices } from '@/src/hooks/useRevenue';
 import { useClientCompanyOptions } from '@/src/hooks/useFkOptions';
 import { useOrgToday } from '@/src/hooks/useOrgToday';
+import { useOrgBusinessTimezone } from '@/src/hooks/useResolvedLocale';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { currencySymbol, formatCurrencyCents, formatMoneyInputValue, parseMoneyInputAtScale } from '@/src/lib/format';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
@@ -147,7 +148,8 @@ export const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> =
   native,
 }) => {
   const { t } = useTranslation();
-  const today = useOrgToday();
+  const orgTimezone = useOrgBusinessTimezone();
+  const today = useOrgToday(orgTimezone);
   // A PMO receipt uses its invoice's currency; otherwise use the organization's currency.
   const orgCurrency = useOrgCurrency();
   // BLOCK 2 (ADR-0058): ONE command identity per form session. This modal is mounted only while the
