@@ -237,6 +237,16 @@ Closed by plan slice C0 on the stock bed (`scripts/odoo-dev-bed.sh`, under `scri
 | V-OCI14 | Which of these calls are refused to a minimally-privileged service user, and the smallest group set that passes all of them (extends O1 S0-T13 and V-OPP10); recorded for the runbook (NFR-ODC-003). | FR-OCI-001, runbook |
 | V-OCI15 | The error body shape for a validation error on each call (to classify without echoing). | FR-OCI-074 |
 
+**Verdicts (plan slice C0, 2026-11-03; evidence in `docs/research/2026-10-31-odoo20-dev-bed-verification.md` §10; spec deltas SD-6…SD-15 in the plan §1).** All fifteen claims are closed on the stock bed. None hit the plan's stop rule.
+
+- **V-OCI1 verified.** Create with tuples then post works; omitted `tax_ids` applies the product default, `[[6,0,[]]]` and `[[5,0,0]]` give an explicit empty set; a negative line beside a positive posts; **a negative-total invoice is refused on post (422)**; a zero-total invoice posts and reads paid.
+- **V-OCI2 closed, no invisible anchor.** External identifier plus a composite hold-on-doubt probe, per model (SD-6, SD-7). `ref` prints as "Reference" (the client's PO).
+- **V-OCI3 verified.** V-OCI4 verified. V-OCI5 verified (the 11% tax is named "12% (Non-Luxury Good)"; resolve by id). V-OCI6 verified (second post is 422).
+- **V-OCI7 verified.** Wizard and line reconcile both work; the wizard **accepts an over-receipt** (PMO's cap is the only guard); no `in_payment` state observed.
+- **V-OCI8 verified.** The stock wizard books the client-withheld part to a write-off account and closes the invoice.
+- **V-OCI9 nothing numbered.** Coretax exposes a transaction code and a document link, no tax-invoice number or status (SD-11). **V-OCI10 verified:** `download_efaktur` exists, needs no wizard, and writes a document and attachment in Odoo (SD-12). **V-OCI11 verified:** XML, ~1.5 KB, readable through `ir.attachment` `raw`.
+- **V-OCI12 no.** The print is not reachable by a JSON-2 call. **V-OCI13 verified** (keyset at 200 and 1000; the reversal wizard needs `journal_id` and `company_id`, SD-13). **V-OCI14 verified:** Billing + Access Rights (SD-14). **V-OCI15 verified:** six-key body, classify on `name` (SD-15).
+
 ## 10. Acceptance criteria
 
 Each AC has exactly one owning layer. Where a second layer appears it is secondary evidence.
