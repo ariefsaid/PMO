@@ -7,7 +7,7 @@
 import type { PmoRecord } from '../contract.ts';
 import type { ClickUpCreateTaskBody, ClickUpTask, ClickUpUpdateTaskBody } from './types.ts';
 import { fromClickUpStatus, toClickUpStatus, type ClickUpStatusMap } from './statusMap.ts';
-import { fromClickUpAssignee, toClickUpAssignee, type ClickUpMemberMap } from './memberMap.ts';
+import { fromClickUpAssignee, toClickUpAssigneeId, type ClickUpMemberMap } from './memberMap.ts';
 
 export interface ClickUpMaps {
   statusMap: ClickUpStatusMap;
@@ -124,12 +124,7 @@ export interface PmoTaskToClickUpBodyOptions {
 }
 
 function resolveAssigneeId(memberMap: ClickUpMemberMap, pmoAssigneeId: unknown): number | null {
-  if (typeof pmoAssigneeId !== 'string') return null;
-  // `.id` is read directly (never narrowed off `.unassigned`) — see the note on
-  // ClickUpAssigneeResolution: this repo's tsconfig runs with strictNullChecks off, under which
-  // discriminated-union narrowing is unreliable. The resolution shape is flat (`id: number | null`)
-  // precisely so no narrowing is needed here.
-  return toClickUpAssignee(memberMap, pmoAssigneeId).id;
+  return typeof pmoAssigneeId === 'string' ? toClickUpAssigneeId(memberMap, pmoAssigneeId) : null;
 }
 
 /** The scalar (non-assignee) fields shared by both request-body shapes. */
