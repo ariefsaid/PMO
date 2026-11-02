@@ -26,14 +26,14 @@ begin
     return;
   end if;
 
-  -- A paid payment is the PMO cash-spend fact. Its invoice is already the source of that payment amount, so
-  -- summing both would double count. Procurement.budget_category is the category link shared by its invoices
-  -- and payments. An uncategorized paid row makes the category coverage unknown instead of being misplaced.
+  -- Non-ledger orgs keep every term project_mapped_actuals already reads (snapshot, attribution, hire charge) row
+  -- for row, and PMO paid payments are added on top as one more tagged term. A paid payment is the PMO cash-spend
+  -- fact; its invoice is already the source of that amount, so only payments are summed (no double count).
+  -- Procurement.budget_category links invoices and payments; an uncategorized paid row makes every category's
+  -- coverage unknown instead of being misplaced.
   return query
-  with target_project as (
-    select p.id, p.org_id, p.currency
-      from public.projects p
-     where p.id = p_project_id and p.org_id = public.auth_org_id()
+  with base as (
+    select * from public.project_mapped_actuals(p_project_id, null)
   ), paid_rows as (
     select pr.budget_category as category,
            case when pay.amount is not null
@@ -41,10 +41,10 @@ begin
                      and pay.currency = p.currency
                 then pay.amount end as amount,
            coalesce(pay.date::timestamp at time zone 'UTC', pay.created_at) as actuals_as_of
-      from target_project p
+      from public.projects p
       join public.procurements pr on pr.project_id = p.id and pr.org_id = p.org_id
       join public.payments pay on pay.procurement_id = pr.id and pay.org_id = pr.org_id
-     where pay.org_id = p.org_id
+     where p.id = p_project_id and p.org_id = public.auth_org_id()
        and pr.origin is distinct from 'erp_link'
        and pay.status = 'Paid'
        and coalesce(pay.erp_docstatus, 1) <> 2
@@ -61,30 +61,33 @@ begin
     select exists(select 1 from paid_rows r where r.category is null) as has_uncategorized
   ), charges as (
     select * from public.equipment_charge_project_actuals(p_project_id, null)
-  ), recency as (
-    select greatest((select max(r.actuals_as_of) from paid_rows r),
-                    (select max(q.as_of) from charges q)) as actuals_as_of
   )
-  select c.category,
+  select b.category,
          not complete.has_uncategorized as mapped,
-         coalesce(total.payment_count, 0) > 0 or coalesce(q.n, 0) > 0 as has_rows,
+         b.has_rows or coalesce(total.payment_count, 0) > 0 as has_rows,
          case when complete.has_uncategorized then null::numeric
-              when total.payment_count is null then coalesce(q.amount, 0)::numeric
-              else total.amount + coalesce(q.amount, 0) end as actuals_to_date,
-         recent.actuals_as_of,
+              when total.payment_count > 0 and total.amount is null then null::numeric
+              when b.mapped then case when b.has_rows then b.actuals_to_date else 0::numeric end
+                                 + coalesce(total.amount, 0)
+              else coalesce(q.amount, 0) + coalesce(total.amount, 0) end as actuals_to_date,
+         greatest(b.actuals_as_of, (select max(r.actuals_as_of) from paid_rows r)) as actuals_as_of,
          case when complete.has_uncategorized then null::numeric
-              when total.payment_count is null then coalesce(q.amount, 0)::numeric
-              else total.amount + coalesce(q.amount, 0) end as source_sum,
+              when total.payment_count > 0 and total.amount is null then null::numeric
+              when b.mapped then case when total.payment_count is null then b.source_sum
+                                      else coalesce(b.source_sum, 0) + total.amount end
+              else coalesce(q.amount, 0) + coalesce(total.amount, 0) end as source_sum,
          case when complete.has_uncategorized then null::numeric
-              when total.payment_count is null then 0::numeric
-              else total.amount end as tagged_to_date,
-         case when complete.has_uncategorized then null::numeric else 0::numeric end as attributed_to_date,
-         case when complete.has_uncategorized then null::numeric else coalesce(q.amount, 0) end as equipment_charge_to_date
-    from unnest(enum_range(null::public.budget_category)) c(category)
+              when total.payment_count > 0 and total.amount is null then null::numeric
+              when b.mapped then b.tagged_to_date + coalesce(total.amount, 0)
+              else coalesce(total.amount, 0) end as tagged_to_date,
+         case when complete.has_uncategorized then null::numeric
+              when b.mapped then b.attributed_to_date else 0::numeric end as attributed_to_date,
+         case when complete.has_uncategorized then null::numeric
+              when b.mapped then b.equipment_charge_to_date else coalesce(q.amount, 0) end as equipment_charge_to_date
+    from base b
     cross join completeness complete
-    cross join recency recent
-    left join category_totals total on total.category = c.category
-    left join charges q on q.category = c.category;
+    left join category_totals total on total.category = b.category
+    left join charges q on q.category = b.category;
 end;
 $function$;
 

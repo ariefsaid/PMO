@@ -270,7 +270,7 @@ set local role authenticated;
 select is((get_project_finances('15190000-0000-0000-0000-0000000000c1')->'actuals'->>'equipment_charge_total')::numeric,
   580.00::numeric, 'AC-EQU-010 PMO actuals retain the internal charge');
 select is((get_project_finances('15190000-0000-0000-0000-0000000000c1')->'actuals'->>'total')::numeric,
-  580.00::numeric, 'AC-EQU-010 PMO actuals include the internal charge without a ledger binding');
+  1480.00::numeric, 'AC-EQU-010 without a ledger binding the total is unchanged: snapshot and attributed terms plus the internal charge');
 reset role;
 update public.external_org_bindings set status = 'active'
  where org_id = '15190000-0000-0000-0000-00000000000a' and external_tier = 'erpnext';
