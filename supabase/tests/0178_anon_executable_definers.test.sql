@@ -187,9 +187,9 @@
 -- from the list). Only external-connect calls it, through the service role with p_actor_id; the frontend never did.
 -- With it off the list, a renewed authenticated grant fails AC-ACL-004 by name.
 --
--- ⚑ AMENDED BY 0482 (#1606): `retry_connect_send` joins the retained set (+1, count 129 on dev's 128, re-derived by hand from the list). A SECURITY DEFINER writer under a member's JWT; it re-asserts the
+-- ⚑ AMENDED BY 0494 (#1606): `retry_connect_send` joins the retained set (+1, count 129 on dev's 128, re-derived by hand from the list). A SECURITY DEFINER writer under a member's JWT; it re-asserts the
 -- org, active membership and the Admin role in its body (a held send is released and queued again, audited); proved by
--- supabase/tests/erp_connect_sends.test.sql. The other 0482 functions are service-role-only or internal.
+-- supabase/tests/erp_connect_sends.test.sql. The other 0494 functions are service-role-only or internal.
 --
 -- The budget import and procurement import-run commands retain authenticated access;
 -- their owning proofs are 0397_budget_import_protocol.test.sql and

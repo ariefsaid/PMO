@@ -1,4 +1,4 @@
--- Reverses 0482_erp_connect_sends.sql: the drain functions, the disconnect trigger and the lease columns. Proposals already settled by a send stay as they are.
+-- Reverses 0494_erp_connect_sends.sql: the drain functions, the disconnect trigger and the lease columns. Proposals already settled by a send stay as they are.
 drop trigger if exists erp_connect_purge_sends_on_disconnect on public.external_org_bindings;
 drop function if exists public.purge_connect_sends_on_disconnect();
 drop function if exists public.record_connect_record_held(uuid, text, text, text, text);

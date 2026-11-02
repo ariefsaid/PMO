@@ -1,5 +1,5 @@
 -- ECA-3 (#1606): the send drain. Proposals an Admin accepted as "send" wait in state `sending` (0480); the sweep claims them, sends
--- each master through the money outbox and records the result here. Reversal: rollback/0482_erp_connect_sends_down.sql.
+-- each master through the money outbox and records the result here. Reversal: rollback/0494_erp_connect_sends_down.sql.
 -- Service role only: the drain reads the org from the connection it works for and every function re-scopes by it.
 
 alter table public.erp_connect_proposals add column send_claimed_at timestamptz;   -- the drain's lease; decided_at is the accept time
