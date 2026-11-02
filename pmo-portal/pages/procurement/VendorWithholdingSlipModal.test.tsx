@@ -59,8 +59,8 @@ describe('AC-BUPOT-017 capture form', () => {
     h.contexts = { 'invoice-a': { state: 'ready', caseTitle: 'Case first', projectName: 'Project first', pmoProjectNumber: 'PRJ-1' }, 'invoice-b': { state: 'ready', caseTitle: 'Case second', projectName: 'Project second', pmoProjectNumber: 'PRJ-2' } };
     h.hasNextPage = false;
     view.rerender(<VendorWithholdingSlipModal invoice={invoice} vendorId="vendor-a" open onClose={vi.fn()} onSave={h.save} />);
-    expect(screen.getByText('System VI number: VI-FIRST')).toBeInTheDocument();
-    expect(screen.getByText('System VI number: VI-SECOND')).toBeInTheDocument();
+    expect(screen.getByText('Supplier invoice no. (accounting): VI-FIRST')).toBeInTheDocument();
+    expect(screen.getByText('Supplier invoice no. (accounting): VI-SECOND')).toBeInTheDocument();
     expect(screen.getByText('Case: Case second')).toBeInTheDocument();
     expect(screen.getByText('Bill date: 2026-09-04')).toBeInTheDocument();
     expect(screen.getByText('Selected bills (1)')).toBeInTheDocument();
