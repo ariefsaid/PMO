@@ -737,8 +737,7 @@
         "projectRequired": "Choose a project.",
         "save": "Add"
       }
-    },
-    "vendorTaxAccounts": {}
+    }
   },
   "approvals": {
     "salesInvoices": {
@@ -964,6 +963,10 @@
       "clientNumberSegment": {
         "label": "Client number segment",
         "placeholder": "e.g. RIS"
+      },
+      "partialSave": {
+        "headline": "Company saved, but one change did not persist",
+        "segmentDetail": "The client-number segment could not be saved. Review it and save again."
       }
     },
     "search": {
@@ -1030,11 +1033,7 @@
       "note": "Note"
     },
     "addContact": {
-      "legendContact": "Contact details",
-      "legendIdentity": "Identity",
-      "submitLabel": "Create contact",
-      "subtitle": "Add a person at this company",
-      "title": "New contact"
+      "subtitle": "Add a person at this company"
     },
     "archive": "Archive",
     "archiveConfirm": {
@@ -1057,47 +1056,15 @@
       "title": "Contacts"
     },
     "edit": "Edit",
-    "editActivity": {
-      "legend": "Details",
-      "submitLabel": "Save",
-      "subtitle": "Update this activity log entry",
-      "title": "Edit activity"
-    },
-    "editCompany": {
-      "legendIdentity": "Identity",
-      "submitLabel": "Save company",
-      "subtitle": "Update this company record",
-      "title": "Edit company"
-    },
     "error": {
       "sub": "Something went wrong fetching this company.",
       "title": "Couldn't load company"
     },
     "field": {
-      "company": "Company",
-      "companyName": "Company name",
-      "companyNamePlaceholder": "e.g. Cascade Port Authority",
-      "email": "Email",
-      "emailPlaceholder": "name@example.com",
-      "fullName": "Full name",
-      "fullNamePlaceholder": "e.g. Jane Doe",
       "name": "Name",
-      "notes": "Notes",
-      "notesPlaceholder": "Anything worth remembering about this contact",
-      "phone": "Phone",
-      "phonePlaceholder": "e.g. +1 555 010 0000",
       "primaryContact": "Primary contact",
-      "title": "Title",
-      "titlePlaceholder": "e.g. Procurement Lead",
       "type": "Type",
-      "clientNumberSegment": "Client number segment",
-      "clientNumberSegmentPlaceholder": "e.g. RIS"
-    },
-    "form": {
-      "errors": {
-        "companyNameRequired": "Company name is required.",
-        "contactNameRequired": "Contact name is required."
-      }
+      "clientNumberSegment": "Client number segment"
     },
     "notFound": {
       "sub": "This company either doesn't exist or isn't visible to you. Return to the directory to find it.",
@@ -1124,11 +1091,6 @@
       "archived": "Company archived",
       "contactCreated": "Contact created",
       "updated": "Company updated"
-    },
-    "type": {
-      "client": "Client",
-      "internal": "Internal",
-      "vendor": "Supplier"
     },
     "vendorTax": {
       "hint": "Pre-fills new bills from this supplier. The amounts stay editable on each bill.",
@@ -1196,36 +1158,18 @@
       "subtitle": "Update this activity log entry",
       "title": "Edit activity"
     },
-    "editContact": {
-      "legendContact": "Contact details",
-      "legendIdentity": "Identity",
-      "submitLabel": "Save contact",
-      "subtitle": "Update this contact record",
-      "title": "Edit contact"
-    },
     "error": {
       "sub": "Something went wrong fetching this contact.",
       "title": "Couldn't load contact"
     },
     "field": {
       "company": "Company",
-      "companyPlaceholder": "Select a company…",
       "email": "Email",
-      "emailPlaceholder": "name@example.com",
-      "fullName": "Full name",
-      "fullNamePlaceholder": "e.g. Jane Doe",
       "notes": "Notes",
-      "notesPlaceholder": "Anything worth remembering about this contact",
       "phone": "Phone",
-      "phonePlaceholder": "e.g. +1 555 010 0000",
       "title": "Title",
-      "titlePlaceholder": "e.g. Procurement Lead"
-    },
-    "form": {
-      "errors": {
-        "companyRequired": "A company is required.",
-        "nameRequired": "Contact name is required."
-      }
+      "companyUnavailable": "This company is not in your company directory.",
+      "companyArchived": "Archived"
     },
     "meetings": {
       "error": "Minuted meetings could not be loaded.",
@@ -1279,7 +1223,9 @@
     "form": {
       "company": {
         "label": "Company",
-        "placeholder": "Select a company…"
+        "placeholder": "Select a company…",
+        "loading": "Loading companies…",
+        "loadFailed": "Companies could not be loaded."
       },
       "editSubmit": "Save contact",
       "editSubtitle": "Update this contact record",
@@ -1337,7 +1283,8 @@
       "created": "Contact created",
       "deleted": "Contact deleted",
       "updated": "Contact updated"
-    }
+    },
+    "companiesUnavailable": "The company directory could not be loaded. Company names, filtering and export are unavailable."
   },
   "dashboard": {
     "winRate": {
@@ -2193,8 +2140,7 @@
         "toast": {
           "deleted": "Bill of quantities line deleted",
           "saved": "Bill of quantities line saved"
-        },
-        "source": {}
+        }
       },
       "boqForm": {
         "description": "Description",
@@ -2282,8 +2228,7 @@
           "withdrawn": "Claim withdrawn"
         },
         "withdraw": "Withdraw",
-        "withdrawn": "Withdrawn",
-        "source": {}
+        "withdrawn": "Withdrawn"
       },
       "evidence": {
         "document": "Evidence document",
@@ -2305,8 +2250,7 @@
         "notSubmitted": "Claims raised, not yet submitted",
         "remaining": "Contract not yet billed",
         "title": "Billing summary"
-      },
-      "source": {}
+      }
     },
     "documents": {
       "action": {
@@ -2651,9 +2595,7 @@
         "sub": "Something went wrong fetching this project's procurement records.",
         "title": "Couldn't load procurement"
       },
-      "group": {},
       "newRequest": "New procurement",
-      "summary": {},
       "title": "Procurement"
     },
     "rail": {
@@ -2999,7 +2941,6 @@
       "placeholder": "Assign a PM…",
       "noun": "manager"
     },
-    "code": {},
     "stage": {
       "label": "Origination stage",
       "helper": "On-hand is reached only by winning a project in the pipeline, never created directly."

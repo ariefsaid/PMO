@@ -40,6 +40,7 @@ import { buildAgentSystemPrompt } from './prompt.ts';
 import { makeWhatsOverdueAction } from './overdue.ts';
 import { draftInvoiceAction } from './draftInvoice.ts';
 import { remindOverdueAction } from './remindOverdue.ts';
+import { queryStockAction } from './stockRead.ts';
 import {
   hashToolArgs,
   createThreadAndRun,
@@ -128,6 +129,7 @@ const INVOICE_DRAFTS_ENABLED = denoGlobal === undefined || denoGlobal.env.get('A
 const REMINDERS_ENABLED = denoGlobal === undefined || denoGlobal.env.get('AGENT_REMINDERS') !== 'false';
 const BASE_ACTIONS: AgentAction[] = [
   queryEntityAction,
+  queryStockAction,
   makeWhatsOverdueAction({ offerReminders: REMINDERS_ENABLED }),
   createActivityAction,
   updateTaskStatusAction,
@@ -758,7 +760,7 @@ async function* runToolLoop(opts: RunToolLoopOptions): AsyncGenerator<AgentEvent
    * gate would let it (and any future confirm:false side-effecting action) inherit parallelizability.
    * An action must be on THIS list to parallelize; everything else stays serial.
    */
-  const PARALLELIZABLE_READ_ACTIONS = new Set<string>(['query_entity']);
+  const PARALLELIZABLE_READ_ACTIONS = new Set<string>(['query_entity', 'query_stock']);
   /**
    * #5: a tool call safe to execute CONCURRENTLY with the other reads in the same round — a
    * whitelisted pure-READ action with parseable args. Writes are NEVER parallelized: they go through
