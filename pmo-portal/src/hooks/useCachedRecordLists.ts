@@ -87,6 +87,7 @@ export function useCachedRecordLists(pathname: string): CachedRecordLists {
   const contacts = useCached<{ id: string; full_name: string }[]>(['contacts', orgId], has);
   const meetings = useCached<{ id: string; title: string }[]>(['meetings', orgId, 'all', ''], has);
   const userViews = useCached<UserViewRow[]>(['user_views', orgId], has);
+  const equipmentAssets = useCached<{ rows: { id: string; name: string }[] }>(['equipment-assets', orgId], has);
   const imprestFloats = useCached<{ rows: { id: string; project: { name: string } | null }[] }>(['imprest-floats', orgId], has);
 
   const detailRoute = detailKeyFor(pathname, orgId, currentUser?.id, currentUser?.role);
@@ -113,6 +114,7 @@ export function useCachedRecordLists(pathname: string): CachedRecordLists {
         const rec = at('/imprest/') ? (detail.data as { id: string; project: { name: string } | null } | null | undefined) : undefined;
         return rec ? [...(list ?? []), { id: rec.id, name: rec.project?.name ?? '' }] : list;
       })(),
+      equipmentAssets: equipmentAssets.data?.rows.map((a) => ({ id: a.id, name: a.name })),
       userViews: one(userViews.data?.map((v) => ({ id: v.id, name: v.name })), at('/views/')),
       stockDocuments: one(undefined, at('/stock/documents/')) as RecordLists['stockDocuments'],
     };
@@ -126,6 +128,7 @@ export function useCachedRecordLists(pathname: string): CachedRecordLists {
       (pathname.startsWith('/expenses/') && detail.settled) ||
       (pathname.startsWith('/sales/') && pipeline.settled) ||
       (pathname.startsWith('/imprest/') && imprestFloats.settled) ||
+      (pathname.startsWith('/equipment/assets/') && equipmentAssets.settled) ||
       (pathname.startsWith('/views/') && userViews.settled);
     return { lists, resolved: Boolean(listSettled || (detailPrefix && detail.settled)) };
   }, [
@@ -143,5 +146,6 @@ export function useCachedRecordLists(pathname: string): CachedRecordLists {
     meetings.data, meetings.settled,
     userViews.data, userViews.settled,
     imprestFloats.data, imprestFloats.settled,
+    equipmentAssets.data, equipmentAssets.settled,
   ]);
 }
