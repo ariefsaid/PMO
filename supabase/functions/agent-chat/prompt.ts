@@ -86,6 +86,7 @@ export function buildAgentSystemPrompt(
   // plus ask_user — these are registered unconditionally, never behind AUTOMATIONS_ENABLED.
   const toolIndexLines = [
     '- query_entity — read the caller\'s own rows (RLS-scoped) for one whitelisted entity.',
+    '- query_stock — read warehouse stock: on-hand quantities per item × warehouse (topic "on_hand") or the movement ledger (topic "movements"). Pure read, no approval; item/warehouse names are resolved for you.',
     '- whats_overdue — ONE call answers "what\'s overdue?": the user\'s overdue tasks across their projects, plus overdue invoices when their role may see invoices. The list is shown to the user for you.',
     '- create_activity — log a CRM activity (call, email, meeting, note) against a company/contact. Write action — goes through the approve/deny chip.',
     '- update_task_status — move a task to To Do / In Progress / Done / Blocked. Write action — goes through the approve/deny chip.',
@@ -132,6 +133,11 @@ Call \`remind_overdue\` right away — with no arguments for "remind them / whoe
   const remindMapLine = remindersEnabled
     ? '- "remind", "chase", "nudge", "follow up" + people or late work → call `remind_overdue` (this wins over the overdue line below: "remind whoever is late" is a reminder, not a list).\n'
     : '';
+
+  const stockSkill = `
+
+### stock — Use when the user asks about stock, on hand, inventory, gudang, warehouse, stores or materials
+The question "what is the current stock of <item> in <warehouse>?" is ONE call: \`query_stock\` with topic "on_hand" and \`item\` / \`warehouse\` set to what the user named (name fragments are fine — they are resolved for you; ids also accepted). NEVER answer an on-hand question from procurement data — ordered or received quantities are NOT stock on hand. When the user asks where stock moved, what was issued to a project, or the movement history, use topic "movements". If \`query_stock\` returns candidates, the name was ambiguous — pick the right id or ask the user. Stock master data and stock documents are query_entity entities (stock_items, stock_warehouses, stock_reorder_levels, stock_documents, stock_document_lines). Quantities are visible org-wide; unit cost / value appears in a result ONLY when the user's role is Project Manager or above — if cost fields are absent, say cost is not visible to their role, never report value as zero.`;
 
   const composeSkill = composeEnabled
     ? `
@@ -194,7 +200,7 @@ When the request is ambiguous — an underspecified entity, an unresolved "which
 
 ### log-activity-and-task-writes — Use when the user asks to log an activity or change a task's status
 When the user asks to log, record, or note a call/email/meeting/note against a company or contact, call \`create_activity\`. When the user asks to move a task to a new status (To Do / In Progress / Done / Blocked), call \`update_task_status\`. Both are write actions: the user sees an approve/deny confirmation chip before anything is written — do not claim the write happened until it is confirmed.
-CRM activity history (calls/emails/meetings/notes logged against a company, contact, or project) lives in the \`crm_activities\` entity — query THAT to answer "what activity is there on this deal?", "have we followed up?", "any recent contact?". Filter by \`project_id\`, \`company_id\`, or \`contact_id\` to scope it. Do NOT hunt for activities in companies/contacts/tasks/milestones — they do not hold activity logs. To ADD a new activity, use the \`create_activity\` write action.${overdueSkill}${invoiceSkill}${remindSkill}
+CRM activity history (calls/emails/meetings/notes logged against a company, contact, or project) lives in the \`crm_activities\` entity — query THAT to answer "what activity is there on this deal?", "have we followed up?", "any recent contact?". Filter by \`project_id\`, \`company_id\`, or \`contact_id\` to scope it. Do NOT hunt for activities in companies/contacts/tasks/milestones — they do not hold activity logs. To ADD a new activity, use the \`create_activity\` write action.${overdueSkill}${invoiceSkill}${remindSkill}${stockSkill}
 
 ### map-questions-to-entities — Use when the user's words do not name an entity exactly
 Before refusing that something "isn't available", map the ask to an available entity and query it. FIRST pick the entity whose NAME matches the noun the user asked about — "tasks" → \`tasks\`, "incidents" → \`incidents\`, "milestones" → \`milestones\`, "timesheets" → \`timesheets\`, "companies/vendors" → \`companies\`. ONLY translate a word when it has NO matching entity (e.g. sales words → \`projects\`). NEVER answer a question about one entity by querying a different entity (a "tasks" question must query \`tasks\`, not \`projects\`). Then call query_entity (filter on the REAL status column; do not invent values):
@@ -213,6 +219,8 @@ ${remindMapLine}- "overdue", "late", "past due", "behind", "what's slipping" →
 - "vendors", "clients", "suppliers", "contacts" → query \`companies\` or \`contacts\`.
 - "my timesheet", "hours logged", "approval status" → query \`timesheets\`.
 - "activities", "CRM activity", "calls/emails/meetings/notes", "follow-ups", "last contact", "engagement history" → query \`crm_activities\` (filter by \`project_id\`/\`company_id\`/\`contact_id\`).
+- "stock", "on hand", "inventory", "gudang", "what's in the warehouse/store" → call \`query_stock\` (topic "on_hand"; movements/consumption → topic "movements"). NEVER derive on-hand from procurements/receipts — ordered or received is not on hand.
+- "stock items", "item catalogue", "materials list" → query \`stock_items\`; "warehouses", "stores", "gudang" (the list) → query \`stock_warehouses\`; "reorder levels" → query \`stock_reorder_levels\`; receive/transfer/issue/return/adjustment/count documents → query \`stock_documents\` (a document's lines → \`stock_document_lines\`).
 Refuse only when nothing genuinely maps. Every query is still capped to the caller's own RLS-permitted rows.${composeSkill}${automationSkill}
 
 When no skill trigger matches, answer directly in clear prose (markdown is fine for narrative).
