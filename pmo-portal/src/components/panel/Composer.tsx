@@ -40,6 +40,8 @@ export interface ComposerProps {
   /** Optional Tier-2 attachment hook seam. When absent, the composer stays text-only. */
   onAttachFile?: (file: File) => void | Promise<void>;
   onAttachmentError?: (error: ClassifiedUploadError) => void;
+  /** True while an attachment is uploading: Send/Enter wait so the file goes with the message. */
+  uploading?: boolean;
 }
 
 export const Composer: React.FC<ComposerProps> = ({
@@ -53,6 +55,7 @@ export const Composer: React.FC<ComposerProps> = ({
   disabled = false,
   onAttachFile,
   onAttachmentError,
+  uploading = false,
 }) => {
   const internalRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -68,7 +71,7 @@ export const Composer: React.FC<ComposerProps> = ({
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
-      if (!running && !disabled && value.trim().length > 0) {
+      if (!running && !disabled && !uploading && value.trim().length > 0) {
         e.preventDefault();
         onSend();
       }
@@ -213,7 +216,7 @@ export const Composer: React.FC<ComposerProps> = ({
           <button
             type="button"
             onClick={onSend}
-            disabled={value.trim().length === 0 || disabled}
+            disabled={value.trim().length === 0 || disabled || uploading}
             aria-label="Send message"
             // F1 (Discover finding): the disabled Send button must NOT remain brand-blue at
             // opacity-50 (`disabled` here is the FR-AUC-016 out-of-credits hard-disable — the

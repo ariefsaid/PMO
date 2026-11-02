@@ -4958,18 +4958,24 @@ export type Database = {
           last_detail: Json | null
           last_outbound_at: string | null
           last_run_at: string
+          lease_holder: string | null
+          lease_until: string | null
         }
         Insert: {
           job_name: string
           last_detail?: Json | null
           last_outbound_at?: string | null
           last_run_at: string
+          lease_holder?: string | null
+          lease_until?: string | null
         }
         Update: {
           job_name?: string
           last_detail?: Json | null
           last_outbound_at?: string | null
           last_run_at?: string
+          lease_holder?: string | null
+          lease_until?: string | null
         }
         Relationships: []
       }
@@ -10579,6 +10585,10 @@ export type Database = {
       }
     }
     Functions: {
+      attribute_subcontract_bill_lines: {
+        Args: { p_invoice_id: string; p_lines: Json }
+        Returns: undefined
+      }
       add_skipped_stage_entry: {
         Args: {
           p_before_entry_id: string
@@ -10905,6 +10915,15 @@ export type Database = {
         Args: { p_org_id: string }
         Returns: boolean
       }
+      po_revision_push_refusal: {
+        Args: {
+          p_org: string
+          p_po_id: string
+          p_revise_cancels: boolean
+          p_revision: number
+        }
+        Returns: string
+      }
       po_variation_route: {
         Args: { p_id: string }
         Returns: {
@@ -10971,6 +10990,16 @@ export type Database = {
         Returns: string
       }
       create_procurement_with_items: { Args: { p_id: string; p_header: Json; p_items: Json }; Returns: Database['public']['Tables']['procurements']['Row'] }
+      subcontract_cap_exceptions: {
+        Args: { p_procurement_id: string }
+        Returns: {
+          amount: number
+          erp_purchase_document_id: string
+          invoice_id: string
+          number: string
+          reason: string
+        }[]
+      }
       subcontract_po_position: {
         Args: { p_po_id: string }
         Returns: {
@@ -11309,6 +11338,10 @@ export type Database = {
       }
       claim_erp_sweep_lock: {
         Args: { p_holder: string; p_org_id: string; p_ttl: string }
+        Returns: boolean
+      }
+      claim_ops_job_lease: {
+        Args: { p_holder: string; p_job: string; p_ttl: string }
         Returns: boolean
       }
       claim_outbox_for_commit: {
@@ -11872,6 +11905,15 @@ export type Database = {
           project_name: string
           returned: number
           settled: number
+        }[]
+      }
+      get_expense_advance_aging_totals: {
+        Args: never
+        Returns: {
+          advance_count: number
+          bucket: string
+          currency: string
+          outstanding: number
         }[]
       }
       get_expense_claim_approval_routes: {
@@ -12766,6 +12808,10 @@ export type Database = {
         Args: { p_org_id: string; p_holder: string; p_binding: Json }
         Returns: undefined
       }
+      pre_cutover_procurement: {
+        Args: { p_invoice_id?: string; p_procurement_id: string }
+        Returns: boolean
+      }
       preview_cost_attribution: {
         Args: { p_rule: Json }
         Returns: {
@@ -13125,6 +13171,10 @@ export type Database = {
         Returns: string
       }
       release_credits: { Args: { p_run_id: string }; Returns: undefined }
+      release_ops_job_lease: {
+        Args: { p_holder: string; p_job: string }
+        Returns: boolean
+      }
       release_erp_sweep_lock: {
         Args: { p_holder: string; p_org_id: string }
         Returns: boolean

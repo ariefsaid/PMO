@@ -15,6 +15,7 @@ import { daysBetween, escapeMarkdownText, formatMoney, formatShortDate, isoDateI
 
 export const OVERDUE_TASK_CAP = 50;
 export const OVERDUE_INVOICE_SCAN_CAP = 200;
+export const MANAGED_PROJECT_CAP = 500;
 const OPEN_TASK_STATUSES = ['To Do', 'In Progress', 'Blocked'] as const;
 
 interface TaskRow { id: string; name: string; end_date: string; project_id: string | null; assignee_id: string | null }
@@ -40,6 +41,8 @@ export interface OverdueFacts {
   /** null = not shown (role may not view invoices, or Revenue is off) — DD-AIN-2. */
   invoices: OverdueInvoice[] | null;
   invoicesTruncated: boolean;
+  /** A Project Manager's managed-project scope hit MANAGED_PROJECT_CAP, so every answer is partial. */
+  scopeTruncated?: boolean;
   /** Project names already fetched for overdue task/invoice project IDs. */
   projectNames?: ReadonlyMap<string, string>;
   callerId?: string;
@@ -61,11 +64,15 @@ export async function loadOverdueFacts(ctx: DeputyContext, now: Date): Promise<O
   const asOf = isoDateInZone(now, profile?.timezone || org?.default_timezone || 'UTC');
 
   // DD-AIN-2: a PM's "their projects" = the projects they manage (plus anything assigned to them).
-  const managedIds: string[] | null = role === 'Project Manager'
-    ? (await readRows<{ id: string }>(
-        sb.from('projects').select('id').eq('project_manager_id', ctx.userId).is('archived_at', null).limit(500),
-      )).map((p) => p.id)
-    : null;
+  let scopeTruncated = false;
+  let managedIds: string[] | null = null;
+  if (role === 'Project Manager') {
+    const rows = await readRows<{ id: string }>(
+      sb.from('projects').select('id').eq('project_manager_id', ctx.userId).is('archived_at', null).limit(MANAGED_PROJECT_CAP + 1),
+    );
+    scopeTruncated = rows.length > MANAGED_PROJECT_CAP;
+    managedIds = rows.slice(0, MANAGED_PROJECT_CAP).map((p) => p.id);
+  }
 
   const overdueTasks = (scope: (q: LooseQuery) => LooseQuery) =>
     readRows<TaskRow>(
@@ -146,7 +153,7 @@ export async function loadOverdueFacts(ctx: DeputyContext, now: Date): Promise<O
     dueDate: task.end_date,
     daysOverdue: daysBetween(task.end_date, asOf),
   }));
-  return { asOf, numberLocale: resolveNumberLocale(org), tasks, tasksTruncated, invoices, invoicesTruncated, projectNames: projectName, callerId: ctx.userId };
+  return { asOf, numberLocale: resolveNumberLocale(org), tasks, tasksTruncated, invoices, invoicesTruncated, scopeTruncated, projectNames: projectName, callerId: ctx.userId };
 }
 
 export const OVERDUE_LIST_SHOWN = 10;
@@ -176,7 +183,7 @@ export interface OverdueAnswer {
 }
 
 export function buildOverdueModelResult(facts: OverdueFacts): OverdueModelResult {
-  const partial = facts.tasksTruncated || facts.invoicesTruncated;
+  const partial = facts.tasksTruncated || facts.invoicesTruncated || !!facts.scopeTruncated;
   const projectNames = new Map(facts.projectNames ?? []);
   for (const task of facts.tasks) {
     if (task.projectId && task.projectName) projectNames.set(task.projectId, task.projectName);
@@ -217,7 +224,12 @@ const hrefParam = (v: string) => encodeURIComponent(v).replace(/\(/g, '%28').rep
 /** DD-AIN-7: the deterministic, server-written answer. Every user-authored string is escaped (FR-AIN-008). */
 export function renderOverdueMarkdown(f: OverdueFacts, opts: { offerReminders?: boolean } = {}): string {
   const head = `**Overdue as of ${formatShortDate(f.asOf)}**`;
-  if (f.tasks.length === 0 && (f.invoices === null || f.invoices.length === 0)) return `${head} — nothing is overdue.\n\n`;
+  const scopeNote = f.scopeTruncated ? `\n\n_Partial: only the first ${MANAGED_PROJECT_CAP} managed projects were checked._` : '';
+  if (f.tasks.length === 0 && (f.invoices === null || f.invoices.length === 0)) {
+    return f.invoicesTruncated || f.tasksTruncated || f.scopeTruncated
+      ? `${head} — none found in the part checked; this list is partial.${scopeNote}\n\n`
+      : `${head} — nothing is overdue.\n\n`;
+  }
   const counts = [count(f.tasks.length, f.tasksTruncated, 'task', 'tasks')];
   if (f.invoices) counts.push(count(f.invoices.length, f.invoicesTruncated, 'invoice', 'invoices'));
   const lines = [`${head} — ${counts.join(', ')}`];
@@ -258,7 +270,7 @@ export function renderOverdueMarkdown(f: OverdueFacts, opts: { offerReminders?: 
   }
   // Blank-line tail: the panel concatenates consecutive assistant events with no separator, so the model's
   // closing sentence would otherwise run on from the last list row.
-  return `${lines.join('\n')}\n\n`;
+  return `${lines.join('\n')}${scopeNote}\n\n`;
 }
 
 export async function runWhatsOverdue(
@@ -279,7 +291,7 @@ export async function runWhatsOverdue(
         overdueInvoices: facts.invoices ? facts.invoices.length : null,
         tasksTruncated: facts.tasksTruncated,
         invoicesTruncated: facts.invoicesTruncated,
-        note: `The overdue panel is already shown. If the user asks for a table with specific columns or sort, a grouping, which project has the most, or a follow-up about these rows, answer from these rows in exactly the requested shape; otherwise add at most one short sentence. query_entity counts cover all tasks the user can see, which may differ from this panel's own/managed scope.${facts.tasksTruncated || facts.invoicesTruncated ? ' Totals and per-project counts cover fetched rows only and are partial. Use query_entity with group_by for complete counts on supported entities, and check its truncated flag before claiming completeness.' : ''}`,
+        note: `The overdue panel is already shown. If the user asks for a table with specific columns or sort, a grouping, which project has the most, or a follow-up about these rows, answer from these rows in exactly the requested shape; otherwise add at most one short sentence. query_entity counts cover all tasks the user can see, which may differ from this panel's own/managed scope.${facts.tasksTruncated || facts.invoicesTruncated || facts.scopeTruncated ? ' Totals and per-project counts cover fetched rows only and are partial. Use query_entity with group_by for complete counts on supported entities, and check its truncated flag before claiming completeness.' : ''}`,
       },
     };
   } catch {

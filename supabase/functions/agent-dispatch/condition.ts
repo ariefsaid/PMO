@@ -9,7 +9,7 @@
  *
  * NFR-AAN-SEC-007: never log the condition/prompt text — on error, log only the automation id.
  */
-import type { ModelClient } from '../_shared/modelClient.ts';
+import type { ModelClient, ModelResponse } from '../_shared/modelClient.ts';
 import type { AutomationRow, StatusEventRow } from './dispatcher.ts';
 
 /** 60s = one tick window (ADR-0044 §2 ≤1min dispatcher latency) — caps re-billing to once per
@@ -38,6 +38,8 @@ export interface EvaluateConditionDeps {
   modelId: string;
   now: () => number;
   memo: ConditionMemo;
+  /** Called with every model response (true, false or unparseable) so its spend can be metered. */
+  onResponse?: (response: ModelResponse) => Promise<void>;
 }
 
 function parseVerdict(content: string | null | undefined): boolean | null {
@@ -45,6 +47,21 @@ function parseVerdict(content: string | null | undefined): boolean | null {
   if (trimmed === 'true') return true;
   if (trimmed === 'false') return false;
   return null;
+}
+
+const memoKey = (automation: AutomationRow) => `${automation.id}::${automation.condition ?? ''}`;
+
+/**
+ * The still-fresh memoized verdict for this automation's condition, if any. The dispatcher asks
+ * BEFORE minting or holding credit: a memo hit costs no model call, so it needs neither.
+ */
+export function peekConditionVerdict(
+  memo: ConditionMemo,
+  nowMs: number,
+  automation: AutomationRow,
+): ConditionVerdict | undefined {
+  const cached = memo.get(memoKey(automation));
+  return cached && nowMs - cached.at < CONDITION_MEMO_TTL_MS ? cached.verdict : undefined;
 }
 
 /**
@@ -58,11 +75,8 @@ export async function evaluateCondition(
   automation: AutomationRow,
   event: StatusEventRow,
 ): Promise<ConditionVerdict> {
-  const key = `${automation.id}::${automation.condition ?? ''}`;
-  const cached = deps.memo.get(key);
-  if (cached && deps.now() - cached.at < CONDITION_MEMO_TTL_MS) {
-    return cached.verdict;
-  }
+  const cachedVerdict = peekConditionVerdict(deps.memo, deps.now(), automation);
+  if (cachedVerdict) return cachedVerdict;
 
   let verdict: ConditionVerdict;
   try {
@@ -83,6 +97,7 @@ export async function evaluateCondition(
         },
       ],
     });
+    await deps.onResponse?.(response);
     const parsed = parseVerdict(response.message.content);
     if (parsed === null) {
       verdict = { fire: false, warning: `couldn't evaluate the condition for automation ${automation.id}` };
@@ -94,6 +109,6 @@ export async function evaluateCondition(
     verdict = { fire: false, warning: `couldn't evaluate the condition for automation ${automation.id}` };
   }
 
-  deps.memo.set(key, { verdict, at: deps.now() });
+  deps.memo.set(memoKey(automation), { verdict, at: deps.now() });
   return verdict;
 }

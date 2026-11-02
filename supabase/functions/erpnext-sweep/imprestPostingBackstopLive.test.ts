@@ -172,3 +172,26 @@ Deno.test('AC-IMP-071 head office is the binding\'s bank account; a company cash
   assertEquals((await read({ default_bank_account: 'Bank - X', default_cash_account: 'Cash - X' })).headOfficeAccount, 'Bank - X');
   assertEquals((await read({ default_cash_account: 'Cash - X' })).headOfficeAccount, null);
 });
+
+Deno.test('AC-IMP-072 replay dispositions: not-due waiting, parked held, refused actor, failed dispatch', async () => {
+  // not due (committing / retry delay) -> waiting, nothing written
+  const f1 = fakeClient();
+  assertEquals(await deps(f1.client).replay(intent(), { id: 'ob-1', state: 'committing' } as never), 'waiting');
+  const retrying = imprestPostingBackstopDepsLive(f1.client as never, ORG_BINDING, [], undefined, new Set(['ob-2']));
+  assertEquals(await retrying.replay(intent({ push_state: 'failed' }), { id: 'ob-2', state: 'failed' } as never), 'waiting');
+  assertEquals(f1.calls, [], 'a command that is not due is left alone');
+  // not offered by 0131 and not in a wait window -> held
+  const f2 = fakeClient({ respond: noise });
+  assertEquals(await deps(f2.client).replay(intent(), { id: 'ob-3', state: 'confirmed' } as never), 'held');
+  // gate refusal -> refused
+  const f3 = fakeClient({
+    rpc: () => ({ data: null, error: { code: '42501', message: 'imprest-posting-actor-not-authorized' } }),
+    respond: noise,
+  });
+  assertEquals(await deps(f3.client, ['ob-4']).replay(intent(), { id: 'ob-4', state: 'failed' } as never), 'refused');
+  // dispatch throws on a pending intent -> recorded failed, reported failed (never 'completed')
+  const f4 = fakeClient({ respond: noise });
+  assertEquals(await deps(f4.client, [outboxRow('ob-5', 'committed')]).replay(intent(), outboxRow('ob-5', 'committed') as never), 'failed');
+  const update = f4.calls.find((c) => c.table === 'imprest_posting_erp_mirror' && c.op === 'update');
+  assertEquals((update?.payload as Record<string, unknown>).push_state, 'failed');
+});

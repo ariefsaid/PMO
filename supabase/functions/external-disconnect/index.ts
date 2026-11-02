@@ -29,6 +29,7 @@ import {
   type JwksResolver,
 } from '../../../pmo-portal/src/lib/auth/verifyCallerJwt.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
+import { hasActiveStanding } from '../_shared/adminOrOperator.ts';
 import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
 
 interface DisconnectBody {
@@ -128,6 +129,17 @@ export async function handleDisconnectRequest(req: Request): Promise<Response> {
     return errorResponse('Profile not found', 'FORBIDDEN', 403);
   }
 
+  // Standing gate: the role below authorizes only while the membership is active NOW (not just
+  // a profile row with an unexpired JWT). Stops before any Vault or external call.
+  if (!(await hasActiveStanding({
+    stateClient: serviceClient,
+    orgId: profile.org_id,
+    userId,
+    profileStatus: profile.status,
+  }))) {
+    return errorResponse('Active organization member required', 'FORBIDDEN', 403);
+  }
+
   // 4. Role gate: Admin of this org OR platform Operator
   //    Direct check on platform_operators (service-role bypasses RLS) —
   //    NOT is_operator() which uses auth.uid() and fails under service_role.
@@ -142,10 +154,9 @@ export async function handleDisconnectRequest(req: Request): Promise<Response> {
     return errorResponse('Internal error', 'INTERNAL', 500);
   }
 
-  const isActiveProfile = profile.status === 'active';
   const isAdmin = profile.role === 'Admin';
   const isPlatformOperator = !!isOperator;
-  if (!isActiveProfile || (!isAdmin && !isPlatformOperator)) {
+  if (!isAdmin && !isPlatformOperator) {
     return errorResponse('Admin or Operator role required', 'FORBIDDEN', 403);
   }
 

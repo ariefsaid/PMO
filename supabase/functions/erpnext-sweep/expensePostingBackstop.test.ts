@@ -1,7 +1,7 @@
 // AC-EXP-121 [Deno] — the ONLY originator of expense postings (ADR-0081): replay before re-deciding, gate, resolve,
 // drive; per-row containment. Pure module, fake deps.
 // Verify: cd supabase/functions/erpnext-sweep && deno test expensePostingBackstop.test.ts --config deno.json --allow-env --allow-net --allow-read
-import { reconcileOrgExpensePostings, EXPENSE_BACKSTOP_TICK_LIMIT, type ExpenseBackstopDeps, type ExpenseIntentRow } from './expensePostingBackstop.ts';
+import { reconcileOrgExpensePostings, backstopPassResult, EXPENSE_BACKSTOP_TICK_LIMIT, type ExpenseBackstopDeps, type ExpenseIntentRow } from './expensePostingBackstop.ts';
 
 function assertEquals(actual: unknown, expected: unknown, msg = ''): void {
   const a = JSON.stringify(actual);
@@ -19,7 +19,7 @@ function deps(rows: ExpenseIntentRow[], over: Partial<ExpenseBackstopDeps> = {})
   const base: ExpenseBackstopDeps = {
     listPending: async () => rows,
     findOutbox: async () => null,
-    replay: async (r) => { log.push(`replay:${r.id}`); },
+    replay: async (r) => { log.push(`replay:${r.id}`); return 'completed'; },
     assertGate: async (r) => ({ ok: true, truth: { mirror_id: r.id } as never }),
     resolve: async () => ({ outcome: 'ready', refs: {} as never }),
     recordOutcome: async (r, o) => { log.push(`record:${r.id}:${o.state}:${o.reason ?? ''}:${o.erpName ?? ''}`); },
@@ -141,6 +141,7 @@ Deno.test('AC-EXP-121 a posting stranded between its mirror write and its outbox
     replay: async (r, ob) => {
       d.log.push(`replay:${r.id}:${ob.state}`);
       approvalOutbox = 'confirmed';
+      return 'completed';
     },
     driveFresh: async (r) => {
       if (approvalOutbox !== 'confirmed') throw new Error('23505: one unfinished command per record');
@@ -155,9 +156,46 @@ Deno.test('AC-EXP-121 a posting stranded between its mirror write and its outbox
 Deno.test('AC-EXP-121 a stranded posting that throws is contained', async () => {
   const d = deps([row('1')], {
     listStranded: async () => [{ row: { ...row('a'), push_state: 'pushed' }, outbox: { id: 'ob-a', state: 'committed' } }],
-    replay: async (r) => { if (r.id === 'a') throw new Error('erp down'); },
+    replay: async (r) => { if (r.id === 'a') throw new Error('erp down'); return 'completed'; },
   });
   const r = await reconcileOrgExpensePostings(d.deps, { orgId: 'org-1' });
   assertEquals(r.errors, [{ intentId: 'a', error: 'erp down' }]);
   assertEquals([r.finished, r.driven], [0, 1]);
+});
+
+for (const [disposition, counter] of [
+  ['waiting', 'waiting'],
+  ['held', 'held'],
+  ['refused', 'refused'],
+  ['failed', 'failed'],
+] as const) {
+  Deno.test(`AC-EXP-121 a '${disposition}' replay increments only its own counter, never replayed`, async () => {
+    const d = deps([row('1')], { findOutbox: async () => ({ id: 'ob-1', state: 'failed' }), replay: async () => disposition });
+    const r = await reconcileOrgExpensePostings(d.deps, { orgId: 'org-1' });
+    const counts = { replayed: r.replayed, waiting: r.waiting, held: r.held, refused: r.refused, failed: r.failed, driven: r.driven };
+    assertEquals(counts, { replayed: 0, waiting: 0, held: 0, refused: 0, failed: 0, driven: 0, [counter]: 1 });
+  });
+}
+
+Deno.test('AC-EXP-121 a completed replay is the only one counted replayed', async () => {
+  const d = deps([row('1')], { findOutbox: async () => ({ id: 'ob-1', state: 'failed' }), replay: async () => 'completed' });
+  const r = await reconcileOrgExpensePostings(d.deps, { orgId: 'org-1' });
+  assertEquals([r.replayed, r.waiting, r.held, r.refused, r.failed], [1, 0, 0, 0, 0]);
+});
+
+Deno.test('AC-EXP-121 a stranded finish that did not complete is not counted finished', async () => {
+  const d = deps([], {
+    listStranded: async () => [{ row: { ...row('a'), push_state: 'pushed' }, outbox: { id: 'ob-a', state: 'committed' } }],
+    replay: async () => 'waiting',
+  });
+  const r = await reconcileOrgExpensePostings(d.deps, { orgId: 'org-1' });
+  assertEquals(r.finished, 0);
+});
+
+Deno.test('AC-EXP-121 the pass result reports recorded failures as the pass error, not only thrown ones', () => {
+  const base = { finished: 0, driven: 1, replayed: 1, waiting: 0, held: 0, refused: 0, failed: 0, errors: [] };
+  assertEquals(backstopPassResult(base, 'expense'), { driven: 2 });
+  assertEquals(backstopPassResult({ ...base, failed: 2 }, 'expense'), { driven: 2, error: '2 expense posting(s) failed' });
+  assertEquals(backstopPassResult({ ...base, failed: 1, errors: [{ intentId: 'a', error: 'x' }] }, 'expense'),
+    { driven: 2, error: '1 expense intent(s) failed; 1 expense posting(s) failed' });
 });

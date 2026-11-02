@@ -173,10 +173,14 @@
 -- spend-approval route, issue also issuer ≠ approver unless the sole active member. `po_variation_route`, `work_order_cost_variations`
 -- and `project_subcontract_exposure` are SECURITY INVOKER and deliberately NOT listed. Proven by supabase/tests/po_variations.test.sql
 -- and subcontract_tenancy.test.sql.
+-- ⚑ AMENDED BY 0475 (#1513 S5): `attribute_subcontract_bill_lines` joins the retained set (+1, count 125 on dev's 124, re-derived by
+-- hand from the 125 rows of the list). A SECURITY DEFINER writer under a member's JWT: it re-asserts active membership, then the Admin/Finance
+-- role, then the caller's org, and runs the same bill cap (D3) as the capture. `subcontract_cap_exceptions` is SECURITY INVOKER and
+-- `po_revision_push_refusal` is service-role only; neither is listed. Proven by supabase/tests/subcontract_erp_guards.test.sql.
 -- ⚑ AMENDED BY 0448 (#1638): redate_stage_entry, add_skipped_stage_entry and import_project_stage_history join the retained set (+3, count 113 on dev's 110, re-derived by hand from the list). Each re-asserts org, active membership and role rank >= Project Manager through assert_stage_date_editor; proven by pipeline_stage_history_write.test.sql.
 --
 -- ⚑ AMENDED BY 0480 (#1605): `accept_connect_proposals`, `decide_connect_review` and `unlink_connect_match` join the retained
--- set (+3, count 127 on dev's 124, re-derived by hand from the list). SECURITY DEFINER writers under a member's JWT; each re-asserts the
+-- set (+3, count 128 on dev's 125, re-derived by hand from the list). SECURITY DEFINER writers under a member's JWT; each re-asserts the
 -- org, active membership and the Admin (Finance for account rows) role in its body; proved by
 -- supabase/tests/erp_connect_setup.test.sql (AC-ECA-004/007). The seven other 0480 functions are service-role-only or internal.
 -- ⚑ AMENDED BY 0450 (#1614): `create_vault_secret_for_org` LEAVES the retained set (-1, count 109, re-derived by hand
@@ -227,6 +231,7 @@ insert into client_callable_rpc_names (proname) values
   ('approve_equipment_usage_week'),
   ('archive_equipment_usage'),
   ('attach_claim_evidence'),
+  ('attribute_subcontract_bill_lines'),
   ('attest_timesheet_no_erp_document'),
   ('cancel_native_receipt'),
   ('cancel_stock_document'),
@@ -364,8 +369,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  127,
-  'AC-ACL-002 all 127 retained client-callable RPC names still have a public function');
+  128,
+  'AC-ACL-002 all 128 retained client-callable RPC names still have a public function');
 
 select is(
   (select count(*)::int
@@ -374,8 +379,8 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  127,
-  'AC-ACL-003 all 127 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  128,
+  'AC-ACL-003 all 128 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
 -- granted to both roles from being named twice. Retained names exempt authenticated grants only;

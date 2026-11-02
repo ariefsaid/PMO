@@ -154,6 +154,8 @@ c=$(rpc reserve_credits "{\"p_org_id\":\"$A_ORG\",\"p_amount\":0.01,\"p_run_id\"
 c=$(rpc claim_erp_sweep_lock "{\"p_org_id\":\"$A_ORG\",\"p_holder\":\"b0000000-0000-4000-8000-0000000000ab\",\"p_ttl\":\"15 minutes\"}")
 c=$(rpc mark_erp_statement_report_refresh_attempt "{\"p_org_id\":\"$A_ORG\",\"p_holder\":\"b0000000-0000-4000-8000-0000000000ab\",\"p_binding\":{}}")
 c=$(rpc release_erp_sweep_lock "{\"p_org_id\":\"$A_ORG\",\"p_holder\":\"b0000000-0000-4000-8000-0000000000ab\"}")
+c=$(rpc claim_ops_job_lease "{\"p_job\":\"probe\",\"p_holder\":\"b0000000-0000-4000-8000-0000000000ab\",\"p_ttl\":\"1 minute\"}")
+c=$(rpc release_ops_job_lease "{\"p_job\":\"probe\",\"p_holder\":\"b0000000-0000-4000-8000-0000000000ab\"}")
 c=$(rpc replace_erp_account_chart "{\"p_org_id\":\"$A_ORG\",\"p_company\":\"Probe\",\"p_rows\":[]}")
 c=$(rpc finish_erp_gl_replay "{\"p_org_id\":\"$A_ORG\",\"p_company\":\"Probe\",\"p_replay_id\":\"b0000000-0000-4000-8000-0000000000ac\",\"p_watermark\":\"0\"}")
 c=$(rpc replace_erp_gl_voucher_rows "{\"p_org_id\":\"$A_ORG\",\"p_company\":\"Probe\",\"p_voucher_type\":\"Journal Entry\",\"p_voucher_no\":\"Probe\",\"p_rows\":[],\"p_current_names\":[\"Probe\"]}")
@@ -225,6 +227,9 @@ else skip "prepare_subcontract_acceptance (purchase_orders)"; fi
 if [ -n "$A_PROC" ] && [ "$A_PROC" != null ]; then
   c=$(rpc capture_subcontract_vendor_invoice "{\"p_procurement_id\":\"$A_PROC\",\"p_status\":\"Received\",\"p_invoice_date\":\"2026-09-08\",\"p_lines\":[{\"boq_item_id\":\"$A_PROC\",\"quantity\":1,\"rate\":1}]}")
 else skip "capture_subcontract_vendor_invoice (procurements)"; fi
+if [ -n "$A_PI" ] && [ "$A_PI" != null ]; then
+  c=$(rpc attribute_subcontract_bill_lines "{\"p_invoice_id\":\"$A_PI\",\"p_lines\":[{\"boq_item_id\":\"$A_PI\",\"quantity\":1,\"rate\":1}]}")
+else skip "attribute_subcontract_bill_lines (procurement_invoices)"; fi
 A_VAR=$(jq -r '.[]|select(.table=="po_variations")|.id' "$A_ROWS_JSON")
 A_BOQ=$(jq -r '.[]|select(.table=="boq_items")|.id' "$A_ROWS_JSON")
 if [ -n "$A_PO" ] && [ "$A_PO" != null ] && [ -n "$A_BOQ" ] && [ "$A_BOQ" != null ]; then

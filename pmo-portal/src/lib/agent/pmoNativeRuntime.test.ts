@@ -727,3 +727,41 @@ it('a failing cancel-POST emits an observable console.warn carrying a structured
 
   warnSpy.mockRestore();
 });
+
+it('a non-2xx cancel-POST response warns with the structured code and leaks no response detail', async () => {
+  const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  const runningEvent: AgentEvent = {
+    id: 'e-run-3',
+    runId: 'r-cancel-3',
+    type: 'status',
+    payload: { status: 'running' },
+    createdAt: new Date().toISOString(),
+  };
+  let callCount = 0;
+  const fetchMock = vi.fn().mockImplementation(() => {
+    callCount++;
+    if (callCount === 1) {
+      return Promise.resolve({ ok: true, body: readableFrom(encodeSse(runningEvent)) });
+    }
+    // Second call: the cancel POST resolves, but the server rejected it.
+    return Promise.resolve({ ok: false, status: 500, statusText: 'secret-detail' });
+  });
+  const runtime = new PmoNativeRuntime({
+    getJwt: () => 'caller-jwt',
+    fnUrl: 'http://x/functions/v1/agent-chat',
+    fetchImpl: fetchMock as unknown as typeof fetch,
+  });
+  const run = await runtime.createRun({ goal: 'do something slow' });
+  const drainPromise = (async () => {
+    for await (const _ of runtime.subscribe(run.id)) { /* drain */ }
+  })();
+  await runtime.control(run.id, 'cancel');
+  await drainPromise;
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  expect(warnSpy).toHaveBeenCalledTimes(1);
+  const [, context] = warnSpy.mock.calls[0] as [string, Record<string, unknown>];
+  expect(context).toMatchObject({ errorCode: 'CANCEL_POST_FAILED', runId: run.id, status: 500 });
+  expect(JSON.stringify(context)).not.toContain('secret-detail');
+  warnSpy.mockRestore();
+});

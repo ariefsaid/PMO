@@ -52,15 +52,15 @@ export function alertKey(orgId: string | null, errorCode: string): string {
  * notified_at by the caller (index.ts) — this function only decides WHICH groups
  * send + WHICH ids belong to each group, never performs the DB write.
  *
- * The cooldown clock is measured relative to the group's OWN `lastCreatedAt` (the
- * most recent row's timestamp), never wall-clock `Date.now()` — a drain tick that
- * runs minutes or hours after the row was written must still evaluate the cooldown
- * as of when the error actually happened, not as of when the tick happens to run.
+ * The cooldown clock compares `nowMs` (the drain tick's time) with the last delivery (or, if never
+ * delivered, the last attempt), so a failed send retries once the cooldown passes. Without `nowMs`
+ * (legacy callers) the group's own `lastCreatedAt` is the reference.
  */
 export function groupIntoMessages(
   rows: ErrorEventRow[],
   lastNotifiedByKey: Record<string, string | undefined>,
   cooldownSec: number,
+  nowMs?: number,
 ): MessageGroup[] {
   const byKey = new Map<string, ErrorEventRow[]>();
   for (const row of rows) {
@@ -79,7 +79,7 @@ export function groupIntoMessages(
     const lastCreatedAt = sorted[sorted.length - 1].created_at;
     const last = lastNotifiedByKey[alertKey(orgId, errorCode)];
     const suppressed =
-      last !== undefined && (new Date(lastCreatedAt).getTime() - new Date(last).getTime()) / 1000 < cooldownSec;
+      last !== undefined && ((nowMs ?? new Date(lastCreatedAt).getTime()) - new Date(last).getTime()) / 1000 < cooldownSec;
     groups.push({
       orgId,
       errorCode,
@@ -159,6 +159,10 @@ export interface DrainDeps {
    * touched) is restored at this single guard.
    */
   secretsConfigured: boolean;
+  /** Take the single-drainer lease; false = another drain is running. Rejects on a DB error. */
+  claimLease: () => Promise<boolean>;
+  releaseLease: () => Promise<void>;
+  /** Rejects on a DB read error (never resolves a failed read as "nothing pending"). */
   selectUnnotified: () => Promise<ErrorEventRow[]>;
   /** Scoped write-ahead attempt records for only the error codes in this bounded batch. */
   selectLastSentByKey: (errorCodes: string[]) => Promise<SendLogEntry[]>;
@@ -177,6 +181,8 @@ export interface DrainDeps {
    * cadence, ~720/day) because the next tick's readHeartbeat still sees the stale timestamp.
    */
   recordLivenessAhead: (job: string, atIso: string) => Promise<{ error: unknown }>;
+  /** Undo recordLivenessAhead after a failed liveness send so the next tick retries. */
+  rollbackLivenessAhead: (job: string, previousIso: string | null) => Promise<{ error: unknown }>;
   /**
    * Unconditional run signal (I4): called once at the end of EVERY completed drain tick regardless
    * of outcome — this is what proves "the job ran", distinct from "the job sent something"
@@ -197,8 +203,8 @@ export interface DrainResult {
   stampFailures: number;
   sendFailures: number;
   livenessPinged: boolean;
-  /** Set when the drain short-circuited because Telegram secrets are unset (C1). */
-  skipped?: 'secrets-unset';
+  /** Set when the drain short-circuited: Telegram secrets unset (C1) or another drain holds the lease. */
+  skipped?: 'secrets-unset' | 'lease-held';
 }
 
 /**
@@ -221,17 +227,31 @@ export interface DrainResult {
  *      write identical rows.
  */
 export async function runDrain(deps: DrainDeps): Promise<DrainResult> {
+  if (!deps.secretsConfigured) {
+    // C1: stop BEFORE any lease/write-ahead/select — a missing secret must not burn a write-ahead
+    // per group. Leaves error_events entirely untouched, retried once secrets are wired (FR-OF-007).
+    logStructuredError({ fn: 'telegram-notify', errorCode: 'TELEGRAM_SECRET_MISSING' });
+    return { sent: 0, suppressed: 0, stampFailures: 0, sendFailures: 0, livenessPinged: false, skipped: 'secrets-unset' };
+  }
+  // Single drainer: overlapping ticks must not read the same unnotified rows and double-send.
+  if (!(await deps.claimLease())) {
+    return { sent: 0, suppressed: 0, stampFailures: 0, sendFailures: 0, livenessPinged: false, skipped: 'lease-held' };
+  }
+  try {
+    return await drainLocked(deps);
+  } finally {
+    // Best-effort: the lease expires on its own if this fails.
+    await deps.releaseLease().catch(() => {
+      logStructuredError({ fn: 'telegram-notify', errorCode: 'DRAIN_LEASE_RELEASE_FAILED' });
+    });
+  }
+}
+
+async function drainLocked(deps: DrainDeps): Promise<DrainResult> {
   const nowIso = deps.now().toISOString();
   const result: DrainResult = {
     sent: 0, suppressed: 0, stampFailures: 0, sendFailures: 0, livenessPinged: false,
   };
-
-  if (!deps.secretsConfigured) {
-    // C1: stop BEFORE any write-ahead/select — a missing secret must not burn a write-ahead per
-    // group. Leaves error_events entirely untouched, retried once secrets are wired (FR-OF-007).
-    logStructuredError({ fn: 'telegram-notify', errorCode: 'TELEGRAM_SECRET_MISSING' });
-    return { ...result, skipped: 'secrets-unset' };
-  }
 
   const rows = await deps.selectUnnotified();
   const errorCodes = [...new Set(rows.map((row) => row.error_code))];
@@ -241,9 +261,12 @@ export async function runDrain(deps: DrainDeps): Promise<DrainResult> {
   for (const entry of sendLog) {
     const key = alertKey(entry.orgId, entry.errorCode);
     sendLogByKey[key] = entry;
-    lastSentByKey[key] = entry.lastSentAt;
+    // Cooldown runs from delivery, else from the last attempt (FR-HRD-002 bound): a failed send
+    // retries once the cooldown has passed, and send-ok + failed marks never re-alerts every tick.
+    lastSentByKey[key] = entry.deliveredAt ?? entry.lastSentAt;
   }
-  const groups = groupIntoMessages(rows, lastSentByKey, deps.cooldownSec);
+  const groups = groupIntoMessages(rows, lastSentByKey, deps.cooldownSec, deps.now().getTime());
+  let stampedRows = 0;
 
   for (const group of groups) {
     if (!group.suppressed) {
@@ -296,6 +319,8 @@ export async function runDrain(deps: DrainDeps): Promise<DrainResult> {
           errorCode: 'NOTIFY_STAMP_FAILED',
           contextId: group.errorCode,
         });
+      } else {
+        stampedRows += group.ids.length;
       }
     }
   }
@@ -307,7 +332,8 @@ export async function runDrain(deps: DrainDeps): Promise<DrainResult> {
   const lastOutbound = beat?.lastOutboundAt ?? undefined;
   // I3: a tick where every send/stamp failed must NOT report an all-clear — Telegram being up in
   // that scenario means the FALSE all-clear actually arrives.
-  const allClear = result.sendFailures === 0 && result.stampFailures === 0;
+  // Rows still unnotified after this tick also rule out an all-clear (they are undelivered alerts).
+  const allClear = result.sendFailures === 0 && result.stampFailures === 0 && stampedRows === rows.length;
   if (result.sent === 0 && allClear && shouldSendLiveness(nowIso, lastOutbound, deps.livenessIntervalHours)) {
     // I2: write-ahead the outbound intent BEFORE the send — the same discipline C1 applies to
     // alerts. Without this, a liveness ping whose SEND succeeds but whose PERSISTED write fails
@@ -321,7 +347,13 @@ export async function runDrain(deps: DrainDeps): Promise<DrainResult> {
         text: `*Alert path OK* — drain ran at ${nowIso}, no unnotified errors.`,
         parse_mode: 'Markdown',
       });
-      if (ping.ok) result.livenessPinged = true;
+      if (ping.ok) {
+        result.livenessPinged = true;
+      } else {
+        // Confirmed-send-only stamp: undo the write-ahead so the next tick retries.
+        const undo = await deps.rollbackLivenessAhead('telegram-notify', beat?.lastOutboundAt ?? null);
+        if (undo.error) logStructuredError({ fn: 'telegram-notify', errorCode: 'HEARTBEAT_WRITE_FAILED' });
+      }
     }
   }
 
