@@ -1,5 +1,5 @@
 import * as dal from '@/src/lib/db/subcontracts';
-import type { SubcontractRepository } from './types';
+import type { SubcontractRepository } from './contracts/subcontracts';
 
 export const subcontractRepository: SubcontractRepository = {
   async getPoPosition(poId: string) {
