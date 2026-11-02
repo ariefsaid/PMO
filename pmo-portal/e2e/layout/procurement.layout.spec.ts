@@ -41,7 +41,7 @@ async function prependGroupedRows(page: Page, prefix: string) {
   await page.route('**/rest/v1/procurements?*', async (route) => {
     const request = route.request();
     if (request.method() !== 'GET' || /id=eq\./.test(request.url())) return route.fallback();
-    const response = await route.fetch();
+    const response = await route.fetch({ maxRetries: 2 });
     let rows: unknown;
     try {
       rows = await response.json();

@@ -39,6 +39,8 @@ test.afterAll(async () => {
 });
 
 test('AC-PSH-016: a PM advances a deal, backdates the new stage on the deal page, and the card line follows', async ({ page }) => {
+  // Three full navigations can consume most of the default budget on busy CI runners.
+  test.setTimeout(60_000);
   await signIn(page, 'pm@acme.test');
   await page.goto('/sales');
   await openPipelineCard(page, NAME);

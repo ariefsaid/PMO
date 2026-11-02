@@ -17,12 +17,22 @@
 // Verify: cd supabase/functions/clickup-webhook-worker && deno test index.test.ts
 
 (Deno as unknown as { serve: (...a: unknown[]) => unknown }).serve = () => ({ finished: Promise.resolve() });
-const { processInboxRow, resolveBindingLive, runWorkerBatch, buildApplyDepsLive } = await import('./index.ts');
+const {
+  processInboxRow,
+  resolveBindingLive,
+  resolveOrgForTeam,
+  runWorkerBatch,
+  buildApplyDepsLive,
+  claimPendingLive,
+  markFailedLive,
+  MAX_INBOX_ATTEMPTS,
+} = await import('./index.ts');
 type ProcessRowDeps = Parameters<typeof processInboxRow>[1];
 type WorkerBatchDeps = Parameters<typeof runWorkerBatch>[0];
 type InboxRow = Parameters<typeof processInboxRow>[0];
 type ResolvedBinding = Awaited<ReturnType<ProcessRowDeps['resolveBinding']>>;
 
+import { clickUpGetTaskRaw } from '../../../pmo-portal/src/lib/adapterSeam/clickup/reads.ts';
 import type { WebhookApplyDeps } from '../../../pmo-portal/src/lib/adapterSeam/clickup/webhookApply.ts';
 import type { ClickUpStatusMap } from '../../../pmo-portal/src/lib/adapterSeam/clickup/statusMap.ts';
 import type { ClickUpMemberMap } from '../../../pmo-portal/src/lib/adapterSeam/clickup/memberMap.ts';
@@ -123,20 +133,14 @@ Deno.test('worker does not fetch when team_id has no org binding', async () => {
   assert(outcome.kind === 'no-op' && fetches === 0, 'unresolved team must fail closed without HTTP');
 });
 
-Deno.test('worker task re-GET uses the supplied per-org token via the shipped handler', async () => {
-  const originalFetch = globalThis.fetch;
+Deno.test('worker task re-GET sends the per-org token through the shipped ClickUp read client', async () => {
   let authorization = '';
-  globalThis.fetch = async (_input, init) => {
-    authorization = new Headers((init as RequestInit | undefined)?.headers).get('Authorization') ?? '';
+  const fetchImpl = (async (_input: unknown, init?: RequestInit) => {
+    authorization = new Headers(init?.headers).get('Authorization') ?? '';
     return new Response(JSON.stringify({ id: 'cu-1', name: 'Task', status: { status: 'to do' }, assignees: [], list: { id: 'list-9' }, date_updated: '1' }), { status: 200 });
-  };
-  try {
-    const getTaskWithToken = (await import('./index.ts')).getTaskWithToken;
-    await getTaskWithToken('cu-1', 'per-org-token');
-    assert(authorization === 'per-org-token', 're-GET must use the per-org Vault token');
-  } finally {
-    globalThis.fetch = originalFetch;
-  }
+  }) as typeof fetch;
+  await clickUpGetTaskRaw('cu-1', { fetchImpl, token: 'per-org-token' });
+  assert(authorization === 'per-org-token', 're-GET must use the per-org Vault token');
 });
 
 Deno.test('OD-INT-11: a MAPPED taskUpdated re-GETs, applies, and the mirror is updated', async () => {
@@ -428,4 +432,172 @@ Deno.test({
     // `supabase test db` / seeded org+project+task fixture once 0123 (tasks.archived_at) is on this
     // branch's base.
   },
+});
+
+
+// ── T-07 B3 · a lookup / vault FAILURE is not an absent binding ───────────────────────────────────
+// A failed read fails the row (so it is retried) — it must never collapse into the acknowledged
+// "unresolvable" no-op that permanently drops the event.
+
+type PgErr = { message: string; code?: string };
+const PG_DOWN: PgErr = { message: 'connection reset by peer', code: '08006' };
+
+/** `external_org_bindings` + `read_vault_secret` stand-in for `resolveOrgForTeam`. */
+function orgClient(opts: { binding?: { org_id: string; secret_ref: string | null } | null; bindingError?: PgErr; vault?: string | null; vaultError?: PgErr }) {
+  return {
+    from: () => {
+      const q: any = { select: () => q, eq: () => q };
+      q.maybeSingle = async () => ({ data: opts.binding ?? null, error: opts.bindingError ?? null });
+      return q;
+    },
+    rpc: async () => ({ data: opts.vault ?? null, error: opts.vaultError ?? null }),
+  } as never;
+}
+
+async function rejectsWith(p: Promise<unknown>): Promise<unknown> {
+  try {
+    await p;
+  } catch (e) {
+    return e;
+  }
+  return null;
+}
+
+Deno.test('T-07 B3: resolveOrgForTeam — confirmed absence is null; found binding resolves the token', async () => {
+  assert((await resolveOrgForTeam(orgClient({ binding: null }), 'team-1')) === null, 'no binding row → null (ack as unresolvable)');
+  assert((await resolveOrgForTeam(orgClient({ binding: { org_id: 'org-1', secret_ref: 'ref' }, vault: null }), 'team-1')) === null, 'empty vault secret → null');
+  const ok = await resolveOrgForTeam(orgClient({ binding: { org_id: 'org-1', secret_ref: 'ref' }, vault: 'tok' }), 'team-1');
+  assert(ok?.orgId === 'org-1' && ok.token === 'tok', 'found binding + vault secret resolves');
+});
+
+Deno.test('T-07 B3: resolveOrgForTeam throws when the binding read fails (not null)', async () => {
+  const err = await rejectsWith(resolveOrgForTeam(orgClient({ bindingError: PG_DOWN }), 'team-1'));
+  assert(err !== null, 'a binding read error must surface, not read as "no binding"');
+});
+
+Deno.test('T-07 B3: resolveOrgForTeam throws when the vault read fails (not null)', async () => {
+  const err = await rejectsWith(resolveOrgForTeam(orgClient({ binding: { org_id: 'org-1', secret_ref: 'ref' }, vaultError: PG_DOWN }), 'team-1'));
+  assert(err !== null, 'a vault read error must surface, not read as "unresolvable"');
+});
+
+Deno.test('T-07 B3: a failed org lookup fails the row (markFailed), is never acked as unresolvable', async () => {
+  const d = batchDeps([row({ id: 'r1' })], (r) =>
+    processInboxRow(r, {
+      resolveOrg: (teamId) => resolveOrgForTeam(orgClient({ bindingError: PG_DOWN }), teamId),
+      getTask: async () => { throw new Error('must not fetch'); },
+      resolveBinding: async () => { throw new Error('must not resolve'); },
+      buildApplyDeps: () => { throw new Error('must not apply'); },
+    }));
+  const result = await runWorkerBatch(d);
+  assert(result.failed === 1 && result.processed === 0, `expected the row to fail, got ${JSON.stringify(result)}`);
+  assert(d.failed.some((f) => f.id === 'r1'), 'r1 must be marked failed');
+  assert(d.done.length === 0 && d.unresolvable.length === 0, 'a read failure must not ack the row');
+});
+
+/** Fails the `failOn` table's reads with a query error; everything else behaves like the happy resolver. */
+function failingBindingClient(failOn: string, opts: { mapped?: boolean } = {}) {
+  const happy = fakeBindingResolverClient(opts);
+  return {
+    from(table: string) {
+      const q = happy.from(table);
+      if (table !== failOn) return q;
+      q.maybeSingle = async () => ({ data: null, error: PG_DOWN });
+      return q;
+    },
+  } as never;
+}
+
+Deno.test('T-07 B3: resolveBindingLive throws on a failed read at every step (mapped ref, task, project binding, list binding)', async () => {
+  for (const [failOn, mapped, listId] of [
+    ['external_refs', false, 'list-bound'],
+    ['tasks', true, null],
+    ['external_project_bindings', true, null],
+    ['external_project_bindings', false, 'list-bound'],
+  ] as const) {
+    const err = await rejectsWith(resolveBindingLive(failingBindingClient(failOn, { mapped }), 'task-1', listId));
+    assert(err !== null, `a failed ${failOn} read (mapped=${mapped}) must throw, not resolve to "no binding"`);
+  }
+});
+
+/** An in-memory `clickup_webhook_inbox`: only the PostgREST operations the claim / mark-failed code issues. */
+function fakeInbox(seed: Array<{ id: string; status: string; attempts: number; received_at: string }>, opts: { readError?: PgErr } = {}) {
+  const rows = seed.map((r) => ({ event: 'taskUpdated', task_id: `t-${r.id}`, team_id: 'team-1', history_items: [], ...r }));
+  const client = {
+    from() {
+      const eq: Array<[string, unknown]> = [];
+      const lt: Array<[string, number]> = [];
+      let patch: Record<string, unknown> | null = null;
+      let ids: string[] | null = null;
+      let order: string | null = null;
+      let limit = Infinity;
+      const matches = () => rows.filter((r) =>
+        eq.every(([c, v]) => (r as Record<string, unknown>)[c] === v) &&
+        lt.every(([c, v]) => ((r as Record<string, unknown>)[c] as number) < v) &&
+        (ids === null || ids.includes(r.id)));
+      const run = () => {
+        if (patch) {
+          for (const r of matches()) Object.assign(r, patch);
+          return { data: null, error: null };
+        }
+        if (opts.readError) return { data: null, error: opts.readError };
+        let out = matches();
+        if (order) out = [...out].sort((a, b) => String((a as Record<string, unknown>)[order!]).localeCompare(String((b as Record<string, unknown>)[order!])));
+        return { data: out.slice(0, limit).map((r) => ({ ...r })), error: null };
+      };
+      const q: any = {
+        select: () => q,
+        eq: (c: string, v: unknown) => { eq.push([c, v]); return q; },
+        lt: (c: string, v: number) => { lt.push([c, v]); return q; },
+        in: (_c: string, v: string[]) => { ids = v; return q; },
+        order: (c: string) => { order = c; return q; },
+        limit: (n: number) => { limit = n; return q; },
+        update: (p: Record<string, unknown>) => { patch = p; return q; },
+        maybeSingle: async () => ({ ...run(), data: matches()[0] ?? null }),
+        then: (resolve: (v: unknown) => unknown, reject: (e: unknown) => unknown) => Promise.resolve(run()).then(resolve, reject),
+      };
+      return q;
+    },
+  };
+  return { client: client as never, rows };
+}
+
+Deno.test('T-07 B3: claimPendingLive reclaims failed rows under the attempt cap, oldest first, and skips capped ones', async () => {
+  const { client, rows } = fakeInbox([
+    { id: 'capped', status: 'failed', attempts: MAX_INBOX_ATTEMPTS, received_at: '2026-01-01T00:00:01Z' },
+    { id: 'failed-old', status: 'failed', attempts: 1, received_at: '2026-01-01T00:00:02Z' },
+    { id: 'pending-mid', status: 'pending', attempts: 0, received_at: '2026-01-01T00:00:03Z' },
+    { id: 'failed-new', status: 'failed', attempts: MAX_INBOX_ATTEMPTS - 1, received_at: '2026-01-01T00:00:04Z' },
+    { id: 'done', status: 'done', attempts: 0, received_at: '2026-01-01T00:00:00Z' },
+  ]);
+  const claimed = await claimPendingLive(client, 25);
+  assert(claimed.map((r) => r.id).join() === 'failed-old,pending-mid,failed-new', `claim order, got ${claimed.map((r) => r.id).join()}`);
+  assert(rows.filter((r) => r.status === 'processing').length === 3, 'claimed rows are marked processing');
+  assert(rows.find((r) => r.id === 'capped')?.status === 'failed', 'a row at the attempt cap stays failed');
+});
+
+Deno.test('T-07 B3: claimPendingLive honours the batch size across pending and failed rows', async () => {
+  const { client } = fakeInbox([
+    { id: 'f1', status: 'failed', attempts: 1, received_at: '2026-01-01T00:00:01Z' },
+    { id: 'p1', status: 'pending', attempts: 0, received_at: '2026-01-01T00:00:02Z' },
+    { id: 'f2', status: 'failed', attempts: 1, received_at: '2026-01-01T00:00:03Z' },
+  ]);
+  const claimed = await claimPendingLive(client, 2);
+  assert(claimed.map((r) => r.id).join() === 'f1,p1', `expected the 2 oldest, got ${claimed.map((r) => r.id).join()}`);
+});
+
+Deno.test('T-07 B3: markFailedLive counts each failure, so repeated failures reach the cap and stop being reclaimed', async () => {
+  const { client, rows } = fakeInbox([{ id: 'r1', status: 'processing', attempts: 0, received_at: '2026-01-01T00:00:01Z' }]);
+  for (let i = 0; i < MAX_INBOX_ATTEMPTS; i += 1) {
+    await markFailedLive(client, 'r1', 'boom');
+    assert(rows[0].status === 'failed', 'failed after each failure');
+    const reclaimed = await claimPendingLive(client, 25);
+    assert(reclaimed.length === (i + 1 < MAX_INBOX_ATTEMPTS ? 1 : 0), `attempt ${i + 1}: reclaim expected ${i + 1 < MAX_INBOX_ATTEMPTS ? 1 : 0}, got ${reclaimed.length}`);
+  }
+  assert(rows[0].attempts === MAX_INBOX_ATTEMPTS, 'attempts counted');
+});
+
+Deno.test('T-07 B3: markFailedLive throws when the attempts read fails (the cap must not silently reset)', async () => {
+  const { client } = fakeInbox([{ id: 'r1', status: 'processing', attempts: 3, received_at: '2026-01-01T00:00:01Z' }], { readError: PG_DOWN });
+  const err = await rejectsWith(markFailedLive(client, 'r1', 'boom'));
+  assert(err !== null, 'an attempts read error must surface');
 });

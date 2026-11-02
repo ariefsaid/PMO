@@ -30,7 +30,7 @@ import {
 } from '../../../pmo-portal/src/lib/adapterSeam/clickup/multiListSweep.ts';
 import { ClickUpRateLimiter } from '../../../pmo-portal/src/lib/adapterSeam/clickup/rateLimit.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
-import { resolvePerOrgSecret } from '../_shared/perOrgSecret.ts';
+import { lookupOrgBindingSecretRef, resolveOrgSecretOrFallback } from '../_shared/perOrgSecret.ts';
 import { externalConnectEnabled } from '../_shared/externalConnectEnabled.ts';
 import {
   CLICKUP_TIER,
@@ -232,39 +232,20 @@ async function resolveOrgClickUpToken(
   if (!connectEnabled) {
     throw new AppError('external integrations are disabled by the operator', 'config-rejected');
   }
-  const result = await resolvePerOrgSecret({
-    connectEnabled,
-    orgId,
-    tier: 'clickup',
-    lookupBinding: async (orgId, tier) => {
-      const { data, error } = await serviceClient
-        .from('external_org_bindings')
-        .select('secret_ref')
-        .eq('org_id', orgId)
-        .eq('external_tier', tier)
-        .maybeSingle();
-      if (error) return null;
-      return data as { secret_ref?: string | null } | null;
+  return resolveOrgSecretOrFallback(
+    {
+      connectEnabled,
+      orgId,
+      tier: 'clickup',
+      lookupBinding: lookupOrgBindingSecretRef(serviceClient),
+      readVaultSecret: async (ref) => {
+        const { data, error } = await serviceClient.rpc('read_vault_secret', { p_secret_ref: ref });
+        if (error) throw new AppError(error.message, error.code);
+        return (data as string | null) ?? null;
+      },
     },
-    readVaultSecret: async (ref) => {
-      const { data, error } = await serviceClient.rpc('read_vault_secret', { p_secret_ref: ref });
-      if (error) {
-        console.error('read_vault_secret failed', error);
-        return null;
-      }
-      return (data as string | null) ?? null;
-    },
-  });
-
-  if (result.kind === 'resolved') {
-    return result.secret;
-  }
-  if (result.kind === 'binding-vault-miss') {
-    // Bound org but Vault secret missing — FAIL CLOSED (no global fallback)
-    throw new AppError('ClickUp credentials unresolved for this org — check the binding secret_ref configuration', 'config-rejected');
-  }
-  // kind === 'no-binding' → use global fallback
-  return globalToken;
+    globalToken,
+  );
 }
 
 /** job_run summary (#1532 S3). No ClickUp-bound org is `skipped` (standalone is legitimate, ADR-0094); an org failure fails the run. */

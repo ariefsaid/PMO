@@ -11907,6 +11907,15 @@ export type Database = {
           settled: number
         }[]
       }
+      get_expense_advance_aging_totals: {
+        Args: never
+        Returns: {
+          advance_count: number
+          bucket: string
+          currency: string
+          outstanding: number
+        }[]
+      }
       get_expense_claim_approval_routes: {
         Args: { p_ids: string[] }
         Returns: {
@@ -12798,6 +12807,10 @@ export type Database = {
       mark_erp_statement_report_refresh_attempt: {
         Args: { p_org_id: string; p_holder: string; p_binding: Json }
         Returns: undefined
+      }
+      pre_cutover_procurement: {
+        Args: { p_invoice_id?: string; p_procurement_id: string }
+        Returns: boolean
       }
       preview_cost_attribution: {
         Args: { p_rule: Json }
