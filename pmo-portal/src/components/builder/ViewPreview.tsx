@@ -22,8 +22,7 @@ import { ValidationError } from '@/src/lib/viewspec/types';
 import type { CompiledPanel, CompiledQuery, CompositionSpec } from '@/src/lib/viewspec/types';
 import { ChartFrame } from '@/src/components/dashboard/ChartFrame';
 import { DashGrid } from '@/src/components/dashboard/layout';
-import { KPITile } from '@/src/components/ui/KPITile';
-import type { IconName } from '@/src/components/ui/icons';
+import { HydratedPrimitive } from '@/src/components/dashboard/HydratedPrimitive';
 
 // ── Per-panel state ───────────────────────────────────────────────────────────
 
@@ -35,39 +34,18 @@ interface PreviewPanelState {
   compiledQuery: CompiledQuery | null;
 }
 
-// ── HydratedPrimitive (duplicated from UserViewRenderer — see design notes) ───
-// Duplication is deliberate: extracting into shared lib would force a React import
-// into src/lib/viewspec/ (layering violation). 30-line surface; delta risk is minimal.
+// ── Primitive hydration ───────────────────────────────────────────────────────
+// KPITile hydrates through the dashboard HydratedPrimitive (one source with saved views);
+// every other primitive keeps the builder's raw JSON preview.
 
-function HydratedPrimitive({ panel, data }: { panel: CompiledPanel; data: unknown[] }) {
-  const descriptor = registry.get(panel.primitive);
-  if (!descriptor) return null;
-  const props = panel.props ?? {};
-
-  switch (panel.primitive) {
-    case 'KPITile': {
-      const row = data[0] as Record<string, unknown> | undefined;
-      const alias = panel.compiledQuery.resolvedAggregate?.alias;
-      const value = alias != null ? row?.[alias] : row?.[panel.compiledQuery.resolvedSelect[0]];
-      return (
-        <KPITile
-          icon={((props.icon as IconName | undefined) ?? 'doc') as IconName}
-          tone={(props.tone as 'blue' | 'violet' | 'amber' | 'red' | 'green' | undefined) ?? 'blue'}
-          label={(props.label as string | undefined) ?? panel.id}
-          value={value as React.ReactNode}
-          negative={props.negative as boolean | undefined}
-          help={props.help as string | undefined}
-          vs={props.vs as string | undefined}
-        />
-      );
-    }
-    default:
-      return (
-        <pre className="overflow-auto rounded p-3 text-[12px]">
-          {JSON.stringify(data, null, 2)}
-        </pre>
-      );
-  }
+function PreviewPrimitive({ panel, data }: { panel: CompiledPanel; data: unknown[] }) {
+  if (panel.primitive === 'KPITile') return <HydratedPrimitive panel={panel} data={data} />;
+  if (!registry.get(panel.primitive)) return null;
+  return (
+    <pre className="overflow-auto rounded p-3 text-[12px]">
+      {JSON.stringify(data, null, 2)}
+    </pre>
+  );
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
@@ -240,7 +218,7 @@ const ViewPreview: React.FC<ViewPreviewProps> = ({ spec }) => {
               }
               emptyTitle={(panel.props?.emptyTitle as string | undefined) ?? 'No data'}
             >
-              <HydratedPrimitive panel={compiledPanel} data={state.data} />
+              <PreviewPrimitive panel={compiledPanel} data={state.data} />
             </ChartFrame>
           </div>
         );

@@ -3,7 +3,7 @@ export { cn } from './cn';
 export { useIsNarrow } from './useIsNarrow';
 export { Icon, type IconProps } from './icons';
 export { ICON_PATHS, type IconName } from './iconPaths';
-export { chartTheme, type ChartTheme } from './chartTheme';
+export { chartTheme } from './chartTheme';
 
 export { Button, type ButtonProps, type ButtonVariant, type ButtonSize } from './Button';
 export { buttonClasses } from './buttonClasses';
