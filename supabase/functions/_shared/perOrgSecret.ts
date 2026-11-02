@@ -4,10 +4,15 @@
  *
  * AC-EAC-009, AC-EAC-011: flag/binding/vault matrix.
  */
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
+
 export type PerOrgSecretResult =
   | { kind: 'no-binding' }
   | { kind: 'resolved'; secret: string }
-  | { kind: 'binding-vault-miss' };
+  | { kind: 'binding-vault-miss' }
+  /** A binding or vault read FAILED (threw) — unknown, not absent. Callers must fail closed. */
+  | { kind: 'read-failed' };
 
 export interface PerOrgSecretDeps {
   /** Effective result of externalConnectEnabled(); false means fail closed. */
@@ -18,9 +23,11 @@ export interface PerOrgSecretDeps {
   tier: string;
   /** Column to read from the binding row. Default: 'secret_ref'. Use 'webhook_secret_ref' for ClickUp webhooks. */
   column?: 'secret_ref' | 'webhook_secret_ref';
-  /** Looks up the binding row for (orgId, tier). Returns the row or null if not found. */
+  /** Looks up the binding row for (orgId, tier). Returns the row, or null ONLY for a confirmed absent
+   *  row; throws when the read itself fails (a failure is not absence). */
   lookupBinding: (orgId: string, tier: string) => Promise<{ secret_ref?: string | null; webhook_secret_ref?: string | null } | null>;
-  /** Reads a secret from Vault by ref. Returns the secret string or null if not found. */
+  /** Reads a secret from Vault by ref. Returns the secret string or null if not found; throws when the
+   *  read itself fails. */
   readVaultSecret: (ref: string) => Promise<string | null>;
 }
 
@@ -34,6 +41,8 @@ export interface PerOrgSecretDeps {
  * - flag ON + binding[column] + vault returns value → { kind: 'resolved', secret: value }
  * - flag ON + binding[column] + vault returns null → { kind: 'binding-vault-miss' }
  *
+ * - lookupBinding or readVaultSecret throws → { kind: 'read-failed' }
+ *
  * Never throws — returns a discriminated result so callers can distinguish states.
  */
 export async function resolvePerOrgSecret(deps: PerOrgSecretDeps): Promise<PerOrgSecretResult> {
@@ -43,20 +52,56 @@ export async function resolvePerOrgSecret(deps: PerOrgSecretDeps): Promise<PerOr
     return { kind: 'no-binding' };
   }
 
-  const binding = await lookupBinding(orgId, tier);
-  if (!binding) {
-    return { kind: 'no-binding' };
-  }
+  try {
+    const binding = await lookupBinding(orgId, tier);
+    if (!binding) {
+      return { kind: 'no-binding' };
+    }
 
-  const secretRef = binding[column];
-  if (!secretRef) {
-    return { kind: 'binding-vault-miss' };
-  }
+    const secretRef = binding[column];
+    if (!secretRef) {
+      return { kind: 'binding-vault-miss' };
+    }
 
-  const secret = await readVaultSecret(secretRef);
-  if (secret === null) {
-    return { kind: 'binding-vault-miss' };
-  }
+    const secret = await readVaultSecret(secretRef);
+    if (secret === null) {
+      return { kind: 'binding-vault-miss' };
+    }
 
-  return { kind: 'resolved', secret };
+    return { kind: 'resolved', secret };
+  } catch (err) {
+    console.error('per-org secret read failed', err instanceof AppError ? err.code ?? 'unknown' : 'unknown');
+    return { kind: 'read-failed' };
+  }
+}
+
+/**
+ * The org's secret, or `globalFallback` ONLY for a confirmed absent binding. A bound org whose vault
+ * secret is empty, or any failed binding/vault read, throws instead — a write must never go out under
+ * the global identity because a lookup failed.
+ */
+export async function resolveOrgSecretOrFallback(deps: PerOrgSecretDeps, globalFallback: string): Promise<string> {
+  const result = await resolvePerOrgSecret(deps);
+  if (result.kind === 'resolved') return result.secret;
+  if (result.kind === 'binding-vault-miss') {
+    throw new AppError('ClickUp credentials unresolved for this org — check the binding secret_ref configuration', 'config-rejected');
+  }
+  if (result.kind === 'read-failed') {
+    throw new AppError('ClickUp credentials could not be read for this org — try again shortly', 'external-unreachable');
+  }
+  return globalFallback;
+}
+
+/** The live `lookupBinding` for `external_org_bindings.secret_ref`: a query error throws, `null` is a confirmed absent row. */
+export function lookupOrgBindingSecretRef(serviceClient: SupabaseClient) {
+  return async (orgId: string, tier: string): Promise<{ secret_ref?: string | null } | null> => {
+    const { data, error } = await serviceClient
+      .from('external_org_bindings')
+      .select('secret_ref')
+      .eq('org_id', orgId)
+      .eq('external_tier', tier)
+      .maybeSingle();
+    if (error) throw new AppError(error.message, error.code);
+    return data as { secret_ref?: string | null } | null;
+  };
 }

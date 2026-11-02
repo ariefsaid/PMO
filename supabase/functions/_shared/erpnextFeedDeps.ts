@@ -47,8 +47,9 @@ import { reconcileSiCancelAutoUnlink } from '../../../pmo-portal/src/lib/adapter
 import type { ErpFeedDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/applyFeed.ts';
 import type { LineageRow } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/lineage.ts';
 import type { PmoRecord } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
-import { pickCandidate, type PartyDoctype } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/partyAdopt.ts';
+import { pickCandidate, reviewReasonOf, type PartyDoctype } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/partyAdopt.ts';
 import { findCompanyCandidates } from './companyCandidates.ts';
+import { recordPartyReview } from './recordPartyReview.ts';
 import { resolveInvoiceProject } from './projectInvoiceAttribution.ts';
 import { allocationDetailsPatch } from './receiptAllocations.ts';
 
@@ -232,12 +233,12 @@ export function createErpFeedDeps(serviceClient: SupabaseClient, orgId: string, 
         // #1600 — an unmapped ERP Supplier/Customer that is already a PMO company links to it; only a
         // no-match mints. Same matcher as the setup step (partyAdopt.pickCandidate); unclear ⇒ throws.
         ...(kind === 'supplier' || kind === 'customer' ? {
-          matchExisting: async (canonical: PmoRecord) => {
+          matchExisting: async (canonical: PmoRecord, externalRecordId: string) => {
             const doctype: PartyDoctype = kind === 'supplier' ? 'Supplier' : 'Customer';
             const name = (canonical.name ?? canonical.erp_supplier_name ?? canonical.erp_customer_name) as string | null | undefined;
             if (!name) return null;
             const taxId = (canonical.erp_tax_id as string | null | undefined) ?? null;
-            const candidates = await findCompanyCandidates(serviceClient, orgId, doctype, name);
+            const candidates = await findCompanyCandidates(serviceClient, orgId, doctype, name, taxId);
             try {
               return pickCandidate({ doctype, id: name, name, taxId }, candidates)?.pmoRecordId ?? null;
             } catch (err) {
@@ -245,6 +246,8 @@ export function createErpFeedDeps(serviceClient: SupabaseClient, orgId: string, 
               // Unclear match: tell an admin and skip THIS party (a terminal reason, feedErrorPolicy.ts) so
               // one unclear party never halts the poll behind it.
               await surfaceActionRequired(serviceClient, orgId, 'party-match-unclear', { erpName: name });
+              // the review row names the ERP party by its document id (never its display name), beside the notification
+              await recordPartyReview(serviceClient, orgId, { pmoIds: candidates.map((c) => c.pmoRecordId).sort(), externalId: externalRecordId, reason: reviewReasonOf(err) });
               throw new AppError(err.message, 'party-match-unclear');
             }
           },
@@ -786,23 +789,25 @@ async function surfaceWithholdingReview(serviceClient: SupabaseClient, orgId: st
 }
 
 /** Resolve the PMO `customer_id` from the canonical's ERP customer name via `external_refs`
- *  (`Customer:<name>` in the companies domain). `null` when unmapped/absent. */
+ *  (`Customer:<name>` in the companies domain). `null` only when unmapped/absent; a read error throws. */
 async function resolveCustomerId(serviceClient: SupabaseClient, orgId: string, canonical: PmoRecord): Promise<string | null> {
   const customerErpName = (canonical as { customer?: string | null }).customer;
   if (!customerErpName) return null;
-  const { data } = await serviceClient.from('external_refs').select('pmo_record_id')
+  const { data, error } = await serviceClient.from('external_refs').select('pmo_record_id')
     .eq('org_id', orgId).eq('domain', 'companies').eq('external_record_id', `Customer:${customerErpName}`).maybeSingle();
+  if (error) throw new AppError(error.message, error.code);
   return (data as { pmo_record_id?: string } | null)?.pmo_record_id ?? null;
 }
 
 /** Resolve the PMO `sales_invoice_id` a Receive PE's first `references` row cites. `null` when the
- *  cited invoice is not (yet) mapped — the caller must then leave the column alone. */
+ *  cited invoice is not (yet) mapped — the caller must then leave the column alone; a read error throws. */
 async function resolveSalesInvoiceId(serviceClient: SupabaseClient, orgId: string, canonical: PmoRecord): Promise<string | null> {
   const references = (canonical as { references?: Array<{ reference_name?: string | null }> }).references;
   const siErpName = Array.isArray(references) ? references[0]?.reference_name : null;
   if (!siErpName) return null;
-  const { data } = await serviceClient.from('external_refs').select('pmo_record_id')
+  const { data, error } = await serviceClient.from('external_refs').select('pmo_record_id')
     .eq('org_id', orgId).eq('domain', 'revenue').eq('external_record_id', siErpName).maybeSingle();
+  if (error) throw new AppError(error.message, error.code);
   return (data as { pmo_record_id?: string } | null)?.pmo_record_id ?? null;
 }
 

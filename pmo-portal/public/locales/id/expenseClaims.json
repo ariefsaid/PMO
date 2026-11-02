@@ -9,6 +9,14 @@
     "discardStay": "Tetap di sini",
     "saving": "Menyimpan…"
   },
+  "postings": {
+    "recordedBeforeConnection": "Dicatat sebelum terhubung ke ERP"
+  },
+  "advances": {
+    "loadError": "Uang muka Anda tidak dapat dimuat. Penyimpanan dijeda agar klaim ini tidak diajukan tanpa uang mukanya.",
+    "loading": "Memuat uang muka Anda…",
+    "retry": "Coba lagi"
+  },
   "accountMap": {
     "projectDirectCost": "Biaya langsung proyek"
   }

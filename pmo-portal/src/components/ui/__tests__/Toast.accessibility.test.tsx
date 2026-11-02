@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { ToastProvider, useToast, type ToastKind } from '../Toast';
@@ -34,6 +34,18 @@ describe('Toast accessibility and timing', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('Ask your administrator for Print access');
   });
 
+  it('keeps the dismiss button clickable on success toasts with click-through bodies', () => {
+    renderToast();
+    act(() => fire('Saved', undefined, 'success'));
+
+    const dismiss = screen.getByRole('button', { name: 'Dismiss notification' });
+    expect(dismiss.parentElement).toHaveClass('pointer-events-none');
+    expect(dismiss).toHaveClass('pointer-events-auto');
+
+    act(() => dismiss.click());
+    expect(screen.queryByText('Saved')).not.toBeInTheDocument();
+  });
+
   it('auto-dismisses info and success after max(4s, 60ms per character), capped at 10s', () => {
     renderToast();
     act(() => fire('Saved', undefined, 'success'));
@@ -59,17 +71,23 @@ describe('Toast accessibility and timing', () => {
     window.innerWidth = 1024;
   });
 
-  it('pauses the auto-dismiss timer while hovered or focused', async () => {
-    vi.useRealTimers();
-    const user = userEvent.setup();
-    render(<ToastProvider><Harness /></ToastProvider>);
+  it('auto-dismisses a routine toast while its dismiss button is hovered', () => {
+    renderToast();
+    act(() => fire('Saved', undefined, 'success'));
+    fireEvent.mouseEnter(screen.getByRole('button', { name: 'Dismiss notification' }));
+    act(() => vi.advanceTimersByTime(4_000));
+    expect(screen.getByRole('status')).toBeEmptyDOMElement();
+  });
+
+  it('pauses the auto-dismiss timer while the dismiss button is focused', () => {
+    renderToast();
     act(() => fire('Saved', undefined, 'success'));
     const dismiss = screen.getByRole('button', { name: 'Dismiss notification' });
-    await user.hover(dismiss);
-    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 4_100)); });
+    fireEvent.focus(dismiss);
+    act(() => vi.advanceTimersByTime(4_000));
     expect(screen.getByRole('status')).toHaveTextContent('Saved');
-    await user.unhover(dismiss);
-    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 4_100)); });
+    fireEvent.blur(dismiss);
+    act(() => vi.advanceTimersByTime(4_000));
     expect(screen.getByRole('status')).toBeEmptyDOMElement();
   });
 

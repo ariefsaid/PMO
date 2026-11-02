@@ -16,7 +16,8 @@ const UNIQUES: Record<string, string[][]> = {
   external_refs: [['org_id', 'domain', 'external_record_id'], ['org_id', 'domain', 'pmo_record_id']],
 };
 
-function memoryClient(seed: Record<string, Row[]>) {
+function memoryClient(seed: Record<string, Row[]>, rpcResult: { error: unknown } = { error: null }) {
+  const rpcCalls: Array<{ fn: string; args: Row }> = [];
   const tables: Record<string, Row[]> = { companies: [], external_refs: [], notifications: [], profiles: [{ id: 'admin-1', org_id: 'org-1', status: 'active', role: 'Admin' }], ...structuredClone(seed) };
   const dupe = (table: string, row: Row) =>
     (UNIQUES[table] ?? []).some((cols) => (tables[table] ?? []).some((other) => cols.every((c) => other[c] === row[c])));
@@ -30,9 +31,10 @@ function memoryClient(seed: Record<string, Row[]>) {
       in(col: string, vals: unknown[]) { filters.push((r) => vals.includes(r[col])); return b; },
       contains(col: string, val: Row) { filters.push((r) => Object.entries(val).every(([k, v]) => (r[col] as Row | undefined)?.[k] === v)); return b; },
       is(col: string, val: unknown) { filters.push((r) => (r[col] ?? null) === val); return b; },
-      ilike(col: string, pattern: string) { // %word% only (what findCompanyCandidates sends), `\\` escapes
-        const needle = pattern.slice(1, -1).replace(/\\(.)/g, '$1').toLowerCase();
-        filters.push((r) => String(r[col] ?? '').toLowerCase().includes(needle)); return b;
+      ilike(col: string, pattern: string) { // `%` is any run, `\\` escapes (what findCompanyCandidates sends)
+        const re = new RegExp('^' + pattern.replace(/\\(.)|(%)|([.*+?^${}()|[\]\\])/g,
+          (_m, esc, pct, special) => pct ? '.*' : '\\' + (esc ?? special)) + '$', 'i');
+        filters.push((r) => re.test(String(r[col] ?? ''))); return b;
       },
       limit() { return b; },
       maybeSingle() { const out = run(filtered(table, filters)); return Promise.resolve({ ...out, data: Array.isArray(out.data) ? out.data[0] ?? null : out.data }); },
@@ -41,6 +43,7 @@ function memoryClient(seed: Record<string, Row[]>) {
     return b;
   }
   const client = {
+    rpc(fn: string, args: Row) { rpcCalls.push({ fn, args }); return Promise.resolve({ data: null, error: rpcResult.error }); },
     from(table: string) {
       return {
         select: () => builder(table, (rows) => ({ data: rows.map((r) => ({ ...r })), error: null })),
@@ -57,7 +60,7 @@ function memoryClient(seed: Record<string, Row[]>) {
       };
     },
   } as unknown as SupabaseClient;
-  return { client, tables };
+  return { client, tables, rpcCalls };
 }
 
 function assertEq(actual: unknown, expected: unknown, msg: string): void {
@@ -101,20 +104,56 @@ Deno.test('#1600 sweep: applying the same event twice leaves one company and one
 });
 
 Deno.test('AC-ECA-005 sweep: two PMO vendors with the name make an unclear match; nothing is written', async () => {
-  const { client, tables } = memoryClient({ companies: [company('company-1', 'Test party'), company('company-2', 'Test party')] });
+  const { client, tables, rpcCalls } = memoryClient({ companies: [company('company-1', 'Test party'), company('company-2', 'Test party')] });
   let failure: { code?: string; details?: string } | undefined;
   try { await sweepSupplier(client, 'Test party'); } catch (err) { failure = err as typeof failure; }
   assertEq(failure?.code, 'party-match-unclear', 'terminal code: the feed skips this party instead of halting the poll');
   assertEq([tables.companies.length, tables.external_refs.length], [2, 0], 'no writes');
   assertEq(tables.notifications.length, 1, 'an admin is told');
+  // AC-ECA-005 "a review row plus a notification": the row names the ERP party by its document id, never by its name
+  assertEq(rpcCalls, [{ fn: 'record_connect_review', args: {
+    p_org_id: ORG, p_tier: 'erpnext', p_kind: 'party', p_pmo_ids: ['company-1', 'company-2'], p_external_ids: ['Supplier:ERP-TEST-001'],
+    p_reason: 'ambiguous', p_reason_text: 'Two or more records could be this one' } }], 'one review row');
+});
+
+Deno.test('AC-ECA-005 sweep: the review row is secondary: if it cannot be written the admin is still told and the party is still skipped', async () => {
+  const { client, tables } = memoryClient({ companies: [company('company-1', 'Test party'), company('company-2', 'Test party')] }, { error: { code: 'P0001', message: 'no active connection for this ERP' } });
+  let failure: { code?: string } | undefined;
+  try { await sweepSupplier(client, 'Test party'); } catch (err) { failure = err as typeof failure; }
+  assertEq(failure?.code, 'party-match-unclear', 'terminal code');
+  assertEq(tables.notifications.length, 1, 'an admin is told');
+});
+
+Deno.test('AC-ECA-005 sweep: a tax-id match with a different name links the existing company', async () => {
+  const { client, tables, rpcCalls } = memoryClient({ companies: [company('company-1', 'Totally Different Name', 'Vendor', '01.234.567')] });
+  const outcome = await sweepSupplier(client, 'Test party', 'Supplier:ERP-TEST-001', '01.234.567');
+  assertEq(outcome, { kind: 'upserted', pmoRecordId: 'company-1', adopted: false }, 'linked on the tax id');
+  assertEq([tables.companies.length, tables.external_refs.length, rpcCalls.length], [1, 1, 0], 'one company, one ref, no review');
+});
+
+Deno.test('Minor 4 sweep: a tax id stored with punctuation matches the ERP value without it', async () => {
+  const { client, tables, rpcCalls } = memoryClient({ companies: [company('company-1', 'Totally Different Name', 'Vendor', '01.234.567.8-901.000')] });
+  const outcome = await sweepSupplier(client, 'Test party', 'Supplier:ERP-TEST-001', '012345678901000');
+  assertEq(outcome, { kind: 'upserted', pmoRecordId: 'company-1', adopted: false }, 'linked on the normalised tax id');
+  assertEq([tables.companies.length, tables.external_refs.length, rpcCalls.length], [1, 1, 0], 'one company, one ref, no review');
+});
+
+Deno.test('PD-ECA-16 sweep: "Acme Ltd" matches "Acme"; "CV Acme" never matches "PT Acme"', async () => {
+  const a = memoryClient({ companies: [company('company-1', 'Acme')] });
+  assertEq(await sweepSupplier(a.client, 'Acme Ltd'), { kind: 'upserted', pmoRecordId: 'company-1', adopted: false }, 'trailing legal form is dropped');
+  const b = memoryClient({ companies: [company('company-1', 'PT Acme')] });
+  const outcome = await sweepSupplier(b.client, 'CV Acme');
+  assertEq(outcome.kind === 'upserted' && outcome.adopted, true, 'a different legal entity is a new company');
+  assertEq(b.tables.companies.length, 2, 'both kept');
 });
 
 Deno.test('#1600 sweep: a conflicting tax ID is an unclear match; nothing is written', async () => {
-  const { client, tables } = memoryClient({ companies: [company('company-1', 'Test party', 'Vendor', 'TAX-TEST-2')] });
+  const { client, tables, rpcCalls } = memoryClient({ companies: [company('company-1', 'Test party', 'Vendor', 'TAX-TEST-2')] });
   let failure: { code?: string; details?: string } | undefined;
   try { await sweepSupplier(client, 'Test party', 'Supplier:ERP-TEST-001', 'TAX-TEST-1'); } catch (err) { failure = err as typeof failure; }
   assertEq(failure?.code, 'party-match-unclear', 'terminal code');
   assertEq([tables.companies.length, tables.external_refs.length], [1, 0], 'no writes');
+  assertEq([rpcCalls[0]?.args.p_reason, rpcCalls[0]?.args.p_reason_text], ['tax-conflict', 'Tax numbers do not match'], 'the review says the tax numbers differ');
 });
 
 Deno.test('#1600 sweep: a PMO vendor already linked to another ERP supplier is not a candidate', async () => {

@@ -17,6 +17,8 @@ import { useMilestones } from '@/src/hooks/useMilestones';
 import { completionPct, formatDateOnly, formatInstantDate, formatRelativeTime } from '@/src/lib/format';
 import ProjectDetailHeader from './ProjectDetailHeader';
 import PipelineLens from './PipelineLens';
+import StageHistory from './StageHistory';
+import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
 import ProjectDetailRail from './ProjectDetailRail';
 import ProjectFormModal from '../../components/ProjectFormModal';
 import ProjectSections, { PrimaryProjectAction } from './ProjectSections';
@@ -71,6 +73,22 @@ const ProjectHeaderFacts: React.FC<{ project: ProjectWithRefs }> = ({ project })
 };
 
 /**
+ * The on-hand project's sales-history doorway (AC-PSH-013): a collapsed disclosure around the stage
+ * history. One definition, two placements — the header above the tabs on desktop (mb-8 = section
+ * 32px), the record's foot on phone (mt-4 = panel-gap phone 16px) so it never pushes tab work below
+ * the fold (UIP-005 AC-TH-007, #1701).
+ */
+const SalesHistoryDisclosure: React.FC<{ projectId: string; className: string }> = ({ projectId, className }) => {
+  const { t } = useTranslation('project');
+  return (
+    <details className={className}>
+      <summary className="cursor-pointer text-sm font-semibold">{t('projectDetail.stageHistory.salesHistory', 'Sales history')}</summary>
+      <div className="pt-2"><StageHistory projectId={projectId} hideHeading /></div>
+    </details>
+  );
+};
+
+/**
  * Route shell for `/projects/:projectId[/:tab]`, the one detail route for a project at every stage
  * (ADR-0021). Header, then the project's areas as tabs (#1402): Overview · Budget · Procurement · Tasks ·
  * Contract & billing · Documents. Old `work-orders`/`billing`/`history` links land on their merged area.
@@ -90,6 +108,7 @@ const ProjectDetail: React.FC = () => {
   const { updateHeader } = useProjectMutations();
   const pipelineGroup = project ? projectStatusGroup(project.status as never) : null;
   const isPipelineRecord = pipelineGroup === 'pipeline' || pipelineGroup === 'lost';
+  const isDesktop = useIsDesktop();
   const area = areaFromParam(tabParam);
   const primaryActionAllowed = area === 'overview' || area === 'contract';
   const chaseOnly = area === 'contract';
@@ -189,6 +208,9 @@ const ProjectDetail: React.FC = () => {
         menuContent={<ProjectDetailRail project={project} detailsOnly />} />
       <ProjectHeaderFacts project={project} />
       {isPipelineRecord && <div className="mb-8"><PipelineLens project={project} locationState={location.state} /></div>}
+      {/* UIP-005 (#1701): the sales-history doorway sits in the header only on desktop — on phone it
+          moves below the tab work so every tab's work still arrives above the fold (AC-TH-007). */}
+      {pipelineGroup === 'onHand' && isDesktop && <SalesHistoryDisclosure projectId={project.id} className="mb-8" />}
       <div className="md:mb-4" />
     </>
   );
@@ -198,6 +220,9 @@ const ProjectDetail: React.FC = () => {
       {/* #735: the top-bar breadcrumb hides its parent crumbs at <= 920px, so the record shows the in-page BackBar there. */}
       <BackBar label={t('projectDetail.backToProjects', 'Projects')} phoneOnly onBack={goBack} />
       <ProjectSections project={project} area={area} setArea={setArea} isPipeline={isPipelineRecord} header={header} />
+      {/* Phone: the doorway keeps its disclosure affordance at the record's foot (panel-gap phone = 16px),
+          costing the fold nothing; react-query dedupes its reads with the desktop instance's. */}
+      {pipelineGroup === 'onHand' && !isDesktop && <SalesHistoryDisclosure projectId={project.id} className="mt-4" />}
       {primaryActionAllowed && <PrimaryProjectAction project={project} isPipeline={isPipelineRecord} chaseOnly={chaseOnly} mobileBar />}
       {editOpen && (
         <ProjectFormModal

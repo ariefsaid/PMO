@@ -42,7 +42,7 @@ const shared = (values: (string | null)[]) => (new Set(values.map(norm)).size ==
 /** FR-PFE-020 — pick an open purchase and link the documents to it. The server re-checks supplier, project, currency and gates. */
 export const LinkErpDocumentsDialog: React.FC<LinkErpDocumentsDialogProps> = ({ docs, projectId, onClose, onLinked, onPartiallyLinked }) => {
   const { t } = useTranslation('finance');
-  const { data: purchases } = useProcurements();
+  const { data: purchases, isPending: purchasesPending, isError: purchasesError, refetch: refetchPurchases } = useProcurements();
   const link = useLinkErpDocuments();
   const [target, setTarget] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<SubmitError | null>(null);
@@ -141,6 +141,13 @@ export const LinkErpDocumentsDialog: React.FC<LinkErpDocumentsDialogProps> = ({ 
       submitError={submitError}
     >
       <p className="mb-3 text-[13px] text-foreground tabular">{summary}</p>
+      {purchasesPending && <p className="mb-2 text-[12.5px] text-muted-foreground">{t('erpLinks.loadingPurchases', 'Loading purchases…')}</p>}
+      {purchasesError && (
+        <div role="alert" className="mb-2 flex items-center gap-2 text-[12.5px] text-destructive">
+          <span>{t('erpLinks.purchasesLoadFailed', 'Could not load purchases.')}</span>
+          <button type="button" className="underline" onClick={() => void refetchPurchases()}>{t('erpLinks.retry', 'Retry')}</button>
+        </div>
+      )}
       <Combobox
         label={t('erpLinks.purchase', 'Purchase')}
         noun={t('erpLinks.purchaseNoun', 'open purchase')}

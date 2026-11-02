@@ -12,7 +12,7 @@
 export const WORKFLOWS = {
   // Setup and masters (ECA-1..3)
   'census': { version: 1, summary: 'read-only count of each master kind and money domain on both sides' },
-  'party.match': { version: 1, summary: 'pair an ERP client/vendor with an existing PMO company, never auto-merging a doubtful pair' },
+  'party.match': { version: 2, summary: 'pair an ERP client/vendor with an existing PMO company, never auto-merging a doubtful pair' },
   'party.bring-in': { version: 1, summary: 'create a PMO company for an ERP party with no PMO match' },
   'party.send': { version: 1, summary: 'create an ERP client/vendor for a PMO company that has none' },
   'project.match': { version: 1, summary: 'link a PMO project to an ERP project, with no link when the ERP name is not unique' },
@@ -39,6 +39,7 @@ export const WORKFLOWS = {
   'budget.unowned-occupant': { version: 1, summary: 'refuse to amend an ERP budget PMO did not create, writing nothing' },
   'timesheet.push': { version: 1, summary: 'send an approved timesheet to the ERP' },
   'imprest.transfer': { version: 1, summary: 'move cash between two of the company\'s own accounts once, by key' },
+  'purchase-order.revise': { version: 1, summary: 'send the effective lines of one PO revision to the ERP once, never cancelling a billed order' },
 } as const satisfies Record<string, { version: number; summary: string }>;
 
 export type WorkflowId = keyof typeof WORKFLOWS;

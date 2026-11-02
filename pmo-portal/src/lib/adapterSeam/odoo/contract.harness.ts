@@ -65,6 +65,13 @@ export function createOdooHarness(): ErpHarness {
     resolveProjectLink() { throw pending('project.match', 1504); },
     pushBudget() { return Promise.reject(pending('budget.unowned-occupant', 1507)); },
     pushPurchase() { return Promise.reject(pending('cutover.activation', 1505)); },
+    pushTimesheet() { return Promise.reject(pending('timesheet.push', 1510)); },
+    pushProcurement() { return Promise.reject(pending('purchase.push', 1505)); },
+    pushRevenue() { return Promise.reject(pending('invoice.push', 1506)); },
+    pushBudgetVersion() { return Promise.reject(pending('budget.push', 1507)); },
+    readActuals() { return Promise.reject(pending('actuals.read', 1507)); },
+    classifyPayment() { throw pending('receipt.read', 1506); },
+    mirrorPurchases() { return Promise.reject(pending('purchase.link-existing', 1505)); },
 
     connect(): ConnectHarness {
       const { fake, adapter, armWrite } = fakeConnection();

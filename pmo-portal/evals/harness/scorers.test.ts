@@ -11,6 +11,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   contains,
   llmJudge,
+  noProposal,
   proposesAction,
   runScorers,
   summarizeRuns,
@@ -181,3 +182,18 @@ describe('proposesAction / summarizeRuns (#787)', () => {
     expect(summarizeRuns([true, false, false], 2)).toEqual({ pass: false, passes: 1, runs: 3 });
   });
 });
+
+describe('noProposal (#1639)', () => {
+  const run = (actionName?: string) => ({
+    events: actionName ? [{ type: 'status', payload: { status: 'needs-approval', actionName } }] : [],
+    toolCalls: [], answerText: '',
+  }) as unknown as EvalRunResult;
+  it('AC-RMD-022 passes when the named action was not proposed', async () => {
+    expect((await noProposal('remind_overdue')(run())).pass).toBe(true);
+    expect((await noProposal('remind_overdue')(run('draft_invoice'))).pass).toBe(true);
+  });
+  it('AC-RMD-022 fails when the named action was proposed', async () => {
+    expect((await noProposal('remind_overdue')(run('remind_overdue'))).pass).toBe(false);
+  });
+});
+

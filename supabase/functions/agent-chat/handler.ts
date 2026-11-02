@@ -37,8 +37,9 @@ import {
   AGENT_READ_ROW_CAP,
 } from './actions.ts';
 import { buildAgentSystemPrompt } from './prompt.ts';
-import { whatsOverdueAction } from './overdue.ts';
+import { makeWhatsOverdueAction } from './overdue.ts';
 import { draftInvoiceAction } from './draftInvoice.ts';
+import { remindOverdueAction } from './remindOverdue.ts';
 import {
   hashToolArgs,
   createThreadAndRun,
@@ -95,6 +96,7 @@ export function stepLabel(toolName: string, input: unknown): string {
     case 'notify': return 'Preparing a notification…';
     case 'whats_overdue': return "Checking what's overdue…";
     case 'draft_invoice': return 'Preparing a draft invoice…';
+    case 'remind_overdue': return 'Preparing reminders…';
     default: return 'Working…';
   }
 }
@@ -121,12 +123,16 @@ const AUTOMATIONS_ENABLED = denoGlobal === undefined || denoGlobal.env.get('AGEN
 /** #787 kill switch: AGENT_INVOICE_DRAFTS=false removes draft_invoice without a redeploy (default ON; ON in
  *  a Deno-less test context, mirroring AUTOMATIONS_ENABLED). */
 const INVOICE_DRAFTS_ENABLED = denoGlobal === undefined || denoGlobal.env.get('AGENT_INVOICE_DRAFTS') !== 'false';
+/** #1639 kill switch: AGENT_REMINDERS=false removes remind_overdue (and the overdue offer line) without a redeploy
+ *  (default ON; ON in a Deno-less test context, mirroring INVOICE_DRAFTS_ENABLED). */
+const REMINDERS_ENABLED = denoGlobal === undefined || denoGlobal.env.get('AGENT_REMINDERS') !== 'false';
 const BASE_ACTIONS: AgentAction[] = [
   queryEntityAction,
-  whatsOverdueAction,
+  makeWhatsOverdueAction({ offerReminders: REMINDERS_ENABLED }),
   createActivityAction,
   updateTaskStatusAction,
   ...(INVOICE_DRAFTS_ENABLED ? [draftInvoiceAction] : []),
+  ...(REMINDERS_ENABLED ? [remindOverdueAction] : []),
   ...(AUTOMATIONS_ENABLED ? [notifyAction, createAutomationAction] : []),
 ];
 const BASE_ACTION_BY_NAME = new Map<string, AgentAction>(BASE_ACTIONS.map((a) => [a.name, a]));
@@ -193,7 +199,9 @@ export interface HandlerSupabaseLike {
 /** Injectable rate guard (AS-OD-002 — disabled by default). AMENDED by ADR-0049: the check is
  * per-ORG (orgId), not per-owner; `reason` distinguishes out_of_credits from a meter RPC failure. */
 export interface RateGuard {
-  check(orgId: string): Promise<{ exceeded: boolean; retryAfterSeconds: number; reason: 'out_of_credits' | 'meter_error' }>;
+  /** `runId` selects the atomic reserve path (creditRateGuard); `release` drops that hold. */
+  check(orgId: string, runId?: string): Promise<{ exceeded: boolean; retryAfterSeconds: number; reason: 'out_of_credits' | 'meter_error' }>;
+  release?(runId: string): Promise<void>;
 }
 
 /**
@@ -279,6 +287,8 @@ export interface HandlerDeps {
   persistence?: PersistenceDeps & { journaledWrites?: JournaledWrite[]; startSeq?: number };
   /** @internal set only by agentChatHandler (#1532 S1): per-run AI telemetry; absent => no-op. */
   ai?: AiRunTelemetry;
+  /** Per-request credit holds placed by this invocation (set by agentChatHandler; released in its finally). */
+  creditHolds?: string[];
 }
 
 /** Times one tool dispatch and reports it as an `$ai_span` (never throws on its own account). */
@@ -581,6 +591,7 @@ function getPermissionCheck(
       return { action: 'edit', entity: 'taskStatus' };
     case 'draft_invoice':
       return { action: 'create', entity: 'salesInvoice' };
+    // remind_overdue: no can() entity — send_task_reminders is the authority (ADR-0016/0019, #1639 PQ-3).
     default:
       return null;
   }
@@ -1322,8 +1333,15 @@ export async function* agentChatHandler(
     runId, threadId: req.threadId, action: deps.usageAction ?? 'chat', userId: deps.userId,
     analytics: req.analytics, modelClient: deps.modelClient, model: deps.model,
   });
-  const aiDeps = { ...deps, ai };
-  yield* withAiTrace(withPersistence(agentChatHandlerInner(req, aiDeps, runId, persist), persist, runId), ai);
+  const creditHolds: string[] = [];
+  const aiDeps = { ...deps, ai, creditHolds };
+  try {
+    yield* withAiTrace(withPersistence(agentChatHandlerInner(req, aiDeps, runId, persist), persist, runId), ai);
+  } finally {
+    // Every exit path (completed, errored, abandoned stream) drops this request's holds; the usage
+    // rows that replace them have landed by now, so the spend is counted once.
+    for (const id of creditHolds) await deps.rateGuard?.release?.(id);
+  }
 }
 
 /** Feeds the per-run AI telemetry from the event stream; emits the `$ai_trace` at terminal status. */
@@ -1446,15 +1464,13 @@ async function* agentChatHandlerInner(
   // above already returned). A fresh user turn always costs at least one model call,
   // so gating it here (before even echoing the user event) is correct and unchanged
   // from the pre-remediation behavior for this path.
-  if (deps.rateGuard) {
-    const r = await deps.rateGuard.check(orgId);
-    if (r.exceeded) {
-      yield statusEvent('errored', {
-        error: 'RATE_LIMITED',
-        retryAfterSeconds: r.retryAfterSeconds,
-      });
-      return;
-    }
+  const blocked = await isCreditExhausted(deps, orgId);
+  if (blocked) {
+    yield statusEvent('errored', {
+      error: 'RATE_LIMITED',
+      retryAfterSeconds: blocked.retryAfterSeconds,
+    });
+    return;
   }
 
   // ── Yield the last user message ────────────────────────────────────────────
@@ -1470,6 +1486,7 @@ async function* agentChatHandlerInner(
     composeEnabled: deps.composeEnabled,
     automationsEnabled: AUTOMATIONS_ENABLED,
     invoiceDraftsEnabled: INVOICE_DRAFTS_ENABLED,
+    remindersEnabled: REMINDERS_ENABLED,
   }) + buildGroundingHint(req.context?.entity);
 
   // The full conversation messages for the model call — system prompt is
@@ -1554,6 +1571,7 @@ async function* handleAnswer(
     composeEnabled: deps.composeEnabled,
     automationsEnabled: AUTOMATIONS_ENABLED,
     invoiceDraftsEnabled: INVOICE_DRAFTS_ENABLED,
+    remindersEnabled: REMINDERS_ENABLED,
   }) + buildGroundingHint(req.context?.entity);
 
   const messages: ModelMessage[] = [
@@ -1630,6 +1648,7 @@ async function* handleDecision(
     composeEnabled: false,
     automationsEnabled: AUTOMATIONS_ENABLED,
     invoiceDraftsEnabled: INVOICE_DRAFTS_ENABLED,
+    remindersEnabled: REMINDERS_ENABLED,
   }) + buildGroundingHint(req.context?.entity);
 
   const messages: ModelMessage[] = [
@@ -1864,8 +1883,13 @@ async function* handleDecision(
  */
 async function isCreditExhausted(deps: HandlerDeps, orgId: string): Promise<{ exceeded: boolean; retryAfterSeconds: number } | null> {
   if (!deps.rateGuard) return null;
-  const r = await deps.rateGuard.check(orgId);
-  return r.exceeded ? r : null;
+  // A fresh id per model turn: reserve_credits holds against it atomically (concurrent turns cannot
+  // both spend the same balance); agentChatHandler's finally releases every id registered here.
+  const holdId = makeId();
+  const r = await deps.rateGuard.check(orgId, holdId);
+  if (r.exceeded) return r;
+  deps.creditHolds?.push(holdId);
+  return null;
 }
 
 // ── Inner tool-use loop (reused for the decision continuation) ────────────────

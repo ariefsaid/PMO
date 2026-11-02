@@ -1716,7 +1716,7 @@ matcher exists (SD-8).
 (the second plays the race loser) → one `companies` row, one `external_refs` row, the second returns the first's id; linking to an existing
 PMO company (`p_existing_company`) inserts no company; linking a PMO company that already has a `companies` ref → `P0001`
 (the caller turns it into a review row). ECA-2 ships the tier-agnostic service-role entry `apply_connect_outcome` (ECA plan
-ECA2-T6, migration `0451`): this test runs it with tier `odoo` and S6-T3 is skipped.
+ECA2-T6, migration `0480`): this test runs it with tier `odoo` and S6-T3 is skipped.
 
 ### S6-T3 — `NNNN-D_odoo_party_adoption.sql` (green, only if ECA-2 has no tier-agnostic RPC)
 

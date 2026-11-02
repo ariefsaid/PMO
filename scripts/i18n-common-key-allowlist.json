@@ -1,5 +1,12 @@
 [
   "fx.expandedFileTooLarge",
+  "history.action.project_stage_entry_add",
+  "history.action.project_stage_entry_redate",
+  "history.field.entered_on",
+  "history.field.redated_at",
+  "history.field.source",
+  "history.field.stage",
+  "history.kind.project_stage_entry",
   "integrations.personalM365.errors.previewUnsupported",
   "integrations.personalM365.errors.recordFolderUnavailable",
   "integrations.personalM365.errors.sourceAccessDenied",
@@ -186,8 +193,9 @@
   "m365Documents.versions.title",
   "m365Documents.versions.version",
   "shell.contextBar.feedback",
+  "shell.nav.stock",
   "uxs38.previewGapSummary_one",
   "uxs38.previewGapSummary_other",
-  "shell.nav.stock",
-  "dashboard.stillToInvoice.daysSinceAcceptance"
+  "dashboard.stillToInvoice.daysSinceAcceptance",
+  "procurementDetail.statusOption.submitted"
 ]

@@ -78,6 +78,28 @@ export function useExpenseAdvanceAging() {
   });
 }
 
+/** Bucket totals over every visible advance (the aggregate read), not a sum of the capped list. */
+export function useExpenseAdvanceAgingTotals() {
+  const orgId = useOrgId();
+  return useQuery({
+    queryKey: ['expense-advance-aging', orgId, 'totals'],
+    queryFn: () => repositories.expenseClaim.agingTotals(),
+    enabled: Boolean(orgId),
+  });
+}
+
+/** The signed-in user's own outstanding advances, filtered on the server before the page cap (claim form choices). */
+export function useOwnExpenseAdvances() {
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
+  const userId = currentUser?.id;
+  return useQuery({
+    queryKey: ['expense-advance-aging', orgId, 'own', userId],
+    queryFn: () => repositories.expenseClaim.aging({ claimantId: userId as string }),
+    enabled: Boolean(orgId) && Boolean(userId),
+  });
+}
+
 /**
  * Submitted records with their routes: one list read + ONE routes call. A failed routes read leaves the rows
  * unrouted (the FR-APR-035 fallback): the inbox then shows them to every approval-rank viewer and the RPC still

@@ -160,6 +160,28 @@ describe('loadOverdueFacts — invoices (#787)', () => {
     ].sort((a, b) => String(a[1]).localeCompare(String(b[1]))));
   });
 
+  it('a truncated invoice scan with no overdue row in the page is flagged partial', async () => {
+    const page = Array.from({ length: 201 }, (_, i) => inv(`SI-${i}`, '2026-10-05', 30));
+    const { client } = fakeSupabase(world({ sales_invoices: () => page }));
+    const facts = await loadOverdueFacts(ctx('Finance', client), NOW);
+    expect(facts.invoices).toEqual([]);
+    expect(facts.invoicesTruncated).toBe(true);
+    const md = renderOverdueMarkdown(facts);
+    expect(md).not.toContain('nothing is overdue');
+    expect(md).toContain('partial');
+  });
+
+  it('a PM with more than 500 managed projects gets a partial-scope answer', async () => {
+    const ids = Array.from({ length: 501 }, (_, i) => ({ id: `p-${i}` }));
+    const { client, calls } = fakeSupabase(world({ projects: (c) => (c.columns === 'id' ? ids : []) }));
+    const facts = await loadOverdueFacts(ctx('Project Manager', client), NOW);
+    expect(opsOf(calls, 'projects')[0]).toContainEqual(['limit', 501]);
+    expect(facts.scopeTruncated).toBe(true);
+    const md = renderOverdueMarkdown(facts);
+    expect(md).not.toContain('nothing is overdue');
+    expect(md).toContain('first 500 managed projects');
+  });
+
   it('AC-AIN-006 Revenue off → no invoice read, no invoice section', async () => {
     const { client, calls } = fakeSupabase(world({ org_features: () => ({ enabled: false }) }));
     const facts = await loadOverdueFacts(ctx('Finance', client), NOW);
@@ -277,5 +299,24 @@ describe('renderOverdueMarkdown / runWhatsOverdue (#787)', () => {
     const ok = world();
     const { client } = fakeSupabase((c) => (c.table === 'tasks' ? { data: null, error: { code: '42501' } } : ok(c)));
     expect(await runWhatsOverdue({}, ctx('Engineer', client), NOW)).toEqual({ error: 'whats_overdue could not read the overdue items right now.' });
+  });
+});
+
+describe('renderOverdueMarkdown — reminder offer (#1639)', () => {
+  const base: OverdueFacts = {
+    asOf: '2026-10-06', numberLocale: 'en-US', callerId: 'u-me', tasksTruncated: false, invoices: null, invoicesTruncated: false,
+    tasks: [
+      { id: 't1', name: 'Pour', projectId: null, projectName: null, assigneeName: 'Site engineer', assigneeId: 'u-2', dueDate: '2026-10-01', daysOverdue: 5 },
+      { id: 't2', name: 'Rebar', projectId: null, projectName: null, assigneeName: 'Planner', assigneeId: 'u-3', dueDate: '2026-10-02', daysOverdue: 4 },
+    ],
+  };
+  it('AC-RMD-023 offers reminders for the 2 people with late tasks', () => {
+    expect(renderOverdueMarkdown(base, { offerReminders: true }))
+      .toMatch(/Say \*remind them\* and I'll prepare reminders for the 2 people with late tasks\.\n\n$/);
+  });
+  it('AC-RMD-023 makes no offer when every task is the caller\'s own, or when reminders are off', () => {
+    const own = { ...base, tasks: base.tasks.map((t) => ({ ...t, assigneeId: 'u-me' })) };
+    expect(renderOverdueMarkdown(own, { offerReminders: true })).not.toMatch(/remind them/);
+    expect(renderOverdueMarkdown(base)).not.toMatch(/remind them/);
   });
 });

@@ -20,6 +20,8 @@
  */
 import type { Enums } from '../supabase/database.types.ts';
 import { AdapterError } from '../adapterSeam/contract.ts';
+import { proposeMatches } from '../adapterSeam/connect/match.ts';
+import type { NormalisedMaster } from '../adapterSeam/connect/types.ts';
 import { fromCents, toCents } from './budgetAmount.ts';
 
 /** The generated DB enum is the category authority. Bare strings remain accepted at runtime so
@@ -83,33 +85,28 @@ export function isDirectCostPostingAccount(account: BudgetPostingAccount): boole
   return directCostGroup || numberedDirectCost;
 }
 
+/** PD-ECA-6: the one category a direct-cost posting account names, or null for none or several. The shared matcher
+ *  (`connect/match.ts`) links an account to a category on this key. */
+export function accountCategoryKey(account: BudgetPostingAccount, categories: readonly string[] = Object.keys(CATEGORY_TERMS)): string | null {
+  if (!isDirectCostPostingAccount(account)) return null;
+  const searchText = `${account.account} ${account.accountName}`.toLowerCase();
+  const hits = categories.filter((category) => CATEGORY_TERMS[category]?.some((term) => searchText.includes(term)));
+  return hits.length === 1 ? hits[0] : null;
+}
+
 export function proposeBudgetAccountMap(
   accounts: readonly BudgetPostingAccount[],
   categories: readonly string[],
   alreadyAssigned: readonly string[] = [],
 ): BudgetAccountProposal[] {
   const assigned = new Set(alreadyAssigned);
-  const directCostAccounts = accounts.filter((account) =>
-    isDirectCostPostingAccount(account) && !assigned.has(account.account),
-  );
-  const candidatesByCategory = categories.map((category) => {
-    const terms = CATEGORY_TERMS[category];
-    if (!terms) return { category, matches: [] as BudgetPostingAccount[] };
-    const matches = directCostAccounts.filter((account) => {
-      const searchText = `${account.account} ${account.accountName}`.toLowerCase();
-      return terms.some((term) => searchText.includes(term));
-    });
-    return { category, matches };
-  });
-  const uniqueMatches = candidatesByCategory.filter(({ matches }) => matches.length === 1);
-  const usage = new Map<string, number>();
-  for (const { matches } of uniqueMatches) {
-    const account = matches[0]?.account;
-    if (account) usage.set(account, (usage.get(account) ?? 0) + 1);
-  }
-  return uniqueMatches
-    .filter(({ matches }) => usage.get(matches[0].account) === 1)
-    .map(({ category, matches }) => ({ category, account: matches[0].account }));
+  const erp: NormalisedMaster[] = accounts
+    .filter((a) => !assigned.has(a.account))
+    .map((a) => ({ kind: 'account', externalId: a.account, code: accountCategoryKey(a, categories), name: a.accountName, active: !a.disabled && !a.isGroup }));
+  // Only the category key links an account; a name match on the category label never does (overhead accounts stay out).
+  return proposeMatches('account', categories.map((c) => ({ id: c, name: c, code: c })), erp)
+    .flatMap((o) => (o.outcome === 'link' && o.key === 'code' ? [{ category: o.pmoId, account: o.externalId }] : []))
+    .sort((a, b) => categories.indexOf(a.category) - categories.indexOf(b.category));
 }
 
 /** One ERP `Budget Account` child row (spike §4: exactly these two fields, nothing else). */

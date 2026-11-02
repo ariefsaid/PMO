@@ -222,7 +222,7 @@ matching one ONLY when your task touches that surface — that is the whole poin
 |---|---|
 | About to start ANY build — or to decide who runs it | [`docs/orca-dispatch.md`](docs/orca-dispatch.md) — Orca workers on any harness/model; routing table there |
 | Any money flow (budget activate · invoice/payment submit · procurement transition · timesheet push) | [`docs/money-path-primer.md`](docs/money-path-primer.md) — a map of the outbox/sweep/SoD architecture so you don't re-derive it from source |
-| The agent / LLM surface (prompts, tools, evals, the assistant panel) | [`docs/adr/0050-layered-agent-prompt-charter-and-skills.md`](docs/adr/0050-layered-agent-prompt-charter-and-skills.md) + [`docs/adr/0052-agent-eval-harness.md`](docs/adr/0052-agent-eval-harness.md) — ⚑ the deployed model (`deepseek-v4-flash`) is a **weak tool-selector**; prompt steering is unit-tested for text presence but NOT verified against the live model. The eval harness is the real gate. |
+| The agent / LLM surface (prompts, tools, evals, the assistant panel) | [`docs/adr/0050-layered-agent-prompt-charter-and-skills.md`](docs/adr/0050-layered-agent-prompt-charter-and-skills.md) + [`docs/adr/0052-agent-eval-harness.md`](docs/adr/0052-agent-eval-harness.md) — the deployed model (`deepseek/deepseek-v4.1-flash-1017`) chose the right tool on every completed turn in the 10-run local eval (86/90, 2026-11-02, #1596). Run the eval harness locally (not CI) after prompt or tool changes; it is the real gate. |
 | Authoring or editing any e2e spec | [`docs/e2e-parallel-conventions.md`](docs/e2e-parallel-conventions.md) — isolation classes, the `@e2e-isolation` tag, and the guard-polarity rule |
 | Local/prod Supabase, secrets, or a deploy | [`docs/environments.md`](docs/environments.md) |
 

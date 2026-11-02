@@ -40,13 +40,14 @@ const ALLOWED: Record<string, number> = {
   'supabase/functions/external-unlink/index.ts': 2,
   'supabase/functions/external-invoice-evidence/index.ts': 1,
   // +3 / +1 / +1: the Odoo connect, disconnect and setup routing and the one-ERP-tier check (#1504 S2, PQ-12).
-  'supabase/functions/external-connect/index.ts': 5,
+  // +1 (#1614): ERPNext connect refusal audit (FR-ODC-011 parity with Odoo).
+  'supabase/functions/external-connect/index.ts': 6,
   'supabase/functions/external-link/index.ts': 2,
   'supabase/functions/external-companies/index.ts': 1,
   'supabase/functions/external-invoice-pdf/index.ts': 1,
   'supabase/functions/external-disconnect/index.ts': 2,
   'supabase/functions/external-set-company/index.ts': 2,
-  // #1595: the assistant picks ERP vs native invoice drafting by the revenue owner; moves behind the contract with #1609.
+  // #1595: the assistant picks ERP vs native invoice drafting by the revenue owner; behind the shared contract since #1672.
   'supabase/functions/agent-chat/draftInvoice.ts': 1,
 };
 
