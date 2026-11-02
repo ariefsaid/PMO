@@ -47,7 +47,13 @@ export function InvoicePairReview({ orgId }: { orgId?: string }) {
   const ambiguous = rows.filter((r) => r.ambiguous);
   const stillPmo = unpaired.data ?? [];
   const done = accepted.data ?? [];
-  if (clear.length + ambiguous.length + stillPmo.length + done.length === 0 && !notice) return null;
+  // A failed read is never shown as an empty or complete list: unresolved duplicates would vanish while totals double count.
+  const failed = [
+    { query: proposals, text: t('invoicePairs.loadFailed.propose', 'Could not load the matching invoices.') },
+    { query: unpaired, text: t('invoicePairs.loadFailed.unpaired', 'Could not load the invoices still counted as PMO invoices.') },
+    { query: accepted, text: t('invoicePairs.loadFailed.accepted', 'Could not load the invoices that already count once.') },
+  ].filter((f) => f.query.isError);
+  if (clear.length + ambiguous.length + stillPmo.length + done.length + failed.length === 0 && !notice) return null;
 
   const money = (amount: number, currency: string) => formatCurrency(amount, currency);
   const reasonText: Record<UnpairedReason, string> = {
@@ -121,6 +127,14 @@ export function InvoicePairReview({ orgId }: { orgId?: string }) {
 
       {notice && <p role='status' className='font-medium'>{notice}</p>}
       {error && <p role='alert' className='text-destructive'>{error}</p>}
+      {failed.map((f) => (
+        <div key={f.text} role='alert' className='flex flex-wrap items-center gap-2 text-destructive'>
+          <span>{f.text}</span>
+          <Button size='sm' variant='outline' loading={f.query.isFetching} onClick={() => void f.query.refetch()}>
+            {t('invoicePairs.retry', 'Retry')}
+          </Button>
+        </div>
+      ))}
 
       {clear.length > 0 && (
         <div>

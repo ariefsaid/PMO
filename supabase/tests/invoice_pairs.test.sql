@@ -3,7 +3,7 @@
 -- Fixtures load with no JWT (a server load); every assertion runs as a real caller.
 begin;
 create extension if not exists pgtap;
-select plan(95);
+select plan(102);
 
 -- ── fixture ────────────────────────────────────────────────────────────────────────────────────
 insert into public.organizations (id, name) values
@@ -37,6 +37,7 @@ insert into public.external_domain_ownership (org_id, external_tier, domain) val
 
 -- N1: PMO-raised (10,000 + 1,100 tax, exclusive as PMO stores it), same sale as ERP invoice E1 (11,100 inclusive, the ERP grand total, PO-7, March). N2: PMO-raised, no ERP twin.
 -- N3: PMO-raised WITH a PMO receipt, ERP twin E3 exists. N5: two ERP candidates (ambiguous).
+-- NC/NR/NT (no project, so no total moves): each fails exactly one rule against its ERP look-alike - currency, reference, tax.
 insert into public.sales_invoices (id, org_id, project_id, work_order_id, customer_id, invoice_date, amount, erp_outstanding_amount,
                                    tax_treatment, tax_amount, currency, status, reference_number,
                                    native_lines, pmo_native, author_user_id, pmo_number) values
@@ -51,7 +52,16 @@ insert into public.sales_invoices (id, org_id, project_id, work_order_id, custom
    'exclusive', 0, 'USD', 'Unpaid', 'PO-3', '[{"description":"n3"}]', true, '04840000-0000-0000-0000-0000000000a1', 'PMO-N3'),
   ('04840000-0000-0000-0000-0000000005a5', '04840000-0000-0000-0000-000000000001', '04840000-0000-0000-0000-0000000000c1',
    null, '04840000-0000-0000-0000-0000000000f1', '2026-03-13', 7000, 7000,
-   'exclusive', 0, 'USD', 'Unpaid', 'PO-5', '[{"description":"n5"}]', true, '04840000-0000-0000-0000-0000000000a1', 'PMO-N5');
+   'exclusive', 0, 'USD', 'Unpaid', 'PO-5', '[{"description":"n5"}]', true, '04840000-0000-0000-0000-0000000000a1', 'PMO-N5'),
+  ('04840000-0000-0000-0000-0000000005a8', '04840000-0000-0000-0000-000000000001', null,
+   null, '04840000-0000-0000-0000-0000000000f1', '2026-03-14', 4200, 4200,
+   'exclusive', 0, 'USD', 'Unpaid', 'PO-CURRENCY', '[{"description":"n8"}]', true, '04840000-0000-0000-0000-0000000000a1', 'PMO-NC'),
+  ('04840000-0000-0000-0000-0000000005a9', '04840000-0000-0000-0000-000000000001', null,
+   null, '04840000-0000-0000-0000-0000000000f1', '2026-03-15', 4200, 4200,
+   'exclusive', 0, 'USD', 'Unpaid', 'PO-REFERENCE-PMO', '[{"description":"n9"}]', true, '04840000-0000-0000-0000-0000000000a1', 'PMO-NR'),
+  ('04840000-0000-0000-0000-0000000005aa', '04840000-0000-0000-0000-000000000001', null,
+   null, '04840000-0000-0000-0000-0000000000f1', '2026-03-16', 100, 110,
+   'exclusive', 10, 'USD', 'Unpaid', 'PO-TAX', '[{"description":"naa"}]', true, '04840000-0000-0000-0000-0000000000a1', 'PMO-NT');
 insert into public.incoming_payments (id, org_id, customer_id, sales_invoice_id, date, amount, received_amount, withheld_amount,
                                       status, currency, pmo_native, pmo_number) values
   ('04840000-0000-0000-0000-0000000006a3', '04840000-0000-0000-0000-000000000001', '04840000-0000-0000-0000-0000000000f1',
@@ -66,7 +76,13 @@ insert into public.sales_invoices (id, org_id, project_id, work_order_id, custom
   ('04840000-0000-0000-0000-0000000005e5', '04840000-0000-0000-0000-000000000001', null, null, '04840000-0000-0000-0000-0000000000f1',
    'SI-E5A', '2026-03-22', 7000, 7000, 'inclusive', 0, 'USD', 'Unpaid', 1, 'PO-5'),
   ('04840000-0000-0000-0000-0000000005e6', '04840000-0000-0000-0000-000000000001', null, null, '04840000-0000-0000-0000-0000000000f1',
-   'SI-E5B', '2026-03-23', 7000, 7000, 'inclusive', 0, 'USD', 'Unpaid', 1, 'PO-5');
+   'SI-E5B', '2026-03-23', 7000, 7000, 'inclusive', 0, 'USD', 'Unpaid', 1, 'PO-5'),
+  ('04840000-0000-0000-0000-0000000005e8', '04840000-0000-0000-0000-000000000001', null, null, '04840000-0000-0000-0000-0000000000f1',
+   'SI-EC', '2026-03-20', 4200, 4200, 'inclusive', 0, 'EUR', 'Unpaid', 1, 'PO-CURRENCY'),
+  ('04840000-0000-0000-0000-0000000005e9', '04840000-0000-0000-0000-000000000001', null, null, '04840000-0000-0000-0000-0000000000f1',
+   'SI-ER', '2026-03-20', 4200, 4200, 'inclusive', 0, 'USD', 'Unpaid', 1, 'PO-REFERENCE-ERP'),
+  ('04840000-0000-0000-0000-0000000005ea', '04840000-0000-0000-0000-000000000001', null, null, '04840000-0000-0000-0000-0000000000f1',
+   'SI-ET', '2026-03-20', 110, 110, 'inclusive', 0, 'USD', 'Unpaid', 1, 'PO-TAX');
 -- N7: PMO-raised, no project. A foreign-org ERP invoice F1 carries N7's exact keys AND points at org A's client, so only the
 -- org predicates (not the client join) keep N7 from pairing across orgs.
 insert into public.sales_invoices (id, org_id, project_id, customer_id, invoice_date, amount, erp_outstanding_amount,
@@ -103,7 +119,22 @@ select is((select count(*)::int from public.propose_invoice_pairs()
           'two ERP candidates for N5: both listed, both flagged ambiguous');
 select is((select count(*)::int from public.propose_invoice_pairs() where erp_invoice_id = '04840000-0000-0000-0000-0000000005f1'), 0,
           'another org''s ERP invoice with the same keys is never a candidate');
+select is((select count(*)::int from public.propose_invoice_pairs() where pmo_invoice_id = '04840000-0000-0000-0000-0000000005a8'), 0,
+          'FR-ECA-040 Finance is not proposed a same-value invoice in a different currency');
+select throws_ok($$select public.accept_invoice_pairs('[{"pmo":"04840000-0000-0000-0000-0000000005a8","erp":"04840000-0000-0000-0000-0000000005e8"}]'::jsonb)$$,
+                 '23514', null, 'FR-ECA-040 Finance cannot accept a same-value invoice in a different currency');
+select is((select count(*)::int from public.propose_invoice_pairs() where pmo_invoice_id = '04840000-0000-0000-0000-0000000005a9'), 0,
+          'FR-ECA-040 Finance is not proposed an invoice with a different reference and no matching invoice number');
+select throws_ok($$select public.accept_invoice_pairs('[{"pmo":"04840000-0000-0000-0000-0000000005a9","erp":"04840000-0000-0000-0000-0000000005e9"}]'::jsonb)$$,
+                 '23514', null, 'FR-ECA-040 Finance cannot accept an invoice with a different reference and no matching invoice number');
+select is((select count(*)::int from public.propose_invoice_pairs() where pmo_invoice_id = '04840000-0000-0000-0000-0000000005aa'), 0,
+          'FR-ECA-040 Finance is not proposed a same-gross invoice with a different tax amount');
+select throws_ok($$select public.accept_invoice_pairs('[{"pmo":"04840000-0000-0000-0000-0000000005aa","erp":"04840000-0000-0000-0000-0000000005ea"}]'::jsonb)$$,
+                 '23514', null, 'FR-ECA-040 Finance cannot accept a same-gross invoice with a different tax amount');
 reset role;
+set local request.jwt.claims = '{"sub":"04840000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select is((select count(*)::int from public.invoice_pair_candidates('04840000-0000-0000-0000-0000000005a7', '04840000-0000-0000-0000-0000000005f1')), 0,
+          'the candidate rule same-org join rejects a foreign ERP row even with server-level table access');
 -- amount off by one: no pair
 set local session_replication_role = replica;
 update public.sales_invoices set amount = 11101 where id = '04840000-0000-0000-0000-0000000005e1';
@@ -407,11 +438,17 @@ select throws_ok($$update public.sales_invoices set work_order_id = '04840000-00
                  '42501', null, 'a privileged session without the pairing flag cannot fill a work order on an ERP-owned invoice');
 
 -- ── 8. revenue not employed: no pairing at all ────────────────────────────────────────────────
+-- E2 is N2's exact ERP twin, so only the ownership gate can refuse it.
+insert into public.sales_invoices (id, org_id, project_id, work_order_id, customer_id, si_number, invoice_date, amount,
+                                   erp_outstanding_amount, tax_treatment, tax_amount, currency, status, erp_docstatus, reference_number) values
+  ('04840000-0000-0000-0000-0000000005ee', '04840000-0000-0000-0000-000000000001', null, null, '04840000-0000-0000-0000-0000000000f1',
+   'SI-E2', '2026-03-20', 5000, 5000, 'inclusive', 0, 'USD', 'Unpaid', 1, 'PO-9');
 delete from public.external_domain_ownership where org_id = '04840000-0000-0000-0000-000000000001' and domain = 'revenue';
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"04840000-0000-0000-0000-0000000000a1","role":"authenticated"}';
-select is((select count(*)::int from public.propose_invoice_pairs()), 0, 'no proposals while the ERP does not own revenue');
-select throws_ok($$select public.accept_invoice_pairs('[{"pmo":"04840000-0000-0000-0000-0000000005a2","erp":"04840000-0000-0000-0000-0000000005e1"}]'::jsonb)$$,
+select is((select count(*)::int from public.propose_invoice_pairs() where pmo_invoice_id = '04840000-0000-0000-0000-0000000005a2'), 0,
+          'no proposal for an otherwise-eligible pair while the ERP does not own revenue');
+select throws_ok($$select public.accept_invoice_pairs('[{"pmo":"04840000-0000-0000-0000-0000000005a2","erp":"04840000-0000-0000-0000-0000000005ee"}]'::jsonb)$$,
                  '23514', null, 'no accept while the ERP does not own revenue');
 reset role;
 

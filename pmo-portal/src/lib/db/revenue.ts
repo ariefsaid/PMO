@@ -516,10 +516,16 @@ export interface AcceptedInvoicePair {
   erpNumber: string | null;
 }
 
+/** Read in stable pages: PostgREST caps one response at 1,000 rows, and an org can hold more. */
 export async function proposeInvoicePairs(): Promise<InvoicePairProposal[]> {
-  const { data, error } = await supabase.rpc('propose_invoice_pairs');
-  if (error) throwWrite(error);
-  return (data ?? []).map((r) => ({
+  type Row = { pmo_invoice_id: string; erp_invoice_id: string; ambiguous: boolean; pmo_number: string | null; erp_number: string | null;
+    customer_name: string | null; amount: number; currency: string; invoice_date: string | null };
+  const data = await fetchAllPages<Row>((from, to) =>
+    supabase.rpc('propose_invoice_pairs')
+      .order('invoice_date').order('pmo_number').order('erp_number').order('pmo_invoice_id').order('erp_invoice_id')
+      .range(from, to) as unknown as PromiseLike<PageResult<Row>>,
+  );
+  return data.map((r) => ({
     pmoInvoiceId: r.pmo_invoice_id, erpInvoiceId: r.erp_invoice_id, ambiguous: r.ambiguous,
     pmoNumber: r.pmo_number, erpNumber: r.erp_number, customerName: r.customer_name,
     amount: Number(r.amount), currency: r.currency, invoiceDate: r.invoice_date,
@@ -558,9 +564,14 @@ export async function unpairInvoice(pmoInvoiceId: string): Promise<void> {
 }
 
 export async function listUnpairedNativeInvoices(): Promise<UnpairedNativeInvoice[]> {
-  const { data, error } = await supabase.rpc('list_unpaired_native_invoices');
-  if (error) throwWrite(error);
-  return (data ?? []).map((r) => ({
+  type Row = { invoice_id: string; pmo_number: string | null; customer_name: string | null; invoice_date: string | null;
+    amount: number; currency: string; reason: string };
+  const data = await fetchAllPages<Row>((from, to) =>
+    supabase.rpc('list_unpaired_native_invoices')
+      .order('invoice_date').order('pmo_number').order('invoice_id')
+      .range(from, to) as unknown as PromiseLike<PageResult<Row>>,
+  );
+  return data.map((r) => ({
     invoiceId: r.invoice_id, pmoNumber: r.pmo_number, customerName: r.customer_name, invoiceDate: r.invoice_date,
     amount: Number(r.amount), currency: r.currency, reason: r.reason as UnpairedReason,
   }));

@@ -203,7 +203,13 @@
     "undoTitle": "Hitung {{number}} secara terpisah lagi?",
     "undoBody": "Faktur PMO kembali masuk ke pendapatan dan piutang. Faktur ERP {{erp}} tetap ada, jadi jika keduanya dihitung, penjualan tampil dua kali sampai Anda memasangkannya lagi.",
     "undoDone": "{{number}} kini dihitung secara terpisah lagi.",
-    "undoFailed": "Tidak ada yang diubah. Pasangan mungkin sudah dibatalkan; daftar telah dimuat ulang."
+    "undoFailed": "Tidak ada yang diubah. Pasangan mungkin sudah dibatalkan; daftar telah dimuat ulang.",
+    "loadFailed": {
+      "propose": "Faktur yang cocok gagal dimuat.",
+      "unpaired": "Faktur yang masih dihitung sebagai faktur PMO gagal dimuat.",
+      "accepted": "Faktur yang sudah dihitung sekali gagal dimuat."
+    },
+    "retry": "Coba lagi"
   },
   "integrations": {
     "send": {

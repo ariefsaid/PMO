@@ -475,7 +475,7 @@ grant execute on function public.get_project_finances(uuid) to authenticated;
 
 -- §6 candidates: the one rule every pairing step uses. SECURITY INVOKER (RLS and the caller's org apply); a PMO-raised invoice
 -- with no live receipt against a submitted ERP invoice of the same client, reference (or ERP number), tax-inclusive total,
--- currency and month (FR-ECA-040). Optional filters let accept re-check a single pair without scanning the org.
+-- tax amount, currency and month (FR-ECA-040). Optional filters let accept re-check a single pair without scanning the org.
 create or replace function public.invoice_pair_candidates(p_pmo_id uuid default null, p_erp_id uuid default null, p_ignore_scope boolean default false)
   returns table (pmo_invoice_id uuid, erp_invoice_id uuid)
   language sql stable security invoker set search_path = public as $$
@@ -502,6 +502,8 @@ create or replace function public.invoice_pair_candidates(p_pmo_id uuid default 
      and n.currency = e.currency
      and case when n.tax_treatment = 'inclusive' then n.amount else n.amount + n.tax_amount end
        = case when e.tax_treatment = 'inclusive' then e.amount else e.amount + e.tax_amount end
+     -- Equal totals alone do not make equal tax (net 100 + tax 10 vs net 110 + tax 0): the tax must match too, so net does.
+     and n.tax_amount = e.tax_amount
      and date_trunc('month', n.invoice_date) = date_trunc('month', e.invoice_date)
 $$;
 revoke all on function public.invoice_pair_candidates(uuid, uuid, boolean) from public, anon;

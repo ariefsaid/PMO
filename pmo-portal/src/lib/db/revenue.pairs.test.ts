@@ -11,10 +11,37 @@ const h = vi.hoisted(() => ({
   notCalls: [] as Array<[string, string, unknown]>,
   single: null as Record<string, unknown> | null,
   inCalls: [] as Array<[string, unknown]>,
+  rpcPageQueries: [] as Array<{ name: string; from: number; to: number; order: string[] }>,
 }));
 vi.mock('@/src/lib/supabase/client', () => ({
   supabase: {
-    rpc: h.rpc,
+    rpc: (name: string, args?: unknown) => {
+      let from = 0;
+      let to = 999;
+      const order: string[] = [];
+      const query: Record<string, unknown> = {};
+      Object.assign(query, {
+        order: (column: string, options: { ascending?: boolean } = {}) => {
+          order.push(`${column}:${options.ascending === false ? 'desc' : 'asc'}`);
+          return query;
+        },
+        range: (start: number, end: number) => {
+          from = start;
+          to = end;
+          h.rpcPageQueries.push({ name, from, to, order: [...order] });
+          return query;
+        },
+        then: (resolve: (value: unknown) => unknown, reject: (reason: unknown) => unknown) =>
+          Promise.resolve(args === undefined ? h.rpc(name) : h.rpc(name, args)).then(
+            (response: { data: unknown; error: unknown }) => resolve({
+              ...response,
+              data: Array.isArray(response.data) ? response.data.slice(from, to + 1) : response.data,
+            }),
+            reject,
+          ),
+      });
+      return query;
+    },
     from: () => {
       const b: Record<string, unknown> = {};
       Object.assign(b, {
@@ -34,7 +61,7 @@ vi.mock('@/src/lib/supabase/client', () => ({
 
 import { proposeInvoicePairs, acceptInvoicePairs, unpairInvoice, getSalesInvoice, listUnpairedNativeInvoices, listAcceptedInvoicePairs } from './revenue';
 
-beforeEach(() => { h.rpc.mockReset(); h.pages = []; h.notCalls = []; h.single = null; h.inCalls = []; });
+beforeEach(() => { h.rpc.mockReset(); h.pages = []; h.notCalls = []; h.single = null; h.inCalls = []; h.rpcPageQueries = []; });
 
 describe('invoice pairing DAL (ECA-5)', () => {
   it('AC-ECA-030 proposeInvoicePairs maps the proposal rows and keeps the ambiguous flag', async () => {
@@ -52,6 +79,23 @@ describe('invoice pairing DAL (ECA-5)', () => {
     expect(rows).toEqual([
       { pmoInvoiceId: 'n1', erpInvoiceId: 'e1', ambiguous: false, pmoNumber: 'PMO-1', erpNumber: 'SI-1', customerName: 'Acme', amount: 11100, currency: 'IDR', invoiceDate: '2026-03-10' },
       { pmoInvoiceId: 'n5', erpInvoiceId: 'e5', ambiguous: true, pmoNumber: 'PMO-5', erpNumber: 'SI-5', customerName: 'Acme', amount: 7000, currency: 'IDR', invoiceDate: '2026-03-13' },
+    ]);
+  });
+
+  it('FR-ECA-040 proposeInvoicePairs reads every proposal beyond the 1,000-row PostgREST cap in stable pages', async () => {
+    const data = Array.from({ length: 1001 }, (_, i) => ({
+      pmo_invoice_id: `n${i}`, erp_invoice_id: `e${i}`, ambiguous: false, pmo_number: `PMO-${i}`, erp_number: `SI-${i}`,
+      customer_name: 'Acme', amount: 100, currency: 'IDR', invoice_date: '2026-03-10',
+    }));
+    h.rpc.mockResolvedValue({ data, error: null });
+
+    const rows = await proposeInvoicePairs();
+
+    expect(rows).toHaveLength(1001);
+    expect(rows.at(-1)?.pmoInvoiceId).toBe('n1000');
+    expect(h.rpcPageQueries).toEqual([
+      { name: 'propose_invoice_pairs', from: 0, to: 999, order: ['invoice_date:asc', 'pmo_number:asc', 'erp_number:asc', 'pmo_invoice_id:asc', 'erp_invoice_id:asc'] },
+      { name: 'propose_invoice_pairs', from: 1000, to: 1999, order: ['invoice_date:asc', 'pmo_number:asc', 'erp_number:asc', 'pmo_invoice_id:asc', 'erp_invoice_id:asc'] },
     ]);
   });
 
@@ -104,6 +148,23 @@ describe('invoice pairing DAL (ECA-5)', () => {
     const rows = await listUnpairedNativeInvoices();
 
     expect(rows).toEqual([{ invoiceId: 'n3', pmoNumber: 'PMO-3', customerName: 'Acme', invoiceDate: '2026-03-12', amount: 3000, currency: 'IDR', reason: 'has-receipt' }]);
+  });
+
+  it('FR-ECA-040 listUnpairedNativeInvoices reads every invoice beyond the 1,000-row PostgREST cap in stable pages', async () => {
+    const data = Array.from({ length: 1001 }, (_, i) => ({
+      invoice_id: `n${i}`, pmo_number: `PMO-${i}`, customer_name: 'Acme', invoice_date: '2026-03-10', amount: 100,
+      currency: 'IDR', reason: 'no-match',
+    }));
+    h.rpc.mockResolvedValue({ data, error: null });
+
+    const rows = await listUnpairedNativeInvoices();
+
+    expect(rows).toHaveLength(1001);
+    expect(rows.at(-1)?.invoiceId).toBe('n1000');
+    expect(h.rpcPageQueries).toEqual([
+      { name: 'list_unpaired_native_invoices', from: 0, to: 999, order: ['invoice_date:asc', 'pmo_number:asc', 'invoice_id:asc'] },
+      { name: 'list_unpaired_native_invoices', from: 1000, to: 1999, order: ['invoice_date:asc', 'pmo_number:asc', 'invoice_id:asc'] },
+    ]);
   });
 
   it('listAcceptedInvoicePairs reads PMO copies that now count as an ERP invoice, with the ERP number', async () => {

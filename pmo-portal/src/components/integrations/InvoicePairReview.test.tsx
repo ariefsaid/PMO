@@ -202,3 +202,32 @@ it('M9 a stale pair says the list is out of date instead of a generic failure', 
 
   expect(await screen.findByRole('alert')).toHaveTextContent('no longer a clear match');
 });
+
+it('a failed read is shown with a retry, never as an empty or complete list', async () => {
+  h.proposeInvoicePairs.mockRejectedValueOnce(new AppError('network down', 'FETCH'));
+  h.listUnpairedNativeInvoices.mockResolvedValue([
+    { invoiceId: 'n2', pmoNumber: 'PMO-2', customerName: 'Acme Co', invoiceDate: '2026-03-11', amount: 5000, currency: 'IDR', reason: 'no-match' },
+  ]);
+  mount();
+
+  const alert = await screen.findByRole('alert');
+  expect(alert).toHaveTextContent('Could not load the matching invoices.');
+  expect(screen.getByText(/PMO-2/)).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Count each once' })).not.toBeInTheDocument();
+
+  fireEvent.click(within(alert).getByRole('button', { name: 'Retry' }));
+  expect(await screen.findByText('PMO-1')).toBeInTheDocument();
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+});
+
+it('every failed read says so, even when nothing else loaded', async () => {
+  h.proposeInvoicePairs.mockRejectedValue(new AppError('down', 'FETCH'));
+  h.listUnpairedNativeInvoices.mockRejectedValue(new AppError('down', 'FETCH'));
+  h.listAcceptedInvoicePairs.mockRejectedValue(new AppError('down', 'FETCH'));
+  mount();
+
+  await waitFor(() => expect(screen.getAllByRole('alert')).toHaveLength(3));
+  expect(screen.getByText('Could not load the matching invoices.')).toBeInTheDocument();
+  expect(screen.getByText('Could not load the invoices still counted as PMO invoices.')).toBeInTheDocument();
+  expect(screen.getByText('Could not load the invoices that already count once.')).toBeInTheDocument();
+});

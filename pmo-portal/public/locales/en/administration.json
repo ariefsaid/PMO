@@ -203,7 +203,13 @@
     "undoTitle": "Count {{number}} on its own again?",
     "undoBody": "The PMO invoice goes back into revenue and receivables. The ERP invoice {{erp}} stays, so if both count, the sale shows twice until you pair them again.",
     "undoDone": "{{number}} counts on its own again.",
-    "undoFailed": "Nothing was changed. The pair may already be undone; the list has been reloaded."
+    "undoFailed": "Nothing was changed. The pair may already be undone; the list has been reloaded.",
+    "loadFailed": {
+      "propose": "Could not load the matching invoices.",
+      "unpaired": "Could not load the invoices still counted as PMO invoices.",
+      "accepted": "Could not load the invoices that already count once."
+    },
+    "retry": "Retry"
   },
   "integrations": {
     "send": {
