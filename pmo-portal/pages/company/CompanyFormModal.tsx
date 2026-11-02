@@ -12,22 +12,10 @@ import {
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { typeLabels } from './companyTypeLabels';
 import type { CompanyRow, CompanyType, CompanyInput } from '@/src/lib/db/companies';
 import { TaskPushBadge } from '@/src/components/tasks/TaskPushBadge';
 import { IDLE_PENDING_PUSH, type PendingPushState } from '@/src/lib/adapterSeam/pendingPush';
-
-/**
- * The display label for each `company_type` value, resolved once per render. The VALUE is the
- * database enum and is never translated (it is filter state, an export cell, and a policy input);
- * only the label a person reads is. One map so the filter segment, the form's Type select and the
- * row pill can never drift into three different words for the same type. Shared by the directory
- * (toolbar + pills) and this form — the single definition the two company surfaces read.
- */
-export const typeLabels = (t: TFunction): Record<CompanyType, string> => ({
-  Client: t('companies.type.client', 'Client'),
-  Vendor: t('companies.type.vendor', 'Supplier'),
-  Internal: t('companies.type.internal', 'Internal'),
-});
 
 /**
  * The ONE company create/edit form (PGA02-003 / OE01-005): the directory's former

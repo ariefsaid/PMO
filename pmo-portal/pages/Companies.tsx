@@ -30,9 +30,10 @@ import { trackFilterApplied } from '@/src/lib/analytics';
 import { useListSearchWorkingSet } from '@/src/hooks/useListSearchWorkingSet';
 import { useListReturn } from '@/src/hooks/useListReturn';
 import type { CompanyTypeFilter } from '@/src/lib/listWorkingSet';
-import type { CompanyRow, CompanyType } from '@/src/lib/db/companies';
+import type { CompanyRow } from '@/src/lib/db/companies';
 import { companyTypeVariant } from '@/src/lib/status/statusVariants';
-import { CompanyFormModal, typeLabels } from './company/CompanyFormModal';
+import { CompanyFormModal } from './company/CompanyFormModal';
+import { typeLabels } from './company/companyTypeLabels';
 import { IDLE_PENDING_PUSH } from '@/src/lib/adapterSeam/pendingPush';
 
 /** Type filter segments: All + the three company_type enum values (Internal / Client / Vendor).

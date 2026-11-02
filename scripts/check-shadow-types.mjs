@@ -65,8 +65,7 @@ const ALLOW = [
   //    they are indistinguishable from an accidental shadow; deriving them
   //    (`Omit<Tables<'x'>, …>`) would let this gate tell the two apart, which is the real fix.
   { file: 'components/IncidentFormModal.tsx', name: 'FormValues', reason: "form state: '' for empty, converted at submit." },
-  { file: 'pages/Contacts.tsx', name: 'FormValues', reason: "form state: '' for empty, converted at submit." },
-  { file: 'pages/ContactDetail.tsx', name: 'FormValues', reason: "form state: '' for empty, converted at submit." },
+  { file: 'pages/contact/ContactFormModal.tsx', name: 'FormValues', reason: "form state: '' for empty, converted at submit." },
   { file: 'pages/project-detail/MilestoneFormModal.tsx', name: 'FormValues', reason: "form state: '' for empty, converted at submit." },
   { file: 'pages/project-detail/tabs/TasksTab.tsx', name: 'FormValues', reason: "form state: '' for empty, converted at submit." },
 

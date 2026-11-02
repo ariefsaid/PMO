@@ -22,6 +22,7 @@ import { formatInstantDate } from '@/src/lib/format';
 import { crmActivityVariant } from '@/src/lib/status/statusVariants';
 import type { CrmActivityKind, CrmActivityInput, CrmActivityRow } from '@/src/lib/db/crmActivities';
 import { EditActivityModal } from '@/pages/activity/EditActivityModal';
+import { hrefForActivity } from './activityLinks';
 
 /**
  * The contact record page's activity panel (CROSS-69): the touchpoint log + timeline, moved off
@@ -41,14 +42,6 @@ const formatOccurred = (iso: string): string => {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
   return formatInstantDate(iso);
-};
-
-/** Returns the route to the related object for an activity, or null when neither id is set.
- *  project_id takes precedence over company_id (a project is more specific context). */
-export const hrefForActivity = (a: { project_id: string | null; company_id: string | null }): string | null => {
-  if (a.project_id) return `/projects/${a.project_id}`;
-  if (a.company_id) return `/companies/${a.company_id}`;
-  return null;
 };
 
 export const ContactActivityPanel: React.FC<{ contactId: string }> = ({ contactId }) => {

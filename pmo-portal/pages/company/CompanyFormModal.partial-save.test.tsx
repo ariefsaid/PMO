@@ -8,7 +8,8 @@ import type { CompanyRow } from '@/src/lib/db/companies';
 
 import { CompanyFormModal } from './CompanyFormModal';
 
-const company: CompanyRow = {
+// A directory row as the DAL returns it; the fixture carries only the fields the form reads.
+const company = {
   id: 'c1',
   name: 'Cascade Port Authority',
   short_name: 'Cascade',
@@ -17,7 +18,7 @@ const company: CompanyRow = {
   org_id: 'org-1',
   archived_at: null,
   created_at: '2026-01-01T00:00:00Z',
-};
+} as unknown as CompanyRow;
 
 const wrap = (ui: React.ReactNode) =>
   render(

@@ -11,7 +11,8 @@ import {
 import { useTranslation } from 'react-i18next';
 import { roleVariant } from '@/src/lib/status/statusVariants';
 import type { UserRow } from '@/src/lib/db/adminUsers';
-import { Avatar, useRoleLabels } from './userPresentation';
+import { Avatar } from './userPresentation';
+import { useRoleLabels } from './roleLabels';
 
 /**
  * The Administration › Users directory (CROSS-65 / XG01-002): the body block — toolbar + search,

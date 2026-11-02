@@ -2,8 +2,8 @@ import { useDomainOwnershipMode } from '@/src/hooks/useDomainOwnershipMode';
 import { useCompanyPartyMappings } from '@/src/hooks/useCompanyPartyMappings';
 import { HistorySection } from '@/src/components/history/HistorySection';
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
-import React, { useEffect, useLayoutEffect, useMemo, useState } from 'react';
-import { useParams, useNavigate, Link, useLocation } from 'react-router';
+import React, { useEffect, useLayoutEffect, useState } from 'react';
+import { useParams, useNavigate, useLocation } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import {
   RecordHeader,

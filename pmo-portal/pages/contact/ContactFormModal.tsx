@@ -78,8 +78,10 @@ export interface ContactFormModalProps {
   /** Create-mode subtitle override (the company-record surface says "at this company"). */
   createSubtitle?: string;
   onClose: () => void;
-  onCreate: (input: ContactInput) => Promise<void>;
-  onUpdate: (id: string, input: ContactInput) => Promise<void>;
+  /** The create-mode callback (required when `contact` is null). */
+  onCreate?: (input: ContactInput) => Promise<void>;
+  /** The edit-mode callback (required when `contact` is set). */
+  onUpdate?: (id: string, input: ContactInput) => Promise<void>;
   onError: (err: unknown) => void;
 }
 
@@ -156,8 +158,8 @@ export const ContactFormModal: React.FC<ContactFormModalProps> = ({
         notes: values.notes.trim() || null,
       };
       try {
-        if (isEdit && contact) await onUpdate(contact.id, input);
-        else await onCreate(input);
+        if (isEdit && contact) await onUpdate?.(contact.id, input);
+        else await onCreate?.(input);
       } catch (err) {
         const { headline, detail } = classifyMutationError(err, undefined, {
           module: 'contacts',
@@ -221,7 +223,7 @@ export const ContactFormModal: React.FC<ContactFormModalProps> = ({
               id="contact-form-company"
               label={t('contacts.form.company.label', 'Company')}
               required
-              value={lockedCompanyId}
+              value={lockedCompanyId!}
               onChange={() => { /* locked */ }}
               options={[{ value: lockedCompanyId!, label: lockedCompanyLabel ?? lockedCompanyId! }]}
               disabled

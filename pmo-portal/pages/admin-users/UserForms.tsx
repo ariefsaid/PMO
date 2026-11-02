@@ -13,7 +13,8 @@ import {
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import type { UserRow, UserRole } from '@/src/lib/db/adminUsers';
-import { useRoleLabels, initialsOf, avatarHue } from './userPresentation';
+import { useRoleLabels } from './roleLabels';
+import { initialsOf, avatarHue } from './avatar';
 
 /**
  * The three Administration › Users forms (CROSS-65 / XG01-002): invite, edit-role and
