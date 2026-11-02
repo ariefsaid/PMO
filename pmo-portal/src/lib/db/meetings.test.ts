@@ -55,7 +55,6 @@ vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: h.from } }));
 
 import {
   MEETING_LIST_CAP,
-  parseNoteBlocks,
   listMeetings,
   listMeetingsForContact,
   getMeeting,
@@ -80,25 +79,6 @@ beforeEach(() => {
   }
   h.queue.length = 0;
   h.queue.push({ data: null, error: null });
-});
-
-describe('parseNoteBlocks (FR-MTG-002 — the schema asserts only "array")', () => {
-  it('coerces a valid block array', () => {
-    expect(parseNoteBlocks([{ type: 'p', text: 'Kickoff' }])).toEqual([
-      { type: 'p', text: 'Kickoff' },
-    ]);
-  });
-  it('non-array notes flatten to an empty document, never a crash', () => {
-    expect(parseNoteBlocks({} as never)).toEqual([]);
-    expect(parseNoteBlocks(null as never)).toEqual([]);
-  });
-  it('unknown block shapes keep their text (or empty), never crash the page', () => {
-    expect(parseNoteBlocks([{ type: 'h1', text: 'Heading' }, { bogus: true }, 'raw'])).toEqual([
-      { type: 'p', text: 'Heading' },
-      { type: 'p', text: '' },
-      { type: 'p', text: 'raw' },
-    ]);
-  });
 });
 
 describe('listMeetings (FR-MTG-028/029/035)', () => {

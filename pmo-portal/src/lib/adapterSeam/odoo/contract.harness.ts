@@ -15,17 +15,28 @@ const KEY = 'test-key';
 const CTX: OdooConnectCtx = { companyId: 1, analyticPlanId: 7, unitMap: { sak: '11' } };
 const MODEL: Partial<Record<MasterKind, string>> = { party: 'res.partner', project: 'account.analytic.account', item: 'product.product' };
 const WRITES = new Set(['create', 'write']);
+const ACCOUNTING = new Set(['account.account', 'account.tax', 'account.fiscal.position']);
 
 /** A fresh fake Odoo; `armWrite` makes its next create/write fail with the given fault. */
 function fakeConnection() {
   const fake = createFakeOdoo({ key: KEY });
   let armed: 'transport' | 'lost-response' | null = null;
+  let reject = false;
+  const touched = new Set<string>();
   const fetchImpl = ((url: string, init?: RequestInit) => {
+    touched.add(String(url).split('/').slice(-2)[0]);   // /json/2/<model>/<method>
+    if (reject && WRITES.has(String(url).split('/').pop()!)) {
+      reject = false;
+      return Promise.resolve(Response.json({ name: 'odoo.exceptions.ValidationError', message: 'The record is invalid' }, { status: 422 }));
+    }
     if (armed && WRITES.has(String(url).split('/').pop()!)) { fake.failNext(armed); armed = null; }
     return fake.fetch(url, init);
   }) as typeof fetch;
   const adapter = createOdooSetupAdapter(bindCall({ baseUrl: 'https://odoo.example.test', apiKey: KEY, database: 'db1', fetchImpl }), CTX);
-  return { fake, adapter, armWrite: (f: 'transport' | 'lost-response') => { armed = f; } };
+  return {
+    fake, adapter, armWrite: (f: 'transport' | 'lost-response') => { armed = f; },
+    rejectNextWrite: () => { reject = true; }, touchedAccounting: () => [...touched].some((m) => ACCOUNTING.has(m)),
+  };
 }
 
 /** Place PMO-term masters in the fake Odoo (ids are Odoo's own; the suites never read them back). */
@@ -161,9 +172,9 @@ export function createOdooHarness(): ErpHarness {
     },
 
     connect(): ConnectHarness {
-      const { fake, adapter, armWrite } = fakeConnection();
+      const { fake, adapter, armWrite, rejectNextWrite, touchedAccounting } = fakeConnection();
       return {
-        adapter, documents: (kind) => documents(fake, kind), failNextWrite: armWrite, pageSize: LIST_PAGE,
+        adapter, documents: (kind) => documents(fake, kind), failNextWrite: armWrite, rejectNextWrite, touchedAccounting, pageSize: LIST_PAGE,
         load: (kind, rows) => load(fake, kind, rows),
         calls: () => ({ reads: fake.calls.filter((c) => !WRITES.has(c.method)).length, writes: fake.calls.filter((c) => WRITES.has(c.method)).length }),
       };

@@ -67,16 +67,6 @@ export function buildTaskRenderOrder(tasks: TaskWithRefs[]): TaskTreeNode[] {
 }
 
 /**
- * Depth lookup by task id (missing id → undefined; callers coerce to 0). Convenience for cell
- * renderers that need only the depth and not the ordered list.
- */
-export function depthByTask(tasks: TaskWithRefs[]): Map<string, number> {
-  const map = new Map<string, number>();
-  for (const node of buildTaskRenderOrder(tasks)) map.set(node.task.id, node.depth);
-  return map;
-}
-
-/**
  * Collect ALL descendant task ids of `taskId` over `tasks` (children, grandchildren, …).
  *
  * Used by the parent-picker to PREVENT making a task its own ancestor (cycle guard): a task
