@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   repositories,
   type MeetingWithRefs,
+  type MeetingListItem,
   type MeetingInput,
   type MeetingPatch,
   type MeetingListParams,
@@ -22,13 +23,13 @@ import { useAuth } from '@/src/auth/useAuth';
 export function useMeetings(params?: MeetingListParams) {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
-  return useQuery<MeetingWithRefs[]>({
-    queryKey: ['meetings', orgId, params?.projectId ?? 'all', params?.search ?? ''],
+  return useQuery<MeetingListItem[]>({
+    queryKey: ['meetings', orgId, params?.projectId ?? 'all', params?.search ?? '', params?.includeArchived ? 'archived' : 'active'],
     queryFn: () => repositories.meeting.list(params),
     enabled: Boolean(orgId),
     // Keep the previous rows on screen while a search/filter keystroke refetches — the list
     // must not flash its loading skeleton (and unmount the search box) on every character.
-    placeholderData: (prev: MeetingWithRefs[] | undefined) => prev,
+    placeholderData: (prev: MeetingListItem[] | undefined) => prev,
   });
 }
 
@@ -130,6 +131,11 @@ export function useMeetingMutations() {
     onSuccess: invalidateMeetings,
   });
 
+  const restore = useMutation({
+    mutationFn: (id: string) => repositories.meeting.restore(id),
+    onSuccess: invalidateMeetings,
+  });
+
   const remove = useMutation({
     mutationFn: (id: string) => repositories.meeting.delete(id),
     onSuccess: invalidateMeetings,
@@ -180,6 +186,7 @@ export function useMeetingMutations() {
     create,
     update,
     archive,
+    restore,
     remove,
     addAttendee,
     removeAttendee,

@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { ListState, SearchMini, StatusPill, SelectField, useToast, ViewToggle } from '@/src/components/ui';
 import { useMyTasks, useMyTaskMutations } from '@/src/hooks/useMyTasks';
 import { TaskCommentsDrawer } from '@/src/components/comments/TaskCommentsDrawer';
-import { formatDateOnly, formatCalendarDayInTimeZone, zonedDatetimeLocalToInstant } from '@/src/lib/format';
+import { formatDateOnly, formatCalendarDayInTimeZone, firstInstantOfZonedCalendarDay } from '@/src/lib/format';
 import { getActiveLocale } from '@/src/lib/locale/activeLocale';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import type { TaskStatus } from '@/src/lib/db/tasks';
@@ -22,17 +22,11 @@ function isOverdueTask(
   return Boolean(task.end_date && task.end_date < today && task.status !== 'Done');
 }
 
-/**
- * AC-IFW-TASKS-01: Sort key for urgency within a project group.
- *   0 = overdue open  (highest urgency)
- *   1 = non-overdue open
- *   2 = Done
- */
+/** AC-IFW-TASKS-01: Overdue open tasks precede the remaining tasks in each queue. */
 function urgencyKey(
   task: { end_date: string | null; status: string },
   today = todayIso(),
 ): number {
-  if (task.status === 'Done') return 2;
   if (isOverdueTask(task, today)) return 0;
   return 1;
 }
@@ -60,9 +54,9 @@ function useZonedToday(): string {
       const nextDayDate = new Date(Date.UTC(year, month - 1, day + 1));
       const nextDayStr = nextDayDate.toISOString().slice(0, 10);
 
-      const nextMidnight = zonedDatetimeLocalToInstant(`${nextDayStr}T00:00:00`, timezone);
-      const msUntilMidnight = nextMidnight ? nextMidnight.getTime() - Date.now() : 86400000;
-      const delay = Math.max(100, msUntilMidnight + 50);
+      const nextDayStart = firstInstantOfZonedCalendarDay(nextDayStr, timezone);
+      const msUntilDayChanges = nextDayStart ? nextDayStart.getTime() - Date.now() : 86400000;
+      const delay = Math.max(100, msUntilDayChanges + 50);
 
       timer = setTimeout(schedule, delay);
     }
@@ -94,10 +88,6 @@ function useZonedToday(): string {
 // DB enum values (database.types.ts: "To Do" | "In Progress" | "Done" | "Blocked").
 // Must match the `task_status` Postgres enum — see TasksTab.tsx for the same list.
 const TASK_STATUS_OPTIONS: TaskStatus[] = ['To Do', 'In Progress', 'Done', 'Blocked'];
-
-/** Map key for the project-less group. A sentinel, never a value that reaches a URL — the defect
- *  this replaces was keying on `t.project_id` directly and rendering `/projects/null/tasks`. */
-const NO_PROJECT = '\u0000no-project';
 
 const MyTasks: React.FC = () => {
   const { t } = useTranslation();
@@ -134,12 +124,10 @@ const MyTasks: React.FC = () => {
   // AC-IFW-TASKS-01: overdue open tasks precede other open work; dates sort soonest first.
   const grouped = React.useMemo(() => {
     if (!tasks) return [];
-    // #525 FR-FCT-041: a project-less task groups under its own heading. `NO_PROJECT` is a Map key
-    // only — it never reaches a URL, which is the bug it exists to prevent: the old code keyed on
-    // `task.project_id` directly and rendered `/projects/null/tasks` for a NULL one.
-    const map = new Map<string, { projectId: string | null; projectName: string; legalName?: string | null; items: typeof tasks }>();
+    // #525 FR-FCT-041: null is a stable key for the single project-less task group.
+    const map = new Map<string | null, { projectId: string | null; projectName: string; legalName?: string | null; items: typeof tasks }>();
     for (const task of visibleTasks) {
-      const key = task.project_id ?? NO_PROJECT;
+      const key = task.project_id;
       if (!map.has(key)) {
         map.set(key, {
           projectId: task.project_id,
