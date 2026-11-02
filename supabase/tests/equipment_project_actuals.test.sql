@@ -1,4 +1,4 @@
--- equipment_project_actuals.test.sql — 0473 (#1519 S4). Owns AC-EQU-010/011/016 and the S4 rows of AC-EQU-012: the actual-cost
+-- equipment_project_actuals.test.sql — 0497 (#1519 S4). Owns AC-EQU-010/011/016 and the S4 rows of AC-EQU-012: the actual-cost
 -- share reaches attributed_to_date, the hire-rate charge is its own field inside actuals_to_date, the existing figures are
 -- unchanged without settings, the charge is an amounts-audience figure, and nothing is posted to the ERP.
 -- Fixture F1 + F2 are docs/plans/2026-11-01-equipment-usage.md "Fixture F1" / "Ledger Fixture F2".

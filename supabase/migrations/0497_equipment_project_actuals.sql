@@ -1,14 +1,14 @@
--- 0473_equipment_project_actuals.sql — #1519 S4: equipment in project actuals. The hire-rate internal charge (S2's
+-- 0497_equipment_project_actuals.sql — #1519 S4: equipment in project actuals. The hire-rate internal charge (S2's
 -- equipment_hire_charges, outside the ledger, D5) joins project_mapped_actuals / project_mapped_actuals_all as a ninth
 -- column `equipment_charge_to_date` and is counted in actuals_to_date (OQ-3), stated separately in get_project_finances
 -- (`equipment_charge_total`, `equipment_charge_amount`); the `actual_cost` share already reaches attributed_to_date through
 -- the S3 engine. Also the OAuth API-client tiers for `pmo equipment`. With no equipment setting every existing figure is
 -- identical to 0376 / 0410 (AC-EQU-011). Spec: docs/specs/equipment-usage.spec.md. Plan: docs/plans/2026-11-01-equipment-usage.md S4.
 -- Proven by supabase/tests/equipment_project_actuals.test.sql and supabase/tests/equipment_api_client.test.sql.
--- Read-side only: nothing here posts to the ERP (OQ-1). The plan left the number open; the coordinator allocated 0473.
+-- Read-side only: nothing here posts to the ERP (OQ-1). The plan left the number open; the coordinator allocated 0497.
 -- Bodies are copied from the newest definition: project_mapped_actuals / _all = 0376, get_project_finances = 0410,
--- api_client_request_guard = 0397. Every changed line is marked 0473.
--- ── REVERSE (also supabase/migrations/rollback/0473_equipment_project_actuals_down.sql) ───────────────
+-- api_client_request_guard = 0397. Every changed line is marked 0497.
+-- ── REVERSE (also supabase/migrations/rollback/0497_equipment_project_actuals_down.sql) ───────────────
 --   (restore api_client_request_guard from 0397 and get_project_finances from 0410, verbatim)
 --   drop function if exists public.project_mapped_actuals_all(text);  then re-create the 9-column 0376 body
 --   drop function if exists public.project_mapped_actuals(uuid, text);  then re-create the 8-column 0376 body
@@ -58,7 +58,7 @@ drop function public.project_mapped_actuals(uuid, text);
 create function public.project_mapped_actuals(p_project_id uuid,p_fiscal_year text default null)
 returns table(category public.budget_category,mapped boolean,has_rows boolean,
               actuals_to_date numeric,actuals_as_of timestamptz,source_sum numeric,
-              tagged_to_date numeric,attributed_to_date numeric,equipment_charge_to_date numeric)  -- 0473
+              tagged_to_date numeric,attributed_to_date numeric,equipment_charge_to_date numeric)  -- 0497
 language sql stable security invoker set search_path = public,pg_temp as $$
   with generation as (
     select s.snapshot_id from public.erp_actuals_snapshot s
@@ -85,36 +85,36 @@ language sql stable security invoker set search_path = public,pg_temp as $$
     -- #1271: rule-attributed untagged ledger lines, same category map (0376).
     select x.* from public.cost_attribution_project_actuals(p_project_id,p_fiscal_year) x
     where exists (select 1 from public.projects p where p.id = p_project_id)
-  ), charged as (                                                                   -- 0473 OQ-3 / FR-EQU-051
+  ), charged as (                                                                   -- 0497 OQ-3 / FR-EQU-051
     select x.* from public.equipment_charge_project_actuals(p_project_id,p_fiscal_year) x
     where exists (select 1 from public.projects p where p.id = p_project_id)
   ), reading_as_of as (
     select greatest((select max(as_of) from reading),(select max(as_of) from attributed),
-                    (select max(as_of) from charged)) as v                           -- 0473
+                    (select max(as_of) from charged)) as v                           -- 0497
   )
-  select c.category,mc.category is not null,coalesce(a.n,0) + coalesce(t.n,0) + coalesce(q.n,0) > 0,     -- 0473 q
+  select c.category,mc.category is not null,coalesce(a.n,0) + coalesce(t.n,0) + coalesce(q.n,0) > 0,     -- 0497 q
     case when mc.category is null or (select v from reading_as_of) is null then null
-         when coalesce(a.n,0) + coalesce(t.n,0) + coalesce(q.n,0) = 0 then 0::numeric                       -- 0473 q
+         when coalesce(a.n,0) + coalesce(t.n,0) + coalesce(q.n,0) = 0 then 0::numeric                       -- 0497 q
          when (a.n > 0 and a.amount is null) or (t.n > 0 and t.amount is null) then null
-         else coalesce(a.amount,0) + coalesce(t.amount,0) + coalesce(q.amount,0) end,                       -- 0473 q
+         else coalesce(a.amount,0) + coalesce(t.amount,0) + coalesce(q.amount,0) end,                       -- 0497 q
     (select v from reading_as_of),
-    case when coalesce(a.n,0) + coalesce(t.n,0) = 0                                  -- 0473 budget-vs-actual
-         then case when q.n > 0 then q.amount end                                    -- 0473 charge-only (null when none)
+    case when coalesce(a.n,0) + coalesce(t.n,0) = 0                                  -- 0497 budget-vs-actual
+         then case when q.n > 0 then q.amount end                                    -- 0497 charge-only (null when none)
          else (case when a.n > 0 and t.n > 0 then a.source_sum + t.source_sum        -- 0376 verbatim
                     when a.n > 0 then a.source_sum
                     when t.n > 0 then t.source_sum end)
-              + coalesce(case when q.n > 0 then q.amount end,0) end,                 -- 0473
+              + coalesce(case when q.n > 0 then q.amount end,0) end,                 -- 0497
     case when mc.category is null or (select v from reading_as_of) is null then null
          when a.n > 0 then a.amount else 0::numeric end,
     case when mc.category is null or (select v from reading_as_of) is null then null
          when t.n > 0 then t.amount else 0::numeric end,
     case when mc.category is null or (select v from reading_as_of) is null then null
-         when q.n > 0 then q.amount else 0::numeric end                              -- 0473 equipment_charge_to_date
+         when q.n > 0 then q.amount else 0::numeric end                              -- 0497 equipment_charge_to_date
   from unnest(enum_range(null::public.budget_category)) c(category)
   left join mapped_categories mc on mc.category = c.category
   left join actuals a on a.category = c.category
   left join attributed t on t.category = c.category
-  left join charged q on q.category = c.category                                     -- 0473
+  left join charged q on q.category = c.category                                     -- 0497
 $$;
 revoke all on function public.project_mapped_actuals(uuid,text) from public,anon,authenticated;
 grant execute on function public.project_mapped_actuals(uuid,text) to authenticated;
@@ -125,7 +125,7 @@ drop function public.project_mapped_actuals_all(text);
 create function public.project_mapped_actuals_all(p_fiscal_year text default null)
 returns table(project_id uuid,category public.budget_category,mapped boolean,has_rows boolean,
               actuals_to_date numeric,actuals_as_of timestamptz,source_sum numeric,
-              tagged_to_date numeric,attributed_to_date numeric,equipment_charge_to_date numeric)  -- 0473
+              tagged_to_date numeric,attributed_to_date numeric,equipment_charge_to_date numeric)  -- 0497
 language sql stable security invoker set search_path = public,pg_temp as $$
   with visible as (
     select p.id from public.projects p
@@ -152,41 +152,41 @@ language sql stable security invoker set search_path = public,pg_temp as $$
   ), attributed as materialized (
     select x.* from public.cost_attribution_org_actuals(p_fiscal_year) x
     where x.project_id in (select id from visible)
-  ), charged as materialized (                                                       -- 0473
+  ), charged as materialized (                                                       -- 0497
     select x.* from public.equipment_charge_org_actuals(p_fiscal_year) x
     where x.project_id in (select id from visible)
   ), reading_as_of as (
     select v.id as project_id,
       greatest((select max(r.as_of) from reading r where r.project_id = v.id),
                (select max(t.as_of) from attributed t where t.project_id = v.id),
-               (select max(q.as_of) from charged q where q.project_id = v.id)) as v   -- 0473
+               (select max(q.as_of) from charged q where q.project_id = v.id)) as v   -- 0497
     from visible v
   )
-  select v.id,c.category,mc.category is not null,coalesce(a.n,0) + coalesce(t.n,0) + coalesce(q.n,0) > 0,   -- 0473 q
+  select v.id,c.category,mc.category is not null,coalesce(a.n,0) + coalesce(t.n,0) + coalesce(q.n,0) > 0,   -- 0497 q
     case when mc.category is null or o.v is null then null
-         when coalesce(a.n,0) + coalesce(t.n,0) + coalesce(q.n,0) = 0 then 0::numeric                     -- 0473 q
+         when coalesce(a.n,0) + coalesce(t.n,0) + coalesce(q.n,0) = 0 then 0::numeric                     -- 0497 q
          when (a.n > 0 and a.amount is null) or (t.n > 0 and t.amount is null) then null
-         else coalesce(a.amount,0) + coalesce(t.amount,0) + coalesce(q.amount,0) end,                     -- 0473 q
+         else coalesce(a.amount,0) + coalesce(t.amount,0) + coalesce(q.amount,0) end,                     -- 0497 q
     o.v,
-    case when coalesce(a.n,0) + coalesce(t.n,0) = 0                                  -- 0473 budget-vs-actual
-         then case when q.n > 0 then q.amount end                                    -- 0473 charge-only (null when none)
+    case when coalesce(a.n,0) + coalesce(t.n,0) = 0                                  -- 0497 budget-vs-actual
+         then case when q.n > 0 then q.amount end                                    -- 0497 charge-only (null when none)
          else (case when a.n > 0 and t.n > 0 then a.source_sum + t.source_sum        -- 0376 verbatim
                     when a.n > 0 then a.source_sum
                     when t.n > 0 then t.source_sum end)
-              + coalesce(case when q.n > 0 then q.amount end,0) end,                 -- 0473
+              + coalesce(case when q.n > 0 then q.amount end,0) end,                 -- 0497
     case when mc.category is null or o.v is null then null
          when a.n > 0 then a.amount else 0::numeric end,
     case when mc.category is null or o.v is null then null
          when t.n > 0 then t.amount else 0::numeric end,
     case when mc.category is null or o.v is null then null
-         when q.n > 0 then q.amount else 0::numeric end                              -- 0473 equipment_charge_to_date
+         when q.n > 0 then q.amount else 0::numeric end                              -- 0497 equipment_charge_to_date
   from visible v
   join reading_as_of o on o.project_id = v.id
   cross join unnest(enum_range(null::public.budget_category)) c(category)
   left join mapped_categories mc on mc.category = c.category
   left join actuals a on a.project_id = v.id and a.category = c.category
   left join attributed t on t.project_id = v.id and t.category = c.category
-  left join charged q on q.project_id = v.id and q.category = c.category            -- 0473
+  left join charged q on q.project_id = v.id and q.category = c.category            -- 0497
 $$;
 revoke all on function public.project_mapped_actuals_all(text) from public,anon,authenticated;
 grant execute on function public.project_mapped_actuals_all(text) to authenticated;
@@ -536,7 +536,7 @@ begin
       'attributed_total',(select case when count(*) filter(where mapped) = 0
                                   or count(*) filter(where mapped and attributed_to_date is null) > 0 then null
                           else sum(attributed_to_date) filter(where mapped) end::text from gl),
-      -- 0473 (#1519, FR-EQU-051): the hire-rate internal charge, inside `total`, stated on its own.
+      -- 0497 (#1519, FR-EQU-051): the hire-rate internal charge, inside `total`, stated on its own.
       'equipment_charge_total',(select case when count(*) filter(where mapped) = 0
                                   or count(*) filter(where mapped and equipment_charge_to_date is null) > 0 then null
                           else sum(equipment_charge_to_date) filter(where mapped) end::text from gl),
@@ -544,7 +544,7 @@ begin
                                                        'amount',actuals_to_date::text,
                                                        'tagged_amount',tagged_to_date::text,
                                                        'attributed_amount',attributed_to_date::text,
-                                                       'equipment_charge_amount',equipment_charge_to_date::text) order by category) from gl)  -- 0473
+                                                       'equipment_charge_amount',equipment_charge_to_date::text) order by category) from gl)  -- 0497
     )
   ) into v_result from public.projects p join public.organizations o on o.id = p.org_id
     cross join contract_sum cs where p.id = p_project_id;
@@ -591,10 +591,10 @@ declare
   cost_attribution_write_rpcs constant text[] := array['preview_cost_attribution', 'save_cost_attribution_rule', 'end_cost_attribution_rule'];  -- 0376
   cost_attribution_read_rpcs constant text[] := array['list_cost_attribution_rules'];  -- 0376
   -- EQUIPMENT TIER (`pmo equipment`, #1519): costing preview/save/end for active Admin/Finance; costing and allocation
-  -- reads for the amounts audience; usage totals for any active member. Same role sets as the RPCs' own checks.  -- 0473
-  equipment_write_rpcs constant text[] := array['preview_equipment_costing', 'save_equipment_costing', 'end_equipment_costing'];  -- 0473
-  equipment_read_rpcs constant text[] := array['list_equipment_costing', 'list_equipment_allocations'];  -- 0473
-  equipment_usage_rpcs constant text[] := array['list_equipment_usage_totals'];  -- 0473
+  -- reads for the amounts audience; usage totals for any active member. Same role sets as the RPCs' own checks.  -- 0497
+  equipment_write_rpcs constant text[] := array['preview_equipment_costing', 'save_equipment_costing', 'end_equipment_costing'];  -- 0497
+  equipment_read_rpcs constant text[] := array['list_equipment_costing', 'list_equipment_allocations'];  -- 0497
+  equipment_usage_rpcs constant text[] := array['list_equipment_usage_totals'];  -- 0497
   claims jsonb := nullif(current_setting('request.jwt.claims', true), '')::jsonb;
   headers jsonb := coalesce(nullif(current_setting('request.headers', true), '')::jsonb, '{}'::jsonb);
   method text := current_setting('request.method', true);
@@ -658,21 +658,21 @@ begin
         return;  -- 0376
       end if;  -- 0376
     end if;  -- 0376
-    if method = 'POST' and target = any (equipment_write_rpcs) then  -- 0473
-      if coalesce(public.auth_role()::text in ('Admin', 'Finance') and public.is_active_member(), false) then  -- 0473
-        return;  -- 0473
-      end if;  -- 0473
-    end if;  -- 0473
-    if method = 'POST' and target = any (equipment_read_rpcs) then  -- 0473
-      if coalesce(public.auth_role()::text in ('Admin', 'Executive', 'Project Manager', 'Finance') and public.is_active_member(), false) then  -- 0473
-        return;  -- 0473
-      end if;  -- 0473
-    end if;  -- 0473
-    if method = 'POST' and target = any (equipment_usage_rpcs) then  -- 0473
-      if coalesce(public.is_active_member(), false) then  -- 0473
-        return;  -- 0473
-      end if;  -- 0473
-    end if;  -- 0473
+    if method = 'POST' and target = any (equipment_write_rpcs) then  -- 0497
+      if coalesce(public.auth_role()::text in ('Admin', 'Finance') and public.is_active_member(), false) then  -- 0497
+        return;  -- 0497
+      end if;  -- 0497
+    end if;  -- 0497
+    if method = 'POST' and target = any (equipment_read_rpcs) then  -- 0497
+      if coalesce(public.auth_role()::text in ('Admin', 'Executive', 'Project Manager', 'Finance') and public.is_active_member(), false) then  -- 0497
+        return;  -- 0497
+      end if;  -- 0497
+    end if;  -- 0497
+    if method = 'POST' and target = any (equipment_usage_rpcs) then  -- 0497
+      if coalesce(public.is_active_member(), false) then  -- 0497
+        return;  -- 0497
+      end if;  -- 0497
+    end if;  -- 0497
     if method = 'POST' and target = any (set_aside_rpcs) then  -- 0364
       if coalesce(public.auth_role()::text in ('Admin', 'Finance') and public.is_active_member(), false) then  -- 0364
         return;  -- 0364
@@ -731,15 +731,15 @@ begin
      and p.proname in ('equipment_charge_project_actuals', 'equipment_charge_org_actuals',
                        'project_mapped_actuals', 'project_mapped_actuals_all', 'get_project_finances')
      and a.privilege_type = 'EXECUTE' and (a.grantee = 0 or r.rolname = 'anon');
-  if v_bad is not null then raise exception '0473: a charge or actuals function is executable by anon or PUBLIC: %', v_bad; end if;
+  if v_bad is not null then raise exception '0497: a charge or actuals function is executable by anon or PUBLIC: %', v_bad; end if;
   if not has_function_privilege('authenticated', 'public.equipment_charge_project_actuals(uuid,text)', 'execute')
      or not has_function_privilege('authenticated', 'public.equipment_charge_org_actuals(text)', 'execute')
      or not has_function_privilege('authenticated', 'public.project_mapped_actuals(uuid,text)', 'execute')
      or not has_function_privilege('authenticated', 'public.project_mapped_actuals_all(text)', 'execute') then
-    raise exception '0473: the actuals reads lost their authenticated grant';
+    raise exception '0497: the actuals reads lost their authenticated grant';
   end if;
   if not (select p.prosecdef from pg_proc p where p.oid = 'public.equipment_charge_project_actuals(uuid,text)'::regprocedure)
      or not (select p.prosecdef from pg_proc p where p.oid = 'public.equipment_charge_org_actuals(text)'::regprocedure) then
-    raise exception '0473: a charge helper is not SECURITY DEFINER';
+    raise exception '0497: a charge helper is not SECURITY DEFINER';
   end if;
 end $$;

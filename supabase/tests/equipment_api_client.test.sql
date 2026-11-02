@@ -1,4 +1,4 @@
--- equipment_api_client.test.sql — 0473 (#1519 S4). Owns AC-EQU-013: the OAuth API-client tiers for `pmo equipment`.
+-- equipment_api_client.test.sql — 0497 (#1519 S4). Owns AC-EQU-013: the OAuth API-client tiers for `pmo equipment`.
 -- Same role sets as the RPCs' own checks (plan S4.6). Fixture F1 is docs/plans/2026-11-01-equipment-usage.md "Fixture F1".
 begin;
 create extension if not exists pgtap;

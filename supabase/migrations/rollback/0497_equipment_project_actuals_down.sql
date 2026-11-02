@@ -1,4 +1,4 @@
--- 0473_equipment_project_actuals_down.sql — reverse of 0473 (#1519 S4), reverse dependency order. Restores the bodies 0473
+-- 0497_equipment_project_actuals_down.sql — reverse of 0497 (#1519 S4), reverse dependency order. Restores the bodies 0497
 -- replaced, verbatim: api_client_request_guard (0397), get_project_finances (0410), project_mapped_actuals_all and
 -- project_mapped_actuals (0376, the 9 / 8 column shapes); then drops the two charge helpers.
 create or replace function public.api_client_request_guard()
