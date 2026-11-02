@@ -86,8 +86,10 @@ function paymentCreateCommand(): Record<string, unknown> {
       erp_doc_kind: 'payment',
       procurementId: PROC_ID,
       invoiceId: INV_ID,
+      supplier: VENDOR_ID,
       paid_amount: 1090000,
       date: '2026-10-08',
+      references: [{ reference_doctype: 'Purchase Invoice', reference_name: PI_NAME, allocated_amount: 1090000 }],
     },
   };
 }
@@ -264,6 +266,15 @@ describe('#910 — the vendor-payment SoD gate through the SERVED adapter-dispat
     assertEquals(body.references, [
       { reference_doctype: 'Purchase Invoice', reference_name: PI_NAME, allocated_amount: 1090000 },
     ]);
+    const outboxInsert = r.calls.find((c) => c.method === 'POST' && c.url.pathname === '/rest/v1/external_command_outbox');
+    assert(outboxInsert, 'the composite probe payload is persisted at the outbox boundary');
+    const paymentPayload = (outboxInsert.bodyJson as { payload: Record<string, unknown> }).payload;
+    assertEquals(paymentPayload.party_type, 'Supplier');
+    assertEquals(paymentPayload.party, 'Demo Supplier');
+    assertEquals(paymentPayload.payment_type, 'Pay');
+    assertEquals(paymentPayload.paid_amount, 1090000);
+    assertEquals(paymentPayload.pi_names, [PI_NAME]);
+    assertEquals(paymentPayload.si_names, []);
   });
   // #1319 (owner AC-1 / AC-3): the step no longer gates a payment; the org's purchase gates and SoD still do.
   it('AC-PFE-001 a payment on a purchase that never reached Vendor Invoiced, with no approval recorded, dispatches — and the ceiling is not asked', async () => {
