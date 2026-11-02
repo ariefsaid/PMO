@@ -555,7 +555,7 @@ export async function runDraftInvoice(input: unknown, ctx: DeputyContext): Promi
     status: 'Draft',
     id: typeof canonical?.id === 'string' ? canonical.id : p.commandId,
     siNumber,
-    link: siNumber ? `/sales-invoices?q=${encodeURIComponent(siNumber)}` : '/sales-invoices',
+    link: siNumber ? `/finance/receivables?q=${encodeURIComponent(siNumber)}` : '/finance/receivables',
     note: "Saved as a Draft under the user's name. It is NOT submitted; a different Finance or Admin user submits it.",
   };
 }

@@ -200,13 +200,13 @@ export const MoneyBlock: React.FC<{ project: ProjectWithRefs }> = ({ project }) 
             : cash?.state === 'unavailable' && cash.reason === 'invalid-reading'
               ? t('projectDetail.money.cashInvalid', "Cash received is left out because the receipt reading couldn't be verified.")
               : t('projectDetail.money.cashUnavailable', 'Receipt-backed cash is not available yet.')}{' '}
-          {cash?.state === 'known' ? null : <FixLink to="/incoming-payments">{t('projectDetail.money.matchPayments', 'Match payments')}</FixLink>}
+          {cash?.state === 'known' ? null : <FixLink to="/finance/receivables?view=payments">{t('projectDetail.money.matchPayments', 'Match payments')}</FixLink>}
         </Note>
       )}
       {cashReceived !== null && paid !== null && paid > cashReceived && (
         <Note>
           {t('projectDetail.money.paidNotReceived', '{{amount}} is settled in accounting but no receipt is matched to it yet.', { amount: whole(paid - cashReceived) })}{' '}
-          <FixLink to="/incoming-payments">{t('projectDetail.money.matchPayments', 'Match payments')}</FixLink>
+          <FixLink to="/finance/receivables?view=payments">{t('projectDetail.money.matchPayments', 'Match payments')}</FixLink>
         </Note>
       )}
       <div className="mt-5 border-t border-border/70 pt-3" data-testid="money-position-details">

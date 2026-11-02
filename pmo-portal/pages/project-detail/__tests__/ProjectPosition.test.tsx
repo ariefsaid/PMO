@@ -549,7 +549,7 @@ describe('contract billing block', () => {
 
     renderWithQueryClient(<MemoryRouter><MoneyBlock project={project()} /></MemoryRouter>);
     expect(screen.getByText(/50 is settled in accounting but no receipt is matched to it yet\./)).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Match payments' })).toHaveAttribute('href', '/incoming-payments');
+    expect(screen.getByRole('link', { name: 'Match payments' })).toHaveAttribute('href', '/finance/receivables?view=payments');
   });
 
   it('AC-FX-011: shows the contract equivalent using the project contract date', () => {
@@ -597,7 +597,7 @@ describe('contract billing block', () => {
       <MemoryRouter><MoneyBlock project={project()} /></MemoryRouter>,
     );
     expect(screen.getByText('Money position')).toBeInTheDocument();
-    expect(screen.getByText('Match payments')).toHaveAttribute('href', '/incoming-payments');
+    expect(screen.getByText('Match payments')).toHaveAttribute('href', '/finance/receivables?view=payments');
     // C4: an unknown cash figure is left out (no label with a placeholder value); the reason is said once.
     expect(screen.queryByText('Cash received', { exact: true })).not.toBeInTheDocument();
     expect(screen.queryByText(/Unavailable|Not available/)).not.toBeInTheDocument();
