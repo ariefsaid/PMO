@@ -12,21 +12,21 @@ describe('withTimeout (UI-freeze hardening)', () => {
     vi.useRealTimers();
   });
 
-  it('resolves-before-deadline: a promise that settles before ms passes through unchanged', async () => {
+  it('resolves-before-deadline: a promise that settles before the deadline passes through unchanged', async () => {
     const inner = Promise.resolve('ok');
-    await expect(withTimeout(inner, 1000)).resolves.toBe('ok');
+    await expect(withTimeout(inner)).resolves.toBe('ok');
   });
 
   it('rejects-before-deadline: the original rejection passes through unchanged (no reclassification)', async () => {
     const boom = Object.assign(new Error('nope'), { code: '42501' });
     const inner = Promise.reject(boom);
     inner.catch(() => {}); // pre-attach so vitest doesn't flag the source promise as unhandled
-    await expect(withTimeout(inner, 1000)).rejects.toBe(boom);
+    await expect(withTimeout(inner)).rejects.toBe(boom);
   });
 
-  it('never-resolving promise rejects with the classified timeout error after ms', async () => {
+  it('never-resolving promise remains pending until the shared deadline, then rejects as timed out', async () => {
     const never = new Promise<string>(() => {});
-    const result = withTimeout(never, 5000);
+    const result = withTimeout(never);
     // Prevent an unhandled-rejection warning while the timer hasn't fired yet.
     result.catch(() => {});
 
@@ -41,7 +41,7 @@ describe('withTimeout (UI-freeze hardening)', () => {
       () => { state = 'rejected'; },
     );
 
-    await vi.advanceTimersByTimeAsync(4999);
+    await vi.advanceTimersByTimeAsync(14_999);
     await Promise.resolve(); // flush microtasks so a premature settlement would be visible
     expect(state).toBe('pending');
 
@@ -54,9 +54,9 @@ describe('withTimeout (UI-freeze hardening)', () => {
 
   it('the timeout AppError classifies via classifyMutationError as a recoverable "Request timed out" failure', async () => {
     const never = new Promise<string>(() => {});
-    const result = withTimeout(never, 1000);
+    const result = withTimeout(never);
     result.catch(() => {});
-    await vi.advanceTimersByTimeAsync(1000);
+    await vi.advanceTimersByTimeAsync(15_000);
     await expect(result).rejects.toBeInstanceOf(Error);
 
     let caught: unknown;
@@ -74,29 +74,10 @@ describe('withTimeout (UI-freeze hardening)', () => {
     });
   });
 
-  it('accepts a custom message for the default AppError timeout path', async () => {
-    const never = new Promise<string>(() => {});
-    const result = withTimeout(never, 500, 'Custom timeout message');
-    result.catch(() => {});
-    await vi.advanceTimersByTimeAsync(500);
-    await expect(result).rejects.toMatchObject({ message: 'Custom timeout message', code: REQUEST_TIMEOUT_CODE });
-  });
-
-  it('accepts a factory returning a custom Error for callers that want their own shape', async () => {
-    const never = new Promise<string>(() => {});
-    class CustomTimeoutError extends Error {
-      code = 'CUSTOM_TIMEOUT';
-    }
-    const result = withTimeout(never, 500, () => new CustomTimeoutError('custom'));
-    result.catch(() => {});
-    await vi.advanceTimersByTimeAsync(500);
-    await expect(result).rejects.toBeInstanceOf(CustomTimeoutError);
-  });
-
   it('clears the deadline timer once the promise settles (no dangling timer after resolve)', async () => {
     const clearSpy = vi.spyOn(global, 'clearTimeout');
     const inner = Promise.resolve('done');
-    await withTimeout(inner, 10_000);
+    await withTimeout(inner);
     expect(clearSpy).toHaveBeenCalled();
     clearSpy.mockRestore();
   });
@@ -116,7 +97,7 @@ describe('withTimeout (UI-freeze hardening)', () => {
    */
   it('AC-TMO-004: clears the deadline timer when the promise REJECTS before it, leaving no armed timer', async () => {
     const before = vi.getTimerCount();
-    await expect(withTimeout(Promise.reject(new Error('inner failed')), 10_000)).rejects.toThrow(
+    await expect(withTimeout(Promise.reject(new Error('inner failed')))).rejects.toThrow(
       'inner failed',
     );
     expect(vi.getTimerCount()).toBe(before);

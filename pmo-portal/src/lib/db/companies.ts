@@ -1,6 +1,7 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError, assertWriteLanded } from '@/src/lib/appError';
 import type { Tables } from '@/src/lib/supabase/database.types';
+import { BY_IDS_CHUNK } from './opportunity';
 import type { VendorTaxDefaultsInput } from '@/src/lib/vendorWithholding';
 
 export type CompanyRow = Tables<'companies'>;
@@ -68,6 +69,18 @@ export async function getCompany(id: string): Promise<CompanyRow | null> {
   const { data, error } = await supabase.from('companies').select('*').eq('id', id).maybeSingle();
   if (error) throwWrite(error);
   return data ?? null;
+}
+
+/** Companies readable by the caller among `ids`; inaccessible ids are simply absent. Reads in chunks. */
+export async function getCompaniesByIds(ids: readonly string[]): Promise<CompanyRow[]> {
+  const unique = [...new Set(ids)];
+  const out: CompanyRow[] = [];
+  for (let i = 0; i < unique.length; i += BY_IDS_CHUNK) {
+    const { data, error } = await supabase.from('companies').select('*').in('id', unique.slice(i, i + BY_IDS_CHUNK));
+    if (error) throwWrite(error);
+    out.push(...(data ?? []));
+  }
+  return out;
 }
 
 /**

@@ -347,6 +347,91 @@ Deno.test('claim-first adopt is wired into the live apply deps: the claim is an 
   assert(repaired === false, 'a mirror row that does not exist is reported absent (drives the same-id repair)');
 });
 
+// ── Live wiring: the shipped deps resolve status / parent / project for an existing mapped task. ───
+
+type FieldRow = Record<string, unknown>;
+function statefulClient(seed: { refs: FieldRow[]; tasks: FieldRow[] }) {
+  const tables: Record<string, FieldRow[]> = { external_refs: seed.refs, tasks: seed.tasks, external_sync_watermarks: [] };
+  const client = {
+    from(table: string) {
+      const filters: Array<[string, unknown]> = [];
+      let op: 'select' | 'update' | 'insert' | 'upsert' = 'select';
+      let payload: FieldRow = {};
+      const rows = () => (tables[table] ??= []);
+      const match = (r: FieldRow) => filters.every(([c, v]) => r[c] === v);
+      // deno-lint-ignore no-explicit-any
+      const b: any = {
+        select: () => b,
+        eq: (c: string, v: unknown) => (filters.push([c, v]), b),
+        is: (c: string, v: unknown) => (filters.push([c, v]), b),
+        or: () => b,
+        update: (p: FieldRow) => ((op = 'update'), (payload = p), b),
+        insert: (p: FieldRow) => ((op = 'insert'), (payload = p), b),
+        upsert: (p: FieldRow) => ((op = 'upsert'), (payload = p), b),
+        maybeSingle: () => Promise.resolve({ data: rows().find(match) ?? null, error: null }),
+        then: (resolve: (v: unknown) => unknown) => {
+          if (op === 'update') {
+            const hit = rows().filter(match);
+            hit.forEach((r) => Object.assign(r, payload));
+            return resolve({ data: hit.map((r) => ({ id: r.id })), error: null });
+          }
+          if (op === 'insert') rows().push({ ...payload });
+          return resolve({ data: null, error: null });
+        },
+      };
+      return b;
+    },
+  };
+  return { client, tables };
+}
+
+async function applyLive(
+  seed: { refs: FieldRow[]; tasks: FieldRow[] },
+  cuTask: ClickUpTask,
+  map: ClickUpStatusMap = statusMap,
+) {
+  const db = statefulClient(seed);
+  const binding: ResolvedBinding = { orgId: 'org-1', projectId: 'proj-1', statusMap: map, memberMap };
+  const row: InboxRow = { id: 'in-1', event: 'taskUpdated', task_id: cuTask.id, team_id: 'team-1', history_items: [] };
+  const outcome = await processInboxRow(row, {
+    resolveOrg: async () => ({ orgId: 'org-1', token: 't' }),
+    getTask: async () => cuTask,
+    resolveBinding: async () => binding,
+    buildApplyDeps: (bnd) => buildApplyDepsLive(db.client as never, bnd),
+  });
+  return { outcome, tables: db.tables };
+}
+const liveRef = (cu: string, pmo: string): FieldRow => ({ org_id: 'org-1', domain: 'tasks', external_record_id: cu, pmo_record_id: pmo });
+const liveMirror = (id: string, extra: FieldRow = {}): FieldRow => ({ id, org_id: 'org-1', project_id: 'proj-1', name: 'old', status: 'To Do', source_updated_at: new Date(1000).toISOString(), ...extra });
+
+Deno.test('live worker keeps a mapped task\'s PMO-only status across an unrelated inbound change', async () => {
+  const { tables } = await applyLive(
+    { refs: [liveRef('cu-1', 'pmo-1')], tasks: [liveMirror('pmo-1', { status: 'Blocked' })] },
+    task({ id: 'cu-1', name: 'Renamed' }),
+    { ...statusMap, pmoOnlyStatuses: ['Blocked'] },
+  );
+  assert(tables.tasks[0].name === 'Renamed', 'the inbound change applies');
+  assert(tables.tasks[0].status === 'Blocked', 'the PMO-only status must survive the sync');
+});
+
+Deno.test('live worker: no ClickUp parent keeps the linked PMO parent; a ClickUp parent resolves; another project\'s parent is refused', async () => {
+  const refs = [liveRef('cu-1', 'pmo-1'), liveRef('cu-p', 'pmo-p'), liveRef('cu-x', 'pmo-x')];
+  const tasks = () => [
+    liveMirror('pmo-1', { parent_task_id: 'pmo-keep' }),
+    liveMirror('pmo-p'),
+    liveMirror('pmo-x', { project_id: 'proj-other' }),
+  ];
+
+  const none = await applyLive({ refs, tasks: tasks() }, task({ id: 'cu-1' }));
+  assert(none.tables.tasks[0].parent_task_id === 'pmo-keep', 'a task with no ClickUp parent must not be flattened');
+
+  const resolved = await applyLive({ refs, tasks: tasks() }, { ...task({ id: 'cu-1' }), parent: 'cu-p' });
+  assert(resolved.tables.tasks[0].parent_task_id === 'pmo-p', 'the ClickUp parent resolves to the mirrored PMO task');
+
+  const refused = await applyLive({ refs, tasks: tasks() }, { ...task({ id: 'cu-1' }), parent: 'cu-x' });
+  assert(refused.tables.tasks[0].parent_task_id === null, 'a parent in another project than the bound child is refused');
+});
+
 // ── runWorkerBatch — claim/process/mark bookkeeping. ────────────────────────────────────────────
 
 function batchDeps(rows: InboxRow[], processRow: WorkerBatchDeps['processRow']): WorkerBatchDeps & {

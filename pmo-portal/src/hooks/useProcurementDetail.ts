@@ -21,9 +21,10 @@ import {
   type PendingPushState,
 } from '@/src/lib/adapterSeam/pendingPush';
 import type { Tables } from '@/src/lib/supabase/database.types';
-import type { CommandIntent } from '@/src/lib/repositories/types';
+import type { CommandIntent, CaptureSubcontractVendorInvoiceInput } from '@/src/lib/repositories/types';
 import { efakturRefusal } from '@/src/lib/efaktur';
 import { useStartRecordFolder } from '@/src/hooks/useStartRecordFolder';
+import { subcontractKeys } from '@/src/hooks/useSubcontract';
 import { procurementDetailKey, cachedProcurementProjectId, invalidateProcurementCase } from '@/src/hooks/procurementQueryKeys';
 
 // ---------------------------------------------------------------------------
@@ -197,6 +198,18 @@ export function useProcurementMutations(id: string) {
     onSuccess: invalidateDetail,
   });
 
+  const captureSubcontractVendorInvoice = useMutation<
+    ProcurementInvoiceRow,
+    ProcurementError,
+    Omit<CaptureSubcontractVendorInvoiceInput, 'procurementId'>
+  >({
+    mutationFn: (input) => repositories.subcontracts.captureSubcontractVendorInvoice({ ...input, procurementId: id }),
+    onSuccess: () => {
+      invalidateDetail();
+      queryClient.invalidateQueries({ queryKey: subcontractKeys.all(orgId) });
+    },
+  });
+
   // DD-EFK-1: vendor e-Faktur facts are PMO-owned, never dispatched or marked pending-push.
   const setEfaktur = useMutation<
     void,
@@ -219,5 +232,5 @@ export function useProcurementMutations(id: string) {
     onSuccess: invalidateDetail,
   });
 
-  return { transition, createQuotation, createReceipt, createInvoice, captureVendorInvoice, setEfaktur, approveAmount, pendingPush };
+  return { transition, createQuotation, createReceipt, createInvoice, captureVendorInvoice, captureSubcontractVendorInvoice, setEfaktur, approveAmount, pendingPush };
 }

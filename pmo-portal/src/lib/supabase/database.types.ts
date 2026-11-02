@@ -760,6 +760,64 @@ export type Database = {
           },
         ]
       }
+      budget_occupant_consents: {
+        Row: {
+          consented_at: string
+          consented_by: string
+          consumed_at: string | null
+          erp_account: string
+          erp_budget_name: string
+          fiscal_year: string
+          id: string
+          org_id: string
+          project_id: string
+        }
+        Insert: {
+          consented_at?: string
+          consented_by: string
+          consumed_at?: string | null
+          erp_account: string
+          erp_budget_name: string
+          fiscal_year: string
+          id?: string
+          org_id: string
+          project_id: string
+        }
+        Update: {
+          consented_at?: string
+          consented_by?: string
+          consumed_at?: string | null
+          erp_account?: string
+          erp_budget_name?: string
+          fiscal_year?: string
+          id?: string
+          org_id?: string
+          project_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budget_occupant_consents_consented_by_fkey"
+            columns: ["consented_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budget_occupant_consents_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budget_occupant_consents_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       budget_projections: {
         Row: {
           category: Database["public"]["Enums"]["budget_category"]
@@ -10602,6 +10660,14 @@ export type Database = {
         Args: { p_project_id?: string }
         Returns: number
       }
+      consume_budget_occupant_consent: {
+        Args: { p_actor_id: string; p_id: string; p_org_id: string }
+        Returns: undefined
+      }
+      create_budget_draft_from_erp: {
+        Args: { p_erp_budget_name: string; p_lines: Json; p_project_id: string }
+        Returns: string
+      }
       import_project_stage_history: {
         Args: { p_entries: Json; p_project_id: string }
         Returns: undefined
@@ -11400,6 +11466,10 @@ export type Database = {
       confirm_outbox: {
         Args: { p_generation: number; p_id: string }
         Returns: number
+      }
+      consent_budget_occupant_replace: {
+        Args: { p_erp_account: string; p_erp_budget_name: string; p_fiscal_year: string; p_project_id: string }
+        Returns: string
       }
       correct_vendor_withholding_slip: {
         Args: {

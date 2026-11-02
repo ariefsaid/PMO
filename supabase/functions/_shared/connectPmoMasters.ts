@@ -86,15 +86,20 @@ async function allRows(sc: SupabaseClient, table: string, cols: string, orgId: s
   }
 }
 
+/** What a PMO project is called in the ERP's own terms: ERPNext's project is matched on the Client Project Code; an Odoo cost
+ *  account carries the PMO project number (FR-ODC-072). Keyed by tier, so no code above the adapter branches on it. */
+const PROJECT_CODE_COLUMN: Record<string, string> = { erpnext: 'code', odoo: 'pmo_project_number' };
+
 /** The PMO side of the matcher for one kind. The employee `code` is the lower-cased work email (people link on a key, never a name). */
-export async function pmoMasters(sc: SupabaseClient, orgId: string, kind: MasterKind): Promise<PmoMaster[]> {
+export async function pmoMasters(sc: SupabaseClient, orgId: string, kind: MasterKind, tier = 'erpnext'): Promise<PmoMaster[]> {
   if (kind === 'party') {
     return (await allRows(sc, 'companies', 'id, name, type, erp_tax_id', orgId, (q) => q.in('type', ['Client', 'Vendor']).is('archived_at', null)))
       .map((r) => ({ id: String(r.id), name: String(r.name), role: r.type === 'Client' ? 'client' as const : 'vendor' as const, taxId: (r.erp_tax_id as string | null) ?? null }));
   }
   if (kind === 'project') {
-    return (await allRows(sc, 'projects', 'id, name, code', orgId, (q) => q.is('archived_at', null)))
-      .map((r) => ({ id: String(r.id), name: String(r.name), code: (r.code as string | null) ?? null }));
+    const column = PROJECT_CODE_COLUMN[tier] ?? 'code';
+    return (await allRows(sc, 'projects', `id, name, ${column}`, orgId, (q) => q.is('archived_at', null)))
+      .map((r) => ({ id: String(r.id), name: String(r.name), code: (r[column] as string | null) ?? null }));
   }
   if (kind === 'employee') {
     return (await allRows(sc, 'profiles', 'id, full_name, email', orgId, (q) => q.eq('status', 'active')))

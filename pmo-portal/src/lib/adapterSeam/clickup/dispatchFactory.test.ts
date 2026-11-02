@@ -3,7 +3,7 @@ import { resolveClickUpDispatchAdapter, type DispatchServiceClient } from './dis
 import { ClickUpRateLimiter } from './rateLimit.ts';
 import type { AdapterCommand } from '../contract.ts';
 
-function serviceClient(): DispatchServiceClient {
+function serviceClient(parentRef: 'mapped' | 'unmapped' | 'error' = 'mapped'): DispatchServiceClient {
   return {
     from(table: string) {
       return {
@@ -38,6 +38,10 @@ function serviceClient(): DispatchServiceClient {
               }
               if (table === 'tasks') {
                 return { data: { assignee_id: null }, error: null };
+              }
+              if (table === 'external_refs') {
+                if (parentRef === 'error') return { data: null, error: { message: 'read failed', code: 'XX000' } };
+                return { data: parentRef === 'mapped' ? { external_record_id: 'cu-parent' } : null, error: null };
               }
               throw new Error(`unexpected maybeSingle table ${table}`);
             },
@@ -105,5 +109,36 @@ describe('resolveClickUpDispatchAdapter baseUrl seam', () => {
     const result = await adapter.commit(command);
     expect(result.externalRecordId).toBe('cu-1');
     expect(result.canonical).toMatchObject({ id: 'pmo-1', name: 'Renamed in mock' });
+  });
+
+  describe('parent resolution for a command that names a parent', () => {
+    const create: AdapterCommand = {
+      domain: 'tasks',
+      operation: 'create',
+      record: { id: 'pmo-c', project_id: 'proj-1', name: 'C', status: 'To Do', parent_task_id: 'pmo-parent' },
+    };
+    const adapterFor = (parentRef: 'mapped' | 'unmapped' | 'error', fetchImpl: typeof fetch) =>
+      resolveClickUpDispatchAdapter({
+        serviceClient: serviceClient(parentRef),
+        orgId: 'org-1',
+        command: create,
+        fetchImpl,
+        token: 't',
+        rateLimiter: new ClickUpRateLimiter(),
+      });
+
+    it('a parent with no external_refs row is refused with a clear message and nothing reaches ClickUp', async () => {
+      const fetchImpl = vi.fn();
+      const adapter = await adapterFor('unmapped', fetchImpl as unknown as typeof fetch);
+      await expect(adapter.commit(create)).rejects.toMatchObject({ code: 'commit-rejected', message: expect.stringMatching(/not linked to ClickUp/) });
+      expect(fetchImpl).not.toHaveBeenCalled();
+    });
+
+    it('a failed external_refs read is an error, not "unmapped"', async () => {
+      const fetchImpl = vi.fn();
+      const adapter = await adapterFor('error', fetchImpl as unknown as typeof fetch);
+      await expect(adapter.commit(create)).rejects.toMatchObject({ code: 'XX000' });
+      expect(fetchImpl).not.toHaveBeenCalled();
+    });
   });
 });

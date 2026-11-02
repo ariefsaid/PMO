@@ -40,6 +40,12 @@ export interface MirrorCallbackCtx {
 export interface ClickUpMirrorCallbacks {
   resolvePmoRecordId: (externalRecordId: string) => Promise<string | null>;
   readMirrorSourceMod: (pmoRecordId: string) => Promise<number | null>;
+  /** The mirror's CURRENT PMO status (feeds the inbound status stickiness). */
+  readMirrorStatus: (pmoRecordId: string) => Promise<string | null>;
+  /** The project an existing mirror belongs to (cross-project parent guard, per-task project resolution). */
+  readMirrorProjectId: (pmoRecordId: string) => Promise<string | null>;
+  /** ClickUp parent task id → PMO task id via `external_refs` (null = parent not mirrored yet). */
+  resolveParentPmoId: (clickUpParentId: string) => Promise<string | null>;
   /** Compare-and-set: the update itself keeps the row only when the STORED source-modification is
    *  older-or-equal to the incoming one, and returns whether it applied (`false` = a newer state was
    *  already stored — apply nothing). */
@@ -54,6 +60,22 @@ export interface ClickUpMirrorCallbacks {
   adoptAtomically: AtomicAdoptStrategy;
 }
 
+/** The ClickUp-owned mirror columns of a canonical record. Only fields PRESENT on the record are
+ *  returned (an omitted field stays omitted, so an update never nulls what the sync did not carry —
+ *  e.g. `parent_task_id` when the ClickUp task has no parent); a present `null` is kept as `null`.
+ *  OD-INT-9: description + priority are ClickUp-owned native fields — mirrored inbound
+ *  (`canonical.priority` is already the PMO enum label). */
+const MIRROR_FIELDS = [
+  'name', 'status', 'assignee_id', 'start_date', 'end_date', 'completed_at', 'description', 'priority', 'parent_task_id',
+] as const;
+function presentMirrorFields(canonical: PmoRecord): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const f of MIRROR_FIELDS) {
+    if (canonical[f] !== undefined) out[f] = canonical[f] ?? null;
+  }
+  return out;
+}
+
 /**
  * Build the shared ClickUp mirror-callback bag for one org (+ optional project). Each callback closes
  * over the service client / org / project; all writes are org-scoped. The `mintMirror` callback
@@ -62,18 +84,42 @@ export interface ClickUpMirrorCallbacks {
  */
 export function createClickUpMirrorCallbacks(ctx: MirrorCallbackCtx): ClickUpMirrorCallbacks {
   const { serviceClient, orgId, projectId } = ctx;
+  const resolvePmoRecordId = async (externalRecordId: string): Promise<string | null> => {
+    const { data, error } = await serviceClient
+      .from('external_refs')
+      .select('pmo_record_id')
+      .eq('org_id', orgId)
+      .eq('domain', CLICKUP_TASKS_DOMAIN)
+      .eq('external_record_id', externalRecordId)
+      .maybeSingle();
+    if (error) throw new AppError(error.message, error.code);
+    return (data as { pmo_record_id: string } | null)?.pmo_record_id ?? null;
+  };
+  const readMirrorColumn = async (pmoRecordId: string, column: 'status' | 'project_id'): Promise<string | null> => {
+    const { data, error } = await serviceClient.from('tasks').select(column).eq('org_id', orgId).eq('id', pmoRecordId).maybeSingle();
+    if (error) throw new AppError(error.message, error.code);
+    return (data as Record<string, string | null> | null)?.[column] ?? null;
+  };
+  // The mint prefers a `project_id` on the canonical record (the multi-List sweep resolves the project
+  // per task, SEC-HIGH-2) and falls back to the ctx project (webhook / onboarding adopt paths).
+  const insertMirror = async (pmoRecordId: string, canonical: PmoRecord, sourceModMs: number): Promise<void> => {
+    const project = (canonical.project_id as string | null | undefined) ?? projectId;
+    if (!project) throw new AppError('projectId is required to adopt-mint a mirrored task', 'BAD_REQUEST');
+    const { error } = await serviceClient.from('tasks').insert({
+      id: pmoRecordId,
+      org_id: orgId,
+      project_id: project,
+      ...presentMirrorFields(canonical),
+      source_updated_at: new Date(sourceModMs).toISOString(),
+    });
+    if (error) throw new AppError(error.message, error.code);
+  };
   return {
-    resolvePmoRecordId: async (externalRecordId) => {
-      const { data, error } = await serviceClient
-        .from('external_refs')
-        .select('pmo_record_id')
-        .eq('org_id', orgId)
-        .eq('domain', CLICKUP_TASKS_DOMAIN)
-        .eq('external_record_id', externalRecordId)
-        .maybeSingle();
-      if (error) throw new AppError(error.message, error.code);
-      return (data as { pmo_record_id: string } | null)?.pmo_record_id ?? null;
-    },
+    resolvePmoRecordId,
+    // A ClickUp parent is just another mapped task: same `external_refs` lookup.
+    resolveParentPmoId: resolvePmoRecordId,
+    readMirrorStatus: (pmoRecordId) => readMirrorColumn(pmoRecordId, 'status'),
+    readMirrorProjectId: (pmoRecordId) => readMirrorColumn(pmoRecordId, 'project_id'),
     readMirrorSourceMod: async (pmoRecordId) => {
       const { data, error } = await serviceClient
         .from('tasks')
@@ -95,21 +141,7 @@ export function createClickUpMirrorCallbacks(ctx: MirrorCallbackCtx): ClickUpMir
       // two appliers can read the same stored timestamp before either write lands.
       const { data, error } = await serviceClient
         .from('tasks')
-        .update({
-          name: canonical.name,
-          status: canonical.status,
-          assignee_id: canonical.assignee_id ?? null,
-          start_date: canonical.start_date ?? null,
-          end_date: canonical.end_date ?? null,
-          completed_at: (canonical.completed_at as string | null | undefined) ?? null,
-          // OD-INT-9: description + priority are ClickUp-owned native fields — mirror them inbound.
-          // `canonical.priority` is already the PMO enum label (mapping.ts converted the ClickUp
-          // object → label); null is preserved (never invent a default).
-          description: (canonical.description as string | null | undefined) ?? null,
-          priority: (canonical.priority as string | null | undefined) ?? null,
-          parent_task_id: canonical.parent_task_id ?? null,
-          source_updated_at: iso,
-        })
+        .update({ ...presentMirrorFields(canonical), source_updated_at: iso })
         .eq('org_id', orgId)
         .eq('id', pmoRecordId)
         .or(`source_updated_at.is.null,source_updated_at.lte.${iso}`)
@@ -118,24 +150,8 @@ export function createClickUpMirrorCallbacks(ctx: MirrorCallbackCtx): ClickUpMir
       return Array.isArray(data) && data.length > 0;
     },
     mintMirror: async (canonical, sourceModMs) => {
-      if (!projectId) throw new AppError('projectId is required to adopt-mint a mirrored task', 'BAD_REQUEST');
       const pmoRecordId = crypto.randomUUID();
-      const { error } = await serviceClient.from('tasks').insert({
-        id: pmoRecordId,
-        org_id: orgId,
-        project_id: projectId,
-        name: canonical.name,
-        status: canonical.status,
-        assignee_id: canonical.assignee_id ?? null,
-        start_date: canonical.start_date ?? null,
-        end_date: canonical.end_date ?? null,
-        completed_at: (canonical.completed_at as string | null | undefined) ?? null,
-        description: (canonical.description as string | null | undefined) ?? null,
-        priority: (canonical.priority as string | null | undefined) ?? null,
-        parent_task_id: canonical.parent_task_id ?? null,
-        source_updated_at: new Date(sourceModMs).toISOString(),
-      });
-      if (error) throw new AppError(error.message, error.code);
+      await insertMirror(pmoRecordId, canonical, sourceModMs);
       return pmoRecordId;
     },
     readWatermark: async () => {
@@ -168,26 +184,7 @@ export function createClickUpMirrorCallbacks(ctx: MirrorCallbackCtx): ClickUpMir
     adoptAtomically: {
       newPmoRecordId: () => crypto.randomUUID(),
       claimExternalRef: (mapping) => insertExternalRef(serviceClient as never, { orgId, ...mapping }),
-      mintWithId: async (canonical, sourceModMs, pmoRecordId) => {
-        const project = (canonical.project_id as string | null | undefined) ?? projectId;
-        if (!project) throw new AppError('projectId is required to adopt-mint a mirrored task', 'BAD_REQUEST');
-        const { error } = await serviceClient.from('tasks').insert({
-          id: pmoRecordId,
-          org_id: orgId,
-          project_id: project,
-          name: canonical.name,
-          status: canonical.status,
-          assignee_id: canonical.assignee_id ?? null,
-          start_date: canonical.start_date ?? null,
-          end_date: canonical.end_date ?? null,
-          completed_at: (canonical.completed_at as string | null | undefined) ?? null,
-          description: (canonical.description as string | null | undefined) ?? null,
-          priority: (canonical.priority as string | null | undefined) ?? null,
-          parent_task_id: canonical.parent_task_id ?? null,
-          source_updated_at: new Date(sourceModMs).toISOString(),
-        });
-        if (error) throw new AppError(error.message, error.code);
-      },
+      mintWithId: (canonical, sourceModMs, pmoRecordId) => insertMirror(pmoRecordId, canonical, sourceModMs),
       mirrorExists: async (pmoRecordId) => {
         const { data, error } = await serviceClient
           .from('tasks')

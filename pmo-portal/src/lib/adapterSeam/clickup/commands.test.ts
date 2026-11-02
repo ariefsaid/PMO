@@ -182,25 +182,24 @@ describe('OD-INT-9 parent sync: outbound PMO parent_task_id → ClickUp parent',
     expect(result.externalRecordId).toBe('cu-child-1');
   });
 
-  it('create with an UNRESOLVABLE parent_task_id omits parent and still creates the task (flat)', async () => {
-    const fetchImpl = vi.fn(async (url: string, init?: RequestInit) => {
-      expect(url).toBe('https://api.clickup.com/api/v2/list/list-1/task');
-      expect(init?.method).toBe('POST');
-      const body = JSON.parse(init?.body as string);
-      expect('parent' in body).toBe(false); // unresolved parent omitted
-      expect(body).toMatchObject({ name: 'Child task', assignees: [] });
-      return new Response(JSON.stringify(clickUpTaskResponse({ id: 'cu-child-1' })), { status: 200 });
-    });
+  it('create with a parent that has NO ClickUp mapping is refused before any ClickUp call (never a flat task that PMO records as nested)', async () => {
+    const fetchImpl = vi.fn();
     const command: AdapterCommand = {
       domain: 'tasks',
       operation: 'create',
       record: { id: 'pmo-child-1', name: 'Child task', status: 'To Do', parent_task_id: 'pmo-unknown-parent' },
     };
-    const deps = baseDeps(fetchImpl as unknown as typeof fetch, {
-      resolveParentExternalId: vi.fn(async () => null), // unresolved
-    });
-    const result = await commitClickUpTaskCommand(command, deps);
-    expect(result.externalRecordId).toBe('cu-child-1');
+    const deps = baseDeps(fetchImpl as unknown as typeof fetch, { resolveParentExternalId: vi.fn(async () => null) });
+    await expect(commitClickUpTaskCommand(command, deps)).rejects.toMatchObject({ code: 'commit-rejected', message: expect.stringMatching(/not linked to ClickUp/) });
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('update to a parent with NO ClickUp mapping is refused before any ClickUp call', async () => {
+    const fetchImpl = vi.fn();
+    const command: AdapterCommand = { domain: 'tasks', operation: 'update', record: { id: 'pmo-1', parent_task_id: 'pmo-unmapped' } };
+    const deps = baseDeps(fetchImpl as unknown as typeof fetch, { resolveParentExternalId: vi.fn(async () => null) });
+    await expect(commitClickUpTaskCommand(command, deps)).rejects.toMatchObject({ code: 'commit-rejected' });
+    expect(fetchImpl).not.toHaveBeenCalled();
   });
 
   it('update re-parents: setting a new resolved parent includes parent in the update body', async () => {
@@ -222,22 +221,47 @@ describe('OD-INT-9 parent sync: outbound PMO parent_task_id → ClickUp parent',
     await commitClickUpTaskCommand(command, deps);
   });
 
-  it('update promoting to top-level (parent_task_id: null) sets parent: null in update body', async () => {
-    const fetchImpl = vi.fn(async (url: string, init?: RequestInit) => {
-      expect(url).toBe('https://api.clickup.com/api/v2/task/cu-task-1');
-      expect(init?.method).toBe('PUT');
+  it('update with parent_task_id: null sends NO parent (ClickUp cannot un-nest a subtask) and stamps nothing', async () => {
+    const fetchImpl = vi.fn(async (_url: string, init?: RequestInit) => {
       const body = JSON.parse(init?.body as string);
-      expect(body).toMatchObject({ parent: null });
-      return new Response(JSON.stringify(clickUpTaskResponse()), { status: 200 });
+      expect('parent' in body).toBe(false);
+      return new Response(JSON.stringify(clickUpTaskResponse({ parent: 'cu-old-parent' })), { status: 200 });
     });
-    const command: AdapterCommand = {
-      domain: 'tasks',
-      operation: 'update',
-      record: { id: 'pmo-1', parent_task_id: null },
-    };
-    const deps = baseDeps(fetchImpl as unknown as typeof fetch, {
-      resolveParentExternalId: vi.fn(async () => 'cu-old-parent'), // ignored when null
+    const command: AdapterCommand = { domain: 'tasks', operation: 'update', record: { id: 'pmo-1', parent_task_id: null } };
+    const result = await commitClickUpTaskCommand(command, baseDeps(fetchImpl as unknown as typeof fetch));
+    expect('parent_task_id' in result.canonical).toBe(false); // the mirror is not told the task is top-level
+  });
+
+  it('the canonical parent comes from ClickUp\'s response: confirmed → stamped; not confirmed → left out', async () => {
+    const command: AdapterCommand = { domain: 'tasks', operation: 'update', record: { id: 'pmo-1', parent_task_id: 'pmo-new-parent' } };
+    const deps = (parent: string | null) =>
+      baseDeps(vi.fn(async () => new Response(JSON.stringify(clickUpTaskResponse({ parent })), { status: 200 })) as unknown as typeof fetch, {
+        resolveParentExternalId: vi.fn(async () => 'cu-new-parent'),
+      });
+    expect((await commitClickUpTaskCommand(command, deps('cu-new-parent'))).canonical.parent_task_id).toBe('pmo-new-parent');
+    expect('parent_task_id' in (await commitClickUpTaskCommand(command, deps(null))).canonical).toBe(false);
+    expect('parent_task_id' in (await commitClickUpTaskCommand(command, deps('cu-somewhere-else'))).canonical).toBe(false);
+  });
+
+  it('create stamps the parent only when ClickUp confirms it on the created task', async () => {
+    const command: AdapterCommand = { domain: 'tasks', operation: 'create', record: { id: 'pmo-c', name: 'C', status: 'To Do', parent_task_id: 'pmo-p' } };
+    const deps = (parent: string | null) =>
+      baseDeps(vi.fn(async () => new Response(JSON.stringify(clickUpTaskResponse({ id: 'cu-c', parent })), { status: 200 })) as unknown as typeof fetch, {
+        resolveParentExternalId: vi.fn(async () => 'cu-p'),
+      });
+    expect((await commitClickUpTaskCommand(command, deps('cu-p'))).canonical.parent_task_id).toBe('pmo-p');
+    expect('parent_task_id' in (await commitClickUpTaskCommand(command, deps(null))).canonical).toBe(false);
+  });
+
+  it('a status transition never sends or resolves a parent, even if the record carries one', async () => {
+    const resolveParentExternalId = vi.fn(async () => 'cu-p');
+    const fetchImpl = vi.fn(async (_url: string, init?: RequestInit) => {
+      expect('parent' in JSON.parse(init?.body as string)).toBe(false);
+      return new Response(JSON.stringify(clickUpTaskResponse({ parent: 'cu-p' })), { status: 200 });
     });
-    await commitClickUpTaskCommand(command, deps);
+    const command: AdapterCommand = { domain: 'tasks', operation: 'transition', record: { id: 'pmo-1', status: 'Done', parent_task_id: 'pmo-p' } };
+    const result = await commitClickUpTaskCommand(command, baseDeps(fetchImpl as unknown as typeof fetch, { resolveParentExternalId }));
+    expect(resolveParentExternalId).not.toHaveBeenCalled();
+    expect('parent_task_id' in result.canonical).toBe(false);
   });
 });

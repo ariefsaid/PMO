@@ -3630,3 +3630,6 @@ amounts of non-Employee-party pools. The pool, its line count and the driver tot
 and so is the amount of any Employee-party row. Admin, Finance and Executive read every value. The ledger-read
 ruling (0311, mirror rows for Admin/Finance/Executive) outranks FR-EQU-062 and FR-EQU-044, which are amended to
 say so. Proven in `supabase/tests/equipment_actual_cost.test.sql` (one row per hidden field, PM null / Finance value).
+
+## OD-SIGN-20261102 — three EPC-route specs signed with their defaults (owner 2026-11-02)
+The owner signed `docs/specs/odoo-purchase-to-payment.spec.md` (#1505), `docs/specs/odoo-client-invoices.spec.md` (#1506) and `docs/specs/time-and-materials-claims.spec.md` (#1514), accepting every owner-decision default as written. This includes #1506's default that retention (holding part of a claim and releasing it later) stays out of scope; it remains tracked separately (#1572). Builds follow each spec's plan; money slices ship alone.
