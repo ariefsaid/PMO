@@ -35,5 +35,3 @@ export const HistorySection: React.FC<{ entityType: string; entityId: string }> 
     </Card>
   );
 };
-
-export default HistorySection;

@@ -54,6 +54,7 @@ import type { useProcurementMutations } from '@/src/hooks/useProcurementDetail';
 import { TaskPushBadge } from '@/src/components/tasks/TaskPushBadge';
 import { IDLE_PENDING_PUSH } from '@/src/lib/adapterSeam/pendingPush';
 import { useOrgTaxDefault, useTaxTreatmentPreselect } from '@/src/hooks/useOrgTaxDefault';
+import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { useVendorTaxDefault } from '@/src/hooks/useVendorTaxDefault';
 import { useNativeVendorTax } from '@/src/hooks/useVendorBillTax';
 import { NativeWithholdingField, TaxSuggestedFrom } from './VendorBillTaxFields';
@@ -429,10 +430,11 @@ interface VIInlineCaptureProps {
 
 const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCancel, vendorId = null, currency = null, subcontractPoId }) => {
   const { t } = useTranslation();
+  const today = useOrgToday();
   // Hidden on an ERP-owned org: the dispatched create never carries it (see groupRefIsPmoAuthored).
   const showGroupRef = groupRefIsPmoAuthored();
   const [viStatus, setViStatus] = React.useState<'Received' | 'Scheduled'>('Received');
-  const [invoiceDate, setInvoiceDate] = React.useState(new Date().toISOString().slice(0, 10));
+  const [invoiceDate, setInvoiceDate] = React.useState(today);
   const [refNum, setRefNum] = React.useState('');
   const [groupRef, setGroupRef] = React.useState('');
   const [amtStr, setAmtStr] = React.useState('');

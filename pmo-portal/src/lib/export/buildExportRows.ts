@@ -9,6 +9,7 @@
  */
 
 import type { Column } from '@/src/components/ui';
+import type { CellType } from './cellType';
 
 export type CellValue = string | number | boolean;
 
@@ -17,6 +18,8 @@ export interface ExportTable {
   header: string[];
   /** One array per row; cells parallel `header`. */
   body: CellValue[][];
+  /** Explicit export cell type per column parallel to `header`. */
+  types?: CellType[];
 }
 
 /**
@@ -27,10 +30,18 @@ function headerLabel<Row>(col: Column<Row>): string {
   return typeof col.header === 'string' ? col.header : col.key;
 }
 
+function columnCellType<Row>(col: Column<Row>): CellType {
+  if (col.exportType) return col.exportType;
+  if (col.kind === 'date') return 'date';
+  if (col.kind === 'money' || col.kind === 'number' || col.kind === 'percent') return 'number';
+  return 'text';
+}
+
 export function buildExportRows<Row>(rows: Row[], columns: Column<Row>[]): ExportTable {
   const header = columns.map(headerLabel);
+  const types = columns.map(columnCellType);
   const body = rows.map((row) =>
     columns.map((c): CellValue => (c.exportValue ? c.exportValue(row) : '')),
   );
-  return { header, body };
+  return { header, body, types };
 }

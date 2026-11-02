@@ -3,13 +3,18 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 import { FinanceI18nTestProvider } from '@/pages/__tests__/financeI18nTestProvider';
 import { financeTestI18n, financeTestI18nReady } from '@/pages/__tests__/financeI18nTestInstance';
-const h = vi.hoisted(() => ({ data: { pages: [] as unknown[] }, contexts: {} as Record<string, { state: 'ready' | 'pending' | 'unavailable'; caseTitle?: string; projectName?: string; pmoProjectNumber?: string }>, isError: false, hasNextPage: false, refetch: vi.fn(), fetchNextPage: vi.fn(), save: vi.fn() }));
+const h = vi.hoisted(() => ({ data: { pages: [] as unknown[] }, contexts: {} as Record<string, { state: 'ready' | 'pending' | 'unavailable'; caseTitle?: string; projectName?: string; pmoProjectNumber?: string }>, isError: false, hasNextPage: false, orgTimezone: 'UTC', refetch: vi.fn(), fetchNextPage: vi.fn(), save: vi.fn() }));
 vi.mock('@/src/hooks/useVendorWithholdingSlips', () => ({ useVendorWithholdingCandidates: () => ({ data: h.data, isLoading: false, isError: h.isError, hasNextPage: h.hasNextPage, refetch: h.refetch, fetchNextPage: h.fetchNextPage, isFetchingNextPage: false }), useVendorWithholdingBillContexts: () => h.contexts }));
+vi.mock('@/src/hooks/useResolvedLocale', () => ({ useOrgBusinessTimezone: () => h.orgTimezone }));
 import { VendorWithholdingSlipModal } from './VendorWithholdingSlipModal';
 import type { ProcurementInvoiceRow } from '@/src/lib/db/procurementLifecycle';
 const invoice = { id: 'invoice-a', currency: 'IDR', withheld_amount: 20000, withheld_pph_type: 'pph23' } as ProcurementInvoiceRow;
 const bill = { invoice_id: 'invoice-a', vendor_id: 'vendor-a', currency: 'IDR', withheld_amount: '20000.00', withheld_pph_type: 'pph23', invoice_date: '2026-10-01', reference_number: 'SUP-A-1', vi_number: 'VI-A' };
-afterEach(() => resetActiveLocale());
+afterEach(() => {
+  vi.useRealTimers();
+  h.orgTimezone = 'UTC';
+  resetActiveLocale();
+});
 
 describe('AC-BUPOT-017 capture form', () => {
   it('#961 F13 makes candidate checkbox targets at least 44px on phone', async () => {
@@ -252,5 +257,54 @@ describe('AC-BUPOT-017 capture form', () => {
     await waitFor(() => expect(h.save).toHaveBeenCalledOnce());
     expect(await screen.findByText(/issued amount does not match/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/issued slip number/i)).toHaveValue('DJ-TEST-2');
+  });
+
+  it('PGB-006 constrains slip date and tax period month to org today', async () => {
+    setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'Asia/Tokyo' });
+    h.data = { pages: [{ rows: [bill] }] };
+    render(<VendorWithholdingSlipModal invoice={invoice} vendorId="vendor-a" open onClose={vi.fn()} onSave={h.save} />);
+    const slipDateInput = await screen.findByLabelText(/slip date/i);
+    const taxPeriodInput = screen.getByLabelText(/tax period/i);
+    expect(slipDateInput).toHaveAttribute('type', 'date');
+    expect(slipDateInput).toHaveAttribute('max');
+    const maxDate = slipDateInput.getAttribute('max')!;
+    expect(maxDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(taxPeriodInput).toHaveAttribute('type', 'month');
+    expect(taxPeriodInput).toHaveAttribute('max', maxDate.slice(0, 7));
+
+    fireEvent.change(screen.getByLabelText(/issued slip number/i), { target: { value: 'DJ-MAX-1' } });
+    fireEvent.change(screen.getByLabelText(/tax base/i), { target: { value: '100000' } });
+    fireEvent.change(screen.getByLabelText(/issued withheld amount/i), { target: { value: '20000' } });
+
+    // Future slip date disables submission
+    fireEvent.change(slipDateInput, { target: { value: '2099-12-31' } });
+    const recordBtn = screen.getByRole('button', { name: /record bukti potong/i });
+    expect(recordBtn).toBeDisabled();
+
+    // Valid slip date, future tax period disables submission
+    fireEvent.change(slipDateInput, { target: { value: maxDate } });
+    fireEvent.change(taxPeriodInput, { target: { value: '2099-12' } });
+    expect(recordBtn).toBeDisabled();
+
+    // Valid tax period enables submission
+    fireEvent.change(taxPeriodInput, { target: { value: maxDate.slice(0, 7) } });
+    expect(recordBtn).toBeEnabled();
+  });
+
+  it('PGB-006 uses the organization month when the profile timezone has crossed into July', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-07-01T00:30:00.000Z'));
+    h.orgTimezone = 'America/Los_Angeles';
+    setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'Asia/Tokyo' });
+    h.data = { pages: [{ rows: [bill] }] };
+
+    render(<VendorWithholdingSlipModal invoice={invoice} vendorId="vendor-a" open onClose={vi.fn()} onSave={h.save} />);
+
+    const slipDateInput = await screen.findByLabelText(/slip date/i);
+    const taxPeriodInput = screen.getByLabelText(/tax period/i);
+    expect(slipDateInput).toHaveValue('2026-06-30');
+    expect(slipDateInput).toHaveAttribute('max', '2026-06-30');
+    expect(taxPeriodInput).toHaveValue('2026-06');
+    expect(taxPeriodInput).toHaveAttribute('max', '2026-06');
   });
 });
