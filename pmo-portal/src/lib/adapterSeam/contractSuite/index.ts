@@ -1,6 +1,6 @@
 import type { WorkflowId } from '../connect/workflows.ts';
 import { bringInSuite } from './bringIn.suite.ts';
-import { budgetSuite } from './budget.suite.ts';
+import { budgetResolveSuite, budgetSuite } from './budget.suite.ts';
 import { censusSuite } from './census.suite.ts';
 import { cutoverPurchaseSuite } from './cutoverPurchase.suite.ts';
 import { cutoverSuite } from './cutover.suite.ts';
@@ -30,6 +30,7 @@ export const SUITES: Readonly<Partial<Record<WorkflowId, Suite>>> = {
   'project.send': projectSendSuite,
   'item.send': itemSendSuite,
   'budget.unowned-occupant': budgetSuite,
+  'budget.resolve-occupant': budgetResolveSuite,
   'cutover.activation': cutoverSuite,
   'cutover.purchase': cutoverPurchaseSuite,
   'purchase.push': purchasePushSuite,

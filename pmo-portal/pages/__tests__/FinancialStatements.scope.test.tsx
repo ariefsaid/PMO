@@ -15,6 +15,7 @@ import { repositories } from '@/src/lib/repositories';
 import FinancialStatements from '../FinancialStatements';
 
 const projectId = '11111111-1111-4111-8111-111111111111';
+const otherProjectId = '22222222-2222-4222-8222-222222222222';
 const generation = {
   snapshotId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
   sourceGeneration: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
@@ -40,7 +41,7 @@ function catalogue(scopesProject = true): FinancialStatementCatalogue {
     periods: pairs,
     scopes: [
       { scopeKind: 'company', projectId: null, statements: ['trial_balance', 'profit_and_loss', 'balance_sheet'], viewKinds: ['account_breakdown'] },
-      ...(scopesProject ? [{ scopeKind: 'project' as const, projectId, statements: ['profit_and_loss' as const], viewKinds: ['account_breakdown' as const] }] : []),
+      ...(scopesProject ? [projectId, otherProjectId].map((id) => ({ scopeKind: 'project' as const, projectId: id, statements: ['profit_and_loss' as const], viewKinds: ['account_breakdown' as const] })) : []),
     ],
   };
 }
@@ -152,12 +153,12 @@ let companyListSpy: ReturnType<typeof vi.spyOn>;
 beforeEach(() => {
   catalogueSpy = vi.spyOn(repositories.financialStatements, 'catalogue').mockResolvedValue(catalogue());
   readSpy = vi.spyOn(repositories.financialStatements, 'get').mockImplementation(async (input) => read(input));
-  projectGetSpy = vi.spyOn(repositories.project, 'get').mockImplementation(async (id) => ({
+  projectGetSpy = vi.spyOn(repositories.project, 'getMany').mockImplementation(async (ids) => ids.map((id) => ({
     id,
     name: id === projectId ? 'Named delivery project' : 'Other admitted project',
     short_name: id === projectId ? 'North Terminal' : null,
     code: id === projectId ? 'PRJ-42' : 'PRJ-84',
-  } as never));
+  } as never)));
   companyListSpy = vi.spyOn(repositories.company, 'list').mockResolvedValue([]);
 });
 
@@ -189,7 +190,8 @@ describe('Financial statements company scope (AC-007)', () => {
     fireEvent.change(screen.getByRole('combobox', { name: 'Statement' }), { target: { value: 'profit_and_loss' } });
     expect(await screen.findByRole('combobox', { name: 'Scope' })).toBeInTheDocument();
     await waitFor(() => expect(projectGetSpy).toHaveBeenCalledTimes(1));
-    expect(projectGetSpy).toHaveBeenCalledWith(projectId);
+    // one batched label read for every admitted project, not one request per project
+    expect(projectGetSpy).toHaveBeenCalledWith([projectId, otherProjectId]);
     expect(screen.getByRole('option', { name: 'PRJ-42 · North Terminal' })).toBeInTheDocument();
     expect(companyListSpy).not.toHaveBeenCalled();
 

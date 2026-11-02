@@ -5,6 +5,7 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { activate, listCompanies } from './activate.ts';
+import { linkProject, listProjects, setAnalyticPlan, unlinkProject } from './projectLinks.ts';
 import { recheck } from './recheck.ts';
 import { refresh, resetKind } from './sweepVerbs.ts';
 
@@ -22,8 +23,13 @@ const adminOrOperator = (c: OdooCtx) => c.role === 'Admin' || c.operator;
 const adminOrFinance = (c: OdooCtx) => c.role === 'Admin' || c.role === 'Finance';
 const GATES: Record<string, (c: OdooCtx) => boolean> = {
   'list-companies': adminOrOperator, activate: adminOrOperator, recheck: adminOrOperator, refresh: adminOrFinance, 'reset-kind': adminOrOperator,
+  // The actor-checked RPCs decide who may link or un-link (the Admin, an Operator, the project's own PM); the plan is an Admin's choice.
+  'list-projects': () => true, 'link-project': () => true, 'unlink-project': () => true, 'set-analytic-plan': adminOrOperator,
 };
-const VERBS: Record<string, (c: OdooCtx) => Promise<Response>> = { 'list-companies': listCompanies, activate, recheck, refresh, 'reset-kind': resetKind };
+const VERBS: Record<string, (c: OdooCtx) => Promise<Response>> = {
+  'list-companies': listCompanies, activate, recheck, refresh, 'reset-kind': resetKind,
+  'list-projects': listProjects, 'link-project': linkProject, 'unlink-project': unlinkProject, 'set-analytic-plan': setAnalyticPlan,
+};
 
 export function odooError(c: OdooCtx, message: string, code: string, status: number): Response {
   return c.respond({ error: code, message }, status);

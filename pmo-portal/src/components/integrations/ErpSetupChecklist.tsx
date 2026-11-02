@@ -176,6 +176,7 @@ export function ErpSetupChecklist(
           <div className='space-y-2'>
             <ListState
               variant='error'
+              className='rounded-none border-0 bg-transparent px-0 py-0'
               title={t(
                 'integrations.erpSetup.unavailable',
                 'ERP setup unavailable',

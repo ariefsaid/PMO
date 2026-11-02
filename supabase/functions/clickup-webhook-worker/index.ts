@@ -277,6 +277,8 @@ export function buildApplyDepsLive(serviceClient: SupabaseClient, binding: Resol
   });
   return {
     ...mirrorCallbacks,
+    // The bound project is the child's landing project — the cross-project parent guard's reference.
+    childProjectId: binding.projectId,
     statusMap: binding.statusMap,
     memberMap: binding.memberMap,
     tombstoneMirror: async (pmoRecordId) => {

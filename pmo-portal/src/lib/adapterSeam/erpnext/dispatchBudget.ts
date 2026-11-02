@@ -115,6 +115,59 @@ export function assertBudgetBindingIdentity(deps: ErpDispatchFactoryDeps, bindin
 }
 
 /**
+ * Every ERP `Budget` on one grain, drafts included (`docstatus < 2`): (company, project, fiscal year) on
+ * ERPNext 15, plus the account on 16. The one definition of that question — the push's upsert target and the
+ * ECA-6 "use as draft" read both ask it, so neither can drift from the other.
+ */
+export async function readBudgetGrain(
+  clientDeps: ErpClientDeps,
+  grain: { company: string; project: string; major: 15 | 16; account: string | null; fiscalYear: string },
+): Promise<Array<Record<string, unknown>>> {
+  return await listDocsByFilters(
+    clientDeps,
+    'Budget',
+    ([
+      ['company', '=', grain.company],
+      ['project', '=', grain.project],
+      ...(grain.major === 16
+        ? [['account', '=', grain.account!], ['from_fiscal_year', '=', grain.fiscalYear]]
+        : [['fiscal_year', '=', grain.fiscalYear]]),
+      ['docstatus', '<', 2],
+    ] as ErpFilter[]),
+    ['name', 'docstatus', 'amended_from', 'owner'],
+    5,
+  );
+}
+
+/** How long a recorded replace consent stays usable. The consent also names one ERP document, so it dies with
+ *  that document; this bounds the case where nobody retries. */
+export const OCCUPANT_CONSENT_TTL_MS = 24 * 3_600_000;
+
+/**
+ * ECA-6 / PD-ECA-12 — the id of a live, unconsumed consent naming exactly this ERP document for this org, project,
+ * account and year; null when there is none. Read from the database with the service role: the command payload is
+ * never trusted to assert it. A read error throws (fail closed) — "could not read" must never mean "no".
+ */
+async function readOccupantConsent(
+  deps: ErpDispatchFactoryDeps,
+  at: { projectId: string; fiscalYear: string; account: string; erpBudgetName: string },
+): Promise<string | null> {
+  const { data, error } = await deps.serviceClient
+    .from('budget_occupant_consents')
+    .select('id')
+    .eq('org_id', deps.orgId)
+    .eq('project_id', at.projectId)
+    .eq('fiscal_year', at.fiscalYear)
+    .eq('erp_account', at.account)
+    .eq('erp_budget_name', at.erpBudgetName)
+    .is('consumed_at', null)
+    .gte('consented_at', new Date(Date.now() - OCCUPANT_CONSENT_TTL_MS).toISOString())
+    .maybeSingle();
+  if (error) throw new AppError(`budget push: the replace consent could not be read: ${error.message}`, 'commit-rejected');
+  return (data as { id?: string } | null)?.id ?? null;
+}
+
+/**
  * Resolve the budget push's refs:
  *
  *  • `refs.project` — the ERP `Project` name for the version's project, via the SAME binding
@@ -225,20 +278,7 @@ export async function resolveBudgetRefs(
     baseUrl: binding.site_url,
     rateLimiter: deps.rateLimiter,
   };
-  const grain = await listDocsByFilters(
-    clientDeps,
-    'Budget',
-    ([
-      ['company', '=', company],
-      ['project', '=', project],
-      ...(major === 16
-        ? [['account', '=', selectedAccount!], ['from_fiscal_year', '=', fiscalYear]]
-        : [['fiscal_year', '=', fiscalYear]]),
-      ['docstatus', '<', 2],
-    ] as ErpFilter[]),
-    ['name', 'docstatus', 'amended_from', 'owner'],
-    5,
-  );
+  const grain = await readBudgetGrain(clientDeps, { company, project, major, account: selectedAccount, fiscalYear });
   const live = grain.filter((row) => Number(row.docstatus) === 1).map((row) => String(row.name));
   const draftRows = grain.filter((row) => Number(row.docstatus) === 0);
   const drafts = draftRows.map((row) => String(row.name));
@@ -332,6 +372,16 @@ export async function resolveBudgetRefs(
       live[0],
     );
     if (owner === null) {
+      // A recorded consent naming THIS document replaces the ownership proof (PD-ECA-12): the document is then
+      // amended through the ordinary push path below, so the new document is PMO's own (record_outbox_ref).
+      const consentId = await readOccupantConsent(deps, {
+        projectId: String(record.projectId), fiscalYear, account: selectedAccount ?? '', erpBudgetName: live[0],
+      });
+      if (consentId !== null) {
+        deps.onOccupantConsent?.(consentId);
+        refs.self = live[0];
+        return { refs };
+      }
       throw new AppError(
         `budget push: ERPNext already holds a LIVE Budget for ${major === 16 ? `account ${selectedAccount} in fiscal year ${fiscalYear} (${company}, ${project})` : `(${company}, ${fiscalYear}, ${project})`} — ${live[0]} — ` +
           'that PMO did not create. PMO will not cancel or amend a Budget it does not own: an operator must ' +
