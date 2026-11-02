@@ -375,5 +375,123 @@
       "default": "Siap melanjutkan. Pilih tindakan di bawah untuk memindahkan pengadaan ini ke tahap berikutnya."
     },
     "sodPreannounce": "Mengirim ini ke peninjau lain. Anda tidak dapat menyetujui catatan pengadaan Anda sendiri."
+  },
+  "subcontract": {
+    "form": {
+      "noLines": "Isi kuantitas untuk minimal satu baris",
+      "quantity": "Kuantitas harus lebih dari 0 dengan maksimal 3 desimal"
+    },
+    "editor": {
+      "title": "Atur baris BoQ",
+      "subtitle": "Baris kontrak yang dicakup PO ini, dengan harga BoQ. Menyimpan mengganti draf; menerbitkan membekukannya.",
+      "save": "Simpan baris",
+      "legend": "Kuantitas per baris",
+      "noBoq": "Proyek ini belum punya item BoQ.",
+      "line": "{{item}} ({{unit}})",
+      "rate": "Harga {{rate}}"
+    },
+    "attribute": {
+      "title": "Atribusikan baris ke tagihan {{number}}",
+      "subtitle": "Tagihan {{amount}} ini dicatat tanpa kuantitas baris. Nyatakan cakupannya, dengan harga PO.",
+      "save": "Atribusikan baris",
+      "legend": "Kuantitas ditagih per baris",
+      "helper": "PO {{po}}, terverifikasi {{verified}}, harga {{rate}}"
+    },
+    "lines": {
+      "title": "Baris BoQ subkontrak",
+      "loadError": "Posisi subkontrak tidak dapat dimuat.",
+      "retry": "Coba lagi",
+      "setLines": "Atur baris BoQ",
+      "empty": "Belum ada baris BoQ yang diterbitkan",
+      "draftCount": "{{count}} baris draf, belum diterbitkan. Menerbitkan membekukan revisi 1.",
+      "issue": "Terbitkan baris",
+      "emptyHint": "Atur baris BoQ yang dicakup PO ini, lalu terbitkan untuk membekukan revisi 1.",
+      "billedTotal": "Nilai ditagih",
+      "billLinesTotal": "Total baris tagihan",
+      "issueTitle": "Terbitkan baris BoQ?",
+      "issueBody": "Menerbitkan membekukan revisi 1 PO ini. Perubahan berikutnya melalui variasi.",
+      "issueConfirm": "Terbitkan",
+      "issued": "Baris BoQ diterbitkan",
+      "notOnPoAge_one": "terverifikasi, di luar PO selama {{count}} hari",
+      "notOnPoAge_other": "terverifikasi, di luar PO selama {{count}} hari"
+    },
+    "exceptions": {
+      "reason": {
+        "no_lines": "ditagih tanpa kuantitas baris",
+        "other": "tidak dapat diperiksa terhadap batas ({{reason}})"
+      },
+      "title": "Tagihan yang tidak dapat diperiksa terhadap batas",
+      "attribute": "Atribusikan baris"
+    },
+    "acceptance": {
+      "record": "Catat penerimaan",
+      "title": "Penerimaan",
+      "loadError": "Penerimaan tidak dapat dimuat.",
+      "empty": "Belum ada penerimaan tercatat",
+      "document": "Dokumen bertanda tangan: {{title}}",
+      "noDocument": "Belum ada dokumen bertanda tangan",
+      "soleOperator": "Dikonfirmasi oleh satu-satunya anggota aktif",
+      "review": "Tinjau draf",
+      "prepared": "Penerimaan disimpan sebagai draf",
+      "confirmed": "Penerimaan dikonfirmasi",
+      "withdrawn": "Penerimaan ditarik",
+      "form": {
+        "errors": {
+          "date": "Isi tanggal penerimaan",
+          "quantity": "Isi 0 atau lebih dengan maksimal 3 desimal",
+          "belowConfirmed": "Ini kumulatif dan tidak boleh kurang dari yang terakhir dikonfirmasi {{qty}}",
+          "noLines": "Isi kuantitas terverifikasi untuk minimal satu baris"
+        },
+        "noDocument": "Belum ada",
+        "titleEdit": "Ubah penerimaan",
+        "titleNew": "Catat penerimaan",
+        "subtitle": "Pekerjaan yang diverifikasi di lapangan, sebagai kuantitas kumulatif sampai saat ini. Orang lain mengonfirmasinya dengan dokumen bertanda tangan; ini tidak membuat tagihan.",
+        "save": "Simpan penerimaan",
+        "prepare": "Siapkan penerimaan",
+        "details": "Penerimaan",
+        "date": "Tanggal periode",
+        "document": "Dokumen penerimaan bertanda tangan",
+        "noEligibleDocument": "Unggah dan terbitkan dokumen bertanda tangan di register proyek dahulu. Diperlukan untuk konfirmasi.",
+        "documentHelp": "Dari register proyek ini: terbit atau disetujui, dengan berkas. Diperlukan untuk konfirmasi.",
+        "quantities": "Terverifikasi sampai saat ini",
+        "quantityLine": "{{item}}: terverifikasi sampai saat ini ({{unit}})",
+        "ordered": "PO {{qty}} {{unit}}{{confirmed}}",
+        "lastConfirmed": ", terakhir dikonfirmasi {{qty}}",
+        "overPo": "{{item}}: {{qty}} {{unit}} melebihi PO, ditampilkan sebagai terverifikasi, di luar PO.",
+        "noteLegend": "Catatan",
+        "note": "Catatan (opsional)",
+        "decide": "Putuskan",
+        "confirm": "Konfirmasi penerimaan",
+        "withdraw": "Tarik draf"
+      },
+      "selfConfirmHint": "Anda yang menyiapkan ini. Admin atau Finance lain harus mengonfirmasinya, kecuali Anda satu-satunya anggota aktif.",
+      "status": {
+        "Draft": "Draf",
+        "Confirmed": "Dikonfirmasi",
+        "Withdrawn": "Ditarik"
+      }
+    },
+    "col": {
+      "line": "Baris",
+      "unit": "Satuan",
+      "rate": "Harga",
+      "po": "Kuantitas PO",
+      "verified": "Terverifikasi",
+      "billed": "Ditagih",
+      "payable": "Dapat dibayar",
+      "notOnPo": "Terverifikasi, di luar PO",
+      "disputed": "Disengketakan"
+    },
+    "cap": {
+      "capRefused": "Tagihan ini melebihi pekerjaan yang diterima",
+      "linesRequired": "Pembelian ini tidak punya baris BoQ terbit untuk ditagih",
+      "nothingPayable": "{{code}}: tidak ada yang dapat dibayar — {{verified}} terverifikasi, {{po}} di PO, {{billed}} sudah ditagih"
+    },
+    "bill": {
+      "clamped": "{{code}} dibatasi ke {{max}}, jumlah terbesar yang masih dapat dibayar",
+      "loading": "Memuat baris BoQ…",
+      "title": "Tagih baris BoQ ini (sebatas yang masih dapat dibayar)",
+      "payable": "dapat dibayar {{max}} dengan harga {{rate}}"
+    }
   }
 }
