@@ -28,8 +28,6 @@ export interface UploadArgs {
   oldPath?: string | null;
 }
 
-export type ReplaceArgs = UploadArgs;
-
 export function useFileUpload(projectId: string) {
   const qc = useQueryClient();
   const { currentUser } = useAuth();
@@ -82,7 +80,7 @@ export function useFileUpload(projectId: string) {
     return reference.item_id;
   };
 
-  const uploadDocumentFile = async (docId: string, file: File, allowReplace: boolean, destination: 'private' | 'microsoft' = 'private', knownOldPath: string | null = null) => {
+  const uploadDocumentFile = async (docId: string, file: File, destination: 'private' | 'microsoft' = 'private', knownOldPath: string | null = null) => {
     setProgress((prev) => ({ ...prev, [docId]: 0 }));
     clearError(docId);
 
@@ -109,7 +107,7 @@ export function useFileUpload(projectId: string) {
         repositories.document.cleanupObject(path).catch(() => {});
         throw confirmError;
       }
-      if (allowReplace && oldPath) {
+      if (oldPath) {
         repositories.document.cleanupObject(oldPath).catch(() => {});
       }
       return path;
@@ -131,19 +129,11 @@ export function useFileUpload(projectId: string) {
     clearAbortRef(docId);
   };
 
+  // OE13R01-001: upload and replace were two IDENTICAL mutations (both passed allowReplace=true)
+  // that the caller branched between without consuming separate status. ONE mutation now services
+  // both document actions; the upload-vs-replace distinction stays a caller-side user action.
   const upload = useMutation({
-    mutationFn: async ({ docId, file, destination, oldPath }: UploadArgs) => uploadDocumentFile(docId, file, true, destination, oldPath),
-    onSuccess: (_data, variables) => {
-      invalidate();
-      clearProgress(variables.docId);
-    },
-    onError: (error, variables) => {
-      onError(error, variables.docId);
-    },
-  });
-
-  const replace = useMutation({
-    mutationFn: async ({ docId, file, destination, oldPath }: ReplaceArgs) => uploadDocumentFile(docId, file, true, destination, oldPath),
+    mutationFn: async ({ docId, file, destination, oldPath }: UploadArgs) => uploadDocumentFile(docId, file, destination, oldPath),
     onSuccess: (_data, variables) => {
       invalidate();
       clearProgress(variables.docId);
@@ -162,5 +152,5 @@ export function useFileUpload(projectId: string) {
     setUploadErrors((prev) => { const next = { ...prev }; delete next[docId]; return next; });
   }, []);
 
-  return { upload, replace, progress, uploadErrors, cancelUpload, clearUploadError };
+  return { upload, progress, uploadErrors, cancelUpload, clearUploadError };
 }
