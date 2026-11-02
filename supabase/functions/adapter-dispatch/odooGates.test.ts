@@ -1,0 +1,250 @@
+// #1505 O2 P2 (AC-OPP-054 gate half, AC-OPP-061, AC-OPP-064 D half, FR-OPP-004/060/061, DD-OPP-1, DD-OPP-8): every dispatch gate
+// refuses a procurement command for an org that employs procurement under tier `odoo` exactly as it does for ERPNext: the
+// same status, the same wording, no outbox row and no ERP request. The gates are keyed on the command's PMO shape, not on the
+// tier name, so each case runs the SAME command twice (once per tier) through the SHIPPED handler (`./index.ts`, fetch mocked)
+// and compares the two answers.
+//
+// Every route below is a FACT about the world the handler reads; `unexpected` names any read not mocked (add a route that
+// answers it as a fact; never loosen an assertion).
+import { describe, it } from '@std/testing/bdd';
+import { assert, assertEquals } from '@std/assert';
+import {
+  createJwtAuthority,
+  createTestJwksResolver,
+  installEdgeEnv,
+  jsonResponse,
+  supabaseRpc,
+  supabaseSelect,
+  withFetchMock,
+  type FetchCall,
+  type MockRoute,
+} from '../_shared/testing/edgeTestKit.ts';
+
+const env = installEdgeEnv();
+Deno.env.set('SUPABASE_ANON_KEY', 'test-anon-key');
+const auth = await createJwtAuthority(env.SUPABASE_URL);
+
+let servedHandler: ((req: Request) => Promise<Response>) | null = null;
+(Deno as unknown as { serve: (h: unknown) => unknown }).serve = (h: unknown) => {
+  servedHandler = h as (req: Request) => Promise<Response>;
+  return { finished: Promise.resolve() };
+};
+const { setTestJwks } = await import('./index.ts');
+setTestJwks(createTestJwksResolver(auth));
+addEventListener('unload', () => env.restore());
+
+const ORG_ID = '11111111-1111-4111-8111-111111111111';
+const APPROVER_ID = '22222222-2222-4222-8222-222222222222';
+const PAYER_ID = '66666666-6666-4666-8666-666666666666';
+const PROC_ID = '33333333-3333-4333-8333-333333333333';
+const INV_ID = '55555555-5555-4555-8555-555555555555';
+const VENDOR_ID = '44444444-4444-4444-8444-444444444444';
+const ODOO_HOST = 'odoo.example.test';
+const SNAPSHOT = {
+  later: { 'purchase.order': true, 'purchase.order.line': true, 'stock.picking': true, 'stock.move': true, 'account.move': true, 'account.payment': true },
+  models: { 'account.journal': { exists: true, read: true } },
+};
+
+type Tier = 'odoo' | 'erpnext';
+interface World {
+  /** Which tier(s) own `procurement` for the org. */
+  owns?: Tier[];
+  role?: string;
+  caseRow?: Record<string, unknown> | null;
+  gateViolation?: string | null;
+  paymentAllowed?: string | null;
+  ceilingOk?: boolean;
+  amountApproverId?: string | null;
+  poRevise?: string | null;
+  snapshot?: unknown;
+  odooBinding?: Record<string, unknown> | null;
+}
+
+const objectResponse = (body: unknown) => jsonResponse(body, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } });
+const nullObjectResponse = () => new Response('null', { status: 200, headers: { 'content-type': 'application/json' } });
+const param = (call: FetchCall, key: string): string | null => {
+  const raw = call.url.searchParams.get(key);
+  return raw?.startsWith('eq.') ? decodeURIComponent(raw.slice(3)) : raw;
+};
+
+const paymentCommand = () => ({
+  domain: 'procurement', operation: 'create', idempotencyKey: 'cccccccc-cccc-4ccc-8ccc-000000001505',
+  record: { id: 'dddddddd-dddd-4ddd-8ddd-000000001505', erp_doc_kind: 'payment', procurementId: PROC_ID, invoiceId: INV_ID, supplier: VENDOR_ID, paid_amount: 98000, date: '2026-11-03' },
+});
+const orderCommand = () => ({
+  domain: 'procurement', operation: 'create', idempotencyKey: 'cccccccc-cccc-4ccc-8ccc-000000001506',
+  record: { id: 'dddddddd-dddd-4ddd-8ddd-000000001506', erp_doc_kind: 'purchase-order', procurementId: PROC_ID },
+});
+const reviseCommand = () => ({
+  domain: 'procurement', operation: 'revise', idempotencyKey: 'cccccccc-cccc-4ccc-8ccc-000000001507',
+  record: { id: 'dddddddd-dddd-4ddd-8ddd-000000001507', erp_doc_kind: 'purchase-order', poId: 'eeeeeeee-eeee-4eee-8eee-000000001507', revision: 2 },
+});
+
+function routes(unexpected: FetchCall[], caller: string, world: World): MockRoute[] {
+  const owns = world.owns ?? ['odoo'];
+  const outbox = new Map<string, Record<string, unknown>>();
+  return [
+    supabaseSelect('profiles', (call) => call.url.searchParams.has('role') ? jsonResponse([{ id: caller }]) : objectResponse({ org_id: ORG_ID })),
+    supabaseRpc('domain_owned_by_tier', (call) => jsonResponse(owns.includes((call.bodyJson as { p_tier: Tier }).p_tier))),
+    supabaseRpc('org_has_active_erpnext_binding', () => jsonResponse(owns.includes('erpnext'))),
+    supabaseRpc('actor_authorization_state', () => jsonResponse({ role: world.role ?? 'Finance', active: true })),
+    supabaseRpc('pre_cutover_procurement', () => jsonResponse(false)),
+    supabaseRpc('procurement_gate_violation', () => jsonResponse(world.gateViolation ?? null)),
+    supabaseRpc('procurement_payment_allowed', () => jsonResponse(world.paymentAllowed ?? null)),
+    supabaseRpc('procurement_payment_within_ceiling', () => jsonResponse([{
+      ok: world.ceilingOk ?? true, reason: world.ceilingOk === false ? 'vendor bill exceeds approved amount' : null, billed_net: 98000, approved_amount: 100000,
+    }])),
+    supabaseRpc('po_revision_push_refusal', () => jsonResponse(world.poRevise ?? null)),
+    supabaseRpc('read_vault_secret', () => jsonResponse('odoo-test-key')),
+    supabaseSelect('external_org_bindings', (call) => param(call, 'external_tier') === 'odoo'
+      ? (world.odooBinding === null ? nullObjectResponse() : objectResponse({
+          id: 'b0000000-0000-4000-8000-000000000001', site_url: `https://${ODOO_HOST}`, secret_ref: 'odoo_ref', status: 'active', activated_at: '2026-11-01T00:00:00Z',
+          config: { database: 'db1', odoo_company_id: 1, capabilities: world.snapshot === undefined ? SNAPSHOT : world.snapshot },
+          ...world.odooBinding,
+        }))
+      : nullObjectResponse()),
+    supabaseSelect('organizations', () => objectResponse({ default_currency: 'IDR' })),
+    supabaseSelect('procurements', () => world.caseRow === null ? nullObjectResponse() : objectResponse({
+      id: PROC_ID, org_id: ORG_ID, status: 'Vendor Invoiced', approved_by_id: APPROVER_ID, amount_approved_by_id: world.amountApproverId ?? null,
+      approved_total_value: 100000, vendor_id: VENDOR_ID, ...world.caseRow,
+    })),
+    supabaseSelect('external_refs', () => nullObjectResponse()),
+    { label: 'outbox read', method: 'GET', pathname: '/rest/v1/external_command_outbox', response: (call) => {
+      const row = outbox.get(`${param(call, 'pmo_record_id')}|${param(call, 'idempotency_key')}`);
+      return row ? objectResponse(row) : nullObjectResponse();
+    } },
+    { label: 'outbox insert', method: 'POST', pathname: '/rest/v1/external_command_outbox', response: (call) => {
+      const body = call.bodyJson as Record<string, unknown>;
+      const row = { id: 'outbox-1', domain: body.domain, pmo_record_id: body.pmo_record_id, idempotency_key: body.idempotency_key, state: 'pending',
+        external_record_id: null, canonical: null, claim_generation: 0, payload_digest: body.payload_digest ?? null, payload: body.payload ?? null };
+      outbox.set(`${String(body.pmo_record_id)}|${String(body.idempotency_key)}`, row);
+      return objectResponse(row);
+    } },
+    { label: 'notifications', pathname: '/rest/v1/notifications', response: () => jsonResponse([]) },
+    { label: 'unexpected', response: (call) => { unexpected.push(call); return jsonResponse({ message: 'unmocked' }, { status: 404 }); } },
+  ];
+}
+
+async function dispatch(command: Record<string, unknown>, caller: string, world: World) {
+  const unexpected: FetchCall[] = [];
+  const result = await withFetchMock(routes(unexpected, caller, world), async ({ calls }) => {
+    const jwt = await auth.mintJwt({ sub: caller });
+    const res = await servedHandler!(new Request('http://edge.test/adapter-dispatch', {
+      method: 'POST', headers: { authorization: `Bearer ${jwt}`, 'content-type': 'application/json' }, body: JSON.stringify(command),
+    }));
+    return { status: res.status, body: await res.text(), calls };
+  });
+  return { ...result, unexpected };
+}
+
+/** The same command and facts under each tier: the refusal must be identical and must touch neither the outbox nor an ERP. */
+async function refusedAlike(command: Record<string, unknown>, caller: string, world: World, status: number, message: string) {
+  const odoo = await dispatch(command, caller, { ...world, owns: ['odoo'] });
+  const erpnext = await dispatch(command, caller, { ...world, owns: ['erpnext'] });
+  for (const [tier, r] of [['odoo', odoo], ['erpnext', erpnext]] as const) {
+    assertEquals(r.unexpected.map((c) => `${c.method} ${c.url.pathname}${c.url.search}`), [], `${tier}: every read is mocked`);
+    assertEquals(r.status, status, `${tier}: ${r.body}`);
+    assertEquals(JSON.parse(r.body), { error: 'commit-rejected', message }, tier);
+    assertEquals(r.calls.filter((c) => c.url.pathname.includes('external_command_outbox')).length, 0, `${tier}: no outbox row`);
+    assertEquals(r.calls.filter((c) => c.url.host === ODOO_HOST).length, 0, `${tier}: no Odoo request`);
+  }
+  assertEquals(odoo.body, erpnext.body, 'a client cannot tell which tier answered');
+}
+
+describe('AC-OPP-061 the dispatch gates refuse a tier-odoo procurement command as they do an ERPNext one', () => {
+  it('authGuard: a role outside the money-write set is refused 403 with the shipped wording', async () => {
+    await refusedAlike(paymentCommand(), PAYER_ID, { role: 'Engineer' }, 403, 'role "Engineer" not authorized for a "procurement" money write');
+  });
+
+  it('authGuard: an org that employs procurement on neither tier is refused 403 as before', async () => {
+    const r = await dispatch(paymentCommand(), PAYER_ID, { owns: [] });
+    assertEquals(r.status, 403, r.body);
+    assertEquals(JSON.parse(r.body).message, `org ${ORG_ID} does not own domain "procurement" on the "erpnext" tier`);
+    assertEquals(r.calls.filter((c) => c.url.pathname.includes('external_command_outbox')).length, 0);
+  });
+
+  it('FR-OPP-004 a case that is not in the caller\'s org (another tenant, or no such case) is refused 422 purchase_not_found', async () => {
+    await refusedAlike(paymentCommand(), PAYER_ID, { caseRow: null }, 422, 'purchase_not_found');
+    await refusedAlike(orderCommand(), PAYER_ID, { caseRow: null }, 422, 'purchase_not_found');
+  });
+
+  it('a closed case is refused 422 purchase_closed before the separation-of-duties check', async () => {
+    await refusedAlike(paymentCommand(), APPROVER_ID, { caseRow: { status: 'Cancelled' } }, 422, 'purchase_closed');
+  });
+
+  it('AC-OPP-054 the case approver paying is refused 403 with 0006\'s exact wording', async () => {
+    await refusedAlike(paymentCommand(), APPROVER_ID, {}, 403, 'separation of duties: approver cannot pay own procurement');
+  });
+
+  it('AC-OPP-054 the approver of a raised amount paying is refused 403 with the same wording', async () => {
+    await refusedAlike(paymentCommand(), PAYER_ID, { amountApproverId: PAYER_ID }, 403, 'separation of duties: approver cannot pay own procurement');
+  });
+
+  it('AC-OPP-054 a payload that names another payer changes nothing: the verified caller decides', async () => {
+    const command = paymentCommand();
+    (command.record as Record<string, unknown>).paid_by = PAYER_ID;
+    (command.record as Record<string, unknown>).approved_by = PAYER_ID;
+    await refusedAlike(command, APPROVER_ID, {}, 403, 'separation of duties: approver cannot pay own procurement');
+  });
+
+  it('procurement_payment_allowed: an approval the database does not accept is refused 422 with its reason code', async () => {
+    await refusedAlike(paymentCommand(), PAYER_ID, { paymentAllowed: 'approval_missing' }, 422, 'approval_missing');
+  });
+
+  it('the approved-amount ceiling refuses 422 before any outbox row', async () => {
+    await refusedAlike(paymentCommand(), PAYER_ID, { ceilingOk: false }, 422, 'vendor payment: vendor bill exceeds approved amount');
+  });
+
+  it('FR-PFE-010 the org\'s purchase rules refuse a purchase-order create 422', async () => {
+    await refusedAlike(orderCommand(), PAYER_ID, { gateViolation: 'gate_approval_before_payment' }, 422, 'gate_approval_before_payment');
+  });
+
+  it('AC-SCA-012 a revise that would cancel a billed order is refused 422 before any outbox row', async () => {
+    await refusedAlike(reviseCommand(), PAYER_ID, { poRevise: 'po_has_submitted_bill' }, 422, 'po_has_submitted_bill');
+  });
+});
+
+describe('AC-OPP-001 a command that passes every gate still reaches no Odoo request until the Odoo adapter exists', () => {
+  const refusal = async (world: World) => {
+    const r = await dispatch(paymentCommand(), PAYER_ID, { owns: ['odoo'], ...world });
+    assertEquals(r.unexpected.map((c) => `${c.method} ${c.url.pathname}${c.url.search}`), [], 'every read is mocked');
+    assertEquals(r.calls.filter((c) => c.url.host === ODOO_HOST).length, 0, 'no Odoo request');
+    assertEquals(r.calls.filter((c) => c.url.pathname.includes('external_command_outbox')).length, 0, 'no outbox row');
+    return { status: r.status, body: JSON.parse(r.body) as { error: string; message: string } };
+  };
+
+  it('a snapshot missing a model refuses 422 config-rejected and names the model', async () => {
+    const r = await refusal({ snapshot: { ...SNAPSHOT, later: { ...SNAPSHOT.later, 'account.payment': false } } });
+    assertEquals(r.status, 422);
+    assertEquals(r.body.error, 'config-rejected');
+    assert(r.body.message.includes('account.payment'), r.body.message);
+  });
+
+  it('no stored snapshot refuses closed', async () => {
+    const r = await refusal({ snapshot: null });
+    assertEquals(r.status, 422);
+    assertEquals(r.body.error, 'config-rejected');
+  });
+
+  it('a binding that is not activated refuses 422 config-rejected', async () => {
+    const r = await refusal({ odooBinding: { activated_at: null } });
+    assertEquals(r.status, 422);
+    assertEquals(r.body.error, 'config-rejected');
+  });
+
+  it('the operator kill-switch refuses 422 config-rejected', async () => {
+    Deno.env.set('EXTERNAL_CONNECT_ENABLED', 'false');
+    try {
+      const r = await refusal({});
+      assertEquals(r.status, 422);
+      assertEquals(r.body.error, 'config-rejected');
+    } finally { Deno.env.delete('EXTERNAL_CONNECT_ENABLED'); }
+  });
+
+  it('a ready connection is refused as not available yet: fail closed, nothing sent', async () => {
+    const r = await refusal({});
+    assertEquals(r.status, 422);
+    assertEquals(r.body.error, 'config-rejected');
+    assert(r.body.message.includes('not available'), r.body.message);
+  });
+});

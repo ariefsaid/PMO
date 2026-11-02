@@ -4,7 +4,7 @@
  * discovery.ts and in normalise.ts.
  */
 /** Keep in step with the kind check on external_master_records and assert_odoo_master_kind (migration 0421). */
-export const DIRECTORY_KINDS = ['company', 'partner', 'product', 'uom', 'warehouse', 'location', 'account', 'tax', 'analytic_plan', 'analytic_account'] as const;
+export const DIRECTORY_KINDS = ['company', 'partner', 'product', 'uom', 'warehouse', 'location', 'account', 'tax', 'analytic_plan', 'analytic_account', 'journal'] as const;
 export type DirectoryKind = (typeof DIRECTORY_KINDS)[number];
 
 export interface DirectoryRow {
@@ -66,6 +66,9 @@ export const KIND_SPECS: Record<DirectoryKind, KindSpec> = {
   analytic_plan: { model: 'account.analytic.plan', fields: ['name', 'write_date'], company: null, parse: (r) => base(r, r.name, null, false) },
   analytic_account: { model: 'account.analytic.account', fields: ['name', 'code', 'plan_id', 'company_id', 'active', 'write_date'], company: 'company_id',
     parse: (r) => withAttrs(base(r, r.name, r.code, r.plan_id), { company_id: m2o(r.company_id) }) },
+  // FR-OPP-093 / DD-OPP-6: bank and cash books a payment can leave from (the type is the picker's filter).
+  journal: { model: 'account.journal', fields: ['name', 'code', 'type', 'company_id', 'active', 'write_date'], company: 'company_id',
+    parse: (r) => withAttrs(base(r, r.name, r.code, false), { type: str(r.type), company_id: m2o(r.company_id) }) },
 };
 
 /** The `capabilities.missing` entries that stop a kind's directory from being read (the model, its read access or a field the parser needs); create/write gaps only affect sends. */

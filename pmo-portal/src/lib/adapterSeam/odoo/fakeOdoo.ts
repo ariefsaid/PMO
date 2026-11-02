@@ -20,7 +20,7 @@ const FIELDS: Record<string, string[]> = {
   'purchase.order': ['name', 'state', 'write_date'],
   'purchase.order.line': ['name', 'write_date'],
   'account.payment': ['state', 'memo', 'write_date'],
-  'account.journal': ['name', 'write_date'],
+  'account.journal': ['name', 'code', 'type', 'company_id', 'active', 'write_date'],
   'account.move': ['name', 'write_date'],
   'account.move.line': ['balance', 'amount_residual', 'write_date'],
   'stock.picking': ['name', 'state', 'move_ids', 'backorder_id', 'backorder_ids', 'purchase_id', 'write_date'],

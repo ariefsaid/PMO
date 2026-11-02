@@ -141,6 +141,7 @@ const expectOutboxResolutionChain = (): void => {
   const resolverMapEnd = CODE.indexOf('\n};', resolverMap);
   expect(resolverMapEnd, 'money outbox resolver map must be closed').toBeGreaterThan(resolverMap);
   expect(CODE.slice(resolverMap, resolverMapEnd)).toMatch(/\[ERPNEXT_TIER\]: resolveErpMoneyOutboxDeps/);
+  expect(CODE.slice(resolverMap, resolverMapEnd), 'the Odoo tier resolves its own outbox deps (#1505 P2)').toMatch(/\[ODOO_TIER\]: resolveOdooMoneyOutboxDeps/);
   expect(runDispatchAttemptArgs()).toMatch(/moneyOutboxResolvers:\s*MONEY_OUTBOX_RESOLVERS/);
   expect(DISPATCH_ATTEMPT_CODE).toMatch(/const resolveMoneyOutbox = moneyOutboxResolvers\[adapter\.tier\]/);
   expect(DISPATCH_ATTEMPT_CODE).toMatch(/if \(resolveMoneyOutbox && \(command\.operation as string\) !== 'read'\)/);
@@ -179,7 +180,7 @@ describe('WIRE P3B: the Approved-only timesheet gate is wired into the dispatch 
     expect(gate).toBeGreaterThan(-1);
     for (const later of [
       'createClient(supabaseUrl, serviceRoleKey,', // no machine-write client exists before the refusal
-      'ADAPTER_REGISTRY[command.domain]', // no adapter is selected for an unapproved sheet
+      'selectAdapterFactory(employedTier, command.domain)', // no adapter is selected for an unapproved sheet
       'runDispatchAttempt({', // the delegated attempt contains adapter creation and outbox resolution
     ]) expectSourceOrder(CODE, 'await enforceTimesheetApproved(', later);
     // The entry point passes the configured tier resolver into the attempt, which creates the adapter,
@@ -210,7 +211,7 @@ describe('WIRE P3B: the Approved-only timesheet gate is wired into the dispatch 
     expect(adopt).toBeGreaterThan(-1);
     for (const later of [
       'createClient(supabaseUrl, serviceRoleKey,',
-      'ADAPTER_REGISTRY[command.domain]',
+      'selectAdapterFactory(employedTier, command.domain)',
       'runDispatchAttempt({',
     ]) expectSourceOrder(CODE, 'applyCanonicalTimesheetTruth(command, approvedSheet)', later);
     expectOutboxResolutionChain();
@@ -285,17 +286,39 @@ describe('WIRE P3C: a post-gate budget push failure is recorded durably (HIGH-2)
   });
 });
 
+describe('WIRE #1505 P2: the tier that owns the domain picks the adapter, and the gates run first', () => {
+  it('index.ts takes the tier from the authorization answer and selects the adapter by it', () => {
+    expect(INDEX).toMatch(/import \{[^}]*checkCommandAuthorization[^}]*\} from '\.\/authGuard\.ts'/);
+    expect(CODE).toMatch(/employedTier = auth\.tier/);
+    expectSourceOrder(CODE, 'await checkCommandAuthorization(', 'employedTier = auth.tier');
+    expectSourceOrder(CODE, 'employedTier = auth.tier', 'selectAdapterFactory(employedTier, command.domain)');
+  });
+
+  it('selectAdapterFactory serves the Odoo registry for tier odoo and the shipped registry otherwise', () => {
+    const select = DISPATCH_ADAPTERS_CODE.slice(DISPATCH_ADAPTERS_CODE.indexOf('export function selectAdapterFactory'));
+    expect(select.slice(0, select.indexOf('\n}'))).toMatch(/\(TIER_REGISTRIES\[tier \?\? ''\] \?\? ADAPTER_REGISTRY\)\[domain\]/);
+    expect(DISPATCH_ADAPTERS_CODE).toMatch(/TIER_REGISTRIES[^=]*=\s*\{\s*\[ODOO_TIER\]: ODOO_ADAPTER_REGISTRY/);
+    expect(readDispatchSource('odooAdapters.ts')).toMatch(/ODOO_ADAPTER_REGISTRY[^=]*=\s*\{\s*procurement: resolveOdooProcurementAdapter/);
+  });
+
+  it('every gate between authorization and adapter selection is keyed on the command, not the tier', () => {
+    for (const file of ['paymentGate.ts', 'procurementGateGuard.ts', 'poReviseGuard.ts']) {
+      expect(readDispatchSource(file).replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, ''), file).not.toMatch(/erpnext|odoo/i);
+    }
+  });
+});
+
 describe('WIRE P3B: the `timesheets` domain resolves an ERPNext adapter and rides every erp gate', () => {
   it('FR-TSP-005 ADAPTER_REGISTRY routes the timesheets domain to the ERPNext factory', () => {
     expect(INDEX).toMatch(/import \{[^}]*ERPNEXT_TIMESHEETS_DOMAIN[^}]*\} from '[^']*\/erpnext\/adapter\.ts'/);
-    expect(INDEX).toMatch(/import \{[^}]*ADAPTER_REGISTRY[^}]*\} from '\.\/dispatchAdapters\.ts'/);
+    expect(INDEX).toMatch(/import \{[^}]*selectAdapterFactory[^}]*\} from '\.\/dispatchAdapters\.ts'/);
     const registry = DISPATCH_ADAPTERS_CODE.slice(DISPATCH_ADAPTERS_CODE.indexOf('export const ADAPTER_REGISTRY'));
     expect(
       registry.slice(0, registry.indexOf('};')),
       'without a registry entry a timesheet command answers UNSUPPORTED_DOMAIN, never a push',
     ).toMatch(/\[ERPNEXT_TIMESHEETS_DOMAIN\]: resolveErpAdapter/);
-    expectSourceOrder(CODE, 'await enforceTimesheetApproved(', 'ADAPTER_REGISTRY[command.domain]');
-    expectSourceOrder(CODE, 'ADAPTER_REGISTRY[command.domain]', 'runDispatchAttempt({');
+    expectSourceOrder(CODE, 'await enforceTimesheetApproved(', 'selectAdapterFactory(employedTier, command.domain)');
+    expectSourceOrder(CODE, 'selectAdapterFactory(employedTier, command.domain)', 'runDispatchAttempt({');
     expect(runDispatchAttemptArgs()).toMatch(/adapterFactory,/);
   });
 
@@ -303,7 +326,7 @@ describe('WIRE P3B: the `timesheets` domain resolves an ERPNext adapter and ride
     const decl = CODE.slice(at('const isErpDomain'));
     expect(decl.slice(0, decl.indexOf(';'))).toContain('ERPNEXT_TIMESHEETS_DOMAIN');
     // The three gates keyed on that predicate, each of which a timesheets push must pass.
-    expect(CODE).toMatch(/await checkErpnextCommandAuthorization\(/);
+    expect(CODE).toMatch(/await checkCommandAuthorization\(/);
     expect(CODE).toMatch(/await checkTransitionTargetBinding\(/);
     expect(CODE).toMatch(/isOpaqueIdempotencyKey\(command\.idempotencyKey\)/);
   });

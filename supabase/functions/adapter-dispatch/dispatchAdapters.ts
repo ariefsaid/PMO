@@ -19,6 +19,8 @@ import { resolveErpAuthPair, type ErpAuthPairCache } from '../_shared/erpAuthPai
 import { externalConnectEnabled } from '../_shared/externalConnectEnabled.ts';
 import { guardedErpFetch } from '../_shared/erpHostGuard.ts';
 import { DOCTYPE_BODIES } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeBodies.ts';
+import { ODOO_TIER } from '../../../pmo-portal/src/lib/adapterSeam/odoo/connectAdapter.ts';
+import { ODOO_ADAPTER_REGISTRY } from './odooAdapters.ts';
 import { maybeFault, type FaultGate } from './faultSeams.ts';
 import { isBudgetPushCommand } from './budgetDispatch.ts';
 
@@ -136,6 +138,14 @@ export async function resolveErpAdapter(ctx: AdapterSelectContext): Promise<Adap
     afterSubmitHook: () => maybeFault('after-submit-before-mirror', ctx.faultGate),
     afterCancelHook: () => maybeFault('after-cancel-before-create', ctx.faultGate),
   });
+}
+
+/** A tier's own registry; a tier not listed (ERPNext, and the non-ERP domains) is served by `ADAPTER_REGISTRY`. A lookup, not a tier-name branch (AC-ECA-043). */
+const TIER_REGISTRIES: Record<string, Record<string, AdapterFactory>> = { [ODOO_TIER]: ODOO_ADAPTER_REGISTRY };
+
+/** The adapter factory for a command: the tier that owns the domain for this org (authGuard's answer) picks the registry. */
+export function selectAdapterFactory(tier: string | undefined, domain: string): AdapterFactory | undefined {
+  return (TIER_REGISTRIES[tier ?? ''] ?? ADAPTER_REGISTRY)[domain];
 }
 
 // Registry keyed by the PMO domain the tier natively owns.
