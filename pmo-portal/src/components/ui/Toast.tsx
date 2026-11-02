@@ -288,7 +288,7 @@ const AutoDismiss: React.FC<{
   }, [start]);
 
   return (
-    <div onMouseEnter={pause} onMouseLeave={resume} onFocusCapture={pause} onBlurCapture={(event) => {
+    <div onFocusCapture={pause} onBlurCapture={(event) => {
       if (!event.currentTarget.contains(event.relatedTarget as Node | null)) resume();
     }}>
       {children}
