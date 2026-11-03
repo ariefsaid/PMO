@@ -382,8 +382,8 @@ describe('ConnectProposalReview (AC-ECA-003, FR-ECA-012, FR-ECA-042)', () => {
     const { container } = renderWithRole('Admin', <ConnectProposalReview tier='erpnext' orgId='org-1' />);
 
     // FR-ECA-002's exact plain line, and the same shape for another kind and different numbers (no hard-coded copy)
-    expect(await screen.findByText('12 vendors in PMO, 40 in your connected system, 9 are the same')).toBeInTheDocument();
-    expect(screen.getByText('8 items in PMO, 12 in your connected system, 8 are the same')).toBeInTheDocument();
+    expect(await screen.findByText('12 vendors in PMO, 40 in the connected system, 9 are the same')).toBeInTheDocument();
+    expect(screen.getByText('8 items in PMO, 12 in the connected system, 8 are the same')).toBeInTheDocument();
     expect(
       screen.getByText('42 in PMO, 57 in the connected system: 38 are the same, 4 will be sent, 15 brought in, 2 need you'),
     ).toBeInTheDocument();
@@ -442,6 +442,183 @@ describe('ConnectProposalReview (AC-ECA-003, FR-ECA-012, FR-ECA-042)', () => {
         externalId: 'erp-1',
       });
     });
+  });
+
+  it('AC-ECA-017 an unclear ERP-only party row can be brought into PMO as new', async () => {
+    const proposal: ConnectProposal = {
+      id: 'unclear-erp-only', kind: 'party', outcome: 'review', reason: 'ambiguous',
+      pmo_ids: [], external_ids: ['Supplier:existing-erp-record'], reason_text: 'Needs a decision',
+      snapshot: { name: 'Connected Company' }, state: 'open',
+    };
+    mockIntegrationsRepo.getConnectStatus.mockResolvedValue(readyStatus([
+      { kind: 'party', pmo_count: 0, erp_count: 1, linked_count: 0, inactive_erp_count: 0, scenario: 'S-C', accepted_at: null },
+    ]));
+    mockIntegrationsRepo.listConnectProposals.mockResolvedValue({ proposals: [proposal], nextAfterId: null });
+    mockIntegrationsRepo.decideConnectReview.mockResolvedValue(undefined);
+
+    renderWithRole('Admin', <ConnectProposalReview tier='erpnext' orgId='org-1' />);
+    const card = await screen.findByTestId('connect-kind-party');
+    fireEvent.click(within(card).getByRole('button', { name: 'Review list' }));
+    const row = await screen.findByTestId('connect-review-list-row-unclear-erp-only');
+    fireEvent.click(within(row).getByRole('button', { name: 'Change' }));
+    fireEvent.click(within(row).getByRole('combobox', { name: 'Search records' }));
+    fireEvent.click(await screen.findByRole('option', { name: /Add as new in PMO/ }));
+
+    await waitFor(() => expect(mockIntegrationsRepo.decideConnectReview).toHaveBeenCalledWith('erpnext', 'unclear-erp-only', {
+      action: 'bring-in', externalId: 'Supplier:existing-erp-record',
+    }));
+  });
+
+  it('AC-ECA-017 a suggested link can be changed to create its PMO record in the connected system', async () => {
+    const proposal: ConnectProposal = {
+      id: 'suggested-link', kind: 'party', outcome: 'link', reason: null,
+      pmo_ids: ['pmo-1'], external_ids: ['Supplier:old-match'], reason_text: null,
+      snapshot: { name: 'Old match' }, state: 'open', pmo_name: 'PMO Company', erp_name: 'Old match',
+    };
+    mockIntegrationsRepo.getConnectStatus.mockResolvedValue(readyStatus([
+      { kind: 'party', pmo_count: 1, erp_count: 1, linked_count: 0, inactive_erp_count: 0, scenario: 'S-D', accepted_at: null },
+    ]));
+    mockIntegrationsRepo.listConnectProposals.mockImplementation(async (_tier, _kind, _outcome, _afterId, state) => ({
+      proposals: state === 'open' ? [proposal] : [], nextAfterId: null,
+    }));
+    mockIntegrationsRepo.decideConnectReview.mockResolvedValue(undefined);
+
+    renderWithRole('Admin', <ConnectProposalReview tier='erpnext' orgId='org-1' />);
+    fireEvent.click(within(await screen.findByTestId('connect-kind-party')).getByRole('button', { name: 'Review list' }));
+    const row = await screen.findByTestId('connect-review-list-row-suggested-link');
+    fireEvent.click(within(row).getByRole('button', { name: 'Change' }));
+    fireEvent.click(within(row).getByRole('combobox', { name: 'Search records' }));
+    fireEvent.click(await screen.findByRole('option', { name: /Create as new in the connected system/ }));
+
+    await waitFor(() => expect(mockIntegrationsRepo.decideConnectReview).toHaveBeenCalledWith('erpnext', 'suggested-link', {
+      action: 'send', pmoId: 'pmo-1',
+    }));
+  });
+
+  it('FR-ECA-012 item, account, and people rows lead with names and keep connected ids secondary', async () => {
+    const proposals: ConnectProposal[] = [
+      { id: 'item-name', kind: 'item', outcome: 'link', reason: null, pmo_ids: ['PMO Item Name'], external_ids: ['ERP-ITEM-40'], reason_text: null, snapshot: { itemName: 'Connected Item Name' }, state: 'open' },
+      { id: 'account-name', kind: 'account', outcome: 'link', reason: null, pmo_ids: ['Labor'], external_ids: ['ERP-ACCOUNT-40'], reason_text: null, snapshot: { accountName: 'Wages Account' }, state: 'open' },
+      { id: 'employee-name', kind: 'employee', outcome: 'link', reason: null, pmo_ids: ['employee-uuid'], external_ids: ['EMP-104'], reason_text: null, snapshot: { employeeName: 'ERP Person Name' }, state: 'open', pmo_name: 'PMO Person Name' },
+    ];
+    mockIntegrationsRepo.getConnectStatus.mockResolvedValue(readyStatus([
+      ...(['item', 'account', 'employee'] as const).map((kind) => ({ kind, pmo_count: 1, erp_count: 1, linked_count: 0, inactive_erp_count: 0, scenario: 'S-D' as const, accepted_at: null })),
+    ]));
+    mockIntegrationsRepo.listConnectProposals.mockImplementation(async (_tier, kind, _outcome, _afterId, state) => ({
+      proposals: state === 'open' ? proposals.filter((proposal) => proposal.kind === kind) : [], nextAfterId: null,
+    }));
+
+    renderWithRole('Admin', <ConnectProposalReview tier='erpnext' orgId='org-1' />);
+    for (const entry of [
+      { kind: 'item', id: 'item-name', pmo: 'PMO Item Name', erp: 'Connected Item Name', externalId: 'ERP-ITEM-40' },
+      { kind: 'account', id: 'account-name', pmo: 'Labor', erp: 'Wages Account', externalId: 'ERP-ACCOUNT-40' },
+      { kind: 'employee', id: 'employee-name', pmo: 'PMO Person Name', erp: 'ERP Person Name', externalId: 'EMP-104' },
+    ]) {
+      const card = await screen.findByTestId(`connect-kind-${entry.kind}`);
+      fireEvent.click(within(card).getByRole('button', { name: 'Review list' }));
+      const row = await screen.findByTestId(`connect-review-list-row-${entry.id}`);
+      expect(within(row).getAllByText(entry.pmo).length).toBeGreaterThan(0);
+      expect(within(row).getByText(entry.erp)).toBeInTheDocument();
+      expect(within(row).getByText(entry.externalId)).toHaveClass('font-mono');
+      fireEvent.click(within(card).getByRole('button', { name: 'Close list' }));
+    }
+  });
+
+  it('FR-ECA-018 staged search options wrap full names and show a distinguishing code on a second line', async () => {
+    const longNames = [
+      'PT Mutiara Engineering Surabaya Barat',
+      'PT Mutiara Engineering Surabaya Timur',
+    ];
+    mockIntegrationsRepo.getConnectStatus.mockResolvedValue(readyStatus([
+      { kind: 'party', pmo_count: 1, erp_count: 2, linked_count: 0, inactive_erp_count: 0, scenario: 'S-D', accepted_at: null },
+    ]));
+    mockIntegrationsRepo.listConnectProposals.mockResolvedValue({ proposals: [
+      { id: 'long-search', kind: 'party', outcome: 'review', reason: 'ambiguous', pmo_ids: ['pmo-1'], external_ids: ['candidate-1', 'candidate-2'], reason_text: null, snapshot: {}, state: 'open' },
+    ], nextAfterId: null });
+    mockIntegrationsRepo.searchConnectStaged.mockResolvedValue([
+      { external_id: 'supplier-1', name: longNames[0], code: 'NPWP 01.234.567.8' },
+      { external_id: 'supplier-2', name: longNames[1], code: 'NPWP 09.876.543.2' },
+    ]);
+
+    renderWithRole('Admin', <ConnectProposalReview tier='erpnext' orgId='org-1' />);
+    const card = await screen.findByTestId('connect-kind-party');
+    fireEvent.click(within(card).getByRole('button', { name: 'Review list' }));
+    const row = await screen.findByTestId('connect-review-list-row-long-search');
+    fireEvent.click(within(row).getByRole('button', { name: 'Change' }));
+    fireEvent.click(within(row).getByRole('combobox', { name: 'Search records' }));
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'Mutiara' } });
+
+    for (const [index, name] of longNames.entries()) {
+      const option = await screen.findByRole('option', { name: new RegExp(name) });
+      const fullName = option.querySelector('.whitespace-normal');
+      expect(fullName?.textContent).toContain(name);
+      expect(fullName).toHaveClass('whitespace-normal');
+      expect(within(option).getByText(index === 0 ? 'NPWP 01.234.567.8' : 'NPWP 09.876.543.2')).toBeInTheDocument();
+    }
+    expect(mockIntegrationsRepo.searchConnectStaged).toHaveBeenCalledWith('erpnext', 'party', 'Mutiara');
+  });
+
+  it('FR-ECA-018 typed search replaces old results immediately and ignores late responses', async () => {
+    let resolveMutiara: ((rows: Array<{ external_id: string; name: string; code: string }>) => void) | undefined;
+    let resolveLatest: ((rows: Array<{ external_id: string; name: string; code: string }>) => void) | undefined;
+    mockIntegrationsRepo.getConnectStatus.mockResolvedValue(readyStatus([
+      { kind: 'party', pmo_count: 1, erp_count: 2, linked_count: 0, inactive_erp_count: 0, scenario: 'S-D', accepted_at: null },
+    ]));
+    mockIntegrationsRepo.listConnectProposals.mockResolvedValue({ proposals: [
+      { id: 'query-row', kind: 'party', outcome: 'review', reason: 'ambiguous', pmo_ids: ['pmo-1'], external_ids: ['candidate-1', 'candidate-2'], reason_text: null, snapshot: {}, state: 'open' },
+    ], nextAfterId: null });
+    mockIntegrationsRepo.searchConnectStaged.mockImplementation((_tier, _kind, query) => {
+      if (query === 'Sinar') return Promise.resolve([{ external_id: 'sinar', name: 'PT Sinar Daya', code: 'SIN-1' }]);
+      if (query === 'Mutiara') return new Promise((resolve) => { resolveMutiara = resolve; });
+      if (query === 'Mutiara Baru') return new Promise((resolve) => { resolveLatest = resolve; });
+      return Promise.resolve([]);
+    });
+
+    renderWithRole('Admin', <ConnectProposalReview tier='erpnext' orgId='org-1' />);
+    const card = await screen.findByTestId('connect-kind-party');
+    fireEvent.click(within(card).getByRole('button', { name: 'Review list' }));
+    const row = await screen.findByTestId('connect-review-list-row-query-row');
+    fireEvent.click(within(row).getByRole('button', { name: 'Change' }));
+    fireEvent.click(within(row).getByRole('combobox', { name: 'Search records' }));
+    const searchbox = screen.getByRole('searchbox');
+
+    fireEvent.change(searchbox, { target: { value: 'Sinar' } });
+    expect(await screen.findByRole('option', { name: /PT Sinar Daya/ })).toBeInTheDocument();
+    fireEvent.change(searchbox, { target: { value: 'Mutiara' } });
+    expect(screen.queryByRole('option', { name: /PT Sinar Daya/ })).toBeNull();
+    await waitFor(() => expect(mockIntegrationsRepo.searchConnectStaged).toHaveBeenCalledWith('erpnext', 'party', 'Mutiara'));
+    fireEvent.change(searchbox, { target: { value: 'Mutiara Baru' } });
+    await waitFor(() => expect(mockIntegrationsRepo.searchConnectStaged).toHaveBeenCalledWith('erpnext', 'party', 'Mutiara Baru'));
+
+    resolveLatest?.([{ external_id: 'latest', name: 'PT Mutiara Baru', code: 'MUT-2' }]);
+    expect(await screen.findByRole('option', { name: /PT Mutiara Baru/ })).toBeInTheDocument();
+    resolveMutiara?.([{ external_id: 'stale', name: 'PT Mutiara Lama', code: 'MUT-1' }]);
+    await waitFor(() => expect(screen.getByRole('option', { name: /PT Mutiara Baru/ })).toBeInTheDocument());
+    expect(screen.queryByRole('option', { name: /PT Mutiara Lama/ })).toBeNull();
+  });
+
+  it('FR-ECA-042 item census copy uses the connected-system wording in English and Indonesian', async () => {
+    const census = [{ kind: 'item' as const, pmo_count: 3, erp_count: 4, linked_count: 2, inactive_erp_count: 0, scenario: 'S-D' as const, accepted_at: null }];
+    const previousLanguage = i18next.language;
+    i18next.addResourceBundle('id', 'administration', idAdministration, true, true);
+    mockIntegrationsRepo.getConnectStatus.mockResolvedValue(readyStatus(census));
+    mockIntegrationsRepo.listConnectProposals.mockResolvedValue({ proposals: [], nextAfterId: null });
+    try {
+      await i18next.changeLanguage('en');
+      const english = renderWithRole('Admin', <ConnectProposalReview tier='erpnext' orgId='org-1' />);
+      const englishCard = await screen.findByTestId('connect-kind-item');
+      expect(englishCard.textContent).toContain('in the connected system');
+      expect(englishCard.textContent).not.toContain('in your connected system');
+      english.unmount();
+
+      await i18next.changeLanguage('id');
+      renderWithRole('Admin', <ConnectProposalReview tier='erpnext' orgId='org-1' />);
+      expect((await screen.findByTestId('connect-kind-item')).textContent).toContain('di sistem yang terhubung');
+    } finally {
+      cleanup();
+      await i18next.changeLanguage(previousLanguage || 'en');
+      i18next.removeResourceBundle('id', 'administration');
+    }
   });
 
   it('shows staging state with "Reading records from your connected system…" and polls', async () => {

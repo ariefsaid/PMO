@@ -79,7 +79,7 @@ function formatCensusLine(
 
   return t(
     'integrations.connect.censusPlain',
-    '{{pmo}} {{noun}} in PMO, {{connected}} in your connected system, {{same}} are the same',
+    '{{pmo}} {{noun}} in PMO, {{connected}} in the connected system, {{same}} are the same',
     { noun: kindNoun(t, row.kind), pmo: row.pmo_count, connected: row.erp_count, same },
   );
 }
@@ -254,8 +254,9 @@ export function ConnectProposalReview({ tier = 'erpnext', open = true, onClose }
       setSearchStatus('ready');
       return;
     }
+    setSearchRecords([]);
+    setSearchStatus('loading');
     searchTimer.current = setTimeout(async () => {
-      setSearchStatus('loading');
       try {
         const records = await repositories.integrations.searchConnectStaged(tier, reviewListKind ?? 'party', query.trim());
         if (token === searchToken.current) {
@@ -427,6 +428,7 @@ export function ConnectProposalReview({ tier = 'erpnext', open = true, onClose }
             value: JSON.stringify({ action: 'bring-in', externalId: record.external_id }),
             label: t('integrations.connect.addStagedAsNew', 'Add {{name}} as new', { name: record.name }),
             sub: record.code,
+            wrapLabel: true,
           }];
         }
         return pmoIds.map((pmoId) => ({
@@ -436,17 +438,18 @@ export function ConnectProposalReview({ tier = 'erpnext', open = true, onClose }
             connected: record.name,
           }),
           sub: record.code,
+          wrapLabel: true,
         }));
       })
     : [];
-  if (chooserProposal?.outcome === 'bring-in' && chooserProposal.external_ids[0] && chooserProposal.kind === 'party') {
+  if (chooserProposal?.kind === 'party' && chooserProposal.pmo_ids.length === 0 && chooserProposal.external_ids[0]) {
     chooserOptions.push({
       value: JSON.stringify({ action: 'bring-in', externalId: chooserProposal.external_ids[0] }),
       label: t('integrations.connect.addAsNew', 'Add as new in PMO'),
       sub: chooserProposal.erp_name ?? chooserProposal.snapshot.name ?? chooserProposal.external_ids[0],
     });
   }
-  if (chooserProposal && chooserProposal.pmo_ids.length > 0 && chooserProposal.external_ids.length === 0) {
+  if (chooserProposal && chooserProposal.pmo_ids.length > 0) {
     chooserOptions.push({
       value: JSON.stringify({ action: 'send', pmoId: chooserProposal.pmo_ids[0] }),
       label: t('integrations.connect.createAsNew', 'Create as new in the connected system'),
@@ -460,7 +463,10 @@ export function ConnectProposalReview({ tier = 'erpnext', open = true, onClose }
   const pmoName = (proposal: ConnectProposal) => proposal.pmo_name
     ?? (proposal.pmo_ids.length ? proposal.snapshot.name ?? proposal.pmo_ids.join(', ') : t('integrations.connect.notInPmo', 'Not in PMO yet'));
   const connectedName = (proposal: ConnectProposal) => proposal.erp_name
-    ?? (proposal.outcome === 'send' ? t('integrations.connect.willBeCreated', 'Will be created') : proposal.snapshot.name ?? proposal.snapshot.code ?? proposal.external_ids.join(', '));
+    ?? (proposal.outcome === 'send'
+      ? t('integrations.connect.willBeCreated', 'Will be created')
+      : proposal.snapshot.employeeName ?? proposal.snapshot.accountName ?? proposal.snapshot.itemName ?? proposal.snapshot.item_name
+        ?? proposal.snapshot.name ?? proposal.snapshot.code ?? proposal.external_ids.join(', '));
   const actionName = (proposal: ConnectProposal) => {
     if (proposal.state === 'applied') return t('integrations.connect.connected', 'Connected');
     if (proposal.outcome === 'link') return t('integrations.connect.actionLink', 'Link these records');
@@ -678,6 +684,22 @@ export function ConnectProposalReview({ tier = 'erpnext', open = true, onClose }
                         <span className='px-2 text-muted-foreground' aria-hidden>→</span>
                         <span>{connectedName(proposal) || t('integrations.connect.notAvailable', 'Not available')}</span>
                       </p>
+                      {['item', 'account', 'employee'].includes(proposal.kind) && (
+                        <p className='flex flex-wrap gap-x-3 text-xs text-muted-foreground'>
+                          {proposal.pmo_ids.length > 0 && (
+                            <span>
+                              {t('integrations.connect.pmoRecordId', 'PMO ID')}: {' '}
+                              <code className='font-mono'>{proposal.pmo_ids.join(', ')}</code>
+                            </span>
+                          )}
+                          {proposal.external_ids.length > 0 && (
+                            <span>
+                              {t('integrations.connect.connectedRecordId', 'Connected ID')}: {' '}
+                              <code className='font-mono'>{proposal.external_ids.join(', ')}</code>
+                            </span>
+                          )}
+                        </p>
+                      )}
                       <p className='text-xs text-muted-foreground'>
                         {actionName(proposal)}
                         {proposal.outcome === 'review' && proposal.reason_text ? ` · ${proposal.reason_text}` : ''}
@@ -696,9 +718,10 @@ export function ConnectProposalReview({ tier = 'erpnext', open = true, onClose }
                     {!isApplied && (
                       <CanWrite action='manage' entity='integration' ctx={{ record: { kind: proposal.kind } }} fallback={null}>
                         {isChoosing ? (
-                          <div className='flex w-full min-w-0 items-center gap-2 sm:w-auto sm:min-w-[260px]'>
+                          <div className='flex w-full min-w-0 items-center gap-2 sm:w-auto sm:min-w-[360px]'>
                             <Combobox
                               label={t('integrations.connect.searchRecords', 'Search records')}
+                              className='min-w-0 flex-1'
                               value={null}
                               onChange={(value) => {
                                 try {

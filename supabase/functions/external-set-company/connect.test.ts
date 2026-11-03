@@ -238,6 +238,27 @@ describe('ECA setup verbs — list and status', () => {
     assertEquals([(r.json.proposals as unknown[]).length, r.json.nextAfterId], [200, 'p199']);
   });
 
+  it('FR-ECA-012 review rows use item, account, and employee names while retaining their ids', async () => {
+    const rows = [
+      { id: 'item-1', kind: 'item', outcome: 'link', pmo_ids: ['PMO Item Name'], external_ids: ['ITEM-40'], snapshot: { itemName: 'Connected Item Name' }, state: 'open' },
+      { id: 'account-1', kind: 'account', outcome: 'link', pmo_ids: ['Labor'], external_ids: ['ERP-ACCOUNT-40'], snapshot: { accountName: 'Wages Account' }, state: 'open' },
+      { id: 'employee-1', kind: 'employee', outcome: 'link', pmo_ids: ['employee-record-1'], external_ids: ['EMP-104'], snapshot: { employeeName: 'Connected Person Name' }, state: 'open' },
+    ];
+    const r = await call({ setupAction: 'list-proposals' }, { extra: [
+      supabaseSelect('erp_connect_proposals', () => jsonResponse(rows)),
+      supabaseSelect('profiles', (request) => request.url.searchParams.get('select') === 'id,full_name'
+        ? jsonResponse([{ id: 'employee-record-1', full_name: 'PMO Person Name' }])
+        : one({ org_id: 'org-1', role: 'Admin' })),
+    ] });
+    assertEquals(r.res.status, 200, JSON.stringify({ json: r.json, calls: r.calls.map((entry) => entry.url.toString()) }));
+    const proposals = r.json.proposals as Array<{ pmo_name: string; erp_name: string; external_ids: string[] }>;
+    assertEquals(proposals.map((proposal) => [proposal.pmo_name, proposal.erp_name, proposal.external_ids]), [
+      ['PMO Item Name', 'Connected Item Name', ['ITEM-40']],
+      ['Labor', 'Wages Account', ['ERP-ACCOUNT-40']],
+      ['PMO Person Name', 'Connected Person Name', ['EMP-104']],
+    ]);
+  });
+
   it('FR-ECA-012 Finance lists account rows only', async () => {
     const r = await call({ setupAction: 'list-proposals', kind: 'party' }, { role: 'Finance' });
     assertEquals(r.res.status, 403);

@@ -4,7 +4,8 @@ create extension if not exists pg_trgm;
 
 create index erp_connect_staged_search on public.erp_connect_staged using gin (
   lower(coalesce(external_id, '') || ' ' || coalesce(row->>'name', '') || ' ' || coalesce(row->>'employeeName', '') || ' ' ||
-        coalesce(row->>'accountName', '') || ' ' || coalesce(row->>'code', '') || ' ' || coalesce(row->>'number', '')) gin_trgm_ops
+        coalesce(row->>'accountName', '') || ' ' || coalesce(row->>'itemName', '') || ' ' || coalesce(row->>'item_name', '') || ' ' ||
+        coalesce(row->>'code', '') || ' ' || coalesce(row->>'number', '') || ' ' || coalesce(row->>'taxId', '') || ' ' || coalesce(row->>'tax_id', '')) gin_trgm_ops
 );
 
 -- Preserve only the newest complete staged snapshot for the setup picker.
@@ -203,12 +204,14 @@ begin
   v_pattern := '%' || replace(replace(replace(v_query, E'\\', E'\\\\'), '%', E'\\%'), '_', E'\\_') || '%';
   return query
     select s.external_id,
-           coalesce(nullif(s.row->>'name', ''), nullif(s.row->>'employeeName', ''), nullif(s.row->>'accountName', ''), s.external_id),
-           coalesce(nullif(s.row->>'code', ''), nullif(s.row->>'number', ''), s.external_id)
+           coalesce(nullif(s.row->>'name', ''), nullif(s.row->>'employeeName', ''), nullif(s.row->>'accountName', ''),
+                    nullif(s.row->>'itemName', ''), nullif(s.row->>'item_name', ''), s.external_id),
+           coalesce(nullif(s.row->>'code', ''), nullif(s.row->>'number', ''), nullif(s.row->>'taxId', ''), nullif(s.row->>'tax_id', ''), s.external_id)
       from public.erp_connect_staged s
      where s.run_id = v_run and s.org_id = v_org and s.kind = p_kind
        and lower(coalesce(s.external_id, '') || ' ' || coalesce(s.row->>'name', '') || ' ' || coalesce(s.row->>'employeeName', '') || ' ' ||
-                 coalesce(s.row->>'accountName', '') || ' ' || coalesce(s.row->>'code', '') || ' ' || coalesce(s.row->>'number', '')) like v_pattern escape E'\\'
+                 coalesce(s.row->>'accountName', '') || ' ' || coalesce(s.row->>'itemName', '') || ' ' || coalesce(s.row->>'item_name', '') || ' ' ||
+                 coalesce(s.row->>'code', '') || ' ' || coalesce(s.row->>'number', '') || ' ' || coalesce(s.row->>'taxId', '') || ' ' || coalesce(s.row->>'tax_id', '')) like v_pattern escape E'\\'
      order by lower(coalesce(s.row->>'name', s.external_id)), s.external_id
      limit least(greatest(coalesce(p_limit, 20), 1), 20);
 end $$;
@@ -282,7 +285,29 @@ begin
      and not public.connect_link_in_use(v_org,
        case p.kind when 'party' then 'companies' when 'project' then 'projects' when 'employee' then 'employees'
                    when 'account' then 'accounts' when 'item' then 'items' end,
-       p.pmo_ids[1]);
+       p.pmo_ids[1])
+     and case
+       when p.kind = 'party' then exists (
+         select 1 from public.external_refs r
+          where r.org_id = v_org and r.domain = 'companies' and r.pmo_record_id = p.pmo_ids[1]
+            and r.external_record_id = p.external_ids[1])
+       when p.kind = 'project' and p.external_tier = 'odoo' then exists (
+         select 1 from public.external_project_bindings b
+          where b.org_id = v_org and b.project_id::text = p.pmo_ids[1] and b.external_tier = 'odoo'
+            and b.external_container_id = p.external_ids[1])
+       when p.kind in ('project', 'item') then exists (
+         select 1 from public.external_org_bindings b
+          where b.org_id = v_org and b.external_tier = p.external_tier and b.status = 'active'
+            and b.config->(case p.kind when 'project' then 'project_map' else 'item_map' end)->>p.pmo_ids[1] = p.external_ids[1])
+       when p.kind = 'employee' then exists (
+         select 1 from public.erp_employees e
+          where e.org_id = v_org and e.employee_number = p.external_ids[1]
+            and e.profile_id::text = p.pmo_ids[1] and e.link_state = 'confirmed')
+       when p.kind = 'account' then exists (
+         select 1 from public.budget_category_account_map m
+          where m.org_id = v_org and m.category::text = p.pmo_ids[1] and m.erp_account = p.external_ids[1])
+       else false
+     end;
   return v_ids;
 end $$;
 

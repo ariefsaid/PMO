@@ -3,7 +3,7 @@
 -- FOR UPDATE re-checking state='open' after the lock wait plus the external_refs reverse-unique claim (AC-ECA-004 traceability note).
 -- AC-ECA-004 (exactly-once apply), AC-ECA-007 (audited, undoable while unused), plus the role / tenancy / grant contract.
 begin;
-select plan(142);
+select plan(145);
 
 insert into organizations (id, name) values
  ('a4510000-0000-0000-0000-000000000001','Connect A'),
@@ -291,8 +291,14 @@ insert into companies (id, org_id, name, type) values ('a4510000-0000-0000-0000-
 insert into erp_connect_proposals (org_id, binding_id, external_tier, kind, outcome, identity, pmo_ids, external_ids, state, match_key) values
  ('a4510000-0000-0000-0000-000000000001',(select id from external_org_bindings where org_id='a4510000-0000-0000-0000-000000000001'),'erpnext','party','link','gone',
   '{a4510000-0000-0000-0000-0000000000d3}','{Supplier:GONE}','applied','tax');
+insert into external_refs (org_id, domain, pmo_record_id, external_tier, external_record_id) values
+ ('a4510000-0000-0000-0000-000000000001','companies','a4510000-0000-0000-0000-0000000000d3','erpnext','Supplier:GONE');
+delete from external_refs where org_id='a4510000-0000-0000-0000-000000000001' and domain='companies'
+  and pmo_record_id='a4510000-0000-0000-0000-0000000000d3' and external_record_id='Supplier:GONE';
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"a4510000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select is(public.list_unlinkable_connect_matches(array[(select id from erp_connect_proposals where identity='gone')]), array[]::uuid[],
+  'AC-ECA-019 Undo is unavailable after the current link has disappeared');
 select throws_ok($$select public.unlink_connect_match((select id from erp_connect_proposals where identity='gone'))$$, 'P0001', 'nothing to unlink',
   'an unlink whose link is already gone raises instead of reporting success');
 reset role;
@@ -508,6 +514,7 @@ update erp_connect_runs set started_at = now() + interval '1 second' where id in
   ('a4510000-0000-0000-0000-0000000000e7','a4510000-0000-0000-0000-0000000000e8');
 insert into erp_connect_staged (run_id, org_id, kind, external_id, row) values
  ('a4510000-0000-0000-0000-0000000000e7','a4510000-0000-0000-0000-000000000001','party','Supplier:ALT','{"name":"Alpha Partner","code":"ALT","role":"vendor"}'),
+ ('a4510000-0000-0000-0000-0000000000e7','a4510000-0000-0000-0000-000000000001','party','Supplier:MUTIARA','{"name":"PT Mutiara Engineering","taxId":"02.123.456"}'),
  ('a4510000-0000-0000-0000-0000000000e7','a4510000-0000-0000-0000-000000000001','party','Supplier:TAKEN','{"name":"Already linked","code":"TAKEN","role":"vendor"}'),
  ('a4510000-0000-0000-0000-0000000000e7','a4510000-0000-0000-0000-000000000001','item','Item:WRONG','{"name":"Wrong kind","code":"WRONG"}'),
  -- Deliberately mismatched ownership under A's run: mutations that remove the explicit org filter must leak this row.
@@ -555,6 +562,10 @@ select results_eq($$select external_id from public.search_connect_staged('erpnex
   $$values ('Supplier:ALT'::text)$$, 'AC-ECA-018 search returns only a matching staged record from this organisation and kind');
 select results_eq($$select external_id from public.search_connect_staged('erpnext','party','ALT',20)$$,
   $$values ('Supplier:ALT'::text)$$, 'AC-ECA-018 search also matches a staged record code');
+select results_eq($$select name, code from public.search_connect_staged('erpnext','party','Mutiara',20)$$,
+  $$values ('PT Mutiara Engineering'::text, '02.123.456'::text)$$, 'FR-ECA-018 a search result shows the tax id when no code is available');
+select results_eq($$select external_id from public.search_connect_staged('erpnext','party','02.123.456',20)$$,
+  $$values ('Supplier:MUTIARA'::text)$$, 'FR-ECA-018 a staged record can be found by its tax id');
 select results_eq($$select external_id from public.search_connect_staged('erpnext','party','Beta',20)$$,
   $$select null::text where false$$, 'AC-ECA-018 search never returns another organisation''s staged record');
 select results_eq($$select external_id from public.search_connect_staged('erpnext','party','Wrong kind',20)$$,

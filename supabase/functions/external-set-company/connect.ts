@@ -112,7 +112,8 @@ async function proposalNames(client: SupabaseClient, orgId: string, proposals: P
     ...proposal,
     pmo_name: (proposal.pmo_ids ?? []).map((id) => names.get(`${proposal.kind}:${id}`) ?? id).join(', ') || null,
     erp_name: proposal.outcome === 'send' ? null
-      : String(proposal.snapshot?.name ?? proposal.snapshot?.code ?? proposal.external_ids?.[0] ?? '') || null,
+      : String(proposal.snapshot?.employeeName ?? proposal.snapshot?.accountName ?? proposal.snapshot?.itemName ?? proposal.snapshot?.item_name
+        ?? proposal.snapshot?.name ?? proposal.snapshot?.code ?? proposal.external_ids?.[0] ?? '') || null,
     can_unlink: false,
   }));
 }

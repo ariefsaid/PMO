@@ -166,7 +166,7 @@ export interface ConnectProposal {
   external_ids: string[];
   reason: 'ambiguous' | 'tax-conflict' | 'rejected' | 'held' | null;
   reason_text: string | null;
-  snapshot: { name?: string; code?: string };
+  snapshot: { name?: string; code?: string; employeeName?: string; accountName?: string; itemName?: string; item_name?: string };
   state: 'open' | 'sending' | 'applied' | 'dismissed';
   pmo_name?: string | null;
   erp_name?: string | null;
