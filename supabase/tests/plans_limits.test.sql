@@ -185,6 +185,7 @@ select throws_ok(
   'P0002', null,
   'AC-PLN-009 an unknown org is refused rather than silently allowed');
 reset role;
+reset request.jwt.claims;   -- the seat fixtures below are written by the migration runner
 
 -- ── A freed seat is usable again; re-enabling a profile consumes one ─────────────────────────────
 update public.profiles set status = 'disabled'
