@@ -159,6 +159,7 @@ describe('UpdatePasswordPage', () => {
     expect(screen.queryByRole('button', { name: /request a new link/i })).toBeNull();
     // Landmark: the page exposes a single <main> around the card content.
     expect(screen.getByRole('main')).toBeInTheDocument();
+    expect(screen.queryByText('PMO Portal')).toBeNull();
     expect(screen.queryByLabelText(/new password/i)).toBeNull();
   });
 

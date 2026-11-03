@@ -536,7 +536,7 @@ export const FinanceDashboard: React.FC = () => {
             {procError ? (
               <ListState variant="error" title="Couldn't load procurement" onRetry={() => refetchProc()} />
             ) : procPending ? (
-              <ListState variant="loading" rows={6} />
+              <ListState variant="loading" shape="chart" rows={6} />
             ) : procByStatus.length === 0 ? (
               <ListState variant="empty" icon="cart" title={t('dashboard.chart.procStatus.empty', 'No procurement activity yet')} />
             ) : (

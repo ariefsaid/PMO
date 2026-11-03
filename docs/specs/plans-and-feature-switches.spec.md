@@ -103,10 +103,14 @@ RPCs, its outbox/sync jobs and its edge functions shall refuse with a typed `fea
 turns back on, the data shall be visible again unchanged.
 
 **FR-PLN-008 — Assistant tools follow switches.** While a key resolves *off*, the assistant shall not be
-offered that key's tools, and shall answer that the feature is not on the org's plan.
+offered that key's tools, and shall answer that the feature is not on the org's plan. While
+`agent_assistant` resolves *off*, every assistant run (interactive chat and fired automations alike)
+shall be refused before any model call, and an assistant write may never proceed while its own key is
+off or could not be resolved.
 
 **FR-PLN-009 — Missing-tool signal.** When the assistant answers that it has no tool for a request, the
-system shall emit one PostHog event carrying org, route and module guess, and no message text.
+system shall emit one PostHog event carrying org, route, a module guess and a source code (a missing
+capability vs. a switched-off module), and no message text.
 
 **FR-PLN-010 — Seats limit.** When an Admin invites a user that would exceed the plan's seats, the
 system shall refuse the invite with a message naming the limit; existing members are unaffected.

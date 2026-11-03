@@ -9,6 +9,7 @@ import {
   isOwnershipCacheSynced,
   subscribeOwnershipCache,
   taskRouteState,
+  domainTier,
 } from './ownershipCache.ts';
 
 /**
@@ -119,4 +120,15 @@ it('reports readiness and publishes binding changes', () => {
   clearOwnershipCache();
   expect(taskRouteState('p1')).toBe('unknown');
   unsubscribe();
+});
+
+describe('domainTier (#1505 P8)', () => {
+  it('names the tier that owns a domain, and is null cold or for a domain PMO owns', () => {
+    clearOwnershipCache();
+    expect(domainTier('procurement')).toBeNull();
+    setTaskOwnership([{ domain: 'procurement', externalTier: 'odoo' }]);
+    expect(domainTier('procurement')).toBe('odoo');
+    expect(domainTier('companies')).toBeNull();
+    clearOwnershipCache();
+  });
 });

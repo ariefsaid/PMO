@@ -22,6 +22,7 @@
  * the single-source status registry (CW-2, DESIGN.md).
  */
 
+import { billPaymentView } from '@/src/lib/adapterSeam/odoo/purchase/status';
 import type { ProcurementDetail } from './procurementLifecycle';
 import type { StatusVariant } from '@/src/components/ui/StatusPill';
 import { workflowVariant } from '@/src/lib/status/statusVariants';
@@ -124,6 +125,37 @@ export interface LedgerRow {
    * carries no currency, so they stamp the parent procurement's (their amount is null anyway).
    */
   currency: string;
+  /** #1505 P8: what Odoo last said about this record. Absent for a record PMO owns (it renders exactly as before). */
+  odoo?: OdooRowFacts;
+}
+
+/** The mirror facts of an Odoo-held record (migration 0506). `booked`/`entered` are receipt quantities summed over lines; null = none yet. */
+export interface OdooRowFacts {
+  erpState: string | null;
+  erpAttention: string | null;
+  erpReadAt: string | null;
+  booked: number | null;
+  entered: number | null;
+  /** A bill only (FR-OPP-046/054): Paid, payment sent and awaiting Odoo's next read, or unpaid. */
+  paymentView?: 'paid' | 'awaiting-odoo' | 'unpaid';
+}
+
+interface OdooMirrorColumns {
+  erp_state?: string | null; erp_attention?: string | null; erp_read_at?: string | null;
+  odoo_booked?: unknown; odoo_entered?: unknown;
+}
+
+const sumQuantities = (list: unknown): number | null => {
+  if (!Array.isArray(list)) return null;
+  return list.reduce<number>((n, l) => n + (Number((l as { quantity?: unknown })?.quantity) || 0), 0);
+};
+
+function odooFacts(rec: OdooMirrorColumns): OdooRowFacts | undefined {
+  if (rec.erp_state == null && rec.erp_attention == null) return undefined;
+  return {
+    erpState: rec.erp_state ?? null, erpAttention: rec.erp_attention ?? null, erpReadAt: rec.erp_read_at ?? null,
+    booked: sumQuantities(rec.odoo_booked), entered: sumQuantities(rec.odoo_entered),
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -392,6 +424,27 @@ export function buildLedgerRows(detail: ProcurementDetail): LedgerRow[] {
         (pay as unknown as { files?: EmbeddedFileRow[] }).files,
       ),
     );
+  }
+
+  // ── Odoo facts (#1505 P8): attached by record id, only where the mirror holds a fact ──
+  const mirrored = new Map<string, OdooRowFacts>();
+  for (const rec of [...(detail.purchase_orders ?? []), ...(detail.receipts ?? []), ...(detail.invoices ?? []), ...(detail.payments ?? [])]) {
+    const facts = odooFacts(rec as unknown as OdooMirrorColumns);
+    if (facts) mirrored.set((rec as { id: string }).id, facts);
+  }
+  // A bill is "awaiting Odoo" while PMO has sent more payment than Odoo's own outstanding amount reflects (FR-OPP-054).
+  for (const inv of detail.invoices ?? []) {
+    const facts = mirrored.get(inv.id);
+    if (!facts?.erpState) continue;
+    const total = Number(inv.amount ?? 0);
+    const outstanding = inv.erp_outstanding_amount;
+    const sent = (detail.payments ?? []).filter((p) => p.invoice_id === inv.id).reduce((n, p) => n + Number(p.amount ?? 0), 0);
+    const reflected = outstanding == null ? 0 : total - Number(outstanding);
+    facts.paymentView = billPaymentView({ state: facts.erpState, residual: outstanding == null ? null : String(outstanding), paymentsSent: sent > reflected + 0.005 ? 1 : 0 });
+  }
+  for (const row of rows) {
+    const facts = mirrored.get(row.recordId);
+    if (facts && ['PO', 'GR', 'Invoice', 'Payment'].includes(row.type)) row.odoo = facts;
   }
 
   // ── Sort: newest-first (descending by business date) ─────────────────────
