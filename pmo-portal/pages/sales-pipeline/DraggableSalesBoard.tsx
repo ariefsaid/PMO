@@ -75,7 +75,23 @@ export const DraggableSalesBoard: React.FC<{
         return;
       }
       reset();
-      toast('Status change failed', err instanceof Error ? err.message : undefined, 'warning');
+      if ((err as { code?: unknown } | null)?.code === 'PL002') {
+        const { headline, detail } = classifyMutationError(err, {
+          PL002: t('projects:revive.limitReached', "You've reached your plan's active-project limit"),
+        }, {
+          module: 'projects',
+          operation: 'update',
+          detailOverrides: {
+            PL002: t(
+              'projects:revive.limitReachedDetail',
+              'This project was not restored. Archive an active project you no longer need, or ask your Operator to upgrade the plan, then try again.',
+            ),
+          },
+        });
+        toast(headline, detail, 'warning');
+      } else {
+        toast('Status change failed', err instanceof Error ? err.message : undefined, 'warning');
+      }
       moves.release(project.id);
       return;
     }

@@ -56,6 +56,10 @@ export interface World {
   progressClaim?: Record<string, unknown> | null;
   progressClaimLines?: Array<Record<string, unknown>>;
   progressClaimEvidence?: Array<Record<string, unknown>>;
+  /** The signed T&M parent and its frozen line facts, read only by the claim bridge. */
+  timeMaterialsClaim?: Record<string, unknown> | null;
+  timeMaterialsClaimLines?: Array<Record<string, unknown>>;
+  projectSubjectToVat?: boolean;
   /** Fake Odoo product income account, which may drift from the mirror for a read-back mismatch case. */
   downPaymentProductIncomeAccount?: number;
   /** Mirrored income account for the down-payment item; null models older product rows without the attribute. */
@@ -125,8 +129,8 @@ export function revenueRoutes(unexpected: FetchCall[], caller: string, world: Wo
     if (table === 'sales_invoices' && select.includes('native_lines')) return world.draft === null || (id !== DRAFT_ID && id !== CLAIM_ID) ? nullObjectResponse() : objectResponse(world.draft ?? draftRow());
     if (select.includes('pmo_native')) return nullObjectResponse();
     if (select === 'project_id') return objectResponse({ project_id: PROJECT_ID });   // the submit-time process gate reads the mirror row's project
-    if (table === 'projects' && select.includes('client_id')) return objectResponse({ client_id: CUSTOMER_ID, subject_to_vat: true, customer_contract_ref: 'CT-1' });
-    if (table === 'projects' && select.includes('subject_to_vat')) return objectResponse({ subject_to_vat: true, customer_contract_ref: 'CT-1' });
+    if (table === 'projects' && select.includes('client_id')) return objectResponse({ client_id: CUSTOMER_ID, subject_to_vat: world.projectSubjectToVat ?? true, customer_contract_ref: 'CT-1' });
+    if (table === 'projects' && select.includes('subject_to_vat')) return objectResponse({ subject_to_vat: world.projectSubjectToVat ?? true, customer_contract_ref: 'CT-1' });
     if (table === 'work_orders' && select.includes('client_po_number')) return objectResponse({ client_po_number: 'WO-PO-9' });
     if (table === 'sales_invoices' && select.includes('currency')) return orgOf(table, id) !== null
       ? objectResponse({ id, customer_id: world.invoiceCustomer === undefined ? CUSTOMER_ID : world.invoiceCustomer, currency: 'IDR' }) : nullObjectResponse();
@@ -161,9 +165,10 @@ export function revenueRoutes(unexpected: FetchCall[], caller: string, world: Wo
     supabaseSelect('external_org_bindings', (call) => bindingTiers.has(param(call, 'external_tier') ?? '')
       ? (world.odooBinding === null ? nullObjectResponse() : objectResponse({
           id: 'b0000000-0000-4000-8000-000000000001', site_url: `https://${ODOO_HOST}`, secret_ref: 'odoo_ref', status: 'active', activated_at: '2026-11-01T00:00:00Z',
-          config: { database: 'db1', odoo_company_id: 1, default_payment_journal_id: 9, tax_prepaid_account_id: 88,
-            customer_advance_account_ref: world.customerAdvanceAccountRef === null ? undefined : world.customerAdvanceAccountRef ?? 'account.account:210',
-            capabilities: world.snapshot === undefined ? REVENUE_SNAPSHOT : world.snapshot, item_map: { 'ITEM-A': '71', 'ITEM-DP': '72' }, sale_tax_id: 5 },
+          config: { database: 'db1', odoo_company_id: 1, capabilities: world.snapshot === undefined ? REVENUE_SNAPSHOT : world.snapshot,
+            item_map: { 'ITEM-A': '71', 'ITEM-DP': '72', 'Field labour': '71' }, unit_map: { hour: '13', day: '14' }, sale_tax_id: 5,
+            default_payment_journal_id: 9, tax_prepaid_account_id: 88,
+            ...(world.customerAdvanceAccountRef === null ? {} : { customer_advance_account_ref: world.customerAdvanceAccountRef ?? 'account.account:210' }) },
           ...world.odooBinding,
         }))
       : nullObjectResponse()),
@@ -189,6 +194,8 @@ export function revenueRoutes(unexpected: FetchCall[], caller: string, world: Wo
     supabaseSelect('progress_claims', () => world.progressClaim ? objectResponse(world.progressClaim) : nullObjectResponse()),
     supabaseSelect('progress_claim_lines', () => jsonResponse(world.progressClaimLines ?? [])),
     supabaseSelect('progress_claim_evidence', () => jsonResponse(world.progressClaimEvidence ?? [])),
+    supabaseSelect('tm_claims', () => world.timeMaterialsClaim ? objectResponse(world.timeMaterialsClaim) : nullObjectResponse()),
+    supabaseSelect('tm_claim_lines', () => jsonResponse(world.timeMaterialsClaimLines ?? [])),
     // an invoice a receipt settles has its Odoo reference unless the world says it has none; a submit's own record is mapped
     supabaseSelect('external_refs', (call) => {
       const id = param(call, 'pmo_record_id');
