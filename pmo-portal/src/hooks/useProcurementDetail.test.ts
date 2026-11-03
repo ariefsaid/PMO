@@ -62,7 +62,7 @@ vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: actor.id, org_id: 'org-1', role: actor.role }, role: actor.role }),
 }));
 
-import { useProcurementDetail, useProcurementMutations } from './useProcurementDetail';
+import { useProcurementBulkTransition, useProcurementDetail, useProcurementMutations } from './useProcurementDetail';
 import { getProcurementDetail, captureVendorInvoice } from '@/src/lib/db/procurementLifecycle';
 import { repositories } from '@/src/lib/repositories';
 import { clearOwnershipCache, setTaskOwnership } from '@/src/lib/adapterSeam/ownershipCache';
@@ -184,6 +184,21 @@ describe('useProcurementMutations', () => {
           c.includes('"procurement"') && c.includes('"org-1"') && c.includes('"proc-1"'),
       ),
     ).toBe(true);
+  });
+
+  it('AC-1578: bulk procurement transitions call the same repository transition once per selected row', async () => {
+    const { qc, Wrapper } = makeWrapper();
+    const invalidateSpy = vi.spyOn(qc, 'invalidateQueries');
+    const { result } = renderHook(() => useProcurementBulkTransition(), { wrapper: Wrapper });
+
+    await act(async () => {
+      await result.current.mutateAsync({ id: 'pr-1', to: 'Approved' });
+      await result.current.mutateAsync({ id: 'pr-2', to: 'Approved' });
+    });
+
+    expect(repositories.procurement.transition).toHaveBeenNthCalledWith(1, 'pr-1', 'Approved', undefined);
+    expect(repositories.procurement.transition).toHaveBeenNthCalledWith(2, 'pr-2', 'Approved', undefined);
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['procurements', 'org-1'] });
   });
 
   it('T-11: transition refreshes the list family and the case project spend', async () => {

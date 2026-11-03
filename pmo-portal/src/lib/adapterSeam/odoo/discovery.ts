@@ -28,10 +28,11 @@ export const O1_MODELS: Record<string, readonly string[]> = {
   'account.tax': ['name', 'amount', 'type_tax_use', 'company_id', 'active', 'write_date'],
   'account.analytic.plan': ['name', 'write_date'],
   'account.analytic.account': ['name', 'code', 'plan_id', 'company_id', 'active', 'write_date'],
+  'account.journal': ['name', 'code', 'type', 'company_id', 'active', 'write_date'],
 };
 
-/** Presence only, so O2..O8 read the snapshot instead of probing again. */
-export const LATER_MODELS = ['purchase.order', 'account.move', 'stock.picking', 'stock.move', 'account.analytic.line', 'fleet.vehicle', 'maintenance.equipment'] as const;
+/** Present and readable by the key, so O2..O8 read the snapshot instead of probing again. */
+export const LATER_MODELS = ['purchase.order', 'purchase.order.line', 'account.move', 'account.payment', 'stock.picking', 'stock.move', 'account.analytic.line', 'fleet.vehicle', 'maintenance.equipment'] as const;
 
 /** A send declared supported needs `create` on its model; without it the connection is degraded with the reason. */
 const SEND_MODELS = { 'party.send': 'res.partner', 'project.send': 'account.analytic.account', 'item.send': 'product.product' } as const;
@@ -79,7 +80,10 @@ export async function discoverCapabilities(
   const models: Record<string, ModelProbe> = {};
   for (const [model, fields] of Object.entries(O1_MODELS)) models[model] = await probeModel(call, model, fields, true);
   const later: Record<string, boolean> = {};
-  for (const model of LATER_MODELS) later[model] = (await probeModel(call, model, [], false)).exists;
+  for (const model of LATER_MODELS) {
+    const p = await probeModel(call, model, [], false);
+    later[model] = p.exists && (await call<boolean>(model, 'has_access', { operation: 'read' })) === true;
+  }
 
   const missing = Object.entries(models).flatMap(([m, p]) => (!p.exists ? [m] : !p.read ? [`${m}:read`] : p.fields_missing.map((f) => `${m}:${f}`)));
   for (const [workflow, model] of Object.entries(SEND_MODELS)) {

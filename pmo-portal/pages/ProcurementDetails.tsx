@@ -15,6 +15,7 @@ import {
   ListState,
   Icon,
   ConfirmDialog,
+  TextArea,
   Tabs,
   tabId,
   tabPanelId,
@@ -262,6 +263,7 @@ const ProcurementDetails: React.FC = () => {
   // Confirm-before-write (owner rule): a transition action / GR / VI is staged
   // here and only commits when the ConfirmDialog's Confirm is pressed.
   const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(null);
+  const [rejectionComment, setRejectionComment] = useState('');
   const erpOrphanQuery = useErpOrphans(undefined, { enabled: linkDialogOpen });
 
   // FR-AXP-021 (Track C): publish the loaded record to the live agent context so a
@@ -653,6 +655,7 @@ const ProcurementDetails: React.FC = () => {
       void commitTransition(action.to);
       return;
     }
+    setRejectionComment('');
     const destructive = action.variant === 'destructive';
     const isCancel = action.to === 'Cancelled';
     // The commit verb (action.label is already "Cancel request" for the cancel
@@ -704,8 +707,11 @@ const ProcurementDetails: React.FC = () => {
   //    an illegal-stage / SoD failure reads as such instead of a silent no-op.
   const commitTransition = async (to: ProcurementStatus) => {
     try {
-      await mutations.transition.mutateAsync({ to, notes: notesInput || undefined });
+      // A rejection's notes are the required comment from its confirm, not the approval-note box.
+      const notes = to === 'Rejected' ? rejectionComment.trim() : notesInput;
+      await mutations.transition.mutateAsync({ to, notes: notes || undefined });
       setNotesInput('');
+      setRejectionComment('');
       setPendingConfirm(null);
       // AC-IXD-PROC-001: the toast names the SAME canonical state the badge will
       // show — not the raw enum value (button verb → badge → toast all agree).
@@ -1414,7 +1420,22 @@ const ProcurementDetails: React.FC = () => {
               : t('procurementDetail.confirm.viTitle', 'Record this supplier invoice?')
         }
         description={
-          pendingConfirm?.kind === 'transition'
+          pendingConfirm?.kind === 'transition' && pendingConfirm.to === 'Rejected'
+            ? (
+              <div className="space-y-3">
+                <p>{pendingConfirm.description}</p>
+                <TextArea
+                  id="procurement-rejection-comment"
+                  label={t('procurement:approvalRow.rejectionComment', 'Rejection comment')}
+                  value={rejectionComment}
+                  onChange={setRejectionComment}
+                  required
+                  maxLength={1000}
+                  helper={t('procurement:approvalRow.rejectionCommentHelp', 'Add a comment for the requester before rejecting this purchase.')}
+                />
+              </div>
+            )
+            : pendingConfirm?.kind === 'transition'
             ? pendingConfirm.description
             : pendingConfirm?.kind === 'createGR'
               ? t(
@@ -1439,6 +1460,7 @@ const ProcurementDetails: React.FC = () => {
           pendingConfirm?.kind === 'transition' ? pendingConfirm.cancelLabel : undefined
         }
         loading={confirmInFlight}
+        confirmDisabled={pendingConfirm?.kind === 'transition' && pendingConfirm.to === 'Rejected' && rejectionComment.trim().length === 0}
         onCancel={() => setPendingConfirm(null)}
         onConfirm={() => void commitConfirm()}
       />

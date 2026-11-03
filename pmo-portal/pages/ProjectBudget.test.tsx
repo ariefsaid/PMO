@@ -402,6 +402,21 @@ describe('ProjectBudget (AC-726, NFR-BV-UI-001)', () => {
     resetState();
   });
 
+  it('AC-1530 renders PMO paid category spending without the ledger-link prompt', () => {
+    budgetState.data = activeVersion.total;
+    versionsState.data = [activeVersion];
+    positionState.rows = [
+      { category: 'Labor', budget: 2000000, actual: 55 },
+      { category: 'Materials', budget: 1700000, actual: 0 },
+      { category: 'Contingency', budget: 1000000, actual: 0 },
+    ];
+    renderPage();
+
+    const table = screen.getByRole('table', { name: 'Budget vs actual by category' });
+    expect(within(table).getByRole('row', { name: /Labor/ })).toHaveTextContent('55');
+    expect(screen.queryByText(/Spending isn't linked yet\./)).not.toBeInTheDocument();
+  });
+
   it('shows the source remedy once while keeping unknown spending visibly unavailable', () => {
     budgetState.data = activeVersion.total;
     versionsState.data = [activeVersion];

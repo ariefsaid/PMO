@@ -49,7 +49,7 @@ import { applyCanonicalTimesheetTruth, enforceTimesheetApproved, isTimesheetPush
 import { dispatchErrorStatus } from './dispatchErrorStatus.ts';
 import type { FaultGate } from './faultSeams.ts';
 import { isRevenueSiSubmitTransition, grantSiSubmitClearance, requiresSiAuthorClaim, claimSiAuthor, releaseSiSubmitClearance } from './sodGuard.ts';
-import { checkErpnextCommandAuthorization } from './authGuard.ts';
+import { checkCommandAuthorization } from './authGuard.ts';
 import { authorizeBudgetOccupant, isBudgetOccupantCommand, runBudgetOccupant } from './budgetOccupant.ts';
 import { assertNotPreCutover } from '../../../pmo-portal/src/lib/adapterSeam/cutoverGate.ts';
 import { authorizeClickUpTaskCommand } from './taskAuthorization.ts';
@@ -67,7 +67,7 @@ import {
   type JwksResolver,
 } from '../../../pmo-portal/src/lib/auth/verifyCallerJwt.ts';
 import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
-import { ADAPTER_REGISTRY, erpRateLimiter, resolveErpBindingRow, type AdapterSelectContext } from './dispatchAdapters.ts';
+import { erpRateLimiter, resolveErpBindingRow, selectAdapterFactory, type AdapterSelectContext } from './dispatchAdapters.ts';
 import { runDispatchAttempt } from './dispatchAttempt.ts';
 import {
   buildBudgetDispatchPlan,
@@ -77,6 +77,8 @@ import {
   recordBudgetPushFailure,
 } from './budgetDispatch.ts';
 import { resolveErpMoneyOutboxDeps as resolveErpMoneyOutboxDepsModule } from './erpMoneyOutbox.ts';
+import { resolveOdooMoneyOutboxDeps } from './odooMoneyOutbox.ts';
+import { ODOO_TIER } from '../../../pmo-portal/src/lib/adapterSeam/odoo/connectAdapter.ts';
 
 export { resolveErpBindingRow, resolveErpAdapter } from './dispatchAdapters.ts';
 export type { AdapterSelectContext } from './dispatchAdapters.ts';
@@ -87,6 +89,7 @@ export const resolveErpMoneyOutboxDeps = (ctx: AdapterSelectContext): Promise<Di
 
 const MONEY_OUTBOX_RESOLVERS: Record<string, (ctx: AdapterSelectContext) => Promise<DispatchMoneyOutboxDeps>> = {
   [ERPNEXT_TIER]: resolveErpMoneyOutboxDeps,
+  [ODOO_TIER]: resolveOdooMoneyOutboxDeps,
 };
 
 // ADR-0057: one cached, rate-limited JWKS resolver, memoized across warm invocations. Built lazily
@@ -280,9 +283,11 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
     }
   }
   // `budget-occupant` (ECA-6) is a request, not an ERP document kind: it has its own Admin/Finance gate below.
+  // The tier that owns the domain for this org (ERPNext, or Odoo where procurement is employed) picks the adapter and the outbox.
+  let employedTier: string | undefined;
   if (isErpDomain && !isBudgetOccupantCommand(command)) {
     // The guard reads only the authorization inputs (domain + the named ERP document kind).
-    const auth = await checkErpnextCommandAuthorization(callerClient as never, orgId, userId, {
+    const auth = await checkCommandAuthorization(callerClient as never, orgId, userId, {
       domain: command.domain,
       record: { erp_doc_kind: command.record.erp_doc_kind },
     });
@@ -292,6 +297,7 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
         headers,
       });
     }
+    employedTier = auth.tier;
   }
 
   // ── ECA-4 (FR-ECA-030, OQ-ECA-1) — a purchase ordered before the ERP connection pushes no later step. Runs on the
@@ -688,7 +694,7 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
   };
 
   // ── 3. Adapter select (AC-EAS-033 step 2). ──
-  const adapterFactory = ADAPTER_REGISTRY[command.domain];
+  const adapterFactory = selectAdapterFactory(employedTier, command.domain);
   if (!adapterFactory) {
     return new Response(
       JSON.stringify({ error: 'UNSUPPORTED_DOMAIN', message: `no adapter owns domain "${command.domain}"` }),
