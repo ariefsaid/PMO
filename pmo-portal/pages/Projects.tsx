@@ -153,6 +153,8 @@ const Projects: React.FC = () => {
     return (
       <ListPage
         title={t('projects.title', 'Projects')}
+        count={0}
+        total={0}
         description={pageDescription}
         primaryAction={primaryAction}
       >
@@ -195,6 +197,8 @@ const Projects: React.FC = () => {
   return (
     <ListPage
       title={t('projects.title', 'Projects')}
+      count={filtered.length}
+      total={all.length}
       description={pageDescription}
       primaryAction={primaryAction}
       {...toolbar}

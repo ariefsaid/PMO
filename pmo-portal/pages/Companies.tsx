@@ -223,6 +223,8 @@ const Companies: React.FC = () => {
   return (
     <ListPage
       title={t('companies.title', 'Companies')}
+      count={data ? filtered.length : undefined}
+      total={data ? all.length : undefined}
       description={t(
         'companies.description',
         'Clients and suppliers used across projects and procurement. Master data shared by the whole organisation.',
