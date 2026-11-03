@@ -308,6 +308,32 @@ describe('AC-OPP-053 the Odoo probe closure: zero, one and many matches', () => 
     });
   });
 
+  it('payment: an operator\'s "absent" (stored in the row) makes the recovery look for the exact memo only: a look-alike is not adopted', async () => {
+    const t = setup('payment', {}, { outbox: { odoo_absent_confirmed: true }, odoo: paymentOdoo([], [{ id: 91, memo: 'someone else\'s', reconciled_bill_ids: [301] }]) });
+    await withFetchMock(t.routes, async () => {
+      const deps = await resolveOdooMoneyOutboxDeps(t.ctx);
+      assertEquals(await deps.probeByRemarksKey('procurement', KEY, { recovery: true }), null);
+    });
+    assertEquals(t.odooCalls.length, 1);
+  });
+
+  it('payment: an operator\'s "adopt" (stored in the row) takes the named payment when Odoo shows it reconciled to the bill, with no search for look-alikes', async () => {
+    const t = setup('payment', {}, { outbox: { odoo_adopted_ref: 'account.payment:90' }, odoo: paymentOdoo([], [{ id: 91, memo: 'x', reconciled_bill_ids: [301] }]) });
+    await withFetchMock(t.routes, async () => {
+      const deps = await resolveOdooMoneyOutboxDeps(t.ctx);
+      assertEquals((await deps.probeByRemarksKey('procurement', KEY, { recovery: true }))?.externalRecordId, 'account.payment:90');
+    });
+    assert(t.odooCalls.every((c) => c.url.pathname.endsWith('/read')), t.odooCalls.map((c) => c.url.pathname).join());
+  });
+
+  it('payment: an adopted payment Odoo does not show reconciled to the bill is refused (the row stays held)', async () => {
+    const t = setup('payment', {}, { outbox: { odoo_adopted_ref: 'account.payment:90' }, odoo: paymentOdoo([], [], { reconciled_bill_ids: [999] }) });
+    await withFetchMock(t.routes, async () => {
+      const deps = await resolveOdooMoneyOutboxDeps(t.ctx);
+      await assertRejects(() => deps.probeByRemarksKey('procurement', KEY, { recovery: true }), Error, 'adopted-payment-not-reconciled');
+    });
+  });
+
   it('a record id that is not a UUID cannot reach Odoo (no metacharacter in any query)', async () => {
     for (const bad of ['x%', 'a_b', `${REC}%`]) {
       const { routes, ctx, odooCalls } = setup('purchase-order', { id: bad });

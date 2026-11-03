@@ -8,7 +8,7 @@ import { odooReissueOnInconclusiveAbsence } from '../../../pmo-portal/src/lib/ad
 import { CLAIM_BUDGET_MS, REQUEST_DEADLINE_MS, SETTLE_MARGIN_MS } from '../../../pmo-portal/src/lib/adapterSeam/odoo/purchase/constants.ts';
 import type { PurchaseKind } from '../../../pmo-portal/src/lib/adapterSeam/odoo/purchase/nextStep.ts';
 import type { OrderComposite, PaymentComposite } from '../../../pmo-portal/src/lib/adapterSeam/odoo/purchase/recoveryProbe.ts';
-import { readOrderLines, recoverBill, recoverOrder, recoverPayment, recoverReceipt, recoverRevise } from '../../../pmo-portal/src/lib/adapterSeam/odoo/procurementAdapter.ts';
+import { readOrderLines, recoverBill, recoverOrder, recoverPayment, recoverReceipt, recoverRevise, type PaymentResolution } from '../../../pmo-portal/src/lib/adapterSeam/odoo/procurementAdapter.ts';
 import { expectedBillTotal } from '../../../pmo-portal/src/lib/adapterSeam/odoo/purchase/billBody.ts';
 import type { BillExpect } from '../../../pmo-portal/src/lib/adapterSeam/odoo/purchase/billReadBack.ts';
 import { odooClientForOrg, type OdooClientForOrgResult } from '../_shared/odooClientForOrg.ts';
@@ -87,7 +87,7 @@ async function billCompositePayload(ctx: AdapterSelectContext, call: OdooCall, r
 }
 
 /** What the read-back is judged against: derived, so it is not command material (it stays out of the payload digest). */
-const DERIVED_KEYS = ['odoo_expected_total', 'odoo_cost_account', 'odoo_bill_ref'] as const;
+const DERIVED_KEYS = ['odoo_expected_total', 'odoo_cost_account', 'odoo_bill_ref', 'odoo_adopted_ref', 'odoo_absent_confirmed'] as const;
 const billExpectOf = (p: Record<string, unknown> | null | undefined): BillExpect | undefined =>
   p && typeof p.odoo_expected_total === 'string' && (typeof p.odoo_cost_account === 'string' || p.odoo_cost_account === null)
     ? { total: p.odoo_expected_total, costAccountId: p.odoo_cost_account }
@@ -97,6 +97,10 @@ const orderCompositeOf = (p: Record<string, unknown> | null | undefined): OrderC
   p && typeof p.odoo_partner_id === 'number' && typeof p.odoo_amount === 'string' && Number.isInteger(p.odoo_line_count) && typeof p.created_after === 'string'
     ? { partnerId: p.odoo_partner_id, amount: p.odoo_amount, lineCount: p.odoo_line_count as number, createdAfter: p.created_after, ...(typeof p.created_before === 'string' ? { createdBefore: p.created_before } : {}) }
     : undefined;
+
+/** A held payment's resolution (0508 `resolve_held_outbox_command`): the operator's word, stored in the row's payload. */
+const paymentResolutionOf = (p: Record<string, unknown> | null | undefined): PaymentResolution | undefined =>
+  typeof p?.odoo_adopted_ref === 'string' ? { adoptedRef: p.odoo_adopted_ref } : p?.odoo_absent_confirmed === true ? { absentConfirmed: true } : undefined;
 
 const paymentCompositeOf = (p: Record<string, unknown> | null | undefined): PaymentComposite | undefined => {
   const billId = parseOdooExternalRef('account.move', p?.odoo_bill_ref);
@@ -195,7 +199,7 @@ export async function resolveOdooMoneyOutboxDeps(ctx: AdapterSelectContext): Pro
       const persisted = await readOutboxCompositePayload(ctx.serviceClient, ctx.orgId, domain, ctx.command.record.id, idempotencyKey);
       const billRef = [persisted, payload].map((p) => p?.odoo_bill_ref).find((r): r is string => typeof r === 'string');
       if (!billRef) throw new AppError('payment-bill-missing', 'commit-rejected');   // cannot say which bill this pays: hold it
-      return recoverPayment(call, ctx.command.record, probe?.recovery === false ? undefined : paymentCompositeOf(persisted) ?? paymentCompositeOf(payload), billRef);
+      return recoverPayment(call, ctx.command.record, probe?.recovery === false ? undefined : paymentCompositeOf(persisted) ?? paymentCompositeOf(payload), billRef, paymentResolutionOf(persisted));
     },
   });
 }

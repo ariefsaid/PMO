@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { AdapterCommand } from '../contract.ts';
 import { bindCall } from './client.ts';
 import { createFakeOdoo } from './fakeOdoo.ts';
-import { createOdooProcurementAdapter, recoverPayment, type PaymentFacts } from './procurementAdapter.ts';
+import { createOdooProcurementAdapter, recoverPayment, type PaymentFacts, type PaymentResolution } from './procurementAdapter.ts';
 import type { PaymentComposite } from './purchase/recoveryProbe.ts';
 
 const PAY_ID = 'dddddddd-dddd-4ddd-8ddd-000000001505';
@@ -56,7 +56,7 @@ describe('AC-OPP-050 a payment is created, posted and reconciled to its bill onc
     const result = await r.attempt();
     const [payment] = r.fake.rows('account.payment');
     expect(r.fake.rows('account.payment')).toHaveLength(1);
-    expect(payment).toMatchObject({ state: 'paid', payment_type: 'outbound', partner_type: 'supplier', partner_id: 9, journal_id: 7, payment_method_line_id: 31, amount: 98, memo: `pmo:pay:${PAY_ID}`, date: '2026-12-10' });
+    expect(payment).toMatchObject({ state: 'reconciled', payment_type: 'outbound', partner_type: 'supplier', partner_id: 9, journal_id: 7, payment_method_line_id: 31, amount: 98, memo: `pmo:pay:${PAY_ID}`, date: '2026-12-10' });
     expect(payment.reconciled_bill_ids).toEqual([r.billId]);
     expect(r.bill()).toMatchObject({ amount_residual: 0, payment_state: 'paid' });
     expect(result.externalRecordId).toBe(`account.payment:${payment.id}`);
@@ -110,7 +110,7 @@ describe('AC-OPP-051 what cannot be paid writes nothing', () => {
 describe('AC-OPP-052 an interrupted payment ends with one posted, reconciled payment and no second create', () => {
   const settled = (r: Awaited<ReturnType<typeof rig>>) => {
     expect(r.fake.rows('account.payment')).toHaveLength(1);
-    expect(r.fake.rows('account.payment')[0]).toMatchObject({ state: 'paid', reconciled_bill_ids: [r.billId] });
+    expect(r.fake.rows('account.payment')[0]).toMatchObject({ state: 'reconciled', reconciled_bill_ids: [r.billId] });
     expect(r.bill()).toMatchObject({ amount_residual: 0, payment_state: 'paid' });
     expect(r.count('account.payment', 'create')).toBe(1);
   };
@@ -208,5 +208,39 @@ describe('AC-OPP-053 the memo is editable: the recovery composite adopts only a 
     const r = await rig();
     expect(await recoverPayment(r.call, r.command().record, { partnerId: 9, amount: '98.00', billId: r.billId, ...WINDOW }, `account.move:${r.billId}`)).toBeNull();
     expect(r.writes()).toEqual([]);
+  });
+});
+
+describe('AC-OPP-064 an operator resolves a held payment: adopt the named payment, or confirm none exists', () => {
+  const edit = (r: Awaited<ReturnType<typeof rig>>, memo: string) => { r.fake.rows('account.payment')[0].memo = memo; };
+  const probe = (r: Awaited<ReturnType<typeof rig>>, resolution: PaymentResolution | undefined, composite = true) =>
+    recoverPayment(r.call, r.command().record, composite ? { partnerId: 9, amount: '98.00', billId: r.billId, ...WINDOW } : undefined, `account.move:${r.billId}`, resolution);
+
+  it('adopt: the named payment, reconciled to this bill, becomes the command\'s result and nothing is created', async () => {
+    const r = await rig();
+    r.arm('account.move.line', 'reconcile', 'lost-response');
+    await expect(r.attempt()).rejects.toMatchObject({ code: 'external-unreachable' });
+    edit(r, 'paid by transfer');
+    r.fake.seed('account.payment', [{ payment_type: 'outbound', partner_type: 'supplier', state: 'paid', partner_id: 9, amount: 98, memo: 'look-alike', reconciled_bill_ids: [r.billId], create_date: '2026-06-01 00:00:00' }]);   // would make the composite ambiguous
+    const named = r.fake.rows('account.payment')[0].id;
+    const result = await probe(r, { adoptedRef: `account.payment:${named}` });
+    expect(result?.externalRecordId).toBe(`account.payment:${named}`);
+    expect(r.count('account.payment', 'create')).toBe(1);
+  });
+
+  it('adopt: a named payment Odoo does not show reconciled to this bill is refused; the composite is not consulted', async () => {
+    const r = await rig();
+    r.fake.seed('account.payment', [{ payment_type: 'outbound', partner_type: 'supplier', state: 'paid', partner_id: 9, amount: 98, memo: 'other', reconciled_bill_ids: [], create_date: '2026-06-01 00:00:00' }]);
+    const named = r.fake.rows('account.payment')[0].id;
+    await expect(probe(r, { adoptedRef: `account.payment:${named}` })).rejects.toMatchObject({ code: 'commit-rejected', message: 'adopted-payment-not-reconciled' });
+    expect(r.writes()).toEqual([]);
+  });
+
+  it('absent: only our exact memo is looked for, so a look-alike is not adopted and the caller may now create', async () => {
+    const r = await rig();
+    r.fake.seed('account.payment', [{ payment_type: 'outbound', partner_type: 'supplier', state: 'paid', partner_id: 9, amount: 98, memo: 'someone else', reconciled_bill_ids: [r.billId], create_date: '2026-06-01 00:00:00' }]);
+    expect(await probe(r, { absentConfirmed: true })).toBeNull();
+    expect(r.writes()).toEqual([]);
+    expect((await probe(r, undefined))?.externalRecordId).toBe(`account.payment:${r.fake.rows('account.payment')[0].id}`);   // without the confirmation the same look-alike is a unique candidate
   });
 });

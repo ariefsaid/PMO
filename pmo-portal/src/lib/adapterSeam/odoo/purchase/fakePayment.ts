@@ -58,7 +58,9 @@ export function reconcileLines(env: Env, rows: Row[]): void {
     const residual = [...env.table('account.move.line').values()].filter((l) => l.move_id === bill.id && l.account_type === 'liability_payable').reduce((sum, l) => sum + cents(l.amount_residual), 0);
     Object.assign(bill, { amount_residual: (-residual || 0) / 100, payment_state: residual === 0 ? 'paid' : -residual < cents(bill.amount_total) ? 'partial' : 'not_paid', write_date: env.stamp() });
     for (const payment of env.table('account.payment').values()) {
-      if (rows.some((r) => r.move_id === (payment.move_id as number[])[0])) payment.reconciled_bill_ids = [...new Set([...(payment.reconciled_bill_ids as number[]), bill.id])];
+      if (!rows.some((r) => r.move_id === (payment.move_id as number[])[0])) continue;
+      payment.reconciled_bill_ids = [...new Set([...(payment.reconciled_bill_ids as number[]), bill.id])];
+      if (payment.state === 'paid' && residual === 0) payment.state = 'reconciled';   // the bed's word for a payment whose bill is settled (P6)
     }
   }
 }

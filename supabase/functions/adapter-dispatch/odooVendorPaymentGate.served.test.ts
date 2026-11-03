@@ -188,7 +188,7 @@ describe('AC-OPP-054 the vendor-payment SoD gate for a tier-odoo bill, through t
     assertEquals(r.status, 200, r.body);
     const [payment] = r.odoo.fake.rows('account.payment');
     assertEquals(r.odoo.fake.rows('account.payment').length, 1);
-    assertEquals([payment.state, payment.amount, payment.journal_id, payment.reconciled_bill_ids], ['paid', 98, 7, [r.odoo.billId]]);
+    assertEquals([payment.state, payment.amount, payment.journal_id, payment.reconciled_bill_ids], ['reconciled', 98, 7, [r.odoo.billId]]);
     assertEquals(JSON.stringify(payment).includes(PAYER_ID), false, 'no PMO user id reaches Odoo');
     const mirror = r.calls.find((c) => c.method === 'POST' && c.url.pathname === '/rest/v1/payments');
     assert(mirror, 'the payment is mirrored');

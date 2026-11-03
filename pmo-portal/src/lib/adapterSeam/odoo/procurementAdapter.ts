@@ -389,7 +389,7 @@ async function pushBill(deps: OdooProcurementDeps, command: AdapterCommand): Pro
 // ── Vendor payment (P6) ────────────────────────────────────────────────────────────────────────────────────────────────────
 
 const PAYMENT_MODEL = 'account.payment';
-const PAID_STATES = new Set(['in_process', 'paid', 'posted']);   // Odoo 20 says in_process or paid once a payment is posted
+const PAID_STATES = new Set(['in_process', 'paid', 'reconciled', 'posted']);   // Odoo 20 says in_process or paid once a payment is posted, and reconciled once its bill is settled (bed, P6)
 
 export const paymentKey = (record: PmoRecord): string => `pay:${record.id}`;
 
@@ -479,14 +479,27 @@ async function settlePayment(call: OdooCall, id: number, record: PmoRecord, bill
   return refuse('payment-not-settled');
 }
 
+/** What an operator decided about a held payment, as stored in its outbox payload (0508). */
+export interface PaymentResolution { adoptedRef?: string; absentConfirmed?: boolean }
+
 /**
  * The recovery probe for a vendor payment (FR-OPP-051/052, OQ-OPP-10): the payment this command already created, found by its memo
  * (or, only in a RECOVERY and only as a unique conjunction with the bill, by the composite) and brought to its settled state, or
  * null when nothing was created. Throws (the row is held) on any doubt. A payment is never reissued on doubt: the outbox holds it.
  */
-export async function recoverPayment(rawCall: OdooCall, record: PmoRecord, composite: PaymentComposite | undefined, billRef: string): Promise<CommandResult | null> {
+export async function recoverPayment(
+  rawCall: OdooCall, record: PmoRecord, composite: PaymentComposite | undefined, billRef: string, resolution?: PaymentResolution,
+): Promise<CommandResult | null> {
   const call = guarded(rawCall);
-  const hit = await probeOdooByAnchor(call, 'payment', paymentKey(record), composite);
+  if (resolution?.adoptedRef) {
+    // A person named the payment (resolve_held_outbox_command): trusted no further than "Odoo shows it reconciled to this bill".
+    const id = parseOdooExternalRef(PAYMENT_MODEL, resolution.adoptedRef) ?? refuse('ambiguous-anchor');
+    const billId = parseOdooExternalRef(ANCHORED_MODEL.bill, billRef) ?? refuse('payment-bill-required');
+    if (!reconciledBills(await readPayment(call, id)).includes(billId)) refuse('adopted-payment-not-reconciled');
+    return settlePayment(call, id, record, billRef);
+  }
+  // A person confirmed nothing exists in Odoo: look for our exact memo only, never a look-alike.
+  const hit = await probeOdooByAnchor(call, 'payment', paymentKey(record), resolution?.absentConfirmed ? undefined : composite);
   if (!hit) return null;
   const id = parseOdooExternalRef(PAYMENT_MODEL, hit.externalRecordId) ?? refuse('ambiguous-anchor');
   return settlePayment(call, id, record, billRef);
