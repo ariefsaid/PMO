@@ -2,7 +2,7 @@
 import './index.css';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import App from './App';
+import App, { createAppRouter } from './App';
 import { installChunkReloadGuard } from '@/src/lib/chunkReload';
 
 // A stale lazy-route chunk (old tab, new deploy) auto-reloads ONCE — 2026-07-13
@@ -37,8 +37,10 @@ if (!rootElement) {
 }
 
 const root = ReactDOM.createRoot(rootElement);
+// #1525: the router is created once, outside React (a data router must not be rebuilt on renders).
+const appRouter = createAppRouter();
 root.render(
   <React.StrictMode>
-    <App />
+    <App router={appRouter} />
   </React.StrictMode>
 );
