@@ -13,6 +13,7 @@ import { progressClaimItems, type ProgressClaimLineRecord, type ProgressClaimRec
 import type { ErpDispatchFactoryDeps, ExternalOrgBindingRow } from './dispatchTypes.ts';
 import { buildsSalesInvoiceBody } from './dispatchTypes.ts';
 import { resolveErpProjectName } from './dispatchRefs.ts';
+import { formatTimeMaterialsDescription } from './dispatchRevenueFormatting.ts';
 
 // ============================================================================
 // Task 2.3 — Revenue ref resolver (FR-SAR-100/101/121)
@@ -299,14 +300,91 @@ function canonicalTimeMaterialsLines(
   }));
 }
 
-function invoiceItemsFromCanonical(lines: readonly CanonicalClaimLine[], retainCanonical: boolean): Array<Record<string, unknown>> {
+function invoiceItemsFromCanonical(lines: readonly CanonicalClaimLine[]): Array<Record<string, unknown>> {
   return lines.map((line) => ({
-    ...(retainCanonical ? line : {}),
     item_code: line.item,
     qty: Number(line.quantity),
     rate: Number(line.rate),
     ...(line.label ? { description: `${line.label} (${line.unit})` } : {}),
   }));
+}
+
+/** Mirror Frappe v16's Banker's Rounding item amount calculation. */
+function erpNextBankersLineAmount(quantity: number, rate: number): number {
+  const product = quantity * rate;
+  const scaled = Number((Math.abs(product) * 100).toFixed(12));
+  const lower = Math.floor(scaled);
+  const fractional = scaled - lower;
+  const epsilon = 2 ** (Math.log2(scaled) - 52);
+  const isHalfCent = epsilon < 0.5 && Math.abs(fractional - 0.5) < epsilon;
+  const cents = isHalfCent
+    ? lower + (lower % 2)
+    : Math.round(scaled);
+  return Math.sign(product) * cents / 100;
+}
+
+/** Mirror Frappe v16's legacy banker's rounding, including its pre-rounding to eight places. */
+function erpNextLegacyLineAmount(quantity: number, rate: number): number {
+  const multiplier = 100;
+  const scaled = Number(((quantity * rate) * multiplier).toFixed(8));
+  const lower = Math.floor(scaled);
+  const fractional = scaled - lower;
+  const cents = fractional === 0.5 ? lower + 1 : Math.round(scaled);
+  return cents / multiplier;
+}
+
+function numberUlp(value: number): number {
+  const absolute = Math.abs(value);
+  if (absolute === 0) return Number.MIN_VALUE;
+  const bits = new DataView(new ArrayBuffer(8));
+  bits.setFloat64(0, absolute);
+  const next = bits.getBigUint64(0) + 1n;
+  bits.setBigUint64(0, next);
+  return bits.getFloat64(0) - absolute;
+}
+
+/** Mirror Frappe v16's commercial half-away-from-zero rounding and float correction. */
+function erpNextCommercialLineAmount(quantity: number, rate: number): number {
+  const product = quantity * rate;
+  if (product === 0) return 0;
+  const epsilon = numberUlp(product);
+  const roundingStep = 0.01;
+  // For values below Frappe's Decimal fallback threshold, it nudges by one ULP before rounding.
+  // Above it, toFixed rounds the exact binary value half-up, as Frappe's Decimal quantize does.
+  const adjusted = Number.isFinite(product) && epsilon < roundingStep / 4
+    ? product + Math.sign(product) * epsilon
+    : product;
+  return Number(adjusted.toFixed(2));
+}
+
+/**
+ * T&M line amounts are frozen when the claim is signed. Keep the signed quantity and rate in the
+ * invoice body unless ERPNext's per-line rounding would book a different amount; only that line is
+ * sent as `1 × frozen amount`, with its signed calculation visible in the description.
+ */
+function timeMaterialsInvoiceItems(lines: readonly CanonicalClaimLine[], currency: string | undefined): Array<Record<string, unknown>> {
+  return lines.map((line) => {
+    const quantity = Number(line.quantity);
+    const signedRate = Number(line.rate);
+    const frozenAmount = Number(line.amount);
+    const needsFrozenAmount = [
+      erpNextBankersLineAmount(quantity, signedRate),
+      erpNextLegacyLineAmount(quantity, signedRate),
+      erpNextCommercialLineAmount(quantity, signedRate),
+    ].some((bookedAmount) => bookedAmount !== frozenAmount);
+    return {
+      ...line,
+      ...(needsFrozenAmount ? { signed_rate: signedRate } : {}),
+      item_code: line.item,
+      qty: needsFrozenAmount ? 1 : quantity,
+      rate: needsFrozenAmount ? frozenAmount : signedRate,
+      ...(line.label ? {
+        description: needsFrozenAmount
+          ? formatTimeMaterialsDescription(line.label, line.unit, quantity, signedRate, line.amount, currency)
+          : `${line.label} (${line.unit})`,
+      } : {}),
+    };
+  });
 }
 
 function taxBaseFraction(row: unknown): { numerator: number; denominator: number } {
@@ -545,9 +623,9 @@ export async function resolveProgressClaimInvoice(deps: ErpDispatchFactoryDeps, 
     if (workOrder) fraction = taxBaseFraction(workOrder);
   }
   if (claim.kind === 'progress') {
-    record.items = invoiceItemsFromCanonical(canonicalProgressLines(claim, lines), false);
+    record.items = invoiceItemsFromCanonical(canonicalProgressLines(claim, lines));
   } else if (claim.kind === 'time_materials') {
-    record.items = invoiceItemsFromCanonical(timeMaterialsLines ?? [], true);
+    record.items = timeMaterialsInvoiceItems(timeMaterialsLines ?? [], claim.currency);
   } else {
     record.items = progressClaimItems(claim);
   }
