@@ -1994,3 +1994,40 @@ test('pmo load sends budget lines through the transactional RPC with the resolve
     fs.rmSync(configDir, { recursive: true, force: true });
   }
 });
+
+// ── AC-CLI-018: no budget archive path from the CLI (#1462) ──────────────────────────────────────
+
+/**
+ * Archiving a budget version is `archive_budget_version_with_cancel_intent` (0387) — the ONE transaction
+ * that also records the ERPNext cancellation intent the sweep later drives. If the CLI could archive a
+ * version by any route, it would archive WITHOUT that intent and leave the ERP Budget enforcing a
+ * budget PMO calls archived. So the CLI must have no archive route at all: not the RPC, not a bare
+ * `budget_versions.status` write, and not a `pmo budgets` subcommand. Archiving stays in the app
+ * (DD-API-3), which is why the CLI needs no archive-cancellation behaviour of its own to stay in step.
+ */
+test('AC-CLI-018: a budget version cannot be archived from the CLI, so the app archive RPC stays the only route', async () => {
+  const fake = await fakeSupabase();
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const refusals = [
+      ['rpc', 'archive_budget_version_with_cancel_intent', '{"p_version_id":"11111111-1111-1111-1111-111111111111","p_cancel_erp":true}'],
+      ['update', 'budget_versions', '{"status":"Archived"}', '--filter', 'id=eq.11111111-1111-1111-1111-111111111111'],
+      ['budgets', 'archive', '11111111-1111-1111-1111-111111111111'],
+    ];
+    for (const argv of refusals) {
+      const r = await runCli([...argv, '--url', fake.url], { configDir });
+      assert.equal(r.code, 2, argv.join(' '));
+    }
+    assert.deepEqual(fake.requests, [], 'every refusal happens before a request is sent');
+    // The lists themselves are the contract: the archive RPC is in NO RPC tier, and the CLI has no archive verb.
+    assert.equal(ALLOWED_RPCS.includes('archive_budget_version_with_cancel_intent'), false);
+    assert.equal(ADMIN_RPCS.includes('archive_budget_version_with_cancel_intent'), false);
+    assert.equal(OPERATOR_READ_RPCS.includes('archive_budget_version_with_cancel_intent'), false);
+    assert.equal(LOAD_RPCS.includes('archive_budget_version_with_cancel_intent'), false);
+    assert.equal(COMMANDS.includes('archive'), false);
+  } finally {
+    await fake.close();
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
+});
