@@ -601,7 +601,10 @@ async function commitErpCommand(command: AdapterCommand, rawDeps: ErpAdapterDeps
 }
 
 /** Construct the erpnext adapter (task 2.12): the only entry point above the contract that ever sees
- *  an ERPNext/Frappe-shaped dependency bag — every method it exposes speaks PMO domain language only. */
+ *  an ERPNext/Frappe-shaped dependency bag — every method it exposes speaks PMO domain language only.
+ *  The capabilityMap below declares what the system CAN natively own — an upper bound, not an
+ *  ownership flip: actual ownership is the org's configured assignment plus project bindings
+ *  (docs/GLOSSARY.md "Capability map", "Source of truth"). */
 export function createErpAdapter(deps: ErpAdapterDeps): Adapter {
   return {
     tier: ERPNEXT_TIER,

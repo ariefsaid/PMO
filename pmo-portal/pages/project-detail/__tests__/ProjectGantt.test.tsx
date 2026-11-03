@@ -58,7 +58,7 @@ import ProjectGantt from '../ProjectGantt';
 
 describe('AC-GANTT-007: no dated work shows an honest empty state', () => {
   it('shows an empty state when no tasks and no milestones', () => {
-    render(<ProjectGantt tasks={[]} milestones={[]} />);
+    render(<ProjectGantt tasks={[]} milestones={[]} onSwitchView={vi.fn()} />);
     expect(screen.getByText(/no dated work yet/i)).toBeInTheDocument();
   });
 
@@ -67,7 +67,7 @@ describe('AC-GANTT-007: no dated work shows an honest empty state', () => {
       makeTask({ id: 'a', name: 'Undated A' }),
       makeTask({ id: 'b', name: 'Undated B' }),
     ];
-    render(<ProjectGantt tasks={tasks} milestones={[]} />);
+    render(<ProjectGantt tasks={tasks} milestones={[]} onSwitchView={vi.fn()} />);
     expect(screen.getByText(/no dated work yet/i)).toBeInTheDocument();
   });
 });
@@ -80,7 +80,7 @@ describe('AC-GANTT-005: a task with no dates is listed in the Undated footer', (
       makeTask({ id: 'a', name: 'Has dates', start_date: '2026-01-01', end_date: '2026-01-11' }),
       makeTask({ id: 'b', name: 'No dates task' }),
     ];
-    render(<ProjectGantt tasks={tasks} milestones={[]} />);
+    render(<ProjectGantt tasks={tasks} milestones={[]} onSwitchView={vi.fn()} />);
     // The undated footer shows the task name
     expect(screen.getByText(/undated/i)).toBeInTheDocument();
     expect(screen.getByText(/no dates task/i)).toBeInTheDocument();
@@ -93,7 +93,7 @@ describe('AC-GANTT-005: a task with no dates is listed in the Undated footer', (
       makeTask({ id: 'a', name: 'Has dates', start_date: '2026-01-01', end_date: '2026-01-11' }),
       makeTask({ id: 'b', name: 'No dates task' }),
     ];
-    render(<ProjectGantt tasks={tasks} milestones={[]} />);
+    render(<ProjectGantt tasks={tasks} milestones={[]} onSwitchView={vi.fn()} />);
     expect(screen.getByText(/undated \(1\)/i)).toBeInTheDocument();
   });
 });
@@ -118,7 +118,7 @@ describe('AC-GANTT-008: a task with dependencies conveys the relationship as acc
         dependencies: [{ depends_on_id: 'x' }],
       }),
     ];
-    render(<ProjectGantt tasks={tasks} milestones={[]} onActivateTask={vi.fn()} />);
+    render(<ProjectGantt tasks={tasks} milestones={[]} onActivateTask={vi.fn()} onSwitchView={vi.fn()} />);
     const bar = screen.getByRole('button', { name: /Task with deps/i });
     expect(bar.getAttribute('aria-label')).toMatch(/depends on/i);
   });
@@ -133,7 +133,7 @@ describe('AC-GANTT-008: a task with dependencies conveys the relationship as acc
         dependencies: [],
       }),
     ];
-    render(<ProjectGantt tasks={tasks} milestones={[]} onActivateTask={vi.fn()} />);
+    render(<ProjectGantt tasks={tasks} milestones={[]} onActivateTask={vi.fn()} onSwitchView={vi.fn()} />);
     const bar = screen.getByRole('button', { name: /No deps task/i });
     expect(bar.getAttribute('aria-label') ?? '').not.toMatch(/depends on/i);
   });
@@ -146,7 +146,7 @@ describe('AC-GANTT-010: the timeline is a labelled figure and bars label status 
     const tasks = [
       makeTask({ id: 'a', name: 'Accessible task', start_date: '2026-01-01', end_date: '2026-01-11' }),
     ];
-    render(<ProjectGantt tasks={tasks} milestones={[]} />);
+    render(<ProjectGantt tasks={tasks} milestones={[]} onSwitchView={vi.fn()} />);
     const fig = screen.getByRole('figure');
     expect(fig).toBeInTheDocument();
     expect(fig).toHaveAttribute('aria-label');
@@ -164,7 +164,7 @@ describe('AC-GANTT-010: the timeline is a labelled figure and bars label status 
         status: 'In Progress',
       }),
     ];
-    render(<ProjectGantt tasks={tasks} milestones={[]} />);
+    render(<ProjectGantt tasks={tasks} milestones={[]} onSwitchView={vi.fn()} />);
     // Status text must appear in the rendered output
     expect(screen.getByText('In Progress')).toBeInTheDocument();
   });
@@ -173,7 +173,7 @@ describe('AC-GANTT-010: the timeline is a labelled figure and bars label status 
     const tasks = [
       makeTask({ id: 'a', name: 'Survey the site', start_date: '2026-01-01', end_date: '2026-01-11' }),
     ];
-    render(<ProjectGantt tasks={tasks} milestones={[]} />);
+    render(<ProjectGantt tasks={tasks} milestones={[]} onSwitchView={vi.fn()} />);
     // Gantt v2 MS-Project layout renders the name as text in both the table cell and
     // the timeline bar — the goal ("the task name is shown as text") still holds.
     expect(screen.getAllByText('Survey the site').length).toBeGreaterThan(0);
@@ -191,7 +191,7 @@ describe('AC-GANTT-014: milestone renders as an on-axis diamond at its target-da
     const milestones = [
       makeMilestone({ id: 'ms1', name: 'Phase 1', target_date: '2026-01-06', sort_order: 0 }),
     ];
-    render(<ProjectGantt tasks={tasks} milestones={milestones} onActivateTask={vi.fn()} />);
+    render(<ProjectGantt tasks={tasks} milestones={milestones} onActivateTask={vi.fn()} onSwitchView={vi.fn()} />);
 
     // The diamond is labelled and positioned ON the axis (not a right-aligned header badge).
     const diamond = screen.getByLabelText(/phase 1 phase — target 2026-01-06/i);
@@ -227,7 +227,7 @@ describe('AC-GANTT-015: a dependency between two dated tasks draws a connector a
         dependencies: [{ depends_on_id: 'a' }],
       }),
     ];
-    const { container } = render(<ProjectGantt tasks={tasks} milestones={[]} onActivateTask={vi.fn()} />);
+    const { container } = render(<ProjectGantt tasks={tasks} milestones={[]} onActivateTask={vi.fn()} onSwitchView={vi.fn()} />);
 
     // A connector <path> exists inside an <svg> in the figure.
     expect(container.querySelector('svg path')).not.toBeNull();
@@ -245,7 +245,7 @@ describe('AC-GANTT-016: selecting a scale rebuilds the timeline at that granular
     const tasks = [
       makeTask({ id: 'a', name: 'Task A', start_date: '2026-01-01', end_date: '2026-03-31' }),
     ];
-    const { container } = render(<ProjectGantt tasks={tasks} milestones={[]} />);
+    const { container } = render(<ProjectGantt tasks={tasks} milestones={[]} onSwitchView={vi.fn()} />);
 
     // Default scale is Month.
     const fig = container.querySelector('[data-scale]') as HTMLElement;
@@ -268,7 +268,7 @@ describe('AC-GANTT-017: the task table is a keyboard grid and Enter fires onActi
       makeTask({ id: 'b', name: 'Second task', start_date: '2026-01-02', end_date: '2026-01-12' }),
     ];
     const spy = vi.fn();
-    render(<ProjectGantt tasks={tasks} milestones={[]} onActivateTask={spy} />);
+    render(<ProjectGantt tasks={tasks} milestones={[]} onActivateTask={spy} onSwitchView={vi.fn()} />);
 
     const grid = screen.getByRole('grid');
     expect(grid).toBeInTheDocument();
@@ -302,7 +302,7 @@ describe('AC-GANTT-018: the left table shows each task name, status, and date ra
         end_date: '2026-01-11',
       }),
     ];
-    render(<ProjectGantt tasks={tasks} milestones={[]} />);
+    render(<ProjectGantt tasks={tasks} milestones={[]} onSwitchView={vi.fn()} />);
 
     const grid = screen.getByRole('grid');
     // Name and status appear within the table grid.
@@ -330,7 +330,7 @@ describe('A3 (fix): in-bar label is hidden when the bar is narrower than 40px', 
         end_date: '2026-06-02',
       }),
     ];
-    const { container } = render(<ProjectGantt tasks={tasks} milestones={[]} />);
+    const { container } = render(<ProjectGantt tasks={tasks} milestones={[]} onSwitchView={vi.fn()} />);
 
     // Switch to Quarter scale to get 2px/day bars.
     const quarterTab = screen.getByRole('tab', { name: /quarter/i });
@@ -367,7 +367,7 @@ describe('A3 (fix): in-bar label is hidden when the bar is narrower than 40px', 
         end_date: '2026-01-31',
       }),
     ];
-    render(<ProjectGantt tasks={tasks} milestones={[]} />);
+    render(<ProjectGantt tasks={tasks} milestones={[]} onSwitchView={vi.fn()} />);
 
     // The name should appear at least twice: once in the table, once in the bar.
     const allNames = screen.getAllByText('Wide bar task');
@@ -385,7 +385,7 @@ describe('milestone lane headers', () => {
     const milestones = [
       makeMilestone({ id: 'ms1', name: 'Phase 1', sort_order: 0 }),
     ];
-    render(<ProjectGantt tasks={tasks} milestones={milestones} />);
+    render(<ProjectGantt tasks={tasks} milestones={milestones} onSwitchView={vi.fn()} />);
     expect(screen.getByText('Phase 1')).toBeInTheDocument();
   });
 });
@@ -414,7 +414,7 @@ describe('Gantt is one scroll unit — task column + timeline share a single scr
   }
 
   it('renders exactly ONE scroll container for the grid (not a left sticky block + a separate right overflow-x-auto)', () => {
-    const { container } = render(<ProjectGantt tasks={tallProject()} milestones={[]} />);
+    const { container } = render(<ProjectGantt tasks={tallProject()} milestones={[]} onSwitchView={vi.fn()} />);
 
     // The single scroll box is explicitly marked. There must be exactly one.
     const scrollers = container.querySelectorAll('[data-gantt-scroll]');
@@ -432,7 +432,7 @@ describe('Gantt is one scroll unit — task column + timeline share a single scr
   });
 
   it('the frozen task-column cell and the timeline bar share a single scroll ancestor', () => {
-    const { container } = render(<ProjectGantt tasks={tallProject()} milestones={[]} />);
+    const { container } = render(<ProjectGantt tasks={tallProject()} milestones={[]} onSwitchView={vi.fn()} />);
 
     const scroller = container.querySelector('[data-gantt-scroll]');
     expect(scroller).not.toBeNull();
@@ -498,7 +498,7 @@ describe('AC-GANTT-D1: mobile (<640px) Timeline fallback notice', () => {
     const tasks = [
       makeTask({ id: 'a', name: 'Survey the site', start_date: '2026-01-01', end_date: '2026-01-11' }),
     ];
-    render(<ProjectGantt tasks={tasks} milestones={[]} />);
+    render(<ProjectGantt tasks={tasks} milestones={[]} onSwitchView={vi.fn()} />);
 
     // The friendly mobile notice is rendered…
     expect(screen.getByTestId('gantt-mobile-notice')).toBeInTheDocument();
@@ -529,7 +529,7 @@ describe('AC-GANTT-D1: mobile (<640px) Timeline fallback notice', () => {
     const tasks = [
       makeTask({ id: 'a', name: 'Survey the site', start_date: '2026-01-01', end_date: '2026-01-11' }),
     ];
-    render(<ProjectGantt tasks={tasks} milestones={[]} />);
+    render(<ProjectGantt tasks={tasks} milestones={[]} onSwitchView={vi.fn()} />);
 
     // Full Gantt renders (table grid + figure)…
     expect(screen.getByRole('grid')).toBeInTheDocument();
@@ -540,7 +540,7 @@ describe('AC-GANTT-D1: mobile (<640px) Timeline fallback notice', () => {
 
   it('AC-GANTT-D1-4: an empty project still shows the honest empty state, not the mobile notice (even at <640px)', () => {
     mockViewport(390);
-    render(<ProjectGantt tasks={[]} milestones={[]} />);
+    render(<ProjectGantt tasks={[]} milestones={[]} onSwitchView={vi.fn()} />);
 
     // The honest empty state wins over the narrow notice.
     expect(screen.getByText(/no dated work yet/i)).toBeInTheDocument();
@@ -552,7 +552,7 @@ describe('AC-GANTT-D1: mobile (<640px) Timeline fallback notice', () => {
     const tasks = [
       makeTask({ id: 'a', name: 'Survey the site', start_date: '2026-01-01', end_date: '2026-01-11' }),
     ];
-    render(<ProjectGantt tasks={tasks} milestones={[]} />);
+    render(<ProjectGantt tasks={tasks} milestones={[]} onSwitchView={vi.fn()} />);
 
     // The styled title is a semantic heading so screen-reader users can jump to it.
     expect(screen.getByRole('heading', { name: /open on a larger screen/i })).toBeInTheDocument();

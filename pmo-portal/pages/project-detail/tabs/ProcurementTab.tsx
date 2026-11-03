@@ -6,7 +6,7 @@ import { usePermission } from '@/src/auth/usePermission';
 import { useErpPurchases } from '@/src/hooks/useErpPurchases';
 import { ErpPurchasesSection } from '../ErpPurchasesSection';
 
-export interface ProcurementTabProps {
+interface ProcurementTabProps {
   projectId: string;
   onCountChange?: (count: number | null) => void;
 }

@@ -12,7 +12,7 @@ import { useUsers } from '@/src/hooks/useUsers';
 import { LIST_LIMIT, type ImprestFloatRow } from '@/src/lib/db/imprest';
 import { booksState, toCents } from '@/src/lib/imprest/imprestRules';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { formatCurrencyAuto, parseMoneyInputAtScale } from '@/src/lib/format';
+import { formatCurrency, parseMoneyInputAtScale } from '@/src/lib/format';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 
 type FloatListRow = ImprestFloatRow & { project: { name: string } | null; custodian: { full_name: string } | null };
@@ -28,7 +28,7 @@ const PositionFigure: React.FC<{ floatId: string; currency: string; figure: Figu
     if (data.last_count_variance == null) return <span className="text-muted-foreground">—</span>;
     return toCents(data.last_count_variance) !== 0
       ? <span className="whitespace-nowrap font-medium text-destructive-text" role="status">
-        {t('imprest:position.varianceFlag', 'Count variance')} <span className="tabular-nums">({formatCurrencyAuto(Number(data.last_count_variance), currency)})</span>
+        {t('imprest:position.varianceFlag', 'Count variance')} <span className="tabular-nums">({formatCurrency(Number(data.last_count_variance), currency)})</span>
       </span>
       : <span className="text-muted-foreground">{t('imprest:list.countOk', 'Matched')}</span>;
   }
@@ -37,17 +37,17 @@ const PositionFigure: React.FC<{ floatId: string; currency: string; figure: Figu
     const books = booksState(data);
     if (books.kind === 'broken') {
       return <span className="whitespace-nowrap font-medium text-destructive-text" role="status">
-        {t('imprest:position.gapFlag', 'Books do not balance')} <span className="tabular-nums">({formatCurrencyAuto(books.short, currency)})</span>
+        {t('imprest:position.gapFlag', 'Books do not balance')} <span className="tabular-nums">({formatCurrency(books.short, currency)})</span>
       </span>;
     }
     if (books.kind === 'unfunded') return <span className="whitespace-nowrap text-muted-foreground">{t('imprest:position.notFunded', 'Not yet funded')}</span>;
     if (books.kind === 'topUp') {
-      return <span className="whitespace-nowrap text-muted-foreground">{t('imprest:position.topUp', 'Top-up due {{amount}}', { amount: formatCurrencyAuto(books.due, currency) })}</span>;
+      return <span className="whitespace-nowrap text-muted-foreground">{t('imprest:position.topUp', 'Top-up due {{amount}}', { amount: formatCurrency(books.due, currency) })}</span>;
     }
-    return <span className="tabular-nums">{formatCurrencyAuto(0, currency)}</span>;
+    return <span className="tabular-nums">{formatCurrency(0, currency)}</span>;
   }
   const value = data[figure];
-  return <span className="tabular-nums">{formatCurrencyAuto(Number(value), currency)}</span>;
+  return <span className="tabular-nums">{formatCurrency(Number(value), currency)}</span>;
 };
 
 /** Establish a float: Admin/Finance. The RPC re-checks the custodian's eligibility; the picker only narrows the choice (UX). */
@@ -128,7 +128,7 @@ const ImprestFloatsPage: React.FC = () => {
     { key: 'custodian', header: t('imprest:list.columns.custodian', 'Custodian'), cell: (r) => r.custodian?.full_name ?? '—',
       exportValue: (r) => r.custodian?.full_name ?? '' },
     { key: 'float', header: t('imprest:position.float', 'Float'), align: 'num',
-      cell: (r) => <span className="tabular-nums">{formatCurrencyAuto(Number(r.float_amount), r.currency)}</span>, exportValue: (r) => Number(r.float_amount) },
+      cell: (r) => <span className="tabular-nums">{formatCurrency(Number(r.float_amount), r.currency)}</span>, exportValue: (r) => Number(r.float_amount) },
     { key: 'cash', header: t('imprest:position.cash', 'Cash in hand'), align: 'num', cell: (r) => <PositionFigure floatId={r.id} currency={r.currency} figure="cash_book" /> },
     { key: 'advances', header: t('imprest:position.advancesOut', 'Advances out'), align: 'num', cell: (r) => <PositionFigure floatId={r.id} currency={r.currency} figure="advances_out" /> },
     { key: 'receipts', header: t('imprest:position.receiptsWaiting', 'Receipts waiting'), align: 'num', cell: (r) => <PositionFigure floatId={r.id} currency={r.currency} figure="receipts_waiting" /> },

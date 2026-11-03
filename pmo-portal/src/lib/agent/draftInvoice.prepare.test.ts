@@ -142,11 +142,23 @@ describe('resolveMilestone (#787)', () => {
   });
   it('a position with no project → asks which project', async () => {
     const { client } = fakeSupabase(world());
-    expect(await resolveMilestone(asLoose(client), '2', null)).toEqual({ ok: false, error: { error: 'Which project is the milestone on?', needs: 'choice' } });
+    expect(await resolveMilestone(asLoose(client), '2', null)).toEqual({ ok: false, error: { error: 'Which project is the phase on?', needs: 'choice' } });
   });
   it('a position past the end → plain refusal', async () => {
     const { client } = fakeSupabase(world());
-    expect(await resolveMilestone(asLoose(client), 'M5', PROJECT)).toEqual({ ok: false, error: { error: 'Harbor Tower has 2 milestones; there is no milestone 5.' } });
+    expect(await resolveMilestone(asLoose(client), 'M5', PROJECT)).toEqual({ ok: false, error: { error: 'Harbor Tower has 2 phases; there is no phase 5.' } });
+  });
+  it('XD1-007/DD-VOCAB-1 the user-facing word "phase" resolves the same position as "milestone"', async () => {
+    const { client, calls } = fakeSupabase(world());
+    expect(await resolveMilestone(asLoose(client), 'phase 2', PROJECT)).toMatchObject({ ok: true, value: { id: 'm-2' } });
+    expect(opsOf(calls, 'project_milestones')[0]).toEqual(expect.arrayContaining([['eq', 'project_id', P1]]));
+  });
+  it('XD1-007 a bare name that merely starts with P ("P2") stays a NAME lookup, never a position', async () => {
+    const { client, calls } = fakeSupabase(world());
+    const out = await resolveMilestone(asLoose(client), 'P2', PROJECT);
+    // Routed to the name path (ilike), NOT the position path — "P2" must never resolve as phase #2.
+    expect(opsOf(calls, 'project_milestones')[0]).toEqual(expect.arrayContaining([['ilike', 'name', '%P2%']]));
+    expect(out).not.toMatchObject({ ok: true, value: { id: 'm-2' } });
   });
   it('a name matches by ilike; two matches → choice', async () => {
     const one = fakeSupabase(world({ project_milestones: () => [{ id: 'm-2', name: 'Foundation', project_id: P1, sort_order: 2 }] }));
@@ -171,7 +183,7 @@ describe('resolveMilestone — same name on two projects (#787)', () => {
   it('FR-AIN-023 candidates are distinct (id = milestone uuid, label names the project) and the chosen id resolves in one round', async () => {
     const { client } = fakeSupabase(world(responders()));
     const first = await resolveMilestone(asLoose(client), 'Foundation', null);
-    expect(first).toEqual({ ok: false, error: { error: 'Which milestone?', needs: 'choice', candidates: [
+    expect(first).toEqual({ ok: false, error: { error: 'Which phase?', needs: 'choice', candidates: [
       { id: M1, label: 'Harbor Tower — Foundation' }, { id: M2, label: 'Harbor Annex — Foundation' }] } });
     const second = await resolveMilestone(asLoose(client), M2, null);
     expect(second).toMatchObject({ ok: true, value: { id: M2, project_id: P2 } });

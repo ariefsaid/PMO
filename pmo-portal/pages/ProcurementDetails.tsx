@@ -71,6 +71,7 @@ import {
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import type { CommandIntent } from '@/src/lib/repositories/types';
 import type { ErpVendorTaxAmounts, PphType } from '@/src/lib/vendorWithholding';
+import type { SubcontractBillLineInput } from '@/src/lib/db/subcontracts';
 import { useAgentContext } from '@/src/lib/agent/context/useAgentContext';
 import { useListReturn } from '@/src/hooks/useListReturn';
 import { RecordHistory } from '@/src/components/history/RecordHistory';
@@ -154,6 +155,8 @@ type PendingConfirm =
       /** #769: the parent group's number for this invoice. */
       externalRef?: string | null;
       amount: number | null;
+      /** Present when the existing supplier-invoice form captures a capped subcontract bill. */
+      lines?: SubcontractBillLineInput[];
       /** #505: REQUIRED — staged from the capture form and carried verbatim through the confirm to
        *  the RPC, so the confirmed write can never be the one that discovers they are missing. */
       taxTreatment: TaxTreatment;
@@ -749,7 +752,7 @@ const ProcurementDetails: React.FC = () => {
         setShowCreateGR(false);
         toast(t('procurementDetail.toast.grRecorded', 'Goods receipt recorded'), undefined, 'success');
       } else {
-        await mutations.createInvoice.mutateAsync({
+        const invoice = {
           status: pendingConfirm.status,
           invoiceDate: pendingConfirm.invoiceDate,
           referenceNumber: pendingConfirm.referenceNumber,
@@ -764,8 +767,14 @@ const ProcurementDetails: React.FC = () => {
             ? { withheldAmount: pendingConfirm.withheldAmount, withheldPphType: pendingConfirm.withheldPphType } : {}),
           ...(pendingConfirm.erpTaxAmounts ? { erpTaxAmounts: pendingConfirm.erpTaxAmounts } : {}),
           intent: pendingConfirm.intent,
-        });
+        };
+        if (pendingConfirm.lines) {
+          await mutations.captureSubcontractVendorInvoice.mutateAsync({ ...invoice, lines: pendingConfirm.lines });
+        } else {
+          await mutations.createInvoice.mutateAsync(invoice);
+        }
         setShowCreateVI(false);
+        setCaptureKind(null);
         toast(t('procurementDetail.toast.viRecorded', 'Supplier invoice recorded'), undefined, 'success');
       }
       setPendingConfirm(null);
@@ -773,7 +782,9 @@ const ProcurementDetails: React.FC = () => {
       // Close the confirm; surface the classified toast + keep the verbatim
       // inline error (forms keep redundant errors — that is correct).
       setPendingConfirm(null);
-      const { headline, detail } = classifyMutationError(err);
+      const { headline, detail } = (pendingConfirm.kind === 'createVI' && pendingConfirm.lines
+        ? classifySubcontractBillError(err, t)
+        : null) ?? classifyMutationError(err);
       toast(headline, detail, 'warning');
       setMutationError(detail);
     }
@@ -937,7 +948,11 @@ const ProcurementDetails: React.FC = () => {
       : captureKind === 'purchase_order' ? recordMutations.createPurchaseOrder.isPending
         : captureKind === 'payment' ? recordMutations.createPayment.isPending
           : captureKind === 'goods_receipt' ? mutations.createReceipt.isPending
-            : captureKind === 'vendor_invoice' ? mutations.createInvoice.isPending : false;
+            : captureKind === 'vendor_invoice'
+              ? (p.is_subcontract && p.purchase_orders[0]?.id
+                ? mutations.captureSubcontractVendorInvoice.isPending
+                : mutations.createInvoice.isPending)
+              : false;
   const clickMainAction = () => {
     if (!mainAction) return;
     if (mainAction.to === 'Received') {
@@ -1328,6 +1343,7 @@ const ProcurementDetails: React.FC = () => {
           vendorId={p.vendor_id}
           itemsNet={itemsNetTotal(p.items)}
           currency={p.currency}
+          subcontractPoId={p.is_subcontract ? p.purchase_orders[0]?.id : undefined}
           onStage={(staged) => { setMutationError(null); setPendingConfirm(staged); }}
           onClose={() => setCaptureKind(null)}
         />

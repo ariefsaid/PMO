@@ -264,67 +264,68 @@ _references_ the AC but does not own the proof.
 
 ---
 
-### AC-DEL-001 *(Unit)* — Calculated % is Done/total over the milestone's tasks
+### AC-DEL-001 *(pgTAP)* — Calculated % is Done/total over the milestone's tasks
 Given a milestone with 5 tasks (3 Done, 2 To Do),
-When the DAL derives the calculated %,
+When the authoritative RPC derives the calculated %,
 Then it returns 60.
 
-*(FR-DEL-004)*
+*(FR-DEL-004)* Owning proof: `supabase/tests/0065_milestone_rollup_oracle.test.sql` — moved to
+the SQL layer from the retired parallel TS oracle (OE17R02-001, #1569).
 
 ---
 
-### AC-DEL-002 *(Unit)* — Calculated % is null when a milestone has no tasks
+### AC-DEL-002 *(pgTAP)* — Calculated % is null when a milestone has no tasks
 Given a milestone with no tasks,
-When the DAL derives the calculated %,
+When the authoritative RPC derives the calculated %,
 Then it returns null (not 0).
 
-*(FR-DEL-004)*
+*(FR-DEL-004)* Owning proof: `supabase/tests/0065_milestone_rollup_oracle.test.sql` (OE17R02-001, #1569).
 
 ---
 
-### AC-DEL-003 *(Unit)* — Effective % = input when input is set
+### AC-DEL-003 *(pgTAP)* — Effective % = input when input is set
 Given a milestone with calculated % = 40 and input % = 75,
-When the DAL derives the effective %,
+When the authoritative RPC derives the effective %,
 Then it returns 75.
 
-*(FR-DEL-005)*
+*(FR-DEL-005)* Owning proof: `supabase/tests/0064_milestone_checks_and_input_clear.test.sql` (OE17R02-001, #1569).
 
 ---
 
-### AC-DEL-004 *(Unit)* — Effective % falls back to calculated when input is null
+### AC-DEL-004 *(pgTAP)* — Effective % falls back to calculated when input is null
 Given a milestone with calculated % = 40 and input % = null,
-When the DAL derives the effective %,
+When the authoritative RPC derives the effective %,
 Then it returns 40.
 
-*(FR-DEL-005)*
+*(FR-DEL-005)* Owning proof: `supabase/tests/0064_milestone_checks_and_input_clear.test.sql` (OE17R02-001, #1569).
 
 ---
 
-### AC-DEL-005 *(Unit)* — Effective % falls back to 0 when both calculated and input are null
+### AC-DEL-005 *(pgTAP)* — Effective % falls back to 0 when both calculated and input are null
 Given a milestone with no tasks and input % = null (so calculated % = null),
-When the DAL derives the effective %,
+When the authoritative RPC derives the effective %,
 Then it returns 0.
 
-*(FR-DEL-005)*
+*(FR-DEL-005)* Owning proof: `supabase/tests/0065_milestone_rollup_oracle.test.sql` (OE17R02-001, #1569).
 
 ---
 
-### AC-DEL-006 *(Unit)* — Project delivery % — worked-example oracle (32%)
+### AC-DEL-006 *(pgTAP)* — Project delivery % — worked-example oracle (32%)
 Given a project with 3 milestones: weights 20/30/50, effective % 100/40/0 (Engineering Done,
 Procurement 40% done, Construction not started),
-When the DAL derives the project delivery %,
+When the authoritative RPC derives the project delivery %,
 Then it returns 32.
 
-*(FR-DEL-006)*
+*(FR-DEL-006)* Owning proof: `supabase/tests/0065_milestone_rollup_oracle.test.sql` (OE17R02-001, #1569).
 
 ---
 
-### AC-DEL-007 *(Unit)* — Project delivery % is null when a project has no milestones
+### AC-DEL-007 *(pgTAP)* — Project delivery % is null when a project has no milestones
 Given a project with no milestones,
-When the DAL derives the project delivery %,
+When the authoritative RPC derives the project delivery %,
 Then it returns null (no chip rendered).
 
-*(FR-DEL-006)*
+*(FR-DEL-006)* Owning proof: `supabase/tests/0065_milestone_rollup_oracle.test.sql` (OE17R02-001, #1569).
 
 ---
 
@@ -505,9 +506,9 @@ Then the milestone strip shows "Engineering design" with "From tasks" = 100% and
 | FR-DEL-001 (milestones table) | AC-DEL-015, AC-DEL-016, AC-DEL-017, AC-DEL-018 | pgTAP |
 | FR-DEL-002 (tasks.milestone_id FK) | AC-DEL-021 | pgTAP |
 | FR-DEL-003 (org_id server-stamped) | AC-DEL-018 | pgTAP |
-| FR-DEL-004 (calculated % = Done/total) | AC-DEL-001, AC-DEL-002 | Unit |
-| FR-DEL-005 (effective % rule) | AC-DEL-003, AC-DEL-004, AC-DEL-005, AC-DEL-020 | Unit (AC-DEL-020 pgTAP) |
-| FR-DEL-006 (project delivery % rollup) | AC-DEL-006, AC-DEL-007, AC-DEL-019 | Unit (AC-DEL-019 pgTAP oracle) |
+| FR-DEL-004 (calculated % = Done/total) | AC-DEL-001, AC-DEL-002 | pgTAP (OE17R02-001: SQL path owns the derivation) |
+| FR-DEL-005 (effective % rule) | AC-DEL-003, AC-DEL-004, AC-DEL-005, AC-DEL-020 | pgTAP |
+| FR-DEL-006 (project delivery % rollup) | AC-DEL-006, AC-DEL-007, AC-DEL-019 | pgTAP |
 | FR-DEL-007 (read-time derivation, no trigger) | AC-DEL-019 | pgTAP |
 | FR-DEL-008 (create milestone) | AC-DEL-016 | pgTAP |
 | FR-DEL-009 (edit milestone) | AC-DEL-016, AC-DEL-020 | pgTAP |
@@ -526,8 +527,10 @@ Then the milestone strip shows "Engineering design" with "From tasks" = 100% and
 | NFR-DEL-UI-001 (loading/empty/error states) | AC-DEL-014 | Unit |
 | NFR-DEL-SEAM-001 (org_id seam) | AC-DEL-018 | pgTAP |
 
-Per-layer AC split: **Unit** AC-DEL-001..014 (14) · **pgTAP** AC-DEL-015..021 (7) · **E2E**
-AC-DEL-022 (1, curated journey). Total: 22 ACs, 21 FRs.
+Per-layer AC split: **Unit** AC-DEL-008..014 (7) · **pgTAP** AC-DEL-001..007 + AC-DEL-015..021 (14) · **E2E**
+AC-DEL-022 (1, curated journey). Total: 22 ACs, 21 FRs. (AC-DEL-001..007 moved Unit → pgTAP by
+OE17R02-001/#1569: the parallel TS derivation oracle duplicated the RPC formula and is deleted;
+the SQL RPC the app actually executes owns the proof.)
 
 ---
 

@@ -1,6 +1,9 @@
 /**
  * entityCatalog.ts — the agent read-tool's single entity-resolution seam (Defect 2).
  *
+ * ⚠ Vocabulary: "entity" here names any queryable record type generically (a table + column
+ * whitelist entry). It is NOT the operating-company **Entity** dimension of docs/GLOSSARY.md.
+ *
  * Resolves an `AGENT_READ_ENTITIES` key to its normalized entry `{ table, allowedColumns,
  * requiredFilter? }`, drawing from TWO sources so neither the model nor the read path has to know
  * which source a given entity lives in:

@@ -49,7 +49,7 @@ import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
 import { toCsv } from '@/src/lib/export/toCsv';
 import { formatDateOnly } from '@/src/lib/format';
 
-export interface DocumentsTabProps {
+interface DocumentsTabProps {
   projectId: string;
   /** Reports the register row count (null while unavailable) so the parent chrome can badge it. */
   onCountChange?: (count: number | null) => void;

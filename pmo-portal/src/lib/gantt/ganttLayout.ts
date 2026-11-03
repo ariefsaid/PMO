@@ -24,9 +24,9 @@ const pixelsPerDay = (scale: GanttScale, spanDays: number): number =>
   Math.min(SCALE_PX_PER_DAY[scale], MAX_TIMELINE_WIDTH / Math.max(1, spanDays));
 
 /**
- * Optional pixel-aware layout config. When passed to `buildGanttModel`, the model
- * additionally emits a `GanttGeometry` block of absolute-px boxes + dependency edges.
- * When omitted, behaviour is byte-identical to v1 (fractions only, `geometry: null`).
+ * Pixel-aware layout config for `buildGanttModel`: the model emits a `GanttGeometry`
+ * block of absolute-px boxes + dependency edges for every nonempty model (OE19-009:
+ * the optional fraction-only v1 path had no production caller — the config is required).
  */
 export interface GanttLayoutConfig {
   scale: GanttScale;
@@ -154,8 +154,8 @@ export interface GanttModel {
   /** True when there is nothing dated to plot at all (caller → empty state). */
   isEmpty: boolean;
   /**
-   * Absolute-px geometry (bars/markers/edges). Non-null only when a `config` is
-   * passed to `buildGanttModel`; otherwise null (v1 fraction-only behaviour).
+   * Absolute-px geometry (bars/markers/edges) for every nonempty model — the config is
+   * required. Null only for the empty model (nothing dated to plot).
    */
   geometry: GanttGeometry | null;
 }
@@ -187,7 +187,7 @@ export function buildGanttModel(
   tasks: TaskWithRefs[],
   milestones: MilestoneWithProgress[],
   todayIso: string,
-  config?: GanttLayoutConfig,
+  config: GanttLayoutConfig,
 ): GanttModel {
   // OD-INT-9 subtask rollup rule: subtasks (parent_task_id != null) never render on the Gantt —
   // they nest under their parent in the LIST view. Filter them once, up-front, so they cannot become
@@ -338,20 +338,18 @@ export function buildGanttModel(
     lanes.push(ungroupedLane);
   }
 
-  // Build axis ticks at the chosen granularity (month is the default / v1 path).
+  // Build axis ticks at the chosen granularity.
   const ticks = buildTicks(
     spanStart,
     spanEnd,
     spanDays,
-    config?.scale ?? 'month',
-    config?.maxTicks ?? DEFAULT_MAX_GANTT_TICKS,
-    config?.viewport,
+    config.scale,
+    config.maxTicks ?? DEFAULT_MAX_GANTT_TICKS,
+    config.viewport,
   );
 
-  // Pixel-aware geometry — only when a config is supplied (v1 callers get null).
-  const geometry = config
-    ? buildGeometry(lanes, datedTasks, spanDays, config)
-    : null;
+  // Pixel-aware geometry — built for every nonempty model (the config is required).
+  const geometry = buildGeometry(lanes, datedTasks, spanDays, config);
 
   return {
     span: { startIso: spanStart, endIso: spanEnd },

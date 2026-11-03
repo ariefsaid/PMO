@@ -6,7 +6,7 @@ import { useAuth } from '@/src/auth/useAuth';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useExpenseClaimsAwaitingDecision, type ExpenseClaimAwaiting } from '@/src/hooks/useExpenseClaims';
 import { claimsAwaitingViewer } from '@/src/lib/expenses/expenseRules';
-import { formatCurrencyAuto } from '@/src/lib/format';
+import { formatCurrency } from '@/src/lib/format';
 import { ReceiptPreviewButton } from '@/src/components/documents/targets/ReceiptPreviewButton';
 import { useExpenseReceipts } from '@/src/hooks/useExpenseReceipts';
 import type { ExpenseReceiptRow } from '@/src/lib/db/expenseReceipts';
@@ -31,7 +31,7 @@ const ExpenseClaimEvidencePreview: React.FC<{ claim: ExpenseClaimAwaiting['claim
     <div className="border-t border-border px-4 py-3">
       <DecisionContextSummary
         identity={claim.claim_number ?? claim.title}
-        amount={formatCurrencyAuto(Number(claim.amount), claim.float?.currency ?? claim.currency)}
+        amount={formatCurrency(Number(claim.amount), claim.float?.currency ?? claim.currency)}
       />
       <ul className="mt-3 space-y-2">
       {files.map((file) => {
@@ -77,7 +77,7 @@ export const ExpenseClaimApprovalSection: React.FC = () => {
                 <span className="min-w-0 flex-1 truncate">{claim.title}</span>
                 {route?.isException && <StatusPill variant="warn">{t('imprest:plan.exception', 'Out of plan')}</StatusPill>}
                 <span className="text-muted-foreground">{claim.claimant?.full_name ?? '—'}</span>
-                <span className="tabular-nums">{formatCurrencyAuto(Number(claim.amount), claim.float?.currency ?? claim.currency)}</span>
+                <span className="tabular-nums">{formatCurrency(Number(claim.amount), claim.float?.currency ?? claim.currency)}</span>
                 <Button variant="outline" size="sm" aria-expanded={evidenceClaimId === claim.id} onClick={() => setEvidenceClaimId((current) => current === claim.id ? null : claim.id)}>
                   {t('expenses.approvals.previewEvidence', 'Preview claim evidence')}
                 </Button>
