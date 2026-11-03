@@ -86,6 +86,7 @@ const ExpenseClaims: React.FC = () => {
   return (
     <ListPage
       title={t('expenses.title', 'Expenses')}
+      count={rows ? rows.length : undefined}
       description={t('expenses.description', 'Expense claims and cash advances. You see your own; approvers see the whole team.')}
       primaryAction={
         canCreate && (

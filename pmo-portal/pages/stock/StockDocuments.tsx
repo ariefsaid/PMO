@@ -46,6 +46,7 @@ const StockDocuments: React.FC = () => {
   return (
     <ListPage
       title={t('documents.title')}
+      count={q.data ? rows.length : undefined}
       description={t('documents.description')}
       filters={
         <div className="flex flex-wrap items-end gap-3">
