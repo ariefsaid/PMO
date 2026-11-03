@@ -1,7 +1,9 @@
 -- #1422 / FR-BUD-122: archiving and queuing ERPNext cancellation is atomic,
 -- idempotent, actor-attributed, and preserves the existing four-role gate.
-create extension if not exists dblink;
 begin;
+-- Transaction-scoped: creating dblink before BEGIN left two SECURITY DEFINER functions in the shared
+-- catalog after this file's rollback, which then read as MISSING surface to the isolation denominator.
+create extension if not exists dblink;
 select plan(49);
 select dblink_connect('archive_race', format('dbname=%s user=%s password=postgres host=%s port=%s', current_database(), current_user, coalesce(host(inet_server_addr()), 'supabase_db_pmo-portal'), coalesce(inet_server_port(),5432)));
 select dblink_exec('archive_race', $q$
