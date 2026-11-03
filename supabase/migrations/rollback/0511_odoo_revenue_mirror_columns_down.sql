@@ -77,3 +77,6 @@ update public.record_history_config
 
 alter table public.sales_invoices
   drop column odoo_state, drop column odoo_attention, drop column odoo_sent_total, drop column odoo_read_at;
+
+comment on column public.sales_invoices.native_lines is
+  '#784 DD-NAR-8: the lines of a PMO invoice as raised — [{item_code, description, qty, rate, amount}]; amount = round(qty × rate, 2). Fixed at creation.';

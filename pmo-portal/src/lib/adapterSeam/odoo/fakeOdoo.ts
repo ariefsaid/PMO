@@ -280,7 +280,8 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
   const createInvoice = (vals: Record<string, unknown>) => {
     const id = newId('account.move');
     const { invoice_line_ids: tuples, ...rest } = vals;
-    table('account.move').set(id, { active: true, state: 'draft', name: false, payment_state: 'not_paid', ...rest, id, write_date: fmt(++clock) });
+    const stamp = fmt(++clock);   // Odoo stamps create_date; the recovery probe's window reads it
+    table('account.move').set(id, { active: true, state: 'draft', name: false, payment_state: 'not_paid', ...rest, id, create_date: stamp, write_date: stamp });
     for (const tuple of (tuples as unknown[][] | undefined) ?? []) {
       const l = tuple[2] as Record<string, unknown>;
       const product = table('product.product').get(Number(l.product_id));

@@ -19,6 +19,9 @@ alter table public.sales_invoices
 comment on column public.sales_invoices.odoo_attention is
   'Why an Odoo-held invoice needs a person (set by the mirror writer only). The invoice is never changed or reversed automatically.';
 
+comment on column public.sales_invoices.native_lines is
+  '#784 DD-NAR-8: the lines of a PMO invoice as raised - [{item_code, description, qty, rate, amount}]; amount = round(qty x rate, 2). Fixed at creation. #1506: an Odoo-tier invoice draft (pmo_native false, no Odoo document yet) keeps its lines here until its approval pushes them in one command; written by the dispatch only.';
+
 -- The catalog gate fails on an unclassified column: these are read-side facts, not history events.
 update public.record_history_config
    set omit_cols = omit_cols || array['odoo_state','odoo_attention','odoo_sent_total','odoo_read_at']
