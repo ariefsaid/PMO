@@ -141,6 +141,22 @@ describe('classifyMutationError (ADR-0017, promoted from ProcurementDetails)', (
     const e = Object.assign(new Error('boom'), { code: 'UNKNOWN_ONE' });
     expect(classifyMutationError(e, { DUPLICATE_EMAIL: 'x' }).headline).toBe('Update failed');
   });
+
+  it('AC-PLN-009/010: the plan-limit codes are classified by their own SQLSTATE with localised copy', () => {
+    const seat = new AppError('seat_limit_reached: the starter plan allows 10 seats', 'PL001');
+    expect(classifyMutationError(seat, { PL001: 'No seats left' }, {
+      module: 'administration', operation: 'create',
+      detailOverrides: { PL001: 'Ask your Operator to upgrade the plan.' },
+    })).toMatchObject({
+      headline: 'No seats left',
+      detail: 'Ask your Operator to upgrade the plan.',
+      rawDetail: 'seat_limit_reached: the starter plan allows 10 seats',
+      classification: 'override',
+    });
+    const project = new AppError('project_limit_reached: the starter plan allows 25 active projects', 'PL002');
+    expect(classifyMutationError(project, { PL002: 'Project limit reached' }).headline)
+      .toBe('Project limit reached');
+  });
 });
 
 /**

@@ -136,6 +136,9 @@ function boundOperation(operation: ClassifyOperation | undefined): ClassifyOpera
 const KNOWN_REASON_CODES = new Set([
   // Postgres/PostgREST codes already classified in classifyCode() below.
   'P0001', '42501', '23505', '23503', '23514', 'REQUEST_TIMEOUT',
+  // Plan limits (migration 0535, plans lane S5): seats and active projects raise their own SQLSTATE
+  // so the FE can localise exactly these two refusals without hijacking P0001's many other meanings.
+  'PL001', 'PL002',
   // Custom application-level codes (AppError/InviteError), reviewed 2026-07-27.
   'BAD_REQUEST', 'DUPLICATE_EMAIL', 'INVITE_UNAUTHORIZED', 'INVALID_ROLE', 'UNKNOWN_ORG',
   'BINDING_NOT_FOUND', 'REF_NOT_FOUND', 'INTERNAL_ERROR',

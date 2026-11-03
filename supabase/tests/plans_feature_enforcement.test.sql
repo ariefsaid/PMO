@@ -119,8 +119,8 @@ select is((select count(*)::int from pg_policies
   'receipts are NOT re-bound to procurement_full (move deferred pending owner sign-off)');
 select is((select count(*)::int from pg_policies
             where schemaname = 'public' and tablename in ('procurement_receipts','procurement_receipt_files')
-              and coalesce(with_check, qual) like '%''procurement''%'), 4,
-  'receipts stay gated on procurement exactly as today');
+              and coalesce(with_check, qual) like '%''procurement''%'), 5,
+  'receipt writes stay gated on procurement, including the procurement_receipts INSERT policy');
 
 -- ══════════════════════════════════════════════════════════════════════════════════════════════
 -- AC-PLN-005 — imprest off refuses the RPC; data stays readable; re-enabling restores writes.
