@@ -79,6 +79,12 @@ export const ALLOWED_SKIPS = [
     verified: '2026-09-30',
   },
   {
+    file: 'serial/AC-PLN-015-switch-off-journey.spec.ts',
+    reason: 'The assistant arm needs the served-functions lane AND the agent-assistant capability flag; its two nav/URL arms run in the ordinary lane.',
+    restore: 'Run with scripts/serve-functions.sh and VITE_FEATURES_AGENT_ASSISTANT=true — the assistant arm then runs instead of skipping.',
+    verified: '2026-11-03',
+  },
+  {
     file: 'AC-JWT-005-compose-view-auth.spec.ts',
     reason: 'Invokes the compose-view edge fn; also needs the stack env exported.',
     restore: 'Runs whenever SUPABASE_FUNCTIONS_URL + the stack env are present.',

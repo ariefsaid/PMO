@@ -449,20 +449,33 @@ one home.
 
 ### S6.3 — Allowlist as built (each entry names its restoring slice)
 
-- `route:<path>` for every module route S3 wraps in `FeatureRoute` (`/sales*`, `/procurement*`, `/timesheets`,
-  `/companies*`, `/contacts*`, `/imprest*`, `/stock*`, `/erp-purchases`, `/sales-invoices/:invoiceId`,
-  `/finance/statements`, `/administration/exchange-rates`) — reason "S3 wires the route gate (AC-PLN-008)";
-  restore "delete when S3 lands its route table".
-- `nav:/stock`, `nav:/imprest`, `nav:/finance/statements`, and the palette twins — reason "S3 gates the
-  Rail/palette from the resolved projection"; restore "delete when S3 lands".
-- `route:/incoming-payments/:receiptId` — revenue detail route; S3's inventory gates the redirects only;
-  restore "gate on `revenue` or mark core with the owner's ruling".
-- `assistant:<key>` for registry keys with no assistant read surface yet (`sales_pipeline`, `revenue`,
-  `import_export`, `m365_integration`, `budget_projection`, `imprest`, `clickup_sync`, `erp_sync`,
-  `erp_purchases`, `financial_statements`, `management_pack`, `budget_phasing`, `multi_currency`,
-  `api_access`, `sso`) plus the Admin-owned `feedback_surveys` (deliberately no assistant surface, S4) —
-  reason "no assistant read path yet (D13/S4)"; restore "delete when the module gains a read tool/entity".
-- Nothing is allowlisted for plan rows on dev: 0531 seeds all 25 keys × 4 plans.
+Six entries, 55 ids; every id suppresses at least one real gap on dev (a stale id fails). The real-repo
+run reports 62 gaps across those ids before the allowlist — 26 routes, 3 Rail items, 17 palette gaps
+(10 modules, 7 of which also drift from their gated Rail twin) and 16 switch keys with no assistant read
+path.
+
+- `route:<path>` × 26 — the module routes S3 wraps in `FeatureRoute` (`/sales*`, `/procurement*`,
+  `/timesheets`, `/companies*`, `/contacts*`, `/imprest*`, `/stock*`, `/erp-purchases`,
+  `/sales-invoices/:invoiceId`, `/finance/statements`, `/administration/exchange-rates`); reason "S3
+  wires the route gate (AC-PLN-008)"; restore "delete when S3 lands its route table".
+- `route:/incoming-payments/:receiptId` (its own entry) — revenue detail route; S3 gates the redirects
+  only; restore "gate on `revenue` or mark core with the owner's ruling".
+- `nav:/stock`, `nav:/imprest` — one entry; reason "S3 gates the Rail from the resolved projection";
+  restore "delete when S3 lands".
+- `nav:/finance/statements` — its own entry (role-gated in the page, no switch key); same restore.
+- The 10 palette twins (`/sales`, `/procurement`, `/stock`, `/timesheets`, `/companies`,
+  `/companies?type=Vendor`, `/contacts`, `/incidents`, `/imprest`, `/finance/statements`) — reason "S3
+  makes the ⌘K palette follow `MODULES[].feature`"; restore "delete when S3 lands the palette gates".
+- `assistant:<key>` × 16 — 15 registry keys with no assistant read surface yet (`sales_pipeline`,
+  `revenue`, `import_export`, `m365_integration`, `budget_projection`, `imprest`, `clickup_sync`,
+  `erp_sync`, `erp_purchases`, `financial_statements`, `management_pack`, `budget_phasing`,
+  `multi_currency`, `api_access`, `sso`) plus the Admin-owned `feedback_surveys` (deliberately no
+  assistant surface, S4) — reason "no assistant read path yet (D13/S4)"; restore "delete when the module
+  gains a read tool/entity".
+- Nothing is allowlisted for plan rows on dev: 0531 seeds all 25 keys × 4 plans (100 rows), and the
+  guard's DB-key check proves the FE registry and `org_features_feature_key_check` are the same 25.
+- Nothing is allowlisted for the enforcement rule: `0534_feature_enforcement.sql` is not on dev, so the
+  rule is inert; its fixtures prove it reddens the moment a later migration drops a gate.
 
 ### S6.4 — Verify (exact commands; no heavy jobs)
 
@@ -472,6 +485,9 @@ guard + self-test), then `scripts/with-test-lock.sh npm run typecheck` and
 `npx eslint --max-warnings=0` on touched JS/TS. Script tests: `node --test scripts/check-module-completeness.test.mjs`.
 The e2e is **not run** here; the coordinator runs it after S3/S4 merge in the serial lane
 (`scripts/e2e-local.sh --project=serial --workers=1 e2e/serial/AC-PLN-015-switch-off-journey.spec.ts`).
+Its two nav/URL arms run in the ordinary lane; the served-lane-only assistant arm carries an explicit,
+justified skip entry in `scripts/check-e2e-skips.mjs` (reason names the missing dependency, restore names
+how to run it), so a lane without `SUPABASE_FUNCTIONS_URL` cannot silently drop it.
 
 ### S6.5 — Open questions and the defaults taken
 
