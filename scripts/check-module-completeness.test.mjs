@@ -414,6 +414,146 @@ test('the enforcement rule is inert until the S2 migration exists', () => {
   assert.deepEqual(check(completeInput({ migrations })), [], 'no 0534 on the branch → nothing to enforce yet');
 });
 
+// ── rule 7, second half: the gates that exist TODAY (0081), `alter policy`, the raising-only body ──
+//
+// 0081 gates the write policies of 24 tables long before S2's 0534 exists. The rule must baseline that
+// list, treat an `alter policy` rewrite as a recreation, and refuse the non-raising helper inside a
+// function body. Each fixture here passes on the pre-fix guard.
+
+const BASELINE_81_SQL = `
+do $$
+declare feat text;
+begin
+  for r in (select tablename from pg_policies where tablename in ('timesheet_entries','m365_pkce_states','user_views')) loop
+    feat := case r.tablename
+      when 'timesheet_entries' then 'timesheets'
+      when 'm365_pkce_states' then 'm365_integration'
+      when 'user_views'       then 'user_views'
+    end;
+  end loop;
+end $$;`;
+
+const SELECT_POLICY_SQL = 'create policy timesheet_entries_select on timesheet_entries for select using (true);';
+
+/** 0081's baseline + a read policy that already exists, then one later migration to check. */
+function withBaseline81(later) {
+  return {
+    migrations: [
+      { name: '0002_rls.sql', sql: SELECT_POLICY_SQL },
+      { name: '0081_feature_flag_write_enforcement.sql', sql: BASELINE_81_SQL },
+      { name: '0610_rewrite.sql', sql: later },
+    ],
+  };
+}
+
+test('rule 7 baselines 0081 — a gated table that is not in 0534 is still covered', () => {
+  const parsed = parseEnforcement(BASELINE_81_SQL);
+  assert.equal(parsed.tables.get('timesheet_entries'), 'timesheets');
+  assert.equal(parsed.tables.get('m365_pkce_states'), 'm365_integration');
+  assert.equal(parsed.tables.get('user_views'), 'user_views');
+});
+
+test('an `alter policy` rewrite of a gated write policy without the conjunct fails', () => {
+  const errors = check(completeInput(withBaseline81(
+    'alter policy timesheet_entries_write on public.timesheet_entries with check (true);',
+  )));
+  assert.ok(has(errors, 'recreates write policy timesheet_entries_write on timesheet_entries'), errors.join('\n'));
+  assert.ok(has(errors, "without the 'timesheets' gate"), errors.join('\n'));
+});
+
+test('an `alter policy` that keeps the conjunct passes; a read policy or a role-only alter is not a hole', () => {
+  assert.deepEqual(check(completeInput(withBaseline81(
+    `alter policy timesheet_entries_write on public.timesheet_entries
+       with check (public.org_feature_enabled(public.auth_org_id(), 'timesheets'));`,
+  ))), []);
+  assert.deepEqual(check(completeInput(withBaseline81(
+    'alter policy timesheet_entries_select on public.timesheet_entries using (public.is_active_member());',
+  ))), [], '0081 gates WRITE policies; altering a SELECT policy keeps no gate to keep');
+  assert.deepEqual(check(completeInput(withBaseline81(
+    'alter policy timesheet_entries_write on public.timesheet_entries to authenticated;',
+  ))), [], 'a role-only alter leaves the predicate (and its gate) in place');
+  assert.deepEqual(check(completeInput(withBaseline81(
+    'create policy timesheet_entries_read on public.timesheet_entries for select using (true);',
+  ))), [], 'a new read policy on a gated table needs no gate');
+  assert.deepEqual(check(completeInput(withBaseline81(
+    'create policy timesheet_entries_admin_only on public.timesheet_entries as restrictive for delete using (auth_role() = \'Admin\');',
+  ))), [], 'a RESTRICTIVE policy only narrows its permissive twin — the gate lives on that twin');
+});
+
+test('a digit-named gated table is not silently skipped by the policy parser', () => {
+  const errors = check(completeInput(withBaseline81(
+    'create policy write_pkce on public.m365_pkce_states for insert with check (true);',
+  )));
+  assert.ok(has(errors, 'recreates write policy write_pkce on m365_pkce_states'), errors.join('\n'));
+});
+
+test('a function body gated only by the non-raising org_feature_enabled is not gated', () => {
+  const migrations = [
+    { name: '0534_feature_enforcement.sql', sql: ENFORCEMENT_SQL },
+    {
+      name: '0600_stock_write.sql',
+      sql: `create or replace function public.save_stock() returns void language plpgsql as $$
+begin perform public.org_feature_enabled(public.auth_org_id(), 'stock'); end $$;`,
+    },
+  ];
+  const errors = check(completeInput({ migrations }));
+  assert.ok(has(errors, "recreates public.save_stock() without the 'stock' gate"), errors.join('\n'));
+});
+
+test('the baseline records a function whichever helper form it declares, so a bare recreation still fails', () => {
+  const baseline = `create or replace function public.save_stock() returns void language plpgsql as $$
+begin perform public.org_feature_enabled(public.auth_org_id(), 'stock'); end $$;`;
+  const errors = check(completeInput({
+    migrations: [
+      { name: '0534_feature_enforcement.sql', sql: baseline },
+      { name: '0600_stock_write.sql', sql: 'create or replace function public.save_stock() returns void language plpgsql as $$ begin null; end $$;' },
+    ],
+  }));
+  assert.ok(has(errors, "recreates public.save_stock() without the 'stock' gate"), errors.join('\n'));
+});
+
+test('the raising rewrite forms are still caught: raise-exception bodies pass, tagged/quoted bodies are parsed', () => {
+  const raising = `create or replace function public.save_stock() returns void language plpgsql as $$
+begin raise exception 'feature_off' using detail = 'stock'; end $$;`;
+  assert.deepEqual(check(completeInput({
+    migrations: [
+      { name: '0534_feature_enforcement.sql', sql: ENFORCEMENT_SQL },
+      { name: '0600_stock_write.sql', sql: raising },
+    ],
+  })), [], 'an explicit raise exception feature_off is the gate');
+
+  for (const body of [
+    'create or replace function public.save_stock() returns void language plpgsql as $body$\nbegin null; end $body$;',
+    "create or replace function public.save_stock() returns void language plpgsql as 'begin null; end';",
+  ]) {
+    const errors = check(completeInput({
+      migrations: [
+        { name: '0534_feature_enforcement.sql', sql: ENFORCEMENT_SQL },
+        { name: '0600_stock_write.sql', sql: body },
+      ],
+    }));
+    assert.ok(has(errors, 'recreates public.save_stock()'), `body form not parsed: ${body}\n${errors.join('\n')}`);
+  }
+});
+
+test('a commented-out gate is not a gate on any of the three FE surfaces', () => {
+  const app = `export const appRouteConfig: RouteObject[] = [
+  { path: '/', element: <ExecutiveDashboard /> },
+  { path: '/fixture-module', /* <FeatureRoute feature="stock"> */ element: <FixturePage /> },
+];`;
+  const rail = `const ALL_ITEMS: NavItem[] = [
+  { to: '/', text: 'Dashboard' },
+  { to: '/fixture-nav', text: 'Fixture' /* feature: 'stock' */ },
+];`;
+  const palette = `export const MODULES: ModuleDef[] = [
+  { module: 'dashboard', path: '/' },
+  { module: 'fixture-module', path: '/fixture-module' /* feature: 'stock' */ },
+];`;
+  assert.equal(parseRoutes(app).find((route) => route.path === '/fixture-module')?.feature, null);
+  assert.equal(parseRail(rail).find((item) => item.to === '/fixture-nav')?.feature, null);
+  assert.equal(parsePalette(palette).find((module) => module.path === '/fixture-module')?.feature, null);
+});
+
 // ── allowlist ─────────────────────────────────────────────────────────────────────────────────
 
 test('a stale allowlist entry fails — the list cannot decay into everything', () => {

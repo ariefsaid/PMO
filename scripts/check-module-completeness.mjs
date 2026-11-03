@@ -3,7 +3,7 @@
  * Guard: the D13 module-completeness rule — a module cannot ship half-registered (FR-PLN-015,
  * AC-PLN-014). Every module surface must carry its plan switch (or an explicit core marking), every
  * switch key must have a plan row for every plan and at least one assistant read path, and a
- * migration after S2's enforcement migration cannot quietly recreate a gated function or write
+ * migration after an enforcement migration cannot quietly recreate a gated function or write
  * policy without its gate (#1783 item 3).
  *
  * Sources are the shipped ones — never a hand-kept list beside them:
@@ -15,7 +15,8 @@
  *                                                               the latest org_features key CHECK
  *   assistant   supabase/functions/agent-chat/*.ts              read entities + named tools
  *   key map     supabase/functions/agent-chat/featureSwitches.ts (S4) — pre-S4 fallback below
- *   enforcement supabase/migrations/*_feature_enforcement.sql (S2) — inert until it merges
+ *   enforcement supabase/migrations/*_enforcement.sql            the gated tables/functions that exist
+ *                                                               TODAY (0081) plus S2's 0534 when it merges
  *
  * Core modules are marked HERE (`CORE_ROUTES`/`CORE_NAV`/`CORE_PALETTE`: path -> reason) because the
  * alternative — a marker comment in App.tsx / Rail.tsx — collides with the FE slices rewriting them.
@@ -250,6 +251,57 @@ export const ALLOWLIST = [
     reason: 'Admin-owned switch (0419); S4 deliberately gives it no assistant surface',
     restore: 'Delete only if the owner gives the assistant a feedback-surveys read path.',
   },
+  // ── Rule 7's baseline is 0081's live gated-table list, so the write policies the ERPNext-flip
+  // family recreated after it are visible. S6 adds no migration, so re-creating them is a later
+  // slice's change; each id below names the policy its migration re-creates.
+  {
+    ids: [
+      'enforcement:0099_purchase_orders_receipts_flip.sql:purchase_orders_insert',
+      'enforcement:0099_purchase_orders_receipts_flip.sql:purchase_orders_update',
+      'enforcement:0099_purchase_orders_receipts_flip.sql:purchase_orders_delete',
+      'enforcement:0099_purchase_orders_receipts_flip.sql:procurement_receipts_insert',
+      'enforcement:0099_purchase_orders_receipts_flip.sql:procurement_receipts_update',
+      'enforcement:0099_purchase_orders_receipts_flip.sql:procurement_receipts_delete',
+    ],
+    reason: 'ERPNext-flip P2 (0099) recreated these write policies after 0081 introduced the rule',
+    restore: 'Delete each id when its policy is next recreated carrying the org_feature_enabled conjunct — it then goes stale and the gate demands the deletion.',
+  },
+  {
+    ids: [
+      'enforcement:0100_invoices_payments_flip.sql:procurement_invoices_insert',
+      'enforcement:0100_invoices_payments_flip.sql:procurement_invoices_update',
+      'enforcement:0100_invoices_payments_flip.sql:procurement_invoices_delete',
+      'enforcement:0100_invoices_payments_flip.sql:payments_insert',
+      'enforcement:0100_invoices_payments_flip.sql:payments_update',
+      'enforcement:0100_invoices_payments_flip.sql:payments_delete',
+    ],
+    reason: 'ERPNext-flip P2 (0100) recreated these write policies after 0081 introduced the rule',
+    restore: 'Delete each id when its policy is next recreated carrying the org_feature_enabled conjunct — it then goes stale and the gate demands the deletion.',
+  },
+  {
+    ids: [
+      'enforcement:0129_ap_invoices_payments_active_member.sql:procurement_invoices_insert',
+      'enforcement:0129_ap_invoices_payments_active_member.sql:procurement_invoices_update',
+      'enforcement:0129_ap_invoices_payments_active_member.sql:procurement_invoices_delete',
+      'enforcement:0129_ap_invoices_payments_active_member.sql:payments_insert',
+      'enforcement:0129_ap_invoices_payments_active_member.sql:payments_update',
+      'enforcement:0129_ap_invoices_payments_active_member.sql:payments_delete',
+    ],
+    reason: '0129 recomposed these AP write policies for active membership after 0081 introduced the rule',
+    restore: 'Delete each id when its policy is next recreated carrying the org_feature_enabled conjunct — it then goes stale and the gate demands the deletion.',
+  },
+  {
+    ids: [
+      'enforcement:0203_rls_active_member_write_composition.sql:purchase_orders_insert',
+      'enforcement:0203_rls_active_member_write_composition.sql:purchase_orders_update',
+      'enforcement:0203_rls_active_member_write_composition.sql:purchase_orders_delete',
+      'enforcement:0203_rls_active_member_write_composition.sql:procurement_receipts_insert',
+      'enforcement:0203_rls_active_member_write_composition.sql:procurement_receipts_update',
+      'enforcement:0203_rls_active_member_write_composition.sql:procurement_receipts_delete',
+    ],
+    reason: '0203 recomposed these write policies for active membership after 0081 introduced the rule',
+    restore: 'Delete each id when its policy is next recreated carrying the org_feature_enabled conjunct — it then goes stale and the gate demands the deletion.',
+  },
 ];
 
 // ── source scanning helpers (pure) ──────────────────────────────────────────────────────────────
@@ -385,32 +437,40 @@ function jsxFeature(block) {
   return block.match(/FeatureRoute[\s\S]{0,300}?feature=(?:"([^"]+)"|'([^']+)'|\{[^}]*?'([^']+)')/);
 }
 
-/** `pmo-portal/App.tsx` appRouteConfig -> [{ path, feature }] (the `*` catch-all included). */
+/** `pmo-portal/App.tsx` appRouteConfig -> [{ path, feature }] (the `*` catch-all included).
+ *  Comments are blanked before matching: a `/* TODO: gate this *\/` note is not a gate (#1783 review). */
 export function parseRoutes(appTsx) {
   return objectBlocks(appTsx, 'export const appRouteConfig')
     .map((block) => {
-      const path = field(block, 'path');
-      const feature = jsxFeature(block);
+      const code = stripTsComments(block);
+      const path = field(code, 'path');
+      const feature = jsxFeature(code);
       return { path, feature: feature ? (feature[1] ?? feature[2] ?? feature[3]) : null };
     })
     .filter((route) => route.path);
 }
 
-/** Rail.tsx ALL_ITEMS -> [{ to, feature, unlessFeature }]. */
+/** Rail.tsx ALL_ITEMS -> [{ to, feature, unlessFeature }]. Comment text is not a gate. */
 export function parseRail(railTsx) {
   return objectBlocks(railTsx, 'const ALL_ITEMS')
-    .map((block) => ({
-      to: field(block, 'to'),
-      feature: field(block, 'feature'),
-      unlessFeature: field(block, 'unlessFeature'),
-    }))
+    .map((raw) => {
+      const block = stripTsComments(raw);
+      return {
+        to: field(block, 'to'),
+        feature: field(block, 'feature'),
+        unlessFeature: field(block, 'unlessFeature'),
+      };
+    })
     .filter((item) => item.to);
 }
 
-/** routeMatch.ts MODULES -> [{ path, feature }]. */
+/** routeMatch.ts MODULES -> [{ path, feature }]. Comment text is not a gate. */
 export function parsePalette(routeMatchTs) {
   return objectBlocks(routeMatchTs, 'export const MODULES')
-    .map((block) => ({ path: field(block, 'path'), feature: field(block, 'feature') }))
+    .map((raw) => {
+      const block = stripTsComments(raw);
+      return { path: field(block, 'path'), feature: field(block, 'feature') };
+    })
     .filter((module) => module.path);
 }
 
@@ -568,8 +628,27 @@ export function parseKeyMap(files) {
 
 // ── S2 enforcement: a later migration must keep the gate (#1783 item 3) ─────────────────────────
 
-const FUNCTION_RE =
-  /create\s+(?:or\s+replace\s+)?function\s+(?:public\.)?"?([a-z_][a-z0-9_]*)"?\s*\([^)]*\)[\s\S]*?\$\$([\s\S]*?)\$\$/gi;
+/** An enforcement migration: 0081's write-policy gate (the baseline that exists today) and S2's 0534.
+ *  Everything either one gates must survive every later migration. */
+const ENFORCEMENT_FILE_RE = /^\d+_.*_enforcement\.sql$/i;
+
+/**
+ * A function definition, with its body in either Postgres body form that appears in this repo:
+ * dollar-quoted with an optional tag (`$$ … $$`, `$body$ … $body$`) or single-quoted (`as '…'`).
+ * The `as` anchor matters: a lazy scan that accepts any quoted string would swallow `set search_path
+ * to 'public'` as the "body" and then miss the real one.
+ */
+const FUNCTION_RE = new RegExp(
+  String.raw`create\s+(?:or\s+replace\s+)?function\s+(?:public\.)?"?([a-z_][a-z0-9_]*)"?\s*\([^)]*\)[\s\S]*?\bas\s+(?:\$\w*\$([\s\S]*?)\$\w*\$|'((?:[^']|'')*)')`,
+  'gi',
+);
+
+/** A `create policy` / `alter policy` statement: kind, policy name, table, and the rest of the body. */
+const POLICY_RE =
+  /\b(create|alter)\s+policy\s+(?:if\s+not\s+exists\s+)?"?([a-z0-9_]+)"?\s+on\s+(?:public\.)?"?([a-z0-9_]+)"?([\s\S]*?);/gi;
+
+/** A function body from a FUNCTION_RE match (dollar-quoted or single-quoted). */
+const functionBody = (m) => m[2] ?? m[3] ?? '';
 
 /** Arguments of the first `<name>(...)` call in `text` (balanced parens), or null. */
 function firstCallArgs(text, name) {
@@ -580,24 +659,66 @@ function firstCallArgs(text, name) {
   return close === -1 ? null : text.slice(open, close + 1);
 }
 
-/** The switch key a function body gates on, or null. */
-function keyInGate(body) {
-  for (const fn of ['assert_feature_on', 'org_feature_enabled']) {
-    const args = firstCallArgs(body, fn);
-    if (!args) continue;
-    const keys = [...args.matchAll(/'([a-z][a-z0-9_]*)'/g)].map((x) => x[1]);
-    if (keys.length) return keys[keys.length - 1];
-  }
+/** The switch keys quoted in the first `<helper>(…)` call of `text`, last one being the key. */
+function keyOfCall(text, helper) {
+  const args = firstCallArgs(text, helper);
+  if (!args) return null;
+  const keys = [...args.matchAll(/'([a-z][a-z0-9_]*)'/g)].map((x) => x[1]);
+  return keys.length ? keys[keys.length - 1] : null;
+}
+
+/**
+ * The switch key a FUNCTION body gates on, or null. Only the RAISING form counts: `assert_feature_on`
+ * (0534 §A) or an explicit `raise exception 'feature_off'`. `org_feature_enabled` is the policy-side
+ * predicate — it RETURNS false instead of raising — so a definer body that copies the RLS conjunct
+ * idiom never refuses the call and is not a gate (#1783 item 3).
+ */
+function keyInFunctionGate(body) {
+  const asserted = keyOfCall(body, 'assert_feature_on');
+  if (asserted) return asserted;
   const detail = body.match(/raise\s+exception\s+'feature_off'[\s\S]{0,200}?detail\s*=\s*'([a-z][a-z0-9_]*)'/i);
   return detail ? detail[1] : null;
 }
 
-/** Parse S2's enforcement migration: gated function name -> key, gated write table -> key. */
+/** Does a POLICY predicate carry `org_feature_enabled(…, '<key>')`? Every call is inspected, so a
+ *  predicate that conjoins two keys (`procurement` and `procurement_full`) matches on either. */
+function policyHasGate(body, key) {
+  for (const call of body.matchAll(/org_feature_enabled\s*\(/gi)) {
+    const open = call.index + call[0].length - 1;
+    const close = matchingClose(body, open);
+    if (close === -1) continue;
+    const args = body.slice(open, close + 1);
+    if ([...args.matchAll(/'([a-z][a-z0-9_]*)'/g)].some((x) => x[1] === key)) return true;
+  }
+  return false;
+}
+
+/** The key a BASELINE migration gates a function on, in whichever form it declares (the baseline is
+ *  descriptive — it records what exists). A *recreation* must use the raising form (keyInFunctionGate). */
+const keyInAnyFunctionGate = (body) => keyInFunctionGate(body) ?? keyOfCall(body, 'org_feature_enabled');
+
+/** `create policy`: the command it applies to (`for <cmd>`), defaulting to `all`. Read from the head of
+ *  the statement, before any predicate, so a `select` inside `using (…)` can never be mistaken for it. */
+function policyCommand(body) {
+  const head = body.split(/\busing\b|\bwith\s+check\b/i)[0];
+  const m = head.match(/\bfor\s+(all|select|insert|update|delete)\b/i);
+  return m ? m[1].toLowerCase() : 'all';
+}
+
+/** Is this policy RESTRICTIVE (`as restrictive`)? A restrictive policy only narrows what its permissive
+ *  twin allows, so a feature conjunct is not where the gate lives (0081 gates the permissive policy). */
+const isRestrictive = (body) => /\bas\s+restrictive\b/i.test(body);
+
+/**
+ * Parse an enforcement migration: gated function name -> key, gated write table -> key. Two shapes ship:
+ * 0081's `case <alias>.tablename when 'table' then 'key' … end` mapping (the live list), and S2's
+ * `join (values ('table','key'), …) as m(tablename, feature_key)` list.
+ */
 export function parseEnforcement(sql) {
   const text = strip(sql);
   const functions = new Map();
   for (const m of text.matchAll(FUNCTION_RE)) {
-    const key = keyInGate(m[2]);
+    const key = keyInAnyFunctionGate(functionBody(m));
     if (key) functions.set(m[1], key);
   }
   const tables = new Map();
@@ -607,8 +728,51 @@ export function parseEnforcement(sql) {
       tables.set(m[1], m[2]);
     }
   }
+  for (const block of text.matchAll(/case\s+(?:[a-z_][a-z0-9_]*\.)?tablename([\s\S]*?)\bend\b/gi)) {
+    for (const m of block[1].matchAll(/when\s+'([a-z_][a-z0-9_]*)'\s*then\s+'([a-z_][a-z0-9_]*)'/gi)) {
+      tables.set(m[1], m[2]);
+    }
+  }
   return { functions, tables };
 }
+
+/**
+ * The gate each table/function carries TODAY, and the migration that introduced it. A later migration
+ * (higher number) must preserve it; the gate's own migration is not a "recreation".
+ * Folding every enforcement migration means 0081's list is covered before S2 lands and 0534 layers on
+ * top of it afterwards (#1783 item 3 says "a gated table", not "a 0534 table").
+ */
+export function enforcementBaseline(migrations) {
+  const functions = new Map();
+  const tables = new Map();
+  const ordered = [...migrations]
+    .filter((m) => ENFORCEMENT_FILE_RE.test(m.name))
+    .sort((a, b) => Number.parseInt(a.name, 10) - Number.parseInt(b.name, 10));
+  for (const migration of ordered) {
+    const since = Number.parseInt(migration.name, 10);
+    if (!Number.isFinite(since)) continue;
+    const parsed = parseEnforcement(migration.sql);
+    for (const [name, key] of parsed.functions) functions.set(name, { key, since, file: migration.name });
+    for (const [table, key] of parsed.tables) tables.set(table, { key, since, file: migration.name });
+  }
+  return { functions, tables };
+}
+
+/** Replay `create policy` statements in migration order: `${table}\0${policy}` -> `{ cmd, restrictive }`.
+ *  An `alter policy` carries neither `for <cmd>` nor `as restrictive`, so this is how a read policy's
+ *  alter (or a narrowing one's) is recognised. */
+export function policyCommands(migrations) {
+  const commands = new Map();
+  for (const migration of migrations) {
+    for (const m of strip(migration.sql).matchAll(POLICY_RE)) {
+      const [, kind, policy, table, body] = m;
+      if (kind.toLowerCase() !== 'create') continue;
+      commands.set(`${table}${INTERNAL}${policy}`, { cmd: policyCommand(body), restrictive: isRestrictive(body) });
+    }
+  }
+  return commands;
+}
+
 
 // ── the rules ──────────────────────────────────────────────────────────────────────────────────
 
@@ -761,38 +925,48 @@ export function check(input) {
     }
   }
 
-  // 7. S2's enforcement must survive later migrations (#1783 item 3)
-  const enforcement = migrations.find((m) => /^\d+_.*feature_enforcement\.sql$/.test(m.name));
-  if (enforcement) {
-    const baseline = parseEnforcement(enforcement.sql);
-    const baseNumber = Number.parseInt(enforcement.name, 10);
+  // 7. A gate that exists today must survive every later migration (#1783 item 3). The baseline is
+  // every enforcement migration (0081's live list + S2's 0534 when it merges), not one file.
+  const baseline = enforcementBaseline(migrations);
+  const commands = policyCommands(migrations);
+  if (baseline.functions.size || baseline.tables.size) {
     for (const migration of migrations) {
       const number = Number.parseInt(migration.name, 10);
-      if (!Number.isFinite(number) || number <= baseNumber) continue;
+      if (!Number.isFinite(number)) continue;
       const text = strip(migration.sql);
 
       for (const m of text.matchAll(FUNCTION_RE)) {
         const name = m[1];
-        const key = baseline.functions.get(name);
-        if (!key) continue;
-        if (keyInGate(m[2]) !== key) {
+        const gate = baseline.functions.get(name);
+        if (!gate || number <= gate.since) continue;
+        if (keyInFunctionGate(functionBody(m)) !== gate.key) {
           gap(
             `enforcement:${migration.name}:${name}`,
-            `${migration.name} recreates public.${name}() without the '${key}' gate from ${enforcement.name} — call assert_feature_on() with the same key in the same definition`,
+            `${migration.name} recreates public.${name}() without the '${gate.key}' gate from ${gate.file} — call the RAISING assert_feature_on(…, '${gate.key}') in the same definition (org_feature_enabled only returns false; it is the policy-side predicate)`,
           );
         }
       }
 
-      for (const m of text.matchAll(/create\s+policy\s+"?([a-z0-9_]+)"?\s+on\s+(?:public\.)?"?([a-z_]+)"?([\s\S]*?);/gi)) {
-        const [, policy, table, body] = m;
-        const key = baseline.tables.get(table);
-        if (!key) continue;
-        const args = firstCallArgs(body, 'org_feature_enabled');
-        const keys = args ? [...args.matchAll(/'([a-z][a-z0-9_]*)'/g)].map((x) => x[1]) : [];
-        if (!keys.includes(key)) {
+      for (const m of text.matchAll(POLICY_RE)) {
+        const [, kind, policy, table, body] = m;
+        const gate = baseline.tables.get(table);
+        if (!gate || number <= gate.since) continue;
+        const prior = commands.get(`${table}${INTERNAL}${policy}`);
+        if (kind.toLowerCase() === 'create') {
+          // 0081 gates the PERMISSIVE write policy: a read policy needs no gate, and a restrictive
+          // policy only narrows its permissive twin (where the gate lives).
+          if (policyCommand(body) === 'select' || isRestrictive(body)) continue;
+        } else if (!/\busing\s*\(|\bwith\s+check\s*\(/i.test(body)) {
+          // alter policy … to roles / rename: the predicate is untouched, so the gate survives.
+          continue;
+        } else if (prior && (prior.cmd === 'select' || prior.restrictive)) {
+          continue;
+        }
+        const gated = policyHasGate(body, gate.key);
+        if (!gated) {
           gap(
             `enforcement:${migration.name}:${policy}`,
-            `${migration.name} recreates write policy ${policy} on ${table} without the '${key}' gate from ${enforcement.name} — add the org_feature_enabled conjunct`,
+            `${migration.name} recreates write policy ${policy} on ${table} without the '${gate.key}' gate from ${gate.file} — keep the org_feature_enabled(…, '${gate.key}') conjunct (a deliberate re-boundary must be an ALLOWLIST entry naming the new key)`,
           );
         }
       }
@@ -1027,6 +1201,106 @@ begin perform public.assert_feature_on(public.auth_org_id(), 'incidents'); end $
     allowlist: [{ ids: ['enforcement:0600_rewrite.sql:save_stock', 'enforcement:0600_rewrite.sql:write_stock'], reason: 'r', restore: 'x' }],
   });
   ok(allowlistedEnforcement.length === 0, `an allowlisted enforcement exception passes, got: ${allowlistedEnforcement.join(' | ')}`);
+
+  // ── The 0081 baseline, `alter policy`, the RAISING-only function gate, and body/table-name forms ──
+  // Each fixture below passes on the pre-fix guard; they exist so a revert reddens immediately.
+  const baseline81Sql = `
+-- The gated-table list that exists TODAY (0081 A2): a tablename in (...) list + a case mapping.
+do $$
+declare feat text;
+begin
+  for r in (select tablename from pg_policies where tablename in ('timesheet_entries','m365_pkce_states')) loop
+    feat := case r.tablename
+      when 'timesheet_entries' then 'timesheets'
+      when 'm365_pkce_states' then 'm365_integration'
+    end;
+  end loop;
+end $$;`;
+  const onBaseline81 = (later, extra = []) => ({
+    ...complete,
+    migrations: [
+      { name: '0002_rls.sql', sql: `create policy timesheet_entries_select on timesheet_entries for select using (true);` },
+      ...extra,
+      { name: '0081_feature_flag_write_enforcement.sql', sql: baseline81Sql },
+      { name: '0610_rewrite.sql', sql: later },
+    ],
+  });
+
+  ok(
+    parseEnforcement(baseline81Sql).tables.get('timesheet_entries') === 'timesheets',
+    '0081\'s case mapping is parsed into the baseline (tables gated today, not just 0534\'s)',
+  );
+  const alterBare = `alter policy timesheet_entries_write on public.timesheet_entries with check (true);`;
+  ok(
+    has(check(onBaseline81(alterBare)), 'recreates write policy timesheet_entries_write on timesheet_entries'),
+    `alter policy without the conjunct is named, got: ${check(onBaseline81(alterBare)).join(' | ')}`,
+  );
+  const alterGated = `alter policy timesheet_entries_write on public.timesheet_entries
+  with check (public.org_feature_enabled(public.auth_org_id(), 'timesheets'));`;
+  ok(check(onBaseline81(alterGated)).length === 0, `an alter policy that keeps the gate passes, got: ${check(onBaseline81(alterGated)).join(' | ')}`);
+  const alterSelect = `alter policy timesheet_entries_select on public.timesheet_entries using (public.is_active_member());`;
+  ok(check(onBaseline81(alterSelect)).length === 0, 'altering a READ policy on a gated table is not a hole (0081 gates writes only)');
+  const digitTable = `create policy write_pkce on public.m365_pkce_states for insert with check (true);`;
+  ok(
+    has(check(onBaseline81(digitTable)), 'recreates write policy write_pkce on m365_pkce_states'),
+    `a digit-named gated table is not silently skipped, got: ${check(onBaseline81(digitTable)).join(' | ')}`,
+  );
+  const selectPolicy = `create policy timesheet_entries_read on public.timesheet_entries for select using (true);`;
+  ok(check(onBaseline81(selectPolicy)).length === 0, 'a new READ policy on a gated table is not a hole');
+
+  const nonRaising = `
+create or replace function public.save_stock() returns void language plpgsql as $$
+begin perform public.org_feature_enabled(public.auth_org_id(), 'stock'); end $$;`;
+  ok(
+    has(check(enforcementBase(nonRaising)), "recreates public.save_stock() without the 'stock' gate"),
+    `org_feature_enabled in a function body is not a gate (it never raises), got: ${check(enforcementBase(nonRaising)).join(' | ')}`,
+  );
+  ok(
+    has(
+      check({
+        ...complete,
+        migrations: [
+          { name: '0534_feature_enforcement.sql', sql: nonRaising },
+          { name: '0600_rewrite.sql', sql: 'create or replace function public.save_stock() returns void language plpgsql as $$ begin null; end $$;' },
+        ],
+      }),
+      "recreates public.save_stock() without the 'stock' gate",
+    ),
+    'a baseline that declares the non-raising form is still recorded, so a bare recreation fails',
+  );
+  const taggedBody = `
+create or replace function public.save_stock() returns void language plpgsql as $body$
+begin null; end $body$;`;
+  ok(
+    has(check(enforcementBase(taggedBody)), 'recreates public.save_stock()'),
+    'a $body$-tagged recreation is parsed, not skipped',
+  );
+  const quotedBody = `
+create or replace function public.save_stock() returns void language plpgsql as 'begin null; end';`;
+  ok(has(check(enforcementBase(quotedBody)), 'recreates public.save_stock()'), 'a single-quoted body is parsed, not skipped');
+
+  // Comment text is not a gate.
+  const commentedApp = `export const appRouteConfig: RouteObject[] = [
+  { path: '/', element: <ExecutiveDashboard /> },
+  { path: '/fixture-module', /* <FeatureRoute feature="stock"> */ element: <FixturePage /> },
+];`;
+  const commentedRail = `const ALL_ITEMS: NavItem[] = [
+  { to: '/', text: 'Dashboard' },
+  { to: '/fixture-nav', text: 'Fixture' /* feature: 'stock' */ },
+];`;
+  const commentedPalette = `export const MODULES: ModuleDef[] = [
+  { module: 'dashboard', path: '/' },
+  { module: 'fixture-module', path: '/fixture-module' /* feature: 'stock' */ },
+];`;
+  ok(
+    parseRoutes(commentedApp).find((route) => route.path === '/fixture-module')?.feature === null,
+    'a commented-out FeatureRoute is not a gate',
+  );
+  ok(parseRail(commentedRail).find((item) => item.to === '/fixture-nav')?.feature === null, 'a commented-out Rail feature is not a gate');
+  ok(
+    parsePalette(commentedPalette).find((module) => module.path === '/fixture-module')?.feature === null,
+    'a commented-out palette feature is not a gate',
+  );
 
   if (failures) {
     console.error(`module-completeness self-test: ${failures} failure(s)`);
