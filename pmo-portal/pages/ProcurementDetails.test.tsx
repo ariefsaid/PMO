@@ -1009,6 +1009,20 @@ describe('Action bar covers mid-flow transitions', () => {
     await waitFor(() => expect(toast).toHaveBeenCalledWith('Supplier invoice recorded', undefined, 'success'));
   });
 
+  it('AC-OPP-081 an Odoo org\'s picked taxes travel from the form, through the confirm, into the bill', async () => {
+    setTaskOwnership([{ domain: 'procurement', externalTier: 'odoo' }]);
+    detailState.data = { ...baseProcurement, status: 'Draft', requested_by_id: 'u-other' };
+    mockCreateInvoice.mockClear();
+    renderPage('proc-001', 'files');
+    const header = screen.getByTestId('record-header');
+    await userEvent.click(within(header).getByRole('button', { name: /record another document/i }));
+    await userEvent.click(within(header).getByRole('menuitem', { name: 'Supplier invoice' }));
+    await userEvent.click(screen.getByRole('checkbox', { name: 'PPN 11%' }));
+    await userEvent.click(screen.getByTestId('btn-save-vi'));
+    await confirmInDialog(/save supplier invoice/i);
+    await waitFor(() => expect(mockCreateInvoice).toHaveBeenCalledWith(expect.objectContaining({ taxIds: ['7'] })));
+  });
+
   it('FR-SCA-051 routes the existing supplier-invoice form through the capped subcontract RPC', async () => {
     detailState.data = {
       ...baseProcurement,
@@ -1662,6 +1676,15 @@ vi.mock('@/src/hooks/useErpPurchaseLinks', () => ({
   useLinkedErpDocuments: () => ({ data: linkedDocsState.data, isError: false, isPending: false }),
   useUnlinkErpDocument: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useLinkErpDocuments: () => ({ mutateAsync: vi.fn(), isPending: false }),
+}));
+vi.mock('@/src/hooks/useOdoo', () => ({
+  useMasterRecords: () => ({ data: { rows: [{ external_id: '7', name: 'PPN 11%', code: null, attrs: {} }], total: 1 }, isError: false }),
+  useMasterSummary: () => ({ data: { asOf: new Date().toISOString() } }),
+}));
+vi.mock('@/src/hooks/useOdooPurchase', () => ({
+  useOdooPurchaseCommands: () => ({ data: [], isError: false }),
+  useOdooUnreachable: () => ({ unreachable: false, lastOkAt: null }),
+  useResolveHeldPayment: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 vi.mock('@/src/hooks/useProcurementGates', () => import('@/pages/__tests__/helpers/procurementGatesMock'));
 vi.mock('@/src/hooks/useErpPurchases', () => ({ useErpOrphans: () => ({ data: [], isError: false, isPending: false }) }));

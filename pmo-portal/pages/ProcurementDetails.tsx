@@ -69,6 +69,8 @@ import {
   type TaxTreatment,
 } from '@/src/lib/db/procurementLifecycle';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { odooActionError } from '@/src/lib/procurement/odooActionError';
+import { odooOwnsProcurement } from '@/src/lib/adapterSeam/odoo/ownership';
 import type { CommandIntent } from '@/src/lib/repositories/types';
 import type { ErpVendorTaxAmounts, PphType } from '@/src/lib/vendorWithholding';
 import type { SubcontractBillLineInput } from '@/src/lib/db/subcontracts';
@@ -170,6 +172,8 @@ type PendingConfirm =
       withheldAmount?: number;
       withheldPphType?: PphType;
       erpTaxAmounts?: ErpVendorTaxAmounts;
+      /** #1505 P8: taxes picked from the Odoo directory (absent = the organisation default). */
+      taxIds?: string[];
       /** BLOCK 2 (ADR-0058): see the createGR variant. */
       intent: CommandIntent;
     };
@@ -766,6 +770,7 @@ const ProcurementDetails: React.FC = () => {
           ...(pendingConfirm.withheldAmount && pendingConfirm.withheldPphType
             ? { withheldAmount: pendingConfirm.withheldAmount, withheldPphType: pendingConfirm.withheldPphType } : {}),
           ...(pendingConfirm.erpTaxAmounts ? { erpTaxAmounts: pendingConfirm.erpTaxAmounts } : {}),
+          ...(pendingConfirm.taxIds ? { taxIds: pendingConfirm.taxIds } : {}),
           intent: pendingConfirm.intent,
         };
         if (pendingConfirm.lines) {
@@ -784,7 +789,7 @@ const ProcurementDetails: React.FC = () => {
       setPendingConfirm(null);
       const { headline, detail } = (pendingConfirm.kind === 'createVI' && pendingConfirm.lines
         ? classifySubcontractBillError(err, t)
-        : null) ?? classifyMutationError(err);
+        : null) ?? odooActionError(err, odooOwnsProcurement(), t) ?? classifyMutationError(err);
       toast(headline, detail, 'warning');
       setMutationError(detail);
     }

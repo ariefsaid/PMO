@@ -24,6 +24,8 @@ export function odooExternalRef(model: string, id: number | string): string {
   if (!/^[a-z_]+(\.[a-z_]+)+$/.test(model) || !Number.isInteger(n) || n <= 0) throw new Error('Invalid Odoo external ref');
   return `${model}:${n}`;
 }
+/** The reference a person's "Odoo payment number" stands for (held-payment resolution); the model name stays in this directory. */
+export const odooPaymentRef = (id: number | string): string => odooExternalRef('account.payment', id);
 /** The Odoo id inside a ref of that model, or null for any other model, a bare id or a malformed ref. */
 export function parseOdooExternalRef(model: string, ref: unknown): number | null {
   if (typeof ref !== 'string' || !ref.startsWith(`${model}:`)) return null;

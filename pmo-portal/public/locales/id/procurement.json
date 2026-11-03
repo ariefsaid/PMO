@@ -92,6 +92,7 @@
       "needsApproval": "perlu persetujuan dulu",
       "needsReceipt": "perlu penerimaan barang dulu"
     },
+    "paymentNeedsBillOdoo": "Catat faktur pemasok di sini terlebih dahulu; setelah itu Anda dapat membayarnya dari sini.",
     "preCutover": "Dicatat sebelum terhubung ke ERP, tidak dikirim",
     "notSent": "Tidak dikirim",
     "notSentReason": "Tidak dikirim: pembelian ini dimulai sebelum terhubung ke ERP"
@@ -591,5 +592,70 @@
         "headline": "Disetujui sebagian"
       }
     }
+  },
+  "odoo": {
+    "outcome": {
+      "confirmed": "Ada di Odoo",
+      "pending": "Terkirim, menunggu Odoo",
+      "held": "Perlu keputusan",
+      "attention": "Periksa di Odoo",
+      "approval": "Menunggu persetujuan di Odoo",
+      "refused": "Odoo tidak menerimanya",
+      "next": {
+        "pending": "Odoo belum mengonfirmasi. PMO memeriksa lagi sendiri; tidak ada yang perlu dilakukan.",
+        "held": "PMO tidak dapat memastikan apakah Odoo sudah membuatnya. Admin atau Keuangan memeriksa Odoo lalu memutuskan.",
+        "attention": "Odoo menunjukkan total yang berbeda dari yang dikirim PMO. Periksa tagihan di Odoo sebelum membayarnya.",
+        "approval": "Penyetuju di Odoo perlu menyetujui pesanan ini. Tidak ada yang perlu dilakukan di PMO.",
+        "refused": "Perbaiki penyebabnya, lalu catat lagi."
+      },
+      "read": "Dibaca {{age}}",
+      "sent": "Dikirim {{age}}"
+    },
+    "unreachable": "Odoo tidak dapat dijangkau. Menampilkan data terakhir yang dibaca PMO, {{age}}. Coba lagi setelah Odoo kembali.",
+    "billCheckFirst": "periksa di Odoo dulu",
+    "readFailed": "Hal yang belum diselesaikan Odoo tidak dapat dibaca. Coba lagi sebentar lagi.",
+    "unreachableAction": "Odoo tidak dapat dijangkau, coba lagi.",
+    "nothingSent": "Tidak ada yang dikirim.",
+    "kind": {
+      "purchase-order": "Pesanan",
+      "goods-receipt": "Penerimaan barang",
+      "purchase-invoice": "Faktur pemasok",
+      "payment": "Pembayaran"
+    },
+    "waiting": {
+      "title": "Menunggu Odoo"
+    },
+    "held": {
+      "title": "Pembayaran yang perlu keputusan",
+      "empty": "Tidak ada pembayaran yang menunggu keputusan.",
+      "item": "{{kind}} dikirim {{age}}",
+      "adopt": "Sudah ada di Odoo",
+      "absent": "Tidak ada di Odoo",
+      "adoptTitle": "Tautkan pembayaran ini ke Odoo?",
+      "adoptBody": "Masukkan nomor pembayaran Odoo yang akan ditautkan. PMO memeriksa bahwa pembayaran itu milik tagihan ini sebelum menganggapnya sebagai pembayaran.",
+      "adoptField": "Nomor pembayaran Odoo",
+      "adoptHint": "Nomor yang ditampilkan Odoo untuk pembayaran itu, misalnya 123.",
+      "absentTitle": "Konfirmasi tidak ada pembayaran di Odoo?",
+      "absentBody": "PMO akan mencarinya sekali lagi dan, jika tidak menemukan apa pun, dapat mengirim pembayaran lagi. Konfirmasi hanya setelah memeriksa Odoo.",
+      "confirm": "Konfirmasi",
+      "cancel": "Batal",
+      "done": "Keputusan dicatat.",
+      "failed": "Keputusan tidak dapat dicatat.",
+      "ownCommand": "Anda yang mengirim pembayaran ini, jadi orang lain harus memutuskan."
+    },
+    "taxes": {
+      "label": "Pajak",
+      "none": "Tanpa pajak",
+      "emptyReason": "Belum ada pajak yang dibaca dari Odoo.",
+      "staleReason": "Daftar pajak terakhir dibaca {{age}}; segarkan koneksi Odoo terlebih dahulu."
+    },
+    "journal": {
+      "label": "Bayar dari",
+      "default": "Jurnal bawaan",
+      "emptyReason": "Belum ada jurnal pembayaran yang dibaca dari Odoo.",
+      "staleReason": "Daftar jurnal terakhir dibaca {{age}}; segarkan koneksi Odoo terlebih dahulu."
+    },
+    "booked": "Diterima di Odoo: {{qty}}",
+    "entered": "dimasukkan {{qty}}"
   }
 }

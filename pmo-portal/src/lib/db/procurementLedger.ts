@@ -124,6 +124,35 @@ export interface LedgerRow {
    * carries no currency, so they stamp the parent procurement's (their amount is null anyway).
    */
   currency: string;
+  /** #1505 P8: what Odoo last said about this record. Absent for a record PMO owns (it renders exactly as before). */
+  odoo?: OdooRowFacts;
+}
+
+/** The mirror facts of an Odoo-held record (migration 0506). `booked`/`entered` are receipt quantities summed over lines; null = none yet. */
+export interface OdooRowFacts {
+  erpState: string | null;
+  erpAttention: string | null;
+  erpReadAt: string | null;
+  booked: number | null;
+  entered: number | null;
+}
+
+interface OdooMirrorColumns {
+  erp_state?: string | null; erp_attention?: string | null; erp_read_at?: string | null;
+  odoo_booked?: unknown; odoo_entered?: unknown;
+}
+
+const sumQuantities = (list: unknown): number | null => {
+  if (!Array.isArray(list)) return null;
+  return list.reduce<number>((n, l) => n + (Number((l as { quantity?: unknown })?.quantity) || 0), 0);
+};
+
+function odooFacts(rec: OdooMirrorColumns): OdooRowFacts | undefined {
+  if (rec.erp_state == null && rec.erp_attention == null) return undefined;
+  return {
+    erpState: rec.erp_state ?? null, erpAttention: rec.erp_attention ?? null, erpReadAt: rec.erp_read_at ?? null,
+    booked: sumQuantities(rec.odoo_booked), entered: sumQuantities(rec.odoo_entered),
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -392,6 +421,17 @@ export function buildLedgerRows(detail: ProcurementDetail): LedgerRow[] {
         (pay as unknown as { files?: EmbeddedFileRow[] }).files,
       ),
     );
+  }
+
+  // ── Odoo facts (#1505 P8): attached by record id, only where the mirror holds a fact ──
+  const mirrored = new Map<string, OdooRowFacts>();
+  for (const rec of [...(detail.purchase_orders ?? []), ...(detail.receipts ?? []), ...(detail.invoices ?? []), ...(detail.payments ?? [])]) {
+    const facts = odooFacts(rec as unknown as OdooMirrorColumns);
+    if (facts) mirrored.set((rec as { id: string }).id, facts);
+  }
+  for (const row of rows) {
+    const facts = mirrored.get(row.recordId);
+    if (facts && ['PO', 'GR', 'Invoice', 'Payment'].includes(row.type)) row.odoo = facts;
   }
 
   // ── Sort: newest-first (descending by business date) ─────────────────────

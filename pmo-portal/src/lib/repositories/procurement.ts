@@ -173,6 +173,8 @@ export const procurementRepository: ProcurementRepository = {
             // #876 slice 2 (DD-VWH-13/14) — or the VAT / PPh AMOUNTS the user entered. The dispatch turns them into fixed
             // ERPNext rows on the org's tax accounts and refuses a command carrying both a template and amounts. The
             // native tax facts above (and a standalone `withheldAmount` / `withheldPphType`) stay unforwarded.
+            // #1505 P8: on an Odoo org the user picks taxes from the mirrored directory; no pick sends none, so the org default applies.
+            ...(input.taxIds?.length ? { taxIds: input.taxIds } : {}),
             ...(input.erpTaxAmounts
               ? { vatAmount: input.erpTaxAmounts.vatAmount, withheldAmount: input.erpTaxAmounts.withheldAmount, pphType: input.erpTaxAmounts.pphType }
               : {}),
@@ -243,13 +245,13 @@ export const procurementRepository: ProcurementRepository = {
   // `referenceNumber`/`status` are dropped — the PE's docstatus is the only status truth (DD-VPAY-8)
   // and PMO's "External ref" never reaches ERPNext (OQ-VPAY-4, the reference_no anchor carries the
   // idempotency key). The native route below stays byte-for-byte.
-  createPayment: (procurementId, invoiceId, referenceNumber, status, date, amount, intent) =>
+  createPayment: (procurementId, invoiceId, referenceNumber, status, date, amount, intent, journalId) =>
     viaErp(
       procurementId,
       () =>
         dispatchCreate(
           'procurement',
-          { procurementId, invoiceId, paid_amount: amount, date, erp_doc_kind: 'payment' },
+          { procurementId, invoiceId, paid_amount: amount, date, ...(journalId ? { journalId } : {}), erp_doc_kind: 'payment' },
           intent,
         ).then((res) => res.canonical as unknown as PaymentRow),
       () => wrap(() => createPayment(procurementId, invoiceId, referenceNumber, status, date, amount)),

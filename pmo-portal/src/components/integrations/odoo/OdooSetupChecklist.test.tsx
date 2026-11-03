@@ -1,8 +1,17 @@
-import { afterEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 
-const h = vi.hoisted(() => ({ conn: { data: undefined as unknown }, owned: { data: [] as Array<{ externalTier: string; domain: string }> } }));
-vi.mock('@/src/hooks/useOdoo', () => ({ useOdooConnection: () => h.conn }));
+const h = vi.hoisted(() => ({
+  conn: { data: undefined as unknown }, owned: { data: [] as Array<{ externalTier: string; domain: string }> },
+  proposal: { data: undefined as unknown }, save: vi.fn(), can: { setValue: true },
+}));
+vi.mock('@/src/hooks/useOdoo', () => ({
+  useOdooConnection: () => h.conn,
+  useOdooJournalProposal: () => h.proposal,
+  useOdooSetup: () => ({ mutateAsync: h.save, isPending: false }),
+}));
+vi.mock('./useOdooCan', () => ({ useOdooCan: () => h.can }));
 vi.mock('@/src/hooks/useExternalDomainOwnership', () => ({ useExternalDomainOwnership: () => h.owned }));
 
 import { KIND_SPECS } from '@/src/lib/adapterSeam/odoo/kinds';
@@ -19,7 +28,7 @@ it('FR-ODC-110 an Odoo org lists the Odoo steps and none of ERPNext\'s activity-
   h.conn.data = read({});
   render(<OdooSetupChecklist />);
   const names = screen.getAllByRole('listitem').map((li) => li.getAttribute('aria-label'));
-  expect(names).toEqual(['Odoo connected', 'Company chosen', 'Odoo apps available', 'Map once', 'Sends finished', 'Vendors and clients managed in Odoo']);
+  expect(names).toEqual(['Odoo connected', 'Company chosen', 'Odoo apps available', 'Map once', 'Payment journal', 'Sends finished', 'Vendors and clients managed in Odoo']);
   expect(screen.queryByText(/activity type/i)).not.toBeInTheDocument();
   expect(screen.queryByText(/budget categor/i)).not.toBeInTheDocument();
 });
@@ -59,4 +68,56 @@ it('FR-ODC-110 ERPNext owning companies does not complete the Odoo employ step, 
   render(<OdooSetupChecklist />);
   expect(doneOf('Vendors and clients managed in Odoo')).toBe(false);
   expect(doneOf('Map once')).toBe(false);
+});
+
+describe('AC-OPP-081 / P8-T5 the payment journal default', () => {
+  const cands = [{ id: '9', code: 'BNK1', name: 'Bank BCA' }, { id: '4', code: 'CSH', name: 'Petty cash' }];
+  beforeEach(() => { h.save.mockReset(); h.can.setValue = true; h.proposal.data = undefined; h.owned.data = []; });
+
+  it('is done when the binding holds a default journal, and names it when the proposal read can', () => {
+    h.conn.data = read({ default_payment_journal_id: 9 });
+    h.proposal.data = { journal: { state: 'set', current: cands[0], candidates: cands } };
+    render(<OdooSetupChecklist />);
+    expect(doneOf('Payment journal')).toBe(true);
+    expect(within(item('Payment journal')).getByText('Bank BCA')).toBeInTheDocument();
+  });
+
+  it('with one bank journal Odoo proposes it, and one click accepts it', async () => {
+    h.conn.data = read({});
+    h.proposal.data = { journal: { state: 'proposed', proposed: cands[0], candidates: cands, current: null } };
+    h.save.mockResolvedValue({ saved: true });
+    render(<OdooSetupChecklist />);
+    expect(doneOf('Payment journal')).toBe(false);
+    expect(within(item('Payment journal')).getByText('Proposed: Bank BCA')).toBeInTheDocument();
+    await userEvent.click(within(item('Payment journal')).getByRole('button', { name: 'Accept Bank BCA' }));
+    expect(h.save).toHaveBeenCalledWith({ default_payment_journal_id: '9' });
+  });
+
+  it('with several journals the user chooses one before saving', async () => {
+    h.conn.data = read({});
+    h.proposal.data = { journal: { state: 'choose', candidates: cands, current: null } };
+    h.save.mockResolvedValue({ saved: true });
+    render(<OdooSetupChecklist />);
+    const row = item('Payment journal');
+    expect(within(row).getByRole('button', { name: 'Save' })).toBeDisabled();
+    await userEvent.selectOptions(within(row).getByRole('combobox', { name: 'Payment journal' }), '4');
+    await userEvent.click(within(row).getByRole('button', { name: 'Save' }));
+    expect(h.save).toHaveBeenCalledWith({ default_payment_journal_id: '4' });
+  });
+
+  it('with no bank or cash journal read it says so and offers nothing', () => {
+    h.conn.data = read({});
+    h.proposal.data = { journal: { state: 'none', candidates: [], current: null } };
+    render(<OdooSetupChecklist />);
+    expect(within(item('Payment journal')).getByText('No bank or cash journal has been read from Odoo yet.')).toBeInTheDocument();
+    expect(within(item('Payment journal')).queryByRole('button')).toBeNull();
+  });
+
+  it('a role that may not set values sees the state but no control', () => {
+    h.can.setValue = false;
+    h.conn.data = read({});
+    h.proposal.data = { journal: { state: 'proposed', proposed: cands[0], candidates: cands, current: null } };
+    render(<OdooSetupChecklist />);
+    expect(within(item('Payment journal')).queryByRole('button')).toBeNull();
+  });
 });

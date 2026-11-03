@@ -179,6 +179,8 @@ export interface ProcurementRepository {
     amount: number | null,
     /** BLOCK 2: the per-INTENT command identity — pass the SAME value on every retry (see CommandIntent). */
     intent?: CommandIntent,
+    /** #1505 P8: the Odoo payment journal the user chose; omitted = the organisation's default. Never used on the PMO path. */
+    journalId?: string,
   ): Promise<PaymentRow>;
 }
 

@@ -36,6 +36,9 @@ import { EfakturCell } from '@/src/components/EfakturCell';
 import { LedgerCaptureRow } from './LedgerCaptureRow';
 import { LedgerFileCell } from './LedgerFileCell';
 import { WithholdingBreakdown } from './WithholdingBreakdown';
+import { OdooCaseStatus } from './OdooCaseStatus';
+import { OdooOutcome } from '@/src/components/procurement/OdooOutcome';
+import { odooOutcome } from '@/src/lib/procurement/odooOutcome';
 import type { RecordKind, StagedRecord } from './RecordCaptureForm';
 import type { TFunction } from 'i18next';
 import type { ProcurementGates } from '@/src/lib/db/orgs';
@@ -111,6 +114,25 @@ const EfakturHeader: React.FC = () => {
   return <>{t('efaktur.column', 'e-Faktur')}</>;
 };
 
+/** #1505 P8: the record's own status, then what Odoo last said about it and, for a receipt, the quantity Odoo booked (FR-OPP-034/090). */
+const OdooRowStatus: React.FC<{ row: LedgerRow }> = ({ row }) => {
+  const { t } = useTranslation(['common', 'procurement']);
+  const facts = row.odoo!;
+  const outcome = odooOutcome({ erpState: facts.erpState, erpAttention: facts.erpAttention, erpReadAt: facts.erpReadAt });
+  return (
+    <div className="inline-flex flex-col items-start gap-1">
+      <StatusPill variant={row.statusVariant}>{row.status}</StatusPill>
+      {outcome && <OdooOutcome outcome={outcome} quiet />}
+      {facts.booked !== null && (
+        <span data-testid="odoo-quantities" className="text-[12px] text-muted-foreground tabular-nums">
+          {t('procurement:odoo.booked', 'Received in Odoo: {{qty}}', { qty: facts.booked })}
+          {facts.entered !== null && facts.entered !== facts.booked ? ` · ${t('procurement:odoo.entered', 'entered {{qty}}', { qty: facts.entered })}` : ''}
+        </span>
+      )}
+    </div>
+  );
+};
+
 const STATIC_COLUMNS: Column<LedgerRow>[] = [
   {
     key: 'date',
@@ -173,9 +195,7 @@ const STATIC_COLUMNS: Column<LedgerRow>[] = [
   {
     key: 'status',
     header: <LedgerHeader translationKey="procurementLedger.status" fallback="Status" />,
-    cell: (row) => (
-      <StatusPill variant={row.statusVariant}>{row.status}</StatusPill>
-    ),
+    cell: (row) => (row.odoo ? <OdooRowStatus row={row} /> : <StatusPill variant={row.statusVariant}>{row.status}</StatusPill>),
   },
 ];
 
@@ -440,6 +460,7 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
 
   return (
     <div data-testid="procurement-ledger">
+      <OdooCaseStatus procurementId={procurementId} />
       {/* Toolbar: card-head + filter chips */}
       <div className="mb-0 flex flex-wrap items-center justify-between gap-3 rounded-t-lg border border-b-0 border-border bg-card px-4 py-3">
         <span className="text-[13px] font-semibold">{t('procurementLedger.title', 'Case ledger')}</span>
