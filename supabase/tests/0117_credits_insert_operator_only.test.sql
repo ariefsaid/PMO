@@ -4,7 +4,7 @@
 -- so a client org-Admin can no longer self-grant unlimited credits. SELECT widens to own-org
 -- Admin+Executive (grants VIEW); a plain Engineer SELECTs 0.
 begin;
-select plan(5);
+select plan(6);
 
 -- ── Fixtures: org X = the Operator's HOME org (single-org seed: the Operator is a member here).
 -- The Operator-INSERT-succeeds case is exercised under the Operator's home-org JWT (the policy
@@ -37,6 +37,11 @@ set local role authenticated;
 set local request.jwt.claims = '{"sub":"01170000-0000-0000-0000-0000000000f1","role":"authenticated"}';
 insert into credits (org_id, owner_id, amount, note)
   values ('01170000-0000-0000-0000-000000000001', null, 500, 'operator grant');
+select throws_ok(
+  $$ insert into credits (org_id, owner_id, amount, granted_by, grant_source)
+       values ('01170000-0000-0000-0000-000000000001', null, 500, null, 'plan_allowance') $$,
+  '42501', null,
+  'AC-CRE-002 an authenticated Operator cannot mark a manual grant as system-generated');
 reset role;
 select is(
   (select (granted_by, owner_id, amount)::text from credits where org_id = '01170000-0000-0000-0000-000000000001'),

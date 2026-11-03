@@ -1,12 +1,15 @@
 -- AC-PLN-005 reversal harness — the 0534 rollback must actually REMOVE the entitlement conjunct it
 -- appended to live policies, and re-applying the migration must put it back. The runner
--- (scripts/test-plans-feature-enforcement-rollback.sh) expands the two markers in place and runs the
--- file transactionally, so the database is left at HEAD.
+-- (scripts/test-plans-feature-enforcement-rollback.sh) reverses the later 0538 overlay first, expands
+-- the migration markers in order, then runs the file transactionally so the database is left at HEAD.
 \set ON_ERROR_STOP on
 begin;
 create extension if not exists pgtap;
 select plan(7);
 
+-- 0538 changes procurement write policies after 0534. Reverse every later overlapping migration first,
+-- then restore in forward order so this round trip models a real rollback to 0534 and back to HEAD.
+-- @0538_DOWN@
 -- @0534_DOWN@
 
 select is((select count(*)::int from pg_policies
@@ -48,6 +51,7 @@ select is((select count(*)::int from pg_policies
   'AC-PLN-005 the pre-existing module gates survive the rollback');
 
 -- @0534_UP@
+-- @0538_UP@
 
 select is((select count(*)::int from pg_policies
             where schemaname = 'public' and tablename = 'incoming_payments'

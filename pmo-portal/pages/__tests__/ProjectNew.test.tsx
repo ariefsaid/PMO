@@ -133,6 +133,21 @@ describe('ProjectNew — one-step create page (#806)', () => {
     expect(screen.getByLabelText(/project name/i)).toHaveValue('Blocked Project');
   });
 
+  it('AC-PLN-010: a plan active-project refusal (PL002) names the limit and creates nothing', async () => {
+    createMutation.mockRejectedValue(
+      new AppError('project_limit_reached: the starter plan allows 25 active projects', 'PL002'),
+    );
+    renderPage();
+    await fillValid('One Too Many');
+    await userEvent.click(screen.getByRole('button', { name: /^Create project$/i }));
+    const toast = await findToastAnnouncement('alert', /active-project limit/i);
+    expect(toast).toHaveTextContent(/active-project limit/i);
+    // Reviewed copy, never the backend's machine sentence.
+    expect(toast).toHaveTextContent(/nothing was created/i);
+    expect(toast).not.toHaveTextContent(/project_limit_reached/);
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
   it('Cancel on a pristine page returns to the list at once; nothing is created', async () => {
     renderPage();
     await userEvent.click(screen.getByRole('button', { name: /^Cancel$/i }));
