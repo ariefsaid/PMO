@@ -156,6 +156,12 @@ changed — none matched, or the database did not let you change it.
   (`budget_activation_mode`) to active Admin, Executive, Project Manager and Finance, and **`pmo budgets link`**
   attaches a SharePoint file to a Draft through `link_m365_documents_batch` (§5b). **`pmo accounts map set`** (active Admin; #1270): writes the budget category →
   ERP account map with the Accounting setup screen's checks (§5b).
+- **`pmo tm`** (#1514, read tier in migration `0518`, §5d): a project's contract rate card (`rates list`), the
+  approved hours a claim would freeze (`claim preview`, read-only) and its T&M claims in every status — Draft,
+  SignedOff and Withdrawn — each with its frozen lines (`claim list`). The two claim reads are `list_tm_claims` and
+  `preview_tm_claim`, which decide the amounts audience themselves. The rate card is read straight from
+  `contract_rate_lines` / `contract_rate_assignees`, which are not yet in the API-client read tier, so a CLI token is
+  refused there until that tier lands; browser sessions are unaffected.
 - **No delete.** Archive or delete in the app.
 - **No `contract_value`** in any payload, **no project status change**, **no `archived_at`** (archive and
   restore in the app), and a project can only be created as `Leads` or `Internal Project`. Moving a project through its stages, contract values, work orders,
@@ -415,6 +421,40 @@ The file holds one rule or an array of them:
 - `--dry-run` checks each rule against the saved rules, not against the other rules in the same file. Two new
   rules in one file that tie each other pass the dry run, and the second is refused at the real save.
 - Roles: Admin and Finance preview, set and end. Executive and Project Manager can list.
+
+## 5d. Time and materials — `pmo tm` (#1514)
+
+One project's contract rate card, the approved hours a claim would freeze, and its T&M claims in every status
+(Draft, SignedOff, Withdrawn), each with its frozen lines.
+Nothing here prices an hour by guess: the preview groups approved, unclaimed hours exactly as the claim assembly
+would, lists the hours it cannot price with the reason, and writes nothing. Contract:
+`docs/specs/time-and-materials-claims.spec.md`.
+
+```bash
+pmo tm rates list [--project <id>] [--assignees] [--json]   # versioned rate lines; --assignees adds who holds each
+pmo tm claim preview --project <id> --from 2026-01-01 --to 2026-01-31 [--json]   # read-only
+pmo tm claim list --project <id> [--json]                   # every claim status, with its frozen lines
+```
+
+- The rate card is a table read under row-level security: Admin, Finance, Executive, and the project's Project
+  Manager see their projects' lines and assignments; Engineers see nothing. `--assignees` prints each holder by name
+  (their id when the profile read cannot resolve it). `--json` returns `{ rates, assignees }` — `assignees` is an
+  empty array unless `--assignees` was given.
+- `claim preview` prints the priced lines (label, units, rate, amount, source count), then the unrated hours under
+  `Unrated (listed, not billed)` with the person — by name, or the id when the profile read cannot resolve it — and the
+  reason, then `Total` — which sums the priced lines only, so a window where nothing is rated still ends `Total 0.00`
+  rather than stopping early. `--json` returns `{ lines, unrated, total }` (ids unresolved; no name read); the window may
+  not exceed two years.
+- `claim list` prints each claim's period, status, currency and gross, then every frozen line at the rate that was
+  in force when it was assembled. It lists **every** status, so a Draft claim is not a signed-off one: read the status
+  on each line rather than taking the list as the signed-off set. `--json` returns `{ claims: [...] }` — one object
+  with the rows under `claims`, not a bare array.
+- Both claim reads are the two T&M reads the database exposes to API clients (`list_tm_claims`, `preview_tm_claim`)
+  and decide the audience themselves: an Engineer or another organisation's project is refused with `42501`/`P0002`.
+- A refusal from the database exits 1 with its own message; a bad argument exits 2 before anything is sent.
+- Known limitation while the T&M API-client tier is still being rolled out: `tm rates list` reads
+  `contract_rate_lines` / `contract_rate_assignees` directly, and those two tables are not yet in the API-client read
+  tier, so a CLI token is refused there until that tier lands. The claim commands are unaffected.
 
 ## 6. ERP setup reads — `pmo erp`
 
