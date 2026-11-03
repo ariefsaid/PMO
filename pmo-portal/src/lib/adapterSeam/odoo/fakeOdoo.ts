@@ -47,6 +47,7 @@ function matchLeaf(row: Row, [field, op, value]: [string, string, unknown]): boo
     case '>': return (v as never) > (value as never);
     case '>=': return (v as never) >= (value as never);
     case '<': return (v as never) < (value as never);
+    case '<=': return (v as never) <= (value as never);
     case 'ilike': return typeof v === 'string' && v.toLowerCase().includes(String(value).toLowerCase());
     default: throw new Error(`fakeOdoo: operator ${op} not modelled`);
   }

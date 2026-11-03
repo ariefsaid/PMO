@@ -10,6 +10,7 @@ import { AdapterError, type AdapterCommand } from '../../../pmo-portal/src/lib/a
 import { resolveExternalRef, type ExternalRefsLookupClient } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
 import { parseOdooExternalRef } from '../../../pmo-portal/src/lib/adapterSeam/odoo/purchase/anchors.ts';
 import type { OdooCall } from '../../../pmo-portal/src/lib/adapterSeam/odoo/client.ts';
+import { toAdapterError } from '../../../pmo-portal/src/lib/adapterSeam/odoo/connectAdapter.ts';
 import { chooseTaxIds, selectBillTaxes, type BillCtx, type BillInput, type BillTax } from '../../../pmo-portal/src/lib/adapterSeam/odoo/purchase/billBody.ts';
 import type { OrderCtx, OrderInput } from '../../../pmo-portal/src/lib/adapterSeam/odoo/purchase/orderBody.ts';
 import type { ReviseLine } from '../../../pmo-portal/src/lib/adapterSeam/odoo/purchase/orderRevise.ts';
@@ -212,6 +213,8 @@ export async function billCompositeFacts(sc: SupabaseClient, orgId: string, reco
   return compositeFacts(sc, orgId, record.procurementId, await latestPoId(sc, orgId, record.procurementId));
 }
 
+/** The tax inputs the PMO bill form can forward (repositories/procurement.ts) that the Odoo bill does not honour yet. */
+const ENTERED_TAX_FIELDS = ['taxTemplate', 'vatAmount', 'withheldAmount', 'pphType'] as const;
 const text = (v: unknown): string | null => (typeof v === 'string' && v.trim() !== '' ? v.trim() : null);
 const taxRefusal = (message: string) => new AppError(message, 'config-rejected');
 
@@ -268,6 +271,10 @@ export function resolveOdooBillInputs(sc: SupabaseClient, orgId: string, command
   if (memo) return memo;
   const run = (async () => {
     const record = command.record as { procurementId?: unknown; projectId?: unknown; referenceNumber?: unknown; invoiceDate?: unknown; dueDate?: unknown; taxIds?: unknown };
+    // The form asks for VAT / PPh amounts or a template, and the repository forwards them; this adapter takes neither until the tax picker (P8).
+    // Posting the default taxes instead would show the user a payable they did not enter (OQ-OPP-4), so the entry is refused, naming the field.
+    const entered = ENTERED_TAX_FIELDS.find((f) => { const v = (command.record as Record<string, unknown>)[f]; return v !== undefined && v !== null && v !== ''; });
+    if (entered) throw taxRefusal(`config-rejected: ${entered} was entered, and the Odoo bill cannot take it yet. Clear the tax entries to post with the connection's default purchase taxes.`);
     const poId = await latestPoId(sc, orgId, record.procurementId);
     const { c, items, vendor } = await readOrderFacts(sc, orgId, record.procurementId, poId);
     const claimed = typeof record.projectId === 'string' && record.projectId !== '' ? record.projectId : null;
@@ -284,11 +291,11 @@ export function resolveOdooBillInputs(sc: SupabaseClient, orgId: string, command
       throw err;
     }
     // The Odoo order this PMO order became, if it was pushed: each bill line settles the order line of the same product, when that is unambiguous.
+    // A reference that is not the order's model-qualified one is refused, and a failed read of its lines fails the command (retryable): either would
+    // otherwise post the bill free-standing, and the order would show "to invoice" for ever (OQ-OPP-3, I3).
     const orderRef = poId ? await resolveExternalRef(sc as unknown as ExternalRefsLookupClient, orgId, 'procurement', poId) : null;
-    const orderId = Number(orderRef);
-    const orderLines = Number.isInteger(orderId) && orderId > 0
-      ? await call<Array<{ id: number; product_id: unknown }>>('purchase.order.line', 'search_read', { domain: [['order_id', '=', orderId]], fields: ['product_id'] }).catch(() => [])
-      : [];
+    const orderId = orderRef === null ? null : parseOdooExternalRef('purchase.order', orderRef) ?? refuse('order-ref-invalid');
+    const orderLines = orderId === null ? [] : await call<Array<{ id: number; product_id: unknown }>>('purchase.order.line', 'search_read', { domain: [['order_id', '=', orderId]], fields: ['product_id'] }).catch(toAdapterError);
     const lineFor = (name: string): number | null => {
       const product = Number(base.itemMap[name]);
       const hits = orderLines.filter((l) => Array.isArray(l.product_id) && Number(l.product_id[0]) === product);

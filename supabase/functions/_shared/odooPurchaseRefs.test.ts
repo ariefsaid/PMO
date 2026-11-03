@@ -7,7 +7,7 @@ import { assert, assertEquals, assertRejects } from '@std/assert';
 import { createClient } from '@supabase/supabase-js';
 import { installEdgeEnv, jsonResponse, supabaseSelect, withFetchMock, type FetchCall, type MockRoute } from './testing/edgeTestKit.ts';
 import { billCompositeFacts, orderCompositeFacts, resolveOdooBillInputs, resolveOdooCostAccount, resolveOdooOrderCurrency, resolveOdooOrderInputs, resolveOdooReviseInputs } from './odooPurchaseRefs.ts';
-import type { OdooCall } from '../../../pmo-portal/src/lib/adapterSeam/odoo/client.ts';
+import { OdooError, type OdooCall } from '../../../pmo-portal/src/lib/adapterSeam/odoo/client.ts';
 import type { AdapterCommand } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
 
 const env = installEdgeEnv();
@@ -222,7 +222,7 @@ describe('AC-OPP-040 / 042 / 046 the bill inputs', () => {
     mirror?: Array<{ external_id: string; name: string; active?: boolean; tombstoned_at?: string | null; attrs: Record<string, unknown> }>;
     /** What Odoo says: each tax's company, each withholding tax's repartition account and that account's type, and the order's lines. */
     taxCompany?: Record<number, number>; repartition?: Array<{ tax_id: [number, string]; account_id: [number, string] | false }>; accountType?: string; orderLines?: Array<{ id: number; product_id: [number, string] }>;
-    odooFails?: boolean;
+    odooFails?: boolean; orderLinesFail?: boolean;
   }
   const MIRROR = [
     { external_id: '11', name: 'VAT 11%', attrs: { amount: 11, use: 'purchase' } },
@@ -239,7 +239,7 @@ describe('AC-OPP-040 / 042 / 046 the bill inputs', () => {
       supabaseSelect('procurement_items', () => log('items', jsonResponse([{ name: 'Cable tray', quantity: 4, rate: 10, description: null }, { name: 'Bolt', quantity: 2, rate: 5, description: 'M8' }]))),
       supabaseSelect('purchase_orders', () => log('po', jsonResponse(w.po === false ? [] : [{ id: PO }]))),
       supabaseSelect('purchase_order_lines', () => log('po-lines', jsonResponse([]))),
-      supabaseSelect('external_refs', (c) => param(c, 'domain') === 'companies' ? one({ external_record_id: 'Vendor:9' }) : w.poRef === null || w.po === false ? none() : one({ external_record_id: w.poRef ?? '777' })),
+      supabaseSelect('external_refs', (c) => param(c, 'domain') === 'companies' ? one({ external_record_id: 'Vendor:9' }) : w.poRef === null || w.po === false ? none() : one({ external_record_id: w.poRef ?? 'purchase.order:777' })),
     ];
   }
   const odoo = (w: BillWorld, calls: string[] = []): OdooCall => (async (model: string, method: string) => {
@@ -248,6 +248,7 @@ describe('AC-OPP-040 / 042 / 046 the bill inputs', () => {
     if (model === 'account.tax') return [11, 12, 13].map((id) => ({ id, company_id: [w.taxCompany?.[id] ?? 1, 'Co'] }));
     if (model === 'account.tax.repartition.line') return w.repartition ?? [{ tax_id: [12, 'Withholding 2%'], account_id: [900, 'PPh payable'] }];
     if (model === 'account.account') return [{ id: 900, account_type: w.accountType ?? 'liability_current' }];
+    if (model === 'purchase.order.line' && w.orderLinesFail) throw new OdooError('timeout');
     if (model === 'purchase.order.line') return w.orderLines ?? [{ id: 201, product_id: [55, 'Cable tray'] }, { id: 202, product_id: [56, 'Bolt'] }];
     throw new Error(`unexpected Odoo call ${model}/${method}`);
   }) as OdooCall;
@@ -275,6 +276,43 @@ describe('AC-OPP-040 / 042 / 046 the bill inputs', () => {
     const r = await run({ po: false }, { taxIds: [11] }, CHOICE, calls);
     assertEquals(r.input.lines.map((l) => l.purchaseLineId), [null, null]);
     assert(!calls.includes('purchase.order.line/search_read'));
+  });
+
+  it('I3 (#1505 P5 review) a failed read of the order\'s lines fails the command as retryable; it never becomes a free-standing bill', async () => {
+    const err = await assertRejects(() => run({ orderLinesFail: true }, { taxIds: [11] })) as { code?: string; message: string };
+    assertEquals([err.code, err.message], ['external-unreachable', 'timeout']);
+  });
+
+  it('I3 an order reference that is not a purchase.order reference is refused, never read as "no order"', async () => {
+    for (const poRef of ['777', 'account.move:777', 'purchase.order:x', 'purchase.order:']) {
+      const err = await assertRejects(() => run({ poRef }, { taxIds: [11] }), Error, 'order-ref-invalid') as { code?: string };
+      assertEquals(err.code, 'commit-rejected', poRef);
+    }
+  });
+
+  it('I3 the order\'s model-qualified reference is the one parsed: its id is what the order lines are read for', async () => {
+    const bodies: unknown[] = [];
+    const w: BillWorld = {};
+    const spy = (async (model: string, method: string, body?: unknown) => { if (model === 'purchase.order.line') bodies.push(body); return odoo(w)(model, method, body as never); }) as OdooCall;
+    await withFetchMock(billRoutes(w), () => resolveOdooBillInputs(sc(), ORG, cmd({ procurementId: CASE, taxIds: [11] }), CHOICE, CURRENCY_ID, spy));
+    assertEquals((bodies[0] as { domain: unknown[] }).domain, [['order_id', '=', 777]]);
+  });
+
+  it('I2 (#1505 P5 review) entered VAT / PPh amounts or a template are refused naming the field, before anything is read: they are never silently replaced by the default taxes', async () => {
+    for (const entered of [{ taxTemplate: 'PPN 11%' }, { vatAmount: 0 }, { withheldAmount: 2000 }, { pphType: 'PPh 23' }, { vatAmount: 0, withheldAmount: 2000, pphType: 'PPh 23' }]) {
+      const calls: string[] = [];
+      const seen: string[] = [];
+      const err = await assertRejects(() => withFetchMock(billRoutes({}, seen), () => resolveOdooBillInputs(sc(), ORG, cmd({ procurementId: CASE, ...entered }), CHOICE, CURRENCY_ID, odoo({}, calls)))) as { code?: string; message: string };
+      assertEquals(err.code, 'config-rejected');
+      const field = Object.keys(entered)[0];
+      assert(err.message.includes(field), err.message);
+      assertEquals([calls, seen], [[], []], 'no Odoo call and no read');
+    }
+  });
+
+  it('I2 fields that were not entered (absent, null, empty) are not a refusal', async () => {
+    const r = await run({}, { taxTemplate: '', vatAmount: null, withheldAmount: undefined });
+    assertEquals(r.ctx.taxes.map((t) => t.id), [11]);
   });
 
   it('a product that is on two order lines is not linked (ambiguous): never a wrong link', async () => {

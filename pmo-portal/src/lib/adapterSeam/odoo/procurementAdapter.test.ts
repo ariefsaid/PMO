@@ -405,22 +405,25 @@ describe('AC-OPP-041 an interrupted bill ends with one posted bill and no second
     expect(result.canonical).toMatchObject({ erp_docstatus: 1, amount: '55.50' });
   });
 
-  it('a lost response on the create: the retry finds the bill by the composite, anchors it and posts it', async () => {
+  it('I1 a lost response on the create: the recovery sees an unanchored look-alike and HOLDS; it neither anchors nor posts it, and never creates a second', async () => {
     const r = rig();
     r.arm('account.move', 'create', 'lost-response');
     await expect(r.attemptBill()).rejects.toMatchObject({ code: 'external-unreachable' });
     expect(r.fake.rows('account.move')[0].state).toBe('draft');
-    await r.attemptBill();
-    settled(r);
+    await expect(r.attemptBill()).rejects.toMatchObject({ code: 'commit-rejected', message: 'ambiguous-anchor' });
+    expect(r.fake.rows('ir.model.data')).toHaveLength(0);
+    expect(r.count('account.move', 'create')).toBe(1);
+    expect(r.count('account.move', 'action_post')).toBe(0);
   });
 
-  it('a failure writing the anchor: the retry adopts the unanchored bill through the composite', async () => {
+  it('I1 a failure writing the anchor: the recovery holds on the unanchored bill (it may be someone else\'s); nothing is posted or created', async () => {
     const r = rig();
     r.arm('ir.model.data', 'create', 'transport');
     await expect(r.attemptBill()).rejects.toMatchObject({ code: 'external-unreachable' });
     expect(r.fake.rows('ir.model.data')).toHaveLength(0);
-    await r.attemptBill();
-    settled(r);
+    await expect(r.attemptBill()).rejects.toMatchObject({ code: 'commit-rejected', message: 'ambiguous-anchor' });
+    expect(r.count('account.move', 'create')).toBe(1);
+    expect(r.count('account.move', 'action_post')).toBe(0);
   });
 
   it('idempotency: the same command twice is one bill, one create, one post', async () => {

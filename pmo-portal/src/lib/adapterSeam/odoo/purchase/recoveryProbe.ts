@@ -18,8 +18,8 @@ const MODEL: Record<PurchaseKind, string> = { order: 'purchase.order', receipt: 
 
 export interface PaymentComposite { partnerId: number; amount: string | number; createdAfter: string }
 /** An order's create-to-anchor composite: vendor, untaxed amount, line count and the window the first attempt could have created it in. */
-export interface OrderComposite { partnerId: number; amount: string | number; lineCount: number; createdAfter: string }
-/** A vendor bill's: the same four facts. */
+export interface OrderComposite { partnerId: number; amount: string | number; lineCount: number; createdAfter: string; createdBefore?: string }
+/** A vendor bill's: the same facts. Its window is bounded above too: a vendor bill made long after the first attempt cannot be ours. */
 export type BillComposite = OrderComposite;
 /** `externalRecordId` is the model-qualified ref (`stock.picking:42`), see `odooExternalRef`. */
 export type ProbeHit = { externalRecordId: string } | null;
@@ -37,11 +37,14 @@ async function byIdentifier(call: OdooCall, kind: PurchaseKind, key: string): Pr
 
 /**
  * Orders and bills: the identifier is a second write after the create, so a crash between the two leaves a document without it. The
- * composite finds that document: our vendor, inside the window, no PMO identifier of its own. Exactly one such document whose
- * untaxed amount and line count equal ours is adopted. ANY other unanchored document of the vendor in the window is doubt and throws
- * (the row is held): Odoo's own figure can differ from the edge's formula (float ties, unit precision, price-included taxes, a
- * clerk's edit), so a near-miss may be our own document and absence is claimed only when the vendor has no unanchored document in
- * the window at all (OQ-OPP-10, DD-OPP-4 amendment: any doubt holds and never reissues).
+ * composite finds that document: our vendor, inside the window, no PMO identifier of its own. An ORDER that is exactly one such
+ * document whose untaxed amount and line count equal ours is adopted. A BILL never is: vendors' bills are authored in Odoo all the
+ * time (a clerk, the vendor-bill alias, the order's "Create Bill"), so a look-alike may be someone else's and posting it would
+ * mirror it as PMO's (I1, #1505 P5 review); any unanchored vendor bill in the window is doubt. ANY other unanchored document of
+ * the vendor in the window is doubt and throws (the row is held): Odoo's own figure can differ from the edge's formula (float
+ * ties, unit precision, price-included taxes, a clerk's edit), so a near-miss may be our own document and absence is claimed only
+ * when the vendor has no unanchored document in the window at all (OQ-OPP-10, DD-OPP-4 amendment: any doubt holds and never
+ * reissues).
  */
 const COMPOSITE_SHAPE = {
   order: { model: 'purchase.order', lines: 'order_line', where: [] as unknown[] },
@@ -51,7 +54,7 @@ const COMPOSITE_SHAPE = {
 async function byDocumentComposite(call: OdooCall, kind: keyof typeof COMPOSITE_SHAPE, composite: OrderComposite): Promise<ProbeHit> {
   const shape = COMPOSITE_SHAPE[kind];
   const rows = await call<Array<Record<string, unknown> & { id: number }>>(shape.model, 'search_read', {
-    domain: [...shape.where, ['partner_id', '=', composite.partnerId], ['state', '!=', 'cancel'], ['create_date', '>=', composite.createdAfter]],
+    domain: [...shape.where, ['partner_id', '=', composite.partnerId], ['state', '!=', 'cancel'], ['create_date', '>=', composite.createdAfter], ...(composite.createdBefore ? [['create_date', '<=', composite.createdBefore]] : [])],
     fields: ['id', shape.lines, 'amount_untaxed'], limit: 21, context: { active_test: false },
   });
   if (rows.length === 0) return null;
@@ -64,7 +67,7 @@ async function byDocumentComposite(call: OdooCall, kind: keyof typeof COMPOSITE_
   const cents = (v: unknown) => Math.round(Number(v) * 100);
   const [only] = unanchored;
   const lines = only[shape.lines];
-  if (unanchored.length === 1 && Array.isArray(lines) && lines.length === composite.lineCount && cents(only.amount_untaxed) === cents(composite.amount)) {
+  if (kind === 'order' && unanchored.length === 1 && Array.isArray(lines) && lines.length === composite.lineCount && cents(only.amount_untaxed) === cents(composite.amount)) {
     return { externalRecordId: odooExternalRef(shape.model, only.id) };
   }
   throw ambiguous();

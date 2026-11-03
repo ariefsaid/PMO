@@ -138,6 +138,16 @@ describe('P5 the Odoo adapter factory for a vendor bill', () => {
     assertEquals([err.code, err.message], ['config-rejected', 'config-rejected: Withholding 2%']);
   });
 
+  it('I2 (#1505 P5 review) a bill that carries entered VAT / PPh amounts is config-rejected naming the field at selection: no outbox row, and Odoo is not written (nor asked about taxes)', async () => {
+    for (const entered of [{ vatAmount: 0, withheldAmount: 2000, pphType: 'PPh 23' }, { taxTemplate: 'PPN 11%' }]) {
+      const odooCalls: string[] = [];
+      const err = await withFetchMock(billWorld(undefined, { odooCalls }), () => assertRejects(() => resolveOdooProcurementAdapter(bill(entered)))) as { code?: string; message: string };
+      assertEquals(err.code, 'config-rejected');
+      assertEquals(err.message.includes(Object.keys(entered)[0]), true, err.message);
+      assertEquals(odooCalls.every((c) => /\/(read|search_read)$/.test(c) && !c.startsWith('account.')), true, odooCalls.join());
+    }
+  });
+
   it('an unmapped item is refused at selection too (no outbox row, no write)', async () => {
     const err = await withFetchMock(billWorld({ item_map: {} }), () => assertRejects(() => resolveOdooProcurementAdapter(bill()))) as { code?: string; message: string };
     assertEquals(err.message, 'item-unmapped: A');

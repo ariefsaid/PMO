@@ -195,10 +195,18 @@ describe('AC-OPP-041 the bill composite probe (the create-to-anchor gap; a bill 
   const bill = (fake: ReturnType<typeof bed>['fake'], row: Record<string, unknown>) =>
     fake.seed('account.move', [{ move_type: 'in_invoice', state: 'draft', partner_id: [77, 'Vendor'], amount_untaxed: 100, invoice_line_ids: [1, 2], create_date: '2026-11-03 10:05:00', ...row }]);
 
-  it('adopts the one unanchored vendor bill with our vendor, untaxed amount and line count inside the window', async () => {
+  it('I1 (#1505 P5 review) a look-alike with our vendor, untaxed amount and line count is NEVER adopted: it may be a clerk\'s own bill, so the probe throws (held)', async () => {
     const { call, fake } = bed();
     bill(fake, { id: 50 });
-    expect(await probeOdooByAnchor(call, 'bill', key, BILL)).toEqual({ externalRecordId: 'account.move:50' });
+    await expect(probeOdooByAnchor(call, 'bill', key, BILL)).rejects.toThrow(/ambiguous/);
+  });
+
+  it('I1 a bill created after the window closes cannot be ours: the window is bounded above, absence stays null', async () => {
+    const { call, fake } = bed();
+    bill(fake, { id: 50, create_date: '2026-11-03 10:20:00' });
+    expect(await probeOdooByAnchor(call, 'bill', key, { ...BILL, createdBefore: '2026-11-03 10:10:00' })).toBeNull();
+    bill(fake, { id: 51, create_date: '2026-11-03 10:06:00' });
+    await expect(probeOdooByAnchor(call, 'bill', key, { ...BILL, createdBefore: '2026-11-03 10:10:00' })).rejects.toThrow(/ambiguous/);
   });
 
   it('the exact identifier wins over any look-alike', async () => {

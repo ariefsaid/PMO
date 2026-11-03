@@ -5,7 +5,7 @@ import { resolveExternalRef } from '../../../pmo-portal/src/lib/adapterSeam/refs
 import { bindCall, type OdooCall } from '../../../pmo-portal/src/lib/adapterSeam/odoo/client.ts';
 import { ODOO_TIER, toAdapterError } from '../../../pmo-portal/src/lib/adapterSeam/odoo/connectAdapter.ts';
 import { ODOO_ANCHORS } from '../../../pmo-portal/src/lib/adapterSeam/odoo/purchase/anchors.ts';
-import { REQUEST_DEADLINE_MS } from '../../../pmo-portal/src/lib/adapterSeam/odoo/purchase/constants.ts';
+import { CLAIM_BUDGET_MS, REQUEST_DEADLINE_MS, SETTLE_MARGIN_MS } from '../../../pmo-portal/src/lib/adapterSeam/odoo/purchase/constants.ts';
 import type { PurchaseKind } from '../../../pmo-portal/src/lib/adapterSeam/odoo/purchase/nextStep.ts';
 import { probeOdooByAnchor, type OrderComposite, type PaymentComposite } from '../../../pmo-portal/src/lib/adapterSeam/odoo/purchase/recoveryProbe.ts';
 import { readOrderLines, recoverBill, recoverOrder, recoverReceipt, recoverRevise } from '../../../pmo-portal/src/lib/adapterSeam/odoo/procurementAdapter.ts';
@@ -83,7 +83,8 @@ async function orderCompositePayload(ctx: AdapterSelectContext): Promise<Record<
  */
 async function billCompositePayload(ctx: AdapterSelectContext, call: OdooCall, resolved: Exclude<OdooClientForOrgResult, { refusal: unknown }>): Promise<Record<string, unknown>> {
   const sc = ctx.serviceClient as SupabaseClient;
-  const window = { created_after: odooDatetime(Date.now() - ORDER_WINDOW_MS) };
+  // Bounded above: a bill is created within the first attempt's commit budget, so a vendor bill made after that is not ours (I1).
+  const window = { created_after: odooDatetime(Date.now() - ORDER_WINDOW_MS), created_before: odooDatetime(Date.now() + CLAIM_BUDGET_MS + SETTLE_MARGIN_MS) };
   if (ctx.replay) {
     const facts = await billCompositeFacts(sc, ctx.orgId, ctx.command.record as { procurementId?: unknown });
     return { odoo_partner_id: facts.partnerId, odoo_amount: facts.amount, odoo_line_count: facts.lineCount, ...window };
@@ -106,7 +107,7 @@ const billExpectOf = (p: Record<string, unknown> | null | undefined): BillExpect
 
 const orderCompositeOf = (p: Record<string, unknown> | null | undefined): OrderComposite | undefined =>
   p && typeof p.odoo_partner_id === 'number' && typeof p.odoo_amount === 'string' && Number.isInteger(p.odoo_line_count) && typeof p.created_after === 'string'
-    ? { partnerId: p.odoo_partner_id, amount: p.odoo_amount, lineCount: p.odoo_line_count as number, createdAfter: p.created_after }
+    ? { partnerId: p.odoo_partner_id, amount: p.odoo_amount, lineCount: p.odoo_line_count as number, createdAfter: p.created_after, ...(typeof p.created_before === 'string' ? { createdBefore: p.created_before } : {}) }
     : undefined;
 
 const compositeOf = (p: Record<string, unknown> | null | undefined): PaymentComposite | undefined =>
@@ -164,7 +165,7 @@ export async function resolveOdooMoneyOutboxDeps(ctx: AdapterSelectContext): Pro
     ...record, erp_doc_kind: docKind,
     ...(kind === 'payment' ? await paymentCompositePayload(ctx) : isOrderCreate ? await orderCompositePayload(ctx) : isBillCreate ? await billCompositePayload(ctx, call, resolved) : {}),
   };
-  const { created_after: _window, ...withDerived } = payload;
+  const { created_after: _window, created_before: _windowEnd, ...withDerived } = payload;
   const material = Object.fromEntries(Object.entries(withDerived).filter(([k]) => !(DERIVED_KEYS as readonly string[]).includes(k)));
   const payloadDigest = await canonicalCommandDigest({ domain: ctx.command.domain, operation, record: material });
 
@@ -181,7 +182,7 @@ export async function resolveOdooMoneyOutboxDeps(ctx: AdapterSelectContext): Pro
     ...(ctx.command.domain === 'procurement' && operation === 'create'
       ? { reauthorizeRecoveryReissue: () => checkQueuedProcurementCreate(ctx.serviceClient as never, ctx.orgId, ctx.command as never, ctx.userId) }
       : {}),
-    probeByRemarksKey: async (domain, idempotencyKey) => {
+    probeByRemarksKey: async (domain, idempotencyKey, probe) => {
       // An order and a revision are not adopted as a bare reference: the probe also anchors a found order and completes its
       // confirm, and returns it read back (a draft adopted as it stands would be mirrored as issued).
       if (operation === 'revise') return recoverRevise(call, ctx.command.record);
@@ -194,7 +195,10 @@ export async function resolveOdooMoneyOutboxDeps(ctx: AdapterSelectContext): Pro
         const persisted = await readOutboxCompositePayload(ctx.serviceClient, ctx.orgId, domain, ctx.command.record.id, idempotencyKey);
         const expect = billExpectOf(persisted) ?? billExpectOf(payload);
         if (!expect) throw new AppError('bill-expectation-missing', 'commit-rejected');   // cannot judge a recovered bill: hold it
-        return recoverBill(call, ctx.command.record, orderCompositeOf(persisted) ?? orderCompositeOf(payload), expect);
+        // The composite looks for a bill a lost response may have left without its identifier, so it runs only in a RECOVERY. A bill's
+        // first attempt has made nothing yet: the vendor's other, unanchored Odoo bills are not its business (I1). No signal = recovery.
+        const composite = probe?.recovery === false ? undefined : orderCompositeOf(persisted) ?? orderCompositeOf(payload);
+        return recoverBill(call, ctx.command.record, composite, expect);
       }
       const stored = kind === 'payment' ? await readOutboxCompositePayload(ctx.serviceClient, ctx.orgId, domain, ctx.command.record.id, idempotencyKey) : null;
       const hit = await probeOdooByAnchor(call, kind, anchorKey, compositeOf(stored) ?? compositeOf(payload));

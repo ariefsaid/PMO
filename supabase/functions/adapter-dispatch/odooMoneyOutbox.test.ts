@@ -175,6 +175,41 @@ describe('AC-OPP-053 the Odoo probe closure: zero, one and many matches', () => 
       assert(composite.some(([f, op]) => f === 'create_date' && op === '>='));
     });
 
+    // I1 (#1505 P5 review): the unrelated Odoo bills a vendor routinely has must not hold or be adopted by a bill's FIRST attempt.
+    const LOOKALIKE = { id: 60, move_type: 'in_invoice', state: 'draft', partner_id: [77, 'Vendor'], amount_untaxed: 50, invoice_line_ids: [1, 2], create_date: '2026-01-01 00:00:00' };
+    for (const [label, rows] of [['one of another amount', [{ ...LOOKALIKE, amount_untaxed: 7 }]], ['one that matches vendor, amount and lines exactly', [LOOKALIKE]]] as const) {
+      it(`I1 a FIRST attempt probes by identifier only: an unanchored vendor bill (${label}) is neither a hold nor an adoption`, async () => {
+        const t = billSetup({ 'account.move': [...rows] });
+        await withFetchMock(t.routes, async () => {
+          const deps = await resolveOdooMoneyOutboxDeps(t.ctx);
+          assertEquals(await deps.probeByRemarksKey('procurement', KEY, { recovery: false }), null);
+        });
+        assertEquals(queries(t, 'account.move').length, 0);
+        assert(t.odooCalls.every((c) => /\/(read|search_read)$/.test(c.url.pathname)), t.odooCalls.map((c) => c.url.pathname).join());
+      });
+    }
+
+    it('I1 a RECOVERY that finds an unanchored look-alike (vendor, amount and lines all equal) holds: it writes no identifier and posts nothing', async () => {
+      const t = billSetup({ 'account.move': [LOOKALIKE] });
+      await withFetchMock(t.routes, async () => {
+        const deps = await resolveOdooMoneyOutboxDeps(t.ctx);
+        await assertRejects(() => deps.probeByRemarksKey('procurement', KEY, { recovery: true }), Error, 'ambiguous-anchor');
+      });
+      assert(t.odooCalls.every((c) => /\/(read|search_read)$/.test(c.url.pathname)), t.odooCalls.map((c) => c.url.pathname).join());
+    });
+
+    it('I1 the recovery window is bounded on both sides: reaches back ten minutes, closes after the first attempt\'s commit budget', async () => {
+      const t = billSetup({});
+      await withFetchMock(t.routes, async () => {
+        const deps = await resolveOdooMoneyOutboxDeps(t.ctx);
+        assertEquals(await deps.probeByRemarksKey('procurement', KEY, { recovery: true }), null);
+      });
+      const composite = queries(t, 'account.move')[0].domain;
+      const ms = (op: string) => Date.parse(`${String(composite.find(([f, o]) => f === 'create_date' && o === op)?.[2]).replace(' ', 'T')}Z`);
+      assert(ms('>=') <= Date.now() - 10 * 60_000 + 5_000);
+      assert(ms('<=') > Date.now() && ms('<=') <= Date.now() + 10 * 60_000, 'closes shortly after the first attempt, not never');
+    });
+
     it('two bills with the identifier are doubt: the probe throws (the row is held)', async () => {
       const t = billSetup({ 'ir.model.data': [{ res_id: 41 }, { res_id: 42 }] });
       await withFetchMock(t.routes, async () => {
