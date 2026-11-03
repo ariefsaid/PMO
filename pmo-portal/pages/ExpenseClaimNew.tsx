@@ -62,7 +62,7 @@ const ExpenseClaimNew: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [blockedLeave, setBlockedLeave] = useState<(() => void) | null>(null);
   const dirty = Boolean(title || advanceId || projectId || category || purpose || receipt || lines.some((line) => line.date || line.type || line.description || line.amount));
-  const guardLeave = useUnsavedChangesGuard({ dirty, onBlocked: (leave) => setBlockedLeave(() => leave) });
+  const guardLeave = useUnsavedChangesGuard({ dirty, guardHistory: true, onBlocked: (leave) => setBlockedLeave(() => leave) });
   const options = (projects ?? []).map((project) => ({ value: project.id, label: projectDisplayName(project) }));
   const categoryPrecedents = useMemo(() => {
     const newestByProject = new Map<string, { budgetCategory: BudgetCategory; sourceTitle: string }>();

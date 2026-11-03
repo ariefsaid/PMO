@@ -179,6 +179,34 @@ Deno.test({
 });
 
 Deno.test({
+  name: 'AC-OPP-030 (FR-OPP-034) the quantities Odoo booked and the ones entered are persisted on the receipt; an ERPNext canonical writes neither column',
+  fn: async () => {
+    const booked = [{ lineId: 11, productId: 55, quantity: 6 }];
+    const entered = [{ lineId: 11, productId: 55, quantity: 7 }];
+    for (const operation of ['create', 'update'] as const) {
+      const { client, calls } = makeFakeClient({ external_refs: { pmo_record_id: 'pmo-po-1' } });
+      await getReadModelWriter('procurement').upsert(
+        { serviceClient: client as never, orgId: 'org-1' },
+        { id: 'pmo-gr-5', gr_number: 'WH/IN/00008', po_id: '41', erp_docstatus: 1, odoo_receipt_status: 'Partial', odoo_booked: booked, odoo_entered: entered },
+        { domain: 'procurement', operation, record: { id: 'pmo-gr-5', procurementId: 'proc-1', erp_doc_kind: 'goods-receipt' } },
+      );
+      const call = calls.find((c) => c.table === 'procurement_receipts' && (c.method === 'insert' || c.method === 'update'))!;
+      const row = call.args[0] as Record<string, unknown>;
+      assertEquals(row.odoo_booked, booked, operation);
+      assertEquals(row.odoo_entered, entered, operation);
+    }
+    const { client, calls } = makeFakeClient({ external_refs: { pmo_record_id: 'pmo-po-1' } });
+    await getReadModelWriter('procurement').upsert(
+      { serviceClient: client as never, orgId: 'org-1' },
+      { id: 'pmo-gr-6', gr_number: 'MAT-PRE-1', po_id: 'PO-1', erp_docstatus: 1, odoo_booked: 'junk' },
+      { domain: 'procurement', operation: 'create', record: { id: 'pmo-gr-6', procurementId: 'proc-1', erp_doc_kind: 'goods-receipt' } },
+    );
+    const row = calls.find((c) => c.method === 'insert' && c.table === 'procurement_receipts')!.args[0] as Record<string, unknown>;
+    assertEquals('odoo_booked' in row || 'odoo_entered' in row, false, 'no quantities, or a non-list, writes nothing');
+  },
+});
+
+Deno.test({
   name: 'AC-OPP-030 a canonical with an unknown received status falls back to the docstatus rule (never writes a value the enum lacks)',
   fn: async () => {
     const { client, calls } = makeFakeClient();

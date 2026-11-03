@@ -7,7 +7,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
  *
  * All mocks are hoisted so they are available to vi.mock factories.
  */
-const { mockEq, mockIn, mockIs, mockSelect, mockFrom, mockRpc, mockRange, mockMaybeSingle } = vi.hoisted(() => {
+const { mockEq, mockIn, mockIs, mockSelect, mockFrom, mockRpc, mockRange, mockMaybeSingle, mockOrder } = vi.hoisted(() => {
   const mockMaybeSingle = vi.fn();
   const mockEq = vi.fn();
   const mockIn = vi.fn();
@@ -16,7 +16,8 @@ const { mockEq, mockIn, mockIs, mockSelect, mockFrom, mockRpc, mockRange, mockMa
   const mockFrom = vi.fn();
   const mockRpc = vi.fn();
   const mockRange = vi.fn();
-  return { mockEq, mockIn, mockIs, mockSelect, mockFrom, mockRpc, mockRange, mockMaybeSingle };
+  const mockOrder = vi.fn();
+  return { mockEq, mockIn, mockIs, mockSelect, mockFrom, mockRpc, mockRange, mockMaybeSingle, mockOrder };
 });
 
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: mockFrom, rpc: mockRpc } }));
@@ -42,6 +43,7 @@ function makeBuilder(resolved: { data: unknown; error: unknown }) {
     eq: mockEq,
     in: mockIn,
     is: mockIs,
+    order: mockOrder,
     range: mockRange,
     maybeSingle: mockMaybeSingle,
     then: (resolve: (v: typeof resolved) => void, reject?: (e: unknown) => void) =>
@@ -51,6 +53,7 @@ function makeBuilder(resolved: { data: unknown; error: unknown }) {
   mockEq.mockReturnValue(builder);
   mockIn.mockReturnValue(builder);
   mockIs.mockReturnValue(builder);
+  mockOrder.mockReturnValue(builder);
   mockRange.mockReturnValue(builder);
   mockMaybeSingle.mockImplementation(() => Promise.resolve(resolved));
   mockFrom.mockReturnValue(builder);
@@ -111,6 +114,7 @@ beforeEach(() => {
   mockIs.mockReset();
   mockRpc.mockReset();
   mockRange.mockReset();
+  mockOrder.mockReset();
 });
 
 describe('listProjects', () => {
@@ -246,10 +250,16 @@ describe('listProjects', () => {
     expect(pmCalls).toHaveLength(0);
   });
 
-  it('data-layer perf hardening #4: does NOT range-bound the query when called with no params (opt-in pagination)', async () => {
+  // ⚑ #1774 replaced the former "does NOT range-bound the query when called with no params
+  // (opt-in pagination)" assertion, which pinned exactly the defect: an unbounded read of the
+  // whole table truncated silently at PostgREST's 1,000-row cap. The read is now PAGED —
+  // dynamically, from the first page — so this asserts the fixed behaviour, and
+  // `atRiskReads.paging.test.ts` proves the completeness (1,005 rows returned).
+  it('#1774: pages from the first page in a total id order', async () => {
     makeBuilder({ data: [], error: null });
     await listProjects();
-    expect(mockRange).not.toHaveBeenCalled();
+    expect(mockOrder).toHaveBeenCalledWith('id', { ascending: true });
+    expect(mockRange).toHaveBeenCalledWith(0, 999);
   });
 
 });

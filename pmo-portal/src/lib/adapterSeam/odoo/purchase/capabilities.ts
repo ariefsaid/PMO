@@ -5,7 +5,7 @@
  */
 export const PROCUREMENT_MODELS = ['purchase.order', 'purchase.order.line', 'stock.picking', 'stock.move', 'account.move', 'account.payment', 'account.journal'] as const;
 
-interface SnapshotView {
+export interface SnapshotView {
   later?: Record<string, boolean>;
   models?: Record<string, { exists?: boolean; read?: boolean } | undefined>;
 }

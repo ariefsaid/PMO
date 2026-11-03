@@ -17,7 +17,7 @@ const FIELDS: Record<string, string[]> = {
   'stock.warehouse': ['name', 'code', 'lot_stock_id', 'view_location_id', 'company_id', 'active', 'write_date'],
   'stock.location': ['complete_name', 'usage', 'location_id', 'warehouse_id', 'company_id', 'active', 'write_date'],
   'account.account': ['code', 'name', 'account_type', 'company_ids', 'active', 'write_date'],
-  'account.tax': ['name', 'amount', 'type_tax_use', 'company_id', 'active', 'write_date'],
+  'account.tax': ['name', 'amount', 'type_tax_use', 'tax_group_id', 'price_include', 'company_id', 'active', 'write_date'],
   'account.analytic.plan': ['name', 'write_date'],
   'account.analytic.account': ['name', 'code', 'plan_id', 'company_id', 'active', 'write_date'],
   'purchase.order': ['name', 'state', 'partner_id', 'partner_ref', 'origin', 'order_line', 'amount_untaxed', 'amount_total', 'company_id', 'create_date', 'write_date'],
@@ -435,7 +435,16 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
     action_create_payments: (_m, b) => createPayments(b),
     reconcile: (m, b) => {
       const rows = (b.ids as number[]).flatMap((id) => { const row = table(m).get(id); return row ? [row] : []; });
-      reconcileLines({ table, nextId: newId, stamp: () => fmt(++clock) }, rows);
+      if (!rows.some((r) => r.account_type === 'asset_receivable')) { reconcileLines({ table, nextId: newId, stamp: () => fmt(++clock) }, rows); return true; }
+      const debits = rows.filter((r) => Number(r.amount_residual ?? r.balance) > 0);
+      const credits = rows.filter((r) => Number(r.amount_residual ?? r.balance) < 0);
+      for (const debit of debits) for (const credit of credits) {
+        const d = Math.round(Number(debit.amount_residual ?? debit.balance) * 100);
+        const c = Math.round(Number(credit.amount_residual ?? credit.balance) * 100);
+        const applied = Math.min(d, -c);
+        debit.amount_residual = (d - applied) / 100;
+        credit.amount_residual = (c + applied) / 100;
+      }
       // Customer documents follow their receivable line: the invoice's residual and the payment's reconciled flag.
       for (const moveId of new Set(rows.map((r) => r.move_id).filter((v) => v !== undefined))) {
         const receivable = [...table('account.move.line').values()].find((l) => l.move_id === moveId && l.account_type === 'asset_receivable');

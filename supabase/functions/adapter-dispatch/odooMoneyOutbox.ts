@@ -19,6 +19,7 @@ import { readOutboxCompositePayload } from './erpMoneyOutbox.ts';
 import { canonicalCommandDigest, createDbMoneyOutboxDeps } from './moneyOutboxDeps.ts';
 import { checkQueuedProcurementCreate } from './procurementGateGuard.ts';
 import type { AdapterSelectContext } from './dispatchAdapters.ts';
+import { resolveOdooRevenueMoneyOutboxDeps } from './odooRevenueOutbox.ts';
 
 /** The PMO document kinds a purchase command names (the shared command shape) and the Odoo document each becomes. */
 export const ODOO_PURCHASE_KIND: Readonly<Record<string, PurchaseKind>> = {
@@ -137,6 +138,7 @@ async function stampReceiptPlan(ctx: AdapterSelectContext, call: OdooCall, resol
  * with Odoo's recovery probe. A command whose connection cannot be used is refused here, before any outbox row (DD-OPP-8).
  */
 export async function resolveOdooMoneyOutboxDeps(ctx: AdapterSelectContext): Promise<DispatchMoneyOutboxDeps> {
+  if (ctx.command.domain === 'revenue') return resolveOdooRevenueMoneyOutboxDeps(ctx);   // customer invoices and receipts (#1506)
   const operation = ctx.command.operation as string;
   if (operation === 'delete') throw new AppError('odoo adapter does not support delete', 'commit-rejected');
   const record = ctx.command.record as Record<string, unknown>;

@@ -31,6 +31,27 @@ const db = (over: Record<string, unknown>) => ({
 
 beforeEach(() => { h.calls.length = 0; h.set({ data: [], error: null }); h.rpc.mockReset(); });
 
+describe('erpPurchases repository — AC-OPP-072 Odoo-native documents (#1505 P7)', () => {
+  it('lists an Odoo-native bill like any ERP document: tier-blind, only issued and not PMO-pushed, tombstoned (docstatus 2) and PMO-owned rows are never requested', async () => {
+    h.set({ data: [db({ id: 'o1', erp_name: 'BILL/2026/0021', erp_doctype: 'Purchase Invoice', supplier: '41', supplier_name: 'Vendor V', bill_no: 'INV-21', grand_total: '300.00', outstanding_amount: '0.00', erp_status: 'Paid' })], error: null });
+    const rows = await listErpPurchases('p1');
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ name: 'BILL/2026/0021', supplier: 'Vendor V', billNo: 'INV-21', grandTotal: 300, outstanding: 0, erpStatus: 'Paid', procurementId: null });
+    expect(h.calls).toContainEqual(['eq', ['erp_docstatus', 1]]);
+    expect(h.calls).toContainEqual(['eq', ['pmo_owned', false]]);
+    const selected = (h.calls.find(([m]) => m === 'select')![1] as string[])[0];
+    expect(selected).not.toMatch(/external_ref|erp_state|adoption/);   // the seam above the adapter never sees Odoo's identity
+  });
+
+  it('a bill linked to a purchase is returned once, with the purchase it counts toward', async () => {
+    h.set({ data: [db({ id: 'o1', erp_name: 'BILL/2026/0021', procurement_id: 'pur-9', link_id: 'l-9' })], error: null });
+    const rows = await listLinkedErpDocuments('pur-9');
+    expect(h.calls).toContainEqual(['eq', ['procurement_id', 'pur-9']]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ procurementId: 'pur-9', linkId: 'l-9' });
+  });
+});
+
 describe('erpPurchases repository', () => {
   it('reads only submitted, ERP-native documents of the project, newest first, with numeric money', async () => {
     h.set({ data: [db({}), db({ id: 'b', erp_name: 'PINV-B', doc_date: '2026-03-01', supplier_name: 'Beta' })], error: null });
