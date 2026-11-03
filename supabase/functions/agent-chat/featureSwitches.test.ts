@@ -45,6 +45,20 @@ const TOOL_NAMES = [
   'ask_user',
 ];
 
+/**
+ * The tools that are deliberately CORE — no plan key, offered at every plan (S4.0/S4.1 reasoning). A tool
+ * that is neither mapped nor listed here fails the completeness test: a new capability has to be
+ * classified once instead of inheriting "core" by omission.
+ */
+const CORE_TOOLS = new Set<string>([
+  'query_entity', // reads per-entity keys (the entity map below)
+  'whats_overdue', // overdue tasks are core; its invoice section is role- and revenue-gated
+  'remind_overdue', // nudges people about core tasks
+  'update_task_status', // tasks are core
+  'notify', // the caller's own inbox is core
+  'ask_user', // UX only
+]);
+
 Deno.test('S4 map — every readable entity is core or mapped to a catalogue key', () => {
   for (const entity of AGENT_READ_ENTITIES) {
     const key = keyForEntity(entity);
@@ -64,11 +78,17 @@ Deno.test('S4 map — every readable entity is core or mapped to a catalogue key
 Deno.test('S4 map — every tool is core or mapped to a catalogue key', () => {
   for (const tool of TOOL_NAMES) {
     const key = keyForTool(tool);
-    if (key === undefined) continue;
+    if (key === undefined) {
+      assertEquals(CORE_TOOLS.has(tool), true, `tool ${tool} is neither mapped to a key nor declared core`);
+      continue;
+    }
     assertEquals(CATALOGUE_KEYS.has(key), true, `tool ${tool} maps to unknown key ${key}`);
   }
   for (const tool of Object.keys(TOOL_FEATURE_KEYS)) {
     assertEquals(TOOL_NAMES.includes(tool), true, `TOOL_FEATURE_KEYS names unknown tool ${tool}`);
+  }
+  for (const tool of CORE_TOOLS) {
+    assertEquals(TOOL_NAMES.includes(tool), true, `CORE_TOOLS names unknown tool ${tool}`);
   }
 });
 
