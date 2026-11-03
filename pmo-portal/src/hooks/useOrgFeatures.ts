@@ -33,6 +33,14 @@ export function operatorFeatureQueryKey(orgId: string) {
   return ['orgFeatures', 'operator', orgId] as const;
 }
 
+/**
+ * One org's existing override keys (Operator console). Under the `orgFeatures` prefix so
+ * `invalidateFeatureState` refreshes it with the resolved set after any switch change.
+ */
+export function orgOverridesQueryKey(orgId: string) {
+  return ['orgFeatures', 'overrides', orgId] as const;
+}
+
 /** Operator console catalogue (plans, limits, matrix, all-orgs flags). */
 export const PLAN_CATALOGUE_QUERY_KEY = ['planCatalogue'] as const;
 

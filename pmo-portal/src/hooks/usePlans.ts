@@ -2,11 +2,13 @@ import { useQuery } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
 import type { PlanCatalogue, PlanRow } from '@/src/lib/db/orgFeatures';
 import type { ResolvedFeatureSet } from '@/src/lib/features';
+import type { OrgFeatureKey } from '@/src/lib/features';
 import {
   OPERATOR_ORGS_QUERY_KEY,
   OWN_PLAN_QUERY_KEY,
   PLAN_CATALOGUE_QUERY_KEY,
   operatorFeatureQueryKey,
+  orgOverridesQueryKey,
   orgPlanQueryKey,
 } from '@/src/hooks/useOrgFeatures';
 import type { OperatorOrgRow } from '@/src/lib/db/usage';
@@ -18,6 +20,7 @@ import type { OperatorOrgRow } from '@/src/lib/db/usage';
  *   • `usePlanCatalogue` — the Operator console's plans, plan matrix and all-orgs flags.
  *   • `useOrgPlan` / `useOperatorOrgs` — the console's org picker and its assigned plan.
  *   • `useOperatorResolvedFeatures` — the selected org's resolved set (state + source per key).
+ *   • `useOperatorOrgOverrides` — which override ROWS exist, even ones an all-orgs off outranks.
  *
  * Every key comes from `useOrgFeatures` so ONE `invalidateFeatureState` after any change refreshes
  * them all; none of these is cross-org shared.
@@ -56,6 +59,19 @@ export function useOperatorResolvedFeatures(orgId: string | null | undefined) {
   return useQuery<ResolvedFeatureSet>({
     queryKey: operatorFeatureQueryKey(orgId ?? 'none'),
     queryFn: () => repositories.orgFeature.listForOrg(orgId as string),
+    enabled: Boolean(orgId),
+  });
+}
+
+/**
+ * The override keys that EXIST for one org. Read separately from the resolved set because an
+ * all-orgs off makes the resolved source `global` whether or not a dormant override row is there —
+ * and an Operator must still be able to clear that row.
+ */
+export function useOperatorOrgOverrides(orgId: string | null | undefined) {
+  return useQuery<OrgFeatureKey[]>({
+    queryKey: orgOverridesQueryKey(orgId ?? 'none'),
+    queryFn: () => repositories.orgFeature.listOverrides(orgId as string),
     enabled: Boolean(orgId),
   });
 }

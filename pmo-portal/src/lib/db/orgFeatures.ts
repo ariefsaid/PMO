@@ -19,7 +19,8 @@ import {
  * arrives as `display_enabled` instead of the FE's old `useRevenueMode()` copy.
  *
  * Operator reads for the console: `operator_plan_catalogue()` (plans, limits, plan matrix, all-orgs
- * flags), `operator_org_plan(uuid)`, and `resolved_org_plan()` for the read-only Admin page.
+ * flags), `operator_org_plan(uuid)`, `operator_org_overrides(uuid)` (which override rows exist),
+ * and `resolved_org_plan()` for the read-only Admin page.
  *
  * Writes: the guarded Operator RPCs from 0532/0533 plus the Admin-owned feedback switch (0419).
  * Every one of them re-asserts its own authority server-side; the FE gate is clarity only (ADR-0016).
@@ -84,6 +85,21 @@ export async function listOperatorResolvedFeatures(orgId: string): Promise<Resol
   const { data, error } = await supabase.rpc('operator_resolved_org_features', { p_org_id: orgId });
   if (error) throw new AppError(error.message, error.code);
   return projectResolvedFeatures((data ?? []) as ResolvedFeatureRow[]);
+}
+
+/**
+ * The per-org override keys that EXIST for one organisation (Operator console).
+ *
+ * The resolved projection reports `source = 'global'` whenever an all-orgs off outranks an
+ * override, which hides whether a row is there. This read answers presence, so an Operator can
+ * clear a dormant override while the kill switch is off.
+ */
+export async function listOperatorOrgOverrides(orgId: string): Promise<OrgFeatureKey[]> {
+  const { data, error } = await supabase.rpc('operator_org_overrides', { p_org_id: orgId });
+  if (error) throw new AppError(error.message, error.code);
+  return ((data ?? []) as { feature_key: string }[])
+    .map((row) => row.feature_key)
+    .filter(isValidFeatureKey);
 }
 
 /** A plan and its limits. `null` limits mean "per contract" / unlimited (spec limits table). */

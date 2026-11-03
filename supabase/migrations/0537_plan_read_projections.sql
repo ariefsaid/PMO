@@ -6,9 +6,9 @@
 -- console cannot show plan defaults, limits or the all-orgs column, and the Admin "Your plan" page
 -- (FR-PLN-014) cannot name the plan.
 --
--- Everything here is READ-ONLY: three stable security-definer functions, no table grants, no
+-- Everything here is READ-ONLY: four stable security-definer functions, no table grants, no
 -- trigger, no write path. Each function re-asserts its own authority in the body (ADR-0016: the FE
--- gate is clarity, the function is the boundary); all three pin search_path and are revoked from
+-- gate is clarity, the function is the boundary); all four pin search_path and are revoked from
 -- public/anon/service_role. Because none of them contains a write statement, 0178's
 -- SECURITY DEFINER write sweep neither flags them nor needs an allow-list entry.
 --
@@ -59,6 +59,28 @@ end $$;
 revoke all on function public.operator_org_plan(uuid) from public, anon, authenticated, service_role;
 grant execute on function public.operator_org_plan(uuid) to authenticated;
 
+-- Which per-org override rows exist, independent of whether they can win. A global OFF outranks
+-- every override, so the resolver reports source='global' for that key and the console could not
+-- tell a dormant override from no override — leaving the Operator unable to clear one while the
+-- all-orgs switch was off. Presence is answered here; the EFFECTIVE state still comes from the
+-- resolver, so no layer re-orders global → override → plan.
+create or replace function public.operator_org_overrides(p_org_id uuid)
+returns table (feature_key text)
+language plpgsql stable security definer set search_path = public as $$
+begin
+  perform public.assert_active_operator();
+  if p_org_id is null or not exists (select 1 from public.organizations o where o.id = p_org_id) then
+    raise exception 'unknown_org' using errcode = '23503';
+  end if;
+  return query
+    select f.feature_key
+      from public.org_features f
+     where f.org_id = p_org_id
+     order by f.feature_key;
+end $$;
+revoke all on function public.operator_org_overrides(uuid) from public, anon, authenticated, service_role;
+grant execute on function public.operator_org_overrides(uuid) to authenticated;
+
 -- ── Admin "Your plan": the caller's OWN org plan + limits (FR-PLN-014) ─────────────────────────
 -- ⚑ The signature is frozen: S4 reads it for the analytics group property. Own-org only — there is
 -- no org parameter to tamper with, and a null/absent assignment resolves to the Enterprise row.
@@ -98,6 +120,8 @@ comment on function public.operator_plan_catalogue() is
   'Operator-only read: every plan, its limits, its feature matrix and the all-orgs switch per key. Read-only.';
 comment on function public.operator_org_plan(uuid) is
   'Operator-only read: the plan assigned to one organisation, or null when unassigned (resolves as Enterprise).';
+comment on function public.operator_org_overrides(uuid) is
+  'Operator-only read: the per-organisation override keys that exist, including ones a global off currently outranks. Read-only.';
 comment on function public.resolved_org_plan() is
   'Own-org read for the Admin "Your plan" page: the caller''s plan name and limits (FR-PLN-014).';
 

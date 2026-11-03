@@ -81,6 +81,7 @@ vi.mock('@/src/lib/repositories', () => ({
         global: { incidents: true, crm: true, procurement: true },
       }),
       getOrgPlan: vi.fn().mockResolvedValue('starter'),
+      listOverrides: vi.fn().mockResolvedValue([]),
       getOwnPlan: vi.fn().mockResolvedValue({
         planId: 'starter',
         name: 'Starter',

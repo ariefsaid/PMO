@@ -13353,6 +13353,12 @@ export type Database = {
         Returns: undefined
       }
       operator_org_plan: { Args: { p_org_id: string }; Returns: string | null }
+      operator_org_overrides: {
+        Args: { p_org_id: string }
+        Returns: {
+          feature_key: string
+        }[]
+      }
       operator_plan_catalogue: {
         Args: never
         Returns: {

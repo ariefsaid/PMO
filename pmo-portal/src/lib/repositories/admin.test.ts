@@ -66,6 +66,7 @@ describe('orgFeatureRepository and credits', () => {
   itDelegates(orgFeatureRepository as never, features, [
     ['listOwn', 'listOwnResolvedFeatures', []],
     ['listForOrg', 'listOperatorResolvedFeatures', ['org-1']],
+    ['listOverrides', 'listOperatorOrgOverrides', ['org-1']],
     ['getPlanCatalogue', 'getPlanCatalogue', []],
     ['getOrgPlan', 'getOrgPlan', ['org-1']],
     ['getOwnPlan', 'getOwnPlan', []],

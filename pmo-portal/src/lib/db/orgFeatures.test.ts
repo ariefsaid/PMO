@@ -8,6 +8,7 @@ import {
   projectResolvedFeatures,
   getOwnPlan,
   listOwnResolvedFeatures,
+  listOperatorOrgOverrides,
   listOperatorResolvedFeatures,
 } from './orgFeatures';
 
@@ -120,6 +121,15 @@ describe('the resolved read goes through the database projection, not the table'
     rpc.mockResolvedValue({ data: [], error: null });
     await listOperatorResolvedFeatures('org-1');
     expect(rpc).toHaveBeenCalledWith('operator_resolved_org_features', { p_org_id: 'org-1' });
+  });
+
+  it('the override-presence read passes the org id and drops keys the FE cannot label', async () => {
+    rpc.mockResolvedValue({
+      data: [{ feature_key: 'stock' }, { feature_key: 'not_a_switch' }],
+      error: null,
+    });
+    await expect(listOperatorOrgOverrides('org-1')).resolves.toEqual(['stock']);
+    expect(rpc).toHaveBeenCalledWith('operator_org_overrides', { p_org_id: 'org-1' });
   });
 
   it('resolved_org_plan maps the single row and returns null when empty', async () => {

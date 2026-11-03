@@ -24,6 +24,7 @@ const { api } = vi.hoisted(() => ({
     listForOrg: vi.fn(),
     getPlanCatalogue: vi.fn(),
     getOrgPlan: vi.fn(),
+    listOverrides: vi.fn(),
     listOperatorOrgs: vi.fn(),
     toggle: vi.fn(),
     clearOverride: vi.fn(),
@@ -44,6 +45,7 @@ vi.mock('@/src/lib/repositories', () => ({
       listForOrg: (...a: unknown[]) => api.listForOrg(...a),
       getPlanCatalogue: () => api.getPlanCatalogue(),
       getOrgPlan: (...a: unknown[]) => api.getOrgPlan(...a),
+      listOverrides: (...a: unknown[]) => api.listOverrides(...a),
       toggle: (...a: unknown[]) => api.toggle(...a),
       clearOverride: (...a: unknown[]) => api.clearOverride(...a),
       setOrgPlan: (...a: unknown[]) => api.setOrgPlan(...a),
@@ -98,6 +100,7 @@ beforeEach(() => {
   api.listForOrg.mockResolvedValue(resolved());
   api.getPlanCatalogue.mockResolvedValue(catalogue());
   api.getOrgPlan.mockResolvedValue('starter');
+  api.listOverrides.mockResolvedValue(['incidents']);
   api.listOperatorOrgs.mockResolvedValue([
     { id: 'org-1', name: 'Acme' },
     { id: 'org-2', name: 'Beta' },
@@ -192,6 +195,64 @@ describe('AC-PLN-012 — Operator console', () => {
         aiMonthlyMessages: 300,
       }),
     );
+  });
+
+  it('AC-PLN-012: the table plan default follows the inspected organisation, not the plan editor', async () => {
+    renderConsole();
+    await screen.findByTestId('feature-row-stock');
+    // 'stock' is off in the Starter matrix the inspected org is on; Enterprise enables it.
+    expect(screen.getByTestId('plan-default-cell-stock')).toHaveTextContent('Off');
+    fireEvent.change(screen.getByLabelText('Plan to edit'), { target: { value: 'enterprise' } });
+    // The editor moves, but every org-scoped number in the table still describes THIS organisation.
+    expect(screen.getByTestId('plan-default-cell-stock')).toHaveTextContent('Off');
+    await waitFor(() =>
+      expect(within(screen.getByTestId('plan-default-stock')).getByRole('switch')).toHaveAttribute(
+        'aria-checked',
+        'true',
+      ),
+    );
+  });
+
+  it('AC-PLN-012: an unassigned organisation shows the Enterprise defaults the resolver applies', async () => {
+    api.getOrgPlan.mockResolvedValue(null);
+    renderConsole();
+    await screen.findByTestId('feature-row-stock');
+    // No org_plans row means Enterprise, the same fallback the resolver uses (0532:150).
+    await waitFor(() => expect(screen.getByTestId('plan-default-cell-stock')).toHaveTextContent('On'));
+  });
+
+  it('AC-PLN-012: a limit draft never saves to a different plan after the organisation changes', async () => {
+    api.getOrgPlan.mockImplementation((orgId: unknown) =>
+      Promise.resolve(orgId === 'org-2' ? 'enterprise' : 'starter'),
+    );
+    renderConsole();
+    const seats = await screen.findByLabelText('Included seats');
+    // An unsaved draft typed against Starter.
+    fireEvent.change(seats, { target: { value: '12' } });
+    fireEvent.change(screen.getByLabelText('Organisation'), { target: { value: 'org-2' } });
+    // Org-2 is on Enterprise: the editor follows it and the Starter draft must not come along.
+    await waitFor(() => expect(screen.getByLabelText('Organisation')).toHaveValue('org-2'));
+    const enterpriseSeats = await screen.findByLabelText('Included seats');
+    expect((enterpriseSeats as HTMLInputElement).value).toBe('');
+    fireEvent.click(screen.getByRole('button', { name: /save limits/i }));
+    await waitFor(() =>
+      expect(api.setPlanLimits).toHaveBeenCalledWith({
+        planId: 'enterprise',
+        seatLimit: null,
+        projectLimit: null,
+        aiMonthlyMessages: null,
+      }),
+    );
+  });
+
+  it('AC-PLN-012: an override stays clearable while the all-orgs off switch outranks it', async () => {
+    api.listOverrides.mockResolvedValue(['stock']);
+    renderConsole();
+    const stock = await screen.findByTestId('feature-row-stock');
+    // The effective state comes from the global kill switch, but the override row still exists.
+    expect(within(stock).getByTestId('source-stock')).toHaveTextContent('All organisations');
+    fireEvent.click(within(stock).getByRole('button', { name: /clear/i }));
+    await waitFor(() => expect(api.clearOverride).toHaveBeenCalledWith({ orgId: 'org-1', key: 'stock' }));
   });
 
   it('AC-PLN-012: the Admin-owned feedback switch is read-only here (no override or global control)', async () => {

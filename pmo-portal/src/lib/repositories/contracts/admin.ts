@@ -123,6 +123,11 @@ export interface OrgFeatureRepository {
   listOwn(): Promise<ResolvedFeatureSet>;
   /** The resolved set of one organisation (Operator console; the RPC re-asserts the Operator). */
   listForOrg(orgId: string): Promise<ResolvedFeatureSet>;
+  /**
+   * Operator console: the override keys that EXIST for one org, independently of whether an
+   * all-orgs off currently outranks them (so a dormant override stays clearable).
+   */
+  listOverrides(orgId: string): Promise<OrgFeatureKey[]>;
   /** Operator console: every plan, its limits, the plan matrix and the all-orgs flags. */
   getPlanCatalogue(): Promise<PlanCatalogue>;
   /** Operator console: the plan assigned to one org (null = unassigned, resolves as Enterprise). */

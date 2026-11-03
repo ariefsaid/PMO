@@ -33,6 +33,7 @@ const { orgFeaturesState, api, toastSpy } = vi.hoisted(() => ({
     listForOrg: vi.fn(),
     getPlanCatalogue: vi.fn(),
     getOrgPlan: vi.fn(),
+    listOverrides: vi.fn(),
     listOperatorOrgs: vi.fn(),
     toggle: vi.fn(),
     clearOverride: vi.fn(),
@@ -63,6 +64,7 @@ vi.mock('@/src/lib/repositories', () => ({
       listForOrg: (...a: unknown[]) => api.listForOrg(...a),
       getPlanCatalogue: () => api.getPlanCatalogue(),
       getOrgPlan: (...a: unknown[]) => api.getOrgPlan(...a),
+      listOverrides: (...a: unknown[]) => api.listOverrides(...a),
       toggle: (...a: unknown[]) => api.toggle(...a),
       clearOverride: (...a: unknown[]) => api.clearOverride(...a),
       setOrgPlan: (...a: unknown[]) => api.setOrgPlan(...a),
@@ -108,6 +110,7 @@ beforeEach(() => {
   api.listForOrg.mockResolvedValue(orgFeaturesState.value);
   api.listOperatorOrgs.mockResolvedValue([{ id: 'org-1', name: 'Acme' }]);
   api.getOrgPlan.mockResolvedValue('starter');
+  api.listOverrides.mockResolvedValue([]);
   api.getPlanCatalogue.mockResolvedValue({
     plans: [{ planId: 'starter', name: 'Starter', seatLimit: 10, projectLimit: 25, aiMonthlyMessages: 300 }],
     defaults: { starter: { incidents: false, crm: true } },

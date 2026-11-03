@@ -1,10 +1,13 @@
 -- Plans S3 — the read projections the Operator console and the Admin "Your plan" page need.
 --
--- 0537 adds three read-only functions and nothing else:
+-- 0537 adds four read-only functions and nothing else:
 --   * operator_plan_catalogue()   — plans + limits + the plan matrix + the all-orgs flags, one row
 --                                   per (plan, feature) so the console renders from ONE call;
 --   * operator_org_plan(uuid)     — the selected org's assigned plan (null = unassigned, which the
 --                                   resolver treats as Enterprise);
+--   * operator_org_overrides(uuid)— which per-org override rows exist, even when a global off
+--                                   currently outranks them (the resolver then reports source
+--                                   'global', so presence has to be answered separately);
 --   * resolved_org_plan()         — the caller's OWN org plan + limits, for the read-only Admin page
 --                                   (FR-PLN-014). Its signature is frozen: S4 consumes it.
 --
@@ -13,7 +16,7 @@
 -- (clarity projections in the FE are never the boundary — ADR-0016).
 begin;
 create extension if not exists pgtap;
-select plan(24);
+select plan(29);
 
 insert into organizations (id, name) values
   ('05370000-0000-0000-0000-000000000001', 'Plans Reads A'),
@@ -40,21 +43,24 @@ delete from org_plans where org_id = '05370000-0000-0000-0000-000000000003';
 -- ── Privileges: read-only, authenticated-only, never anon/service ------------------------------
 select ok(has_function_privilege('authenticated', 'public.operator_plan_catalogue()', 'EXECUTE')
   and has_function_privilege('authenticated', 'public.operator_org_plan(uuid)', 'EXECUTE')
+  and has_function_privilege('authenticated', 'public.operator_org_overrides(uuid)', 'EXECUTE')
   and has_function_privilege('authenticated', 'public.resolved_org_plan()', 'EXECUTE'),
-  'the three read projections are reachable by authenticated');
+  'the four read projections are reachable by authenticated');
 select ok(not has_function_privilege('anon', 'public.operator_plan_catalogue()', 'EXECUTE')
   and not has_function_privilege('anon', 'public.operator_org_plan(uuid)', 'EXECUTE')
+  and not has_function_privilege('anon', 'public.operator_org_overrides(uuid)', 'EXECUTE')
   and not has_function_privilege('anon', 'public.resolved_org_plan()', 'EXECUTE'),
   'no read projection is anon-executable');
 select ok(not has_function_privilege('service_role', 'public.operator_plan_catalogue()', 'EXECUTE')
   and not has_function_privilege('service_role', 'public.operator_org_plan(uuid)', 'EXECUTE')
+  and not has_function_privilege('service_role', 'public.operator_org_overrides(uuid)', 'EXECUTE')
   and not has_function_privilege('service_role', 'public.resolved_org_plan()', 'EXECUTE'),
   'the reads are Operator/member surfaces, not service surfaces');
 select is((select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
   where n.nspname = 'public' and p.prosecdef
-    and p.proname in ('operator_plan_catalogue', 'operator_org_plan', 'resolved_org_plan')
+    and p.proname in ('operator_plan_catalogue', 'operator_org_plan', 'operator_org_overrides', 'resolved_org_plan')
     and p.proconfig @> array['search_path=public']::text[]),
-  3, 'every read projection pins search_path and is a definer');
+  4, 'every read projection pins search_path and is a definer');
 select is((select count(*)::int from information_schema.role_table_grants
   where table_schema = 'public'
     and table_name in ('plans', 'plan_features', 'org_plans', 'global_features')
@@ -93,6 +99,32 @@ select throws_ok(
   $$ select public.operator_org_plan('05370000-0000-0000-0000-0000000000ff'::uuid) $$,
   '23503', null, 'operator_org_plan rejects an unknown organisation');
 
+-- operator_org_overrides(): presence survives an all-orgs off that outranks the override.
+reset role;
+insert into global_features (feature_key, enabled) values ('stock', false)
+on conflict (feature_key) do update set enabled = false;
+insert into org_features (org_id, feature_key, enabled) values
+  ('05370000-0000-0000-0000-000000000001', 'stock', true)
+on conflict (org_id, feature_key) do update set enabled = excluded.enabled;
+set local role authenticated;
+select is(
+  (select array_agg(o.feature_key order by o.feature_key)
+     from public.operator_org_overrides('05370000-0000-0000-0000-000000000001') o),
+  array['stock'],
+  'operator_org_overrides lists an override the all-orgs off switch outranks');
+select is(
+  (select r.source
+     from public.operator_resolved_org_features('05370000-0000-0000-0000-000000000001') r
+    where r.feature_key = 'stock'),
+  'global',
+  'the same key still resolves as global, so presence cannot be inferred from source');
+select is(
+  (select count(*)::int from public.operator_org_overrides('05370000-0000-0000-0000-000000000002')),
+  0, 'one organisation''s overrides never answer for another');
+select throws_ok(
+  $$ select public.operator_org_overrides('05370000-0000-0000-0000-0000000000ff'::uuid) $$,
+  '23503', null, 'operator_org_overrides rejects an unknown organisation');
+
 -- resolved_org_plan(): own org only, Enterprise when unassigned.
 select is((select p.plan_id from public.resolved_org_plan() p), 'starter',
   'resolved_org_plan returns the caller''s own plan');
@@ -109,6 +141,8 @@ select throws_ok($$ select * from public.operator_plan_catalogue() $$,
   '42501', null, 'a non-Operator Admin cannot read the plan catalogue');
 select throws_ok($$ select public.operator_org_plan('05370000-0000-0000-0000-000000000002') $$,
   '42501', null, 'a non-Operator Admin cannot read another org''s plan');
+select throws_ok($$ select * from public.operator_org_overrides('05370000-0000-0000-0000-000000000002') $$,
+  '42501', null, 'a non-Operator Admin cannot read another org''s overrides');
 select is((select p.plan_id from public.resolved_org_plan() p), 'starter',
   'a non-Operator Admin still reads the own-org plan (FR-PLN-014)');
 

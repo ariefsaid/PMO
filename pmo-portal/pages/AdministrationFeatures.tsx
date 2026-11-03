@@ -16,7 +16,7 @@ import {
 import { repositories } from '@/src/lib/repositories';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { useOrgFeatures, invalidateFeatureState } from '@/src/hooks/useOrgFeatures';
-import { useOperatorOrgs, useOperatorResolvedFeatures, useOrgPlan, usePlanCatalogue } from '@/src/hooks/usePlans';
+import { useOperatorOrgs, useOperatorOrgOverrides, useOperatorResolvedFeatures, useOrgPlan, usePlanCatalogue } from '@/src/hooks/usePlans';
 import {
   CORE_FEATURES,
   FEATURE_GROUPS,
@@ -113,6 +113,7 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
   const catalogue = usePlanCatalogue();
   const resolved = useOperatorResolvedFeatures(selectedOrgId);
   const orgPlan = useOrgPlan(selectedOrgId);
+  const orgOverrides = useOperatorOrgOverrides(selectedOrgId);
 
   const [planEditorId, setPlanEditorId] = useState<string | null>(null);
   /** Global switch awaiting confirmation (turning an all-orgs switch OFF). */
@@ -122,18 +123,30 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
   const planEditor: PlanRow | undefined =
     plans.find((plan) => plan.planId === planEditorId) ?? plans.find((plan) => plan.planId === orgPlan.data) ?? plans[0];
 
+  /**
+   * The limit draft belongs to the plan it was typed against. A draft made while inspecting one
+   * organisation must never be saved onto another plan after the organisation (and with it the
+   * editor's fallback plan) changes — the inputs fall back to the new plan's own values instead.
+   */
   const [limitDraft, setLimitDraft] = useState<{
+    planId: string;
     seats: string;
     projects: string;
     aiMessages: string;
   } | null>(null);
+  const activeDraft = limitDraft && limitDraft.planId === planEditor?.planId ? limitDraft : null;
 
   // The limit inputs mirror the selected plan until the Operator edits them. Derived, not synced in
   // an effect: a plan switch re-seeds the fields, and a saved value arrives through the catalogue.
-  const limits = limitDraft ?? {
+  const limits = activeDraft ?? {
     seats: limitText(planEditor?.seatLimit ?? null),
     projects: limitText(planEditor?.projectLimit ?? null),
     aiMessages: limitText(planEditor?.aiMonthlyMessages ?? null),
+  };
+
+  const updateDraft = (patch: Partial<{ seats: string; projects: string; aiMessages: string }>) => {
+    if (!planEditor) return;
+    setLimitDraft({ planId: planEditor.planId, ...limits, ...patch });
   };
 
   const refresh = () => invalidateFeatureState(qc);
@@ -256,10 +269,15 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
   }
 
   const states = resolved.data?.states ?? {};
-  const defaultsForPlan = (planEditor ? catalogue.data?.defaults[planEditor.planId] : undefined) ?? {};
-  const global = catalogue.data?.global ?? {};
   const effectivePlanId = orgPlan.data ?? 'enterprise';
+  // Every org-scoped value in the switches table describes THIS organisation's resolved plan, never
+  // the plan the editor happens to be pointing at (the two are chosen independently below).
+  const orgPlanDefaults = catalogue.data?.defaults[effectivePlanId] ?? {};
+  // The defaults editor's own list follows the plan it is editing.
+  const editorPlanDefaults = (planEditor ? catalogue.data?.defaults[planEditor.planId] : undefined) ?? {};
+  const global = catalogue.data?.global ?? {};
   const orgPlanRow = plans.find((plan) => plan.planId === effectivePlanId);
+  const overrideKeys = orgOverrides.data;
 
   return (
     <div className="min-w-0 space-y-6">
@@ -327,10 +345,12 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
                     const state: FeatureResolution | undefined = states[key];
                     const enabled = Boolean(state?.displayEnabled);
                     const source = state?.source ?? 'unknown';
-                    const hasOverride = source === 'override';
+                    // Presence comes from the override rows too: an all-orgs off reports source
+                    // 'global' while a dormant override still exists and must stay clearable.
+                    const hasOverride = source === 'override' || Boolean(overrideKeys?.includes(key));
                     const globalOn = global[key];
                     const globalOffWins = source === 'global' && globalOn === false;
-                    const planDefault = defaultsForPlan[key];
+                    const planDefault = orgPlanDefaults[key];
                     const label = FEATURE_LABELS[key];
                     const isAdminOwned = key === 'feedback_surveys';
                     return (
@@ -350,7 +370,7 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
                             <StatusPill variant={SOURCE_TONE[source]}>{sourceLabel(t, source)}</StatusPill>
                           </span>
                         </td>
-                        <td className="px-4 py-2 text-muted-foreground">
+                        <td className="px-4 py-2 text-muted-foreground" data-testid={`plan-default-cell-${key}`}>
                           {planDefault === undefined ? '—' : <OnOff on={planDefault} />}
                         </td>
                         <td className="px-4 py-2">
@@ -440,7 +460,7 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
               {FEATURE_GROUPS.map((group) => (
                 <React.Fragment key={group.id}>
                   {group.keys.filter((key) => key !== 'feedback_surveys').map((key) => {
-                    const on = Boolean(defaultsForPlan[key]);
+                    const on = Boolean(editorPlanDefaults[key]);
                     return (
                       <li key={key} data-testid={`plan-default-${key}`} className="flex items-center justify-between gap-3 px-4 py-2">
                         <span className="text-[13px]">{FEATURE_LABELS[key]}</span>
@@ -475,7 +495,7 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
                 type="number"
                 min={0}
                 value={limits.seats}
-                onChange={(value) => setLimitDraft({ ...limits, seats: value })}
+                onChange={(value) => updateDraft({ seats: value })}
                 fullWidth
               />
               <TextField
@@ -483,7 +503,7 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
                 type="number"
                 min={0}
                 value={limits.projects}
-                onChange={(value) => setLimitDraft({ ...limits, projects: value })}
+                onChange={(value) => updateDraft({ projects: value })}
                 fullWidth
               />
               <TextField
@@ -491,7 +511,7 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
                 type="number"
                 min={0}
                 value={limits.aiMessages}
-                onChange={(value) => setLimitDraft({ ...limits, aiMessages: value })}
+                onChange={(value) => updateDraft({ aiMessages: value })}
                 fullWidth
               />
               <Button

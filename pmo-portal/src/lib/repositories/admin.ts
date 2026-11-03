@@ -21,6 +21,7 @@ import {
 import {
   listOwnResolvedFeatures,
   listOperatorResolvedFeatures,
+  listOperatorOrgOverrides,
   getPlanCatalogue,
   getOrgPlan,
   getOwnPlan,
@@ -92,6 +93,7 @@ export const userViewRepository: UserViewRepository = {
 export const orgFeatureRepository: OrgFeatureRepository = {
   listOwn: () => wrap(() => listOwnResolvedFeatures()),
   listForOrg: (orgId) => wrap(() => listOperatorResolvedFeatures(orgId)),
+  listOverrides: (orgId) => wrap(() => listOperatorOrgOverrides(orgId)),
   getPlanCatalogue: () => wrap(() => getPlanCatalogue()),
   getOrgPlan: (orgId) => wrap(() => getOrgPlan(orgId)),
   getOwnPlan: () => wrap(() => getOwnPlan()),
