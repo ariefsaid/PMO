@@ -38,7 +38,11 @@ select set_eq(
       where c.contype = 'f' and n.nspname = 'public'
       group by src.relname, tgt.relname
      having count(*) > 1 $$,
-  $$ values ('credits -> profiles'),
+  $$ values -- 0515 (T&M rates): contract_rate_assignees has user_id AND created_by, both -> profiles.
+            -- Checked before adding: no DAL, repository, edge fn or e2e spec embeds profiles from
+            -- it (only database.types.ts mentions the table), so no unqualified embed exists.
+            ('contract_rate_assignees -> profiles'),
+            ('credits -> profiles'),
             ('erp_employees -> profiles'),
             -- 0291 (#1012): fx_rates carries created_by AND updated_by, both -> profiles. Checked
             -- before adding: neither src/lib/db/fxRates.ts nor the fx repository embeds profiles

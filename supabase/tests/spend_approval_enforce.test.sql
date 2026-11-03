@@ -4,7 +4,7 @@
 -- senior set) and DD-APR-5 (an untrustworthy amount routes to the senior set) on org A.
 -- Migration: 0243_spend_approval_routing.sql §7.
 begin;
-select plan(29);
+select plan(40);
 
 insert into organizations (id, name, default_currency) values
   ('02343000-0000-0000-0000-00000000000a','APR Enf Org A','IDR'),
@@ -101,6 +101,9 @@ insert into procurements (id, org_id, title, project_id, requested_by_id, status
   ('02343000-0000-0000-0000-000000000411','02343000-0000-0000-0000-00000000000a','E8 decider set', '02343000-0000-0000-0000-000000000111','02343000-0000-0000-0000-0000000000a6','Requested',100,'Materials'),
   ('02343000-0000-0000-0000-000000000412','02343000-0000-0000-0000-00000000000a','E9 set later',   '02343000-0000-0000-0000-000000000112','02343000-0000-0000-0000-0000000000a6','Requested',100,'Materials'),
   ('02343000-0000-0000-0000-000000000413','02343000-0000-0000-0000-00000000000a','E10 settled',    '02343000-0000-0000-0000-000000000113','02343000-0000-0000-0000-0000000000a6','Requested',100,'Materials');
+insert into procurements (id, org_id, title, project_id, requested_by_id, status, total_value, budget_category) values
+  ('02343000-0000-0000-0000-000000000415','02343000-0000-0000-0000-00000000000a','E12 own request','02343000-0000-0000-0000-000000000101','02343000-0000-0000-0000-0000000000a0','Requested', 50,'Materials'),
+  ('02343000-0000-0000-0000-000000000416','02343000-0000-0000-0000-00000000000a','E13 other request','02343000-0000-0000-0000-000000000101','02343000-0000-0000-0000-0000000000a6','Requested', 50,'Materials');
 -- DD-APR-3: E7–E10 were submitted yesterday.
 insert into procurement_status_events (procurement_id, org_id, from_status, to_status, actor_id, created_at)
 select id, '02343000-0000-0000-0000-00000000000a', 'Draft', 'Requested', '02343000-0000-0000-0000-0000000000a6', now() - interval '1 day'
@@ -171,7 +174,18 @@ select throws_ok($$ select transition_procurement('02343000-0000-0000-0000-00000
   '42501', 'approval routing: within_budget requires a named approver',
   'AC-APR-013: a non-named PM cannot reject a routed request');
 set local request.jwt.claims = '{"sub":"02343000-0000-0000-0000-0000000000a1","role":"authenticated"}';
-select lives_ok($$ select transition_procurement('02343000-0000-0000-0000-000000000405','Rejected') $$,
+select throws_ok($$ select transition_procurement('02343000-0000-0000-0000-000000000405','Rejected',null) $$,
+  '22023', 'rejection comment required',
+  'AC-1578: the server refuses a procurement rejection without a comment');
+select throws_ok($$ select transition_procurement('02343000-0000-0000-0000-000000000405','Rejected','   ') $$,
+  '22023', 'rejection comment required',
+  'AC-1578: the server refuses a whitespace-only procurement rejection comment');
+select throws_ok($$ select transition_procurement('02343000-0000-0000-0000-000000000405','Rejected',E'\t\n') $$,
+  '22023', 'rejection comment required',
+  'AC-1578: the server refuses a tab/newline-only procurement rejection comment');
+select is((select status::text from procurements where id = '02343000-0000-0000-0000-000000000405'), 'Requested',
+  'AC-1578: the whitespace-only rejection did not change the purchase status');
+select lives_ok($$ select transition_procurement('02343000-0000-0000-0000-000000000405','Rejected','Please revise the requested quantities.') $$,
   'AC-APR-013: the named approver rejects');
 
 -- E6: Admin break-glass.
@@ -234,6 +248,14 @@ select is((select status::text from procurements where id = '02343000-0000-0000-
   'AC-APR-005: one signature from the set is enough');
 select is((select status::text from procurements where id = '02343000-0000-0000-0000-000000000405'), 'Rejected',
   'AC-APR-013: the rejection landed');
+select is((select rejection_notes from procurements where id = '02343000-0000-0000-0000-000000000405'), 'Please revise the requested quantities.',
+  'AC-1578: the required rejection comment is stored with the decision');
+select is((select count(*)::int from notifications where owner_id = '02343000-0000-0000-0000-0000000000a6'
+            and title = 'Your procurement was rejected' and metadata->'entity'->>'id' = '02343000-0000-0000-0000-000000000405'), 1,
+  'AC-1578: the existing workflow notification tells the procurement submitter about rejection');
+select is((select count(*)::int from notifications where owner_id = '02343000-0000-0000-0000-0000000000a6'
+            and title = 'Your procurement was approved' and metadata->'entity'->>'id' = '02343000-0000-0000-0000-000000000401'), 1,
+  'AC-1578: the existing workflow notification tells the procurement submitter about approval');
 select is(
   (select detail - 'to' - 'break_glass' - 'budget_category' from audit_events
     where action = 'procurement.approval_route' and entity_id = '02343000-0000-0000-0000-000000000401'),
@@ -248,6 +270,20 @@ select is(
   (select detail->>'route' || '/' || (detail->>'break_glass') from audit_events
     where action = 'procurement.approval_route' and entity_id = '02343000-0000-0000-0000-000000000409'),
   'admin/true', 'AC-APR-010: the Admin decision is recorded as break-glass on the admin route');
+
+-- AC-1578: a bulk client issues one transition RPC per row; SoD is checked independently for each row.
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"02343000-0000-0000-0000-0000000000a0","role":"authenticated"}';
+select throws_ok($$ select transition_procurement('02343000-0000-0000-0000-000000000415','Approved') $$,
+  '42501', 'separation of duties: requester cannot approve/reject own procurement',
+  'AC-1578: a bulk row requested by the approver is refused by the per-row transition RPC');
+select lives_ok($$ select transition_procurement('02343000-0000-0000-0000-000000000416','Approved') $$,
+  'AC-1578: an eligible row in the same bulk action can still be approved independently');
+reset role;
+select is((select status::text from procurements where id = '02343000-0000-0000-0000-000000000415'), 'Requested',
+  'AC-1578: the unauthorized bulk row remains Requested');
+select is((select status::text from procurements where id = '02343000-0000-0000-0000-000000000416'), 'Approved',
+  'AC-1578: the eligible bulk row is Approved');
 
 select * from finish();
 rollback;

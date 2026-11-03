@@ -3,6 +3,11 @@ import { classifyMutationError, isMeetingReadDenied } from './classifyMutationEr
 import { AppError } from './appError';
 
 describe('classifyMutationError (ADR-0017, promoted from ProcurementDetails)', () => {
+  it('22023 rejection comment required → plain sentence (#1578)', () => {
+    const e = Object.assign(new Error('rejection comment required'), { code: '22023' });
+    expect(classifyMutationError(e).headline).toBe('Add a rejection comment');
+  });
+
   it('P0001 → illegal-stage headline, verbatim message as detail', () => {
     const e = Object.assign(new Error('illegal transition Requested→Approved'), { code: 'P0001' });
     expect(classifyMutationError(e)).toEqual({

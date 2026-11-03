@@ -253,7 +253,9 @@
         "returnManyTitle": "Return these procurements?",
         "returnTitle": "Return this procurement?",
         "cancelDescription": "This procurement will be marked as cancelled.",
-        "returnDescription": "The procurement goes back to the person who raised it."
+        "returnDescription": "The procurement goes back to the person who raised it.",
+        "returnComment": "Return comment",
+        "returnCommentHelp": "Say what the requester needs to change."
       },
       "stage": {
         "cancelled": "Cancelled",
@@ -353,7 +355,9 @@
     "rejected": "Procurement rejected",
     "reject": "Reject procurement",
     "approveDescription": "Approve {{title}} ({{amount}})? This will advance the procurement to the ordering stage.",
-    "rejectDescription": "Reject {{title}}? The requester will be notified and may revise and resubmit."
+    "rejectDescription": "Reject {{title}}? The requester will be notified and may revise and resubmit.",
+    "rejectionComment": "Rejection comment",
+    "rejectionCommentHelp": "Add a comment for the requester before rejecting this purchase."
   },
   "decisionSupport": {
     "thisProcurement": "This procurement",
@@ -495,6 +499,38 @@
       "loading": "Loading the BoQ lines…",
       "title": "Bill these BoQ lines (up to what is still payable)",
       "payable": "payable {{max}} at {{rate}}"
+    }
+  },
+  "procurementBulk": {
+    "approveN": "Approve {{count}}",
+    "clear": "Clear",
+    "confirmDescription": "Each purchase is approved separately. If one cannot be approved, the others can still be completed.",
+    "confirmMore": "{{count}} more selected",
+    "confirmTitleMany": "Approve {{count}} purchase requests?",
+    "confirmTitleOne": "Approve 1 purchase request?",
+    "groupLabel": "Bulk approve purchases",
+    "rowSelect": "Select {{title}}",
+    "scopeAll": "All {{count}} purchase requests in this queue can be approved.",
+    "scopeOne": "The 1 purchase request in this queue can be approved.",
+    "scopeSome": "{{eligible}} of {{total}} purchase requests in this queue can be approved.",
+    "select": "Select purchases",
+    "selectAll": "Select all purchase requests",
+    "selectedCount": "{{count}} selected",
+    "toast": {
+      "allOk": {
+        "detail": "{{count}} approved",
+        "headline": "Purchases approved"
+      },
+      "failureRows": "Could not approve: {{titles}}{{more}}",
+      "more": " and {{count}} more",
+      "noneOk": {
+        "detail": "{{count}} failed. {{rows}}",
+        "headline": "Couldn't approve purchases"
+      },
+      "partial": {
+        "detail": "{{ok}} approved, {{failed}} failed. {{rows}}",
+        "headline": "Partially approved"
+      }
     }
   }
 }
