@@ -225,6 +225,10 @@ select plan(6);
 -- authenticated grant explicitly after the default-privilege guard; otherwise the count below fails.
 -- The names are by proname, matching the migration's conservative overload-safe allow-list (42 literal
 -- frontend calls plus six existing authenticated RPC contracts).
+-- ⚑ AMENDED BY 0517 (#1514 T3): `prepare_tm_signoff`, `withdraw_tm_signoff` and `confirm_tm_signoff` join the retained set (+3, count 139 on 136,
+-- re-derived by hand from the 139 rows of the list). SECURITY DEFINER writers under a member's JWT: each re-asserts active membership and the caller's
+-- org; prepare also the project's progress authority, confirm Admin / Finance and preparer ≠ confirmer unless the sole active member. Proven by
+-- supabase/tests/tm_signoff.test.sql.
 create temp table client_callable_rpc_names (proname text primary key) on commit drop;
 insert into client_callable_rpc_names (proname) values
   ('accept_connect_proposals'),
@@ -261,6 +265,9 @@ insert into client_callable_rpc_names (proname) values
   ('end_contract_rate_line'),  -- ⚑ AMENDED BY 0515 (#1514)
   ('assemble_tm_claim'),  -- ⚑ AMENDED BY 0516 (#1514)
   ('deselect_tm_source'),  -- ⚑ AMENDED BY 0516 (#1514)
+  ('prepare_tm_signoff'),  -- ⚑ AMENDED BY 0517 (#1514)
+  ('withdraw_tm_signoff'),  -- ⚑ AMENDED BY 0517 (#1514)
+  ('confirm_tm_signoff'),  -- ⚑ AMENDED BY 0517 (#1514)
   ('establish_imprest_float'),
   ('propose_imprest_float_amount'),
   ('record_vendor_withholding_slip'),
@@ -384,8 +391,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  136,
-  'AC-ACL-002 all 136 retained client-callable RPC names still have a public function');
+  139,
+  'AC-ACL-002 all 139 retained client-callable RPC names still have a public function');
 
 select is(
   (select count(*)::int
@@ -394,8 +401,8 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  136,
-  'AC-ACL-003 all 136 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  139,
+  'AC-ACL-003 all 139 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
 -- granted to both roles from being named twice. Retained names exempt authenticated grants only;

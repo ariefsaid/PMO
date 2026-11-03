@@ -310,3 +310,10 @@ Each AC has exactly one owning layer (halves of AC-TM-008/009/011 are the same a
 1. `progress_claim_lines` cannot hold T&M lines (BoQ key not null), so T&M lines live in `tm_claim_lines` and `progress_claims` carries the header only; the spec's "reuse the claim record" is met at the header, fence, evidence and invoice level.
 2. Spec §2 "materials" wording: this issue bills people and machines; priced extras are OQ-TM-10 (default out).
 3. T6 is its own slice because the ERPNext claim reader is a shared money file (Odoo's C4b depends on its shape).
+
+## Built in T3 (0517), beyond the task text
+
+4. The fence also reads `tm_claims`: a Draft or Withdrawn T&M claim has no progress-claim row, so the shipped "not a claim" exit would have waved its id through. Only a `SignedOff` row with a confirmer passes.
+5. Two authors of the quantities, not one: whoever assembled the claim (`prepared_by`) and whoever prepared the sign-off (`signoff_prepared_by`). Neither may confirm (sole-active-member exception) and both join the invoice authors with the confirmer.
+6. `prepared_fingerprint` pins what the client was shown (gross and source set); a deselect after prepare makes confirm refuse until the sign-off is prepared again (FR-TM-023).
+7. Withdrawing a confirmed sign-off is `withdraw_progress_claim` (or `withdraw_tm_signoff`, which allows a Cancelled invoice so its hours are released); a trigger on `progress_claims` moves the T&M claim to Withdrawn and frees the sources.
