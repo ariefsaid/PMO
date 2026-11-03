@@ -33,7 +33,12 @@ function thenableTable(result: { data: unknown; error: unknown } | null = { data
   return make();
 }
 vi.mock('@/src/lib/supabase/client', () => ({
-  supabase: { functions: { invoke: (...a: unknown[]) => invoke(...a) }, from: vi.fn(() => thenableTable()) },
+  supabase: {
+    functions: { invoke: (...a: unknown[]) => invoke(...a) },
+    from: vi.fn(() => thenableTable()),
+    // The entitlement/plan reads go through RPC projections (FR-PLN-005), not tables.
+    rpc: () => Promise.resolve({ data: [], error: null }),
+  },
 }));
 
 vi.mock('@/src/lib/db/fxRates', async (importOriginal) => ({ ...(await importOriginal<object>()), fxContext: vi.fn() }));
@@ -67,7 +72,7 @@ vi.mock('@/src/lib/db/meetings', async (importOriginal) => ({ ...(await importOr
 vi.mock('@/src/lib/db/userViews', async (importOriginal) => ({ ...(await importOriginal<object>()), listUserViews: vi.fn() }));
 vi.mock('@/src/lib/db/operators', async (importOriginal) => ({ ...(await importOriginal<object>()), isOperator: vi.fn() }));
 vi.mock('@/src/lib/db/usage', async (importOriginal) => ({ ...(await importOriginal<object>()), getOrgUsageSummary: vi.fn() }));
-vi.mock('@/src/lib/db/orgFeatures', async (importOriginal) => ({ ...(await importOriginal<object>()), listOwnOrgFeatures: vi.fn(), getOrgCreditBalance: vi.fn() }));
+vi.mock('@/src/lib/db/orgFeatures', async (importOriginal) => ({ ...(await importOriginal<object>()), listOwnResolvedFeatures: vi.fn(), getOrgCreditBalance: vi.fn() }));
 vi.mock('@/src/lib/db/orgs', async (importOriginal) => ({ ...(await importOriginal<object>()), getOrgTaxDefault: vi.fn() }));
 vi.mock('@/src/lib/db/externalDomainOwnership', async (importOriginal) => ({ ...(await importOriginal<object>()), listOwnExternalDomainOwnership: vi.fn() }));
 vi.mock('@/src/lib/db/erpSnapshots', async (importOriginal) => ({ ...(await importOriginal<object>()), listActualsSnapshot: vi.fn() }));
@@ -127,7 +132,7 @@ const ROWS: Row[] = [
   { member: 'userView', method: 'list', mod: '@/src/lib/db/userViews', fn: 'listUserViews', args: [] },
   { member: 'operator', method: 'isOperator', mod: '@/src/lib/db/operators', fn: 'isOperator', args: [] },
   { member: 'usage', method: 'getOrgUsageSummary', mod: '@/src/lib/db/usage', fn: 'getOrgUsageSummary', args: [] },
-  { member: 'orgFeature', method: 'listOwn', mod: '@/src/lib/db/orgFeatures', fn: 'listOwnOrgFeatures', args: [], mode: 'called' },
+  { member: 'orgFeature', method: 'listOwn', mod: '@/src/lib/db/orgFeatures', fn: 'listOwnResolvedFeatures', args: [] },
   { member: 'orgSettings', method: 'getTaxDefault', mod: '@/src/lib/db/orgs', fn: 'getOrgTaxDefault', args: [] },
   { member: 'credits', method: 'getOrgBalance', mod: '@/src/lib/db/orgFeatures', fn: 'getOrgCreditBalance', args: ['org-1'] },
   { member: 'externalDomainOwnership', method: 'listOwn', mod: '@/src/lib/db/externalDomainOwnership', fn: 'listOwnExternalDomainOwnership', args: [] },

@@ -27,6 +27,8 @@ export interface ModuleDef {
   labelKey?: string;
   /** Optional organization entitlement needed to expose this destination in navigation. */
   feature?: OrgFeatureKey;
+  /** Show this destination only while the entitlement is OFF (e.g. the Suppliers doorway). */
+  unlessFeature?: OrgFeatureKey;
 }
 
 /** The module IA — the index + detail routes the rail and ⌘K palette read. */
@@ -43,6 +45,7 @@ export const MODULES: ModuleDef[] = [
     detail: { pattern: '/sales/:opportunityId', param: 'opportunityId' },
     // Mirror Rail: Exec·PM·Finance·Admin (Engineer has no Sales nav — rbac-visibility §C).
     roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin],
+    feature: 'sales_pipeline',
   },
   {
     module: 'procurement',
@@ -53,6 +56,7 @@ export const MODULES: ModuleDef[] = [
     detail: { pattern: '/procurement/:procurementId', param: 'procurementId' },
     // Mirror Rail: Exec·PM·Finance·Admin (Engineer has no Procurement nav — rbac-visibility §E).
     roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin],
+    feature: 'procurement',
   },
   {
     module: 'projects',
@@ -71,6 +75,7 @@ export const MODULES: ModuleDef[] = [
     path: '/stock',
     detail: { pattern: '/stock/documents/:documentId', param: 'documentId' },
     // Mirror Rail: every role (quantities are visible to all active members; the Engineer is the interim storekeeper).
+    feature: 'stock',
   },
   {
     module: 'timesheets',
@@ -80,6 +85,7 @@ export const MODULES: ModuleDef[] = [
     path: '/timesheets',
     // Mirror Rail: Exec·PM·Engineer·Admin (Finance excluded from Workforce surface).
     roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Engineer, UserRole.Admin],
+    feature: 'timesheets',
   },
   // B-7 (AC-W2-IA-002): Companies + Incidents are full CRUD pages — promoted to MODULES so the
   // breadcrumb resolves via the module path and ⌘K Navigate includes them.
@@ -94,6 +100,7 @@ export const MODULES: ModuleDef[] = [
     detail: { pattern: '/companies/:companyId', param: 'companyId' },
     // Mirror Rail: Exec·PM·Finance·Admin (Engineer has no Companies nav — rbac-visibility §D).
     roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin],
+    feature: 'crm',
   },
   {
     module: 'vendors',
@@ -102,6 +109,8 @@ export const MODULES: ModuleDef[] = [
     labelKey: 'shell.nav.vendors',
     path: '/companies?type=Vendor',
     roles: [UserRole.ProjectManager, UserRole.Finance, UserRole.Admin],
+    // The Suppliers doorway exists because a CRM-less org otherwise has no path to vendors.
+    unlessFeature: 'crm',
   },
   {
     module: 'contacts',
@@ -114,6 +123,7 @@ export const MODULES: ModuleDef[] = [
     detail: { pattern: '/contacts/:contactId', param: 'contactId' },
     // Mirror Rail: Exec·PM·Finance·Admin (Engineer has no CRM nav — master-data, like Companies).
     roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin],
+    feature: 'crm',
   },
   {
     module: 'incidents',
@@ -125,6 +135,7 @@ export const MODULES: ModuleDef[] = [
     // detail pattern makes the breadcrumb drill [Incidents > <record>] and lets ⌘K open one.
     detail: { pattern: '/incidents/:incidentId', param: 'incidentId' },
     // Incidents: visible to every role (any member may file — rbac-visibility §A/§G).
+    feature: 'incidents',
   },
   // #526: Meetings — visible to EVERY role (any member may minute a meeting, OD-MTG-1; reads are
   // RLS-scoped to attendance ∪ author ∪ grant ∪ Admin, so the nav item is safe for all).
@@ -141,7 +152,7 @@ export const MODULES: ModuleDef[] = [
     labelKey: 'shell.nav.expenses', path: '/expenses', detail: { pattern: '/expenses/:claimId', param: 'claimId' } },
   // #1515: Site cash — floats visible to approval rank (RLS); the rail hides it from Engineers.
   { module: 'imprest', icon: 'expenses', label: 'Site cash', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
-    labelKey: 'imprest:nav.siteCash', path: '/imprest', detail: { pattern: '/imprest/:floatId', param: 'floatId' } },
+    labelKey: 'imprest:nav.siteCash', path: '/imprest', detail: { pattern: '/imprest/:floatId', param: 'floatId' }, feature: 'imprest' },
   // #1519: Equipment usage — every role logs; the Approvals view and amounts gate inside the pages.
   { module: 'equipment', icon: 'clock', label: 'Equipment', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
     labelKey: 'equipment:nav.equipment', path: '/equipment', detail: { pattern: '/equipment/assets/:assetId', param: 'assetId' } },
@@ -187,12 +198,12 @@ export const MODULES: ModuleDef[] = [
   },
   {
     module: 'finance-reports', icon: 'reports', label: 'Reports', // i18n-exempt: translated at render via labelKey
-    labelKey: 'financeHub:hub.reports', feature: 'revenue',
+    labelKey: 'financeHub:hub.reports', feature: 'management_pack',
     path: '/finance/reports', roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin],
   },
   {
     module: 'finance-statements', icon: 'reports', label: 'Statements', // i18n-exempt: translated at render via labelKey
-    labelKey: 'financeHub:hub.statements',
+    labelKey: 'financeHub:hub.statements', feature: 'financial_statements',
     path: '/finance/statements', roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin],
   },
   // Administration: Exec·Admin (shown in Rail's foot section for those roles only).
@@ -328,6 +339,7 @@ export const ADMINISTRATION_SECTION_LABELS = {
   integrations: 'Organization integrations',
   accounting: 'Accounting setup',
   projects: 'Project setup',
+  plan: 'Your plan',
   credits: 'Credits',
   usage: 'Usage',
   features: 'Features',
@@ -349,6 +361,7 @@ export const ADMINISTRATION_SECTION_I18N_KEY: Record<
   integrations: 'admin.nav.integrations',
   accounting: 'admin.nav.accounting',
   projects: 'admin.nav.projects',
+  plan: 'plans:yourPlan.navLabel',
   credits: 'admin.nav.credits',
   usage: 'admin.nav.usage',
   features: 'admin.nav.features',
