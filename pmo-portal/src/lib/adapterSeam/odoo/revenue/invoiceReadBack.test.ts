@@ -71,6 +71,20 @@ describe('AC-OCI-030 the project\'s cost account on every posted product line', 
   });
 });
 
+describe('AC-OCI-022 a down-payment product posts to the configured customer-advance account', () => {
+  const advance = { total: '1110.00', costAccountId: 101, advanceAccount: { productId: 72, accountId: 210 } };
+
+  it('flags a posted down-payment line whose Odoo account differs from the configured account', () => {
+    const lines = [{ id: 1, display_type: 'product', product_id: [72, 'Down payment'], account_id: [149, 'Sales'], analytic_distribution: { '101': 100 } }];
+    expect(readBackInvoice('inv-1', read({}, lines), advance).odoo_attention).toBe('advance-account-mismatch');
+  });
+
+  it('accepts the configured account on the posted down-payment line', () => {
+    const lines = [{ id: 1, display_type: 'product', product_id: [72, 'Down payment'], account_id: [210, 'Customer Advances'], analytic_distribution: { '101': 100 } }];
+    expect(readBackInvoice('inv-1', read({}, lines), advance).odoo_attention).toBeNull();
+  });
+});
+
 describe('status is read, not set (FR-OCI-025, DD-OCI-7)', () => {
   it('carries Odoo\'s residual so Paid is derived only from a zero residual; a zero-total invoice reads zero outstanding', () => {
     expect(readBackInvoice('inv-1', read({ amount_untaxed: 0, amount_tax: 0, amount_total: 0, amount_residual: 0 }, LINES), { ...EXPECT, total: '0.00' })).toMatchObject({ amount: '0.00', erp_outstanding_amount: '0.00', odoo_attention: null });

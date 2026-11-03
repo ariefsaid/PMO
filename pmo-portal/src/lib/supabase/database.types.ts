@@ -967,7 +967,7 @@ export type Database = {
           consented_at: string
           consented_by: string
           consumed_at: string | null
-          erp_account: string | null
+          erp_account: string
           erp_budget_name: string
           fiscal_year: string
           id: string
@@ -1090,7 +1090,7 @@ export type Database = {
           actor_user_id: string
           budget_version_id: string
           created_at: string
-          erp_account: string | null
+          erp_account: string
           erp_budget_name: string
           fiscal_year: string
           id: string
@@ -1101,7 +1101,6 @@ export type Database = {
           pushed_project_end_date: string | null
           pushed_project_start_date: string | null
           request_id: string
-          source_kind: string
           source_mirror_id: string
           state: string
           updated_at: string
@@ -1111,7 +1110,7 @@ export type Database = {
           actor_user_id: string
           budget_version_id: string
           created_at?: string
-          erp_account?: string | null
+          erp_account: string
           erp_budget_name: string
           fiscal_year: string
           id?: string
@@ -1122,7 +1121,6 @@ export type Database = {
           pushed_project_end_date?: string | null
           pushed_project_start_date?: string | null
           request_id: string
-          source_kind?: string
           source_mirror_id: string
           state?: string
           updated_at?: string
@@ -1132,7 +1130,7 @@ export type Database = {
           actor_user_id?: string
           budget_version_id?: string
           created_at?: string
-          erp_account?: string | null
+          erp_account?: string
           erp_budget_name?: string
           fiscal_year?: string
           id?: string
@@ -1143,7 +1141,6 @@ export type Database = {
           pushed_project_end_date?: string | null
           pushed_project_start_date?: string | null
           request_id?: string
-          source_kind?: string
           source_mirror_id?: string
           state?: string
           updated_at?: string

@@ -10,17 +10,18 @@ begin;
 -- Bound accidental fixture cycles while the explicit 500ms lock-timeout probes below continue to
 -- prove that the intended competing writer blocks at the shared project decision lock.
 set local statement_timeout = '30s';
-select plan(118);
+select plan(139);
 select dblink_connect('archive_race', format('dbname=%s user=%s password=postgres host=%s port=%s', current_database(), current_user, coalesce(host(inet_server_addr()), 'supabase_db_pmo-portal'), coalesce(inet_server_port(),5432)));
 select dblink_exec('archive_race', $$set statement_timeout = '20s'$$);
 select dblink_exec('archive_race', $$set lock_timeout = '5s'$$);
 select dblink_exec('archive_race', $q$
  insert into organizations(id,name) values ('04040000-0000-0000-0000-000000000001','Archive race');
- insert into auth.users(id) values ('04040000-0000-0000-0000-000000000002');
+ insert into auth.users(id) values ('04040000-0000-0000-0000-000000000002'),('04040000-0000-0000-0000-000000000003');
  insert into profiles(id,org_id,full_name,email,role,status) values ('04040000-0000-0000-0000-000000000002','04040000-0000-0000-0000-000000000001','Race actor','archive-race@example.invalid','Finance','active');
  insert into projects(id,org_id,name,status) values ('04040000-0000-0000-0000-000000000003','04040000-0000-0000-0000-000000000001','Race project','Ongoing Project');
  insert into projects(id,org_id,name,status) values ('04040000-0000-0000-0000-000000000008','04040000-0000-0000-0000-000000000001','Other race project','Ongoing Project');
  insert into projects(id,org_id,name,status) values ('04040000-0000-0000-0000-00000000001f','04040000-0000-0000-0000-000000000001','Reverse interleaving project','Ongoing Project');
+ insert into projects(id,org_id,name,status) values ('04040000-0000-0000-0000-00000000002f','04040000-0000-0000-0000-000000000001','Archive variant project','Ongoing Project');
  insert into budget_versions(id,org_id,project_id,version,name,status,activated_at) values ('04040000-0000-0000-0000-000000000004','04040000-0000-0000-0000-000000000001','04040000-0000-0000-0000-000000000003',1,'Race budget','Archived','2026-10-28T00:00:00Z');
  insert into budget_versions(id,org_id,project_id,version,name,status,activated_at) values
    ('04040000-0000-0000-0000-000000000009','04040000-0000-0000-0000-000000000001','04040000-0000-0000-0000-000000000003',2,'Race successor','Active','2026-10-29T00:00:00Z'),
@@ -29,6 +30,8 @@ select dblink_exec('archive_race', $q$
  insert into budget_versions(id,org_id,project_id,version,name,status,activated_at) values
    ('04040000-0000-0000-0000-000000000020','04040000-0000-0000-0000-000000000001','04040000-0000-0000-0000-00000000001f',1,'Reverse archive target','Archived','2026-10-27T00:00:00Z'),
    ('04040000-0000-0000-0000-000000000021','04040000-0000-0000-0000-000000000001','04040000-0000-0000-0000-00000000001f',2,'Reverse successor','Active','2026-10-29T00:00:00Z');
+ insert into budget_versions(id,org_id,project_id,version,name,status,activated_at) values
+   ('04040000-0000-0000-0000-000000000030','04040000-0000-0000-0000-000000000001','04040000-0000-0000-0000-00000000002f',1,'Archive variant target','Archived','2026-10-26T00:00:00Z');
  insert into budget_version_account_erp_mirror(id,org_id,budget_version_id,fiscal_year,erp_account,budget_intent,push_state,activated_at_witness,erp_budget_name,erp_docstatus) values ('04040000-0000-0000-0000-000000000005','04040000-0000-0000-0000-000000000001','04040000-0000-0000-0000-000000000004','2026','Labor','remove','pending','2026-10-28T00:00:00Z','BUD-RACE',1);
  insert into budget_version_account_erp_mirror(id,org_id,budget_version_id,fiscal_year,erp_account,budget_intent,push_state,activated_at_witness,erp_budget_name,erp_docstatus,pushed_project_start_date,pushed_project_end_date) values
    ('04040000-0000-0000-0000-00000000000c','04040000-0000-0000-0000-000000000001','04040000-0000-0000-0000-00000000000a','2026','Labor','remove','pending','2026-10-27T00:00:00Z','BUD-RACE-OLD',1,'2026-01-01','2026-12-31');
@@ -36,12 +39,18 @@ select dblink_exec('archive_race', $q$
    ('04040000-0000-0000-0000-00000000000d','04040000-0000-0000-0000-000000000001','04040000-0000-0000-0000-00000000000a','2026','pending','2026-10-27T00:00:00Z','BUD-RACE-LEGACY',1,'2026-01-01','2026-12-31');
  insert into budget_version_account_erp_mirror(id,org_id,budget_version_id,fiscal_year,erp_account,budget_intent,push_state,activated_at_witness,erp_budget_name,erp_docstatus,pushed_project_start_date,pushed_project_end_date) values
    ('04040000-0000-0000-0000-000000000022','04040000-0000-0000-0000-000000000001','04040000-0000-0000-0000-000000000020','2026','Labor','remove','pending','2026-10-27T00:00:00Z','BUD-REVERSE-ACCOUNT',1,'2026-01-01','2026-12-31');
+ insert into budget_version_account_erp_mirror(id,org_id,budget_version_id,fiscal_year,erp_account,budget_intent,push_state,activated_at_witness,erp_budget_name,erp_docstatus,pushed_project_start_date,pushed_project_end_date) values
+   ('04040000-0000-0000-0000-000000000031','04040000-0000-0000-0000-000000000001','04040000-0000-0000-0000-000000000030','2026','Labor','remove','pending','2026-10-26T00:00:00Z','BUD-RACE-MARKER',1,'2026-01-01','2026-12-31');
  insert into budget_archive_requests(id,org_id,project_id,budget_version_id,requested_by,cancel_erp) values ('04040000-0000-0000-0000-000000000006','04040000-0000-0000-0000-000000000001','04040000-0000-0000-0000-000000000003','04040000-0000-0000-0000-000000000004','04040000-0000-0000-0000-000000000002',true);
  insert into budget_archive_cancel_intents(id,org_id,request_id,project_id,budget_version_id,source_mirror_id,actor_user_id,fiscal_year,erp_account,erp_budget_name,activated_at_witness) values ('04040000-0000-0000-0000-000000000007','04040000-0000-0000-0000-000000000001','04040000-0000-0000-0000-000000000006','04040000-0000-0000-0000-000000000003','04040000-0000-0000-0000-000000000004','04040000-0000-0000-0000-000000000005','04040000-0000-0000-0000-000000000002','2026','Labor','BUD-RACE','2026-10-28T00:00:00Z');
  insert into budget_archive_requests(id,org_id,project_id,budget_version_id,requested_by,cancel_erp) values
    ('04040000-0000-0000-0000-000000000023','04040000-0000-0000-0000-000000000001','04040000-0000-0000-0000-00000000001f','04040000-0000-0000-0000-000000000020','04040000-0000-0000-0000-000000000002',true);
  insert into budget_archive_cancel_intents(id,org_id,request_id,project_id,budget_version_id,source_kind,source_mirror_id,actor_user_id,fiscal_year,erp_account,erp_budget_name,activated_at_witness,pushed_project_start_date,pushed_project_end_date,state)
  values ('04040000-0000-0000-0000-000000000024','04040000-0000-0000-0000-000000000001','04040000-0000-0000-0000-000000000023','04040000-0000-0000-0000-00000000001f','04040000-0000-0000-0000-000000000020','account','04040000-0000-0000-0000-000000000022','04040000-0000-0000-0000-000000000002','2026','Labor','BUD-REVERSE-ACCOUNT','2026-10-27T00:00:00Z','2026-01-01','2026-12-31','superseded');
+ insert into budget_archive_requests(id,org_id,project_id,budget_version_id,requested_by,cancel_erp) values
+   ('04040000-0000-0000-0000-000000000032','04040000-0000-0000-0000-000000000001','04040000-0000-0000-0000-00000000002f','04040000-0000-0000-0000-000000000030','04040000-0000-0000-0000-000000000002',true);
+ insert into budget_archive_cancel_intents(id,org_id,request_id,project_id,budget_version_id,source_kind,source_mirror_id,actor_user_id,fiscal_year,erp_account,erp_budget_name,activated_at_witness,pushed_project_start_date,pushed_project_end_date,state)
+ values ('04040000-0000-0000-0000-000000000033','04040000-0000-0000-0000-000000000001','04040000-0000-0000-0000-000000000032','04040000-0000-0000-0000-00000000002f','04040000-0000-0000-0000-000000000030','account','04040000-0000-0000-0000-000000000031','04040000-0000-0000-0000-000000000002','2026','Labor','BUD-RACE-MARKER','2026-10-26T00:00:00Z','2026-01-01','2026-12-31','pending');
 $q$);
 
 select dblink_exec('archive_race','begin');
@@ -122,6 +131,108 @@ begin
     get stacked diagnostics v_state = returned_sqlstate, v_message = message_text;
     if v_state='PZ001' and v_message='archive-test-probe-accepted' then return 'accepted'; end if;
     return v_state || '|' || v_message;
+  end;
+end $$;
+
+create function pg_temp.try_budget_archive_variant(p_variant text)
+returns text language plpgsql as $$
+declare
+  v_job public.budget_archive_cancel_intents%rowtype;
+  v_version uuid;
+  v_project uuid;
+  v_org uuid;
+  v_actor uuid;
+  v_state text := 'pending';
+  v_tier text := 'erpnext';
+  v_kind text := 'budget';
+  v_job_marker text;
+  v_key text;
+  v_identity text;
+  v_pmo_record_id text;
+  v_payload jsonb;
+  v_sqlstate text;
+  v_message text;
+begin
+  select * into v_job from public.budget_archive_cancel_intents
+   where id='04040000-0000-0000-0000-000000000033';
+  v_version := v_job.budget_version_id;
+  v_project := v_job.project_id;
+  v_org := v_job.org_id;
+  v_actor := v_job.actor_user_id;
+  v_identity := public.budget_account_identity(v_job.budget_version_id,v_job.fiscal_year,v_job.erp_account);
+  v_pmo_record_id := v_identity;
+  v_job_marker := v_job.id::text;
+  v_key := 'bud16-archive:' || v_identity || ':'
+    || floor(extract(epoch from v_job.activated_at_witness) * 1000)::bigint::text;
+  v_payload := jsonb_build_object(
+    'id',v_version,'projectId',v_project,'erp_doc_kind',v_kind,
+    'fiscal_year',v_job.fiscal_year,'erp_account',v_job.erp_account,'budget_intent','remove',
+    'budget_predecessor',v_job.erp_budget_name,'outbox_identity',v_identity,
+    'activated_at',v_job.activated_at_witness,'project_start_date',v_job.pushed_project_start_date,
+    'project_end_date',v_job.pushed_project_end_date,
+    'budget_archive_cancel_job_id',v_job_marker,
+    'budget_archive_source_mirror_id',v_job.source_mirror_id
+  );
+
+  case p_variant
+    when 'kindless-job' then
+      v_kind := null;
+      v_payload := v_payload - 'erp_doc_kind';
+    when 'wrong-kind-job' then
+      v_kind := 'sales-invoice';
+      v_payload := v_payload || jsonb_build_object('erp_doc_kind',v_kind);
+    when 'kindless-source-active' then
+      v_version := '04040000-0000-0000-0000-00000000000b';
+      v_project := '04040000-0000-0000-0000-000000000008';
+      v_pmo_record_id := v_version::text;
+      v_key := 'legacy-marker-source-only';
+      v_payload := jsonb_build_object(
+        'id',v_version,'projectId',v_project,'budget_intent','remove',
+        'budget_predecessor','BUD-RACE-MARKER','fiscal_year','2026','erp_account','Labor',
+        'budget_archive_source_mirror_id',v_job.source_mirror_id
+      );
+      v_kind := null;
+      v_payload := v_payload - 'erp_doc_kind';
+    when 'kindless-key-active' then
+      v_version := '04040000-0000-0000-0000-00000000000b';
+      v_project := '04040000-0000-0000-0000-000000000008';
+      v_pmo_record_id := v_version::text;
+      v_key := 'bud16-archive:missing-job-marker';
+      v_payload := jsonb_build_object(
+        'id',v_version,'projectId',v_project,'budget_intent','remove',
+        'budget_predecessor','BUD-RACE-MARKER','fiscal_year','2026','erp_account','Labor'
+      );
+      v_kind := null;
+      v_payload := v_payload - 'erp_doc_kind';
+    when 'malformed-job' then
+      v_job_marker := 'not-a-uuid';
+      v_payload := v_payload || jsonb_build_object('budget_archive_cancel_job_id',v_job_marker);
+    when 'empty-job' then
+      v_job_marker := '';
+      v_payload := v_payload || jsonb_build_object('budget_archive_cancel_job_id',v_job_marker);
+    when 'missing-actor' then
+      v_actor := null;
+    when 'wrong-actor' then
+      v_actor := '04040000-0000-0000-0000-000000000003';
+    when 'non-pending-state' then
+      v_state := 'held';
+    when 'non-erp-tier' then
+      v_tier := 'odoo';
+    when 'foreign-org' then
+      v_org := '00000000-0000-0000-0000-000000000001';
+    else
+      raise exception 'unknown archive variant: %', p_variant;
+  end case;
+
+  begin
+    insert into public.external_command_outbox
+      (org_id,domain,pmo_record_id,idempotency_key,external_tier,operation,state,actor_user_id,payload)
+    values (v_org,'budget',v_pmo_record_id,v_key,v_tier,'create',v_state,v_actor,v_payload);
+    raise exception using errcode='PZ001', message='archive-test-probe-accepted';
+  exception when others then
+    get stacked diagnostics v_sqlstate = returned_sqlstate, v_message = message_text;
+    if v_sqlstate='PZ001' and v_message='archive-test-probe-accepted' then return 'accepted'; end if;
+    return v_sqlstate || '|' || v_message;
   end;
 end $$;
 
@@ -230,6 +341,8 @@ values ('04040000-0000-0000-0000-000000000015','04040000-0000-0000-0000-00000000
 select is(pg_temp.try_budget_successor('04040000-0000-0000-0000-000000000003','04040000-0000-0000-0000-000000000009','2026','Materials','04040000-0000-0000-0000-000000000002','successor-materials-blocked-by-legacy'),
   'P0001|budget push is blocked by an unresolved archive cancellation',
   'AC-BUD-122: a year-grained legacy cancellation blocks every account successor in that year');
+select is(pg_temp.try_budget_successor('04040000-0000-0000-0000-000000000003','04040000-0000-0000-0000-000000000009','2027','Labor','04040000-0000-0000-0000-000000000002','successor-other-year-during-legacy-fence'),
+  'accepted','AC-BUD-122: a year-grained legacy cancellation leaves another fiscal year available');
 select is(public.transition_budget_archive_cancel_intent('04040000-0000-0000-0000-000000000001','04040000-0000-0000-0000-000000000015','superseded','no command was issued'), 'applied',
   'AC-BUD-122: an unissued legacy cancellation can be superseded');
 select lives_ok($$select pg_temp.enqueue_budget_successor('04040000-0000-0000-0000-000000000003','04040000-0000-0000-0000-000000000009','2026','Materials','04040000-0000-0000-0000-000000000002','successor-materials-after-unissued-legacy')$$,
@@ -308,6 +421,12 @@ select lives_ok($$ insert into external_command_outbox
     )
   ) $$,
   'AC-BUD-122: the durable actor-attributed archive outbox accepts its exact request and canonical dates');
+select is((select count(*)::int from public.external_command_outbox o
+  join public.budget_archive_cancel_intents i
+    on i.id::text=o.payload->>'budget_archive_cancel_job_id'
+  where i.request_id='03870000-0000-0000-0000-0000000000e1'
+    and o.state='pending' and o.actor_user_id='03870000-0000-0000-0000-0000000000a1'),1,
+  'AC-BUD-122: an accepted archive command persists its pending job and exact initiating actor');
 update external_command_outbox set state='confirmed'
  where org_id='03870000-0000-0000-0000-000000000001' and domain='budget'
    and pmo_record_id=public.budget_account_identity('03870000-0000-0000-0000-0000000000d1','2026','5100 - Labor - AC');
@@ -717,9 +836,79 @@ select throws_ok($$ select * from public.get_budget_archive_targets('05750000-00
   'AC-BUD-122: the inventory cannot disclose another organization project');
 reset role;
 
+select lives_ok($$insert into external_command_outbox
+  (domain,pmo_record_id,idempotency_key,external_tier,operation,state,payload,actor_user_id)
+  values ('budget','legacy-1462-pending','legacy-1462-pending','erpnext','create','pending',null,null)$$,
+  'AC-BUD-122: a payload-less pending legacy budget row is not reclassified as a fresh cancellation');
+select lives_ok($$insert into external_command_outbox
+  (domain,pmo_record_id,idempotency_key,external_tier,operation,state,payload,actor_user_id)
+  values ('budget','legacy-1462-held','legacy-1462-held','erpnext','create','held',null,null)$$,
+  'AC-BUD-122: a payload-less held legacy budget row remains readable to recovery');
+select lives_ok($$insert into external_command_outbox
+  (domain,pmo_record_id,idempotency_key,external_tier,operation,state,payload,actor_user_id)
+  values ('budget','legacy-1462-committed','legacy-1462-committed','erpnext','create','committed',null,null)$$,
+  'AC-BUD-122: a payload-less committed legacy budget row remains finalizable');
+select lives_ok($$insert into external_command_outbox
+  (domain,pmo_record_id,idempotency_key,external_tier,operation,state,payload,actor_user_id)
+  values ('budget','legacy-1462-confirmed','legacy-1462-confirmed','erpnext','create','confirmed',null,null)$$,
+  'AC-BUD-122: a payload-less confirmed legacy budget row remains intact');
+select lives_ok($$insert into external_command_outbox
+  (domain,pmo_record_id,idempotency_key,external_tier,operation,state,payload,actor_user_id)
+  values ('budget','legacy-1462-json-null','legacy-1462-json-null','erpnext','create','held','{"erp_doc_kind":null}',null)$$,
+  'AC-BUD-122: a JSON-null kind on a held legacy row remains compatible');
+select lives_ok($$insert into external_command_outbox
+  (domain,pmo_record_id,idempotency_key,external_tier,operation,state,payload,actor_user_id)
+  values ('budget','legacy-1462-other-kind','legacy-1462-other-kind','erpnext','create','committed','{"erp_doc_kind":"invoice"}',null)$$,
+  'AC-BUD-122: an unrelated explicit document kind remains under its existing handling');
+select is(pg_temp.try_budget_archive_variant('kindless-job'),
+  'P0001|budget archive marker requires erp_doc_kind=budget',
+  'AC-BUD-122: a durable archive job with no kind is rejected before it can be treated as a legacy row');
+select is(pg_temp.try_budget_archive_variant('wrong-kind-job'),
+  'P0001|budget archive marker requires erp_doc_kind=budget',
+  'AC-BUD-122: an archive job with a different explicit kind is rejected');
+select is(pg_temp.try_budget_archive_variant('kindless-source-active'),
+  'P0001|budget archive marker requires erp_doc_kind=budget',
+  'AC-BUD-122: a source marker without a job cannot enter the active budget path');
+select is(pg_temp.try_budget_archive_variant('kindless-key-active'),
+  'P0001|budget archive marker requires erp_doc_kind=budget',
+  'AC-BUD-122: an archive idempotency key without a job cannot enter the active budget path');
+select is(pg_temp.try_budget_archive_variant('malformed-job'),
+  'P0001|budget archive outbox command has an invalid job id',
+  'AC-BUD-122: a malformed archive job identifier is refused');
+select is(pg_temp.try_budget_archive_variant('empty-job'),
+  'P0001|budget archive outbox command has an invalid job id',
+  'AC-BUD-122: an empty archive job identifier is refused');
+select is(pg_temp.try_budget_archive_variant('missing-actor'),
+  'P0001|budget outbox command requires a pending actor-attributed ERPNext row',
+  'AC-BUD-122: an archive command without its recorded actor is refused');
+select is(pg_temp.try_budget_archive_variant('wrong-actor'),
+  'P0001|budget archive outbox command does not match its durable request',
+  'AC-BUD-122: an archive command from a different actor is refused');
+select is(pg_temp.try_budget_archive_variant('non-pending-state'),
+  'P0001|budget outbox command requires a pending actor-attributed ERPNext row',
+  'AC-BUD-122: an archive command outside pending state is refused');
+select is(pg_temp.try_budget_archive_variant('non-erp-tier'),
+  'P0001|budget outbox command requires a pending actor-attributed ERPNext row',
+  'AC-BUD-122: an archive command on a non-ERP tier is refused');
+select is(pg_temp.try_budget_archive_variant('foreign-org'),
+  'P0001|budget archive outbox command has no durable intent',
+  'AC-BUD-122: a foreign org cannot resolve or issue another org''s archive job');
+select is((select count(*)::int from public.external_command_outbox
+  where org_id='04040000-0000-0000-0000-000000000001'
+    and payload->>'budget_archive_cancel_job_id'='04040000-0000-0000-0000-000000000033'),0,
+  'AC-BUD-122: refused archive probes leave no durable outbox row');
+
+update public.budget_archive_cancel_intents set state='held'
+ where id='04040000-0000-0000-0000-000000000007';
+select is(pg_temp.try_budget_successor('04040000-0000-0000-0000-000000000003','04040000-0000-0000-0000-000000000009','2026','Labor','04040000-0000-0000-0000-000000000002','successor-held-archive-blocked'),
+  'P0001|budget push is blocked by an unresolved archive cancellation',
+  'AC-BUD-122: a held cancellation continues to block an overlapping active budget push');
+update public.budget_archive_cancel_intents set state='pending'
+ where id='04040000-0000-0000-0000-000000000007';
+
 select finish();
 rollback;
-select dblink_exec('archive_race', $$delete from external_command_outbox where org_id='04040000-0000-0000-0000-000000000001'; delete from error_events where org_id='04040000-0000-0000-0000-000000000001'; delete from projects where org_id='04040000-0000-0000-0000-000000000001'; delete from profiles where org_id='04040000-0000-0000-0000-000000000001'; delete from organizations where id='04040000-0000-0000-0000-000000000001'; delete from auth.users where id='04040000-0000-0000-0000-000000000002'$$);
+select dblink_exec('archive_race', $$delete from external_command_outbox where org_id='04040000-0000-0000-0000-000000000001'; delete from error_events where org_id='04040000-0000-0000-0000-000000000001'; delete from projects where org_id='04040000-0000-0000-0000-000000000001'; delete from profiles where org_id='04040000-0000-0000-0000-000000000001'; delete from organizations where id='04040000-0000-0000-0000-000000000001'; delete from auth.users where id in ('04040000-0000-0000-0000-000000000002','04040000-0000-0000-0000-000000000003')$$);
 select dblink_disconnect('archive_race');
 do $$
 begin

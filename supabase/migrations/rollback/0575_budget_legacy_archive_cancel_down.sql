@@ -230,6 +230,7 @@ revoke all on function public.transition_budget_archive_cancel_intent(uuid,uuid,
 grant execute on function public.transition_budget_archive_cancel_intent(uuid,uuid,text,text) to service_role;
 
 drop trigger if exists enforce_budget_archive_outbox_state on public.external_command_outbox;
+drop trigger if exists external_command_outbox_zz_enforce_budget_archive_outbox_state on public.external_command_outbox;
 drop function if exists public.enforce_budget_archive_outbox_state();
 drop function if exists public.get_budget_archive_targets(uuid);
 drop function if exists public.budget_archive_target_inventory(uuid);

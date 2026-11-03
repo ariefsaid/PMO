@@ -109,7 +109,8 @@
 -- A SECURITY DEFINER READ invoked through PostgREST under a member's JWT; its body re-asserts active
 -- membership, the caller's org, project access and the archive role gate, and it exposes no internal
 -- reference. Graceful pairing: supabase/tests/budget_archive_cancel_intents.test.sql (AC-BUD-122).
--- Current retained set: 152 names after merging #1462 with the S3 whole-project distribution RPCs; re-derived from the unique list below.
+-- ⚑ AMENDED BY #1813 (S3): `budget_distribution_gaps` and `save_budget_distribution` join the retained set (+2).
+-- Current retained set: 152 names after #1505 and #1813, including #1462's archive inventory read.
 --
 -- ⚑ AMENDED BY #1422: `archive_budget_version_with_cancel_intent` joins the retained set (+1, count 84).
 -- It preserves the four-role archive gate while atomically recording the ERP cancellation decision;

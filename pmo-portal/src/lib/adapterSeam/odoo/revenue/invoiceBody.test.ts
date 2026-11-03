@@ -45,6 +45,12 @@ describe('AC-OCI-023 the builder transports the record, never recomputes it', ()
     expect((body as { invoice_line_ids: unknown[] }).invoice_line_ids).toHaveLength(lines.length);
   });
 
+  it('does not replace a recorded recovery unit rate with its extended amount', () => {
+    const recovery = { itemId: 'item-dp', description: 'recovery', quantity: 2, unitPrice: -20000, unit: 'km', kind: 'recovery' as const };
+    const line = lineOf(ready({ ...invoice, lines: [invoice.lines[0], recovery] }), 1);
+    expect([line.quantity, line.price_unit, line.analytic_distribution]).toEqual([2, -20000, { '4': 100 }]);
+  });
+
   it('AC-OCI-014 carries no due date and no received date', () => {
     const json = JSON.stringify(ready(invoice));
     expect(json).not.toMatch(/due|received|2026-12-01|2026-11-04/i);
