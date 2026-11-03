@@ -11,7 +11,7 @@
  */
 import { AdapterError } from '../../contract.ts';
 import type { OdooCall } from '../client.ts';
-import { anchorValue, externalIdentifier } from './anchors.ts';
+import { anchorValue, externalIdentifier, odooExternalRef } from './anchors.ts';
 import type { PurchaseKind } from './nextStep.ts';
 
 const MODEL: Record<PurchaseKind, string> = { order: 'purchase.order', receipt: 'stock.picking', bill: 'account.move', payment: 'account.payment' };
@@ -19,6 +19,7 @@ const MODEL: Record<PurchaseKind, string> = { order: 'purchase.order', receipt: 
 export interface PaymentComposite { partnerId: number; amount: string | number; createdAfter: string }
 /** An order's create-to-anchor composite: vendor, untaxed amount, line count and the window the first attempt could have created it in. */
 export interface OrderComposite { partnerId: number; amount: string | number; lineCount: number; createdAfter: string }
+/** `externalRecordId` is the model-qualified ref (`stock.picking:42`), see `odooExternalRef`. */
 export type ProbeHit = { externalRecordId: string } | null;
 
 const ambiguous = () => new AdapterError('commit-rejected', 'ambiguous-anchor');
@@ -29,7 +30,7 @@ async function byIdentifier(call: OdooCall, kind: PurchaseKind, key: string): Pr
     domain: [['module', '=', module], ['name', '=', name], ['model', '=', MODEL[kind]]], fields: ['res_id'], limit: 2,
   });
   if (rows.length > 1) throw ambiguous();
-  return rows.length === 1 ? { externalRecordId: String(rows[0].res_id) } : null;
+  return rows.length === 1 ? { externalRecordId: odooExternalRef(MODEL[kind], rows[0].res_id) } : null;
 }
 
 /**
@@ -55,7 +56,7 @@ async function byOrderComposite(call: OdooCall, composite: OrderComposite): Prom
   const cents = (v: unknown) => Math.round(Number(v) * 100);
   const [only] = unanchored;
   if (unanchored.length === 1 && Array.isArray(only.order_line) && only.order_line.length === composite.lineCount && cents(only.amount_untaxed) === cents(composite.amount)) {
-    return { externalRecordId: String(only.id) };
+    return { externalRecordId: odooExternalRef(MODEL.order, only.id) };
   }
   throw ambiguous();
 }
@@ -68,7 +69,7 @@ async function byMemo(call: OdooCall, key: string, composite?: PaymentComposite)
     domain: [...OUTBOUND, ['memo', '=', anchor]], fields: ['id'], limit: 2, context: { active_test: false },
   });
   if (exact.length > 1) throw ambiguous();
-  if (exact.length === 1) return { externalRecordId: String(exact[0].id) };
+  if (exact.length === 1) return { externalRecordId: odooExternalRef(MODEL.payment, exact[0].id) };
   if (!composite) return null;
   // 21 rows is more than any honest window holds; the filter below then needs exactly one survivor.
   const rows = await call<Array<{ id: number; memo: unknown }>>('account.payment', 'search_read', {
@@ -78,7 +79,7 @@ async function byMemo(call: OdooCall, key: string, composite?: PaymentComposite)
   const memo = (r: { memo: unknown }) => (typeof r.memo === 'string' ? r.memo : '');
   // Only an exact memo adopts (above). Any memo that still carries a PMO anchor is held, never adopted.
   const survivors = rows.filter((r) => !memo(r).includes('pmo:'));
-  return survivors.length === 1 ? { externalRecordId: String(survivors[0].id) } : null;
+  return survivors.length === 1 ? { externalRecordId: odooExternalRef(MODEL.payment, survivors[0].id) } : null;
 }
 
 /** Throws for a key that is not a PMO purchase key (before any call) and for an ambiguous exact anchor. */

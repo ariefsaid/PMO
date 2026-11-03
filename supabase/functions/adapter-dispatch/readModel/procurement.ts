@@ -137,7 +137,9 @@ async function upsertGoodsReceiptMirror(ctx: ReadModelWriterCtx, canonical: PmoR
     gr_number: canonical.gr_number ?? null,
     reference_number: (canonical.reference_number as string | null | undefined) ?? null,
     po_id: resolvedPoId,
-    status: deriveProcurementReceiptStatus(docstatus),
+    // An Odoo receipt states the ORDER's received status, read from Odoo's quantities (FR-OPP-034): a validated partial transfer is
+    // submitted (docstatus 1) yet the order is not fully received. ERPNext canonicals never carry it.
+    status: canonical.odoo_receipt_status === 'Partial' || canonical.odoo_receipt_status === 'Complete' ? canonical.odoo_receipt_status : deriveProcurementReceiptStatus(docstatus),
     erp_docstatus: docstatus ?? null,
     erp_modified: (canonical.erp_modified as string | null | undefined) ?? null,
   };
