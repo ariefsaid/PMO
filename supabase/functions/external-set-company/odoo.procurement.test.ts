@@ -31,7 +31,7 @@ function routes(o: Opts): MockRoute[] {
     supabaseRpc('service_feature_enabled', () => jsonResponse(true)),
     supabaseSelect('external_org_bindings', () => one({ config: o.config ?? {} })),
     supabaseSelect('external_master_records', () => jsonResponse(o.journals ?? [])),
-    rpc('admin_change_domain_ownership'), rpc('set_odoo_payment_journal_default'),
+    rpc('admin_change_domain_ownership'), rpc('set_odoo_payment_journal_default'), rpc('set_odoo_customer_advance_account'),
   ];
 }
 async function call(body: Record<string, unknown>, o: Opts = {}) {
@@ -124,12 +124,64 @@ describe('Odoo router — the payment journal in propose-config / save-defaults 
       assertEquals(save.res.status, 403, role);
       assertEquals(rpcCall(save.calls, 'set_odoo_payment_journal_default').length, 0, role);
     }
+    const operator = await call({ setupAction: 'save-defaults', default_payment_journal_id: '11' }, { role: 'Engineer', operator: true });
+    assertEquals(operator.res.status, 200, 'the payment-journal setter still permits a platform Operator');
+    assertEquals(rpcCall(operator.calls, 'set_odoo_payment_journal_default').map((c) => c.bodyJson), [
+      { p_org_id: 'org-1', p_actor_id: 'user-1', p_journal_id: '11' },
+    ]);
   });
 
   it('save-defaults writes the journal through the actor-checked setter as the verified caller', async () => {
     const r = await call({ setupAction: 'save-defaults', default_payment_journal_id: 11 }, { role: 'Finance' });
     assertEquals(r.json, { saved: true });
     assertEquals(rpcCall(r.calls, 'set_odoo_payment_journal_default').map((c) => c.bodyJson), [{ p_org_id: 'org-1', p_actor_id: 'user-1', p_journal_id: '11' }]);
+  });
+
+  it('save-defaults writes the customer-advance account with the verified JWT subject, ignoring a payload actor', async () => {
+    const r = await call({ setupAction: 'save-defaults', customer_advance_account_ref: 'account.account:210', actor_id: 'user-attacker' }, { role: 'Finance' });
+    assertEquals(r.res.status, 200);
+    assertEquals(r.json, { saved: true });
+    assertEquals(rpcCall(r.calls, 'set_odoo_customer_advance_account').map((c) => c.bodyJson), [{
+      p_org_id: 'org-1', p_actor_id: 'user-1', p_account_ref: 'account.account:210',
+    }]);
+  });
+
+  it('the database authority rejects an Operator for the new customer-advance account field', async () => {
+    for (const role of ['Admin', 'Finance']) {
+      const r = await call({ setupAction: 'save-defaults', customer_advance_account_ref: 'account.account:210' }, { role });
+      assertEquals(r.res.status, 200, role);
+    }
+    for (const role of ['Executive', 'Project Manager', 'Engineer']) {
+      const r = await call({ setupAction: 'save-defaults', customer_advance_account_ref: 'account.account:210' }, { role });
+      assertEquals(r.res.status, 403, role);
+      assertEquals(rpcCall(r.calls, 'set_odoo_customer_advance_account').length, 0, role);
+    }
+    const operator = await call({ setupAction: 'save-defaults', customer_advance_account_ref: 'account.account:210' }, {
+      role: 'Engineer', operator: true,
+      rpc: { set_odoo_customer_advance_account: () => pgError('42501', 'current authority required') },
+    });
+    assertEquals(operator.res.status, 403);
+    assertEquals(rpcCall(operator.calls, 'set_odoo_customer_advance_account').length, 1, 'the field-specific setter enforces its own Admin/Finance rule');
+  });
+
+  it('a malformed customer-advance account reference is rejected before the setter', async () => {
+    for (const ref of [undefined, '', 210, '210', 'account.move:210', 'account.account:0', 'account.account:210;drop']) {
+      const r = await call({ setupAction: 'save-defaults', customer_advance_account_ref: ref });
+      assertEquals(r.res.status, 400, String(ref));
+      assertEquals(rpcCall(r.calls, 'set_odoo_customer_advance_account').length, 0, String(ref));
+    }
+  });
+
+  it('the customer-advance setter returns its plain refusal and authority errors', async () => {
+    const no = await call({ setupAction: 'save-defaults', customer_advance_account_ref: 'account.account:210' }, {
+      rpc: { set_odoo_customer_advance_account: () => pgError('P0001', 'customer-advance account is not active in the bound Odoo company') },
+    });
+    assertEquals(no.res.status, 409);
+    assertEquals(no.json, { error: 'REFUSED', message: 'customer-advance account is not active in the bound Odoo company' });
+    const forbidden = await call({ setupAction: 'save-defaults', customer_advance_account_ref: 'account.account:210' }, {
+      rpc: { set_odoo_customer_advance_account: () => pgError('42501', 'current authority required') },
+    });
+    assertEquals(forbidden.res.status, 403);
   });
 
   it('a missing or malformed journal id is a bad request and reaches no setter', async () => {
