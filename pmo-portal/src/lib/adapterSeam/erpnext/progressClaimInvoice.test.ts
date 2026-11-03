@@ -1,8 +1,9 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { resolveErpDispatchAdapter, type DispatchServiceClient } from './dispatchFactory.ts';
 import { siFromDoc, siToBody } from './bodies/salesInvoice.ts';
 import type { AdapterCommand } from '../contract.ts';
 import { canonicalCommandDigest } from '../../../../../supabase/functions/adapter-dispatch/moneyOutboxDeps.ts';
+import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 
 type Row = Record<string, unknown>;
 const ORG = 'org-1';
@@ -147,6 +148,8 @@ function refused(cmd: AdapterCommand, claim: Row | null = CLAIM, evidence: Row[]
 
 const digest = (cmd: AdapterCommand) => canonicalCommandDigest({ domain: cmd.domain, operation: cmd.operation, record: cmd.record });
 
+afterEach(() => resetActiveLocale());
+
 describe('billing claim invoice (AC-PB-006)', () => {
   it('AC-PB-006 builds a progress invoice from the claim lines in BoQ order plus the recovery line', async () => {
     const { body, bodyText } = await push({});
@@ -179,6 +182,7 @@ describe('billing claim invoice (AC-PB-006)', () => {
   });
 
   it('AC-TM-014 sends a half-cent tie as its frozen amount so ERPNext books the signed cents', async () => {
+    setActiveLocale({ locale: 'id', numberLocale: 'id', timezone: 'Asia/Jakarta' });
     const halfCentTie = [{
       org_id: ORG, claim_id: 'claim-1', line_key: 'rate-line-1', rate_version: 1, kind: 'labour',
       label: 'Site engineer', unit: 'hour', units: '0.25', rate: '1000.02', amount: '250.01',
@@ -187,11 +191,69 @@ describe('billing claim invoice (AC-PB-006)', () => {
     const tmClaim = { ...TM_STATE, gross_amount: '250.01' };
     const { body, command: cmd } = await push({}, claim, {}, {}, {}, { claims: [tmClaim], lines: halfCentTie });
     expect(body.items).toEqual([
-      { item_code: 'SERVICE-LABOUR', qty: 1, rate: 250.01, description: 'Site engineer (hour): 0.25 x 1000.02, rounded to 250.01' },
+      { item_code: 'SERVICE-LABOUR', qty: 1, rate: 250.01, description: 'Site engineer (hour): 0,25 x 1.000,02, rounded to Rp\u00a0250,01' },
     ]);
     const [line] = cmd.record.items as Array<Row>;
     expect(line).toMatchObject({ quantity: 0.25, signed_rate: 1000.02, rate: 250.01, amount: '250.01' });
     expect(Number(line.quantity) * Number(line.signed_rate)).toBe(250.005);
+  });
+
+  it('AC-TM-014 reshapes both reviewer tie cases because at least one Frappe rounding method loses a cent', async () => {
+    const lines = [
+      { org_id: ORG, claim_id: 'claim-1', line_key: 'rate-line-1', rate_version: 1, kind: 'labour', label: 'Site engineer', unit: 'hour', units: '4.31', rate: '3148.50', amount: '13570.04' },
+      { org_id: ORG, claim_id: 'claim-1', line_key: 'rate-line-2', rate_version: 1, kind: 'labour', label: 'Site engineer', unit: 'hour', units: '30.25', rate: '4637199.02', amount: '140275270.36' },
+    ];
+    const gross = '140288840.40';
+    const { body } = await push({}, { ...TM_CLAIM, gross_amount: gross }, {}, {}, {}, {
+      claims: [{ ...TM_STATE, gross_amount: gross }], lines,
+    });
+
+    expect((body.items as Array<Row>).map(({ qty, rate }) => ({ qty, rate }))).toEqual([
+      { qty: 1, rate: 13570.04 },
+      { qty: 1, rate: 140275270.36 },
+    ]);
+  });
+
+  it('AC-TM-014 books every reshaped amount at its frozen cent under all three Frappe rounding methods', async () => {
+    const lines = [
+      { org_id: ORG, claim_id: 'claim-1', line_key: 'rate-line-1', rate_version: 1, kind: 'labour', label: 'Site engineer', unit: 'hour', units: '4.31', rate: '3148.50', amount: '13570.04' },
+      { org_id: ORG, claim_id: 'claim-1', line_key: 'rate-line-2', rate_version: 1, kind: 'labour', label: 'Site engineer', unit: 'hour', units: '30.25', rate: '4637199.02', amount: '140275270.36' },
+    ];
+    const gross = '140288840.40';
+    const { body } = await push({}, { ...TM_CLAIM, gross_amount: gross }, {}, {}, {}, {
+      claims: [{ ...TM_STATE, gross_amount: gross }], lines,
+    });
+    const originalBookingsByMethod = {
+      "Banker's Rounding": [1_357_004, 14_027_527_036],
+      "Banker's Rounding (legacy)": [1_357_004, 14_027_527_035],
+      'Commercial Rounding': [1_357_003, 14_027_527_036],
+    } as const;
+    const frozenAmountsInCents = [1_357_004, 14_027_527_036];
+    const items = body.items as Array<Row>;
+    for (const [method, originalBookings] of Object.entries(originalBookingsByMethod)) {
+      for (const [index, item] of items.entries()) {
+        // Unreshaped reviewer examples use the method-specific ERPNext result above; a `1 × frozen`
+        // body is an exact cent amount and is unchanged under all three methods.
+        const bookedCents = Number(item.qty) === 1
+          ? Math.round(Number(item.qty) * Number(item.rate) * 100)
+          : originalBookings[index];
+        expect(bookedCents, `${method} booked a different cent`).toBe(frozenAmountsInCents[index]);
+      }
+    }
+  });
+
+  it('AC-TM-014 preserves quantity and rate when all three Frappe rounding methods agree with the frozen cent', async () => {
+    const ordinary = [{
+      org_id: ORG, claim_id: 'claim-1', line_key: 'rate-line-1', rate_version: 1, kind: 'labour',
+      label: 'Site engineer', unit: 'hour', units: '0.50', rate: '1.02', amount: '0.51',
+    }];
+    const claim = { ...TM_CLAIM, gross_amount: '0.51' };
+    const tmClaim = { ...TM_STATE, gross_amount: '0.51' };
+    const { body } = await push({}, claim, {}, {}, {}, { claims: [tmClaim], lines: ordinary });
+
+    expect(body.items).toEqual([
+      { item_code: 'SERVICE-LABOUR', qty: 0.5, rate: 1.02, description: 'Site engineer (hour)' },
+    ]);
   });
 
   it('AC-TM-014 keeps every matching line quantity and rate, shaping only lines ERPNext would round away from frozen cents', async () => {
@@ -208,7 +270,7 @@ describe('billing claim invoice (AC-PB-006)', () => {
     });
     const signedLines = cmd.record.items as Array<Row>;
     expect(body.items).toEqual([
-      { item_code: 'SERVICE-LABOUR', qty: 1, rate: 250.01, description: 'Site engineer (hour): 0.25 x 1000.02, rounded to 250.01' },
+      { item_code: 'SERVICE-LABOUR', qty: 1, rate: 250.01, description: 'Site engineer (hour): 0.25 x 1,000.02, rounded to IDR\u00a0250.01' },
       { item_code: 'SERVICE-LABOUR', qty: 120, rate: 50000, description: 'Site engineer (hour)' },
       { item_code: 'SERVICE-LABOUR', qty: 0.33, rate: 0.05, description: 'Rounding case (hour)' },
       { item_code: 'SERVICE-LABOUR', qty: 0.5, rate: 0.03, description: 'Site engineer (hour)' },
