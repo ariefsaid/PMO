@@ -37,7 +37,8 @@ async function rig() {
     domain: 'procurement', operation: 'create', idempotencyKey: 'k-po',
     record: { id: PO_ID, erp_doc_kind: 'purchase-order', procurementId: 'case-1', amount: '90.00' },
   });
-  const orderId = Number(order.externalRecordId);
+  const orderRef = order.externalRecordId;
+  const orderId = Number(String(orderRef).split(':').pop());   // the Odoo id, whatever shape the ref has
   const orderLines = (): OrderLineQty[] => fake.rows('purchase.order.line').map((l) => ({ id: l.id, productId: Number(l.product_id), ordered: Number(l.product_qty), received: Number(l.qty_received ?? 0) }));
   const plan = (wanted?: ReceiptLineInput[]) => planReceipt(orderId, orderLines(), wanted, ITEMS);
   const receipt = (p: ReceiptPlan, over: Partial<PmoRecord> = {}): AdapterCommand => ({
@@ -50,7 +51,7 @@ async function rig() {
   const onHand = (productId: number) => Number(fake.rows('stock.quant').find((q) => Number(q.product_id) === productId)?.quantity ?? 0);
   const done = () => fake.rows('stock.picking').filter((p) => p.state === 'done');
   return {
-    fake, call, adapter, orderId, plan, receipt, attempt, count, onHand, done, orderLines,
+    fake, call, adapter, orderId, orderRef, plan, receipt, attempt, count, onHand, done, orderLines,
     arm: (model: string, method: string, fault: Armed['fault']) => { armed = { model, method, fault }; },
     answerWith: (model: string, method: string, body: unknown) => { answer = { model, method, body }; },
     afterNext: (model: string, method: string, run: () => void) => { after = { model, method, run }; },
@@ -65,9 +66,9 @@ describe('AC-OPP-030 a receipt validates the order\'s transfer for the quantitie
     expect(r.onHand(55)).toBe(6);
     expect(r.onHand(56)).toBe(4);
     const [picking] = r.done();
-    expect(result.externalRecordId).toBe(String(picking.id));
+    expect(result.externalRecordId).toBe(`stock.picking:${picking.id}`);
     expect(result.canonical).toMatchObject({
-      id: GR_ID, gr_number: picking.name, po_id: String(r.orderId), erp_docstatus: 1, erp_modified: picking.write_date, odoo_receipt_status: 'Partial',
+      id: GR_ID, gr_number: picking.name, po_id: r.orderRef, erp_docstatus: 1, erp_modified: picking.write_date, odoo_receipt_status: 'Partial',
     });
     const lineOf = (product: number) => r.orderLines().find((l) => l.productId === product)!.id;
     expect(result.canonical.odoo_booked).toEqual([{ lineId: lineOf(55), productId: 55, quantity: 6 }, { lineId: lineOf(56), productId: 56, quantity: 4 }]);
@@ -83,7 +84,7 @@ describe('AC-OPP-031 a partial receipt leaves the remainder on a backorder and a
     expect(first.canonical).toMatchObject({ odoo_receipt_status: 'Partial' });
     const open = r.fake.rows('stock.picking').filter((p) => p.state !== 'done');
     expect(open).toHaveLength(1);
-    expect(open[0]).toMatchObject({ backorder_id: Number(first.externalRecordId) });
+    expect(open[0]).toMatchObject({ backorder_id: Number(String(first.externalRecordId).split(':')[1]) });
     expect(r.count('stock.backorder.confirmation', 'process')).toBe(1);
 
     const GR2 = '323e4567-e89b-12d3-a456-426614174000';
@@ -143,7 +144,7 @@ describe('AC-OPP-032 a retry after a lost response books nothing twice; differen
     expect(r.onHand(55)).toBe(2);
     expect(r.done()).toHaveLength(1);
     expect(r.count('stock.picking', 'button_validate')).toBe(1);
-    expect(result.externalRecordId).toBe(String(r.done()[0].id));
+    expect(result.externalRecordId).toBe(`stock.picking:${r.done()[0].id}`);
     expect(result.canonical).toMatchObject({ id: GR_ID, odoo_receipt_status: 'Partial' });
   });
 
@@ -273,5 +274,83 @@ describe('the receipt command is checked before it is trusted', () => {
     const r = await rig();
     const cmd = { ...r.receipt(await r.plan()), operation: 'update' as const };
     await expect(r.adapter.commit(cmd)).rejects.toMatchObject({ code: 'commit-rejected' });
+  });
+});
+
+describe('#1505 P4 review: ids are per Odoo model, and one transfer belongs to one receipt', () => {
+  const partial = [{ itemRef: 'Cable', quantity: 2 }];
+  const GR2 = '323e4567-e89b-12d3-a456-426614174000';
+  const anchorsOn = (r: Awaited<ReturnType<typeof rig>>, pickingId: number) => r.fake.rows('ir.model.data').filter((d) => d.model === 'stock.picking' && d.res_id === pickingId);
+
+  it('C1: an order and its transfer with the SAME Odoo id get distinct, model-qualified refs, so the unique external ref never collides', async () => {
+    const r = await rig();
+    const result = await r.attempt(r.receipt(await r.plan()));
+    const [picking] = r.done();
+    expect(picking.id).toBe(r.orderId);   // purchase.order 1 and stock.picking 1: what Odoo does, and what a shared id sequence hid
+    expect(r.orderRef).toBe(`purchase.order:${r.orderId}`);
+    expect(result.externalRecordId).toBe(`stock.picking:${picking.id}`);
+    // external_refs is unique on (org, domain, external_record_id): both kinds are written under domain `procurement`
+    const refs = new Set<string>();
+    for (const ref of [r.orderRef, result.externalRecordId]) { expect(refs.has(ref)).toBe(false); refs.add(ref); }
+    expect(result.canonical.po_id).toBe(r.orderRef);   // the mirror finds the PMO order by exactly the order's ref, never a transfer's
+  });
+
+  it('C1: the retry adopts the done transfer under the same qualified ref', async () => {
+    const r = await rig();
+    const cmd = r.receipt(await r.plan(partial));
+    r.arm('stock.backorder.confirmation', 'process', 'lost-response');
+    await expect(r.attempt(cmd)).rejects.toMatchObject({ code: 'external-unreachable' });
+    const again = await r.attempt(cmd);
+    expect(again.externalRecordId).toBe(`stock.picking:${r.done()[0].id}`);
+  });
+
+  it('C2: a second receipt does not take the transfer the first one anchored; the first then books its own goods once', async () => {
+    const r = await rig();
+    const first = r.receipt(await r.plan(partial));
+    r.arm('stock.picking', 'button_validate', 'transport');
+    await expect(r.attempt(first)).rejects.toMatchObject({ code: 'external-unreachable' });
+    const [anchored] = r.fake.rows('stock.picking');
+    // the user records the same delivery again (a real second one, or a re-entry after the error)
+    await expect(r.attempt(r.receipt(await r.plan(partial), { id: GR2 }))).rejects.toMatchObject({ code: 'commit-rejected', message: 'receipt-held' });
+    expect(anchorsOn(r, Number(anchored.id))).toHaveLength(1);   // no second receipt identifier on the transfer
+    expect(r.onHand(55)).toBe(0);
+    const result = await r.attempt(first);
+    expect(r.onHand(55)).toBe(2);
+    expect(r.done()).toHaveLength(1);
+    expect(result.externalRecordId).toBe(`stock.picking:${anchored.id}`);
+  });
+
+  it('C2: another receipt anchoring the same transfer between our check and our write is seen: both hold, nothing is validated', async () => {
+    const r = await rig();
+    const cmd = r.receipt(await r.plan(partial));
+    r.afterNext('ir.model.data', 'create', () => r.fake.seed('ir.model.data', [{ module: 'pmo', name: `gr_${GR2.replaceAll('-', '_')}_abc123`, model: 'stock.picking', res_id: r.fake.rows('stock.picking')[0].id }]));
+    await expect(r.attempt(cmd)).rejects.toMatchObject({ code: 'commit-rejected', message: 'receipt-held' });
+    expect(r.count('stock.picking', 'button_validate')).toBe(0);
+    expect(r.onHand(55)).toBe(0);
+  });
+
+  it('C2: a done transfer that also carries another receipt\'s identifier is never adopted', async () => {
+    const r = await rig();
+    const cmd = r.receipt(await r.plan(partial));
+    await r.attempt(cmd);
+    const [done] = r.done();
+    r.fake.seed('ir.model.data', [{ module: 'pmo', name: `gr_${GR2.replaceAll('-', '_')}_abc123`, model: 'stock.picking', res_id: done.id }]);
+    await expect(r.attempt(cmd)).rejects.toMatchObject({ code: 'commit-rejected', message: 'receipt-held' });
+  });
+
+  it('I1: our anchored transfer validated with OTHER quantities is held, not adopted as ours', async () => {
+    const r = await rig();
+    const cmd = r.receipt(await r.plan(partial));
+    r.arm('stock.picking', 'button_validate', 'transport');
+    await expect(r.attempt(cmd)).rejects.toMatchObject({ code: 'external-unreachable' });
+    const [picking] = r.fake.rows('stock.picking');
+    // a clerk in Odoo books 3 (not 2) of Cable on that transfer and validates it, backorder wizard included
+    const move = r.fake.rows('stock.move').find((m) => Number(m.product_id) === 55)!;
+    await r.call('stock.move', 'write', { ids: [move.id], vals: { quantity: 3 } });
+    const context = { button_validate_picking_ids: [picking.id], default_pick_ids: [[4, picking.id]] };
+    const [wizard] = await r.call<number[]>('stock.backorder.confirmation', 'create', { vals_list: [{}], context });
+    await r.call('stock.backorder.confirmation', 'process', { ids: [wizard], context });
+    expect(r.onHand(55)).toBe(3);
+    await expect(r.attempt(cmd)).rejects.toMatchObject({ code: 'commit-rejected', message: 'receipt-held' });
   });
 });

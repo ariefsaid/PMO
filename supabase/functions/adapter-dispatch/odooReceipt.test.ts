@@ -38,7 +38,7 @@ function setup(over: { record?: Record<string, unknown>; odoo?: Record<string, A
     supabaseSelect('external_org_bindings', () => object(BINDING)),
     supabaseRpc('read_vault_secret', () => jsonResponse('odoo-test-key')),
     supabaseSelect('purchase_orders', (c) => { supabaseCalls.push(`purchase_orders ${c.url.search}`); return jsonResponse(over.poRows ?? [{ id: 'po-1' }]); }),
-    supabaseSelect('external_refs', () => over.poRef === null ? none() : object({ external_record_id: over.poRef ?? '41' })),
+    supabaseSelect('external_refs', () => over.poRef === null ? none() : object({ external_record_id: over.poRef ?? 'purchase.order:41' })),
     supabaseSelect('external_command_outbox', () => over.stored ? object({ payload: over.stored }) : none()),
     { label: 'odoo', host: ODOO, response: (call) => {
       odooCalls.push(call);
@@ -142,19 +142,34 @@ describe('AC-OPP-032 a retry judges against the persisted plan, never against a 
   });
 
   it('the probe adopts a done transfer carrying our identifier, read back with what Odoo booked', async () => {
+    const plan = await planOf(6);
+    const mine = `gr_${GR.replaceAll('-', '_')}_${plan.digest}`;
     const odoo: Record<string, Answer> = {
-      'ir.model.data': [{ res_id: 77 }],
+      // the identifier lookup finds the transfer; the query for what else is on that transfer finds only our own identifier
+      'ir.model.data': (call) => ((call.bodyJson as { domain: unknown[][] }).domain.some(([f]) => f === 'res_id') ? [{ name: mine }] : [{ res_id: 77 }]),
       'stock.picking': [{ name: 'WH/IN/00077', state: 'done', move_ids: [901], write_date: '2026-11-03 10:00:00' }],
       'stock.move': [{ id: 901, state: 'done', product_id: [55, 'Cable'], purchase_line_id: [11, 'l'], product_uom_qty: 6, quantity: 6 }],
       'purchase.order.line': LINES.map((l) => ({ ...l, qty_received: l.id === 11 ? 6 : 0 })),
     };
-    const t = setup({ record: { receiptLines: [{ itemRef: 'Cable', quantity: 6 }] }, stored: { odooReceipt: await planOf(6) }, odoo });
+    const t = setup({ record: { receiptLines: [{ itemRef: 'Cable', quantity: 6 }] }, stored: { odooReceipt: plan }, odoo });
     const hit = await withFetchMock(t.routes, async () => (await resolveOdooMoneyOutboxDeps(t.ctx)).probeByRemarksKey('procurement', KEY));
-    assertEquals(hit?.externalRecordId, '77');
+    assertEquals(hit?.externalRecordId, 'stock.picking:77');
     assertEquals(hit?.canonical, {
-      id: GR, gr_number: 'WH/IN/00077', po_id: '41', erp_docstatus: 1, erp_modified: '2026-11-03 10:00:00', odoo_receipt_status: 'Partial',
+      id: GR, gr_number: 'WH/IN/00077', po_id: 'purchase.order:41', erp_docstatus: 1, erp_modified: '2026-11-03 10:00:00', odoo_receipt_status: 'Partial',
       odoo_booked: [{ lineId: 11, productId: 55, quantity: 6 }], odoo_entered: [{ lineId: 11, productId: 55, quantity: 6 }],
     });
+    assertEquals(t.writes(), []);
+  });
+
+  it('a transfer that also carries another receipt\'s identifier is held, never adopted', async () => {
+    const plan = await planOf(6);
+    const odoo: Record<string, Answer> = {
+      'ir.model.data': (call) => ((call.bodyJson as { domain: unknown[][] }).domain.some(([f]) => f === 'res_id') ? [{ name: `gr_${GR.replaceAll('-', '_')}_${plan.digest}` }, { name: 'gr_other_receipt_abc123' }] : [{ res_id: 77 }]),
+      'stock.picking': [{ name: 'WH/IN/00077', state: 'done', move_ids: [901], write_date: '2026-11-03 10:00:00' }],
+      'stock.move': [{ id: 901, state: 'done', product_id: [55, 'Cable'], purchase_line_id: [11, 'l'], product_uom_qty: 6, quantity: 6 }],
+    };
+    const t = setup({ record: { receiptLines: [{ itemRef: 'Cable', quantity: 6 }] }, stored: { odooReceipt: plan }, odoo });
+    await assertRejects(() => withFetchMock(t.routes, async () => (await resolveOdooMoneyOutboxDeps(t.ctx)).probeByRemarksKey('procurement', KEY)), Error, 'receipt-held');
     assertEquals(t.writes(), []);
   });
 });

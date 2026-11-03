@@ -50,7 +50,7 @@ Deno.test({
     const PO_ID = crypto.randomUUID();
     const poCommand: AdapterCommand = { domain: 'procurement', operation: 'create', idempotencyKey: 'bed-po', record: { id: PO_ID, erp_doc_kind: 'purchase-order', procurementId: 'case-1', amount: '120.00' } };
     const order = await recoverOrder(call, poCommand.record) ?? await adapter.commit(poCommand);
-    const orderId = Number(order.externalRecordId);
+    const orderId = Number(String(order.externalRecordId).split(':')[1]);
 
     const receipt = async (wanted: ReceiptLineInput[] | undefined, id = crypto.randomUUID()): Promise<AdapterCommand> => {
       const plan = await planReceipt(orderId, await readOrderLines(call, orderId), wanted, itemMap);
@@ -86,6 +86,6 @@ Deno.test({
     assertEquals(adopted.canonical.odoo_receipt_status, 'Complete');
     assertEquals(await received(), [10, 4]);
     assertEquals((await pickings()).map((p) => p.state), ['done', 'done']);
-    assert(adopted.externalRecordId === String((await pickings())[1].id));
+    assert(adopted.externalRecordId === `stock.picking:${(await pickings())[1].id}`);
   },
 });

@@ -19,7 +19,7 @@ import { AdapterError, type Adapter, type AdapterCommand, type CommandResult, ty
 import { mirrorMoney } from '../erpnext/moneyShape.ts';
 import type { OdooCall } from './client.ts';
 import { ODOO_TIER, toAdapterError } from './connectAdapter.ts';
-import { externalIdentifier } from './purchase/anchors.ts';
+import { externalIdentifier, odooExternalRef, parseOdooExternalRef } from './purchase/anchors.ts';
 import { nextStep } from './purchase/nextStep.ts';
 import { poReviseRecoveryDecision, purchaseOrderReviseKey } from '../purchaseOrderRevise.ts';
 import { buildOrderBody, plannedAt, type OrderCtx, type OrderInput } from './purchase/orderBody.ts';
@@ -28,6 +28,8 @@ import { probeOdooByAnchor, type OrderComposite } from './purchase/recoveryProbe
 import { observeReceipt, parseReceiptPlan, receivedStatus, type OrderLineQty, type ReceiptPlan } from './purchase/receiptBody.ts';
 
 export const PROCUREMENT_DOMAIN = 'procurement';
+const ORDER_MODEL = 'purchase.order';
+const PICKING_MODEL = 'stock.picking';
 
 export interface OdooProcurementDeps {
   call: OdooCall;
@@ -78,13 +80,13 @@ async function settleOrder(call: OdooCall, id: number, record: PmoRecord): Promi
     step = nextStep('order', { state: order.state, anchor: 'ours' });
   }
   if (step !== 'adopt') return refuse(`order-${order.state}`);
-  return { externalRecordId: String(id), canonical: orderCanonical(order, record, String(record.id)) };
+  return { externalRecordId: odooExternalRef(ORDER_MODEL, id), canonical: orderCanonical(order, record, String(record.id)) };
 }
 
 /** Write the stock external identifier that anchors the order; one already there for this order is left alone. */
 async function anchorOrder(call: OdooCall, key: string, id: number): Promise<void> {
   const hit = await probeOdooByAnchor(call, 'order', key);
-  if (hit) { if (hit.externalRecordId !== String(id)) refuse('ambiguous-anchor'); return; }
+  if (hit) { if (hit.externalRecordId !== odooExternalRef(ORDER_MODEL, id)) refuse('ambiguous-anchor'); return; }
   const { module, name } = externalIdentifier(key);
   await call('ir.model.data', 'create', { vals_list: [{ module, name, model: 'purchase.order', res_id: id }] });
 }
@@ -98,7 +100,7 @@ export async function recoverOrder(rawCall: OdooCall, record: PmoRecord, composi
   const key = orderKey(record);
   const hit = await probeOdooByAnchor(call, 'order', key, composite);
   if (!hit) return null;
-  const id = Number(hit.externalRecordId);
+  const id = parseOdooExternalRef(ORDER_MODEL, hit.externalRecordId) ?? refuse('ambiguous-anchor');
   await anchorOrder(call, key, id);
   return settleOrder(call, id, record);
 }
@@ -137,7 +139,7 @@ export async function recoverRevise(rawCall: OdooCall, record: PmoRecord): Promi
     if (newer.revision > Number(record.revision) && poReviseRecoveryDecision({ probe: 'found', key: newer.key, expectedKey: key }) !== 'adopt') refuse('revision-superseded');
     return null;
   }
-  return { externalRecordId: hit.externalRecordId, canonical: orderCanonical(await readOrder(call, Number(hit.externalRecordId)), record, String(record.poId)) };
+  return { externalRecordId: hit.externalRecordId, canonical: orderCanonical(await readOrder(call, parseOdooExternalRef(ORDER_MODEL, hit.externalRecordId) ?? refuse('ambiguous-anchor')), record, String(record.poId)) };
 }
 
 async function reviseOrder(deps: OdooProcurementDeps, command: AdapterCommand): Promise<CommandResult> {
@@ -145,7 +147,7 @@ async function reviseOrder(deps: OdooProcurementDeps, command: AdapterCommand): 
   const key = reviseKey(command.record);
   const { orderId, lines, ctx } = await deps.resolveRevise(command);
   const applied = await recoverRevise(call, command.record);
-  if (applied) return applied.externalRecordId === String(orderId) ? applied : refuse('ambiguous-anchor');
+  if (applied) return applied.externalRecordId === odooExternalRef(ORDER_MODEL, orderId) ? applied : refuse('ambiguous-anchor');
   const order = await readOrder(call, orderId);
   const current = await call<CurrentLine[]>('purchase.order.line', 'search_read', {
     domain: [['order_id', '=', orderId]], fields: ['product_id', 'product_qty', 'price_unit', 'qty_received', 'qty_invoiced'],
@@ -154,7 +156,7 @@ async function reviseOrder(deps: OdooProcurementDeps, command: AdapterCommand): 
   if (commands.length) await call('purchase.order', 'write', { ids: [orderId], vals: { order_line: commands } });
   const { module, name } = externalIdentifier(key);
   await call('ir.model.data', 'create', { vals_list: [{ module, name, model: 'purchase.order', res_id: orderId }] });
-  return { externalRecordId: String(orderId), canonical: orderCanonical(await readOrder(call, orderId), command.record, String(command.record.poId)) };
+  return { externalRecordId: odooExternalRef(ORDER_MODEL, orderId), canonical: orderCanonical(await readOrder(call, orderId), command.record, String(command.record.poId)) };
 }
 
 async function pushOrder(deps: OdooProcurementDeps, command: AdapterCommand): Promise<CommandResult> {
@@ -213,11 +215,11 @@ async function receiptResult(call: OdooCall, picking: PickingRow, plan: ReceiptP
   const same = bookedLines.length === entered.length && entered.every((e, i) => bookedLines[i].lineId === e.lineId && q4(bookedLines[i].quantity) === q4(e.quantity));
   if (!same) return refuse('receipt-held');   // done, but not with this receipt's quantities: not ours to adopt
   return {
-    externalRecordId: String(picking.id ?? ''),
+    externalRecordId: odooExternalRef(PICKING_MODEL, picking.id ?? 0),
     canonical: {
       id: String(record.id),
       gr_number: picking.name,
-      po_id: String(plan.orderId),
+      po_id: odooExternalRef(ORDER_MODEL, plan.orderId),   // the ref the order was mapped under: the mirror resolves the PMO order by it
       erp_docstatus: 1,
       erp_modified: picking.write_date,
       odoo_receipt_status: receivedStatus(await readOrderLines(call, plan.orderId)),   // read from Odoo's quantities, never typed (FR-OPP-034)
@@ -227,12 +229,27 @@ async function receiptResult(call: OdooCall, picking: PickingRow, plan: ReceiptP
   };
 }
 
-/** Write the stock external identifier that anchors the transfer to this receipt; one already there for it is left alone. */
+/** Another receipt's identifier on this transfer: a transfer belongs to the first receipt that anchored it (PMO writes no other identifier on a transfer). */
+async function carriesOtherReceipt(call: OdooCall, key: string, id: number): Promise<boolean> {
+  const own = externalIdentifier(key).name;
+  const rows = await call<Array<{ name: string }>>('ir.model.data', 'search_read', {
+    domain: [['module', '=', 'pmo'], ['model', '=', PICKING_MODEL], ['res_id', '=', id]], fields: ['name'], limit: 5,
+  });
+  return rows.some((r) => r.name !== own);
+}
+
+/**
+ * Write the stock external identifier that anchors the transfer to this receipt; one already there for it is left alone. A
+ * transfer another receipt anchored is held, never shared: a second receipt booking onto it would be adopted by the first.
+ * ponytail: checked again after the write so two receipts racing for one open transfer both see each other and both hold.
+ */
 async function anchorTransfer(call: OdooCall, key: string, id: number): Promise<void> {
+  if (await carriesOtherReceipt(call, key, id)) refuse('receipt-held');
   const hit = await probeOdooByAnchor(call, 'receipt', key);
-  if (hit) { if (hit.externalRecordId !== String(id)) refuse('ambiguous-anchor'); return; }
+  if (hit) { if (hit.externalRecordId !== odooExternalRef(PICKING_MODEL, id)) refuse('ambiguous-anchor'); return; }
   const { module, name } = externalIdentifier(key);
-  await call('ir.model.data', 'create', { vals_list: [{ module, name, model: 'stock.picking', res_id: id }] });
+  await call('ir.model.data', 'create', { vals_list: [{ module, name, model: PICKING_MODEL, res_id: id }] });
+  if (await carriesOtherReceipt(call, key, id)) refuse('receipt-held');
 }
 
 /**
@@ -246,8 +263,10 @@ export async function recoverReceipt(rawCall: OdooCall, record: PmoRecord): Prom
   const { plan, key } = await receiptTarget(record);
   const hit = await probeOdooByAnchor(call, 'receipt', key);
   if (hit) {
-    const picking = await readPicking(call, Number(hit.externalRecordId));
-    picking.id = Number(hit.externalRecordId);
+    const pickingId = parseOdooExternalRef(PICKING_MODEL, hit.externalRecordId) ?? refuse('ambiguous-anchor');
+    if (await carriesOtherReceipt(call, key, pickingId)) return refuse('receipt-held');   // not ours alone: never adopted, never validated
+    const picking = await readPicking(call, pickingId);
+    picking.id = pickingId;
     const step = nextStep('receipt', { state: picking.state, anchor: 'ours' });
     if (step === 'adopt') return receiptResult(call, picking, plan, record);
     return step === 'validate' ? null : refuse('receipt-held');

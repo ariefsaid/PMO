@@ -8,6 +8,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 import { AdapterError, type AdapterCommand } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
 import { resolveExternalRef, type ExternalRefsLookupClient } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
+import { parseOdooExternalRef } from '../../../pmo-portal/src/lib/adapterSeam/odoo/purchase/anchors.ts';
 import type { OdooCall } from '../../../pmo-portal/src/lib/adapterSeam/odoo/client.ts';
 import type { OrderCtx, OrderInput } from '../../../pmo-portal/src/lib/adapterSeam/odoo/purchase/orderBody.ts';
 import type { ReviseLine } from '../../../pmo-portal/src/lib/adapterSeam/odoo/purchase/orderRevise.ts';
@@ -130,8 +131,8 @@ export async function resolveOdooReviseInputs(sc: SupabaseClient, orgId: string,
   const po = await sc.from('purchase_orders').select('procurement_id').eq('org_id', orgId).eq('id', poId).maybeSingle();
   if (po.error || !po.data) return refuse('po-missing');
   const orderRef = await resolveExternalRef(sc as unknown as ExternalRefsLookupClient, orgId, 'procurement', poId);
-  const orderId = Number(orderRef);
-  if (!Number.isInteger(orderId) || orderId <= 0) return refuse('order-not-in-odoo');
+  const orderId = parseOdooExternalRef('purchase.order', orderRef);
+  if (orderId === null) return refuse('order-not-in-odoo');
   const lines = await sc.from('purchase_order_lines').select('boq_item_id,quantity,rate,unit').eq('org_id', orgId).eq('po_id', poId).eq('revision', revision as number).order('boq_item_id');
   if (lines.error || !lines.data?.length) return refuse('revision-lines-missing');
   const boq = await sc.from('boq_items').select('id,item_code').eq('org_id', orgId).in('id', lines.data.map((l: { boq_item_id: string }) => l.boq_item_id));
@@ -157,8 +158,8 @@ export async function resolveOdooReceiptFacts(sc: SupabaseClient, orgId: string,
   const po = await sc.from('purchase_orders').select('id').eq('org_id', orgId).eq('procurement_id', procurementId).order('created_at', { ascending: false }).limit(1);
   if (po.error) return refuse('po-unreadable');
   const poId = (po.data as Array<{ id: string }> | null)?.[0]?.id ?? refuse('po-missing');
-  const orderId = Number(await resolveExternalRef(sc as unknown as ExternalRefsLookupClient, orgId, 'procurement', poId));
-  if (!Number.isInteger(orderId) || orderId <= 0) return refuse('order-not-in-odoo');
+  const orderId = parseOdooExternalRef('purchase.order', await resolveExternalRef(sc as unknown as ExternalRefsLookupClient, orgId, 'procurement', poId));
+  if (orderId === null) return refuse('order-not-in-odoo');
   if (receiptLines !== undefined && (!Array.isArray(receiptLines) || !receiptLines.every((l) => l && typeof l.itemRef === 'string' && (typeof l.quantity === 'number' || typeof l.quantity === 'string')))) return refuse('receipt-lines-invalid');
   return { orderId, wanted: receiptLines as ReceiptLineInput[] | undefined, itemMap: asMap(resolved.config.item_map) };
 }
