@@ -5,6 +5,7 @@ import type { BudgetActivationPrecheckResult } from '@/src/lib/budget/budgetGate
 import type {
   BudgetActivationMode,
   BudgetArchiveLiveTarget,
+  BudgetArchiveTarget,
   BudgetVersionRow,
   BudgetVersionWithItems,
   BudgetDocumentLinkRow,
@@ -19,6 +20,10 @@ export interface BudgetRepository {
   getActivationMode(versionId: string): Promise<BudgetActivationMode>;
   precheckActivation(versionId: string): Promise<BudgetActivationPrecheckResult>;
   listArchiveLiveTargets(versionIds: readonly string[]): Promise<BudgetArchiveLiveTarget[]>;
+  /** #1462 — legacy (year-grained) live targets, read from the older mirror. */
+  listLegacyArchiveLiveTargets(versionIds: readonly string[]): Promise<BudgetArchiveLiveTarget[]>;
+  /** #1462 — the server's conservative inventory + eligibility for one version's archive decision. */
+  listArchiveTargets(versionId: string): Promise<BudgetArchiveTarget[]>;
   listVersions(projectId: string): Promise<BudgetVersionWithItems[]>;
   createLineItem(
     versionId: string,

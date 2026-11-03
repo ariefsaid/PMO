@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+vi.mock('@/src/lib/supabase/client', () => ({ supabase: {} }));
+
 // ---------------------------------------------------------------------------
 // Mock the entire DAL surface the seam delegates to. Each repository method is a
 // thin wrapper, so the contract under test is: (a) the method exists, (b) it calls
@@ -362,7 +364,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
       ['approve', 'createDraft', 'deleteEntry', 'list', 'listAwaitingApproval', 'pushApproved', 'reject', 'submit', 'upsertEntries', 'saveWeek', 'reopen', 'attestNoErpDocument', 'listReopenableApproved', 'listPushesNeedingAttention', 'confirmEmployeeLink', 'getPushState'].sort(),
     );
     expect(Object.keys(repositories.budget).sort()).toEqual(
-      ['activateVersion', 'addDocumentLink', 'archiveVersion', 'cloneVersion', 'createLineItem', 'createVersion', 'deriveProjectBudget', 'deleteDraftVersion', 'deleteLineItem', 'findImportTargetDraft', 'findImportedLine', 'getActivationMode', 'getDistribution', 'importLine', 'listArchiveLiveTargets', 'listDocumentLinks', 'listVersions', 'precheckActivation', 'removeDocumentLink', 'saveDistribution', 'updateLineItem'].sort(),
+      ['activateVersion', 'addDocumentLink', 'archiveVersion', 'cloneVersion', 'createLineItem', 'createVersion', 'deriveProjectBudget', 'deleteDraftVersion', 'deleteLineItem', 'findImportTargetDraft', 'findImportedLine', 'getActivationMode', 'getDistribution', 'importLine', 'listArchiveLiveTargets', 'listArchiveTargets', 'listDocumentLinks', 'listLegacyArchiveLiveTargets', 'listVersions', 'precheckActivation', 'removeDocumentLink', 'saveDistribution', 'switchDraftMode', 'updateLineItem'].sort(),
     );
     expect(Object.keys(repositories.incident).sort()).toEqual(
       ['create', 'delete', 'get', 'list', 'transition', 'update'].sort(),

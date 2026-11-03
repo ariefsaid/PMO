@@ -14,6 +14,7 @@ vi.mock('@/src/lib/db/budgets', () => ({
   activateVersion: vi.fn().mockResolvedValue(undefined),
   archiveVersion: vi.fn().mockResolvedValue({ cancelErp: false, liveTargetCount: 0, queuedCount: 0 }),
   listBudgetArchiveLiveTargets: vi.fn().mockResolvedValue([]),
+  listLegacyBudgetArchiveLiveTargets: vi.fn().mockResolvedValue([]),
   deleteDraftVersion: vi.fn().mockResolvedValue(undefined),
   createLineItem: vi.fn().mockResolvedValue({ id: 'li-new' }),
   updateLineItem: vi.fn().mockResolvedValue(undefined),

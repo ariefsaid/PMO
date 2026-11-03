@@ -253,7 +253,7 @@ it('shows an unknown archive status and retries a failed lookup', async () => {
   expect(screen.getByText(/checking archived budget/i)).toBeInTheDocument();
   archiveState.isFetching = false;
   archiveState.isError = false;
-  archiveState.data = [{ budget_version_id: 'bv2', erp_cancelled_at: null, erp_docstatus: 1, erp_account: 'Account', fiscal_year: '2026' }];
+  archiveState.data = [{ budget_version_id: 'bv2', erp_budget_name: 'Budget 2026', erp_cancelled_at: null, erp_docstatus: 1, erp_account: 'Account', fiscal_year: '2026' }];
   rerender(<MemoryRouter><ToastProvider><ProjectBudget projectId="p1" project={{ id: 'p1', currency: 'USD', tax_treatment: 'exclusive' } as unknown as ProjectWithRefs} /></ToastProvider></MemoryRouter>);
   expect(screen.queryByText(/could not check archived budget/i)).not.toBeInTheDocument();
   expect(screen.getByText('budgetArchive.archivedBudgetStillLiveInErp')).toBeInTheDocument();

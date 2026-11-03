@@ -78,6 +78,8 @@ import {
   retryBudgetPush,
   archiveVersion,
   listBudgetArchiveLiveTargets,
+  listLegacyBudgetArchiveLiveTargets,
+  listBudgetArchiveTargets,
   deleteDraftVersion,
   listBudgetDocumentLinks,
   addBudgetDocumentLink,
@@ -95,10 +97,12 @@ import { AppError } from '@/src/lib/appError';
 
 /** Creates a chainable builder that resolves to `resolved` at .then() time. */
 function makeRpcBuilder(resolved: { data: unknown; error: unknown }) {
-  const builder = {
+  const builder: Record<string, unknown> = {
     then: (resolve: (v: typeof resolved) => void, reject?: (e: unknown) => void) =>
       Promise.resolve(resolved).then(resolve, reject),
   };
+  builder.order = vi.fn().mockReturnValue(builder);
+  builder.range = vi.fn().mockReturnValue(builder);
   mockRpc.mockReturnValue(builder);
   return builder;
 }
@@ -1316,5 +1320,118 @@ describe('createBudgetVersion budget_mode (#1472 S6A, FR-001)', () => {
     const [cloneFn, cloneArgs] = mockRpc.mock.calls[mockRpc.mock.calls.length - 1];
     expect(cloneFn).toBe('clone_budget_version');
     expect(JSON.stringify(cloneArgs)).not.toMatch(/budget_mode|org_id/);
+  });
+});
+
+describe('#1462 listLegacyBudgetArchiveLiveTargets', () => {
+  function configureLegacy(binding: { version_major: number; activated_at: string | null } | null, rows: unknown[]) {
+    const targetBuilder = makeFromBuilder({ data: rows, error: null });
+    const bindingBuilder = {
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      maybeSingle: vi.fn().mockResolvedValue({ data: binding, error: null }),
+    };
+    mockFrom.mockImplementation((table: string) => table === 'external_org_bindings' ? bindingBuilder : targetBuilder);
+  }
+
+  it('keeps legacy documents visible but unavailable under an unproven v16 binding', async () => {
+    configureLegacy({ version_major: 16, activated_at: '2026-01-01T00:00:00Z' }, [
+      { id: 'lm1', budget_version_id: 'v1', fiscal_year: '2026', erp_budget_name: 'BUD-OLD', erp_docstatus: 1, erp_cancelled_at: null, push_state: 'pushed', activated_at_witness: null },
+      { id: 'lm2', budget_version_id: 'v1', fiscal_year: '2027', erp_budget_name: null, erp_docstatus: null, erp_cancelled_at: null, push_state: 'failed', activated_at_witness: '2026-01-01T00:00:00Z' },
+      { id: 'lm3', budget_version_id: 'v1', fiscal_year: '2028', erp_budget_name: 'BUD-CANCELLED', erp_docstatus: 2, erp_cancelled_at: null, push_state: 'pushed', activated_at_witness: '2026-01-01T00:00:00Z' },
+    ]);
+
+    const targets = await listLegacyBudgetArchiveLiveTargets(['v1']);
+
+    expect(targets.map((row) => row.id)).toEqual(['lm1']);
+    expect(targets[0]).toMatchObject({ source_kind: 'legacy', erp_account: '', budget_intent: 'ensure', archive_cancellation_available: false });
+    expect(targets[0].activated_at_witness).toBeNull();
+    expect(mockFrom).toHaveBeenCalledWith('budget_version_erp_mirror');
+    expect(mockIs).toHaveBeenCalledWith('erp_cancelled_at', null);
+  });
+
+  it('reports a proven active v15 binding as compatible with legacy cancellation', async () => {
+    configureLegacy({ version_major: 15, activated_at: '2026-01-01T00:00:00Z' }, [
+      { id: 'lm1', budget_version_id: 'v1', fiscal_year: '2026', erp_budget_name: 'BUD-OLD', erp_docstatus: 1, erp_cancelled_at: null, push_state: 'pushed', activated_at_witness: '2026-01-01T00:00:00Z' },
+    ]);
+
+    const targets = await listLegacyBudgetArchiveLiveTargets(['v1']);
+
+    expect(targets).toHaveLength(1);
+    expect(targets[0]).toMatchObject({ source_kind: 'legacy', erp_account: '', archive_cancellation_available: true });
+  });
+
+  it('keeps legacy targets visible while cancellation is unavailable', async () => {
+    configureLegacy(null, [
+      { id: 'lm1', budget_version_id: 'v1', fiscal_year: '2026', erp_budget_name: 'BUD-OLD', erp_docstatus: 1, erp_cancelled_at: null, push_state: 'pushed', activated_at_witness: '2026-01-01T00:00:00Z' },
+    ]);
+
+    const targets = await listLegacyBudgetArchiveLiveTargets(['v1']);
+
+    expect(targets).toHaveLength(1);
+    expect(targets[0].archive_cancellation_available).toBe(false);
+  });
+
+  it('does not query when there are no versions', async () => {
+    await expect(listLegacyBudgetArchiveLiveTargets([])).resolves.toEqual([]);
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
+});
+
+describe('#1462 listBudgetArchiveTargets', () => {
+  it('maps the server eligibility verdict for both mirror kinds', async () => {
+    makeRpcBuilder({ data: [
+      { source_kind: 'legacy', fiscal_year: '2026', erp_budget_name: 'BUD-OLD', eligible: true, reason: 'eligible', push_state: 'pushed', erp_docstatus: 1 },
+      { source_kind: 'account', fiscal_year: '2026', erp_budget_name: 'BUD-NEW', eligible: false, reason: 'command-unsettled', push_state: 'pending', erp_docstatus: 1 },
+    ], error: null });
+
+    const targets = await listBudgetArchiveTargets('v1');
+
+    expect(mockRpc).toHaveBeenCalledWith('get_budget_archive_targets', { p_version_id: 'v1' });
+    expect(targets).toEqual([
+      { source_kind: 'legacy', fiscal_year: '2026', erp_budget_name: 'BUD-OLD', eligible: true, reason: 'eligible', push_state: 'pushed', erp_docstatus: 1 },
+      { source_kind: 'account', fiscal_year: '2026', erp_budget_name: 'BUD-NEW', eligible: false, reason: 'command-unsettled', push_state: 'pending', erp_docstatus: 1 },
+    ]);
+  });
+
+  it('reads every server target when the archive inventory exceeds PostgREST max_rows', async () => {
+    const rows = Array.from({ length: 1001 }, (_, index) => ({
+      source_kind: 'legacy',
+      fiscal_year: String(2000 + index),
+      erp_budget_name: `BUD-${index}`,
+      eligible: index !== 1000,
+      reason: index === 1000 ? 'command-unsettled' : 'eligible',
+      push_state: 'pushed',
+      erp_docstatus: 1,
+    }));
+    const ranges: Array<[number, number]> = [];
+    mockRpc.mockImplementation(() => {
+      const builder = {
+        order: vi.fn().mockReturnThis(),
+        range: vi.fn((from: number, to: number) => {
+        ranges.push([from, to]);
+        return Promise.resolve({ data: rows.slice(from, to + 1), error: null });
+        }),
+      };
+      return builder as never;
+    });
+
+    const targets = await listBudgetArchiveTargets('v1');
+
+    expect(targets).toHaveLength(1001);
+    expect(targets[1000]).toMatchObject({ eligible: false, reason: 'command-unsettled' });
+    expect(ranges).toEqual([[0, 999], [1000, 1999]]);
+  });
+
+  it('fails closed on a read error instead of reporting an empty inventory', async () => {
+    makeRpcBuilder({ data: null, error: { message: 'read failed', code: 'P0001' } });
+    await expect(listBudgetArchiveTargets('v1')).rejects.toThrow();
+  });
+
+  it('rejects an unexpected payload rather than rendering it as truth', async () => {
+    makeRpcBuilder({ data: null, error: null });
+    await expect(listBudgetArchiveTargets('v1')).rejects.toThrow('unexpected response');
+    makeRpcBuilder({ data: [{ source_kind: 'mystery', fiscal_year: '2026', erp_budget_name: 'X', eligible: true, reason: 'eligible' }], error: null });
+    await expect(listBudgetArchiveTargets('v1')).rejects.toThrow('invalid row');
   });
 });

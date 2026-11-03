@@ -156,7 +156,7 @@ import {
 } from './budgetArchiveBackstop.ts';
 import { budgetPushKey } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/budgetPushKey.ts';
 import { budgetVersionIdOf, decodeFiscalYear, encodeFiscalYear } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/fiscalYearEncoding.ts';
-import { budgetAccountArchiveKey, budgetAccountIdentity, budgetAccountPushKey, parseBudgetIdentity } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/budgetAccountIdentity.ts';
+import { budgetAccountArchiveKey, budgetAccountIdentity, budgetAccountPushKey, budgetLegacyArchiveKey, budgetLegacyIdentity, parseBudgetIdentity } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/budgetAccountIdentity.ts';
 import { resolveV16BudgetAccounts } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/budgetAccountPlan.ts';
 
 /** FR-BFY-075 — the named state a sweep budget recovery takes when the CURRENT gate would refuse the
@@ -2375,35 +2375,65 @@ async function reconcileOrgBudgetPushesLive(serviceClient: SupabaseClient, org: 
   }
 }
 
-/** FR-BUD-122 — the durable, explicit v16 archive-cancellation queue. */
+/** FR-BUD-122 — the durable, explicit archive-cancellation queue. #1462: legacy-aware. */
 async function readBudgetArchiveLifecycleLive(
   serviceClient: SupabaseClient,
   job: BudgetArchiveCancelIntent,
-): Promise<{ status: string; activatedAt: string | null; activeSuccessorUsesTarget: boolean } | null> {
+): Promise<{ status: string; activatedAt: string | null; activeSuccessorUsesTarget: boolean; cancellationState: string | null } | null> {
   const { data: version, error: versionError } = await serviceClient.from('budget_versions')
     .select('id,org_id,project_id,status,activated_at')
     .eq('id', job.budget_version_id).eq('org_id', job.org_id).maybeSingle();
   if (versionError) throw new AppError(versionError.message, versionError.code);
   if (!version || version.project_id !== job.project_id) return null;
+  if (!job.request_id) return null;
+  const { data: request, error: requestError } = await serviceClient.from('budget_archive_requests')
+    .select('id,org_id,project_id,budget_version_id,requested_by,cancel_erp')
+    .eq('id', job.request_id).eq('org_id', job.org_id).maybeSingle();
+  if (requestError) throw new AppError(requestError.message, requestError.code);
+  if (!request || request.project_id !== job.project_id || request.budget_version_id !== job.budget_version_id ||
+      request.requested_by !== job.actor_user_id || request.cancel_erp !== true) return null;
   const { data: active, error: activeError } = await serviceClient.from('budget_versions')
     .select('id').eq('org_id', job.org_id).eq('project_id', job.project_id)
     .eq('status', 'Active').neq('id', job.budget_version_id).limit(1);
   if (activeError) throw new AppError(activeError.message, activeError.code);
   const activeIds = (active ?? []).map((row) => row.id);
   let activeSuccessorUsesTarget = false;
+  let cancellationState: string | null = null;
+  const legacy = job.source_kind === 'legacy';
+  const identity = legacy
+    ? budgetLegacyIdentity(job.budget_version_id, job.fiscal_year)
+    : budgetAccountIdentity(job.budget_version_id, job.fiscal_year, job.erp_account!);
+  const archiveKey = legacy
+    ? budgetLegacyArchiveKey(identity, job.activated_at_witness)
+    : budgetAccountArchiveKey(identity, job.activated_at_witness);
+  const outbox = await findBudgetOutboxRow(serviceClient, job.org_id, identity, archiveKey);
+  cancellationState = outbox?.state ?? null;
   if (activeIds.length > 0) {
+    // ⚑ #1462 — a successor can hold the SAME live ERP document through EITHER mirror kind and EITHER
+    // grain: a v16 account row for the same account, or a legacy year row that names the same document.
+    // A cancellation must be superseded when the active version still needs the document, whichever
+    // table proves it — checking one table would cancel a control the successor version relies on.
     const { data: successorTargets, error: successorError } = await serviceClient.from('budget_version_account_erp_mirror')
       .select('id').eq('org_id', job.org_id).in('budget_version_id', activeIds)
-      .eq('fiscal_year', job.fiscal_year).eq('erp_account', job.erp_account)
-      .eq('budget_intent', 'ensure').eq('erp_budget_name', job.erp_budget_name)
+      .eq('erp_budget_name', job.erp_budget_name)
       .is('erp_cancelled_at', null).neq('erp_docstatus', 2).limit(1);
     if (successorError) throw new AppError(successorError.message, successorError.code);
-    activeSuccessorUsesTarget = (successorTargets ?? []).length > 0;
+    if ((successorTargets ?? []).length > 0) {
+      activeSuccessorUsesTarget = true;
+    } else {
+      const { data: legacyTargets, error: legacyError } = await serviceClient.from('budget_version_erp_mirror')
+        .select('id').eq('org_id', job.org_id).in('budget_version_id', activeIds)
+        .eq('erp_budget_name', job.erp_budget_name)
+        .is('erp_cancelled_at', null).neq('erp_docstatus', 2).limit(1);
+      if (legacyError) throw new AppError(legacyError.message, legacyError.code);
+      activeSuccessorUsesTarget = (legacyTargets ?? []).length > 0;
+    }
   }
   return {
     status: version.status,
     activatedAt: version.activated_at,
     activeSuccessorUsesTarget,
+    cancellationState,
   };
 }
 
@@ -2411,10 +2441,46 @@ async function budgetArchiveTargetStillLiveAndOwnedLive(
   serviceClient: SupabaseClient,
   job: BudgetArchiveCancelIntent,
 ): Promise<boolean> {
+  const sourceKind = job.source_kind ?? 'account';
   const { data: binding, error: bindingError } = await serviceClient.from('external_org_bindings')
     .select('version_major,activated_at').eq('org_id', job.org_id).eq('external_tier', ERPNEXT_TIER).maybeSingle();
   if (bindingError) throw new AppError(bindingError.message, bindingError.code);
-  if (binding?.version_major !== 16 || !binding.activated_at) return false;
+  // A legacy document remains visible after a re-bind but automatic cancellation is enabled only on a
+  // v15 binding until the v16 upgraded shape has actual test-bed evidence.
+  const supported = sourceKind === 'legacy'
+    ? binding?.version_major === 15
+    : binding?.version_major === 16;
+  if (!supported || !binding?.activated_at) return false;
+
+  let identity: string;
+  if (sourceKind === 'legacy') {
+    const { data: mirror, error: legacyMirrorError } = await serviceClient.from('budget_version_erp_mirror')
+      .select('id,org_id,budget_version_id,fiscal_year,push_state,erp_budget_name,erp_docstatus,erp_cancelled_at,activated_at_witness,pushed_project_start_date,pushed_project_end_date')
+      .eq('id', job.source_mirror_id).eq('org_id', job.org_id)
+      .eq('budget_version_id', job.budget_version_id).eq('fiscal_year', job.fiscal_year).maybeSingle();
+    if (legacyMirrorError) throw new AppError(legacyMirrorError.message, legacyMirrorError.code);
+    const legacyMirror = mirror as {
+      id?: string; erp_budget_name?: string | null; erp_docstatus?: number | null;
+      erp_cancelled_at?: string | null; activated_at_witness?: string | null;
+      pushed_project_start_date?: string | null; pushed_project_end_date?: string | null;
+    } | null;
+    if (!legacyMirror || legacyMirror.erp_budget_name !== job.erp_budget_name ||
+        legacyMirror.activated_at_witness !== job.activated_at_witness ||
+        legacyMirror.pushed_project_start_date !== job.pushed_project_start_date ||
+        legacyMirror.pushed_project_end_date !== job.pushed_project_end_date) return false;
+    const isStillLive = legacyMirror.erp_cancelled_at === null && legacyMirror.erp_docstatus !== 2;
+    const alreadyCancelled = legacyMirror.erp_cancelled_at != null && legacyMirror.erp_docstatus === 2;
+    if (!isStillLive && !alreadyCancelled) return false;
+    try { identity = budgetLegacyIdentity(job.budget_version_id, job.fiscal_year); }
+    catch { return false; }
+    const { data: legacyRef, error: legacyRefError } = await serviceClient.from('external_refs')
+      .select('external_record_id').eq('org_id', job.org_id).eq('domain', ERPNEXT_BUDGET_DOMAIN)
+      .eq('external_tier', ERPNEXT_TIER).eq('pmo_record_id', identity)
+      .eq('external_record_id', job.erp_budget_name).maybeSingle();
+    if (legacyRefError) throw new AppError(legacyRefError.message, legacyRefError.code);
+    return !!legacyRef;
+  }
+
   const { data: mirror, error: mirrorError } = await serviceClient.from('budget_version_account_erp_mirror')
     .select('id,org_id,budget_version_id,fiscal_year,erp_account,budget_intent,push_state,erp_budget_name,erp_docstatus,erp_cancelled_at,activated_at_witness,pushed_project_start_date,pushed_project_end_date')
     .eq('id', job.source_mirror_id).eq('org_id', job.org_id)
@@ -2430,8 +2496,7 @@ async function budgetArchiveTargetStillLiveAndOwnedLive(
   const alreadyCancelled = mirror.erp_cancelled_at !== null && mirror.erp_docstatus === 2;
   if (!isStillLive && !alreadyCancelled) return false;
 
-  let identity: string;
-  try { identity = budgetAccountIdentity(job.budget_version_id, job.fiscal_year, job.erp_account); }
+  try { identity = budgetAccountIdentity(job.budget_version_id, job.fiscal_year, job.erp_account!); }
   catch { return false; }
   const { data: externalRef, error: refError } = await serviceClient.from('external_refs')
     .select('external_record_id').eq('org_id', job.org_id).eq('domain', ERPNEXT_BUDGET_DOMAIN)
@@ -2451,7 +2516,7 @@ async function reconcileOrgBudgetArchiveCancellationsLive(
   const deps: BudgetArchiveBackstopDeps = {
     listPending: async (orgId, limit) => {
       const { data, error } = await serviceClient.from('budget_archive_cancel_intents')
-        .select('id,org_id,project_id,budget_version_id,source_mirror_id,actor_user_id,fiscal_year,erp_account,erp_budget_name,activated_at_witness,pushed_project_start_date,pushed_project_end_date')
+        .select('id,org_id,request_id,project_id,budget_version_id,source_mirror_id,source_kind,actor_user_id,fiscal_year,erp_account,erp_budget_name,activated_at_witness,pushed_project_start_date,pushed_project_end_date')
         .eq('org_id', orgId).eq('state', 'pending')
         .order('last_attempt_at', { ascending: true, nullsFirst: true })
         .order('created_at', { ascending: true }).order('id', { ascending: true }).limit(limit);
@@ -2462,8 +2527,15 @@ async function reconcileOrgBudgetArchiveCancellationsLive(
     readLifecycle: (job) => readBudgetArchiveLifecycleLive(serviceClient, job),
     targetIsStillLiveAndOwned: (job) => budgetArchiveTargetStillLiveAndOwnedLive(serviceClient, job),
     driveCancellation: async (job) => {
-      const identity = budgetAccountIdentity(job.budget_version_id, job.fiscal_year, job.erp_account);
-      const idempotencyKey = budgetAccountArchiveKey(identity, job.activated_at_witness);
+      // #1462 — the SOURCE KIND selects the identity, the archive key and the grain. A legacy job names an
+      // old year-grained document and must never borrow the account plan's identity.
+      const legacy = (job.source_kind ?? 'account') === 'legacy';
+      const identity = legacy
+        ? budgetLegacyIdentity(job.budget_version_id, job.fiscal_year)
+        : budgetAccountIdentity(job.budget_version_id, job.fiscal_year, job.erp_account!);
+      const idempotencyKey = legacy
+        ? budgetLegacyArchiveKey(identity, job.activated_at_witness)
+        : budgetAccountArchiveKey(identity, job.activated_at_witness);
       const outbox = await findBudgetOutboxRow(serviceClient, job.org_id, identity, idempotencyKey);
       if (outbox?.state === 'confirmed') return true;
       if (outbox && !eligibleOutboxIds.has(outbox.id)) {
@@ -2490,7 +2562,9 @@ async function reconcileOrgBudgetArchiveCancellationsLive(
           erp_doc_kind: 'budget',
           projectId: job.project_id,
           fiscal_year: job.fiscal_year,
-          erp_account: job.erp_account,
+          ...(legacy
+            ? { source_kind: 'legacy' }
+            : { erp_account: job.erp_account }),
           budget_intent: 'remove',
           budget_predecessor: job.erp_budget_name,
           outbox_identity: identity,
@@ -2498,6 +2572,7 @@ async function reconcileOrgBudgetArchiveCancellationsLive(
           project_end_date: job.pushed_project_end_date,
           activated_at: job.activated_at_witness,
           budget_archive_cancel_job_id: job.id,
+          budget_archive_source_mirror_id: job.source_mirror_id,
           line_items: [],
         },
       };
@@ -2510,10 +2585,13 @@ async function reconcileOrgBudgetArchiveCancellationsLive(
       return true;
     },
     markComplete: async (job) => {
-      const { error } = await serviceClient.from('budget_archive_cancel_intents')
+      const { data, error } = await serviceClient.from('budget_archive_cancel_intents')
         .update({ state: 'complete', last_error: null, updated_at: new Date().toISOString() })
-        .eq('id', job.id).eq('org_id', job.org_id).eq('state', 'pending');
+        .eq('id', job.id).eq('org_id', job.org_id).eq('state', 'pending').select('id');
       if (error) throw new AppError(error.message, error.code);
+      if (!Array.isArray(data) || data.length !== 1) {
+        throw new AppError('budget archive cancellation intent changed before completion', 'commit-rejected');
+      }
     },
     markSuperseded: async (job) => {
       const { data, error } = await serviceClient.rpc('transition_budget_archive_cancel_intent', {
@@ -2531,6 +2609,7 @@ async function reconcileOrgBudgetArchiveCancellationsLive(
       await surfaceActionRequired(serviceClient, job.org_id, 'budget-archive-cancel-held', {
         projectId: job.project_id, versionId: job.budget_version_id,
         fiscalYear: job.fiscal_year, account: job.erp_account,
+        sourceKind: job.source_kind ?? 'account',
       });
     },
     noteRetry: async (job, reason) => {
@@ -2542,6 +2621,7 @@ async function reconcileOrgBudgetArchiveCancellationsLive(
       await surfaceActionRequired(serviceClient, job.org_id, 'budget-archive-cancel-retry', {
         projectId: job.project_id, versionId: job.budget_version_id,
         fiscalYear: job.fiscal_year, account: job.erp_account,
+        sourceKind: job.source_kind ?? 'account',
       });
     },
   };
@@ -3737,7 +3817,7 @@ export async function buildReconcileDepsLive(serviceClient: SupabaseClient, org:
   // write-back, and a `held` row would additionally need an Admin release even after the operator had
   // already corrected the dates. The money-critical property — never POST a body the current gate would
   // reject — is what the throw guarantees.)
-  await assertBudgetSweepGate(serviceClient, org, payload, row, cache);
+  await assertBudgetSweepGate(serviceClient, org, payload, row, cache, rowExtra.actor_user_id);
 
   const command: AdapterCommand = {
     domain: row.domain as AdapterCommand['domain'],
@@ -3910,23 +3990,44 @@ async function assertBudgetArchiveSweepGate(
   org: OrgBinding,
   payload: Record<string, unknown>,
   outbox: OutboxRow,
+  outboxActorUserId: string | null,
 ): Promise<void> {
   const jobId = typeof payload.budget_archive_cancel_job_id === 'string' ? payload.budget_archive_cancel_job_id : '';
   if (!jobId) throw new AppError('budget archive recovery HELD: cancellation job witness is missing', BUDGET_SWEEP_GATE_HELD);
   const { data, error } = await serviceClient.from('budget_archive_cancel_intents')
-    .select('id,org_id,project_id,budget_version_id,source_mirror_id,actor_user_id,fiscal_year,erp_account,erp_budget_name,activated_at_witness,pushed_project_start_date,pushed_project_end_date,state')
+    .select('id,org_id,request_id,project_id,budget_version_id,source_mirror_id,source_kind,actor_user_id,fiscal_year,erp_account,erp_budget_name,activated_at_witness,pushed_project_start_date,pushed_project_end_date,state')
     .eq('id', jobId).eq('org_id', org.orgId).maybeSingle();
   if (error) throw new AppError(error.message, error.code);
   const job = data as (BudgetArchiveCancelIntent & { state: string }) | null;
   if (!job) throw new AppError('budget archive recovery HELD: cancellation job no longer exists', BUDGET_SWEEP_GATE_HELD);
 
+  const { data: request, error: requestError } = await serviceClient.from('budget_archive_requests')
+    .select('id,org_id,project_id,budget_version_id,requested_by,cancel_erp')
+    .eq('id', job.request_id).eq('org_id', job.org_id).maybeSingle();
+  if (requestError) throw new AppError(requestError.message, requestError.code);
+  if (!request || request.project_id !== job.project_id || request.budget_version_id !== job.budget_version_id ||
+      request.requested_by !== job.actor_user_id || request.cancel_erp !== true ||
+      outboxActorUserId !== job.actor_user_id) {
+    throw new AppError('budget archive recovery HELD: original archive request or actor changed', BUDGET_SWEEP_GATE_HELD);
+  }
+
   const versionId = String(payload.id ?? '');
+  const legacy = (job.source_kind ?? 'account') === 'legacy';
   let identity: string;
-  try { identity = budgetAccountIdentity(job.budget_version_id, job.fiscal_year, job.erp_account); }
-  catch { throw new AppError('budget archive recovery HELD: cancellation identity is invalid', BUDGET_SWEEP_GATE_HELD); }
-  const key = budgetAccountArchiveKey(identity, job.activated_at_witness);
+  let key: string;
+  try {
+    identity = legacy
+      ? budgetLegacyIdentity(job.budget_version_id, job.fiscal_year)
+      : budgetAccountIdentity(job.budget_version_id, job.fiscal_year, job.erp_account!);
+    key = legacy
+      ? budgetLegacyArchiveKey(identity, job.activated_at_witness)
+      : budgetAccountArchiveKey(identity, job.activated_at_witness);
+  } catch { throw new AppError('budget archive recovery HELD: cancellation identity is invalid', BUDGET_SWEEP_GATE_HELD); }
   if (versionId !== job.budget_version_id || payload.projectId !== job.project_id ||
-      payload.fiscal_year !== job.fiscal_year || payload.erp_account !== job.erp_account ||
+      payload.budget_archive_source_mirror_id !== job.source_mirror_id ||
+      payload.fiscal_year !== job.fiscal_year ||
+      (legacy ? payload.erp_account != null : payload.erp_account !== job.erp_account) ||
+      (legacy ? payload.source_kind !== 'legacy' : payload.source_kind != null) ||
       payload.budget_intent !== 'remove' || payload.budget_predecessor !== job.erp_budget_name ||
       payload.outbox_identity !== identity || payload.activated_at !== job.activated_at_witness ||
       outbox.pmoRecordId !== identity || outbox.idempotencyKey !== key) {
@@ -3954,6 +4055,7 @@ async function assertBudgetSweepGate(
   payload: Record<string, unknown>,
   outbox: OutboxRow,
   cache?: ErpAuthPairCache,
+  outboxActorUserId: string | null = null,
 ): Promise<void> {
   if (payload.erp_doc_kind !== 'budget') return;
   const versionId = String(payload.id ?? '');
@@ -3965,7 +4067,7 @@ async function assertBudgetSweepGate(
     );
   }
   if (payload.budget_archive_cancel_job_id !== undefined) {
-    await assertBudgetArchiveSweepGate(serviceClient, org, payload, outbox);
+    await assertBudgetArchiveSweepGate(serviceClient, org, payload, outbox, outboxActorUserId);
     return;
   }
   let plan: BudgetGateResult;

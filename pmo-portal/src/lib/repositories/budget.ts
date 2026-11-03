@@ -4,6 +4,8 @@ import {
   getBudgetActivationMode,
   precheckBudgetActivation,
   listBudgetArchiveLiveTargets,
+  listLegacyBudgetArchiveLiveTargets,
+  listBudgetArchiveTargets,
   importBudgetLine,
   listBudgetVersions,
   createLineItem,
@@ -31,6 +33,8 @@ export const budgetRepository: BudgetRepository = {
   getActivationMode: (versionId) => wrap(() => getBudgetActivationMode(versionId)),
   precheckActivation: (versionId) => wrap(() => precheckBudgetActivation(versionId)),
   listArchiveLiveTargets: (versionIds) => wrap(() => listBudgetArchiveLiveTargets(versionIds)),
+  listLegacyArchiveLiveTargets: (versionIds) => wrap(() => listLegacyBudgetArchiveLiveTargets(versionIds)),
+  listArchiveTargets: (versionId) => wrap(() => listBudgetArchiveTargets(versionId)),
   listVersions: (projectId) => wrap(() => listBudgetVersions(projectId)),
   createLineItem: (versionId, item, provenance) =>
     wrap(() => createLineItem(versionId, item, provenance)),

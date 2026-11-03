@@ -110,19 +110,46 @@ export interface ActivateVersionResult {
 export interface ArchiveVersionResult {
   /** The choice saved by the first successful archive request. */
   cancelErp: boolean;
-  /** Live ERPNext v16 account budgets observed and committed with the archive request. */
+  /** Known potentially live ERPNext budgets observed and committed with the archive request. */
   liveTargetCount: number;
   /** Durable cancellation intents recorded for the sweep. */
   queuedCount: number;
 }
 
-export type BudgetArchiveLiveTarget = Omit<Tables<'budget_version_account_erp_mirror'>, 'erp_budget_name' | 'budget_intent'> & {
-  erp_budget_name: string;
+export type BudgetArchiveLiveTarget = {
+  id: string;
+  budget_version_id: string;
+  fiscal_year: string;
+  /** '' for a LEGACY (year-grained) document — never invented from a category map. */
+  erp_account: string;
+  erp_budget_name: string | null;
+  erp_docstatus: number | null;
+  erp_cancelled_at: string | null;
+  push_state: string;
   budget_intent: 'ensure' | 'remove';
-  /** True only while this org has an active ERPNext v16 binding; the mirror can outlive it. */
+  activated_at_witness: string | null;
+  /** #1462 — which mirror kind this row came from; `legacy` predates the account-grained push. */
+  source_kind: 'account' | 'legacy';
+  /** True only while this org's active ERPNext binding can cancel THIS kind (v16 for account, v15 for legacy). */
   archive_cancellation_available: boolean;
 };
-type BudgetArchiveMirrorTarget = Omit<BudgetArchiveLiveTarget, 'archive_cancellation_available'>;
+type BudgetArchiveMirrorTarget = Omit<BudgetArchiveLiveTarget, 'archive_cancellation_available' | 'source_kind'>;
+
+/**
+ * #1462 — one conservative archive-cancellation candidate, as the SERVER sees it.
+ *
+ * `eligible` is the server's answer (the same locked predicates the archive transaction re-checks), and
+ * `reason` is a safe code the surface may explain generically. The browser never re-derives eligibility.
+ */
+export interface BudgetArchiveTarget {
+  source_kind: 'account' | 'legacy';
+  fiscal_year: string;
+  erp_budget_name: string;
+  eligible: boolean;
+  reason: string;
+  push_state: string;
+  erp_docstatus: number | null;
+}
 
 export interface NewLineItem {
   category: BudgetLineItemRow['category'];
@@ -461,14 +488,96 @@ export async function listBudgetArchiveLiveTargets(versionIds: readonly string[]
       typeof row.id === 'string' &&
       typeof row.budget_version_id === 'string' &&
       typeof row.fiscal_year === 'string' &&
-      typeof row.activated_at_witness === 'string' &&
+      (typeof row.activated_at_witness === 'string' || row.activated_at_witness === null) &&
       typeof row.erp_account === 'string' && row.erp_account !== '' &&
       typeof row.erp_budget_name === 'string' && row.erp_budget_name !== '' &&
       row.erp_docstatus !== 2 &&
       (row.budget_intent === 'ensure' || row.budget_intent === 'remove') &&
       typeof row.push_state === 'string',
     );
-  return targets.map((target) => ({ ...target, archive_cancellation_available: cancellationAvailable }));
+  return targets.map((target) => ({ ...target, source_kind: 'account' as const, archive_cancellation_available: cancellationAvailable }));
+}
+
+/**
+ * #1462 — the LEGACY (pre-v16, year-grained) twin of `listBudgetArchiveLiveTargets`.
+ *
+ * A v15 push writes `budget_version_erp_mirror`; a 15→16 re-bind leaves those rows in place. The
+ * archived status disclosure therefore reads both account and legacy mirror kinds.
+ *
+ * ⚑ A null/stale activation witness is still returned: it is a reason to WARN, never a reason to hide.
+ * The banner is disclosure; the archive RPC re-checks everything under lock before any write.
+ */
+export async function listLegacyBudgetArchiveLiveTargets(versionIds: readonly string[]): Promise<BudgetArchiveLiveTarget[]> {
+  if (versionIds.length === 0) return [];
+  const { data: binding, error: bindingError } = await supabase
+    .from('external_org_bindings')
+    .select('version_major,activated_at')
+    .eq('external_tier', 'erpnext')
+    .maybeSingle();
+  const cancellationAvailable = !bindingError && typeof binding?.activated_at === 'string' &&
+    binding?.version_major === 15;
+  const data = await fetchAllPages(async (from, to) => {
+    const result = await supabase
+      .from('budget_version_erp_mirror')
+      .select('id,budget_version_id,fiscal_year,erp_budget_name,erp_docstatus,erp_cancelled_at,push_state,activated_at_witness')
+      .in('budget_version_id', [...versionIds])
+      .is('erp_cancelled_at', null)
+      .order('id')
+      .range(from, to);
+    if (result.error) throw toAppError(result.error);
+    return result;
+  });
+  return ((data ?? []) as unknown as Array<Partial<BudgetArchiveMirrorTarget>>)
+    .filter((row): row is BudgetArchiveMirrorTarget =>
+      typeof row.id === 'string' &&
+      typeof row.budget_version_id === 'string' &&
+      typeof row.fiscal_year === 'string' &&
+      typeof row.erp_budget_name === 'string' && row.erp_budget_name.trim() !== '' &&
+      row.erp_docstatus !== 2 &&
+      typeof row.push_state === 'string',
+    )
+    .map((row) => ({
+      ...row,
+      erp_account: '',
+      budget_intent: 'ensure' as const,
+      source_kind: 'legacy' as const,
+      archive_cancellation_available: cancellationAvailable,
+    }));
+}
+
+/**
+ * #1462 — the SERVER's conservative inventory for one version: every known potentially live ERPNext
+ * Budget (both mirror kinds), the eligibility verdict and a safe reason.
+ *
+ * ⚑ Fails closed. A read error throws, so the surface can never render "nothing is live" out of a
+ * failed query. The archive RPC re-evaluates every predicate under lock; this read is disclosure only.
+ */
+export async function listBudgetArchiveTargets(versionId: string): Promise<BudgetArchiveTarget[]> {
+  const data = await fetchAllPages(async (from, to) => {
+    const result = await supabase.rpc('get_budget_archive_targets', { p_version_id: versionId })
+      .order('page_key', { ascending: true })
+      .range(from, to);
+    if (result.error) throw toAppError(result.error);
+    if (!Array.isArray(result.data)) throw new AppError('Budget archive target read returned an unexpected response');
+    return result;
+  });
+  if (!Array.isArray(data)) throw new AppError('Budget archive target read returned an unexpected response');
+  return (data as unknown as Array<Record<string, unknown>>).map((row) => {
+    if ((row.source_kind !== 'account' && row.source_kind !== 'legacy') ||
+        typeof row.fiscal_year !== 'string' || typeof row.erp_budget_name !== 'string' ||
+        typeof row.eligible !== 'boolean' || typeof row.reason !== 'string') {
+      throw new AppError('Budget archive target read returned an invalid row');
+    }
+    return {
+      source_kind: row.source_kind,
+      fiscal_year: row.fiscal_year,
+      erp_budget_name: row.erp_budget_name,
+      eligible: row.eligible,
+      reason: row.reason,
+      push_state: typeof row.push_state === 'string' ? row.push_state : '',
+      erp_docstatus: typeof row.erp_docstatus === 'number' ? row.erp_docstatus : null,
+    };
+  });
 }
 
 // ---------------------------------------------------------------------------

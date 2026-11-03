@@ -79,6 +79,38 @@ export function budgetAccountArchiveKey(identity: string, activatedAt: string | 
   return `bud16-archive:${identity}:${epoch}`;
 }
 
+/**
+ * #1462 — the year-qualified identity of a LEGACY (pre-v16, year-grained) ERP Budget.
+ *
+ * It is the SHIPPED pre-v16 identity shape (`<version UUID>:<encoded fiscal year>`), reconstructed from
+ * the legacy mirror's own `fiscal_year` rather than copied from the current account plan: a legacy
+ * document's provenance is its year, and the account-grained plan cannot describe it.
+ */
+export function budgetLegacyIdentity(versionId: string, fiscalYear: string): string {
+  if (!UUID.test(versionId) || typeof fiscalYear !== 'string' || fiscalYear.length === 0) reject();
+  const fy = encodeFiscalYear(fiscalYear);
+  return `${versionId}:${fy}`;
+}
+
+/**
+ * #1462 — the archive cancellation key for a legacy Budget. Distinct prefix (`bud15-archive:`), distinct
+ * identity (year-qualified, never account-framed), same activation-epoch binding as the account key, so
+ * one archive decision can never mint a second ERP write for the same document.
+ *
+ * ⚑ A BARE version id is refused here. The legacy grain is one document per (project, fiscal year), so a
+ * bare identity could not say WHICH old document is being cancelled; the caller must establish the year
+ * first (`budgetLegacyIdentity`), or hold.
+ */
+export function budgetLegacyArchiveKey(identity: string, activatedAt: string | null | undefined): string {
+  const parsed = parseBudgetIdentity(identity);
+  if (parsed.erpAccount !== null || parsed.fiscalYear === null) reject();
+  if (budgetLegacyIdentity(parsed.versionId, parsed.fiscalYear) !== identity) reject();
+  if (!activatedAt) reject();
+  const epoch = timestamptzEpochMs(activatedAt);
+  if (!Number.isFinite(epoch) || epoch < 0) reject();
+  return `bud15-archive:${identity}:${epoch}`;
+}
+
 export function isBudgetAccountPushKey(key: string): boolean {
   if (!key.startsWith('bud16:')) return false;
   const end = key.lastIndexOf(':');
@@ -99,6 +131,23 @@ export function isBudgetAccountArchiveKey(key: string): boolean {
   if (!/^[0-9]{4,20}$/.test(epoch)) return false;
   try {
     return parseBudgetIdentity(key.slice(prefix.length, end)).erpAccount !== null;
+  } catch {
+    return false;
+  }
+}
+
+/** #1462 — the legacy (year-qualified, account-less) twin of `isBudgetAccountArchiveKey`. */
+export function isBudgetLegacyArchiveKey(key: string): boolean {
+  const prefix = 'bud15-archive:';
+  if (!key.startsWith(prefix)) return false;
+  const end = key.lastIndexOf(':');
+  const epoch = key.slice(end + 1);
+  if (!/^[0-9]{4,20}$/.test(epoch)) return false;
+  const identity = key.slice(prefix.length, end);
+  try {
+    const parsed = parseBudgetIdentity(identity);
+    return parsed.erpAccount === null && parsed.fiscalYear !== null &&
+      budgetLegacyIdentity(parsed.versionId, parsed.fiscalYear) === identity;
   } catch {
     return false;
   }
