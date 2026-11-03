@@ -31,6 +31,20 @@ export async function handleOdooSweepRequest(req: Request): Promise<Response> {
   for (const { org_id } of [...list.slice(start), ...list.slice(0, start)]) {
     const timeBudgetMs = deadline - Date.now();
     if (timeBudgetMs <= 0) { results.push({ org_id, skipped: 'tick-budget' }); continue; }
+    const { data: erpSyncOn, error: featureError } = await sc.rpc('service_feature_enabled', {
+      p_org_id: org_id,
+      p_key: 'erp_sync',
+    });
+    if (featureError) {
+      // Fail closed without entering the sweep: a switch read error must not sync an unknown org.
+      results.push({ org_id, error: 'FEATURE_SWITCH_UNREADABLE' });
+      continue;
+    }
+    if (erpSyncOn !== true) {
+      // Keep this org's cursors untouched so its feed resumes after the entitlement is restored.
+      results.push({ org_id, skipped: 'feature-off:erp_sync' });
+      continue;
+    }
     try {
       results.push({ org_id, ...(await sweepOdooOrg(sc, org_id, { timeBudgetMs })) });
     } catch {

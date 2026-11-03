@@ -34,7 +34,7 @@ const makeProject = (overrides: Partial<PipelineProject>): PipelineProject => ({
 
 describe('pipelineListModel — search and filtering (THEME-CROSS-76, OE04-004, PGA05-008)', () => {
   it('exposes the standard deal scopes', () => {
-    expect(DEAL_SCOPES).toEqual(['Open', 'Won', 'Lost', 'Needs attention']);
+    expect(DEAL_SCOPES).toEqual(['All', 'Open', 'Won', 'Lost', 'Needs attention']);
   });
 
   describe('matchesPipelineSearch', () => {
@@ -70,7 +70,29 @@ describe('pipelineListModel — search and filtering (THEME-CROSS-76, OE04-004, 
     const won1 = makeProject({ id: 'w1', status: 'Won, Pending KoM' });
     const lost1 = makeProject({ id: 'l1', status: 'Loss Tender', last_update: '2026-01-01T00:00:00Z' });
 
-    it('filters by Open scope by default', () => {
+    it('filters All scope across open, won, and lost rows and deduplicates project IDs', () => {
+      const wonDuplicate = makeProject({ id: 'o1', name: 'Open duplicate from Won', status: 'Ongoing Project' });
+      const res = filterPipelineTable({
+        openProjects: [open1, open2],
+        wonProjects: [won1, wonDuplicate],
+        lostProjects: [lost1],
+        scope: 'All',
+      });
+      expect(res.map((p) => p.id)).toEqual(['o1', 'o2', 'w1', 'l1']);
+    });
+
+    it('applies search to every project in All scope', () => {
+      const res = filterPipelineTable({
+        openProjects: [open1],
+        wonProjects: [makeProject({ id: 'w2', name: 'Won project' })],
+        lostProjects: [makeProject({ id: 'l2', name: 'Lost project' })],
+        scope: 'All',
+        search: 'Lost project',
+      });
+      expect(res.map((p) => p.id)).toEqual(['l2']);
+    });
+
+    it('filters rows for the explicit Open scope', () => {
       const res = filterPipelineTable({
         openProjects: [open1, open2],
         wonProjects: [won1],

@@ -11,6 +11,7 @@ import { deriveArDueDate } from '../../../pmo-portal/src/lib/repositories/revenu
 import { AGENT_REVENUE_VIEW_ROLES } from '../../../pmo-portal/src/auth/agentRoles.ts';
 import { WHATS_OVERDUE_SCHEMA } from './schema.ts';
 import { asLoose, readOne, readRows, withTimeout, UUID_RE, type LooseClient, type LooseQuery } from './looseClient.ts';
+import { isKeyEnabled } from './featureSwitches.ts';
 import { daysBetween, escapeMarkdownText, formatMoney, formatShortDate, isoDateInZone, resolveNumberLocale } from './agentFormat.ts';
 
 export const OVERDUE_TASK_CAP = 50;
@@ -53,12 +54,15 @@ const unique = (xs: Array<string | null>): string[] => [...new Set(xs.filter((x)
 export async function loadOverdueFacts(ctx: DeputyContext, now: Date): Promise<OverdueFacts> {
   const sb: LooseClient = asLoose(ctx.supabase);
   const role = ctx.role ?? null;
-  const [profile, org, feature] = await Promise.all([
+  // S4 (FR-PLN-005/008): Revenue comes from the caller org's RESOLVED switches (one resolver, never the raw
+  // `org_features` row): an org with no `revenue` override row is on, and a global off wins. Read-side, so an
+  // unresolved snapshot is not "off" — `isKeyEnabled` keeps the fail-open rule here.
+  const revenueOn = isKeyEnabled('revenue', ctx.featureSwitches);
+  const [profile, org] = await Promise.all([
     readOne<{ timezone: string | null }>(sb.from('profiles').select('timezone').eq('id', ctx.userId).maybeSingle()),
     readOne<{ default_timezone: string | null; default_locale: string | null; default_number_locale: string | null }>(
       sb.from('organizations').select('default_timezone, default_locale, default_number_locale').eq('id', ctx.orgId).maybeSingle(),
     ),
-    readOne<{ enabled: boolean }>(sb.from('org_features').select('enabled').eq('org_id', ctx.orgId).eq('feature_key', 'revenue').maybeSingle()),
   ]);
   // FR-AIN-002 / DD-AIN-1: "today" in the caller's own zone, else the org's, else UTC.
   const asOf = isoDateInZone(now, profile?.timezone || org?.default_timezone || 'UTC');
@@ -108,7 +112,7 @@ export async function loadOverdueFacts(ctx: DeputyContext, now: Date): Promise<O
   // DD-AIN-2: invoices only for a role that may view them, in an org with Revenue on.
   let invoices: OverdueInvoice[] | null = null;
   let invoicesTruncated = false;
-  if (feature?.enabled === true && role !== null && AGENT_REVENUE_VIEW_ROLES.includes(role)) {
+  if (revenueOn && role !== null && AGENT_REVENUE_VIEW_ROLES.includes(role)) {
     if (managedIds && managedIds.length === 0) {
       invoices = [];
     } else {

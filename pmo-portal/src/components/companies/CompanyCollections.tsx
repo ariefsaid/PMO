@@ -44,7 +44,7 @@ export const CompanyCollections: React.FC<CompanyCollectionsProps> = ({ companyI
           onRetry={() => { void collections.refetch(); }}
         />
       ) : collections.isPending ? (
-        <ListState variant="loading" rows={3} />
+        <ListState variant="loading" shape="cards" rows={3} />
       ) : position.state === 'ambiguous' ? (
         <p role="status" className="rounded-lg border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
           {t('dashboard.uxs36CollectionsAmbiguous', 'This ERP customer is mapped to multiple companies. The aging amount is not assigned to this company.')}

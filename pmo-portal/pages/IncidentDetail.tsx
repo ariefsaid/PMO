@@ -63,7 +63,7 @@ const IncidentDetail: React.FC = () => {
       <>
         <BackBar label="Incidents" phoneOnly onBack={goBack} />
         <div data-testid="incident-loading">
-          <ListState variant="loading" rows={5} />
+          <ListState variant="loading" shape="detail" rows={5} />
         </div>
       </>
     );

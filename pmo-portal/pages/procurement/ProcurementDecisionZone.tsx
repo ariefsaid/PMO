@@ -345,6 +345,7 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
               {showCreateGR && (
                 <RecordCaptureForm
                   kind="goods_receipt"
+                  items={p.items}
                   busy={mutations.createReceipt.isPending}
                   onCreate={() => Promise.resolve()}
                   onStage={(staged) => {

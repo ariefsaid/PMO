@@ -61,7 +61,7 @@ const ImprestFloatDetail: React.FC = () => {
   const backLabel = t('imprest:detail.back', 'Site cash');
   const goBack = () => navigate('/imprest');
 
-  if (floats.isPending) return <><BackBar label={backLabel} phoneOnly onBack={goBack} /><ListState variant="loading" rows={5} /></>;
+  if (floats.isPending) return <><BackBar label={backLabel} phoneOnly onBack={goBack} /><ListState variant="loading" shape="detail" rows={5} /></>;
   if (floats.isError) {
     return <><BackBar label={backLabel} phoneOnly onBack={goBack} />
       <ListState variant="error" title={t('imprest:detail.errorTitle', "Couldn't load this float")} onRetry={() => void floats.refetch()} /></>;

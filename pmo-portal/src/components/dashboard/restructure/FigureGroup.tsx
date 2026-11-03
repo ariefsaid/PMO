@@ -44,7 +44,7 @@ export const FigureGroup: React.FC<FigureGroupProps> = ({
   hideHeading = false,
 }) => {
   const { t } = useTranslation('dashboard');
-  if (isPending) return <ListState variant="loading" rows={Math.max(figures.length, 2)} testId="figure-group-loading" className={className} />;
+  if (isPending) return <ListState variant="loading" shape="cards" rows={Math.max(figures.length, 2)} testId="figure-group-loading" className={className} />;
   if (isError) return (
     <ListState
       variant="error"

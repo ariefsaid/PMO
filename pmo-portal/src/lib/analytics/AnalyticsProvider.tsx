@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import { useLocation } from 'react-router';
 import { useAuth } from '@/src/auth/useAuth';
+import { useOrgPlanGroup } from '@/src/hooks/useOrgPlanGroup';
 import { getAnalyticsConfig, persistDemoContext } from './config';
 import { analyticsClient } from './client';
 import { safeTrack } from './safeTrack';
@@ -22,6 +23,9 @@ export const AnalyticsProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const location = useLocation();
   const { currentUser, role } = useAuth();
   const identifiedUserRef = useRef<string | null>(null);
+
+  // Plans S4 (FR-PLN-016): the org's plan as a PostHog group property (consent-gated inside the client).
+  useOrgPlanGroup();
 
   // Memoize config to provide stable reference for useEffect deps
   const config = useMemo(() => getAnalyticsConfig(), []);
