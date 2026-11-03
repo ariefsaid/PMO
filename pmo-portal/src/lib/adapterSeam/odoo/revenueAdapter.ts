@@ -79,10 +79,20 @@ async function settleInvoice(call: OdooCall, id: number, record: PmoRecord, expe
  * still a draft, or null when nothing was created. Throws (the row is held) when the composite finds doubt. An invoice is never reissued on doubt:
  * the outbox holds it (`reissueOnInconclusiveAbsence` is false for revenue).
  */
-export async function recoverInvoice(rawCall: OdooCall, record: PmoRecord, composite: InvoiceComposite | undefined, expect: InvoiceExpect): Promise<CommandResult | null> {
+export async function recoverInvoice(
+  rawCall: OdooCall,
+  record: PmoRecord,
+  composite: InvoiceComposite | undefined,
+  expect: InvoiceExpect,
+  adoptedRef?: string,
+): Promise<CommandResult | null> {
   const call = guarded(rawCall);
   const key = invoiceKey(record);
-  const hit = await probeInvoiceByAnchor(call, key, composite);
+  const adoptedId = adoptedRef === undefined ? null : parseOdooExternalRef(MOVE, adoptedRef);
+  if (adoptedRef !== undefined && adoptedId === null) refuse('adopted-invoice-ref-invalid');
+  const hit = adoptedRef === undefined
+    ? await probeInvoiceByAnchor(call, key, composite)
+    : { externalRecordId: odooExternalRef(MOVE, adoptedId!) };
   if (!hit) return null;
   const id = parseOdooExternalRef(MOVE, hit.externalRecordId) ?? refuse('ambiguous-anchor');
   await anchorInvoice(call, key, id);

@@ -29,9 +29,23 @@ describe('Odoo revenue feed parsing', () => {
     const spec = REVENUE_FEED_SPECS['incoming-payment'];
     const base = { id: 71, name: 'PAY/2026/00071', state: 'paid', partner_id: [41,'Client A'], payment_type: 'inbound', partner_type: 'customer', amount: 100, date: '2026-11-02', currency_id: [1,'IDR'], write_date: '2026-11-02 10:00:00' };
     expect(spec.parse(base)?.attrs).toMatchObject({ status: 'Paid', payment_type: 'inbound', partner_type: 'customer', amount: '100.00' });
-    expect(spec.parse({ ...base, state: 'in_process' })?.attrs).toMatchObject({ status: 'Scheduled', docstatus: 1 });
     expect(spec.parse({ ...base, payment_type: 'outbound' })).toBeNull();
     expect(spec.parse({ ...base, partner_type: '' })).toBeNull();
+  });
+
+  it.each([
+    ['draft', 0, 'Scheduled'],
+    ['in_process', 1, 'Paid'],
+    ['paid', 1, 'Paid'],
+    ['reconciled', 1, 'Paid'],
+    ['posted', 1, 'Paid'],
+    ['canceled', 2, 'Cancelled'],
+    ['cancelled', 2, 'Cancelled'],
+    ['cancel', 2, 'Cancelled'],
+    ['rejected', 2, 'Cancelled'],
+  ] as const)('AC-OCI-071 Odoo payment state %s maps to receipt docstatus %s and status %s', (state, docstatus, status) => {
+    const base = { id: 71, name: 'PAY/2026/00071', state, partner_id: [41, 'Client A'], payment_type: 'inbound', partner_type: 'customer', amount: 100, date: '2026-11-02', currency_id: [1, 'IDR'], write_date: '2026-11-02 10:00:00' };
+    expect(REVENUE_FEED_SPECS['incoming-payment'].parse(base)?.attrs).toMatchObject({ status, docstatus });
   });
 
   it('AC-OCI-072 reads only the selected kind and activated company, then resolves a PMO anchor', async () => {

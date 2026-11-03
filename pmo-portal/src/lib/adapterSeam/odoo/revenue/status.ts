@@ -11,20 +11,20 @@ const NOT_MIRRORED: RevenueStatus = { mirrored: false, status: null, cancelled: 
 const CANCELLED: RevenueStatus = { mirrored: true, status: 'Cancelled', cancelled: true };
 
 export function invoiceStatus(state: string | undefined, residual: number | string | null | undefined): RevenueStatus {
-  if (state === 'cancel') return CANCELLED;
+  if (state === 'cancel' || state === 'cancelled' || state === 'canceled') return CANCELLED;
   if (state !== 'posted') return NOT_MIRRORED;
   return { mirrored: true, status: centsOf(residual) === 0n ? 'Paid' : 'Unpaid', cancelled: false };
 }
 
 export function creditNoteStatus(state: string | undefined): RevenueStatus & { negative: true } {
-  if (state === 'cancel') return { ...CANCELLED, negative: true };
+  if (state === 'cancel' || state === 'cancelled' || state === 'canceled') return { ...CANCELLED, negative: true };
   return state === 'posted' ? { mirrored: true, status: 'Posted', cancelled: false, negative: true } : { ...NOT_MIRRORED, negative: true };
 }
 
-/** `in_process` is a posted payment awaiting bank reconciliation; `paid` is what a posted payment reads on the bed. */
+/** Odoo 20 has paid/reconciled states; Enterprise and older feeds also report in_process/posted. All mean the receipt is posted. */
 export function paymentStatus(state: string | undefined): RevenueStatus {
-  if (state === 'paid' || state === 'in_process' || state === 'posted') return { mirrored: true, status: 'Posted', cancelled: false };
-  return state === 'canceled' || state === 'cancel' || state === 'rejected' ? CANCELLED : NOT_MIRRORED;
+  if (state === 'paid' || state === 'reconciled' || state === 'in_process' || state === 'posted') return { mirrored: true, status: 'Posted', cancelled: false };
+  return state === 'canceled' || state === 'cancelled' || state === 'cancel' || state === 'rejected' ? CANCELLED : NOT_MIRRORED;
 }
 
 /** Inbound from a customer is a receipt, outbound to a supplier a vendor payment; any other pair, blank or absent is skipped. */

@@ -28,7 +28,6 @@ create table public.revenue_erp_mirror (
   erp_attention         text,
   erp_read_at           timestamptz not null default now(),
   reversed_entry_ref   text,
-  payment_invoice_ref   text,
   sales_invoice_id      uuid references public.sales_invoices(id) on delete set null,
   pmo_owned             boolean not null default false,
   adoption_key          text,
@@ -77,7 +76,7 @@ returns table (
   external_id text, name text, wd text, state text, docstatus smallint,
   partner text, partner_name text, doc_date date, due_date date, reference_number text, currency text,
   amount_total numeric, amount_untaxed numeric, amount_tax numeric, residual numeric, amount numeric,
-  status text, reversed_entry_ref text, payment_invoice_ref text, anchor_key text
+  status text, reversed_entry_ref text, anchor_key text
 )
 language sql stable set search_path = public as $$
   with newest as (
@@ -93,7 +92,7 @@ language sql stable set search_path = public as $$
          public.odoo_num(x#>>'{attrs,amount_total}'), public.odoo_num(x#>>'{attrs,amount_untaxed}'),
          public.odoo_num(x#>>'{attrs,amount_tax}'), public.odoo_num(x#>>'{attrs,residual}'),
          public.odoo_num(x#>>'{attrs,amount}'), nullif(x#>>'{attrs,status}',''),
-         nullif(x#>>'{attrs,reversed_entry_ref}',''), nullif(x#>>'{attrs,payment_invoice_ref}',''),
+         nullif(x#>>'{attrs,reversed_entry_ref}',''),
          nullif(x#>>'{attrs,anchor_key}','')
     from newest
 $$;
@@ -134,17 +133,24 @@ begin
       invoice_date = coalesce(s.doc_date, t.invoice_date),
       amount = case when s.amount_total is not null and s.amount_untaxed is not null and s.amount_tax is not null and s.residual is not null
                     then s.amount_total else t.amount end,
+      tax_amount = case when s.amount_total is not null and s.amount_untaxed is not null and s.amount_tax is not null and s.residual is not null
+                        then s.amount_tax else t.tax_amount end,
+      tax_treatment = case when s.amount_total is not null and s.amount_untaxed is not null and s.amount_tax is not null and s.residual is not null
+                           then 'inclusive' else t.tax_treatment end,
       erp_outstanding_amount = case when s.amount_total is not null and s.amount_untaxed is not null and s.amount_tax is not null and s.residual is not null
                                     then s.residual else t.erp_outstanding_amount end,
       status = case when s.amount_total is not null and s.amount_untaxed is not null and s.amount_tax is not null and s.residual is not null
-                    then case when s.docstatus = 2 then 'Cancelled'
-                              when s.docstatus = 1 and s.residual = 0 then 'Paid'
-                              when s.docstatus = 1 and s.residual > 0 then 'Unpaid'
-                              else t.status end
+                    then s.status
                     else t.status end,
       erp_docstatus = s.docstatus,
       erp_modified = s.wd,
-      erp_cancelled_at = case when s.docstatus = 2 then coalesce(t.erp_cancelled_at, now()) else null end
+      erp_cancelled_at = case when s.docstatus = 2 then coalesce(t.erp_cancelled_at, now()) else null end,
+      odoo_state = case when s.state in ('cancel','cancelled','canceled') then 'cancel' else s.state end,
+      odoo_attention = case
+        when s.amount_total is null or s.amount_untaxed is null or s.amount_tax is null or s.residual is null then 'money-unreadable'
+        when t.odoo_attention = 'money-unreadable' then null
+        else t.odoo_attention end,
+      odoo_read_at = now()
     from public.odoo_revenue_page_rows(p_domain,p_rows) s
     join public.external_refs r on r.org_id = p_org_id and r.domain = 'revenue' and r.external_tier = 'odoo'
                                and r.external_record_id = v_model || ':' || s.external_id
@@ -155,7 +161,7 @@ begin
       ip_number = case when s.docstatus in (1,2) then s.name else t.ip_number end,
       date = coalesce(s.doc_date, t.date),
       amount = coalesce(s.amount, t.amount),
-      status = case when s.docstatus = 1 and s.state = 'paid' then 'Paid' else 'Scheduled' end,
+      status = s.status,
       erp_docstatus = s.docstatus,
       erp_modified = s.wd,
       erp_cancelled_at = case when s.docstatus = 2 then coalesce(t.erp_cancelled_at, now()) else null end
@@ -171,7 +177,7 @@ begin
     org_id, erp_doctype, erp_name, external_ref, customer_external_id, customer_company_id, customer_name,
     doc_date, due_date, reference_number, currency, grand_total, untaxed_total, tax_total, outstanding_amount,
     erp_status, erp_state, erp_docstatus, erp_modified, erp_cancelled_at, erp_attention, erp_read_at,
-    reversed_entry_ref, payment_invoice_ref, sales_invoice_id, pmo_owned, adoption_key, pair_candidates, updated_at
+    reversed_entry_ref, sales_invoice_id, pmo_owned, adoption_key, pair_candidates, updated_at
   )
   select p_org_id, v_doctype, s.name, v_model || ':' || s.external_id, s.partner,
          c.id, s.partner_name, s.doc_date, s.due_date, s.reference_number, s.currency,
@@ -184,8 +190,8 @@ begin
          case when s.docstatus = 2 then now() end,
          case when s.amount_total is null or s.amount_untaxed is null or s.amount_tax is null or s.residual is null
               then 'money-header-incomplete' end,
-         now(), s.reversed_entry_ref, s.payment_invoice_ref,
-         coalesce(reversed_invoice.id, payment_invoice.id, anchor.invoice_id),
+         now(), s.reversed_entry_ref,
+         coalesce(reversed_invoice.id, anchor.invoice_id),
          (rp.id is not null or ri.id is not null or anchor.invoice_id is not null),
          case when anchor.invoice_id is not null then s.anchor_key end,
          case when anchor.invoice_id is not null then array[anchor.invoice_id]
@@ -203,10 +209,6 @@ begin
       and reverse_ref.domain = 'revenue' and reverse_ref.external_tier = 'odoo' and reverse_ref.external_record_id = s.reversed_entry_ref
     left join public.sales_invoices reversed_invoice on reversed_invoice.org_id = p_org_id
       and reversed_invoice.id::text = reverse_ref.pmo_record_id
-    left join public.external_refs payment_ref on p_domain = 'incoming-payment' and payment_ref.org_id = p_org_id
-      and payment_ref.domain = 'revenue' and payment_ref.external_tier = 'odoo' and payment_ref.external_record_id = s.payment_invoice_ref
-    left join public.sales_invoices payment_invoice on payment_invoice.org_id = p_org_id
-      and payment_invoice.id::text = payment_ref.pmo_record_id
     left join lateral (
       select i.id as invoice_id from public.sales_invoices i
        where p_domain = 'sales-invoice' and i.org_id = p_org_id
@@ -240,7 +242,7 @@ begin
     erp_status = excluded.erp_status, erp_state = excluded.erp_state, erp_docstatus = excluded.erp_docstatus,
     erp_modified = excluded.erp_modified, erp_cancelled_at = excluded.erp_cancelled_at,
     erp_attention = excluded.erp_attention, erp_read_at = now(), reversed_entry_ref = excluded.reversed_entry_ref,
-    payment_invoice_ref = excluded.payment_invoice_ref, sales_invoice_id = excluded.sales_invoice_id,
+    sales_invoice_id = excluded.sales_invoice_id,
     pmo_owned = excluded.pmo_owned, adoption_key = excluded.adoption_key,
     pair_candidates = excluded.pair_candidates, updated_at = now()
   where d.erp_modified <= excluded.erp_modified;
@@ -296,6 +298,7 @@ declare
   v_n integer := 0;
   v_k integer;
   v_eligible integer;
+  v_seen integer;
 begin
   if current_setting('role', true) <> 'service_role' then raise exception 'service role required' using errcode = '42501'; end if;
   perform public.assert_odoo_activated(p_org_id);
@@ -317,6 +320,12 @@ begin
        and ((p_domain='sales-invoice' and starts_with(r.external_record_id,'account.move:'))
          or (p_domain='incoming-payment' and starts_with(r.external_record_id,'account.payment:')))
   ) eligible;
+
+  select count(*) into v_seen from public.odoo_revenue_census_seen s
+   where s.org_id=p_org_id and s.domain=p_domain and s.run_at=p_run;
+  if v_eligible > 0 and v_seen = 0 then
+    raise exception 'revenue census saw no documents' using errcode='P0001';
+  end if;
 
   update public.revenue_erp_mirror d set erp_attention = 'deleted-in-erp:' || d.erp_docstatus,
       erp_docstatus = 2, erp_cancelled_at = coalesce(d.erp_cancelled_at,now()), erp_read_at = now(), updated_at = now()
@@ -423,5 +432,7 @@ $$;
 
 revoke all on function public.odoo_revenue_model(text), public.odoo_revenue_page_rows(text,jsonb) from public, anon, authenticated;
 grant execute on function public.odoo_revenue_model(text), public.odoo_revenue_page_rows(text,jsonb) to service_role;
+
+notify pgrst, 'reload schema';
 
 commit;

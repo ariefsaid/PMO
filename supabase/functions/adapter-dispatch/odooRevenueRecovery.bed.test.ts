@@ -117,6 +117,11 @@ Deno.test({
     const sc = createClient(SUPABASE_ENDPOINT!, SERVICE!, { auth: { persistSession: false, autoRefreshToken: false } });
     const raw = bindCall({ baseUrl: BED!, apiKey: KEY, database: DB, fetchImpl: fetch });
     const stamp = `C6-SWEEP-${Date.now()}`;
+    const hostGuardEnv = ['SUPABASE_URL', 'ERPNEXT_ALLOW_LOCAL_BENCH', 'ERPNEXT_LOCAL_BENCH_ORIGINS']
+      .map((key) => [key, Deno.env.get(key)] as const);
+    Deno.env.set('SUPABASE_URL', SUPABASE_ENDPOINT!);
+    Deno.env.set('ERPNEXT_ALLOW_LOCAL_BENCH', '1');
+    Deno.env.set('ERPNEXT_LOCAL_BENCH_ORIGINS', bed.origin);
     const must = async <T>(p: PromiseLike<{ data: T; error: { message: string; code?: string } | null }>) => {
       const { data, error } = await p;
       if (error) throw new Error(error.message);
@@ -259,14 +264,20 @@ Deno.test({
       const stored = await must(sc.from('external_command_outbox').select('id').eq('org_id', orgId)
         .eq('domain', 'revenue').eq('pmo_record_id', pmoId).eq('idempotency_key', idempotencyKey).single()) as { id: string };
       entry.id = stored.id;
+      if (suffix === 'adopt') {
+        await must(sc.from('external_command_outbox').update({
+          state: 'failed', claim_generation: 3, last_error: 'hold resolved (adopt)',
+          payload: { ...payload, odoo_adopted_ref: `account.move:${moveId}` },
+        }).eq('org_id', orgId).eq('id', stored.id).select());
+      }
     };
 
     try {
       await provisionBinding();
-      await createRecoveryCase('adopt', false);
+      await createRecoveryCase('adopt', true);
       await createRecoveryCase('edited', true);
       const tick = await sweepOdooOrg(sc, orgId, { maxCalls: 2_000 });
-      if (!('ok' in tick)) throw new Error('the Odoo tick reaches the recovery pass');
+      if (!('ok' in tick)) throw new Error(`the Odoo tick reaches the recovery pass: ${JSON.stringify(tick)}`);
       assertEquals(tick.outbox_reconciled, 1,
         `one committed invoice is confirmed by the sweep; recovery errors: ${tick.outbox_errors.map(({ error }) => error).join(', ') || 'none'}`);
       assert(tick.outbox_errors.some((error) => error.id === cases[1].id), 'the edited anchor is surfaced as held');
@@ -291,6 +302,7 @@ Deno.test({
         assertEquals(matches.length, 1, 'recovery keeps exactly one Odoo invoice');
       }
     } finally {
+      for (const [key, value] of hostGuardEnv) value === undefined ? Deno.env.delete(key) : Deno.env.set(key, value);
       for (const entry of cases) {
         await sc.from('external_command_outbox').delete().eq('org_id', orgId).eq('id', entry.id);
         await sc.from('external_refs').delete().eq('org_id', orgId).eq('pmo_record_id', entry.pmoId);

@@ -3,6 +3,7 @@ import type { OdooCall } from '../client.ts';
 import { companyDomain, type DirectoryRow, type KindSpec } from '../kinds.ts';
 import type { KindReaders } from '../sweep.ts';
 import { keyFromExternalIdentifier } from './anchors.ts';
+import { creditNoteStatus, invoiceStatus, paymentStatus } from './status.ts';
 
 export const REVENUE_FEED_DOMAINS = ['sales-invoice', 'credit-note', 'incoming-payment'] as const;
 export type RevenueFeedDomain = (typeof REVENUE_FEED_DOMAINS)[number];
@@ -24,8 +25,13 @@ export interface RevenueFeedSpec extends KindSpec {
   anchored: boolean;
 }
 
-function docstatus(state: string): 0 | 1 | 2 | null {
+function docstatus(state: string, domain: RevenueFeedDomain): 0 | 1 | 2 | null {
   if (state === 'draft') return 0;
+  if (domain === 'incoming-payment') {
+    const payment = paymentStatus(state);
+    if (payment.cancelled) return 2;
+    return payment.status === 'Posted' ? 1 : null;
+  }
   if (state === 'posted' || state === 'paid' || state === 'in_process') return 1;
   if (state === 'cancel' || state === 'cancelled' || state === 'canceled') return 2;
   return null;
@@ -38,7 +44,7 @@ function parseRow(spec: RevenueFeedSpec, raw: Raw): DirectoryRow | null {
   if (spec.domain === 'credit-note' && raw.move_type !== 'out_refund') return null;
   const partner = m2o(raw.partner_id);
   const partnerName = m2oName(raw.partner_id);
-  const statusCode = docstatus(raw.state);
+  const statusCode = docstatus(raw.state, spec.domain);
   if (partner === undefined || partnerName === undefined || statusCode === null) return null;
 
   const attrs: Record<string, unknown> = {
@@ -61,8 +67,8 @@ function parseRow(spec: RevenueFeedSpec, raw: Raw): DirectoryRow | null {
       amount_tax: tax,
       residual,
       status: spec.domain === 'credit-note'
-        ? (statusCode === 2 ? 'Cancelled' : statusCode === 1 ? 'Posted' : 'Draft')
-        : (statusCode === 2 ? 'Cancelled' : statusCode === 0 ? 'Submitted' : residual === '0.00' ? 'Paid' : residual === null ? null : 'Unpaid'),
+        ? (creditNoteStatus(raw.state).status ?? 'Draft')
+        : (statusCode === 0 ? 'Submitted' : residual === null ? null : invoiceStatus(raw.state, residual).status),
     });
     if (spec.domain === 'credit-note') {
       const reversed = m2o(raw.reversed_entry_id);
@@ -73,9 +79,10 @@ function parseRow(spec: RevenueFeedSpec, raw: Raw): DirectoryRow | null {
     const paymentType = text(raw.payment_type), partnerType = text(raw.partner_type);
     if (paymentType !== 'inbound' || partnerType !== 'customer') return null;
     const amount = money(raw.amount);
+    const payment = paymentStatus(raw.state);
     Object.assign(attrs, {
       amount,
-      status: statusCode === 1 && raw.state === 'paid' ? 'Paid' : statusCode === 2 ? 'Cancelled' : 'Scheduled',
+      status: payment.cancelled ? 'Cancelled' : payment.status === 'Posted' ? 'Paid' : 'Scheduled',
       payment_type: paymentType,
       partner_type: partnerType,
     });

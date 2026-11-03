@@ -45,7 +45,7 @@ const odooDatetime = (ms: number) => new Date(ms).toISOString().slice(0, 19).rep
 const WINDOW_MS = 10 * 60_000;
 
 /** What the read-back is judged against and the composite's inputs: derived, so not command material (they stay out of the payload digest). */
-const DERIVED_KEYS = ['odoo_expected_total', 'odoo_cost_account', 'odoo_partner_id', 'created_after', 'created_before'] as const;
+const DERIVED_KEYS = ['odoo_expected_total', 'odoo_cost_account', 'odoo_partner_id', 'created_after', 'created_before', 'odoo_adopted_ref', 'odoo_absent_confirmed'] as const;
 const expectOf = (p: Record<string, unknown> | null | undefined): InvoiceExpect | undefined =>
   p && typeof p.odoo_expected_total === 'string' && (typeof p.odoo_cost_account === 'number' || p.odoo_cost_account === null)
     ? { total: p.odoo_expected_total, costAccountId: p.odoo_cost_account }
@@ -88,6 +88,8 @@ async function invoiceOutboxDeps(ctx: AdapterSelectContext, resolved: Exclude<Od
       odoo_partner_id: persistedComposite.partnerId, odoo_expected_total: persistedExpect.total,
       odoo_cost_account: persistedExpect.costAccountId, created_after: persistedComposite.createdAfter,
       ...(persistedComposite.createdBefore ? { created_before: persistedComposite.createdBefore } : {}),
+      ...(typeof persisted.odoo_adopted_ref === 'string' ? { odoo_adopted_ref: persisted.odoo_adopted_ref } : {}),
+      ...(persisted.odoo_absent_confirmed === true ? { odoo_absent_confirmed: true } : {}),
     };
   } else {
     const resolvedInvoice = await resolveOdooInvoiceInputs(sc, ctx.orgId, ctx.command, resolved, call, false);
@@ -113,10 +115,11 @@ async function invoiceOutboxDeps(ctx: AdapterSelectContext, resolved: Exclude<Od
       const persisted = await readOutboxCompositePayload(ctx.serviceClient, ctx.orgId, domain, ctx.command.record.id, idempotencyKey);
       const judged = expectOf(persisted) ?? expectOf(payload);
       if (!judged) throw new AppError('invoice-expectation-missing', 'commit-rejected');   // cannot judge a recovered invoice: hold it
+      const adoptedRef = typeof persisted?.odoo_adopted_ref === 'string' ? persisted.odoo_adopted_ref : undefined;
       // The composite looks for an invoice a lost response may have left without its identifier, so it runs only in a RECOVERY; a first
       // attempt has made nothing yet, and the client's other unanchored Odoo invoices are not its business. No signal = recovery.
       const composite = probe?.recovery === false ? undefined : compositeOf(persisted) ?? compositeOf(payload);
-      return recoverInvoice(call, ctx.command.record, composite, judged);
+      return recoverInvoice(call, ctx.command.record, composite, judged, adoptedRef);
     },
   });
 }

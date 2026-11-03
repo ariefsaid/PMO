@@ -186,4 +186,31 @@ describe('FR-OCI-070 / FR-OCI-072 / OQ-OCI-14 an invoice approval goes through t
       assertEquals(t.unexpected, []);
     });
   });
+
+  it('FR-OCI-063 an adopted Odoo invoice is probed by its resolved reference, even after the stock anchor was edited', async () => {
+    const createdAfter = new Date(Date.now() - 60_000).toISOString().slice(0, 19).replace('T', ' ');
+    const createdBefore = new Date(Date.now() + 60_000).toISOString().slice(0, 19).replace('T', ' ');
+    const outbox = new Map<string, Record<string, unknown>>();
+    const t = await invoiceDeps({ outbox });
+    const [id] = await t.call('account.move', 'create', { vals_list: [{ move_type: 'out_invoice', partner_id: 41, invoice_date: '2026-11-03', invoice_line_ids: [[0, 0, {
+      product_id: 71, name: 'x', quantity: 1, price_unit: 2000, tax_ids: [[6, 0, [5]]], analytic_distribution: { '101': 100 },
+    }]] }] });
+    await t.call('account.move', 'action_post', { ids: [id] });
+    const payload = {
+      id: DRAFT_ID, erp_doc_kind: 'sales-invoice', verb: 'submit', customerId: CUSTOMER_ID, projectId: PROJECT_ID,
+      workOrderId: '66666666-6666-4666-8666-666666666666', currency: 'IDR', items: draftItems,
+      reference_number: 'WO-PO-9', odoo_partner_id: 41, odoo_expected_total: '2220.00', odoo_cost_account: 101,
+      created_after: createdAfter, created_before: createdBefore, odoo_adopted_ref: `account.move:${id}`,
+    };
+    outbox.set(`${DRAFT_ID}|${approveCommand().idempotencyKey}`, {
+      id: 'outbox-adopted', domain: 'revenue', pmo_record_id: DRAFT_ID, idempotency_key: approveCommand().idempotencyKey,
+      state: 'failed', external_tier: 'odoo', operation: 'create', payload,
+    });
+    await withFetchMock(t.routes, async () => {
+      const deps = await resolveOdooMoneyOutboxDeps(t.ctx);
+      const found = await deps.probeByRemarksKey('revenue', approveCommand().idempotencyKey, { recovery: true });
+      assertEquals(found?.externalRecordId, `account.move:${id}`);
+      assertEquals(t.fake.rows('account.move').length, 1, 'adoption verifies the named invoice without creating another');
+    });
+  });
 });

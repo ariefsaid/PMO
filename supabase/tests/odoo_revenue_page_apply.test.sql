@@ -1,6 +1,6 @@
 -- #1506 C6-T1/T2: service-only revenue page application, atomic cursors, tenancy and census tombstones.
 begin;
-select plan(32);
+select plan(35);
 
 insert into organizations (id, name) values
  ('a5130000-0000-0000-0000-000000000001','Revenue A'),
@@ -65,9 +65,9 @@ select is(public.apply_odoo_revenue_page('a5130000-0000-0000-0000-000000000001',
    "attrs":{"state":"posted","docstatus":1,"status":"Unpaid","partner":"41","partner_name":"Client A","date":"2026-11-01","due_date":"2026-12-01","reference_number":"PO-A","currency":"IDR","amount_total":"100.00","amount_untaxed":"90.00","amount_tax":"10.00","residual":"60.00"}}
 ]$$::jsonb,'cur-a-1'),1,'AC-OCI-074 a linked invoice page applies');
 reset role;
-select results_eq($$select status, si_number, amount, erp_outstanding_amount, erp_docstatus, erp_modified from sales_invoices where id='a5130000-0000-0000-0000-0000000000e1'$$,
-  $$values ('Unpaid'::text,'INV-A-7'::text,100.00::numeric,60.00::numeric,1::smallint,'2026-11-02 10:00:00'::text)$$,
-  'AC-OCI-074 the linked invoice uses Odoo figures and residual');
+select results_eq($$select status, si_number, amount, tax_amount, tax_treatment, erp_outstanding_amount, erp_docstatus, erp_modified, odoo_state, odoo_attention, odoo_read_at is not null from sales_invoices where id='a5130000-0000-0000-0000-0000000000e1'$$,
+  $$values ('Unpaid'::text,'INV-A-7'::text,100.00::numeric,10.00::numeric,'inclusive'::text,60.00::numeric,1::smallint,'2026-11-02 10:00:00'::text,'posted'::text,null::text,true)$$,
+  'AC-OCI-074 the linked invoice refreshes the complete money header and Odoo read facts');
 select is((select watermark_cursor from external_sync_watermarks where org_id='a5130000-0000-0000-0000-000000000001' and domain='revenue:sales-invoice'),'cur-a-1','AC-OCI-074 the page and cursor are stored together');
 
 -- An incomplete money header cannot replace figures or a derived status, even though its page cursor commits.
@@ -77,8 +77,8 @@ select is(public.apply_odoo_revenue_page('a5130000-0000-0000-0000-000000000001',
   {"external_id":"7","name":"INV-A-7","source_write_date":"2026-11-02 11:00:00","attrs":{"state":"posted","docstatus":1,"status":"Paid","amount_total":"100.00","residual":"0.00"}}
 ]$$::jsonb,'cur-incomplete'),1,'AC-OCI-082 an incomplete invoice page still advances its durable cursor');
 reset role;
-select results_eq($$select status, amount, erp_outstanding_amount from sales_invoices where id='a5130000-0000-0000-0000-0000000000e1'$$,
-  $$values ('Unpaid'::text,100.00::numeric,60.00::numeric)$$,'AC-OCI-082 an incomplete header changes neither money nor derived status');
+select results_eq($$select status, amount, tax_amount, tax_treatment, erp_outstanding_amount from sales_invoices where id='a5130000-0000-0000-0000-0000000000e1'$$,
+  $$values ('Unpaid'::text,100.00::numeric,10.00::numeric,'inclusive'::text,60.00::numeric)$$,'AC-OCI-082 an incomplete header changes neither money nor derived status');
 
 -- A page failure after the linked-row write rolls back both the row and the watermark.
 create function public.a513_fail_revenue_insert() returns trigger language plpgsql as $$
@@ -110,7 +110,7 @@ select is(public.apply_odoo_revenue_page('a5130000-0000-0000-0000-000000000002',
    "attrs":{"state":"posted","docstatus":1,"status":"Paid","partner":"42","partner_name":"Client B","date":"2026-11-02","currency":"IDR","amount_total":"300.00","residual":"0.00"}}
 ]$$::jsonb,'cur-b-1'),1,'AC-OCI-070 org B page applies in org B');
 reset role;
-select is((select amount from sales_invoices where id='a5130000-0000-0000-0000-0000000000e1'),100.00::numeric,'AC-OCI-070 org B cannot update org A invoice with the same Odoo id');
+select is((select si_number from sales_invoices where id='a5130000-0000-0000-0000-0000000000e1'),'INV-A-7','AC-OCI-070 org B cannot update org A invoice with the same Odoo id');
 select is((select amount from sales_invoices where id='a5130000-0000-0000-0000-0000000000e3'),300.00::numeric,'AC-OCI-070 org B updates only its own invoice');
 select is((select watermark_cursor from external_sync_watermarks where org_id='a5130000-0000-0000-0000-000000000002' and domain='revenue:sales-invoice'),'cur-b-1','AC-OCI-070 org B cursor advances');
 select is((select count(*) from external_sync_watermarks where org_id='a5130000-0000-0000-0000-000000000001' and domain='revenue:sales-invoice'),1::bigint,'AC-OCI-070 org A cursor is unchanged by org B');
@@ -130,6 +130,13 @@ select results_eq($$select erp_doctype, grand_total, outstanding_amount, reverse
 select is((select erp_outstanding_amount from sales_invoices where id='a5130000-0000-0000-0000-0000000000e1'),60.00::numeric,'AC-OCI-075 invoice outstanding is Odoo residual');
 select results_eq($$select status, amount, erp_docstatus from incoming_payments where id='a5130000-0000-0000-0000-0000000000e4'$$,
   $$values ('Paid'::text,25.00::numeric,1::smallint)$$,'AC-OCI-074 an inbound customer payment refreshes its PMO row');
+set local role service_role;
+set local request.jwt.claims = '{"role":"service_role"}';
+select public.apply_odoo_revenue_page('a5130000-0000-0000-0000-000000000001','incoming-payment', $$[
+  {"external_id":"9","name":"PAY-A-9","source_write_date":"2026-11-03 13:00:00","attrs":{"state":"in_process","docstatus":1,"status":"Paid","payment_type":"inbound","partner_type":"customer","partner":"41","partner_name":"Client A","date":"2026-11-03","currency":"IDR","amount":"25.00"}}
+]$$::jsonb,'cur-payment-in-process');
+reset role;
+select is((select status from incoming_payments where id='a5130000-0000-0000-0000-0000000000e4'),'Paid','AC-OCI-071 an in-process Odoo receipt remains Paid in PMO');
 
 -- Native invoices listed twice are keyed once at their newest figures; an Odoo row carrying a PMO anchor is proposed for adoption.
 set local role service_role;
@@ -151,12 +158,15 @@ select results_eq($$select pmo_owned, adoption_key, sales_invoice_id, pair_candi
 
 -- Census seen IDs are retained; hard-deleted linked invoices are tombstoned and stop counting.
 create temporary table a513_revenue_census_run (run_at timestamptz) on commit drop;
-insert into a513_revenue_census_run values (now());
+insert into a513_revenue_census_run values (now()), (now()+interval '1 second');
 grant select on a513_revenue_census_run to service_role;
 set local role service_role;
 set local request.jwt.claims = '{"role":"service_role"}';
-select public.mark_odoo_revenue_census_seen('a5130000-0000-0000-0000-000000000001','sales-invoice',(select run_at from a513_revenue_census_run),array['7']);
-select is(public.finish_odoo_revenue_census('a5130000-0000-0000-0000-000000000001','sales-invoice',(select run_at from a513_revenue_census_run),'census-a-1'),1,'AC-OCI-073 the census tombstones one missing invoice');
+select throws_ok($$select public.finish_odoo_revenue_census('a5130000-0000-0000-0000-000000000001','sales-invoice',(select run_at from a513_revenue_census_run order by run_at desc limit 1),'census-empty')$$,
+  'P0001','revenue census saw no documents','AC-OCI-073 an empty census refuses before tombstoning eligible invoices');
+select is((select status from sales_invoices where id='a5130000-0000-0000-0000-0000000000e2'),'Unpaid','AC-OCI-073 an empty census leaves eligible invoices live');
+select public.mark_odoo_revenue_census_seen('a5130000-0000-0000-0000-000000000001','sales-invoice',(select min(run_at) from a513_revenue_census_run),array['7']);
+select is(public.finish_odoo_revenue_census('a5130000-0000-0000-0000-000000000001','sales-invoice',(select min(run_at) from a513_revenue_census_run),'census-a-1'),1,'AC-OCI-073 the census tombstones one missing invoice');
 reset role;
 select results_eq($$select status, erp_docstatus, erp_cancelled_at is not null from sales_invoices where id='a5130000-0000-0000-0000-0000000000e2'$$,
   $$values ('Cancelled'::text,2::smallint,true)$$,'AC-OCI-073 a hard-deleted invoice is tombstoned');
