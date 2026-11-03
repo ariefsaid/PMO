@@ -442,6 +442,7 @@
     "replace_erp_ple_voucher_rows(uuid,text,text,text,jsonb,text[])",
     "replace_erp_snapshot(text,uuid,jsonb)",
     "request_imprest_replenishment(uuid,text)",
+    "resolve_held_outbox_command(uuid,text,text,text)",
     "request_po_variation(uuid,text,jsonb,text)",
     "reserve_credits(uuid,numeric,uuid)",
     "reset_odoo_sync_kind(uuid,text,uuid)",

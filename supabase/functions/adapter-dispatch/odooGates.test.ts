@@ -266,11 +266,11 @@ describe('AC-OPP-017 the revise guard takes its cancel flag from the tier', () =
 });
 
 describe('AC-OPP-001 a command that passes every gate still reaches no Odoo request until the Odoo adapter exists', () => {
-  const refusal = async (world: World) => {
-    const r = await dispatch(paymentCommand(), PAYER_ID, { owns: ['odoo'], ...world });
+  const refusal = async (world: World, command: Record<string, unknown> = paymentCommand()) => {
+    const r = await dispatch(command, PAYER_ID, { owns: ['odoo'], ...world });
     assertEquals(r.unexpected.map((c) => `${c.method} ${c.url.pathname}${c.url.search}`), [], 'every read is mocked');
     assertEquals(r.calls.filter((c) => c.url.host === ODOO_HOST).length, 0, 'no Odoo request');
-    assertEquals(r.calls.filter((c) => c.url.pathname.includes('external_command_outbox')).length, 0, 'no outbox row');
+    assertEquals(r.calls.filter((c) => c.url.pathname.includes('external_command_outbox') && c.method !== 'GET').length, 0, 'no outbox row written');
     return { status: r.status, body: JSON.parse(r.body) as { error: string; message: string } };
   };
 
@@ -302,8 +302,9 @@ describe('AC-OPP-001 a command that passes every gate still reaches no Odoo requ
     } finally { Deno.env.delete('EXTERNAL_CONNECT_ENABLED'); }
   });
 
-  it('a ready connection is refused for a step Odoo does not push yet (a payment): fail closed, nothing sent', async () => {
-    const r = await refusal({});
+  it('a ready connection is refused for a step Odoo does not push yet (an RFQ): fail closed, nothing sent', async () => {
+    const command = paymentCommand();
+    const r = await refusal({}, { ...command, record: { ...command.record, erp_doc_kind: 'rfq' } });
     assertEquals(r.status, 422);
     assertEquals(r.body.error, 'config-rejected');
     assert(r.body.message.includes('not available'), r.body.message);
