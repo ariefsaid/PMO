@@ -20,10 +20,14 @@ it('AC-MC-017 DeputyContext gains no modelClient member under the ModelClient re
   // Type-level assertion: DeputyContext (runtime/port.ts) must have exactly its
   // documented members. This mirrors the ADR-0041 invariant this file already
   // exists to protect, now re-asserted for the renamed anthropic->modelClient seam.
+  // Plans S4 (FR-PLN-008) added `featureSwitches` — the caller org's resolved plan switches, read once
+  // per request — as a documented, optional-by-type member; nothing else may appear.
   type Keys = keyof import('./runtime/port').DeputyContext;
-  const allowedKeys: Record<Keys, true> = { jwt: true, userId: true, orgId: true, supabase: true, role: true };
+  const allowedKeys: Record<Keys, true> = {
+    jwt: true, userId: true, orgId: true, supabase: true, role: true, featureSwitches: true,
+  };
   // If DeputyContext ever gains a `modelClient` (or any other) member, this object
   // literal fails to typecheck (excess/missing property) — a compile-time proof,
   // not just a runtime grep.
-  expect(Object.keys(allowedKeys)).toEqual(['jwt', 'userId', 'orgId', 'supabase', 'role']);
+  expect(Object.keys(allowedKeys)).toEqual(['jwt', 'userId', 'orgId', 'supabase', 'role', 'featureSwitches']);
 });

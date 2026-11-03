@@ -114,3 +114,15 @@ eval user. The suite only proposes, never approves, so it sends nothing and uses
 the **`Central store`** (code `CENTRAL`) — 120 received minus the 40 transferred out. The suite is read-only
 (`query_stock` is a pure read; it never approves a write), so a run mutates nothing.
 
+
+## Plans switch-off fixture (S4)
+
+`evals/cases/plans-switch-off.eval.ts` runs as the same eval test user, whose org must have the
+**`stock`** switch OFF for the run: either the org sits on a plan that excludes `stock` (Starter/Growth
+per the 0531 matrix) or an Operator set an explicit `org_features` override `stock = false`
+(`operator_toggle_feature`). With stock ON the suite fails on purpose — the assistant then legitimately
+reads stock, so the fixture, not the product, is wrong.
+
+The suite is read-only (`query_stock` is a pure read and no case approves a write). It checks both
+halves of FR-PLN-008: a stock question gets no stock tool and an answer naming the plan, while a core
+question (`query_entity` over projects) still works — the switch gates the module, never the assistant.

@@ -563,6 +563,186 @@ supabase/tests/0137_service_role_grants.test.sql'`. Rendered review + `scripts/u
 
 **Goal / AC:** Follow resolved switches and emit a privacy-preserving missing-tool signal (AC-PLN-006, 007); register plan as analytics group property (FR-PLN-016). First inventory entities and named actions against keys, including write actions and both tool loops. Filter the generic `query_entity` entity catalogue and reject disabled entities on execution; filter named tools through the same mapping. Test the shipped handler, no message text in the single event, consent, org changes, and run agent evals. Add the missing stock read tool as needed.
 
+## S4 — detailed plan (written 2026-11-03 against dev @ f10eeb699)
+
+**Goal / AC:** the assistant follows the org's resolved switches (FR-PLN-008, AC-PLN-006) and emits one
+privacy-preserving missing-tool event (FR-PLN-009, AC-PLN-007); the SPA registers the org's plan as a
+PostHog group property (FR-PLN-016).
+
+**Scope guard (binding, this slice):** no migration, no `db reset`, no pgTAP, no e2e, no Docker. The
+resolver is mocked at the client seam (`.rpc('resolved_org_features')`), exactly as the existing
+agent-chat suites mock every other client call. S1 (0530–0533) is merged to `dev`; `query_stock`
+(#1721, `stockRead.ts`) is on `dev`, so no new read tool is needed.
+
+### S4.0 — Inventory: entity → switch key
+
+`AGENT_READ_ENTITIES` (readEntities.ts:33-69) is the whole read catalogue. "—" means **core: no key**
+(core modules are never gatable — 0533 `core_feature_keys()`), so the entry stays offered at every plan.
+
+| Entity | Key | Why |
+|---|---|---|
+| `projects`, `milestones`, `tasks`, `budget_line_items`, `project_documents`, `profiles`, `notifications` | — | core modules (projects, tasks, budgets) / an org directory and the caller's own inbox |
+| `companies`, `contacts`, `crm_activities` | `crm` | 0001/0030 CRM tables (S2.0 `crm` row) |
+| `incidents` | `incidents` | incident_reports |
+| `timesheets` | `timesheets` | timesheets header |
+| `procurements`, `procurement_items`, `procurement_quotations`, `procurement_documents`, `procurement_status_events`, `purchase_requests`, `rfqs`, `purchase_orders`, `procurement_invoices`, `payments` | `procurement` | the basic procurement module: create, approve, track (decision #2); vendor `payments` are procurement-side |
+| `procurement_receipts` | `procurement_full` | receipts/three-way match are the full tier (decision #2; S2 re-boundary) |
+| `stock_items`, `stock_warehouses`, `stock_documents`, `stock_document_lines`, `stock_reorder_levels` | `stock` | 0412/0413/0418 warehouse tables |
+
+### S4.1 — Inventory: named action/tool → switch key
+
+| Tool | Key | Why |
+|---|---|---|
+| `query_entity` | — (per-entity, above) | generic reader; narrowed by the entity map |
+| `query_stock` | `stock` | reads the stock read RPCs |
+| `whats_overdue` | — | overdue tasks (core) + invoices already role-gated |
+| `remind_overdue` | — | nudges people about core tasks |
+| `update_task_status` | — | tasks are core |
+| `notify` | — | the caller's own notifications are core |
+| `ask_user` | — | UX only |
+| `create_activity` | `crm` | writes `crm_activities` |
+| `draft_invoice` | `sales_invoices` | drafts a sales invoice (the basic billing module — decision #2) |
+| `compose_view` | `user_views` | writes a user view |
+| `create_automation` | `agent_assistant` | an assistant capability; S2 OQ-7 gates the tick the same way |
+
+Both tool loops (the main pass and the decision-continuation pass) run through the single shared
+`runToolLoop`, and the answer-continuation pass calls it too, so one filter covers all three.
+
+### S4.2 — Resolution and offering
+
+1. `featureSwitches.ts` (new, dependency-light) owns the ONE map (`ENTITY_FEATURE_KEYS`,
+   `TOOL_FEATURE_KEYS`, human labels) and the pure predicates (`keyForEntity`, `keyForTool`,
+   `isKeyEnabled`, `isToolAllowed`, `isEntityAllowed`, `allowedEntities`, `offerableTools`).
+2. `featureResolution.ts` (new) loads the caller org's switches ONCE per request:
+   `.rpc('resolved_org_features')` on `deps.supabase` — the **caller-JWT** client, never service role
+   (0533:180-202: own org, active member, `authenticated`). It returns `Record<key, enabled>`.
+3. The handler resolves it in `agentChatHandlerInner` after the profiles gate and puts it on
+   `deputyCtx.featureSwitches`, so every later loop/action reads the same snapshot for the turn.
+4. Offering: `runToolLoop` builds its catalog with `offerableTools(...)`; the `query_entity` tool's
+   `entity` enum is narrowed to the offered entities (so the model is never told an off entity exists);
+   `buildAgentSystemPrompt` receives only the offered entities in its schema section.
+5. Prompt: when at least one key is off, the system prompt gains a short "not on this organisation's
+   plan" instruction naming the off features (human labels, no keys/ids); the model is told to say the
+   feature is not on the plan and not to substitute raw entities.
+6. Execution refusal (defense in depth, so a model that calls anyway cannot read): the handler refuses
+   an off tool before dispatch with a `{ error, code: 'FEATURE_OFF' }` tool result; `runQueryEntity` and
+   `runQueryStock` re-check the key themselves from `ctx.featureSwitches`; the decision-approval path
+   refuses an off action and records `write_resolved` rejected with `reason: 'feature_off'`.
+
+**Failure semantics (decided, documented in code):** an unreachable/erroring resolver leaves
+`featureSwitches` `null`, and `null` means "nothing known is off" — every gated tool stays offered.
+Entitlement is not a security boundary: S2's `assert_feature_on` / RLS stay the enforcement authority,
+and hiding the whole assistant because one entitlement read failed would be an availability regression.
+The failure is logged as a structured code only (no model/user text).
+
+**The write half does not fail open.** A read may proceed on an unresolved snapshot; a write may not. The
+two named write paths (`create_automation`, `draft_invoice` including its ERP route) check their own key
+at execution and refuse with `FEATURE_OFF` (key off) or `PLAN_UNVERIFIED` (no snapshot), so a chip
+approved after a failed read cannot create a row or leave the database. An explicit `agent_assistant`
+off refuses the whole run, before any model call, in the one handler every assistant run enters
+(interactive and fired automations).
+
+### S4.3 — Missing-tool signal (FR-PLN-009, AC-PLN-007)
+
+- `missingTool.ts` (new, pure): `detectMissingTool({ question, answer })` matches a narrow phrase set
+  ("I don't have a tool…", "there is no tool…", "…isn't on your organisation's plan", "not available on
+  your plan") and maps the request to a **module guess** from a fixed vocabulary derived from the
+  switch keys (`stock`, `sales_invoices`, `procurement`, `timesheets`, `crm`, `imprest`, … else
+  `unknown`). It never returns any input text.
+- Emission: `aiTelemetry.trace()` (called exactly once per run at the terminal status) emits exactly ONE
+  `agent_missing_tool` server event with `org_id`, `route` (templated: numeric/uuid segments → `:id`,
+  query/hash stripped) and `module`; `$session_id`/`user_id` only when the caller sent the analytics
+  consent flag. No answer or question text, and no free-form property — enforced by the
+  `SERVER_EVENT_ALLOWLIST` entry, which drops/throws anything else.
+- `route` reaches telemetry from `req.context.route` (ADR-0045 §3), clamped to 64 chars by the allowlist.
+
+### S4.4 — Plan as a PostHog group property (FR-PLN-016)
+
+- Source: **`resolved_org_plan()` from S3's migration 0537** —
+  `returns table(plan_id text, plan_name text, seat_limit integer, project_limit integer,
+  ai_monthly_messages integer)`, own org, active member, stable security definer, granted to
+  `authenticated`. S4 depends on 0537 landing before this branch is released (recorded in the PR body);
+  nothing else in S4 depends on S3.
+- Seam: one DAL function (`src/lib/db/orgPlan.ts` → `getOwnOrgPlan()`) reached through
+  `repositories.orgFeature.currentPlan()`; a `useOrgPlanGroup` hook registers
+  `posthog.group('organisation', orgId, { plan: plan_id })` once per resolve, through a new
+  consent-gated `analyticsClient.group(...)` (same guard as every other capture: initialized, enabled,
+  not opted out, DNT honoured by `init`). Errors/absent plan register nothing (analytics is not a
+  gate) and never throw. The DAL remembers ONE "no such function" answer for the page load (PostgREST
+  `PGRST202`/`PGRST203`, Postgres `42883`, 404), so a deployment that predates 0537 never fires a
+  failing request per session or per stale window; a transient failure does not latch.
+- The Vitest proof mocks the DAL seam and `posthog-js`, and asserts the exact group call, the consent
+  guard, and that no group is registered without a plan.
+
+### Tasks (TDD — red first)
+
+1. **Red — S4 map and predicates.** `supabase/functions/agent-chat/featureSwitches.test.ts` (Deno):
+   every `AGENT_READ_ENTITIES` entry is either core or mapped to a key in the 0531 catalogue; every
+   `BASE_ACTIONS`/`ask_user`/`compose_view` name is core or mapped; `offerableTools` drops exactly the
+   off-key tools; an unknown entity/key never disappears. Fails to import (no module) → implement.
+2. **Red — AC-PLN-006 (Deno, shipped handler).** `plansFeatureSwitches.test.ts` imports
+   `agentChatHandler` from `./handler.ts`, mocks `globalThis.fetch`/Deno env only, and stubs
+   `supabase.rpc('resolved_org_features')` returning `stock = false`:
+   - the tool catalog sent to the model has no `query_stock`;
+   - the `query_entity` enum has no `stock_*` entity;
+   - the system prompt lists stock as not on the plan;
+   - a forced `query_stock` call is refused with `FEATURE_OFF` and stock's read RPC is never called;
+   - a forced `query_entity { entity: 'stock_items' }` is refused at the action layer;
+   - the same org with `stock = true` gets the tool, the entity and a real read.
+3. **Red — AC-PLN-007 (Deno, shipped handler).** A completing turn whose answer says it has no tool for
+   stock emits exactly ONE `agent_missing_tool` event with `org_id`, `route: '/stock'`, `module: 'stock'`
+   and **no** message text anywhere in the payload; a normal answer emits none; consent off ⇒ no
+   `user_id`/`$session_id`; consent on ⇒ both.
+4. **Red — failure semantics.** A resolver error still offers `query_entity`/`query_stock` (locks the
+   fail-open decision) and the run completes.
+5. **Prompt builder.** Extend `agentPrompt`/`agentPrompt.test.ts` coverage for the plan paragraph (only
+   rendered when something is off; absent otherwise).
+6. **Red — FR-PLN-016 (Vitest).** `src/lib/analytics/orgPlanGroup.test.ts`: the client calls
+   `posthog.group('organisation', 'org-1', { plan: 'growth' })`; no call when opted out / not
+   initialized; the hook registers from `repositories.orgFeature.currentPlan()`, registers nothing on
+   `null`, and re-registers when the plan changes.
+7. **Implement** in the order above; re-run each red test green as its piece lands.
+8. **Mutation check:** make the offering filter always-allow (`isKeyEnabled` → `true`) — AC-PLN-006 must
+   fail; restore.
+9. **Eval cases:** `pmo-portal/evals/cases/plans-switch-off.eval.ts` (ADR-0052 harness, against the
+   deployed function) — with `stock` off the stock question gets no `query_stock` call and an answer
+   naming the plan, while a core question still works; fixture contract in `pmo-portal/evals/README.md`.
+   `notUsesTool` scorer added for it (+ unit test). `evals/plans-switch-off-probe.ts` is the free local
+   probe over the shipped prompt/tools. Run the harness only where it needs no paid Claude call;
+   otherwise report that it was not run and why.
+
+### Verify (exact commands)
+
+Repo root:
+
+```
+scripts/deno-test-edge-fns.sh            # agent-chat + every other touched fn dir
+node scripts/check-edge-fn-test-binding.mjs
+```
+
+`pmo-portal/`, under `scripts/with-test-lock.sh`: `npm run check:guards`, `npm run typecheck`,
+`npx eslint --max-warnings=0 <touched ts/tsx>`, `npx vitest run` for the touched files
+(`src/lib/analytics/orgPlanGroup.test.ts`, `src/lib/agent/agentPrompt*.test.ts`,
+`src/lib/repositories/admin.test.ts`). No DB work in this slice.
+
+### AC → test
+
+| AC | Owning proof |
+|---|---|
+| AC-PLN-006 (`stock` off ⇒ no tool, reply says not on the plan) | `supabase/functions/agent-chat/plansFeatureSwitches.test.ts` (Deno, shipped handler) |
+| AC-PLN-007 (one missing-tool event, no text) | same file |
+| FR-PLN-008 map completeness (both loops) | `supabase/functions/agent-chat/featureSwitches.test.ts` |
+| FR-PLN-016 (plan group property) | `pmo-portal/src/lib/analytics/orgPlanGroup.test.ts` |
+
+### Open items carried out of S4
+
+- The group property depends on 0537 (`resolved_org_plan()`); until S3's migration lands, the hook
+  resolves nothing and registers nothing (no cross-lane runtime assumption is coded).
+- `sales_pipeline` is a projection over core projects (S2 OQ-3), `management_pack`/`multi_currency`/
+  `budget_projection`/`imprest`/`financial_statements`/`erp_*` have no agent read tool today, so no S4
+  map row exists for them; S6's completeness gate owns catching a future tool added without a key.
+- Member-scoped plan reads are analytics-only here; the Admin "Your plan" page (S3) owns the UI.
+
 ## S5 — limits (0535 on renumber): outline
 
 **Goal / AC:** Enforce seats and active projects and grant monthly credits exactly once (AC-PLN-009–011). First inventory the invite lifecycle, project status taxonomy, credit ledger and scheduler, including the transaction boundary around external invite issuance. Count active members plus pending invites inside the invite RPC under the organisation row lock, without a reservation table; prove concurrency and failure cleanup. Detailed plan owns the limits migration (this outline's `0534_plan_limits.sql` renumbers — 0534 is S2's enforcement migration, see the S2 detailed plan), rollback, monthly idempotency and per-contract behavior. Decide credit rollover and the invite transaction boundary before implementation; do not claim a SQL lock covers an external request after its transaction ends.
