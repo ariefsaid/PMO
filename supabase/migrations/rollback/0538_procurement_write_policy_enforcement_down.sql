@@ -107,3 +107,30 @@ create policy payments_delete on payments for delete
     and auth_role() in ('Admin','Executive','Project Manager','Finance')
     and exists (select 1 from public.procurements p where p.id = payments.procurement_id and p.org_id = auth_org_id())
     and not public.domain_externally_owned(auth_org_id(), 'procurement'));
+
+-- Restore the policy annotations that were attached to the pre-0538 definitions.
+comment on policy procurement_invoices_insert on public.procurement_invoices is
+  'SUPERSEDED and UNREACHABLE since 0174: `authenticated`/`anon` hold SELECT only on this table, so no '
+  'client INSERT can reach this policy. The sole client write path is the SECURITY DEFINER RPC '
+  'create_procurement_invoice, which re-asserts org, role, the ERPNext-ownership fence, the '
+  'origination-status gate AND — since 0180 — active membership (assert_is_active_member). ⚑ The '
+  'is_active_member() conjunct below is DEAD CODE THAT READS LIKE A LIVE CONTROL: do not cite it as '
+  'evidence that offboarding is enforced here; 0180 §2 is. Kept as the second layer if a future '
+  'migration re-grants INSERT — dropping it would make such a re-grant fully open.';
+
+comment on policy procurement_receipts_insert on public.procurement_receipts is
+  'SUPERSEDED and UNREACHABLE since 0174: `authenticated`/`anon` hold SELECT only on this table. The '
+  'sole client write path is the SECURITY DEFINER RPC create_procurement_receipt, which re-asserts '
+  'org, the Admin/PM/requester gate, the ERPNext-ownership fence and — since 0180 — active membership '
+  '(assert_is_active_member). ⚑ HISTORY, since it explains the asymmetry with its twin: this policy '
+  'carried NO is_active_member() from 0063 until 0203, so the goods-receipt create path had no '
+  'active-member control on any layer until 0180 closed the RPC. 0203 added the conjunct here as the '
+  'second layer, per this comment''s own instruction, in case a future migration re-grants INSERT.';
+
+comment on policy procurement_invoices_delete on public.procurement_invoices is
+  'DEAD SINCE 0177 and kept deliberately — see the comment on sales_invoices_delete.';
+
+comment on policy procurement_receipts_delete on public.procurement_receipts is
+  'DEAD SINCE 0177 and kept deliberately — see the comment on sales_invoices_delete. 0203 re-created '
+  'it to add the is_active_member() conjunct; still dead, still deliberate, now consistent with the '
+  'composition rule proven by 0203''s test.';
