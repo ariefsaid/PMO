@@ -207,7 +207,7 @@ Owns AC-TM-001, 002, 004, 006, 007, 009, 010, 019.
   status `SignedOff`; `log_audit('tm_signoff.confirm', …)` with basis. One transaction.
 - **T3.5 (green)** extend `assert_progress_claim_raisable` (newest body): for a `time_materials` claim require a `tm_claims` row
   `SignedOff` with `confirmed_by` set, else `55000`. Extend `append_progress_claim_author` to also insert the confirmer.
-- **T3.6 (green)** a small invoice-line reader for T&M claims used by the native invoice creation path (read the newest
+- **T3.6 (no-op, moved to T6)** the native path builds invoice lines from the caller, not from claims, so nothing is built in T3; the invoice-lines half of `AC-TM-001` (the invoice shows the approved units and rate) is owned by T6's `AC-TM-014`. T3 proves the claim lines only. The Billing tab still labels a confirmed T&M claim "Progress"; the label and drawer go to T8. Original text: a small invoice-line reader for T&M claims used by the native invoice creation path (read the newest
   `create_native_sales_invoice`/claim raise code first; if the claim lines are copied at raise time, add the T&M branch there; do not add a second raiser).
 - **T3.7 Mutation checks (evidence in the PR body):** `confirm` without the document → red; preparer = confirmer allowed → `AC-TM-006` red;
   fence returns true for `time_materials` → `AC-TM-019`/`AC-TM-002` red; skip the authors insert → `AC-TM-007` red; restore each.
@@ -283,7 +283,7 @@ the invoice is raised, the page shows approved units and rate. Run `scripts/e2e-
 
 | AC | Layer | Slice | File |
 |---|---|---|---|
-| AC-TM-001 | pgTAP | T3 | `supabase/tests/tm_signoff.test.sql` |
+| AC-TM-001 | pgTAP (claim lines), Deno (invoice lines) | T3, T6 | `supabase/tests/tm_signoff.test.sql`, `progressClaimInvoice.test.ts` |
 | AC-TM-002 | pgTAP | T3 | `tm_signoff.test.sql` |
 | AC-TM-003 | pgTAP | T2 | `tm_assembly.test.sql` |
 | AC-TM-004 | pgTAP | T3 | `tm_signoff.test.sql` |
@@ -310,3 +310,10 @@ Each AC has exactly one owning layer (halves of AC-TM-008/009/011 are the same a
 1. `progress_claim_lines` cannot hold T&M lines (BoQ key not null), so T&M lines live in `tm_claim_lines` and `progress_claims` carries the header only; the spec's "reuse the claim record" is met at the header, fence, evidence and invoice level.
 2. Spec §2 "materials" wording: this issue bills people and machines; priced extras are OQ-TM-10 (default out).
 3. T6 is its own slice because the ERPNext claim reader is a shared money file (Odoo's C4b depends on its shape).
+
+## Built in T3 (0517), beyond the task text
+
+4. The fence also reads `tm_claims`: a Draft or Withdrawn T&M claim has no progress-claim row, so the shipped "not a claim" exit would have waved its id through. Only a `SignedOff` row with a confirmer passes.
+5. Two authors of the quantities, not one: whoever assembled the claim (`prepared_by`) and whoever prepared the sign-off (`signoff_prepared_by`). Neither may confirm (sole-active-member exception) and both join the invoice authors with the confirmer.
+6. `prepared_fingerprint` pins what the client was shown (gross and source set); a deselect after prepare makes confirm refuse until the sign-off is prepared again (FR-TM-023).
+7. Withdrawing a confirmed sign-off is `withdraw_progress_claim` (or `withdraw_tm_signoff`, which allows a Cancelled invoice so its hours are released); a trigger on `progress_claims` moves the T&M claim to Withdrawn and frees the sources.

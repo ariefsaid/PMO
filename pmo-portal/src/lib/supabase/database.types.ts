@@ -10031,7 +10031,10 @@ export type Database = {
           period_from: string
           period_to: string
           prepared_by: string
+          prepared_fingerprint: string | null
           project_id: string
+          signoff_prepared_at: string | null
+          signoff_prepared_by: string | null
           status: string
           work_order_id: string | null
         }
@@ -10048,7 +10051,10 @@ export type Database = {
           period_from: string
           period_to: string
           prepared_by: string
+          prepared_fingerprint?: string | null
           project_id: string
+          signoff_prepared_at?: string | null
+          signoff_prepared_by?: string | null
           status?: string
           work_order_id?: string | null
         }
@@ -10065,7 +10071,10 @@ export type Database = {
           period_from?: string
           period_to?: string
           prepared_by?: string
+          prepared_fingerprint?: string | null
           project_id?: string
+          signoff_prepared_at?: string | null
+          signoff_prepared_by?: string | null
           status?: string
           work_order_id?: string | null
         }
@@ -10103,6 +10112,13 @@ export type Database = {
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tm_claims_signoff_prepared_by_fkey"
+            columns: ["signoff_prepared_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {
@@ -11562,6 +11578,13 @@ export type Database = {
         Args: { p_id: string; p_kind: string }
         Returns: boolean
       }
+      confirm_tm_signoff: { Args: { p_claim: string }; Returns: Json }
+      prepare_tm_signoff: {
+        Args: { p_claim: string; p_document: string; p_note?: string }
+        Returns: undefined
+      }
+      withdraw_tm_signoff: { Args: { p_claim: string }; Returns: undefined }
+      tm_claim_fingerprint: { Args: { p_claim: string }; Returns: string }
       update_procurement_header: { Args: { p_id: string; p_patch: Json }; Returns: boolean }
       procurement_item_values_editable: { Args: { p_case: string }; Returns: boolean }
       budget_version_read_totals: {
