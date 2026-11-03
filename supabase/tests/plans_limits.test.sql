@@ -14,9 +14,10 @@
 -- Concurrency proof (modelled on 0163_automation_cap_race.test.sql: a genuine second session via
 -- dblink holds the SAME organisations row FOR UPDATE, and both the RPC and a concurrent profiles
 -- INSERT are asserted to BLOCK on it — 55P03 under a short lock_timeout — rather than sail through).
--- It runs FIRST, before this transaction takes the lock itself (a second session's blocking
--- `for update` against a lock this session already holds is an undiscoverable cross-connection
--- deadlock — 0163's header warns about exactly this).
+-- It runs FIRST and it locks an organisation this transaction never writes: a row lock is held to the
+-- end of the transaction, so a fixture insert into the SAME org would make this session hold the lock
+-- the second session is waiting for, and the synchronous `dblink()` call would then wait forever — a
+-- self-deadlock across two connections that nothing can detect (0163's header warns about it).
 --
 -- ⚑ It locks the DEFAULT organisation, which already exists and always resolves Enterprise (unlimited):
 -- no fixture has to be COMMITTED for the second session to see a row, so this file commits nothing,
@@ -29,35 +30,53 @@ create extension if not exists pgtap;
 create extension if not exists dblink;
 select plan(44);
 
--- The caller for the lock proof: an Admin in the default org, created in THIS transaction.
+-- ⚑ THE LOCK PROOF RUNS ON AN ORG THIS TRANSACTION NEVER WRITES, and that is the whole trick.
+-- `plan_enforce_seat_limit` locks the organisation row FIRST (as it must), and a row lock is held to
+-- the END of the transaction — so any fixture insert into the org the second session locks would make
+-- this session hold that lock, the second session wait on it, and the synchronous `dblink()` call wait
+-- forever: a self-deadlock across two connections that nothing can detect. The DEFAULT organisation is
+-- used because it needs no fixture (it exists, and resolves Enterprise = unlimited), and the caller is
+-- an OPERATOR of another org, so the RPC's authority check passes without this transaction touching it.
+--
+-- Every second-session statement also carries its own lock/statement timeout, so the competing session
+-- can never hang the suite — it can only fail fast.
+insert into organizations (id, name) values
+  ('0535a000-0000-0000-0000-000000000002', 'Plan Limits B Enterprise');
 insert into auth.users (id, email) values
-  ('0535a000-0000-0000-0000-0000000000c9','plan-limits-lock-admin@example.invalid');
+  ('0535a000-0000-0000-0000-0000000000b9','plan-limits-b9@example.invalid');
 insert into profiles (id, org_id, full_name, email, role, status) values
-  ('0535a000-0000-0000-0000-0000000000c9','00000000-0000-0000-0000-000000000001',
-   'Plan Limits Lock Admin','plan-limits-lock-admin@example.invalid','Admin','active');
+  ('0535a000-0000-0000-0000-0000000000b9','0535a000-0000-0000-0000-000000000002','Plan Limits Operator','plan-limits-b9@example.invalid','Finance','active');
+insert into platform_operators (user_id) values ('0535a000-0000-0000-0000-0000000000b9');
 
--- ── AC-PLN-009 concurrency: a second session holds the default org row FOR UPDATE ─────────────────
 select dblink_connect('cap', format(
   'dbname=%s user=%s password=postgres host=%s port=%s',
   current_database(), current_user,
   coalesce(host(inet_server_addr()), 'supabase_db_pmo-portal'),
   coalesce(inet_server_port(), 5432)));
 select dblink_exec('cap', 'begin');
+-- Hang guard: if this session ever has to wait, it gives up in seconds instead of blocking the suite.
+select dblink_exec('cap', $s1$set lock_timeout = '2s'$s1$);
+select dblink_exec('cap', $s2$set statement_timeout = '5s'$s2$);
 select ok(
   (select count(*)::int from dblink('cap', $q$
      select id from public.organizations
       where id = '00000000-0000-0000-0000-000000000001' for update$q$) as t(id uuid)) = 1,
-  'AC-PLN-009 setup: a second session holds the org row FOR UPDATE');
+  'AC-PLN-009 setup: a second session holds the default org row FOR UPDATE');
 
+-- The waiting side gives up after 1500 ms — `lock_timeout` (not statement_timeout) fires ONLY on a
+-- lock wait, so neither assertion can be satisfied by a merely-slow statement.
 set local lock_timeout = '1500ms';
 set local role authenticated;
 set local request.jwt.claims =
-  '{"sub":"0535a000-0000-0000-0000-0000000000c9","role":"authenticated"}';
+  '{"sub":"0535a000-0000-0000-0000-0000000000b9","role":"authenticated"}';
 select throws_ok(
   $$ select public.assert_seat_available('00000000-0000-0000-0000-000000000001') $$,
   '55P03', null,
   'AC-PLN-009 assert_seat_available WAITS for the organisation row lock (drop the lock and it sails through)');
 reset role;
+-- ⚑ The claims go too: 0074's stamp would rewrite the seed-org literal in the fixture to the caller's
+-- org (b9's org B), and the seat check would then lock the wrong organisation and not block.
+reset request.jwt.claims;
 select throws_ok(
   $$ insert into public.profiles (id, org_id, full_name, email, role, status)
      values ('0535a000-0000-0000-0000-0000000000ca','00000000-0000-0000-0000-000000000001',
@@ -77,7 +96,6 @@ reset request.jwt.claims;   -- the remaining fixtures are written by the migrati
 -- ── The rest of the fixtures live in THIS transaction (rolled back at the end) ───────────────────
 insert into organizations (id, name) values
   ('0535a000-0000-0000-0000-000000000001', 'Plan Limits A Starter'),
-  ('0535a000-0000-0000-0000-000000000002', 'Plan Limits B Enterprise'),
   ('0535a000-0000-0000-0000-000000000003', 'Plan Limits C Growth'),
   ('0535a000-0000-0000-0000-000000000004', 'Plan Limits D Downgraded');
 insert into auth.users (id, email) values
@@ -94,14 +112,11 @@ insert into auth.users (id, email) values
   ('0535a000-0000-0000-0000-0000000000ab','plan-limits-ab@example.invalid'),
   ('0535a000-0000-0000-0000-0000000000ac','plan-limits-ac@example.invalid'),
   ('0535a000-0000-0000-0000-0000000000b1','plan-limits-b1@example.invalid'),
-  ('0535a000-0000-0000-0000-0000000000b9','plan-limits-b9@example.invalid'),
   ('0535a000-0000-0000-0000-0000000000d1','plan-limits-d1@example.invalid');
 insert into profiles (id, org_id, full_name, email, role, status) values
   ('0535a000-0000-0000-0000-0000000000a1','0535a000-0000-0000-0000-000000000001','Plan Limits A Admin','plan-limits-a1@example.invalid','Admin','active'),
   ('0535a000-0000-0000-0000-0000000000b1','0535a000-0000-0000-0000-000000000002','Plan Limits B Admin','plan-limits-b1@example.invalid','Admin','active'),
-  ('0535a000-0000-0000-0000-0000000000b9','0535a000-0000-0000-0000-000000000002','Plan Limits Operator','plan-limits-b9@example.invalid','Finance','active'),
   ('0535a000-0000-0000-0000-0000000000d1','0535a000-0000-0000-0000-000000000004','Plan Limits D Admin','plan-limits-d1@example.invalid','Admin','active');
-insert into platform_operators (user_id) values ('0535a000-0000-0000-0000-0000000000b9');
 insert into org_plans (org_id, plan_id) values
   ('0535a000-0000-0000-0000-000000000001','starter'),
   ('0535a000-0000-0000-0000-000000000003','growth');
