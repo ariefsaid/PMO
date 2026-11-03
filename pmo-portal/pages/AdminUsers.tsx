@@ -212,6 +212,17 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
         INVITE_UNAUTHORIZED: t('admin.users.inviteError.unauthorized', "You don't have permission to invite users."),
         INVALID_ROLE: t('admin.users.inviteError.invalidRole', 'Choose a valid role.'),
         UNKNOWN_ORG: t('admin.users.inviteError.unknownOrg', "That organization doesn't exist."),
+        // FR-PLN-010 / AC-PLN-009: the plan's seats are all in use (migration 0535's typed PL001).
+        SEAT_LIMIT_REACHED: t('administration:admin.users.inviteError.seatLimit', 'Your plan has no seats left'),
+      }, {
+        module: 'administration',
+        operation: 'create',
+        detailOverrides: {
+          SEAT_LIMIT_REACHED: t(
+            'administration:admin.users.inviteError.seatLimitDetail',
+            'Everyone on your plan already has a seat. Ask your Operator to upgrade the plan, then invite again.',
+          ),
+        },
       });
       setInviteError({ headline, detail });
       toast(headline, detail, 'warning');

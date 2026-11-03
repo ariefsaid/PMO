@@ -42,7 +42,8 @@ export type InviteErrorCode =
   | 'DUPLICATE_EMAIL'
   | 'INVALID_ROLE'
   | 'UNKNOWN_ORG'
-  | 'BAD_EMAIL';
+  | 'BAD_EMAIL'
+  | 'SEAT_LIMIT_REACHED';
 
 export class InviteError extends Error {
   constructor(
@@ -112,5 +113,28 @@ export async function authorizeInvite(
   });
   if (dup === true) throw new InviteError('DUPLICATE_EMAIL', 409);
 
+  // Seat limit (FR-PLN-010, AC-PLN-009): `assert_seat_available` (migration 0535) counts the org's
+  // active profiles — a pending invite IS one of those rows — under the organisation row lock, and
+  // refuses with the typed `PL001` / `seat_limit_reached`. It runs LAST so a duplicate email or an
+  // invalid role still gets its own, more actionable message.
+  //
+  // ⚑ FAIL OPEN on any OTHER rpc failure (network, a transient 5xx). This call is the
+  // refuse-before-email courtesy; the ENFORCEMENT is the profiles seat trigger in 0535, which refuses
+  // the profile write at issuance and leaves the edge fn's saga to delete the auth user. Making this
+  // pre-check fail closed would turn a transient plan-registry hiccup into "nobody can invite".
+  const seat = await db.rpc<void>('assert_seat_available', { p_org_id: targetOrgId });
+  if (seat.error && isSeatLimitReached(seat.error)) {
+    throw new InviteError('SEAT_LIMIT_REACHED', 409);
+  }
+
   return { targetOrgId, role: input.role as InviteRole };
+}
+
+/**
+ * The typed seat refusal. `PL001` is the SQLSTATE (0535); the message marker is accepted too because
+ * the client library surfaces `raise exception` text on `.message`, and a PostgREST error can arrive
+ * with the code nested/hidden depending on the transport.
+ */
+export function isSeatLimitReached(error: { code?: string; message?: string }): boolean {
+  return error.code === 'PL001' || /seat_limit_reached/.test(error.message ?? '');
 }
