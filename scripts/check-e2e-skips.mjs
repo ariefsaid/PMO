@@ -80,8 +80,10 @@ export const ALLOWED_SKIPS = [
   },
   {
     file: 'serial/AC-PLN-015-switch-off-journey.spec.ts',
-    reason: 'The assistant arm needs the served-functions lane AND the agent-assistant capability flag; its two nav/URL arms run in the ordinary lane.',
-    restore: 'Run with scripts/serve-functions.sh and VITE_FEATURES_AGENT_ASSISTANT=true — the assistant arm then runs instead of skipping.',
+    reason:
+      'Arms (a) and (b) assert the /stock ROUTE and RAIL gates that S3 (feat/plans-s3-console) has not wired on dev, so they are test.fixme; arm (c) additionally needs the served-functions lane AND the agent-assistant capability flag. Nothing in this SERIAL-lane spec can run on dev until S3 lands.',
+    restore:
+      'Restore when S3 feat/plans-s3-console lands: delete the two test.fixme markers on arms (a)/(b), then run the serial project with scripts/serve-functions.sh and VITE_FEATURES_AGENT_ASSISTANT=true so arm (c) runs too. The entry is then stale — the skip gate fails until it is deleted.',
     verified: '2026-11-03',
   },
   {
