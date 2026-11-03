@@ -381,6 +381,21 @@ export interface ReconcileOrgOutboxResult {
 }
 
 /**
+ * domain → the plan switch that entitles it (0534). A domain with no switch (`budget`, core
+ * `expenses`) is never held here. `companies` is the CRM master feed.
+ */
+export const DOMAIN_FEATURE_KEY: Record<string, string> = {
+  procurement: 'procurement',
+  revenue: 'revenue',
+  companies: 'crm',
+};
+
+/** True when 0534's entitlement read says this org's module is switched off. */
+export function featureDisabled(org: { disabledFeatureKeys?: readonly string[] }, key: string): boolean {
+  return (org.disabledFeatureKeys ?? []).includes(key);
+}
+
+/**
  * The outbox recovery pass for ONE org (AC-ENA-045, ADR-0058 §Consequences). Lists the candidates
  * (pending/failed/committing-past-lease/committed) via `outbox_reconcile_candidates(org)` and drives
  * each through the REAL `dispatchMoneyWrite` — one algorithm, shared with the retry path. A candidate
@@ -398,21 +413,6 @@ export interface ReconcileOrgOutboxResult {
  * per-candidate error, which `runErpSweepCycle` surfaces as `reconcile:<id>:<error>`. Re-granting the
  * domain resumes it on the next tick.
  */
-/**
- * domain → the plan switch that entitles it (0534). A domain with no switch (`budget`, core
- * `expenses`) is never held here. `companies` is the CRM master feed.
- */
-export const DOMAIN_FEATURE_KEY: Record<string, string> = {
-  procurement: 'procurement',
-  revenue: 'revenue',
-  companies: 'crm',
-};
-
-/** True when 0534's entitlement read says this org's module is switched off. */
-export function featureDisabled(org: { disabledFeatureKeys?: readonly string[] }, key: string): boolean {
-  return (org.disabledFeatureKeys ?? []).includes(key);
-}
-
 export async function reconcileOrgOutbox(
   listCandidates: ListOutboxCandidates,
   org: { orgId: string; ownedDomains: readonly string[]; disabledFeatureKeys?: readonly string[] },

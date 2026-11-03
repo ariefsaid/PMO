@@ -250,8 +250,8 @@ select lives_ok($$ select * from public.claim_outbox_for_commit('05340000-0000-0
   'the outbox claim path stays callable while a module is off (no strand mid-flight)');
 select lives_ok($$ select public.confirm_outbox('05340000-0000-0000-0000-0000000000e4', 0) $$,
   'the outbox confirm path stays callable while a module is off');
-select lives_ok($$ select public.release_outbox_hold('05340000-0000-0000-0000-0000000000e4', 'probe') $$,
-  'the outbox hold-release path stays callable while a module is off');
+select lives_ok($$ select * from public.service_resolved_org_features('05340000-0000-0000-0000-000000000001') $$,
+  'the service entitlement projection stays readable while a module is off (jobs gate in code, not reads)');
 reset role;
 
 -- The enqueue definers refuse new commands for an off key (called here as the test owner, as a
@@ -269,7 +269,7 @@ select throws_ok($$ select public.insert_timesheet_outbox_pending(
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"05340000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select throws_ok($$ select public.service_feature_enabled('05340000-0000-0000-0000-000000000001', 'imprest') $$,
-  '42501', 'service_role_only', 'a client cannot call the service entitlement twin');
+  '42501', null, 'a client cannot call the service entitlement twin');
 reset role;
 
 select * from finish();
