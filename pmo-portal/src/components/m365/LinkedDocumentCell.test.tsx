@@ -125,6 +125,21 @@ describe('LinkedDocumentCell direct open', () => {
 });
 
 describe('LinkedDocumentCell versions and approved history', () => {
+  it('AC-M365DOC-065 the versions dialog keeps its loading status available to assistive technology', async () => {
+    const user = userEvent.setup();
+    let releaseVersions: (page: ReturnType<typeof versionsPage>) => void = () => {};
+    vi.mocked(listVersions).mockImplementationOnce(
+      () => new Promise((resolve) => { releaseVersions = resolve; }),
+    );
+    view(ref(), procurement);
+    await user.click(screen.getByRole('button', { name: /^Versions/ }));
+
+    expect(screen.getByRole('status')).toHaveTextContent('Loading');
+
+    releaseVersions(versionsPage(['1.0']));
+    expect(await screen.findByRole('list', { name: 'Versions' })).toBeInTheDocument();
+  });
+
   it('AC-M365DOC-065 every file target can list versions as metadata with explicit Load more, and nothing is opened or persisted', async () => {
     const user = userEvent.setup();
     vi.mocked(listVersions).mockResolvedValueOnce(versionsPage(['3.0', '2.0'], { path: '/versions-next' })).mockResolvedValueOnce(versionsPage(['1.0']));

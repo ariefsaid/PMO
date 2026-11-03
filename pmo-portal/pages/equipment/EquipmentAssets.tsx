@@ -108,7 +108,7 @@ const EquipmentAssetsPage: React.FC = () => {
       </CanWrite>}
     >
       {problem && <p role="alert" className="mb-3 text-sm text-destructive-text">{problem}</p>}
-      {isPending && <ListState variant="loading" rows={4} />}
+      {isPending && <ListState variant="loading" shape="table" rows={4} />}
       {!isPending && (isError || !data) && (
         <ListState variant="error" title={t('equipment:assets.error', "Couldn't load equipment assets")}
           sub={t('equipment:assets.errorSub', 'The request failed. Check your connection and try again.')} onRetry={() => void refetch()}

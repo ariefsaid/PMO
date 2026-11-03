@@ -22,6 +22,7 @@ import {
 } from '@/src/lib/adapterSeam/pendingPush';
 import type { Tables } from '@/src/lib/supabase/database.types';
 import type { CommandIntent, CaptureSubcontractVendorInvoiceInput } from '@/src/lib/repositories/types';
+import type { ReceiptLineInput } from '@/src/lib/repositories/contracts/procurement';
 import { efakturRefusal } from '@/src/lib/efaktur';
 import { useStartRecordFolder } from '@/src/hooks/useStartRecordFolder';
 import { subcontractKeys } from '@/src/hooks/useSubcontract';
@@ -131,10 +132,12 @@ export function useProcurementMutations(id: string) {
   const createReceipt = useMutation<
     ProcurementReceiptRow,
     ProcurementError,
-    { status: 'Partial' | 'Complete'; receiptDate: string; referenceNumber?: string | null; intent?: CommandIntent }
+    { status: 'Partial' | 'Complete'; receiptDate: string; referenceNumber?: string | null; intent?: CommandIntent; receiptLines?: ReceiptLineInput[] }
   >({
-    mutationFn: ({ status, receiptDate, referenceNumber, intent }) =>
-      repositories.procurement.createReceipt(id, status, receiptDate, referenceNumber, intent),
+    mutationFn: ({ status, receiptDate, referenceNumber, intent, receiptLines }) =>
+      receiptLines
+        ? repositories.procurement.createReceipt(id, status, receiptDate, referenceNumber, intent, receiptLines)
+        : repositories.procurement.createReceipt(id, status, receiptDate, referenceNumber, intent),
     onMutate: () => {
       if (isExternal()) {
         queryClient.setQueryData(['procurement-item-eligibility', orgId, id], false);

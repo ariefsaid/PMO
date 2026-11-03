@@ -68,6 +68,12 @@ export async function handleOnboardRequest(req: Request): Promise<Response> {
   });
 
   try {
+    for (const key of ['erp_sync', 'crm'] as const) {
+      const { data: enabled, error } = await serviceClient.rpc('service_feature_enabled', { p_org_id: orgId, p_key: key });
+      if (error) return json({ error: 'INTERNAL', message: 'could not resolve the plan switch' }, 500);
+      if (enabled !== true) return json({ error: 'feature_off', message: 'ERP onboarding is not enabled for this organization' }, 409);
+    }
+
     const { data: bindingRow, error: bindingError } = await serviceClient
       .from('external_org_bindings')
       .select('site_url, secret_ref, activated_at')

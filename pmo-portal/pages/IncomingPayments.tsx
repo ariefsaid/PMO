@@ -166,7 +166,7 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
 
   if (receiptId) {
     const record = all.find((p) => p.id === receiptId);
-    if (state === 'loading') return <main className="mx-auto w-full max-w-[1200px] px-4 py-5 sm:px-6"><ListState variant="loading" rows={3} /></main>;
+    if (state === 'loading') return <main className="mx-auto w-full max-w-[1200px] px-4 py-5 sm:px-6"><ListState variant="loading" shape="table" rows={3} /></main>;
     if (state === 'error') {
       return (
         <main className="mx-auto w-full max-w-[1200px] px-4 py-5 sm:px-6">

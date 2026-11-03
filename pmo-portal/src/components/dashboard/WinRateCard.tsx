@@ -222,7 +222,7 @@ export const WinRateCard: React.FC<WinRateCardProps> = ({ currency, embedded = f
           onRetry={() => refetch()}
         />
       ) : isPending && !externalRange?.key.startsWith('x') && !wr ? (
-        <ListState variant="loading" rows={3} />
+        <ListState variant="loading" shape="chart" rows={3} />
       ) : !hasBids ? (
         <>
           <ListState

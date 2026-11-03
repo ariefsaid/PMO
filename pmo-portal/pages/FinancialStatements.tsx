@@ -179,7 +179,7 @@ const FinancialStatements: React.FC = () => {
   if (loading || (session !== null && currentUser === null && profileError === null)) {
     return (
       <ListPage title={t('shell.nav.financialStatements', 'Financial statements')}>
-        <ListState variant="loading" />
+        <ListState variant="loading" shape="detail" />
       </ListPage>
     );
   }

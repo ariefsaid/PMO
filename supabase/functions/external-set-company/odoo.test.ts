@@ -31,7 +31,7 @@ const one = (body: unknown) => jsonResponse(body, { headers: { 'content-type': '
 const none = () => new Response('null', { status: 200, headers: { 'content-type': 'application/json' } });
 const pgError = (message: string) => jsonResponse({ code: 'P0001', message, details: null, hint: null }, { status: 400 });
 
-interface Opts { role?: string; operator?: boolean; active?: boolean; activate?: () => Response; binding?: Record<string, unknown>; version?: number | null; rateOk?: boolean; skewAfterCalls?: number; prepare?: (fake: FakeOdoo) => void; extra?: MockRoute[] }
+interface Opts { role?: string; operator?: boolean; active?: boolean; featureEnabled?: boolean; activate?: () => Response; binding?: Record<string, unknown>; version?: number | null; rateOk?: boolean; skewAfterCalls?: number; prepare?: (fake: FakeOdoo) => void; extra?: MockRoute[] }
 function setup(o: Opts = {}) {
   const fake = createFakeOdoo({ key: KEY });
   fake.seed('res.company', [{ id: 1, name: 'Main Co' }, { id: 2, name: 'Second Co' }]);
@@ -44,6 +44,7 @@ function setup(o: Opts = {}) {
     supabaseSelect('profiles', () => one({ org_id: 'org-1', role: o.role ?? 'Admin' })),
     supabaseSelect('platform_operators', () => (o.operator ? one({ user_id: 'user-1' }) : none())),
     supabaseRpc('actor_authorization_state', () => jsonResponse({ active: o.active ?? true })),
+    supabaseRpc('service_feature_enabled', () => jsonResponse(o.featureEnabled ?? true)),
     supabaseSelect('external_org_bindings', () => one(o.binding ?? {
       site_url: `https://${ODOO}`, secret_ref: 'odoo_ref', status: 'active', activated_at: null, config: { database: 'db1' } })),
     supabaseRpc('read_vault_secret', () => jsonResponse(KEY)),
@@ -70,6 +71,12 @@ async function call(body: Record<string, unknown>, o: Opts = {}) {
 const odooCalls = (calls: FetchCall[]) => calls.filter((c) => c.url.host === ODOO);
 
 describe('external-set-company — Odoo list-companies', () => {
+  it('FR-PLN-006 list-companies stays available while erp_sync is off', async () => {
+    const r = await call({ setupAction: 'list-companies' }, { featureEnabled: false });
+    assertEquals(r.res.status, 200);
+    assertEquals(rpcCall(r.calls, 'service_feature_enabled').length, 0);
+  });
+
   it('FR-ODC-005 lists the companies the stored key can see, before activation', async () => {
     const r = await call({ setupAction: 'list-companies' });
     assertEquals(r.res.status, 200);
@@ -88,6 +95,13 @@ describe('external-set-company — Odoo list-companies', () => {
 });
 
 describe('external-set-company — Odoo activate', () => {
+  it('FR-PLN-006 activation refuses before the Odoo call while erp_sync is off', async () => {
+    const r = await call({ companyId: 1 }, { featureEnabled: false });
+    assertEquals([r.res.status, r.json.error], [409, 'feature_off']);
+    assertEquals(odooCalls(r.calls).length, 0);
+    assertEquals(rpcCall(r.calls, 'activate_odoo_binding').length, 0);
+  });
+
   it('FR-ODC-005 a company past the first 50 can be activated', async () => {
     const { fake, routes } = setup();
     fake.seed('res.company', Array.from({ length: 60 }, (_, i) => ({ id: i + 1, name: `Co ${i + 1}` })));

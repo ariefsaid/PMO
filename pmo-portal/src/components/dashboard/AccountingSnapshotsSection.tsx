@@ -217,7 +217,7 @@ function SnapshotBlock<Row extends { asOf: string; sourceReport: string | null }
     {isError ? (
       <ListState variant="error" title={errorLabel} onRetry={onRetry} />
     ) : pending ? (
-      <ListState variant="loading" rows={3} />
+      <ListState variant="loading" shape="table" rows={3} />
     ) : rows.length === 0 ? (
       <ListState variant="empty" icon="doc" title={emptyLabel} sub={emptyDescription} />
     ) : (

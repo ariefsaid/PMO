@@ -172,6 +172,21 @@ Enforcement applies at **enqueue and pass start**, never mid-flight:
 - Disconnect/unlink paths (`external-unlink`, `m365_delete_connection` 0116:42): an off feature must
   still be tearable-down; only new links refuse.
 
+**S2 edge boundary rulings (2026-11-03):**
+- `external-link` checks `clickup_sync` for ClickUp links and `erp_sync` for ERPNext links; mutating
+  `external-set-company` actions check `erp_sync`, while reads and link-removal cleanup stay available.
+- `external-unlink` remains ungated for teardown; `adapter-dispatch` remains ungated so commands already
+  accepted by PMO can finish and reach their terminal state.
+- `erpnext-webhook` returns retryable 503 without applying a verified event while `erp_sync` or its
+  domain key is off/unreadable; `erpnext-sweep` leaves its watermark untouched and converges the change
+  after re-enable.
+- `clickup-webhook` remains raw durable ingress; `clickup-webhook-worker` restores a disabled row to
+  `pending` with its `feature-off:clickup_sync` reason until the key is on.
+- `m365-token-custody` refuses new consent initiation, callback completion and write actions while
+  `m365_integration` is off; reads and disconnect cleanup stay available.
+- `agent-chat` refuses when `agent_assistant` is off and disables its nested `compose_view` tool when
+  `user_views` is off; `compose-view` refuses directly on `user_views`.
+
 ### Enforcement mechanics (0534 contents)
 
 - **`assert_feature_on(p_org_id uuid, p_key text)`** — plpgsql security-definer helper, pinned
@@ -333,9 +348,415 @@ S2 changes none.
 
 **Goal / AC:** Use the database effective projection for navigation and routes; present the Operator console and read-only Admin page (AC-PLN-008, 012, 013). First inventory route/nav gates, current deployment capability gates, repository APIs, actual test paths and translations. The slice's detailed plan must test loading, failure, invalidation, org changes and the current Admin feedback path. `agent_assistant` and `user_views` keep deployment kill switches as an additional AND. Run rendered review and UX proof.
 
+## S3 — detailed plan (written 2026-11-03 against dev @ f10eeb699)
+
+**Goal:** the app resolves every switch from the database projection, the Operator console drives
+the whole registry, and an org Admin reads their plan — without any FE copy of the precedence order.
+
+### S3.0 — Inventory (shipped code; the list this slice must satisfy)
+
+**Resolution seam today.** `useOrgFeatures` (`src/hooks/useOrgFeatures.ts`) reads the
+`org_features` TABLE and re-implements the revenue display rule in the FE (`useRevenueMode() ===
+'native'`, OD-NAR-2). After 0532/0533 the DB owns that rule (`display_enabled`), so the FE copy is
+deleted and the hook reads `resolved_org_features()` — ONE call, own org, per-org query key.
+
+**Rail nav gates** (`src/components/shell/Rail.tsx` ALL_ITEMS; "was" = today's key):
+
+| Rail item | Route | Was | S3 key |
+|---|---|---|---|
+| Sales Pipeline | `/sales` | `crm` | `sales_pipeline` |
+| Procurement | `/procurement` | `procurement` | `procurement` |
+| Stock | `/stock` | — (ungated) | `stock` |
+| Timesheets | `/timesheets` | `timesheets` | `timesheets` |
+| Site cash | `/imprest` | — | `imprest` |
+| Companies / Contacts | `/companies`, `/contacts` | `crm` | `crm` |
+| Suppliers (only without CRM) | `/companies?type=Vendor` | `unlessFeature: crm` | `unlessFeature: crm` |
+| Incidents | `/incidents` | `incidents` | `incidents` |
+| Receivables | `/finance/receivables` | `revenue` | `revenue` |
+| Payables | `/finance/payables` | `procurement` | `procurement` |
+| Reports | `/finance/reports` | `revenue` | `management_pack` |
+| Statements | `/finance/statements` | — | `financial_statements` |
+| My Views group | `/views/*` | env `userViews` only | `user_views` **AND** env `VITE_FEATURES_USERVIEWS` |
+| Assistant toggle | ⌘J panel | env `agentAssistant` only | `agent_assistant` **AND** env `VITE_FEATURES_AGENT_ASSISTANT` |
+| Dashboard, Projects, Equipment, Expenses, Approvals, Meetings, My Tasks, Finance hub, Administration | … | — | none: core (D5 + `core_feature_keys()`; equipment/meetings are not in the catalogue) |
+
+**Route gates** (`src/App.tsx` appRouteConfig; today only incidents/revenue/procurement/user_views
+are wrapped):
+
+| Route(s) | S3 key |
+|---|---|
+| `/sales`, `/sales/:opportunityId` | `sales_pipeline` |
+| `/procurement`, `/procurement/new`, `/procurement/:procurementId`, `…/:tab` | `procurement` |
+| `/timesheets` | `timesheets` |
+| `/companies`, `/companies/:companyId`, `/contacts`, `/contacts/:contactId` | `crm` |
+| `/incidents`, `/incidents/:incidentId` | `incidents` |
+| `/imprest`, `/imprest/:floatId` | `imprest` |
+| `/stock`, `/stock/setup`, `/stock/documents`, `…/:documentId`, `…/edit`, `/stock/ledger`, `/stock/reorder`, `/stock/new/:kind` | `stock` |
+| `/sales-invoices/:invoiceId` (legacy detail deep link) | `sales_invoices` |
+| `/finance/receivables` | `revenue` |
+| `/finance/payables` | `procurement` |
+| `/finance/reports` | `management_pack` |
+| `/finance/statements` | `financial_statements` |
+| `/erp-purchases` | `erp_purchases` |
+| `/views`, `/views/new`, `/views/:viewId/edit`, `/views/:viewId` | `user_views` (+ env AND) |
+| `/administration/exchange-rates` (Admin section) | `multi_currency` |
+| `/administration/*` (other sections), `/finance`, `/settings/profile`, `/reports` (redirect), `/sales-invoices` + `/incoming-payments` + `/revenue-by-project` (redirects) | none: core / redirect-only |
+
+**Explicit non-gates, stated so they are decisions and not omissions:**
+
+- `/integrations` (personal M365 connect) stays routable. It is the token-custody callback target and
+  the only teardown surface; S2's rule is that an off feature must still be disconnectable
+  (S2 detailed plan §"Service-role paths"), and the AccountMenu entry that leads to it already hides
+  when `m365_integration` is false.
+- `feedback_surveys` keeps its Admin-owned switch (`FeedbackSurveysSetting`, `admin_set_feedback_surveys`,
+  migration 0419). It is excluded from the Operator console's override/plan controls and shown
+  read-only there as "Admin-owned".
+- `m365_integration`, `erp_sync`, `clickup_sync`, `import_export`, `api_access`, `sso`,
+  `budget_phasing`, `budget_projection` have no nav item or route of their own today (S2.0
+  inventory); they are driven from inside pages, so S3 gates no route for them. `budget_projection`
+  ships a page component with no route (`pages/BudgetProjection.tsx` is reachable only from a
+  project tab), so it is out of the route inventory on purpose.
+- `aiComposer` (`VITE_FEATURES_AI_COMPOSER`) is an environment sub-flag, never an entitlement
+  (constraints §; plan S1 note). It keeps its existing AND with `user_views` at its call sites.
+
+**Deployment gates stay an additional AND.** `agent_assistant` and `user_views` resolve as
+`db.enabled && envFlag`, implemented in ONE place (`useFeature`), so no caller can forget the AND.
+
+**Operator page today.** `/administration/features` renders `pages/AdministrationFeatures.tsx` with
+`isOperator` from the settled `useOperatorMembership()` (real JWT, never the preview role) and
+`orgId` = the caller's own org. There is no org picker, no plan picker, and the toggle list is
+driven by `FEATURE_KEYS_TOGGLEABLE` (six keys). `FeedbackSurveysSetting` is mounted from
+`/administration/integrations`, unchanged.
+
+**Unreadable today (the reason for 0537).** `plans`, `plan_features`, `org_plans` and
+`global_features` revoke every API role (0530) and no read projection exists — so plan names,
+limits, plan defaults, the all-orgs column and an org's assigned plan are all unreadable by the
+console and by the Admin page. 0537 adds the three read-only projections (see Interfaces).
+
+### S3.1 — Interfaces (migration 0537, read-only)
+
+`supabase/migrations/0537_plan_read_projections.sql` + `rollback/0537_plan_read_projections_down.sql`:
+
+- `operator_plan_catalogue()` → `(plan_id, plan_name, seat_limit, project_limit, ai_monthly_messages,
+  feature_key, feature_enabled, global_enabled)`, one row per (plan, feature_key) ordered by plan
+  then key. `stable security definer`, pinned `search_path = public`, guarded by
+  `is_active_member()` + `is_operator()`; revoked from public/anon/service_role, granted to
+  authenticated. Read-only (no write text) so 0178's write-text sweep is unaffected and its
+  allow-list/count stay untouched.
+- `operator_org_plan(p_org_id uuid)` → `text`: the org's stored plan id, `null` when unassigned
+  (the resolver treats null as Enterprise). `unknown_org` (`23503`) for a missing org; same guard
+  and grants.
+- `resolved_org_plan()` → `(plan_id text, plan_name text, seat_limit integer, project_limit integer,
+  ai_monthly_messages integer)` for the caller's own org only (`auth_org_id()`), active member
+  required, null/absent assignment resolves to the Enterprise row. Signature is FROZEN: S4 consumes
+  it. Same definer/search_path/grant rules.
+
+**FE repository API** (`src/lib/repositories/contracts/admin.ts` → `OrgFeatureRepository`; DAL
+`src/lib/db/orgFeatures.ts`; both re-exported through `repositories`):
+
+| Method | RPC | Returns |
+|---|---|---|
+| `listOwn()` | `resolved_org_features()` | `{ display: Record<key,boolean>, states: Record<key,{enabled,displayEnabled,source}> }` |
+| `listForOrg(orgId)` | `operator_resolved_org_features(uuid)` | same shape, selected org |
+| `getPlanCatalogue()` | `operator_plan_catalogue()` | `{ plans: PlanRow[], defaults: Record<planId, Record<key,boolean>>, global: Record<key,boolean> }` |
+| `getOrgPlan(orgId)` | `operator_org_plan(uuid)` | `string \| null` |
+| `getOwnPlan()` | `resolved_org_plan()` | `PlanRow \| null` |
+| `toggle({orgId,key,enabled})` | `operator_toggle_feature` | void (override set) |
+| `clearOverride({orgId,key})` | `operator_clear_feature_override` | void |
+| `setOrgPlan({orgId,planId})` | `operator_set_org_plan` | void |
+| `setGlobal({key,enabled})` | `operator_set_global_feature` | void |
+| `setPlanFeature({planId,key,enabled})` | `operator_set_plan_feature` | void |
+| `setPlanLimits({planId,seatLimit,projectLimit,aiMonthlyMessages})` | `operator_set_plan_limits` | void |
+| `setFeedbackSurveys(enabled)` | `admin_set_feedback_surveys` | unchanged |
+
+Query keys (`src/hooks/useOrgFeatures.ts`): own `['orgFeatures','own',orgId]`, operator
+`['orgFeatures','operator',orgId]`, `['planCatalogue']`, `['orgPlan',orgId]`,
+`['operator','orgs']`; every mutation invalidates the `['orgFeatures']`, `['planCatalogue']` and
+`['orgPlan']` prefixes. No cross-org shared cache.
+
+**Generated types.** `src/lib/supabase/database.types.ts` predates S1 (it has no
+`resolved_org_features`), so 0537's three functions, S1's three projections and the five S1 Operator
+writers are added by hand in the generator's shape. The authoritative regen needs a database with
+0537 applied, which is the lane's DB slot (heavy-load rule), not this worker's.
+
+### S3.2 — UI
+
+- `src/components/FeatureRoute.tsx` + new `src/components/FeatureUnavailable.tsx`: **off** renders
+  the not-available state (AC-PLN-008; replaces today's redirect, kept honest by a link home);
+  **loading** renders null (existing hold); **error** renders the unavailable state with a Retry,
+  and never claims "not on your plan" while the answer is unknown.
+- `pages/AdministrationFeatures.tsx`: Operator console — org picker (`operator_list_orgs`), plan
+  picker (with the selected org's plan limits spelled out in its helper line), per-key effective state
+  with source pill (global / override / plan / core), override switch + Clear, plan default for the
+  selected org's plan, all-orgs switch (confirm before turning a global switch OFF), and a
+  plan-defaults + limits editor (seats / active projects / AI messages per month; blank =
+  unlimited / per contract). Admin-owned `feedback_surveys` and the core keys render read-only.
+  Non-Operator renders the own-org read-only list (unchanged behaviour). A per-plan organisation count
+  is deliberately NOT shown: the catalogue read does not carry one, and inventing it client-side
+  would need a second cross-org read for decoration.
+- `pages/YourPlan.tsx` (AC-PLN-013): read-only plan name, switches on, limits with usage shown as
+  "Not tracked yet" until S5, no editable control. Mounted as the `plan` section of Administration
+  (`/administration/plan`) for Admin/Executive viewers and Operators.
+- Every Operator control is gated on the settled `useOperatorMembership()` projection (real JWT),
+  the Admin page on `can('view','user')` — both clarity projections, with the RPC as the authority.
+
+**Translation keys** (namespace `administration`, en + id, referenced only through literal `t()`):
+`plan.*` (title, intro, planLabel, unlimited, perContract, notTrackedYet, usageHeading, limits.*,
+switches.*, adminOwned, coreAlwaysOn, noPlan), `console.*` (title, organisation, selectOrganisation,
+plan, selectPlan, orgsOnPlan, saving, saved, retry, loadFailed, effective, source, sourceGlobal,
+sourceOverride, sourcePlan, sourceCore, override, clearOverride, cleared, planDefault, allOrgs,
+globalConfirmTitle, globalConfirmBody, globalConfirmAction, planDefaults, planLimits, seats,
+activeProjects, aiMessages, save, inheritedFromGlobal, adminOwnedRow, coreHeading),
+`featureUnavailable.*` (title, body, retry, home). All in `public/locales/{en,id}/administration.json`.
+
+### S3.3 — Tasks (TDD; each 2–5 min; FE gates only — no DB run in this lane)
+
+1. **Red — resolution seam** (`src/auth/__tests__/useFeature.test.tsx`, AC-PLN-008): assert
+   `resolved_org_features` is the ONLY read, `display_enabled` drives the answer, `enabled`
+   false/`display_enabled` true and the reverse both behave as specified, core keys never query,
+   `agent_assistant`/`user_views` go false when their env kill switch is off even though the DB
+   says on. 2. **Green** — rewrite `useOrgFeatures`/`useFeature` on `repositories.orgFeature.listOwn()`
+   with per-org keys, delete the FE revenue-ownership merge and `FEATURE_KEYS_TOGGLEABLE`-driven
+   resolution copy.
+3. **Red — route state** (`src/components/__tests__/FeatureRoute.test.tsx`): off → not-available
+   state, no page, no redirect; loading → held; error → held with retry and no "not on plan" claim;
+   on → page. 4. **Green** — `FeatureRoute` + `FeatureUnavailable`.
+5. **Red — nav + palette** (`src/components/shell/__tests__/Rail.features.test.tsx`): every row of
+   the S3.0 Rail table (absent when off, present when on), the env AND for My Views/Assistant, and
+   the ⌘K palette following `MODULES[].feature`. 6. **Green** — Rail + `routeMatch.ts` + `App.tsx`
+   route wrappers.
+7. **Red — Operator console** (`pages/AdministrationFeatures.test.tsx`, AC-PLN-012): per-key state
+   and source from `listForOrg`; override toggle calls `toggle`; Clear calls `clearOverride`; plan
+   picker calls `setOrgPlan`; all-orgs OFF asks for confirmation then calls `setGlobal`; plan default
+   calls `setPlanFeature`; limits editor calls `setPlanLimits`; every mutation invalidates the three
+   prefixes; loading and error states hide the controls. 8. **Green** — the console.
+9. **Red — Your plan** (`pages/YourPlan.test.tsx`, AC-PLN-013): lists plan, switches and limits, no
+   `switch`/`textbox`/`button` control, usage reads "Not tracked yet", and an unavailable read shows
+   the retry state. 10. **Green** — the page + Administration `plan` section.
+11. **Red — repository seam** (`src/lib/repositories/admin.test.ts`, `composition.test.ts`,
+    `src/lib/db/orgFeatures.test.ts`): every new method delegates to its RPC; the projection maps
+    rows → `{display,states}`; unknown keys are dropped; `resolved_org_plan` null → no plan.
+12. **Green** — DAL + repository wiring.
+13. **Admin feedback path** — `src/lib/db/orgFeatures.feedback.test.ts` +
+    `src/hooks/useFeedbackSurveys` unchanged and still green (its invalidate key is the
+    `['orgFeatures']` prefix).
+14. **0537 + rollback + pgTAP** — write `supabase/tests/plans_read_projections.test.sql` (Operator
+    reads the catalogue with all four plans and every key; a non-Operator member and anon are
+    refused; `operator_org_plan` unknown org → `23503`; `resolved_org_plan` returns the caller's own
+    row, Enterprise when unassigned, and nothing for another org). Red-first ordering was kept in
+    the file's own comments; the run lands in the lane's DB slot (heavy-load rule).
+15. **Full battery** — the gate list below, plus sibling suites that mock the touched seams.
+
+### S3.4 — Verify (exact commands)
+
+From `pmo-portal/` under `scripts/with-test-lock.sh`: `npm run check:guards`, `npm run typecheck`,
+`npx eslint --max-warnings=0` on the touched TS/TSX, and
+`npx vitest run src/auth/__tests__/useFeature.test.tsx src/components/__tests__/FeatureRoute.test.tsx
+src/components/shell/__tests__/Rail.features.test.tsx src/components/shell/__tests__/FeatureGate.route.test.tsx
+src/lib/__tests__/features.test.ts src/lib/features.dbRegistry.test.ts src/lib/features.test.ts
+src/lib/repositories/admin.test.ts src/lib/repositories/composition.test.ts src/lib/repositories/index.test.ts
+src/lib/db/orgFeatures.feedback.test.ts pages/AdministrationFeatures.test.tsx
+pages/__tests__/Administration.features.readonly.test.tsx pages/YourPlan.test.tsx
+pages/AdministrationShell.test.tsx App.incidentRoutes.test.tsx`.
+Lane DB slot (coordinator): `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db
+supabase/tests/plans_read_projections.test.sql supabase/tests/plans_permissions.test.sql
+supabase/tests/plans_resolution.test.sql supabase/tests/0178_anon_executable_definers.test.sql
+supabase/tests/0137_service_role_grants.test.sql'`. Rendered review + `scripts/ux-proof.sh
+/administration/features /administration/plan` are the coordinator's slot (heavy-load rule).
+
+### AC → test (S3 rows)
+
+| AC | Owning proof (S3) |
+|---|---|
+| AC-PLN-008 | `src/auth/__tests__/useFeature.test.tsx` (resolution) + `src/components/__tests__/FeatureRoute.test.tsx` (route state) + `src/components/shell/__tests__/Rail.features.test.tsx` (nav) |
+| AC-PLN-012 | `pmo-portal/pages/AdministrationFeatures.test.tsx` |
+| AC-PLN-013 | `pmo-portal/pages/YourPlan.test.tsx` |
+| FR-PLN-005 (one resolver) | the three above, plus `src/lib/repositories/composition.test.ts` for the single RPC seam |
+| 0537 projections | `supabase/tests/plans_read_projections.test.sql` |
+
 ## S4 — assistant and analytics: outline
 
 **Goal / AC:** Follow resolved switches and emit a privacy-preserving missing-tool signal (AC-PLN-006, 007); register plan as analytics group property (FR-PLN-016). First inventory entities and named actions against keys, including write actions and both tool loops. Filter the generic `query_entity` entity catalogue and reject disabled entities on execution; filter named tools through the same mapping. Test the shipped handler, no message text in the single event, consent, org changes, and run agent evals. Add the missing stock read tool as needed.
+
+## S4 — detailed plan (written 2026-11-03 against dev @ f10eeb699)
+
+**Goal / AC:** the assistant follows the org's resolved switches (FR-PLN-008, AC-PLN-006) and emits one
+privacy-preserving missing-tool event (FR-PLN-009, AC-PLN-007); the SPA registers the org's plan as a
+PostHog group property (FR-PLN-016).
+
+**Scope guard (binding, this slice):** no migration, no `db reset`, no pgTAP, no e2e, no Docker. The
+resolver is mocked at the client seam (`.rpc('resolved_org_features')`), exactly as the existing
+agent-chat suites mock every other client call. S1 (0530–0533) is merged to `dev`; `query_stock`
+(#1721, `stockRead.ts`) is on `dev`, so no new read tool is needed.
+
+### S4.0 — Inventory: entity → switch key
+
+`AGENT_READ_ENTITIES` (readEntities.ts:33-69) is the whole read catalogue. "—" means **core: no key**
+(core modules are never gatable — 0533 `core_feature_keys()`), so the entry stays offered at every plan.
+
+| Entity | Key | Why |
+|---|---|---|
+| `projects`, `milestones`, `tasks`, `budget_line_items`, `project_documents`, `profiles`, `notifications` | — | core modules (projects, tasks, budgets) / an org directory and the caller's own inbox |
+| `companies`, `contacts`, `crm_activities` | `crm` | 0001/0030 CRM tables (S2.0 `crm` row) |
+| `incidents` | `incidents` | incident_reports |
+| `timesheets` | `timesheets` | timesheets header |
+| `procurements`, `procurement_items`, `procurement_quotations`, `procurement_documents`, `procurement_status_events`, `purchase_requests`, `rfqs`, `purchase_orders`, `procurement_invoices`, `payments` | `procurement` | the basic procurement module: create, approve, track (decision #2); vendor `payments` are procurement-side |
+| `procurement_receipts` | `procurement_full` | receipts/three-way match are the full tier (decision #2; S2 re-boundary) |
+| `stock_items`, `stock_warehouses`, `stock_documents`, `stock_document_lines`, `stock_reorder_levels` | `stock` | 0412/0413/0418 warehouse tables |
+
+### S4.1 — Inventory: named action/tool → switch key
+
+| Tool | Key | Why |
+|---|---|---|
+| `query_entity` | — (per-entity, above) | generic reader; narrowed by the entity map |
+| `query_stock` | `stock` | reads the stock read RPCs |
+| `whats_overdue` | — | overdue tasks (core) + invoices already role-gated |
+| `remind_overdue` | — | nudges people about core tasks |
+| `update_task_status` | — | tasks are core |
+| `notify` | — | the caller's own notifications are core |
+| `ask_user` | — | UX only |
+| `create_activity` | `crm` | writes `crm_activities` |
+| `draft_invoice` | `sales_invoices` | drafts a sales invoice (the basic billing module — decision #2) |
+| `compose_view` | `user_views` | writes a user view |
+| `create_automation` | `agent_assistant` | an assistant capability; S2 OQ-7 gates the tick the same way |
+
+Both tool loops (the main pass and the decision-continuation pass) run through the single shared
+`runToolLoop`, and the answer-continuation pass calls it too, so one filter covers all three.
+
+### S4.2 — Resolution and offering
+
+1. `featureSwitches.ts` (new, dependency-light) owns the ONE map (`ENTITY_FEATURE_KEYS`,
+   `TOOL_FEATURE_KEYS`, human labels) and the pure predicates (`keyForEntity`, `keyForTool`,
+   `isKeyEnabled`, `isToolAllowed`, `isEntityAllowed`, `allowedEntities`, `offerableTools`).
+2. `featureResolution.ts` (new) loads the caller org's switches ONCE per request:
+   `.rpc('resolved_org_features')` on `deps.supabase` — the **caller-JWT** client, never service role
+   (0533:180-202: own org, active member, `authenticated`). It returns `Record<key, enabled>`.
+3. The handler resolves it in `agentChatHandlerInner` after the profiles gate and puts it on
+   `deputyCtx.featureSwitches`, so every later loop/action reads the same snapshot for the turn.
+4. Offering: `runToolLoop` builds its catalog with `offerableTools(...)`; the `query_entity` tool's
+   `entity` enum is narrowed to the offered entities (so the model is never told an off entity exists);
+   `buildAgentSystemPrompt` receives only the offered entities in its schema section.
+5. Prompt: when at least one key is off, the system prompt gains a short "not on this organisation's
+   plan" instruction naming the off features (human labels, no keys/ids); the model is told to say the
+   feature is not on the plan and not to substitute raw entities.
+6. Execution refusal (defense in depth, so a model that calls anyway cannot read): the handler refuses
+   an off tool before dispatch with a `{ error, code: 'FEATURE_OFF' }` tool result; `runQueryEntity` and
+   `runQueryStock` re-check the key themselves from `ctx.featureSwitches`; the decision-approval path
+   refuses an off action and records `write_resolved` rejected with `reason: 'feature_off'`.
+
+**Failure semantics (decided, documented in code):** an unreachable/erroring resolver leaves
+`featureSwitches` `null`, and `null` means "nothing known is off" — every gated tool stays offered.
+Entitlement is not a security boundary: S2's `assert_feature_on` / RLS stay the enforcement authority,
+and hiding the whole assistant because one entitlement read failed would be an availability regression.
+The failure is logged as a structured code only (no model/user text).
+
+**The write half does not fail open.** A read may proceed on an unresolved snapshot; a write may not. The
+two named write paths (`create_automation`, `draft_invoice` including its ERP route) check their own key
+at execution and refuse with `FEATURE_OFF` (key off) or `PLAN_UNVERIFIED` (no snapshot), so a chip
+approved after a failed read cannot create a row or leave the database. An explicit `agent_assistant`
+off refuses the whole run, before any model call, in the one handler every assistant run enters
+(interactive and fired automations).
+
+### S4.3 — Missing-tool signal (FR-PLN-009, AC-PLN-007)
+
+- `missingTool.ts` (new, pure): `detectMissingTool({ question, answer })` matches a narrow phrase set
+  ("I don't have a tool…", "there is no tool…", "…isn't on your organisation's plan", "not available on
+  your plan") and maps the request to a **module guess** from a fixed vocabulary derived from the
+  switch keys (`stock`, `sales_invoices`, `procurement`, `timesheets`, `crm`, `imprest`, … else
+  `unknown`). It never returns any input text.
+- Emission: `aiTelemetry.trace()` (called exactly once per run at the terminal status) emits exactly ONE
+  `agent_missing_tool` server event with `org_id`, `route` (templated: numeric/uuid segments → `:id`,
+  query/hash stripped) and `module`; `$session_id`/`user_id` only when the caller sent the analytics
+  consent flag. No answer or question text, and no free-form property — enforced by the
+  `SERVER_EVENT_ALLOWLIST` entry, which drops/throws anything else.
+- `route` reaches telemetry from `req.context.route` (ADR-0045 §3), clamped to 64 chars by the allowlist.
+
+### S4.4 — Plan as a PostHog group property (FR-PLN-016)
+
+- Source: **`resolved_org_plan()` from S3's migration 0537** —
+  `returns table(plan_id text, plan_name text, seat_limit integer, project_limit integer,
+  ai_monthly_messages integer)`, own org, active member, stable security definer, granted to
+  `authenticated`. S4 depends on 0537 landing before this branch is released (recorded in the PR body);
+  nothing else in S4 depends on S3.
+- Seam: one DAL function (`src/lib/db/orgPlan.ts` → `getOwnOrgPlan()`) reached through
+  `repositories.orgFeature.currentPlan()`; a `useOrgPlanGroup` hook registers
+  `posthog.group('organisation', orgId, { plan: plan_id })` once per resolve, through a new
+  consent-gated `analyticsClient.group(...)` (same guard as every other capture: initialized, enabled,
+  not opted out, DNT honoured by `init`). Errors/absent plan register nothing (analytics is not a
+  gate) and never throw. The DAL remembers ONE "no such function" answer for the page load (PostgREST
+  `PGRST202`/`PGRST203`, Postgres `42883`, 404), so a deployment that predates 0537 never fires a
+  failing request per session or per stale window; a transient failure does not latch.
+- The Vitest proof mocks the DAL seam and `posthog-js`, and asserts the exact group call, the consent
+  guard, and that no group is registered without a plan.
+
+### Tasks (TDD — red first)
+
+1. **Red — S4 map and predicates.** `supabase/functions/agent-chat/featureSwitches.test.ts` (Deno):
+   every `AGENT_READ_ENTITIES` entry is either core or mapped to a key in the 0531 catalogue; every
+   `BASE_ACTIONS`/`ask_user`/`compose_view` name is core or mapped; `offerableTools` drops exactly the
+   off-key tools; an unknown entity/key never disappears. Fails to import (no module) → implement.
+2. **Red — AC-PLN-006 (Deno, shipped handler).** `plansFeatureSwitches.test.ts` imports
+   `agentChatHandler` from `./handler.ts`, mocks `globalThis.fetch`/Deno env only, and stubs
+   `supabase.rpc('resolved_org_features')` returning `stock = false`:
+   - the tool catalog sent to the model has no `query_stock`;
+   - the `query_entity` enum has no `stock_*` entity;
+   - the system prompt lists stock as not on the plan;
+   - a forced `query_stock` call is refused with `FEATURE_OFF` and stock's read RPC is never called;
+   - a forced `query_entity { entity: 'stock_items' }` is refused at the action layer;
+   - the same org with `stock = true` gets the tool, the entity and a real read.
+3. **Red — AC-PLN-007 (Deno, shipped handler).** A completing turn whose answer says it has no tool for
+   stock emits exactly ONE `agent_missing_tool` event with `org_id`, `route: '/stock'`, `module: 'stock'`
+   and **no** message text anywhere in the payload; a normal answer emits none; consent off ⇒ no
+   `user_id`/`$session_id`; consent on ⇒ both.
+4. **Red — failure semantics.** A resolver error still offers `query_entity`/`query_stock` (locks the
+   fail-open decision) and the run completes.
+5. **Prompt builder.** Extend `agentPrompt`/`agentPrompt.test.ts` coverage for the plan paragraph (only
+   rendered when something is off; absent otherwise).
+6. **Red — FR-PLN-016 (Vitest).** `src/lib/analytics/orgPlanGroup.test.ts`: the client calls
+   `posthog.group('organisation', 'org-1', { plan: 'growth' })`; no call when opted out / not
+   initialized; the hook registers from `repositories.orgFeature.currentPlan()`, registers nothing on
+   `null`, and re-registers when the plan changes.
+7. **Implement** in the order above; re-run each red test green as its piece lands.
+8. **Mutation check:** make the offering filter always-allow (`isKeyEnabled` → `true`) — AC-PLN-006 must
+   fail; restore.
+9. **Eval cases:** `pmo-portal/evals/cases/plans-switch-off.eval.ts` (ADR-0052 harness, against the
+   deployed function) — with `stock` off the stock question gets no `query_stock` call and an answer
+   naming the plan, while a core question still works; fixture contract in `pmo-portal/evals/README.md`.
+   `notUsesTool` scorer added for it (+ unit test). `evals/plans-switch-off-probe.ts` is the free local
+   probe over the shipped prompt/tools. Run the harness only where it needs no paid Claude call;
+   otherwise report that it was not run and why.
+
+### Verify (exact commands)
+
+Repo root:
+
+```
+scripts/deno-test-edge-fns.sh            # agent-chat + every other touched fn dir
+node scripts/check-edge-fn-test-binding.mjs
+```
+
+`pmo-portal/`, under `scripts/with-test-lock.sh`: `npm run check:guards`, `npm run typecheck`,
+`npx eslint --max-warnings=0 <touched ts/tsx>`, `npx vitest run` for the touched files
+(`src/lib/analytics/orgPlanGroup.test.ts`, `src/lib/agent/agentPrompt*.test.ts`,
+`src/lib/repositories/admin.test.ts`). No DB work in this slice.
+
+### AC → test
+
+| AC | Owning proof |
+|---|---|
+| AC-PLN-006 (`stock` off ⇒ no tool, reply says not on the plan) | `supabase/functions/agent-chat/plansFeatureSwitches.test.ts` (Deno, shipped handler) |
+| AC-PLN-007 (one missing-tool event, no text) | same file |
+| FR-PLN-008 map completeness (both loops) | `supabase/functions/agent-chat/featureSwitches.test.ts` |
+| FR-PLN-016 (plan group property) | `pmo-portal/src/lib/analytics/orgPlanGroup.test.ts` |
+
+### Open items carried out of S4
+
+- The group property depends on 0537 (`resolved_org_plan()`); until S3's migration lands, the hook
+  resolves nothing and registers nothing (no cross-lane runtime assumption is coded).
+- `sales_pipeline` is a projection over core projects (S2 OQ-3), `management_pack`/`multi_currency`/
+  `budget_projection`/`imprest`/`financial_statements`/`erp_*` have no agent read tool today, so no S4
+  map row exists for them; S6's completeness gate owns catching a future tool added without a key.
+- Member-scoped plan reads are analytics-only here; the Admin "Your plan" page (S3) owns the UI.
 
 ## S5 — limits (0535 on renumber): outline
 

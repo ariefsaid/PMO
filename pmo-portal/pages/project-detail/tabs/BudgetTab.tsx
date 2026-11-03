@@ -13,7 +13,7 @@ const BudgetTab: React.FC<BudgetTabProps> = ({ projectId }) => {
   const projectQuery = useProject(projectId);
 
   if (projectQuery.isPending) {
-    return <div data-testid="budget-loading"><ListState variant="loading" rows={4} /></div>;
+    return <div data-testid="budget-loading"><ListState variant="loading" shape="detail" rows={4} /></div>;
   }
   if (projectQuery.isError || !projectQuery.data) {
     return (
