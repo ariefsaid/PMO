@@ -2944,6 +2944,30 @@ export function timesheetBackstopDepsLive(
   };
 }
 
+/** ⚑ 0131 is the ONE eligibility door. The id set a backstop pass may re-drive IS
+ *  `outbox_reconcile_candidates`' own answer (`listCandidatesLive`) — never a second, hand-rolled
+ *  state/attempt predicate, which is exactly the "second door" 0131 exists to prevent. This applies
+ *  that single read to the timesheet domain and additionally returns the `committed`-record allow-list
+ *  the held-module pass needs: while a module is switched off, only a week ERP already accepted stays
+ *  drivable, because its LOCAL finalize is the one thing left outstanding (closure is never held,
+ *  FR-PLN-006). The shape is deliberate and pinned: `eligibleOutboxIds` is projected from THAT call in
+ *  one hop (`dispatchGateWiring.test.ts` H-1), never re-derived from a hand-rolled predicate. */
+function timesheetEligibility(
+  candidates: readonly OutboxRow[],
+  held: boolean,
+): { eligibleOutboxIds: ReadonlySet<string>; recoverable: ReadonlySet<string> | null } {
+  const domainCandidates = candidates.filter((c) => c.domain === ERPNEXT_TIMESHEETS_DOMAIN);
+  const recoverable = held
+    ? new Set(domainCandidates.filter((c) => c.state === 'committed').map((c) => c.pmoRecordId))
+    : null;
+  return {
+    eligibleOutboxIds: new Set(
+      domainCandidates.filter((c) => recoverable === null || recoverable.has(c.pmoRecordId)).map((c) => c.id),
+    ),
+    recoverable,
+  };
+}
+
 /** The live per-org timesheet backstop pass (P3b task 6.4, AC-TSP-022). Domain-gated (Luna BLOCK 9): an
  *  org that never assigned the `timesheets` domain to this tier has nothing to reconcile. */
 async function reconcileOrgTimesheetPushesLive(serviceClient: SupabaseClient, org: OrgBinding): Promise<{ driven: number; error?: string }> {
@@ -2958,13 +2982,8 @@ async function reconcileOrgTimesheetPushesLive(serviceClient: SupabaseClient, or
   try {
     // The SoT eligibility set (0131), fetched ONCE per pass — the backstop may only re-drive a row this
     // RPC still admits. Scoped to the timesheets domain; other domains' candidates are irrelevant here.
-    const domainCandidates = (await listCandidatesLive(serviceClient)(org.orgId))
-      .filter((c) => c.domain === ERPNEXT_TIMESHEETS_DOMAIN);
-    const recoverable = held
-      ? new Set(domainCandidates.filter((c) => c.state === 'committed').map((c) => c.pmoRecordId))
-      : null;
-    const eligibleOutboxIds = new Set(
-      domainCandidates.filter((c) => recoverable === null || recoverable.has(c.pmoRecordId)).map((c) => c.id),
+    const { eligibleOutboxIds, recoverable } = timesheetEligibility(
+      await listCandidatesLive(serviceClient)(org.orgId), held,
     );
     const result = await reconcileOrgTimesheetPushes(
       timesheetBackstopDepsLive(serviceClient, org, eligibleOutboxIds,

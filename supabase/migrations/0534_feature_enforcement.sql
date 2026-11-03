@@ -163,7 +163,18 @@ end $$;
 
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
 -- §C — RPC gates. Each body is the latest shipped definition, verbatim, with ONE added statement
---     (marked by the assert_feature_on line) immediately after the function's own authorization gate.
+--     (marked by the assert_feature_on line) immediately after the function's own authorization gate:
+--     membership/role/ownership FIRST, then the switch read. A caller who may not act on the row is
+--     therefore refused on authorization alone (42501) and never learns the module's state from the
+--     gate's answer — the same discipline submit_sales_invoice/claim_sales_invoice_author/
+--     set_sales_invoice_received_date/import_project_stage_history already shipped, and the one
+--     AC-MMP-005 pins for record_project_progress (a disabled Finance user is refused 42501, not the
+--     `feature_off` typed refusal).
+--     Three row-locating writers (record_native_receipt, create_procurement_receipt,
+--     transition_timesheet) keep the gate FIRST because their coarse authorization reads the ROW itself;
+--     AC-PLN-005 pins the typed `feature_off` for a switched-off module regardless of whether the id
+--     exists, and their gate reads the CALLER's own org (never the row's), so no other organisation's
+--     plan state can be probed through it.
 --     CREATE OR REPLACE keeps each function's existing ownership and grants.
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
 
@@ -197,10 +208,10 @@ declare
 begin
   -- SECURITY: membership, role, ownership and org re-assertions MUST stay — a SECURITY DEFINER body bypasses RLS.
   perform public.assert_is_active_member();
-  perform public.assert_feature_on(public.auth_org_id(), 'sales_invoices');
   if v_role is null or v_role not in ('Admin','Finance') then
     raise exception 'only Finance or an Admin can raise a customer invoice' using errcode = '42501';
   end if;
+  perform public.assert_feature_on(public.auth_org_id(), 'sales_invoices');
   if p_billing_kind is not null and p_billing_kind not in ('contract','other') then
     raise exception 'billing kind must be contract or other' using errcode = '23514', detail = 'billing-kind-invalid';
   end if;
@@ -305,12 +316,6 @@ declare
                                        'Unpaid', jsonb_build_array('Cancelled'));
 begin
   perform public.assert_is_active_member();
-  -- FR-PLN-006 closure: cancelling an existing invoice is a CLOSING transition, so a switched-off module
-  -- must still let the work it already minted reach a terminal state. Only the forward (approval) path is
-  -- gated.
-  if coalesce(p_to, '') is distinct from 'Cancelled' then
-    perform public.assert_feature_on(public.auth_org_id(), 'sales_invoices');
-  end if;
   select * into v_row from public.sales_invoices where id = p_id for update;
   if not found then
     raise exception 'sales invoice not found' using errcode = 'P0002';
@@ -321,6 +326,12 @@ begin
   end if;
   if v_role is null or v_role not in ('Admin','Finance') then
     raise exception 'only Finance or an Admin can approve or cancel a customer invoice' using errcode = '42501';
+  end if;
+  -- FR-PLN-006 closure: cancelling an existing invoice is a CLOSING transition, so a switched-off module
+  -- must still let the work it already minted reach a terminal state. Only the forward (approval) path is
+  -- gated.
+  if coalesce(p_to, '') is distinct from 'Cancelled' then
+    perform public.assert_feature_on(public.auth_org_id(), 'sales_invoices');
   end if;
   if public.domain_externally_owned(v_row.org_id, 'revenue') then
     raise exception 'customer invoices for this organisation are raised in the connected ERP, not in PMO'
@@ -658,10 +669,10 @@ declare
 begin
   -- SECURITY: membership, role and org re-assertions MUST stay — a SECURITY DEFINER body bypasses RLS.
   perform public.assert_is_active_member();
-  perform public.assert_feature_on(public.auth_org_id(), 'sales_invoices');
   if v_role is null or v_role not in ('Admin','Finance') then
     raise exception 'only Admin or Finance may create a progress claim' using errcode = '42501';
   end if;
+  perform public.assert_feature_on(public.auth_org_id(), 'sales_invoices');
   -- ⚑ 0262 (OD-BILL-1, DD-BWO-5): the work order's billing lock BEFORE the project row lock — the order every billing
   --   writer uses, so a claim and a native invoice on one work order cannot deadlock.
   if p_work_order_id is not null then
@@ -822,10 +833,6 @@ declare
   v_entry uuid;
 begin
 
-  -- 0534: SECURITY INVOKER, so the gate uses the client-callable RLS hook and raises the same typed refusal.
-  if not public.org_feature_enabled(public.auth_org_id(), 'sales_invoices') then
-    raise exception 'feature_off' using errcode = 'P0001', detail = 'sales_invoices';
-  end if;
   if p_project_id is null or p_month is null or p_quantities is null
      or jsonb_typeof(p_quantities) <> 'array' or jsonb_array_length(p_quantities) = 0 then
     raise exception 'project, month and at least one quantity are required' using errcode = '23502';
@@ -833,6 +840,10 @@ begin
   if not public.may_record_project_progress(p_project_id) then
     raise exception 'you may record progress only on projects you manage, unless you are Finance, an Executive or an Admin'
       using errcode = '42501';
+  end if;
+  -- 0534: SECURITY INVOKER, so the gate uses the client-callable RLS hook and raises the same typed refusal.
+  if not public.org_feature_enabled(public.auth_org_id(), 'sales_invoices') then
+    raise exception 'feature_off' using errcode = 'P0001', detail = 'sales_invoices';
   end if;
   if exists (select 1 from jsonb_to_recordset(p_quantities) as x(boq_item_id uuid, quantity_to_date numeric)
               where not coalesce(x.quantity_to_date >= 0 and x.quantity_to_date < 'Infinity'::numeric
@@ -902,7 +913,6 @@ declare
   v_other uuid;
 begin
   perform public.assert_is_active_member();
-  perform public.assert_feature_on(public.auth_org_id(), 'sales_invoices');
   if p_project is null or p_from is null or p_to is null or p_to < p_from then
     raise exception 'a project and a valid date range are required' using errcode = '22023';
   end if;
@@ -921,6 +931,7 @@ begin
   if not public.may_record_project_progress(p_project) then
     raise exception 'not authorized to prepare a time-and-materials claim for this project' using errcode = '42501';
   end if;
+  perform public.assert_feature_on(public.auth_org_id(), 'sales_invoices');
   -- Lock order as create_progress_claim: the work order's billing lock, then the project row.
   if p_work_order is not null then
     perform public.lock_work_order_billing(p_work_order);
@@ -993,12 +1004,12 @@ declare
   v_units numeric;
 begin
   perform public.assert_is_active_member();
-  perform public.assert_feature_on(public.auth_org_id(), 'sales_invoices');
   select c.project_id, c.work_order_id into v_project, v_wo from public.tm_claims c where c.id = p_claim and c.org_id = v_org;
   if not found then raise exception 'claim not found' using errcode = 'P0002'; end if;
   if not public.may_record_project_progress(v_project) then
     raise exception 'not authorized to change this claim' using errcode = '42501';
   end if;
+  perform public.assert_feature_on(public.auth_org_id(), 'sales_invoices');
   if v_wo is not null then perform public.lock_work_order_billing(v_wo); end if;
   perform 1 from public.projects p where p.id = v_project and p.org_id = v_org for update;
   select c.status into v_status from public.tm_claims c where c.id = p_claim for update;
@@ -1026,10 +1037,10 @@ returns uuid language plpgsql security definer set search_path = public, pg_temp
 declare v_org uuid := public.auth_org_id(); v_uid uuid := auth.uid(); v_float uuid; v_cur text;
 begin
   perform public.assert_is_active_member();
-  perform public.assert_feature_on(public.auth_org_id(), 'imprest');
   if public.auth_role() not in ('Admin','Finance') then
     raise exception 'only an Admin or Finance member establishes a site float' using errcode = '42501';
   end if;
+  perform public.assert_feature_on(public.auth_org_id(), 'imprest');
   if not exists (select 1 from public.org_imprest_settings s where s.org_id = v_org) then
     raise exception 'set the org''s procurement limit before establishing a site float' using errcode = 'P0001';
   end if;
@@ -1059,11 +1070,11 @@ declare v_c public.imprest_float_changes%rowtype; v_uid uuid := auth.uid(); v_ad
         v_route record; v_f public.imprest_floats%rowtype;
 begin
   perform public.assert_is_active_member();
-  perform public.assert_feature_on(public.auth_org_id(), 'imprest');
   select * into v_c from public.imprest_float_changes where id = p_change for update;
   if not found or v_c.org_id is distinct from public.auth_org_id() then
     raise exception 'float change not found' using errcode = 'P0002';
   end if;
+  perform public.assert_feature_on(public.auth_org_id(), 'imprest');
   perform public.imprest_lock_float(v_c.float_id);
   if v_c.status <> 'Proposed' then
     raise exception 'this float change is already %', lower(v_c.status) using errcode = 'P0001';
@@ -1120,14 +1131,14 @@ declare
     'Rejected', jsonb_build_array('Draft','Cancelled'), 'Approved', jsonb_build_array(), 'Cancelled', jsonb_build_array());
 begin
   perform public.assert_is_active_member();
+  select * into v_p from public.imprest_plans where id = p_id for update;
+  if not found or v_p.org_id is distinct from public.auth_org_id() then
+    raise exception 'plan not found' using errcode = 'P0002';
+  end if;
   -- FR-PLN-006 closure: rejecting or cancelling an EXISTING plan changes nothing forward — a switch-off
   -- must not strand a plan minted while the module was on. Every other transition is gated.
   if coalesce(p_to, '') not in ('Rejected','Cancelled') then
     perform public.assert_feature_on(public.auth_org_id(), 'imprest');
-  end if;
-  select * into v_p from public.imprest_plans where id = p_id for update;
-  if not found or v_p.org_id is distinct from public.auth_org_id() then
-    raise exception 'plan not found' using errcode = 'P0002';
   end if;
   if not (v_legal -> v_p.status) ? p_to then
     raise exception 'illegal transition % -> %', v_p.status, p_to using errcode = 'P0001';
@@ -1227,10 +1238,10 @@ create or replace function public.set_imprest_procurement_limit(p_amount numeric
 declare v_org uuid := public.auth_org_id(); v_uid uuid := auth.uid(); v_old numeric;
 begin
   perform public.assert_is_active_member();
-  perform public.assert_feature_on(public.auth_org_id(), 'imprest');
   if public.auth_role() is distinct from 'Admin' then
     raise exception 'only an Admin sets the procurement limit' using errcode = '42501';
   end if;
+  perform public.assert_feature_on(public.auth_org_id(), 'imprest');
   if p_amount is null or not (p_amount > 0 and p_amount < 'Infinity'::numeric) then
     raise exception 'the procurement limit must be greater than zero' using errcode = 'P0001';
   end if;
@@ -1248,7 +1259,6 @@ returns uuid language plpgsql security definer set search_path = public, pg_temp
 declare v_f public.imprest_floats%rowtype; v_uid uuid := auth.uid(); v_id uuid; v_amount numeric; v_gap numeric;
 begin
   perform public.assert_is_active_member();
-  perform public.assert_feature_on(public.auth_org_id(), 'imprest');
   select * into v_f from public.imprest_floats where id = p_float;
   if not found or v_f.org_id is distinct from public.auth_org_id() or v_f.archived_at is not null then
     raise exception 'site float not found' using errcode = 'P0002';
@@ -1256,6 +1266,7 @@ begin
   if v_uid is distinct from v_f.custodian_id or not public.imprest_custodian_eligible(v_f.org_id, v_f.project_id, v_uid) then
     raise exception 'only this site float''s custodian requests its cash' using errcode = '42501';
   end if;
+  perform public.assert_feature_on(public.auth_org_id(), 'imprest');
   if p_kind not in ('replenishment','funding') then
     raise exception 'unknown request kind %', p_kind using errcode = 'P0001';
   end if;
@@ -1305,15 +1316,15 @@ declare
     'Cancelled', jsonb_build_array());
 begin
   perform public.assert_is_active_member();
+  select * into v_r from public.imprest_replenishments where id = p_id for update;
+  if not found or v_r.org_id is distinct from public.auth_org_id() then
+    raise exception 'replenishment not found' using errcode = 'P0002';
+  end if;
   -- FR-PLN-006 closure: deciding or paying an EXISTING request is a CLOSING transition — a switch-off
   -- must not strand a request minted while the module was on. Only minting a new decision path forward
   -- (Approved) is gated.
   if coalesce(p_to, '') not in ('Rejected','Paid','Cancelled') then
     perform public.assert_feature_on(public.auth_org_id(), 'imprest');
-  end if;
-  select * into v_r from public.imprest_replenishments where id = p_id for update;
-  if not found or v_r.org_id is distinct from public.auth_org_id() then
-    raise exception 'replenishment not found' using errcode = 'P0002';
   end if;
   if not (v_legal -> v_r.status) ? p_to then
     raise exception 'illegal transition % -> %', v_r.status, p_to using errcode = 'P0001';
@@ -1369,7 +1380,6 @@ returns uuid language plpgsql security definer set search_path = public, pg_temp
 declare v_f public.imprest_floats%rowtype; v_uid uuid := auth.uid(); v_book numeric; v_id uuid;
 begin
   perform public.assert_is_active_member();
-  perform public.assert_feature_on(public.auth_org_id(), 'imprest');
   select * into v_f from public.imprest_floats where id = p_float;
   if not found or v_f.org_id is distinct from public.auth_org_id() then
     raise exception 'site float not found' using errcode = 'P0002';
@@ -1378,6 +1388,7 @@ begin
           or (v_uid = v_f.custodian_id and public.imprest_custodian_eligible(v_f.org_id, v_f.project_id, v_uid))) then
     raise exception 'only the custodian, Finance or an Admin records a cash count' using errcode = '42501';
   end if;
+  perform public.assert_feature_on(public.auth_org_id(), 'imprest');
   if p_counted is null or not (p_counted >= 0 and p_counted < 'Infinity'::numeric) then
     raise exception 'a counted amount must be zero or more' using errcode = 'P0001';
   end if;
@@ -1441,12 +1452,12 @@ create or replace function public.save_stock_draft(p_document_id uuid, p_header 
 declare v_org uuid; v_uid uuid := auth.uid(); d public.stock_documents; v_occ date; v_old jsonb;
 begin
   perform public.assert_is_active_member();
-  perform public.assert_feature_on(public.auth_org_id(), 'stock');
   v_org := public.auth_org_id();
   select * into d from public.stock_documents x where x.id = p_document_id and x.org_id = v_org for update;
   if not found then raise exception 'STK_NOT_FOUND: the document is not in your organisation' using errcode = 'P0001'; end if;
   if d.status <> 'Draft' then raise exception 'STK_IMMUTABLE: only a draft can be edited' using errcode = 'P0001'; end if;
   if d.created_by <> v_uid then raise exception 'only the author edits a draft' using errcode = '42501'; end if;
+  perform public.assert_feature_on(public.auth_org_id(), 'stock');
   if coalesce(p_header->>'kind', d.kind) <> d.kind then raise exception 'STK_INVALID: a document''s kind cannot change' using errcode = 'P0001'; end if;
   perform public.stock_validate_payload(v_org, d.kind, p_header, p_lines);
   if public.stock_assert_keeper(v_org, (p_header->>'warehouse_id')::uuid, v_uid) then
@@ -1511,10 +1522,10 @@ create or replace function public.set_stock_reorder_level(p_warehouse_id uuid, p
 declare v_org uuid; v_uid uuid := auth.uid(); v_ok boolean; v_before public.stock_reorder_levels;
 begin
   perform public.assert_is_active_member();
-  perform public.assert_feature_on(public.auth_org_id(), 'stock');
   v_org := public.auth_org_id();
   v_ok := coalesce(public.role_rank(public.auth_role()) >= 20, false);                                    -- mut:reorder_rank (PQ-6)
   if not v_ok then raise exception 'only a Project Manager or above sets a reorder level' using errcode = '42501'; end if;
+  perform public.assert_feature_on(public.auth_org_id(), 'stock');
   if not exists (select 1 from public.stock_items i where i.id = p_item_id and i.org_id = v_org)   -- mut:set_item_org
      or not exists (select 1 from public.stock_warehouses w where w.id = p_warehouse_id and w.org_id = v_org) then   -- mut:set_org
     raise exception 'STK_NOT_FOUND: item or warehouse is not in your organisation' using errcode = 'P0001'; end if;
@@ -1541,12 +1552,12 @@ create or replace function public.set_stock_warehouse_keeper(p_warehouse_id uuid
 declare v_org uuid; v_admin boolean; v_n integer;
 begin
   perform public.assert_is_active_member();
-  perform public.assert_feature_on(public.auth_org_id(), 'stock');
   v_org := public.auth_org_id();
   v_admin := coalesce(public.role_rank(public.auth_role()) >= 50, false);   -- mut:admin_only
   if not v_admin then
     raise exception 'only an Admin assigns warehouse keepers' using errcode = '42501';
   end if;
+  perform public.assert_feature_on(public.auth_org_id(), 'stock');
   if p_warehouse_id is null or p_user_id is null or p_assigned is null then
     raise exception 'STK_INVALID: warehouse, user and assigned are required' using errcode = 'P0001';
   end if;
@@ -1628,12 +1639,12 @@ create or replace function public.create_procurement_invoice(
 declare v_org uuid; v_row public.procurement_invoices; v_currency text;                                 -- 0373
 begin
   perform public.assert_is_active_member();
-  perform public.assert_feature_on(public.auth_org_id(), 'procurement');
   select org_id, currency into v_org, v_currency from public.procurements where id = p_procurement_id;  -- 0373
   if v_org is null then raise exception 'procurement not found' using errcode = 'P0002'; end if;
   if v_org is distinct from auth_org_id()
      or auth_role() not in ('Admin','Executive','Project Manager','Finance')
   then raise exception 'not authorized' using errcode = '42501'; end if;
+  perform public.assert_feature_on(public.auth_org_id(), 'procurement');
   if public.domain_externally_owned(v_org, 'procurement')
      and not coalesce(public.pre_cutover_procurement(p_procurement_id), false) then   -- ECA-4 (PD-ECA-9)
     raise exception 'procurement is externally-owned — vendor invoices route through the ERPNext adapter'
@@ -1682,12 +1693,12 @@ declare v_org uuid; v_row public.payments;
         v_currency text;                                                                     -- 0373
 begin
   perform public.assert_is_active_member();  -- ⚑ 0180 (FR-AMG-001): user-JWT-only caller.
-  perform public.assert_feature_on(public.auth_org_id(), 'procurement');
   select org_id, currency into v_org, v_currency from public.procurements where id = p_procurement_id; -- 0373
   if v_org is null then raise exception 'procurement not found' using errcode = 'P0002'; end if;
   if v_org is distinct from auth_org_id()
      or auth_role() not in ('Admin','Executive','Project Manager','Finance')
   then raise exception 'not authorized' using errcode = '42501'; end if;
+  perform public.assert_feature_on(public.auth_org_id(), 'procurement');
   -- Same-case invariant (0039, AC-PR-SEC-001 / FR-ENA-130d): invoice must belong to the same case.
   if p_invoice_id is not null and not exists (
     select 1 from public.procurement_invoices i
@@ -1742,12 +1753,12 @@ create or replace function public.create_procurement_quotation(
 declare v_org uuid; v_row public.procurement_quotations;
 begin
   perform public.assert_is_active_member();  -- ⚑ 0180 (FR-AMG-001): user-JWT-only caller.
-  perform public.assert_feature_on(public.auth_org_id(), 'procurement');
   select org_id into v_org from public.procurements where id = p_procurement_id;
   if v_org is null then raise exception 'procurement not found' using errcode = 'P0002'; end if;
   if v_org is distinct from auth_org_id()
      or auth_role() not in ('Admin','Executive','Project Manager','Finance')
   then raise exception 'not authorized' using errcode = '42501'; end if;
+  perform public.assert_feature_on(public.auth_org_id(), 'procurement');
   insert into public.procurement_quotations
     (procurement_id, vendor_id, total_amount, received_date, vq_number,
      import_key, import_batch_id, imported_at)
@@ -1781,17 +1792,17 @@ declare
   v_allowed_roles text[];
 begin
   perform public.assert_is_active_member();
-  -- FR-PLN-006 closure: cancelling or rejecting an EXISTING purchase is a CLOSING transition (paid closes
-  -- an already-invoiced one); a switch-off must not strand it. Every forward/minting transition is gated.
-  if p_to is null or p_to::text not in ('Cancelled','Rejected','Paid') then
-    perform public.assert_feature_on(public.auth_org_id(), 'procurement');
-  end if;
   v_is_admin := (v_role = 'Admin');
   select status, org_id, requested_by_id, approved_by_id, project_id, budget_category, currency
     into v_from, v_org, v_requester, v_approver, v_project, v_category, v_currency
     from public.procurements where id = p_id for update;
   if v_from is null then raise exception 'procurement not found' using errcode = 'P0002'; end if;
   if v_org is distinct from auth_org_id() then raise exception 'not authorized' using errcode = '42501'; end if;
+  -- FR-PLN-006 closure: cancelling or rejecting an EXISTING purchase is a CLOSING transition (paid closes
+  -- an already-invoiced one); a switch-off must not strand it. Every forward/minting transition is gated.
+  if p_to is null or p_to::text not in ('Cancelled','Rejected','Paid') then
+    perform public.assert_feature_on(public.auth_org_id(), 'procurement');
+  end if;
 
   -- 0362 FR-PFE-006: a document step the purchase already holds is a no-op — its current step, or a lower step it
   -- has evidence for (e.g. Received, then a request for Ordered once an order is recorded).
@@ -2121,10 +2132,6 @@ declare
 begin
   if not public.is_active_member() then raise insufficient_privilege; end if;
   if v_role not in ('Admin','Executive','Project Manager','Finance') then raise insufficient_privilege; end if;
-  -- 0534: SECURITY INVOKER, so the gate uses the client-callable RLS hook and raises the same typed refusal.
-  if not public.org_feature_enabled(v_org, 'm365_integration') then
-    raise exception 'feature_off' using errcode = 'P0001', detail = 'm365_integration';
-  end if;
 
   if p_kind not in ('project','procurement') or p_record_id is null
     or p_reference is null or jsonb_typeof(p_reference)<>'object'
@@ -2148,6 +2155,10 @@ begin
     select d.id into v_existing from public.procurement_documents d
      where d.procurement_id=p_record_id and d.org_id=v_org and d.source='onedrive' and d.ms_item_kind='folder'
      order by d.ms_linked_at,d.id limit 1;
+  end if;
+  -- 0534: SECURITY INVOKER, so the gate uses the client-callable RLS hook and raises the same typed refusal.
+  if not public.org_feature_enabled(v_org, 'm365_integration') then
+    raise exception 'feature_off' using errcode = 'P0001', detail = 'm365_integration';
   end if;
   if v_existing is not null then return jsonb_build_object('document_id',v_existing,'state','already_linked'); end if;
   if not public.m365_record_folder_default_matches(p_default_site_id,p_default_drive_id,p_settings_updated_at) then
@@ -2286,10 +2297,6 @@ create or replace function public.record_project_progress(
   returns void language plpgsql volatile set search_path = public as $$
 begin
 
-  -- 0534: SECURITY INVOKER, so the gate uses the client-callable RLS hook and raises the same typed refusal.
-  if not public.org_feature_enabled(public.auth_org_id(), 'management_pack') then
-    raise exception 'feature_off' using errcode = 'P0001', detail = 'management_pack';
-  end if;
   if p_project_id is null or p_month is null or p_pct_complete is null then
     raise exception 'project, month and percent complete are required' using errcode = '23502';
   end if;
@@ -2299,6 +2306,10 @@ begin
   if not public.may_record_project_progress(p_project_id) then
     raise exception 'you may record progress only on projects you manage, unless you are Finance, an Executive or an Admin'
       using errcode = '42501';
+  end if;
+  -- 0534: SECURITY INVOKER, so the gate uses the client-callable RLS hook and raises the same typed refusal.
+  if not public.org_feature_enabled(public.auth_org_id(), 'management_pack') then
+    raise exception 'feature_off' using errcode = 'P0001', detail = 'management_pack';
   end if;
   -- ⚑ 0250 (#766, DD-PBL-3): the one added refusal.
   if exists (select 1 from public.project_progress_entries e
@@ -2619,10 +2630,6 @@ begin
   if v_org is distinct from auth_org_id() then
     raise exception 'not authorized' using errcode = '42501';
   end if;
-  -- 0534 (OQ-3): entering a pre-award pipeline stage is the sales_pipeline module's write.
-  if p_to::text = any (public.pipeline_project_statuses()) then
-    perform public.assert_feature_on(v_org, 'sales_pipeline');
-  end if;
 
   -- ⚑ 0178 (§5). SECURITY: this active-membership conjunct MUST stay — see the twin comment in
   -- set_project_contract_value. Two DISABLED Project Managers satisfied the money SoD between them
@@ -2635,6 +2642,10 @@ begin
   -- SECURITY: this coarse role gate MUST stay — removing it lets any authenticated user transition.
   if v_role is null or v_role not in ('Admin','Executive','Project Manager','Finance') then
     raise exception 'not authorized' using errcode = '42501';
+  end if;
+  -- 0534 (OQ-3): entering a pre-award pipeline stage is the sales_pipeline module's write.
+  if p_to::text = any (public.pipeline_project_statuses()) then
+    perform public.assert_feature_on(v_org, 'sales_pipeline');
   end if;
 
   -- Transition-map legality (FR-PR-001/003): (from,to) must be in the data map and not a no-op, else P0001.
