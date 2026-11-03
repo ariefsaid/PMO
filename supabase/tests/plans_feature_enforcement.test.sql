@@ -13,7 +13,7 @@
 -- whose revenue is ERP-owned (display off, entitlement on).
 begin;
 create extension if not exists pgtap;
-select plan(53);
+select plan(54);
 
 insert into organizations (id, name) values
   ('05340000-0000-0000-0000-000000000001', 'Plans Enforcement A'),
@@ -105,6 +105,12 @@ select is((select count(*)::int from pg_policies
               and cmd in ('INSERT','UPDATE','DELETE','ALL')
               and coalesce(with_check, qual) like '%org_feature_enabled%'), 2,
   'fx_rates write policies carry the entitlement conjunct');
+select is((select count(*)::int from pg_policies w
+            where w.schemaname = 'public' and w.cmd = 'ALL'
+              and coalesce(w.qual, '') like '%org_feature_enabled%'
+              and not exists (select 1 from pg_policies s
+                               where s.schemaname = 'public' and s.tablename = w.tablename and s.cmd = 'SELECT')), 0,
+  'every FOR ALL policy carrying the conjunct has a separate SELECT policy (the read invariant holds)');
 -- Director ruling (#1720): goods receipts stay on `procurement`, never `procurement_full`, in this slice.
 select is((select count(*)::int from pg_policies
             where schemaname = 'public' and tablename in ('procurement_receipts','procurement_receipt_files')

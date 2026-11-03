@@ -24,6 +24,23 @@
 --
 -- No table, grant or policy is created for service_role; 0137's service-grant inventory and 0178's
 -- anon-executable allow-list are unchanged (no definer here is anon-executable).
+--
+-- Scope notes (deliberate, recorded for review):
+--   • Goods receipts stay gated on `procurement`; the `procurement_full` re-boundary is DEFERRED
+--     (Director ruling: owner sign-off #1720 + a live-org check come first). The receipts policies are
+--     therefore skipped by §B's idempotence guard and keep 0081's gate untouched.
+--   • Reads stay ungated (OQ-5): the import lookup/normalise helpers and the published-statement /
+--     purchase / pipeline readers gain no gate.
+--   • `imprest_lock_float` (an advisory-lock helper with no org argument) gains no gate; every imprest
+--     writer that calls it is gated above it.
+--   • `m365_record_folder_sweep_save` is SECURITY INVOKER and is called by the sweep with the service
+--     key, which cannot execute the definer-only gate; the sweep that produces its summary is held at
+--     pass start instead (erpnext-sweep featureEnforcement.test.ts).
+--   • Outbox/job enforcement lives with the job: erpnext-sweep's outbox pass holds a switched-off
+--     domain and the doctype walk, timesheet and imprest passes skip; `imprest-cash-account` returns
+--     the typed 409 `feature_off` before any ERP call. The remaining edge preconditions (m365 custody,
+--     compose-view, agent-chat, clickup, external-connect) are follow-ups in their own slices — the
+--     assistant surfaces are S4's, and the teardown-safe set needs per-route care.
 -- Reversible: supabase/migrations/rollback/0534_feature_enforcement_down.sql.
 
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
