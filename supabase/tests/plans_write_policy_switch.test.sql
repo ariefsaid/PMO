@@ -65,8 +65,8 @@ select is((select count(*)::int from pg_policies
 select is((select count(*)::int from pg_policies
             where schemaname = 'public' and tablename in ('purchase_orders','procurement_receipts','procurement_invoices','payments')
               and cmd in ('INSERT','UPDATE','DELETE')
-              and coalesce(qual,'') || coalesce(with_check,'') like '%org_id = auth_org_id()%'), 12,
-  'AC-PLN-005 every procurement write policy retains its org predicate');
+              and (coalesce(qual,'') || coalesce(with_check,'')) ~ '(^|[^.[:alnum:]_])org_id[[:space:]]*=[[:space:]]*auth_org_id[[:space:]]*[(][)]'), 12,
+  'AC-PLN-005 every procurement write policy retains its row-org predicate');
 select is((select count(*)::int from pg_policies
             where schemaname = 'public' and tablename in ('purchase_orders','procurement_receipts','procurement_invoices','payments')
               and cmd in ('INSERT','UPDATE','DELETE')
