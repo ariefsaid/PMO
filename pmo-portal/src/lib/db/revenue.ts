@@ -78,6 +78,10 @@ export interface SalesInvoiceRow {
   efaktur_number: string | null;
   /** DD-EFK-1: PMO-owned tax-invoice date (never mirrored to ERP). */
   efaktur_date: string | null;
+  /** ECA-5 (PD-ECA-11): the ERP invoice that counts for this PMO-raised invoice; set only by accepting a pair. */
+  paired_erp_invoice_id?: string | null;
+  /** ECA-5: the number of that ERP invoice; read only on the single-invoice fetch. */
+  paired_erp_number?: string | null;
 }
 
 export interface IncomingPaymentRow {
@@ -170,7 +174,7 @@ function toSalesInvoiceRow(row: Record<string, unknown>): SalesInvoiceRow {
 }
 
 export async function listSalesInvoices(
-  params?: { projectId?: string; status?: SalesInvoiceStatus; nativeOnly?: boolean },
+  params?: { projectId?: string; status?: SalesInvoiceStatus; nativeOnly?: boolean; includePaired?: boolean },
 ): Promise<SalesInvoiceRow[]> {
   const build = (from: number, to: number) => {
     let query = supabase
@@ -179,6 +183,9 @@ export async function listSalesInvoices(
     if (params?.projectId) query = query.eq('project_id', params.projectId);
     if (params?.status) query = query.eq('status', params.status);
     if (params?.nativeOnly) query = query.eq('pmo_native', true);
+    // ECA-5 (PD-ECA-11): a PMO copy paired to an ERP invoice counts through the ERP invoice only, so it leaves every list
+    // that feeds a figure. Only the pairing screen asks for it back.
+    if (!params?.includePaired) query = query.is('paired_erp_invoice_id', null);
     return query
       .order('invoice_date', { ascending: false })
       .order('created_at', { ascending: false })
@@ -206,7 +213,10 @@ export async function getSalesInvoice(id: string): Promise<SalesInvoiceRow | nul
     .maybeSingle();
   if (error) throwWrite(error);
   if (!data) return null;
-  return toSalesInvoiceRow(data as Record<string, unknown>);
+  const row = toSalesInvoiceRow(data as Record<string, unknown>);
+  if (!row.paired_erp_invoice_id) return row;
+  const numbers = await erpInvoiceNumbers([row.paired_erp_invoice_id]);
+  return { ...row, paired_erp_number: numbers.get(row.paired_erp_invoice_id) ?? null };
 }
 
 /**
@@ -432,6 +442,7 @@ export async function getRevenueByProject(): Promise<RevenueByProjectRow[]> {
       .from('sales_invoices')
       .select('id, project_id, currency, erp_outstanding_amount')
       .in('status', REVENUE_STATUSES as unknown as string[])
+      .is('paired_erp_invoice_id', null)   // ECA-5: the paired PMO copy's receivable is its ERP invoice's
       .order('id', { ascending: true });
     if (afterId !== null) query = query.gt('id', afterId);
     return query.limit(limit) as unknown as PromiseLike<PageResult<ArRow>>;
@@ -466,5 +477,121 @@ export async function getRevenueByProject(): Promise<RevenueByProjectRow[]> {
     total_amount: v.total_amount,
     open_ar: v.open_ar,
     invoice_count: v.invoice_count,
+  }));
+}
+
+// ── ECA-5: pair PMO-raised invoices with the same invoices in the ERP (AC-ECA-030) ─────────────────────────────────
+
+export interface InvoicePairProposal {
+  pmoInvoiceId: string;
+  erpInvoiceId: string;
+  /** More than one candidate on either side: listed for a person to decide, never accepted in bulk. */
+  ambiguous: boolean;
+  pmoNumber: string | null;
+  erpNumber: string | null;
+  customerName: string | null;
+  amount: number;
+  currency: string;
+  invoiceDate: string | null;
+}
+
+export type UnpairedReason = 'no-match' | 'ambiguous' | 'has-receipt' | 'project-differs';
+
+export interface UnpairedNativeInvoice {
+  invoiceId: string;
+  pmoNumber: string | null;
+  customerName: string | null;
+  invoiceDate: string | null;
+  amount: number;
+  currency: string;
+  reason: UnpairedReason;
+}
+
+export interface AcceptedInvoicePair {
+  pmoInvoiceId: string;
+  pmoNumber: string | null;
+  amount: number;
+  currency: string;
+  pairedAt: string;
+  erpNumber: string | null;
+}
+
+/** Read in stable pages: PostgREST caps one response at 1,000 rows, and an org can hold more. */
+export async function proposeInvoicePairs(): Promise<InvoicePairProposal[]> {
+  type Row = { pmo_invoice_id: string; erp_invoice_id: string; ambiguous: boolean; pmo_number: string | null; erp_number: string | null;
+    customer_name: string | null; amount: number; currency: string; invoice_date: string | null };
+  const data = await fetchAllPages<Row>((from, to) =>
+    supabase.rpc('propose_invoice_pairs')
+      .order('invoice_date').order('pmo_number').order('erp_number').order('pmo_invoice_id').order('erp_invoice_id')
+      .range(from, to) as unknown as PromiseLike<PageResult<Row>>,
+  );
+  return data.map((r) => ({
+    pmoInvoiceId: r.pmo_invoice_id, erpInvoiceId: r.erp_invoice_id, ambiguous: r.ambiguous,
+    pmoNumber: r.pmo_number, erpNumber: r.erp_number, customerName: r.customer_name,
+    amount: Number(r.amount), currency: r.currency, invoiceDate: r.invoice_date,
+  }));
+}
+
+/**
+ * The ERP invoice numbers behind a set of paired PMO copies. Two reads, not an embed: PostgREST cannot resolve the
+ * self-referencing paired_erp_invoice_id relationship (a hint by constraint name finds nothing, one by column name walks the
+ * wrong direction). RLS scopes the rows to the caller's org.
+ */
+async function erpInvoiceNumbers(ids: string[]): Promise<Map<string, string | null>> {
+  const numbers = new Map<string, string | null>();
+  for (let i = 0; i < ids.length; i += 100) {
+    const { data, error } = await supabase.from('sales_invoices').select('id, si_number').in('id', ids.slice(i, i + 100));
+    if (error) throwWrite(error);
+    for (const r of (data ?? []) as Array<{ id: string; si_number: string | null }>) numbers.set(r.id, r.si_number);
+  }
+  return numbers;
+}
+
+/** Accepts the given pairs in one transaction; the server re-checks every pair. Returns how many were applied. */
+export async function acceptInvoicePairs(pairs: Array<{ pmoInvoiceId: string; erpInvoiceId: string }>): Promise<number> {
+  if (pairs.length === 0) return 0;
+  const { data, error } = await supabase.rpc('accept_invoice_pairs', {
+    p_pairs: pairs.map((p) => ({ pmo: p.pmoInvoiceId, erp: p.erpInvoiceId })),
+  });
+  if (error) throwWrite(error);
+  return Number(data ?? 0);
+}
+
+/** Undoes one accepted pair: the PMO copy counts again and the ERP copy loses what the accept filled. Admin/Finance, RPC-enforced. */
+export async function unpairInvoice(pmoInvoiceId: string): Promise<void> {
+  const { error } = await supabase.rpc('unpair_invoice', { p_pmo_id: pmoInvoiceId });
+  if (error) throwWrite(error);
+}
+
+export async function listUnpairedNativeInvoices(): Promise<UnpairedNativeInvoice[]> {
+  type Row = { invoice_id: string; pmo_number: string | null; customer_name: string | null; invoice_date: string | null;
+    amount: number; currency: string; reason: string };
+  const data = await fetchAllPages<Row>((from, to) =>
+    supabase.rpc('list_unpaired_native_invoices')
+      .order('invoice_date').order('pmo_number').order('invoice_id')
+      .range(from, to) as unknown as PromiseLike<PageResult<Row>>,
+  );
+  return data.map((r) => ({
+    invoiceId: r.invoice_id, pmoNumber: r.pmo_number, customerName: r.customer_name, invoiceDate: r.invoice_date,
+    amount: Number(r.amount), currency: r.currency, reason: r.reason as UnpairedReason,
+  }));
+}
+
+/** PMO invoices that now count as an ERP invoice, newest first (the "already done" list of the pairing screen). */
+export async function listAcceptedInvoicePairs(): Promise<AcceptedInvoicePair[]> {
+  type Row = { id: string; pmo_number: string | null; amount: number | null; currency: string; paired_at: string; paired_erp_invoice_id: string };
+  const rows = await fetchAllPages<Row>((from, to) =>
+    supabase
+      .from('sales_invoices')
+      .select('id, pmo_number, amount, currency, paired_at, paired_erp_invoice_id')
+      .not('paired_erp_invoice_id', 'is', null)
+      .order('paired_at', { ascending: false })
+      .order('id', { ascending: true })
+      .range(from, to) as unknown as PromiseLike<PageResult<Row>>,
+  );
+  const numbers = await erpInvoiceNumbers([...new Set(rows.map((r) => r.paired_erp_invoice_id))]);
+  return rows.map((r) => ({
+    pmoInvoiceId: r.id, pmoNumber: r.pmo_number, amount: Number(r.amount ?? 0), currency: r.currency,
+    pairedAt: r.paired_at, erpNumber: numbers.get(r.paired_erp_invoice_id) ?? null,
   }));
 }

@@ -2,8 +2,8 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 import {
   PLATFORM_CURRENCY, completionPct, currencySymbol, formatCompactCurrency, formatCurrency, parseMoneyInput, pct, formatDate, formatRelativeTime,
-  formatCurrencyAuto, formatCurrencyCents, formatCurrencyFine, formatNumber, formatNumberMax2, formatPercent,
-  formatDateNumeric, formatDateUtc, formatDateTime, formatDayMonth, formatExactMoney, formatFullDate, formatMonthDay,
+  formatCurrencyCents, formatCurrencyFine, formatNumber, formatNumberMax2, formatPercent,
+  formatDateTime, formatDayMonth, formatExactMoney, formatFullDate, formatMonthDay,
   formatMonthYear, formatUtcDayMonthYear, formatUtcMonthYear, formatUtcMonthYearFull, formatWeekday, formatWeekdayMonthDay,
 } from './format';
 
@@ -180,29 +180,24 @@ describe('formatCurrencyCents — ERP money, always 2 dp (#477)', () => {
   });
 });
 
-describe('formatCurrencyAuto — whole-unit display (#1437)', () => {
+describe('formatCurrency — whole-unit display (#1437)', () => {
   it('rounds all read-only money to whole currency units', () => {
-    expect(formatCurrencyAuto(1234, 'USD')).toBe('$1,234');
-    expect(formatCurrencyAuto(1234.5, 'USD')).toBe('$1,235');
-    expect(formatCurrencyAuto(1234.56, 'USD')).toBe('$1,235');
-    expect(formatCurrencyAuto(1234567.89, 'USD')).toBe('$1,234,568');
+    expect(formatCurrency(1234, 'USD')).toBe('$1,234');
+    expect(formatCurrency(1234.5, 'USD')).toBe('$1,235');
+    expect(formatCurrency(1234.56, 'USD')).toBe('$1,235');
+    expect(formatCurrency(1234567.89, 'USD')).toBe('$1,234,568');
   });
 });
 
 describe('#477 review — money formatters agree on where a negative sign goes', () => {
-  // Regression for the review finding: formatCurrencyAuto welded a `$` and rendered "$-1,234.5",
-  // while its siblings used Intl currency style and rendered "-$1,234.50". Two money values on one
-  // screen (RevenueByProject KPI tiles vs its table cells) disagreed. Negative money is reachable —
-  // open AR goes negative on an overpayment/credit.
+  // Regression for the review finding: the whole-unit money display once welded a `$` and rendered
+  // "$-1,234.5", while its siblings used Intl currency style and rendered "-$1,234.50". Two money
+  // values on one screen (RevenueByProject KPI tiles vs its table cells) disagreed. Negative money
+  // is reachable — open AR goes negative on an overpayment/credit.
   it('all three put the minus BEFORE the symbol', () => {
-    expect(formatCurrencyAuto(-1234.5, 'USD')).toBe('-$1,235');
+    expect(formatCurrency(-1234.5, 'USD')).toBe('-$1,235');
     expect(formatCurrencyCents(-1234.5, 'USD')).toBe('-$1,234.50');
     expect(formatCurrencyFine(-0.0123, 'USD')).toBe('-$0.0123');
-  });
-  it('formatCurrencyAuto agrees with the whole-unit display formatter for POSITIVES', () => {
-    for (const v of [0, 1234, 1234.5, 1234.56, 1234.567, 1234567.89]) {
-      expect(formatCurrencyAuto(v, 'USD')).toBe(formatCurrency(v, 'USD'));
-    }
   });
 });
 
@@ -245,18 +240,11 @@ describe('#477 date variants — all deterministic, TZ-stable (local or UTC-pinn
     expect(formatDateTime(new Date('2026-06-14T15:45:00.000Z'))).toBe('Jun 14, 2026, 03:45 PM');
     expect(formatDateTime(new Date('2026-06-14T00:00:00.000Z'))).toBe('Jun 14, 2026, 12:00 AM');
   });
-  it('formatDateNumeric: "6/14/2026" / "7/4/2026" — byte-identical to bare toLocaleDateString in en-US', () => {
-    expect(formatDateNumeric(new Date(2026, 5, 14))).toBe('6/14/2026');
-    expect(formatDateNumeric(new Date(2026, 6, 4))).toBe('7/4/2026');
-  });
   it('formatMonthYear: "June 2026"', () => {
     expect(formatMonthYear(new Date(2026, 5, 1))).toBe('June 2026');
   });
   it('formatWeekdayMonthDay: "Sun, Jun 14"', () => {
     expect(formatWeekdayMonthDay(new Date(2026, 5, 14))).toBe('Sun, Jun 14');
-  });
-  it('formatDateUtc: zone-stable — a 23:00Z instant is Jun 14 in UTC even where local says Jun 15', () => {
-    expect(formatDateUtc(new Date(Date.UTC(2026, 5, 14, 23, 0)))).toBe('Jun 14, 2026');
   });
   it('formatDayMonth: en-GB "14 Jun"', () => {
     expect(formatDayMonth(new Date(2026, 5, 14))).toBe('14 Jun');
@@ -289,9 +277,8 @@ describe('FR-L10N-020..023: currency-aware money formatters', () => {
     expect(formatCurrency(5000000, 'USD')).toBe('$5,000,000');
     expect(formatCurrency(1234.56, 'USD')).toBe('$1,235');
   });
-  it('AC-L10N-020: formatCurrencyCents/Auto/Fine take the record currency', () => {
+  it('AC-L10N-020: formatCurrencyCents/Fine take the record currency', () => {
     expect(formatCurrencyCents(1234.5, 'EUR')).toBe('€1,234.50');
-    expect(formatCurrencyAuto(1234.5, 'EUR')).toBe('€1,235');
     expect(formatCurrencyFine(0.0123, 'IDR')).toBe('IDR\u00A00.0123');
   });
   it('AC-L10N-022: formatCompactCurrency has no welded $ or K/M — currency + Intl compact unit', () => {

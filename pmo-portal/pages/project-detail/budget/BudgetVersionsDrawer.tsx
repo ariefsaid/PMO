@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Button, DataTable, Drawer, StatusPill, type Column } from '@/src/components/ui';
 import { BudgetDocumentLinks } from '@/src/components/m365/BudgetDocumentLinks';
 import type { BudgetVersionWithItems } from '@/src/lib/db/budgets';
-import { formatCurrencyAuto, formatInstantDate, formatNumberMax2 } from '@/src/lib/format';
+import { formatCurrency, formatInstantDate, formatNumberMax2 } from '@/src/lib/format';
 import { budgetVersionVariant } from '@/src/lib/status/statusVariants';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import { compareBudgetVersions, type BudgetComparisonRow } from './budgetModel';
@@ -90,7 +90,7 @@ export default function BudgetVersionsDrawer({
                     )}
                   </p>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    {formatCurrencyAuto(version.total, version.currency || fallbackCurrency)}
+                    {formatCurrency(version.total, version.currency || fallbackCurrency)}
                     {' · '}{version.activated_at ? formatInstantDate(version.activated_at) : t('projectDetail.budget.notActivated', 'Not activated')}
                   </p>
                 </div>

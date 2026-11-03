@@ -278,11 +278,6 @@ function parseNeutralMoneyDraft(raw: string): ParsedMoneyDraft | null {
   return parseMoneyDraft(raw, NEUTRAL_NUMBER_LOCALE);
 }
 
-/** Locale-independent decimal parser for neutral imports. */
-export function parseNeutralMoneyInput(raw: string): number | null {
-  return parseNeutralMoneyDraft(raw)?.value ?? null;
-}
-
 /**
  * DD-I18N-10 — binary float noise from a spreadsheet formula cell is not user precision.
  * `=1234.5+0.06` reaches the importer as `1234.5600000000002` (the double's shortest round-trip
@@ -724,10 +719,6 @@ export function formatCurrencyCents(value: number, currency: string): string {
 }
 
 // Money — whole-unit read-only display (#1437). Exact-cent reconciliation uses formatCurrencyCents.
-export function formatCurrencyAuto(value: number, currency: string): string {
-  return formatCurrency(value, currency);
-}
-
 // Money — fine-grained agent/provider costs (sub-$1): "$0.0123" (2–4 dp, record currency).
 // Was duplicated verbatim in AdministrationUsage + AgentCostMetrics.
 export function formatCurrencyFine(value: number, currency: string): string {
@@ -805,15 +796,6 @@ export function formatClockTime(d: Date): string {
   return dateFormatterFor('clockTime', getDateLocale(), { hour: '2-digit', minute: '2-digit', timeZone: getActiveLocale().timezone }).format(d);
 }
 
-/** "6/14/2026" — numeric M/D/YYYY; byte-identical to bare toLocaleDateString() in en-US. */
-export function formatDateNumeric(d: Date): string {
-  return dateFormatterFor('dateNumeric', getDateLocale(), {
-    month: 'numeric',
-    day: 'numeric',
-    year: 'numeric',
-  }).format(d);
-}
-
 /** "June 2026" — long month + year (calendar header). */
 export function formatMonthYear(d: Date): string {
   return dateFormatterFor('monthYear', getDateLocale(), {
@@ -831,16 +813,9 @@ export function formatWeekdayMonthDay(d: Date): string {
   }).format(d);
 }
 
-/** UTC "Jun 14, 2026" — zone-stable business dates (a 23:00Z instant must not drift a day). */
-export function formatDateUtc(d: Date): string {
-  // ⛔ `timeZone: 'UTC'` is load-bearing and is NOT the resolved profile timezone: this formatter
-  // exists so a 23:00Z business date does not drift a day. Swap the LOCALE, keep the UTC pin.
-  return dateFormatterFor('dateUtc', getDateLocale(), {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    timeZone: 'UTC',
-  }).format(d);
+/** "Sun 14" — a compact column heading (weekday and day of month). */
+export function formatWeekdayDay(d: Date): string {
+  return dateFormatterFor('weekdayDay', getDateLocale(), { weekday: 'short', day: 'numeric' }).format(d);
 }
 
 /**
@@ -864,7 +839,8 @@ export function formatDayMonth(d: Date): string {
 
 /** UTC "Jun 26" — monthly chart axis ticks. */
 export function formatUtcMonthYear(d: Date): string {
-  // `timeZone: 'UTC'` load-bearing (see formatDateUtc); locale follows the viewer.
+  // `timeZone: 'UTC'` is load-bearing and is NOT the resolved profile timezone: a UTC-derived
+  // business date must not drift a day. Swap the LOCALE, keep the UTC pin.
   return dateFormatterFor('utcMonthYear', getDateLocale(), {
     month: 'short',
     year: '2-digit',

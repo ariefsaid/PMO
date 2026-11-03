@@ -18,6 +18,7 @@ const STATEMENT_NON_VIEW_ACTIONS: Exclude<Action, 'view'>[] = [
   'download_pdf',
   'record_efaktur',
   'assign_project',
+  'pair_invoices',
   'manage_external_bindings',
   'view_financial_directory',
   'manage',
@@ -356,6 +357,11 @@ describe('can() — CRM RBAC (W3-CRM)', () => {
 });
 
 describe('can() — revenue (P3a) reachability + SoD (owner ruling 2026-07-20)', () => {
+  it('AC-ECA-030 pair_invoices on salesInvoice is Admin and Finance only (the RPC re-asserts it)', () => {
+    expect(allowedRoles('pair_invoices', 'salesInvoice')).toEqual(['Admin', 'Finance']);
+    expect(can('pair_invoices', 'salesInvoice', { realRole: 'Project Manager' })).toBe(false);
+    expect(can('pair_invoices', 'salesInvoice', { realRole: null })).toBe(false);
+  });
   it('AC-PFIN-009 assign_project on salesInvoice is Admin and Finance only under the real role', () => {
     expect(allowedRoles('assign_project', 'salesInvoice')).toEqual(['Admin', 'Finance']);
     expect(can('assign_project', 'salesInvoice', { realRole: 'Admin', record: { viewOnly: true } })).toBe(true);
@@ -843,6 +849,71 @@ describe('can() — subcontract acceptance, caps and variations (#1513; server R
     for (const [action, entity, extra] of cases) {
       expect(can(action, entity, { realRole: 'Admin', ...extra, record: { viewOnly: true } })).toBe(false);
       expect(can(action, entity, { realRole: 'Admin', ...extra })).toBe(true);
+    }
+  });
+});
+
+describe('can() — equipment usage and costing (#1519; transition_equipment_usage / save_equipment_costing are the authority)', () => {
+  it('AC-EQU-017 the author never transitions their own entry, even as Admin', () => {
+    for (const realRole of ALL_ROLES) {
+      expect(can('transition', 'equipmentUsage', {
+        realRole, currentUserId: 'u1', record: { author_id: 'u1', project_manager_id: 'u2' },
+      })).toBe(false);
+    }
+  });
+
+  it('AC-EQU-017 a Project Manager transitions only on a project they manage; other approvers do not need one', () => {
+    const ctx = (project_manager_id: string | null) => ({ currentUserId: 'u1', record: { author_id: 'u2', project_manager_id } });
+    expect(can('transition', 'equipmentUsage', { realRole: 'Project Manager', ...ctx('u1') })).toBe(true);
+    expect(can('transition', 'equipmentUsage', { realRole: 'Project Manager', ...ctx('u9') })).toBe(false);
+    expect(can('transition', 'equipmentUsage', { realRole: 'Project Manager', ...ctx(null) })).toBe(false);
+    for (const realRole of ['Admin', 'Executive', 'Finance'] as const) {
+      expect(can('transition', 'equipmentUsage', { realRole, ...ctx('u9') })).toBe(true);
+    }
+  });
+
+  it('AC-EQU-017 an Engineer cannot approve, and reads no other member\'s usage or any amount', () => {
+    expect(can('transition', 'equipmentUsage', { realRole: 'Engineer', currentUserId: 'u1', record: { author_id: 'u2' } })).toBe(false);
+    expect(allowedRoles('view', 'equipmentUsage')).toEqual(['Admin', 'Executive', 'Project Manager', 'Finance']);
+    expect(allowedRoles('view', 'equipmentCosting')).toEqual(['Admin', 'Executive', 'Project Manager', 'Finance']);
+  });
+
+  it('AC-EQU-017 an Engineer reads only their own usage entry', () => {
+    expect(can('view', 'equipmentUsage', {
+      realRole: 'Engineer', currentUserId: 'u1', record: { author_id: 'u1' },
+    })).toBe(true);
+    expect(can('view', 'equipmentUsage', {
+      realRole: 'Engineer', currentUserId: 'u1', record: { author_id: 'u2' },
+    })).toBe(false);
+    expect(can('view', 'equipmentUsage', { realRole: 'Engineer', currentUserId: 'u1' })).toBe(false);
+  });
+
+  it('AC-EQU-017 view-as context hides every equipment write affordance', () => {
+    for (const action of ['create', 'edit', 'delete'] as const) {
+      expect(can(action, 'equipmentAsset', { realRole: 'Admin', record: { viewOnly: true } })).toBe(false);
+    }
+    expect(can('create', 'equipmentUsage', { realRole: 'Engineer', record: { viewOnly: true } })).toBe(false);
+    expect(can('transition', 'equipmentUsage', {
+      realRole: 'Admin', currentUserId: 'u1', record: { author_id: 'u2', viewOnly: true },
+    })).toBe(false);
+    expect(can('manage', 'equipmentCosting', { realRole: 'Finance', record: { viewOnly: true } })).toBe(false);
+  });
+
+  it('AC-EQU-017 everyone logs usage; only Admin and PM keep the asset reference', () => {
+    expect(allowedRoles('create', 'equipmentUsage')).toEqual(ALL_ROLES);
+    expect(allowedRoles('view', 'equipmentAsset')).toEqual(ALL_ROLES);
+    expect(allowedRoles('create', 'equipmentAsset')).toEqual(['Admin', 'Project Manager']);
+    expect(allowedRoles('edit', 'equipmentAsset')).toEqual(['Admin', 'Project Manager']);
+    expect(allowedRoles('delete', 'equipmentAsset')).toEqual(['Admin']);
+  });
+
+  it('AC-EQU-017 only Admin and Finance set what an hour is worth — never a PM or an Executive', () => {
+    expect(allowedRoles('manage', 'equipmentCosting')).toEqual(['Admin', 'Finance']);
+    expect(can('manage', 'equipmentCosting', { realRole: 'Project Manager' })).toBe(false);
+    expect(can('manage', 'equipmentCosting', { realRole: 'Executive' })).toBe(false);
+    for (const entity of ['equipmentAsset', 'equipmentUsage', 'equipmentCosting'] as const) {
+      expect(can('view', entity, { realRole: null })).toBe(false);
+      expect(can('manage', entity, { realRole: null })).toBe(false);
     }
   });
 });

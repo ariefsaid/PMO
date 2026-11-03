@@ -5,7 +5,7 @@
 import { AppError } from '../../appError.ts';
 import type {
   ConnectHarness,
-  BudgetPushResult, BudgetPushScenario, ErpHarness, ErpPartyInput, PartyMatchResult, PmoPartyCandidate,
+  BudgetPushResult, BudgetPushScenario, ErpHarness, ErpPartyInput, InboundInvoiceDoc, PartyMatchResult, PmoPartyCandidate,
   ProjectLinkResult, PushBeforeConnectionResult, TransferHarness,
 } from '../contractSuite/harness.ts';
 import type { ImprestTransfer } from '../imprestTransfer.ts';
@@ -14,6 +14,7 @@ import { assertNotPreCutover } from '../cutoverGate.ts';
 import { imprestTransferToBody } from './bodies/imprestTransfer.ts';
 import { probeErpByAnchorKey } from './recoveryProbe.ts';
 import { expenseJournalFromDoc } from './bodies/expenseJournal.ts';
+import { siFromDoc } from './bodies/salesInvoice.ts';
 import { budgetAccountIdentity } from './budgetAccountIdentity.ts';
 import { DOCTYPE_BODIES } from './doctypeBodies.ts';
 import { resolveErpDispatchAdapter, type DispatchServiceClient } from './dispatchFactory.ts';
@@ -149,6 +150,14 @@ export function createErpnextHarness(): ErpHarness {
     transfer: createTransferHarness,
     connect: createConnectHarness,
     ...createPushAndReadHarness(),
+
+    // invoice.pair-existing: a Sales Invoice as ERPNext lists it, through the shipped inbound mapper.
+    async mapInboundInvoice(doc: InboundInvoiceDoc) {
+      return siFromDoc({
+        name: doc.number, customer: doc.client, po_no: doc.poRef, posting_date: doc.date, currency: doc.currency,
+        grand_total: Number(doc.total), total_taxes_and_charges: Number(doc.taxAmount), outstanding_amount: Number(doc.total), docstatus: 1,
+      });
+    },
 
     async matchParty(party: ErpPartyInput, existing: readonly PmoPartyCandidate[]): Promise<PartyMatchResult> {
       try {

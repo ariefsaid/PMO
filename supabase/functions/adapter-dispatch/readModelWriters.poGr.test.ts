@@ -162,6 +162,37 @@ Deno.test({
 });
 
 Deno.test({
+  name: "AC-OPP-030 (FR-OPP-034) a goods-receipt canonical that states the order's received status (Odoo tier) mirrors THAT status, not the docstatus-derived one",
+  fn: async () => {
+    for (const status of ['Partial', 'Complete']) {
+      const { client, calls } = makeFakeClient({ external_refs: { pmo_record_id: 'pmo-po-1' } });
+      await getReadModelWriter('procurement').upsert(
+        { serviceClient: client as never, orgId: 'org-1' },
+        { id: 'pmo-gr-3', gr_number: 'WH/IN/00007', po_id: '41', erp_docstatus: 1, erp_modified: '2026-11-03 10:00:00', odoo_receipt_status: status },
+        { domain: 'procurement', operation: 'create', record: { id: 'pmo-gr-3', procurementId: 'proc-1', erp_doc_kind: 'goods-receipt' } },
+      );
+      const row = calls.find((c) => c.method === 'insert' && c.table === 'procurement_receipts')!.args[0] as Record<string, unknown>;
+      assertEquals(row.status, status);
+      assertEquals(row.erp_docstatus, 1);
+    }
+  },
+});
+
+Deno.test({
+  name: 'AC-OPP-030 a canonical with an unknown received status falls back to the docstatus rule (never writes a value the enum lacks)',
+  fn: async () => {
+    const { client, calls } = makeFakeClient();
+    await getReadModelWriter('procurement').upsert(
+      { serviceClient: client as never, orgId: 'org-1' },
+      { id: 'pmo-gr-4', gr_number: 'x', po_id: null, erp_docstatus: 1, odoo_receipt_status: 'Closed' },
+      { domain: 'procurement', operation: 'create', record: { id: 'pmo-gr-4', procurementId: 'proc-1', erp_doc_kind: 'goods-receipt' } },
+    );
+    const row = calls.find((c) => c.method === 'insert' && c.table === 'procurement_receipts')!.args[0] as Record<string, unknown>;
+    assertEquals(row.status, 'Complete');
+  },
+});
+
+Deno.test({
   name: 'a procurement command with an unowned/absent erp_doc_kind still throws (task 1.6 byte-for-byte, not superseded by 5.4)',
   fn: async () => {
     const { client } = makeFakeClient();

@@ -14,7 +14,7 @@
   Orca workers (`docs/orca-dispatch.md`); money-path slices are Director-dispatched per issue.
 - **Migrations (Director, 2026-11-01):** each with `supabase/migrations/rollback/<number>_<slug>_down.sql`. Five migrations:
   ECA-2 `0480_erp_connect_setup`, ECA-3 `0494_erp_connect_sends`, ECA-4 `0481_process_domain_cutover`, ECA-5
-  `0454_invoice_pairs`, ECA-6 `0495_budget_occupant_resolution` (rollback file
+  `0498_invoice_pairs`, ECA-6 `0495_budget_occupant_resolution` (rollback file
   `0495_budget_occupant_resolution_down.sql`; renumbered from the draft's 0455, then 0483, to sit above prod's 0493). A collision at build is fixed with
   `scripts/renumber-migration.sh`, never by hand.
 - **IDs:** plan decisions `PD-ECA-#`; questions for the Director `PQ-ECA-#`; tasks `<slice>-T<n>`.
@@ -1317,7 +1317,7 @@ Verify: `PGT supabase/tests/erp_connect_sends.test.sql`; `DENO erpnext-sweep con
 - *Contract suite (T2/T8):* `ConnectHarness` gains `rejectNextWrite`, `touchedAccounting` and `ownKeys` (ERPNext names a project itself, so the PMO code is not on the ERP document). The employee case of AC-ECA-010 is omitted: no tier supports `employee.send`.
 - *Setup screen (T9/T11):* the ECA2-T17 review screen is not built yet, so the states live in the existing checklist (`ErpSendStates`), and `missingAccountCategories(setup)` reads the readiness the checklist already has (categories required and not linked).
 - *Review fix round (2026-11-02):* the outbox no longer writes any link: `sendMasterOnce` makes `recordOutboxRef` a no-op for every kind and `record_connect_send_result` (through `apply_connect_link`) is the one link writer, so an existing link is never re-pointed and a clash ends as a plain-words decision. The drain asks `connect_send_existing_link` before any ERP call and treats a linked record as done. A held send has a way out: `retry_connect_send` (Admin, audited) releases the outbox hold and queues the proposal again; a project sent from its own page leaves the same decision row (`record_connect_record_held`). Unclassified trouble ends the send on the fifth tick (`send_failures`). The drain stops at a dead ERP or after `CONNECT_SENDS_BUDGET_MS`, and the lookup before a create is one bounded attempt. The disconnect trigger in 0494 removes waiting sends and the seed outbox rows that never reached an ERP and holds the rest. `ensure-project` answers in-flight, held and refused sends as 409/409/422 in plain words. The real-ERPNext proof of the create bodies is `sendBodies.bed.test.ts`, gated on the bed (not yet run).
-- *Not done here:* ECA3-T12 (new items sent after setup) was outside the T1–T11 brief.
+- *New items after setup (T12, 2026-11-02):* `enqueue_new_item_sends(org, tier)` is in 0499 (service role only, 100 names a tick). It queues one `sending` proposal with `decided_by` null and `snapshot {auto:true}` per distinct open-purchase item name that has no `item_map` key and no item proposal of any state, and only after the item census row's `accepted_at` is set. `drainConnectSends` calls it once per tick before the claim; a failure there is reported (`enqueue:`) and the claim still runs. A proposal the sweep queued skips the accepting-Admin check (it has no accepter); a null decider without `auto` still fails it. The item lookup already tried `item_name` after `item_code` (two hits end as a review row), so no adapter change was needed.
 
 ---
 
@@ -1516,8 +1516,11 @@ create unique index sales_invoices_one_pair on public.sales_invoices (paired_erp
 Admin/Finance: native rows (`pmo_native`, status `Unpaid`, `paired_erp_invoice_id is null`, **no** `incoming_payments` row
 with `sales_invoice_id` = the native id — PD-ECA-11, so no receipt is counted twice) joined to non-native
 rows (`erp_docstatus = 1`, `erp_cancelled_at is null`, not already a pair target) on same `customer_id`, and
-(`reference_number` equal and not null, or `si_number` equal and not null), equal `amount`, equal `tax_treatment`,
-`date_trunc('month', invoice_date)` equal (FR-ECA-040); `ambiguous` when either side has more than one candidate (those are listed, never proposed for accept).
+(`reference_number` equal and not null, or `si_number` equal and not null), equal currency, equal **tax-inclusive total**
+(`amount` when `inclusive`, else `amount + tax_amount`), `date_trunc('month', invoice_date)` equal (FR-ECA-040). *Built
+2026-11-02:* the draft's "equal `amount` and equal `tax_treatment`" could never hold for a real pair - PMO raises invoices
+`exclusive`, the ERP mirror stores its grand total `inclusive` (`readModelWriters.ts`, `erpnextFeedDeps.ts`) - so the totals are
+compared on one basis; `ambiguous` when either side has more than one candidate (those are listed, never proposed for accept).
 `accept_invoice_pairs(p_pairs jsonb) returns int` — SECURITY DEFINER, Admin/Finance + active member re-asserted in the body;
 locks both rows `for update`; re-checks every predicate above (never trusts the pair list); sets `paired_*` on the native row
 inside `set_config('pmo.invoice_pairing','on',true)`; copies `project_id`/`work_order_id` to the ERP row when null via the
@@ -1547,6 +1550,11 @@ EOF
 grep -rlE "sales_invoices|sales_invoice_work_billed|work_order_billing_lines" pmo-portal/src pmo-portal/pages supabase/functions | grep -v '\.test\.'
 ```
 Of what it prints, the ones that **sum or list billed / receivable amounts** take the filter; writers, guards and triggers do not.
+*Built 2026-11-02:* `sales_invoice_work_billed` and `get_project_finances` carry the filter; `work_order_billing_lines`, `work_order_billing`,
+the management pack, both dashboards, project billing, work-order capacity and uninvoiced acceptance read through the view and
+inherit it (each has its own count-once test in `invoice_pairs.test.sql`). `get_projects_money_collection` reads
+`get_project_finances`. The list reader `listSalesInvoices` excludes paired rows by default (it feeds the receivables, finance-position,
+company-figures and project-position sums); the "Counted as ERP invoice" chip is replaced by the review screen's "already counts once" list.
 At `b52aa48a` that is:
 - Views (re-created verbatim from `0262_billing_by_work_order.sql` with `and si.paired_erp_invoice_id is null`):
   `sales_invoice_work_billed` (every management-pack, dashboard and finance reader that goes through it inherits the filter)

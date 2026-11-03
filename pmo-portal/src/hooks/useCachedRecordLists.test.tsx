@@ -89,6 +89,15 @@ describe('AC-OVERFETCH-001 shell breadcrumb reads the cache and never triggers a
     expect(qc.isFetching()).toBe(0);
   });
 
+  it('AC-EQU-017 an equipment asset detail resolves its name from the cached asset list', async () => {
+    const { qc, result } = setup('/equipment/assets/a1');
+    expect(result.current.resolved).toBe(false);
+    act(() => { qc.setQueryData(['equipment-assets', 'org-1'], { rows: [{ id: 'a1', name: 'Loader 1' }], truncated: false }); });
+    await waitFor(() => expect(result.current.resolved).toBe(true));
+    expect(recordLabelForPath('/equipment/assets/a1', result.current.lists)).toBe('Loader 1');
+    expect(qc.isFetching()).toBe(0);
+  });
+
   it('FR-IMP-074 a site float detail resolves its project name from the cached float list', async () => {
     const { qc, result } = setup('/imprest/f1');
     expect(result.current.resolved).toBe(false);

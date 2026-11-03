@@ -6,7 +6,6 @@
 import type { TierWorkflows } from '../connect/workflows.ts';
 
 // ECA slices that will build the missing behaviour (the ERP-connect-anytime map).
-const INVOICE_PAIRING = 1602;
 // Cut-over proofs that live outside Vitest (the SQL revenue guard, the Deno timesheet backstop): shared suite or permanent exception.
 const CUTOVER_PROOFS_OUTSIDE_VITEST = 1676;
 
@@ -35,7 +34,7 @@ export const ERPNEXT_WORKFLOWS: TierWorkflows = {
   'cutover.activation': { status: 'supported', version: 1 },
   'invoice.push': { status: 'supported', version: 1 },
   'receipt.read': { status: 'supported', version: 1 },
-  'invoice.pair-existing': { status: 'pending', version: 1, issue: INVOICE_PAIRING },
+  'invoice.pair-existing': { status: 'supported', version: 1 },
   // SQL guard, tier-agnostic, proven by pgTAP (0275 §7); the shared suite or a documented exception is #1676.
   'cutover.revenue': { status: 'pending', version: 1, issue: CUTOVER_PROOFS_OUTSIDE_VITEST },
   'actuals.read': { status: 'supported', version: 1 },
