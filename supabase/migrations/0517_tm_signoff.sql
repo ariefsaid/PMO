@@ -192,6 +192,23 @@ create trigger progress_claims_tm_follow_withdrawal after update on public.progr
   for each row when (new.kind = 'time_materials' and old.withdrawn_at is null and new.withdrawn_at is not null)
   execute function public.tm_claim_follow_withdrawal();
 
+-- Withdrawing after a Cancelled invoice releases the hours for a new claim. An ERP Amend of that cancelled invoice would
+-- converge the mirror row back to live and bill them twice, so a withdrawn claim's invoice never leaves Cancelled.
+create function public.sales_invoice_withdrawn_stays_cancelled() returns trigger
+language plpgsql security definer set search_path = public, pg_temp as $$
+begin
+  if exists (select 1 from public.progress_claims pc where pc.id = new.id and pc.withdrawn_at is not null) then
+    raise exception 'the claim for this invoice was withdrawn and its hours released, so the invoice cannot be revived'
+      using errcode = '55000';
+  end if;
+  return new;
+end $$;
+revoke all on function public.sales_invoice_withdrawn_stays_cancelled() from public, anon, authenticated;
+alter function public.sales_invoice_withdrawn_stays_cancelled() owner to postgres;
+create trigger sales_invoices_withdrawn_stays_cancelled before update of status on public.sales_invoices
+  for each row when (old.status = 'Cancelled' and new.status is distinct from old.status)
+  execute function public.sales_invoice_withdrawn_stays_cancelled();
+
 create function public.confirm_tm_signoff(p_claim uuid) returns jsonb
 language plpgsql security definer set search_path = public, pg_temp as $$
 declare
@@ -366,7 +383,7 @@ begin
     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
    where n.nspname = 'public'
      and p.proname in ('tm_claim_fingerprint', 'tm_claims_guard', 'tm_claim_child_guard', 'tm_claim_follow_withdrawal',
-                       'prepare_tm_signoff', 'withdraw_tm_signoff', 'confirm_tm_signoff')
+                       'prepare_tm_signoff', 'withdraw_tm_signoff', 'confirm_tm_signoff', 'sales_invoice_withdrawn_stays_cancelled')
      and (
        (p.proname not in ('prepare_tm_signoff', 'withdraw_tm_signoff', 'confirm_tm_signoff')
           and has_function_privilege('authenticated', p.oid, 'EXECUTE'))

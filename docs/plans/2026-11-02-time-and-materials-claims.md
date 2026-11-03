@@ -207,7 +207,7 @@ Owns AC-TM-001, 002, 004, 006, 007, 009, 010, 019.
   status `SignedOff`; `log_audit('tm_signoff.confirm', …)` with basis. One transaction.
 - **T3.5 (green)** extend `assert_progress_claim_raisable` (newest body): for a `time_materials` claim require a `tm_claims` row
   `SignedOff` with `confirmed_by` set, else `55000`. Extend `append_progress_claim_author` to also insert the confirmer.
-- **T3.6 (green)** a small invoice-line reader for T&M claims used by the native invoice creation path (read the newest
+- **T3.6 (no-op, moved to T6)** the native path builds invoice lines from the caller, not from claims, so nothing is built in T3; the invoice-lines half of `AC-TM-001` (the invoice shows the approved units and rate) is owned by T6's `AC-TM-014`. T3 proves the claim lines only. The Billing tab still labels a confirmed T&M claim "Progress"; the label and drawer go to T8. Original text: a small invoice-line reader for T&M claims used by the native invoice creation path (read the newest
   `create_native_sales_invoice`/claim raise code first; if the claim lines are copied at raise time, add the T&M branch there; do not add a second raiser).
 - **T3.7 Mutation checks (evidence in the PR body):** `confirm` without the document → red; preparer = confirmer allowed → `AC-TM-006` red;
   fence returns true for `time_materials` → `AC-TM-019`/`AC-TM-002` red; skip the authors insert → `AC-TM-007` red; restore each.
@@ -283,7 +283,7 @@ the invoice is raised, the page shows approved units and rate. Run `scripts/e2e-
 
 | AC | Layer | Slice | File |
 |---|---|---|---|
-| AC-TM-001 | pgTAP | T3 | `supabase/tests/tm_signoff.test.sql` |
+| AC-TM-001 | pgTAP (claim lines), Deno (invoice lines) | T3, T6 | `supabase/tests/tm_signoff.test.sql`, `progressClaimInvoice.test.ts` |
 | AC-TM-002 | pgTAP | T3 | `tm_signoff.test.sql` |
 | AC-TM-003 | pgTAP | T2 | `tm_assembly.test.sql` |
 | AC-TM-004 | pgTAP | T3 | `tm_signoff.test.sql` |

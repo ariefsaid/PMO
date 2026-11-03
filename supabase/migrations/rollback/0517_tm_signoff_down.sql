@@ -8,6 +8,8 @@ begin
   end if;
 end $$;
 
+drop trigger sales_invoices_withdrawn_stays_cancelled on public.sales_invoices;
+drop function public.sales_invoice_withdrawn_stays_cancelled();
 drop trigger progress_claims_tm_follow_withdrawal on public.progress_claims;
 drop function public.tm_claim_follow_withdrawal();
 

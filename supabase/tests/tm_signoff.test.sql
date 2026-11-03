@@ -4,7 +4,7 @@
 -- b8 foreign admin (org a2), b9 the only member of org a3 (sole-operator case).
 begin;
 create extension if not exists pgtap;
-select plan(104);
+select plan(107);
 
 -- ── Fixture F1 ──────────────────────────────────────────────────────────────────────────────
 insert into organizations (id, name, default_currency, default_timezone) values
@@ -378,6 +378,12 @@ select is((select (withdrawn_at is not null)::text from progress_claims where id
   'FR-TM-036 the progress claim record carries the withdrawal');
 select is((select count(*)::int from audit_events where action = 'tm_signoff.withdraw' and entity_id = pg_temp.st('claimF')::uuid), 1,
   'FR-TM-025 the withdrawal of a confirmed sign-off is audited');
+-- An ERP-side Amend converges the mirror row back to live; the released hours must not be billed twice.
+select throws_ok($q$update sales_invoices set status = 'Unpaid' where id = pg_temp.st('claimF')::uuid$q$, '55000', null,
+  'FR-TM-036 a withdrawn claim''s cancelled invoice cannot come back live (an amend would bill the released hours twice)');
+select throws_ok($q$update sales_invoices set status = 'Paid', erp_docstatus = 1 where id = pg_temp.st('claimF')::uuid$q$, '55000', null,
+  'FR-TM-036 nor any other live status');
+select is((select status from sales_invoices where id = pg_temp.st('claimF')::uuid), 'Cancelled', 'FR-TM-036 the invoice stays Cancelled');
 
 -- ── AC-TM-006: the sole active member confirms with basis sole_operator ─────────────────────────
 set local role authenticated;
