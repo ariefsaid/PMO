@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Button, Card, CardHead, CardPad, Combobox, ConfirmDialog, Drawer, EntityFormModal, FieldError, FormGrid,
@@ -14,12 +14,14 @@ import {
   useTmRateLines, useWithdrawTmSignoff,
 } from '@/src/hooks/useTimeAndMaterials';
 import { useDocuments } from '@/src/hooks/useDocuments';
+import { useErpItemOptions } from '@/src/hooks/useErpItemOptions';
 import { LIST_LIMIT, type ContractRateLineInput, type ContractRateLineRow, type TmClaimPreviewRow, type TmClaimSummary } from '@/src/lib/db/timeAndMaterials';
 import type { ProjectDocumentRow } from '@/src/lib/db/documents';
 import type { ProfileRow } from '@/src/lib/db/profiles';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatCurrency, formatDateOnly, formatNumberExact } from '@/src/lib/format';
 import { localToday } from '@/src/lib/efaktur';
+import type { ComboboxOption } from '@/src/components/ui/Combobox';
 
 interface TimeAndMaterialsProps {
   projectId: string;
@@ -41,6 +43,21 @@ const today = localToday;
 const firstOfMonth = (): string => `${today().slice(0, 7)}-01`;
 const canBeEvidence = (document: ProjectDocumentRow): boolean =>
   (document.status === 'Issued' || document.status === 'Approved') && Boolean(document.file_path);
+const EMPTY_RATE_LINES: ContractRateLineRow[] = [];
+
+function normalizedItemName(value: string): string {
+  return value.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+}
+
+function proposeSalesItem(label: string, items: readonly ComboboxOption[]): ComboboxOption | null {
+  const exact = items.filter((item) => item.sub?.trim() === label.trim());
+  if (exact.length === 1) return exact[0];
+  if (exact.length > 1) return null;
+  const normalizedLabel = normalizedItemName(label);
+  if (!normalizedLabel) return null;
+  const normalized = items.filter((item) => item.sub && normalizedItemName(item.sub) === normalizedLabel);
+  return normalized.length === 1 ? normalized[0] : null;
+}
 
 const TimeAndMaterials: React.FC<TimeAndMaterialsProps> = ({ projectId, projectManagerId, currency, embedded = false, onCreateInvoice, canCreateInvoice, invoiceNumberFor }) => {
   const { t } = useTranslation('timeAndMaterials');
@@ -56,6 +73,10 @@ const TimeAndMaterials: React.FC<TimeAndMaterialsProps> = ({ projectId, projectM
   const claims = useTmClaims(projectId);
   const people = useAssignableProfiles();
   const documents = useDocuments(projectId);
+  const erpItems = useErpItemOptions('sales');
+  const erpItemsConnected = erpItems.connected;
+  const loadErpItemOptions = erpItems.loadOptions;
+  const saveRateItem = useSaveTmRateLine();
   const assignPerson = useSetTmRateAssignee();
   const endAssignee = useEndTmRateAssignee();
   const endRate = useEndTmRateLine();
@@ -75,8 +96,12 @@ const TimeAndMaterials: React.FC<TimeAndMaterialsProps> = ({ projectId, projectM
   const [removeFor, setRemoveFor] = useState<{ id: string; person: string; line: string } | null>(null);
   const [endRateFor, setEndRateFor] = useState<ContractRateLineRow | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [proposalItems, setProposalItems] = useState<ComboboxOption[]>([]);
+  const [proposalCatalogState, setProposalCatalogState] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
+  const [proposalRetry, setProposalRetry] = useState(0);
 
-  const rateRows = rateLines.data?.rows ?? [];
+  const rateRows = rateLines.data?.rows ?? EMPTY_RATE_LINES;
+  const unmappedRateRows = useMemo(() => rateRows.filter((line) => !line.sales_item_code), [rateRows]);
   const assignmentRows = assignments.data?.rows;
   const claimRows = claims.data?.rows ?? [];
   const activeProfiles = (people.data ?? []).filter((profile) => profile.status === 'active');
@@ -112,6 +137,29 @@ const TimeAndMaterials: React.FC<TimeAndMaterialsProps> = ({ projectId, projectM
       viewOnly,
     },
   });
+  useEffect(() => {
+    let active = true;
+    if (!canManageRates || !erpItemsConnected || unmappedRateRows.length === 0) {
+      setProposalItems([]);
+      setProposalCatalogState('idle');
+      return () => { active = false; };
+    }
+    setProposalCatalogState('loading');
+    void loadErpItemOptions().then((items) => {
+      if (!active) return;
+      setProposalItems(items);
+      setProposalCatalogState('ready');
+    }).catch(() => {
+      if (!active) return;
+      setProposalItems([]);
+      setProposalCatalogState('error');
+    });
+    return () => { active = false; };
+  }, [canManageRates, erpItemsConnected, loadErpItemOptions, proposalRetry, unmappedRateRows.length]);
+  const proposedRateRows = useMemo(() => unmappedRateRows.flatMap((line) => {
+    const option = proposeSalesItem(line.label, proposalItems);
+    return option ? [{ line, option }] : [];
+  }), [unmappedRateRows, proposalItems]);
   const currentAssigneesFor = (lineKey: string) => (assignmentsByLine.get(lineKey) ?? []).map((assignment) => ({
     id: assignment.id,
     name: profilesById.get(assignment.user_id)?.full_name ?? t('preview.personUnavailable', 'Person no longer active'),
@@ -121,6 +169,36 @@ const TimeAndMaterials: React.FC<TimeAndMaterialsProps> = ({ projectId, projectM
     const classified = classifyMutationError(error, undefined, { suppressCapture: true });
     setActionError([classified.headline, classified.detail].filter(Boolean).join(' '));
     toast(classified.headline, classified.detail, 'warning');
+  };
+
+  const rateItemInput = (line: ContractRateLineRow, salesItemCode: string | null): ContractRateLineInput => ({
+    project_id: line.project_id,
+    line_key: line.line_key,
+    expected_version: line.version,
+    kind: 'labour',
+    label: line.label,
+    unit: line.unit === 'day' ? 'day' : 'hour',
+    rate: Number(line.rate),
+    currency,
+    effective_from: line.effective_from,
+    effective_to: line.effective_to,
+    sales_item_code: salesItemCode,
+    expected_sales_item_code: line.sales_item_code,
+  });
+
+  const saveSalesItemMappings = async (inputs: ContractRateLineInput[]) => {
+    if (!canManageRates || inputs.length === 0) return;
+    setActionError(null);
+    try {
+      await saveRateItem.mutateAsync(inputs);
+      toast(t('rateCard.salesItemsSaved', 'Sales item mapping saved'), undefined, 'success');
+    } catch (error) {
+      reportActionError(error);
+    }
+  };
+
+  const acceptProposedSalesItems = () => {
+    void saveSalesItemMappings(proposedRateRows.map(({ line, option }) => rateItemInput(line, option.value)));
   };
 
   const runRemove = async () => {
@@ -224,6 +302,9 @@ const TimeAndMaterials: React.FC<TimeAndMaterialsProps> = ({ projectId, projectM
           {rateRows.map((line) => {
             const assignedPeople = currentAssigneesFor(line.line_key);
             const ended = line.effective_to !== null && line.effective_to <= today();
+            const selectedSalesItem = line.sales_item_code
+              ? proposalItems.find((item) => item.value === line.sales_item_code) ?? { value: line.sales_item_code, label: line.sales_item_code }
+              : null;
             return <li key={line.id} className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0">
                 <p className="font-medium text-foreground">{line.label}</p>
@@ -241,6 +322,29 @@ const TimeAndMaterials: React.FC<TimeAndMaterialsProps> = ({ projectId, projectM
                     {index < assignedPeople.length - 1 && <span aria-hidden>,</span>}
                   </span>)}
                 </p>
+                <div className="mt-2 max-w-md">
+                  {!line.sales_item_code && <p role="status" className="mb-1 text-sm text-muted-foreground">
+                    {t('rateCard.notMapped', 'Not mapped')}
+                  </p>}
+                  {canManageRates && erpItems.connected
+                    ? <Combobox
+                      label={t('rateCard.salesItemFor', 'Sales item for {{label}}', { label: line.label })}
+                      value={line.sales_item_code}
+                      selectedOption={selectedSalesItem}
+                      onChange={(value) => void saveSalesItemMappings([rateItemInput(line, value)])}
+                      loadOptions={erpItems.loadOptions}
+                      placeholder={t('rateCard.chooseSalesItem', 'Choose a sales item')}
+                      searchPlaceholder={t('rateCard.searchSalesItems', 'Search sales items')}
+                      noun={t('rateCard.salesItemNoun', 'sales item')}
+                      clearable
+                      onClear={() => void saveSalesItemMappings([rateItemInput(line, null)])}
+                      disabled={saveRateItem.isPending}
+                      formControl
+                    />
+                    : line.sales_item_code && <p className="text-sm text-muted-foreground">
+                      <span>{t('rateCard.salesItem', 'ERP sales item')}: </span><span className="font-medium text-foreground">{line.sales_item_code}</span>
+                    </p>}
+                </div>
               </div>
               {canManageRates && !ended && <div className="flex flex-wrap items-center gap-2">
                 <Button variant="outline" size="sm" onClick={() => setRateFormFor(line)}>{t('rateCard.edit', 'Edit rate')}</Button>
@@ -288,6 +392,19 @@ const TimeAndMaterials: React.FC<TimeAndMaterialsProps> = ({ projectId, projectM
               {canManageRates && <Button variant="outline" size="sm" disabled={rateRows.length === 0 || rateLines.data?.truncated === true || assignments.isPending || assignments.isError || people.isPending || people.isError} onClick={() => setAssignOpen(true)}>{t('rateCard.assign', 'Assign person')}</Button>}
             </div>
             {rateList}
+            {canManageRates && erpItems.connected && unmappedRateRows.length > 0 && <div className="mt-3 rounded-md border border-border bg-secondary/40 p-3">
+              {proposalCatalogState === 'loading' && <p role="status" className="text-sm text-muted-foreground">{t('rateCard.proposalsLoading', 'Checking ERP sales items for possible matches…')}</p>}
+              {proposalCatalogState === 'error' && <div className="flex flex-wrap items-center justify-between gap-2">
+                <p role="alert" className="text-sm text-destructive-text">{t('rateCard.proposalsError', "Couldn't load ERP sales items. Retry to check for matches.")}</p>
+                <Button variant="outline" size="sm" onClick={() => setProposalRetry((value) => value + 1)}>{t('rateCard.retrySalesItems', 'Retry')}</Button>
+              </div>}
+              {proposalCatalogState === 'ready' && proposedRateRows.length > 0 && <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="text-sm text-muted-foreground">{t('rateCard.proposalsReady', 'Some unmapped rate lines have a clear sales item match.')}</p>
+                <Button variant="primary" size="sm" disabled={saveRateItem.isPending} loading={saveRateItem.isPending} onClick={acceptProposedSalesItems}>
+                  {t('rateCard.acceptProposed', 'Accept proposed ({{count}})', { count: proposedRateRows.length })}
+                </Button>
+              </div>}
+            </div>}
             {rateLines.data?.truncated && <p role="status" className="mt-2 text-sm text-muted-foreground">{t('rateCard.truncated', 'More than {{limit}} rate lines exist; this list is incomplete.', { limit: LIST_LIMIT })}</p>}
             {assignments.data?.truncated && <p role="status" className="mt-2 text-sm text-muted-foreground">{t('rateCard.assignmentsTruncated', 'Some rate assignments may not be shown.', { limit: LIST_LIMIT })}</p>}
             {assignments.isError && !rateLines.isError && <ListState variant="error" title={t('rateCard.assignmentError', "Couldn't load rate assignments")} onRetry={() => void assignments.refetch()} className={compactError} />}

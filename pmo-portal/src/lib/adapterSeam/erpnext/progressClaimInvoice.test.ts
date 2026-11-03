@@ -32,7 +32,11 @@ const EVIDENCE: Row[] = [{ id: 'ev-1', org_id: ORG, claim_id: 'claim-1' }];
 
 /** PostgREST boundary fake: enforces filters and selected columns (a missing column throws). */
 function serviceClient(claim: Row | null, evidence: Row[] = EVIDENCE, workOrderTax: Row = {}, projectTax: Row = {},
-  timeMaterials: { claims?: Row[]; lines?: Row[] } = {}): DispatchServiceClient {
+  timeMaterials: { claims?: Row[]; lines?: Row[]; rateLines?: Row[] } = {}): DispatchServiceClient {
+  const rateLines = timeMaterials.rateLines ?? (timeMaterials.lines ?? TM_LINES).map((line) => ({
+    org_id: line.org_id, project_id: 'proj-1', line_key: line.line_key, is_current: true,
+    version: line.rate_version, sales_item_code: 'SERVICE-LABOUR',
+  }));
   const rows: Record<string, Row[]> = {
     external_org_bindings: [{ org_id: ORG, external_tier: 'erpnext', site_url: 'https://erp.example.test', version_major: 15, activated_at: '2026-09-01', config: { company: 'Synthetic Co', project_map: { 'proj-1': 'ERP-PROJ-001', 'proj-2': 'ERP-PROJ-002' }, item_map: { 'Site engineer': 'SERVICE-LABOUR', 'Rounding case': 'SERVICE-LABOUR' } } }],
     companies: [{ id: 'cust-1', org_id: ORG }, { id: 'cust-2', org_id: ORG }, { id: 'cust-org2', org_id: 'org-2' }],
@@ -53,17 +57,22 @@ function serviceClient(claim: Row | null, evidence: Row[] = EVIDENCE, workOrderT
     progress_claim_evidence: evidence,
     tm_claims: timeMaterials.claims ?? [],
     tm_claim_lines: timeMaterials.lines ?? [],
+    contract_rate_lines: rateLines,
   };
   return {
     from(table: string) {
       return {
         select(columns: string) {
-          const filters: Record<string, string> = {};
+          const filters: Record<string, string | string[]> = {};
           const orderBy: string[] = [];
           const matches = () => {
             // uuid columns compare case-insensitively in Postgres; model that for `id` so a case-variant id finds its row.
-            const found = (rows[table] ?? []).filter((row) => Object.entries(filters).every(([key, value]) =>
-              key === 'id' ? String(row[key]).toLowerCase() === String(value).toLowerCase() : row[key] === value));
+            const found = (rows[table] ?? []).filter((row) => Object.entries(filters).every(([key, value]) => {
+              const values = Array.isArray(value) ? value : [value];
+              return values.some((candidate) => key === 'id'
+                ? String(row[key]).toLowerCase() === String(candidate).toLowerCase()
+                : row[key] === candidate);
+            }));
             return orderBy.length === 0 ? found : [...found].sort((a, b) => {
               for (const column of orderBy) {
                 const comparison = String(a[column]).localeCompare(String(b[column]));
@@ -78,6 +87,7 @@ function serviceClient(claim: Row | null, evidence: Row[] = EVIDENCE, workOrderT
           }));
           const chain = {
             eq(col: string, val: string) { filters[col] = val; return chain; },
+            in(col: string, values: string[]) { filters[col] = values; return chain; },
             order(col: string) { orderBy.push(col); return chain; },
             limit() { return chain; },
             gt() { return chain; },
@@ -106,7 +116,7 @@ function erpFetch(opts: { negativeRates?: boolean; template?: unknown; settingsD
   const fetchImpl = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
     const path = decodeURIComponent(new URL(String(url)).pathname);
     if (path === '/api/resource/Item' && init?.method === 'GET') {
-      return Response.json({ data: ['SURVEY', 'STATION', 'DP-ITEM', 'OWN-ITEM', 'SERVICE-LABOUR'].map((name) => ({ name, item_name: name, disabled: 0, is_sales_item: 1, is_purchase_item: 0 })) });
+      return Response.json({ data: ['SURVEY', 'STATION', 'DP-ITEM', 'OWN-ITEM', 'SERVICE-LABOUR', 'ERP-LABOUR-001', 'ERP-LABOUR-002'].map((name) => ({ name, item_name: name, disabled: 0, is_sales_item: 1, is_purchase_item: 0 })) });
     }
     if (path === '/api/resource/Customer/Synthetic Customer') return Response.json({ data: { name: 'Synthetic Customer', default_currency: customerCurrency } });
     if (path === '/api/resource/Company/Synthetic Co') return Response.json({ data: { name: 'Synthetic Co', default_currency: companyCurrency } });
@@ -122,7 +132,7 @@ function erpFetch(opts: { negativeRates?: boolean; template?: unknown; settingsD
 }
 
 async function push(record: Row, claim: Row | null = CLAIM, erp: Parameters<typeof erpFetch>[0] = {}, workOrderTax: Row = {},
-  projectTax: Row = {}, timeMaterials: { claims?: Row[]; lines?: Row[] } = {}, idempotencyKey = 'pb-test-key') {
+  projectTax: Row = {}, timeMaterials: { claims?: Row[]; lines?: Row[]; rateLines?: Row[] } = {}, idempotencyKey = 'pb-test-key') {
   const cmd = command(record, 'create', idempotencyKey);
   const { sent, fetchImpl } = erpFetch(erp);
   const adapter = await resolveErpDispatchAdapter({
@@ -136,7 +146,7 @@ async function push(record: Row, claim: Row | null = CLAIM, erp: Parameters<type
 
 /** Synchronous on purpose: the caller attaches `.rejects` in the same tick, so no rejection goes unhandled. */
 function refused(cmd: AdapterCommand, claim: Row | null = CLAIM, evidence: Row[] = EVIDENCE, erp: Parameters<typeof erpFetch>[0] = {},
-  projectTax: Row = {}, timeMaterials: { claims?: Row[]; lines?: Row[] } = {}) {
+  projectTax: Row = {}, timeMaterials: { claims?: Row[]; lines?: Row[]; rateLines?: Row[] } = {}) {
   const { fetchImpl } = erpFetch(erp);
   const attempt = resolveErpDispatchAdapter({
     serviceClient: serviceClient(claim, evidence, {}, projectTax, timeMaterials), orgId: ORG, command: cmd,
@@ -179,6 +189,46 @@ describe('billing claim invoice (AC-PB-006)', () => {
     expect(roundingLine).toBeDefined();
     expect(Number(roundingLine?.amount)).not.toBe(Number(roundingLine?.units) * Number(roundingLine?.rate));
     expect(cmd.idempotencyKey).toBe('claim-1');
+  });
+
+  it('AC-TM-014 uses each rate line sales item and keeps the rate label as its description', async () => {
+    const timeMaterials = {
+      claims: [TM_STATE],
+      lines: TM_LINES,
+      rateLines: [
+        { org_id: ORG, project_id: 'proj-1', line_key: 'rate-line-1', is_current: true, sales_item_code: 'ERP-LABOUR-001' },
+        { org_id: ORG, project_id: 'proj-1', line_key: 'rate-line-2', is_current: true, sales_item_code: 'ERP-LABOUR-002' },
+      ],
+    };
+    const { body } = await push({}, TM_CLAIM, {}, {}, {}, timeMaterials);
+    expect(body.items).toEqual([
+      { item_code: 'ERP-LABOUR-001', qty: 120, rate: 50000, description: 'Site engineer (hour)' },
+      { item_code: 'ERP-LABOUR-002', qty: 0.33, rate: 0.05, description: 'Rounding case (hour)' },
+    ]);
+  });
+
+  it('AC-TM-014 an unknown saved ERP item is refused before any ERP write', async () => {
+    const cmd = command({});
+    const { fetchImpl } = erpFetch();
+    const adapter = await resolveErpDispatchAdapter({
+      serviceClient: serviceClient(TM_CLAIM, EVIDENCE, {}, {}, {
+        claims: [TM_STATE], lines: TM_LINES,
+        rateLines: TM_LINES.map((line) => ({
+          org_id: ORG, project_id: 'proj-1', line_key: line.line_key, is_current: true,
+          sales_item_code: 'ITEM-NOT-IN-ERP',
+        })),
+      }),
+      orgId: ORG,
+      command: cmd,
+      fetchImpl: fetchImpl as typeof fetch,
+      apiKey: 'synthetic-key',
+      apiSecret: 'synthetic-secret',
+      doctypeBodies: { 'sales-invoice': { toBody: siToBody, fromDoc: siFromDoc } },
+    });
+    await expect(adapter.commit(cmd)).rejects.toMatchObject({
+      code: 'commit-rejected', message: 'Line 1: item "ITEM-NOT-IN-ERP" is not an enabled ERP item',
+    });
+    expect(fetchImpl.mock.calls.some(([, init]) => (init as RequestInit | undefined)?.method === 'POST')).toBe(false);
   });
 
   it('AC-TM-014 sends a half-cent tie as its frozen amount so ERPNext books the signed cents', async () => {
@@ -327,20 +377,15 @@ describe('billing claim invoice (AC-PB-006)', () => {
     ]);
   });
 
-  it('AC-TM-014 refuses an unmapped T&M label before the ERP write', async () => {
-    const lines = TM_LINES.map((line) => line.line_key === 'rate-line-1' ? { ...line, label: 'Unmapped rate label' } : line);
-    const cmd = command({});
-    const { fetchImpl } = erpFetch();
-    const adapter = await resolveErpDispatchAdapter({
-      serviceClient: serviceClient(TM_CLAIM, EVIDENCE, {}, {}, { claims: [TM_STATE], lines }), orgId: ORG, command: cmd,
-      fetchImpl: fetchImpl as typeof fetch, apiKey: 'synthetic-key', apiSecret: 'synthetic-secret',
-      doctypeBodies: { 'sales-invoice': { toBody: siToBody, fromDoc: siFromDoc } },
+  it('AC-TM-014 refuses a rate line without its own sales item even when its label exists in the binding item map', async () => {
+    const { attempt, fetchImpl } = refused(command({}), TM_CLAIM, EVIDENCE, {}, {}, {
+      claims: [TM_STATE], lines: TM_LINES,
+      rateLines: [{ org_id: ORG, project_id: 'proj-1', line_key: 'rate-line-2', is_current: true, sales_item_code: 'ERP-LABOUR-002' }],
     });
-    const attempt = adapter.commit(cmd);
     await expect(attempt).rejects.toMatchObject({
-      code: 'commit-rejected', message: expect.stringContaining('Unmapped rate label'),
+      code: 'commit-rejected', message: 'Rate line "Site engineer" has no sales item — map it on the rate card',
     });
-    expect(fetchImpl.mock.calls.some(([, init]) => (init as RequestInit | undefined)?.method === 'POST')).toBe(false);
+    expect(fetchImpl).not.toHaveBeenCalled();
   });
 
   it('AC-PB-006 builds a down payment invoice as one line on the claim item', async () => {

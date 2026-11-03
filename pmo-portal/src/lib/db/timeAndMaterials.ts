@@ -53,6 +53,10 @@ export interface ContractRateLineInput {
   effective_to?: string | null;
   /** The version the editor loaded — a mismatch is refused with 40001, never overwritten. */
   expected_version?: number | null;
+  /** ERPNext Item.name for this rate line; null clears the mapping. */
+  sales_item_code?: string | null;
+  /** Prevents a concurrent mapping edit from overwriting the selection shown on screen. */
+  expected_sales_item_code?: string | null;
 }
 
 export interface RateLineSaveResult {
@@ -230,7 +234,7 @@ export async function listRateAssignees(projectId: string): Promise<Bounded<Cont
   return bounded(data);
 }
 
-function parseRateLineResult(raw: unknown): RateLineSaveResult {
+function parseOneRateLineResult(raw: unknown): RateLineSaveResult {
   const row = (raw ?? {}) as Record<string, unknown>;
   return {
     id: str(row.id, 'rate line id'),
@@ -240,8 +244,15 @@ function parseRateLineResult(raw: unknown): RateLineSaveResult {
   };
 }
 
-/** Creates a line, or adds a version to it; an unchanged body returns `changed: false` with no new version. */
-export async function saveContractRateLine(input: ContractRateLineInput): Promise<RateLineSaveResult> {
+function parseRateLineResult(raw: unknown): RateLineSaveResult | RateLineSaveResult[] {
+  return Array.isArray(raw) ? raw.map(parseOneRateLineResult) : parseOneRateLineResult(raw);
+}
+
+/** Saves one rate line or an atomic batch through the existing rate-card RPC. */
+export function saveContractRateLine(input: ContractRateLineInput): Promise<RateLineSaveResult>;
+export function saveContractRateLine(input: ContractRateLineInput[]): Promise<RateLineSaveResult[]>;
+export function saveContractRateLine(input: ContractRateLineInput | ContractRateLineInput[]): Promise<RateLineSaveResult | RateLineSaveResult[]>;
+export async function saveContractRateLine(input: ContractRateLineInput | ContractRateLineInput[]): Promise<RateLineSaveResult | RateLineSaveResult[]> {
   const { data, error } = await supabase.rpc('save_contract_rate_line', { p_line: input as unknown as Json });
   fail(error);
   return parseRateLineResult(data);
@@ -255,7 +266,7 @@ export async function endContractRateLine(input: EndRateLineInput): Promise<Rate
     p_expected_version: input.expectedVersion,
   });
   fail(error);
-  return parseRateLineResult(data);
+  return parseOneRateLineResult(data);
 }
 
 /** Assigns a person to a labour line for a window; refuses an overlap for that person with 23505. */

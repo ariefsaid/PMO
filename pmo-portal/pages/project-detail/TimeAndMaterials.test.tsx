@@ -21,6 +21,7 @@ const h = vi.hoisted(() => ({
   sources: { data: { rows: [] as unknown[], truncated: false }, isPending: false, isError: false, refetch: vi.fn() },
   profiles: [] as unknown[],
   documents: [] as unknown[],
+  loadItems: vi.fn(async () => [] as Array<{ value: string; label: string; sub?: string }>),
   mutations: {} as Record<string, ReturnType<typeof vi.fn>>,
 }));
 
@@ -45,6 +46,7 @@ vi.mock('@/src/hooks/useTimeAndMaterials', () => ({
 }));
 vi.mock('@/src/hooks/useTasks', () => ({ useAssignableProfiles: () => ({ data: h.profiles, isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => ({ data: h.documents, isPending: false, isError: false, refetch: vi.fn() }) }));
+vi.mock('@/src/hooks/useErpItemOptions', () => ({ useErpItemOptions: () => ({ connected: true, loadOptions: h.loadItems }) }));
 
 import TimeAndMaterials from './TimeAndMaterials';
 
@@ -105,6 +107,7 @@ beforeEach(() => {
   h.sources = { data: { rows: [{ id: 'source-row-1', claim_id: 'claim-1', claim_line_id: 'line-1', source_kind: 'timesheet_entry', source_id: 'entry-1', units: 8 }], truncated: false }, isPending: false, isError: false, refetch: vi.fn() };
   h.profiles = [profile('u-engineer', 'Site engineer'), profile('u-pm', 'Project manager'), profile('u-fin', 'Finance user')];
   h.documents = [documentRow];
+  h.loadItems = vi.fn(async () => [{ value: 'ITEM-LABOUR', label: 'ITEM-LABOUR', sub: 'Site engineer' }]);
   h.mutations = {
     saveRate: vi.fn().mockResolvedValue({ id: 'rate-row-2', lineKey: 'labour-2', version: 1, changed: true }),
     assign: vi.fn().mockResolvedValue(undefined),
@@ -165,6 +168,68 @@ describe('TimeAndMaterials', () => {
     expect(screen.getByText(/Approved source entries/)).toBeInTheDocument();
     expect(screen.getByText(/source entries are available; this list is incomplete/)).toBeInTheDocument();
     expect(await axe(document.body)).toHaveNoViolations();
+  });
+
+  it('proposes an exact item name first and accepts only the one unambiguous proposal', async () => {
+    const unmatched = { ...rate, id: 'rate-row-2', line_key: 'labour-2', label: 'Survey crew', version: 3 };
+    h.rates = { ...h.rates, data: { rows: [rate, unmatched], truncated: false } };
+    h.loadItems = vi.fn(async () => [
+      { value: 'ITEM-EXACT', label: 'ITEM-EXACT', sub: 'Site engineer' },
+      { value: 'ITEM-NEAR', label: 'ITEM-NEAR', sub: 'SITE-ENGINEER' },
+    ]);
+    const { user } = renderPanel();
+
+    const accept = await screen.findByRole('button', { name: 'Accept proposed (1)' });
+    await user.click(accept);
+
+    await waitFor(() => expect(h.mutations.saveRate).toHaveBeenCalledTimes(1));
+    expect(h.mutations.saveRate).toHaveBeenCalledWith([expect.objectContaining({
+      project_id: 'p1', line_key: 'labour-1', expected_version: 1, sales_item_code: 'ITEM-EXACT',
+    })]);
+    expect(h.mutations.saveRate.mock.calls[0]?.[0]).not.toEqual(expect.arrayContaining([expect.objectContaining({ line_key: 'labour-2' })]));
+  });
+
+  it('proposes a unique normalized item name when no exact name matches', async () => {
+    h.loadItems = vi.fn(async () => [{ value: 'ITEM-NORMALIZED', label: 'ITEM-NORMALIZED', sub: 'SITE-ENGINEER' }]);
+    const { user } = renderPanel();
+    await user.click(await screen.findByRole('button', { name: 'Accept proposed (1)' }));
+    await waitFor(() => expect(h.mutations.saveRate).toHaveBeenCalledWith([expect.objectContaining({
+      line_key: 'labour-1', sales_item_code: 'ITEM-NORMALIZED',
+    })]));
+  });
+
+  it('leaves a rate line unmapped when its normalized item name is ambiguous', async () => {
+    h.loadItems = vi.fn(async () => [
+      { value: 'ITEM-A', label: 'ITEM-A', sub: 'Site-engineer' },
+      { value: 'ITEM-B', label: 'ITEM-B', sub: 'site engineer.' },
+    ]);
+    renderPanel();
+    expect(await screen.findByText('Not mapped')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Accept proposed/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: /Sales item for Site engineer/ })).toBeInTheDocument();
+  });
+
+  it('shows saved item codes and keeps the picker read-only for viewers and impersonation', async () => {
+    h.effectiveRole = 'Project Manager';
+    h.rates = { ...h.rates, data: { rows: [{ ...rate, sales_item_code: 'ITEM-SAVED' }], truncated: false } };
+    renderPanel();
+    expect(await screen.findByText('ITEM-SAVED')).toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: /Sales item for Site engineer/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Accept proposed/ })).not.toBeInTheDocument();
+  });
+
+  it('lets a rate manager change a saved ERP sales item from the rate card', async () => {
+    h.rates = { ...h.rates, data: { rows: [{ ...rate, sales_item_code: 'ITEM-SAVED' }], truncated: false } };
+    h.loadItems = vi.fn(async () => [
+      { value: 'ITEM-SAVED', label: 'ITEM-SAVED', sub: 'Saved item' },
+      { value: 'ITEM-NEW', label: 'ITEM-NEW', sub: 'Replacement item' },
+    ]);
+    const { user } = renderPanel();
+    await user.click(await screen.findByRole('combobox', { name: 'Sales item for Site engineer' }));
+    await user.click(await screen.findByRole('option', { name: /ITEM-NEW/ }));
+    await waitFor(() => expect(h.mutations.saveRate).toHaveBeenCalledWith([expect.objectContaining({
+      line_key: 'labour-1', sales_item_code: 'ITEM-NEW',
+    })]));
   });
 
   it('AC-TM-016 lets a PM prepare sign-off, blocks the preparer, then opens the existing invoice flow for a second user', async () => {

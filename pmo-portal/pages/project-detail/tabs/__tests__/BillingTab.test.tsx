@@ -17,6 +17,7 @@ const h = vi.hoisted(() => ({
   effectiveRole: null as string | null,
   userId: 'u-fin',
   connected: true,
+  loadItems: vi.fn(),
   routeReady: true,
   billing: { data: null as unknown, isPending: false, isError: false, refetch: vi.fn() },
   boq: [] as unknown[],
@@ -34,7 +35,7 @@ vi.mock('@/src/auth/usePermission', async () => {
   const { can } = await vi.importActual<typeof import('@/src/auth/policy')>('@/src/auth/policy');
   return { usePermission: () => (action: never, entity: never, ctx: Record<string, unknown> = {}) => can(action, entity, { realRole: h.role, ...ctx } as never) };
 });
-vi.mock('@/src/hooks/useErpItemOptions', () => ({ useErpItemOptions: () => ({ connected: h.connected, loadOptions: vi.fn() }) }));
+vi.mock('@/src/hooks/useErpItemOptions', () => ({ useErpItemOptions: () => ({ connected: h.connected, loadOptions: h.loadItems }) }));
 vi.mock('@/src/hooks/useRevenueMode', () => ({ useRevenueMode: () => 'native' }));
 vi.mock('@/src/hooks/useOwnershipCacheSync', () => ({ useRevenueRouteReady: () => h.routeReady }));
 vi.mock('@/src/hooks/useProgressBilling', () => ({

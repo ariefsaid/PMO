@@ -61,6 +61,25 @@ describe('#1514 T7.1 contract-rate writes', () => {
     }
   });
 
+  it('AC-TM-018 submits proposed item mappings together and parses every RPC result', async () => {
+    const inputs: dal.ContractRateLineInput[] = [
+      { project_id: 'p1', line_key: 'k1', expected_version: 1, kind: 'labour', label: 'Site engineer', unit: 'hour', rate: 50000,
+        currency: 'IDR', effective_from: '2026-09-01', sales_item_code: 'ITEM-1' },
+      { project_id: 'p1', line_key: 'k2', expected_version: 3, kind: 'labour', label: 'Survey crew', unit: 'hour', rate: 40000,
+        currency: 'IDR', effective_from: '2026-09-01', sales_item_code: 'ITEM-2' },
+    ];
+    h.result.value = { data: [
+      { id: 'l1', line_key: 'k1', version: 1, changed: true },
+      { id: 'l2', line_key: 'k2', version: 3, changed: true },
+    ], error: null };
+
+    await expect(dal.saveContractRateLine(inputs)).resolves.toEqual([
+      { id: 'l1', lineKey: 'k1', version: 1, changed: true },
+      { id: 'l2', lineKey: 'k2', version: 3, changed: true },
+    ]);
+    expect(h.calls.rpc).toEqual([['save_contract_rate_line', { p_line: inputs }]]);
+  });
+
   it('T7.1 endContractRateLine names the line and its expected version', async () => {
     h.result.value = { data: { id: 'l2', line_key: 'k1', version: 3, changed: true }, error: null };
     await expect(dal.endContractRateLine({
