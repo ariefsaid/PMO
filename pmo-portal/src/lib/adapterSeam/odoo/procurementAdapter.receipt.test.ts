@@ -31,7 +31,7 @@ async function rig() {
   }) as typeof fetch;
   const call = bindCall({ baseUrl: 'https://odoo.example.test', apiKey: 'k', database: 'db1', fetchImpl });
   const adapter = createOdooProcurementAdapter({
-    call, resolveOrder: async () => ({ input: INPUT, ctx: CTX }), resolveRevise: async () => { throw new Error('unused'); },
+    call, resolveOrder: async () => ({ input: INPUT, ctx: CTX }), resolveRevise: async () => { throw new Error('unused'); }, resolveBill: async () => { throw new Error('unused'); },
   });
   const order = await recoverOrder(call, { id: PO_ID }) ?? await adapter.commit({
     domain: 'procurement', operation: 'create', idempotencyKey: 'k-po',

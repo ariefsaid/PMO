@@ -44,6 +44,7 @@ Deno.test({
     const state = { orderId: 0, lines: [] as ReviseLine[] };
     const adapter = createOdooProcurementAdapter({
       call, resolveOrder: async () => ({ input, ctx }), resolveRevise: async () => ({ orderId: state.orderId, lines: state.lines, ctx }),
+      resolveBill: () => Promise.reject(new Error('no bill in this test')),
     });
     const create: AdapterCommand = { domain: 'procurement', operation: 'create', idempotencyKey: 'bed-1', record: { id: PO_ID, erp_doc_kind: 'purchase-order', procurementId: 'case-1', amount: '144.00' } };
     const attempt = async () => (await recoverOrder(call, create.record)) ?? adapter.commit(create);

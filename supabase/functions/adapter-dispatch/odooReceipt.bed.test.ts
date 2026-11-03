@@ -46,7 +46,7 @@ Deno.test({
       lines: [{ name: 'A', quantity: 10, rate: 10 }, { name: 'B', quantity: 4, rate: 5 }],
     };
     const ctx: OrderCtx = { companyId: company.id, currencyId: company.currency_id[0], itemMap, unitMap: {}, costAccountId: null, taxIds: [] };
-    const adapter = createOdooProcurementAdapter({ call, resolveOrder: async () => ({ input, ctx }), resolveRevise: async () => { throw new Error('unused'); } });
+    const adapter = createOdooProcurementAdapter({ call, resolveOrder: async () => ({ input, ctx }), resolveRevise: async () => { throw new Error('unused'); }, resolveBill: async () => { throw new Error('unused'); } });
     const PO_ID = crypto.randomUUID();
     const poCommand: AdapterCommand = { domain: 'procurement', operation: 'create', idempotencyKey: 'bed-po', record: { id: PO_ID, erp_doc_kind: 'purchase-order', procurementId: 'case-1', amount: '120.00' } };
     const order = await recoverOrder(call, poCommand.record) ?? await adapter.commit(poCommand);
