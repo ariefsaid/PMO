@@ -1,7 +1,7 @@
 -- AC-011 — the additive mode column preserves annual budget semantics and identities.
 begin;
 create extension if not exists pgtap;
-select plan(7);
+select plan(8);
 
 insert into organizations (id, name)
 values ('14740000-0000-0000-0000-000000000001', 'Whole Project Compatibility Org');
@@ -22,6 +22,11 @@ values ('14742222-0000-0000-0000-000000000001', '14740000-0000-0000-0000-0000000
 insert into budget_line_items (org_id, budget_version_id, category, description, budgeted_amount, actual_amount, fiscal_year)
 values ('14740000-0000-0000-0000-000000000001', '14742222-0000-0000-0000-000000000001', 'Labor', 'Annual line', 125.50, 0, '2027');
 reset role;
+
+-- A draft successor the annual line must never be moved into (0241 FR-BV-011 stays in force).
+insert into budget_versions (id, org_id, project_id, version, name, status)
+values ('14742222-0000-0000-0000-000000000002', '14740000-0000-0000-0000-000000000001',
+        '14741111-0000-0000-0000-000000000001', 2, 'Legacy Annual Successor Draft', 'Draft');
 
 insert into budget_version_account_erp_mirror (org_id, budget_version_id, fiscal_year, erp_account)
 values ('14740000-0000-0000-0000-000000000001', '14742222-0000-0000-0000-000000000001', '2027', '1000');
@@ -62,6 +67,12 @@ select is(
   (select status::text from budget_versions where id = '14742222-0000-0000-0000-000000000001'),
   'Active',
   'AC-011 annual activation keeps the existing Active status transition'
+);
+select throws_ok(
+  $$update budget_line_items set budget_version_id = '14742222-0000-0000-0000-000000000002'
+     where budget_version_id = '14742222-0000-0000-0000-000000000001'$$,
+  'P0001', 'a budget line cannot move to another version',
+  'AC-011 an existing annual line still cannot move to another version'
 );
 reset role;
 

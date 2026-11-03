@@ -851,6 +851,7 @@ export type Database = {
         Row: {
           basis: Json
           budget_version_id: string
+          category_overrides: Json
           inputs: Json
           method: string
           org_id: string
@@ -860,6 +861,7 @@ export type Database = {
         Insert: {
           basis: Json
           budget_version_id: string
+          category_overrides?: Json
           inputs?: Json
           method: string
           org_id?: string
@@ -869,6 +871,7 @@ export type Database = {
         Update: {
           basis?: Json
           budget_version_id?: string
+          category_overrides?: Json
           inputs?: Json
           method?: string
           org_id?: string
@@ -13539,6 +13542,7 @@ export type Database = {
       save_budget_distribution: {
         Args: {
           p_basis: Json
+          p_category_overrides?: Json
           p_inputs: Json
           p_method: string
           p_rows: Json

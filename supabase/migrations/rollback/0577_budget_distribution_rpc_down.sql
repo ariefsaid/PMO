@@ -10,7 +10,8 @@ begin
 end;
 $$;
 
-drop function public.save_budget_distribution(uuid,text,jsonb,jsonb,jsonb);
+drop function if exists public.save_budget_distribution(uuid,text,jsonb,jsonb,jsonb,jsonb);
+drop function if exists public.save_budget_distribution(uuid,text,jsonb,jsonb,jsonb);
 drop function public.budget_distribution_gaps(uuid);
 
 -- Restore the 0180 clone definition; all remaining versions are per_year by the guard above.

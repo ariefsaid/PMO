@@ -1,7 +1,7 @@
 -- AC-007 — the saved whole-project distribution is durable, replaceable and cloneable.
 begin;
 create extension if not exists pgtap;
-select plan(22);
+select plan(38);
 
 insert into organizations (id, name)
 values ('14730000-0000-0000-0000-000000000001', 'Whole Project Storage Org');
@@ -16,6 +16,8 @@ values ('14731111-0000-0000-0000-000000000001', '14730000-0000-0000-0000-0000000
 
 create temporary table whole_project_clone (id uuid) on commit drop;
 grant all on whole_project_clone to authenticated;
+create temporary table whole_project_override_clone (id uuid) on commit drop;
+grant all on whole_project_override_clone to authenticated;
 
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"14730000-0000-0000-0000-0000000000a1","role":"authenticated"}';
@@ -40,7 +42,7 @@ select lives_ok($$select public.save_budget_distribution(
   '14732222-0000-0000-0000-000000000001', 'percent_by_year',
   '{"FY27":"40","FY28":"60"}'::jsonb,
   '{"projectStart":"2027-01-01","projectEnd":"2028-12-31","years":[{"name":"FY27","start":"2027-01-01","end":"2027-12-31"},{"name":"FY28","start":"2028-01-01","end":"2028-12-31"}]}'::jsonb,
-  '[{"category":"Labor","fiscal_year":"FY27","ordinal":0,"amount":"40.00","method":"percent_by_year","is_override":false},{"category":"Labor","fiscal_year":"FY28","ordinal":1,"amount":"60.00","method":"percent_by_year","is_override":false},{"category":"Travel & accommodation","fiscal_year":"FY27","ordinal":0,"amount":"0.00","method":"percent_by_year","is_override":true},{"category":"Travel & accommodation","fiscal_year":"FY28","ordinal":1,"amount":"0.00","method":"percent_by_year","is_override":true}]'::jsonb
+  '[{"category":"Labor","fiscal_year":"FY27","ordinal":0,"amount":"40.00","method":"percent_by_year","is_override":false},{"category":"Labor","fiscal_year":"FY28","ordinal":1,"amount":"60.00","method":"percent_by_year","is_override":false},{"category":"Travel & accommodation","fiscal_year":"FY27","ordinal":0,"amount":"0.00","method":"percent_by_year","is_override":false},{"category":"Travel & accommodation","fiscal_year":"FY28","ordinal":1,"amount":"0.00","method":"percent_by_year","is_override":false}]'::jsonb
 )$$, 'AC-007 an authorized whole-project Draft can save an exact category/year distribution');
 select is(
   (select jsonb_build_object('method', method, 'inputs', inputs, 'basis', basis)
@@ -81,10 +83,12 @@ select is(
   4,
   'AC-007 clone copies each resolved category/year row'
 );
-select ok(
+select is(
   (select bool_and(is_override) from budget_year_distributions
     where budget_version_id = (select id from whole_project_clone) and category = 'Travel & accommodation'),
-  'AC-007 clone preserves category override markers'
+  (select bool_and(is_override) from budget_year_distributions
+    where budget_version_id = '14732222-0000-0000-0000-000000000001' and category = 'Travel & accommodation'),
+  'AC-007 clone preserves the category override markers of its source'
 );
 reset role;
 
@@ -94,7 +98,7 @@ select lives_ok($$select public.save_budget_distribution(
   '14732222-0000-0000-0000-000000000001', 'percent_by_year',
   '{"FY27":"70","FY28":"30"}'::jsonb,
   '{"projectStart":"2027-01-01","projectEnd":"2028-12-31","years":[{"name":"FY27","start":"2027-01-01","end":"2027-12-31"},{"name":"FY28","start":"2028-01-01","end":"2028-12-31"}]}'::jsonb,
-  '[{"category":"Labor","fiscal_year":"FY27","ordinal":0,"amount":"70.00","method":"percent_by_year","is_override":false},{"category":"Labor","fiscal_year":"FY28","ordinal":1,"amount":"30.00","method":"percent_by_year","is_override":false},{"category":"Travel & accommodation","fiscal_year":"FY27","ordinal":0,"amount":"0.00","method":"percent_by_year","is_override":true},{"category":"Travel & accommodation","fiscal_year":"FY28","ordinal":1,"amount":"0.00","method":"percent_by_year","is_override":true}]'::jsonb
+  '[{"category":"Labor","fiscal_year":"FY27","ordinal":0,"amount":"70.00","method":"percent_by_year","is_override":false},{"category":"Labor","fiscal_year":"FY28","ordinal":1,"amount":"30.00","method":"percent_by_year","is_override":false},{"category":"Travel & accommodation","fiscal_year":"FY27","ordinal":0,"amount":"0.00","method":"percent_by_year","is_override":false},{"category":"Travel & accommodation","fiscal_year":"FY28","ordinal":1,"amount":"0.00","method":"percent_by_year","is_override":false}]'::jsonb
 )$$, 'AC-007 a later save replaces the prior distribution');
 select is(
   (select count(*)::int from budget_year_distributions where budget_version_id = '14732222-0000-0000-0000-000000000001'),
@@ -154,6 +158,114 @@ select is(
     where budget_version_id = '14732222-0000-0000-0000-000000000001' and category = 'Labor'),
   '70.00,30.00',
   'AC-007 duplicate-row failure also preserves the prior distribution'
+);
+
+
+-- ── Per-category method/input overrides (FR-003/008/019): stored, reloaded, cloned and validated. ──
+select lives_ok($$select public.save_budget_distribution(
+  '14732222-0000-0000-0000-000000000001', 'percent_by_year',
+  '{"FY27":"40","FY28":"60"}'::jsonb,
+  '{"projectStart":"2027-01-01","projectEnd":"2028-12-31","years":[{"name":"FY27","start":"2027-01-01","end":"2027-12-31"},{"name":"FY28","start":"2028-01-01","end":"2028-12-31"}]}'::jsonb,
+  '[{"category":"Labor","fiscal_year":"FY27","ordinal":0,"amount":"40.00","method":"percent_by_year","is_override":false},{"category":"Labor","fiscal_year":"FY28","ordinal":1,"amount":"60.00","method":"percent_by_year","is_override":false},{"category":"Travel & accommodation","fiscal_year":"FY27","ordinal":0,"amount":"0.00","method":"amount_by_year","is_override":true},{"category":"Travel & accommodation","fiscal_year":"FY28","ordinal":1,"amount":"0.00","method":"amount_by_year","is_override":true}]'::jsonb,
+  '{"Travel & accommodation":{"method":"amount_by_year","inputs":{"FY27":"0","FY28":"0"}}}'::jsonb
+)$$, 'AC-007 a category with its own method and entered amounts saves beside the budget-wide rule');
+select is(
+  (select category_overrides from budget_distribution_plans where budget_version_id = '14732222-0000-0000-0000-000000000001'),
+  '{"Travel & accommodation":{"method":"amount_by_year","inputs":{"FY27":"0","FY28":"0"}}}'::jsonb,
+  'AC-007 reload returns the category override method and its explicit entered values'
+);
+select is_empty(
+  $$select public.budget_distribution_gaps('14732222-0000-0000-0000-000000000001')$$,
+  'AC-007 an overridden distribution that reconciles has no gaps'
+);
+insert into whole_project_override_clone select public.clone_budget_version('14732222-0000-0000-0000-000000000001');
+select is(
+  (select category_overrides from budget_distribution_plans where budget_version_id = (select id from whole_project_override_clone)),
+  (select category_overrides from budget_distribution_plans where budget_version_id = '14732222-0000-0000-0000-000000000001'),
+  'AC-007 clone reproduces the approved category override inputs'
+);
+select is(
+  (select string_agg(distinct method::text, ',') from budget_year_distributions
+    where budget_version_id = (select id from whole_project_override_clone)
+      and category = 'Travel & accommodation'),
+  'amount_by_year',
+  'AC-007 clone keeps each overridden category on its own method'
+);
+select ok(
+  to_regprocedure('public.save_budget_distribution(uuid,text,jsonb,jsonb,jsonb,jsonb)') is not null
+  and to_regprocedure('public.save_budget_distribution(uuid,text,jsonb,jsonb,jsonb)') is null,
+  'AC-007 only the six-argument save signature exists (the five-argument call still resolves to it)'
+);
+
+select throws_ok($$select public.save_budget_distribution(
+  '14732222-0000-0000-0000-000000000001', 'percent_by_year', '{"FY27":"40","FY28":"60"}'::jsonb,
+  '{"projectStart":"2027-01-01","projectEnd":"2028-12-31","years":[{"name":"FY27","start":"2027-01-01","end":"2027-12-31"},{"name":"FY28","start":"2028-01-01","end":"2028-12-31"}]}'::jsonb,
+  '[{"category":"Labor","fiscal_year":"FY27","ordinal":0,"amount":"40.00","method":"amount_by_year","is_override":true},{"category":"Labor","fiscal_year":"FY28","ordinal":1,"amount":"50.00","method":"amount_by_year","is_override":true},{"category":"Travel & accommodation","fiscal_year":"FY27","ordinal":0,"amount":"0.00","method":"percent_by_year","is_override":false},{"category":"Travel & accommodation","fiscal_year":"FY28","ordinal":1,"amount":"0.00","method":"percent_by_year","is_override":false}]'::jsonb,
+  '{"Labor":{"method":"amount_by_year","inputs":{"FY27":"40","FY28":"50"}}}'::jsonb
+)$$, 'P0001', 'budget distribution inputs for Labor must sum to its source total',
+  'AC-007 an amount override that does not sum to its category total is refused');
+select throws_ok($$select public.save_budget_distribution(
+  '14732222-0000-0000-0000-000000000001', 'percent_by_year', '{"FY27":"40","FY28":"60"}'::jsonb,
+  '{"projectStart":"2027-01-01","projectEnd":"2028-12-31","years":[{"name":"FY27","start":"2027-01-01","end":"2027-12-31"},{"name":"FY28","start":"2028-01-01","end":"2028-12-31"}]}'::jsonb,
+  '[{"category":"Labor","fiscal_year":"FY27","ordinal":0,"amount":"40.00","method":"percent_by_year","is_override":true},{"category":"Labor","fiscal_year":"FY28","ordinal":1,"amount":"60.00","method":"percent_by_year","is_override":true},{"category":"Travel & accommodation","fiscal_year":"FY27","ordinal":0,"amount":"0.00","method":"percent_by_year","is_override":false},{"category":"Travel & accommodation","fiscal_year":"FY28","ordinal":1,"amount":"0.00","method":"percent_by_year","is_override":false}]'::jsonb,
+  '{"Labor":{"method":"percent_by_year","inputs":{"FY27":"50","FY28":"40"}}}'::jsonb
+)$$, 'P0001', 'budget distribution inputs for Labor must sum to 100',
+  'AC-007 an override whose percentages do not total 100 is refused');
+select throws_ok($$select public.save_budget_distribution(
+  '14732222-0000-0000-0000-000000000001', 'percent_by_year', '{"FY27":"40","FY28":"60"}'::jsonb,
+  '{"projectStart":"2027-01-01","projectEnd":"2028-12-31","years":[{"name":"FY27","start":"2027-01-01","end":"2027-12-31"},{"name":"FY28","start":"2028-01-01","end":"2028-12-31"}]}'::jsonb,
+  '[{"category":"Labor","fiscal_year":"FY27","ordinal":0,"amount":"40.00","method":"percent_by_year","is_override":false},{"category":"Labor","fiscal_year":"FY28","ordinal":1,"amount":"60.00","method":"percent_by_year","is_override":false},{"category":"Travel & accommodation","fiscal_year":"FY27","ordinal":0,"amount":"0.00","method":"amount_by_year","is_override":true},{"category":"Travel & accommodation","fiscal_year":"FY28","ordinal":1,"amount":"0.00","method":"amount_by_year","is_override":true}]'::jsonb,
+  '{"Travel & accommodation":{"method":"amount_by_year","inputs":{"FY27":"0"}}}'::jsonb
+)$$, 'P0001', 'budget distribution inputs for Travel & accommodation must include every basis year',
+  'AC-007 an override missing an in-span year is refused with its category named');
+select throws_ok($$select public.save_budget_distribution(
+  '14732222-0000-0000-0000-000000000001', 'percent_by_year', '{"FY27":"40","FY28":"60"}'::jsonb,
+  '{"projectStart":"2027-01-01","projectEnd":"2028-12-31","years":[{"name":"FY27","start":"2027-01-01","end":"2027-12-31"},{"name":"FY28","start":"2028-01-01","end":"2028-12-31"}]}'::jsonb,
+  '[{"category":"Labor","fiscal_year":"FY27","ordinal":0,"amount":"40.00","method":"percent_by_year","is_override":false},{"category":"Labor","fiscal_year":"FY28","ordinal":1,"amount":"60.00","method":"percent_by_year","is_override":false},{"category":"Travel & accommodation","fiscal_year":"FY27","ordinal":0,"amount":"0.00","method":"amount_by_year","is_override":true},{"category":"Travel & accommodation","fiscal_year":"FY28","ordinal":1,"amount":"0.00","method":"amount_by_year","is_override":true}]'::jsonb,
+  '{"Travel & accommodation":{"method":"amount_by_year","inputs":{"FY27":"0","FY28":"0","FY29":"0"}}}'::jsonb
+)$$, 'P0001', 'budget distribution inputs for Travel & accommodation contain a year outside its basis',
+  'AC-007 an override naming an out-of-span year is refused');
+select throws_ok($$select public.save_budget_distribution(
+  '14732222-0000-0000-0000-000000000001', 'percent_by_year', '{"FY27":"40","FY28":"60"}'::jsonb,
+  '{"projectStart":"2027-01-01","projectEnd":"2028-12-31","years":[{"name":"FY27","start":"2027-01-01","end":"2027-12-31"},{"name":"FY28","start":"2028-01-01","end":"2028-12-31"}]}'::jsonb,
+  '[{"category":"Labor","fiscal_year":"FY27","ordinal":0,"amount":"40.00","method":"percent_by_year","is_override":false},{"category":"Labor","fiscal_year":"FY28","ordinal":1,"amount":"60.00","method":"percent_by_year","is_override":false},{"category":"Travel & accommodation","fiscal_year":"FY27","ordinal":0,"amount":"0.00","method":"amount_by_year","is_override":true},{"category":"Travel & accommodation","fiscal_year":"FY28","ordinal":1,"amount":"0.00","method":"amount_by_year","is_override":true}]'::jsonb,
+  '{"Travel & accommodation":{"method":"amount_by_year","inputs":{"FY27":"-1","FY28":"1"}}}'::jsonb
+)$$, 'P0001', 'budget distribution inputs for Travel & accommodation contain an invalid value',
+  'AC-007 a negative override value is refused rather than repaired');
+select throws_ok($$select public.save_budget_distribution(
+  '14732222-0000-0000-0000-000000000001', 'percent_by_year', '{"FY27":"40","FY28":"60"}'::jsonb,
+  '{"projectStart":"2027-01-01","projectEnd":"2028-12-31","years":[{"name":"FY27","start":"2027-01-01","end":"2027-12-31"},{"name":"FY28","start":"2028-01-01","end":"2028-12-31"}]}'::jsonb,
+  '[{"category":"Labor","fiscal_year":"FY27","ordinal":0,"amount":"40.00","method":"percent_by_year","is_override":true},{"category":"Labor","fiscal_year":"FY28","ordinal":1,"amount":"60.00","method":"percent_by_year","is_override":true},{"category":"Travel & accommodation","fiscal_year":"FY27","ordinal":0,"amount":"0.00","method":"percent_by_year","is_override":false},{"category":"Travel & accommodation","fiscal_year":"FY28","ordinal":1,"amount":"0.00","method":"percent_by_year","is_override":false}]'::jsonb,
+  '{"Labor":{"method":"amount_by_year","inputs":{"FY27":"40","FY28":"60"}}}'::jsonb
+)$$, 'P0001', 'budget distribution for Labor has a row method that does not match its declared method',
+  'AC-007 a row whose method contradicts its override is refused');
+select throws_ok($$select public.save_budget_distribution(
+  '14732222-0000-0000-0000-000000000001', 'percent_by_year', '{"FY27":"70","FY28":"30"}'::jsonb,
+  '{"projectStart":"2027-01-01","projectEnd":"2028-12-31","years":[{"name":"FY27","start":"2027-01-01","end":"2027-12-31"},{"name":"FY28","start":"2028-01-01","end":"2028-12-31"}]}'::jsonb,
+  '[{"category":"Labor","fiscal_year":"FY27","ordinal":0,"amount":"70.00","method":"percent_by_year","is_override":false},{"category":"Labor","fiscal_year":"FY28","ordinal":1,"amount":"30.00","method":"percent_by_year","is_override":false},{"category":"Travel & accommodation","fiscal_year":"FY27","ordinal":0,"amount":"0.00","method":"percent_by_year","is_override":true},{"category":"Travel & accommodation","fiscal_year":"FY28","ordinal":1,"amount":"0.00","method":"percent_by_year","is_override":true}]'::jsonb
+)$$, 'P0001', 'budget distribution for Travel & accommodation has an override flag that does not match its declaration',
+  'AC-007 a row claiming an override that was not declared is refused');
+select throws_ok($$select public.save_budget_distribution(
+  '14732222-0000-0000-0000-000000000001', 'percent_by_year', '{"FY27":"40","FY28":"60"}'::jsonb,
+  '{"projectStart":"2027-01-01","projectEnd":"2028-12-31","years":[{"name":"FY27","start":"2027-01-01","end":"2027-12-31"},{"name":"FY28","start":"2028-01-01","end":"2028-12-31"}]}'::jsonb,
+  '[{"category":"Labor","fiscal_year":"FY27","ordinal":0,"amount":"30.00","method":"percent_by_year","is_override":false},{"category":"Labor","fiscal_year":"FY28","ordinal":1,"amount":"70.00","method":"percent_by_year","is_override":false},{"category":"Travel & accommodation","fiscal_year":"FY27","ordinal":0,"amount":"0.00","method":"percent_by_year","is_override":false},{"category":"Travel & accommodation","fiscal_year":"FY28","ordinal":1,"amount":"0.00","method":"percent_by_year","is_override":false}]'::jsonb
+)$$, 'P0001', 'budget distribution for Labor has rows that do not follow its percentage inputs',
+  'AC-007 rows that reconcile in total but ignore the entered percentages are refused');
+select throws_ok($$select public.save_budget_distribution(
+  '14732222-0000-0000-0000-000000000001', 'percent_by_year', '{"FY27":"40","FY28":"60"}'::jsonb,
+  '{"projectStart":"2027-01-01","projectEnd":"2028-12-31","years":[{"name":"FY27","start":"2027-01-01","end":"2027-12-31"},{"name":"FY28","start":"2028-01-01","end":"2028-12-31"}]}'::jsonb,
+  '[{"category":"Labor","fiscal_year":"FY27","ordinal":0,"amount":"40.00","method":"percent_by_year","is_override":false},{"category":"Labor","fiscal_year":"FY28","ordinal":1,"amount":"60.00","method":"percent_by_year","is_override":false},{"category":"Travel & accommodation","fiscal_year":"FY27","ordinal":0,"amount":"0.00","method":"percent_by_year","is_override":false},{"category":"Travel & accommodation","fiscal_year":"FY28","ordinal":1,"amount":"0.00","method":"percent_by_year","is_override":false}]'::jsonb,
+  '{"Vehicle":{"method":"by_days","inputs":{}}}'::jsonb
+)$$, 'P0001', 'budget distribution has no source lines for category Vehicle',
+  'AC-007 an override for a category with no source lines is refused');
+select is(
+  (select jsonb_build_object('overrides', category_overrides,
+                             'labor', (select string_agg(amount::text, ',' order by ordinal)
+                                         from budget_year_distributions
+                                        where budget_version_id = '14732222-0000-0000-0000-000000000001' and category = 'Labor'))
+     from budget_distribution_plans where budget_version_id = '14732222-0000-0000-0000-000000000001'),
+  '{"overrides":{"Travel & accommodation":{"method":"amount_by_year","inputs":{"FY27":"0","FY28":"0"}}},"labor":"40.00,60.00"}'::jsonb,
+  'AC-007 every rejected override leaves the previously approved plan intact'
 );
 
 reset role;

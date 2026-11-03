@@ -1,5 +1,6 @@
 -- 0577_budget_distribution_rpc.sql
--- Atomic distribution persistence, clone preservation, activation validation and pre-range fence.
+-- Atomic distribution persistence (with per-category method/input overrides), clone preservation,
+-- activation validation and the pre-range deployment fence.
 -- Reverse: rollback/0577_budget_distribution_rpc_down.sql.
 
 create or replace function public.budget_distribution_gaps(p_version uuid)
@@ -19,7 +20,7 @@ as $$
        and public.is_active_member()
   ),
   distribution_plan as (
-    select p.budget_version_id, p.method, p.basis
+    select p.budget_version_id, p.method, p.basis, p.category_overrides
       from public.budget_distribution_plans p
       join visible_version v on v.id = p.budget_version_id
      where p.budget_version_id = p_version
@@ -39,6 +40,16 @@ as $$
      where li.budget_version_id = p_version
      group by li.category
   ),
+  -- A category override declares its own method and inputs; every other category follows the plan.
+  declared_overrides as (
+    select entry.key as category,
+           entry.value ->> 'method' as method,
+           true as is_override
+      from distribution_plan p
+      cross join lateral jsonb_each(
+        case when jsonb_typeof(p.category_overrides) = 'object' then p.category_overrides else '{}'::jsonb end
+      ) as entry
+  ),
   row_totals as (
     select d.category::text as category,
            count(*)::integer as row_count,
@@ -54,9 +65,18 @@ as $$
       from public.budget_year_distributions d
       left join basis_years y
         on y.fiscal_year = d.fiscal_year and y.ordinal = d.ordinal
-      left join distribution_plan p on p.budget_version_id = d.budget_version_id
      where d.budget_version_id = p_version
-       and (y.fiscal_year is null or p.method is null or d.method is distinct from p.method)
+       and y.fiscal_year is null
+  ),
+  -- A stored row must still agree with the declaration it was saved under (method + override flag).
+  contradicting_rows as (
+    select distinct d.category::text as category
+      from public.budget_year_distributions d
+      join distribution_plan p on p.budget_version_id = d.budget_version_id
+      left join declared_overrides o on o.category = d.category::text
+     where d.budget_version_id = p_version
+       and (d.method is distinct from coalesce(o.method, p.method)
+            or d.is_override is distinct from (o.category is not null))
   ),
   gaps as (
     select s.category
@@ -72,9 +92,16 @@ as $$
     union
     select category from invalid_rows
     union
+    select category from contradicting_rows
+    union
     select r.category
       from row_totals r
       left join source_totals s on s.category = r.category
+     where s.category is null
+    union
+    select o.category
+      from declared_overrides o
+      left join source_totals s on s.category = o.category
      where s.category is null
     union
     select 'budget distribution'
@@ -87,12 +114,17 @@ $$;
 revoke all on function public.budget_distribution_gaps(uuid) from public, anon;
 grant execute on function public.budget_distribution_gaps(uuid) to authenticated;
 
+-- A previous five-argument save must never coexist with the six-argument form: two overloads make
+-- PostgREST's named-argument resolution ambiguous. Dropping it here is a no-op on a fresh database.
+drop function if exists public.save_budget_distribution(uuid,text,jsonb,jsonb,jsonb);
+
 create or replace function public.save_budget_distribution(
   p_version uuid,
   p_method text,
   p_inputs jsonb,
   p_basis jsonb,
-  p_rows jsonb
+  p_rows jsonb,
+  p_category_overrides jsonb default '{}'::jsonb
 ) returns void
 language plpgsql
 security definer
@@ -114,6 +146,7 @@ declare
   v_previous_year_end date;
   v_year_name text;
   v_year_count integer := 0;
+  v_basis_years text[];
   v_row jsonb;
   v_category text;
   v_fiscal_year text;
@@ -124,6 +157,17 @@ declare
   v_actual_amount numeric;
   v_row_count integer;
   v_distinct_year_count integer;
+  v_override_key text;
+  v_override jsonb;
+  v_override_method text;
+  v_override_inputs jsonb;
+  v_override_total numeric;
+  v_declared_method text;
+  v_declared_inputs jsonb;
+  v_declared_is_override boolean;
+  v_input_sum numeric;
+  v_expected numeric;
+  v_actual numeric;
 begin
   select project_id, org_id, status, budget_mode
     into v_project, v_org, v_status, v_mode
@@ -152,8 +196,15 @@ begin
   if p_inputs is null or jsonb_typeof(p_inputs) is distinct from 'object' then
     raise exception 'budget distribution inputs must be an object' using errcode = 'P0001';
   end if;
-  if exists (select 1 from jsonb_each(p_inputs) as input(key, value) where jsonb_typeof(input.value) is distinct from 'string') then
-    raise exception 'budget distribution inputs must contain text values' using errcode = 'P0001';
+  if exists (
+    select 1 from jsonb_each(p_inputs) as input(key, value)
+     where jsonb_typeof(input.value) is distinct from 'string'
+        or (input.value #>> '{}') !~ '^\d+(\.\d{1,4})?$'
+  ) then
+    raise exception 'budget distribution inputs contain an invalid value' using errcode = 'P0001';
+  end if;
+  if p_category_overrides is null or jsonb_typeof(p_category_overrides) is distinct from 'object' then
+    raise exception 'budget distribution overrides must be an object' using errcode = 'P0001';
   end if;
   if p_basis is null or jsonb_typeof(p_basis) is distinct from 'object'
      or jsonb_typeof(p_basis -> 'years') is distinct from 'array' then
@@ -205,6 +256,10 @@ begin
     raise exception 'budget distribution basis repeats a fiscal year name' using errcode = 'P0001';
   end if;
 
+  select coalesce(array_agg(y.value ->> 'name' order by y.ordinality), '{}')
+    into v_basis_years
+    from jsonb_array_elements(p_basis -> 'years') with ordinality as y(value, ordinality);
+
   for v_year in select value from jsonb_array_elements(p_basis -> 'years') as years(value)
   loop
     v_year_name := v_year ->> 'name';
@@ -237,6 +292,90 @@ begin
     raise exception 'budget distribution basis does not cover the project dates' using errcode = 'P0001';
   end if;
 
+  -- Inputs describe basis years only; an unknown year is never silently dropped.
+  if exists (
+    select 1 from jsonb_each(p_inputs) as input(key, value)
+     where not (input.key = any(v_basis_years))
+  ) then
+    raise exception 'budget distribution inputs contain a year outside its basis' using errcode = 'P0001';
+  end if;
+  if p_method = 'percent_by_year' then
+    if (select count(*) from jsonb_each(p_inputs)) <> cardinality(v_basis_years) then
+      raise exception 'budget distribution inputs must include every basis year' using errcode = 'P0001';
+    end if;
+    if (select sum((input.value #>> '{}')::numeric) from jsonb_each(p_inputs) as input(key, value)) <> 100 then
+      raise exception 'budget distribution inputs must sum to 100' using errcode = 'P0001';
+    end if;
+  elsif p_method = 'amount_by_year' then
+    if (select count(*) from jsonb_each(p_inputs)) <> cardinality(v_basis_years) then
+      raise exception 'budget distribution inputs must include every basis year' using errcode = 'P0001';
+    end if;
+    if (select sum((input.value #>> '{}')::numeric) from jsonb_each(p_inputs) as input(key, value)) <= 0 then
+      raise exception 'budget distribution inputs must have a positive total' using errcode = 'P0001';
+    end if;
+  end if;
+
+  -- Per-category overrides: their own method and their own entered vector, validated exactly here so a
+  -- reload and a clone reproduce the approved plan rather than only its resolved amounts.
+  for v_override_key, v_override in
+    select entry.key, entry.value from jsonb_each(p_category_overrides) as entry
+  loop
+    v_override_method := v_override ->> 'method';
+    v_override_inputs := coalesce(v_override -> 'inputs', '{}'::jsonb);
+    if jsonb_typeof(v_override) is distinct from 'object'
+       or jsonb_typeof(v_override -> 'method') is distinct from 'string'
+       or v_override_method not in ('by_days','percent_by_year','amount_by_year')
+       or jsonb_typeof(v_override_inputs) is distinct from 'object' then
+      raise exception 'budget distribution override for % is invalid', v_override_key using errcode = 'P0001';
+    end if;
+    if not exists (
+      select 1 from pg_enum e
+       where e.enumtypid = 'public.budget_category'::regtype
+         and e.enumlabel = v_override_key
+    ) then
+      raise exception 'budget distribution override for % is invalid', v_override_key using errcode = 'P0001';
+    end if;
+    if not exists (
+      select 1 from public.budget_line_items li
+       where li.budget_version_id = p_version
+         and li.category::text = v_override_key
+    ) then
+      raise exception 'budget distribution has no source lines for category %', v_override_key using errcode = 'P0001';
+    end if;
+    if exists (
+      select 1 from jsonb_each(v_override_inputs) as input(key, value)
+       where jsonb_typeof(input.value) is distinct from 'string'
+          or (input.value #>> '{}') !~ '^\d+(\.\d{1,4})?$'
+    ) then
+      raise exception 'budget distribution inputs for % contain an invalid value', v_override_key using errcode = 'P0001';
+    end if;
+    if exists (
+      select 1 from jsonb_each(v_override_inputs) as input(key, value)
+       where not (input.key = any(v_basis_years))
+    ) then
+      raise exception 'budget distribution inputs for % contain a year outside its basis', v_override_key using errcode = 'P0001';
+    end if;
+    if v_override_method in ('percent_by_year','amount_by_year')
+       and (select count(*) from jsonb_each(v_override_inputs)) <> cardinality(v_basis_years) then
+      raise exception 'budget distribution inputs for % must include every basis year', v_override_key using errcode = 'P0001';
+    end if;
+    if v_override_method = 'percent_by_year'
+       and (select sum((input.value #>> '{}')::numeric) from jsonb_each(v_override_inputs) as input(key, value)) <> 100 then
+      raise exception 'budget distribution inputs for % must sum to 100', v_override_key using errcode = 'P0001';
+    end if;
+    if v_override_method = 'amount_by_year' then
+      select coalesce(sum(li.budgeted_amount), 0)::numeric
+        into v_override_total
+        from public.budget_line_items li
+       where li.budget_version_id = p_version
+         and li.category::text = v_override_key;
+      if (select sum((input.value #>> '{}')::numeric) from jsonb_each(v_override_inputs) as input(key, value))
+         is distinct from v_override_total then
+        raise exception 'budget distribution inputs for % must sum to its source total', v_override_key using errcode = 'P0001';
+      end if;
+    end if;
+  end loop;
+
   for v_row in select value from jsonb_array_elements(p_rows) as rows(value)
   loop
     v_category := v_row ->> 'category';
@@ -248,7 +387,7 @@ begin
        or jsonb_typeof(v_row -> 'amount') is distinct from 'string'
        or coalesce(v_row ->> 'amount', '') !~ '^(0|[1-9][0-9]{0,11})([.][0-9]{1,2})?$'
        or jsonb_typeof(v_row -> 'method') is distinct from 'string'
-       or (v_row ->> 'method') is distinct from p_method
+       or (v_row ->> 'method') not in ('by_days','percent_by_year','amount_by_year')
        or jsonb_typeof(v_row -> 'is_override') is distinct from 'boolean' then
       raise exception 'budget distribution row for category % is invalid', coalesce(v_category, '(unknown)')
         using errcode = 'P0001';
@@ -309,6 +448,15 @@ begin
      where li.budget_version_id = p_version
      order by li.category::text
   loop
+    v_declared_method := p_method;
+    v_declared_inputs := p_inputs;
+    v_declared_is_override := false;
+    if p_category_overrides ? v_category then
+      v_declared_method := p_category_overrides -> v_category ->> 'method';
+      v_declared_inputs := coalesce(p_category_overrides -> v_category -> 'inputs', '{}'::jsonb);
+      v_declared_is_override := true;
+    end if;
+
     select count(*)::integer,
            count(distinct r.value ->> 'fiscal_year')::integer,
            coalesce(sum((r.value ->> 'amount')::numeric), 0)::numeric
@@ -326,14 +474,59 @@ begin
     if v_actual_amount <> v_expected_amount then
       raise exception 'budget distribution for % must reconcile to its source lines', v_category using errcode = 'P0001';
     end if;
+
+    if exists (
+      select 1 from jsonb_array_elements(p_rows) as r(value)
+       where r.value ->> 'category' = v_category
+         and (r.value ->> 'method') is distinct from v_declared_method
+    ) then
+      raise exception 'budget distribution for % has a row method that does not match its declared method', v_category using errcode = 'P0001';
+    end if;
+    if exists (
+      select 1 from jsonb_array_elements(p_rows) as r(value)
+       where r.value ->> 'category' = v_category
+         and ((r.value ->> 'is_override')::boolean) is distinct from v_declared_is_override
+    ) then
+      raise exception 'budget distribution for % has an override flag that does not match its declaration', v_category using errcode = 'P0001';
+    end if;
+
+    -- Resolved rows must follow the entered vector, not merely sum to the category total. Percent
+    -- vectors allow the single minor unit a largest-remainder split may move; amount overrides are
+    -- exact; a budget-wide amount vector is a proportion of each category's own total.
+    if v_declared_method in ('percent_by_year','amount_by_year') then
+      v_input_sum := (select sum((input.value #>> '{}')::numeric) from jsonb_each(v_declared_inputs) as input(key, value));
+      for v_year_name in select unnest(v_basis_years) loop
+        select (r.value ->> 'amount')::numeric
+          into v_actual
+          from jsonb_array_elements(p_rows) as r(value)
+         where r.value ->> 'category' = v_category
+           and r.value ->> 'fiscal_year' = v_year_name;
+        if v_declared_method = 'amount_by_year' and v_declared_is_override then
+          v_expected := (v_declared_inputs ->> v_year_name)::numeric;
+          if v_actual is distinct from v_expected then
+            raise exception 'budget distribution for % has rows that do not match its amount inputs', v_category using errcode = 'P0001';
+          end if;
+        elsif v_declared_method = 'percent_by_year' then
+          v_expected := round(v_expected_amount * (v_declared_inputs ->> v_year_name)::numeric / 100, 2);
+          if abs(v_actual - v_expected) > 0.0101 then
+            raise exception 'budget distribution for % has rows that do not follow its percentage inputs', v_category using errcode = 'P0001';
+          end if;
+        else
+          v_expected := round(v_expected_amount * (v_declared_inputs ->> v_year_name)::numeric / v_input_sum, 2);
+          if abs(v_actual - v_expected) > 0.0101 then
+            raise exception 'budget distribution for % has rows that do not follow its amount proportions', v_category using errcode = 'P0001';
+          end if;
+        end if;
+      end loop;
+    end if;
   end loop;
 
   delete from public.budget_year_distributions where budget_version_id = p_version;
   delete from public.budget_distribution_plans where budget_version_id = p_version;
   insert into public.budget_distribution_plans
-    (org_id, budget_version_id, method, inputs, basis, updated_by, updated_at)
+    (org_id, budget_version_id, method, inputs, category_overrides, basis, updated_by, updated_at)
   values
-    (v_org, p_version, p_method, p_inputs, p_basis, auth.uid(), now());
+    (v_org, p_version, p_method, p_inputs, p_category_overrides, p_basis, auth.uid(), now());
 
   insert into public.budget_year_distributions
     (org_id, budget_version_id, category, fiscal_year, ordinal, amount, method, is_override)
@@ -342,7 +535,7 @@ begin
          item.value ->> 'fiscal_year',
          (item.value ->> 'ordinal')::integer,
          (item.value ->> 'amount')::numeric,
-         p_method,
+         item.value ->> 'method',
          (item.value ->> 'is_override')::boolean
     from jsonb_array_elements(p_rows) as item(value);
 
@@ -351,8 +544,8 @@ begin
   on conflict (budget_version_id, user_id) do nothing;
 end;
 $$;
-revoke all on function public.save_budget_distribution(uuid,text,jsonb,jsonb,jsonb) from public, anon;
-grant execute on function public.save_budget_distribution(uuid,text,jsonb,jsonb,jsonb) to authenticated;
+revoke all on function public.save_budget_distribution(uuid,text,jsonb,jsonb,jsonb,jsonb) from public, anon;
+grant execute on function public.save_budget_distribution(uuid,text,jsonb,jsonb,jsonb,jsonb) to authenticated;
 
 create or replace function public.clone_budget_version(version_id uuid)
   returns uuid language plpgsql security definer set search_path = public as $$
@@ -378,8 +571,8 @@ begin
 
   if exists (select 1 from public.budget_distribution_plans where budget_version_id = version_id) then
     insert into public.budget_distribution_plans
-      (org_id, budget_version_id, method, inputs, basis, updated_by, updated_at)
-    select v_org, v_new, method, inputs, basis, auth.uid(), now()
+      (org_id, budget_version_id, method, inputs, category_overrides, basis, updated_by, updated_at)
+    select v_org, v_new, method, inputs, category_overrides, basis, auth.uid(), now()
       from public.budget_distribution_plans
      where budget_version_id = version_id;
     insert into public.budget_year_distributions
@@ -456,7 +649,7 @@ end; $$;
 revoke all on function public.activate_budget_version(uuid) from public, anon;
 grant execute on function public.activate_budget_version(uuid) to authenticated;
 
-comment on function public.save_budget_distribution(uuid,text,jsonb,jsonb,jsonb) is
-  'Atomically replaces the approved whole-project distribution for a Draft and attributes the writer for SoD.';
+comment on function public.save_budget_distribution(uuid,text,jsonb,jsonb,jsonb,jsonb) is
+  'Atomically replaces the approved whole-project distribution (budget-wide inputs, per-category overrides, resolved rows) for a Draft and attributes the writer for SoD.';
 comment on function public.budget_distribution_gaps(uuid) is
-  'Returns the categories whose saved year rows do not exactly reconcile to source budget lines.';
+  'Returns the categories whose saved year rows do not exactly reconcile to source budget lines, their declared method/override, or the basis years.';

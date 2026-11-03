@@ -78,9 +78,9 @@ select ok(
   'AC-008 service_role retains the established table privileges'
 );
 select ok(
-  to_regprocedure('public.save_budget_distribution(uuid,text,jsonb,jsonb,jsonb)') is not null
-  and has_function_privilege('authenticated', to_regprocedure('public.save_budget_distribution(uuid,text,jsonb,jsonb,jsonb)'), 'EXECUTE')
-  and not coalesce(has_function_privilege('anon', to_regprocedure('public.save_budget_distribution(uuid,text,jsonb,jsonb,jsonb)'), 'EXECUTE'), false)
+  to_regprocedure('public.save_budget_distribution(uuid,text,jsonb,jsonb,jsonb,jsonb)') is not null
+  and has_function_privilege('authenticated', to_regprocedure('public.save_budget_distribution(uuid,text,jsonb,jsonb,jsonb,jsonb)'), 'EXECUTE')
+  and not coalesce(has_function_privilege('anon', to_regprocedure('public.save_budget_distribution(uuid,text,jsonb,jsonb,jsonb,jsonb)'), 'EXECUTE'), false)
   and to_regprocedure('public.budget_distribution_gaps(uuid)') is not null
   and has_function_privilege('authenticated', to_regprocedure('public.budget_distribution_gaps(uuid)'), 'EXECUTE')
   and not coalesce(has_function_privilege('anon', to_regprocedure('public.budget_distribution_gaps(uuid)'), 'EXECUTE'), false),

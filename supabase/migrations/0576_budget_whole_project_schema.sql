@@ -21,6 +21,9 @@ create table public.budget_distribution_plans (
     references public.organizations(id) on delete cascade,
   method text not null check (method in ('by_days','percent_by_year','amount_by_year')),
   inputs jsonb not null default '{}'::jsonb check (jsonb_typeof(inputs) = 'object'),
+  -- Per-category overrides: {"<category>": {"method": "<method>", "inputs": {"<fiscal_year>": "<text>"}}}.
+  -- Persisted so an approved override reloads and clones exactly; only save_budget_distribution writes it.
+  category_overrides jsonb not null default '{}'::jsonb check (jsonb_typeof(category_overrides) = 'object'),
   basis jsonb not null check (jsonb_typeof(basis) = 'object'),
   updated_by uuid references public.profiles(id),
   updated_at timestamptz not null default now()
@@ -151,6 +154,12 @@ declare
   v_version_id uuid;
   v_version_ids uuid[];
 begin
+  -- 0241 (FR-BV-011) stays intact: a budget line belongs to one version for life. Moving it changes
+  -- both versions' contents, so it is refused before the serialization below.
+  if tg_op = 'UPDATE' and new.budget_version_id is distinct from old.budget_version_id then
+    raise exception 'a budget line cannot move to another version' using errcode = 'P0001';
+  end if;
+
   if tg_op = 'INSERT' then
     v_version_id := new.budget_version_id;
     select array_agg(distinct id order by id) into v_version_ids
@@ -214,6 +223,6 @@ revoke all on function public.enforce_draft_line_item() from public, anon, authe
 comment on column public.budget_versions.budget_mode is
   'Budget shape: per_year preserves historical annual behavior; whole_project stores category/year distributions separately.';
 comment on table public.budget_distribution_plans is
-  'Approved whole-project distribution inputs and the calendar basis witness; clients write only through save_budget_distribution.';
+  'Approved whole-project distribution inputs, per-category overrides and the calendar basis witness; clients write only through save_budget_distribution.';
 comment on table public.budget_year_distributions is
   'Exact resolved yearly amounts by budget version and category; clients write only through save_budget_distribution.';
