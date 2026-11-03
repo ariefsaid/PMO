@@ -669,6 +669,8 @@ export async function dispatchMoneyWrite(deps: DispatchMoneyWriteDeps): Promise<
 const OUTBOX_IN_FLIGHT_INDEX = 'external_command_outbox_one_inflight_per_record';
 /** 0508: at most one in-flight Odoo payment command per bill, whatever the intent (two payers can each pass the residual check). */
 const OUTBOX_PAYMENT_PER_BILL_INDEX = 'external_command_outbox_one_inflight_odoo_payment_per_bill';
+/** 0512: at most one in-flight Odoo receipt command per invoice, including held/recovery rows. */
+const OUTBOX_RECEIPT_PER_INVOICE_INDEX = 'external_command_outbox_one_inflight_odoo_receipt_per_invoice';
 export const COMMAND_IN_FLIGHT_FOR_RECORD = 'command-in-flight-for-record';
 
 function violatesIndex(error: unknown, index: string): boolean {
@@ -692,6 +694,9 @@ function readThrownCode(error: unknown): string | undefined {
 export function toDispatchError(error: unknown): AppError {
   if (violatesIndex(error, OUTBOX_PAYMENT_PER_BILL_INDEX)) {
     return new AppError('payment already in progress for this bill', COMMAND_IN_FLIGHT_FOR_RECORD);
+  }
+  if (violatesIndex(error, OUTBOX_RECEIPT_PER_INVOICE_INDEX)) {
+    return new AppError('receipt already in progress for this invoice', COMMAND_IN_FLIGHT_FOR_RECORD);
   }
   if (isOutboxInFlightConflict(error)) {
     return new AppError(

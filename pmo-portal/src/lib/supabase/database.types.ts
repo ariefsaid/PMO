@@ -4718,6 +4718,7 @@ export type Database = {
           pmo_native: boolean
           pmo_number: string | null
           received_amount: number | null
+          recorded_by_id: string | null
           reference_number: string | null
           sales_invoice_id: string | null
           status: string
@@ -4743,6 +4744,7 @@ export type Database = {
           pmo_native?: boolean
           pmo_number?: string | null
           received_amount?: number | null
+          recorded_by_id?: string | null
           reference_number?: string | null
           sales_invoice_id?: string | null
           status?: string
@@ -4768,6 +4770,7 @@ export type Database = {
           pmo_native?: boolean
           pmo_number?: string | null
           received_amount?: number | null
+          recorded_by_id?: string | null
           reference_number?: string | null
           sales_invoice_id?: string | null
           status?: string
@@ -4780,6 +4783,13 @@ export type Database = {
             columns: ["customer_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "incoming_payments_recorded_by_id_fkey"
+            columns: ["recorded_by_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {

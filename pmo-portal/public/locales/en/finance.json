@@ -164,6 +164,7 @@
     "statusOverdueDay": "Overdue · {{count}} day",
     "statusOverdueDays": "Overdue · {{count}} days",
     "statusPaid": "Paid",
+    "statusReceiptAwaitingOdoo": "Receipt sent, awaiting Odoo",
     "statusCancelled": "Cancelled",
     "paymentDrawerTitle": "{{client}} · {{amount}}",
     "cash": "Cash received",

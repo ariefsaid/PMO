@@ -24,11 +24,12 @@ interface Props {
   refetch: () => unknown;
   recordPrimaryAction: { label: string; onClick: () => void } | null;
   invoiceDisplayLabel: (invoice: SalesInvoiceRow) => string;
+  receiptAwaitingOdoo?: boolean;
   may: ReturnType<typeof usePermission>;
   pdfDownload: ReturnType<typeof useInvoicePdfDownload>;
   dialogs: React.ReactNode;
 }
-export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, mode, organizationToday, onBack, refetch, recordPrimaryAction, invoiceDisplayLabel, may, pdfDownload, dialogs }: Props) {
+export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, mode, organizationToday, onBack, refetch, recordPrimaryAction, invoiceDisplayLabel, receiptAwaitingOdoo = false, may, pdfDownload, dialogs }: Props) {
   const { t } = useTranslation();
   const viewTargetNumber = viewTarget ? invoiceNumber(viewTarget) : null;
     return (
@@ -82,7 +83,9 @@ export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, mode,
                 <div>
                   <dt className="text-xs font-medium text-muted-foreground">{t('uxs17.status', 'Status')}</dt>
                   <dd className="mt-1">
-                    {isPartlyPaid(viewTarget)
+                    {receiptAwaitingOdoo
+                      ? <StatusPill variant="progress">{t('finance:receivables.statusReceiptAwaitingOdoo', 'Receipt sent, awaiting Odoo')}</StatusPill>
+                      : isPartlyPaid(viewTarget)
                       ? <StatusPill variant={salesInvoiceStatusVariant('Unpaid')}>{t('financeCopy.statusPartlyPaid', 'Partly paid')}</StatusPill>
                       : <StatusPill variant={salesInvoiceStatusVariant(viewTarget.status)}>{salesInvoiceStatusLabel(viewTarget.status, t)}</StatusPill>}
                   </dd>

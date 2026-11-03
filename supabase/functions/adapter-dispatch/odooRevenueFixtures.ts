@@ -60,6 +60,8 @@ export interface World {
   draftMapped?: boolean;
   /** Shared outbox rows across dispatches (a retry meets the world its first attempt left). */
   outbox?: Map<string, Record<string, unknown>>;
+  /** Fail reads of a stored payload witness while preserving the initial existence read. */
+  outboxPayloadReadError?: boolean;
 }
 
 export const draftRow = (over: Record<string, unknown> = {}) => ({
@@ -109,6 +111,8 @@ export function revenueRoutes(unexpected: FetchCall[], caller: string, world: Wo
     if (select === 'project_id') return objectResponse({ project_id: PROJECT_ID });   // the submit-time process gate reads the mirror row's project
     if (table === 'projects' && select.includes('subject_to_vat')) return objectResponse({ subject_to_vat: true, customer_contract_ref: 'CT-1' });
     if (table === 'work_orders' && select.includes('client_po_number')) return objectResponse({ client_po_number: 'WO-PO-9' });
+    if (table === 'sales_invoices' && select.includes('currency')) return orgOf(table, id) !== null
+      ? objectResponse({ id, customer_id: world.invoiceCustomer === undefined ? CUSTOMER_ID : world.invoiceCustomer, currency: 'IDR' }) : nullObjectResponse();
     if (select.includes('customer_id')) return table === 'sales_invoices' && orgOf(table, id) !== null ? objectResponse({ customer_id: world.invoiceCustomer === undefined ? CUSTOMER_ID : world.invoiceCustomer }) : nullObjectResponse();
     const org = orgOf(table, id);
     return org === null ? nullObjectResponse() : objectResponse({ org_id: org });
@@ -133,7 +137,8 @@ export function revenueRoutes(unexpected: FetchCall[], caller: string, world: Wo
     supabaseSelect('external_org_bindings', (call) => bindingTiers.has(param(call, 'external_tier') ?? '')
       ? (world.odooBinding === null ? nullObjectResponse() : objectResponse({
           id: 'b0000000-0000-4000-8000-000000000001', site_url: `https://${ODOO_HOST}`, secret_ref: 'odoo_ref', status: 'active', activated_at: '2026-11-01T00:00:00Z',
-          config: { database: 'db1', odoo_company_id: 1, capabilities: world.snapshot === undefined ? REVENUE_SNAPSHOT : world.snapshot, item_map: { 'ITEM-A': '71' }, sale_tax_id: 5 },
+          config: { database: 'db1', odoo_company_id: 1, default_payment_journal_id: 9, tax_prepaid_account_id: 88,
+            capabilities: world.snapshot === undefined ? REVENUE_SNAPSHOT : world.snapshot, item_map: { 'ITEM-A': '71' }, sale_tax_id: 5 },
           ...world.odooBinding,
         }))
       : nullObjectResponse()),
@@ -141,7 +146,11 @@ export function revenueRoutes(unexpected: FetchCall[], caller: string, world: Wo
     supabaseSelect('external_master_records', (call) => param(call, 'kind') === 'tax'
       ? jsonResponse(world.saleTax === 'absent' ? [] : [{ external_id: '5', name: '12% (Non-Luxury Good)', active: true, tombstoned_at: null,
           attrs: { amount: 11, use: 'sale', tax_group: world.saleTax === 'collector' ? 'Collected by VAT Collector' : 'Non-luxury Good Taxes', price_include: false } }])
-      : world.account === null ? nullObjectResponse() : objectResponse(world.account ?? { active: true, tombstoned_at: null })),
+      : param(call, 'kind') === 'journal'
+        ? objectResponse({ active: true, tombstoned_at: null, attrs: { type: 'bank' } })
+        : param(call, 'kind') === 'account'
+          ? objectResponse({ active: true, tombstoned_at: null, attrs: { account_type: 'asset_current', company_ids: ['1'] } })
+          : world.account === null ? nullObjectResponse() : objectResponse(world.account ?? { active: true, tombstoned_at: null })),
     owned('companies'), owned('projects'), owned('work_orders'), owned('sales_invoices'), owned('incoming_payments'),
     // an invoice a receipt settles has its Odoo reference unless the world says it has none; a submit's own record is mapped
     supabaseSelect('external_refs', (call) => {
@@ -153,6 +162,9 @@ export function revenueRoutes(unexpected: FetchCall[], caller: string, world: Wo
       return held ? objectResponse({ external_record_id: 'account.move:301' }) : nullObjectResponse();
     }),
     { label: 'outbox read', method: 'GET', pathname: '/rest/v1/external_command_outbox', response: (call) => {
+      if (world.outboxPayloadReadError && (call.url.searchParams.get('select') ?? '').includes('payload')) {
+        return jsonResponse({ message: 'outbox read unavailable' }, { status: 500 });
+      }
       // a list read (the draft's "has an approval started?") answers an array; the command's own row is a single object
       if (!call.url.searchParams.has('idempotency_key')) return jsonResponse([...outbox.values()].filter((r) => r.pmo_record_id === param(call, 'pmo_record_id')));
       const row = outbox.get(`${param(call, 'pmo_record_id')}|${param(call, 'idempotency_key')}`);
@@ -161,19 +173,28 @@ export function revenueRoutes(unexpected: FetchCall[], caller: string, world: Wo
     { label: 'outbox insert', method: 'POST', pathname: '/rest/v1/external_command_outbox', response: (call) => {
       const body = call.bodyJson as Record<string, unknown>;
       const row = { id: 'outbox-1', domain: body.domain, pmo_record_id: body.pmo_record_id, idempotency_key: body.idempotency_key, state: 'pending',
-        external_record_id: null, canonical: null, claim_generation: 0, payload_digest: body.payload_digest ?? null, payload: body.payload ?? null };
+        external_record_id: null, canonical: null, claim_generation: 0, payload_digest: body.payload_digest ?? null, payload: body.payload ?? null,
+        actor_user_id: body.actor_user_id ?? null };
       outbox.set(`${String(body.pmo_record_id)}|${String(body.idempotency_key)}`, row);
       return objectResponse(row);
     } },
     { label: 'outbox update', method: 'PATCH', pathname: '/rest/v1/external_command_outbox', response: () => jsonResponse([{ id: 'outbox-1' }]) },
     supabaseRpc('claim_outbox_for_commit', () => {
-      const row = [...outbox.values()][0];
-      return jsonResponse(row ? { ...row, state: 'committing', claim_generation: 1 } : null);
+      const [key, row] = [...outbox.entries()][0] ?? [];
+      if (!key || !row) return jsonResponse(null);
+      const receipt = (row.payload as Record<string, unknown> | null)?.erp_doc_kind === 'incoming-payment';
+      const claimed = { ...row, state: 'committing', claim_generation: receipt ? Number(row.claim_generation ?? 0) + 1 : 1 };
+      if (receipt) outbox.set(key, claimed);
+      return jsonResponse(claimed);
     }),
     supabaseRpc('record_outbox_ref', () => jsonResponse(1)),
     supabaseRpc('confirm_outbox', () => jsonResponse(1)),
     supabaseRpc('surface_action_required', () => jsonResponse(null)),
     { label: 'external ref write', method: 'POST', pathname: '/rest/v1/external_refs', response: () => jsonResponse([]) },
+    { label: 'receipt mirror write', method: 'POST', pathname: '/rest/v1/incoming_payments', response: (call) => {
+      world.writes?.push({ table: 'incoming_payments', method: 'POST', body: call.bodyJson });
+      return jsonResponse([]);
+    } },
     // the draft tables: every write is recorded for the test to read
     { label: 'draft write', pathname: '/rest/v1/sales_invoices', method: 'POST', response: (call) => { world.writes?.push({ table: 'sales_invoices', method: 'POST', body: call.bodyJson }); return jsonResponse([]); } },
     { label: 'draft update', pathname: '/rest/v1/sales_invoices', method: 'PATCH', response: (call) => { world.writes?.push({ table: 'sales_invoices', method: 'PATCH', body: call.bodyJson }); return jsonResponse([]); } },
@@ -193,7 +214,23 @@ export function invoiceOdooWorld() {
   const fake = createFakeOdoo({ key: 'odoo-test-key' });
   fake.seed('res.company', [{ id: 1, name: 'Co', currency_id: [12, 'IDR'] }]);
   fake.seed('res.partner', [{ id: 41, name: 'Client' }]);
+  fake.seed('account.journal', [{ id: 9, name: 'Bank', type: 'bank', active: true, company_id: [1, 'Co'], inbound_payment_method_line_ids: [31], default_account_id: [401, 'Bank'] }]);
+  fake.seed('account.account', [
+    { id: 122, name: 'Receivable', currency_id: false },
+    { id: 401, name: 'Bank', currency_id: false },
+    { id: 88, name: 'Tax Prepaid', currency_id: false },
+  ]);
   fake.seed('account.tax', [{ id: 5, name: '12% (Non-Luxury Good)', amount: 11, company_id: [1, 'Co'] }, { id: 9, name: 'Hidden default 10%', amount: 10, company_id: [1, 'Co'] }]);
   fake.seed('product.product', [{ id: 71, name: 'Item A', taxes_id: [9], income_account_id: 149, property_account_income_id: [149, 'Sales'] }]);
+  return fake;
+}
+
+/** A posted invoice already in Odoo for the receipt adapter's cross-stack cases. */
+export function receiptOdooWorld() {
+  const fake = invoiceOdooWorld();
+  fake.seed('account.move', [{ id: 301, name: 'INV/2026/00301', move_type: 'out_invoice', state: 'posted', partner_id: 41,
+    currency_id: [12, 'IDR'], amount_total: 111000, amount_residual: 111000, write_date: '2026-11-03 10:00:00' }]);
+  fake.seed('account.move.line', [{ id: 1301, move_id: 301, account_id: [122, 'Receivable'], account_type: 'asset_receivable',
+    partner_id: 41, balance: 111000, amount_residual: 111000, reconciled: false }]);
   return fake;
 }

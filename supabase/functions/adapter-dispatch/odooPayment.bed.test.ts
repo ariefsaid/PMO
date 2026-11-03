@@ -12,6 +12,11 @@ import { assert, assertEquals, assertRejects } from '@std/assert';
 import type { AdapterCommand } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
 import { bindCall, type OdooCall } from '../../../pmo-portal/src/lib/adapterSeam/odoo/client.ts';
 import { createOdooProcurementAdapter, recoverPayment, type PaymentFacts } from '../../../pmo-portal/src/lib/adapterSeam/odoo/procurementAdapter.ts';
+import { createOdooRevenueAdapter, recoverReceipt } from '../../../pmo-portal/src/lib/adapterSeam/odoo/revenueAdapter.ts';
+import type { ReceiptDefaults, ReceiptInput, ReceiptInvoice } from '../../../pmo-portal/src/lib/adapterSeam/odoo/revenue/receiptBody.ts';
+import type { ReceiptComposite } from '../../../pmo-portal/src/lib/adapterSeam/odoo/revenue/receiptRecoveryProbe.ts';
+import { externalIdentifier as receiptExternalIdentifier } from '../../../pmo-portal/src/lib/adapterSeam/odoo/revenue/anchors.ts';
+import { invoiceReceiptAwaitingOdoo, invoiceStatus } from '../../../pmo-portal/src/lib/adapterSeam/odoo/revenue/status.ts';
 import { odooExternalRef, parseOdooExternalRef } from '../../../pmo-portal/src/lib/adapterSeam/odoo/purchase/anchors.ts';
 
 const BED = Deno.env.get('ODOO_BED_URL');
@@ -148,5 +153,213 @@ Deno.test({
       await assertRejects(() => attempt(cmd, true), Error, 'ambiguous-anchor');
       assertEquals([await heldCount(), await residual(edited)], [paymentsBefore, 98], 'the held retry made no second payment');
     }
+  },
+});
+
+Deno.test({
+  name: 'AC-OCI-040 / AC-OCI-044 C5-T7 on the bed: one and split client receipts settle only to Odoo residual, overpay refuses, withholding posts to a tax-prepaid account, and a lost response recovers one receipt',
+  ignore: !(BED && DB && KEY),
+  sanitizeResources: false,
+  sanitizeOps: false,
+  fn: async () => {
+    const stamp = `C5-${Date.now()}`;
+    const raw = bindCall({ baseUrl: BED!, apiKey: KEY, database: DB, fetchImpl: fetch });
+    let companyId = 0;
+    let currency = '';
+    for (const { id, currency_id } of await raw<Array<{ id: number; currency_id: [number, string] }>>('res.company', 'search_read', { domain: [], fields: ['currency_id'] })) {
+      if (currency_id?.[1] === 'IDR') { companyId = id; currency = currency_id[1]; break; }
+    }
+    assert(companyId, 'the bed has an Indonesian company chart');
+    const call = (async (model: string, method: string, body: Record<string, unknown> = {}) => {
+      try { return await raw(model, method, { ...body, context: { allowed_company_ids: [companyId], ...((body.context as object) ?? {}) } }); } catch (err) {
+        throw new Error(`${model}/${method} refused: ${(err as Error).message}`, { cause: err });
+      }
+    }) as OdooCall;
+    const make = async (model: string, vals: Record<string, unknown>) => (await call<number[]>(model, 'create', { vals_list: [vals] }))[0];
+    const [journal] = await call<Array<{ id: number; inbound_payment_method_line_ids: number[]; default_account_id: [number, string] }>>('account.journal', 'search_read', {
+      domain: [['type', '=', 'bank'], ['company_id', '=', companyId]], fields: ['inbound_payment_method_line_ids', 'default_account_id'], limit: 20,
+    });
+    const selectedJournal = journal && journal.inbound_payment_method_line_ids.length > 0 ? journal : null;
+    assert(selectedJournal, 'the bank journal has an inbound payment method line');
+    const [taxPrepaid] = await call<Array<{ id: number; currency_id: false | [number, string]; account_type: string }>>('account.account', 'search_read', {
+      domain: [['account_type', 'in', ['asset_current', 'asset_prepayments']], ['company_ids', 'in', [companyId]], ['deprecated', '=', false]],
+      fields: ['currency_id', 'account_type'], limit: 20,
+    });
+    assert(taxPrepaid, 'the chart has a live current asset account for client withholding');
+    const customer = await make('res.partner', { name: `${stamp} client`, customer_rank: 1 });
+    const service = await make('product.product', { name: `${stamp} service`, type: 'service', sale_ok: true });
+    const date = '2026-11-03';
+    const invoice = async (total: number, label: string) => {
+      const id = await make('account.move', {
+        move_type: 'out_invoice', partner_id: customer, invoice_date: date, ref: `${stamp}-${label}`,
+        invoice_line_ids: [[0, 0, { product_id: service, name: `${stamp} ${label}`, quantity: 1, price_unit: total, tax_ids: [[6, 0, []]] }]],
+      });
+      await call('account.move', 'action_post', { ids: [id] });
+      return id;
+    };
+    const readInvoice = async (id: number) => (await call<Array<{ state: string; move_type: string; partner_id: [number, string]; currency_id: false | [number, string]; amount_residual: number; write_date: string }>>(
+      'account.move', 'read', { ids: [id], fields: ['state', 'move_type', 'partner_id', 'currency_id', 'amount_residual', 'write_date'] }))[0];
+    const paymentsOf = (id: number) => call<Array<{ id: number; state: string; amount: number; payment_type: string; partner_type: string; reconciled_invoice_ids: number[] }>>(
+      'account.payment', 'search_read', { domain: [['partner_id', '=', customer], ['reconciled_invoice_ids', 'in', [id]]], fields: ['state', 'amount', 'payment_type', 'partner_type', 'reconciled_invoice_ids'], order: 'id asc' });
+    const currencies = async (ids: number[]) => {
+      const accounts = await call<Array<{ id: number; currency_id: false | [number, string] }>>('account.account', 'read', { ids, fields: ['currency_id'] });
+      return new Map(accounts.map((row) => [row.id, row.currency_id === false ? currency : row.currency_id[1]]));
+    };
+    const receiptId = () => crypto.randomUUID();
+    const makeReceiptRig = (invoiceId: number, settled: number, options: { cash?: number; withheld?: number; slip?: string; id?: string; failAt?: { model: string; method: string } } = {}) => {
+      const id = options.id ?? receiptId();
+      const receiptInput: ReceiptInput = {
+        id, orgId: 'bed-org', date, currency, settled, cash: options.cash ?? settled,
+        ...(options.withheld ? { withheld: options.withheld, slipNumber: options.slip } : {}),
+      };
+      let trigger = options.failAt;
+      const fetchImpl = (async (url: string | URL | Request, init?: RequestInit) => {
+        const [, model, method] = /\/json\/2\/([^/]+)\/([^/]+)$/.exec(String(url)) ?? [];
+        const response = await fetch(url, init);
+        if (trigger?.model === model && trigger.method === method) {
+          trigger = undefined;
+          throw new TypeError('connection reset after the server answered');
+        }
+        return response;
+      }) as typeof fetch;
+      const receiptCall = bindCall({ baseUrl: BED!, apiKey: KEY, database: DB, fetchImpl });
+      const resolveReceipt = async () => {
+        const move = await readInvoice(invoiceId);
+        const invoiceInput: ReceiptInvoice = { id: String(invoiceId), orgId: 'bed-org', customerId: 'bed-customer', state: move.state, outstanding: move.amount_residual, currency: move.currency_id === false ? currency : move.currency_id[1] };
+        const receivable = await call<Array<{ account_id: [number, string] }>>('account.move.line', 'search_read', {
+          domain: [['move_id', '=', invoiceId], ['account_type', '=', 'asset_receivable']], fields: ['account_id'], limit: 2,
+        });
+        assertEquals(receivable.length, 1, 'one receivable line is present for the posted customer invoice');
+        const accountCurrencies = await currencies([receivable[0].account_id[0], selectedJournal.default_account_id[0], taxPrepaid.id]);
+        const defaults: ReceiptDefaults = {
+          companyCurrency: currency, partners: { 'bed-customer': customer }, journalId: selectedJournal.id,
+          inboundMethodLineId: selectedJournal.inbound_payment_method_line_ids[0], taxPrepaidAccountId: taxPrepaid.id,
+          accountCurrencies: {
+            receivable: accountCurrencies.get(receivable[0].account_id[0])!, cash: accountCurrencies.get(selectedJournal.default_account_id[0])!,
+            taxPrepaid: accountCurrencies.get(taxPrepaid.id)!,
+          },
+        };
+        return { input: receiptInput, invoice: invoiceInput, defaults, recordedBy: 'bed-finance-user', invoiceRef: odooExternalRef('account.move', invoiceId) };
+      };
+      const adapter = createOdooRevenueAdapter({ call: receiptCall, resolveInvoice: async () => { throw new Error('invoice path unused'); }, resolveReceipt });
+      const command: AdapterCommand = {
+        domain: 'revenue', operation: 'create', idempotencyKey: `bed-${id}`,
+        record: { id, erp_doc_kind: 'incoming-payment', salesInvoiceId: `pmo-${invoiceId}`, customerId: 'bed-customer', date, paid_amount: settled, received_amount: options.cash ?? settled, withheld_amount: options.withheld ?? 0, withholding_slip_number: options.slip ?? null },
+      };
+      const observed = async () => {
+        const window: ReceiptComposite = {
+          partnerId: customer, amount: options.cash ?? settled, date, invoiceId,
+          createdAfter: new Date(Date.now() - 10 * 60_000).toISOString().slice(0, 19).replace('T', ' '),
+          createdBefore: new Date(Date.now() + 120_000).toISOString().slice(0, 19).replace('T', ' '),
+        };
+        return { window, result: await recoverReceipt(receiptCall, command.record, window, receiptInput) };
+      };
+      return { id, input: receiptInput, command, adapter, call: receiptCall, observed };
+    };
+
+    // One receipt closes the invoice in Odoo; the PMO status changes only when the next invoice read supplies residual zero.
+    const oneGo = await invoice(111_000, 'one-go');
+    const before = await readInvoice(oneGo);
+    assertEquals(invoiceStatus(before.state, before.amount_residual).status, 'Unpaid');
+    const pushAt = new Date(Date.now() - 5_000).toISOString();
+    assertEquals(invoiceReceiptAwaitingOdoo({ invoiceStatus: 'Unpaid', invoiceErpModified: before.write_date, receiptCommandState: 'pending', receiptCommandCreatedAt: pushAt }), true);
+    const oneReceipt = makeReceiptRig(oneGo, 111_000);
+    await oneReceipt.adapter.commit(oneReceipt.command);
+    assertEquals((await readInvoice(oneGo)).amount_residual, 0);
+    assertEquals(invoiceStatus(before.state, before.amount_residual).status, 'Unpaid', 'the saved PMO snapshot has not been replaced by the receipt command');
+    const nextRead = await readInvoice(oneGo);
+    assertEquals(invoiceStatus(nextRead.state, nextRead.amount_residual).status, 'Paid');
+    assertEquals((await paymentsOf(oneGo)).length, 1);
+
+    // Two separate receipt records settle in two writes; a new receipt's facts are resolved against the current residual.
+    const split = await invoice(111_000, 'split');
+    const firstPart = makeReceiptRig(split, 40_000);
+    await firstPart.adapter.commit(firstPart.command);
+    assertEquals((await readInvoice(split)).amount_residual, 71_000);
+    const finalPart = makeReceiptRig(split, 71_000);
+    await finalPart.adapter.commit(finalPart.command);
+    assertEquals([(await readInvoice(split)).amount_residual, (await paymentsOf(split)).length], [0, 2]);
+
+    // Odoo accepts an over-receipt, so the adapter must leave Odoo untouched.
+    const over = await invoice(111_000, 'overpay');
+    const overReceipt = makeReceiptRig(over, 112_000);
+    const beforeOver = await paymentsOf(over);
+    await assertRejects(() => overReceipt.adapter.commit(overReceipt.command), Error, 'over-receipt');
+    assertEquals([(await paymentsOf(over)).length, (await readInvoice(over)).amount_residual], [beforeOver.length, 111_000]);
+
+    // The client pays 109,000 and withholds 2,000; the difference is a debit to the chart's tax-prepaid asset.
+    const withheldInvoice = await invoice(111_000, 'withheld');
+    const withheldReceipt = makeReceiptRig(withheldInvoice, 111_000, { cash: 109_000, withheld: 2_000, slip: `${stamp}-SLIP` });
+    const withheldResult = await withheldReceipt.adapter.commit(withheldReceipt.command);
+    assertEquals((await readInvoice(withheldInvoice)).amount_residual, 0);
+    assertEquals({ amount: withheldResult.canonical.amount, received: withheldResult.canonical.received_amount, withheld: withheldResult.canonical.withheld_amount, slip: withheldResult.canonical.withholding_slip_number, actor: withheldResult.canonical.recorded_by_id },
+      { amount: 111_000, received: 109_000, withheld: 2_000, slip: `${stamp}-SLIP`, actor: 'bed-finance-user' });
+    const writeOff = await call<Array<{ account_id: [number, string]; balance: number }>>('account.move.line', 'search_read', {
+      domain: [['move_id', '=', Number(withheldResult.externalRecordId.split(':')[1])], ['account_id', '=', taxPrepaid.id]], fields: ['account_id', 'balance'],
+    });
+    assert(writeOff.some((line) => line.account_id[0] === taxPrepaid.id && Math.abs(line.balance) === 2_000), 'the withheld amount is booked to the chosen tax-prepaid asset');
+
+    // A response lost after reconciliation is the same intent on retry: recover its posted receipt and do not create another.
+    const lostInvoice = await invoice(111_000, 'lost-response');
+    const lost = makeReceiptRig(lostInvoice, 111_000, { failAt: { model: 'account.move.line', method: 'reconcile' } });
+    await assertRejects(() => lost.adapter.commit(lost.command), Error);
+    const { result: recovered } = await lost.observed();
+    assertEquals(recovered?.externalRecordId.startsWith('account.payment:'), true);
+    assertEquals([(await paymentsOf(lostInvoice)).length, (await readInvoice(lostInvoice)).amount_residual], [1, 0]);
+
+    // A memo edit remains adoptable only when the immutable conjunction is unique and the payment is already linked to this invoice (FR-OCI-052).
+    const editedInvoice = await invoice(111_000, 'edited-unique');
+    const edited = makeReceiptRig(editedInvoice, 40_000, { failAt: { model: 'account.move.line', method: 'reconcile' } });
+    await assertRejects(() => edited.adapter.commit(edited.command), Error);
+    const [linked] = await call<Array<{ id: number; reconciled_invoice_ids: number[] }>>('account.payment', 'search_read', {
+      domain: [['partner_id', '=', customer], ['reconciled_invoice_ids', 'in', [editedInvoice]], ['amount', '=', 40_000], ['date', '=', date]], fields: ['id', 'reconciled_invoice_ids'], order: 'id desc', limit: 1,
+    });
+    assert(linked, 'the committed receipt is already reconciled to the invoice though its reconcile response was lost');
+    const anchor = receiptExternalIdentifier(`ip:${edited.id}`);
+    const [anchorRow] = await call<Array<{ id: number }>>('ir.model.data', 'search_read', {
+      domain: [['module', '=', anchor.module], ['name', '=', anchor.name], ['model', '=', 'account.payment'], ['res_id', '=', linked.id]], fields: ['id'], limit: 1,
+    });
+    assert(anchorRow, 'the payment has its PMO external identifier before the operator edits it');
+    await call('ir.model.data', 'write', { ids: [anchorRow.id], vals: { name: `${stamp}-renamed-external-id` } });
+    await call('account.payment', 'write', { ids: [linked.id], vals: { memo: `${stamp}-memo-edited` } });
+    const { result: adopted } = await edited.observed();
+    assertEquals(adopted?.externalRecordId, odooExternalRef('account.payment', linked.id));
+    assertEquals([(await paymentsOf(editedInvoice)).length, (await readInvoice(editedInvoice)).amount_residual], [1, 71_000]);
+
+    // An Odoo user edits both mutable traces on a posted-but-unreconciled payment. With no invoice link left to prove ownership,
+    // the changed primary identifier and memo are not enough to recover it.
+    const renamedAnchorInvoice = await invoice(111_000, 'renamed-anchor-held');
+    const renamedAnchor = makeReceiptRig(renamedAnchorInvoice, 111_000, { failAt: { model: 'account.payment', method: 'action_post' } });
+    await assertRejects(() => renamedAnchor.adapter.commit(renamedAnchor.command), Error);
+    const [postedWithoutLink] = await call<Array<{ id: number }>>('account.payment', 'search_read', {
+      domain: [['partner_id', '=', customer], ['amount', '=', 111_000], ['date', '=', date], ['state', '=', 'paid']], fields: ['id'], order: 'id desc', limit: 1,
+    });
+    assert(postedWithoutLink, 'the posted receipt remains after its response is lost');
+    const originalAnchor = receiptExternalIdentifier(`ip:${renamedAnchor.id}`);
+    const [originalAnchorRow] = await call<Array<{ id: number }>>('ir.model.data', 'search_read', {
+      domain: [['module', '=', originalAnchor.module], ['name', '=', originalAnchor.name], ['model', '=', 'account.payment'], ['res_id', '=', postedWithoutLink.id]], fields: ['id'], limit: 1,
+    });
+    assert(originalAnchorRow, 'the primary identifier was written before the post response was lost');
+    await call('ir.model.data', 'write', { ids: [originalAnchorRow.id], vals: { name: `${stamp}-external-id-edited` } });
+    await call('account.payment', 'write', { ids: [postedWithoutLink.id], vals: { memo: `${stamp}-memo-edited` } });
+    const { window: renamedWindow } = await renamedAnchor.observed();
+    await assertRejects(() => recoverReceipt(renamedAnchor.call, renamedAnchor.command.record, renamedWindow, renamedAnchor.input), Error, 'ambiguous-anchor');
+    assertEquals([(await paymentsOf(renamedAnchorInvoice)).length, (await readInvoice(renamedAnchorInvoice)).amount_residual], [0, 111_000]);
+
+    // If the mutable memo is gone and two rows satisfy the conjunction, recovery is held rather than guessing or creating a third.
+    const heldInvoice = await invoice(111_000, 'edited-ambiguous');
+    const settledFirst = makeReceiptRig(heldInvoice, 40_000);
+    await settledFirst.adapter.commit(settledFirst.command);
+    const held = makeReceiptRig(heldInvoice, 40_000, { failAt: { model: 'account.payment', method: 'create' } });
+    await assertRejects(() => held.adapter.commit(held.command), Error);
+    const [secondUnanchored] = await call<Array<{ id: number }>>('account.payment', 'search_read', {
+      domain: [['partner_id', '=', customer], ['amount', '=', 40_000], ['date', '=', date], ['state', '=', 'draft']], fields: ['id'], order: 'id desc', limit: 1,
+    });
+    assert(secondUnanchored, 'the pending receipt has no external identifier yet');
+    await call('account.payment', 'write', { ids: [secondUnanchored.id], vals: { memo: `${stamp}-memo-edited-ambiguous` } });
+    const beforeHeld = await paymentsOf(heldInvoice);
+    const { window } = await held.observed();
+    await assertRejects(() => recoverReceipt(held.call, held.command.record, window, held.input), Error, 'ambiguous-anchor');
+    assertEquals([(await paymentsOf(heldInvoice)).length, (await readInvoice(heldInvoice)).amount_residual], [beforeHeld.length, 71_000]);
   },
 });

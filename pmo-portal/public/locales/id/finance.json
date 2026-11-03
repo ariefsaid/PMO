@@ -164,6 +164,7 @@
     "statusOverdueDay": "Terlambat · {{count}} hari",
     "statusOverdueDays": "Terlambat · {{count}} hari",
     "statusPaid": "Lunas",
+    "statusReceiptAwaitingOdoo": "Penerimaan terkirim, menunggu Odoo",
     "statusCancelled": "Dibatalkan",
     "paymentDrawerTitle": "{{client}} · {{amount}}",
     "cash": "Kas diterima",

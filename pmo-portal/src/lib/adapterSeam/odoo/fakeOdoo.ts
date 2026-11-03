@@ -16,17 +16,17 @@ const FIELDS: Record<string, string[]> = {
   'uom.uom': ['name', 'relative_factor', 'relative_uom_id', 'active', 'write_date'],
   'stock.warehouse': ['name', 'code', 'lot_stock_id', 'view_location_id', 'company_id', 'active', 'write_date'],
   'stock.location': ['complete_name', 'usage', 'location_id', 'warehouse_id', 'company_id', 'active', 'write_date'],
-  'account.account': ['code', 'name', 'account_type', 'company_ids', 'active', 'write_date'],
+  'account.account': ['code', 'name', 'account_type', 'company_ids', 'currency_id', 'active', 'write_date'],
   'account.tax': ['name', 'amount', 'type_tax_use', 'tax_group_id', 'price_include', 'company_id', 'active', 'write_date'],
   'account.analytic.plan': ['name', 'write_date'],
   'account.analytic.account': ['name', 'code', 'plan_id', 'company_id', 'active', 'write_date'],
   'purchase.order': ['name', 'state', 'partner_id', 'partner_ref', 'origin', 'order_line', 'amount_untaxed', 'amount_total', 'company_id', 'create_date', 'write_date'],
   'purchase.order.line': ['name', 'order_id', 'product_id', 'product_qty', 'price_unit', 'uom_id', 'qty_received', 'qty_invoiced', 'analytic_distribution', 'write_date'],
   'ir.model.data': ['module', 'name', 'model', 'res_id', 'write_date'],
-  'account.payment': ['state', 'memo', 'amount', 'partner_id', 'payment_type', 'partner_type', 'journal_id', 'move_id', 'reconciled_bill_ids', 'write_date'],
-  'account.journal': ['name', 'code', 'type', 'company_id', 'active', 'write_date'],
+  'account.payment': ['state', 'memo', 'amount', 'partner_id', 'payment_type', 'partner_type', 'journal_id', 'payment_method_line_id', 'date', 'move_id', 'reconciled_bill_ids', 'reconciled_invoice_ids', 'is_reconciled', 'is_matched', 'create_date', 'write_date'],
+  'account.journal': ['name', 'code', 'type', 'company_id', 'active', 'inbound_payment_method_line_ids', 'outbound_payment_method_line_ids', 'default_account_id', 'write_date'],
   'account.move': ['name', 'move_type', 'state', 'partner_id', 'ref', 'invoice_date', 'invoice_date_due', 'invoice_line_ids', 'amount_untaxed', 'amount_tax', 'amount_total', 'amount_residual', 'payment_state', 'currency_id', 'company_id', 'invoice_origin', 'create_date', 'write_date'],
-  'account.move.line': ['move_id', 'display_type', 'product_id', 'quantity', 'price_unit', 'tax_ids', 'tax_line_id', 'tax_base_amount', 'analytic_distribution', 'purchase_line_id', 'balance', 'amount_residual', 'write_date'],
+  'account.move.line': ['move_id', 'display_type', 'product_id', 'quantity', 'price_unit', 'tax_ids', 'tax_line_id', 'tax_base_amount', 'analytic_distribution', 'purchase_line_id', 'account_id', 'account_type', 'partner_id', 'balance', 'amount_residual', 'reconciled', 'write_date'],
   'account.tax.repartition.line': ['tax_id', 'document_type', 'repartition_type', 'account_id', 'write_date'],
   'stock.picking': ['name', 'state', 'move_ids', 'backorder_id', 'backorder_ids', 'purchase_id', 'picking_type_code', 'write_date'],
   'stock.move': ['name', 'state', 'picking_id', 'product_id', 'purchase_line_id', 'quantity', 'product_uom_qty', 'write_date'],
@@ -339,7 +339,8 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
     const paymentId = newId('account.payment');
     table('account.payment').set(paymentId, {
       id: paymentId, payment_type: 'inbound', partner_type: 'customer', partner_id: invoice.partner_id, amount: units(amount), state: 'paid', memo: wizard.communication ?? false,
-      journal_id: wizard.journal_id ?? false, date: wizard.payment_date ?? false, is_reconciled: true, is_matched: false, move_id: [moveId, name], write_date: fmt(++clock),
+      journal_id: wizard.journal_id ?? false, date: wizard.payment_date ?? false, is_reconciled: true, is_matched: false,
+      reconciled_invoice_ids: [invoice.id], move_id: [moveId, name], write_date: fmt(++clock),
     });
     settleInvoice(invoice, Math.max(0, residual - amount - difference));
     return { name: 'Payments', type: 'ir.actions.act_window', res_model: 'account.payment', context: { create: false }, view_mode: 'form', res_id: paymentId };
@@ -454,6 +455,16 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
         const move = table('account.move').get(Number(moveId));
         if (isCustomerMove(move)) settleInvoice(move!, residual);
         for (const p of table('account.payment').values()) if (Array.isArray(p.move_id) && p.move_id[0] === moveId) Object.assign(p, { is_reconciled: residual === 0, is_matched: residual === 0 });
+      }
+      const invoiceIds = rows.map((r) => Number(r.move_id)).filter((moveId) => isCustomerMove(table('account.move').get(moveId))).map((moveId) => moveId);
+      for (const payment of table('account.payment').values()) {
+        const paymentMoveId = Array.isArray(payment.move_id) ? Number(payment.move_id[0]) : Number(payment.move_id);
+        if (!rows.some((r) => Number(r.move_id) === paymentMoveId)) continue;
+        const linkedInvoice = invoiceIds.find((invoiceId) => invoiceId !== paymentMoveId);
+        if (linkedInvoice !== undefined) Object.assign(payment, {
+          is_reconciled: true, is_matched: true,
+          reconciled_invoice_ids: [...new Set([...(Array.isArray(payment.reconciled_invoice_ids) ? payment.reconciled_invoice_ids as number[] : []), linkedInvoice])],
+        });
       }
       return true;
     },

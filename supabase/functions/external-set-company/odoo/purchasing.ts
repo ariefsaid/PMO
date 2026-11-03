@@ -1,7 +1,7 @@
 /**
  * Odoo purchasing setup verbs (#1505 P2): employ procurement under Odoo (FR-OPP-001, PQ-12 parity with ERPNext's `employ-domain`)
- * and the org's default payment journal (FR-OPP-093, OQ-OPP-6). Odoo is not called: the journal list is the O1 mirror, and the
- * writes go through the actor-checked RPCs (0505, 0509), which decide who may employ and which journals qualify.
+ * the org's default payment journal (FR-OPP-093, OQ-OPP-6), and the C5 tax-prepaid account. Odoo is not called: the journal and
+ * account lists are mirrored, and writes go through actor-checked RPCs (0505, 0509, 0512) that enforce their role and scope.
  */
 import { odooError, type OdooCtx } from './router.ts';
 
@@ -50,8 +50,27 @@ export async function proposeConfig(c: OdooCtx): Promise<Response> {
   return c.respond({ journal: { state: list.length ? 'choose' : 'none', candidates: list, current: null } });
 }
 
-/** Saves the chosen default payment journal. ponytail: journal only; O1-S7 adds account and unit defaults to this same verb. */
+/** Saves one default at a time through its actor-checked RPC. */
 export async function saveDefaults(c: OdooCtx): Promise<Response> {
+  const savesTaxPrepaid = Object.hasOwn(c.body, 'tax_prepaid_account_id');
+  if (savesTaxPrepaid) {
+    if (Object.hasOwn(c.body, 'default_payment_journal_id')) {
+      return odooError(c, 'Save one Odoo default at a time', 'BAD_REQUEST', 400);
+    }
+    const account = c.body.tax_prepaid_account_id;
+    const accountId = typeof account === 'number' && Number.isInteger(account) ? String(account) : account;
+    if (typeof accountId !== 'string' || !/^[1-9][0-9]{0,8}$/.test(accountId)) {
+      return odooError(c, 'tax_prepaid_account_id must be a positive account id', 'BAD_REQUEST', 400);
+    }
+    const { error } = await c.sc.rpc('set_odoo_tax_prepaid_account', {
+      p_org_id: c.orgId, p_actor_id: c.userId, p_account_id: accountId,
+    });
+    if (!error) return c.respond({ saved: true });
+    if (error.code === '42501') return odooError(c, 'Not allowed for your role', 'FORBIDDEN', 403);
+    if (error.code === 'P0001') return odooError(c, error.message, 'REFUSED', 409);
+    return odooError(c, 'The request could not be completed', 'STORE_FAILED', 500);
+  }
+
   const id = c.body.default_payment_journal_id;
   const text = typeof id === 'number' && Number.isInteger(id) ? String(id) : id;
   if (typeof text !== 'string' || !/^[0-9]{1,9}$/.test(text)) return odooError(c, 'default_payment_journal_id is required', 'BAD_REQUEST', 400);

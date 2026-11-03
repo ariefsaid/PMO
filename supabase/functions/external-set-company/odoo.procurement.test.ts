@@ -1,7 +1,7 @@
 /**
  * external-set-company — the Odoo purchasing setup verbs (#1505 P2-T8/T9, FR-OPP-001, FR-OPP-093, OQ-OPP-6, PQ-12): `employ-domain` with
- * `domain: 'procurement'`, and the payment journal in `propose-config` / `save-defaults`. Real handler from ./index.ts; Supabase mocked
- * over fetch. Odoo is never called: the verbs read the mirror and write through the actor-checked RPCs (0505, 0509).
+ * `domain: 'procurement'`, and the payment journal or tax-prepaid account in `propose-config` / `save-defaults`. Real handler from ./index.ts; Supabase mocked
+ * over fetch. Odoo is never called: the verbs read the mirror and write through the actor-checked RPCs (0505, 0509, 0512).
  */
 import { afterAll, describe, it } from '@std/testing/bdd';
 import { assertEquals } from '@std/assert';
@@ -30,7 +30,7 @@ function routes(o: Opts): MockRoute[] {
     supabaseRpc('actor_authorization_state', () => jsonResponse({ active: true })),
     supabaseSelect('external_org_bindings', () => one({ config: o.config ?? {} })),
     supabaseSelect('external_master_records', () => jsonResponse(o.journals ?? [])),
-    rpc('admin_change_domain_ownership'), rpc('set_odoo_payment_journal_default'),
+    rpc('admin_change_domain_ownership'), rpc('set_odoo_payment_journal_default'), rpc('set_odoo_tax_prepaid_account'),
   ];
 }
 async function call(body: Record<string, unknown>, o: Opts = {}) {
@@ -129,6 +129,60 @@ describe('Odoo router — the payment journal in propose-config / save-defaults 
     const r = await call({ setupAction: 'save-defaults', default_payment_journal_id: 11 }, { role: 'Finance' });
     assertEquals(r.json, { saved: true });
     assertEquals(rpcCall(r.calls, 'set_odoo_payment_journal_default').map((c) => c.bodyJson), [{ p_org_id: 'org-1', p_actor_id: 'user-1', p_journal_id: '11' }]);
+  });
+
+  it('AC-OCI-046 Admin and Finance save the tax-prepaid account through its actor-checked setter as the verified caller', async () => {
+    for (const role of ['Admin', 'Finance']) {
+      const r = await call({ setupAction: 'save-defaults', tax_prepaid_account_id: 88 }, { role });
+      assertEquals(r.res.status, 200, role);
+      assertEquals(r.json, { saved: true }, role);
+      assertEquals(rpcCall(r.calls, 'set_odoo_tax_prepaid_account').map((c) => c.bodyJson), [
+        { p_org_id: 'org-1', p_actor_id: 'user-1', p_account_id: '88' },
+      ], role);
+      assertEquals(rpcCall(r.calls, 'set_odoo_payment_journal_default').length, 0, role);
+    }
+  });
+
+  it('the tax-prepaid setter validates the account id and refuses non-Finance roles before calling it', async () => {
+    for (const id of [undefined, '', 'x', 0, -1, 1.5, {}, 1000000000]) {
+      const malformed = await call({ setupAction: 'save-defaults', tax_prepaid_account_id: id });
+      assertEquals(malformed.res.status, 400, String(id));
+      assertEquals(rpcCall(malformed.calls, 'set_odoo_tax_prepaid_account').length, 0);
+    }
+    for (const role of ['Executive', 'Project Manager', 'Engineer']) {
+      const denied = await call({ setupAction: 'save-defaults', tax_prepaid_account_id: 88 }, { role });
+      assertEquals(denied.res.status, 403, role);
+      assertEquals(rpcCall(denied.calls, 'set_odoo_tax_prepaid_account').length, 0, role);
+    }
+  });
+
+  it('a platform Operator keeps journal-default access but cannot set the tax-prepaid account', async () => {
+    const journalSave = await call({ setupAction: 'save-defaults', default_payment_journal_id: 11 }, { role: 'Engineer', operator: true });
+    assertEquals(journalSave.res.status, 200);
+    assertEquals(rpcCall(journalSave.calls, 'set_odoo_payment_journal_default').length, 1);
+
+    const accountSave = await call({ setupAction: 'save-defaults', tax_prepaid_account_id: 88 }, { role: 'Engineer', operator: true });
+    assertEquals(accountSave.res.status, 403);
+    assertEquals(rpcCall(accountSave.calls, 'set_odoo_tax_prepaid_account').length, 0);
+  });
+
+  it('save-defaults rejects a combined journal and tax-prepaid write before either setter', async () => {
+    const r = await call({ setupAction: 'save-defaults', default_payment_journal_id: 11, tax_prepaid_account_id: 88 });
+    assertEquals(r.res.status, 400);
+    assertEquals(rpcCall(r.calls, 'set_odoo_payment_journal_default').length, 0);
+    assertEquals(rpcCall(r.calls, 'set_odoo_tax_prepaid_account').length, 0);
+  });
+
+  it('tax-prepaid setter refusals preserve the authority and account errors', async () => {
+    const notAllowed = await call({ setupAction: 'save-defaults', tax_prepaid_account_id: 88 }, {
+      rpc: { set_odoo_tax_prepaid_account: () => pgError('42501', 'current authority required') },
+    });
+    assertEquals(notAllowed.res.status, 403);
+    const invalid = await call({ setupAction: 'save-defaults', tax_prepaid_account_id: 88 }, {
+      rpc: { set_odoo_tax_prepaid_account: () => pgError('P0001', 'not a tax-prepaid account of this connection') },
+    });
+    assertEquals(invalid.res.status, 409);
+    assertEquals(invalid.json, { error: 'REFUSED', message: 'not a tax-prepaid account of this connection' });
   });
 
   it('a missing or malformed journal id is a bad request and reaches no setter', async () => {
