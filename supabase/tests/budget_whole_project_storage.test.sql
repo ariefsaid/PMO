@@ -1,7 +1,7 @@
 -- AC-007 — the saved whole-project distribution is durable, replaceable and cloneable.
 begin;
 create extension if not exists pgtap;
-select plan(38);
+select plan(46);
 
 insert into organizations (id, name)
 values ('14730000-0000-0000-0000-000000000001', 'Whole Project Storage Org');
@@ -249,7 +249,7 @@ select throws_ok($$select public.save_budget_distribution(
   '14732222-0000-0000-0000-000000000001', 'percent_by_year', '{"FY27":"40","FY28":"60"}'::jsonb,
   '{"projectStart":"2027-01-01","projectEnd":"2028-12-31","years":[{"name":"FY27","start":"2027-01-01","end":"2027-12-31"},{"name":"FY28","start":"2028-01-01","end":"2028-12-31"}]}'::jsonb,
   '[{"category":"Labor","fiscal_year":"FY27","ordinal":0,"amount":"30.00","method":"percent_by_year","is_override":false},{"category":"Labor","fiscal_year":"FY28","ordinal":1,"amount":"70.00","method":"percent_by_year","is_override":false},{"category":"Travel & accommodation","fiscal_year":"FY27","ordinal":0,"amount":"0.00","method":"percent_by_year","is_override":false},{"category":"Travel & accommodation","fiscal_year":"FY28","ordinal":1,"amount":"0.00","method":"percent_by_year","is_override":false}]'::jsonb
-)$$, 'P0001', 'budget distribution for Labor has rows that do not follow its percentage inputs',
+)$$, 'P0001', 'budget distribution for Labor has rows that do not follow its percentage inputs (year FY27)',
   'AC-007 rows that reconcile in total but ignore the entered percentages are refused');
 select throws_ok($$select public.save_budget_distribution(
   '14732222-0000-0000-0000-000000000001', 'percent_by_year', '{"FY27":"40","FY28":"60"}'::jsonb,
@@ -267,6 +267,78 @@ select is(
   '{"overrides":{"Travel & accommodation":{"method":"amount_by_year","inputs":{"FY27":"0","FY28":"0"}}},"labor":"40.00,60.00"}'::jsonb,
   'AC-007 every rejected override leaves the previously approved plan intact'
 );
+
+
+-- ── Exact S2 arithmetic: the DB must reproduce budgetDistribution.allocate, not a tolerance. ──────
+insert into budget_versions (id, org_id, project_id, version, name, status, budget_mode)
+values ('14732222-0000-0000-0000-000000000050', '14730000-0000-0000-0000-000000000001',
+        '14731111-0000-0000-0000-000000000001', 50, 'Exact Remainder Draft', 'Draft', 'whole_project');
+insert into budget_line_items (org_id, budget_version_id, category, description, budgeted_amount, actual_amount)
+values ('14730000-0000-0000-0000-000000000001', '14732222-0000-0000-0000-000000000050', 'Labor', 'One cent total', 100.01, 0);
+
+-- 50/50 of 100.01: both shares floor to 50.00, the single remaining cent is a tie and goes to the
+-- earlier fiscal year. 50.00/50.01 is therefore the only accepted answer.
+select lives_ok($$select public.save_budget_distribution(
+  '14732222-0000-0000-0000-000000000050', 'percent_by_year',
+  '{"FY27":"50","FY28":"50"}'::jsonb,
+  '{"projectStart":"2027-01-01","projectEnd":"2028-12-31","years":[{"name":"FY27","start":"2027-01-01","end":"2027-12-31"},{"name":"FY28","start":"2028-01-01","end":"2028-12-31"}]}'::jsonb,
+  '[{"category":"Labor","fiscal_year":"FY27","ordinal":0,"amount":"50.01","method":"percent_by_year","is_override":false},{"category":"Labor","fiscal_year":"FY28","ordinal":1,"amount":"50.00","method":"percent_by_year","is_override":false}]'::jsonb
+)$$, 'AC-007 a tied 50/50 remainder of one cent goes to the earlier fiscal year');
+select throws_ok($$select public.save_budget_distribution(
+  '14732222-0000-0000-0000-000000000050', 'percent_by_year',
+  '{"FY27":"50","FY28":"50"}'::jsonb,
+  '{"projectStart":"2027-01-01","projectEnd":"2028-12-31","years":[{"name":"FY27","start":"2027-01-01","end":"2027-12-31"},{"name":"FY28","start":"2028-01-01","end":"2028-12-31"}]}'::jsonb,
+  '[{"category":"Labor","fiscal_year":"FY27","ordinal":0,"amount":"50.00","method":"percent_by_year","is_override":false},{"category":"Labor","fiscal_year":"FY28","ordinal":1,"amount":"50.01","method":"percent_by_year","is_override":false}]'::jsonb
+)$$, 'P0001', 'budget distribution for Labor has rows that do not follow its percentage inputs (year FY27)',
+  'AC-007 the same cent on the later year is refused (a balanced one-cent error)');
+
+-- A 0% year stays exactly zero: no remainder unit may be moved onto it.
+select lives_ok($$select public.save_budget_distribution(
+  '14732222-0000-0000-0000-000000000050', 'percent_by_year',
+  '{"FY27":"0","FY28":"100"}'::jsonb,
+  '{"projectStart":"2027-01-01","projectEnd":"2028-12-31","years":[{"name":"FY27","start":"2027-01-01","end":"2027-12-31"},{"name":"FY28","start":"2028-01-01","end":"2028-12-31"}]}'::jsonb,
+  '[{"category":"Labor","fiscal_year":"FY27","ordinal":0,"amount":"0.00","method":"percent_by_year","is_override":false},{"category":"Labor","fiscal_year":"FY28","ordinal":1,"amount":"100.01","method":"percent_by_year","is_override":false}]'::jsonb
+)$$, 'AC-007 a 0% year keeps an exact zero and the other year carries the whole total');
+select throws_ok($$select public.save_budget_distribution(
+  '14732222-0000-0000-0000-000000000050', 'percent_by_year',
+  '{"FY27":"0","FY28":"100"}'::jsonb,
+  '{"projectStart":"2027-01-01","projectEnd":"2028-12-31","years":[{"name":"FY27","start":"2027-01-01","end":"2027-12-31"},{"name":"FY28","start":"2028-01-01","end":"2028-12-31"}]}'::jsonb,
+  '[{"category":"Labor","fiscal_year":"FY27","ordinal":0,"amount":"0.01","method":"percent_by_year","is_override":false},{"category":"Labor","fiscal_year":"FY28","ordinal":1,"amount":"100.00","method":"percent_by_year","is_override":false}]'::jsonb
+)$$, 'P0001', 'budget distribution for Labor has rows that do not follow its percentage inputs (year FY27)',
+  'AC-007 a nonzero amount on a 0% year is refused even though the total still reconciles');
+
+-- Budget-wide amount vectors are proportions: 1:2 of 100.01 floors to 33.33/66.67, and the remaining
+-- cent follows the larger remainder (year one).
+select lives_ok($$select public.save_budget_distribution(
+  '14732222-0000-0000-0000-000000000050', 'amount_by_year',
+  '{"FY27":"1.00","FY28":"2.00"}'::jsonb,
+  '{"projectStart":"2027-01-01","projectEnd":"2028-12-31","years":[{"name":"FY27","start":"2027-01-01","end":"2027-12-31"},{"name":"FY28","start":"2028-01-01","end":"2028-12-31"}]}'::jsonb,
+  '[{"category":"Labor","fiscal_year":"FY27","ordinal":0,"amount":"33.34","method":"amount_by_year","is_override":false},{"category":"Labor","fiscal_year":"FY28","ordinal":1,"amount":"66.67","method":"amount_by_year","is_override":false}]'::jsonb
+)$$, 'AC-007 proportional amounts place the remaining cent by largest remainder');
+select throws_ok($$select public.save_budget_distribution(
+  '14732222-0000-0000-0000-000000000050', 'amount_by_year',
+  '{"FY27":"1.00","FY28":"2.00"}'::jsonb,
+  '{"projectStart":"2027-01-01","projectEnd":"2028-12-31","years":[{"name":"FY27","start":"2027-01-01","end":"2027-12-31"},{"name":"FY28","start":"2028-01-01","end":"2028-12-31"}]}'::jsonb,
+  '[{"category":"Labor","fiscal_year":"FY27","ordinal":0,"amount":"33.33","method":"amount_by_year","is_override":false},{"category":"Labor","fiscal_year":"FY28","ordinal":1,"amount":"66.68","method":"amount_by_year","is_override":false}]'::jsonb
+)$$, 'P0001', 'budget distribution for Labor has rows that do not follow its amount proportions (year FY27)',
+  'AC-007 a proportional split with the cent on the wrong year is refused');
+
+-- A category amount override is its entered figures, verbatim.
+select lives_ok($$select public.save_budget_distribution(
+  '14732222-0000-0000-0000-000000000050', 'percent_by_year',
+  '{"FY27":"100","FY28":"0"}'::jsonb,
+  '{"projectStart":"2027-01-01","projectEnd":"2028-12-31","years":[{"name":"FY27","start":"2027-01-01","end":"2027-12-31"},{"name":"FY28","start":"2028-01-01","end":"2028-12-31"}]}'::jsonb,
+  '[{"category":"Labor","fiscal_year":"FY27","ordinal":0,"amount":"60.01","method":"amount_by_year","is_override":true},{"category":"Labor","fiscal_year":"FY28","ordinal":1,"amount":"40.00","method":"amount_by_year","is_override":true}]'::jsonb,
+  '{"Labor":{"method":"amount_by_year","inputs":{"FY27":"60.01","FY28":"40.00"}}}'::jsonb
+)$$, 'AC-007 a category amount override saves exactly its entered figures');
+select throws_ok($$select public.save_budget_distribution(
+  '14732222-0000-0000-0000-000000000050', 'percent_by_year',
+  '{"FY27":"100","FY28":"0"}'::jsonb,
+  '{"projectStart":"2027-01-01","projectEnd":"2028-12-31","years":[{"name":"FY27","start":"2027-01-01","end":"2027-12-31"},{"name":"FY28","start":"2028-01-01","end":"2028-12-31"}]}'::jsonb,
+  '[{"category":"Labor","fiscal_year":"FY27","ordinal":0,"amount":"40.00","method":"amount_by_year","is_override":true},{"category":"Labor","fiscal_year":"FY28","ordinal":1,"amount":"60.01","method":"amount_by_year","is_override":true}]'::jsonb,
+  '{"Labor":{"method":"amount_by_year","inputs":{"FY27":"60.01","FY28":"40.00"}}}'::jsonb
+)$$, 'P0001', 'budget distribution for Labor has rows that do not match its amount inputs (year FY27)',
+  'AC-007 an amount override whose rows swap its entered years is refused');
 
 reset role;
 select * from finish();

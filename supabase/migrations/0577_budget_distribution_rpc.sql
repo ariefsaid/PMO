@@ -165,9 +165,6 @@ declare
   v_declared_method text;
   v_declared_inputs jsonb;
   v_declared_is_override boolean;
-  v_input_sum numeric;
-  v_expected numeric;
-  v_actual numeric;
 begin
   select project_id, org_id, status, budget_mode
     into v_project, v_org, v_status, v_mode
@@ -200,6 +197,12 @@ begin
     select 1 from jsonb_each(p_inputs) as input(key, value)
      where jsonb_typeof(input.value) is distinct from 'string'
         or (input.value #>> '{}') !~ '^\d+(\.\d{1,4})?$'
+  ) then
+    raise exception 'budget distribution inputs contain an invalid value' using errcode = 'P0001';
+  end if;
+  if p_method = 'amount_by_year' and exists (
+    select 1 from jsonb_each(p_inputs) as input(key, value)
+     where (input.value #>> '{}') !~ '^\d+(\.\d{1,2})?$'
   ) then
     raise exception 'budget distribution inputs contain an invalid value' using errcode = 'P0001';
   end if;
@@ -349,6 +352,12 @@ begin
     ) then
       raise exception 'budget distribution inputs for % contain an invalid value', v_override_key using errcode = 'P0001';
     end if;
+    if v_override_method = 'amount_by_year' and exists (
+      select 1 from jsonb_each(v_override_inputs) as input(key, value)
+       where (input.value #>> '{}') !~ '^\d+(\.\d{1,2})?$'
+    ) then
+      raise exception 'budget distribution inputs for % contain an invalid value', v_override_key using errcode = 'P0001';
+    end if;
     if exists (
       select 1 from jsonb_each(v_override_inputs) as input(key, value)
        where not (input.key = any(v_basis_years))
@@ -490,34 +499,80 @@ begin
       raise exception 'budget distribution for % has an override flag that does not match its declaration', v_category using errcode = 'P0001';
     end if;
 
-    -- Resolved rows must follow the entered vector, not merely sum to the category total. Percent
-    -- vectors allow the single minor unit a largest-remainder split may move; amount overrides are
-    -- exact; a budget-wide amount vector is a proportion of each category's own total.
-    if v_declared_method in ('percent_by_year','amount_by_year') then
-      v_input_sum := (select sum((input.value #>> '{}')::numeric) from jsonb_each(v_declared_inputs) as input(key, value));
-      for v_year_name in select unnest(v_basis_years) loop
-        select (r.value ->> 'amount')::numeric
-          into v_actual
-          from jsonb_array_elements(p_rows) as r(value)
-         where r.value ->> 'category' = v_category
-           and r.value ->> 'fiscal_year' = v_year_name;
-        if v_declared_method = 'amount_by_year' and v_declared_is_override then
-          v_expected := (v_declared_inputs ->> v_year_name)::numeric;
-          if v_actual is distinct from v_expected then
-            raise exception 'budget distribution for % has rows that do not match its amount inputs', v_category using errcode = 'P0001';
-          end if;
-        elsif v_declared_method = 'percent_by_year' then
-          v_expected := round(v_expected_amount * (v_declared_inputs ->> v_year_name)::numeric / 100, 2);
-          if abs(v_actual - v_expected) > 0.0101 then
-            raise exception 'budget distribution for % has rows that do not follow its percentage inputs', v_category using errcode = 'P0001';
-          end if;
+    -- Resolved rows must equal the exact proposal, not merely sum to the category total. This is the
+    -- budgetDistribution.allocate contract in SQL: floor every share at the currency minor unit, then
+    -- hand the remaining units to the largest fractional remainders (ties to the earlier fiscal year),
+    -- and never hand a unit to a zero weight. Percent inputs are 1e-4 percentage units (sum 1,000,000);
+    -- a budget-wide amount vector is a proportion of each category's own total; a category amount
+    -- override is compared verbatim to its entered figures.
+    if v_declared_method = 'amount_by_year' and v_declared_is_override then
+      select r.value ->> 'fiscal_year' into v_year_name
+        from jsonb_array_elements(p_rows) as r(value)
+       where r.value ->> 'category' = v_category
+         and round((r.value ->> 'amount')::numeric * 100)
+             is distinct from round((v_declared_inputs ->> (r.value ->> 'fiscal_year'))::numeric * 100)
+       order by r.value ->> 'fiscal_year'
+       limit 1;
+      if v_year_name is not null then
+        raise exception 'budget distribution for % has rows that do not match its amount inputs (year %)',
+          v_category, v_year_name using errcode = 'P0001';
+      end if;
+    elsif v_declared_method in ('percent_by_year','amount_by_year') then
+      with years as (
+        select y.value ->> 'name' as year_name, (y.ordinality - 1)::integer as ordinal
+          from jsonb_array_elements(p_basis -> 'years') with ordinality as y(value, ordinality)
+      ),
+      weighted as (
+        select years.year_name, years.ordinal,
+               case v_declared_method
+                 when 'percent_by_year' then round((v_declared_inputs ->> years.year_name)::numeric * 10000)
+                 else round((v_declared_inputs ->> years.year_name)::numeric * 100)
+               end as weight
+          from years
+      ),
+      totals as (
+        select sum(weighted.weight) as weight_sum from weighted
+      ),
+      floored as (
+        select weighted.year_name, weighted.ordinal, weighted.weight,
+               trunc(v_expected_amount * 100 * weighted.weight / totals.weight_sum) as base_cents,
+               mod(v_expected_amount * 100 * weighted.weight, totals.weight_sum) as remainder
+          from weighted cross join totals
+      ),
+      remainder_order as (
+        select floored.year_name,
+               row_number() over (order by floored.remainder desc, floored.ordinal asc) as place
+          from floored
+         where floored.weight > 0
+      ),
+      leftover as (
+        select v_expected_amount * 100 - (select sum(floored.base_cents) from floored) as units
+      ),
+      expected as (
+        select floored.year_name,
+               floored.base_cents
+                 + case when floored.weight > 0 and units.place <= leftover.units then 1 else 0 end as expected_cents
+          from floored
+          left join remainder_order units on units.year_name = floored.year_name
+          cross join leftover
+      )
+      select expected.year_name into v_year_name
+        from expected
+        join jsonb_array_elements(p_rows) as r(value)
+          on r.value ->> 'category' = v_category
+         and r.value ->> 'fiscal_year' = expected.year_name
+       where round((r.value ->> 'amount')::numeric * 100) is distinct from expected.expected_cents
+       order by expected.year_name
+       limit 1;
+      if v_year_name is not null then
+        if v_declared_method = 'percent_by_year' then
+          raise exception 'budget distribution for % has rows that do not follow its percentage inputs (year %)',
+            v_category, v_year_name using errcode = 'P0001';
         else
-          v_expected := round(v_expected_amount * (v_declared_inputs ->> v_year_name)::numeric / v_input_sum, 2);
-          if abs(v_actual - v_expected) > 0.0101 then
-            raise exception 'budget distribution for % has rows that do not follow its amount proportions', v_category using errcode = 'P0001';
-          end if;
+          raise exception 'budget distribution for % has rows that do not follow its amount proportions (year %)',
+            v_category, v_year_name using errcode = 'P0001';
         end if;
-      end loop;
+      end if;
     end if;
   end loop;
 
