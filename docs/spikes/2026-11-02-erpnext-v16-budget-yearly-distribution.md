@@ -41,8 +41,12 @@ the names and access details do not belong in this public evidence file.
 
 The mode is disabled unless `--range-probe` is supplied and refuses to proceed unless the version
 handshake reports ERPNext major 16. It creates one uniquely named Project, reads three configured
-Fiscal Year rows, reads a range Budget draft with yearly amounts `100.00 / 0.00 / 200.00`. It then changes the manual percentages to `25 / 0 / 75`, changes the total to `400.00`, and
-checks whether ERPNext recalculates the row amounts to `100.00 / 0.00 / 300.00` before submission and on read-back. That distinguishes
+Fiscal Year rows, then creates a range Budget draft and writes its explicit yearly rows
+`100.00 / 0.00 / 200.00` onto that draft with a PUT, and reads the complete saved draft back (the
+first three steps of the "Tested write sequence" below). It then changes the manual percentages to
+`25 / 0 / 75` and the total to `400.00`, and checks whether ERPNext recalculates the row amounts to
+`100.00 / 0.00 / 300.00` before submission; it submits that full document and reads the submitted
+document back to check the same amounts. That distinguishes
 percentage-driven recalculation from the saved amount rows. Two additional account cases attempt
 overlapping annual-then-range and range-then-annual Budgets. Submitted test Budgets are cancelled;
 any draft left by an interrupted run is deleted. The run-owned Project and cancelled Budget rows
@@ -79,8 +83,9 @@ A separate journal-entry check against a 300 range budget submitted 200 in the f
 101 in the next year with `BudgetError`, submitted 100 in the final year, and rejected one further
 unit with `BudgetError`. This demonstrates total enforcement for those actual-expense cases across
 years. It does not prove every transaction type, rounding boundary, or calendar configuration.
-Both probes settled their own submitted budgets as cancelled; the journal-entry probe cancelled
-its submitted entries and removed its drafts. The disposable site was stopped after the check.
+Both probes settled their own submitted budgets as cancelled. The journal-entry probe issued
+cancellation for its submitted entries, removed its drafts, and read back its budget as cancelled;
+it did not re-read the journal cancellations. The disposable site was stopped after the check.
 
 The tested write sequence is **POST the Budget draft → PUT its explicit `budget_distribution`
 rows → GET the complete saved draft → submit that full document → GET the submitted document**.
