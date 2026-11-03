@@ -41,11 +41,15 @@ async function sign(body: string): Promise<string> {
   return btoa(bin);
 }
 
-function deps(applyEvent: () => Promise<unknown> = async () => ({ kind: 'upserted', pmoRecordId: 'pmo-1', adopted: false })): ErpWebhookHandlerDeps {
+function deps(
+  applyEvent: () => Promise<unknown> = async () => ({ kind: 'upserted', pmoRecordId: 'pmo-1', adopted: false }),
+  featureEnabled?: ErpWebhookHandlerDeps['featureEnabled'],
+): ErpWebhookHandlerDeps {
   let applied = 0;
   return {
     resolveEmployingOrgs: async () => [{ orgId: ORG_ID, webhookSecret: SECRET, company: COMPANY, ownedDomains: ['procurement', 'revenue', 'companies'] }],
     applyEvent: async () => { applied += 1; await applyEvent(); return { kind: 'upserted' as const, pmoRecordId: 'pmo-1', adopted: false }; },
+    ...(featureEnabled ? { featureEnabled } : {}),
     // exposed via closure for the no-side-effect assertion
     _applied: () => applied,
   } as unknown as ErpWebhookHandlerDeps & { _applied: () => number };
@@ -96,6 +100,43 @@ Deno.test('AC-ENA-070: a VALID signature ⇒ applied as a hint (200 + outcome)',
   assert((d as unknown as { _applied: () => number })._applied() === 1, 'applyEvent MUST be called once on a valid signature');
   const body = (await res.json()) as { ok?: boolean };
   assert(body.ok === true, 'expected { ok: true }');
+});
+
+Deno.test('FR-PLN-006 / FR-ENA-083: a verified webhook retries while off and the same event applies after re-enable', async () => {
+  let enabled = false;
+  const checkedKeys: string[] = [];
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const request = input instanceof Request ? input : new Request(input, init);
+    const payload = await request.json() as { orgId: string; key: string };
+    assert(payload.orgId === ORG_ID, 'feature check is bound to the HMAC-selected org');
+    checkedKeys.push(payload.key);
+    return Response.json(enabled);
+  }) as typeof fetch;
+  try {
+    const d = deps(undefined, async (orgId, key) => {
+      const response = await fetch('https://edge-test.supabase.test/feature', {
+        method: 'POST',
+        body: JSON.stringify({ orgId, key }),
+      });
+      return await response.json() as boolean;
+    });
+    const signature = await sign(PI_EVENT);
+    const off = await handleErpWebhook(req(PI_EVENT, signature), d);
+    assert(off.status === 503, `off entitlement must be retryable, got ${off.status}`);
+    assert((await off.json() as { error?: string }).error === 'feature_off', 'off response is typed');
+    assert((d as unknown as { _applied: () => number })._applied() === 0, 'off event is never applied or dropped');
+
+    enabled = true;
+    checkedKeys.length = 0;
+    const resumed = await handleErpWebhook(req(PI_EVENT, signature), d);
+    assert(resumed.status === 200, `same event applies after re-enable, got ${resumed.status}`);
+    assert((d as unknown as { _applied: () => number })._applied() === 1, 'the retried event is applied once');
+    assert(checkedKeys.includes('erp_sync'), 'global ERP switch is checked');
+    assert(checkedKeys.length === 2, 'the module key is checked alongside erp_sync');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 Deno.test('AC-ENA-070: no employing org ⇒ 401 (no secret to match, no side effect)', async () => {
@@ -451,6 +492,7 @@ Deno.test('FIX 1: ANOTHER org\'s in-flight row never blocks this org (org scopin
   const d = depsWithOutbox([{ org_id: 'some-other-org', state: 'committing', idempotency_key: INFLIGHT_KEY }]);
   const event = siEventWithRemarks(INFLIGHT_KEY);
   const res = await handleErpWebhook(req(event, await sign(event)), d);
+  assert(res.status === 200, `expected 200, got ${res.status}`);
   assert(d._applied() === 1, 'the in-flight guard is org-scoped — a foreign org\'s command must not block adoption here');
 });
 

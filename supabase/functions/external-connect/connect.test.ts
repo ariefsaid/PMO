@@ -12,9 +12,9 @@
  * - invalid JWT → 401
  */
 
-import { describe, it, beforeAll, afterAll } from '@std/testing/bdd';
-import { assertEquals, assertRejects } from '@std/assert';
-import { handleConnectRequest, setTestJwks, testSupabaseOptions } from './index.ts';
+import { describe, it, afterAll } from '@std/testing/bdd';
+import { assertEquals } from '@std/assert';
+import { handleConnectRequest, setTestJwks } from './index.ts';
 import {
   createJwtAuthority,
   installEdgeEnv,
@@ -49,12 +49,14 @@ const withFetchMock: typeof baseWithFetchMock = (routes, run) => {
     } }
     : route);
   return baseWithFetchMock(
-    [...wrapped, supabaseRpc('actor_authorization_state', () => jsonResponse({ active: true, role }))],
+    [
+      ...wrapped,
+      supabaseRpc('actor_authorization_state', () => jsonResponse({ active: true, role })),
+      supabaseRpc('service_feature_enabled', () => jsonResponse(true)),
+    ],
     run,
   );
 };
-import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
-
 // One stable authority + env per test module (see TEST-ARCH.md _jwks memoization nuance)
 const env = installEdgeEnv();
 const originalResolveDns = Deno.resolveDns;
@@ -76,6 +78,26 @@ async function authed(body: unknown, sub = 'user-1') {
 }
 
 describe('external-connect — ClickUp branch', () => {
+  it('FR-PLN-006 erp_sync off refuses before staging credentials or contacting ClickUp', async () => {
+    await withFetchMock([
+      supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, {
+        headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+      })),
+      supabaseSelect('platform_operators', () => new Response('null', { status: 200 })),
+      supabaseRpc('service_feature_enabled', (call) => {
+        assertEquals(call.bodyJson, { p_org_id: 'org-1', p_key: 'erp_sync' });
+        return jsonResponse(false);
+      }),
+    ], async ({ calls }) => {
+      const res = await handleConnectRequest(await authed({ tier: 'clickup', credential: { token: 'valid-token' } }));
+      assertEquals(res.status, 409);
+      assertEquals((await res.json()).error, 'feature_off');
+      assertEquals(rpcCall(calls, 'stage_vault_secret_for_org').length, 0);
+      assertEquals(restCall(calls, 'external_org_bindings', 'PATCH').length, 0);
+      assertEquals(calls.filter((call) => call.url.hostname === 'api.clickup.com').length, 0);
+    });
+  });
+
   it('Admin + valid ClickUp token → 200, Vault RPC + ownership RPC', async () => {
     await withFetchMock(
       [
@@ -681,7 +703,7 @@ describe('external-connect — JWT validation', () => {
           headers: { 'content-type': 'application/json' },
         })),
       ],
-      async ({ calls }) => {
+      async () => {
         const res = await handleConnectRequest(await authed({ tier: 'unknown', credential: {} }));
         assertEquals(res.status, 400);
       },
@@ -701,7 +723,7 @@ describe('external-connect — JWT validation', () => {
           headers: { 'content-type': 'application/json' },
         })),
       ],
-      async ({ calls }) => {
+      async () => {
         const res = await handleConnectRequest(await authed({ tier: 'clickup', credential: {} }));
         assertEquals(res.status, 400);
       },
@@ -721,7 +743,7 @@ describe('external-connect — JWT validation', () => {
           headers: { 'content-type': 'application/json' },
         })),
       ],
-      async ({ calls }) => {
+      async () => {
         const res = await handleConnectRequest(await authed({ tier: 'erpnext', credential: { siteUrl: 'https://erp.example.com' } }));
         assertEquals(res.status, 400);
       },

@@ -49,6 +49,8 @@ export interface World {
   hangDocuments?: boolean;
   /** `org_features.enabled` for the m365 entitlement (default true). */
   entitled?: boolean;
+  /** Effective `m365_integration` plan switch (default true). */
+  featureEnabled?: boolean;
   /** `m365_membership_state.state` (default active). */
   memberState?: "active" | "disabled" | "banned" | "missing";
   settings: unknown[] | { error: { code: string; message: string } };
@@ -150,6 +152,7 @@ function routesFor(world: World, connection: Record<string, unknown>): MockRoute
   return [
     ...extraTables,
     { label: "membership", pathname: "/rest/v1/rpc/m365_membership_state", response: () => jsonResponse({ state: world.memberState ?? "active", org_id: ORG, role: world.role }) },
+    { label: "feature", pathname: "/rest/v1/rpc/service_feature_enabled", response: () => jsonResponse(world.featureEnabled ?? true) },
     table("org_features", () => jsonResponse({ enabled: world.entitled ?? true }, OBJECT_HEADERS)),
     table("projects", (call) => world.parentError ? jsonResponse(world.parentError, { status: 500 }) : parentRows(call)),
     table("procurements", (call) => world.parentError ? jsonResponse(world.parentError, { status: 500 }) : parentRows(call)),
@@ -165,6 +168,7 @@ function routesFor(world: World, connection: Record<string, unknown>): MockRoute
         ? jsonResponse({ message: "none" }, { status: 406 })
         : jsonResponse(connection, OBJECT_HEADERS)),
     { label: "link", pathname: "/rest/v1/rpc/m365_link_record_folder", response: (call) => world.link(call) },
+    { label: "delete-connection", pathname: "/rest/v1/rpc/m365_delete_connection", response: () => jsonResponse("synthetic-connection") },
     { label: "created", pathname: "/rest/v1/rpc/m365_record_folder_created", response: (call) => world.created(call) },
     { label: "candidates", pathname: "/rest/v1/rpc/m365_record_folder_candidates", response: (call) => world.candidates(call) },
     { label: "pkce-state", method: "POST", pathname: "/rest/v1/m365_pkce_states", response: () => new Response(null, { status: 201 }) },

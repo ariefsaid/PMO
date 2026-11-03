@@ -172,6 +172,21 @@ Enforcement applies at **enqueue and pass start**, never mid-flight:
 - Disconnect/unlink paths (`external-unlink`, `m365_delete_connection` 0116:42): an off feature must
   still be tearable-down; only new links refuse.
 
+**S2 edge boundary rulings (2026-11-03):**
+- `external-link` checks `clickup_sync` for ClickUp links and `erp_sync` for ERPNext links; mutating
+  `external-set-company` actions check `erp_sync`, while reads and link-removal cleanup stay available.
+- `external-unlink` remains ungated for teardown; `adapter-dispatch` remains ungated so commands already
+  accepted by PMO can finish and reach their terminal state.
+- `erpnext-webhook` returns retryable 503 without applying a verified event while `erp_sync` or its
+  domain key is off/unreadable; `erpnext-sweep` leaves its watermark untouched and converges the change
+  after re-enable.
+- `clickup-webhook` remains raw durable ingress; `clickup-webhook-worker` restores a disabled row to
+  `pending` with its `feature-off:clickup_sync` reason until the key is on.
+- `m365-token-custody` refuses new consent initiation, callback completion and write actions while
+  `m365_integration` is off; reads and disconnect cleanup stay available.
+- `agent-chat` refuses when `agent_assistant` is off and disables its nested `compose_view` tool when
+  `user_views` is off; `compose-view` refuses directly on `user_views`.
+
 ### Enforcement mechanics (0534 contents)
 
 - **`assert_feature_on(p_org_id uuid, p_key text)`** — plpgsql security-definer helper, pinned

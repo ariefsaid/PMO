@@ -9,6 +9,7 @@ import { AdapterError } from '../../../pmo-portal/src/lib/adapterSeam/contract.t
 import { takeCensus } from '../../../pmo-portal/src/lib/adapterSeam/connect/census.ts';
 import { connectAdapterForOrg } from '../_shared/connectAdapterForOrg.ts';
 import { pmoMasterCounts } from '../_shared/connectPmoMasters.ts';
+import { erpSyncFeatureDecision } from './featureGate.ts';
 
 export const CONNECT_ACTIONS = new Set(['census', 'connect-status', 'list-proposals', 'accept-proposals', 'decide-review', 'unlink-match', 'retry-send']);
 
@@ -21,6 +22,7 @@ const ACCEPT_CALLS_PER_REQUEST = 20;
 const ACCEPT_BUDGET_MS = 60_000;
 /** Tiers whose sweep pass advances a setup run. A census starts a run, so a tier without a pass would leave it open forever. */
 const CENSUS_TIERS = new Set(['erpnext', 'odoo']);
+const ERP_SYNC_GATED_ACTIONS = new Set(['census', 'accept-proposals']);
 
 export interface ConnectCtx {
   serviceClient: SupabaseClient;
@@ -92,6 +94,14 @@ export async function handleConnectAction(ctx: ConnectCtx): Promise<unknown> {
   if (body.kind !== undefined && body.kind !== null && !KINDS.includes(String(body.kind))) throw new AppError('Unknown kind', 'BAD_REQUEST');
   if (!allowed(action, ctx.role, body.kind)) throw new AppError('Not allowed for your role', 'FORBIDDEN');
   if ((action === 'unlink-match' || action === 'retry-send') && ctx.role !== 'Admin') throw new AppError('Not allowed for your role', 'FORBIDDEN');
+
+  // A census starts new integration work, and accepting proposals can mint new ERP writes. Existing
+  // decisions, unlink cleanup and retry recovery remain available while the module is off.
+  if (ERP_SYNC_GATED_ACTIONS.has(action) && (tier === 'erpnext' || tier === 'odoo')) {
+    const decision = await erpSyncFeatureDecision(ctx.serviceClient, ctx.orgId);
+    if (decision === 'unavailable') throw new AppError('Could not resolve the plan switch', 'INTERNAL');
+    if (decision === 'off') throw new AppError('ERP integration is not enabled for this organization', 'feature_off');
+  }
 
   if (action === 'census') {
     if (ctx.role !== 'Admin') throw new AppError('Not allowed for your role', 'FORBIDDEN');

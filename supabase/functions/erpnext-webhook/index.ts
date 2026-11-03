@@ -108,6 +108,8 @@ export interface ErpWebhookHandlerDeps {
   /** Apply one decoded event for a resolved org (the wrapper builds the feed deps + the fromDoc-mapped
    *  canonical + calls applyErpFeedEvent). Returns the apply outcome (or throws on a real failure). */
   applyEvent: (orgId: string, event: ErpFeedEvent) => Promise<ApplyOutcome>;
+  /** Effective plan switch check for the lossy hint path; false/unreadable is retryable, never ack-dropped. */
+  featureEnabled?: (orgId: string, key: string) => Promise<boolean>;
   /**
    * FIX 1 (round-9 SHOULD-FIX): the in-flight adopt guard — the SAME `createInFlightAnchorProbe` barrier
    * the sweep raises (`buildIsInFlightAdopt`). Answers "does an UNRESOLVED (in-flight, non-confirmed)
@@ -262,6 +264,22 @@ export async function handleErpWebhook(req: Request, deps: ErpWebhookHandlerDeps
   // no longer in-flight and a legitimately-later webhook flows through the normal resolve/update path.
   if (await deps.isInFlightAdopt?.(matchedOrg.orgId, event)) {
     return json({ ok: true, skipped: 'in-flight-command-owns-doc' });
+  }
+
+  // The sweep is the convergence authority, but a verified webhook must not be acknowledged and lost
+  // while a module is off. Return retryable 503 before applying; the untouched sweep watermark also
+  // ensures the same ERP change is discovered when the key is re-enabled.
+  if (deps.featureEnabled) {
+    const moduleKey: Record<string, string> = { companies: 'crm', procurement: 'procurement', revenue: 'revenue' };
+    for (const key of ['erp_sync', moduleKey[event.domain]].filter((value): value is string => Boolean(value))) {
+      try {
+        if (!(await deps.featureEnabled(matchedOrg.orgId, key))) {
+          return json({ error: 'feature_off', message: 'ERP sync is paused for this organization' }, 503);
+        }
+      } catch {
+        return json({ error: 'FEATURE_SWITCH_UNAVAILABLE', message: 'ERP sync is temporarily unavailable' }, 503);
+      }
+    }
   }
 
   // ── 3. Apply via the lineage-aware feed (lossy hint; the sweep is the convergence authority). ──
@@ -432,6 +450,11 @@ serveWithErrorReporting('erpnext-webhook', async (req: Request): Promise<Respons
   return handleErpWebhook(req, {
     resolveEmployingOrgs: () => resolveEmployingOrgsLive(serviceClient),
     applyEvent: (orgId, event) => applyEventLive(serviceClient, orgId, event),
+    featureEnabled: async (orgId, key) => {
+      const { data, error } = await serviceClient.rpc('service_feature_enabled', { p_org_id: orgId, p_key: key });
+      if (error) throw new AppError('could not resolve ERP sync entitlement', 'INTERNAL');
+      return data === true;
+    },
     // FIX 1: the in-flight adopt guard is ALWAYS wired on the live path (the dep is optional only so the
     // gate/decode unit tests stay byte-for-byte).
     isInFlightAdopt: buildIsInFlightAdopt(serviceClient),

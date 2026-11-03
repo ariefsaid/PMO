@@ -25,6 +25,7 @@ const {
   buildApplyDepsLive,
   claimPendingLive,
   markFailedLive,
+  jobHandler,
   MAX_INBOX_ATTEMPTS,
 } = await import('./index.ts');
 type ProcessRowDeps = Parameters<typeof processInboxRow>[1];
@@ -232,7 +233,14 @@ function fakeBindingResolverClient(opts: { mapped?: boolean } = {}) {
   return {
     from(table: string) {
       const filters: Record<string, string> = {};
-      const query: any = {
+      type Query = {
+        select: () => Query;
+        eq: (column: string, value: string) => Query;
+        is: (column: string, value: null) => Query;
+        maybeSingle: () => Promise<{ data: unknown }>;
+        then: (resolve: (value: unknown) => unknown) => unknown;
+      };
+      const query: Query = {
         select: () => query,
         eq: (column: string, value: string) => { filters[column] = value; return query; },
         is: (column: string, value: null) => { filters[column] = String(value); return query; },
@@ -308,8 +316,16 @@ function fakeMirrorWriteClient() {
   const inserts: Array<{ table: string; row: Record<string, unknown> }> = [];
   const client = {
     from(table: string) {
-      // deno-lint-ignore no-explicit-any
-      const q: any = {
+      type MirrorWriteQuery = {
+        select: () => MirrorWriteQuery;
+        eq: (column: string, value: unknown) => MirrorWriteQuery;
+        or: () => MirrorWriteQuery;
+        update: () => MirrorWriteQuery;
+        insert: (row: Record<string, unknown>) => MirrorWriteQuery;
+        maybeSingle: () => Promise<{ data: unknown; error: null }>;
+        then: (resolve: (value: unknown) => unknown) => unknown;
+      };
+      const q: MirrorWriteQuery = {
         select: () => q,
         eq: () => q,
         or: () => q,
@@ -359,8 +375,18 @@ function statefulClient(seed: { refs: FieldRow[]; tasks: FieldRow[] }) {
       let payload: FieldRow = {};
       const rows = () => (tables[table] ??= []);
       const match = (r: FieldRow) => filters.every(([c, v]) => r[c] === v);
-      // deno-lint-ignore no-explicit-any
-      const b: any = {
+      type StatefulQuery = {
+        select: () => StatefulQuery;
+        eq: (column: string, value: unknown) => StatefulQuery;
+        is: (column: string, value: unknown) => StatefulQuery;
+        or: () => StatefulQuery;
+        update: (row: FieldRow) => StatefulQuery;
+        insert: (row: FieldRow) => StatefulQuery;
+        upsert: (row: FieldRow) => StatefulQuery;
+        maybeSingle: () => Promise<{ data: FieldRow | null; error: null }>;
+        then: (resolve: (value: unknown) => unknown) => unknown;
+      };
+      const b: StatefulQuery = {
         select: () => b,
         eq: (c: string, v: unknown) => (filters.push([c, v]), b),
         is: (c: string, v: unknown) => (filters.push([c, v]), b),
@@ -437,10 +463,12 @@ Deno.test('live worker: no ClickUp parent keeps the linked PMO parent; a ClickUp
 function batchDeps(rows: InboxRow[], processRow: WorkerBatchDeps['processRow']): WorkerBatchDeps & {
   done: string[];
   failed: Array<{ id: string; error: string }>;
+  held: Array<{ id: string; reason: string }>;
   unresolvable: Array<{ id: string; reason: string }>;
 } {
   const done: string[] = [];
   const failed: Array<{ id: string; error: string }> = [];
+  const held: Array<{ id: string; reason: string }> = [];
   const unresolvable: Array<{ id: string; reason: string }> = [];
   return {
     claimPending: async () => rows,
@@ -450,12 +478,16 @@ function batchDeps(rows: InboxRow[], processRow: WorkerBatchDeps['processRow']):
     markFailed: async (id, error) => {
       failed.push({ id, error });
     },
+    markHeld: async (id, reason) => {
+      held.push({ id, reason });
+    },
     markUnresolvable: async (id, reason) => {
       unresolvable.push({ id, reason });
     },
     processRow,
     done,
     failed,
+    held,
     unresolvable,
   };
 }
@@ -465,6 +497,14 @@ Deno.test('runWorkerBatch: a successful row is marked done', async () => {
   const result = await runWorkerBatch(d);
   assert(result.processed === 1 && result.failed === 0, `expected 1 processed / 0 failed, got ${JSON.stringify(result)}`);
   assert(d.done.includes('r1'), 'row r1 must be marked done');
+});
+
+Deno.test('FR-PLN-006 runWorkerBatch preserves a feature-off row as pending without counting a failure', async () => {
+  const d = batchDeps([row({ id: 'held-row' })], async () => ({ kind: 'held', reason: 'feature-off:clickup_sync' }));
+  const result = await runWorkerBatch(d);
+  assert(result.claimed === 1 && result.processed === 0 && result.failed === 0, `expected a held row, got ${JSON.stringify(result)}`);
+  assert(d.held.some((entry) => entry.id === 'held-row' && entry.reason === 'feature-off:clickup_sync'), 'held row must be returned to pending');
+  assert(d.done.length === 0 && d.unresolvable.length === 0, 'a feature-off row must not be acknowledged or discarded');
 });
 
 Deno.test('runWorkerBatch: a thrown error marks the row failed WITHOUT aborting the rest of the batch', async () => {
@@ -528,14 +568,24 @@ type PgErr = { message: string; code?: string };
 const PG_DOWN: PgErr = { message: 'connection reset by peer', code: '08006' };
 
 /** `external_org_bindings` + `read_vault_secret` stand-in for `resolveOrgForTeam`. */
-function orgClient(opts: { binding?: { org_id: string; secret_ref: string | null } | null; bindingError?: PgErr; vault?: string | null; vaultError?: PgErr }) {
+function orgClient(opts: { binding?: { org_id: string; secret_ref: string | null } | null; bindingError?: PgErr; vault?: string | null; vaultError?: PgErr; featureEnabled?: boolean; featureError?: PgErr }) {
   return {
     from: () => {
-      const q: any = { select: () => q, eq: () => q };
-      q.maybeSingle = async () => ({ data: opts.binding ?? null, error: opts.bindingError ?? null });
+      type BindingQuery = {
+        select: () => BindingQuery;
+        eq: () => BindingQuery;
+        maybeSingle: () => Promise<{ data: { org_id: string; secret_ref: string | null } | null; error: PgErr | null }>;
+      };
+      const q: BindingQuery = {
+        select: () => q,
+        eq: () => q,
+        maybeSingle: async () => ({ data: opts.binding ?? null, error: opts.bindingError ?? null }),
+      };
       return q;
     },
-    rpc: async () => ({ data: opts.vault ?? null, error: opts.vaultError ?? null }),
+    rpc: async (name: string) => name === 'service_feature_enabled'
+      ? ({ data: opts.featureEnabled ?? true, error: opts.featureError ?? null })
+      : ({ data: opts.vault ?? null, error: opts.vaultError ?? null }),
   } as never;
 }
 
@@ -553,6 +603,14 @@ Deno.test('T-07 B3: resolveOrgForTeam — confirmed absence is null; found bindi
   assert((await resolveOrgForTeam(orgClient({ binding: { org_id: 'org-1', secret_ref: 'ref' }, vault: null }), 'team-1')) === null, 'empty vault secret → null');
   const ok = await resolveOrgForTeam(orgClient({ binding: { org_id: 'org-1', secret_ref: 'ref' }, vault: 'tok' }), 'team-1');
   assert(ok?.orgId === 'org-1' && ok.token === 'tok', 'found binding + vault secret resolves');
+});
+
+Deno.test('FR-PLN-006 resolveOrgForTeam observes clickup_sync before reading the Vault secret', async () => {
+  const off = await resolveOrgForTeam(orgClient({
+    binding: { org_id: 'org-1', secret_ref: 'ref' },
+    featureEnabled: false,
+  }), 'team-1');
+  assert(off?.featureEnabled === false && off.token === '', 'an off org is identified without loading a sync token');
 });
 
 Deno.test('T-07 B3: resolveOrgForTeam throws when the binding read fails (not null)', async () => {
@@ -629,7 +687,18 @@ function fakeInbox(seed: Array<{ id: string; status: string; attempts: number; r
         if (order) out = [...out].sort((a, b) => String((a as Record<string, unknown>)[order!]).localeCompare(String((b as Record<string, unknown>)[order!])));
         return { data: out.slice(0, limit).map((r) => ({ ...r })), error: null };
       };
-      const q: any = {
+      type InboxQuery = {
+        select: () => InboxQuery;
+        eq: (column: string, value: unknown) => InboxQuery;
+        lt: (column: string, value: number) => InboxQuery;
+        in: (column: string, values: string[]) => InboxQuery;
+        order: (column: string) => InboxQuery;
+        limit: (count: number) => InboxQuery;
+        update: (patch: Record<string, unknown>) => InboxQuery;
+        maybeSingle: () => Promise<{ data: unknown; error: PgErr | null }>;
+        then: (resolve: (value: unknown) => unknown, reject: (reason: unknown) => unknown) => Promise<unknown>;
+      };
+      const q: InboxQuery = {
         select: () => q,
         eq: (c: string, v: unknown) => { eq.push([c, v]); return q; },
         lt: (c: string, v: number) => { lt.push([c, v]); return q; },
@@ -685,4 +754,71 @@ Deno.test('T-07 B3: markFailedLive throws when the attempts read fails (the cap 
   const { client } = fakeInbox([{ id: 'r1', status: 'processing', attempts: 3, received_at: '2026-01-01T00:00:01Z' }], { readError: PG_DOWN });
   const err = await rejectsWith(markFailedLive(client, 'r1', 'boom'));
   assert(err !== null, 'an attempts read error must surface');
+});
+
+async function runLiveFeatureWorker(featureEnabled: boolean) {
+  const previousEnv = Object.fromEntries(['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'CLICKUP_WEBHOOK_WORKER_SECRET', 'EXTERNAL_CONNECT_ENABLED']
+    .map((key) => [key, Deno.env.get(key)]));
+  const env = {
+    SUPABASE_URL: 'https://edge-test.supabase',
+    SUPABASE_SERVICE_ROLE_KEY: 'synthetic-service-role-key',
+    CLICKUP_WEBHOOK_WORKER_SECRET: 'synthetic-worker-secret',
+    EXTERNAL_CONNECT_ENABLED: 'true',
+  };
+  for (const [key, value] of Object.entries(env)) Deno.env.set(key, value);
+  const originalFetch = globalThis.fetch;
+  const calls: Array<{ url: URL; method: string; body: string }> = [];
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const request = input instanceof Request ? input : new Request(input, init);
+    const url = new URL(request.url);
+    const method = init?.method ?? request.method;
+    const body = method === 'GET' ? '' : await request.clone().text();
+    calls.push({ url, method, body });
+    if (url.pathname === '/rest/v1/clickup_webhook_inbox' && method === 'GET') {
+      const status = url.searchParams.get('status');
+      if (status === 'eq.pending') return new Response(JSON.stringify([{ id: 'inbox-1', event: 'taskUpdated', task_id: 'task-1', team_id: 'team-1', history_items: [], received_at: '2026-01-01T00:00:00Z' }]), { status: 200 });
+      if (status === 'eq.failed') return new Response('[]', { status: 200 });
+    }
+    if (url.pathname === '/rest/v1/external_org_bindings') {
+      return new Response(JSON.stringify({ org_id: 'org-1', secret_ref: 'synthetic-vault-ref' }), { status: 200 });
+    }
+    if (url.pathname === '/rest/v1/rpc/service_feature_enabled') return new Response(JSON.stringify(featureEnabled), { status: 200 });
+    if (url.pathname === '/rest/v1/rpc/read_vault_secret') return new Response(JSON.stringify('synthetic-clickup-token'), { status: 200 });
+    if (url.pathname === '/rest/v1/external_refs') return new Response('[]', { status: 200 });
+    if (url.pathname === '/rest/v1/clickup_webhook_inbox' && method === 'PATCH') return new Response(null, { status: 204 });
+    if (url.hostname === 'api.clickup.com' && url.pathname.endsWith('/task/task-1')) return new Response('{}', { status: 404 });
+    throw new Error(`unexpected request: ${method} ${url.href}`);
+  }) as typeof fetch;
+  try {
+    const response = await jobHandler(new Request('http://edge.test/clickup-webhook-worker', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer synthetic-worker-secret' },
+      body: '{}',
+    }));
+    return { response, body: await response.json(), calls };
+  } finally {
+    globalThis.fetch = originalFetch;
+    for (const [key, value] of Object.entries(previousEnv)) {
+      if (value === undefined) Deno.env.delete(key);
+      else Deno.env.set(key, value as string);
+    }
+  }
+}
+
+Deno.test('FR-PLN-006 clickup_sync off returns a claimed webhook row to pending without fetching or dropping it', async () => {
+  const r = await runLiveFeatureWorker(false);
+  assert((r.body as { processed: number; failed: number }).processed === 0, 'a held row is not counted as processed');
+  assert((r.body as { failed: number }).failed === 0, 'a held row is not marked failed');
+  const clickupCalls = r.calls.filter((c) => c.url.hostname === 'api.clickup.com');
+  assert(clickupCalls.length === 0, 'a disabled ClickUp org must not be fetched');
+  const inboxWrites = r.calls.filter((c) => c.url.pathname === '/rest/v1/clickup_webhook_inbox' && c.method === 'PATCH');
+  assert(inboxWrites.some((c) => c.body.includes('feature-off:clickup_sync') && c.body.includes('pending')),
+    'the row must be left pending with its feature-off reason');
+});
+
+Deno.test('FR-PLN-006 clickup_sync on proceeds to fetch and reconcile the queued webhook', async () => {
+  const r = await runLiveFeatureWorker(true);
+  assert((r.body as { processed: number }).processed === 1, 'an enabled org proceeds through normal row processing');
+  assert(r.calls.some((c) => c.url.hostname === 'api.clickup.com' && c.url.pathname.endsWith('/task/task-1')),
+    'the worker fetches the ClickUp task when the switch is on');
 });
