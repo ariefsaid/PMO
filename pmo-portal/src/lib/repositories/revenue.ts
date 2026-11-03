@@ -18,6 +18,11 @@ import {
   setSalesInvoiceBillingKind,
   getProjectFinances,
   getOrgReadsErpLedger,
+  proposeInvoicePairs,
+  acceptInvoicePairs,
+  unpairInvoice,
+  listUnpairedNativeInvoices,
+  listAcceptedInvoicePairs,
 } from '@/src/lib/db/revenue';
 import {
   nativeReadOnly,
@@ -46,6 +51,11 @@ export const revenueRepository: RevenueRepository = {
   setBillingKind: (siId, billingKind) => wrap(() => setSalesInvoiceBillingKind(siId, billingKind)),
   getProjectFinances: (projectId) => wrap(() => getProjectFinances(projectId)),
   getOrgReadsErpLedger: () => wrap(() => getOrgReadsErpLedger()),
+  proposeInvoicePairs: () => wrap(() => proposeInvoicePairs()),
+  acceptInvoicePairs: (pairs) => wrap(() => acceptInvoicePairs(pairs)),
+  unpairInvoice: (pmoInvoiceId) => wrap(() => unpairInvoice(pmoInvoiceId)),
+  listUnpairedNativeInvoices: () => wrap(() => listUnpairedNativeInvoices()),
+  listAcceptedInvoicePairs: () => wrap(() => listAcceptedInvoicePairs()),
   // Write methods — route through dispatch when externally-owned
   createInvoice: (input, intent) =>
     routeDomainWrite('revenue') === 'external'

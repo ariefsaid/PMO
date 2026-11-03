@@ -194,6 +194,12 @@
 -- org, active membership and the Admin role in its body (a held send is released and queued again, audited); proved by
 -- supabase/tests/erp_connect_sends.test.sql. The other 0494 functions are service-role-only or internal.
 --
+-- ⚑ AMENDED BY 0498 (#1602 ECA-5, renumbered from 0484): `accept_invoice_pairs` and `unpair_invoice` join the retained
+-- set (+2; final count 136 from dev's 134, re-derived by hand from the merged list). SECURITY DEFINER writers
+-- under a member's JWT: re-assert active membership, org and Admin/Finance (accept also the ERP-owns-revenue gate
+-- and re-checks every pair on locked rows); proven by supabase/tests/invoice_pairs.test.sql. The proposal and candidate
+-- functions are INVOKER and not listed.
+--
 -- The budget import and procurement import-run commands retain authenticated access;
 -- their owning proofs are 0397_budget_import_protocol.test.sql and
 -- 0399_procurement_import_identity_authority.test.sql. Atomic draft creation is
@@ -225,7 +231,7 @@ select plan(6);
 -- authenticated grant explicitly after the default-privilege guard; otherwise the count below fails.
 -- The names are by proname, matching the migration's conservative overload-safe allow-list (42 literal
 -- frontend calls plus six existing authenticated RPC contracts).
--- ⚑ AMENDED BY 0517 (#1514 T3): `prepare_tm_signoff`, `withdraw_tm_signoff` and `confirm_tm_signoff` join the retained set (+3, count 146 on dev's 141 with T2's two,
+-- ⚑ AMENDED BY 0517 (#1514 T3): `prepare_tm_signoff`, `withdraw_tm_signoff` and `confirm_tm_signoff` join the retained set (+3, count 148 on dev's 145,
 -- re-derived by hand from the 146 rows of the list). SECURITY DEFINER writers under a member's JWT: each re-asserts active membership and the caller's
 -- org; prepare also the project's progress authority, confirm Admin / Finance and preparer ≠ confirmer unless the sole active member. Proven by
 -- supabase/tests/tm_signoff.test.sql.
@@ -272,6 +278,7 @@ insert into client_callable_rpc_names (proname) values
   ('propose_imprest_float_amount'),
   ('record_vendor_withholding_slip'),
   ('correct_vendor_withholding_slip'),
+  ('unpair_invoice'),
   ('void_vendor_withholding_slip'),
   ('create_procurement_quotation'),
   ('create_procurement_receipt'),
@@ -351,6 +358,7 @@ insert into client_callable_rpc_names (proname) values
   ('set_procurement_gates'),
   ('set_project_contract_value'),
   ('set_sales_invoice_billing_kind'),
+  ('accept_invoice_pairs'),
   ('set_sales_invoice_efaktur'),
   ('set_sales_invoice_received_date'),
   ('set_stock_reorder_level'),
@@ -398,8 +406,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  146,
-  'AC-ACL-002 all 146 retained client-callable RPC names still have a public function');
+  148,
+  'AC-ACL-002 all 148 retained client-callable RPC names still have a public function');
 
 select is(
   (select count(*)::int
@@ -408,8 +416,8 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  146,
-  'AC-ACL-003 all 146 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  148,
+  'AC-ACL-003 all 148 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
 -- granted to both roles from being named twice. Retained names exempt authenticated grants only;
