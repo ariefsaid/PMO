@@ -134,7 +134,7 @@ export default function ProcurementCreate() {
     title !== '' || supplierId !== null || budgetCategory !== '' || lines.length > 0 || selectedProject !== projectId
   );
   const holdLeave = useCallback((leave: () => void) => setPendingLeave(() => leave), []);
-  const guardLeave = useUnsavedChangesGuard({ dirty, onBlocked: holdLeave });
+  const guardLeave = useUnsavedChangesGuard({ dirty, guardHistory: true, onBlocked: holdLeave });
 
   const projectOption = useMemo(
     () => projects.find((option) => option.value === selectedProject) ?? null,
