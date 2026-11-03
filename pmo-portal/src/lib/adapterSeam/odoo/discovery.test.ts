@@ -62,6 +62,14 @@ describe('odoo/discovery — AC-ODC-011 capability snapshot', () => {
     expect(snap.models['account.journal']).toMatchObject({ exists: true, read: true, fields_missing: [] });
   });
 
+  it('AC-OCI-001 the revenue models are probed: invoice, invoice line and payment (later), the journal, tax and account directories (O1)', async () => {
+    const { discover } = stockFake();
+    const snap = await discover();
+    for (const model of ['account.move', 'account.move.line', 'account.payment']) expect(snap.later[model], model).toBe(true);
+    for (const model of ['account.journal', 'account.tax', 'account.account']) expect(snap.models[model], model).toMatchObject({ exists: true, read: true, fields_missing: [] });
+    expect(snap.models['account.tax'].fields_missing).not.toContain('tax_group_id');
+  });
+
   it('AC-OPP-001 a later model the key cannot read is false, not true: present is not usable', async () => {
     const { fake, discover } = stockFake();
     fake.denyAccess('account.payment', 'read');

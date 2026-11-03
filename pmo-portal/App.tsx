@@ -1,5 +1,16 @@
 import React, { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate, useParams, useRoutes, type RouteObject } from 'react-router';
+import {
+  createBrowserRouter,
+  Navigate,
+  Outlet,
+  useLocation,
+  useNavigate,
+  useParams,
+  useRoutes,
+  type RouteObject,
+  type DataRouter,
+} from 'react-router';
+import { RouterProvider } from 'react-router/dom';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { queryClient } from '@/src/lib/queryClient';
@@ -601,7 +612,7 @@ const Shell: React.FC = () => {
             Flag-off: provides runtime=null, open=false — zero overhead.
             ADR-0045 §3: AgentContextProvider nests inside — it reads the router
             location (useLocation, available here since Shell renders inside
-            BrowserRouter) and is the source useAssistantPanel reads via
+            the data router) and is the source useAssistantPanel reads via
             useAgentContext() when threading context on createRun/followUp. */}
         <AgentRuntimeProvider>
           <AgentContextProvider>
@@ -623,39 +634,74 @@ const Shell: React.FC = () => {
   );
 };
 
+// ── Router (data router — enables router-level Back/Forward blocking) ──────
+/**
+ * The application's router, as DATA (#1525). `createBrowserRouter` replaces the plain
+ * `<BrowserRouter><Routes>` tree so the shared unsaved-changes guard can hold a browser
+ * Back/Forward change (`useBlocker` needs a data router): the router reverts the history entry
+ * and keeps the form mounted until the user confirms.
+ *
+ * Every path, layout, redirect, lazy chunk and the `/` + `/*` history envelope is unchanged:
+ * the five public pages stay outside the gates, `<RequireAuth>` then `<RequireInviteAccepted>`
+ * still wrap `/oauth/consent` and the whole authenticated shell, and the authenticated shell
+ * still resolves its own `appRouteConfig` table via `AppRoutes`, exactly as before.
+ * `<AnalyticsProvider>` keeps the position it had between the router and the routes (it reads
+ * `useLocation`), now as the root layout route.
+ */
+// eslint-disable-next-line react-refresh/only-export-components -- the entry point creates the one router instance
+export const createAppRouter = (): DataRouter => createBrowserRouter([
+  {
+    element: <AnalyticsProvider><Outlet /></AnalyticsProvider>,
+    children: [
+      { path: '/login', element: <LoginPage /> },
+      { path: '/terms', element: <TermsPage /> },
+      { path: '/privacy', element: <PrivacyPage /> },
+      { path: '/reset-password', element: <ResetPasswordPage /> },
+      { path: '/update-password', element: <UpdatePasswordPage /> },
+      {
+        element: <RequireAuth />,
+        children: [
+          {
+            element: <RequireInviteAccepted />,
+            children: [
+              // #728: Supabase's OAuth server sends the browser here to approve an outside
+              // client (the PMO CLI). Signed-in only, but outside the app shell.
+              { path: '/oauth/consent', element: <OAuthConsentPage /> },
+              { path: '/*', element: <Shell /> },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+]);
+
 // ── Root (eager — auth layer is never lazy-split) ─────────────────────────
-const App: React.FC = () => (
-  <>
-    {/* Non-prod backend ribbon (renders null in prod) — see VITE_APP_ENV in docs/environments.md. */}
-    <EnvBadge />
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        {/* Locale resolution + i18next. Below AuthProvider because it needs the profile; above
-            BrowserRouter because every string-rendering subtree sits under it (FR-L10N-003). */}
-        <I18nProvider>
-          <BrowserRouter>
-            <AnalyticsProvider>
-              <Routes>
-                <Route path="/login" element={<LoginPage />} />
-                <Route path="/terms" element={<TermsPage />} />
-                <Route path="/privacy" element={<PrivacyPage />} />
-                <Route path="/reset-password" element={<ResetPasswordPage />} />
-                <Route path="/update-password" element={<UpdatePasswordPage />} />
-                <Route element={<RequireAuth />}>
-                  <Route element={<RequireInviteAccepted />}>
-                    {/* #728: Supabase's OAuth server sends the browser here to approve an outside
-                        client (the PMO CLI). Signed-in only, but outside the app shell. */}
-                    <Route path="/oauth/consent" element={<OAuthConsentPage />} />
-                    <Route path="/*" element={<Shell />} />
-                  </Route>
-                </Route>
-              </Routes>
-            </AnalyticsProvider>
-          </BrowserRouter>
-        </I18nProvider>
-      </AuthProvider>
-    </QueryClientProvider>
-  </>
-);
+export interface AppProps {
+  /**
+   * The router instance, created once by the entry point outside React. Tests that mount the root
+   * omit it and get a router per mount, so each mount starts from the URL it set up.
+   */
+  router?: DataRouter;
+}
+
+const App: React.FC<AppProps> = ({ router: injectedRouter }) => {
+  const [router] = useState<DataRouter>(() => injectedRouter ?? createAppRouter());
+  return (
+    <>
+      {/* Non-prod backend ribbon (renders null in prod) — see VITE_APP_ENV in docs/environments.md. */}
+      <EnvBadge />
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          {/* Locale resolution + i18next. Below AuthProvider because it needs the profile; above
+              the router because every string-rendering subtree sits under it (FR-L10N-003). */}
+          <I18nProvider>
+            <RouterProvider router={router} />
+          </I18nProvider>
+        </AuthProvider>
+      </QueryClientProvider>
+    </>
+  );
+};
 
 export default App;

@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const h = vi.hoisted(() => {
   const chain: Record<string, ReturnType<typeof vi.fn>> = {};
   const result = { data: null as unknown, error: null as unknown };
-  for (const name of ['select', 'insert', 'update', 'delete', 'eq', 'order', 'single']) chain[name] = vi.fn(() => chain);
+  for (const name of ['select', 'insert', 'update', 'delete', 'eq', 'order', 'range', 'single']) chain[name] = vi.fn(() => chain);
   const thenable = { ...chain, then: (resolve: (v: unknown) => unknown) => resolve(result) };
   for (const name of Object.keys(chain)) chain[name].mockImplementation(() => thenable);
   return { rpc: vi.fn(), from: vi.fn(() => thenable), chain, result };

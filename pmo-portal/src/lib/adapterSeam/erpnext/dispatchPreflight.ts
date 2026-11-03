@@ -69,7 +69,7 @@ export async function assertLinkBelongsToOrg(
  * (index.ts resolves the adapter first). A null/absent link is skipped — only ASSERTED links are
  * validated (an on-account receipt, or a Material Request with no vendor, legitimately carries none).
  */
-export async function assertCommandLinksSameOrg(deps: ErpDispatchFactoryDeps): Promise<void> {
+export async function assertCommandLinksSameOrg(deps: Pick<ErpDispatchFactoryDeps, 'command' | 'serviceClient' | 'orgId'>): Promise<void> {
   const record = deps.command.record as Partial<Record<LinkField, string | null>>;
   for (const field of DOMAIN_LINK_FIELDS[deps.command.domain] ?? []) {
     const id = record[field];

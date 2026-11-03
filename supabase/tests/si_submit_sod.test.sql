@@ -7,7 +7,7 @@
 -- Uses namespaced UUIDs (valid hex only), begin/rollback, finish() not finish_testing().
 
 begin;
-select plan(8);
+select plan(12);
 
 -- Fixtures: org, users (A=author, B=approver, C=non-approver-role), profiles
 insert into organizations (id, name) values
@@ -142,6 +142,50 @@ select throws_ok(
   $$ select submit_sales_invoice('11050000-0000-0000-0000-0000000001f2') $$,
   '42501', null,
   'AC-SAR-073: non-revenue org submit denied by org guard (42501)');
+
+reset role;
+
+-- ── #1506 O3 C2 (AC-OCI-050 P half, FR-OCI-060): the same rule for an org that employs revenue under tier `odoo`. The rule reads the invoice's
+-- author set and the actor's own role, never the tier, so the author is refused and a different approver is accepted, on both the user-JWT RPC
+-- and the service-role clearance grant the dispatch takes with the verified JWT subject.
+set local request.jwt.claims = '{"role":"service_role"}';
+insert into organizations (id, name) values
+  ('11050000-0000-0000-0000-000000000103','AC-OCI-050 Odoo Org');
+insert into auth.users (id, email) values
+  ('11050000-0000-0000-0000-0000000001a3','odoo-author@example.com'),
+  ('11050000-0000-0000-0000-0000000001b3','odoo-approver@example.com');
+insert into profiles (id, org_id, full_name, email, role, status) values
+  ('11050000-0000-0000-0000-0000000001a3','11050000-0000-0000-0000-000000000103','Odoo Author','odoo-author@example.com','Finance','active'),
+  ('11050000-0000-0000-0000-0000000001b3','11050000-0000-0000-0000-000000000103','Odoo Approver','odoo-approver@example.com','Finance','active');
+insert into external_org_bindings (org_id, external_tier, site_url, secret_ref, config, status, activated_at) values
+  ('11050000-0000-0000-0000-000000000103','odoo','https://odoo.example.test','secret-ref-odoo','{}'::jsonb,'active', now());
+insert into external_domain_ownership (org_id, external_tier, domain) values
+  ('11050000-0000-0000-0000-000000000103','odoo','revenue');
+insert into companies (id, org_id, name, type) values
+  ('11050000-0000-0000-0000-0000000001f3','11050000-0000-0000-0000-000000000103','Odoo Customer','Client');
+insert into sales_invoices (tax_treatment, tax_amount, id, org_id, customer_id, invoice_date, amount, status, author_user_id)
+values ('exclusive', 0, '11050000-0000-0000-0000-0000000001f3', '11050000-0000-0000-0000-000000000103', '11050000-0000-0000-0000-0000000001f3',
+  '2026-11-03', 700.00, 'Draft', '11050000-0000-0000-0000-0000000001a3');
+
+set local role service_role;
+select throws_ok(
+  $$ select grant_sales_invoice_submit_clearance('11050000-0000-0000-0000-0000000001f3', '11050000-0000-0000-0000-0000000001a3', '11050000-0000-0000-0000-0000000001c3') $$,
+  '42501', null,
+  'AC-OCI-050: tier odoo: the dispatch clearance grant refuses the invoice''s author (sod-self-approval)');
+select lives_ok(
+  $$ select grant_sales_invoice_submit_clearance('11050000-0000-0000-0000-0000000001f3', '11050000-0000-0000-0000-0000000001b3', '11050000-0000-0000-0000-0000000001c3') $$,
+  'AC-OCI-050: tier odoo: the dispatch clearance grant accepts a different approver');
+reset role;
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"11050000-0000-0000-0000-0000000001a3","role":"authenticated"}';
+select throws_ok(
+  $$ select submit_sales_invoice('11050000-0000-0000-0000-0000000001f3') $$,
+  '42501', null,
+  'AC-OCI-050: tier odoo: author self-submit denied with sod-self-approval (42501)');
+set local request.jwt.claims = '{"sub":"11050000-0000-0000-0000-0000000001b3","role":"authenticated"}';
+select lives_ok(
+  $$ select submit_sales_invoice('11050000-0000-0000-0000-0000000001f3') $$,
+  'AC-OCI-050: tier odoo: a different approver submit succeeds');
 
 reset role;
 select * from finish();
