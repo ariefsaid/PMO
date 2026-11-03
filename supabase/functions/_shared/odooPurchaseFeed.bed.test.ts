@@ -45,7 +45,7 @@ Deno.test({
       await must(sc.from('procurements').insert({ id: caseId, org_id: orgId, title: stamp, currency: 'IDR', total_value: 0, status: 'Draft' }).select());
       await must(sc.from('procurement_invoices').insert({ id: billId, org_id: orgId, procurement_id: caseId, status: 'Received', amount: 100, currency: 'IDR', tax_treatment: 'inclusive', tax_amount: 0 }).select());
       await must(sc.from('external_refs').insert({ org_id: orgId, domain: 'procurement', pmo_record_id: billId, external_tier: 'odoo', external_record_id: `account.move:${move}` }).select());
-      const mirror = async () => (await must(sc.from('procurement_invoices').select('erp_state,erp_docstatus,erp_cancelled_at,amount').eq('org_id', orgId).eq('id', billId).single())) as { erp_state: string | null; erp_docstatus: number | null; erp_cancelled_at: string | null; amount: number };
+      const mirror = async () => (await must(sc.from('procurement_invoices').select('erp_state,erp_docstatus,erp_cancelled_at,erp_attention,amount').eq('org_id', orgId).eq('id', billId).single())) as { erp_state: string | null; erp_docstatus: number | null; erp_cancelled_at: string | null; erp_attention: string | null; amount: number };
 
       await runPurchasePass(sc, orgId, 'bill', odoo, company.id, budget());
       const read = await mirror();
@@ -60,10 +60,11 @@ Deno.test({
       const cursor = JSON.parse(wm!.watermark_cursor as string);
       delete cursor.census_done_at;
       await sc.from('external_sync_watermarks').update({ watermark_cursor: JSON.stringify(cursor) }).eq('org_id', orgId).eq('external_tier', 'odoo').eq('domain', 'purchase:bill');
-      // ref link time must precede the census run; it was created above, before this pass
+      // a link younger than the 10-minute overlap is never tombstoned: age it past the cutoff (test-only)
+      await must(sc.from('external_refs').update({ created_at: new Date(Date.now() - 3_600_000).toISOString() }).eq('org_id', orgId).eq('pmo_record_id', billId).select());
       await runPurchasePass(sc, orgId, 'bill', odoo, company.id, budget());
       const gone = await mirror();
-      assertEquals([gone.erp_state, gone.erp_docstatus], ['deleted', 2], 'the deleted bill is tombstoned, not removed');
+      assertEquals([gone.erp_docstatus, gone.erp_attention], [2, 'deleted-in-erp:1'], 'the deleted bill is tombstoned, not removed');
       assert(gone.erp_cancelled_at !== null);
       assertEquals(await total(), 0, 'a tombstoned bill is not counted in the case value');
     } finally {
