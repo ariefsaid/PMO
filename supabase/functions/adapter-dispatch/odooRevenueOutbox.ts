@@ -10,7 +10,7 @@ import { CLAIM_BUDGET_MS, REQUEST_DEADLINE_MS, SETTLE_MARGIN_MS } from '../../..
 import type { InvoiceExpect } from '../../../pmo-portal/src/lib/adapterSeam/odoo/revenue/invoiceReadBack.ts';
 import type { InvoiceComposite } from '../../../pmo-portal/src/lib/adapterSeam/odoo/revenue/recoveryProbe.ts';
 import { odooClientForOrg, type OdooClientForOrgResult } from '../_shared/odooClientForOrg.ts';
-import { invoiceCompositeFacts, resolveOdooInvoiceInputs } from '../_shared/odooRevenueRefs.ts';
+import { invoiceCompositeFacts, resolveOdooInvoiceCommandMaterial, resolveOdooInvoiceInputs } from '../_shared/odooRevenueRefs.ts';
 import { readOutboxCompositePayload } from './erpMoneyOutbox.ts';
 import { canonicalCommandDigest, createDbMoneyOutboxDeps } from './moneyOutboxDeps.ts';
 import type { AdapterSelectContext } from './dispatchAdapters.ts';
@@ -66,12 +66,39 @@ async function invoiceOutboxDeps(ctx: AdapterSelectContext, resolved: Exclude<Od
   const call: OdooCall = async <T>(model: string, method: string, body?: Record<string, unknown>) => {
     try { return await raw<T>(model, method, body); } catch (err) { return toAdapterError(err); }
   };
-  const { expect } = await resolveOdooInvoiceInputs(sc, ctx.orgId, ctx.command, resolved, call, await revenueOutboxRowExists(ctx));
-  const facts = await invoiceCompositeFacts(sc, ctx.orgId, record);
-  const payload: Record<string, unknown> = {
-    ...record, erp_doc_kind: 'sales-invoice', odoo_partner_id: facts.partnerId, odoo_expected_total: expect.total, odoo_cost_account: expect.costAccountId,
-    created_after: odooDatetime(Date.now() - WINDOW_MS), created_before: odooDatetime(Date.now() + CLAIM_BUDGET_MS + SETTLE_MARGIN_MS),
-  };
+  const stored = await sc.from('external_command_outbox').select('payload').eq('org_id', ctx.orgId).eq('domain', ctx.command.domain)
+    .eq('pmo_record_id', ctx.command.record.id).eq('idempotency_key', ctx.command.idempotencyKey!).maybeSingle();
+  if (stored.error) throw new AppError('The invoice could not be checked against its earlier attempt', 'external-unreachable');
+
+  let expect: InvoiceExpect;
+  let payload: Record<string, unknown>;
+  if (stored.data) {
+    // The original expectation and probe window are immutable command facts. Re-resolve only the PMO draft fields so an
+    // idempotency-key reuse after a line/reference edit still fails its digest, without making recovery depend on today's ERP mappings.
+    const persisted = (stored.data as { payload?: Record<string, unknown> | null }).payload;
+    const persistedExpect = expectOf(persisted);
+    const persistedComposite = compositeOf(persisted);
+    if (!persisted || !persistedExpect || !persistedComposite) {
+      throw new AppError('invoice-recovery-payload-incomplete', 'commit-rejected');
+    }
+    await resolveOdooInvoiceCommandMaterial(sc, ctx.orgId, ctx.command, true);
+    expect = persistedExpect;
+    payload = {
+      ...record, erp_doc_kind: 'sales-invoice',
+      odoo_partner_id: persistedComposite.partnerId, odoo_expected_total: persistedExpect.total,
+      odoo_cost_account: persistedExpect.costAccountId, created_after: persistedComposite.createdAfter,
+      ...(persistedComposite.createdBefore ? { created_before: persistedComposite.createdBefore } : {}),
+    };
+  } else {
+    const resolvedInvoice = await resolveOdooInvoiceInputs(sc, ctx.orgId, ctx.command, resolved, call, false);
+    const facts = await invoiceCompositeFacts(sc, ctx.orgId, record);
+    expect = resolvedInvoice.expect;
+    payload = {
+      ...record, erp_doc_kind: 'sales-invoice', odoo_partner_id: facts.partnerId,
+      odoo_expected_total: expect.total, odoo_cost_account: expect.costAccountId,
+      created_after: odooDatetime(Date.now() - WINDOW_MS), created_before: odooDatetime(Date.now() + CLAIM_BUDGET_MS + SETTLE_MARGIN_MS),
+    };
+  }
   const material = Object.fromEntries(Object.entries(payload).filter(([k]) => !(DERIVED_KEYS as readonly string[]).includes(k)));
   return createDbMoneyOutboxDeps({
     serviceClient: ctx.serviceClient as never,

@@ -27,7 +27,7 @@ const binding = (over: Record<string, unknown> = {}) => ({
   config: { database: 'db1', odoo_company_id: 1, capabilities: { observed_at: FRESH, missing: [], models: {} } }, ...over,
 });
 
-interface Opts { pmoProjects?: Array<Record<string, unknown>>; pmoCompanies?: Array<Record<string, unknown>>; run?: Record<string, unknown> | null; accepted?: boolean; runError?: boolean; binding?: Record<string, unknown>; lock?: { held: boolean }; applyError?: boolean; employed?: boolean; failPurchaseDomain?: string; purchaseModels?: string[]; rejectAfter?: number; version?: number | null; prepare?: (f: FakeOdoo) => void }
+interface Opts { pmoProjects?: Array<Record<string, unknown>>; pmoCompanies?: Array<Record<string, unknown>>; run?: Record<string, unknown> | null; accepted?: boolean; runError?: boolean; binding?: Record<string, unknown>; lock?: { held: boolean }; applyError?: boolean; employed?: boolean; revenueEmployed?: boolean; failPurchaseDomain?: string; failRevenueDomain?: string; purchaseModels?: string[]; revenueModels?: string[]; rejectAfter?: number; version?: number | null; prepare?: (f: FakeOdoo) => void }
 
 function harness(o: Opts = {}) {
   const fake = createFakeOdoo({ key: KEY });
@@ -35,7 +35,8 @@ function harness(o: Opts = {}) {
   fake.seed('product.product', [{ id: 1, name: 'Semen', default_code: 'S1', company_id: false }]);
   fake.seed('account.account', [{ id: 1, name: 'Payable', code: '2100', account_type: 'liability_payable', company_ids: [1] }]);
   o.prepare?.(fake);
-  if (o.purchaseModels && !o.binding) o.binding = binding({ config: { database: 'db1', odoo_company_id: 1, capabilities: { observed_at: FRESH, missing: [], models: {}, later: Object.fromEntries(o.purchaseModels.map((m) => [m, true])) } } });
+  const documentModels = [...(o.purchaseModels ?? []), ...(o.revenueModels ?? [])];
+  if (documentModels.length && !o.binding) o.binding = binding({ config: { database: 'db1', odoo_company_id: 1, capabilities: { observed_at: FRESH, missing: [], models: {}, later: Object.fromEntries(documentModels.map((m) => [m, true])) } } });
   const cursors = new Map<string, string>();
   const staged = new Map<string, Array<{ externalId: string }>>();
   const lock = o.lock ?? { held: false };
@@ -44,6 +45,7 @@ function harness(o: Opts = {}) {
     supabaseRpc('claim_erp_sweep_lock', () => { const ok = !lock.held; lock.held = true; return jsonResponse(ok); }),
     supabaseRpc('release_erp_sweep_lock', () => { lock.held = false; return jsonResponse(true); }),
     supabaseSelect('external_org_bindings', () => jsonResponse([o.binding ?? binding()])),
+    supabaseRpc('outbox_reconcile_candidates', () => jsonResponse([])),
     supabaseRpc('read_vault_secret', () => jsonResponse(KEY)),
     supabaseSelect('external_sync_watermarks', (c) => {
       const v = cursors.get(c.url.searchParams.get('domain')!.replace(/^eq\./, ''));
@@ -56,10 +58,17 @@ function harness(o: Opts = {}) {
       return jsonResponse(b.p_rows.length);
     }),
     // FR-OPP-080: purchase documents are mirrored only for an org that employed procurement under Odoo.
-    supabaseSelect('external_domain_ownership', () => jsonResponse(o.employed ? [{ id: 'own-1' }] : [])),
+    supabaseSelect('external_domain_ownership', (c) => {
+      const domain = c.url.searchParams.get('domain')?.replace(/^eq\./, '');
+      const employed = domain === 'revenue' ? o.revenueEmployed : o.employed;
+      return jsonResponse(employed ? [{ id: `own-${domain}` }] : []);
+    }),
     supabaseRpc('apply_odoo_purchase_page', (c) => { const b = c.bodyJson as { p_domain: string; p_cursor: string; p_rows: unknown[] }; if (b.p_domain === o.failPurchaseDomain) return jsonResponse({ code: '22023', message: 'x' }, { status: 400 }); cursors.set(`purchase:${b.p_domain}`, b.p_cursor); return jsonResponse(b.p_rows.length); }),
     supabaseRpc('mark_odoo_purchase_census_seen', () => jsonResponse(null)),
     supabaseRpc('finish_odoo_purchase_census', (c) => { const b = c.bodyJson as { p_domain: string; p_cursor: string }; cursors.set(`purchase:${b.p_domain}`, b.p_cursor); return jsonResponse(null); }),
+    supabaseRpc('apply_odoo_revenue_page', (c) => { const b = c.bodyJson as { p_domain: string; p_cursor: string; p_rows: unknown[] }; if (b.p_domain === o.failRevenueDomain) return jsonResponse({ code: '22023', message: 'x' }, { status: 400 }); cursors.set(`revenue:${b.p_domain}`, b.p_cursor); return jsonResponse(b.p_rows.length); }),
+    supabaseRpc('mark_odoo_revenue_census_seen', () => jsonResponse(null)),
+    supabaseRpc('finish_odoo_revenue_census', (c) => { const b = c.bodyJson as { p_domain: string; p_cursor: string }; cursors.set(`revenue:${b.p_domain}`, b.p_cursor); return jsonResponse(0); }),
     supabaseRpc('mark_odoo_census_seen', () => jsonResponse(null)),
     supabaseRpc('finish_odoo_census', (c) => { const b = c.bodyJson as { p_kind: string; p_cursor: string }; cursors.set(`master:${b.p_kind}`, b.p_cursor); return jsonResponse(0); }),
     supabaseRpc('merge_external_org_binding_config', () => jsonResponse(null)),
@@ -360,5 +369,27 @@ describe('odooSweep — #1505 P7 purchase passes (FR-OPP-080)', () => {
     assertEquals('ok' in r.result && r.result.failed, undefined);
     assertEquals(stored(r.calls)?.connection.state, 'healthy');
     assertEquals(rpcCall(r.calls, 'release_erp_sweep_lock').length, 1);
+  });
+});
+
+describe('odooSweep — #1506 C6 revenue passes', () => {
+  it('AC-OCI-074 revenue feeds run after the directory and publish actual invoice progress', async () => {
+    const r = await sweep({ revenueEmployed: true, revenueModels: ['account.move'], prepare: (fake) => fake.seed('account.move', [{
+      id: 91, name: 'INV/2026/00091', move_type: 'out_invoice', state: 'posted', partner_id: [41, 'Client A'], company_id: [1, 'Main'],
+      invoice_date: '2026-11-01', invoice_date_due: '2026-12-01', ref: 'PO-91', currency_id: [1, 'IDR'],
+      amount_total: 1110, amount_untaxed: 1000, amount_tax: 110, amount_residual: 710, write_date: '2026-11-02 10:00:00',
+    }]) });
+    const pages = rpcCall(r.calls, 'apply_odoo_revenue_page').map((call) => call.bodyJson as { p_org_id: string; p_domain: string; p_rows: Array<{ external_id: string; attrs: { residual: string } }> });
+    const directory = r.calls.findIndex((call) => call.url.pathname === '/rest/v1/rpc/apply_odoo_master_page');
+    const revenue = r.calls.findIndex((call) => call.url.pathname === '/rest/v1/rpc/apply_odoo_revenue_page');
+    const recovery = r.calls.findIndex((call) => call.url.pathname === '/rest/v1/rpc/outbox_reconcile_candidates');
+    assert(recovery >= 0 && recovery < directory, 'outbox recovery is part of the sweep tick before the bounded inbound walk');
+    assert(directory >= 0 && directory < revenue, 'revenue feed follows the directory mappings');
+    const invoicePages = pages.filter((page) => page.p_domain === 'sales-invoice');
+    assertEquals(invoicePages.map((page) => [page.p_org_id, page.p_domain, page.p_rows.map((row) => [row.external_id, row.attrs.residual])]), [[ORG, 'sales-invoice', [['91', '710.00']]]]);
+    assert(pages.some((page) => page.p_domain === 'credit-note'), 'the credit-note cursor is advanced in the same tick');
+    assert(r.cursors.get('revenue:sales-invoice'), 'the page apply committed a visible revenue cursor');
+    assertEquals('ok' in r.result && r.result.outbox_reconciled, 0, 'the tick reports the outbox recovery pass');
+    assert('ok' in r.result && r.result.calls > 0, 'the tick reports real work rather than a stale zero');
   });
 });

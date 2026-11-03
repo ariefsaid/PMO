@@ -93,6 +93,53 @@ async function readProducts(call: OdooCall, ids: number[]): Promise<Map<number, 
 
 const resolvedInvoices = new WeakMap<object, Promise<{ input: PmoInvoice; maps: InvoiceMaps; expect: InvoiceExpect; draft: InvoiceDraftRow }>>();
 
+export interface OdooInvoiceCommandMaterial { draft: InvoiceDraftRow; input: PmoInvoice; vatFlag: boolean }
+
+/** Rebuild command material from PMO's draft without consulting mutable Odoo mappings. Recovery uses it to retain the
+ * payload-digest guard while judging the landed document against the expectations frozen in its outbox row. */
+export async function resolveOdooInvoiceCommandMaterial(
+  sc: SupabaseClient, orgId: string, command: AdapterCommand, replay = false,
+): Promise<OdooInvoiceCommandMaterial> {
+  const record = command.record as Record<string, unknown>;
+  const draft = await readInvoiceDraft(sc, orgId, String(record.id));
+  if (!draft) return refuse('invoice-draft-missing');
+  if (draft.pmoNative) return refuse('invoice-raised-in-pmo');
+  if (!replay && (draft.status !== 'Draft' || draft.erpDocstatus !== null)) return refuse('invoice-not-a-draft');
+  if (draft.lines.length === 0) return refuse('invoice-draft-lines-missing');
+
+  const project = draft.projectId
+    ? await sc.from('projects').select('subject_to_vat,customer_contract_ref').eq('org_id', orgId).eq('id', draft.projectId).maybeSingle()
+    : null;
+  if (project?.error) throw new AppError('The project could not be read', 'gate-check-failed');
+  const projectFacts = project?.data as { subject_to_vat?: unknown; customer_contract_ref?: unknown } | null | undefined;
+  const vat = projectFacts?.subject_to_vat;
+  if (draft.projectId && typeof vat !== 'boolean') throw rejected('config-rejected: the project VAT context could not be verified');
+
+  const workOrder = draft.workOrderId
+    ? await sc.from('work_orders').select('client_po_number').eq('org_id', orgId).eq('id', draft.workOrderId).maybeSingle()
+    : null;
+  if (workOrder?.error) throw new AppError('The work order could not be read', 'gate-check-failed');
+  const workOrderPo = text((workOrder?.data as { client_po_number?: unknown } | null | undefined)?.client_po_number);
+  const contractRef = text(projectFacts?.customer_contract_ref);
+  const lines = draft.lines.map((line) => ({
+    itemId: line.item_code, description: line.description ?? line.item_code, quantity: line.qty, unitPrice: line.rate,
+  }));
+  const reference = resolveClientReference({ invoice: draft.referenceNumber, workOrderPo, projectContractRef: contractRef });
+  const input: PmoInvoice = {
+    id: draft.id, customerId: draft.customerId ?? '', invoiceDate: draft.invoiceDate ?? new Date().toISOString().slice(0, 10),
+    currency: draft.currency ?? '', lines, referenceNumber: draft.referenceNumber, workOrderPoNumber: workOrderPo, projectContractRef: contractRef,
+  };
+
+  record.customerId = draft.customerId;
+  record.projectId = draft.projectId;
+  record.workOrderId = draft.workOrderId;
+  record.currency = draft.currency;
+  record.items = draft.lines.map((line) => ({ item_code: line.item_code, qty: line.qty, rate: line.rate, ...(line.description ? { description: line.description } : {}) }));
+  record.reference_number = reference;
+  delete record.taxes;
+  return { draft, input, vatFlag: draft.projectId ? vat === true : true };
+}
+
 /**
  * An invoice approval: the draft's own client, project, work order and lines (the command's are replaced by them), the client's reference resolved
  * exactly as the ERPNext path resolves it (invoice, else work order PO, else project contract reference) BEFORE the outbox snapshots the command,
@@ -104,27 +151,8 @@ export function resolveOdooInvoiceInputs(sc: SupabaseClient, orgId: string, comm
   const memo = resolvedInvoices.get(command);
   if (memo) return memo;
   const run = (async () => {
-    const record = command.record as Record<string, unknown>;
-    const draft = await readInvoiceDraft(sc, orgId, String(record.id));
-    if (!draft) return refuse('invoice-draft-missing');
-    if (draft.pmoNative) return refuse('invoice-raised-in-pmo');
-    // A retry of the same intent (its outbox row exists) may meet the invoice already pushed: the lines are the draft's still, and the outbox answers it.
-    if (!replay && (draft.status !== 'Draft' || draft.erpDocstatus !== null)) return refuse('invoice-not-a-draft');
-    if (draft.lines.length === 0) return refuse('invoice-draft-lines-missing');
+    const { draft, input, vatFlag } = await resolveOdooInvoiceCommandMaterial(sc, orgId, command, replay);
     if (resolved.companyId === null) return refuse('company-not-set');
-
-    const project = draft.projectId
-      ? await sc.from('projects').select('subject_to_vat,customer_contract_ref').eq('org_id', orgId).eq('id', draft.projectId).maybeSingle()
-      : null;
-    if (project?.error) throw new AppError('The project could not be read', 'gate-check-failed');
-    const vat = (project?.data as { subject_to_vat?: unknown } | null | undefined)?.subject_to_vat;
-    if (draft.projectId && typeof vat !== 'boolean') throw rejected('config-rejected: the project VAT context could not be verified');
-    const workOrder = draft.workOrderId
-      ? await sc.from('work_orders').select('client_po_number').eq('org_id', orgId).eq('id', draft.workOrderId).maybeSingle()
-      : null;
-    if (workOrder?.error) throw new AppError('The work order could not be read', 'gate-check-failed');
-    const workOrderPo = text((workOrder?.data as { client_po_number?: unknown } | null | undefined)?.client_po_number);
-    const contractRef = text((project?.data as { customer_contract_ref?: unknown } | null | undefined)?.customer_contract_ref);
 
     let costAccountId: number | null = null;
     if (draft.projectId) {
@@ -147,31 +175,13 @@ export function resolveOdooInvoiceInputs(sc: SupabaseClient, orgId: string, comm
     }
 
     const saleTaxId = Number.isInteger(resolved.config.sale_tax_id) && (resolved.config.sale_tax_id as number) > 0 ? resolved.config.sale_tax_id as number : null;
-    const vatFlag = draft.projectId ? vat === true : true;
     const taxes = vatFlag && saleTaxId !== null ? await readSaleTax(sc, orgId, call, saleTaxId) : [];
     const selection = selectSaleTaxes({ vatFlag, defaultTaxId: saleTaxId, taxes, companyId: resolved.companyId });
     if (selection.outcome === 'refused') throw rejected(`config-rejected: the sale tax${selection.tax ? ` ${selection.tax}` : ''} cannot be used on an invoice`);
     const rates = taxes.filter((t) => selection.taxIds.includes(t.id)).map((t) => t.rate);
 
-    const lines = draft.lines.map((l) => ({ itemId: l.item_code, description: l.description ?? l.item_code, quantity: l.qty, unitPrice: l.rate }));
-    const reference = resolveClientReference({ invoice: draft.referenceNumber, workOrderPo, projectContractRef: contractRef });
-    const today = new Date().toISOString().slice(0, 10);
-    const input: PmoInvoice = {
-      id: draft.id, customerId: draft.customerId ?? '', invoiceDate: draft.invoiceDate ?? today, currency: draft.currency ?? '', lines,
-      referenceNumber: draft.referenceNumber, workOrderPoNumber: workOrderPo, projectContractRef: contractRef,
-    };
     const maps: InvoiceMaps = { companyCurrency: await companyCurrency(call, resolved.companyId), partners, items, units: {}, costAccountId, taxIds: selection.taxIds };
-
-    // The command is what the draft says: the client's, project's, work order's and lines' values REPLACE whatever the payload carried, so the
-    // outbox payload, its digest, the work-order fence and the recovery all read the approved draft (never the approver's say-so).
-    record.customerId = draft.customerId;
-    record.projectId = draft.projectId;
-    record.workOrderId = draft.workOrderId;
-    record.currency = draft.currency;
-    record.items = draft.lines.map((l) => ({ item_code: l.item_code, qty: l.qty, rate: l.rate, ...(l.description ? { description: l.description } : {}) }));
-    record.reference_number = reference;
-    delete record.taxes;
-    return { input, maps, expect: { total: expectedInvoiceTotal(lines, rates), costAccountId }, draft };
+    return { input, maps, expect: { total: expectedInvoiceTotal(input.lines, rates), costAccountId }, draft };
   })();
   resolvedInvoices.set(command, run);
   return run;

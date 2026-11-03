@@ -18,6 +18,7 @@ const harness = TIER_HARNESSES.odoo;
 // here by an explicit local list, so the contract is proved red-then-green before anything ships.
 invoicePushSuite(harness);
 receiptReadSuite(harness);
+SUITES['invoice.pair-existing']!(harness);
 
 describe('odoo contract', () => {
   it('declares itself as the odoo tier', () => {

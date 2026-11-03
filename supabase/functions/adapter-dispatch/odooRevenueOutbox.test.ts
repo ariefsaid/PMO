@@ -8,7 +8,7 @@ import { createClient } from '@supabase/supabase-js';
 import { installEdgeEnv, jsonResponse, supabaseRpc, supabaseSelect, withFetchMock, type FetchCall, type MockRoute } from '../_shared/testing/edgeTestKit.ts';
 import { createFakeOdoo } from '../../../pmo-portal/src/lib/adapterSeam/odoo/fakeOdoo.ts';
 import { externalIdentifier } from '../../../pmo-portal/src/lib/adapterSeam/odoo/revenue/anchors.ts';
-import { APPROVER_ID, DRAFT_ID, approveCommand, revenueRoutes } from './odooRevenueFixtures.ts';
+import { APPROVER_ID, CUSTOMER_ID, DRAFT_ID, PROJECT_ID, approveCommand, draftItems, revenueRoutes, type World } from './odooRevenueFixtures.ts';
 import { resolveOdooMoneyOutboxDeps } from './odooMoneyOutbox.ts';
 import { odooRevenueAnchorKey } from './odooRevenueOutbox.ts';
 import type { AdapterSelectContext } from './dispatchAdapters.ts';
@@ -94,7 +94,7 @@ describe('FR-OCI-001 / ADR-0058 the Odoo revenue deps are the shared money outbo
 });
 
 describe('FR-OCI-070 / FR-OCI-072 / OQ-OCI-14 an invoice approval goes through the shared money outbox: a create, held on doubt, probed by its anchor', () => {
-  async function invoiceDeps() {
+  async function invoiceDeps(worldOverrides: Pick<World, 'saleTax' | 'outbox'> = {}) {
     const fake = createFakeOdoo({ key: 'odoo-test-key' });
     fake.seed('res.company', [{ id: 1, name: 'Co', currency_id: [12, 'IDR'] }]);
     fake.seed('res.partner', [{ id: 41, name: 'Client' }, { id: 42, name: 'Another' }]);
@@ -104,7 +104,8 @@ describe('FR-OCI-070 / FR-OCI-072 / OQ-OCI-14 an invoice approval goes through t
     const sc = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
     const ctx = { orgId: '11111111-1111-4111-8111-111111111111', serviceClient: sc, userId: APPROVER_ID, faultGate: {}, erpAuth: {}, command: approveCommand() } as unknown as AdapterSelectContext;
     const call = (model: string, method: string, body: unknown) => fake.fetch(`https://odoo.example.test/json/2/${model}/${method}`, { method: 'POST', headers: { Authorization: 'bearer odoo-test-key' }, body: JSON.stringify(body) }).then((r) => r.json());
-    return { fake, ctx, call, unexpected, routes: revenueRoutes(unexpected, APPROVER_ID, { projectLink: '101', odoo: fake }) };
+    const world: World = { projectLink: '101', odoo: fake, ...worldOverrides };
+    return { fake, ctx, call, unexpected, world, routes: revenueRoutes(unexpected, APPROVER_ID, world) };
   }
 
   it('the row is a create, never reissued on doubt, and its payload carries what the recovery judges by (client, expected total, cost account, bounded window)', async () => {
@@ -153,6 +154,36 @@ describe('FR-OCI-070 / FR-OCI-072 / OQ-OCI-14 an invoice approval goes through t
       assertEquals(found?.externalRecordId, `account.move:${id}`);
       assertEquals(t.fake.rows('account.move').length, 1);
       assertEquals(t.fake.rows('account.move')[0].state, 'posted');
+    });
+  });
+
+  it('AC-OCI-062 recovery uses frozen outbox facts when the current sale-tax mapping is unavailable', async () => {
+    const outbox = new Map<string, Record<string, unknown>>();
+    const payload = {
+      id: DRAFT_ID, erp_doc_kind: 'sales-invoice', verb: 'submit', customerId: CUSTOMER_ID, projectId: PROJECT_ID,
+      workOrderId: '66666666-6666-4666-8666-666666666666', currency: 'IDR', items: draftItems,
+      reference_number: 'WO-PO-9', odoo_partner_id: 41, odoo_expected_total: '2220.00', odoo_cost_account: 101,
+      created_after: '2026-11-03 13:00:00', created_before: '2026-11-03 13:20:00',
+    };
+    outbox.set(`${DRAFT_ID}|${KEY}`, {
+      id: 'outbox-1', domain: 'revenue', pmo_record_id: DRAFT_ID, idempotency_key: KEY, state: 'quarantined',
+      external_tier: 'odoo', operation: 'create', payload,
+    });
+    const t = await invoiceDeps({ saleTax: 'absent', outbox });
+    t.ctx.command.idempotencyKey = KEY;
+    const [id] = await t.call('account.move', 'create', { vals_list: [{ move_type: 'out_invoice', partner_id: 41, invoice_date: '2026-11-03', invoice_line_ids: [[0, 0, {
+      product_id: 71, name: 'x', quantity: 1, price_unit: 2000, tax_ids: [[6, 0, [5]]], analytic_distribution: { '101': 100 },
+    }]] }] });
+    await t.call('account.move', 'action_post', { ids: [id] });
+    await t.call('ir.model.data', 'create', { vals_list: [{ ...externalIdentifier(`si:${DRAFT_ID}`), model: 'account.move', res_id: id }] });
+
+    await withFetchMock(t.routes, async ({ calls }) => {
+      const deps = await resolveOdooMoneyOutboxDeps(t.ctx);
+      const found = await deps.probeByRemarksKey('revenue', KEY, { recovery: true });
+      assertEquals(found?.externalRecordId, `account.move:${id}`);
+      assertEquals(calls.some((call) => call.url.pathname === '/rest/v1/external_master_records'
+        && call.url.searchParams.get('kind') === 'eq.tax'), false, 'recovery does not re-resolve the current sale-tax mapping');
+      assertEquals(t.unexpected, []);
     });
   });
 });
