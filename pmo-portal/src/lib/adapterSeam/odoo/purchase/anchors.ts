@@ -30,3 +30,15 @@ export function parseOdooExternalRef(model: string, ref: unknown): number | null
   const id = ref.slice(model.length + 1);
   return /^[1-9][0-9]*$/.test(id) ? Number(id) : null;
 }
+
+/**
+ * The PMO key an order or bill identifier name was made from (`externalIdentifier` replaces every non-alphanumeric with `_`), or
+ * null for any other name. Only keys whose name is lossless are recovered: the feed uses it to tell an anchored orphan from a
+ * document Odoo users created.
+ */
+export function keyFromExternalIdentifier(name: string): string | null {
+  const m = /^(po|bill)_([0-9a-f]{8})_([0-9a-f]{4})_([0-9a-f]{4})_([0-9a-f]{4})_([0-9a-f]{12})$/i.exec(name);
+  if (!m) return null;
+  const key = `${m[1]}:${m[2]}-${m[3]}-${m[4]}-${m[5]}-${m[6]}`;
+  return PURCHASE_KEY_RE.test(key) ? key : null;
+}

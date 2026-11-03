@@ -188,7 +188,11 @@ Enforcement applies at **enqueue and pass start**, never mid-flight:
   only, 0081:135-214), over the **new** gated tables listed in S2.0. Idempotence guard: skip any
   policy whose qual/with_check already contains `org_feature_enabled`. Grant/permission surfaces are
   untouched, so 0137's service-grant inventory is unaffected.
-- **Re-boundary** — procurement_receipts + procurement_receipt_files write policies switch their
+- **Re-boundary — DEFERRED (Director ruling, 2026-11-03).** Receipts stay gated on `procurement`
+  exactly as today; this slice does not move `procurement_receipts` / `procurement_receipt_files` (nor
+  `create_procurement_receipt`) to `procurement_full`. Owner sign-off (#1720) and a live-org check come
+  first. The original intent is kept below for that follow-up.
+- **Re-boundary (deferred)** — procurement_receipts + procurement_receipt_files write policies switch their
   conjunct from `procurement` to `procurement_full` (targeted rebuild that first asserts the old
   conjunct text is present), and create_procurement_receipt (0481:36) checks `procurement_full`.
   Existing orgs are Enterprise (both keys on) so AC-PLN-016 compatibility is unaffected.
@@ -328,6 +332,232 @@ S2 changes none.
 ## S3 — FE and console: outline
 
 **Goal / AC:** Use the database effective projection for navigation and routes; present the Operator console and read-only Admin page (AC-PLN-008, 012, 013). First inventory route/nav gates, current deployment capability gates, repository APIs, actual test paths and translations. The slice's detailed plan must test loading, failure, invalidation, org changes and the current Admin feedback path. `agent_assistant` and `user_views` keep deployment kill switches as an additional AND. Run rendered review and UX proof.
+
+## S3 — detailed plan (written 2026-11-03 against dev @ f10eeb699)
+
+**Goal:** the app resolves every switch from the database projection, the Operator console drives
+the whole registry, and an org Admin reads their plan — without any FE copy of the precedence order.
+
+### S3.0 — Inventory (shipped code; the list this slice must satisfy)
+
+**Resolution seam today.** `useOrgFeatures` (`src/hooks/useOrgFeatures.ts`) reads the
+`org_features` TABLE and re-implements the revenue display rule in the FE (`useRevenueMode() ===
+'native'`, OD-NAR-2). After 0532/0533 the DB owns that rule (`display_enabled`), so the FE copy is
+deleted and the hook reads `resolved_org_features()` — ONE call, own org, per-org query key.
+
+**Rail nav gates** (`src/components/shell/Rail.tsx` ALL_ITEMS; "was" = today's key):
+
+| Rail item | Route | Was | S3 key |
+|---|---|---|---|
+| Sales Pipeline | `/sales` | `crm` | `sales_pipeline` |
+| Procurement | `/procurement` | `procurement` | `procurement` |
+| Stock | `/stock` | — (ungated) | `stock` |
+| Timesheets | `/timesheets` | `timesheets` | `timesheets` |
+| Site cash | `/imprest` | — | `imprest` |
+| Companies / Contacts | `/companies`, `/contacts` | `crm` | `crm` |
+| Suppliers (only without CRM) | `/companies?type=Vendor` | `unlessFeature: crm` | `unlessFeature: crm` |
+| Incidents | `/incidents` | `incidents` | `incidents` |
+| Receivables | `/finance/receivables` | `revenue` | `revenue` |
+| Payables | `/finance/payables` | `procurement` | `procurement` |
+| Reports | `/finance/reports` | `revenue` | `management_pack` |
+| Statements | `/finance/statements` | — | `financial_statements` |
+| My Views group | `/views/*` | env `userViews` only | `user_views` **AND** env `VITE_FEATURES_USERVIEWS` |
+| Assistant toggle | ⌘J panel | env `agentAssistant` only | `agent_assistant` **AND** env `VITE_FEATURES_AGENT_ASSISTANT` |
+| Dashboard, Projects, Equipment, Expenses, Approvals, Meetings, My Tasks, Finance hub, Administration | … | — | none: core (D5 + `core_feature_keys()`; equipment/meetings are not in the catalogue) |
+
+**Route gates** (`src/App.tsx` appRouteConfig; today only incidents/revenue/procurement/user_views
+are wrapped):
+
+| Route(s) | S3 key |
+|---|---|
+| `/sales`, `/sales/:opportunityId` | `sales_pipeline` |
+| `/procurement`, `/procurement/new`, `/procurement/:procurementId`, `…/:tab` | `procurement` |
+| `/timesheets` | `timesheets` |
+| `/companies`, `/companies/:companyId`, `/contacts`, `/contacts/:contactId` | `crm` |
+| `/incidents`, `/incidents/:incidentId` | `incidents` |
+| `/imprest`, `/imprest/:floatId` | `imprest` |
+| `/stock`, `/stock/setup`, `/stock/documents`, `…/:documentId`, `…/edit`, `/stock/ledger`, `/stock/reorder`, `/stock/new/:kind` | `stock` |
+| `/sales-invoices/:invoiceId` (legacy detail deep link) | `sales_invoices` |
+| `/finance/receivables` | `revenue` |
+| `/finance/payables` | `procurement` |
+| `/finance/reports` | `management_pack` |
+| `/finance/statements` | `financial_statements` |
+| `/erp-purchases` | `erp_purchases` |
+| `/views`, `/views/new`, `/views/:viewId/edit`, `/views/:viewId` | `user_views` (+ env AND) |
+| `/administration/exchange-rates` (Admin section) | `multi_currency` |
+| `/administration/*` (other sections), `/finance`, `/settings/profile`, `/reports` (redirect), `/sales-invoices` + `/incoming-payments` + `/revenue-by-project` (redirects) | none: core / redirect-only |
+
+**Explicit non-gates, stated so they are decisions and not omissions:**
+
+- `/integrations` (personal M365 connect) stays routable. It is the token-custody callback target and
+  the only teardown surface; S2's rule is that an off feature must still be disconnectable
+  (S2 detailed plan §"Service-role paths"), and the AccountMenu entry that leads to it already hides
+  when `m365_integration` is false.
+- `feedback_surveys` keeps its Admin-owned switch (`FeedbackSurveysSetting`, `admin_set_feedback_surveys`,
+  migration 0419). It is excluded from the Operator console's override/plan controls and shown
+  read-only there as "Admin-owned".
+- `m365_integration`, `erp_sync`, `clickup_sync`, `import_export`, `api_access`, `sso`,
+  `budget_phasing`, `budget_projection` have no nav item or route of their own today (S2.0
+  inventory); they are driven from inside pages, so S3 gates no route for them. `budget_projection`
+  ships a page component with no route (`pages/BudgetProjection.tsx` is reachable only from a
+  project tab), so it is out of the route inventory on purpose.
+- `aiComposer` (`VITE_FEATURES_AI_COMPOSER`) is an environment sub-flag, never an entitlement
+  (constraints §; plan S1 note). It keeps its existing AND with `user_views` at its call sites.
+
+**Deployment gates stay an additional AND.** `agent_assistant` and `user_views` resolve as
+`db.enabled && envFlag`, implemented in ONE place (`useFeature`), so no caller can forget the AND.
+
+**Operator page today.** `/administration/features` renders `pages/AdministrationFeatures.tsx` with
+`isOperator` from the settled `useOperatorMembership()` (real JWT, never the preview role) and
+`orgId` = the caller's own org. There is no org picker, no plan picker, and the toggle list is
+driven by `FEATURE_KEYS_TOGGLEABLE` (six keys). `FeedbackSurveysSetting` is mounted from
+`/administration/integrations`, unchanged.
+
+**Unreadable today (the reason for 0537).** `plans`, `plan_features`, `org_plans` and
+`global_features` revoke every API role (0530) and no read projection exists — so plan names,
+limits, plan defaults, the all-orgs column and an org's assigned plan are all unreadable by the
+console and by the Admin page. 0537 adds the three read-only projections (see Interfaces).
+
+### S3.1 — Interfaces (migration 0537, read-only)
+
+`supabase/migrations/0537_plan_read_projections.sql` + `rollback/0537_plan_read_projections_down.sql`:
+
+- `operator_plan_catalogue()` → `(plan_id, plan_name, seat_limit, project_limit, ai_monthly_messages,
+  feature_key, feature_enabled, global_enabled)`, one row per (plan, feature_key) ordered by plan
+  then key. `stable security definer`, pinned `search_path = public`, guarded by
+  `is_active_member()` + `is_operator()`; revoked from public/anon/service_role, granted to
+  authenticated. Read-only (no write text) so 0178's write-text sweep is unaffected and its
+  allow-list/count stay untouched.
+- `operator_org_plan(p_org_id uuid)` → `text`: the org's stored plan id, `null` when unassigned
+  (the resolver treats null as Enterprise). `unknown_org` (`23503`) for a missing org; same guard
+  and grants.
+- `resolved_org_plan()` → `(plan_id text, plan_name text, seat_limit integer, project_limit integer,
+  ai_monthly_messages integer)` for the caller's own org only (`auth_org_id()`), active member
+  required, null/absent assignment resolves to the Enterprise row. Signature is FROZEN: S4 consumes
+  it. Same definer/search_path/grant rules.
+
+**FE repository API** (`src/lib/repositories/contracts/admin.ts` → `OrgFeatureRepository`; DAL
+`src/lib/db/orgFeatures.ts`; both re-exported through `repositories`):
+
+| Method | RPC | Returns |
+|---|---|---|
+| `listOwn()` | `resolved_org_features()` | `{ display: Record<key,boolean>, states: Record<key,{enabled,displayEnabled,source}> }` |
+| `listForOrg(orgId)` | `operator_resolved_org_features(uuid)` | same shape, selected org |
+| `getPlanCatalogue()` | `operator_plan_catalogue()` | `{ plans: PlanRow[], defaults: Record<planId, Record<key,boolean>>, global: Record<key,boolean> }` |
+| `getOrgPlan(orgId)` | `operator_org_plan(uuid)` | `string \| null` |
+| `getOwnPlan()` | `resolved_org_plan()` | `PlanRow \| null` |
+| `toggle({orgId,key,enabled})` | `operator_toggle_feature` | void (override set) |
+| `clearOverride({orgId,key})` | `operator_clear_feature_override` | void |
+| `setOrgPlan({orgId,planId})` | `operator_set_org_plan` | void |
+| `setGlobal({key,enabled})` | `operator_set_global_feature` | void |
+| `setPlanFeature({planId,key,enabled})` | `operator_set_plan_feature` | void |
+| `setPlanLimits({planId,seatLimit,projectLimit,aiMonthlyMessages})` | `operator_set_plan_limits` | void |
+| `setFeedbackSurveys(enabled)` | `admin_set_feedback_surveys` | unchanged |
+
+Query keys (`src/hooks/useOrgFeatures.ts`): own `['orgFeatures','own',orgId]`, operator
+`['orgFeatures','operator',orgId]`, `['planCatalogue']`, `['orgPlan',orgId]`,
+`['operator','orgs']`; every mutation invalidates the `['orgFeatures']`, `['planCatalogue']` and
+`['orgPlan']` prefixes. No cross-org shared cache.
+
+**Generated types.** `src/lib/supabase/database.types.ts` predates S1 (it has no
+`resolved_org_features`), so 0537's three functions, S1's three projections and the five S1 Operator
+writers are added by hand in the generator's shape. The authoritative regen needs a database with
+0537 applied, which is the lane's DB slot (heavy-load rule), not this worker's.
+
+### S3.2 — UI
+
+- `src/components/FeatureRoute.tsx` + new `src/components/FeatureUnavailable.tsx`: **off** renders
+  the not-available state (AC-PLN-008; replaces today's redirect, kept honest by a link home);
+  **loading** renders null (existing hold); **error** renders the unavailable state with a Retry,
+  and never claims "not on your plan" while the answer is unknown.
+- `pages/AdministrationFeatures.tsx`: Operator console — org picker (`operator_list_orgs`), plan
+  picker (with the selected org's plan limits spelled out in its helper line), per-key effective state
+  with source pill (global / override / plan / core), override switch + Clear, plan default for the
+  selected org's plan, all-orgs switch (confirm before turning a global switch OFF), and a
+  plan-defaults + limits editor (seats / active projects / AI messages per month; blank =
+  unlimited / per contract). Admin-owned `feedback_surveys` and the core keys render read-only.
+  Non-Operator renders the own-org read-only list (unchanged behaviour). A per-plan organisation count
+  is deliberately NOT shown: the catalogue read does not carry one, and inventing it client-side
+  would need a second cross-org read for decoration.
+- `pages/YourPlan.tsx` (AC-PLN-013): read-only plan name, switches on, limits with usage shown as
+  "Not tracked yet" until S5, no editable control. Mounted as the `plan` section of Administration
+  (`/administration/plan`) for Admin/Executive viewers and Operators.
+- Every Operator control is gated on the settled `useOperatorMembership()` projection (real JWT),
+  the Admin page on `can('view','user')` — both clarity projections, with the RPC as the authority.
+
+**Translation keys** (namespace `administration`, en + id, referenced only through literal `t()`):
+`plan.*` (title, intro, planLabel, unlimited, perContract, notTrackedYet, usageHeading, limits.*,
+switches.*, adminOwned, coreAlwaysOn, noPlan), `console.*` (title, organisation, selectOrganisation,
+plan, selectPlan, orgsOnPlan, saving, saved, retry, loadFailed, effective, source, sourceGlobal,
+sourceOverride, sourcePlan, sourceCore, override, clearOverride, cleared, planDefault, allOrgs,
+globalConfirmTitle, globalConfirmBody, globalConfirmAction, planDefaults, planLimits, seats,
+activeProjects, aiMessages, save, inheritedFromGlobal, adminOwnedRow, coreHeading),
+`featureUnavailable.*` (title, body, retry, home). All in `public/locales/{en,id}/administration.json`.
+
+### S3.3 — Tasks (TDD; each 2–5 min; FE gates only — no DB run in this lane)
+
+1. **Red — resolution seam** (`src/auth/__tests__/useFeature.test.tsx`, AC-PLN-008): assert
+   `resolved_org_features` is the ONLY read, `display_enabled` drives the answer, `enabled`
+   false/`display_enabled` true and the reverse both behave as specified, core keys never query,
+   `agent_assistant`/`user_views` go false when their env kill switch is off even though the DB
+   says on. 2. **Green** — rewrite `useOrgFeatures`/`useFeature` on `repositories.orgFeature.listOwn()`
+   with per-org keys, delete the FE revenue-ownership merge and `FEATURE_KEYS_TOGGLEABLE`-driven
+   resolution copy.
+3. **Red — route state** (`src/components/__tests__/FeatureRoute.test.tsx`): off → not-available
+   state, no page, no redirect; loading → held; error → held with retry and no "not on plan" claim;
+   on → page. 4. **Green** — `FeatureRoute` + `FeatureUnavailable`.
+5. **Red — nav + palette** (`src/components/shell/__tests__/Rail.features.test.tsx`): every row of
+   the S3.0 Rail table (absent when off, present when on), the env AND for My Views/Assistant, and
+   the ⌘K palette following `MODULES[].feature`. 6. **Green** — Rail + `routeMatch.ts` + `App.tsx`
+   route wrappers.
+7. **Red — Operator console** (`pages/AdministrationFeatures.test.tsx`, AC-PLN-012): per-key state
+   and source from `listForOrg`; override toggle calls `toggle`; Clear calls `clearOverride`; plan
+   picker calls `setOrgPlan`; all-orgs OFF asks for confirmation then calls `setGlobal`; plan default
+   calls `setPlanFeature`; limits editor calls `setPlanLimits`; every mutation invalidates the three
+   prefixes; loading and error states hide the controls. 8. **Green** — the console.
+9. **Red — Your plan** (`pages/YourPlan.test.tsx`, AC-PLN-013): lists plan, switches and limits, no
+   `switch`/`textbox`/`button` control, usage reads "Not tracked yet", and an unavailable read shows
+   the retry state. 10. **Green** — the page + Administration `plan` section.
+11. **Red — repository seam** (`src/lib/repositories/admin.test.ts`, `composition.test.ts`,
+    `src/lib/db/orgFeatures.test.ts`): every new method delegates to its RPC; the projection maps
+    rows → `{display,states}`; unknown keys are dropped; `resolved_org_plan` null → no plan.
+12. **Green** — DAL + repository wiring.
+13. **Admin feedback path** — `src/lib/db/orgFeatures.feedback.test.ts` +
+    `src/hooks/useFeedbackSurveys` unchanged and still green (its invalidate key is the
+    `['orgFeatures']` prefix).
+14. **0537 + rollback + pgTAP** — write `supabase/tests/plans_read_projections.test.sql` (Operator
+    reads the catalogue with all four plans and every key; a non-Operator member and anon are
+    refused; `operator_org_plan` unknown org → `23503`; `resolved_org_plan` returns the caller's own
+    row, Enterprise when unassigned, and nothing for another org). Red-first ordering was kept in
+    the file's own comments; the run lands in the lane's DB slot (heavy-load rule).
+15. **Full battery** — the gate list below, plus sibling suites that mock the touched seams.
+
+### S3.4 — Verify (exact commands)
+
+From `pmo-portal/` under `scripts/with-test-lock.sh`: `npm run check:guards`, `npm run typecheck`,
+`npx eslint --max-warnings=0` on the touched TS/TSX, and
+`npx vitest run src/auth/__tests__/useFeature.test.tsx src/components/__tests__/FeatureRoute.test.tsx
+src/components/shell/__tests__/Rail.features.test.tsx src/components/shell/__tests__/FeatureGate.route.test.tsx
+src/lib/__tests__/features.test.ts src/lib/features.dbRegistry.test.ts src/lib/features.test.ts
+src/lib/repositories/admin.test.ts src/lib/repositories/composition.test.ts src/lib/repositories/index.test.ts
+src/lib/db/orgFeatures.feedback.test.ts pages/AdministrationFeatures.test.tsx
+pages/__tests__/Administration.features.readonly.test.tsx pages/YourPlan.test.tsx
+pages/AdministrationShell.test.tsx App.incidentRoutes.test.tsx`.
+Lane DB slot (coordinator): `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db
+supabase/tests/plans_read_projections.test.sql supabase/tests/plans_permissions.test.sql
+supabase/tests/plans_resolution.test.sql supabase/tests/0178_anon_executable_definers.test.sql
+supabase/tests/0137_service_role_grants.test.sql'`. Rendered review + `scripts/ux-proof.sh
+/administration/features /administration/plan` are the coordinator's slot (heavy-load rule).
+
+### AC → test (S3 rows)
+
+| AC | Owning proof (S3) |
+|---|---|
+| AC-PLN-008 | `src/auth/__tests__/useFeature.test.tsx` (resolution) + `src/components/__tests__/FeatureRoute.test.tsx` (route state) + `src/components/shell/__tests__/Rail.features.test.tsx` (nav) |
+| AC-PLN-012 | `pmo-portal/pages/AdministrationFeatures.test.tsx` |
+| AC-PLN-013 | `pmo-portal/pages/YourPlan.test.tsx` |
+| FR-PLN-005 (one resolver) | the three above, plus `src/lib/repositories/composition.test.ts` for the single RPC seam |
+| 0537 projections | `supabase/tests/plans_read_projections.test.sql` |
 
 ## S4 — assistant and analytics: outline
 
@@ -506,6 +736,196 @@ before or after 0536–0565.
 
 **Goal / AC:** CI catches unregistered modules and one cross-org journey verifies the full switch (AC-PLN-014, 015). First inventory route/nav/entity sources and assistant registrations so the gate discovers additions independently of its own catalogue. Detailed plan must include failing fixtures for each missing requirement, core modules, plan rows, read tools and draft-confirm write tools. Add one isolated Playwright journey: Operator disables stock in A; A loses nav, URL access and assistant tool while B remains enabled. Read `docs/e2e-parallel-conventions.md` before writing it.
 
+## S6 — detailed plan (written 2026-11-03 against dev @ dd3a63816)
+
+**Goal:** one CI gate makes the D13 rule mechanical — a module cannot ship with a route, a nav item or a
+switch key that lacks its switch key (or an explicit core marking), its plan row, or an assistant read
+path — and one cross-tenant Playwright journey proves the whole switch (AC-PLN-014, AC-PLN-015).
+
+**Scope guard (binding, this slice):** no migration, no `db reset`, no pgTAP, no Docker, no e2e **run**.
+The e2e is authored and handed to the coordinator; the guard is proved by its own fixtures.
+
+### S6.0 — Inventory (shipped sources the gate reads; never a hand-kept list beside them)
+
+| Surface | Source of truth on dev | What the gate discovers |
+|---|---|---|
+| Routes | `pmo-portal/App.tsx` → `appRouteConfig` (`useRoutes` data, NFR-M365SEP-008) | every `path` + whether the element is wrapped in `<FeatureRoute feature="…">` |
+| Rail nav | `pmo-portal/src/components/shell/Rail.tsx` → `ALL_ITEMS` | every `to` + `feature` / `unlessFeature` |
+| ⌘K palette modules | `pmo-portal/src/components/shell/routeMatch.ts` → `MODULES` | every `path` + `feature` |
+| Switch registry | `pmo-portal/src/lib/features.ts` → `FEATURE_KEYS`, `CORE_FEATURES` | the gatable key set and the never-gatable set |
+| Plan catalogue | `supabase/migrations/0530…`–`0531_plan_catalogue.sql` (+ later seed migrations) | `plans` ids, the `feature_tiers` × `plan_tiers` matrix, explicit `plan_features` rows, the latest `org_features_feature_key_check` list |
+| Assistant read path | `supabase/functions/agent-chat/{entityCatalog,readEntities,actions,stockRead,draftInvoice,overdue,remindOverdue}.ts`, `pmo-portal/src/lib/viewspec/types.ts` (`ENTITY_WHITELIST`) | entity keys and tool names (tool = a `name: '<snake>'` literal in a file that also declares `inputSchema`) |
+| Runtime key→surface map | `supabase/functions/agent-chat/featureSwitches.ts` **if S4 has merged** (`ENTITY_FEATURE_KEYS`, `TOOL_FEATURE_KEYS`) | the assistant's own mapping; until then a clearly-labelled pre-S4 fallback map lives in the guard |
+| Enforcement baseline | **every** `supabase/migrations/*_enforcement.sql` — `0081_feature_flag_write_enforcement.sql` today, plus `0534_feature_enforcement.sql` **if S2 has merged** | gated write table → key (0081's `case tablename … end` mapping, S2's §B `values` list) and gated SECURITY DEFINER function → key (S2) |
+
+On dev today the four module gates are only partly wired: `FeatureRoute` covers `incidents`, `revenue`,
+`procurement` and `user_views`; Rail gates `crm`/`procurement`/`timesheets`/`incidents`/`revenue`;
+`routeMatch.MODULES` carries only the three Finance keys; `featureSwitches.ts` is S4's and `0534` is S2's,
+neither merged. Those are the S6 allowlist's entries (§S6.3) — each names its restoring slice, and a stale
+entry fails.
+
+### S6.1 — Interfaces
+
+`scripts/check-module-completeness.mjs` — a Node 22 ESM guard with no dependencies, same shape as
+`check-retention.mjs` / `check-unpaged-reads.mjs`:
+
+- **Pure, exported** (unit-testable, no I/O): `parseRoutes`, `parseRail`, `parsePalette`, `parseFeatures`,
+  `parsePlanCatalogue`, `parseAssistant`, `parseKeyMap`, `parseEnforcement`, `enforcementBaseline`,
+  `policyCommands`, `check`.
+- `check(input)` returns `string[]` errors; `main()` prints each as `module-completeness: <detail>` and
+  exits 1. Every message names exactly what is missing and the file to fix.
+- `--self-test` runs the fixtures below in-process (AC-PLN-014), printing `module-completeness self-test: OK`.
+- Replay order: migrations applied by numeric prefix, `rollback/` ignored, SQL comments stripped (the
+  `check-retention.mjs` `strip()` idiom).
+
+Rule set (each failure names the missing artefact):
+
+1. **Routes** — every `appRouteConfig` path except `*` is either `<FeatureRoute feature="<key>">` (key must
+   be in `FEATURE_KEYS`) or listed in `CORE_ROUTES` (explicit core marking: path → module/reason). An
+   unmarked path fails. A `CORE_ROUTES` entry matching no route is stale and fails.
+2. **Rail** — every `ALL_ITEMS` item carries `feature`/`unlessFeature` (valid key) or is in `CORE_NAV`.
+   Gaps and stale entries fail.
+3. **Palette** — every `MODULES` entry carries `feature` (valid key) or is in `CORE_PALETTE`; an entry whose
+   Rail twin is gated by a different key (or ungated) fails as a drift, naming both.
+4. **Registry ↔ DB catalogue** — every `FEATURE_KEYS` key appears in the latest
+   `org_features_feature_key_check` list; the two sets must be equal (a key in the DB but not the FE
+   registry fails too). `CORE_FEATURES` keys must never appear in the gatable catalogue.
+5. **Plan rows** — for every plan in `plans` × every `FEATURE_KEYS` key there is a `plan_features` row
+   (from the `feature_tiers` × `plan_tiers` matrix or an explicit insert). Missing pairs fail as
+   `plan <plan>: no plan_features row for switch key <key>`; a row for an unknown plan or key fails.
+6. **Assistant read path** — every `FEATURE_KEYS` key has ≥1 mapped entity/tool and every mapped target
+   exists in the discovered assistant inventory (an unknown entity/tool fails). The map is S4's
+   `featureSwitches.ts` when present; before S4 a `LEGACY_ASSISTANT_PATHS` table (deleted with the
+   fallback once S4 lands) states the same contract.
+7. **Enforcement recreation (#1783 item 3)** — the baseline is **every** enforcement migration, folded by
+   numeric order: `0081_feature_flag_write_enforcement.sql`'s live gated-table list (`case tablename … end`)
+   *and* S2's `0534_feature_enforcement.sql` when it merges (its gated functions, key from the **raising**
+   `assert_feature_on(... 'key')` or `raise exception 'feature_off' … detail = 'key'`, and its §B
+   `(table, key)` values list). Any migration numbered **after** a gate's own migration that recreates one
+   of those (a) functions, or (b) **write** policies — `create policy` or `alter policy` — on one of those
+   tables, must carry the same gate in the same statement: `assert_feature_on` in a function body
+   (`org_feature_enabled` only *returns false*, so it is never a function gate), `org_feature_enabled` in a
+   policy predicate. Read policies (`for select`) and `as restrictive` policies are out of scope — 0081
+   gates the permissive write policy, so a read or narrowing policy is not where the gate lives, and an
+   `alter policy` that only names roles (`to …`) or renames keeps the predicate. A plain text check;
+   deliberate exceptions (e.g. a receipt re-boundary that moves a conjunct to another key) go in
+   `ALLOWLIST` with an `enforcement:<file>:<name>` id and a restore note, and a stale entry fails.
+
+**Allowlist** — one exported array; each entry `{ ids, reason, restore }` where `ids` is one id or a list,
+and an id is `route:<path>`, `nav:<path>`, `palette:<path>`, `assistant:<key>`, `plan:<plan>/<key>` or
+`enforcement:<file>:<name>`. Exact id, or a trailing `*` prefix match. Every entry must suppress at least
+one real gap — a stale entry is itself a failure, so the list cannot decay into "everything".
+
+**Wiring:** `pmo-portal/package.json` gains
+`"check:module-completeness": "node ../scripts/check-module-completeness.mjs && node ../scripts/check-module-completeness.mjs --self-test"`,
+appended to `check:guards` (CI's `verify` job already runs `npm run check:guards`; the
+`ci-integration-order.test.mjs` contract requires every `check:*` to be in that chain). No new CI step:
+one home.
+
+### S6.2 — Tasks (TDD; each 2–5 min)
+
+1. **Red** — `scripts/check-module-completeness.test.mjs`: route fixtures (gated / unmarked / core /
+   unknown key / stale core), Rail and palette fixtures incl. the drift case. **Green** — the three
+   discovery parsers + rules 1–3.
+2. **Red** — plan-catalogue fixtures in the same test file: matrix coverage, a missing (plan,key) pair, a
+   stale key, a core key in the catalogue, a DB key missing from the FE registry. **Green** — rules 4–5.
+3. **Red** — assistant fixtures: `featureSwitches.ts`-shaped map; the legacy fallback; a mapped entity/tool
+   absent from the inventory; a key with no path. **Green** — rule 6.
+4. **Red** — enforcement fixtures: a later `create or replace function` without the gate (fails, names
+   file+function+key), with `assert_feature_on` (passes), with the wrong key (fails), a later write policy
+   on a gated table without `org_feature_enabled` (fails); an allowlisted recreation passes, a stale
+   allowlist entry fails. **Green** — rule 7.
+5. **Red** — `--self-test` (AC-PLN-014): a fixture module with a route but no switch key, no plan row and
+   no assistant read path must exit non-zero and name all three. **Green** — the self-test fixtures +
+   runner.
+6. **Green** — run against the real repo; record each dev gap as an allowlist entry with its reason and
+   restoring slice; re-run until clean.
+7. **E2E (authored, not run)** — `pmo-portal/e2e/serial/AC-PLN-015-switch-off-journey.spec.ts` per
+   `docs/e2e-parallel-conventions.md` (serial lane: it mutates the org-global `org_features` override and
+   creates a second tenant; the override is restored in a `finally` around every arm, the tenant in
+   `afterAll`). The journey: Operator clears the seed
+   org's `stock` override to OFF through `operator_toggle_feature` under his own JWT; an org-A user sees no
+   Stock rail item, `/stock` renders the not-available state, and (served lane only) the assistant answers
+   that stock is not on the plan; a freshly created org-B user still sees Stock and `/stock`. Assistant
+   arm is annotated when the served lane is absent (never silently dropped, never asserted against a mock).
+8. **Gates** — see §S6.4.
+
+### S6.3 — Allowlist as built (each entry names its restoring slice)
+
+Eleven entries, 79 ids; every id suppresses at least one real gap on dev (a stale id fails). The
+real-repo run reports 86 gaps across those ids before the allowlist — 26 routes, 3 Rail items, 17
+palette gaps (10 modules, 7 of which also drift from their gated Rail twin), 16 switch keys with no
+assistant read path, and 24 write-policy recreations on tables 0081 gates.
+
+- `route:<path>` × 25 — the module routes S3 wraps in `FeatureRoute` (`/sales*`, `/procurement*`,
+  `/timesheets`, `/companies*`, `/contacts*`, `/imprest*`, `/stock*`, `/erp-purchases`,
+  `/sales-invoices/:invoiceId`, `/finance/statements`, `/administration/exchange-rates`); reason "S3
+  wires the route gate (AC-PLN-008)"; restore "delete when S3 lands its route table". The 26th route
+  id is the next line's own entry.
+- `route:/incoming-payments/:receiptId` (its own entry) — revenue detail route; S3 gates the redirects
+  only; restore "gate on `revenue` or mark core with the owner's ruling".
+- `nav:/stock`, `nav:/imprest` — one entry; reason "S3 gates the Rail from the resolved projection";
+  restore "delete when S3 lands".
+- `nav:/finance/statements` — its own entry (role-gated in the page, no switch key); same restore.
+- The 10 palette twins (`/sales`, `/procurement`, `/stock`, `/timesheets`, `/companies`,
+  `/companies?type=Vendor`, `/contacts`, `/incidents`, `/imprest`, `/finance/statements`) — reason "S3
+  makes the ⌘K palette follow `MODULES[].feature`"; restore "delete when S3 lands the palette gates".
+- `assistant:<key>` × 16 — 15 registry keys with no assistant read surface yet (`sales_pipeline`,
+  `revenue`, `import_export`, `m365_integration`, `budget_projection`, `imprest`, `clickup_sync`,
+  `erp_sync`, `erp_purchases`, `financial_statements`, `management_pack`, `budget_phasing`,
+  `multi_currency`, `api_access`, `sso`) plus the Admin-owned `feedback_surveys` (deliberately no
+  assistant surface, S4) — reason "no assistant read path yet (D13/S4)"; restore "delete when the module
+  gains a read tool/entity".
+- `enforcement:<file>:<policy>` × 24 — one entry per migration that re-created a write policy on a table
+  0081 gates after 0081 landed (`0099` × 6, `0100` × 6, `0129` × 6, `0203` × 6). S6 adds no migration, so
+  re-creating them is a later slice's change; each `restore` says to delete the id when its policy is
+  next re-created carrying the conjunct (it then goes stale and the gate demands the deletion).
+- Nothing is allowlisted for plan rows on dev: 0531 seeds all 25 keys × 4 plans (100 rows), and the
+  guard's DB-key check proves the FE registry and `org_features_feature_key_check` are the same 25.
+
+### S6.4 — Verify (exact commands; no heavy jobs)
+
+From the repo root: `node scripts/check-module-completeness.mjs --self-test` and
+`node scripts/check-module-completeness.mjs`; from `pmo-portal/`: `npm run check:guards` (runs the new
+guard + self-test), then `scripts/with-test-lock.sh npm run typecheck` and
+`npx eslint --max-warnings=0` on touched JS/TS. Script tests: `node --test scripts/check-module-completeness.test.mjs`.
+The e2e is **not run** here; the coordinator runs it after S3/S4 merge in the serial lane
+(`scripts/e2e-local.sh --project=serial --workers=1 e2e/serial/AC-PLN-015-switch-off-journey.spec.ts`).
+All three arms are skipped on dev: (a) and (b) are `test.fixme` until S3 wires the `/stock` route and
+Rail gates, and (c) needs the served-functions lane plus the agent-assistant flag. The skip carries ONE
+justified entry in `scripts/check-e2e-skips.mjs` whose `reason` names the missing dependencies and whose
+`restore` names S3 (`feat/plans-s3-console`); restoring the arms makes the entry stale and fails the
+skip gate, so it cannot outlive its reason.
+
+### S6.5 — Open questions and the defaults taken
+
+1. **Core marking lives in the guard, not in `App.tsx`.** Default: the `CORE_ROUTES`/`CORE_NAV`/
+   `CORE_PALETTE` tables in the guard (path → module/reason), because S3 rewrites both source files; a
+   marker comment would collide and a stale entry still fails. When S3 lands, `CORE_ROUTES` shrinks to the
+   D5 modules + redirects + auth/settings surfaces.
+2. **Assistant coverage for registry-only keys.** Default: require a read path for every `FEATURE_KEYS`
+   entry (the brief's literal rule) and allowlist the 16 keys with no surface, rather than weakening the
+   rule to "keys that gate a route". When a module ships, its allowlist line disappears and the gate
+   demands the tool.
+3. **The enforcement baseline is what exists today, not what S2 will add.** Default: the rule reads
+   **every** `*_enforcement.sql`, so it covers 0081's live gated-table list now and layers S2's 0534 on
+   top when it merges. Consequence, recorded honestly: the write policies 0099/0100/0129/0203 re-created
+   after 0081 are visible as gaps and carry 24 `enforcement:` allowlist ids. S6 adds no migration, so
+   re-creating them belongs to a later slice; each id goes stale (and must be deleted) the moment its
+   policy is re-created with the conjunct.
+4. **E2E lane path.** Brief says `pmo-portal/e2e/…`; the isolation guard requires a `serial`-tagged spec in
+   `e2e/serial/`. Default: `e2e/serial/AC-PLN-015-switch-off-journey.spec.ts` (the conventions are binding);
+   the plan's ownership table row is updated to match.
+5. **A route gated on the *wrong* (but registered) key is not a failure.** FR-PLN-015's letter is "carries a
+   registered key"; deciding that `/stock/cycle-count` belongs to `stock` and not `crm` needs a path→module
+   catalogue that does not exist yet (it is S3's route table). The guard checks the same class of thing where
+   it *is* derivable — a palette entry drifting from its gated Rail twin. When S3 lands its route table, the
+   table itself is the catalogue and this becomes checkable; do not hand-list paths here in the meantime.
+6. **D13's draft-and-confirm half is not mechanised.** D13 also asks for a draft-confirm write tool where the
+   screen writes; the gate enforces one read path per key only. "This screen writes" is not derivable from the
+   route/registry sources (a page's mutations are not declared), so a rule here would need a per-module
+   declaration that does not exist. Recorded as a narrowed scope, not a regression: FR-PLN-015 is read-only.
+
 ## Planned AC ownership (later slices finalize exact paths)
 
 | AC | Owning test |
@@ -519,8 +939,8 @@ before or after 0536–0565.
 | 011 | `supabase/tests/plans_monthly_credits.test.sql` |
 | 012 | `pmo-portal/pages/AdministrationFeatures.test.tsx` |
 | 013 | `pmo-portal/pages/YourPlan.test.tsx` |
-| 014 | `scripts/check-module-completeness.test.mjs` |
-| 015 | `pmo-portal/e2e/AC-PLN-015-plan-switch.spec.ts` |
+| 014 | `scripts/check-module-completeness.test.mjs` (+ the guard's `--self-test`) |
+| 015 | `pmo-portal/e2e/serial/AC-PLN-015-switch-off-journey.spec.ts` |
 | 016 | `supabase/tests/plans_compatibility.test.sql` (FE compatibility cases in the S3 plan) |
 
 ## Final gates per slice

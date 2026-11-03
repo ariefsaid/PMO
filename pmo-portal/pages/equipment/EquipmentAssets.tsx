@@ -101,6 +101,7 @@ const EquipmentAssetsPage: React.FC = () => {
   return (
     <ListPage
       title={t('equipment:assets.title', 'Equipment assets')}
+      count={data ? rows.length : undefined}
       description={t('equipment:assets.description', 'The machines usage is logged against. Open one to see how it is costed and what each project carries.')}
       primaryAction={<CanWrite entity="equipmentAsset" action="create" ctx={writeCtx}>
         <Button variant="primary" onClick={() => setCreating(true)}><Icon name="plus" />{t('equipment:assets.new', 'New asset')}</Button>

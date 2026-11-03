@@ -7,7 +7,7 @@ import { useResolvedLocale } from '@/src/hooks/useResolvedLocale';
 /**
  * Mounts i18next and points BOTH string translation and `src/lib/format.ts` at the resolved locale.
  *
- * Sits between `<AuthProvider>` and `<BrowserRouter>` in `App.tsx`: it needs the profile (above it)
+ * Sits between `<AuthProvider>` and the router in `App.tsx`: it needs the profile (above it)
  * and every string-rendering subtree sits below it.
  *
  * ⚑ BOOT ORDERING. Before the profile resolves the language is `en` and the number locale is

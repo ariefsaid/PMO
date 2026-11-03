@@ -65,7 +65,8 @@ export interface KindRunDeps extends KindReaders {
 
 export function odooKindReaders(call: OdooCall, spec: KindSpec, companyId: number): KindReaders {
   const scope = companyDomain(spec, companyId);
-  const context = { active_test: false };
+  // lang is pinned so a translatable name (a tax group's) reads the same whatever language the service user has (FR-OCI-023).
+  const context = { active_test: false, lang: 'en_US' };
   return {
     read: (domain, order, limit) => call<unknown[]>(spec.model, 'search_read', { domain: [...domain, ...scope], fields: ['id', ...spec.fields], order, limit, context }),
     readIds: (afterId, limit) => call<number[]>(spec.model, 'search', { domain: [['id', '>', afterId], ...scope], order: 'id asc', limit, context }),

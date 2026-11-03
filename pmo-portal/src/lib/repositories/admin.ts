@@ -18,7 +18,23 @@ import {
   archiveUserView,
   deleteUserView,
 } from '@/src/lib/db/userViews';
-import { listOwnOrgFeatures, toggleOrgFeature, setFeedbackSurveys, getOrgCreditBalance, grantOrgCredits } from '@/src/lib/db/orgFeatures';
+import {
+  listOwnResolvedFeatures,
+  listOperatorResolvedFeatures,
+  listOperatorOrgOverrides,
+  getPlanCatalogue,
+  getOrgPlan,
+  getOwnPlan,
+  toggleOrgFeature,
+  clearOrgFeatureOverride,
+  setOrgPlan,
+  setGlobalFeature,
+  setPlanFeature,
+  setPlanLimits,
+  setFeedbackSurveys,
+  getOrgCreditBalance,
+  grantOrgCredits,
+} from '@/src/lib/db/orgFeatures';
 import {
   getOrgTaxDefault,
   getOrgDefaultCurrency,
@@ -75,8 +91,18 @@ export const userViewRepository: UserViewRepository = {
 };
 
 export const orgFeatureRepository: OrgFeatureRepository = {
-  listOwn: () => wrap(() => listOwnOrgFeatures()),
+  listOwn: () => wrap(() => listOwnResolvedFeatures()),
+  listForOrg: (orgId) => wrap(() => listOperatorResolvedFeatures(orgId)),
+  listOverrides: (orgId) => wrap(() => listOperatorOrgOverrides(orgId)),
+  getPlanCatalogue: () => wrap(() => getPlanCatalogue()),
+  getOrgPlan: (orgId) => wrap(() => getOrgPlan(orgId)),
+  getOwnPlan: () => wrap(() => getOwnPlan()),
   toggle: (args) => wrap(() => toggleOrgFeature(args)),
+  clearOverride: (args) => wrap(() => clearOrgFeatureOverride(args)),
+  setOrgPlan: (args) => wrap(() => setOrgPlan(args)),
+  setGlobal: (args) => wrap(() => setGlobalFeature(args)),
+  setPlanFeature: (args) => wrap(() => setPlanFeature(args)),
+  setPlanLimits: (args) => wrap(() => setPlanLimits(args)),
   setFeedbackSurveys: (enabled) => wrap(() => setFeedbackSurveys(enabled)),
 };
 

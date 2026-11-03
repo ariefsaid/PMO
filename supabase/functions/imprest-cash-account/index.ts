@@ -77,6 +77,12 @@ export async function handleImprestCashAccountRequest(req: Request): Promise<Res
     return fail('Only an active member of this organization can bind a cash account', 'FORBIDDEN', 403);
   }
 
+  // 0534: the site-float surface belongs to the `imprest` module. A plan switched off refuses BEFORE any
+  // ERP call, with the typed code (HTTP 409, error `feature_off`) every gated edge function returns.
+  const { data: imprestOn, error: switchError } = await sc.rpc('service_feature_enabled', { p_org_id: profile.org_id, p_key: 'imprest' });
+  if (switchError) return fail('Could not resolve the plan switch', 'INTERNAL', 500);
+  if (imprestOn !== true) return fail('The imprest module is not on this organisation\'s plan', 'feature_off', 409);
+
   // The float must be this org's own, and live.
   const { data: float } = await sc.from('imprest_floats').select('id, erp_cash_account_ref').eq('id', body.floatId).eq('org_id', profile.org_id)
     .is('archived_at', null).maybeSingle();

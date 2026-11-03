@@ -10,10 +10,11 @@ import type { PmoLineItem } from './bodies/shared.ts';
 
 export interface ProgressClaimRecord {
   id: string;
-  kind: 'down_payment' | 'progress';
+  kind: 'down_payment' | 'progress' | 'time_materials';
   project_id: string;
   work_order_id: string | null;
   currency?: string;
+  gross_amount?: number | string;
   down_payment_amount: number | string | null;
   dp_recovery_amount: number | string;
   dp_item_code: string | null;
@@ -26,14 +27,17 @@ export interface ProgressClaimLineRecord {
   unit: string;
   quantity: number | string;
   rate: number | string;
+  amount: number | string;
 }
 
 export function progressClaimItems(
   claim: ProgressClaimRecord,
-  lines: readonly ProgressClaimLineRecord[],
 ): PmoLineItem[] {
   if (claim.withdrawn_at) {
     throw new AdapterError('commit-rejected', 'This progress claim was withdrawn, so no invoice can be raised for it');
+  }
+  if (claim.kind === 'time_materials') {
+    throw new AdapterError('commit-rejected', 'Time-and-materials lines must be resolved from the signed claim');
   }
   if (claim.kind === 'down_payment') {
     if (!claim.dp_item_code || claim.down_payment_amount === null) {
@@ -41,19 +45,5 @@ export function progressClaimItems(
     }
     return [{ item_code: claim.dp_item_code, qty: 1, rate: Number(claim.down_payment_amount) }];
   }
-  if (lines.length === 0) throw new AdapterError('commit-rejected', 'This progress claim has no quantity lines');
-  const items: PmoLineItem[] = lines.map((line) => ({
-    item_code: line.item_code,
-    qty: Number(line.quantity),
-    rate: Number(line.rate),
-    description: `${line.description} (${line.unit})`,
-  }));
-  const recovery = Number(claim.dp_recovery_amount);
-  if (recovery > 0) {
-    if (!claim.dp_item_code) {
-      throw new AdapterError('commit-rejected', 'This progress claim recovers a down payment but names no down payment item');
-    }
-    items.push({ item_code: claim.dp_item_code, qty: 1, rate: -recovery });
-  }
-  return items;
+  throw new AdapterError('commit-rejected', 'Progress claim lines must be resolved from the signed claim');
 }

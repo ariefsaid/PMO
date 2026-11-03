@@ -25,7 +25,7 @@ const ProjectNew: React.FC = () => {
   const [dirty, setDirty] = useState(false);
   const [pendingLeave, setPendingLeave] = useState<(() => void) | null>(null);
   const holdLeave = useCallback((leave: () => void) => setPendingLeave(() => leave), []);
-  const guardLeave = useUnsavedChangesGuard({ dirty, onBlocked: holdLeave });
+  const guardLeave = useUnsavedChangesGuard({ dirty, guardHistory: true, onBlocked: holdLeave });
 
   if (!may('create', 'project')) {
     return (

@@ -11,7 +11,7 @@ import { usePermission } from '@/src/auth/usePermission';
 import { useFinancePosition } from '@/src/hooks/useFinancePosition';
 import { useTimesheetsAwaitingApproval, useReopenableApprovedTimesheets } from '@/src/hooks/useTimesheetApproval';
 import { AuthContext } from '@/src/auth/AuthContext';
-import { isFeatureEnabled } from '@/src/lib/features';
+import { useFeature } from '@/src/auth/useFeature';
 import { AppVersion } from '@/src/components/AppVersion';
 import { ApprovalsNavCount } from './ApprovalsNavCount';
 import {
@@ -62,16 +62,16 @@ const ALL_ITEMS: NavItem[] = [
   { to: '/', text: 'Dashboard', icon: 'dashboard', group: 'Overview', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   // FIN-S9: the personal "My integrations" doorway (/integrations) moved into the account menu.
   { to: '/projects', text: 'Projects', icon: 'projects', group: 'Delivery', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
-  { to: '/sales', text: 'Sales Pipeline', icon: 'pipeline', group: 'CRM', feature: 'crm', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
+  { to: '/sales', text: 'Sales Pipeline', icon: 'pipeline', group: 'CRM', feature: 'sales_pipeline', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   { to: '/procurement', text: 'Procurement', icon: 'procurement', group: 'Delivery', feature: 'procurement', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
-  { to: '/stock', text: 'Stock', icon: 'inbox', group: 'Delivery', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
+  { to: '/stock', text: 'Stock', icon: 'inbox', group: 'Delivery', feature: 'stock', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   // #1519: every member logs equipment usage; the Assets and approvals views gate by role inside the page.
   { to: '/equipment', text: 'Equipment', icon: 'clock', group: 'Delivery', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   { to: '/timesheets', text: 'Timesheets', icon: 'clock', group: 'Workforce', feature: 'timesheets', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Engineer, UserRole.Admin] },
   // #775: every member files their own claims; RLS scopes reads to own ∪ approval rank.
   { to: '/expenses', text: 'Expenses', icon: 'expenses', group: 'Workforce', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   // #1515: floats are visible to approval rank (policy imprestFloat.view = master-data roles); Engineers see none.
-  { to: '/imprest', text: 'Site cash', icon: 'expenses', group: 'Workforce', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
+  { to: '/imprest', text: 'Site cash', icon: 'expenses', group: 'Workforce', feature: 'imprest', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   // Ordinary role access is supplemented by record-scoped timesheet eligibility below.
   { to: '/approvals', text: 'Approvals', icon: 'approvals', group: 'Workforce', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   // Standalone /tasks nav removed — real Tasks CRUD lives in the project Tasks tab
@@ -99,8 +99,8 @@ const ALL_ITEMS: NavItem[] = [
   { to: '/finance', text: 'Finance', icon: 'dollar', group: 'Finance', realRoleOnly: true, roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin] },
   { to: '/finance/receivables', text: 'Receivables', icon: 'invoices', group: 'Finance', feature: 'revenue', realRoleOnly: true, roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin] },
   { to: '/finance/payables', text: 'Payables', icon: 'procurement', group: 'Finance', feature: 'procurement', realRoleOnly: true, roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin] },
-  { to: '/finance/reports', text: 'Reports', icon: 'reports', group: 'Finance', feature: 'revenue', realRoleOnly: true, roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin] },
-  { to: '/finance/statements', text: 'Statements', icon: 'reports', group: 'Finance', realRoleOnly: true, roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin] },
+  { to: '/finance/reports', text: 'Reports', icon: 'reports', group: 'Finance', feature: 'management_pack', realRoleOnly: true, roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin] },
+  { to: '/finance/statements', text: 'Statements', icon: 'reports', group: 'Finance', feature: 'financial_statements', realRoleOnly: true, roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin] },
 ];
 
 const GROUP_ORDER: NavItem['group'][] = ['Overview', 'CRM', 'Delivery', 'Finance', 'Workforce'];
@@ -147,7 +147,7 @@ export interface RailProps {
   railActiveOverride?: 'salesPipeline' | 'projects' | null;
   /**
    * Callback fired when the flag-gated "Assistant" toggle button is clicked (FR-AP-005).
-   * Only rendered when isFeatureEnabled('agentAssistant') is true; absent when flag is off.
+   * Only rendered when the deployment flag AND the org's `agent_assistant` entitlement hold; absent otherwise.
    */
   onOpenAssistant?: () => void;
   /**
@@ -187,6 +187,11 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
   const { data: orgFeatures } = useOrgFeatures();
   const featureEnabled = (key: OrgFeatureKey): boolean =>
     orgFeatures?.[key] ?? FEATURE_ENV_DEFAULT[key];
+  // The two deployment-gated keys resolve through useFeature so their ENV KILL SWITCH stays an
+  // additional AND over the entitlement (S3 constraint): an Operator cannot re-enable a capability
+  // the deployment turned off, and flipping the env var still hides the surface for every org.
+  const userViewsEnabled = useFeature('user_views');
+  const agentAssistantEnabled = useFeature('agent_assistant');
 
   // AC-ADMIA-002: a REAL server-confirmed platform Operator (any base role) can reach
   // /administration by URL, so the rail's Administration footer must be discoverable for them.
@@ -201,10 +206,10 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
       ? role !== null && realRoleValue !== null && i.roles.includes(role) && i.roles.includes(realRoleValue)
       : (i.roles.includes(role) || (i.to === '/approvals' && hasEligibleTimesheets))) && (!i.feature || featureEnabled(i.feature)) && (!i.unlessFeature || !featureEnabled(i.unlessFeature)) && (i.to !== '/finance/statements' || canViewStatements),
   );
-  // My Views group + the Assistant toggle remain env-flag-driven (NOT org entitlements — plan M5):
-  // `userViews`/`agentAssistant` are env-only sub-flags until the entitlements system absorbs them.
+  // My Views group + the Assistant toggle follow BOTH the entitlement and their deployment kill
+  // switch (resolved inside useFeature), not the env flag alone.
   const showMyViews =
-    isFeatureEnabled('userViews') &&
+    userViewsEnabled &&
     Array.isArray(userViews) &&
     userViews.length > 0;
   const myViewsItems = showMyViews
@@ -440,7 +445,7 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
       {/* FR-AP-005 / AC-AP-004: "Assistant" toggle — flag-gated, visible to ALL roles.
           Not a NavLink (routes nowhere) — a <button> with aria-pressed (toggle
           semantics). Placed above the Administration footer. */}
-      {isFeatureEnabled('agentAssistant') && (
+      {agentAssistantEnabled && (
         <div className="flex-shrink-0 border-t border-border p-2.5">
           <button
             type="button"

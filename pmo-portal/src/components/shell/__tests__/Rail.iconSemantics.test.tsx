@@ -7,7 +7,25 @@ vi.mock('@/src/auth/useIsOperator', () => ({ useIsOperator: () => false }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ effectiveRole: 'Admin', realRole: 'Admin' }) }));
 vi.mock('@/src/hooks/useUserViews', () => ({ useUserViews: () => ({ data: [{ id: 'view-1', name: 'Saved view' }] }) }));
 vi.mock('@/src/hooks/useOrgFeatures', () => ({
-  useOrgFeatures: () => ({ data: { crm: true, procurement: true, timesheets: true, revenue: true, incidents: true, m365_integration: true } }),
+  // S3: the Assistant toggle and My Views now need BOTH the entitlement and their env kill switch,
+  // so the resolved set must include both keys (the env mock below turns the switches on).
+  useOrgFeatures: () => ({
+    data: {
+      crm: true,
+      procurement: true,
+      timesheets: true,
+      revenue: true,
+      incidents: true,
+      m365_integration: true,
+      agent_assistant: true,
+      user_views: true,
+      sales_pipeline: true,
+      management_pack: true,
+      financial_statements: true,
+      imprest: true,
+      stock: true,
+    },
+  }),
 }));
 vi.mock('@/src/lib/features', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/src/lib/features')>();

@@ -220,6 +220,8 @@ const Contacts: React.FC = () => {
   return (
     <ListPage
       title={t('contacts.title', 'Contacts')}
+      count={data ? filtered.length : undefined}
+      total={data ? all.length : undefined}
       description={
         // DD-MTG-6: the CRM 'Meeting' kind is the lightweight touchpoint log; anything with
         // attendees and minutes lives in the Meetings module — so this copy no longer promises
