@@ -11962,6 +11962,19 @@ export type Database = {
         Args: { p_account: string; p_fy: string; p_version: string }
         Returns: string
       }
+      get_budget_archive_targets: {
+        Args: { p_version_id: string }
+        Returns: {
+          eligible: boolean
+          erp_budget_name: string
+          erp_docstatus: number | null
+          fiscal_year: string
+          page_key: string
+          push_state: string
+          reason: string
+          source_kind: string
+        }[]
+      }
       budget_distribution_gaps: { Args: { p_version: string }; Returns: string[] }
       budget_activation_mode: { Args: { version_id: string }; Returns: string }
       project_win_eligibility: { Args: { p_id: string }; Returns: string }

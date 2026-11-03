@@ -30,7 +30,7 @@ import { resolveSupplierRef } from './dispatchRefs.ts';
 import { resolvePaymentRefs, resolveProcurementOrderRefs, resolvePurchaseInvoiceTaxes, resolvePurchaseProjectRefs } from './dispatchProcurement.ts';
 import { resolveOrdinaryInvoiceCurrency, resolveOrdinaryInvoiceTaxes, resolveProgressClaimInvoice, resolveReceiptConfig, resolveRevenueRefs } from './dispatchRevenue.ts';
 import { resolveTimesheetRefs } from './dispatchTimesheet.ts';
-import { assertBudgetBindingIdentity, isBudgetCommand, readCategoryAccountMap, resolveBudgetRefs } from './dispatchBudget.ts';
+import { assertBudgetBindingIdentity, isBudgetCommand, isLegacyBudgetArchiveCommand, readCategoryAccountMap, resolveBudgetRefs } from './dispatchBudget.ts';
 
 // ── Public seam (re-exports): everything `dispatchFactory.ts` exported before the split, from the
 // same import path. Edge fns (`adapter-dispatch/*`, `erpnext-sweep`) and the vitest suites import
@@ -195,7 +195,7 @@ export async function resolveErpDispatchAdapter(deps: ErpDispatchFactoryDeps): P
   // read or sees a modified `ctx.config`. ⚑ The map is resolved FIRST because the refs pre-flight
   // validates the line items against it before issuing its ERP grain read (AC-BUD-011: an unmapped
   // category refuses with zero ERP calls).
-  const budgetConfig = isBudgetCommand(deps.command)
+  const budgetConfig = isBudgetCommand(deps.command) && !isLegacyBudgetArchiveCommand(deps.command)
     ? { ...binding.config, category_account_map: await readCategoryAccountMap(deps.serviceClient, deps.orgId) }
     : receiptConfig;
   const { refs: budgetRefs } = await resolveBudgetRefs(deps, binding, budgetConfig);
