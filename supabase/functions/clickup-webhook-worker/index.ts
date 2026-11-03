@@ -67,13 +67,22 @@ export interface ResolvedBinding {
   memberMap: ClickUpMemberMap;
 }
 
+interface ResolvedOrg {
+  orgId: string;
+  token: string;
+  /** False means the accepted inbox row stays pending until the switch is restored. */
+  featureEnabled?: boolean;
+}
+
+type ProcessOutcome = ApplyOutcome | { kind: 'held'; reason: 'feature-off:clickup_sync' };
+
 // ── processInboxRow — the re-GET + resolve-binding + apply core (unit-tested). ──────────────────────
 
 /** The narrow, injectable surface `processInboxRow` needs. */
 export interface ProcessRowDeps {
   /** Re-GET the task from ClickUp; `null` on a 404 (also used directly for `taskDeleted` — never
    *  called for that verb, there is nothing to re-GET). */
-  resolveOrg: (teamId: string | null) => Promise<{ orgId: string; token: string } | null>;
+  resolveOrg: (teamId: string | null) => Promise<ResolvedOrg | null>;
   /** Re-GET the task from ClickUp with the already-authorized org token; `null` on a 404. */
   getTask: (taskId: string, token: string) => Promise<ClickUpTask | null>;
   /** Resolve the org/project binding: mapped path (task_id, works with a `null` listId) → adopt path
@@ -91,9 +100,10 @@ export interface ProcessRowDeps {
  * the existing source-mod-guarded engine. A binding that fails to resolve is ack'd (no-op) — the
  * periodic sweep (ADR-0055 §3) is the safety net, matching the pre-fix ingress's "no-binding" stance.
  */
-export async function processInboxRow(row: InboxRow, deps: ProcessRowDeps): Promise<ApplyOutcome> {
+export async function processInboxRow(row: InboxRow, deps: ProcessRowDeps): Promise<ProcessOutcome> {
   const org = await deps.resolveOrg(row.team_id);
   if (!org) return { kind: 'no-op' };
+  if (org.featureEnabled === false) return { kind: 'held', reason: 'feature-off:clickup_sync' };
   const task = row.event === 'taskDeleted' ? null : await deps.getTask(row.task_id, org.token);
   const listId = task?.list?.id ?? null;
   const binding = await deps.resolveBinding(row.task_id, listId);
@@ -108,9 +118,10 @@ export interface WorkerBatchDeps {
   claimPending: (batchSize: number) => Promise<InboxRow[]>;
   markDone: (id: string) => Promise<void>;
   markFailed: (id: string, error: string) => Promise<void>;
+  markHeld: (id: string, reason: string) => Promise<void>;
   /** Record a binding miss on the inbox row while acknowledging it; this is the P4 health signal. */
   markUnresolvable: (id: string, reason: string) => Promise<void>;
-  processRow: (row: InboxRow) => Promise<ApplyOutcome>;
+  processRow: (row: InboxRow) => Promise<ProcessOutcome>;
 }
 
 export interface WorkerBatchResult {
@@ -133,6 +144,10 @@ export async function runWorkerBatch(deps: WorkerBatchDeps, batchSize = 25): Pro
   for (const row of rows) {
     try {
       const outcome = await deps.processRow(row);
+      if (outcome.kind === 'held') {
+        await deps.markHeld(row.id, outcome.reason);
+        continue;
+      }
       if (outcome.kind === 'no-op') {
         await deps.markUnresolvable(row.id, 'ClickUp task could not be resolved to an active PMO project binding');
       } else {
@@ -162,7 +177,7 @@ export async function runWorkerBatch(deps: WorkerBatchDeps, batchSize = 25): Pro
 export async function resolveOrgForTeam(
   serviceClient: SupabaseClient,
   teamId: string | null,
-): Promise<{ orgId: string; token: string } | null> {
+): Promise<ResolvedOrg | null> {
   if (!teamId) return null;
   const { data: binding, error } = await serviceClient
     .from('external_org_bindings')
@@ -174,6 +189,12 @@ export async function resolveOrgForTeam(
   if (!binding) return null;
   const orgId = (binding as { org_id?: string }).org_id;
   if (!orgId) return null;
+  const { data: clickupSyncOn, error: featureError } = await serviceClient.rpc('service_feature_enabled', {
+    p_org_id: orgId,
+    p_key: 'clickup_sync',
+  });
+  if (featureError) throw new AppError('ClickUp entitlement could not be resolved', featureError.code);
+  if (clickupSyncOn !== true) return { orgId, token: '', featureEnabled: false };
   const connectEnabled = externalConnectEnabled();
   if (!connectEnabled) return null;
   const result = await resolvePerOrgSecret({
@@ -190,7 +211,7 @@ export async function resolveOrgForTeam(
   if (result.kind === 'read-failed') {
     throw new AppError('ClickUp credentials could not be read for this org', 'external-unreachable');
   }
-  return result.kind === 'resolved' ? { orgId, token: result.secret } : null;
+  return result.kind === 'resolved' ? { orgId, token: result.secret, featureEnabled: true } : null;
 }
 
 function bindingFromRow(row: { org_id: string; project_id: string; config: unknown }): ResolvedBinding {
@@ -311,12 +332,14 @@ export const MAX_INBOX_ATTEMPTS = 5;
 
 export async function claimPendingLive(serviceClient: SupabaseClient, batchSize: number): Promise<InboxRow[]> {
   // Pending rows plus failed rows still under the attempt cap, oldest first. Two reads (not one `or`) so
-  // each stays a plain filter; the oldest `batchSize` of the union are claimed.
-  const cols = 'id, event, task_id, team_id, history_items, received_at';
+  // each stays a plain filter. Fresh rows (processed_at IS NULL) take priority, then retried rows rotate
+  // by their latest attempt time; original received_at is retained as the stable tie-breaker.
+  const cols = 'id, event, task_id, team_id, history_items, received_at, processed_at';
   const pendingRead = await serviceClient
     .from('clickup_webhook_inbox')
     .select(cols)
     .eq('status', 'pending')
+    .order('processed_at', { ascending: true, nullsFirst: true })
     .order('received_at', { ascending: true })
     .limit(batchSize);
   if (pendingRead.error) throw new AppError(pendingRead.error.message, pendingRead.error.code);
@@ -325,13 +348,14 @@ export async function claimPendingLive(serviceClient: SupabaseClient, batchSize:
     .select(cols)
     .eq('status', 'failed')
     .lt('attempts', MAX_INBOX_ATTEMPTS)
+    .order('processed_at', { ascending: true, nullsFirst: true })
     .order('received_at', { ascending: true })
     .limit(batchSize);
   if (failedRead.error) throw new AppError(failedRead.error.message, failedRead.error.code);
-  const rows = [...((pendingRead.data as Array<InboxRow & { received_at: string }> | null) ?? []), ...((failedRead.data as Array<InboxRow & { received_at: string }> | null) ?? [])]
-    .sort((a, b) => a.received_at.localeCompare(b.received_at))
+  const rows = [...((pendingRead.data as Array<InboxRow & { received_at: string; processed_at: string | null }> | null) ?? []), ...((failedRead.data as Array<InboxRow & { received_at: string; processed_at: string | null }> | null) ?? [])]
+    .sort((a, b) => (a.processed_at ?? '').localeCompare(b.processed_at ?? '') || a.received_at.localeCompare(b.received_at))
     .slice(0, batchSize)
-    .map(({ received_at: _receivedAt, ...row }) => row);
+    .map(({ received_at: _receivedAt, processed_at: _processedAt, ...row }) => row);
   // Best-effort claim: mark processing before working the batch (not a fenced/SKIP LOCKED claim — the
   // apply path is idempotent under a rare double-dequeue by a second concurrent tick, so at-least-once
   // is acceptable here; see the plan's "simplest thing that survives a >7s budget" stance).
@@ -358,6 +382,14 @@ async function markUnresolvableLive(serviceClient: SupabaseClient, id: string, r
   const { error } = await serviceClient
     .from('clickup_webhook_inbox')
     .update({ status: 'done', last_error: `unresolvable-binding: ${reason}`, processed_at: new Date().toISOString() })
+    .eq('id', id);
+  if (error) throw new AppError(error.message, error.code);
+}
+
+async function markHeldLive(serviceClient: SupabaseClient, id: string, reason: string): Promise<void> {
+  const { error } = await serviceClient
+    .from('clickup_webhook_inbox')
+    .update({ status: 'pending', last_error: reason, processed_at: new Date().toISOString() })
     .eq('id', id);
   if (error) throw new AppError(error.message, error.code);
 }
@@ -402,12 +434,15 @@ export const jobHandler = withJobRun('clickup-webhook-worker', async (req: Reque
   if (!supabaseUrl || !serviceRoleKey) {
     return json({ error: 'MISCONFIGURED', message: 'missing Supabase configuration' }, 500);
   }
-  const serviceClient = createClient(supabaseUrl, serviceRoleKey);
+  const serviceClient = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
+  });
 
   const result = await runWorkerBatch({
     claimPending: (batchSize) => claimPendingLive(serviceClient, batchSize),
     markDone: (id) => markDoneLive(serviceClient, id),
     markFailed: (id, message) => markFailedLive(serviceClient, id, message),
+    markHeld: (id, reason) => markHeldLive(serviceClient, id, reason),
     markUnresolvable: (id, reason) => markUnresolvableLive(serviceClient, id, reason),
     processRow: (row) =>
       processInboxRow(row, {

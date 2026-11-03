@@ -130,7 +130,7 @@ Deno.test("AC-M365DOC-071 settings and identifiers degrade to safe outcomes with
       const response = await call(body);
       assertEquals(response.status, 200);
       assertEquals(graphCalls(calls).length, 0);
-      assertEquals(calls.filter((c) => c.method !== "GET" && !c.url.pathname.includes("/rpc/m365_membership_state")).length, 0);
+    assertEquals(calls.filter((c) => c.method !== "GET" && !c.url.pathname.includes("/rpc/m365_membership_state") && !c.url.pathname.includes("/rpc/service_feature_enabled")).length, 0);
       return (await response.json()) as Record<string, unknown>;
     });
   await t.step("no settings row / cleared default / settings read denied => default_unset", async () => {
@@ -687,7 +687,7 @@ Deno.test("AC-M365DOC-069 backend invariants: only the signed Microsoft calls, n
     const restWrites = calls.filter((c) => c.url.pathname.startsWith("/rest/v1/") && !c.url.pathname.startsWith("/rest/v1/rpc/") && c.method !== "GET");
     assert(restWrites.every((c) => c.url.pathname === "/rest/v1/error_events"), "only observability rows may be written directly");
     const rpcs = new Set(calls.filter((c) => c.url.pathname.startsWith("/rest/v1/rpc/")).map((c) => c.url.pathname.split("/").pop()));
-    assertEquals([...rpcs].sort(), ["m365_link_record_folder", "m365_membership_state", "m365_record_folder_created", "rate_limit_hit"]);
+    assertEquals([...rpcs].sort(), ["m365_link_record_folder", "m365_membership_state", "m365_record_folder_created", "rate_limit_hit", "service_feature_enabled"]);
     // Only the folder's own bodies carry a name; nothing else Microsoft-bound has a body.
     assertEquals(graphCalls(calls).filter((c) => c.method === "GET" && c.bodyText).length, 0);
   });

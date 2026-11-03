@@ -9,7 +9,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
  * be mistaken for the whole set (money-path bucket 5). An unrated preview row keeps `amount` NULL — never zero.
  */
 const h = vi.hoisted(() => {
-  const result = { value: { data: null as unknown, error: null as unknown } };
+  const result: { value: { data: unknown; error: unknown; count?: number | null } } = {
+    value: { data: null, error: null },
+  };
   const calls = {
     from: [] as string[], rpc: [] as Array<[string, unknown]>, eq: [] as unknown[], is: [] as unknown[],
     order: [] as unknown[], limit: [] as unknown[], select: [] as unknown[], single: 0,
@@ -279,11 +281,21 @@ describe('#1514 T7.1 claim and preview reads', () => {
   });
 
   it('T7.1 listTmClaimSources reads the drill-down of one claim, bounded', async () => {
-    h.result.value = { data: [], error: null };
-    await expect(dal.listTmClaimSources('c1')).resolves.toEqual({ rows: [], truncated: false });
+    h.result.value = { data: [], error: null, count: 0 };
+    await expect(dal.listTmClaimSources('c1')).resolves.toEqual({ rows: [], truncated: false, totalCount: 0 });
     expect(h.calls.from).toEqual(['tm_claim_sources']);
     expect(h.calls.eq).toContainEqual(['claim_id', 'c1']);
     expect(h.calls.limit).toContain(LIST_LIMIT + 1);
+    expect(h.calls.select).toContainEqual(['*', { count: 'exact' }]);
+  });
+
+  it('T7.1 listTmClaimSources reports the exact total when the visible source read is capped', async () => {
+    const sources = Array.from({ length: LIST_LIMIT + 1 }, (_, index) => ({ id: `source-${index}` }));
+    h.result.value = { data: sources, error: null, count: 237 };
+
+    const result = await dal.listTmClaimSources('c1');
+
+    expect(result).toEqual({ rows: sources.slice(0, LIST_LIMIT), truncated: true, totalCount: 237 });
   });
 
   it('T7.1 an Engineer refused by the amounts gate keeps 42501', async () => {

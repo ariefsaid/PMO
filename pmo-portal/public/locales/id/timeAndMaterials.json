@@ -134,7 +134,7 @@
     "noLines": "Klaim ini tidak memiliki baris yang dapat ditagihkan.",
     "sources": "Entri sumber yang disetujui",
     "sourcesError": "Entri sumber tidak dapat dimuat",
-    "sourcesTruncated": "Ada lebih dari {{limit}} entri sumber; daftar ini tidak lengkap.",
+    "sourcesTruncated": "Menampilkan {{shown}} dari {{total}} entri sumber.",
     "noSources": "Tidak ada entri sumber untuk klaim ini.",
     "timeEntry": "Entri waktu yang disetujui",
     "equipmentEntry": "Entri penggunaan yang disetujui"

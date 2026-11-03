@@ -5,7 +5,9 @@
  * unmapped. No due date and no received date travel (FR-OCI-015).
  */
 export interface PmoInvoiceLine {
-  itemId: string; description: string; quantity: number; unitPrice: number; unit: string;
+  itemId: string; description: string; quantity: number; unitPrice: number;
+  /** The PMO unit; absent on an ordinary invoice line (the product's own unit then stands in Odoo). */
+  unit?: string;
   /** A down-payment or recovery line rides the org's down-payment item; every other line is an ordinary item. */
   kind?: 'down-payment' | 'recovery';
   /** An explicit income account for this line (otherwise the item's own account stands). */
@@ -53,8 +55,8 @@ export function buildInvoiceBody(invoice: PmoInvoice, maps: InvoiceMaps): Invoic
   for (const line of invoice.lines) {
     const item = maps.items[line.itemId];
     if (!item) return refuse('item', line.itemId);
-    const unitId = maps.units[line.unit];
-    if (unitId === undefined) return refuse('unit', line.unit);
+    const unitId = line.unit === undefined ? null : maps.units[line.unit];
+    if (unitId === undefined) return refuse('unit', line.unit!);
     if (line.kind) {
       const advance = maps.downPayment;
       if (line.incomeAccountId !== undefined || !advance || advance.itemId !== line.itemId || item.incomeAccountId !== advance.advanceAccountId) return refuse('down-payment-account', line.itemId);
@@ -63,7 +65,7 @@ export function buildInvoiceBody(invoice: PmoInvoice, maps: InvoiceMaps): Invoic
     }
     netCents += Math.round(line.quantity * line.unitPrice * 100);
     lines.push([0, 0, {
-      product_id: item.productId, name: line.description, quantity: line.quantity, price_unit: line.unitPrice, product_uom_id: unitId,
+      product_id: item.productId, name: line.description, quantity: line.quantity, price_unit: line.unitPrice, ...(unitId === null ? {} : { product_uom_id: unitId }),
       tax_ids: [[6, 0, [...maps.taxIds]]],
       ...(maps.costAccountId === null ? {} : { analytic_distribution: { [String(maps.costAccountId)]: 100 } }),
       ...(line.incomeAccountId === undefined ? {} : { account_id: line.incomeAccountId }),

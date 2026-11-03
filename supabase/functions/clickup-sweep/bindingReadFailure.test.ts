@@ -24,6 +24,7 @@ Deno.test({ name: 'FN2-006 a failed org-binding read fails the org closed: no Cl
     const url = new URL(input instanceof Request ? input.url : String(input));
     urls.push(url);
     const json = (b: unknown, status = 200) => Promise.resolve(new Response(JSON.stringify(b), { status, headers: { 'content-type': 'application/json' } }));
+    if (url.pathname === '/rest/v1/rpc/service_feature_enabled') return json(true);
     if (url.pathname.startsWith('/rest/v1/external_domain_ownership')) return json([{ org_id: ORG }]);
     if (url.pathname.startsWith('/rest/v1/external_org_bindings')) return json({ message: 'db blip', code: '57P03' }, 500);
     throw new Error(`unexpected request ${url.host}${url.pathname}`);

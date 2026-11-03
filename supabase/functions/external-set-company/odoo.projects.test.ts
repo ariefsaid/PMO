@@ -28,6 +28,7 @@ function routes(o: Opts): MockRoute[] {
     supabaseSelect('profiles', () => one({ org_id: 'org-1', role: o.role ?? 'Admin' })),
     supabaseSelect('platform_operators', () => none()),
     supabaseRpc('actor_authorization_state', () => jsonResponse({ active: o.active ?? true })),
+    supabaseRpc('service_feature_enabled', () => jsonResponse(true)),
     supabaseSelect('external_org_bindings', () => one({ config: o.plan === null ? {} : { analytic_plan_id: o.plan ?? 7 } })),
     supabaseSelect('external_master_records', (c) => {
       const kind = (c.url.searchParams.get('kind') ?? '').replace('eq.', '');

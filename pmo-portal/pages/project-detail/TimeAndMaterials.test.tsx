@@ -18,7 +18,7 @@ const h = vi.hoisted(() => ({
   assignees: { data: { rows: [] as unknown[], truncated: false }, isPending: false, isError: false, refetch: vi.fn() },
   claims: { data: { rows: [] as unknown[], truncated: false }, isPending: false, isError: false, refetch: vi.fn() },
   preview: { data: { rows: [] as unknown[], truncated: false }, isPending: false, isError: false, refetch: vi.fn() },
-  sources: { data: { rows: [] as unknown[], truncated: false }, isPending: false, isError: false, refetch: vi.fn() },
+  sources: { data: { rows: [] as unknown[], truncated: false, totalCount: 0 }, isPending: false, isError: false, refetch: vi.fn() },
   profiles: [] as unknown[],
   documents: [] as unknown[],
   loadItems: vi.fn(async () => [] as Array<{ value: string; label: string; sub?: string }>),
@@ -104,7 +104,7 @@ beforeEach(() => {
   h.assignees = { data: { rows: [assignment], truncated: false }, isPending: false, isError: false, refetch: vi.fn() };
   h.claims = { data: { rows: [claim], truncated: false }, isPending: false, isError: false, refetch: vi.fn() };
   h.preview = { data: { rows: [priced, unrated], truncated: false }, isPending: false, isError: false, refetch: vi.fn() };
-  h.sources = { data: { rows: [{ id: 'source-row-1', claim_id: 'claim-1', claim_line_id: 'line-1', source_kind: 'timesheet_entry', source_id: 'entry-1', units: 8 }], truncated: false }, isPending: false, isError: false, refetch: vi.fn() };
+  h.sources = { data: { rows: [{ id: 'source-row-1', claim_id: 'claim-1', claim_line_id: 'line-1', source_kind: 'timesheet_entry', source_id: 'entry-1', units: 8 }], truncated: false, totalCount: 1 }, isPending: false, isError: false, refetch: vi.fn() };
   h.profiles = [profile('u-engineer', 'Site engineer'), profile('u-pm', 'Project manager'), profile('u-fin', 'Finance user')];
   h.documents = [documentRow];
   h.loadItems = vi.fn(async () => [{ value: 'ITEM-LABOUR', label: 'ITEM-LABOUR', sub: 'Site engineer' }]);
@@ -159,14 +159,14 @@ describe('TimeAndMaterials', () => {
 
     expect(screen.getByText(/Unrated hours/)).toBeInTheDocument();
     expect(screen.getByText(/No rate applies/)).toBeInTheDocument();
-    h.sources = { ...h.sources, data: { rows: [{ id: 'source-row-1', claim_id: 'claim-1', claim_line_id: 'line-1', source_kind: 'timesheet_entry', source_id: 'entry-1', units: 8 }], truncated: true } };
+    h.sources = { ...h.sources, data: { rows: [{ id: 'source-row-1', claim_id: 'claim-1', claim_line_id: 'line-1', source_kind: 'timesheet_entry', source_id: 'entry-1', units: 8 }], truncated: true, totalCount: 2 } };
     await user.click(screen.getByRole('button', { name: /Assemble claim/ }));
     await waitFor(() => expect(h.mutations.assemble).toHaveBeenCalledWith(expect.objectContaining({ projectId: 'p1', from: expect.any(String), to: expect.any(String) })));
 
     await user.click(screen.getByRole('button', { name: /Open claim/ }));
     expect(await screen.findByRole('dialog', { name: /Time-and-materials claim/ })).toHaveTextContent('400,000');
     expect(screen.getByText(/Approved source entries/)).toBeInTheDocument();
-    expect(screen.getByText(/source entries are available; this list is incomplete/)).toBeInTheDocument();
+    expect(screen.getByText('Showing 1 of 2 source entries.')).toBeInTheDocument();
     expect(await axe(document.body)).toHaveNoViolations();
   });
 
@@ -230,6 +230,67 @@ describe('TimeAndMaterials', () => {
     await waitFor(() => expect(h.mutations.saveRate).toHaveBeenCalledWith([expect.objectContaining({
       line_key: 'labour-1', sales_item_code: 'ITEM-NEW',
     })]));
+  });
+
+  it('AC-TM-016 shows source hours that add up to a multi-entry claim', async () => {
+    const multiLineClaim = {
+      ...claim,
+      gross_amount: 2758,
+      lines: [
+        { lineKey: 'labour-1', rateVersion: 1, kind: 'labour', label: 'Site engineer', unit: 'hour', units: 32, rate: 85, amount: 2720 },
+        { lineKey: 'labour-2', rateVersion: 1, kind: 'labour', label: 'Electrician', unit: 'hour', units: 1, rate: 38, amount: 38 },
+      ],
+    };
+    h.claims = { ...h.claims, data: { rows: [multiLineClaim], truncated: false } };
+    h.sources = {
+      ...h.sources,
+      data: { rows: [
+        { id: 'source-row-1', claim_id: 'claim-1', claim_line_id: 'line-1', source_kind: 'timesheet_entry', source_id: 'entry-1', units: 8 },
+        { id: 'source-row-2', claim_id: 'claim-1', claim_line_id: 'line-1', source_kind: 'timesheet_entry', source_id: 'entry-2', units: 4 },
+        { id: 'source-row-3', claim_id: 'claim-1', claim_line_id: 'line-1', source_kind: 'timesheet_entry', source_id: 'entry-3', units: 20 },
+        { id: 'source-row-4', claim_id: 'claim-1', claim_line_id: 'line-2', source_kind: 'timesheet_entry', source_id: 'entry-4', units: 1 },
+      ], truncated: false, totalCount: 4 },
+    };
+
+    const { user } = renderPanel();
+    await user.click(screen.getByRole('button', { name: /Open claim/ }));
+    const sources = screen.getByRole('region', { name: /Approved source entries/ });
+    const displayedHours = within(sources).getAllByText(/^\d+ hours?$/)
+      .reduce((sum, element) => sum + Number(element.textContent?.match(/^\d+/)?.[0] ?? 0), 0);
+
+    expect(displayedHours).toBe(33);
+  });
+
+  it('AC-TM-016 names the visible and total source counts when the source read is capped', async () => {
+    h.sources = {
+      ...h.sources,
+      data: { rows: Array.from({ length: 200 }, (_, index) => ({
+        id: `source-row-${index}`,
+        claim_id: 'claim-1',
+        claim_line_id: 'line-1',
+        source_kind: 'timesheet_entry',
+        source_id: `entry-${index}`,
+        units: 1,
+      })), truncated: true, totalCount: 237 },
+    };
+
+    const { user } = renderPanel();
+    await user.click(screen.getByRole('button', { name: /Open claim/ }));
+
+    expect(await screen.findByText('Showing 200 of 237 source entries.')).toBeInTheDocument();
+  });
+
+  it('AC-TM-016 opens the claim without a success toast covering its shared Close control', async () => {
+    const { user } = renderPanel();
+    await user.click(screen.getByRole('button', { name: /Assemble claim/ }));
+    expect(await screen.findByRole('button', { name: 'Dismiss notification' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /Open claim/ }));
+
+    const drawer = await screen.findByRole('dialog', { name: /Time-and-materials claim/ });
+    expect(screen.queryByRole('button', { name: 'Dismiss notification' })).not.toBeInTheDocument();
+    expect(within(drawer).getAllByRole('button', { name: 'Close' })).toHaveLength(1);
+    await user.click(within(drawer).getByRole('button', { name: 'Close' }));
+    expect(screen.queryByRole('dialog', { name: /Time-and-materials claim/ })).not.toBeInTheDocument();
   });
 
   it('AC-TM-016 lets a PM prepare sign-off, blocks the preparer, then opens the existing invoice flow for a second user', async () => {

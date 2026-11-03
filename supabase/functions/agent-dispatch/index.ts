@@ -45,6 +45,8 @@ import { agentChatHandler } from '../agent-chat/handler.ts';
 // function is unit-tested (pmo-portal/src/lib/agent/agentCan.test.ts + agentRoles drift guard).
 import { agentCan } from '../agent-chat/agentCan.ts';
 
+export const testSupabaseOptions = { auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false } };
+
 /** job_run summary (#1532 S3). The flag-off no-op tick is `skipped`, not `ok`; the tick returns no count, so items stay 0. */
 export function summarizeAgentDispatch(body: unknown): JobSummary {
   return (body as { skipped?: unknown } | null)?.skipped ? { items: 0, skipped: true } : { items: 0 };
@@ -154,7 +156,7 @@ serveWithErrorReporting('agent-dispatch', withJobRun('agent-dispatch', async (re
       // supabase-js client structurally satisfies ErrorEventSupabaseLike at
       // runtime but is not nominally assignable (thenable PostgrestFilterBuilder
       // vs a plain Promise).
-      void recordErrorEvent(createClient(supabaseUrl, serviceRoleKey) as never, { fn: 'agent-dispatch', errorCode });
+      void recordErrorEvent(createClient(supabaseUrl, serviceRoleKey, testSupabaseOptions) as never, { fn: 'agent-dispatch', errorCode });
     }
     return new Response(JSON.stringify({ error: 'MISCONFIGURED' }), {
       status: 500,
@@ -163,18 +165,19 @@ serveWithErrorReporting('agent-dispatch', withJobRun('agent-dispatch', async (re
   }
 
   // ── 3. serviceClient (selection/watermark/last_fired_at metadata ONLY) + authAdmin (mint ONLY). ──
-  const serviceClient = createClient(supabaseUrl, serviceRoleKey);
-  const authAdmin = createClient(supabaseUrl, serviceRoleKey).auth;
+  const serviceClient = createClient(supabaseUrl, serviceRoleKey, testSupabaseOptions);
+  const authAdmin = createClient(supabaseUrl, serviceRoleKey, testSupabaseOptions).auth;
   // verifyOtp exchanges the generateLink hashed_token for an owner session (generateLink returns a
   // token_hash, NOT an access_token). Uses an anon-key client (the standard verify surface) — no
   // elevated privilege; the token_hash is the only capability and it targets exactly the owner.
-  const anonAuth = createClient(supabaseUrl, anonKey).auth;
+  const anonAuth = createClient(supabaseUrl, anonKey, testSupabaseOptions).auth;
 
   // buildClient: a caller-JWT-scoped client from a minted access token — the SAME anon-key +
   // Bearer client shape the interactive path uses. This is the ONLY business-data surface for a
   // fired run, and it is the minted OWNER identity, never service_role.
   const buildClient = (accessToken: string) =>
     createClient(supabaseUrl, anonKey, {
+      auth: testSupabaseOptions.auth,
       global: { headers: { Authorization: `Bearer ${accessToken}` } },
     });
 

@@ -219,6 +219,11 @@ export function mockClient(seeded: Record<string, unknown[]> = {}): MockClient {
   };
 
   const rpc = vi.fn((fn: string, args?: Record<string, unknown>) => {
+    // Handler behavior tests use the enabled plan by default; the feature-off contract is covered
+    // by the edge-function enforcement suite.
+    if (fn === 'service_feature_enabled') {
+      return Promise.resolve({ data: true, error: null });
+    }
     if (fn === 'm365_membership_state' && args) {
       return Promise.resolve({
         data: { state: 'active', org_id: 'org-1', role: 'Admin' },
