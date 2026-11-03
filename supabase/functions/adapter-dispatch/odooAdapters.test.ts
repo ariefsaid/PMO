@@ -167,7 +167,9 @@ describe('P5 the Odoo adapter factory for a vendor bill', () => {
 
 describe('P6 the Odoo adapter factory for a vendor payment', () => {
   const BILL = { state: 'posted', move_type: 'in_invoice', amount_residual: 98, currency_id: [12, 'IDR'], partner_id: [77, 'Vendor'] };
-  const payWorld = (config?: Record<string, unknown>, { bill = BILL as Record<string, unknown> | null, odooCalls = [] as string[], invoice = { procurement_id: 'c0000000-0000-4000-8000-000000000001' } as Record<string, unknown> | null } = {}) => [
+  const payWorld = (config?: Record<string, unknown>, { bill = BILL as Record<string, unknown> | null, odooCalls = [] as string[], invoice = { procurement_id: 'c0000000-0000-4000-8000-000000000001' } as Record<string, unknown> | null, outboxRow = null as Record<string, unknown> | 'unreadable' | null } = {}) => [
+    // the command's own outbox row (same record, same key): present = a retry of an earlier attempt
+    supabaseSelect('external_command_outbox', () => outboxRow === 'unreadable' ? jsonResponse({ message: 'boom' }, { status: 500 }) : outboxRow === null ? new Response('null', { status: 200, headers: { 'content-type': 'application/json' } }) : object(outboxRow)),
     supabaseSelect('external_org_bindings', () => binding({ default_payment_journal_id: 7, ...config })),
     supabaseRpc('read_vault_secret', () => jsonResponse('odoo-test-key')),
     supabaseSelect('procurements', () => object({ code: 'PRC-1', project_id: null, vendor_id: 'v-1', currency: 'IDR' })),
@@ -219,6 +221,22 @@ describe('P6 the Odoo adapter factory for a vendor payment', () => {
     const adapter = await withFetchMock(payWorld({ default_payment_journal_id: undefined }, { bill: { ...BILL, amount_residual: 0 }, odooCalls }), () => resolveOdooProcurementAdapter(payment({ paid_amount: 98 }, true)));
     assertEquals(adapter.tier, 'odoo');
     assertEquals(odooCalls.includes('account.move/read'), false);
+  });
+
+  // C1 (P6 review): a retry of the same intent meets a bill its first attempt settled; the outbox row, not the residual, answers it.
+  it('AC-OPP-052 a RETRY (the command\'s outbox row exists) is not dry-built: a settled bill is not an over-payment, and Odoo is not read for it', async () => {
+    const odooCalls: string[] = [];
+    const adapter = await withFetchMock(payWorld(undefined, { bill: { ...BILL, amount_residual: 0 }, odooCalls, outboxRow: { id: 'outbox-1' } }), () => resolveOdooProcurementAdapter(payment({ paid_amount: 98 })));
+    assertEquals(adapter.tier, 'odoo');
+    assertEquals(odooCalls.includes('account.move/read'), false);
+  });
+
+  it('AC-OPP-050 a FRESH intent (no outbox row) against the same settled bill is still an over-payment', async () => {
+    assertEquals(await refused(payWorld(undefined, { bill: { ...BILL, amount_residual: 0 } }), payment({ paid_amount: 98 })), ['commit-rejected', 'over-payment']);
+  });
+
+  it('fails closed: an unreadable outbox is refused, never taken for a first attempt', async () => {
+    assertEquals((await refused(payWorld(undefined, { outboxRow: 'unreadable' })))[0], 'external-unreachable');
   });
 
   it('a payment update or transition (no such Odoo step) is refused before any outbox row', async () => {

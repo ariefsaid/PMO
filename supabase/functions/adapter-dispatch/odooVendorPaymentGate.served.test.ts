@@ -80,9 +80,8 @@ const paymentCommand = (over: Record<string, unknown> = {}) => ({
   record: { id: 'dddddddd-dddd-4ddd-8ddd-000000001505', erp_doc_kind: 'payment', procurementId: PROC_ID, invoiceId: INV_ID, paid_amount: 98, date: '2026-12-10', ...over },
 });
 
-function routes(unexpected: FetchCall[], caller: string, world: World, odoo: Awaited<ReturnType<typeof odooWorld>>): MockRoute[] {
+function routes(unexpected: FetchCall[], caller: string, world: World, odoo: Awaited<ReturnType<typeof odooWorld>>, outbox: Map<string, Record<string, unknown>>): MockRoute[] {
   const owns = world.owns ?? ['odoo'];
-  const outbox = new Map<string, Record<string, unknown>>();
   return [
     supabaseSelect('profiles', (call) => call.url.searchParams.has('role') ? jsonResponse([{ id: caller }]) : objectResponse({ org_id: ORG_ID })),
     supabaseRpc('domain_owned_by_tier', (call) => jsonResponse(owns.includes((call.bodyJson as { p_tier: Tier }).p_tier))),
@@ -119,6 +118,12 @@ function routes(unexpected: FetchCall[], caller: string, world: World, odoo: Awa
     } },
     { label: 'outbox insert', method: 'POST', pathname: '/rest/v1/external_command_outbox', response: (call) => {
       const body = call.bodyJson as Record<string, unknown>;
+      // 0508's index, as the database answers it: one in-flight payment per bill, whichever intent it came from
+      const bill = (body.payload as Record<string, unknown> | null)?.odoo_bill_ref;
+      if (bill !== undefined && [...outbox.values()].some((r) => (r.payload as Record<string, unknown> | null)?.odoo_bill_ref === bill && r.pmo_record_id !== body.pmo_record_id
+          && ['pending', 'committing', 'committed', 'quarantined', 'held'].includes(String(r.state)))) {
+        return jsonResponse({ code: '23505', message: 'duplicate key value violates unique constraint "external_command_outbox_one_inflight_odoo_payment_per_bill"', details: '', hint: null }, { status: 409 });
+      }
       const row = { id: 'outbox-1', domain: body.domain, pmo_record_id: body.pmo_record_id, idempotency_key: body.idempotency_key, state: 'pending',
         external_record_id: null, canonical: null, claim_generation: 0, payload_digest: body.payload_digest ?? null, payload: body.payload ?? null };
       outbox.set(`${String(body.pmo_record_id)}|${String(body.idempotency_key)}`, row);
@@ -144,10 +149,11 @@ function routes(unexpected: FetchCall[], caller: string, world: World, odoo: Awa
   ];
 }
 
-async function dispatchAs(caller: string, world: World = {}, command: Record<string, unknown> = paymentCommand()) {
-  const odoo = await odooWorld();
+/** `shared` carries Odoo and the outbox over from an earlier dispatch: a retry meets the world its first attempt left. */
+async function dispatchAs(caller: string, world: World = {}, command: Record<string, unknown> = paymentCommand(), shared?: { odoo: Awaited<ReturnType<typeof odooWorld>>; outbox: Map<string, Record<string, unknown>> }) {
+  const odoo = shared?.odoo ?? await odooWorld();
   const unexpected: FetchCall[] = [];
-  const result = await withFetchMock(routes(unexpected, caller, world, odoo), async ({ calls }) => {
+  const result = await withFetchMock(routes(unexpected, caller, world, odoo, shared?.outbox ?? new Map()), async ({ calls }) => {
     const jwt = await auth.mintJwt({ sub: caller });
     const res = await servedHandler!(new Request('http://edge.test/adapter-dispatch', {
       method: 'POST', headers: { authorization: `Bearer ${jwt}`, 'content-type': 'application/json' }, body: JSON.stringify(command),
@@ -229,5 +235,45 @@ describe('AC-OPP-054 the vendor-payment SoD gate for a tier-odoo bill, through t
   it('the ERPNext tier keeps the shipped gate: the bill-author arm is Odoo\'s, so an author is not refused for it there', async () => {
     const r = await dispatchAs(AUTHOR_ID, { owns: ['erpnext'], billRows: BILL_BY_AUTHOR });
     assert(!r.body.includes('bill author'), r.body);
+  });
+});
+
+describe('AC-OPP-052 a retry of the same payment intent, through the served handler', () => {
+  // The first attempt paid and reconciled the bill, then its response was lost; Odoo's residual is now 0.
+  it('the same key again is a replay: 200 with the one payment Odoo holds, not a second one and not an over-payment refusal', async () => {
+    const odoo = await odooWorld();
+    const outbox = new Map<string, Record<string, unknown>>();
+    odoo.fake.failAt('after-reconcile');
+    const first = await dispatchAs(PAYER_ID, { billRows: BILL_BY_AUTHOR }, paymentCommand(), { odoo, outbox });
+    assert(first.status !== 200, 'the first attempt lost its response');
+    assertEquals(odoo.fake.rows('account.payment').length, 1, 'Odoo holds the payment');
+    const retry = await dispatchAs(PAYER_ID, { billRows: BILL_BY_AUTHOR }, paymentCommand(), { odoo, outbox });
+    assertEquals(retry.unexpected.map((c) => `${c.method} ${c.url.pathname}${c.url.search}`), [], 'every read is mocked');
+    assertEquals(retry.status, 200, retry.body);
+    assertEquals(odoo.fake.rows('account.payment').length, 1, 'still one payment');
+  });
+
+  it('a FRESH intent for the same, now settled bill keeps the over-payment refusal', async () => {
+    const odoo = await odooWorld();
+    const outbox = new Map<string, Record<string, unknown>>();
+    const first = await dispatchAs(PAYER_ID, { billRows: BILL_BY_AUTHOR }, paymentCommand(), { odoo, outbox });
+    assertEquals(first.status, 200, first.body);
+    const fresh = await dispatchAs(PAYER_ID, { billRows: BILL_BY_AUTHOR }, { ...paymentCommand({ id: 'dddddddd-dddd-4ddd-8ddd-000000002505' }), idempotencyKey: 'cccccccc-cccc-4ccc-8ccc-000000002505' }, { odoo, outbox });
+    assertEquals([fresh.status, JSON.parse(fresh.body).message], [422, 'over-payment']);
+    assertEquals(odoo.fake.rows('account.payment').length, 1);
+  });
+
+  // I1/I2: the retry rule above must not let a DIFFERENT intent through while one is in flight or held.
+  it('a fresh intent for a bill that already has a payment held is refused 409 "payment already in progress for this bill"; Odoo is not written', async () => {
+    const odoo = await odooWorld();
+    const outbox = new Map<string, Record<string, unknown>>([['held-pay|k-held', {
+      id: 'outbox-held', pmo_record_id: 'held-pay', idempotency_key: 'k-held', state: 'held', claim_generation: 2,
+      payload: { erp_doc_kind: 'payment', odoo_bill_ref: `account.move:${odoo.billId}` },
+    }]]);
+    const r = await dispatchAs(PAYER_ID, { billRows: BILL_BY_AUTHOR }, paymentCommand(), { odoo, outbox });
+    assertEquals(r.unexpected.map((c) => `${c.method} ${c.url.pathname}${c.url.search}`), [], 'every read is mocked');
+    assertEquals([r.status, JSON.parse(r.body).message], [409, 'payment already in progress for this bill']);
+    assertEquals(odoo.fake.rows('account.payment').length, 0, 'no second payment');
+    assertEquals(odoo.fake.calls.filter((c) => c.model === 'account.payment' && c.method === 'create').length, 0);
   });
 });

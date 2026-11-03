@@ -4,7 +4,7 @@
 --     command, never another org, never a non-held row; it moves the row to `failed` (the ordinary recovery re-runs every gate) with the
 --     operator's resolution recorded in the row's payload, and writes an audit row naming the actor.
 begin;
-select plan(38);
+select plan(43);
 
 -- ── Fixtures ─────────────────────────────────────────────────────────────────────────────────────────────────────
 insert into organizations (id, name, default_currency) values
@@ -148,6 +148,30 @@ select is((select count(*)::int from audit_events where action = 'resolve_held_o
              and detail->>'resolution' = 'absent'), 1, 'AC-OPP-064 one audit row names the Finance user, the command and the resolution');
 select is((select count(*)::int from audit_events where action = 'resolve_held_outbox_command' and actor_id = '05080000-0000-0000-0000-0000000000a1' and entity_id = '05080000-0000-0000-0000-0000000000f2'
              and detail->>'resolution' = 'adopt' and detail->>'external_record_id' = 'account.payment:90'), 1, 'AC-OPP-064 one audit row names the Admin, the command, the resolution and the adopted document');
+
+-- ── 7) At most one in-flight payment per bill (I1/I2) ──────────────────────────────────────────────────────────
+-- Two intents for one Odoo bill (two users, two tabs, or a fresh intent after a lost response) must not both go out: Odoo accepts an
+-- overpayment, so the database is the only barrier. A payment's own record id is not enough: each intent has its own.
+insert into external_command_outbox (id, org_id, domain, pmo_record_id, idempotency_key, external_tier, operation, state, actor_user_id, payload) values
+  ('05080000-0000-0000-0000-0000000000e1','05080000-0000-0000-0000-00000000000a','procurement','pay-e1','k-pay-e1','odoo','create','committing','05080000-0000-0000-0000-0000000000a2','{"erp_doc_kind":"payment","odoo_bill_ref":"account.move:501"}');
+select throws_ok($$ insert into external_command_outbox (org_id, domain, pmo_record_id, idempotency_key, external_tier, operation, state, payload)
+  values ('05080000-0000-0000-0000-00000000000a','procurement','pay-e2','k-pay-e2','odoo','create','pending','{"erp_doc_kind":"payment","odoo_bill_ref":"account.move:501"}') $$,
+  '23505', null, 'I1/I2 a second payment intent for a bill that already has one in flight is refused by the database');
+select lives_ok($$ insert into external_command_outbox (org_id, domain, pmo_record_id, idempotency_key, external_tier, operation, state, payload)
+  values ('05080000-0000-0000-0000-00000000000a','procurement','pay-e3','k-pay-e3','odoo','create','pending','{"erp_doc_kind":"payment","odoo_bill_ref":"account.move:502"}') $$,
+  'I1/I2 a payment of a different bill is not blocked');
+select lives_ok($$ insert into external_command_outbox (org_id, domain, pmo_record_id, idempotency_key, external_tier, operation, state, payload)
+  values ('05080000-0000-0000-0000-00000000000b','procurement','pay-e4','k-pay-e4','odoo','create','pending','{"erp_doc_kind":"payment","odoo_bill_ref":"account.move:501"}') $$,
+  'I1/I2 another org''s payment of a bill with the same Odoo reference is not blocked');
+insert into external_command_outbox (id, org_id, domain, pmo_record_id, idempotency_key, external_tier, operation, state, actor_user_id, payload) values
+  ('05080000-0000-0000-0000-0000000000e5','05080000-0000-0000-0000-00000000000a','procurement','pay-e5','k-pay-e5','odoo','create','held','05080000-0000-0000-0000-0000000000a2','{"erp_doc_kind":"payment","odoo_bill_ref":"account.move:503"}');
+select throws_ok($$ insert into external_command_outbox (org_id, domain, pmo_record_id, idempotency_key, external_tier, operation, state, payload)
+  values ('05080000-0000-0000-0000-00000000000a','procurement','pay-e6','k-pay-e6','odoo','create','pending','{"erp_doc_kind":"payment","odoo_bill_ref":"account.move:503"}') $$,
+  '23505', null, 'I1/I2 a HELD payment holds its bill: a fresh intent waits for the operator''s decision');
+update external_command_outbox set state = 'confirmed' where id = '05080000-0000-0000-0000-0000000000e1';
+select lives_ok($$ insert into external_command_outbox (org_id, domain, pmo_record_id, idempotency_key, external_tier, operation, state, payload)
+  values ('05080000-0000-0000-0000-00000000000a','procurement','pay-e7','k-pay-e7','odoo','create','pending','{"erp_doc_kind":"payment","odoo_bill_ref":"account.move:501"}') $$,
+  'I1/I2 once the first payment is confirmed the bill can take another (a partial payment, then the rest)');
 
 select * from finish();
 rollback;

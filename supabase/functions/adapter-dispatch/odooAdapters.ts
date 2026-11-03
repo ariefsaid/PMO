@@ -21,6 +21,15 @@ const pushable = (ctx: AdapterSelectContext): boolean => {
   return (kind === 'purchase-order' && (operation === 'create' || operation === 'revise')) || ((kind === 'goods-receipt' || kind === 'purchase-invoice' || kind === 'payment') && operation === 'create');
 };
 
+/** Has this command (the same record and idempotency key) already left an outbox row? Unreadable is refused, never taken for a first attempt. */
+async function outboxRowExists(ctx: AdapterSelectContext): Promise<boolean> {
+  const { command } = ctx;
+  const { data, error } = await (ctx.serviceClient as SupabaseClient).from('external_command_outbox').select('id')
+    .eq('org_id', ctx.orgId).eq('domain', command.domain).eq('pmo_record_id', command.record.id).eq('idempotency_key', command.idempotencyKey!).maybeSingle();
+  if (error) throw new AppError('The payment could not be checked against its earlier attempt', 'external-unreachable');
+  return data !== null;
+}
+
 /**
  * Adapter selection for an org that employs procurement under tier `odoo` (DD-OPP-1). It refuses, before any outbox row and any
  * Odoo request (DD-OPP-8, FR-OPP-002), a connection that is switched off, not activated, unusable, or whose stored capability
@@ -52,8 +61,10 @@ export async function resolveOdooProcurementAdapter(ctx: AdapterSelectContext): 
   }
   // A payment is resolved and dry-built here too, with the currency: no bill reference, an unposted bill, another currency, an amount
   // above the residual (Odoo would accept it) or no journal is refused before any outbox row. A replay skips it: the payment it made
-  // has already reduced the residual, and its recovery must not depend on today's journal default.
-  if (ctx.command.record.erp_doc_kind === 'payment' && !ctx.replay) {
+  // has already reduced the residual, and its recovery must not depend on today's journal default. A payment is a replay when its
+  // outbox row already exists (the receipt rule, FR-OPP-072): a retry of the same intent after a lost response meets a settled bill,
+  // and the outbox answers it. A fresh intent has no row and keeps the over-payment check.
+  if (ctx.command.record.erp_doc_kind === 'payment' && !ctx.replay && !(await outboxRowExists(ctx))) {
     const facts = await resolveOdooPaymentFacts(sc, ctx.orgId, ctx.command, resolved, currencyId);
     buildPaymentBody({ billRef: facts.billRef, amount: facts.amount, date: facts.date, vendorPartnerId: facts.vendorPartnerId }, await readPaymentCtx(call, facts), paymentKey(ctx.command.record));
   }

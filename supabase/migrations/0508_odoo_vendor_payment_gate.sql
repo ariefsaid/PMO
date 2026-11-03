@@ -9,9 +9,21 @@
 -- Not the person who dispatched the command (the same separation as paying a bill one entered), never another org, only a held row.
 -- Payment kind on the Odoo tier only: other kinds have no consumer for a resolution yet, so they stay refused.
 --
+-- One more object: at most ONE in-flight Odoo payment command per bill (below). Without it, two intents for one bill (two payers, two tabs,
+-- or a fresh intent after a response was lost) each pass the residual check and each pay: Odoo accepts an overpayment. The command's own
+-- record id (`external_command_outbox_one_inflight_per_record`) cannot serialize them, because each intent has its own.
+--
 -- No other object changes. The payment rule and ceiling (`procurement_payment_allowed`, `procurement_payment_within_ceiling`) take a
 -- purchase id and never a tier; the bill-author and needs-attention arms read the outbox with the service client in the edge function.
 -- Reversible: rollback/0508_odoo_vendor_payment_gate_down.sql.
+
+-- In flight = the states `external_command_outbox_one_inflight_per_record` uses. `failed` is not: a failed command made no payment (an
+-- ambiguous one stays committing, quarantined or held) and its own retry stays possible, so a rejected payment never wedges its bill.
+create unique index external_command_outbox_one_inflight_odoo_payment_per_bill
+  on public.external_command_outbox (org_id, (payload->>'odoo_bill_ref'))
+  where external_tier = 'odoo' and domain = 'procurement' and payload->>'erp_doc_kind' = 'payment'
+    and payload->>'odoo_bill_ref' is not null
+    and state in ('pending','committing','committed','quarantined','held');
 
 create or replace function public.resolve_held_outbox_command(
   p_outbox_id uuid, p_resolution text, p_external_record_id text default null, p_reason text default null)

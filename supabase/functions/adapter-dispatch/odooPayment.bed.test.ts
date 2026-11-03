@@ -143,8 +143,10 @@ Deno.test({
       const [stray] = await call<Array<{ id: number }>>('account.payment', 'search_read', { domain: [['partner_id', '=', partner], ['memo', '=', `pmo:pay:${cmd.record.id}`]], fields: ['id'] });
       assert(stray, 'the payment was created and posted before the reconcile was lost');
       await call('account.payment', 'write', { ids: [stray.id], vals: { memo: 'paid by transfer' } });
+      const heldCount = async () => (await call<unknown[]>('account.payment', 'search', { domain: [['partner_id', '=', partner], ['amount', '=', 98]] })).length;
+      const paymentsBefore = await heldCount();
       await assertRejects(() => attempt(cmd, true), Error, 'ambiguous-anchor');
-      assertEquals([(await call<unknown[]>('account.payment', 'search', { domain: [['partner_id', '=', partner], ['amount', '=', 98]] })).length, await residual(edited)], [4, 98].map((n, i) => (i === 0 ? n : n)).slice(0, 0).concat((await call<unknown[]>('account.payment', 'search', { domain: [['partner_id', '=', partner], ['amount', '=', 98]] })).length, 98));
+      assertEquals([await heldCount(), await residual(edited)], [paymentsBefore, 98], 'the held retry made no second payment');
     }
   },
 });

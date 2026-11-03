@@ -473,8 +473,7 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
     try {
       result = handler(model, JSON.parse(String(init?.body ?? '{}')));
     } catch (e) {
-      if (e instanceof Rejected) return Response.json({ name: 'odoo.exceptions.ValidationError', message: e.message, arguments: [e.message], context: {}, debug: '' }, { status: 422 });
-      if (e instanceof RejectedPayment) return Response.json({ name: 'odoo.exceptions.ValidationError', message: e.message, arguments: [e.message], context: {}, debug: '' }, { status: 422 });
+      if (e instanceof Rejected || e instanceof RejectedPayment) return Response.json({ name: 'odoo.exceptions.ValidationError', message: e.message, arguments: [e.message], context: {}, debug: '' }, { status: 422 });
       if (!(e instanceof OdooFailure)) throw e;
       return Response.json({ name: e.exception, message: e.message, arguments: [e.message], timestamp: 0, context: {}, debug: 'synthetic' }, { status: e.status });
     }
