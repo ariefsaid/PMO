@@ -116,8 +116,11 @@ export async function sweepOdooOrg(
       // stays with its own slice. The pass is bounded by the remaining org-tick budget and the claim window.
       if (revenue.includes('sales-invoice')) {
         try {
+          const recoveryCap = maxCalls - RESERVE_PER_KIND * (kinds.length + purchase.length + revenue.length);
+          const recoveryBudget: Budget = { left: () => calls < recoveryCap && left(), spend: () => calls < recoveryCap && budget.spend() };
           const recovery = await reconcileOdooRevenueOutbox(sc, orgId, {
             timeBudgetMs: Math.max(0, timeBudget - (Date.now() - started)),
+            callBudget: recoveryBudget,
           });
           outboxReconciled = recovery.reconciled;
           outboxErrors = recovery.errors;

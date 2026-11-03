@@ -2,7 +2,7 @@
 import type { OdooCall } from '../client.ts';
 import { companyDomain, type DirectoryRow, type KindSpec } from '../kinds.ts';
 import type { KindReaders } from '../sweep.ts';
-import { keyFromExternalIdentifier } from './anchors.ts';
+import { keyFromExternalIdentifier, ODOO_REVENUE_ANCHORS } from './anchors.ts';
 import { creditNoteStatus, invoiceStatus, paymentStatus } from './status.ts';
 
 export const REVENUE_FEED_DOMAINS = ['sales-invoice', 'credit-note', 'incoming-payment'] as const;
@@ -30,7 +30,8 @@ function docstatus(state: string, domain: RevenueFeedDomain): 0 | 1 | 2 | null {
   if (domain === 'incoming-payment') {
     const payment = paymentStatus(state);
     if (payment.cancelled) return 2;
-    return payment.status === 'Posted' ? 1 : null;
+    if (payment.status === 'Paid') return 1;
+    return payment.mirrored ? 0 : null;
   }
   if (state === 'posted' || state === 'paid' || state === 'in_process') return 1;
   if (state === 'cancel' || state === 'cancelled' || state === 'canceled') return 2;
@@ -82,7 +83,7 @@ function parseRow(spec: RevenueFeedSpec, raw: Raw): DirectoryRow | null {
     const payment = paymentStatus(raw.state);
     Object.assign(attrs, {
       amount,
-      status: payment.cancelled ? 'Cancelled' : payment.status === 'Posted' ? 'Paid' : 'Scheduled',
+      status: payment.status,
       payment_type: paymentType,
       partner_type: partnerType,
     });
@@ -112,7 +113,8 @@ async function withAnchors(call: OdooCall, spec: RevenueFeedSpec, rows: Raw[]): 
   if (!spec.anchored || rows.length === 0) return rows;
   const ids = rows.map((row) => row.id).filter((id): id is number => typeof id === 'number');
   if (ids.length === 0) return rows;
-  const records = await call<Array<{ res_id: number; name: string }>>('ir.model.data','search_read', {
+  const anchorKind = spec.domain === 'incoming-payment' ? 'incoming-payment' : 'sales-invoice';
+  const records = await call<Array<{ res_id: number; name: string }>>(ODOO_REVENUE_ANCHORS[anchorKind].model,'search_read', {
     domain: [['module','=','pmo'],['model','=',spec.model],['res_id','in',ids]], fields: ['res_id','name'],
   });
   const anchors = new Map<number,string>();

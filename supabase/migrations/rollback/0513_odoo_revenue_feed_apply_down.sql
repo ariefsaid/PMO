@@ -8,6 +8,7 @@ drop table if exists public.odoo_revenue_census_seen;
 drop table if exists public.revenue_erp_mirror;
 
 -- Restore the 0508 vendor-payment resolver body. CREATE OR REPLACE preserves its ACL.
+-- Restore the 0512 C5 receipt resolver. CREATE OR REPLACE preserves its grants.
 create or replace function public.resolve_held_outbox_command(
   p_outbox_id uuid, p_resolution text, p_external_record_id text default null, p_reason text default null)
   returns void
@@ -24,13 +25,14 @@ declare
   v_creator uuid;
   v_record  text;
   v_payload jsonb;
+  v_kind    text;
 begin
   if v_actor is null then
     raise exception 'not authenticated' using errcode = '42501';
   end if;
 
-  select o.org_id, o.state, o.domain, o.external_tier, o.actor_user_id, o.pmo_record_id, o.payload
-    into v_org, v_state, v_domain, v_tier, v_creator, v_record, v_payload
+  select o.org_id, o.state, o.domain, o.external_tier, o.actor_user_id, o.pmo_record_id, o.payload, o.payload->>'erp_doc_kind'
+    into v_org, v_state, v_domain, v_tier, v_creator, v_record, v_payload, v_kind
     from public.external_command_outbox o where o.id = p_outbox_id for update;
   if v_org is null then
     raise exception 'outbox command not found' using errcode = 'P0002';
@@ -47,8 +49,9 @@ begin
   if v_state is distinct from 'held' then
     raise exception 'outbox command is % — only a held command can be resolved', v_state using errcode = 'P0001';
   end if;
-  if v_tier is distinct from 'odoo' or v_domain is distinct from 'procurement' or v_payload->>'erp_doc_kind' is distinct from 'payment' then
-    raise exception 'only a held Odoo vendor payment can be resolved here' using errcode = 'P0001';
+  if v_tier is distinct from 'odoo'
+     or not ((v_domain = 'procurement' and v_kind = 'payment') or (v_domain = 'revenue' and v_kind = 'incoming-payment')) then
+    raise exception 'only a held Odoo vendor payment or customer receipt can be resolved here' using errcode = 'P0001';
   end if;
 
   if p_resolution = 'adopt' then
@@ -84,5 +87,9 @@ begin
   );
 end;
 $$;
+
+revoke all on function public.resolve_held_outbox_command(uuid, text, text, text) from public;
+grant execute on function public.resolve_held_outbox_command(uuid, text, text, text) to authenticated;
+revoke execute on function public.resolve_held_outbox_command(uuid, text, text, text) from anon;
 
 notify pgrst, 'reload schema';

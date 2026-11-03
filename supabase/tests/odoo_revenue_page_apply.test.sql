@@ -1,6 +1,6 @@
 -- #1506 C6-T1/T2: service-only revenue page application, atomic cursors, tenancy and census tombstones.
 begin;
-select plan(35);
+select plan(39);
 
 insert into organizations (id, name) values
  ('a5130000-0000-0000-0000-000000000001','Revenue A'),
@@ -21,8 +21,8 @@ insert into sales_invoices (id, org_id, status, si_number, amount, tax_treatment
 insert into sales_invoices (id, org_id, status, amount, tax_treatment, tax_amount, currency, invoice_date, pmo_native, native_lines, created_at) values
  ('a5130000-0000-0000-0000-0000000000e5','a5130000-0000-0000-0000-000000000001','Draft',100,'exclusive',10,'IDR','2026-11-01',true,
   '[{"item_code":"SVC-ORPHAN","description":"orphan","qty":1,"rate":100,"amount":100}]'::jsonb,now()-interval '1 day');
-insert into incoming_payments (id, org_id, status, ip_number, amount, erp_docstatus, erp_modified, created_at) values
- ('a5130000-0000-0000-0000-0000000000e4','a5130000-0000-0000-0000-000000000001','Paid','PAY-A-9',25,1,'2026-11-01 10:00:00',now()-interval '1 day');
+insert into incoming_payments (id, org_id, status, ip_number, amount, received_amount, withheld_amount, withholding_slip_number, erp_docstatus, erp_modified, created_at) values
+ ('a5130000-0000-0000-0000-0000000000e4','a5130000-0000-0000-0000-000000000001','Paid','PAY-A-9',100,80,20,'SLIP-A-9',1,'2026-11-01 10:00:00',now()-interval '1 day');
 insert into external_refs (org_id, domain, pmo_record_id, external_tier, external_record_id, created_at) values
  ('a5130000-0000-0000-0000-000000000001','revenue','a5130000-0000-0000-0000-0000000000e1','odoo','account.move:7',now()-interval '1 day'),
  ('a5130000-0000-0000-0000-000000000001','revenue','a5130000-0000-0000-0000-0000000000e2','odoo','account.move:8',now()-interval '1 day'),
@@ -69,6 +69,8 @@ select results_eq($$select status, si_number, amount, tax_amount, tax_treatment,
   $$values ('Unpaid'::text,'INV-A-7'::text,100.00::numeric,10.00::numeric,'inclusive'::text,60.00::numeric,1::smallint,'2026-11-02 10:00:00'::text,'posted'::text,null::text,true)$$,
   'AC-OCI-074 the linked invoice refreshes the complete money header and Odoo read facts');
 select is((select watermark_cursor from external_sync_watermarks where org_id='a5130000-0000-0000-0000-000000000001' and domain='revenue:sales-invoice'),'cur-a-1','AC-OCI-074 the page and cursor are stored together');
+select ok((select erp_modified > '2026-11-02 09:00:30' from sales_invoices where id='a5130000-0000-0000-0000-0000000000e1'),
+  'AC-OCI-054 a C6 page apply advances the invoice read past the sent receipt timestamp so C5 awaiting-Odoo clears');
 
 -- An incomplete money header cannot replace figures or a derived status, even though its page cursor commits.
 set local role service_role;
@@ -121,22 +123,24 @@ set local request.jwt.claims = '{"role":"service_role"}';
 select public.apply_odoo_revenue_page('a5130000-0000-0000-0000-000000000001','credit-note', $$[
    {"external_id":"15","name":"CN-A-15","source_write_date":"2026-11-03 12:00:00","attrs":{"state":"posted","docstatus":1,"status":"Posted","partner":"41","partner_name":"Client A","date":"2026-11-03","currency":"IDR","amount_total":"20.00","residual":"0.00","reversed_entry_ref":"account.move:7"}}
 ]$$::jsonb,'cur-credit-1');
-select public.apply_odoo_revenue_page('a5130000-0000-0000-0000-000000000001','incoming-payment', $$[
+select lives_ok($q$select public.apply_odoo_revenue_page('a5130000-0000-0000-0000-000000000001','incoming-payment', $$[
   {"external_id":"9","name":"PAY-A-9","source_write_date":"2026-11-03 12:00:00","attrs":{"state":"paid","docstatus":1,"status":"Paid","payment_type":"inbound","partner_type":"customer","partner":"41","partner_name":"Client A","date":"2026-11-03","currency":"IDR","amount":"25.00"}}
-]$$::jsonb,'cur-payment-1');
+]$$::jsonb,'cur-payment-1')$q$,'AC-OCI-074 incoming payment page apply succeeds');
 reset role;
 select results_eq($$select erp_doctype, grand_total, outstanding_amount, reversed_entry_ref, sales_invoice_id is not null from revenue_erp_mirror where org_id='a5130000-0000-0000-0000-000000000001' and external_ref='account.move:15'$$,
   $$values ('Credit Note'::text,-20.00::numeric,0.00::numeric,'account.move:7'::text,true)$$,'AC-OCI-075 a credit note is negative and linked to its reversed invoice');
 select is((select erp_outstanding_amount from sales_invoices where id='a5130000-0000-0000-0000-0000000000e1'),60.00::numeric,'AC-OCI-075 invoice outstanding is Odoo residual');
-select results_eq($$select status, amount, erp_docstatus from incoming_payments where id='a5130000-0000-0000-0000-0000000000e4'$$,
-  $$values ('Paid'::text,25.00::numeric,1::smallint)$$,'AC-OCI-074 an inbound customer payment refreshes its PMO row');
+select results_eq($$select status, amount, received_amount, withheld_amount, erp_docstatus from incoming_payments where id='a5130000-0000-0000-0000-0000000000e4'$$,
+  $$values ('Paid'::text,100.00::numeric,80.00::numeric,20.00::numeric,1::smallint)$$,'AC-OCI-074 page apply preserves C5 receipt gross and its separate cash/withheld figures');
+select is((select count(*) from revenue_erp_mirror where org_id='a5130000-0000-0000-0000-000000000001' and external_ref='account.payment:9'),0::bigint,'AC-OCI-074 a linked C5 receipt does not create a duplicate side mirror');
 set local role service_role;
 set local request.jwt.claims = '{"role":"service_role"}';
-select public.apply_odoo_revenue_page('a5130000-0000-0000-0000-000000000001','incoming-payment', $$[
-  {"external_id":"9","name":"PAY-A-9","source_write_date":"2026-11-03 13:00:00","attrs":{"state":"in_process","docstatus":1,"status":"Paid","payment_type":"inbound","partner_type":"customer","partner":"41","partner_name":"Client A","date":"2026-11-03","currency":"IDR","amount":"25.00"}}
-]$$::jsonb,'cur-payment-in-process');
+select lives_ok($q$select public.apply_odoo_revenue_page('a5130000-0000-0000-0000-000000000001','incoming-payment', $$[
+  {"external_id":"9","name":"PAY-A-9","source_write_date":"2026-11-03 13:00:00","attrs":{"state":"reconciled","docstatus":1,"status":"Paid","payment_type":"inbound","partner_type":"customer","partner":"41","partner_name":"Client A","date":"2026-11-03","currency":"IDR","amount":"80.00"}}
+]$$::jsonb,'cur-payment-reconciled')$q$,'AC-OCI-071 reconciled payment page apply succeeds');
 reset role;
-select is((select status from incoming_payments where id='a5130000-0000-0000-0000-0000000000e4'),'Paid','AC-OCI-071 an in-process Odoo receipt remains Paid in PMO');
+select results_eq($$select status, amount, received_amount, withheld_amount from incoming_payments where id='a5130000-0000-0000-0000-0000000000e4'$$,
+  $$values ('Paid'::text,100.00::numeric,80.00::numeric,20.00::numeric)$$,'AC-OCI-071 reconciled receipt page apply keeps status Paid without replacing gross with cash');
 
 -- Native invoices listed twice are keyed once at their newest figures; an Odoo row carrying a PMO anchor is proposed for adoption.
 set local role service_role;

@@ -160,7 +160,9 @@ begin
     update public.incoming_payments t set
       ip_number = case when s.docstatus in (1,2) then s.name else t.ip_number end,
       date = coalesce(s.doc_date, t.date),
-      amount = coalesce(s.amount, t.amount),
+      -- Odoo's payment amount is cash. A C5 receipt's PMO amount is settled gross (cash + withholding),
+      -- so keep that authored gross when the row carries a withholding figure.
+      amount = case when coalesce(t.withheld_amount, 0) <> 0 then t.amount else coalesce(s.amount, t.amount) end,
       status = s.status,
       erp_docstatus = s.docstatus,
       erp_modified = s.wd,
@@ -182,7 +184,7 @@ begin
   select p_org_id, v_doctype, s.name, v_model || ':' || s.external_id, s.partner,
          c.id, s.partner_name, s.doc_date, s.due_date, s.reference_number, s.currency,
          case when p_domain = 'credit-note' then -abs(s.amount_total)
-              when p_domain = 'incoming-payment' then s.amount else s.amount_total end,
+              when p_domain = 'incoming-payment' then coalesce(ri.amount, s.amount) else s.amount_total end,
          case when p_domain = 'credit-note' then -abs(s.amount_untaxed) else s.amount_untaxed end,
          case when p_domain = 'credit-note' then -abs(s.amount_tax) else s.amount_tax end,
          case when p_domain = 'credit-note' then -abs(s.residual) else s.residual end,

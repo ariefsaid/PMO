@@ -25,6 +25,8 @@ export interface OdooRevenueRecoveryResult {
   errors: Array<{ id: string; error: string }>;
 }
 
+type OdooCallBudget = { left: () => boolean; spend: () => boolean };
+
 export type BuildOdooRevenueRecoveryDeps = (candidate: OdooRevenueCandidate) => DispatchMoneyWriteDeps | Promise<DispatchMoneyWriteDeps>;
 export type DispatchOdooRevenueRecovery = (deps: DispatchMoneyWriteDeps) => Promise<unknown>;
 
@@ -37,7 +39,7 @@ const isInvoiceSubmit = (candidate: OdooRevenueCandidate): boolean =>
 /** Bounded Odoo invoice recovery using the same fenced dispatcher as the foreground command. */
 export async function reconcileOdooRevenueCandidates(
   candidates: OdooRevenueCandidate[],
-  options: { orgId: string; ownsRevenue: boolean; maxCandidates?: number; deadlineAt?: number },
+  options: { orgId: string; ownsRevenue: boolean; maxCandidates?: number; deadlineAt?: number; callBudget?: OdooCallBudget },
   buildDeps: BuildOdooRevenueRecoveryDeps,
   dispatch: DispatchOdooRevenueRecovery = dispatchMoneyWrite,
 ): Promise<OdooRevenueRecoveryResult> {
@@ -54,6 +56,7 @@ export async function reconcileOdooRevenueCandidates(
   let reconciled = 0;
   for (const candidate of eligible.slice(0, options.maxCandidates ?? 100)) {
     if (options.deadlineAt !== undefined && Date.now() >= options.deadlineAt) break;
+    if (options.callBudget && !options.callBudget.left()) break;
     try {
       await dispatch(await buildDeps(candidate));
       reconciled += 1;
@@ -77,6 +80,7 @@ async function buildOdooRevenueRecoveryDeps(
   sc: SupabaseClient,
   orgId: string,
   candidate: OdooRevenueCandidate,
+  callBudget?: OdooCallBudget,
 ): Promise<DispatchMoneyWriteDeps> {
   const { data, error } = await sc.from('external_command_outbox')
     .select('external_tier,domain,pmo_record_id,operation,payload,actor_user_id')
@@ -104,6 +108,7 @@ async function buildOdooRevenueRecoveryDeps(
   const context: AdapterSelectContext = {
     orgId, command, serviceClient: sc, userId: stored.actor_user_id ?? '', replay: true, erpAuth: new Map(),
     faultGate: { envFaults: undefined, header: null, requestHost: null, allowedHosts: undefined },
+    ...(callBudget ? { odooCallBudget: callBudget } : {}),
   };
   const adapter = await resolveOdooRevenueAdapter(context);
   const money = await resolveOdooRevenueMoneyOutboxDeps(context);
@@ -120,7 +125,7 @@ async function buildOdooRevenueRecoveryDeps(
 export async function reconcileOdooRevenueOutbox(
   sc: SupabaseClient,
   orgId: string,
-  options: { maxCandidates?: number; timeBudgetMs?: number } = {},
+  options: { maxCandidates?: number; timeBudgetMs?: number; callBudget?: OdooCallBudget } = {},
 ): Promise<OdooRevenueRecoveryResult> {
   const { data, error } = await sc.rpc('outbox_reconcile_candidates', { p_org_id: orgId });
   if (error) throw new AppError('Odoo invoice recovery candidates could not be read', error.code);
@@ -135,7 +140,7 @@ export async function reconcileOdooRevenueOutbox(
   const recoveryBudgetMs = Math.min(options.timeBudgetMs ?? 60_000, 60_000);
   return reconcileOdooRevenueCandidates(candidates, {
     orgId, ownsRevenue: (ownership?.length ?? 0) > 0, maxCandidates: options.maxCandidates,
-    deadlineAt: now + recoveryBudgetMs,
+    deadlineAt: now + recoveryBudgetMs, callBudget: options.callBudget,
   },
-    (candidate) => buildOdooRevenueRecoveryDeps(sc, orgId, candidate));
+    (candidate) => buildOdooRevenueRecoveryDeps(sc, orgId, candidate, options.callBudget));
 }

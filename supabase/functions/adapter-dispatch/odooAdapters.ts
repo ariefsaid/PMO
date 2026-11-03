@@ -17,6 +17,7 @@ import { resolveOdooInvoiceInputs, resolveOdooReceiptInputs } from '../_shared/o
 import { createOdooRevenueAdapter, isInvoicePush } from '../../../pmo-portal/src/lib/adapterSeam/odoo/revenueAdapter.ts';
 import { buildInvoiceBody } from '../../../pmo-portal/src/lib/adapterSeam/odoo/revenue/invoiceBody.ts';
 import { buildReceiptBody } from '../../../pmo-portal/src/lib/adapterSeam/odoo/revenue/receiptBody.ts';
+import { withOdooCallBudget } from '../_shared/odooCallBudget.ts';
 
 /** What the Odoo procurement adapter pushes so far: the purchase order and its revision (P3), the goods receipt (P4), the vendor bill (P5) and the vendor payment (P6). */
 const isReceipt = (ctx: AdapterSelectContext): boolean => ctx.command.record.erp_doc_kind === 'goods-receipt' && ctx.command.operation === 'create';
@@ -100,7 +101,7 @@ export async function resolveOdooRevenueAdapter(ctx: AdapterSelectContext): Prom
   const isReceiptCreate = ctx.command.record.erp_doc_kind === 'incoming-payment' && ctx.command.operation === 'create';
   if (!isInvoicePush(ctx.command) && !isReceiptCreate) throw new AppError('This Odoo revenue command is not available yet', 'config-rejected');
   const sc = ctx.serviceClient as SupabaseClient;
-  const call = bindCall({ ...resolved.client, deadlineMs: REQUEST_DEADLINE_MS });
+  const call = withOdooCallBudget(bindCall({ ...resolved.client, deadlineMs: REQUEST_DEADLINE_MS }), ctx.odooCallBudget);
   const replay = await revenueOutboxRowExists(ctx);
   if (isInvoicePush(ctx.command) && !replay) {
     const { input, maps } = await resolveOdooInvoiceInputs(sc, ctx.orgId, ctx.command, resolved, call);
