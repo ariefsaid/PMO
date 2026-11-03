@@ -472,6 +472,26 @@ before or after 0536–0565.
 | FR-PLN-010/011 typed refusal + FE copy | `pmo-portal/pages/AdminUsers.test.tsx`, `pmo-portal/pages/__tests__/ProjectNew.test.tsx` |
 | D12 (downgrade keeps over-limit items, blocks new) | `supabase/tests/plans_limits.test.sql` |
 
+### Corrections recorded during the build (audited against the shipped fixture suite)
+
+1. **Trigger slots are load-bearing.** PostgreSQL fires `BEFORE ROW` triggers in **name** order, and 0074's
+   `<table>_stamp_org_id` rewrites a default/NULL `org_id` to `auth_org_id()` for an authenticated caller
+   (`supabase/migrations/0074_org_id_stamp_trigger.sql:73-87`). Both guards therefore live in `zy_`/`zz_`
+   slots (`profiles_zy_plan_org_guard` → `profiles_zz_plan_seat_guard`,
+   `projects_zy_plan_org_guard` → `projects_zz_plan_cap_guard`): a `*_plan_cap_guard` name would sort
+   before the stamp and count the **seed-org default** as if it were the caller's org.
+2. **The cross-org guard is SECURITY INVOKER, not part of the definer body** — 0173's lesson
+   (`supabase/migrations/0173_project_create_origination_sod.sql:130-141`): under `SECURITY DEFINER`
+   `current_user` is the owner, so a BYPASSRLS exemption would exempt everyone; and a body keyed on
+   `auth.uid()` alone refuses legitimate server-side fixtures that write a row for a target org
+   (`supabase/tests/0225_project_numbering.test.sql:112` does exactly that). The invoker guard exempts
+   the real BYPASSRLS authorities and refuses a foreign-org client *before* the count, so the refusal
+   cannot reveal another org's usage (0170's oracle).
+3. **The seat count's "pending invites" have no third representation to reconcile.** The edge fn writes
+   the profile row at issuance, so counting `status = 'active'` counts invites and members in one pass;
+   the atomicity comes from doing the count and the write in one transaction under the org row lock,
+   which is what the two-session pgTAP proof drives.
+
 ### Open questions (defaults so no task blocks)
 
 1. **`Close Out` counts as active** (decision 3). The owner can move it out of the counted set by editing
