@@ -435,6 +435,12 @@ jobs:
       - name: Contract quantities rollback harness
         run: scripts/test-contract-quantities-rollback.sh
 
+      # AC-PLN-005 (issue #1720 S2): the feature-enforcement rollback must actually strip the
+      # entitlement conjunct it appended to live policies, and re-applying must restore it. The
+      # harness inlines migration 0534 and its rollback into a generated pgTAP file (deleted on exit).
+      - name: Plans feature-enforcement rollback harness
+        run: scripts/test-plans-feature-enforcement-rollback.sh
+
       # A push to `dev` is the full suite that backstops every PR's narrowed run; when it fails, say
       # which merge it ran on (a squash merge's subject ends in the PR number).
       - name: Name the merged change

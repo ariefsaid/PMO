@@ -188,7 +188,11 @@ Enforcement applies at **enqueue and pass start**, never mid-flight:
   only, 0081:135-214), over the **new** gated tables listed in S2.0. Idempotence guard: skip any
   policy whose qual/with_check already contains `org_feature_enabled`. Grant/permission surfaces are
   untouched, so 0137's service-grant inventory is unaffected.
-- **Re-boundary** — procurement_receipts + procurement_receipt_files write policies switch their
+- **Re-boundary — DEFERRED (Director ruling, 2026-11-03).** Receipts stay gated on `procurement`
+  exactly as today; this slice does not move `procurement_receipts` / `procurement_receipt_files` (nor
+  `create_procurement_receipt`) to `procurement_full`. Owner sign-off (#1720) and a live-org check come
+  first. The original intent is kept below for that follow-up.
+- **Re-boundary (deferred)** — procurement_receipts + procurement_receipt_files write policies switch their
   conjunct from `procurement` to `procurement_full` (targeted rebuild that first asserts the old
   conjunct text is present), and create_procurement_receipt (0481:36) checks `procurement_full`.
   Existing orgs are Enterprise (both keys on) so AC-PLN-016 compatibility is unaffected.
