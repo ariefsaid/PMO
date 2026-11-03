@@ -229,6 +229,10 @@
       "inviteError": {
         "seatLimit": "Paket Anda tidak memiliki sisa kursi",
         "seatLimitDetail": "Semua kursi pada paket Anda sudah terpakai. Minta Operator meningkatkan paket, lalu undang kembali."
+      },
+      "statusError": {
+        "seatLimit": "Paket Anda tidak memiliki sisa kursi",
+        "seatLimitDetail": "Semua kursi pada paket Anda sudah terpakai. Minta Operator meningkatkan paket, lalu aktifkan kembali pengguna ini."
       }
     }
   }

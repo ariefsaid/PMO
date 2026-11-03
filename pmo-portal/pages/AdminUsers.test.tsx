@@ -317,4 +317,24 @@ describe('Admin Users — invite affordance (FR-INV-004/005/006)', () => {
     expect(toast).toHaveTextContent(/ask your operator to upgrade the plan/i);
     expect(toast).not.toHaveTextContent(/seat_limit_reached/);
   });
+
+  it('AC-PLN-009: re-enabling a disabled user at the seat limit shows the localized seat remedy', async () => {
+    listState.data = [
+      ...seed,
+      { id: 'u5', full_name: 'Disabled User', email: 'disabled@example.invalid', role: 'Finance', manager_id: 'u1', org_id: 'org-1', status: 'disabled' },
+    ];
+    mutations.setStatus.mutateAsync.mockRejectedValue(
+      new AppError('seat_limit_reached: the starter plan allows 10 seats', 'PL001'),
+    );
+    renderPage();
+
+    const row = screen.getByText('disabled@example.invalid').closest('tr')!;
+    await userEvent.click(within(row).getByRole('button', { name: /Row actions/i }));
+    await userEvent.click(screen.getByRole('menuitem', { name: /Re-enable/i }));
+
+    const toast = await findToastAnnouncement('alert', /Your plan has no seats left/i);
+    expect(mutations.setStatus.mutateAsync).toHaveBeenCalledWith({ id: 'u5', status: 'active', orgId: 'org-1' });
+    expect(toast).toHaveTextContent(/ask your Operator to upgrade the plan/i);
+    expect(toast).not.toHaveTextContent(/seat_limit_reached/);
+  });
 });

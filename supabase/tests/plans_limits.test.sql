@@ -120,6 +120,10 @@ insert into profiles (id, org_id, full_name, email, role, status) values
 insert into org_plans (org_id, plan_id) values
   ('0535a000-0000-0000-0000-000000000001','starter'),
   ('0535a000-0000-0000-0000-000000000003','growth');
+-- Starter disables the pipeline module. Enable it for this fixture so the revival checks exercise
+-- the project-cap guard rather than stopping at transition_project's independent feature gate.
+insert into public.org_features (org_id, feature_key, enabled)
+values ('0535a000-0000-0000-0000-000000000001', 'sales_pipeline', true);
 
 -- 9 more active members in A (a2..aa) and one disabled (ab) — the invariant is asserted below.
 insert into profiles (id, org_id, full_name, email, role, status)

@@ -181,7 +181,20 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
       );
       setPendingStatus(null);
     } catch (err) {
-      const { headline, detail } = classifyMutationError(err);
+      const seatLimitOverrides = status === 'active' ? {
+        PL001: t('administration:admin.users.statusError.seatLimit', 'Your plan has no seats left'),
+      } : undefined;
+      const seatLimitContext = status === 'active' ? {
+        module: 'administration' as const,
+        operation: 'update' as const,
+        detailOverrides: {
+          PL001: t(
+            'administration:admin.users.statusError.seatLimitDetail',
+            'Everyone on your plan already has a seat. Ask your Operator to upgrade the plan, then re-enable this user.',
+          ),
+        },
+      } : undefined;
+      const { headline, detail } = classifyMutationError(err, seatLimitOverrides, seatLimitContext);
       toast(headline, detail, 'warning');
       setPendingStatus(null);
     }

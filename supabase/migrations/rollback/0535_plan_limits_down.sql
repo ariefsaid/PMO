@@ -21,10 +21,12 @@ drop trigger if exists profiles_zy_plan_org_guard on public.profiles;
 drop function if exists public.enforce_org_seat_limit();
 drop function if exists public.assert_profile_plan_org();
 
--- 3. The allowance job, its ledger, and the money it minted. The note prefix is the only writable
---    marker on those rows, so it is what identifies them; a manual Operator grant is never matched.
+-- 3. The allowance job, its ledger and its generated credits. The ledger records each generated
+--    credit's ID so rollback removes those exact rows before dropping the ledger.
 drop function if exists public.plan_monthly_ai_allowance_tick(date);
-delete from public.credits where note like 'plan-monthly-ai-allowance:%';
+delete from public.credits c
+ using public.org_ai_allowance_grants g
+ where c.id = g.credit_id;
 drop table if exists public.org_ai_allowance_grants;
 
 -- 4. Attribution returns to the pre-0535 contract (safe: no system grant rows remain).
