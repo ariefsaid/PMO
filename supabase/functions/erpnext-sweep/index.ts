@@ -420,7 +420,13 @@ export function featureDisabled(
  */
 export async function reconcileOrgOutbox(
   listCandidates: ListOutboxCandidates,
-  org: { orgId: string; ownedDomains: readonly string[]; disabledFeatureKeys?: readonly string[] },
+  org: {
+    orgId: string;
+    ownedDomains: readonly string[];
+    disabledFeatureKeys?: readonly string[];
+    /** This org's entitlement read failed: every gated domain is held (fail-closed). */
+    featuresUnreadable?: boolean;
+  },
   buildDeps: BuildReconcileDeps,
   dispatch: typeof dispatchMoneyWrite = dispatchMoneyWrite,
 ): Promise<ReconcileOrgOutboxResult> {
