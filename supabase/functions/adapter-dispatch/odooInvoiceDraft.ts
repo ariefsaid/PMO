@@ -43,11 +43,12 @@ export async function checkOdooDraftTarget(sc: SupabaseClient, orgId: string, co
   return { ok: true, unmappedDraft: true };
 }
 
-const lineAmounts = (items: unknown, allowNegative = false, preserveClaimFacts = false) => {
+const lineAmounts = (items: unknown, allowNegative = false, useRecordedAmounts = false, preserveUnits = false) => {
   const lines = parseDraftLines(Array.isArray(items) ? items.map((i: { item_code?: unknown; qty?: unknown; rate?: unknown; description?: unknown; amount?: unknown; unit?: unknown }) => ({
     item_code: i?.item_code, qty: i?.qty, rate: i?.rate, description: i?.description,
-    ...(preserveClaimFacts ? { amount: i?.amount, unit: i?.unit } : {}),
-  })) : null, allowNegative, preserveClaimFacts);
+    ...(useRecordedAmounts ? { amount: i?.amount } : {}),
+    ...(preserveUnits ? { unit: i?.unit } : {}),
+  })) : null, allowNegative, useRecordedAmounts);
   return lines === null ? null : { lines, total: lines.reduce((sum, l) => sum + Math.round(l.amount * 100), 0) / 100 };
 };
 
@@ -82,7 +83,7 @@ export async function writeOdooInvoiceDraft(args: { serviceClient: SupabaseClien
     if (err instanceof AppError) return reply(422, String(err.code ?? 'commit-rejected'), err.message);
     throw err;
   }
-  const items = lineAmounts(claim?.items ?? record.items, claim !== null, claim?.timeMaterials === true);
+  const items = lineAmounts(claim?.items ?? record.items, claim !== null, claim !== null, claim?.timeMaterials === true);
   const reference = claim ? null : typeof record.reference_number === 'string' && record.reference_number.trim() !== '' ? record.reference_number.trim() : null;
 
   if (command.operation === 'create') {

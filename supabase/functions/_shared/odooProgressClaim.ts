@@ -8,9 +8,11 @@ const MAX_CLAIM_LINES = 500;
 export interface OdooProgressClaim {
   claim: ProgressClaimRecord;
   customerId: string;
-  items: Array<ReturnType<typeof progressClaimItems>[number] & { unit?: string; amount?: number }>;
+  items: OdooProgressClaimItem[];
   timeMaterials: boolean;
 }
+
+export type OdooProgressClaimItem = ReturnType<typeof progressClaimItems>[number] & { amount: number; unit?: string };
 
 interface TimeMaterialsLine {
   line_key: string;
@@ -44,6 +46,31 @@ const amountNumber = (value: number | string): number => {
   return amount;
 };
 
+function invoiceItemsFromClaim(claim: ProgressClaimRecord, lines: readonly ProgressClaimLineRecord[]): OdooProgressClaimItem[] {
+  if (claim.kind === 'down_payment') return progressClaimItems(claim).map((line) => ({ ...line, amount: Number(line.rate) }));
+  if (claim.withdrawn_at) {
+    throw new AdapterError('commit-rejected', 'This progress claim was withdrawn, so no invoice can be raised for it');
+  }
+  if (lines.length === 0) throw new AdapterError('commit-rejected', 'This progress claim has no quantity lines');
+
+  const items: OdooProgressClaimItem[] = lines.map((line) => ({
+    item_code: line.item_code,
+    qty: Number(line.quantity),
+    rate: Number(line.rate),
+    description: `${line.description} (${line.unit})`,
+    amount: Number(line.amount),
+    unit: line.unit,
+  }));
+  const recovery = Number(claim.dp_recovery_amount);
+  if (recovery > 0) {
+    if (!claim.dp_item_code) {
+      throw new AdapterError('commit-rejected', 'This progress claim recovers a down payment but names no down payment item');
+    }
+    items.push({ item_code: claim.dp_item_code, qty: 1, rate: -recovery, amount: -recovery });
+  }
+  return items;
+}
+
 /** Load immutable claim facts from PMO and build only the lines the claim recorded. */
 export async function readOdooProgressClaim(sc: SupabaseClient, orgId: string, id: string): Promise<OdooProgressClaim | null> {
   const { data, error } = await sc.from('progress_claims')
@@ -51,8 +78,7 @@ export async function readOdooProgressClaim(sc: SupabaseClient, orgId: string, i
     .eq('org_id', orgId).eq('id', id).maybeSingle();
   if (error) throw new AppError('The billing claim could not be read', 'gate-check-failed');
   if (!data) {
-    // Draft T&M claims exist before their sign-off projection in progress_claims. Do not let their
-    // lines fall through as an ordinary caller-authored invoice when that projection is absent.
+    // A T&M claim may exist before its sign-off projection; never let its caller-authored lines fall through as an ordinary invoice.
     const { data: tmData, error: tmError } = await sc.from('tm_claims').select('status,confirmed_by,gross_amount')
       .eq('org_id', orgId).eq('id', id).maybeSingle();
     if (tmError) throw new AppError('The time-and-materials sign-off could not be read', 'gate-check-failed');
@@ -90,30 +116,18 @@ export async function readOdooProgressClaim(sc: SupabaseClient, orgId: string, i
     throw new AppError('Attach billing evidence before raising this claim invoice', 'commit-rejected');
   }
 
-  let items: OdooProgressClaim['items'];
+  let lines: ProgressClaimLineRecord[] = [];
   if (claim.kind === 'progress') {
-    if (claim.withdrawn_at) throw new AppError('This progress claim was withdrawn, so no invoice can be raised for it', 'commit-rejected');
     const { data: rows, error: linesError } = await sc.from('progress_claim_lines')
-      .select('item_code,description,unit,quantity,rate').eq('org_id', orgId).eq('claim_id', claim.id)
+      .select('item_code,description,unit,quantity,rate,amount').eq('org_id', orgId).eq('claim_id', claim.id)
       .order('boq_item_id', { ascending: true }).limit(MAX_CLAIM_LINES + 1);
     if (linesError) throw new AppError('The billing claim lines could not be read', 'gate-check-failed');
-    const lines = (rows ?? []) as ProgressClaimLineRecord[];
+    lines = (rows ?? []) as ProgressClaimLineRecord[];
     if (lines.length > MAX_CLAIM_LINES) throw new AppError(`A progress claim may have at most ${MAX_CLAIM_LINES} lines`, 'commit-rejected');
-    if (lines.length === 0) throw new AppError('This progress claim has no quantity lines', 'commit-rejected');
-    items = lines.map((line) => ({
-      item_code: line.item_code,
-      qty: Number(line.quantity),
-      rate: Number(line.rate),
-      description: `${line.description} (${line.unit})`,
-    }));
-    const recovery = Number(claim.dp_recovery_amount);
-    if (recovery > 0) {
-      if (!claim.dp_item_code) {
-        throw new AppError('This progress claim recovers a down payment but names no down payment item', 'commit-rejected');
-      }
-      items.push({ item_code: claim.dp_item_code, qty: 1, rate: -recovery });
-    }
-  } else if (timeMaterials) {
+  }
+
+  let items: OdooProgressClaimItem[];
+  if (timeMaterials) {
     if (claim.withdrawn_at) throw new AppError('This time-and-materials claim was withdrawn, so no invoice can be raised for it', 'commit-rejected');
     const { data: tmData, error: tmError } = await sc.from('tm_claims').select('status,confirmed_by,gross_amount')
       .eq('org_id', orgId).eq('id', claim.id).maybeSingle();
@@ -146,25 +160,18 @@ export async function readOdooProgressClaim(sc: SupabaseClient, orgId: string, i
         throw new AppError('The signed time-and-materials claim line is invalid', 'commit-rejected');
       }
       linesGross += amountInMinorUnits(line.amount);
-      return {
-        item_code: label,
-        description: `${label} (${unit})`,
-        qty: quantity,
-        rate,
-        amount,
-        unit,
-      };
+      return { item_code: label, description: `${label} (${unit})`, qty: quantity, rate, amount, unit };
     });
     if (linesGross !== gross || linesGross !== tmGross) {
       throw new AppError('The signed time-and-materials claim header does not match its line amounts', 'commit-rejected');
     }
   } else {
     try {
-      items = progressClaimItems(claim);
+      items = invoiceItemsFromClaim(claim, lines);
     } catch (error) {
       if (error instanceof AdapterError) throw new AppError(error.message, error.code);
       throw error;
     }
   }
-  return { claim, customerId, items: items!, timeMaterials };
+  return { claim, customerId, items, timeMaterials };
 }

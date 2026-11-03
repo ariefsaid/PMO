@@ -253,7 +253,7 @@ export function revenueRoutes(unexpected: FetchCall[], caller: string, world: Wo
 export function invoiceOdooWorld(downPaymentProductIncomeAccount = 210) {
   const fake = createFakeOdoo({ key: 'odoo-test-key' });
   fake.seed('res.company', [{ id: 1, name: 'Co', currency_id: [12, 'IDR'] }]);
-  fake.seed('res.currency', [{ id: 12, name: 'IDR', rounding: 0.01, decimal_places: 2 }]);
+  fake.seed('res.currency', [{ id: 12, name: 'Indonesian Rupiah', rounding: 0.01 }]);
   fake.seed('decimal.precision', [{ id: 1, name: 'Product Unit', digits: 2 }]);
   fake.seed('res.partner', [{ id: 41, name: 'Client' }]);
   fake.seed('account.tax', [{ id: 5, name: '12% (Non-Luxury Good)', amount: 11, company_id: [1, 'Co'] }, { id: 9, name: 'Hidden default 10%', amount: 10, company_id: [1, 'Co'] }]);

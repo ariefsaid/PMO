@@ -3,7 +3,7 @@
 Spec: `docs/specs/budget-whole-project.spec.md` (owner decisions #1444, 2026-10-28/29). Builds on `budget-push-v16`,
 `budget-fiscal-year-phasing`, `budget-versioning`; map in `docs/money-path-primer.md`. Money path: ERP push + predecessor
 cancellation. Executor: Orca workers per `docs/orca-dispatch.md`; money slices Director-dispatched, one PR each.
-Migration numbers used: **0500, 0501, 0502, 0503, 0504** (dev head is 0493). Each has `rollback/<NNNN>_<slug>_down.sql`.
+Migration numbers used: **0576, 0577** (Slice 3; reserved after dev head 0565), then **0502, 0503, 0504** for Slices 4–7 (renumber those against the integration base immediately before implementation). Each has `rollback/<NNNN>_<slug>_down.sql`.
 
 ## 0. Grounding: what ships today (file:line, read from this worktree)
 
@@ -72,7 +72,7 @@ Migration numbers used: **0500, 0501, 0502, 0503, 0504** (dev head is 0493). Eac
 |---|---|---|---|---|
 | 1 | v16 yearly-distribution rehearsal spike (field contract) | none | docs + script only | batch with 2 |
 | 2 | Pure `budgetDistribution.ts` (exact allocation, validation, span) | none | pure code | batch with 1 |
-| 3 | Storage + roles: mode, plans/rows tables, `save_budget_distribution`, clone, activation validation | 0500, 0501 | **alone** (auth/SoD) | PR-A |
+| 3 | Storage + roles: mode, plans/rows tables, `save_budget_distribution`, clone, activation validation | 0576, 0577 | **alone** (auth/SoD) | PR-A |
 | 4 | Range identity + body + gate recompute + dispatch fan-out + sweep + feed + mirror writer + status | 0502 (mirror/intent range columns, SQL identity, status, `record_outbox_ref`) | **alone with 5** (money) | PR-B |
 | 5 | Predecessor cancellation at activation + ordering hold | 0503 | **alone with 4** (money) | PR-B |
 | 6 | Repository/hooks + authoring UI (mode, totals, distribution grid, readiness, stale banner) | none | batch | PR-D |
@@ -194,11 +194,11 @@ export function byDays(total: string, start: string, end: string | null, years: 
 - [ ] 2.3 Mutation check: change the tie sort to `b - a`; the AC-003 tie test must go red; restore.
 - [ ] 2.4 Gate: `cd pmo-portal && npm run typecheck && npx eslint --max-warnings=0 src/lib/budget/budgetDistribution.ts src/lib/budget/budgetDistribution.test.ts && npm run check:guards`.
 
-## Slice 3: storage, roles, clone, activation validation — migrations 0500, 0501 (PR-A, alone)
+## Slice 3: storage, roles, clone, activation validation — migrations 0576, 0577 (PR-A, alone)
 
 Read first: `0005`, `0180` (clone), `0271`, `0280`, `0298`, `0137` (service_role grants), `0178` (anon-executable allow-list), `0293` (RLS pattern). Re-read definitions with `pg_get_functiondef` at implementation time.
 
-**0500_budget_whole_project_schema.sql** (`rollback/0500_budget_whole_project_schema_down.sql`):
+**0576_budget_whole_project_schema.sql** (`rollback/0576_budget_whole_project_schema_down.sql`):
 
 ```sql
 alter table public.budget_versions
@@ -211,6 +211,8 @@ create table public.budget_distribution_plans (
     references public.organizations(id) on delete cascade,
   method text not null check (method in ('by_days','percent_by_year','amount_by_year')),
   inputs jsonb not null default '{}'::jsonb,   -- budget-wide year -> entered value (text)
+  category_overrides jsonb not null default '{}'::jsonb,
+                                               -- {"<category>": {"method": <method>, "inputs": {"<year>": "<text>"}}}
   basis jsonb not null,                        -- {projectStart, projectEnd|null, years:[{name,start,end}]}
   updated_by uuid references public.profiles(id),
   updated_at timestamptz not null default now()
@@ -234,15 +236,17 @@ create table public.budget_year_distributions (
 ```
   Rollback refuses (raise exception) if any `whole_project` version or distribution row exists; otherwise drops the objects and column.
 
-**0501_budget_distribution_rpc.sql** (until PR-B, reject whole-project activation and dispatch despite a valid distribution): `save_budget_distribution(p_version uuid, p_method text, p_inputs jsonb, p_basis jsonb, p_rows jsonb) returns void`, definer, `set search_path = public, pg_temp`:
-auth gate identical to `activate_budget_version` (four roles, `is_active_member()`, version org = `auth_org_id()`, project org match); version must be `Draft` and `whole_project`; rows validated: no duplicate (category, year), years ⊆ `basis.years`, amounts ≥ 0, every category with source lines, including a zero total, has exactly one row per basis year, and Σ years = Σ lines (`numeric`, exact) — failures raise `P0001` with the category name; delete+insert both tables in one statement block; `insert into budget_version_editors … on conflict do nothing` (authorship). Also `budget_distribution_gaps(p_version uuid) returns setof text` (stable, invoker) reused by activation. `clone_budget_version` replaced (copy the current body, add): copies `budget_mode`, plan and rows. `activate_budget_version` replaced (copy the current `0366` body verbatim; add): when `budget_mode = 'whole_project'`, raise `P0001` if `budget_distribution_gaps` is non-empty. Re-issue `revoke … from public, anon` / `grant execute … to authenticated` for each; update the `0178` allow-list test only if the anon-executable count moves (it must not).
+**0577_budget_distribution_rpc.sql** (until PR-B, reject whole-project activation and dispatch despite a valid distribution): `save_budget_distribution(p_version uuid, p_method text, p_inputs jsonb, p_basis jsonb, p_rows jsonb, p_category_overrides jsonb default '{}'::jsonb) returns void` (the five-argument call stays valid; the old five-argument signature is dropped so PostgREST never sees two overloads), definer, `set search_path = public, pg_temp`:
+auth gate identical to `activate_budget_version` (four roles, `is_active_member()`, version org = `auth_org_id()`, project org match); version must be `Draft` and `whole_project`; rows validated: no duplicate (category, year), years ⊆ `basis.years`, amounts ≥ 0, every category with source lines, including a zero total, has exactly one row per basis year, and Σ years = Σ lines (`numeric`, exact) — failures raise `P0001` with the category name. **Per-category method/input overrides (FR-003/008/019, AC-007):** `p_category_overrides` maps a source category to its own `method` and entered `inputs`; input keys must be basis years, percentages must sum to exactly 100, an amount override must sum to that category's source total, a budget-wide amount vector is a proportion of each category's total (owner resolution 2, Σ > 0), and each saved row's `method`/`is_override` must agree with the declaration. Resolved rows must equal the **exact largest-remainder proposal** the pure module produces — floor each share at the minor unit, hand the remaining units to the largest fractional remainders with ties to the earlier fiscal year, and never hand a unit to a zero weight (a 0% year stays exactly 0.00) — and a category amount override must equal its entered figures exactly. A one-cent-shuffled or tolerance-satisfying plan therefore fails even when the aggregate sums reconcile. Inputs and overrides are persisted so reload and clone reproduce the approved plan; delete+insert both tables in one statement block; `insert into budget_version_editors … on conflict do nothing` (authorship). Also `budget_distribution_gaps(p_version uuid) returns setof text` (stable, invoker) reused by activation. `clone_budget_version` replaced (copy the current body, add): copies `budget_mode`, plan and rows. `activate_budget_version` replaced (copy the current `0366` body verbatim; add): when `budget_mode = 'whole_project'`, raise `P0001` if `budget_distribution_gaps` is non-empty. Re-issue `revoke … from public, anon` / `grant execute … to authenticated` for each; update the `0178` allow-list test only if the anon-executable count moves (it must not).
 
 pgTAP (write first; `supabase/tests/`; `begin; … rollback;`, namespaced UUIDs, `select finish();`):
-- `budget_whole_project_storage.test.sql` — **AC-007**: save → reload equals; clone copies mode/plan/rows/is_override; second save replaces atomically (no duplicates); a row set that misses a year or does not sum fails and leaves the prior plan intact.
-- `budget_whole_project_roles.test.sql` — **AC-008**: roles Viewer/Employee refused; other-org version refused; Active/Archived refused; direct `insert/update` on both tables as `authenticated` refused; editor row stamped; drafter or editor cannot activate; distinct eligible activator can; sole-operator exception still works; activation with a non-reconciling plan refused.
+- `budget_whole_project_storage.test.sql` — **AC-007**: save → reload equals; clone copies mode/plan/rows/is_override; second save replaces atomically (no duplicates); a row set that misses a year or does not sum fails and leaves the prior plan intact; a per-category method/input override reloads and clones exactly; override percentages/amounts, unknown years, missing years, negative values, a contradictory row declaration and a vector-inconsistent row set are each refused with the category named; the five-argument call still works and only the six-argument signature exists.
+- `budget_whole_project_roles.test.sql` — **AC-008**: Engineer and authenticated callers without a profile are refused; same-role cross-org save/activation are refused; Active/Archived refused; direct `insert/update` on both tables as `authenticated` refused; editor row stamped; drafter or editor cannot activate; distinct eligible activator can; sole-operator exception still works; activation with a non-reconciling plan refused.
+
+**Role-contract note (2026-11-02):** Viewer/Employee do not exist in the persisted `user_role` enum; AC-008 maps that denied-role coverage to Engineer plus an authenticated caller with no profile row.
 - `budget_whole_project_compatibility.test.sql` — **AC-011**: pre-existing versions read `per_year`, lines/`fiscal_year`/mirror rows/identities unchanged; `activate` on a `per_year` version behaves as before.
-Mutation: replace the Σ check with `true` in the RPC → the AC-007 mismatch test must go red; restore.
-Verify (one lock hold): `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/budget_whole_project_storage.test.sql supabase/tests/budget_whole_project_roles.test.sql supabase/tests/budget_whole_project_compatibility.test.sql supabase/tests/budget_archive_cancel_intents.test.sql supabase/tests/budget_sole_operator.test.sql supabase/tests/budget_second_activator.test.sql'`. Grep output for `Parse errors`. Also run the 0136/0137/0178 guards' files. Regenerate types: update `database.types.ts` for the new tables/columns/RPCs (hand-edit minimal, or the repo's generator).
+Mutation: replace the Σ check with `true` in the RPC → the AC-007 mismatch test must go red; restore. Drop the 0241 line-move refusal from `enforce_draft_line_item` → `0241_budget_line_version_pin` must go red; restore. Drop the row-versus-override method check → the AC-007 contradiction test must go red; restore. Restore the earlier tolerance-based comparison (±0.0101) → the tied one-cent (50/50 of 100.01) and the nonzero-0%-year cases must go red; restore.
+Verify (one lock hold): `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/budget_whole_project_storage.test.sql supabase/tests/budget_whole_project_roles.test.sql supabase/tests/budget_whole_project_compatibility.test.sql supabase/tests/0241_budget_line_version_pin.test.sql supabase/tests/budget_archive_cancel_intents.test.sql supabase/tests/budget_sole_operator.test.sql supabase/tests/budget_second_activator.test.sql'`. Grep output for `Parse errors`. Also run the 0136/0137/0178 guards' files and `scripts/test-budget-whole-project-rollback.sh` (refusal while whole-project data exists, then the clean down/up round trip in migration order, each rolled back). Regenerate types: update `database.types.ts` for the new tables/columns/RPCs (hand-edit minimal, or the repo's generator).
 
 ## Slice 4: range identity, body, gate, fan-out, sweep, feed, mirror — migration 0502 (PR-B, together with Slice 5)
 
@@ -265,7 +269,7 @@ TS tasks, each test-first (vitest unless noted; Deno tests import the shipped ha
 
 ## Slice 5: predecessor cancellation at activation + ordering hold — migration 0503 (PR-B, together with Slice 4)
 
-**0503_budget_activation_cancels_predecessor.sql** (+rollback restoring the 0501 `activate_budget_version` and the 0387 archive body):
+**0503_budget_activation_cancels_predecessor.sql** (+rollback will restore the 0577 `activate_budget_version` and the 0387 archive body):
 1. `queue_budget_archive_cancel(p_version uuid, p_actor uuid, p_request uuid) returns jsonb` (definer, internal; `revoke all from public, anon, authenticated`) = the request + intents + mirror `remove` marking block of `archive_budget_version_with_cancel_intent`, copying `to_fiscal_year`. The archive RPC now calls it; behaviour identical.
 2. `activate_budget_version`: after the existing `Archived` flip, for the predecessor: if binding major = 16 and the predecessor has live `ensure` targets for its `activated_at` and NOT (both `whole_project` with equal first/last `basis.years` names) → call the helper with `cancel_erp = true`. Same transaction; failure rolls back activation.
 
@@ -338,7 +342,7 @@ PR-A (3: auth/SoD), PR-B (4+5: indivisible money push and cancellation), PR-E (8
 
 ## 6. What #1473 (paste rows) needs from this plan
 
-- Pasted lines go to the selected Draft through `repositories.budget.createLineItem` with `fiscal_year` null. In a `whole_project` Draft that is now the only valid shape; the 0500 trigger rejects a phased line, so paste must not set `fiscal_year` (matches paste FR-009).
+- Pasted lines go to the selected Draft through `repositories.budget.createLineItem` with `fiscal_year` null. In a `whole_project` Draft that is now the only valid shape; the 0576 trigger rejects a phased line, so paste must not set `fiscal_year` (matches paste FR-009).
 - After a paste changes category totals, any saved distribution no longer reconciles. Slice 3 makes that visible (`budget_distribution_gaps`), and Slice 6 shows "re-spread needed"; paste should call the same "invalidate/preview again" hook rather than editing distribution rows. Land Slice 3 + 6.1 before #1473 so paste targets the final line shape.
 - Paste does not touch mode, distribution or activation; no migration from #1473.
 

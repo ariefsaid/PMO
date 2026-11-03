@@ -17,7 +17,9 @@ import { createOdooRevenueAdapter, invoiceKey, recoverInvoice } from '../../../p
 import { externalIdentifier } from '../../../pmo-portal/src/lib/adapterSeam/odoo/revenue/anchors.ts';
 import type { InvoiceMaps, PmoInvoice } from '../../../pmo-portal/src/lib/adapterSeam/odoo/revenue/invoiceBody.ts';
 import { expectedInvoiceTotal, type InvoiceExpect } from '../../../pmo-portal/src/lib/adapterSeam/odoo/revenue/invoiceReadBack.ts';
+import { odooFloatRound, odooLineSubtotal } from '../../../pmo-portal/src/lib/adapterSeam/odoo/revenue/odooRounding.ts';
 import { parseOdooExternalRef } from '../../../pmo-portal/src/lib/adapterSeam/odoo/purchase/anchors.ts';
+import { formatTimeMaterialsDescription } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/dispatchRevenueFormatting.ts';
 
 const BED = Deno.env.get('ODOO_BED_URL');
 const DB = Deno.env.get('ODOO_BED_DB') ?? '';
@@ -198,5 +200,42 @@ Deno.test({
     assertEquals([tmPostedLine.product_id[0], tmPostedLine.quantity, tmPostedLine.price_unit, tmPostedLine.product_uom_id?.[0], tmPostedLine.analytic_distribution],
       [tmService, 120, 50000, hourUnits[0].id, { [String(account)]: 100 }]);
     assertEquals([tmMove.amount_untaxed, tmMove.amount_tax, tmMove.amount_total, tmResult.canonical.amount], [6000000, 660000, 6660000, '6660000.00']);
+    // C4: confirm the signed PMO line amount survives the actual Product Unit and currency precision on the bed.
+    const precisionRows = await call<Array<{ digits: number }>>('decimal.precision', 'search_read', {
+      domain: [['name', '=', 'Product Unit']], fields: ['digits'], limit: 2,
+    });
+    assertEquals(precisionRows.length, 1, 'the Product Unit precision is readable');
+    const [currencyPrecision] = await call<Array<{ rounding: number }>>('res.currency', 'read', {
+      ids: [company.currency_id[0]], fields: ['rounding'],
+    });
+    assert(currencyPrecision && currencyPrecision.rounding > 0, 'the company currency rounding is readable');
+    const claimQuantity = 0.333;
+    const claimRate = 1000.01;
+    const signedAmount = odooFloatRound(claimQuantity * claimRate, { precisionDigits: 2 });
+    const qtyRounding = 10 ** -precisionRows[0].digits;
+    const bookedFromOriginal = odooLineSubtotal(claimQuantity, claimRate, qtyRounding, currencyPrecision.rounding);
+    const needsReshape = bookedFromOriginal !== signedAmount;
+    const bookedLine = needsReshape
+      ? { quantity: 1, unitPrice: signedAmount, description: formatTimeMaterialsDescription('Roadworks', 'km', claimQuantity, claimRate, signedAmount, company.currency_id[1]) }
+      : { quantity: claimQuantity, unitPrice: claimRate, description: 'Roadworks (km)' };
+    const fractionalInput: PmoInvoice = {
+      id: crypto.randomUUID(), customerId: 'c', invoiceDate: '2026-12-05', currency: company.currency_id[1], referenceNumber: `${stamp}-C4`,
+      lines: [{ itemId: 'svc', ...bookedLine }],
+    };
+    const fractionalExpectation: InvoiceExpect = {
+      total: expectedInvoiceTotal([{ quantity: bookedLine.quantity, unitPrice: bookedLine.unitPrice, amount: signedAmount }], [11], currencyPrecision.rounding),
+      costAccountId: account,
+    };
+    const fractionalAdapter = createOdooRevenueAdapter({ call, resolveInvoice: async () => ({ input: fractionalInput, maps: mapsFor(account), expect: fractionalExpectation }) });
+    const fractionalCommand: AdapterCommand = {
+      domain: 'revenue', operation: 'transition', idempotencyKey: `${stamp}-C4`,
+      record: { id: fractionalInput.id, erp_doc_kind: 'sales-invoice', verb: 'submit' },
+    };
+    const fractionalResult = await fractionalAdapter.commit(fractionalCommand);
+    const fractionalMoveId = parseOdooExternalRef('account.move', fractionalResult.externalRecordId)!;
+    const [fractionalMove] = await moveRead(fractionalMoveId);
+    const [fractionalPostedLine] = await productLines(fractionalMoveId);
+    assertEquals([fractionalMove.amount_untaxed, fractionalPostedLine.quantity, fractionalPostedLine.price_unit],
+      [signedAmount, bookedLine.quantity, bookedLine.unitPrice], 'the bed books the signed progress-claim amount at its actual precision');
   },
 });

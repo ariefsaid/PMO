@@ -21,6 +21,7 @@ export type TmClaimSourceRow = Tables<'tm_claim_sources'>;
 
 export const LIST_LIMIT = 200;
 export interface Bounded<T> { rows: T[]; truncated: boolean }
+export interface TmClaimSourcesRead extends Bounded<TmClaimSourceRow> { totalCount: number }
 
 export type TmRateUnit = 'hour' | 'day';
 export type TmClaimStatus = 'Draft' | 'SignedOff' | 'Withdrawn';
@@ -421,12 +422,13 @@ export async function previewTmClaim(input: TmClaimPreviewInput): Promise<Bounde
 }
 
 /** The sources behind a claim's lines — the detail drill-down (RLS-visible exactly when the claim is). */
-export async function listTmClaimSources(claimId: string): Promise<Bounded<TmClaimSourceRow>> {
-  const { data, error } = await supabase.from('tm_claim_sources').select('*')
+export async function listTmClaimSources(claimId: string): Promise<TmClaimSourcesRead> {
+  const { data, error, count } = await supabase.from('tm_claim_sources').select('*', { count: 'exact' })
     .eq('claim_id', claimId)
     .order('created_at', { ascending: true })
     .order('id', { ascending: true })
     .limit(LIST_LIMIT + 1);
   fail(error);
-  return bounded(data);
+  if (count === null) throw new AppError('the source-entry count was not returned', 'tm-malformed');
+  return { ...bounded(data), totalCount: count };
 }

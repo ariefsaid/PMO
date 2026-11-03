@@ -10,6 +10,8 @@ import { assert, assertEquals } from '@std/assert';
 import { createJwtAuthority, createTestJwksResolver, installEdgeEnv, withFetchMock } from '../_shared/testing/edgeTestKit.ts';
 import type { FetchCall } from '../_shared/testing/edgeTestKit.ts';
 import type { FakeOdoo } from '../../../pmo-portal/src/lib/adapterSeam/odoo/fakeOdoo.ts';
+import { odooCurrencyAmountsEqual, odooFloatRound, odooLineSubtotal } from '../../../pmo-portal/src/lib/adapterSeam/odoo/revenue/odooRounding.ts';
+import { formatTimeMaterialsDescription } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/dispatchRevenueFormatting.ts';
 import {
   APPROVER_ID, AUTHOR_ID, CLAIM_ID, DRAFT_ID, NEW_INVOICE_ID, ODOO_HOST, PROJECT_ID, CUSTOMER_ID, WORK_ORDER_ID,
   approveCommand, draftCommand, draftRow, invoiceOdooWorld, revenueRoutes, type World,
@@ -55,6 +57,21 @@ const noMoneyPipeline = (r: Awaited<ReturnType<typeof dispatchAs>>) => {
 const outboxInserts = (r: Awaited<ReturnType<typeof dispatchAs>>) => r.calls.filter((c) => c.method === 'POST' && c.url.pathname === '/rest/v1/external_command_outbox');
 const moves = (fake: FakeOdoo) => fake.rows('account.move');
 const creates = (fake: FakeOdoo) => fake.calls.filter((c) => c.model === 'account.move' && c.method === 'create').length;
+
+describe('Odoo 20 line rounding', () => {
+  it('uses the ORM quantity precision before currency rounding', () => {
+    assertEquals(odooLineSubtotal(0.333, 1000.01, 0.01, 0.01), 330);
+    assertEquals(odooLineSubtotal(12.345, 1000000, 0.01, 0.01), 12350000);
+  });
+
+  it('matches half-up ties, arbitrary currency increments and the large-value epsilon', () => {
+    assertEquals(odooFloatRound(0.025, { precisionDigits: 2 }), 0.03);
+    assertEquals(odooFloatRound(-0.025, { precisionDigits: 2 }), -0.03);
+    assertEquals(odooFloatRound(0.075, { precisionRounding: 0.05 }), 0.1);
+    assertEquals(odooFloatRound(1.001 * 11000000164.99, { precisionDigits: 2 }), 11011000165.16);
+    assert(odooCurrencyAmountsEqual(odooLineSubtotal(1, 0.3, 0.01, 0.05), 0.3, 0.05));
+  });
+});
 
 describe('OQ-OCI-1 authoring and editing an invoice draft is PMO\'s alone: no Odoo call, no outbox row, no mapping', () => {
   it('a create saves the draft row with its lines and the verified caller as author, whatever the payload claims', async () => {
@@ -144,6 +161,49 @@ describe('AC-OCI-010 / FR-OCI-060 the approval: the author is refused before any
     assert(typeof body.payload.created_after === 'string' && typeof body.payload.created_before === 'string', 'the recovery window is bounded on both sides');
     const mirror = writes.find((w) => w.table === 'sales_invoices' && w.method === 'PATCH')!.body as Record<string, unknown>;
     assertEquals([mirror.si_number, mirror.amount, mirror.tax_amount, mirror.erp_outstanding_amount, mirror.status, mirror.erp_docstatus, mirror.odoo_state, mirror.odoo_attention], [invoice.name, '2220.00', '220.00', '2220.00', 'Unpaid', 1, 'posted', null]);
+  });
+
+  it('C3 ordinary invoice lines are reshaped only when Odoo would book a different currency amount', async () => {
+    const writes: NonNullable<World['writes']> = [];
+    const created = await dispatchAs(AUTHOR_ID, draftCommand({ items: [{ item_code: 'ITEM-A', description: 'Roadworks (km)', qty: 0.333, rate: 1000.01 }] }), { writes });
+    assertEquals(created.status, 200, created.body);
+    noMoneyPipeline(created);
+    const saved = writes.find((w) => w.table === 'sales_invoices' && w.method === 'POST')!.body as Record<string, unknown>;
+    assertEquals([saved.amount, (saved.native_lines as Array<Record<string, unknown>>)[0].amount], [333, 333]);
+
+    const odoo = invoiceOdooWorld();
+    const approved = await dispatchAs(APPROVER_ID, approveCommand(), {
+      writes, odoo, draft: draftRow({ native_lines: saved.native_lines, amount: saved.amount }),
+    });
+    assertEquals(approved.status, 200, approved.body);
+    const [invoice] = odoo.rows('account.move');
+    const [line] = odoo.rows('account.move.line').filter((row) => row.move_id === invoice.id && row.display_type === 'product');
+    assertEquals([line.quantity, line.price_unit, invoice.amount_untaxed], [1, 333, 333], 'Odoo receives one unit priced at the signed PMO draft amount');
+    assertEquals(line.name, formatTimeMaterialsDescription('Roadworks', 'km', 0.333, 1000.01, 333, 'IDR'));
+  });
+
+  it('refuses before the outbox when Odoo quantity precision cannot be read', async () => {
+    const odoo = invoiceOdooWorld();
+    const fetchOdoo = odoo.fetch;
+    odoo.fetch = (url, init) => /\/decimal\.precision\/search_read$/.test(String(url))
+      ? Promise.resolve(Response.json([]))
+      : fetchOdoo(url, init);
+    const r = await dispatchAs(APPROVER_ID, approveCommand(), { odoo });
+    assertEquals([r.status, JSON.parse(r.body).error, JSON.parse(r.body).message], [422, 'config-rejected', 'config-rejected: the product-unit quantity precision could not be read']);
+    assertEquals(outboxInserts(r).length, 0, 'configuration is checked before the outbox snapshot');
+    assertEquals(creates(odoo), 0, 'no Odoo invoice is written');
+  });
+
+  it('refuses before the outbox when Odoo currency rounding cannot be read', async () => {
+    const odoo = invoiceOdooWorld();
+    const fetchOdoo = odoo.fetch;
+    odoo.fetch = (url, init) => /\/res\.currency\/read$/.test(String(url))
+      ? Promise.resolve(Response.json([]))
+      : fetchOdoo(url, init);
+    const r = await dispatchAs(APPROVER_ID, approveCommand(), { odoo });
+    assertEquals([r.status, JSON.parse(r.body).error, JSON.parse(r.body).message], [422, 'config-rejected', 'config-rejected: the invoice currency rounding could not be read']);
+    assertEquals(outboxInserts(r).length, 0, 'configuration is checked before the outbox snapshot');
+    assertEquals(creates(odoo), 0, 'no Odoo invoice is written');
   });
 
   it('AC-OCI-011 a retry of the same command is a replay: no second outbox row, no second create, no second post', async () => {
@@ -252,13 +312,13 @@ describe('AC-OCI-020 / AC-OCI-021 / AC-OCI-022 / AC-OCI-023 Odoo billing claims'
     id: CLAIM_ID, project_id: PROJECT_ID, work_order_id: WORK_ORDER_ID, kind: 'progress', currency: 'IDR',
     down_payment_amount: null, dp_recovery_amount: '40000.00', dp_item_code: 'ITEM-DP', withdrawn_at: null,
   };
-  const progressLines = [{ item_code: 'ITEM-A', description: 'Roadworks', unit: 'km', quantity: '10.000', rate: '50000.00' }];
+  const progressLines = [{ item_code: 'ITEM-A', description: 'Roadworks', unit: 'km', quantity: '10.000', rate: '50000.00', amount: '500000.00' }];
   const evidence = [{ id: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee' }];
   const nativeClaimLines = [
     { item_code: 'ITEM-A', description: 'Roadworks (km)', qty: 10, rate: 50000, amount: 500000 },
     { item_code: 'ITEM-DP', description: null, qty: 1, rate: -40000, amount: -40000 },
   ];
-  const claimDraft = () => draftRow({ id: CLAIM_ID, customer_id: CUSTOMER_ID, project_id: PROJECT_ID, work_order_id: WORK_ORDER_ID, native_lines: nativeClaimLines });
+  const claimDraft = (nativeLines = nativeClaimLines, over: Record<string, unknown> = {}) => draftRow({ id: CLAIM_ID, customer_id: CUSTOMER_ID, project_id: PROJECT_ID, work_order_id: WORK_ORDER_ID, native_lines: nativeLines.map((line) => ({ ...line })), ...over });
   const timeMaterialsClaim = {
     id: CLAIM_ID, project_id: PROJECT_ID, work_order_id: null, kind: 'time_materials', currency: 'IDR', gross_amount: '6000000.00',
     down_payment_amount: null, dp_recovery_amount: '0.00', dp_item_code: null, withdrawn_at: null,
@@ -293,6 +353,80 @@ describe('AC-OCI-020 / AC-OCI-021 / AC-OCI-022 / AC-OCI-023 Odoo billing claims'
     assertEquals([r.status, JSON.parse(r.body).message], [422, 'This progress claim was withdrawn, so no invoice can be raised for it']);
     assertEquals(writes, []);
     noMoneyPipeline(r);
+  });
+
+  it('C4 fractional claim quantities post the signed line amounts, not Odoo-rounded quantities', async () => {
+    const fractionalClaim = { ...progressClaim, dp_recovery_amount: '0.00', dp_item_code: null };
+    const fractionalLines = [
+      { item_code: 'ITEM-A', description: 'Roadworks', unit: 'km', quantity: '0.333', rate: '1000.01', amount: '333.00' },
+      { item_code: 'ITEM-A', description: 'Earthworks', unit: 'm3', quantity: '12.345', rate: '1000000.00', amount: '12345000.00' },
+    ];
+    const recordedLines = [
+      { item_code: 'ITEM-A', description: 'Roadworks (km)', qty: 0.333, rate: 1000.01, amount: 333 },
+      { item_code: 'ITEM-A', description: 'Earthworks (m3)', qty: 12.345, rate: 1000000, amount: 12345000 },
+    ];
+    const writes: NonNullable<World['writes']> = [];
+    const draft = await dispatchAs(AUTHOR_ID, draftCommand({ id: CLAIM_ID }), {
+      progressClaim: fractionalClaim, progressClaimLines: fractionalLines, progressClaimEvidence: evidence, writes,
+    });
+    assertEquals(draft.status, 200, draft.body);
+    const saved = writes.find((w) => w.table === 'sales_invoices' && w.method === 'POST')!.body as Record<string, unknown>;
+    assertEquals([saved.amount, saved.native_lines], [12345333, recordedLines], 'PMO stores the immutable signed per-line amounts');
+
+    const odoo = invoiceOdooWorld();
+    const approved = await dispatchAs(APPROVER_ID, approveCommand({ id: CLAIM_ID }), {
+      progressClaim: fractionalClaim, progressClaimLines: fractionalLines, progressClaimEvidence: evidence,
+      draft: claimDraft(recordedLines), invoiceAuthor: AUTHOR_ID, writes, odoo,
+    });
+    assertEquals(approved.status, 200, approved.body);
+    const [invoice] = odoo.rows('account.move');
+    const posted = odoo.rows('account.move.line').filter((line) => line.move_id === invoice.id && line.display_type === 'product');
+    assertEquals([invoice.amount_untaxed, posted.map((line) => [line.quantity, line.price_unit])], [12345333, [[1, 333], [1, 12345000]]]);
+    assert(posted.every((line) => String(line.name).includes('rounded to')));
+  });
+
+  it('a half-cent claim amount is copied to the PMO draft and used for its posted line', async () => {
+    const tieClaim = { ...progressClaim, dp_recovery_amount: '0.00', dp_item_code: null };
+    const tieLines = [{ item_code: 'ITEM-A', description: 'Survey', unit: 'hour', quantity: '1.001', rate: '15.00', amount: '15.02' }];
+    const nativeLines = [{ item_code: 'ITEM-A', description: 'Survey (hour)', qty: 1.001, rate: 15, amount: 15.02 }];
+    const writes: NonNullable<World['writes']> = [];
+    const created = await dispatchAs(AUTHOR_ID, draftCommand({ id: CLAIM_ID }), {
+      progressClaim: tieClaim, progressClaimLines: tieLines, progressClaimEvidence: evidence, writes,
+    });
+    assertEquals(created.status, 200, created.body);
+    const saved = writes.find((w) => w.table === 'sales_invoices' && w.method === 'POST')!.body as Record<string, unknown>;
+    assertEquals([saved.amount, (saved.native_lines as Array<Record<string, unknown>>)[0].amount], [15.02, 15.02]);
+
+    const odoo = invoiceOdooWorld();
+    const approved = await dispatchAs(APPROVER_ID, approveCommand({ id: CLAIM_ID }), {
+      progressClaim: tieClaim, progressClaimLines: tieLines, progressClaimEvidence: evidence,
+      draft: claimDraft(nativeLines), invoiceAuthor: AUTHOR_ID, writes, odoo,
+    });
+    assertEquals(approved.status, 200, approved.body);
+    const [invoice] = odoo.rows('account.move');
+    const [line] = odoo.rows('account.move.line').filter((row) => row.move_id === invoice.id && row.display_type === 'product');
+    assertEquals([line.quantity, line.price_unit, invoice.amount_untaxed], [1, 15.02, 15.02]);
+  });
+
+  it('Odoo float epsilon at large values is reproduced and the signed amount is retained', async () => {
+    const largeClaim = { ...progressClaim, dp_recovery_amount: '0.00', dp_item_code: null };
+    const largeLines = [{ item_code: 'ITEM-A', description: 'Pipeline', unit: 'km', quantity: '1.001', rate: '11000000164.99', amount: '11011000165.15' }];
+    const nativeLines = [{ item_code: 'ITEM-A', description: 'Pipeline (km)', qty: 1.001, rate: 11000000164.99, amount: 11011000165.15 }];
+    const writes: NonNullable<World['writes']> = [];
+    const created = await dispatchAs(AUTHOR_ID, draftCommand({ id: CLAIM_ID }), {
+      progressClaim: largeClaim, progressClaimLines: largeLines, progressClaimEvidence: evidence, writes,
+    });
+    assertEquals(created.status, 200, created.body);
+    const odoo = invoiceOdooWorld();
+    (odoo.rows('decimal.precision')[0] as Record<string, unknown>).digits = 3;
+    const approved = await dispatchAs(APPROVER_ID, approveCommand({ id: CLAIM_ID }), {
+      progressClaim: largeClaim, progressClaimLines: largeLines, progressClaimEvidence: evidence,
+      draft: claimDraft(nativeLines), invoiceAuthor: AUTHOR_ID, writes, odoo,
+    });
+    assertEquals(approved.status, 200, approved.body);
+    const [invoice] = odoo.rows('account.move');
+    const [line] = odoo.rows('account.move.line').filter((row) => row.move_id === invoice.id && row.display_type === 'product');
+    assertEquals([line.quantity, line.price_unit, invoice.amount_untaxed], [1, 11011000165.15, 11011000165.15]);
   });
 
   it('the claim author cannot submit the claim draft; a different approver posts the recorded lines once', async () => {
@@ -336,6 +470,32 @@ describe('AC-OCI-020 / AC-OCI-021 / AC-OCI-022 / AC-OCI-023 Odoo billing claims'
     assertEquals(outboxInserts(r).length, 0, 'no outbox row records the drifted claim invoice');
     assertEquals(writes, []);
     assertEquals(odoo.calls, []);
+  });
+
+  it('DD-PBL-7 refuses a claim invoice draft whose project differs from the immutable claim project', async () => {
+    const odoo = invoiceOdooWorld();
+    const writes: NonNullable<World['writes']> = [];
+    const r = await dispatchAs(APPROVER_ID, approveCommand({ id: CLAIM_ID }), {
+      progressClaim, progressClaimLines: progressLines, progressClaimEvidence: evidence,
+      draft: claimDraft(nativeClaimLines, { project_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' }),
+      invoiceAuthor: AUTHOR_ID, writes, odoo,
+    });
+    assertEquals([r.status, JSON.parse(r.body).message], [422, 'claim-invoice-draft-mismatch']);
+    assertEquals(outboxInserts(r).length, 0);
+    assertEquals(creates(odoo), 0);
+    assertEquals(writes, []);
+  });
+
+  it('DD-PBL-7 refuses a case-variant claim id', async () => {
+    const caseVariantId = 'abcdefab-cdef-4abc-8def-abcdefabcdef';
+    const writes: NonNullable<World['writes']> = [];
+    const r = await dispatchAs(AUTHOR_ID, draftCommand({ id: caseVariantId }), {
+      progressClaim: { ...progressClaim, id: caseVariantId.toUpperCase() }, progressClaimLines: progressLines,
+      progressClaimEvidence: evidence, writes,
+    });
+    assertEquals([r.status, JSON.parse(r.body)], [422, { error: 'commit-rejected', message: 'The billing claim cannot be invoiced through Odoo' }], r.body);
+    assertEquals(writes, []);
+    noMoneyPipeline(r);
   });
 
   it('a claim-derived draft cannot be edited after it has been copied from the immutable claim', async () => {
