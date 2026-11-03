@@ -1,4 +1,4 @@
--- Reverse 0501 only when no whole-project version or saved distribution would be stranded.
+-- Reverse 0577 only when no whole-project version or saved distribution would be stranded.
 do $$
 begin
   if exists (select 1 from public.budget_versions where budget_mode = 'whole_project')

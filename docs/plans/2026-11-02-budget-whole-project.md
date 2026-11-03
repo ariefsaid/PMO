@@ -234,7 +234,7 @@ create table public.budget_year_distributions (
 ```
   Rollback refuses (raise exception) if any `whole_project` version or distribution row exists; otherwise drops the objects and column.
 
-**0501_budget_distribution_rpc.sql** (until PR-B, reject whole-project activation and dispatch despite a valid distribution): `save_budget_distribution(p_version uuid, p_method text, p_inputs jsonb, p_basis jsonb, p_rows jsonb) returns void`, definer, `set search_path = public, pg_temp`:
+**0577_budget_distribution_rpc.sql** (until PR-B, reject whole-project activation and dispatch despite a valid distribution): `save_budget_distribution(p_version uuid, p_method text, p_inputs jsonb, p_basis jsonb, p_rows jsonb) returns void`, definer, `set search_path = public, pg_temp`:
 auth gate identical to `activate_budget_version` (four roles, `is_active_member()`, version org = `auth_org_id()`, project org match); version must be `Draft` and `whole_project`; rows validated: no duplicate (category, year), years ⊆ `basis.years`, amounts ≥ 0, every category with source lines, including a zero total, has exactly one row per basis year, and Σ years = Σ lines (`numeric`, exact) — failures raise `P0001` with the category name; delete+insert both tables in one statement block; `insert into budget_version_editors … on conflict do nothing` (authorship). Also `budget_distribution_gaps(p_version uuid) returns setof text` (stable, invoker) reused by activation. `clone_budget_version` replaced (copy the current body, add): copies `budget_mode`, plan and rows. `activate_budget_version` replaced (copy the current `0366` body verbatim; add): when `budget_mode = 'whole_project'`, raise `P0001` if `budget_distribution_gaps` is non-empty. Re-issue `revoke … from public, anon` / `grant execute … to authenticated` for each; update the `0178` allow-list test only if the anon-executable count moves (it must not).
 
 pgTAP (write first; `supabase/tests/`; `begin; … rollback;`, namespaced UUIDs, `select finish();`):
@@ -267,7 +267,7 @@ TS tasks, each test-first (vitest unless noted; Deno tests import the shipped ha
 
 ## Slice 5: predecessor cancellation at activation + ordering hold — migration 0503 (PR-B, together with Slice 4)
 
-**0503_budget_activation_cancels_predecessor.sql** (+rollback restoring the 0501 `activate_budget_version` and the 0387 archive body):
+**0503_budget_activation_cancels_predecessor.sql** (+rollback will restore the 0577 `activate_budget_version` and the 0387 archive body):
 1. `queue_budget_archive_cancel(p_version uuid, p_actor uuid, p_request uuid) returns jsonb` (definer, internal; `revoke all from public, anon, authenticated`) = the request + intents + mirror `remove` marking block of `archive_budget_version_with_cancel_intent`, copying `to_fiscal_year`. The archive RPC now calls it; behaviour identical.
 2. `activate_budget_version`: after the existing `Archived` flip, for the predecessor: if binding major = 16 and the predecessor has live `ensure` targets for its `activated_at` and NOT (both `whole_project` with equal first/last `basis.years` names) → call the helper with `cancel_erp = true`. Same transaction; failure rolls back activation.
 

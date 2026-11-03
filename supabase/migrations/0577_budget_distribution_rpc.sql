@@ -1,6 +1,6 @@
--- 0501_budget_distribution_rpc.sql
+-- 0577_budget_distribution_rpc.sql
 -- Atomic distribution persistence, clone preservation, activation validation and pre-range fence.
--- Reverse: rollback/0501_budget_distribution_rpc_down.sql.
+-- Reverse: rollback/0577_budget_distribution_rpc_down.sql.
 
 create or replace function public.budget_distribution_gaps(p_version uuid)
 returns setof text
