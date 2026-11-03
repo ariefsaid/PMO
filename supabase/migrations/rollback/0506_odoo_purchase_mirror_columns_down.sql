@@ -1,4 +1,7 @@
 -- Reverses 0506. Drops only what 0506 added; the mirror rows keep every other column.
+drop trigger if exists procurement_receipts_odoo_quantities_guard_trg on public.procurement_receipts;
+drop function if exists public.odoo_receipt_quantities_guard();
+alter table public.procurement_receipts drop column if exists odoo_entered, drop column if exists odoo_booked;
 drop trigger if exists payments_odoo_mirror_columns_guard_trg on public.payments;
 drop trigger if exists procurement_invoices_odoo_mirror_columns_guard_trg on public.procurement_invoices;
 drop trigger if exists procurement_receipts_odoo_mirror_columns_guard_trg on public.procurement_receipts;

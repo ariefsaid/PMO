@@ -12,6 +12,8 @@
 --   erp_purchase_documents (Odoo-native visibility rows, 0335): external_ref (the model-qualified Odoo ref, the row's identity
 --                  for the feed and the census), erp_state, erp_attention, adoption_key (an anchor that names a PMO record
 --                  with no link row: an adoption proposal, never a PMO row), erp_read_at, erp_census_seen_at.
+--   procurement_receipts.odoo_booked / odoo_entered   what Odoo booked per order line and what the receipt entered (FR-OPP-034, P4 build
+--                  note 10): lists of {lineId, productId, quantity}, written by the receipt mirror writer from the adapter's canonical.
 -- Guard: the four mirror tables already pin their native columns while a domain is externally owned (0099/0100/0189/0481). The
 -- new columns are pinned unconditionally by one trigger, because (a) the receipt and bill tables keep a table-level INSERT
 -- grant, so only a trigger can stop a user stating them on insert, and (b) the pre-cut-over exemption in 0481 must not reach
@@ -26,6 +28,10 @@ alter table public.procurement_invoices
   add column erp_state text, add column erp_attention text, add column erp_read_at timestamptz, add column erp_census_seen_at timestamptz;
 alter table public.payments
   add column erp_state text, add column erp_attention text, add column erp_read_at timestamptz, add column erp_census_seen_at timestamptz;
+
+alter table public.procurement_receipts
+  add column odoo_booked jsonb check (jsonb_typeof(odoo_booked) = 'array'),
+  add column odoo_entered jsonb check (jsonb_typeof(odoo_entered) = 'array');
 
 alter table public.erp_purchase_documents
   add column external_ref text, add column erp_state text, add column erp_attention text, add column adoption_key text,
@@ -61,3 +67,21 @@ create trigger procurement_invoices_odoo_mirror_columns_guard_trg before insert 
   for each row execute function public.odoo_mirror_columns_guard();
 create trigger payments_odoo_mirror_columns_guard_trg before insert or update on public.payments
   for each row execute function public.odoo_mirror_columns_guard();
+
+-- The receipt's quantities are machine-written like the rest of the Odoo facts: the same allow-list, on the one table that has them.
+create or replace function public.odoo_receipt_quantities_guard() returns trigger
+  language plpgsql set search_path = public as $$
+begin
+  if coalesce(current_setting('role', true), '') in ('', 'none', 'postgres', 'supabase_admin', 'service_role') then
+    return new;
+  end if;
+  if (tg_op = 'INSERT' and (new.odoo_booked is not null or new.odoo_entered is not null))
+     or (tg_op = 'UPDATE' and (new.odoo_booked is distinct from old.odoo_booked or new.odoo_entered is distinct from old.odoo_entered)) then
+    raise exception 'procurement_receipts Odoo quantities are machine-written' using errcode = '42501';
+  end if;
+  return new;
+end $$;
+revoke all on function public.odoo_receipt_quantities_guard() from public, anon, authenticated;
+
+create trigger procurement_receipts_odoo_quantities_guard_trg before insert or update on public.procurement_receipts
+  for each row execute function public.odoo_receipt_quantities_guard();

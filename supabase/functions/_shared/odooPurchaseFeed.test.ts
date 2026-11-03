@@ -73,6 +73,14 @@ describe('odooPurchaseFeed — AC-OPP-074 / 043', () => {
     assertEquals(pages[0].p_rows[0].attrs.analytic_ids, ['88']);
   });
 
+  it('AC-OPP-072 the page a native bill rides in carries its currency and the orders it bills (what link-existing compares and guards on)', async () => {
+    const h = harness((f) => { f.seed('account.move', [bill(1, { currency_id: [12, 'IDR'], invoice_origin: 'P00012' })]); f.seed('account.move.line', lines(1)); });
+    const r = await withFetchMock(h.routes, async ({ calls }) => { await runPurchasePass(client(), ORG, 'bill', odooCall(h.fake), 1, budget()); return calls; });
+    const attrs = applied(r)[0].p_rows[0].attrs;
+    assertEquals(attrs.currency, 'IDR');
+    assertEquals(attrs.source_orders, ['P00012']);
+  });
+
   it('AC-OPP-043 a tax line Odoo returns without a balance sends no header at all (production wiring of the whole-header rule)', async () => {
     const h = harness((f) => { f.seed('account.move', [bill(1)]); f.seed('account.move.line', lines(1, [11, 'x'])); });
     const r = await withFetchMock(h.routes, async ({ calls }) => { await runPurchasePass(client(), ORG, 'bill', odooCall(h.fake), 1, budget()); return calls; });

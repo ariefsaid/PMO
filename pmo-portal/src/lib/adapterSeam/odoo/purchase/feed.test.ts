@@ -28,6 +28,23 @@ it('AC-OPP-043 a bill row carries the whole money header from its tax lines, VAT
   });
 });
 
+it('AC-OPP-072 an order and a bill carry the document currency and the orders a bill bills (what link-existing compares and guards on)', async () => {
+  const order = { id: 9, name: 'P00009', state: 'purchase', partner_id: [41, 'V'], date_order: '2026-10-30 08:00:00', currency_id: [13, 'USD'], amount_total: 111, amount_untaxed: 100, write_date: '2026-11-02 10:00:00' };
+  const rows = { 'account.move': [{ ...bill, currency_id: [12, 'IDR'], invoice_origin: 'P00009, P00010' }], 'account.move.line': [], 'purchase.order': [order], 'purchase.order.line': [] };
+  const [b] = parsePage(PURCHASE_SPECS.bill, await purchaseReaders(call(rows), PURCHASE_SPECS.bill, 1).read([], 'id asc', 200)).rows;
+  expect(b.attrs).toMatchObject({ currency: 'IDR', source_orders: ['P00009', 'P00010'] });
+  const [o] = parsePage(PURCHASE_SPECS['purchase-order'], await purchaseReaders(call(rows), PURCHASE_SPECS['purchase-order'], 1).read([], 'id asc', 200)).rows;
+  expect(o.attrs).toMatchObject({ currency: 'USD' });
+  // a bill nobody billed an order for, and a row Odoo gives no currency for, state none (absent, never a guess)
+  const [plain] = parsePage(PURCHASE_SPECS.bill, await purchaseReaders(call({ 'account.move': [{ ...bill, currency_id: false, invoice_origin: false }], 'account.move.line': [] }), PURCHASE_SPECS.bill, 1).read([], 'id asc', 200)).rows;
+  expect(plain.attrs).toMatchObject({ currency: null, source_orders: [] });
+});
+
+it('AC-OPP-072 the bill and order reads ask Odoo for the currency, and the bill for its source documents', () => {
+  expect(PURCHASE_SPECS.bill.fields).toEqual(expect.arrayContaining(['currency_id', 'invoice_origin']));
+  expect(PURCHASE_SPECS['purchase-order'].fields).toContain('currency_id');
+});
+
 it('AC-OPP-043 a tax line without a readable balance leaves the header absent, never a partial one', async () => {
   const rows = { 'account.move': [bill], 'account.move.line': [{ move_id: [7, 'b'], balance: 'oops', tax_line_id: [3, 'PPN'], analytic_distribution: false }] };
   const [row] = parsePage(PURCHASE_SPECS.bill, await purchaseReaders(call(rows), PURCHASE_SPECS.bill, 1).read([], 'id asc', 200)).rows;

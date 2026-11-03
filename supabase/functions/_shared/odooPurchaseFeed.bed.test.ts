@@ -38,6 +38,12 @@ Deno.test({
       invoice_line_ids: [[0, 0, { name: `${stamp} line`, quantity: 1, price_unit: 100 }]],
     }] });
     await odoo('account.move', 'action_post', { ids: [move] });
+    // a second, Odoo-native bill (no PMO link) that says which order it bills: the feed must carry its currency and source order (AC-OPP-072)
+    const [native] = await odoo<number[]>('account.move', 'create', { vals_list: [{
+      move_type: 'in_invoice', partner_id: partner, invoice_date: '2026-11-01', ref: `${stamp}-native`, invoice_origin: `${stamp}-PO`,
+      invoice_line_ids: [[0, 0, { name: `${stamp} native line`, quantity: 1, price_unit: 50 }]],
+    }] });
+    await odoo('account.move', 'action_post', { ids: [native] });
     try {
       await must(sc.from('organizations').insert({ id: orgId, name: `${stamp} org` }).select());
       await must(sc.from('external_org_bindings').insert({ org_id: orgId, external_tier: 'odoo', site_url: 'https://odoo.example.test', secret_ref: stamp, status: 'active', config: { odoo_company_id: company.id }, activated_at: new Date().toISOString() }).select());
@@ -50,6 +56,9 @@ Deno.test({
       await runPurchasePass(sc, orgId, 'bill', odoo, company.id, budget());
       const read = await mirror();
       assertEquals([read.erp_state, read.erp_docstatus, read.erp_cancelled_at], ['posted', 1, null], 'the bill PMO holds is read from Odoo');
+      const [nativeRow] = await odoo<Array<{ currency_id: [number, string] }>>('account.move', 'read', { ids: [native], fields: ['currency_id'] });
+      const doc = (await must(sc.from('erp_purchase_documents').select('currency,purchase_orders,erp_docstatus').eq('org_id', orgId).eq('external_ref', `account.move:${native}`).single())) as { currency: string | null; purchase_orders: string[]; erp_docstatus: number };
+      assertEquals([doc.currency, doc.purchase_orders, doc.erp_docstatus], [nativeRow.currency_id[1], [`${stamp}-PO`], 1], 'the native bill is stored with the currency and source order Odoo states');
       const total = async () => Number((await must(sc.rpc('procurement_document_total', { p_procurement_id: caseId }))) as unknown as string);
       assertEquals(await total(), 100, 'a live bill counts');
 
@@ -72,6 +81,8 @@ Deno.test({
       for (const t of ['procurement_invoices', 'procurements']) await sc.from(t).delete().eq('org_id', orgId);
       await sc.from('organizations').delete().eq('id', orgId);
       await odoo('account.move', 'unlink', { ids: [move] }).catch(() => {});
+      await odoo('account.move', 'button_draft', { ids: [native] }).catch(() => {});
+      await odoo('account.move', 'unlink', { ids: [native] }).catch(() => {});
     }
   },
 });

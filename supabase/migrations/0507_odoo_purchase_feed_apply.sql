@@ -41,7 +41,7 @@ end $$;
 -- bill table would refuse is flagged and left unwritten, never allowed to poison the page (FR-OPP-082, DD-VWH-5).
 create or replace function public.odoo_purchase_page_rows(p_rows jsonb) returns table (
   external_id text, name text, wd text, state text, status text, docstatus smallint, anchor_key text, partner text, partner_name text,
-  doc_date date, due_date date, bill_no text, currency text, analytic_ids text[], amount_total numeric, amount_untaxed numeric,
+  doc_date date, due_date date, bill_no text, currency text, source_orders text[], analytic_ids text[], amount_total numeric, amount_untaxed numeric,
   residual numeric, amount numeric, money text, gross numeric, vat numeric, withheld numeric, outstanding numeric)
   language sql stable set search_path = public as $$
   with newest as (
@@ -54,6 +54,7 @@ create or replace function public.odoo_purchase_page_rows(p_rows jsonb) returns 
            x#>>'{attrs,partner_name}' as partner_name,
            public.odoo_safe_date(x#>>'{attrs,date}') as doc_date, public.odoo_safe_date(x#>>'{attrs,due_date}') as due_date,
            x#>>'{attrs,bill_no}' as bill_no, x#>>'{attrs,currency}' as currency,
+           case when jsonb_typeof(x#>'{attrs,source_orders}') = 'array' then array(select jsonb_array_elements_text(x#>'{attrs,source_orders}')) else '{}'::text[] end as source_orders,
            case when jsonb_typeof(x#>'{attrs,analytic_ids}') = 'array' then array(select jsonb_array_elements_text(x#>'{attrs,analytic_ids}')) else '{}'::text[] end as analytic_ids,
            public.odoo_num(x#>>'{attrs,amount_total}') as amount_total, public.odoo_num(x#>>'{attrs,amount_untaxed}') as amount_untaxed,
            public.odoo_num(x#>>'{attrs,residual}') as residual, public.odoo_num(x#>>'{attrs,amount}') as amount,
@@ -62,7 +63,7 @@ create or replace function public.odoo_purchase_page_rows(p_rows jsonb) returns 
       from newest
   )
   select f.external_id, f.name, f.wd, f.state, f.status, f.docstatus, f.anchor_key, f.partner, f.partner_name, f.doc_date, f.due_date,
-         f.bill_no, f.currency, f.analytic_ids, f.amount_total, f.amount_untaxed, f.residual, f.amount,
+         f.bill_no, f.currency, f.source_orders, f.analytic_ids, f.amount_total, f.amount_untaxed, f.residual, f.amount,
          case when f.gross is null or f.vat is null or f.withheld is null or f.outstanding is null then 'incomplete'
               when f.withheld = 0 or (sign(f.withheld) = sign(f.gross) and abs(f.withheld) <= abs(f.gross)) then 'ok'
               else 'invalid' end as money,
@@ -153,7 +154,7 @@ begin
     insert into public.erp_purchase_documents as d
       (org_id, erp_doctype, erp_name, supplier, supplier_name, doc_date, due_date, bill_no, currency, grand_total, net_total,
        outstanding_amount, erp_status, erp_docstatus, project_ids, pmo_owned, erp_modified, external_ref, erp_state,
-       erp_attention, adoption_key, erp_read_at, updated_at)
+       erp_attention, adoption_key, purchase_orders, erp_read_at, updated_at)
     select p_org_id, v_doctype,
            case when s.dup > 1 or exists (select 1 from public.erp_purchase_documents x where x.org_id = p_org_id and x.erp_doctype = v_doctype
                                             and x.erp_name = s.name and x.external_ref is distinct from v_model || ':' || s.external_id)
@@ -167,7 +168,7 @@ begin
                   then 'vendor-unmapped' end,
              case when cardinality(s.analytic_ids) > 0 and cardinality(p.ids) = 0 then 'project-unmapped' end,
              case when s.anchor_key is not null and not o.anchored then 'anchor-unresolved' end), ''),
-           case when o.anchored and not o.linked then s.anchor_key end, now(), now()
+           case when o.anchored and not o.linked then s.anchor_key end, s.source_orders, now(), now()
       from (select q.*, count(*) over (partition by q.name) as dup from public.odoo_purchase_page_rows(p_rows) q) s
       cross join lateral (
         select l.linked, a.anchored, (l.linked or a.anchored) as owned
@@ -191,13 +192,22 @@ begin
       net_total = excluded.net_total, outstanding_amount = excluded.outstanding_amount, erp_status = excluded.erp_status,
       erp_docstatus = excluded.erp_docstatus, project_ids = excluded.project_ids, pmo_owned = excluded.pmo_owned,
       erp_modified = excluded.erp_modified, erp_state = excluded.erp_state, erp_attention = excluded.erp_attention,
-      adoption_key = excluded.adoption_key, erp_read_at = now(), updated_at = now()
+      adoption_key = excluded.adoption_key, purchase_orders = excluded.purchase_orders, erp_read_at = now(), updated_at = now()
     where d.erp_modified <= excluded.erp_modified;
 
     -- A document set back to draft in Odoo is no longer issued money: a row already listed stops counting (docstatus 2) and says why.
     update public.erp_purchase_documents d set erp_docstatus = 2, erp_state = s.state, erp_attention = 'reset-to-draft', erp_modified = s.wd, erp_read_at = now(), updated_at = now()
       from public.odoo_purchase_page_rows(p_rows) s
      where s.docstatus = 0 and d.org_id = p_org_id and d.external_ref = v_model || ':' || s.external_id and d.erp_modified <= s.wd;
+
+    -- 0361 M-1, as upsert_erp_purchase_documents does for ERPNext: a linked document that Odoo changed, cancelled or set back to draft
+    -- moves its purchase's total (ledger-held and evidence already read erp_docstatus = 1).
+    perform public.refresh_erp_linked_purchase_total(x.procurement_id)
+       from (select distinct l.procurement_id
+               from public.procurement_erp_links l
+               join public.erp_purchase_documents d on d.id = l.erp_purchase_document_id
+              where l.org_id = p_org_id and d.org_id = p_org_id
+                and d.external_ref in (select v_model || ':' || q.external_id from public.odoo_purchase_page_rows(p_rows) q)) x;
   end if;
 
   -- 3. The cursor, in the same transaction (a raise anywhere above leaves it where it was).
@@ -293,6 +303,12 @@ begin
       erp_docstatus = case when starts_with(d.erp_attention, 'deleted-in-erp:') then substr(d.erp_attention, 16)::smallint else d.erp_docstatus end,
       erp_attention = case when starts_with(d.erp_attention, 'deleted-in-erp:') then null else d.erp_attention end
     where d.org_id = p_org_id and d.external_ref = any (v_refs);
+    -- a document lifted back from its tombstone counts again in the purchase it is linked to
+    perform public.refresh_erp_linked_purchase_total(x.procurement_id)
+       from (select distinct l.procurement_id
+               from public.procurement_erp_links l
+               join public.erp_purchase_documents d on d.id = l.erp_purchase_document_id
+              where l.org_id = p_org_id and d.org_id = p_org_id and d.external_ref = any (v_refs)) x;
   end if;
 end $$;
 revoke all on function public.mark_odoo_purchase_census_seen(uuid, text, timestamptz, text[]) from public, anon, authenticated;
@@ -311,6 +327,7 @@ declare
   v_n integer := 0;
   v_k integer;
   v_eligible integer;
+  v_ids uuid[];
 begin
   if current_setting('role', true) <> 'service_role' then raise exception 'service role required' using errcode = '42501'; end if;
   perform public.assert_odoo_activated(p_org_id);
@@ -343,11 +360,13 @@ begin
   get diagnostics v_k = row_count;
   v_n := v_k;
   if p_domain in ('purchase-order', 'bill') then
-    update public.erp_purchase_documents d set erp_attention = 'deleted-in-erp:' || d.erp_docstatus, erp_docstatus = 2, erp_read_at = now()
-    where d.org_id = p_org_id and starts_with(d.external_ref, v_model || ':') and not starts_with(coalesce(d.erp_attention, ''), 'deleted-in-erp:')
-      and d.updated_at < v_cut and (d.erp_census_seen_at is null or d.erp_census_seen_at < p_run);
-    get diagnostics v_k = row_count;
-    v_n := v_n + v_k;
+    with t as (
+      update public.erp_purchase_documents d set erp_attention = 'deleted-in-erp:' || d.erp_docstatus, erp_docstatus = 2, erp_read_at = now()
+      where d.org_id = p_org_id and starts_with(d.external_ref, v_model || ':') and not starts_with(coalesce(d.erp_attention, ''), 'deleted-in-erp:')
+        and d.updated_at < v_cut and (d.erp_census_seen_at is null or d.erp_census_seen_at < p_run)
+      returning d.id)
+    select coalesce(array_agg(id), '{}'::uuid[]) into v_ids from t;
+    v_n := v_n + cardinality(v_ids);
   end if;
   select (select count(*) from public.external_refs r where r.org_id = p_org_id and r.domain = 'procurement' and r.external_tier = 'odoo'
                  and starts_with(r.external_record_id, v_model || ':') and r.created_at < v_cut)
@@ -355,6 +374,12 @@ begin
     into v_eligible;
   if v_n > 10 and v_n * 2 > v_eligible then
     raise exception 'census saw implausibly few documents' using errcode = 'P0001';
+  end if;
+  -- a tombstoned document stops counting in the purchase it is linked to (the guard above has already let the run through)
+  if cardinality(v_ids) > 0 then
+    perform public.refresh_erp_linked_purchase_total(x.procurement_id)
+       from (select distinct l.procurement_id from public.procurement_erp_links l
+              where l.org_id = p_org_id and l.erp_purchase_document_id = any (v_ids)) x;
   end if;
   update public.external_sync_watermarks set watermark_cursor = p_cursor, updated_at = now()
    where org_id = p_org_id and external_tier = 'odoo' and domain = 'purchase:' || p_domain;

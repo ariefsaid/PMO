@@ -23,6 +23,10 @@ const m2o = (v: unknown): string | null | undefined => (v === false || v == null
 const text = (v: unknown): string | null => (typeof v === 'string' && v !== '' ? v : null);
 /** A company-currency figure as the fixed two-decimal string the mirror and `moneyHeader` read; anything else is absent. */
 const money = (v: unknown): string | null => (typeof v === 'number' && Number.isFinite(v) ? v.toFixed(2) : null);
+/** The document's own currency as its ISO code (Odoo names a currency by its code); anything else is absent, never a guessed default. */
+const currency = (v: unknown): string | null => (Array.isArray(v) && typeof v[1] === 'string' && /^[A-Z]{3}$/.test(v[1]) ? v[1] : null);
+/** The orders a bill bills: Odoo writes their names into the bill's source document, comma separated. ponytail: the text field, not the line links; read the lines if a bill's origin is ever edited by hand at scale. */
+const sourceOrders = (v: unknown): string[] => (typeof v === 'string' ? [...new Set(v.split(',').map((n) => n.trim()).filter(Boolean))] : []);
 const day = (v: unknown): string | null => (typeof v === 'string' && DAY.test(v) ? v.slice(0, 10) : null);
 
 export interface PurchaseSpec extends KindSpec {
@@ -46,11 +50,11 @@ function parseRow(spec: PurchaseSpec, r: Raw): DirectoryRow | null {
     anchor_key: text(r._anchor), partner, partner_name: Array.isArray(r.partner_id) && typeof r.partner_id[1] === 'string' ? r.partner_id[1] : null,
     analytic_ids: Array.isArray(r._analytic) ? r._analytic : [],
   };
-  if (spec.kind === 'order') Object.assign(attrs, { date: day(r.date_order), amount_total: money(r.amount_total), amount_untaxed: money(r.amount_untaxed) });
+  if (spec.kind === 'order') Object.assign(attrs, { date: day(r.date_order), currency: currency(r.currency_id), amount_total: money(r.amount_total), amount_untaxed: money(r.amount_untaxed) });
   if (spec.kind === 'bill') {
     const total = money(r.amount_total), residual = money(r.amount_residual);
     Object.assign(attrs, {
-      date: day(r.invoice_date), due_date: day(r.invoice_date_due), bill_no: text(r.ref), amount_total: total, amount_untaxed: money(r.amount_untaxed), residual,
+      date: day(r.invoice_date), currency: currency(r.currency_id), source_orders: sourceOrders(r.invoice_origin), due_date: day(r.invoice_date_due), bill_no: text(r.ref), amount_total: total, amount_untaxed: money(r.amount_untaxed), residual,
       // Whole header or none (FR-OPP-082): `moneyHeader` answers null when any part is missing, and the database then writes none of it.
       money: total && residual && Array.isArray(r._taxLines) ? moneyHeader({ amount_total: total, amount_residual: residual }, r._taxLines as Array<{ balance?: string }>) : null,
     });
@@ -65,9 +69,9 @@ const spec = (domain: PurchaseDomain, kind: PurchaseKind, model: string, fields:
 };
 
 export const PURCHASE_SPECS: Record<PurchaseDomain, PurchaseSpec> = {
-  'purchase-order': spec('purchase-order', 'order', 'purchase.order', ['name', 'state', 'partner_id', 'date_order', 'amount_total', 'amount_untaxed', 'write_date'], [], true),
+  'purchase-order': spec('purchase-order', 'order', 'purchase.order', ['name', 'state', 'partner_id', 'date_order', 'currency_id', 'amount_total', 'amount_untaxed', 'write_date'], [], true),
   receipt: spec('receipt', 'receipt', 'stock.picking', ['name', 'state', 'partner_id', 'write_date'], [['picking_type_code', '=', 'incoming']], false),
-  bill: spec('bill', 'bill', 'account.move', ['name', 'state', 'partner_id', 'invoice_date', 'invoice_date_due', 'ref', 'amount_total', 'amount_untaxed', 'amount_residual', 'write_date'], [['move_type', '=', 'in_invoice']], true),
+  bill: spec('bill', 'bill', 'account.move', ['name', 'state', 'partner_id', 'invoice_date', 'invoice_date_due', 'ref', 'invoice_origin', 'currency_id', 'amount_total', 'amount_untaxed', 'amount_residual', 'write_date'], [['move_type', '=', 'in_invoice']], true),
   payment: spec('payment', 'payment', 'account.payment', ['name', 'state', 'partner_id', 'amount', 'date', 'write_date'], [['payment_type', '=', 'outbound'], ['partner_type', '=', 'supplier']], false),
 };
 
