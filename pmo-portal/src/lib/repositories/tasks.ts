@@ -1,6 +1,7 @@
 /** Task repository implementation (ADR-0017 seam). */
 import {
   listTasks,
+  listTaskDueRows,
   listTasksByMeeting,
   listMyTasks,
   getTask,
@@ -18,6 +19,7 @@ import type { TaskRepository } from './contracts/tasks';
 
 export const taskRepository: TaskRepository = {
   list: (projectId) => wrap(() => listTasks(projectId)),
+  listDueRows: (projectIds) => wrap(() => listTaskDueRows(projectIds)),
   listByMeeting: (meetingId) => wrap(() => listTasksByMeeting(meetingId)),
   listByAssignee: (userId) => wrap(() => listMyTasks(userId)),
   get: (id) => wrap(() => getTask(id)),

@@ -1,0 +1,14 @@
+import { MONEY_COMMIT_CLAIM_BUDGET_MS } from '../../dispatch.ts';
+import { ERP_QUARANTINE_WINDOW_MS } from '../../erpnext/client.ts';
+import { ODOO_CALL_TIMEOUT_MS } from '../client.ts';
+import { LIST_PAGE } from '../connectAdapter.ts';
+
+/** The money-path relationships of FR-OCI-073, each asserted in constants.test.ts. */
+export const CLAIM_BUDGET_MS = MONEY_COMMIT_CLAIM_BUDGET_MS;
+export const REQUEST_DEADLINE_MS = ODOO_CALL_TIMEOUT_MS;
+export const ATTEMPTS = 1;
+export const RECLAIM_WINDOW_MS = ERP_QUARANTINE_WINDOW_MS;
+export const SETTLE_MARGIN_MS = 120_000;
+export const CLEARANCE_TTL_MS = 30 * 60_000;
+export const READ_CAP = LIST_PAGE;
+export const PLATFORM_ROW_CAP = 1000;

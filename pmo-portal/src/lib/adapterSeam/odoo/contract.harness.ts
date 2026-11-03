@@ -9,6 +9,10 @@ import { bindCall } from './client.ts';
 import { createOdooSetupAdapter, LIST_PAGE, type OdooConnectCtx } from './connectAdapter.ts';
 import { createFakeOdoo, type FakeOdoo } from './fakeOdoo.ts';
 import { procurementPreflight } from './purchase/preflight.ts';
+import { buildInvoiceBody } from './revenue/invoiceBody.ts';
+import { revenuePreflight } from './revenue/preflight.ts';
+import { buildReceiptBody } from './revenue/receiptBody.ts';
+import { classifyPaymentDirection } from './revenue/status.ts';
 import { normaliseItem, normaliseParty, normaliseProject } from './normalise.ts';
 
 const KEY = 'test-key';
@@ -62,6 +66,21 @@ function documents(fake: FakeOdoo, kind: MasterKind): NormalisedMaster[] {
   const rows = fake.rows(MODEL[kind] ?? '');
   if (kind === 'party') return rows.flatMap((r) => normaliseParty(r));
   return rows.map(kind === 'project' ? normaliseProject : normaliseItem);
+}
+
+/** The direction Odoo states for a payment, per the shared `receipt.read` scenarios (anything unrecognised is skipped). */
+const PAYMENT_FIELDS: Record<Parameters<ErpHarness['classifyPayment']>[0], [string | undefined, string | undefined]> = {
+  received: ['inbound', 'customer'], paid: ['outbound', 'supplier'], unrecognised: ['transfer', 'customer'], blank: ['', ''], absent: [undefined, undefined],
+};
+
+/**
+ * The Odoo-side revenue checks that are not in the shared interface (SD-5, no version bump): a fake Odoo, a bound client
+ * and the invoice and receipt builders, so the claim and receipt flows run against the fake.
+ */
+export function createOdooRevenueHarness() {
+  const fake = createFakeOdoo({ key: KEY });
+  const call = bindCall({ baseUrl: 'https://odoo.example.test', apiKey: KEY, database: 'db1', fetchImpl: fake.fetch });
+  return { fake, call, buildInvoiceBody, buildReceiptBody };
 }
 
 const pending = (workflow: string, issue: number) => new Error(`odoo ${workflow} is pending (#${issue})`);
@@ -138,10 +157,13 @@ export function createOdooHarness(): ErpHarness {
     },
     pushTimesheet() { return Promise.reject(pending('timesheet.push', 1510)); },
     async pushProcurement(scenario) { return procurementPreflight(scenario); },
-    pushRevenue() { return Promise.reject(pending('invoice.push', 1506)); },
+    async pushRevenue(s) {
+      const result = revenuePreflight(s);
+      return result.outcome === 'accepted' ? { outcome: 'accepted', erpCalls: 0 } : { outcome: 'refused', code: result.code, erpCalls: 0 };
+    },
     pushBudgetVersion() { return Promise.reject(pending('budget.push', 1507)); },
     readActuals() { return Promise.reject(pending('actuals.read', 1507)); },
-    classifyPayment() { throw pending('receipt.read', 1506); },
+    classifyPayment(direction) { return classifyPaymentDirection(...PAYMENT_FIELDS[direction]); },
     async mirrorPurchases(docs) {
       const { fake } = fakeConnection();
       docs.forEach((doc, i) => fake.seed(doc.kind === 'bill' ? 'account.move' : 'purchase.order', [{ id: i + 1, name: doc.reference, amount_total: doc.total, write_date: doc.modifiedAt }]));
