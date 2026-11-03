@@ -1,4 +1,9 @@
-export function formatTimeMaterialsNumber(value: number, locale: string): string {
+function invoiceNumberLocale(currency: string | undefined): string {
+  return currency === 'IDR' ? 'id-ID' : 'en-US';
+}
+
+export function formatTimeMaterialsNumber(value: number, currency: string | undefined): string {
+  const locale = invoiceNumberLocale(currency);
   const fractionDigits = /\.(\d+)$/.exec(String(value))?.[1].length ?? 0;
   // eslint-disable-next-line no-restricted-syntax -- this adapter is edge-bundled and cannot import the FE formatter.
   return new Intl.NumberFormat(locale, {
@@ -9,11 +14,11 @@ export function formatTimeMaterialsNumber(value: number, locale: string): string
 export function formatTimeMaterialsAmount(
   amount: number | string,
   currency: string | undefined,
-  locale: string,
 ): string {
+  const locale = invoiceNumberLocale(currency);
   const match = /^(-?)([0-9]+)(?:\.([0-9]{1,2}))?$/.exec(String(amount));
   if (!currency || !/^[A-Z]{3}$/.test(currency) || !match) {
-    return formatTimeMaterialsNumber(Number(amount), locale);
+    return formatTimeMaterialsNumber(Number(amount), currency);
   }
 
   const [, sign, wholeText, fraction = ''] = match;
@@ -30,6 +35,17 @@ export function formatTimeMaterialsAmount(
     const body = parts.map((part) => part.type === 'fraction' ? String(cents).padStart(2, '0') : part.value).join('');
     return sign ? `−${body}` : body;
   } catch {
-    return formatTimeMaterialsNumber(Number(amount), locale);
+    return formatTimeMaterialsNumber(Number(amount), currency);
   }
+}
+
+export function formatTimeMaterialsDescription(
+  label: string,
+  unit: string,
+  quantity: number,
+  signedRate: number,
+  amount: number | string,
+  currency: string | undefined,
+): string {
+  return `${label} (${unit}): ${formatTimeMaterialsNumber(quantity, currency)} x ${formatTimeMaterialsNumber(signedRate, currency)}, rounded to ${formatTimeMaterialsAmount(amount, currency)}`;
 }

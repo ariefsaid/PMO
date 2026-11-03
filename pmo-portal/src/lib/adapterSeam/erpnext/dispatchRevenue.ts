@@ -13,8 +13,7 @@ import { progressClaimItems, type ProgressClaimLineRecord, type ProgressClaimRec
 import type { ErpDispatchFactoryDeps, ExternalOrgBindingRow } from './dispatchTypes.ts';
 import { buildsSalesInvoiceBody } from './dispatchTypes.ts';
 import { resolveErpProjectName } from './dispatchRefs.ts';
-import { formatTimeMaterialsAmount, formatTimeMaterialsNumber } from './dispatchRevenueFormatting.ts';
-import { getSharedNumberLocale } from '../../locale/numberLocaleState.ts';
+import { formatTimeMaterialsDescription } from './dispatchRevenueFormatting.ts';
 
 // ============================================================================
 // Task 2.3 — Revenue ref resolver (FR-SAR-100/101/121)
@@ -364,7 +363,6 @@ function erpNextCommercialLineAmount(quantity: number, rate: number): number {
  * sent as `1 × frozen amount`, with its signed calculation visible in the description.
  */
 function timeMaterialsInvoiceItems(lines: readonly CanonicalClaimLine[], currency: string | undefined): Array<Record<string, unknown>> {
-  const numberLocale = getSharedNumberLocale();
   return lines.map((line) => {
     const quantity = Number(line.quantity);
     const signedRate = Number(line.rate);
@@ -382,7 +380,7 @@ function timeMaterialsInvoiceItems(lines: readonly CanonicalClaimLine[], currenc
       rate: needsFrozenAmount ? frozenAmount : signedRate,
       ...(line.label ? {
         description: needsFrozenAmount
-          ? `${line.label} (${line.unit}): ${formatTimeMaterialsNumber(quantity, numberLocale)} x ${formatTimeMaterialsNumber(signedRate, numberLocale)}, rounded to ${formatTimeMaterialsAmount(line.amount, currency, numberLocale)}`
+          ? formatTimeMaterialsDescription(line.label, line.unit, quantity, signedRate, line.amount, currency)
           : `${line.label} (${line.unit})`,
       } : {}),
     };

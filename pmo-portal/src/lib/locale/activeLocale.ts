@@ -14,7 +14,6 @@ import {
   isUsableTimeZone,
   type ResolvedLocale,
 } from './resolveLocale';
-import { getSharedNumberLocale, resetSharedNumberLocale, setSharedNumberLocale } from './numberLocaleState';
 
 /**
  * The process-wide holder for the locale `src/lib/format.ts` formats in (FR-L10N-010/011).
@@ -80,13 +79,11 @@ export function setActiveLocale(resolved: ResolvedLocale): void {
   active = locale === resolved.locale && numberLocale === resolved.numberLocale && timezone === resolved.timezone
     ? resolved
     : { locale, numberLocale, timezone };
-  setSharedNumberLocale(canonicalizeLocale(active.numberLocale));
 }
 
 /** Test/teardown helper — restore the boot default. */
 export function resetActiveLocale(): void {
   active = FALLBACK;
-  resetSharedNumberLocale();
 }
 
 export function getActiveLocale(): ResolvedLocale {
@@ -103,7 +100,7 @@ export function getDateLocale(): string {
  * user may read the app in English and still want Indonesian separators.
  */
 export function getNumberLocale(): string {
-  return getSharedNumberLocale();
+  return canonicalizeLocale(active.numberLocale);
 }
 
 /** The date-fns locale object for `formatRelativeTime`, keyed off the UI language. */

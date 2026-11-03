@@ -270,7 +270,7 @@ describe('billing claim invoice (AC-PB-006)', () => {
     });
     const signedLines = cmd.record.items as Array<Row>;
     expect(body.items).toEqual([
-      { item_code: 'SERVICE-LABOUR', qty: 1, rate: 250.01, description: 'Site engineer (hour): 0.25 x 1,000.02, rounded to IDR\u00a0250.01' },
+      { item_code: 'SERVICE-LABOUR', qty: 1, rate: 250.01, description: 'Site engineer (hour): 0,25 x 1.000,02, rounded to Rp\u00a0250,01' },
       { item_code: 'SERVICE-LABOUR', qty: 120, rate: 50000, description: 'Site engineer (hour)' },
       { item_code: 'SERVICE-LABOUR', qty: 0.33, rate: 0.05, description: 'Rounding case (hour)' },
       { item_code: 'SERVICE-LABOUR', qty: 0.5, rate: 0.03, description: 'Site engineer (hour)' },

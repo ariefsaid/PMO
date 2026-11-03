@@ -1,18 +1,24 @@
-import { describe, expect, it } from 'vitest';
-import { formatTimeMaterialsAmount, formatTimeMaterialsNumber } from './dispatchRevenueFormatting.ts';
+import { afterEach, describe, expect, it } from 'vitest';
+import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
+import { formatTimeMaterialsDescription } from './dispatchRevenueFormatting.ts';
 
 describe('time-materials invoice description formatting', () => {
-  it('groups exact calculation numbers in the supplied number locale', () => {
-    expect(formatTimeMaterialsNumber(1000.02, 'id-ID')).toBe('1.000,02');
-    expect(formatTimeMaterialsNumber(1000.02, 'en-US')).toBe('1,000.02');
+  afterEach(() => resetActiveLocale());
+
+  it('formats IDR and USD descriptions by invoice currency regardless of the UI locale', () => {
+    const formatDescriptions = () => ({
+      idr: formatTimeMaterialsDescription('Site engineer', 'hour', 0.25, 1000.02, '250.01', 'IDR'),
+      usd: formatTimeMaterialsDescription('Site engineer', 'hour', 0.25, 1000.02, '250.01', 'USD'),
+    });
+
+    setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' });
+    const idUiDescriptions = formatDescriptions();
+    setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' });
+    const enUiDescriptions = formatDescriptions();
+
+    expect(idUiDescriptions).toEqual(enUiDescriptions);
+    expect(idUiDescriptions.idr).toBe('Site engineer (hour): 0,25 x 1.000,02, rounded to Rp\u00a0250,01');
+    expect(idUiDescriptions.usd).toBe('Site engineer (hour): 0.25 x 1,000.02, rounded to $250.01');
   });
 
-  it('formats signed cents as the invoice currency in the supplied number locale', () => {
-    expect(formatTimeMaterialsAmount('250.01', 'IDR', 'id-ID')).toBe('Rp\u00a0250,01');
-    expect(formatTimeMaterialsAmount('250.01', 'IDR', 'en-US')).toBe('IDR\u00a0250.01');
-  });
-
-  it('falls back to a grouped number when the invoice currency is unavailable', () => {
-    expect(formatTimeMaterialsAmount('1234.5', undefined, 'en-US')).toBe('1,234.5');
-  });
 });
