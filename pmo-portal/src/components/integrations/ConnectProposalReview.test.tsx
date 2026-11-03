@@ -1,8 +1,10 @@
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import i18next from 'i18next';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
+import idAdministration from '../../../public/locales/id/administration.json';
 import type {
   ConnectCensusRow,
   ConnectProposal,
@@ -47,6 +49,35 @@ const readyStatus = (census: ConnectCensusRow[], waitingForSend = 0) => ({
 describe('ConnectProposalReview (AC-ECA-003, FR-ECA-012, FR-ECA-042)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it('uses the administration catalogue for Indonesian review-list actions', async () => {
+    mockIntegrationsRepo.getConnectStatus.mockResolvedValue(readyStatus([{
+      kind: 'party',
+      pmo_count: 1,
+      erp_count: 1,
+      linked_count: 0,
+      inactive_erp_count: 0,
+      scenario: 'S-D',
+      accepted_at: null,
+    }]));
+    mockIntegrationsRepo.listConnectProposals.mockResolvedValue({ proposals: [], nextAfterId: null });
+
+    const previousLanguage = i18next.language;
+    i18next.addResourceBundle('id', 'administration', idAdministration, true, true);
+    try {
+      await i18next.changeLanguage('id');
+      renderWithRole('Admin', <ConnectProposalReview tier='erpnext' orgId='org-1' />);
+
+      expect(await screen.findByRole('heading', { name: 'Cocokkan data' })).toBeInTheDocument();
+      expect(
+        within(await screen.findByTestId('connect-kind-party')).getByRole('button', { name: 'Tinjau daftar' }),
+      ).toBeInTheDocument();
+    } finally {
+      cleanup();
+      await i18next.changeLanguage(previousLanguage || 'en');
+      i18next.removeResourceBundle('id', 'administration');
+    }
   });
 
   it('AC-ECA-003 accept all applies 35 rows after one confirm stating the counts and leaves 2 review rows open', async () => {

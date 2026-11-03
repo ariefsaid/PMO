@@ -120,7 +120,7 @@ function formatConfirmDescription(
 }
 
 export function ConnectProposalReview({ tier = 'erpnext', open = true, onClose }: ConnectProposalReviewProps) {
-  const { t } = useTranslation();
+  const { t } = useTranslation('administration');
   const queryClient = useQueryClient();
   const may = usePermission();
 
