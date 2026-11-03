@@ -19,6 +19,19 @@ export type BudgetActivationMode = 'allowed' | 'sole_operator' | 'blocked' | 'bl
 /** The persisted budget-mode column (0576 check constraint). `per_year` is the historic default. */
 export type BudgetVersionMode = 'whole_project' | 'per_year';
 
+/** Exact source-line witness sent with an explicit Draft budget-mode change. */
+export interface BudgetModeSwitchLineWitness {
+  id: string;
+  category: BudgetLineItemRow['category'];
+  budgeted_amount: string;
+  fiscal_year: string | null;
+}
+
+export interface BudgetModeSwitchAssignment {
+  id: string;
+  fiscal_year: string;
+}
+
 // ---------------------------------------------------------------------------
 // Distribution plan contract (#1472 S6A) — the accepted S3 API
 // (`save_budget_distribution`, migration 0577). Amounts travel as EXACT decimal
@@ -349,6 +362,33 @@ export async function saveBudgetDistribution(versionId: string, plan: BudgetDist
       is_override: row.is_override,
     })),
     p_category_overrides: overridesJson,
+  });
+  if (error) throw toAppError(error);
+}
+
+/**
+ * Changes a Draft's fiscal-year shape after the server matches the complete source-line witness.
+ * The RPC changes only fiscal_year and budget_mode; exact source amounts and line identities stay
+ * untouched, and the current editor is stamped for the activation SoD rule.
+ */
+export async function switchBudgetDraftMode(
+  versionId: string,
+  targetMode: BudgetVersionMode,
+  expectedLines: readonly BudgetModeSwitchLineWitness[],
+  assignments: readonly BudgetModeSwitchAssignment[],
+): Promise<void> {
+  const witnessJson: Json = expectedLines.map((line) => ({
+    id: line.id,
+    category: line.category,
+    budgeted_amount: line.budgeted_amount,
+    fiscal_year: line.fiscal_year,
+  }));
+  const assignmentJson: Json = assignments.map((assignment) => ({ ...assignment }));
+  const { error } = await supabase.rpc('switch_budget_draft_mode', {
+    p_version: versionId,
+    p_target_mode: targetMode,
+    p_expected_lines: witnessJson,
+    p_assignments: assignmentJson,
   });
   if (error) throw toAppError(error);
 }

@@ -19,6 +19,7 @@ import {
   removeBudgetDocumentLink,
   getBudgetDistribution,
   saveBudgetDistribution,
+  switchBudgetDraftMode,
 } from '@/src/lib/db/budgets';
 import { findImportTargetDraft, findImportedLine } from '@/src/lib/db/budgetImportSkip';
 import { wrap } from './repositoryErrors';
@@ -39,6 +40,8 @@ export const budgetRepository: BudgetRepository = {
     wrap(() => createBudgetVersion(projectId, name, provenance, budgetMode)),
   getDistribution: (versionId) => wrap(() => getBudgetDistribution(versionId)),
   saveDistribution: (versionId, plan) => wrap(() => saveBudgetDistribution(versionId, plan)),
+  switchDraftMode: (versionId, targetMode, expectedLines, assignments) =>
+    wrap(() => switchBudgetDraftMode(versionId, targetMode, expectedLines, assignments)),
   findImportTargetDraft: (projectId) => wrap(() => findImportTargetDraft(projectId)),
   findImportedLine: (versionId, importKey) => wrap(() => findImportedLine(versionId, importKey)),
   cloneVersion: (versionId) => wrap(() => cloneVersion(versionId)),

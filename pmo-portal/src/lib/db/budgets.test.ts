@@ -84,6 +84,7 @@ import {
   removeBudgetDocumentLink,
   getBudgetDistribution,
   saveBudgetDistribution,
+  switchBudgetDraftMode,
   type BudgetDistributionPlan,
 } from './budgets';
 import { AppError } from '@/src/lib/appError';
@@ -1209,6 +1210,40 @@ describe('saveBudgetDistribution (#1472 S6A)', () => {
     await expect(saveBudgetDistribution('v-draft', expectedPlan)).rejects.toMatchObject({
       message: 'budget distribution for Labor must reconcile to its source lines', code: 'P0001',
     });
+  });
+});
+
+describe('switchBudgetDraftMode (#1472 B2)', () => {
+  const lines = [
+    { id: 'line-1', category: 'Labor' as const, budgeted_amount: '200000.00', fiscal_year: 'FY27' },
+    { id: 'line-2', category: 'Travel & accommodation' as const, budgeted_amount: '1000.25', fiscal_year: null },
+  ];
+
+  it('sends the exact line witness and explicit assignments without client tenant fields', async () => {
+    makeRpcBuilder({ data: null, error: null });
+    await expect(switchBudgetDraftMode('v-draft', 'per_year', lines, [
+      { id: 'line-1', fiscal_year: 'FY27' },
+      { id: 'line-2', fiscal_year: 'FY28' },
+    ])).resolves.toBeUndefined();
+    expect(mockRpc).toHaveBeenCalledWith('switch_budget_draft_mode', {
+      p_version: 'v-draft',
+      p_target_mode: 'per_year',
+      p_expected_lines: lines,
+      p_assignments: [
+        { id: 'line-1', fiscal_year: 'FY27' },
+        { id: 'line-2', fiscal_year: 'FY28' },
+      ],
+    });
+    expect(JSON.stringify(mockRpc.mock.calls[0][1])).not.toMatch(/org_id/);
+  });
+
+  it('propagates stale-witness rejection without retrying or changing the caller snapshot', async () => {
+    makeRpcBuilder({ data: null, error: { message: 'budget lines changed; refresh and review the mode change again', code: '40001' } });
+    await expect(switchBudgetDraftMode('v-draft', 'whole_project', lines, [])).rejects.toMatchObject({
+      message: 'budget lines changed; refresh and review the mode change again',
+      code: '40001',
+    });
+    expect(mockRpc).toHaveBeenCalledTimes(1);
   });
 });
 

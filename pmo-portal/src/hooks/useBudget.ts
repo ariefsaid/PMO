@@ -188,6 +188,17 @@ export function useBudgetMutations(projectId: string) {
     onSuccess: invalidateBoth,
   });
 
+  const switchDraftMode = useMutation<void, Error, {
+    versionId: string;
+    targetMode: BudgetVersionMode;
+    expectedLines: Parameters<typeof repositories.budget.switchDraftMode>[2];
+    assignments: Parameters<typeof repositories.budget.switchDraftMode>[3];
+  }>({
+    mutationFn: ({ versionId, targetMode, expectedLines, assignments }) =>
+      repositories.budget.switchDraftMode(versionId, targetMode, expectedLines, assignments),
+    onSuccess: invalidateBoth,
+  });
+
   return {
     createVersion,
     cloneVersion,
@@ -198,5 +209,6 @@ export function useBudgetMutations(projectId: string) {
     updateLineItem: updateLineItemMutation,
     deleteLineItem: deleteLineItemMutation,
     saveDistribution,
+    switchDraftMode,
   };
 }

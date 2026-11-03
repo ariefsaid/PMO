@@ -13723,6 +13723,15 @@ export type Database = {
         }
         Returns: undefined
       }
+      switch_budget_draft_mode: {
+        Args: {
+          p_assignments: Json
+          p_expected_lines: Json
+          p_target_mode: string
+          p_version: string
+        }
+        Returns: undefined
+      }
       stage_erp_statement_report: {
         Args: { p_org_id: string; p_holder: string; p_batch_id: string; p_report: Json }
         Returns: undefined

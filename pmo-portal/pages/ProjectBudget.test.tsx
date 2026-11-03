@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, within, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, within, fireEvent, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { axe } from 'jest-axe';
 import 'jest-axe/extend-expect'; // global registration moved out of test/setup.ts (unit-speed #1584)
@@ -27,11 +27,20 @@ const versionsState = {
   isError: false,
   refetch: vi.fn(),
 };
+const budgetDistributionState = {
+  data: null as unknown,
+  isPending: false,
+  refetch: vi.fn(),
+};
 const activationModeState = { data: 'allowed' as string | undefined, isPending: false, isFetching: false, isError: false };
 const readyActivationPrecheck: BudgetActivationPrecheckResult = {
   status: 'ready',
   erpCheck: 'available',
   fiscalYearNames: ['2026', '2027'],
+  fiscalYears: [
+    { name: '2026', start: '2026-01-01', end: '2026-12-31' },
+    { name: '2027', start: '2027-01-01', end: '2027-12-31' },
+  ],
   issues: [],
 };
 const activationPrecheckState: {
@@ -53,6 +62,7 @@ archiveTargetsState.refetch.mockImplementation(() => Promise.resolve({ data: arc
 const positionState = { isPending: false, isError: false, refetch: vi.fn(), hasBudget: true, canSeeActual: true, rows: [] as unknown[], unknown: 0 };
 const procurementsState = { data: [] as unknown[], isPending: false, isError: false };
 const budgetPushState = vi.hoisted(() => ({ rows: [] as Array<Record<string, unknown>> }));
+const mockBudgetRepository = vi.hoisted(() => ({ getDistribution: vi.fn().mockResolvedValue(null) }));
 
 const mockActivate = vi.fn().mockResolvedValue({ pushState: 'pushed' });
 const mockArchive = vi.fn().mockResolvedValue({ cancelErp: false, liveTargetCount: 0, queuedCount: 0 });
@@ -62,10 +72,13 @@ const mockCreateVersion = vi.fn().mockResolvedValue({ id: 'v-new' });
 const mockCreateLineItem = vi.fn().mockResolvedValue({ id: 'li-new' });
 const mockDeleteLineItem = vi.fn().mockResolvedValue(undefined);
 const mockUpdateLineItem = vi.fn().mockResolvedValue(undefined);
+const mockSwitchBudgetDraftMode = vi.fn().mockResolvedValue(undefined);
+const mockSaveBudgetDistribution = vi.fn().mockResolvedValue(undefined);
 
 vi.mock('@/src/hooks/useBudget', () => ({
   useProjectBudget: () => budgetState,
   useBudgetVersions: () => versionsState,
+  useBudgetDistribution: () => budgetDistributionState,
   useBudgetActivationMode: () => activationModeState,
   useBudgetActivationPrecheck: () => activationPrecheckState,
   useBudgetArchiveTargets: () => archiveTargetsState,
@@ -78,6 +91,8 @@ vi.mock('@/src/hooks/useBudget', () => ({
     createLineItem: { mutateAsync: mockCreateLineItem, isPending: false },
     updateLineItem: { mutateAsync: mockUpdateLineItem, isPending: false },
     deleteLineItem: { mutateAsync: mockDeleteLineItem, isPending: false },
+    switchDraftMode: { mutateAsync: mockSwitchBudgetDraftMode, isPending: false },
+    saveDistribution: { mutateAsync: mockSaveBudgetDistribution, isPending: false },
   }),
 }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
@@ -90,6 +105,7 @@ vi.mock('@/src/lib/repositories/budgetProjection', () => ({
   retryActiveBudgetPush: vi.fn(),
   releaseActiveBudgetPushHold: vi.fn(),
 }));
+vi.mock('@/src/lib/repositories', () => ({ repositories: { budget: mockBudgetRepository } }));
 vi.mock('@/src/components/m365/BudgetDocumentLinks', () => ({
   BudgetDocumentLinks: ({ versionId }: { versionId: string }) => <div data-testid={`evidence-${versionId}`}>Evidence documents</div>,
 }));
@@ -114,7 +130,7 @@ import { financeTestI18n } from './__tests__/financeI18nTestInstance';
 const EN_LOCALE = { locale: 'en', numberLocale: 'en-US', timezone: 'UTC' };
 const ID_LOCALE = { locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' };
 
-const project = { id: 'p-1', currency: 'USD', tax_treatment: 'exclusive' } as unknown as ProjectWithRefs;
+const project = { id: 'p-1', currency: 'USD', tax_treatment: 'exclusive', start_date: '2026-01-01', end_date: '2027-12-31' } as unknown as ProjectWithRefs;
 const renderPage = (projectId = 'p-1') => {
   const result = render(
     <FinanceI18nTestProvider>
@@ -224,6 +240,8 @@ function resetState() {
   versionsState.data = undefined;
   versionsState.isPending = false;
   versionsState.isError = false;
+  budgetDistributionState.data = null;
+  budgetDistributionState.isPending = false;
   activationModeState.data = 'allowed';
   activationModeState.isPending = false;
   activationModeState.isFetching = false;
@@ -245,6 +263,7 @@ function resetState() {
   procurementsState.isPending = false;
   procurementsState.isError = false;
   budgetPushState.rows = [];
+  mockBudgetRepository.getDistribution.mockReset().mockResolvedValue(null);
   roleState.realRole = 'Project Manager';
 }
 
@@ -862,7 +881,7 @@ describe('ProjectBudget Draft version actions', () => {
     roleState.realRole = 'Finance';
     budgetState.data = 0;
     versionsState.data = [draftVersion];
-    activationPrecheckState.data = { status: 'blocked', erpCheck: 'available', fiscalYearNames: ['2026'], issues: [{ code, datePart, categories: ['Labor'], lines: [{ category: 'Labor', fiscalYear: '2026' }], date: '2026-01-01', fiscalYears: ['FY1', 'FY2'] }] };
+    activationPrecheckState.data = { status: 'blocked', erpCheck: 'available', fiscalYearNames: ['2026'], fiscalYears: readyActivationPrecheck.fiscalYears, issues: [{ code, datePart, categories: ['Labor'], lines: [{ category: 'Labor', fiscalYear: '2026' }], date: '2026-01-01', fiscalYears: ['FY1', 'FY2'] }] };
     renderPage();
     expect(screen.getByTestId('budget-readiness-summary')).toHaveTextContent(expected);
   });
@@ -875,6 +894,7 @@ describe('ProjectBudget Draft version actions', () => {
       status: 'blocked',
       erpCheck: 'available',
       fiscalYearNames: ['2026', '2027'],
+      fiscalYears: readyActivationPrecheck.fiscalYears,
       issues: [{
         code: 'budget-multi-fiscal-year-unphased',
         categories: ['Materials'],
@@ -896,7 +916,7 @@ describe('ProjectBudget Draft version actions', () => {
   it('issue #1421: a native budget activates without ERP findings', async () => {
     roleState.realRole = 'Finance';
     versionsState.data = [{ ...draftVersion, line_items: [{ ...draftVersion.line_items[0], fiscal_year: null }] }];
-    activationPrecheckState.data = { status: 'ready', erpCheck: 'not-required', fiscalYearNames: null, issues: [] };
+    activationPrecheckState.data = { status: 'ready', erpCheck: 'not-required', fiscalYearNames: null, fiscalYears: null, issues: [] };
     renderPage();
     expect(screen.getByTestId('budget-readiness-summary')).toBeEmptyDOMElement();
     await userEvent.click(screen.getByRole('button', { name: /^Activate v2$/i }));
@@ -912,7 +932,7 @@ describe('ProjectBudget Draft version actions', () => {
     ['id', /pemeriksaan akan dilakukan lagi saat anggaran dikirim/i],
   ] as const)('issue #1421: %s outage copy describes the next push check', (locale, message) => {
     versionsState.data = [draftVersion];
-    activationPrecheckState.data = { status: 'erp-unavailable', erpCheck: 'unavailable', fiscalYearNames: null, issues: [] };
+    activationPrecheckState.data = { status: 'erp-unavailable', erpCheck: 'unavailable', fiscalYearNames: null, fiscalYears: null, issues: [] };
     render(<BahasaProvider locale={locale}><QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><MemoryRouter><ToastProvider><ProjectBudget projectId="p-1" project={project} /></ToastProvider></MemoryRouter></QueryClientProvider></BahasaProvider>);
     expect(screen.getByTestId('budget-readiness-summary')).toHaveTextContent(message);
   });
@@ -925,6 +945,7 @@ describe('ProjectBudget Draft version actions', () => {
       status: 'erp-unavailable',
       erpCheck: 'unavailable',
       fiscalYearNames: null,
+      fiscalYears: null,
       issues: [],
     };
     renderPage();
@@ -1380,8 +1401,8 @@ describe('ProjectBudget — the per-line fiscal year (AC-BFY-016)', () => {
 
   it.each([['FY1', false], ['A', false], ['FY1', true], ['A', true]] as const)('issue #1421: accepts custom fiscal-year label %s with live calendar %s', async (label, online) => {
     activationPrecheckState.data = online
-      ? { status: 'ready', erpCheck: 'available', fiscalYearNames: [label], issues: [] }
-      : { status: 'erp-unavailable', erpCheck: 'unavailable', fiscalYearNames: null, issues: [] };
+      ? { status: 'ready', erpCheck: 'available', fiscalYearNames: [label], fiscalYears: [{ name: label, start: '2026-01-01', end: '2027-12-31' }], issues: [] }
+      : { status: 'erp-unavailable', erpCheck: 'unavailable', fiscalYearNames: null, fiscalYears: null, issues: [] };
     versionsState.data = [draftVersion];
     renderPage();
     await userEvent.click(screen.getByRole('button', { name: /add line item/i }));
@@ -1394,7 +1415,7 @@ describe('ProjectBudget — the per-line fiscal year (AC-BFY-016)', () => {
   });
 
   it('issue #1421: preserves a short custom fiscal-year label when editing offline', async () => {
-    activationPrecheckState.data = { status: 'erp-unavailable', erpCheck: 'unavailable', fiscalYearNames: null, issues: [] };
+    activationPrecheckState.data = { status: 'erp-unavailable', erpCheck: 'unavailable', fiscalYearNames: null, fiscalYears: null, issues: [] };
     versionsState.data = [{ ...draftVersion, line_items: [{ ...draftVersion.line_items[0], fiscal_year: 'A' }] }];
     renderPage();
     await userEvent.click(screen.getByRole('button', { name: /edit line item Labor/i }));
@@ -1405,7 +1426,7 @@ describe('ProjectBudget — the per-line fiscal year (AC-BFY-016)', () => {
   });
 
   it('issue #1421: rejects a numeric year typo while offline', async () => {
-    activationPrecheckState.data = { status: 'erp-unavailable', erpCheck: 'unavailable', fiscalYearNames: null, issues: [] };
+    activationPrecheckState.data = { status: 'erp-unavailable', erpCheck: 'unavailable', fiscalYearNames: null, fiscalYears: null, issues: [] };
     versionsState.data = [draftVersion];
     renderPage();
     await userEvent.click(screen.getByRole('button', { name: /add line item/i }));
@@ -1549,5 +1570,128 @@ describe('budget-whole-project AC-001 (S6A)', () => {
     versionsState.data = [wholeProjectDraft];
     renderPage();
     expect(screen.getByTestId('budget-whole-project-editor-hint')).toHaveTextContent(/whole-project/i);
+  });
+});
+
+describe('budget draft mode switching (#1472 B2/B3)', () => {
+  afterEach(resetState);
+
+  it('waits for both source and distribution reads before reporting the committed mode change', async () => {
+    let finishVersionRead!: (value: unknown) => void;
+    let finishDistributionRead!: (value: unknown) => void;
+    const deferredVersionRead = new Promise<unknown>((resolve) => { finishVersionRead = resolve; });
+    const deferredDistributionRead = new Promise<unknown>((resolve) => { finishDistributionRead = resolve; });
+    versionsState.refetch.mockReturnValueOnce(deferredVersionRead);
+    mockBudgetRepository.getDistribution.mockReturnValueOnce(deferredDistributionRead);
+    budgetState.data = 0;
+    versionsState.data = [{ ...draftVersion, budget_mode: 'per_year' }];
+    renderPage();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Change budget mode' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Change budget mode' });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Switch to whole-project' }));
+    await waitFor(() => expect(mockBudgetRepository.getDistribution).toHaveBeenCalledWith('v-draft'));
+    expect(mockSwitchBudgetDraftMode).toHaveBeenCalledTimes(1);
+    expect(screen.queryAllByText('Budget mode changed')).toHaveLength(0);
+
+    await act(async () => { finishDistributionRead(null); });
+    expect(screen.queryAllByText('Budget mode changed')).toHaveLength(0);
+    await act(async () => { finishVersionRead({ data: [], isError: false }); });
+    await waitFor(() => expect(screen.getAllByText('Budget mode changed').length).toBeGreaterThan(0));
+  });
+
+  it('shows refresh and review when only readback fails and does not replay the committed write', async () => {
+    mockBudgetRepository.getDistribution.mockRejectedValueOnce(new Error('read after commit failed'));
+    budgetState.data = 0;
+    versionsState.data = [{ ...draftVersion, budget_mode: 'per_year' }];
+    renderPage();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Change budget mode' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Change budget mode' });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Switch to whole-project' }));
+
+    const refreshMessage = await screen.findByText(/A change was saved on the server/);
+    expect(refreshMessage.closest('[role="alert"]')).toHaveTextContent(/snapshot could not be refreshed/i);
+    expect(mockSwitchBudgetDraftMode).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('dialog', { name: 'Change budget mode' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Budget mode changed')).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Refresh budget data' }));
+    await waitFor(() => expect(screen.queryByText(/A change was saved on the server/)).not.toBeInTheDocument());
+    expect(mockSwitchBudgetDraftMode).toHaveBeenCalledTimes(1);
+  });
+
+  it('per-year to whole-project presents the exact source totals and changes only after explicit confirmation', async () => {
+    budgetState.data = 0;
+    const perYearDraft = {
+      ...draftVersion,
+      budget_mode: 'per_year',
+      line_items: [
+        { ...draftVersion.line_items[0], id: 'li-labor', category: 'Labor', budgeted_amount: 200000, fiscal_year: '2026' },
+        { ...draftVersion.line_items[0], id: 'li-travel', category: 'Travel', description: 'Travel', budgeted_amount: 1000.25, fiscal_year: '2027' },
+      ],
+    };
+    versionsState.data = [perYearDraft];
+    renderPage();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Change budget mode' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Change budget mode' });
+    const review = within(dialog).getByRole('table', { name: 'Budget line review' });
+    expect(within(review).getByRole('row', { name: /Labor Developers 2026/ })).toHaveTextContent(/200,000\.00/);
+    expect(within(review).getByRole('row', { name: /Travel Travel 2027/ })).toHaveTextContent(/1,000\.25/);
+    expect(mockSwitchBudgetDraftMode).not.toHaveBeenCalled();
+
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    expect(mockSwitchBudgetDraftMode).not.toHaveBeenCalled();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Change budget mode' }));
+    const reopened = await screen.findByRole('dialog', { name: 'Change budget mode' });
+    await userEvent.click(within(reopened).getByRole('button', { name: 'Switch to whole-project' }));
+    await waitFor(() => expect(mockSwitchBudgetDraftMode).toHaveBeenCalledWith({
+      versionId: 'v-draft',
+      targetMode: 'whole_project',
+      expectedLines: [
+        { id: 'li-labor', category: 'Labor', budgeted_amount: '200000.00', fiscal_year: '2026' },
+        { id: 'li-travel', category: 'Travel', budgeted_amount: '1000.25', fiscal_year: '2027' },
+      ],
+      assignments: [],
+    }));
+  });
+
+  it('whole-project to per-year requires an explicit fiscal year for every line before confirming', async () => {
+    budgetState.data = 0;
+    versionsState.data = [{
+      ...draftVersion,
+      budget_mode: 'whole_project',
+      line_items: [
+        { ...draftVersion.line_items[0], id: 'li-labor', budgeted_amount: 200000, fiscal_year: null },
+        { ...draftVersion.line_items[0], id: 'li-travel', category: 'Travel', description: 'Travel', budgeted_amount: 1000.25, fiscal_year: null },
+      ],
+    }];
+    renderPage();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Change budget mode' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Change budget mode' });
+    expect(within(dialog).getByText(/all fiscal-year assignments are required/i)).toBeInTheDocument();
+    const confirm = within(dialog).getByRole('button', { name: 'Switch to per-year' });
+    expect(confirm).toBeDisabled();
+    expect(mockSwitchBudgetDraftMode).not.toHaveBeenCalled();
+
+    await userEvent.selectOptions(within(dialog).getByLabelText('Fiscal year for Developers'), '2026');
+    await userEvent.selectOptions(within(dialog).getByLabelText('Fiscal year for Travel'), '2027');
+    expect(confirm).toBeEnabled();
+    await userEvent.click(confirm);
+    await waitFor(() => expect(mockSwitchBudgetDraftMode).toHaveBeenCalledWith({
+      versionId: 'v-draft',
+      targetMode: 'per_year',
+      expectedLines: [
+        { id: 'li-labor', category: 'Labor', budgeted_amount: '200000.00', fiscal_year: null },
+        { id: 'li-travel', category: 'Travel', budgeted_amount: '1000.25', fiscal_year: null },
+      ],
+      assignments: [
+        { id: 'li-labor', fiscal_year: '2026' },
+        { id: 'li-travel', fiscal_year: '2027' },
+      ],
+    }));
   });
 });

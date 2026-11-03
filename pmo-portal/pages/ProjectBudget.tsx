@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Link, useSearchParams } from 'react-router';
 import {
@@ -7,6 +7,7 @@ import {
   useBudgetVersions,
   useBudgetMutations,
   useBudgetArchiveTargets,
+  useBudgetDistribution,
 } from '@/src/hooks/useBudget';
 import { usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
@@ -22,6 +23,7 @@ import {
   formatInstantDate,
 } from '@/src/lib/format';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { yearsInSpan } from '@/src/lib/budget/budgetDistribution';
 import { budgetVersionVariant } from '@/src/lib/status/statusVariants';
 import {
   Button,
@@ -44,7 +46,7 @@ import {
   Drawer,
   MenuButton,
 } from '@/src/components/ui';
-import type { BudgetVersionWithItems } from '@/src/lib/db/budgets';
+import type { BudgetDistributionPlan, BudgetVersionWithItems } from '@/src/lib/db/budgets';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { useBudgetPosition } from './project-detail/useProjectPosition';
 import BudgetVersionsDrawer from './project-detail/budget/BudgetVersionsDrawer';
@@ -53,9 +55,12 @@ import { buildBudgetSummaryRows, committedTotal, type BudgetSummaryRow } from '.
 import BudgetProjection from './BudgetProjection';
 import { AttributedSpendingNote } from './project-detail/AttributedSpendingNote';
 import BudgetLineItemEditor from './project-budget/BudgetLineItemEditor';
+import DistributionGrid from './project-budget/DistributionGrid';
+import BudgetModeSwitchDialog, { type BudgetModeSwitchRequest } from './project-budget/BudgetModeSwitchDialog';
 import { useBudgetReadiness } from './project-budget/BudgetReadiness';
 import { useBudgetVersionActions } from './project-budget/BudgetVersionActions';
 import { fetchBudgetPushStatus, type BudgetPushStatusRow } from '@/src/lib/repositories/budgetProjection';
+import { repositories } from '@/src/lib/repositories';
 
 // ---------------------------------------------------------------------------
 // Main page component (NFR-BV-UI-001)
@@ -77,6 +82,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   // #1402 scopes ERP push status to Finance and Admin.
   const canViewBudgetEnforcement = realRole === 'Admin' || realRole === 'Finance';
   const { currentUser } = useAuth();
+  const queryClient = useQueryClient();
   const usersQuery = useUsers();
   const erpBindingQuery = useErpnextBinding();
   const currentUserId = currentUser?.id ?? null;
@@ -116,6 +122,10 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   const [draftEditorOpen, setDraftEditorOpen] = useState(false);
   const [hasOpenLineBuffers, setHasOpenLineBuffers] = useState(false);
   const [selectedRows, setSelectedRows] = useState<Set<string>>(() => new Set());
+  const [modeSwitchOpen, setModeSwitchOpen] = useState(false);
+  const [modeSwitchStaleNonce, setModeSwitchStaleNonce] = useState(0);
+  const [authoringRefreshNeeded, setAuthoringRefreshNeeded] = useState(false);
+  const [authoringRefreshPending, setAuthoringRefreshPending] = useState(false);
 
   const versions = useMemo<BudgetVersionWithItems[]>(
     () => (versionsQuery.data ?? []) as BudgetVersionWithItems[],
@@ -123,6 +133,10 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   );
   const activeVersion = versions.find((version) => version.status === 'Active');
   const draftVersion = versions.find((version) => version.status === 'Draft');
+  const budgetDistributionQuery = useBudgetDistribution(
+    projectId,
+    draftVersion?.budget_mode === 'whole_project' ? draftVersion.id : undefined,
+  );
   const archiveTargetsQuery = useBudgetArchiveTargets(
     versions.map((version) => version.id),
     versions.some((version) => version.status === 'Archived'),
@@ -158,6 +172,107 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   const { readinessMessages, canConfirmActivation, canActivate, activateBlockedReason, soleOperator, activationPrecheckQuery } = useBudgetReadiness(draftVersion, currentUserId, hasOpenLineBuffers);
 
   const { newVersionForm, showNewVersionForm, setShowNewVersionForm, pendingConfirm, budgetConfirm, dismissActivationNotice, requestActivate, requestClone, requestArchive, requestDeleteDraft, requestDeleteLineItem } = useBudgetVersionActions({ projectId, versions, draftVersion, canActivate, canConfirmActivation, hasOpenLineBuffers, soleOperator, activateBlockedReason, readinessMessages, archiveTargetsQuery, activationPrecheckQuery, mutations, setSelectedVersionId, setDraftEditorOpen, setBudgetView });
+
+  const draftMode = draftVersion?.budget_mode === 'whole_project' ? 'whole_project' : 'per_year';
+  const fiscalYears = activationPrecheckQuery.data?.fiscalYears ?? null;
+  const fiscalYearNames = (() => {
+    if (!project.start_date || !fiscalYears) return [];
+    try {
+      return yearsInSpan(project.start_date, project.end_date, fiscalYears).map((year) => year.name);
+    } catch {
+      return [];
+    }
+  })();
+  const modeSwitchContextKey = JSON.stringify([
+    modeSwitchStaleNonce,
+    draftVersion?.id,
+    draftMode,
+    currentUserId,
+    realRole,
+    canWrite,
+    project.start_date,
+    project.end_date,
+    fiscalYears,
+    draftVersion?.line_items.map((line) => [line.id, line.category, String(line.budgeted_amount), line.fiscal_year]),
+  ]);
+  const refreshAuthoringSnapshot = async (versionId: string): Promise<boolean> => {
+    const results = await Promise.allSettled([
+      budgetQuery.refetch(),
+      versionsQuery.refetch(),
+      activationPrecheckQuery.refetch(),
+      queryClient.fetchQuery({
+        queryKey: ['budget-distribution', currentUser?.org_id, projectId, versionId],
+        queryFn: () => repositories.budget.getDistribution(versionId),
+        staleTime: 0,
+      }),
+    ]);
+    return results.every((result) => result.status === 'fulfilled' && !(
+      typeof result.value === 'object' && result.value !== null && 'isError' in result.value && result.value.isError
+    ));
+  };
+  const retryAuthoringRefresh = async () => {
+    if (!draftVersion) return;
+    setAuthoringRefreshPending(true);
+    try {
+      const refreshed = await refreshAuthoringSnapshot(draftVersion.id);
+      setAuthoringRefreshNeeded(!refreshed);
+      if (refreshed) toast(t('projectDetail.budget.budgetRefreshComplete', 'Budget data is current again.'), undefined, 'success');
+    } finally {
+      setAuthoringRefreshPending(false);
+    }
+  };
+  const changeDraftMode = async ({ versionId, targetMode, expectedLines, assignments }: BudgetModeSwitchRequest) => {
+    try {
+      await mutations.switchDraftMode.mutateAsync({ versionId, targetMode, expectedLines, assignments });
+      setModeSwitchOpen(false);
+      const refreshed = await refreshAuthoringSnapshot(versionId);
+      if (!refreshed) {
+        setAuthoringRefreshNeeded(true);
+        setDraftEditorOpen(true);
+        return;
+      }
+      toast(t('projectDetail.budget.modeChanged', 'Budget mode changed'), undefined, 'success');
+    } catch (error) {
+      if ((error as { code?: string })?.code === '40001') {
+        const refreshed = await refreshAuthoringSnapshot(versionId);
+        if (refreshed) {
+          setModeSwitchStaleNonce((current) => current + 1);
+          return;
+        }
+        setModeSwitchOpen(false);
+        setAuthoringRefreshNeeded(true);
+        setDraftEditorOpen(true);
+        return;
+      }
+      const { headline, detail } = classifyMutationError(error);
+      toast(headline, detail, 'warning');
+    }
+  };
+  const saveDistribution = async (plan: BudgetDistributionPlan) => {
+    if (!draftVersion) return false;
+    try {
+      await mutations.saveDistribution.mutateAsync({ versionId: draftVersion.id, plan });
+      const refreshed = await refreshAuthoringSnapshot(draftVersion.id);
+      if (!refreshed) {
+        setAuthoringRefreshNeeded(true);
+        setDraftEditorOpen(true);
+        return false;
+      }
+      toast(t('projectDetail.budget.distributionSavedToast', 'Fiscal-year distribution saved'), undefined, 'success');
+      return true;
+    } catch (error) {
+      if ((error as { code?: string })?.code === '40001') {
+        const refreshed = await refreshAuthoringSnapshot(draftVersion.id);
+        if (!refreshed) {
+          setAuthoringRefreshNeeded(true);
+          setDraftEditorOpen(true);
+        }
+      }
+      const { headline, detail } = classifyMutationError(error);
+      toast(headline, detail, 'warning');
+      throw error;
+    }
+  };
 
   if (budgetQuery.isPending || versionsQuery.isPending) {
     return <div data-testid="budget-loading"><ListState variant="loading" shape="detail" rows={4} /></div>;
@@ -374,17 +489,28 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   const versionMenu = (version: BudgetVersionWithItems): RowMenuItem[] => [
     { label: t('projectDetail.budget.openVersion', 'Open version'), onClick: () => { setBudgetView('actual'); setSelectedVersionId(version.id); setVersionsOpen(true); } },
     { label: t('projectDetail.budget.compare', 'Compare'), onClick: () => setVersionsOpen(true) },
-    ...(canWrite && !draftVersion && (version.status === 'Active' || version.status === 'Archived') ? [{ label: t('financeCopy.cloneToRevise', 'Clone to revise'), onClick: () => requestClone(version.id) }] : []),
-    ...(canWrite && version.status === 'Active' ? [{ label: t('financeCopy.archive', 'Archive'), onClick: () => requestArchive(version.id), danger: true }] : []),
-    ...(canWrite && version.status === 'Draft' && canActivate ? [{ label: t('financeCopy.activate', 'Activate'), onClick: () => requestActivate(version.id) }] : []),
-    ...(canWrite && version.status === 'Draft' ? [{ label: t('financeCopy.deleteDraft', 'Delete draft'), onClick: () => requestDeleteDraft(version.id), danger: true }] : []),
+    ...(!authoringRefreshNeeded && canWrite && !draftVersion && (version.status === 'Active' || version.status === 'Archived') ? [{ label: t('financeCopy.cloneToRevise', 'Clone to revise'), onClick: () => requestClone(version.id) }] : []),
+    ...(!authoringRefreshNeeded && canWrite && version.status === 'Active' ? [{ label: t('financeCopy.archive', 'Archive'), onClick: () => requestArchive(version.id), danger: true }] : []),
+    ...(!authoringRefreshNeeded && canWrite && version.status === 'Draft' && canActivate ? [{ label: t('financeCopy.activate', 'Activate'), onClick: () => requestActivate(version.id) }] : []),
+    ...(!authoringRefreshNeeded && canWrite && version.status === 'Draft' ? [{ label: t('financeCopy.deleteDraft', 'Delete draft'), onClick: () => requestDeleteDraft(version.id), danger: true }] : []),
   ];
 
   const draftEditor = draftVersion && canWrite ? (
     <section hidden={!draftEditorOpen || selectedVersion?.id !== draftVersion.id || view !== 'actual'} aria-label={t('projectDetail.budget.draftEditor', 'Draft budget editor')} className="min-w-0 space-y-3" data-testid="budget-draft-editor">
+      {authoringRefreshNeeded ? (
+        <div role="alert" className="rounded-md border border-warning/40 bg-warning/[0.07] px-3 py-3 text-sm text-foreground">
+          <p>{t('projectDetail.budget.authoringRefreshRequired', 'A change was saved, but the current budget snapshot could not be refreshed. Retry before making another change.')}</p>
+          <Button variant="outline" size="sm" className="mt-2" onClick={() => void retryAuthoringRefresh()} disabled={authoringRefreshPending}>
+            {authoringRefreshPending ? t('projectDetail.budget.budgetRefreshPending', 'Refreshing…') : t('projectDetail.budget.retryBudgetRefresh', 'Refresh budget data')}
+          </Button>
+        </div>
+      ) : <>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-sm font-semibold">{draftVersion.name} · v{draftVersion.version}</h3>
-        <Button variant="ghost" size="sm" onClick={() => setDraftEditorOpen(false)}>{t('common.close', 'Close')}</Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => setModeSwitchOpen(true)}>{t('projectDetail.budget.changeBudgetMode', 'Change budget mode')}</Button>
+          <Button variant="ghost" size="sm" onClick={() => setDraftEditorOpen(false)}>{t('common.close', 'Close')}</Button>
+        </div>
       </div>
       <BudgetLineItemEditor
         key={draftVersion.id}
@@ -404,8 +530,24 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
         fiscalYearNames={activationPrecheckQuery.data?.fiscalYearNames ?? null}
         // budget_mode is DB-check-constrained to 'whole_project' | 'per_year'; anything else (a
         // legacy fixture without the column) must behave per_year — the historic default.
-        budgetMode={draftVersion.budget_mode === 'whole_project' ? 'whole_project' : 'per_year'}
+        budgetMode={draftMode}
       />
+      {draftMode === 'whole_project' && (
+        <DistributionGrid
+          versionId={draftVersion.id}
+          lines={draftVersion.line_items}
+          projectStart={project.start_date}
+          projectEnd={project.end_date}
+          fiscalYears={fiscalYears}
+          currency={draftVersion.currency || project.currency}
+          editorIdentity={`${currentUserId ?? 'anonymous'}:${realRole}:${canWrite}`}
+          savedPlan={budgetDistributionQuery.data ?? null}
+          savedPlanLoading={budgetDistributionQuery.isPending}
+          saving={mutations.saveDistribution.isPending}
+          onSave={saveDistribution}
+        />
+      )}
+      </>}
     </section>
   ) : null;
 
@@ -445,7 +587,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {canWrite && <Button variant="outline" size="sm" onClick={() => { setSelectedVersionId(draftVersion.id); setDraftEditorOpen(true); }}>{t('projectDetail.budget.editDraft', 'Edit draft')}</Button>}
-            {canActivate && <Button variant="primary" size="sm" disabled={hasOpenLineBuffers} onClick={() => requestActivate(draftVersion.id)}>{t('projectDetail.budget.activateVersionNamed', 'Activate v{{version}}', { version: draftVersion.version })}</Button>}
+            {canActivate && !authoringRefreshNeeded && <Button variant="primary" size="sm" disabled={hasOpenLineBuffers} onClick={() => requestActivate(draftVersion.id)}>{t('projectDetail.budget.activateVersionNamed', 'Activate v{{version}}', { version: draftVersion.version })}</Button>}
           </div>
         </section>
       )}
@@ -494,7 +636,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
               </select>
             </label>
             <div className="h-4 w-px bg-border" aria-hidden="true" />
-            {canWrite && activeVersion && !draftVersion && <Button variant="outline" size="sm" onClick={() => requestClone(activeVersion.id)}>{t('projectDetail.budget.updateBudget', 'Update budget')}</Button>}
+            {canWrite && !authoringRefreshNeeded && activeVersion && !draftVersion && <Button variant="outline" size="sm" onClick={() => requestClone(activeVersion.id)}>{t('projectDetail.budget.updateBudget', 'Update budget')}</Button>}
             {view === 'actual' && <Button variant="outline" size="sm" onClick={() => exportRows(enrichedRows, 'ProjectBudget')}>{t('projectDetail.budget.export', 'Export')}</Button>}
           </div>
         </div>}
@@ -538,7 +680,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
 
       <Card role="region" aria-label={t('projectDetail.budget.versionsTitle', 'Budget versions')} className="min-w-0">
         <CardHead actions={<>
-            {canWrite && versions.length > 0 && !draftVersion && <Button variant="outline" size="sm" onClick={() => { dismissActivationNotice(); setShowNewVersionForm(true); }}>{t('projectDetail.budget.newVersion', 'New version')}</Button>}
+            {canWrite && !authoringRefreshNeeded && versions.length > 0 && !draftVersion && <Button variant="outline" size="sm" onClick={() => { dismissActivationNotice(); setShowNewVersionForm(true); }}>{t('projectDetail.budget.newVersion', 'New version')}</Button>}
             {versions.length > 0 && <Button id="budget-versions-trigger" variant="ghost" size="sm" onClick={() => setVersionsOpen(true)}>{t('projectDetail.budget.manageVersions', 'Manage versions')}</Button>}
           </>}>
           {t('projectDetail.budget.versionsTitle', 'Budget versions')}
@@ -664,6 +806,20 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
         onClone={requestClone}
         onDeleteDraft={requestDeleteDraft}
       />
+      {draftVersion && (
+        <BudgetModeSwitchDialog
+          open={modeSwitchOpen && !authoringRefreshNeeded}
+          versionId={draftVersion.id}
+          currentMode={draftMode}
+          lines={draftVersion.line_items}
+          fiscalYearNames={fiscalYearNames}
+          currency={draftVersion.currency || project.currency}
+          contextKey={modeSwitchContextKey}
+          loading={mutations.switchDraftMode.isPending}
+          onConfirm={changeDraftMode}
+          onCancel={() => setModeSwitchOpen(false)}
+        />
+      )}
       {budgetConfirm}
     </div>
   );
