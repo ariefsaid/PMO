@@ -1,4 +1,5 @@
 import { supabase } from '@/src/lib/supabase/client';
+import { fetchAllPages } from '@/src/lib/pagedRead';
 import { AppError, assertWriteLanded } from '@/src/lib/appError';
 import type { Tables } from '@/src/lib/supabase/database.types';
 import type { AllocationFacts, ContractLineFacts, EarningBasis, ProjectBillingFacts } from '@/src/lib/progressBilling';
@@ -63,14 +64,22 @@ function fail(error: { message: string; code?: string }): never {
   throw new AppError(error.message, error.code);
 }
 
+/**
+ * One project's whole bill of quantities, in contract order (line_no nulls last, then
+ * created_at, then id — a TOTAL order, which paging requires).
+ *
+ * ⚑ #1774 — a BOQ line is not a money sum, but a truncated BOQ is still silently wrong: past
+ * 1,000 lines the tail vanished with no error. Reads every page via the shared seam.
+ */
 export async function listBoqItems(projectId: string): Promise<BoqItemRow[]> {
-  const { data, error } = await supabase.from('boq_items').select('*')
-    .eq('project_id', projectId)
-    .order('line_no', { ascending: true, nullsFirst: false })
-    .order('created_at', { ascending: true })
-    .order('id', { ascending: true });
-  if (error) fail(error);
-  return data ?? [];
+  return fetchAllPages<BoqItemRow>((from, to) =>
+    supabase.from('boq_items').select('*')
+      .eq('project_id', projectId)
+      .order('line_no', { ascending: true, nullsFirst: false })
+      .order('created_at', { ascending: true })
+      .order('id', { ascending: true })
+      .range(from, to),
+  );
 }
 
 export async function createBoqItem(projectId: string, input: BoqItemInput): Promise<BoqItemRow> {
