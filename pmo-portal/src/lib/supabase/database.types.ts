@@ -115,6 +115,7 @@ export type Database = {
           org_id: string
           project_id: string
           rate: number
+          sales_item_code: string | null
           standby_rate: number | null
           unit: string
           version: number
@@ -134,6 +135,7 @@ export type Database = {
           org_id: string
           project_id: string
           rate: number
+          sales_item_code?: string | null
           standby_rate?: number | null
           unit: string
           version: number
@@ -153,6 +155,7 @@ export type Database = {
           org_id?: string
           project_id?: string
           rate?: number
+          sales_item_code?: string | null
           standby_rate?: number | null
           unit?: string
           version?: number
