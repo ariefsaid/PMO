@@ -5,7 +5,7 @@ import { describe, it } from '@std/testing/bdd';
 import { assertEquals, assertRejects } from '@std/assert';
 import { createClient } from '@supabase/supabase-js';
 import { installEdgeEnv, jsonResponse, supabaseRpc, supabaseSelect, withFetchMock } from '../_shared/testing/edgeTestKit.ts';
-import { resolveOdooProcurementAdapter, ODOO_ADAPTER_REGISTRY } from './odooAdapters.ts';
+import { resolveOdooProcurementAdapter, resolveOdooRevenueAdapter, ODOO_ADAPTER_REGISTRY } from './odooAdapters.ts';
 import type { AdapterSelectContext } from './dispatchAdapters.ts';
 
 const env = installEdgeEnv();
@@ -39,7 +39,11 @@ const world = (config?: Record<string, unknown>, { caseCurrency = 'IDR', odooCur
 ];
 
 describe('P3 the Odoo adapter factory', () => {
-  it('is the procurement domain\'s Odoo factory', () => assertEquals(Object.keys(ODOO_ADAPTER_REGISTRY), ['procurement']));
+  it('is the procurement and revenue domains\' Odoo factories (revenue: #1506 C2)', () => {
+    assertEquals(Object.keys(ODOO_ADAPTER_REGISTRY), ['procurement', 'revenue']);
+    assertEquals(ODOO_ADAPTER_REGISTRY.procurement, resolveOdooProcurementAdapter);
+    assertEquals(ODOO_ADAPTER_REGISTRY.revenue, resolveOdooRevenueAdapter);
+  });
 
   for (const [kind, operation] of [['purchase-order', 'create'], ['purchase-order', 'revise']] as const) {
     it(`returns the Odoo procurement adapter for a ${kind} ${operation}`, async () => {

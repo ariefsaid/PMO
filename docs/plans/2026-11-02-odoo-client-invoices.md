@@ -155,6 +155,12 @@ ACs: 001, 002, 003, 004, 005, 050, 051, 052 (P half). Migration **0510**.
 - **C2-T9 (bed)** AC-OCI-001 secondary: the stock bed with the minimal user is not wrongly refused by the capability check.
 - Final gate (touched pgTAP under the lock, Deno on the touched dispatch tests) + review battery (security-auditor mandatory: this slice changes the money path's gates for both tiers).
 
+**As built (C2, `feat/odoo-ci-c2`).**
+- **C2-T1 gate inventory.** Already tier-agnostic and unchanged: the `require_project_on_si` / `get_process_gates` gate (`projectGateGuard.ts`), the native-row guard (`checkRevenueErpPathTarget`), the transition/create target guards, the invoice-submit SoD gate (`sodGuard.ts`: `grant_sales_invoice_submit_clearance`, the JWT subject as approver), the `cutover.revenue` employ refusal (the 0275 §7 trigger `assert_revenue_employable`, which fires for any ERP's revenue ownership row; 0510 only proves it for tier odoo). Changed: the role/ownership gate (`authGuard.ts` `OWNING_TIERS` gains `revenue`), the Odoo registry (`revenue` resolver: connection, six-model snapshot check, link ownership reusing `assertCommandLinksSameOrg`, project cost account, receipt same-scope, then "not available yet" until C3), the Odoo money-outbox resolver (revenue kinds: key `si:`/`ip:`, never reissued on doubt, probe holds until C3-C5), and the employ verb (0510). The dispatch seam routes tier odoo through the money outbox via `MONEY_TIERS` (#1505 P6, merged into this branch).
+- **Tax group (Director ruling 2026-11-03).** The tax directory mirror carries `tax_group` (the group's display name); `taxValidate` accepts only the PPN output groups ("Non-luxury Good Taxes", "Luxury Good Taxes", "Zero-rated Taxes", read on the bed). A connection whose service user reads another language refuses rather than guesses. `account.move.line` joins `LATER_MODELS` (FR-OCI-001 lists it).
+- **Held-row resolution (C2-T8).** `resolve_held_outbox_command` (0508) serves the Odoo vendor payment only; AC-OCI-052's P half moves to C6, which extends it to the revenue kinds.
+- **C2-T9.** `odooRevenue.bed.test.ts` runs the real discovery against the bed and binds the tax-group rule to real taxes.
+
 ## C3 — Invoice push, ordinary (Director-dispatched; ships alone)
 
 ACs: 010, 011, 012, 030, 031, 032, 061. Migration **0511**.

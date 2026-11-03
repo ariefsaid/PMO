@@ -17,7 +17,7 @@ const FIELDS: Record<string, string[]> = {
   'stock.warehouse': ['name', 'code', 'lot_stock_id', 'view_location_id', 'company_id', 'active', 'write_date'],
   'stock.location': ['complete_name', 'usage', 'location_id', 'warehouse_id', 'company_id', 'active', 'write_date'],
   'account.account': ['code', 'name', 'account_type', 'company_ids', 'active', 'write_date'],
-  'account.tax': ['name', 'amount', 'type_tax_use', 'company_id', 'active', 'write_date'],
+  'account.tax': ['name', 'amount', 'type_tax_use', 'tax_group_id', 'company_id', 'active', 'write_date'],
   'account.analytic.plan': ['name', 'write_date'],
   'account.analytic.account': ['name', 'code', 'plan_id', 'company_id', 'active', 'write_date'],
   'purchase.order': ['name', 'state', 'partner_id', 'partner_ref', 'origin', 'order_line', 'amount_untaxed', 'amount_total', 'company_id', 'create_date', 'write_date'],

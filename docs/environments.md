@@ -528,6 +528,8 @@ exceed one day. Smallest set tested on this bed, not a proof for every customize
 **OWNER go-live check (O2 and O3):** Access Rights is an elevated grant on the service user. The owner confirms it
 for the real Odoo before an org employs `procurement` or `revenue` under Odoo; the build does not block on it.
 
+**Service user language (O3):** the default sales tax is accepted only when its tax group reads as a PPN output group in the key user's language (English names on the bed). A service user set to another language is refused with the tax named, not guessed; keep the service user on English.
+
 What the bed showed about the Odoo API, including where the research docs were wrong:
 `docs/research/2026-10-31-odoo20-dev-bed-verification.md`.
 

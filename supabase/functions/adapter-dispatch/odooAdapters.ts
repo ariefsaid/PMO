@@ -6,10 +6,12 @@ import { buildBillBody } from '../../../pmo-portal/src/lib/adapterSeam/odoo/purc
 import { buildPaymentBody } from '../../../pmo-portal/src/lib/adapterSeam/odoo/purchase/paymentBody.ts';
 import { createOdooProcurementAdapter, paymentKey, readPaymentCtx } from '../../../pmo-portal/src/lib/adapterSeam/odoo/procurementAdapter.ts';
 import { procurementCapabilityGap } from '../../../pmo-portal/src/lib/adapterSeam/odoo/purchase/capabilities.ts';
+import { revenueCapabilityGap } from '../../../pmo-portal/src/lib/adapterSeam/odoo/revenue/capabilities.ts';
 import { REQUEST_DEADLINE_MS } from '../../../pmo-portal/src/lib/adapterSeam/odoo/purchase/constants.ts';
 import { odooClientForOrg } from '../_shared/odooClientForOrg.ts';
 import { resolveOdooBillInputs, resolveOdooOrderCurrency, resolveOdooOrderInputs, resolveOdooPaymentFacts, resolveOdooReviseInputs } from '../_shared/odooPurchaseRefs.ts';
 import type { AdapterFactory, AdapterSelectContext } from './dispatchAdapters.ts';
+import { assertOdooRevenueCommandScope } from './odooRevenueGate.ts';
 
 /** What the Odoo procurement adapter pushes so far: the purchase order and its revision (P3), the goods receipt (P4), the vendor bill (P5) and the vendor payment (P6). */
 const isReceipt = (ctx: AdapterSelectContext): boolean => ctx.command.record.erp_doc_kind === 'goods-receipt' && ctx.command.operation === 'create';
@@ -64,5 +66,21 @@ export async function resolveOdooProcurementAdapter(ctx: AdapterSelectContext): 
   });
 }
 
+/**
+ * Adapter selection for an org that employs revenue under tier `odoo` (FR-OCI-001/002/004, DD-OCI-1, DD-OCI-8). Before any outbox row and any
+ * Odoo request it refuses a connection that is switched off, not activated or unusable, a stored capability snapshot that lacks a model an
+ * invoice or receipt needs (the refusal names it), and a link or receipt scope that is not the caller's. The steps themselves (invoice, claim,
+ * receipt) arrive with their slices (C3-C5); until then every command is refused the same way, so a gate-passing revenue command can neither
+ * reach the ERPNext adapter nor leave an outbox row.
+ */
+export async function resolveOdooRevenueAdapter(ctx: AdapterSelectContext): Promise<Adapter> {
+  const resolved = await odooClientForOrg(ctx.serviceClient as SupabaseClient, ctx.orgId);
+  if ('refusal' in resolved) throw new AppError(`The Odoo connection is not usable (${resolved.refusal})`, 'config-rejected');
+  const gap = revenueCapabilityGap(resolved.config.capabilities as Parameters<typeof revenueCapabilityGap>[0]);
+  if (gap) throw new AppError(`Odoo invoicing needs ${gap}, which this Odoo connection does not show. Run the connection check again.`, 'config-rejected');
+  await assertOdooRevenueCommandScope(ctx.serviceClient as SupabaseClient, ctx.orgId, ctx.command);
+  throw new AppError('Invoicing through Odoo is not available yet', 'config-rejected');
+}
+
 /** The Odoo tier's registry, keyed by the PMO domain it employs. */
-export const ODOO_ADAPTER_REGISTRY: Record<string, AdapterFactory> = { procurement: resolveOdooProcurementAdapter };
+export const ODOO_ADAPTER_REGISTRY: Record<string, AdapterFactory> = { procurement: resolveOdooProcurementAdapter, revenue: resolveOdooRevenueAdapter };

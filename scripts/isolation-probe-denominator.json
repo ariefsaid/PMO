@@ -359,6 +359,7 @@
     "notify_workflow_user(uuid,uuid,text,text,text,text,uuid,text)",
     "odoo_link_cost_account_core(uuid,uuid,uuid,text)",
     "odoo_procurement_employ_blocker(uuid)",
+    "odoo_revenue_employ_blocker(uuid)",
     "odoo_sweep_tick()",
     "open_erp_statement_report_batch(uuid,uuid,jsonb)",
     "operator_agent_run_stats(uuid)",

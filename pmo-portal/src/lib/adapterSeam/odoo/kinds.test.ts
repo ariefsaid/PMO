@@ -18,8 +18,8 @@ const FIXTURES: Record<DirectoryKind, { raw: Record<string, unknown>; row: Recor
     row: { external_id: '8', code: null, name: 'WH/Stock', parent_external_id: '7', active: true, attrs: { usage: 'internal', warehouse_id: '2' } } },
   account: { raw: { id: 40, code: '211000', name: 'Hutang Usaha', account_type: 'liability_payable', company_ids: [1, 3], active: true, write_date: W },
     row: { external_id: '40', code: '211000', name: 'Hutang Usaha', parent_external_id: null, active: true, attrs: { account_type: 'liability_payable', company_ids: ['1', '3'] } } },
-  tax: { raw: { id: 9, name: 'PPN 12%', amount: 12, type_tax_use: 'purchase', active: true, write_date: W },
-    row: { external_id: '9', code: null, name: 'PPN 12%', parent_external_id: null, active: true, attrs: { amount: 12, use: 'purchase' } } },
+  tax: { raw: { id: 9, name: 'PPN 12%', amount: 12, type_tax_use: 'purchase', tax_group_id: [5, 'Non-luxury Good Taxes'], active: true, write_date: W },
+    row: { external_id: '9', code: null, name: 'PPN 12%', parent_external_id: null, active: true, attrs: { amount: 12, use: 'purchase', tax_group: 'Non-luxury Good Taxes' } } },
   analytic_plan: { raw: { id: 4, name: 'Projects', write_date: W },
     row: { external_id: '4', code: null, name: 'Projects', parent_external_id: null, active: true, attrs: {} } },
   analytic_account: { raw: { id: 11, name: 'Gedung A', code: 'PRJ-1', plan_id: [4, 'Projects'], company_id: [1, 'Contoh'], active: true, write_date: W },
@@ -53,6 +53,14 @@ describe('odoo/kinds — AC-ODC-024', () => {
   it('AC-ODC-024 a unit without a numeric factor and a tax without a numeric rate are rejected', () => {
     expect(KIND_SPECS.uom.parse({ ...FIXTURES.uom.raw, relative_factor: '1' })).toBeNull();
     expect(KIND_SPECS.tax.parse({ ...FIXTURES.tax.raw, amount: null })).toBeNull();
+  });
+
+  it('AC-OCI-023 a tax row carries its tax group name; a tax with none carries null; a malformed group rejects the row', () => {
+    expect(KIND_SPECS.tax.parse({ ...FIXTURES.tax.raw, tax_group_id: false })?.attrs.tax_group).toBeNull();
+    const { tax_group_id: _omitted, ...withoutGroup } = FIXTURES.tax.raw as Record<string, unknown>;
+    expect(KIND_SPECS.tax.parse(withoutGroup)?.attrs.tax_group).toBeNull();
+    expect(KIND_SPECS.tax.parse({ ...FIXTURES.tax.raw, tax_group_id: 'x' })).toBeNull();
+    expect(KIND_SPECS.tax.parse({ ...FIXTURES.tax.raw, tax_group_id: [5] })).toBeNull();
   });
 
   it('AC-ODC-024 an account row carries its companies; a malformed company set rejects the row', () => {
