@@ -1304,6 +1304,19 @@ describe('AC-ENA-012 classified failures: commit-rejected marks failed; external
     expect(id).toBeTruthy();
   });
 
+  it('I1 (#1505 P5 review) tells the recovery probe whether this is a recovery: a first claim is not, the retry of a failed row is', async () => {
+    const fake = createFakeOutbox();
+    await fake.deps.insertOutboxPending('procurement', 'pmo-1', 'key-1');
+    const probe = vi.spyOn(fake.deps, 'probeByRemarksKey');
+    const commit = vi.fn()
+      .mockRejectedValueOnce(new AdapterError('commit-rejected', 'MandatoryError: supplier'))
+      .mockResolvedValueOnce({ externalRecordId: 'PI-0001', canonical: { id: 'pmo-1' } });
+    const run = () => dispatchMoneyWrite({ adapter: erpnextAdapter(commit), command: baseCommand, writeReadModel: vi.fn(), recordExternalRef: vi.fn(), money: fake.deps });
+    await expect(run()).rejects.toBeInstanceOf(AppError);
+    await run();
+    expect(probe.mock.calls.map((c) => c[2])).toEqual([{ recovery: false }, { recovery: true }]);
+  });
+
   it('external-unreachable rethrows and leaves the row committing (reclaimable after the lease)', async () => {
     const fake = createFakeOutbox();
     await fake.deps.insertOutboxPending('procurement', 'pmo-1', 'key-1');

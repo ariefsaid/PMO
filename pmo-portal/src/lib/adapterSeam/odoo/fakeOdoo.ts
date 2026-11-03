@@ -2,6 +2,8 @@
  * Test-only in-memory Odoo speaking JSON-2 over a `fetch` mock (bed report §1, §3): per-model row maps, the
  * domain subset the adapter uses, `write_date` stamping, 401 on a wrong key, and one-shot transport faults.
  */
+import { createBill, isModelledBill, postBill, Rejected } from './purchase/fakeBill.ts';
+
 type Row = Record<string, unknown> & { id: number };
 type Domain = unknown[];
 
@@ -9,7 +11,7 @@ type Domain = unknown[];
 const FIELDS: Record<string, string[]> = {
   'res.partner': ['name', 'vat', 'ref', 'email', 'is_company', 'parent_id', 'active', 'supplier_rank', 'customer_rank', 'company_id', 'write_date'],
   'res.company': ['name', 'currency_id', 'partner_id', 'write_date'],
-  'product.product': ['default_code', 'name', 'uom_id', 'purchase_ok', 'sale_ok', 'is_storable', 'company_id', 'active', 'write_date'],
+  'product.product': ['default_code', 'name', 'uom_id', 'supplier_taxes_id', 'purchase_ok', 'sale_ok', 'is_storable', 'company_id', 'active', 'write_date'],
   'uom.uom': ['name', 'relative_factor', 'relative_uom_id', 'active', 'write_date'],
   'stock.warehouse': ['name', 'code', 'lot_stock_id', 'view_location_id', 'company_id', 'active', 'write_date'],
   'stock.location': ['complete_name', 'usage', 'location_id', 'warehouse_id', 'company_id', 'active', 'write_date'],
@@ -22,8 +24,9 @@ const FIELDS: Record<string, string[]> = {
   'ir.model.data': ['module', 'name', 'model', 'res_id', 'write_date'],
   'account.payment': ['state', 'memo', 'write_date'],
   'account.journal': ['name', 'code', 'type', 'company_id', 'active', 'write_date'],
-  'account.move': ['name', 'write_date'],
-  'account.move.line': ['balance', 'amount_residual', 'write_date'],
+  'account.move': ['name', 'move_type', 'state', 'partner_id', 'ref', 'invoice_date', 'invoice_date_due', 'invoice_line_ids', 'amount_untaxed', 'amount_tax', 'amount_total', 'amount_residual', 'payment_state', 'currency_id', 'company_id', 'invoice_origin', 'create_date', 'write_date'],
+  'account.move.line': ['move_id', 'display_type', 'product_id', 'quantity', 'price_unit', 'tax_ids', 'tax_line_id', 'tax_base_amount', 'analytic_distribution', 'purchase_line_id', 'balance', 'amount_residual', 'write_date'],
+  'account.tax.repartition.line': ['tax_id', 'document_type', 'repartition_type', 'account_id', 'write_date'],
   'stock.picking': ['name', 'state', 'move_ids', 'backorder_id', 'backorder_ids', 'purchase_id', 'picking_type_code', 'write_date'],
   'stock.move': ['name', 'state', 'picking_id', 'product_id', 'purchase_line_id', 'quantity', 'product_uom_qty', 'write_date'],
   'stock.quant': ['product_id', 'quantity', 'write_date'],
@@ -44,6 +47,7 @@ function matchLeaf(row: Row, [field, op, value]: [string, string, unknown]): boo
     case '>': return (v as never) > (value as never);
     case '>=': return (v as never) >= (value as never);
     case '<': return (v as never) < (value as never);
+    case '<=': return (v as never) <= (value as never);
     case 'ilike': return typeof v === 'string' && v.toLowerCase().includes(String(value).toLowerCase());
     default: throw new Error(`fakeOdoo: operator ${op} not modelled`);
   }
@@ -88,8 +92,6 @@ export interface FakeOdoo {
   readonly calls: Array<{ model: string; method: string }>;
 }
 
-/** A validation failure the way the bed answers one (422 with an Odoo error body). */
-class Rejected extends Error {}
 
 /** `doubleValidation`: Odoo's purchase approval setting; a confirmed order then waits in `to approve` (bed V-OPP1). */
 export function createFakeOdoo({ key, doubleValidation = false }: { key: string; doubleValidation?: boolean }): FakeOdoo {
@@ -241,6 +243,7 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
     search_count: (m, b) => select(m, { ...b, limit: undefined, offset: undefined }).length,
     read: (m, b) => (b.ids as number[]).flatMap((id) => { const r = table(m).get(id); return r ? [pick(r, b.fields as string[])] : []; }),
     create: (m, b) => (b.vals_list as Array<Record<string, unknown>>).map((vals) => {
+      if (m === 'account.move' && isModelledBill(vals)) return createBill({ table, nextId: newId, stamp: () => fmt(++clock) }, vals);
       const id = newId(m);
       const { order_line: lines, ...rest } = vals;
       const stamp = fmt(++clock);
@@ -302,7 +305,14 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
       }
       return true;
     },
-    action_post: (m, b) => transition(m, b, m === 'account.payment' ? 'paid' : 'posted'),
+    action_post: (m, b) => {
+      for (const id of b.ids as number[]) {
+        const row = table(m).get(id);
+        if (m === 'account.move' && row?.move_type === 'in_invoice') postBill({ table, nextId: newId, stamp: () => fmt(++clock) }, row);
+        else transition(m, { ids: [id] }, m === 'account.payment' ? 'paid' : 'posted');
+      }
+      return true;
+    },
     reconcile: (m, b) => {
       const rows = (b.ids as number[]).flatMap((id) => { const row = table(m).get(id); return row ? [row] : []; });
       const debits = rows.filter((r) => Number(r.amount_residual ?? r.balance) > 0);
