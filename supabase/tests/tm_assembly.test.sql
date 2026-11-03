@@ -4,7 +4,7 @@
 -- sources (the exact writes T3's withdraw performs), so the "offered again" rule is proven against the real index.
 begin;
 create extension if not exists pgtap;
-select plan(61);
+select plan(69);
 
 -- ── Fixture F1 ──────────────────────────────────────────────────────────────────────────────
 insert into organizations (id, name, default_currency, default_timezone) values
@@ -18,10 +18,7 @@ insert into auth.users (id, email) values
   ('15140000-0000-0000-0000-0000000000b5', 'tm-pm2@example.com'),
   ('15140000-0000-0000-0000-0000000000b6', 'tm-eng1@example.com'),
   ('15140000-0000-0000-0000-0000000000b7', 'tm-eng2@example.com'),
-  ('15140000-0000-0000-0000-0000000000b8', 'tm-foreign-admin@example.com'),
-  ('15140000-0000-0000-0000-0000000000b9', 'tm-exec@example.com');
-insert into auth.users (id, email, banned_until) values
-  ('15140000-0000-0000-0000-0000000000ba', 'tm-banned@example.com', now() + interval '1 day');
+  ('15140000-0000-0000-0000-0000000000b8', 'tm-foreign-admin@example.com');
 insert into profiles (id, org_id, full_name, email, role, status) values
   ('15140000-0000-0000-0000-0000000000b1', '15140000-0000-0000-0000-0000000000a1', 'TM Finance 1', 'tm-fin1@example.com', 'Finance', 'active'),
   ('15140000-0000-0000-0000-0000000000b2', '15140000-0000-0000-0000-0000000000a1', 'TM Finance 2', 'tm-fin2@example.com', 'Finance', 'active'),
@@ -30,9 +27,7 @@ insert into profiles (id, org_id, full_name, email, role, status) values
   ('15140000-0000-0000-0000-0000000000b5', '15140000-0000-0000-0000-0000000000a1', 'TM PM 2', 'tm-pm2@example.com', 'Project Manager', 'active'),
   ('15140000-0000-0000-0000-0000000000b6', '15140000-0000-0000-0000-0000000000a1', 'TM Engineer 1', 'tm-eng1@example.com', 'Engineer', 'active'),
   ('15140000-0000-0000-0000-0000000000b7', '15140000-0000-0000-0000-0000000000a1', 'TM Engineer 2', 'tm-eng2@example.com', 'Engineer', 'active'),
-  ('15140000-0000-0000-0000-0000000000b8', '15140000-0000-0000-0000-0000000000a2', 'TM Foreign Admin', 'tm-foreign-admin@example.com', 'Admin', 'active'),
-  ('15140000-0000-0000-0000-0000000000b9', '15140000-0000-0000-0000-0000000000a1', 'TM Executive', 'tm-exec@example.com', 'Executive', 'active'),
-  ('15140000-0000-0000-0000-0000000000ba', '15140000-0000-0000-0000-0000000000a1', 'TM Banned Member', 'tm-banned@example.com', 'Engineer', 'active');
+  ('15140000-0000-0000-0000-0000000000b8', '15140000-0000-0000-0000-0000000000a2', 'TM Foreign Admin', 'tm-foreign-admin@example.com', 'Admin', 'active');
 insert into projects (id, org_id, name, status, project_manager_id, currency) values
   ('15140000-0000-0000-0000-0000000000c1', '15140000-0000-0000-0000-0000000000a1', 'TM Project 1', 'Ongoing Project', '15140000-0000-0000-0000-0000000000b4', 'IDR'),
   ('15140000-0000-0000-0000-0000000000c2', '15140000-0000-0000-0000-0000000000a1', 'TM Project 2', 'Ongoing Project', '15140000-0000-0000-0000-0000000000b5', 'IDR'),
@@ -64,10 +59,15 @@ insert into project_documents (id, org_id, project_id, category, title, status, 
 insert into timesheets (id, org_id, user_id, week_start_date, status, approved_by, approved_at, submitted_at) values
   ('15140000-0000-0000-0000-0000000000d7', '15140000-0000-0000-0000-0000000000a1', '15140000-0000-0000-0000-0000000000b2', '2026-10-05', 'Approved', '15140000-0000-0000-0000-0000000000b3', now(), now()),
   ('15140000-0000-0000-0000-0000000000d8', '15140000-0000-0000-0000-0000000000a1', '15140000-0000-0000-0000-0000000000b7', '2026-11-02', 'Approved', '15140000-0000-0000-0000-0000000000b1', now(), now()),
-  ('15140000-0000-0000-0000-0000000000d6', '15140000-0000-0000-0000-0000000000a1', '15140000-0000-0000-0000-0000000000b4', '2026-11-02', 'Approved', '15140000-0000-0000-0000-0000000000b1', now(), now());
+  ('15140000-0000-0000-0000-0000000000d6', '15140000-0000-0000-0000-0000000000a1', '15140000-0000-0000-0000-0000000000b4', '2026-11-02', 'Approved', '15140000-0000-0000-0000-0000000000b1', now(), now()),
+  ('15140000-0000-0000-0000-0000000000d9', '15140000-0000-0000-0000-0000000000a1', '15140000-0000-0000-0000-0000000000b2', '2026-10-12', 'Approved', '15140000-0000-0000-0000-0000000000b3', now(), now());
 insert into timesheet_entries (id, org_id, timesheet_id, project_id, entry_date, hours) values
   ('15140000-0000-0000-0000-000000000e01', '15140000-0000-0000-0000-0000000000a1', '15140000-0000-0000-0000-0000000000d7', '15140000-0000-0000-0000-0000000000c1', '2026-10-05', 4),
-  ('15140000-0000-0000-0000-000000000e02', '15140000-0000-0000-0000-0000000000a1', '15140000-0000-0000-0000-0000000000d8', '15140000-0000-0000-0000-0000000000c1', '2026-11-02', 5);
+  ('15140000-0000-0000-0000-000000000e02', '15140000-0000-0000-0000-0000000000a1', '15140000-0000-0000-0000-0000000000d8', '15140000-0000-0000-0000-0000000000c1', '2026-11-02', 5),
+  ('15140000-0000-0000-0000-000000000e03', '15140000-0000-0000-0000-0000000000a1', '15140000-0000-0000-0000-0000000000d9', '15140000-0000-0000-0000-0000000000c2', '2026-10-14', 3);
+-- A work order on project 1 (a claim on project 2 must refuse it).
+insert into work_orders (id, org_id, project_id, title, order_value, tax_treatment, tax_amount) values
+  ('15140000-0000-0000-0000-0000000000f3', '15140000-0000-0000-0000-0000000000a1', '15140000-0000-0000-0000-0000000000c1', 'TM WO on project 1', 100, 'exclusive', 0);
 -- Project 2: three one-day labour lines for Engineer 1 (rounding case) and a rate that changes mid-claim for PM 1.
 insert into timesheet_entries (org_id, timesheet_id, project_id, entry_date, hours) values
   ('15140000-0000-0000-0000-0000000000a1', '15140000-0000-0000-0000-0000000000d1', '15140000-0000-0000-0000-0000000000c2', '2026-10-05', 0.05),
@@ -118,6 +118,9 @@ select lives_ok($q$select set_contract_rate_assignee('15140000-0000-0000-0000-00
 select lives_ok($q$select save_contract_rate_line('{"line_key":"15140000-0000-0000-0000-0000000000e9","project_id":"15140000-0000-0000-0000-0000000000c2","kind":"labour","label":"Changing rate","unit":"hour","rate":100,"currency":"IDR","effective_from":"2026-01-01","effective_to":"2026-12-31"}')$q$, 'Changing-rate line v1');
 select lives_ok($q$select save_contract_rate_line('{"line_key":"15140000-0000-0000-0000-0000000000e9","expected_version":1,"project_id":"15140000-0000-0000-0000-0000000000c2","kind":"labour","label":"Changing rate","unit":"hour","rate":120,"currency":"IDR","effective_from":"2026-11-04","effective_to":"2026-12-31"}')$q$, 'Changing-rate line v2 from 4 Nov');
 select lives_ok($q$select set_contract_rate_assignee('15140000-0000-0000-0000-0000000000c2','15140000-0000-0000-0000-0000000000e9','15140000-0000-0000-0000-0000000000b4','2026-01-01','2026-12-31')$q$, 'PM 1 holds the changing-rate line on project 2');
+-- A day-unit line for Finance 2 on project 2: hourly timesheet hours have no defined conversion to days.
+select lives_ok($q$select save_contract_rate_line('{"line_key":"15140000-0000-0000-0000-0000000000e7","project_id":"15140000-0000-0000-0000-0000000000c2","kind":"labour","label":"Day rate","unit":"day","rate":800,"currency":"IDR","effective_from":"2026-01-01","effective_to":"2026-12-31"}')$q$, 'Day-unit line saved');
+select lives_ok($q$select set_contract_rate_assignee('15140000-0000-0000-0000-0000000000c2','15140000-0000-0000-0000-0000000000e7','15140000-0000-0000-0000-0000000000b2','2026-01-01','2026-12-31')$q$, 'Finance 2 holds the day-unit line');
 
 -- ── AC-TM-001/002/005: the 120 h case ───────────────────────────────────────────────────────────
 set local request.jwt.claims = '{"sub":"15140000-0000-0000-0000-0000000000b4","role":"authenticated"}';
@@ -141,6 +144,9 @@ select is((select string_agg(unrated_reason, ',' order by unrated_reason) from t
   'no_assignee,no_rate', 'AC-TM-005 the unrated hours are listed with a reason (no assignee; assigned but no rate in force)');
 select is((select sum(units) from tm_assignable_sources('15140000-0000-0000-0000-0000000000c1','2026-10-05','2026-11-06') where unrated_reason is not null),
   9.00, 'AC-TM-005 the unrated hours are 4 h + 5 h and stay out of the 6,000,000.00 total');
+
+select is((select unrated_reason from tm_assignable_sources('15140000-0000-0000-0000-0000000000c2','2026-10-14','2026-10-14')),
+  'unit_not_supported', 'FR-TM-011 hourly hours on a day-unit line are listed unrated, never priced by guess');
 
 -- ── AC-TM-003: every source lives in at most one claim ──────────────────────────────────────────
 set local role authenticated;
@@ -221,6 +227,8 @@ set local role authenticated;
 set local request.jwt.claims = '{"sub":"15140000-0000-0000-0000-0000000000b6","role":"authenticated"}';
 select throws_ok($q$select assemble_tm_claim('15140000-0000-0000-0000-0000000000c1','2026-10-05','2026-10-16',null,null)$q$,
   '42501', null, 'AC-TM-011 an Engineer cannot assemble a claim');
+select throws_ok(format($q$select deselect_tm_source(%L, gen_random_uuid())$q$, pg_temp.st('claim2')),
+  '42501', null, 'AC-TM-011 an Engineer cannot deselect a source');
 select is(pg_temp.sc('select count(*) from tm_claims'), '0', 'AC-TM-011 an Engineer reads no claims');
 select is(pg_temp.sc('select count(*) from tm_claim_lines'), '0', 'AC-TM-011 an Engineer reads no claim lines');
 select is(pg_temp.sc('select count(*) from tm_claim_sources'), '0', 'AC-TM-011 an Engineer reads no claim sources');
@@ -228,9 +236,17 @@ set local request.jwt.claims = '{"sub":"15140000-0000-0000-0000-0000000000b5","r
 select throws_ok($q$select assemble_tm_claim('15140000-0000-0000-0000-0000000000c1','2026-10-05','2026-10-16',null,null)$q$,
   '42501', null, 'AC-TM-011 the PM of another project cannot assemble');
 select is(pg_temp.sc('select count(*) from tm_claims'), '2', 'AC-TM-011 a PM reads only the claims of their own project');
+select throws_ok(format($q$select deselect_tm_source(%L, gen_random_uuid())$q$, pg_temp.st('claim2')),
+  '42501', null, 'AC-TM-011 the PM of another project cannot deselect a source');
+select throws_ok($q$select assemble_tm_claim('15140000-0000-0000-0000-0000000000c2','2026-10-14','2026-10-14','15140000-0000-0000-0000-0000000000f3',null)$q$,
+  '23514', null, 'AC-TM-003 a work order on another project is refused');
+select throws_ok($q$select assemble_tm_claim('15140000-0000-0000-0000-0000000000c2','2026-10-14','2026-10-14',null,'"not-a-list"')$q$,
+  '22023', null, 'AC-TM-003 a malformed exclude list is refused');
 set local request.jwt.claims = '{"sub":"15140000-0000-0000-0000-0000000000b8","role":"authenticated"}';
 select throws_ok($q$select assemble_tm_claim('15140000-0000-0000-0000-0000000000c1','2026-10-05','2026-10-16',null,null)$q$,
   'P0002', null, 'AC-TM-011 another org cannot target the project');
+select throws_ok(format($q$select deselect_tm_source(%L, gen_random_uuid())$q$, pg_temp.st('claim2')),
+  'P0002', null, 'AC-TM-011 another org cannot reach a claim to deselect from it');
 select is(pg_temp.sc('select count(*) from tm_claims'), '0', 'AC-TM-011 another org reads no claims');
 set local request.jwt.claims = '{"sub":"15140000-0000-0000-0000-0000000000b1","role":"authenticated"}';
 select is(pg_temp.sc('select count(*) from tm_claims'), '5', 'AC-TM-011 Finance reads every claim of the org');
