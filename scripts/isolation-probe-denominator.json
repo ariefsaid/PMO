@@ -568,7 +568,7 @@
     "project-documents"
   ],
   "rpcs": [
-    {"name":"activate_budget_version","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0577_budget_distribution_rpc.sql:608"]},
+    {"name":"activate_budget_version","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0577_budget_distribution_rpc.sql:667"]},
     {"name":"actor_authorization_state","class":"inert","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0135_tier_scoped_ownership_and_actor_state.sql:74"]},
     {"name":"admin_set_user_status","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0065_admin_set_user_status.sql:56"]},
     {"name":"approve_procurement_amount","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0349_procurement_integrity_guards.sql:196"]},

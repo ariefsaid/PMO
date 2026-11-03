@@ -535,7 +535,11 @@ begin
       ),
       floored as (
         select weighted.year_name, weighted.ordinal, weighted.weight,
-               trunc(v_expected_amount * 100 * weighted.weight / totals.weight_sum) as base_cents,
+               -- div() truncates the exact integer quotient. Do NOT write trunc(a / b): PostgreSQL's
+               -- numeric division rounds to a selected scale first, so at large magnitudes a quotient
+               -- just below an integer (…999.9999999999) rounds up and trunc() then hands out a cent
+               -- that the largest-remainder step hands out again.
+               div(v_expected_amount * 100 * weighted.weight, totals.weight_sum) as base_cents,
                mod(v_expected_amount * 100 * weighted.weight, totals.weight_sum) as remainder
           from weighted cross join totals
       ),

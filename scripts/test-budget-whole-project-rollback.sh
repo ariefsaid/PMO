@@ -13,6 +13,13 @@ log="$(mktemp -t whole-project-rollback-probe.XXXXXX.log)"
 cleanup() { rm -f "$probe" "$log"; }
 trap cleanup EXIT
 
+# One multi-statement script per probe runs through psql in the local database container: the CLI's
+# `db query --file` rejects multi-statement input ("cannot insert multiple commands into a prepared
+# statement"), which would make this evidence meaningless.
+db_container="$(docker ps --format '{{.Names}}' | grep -m1 '^supabase_db_')"
+[ -n "$db_container" ] || { echo "FAIL: local Supabase database container not found" >&2; exit 1; }
+psql_file() { docker exec -i "$db_container" psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f - < "$1"; }
+
 # ── 1. The down migration must refuse while whole-project data would be stranded. ────────────────
 python3 - "$probe" <<'PY'
 import sys
@@ -36,7 +43,7 @@ values ('1473a000-0000-0000-0000-000000000001', '1473a222-0000-0000-0000-0000000
 Path(sys.argv[1]).write_text('begin;\n' + fixture + down_rpc + '\nrollback;\n')
 PY
 
-if supabase db query --local -f "$probe" >"$log" 2>&1; then
+if psql_file "$probe" >"$log" 2>&1; then
   echo "FAIL: reversing 0577 did not refuse while whole-project data existed" >&2
   cat "$log" >&2
   exit 1
@@ -115,7 +122,7 @@ select 'up 0577: save restored with exactly one signature' as step;
 Path(sys.argv[1]).write_text('begin;\n' + down_rpc + '\n' + checks + '\nrollback;\n')
 PY
 
-supabase db query --local -f "$probe" >"$log" 2>&1 || { cat "$log" >&2; exit 1; }
+psql_file "$probe" >"$log" 2>&1 || { cat "$log" >&2; exit 1; }
 grep -q 'down 0577: functions reversed and activation restored' "$log" || { cat "$log" >&2; exit 1; }
 grep -q 'down 0576: mode column and distribution tables removed' "$log" || { cat "$log" >&2; exit 1; }
 grep -q 'up 0576: mode column restored' "$log" || { cat "$log" >&2; exit 1; }
