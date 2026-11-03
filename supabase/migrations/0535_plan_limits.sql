@@ -142,9 +142,11 @@ begin
   -- Same predicate as profiles_admin_insert (0179:166) plus the Operator clause the invite path uses
   -- (0065:109-122): an Admin of the row's org, or a platform Operator. Anything else is refused here,
   -- BEFORE the seat count can reveal whether that org is at its cap.
-  if not (new.org_id = public.auth_org_id()
-          and (public.auth_role() = 'Admin' or public.is_operator())
-          and public.is_active_member()) then
+  -- coalesce(..., false): every clause is TOTAL on purpose — an unresolvable caller (no claims, no
+  -- profile) must be REFUSED here, never waved through on a NULL-valued condition (0176 §6's defect).
+  if not coalesce(new.org_id = public.auth_org_id()
+                  and (public.auth_role() = 'Admin' or public.is_operator())
+                  and public.is_active_member(), false) then
     raise exception 'not authorized' using errcode = '42501';
   end if;
   return new;
