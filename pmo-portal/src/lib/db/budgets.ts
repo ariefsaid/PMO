@@ -516,10 +516,10 @@ function isVersionAllocationConflict(error: { code?: string; message?: string })
  * org_id is NEVER sent (AC-724, FR-BV-004).
  *
  * ⚠ #1472 FR-001: the UI names its mode EXPLICITLY (`budgetMode: 'whole_project'`) at the
- * repository boundary. The bulk-import/provenance entry omits the argument entirely, so its
- * insert carries no `budget_mode` key and the column keeps its own `'per_year'` default — a
- * historic record is never retroactively reinterpreted, and the CLI loader's fixed column list
- * is untouched. A clone inherits the source mode server-side (`clone_budget_version`, 0577).
+ * repository boundary; the import entry names `per_year` explicitly so future default changes
+ * cannot reinterpret imported history. Other mode-less callers and the CLI loader's fixed column
+ * list retain the database's `'per_year'` default. A clone inherits the source mode server-side
+ * (`clone_budget_version`, 0577).
  */
 export async function createBudgetVersion(
   projectId: string,
@@ -548,8 +548,9 @@ export async function createBudgetVersion(
         version: nextVersion,
         name,
         status: 'Draft',
-        // #1472 FR-001: only a caller that NAMES a mode sends the column; every other write path
-        // (import, CLI load) keeps the DB's own 'per_year' default, byte-identical.
+        // #1472 FR-001: the UI names whole_project and import names per_year explicitly; other
+        // mode-less write paths keep the database's own 'per_year' default. The CLI load path is
+        // unchanged and still omits this column from its fixed allowlist.
         ...(budgetMode ? { budget_mode: budgetMode } : {}),
         // ⚑ `currency` is DELIBERATELY absent (FR-BIMP-006 / DD-BIMP-2): 0187's `stamp_currency`
         // BEFORE-INSERT trigger resolves it from `organizations.default_currency`. A client

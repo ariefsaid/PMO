@@ -34,8 +34,8 @@ export interface BudgetRepository {
     projectId: string,
     name: string,
     provenance?: ImportProvenance,
-    /** #1472 FR-001: the UI names its mode explicitly; the import path omits it and keeps the
-     *  column's own `per_year` default. Never guess a mode on a caller's behalf. */
+    /** #1472 FR-001: UI creation names `whole_project`; import names `per_year` explicitly, and
+     *  other mode-less callers retain the column's `per_year` default. Never guess a mode. */
     budgetMode?: BudgetVersionMode,
   ): Promise<BudgetVersionRow>;
   /** #1472 S6A: one version's saved whole-project distribution, or `null` when none exists.
