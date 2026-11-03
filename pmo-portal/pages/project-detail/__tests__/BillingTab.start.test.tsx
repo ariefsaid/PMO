@@ -42,6 +42,7 @@ vi.mock('@/src/hooks/useWorkOrderAcceptances', () => ({
   useProjectWorkOrderLines: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
 vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => ({ data: h.docs, isPending: false, isError: false }) }));
+vi.mock('../TimeAndMaterials', () => ({ default: () => null }));
 
 import BillingTab from '../tabs/BillingTab';
 import { FinanceI18nTestProvider } from '../../__tests__/financeI18nTestProvider';
