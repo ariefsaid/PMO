@@ -109,8 +109,8 @@ export const MODULES: ModuleDef[] = [
     labelKey: 'shell.nav.vendors',
     path: '/companies?type=Vendor',
     roles: [UserRole.ProjectManager, UserRole.Finance, UserRole.Admin],
-    // The Suppliers doorway exists because a CRM-less org otherwise has no path to vendors.
-    unlessFeature: 'crm',
+    // This destination follows the CRM gate on the /companies route.
+    feature: 'crm',
   },
   {
     module: 'contacts',
