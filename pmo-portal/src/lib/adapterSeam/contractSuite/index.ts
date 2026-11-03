@@ -6,6 +6,7 @@ import { cutoverPurchaseSuite } from './cutoverPurchase.suite.ts';
 import { cutoverSuite } from './cutover.suite.ts';
 import type { Suite } from './harness.ts';
 import { imprestTransferSuite } from './imprestTransfer.suite.ts';
+import { invoicePairSuite } from './invoicePair.suite.ts';
 import { matchSuite } from './match.suite.ts';
 import { partySuite } from './party.suite.ts';
 import { actualsReadSuite } from './actuals.suite.ts';
@@ -43,4 +44,5 @@ export const SUITES: Readonly<Partial<Record<WorkflowId, Suite>>> = {
   'budget.push': budgetPushSuite,
   'timesheet.push': timesheetPushSuite,
   'imprest.transfer': imprestTransferSuite,
+  'invoice.pair-existing': invoicePairSuite,
 };

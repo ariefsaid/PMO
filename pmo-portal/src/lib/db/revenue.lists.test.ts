@@ -224,4 +224,14 @@ describe('db/revenue listIncomingPayments — same cap, same fix', () => {
     const rows = await listIncomingPayments();
     expect(rows[0].customer_name).toBeNull();
   });
+
+  it('AC-ECA-030 the invoice list leaves out a PMO copy paired to an ERP invoice, unless a caller asks for paired rows', async () => {
+    h.state.pages.sales_invoices = [invoiceRows(1), invoiceRows(1)];
+
+    await listSalesInvoices();
+    await listSalesInvoices({ includePaired: true });
+
+    expect(h.state.calls[0].is).toContainEqual(['paired_erp_invoice_id', null]);
+    expect(h.state.calls[1].is).not.toContainEqual(['paired_erp_invoice_id', null]);
+  });
 });

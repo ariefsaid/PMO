@@ -24,6 +24,10 @@ vi.mock('@/src/auth/usePermission', () => ({
   },
 }));
 vi.mock('@/src/auth/useFeature', () => ({ useFeature: () => true }));
+vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'user-1', org_id: 'org-1' } }) }));
+vi.mock('@/src/components/integrations/InvoicePairReview', () => ({
+  InvoicePairReview: ({ orgId }: { orgId?: string }) => <section data-testid="invoice-pair-review">{orgId}</section>,
+}));
 vi.mock('@/src/hooks/useFinancePosition', () => ({
   useFinancePosition: () => ({
     position: state.position,
@@ -92,6 +96,11 @@ afterEach(() => {
 });
 
 describe('Finance hub', () => {
+  it('I2 mounts the invoice pair review on the page Finance lands on, handing it the caller org', () => {
+    renderHub('Finance');
+    expect(screen.getByTestId('invoice-pair-review')).toHaveTextContent('org-1');
+  });
+
   it('shows unknown receivables instead of no balance and explains empty ageing', () => {
     state.position = { ...positionFixture(), receivablesAgeing: {}, receivablesUnknownCount: 1, overdueUnknownCount: 1, overdue: [] };
     render(<MemoryRouter><FinanceHub /></MemoryRouter>);
