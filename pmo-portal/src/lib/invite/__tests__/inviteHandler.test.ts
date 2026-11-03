@@ -14,11 +14,13 @@ function mockDb(opts: {
   profileError?: { code?: string; message: string } | null;
   orgExists?: boolean;
   dup?: boolean;
+  seatError?: { code?: string; message: string } | null;
 }): InviteSupabaseLike {
   const rpc = vi.fn(async (fn: string) => {
     if (fn === 'is_operator') return { data: opts.isOperator ?? false, error: null };
     if (fn === 'operator_org_exists') return { data: opts.orgExists ?? true, error: null };
     if (fn === 'org_has_member_email') return { data: opts.dup ?? false, error: null };
+    if (fn === 'assert_seat_available') return { data: null, error: opts.seatError ?? null };
     return { data: null, error: null };
   });
   const from = vi.fn(() => ({
@@ -91,6 +93,45 @@ describe('authorizeInvite', () => {
     await expect(
       authorizeInvite(db, 'caller-1', { email: 'not-an-email', role: 'Engineer' }),
     ).rejects.toMatchObject({ code: 'BAD_EMAIL', status: 400 });
+  });
+
+  it('AC-PLN-009 checks the plan seats for the resolved target org before issuing anything', async () => {
+    const db = mockDb({ isOperator: true, profile: { org_id: 'op-home', role: 'Admin', email: 'op@example.com' }, orgExists: true });
+    await authorizeInvite(db, 'operator-1', { email: 'new@example.com', role: 'Finance', p_org_id: 'org-target' });
+    expect(db.rpc).toHaveBeenCalledWith('assert_seat_available', { p_org_id: 'org-target' });
+  });
+
+  it('AC-PLN-009 refuses an invite past the seat limit with the typed SEAT_LIMIT_REACHED', async () => {
+    const db = mockDb({
+      isOperator: false,
+      profile: { org_id: 'org-1', role: 'Admin', email: 'admin@example.com' },
+      seatError: { code: 'PL001', message: 'seat_limit_reached: the starter plan allows 10 seats' },
+    });
+    await expect(
+      authorizeInvite(db, 'caller-1', { email: 'new@example.com', role: 'Engineer' }),
+    ).rejects.toMatchObject({ code: 'SEAT_LIMIT_REACHED', status: 409 });
+  });
+
+  it('AC-PLN-009 recognises the refusal by its message marker too (transport variants)', async () => {
+    const db = mockDb({
+      isOperator: false,
+      profile: { org_id: 'org-1', role: 'Admin', email: 'admin@example.com' },
+      seatError: { message: 'seat_limit_reached: the growth plan allows 25 seats' },
+    });
+    await expect(
+      authorizeInvite(db, 'caller-1', { email: 'new@example.com', role: 'Engineer' }),
+    ).rejects.toMatchObject({ code: 'SEAT_LIMIT_REACHED' });
+  });
+
+  it('AC-PLN-009 FAILS OPEN on an unrelated seat-check error (the profiles trigger is the authority)', async () => {
+    const db = mockDb({
+      isOperator: false,
+      profile: { org_id: 'org-1', role: 'Admin', email: 'admin@example.com' },
+      seatError: { code: '08006', message: 'connection failure' },
+    });
+    await expect(
+      authorizeInvite(db, 'caller-1', { email: 'new@example.com', role: 'Engineer' }),
+    ).resolves.toEqual({ targetOrgId: 'org-1', role: 'Engineer' });
   });
 
   it('builds the profiles insert payload: org-Admin invite pins to their own org, never client-decided', async () => {
