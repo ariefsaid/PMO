@@ -67,7 +67,7 @@ const ALLOW = [
   { file: 'components/IncidentFormModal.tsx', name: 'FormValues', reason: "form state: '' for empty, converted at submit." },
   { file: 'pages/contact/ContactFormModal.tsx', name: 'FormValues', reason: "form state: '' for empty, converted at submit." },
   { file: 'pages/project-detail/MilestoneFormModal.tsx', name: 'FormValues', reason: "form state: '' for empty, converted at submit." },
-  { file: 'pages/project-detail/tabs/TasksTab.tsx', name: 'FormValues', reason: "form state: '' for empty, converted at submit." },
+  { file: 'pages/project-detail/tabs/TaskFormModal.tsx', name: 'FormValues', reason: "form state: '' for empty, converted at submit." },
 
   // ── Not a row read at all: the shape of an inbound ClickUp webhook, which happens to share column
   //    names with the table it lands in. The payload's fields are required BY CLICKUP.

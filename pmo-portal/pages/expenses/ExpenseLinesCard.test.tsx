@@ -3,7 +3,7 @@ import { render, screen, within, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
-import { formatCurrencyAuto } from '@/src/lib/format';
+import { formatCurrency } from '@/src/lib/format';
 
 const h = vi.hoisted(() => ({
   addLine: { mutateAsync: vi.fn(), isPending: false },
@@ -48,8 +48,8 @@ describe('ExpenseLinesCard', () => {
     renderCard(false, [LINE]);
     const table = screen.getByRole('table');
     expect(within(table).getByRole('columnheader', { name: 'Description' })).toBeInTheDocument();
-    expect(screen.getByTestId('lines-total')).toHaveTextContent(formatCurrencyAuto(150000, 'IDR').replace(/\u00a0/g, ' '));
-    expect(within(table).getAllByText(formatCurrencyAuto(150000, 'IDR').replace(/\u00a0/g, ' '))).toHaveLength(2);
+    expect(screen.getByTestId('lines-total')).toHaveTextContent(formatCurrency(150000, 'IDR').replace(/\u00a0/g, ' '));
+    expect(within(table).getAllByText(formatCurrency(150000, 'IDR').replace(/\u00a0/g, ' '))).toHaveLength(2);
     expect(within(table).getByText('Taxi')).toBeInTheDocument();
   });
   it('AC-EXP-062 keeps the expense line card layout on phones', () => {
@@ -57,8 +57,8 @@ describe('ExpenseLinesCard', () => {
     renderCard(false, [LINE]);
     const cards = screen.getByTestId('dt-card-branch');
     expect(within(cards).getByText('Taxi')).toBeInTheDocument();
-    expect(within(cards).getAllByText(formatCurrencyAuto(150000, 'IDR').replace(/\u00a0/g, ' '))).toHaveLength(2);
-    expect(within(cards).getByTestId('lines-total')).toHaveTextContent(formatCurrencyAuto(150000, 'IDR').replace(/\u00a0/g, ' '));
+    expect(within(cards).getAllByText(formatCurrency(150000, 'IDR').replace(/\u00a0/g, ' '))).toHaveLength(2);
+    expect(within(cards).getByTestId('lines-total')).toHaveTextContent(formatCurrency(150000, 'IDR').replace(/\u00a0/g, ' '));
     const total = within(cards).getByTestId('lines-total');
     expect(total.closest('dl')).toHaveTextContent('Amount');
     expect(total.closest('dl')).not.toHaveTextContent('Date');

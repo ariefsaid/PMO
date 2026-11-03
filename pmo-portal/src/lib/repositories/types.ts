@@ -11,6 +11,10 @@
  * consumed only by new CRUD code. No signature here diverges from its DAL counterpart;
  * the repository is a thin wrapper that normalizes the thrown error type.
  *
+ * ⚠ Vocabulary: "entity" in this seam ("one interface per entity", `Repositories`) names any
+ * persisted record type generically. It is NOT the operating-company **Entity** dimension of
+ * docs/GLOSSARY.md, and nothing here implies a project-to-Entity relation.
+ *
  * Since the domain split (T-29) the per-domain contracts live in `./contracts/*`, grouped
  * by domain. This module keeps the `Repositories` aggregate plus TYPE-ONLY re-exports of
  * every contract, so the external import surface of the seam is unchanged.

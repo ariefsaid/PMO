@@ -8,7 +8,7 @@ import { useProjectWorkOrders } from '@/src/hooks/useWorkOrders';
 import { useWorkOrderAcceptanceAge, useWorkOrderBilling } from '@/src/hooks/useWorkOrderBilling';
 import { deriveBillingMilestoneStatus, sortBillingMilestones, type BillingMilestoneStatus } from '@/src/lib/billingMilestones';
 import { canInvoiceWorkOrder } from '@/src/lib/workOrderBilling';
-import { formatCurrencyAuto, formatDateOnly } from '@/src/lib/format';
+import { formatCurrency, formatDateOnly } from '@/src/lib/format';
 
 const TONE: Record<BillingMilestoneStatus, StatusVariant> = { unknown: 'warn', planned: 'open', 'in-progress': 'progress', invoiced: 'neutral', paid: 'won' };
 
@@ -70,7 +70,7 @@ const Body: React.FC<{ projectId: string }> = ({ projectId }) => {
               </Tooltip>}
             </div>
             <div className="flex shrink-0 flex-wrap items-center gap-2">
-              {b && <span className="text-sm font-semibold tabular-nums">{formatCurrencyAuto(b.orderNet, b.currency)}{' '}
+              {b && <span className="text-sm font-semibold tabular-nums">{formatCurrency(b.orderNet, b.currency)}{' '}
                 <TaxBasisLabel treatment="exclusive" showDetails={false} /></span>}
               {derived && <Tooltip content={t('projectDetail.billingMilestones.statusSource', "Source: this work order's invoices and drafts (Contract & billing).")}>
                 <span tabIndex={0}><StatusPill variant={TONE[derived.status]}>{statusLabel[derived.status]}</StatusPill></span></Tooltip>}

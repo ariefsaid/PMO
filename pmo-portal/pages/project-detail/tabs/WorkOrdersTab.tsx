@@ -26,6 +26,7 @@ import { ExportButton } from '@/src/components/export';
 import { usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
 import { formatCurrency, formatDateOnly, formatNumberExact, formatNumberWhole, formatUtcMonthYear, currencySymbol } from '@/src/lib/format';
+import { localToday } from '@/src/lib/efaktur';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import {
   isOverCommitmentRefusal,
@@ -120,12 +121,6 @@ function invoiceBalanceFigures(invoice: InvoiceWithWorkOrder): { paid: number | 
   if (invoice.status === 'Paid') return { paid: invoice.amount, unpaid: 0 };
   const balance = summarizeInvoiceSettlement([invoice]);
   return { paid: balance.paid, unpaid: balance.unpaid };
-}
-
-/** `YYYY-MM-DD` in the browser's zone — only the BAST date dialog's default. */
-function todayIso(): string {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 }
 
 function thisMonth(): string {
@@ -853,7 +848,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
               const workOrderStatusTone: StatusVariant = row.status === 'Closed' ? 'won' : row.status === 'Cancelled' ? 'lost' : 'progress';
               const latestConfirmedBast = bastList.find((acceptance) => acceptance.status === 'Confirmed');
               const orderOverdue = orderInvoices.reduce((sum, invoice) => {
-                if (!invoice.erp_due_date || invoice.erp_due_date >= todayIso() || invoice.status === 'Draft' || invoice.status === 'Cancelled') return sum;
+                if (!invoice.erp_due_date || invoice.erp_due_date >= localToday() || invoice.status === 'Draft' || invoice.status === 'Cancelled') return sum;
                 const balance = invoice.status === 'Paid' ? 0 : invoice.erp_outstanding_amount;
                 return balance === null ? sum : sum + Math.max(0, balance);
               }, 0);
@@ -1400,7 +1395,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
           allocations={allocationsByWo.get(bastFor.row.id) ?? []}
           acceptances={acceptancesByWo.get(bastFor.row.id) ?? []}
           documents={documents.data ?? []}
-          today={todayIso()}
+          today={localToday()}
           draft={bastFor.draft}
           onClose={() => setBastFor(null)}
           onSave={runPrepare}

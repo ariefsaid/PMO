@@ -19,7 +19,7 @@ vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole
 
 import { ExpenseClaimApprovalSection } from './ExpenseClaimApprovalSection';
 import { DocumentViewerProvider } from '@/src/components/documents';
-import { formatCurrencyAuto } from '@/src/lib/format';
+import { formatCurrency } from '@/src/lib/format';
 
 const item = (id: string, claimant: string, route: unknown) => ({
   claim: { id, claim_number: `EXP-${id}`, title: `Claim ${id}`, claimant_id: claimant, claimant: { full_name: 'X' }, amount: 100, currency: 'IDR', status: 'Submitted' },
@@ -113,7 +113,7 @@ describe('#1635 float claim amounts use the float currency', () => {
     h.userId = 'sen'; h.role = 'Executive';
     render(<MemoryRouter><ExpenseClaimApprovalSection /></MemoryRouter>);
     const text = (title: string) => (screen.getByText(title).closest('li')?.textContent ?? '').replace(/\s/g, ' ');
-    const money = (n: number, c: string) => formatCurrencyAuto(n, c).replace(/\s/g, ' ');
+    const money = (n: number, c: string) => formatCurrency(n, c).replace(/\s/g, ' ');
     expect(text('Claim fl')).toContain(money(100, 'USD'));
     expect(text('Claim fl')).not.toContain(money(100, 'IDR'));
     expect(text('Claim ord')).toContain(money(100, 'IDR'));

@@ -10,7 +10,7 @@ import type { GetFinancialStatementInput } from '@/src/lib/db/financialStatement
 import type { FinancialStatementPair, FinancialStatementRead } from '@/src/lib/financialStatements';
 import { formatDateOnly } from '@/src/lib/format';
 
-export interface ProjectProfitLossSectionProps {
+interface ProjectProfitLossSectionProps {
   projectId: string;
 }
 

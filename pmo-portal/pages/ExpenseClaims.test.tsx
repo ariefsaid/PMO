@@ -4,9 +4,9 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
-import { formatCurrencyAuto } from '@/src/lib/format';
+import { formatCurrency } from '@/src/lib/format';
 // The DOM matchers collapse NBSP to a space; Intl emits NBSP between code and digits.
-const money = (v: number, c: string) => formatCurrencyAuto(v, c).replace(/\u00a0/g, ' ');
+const money = (v: number, c: string) => formatCurrency(v, c).replace(/\u00a0/g, ' ');
 
 const mockNavigate = vi.fn();
 vi.mock('react-router', async (importOriginal) => {

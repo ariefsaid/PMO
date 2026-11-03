@@ -5,7 +5,7 @@ import { Badge, Icon, StatusPill, TaxBasisLabel, Tooltip, type Column } from '@/
 import { EfakturCell } from '@/src/components/EfakturCell';
 import { withCurrencyColumn } from '@/src/components/export';
 import FxEquivalent from '@/src/components/fx/FxEquivalent';
-import { formatCurrency, formatCurrencyAuto, formatCurrencyCents, formatDateOnly, formatInstantDate } from '@/src/lib/format';
+import { formatCurrency, formatCurrencyCents, formatDateOnly, formatInstantDate } from '@/src/lib/format';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 import type { TaxTreatment } from '@/src/lib/db/procurementLifecycle';
 import { deriveArDueDate } from '@/src/lib/repositories/revenueDisplay';
@@ -32,7 +32,7 @@ export function salesInvoiceColumns({ t, all, embedded, native, location, orgCur
   const projectLabelOf = (inv: SalesInvoiceRow) => projectOptionsById.get(inv.project_id ?? '')?.contractualName;
   const showEfaktur = all.some((inv) => inv.efaktur_number || inv.efaktur_date);
   // Lists show whole units (G1); exact cents stay on the record page.
-  const listMoney = embedded ? formatCurrency : formatCurrencyAuto;
+  const listMoney = formatCurrency;
   const invoiceColumn: Column<SalesInvoiceRow> = {
     key: 'si_number',
     header: embedded ? t('finance:receivables.invoiceColumn', 'Invoice') : t('financeCopy.invoice', "Invoice #"),

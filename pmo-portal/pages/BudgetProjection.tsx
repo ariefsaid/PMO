@@ -8,7 +8,7 @@ import type { BudgetProjectionCellRow } from '@/src/lib/repositories/budgetProje
 import { fetchActiveBudgetCategoryPhasing, fetchBudgetProjection, fetchFirstSpendingYear, listBudgetFiscalYears } from '@/src/lib/repositories/budgetProjection';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import { chooseDefaultBudgetFiscalYear } from '@/src/lib/budget/budgetProjection';
-import { formatCurrencyAuto, formatInstantDate } from '@/src/lib/format';
+import { formatCurrency, formatInstantDate } from '@/src/lib/format';
 import { useForecastEditor } from './budget-projection/useForecastEditor';
 import { interpretForecast } from './budget-projection/forecastInterpretation';
 
@@ -23,7 +23,7 @@ interface BudgetProjectionProps {
   onExport: (rows: BudgetProjectionCellRow[]) => void;
 }
 
-const moneyText = (value: number | null, currency: string) => value === null ? '—' : formatCurrencyAuto(value, currency);
+const moneyText = (value: number | null, currency: string) => value === null ? '—' : formatCurrency(value, currency);
 
 /** Forecast final over budget as a percent; the projection carries it as a fraction (0.95 = 95%). */
 const utilizationPct = (row: BudgetProjectionCellRow) => row.projectedUtilization === null ? null : row.projectedUtilization * 100;
@@ -138,7 +138,7 @@ export default function BudgetProjection({ projectId, currency, budgetCurrency, 
             aria-label={t('projectDetail.budget.costToFinishFor', 'Cost to finish for {{category}}', { category: budgetCategoryLabel(row.category, t) })}
           />
         </div>
-        : <Tooltip content={t('projectDetail.budget.etcSource', 'PM estimate to complete, saved for this fiscal year.')}><span tabIndex={0}>{formatCurrencyAuto(row.pmoEtc, currency)}</span></Tooltip>,
+        : <Tooltip content={t('projectDetail.budget.etcSource', 'PM estimate to complete, saved for this fiscal year.')}><span tabIndex={0}>{formatCurrency(row.pmoEtc, currency)}</span></Tooltip>,
     },
     {
       key: 'final',
@@ -180,7 +180,7 @@ export default function BudgetProjection({ projectId, currency, budgetCurrency, 
     values: {
       budget: moneyText(totalBudget, budgetCurrency),
       spent: <span className="inline-flex flex-col items-end"><span>{moneyText(interpretation.summary.actuals, currency)}</span><span className="text-xs font-normal text-muted-foreground">{t('projectDetail.budget.projectCommitmentsShort', 'Committed · project-wide')}: {moneyText(totalCommitted, currency)}</span></span>,
-      etc: formatCurrencyAuto(interpretation.summary.etc, currency),
+      etc: formatCurrency(interpretation.summary.etc, currency),
       final: moneyText(interpretation.summary.final, currency),
       remaining: moneyText(totalForecastRemaining, currency),
     },
@@ -271,7 +271,7 @@ export default function BudgetProjection({ projectId, currency, budgetCurrency, 
               [t('financeCopy.budget', 'Budget'), moneyText(selected.pmoBudgetAmount, budgetCurrency), t('projectDetail.budget.forecastBudgetSource', 'Source: the active budget version, phased to this fiscal year.')],
               [t('projectDetail.budget.spent', 'Spent'), moneyText(selected.actualsToDate, currency), t('projectDetail.budget.forecastActualsAsOf', 'Source: ERP ledger through the recorded as-of date.')],
               [t('projectDetail.budget.projectCommitmentsShort', 'Committed · project-wide'), canReadCommitments ? moneyText(committedByCategory[selected.category] ?? 0, currency) : '—', t('projectDetail.budget.forecastCommitmentSummary', 'Committed amounts are project-wide and not assigned to a fiscal year.')],
-              [t('projectDetail.budget.costToFinish', 'Cost to finish'), formatCurrencyAuto(selected.pmoEtc, currency), t('projectDetail.budget.etcSource', 'PM estimate to complete, saved for this fiscal year.')],
+              [t('projectDetail.budget.costToFinish', 'Cost to finish'), formatCurrency(selected.pmoEtc, currency), t('projectDetail.budget.etcSource', 'PM estimate to complete, saved for this fiscal year.')],
               [t('projectDetail.budget.forecastFinal', 'Forecast final'), moneyText(selected.projectedFinalCost, currency), t('projectDetail.budget.forecastFinalFormula', 'Calculated as ERP spending to date plus cost to finish.')],
               [t('projectDetail.budget.forecastRemaining', 'Forecast remaining'), moneyText(selected.projectedVariance, currency), t('projectDetail.budget.forecastRemainingFormula', 'Calculated as fiscal-year budget minus forecast final. Negative values are an overrun.')],
             ].map(([label, value, source]) => <div key={label}><dt className="text-muted-foreground">{label}</dt><dd className="mt-1 font-semibold tabular-nums"><Tooltip content={source}><span tabIndex={0}>{value}</span></Tooltip></dd></div>)}

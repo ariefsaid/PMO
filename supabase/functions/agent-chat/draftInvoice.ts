@@ -259,19 +259,22 @@ export async function workOrderStillToInvoice(sb: LooseClient, wo: WorkOrderRow)
 
 export interface MilestoneRow { id: string; name: string; project_id: string; sort_order: number }
 const MS_COLS = 'id, name, project_id, sort_order';
-const POSITION_RE = /^(?:m|milestone)?\s*#?\s*(\d{1,3})$/i;
+/** Positional reference, e.g. "2", "m 2", "milestone #2". "phase 2" is accepted too — DD-VOCAB-1
+ *  shows the work chunk to users as Phase; internally it stays a milestone (XD1-007). Bare "p" is
+ *  deliberately NOT a position prefix so milestone names like "P2" keep resolving by name. */
+const POSITION_RE = /^(?:m|milestone|phase)?\s*#?\s*(\d{1,3})$/i;
 
 export async function resolveMilestone(sb: LooseClient, term: string, project: ProjectRow | null): Promise<Resolved<MilestoneRow>> {
   const pos = POSITION_RE.exec(term.trim());
   if (pos) {
-    if (!project) return refuse('Which project is the milestone on?', 'choice');
+    if (!project) return refuse('Which project is the phase on?', 'choice');
     const all = await readRows<MilestoneRow>(
       sb.from('project_milestones').select(MS_COLS).eq('project_id', project.id)
         .order('sort_order', { ascending: true }).order('created_at', { ascending: true }).limit(200),
     );
     const n = Number(pos[1]);
     const m = all[n - 1];
-    return m ? { ok: true, value: m } : refuse(`${project.name} has ${all.length} milestones; there is no milestone ${n}.`);
+    return m ? { ok: true, value: m } : refuse(`${project.name} has ${all.length} phases; there is no phase ${n}.`);
   }
   let q = sb.from('project_milestones').select(MS_COLS);
   if (UUID_RE.test(term.trim())) {
@@ -279,18 +282,18 @@ export async function resolveMilestone(sb: LooseClient, term: string, project: P
     q = q.eq('id', term.trim());
   } else {
     const like = toLikeTerm(term);
-    if (!like) return refuse(`No milestone matches "${term}".`);
+    if (!like) return refuse(`No phase matches "${term}".`);
     q = q.ilike('name', `%${like}%`);
   }
   if (project) q = q.eq('project_id', project.id);
   const rows = await readRows<MilestoneRow>(q.limit(CANDIDATE_LIMIT));
   if (rows.length === 1) return { ok: true, value: rows[0] };
-  if (rows.length === 0) return refuse(`No milestone matches "${term}".`);
+  if (rows.length === 0) return refuse(`No phase matches "${term}".`);
   // Same-named milestones on different projects must stay distinguishable: label with the project (M2).
   const names = new Map<string, string>();
   const ids = [...new Set(rows.map((m) => m.project_id))];
   for (const pr of await readRows<{ id: string; name: string }>(sb.from('projects').select('id, name').in('id', ids))) names.set(pr.id, pr.name);
-  return refuse('Which milestone?', 'choice', rows.map((m) => ({ id: m.id, label: names.has(m.project_id) ? `${names.get(m.project_id)} — ${m.name}` : m.name })));
+  return refuse('Which phase?', 'choice', rows.map((m) => ({ id: m.id, label: names.has(m.project_id) ? `${names.get(m.project_id)} — ${m.name}` : m.name })));
 }
 
 export const ITEM_CATALOG_TIMEOUT_MS = 10_000;
@@ -484,7 +487,7 @@ async function runNativeDraft(p: DraftInvoicePrepared, ctx: DeputyContext): Prom
     const dup = drafts.find((d) => Array.isArray(d.native_lines)
       && d.native_lines.some((l: { description?: unknown; rate?: unknown }) => typeof l?.description === 'string' && l.description.trim() === line.description.trim() && l?.rate === line.rate));
     if (dup) {
-      return { error: 'A Draft for this milestone and amount already exists. Open it in Sales Invoices instead of creating another.', code: 'duplicate-draft', id: dup.id, link: `/sales-invoices/${dup.id}` };
+      return { error: 'A Draft for this phase and amount already exists. Open it in Sales Invoices instead of creating another.', code: 'duplicate-draft', id: dup.id, link: `/sales-invoices/${dup.id}` };
     }
   }
   let out: Awaited<ReturnType<typeof rpc.rpc>>;
