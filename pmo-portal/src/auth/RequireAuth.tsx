@@ -3,41 +3,32 @@ import { Navigate, Outlet, useLocation } from 'react-router';
 import { useAuth } from './useAuth';
 import { Button } from '../components/ui/Button';
 import { Card, CardPad } from '../components/ui/Card';
+import { ListState } from '../components/ui/ListState';
 import { returnToState } from './returnTo';
 
 // -----------------------------------------------------------------------
 // RequireAuth — DESIGN.md token-pure reskin (IA-3 / RIS identity)
 // No gray-* / dark: / primary-NNN utilities.
-// Loading → centered spinner on tinted ground.
+// Loading → page-shaped skeleton on tinted ground (never a bare spinner).
 // profileErrorKind='load_error' → tinted destructive banner with retry (unchanged).
 // profileErrorKind='not_provisioned' → calm "not set up yet" card + Sign out
 // (Retry can't help — there's no profiles row for a Retry to find). AC-MSAUTH-010/011.
 // -----------------------------------------------------------------------
 
-/** Full-page loading state — tinted secondary ground, centered spinner */
+/** Full-page loading state — the shape of an app page while the session resolves. */
 const AuthLoading: React.FC = () => (
   <div
-    role="status"
-    aria-live="polite"
-    aria-label="Authenticating…"
-    className="flex min-h-[100dvh] items-center justify-center bg-secondary/35"
+    className="min-h-[100dvh] bg-secondary/35"
   >
-    {/* Accessible spinner — matches Button's Spinner implementation */}
-    <svg
-      className="size-7 animate-spin text-primary"
-      viewBox="0 0 24 24"
-      fill="none"
-      aria-hidden="true"
-    >
-      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2.5" opacity="0.25" />
-      <path
-        d="M21 12a9 9 0 0 0-9-9"
-        stroke="currentColor"
-        strokeWidth="2.5"
-        strokeLinecap="round"
-      />
-    </svg>
-    <span className="sr-only">Authenticating…</span>
+    <ListState
+      variant="loading"
+      shape="detail"
+      rows={4}
+      loadingLabel="Authenticating…"
+      loadingRole="status"
+      loadingAriaLabel="Authenticating…"
+      className="mx-auto w-full max-w-3xl px-4 py-10"
+    />
   </div>
 );
 

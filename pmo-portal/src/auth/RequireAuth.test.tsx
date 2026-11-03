@@ -81,10 +81,10 @@ describe('RequireAuth return-to (AC-CLI-012)', () => {
 
 describe('RequireAuth loading state (AC-AUTH-RESKIN-008)', () => {
   it('loading fallback has role=status and no legacy gray- classes', () => {
-    // RequireAuth renders loading spinner while auth resolves
+    // RequireAuth renders its loading status while auth resolves.
     // We test the loading component directly by inspecting the rendered DOM
     const { container } = render(tree('/'));
-    // During the loading phase, the spinner should have role=status
+    // During the loading phase, the status region remains accessible.
     // (this will only catch it if the component renders before auth resolves)
     // The key assertion: no banned classes in the fallback component
     const allClasses = Array.from(container.querySelectorAll('*'))

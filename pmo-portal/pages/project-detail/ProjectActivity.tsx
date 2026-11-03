@@ -43,7 +43,7 @@ export const MyOpenTasks: React.FC<{ projectId: string }> = ({ projectId }) => {
   const { t } = useTranslation('project');
   const { currentUser } = useAuth();
   const tasks = useTasks(projectId);
-  if (tasks.isPending) return <Card role="region" aria-labelledby="pd-my-tasks"><CardHead id="pd-my-tasks">{t('projectDetail.myTasks.title', 'My open tasks')}</CardHead><CardPad><ListState variant="loading" rows={3} /></CardPad></Card>;
+  if (tasks.isPending) return <Card role="region" aria-labelledby="pd-my-tasks"><CardHead id="pd-my-tasks">{t('projectDetail.myTasks.title', 'My open tasks')}</CardHead><CardPad><ListState variant="loading" shape="table" rows={3} /></CardPad></Card>;
   if (tasks.isError) return <Card role="region" aria-labelledby="pd-my-tasks"><CardHead id="pd-my-tasks">{t('projectDetail.myTasks.title', 'My open tasks')}</CardHead><CardPad><ListState variant="error" title={t('projectDetail.myTasks.error', "Couldn't load your tasks")} onRetry={() => void tasks.refetch()} /></CardPad></Card>;
   const today = new Date().toISOString().slice(0, 10);
   const mine = (tasks.data ?? [])

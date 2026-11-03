@@ -139,7 +139,7 @@ const CompanyDetail: React.FC = () => {
       <>
         <BackBar label={t('companyDetail.backToCompanies', 'Companies')} phoneOnly onBack={goBack} />
         <div data-testid="company-loading">
-          <ListState variant="loading" rows={5} />
+          <ListState variant="loading" shape="detail" rows={5} />
         </div>
       </>
     );
