@@ -11,7 +11,7 @@ import {
  * useFeature — resolve a per-org entitlement (ops-admin-surface S6, FR-ENT-005/006,
  * AC-ENT-003).
  *
- *   - Core keys (projects/dashboard/approvals/administration) are ALWAYS true and never query
+ *   - Core keys (see CORE_FEATURES in lib/features) are ALWAYS true and never query
  *     `org_features` (AC-ENT-002).
  *   - A stored `org_features` row OVERRIDES the env default.
  *   - Absence of a row falls back to `FEATURE_ENV_DEFAULT` (FR-ENT-004: absence = included).

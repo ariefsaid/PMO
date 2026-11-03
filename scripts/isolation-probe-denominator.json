@@ -328,6 +328,7 @@
     "list_equipment_costing(boolean)",
     "list_equipment_usage_totals(uuid,uuid,date,date)",
     "log_audit(text,uuid,uuid,uuid,jsonb)",
+    "log_platform_audit(text,uuid,jsonb)",
     "m365_claim_document_checks(uuid,uuid[])",
     "m365_commit_document_check(uuid,uuid,uuid,text,text,text,text,text,text,boolean)",
     "m365_delete_connection(uuid,uuid,uuid)",
