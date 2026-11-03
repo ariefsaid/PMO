@@ -48,6 +48,7 @@ import { VendorQuotesTab } from './procurement/VendorQuotesTab';
 import { PaymentCeilingNotice } from './procurement/PaymentCeilingNotice';
 import { ProcurementHeaderEdit } from './procurement/ProcurementHeaderEdit';
 import { ProcurementLedger } from './procurement/ProcurementLedger';
+import { OdooCaseStatus } from './procurement/OdooCaseStatus';
 import { erpDoctypeLabel } from './procurement/erpLinkReasons';
 import { useProcurementGates } from '@/src/hooks/useProcurementGates';
 import { itemsNetTotal } from '@/src/lib/itemsNet';
@@ -69,6 +70,8 @@ import {
   type TaxTreatment,
 } from '@/src/lib/db/procurementLifecycle';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { odooActionError } from '@/src/lib/procurement/odooActionError';
+import { odooOwnsProcurement } from '@/src/lib/adapterSeam/odoo/ownership';
 import type { CommandIntent } from '@/src/lib/repositories/types';
 import type { ErpVendorTaxAmounts, PphType } from '@/src/lib/vendorWithholding';
 import type { SubcontractBillLineInput } from '@/src/lib/db/subcontracts';
@@ -143,6 +146,8 @@ type PendingConfirm =
       status: 'Partial' | 'Complete';
       receiptDate: string;
       referenceNumber: string | null;
+      /** #1505 P8: quantities entered per line on an Odoo-owned org (absent = everything still open). */
+      receiptLines?: Array<{ itemRef: string; quantity: number }>;
       /** BLOCK 2 (ADR-0058): the capture form's command identity, carried verbatim to the commit. */
       intent: CommandIntent;
     }
@@ -170,6 +175,8 @@ type PendingConfirm =
       withheldAmount?: number;
       withheldPphType?: PphType;
       erpTaxAmounts?: ErpVendorTaxAmounts;
+      /** #1505 P8: taxes picked from the Odoo directory (absent = the organisation default). */
+      taxIds?: string[];
       /** BLOCK 2 (ADR-0058): see the createGR variant. */
       intent: CommandIntent;
     };
@@ -747,6 +754,7 @@ const ProcurementDetails: React.FC = () => {
           status: pendingConfirm.status,
           receiptDate: pendingConfirm.receiptDate,
           referenceNumber: pendingConfirm.referenceNumber,
+          ...(pendingConfirm.receiptLines ? { receiptLines: pendingConfirm.receiptLines } : {}),
           intent: pendingConfirm.intent,
         });
         setShowCreateGR(false);
@@ -766,6 +774,7 @@ const ProcurementDetails: React.FC = () => {
           ...(pendingConfirm.withheldAmount && pendingConfirm.withheldPphType
             ? { withheldAmount: pendingConfirm.withheldAmount, withheldPphType: pendingConfirm.withheldPphType } : {}),
           ...(pendingConfirm.erpTaxAmounts ? { erpTaxAmounts: pendingConfirm.erpTaxAmounts } : {}),
+          ...(pendingConfirm.taxIds ? { taxIds: pendingConfirm.taxIds } : {}),
           intent: pendingConfirm.intent,
         };
         if (pendingConfirm.lines) {
@@ -784,7 +793,7 @@ const ProcurementDetails: React.FC = () => {
       setPendingConfirm(null);
       const { headline, detail } = (pendingConfirm.kind === 'createVI' && pendingConfirm.lines
         ? classifySubcontractBillError(err, t)
-        : null) ?? classifyMutationError(err);
+        : null) ?? odooActionError(err, odooOwnsProcurement(), t) ?? classifyMutationError(err);
       toast(headline, detail, 'warning');
       setMutationError(detail);
     }
@@ -1109,6 +1118,9 @@ const ProcurementDetails: React.FC = () => {
         />
       )}
 
+      {/* #1505 P8: what Odoo has not settled for this case, on every tab (renders nothing otherwise). */}
+      <OdooCaseStatus procurementId={p.id} />
+
       {/* Deep-linkable detail sections */}
       <Tabs<ProcTab>
         items={procTabs}
@@ -1342,6 +1354,7 @@ const ProcurementDetails: React.FC = () => {
           invoices={p.invoices}
           vendorId={p.vendor_id}
           itemsNet={itemsNetTotal(p.items)}
+          items={p.items}
           currency={p.currency}
           subcontractPoId={p.is_subcontract ? p.purchase_orders[0]?.id : undefined}
           onStage={(staged) => { setMutationError(null); setPendingConfirm(staged); }}
