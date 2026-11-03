@@ -144,7 +144,7 @@ export const YourPlan: React.FC = () => {
           <p className="max-w-[52ch] text-[13px] text-muted-foreground">
             {t(
               'yourPlan.intro',
-              'This page is read-only. Your organisation’s plan and its switches are set by the PMO operator — ask them to change a plan or switch a feature on.',
+              'This page is read-only. Your organisation’s plan and its switches are set by the PMO operator. Ask them to change a plan or switch a feature on.',
             )}
           </p>
         </div>

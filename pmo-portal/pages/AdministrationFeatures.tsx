@@ -381,7 +381,7 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
                               <Switch
                                 checked={enabled}
                                 onChange={() => overrideMutation.mutate({ orgId: selectedOrgId, key, enabled: !enabled })}
-                                label={t('console.overrideSwitch', '{{feature}} — override for this organisation', { feature: label })}
+                                label={t('console.overrideSwitch', '{{feature}}: override for this organisation', { feature: label })}
                                 disabled={anyPending || globalOffWins}
                               />
                               {hasOverride && (
@@ -416,7 +416,7 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
                                 if (globalOn) setPendingGlobalOff(key);
                                 else globalMutation.mutate({ key, enabled: true });
                               }}
-                              label={t('console.globalSwitch', '{{feature}} — switch for all organisations', { feature: label })}
+                              label={t('console.globalSwitch', '{{feature}}: switch for all organisations', { feature: label })}
                               disabled={anyPending}
                             />
                           )}
@@ -470,7 +470,7 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
                             planEditor &&
                             planFeatureMutation.mutate({ planId: planEditor.planId, key, enabled: !on })
                           }
-                          label={t('console.planDefaultSwitch', '{{feature}} — default for the {{plan}} plan', {
+                          label={t('console.planDefaultSwitch', '{{feature}}: default for the {{plan}} plan', {
                             feature: FEATURE_LABELS[key],
                             plan: planEditor?.name ?? t('console.thisPlan', 'selected'),
                           })}

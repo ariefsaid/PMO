@@ -47,7 +47,7 @@ export const FeatureUnavailable: React.FC<FeatureUnavailableProps> = ({
         {isOff
           ? t(
               'featureUnavailable.body',
-              'Your organisation’s plan does not include {{feature}}. Nothing has been deleted — an administrator can switch it back on.',
+              'Your organisation’s plan does not include {{feature}}. Nothing has been deleted. An administrator can switch it back on.',
               { feature: label ?? t('featureUnavailable.thisModule', 'this module') },
             )
           : t(
