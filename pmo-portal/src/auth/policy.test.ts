@@ -917,3 +917,52 @@ describe('can() — equipment usage and costing (#1519; transition_equipment_usa
     }
   });
 });
+
+describe('can() — time-and-materials rate card and sign-off (#1514 T7; the 0515-0517 RPCs are the authority)', () => {
+  it('T7.2 setting a rate is Admin or Finance — never an Executive or a PM, mirroring save/end_contract_rate_line', () => {
+    expect(allowedRoles('manage', 'tmRate')).toEqual(['Admin', 'Finance']);
+    expect(can('manage', 'tmRate', { realRole: 'Project Manager', currentUserId: 'u1', record: { project_manager_id: 'u1' } })).toBe(false);
+    expect(can('manage', 'tmRate', { realRole: 'Executive' })).toBe(false);
+    expect(can('manage', 'tmRate', { realRole: null })).toBe(false);
+    expect(can('manage', 'tmRate')).toBe(false);
+  });
+
+  it('T7.2 view-as hides the rate-card write affordance', () => {
+    expect(can('manage', 'tmRate', { realRole: 'Finance', record: { viewOnly: true } })).toBe(false);
+  });
+
+  it('T7.2 preparing a claim follows may_record_project_progress: Finance rank and above, or the project\'s own PM', () => {
+    // Without a project context a PM cannot be shown the affordance (deny-by-default), the same as projectProgress.edit.
+    expect(allowedRoles('prepare', 'tmClaim')).toEqual(['Admin', 'Executive', 'Finance']);
+    const pm = (project_manager_id: string) => ({ currentUserId: 'u1', record: { project_manager_id } });
+    expect(can('prepare', 'tmClaim', { realRole: 'Project Manager', ...pm('u1') })).toBe(true);
+    expect(can('prepare', 'tmClaim', { realRole: 'Project Manager', ...pm('u9') })).toBe(false);
+    // an Engineer records hours; they never prepare a claim
+    expect(can('prepare', 'tmClaim', { realRole: 'Engineer', currentUserId: 'u1', record: { project_manager_id: 'u1' } })).toBe(false);
+    expect(can('prepare', 'tmClaim', { realRole: null })).toBe(false);
+  });
+
+  it('T7.2 view-as hides assembling, deselecting and preparing', () => {
+    expect(can('prepare', 'tmClaim', { realRole: 'Finance', record: { viewOnly: true } })).toBe(false);
+  });
+
+  it('T7.2 confirming a sign-off is Admin or Finance and refused for the preparer (FR-TM-022)', () => {
+    expect(allowedRoles('confirm', 'tmSignoff', { currentUserId: 'confirmer' })).toEqual(['Admin', 'Finance']);
+    for (const realRole of ['Admin', 'Finance'] as const) {
+      expect(can('confirm', 'tmSignoff', { realRole, currentUserId: 'u1', record: { preparedBy: 'u1' } })).toBe(false);
+      expect(can('confirm', 'tmSignoff', { realRole, currentUserId: 'u1', record: { prepared_by: 'u1' } })).toBe(false);
+      expect(can('confirm', 'tmSignoff', { realRole, currentUserId: 'u2', record: { preparedBy: 'u1' } })).toBe(true);
+    }
+    // a PM assembles and prepares; they never confirm — the 0517 RPC refuses them outright
+    expect(can('confirm', 'tmSignoff', { realRole: 'Project Manager', currentUserId: 'u2', record: { preparedBy: 'u1' } })).toBe(false);
+    expect(can('confirm', 'tmSignoff', { realRole: 'Engineer', currentUserId: 'u2', record: { preparedBy: 'u1' } })).toBe(false);
+    expect(can('confirm', 'tmSignoff', { realRole: 'Executive', currentUserId: 'u2', record: { preparedBy: 'u1' } })).toBe(false);
+    expect(can('confirm', 'tmSignoff', { realRole: null })).toBe(false);
+  });
+
+  it('T7.2 an unknown preparer on the record never blocks the confirmer, and a missing user id denies', () => {
+    expect(can('confirm', 'tmSignoff', { realRole: 'Finance', currentUserId: 'u2', record: {} })).toBe(true);
+    expect(can('confirm', 'tmSignoff', { realRole: 'Finance', record: { preparedBy: 'u1' } })).toBe(false);
+    expect(can('confirm', 'tmSignoff', { realRole: 'Finance', currentUserId: 'u1', record: { preparedBy: 'u1', viewOnly: true } })).toBe(false);
+  });
+});

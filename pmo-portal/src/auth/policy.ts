@@ -117,7 +117,10 @@ export type Entity =
   | 'poVariation'
   | 'equipmentAsset'
   | 'equipmentUsage'
-  | 'equipmentCosting';
+  | 'equipmentCosting'
+  | 'tmRate'
+  | 'tmClaim'
+  | 'tmSignoff';
 
 export interface PolicyContext {
   /** The REAL JWT role (not the impersonated effectiveRole). */
@@ -191,6 +194,11 @@ const COST_ATTRIBUTION_WRITE: Role[] = ['Admin', 'Finance'];
 const EQUIPMENT_APPROVE: Role[] = ['Admin', 'Executive', 'Finance', 'Project Manager'];
 /** #1519: who may set what an hour is worth — mirrors save/end/preview_equipment_costing (Admin, Finance). */
 const EQUIPMENT_COSTING_WRITE: Role[] = ['Admin', 'Finance'];
+/** #1514: who may set the CLIENT contract rate and assign people to it — mirrors save/end_contract_rate_line
+ *  and set/end_contract_rate_assignee (0515: Admin, Finance). Cost and revenue are separate settings, never shared. */
+const TM_RATE_WRITE: Role[] = ['Admin', 'Finance'];
+/** #1514: who may confirm a client sign-off — mirrors confirm_tm_signoff (0517: Admin, Finance, never the preparer). */
+const TM_CONFIRM: Role[] = ['Admin', 'Finance'];
 
 const has = (set: Role[], role: Role | null): boolean => role != null && set.includes(role);
 
@@ -721,6 +729,31 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     ), // Engineers may read their own entries; the audience above may read amounts and others' entries.
   },
   equipmentCosting: { manage: allowUnlessViewOnly(EQUIPMENT_COSTING_WRITE), view: allow(EQUIPMENT_APPROVE) },
+  /**
+   * Time-and-materials claims (#1514, migrations 0515-0517). UX ONLY — the RPCs are the authority (ADR-0016); the FE
+   * may be stricter, never looser.
+   *   tmRate     ← `manage` = save/end a rate line and assign a person: Admin or Finance (0515). A PM reads the rates
+   *                of a project they manage but never writes them; an Executive never writes them either.
+   *   tmClaim    ← `prepare` (assemble, deselect, prepare the sign-off) mirrors `may_record_project_progress` (0245):
+   *                Finance rank and above on any project, or the project's own PM (`record.project_manager_id`).
+   *   tmSignoff  ← `confirm` = Admin or Finance AND not the claim's preparer (FR-TM-022). The preparer is stored on the
+   *                claim as `prepared_by`; the RPC also allows the organisation's sole active member with basis
+   *                `sole_operator`, so the refusal is a hint at the call-site, never a hidden affordance.
+   */
+  tmRate: { manage: allowUnlessViewOnly(TM_RATE_WRITE) },
+  tmClaim: {
+    prepare: (role, ctx) =>
+      ctx.record?.viewOnly !== true &&
+      (has(MONEY_AUTHORITY, role) ||
+        (role === 'Project Manager' && !!ctx.currentUserId && ctx.record?.project_manager_id === ctx.currentUserId)),
+  },
+  tmSignoff: {
+    confirm: (role, ctx) => {
+      if (ctx.record?.viewOnly === true || !has(TM_CONFIRM, role) || !ctx.currentUserId) return false;
+      const preparer = ctx.record?.preparedBy ?? ctx.record?.prepared_by;
+      return preparer !== ctx.currentUserId;
+    },
+  },
   // #876 slice 2: a vendor's default VAT / PPh treatment. UX ONLY — set_vendor_tax_defaults is the authority.
   vendorTaxDefault: { manage: allow(TAX_SETUP) },
   orgProjectNumbering: {
