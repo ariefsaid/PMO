@@ -20,11 +20,14 @@ const command = (over: Partial<AdapterCommand['record']> = {}): AdapterCommand =
 });
 
 /** A fake Odoo whose next matching call fails the way the bed's network does: before the call, or with the response lost. */
-function rig({ input = INPUT, maps = MAPS, expectation = EXPECT, odooTaxRate = 11, stripDistribution = false } = {}) {
+function rig({ input = INPUT, maps = MAPS, expectation = EXPECT, odooTaxRate = 11, stripDistribution = false, advanceProductAccount = 210 } = {}) {
   const fake = createFakeOdoo({ key: 'k' });
   // the directory the explicit taxes come from, and the hidden per-product default (10%) PMO must never rely on
   fake.seed('account.tax', [{ id: 5, name: 'PPN', amount: odooTaxRate }, { id: 9, name: 'Hidden default 10%', amount: 10 }]);
-  fake.seed('product.product', [{ id: 71, name: 'Item A', taxes_id: [9], income_account_id: 149 }]);
+  fake.seed('product.product', [
+    { id: 71, name: 'Item A', taxes_id: [9], income_account_id: 149 },
+    { id: 72, name: 'Down payment', taxes_id: [9], income_account_id: advanceProductAccount },
+  ]);
   fake.seed('res.partner', [{ id: 41, name: 'Client' }, { id: 42, name: 'Another client' }]);
   let armed: { model: string; method: string; fault: 'transport' | 'lost-response' } | null = null;
   const fetchImpl = ((url: string, init?: RequestInit) => {
@@ -82,6 +85,55 @@ describe('AC-OCI-010 an approved invoice is created, anchored and posted once, a
     const r = await attempt();
     expect(fake.rows('account.move.line').filter((l) => l.display_type === 'product').map((l) => l.analytic_distribution)).toEqual([false, false]);
     expect(r.canonical.odoo_attention).toBeNull();
+  });
+});
+
+describe('AC-OCI-020 / AC-OCI-022 / AC-OCI-023 claim lines use the same invoice command', () => {
+  const claimLines = [
+    { itemId: 'item-a', description: 'Roadworks (km)', quantity: 10, unitPrice: 50000, unit: 'km' },
+    { itemId: 'item-dp', description: 'Down-payment recovery', quantity: 1, unitPrice: -40000, unit: 'km', kind: 'recovery' as const },
+  ];
+  const claimInput: PmoInvoice = { ...INPUT, id: INV_ID, referenceNumber: null, workOrderPoNumber: 'WO-PO-9', lines: claimLines };
+  const claimMaps: InvoiceMaps = {
+    ...MAPS,
+    items: { ...MAPS.items, 'item-dp': { productId: 72, incomeAccountId: 210 } },
+    units: { km: 11 },
+    downPayment: { itemId: 'item-dp', advanceAccountId: 210 },
+  };
+  const claimExpectation: InvoiceExpect = {
+    total: expectedInvoiceTotal(claimLines, [11]), costAccountId: 101,
+    advanceAccount: { productId: 72, accountId: 210 },
+  };
+
+  it('transports the recorded claim lines, uses the work-order PO, and carries work_order_id through read-back', async () => {
+    const { fake, adapter } = rig({ input: claimInput, maps: claimMaps, expectation: claimExpectation });
+    const result = await adapter.commit(command({ workOrderId: 'wo-1' }));
+    const [invoice] = fake.rows('account.move');
+    const lines = fake.rows('account.move.line').filter((line) => line.move_id === invoice.id && line.display_type === 'product');
+
+    expect(invoice.ref).toBe('WO-PO-9');
+    expect(lines.map((line) => [line.product_id, line.quantity, line.price_unit, line.tax_ids, line.analytic_distribution])).toEqual([
+      [71, 10, 50000, [5], { '101': 100 }],
+      [72, 1, -40000, [5], { '101': 100 }],
+    ]);
+    expect(result.canonical.work_order_id).toBe('wo-1');
+    expect(result.canonical.odoo_attention).toBeNull();
+  });
+
+  it('refuses a down-payment item on the wrong mirrored income account before the first Odoo call', async () => {
+    const downPayment = { ...claimInput, lines: [{ itemId: 'item-dp', description: 'Down payment', quantity: 1, unitPrice: 200000, kind: 'down-payment' as const }] };
+    const maps = { ...claimMaps, items: { ...claimMaps.items, 'item-dp': { productId: 72, incomeAccountId: 149 } } };
+    const { fake, adapter } = rig({ input: downPayment, maps, expectation: { ...claimExpectation, total: '222000.00' } });
+
+    await expect(adapter.commit(command())).rejects.toThrow(/config-rejected: down-payment-account: item-dp/);
+    expect(fake.calls).toEqual([]);
+  });
+
+  it('flags a posted recovery line whose product resolves to another account', async () => {
+    const { adapter } = rig({ input: claimInput, maps: claimMaps, expectation: claimExpectation, advanceProductAccount: 149 });
+
+    const result = await adapter.commit(command({ workOrderId: 'wo-1' }));
+    expect(result.canonical.odoo_attention).toBe('advance-account-mismatch');
   });
 });
 
