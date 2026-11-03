@@ -87,7 +87,8 @@ describe('SalesKanbanBoard (AC-SP-204 / AC-IXD-PROJ-007)', () => {
       const col = screen.getByTestId(
         t === 'Won' ? 'stage-Won' : t === 'Lost' ? 'stage-Lost' : `stage-${t === 'Pre-Qual' ? 'PQ Submitted' : t === 'Quotation' ? 'Quotation Submitted' : t === 'Tender' ? 'Tender Submitted' : t}`,
       );
-      expect(within(col).getByText(t, { exact: true })).toBeInTheDocument();
+      // The column title is the first match in its column; a lost card's status pill also reads "Lost".
+      expect(within(col).getAllByText(t, { exact: true })[0]).toBeInTheDocument();
     }
   });
 

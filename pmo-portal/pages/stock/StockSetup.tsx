@@ -144,6 +144,7 @@ const StockSetup: React.FC = () => {
   return (
     <ListPage
       title={t('setup.title')}
+      count={state === undefined ? rows.length : undefined}
       description={t('setup.description')}
       primaryAction={canCreate && (
         <Button variant="primary" onClick={() => setForm({ tab, row: null })}>

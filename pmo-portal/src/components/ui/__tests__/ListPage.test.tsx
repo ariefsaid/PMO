@@ -85,4 +85,34 @@ describe('ListPage shell', () => {
     expect(screen.getByTestId('slot-banner')).toBeInTheDocument();
     expect(screen.getByTestId('list-body')).toBeInTheDocument();
   });
+
+  it('renders count chip as "Showing {count} of {total}" when count < total', () => {
+    render(
+      <ListPage
+        title="Companies"
+        count={5}
+        total={20}
+      />,
+    );
+    expect(screen.getByTestId('list-page-count')).toHaveTextContent('Showing 5 of 20');
+  });
+
+  it('renders count chip as "{count}" when count >= total or total is undefined', () => {
+    const { rerender } = render(
+      <ListPage
+        title="Companies"
+        count={20}
+        total={20}
+      />,
+    );
+    expect(screen.getByTestId('list-page-count')).toHaveTextContent('20');
+
+    rerender(
+      <ListPage
+        title="Companies"
+        count={42}
+      />,
+    );
+    expect(screen.getByTestId('list-page-count')).toHaveTextContent('42');
+  });
 });
