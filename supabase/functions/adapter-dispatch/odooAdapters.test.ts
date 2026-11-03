@@ -1,5 +1,5 @@
-// #1505 O2 P3 (FR-OPP-002, DD-OPP-1, DD-OPP-8): the Odoo adapter factory returns the procurement adapter for the steps P3 pushes (purchase
-// order create and revise) and refuses every other step before any outbox row, as it refuses an unusable connection or a snapshot
+// #1505 O2 P3/P5 (FR-OPP-002, DD-OPP-1, DD-OPP-8): the Odoo adapter factory returns the procurement adapter for the steps pushed so far
+// (purchase order create and revise, vendor bill create) and refuses every other step before any outbox row, as it refuses an unusable connection or a snapshot
 // that lacks a model. Supabase is mocked over fetch; the factory is the shipped one.
 import { describe, it } from '@std/testing/bdd';
 import { assertEquals, assertRejects } from '@std/assert';
@@ -48,7 +48,7 @@ describe('P3 the Odoo adapter factory', () => {
     });
   }
 
-  for (const kind of ['goods-receipt', 'purchase-invoice', 'payment', 'rfq']) {
+  for (const kind of ['goods-receipt', 'payment', 'rfq']) {
     it(`refuses a ${kind} create: not available yet, config-rejected, before any outbox row`, async () => {
       const err = await withFetchMock(world(), () => assertRejects(() => resolveOdooProcurementAdapter(ctxFor(kind)))) as { code?: string; message: string };
       assertEquals(err.code, 'config-rejected');
@@ -78,5 +78,61 @@ describe('P3 the Odoo adapter factory', () => {
   it('I4 an Odoo company whose currency cannot be read refuses closed', async () => {
     const err = await withFetchMock(world(undefined, { odooCurrency: false as never }), () => assertRejects(() => resolveOdooProcurementAdapter(ctxFor('purchase-order')))) as { code?: string; message: string };
     assertEquals([err.code, err.message.startsWith('currency-unreadable')], ['config-rejected', true]);
+  });
+});
+
+describe('P5 the Odoo adapter factory for a vendor bill', () => {
+  const MIRROR = [
+    { external_id: '11', name: 'VAT 11%', active: true, tombstoned_at: null, attrs: { amount: 11, use: 'purchase' } },
+    { external_id: '12', name: 'Withholding 2%', active: true, tombstoned_at: null, attrs: { amount: -2, use: 'purchase' } },
+  ];
+  const billWorld = (config?: Record<string, unknown>, { account = 'liability_current', odooCalls = [] as string[] } = {}) => [
+    supabaseSelect('external_org_bindings', () => binding({ item_map: { A: '55', B: '56' }, ...config })),
+    supabaseRpc('read_vault_secret', () => jsonResponse('odoo-test-key')),
+    supabaseSelect('procurements', () => object({ code: 'PRC-1', project_id: null, vendor_id: 'v-1', currency: 'IDR' })),
+    supabaseSelect('purchase_orders', () => jsonResponse([])),
+    supabaseSelect('purchase_order_lines', () => jsonResponse([])),
+    supabaseSelect('procurement_items', () => jsonResponse([{ name: 'A', quantity: 4, rate: 10, description: null }])),
+    supabaseSelect('external_refs', () => object({ external_record_id: 'Vendor:77' })),
+    supabaseSelect('external_master_records', () => jsonResponse(MIRROR)),
+    { label: 'odoo', host: 'odoo.example.test', response: (call: { url: URL }) => {
+      const [model, method] = call.url.pathname.split('/').slice(-2);
+      odooCalls.push(`${model}/${method}`);
+      if (model === 'res.company') return jsonResponse([{ id: 1, currency_id: [12, 'IDR'] }]);
+      if (model === 'account.tax') return jsonResponse([11, 12].map((id) => ({ id, company_id: [1, 'Co'] })));
+      if (model === 'account.tax.repartition.line') return jsonResponse([{ tax_id: [12, 'x'], account_id: [900, 'PPh payable'] }]);
+      if (model === 'account.account') return jsonResponse([{ id: 900, account_type: account }]);
+      return jsonResponse([]);
+    } },
+  ];
+  const bill = (record: Record<string, unknown> = {}, replay = false) => {
+    const ctx = ctxFor('purchase-invoice') as unknown as { command: { record: Record<string, unknown> }; replay?: boolean };
+    ctx.command.record = { ...ctx.command.record, taxIds: [11, 12], ...record };
+    if (replay) ctx.replay = true;
+    return ctx as unknown as AdapterSelectContext;
+  };
+
+  it('AC-OPP-040 returns the Odoo procurement adapter for a valid bill, its taxes validated and nothing written to Odoo', async () => {
+    const odooCalls: string[] = [];
+    const adapter = await withFetchMock(billWorld(undefined, { odooCalls }), () => resolveOdooProcurementAdapter(bill()));
+    assertEquals([adapter.tier, [...adapter.capabilityMap]], ['odoo', ['procurement']]);
+    assertEquals(odooCalls.every((c) => /\/(read|search_read)$/.test(c)), true, odooCalls.join());
+  });
+
+  it('AC-OPP-042 a withholding tax with no liability account is config-rejected naming the tax, before any outbox row', async () => {
+    const err = await withFetchMock(billWorld(undefined, { account: 'asset_current' }), () => assertRejects(() => resolveOdooProcurementAdapter(bill()))) as { code?: string; message: string };
+    assertEquals([err.code, err.message], ['config-rejected', 'config-rejected: Withholding 2%']);
+  });
+
+  it('an unmapped item is refused at selection too (no outbox row, no write)', async () => {
+    const err = await withFetchMock(billWorld({ item_map: {} }), () => assertRejects(() => resolveOdooProcurementAdapter(bill()))) as { code?: string; message: string };
+    assertEquals(err.message, 'item-unmapped: A');
+  });
+
+  it('a REPLAY resolves nothing at selection: its recovery must not depend on today\'s tax directory or mappings', async () => {
+    const odooCalls: string[] = [];
+    const adapter = await withFetchMock(billWorld({ item_map: {} }, { account: 'asset_current', odooCalls }), () => resolveOdooProcurementAdapter(bill({}, true)));
+    assertEquals(adapter.tier, 'odoo');
+    assertEquals(odooCalls.some((c) => c.startsWith('account.')), false);
   });
 });

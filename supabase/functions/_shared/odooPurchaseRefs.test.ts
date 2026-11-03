@@ -6,7 +6,7 @@ import { afterAll, describe, it } from '@std/testing/bdd';
 import { assert, assertEquals, assertRejects } from '@std/assert';
 import { createClient } from '@supabase/supabase-js';
 import { installEdgeEnv, jsonResponse, supabaseSelect, withFetchMock, type FetchCall, type MockRoute } from './testing/edgeTestKit.ts';
-import { orderCompositeFacts, resolveOdooCostAccount, resolveOdooOrderCurrency, resolveOdooOrderInputs, resolveOdooReviseInputs } from './odooPurchaseRefs.ts';
+import { billCompositeFacts, orderCompositeFacts, resolveOdooBillInputs, resolveOdooCostAccount, resolveOdooOrderCurrency, resolveOdooOrderInputs, resolveOdooReviseInputs } from './odooPurchaseRefs.ts';
 import type { OdooCall } from '../../../pmo-portal/src/lib/adapterSeam/odoo/client.ts';
 import type { AdapterCommand } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
 
@@ -208,5 +208,118 @@ describe('AC-OPP-016 the revision inputs come from the issued revision, not the 
     await assertRejects(() => withFetchMock(routes({ link: '101', poRef: null }), () => resolveOdooReviseInputs(sc(), ORG, revise(), RESOLVED, CURRENCY_ID)));
     await assertRejects(() => withFetchMock(routes({ link: '101', poRef: '312', revisionLines: [] }), () => resolveOdooReviseInputs(sc(), ORG, revise(), RESOLVED, CURRENCY_ID)));
     await assertRejects(() => withFetchMock(routes({ link: '101', poRef: '312' }), () => resolveOdooReviseInputs(sc(), ORG, revise({ revision: 'x' }), RESOLVED, CURRENCY_ID)));
+  });
+});
+
+// ── P5: the vendor bill ───────────────────────────────────────────────────────────────────────────────────────────────
+
+describe('AC-OPP-040 / 042 / 046 the bill inputs', () => {
+  interface BillWorld {
+    /** The PMO purchase order of the case (its Odoo order is `poRef`); none means a bill with no order. */
+    po?: boolean; poRef?: string | null;
+    mirror?: Array<{ external_id: string; name: string; active?: boolean; tombstoned_at?: string | null; attrs: Record<string, unknown> }>;
+    /** What Odoo says: each tax's company, each withholding tax's repartition account and that account's type, and the order's lines. */
+    taxCompany?: Record<number, number>; repartition?: Array<{ tax_id: [number, string]; account_id: [number, string] | false }>; accountType?: string; orderLines?: Array<{ id: number; product_id: [number, string] }>;
+    odooFails?: boolean;
+  }
+  const MIRROR = [
+    { external_id: '11', name: 'VAT 11%', attrs: { amount: 11, use: 'purchase' } },
+    { external_id: '12', name: 'Withholding 2%', attrs: { amount: -2, use: 'purchase' } },
+  ];
+  function billRoutes(w: BillWorld, seen: string[] = []): MockRoute[] {
+    const log = (n: string, r: Response) => { seen.push(n); return r; };
+    return [
+      supabaseSelect('external_project_bindings', () => log('binding', one({ external_container_id: '101' }))),
+      supabaseSelect('external_master_records', (c) => param(c, 'kind') === 'tax'
+        ? log('taxes', jsonResponse((w.mirror ?? MIRROR).map((m) => ({ active: true, tombstoned_at: null, ...m }))))
+        : log('account', one({ active: true, tombstoned_at: null }))),
+      supabaseSelect('procurements', () => log('case', one({ code: 'PRC-001', project_id: PROJECT, vendor_id: VENDOR, currency: 'IDR' }))),
+      supabaseSelect('procurement_items', () => log('items', jsonResponse([{ name: 'Cable tray', quantity: 4, rate: 10, description: null }, { name: 'Bolt', quantity: 2, rate: 5, description: 'M8' }]))),
+      supabaseSelect('purchase_orders', () => log('po', jsonResponse(w.po === false ? [] : [{ id: PO }]))),
+      supabaseSelect('purchase_order_lines', () => log('po-lines', jsonResponse([]))),
+      supabaseSelect('external_refs', (c) => param(c, 'domain') === 'companies' ? one({ external_record_id: 'Vendor:9' }) : w.poRef === null || w.po === false ? none() : one({ external_record_id: w.poRef ?? '777' })),
+    ];
+  }
+  const odoo = (w: BillWorld, calls: string[] = []): OdooCall => (async (model: string, method: string) => {
+    calls.push(`${model}/${method}`);
+    if (w.odooFails) throw new Error('Odoo is down');
+    if (model === 'account.tax') return [11, 12, 13].map((id) => ({ id, company_id: [w.taxCompany?.[id] ?? 1, 'Co'] }));
+    if (model === 'account.tax.repartition.line') return w.repartition ?? [{ tax_id: [12, 'Withholding 2%'], account_id: [900, 'PPh payable'] }];
+    if (model === 'account.account') return [{ id: 900, account_type: w.accountType ?? 'liability_current' }];
+    if (model === 'purchase.order.line') return w.orderLines ?? [{ id: 201, product_id: [55, 'Cable tray'] }, { id: 202, product_id: [56, 'Bolt'] }];
+    throw new Error(`unexpected Odoo call ${model}/${method}`);
+  }) as OdooCall;
+  const CHOICE = { ...RESOLVED, config: { ...CONFIG, purchase_tax_ids: [11] } };
+  const run = (w: BillWorld, record: Record<string, unknown> = {}, resolved = CHOICE, calls: string[] = []) =>
+    withFetchMock(billRoutes(w), () => resolveOdooBillInputs(sc(), ORG, cmd({ procurementId: CASE, referenceNumber: 'INV-77', invoiceDate: '2026-12-05', ...record }), resolved, CURRENCY_ID, odoo(w, calls)));
+  const refusal = async (w: BillWorld, record: Record<string, unknown> = {}) => {
+    const err = await assertRejects(() => run(w, record)) as { code?: string; message: string };
+    assertEquals(err.code, 'config-rejected');
+    return err.message;
+  };
+
+  it('the case\'s vendor and lines, each bill line linked to the Odoo order line of its product, the validated explicit taxes and the cost account', async () => {
+    const r = await run({}, { taxIds: [11, 12] });
+    assertEquals(r.input, {
+      vendor: 'Vendor:9', reference: 'INV-77', invoiceDate: '2026-12-05', dueDate: null, projectIds: [PROJECT],
+      lines: [{ name: 'Cable tray', quantity: 4, rate: 10, description: null, purchaseLineId: 201 }, { name: 'Bolt', quantity: 2, rate: 5, description: 'M8', purchaseLineId: 202 }],
+    });
+    assertEquals(r.ctx.taxes.map((t) => [t.id, t.rate, t.scope, t.active, t.companyId, t.liabilityAccount]), [[11, 11, 'purchase', true, 1, false], [12, -2, 'purchase', true, 1, true]]);
+    assertEquals([r.ctx.costAccountId, r.ctx.companyId, r.ctx.currencyId], ['101', 1, CURRENCY_ID]);
+  });
+
+  it('a bill with no order is free-standing: no line is linked and no Odoo order line is read', async () => {
+    const calls: string[] = [];
+    const r = await run({ po: false }, { taxIds: [11] }, CHOICE, calls);
+    assertEquals(r.input.lines.map((l) => l.purchaseLineId), [null, null]);
+    assert(!calls.includes('purchase.order.line/search_read'));
+  });
+
+  it('a product that is on two order lines is not linked (ambiguous): never a wrong link', async () => {
+    const r = await run({ orderLines: [{ id: 201, product_id: [55, 'a'] }, { id: 203, product_id: [55, 'a'] }, { id: 202, product_id: [56, 'b'] }] }, { taxIds: [11] });
+    assertEquals(r.input.lines.map((l) => l.purchaseLineId), [null, 202]);
+  });
+
+  it('AC-OPP-046 no choice resolves the org\'s default purchase taxes from the directory, validated; an empty choice is an explicit "no tax"', async () => {
+    assertEquals((await run({})).ctx.taxes.map((t) => t.id), [11]);
+    assertEquals((await run({}, { taxIds: [] })).ctx.taxes, []);
+  });
+
+  it('AC-OPP-042 a tax the directory lacks, an inactive or tombstoned one, another scope, another company and a withholding tax with no liability account all refuse naming the tax', async () => {
+    assertEquals(await refusal({}, { taxIds: [99] }), 'config-rejected: tax-unknown 99');
+    assertEquals(await refusal({ mirror: [{ ...MIRROR[0], active: false }] }, { taxIds: [11] }), 'config-rejected: VAT 11%');
+    assertEquals(await refusal({ mirror: [{ ...MIRROR[0], tombstoned_at: '2026-11-01T00:00:00Z' }] }, { taxIds: [11] }), 'config-rejected: VAT 11%');
+    assertEquals(await refusal({ mirror: [{ ...MIRROR[0], attrs: { amount: 11, use: 'sale' } }] }, { taxIds: [11] }), 'config-rejected: VAT 11%');
+    assertEquals(await refusal({ taxCompany: { 11: 2 } }, { taxIds: [11] }), 'config-rejected: VAT 11%');
+    assertEquals(await refusal({ accountType: 'asset_current' }, { taxIds: [12] }), 'config-rejected: Withholding 2%');
+    assertEquals(await refusal({ repartition: [{ tax_id: [12, 'x'], account_id: false }] }, { taxIds: [12] }), 'config-rejected: Withholding 2%');
+    assertEquals(await refusal({ repartition: [] }, { taxIds: [12] }), 'config-rejected: Withholding 2%');
+  });
+
+  it('a malformed choice is refused, never narrowed to "no tax"; an unreadable Odoo or directory refuses closed', async () => {
+    assert((await refusal({}, { taxIds: ['x', 11] })).startsWith('config-rejected'));
+    assert((await refusal({ odooFails: true }, { taxIds: [11] })).includes('could not be checked against Odoo'));
+  });
+
+  it('an unlinked project refuses before any tax is read', async () => {
+    const seen: string[] = [];
+    const bare: MockRoute[] = [supabaseSelect('external_project_bindings', () => none()), ...billRoutes({}, seen)];
+    await assertRejects(() => withFetchMock(bare, () => resolveOdooBillInputs(sc(), ORG, cmd({ procurementId: CASE }), CHOICE, CURRENCY_ID, odoo({}))));
+    assert(!seen.includes('taxes'));
+  });
+
+  it('is resolved once per command: the selection and the outbox payload share the answer', async () => {
+    const calls: string[] = [];
+    const command = cmd({ procurementId: CASE, taxIds: [11] });
+    const w: BillWorld = {};
+    const first = await withFetchMock(billRoutes(w), () => resolveOdooBillInputs(sc(), ORG, command, CHOICE, CURRENCY_ID, odoo(w, calls)));
+    const readsAfterFirst = calls.length;
+    const second = await resolveOdooBillInputs(sc(), ORG, command, CHOICE, CURRENCY_ID, odoo(w, calls));   // no fetch mock: any read would fail
+    assertEquals(second, first);
+    assertEquals(calls.length, readsAfterFirst);
+  });
+
+  it('the composite facts: the case\'s vendor partner, the untaxed total and the line count the bill is made of', async () => {
+    assertEquals(await withFetchMock(billRoutes({}), () => billCompositeFacts(sc(), ORG, { procurementId: CASE })), { partnerId: 9, amount: '50.00', lineCount: 2 });
   });
 });

@@ -33,7 +33,7 @@ export interface OrderCtx {
 
 const refuse = (reason: string): never => { throw new AdapterError('commit-rejected', reason); };
 const ODOO_ID = /^[0-9]{1,9}$/;
-const odooId = (value: string | undefined): number | null => (value !== undefined && ODOO_ID.test(value) ? Number(value) : null);
+export const odooId = (value: string | undefined): number | null => (value !== undefined && ODOO_ID.test(value) ? Number(value) : null);
 
 export function productIdOf(ctx: Pick<OrderCtx, 'itemMap'>, name: string): number {
   return odooId(Object.hasOwn(ctx.itemMap, name) ? ctx.itemMap[name] : undefined) ?? refuse(`item-unmapped: ${name}`);

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { bindCall } from '../client.ts';
 import { createFakeOdoo } from '../fakeOdoo.ts';
 import { anchorValue, externalIdentifier } from './anchors.ts';
-import { probeOdooByAnchor, type OrderComposite, type PaymentComposite } from './recoveryProbe.ts';
+import { probeOdooByAnchor, type BillComposite, type OrderComposite, type PaymentComposite } from './recoveryProbe.ts';
 
 const UUID = '123e4567-e89b-12d3-a456-426614174000';
 const OTHER = '223e4567-e89b-12d3-a456-426614174000';
@@ -186,5 +186,67 @@ describe('AC-OPP-011 the order composite probe (the create-to-anchor gap, DD-OPP
     const { call, fake } = bed();
     order(fake, { id: 40 });
     expect(await probeOdooByAnchor(call, 'order', key)).toBeNull();
+  });
+});
+
+describe('AC-OPP-041 the bill composite probe (the create-to-anchor gap; a bill is held on doubt, never reissued)', () => {
+  const key = `bill:${UUID}`;
+  const BILL: BillComposite = { partnerId: 77, amount: '100.00', lineCount: 2, createdAfter: WINDOW };
+  const bill = (fake: ReturnType<typeof bed>['fake'], row: Record<string, unknown>) =>
+    fake.seed('account.move', [{ move_type: 'in_invoice', state: 'draft', partner_id: [77, 'Vendor'], amount_untaxed: 100, invoice_line_ids: [1, 2], create_date: '2026-11-03 10:05:00', ...row }]);
+
+  it('adopts the one unanchored vendor bill with our vendor, untaxed amount and line count inside the window', async () => {
+    const { call, fake } = bed();
+    bill(fake, { id: 50 });
+    expect(await probeOdooByAnchor(call, 'bill', key, BILL)).toEqual({ externalRecordId: '50' });
+  });
+
+  it('the exact identifier wins over any look-alike', async () => {
+    const { call, fake, identifier } = bed();
+    bill(fake, { id: 50 });
+    bill(fake, { id: 51 });
+    identifier(key, 'account.move', 51);
+    expect(await probeOdooByAnchor(call, 'bill', key, BILL)).toEqual({ externalRecordId: '51' });
+  });
+
+  it('never adopts a bill that already carries a PMO identifier (another PMO bill)', async () => {
+    const { call, fake, identifier } = bed();
+    bill(fake, { id: 50 });
+    identifier(`bill:${OTHER}`, 'account.move', 50);
+    expect(await probeOdooByAnchor(call, 'bill', key, BILL)).toBeNull();
+  });
+
+  it.each([
+    ['another vendor', { partner_id: [78, 'Other'] }],
+    ['before the window', { create_date: '2026-11-03 09:00:00' }],
+    ['a cancelled bill', { state: 'cancel' }],
+    ['a customer invoice', { move_type: 'out_invoice' }],
+    ['a vendor credit note', { move_type: 'in_refund' }],
+  ])('does not match %s: conclusive absence is null', async (_label, over) => {
+    const { call, fake } = bed();
+    bill(fake, { id: 50, ...over });
+    expect(await probeOdooByAnchor(call, 'bill', key, BILL)).toBeNull();
+  });
+
+  it.each([
+    ['a 0.01 difference in the untaxed amount', { amount_untaxed: 100.01 }],
+    ['another line count', { invoice_line_ids: [1] }],
+  ])('an unanchored bill of our vendor in the window with %s is doubt: held, never absence', async (_label, over) => {
+    const { call, fake } = bed();
+    bill(fake, { id: 50, ...over });
+    await expect(probeOdooByAnchor(call, 'bill', key, BILL)).rejects.toThrow(/ambiguous/);
+  });
+
+  it('two look-alikes are doubt: the probe throws, it neither adopts nor reports absence', async () => {
+    const { call, fake } = bed();
+    bill(fake, { id: 50 });
+    bill(fake, { id: 51 });
+    await expect(probeOdooByAnchor(call, 'bill', key, BILL)).rejects.toThrow(/ambiguous/);
+  });
+
+  it('without composite inputs a missing identifier is simply null', async () => {
+    const { call, fake } = bed();
+    bill(fake, { id: 50 });
+    expect(await probeOdooByAnchor(call, 'bill', key)).toBeNull();
   });
 });

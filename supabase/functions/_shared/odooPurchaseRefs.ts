@@ -9,6 +9,7 @@ import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 import { AdapterError, type AdapterCommand } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
 import { resolveExternalRef, type ExternalRefsLookupClient } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
 import type { OdooCall } from '../../../pmo-portal/src/lib/adapterSeam/odoo/client.ts';
+import { chooseTaxIds, selectBillTaxes, type BillCtx, type BillInput, type BillTax } from '../../../pmo-portal/src/lib/adapterSeam/odoo/purchase/billBody.ts';
 import type { OrderCtx, OrderInput } from '../../../pmo-portal/src/lib/adapterSeam/odoo/purchase/orderBody.ts';
 import type { ReviseLine } from '../../../pmo-portal/src/lib/adapterSeam/odoo/purchase/orderRevise.ts';
 
@@ -98,7 +99,11 @@ const lineCents = (l: ItemRow) => Math.round((Math.round(Number(l.quantity) * 10
  * need neither the project nor the mappings, so a recovery still probes after a project was un-linked.
  */
 export async function orderCompositeFacts(sc: SupabaseClient, orgId: string, record: { id?: unknown; procurementId?: unknown }): Promise<{ partnerId: number | null; amount: string; lineCount: number }> {
-  const { items, vendor } = await readOrderFacts(sc, orgId, record.procurementId, record.id);
+  return compositeFacts(sc, orgId, record.procurementId, record.id);
+}
+
+async function compositeFacts(sc: SupabaseClient, orgId: string, procurementId: unknown, poId: unknown): Promise<{ partnerId: number | null; amount: string; lineCount: number }> {
+  const { items, vendor } = await readOrderFacts(sc, orgId, procurementId, poId);
   const cents = items.reduce((sum, l) => sum + lineCents(l), 0);
   const partner = Number(/^Vendor:(\d+)$/.exec(vendor ?? '')?.[1]);
   return { partnerId: Number.isInteger(partner) && partner > 0 ? partner : null, amount: (cents / 100).toFixed(2), lineCount: items.length };
@@ -172,4 +177,113 @@ export async function resolveOdooOrderCurrency(sc: SupabaseClient, orgId: string
     throw new AppError(`currency-mismatch: the order is in ${pmo.trim().toUpperCase()}, the Odoo company is in ${cur[1].trim().toUpperCase()}. Only the company currency is supported.`, 'config-rejected');
   }
   return cur[0] as number;
+}
+
+// ── P5: the vendor bill ──────────────────────────────────────────────────────────────────────────────────────────────
+
+/** The case's most recent PMO purchase order, or null: the order a bill of the case names (OQ-OPP-3). */
+async function latestPoId(sc: SupabaseClient, orgId: string, procurementId: unknown): Promise<string | null> {
+  if (typeof procurementId !== 'string' || procurementId === '') return null;
+  const { data, error } = await sc.from('purchase_orders').select('id').eq('org_id', orgId).eq('procurement_id', procurementId).order('created_at', { ascending: false }).limit(1);
+  if (error) return refuse('po-unreadable');
+  return (data as Array<{ id: string }> | null)?.[0]?.id ?? null;
+}
+
+/** The facts the bill's create-to-anchor composite probe matches on: the vendor's partner, the untaxed total and the line count of what the bill is made of. */
+export async function billCompositeFacts(sc: SupabaseClient, orgId: string, record: { procurementId?: unknown }): Promise<{ partnerId: number | null; amount: string; lineCount: number }> {
+  return compositeFacts(sc, orgId, record.procurementId, await latestPoId(sc, orgId, record.procurementId));
+}
+
+const text = (v: unknown): string | null => (typeof v === 'string' && v.trim() !== '' ? v.trim() : null);
+const taxRefusal = (message: string) => new AppError(message, 'config-rejected');
+
+/**
+ * The directory facts of the chosen taxes (FR-OPP-042): name, rate, scope and active from the MIRRORED tax directory (what the
+ * user saw and chose); the two facts the mirror does not hold, the tax's company and whether a withholding tax posts to a liability
+ * account, from a read-only look at Odoo. Fails closed: a tax the mirror lacks is `tax-unknown`, an unreadable Odoo is refused.
+ */
+async function readBillTaxes(sc: SupabaseClient, orgId: string, call: OdooCall, ids: readonly number[]): Promise<BillTax[]> {
+  if (ids.length === 0) return [];
+  const mirror = await sc.from('external_master_records').select('external_id,name,active,tombstoned_at,attrs').eq('org_id', orgId).eq('external_tier', 'odoo').eq('kind', 'tax').in('external_id', ids.map(String));
+  if (mirror.error) throw taxRefusal('config-rejected: the purchase tax directory could not be read');
+  const rows = (mirror.data ?? []) as Array<{ external_id: string; name: string; active: boolean; tombstoned_at: string | null; attrs: { amount?: unknown; use?: unknown } | null }>;
+  const unreadable = () => taxRefusal('config-rejected: the chosen purchase taxes could not be checked against Odoo');
+  let companies: Array<{ id: number; company_id?: unknown }>;
+  const withholding = rows.filter((r) => typeof r.attrs?.amount === 'number' && r.attrs.amount < 0).map((r) => Number(r.external_id));
+  const liability = new Set<number>();
+  try {
+    companies = await call('account.tax', 'read', { ids, fields: ['company_id'] });
+    if (withholding.length) {
+      const reps = await call<Array<{ tax_id: unknown; account_id: unknown }>>('account.tax.repartition.line', 'search_read', {
+        domain: [['tax_id', 'in', withholding], ['document_type', '=', 'invoice'], ['repartition_type', '=', 'tax']], fields: ['tax_id', 'account_id'],
+      });
+      const accountIds = [...new Set(reps.flatMap((r) => (Array.isArray(r.account_id) ? [Number(r.account_id[0])] : [])))];
+      const accounts = accountIds.length ? await call<Array<{ id: number; account_type?: unknown }>>('account.account', 'read', { ids: accountIds, fields: ['account_type'] }) : [];
+      const isLiability = new Set(accounts.filter((a) => typeof a.account_type === 'string' && a.account_type.startsWith('liability')).map((a) => a.id));
+      for (const taxId of withholding) {
+        const own = reps.filter((r) => Array.isArray(r.tax_id) && Number(r.tax_id[0]) === taxId);
+        if (own.length > 0 && own.every((r) => Array.isArray(r.account_id) && isLiability.has(Number(r.account_id[0])))) liability.add(taxId);
+      }
+    }
+  } catch { throw unreadable(); }
+  const companyOf = new Map(companies.map((c) => [c.id, Array.isArray(c.company_id) ? Number(c.company_id[0]) : null]));
+  return rows.flatMap((r) => {
+    const id = Number(r.external_id);
+    const rate = r.attrs?.amount;
+    return typeof rate === 'number' && Number.isInteger(id)
+      ? [{ id, name: r.name, rate, active: r.active === true && r.tombstoned_at === null, companyId: companyOf.get(id) ?? -1, scope: text(r.attrs?.use) ?? '', liabilityAccount: liability.has(id) }]
+      : [];
+  });
+}
+
+/** One resolution per command: adapter selection resolves (and so refuses, before any outbox row) and the outbox payload reuses it. */
+const resolvedBills = new WeakMap<object, Promise<{ input: BillInput; ctx: BillCtx }>>();
+
+/**
+ * A vendor-bill create: the case's vendor, the lines it is made of (the latest PMO purchase order's, else the case's), the Odoo
+ * order line each settles when that order was pushed (a bill names its order, OQ-OPP-3), the project's cost account and the
+ * validated, explicit taxes: the command's choice, else the org's default purchase taxes (OQ-OPP-4). A tax that does not validate
+ * is `config-rejected` naming the tax; nothing is sent to Odoo.
+ */
+export function resolveOdooBillInputs(sc: SupabaseClient, orgId: string, command: AdapterCommand, resolved: Resolved, currencyId: number, call: OdooCall): Promise<{ input: BillInput; ctx: BillCtx }> {
+  const memo = resolvedBills.get(command);
+  if (memo) return memo;
+  const run = (async () => {
+    const record = command.record as { procurementId?: unknown; projectId?: unknown; referenceNumber?: unknown; invoiceDate?: unknown; dueDate?: unknown; taxIds?: unknown };
+    const poId = await latestPoId(sc, orgId, record.procurementId);
+    const { c, items, vendor } = await readOrderFacts(sc, orgId, record.procurementId, poId);
+    const claimed = typeof record.projectId === 'string' && record.projectId !== '' ? record.projectId : null;
+    const projectIds = [...new Set([c.project_id, claimed].filter((p): p is string => !!p))];
+    const { taxIds: defaults, ...base } = await orderCtx(sc, orgId, c, resolved, currencyId);
+    const chosen = Array.isArray(record.taxIds) ? asIds(record.taxIds) : null;
+    if (chosen !== null && chosen.length !== (record.taxIds as unknown[]).length) throw taxRefusal('config-rejected: a chosen purchase tax is not a valid id');   // never narrow a bad choice into "no tax"
+    const ids = chooseTaxIds(chosen, defaults);
+    let taxes: BillTax[];
+    try {
+      taxes = selectBillTaxes(await readBillTaxes(sc, orgId, call, ids), ids, base.companyId);
+    } catch (err) {
+      if (err instanceof AdapterError && err.message.startsWith('config-rejected')) throw taxRefusal(err.message);
+      throw err;
+    }
+    // The Odoo order this PMO order became, if it was pushed: each bill line settles the order line of the same product, when that is unambiguous.
+    const orderRef = poId ? await resolveExternalRef(sc as unknown as ExternalRefsLookupClient, orgId, 'procurement', poId) : null;
+    const orderId = Number(orderRef);
+    const orderLines = Number.isInteger(orderId) && orderId > 0
+      ? await call<Array<{ id: number; product_id: unknown }>>('purchase.order.line', 'search_read', { domain: [['order_id', '=', orderId]], fields: ['product_id'] }).catch(() => [])
+      : [];
+    const lineFor = (name: string): number | null => {
+      const product = Number(base.itemMap[name]);
+      const hits = orderLines.filter((l) => Array.isArray(l.product_id) && Number(l.product_id[0]) === product);
+      return hits.length === 1 ? hits[0].id : null;
+    };
+    return {
+      ctx: { ...base, taxes },
+      input: {
+        vendor, reference: text(record.referenceNumber), invoiceDate: text(record.invoiceDate), dueDate: text(record.dueDate), projectIds,
+        lines: items.map((l) => ({ name: l.name, quantity: l.quantity, rate: l.rate, description: l.description, purchaseLineId: lineFor(l.name) })),
+      },
+    };
+  })();
+  resolvedBills.set(command, run);
+  return run;
 }

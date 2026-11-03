@@ -19,6 +19,8 @@ const MODEL: Record<PurchaseKind, string> = { order: 'purchase.order', receipt: 
 export interface PaymentComposite { partnerId: number; amount: string | number; createdAfter: string }
 /** An order's create-to-anchor composite: vendor, untaxed amount, line count and the window the first attempt could have created it in. */
 export interface OrderComposite { partnerId: number; amount: string | number; lineCount: number; createdAfter: string }
+/** A vendor bill's: the same four facts. */
+export type BillComposite = OrderComposite;
 export type ProbeHit = { externalRecordId: string } | null;
 
 const ambiguous = () => new AdapterError('commit-rejected', 'ambiguous-anchor');
@@ -33,28 +35,35 @@ async function byIdentifier(call: OdooCall, kind: PurchaseKind, key: string): Pr
 }
 
 /**
- * Orders: the identifier is a second write after the create, so a crash between the two leaves an order without it. The
- * composite finds that order: our vendor, inside the window, no PMO identifier of its own. Exactly one such order whose untaxed
- * amount and line count equal ours is adopted. ANY other unanchored order of the vendor in the window is doubt and throws (the row
- * is held): Odoo's own figure can differ from the edge's formula (float ties, unit precision, price-included taxes, a clerk's
- * edit), so a near-miss may be our own order and absence is claimed only when the vendor has no unanchored order in the window
- * at all (OQ-OPP-10, DD-OPP-4 amendment: any doubt holds and never reissues).
+ * Orders and bills: the identifier is a second write after the create, so a crash between the two leaves a document without it. The
+ * composite finds that document: our vendor, inside the window, no PMO identifier of its own. Exactly one such document whose
+ * untaxed amount and line count equal ours is adopted. ANY other unanchored document of the vendor in the window is doubt and throws
+ * (the row is held): Odoo's own figure can differ from the edge's formula (float ties, unit precision, price-included taxes, a
+ * clerk's edit), so a near-miss may be our own document and absence is claimed only when the vendor has no unanchored document in
+ * the window at all (OQ-OPP-10, DD-OPP-4 amendment: any doubt holds and never reissues).
  */
-async function byOrderComposite(call: OdooCall, composite: OrderComposite): Promise<ProbeHit> {
-  const rows = await call<Array<{ id: number; order_line: unknown; amount_untaxed: unknown }>>('purchase.order', 'search_read', {
-    domain: [['partner_id', '=', composite.partnerId], ['state', '!=', 'cancel'], ['create_date', '>=', composite.createdAfter]],
-    fields: ['id', 'order_line', 'amount_untaxed'], limit: 21, context: { active_test: false },
+const COMPOSITE_SHAPE = {
+  order: { model: 'purchase.order', lines: 'order_line', where: [] as unknown[] },
+  bill: { model: 'account.move', lines: 'invoice_line_ids', where: [['move_type', '=', 'in_invoice']] as unknown[] },
+} as const;
+
+async function byDocumentComposite(call: OdooCall, kind: keyof typeof COMPOSITE_SHAPE, composite: OrderComposite): Promise<ProbeHit> {
+  const shape = COMPOSITE_SHAPE[kind];
+  const rows = await call<Array<Record<string, unknown> & { id: number }>>(shape.model, 'search_read', {
+    domain: [...shape.where, ['partner_id', '=', composite.partnerId], ['state', '!=', 'cancel'], ['create_date', '>=', composite.createdAfter]],
+    fields: ['id', shape.lines, 'amount_untaxed'], limit: 21, context: { active_test: false },
   });
   if (rows.length === 0) return null;
   const anchored = await call<Array<{ res_id: number }>>('ir.model.data', 'search_read', {
-    domain: [['module', '=', 'pmo'], ['model', '=', 'purchase.order'], ['res_id', 'in', rows.map((r) => r.id)]], fields: ['res_id'], limit: 21,
+    domain: [['module', '=', 'pmo'], ['model', '=', shape.model], ['res_id', 'in', rows.map((r) => r.id)]], fields: ['res_id'], limit: 21,
   });
   const taken = new Set(anchored.map((a) => a.res_id));
   const unanchored = rows.filter((r) => !taken.has(r.id));
   if (unanchored.length === 0) return null;
   const cents = (v: unknown) => Math.round(Number(v) * 100);
   const [only] = unanchored;
-  if (unanchored.length === 1 && Array.isArray(only.order_line) && only.order_line.length === composite.lineCount && cents(only.amount_untaxed) === cents(composite.amount)) {
+  const lines = only[shape.lines];
+  if (unanchored.length === 1 && Array.isArray(lines) && lines.length === composite.lineCount && cents(only.amount_untaxed) === cents(composite.amount)) {
     return { externalRecordId: String(only.id) };
   }
   throw ambiguous();
@@ -82,9 +91,9 @@ async function byMemo(call: OdooCall, key: string, composite?: PaymentComposite)
 }
 
 /** Throws for a key that is not a PMO purchase key (before any call) and for an ambiguous exact anchor. */
-export async function probeOdooByAnchor(call: OdooCall, kind: PurchaseKind, key: string, composite?: PaymentComposite | OrderComposite): Promise<ProbeHit> {
+export async function probeOdooByAnchor(call: OdooCall, kind: PurchaseKind, key: string, composite?: PaymentComposite | OrderComposite | BillComposite): Promise<ProbeHit> {
   anchorValue(key);
   if (kind === 'payment') return byMemo(call, key, composite as PaymentComposite | undefined);
   const hit = await byIdentifier(call, kind, key);
-  return hit ?? (kind === 'order' && composite ? byOrderComposite(call, composite as OrderComposite) : null);
+  return hit ?? ((kind === 'order' || kind === 'bill') && composite ? byDocumentComposite(call, kind, composite as OrderComposite) : null);
 }

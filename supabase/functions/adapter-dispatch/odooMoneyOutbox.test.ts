@@ -21,20 +21,24 @@ const BINDING = { id: 'b0000000-0000-4000-8000-000000000001', site_url: `https:/
 
 const KINDS = [
   ['goods-receipt', 'receipt', 'stock.picking'],
-  ['purchase-invoice', 'bill', 'account.move'],
 ] as const;
 
 type Rows = Record<string, unknown[] | ((body: { domain: unknown[][] }) => unknown[])>;
-function setup(docKind: string, extra: Record<string, unknown> = {}, over: { binding?: Record<string, unknown> | null; odoo?: Rows } = {}) {
+function setup(docKind: string, extra: Record<string, unknown> = {}, over: { binding?: Record<string, unknown> | null; odoo?: Rows; outbox?: Record<string, unknown> | null; replay?: boolean } = {}) {
   const odooCalls: FetchCall[] = [];
   const routes: MockRoute[] = [
     supabaseSelect('external_org_bindings', () => over.binding === null ? new Response('null', { status: 200, headers: { 'content-type': 'application/json' } }) : objectResponse({ ...BINDING, ...over.binding })),
     supabaseRpc('read_vault_secret', () => jsonResponse('odoo-test-key')),
     supabaseSelect('external_refs', () => objectResponse({ external_record_id: 'Vendor:77' })),
-    supabaseSelect('procurements', () => objectResponse({ code: 'PRC-1', project_id: null, vendor_id: 'v-1' })),
+    supabaseSelect('procurements', () => objectResponse({ code: 'PRC-1', project_id: null, vendor_id: 'v-1', currency: 'IDR' })),
+    supabaseSelect('purchase_orders', () => jsonResponse([])),   // a bill with no order of its own
+    supabaseSelect('external_master_records', () => jsonResponse([
+      { external_id: '11', name: 'VAT 11%', active: true, tombstoned_at: null, attrs: { amount: 11, use: 'purchase' } },
+      { external_id: '12', name: 'Withholding 2%', active: true, tombstoned_at: null, attrs: { amount: -2, use: 'purchase' } },
+    ])),
     supabaseSelect('purchase_order_lines', () => jsonResponse([])),   // the PO has no lines of its own: the case's lines are the order
     supabaseSelect('procurement_items', () => jsonResponse([{ name: 'A', quantity: 4, rate: 10, description: null }, { name: 'B', quantity: 2, rate: 5, description: null }])),
-    supabaseSelect('external_command_outbox', () => new Response('null', { status: 200, headers: { 'content-type': 'application/json' } })),
+    supabaseSelect('external_command_outbox', () => over.outbox ? objectResponse({ payload: over.outbox }) : new Response('null', { status: 200, headers: { 'content-type': 'application/json' } })),
     { label: 'odoo', host: ODOO, response: (call) => {
       odooCalls.push(call);
       const model = call.url.pathname.split('/')[3];
@@ -46,16 +50,20 @@ function setup(docKind: string, extra: Record<string, unknown> = {}, over: { bin
   const ctx = {
     orgId: ORG, serviceClient: sc, userId: 'u-1', faultGate: {}, erpAuth: {},
     command: { domain: 'procurement', operation: 'create', idempotencyKey: KEY, record: { id: REC, erp_doc_kind: docKind, procurementId: 'p', receiptDigest: 'ab12', supplier: 'v-1', paid_amount: 98, ...extra } },
+    ...(over.replay ? { replay: true } : {}),
   } as unknown as AdapterSelectContext;
   return { routes, ctx, odooCalls };
 }
 
 describe('OQ-OPP-10 a recovery that finds nothing', () => {
-  for (const kind of ['receipt', 'bill', 'payment'] as const) {
+  for (const kind of ['receipt', 'payment'] as const) {
     it(`AC-OPP-053 holds a ${kind}, never reissues it (no create-to-anchor composite covers it yet, or its anchor is mutable)`, () => {
       assertEquals(odooReissueOnInconclusiveAbsence(kind), false);
     });
   }
+  it('AC-OPP-041 holds a bill, never reissues it, although its composite now covers the create-to-anchor gap (OQ-OPP-10: bills are the stricter class)', () => {
+    assertEquals(odooReissueOnInconclusiveAbsence('bill'), false);
+  });
   it('AC-OPP-011 reissues an order only on conclusive absence: its composite covers the create-to-anchor gap', () => {
     assertEquals(odooReissueOnInconclusiveAbsence('order'), true);
   });
@@ -159,6 +167,79 @@ describe('AC-OPP-053 the Odoo probe closure: zero, one and many matches', () => 
         assertEquals(hit?.canonical?.id, PO);
       });
       assert(queries(t, 'ir.model.data')[0].domain.some(([f, op, v]) => f === 'name' && op === '=' && v === `porev_${PO.replaceAll('-', '_')}_2`));
+    });
+  });
+
+  describe('bill', () => {
+    const MOVE = { name: 'BILL/2026/00041', state: 'posted', move_type: 'in_invoice', amount_total: 54.5, amount_residual: 54.5, ref: 'INV-77', invoice_date: '2026-12-05', currency_id: [12, 'IDR'], write_date: '2026-11-03 10:00:00' };
+    const lines = (b: { domain: unknown[][] }) => (b.domain.some((t) => t[0] === 'tax_line_id') ? [{ balance: 5.5 }, { balance: -1 }] : [{ analytic_distribution: false }]);
+    const billSetup = (odoo: Rows, over: Parameters<typeof setup>[2] = {}) => setup('purchase-invoice', { taxIds: [11, 12], referenceNumber: 'INV-77', invoiceDate: '2026-12-05' }, {
+      ...over, odoo: { 'res.company': [{ currency_id: [12, 'IDR'] }], 'account.tax': [{ id: 11, company_id: [1, 'Co'] }, { id: 12, company_id: [1, 'Co'] }],
+        'account.tax.repartition.line': [{ tax_id: [12, 'x'], account_id: [900, 'PPh payable'] }], 'account.account': [{ id: 900, account_type: 'liability_current' }], ...odoo },
+    });
+    const queries = (t: ReturnType<typeof setup>, model: string) => t.odooCalls.filter((c) => c.url.pathname.includes(`/${model}/`)).map((c) => c.bodyJson as { domain: unknown[][] });
+
+    it('AC-OPP-041 an anchored bill is adopted read back (full canonical, the money header), judged against the figure PMO expected', async () => {
+      const t = billSetup({ 'ir.model.data': [{ res_id: 41 }], 'account.move': [MOVE], 'account.move.line': lines });
+      await withFetchMock(t.routes, async () => {
+        const deps = await resolveOdooMoneyOutboxDeps(t.ctx);
+        assertEquals(await deps.probeByRemarksKey('procurement', KEY), {
+          externalRecordId: '41',
+          canonical: {
+            id: REC, vi_number: 'BILL/2026/00041', invoice_date: '2026-12-05', reference_number: 'INV-77', currency: 'IDR',
+            amount: '55.50', tax_amount: '5.50', withheld_amount: '1.00', erp_outstanding_amount: '54.50', pmo_amount: '54.50',
+            erp_docstatus: 1, erp_modified: '2026-11-03 10:00:00', erp_amended_from: null,
+          },
+        });
+      });
+      assert(queries(t, 'ir.model.data')[0].domain.some(([f, op, v]) => f === 'name' && op === '=' && v === `bill_${REC.replaceAll('-', '_')}`));
+    });
+
+    it('AC-OPP-041 a miss asks the bill composite: our vendor partner, vendor bills only, the window; absence is null', async () => {
+      const t = billSetup({});
+      await withFetchMock(t.routes, async () => {
+        const deps = await resolveOdooMoneyOutboxDeps(t.ctx);
+        assertEquals(await deps.probeByRemarksKey('procurement', KEY), null);
+      });
+      const composite = queries(t, 'account.move')[0].domain;
+      assert(composite.some(([f, op, v]) => f === 'move_type' && op === '=' && v === 'in_invoice'), JSON.stringify(composite));
+      assert(composite.some(([f, op, v]) => f === 'partner_id' && op === '=' && v === 77));
+      assert(composite.some(([f, op]) => f === 'create_date' && op === '>='));
+    });
+
+    it('two bills with the identifier are doubt: the probe throws (the row is held)', async () => {
+      const t = billSetup({ 'ir.model.data': [{ res_id: 41 }, { res_id: 42 }] });
+      await withFetchMock(t.routes, async () => {
+        const deps = await resolveOdooMoneyOutboxDeps(t.ctx);
+        await assertRejects(() => deps.probeByRemarksKey('procurement', KEY), Error, 'ambiguous-anchor');
+      });
+    });
+
+    it('a malformed tax set is refused before the outbox deps exist (no row, no write); Odoo is only read', async () => {
+      const t = billSetup({ 'account.account': [{ id: 900, account_type: 'asset_current' }] });
+      await withFetchMock(t.routes, async () => {
+        const err = await assertRejects(() => resolveOdooMoneyOutboxDeps(t.ctx)) as { code?: string; message: string };
+        assertEquals([err.code, err.message], ['config-rejected', 'config-rejected: Withholding 2%']);
+      });
+      assert(t.odooCalls.every((c) => /\/(read|search_read)$/.test(c.url.pathname)), t.odooCalls.map((c) => c.url.pathname).join());
+    });
+
+    it('a REPLAY resolves no tax, currency or mapping (the document may already exist); it judges the bill against the stored expectation', async () => {
+      const stored = { odoo_partner_id: 77, odoo_amount: '50.00', odoo_line_count: 2, odoo_expected_total: '54.50', odoo_cost_account: null };
+      const t = billSetup({ 'ir.model.data': [{ res_id: 41 }], 'account.move': [MOVE], 'account.move.line': lines }, { replay: true, outbox: stored });
+      await withFetchMock(t.routes, async () => {
+        const deps = await resolveOdooMoneyOutboxDeps(t.ctx);
+        assertEquals((await deps.probeByRemarksKey('procurement', KEY))?.canonical?.pmo_amount, '54.50');
+      });
+      assertEquals(queries(t, 'account.tax').length + queries(t, 'res.company').length, 0);
+    });
+
+    it('a REPLAY with no stored expectation cannot judge the bill: the probe refuses (held), it never assumes a match', async () => {
+      const t = billSetup({ 'ir.model.data': [{ res_id: 41 }], 'account.move': [MOVE], 'account.move.line': lines }, { replay: true });
+      await withFetchMock(t.routes, async () => {
+        const deps = await resolveOdooMoneyOutboxDeps(t.ctx);
+        await assertRejects(() => deps.probeByRemarksKey('procurement', KEY), Error, 'bill-expectation-missing');
+      });
     });
   });
 

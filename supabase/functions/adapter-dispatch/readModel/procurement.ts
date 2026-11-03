@@ -228,6 +228,12 @@ async function upsertInvoiceMirror(ctx: ReadModelWriterCtx, canonical: PmoRecord
     delete patch.tax_amount;
     delete patch.tax_treatment;
   }
+  // A canonical that does not carry the outstanding amount at all (an Odoo bill whose money header was withheld, #1505 FR-OPP-043)
+  // writes neither it nor the status derived from it. A key that is present, null included, is written as before.
+  if (!('erp_outstanding_amount' in canonical)) {
+    delete patch.erp_outstanding_amount;
+    delete patch.status;
+  }
   if (command.operation === 'create') {
     const record = command.record as { procurementId?: string };
     if (!record.procurementId) throw new AppError('procurementId is required to mirror a created purchase invoice', 'BAD_REQUEST');
