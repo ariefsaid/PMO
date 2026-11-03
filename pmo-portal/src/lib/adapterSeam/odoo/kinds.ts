@@ -65,8 +65,8 @@ export const KIND_SPECS: Record<DirectoryKind, KindSpec> = {
   account: { model: 'account.account', fields: ['code', 'name', 'account_type', 'company_ids', 'active', 'write_date'], company: 'company_ids',
     parse: (r) => withAttrs(base(r, r.name, r.code, false), { account_type: str(r.account_type), company_ids: m2m(r.company_ids) }) },
   // The tax group's name is what tells a PPN output tax from a withholding or a collector tax (FR-OCI-023; revenue/taxValidate.ts).
-  tax: { model: 'account.tax', fields: ['name', 'amount', 'type_tax_use', 'tax_group_id', 'active', 'write_date'], company: 'company_id',
-    parse: (r) => (typeof r.amount !== 'number' ? null : withAttrs(base(r, r.name, null, false), { amount: r.amount, use: str(r.type_tax_use), tax_group: m2oName(r.tax_group_id) })) },
+  tax: { model: 'account.tax', fields: ['name', 'amount', 'type_tax_use', 'tax_group_id', 'price_include', 'active', 'write_date'], company: 'company_id',
+    parse: (r) => (typeof r.amount !== 'number' ? null : withAttrs(base(r, r.name, null, false), { amount: r.amount, use: str(r.type_tax_use), tax_group: m2oName(r.tax_group_id), price_include: r.price_include === true })) },
   analytic_plan: { model: 'account.analytic.plan', fields: ['name', 'write_date'], company: null, parse: (r) => base(r, r.name, null, false) },
   analytic_account: { model: 'account.analytic.account', fields: ['name', 'code', 'plan_id', 'company_id', 'active', 'write_date'], company: 'company_id',
     parse: (r) => withAttrs(base(r, r.name, r.code, r.plan_id), { company_id: m2o(r.company_id) }) },

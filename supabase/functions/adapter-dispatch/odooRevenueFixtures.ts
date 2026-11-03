@@ -34,6 +34,8 @@ export interface World {
   invoiceCustomer?: string | null;
   /** Whether the invoice a receipt settles has an Odoo reference. */
   invoiceInOdoo?: boolean;
+  /** The tier the invoice's reference was recorded under (default 'odoo'); a lookup that filters on `external_tier` only sees its own tier's row. */
+  invoiceRefTier?: Tier;
   snapshot?: unknown;
   odooBinding?: Record<string, unknown> | null;
   /** The Odoo cost account the project is linked to (null: unlinked) and what the mirror says about it. */
@@ -108,7 +110,9 @@ export function revenueRoutes(unexpected: FetchCall[], caller: string, world: Wo
     // an invoice a receipt settles has its Odoo reference unless the world says it has none; a submit's own record is mapped
     supabaseSelect('external_refs', (call) => {
       const id = param(call, 'pmo_record_id');
-      return id === INVOICE_ID && world.invoiceInOdoo !== false ? objectResponse({ external_record_id: 'account.move:301' }) : nullObjectResponse();
+      const asked = param(call, 'external_tier');
+      const held = id === INVOICE_ID && world.invoiceInOdoo !== false && (asked === null || asked === (world.invoiceRefTier ?? 'odoo'));
+      return held ? objectResponse({ external_record_id: 'account.move:301' }) : nullObjectResponse();
     }),
     { label: 'outbox read', method: 'GET', pathname: '/rest/v1/external_command_outbox', response: (call) => {
       const row = outbox.get(`${param(call, 'pmo_record_id')}|${param(call, 'idempotency_key')}`);

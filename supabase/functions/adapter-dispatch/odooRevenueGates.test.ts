@@ -175,6 +175,7 @@ describe('FR-OCI-050 / FR-OCI-055 a receipt settles one invoice, in the same rev
   };
   it('a receipt naming no invoice is refused', async () => { await refused({}, receiptCommand({ salesInvoiceId: null }), 'receipt-invoice-required'); });
   it('an invoice Odoo does not hold is refused', async () => { await refused({ invoiceInOdoo: false }, receiptCommand(), 'receipt-invoice-not-in-odoo'); });
+  it('an invoice whose only reference is an ERPNext mapping is refused (FR-OCI-055)', async () => { await refused({ invoiceRefTier: 'erpnext' }, receiptCommand(), 'receipt-invoice-not-in-odoo'); });
   it('a customer other than the invoice\'s is refused', async () => {
     await refused({ invoiceCustomer: '12121212-1212-4121-8121-121212121212' }, receiptCommand(), 'receipt-customer-mismatch');
   });

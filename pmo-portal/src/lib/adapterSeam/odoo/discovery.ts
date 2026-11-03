@@ -25,7 +25,7 @@ export const O1_MODELS: Record<string, readonly string[]> = {
   'stock.warehouse': ['name', 'code', 'lot_stock_id', 'view_location_id', 'company_id', 'active', 'write_date'],
   'stock.location': ['complete_name', 'usage', 'location_id', 'warehouse_id', 'company_id', 'active', 'write_date'],
   'account.account': ['code', 'name', 'account_type', 'company_ids', 'active', 'write_date'],
-  'account.tax': ['name', 'amount', 'type_tax_use', 'tax_group_id', 'company_id', 'active', 'write_date'],
+  'account.tax': ['name', 'amount', 'type_tax_use', 'tax_group_id', 'price_include', 'company_id', 'active', 'write_date'],
   'account.analytic.plan': ['name', 'write_date'],
   'account.analytic.account': ['name', 'code', 'plan_id', 'company_id', 'active', 'write_date'],
   'account.journal': ['name', 'code', 'type', 'company_id', 'active', 'write_date'],

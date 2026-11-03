@@ -14,7 +14,6 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 import type { AdapterCommand } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
 import { assertCommandLinksSameOrg } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/dispatchPreflight.ts';
-import { resolveExternalRef } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
 import { resolveOdooCostAccount } from '../_shared/odooPurchaseRefs.ts';
 
 export async function assertOdooRevenueCommandScope(sc: SupabaseClient, orgId: string, command: AdapterCommand): Promise<void> {
@@ -28,7 +27,10 @@ export async function assertOdooRevenueCommandScope(sc: SupabaseClient, orgId: s
   if (record.erp_doc_kind !== 'incoming-payment' || String(command.operation) !== 'create') return;
   const invoiceId = record.salesInvoiceId;
   if (typeof invoiceId !== 'string' || invoiceId === '') throw new AppError('receipt-invoice-required', 'commit-rejected');
-  if (await resolveExternalRef(sc as never, orgId, 'revenue', invoiceId) === null) throw new AppError('receipt-invoice-not-in-odoo', 'commit-rejected');
+  // Only an Odoo-tier reference counts: an invoice pushed to ERPNext before the org employed Odoo is not an Odoo `account.move` (FR-OCI-055).
+  const ref = await sc.from('external_refs').select('external_record_id').eq('org_id', orgId).eq('domain', 'revenue').eq('external_tier', 'odoo').eq('pmo_record_id', invoiceId).maybeSingle();
+  if (ref.error) throw new AppError('gate-check-failed', 'commit-rejected');
+  if (ref.data === null) throw new AppError('receipt-invoice-not-in-odoo', 'commit-rejected');
   const { data, error } = await sc.from('sales_invoices').select('customer_id').eq('org_id', orgId).eq('id', invoiceId).maybeSingle();
   if (error) throw new AppError('gate-check-failed', 'commit-rejected');
   const customer = (data as { customer_id: string | null } | null)?.customer_id;

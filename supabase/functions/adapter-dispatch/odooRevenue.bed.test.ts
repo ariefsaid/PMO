@@ -30,12 +30,12 @@ Deno.test({
     assertEquals(snapshot.models['account.tax'].fields_missing, [], 'the tax group field is readable');
 
     const spec = KIND_SPECS.tax;
-    const rows = await call<Array<Record<string, unknown>>>(spec.model, 'search_read', { domain: [['type_tax_use', '=', 'sale']], fields: [...spec.fields, 'company_id', 'price_include'], limit: 200 });
+    const rows = await call<Array<Record<string, unknown>>>(spec.model, 'search_read', { domain: [['type_tax_use', '=', 'sale']], fields: [...spec.fields, 'company_id'], limit: 200 });
     const taxes = rows.flatMap((r): SaleTax[] => {
       const parsed = spec.parse(r);
       const company = Array.isArray(r.company_id) ? Number(r.company_id[0]) : NaN;
       return parsed && Number.isFinite(company)
-        ? [{ id: Number(parsed.external_id), name: parsed.name, rate: Number(parsed.attrs.amount), active: parsed.active, companyId: company, scope: String(parsed.attrs.use), priceIncluded: r.price_include === true, taxGroup: parsed.attrs.tax_group as string | null }]
+        ? [{ id: Number(parsed.external_id), name: parsed.name, rate: Number(parsed.attrs.amount), active: parsed.active, companyId: company, scope: String(parsed.attrs.use), priceIncluded: parsed.attrs.price_include === true, taxGroup: parsed.attrs.tax_group as string | null }]
         : [];
     });
     assert(taxes.length > 0 && taxes.every((t) => 'taxGroup' in t), 'every parsed tax carries its tax group');
