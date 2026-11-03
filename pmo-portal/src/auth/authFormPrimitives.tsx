@@ -82,7 +82,6 @@ export const AuthInput: React.FC<{
         <button
           type="button"
           onClick={() => setRevealed((r) => !r)}
-          tabIndex={-1}
           // "value" not "password" on purpose: an accessible name containing the field's own label
           // makes getByLabelText(/password/i) ambiguous (the toggle and the input both match), which
           // is a real usability smell as well as a test one. Matches the shared TextField toggle.

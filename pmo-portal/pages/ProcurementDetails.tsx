@@ -15,6 +15,7 @@ import {
   ListState,
   Icon,
   ConfirmDialog,
+  TextArea,
   Tabs,
   tabId,
   tabPanelId,
@@ -41,6 +42,8 @@ import { withTabSwitchNavState } from '@/src/lib/tabSwitchNav';
 import { useAuth } from '@/src/auth/useAuth';
 import { formatCurrency } from '@/src/lib/format';
 import { LineItemsSection } from './procurement/LineItemsSection';
+import { SubcontractLinesSection } from './procurement/SubcontractLinesSection';
+import { classifySubcontractBillError } from './procurement/subcontractBillError';
 import { VendorQuotesTab } from './procurement/VendorQuotesTab';
 import { PaymentCeilingNotice } from './procurement/PaymentCeilingNotice';
 import { ProcurementHeaderEdit } from './procurement/ProcurementHeaderEdit';
@@ -68,6 +71,7 @@ import {
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import type { CommandIntent } from '@/src/lib/repositories/types';
 import type { ErpVendorTaxAmounts, PphType } from '@/src/lib/vendorWithholding';
+import type { SubcontractBillLineInput } from '@/src/lib/db/subcontracts';
 import { useAgentContext } from '@/src/lib/agent/context/useAgentContext';
 import { useListReturn } from '@/src/hooks/useListReturn';
 import { RecordHistory } from '@/src/components/history/RecordHistory';
@@ -151,6 +155,8 @@ type PendingConfirm =
       /** #769: the parent group's number for this invoice. */
       externalRef?: string | null;
       amount: number | null;
+      /** Present when the existing supplier-invoice form captures a capped subcontract bill. */
+      lines?: SubcontractBillLineInput[];
       /** #505: REQUIRED — staged from the capture form and carried verbatim through the confirm to
        *  the RPC, so the confirmed write can never be the one that discovers they are missing. */
       taxTreatment: TaxTreatment;
@@ -260,6 +266,7 @@ const ProcurementDetails: React.FC = () => {
   // Confirm-before-write (owner rule): a transition action / GR / VI is staged
   // here and only commits when the ConfirmDialog's Confirm is pressed.
   const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(null);
+  const [rejectionComment, setRejectionComment] = useState('');
   const erpOrphanQuery = useErpOrphans(undefined, { enabled: linkDialogOpen });
 
   // FR-AXP-021 (Track C): publish the loaded record to the live agent context so a
@@ -378,7 +385,7 @@ const ProcurementDetails: React.FC = () => {
             title={t('procurementDetail.accessDenied.title', "You don't have access to this record")}
             sub={t(
               'procurementDetail.accessDenied.sub',
-              "This procurement record either doesn't exist or isn't visible to your role. If you created it, open it from your procurement list.",
+              "This procurement case either doesn't exist or isn't visible to your role. If you created it, open it from your procurement list.",
             )}
           />
         </div>
@@ -420,7 +427,7 @@ const ProcurementDetails: React.FC = () => {
   if (!recordInScope) {
     return <>
       <div data-testid="mobile-back-bar" className="hidden max-[920px]:block"><BackBar label={t('procurementDetail.backToProcurement', 'Procurement')} onBack={goBack} /></div>
-      <div data-testid="procurement-no-access"><ListState variant="empty" icon="lock" titleAsPageHeading title={t('procurementDetail.accessDenied.title', "You don't have access to this record")} sub={t('procurementDetail.accessDenied.sub', "This procurement record either doesn't exist or isn't visible to your role. If you created it, open it from your procurement list.")} /></div>
+      <div data-testid="procurement-no-access"><ListState variant="empty" icon="lock" titleAsPageHeading title={t('procurementDetail.accessDenied.title', "You don't have access to this record")} sub={t('procurementDetail.accessDenied.sub', "This procurement case either doesn't exist or isn't visible to your role. If you created it, open it from your procurement list.")} /></div>
     </>;
   }
   const isRequester = p.requested_by_id === currentUser?.id;
@@ -651,6 +658,7 @@ const ProcurementDetails: React.FC = () => {
       void commitTransition(action.to);
       return;
     }
+    setRejectionComment('');
     const destructive = action.variant === 'destructive';
     const isCancel = action.to === 'Cancelled';
     // The commit verb (action.label is already "Cancel request" for the cancel
@@ -702,8 +710,11 @@ const ProcurementDetails: React.FC = () => {
   //    an illegal-stage / SoD failure reads as such instead of a silent no-op.
   const commitTransition = async (to: ProcurementStatus) => {
     try {
-      await mutations.transition.mutateAsync({ to, notes: notesInput || undefined });
+      // A rejection's notes are the required comment from its confirm, not the approval-note box.
+      const notes = to === 'Rejected' ? rejectionComment.trim() : notesInput;
+      await mutations.transition.mutateAsync({ to, notes: notes || undefined });
       setNotesInput('');
+      setRejectionComment('');
       setPendingConfirm(null);
       // AC-IXD-PROC-001: the toast names the SAME canonical state the badge will
       // show — not the raw enum value (button verb → badge → toast all agree).
@@ -741,7 +752,7 @@ const ProcurementDetails: React.FC = () => {
         setShowCreateGR(false);
         toast(t('procurementDetail.toast.grRecorded', 'Goods receipt recorded'), undefined, 'success');
       } else {
-        await mutations.createInvoice.mutateAsync({
+        const invoice = {
           status: pendingConfirm.status,
           invoiceDate: pendingConfirm.invoiceDate,
           referenceNumber: pendingConfirm.referenceNumber,
@@ -756,8 +767,14 @@ const ProcurementDetails: React.FC = () => {
             ? { withheldAmount: pendingConfirm.withheldAmount, withheldPphType: pendingConfirm.withheldPphType } : {}),
           ...(pendingConfirm.erpTaxAmounts ? { erpTaxAmounts: pendingConfirm.erpTaxAmounts } : {}),
           intent: pendingConfirm.intent,
-        });
+        };
+        if (pendingConfirm.lines) {
+          await mutations.captureSubcontractVendorInvoice.mutateAsync({ ...invoice, lines: pendingConfirm.lines });
+        } else {
+          await mutations.createInvoice.mutateAsync(invoice);
+        }
         setShowCreateVI(false);
+        setCaptureKind(null);
         toast(t('procurementDetail.toast.viRecorded', 'Supplier invoice recorded'), undefined, 'success');
       }
       setPendingConfirm(null);
@@ -765,7 +782,9 @@ const ProcurementDetails: React.FC = () => {
       // Close the confirm; surface the classified toast + keep the verbatim
       // inline error (forms keep redundant errors — that is correct).
       setPendingConfirm(null);
-      const { headline, detail } = classifyMutationError(err);
+      const { headline, detail } = (pendingConfirm.kind === 'createVI' && pendingConfirm.lines
+        ? classifySubcontractBillError(err, t)
+        : null) ?? classifyMutationError(err);
       toast(headline, detail, 'warning');
       setMutationError(detail);
     }
@@ -780,10 +799,13 @@ const ProcurementDetails: React.FC = () => {
   const submitVICapture = async (capture: VendorInvoiceCapture) => {
     setMutationError(null);
     try {
-      await mutations.captureVendorInvoice.mutateAsync({
+      const { lines, ...rest } = capture;
+      // #1513 S7.4: a subcontract bill with BoQ lines goes through the capped RPC (SC001 refusal, in words).
+      if (lines) await mutations.captureSubcontractVendorInvoice.mutateAsync({ ...rest, lines, notes: notesInput || undefined });
+      else await mutations.captureVendorInvoice.mutateAsync({
         // #505: `capture` is `CaptureVendorInvoiceInput` minus procurementId/notes, so the tax facts
         // travel through by construction — there is no field list here to forget to update.
-        ...capture,
+        ...rest,
         notes: notesInput || undefined,
       });
       setNotesInput('');
@@ -796,7 +818,7 @@ const ProcurementDetails: React.FC = () => {
     } catch (err) {
       // Keep the form open (do NOT close) — the atomic RPC rolled everything back, so the user
       // can fix the input and resubmit from the same panel.
-      const { headline, detail } = classifyMutationError(err);
+      const { headline, detail } = classifySubcontractBillError(err, t) ?? classifyMutationError(err);
       toast(headline, detail, 'warning');
       setMutationError(detail);
     }
@@ -806,7 +828,8 @@ const ProcurementDetails: React.FC = () => {
     mutations.transition.isPending ||
     mutations.createReceipt.isPending ||
     mutations.createInvoice.isPending ||
-    mutations.captureVendorInvoice.isPending;
+    mutations.captureVendorInvoice.isPending ||
+    mutations.captureSubcontractVendorInvoice?.isPending;
 
   // The separator goes BETWEEN present parts only — a purchase with no request number (e.g. one created from an ERPNext
   // document) must not start with a stray "·".
@@ -925,7 +948,11 @@ const ProcurementDetails: React.FC = () => {
       : captureKind === 'purchase_order' ? recordMutations.createPurchaseOrder.isPending
         : captureKind === 'payment' ? recordMutations.createPayment.isPending
           : captureKind === 'goods_receipt' ? mutations.createReceipt.isPending
-            : captureKind === 'vendor_invoice' ? mutations.createInvoice.isPending : false;
+            : captureKind === 'vendor_invoice'
+              ? (p.is_subcontract && p.purchase_orders[0]?.id
+                ? mutations.captureSubcontractVendorInvoice.isPending
+                : mutations.createInvoice.isPending)
+              : false;
   const clickMainAction = () => {
     if (!mainAction) return;
     if (mainAction.to === 'Received') {
@@ -1054,7 +1081,7 @@ const ProcurementDetails: React.FC = () => {
       {approverLimitLine && <p className="mt-2 text-[12.5px] font-medium text-muted-foreground">{approverLimitLine}</p>}
       {decisionContextNote && <p data-testid="sod-ready-hint" className="mb-3 text-[12.5px] text-muted-foreground">{decisionContextNote}</p>}
       {isDraft && p.items.length === 0 && mainAction?.to === 'Requested' && <p data-testid="line-items-gate" className="mb-3 text-[12.5px] text-muted-foreground">{t('procurementRecord:gate.addLineItem', 'Add at least one line item before submitting.')}</p>}
-      {isDraft && isRequester && <p data-testid="sod-pre-announce" className="mb-3 text-[12.5px] text-muted-foreground">{t('procurementRecord:sod.preAnnounce', "Submitting hands this to another approver. You can't approve your own procurement.")}</p>}
+      {isDraft && isRequester && <p data-testid="sod-pre-announce" className="mb-3 text-[12.5px] text-muted-foreground">{t('procurementRecord:sod.preAnnounce', "Submitting hands this to another approver. You can't approve your own procurement case.")}</p>}
       {routeNote && !(showVICapture || showCreateGR || showCreateVI) && <p data-testid="approval-route-note" className="mb-3 text-[12.5px] text-muted-foreground">{routeNote}</p>}
       {mainAction?.to === 'Approved' && <label className="mb-4 mt-2 block max-w-xl text-[12px] font-medium text-muted-foreground">{t('procurementRecord:approval.note', 'Approval note (optional)')}
         <textarea data-testid="procurement-notes-input" value={notesInput} onChange={(event) => setNotesInput(event.target.value)} rows={2} className="mt-1 block w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-[13px] text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" />
@@ -1128,6 +1155,16 @@ const ProcurementDetails: React.FC = () => {
             }}
             currency={p.currency}
           />
+          {p.is_subcontract && p.project_id && p.purchase_orders[0] && (
+            <SubcontractLinesSection
+              poId={p.purchase_orders[0].id}
+              procurementId={p.id}
+              projectId={p.project_id}
+              currency={p.currency}
+              currentUserId={currentUserId ?? undefined}
+              projectManagerId={managerId}
+            />
+          )}
           </div>
         )}
 
@@ -1306,6 +1343,7 @@ const ProcurementDetails: React.FC = () => {
           vendorId={p.vendor_id}
           itemsNet={itemsNetTotal(p.items)}
           currency={p.currency}
+          subcontractPoId={p.is_subcontract ? p.purchase_orders[0]?.id : undefined}
           onStage={(staged) => { setMutationError(null); setPendingConfirm(staged); }}
           onClose={() => setCaptureKind(null)}
         />
@@ -1398,17 +1436,32 @@ const ProcurementDetails: React.FC = () => {
               : t('procurementDetail.confirm.viTitle', 'Record this supplier invoice?')
         }
         description={
-          pendingConfirm?.kind === 'transition'
+          pendingConfirm?.kind === 'transition' && pendingConfirm.to === 'Rejected'
+            ? (
+              <div className="space-y-3">
+                <p>{pendingConfirm.description}</p>
+                <TextArea
+                  id="procurement-rejection-comment"
+                  label={t('procurement:approvalRow.rejectionComment', 'Rejection comment')}
+                  value={rejectionComment}
+                  onChange={setRejectionComment}
+                  required
+                  maxLength={1000}
+                  helper={t('procurement:approvalRow.rejectionCommentHelp', 'Add a comment for the requester before rejecting this purchase.')}
+                />
+              </div>
+            )
+            : pendingConfirm?.kind === 'transition'
             ? pendingConfirm.description
             : pendingConfirm?.kind === 'createGR'
               ? t(
                   'procurementDetail.confirm.grBody',
-                  'This records a {{status}} goods receipt against procurement record {{request}}.',
+                  'This records a {{status}} goods receipt against procurement case {{request}}.',
                   { status: pendingConfirm.status.toLowerCase(), request: p.title },
                 )
               : t(
                   'procurementDetail.confirm.viBody',
-                  'This records a supplier invoice against procurement record {{request}}.',
+                  'This records a supplier invoice against procurement case {{request}}.',
                   { request: p.title },
                 )
         }
@@ -1423,6 +1476,7 @@ const ProcurementDetails: React.FC = () => {
           pendingConfirm?.kind === 'transition' ? pendingConfirm.cancelLabel : undefined
         }
         loading={confirmInFlight}
+        confirmDisabled={pendingConfirm?.kind === 'transition' && pendingConfirm.to === 'Rejected' && rejectionComment.trim().length === 0}
         onCancel={() => setPendingConfirm(null)}
         onConfirm={() => void commitConfirm()}
       />

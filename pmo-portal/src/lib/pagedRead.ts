@@ -116,3 +116,28 @@ export async function fetchAllRowsByKeyset<T extends { id: string }>(
   }
   return out;
 }
+
+/**
+ * Run an async job per item with BOUNDED concurrency (DAL01-006): at most `limit` jobs are in
+ * flight at any moment, and each worker takes the next unconsumed item as soon as it finishes its
+ * current one. Results come back in INPUT order (results[i] is job(items[i])), never completion
+ * order, so callers stay deterministic. A job rejection rejects the whole call — callers that must
+ * not surface a partial result get a thrown error, mirroring the paged loops above.
+ */
+export async function mapBounded<T, R>(
+  items: readonly T[],
+  limit: number,
+  job: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let next = 0;
+  const workers = Array.from({ length: Math.max(1, Math.min(limit, items.length)) }, async () => {
+    for (;;) {
+      const index = next++;
+      if (index >= items.length) return;
+      results[index] = await job(items[index]!);
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}

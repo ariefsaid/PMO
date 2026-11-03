@@ -152,12 +152,29 @@ export interface ConnectHarness {
   documents(kind: MasterKind): NormalisedMaster[];
   /** The next create or update fails: before it reaches the ERP (`transport`), or after the ERP applied it (`lost-response`). */
   failNextWrite(fault: 'transport' | 'lost-response'): void;
+  /** The next create is refused by the ERP (a validation error): it throws `commit-rejected`, nothing is created. */
+  rejectNextWrite(): void;
+  /** Kinds whose ERP key the ERP assigns itself, so the PMO code is not carried on the document. */
+  ownKeys?: readonly MasterKind[];
+  /** True when any request reached the ERP's accounts, taxes or fiscal years (read or write): a send must never. */
+  touchedAccounting(): boolean;
   /** census / item.match / account.match / employee.match: place ERP masters in the fake ERP (PMO terms). Absent until the tier runs those suites. */
   load?(kind: MasterKind, rows: readonly Omit<NormalisedMaster, 'kind'>[]): void;
   /** Requests that reached the fake ERP, split by read and write. */
   calls?(): { reads: number; writes: number };
   /** Rows the tier's `listMasters` returns per page; the match suites load more than this to prove paging. */
   pageSize?: number;
+}
+
+/** An ERP invoice as the ERP states it, in PMO terms. `total` is the tax-inclusive grand total. */
+export interface InboundInvoiceDoc {
+  client: string;
+  number: string;
+  poRef: string | null;
+  total: string;
+  taxAmount: string;
+  date: string;
+  currency: string;
 }
 
 export interface ErpHarness {
@@ -193,6 +210,8 @@ export interface ErpHarness {
   pushPurchaseStep?: (step: PurchaseStep, orderedBeforeConnect: boolean | 'unknown') => Promise<PushBeforeConnectionResult>;
   /** party.send, project.send, item.send: each call starts an empty fake ERP. Absent until the tier sends masters. */
   connect?: () => ConnectHarness;
+  /** invoice.pair-existing: the tier's inbound mapper applied to an ERP invoice; the row the feed writes, in PMO column names. */
+  mapInboundInvoice?: (doc: InboundInvoiceDoc) => Promise<Record<string, unknown>>;
   /** imprest.transfer: each call starts an empty fake ERP. Absent until the tier posts site cash. */
   transfer?: () => TransferHarness;
   /** purchase-order.revise: each call starts an empty fake ERP. Absent until the tier carries PO revisions (#1505). */

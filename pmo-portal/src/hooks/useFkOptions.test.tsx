@@ -24,6 +24,7 @@ import {
   useInvoiceProjectOptions,
 } from './useFkOptions';
 import { I18nextProvider } from 'react-i18next';
+import { act } from '@testing-library/react';
 import { financeTestI18n } from '@/pages/__tests__/financeI18nTestInstance';
 
 function wrapper() {
@@ -58,6 +59,44 @@ describe('useVendorOptions — vendor FK picker', () => {
     const { result } = renderHook(() => useVendorOptions(), { wrapper: wrapper() });
     expect(repo.company.list).not.toHaveBeenCalled();
     expect(result.current.data).toBeUndefined();
+  });
+
+  // HKA-009: the vendor sub is translated at READ time in the queryFn while the cache key omits
+  // the language and the query stays fresh for five minutes — so switching the UI language left
+  // cached supplier subtitles in the previous language until a refetch. The cached data must be
+  // language-neutral (the short-name sub, no label) and the translated "Vendor" sub must be
+  // applied through `select`, exactly as useClientCompanyOptions does.
+  it('retranslates the Vendor sub on a language switch without refetching (references HKA-009)', async () => {
+    repo.company.list.mockResolvedValue([
+      { id: 'v1', name: 'Apex Supply', type: 'Vendor', archived_at: null, short_name: null },
+      { id: 'v2', name: 'Bolt Co', type: 'Vendor', archived_at: null, short_name: 'Bolt' },
+    ]);
+    await financeTestI18n.changeLanguage('id');
+    const { result } = renderHook(() => useVendorOptions(), {
+      wrapper: ({ children }: { children: React.ReactNode }) => (
+        <I18nextProvider i18n={financeTestI18n}>
+          <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+            {children}
+          </QueryClientProvider>
+        </I18nextProvider>
+      ),
+    });
+    await waitFor(() => expect(result.current.data).toBeDefined());
+    // The short-name case keeps its legal-name sub (AC-NICK-001); the type sub is translation
+    // and follows the language.
+    expect(result.current.data).toEqual([
+      { value: 'v1', label: 'Apex Supply', sub: financeTestI18n.t('companies.type.vendor') },
+      { value: 'v2', label: 'Bolt', sub: 'Bolt Co' },
+    ]);
+    expect(repo.company.list).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      await financeTestI18n.changeLanguage('en');
+    });
+    // The cached 'Pemasok' sub must re-translate to the new language WITHOUT a refetch.
+    await waitFor(() => expect(result.current.data?.[0].sub).toBe('Supplier'));
+    // The re-translation came from `select` against the CACHED rows — no second fetch.
+    expect(repo.company.list).toHaveBeenCalledTimes(1);
+    await financeTestI18n.changeLanguage('en');
   });
 });
 

@@ -24,17 +24,30 @@ import type { ComboboxOption } from '@/src/components/ui';
 
 const FK_STALE_MS = 5 * 60_000; // FK reference lists change rarely; cache for 5 min.
 
-/** Vendor companies as FK options (id→value, name→label, "Vendor" sub). */
+/**
+ * Org-scoped vendor companies as FK options (id→value, name→label). The cached data is
+ * language-neutral — the only translatable part (the "Vendor" type sub for companies without a
+ * short name) is applied through `select` tied to the current translation, exactly as
+ * `useClientCompanyOptions` does (HKA-009): translating inside `queryFn` left cached subtitles in
+ * the previous language after a language switch, because the cache key omits the language and the
+ * query stays fresh for five minutes.
+ */
 export function useVendorOptions() {
   const { t } = useTranslation();
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
-  return useQuery<ComboboxOption[]>({
+  const vendorLabel = t('companies.type.vendor', 'Supplier');
+  const select = useCallback(
+    (options: ComboboxOption[]) => options.map((o) => (o.sub ? o : { ...o, sub: vendorLabel })),
+    [vendorLabel],
+  );
+  return useQuery<ComboboxOption[], Error, ComboboxOption[]>({
     queryKey: ['fk-options', 'vendor', orgId],
     queryFn: async () => {
       const rows = await repositories.company.list({ type: 'Vendor' });
-      return rows.map((c) => ({ value: c.id, label: companyDisplayName(c), sub: c.short_name ? c.name : t('companies.type.vendor', 'Supplier') }));
+      return rows.map((c) => ({ value: c.id, label: companyDisplayName(c), ...(c.short_name ? { sub: c.name } : {}) }));
     },
+    select,
     enabled: Boolean(orgId),
     staleTime: FK_STALE_MS,
   });

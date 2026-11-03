@@ -342,6 +342,7 @@ and do not design around the restriction as this spec's first draft did.
   when no project filter is applied, and shall exclude templates and archived meetings by default.
 - **FR-MTG-035** — *Ubiquitous.* The list shall be bounded by an explicit row cap and explicit
   ordering rather than a required filter — the same correction `DD-TASK-3` applied to tasks.
+- **FR-MTG-041** — *When* a user opts to show archived meetings, the list shall include all otherwise-visible active and archived meetings. Archived meetings shall carry an `Archived` label and may be restored by their author or an Admin; restore shall clear `archived_at` while retaining the meeting's other content. The default list shall continue to hide archived meetings (ADR-0018).
 
 ---
 
@@ -428,6 +429,7 @@ and do not design around the restriction as this spec's first draft did.
   ordered newest-first and templates and archived meetings are absent.
 - **AC-MTG-028** — *Given* a project filter, *when* it is applied, *then* only that project's meetings
   show; *when* it is cleared, *then* project-less meetings are included.
+- **AC-MTG-303** — *Given* an author-created meeting with minutes and an external guest, *when* the author archives it, chooses Show archived, and restores it, *then* it appears in the default active list with its minutes and guest preserved.
 
 ---
 
@@ -435,8 +437,10 @@ and do not design around the restriction as this spec's first draft did.
 
 | AC | Owning layer | Location |
 |---|---|---|
-| AC-MTG-001/002/008/009 | Unit (Vitest) | serialisation + template-copy of the block schema |
-| AC-MTG-003/005/006/007 | Unit (Vitest/RTL) | the `actionItem` renderer against a mocked task repository |
+| AC-MTG-001/002/009 | Unit (Vitest) | serialisation of the block schema (`minutesSchema.test.ts`) |
+| AC-MTG-003/005/007 | Unit (Vitest/RTL) | the `actionItem` renderer against a mocked task repository |
+| AC-MTG-006 | Unit (Vitest) | `minutesSchema.test.ts` — duplicating a block through the shipped schema yields two references to the same task, no task data copied (FR-MTG-020; #1710 re-home) |
+| AC-MTG-008 | Unit (Vitest/RTL) | `ActionItemView.test.tsx` — an empty `taskId` (a fresh template-copy block) is a tombstone with no lookup and no write; the schema default keeps new blocks reference-free (FR-MTG-021 copy-on-create stays deferred, DD-MTG-9; #1710 re-home) |
 | AC-MTG-004 | **Integration (pgTAP)** | the block delete path must not touch `tasks` — a DB fact, not a render fact |
 | AC-MTG-010/011/012/013/014 | Integration (pgTAP) | the projection trigger + `notes_search` |
 | AC-MTG-015/016/017/018/019/020 (DB half) | Integration (pgTAP) | RLS, the `CHECK`, the org stamp, the FK block |
@@ -449,6 +453,7 @@ and do not design around the restriction as this spec's first draft did.
 | AC-MTG-025 | Unit (Vitest/RTL) | render under a stub locale |
 | AC-MTG-026 | Unit (Vitest) | the paste handler |
 | AC-MTG-027/028 | **E2E (Playwright)** | one curated journey: open the list, filter, find a meeting by searching its notes |
+| AC-MTG-303 | **E2E (Playwright)** | self-isolated author journey: create, archive, show archived, restore, and reopen the meeting |
 
 One curated e2e journey covers `AC-MTG-027/028` and the `DD-MTG-5` find story end to end; everything
 else sits at the lowest sufficient layer (ADR-0010).

@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Card, CardHead, ListState, TaxBasisLabel } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useUnbilledWorkOrders } from '@/src/hooks/useWorkOrderBilling';
-import { formatCurrencyAuto } from '@/src/lib/format';
+import { formatCurrency } from '@/src/lib/format';
 
 /** Straight to the work order on its project's Work orders tab — highlighted, scrolled to and focused there. */
 const workOrderHref = (projectId: string, workOrderId: string) =>
@@ -47,7 +47,7 @@ const StillToInvoiceBody: React.FC = () => {
             <ul className="flex flex-col gap-1" data-testid="still-to-invoice-totals">
               {data.totals.map((total) => (
                 <li key={total.currency} className="text-[15px] font-bold tabular">
-                      {formatCurrencyAuto(total.remaining, total.currency)}{' '}
+                      {formatCurrency(total.remaining, total.currency)}{' '}
                   {/* Every figure here is normalised excl. tax (DD-BWO-3) — the shared basis label (OD-TAX-1). */}
                   <TaxBasisLabel treatment="exclusive" showDetails={false} testId="still-to-invoice-basis" />
                   <span className="text-[11px] font-normal text-muted-foreground">
@@ -109,7 +109,7 @@ const StillToInvoiceBody: React.FC = () => {
                   </Link>
                   <span className="flex shrink-0 flex-col items-end">
                     <span className="text-[13px] font-semibold tabular">
-                      {formatCurrencyAuto(row.remaining, row.currency)}
+                      {formatCurrency(row.remaining, row.currency)}
                     </span>
                     <TaxBasisLabel treatment="exclusive" showDetails={false} testId="still-to-invoice-row-basis" />
                   </span>

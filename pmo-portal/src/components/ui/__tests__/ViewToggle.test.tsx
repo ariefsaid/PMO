@@ -44,13 +44,15 @@ describe('ViewToggle (segmented control)', () => {
     expect(onChange).toHaveBeenCalledWith('cards');
   });
 
-  it('ArrowRight moves selection to the next option', async () => {
+  it('ArrowRight moves selection to the next option and moves focus', async () => {
     const onChange = vi.fn();
     render(<ViewToggle options={opts} value="table" onChange={onChange} ariaLabel="View" />);
     const first = screen.getByRole('tab', { name: 'Table' });
     first.focus();
     await userEvent.keyboard('{ArrowRight}');
     expect(onChange).toHaveBeenCalledWith('kanban');
+    const second = screen.getByRole('tab', { name: 'Board' });
+    expect(second).toHaveFocus();
   });
 
   it('renders a trailing count badge when provided', () => {

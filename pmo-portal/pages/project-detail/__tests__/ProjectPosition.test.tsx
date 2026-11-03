@@ -86,6 +86,7 @@ vi.mock('@/src/hooks/useTasks', () => ({ useTasks: () => ({ data: state.tasks, i
 vi.mock('../ProjectProfitLossSection', () => ({ default: () => null }));
 
 import { useBudgetPosition, useOverdueReceivables, useProjectAttention } from '../useProjectPosition';
+import { buildBudgetSummaryRows } from '../budget/budgetModel';
 import { CostBlock, DeliveryBlock, MoneyBlock } from '../ProjectBlocks';
 import { PrimaryProjectAction } from '../ProjectSections';
 import { ProjectAttention } from '../ProjectAttention';
@@ -162,6 +163,26 @@ describe('project money position', () => {
     const { result } = renderHook(() => useBudgetPosition(project()));
     expect(result.current.spent).toBeNull();
     expect(result.current.unknown).toBe(1);
+  });
+
+  it('includes paid spending in categories without a budget line', () => {
+    state.versions = [budgetVersion([{ category: 'Labor', budgeted_amount: '100' }])];
+    state.finances = actuals([
+      { category: 'Labor', mapped: true, amount: '0' },
+      { category: 'Materials', mapped: true, amount: '60' },
+    ]);
+
+    const { result } = renderHook(() => useBudgetPosition(project()));
+    expect(result.current.rows).toContainEqual({ category: 'Materials', budget: 0, actual: 60 });
+    expect(result.current.spent).toBe(60);
+    const rows = buildBudgetSummaryRows({
+      lines: [{ category: 'Labor', description: null, budgeted_amount: 100 }],
+      actuals: result.current.rows,
+      procurements: [{ status: 'Paid', budget_category: 'Materials', approved_total_value: 60, total_value: 60, open_commitment: 0, currency: 'USD' }],
+      canReadProcurements: true,
+      currency: 'USD',
+    });
+    expect(rows.find((row) => row.category === 'Materials')).toMatchObject({ budget: 0, spent: 60, committed: 0 });
   });
 
   it('withholds budget comparisons when actuals are in another currency', () => {
@@ -549,7 +570,7 @@ describe('contract billing block', () => {
 
     renderWithQueryClient(<MemoryRouter><MoneyBlock project={project()} /></MemoryRouter>);
     expect(screen.getByText(/50 is settled in accounting but no receipt is matched to it yet\./)).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Match payments' })).toHaveAttribute('href', '/incoming-payments');
+    expect(screen.getByRole('link', { name: 'Match payments' })).toHaveAttribute('href', '/finance/receivables?view=payments');
   });
 
   it('AC-FX-011: shows the contract equivalent using the project contract date', () => {
@@ -597,7 +618,7 @@ describe('contract billing block', () => {
       <MemoryRouter><MoneyBlock project={project()} /></MemoryRouter>,
     );
     expect(screen.getByText('Money position')).toBeInTheDocument();
-    expect(screen.getByText('Match payments')).toHaveAttribute('href', '/incoming-payments');
+    expect(screen.getByText('Match payments')).toHaveAttribute('href', '/finance/receivables?view=payments');
     // C4: an unknown cash figure is left out (no label with a placeholder value); the reason is said once.
     expect(screen.queryByText('Cash received', { exact: true })).not.toBeInTheDocument();
     expect(screen.queryByText(/Unavailable|Not available/)).not.toBeInTheDocument();

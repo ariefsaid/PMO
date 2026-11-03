@@ -38,7 +38,11 @@ select set_eq(
       where c.contype = 'f' and n.nspname = 'public'
       group by src.relname, tgt.relname
      having count(*) > 1 $$,
-  $$ values ('credits -> profiles'),
+  $$ values -- 0515 (T&M rates): contract_rate_assignees has user_id AND created_by, both -> profiles.
+            -- Checked before adding: no DAL, repository, edge fn or e2e spec embeds profiles from
+            -- it (only database.types.ts mentions the table), so no unqualified embed exists.
+            ('contract_rate_assignees -> profiles'),
+            ('credits -> profiles'),
             ('erp_employees -> profiles'),
             -- 0291 (#1012): fx_rates carries created_by AND updated_by, both -> profiles. Checked
             -- before adding: neither src/lib/db/fxRates.ts nor the fx repository embeds profiles
@@ -54,6 +58,9 @@ select set_eq(
             -- any future parent-document embed must name the intended constraint.
             ('project_documents -> project_documents'),
             ('task_dependencies -> tasks'),
+            -- 0516 (T&M claims): tm_claims has prepared_by AND confirmed_by, both -> profiles. Checked before
+            -- adding: nothing embeds profiles from it yet (only database.types.ts mentions the table).
+            ('tm_claims -> profiles'),
             -- 0204 (#551, DD-TASK-8): tasks gained `created_by` alongside `assignee_id`, so this
             -- pair is new. ⚑ CHECKED BEFORE ADDING, as this assertion's own message demands: the
             -- only embed of profiles from tasks is `src/lib/db/tasks.ts:77`, and it is ALREADY

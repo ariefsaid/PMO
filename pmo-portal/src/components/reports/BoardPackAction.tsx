@@ -10,7 +10,7 @@ import { trackComingSoonClicked } from '@/src/lib/analytics';
 
 /**
  * #765: the dashboard's "Board pack" control. When the management pack is available (Revenue module on and the
- * viewer may see it) it opens /reports; otherwise it stays the OD-UX-3 disabled "coming soon" affordance.
+ * viewer may see it) it opens /finance/reports; otherwise it stays the OD-UX-3 disabled "coming soon" affordance.
  */
 export const BoardPackAction: React.FC = () => {
   const { t } = useTranslation();
@@ -20,7 +20,7 @@ export const BoardPackAction: React.FC = () => {
 
   if (revenueOn && may('view', 'managementPack')) {
     return (
-      <Button variant="outline" onClick={() => navigate('/reports')}>
+      <Button variant="outline" onClick={() => navigate('/finance/reports')}>
         <Icon name="export" />
         {t('dashboard.boardPack.label', 'Board pack')}
       </Button>

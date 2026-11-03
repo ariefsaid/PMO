@@ -102,11 +102,11 @@ describe('useCompanyCollections', () => {
     expect(result.current.error).toMatchObject({ message: 'reference read failed' });
   });
 
-  it('disables the shared snapshot and reference reads when permission, org, or caller option denies access', async () => {
+  it('disables the shared snapshot and reference reads when permission or org denies access', async () => {
     const client = freshClient();
     h.allowed = false;
-    const { result, rerender } = renderHook(({ enabled }) => useCompanyCollections(['company-1'], { enabled }), {
-      initialProps: { enabled: true }, wrapper: wrap(client),
+    const { result, rerender } = renderHook(() => useCompanyCollections(['company-1']), {
+      wrapper: wrap(client),
     });
     await waitFor(() => expect(result.current.isPending).toBe(false));
     expect(h.snapshotOptions.at(-1)).toEqual({ enabled: false });
@@ -115,11 +115,7 @@ describe('useCompanyCollections', () => {
 
     h.allowed = true;
     h.orgId = null;
-    rerender({ enabled: true });
-    await waitFor(() => expect(h.snapshotOptions.at(-1)).toEqual({ enabled: false }));
-
-    h.orgId = 'org-1';
-    rerender({ enabled: false });
+    rerender();
     await waitFor(() => expect(h.snapshotOptions.at(-1)).toEqual({ enabled: false }));
     expect(h.listForCompanies).not.toHaveBeenCalled();
     expect(h.listForErpCustomerIds).not.toHaveBeenCalled();

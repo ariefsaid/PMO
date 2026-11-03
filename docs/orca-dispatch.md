@@ -39,7 +39,7 @@ or Luna will do; no Luna where GLM will do. Only a used-up quota moves work up a
 | Work | Model · harness · effort |
 |---|---|
 | Quick, cheap, mechanical (formatting, lookups, summaries, transcript harvests) | Gemini Flash (latest) · antigravity |
-| Bounded build with a precise brief (free; not money/auth until proven on a real PMO slice) | DeepSeek V4.1 Flash free · opencode — see DeepSeek launch below |
+| Bounded build with a precise brief (owner's opencode Go plan; not money/auth until proven on a real PMO slice) | DeepSeek V4.1 Flash · opencode Go (not V4 Pro: owner finds Flash better, 2026-11-03) — see DeepSeek launch below |
 | Bounded build with a precise brief; code or security review of a build; read-only audits | GLM-5.3-flash · pi (Z.AI provider) · max — see GLM launch below |
 | Build a slice GLM can't (judgement, UI craft) | GPT-6 Luna · codex · xhigh |
 | Spec, plan, review (spec, code, design/rendered, money or security judgement), hard fix round | GPT-6.1 Terra · codex · medium |
@@ -51,7 +51,7 @@ or Luna will do; no Luna where GLM will do. Only a used-up quota moves work up a
 `zcode` does not start under Orca. Start GLM by opening a terminal in the worker's worktree that runs
 `pi --provider zai --model glm-5.3-flash:max`, then `orca orchestration worker-start --terminal <handle>`.
 
-**DeepSeek launch:** `--agent opencode --model opencode/deepseek-v4.1-flash-free` on an existing worktree (create it first with `orca worktree create`). The terminal can look like a bare shell while it runs: don't start a second `opencode run` in the same worktree. Free only for a limited time, callable only through opencode, rate limits unpublished; a 2026-11-02 trial passed the same held-out tests as GLM about six times faster.
+**DeepSeek launch:** `--agent opencode --model opencode-go/deepseek-v4.1-flash` (not V4 Pro) on an existing worktree (create it first with `orca worktree create`). The terminal can look like a bare shell while it runs: don't start a second `opencode run` in the same worktree. These run on the owner's opencode Go plan (2026-11-03), whose workspace must be set to the Global region. The free `opencode/deepseek-v4.1-flash-free` id hits its limit after about 40–60 minutes, so don't use it. A 2026-11-02 trial passed the same held-out tests as GLM about six times faster.
 
 Money-path, SoD and auth/token-custody work stays **Director-dispatched per issue** (one worker per
 step, adversarial review, mutation checks) — now through Orca workers instead of pi.

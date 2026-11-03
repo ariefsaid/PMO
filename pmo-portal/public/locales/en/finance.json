@@ -189,7 +189,8 @@
     "mobileInvoiceAmount": "Invoice total excl. PPN",
     "mobileOutstandingUnknown": "Outstanding balance unknown",
     "mobileInvoiceAmountInclusive": "Invoice total incl. PPN",
-    "mobileInvoiceAmountUnspecified": "Invoice amount"
+    "mobileInvoiceAmountUnspecified": "Invoice amount",
+    "pairedCountedOnce": "Counted once with the ERP invoice {{number}}."
   },
   "invoices": {
     "description": "Client invoices.",

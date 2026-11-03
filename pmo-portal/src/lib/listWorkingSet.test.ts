@@ -45,7 +45,7 @@ describe('list working-set URL codec', () => {
     });
     expect(parseListWorkingSet('companies', '')).toEqual({ type: 'All', q: '' });
     expect(parseListWorkingSet('contacts', '')).toEqual({ company: 'All', q: '' });
-    expect(parseListWorkingSet('meetings', '')).toEqual({ project: 'All', q: '' });
+    expect(parseListWorkingSet('meetings', '')).toEqual({ project: 'All', q: '', archived: false });
   });
 
   it('AC-LRC-002: uses the role default for Projects while preserving the Engineer’s My Projects meaning', () => {
@@ -112,6 +112,16 @@ describe('list working-set URL codec', () => {
     expect(parseListWorkingSet('companies', '?type=Vendor').type).toBe('Vendor');
     expect(parseListWorkingSet('contacts', `?company=${COMPANY_ID}`).company).toBe(COMPANY_ID);
     expect(parseListWorkingSet('meetings', `?project=${PROJECT_ID}`).project).toBe(PROJECT_ID);
+  });
+
+  it('preserves the archived-meetings view while other meeting filters change', () => {
+    const search = `?project=${PROJECT_ID}&archived=1&campaign=fall`;
+    const parsed = parseListWorkingSet('meetings', search);
+    expect(parsed.archived).toBe(true);
+    expect(serializeListWorkingSet('meetings', search, { ...parsed, q: 'planning' }).toString()).toBe(
+      `project=${PROJECT_ID}&archived=1&campaign=fall&q=planning`,
+    );
+    expect(serializeListWorkingSet('meetings', search, { ...parsed, archived: false }).get('archived')).toBeNull();
   });
 
   it('AC-LRC-002: every lifecycle status stays a reachable exact drill unless a segment is identical', () => {
@@ -203,7 +213,7 @@ describe('list working-set URL codec', () => {
       'meetings',
       `?project=${PROJECT_ID}&q=review`,
     );
-    expect(meetings).toEqual({ project: PROJECT_ID, q: 'review' });
+    expect(meetings).toEqual({ project: PROJECT_ID, q: 'review', archived: false });
     const meetingsSerialized = serializeListWorkingSet(
       'meetings',
       '?campaign=winter',

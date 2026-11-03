@@ -124,7 +124,7 @@ const SpendApprovers: React.FC = () => {
   const flatRouteNote = (scope: 'org' | 'project') => (
     <p data-testid={`spend-route-${scope}`} className="mt-2 max-w-[68ch] text-[13px] text-muted-foreground">
       {t('uxs32.roleRoute', {
-        defaultValue: "Standard rules: any of {{roles}} can approve another person's procurement record.",
+        defaultValue: "Standard rules: any of {{roles}} can approve another person's procurement case.",
         roles,
       })}{' '}
       {holders}
@@ -132,7 +132,7 @@ const SpendApprovers: React.FC = () => {
   );
   const adminRouteNote = (scope: 'org' | 'project') => (
     <p data-testid={`spend-route-${scope}`} role="status" className="mt-2 max-w-[68ch] text-[13px] text-warning-foreground">
-      {t('uxs32.noEligible', 'Nobody listed can approve right now. Only an Admin can decide these procurement records until someone eligible is added.')}
+      {t('uxs32.noEligible', 'Nobody listed can approve right now. Only an Admin can decide these procurement cases until someone eligible is added.')}
     </p>
   );
 
@@ -151,7 +151,7 @@ const SpendApprovers: React.FC = () => {
         <p data-testid="spend-route-project" className="mt-2 max-w-[68ch] text-[13px] text-muted-foreground">
           {t('uxs32.projectEmpty', {
             defaultValue:
-              'No project approvers listed. Within budget, the standard rules apply: any of {{roles}} can approve. Over the budget line, or when the line cannot be checked, procurement records go to the overhead approvers.',
+              'No project approvers listed. Within budget, the standard rules apply: any of {{roles}} can approve. Over the budget line, or when the line cannot be checked, procurement cases go to the overhead approvers.',
             roles,
           })}{' '}
           {holders}
@@ -174,7 +174,7 @@ const SpendApprovers: React.FC = () => {
     if (senior === 'org') {
       return (
         <p data-testid={`spend-route-${scope}`} role="status" className="mt-2 max-w-[68ch] text-[13px] text-warning-foreground">
-          {t('uxs32.escalate', 'Nobody listed can approve right now. These procurement records go to the overhead approvers.')}
+          {t('uxs32.escalate', 'Nobody listed can approve right now. These procurement cases go to the overhead approvers.')}
         </p>
       );
     }
@@ -311,7 +311,7 @@ const SpendApprovers: React.FC = () => {
         }
         description={t(
           'admin.spendApprovers.confirm.description',
-          'They will no longer approve procurement records. Records already decided are unchanged.',
+          'They will no longer approve procurement cases. Cases already decided are unchanged.',
         )}
         confirmLabel={t('admin.spendApprovers.confirm.confirm', 'Remove')}
         loading={removeMutation.isPending}
@@ -388,7 +388,7 @@ const AddApproverModal: React.FC<AddApproverModalProps> = ({ mode, submitError, 
           ? t('admin.spendApprovers.form.projectTitle', 'Add a project approver')
           : t('admin.spendApprovers.form.orgTitle', 'Add an overhead approver')
       }
-      subtitle={t('admin.spendApprovers.form.subtitle', 'Any one listed approver can approve a procurement record.')}
+      subtitle={t('admin.spendApprovers.form.subtitle', 'Any one listed approver can approve a procurement case.')}
       submitLabel={t('admin.spendApprovers.form.save', 'Add')}
       onSubmit={handleSubmit}
       submitError={submitError}

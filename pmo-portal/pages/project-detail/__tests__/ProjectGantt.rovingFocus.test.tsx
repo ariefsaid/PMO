@@ -37,7 +37,7 @@ describe('ProjectGantt roving focus fallback when focused row is removed (PGB-02
 
     const onActivate = vi.fn();
     const { rerender } = render(
-      <ProjectGantt tasks={[taskA, taskB]} milestones={[]} onActivateTask={onActivate} />,
+      <ProjectGantt onSwitchView={vi.fn()} tasks={[taskA, taskB]} milestones={[]} onActivateTask={onActivate} />,
     );
 
     const grid = screen.getByRole('grid');
@@ -54,7 +54,7 @@ describe('ProjectGantt roving focus fallback when focused row is removed (PGB-02
     expect(rowA).toHaveAttribute('tabindex', '-1');
 
     // Now Task B is removed (e.g. filtered or deleted)
-    rerender(<ProjectGantt tasks={[taskA]} milestones={[]} onActivateTask={onActivate} />);
+    rerender(<ProjectGantt tasks={[taskA]} milestones={[]} onActivateTask={onActivate} onSwitchView={vi.fn()} />);
 
     // Task A must now have tabIndex=0 so keyboard users can still tab into the grid
     const updatedGrid = screen.getByRole('grid');
@@ -65,17 +65,17 @@ describe('ProjectGantt roving focus fallback when focused row is removed (PGB-02
   it('preserves focus when the active row remains', () => {
     const taskA = makeTask({ id: 'task-a', name: 'Task A' });
     const taskB = makeTask({ id: 'task-b', name: 'Task B' });
-    const { rerender } = render(<ProjectGantt tasks={[taskA, taskB]} milestones={[]} onActivateTask={vi.fn()} />);
+    const { rerender } = render(<ProjectGantt tasks={[taskA, taskB]} milestones={[]} onActivateTask={vi.fn()} onSwitchView={vi.fn()} />);
     const rowB = within(screen.getByRole('grid')).getByText('Task B').closest('[role="row"]') as HTMLElement;
     act(() => rowB.focus());
-    rerender(<ProjectGantt tasks={[taskB]} milestones={[]} onActivateTask={vi.fn()} />);
+    rerender(<ProjectGantt tasks={[taskB]} milestones={[]} onActivateTask={vi.fn()} onSwitchView={vi.fn()} />);
     expect(rowB).toHaveFocus();
   });
 
   it('leaves focus in an active dialog when a row disappears', () => {
     const taskA = makeTask({ id: 'task-a', name: 'Task A' });
     const taskB = makeTask({ id: 'task-b', name: 'Task B' });
-    const content = (tasks: TaskWithRefs[]) => <><div role="dialog" aria-modal="true"><button>Dialog control</button></div><ProjectGantt tasks={tasks} milestones={[]} onActivateTask={vi.fn()} /></>;
+    const content = (tasks: TaskWithRefs[]) => <><div role="dialog" aria-modal="true"><button>Dialog control</button></div><ProjectGantt tasks={tasks} milestones={[]} onActivateTask={vi.fn()} onSwitchView={vi.fn()} /></>;
     const { rerender } = render(content([taskA, taskB]));
     const rowB = within(screen.getByRole('grid')).getByText('Task B').closest('[role="row"]') as HTMLElement;
     act(() => rowB.focus());
@@ -88,7 +88,7 @@ describe('ProjectGantt roving focus fallback when focused row is removed (PGB-02
   it('does not move focus from an outside control when the row disappears', () => {
     const taskA = makeTask({ id: 'task-a', name: 'Task A' });
     const taskB = makeTask({ id: 'task-b', name: 'Task B' });
-    const content = (tasks: TaskWithRefs[]) => <><button>Outside</button><ProjectGantt tasks={tasks} milestones={[]} onActivateTask={vi.fn()} /></>;
+    const content = (tasks: TaskWithRefs[]) => <><button>Outside</button><ProjectGantt tasks={tasks} milestones={[]} onActivateTask={vi.fn()} onSwitchView={vi.fn()} /></>;
     const { rerender } = render(content([taskA, taskB]));
     const rowB = within(screen.getByRole('grid')).getByText('Task B').closest('[role="row"]') as HTMLElement;
     act(() => rowB.focus());
@@ -104,7 +104,7 @@ describe('Gantt viewport ticks (LIB02-005)', () => {
   it('updates ticks when the single scrollport moves while retaining both dated bars', () => {
     const early = makeTask({ id: 'early', name: 'Early task', start_date: '2000-01-01', end_date: '2000-01-02' });
     const late = makeTask({ id: 'late', name: 'Late task', start_date: '2050-01-01', end_date: '2050-01-02' });
-    const { container } = render(<ProjectGantt tasks={[early, late]} milestones={[]} onActivateTask={vi.fn()} />);
+    const { container } = render(<ProjectGantt tasks={[early, late]} milestones={[]} onActivateTask={vi.fn()} onSwitchView={vi.fn()} />);
     const scroller = container.querySelector('[data-gantt-scroll]') as HTMLElement;
     Object.defineProperty(scroller, 'clientWidth', { configurable: true, writable: true, value: 900 });
     fireEvent.scroll(scroller, { target: { scrollLeft: 0 } });

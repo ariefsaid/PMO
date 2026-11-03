@@ -17,7 +17,6 @@ vi.mock('@/src/lib/supabase/client', () => ({
 
 import {
   getProjectWinEligibility,
-  isLegalProjectTransition,
   projectStatusGroup,
   transitionProject,
   listPipelineStageConfig,
@@ -60,46 +59,12 @@ beforeEach(() => {
 });
 
 // ---------------------------------------------------------------------------
-// B1/B2 — Transition map (AC-1000)
-// ---------------------------------------------------------------------------
-
-describe('isLegalProjectTransition', () => {
-  it('AC-1000: project transition map accepts legal pairs, rejects illegal jumps, terminals and no-ops (FR-PR-001/003)', () => {
-    // Legal pairs
-    expect(isLegalProjectTransition('Leads', 'PQ Submitted')).toBe(true);
-    expect(isLegalProjectTransition('Negotiation', 'Won, Pending KoM')).toBe(true);
-    expect(isLegalProjectTransition('Tender Submitted', 'Loss Tender')).toBe(true);
-    expect(isLegalProjectTransition('Won, Pending KoM', 'Ongoing Project')).toBe(true);
-    expect(isLegalProjectTransition('On Hold', 'Ongoing Project')).toBe(true);
-    expect(isLegalProjectTransition('Close Out', 'Ongoing Project')).toBe(true);
-    expect(isLegalProjectTransition('Loss Tender', 'Negotiation')).toBe(true);
-    expect(isLegalProjectTransition('Leads', 'Internal Project')).toBe(true);
-
-    // Illegal jumps
-    expect(isLegalProjectTransition('Leads', 'Won, Pending KoM')).toBe(false);
-    expect(isLegalProjectTransition('Internal Project', 'Leads')).toBe(false);
-    expect(isLegalProjectTransition('Ongoing Project', 'Leads')).toBe(false);
-    // No-op
-    expect(isLegalProjectTransition('Leads', 'Leads')).toBe(false);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// B3 — Status-group helper (AC-1001)
+// B3 — Status-group helper (AC-1001); the AC-1000 map legality now lives at pgTAP
+// (supabase/tests/project_transition_map.test.sql) and AC-DEC-001 at
+// supabase/tests/0236_project_declined_outcome.test.sql (#1710 re-home).
 // ---------------------------------------------------------------------------
 
 describe('projectStatusGroup', () => {
-  it('AC-DEC-001: Declined is a legal terminal target from every pre-award stage, never from won/on-hand, and revives to Negotiation', () => {
-    for (const from of ['Leads', 'PQ Submitted', 'Quotation Submitted', 'Tender Submitted', 'Negotiation'] as const) {
-      expect(isLegalProjectTransition(from, 'Declined')).toBe(true);
-    }
-    for (const from of ['Won, Pending KoM', 'Ongoing Project', 'On Hold', 'Close Out', 'Internal Project'] as const) {
-      expect(isLegalProjectTransition(from, 'Declined')).toBe(false);
-    }
-    expect(isLegalProjectTransition('Declined', 'Negotiation')).toBe(true);
-    expect(projectStatusGroup('Declined')).toBe('lost');
-  });
-
   it('AC-1001: projectStatusGroup maps the five pipeline statuses to pipeline, the won/active set to onHand, Loss Tender to lost, Internal Project to internal (FR-PR-012)', () => {
     // Pipeline statuses
     expect(projectStatusGroup('Leads')).toBe('pipeline');

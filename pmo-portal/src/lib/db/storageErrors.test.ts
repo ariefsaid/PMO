@@ -12,14 +12,15 @@ const h = vi.hoisted(() => {
   return { storage, from: vi.fn(() => builder) };
 });
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: h.from, storage: { from: () => h.storage } } }));
-import { prepareAgentAttachmentUpload } from './agentAttachments';
+import { prepareAgentAttachmentFileUpload } from './agentAttachments';
 import { prepareUpload as prepareDocument, getSignedDownloadUrl as documentUrl } from './documents';
 import { prepareExpenseCaptureReceiptUpload, expenseCaptureReceiptObjectExists, cleanupExpenseCaptureReceiptObject } from './expenseCapture';
 import { prepareExpenseReceiptUpload, getExpenseReceiptUrl } from './expenseReceipts';
 import { prepareUpload as prepareProcurement, getSignedDownloadUrl as procurementUrl } from './procurementFiles';
 
 const operations: [string, () => Promise<unknown>, keyof typeof h.storage][] = [
-  ['agent upload', () => prepareAgentAttachmentUpload({ threadId: 'thread', fileName: 'a.pdf', mimeType: 'application/pdf', sizeBytes: 10 }), 'createSignedUploadUrl'],
+  // OE17R02-002: routed through the public file op (the privatized helper is no longer an entry point).
+  ['agent upload', () => prepareAgentAttachmentFileUpload('thread', new File([new Uint8Array(10)], 'a.pdf', { type: 'application/pdf' })), 'createSignedUploadUrl'],
   ['document upload', () => prepareDocument('doc', 'a.pdf'), 'createSignedUploadUrl'],
   ['document download', () => documentUrl('a.pdf'), 'createSignedUrl'],
   ['capture upload', () => prepareExpenseCaptureReceiptUpload('claim', 'file', 'a.pdf'), 'createSignedUploadUrl'],

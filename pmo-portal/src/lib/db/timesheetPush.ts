@@ -38,7 +38,10 @@ export async function approvedTimesheetForPush(timesheetId: string): Promise<App
 
 /**
  * The push-state operator surface (P3b, FR-TSP-085/173) — a typed read of the sheet's
- * `timesheet_erp_mirror` row (migration 0136). `null` when NO mirror row exists (an org that hasn't
+ * `timesheet_erp_mirror` row (migration 0136). Direction and ownership (docs/GLOSSARY.md
+ * "Read-model"): the timesheet stays PMO-authoritative even after approval; the mirror row
+ * tracks the EXTERNAL side (where the pushed sheet stands in ERPNext), never the reverse.
+ * `null` when NO mirror row exists (an org that hasn't
  * flipped `timesheets`, or a sheet that hasn't reached the push path yet) — a NORMAL state, never an
  * error. The badge that consumes this must render nothing on `null`, never a blocked/error page
  * (FR-TSP-173: the ERP badge is supplementary; its absence can never gate the page's render).

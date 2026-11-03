@@ -12,7 +12,7 @@
  * `reference_no`, so only the fallback conjunction (party + paid_amount + cited invoice) can find it.
  */
 import { describe, it } from '@std/testing/bdd';
-import { assertEquals } from '@std/assert';
+import { assert, assertEquals } from '@std/assert';
 import {
   createJwtAuthority,
   createTestJwksResolver,
@@ -171,6 +171,7 @@ describe('#762 DD-RCPT-1 — recovering a withholding receipt finds the landed P
         body: JSON.stringify({ domain: 'revenue', operation: 'create', idempotencyKey: '88888888-8888-4888-8888-888888888888', record: {
           id: RECEIPT_ID, customerId: CUSTOMER_ID, salesInvoiceId: SI_ID, erp_doc_kind: 'incoming-payment',
           paid_amount: 200000, received_amount: 180000, withheld_amount: 20000, withholding_slip_number: 'WHT-001',
+          references: [{ reference_doctype: 'Sales Invoice', reference_name: ERP_SI, allocated_amount: 200000 }],
         } }),
       }));
       return { res, body: await res.text(), calls };
@@ -181,6 +182,17 @@ describe('#762 DD-RCPT-1 — recovering a withholding receipt finds the landed P
     assertEquals(pePosts.length, 0, 'a second Payment Entry must never be POSTed for a receipt that already landed');
     assertEquals(res.status, 200, `the landed entry is adopted — got ${res.status}: ${body}`);
     assertEquals(JSON.parse(body).externalRecordId, LANDED_PE, 'the result adopts the landed Payment Entry');
+    const outboxInsert = calls.find((c) => c.method === 'POST' && c.url.pathname === '/rest/v1/external_command_outbox');
+    assert(outboxInsert, 'the recovery payload is persisted at the outbox boundary');
+    const paymentPayload = (outboxInsert.bodyJson as { payload: Record<string, unknown> }).payload;
+    assertEquals(paymentPayload.party_type, 'Customer');
+    assertEquals(paymentPayload.party, ERP_CUSTOMER);
+    assertEquals(paymentPayload.payment_type, 'Receive');
+    assertEquals(paymentPayload.paid_amount, 180000, 'withholding recovery matches the cash sent to ERPNext');
+    assertEquals(paymentPayload.withheld_amount, 20000);
+    assertEquals(paymentPayload.allocated_amount, 200000, 'the gross allocation remains distinct from the cash amount');
+    assertEquals(paymentPayload.pi_names, []);
+    assertEquals(paymentPayload.si_names, [ERP_SI]);
   });
 
   it('AC-WHT-004: without withholding the fallback still matches on the amount sent (here a cross-currency receipt)', async () => {

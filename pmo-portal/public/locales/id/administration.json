@@ -166,5 +166,62 @@
     "on": "Aktif",
     "off": "Nonaktif",
     "description": "Tombol Masukan di header dan, paling sering sebulan sekali, satu pertanyaan singkat setelah tugas pertama atau tinjauan triwulanan. Tidak pernah muncul saat seseorang mengisi formulir. Jawaban tidak memuat isi data."
+  },
+  "invoicePairs": {
+    "title": "Faktur di kedua sisi",
+    "intro": "Sebagian faktur yang dibuat di PMO juga ada di ERP Anda. Hitung setiap penjualan sekali saja, sebagai salinan ERP. Salinan PMO tetap tersimpan dan terhubung ke faktur ERP, tetapi tidak lagi menambah pendapatan dan piutang.",
+    "col": {
+      "pmo": "Faktur PMO",
+      "erp": "Faktur ERP",
+      "customer": "Pelanggan",
+      "amount": "Jumlah"
+    },
+    "acceptAll": "Hitung masing-masing sekali",
+    "needsDecision": "Perlu keputusan",
+    "needsDecisionHelp": "Faktur ini cocok dengan lebih dari satu faktur. Buka di ERP untuk membedakannya; PMO tidak akan memilih untuk Anda.",
+    "stillPmo": "Masih dihitung sebagai faktur PMO",
+    "reason": {
+      "noMatch": "Tidak ada faktur ERP yang cocok",
+      "ambiguous": "Lebih dari satu faktur ERP yang cocok",
+      "hasReceipt": "PMO sudah mencatat pembayaran pada faktur ini",
+      "projectDiffers": "Faktur ERP berada di proyek atau perintah kerja yang berbeda"
+    },
+    "countOne": "1 faktur",
+    "countOther": "{{count}} faktur",
+    "doneOne": "1 faktur kini dihitung sekali.",
+    "doneOther": "{{count}} faktur kini dihitung sekali.",
+    "failed": "Tidak ada faktur yang diubah. Daftar mungkin sudah usang; daftar telah dimuat ulang. Coba lagi.",
+    "alreadyOne": "1 faktur sudah dihitung sekali",
+    "alreadyOther": "{{count}} faktur sudah dihitung sekali",
+    "countedAs": "dihitung sebagai faktur ERP {{number}}",
+    "confirmTitle": "Hitung faktur ini sekali saja?",
+    "confirmBody": "Hitung {{what}} sekali saja, sebagai salinan ERP?",
+    "confirmAction": "Hitung sekali",
+    "failedStale": "Tidak ada faktur yang diubah. Sebuah pasangan tidak lagi cocok dengan jelas; daftar telah dimuat ulang. Periksa lalu coba lagi.",
+    "undo": "Batalkan",
+    "undoFor": "Batalkan {{number}}",
+    "undoTitle": "Hitung {{number}} secara terpisah lagi?",
+    "undoBody": "Faktur PMO kembali masuk ke pendapatan dan piutang. Faktur ERP {{erp}} tetap ada, jadi jika keduanya dihitung, penjualan tampil dua kali sampai Anda memasangkannya lagi.",
+    "undoDone": "{{number}} kini dihitung secara terpisah lagi.",
+    "undoFailed": "Tidak ada yang diubah. Pasangan mungkin sudah dibatalkan; daftar telah dimuat ulang.",
+    "loadFailed": {
+      "propose": "Faktur yang cocok gagal dimuat.",
+      "unpaired": "Faktur yang masih dihitung sebagai faktur PMO gagal dimuat.",
+      "accepted": "Faktur yang sudah dihitung sekali gagal dimuat."
+    },
+    "retry": "Coba lagi"
+  },
+  "integrations": {
+    "send": {
+      "title": "Data yang sedang dikirim ke ERP",
+      "sending": "Sedang dikirim ke ERP",
+      "waiting": "{{count}} menunggu konfirmasi ERP.",
+      "needsDecision": "Perlu keputusan",
+      "retry": "Tidak ada di ERP: kirim lagi",
+      "retryFailed": "Kami tidak dapat mengirim ulang. Coba lagi sebentar lagi.",
+      "unnamed": "Sebuah data",
+      "addPeople": "Tambahkan orang-orang ini di ERP. ERP meminta tanggal lahir dan jenis kelamin, yang tidak dimiliki PMO.",
+      "accountantTask": "Minta akuntan Anda menambahkan akun biaya langsung untuk: {{categories}}"
+    }
   }
 }

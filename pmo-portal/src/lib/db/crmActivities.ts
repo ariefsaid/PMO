@@ -1,5 +1,6 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError, assertWriteLanded } from '@/src/lib/appError';
+import { fetchAllRowsByKeyset, type PageResult } from '@/src/lib/pagedRead';
 import type { Tables } from '@/src/lib/supabase/database.types';
 
 export type CrmActivityRow = Tables<'crm_activities'>;
@@ -28,37 +29,55 @@ function throwWrite(error: PostgrestErrorLike): never {
 
 /**
  * List a contact's activities newest-first by occurred_at (AC-CRM-023). org_id is NEVER sent —
- * RLS (crm_activities_select: org_id = auth_org_id()) scopes rows. Throws an `AppError`
- * (code preserved) on failure.
+ * RLS (crm_activities_select: org_id = auth_org_id()) scopes rows.
+ *
+ * DAL01-005: reads EVERY keyset page (ordered by id — the only unique, total order) so a long
+ * timeline stays complete past PostgREST's single-response cap; the newest-first contract is
+ * restored in memory (occurred_at desc, id desc as the total tie-break). A page error throws
+ * (code preserved) — a partial timeline can never be mistaken for a complete one.
  */
 export async function listActivities(contactId: string): Promise<CrmActivityRow[]> {
-  const { data, error } = await supabase
-    .from('crm_activities')
-    .select('*')
-    .eq('contact_id', contactId)
-    .order('occurred_at', { ascending: false });
-  if (error) throwWrite(error);
-  return data ?? [];
+  const rows = await fetchAllRowsByKeyset<CrmActivityRow>((afterId, limit) => {
+    let query = supabase
+      .from('crm_activities')
+      .select('*')
+      .eq('contact_id', contactId)
+      .order('id', { ascending: true })
+      .limit(limit);
+    if (afterId !== null) query = query.gt('id', afterId);
+    return query as unknown as PromiseLike<PageResult<CrmActivityRow>>;
+  });
+  return rows.sort(
+    (a, b) => b.occurred_at.localeCompare(a.occurred_at) || b.id.localeCompare(a.id),
+  );
 }
 
 /**
  * Batch-fetch activities for N contacts in ONE query (C3 — replaces per-contact N+1 in
  * useCompanyActivities). Uses the crm_activities_contact_idx index for O(log n) per batch.
  * org_id is NEVER sent — RLS scopes rows. Returns rows merged and sorted newest-first by
- * occurred_at, matching the per-contact `listActivities` sort. Throws an `AppError` on failure.
- * When `contactIds` is empty, returns [] without hitting the DB.
+ * occurred_at (id desc tie-break), matching the per-contact `listActivities` sort.
+ * DAL01-005: reads EVERY keyset page so a large timeline stays complete past PostgREST's
+ * single-response cap. Throws an `AppError` on failure. When `contactIds` is empty, returns []
+ * without hitting the DB.
  */
 export async function listActivitiesForContacts(
   contactIds: string[],
 ): Promise<CrmActivityRow[]> {
   if (contactIds.length === 0) return [];
-  const { data, error } = await supabase
-    .from('crm_activities')
-    .select('*')
-    .in('contact_id', contactIds)
-    .order('occurred_at', { ascending: false });
-  if (error) throwWrite(error);
-  return data ?? [];
+  const rows = await fetchAllRowsByKeyset<CrmActivityRow>((afterId, limit) => {
+    let query = supabase
+      .from('crm_activities')
+      .select('*')
+      .in('contact_id', contactIds)
+      .order('id', { ascending: true })
+      .limit(limit);
+    if (afterId !== null) query = query.gt('id', afterId);
+    return query as unknown as PromiseLike<PageResult<CrmActivityRow>>;
+  });
+  return rows.sort(
+    (a, b) => b.occurred_at.localeCompare(a.occurred_at) || b.id.localeCompare(a.id),
+  );
 }
 
 /**

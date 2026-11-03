@@ -125,11 +125,3 @@ const focusScoped = (d: Dict): Dict => ({
 export function minutesDictionary(language: string | undefined): Dict {
   return focusScoped(language?.toLowerCase().startsWith('id') ? merge(en, idOverrides) : en);
 }
-
-/**
- * Slash-menu keys a v1 palette shows. Media is excluded by the schema (FR-MTG-022); the check list is
- * withheld (DD-MTG-10) — it looks like a to-do but never becomes a task.
- */
-export const PALETTE_SLASH_KEYS = (Object.keys(en.slash_menu) as Array<keyof Dict['slash_menu']>).filter(
-  (k) => !['image', 'video', 'audio', 'file', 'check_list'].includes(k),
-);

@@ -26,6 +26,17 @@ const FISCAL_YEARS = [
   { name: 'FY-C', year_start_date: '2028-01-01', year_end_date: '2028-12-31' },
 ];
 
+const REQUIRED_BUDGET_SUBMIT_FIELDS = [
+  'naming_series',
+  'budget_against',
+  'company',
+  'account',
+  'budget_amount',
+  'from_fiscal_year',
+  'to_fiscal_year',
+  'distribution_frequency',
+];
+
 function response(body, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 }
@@ -35,7 +46,9 @@ function createBench({ wrongReadback = false, versionMajor = 16 } = {}) {
   const projects = new Set();
   const budgets = new Map();
   let sequence = 0;
+  let modifiedSequence = 0;
   const years = new Map(FISCAL_YEARS.map((row) => [row.name, row]));
+  const nextModified = () => `2026-11-02 00:00:${String(modifiedSequence++).padStart(2, '0')}`;
 
   const fetch = async (input, init = {}) => {
     const url = new URL(input instanceof Request ? input.url : String(input));
@@ -75,8 +88,11 @@ function createBench({ wrongReadback = false, versionMajor = 16 } = {}) {
       const selectedYears = FISCAL_YEARS.filter((year) => year.name >= body.from_fiscal_year && year.name <= body.to_fiscal_year);
       const doc = {
         ...body,
+        doctype: 'Budget',
         name,
+        naming_series: `BUDGET-${String(sequence).padStart(8, '0')}`,
         docstatus: 0,
+        modified: nextModified(),
         budget_start_date: start,
         budget_end_date: end,
         // The v16 new-document allocation path regenerates rows; the rehearsal must write manual
@@ -108,12 +124,14 @@ function createBench({ wrongReadback = false, versionMajor = 16 } = {}) {
       if (method === 'PUT' && Array.isArray(body.budget_distribution)) {
         doc.budget_distribution = body.budget_distribution;
         doc.budget_distribution_total = body.budget_distribution.reduce((sum, row) => sum + Number(row.amount), 0);
+        doc.modified = nextModified();
         return response({ data: doc });
       }
       if (method === 'PUT' && typeof body.budget_amount === 'number') {
         doc.budget_amount = body.budget_amount;
         doc.budget_distribution = doc.budget_distribution.map((row) => ({ ...row, amount: Number(((row.percent / 100) * body.budget_amount).toFixed(3)) }));
         doc.budget_distribution_total = doc.budget_distribution.reduce((sum, row) => sum + row.amount, 0);
+        doc.modified = nextModified();
         return response({ data: doc });
       }
       if (method === 'DELETE' && doc.docstatus === 0) {
@@ -122,8 +140,17 @@ function createBench({ wrongReadback = false, versionMajor = 16 } = {}) {
       }
     }
     if (path === '/api/method/frappe.client.submit' && method === 'POST') {
-      const doc = budgets.get(body.doc?.name);
-      if (!doc || body.doc?.doctype !== 'Budget' || doc.docstatus !== 0) return response({ exc_type: 'InvalidSubmit' }, 417);
+      const submitted = body.doc;
+      const doc = budgets.get(submitted?.name);
+      const hasRequiredFields = REQUIRED_BUDGET_SUBMIT_FIELDS.every((field) => submitted?.[field] !== undefined
+        && submitted[field] !== null && submitted[field] !== '');
+      const hasProject = submitted?.budget_against !== 'Project'
+        || (typeof submitted.project === 'string' && submitted.project.length > 0);
+      const hasCurrentDraftStamp = submitted?.docstatus === 0 && submitted.modified === doc?.modified;
+      if (!doc || submitted?.doctype !== 'Budget' || doc.docstatus !== 0
+        || !hasRequiredFields || !hasProject || !hasCurrentDraftStamp) {
+        return response({ exc_type: 'InvalidSubmit' }, 417);
+      }
       doc.docstatus = 1;
       return response({ message: doc });
     }
@@ -192,4 +219,17 @@ test('budget-whole-project Slice 1 refuses the range rehearsal before creating a
   assert.match(stderr.join(''), /verify-version/i);
   assert.equal(bench.calls.filter((call) => call.method === 'POST' && decodeURIComponent(call.url.pathname) === '/api/resource/Project').length, 0);
   assert.equal(bench.budgets.size, 0);
+});
+
+test('budget-whole-project Slice 1 refuses the range rehearsal without explicit opt-in before making ERP requests', async () => {
+  const calls = [];
+
+  await assert.rejects(runRangeProbe(config(), {
+    fetchImpl: async (...args) => {
+      calls.push(args);
+      return response({});
+    },
+  }), /explicit opt-in/i);
+
+  assert.equal(calls.length, 0);
 });

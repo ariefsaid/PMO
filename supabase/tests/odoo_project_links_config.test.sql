@@ -3,7 +3,7 @@
 -- (un-link is audited and refused through the one shared in-use check), the analytic-plan choice, and the setup accept /
 -- unlink paths for tier odoo (ECA-2's accept, decide and unlink reach the same writer).
 begin;
-select plan(69);
+select plan(73);
 
 insert into organizations (id, name) values
  ('a6050000-0000-0000-0000-000000000001','Odoo Links A'),
@@ -245,6 +245,28 @@ select public.unlink_odoo_cost_account('a6050000-0000-0000-0000-000000000001','a
 reset role;
 select is((select state from erp_connect_proposals where external_tier='odoo' and kind='project' and outcome='link' and pmo_ids='{a6050000-0000-0000-0000-0000000000c3}' and external_ids='{106}'), 'dismissed',
   'un-linking by the verb dismisses the setup row that made the link');
+
+-- #1505 P3 (AC-OPP-021 P half, FR-OPP-022): once a case of the project has an Odoo purchase order reference, the project can be neither
+-- un-linked nor moved to another cost account, through the one shared check (no second copy of it for purchases).
+set local role service_role;
+set local request.jwt.claims = '{"role":"service_role"}';
+select isnt(public.link_odoo_cost_account('a6050000-0000-0000-0000-000000000001','a6050000-0000-0000-0000-0000000000a3','a6050000-0000-0000-0000-0000000000c2','102'), null,
+  'AC-OPP-021 the project is linked to account 102 again');
+reset role;
+insert into procurements (id, org_id, title, project_id) values
+ ('a6050000-0000-0000-0000-0000000000d1','a6050000-0000-0000-0000-000000000001','Order case','a6050000-0000-0000-0000-0000000000c2');
+insert into purchase_orders (id, org_id, procurement_id, po_number, status) values
+ ('a6050000-0000-0000-0000-0000000000d2','a6050000-0000-0000-0000-000000000001','a6050000-0000-0000-0000-0000000000d1','P00041','Issued');
+insert into external_refs (org_id, domain, pmo_record_id, external_tier, external_record_id) values
+ ('a6050000-0000-0000-0000-000000000001','procurement','a6050000-0000-0000-0000-0000000000d2','odoo','41');
+set local role service_role;
+set local request.jwt.claims = '{"role":"service_role"}';
+select throws_ok($$select public.unlink_odoo_cost_account('a6050000-0000-0000-0000-000000000001','a6050000-0000-0000-0000-0000000000a1','a6050000-0000-0000-0000-0000000000c2')$$, 'P0001', 'project link is in use',
+  'AC-OPP-021 a project whose case has an Odoo order cannot be un-linked (the shared check)');
+select throws_ok($$select public.link_odoo_cost_account('a6050000-0000-0000-0000-000000000001','a6050000-0000-0000-0000-0000000000a1','a6050000-0000-0000-0000-0000000000c2','105')$$, 'P0001', 'this project is already linked to a cost account',
+  'AC-OPP-021 nor re-linked to another cost account');
+reset role;
+select is((select external_container_id from external_project_bindings where project_id='a6050000-0000-0000-0000-0000000000c2' and external_tier='odoo'), '102', 'AC-OPP-021 and its link stays on account 102');
 
 select * from finish();
 rollback;

@@ -9,7 +9,7 @@ import { availableFloatChangeActions } from '@/src/lib/imprest/imprestRules';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import type { ImprestFloatChangeListRow } from '@/src/lib/db/imprest';
 import { workflowVariant } from '@/src/lib/status/statusVariants';
-import { formatCurrencyAuto, parseMoneyInputAtScale } from '@/src/lib/format';
+import { formatCurrency, parseMoneyInputAtScale } from '@/src/lib/format';
 import { imprestStatusLabel } from './imprestLabels';
 
 /** The float's amount and its change proposals (FR-IMP-002): a new float starts at zero until a second person approves the
@@ -25,7 +25,7 @@ export const FloatAmountSection: React.FC<{ floatId: string; custodianId: string
   const [dialog, setDialog] = useState<'approve' | 'reject' | 'propose' | null>(null);
   const [notes, setNotes] = useState('');
   const [amount, setAmount] = useState('');
-  const money = (v: number | string) => formatCurrencyAuto(Number(v), currency);
+  const money = (v: number | string) => formatCurrency(Number(v), currency);
   const rows = changes.data?.rows ?? [];
   const open = rows.find((c) => c.status === 'Proposed');
   const actions = open ? availableFloatChangeActions({ userId, realRole, custodianId, change: open }) : [];

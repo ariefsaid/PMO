@@ -5,7 +5,7 @@ const recordPush = vi.hoisted(() => ({ status: 'idle' as string, error: null }))
 vi.mock('@/src/hooks/useDomainOwnershipMode', async () => await import('@/test/domainOwnershipMock'));
 
 vi.mock('@/src/hooks/useProcurementItemEligibility', () => ({ useProcurementItemEligibility: () => itemEligibility }));
-afterEach(() => { clearOwnershipCache(); itemEligibility.data = true; itemEligibility.isPending = false; itemEligibility.isError = false; itemEligibility.isFetching = false; recordPush.status = 'idle'; });
+afterEach(() => { clearOwnershipCache(); itemEligibility.data = true; itemEligibility.isPending = false; itemEligibility.isError = false; itemEligibility.isFetching = false; recordPush.status = 'idle'; subcontractPosition.data = []; subcontractPosition.isPending = false; subcontractPosition.isError = false; });
 
 // OD-TAX-1 (#548): the money forms now PRE-SELECT the org's `default_tax_treatment`, which is a
 // live org read (`useOrgTaxDefault` → react-query + AuthContext). Only the READ is stubbed here —
@@ -53,6 +53,15 @@ const mockCreateQuotation = vi.fn().mockResolvedValue({ id: 'q-new' });
 const mockCreateReceipt = vi.fn().mockResolvedValue({ id: 'r-new' });
 const mockCreateInvoice = vi.fn().mockResolvedValue({ id: 'i-new' });
 const mockCaptureVendorInvoice = vi.fn().mockResolvedValue({ id: 'vi-new' });
+const mockCaptureSubcontractVendorInvoice = vi.fn().mockResolvedValue({ id: 'vi-sub-new' });
+const subcontractPosition = vi.hoisted(() => ({
+  data: [] as Record<string, unknown>[],
+  isPending: false,
+  isError: false,
+  refetch: vi.fn(),
+}));
+vi.mock('@/src/hooks/useSubcontract', () => ({ usePoPosition: () => subcontractPosition }));
+vi.mock('@/pages/procurement/SubcontractLinesSection', () => ({ SubcontractLinesSection: () => null }));
 
 // The per-phase file sub-section has its own unit test + needs a QueryClient;
 // stub it here so the page tests stay focused on the lifecycle behavior.
@@ -98,6 +107,7 @@ vi.mock('@/src/hooks/useProcurementDetail', () => ({
     createReceipt: { mutateAsync: mockCreateReceipt, isPending: false, error: null },
     createInvoice: { mutateAsync: mockCreateInvoice, isPending: false, error: null },
     captureVendorInvoice: { mutateAsync: mockCaptureVendorInvoice, isPending: false, error: null },
+    captureSubcontractVendorInvoice: { mutateAsync: mockCaptureSubcontractVendorInvoice, isPending: false, error: null },
     setEfaktur: { mutateAsync: vi.fn(), isPending: false },
     approveAmount: { mutateAsync: mockApproveAmount, isPending: false },
   }),
@@ -727,16 +737,17 @@ describe('AC-805: Approve/Reject notes input (OD-PROC-1 optional Notes)', () => 
     );
   });
 
-  it('AC-805 / P2: entering notes + Reject opens a destructive confirm; confirm passes the notes', async () => {
+  it('AC-805 / #1578: Reject confirm requires a rejection comment, then passes it as the notes', async () => {
     detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-other' };
     renderPage();
-    await userEvent.type(screen.getByTestId('procurement-notes-input'), 'Over budget.');
     const header = screen.getByTestId('record-header');
     await userEvent.click(within(header).getByRole('button', { name: /more procurement actions/i }));
     await userEvent.click(within(header).getByRole('menuitem', { name: /reject/i }));
     // Reject is destructive → alertdialog surface
-    expect(await screen.findByRole('alertdialog')).toBeInTheDocument();
+    const dialog = await screen.findByRole('alertdialog');
     expect(mockTransition).not.toHaveBeenCalled();
+    expect(within(dialog).getByRole('button', { name: /reject/i })).toBeDisabled();
+    await userEvent.type(within(dialog).getByLabelText(/rejection comment/i), 'Over budget.');
     await confirmInDialog(/reject/i);
     await waitFor(() =>
       expect(mockTransition).toHaveBeenCalledWith(
@@ -974,7 +985,7 @@ describe('Action bar covers mid-flow transitions', () => {
     // Staged, not written: nothing is created and nothing is toasted until the confirm.
     expect(mockCreateReceipt).not.toHaveBeenCalled();
     expect(toast).not.toHaveBeenCalled();
-    expect(await screen.findByText(/This records a complete goods receipt against procurement record/)).toBeInTheDocument();
+    expect(await screen.findByText(/This records a complete goods receipt against procurement case/)).toBeInTheDocument();
     await confirmInDialog(/save gr/i);
     await waitFor(() => expect(mockCreateReceipt).toHaveBeenCalledTimes(1));
     expect(mockCreateReceipt).toHaveBeenCalledWith(expect.objectContaining({ status: 'Complete' }));
@@ -996,6 +1007,38 @@ describe('Action bar covers mid-flow transitions', () => {
     await confirmInDialog(/save supplier invoice/i);
     await waitFor(() => expect(mockCreateInvoice).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(toast).toHaveBeenCalledWith('Supplier invoice recorded', undefined, 'success'));
+  });
+
+  it('FR-SCA-051 routes the existing supplier-invoice form through the capped subcontract RPC', async () => {
+    detailState.data = {
+      ...baseProcurement,
+      status: 'Vendor Invoiced',
+      requested_by_id: 'u-other',
+      is_subcontract: true,
+      purchase_orders: [{ id: 'po-sub-1', procurement_id: 'proc-001', po_number: 'PO-SUB-1', status: 'Issued', date: '2026-10-20', amount: 10000, currency: 'IDR', org_id: 'org-1', created_at: '2026-10-20T00:00:00Z' }],
+      invoices: [],
+    };
+    subcontractPosition.data = [{
+      boq_item_id: 'boq-1', item_code: 'L1', description: 'Concrete', unit: 'm3', rate: 100,
+      po_qty: 100, revision: 1, verified: 100, verified_not_on_po: 0, verified_at: null,
+      disputed: 0, billed: 0, payable: 100,
+    }];
+    mockCreateInvoice.mockClear();
+    mockCaptureSubcontractVendorInvoice.mockClear();
+    renderPage('proc-001', 'files');
+    await chooseRecordKind('Supplier invoice');
+    const line = await screen.findByRole('textbox', { name: 'L1 Concrete' });
+    await waitFor(() => expect(line).toHaveValue('100'));
+    await userEvent.selectOptions(screen.getByTestId('vi-tax-treatment-select'), 'exclusive');
+    await userEvent.type(screen.getByTestId('vi-tax-amount-input'), '0');
+    await userEvent.click(screen.getByTestId('btn-save-vi'));
+    await confirmInDialog(/save supplier invoice/i);
+
+    await waitFor(() => expect(mockCaptureSubcontractVendorInvoice).toHaveBeenCalledWith(expect.objectContaining({
+      amount: 10000,
+      lines: [{ boqItemId: 'boq-1', quantity: 100, rate: 100 }],
+    })));
+    expect(mockCreateInvoice).not.toHaveBeenCalled();
   });
 
   it('an Engineer can record a receipt for their procurement but sees no Finance document kinds', async () => {

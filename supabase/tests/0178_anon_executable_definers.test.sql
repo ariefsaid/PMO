@@ -190,6 +190,16 @@
 -- from the list). Only external-connect calls it, through the service role with p_actor_id; the frontend never did.
 -- With it off the list, a renewed authenticated grant fails AC-ACL-004 by name.
 --
+-- ⚑ AMENDED BY 0494 (#1606): `retry_connect_send` joined the prior retained set (+1; count 130). S1 plans adds five Operator writers and two authenticated projections (+7; current count 141). A SECURITY DEFINER writer under a member's JWT; it re-asserts the
+-- org, active membership and the Admin role in its body (a held send is released and queued again, audited); proved by
+-- supabase/tests/erp_connect_sends.test.sql. The other 0494 functions are service-role-only or internal.
+--
+-- ⚑ AMENDED BY 0498 (#1602 ECA-5, renumbered from 0484): `accept_invoice_pairs` and `unpair_invoice` join the retained
+-- set (+2; final count 136 from dev's 134, re-derived by hand from the merged list). SECURITY DEFINER writers
+-- under a member's JWT: re-assert active membership, org and Admin/Finance (accept also the ERP-owns-revenue gate
+-- and re-checks every pair on locked rows); proven by supabase/tests/invoice_pairs.test.sql. The proposal and candidate
+-- functions are INVOKER and not listed.
+--
 -- The budget import and procurement import-run commands retain authenticated access;
 -- their owning proofs are 0397_budget_import_protocol.test.sql and
 -- 0399_procurement_import_identity_authority.test.sql. Atomic draft creation is
@@ -221,6 +231,10 @@ select plan(6);
 -- authenticated grant explicitly after the default-privilege guard; otherwise the count below fails.
 -- The names are by proname, matching the migration's conservative overload-safe allow-list (42 literal
 -- frontend calls plus six existing authenticated RPC contracts).
+-- ⚑ AMENDED BY 0517 (#1514 T3): `prepare_tm_signoff`, `withdraw_tm_signoff` and `confirm_tm_signoff` join the retained set (+3, count 148 on dev's 145,
+-- re-derived by hand from the 146 rows of the list). SECURITY DEFINER writers under a member's JWT: each re-asserts active membership and the caller's
+-- org; prepare also the project's progress authority, confirm Admin / Finance and preparer ≠ confirmer unless the sole active member. Proven by
+-- supabase/tests/tm_signoff.test.sql.
 create temp table client_callable_rpc_names (proname text primary key) on commit drop;
 insert into client_callable_rpc_names (proname) values
   ('accept_connect_proposals'),
@@ -256,10 +270,17 @@ insert into client_callable_rpc_names (proname) values
   ('create_stock_document'),
   ('decide_imprest_float_change'),
   ('decide_po_variation'),
+  ('end_contract_rate_line'),  -- ⚑ AMENDED BY 0515 (#1514)
+  ('assemble_tm_claim'),  -- ⚑ AMENDED BY 0516 (#1514)
+  ('deselect_tm_source'),  -- ⚑ AMENDED BY 0516 (#1514)
+  ('prepare_tm_signoff'),  -- ⚑ AMENDED BY 0517 (#1514)
+  ('withdraw_tm_signoff'),  -- ⚑ AMENDED BY 0517 (#1514)
+  ('confirm_tm_signoff'),  -- ⚑ AMENDED BY 0517 (#1514)
   ('establish_imprest_float'),
   ('propose_imprest_float_amount'),
   ('record_vendor_withholding_slip'),
   ('correct_vendor_withholding_slip'),
+  ('unpair_invoice'),
   ('void_vendor_withholding_slip'),
   ('create_procurement_quotation'),
   ('create_procurement_receipt'),
@@ -269,6 +290,7 @@ insert into client_callable_rpc_names (proname) values
   ('create_purchase_order'),
   ('create_purchase_request'),
   ('create_rfq'),
+  ('end_contract_rate_assignee'),  -- ⚑ AMENDED BY 0515 (#1514)
   ('get_budget_projection'),
   ('get_budget_push_status'),
   ('get_executive_dashboard'),
@@ -290,6 +312,7 @@ insert into client_callable_rpc_names (proname) values
   ('mark_erp_purchase_documents'),
   ('link_m365_documents_batch'),
   ('save_cost_attribution_rule'),
+  ('save_contract_rate_line'),  -- ⚑ AMENDED BY 0515 (#1514)
   ('save_equipment_usage'),
   ('save_equipment_costing'),
   ('save_stock_draft'),
@@ -302,6 +325,11 @@ insert into client_callable_rpc_names (proname) values
   ('operator_create_org'),
   ('operator_grant_credits'),
   ('operator_set_domain_ownership'),
+  ('operator_set_org_plan'),
+  ('operator_set_global_feature'),
+  ('operator_clear_feature_override'),
+  ('operator_set_plan_feature'),
+  ('operator_set_plan_limits'),
   ('operator_set_org_lifecycle_state'),
   ('operator_list_orgs'),
   ('post_stock_document'),
@@ -311,6 +339,8 @@ insert into client_callable_rpc_names (proname) values
   ('org_agent_run_stats'),
   ('org_credit_balance'),
   ('org_usage_summary'),
+  ('resolved_org_features'),
+  ('operator_resolved_org_features'),
   ('record_expense_advance_return'),
   ('record_imprest_count'),
   ('record_native_receipt'),
@@ -321,13 +351,16 @@ insert into client_callable_rpc_names (proname) values
   ('request_imprest_replenishment'),
   ('request_po_variation'),
   ('reserve_credits'),
+  ('retry_connect_send'),
   ('save_timesheet_week'),
   ('send_task_reminders'),
   ('select_procurement_quote'),
   ('set_procurement_invoice_efaktur'),
+  ('set_contract_rate_assignee'),  -- ⚑ AMENDED BY 0515 (#1514)
   ('set_procurement_gates'),
   ('set_project_contract_value'),
   ('set_sales_invoice_billing_kind'),
+  ('accept_invoice_pairs'),
   ('set_sales_invoice_efaktur'),
   ('set_sales_invoice_received_date'),
   ('set_stock_reorder_level'),
@@ -375,8 +408,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  131,
-  'AC-ACL-002 all 131 retained client-callable RPC names still have a public function');
+  150,
+  'AC-ACL-002 all 150 retained client-callable RPC names still have a public function');
 
 select is(
   (select count(*)::int
@@ -385,8 +418,8 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  131,
-  'AC-ACL-003 all 131 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  150,
+  'AC-ACL-003 all 150 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
 -- granted to both roles from being named twice. Retained names exempt authenticated grants only;

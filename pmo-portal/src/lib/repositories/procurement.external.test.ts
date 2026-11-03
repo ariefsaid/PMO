@@ -246,6 +246,31 @@ describe('task 4.8 — flipped ownership map — procurement/company record crea
     expect(dispatchSpy).toHaveBeenCalledWith('procurement', 'create', expect.objectContaining({ erp_doc_kind: 'purchase-order' }), expect.any(Object));
   });
 
+  it('AC-OPP-015 on an Odoo-owned org the order comes back with Odoo\'s total AND the entered figure; neither replaces the other', async () => {
+    setTaskOwnership([{ domain: 'procurement', externalTier: 'odoo' }]);
+    dispatchSpy.mockResolvedValue({
+      externalRecordId: '41',
+      canonical: { id: 'pmo-1', po_number: 'P00041', amount: '111.00', pmo_amount: '100.00', erp_docstatus: 1 },
+    });
+    const row = await repositories.procurement.createPurchaseOrder('proc-1', 'PO-0001', 'Draft', '2026-07-11', 100);
+    expect(row).toMatchObject({ po_number: 'P00041', amount: '111.00', pmo_amount: '100.00' });
+    expect(dispatchSpy).toHaveBeenCalledWith('procurement', 'create', expect.objectContaining({ erp_doc_kind: 'purchase-order', amount: 100 }), expect.any(Object));
+    expect(createPurchaseOrder).not.toHaveBeenCalled();
+  });
+
+  it('AC-OPP-030 on an Odoo-owned org the receipt comes back with the quantities Odoo booked AND the entered ones, and the received status Odoo derives', async () => {
+    setTaskOwnership([{ domain: 'procurement', externalTier: 'odoo' }]);
+    const booked = [{ lineId: 11, productId: 55, quantity: 6 }];
+    dispatchSpy.mockResolvedValue({
+      externalRecordId: '77',
+      canonical: { id: 'pmo-gr-1', gr_number: 'WH/IN/00077', erp_docstatus: 1, odoo_receipt_status: 'Partial', odoo_booked: booked, odoo_entered: booked },
+    });
+    const row = await repositories.procurement.createReceipt('proc-1', 'Complete', '2026-07-11');
+    expect(row).toMatchObject({ gr_number: 'WH/IN/00077', odoo_receipt_status: 'Partial', odoo_booked: booked, odoo_entered: booked });
+    expect(dispatchSpy).toHaveBeenCalledWith('procurement', 'create', expect.objectContaining({ erp_doc_kind: 'goods-receipt' }), expect.any(Object));
+    expect(createReceipt).not.toHaveBeenCalled();
+  });
+
   it('createPayment dispatches externally with erp_doc_kind payment', async () => {
     dispatchSpy.mockResolvedValue({ externalRecordId: 'ACC-PAY-2026-00001', canonical: { id: 'pmo-1' } });
     await repositories.procurement.createPayment('proc-1', 'inv-1', 'PAY-0001', 'Draft', '2026-07-11', 100);

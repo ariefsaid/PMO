@@ -7,7 +7,8 @@ import { employeeChoiceLabels } from './employeeChoiceLabels';
 
 export interface EmployeeProfileOption {
   value: string;
-  label: string;
+  name?: string;
+  label?: string;
   email?: string;
 }
 
@@ -57,10 +58,11 @@ const isDecidable = (l: ProposedEmployeeLink): boolean =>
   erpIdentity(l) !== null && pmoIdentity(l) !== null;
 
 const profileName = (option: EmployeeProfileOption): string => {
+  if (option.name) return option.name;
   const emailSuffix = option.email ? ` · ${option.email}` : '';
-  return emailSuffix && option.label.endsWith(emailSuffix)
+  return emailSuffix && option.label?.endsWith(emailSuffix)
     ? option.label.slice(0, -emailSuffix.length)
-    : option.label;
+    : option.label ?? '';
 };
 
 interface PendingConfirmation {
@@ -110,6 +112,10 @@ export const EmployeeLinkConfirm: React.FC<EmployeeLinkConfirmProps> = ({
   const activeProfilesById = useMemo(
     () => new Map((profileOptions ?? []).map((option) => [option.value, option])),
     [profileOptions],
+  );
+  const comboboxOptionsById = useMemo(
+    () => new Map(comboboxOptions.map((option) => [option.value, option])),
+    [comboboxOptions],
   );
   const loadProfileOptions = useCallback(async () => comboboxOptions, [comboboxOptions]);
 
@@ -217,7 +223,7 @@ export const EmployeeLinkConfirm: React.FC<EmployeeLinkConfirmProps> = ({
                   <Combobox
                     label={t('approvals.employeeLinks.uxs30.profileLabel', 'PMO user to attribute hours to')}
                     value={selectedProfile?.value ?? null}
-                    selectedOption={selectedProfile ? { value: selectedProfile.value, label: selectedProfile.label } : null}
+                    selectedOption={selectedProfile ? (comboboxOptionsById.get(selectedProfile.value) ?? { value: selectedProfile.value, label: profileName(selectedProfile) }) : null}
                     onChange={(value) => setSelectedProfileIds((current) => ({ ...current, [link.id]: value }))}
                     loadOptions={loadProfileOptions}
                     placeholder={t('approvals.employeeLinks.uxs30.profilePlaceholder', 'Select a PMO profile')}
@@ -301,7 +307,7 @@ export const EmployeeLinkConfirm: React.FC<EmployeeLinkConfirmProps> = ({
                   label={t('approvals.employeeLinks.uxs30.profileLabel', 'PMO user to attribute hours to')}
                   value={pendingActiveProfile?.value ?? null}
                   selectedOption={pendingActiveProfile
-                    ? { value: pendingActiveProfile.value, label: pendingActiveProfile.label }
+                    ? (comboboxOptionsById.get(pendingActiveProfile.value) ?? { value: pendingActiveProfile.value, label: profileName(pendingActiveProfile) })
                     : null}
                   onChange={(value) => {
                     const selectedProfile = activeProfilesById.get(value) ?? null;

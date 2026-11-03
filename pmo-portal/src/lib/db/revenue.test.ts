@@ -47,12 +47,15 @@ const h = vi.hoisted(() => {
     let cursor: string | null = null;
     let cap = Number.POSITIVE_INFINITY;
     let window: [number, number] | null = null;
+    /** `.is(column, value)` filters this query applied; the mock honours them on the rows it serves. */
+    const isFilters: Array<[string, unknown]> = [];
     const b = {
       select(columns?: string) {
         if (columns) state.columnCalls.push({ table, columns });
         return b;
       },
       eq(column: string, value: unknown) { state.eqCalls.push([column, value]); return b; },
+      is(column: string, value: unknown) { isFilters.push([column, value]); return b; },
       maybeSingle() { return Promise.resolve({ data: state.singles[table] ?? null, error: null }); },
       neq() { return b; },
       order(column: string, opts?: { ascending?: boolean }) {
@@ -80,7 +83,8 @@ const h = vi.hoisted(() => {
           if (mutate) { state.mutateAfterQuery = null; mutate(); }
           return resolve({ data: page, error: null });
         }
-        return resolve({ data: state.invoicePages.shift() ?? [], error: null });
+        const served = state.invoicePages.shift() ?? [];
+        return resolve({ data: served.filter((row) => isFilters.every(([c, v]) => (row[c] ?? null) === v)), error: null });
       },
     };
     return b;
@@ -322,6 +326,24 @@ describe('db/revenue getRevenueByProject — net of tax, per currency, paged', (
     const rows = await getRevenueByProject();
     expect(rows).toEqual([]);
     expect(h.from).not.toHaveBeenCalledWith('projects');
+  });
+});
+
+describe('db/revenue getRevenueByProject — count once (ECA-5, PD-ECA-11)', () => {
+  it('AC-ECA-030 a paired PMO invoice is excluded from the client-side billed and open totals and from the invoice count', async () => {
+    h.state.projects = [{ id: 'proj-1', name: 'Alpha' }];
+    // The work view already leaves the paired copy out (server filter); the receivable scan must too.
+    h.state.workPages = [work(1, 'proj-1', 100)];
+    h.state.invoicePages = [[
+      ...invoices(1, 'proj-1', 111, 40),
+      { id: 'si-paired', project_id: 'proj-1', currency: 'USD', amount: 111, erp_outstanding_amount: 40, paired_erp_invoice_id: 'si-erp' },
+    ]];
+
+    const rows = await getRevenueByProject();
+
+    expect(rows).toEqual([
+      { project_id: 'proj-1', project_name: 'Alpha', currency: 'USD', total_amount: 100, open_ar: 40, invoice_count: 1 },
+    ]);
   });
 });
 

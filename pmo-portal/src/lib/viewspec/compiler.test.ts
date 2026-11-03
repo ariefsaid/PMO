@@ -166,11 +166,9 @@ describe('compileQuerySpec — structural no-raw-SQL property', () => {
     // (b) The shape is exactly the whitelisted CompiledQuery descriptor — no free-form
     //     SQL fragment field, no `query`/`sql` string smuggled in.
     expect(Object.keys(compiled).sort()).toEqual(
-      ['entity', 'repositoryMethod', 'resolvedFilters', 'resolvedSelect'].sort(),
+      ['entity', 'resolvedFilters', 'resolvedSelect'].sort(),
     );
 
-    // (c) repositoryMethod is the whitelisted value, not a free-form string.
-    expect(compiled.repositoryMethod).toBe('project.list');
     expect(compiled.entity).toBe('projects');
   });
 });
@@ -188,7 +186,6 @@ describe('compileQuerySpec — accept paths', () => {
     const compiled = compileQuerySpec(spec, CTX);
 
     expect(compiled.entity).toBe('companies');
-    expect(compiled.repositoryMethod).toBe('company.list');
     expect(compiled.resolvedSelect).toEqual(['id', 'name', 'type']);
     expect(compiled.resolvedFilters).toEqual([{ column: 'type', op: 'eq', value: 'Client' }]);
     expect(compiled.limit).toBe(50);
@@ -403,7 +400,7 @@ describe('compileQuerySpec — timeRange validation and compilation', () => {
     vi.useRealTimers();
   });
 
-  it('AC-VC-015: valid timeRange compiles and appears in both resolvedTimeRange and resolvedFilters', () => {
+  it('AC-VC-015: valid timeRange compiles to a date-range filter', () => {
     const spec: QuerySpec = {
       entity: 'projects',
       select: ['id', 'name'],
@@ -411,12 +408,7 @@ describe('compileQuerySpec — timeRange validation and compilation', () => {
     };
     const compiled = compileQuerySpec(spec, CTX);
 
-    expect(compiled.resolvedTimeRange).toEqual({
-      column: 'start_date',
-      from: '2026-01-01',
-      to: '2026-12-31',
-    });
-    // OQ-3: timeRange must also appear in resolvedFilters as a date-range clause.
+    // OQ-3: timeRange is normalized to the executor's resolved filter contract.
     expect(compiled.resolvedFilters).toContainEqual({
       column: 'start_date',
       op: 'date-range',
@@ -431,8 +423,6 @@ describe('compileQuerySpec — timeRange validation and compilation', () => {
       timeRange: { column: 'start_date', from: '$start_of_month', to: '$end_of_month' },
     };
     const compiled = compileQuerySpec(spec, CTX);
-    expect(compiled.resolvedTimeRange?.from).toBe('2026-06-01');
-    expect(compiled.resolvedTimeRange?.to).toBe('2026-06-30');
     expect(compiled.resolvedFilters).toContainEqual({
       column: 'start_date',
       op: 'date-range',

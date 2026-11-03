@@ -13,6 +13,7 @@ import {
   ListState,
   MenuButton,
   StatusPill,
+  TextArea,
   Tooltip,
   useToast,
   type Column,
@@ -353,6 +354,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
   const [ownerFilter, setOwnerFilter] = useState('');
   const [sort, setSort] = useState<SortState>();
   const [pendingDecision, setPendingDecision] = useState<PendingDecision | null>(null);
+  const [returnComment, setReturnComment] = useState('');
   const openId = searchParams.get('open');
   // A shared ?open= link opens its record even when the current tab or filter hides the row.
   const selected = scopedRows.find((row) => row.id === openId) ?? null;
@@ -370,7 +372,9 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
     }, { replace: true });
   }, [setSearchParams]);
   const transition = useMutation({
-    mutationFn: ({ id, to }: { id: string; to: ProcurementStatus }) => repositories.procurement.transition(id, to),
+    mutationFn: ({ id, to, notes }: { id: string; to: ProcurementStatus; notes?: string }) => (
+      notes === undefined ? repositories.procurement.transition(id, to) : repositories.procurement.transition(id, to, notes)
+    ),
     onSuccess: (_data, { to }) => {
       if (to === 'Approved') safeTrack(() => trackPurchaseApproved(realRole ?? 'unknown'));
     },
@@ -429,8 +433,8 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
     return next;
   });
 
-  const runTransition = async (targets: ProcurementWithRefs[], to: DecisionTarget) => {
-    const results = await Promise.allSettled(targets.map((row) => transition.mutateAsync({ id: row.id, to })));
+  const runTransition = async (targets: ProcurementWithRefs[], to: DecisionTarget, notes?: string) => {
+    const results = await Promise.allSettled(targets.map((row) => transition.mutateAsync({ id: row.id, to, notes })));
     const failedIds = targets.filter((_row, index) => results[index].status === 'rejected').map((row) => row.id);
     const successCount = targets.length - failedIds.length;
     setSelectedIds((current) => new Set([...current].filter((id) => failedIds.includes(id))));
@@ -468,6 +472,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
   const decide = (rowsToChange: ProcurementWithRefs[], target: DecisionTarget) => {
     if (rowsToChange.length === 0) return;
     // Write policy (OD-UX-1): Approve is a money decision, so it confirms against the amount, as on the record page.
+    setReturnComment('');
     setPendingDecision({ rows: rowsToChange, target });
   };
 
@@ -726,7 +731,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
         cell: (row) => {
           const owner = row.requested_by?.full_name ?? t('projectDetail.procurement.unassigned', 'Unassigned');
           return (
-            <Tooltip content={t('projectDetail.procurement.ownerTooltip', 'Requested by {{name}}. Source: procurement record.', { name: owner })}>
+            <Tooltip content={t('projectDetail.procurement.ownerTooltip', 'Requested by {{name}}. Source: procurement case.', { name: owner })}>
               <span tabIndex={0} className="inline-flex max-w-full items-center gap-2 rounded-sm text-[12px] text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
                 <span aria-hidden="true" className="grid size-6 shrink-0 place-items-center rounded-full bg-secondary text-[11px] font-bold text-foreground">{initials(owner)}</span>
                 <span className="truncate">{owner}</span>
@@ -760,7 +765,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
     if (!pendingDecision) return;
     const decision = pendingDecision;
     setPendingDecision(null);
-    void runTransition(decision.rows, decision.target);
+    void runTransition(decision.rows, decision.target, decision.target === 'Rejected' ? returnComment.trim() : undefined);
   };
 
   const drawerDetails = detailQuery.data;
@@ -850,8 +855,8 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
               ? pendingProcurementApprovals(stageRows, currentUser?.id, role === 'Admin').length
               : 0;
             const countTooltip = projectId
-              ? t('projectDetail.procurement.stageCountTooltip', 'Count of procurements currently in {{stage}}. Source: project procurement records.', { stage: stageLabel })
-              : t('procurement.stageCountTooltip', 'Count of procurements currently in {{stage}}. Source: company procurement records.', { stage: stageLabel });
+              ? t('projectDetail.procurement.stageCountTooltip', 'Count of procurements currently in {{stage}}. Source: project procurement cases.', { stage: stageLabel })
+              : t('procurement.stageCountTooltip', 'Count of procurements currently in {{stage}}. Source: company procurement cases.', { stage: stageLabel });
             const source = canSeeMoney ? `${countTooltip} ${moneyTooltip}` : countTooltip;
             return (
               <Tooltip key={key} content={source} block>
@@ -1173,13 +1178,26 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
             : t('projectDetail.procurement.confirm.approveManyDescription', 'Approving lets each order go ahead.')
           : pendingDecision?.target === 'Cancelled'
           ? t('projectDetail.procurement.confirm.cancelDescription', 'This procurement will be marked as cancelled.')
-          : t('projectDetail.procurement.confirm.returnDescription', 'The procurement goes back to the person who raised it.')}
+          : (
+            <div className="space-y-3">
+              <p>{t('projectDetail.procurement.confirm.returnDescription', 'The procurement goes back to the person who raised it.')}</p>
+              <TextArea
+                label={t('projectDetail.procurement.confirm.returnComment', 'Return comment')}
+                value={returnComment}
+                onChange={setReturnComment}
+                required
+                maxLength={1000}
+                helper={t('projectDetail.procurement.confirm.returnCommentHelp', 'Say what the requester needs to change.')}
+              />
+            </div>
+          )}
         confirmLabel={pendingDecision?.target === 'Approved'
           ? t('projectDetail.procurement.bulk.approve', 'Approve')
           : pendingDecision?.target === 'Cancelled'
           ? t('projectDetail.procurement.rowMenu.cancel', 'Cancel procurement')
           : t('projectDetail.procurement.bulk.return', 'Return')}
         tone={pendingDecision?.target === 'Cancelled' ? 'destructive' : 'default'}
+        confirmDisabled={pendingDecision?.target === 'Rejected' && returnComment.trim() === ''}
         loading={transition.isPending}
         onConfirm={runDecisionFromDialog}
         onCancel={() => setPendingDecision(null)}

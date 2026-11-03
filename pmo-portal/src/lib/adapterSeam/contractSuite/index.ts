@@ -6,6 +6,7 @@ import { cutoverPurchaseSuite } from './cutoverPurchase.suite.ts';
 import { cutoverSuite } from './cutover.suite.ts';
 import type { Suite } from './harness.ts';
 import { imprestTransferSuite } from './imprestTransfer.suite.ts';
+import { invoicePairSuite } from './invoicePair.suite.ts';
 import { matchSuite } from './match.suite.ts';
 import { partySuite } from './party.suite.ts';
 import { actualsReadSuite } from './actuals.suite.ts';
@@ -14,7 +15,8 @@ import { billPushSuite, purchaseLinkExistingSuite, purchasePushSuite, vendorPaym
 import { invoicePushSuite, receiptReadSuite } from './revenue.suite.ts';
 import { timesheetPushSuite } from './timesheet.suite.ts';
 import { projectSuite } from './project.suite.ts';
-import { itemSendSuite, partySendSuite, projectSendSuite } from './send.suite.ts';
+import { partySendAllSuite } from './sendAll.suite.ts';
+import { itemSendSuite, projectSendSuite } from './send.suite.ts';
 
 /** The shared suite that owns each workflow's behaviour. A workflow with no entry cannot be declared supported. */
 export const SUITES: Readonly<Partial<Record<WorkflowId, Suite>>> = {
@@ -24,7 +26,7 @@ export const SUITES: Readonly<Partial<Record<WorkflowId, Suite>>> = {
   'employee.match': matchSuite('employee'),
   'party.match': partySuite,
   'party.bring-in': bringInSuite,
-  'party.send': partySendSuite,
+  'party.send': partySendAllSuite,
   'project.match': projectSuite,
   'project.send': projectSendSuite,
   'item.send': itemSendSuite,
@@ -42,4 +44,5 @@ export const SUITES: Readonly<Partial<Record<WorkflowId, Suite>>> = {
   'budget.push': budgetPushSuite,
   'timesheet.push': timesheetPushSuite,
   'imprest.transfer': imprestTransferSuite,
+  'invoice.pair-existing': invoicePairSuite,
 };

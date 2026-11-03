@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { upgradeNotes, assertNoBinary, actionItemTaskIds, notesToText } from './meetingNotes';
+import { upgradeNotes, assertNoBinary } from './meetingNotes';
+import { notesToText } from '@/test/meetingNotes';
 
 describe('upgradeNotes (one-way v1 → BlockNote)', () => {
   it('AC-MTG-201 maps every v1 line to a paragraph with the same text — no data loss', () => {
@@ -47,24 +48,10 @@ describe('upgradeNotes (one-way v1 → BlockNote)', () => {
   });
 });
 
-describe('actionItemTaskIds / paste', () => {
-  const doc = [
-    { id: '1', type: 'actionItem', props: { taskId: 't1' }, children: [] },
-    {
-      id: '2',
-      type: 'paragraph',
-      content: [],
-      children: [{ id: '3', type: 'actionItem', props: { taskId: 't1' }, children: [] }],
-    },
-    { id: '4', type: 'actionItem', props: { taskId: '' }, children: [] },
-  ];
-  it('AC-MTG-006 two blocks referencing one task are two references to the same id', () => {
-    expect(actionItemTaskIds(doc)).toEqual(['t1', 't1']);
-  });
-  it('AC-MTG-008 an empty taskId is a reference to no live task and is not listed', () => {
-    expect(actionItemTaskIds(doc)).not.toContain('');
-  });
-});
+// (actionItemTaskIds describe removed, #1710 — the helper had no production caller. AC-MTG-006
+// lives at src/components/meetings/minutesSchema.test.ts (the shipped schema makes a pasted block
+// another reference to the same task); AC-MTG-008's empty-taskId oracle lives at
+// src/components/meetings/ActionItemView.test.tsx (tombstone, no lookup, no write).)
 
 describe('assertNoBinary', () => {
   it('AC-MTG-026 rejects any data: URI anywhere in the document', () => {

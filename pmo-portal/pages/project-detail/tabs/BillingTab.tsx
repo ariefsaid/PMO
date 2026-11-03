@@ -8,8 +8,8 @@ import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useAuth } from '@/src/auth/useAuth';
 import { usePermission } from '@/src/auth/usePermission';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { currencySymbol, formatCurrencyAuto, formatDateOnly, formatNumber, formatNumberExact, formatNumberMax2, formatUtcMonthYear } from '@/src/lib/format';
-import { claimNet, percentOfLot, remainingQuantity, summarizeBilling } from '@/src/lib/progressBilling';
+import { currencySymbol, formatCurrency, formatDateOnly, formatNumber, formatNumberExact, formatNumberMax2, formatUtcMonthYear } from '@/src/lib/format';
+import { claimNet, milli, percentOfLot, remainingQuantity, summarizeBilling } from '@/src/lib/progressBilling';
 import type {
   BoqItemInput, BoqItemRow, ProgressAssessmentInput, ProgressClaimInput, ProgressClaimWithInvoice,
 } from '@/src/lib/db/progressBilling';
@@ -35,7 +35,7 @@ import { useRevenueRouteReady } from '@/src/hooks/useOwnershipCacheSync';
  * Figures come from get_project_billing and are derived with the management pack's helpers (DD-PBL-9).
  * ⚑ Nothing ERP-bound or destructive writes on one click; the server is the authority on every rule.
  */
-export interface BillingTabProps {
+interface BillingTabProps {
   projectId: string;
   currency: string;
   /** The project's client — the invoice customer. No client, no billing buttons. */
@@ -143,7 +143,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
   // C5: no padded .00, but a real fraction is money and is never rounded away. In-page figures are bare (the
   // heading names currency + basis once, C6); drawers and confirmations, which have no such heading, keep the currency.
   const money = (value: number) => formatNumberMax2(value);
-  const cents = (value: number | string) => formatCurrencyAuto(Number(value), currency);
+  const cents = (value: number | string) => formatCurrency(Number(value), currency);
   const monthLabel = (iso: string) => formatUtcMonthYear(new Date(`${iso}T00:00:00Z`));
 
   // A claim's scope comes from the allocations: until they are loaded no scope is offered (never a guessed one).
@@ -234,7 +234,6 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
   // fails) the cells say "—" — a quantity is never shown as zero because it is unknown.
   const lineFactsById = new Map((summary?.contractLines ?? []).map((line) => [line.boqItemId, line] as const));
   const hasLines = summary ? summary.contractLines.length > 0 : boqRows.length > 0;
-  const milliOf = (value: number): number => Math.round(value * 1000);
   const quantityText = (row: BoqItemRow, quantity: number): string =>
     row.earning_basis === 'lump_sum' ? percentOfLot(quantity) : `${formatNumberExact(quantity)} ${row.unit}`;
   const lineProject = Boolean(summary && summary.contractLines.length > 0);
@@ -275,7 +274,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
         return (
           <Tooltip content={t('projectDetail.billing.boq.source.accepted', 'Source: quantities on confirmed BASTs.')}><span className="cursor-help tabular" data-testid={`boq-accepted-${row.id}`}>
             {f ? quantityText(row, f.acceptedQuantity) : '—'}
-            {f && milliOf(f.acceptedQuantity) > milliOf(f.orderedQuantity) && (
+            {f && milli(f.acceptedQuantity) > milli(f.orderedQuantity) && (
               <span className="ml-1 block text-[11px] text-destructive-text">{t('projectTabs:contractQuantities.billing.boq.overMeasured', 'More than ordered')}</span>
             )}
           </span></Tooltip>
@@ -554,7 +553,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
           {canStartInvoice && <Link
             className="touch-target inline-flex min-h-11 items-center rounded-sm text-sm font-medium text-primary-text underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-            to={`/sales-invoices?create=1&project=${encodeURIComponent(projectId)}`}
+            to={`/finance/receivables?create=1&project=${encodeURIComponent(projectId)}`}
           >
             {t('uxs15.contractInvoice', 'Contract invoice')}
           </Link>}

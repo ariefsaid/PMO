@@ -166,5 +166,62 @@
     "on": "On",
     "off": "Off",
     "description": "A Feedback button in the header and, at most once every 30 days, a short question after a first task or a quarterly check-in. Never shown while someone is filling in a form. Answers carry no record contents."
+  },
+  "invoicePairs": {
+    "title": "Invoices on both sides",
+    "intro": "Some invoices PMO raised are also in your ERP. Count each sale once, as the ERP copy. The PMO copy stays on record, linked to it, and stops adding to revenue and receivables.",
+    "col": {
+      "pmo": "PMO invoice",
+      "erp": "ERP invoice",
+      "customer": "Customer",
+      "amount": "Amount"
+    },
+    "acceptAll": "Count each once",
+    "needsDecision": "Needs a decision",
+    "needsDecisionHelp": "These match more than one invoice. Open them in the ERP to tell them apart; PMO will not choose for you.",
+    "stillPmo": "Still counted as PMO invoices",
+    "reason": {
+      "noMatch": "No matching ERP invoice",
+      "ambiguous": "More than one ERP invoice matches",
+      "hasReceipt": "PMO already recorded a payment on this invoice",
+      "projectDiffers": "The ERP invoice is on a different project or work order"
+    },
+    "countOne": "1 invoice",
+    "countOther": "{{count}} invoices",
+    "doneOne": "1 invoice now counts once.",
+    "doneOther": "{{count}} invoices now count once.",
+    "failed": "No invoice was changed. The list may be out of date; it has been reloaded. Try again.",
+    "alreadyOne": "1 invoice already counts once",
+    "alreadyOther": "{{count}} invoices already count once",
+    "countedAs": "counted as ERP invoice {{number}}",
+    "confirmTitle": "Count these invoices once?",
+    "confirmBody": "Count {{what}} once, as the ERP copy?",
+    "confirmAction": "Count once",
+    "failedStale": "No invoice was changed. A pair is no longer a clear match; the list has been reloaded. Review it and try again.",
+    "undo": "Undo",
+    "undoFor": "Undo {{number}}",
+    "undoTitle": "Count {{number}} on its own again?",
+    "undoBody": "The PMO invoice goes back into revenue and receivables. The ERP invoice {{erp}} stays, so if both count, the sale shows twice until you pair them again.",
+    "undoDone": "{{number}} counts on its own again.",
+    "undoFailed": "Nothing was changed. The pair may already be undone; the list has been reloaded.",
+    "loadFailed": {
+      "propose": "Could not load the matching invoices.",
+      "unpaired": "Could not load the invoices still counted as PMO invoices.",
+      "accepted": "Could not load the invoices that already count once."
+    },
+    "retry": "Retry"
+  },
+  "integrations": {
+    "send": {
+      "title": "Records going to the ERP",
+      "sending": "Sending to the ERP",
+      "waiting": "{{count}} waiting for the ERP to confirm.",
+      "needsDecision": "Needs a decision",
+      "retry": "It is not there: send it again",
+      "retryFailed": "We could not send it again. Try again in a moment.",
+      "unnamed": "A record",
+      "addPeople": "Add these people in the ERP. It asks for a birth date and gender, which PMO does not hold.",
+      "accountantTask": "Ask your accountant to add a direct-cost account for: {{categories}}"
+    }
   }
 }

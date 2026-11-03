@@ -70,6 +70,7 @@ describe('ECA setup verbs (ECA2-T16)', () => {
     ['acceptConnectProposals (all)', () => repo.acceptConnectProposals('odoo', null, null), 'accept-proposals', { kind: null, ids: null }],
     ['decideConnectReview', () => repo.decideConnectReview('odoo', 'r1', { action: 'dismiss' }), 'decide-review', { id: 'r1', choice: { action: 'dismiss' } }],
     ['unlinkConnectMatch', () => repo.unlinkConnectMatch('odoo', 'l1'), 'unlink-match', { id: 'l1' }],
+    ['retryConnectSend', () => repo.retryConnectSend('odoo', 'h1'), 'retry-send', { id: 'h1' }],
   ];
   it.each(cases)('%s posts the %s verb with the tier', async (_n, run, action, extra) => {
     ok({ result: action, counts: {}, remaining: 0 });

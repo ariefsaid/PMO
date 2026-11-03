@@ -100,7 +100,7 @@ vi.mock('../ProjectActivity', () => ({ ActivityFooter: () => null, MyOpenTasks: 
 vi.mock('../useProjectPosition', () => ({
   useProjectAttention: () => ({ items: [], isPending: false }),
   useOverdueReceivables: () => ({
-    data: invoiceState.data.length > 0 ? { to: '/sales-invoices?project=p1&overdue=true' } : null,
+    data: invoiceState.data.length > 0 ? { to: '/finance/receivables?project=p1&overdue=true' } : null,
     isPending: false,
     isError: false,
     refetch: vi.fn(),

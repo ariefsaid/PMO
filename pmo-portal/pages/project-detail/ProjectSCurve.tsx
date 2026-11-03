@@ -8,30 +8,17 @@ import { usePrefersReducedMotion } from '@/src/components/dashboard/usePrefersRe
 import { tooltipContentStyle, tooltipLabelStyle, axisTickStyle } from '@/src/components/dashboard/chartChrome';
 import { chartTheme } from '@/src/components/ui/chartTheme';
 import { useMilestones } from '@/src/hooks/useMilestones';
+import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { useTasks } from '@/src/hooks/useTasks';
 import { buildSCurve, evenAxisTicks, formatSCurveAxisDate } from '@/src/lib/delivery/sCurve';
 
-export interface ProjectSCurveProps {
+interface ProjectSCurveProps {
   projectId: string;
 }
 
-const todayIso = () => new Date().toISOString().slice(0, 10);
-
-/**
- * Per-project cumulative S-curve on the Delivery lens (FR-SC-001), below the
- * milestone stepper. Reuses `useMilestones(projectId)` + `useTasks(projectId)` which
- * are already loaded on the project-detail page (NFR-SCA-004 — no extra round-trip;
- * RLS on the security-invoker RPC scopes rows, NFR-SC-SEC-001).
- *
- * Planned = dashed multi-point cumulative curve at each milestone `target_date`
- * (monotonic → 100%). Actual = solid multi-point line via the hybrid source rule
- * (FR-SCA-008): task-tracked milestones step at each Done task's `completed_at` (or
- * `end_date` proxy); overridden/task-less milestones contribute at `target_date`.
- * Falls back to a single as-of-today dot when tasks are absent (FR-SCA-011).
- * Both lines share One-Blue (DESIGN.md single-blue identity); style-only distinction.
- */
 const ProjectSCurve: React.FC<ProjectSCurveProps> = ({ projectId }) => {
   const { t } = useTranslation('project');
+  const today = useOrgToday();
   const { data, isPending, isError, refetch } = useMilestones(projectId);
   // NFR-SCA-004: reuse tasks already loaded on the project-detail page — no extra round-trip.
   // PGB-014: require both milestones and tasks to settle before building actual history.
@@ -50,8 +37,8 @@ const ProjectSCurve: React.FC<ProjectSCurveProps> = ({ projectId }) => {
     if (isAnyPending || isAnyError || !data || !tasksData) {
       return { points: [], plannedToDate: null, actualToDate: 0, usesProxyDates: false };
     }
-    return buildSCurve(data, todayIso(), tasksData);
-  }, [data, tasksData, isAnyPending, isAnyError]);
+    return buildSCurve(data, today, tasksData);
+  }, [data, tasksData, isAnyPending, isAnyError, today]);
 
   // FR-SCA-013: suppress the lone dot only when the actual series has ≥2 points.
   const hasActualSeries = model.points.filter((p) => p.actual !== null).length >= 2;

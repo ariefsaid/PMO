@@ -278,11 +278,6 @@ function parseNeutralMoneyDraft(raw: string): ParsedMoneyDraft | null {
   return parseMoneyDraft(raw, NEUTRAL_NUMBER_LOCALE);
 }
 
-/** Locale-independent decimal parser for neutral imports. */
-export function parseNeutralMoneyInput(raw: string): number | null {
-  return parseNeutralMoneyDraft(raw)?.value ?? null;
-}
-
 /**
  * DD-I18N-10 — binary float noise from a spreadsheet formula cell is not user precision.
  * `=1234.5+0.06` reaches the importer as `1234.5600000000002` (the double's shortest round-trip
@@ -503,9 +498,8 @@ export function formatInstantDateNumeric(iso: string | null | undefined): string
 // all agree; a caller may still pass an explicit zone (tests; a future non-active-locale use).
 //
 // No timezone-database dependency: `Intl.DateTimeFormat` already carries the IANA tz database.
-// Instant -> wall time is a direct `formatToParts` read; wall time -> instant uses the standard
-// two-pass UTC-offset lookup (the same technique `date-fns-tz`/`luxon` use) so it converges
-// correctly across a DST transition.
+// Instant -> wall time is a direct `formatToParts` read; wall time -> instant samples nearby
+// offsets and validates the requested value by formatting each candidate back through the zone.
 
 interface WallTimeParts {
   year: number;
@@ -542,8 +536,15 @@ function readWallTimeParts(instant: Date, timeZone: string, withSeconds: boolean
 /** The UTC offset (ms) in effect for `instant` in `timeZone`; positive when the zone is ahead of UTC. */
 function wallTimeOffsetMs(instant: Date, timeZone: string): number {
   const p = readWallTimeParts(instant, timeZone, true);
-  const asUtc = Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second);
+  const asUtc = wallPartsAsUtcMs(p);
   return asUtc - instant.getTime();
+}
+
+function wallPartsAsUtcMs(parts: WallTimeParts): number {
+  const wall = new Date(0);
+  wall.setUTCFullYear(parts.year, parts.month - 1, parts.day);
+  wall.setUTCHours(parts.hour, parts.minute, parts.second, 0);
+  return wall.getTime();
 }
 
 /** Format an instant as the wall-clock value a `datetime-local` input shows, in `timeZone`. */
@@ -555,19 +556,104 @@ export function instantToZonedDatetimeLocal(instant: Date, timeZone = getActiveL
 
 const DATETIME_LOCAL_RE = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/;
 
+function wallTimeFromParts(
+  year: number,
+  month: number,
+  day: number,
+  hour: number,
+  minute: number,
+  second: number,
+): WallTimeParts | null {
+  if (
+    year < 1 || year > 9999 || month < 1 || month > 12 || day < 1 || day > 31 ||
+    hour < 0 || hour > 23 || minute < 0 || minute > 59 || second < 0 || second > 59
+  ) return null;
+  const requested = { year, month, day, hour, minute, second };
+  const wall = new Date(0);
+  wall.setUTCFullYear(year, month - 1, day);
+  wall.setUTCHours(hour, minute, second, 0);
+  const roundTrip = {
+    year: wall.getUTCFullYear(),
+    month: wall.getUTCMonth() + 1,
+    day: wall.getUTCDate(),
+    hour: wall.getUTCHours(),
+    minute: wall.getUTCMinutes(),
+    second: wall.getUTCSeconds(),
+  };
+  return Object.keys(requested).every((key) =>
+    requested[key as keyof typeof requested] === roundTrip[key as keyof typeof roundTrip]
+  ) ? requested : null;
+}
+
+function sameWallTime(left: WallTimeParts, right: WallTimeParts): boolean {
+  return left.year === right.year && left.month === right.month && left.day === right.day &&
+    left.hour === right.hour && left.minute === right.minute && left.second === right.second;
+}
+
 /**
  * Parse a `datetime-local` value as wall-clock time IN `timeZone`, returning the instant it names.
- * `null` for a malformed value. Two offset lookups converge on the correct instant either side of
- * a DST transition (the literal skipped/repeated hour is inherently ambiguous for any converter).
+ * Invalid calendar fields and wall times skipped by a clock change return `null`. A repeated wall
+ * time resolves to its earlier instant, making the ambiguity deterministic for meeting edits.
  */
 export function zonedDatetimeLocalToInstant(value: string, timeZone = getActiveLocale().timezone): Date | null {
   const match = DATETIME_LOCAL_RE.exec(value);
   if (!match) return null;
   const [, y, mo, d, h, mi, s] = match;
-  const guessMs = Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(h), Number(mi), Number(s ?? '0'));
-  const firstOffset = wallTimeOffsetMs(new Date(guessMs), timeZone);
-  const secondOffset = wallTimeOffsetMs(new Date(guessMs - firstOffset), timeZone);
-  return new Date(guessMs - secondOffset);
+  const requested = wallTimeFromParts(Number(y), Number(mo), Number(d), Number(h), Number(mi), Number(s ?? '0'));
+  if (!requested) return null;
+  const wallMs = wallPartsAsUtcMs(requested);
+  try {
+    // Sampling either side of the approximate instant captures both offsets at a repeated wall
+    // time. Exact round-trip checks reject gaps; sorting chooses the earlier candidate in a fold.
+    const offsets = new Set([
+      wallTimeOffsetMs(new Date(wallMs - 36 * 60 * 60 * 1000), timeZone),
+      wallTimeOffsetMs(new Date(wallMs), timeZone),
+      wallTimeOffsetMs(new Date(wallMs + 36 * 60 * 60 * 1000), timeZone),
+    ]);
+    const candidates = [...offsets]
+      .map((offset) => new Date(wallMs - offset))
+      .filter((candidate) => sameWallTime(readWallTimeParts(candidate, timeZone, true), requested))
+      .sort((left, right) => left.getTime() - right.getTime());
+    return candidates[0] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+const DATE_ONLY_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+/** First real instant that belongs to `date` in `timeZone`; skipped midnights advance to the first valid minute. */
+export function firstInstantOfZonedCalendarDay(
+  date: string,
+  timeZone = getActiveLocale().timezone,
+): Date | null {
+  const match = DATE_ONLY_RE.exec(date);
+  if (!match) return null;
+  const [, y, mo, d] = match;
+  const dateParts = wallTimeFromParts(Number(y), Number(mo), Number(d), 0, 0, 0);
+  if (!dateParts) return null;
+
+  const dateAsUtc = new Date(wallPartsAsUtcMs(dateParts));
+  for (let dateOffset = 0; dateOffset < 3; dateOffset += 1) {
+    const current = new Date(dateAsUtc);
+    current.setUTCDate(current.getUTCDate() + dateOffset);
+    const token = `${String(current.getUTCFullYear()).padStart(4, '0')}-${String(current.getUTCMonth() + 1).padStart(2, '0')}-${String(current.getUTCDate()).padStart(2, '0')}`;
+    // Most days return on the first attempt; quarter-hour probes bound the rare midnight gap,
+    // then inspect the preceding minutes to keep the boundary exact to the datetime-local input.
+    for (let minute = 0; minute < 24 * 60; minute += 15) {
+      const value = `${token}T${String(Math.floor(minute / 60)).padStart(2, '0')}:${String(minute % 60).padStart(2, '0')}`;
+      const candidate = zonedDatetimeLocalToInstant(value, timeZone);
+      if (!candidate) continue;
+      const firstMinute = Math.max(0, minute - 14);
+      for (let earlier = firstMinute; earlier < minute; earlier += 1) {
+        const earlierValue = `${token}T${String(Math.floor(earlier / 60)).padStart(2, '0')}:${String(earlier % 60).padStart(2, '0')}`;
+        const earlierCandidate = zonedDatetimeLocalToInstant(earlierValue, timeZone);
+        if (earlierCandidate) return earlierCandidate;
+      }
+      return candidate;
+    }
+  }
+  return null;
 }
 
 /**
@@ -633,10 +719,6 @@ export function formatCurrencyCents(value: number, currency: string): string {
 }
 
 // Money — whole-unit read-only display (#1437). Exact-cent reconciliation uses formatCurrencyCents.
-export function formatCurrencyAuto(value: number, currency: string): string {
-  return formatCurrency(value, currency);
-}
-
 // Money — fine-grained agent/provider costs (sub-$1): "$0.0123" (2–4 dp, record currency).
 // Was duplicated verbatim in AdministrationUsage + AgentCostMetrics.
 export function formatCurrencyFine(value: number, currency: string): string {
@@ -714,15 +796,6 @@ export function formatClockTime(d: Date): string {
   return dateFormatterFor('clockTime', getDateLocale(), { hour: '2-digit', minute: '2-digit', timeZone: getActiveLocale().timezone }).format(d);
 }
 
-/** "6/14/2026" — numeric M/D/YYYY; byte-identical to bare toLocaleDateString() in en-US. */
-export function formatDateNumeric(d: Date): string {
-  return dateFormatterFor('dateNumeric', getDateLocale(), {
-    month: 'numeric',
-    day: 'numeric',
-    year: 'numeric',
-  }).format(d);
-}
-
 /** "June 2026" — long month + year (calendar header). */
 export function formatMonthYear(d: Date): string {
   return dateFormatterFor('monthYear', getDateLocale(), {
@@ -740,16 +813,9 @@ export function formatWeekdayMonthDay(d: Date): string {
   }).format(d);
 }
 
-/** UTC "Jun 14, 2026" — zone-stable business dates (a 23:00Z instant must not drift a day). */
-export function formatDateUtc(d: Date): string {
-  // ⛔ `timeZone: 'UTC'` is load-bearing and is NOT the resolved profile timezone: this formatter
-  // exists so a 23:00Z business date does not drift a day. Swap the LOCALE, keep the UTC pin.
-  return dateFormatterFor('dateUtc', getDateLocale(), {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    timeZone: 'UTC',
-  }).format(d);
+/** "Sun 14" — a compact column heading (weekday and day of month). */
+export function formatWeekdayDay(d: Date): string {
+  return dateFormatterFor('weekdayDay', getDateLocale(), { weekday: 'short', day: 'numeric' }).format(d);
 }
 
 /**
@@ -773,7 +839,8 @@ export function formatDayMonth(d: Date): string {
 
 /** UTC "Jun 26" — monthly chart axis ticks. */
 export function formatUtcMonthYear(d: Date): string {
-  // `timeZone: 'UTC'` load-bearing (see formatDateUtc); locale follows the viewer.
+  // `timeZone: 'UTC'` is load-bearing and is NOT the resolved profile timezone: a UTC-derived
+  // business date must not drift a day. Swap the LOCALE, keep the UTC pin.
   return dateFormatterFor('utcMonthYear', getDateLocale(), {
     month: 'short',
     year: '2-digit',
