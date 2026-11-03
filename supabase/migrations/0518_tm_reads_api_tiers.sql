@@ -4,7 +4,9 @@
 -- amounts audience only: Admin, Finance, Executive and the Project Manager of that project (Engineers get 42501, another
 -- organisation's project P0002). They are SECURITY DEFINER because they read other people's timesheet hours and rates; the
 -- single gate `tm_assert_amounts_reader` MUST stay (a definer body bypasses RLS). No table, no data change.
--- api_client_request_guard = 0497 verbatim plus the T&M tiers; every added line is marked 0518.
+-- api_client_request_guard = 0497 verbatim plus the T&M tiers; every added line is marked 0518. The rate-card tables are
+-- readable by the amounts audience through the guard, and RLS still narrows every row to the caller's organisation and its
+-- projects (the guard widens reach only; it is never the tenancy rule).
 -- Proven by supabase/tests/tm_reads.test.sql. Rollback: supabase/migrations/rollback/0518_tm_reads_api_tiers_down.sql.
 
 -- The reader gate shared by both reads: an active member in the amounts audience, targeting a project of their own organisation.
@@ -100,7 +102,8 @@ declare
   -- ACTIVE-ADMIN `pmo rpc` TIER (#1326) — keep in step with scripts/pmo.mjs ADMIN_RPCS.  -- 0366
   admin_cli_rpcs constant text[] := array['recategorise_budget_lines'];  -- 0366
   -- OPERATOR READ TIER (`pmo get/documents/m365`, #1270) — keep in step with scripts/pmo.mjs.  -- 0367
-  operator_read_tables constant text[] := array['budget_versions', 'budget_line_items', 'budget_category_account_map', 'erp_gl_entry_mirror', 'project_documents', 'org_m365_document_settings', 'm365_record_folder_sweeps'];  -- 0367
+  operator_read_tables constant text[] := array['budget_versions', 'budget_line_items', 'budget_category_account_map', 'erp_gl_entry_mirror', 'project_documents', 'org_m365_document_settings', 'm365_record_folder_sweeps',  -- 0367
+    'contract_rate_lines', 'contract_rate_assignees'];  -- 0518
   operator_read_rpcs constant text[] := array['project_mapped_actuals', 'link_m365_documents_batch'];  -- 0367
   -- BUDGET OPS TIER (`pmo budgets`, #1270 B): the activation check. Same role set as the RPC's own check. A Draft's source
   -- file goes through link_m365_documents_batch (0367 tier, host-pinned). activate_budget_version is deliberately NOT here
@@ -119,7 +122,8 @@ declare
   equipment_read_rpcs constant text[] := array['list_equipment_costing', 'list_equipment_allocations'];  -- 0497
   equipment_usage_rpcs constant text[] := array['list_equipment_usage_totals'];  -- 0497
   -- TIME-AND-MATERIALS TIER (`pmo tm`, #1514): the rate and sign-off writers for active Admin/Finance; the claim list and
-  -- preview for the amounts audience. Same role sets as the RPCs' own checks.  -- 0518
+  -- preview for the amounts audience. Same role sets as the RPCs' own checks. The rate card itself is a table read, so
+  -- `contract_rate_lines` and `contract_rate_assignees` join the operator read tier below; RLS stays the tenancy rule.  -- 0518
   tm_write_rpcs constant text[] := array['save_contract_rate_line', 'end_contract_rate_line', 'set_contract_rate_assignee', 'end_contract_rate_assignee', 'assemble_tm_claim', 'deselect_tm_source', 'prepare_tm_signoff', 'withdraw_tm_signoff', 'confirm_tm_signoff'];  -- 0518
   tm_read_rpcs constant text[] := array['list_tm_claims', 'preview_tm_claim'];  -- 0518
   claims jsonb := nullif(current_setting('request.jwt.claims', true), '')::jsonb;
