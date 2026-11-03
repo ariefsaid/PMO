@@ -241,7 +241,7 @@ Deno.test({
       await must(sc.from('sales_invoices').insert({
         id: pmoId, org_id: orgId, customer_id: customerId, project_id: null, amount: 1000, tax_amount: 0,
         tax_treatment: 'exclusive', currency: company.currency_id[1], invoice_date: '2026-11-03', reference_number: referenceNumber, status: 'Draft',
-        native_lines: [{ item_code: 'C6-BED-SVC', description: `${stamp} line`, qty: 1, rate: 1000 }],
+        native_lines: [{ item_code: 'C6-BED-SVC', description: `${stamp} line`, qty: 1, rate: 1000, amount: 1000 }],
       }).select());
       const createdAfter = new Date(Date.now() - 5 * 60_000).toISOString().slice(0, 19).replace('T', ' ');
       const createdBefore = new Date(Date.now() + 60_000).toISOString().slice(0, 19).replace('T', ' ');
