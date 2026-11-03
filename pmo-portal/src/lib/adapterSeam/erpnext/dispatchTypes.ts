@@ -24,6 +24,7 @@ export interface DispatchServiceClient {
 }
 export interface DispatchFilterBuilder extends PromiseLike<{ data: unknown; error: { message: string; code?: string } | null }> {
   eq(column: string, value: string | boolean): DispatchFilterBuilder;
+  in(column: string, values: readonly string[]): DispatchFilterBuilder;
   is(column: string, value: null): DispatchFilterBuilder;
   gte(column: string, value: string): DispatchFilterBuilder;
   order(column: string, opts?: { ascending?: boolean }): DispatchFilterBuilder;

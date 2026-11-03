@@ -1,10 +1,14 @@
 import { reconcileOrgBudgetArchiveCancellations, type BudgetArchiveCancelIntent, type BudgetArchiveBackstopDeps } from './budgetArchiveBackstop.ts';
 
 const JOB: BudgetArchiveCancelIntent = {
-  id: 'job-1', org_id: 'org-1', project_id: 'project-1', budget_version_id: 'version-1',
+  id: 'job-1', org_id: 'org-1', request_id: 'request-1', project_id: 'project-1', budget_version_id: 'version-1',
   source_mirror_id: 'mirror-1', actor_user_id: 'actor-1', fiscal_year: '2026', erp_account: 'Labor',
   erp_budget_name: 'BUD-1', activated_at_witness: '2026-10-15T10:00:00Z',
   pushed_project_start_date: '2026-01-01', pushed_project_end_date: '2026-12-31',
+};
+
+const LEGACY_JOB: BudgetArchiveCancelIntent = {
+  ...JOB, id: 'job-legacy', erp_account: null, source_kind: 'legacy', erp_budget_name: 'BUD-LEGACY-1',
 };
 
 function assert(condition: boolean, message: string): void {
@@ -70,4 +74,64 @@ Deno.test('archive cancellation backstop holds stale witnesses and contains one 
 
   assert(result.held === 1 && result.errors.length === 1, `stale and failed jobs must remain visible: ${JSON.stringify(result)}`);
   assert(calls.join(',') === 'held:activation-witness-changed,retry', `one bad row must not starve the next: ${calls.join(',')}`);
+});
+
+Deno.test('AC-BUD-122 a legacy year-grained intent is driven and completed only after the cancellation is confirmed', async () => {
+  const calls: string[] = [];
+  let confirmed = false;
+  const { deps: backstopDeps } = deps({
+    listPending: async () => [LEGACY_JOB],
+    driveCancellation: async () => { calls.push('drive'); confirmed = true; return true; },
+    markComplete: async () => { calls.push(`complete:${confirmed}`); },
+  });
+
+  const result = await reconcileOrgBudgetArchiveCancellations(backstopDeps, 'org-1');
+
+  assert(result.driven === 1, `a legacy intent must reconcile through the same queue: ${JSON.stringify(result)}`);
+  assert(calls.join(',') === 'drive,complete:true', `no completion before a confirmed cancellation: ${calls.join(',')}`);
+});
+
+Deno.test('AC-BUD-122 a legacy intent whose lifecycle witness changed is held, never cancelled', async () => {
+  const calls: string[] = [];
+  const { deps: backstopDeps } = deps({
+    listPending: async () => [LEGACY_JOB],
+    readLifecycle: async () => ({ status: 'Archived', activatedAt: null, activeSuccessorUsesTarget: false }),
+    driveCancellation: async () => { calls.push('drive'); return true; },
+    markHeld: async (_job, reason) => { calls.push(`held:${reason}`); },
+  });
+
+  const result = await reconcileOrgBudgetArchiveCancellations(backstopDeps, 'org-1');
+
+  assert(result.held === 1, `a null witness is a hold, never an absence proof: ${JSON.stringify(result)}`);
+  assert(calls.join(',') === 'held:activation-witness-changed', `held legacy intents must not reach ERP: ${calls.join(',')}`);
+});
+
+Deno.test('AC-BUD-122 an uncertain issued cancellation is held behind a same-target successor, never superseded', async () => {
+  const { deps: backstopDeps, calls } = deps({
+    readLifecycle: async () => ({
+      status: 'Archived', activatedAt: JOB.activated_at_witness,
+      activeSuccessorUsesTarget: true, cancellationState: 'committing',
+    }),
+  });
+
+  const result = await reconcileOrgBudgetArchiveCancellations(backstopDeps, 'org-1');
+
+  assert(result.held === 1 && result.superseded === 0, `an uncertain write must retain its fence: ${JSON.stringify(result)}`);
+  assert(calls.join(',') === 'held:successor-after-cancellation-issued', `uncertain cancellation must not retry or supersede: ${calls.join(',')}`);
+});
+
+Deno.test('AC-BUD-122 a committed cancellation with a successor is finalized instead of released as superseded', async () => {
+  const calls: string[] = [];
+  const { deps: backstopDeps } = deps({
+    readLifecycle: async () => ({
+      status: 'Archived', activatedAt: JOB.activated_at_witness,
+      activeSuccessorUsesTarget: true, cancellationState: 'committed',
+    }),
+    driveCancellation: async () => { calls.push('finalize'); return true; },
+    markComplete: async () => { calls.push('complete'); },
+  });
+
+  const result = await reconcileOrgBudgetArchiveCancellations(backstopDeps, 'org-1');
+
+  assert(result.driven === 1 && calls.join(',') === 'finalize,complete', `committed cancellation must finish its tombstone: ${JSON.stringify(result)} ${calls}`);
 });

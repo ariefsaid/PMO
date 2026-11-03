@@ -115,6 +115,7 @@ export type Database = {
           org_id: string
           project_id: string
           rate: number
+          sales_item_code: string | null
           standby_rate: number | null
           unit: string
           version: number
@@ -134,6 +135,7 @@ export type Database = {
           org_id: string
           project_id: string
           rate: number
+          sales_item_code?: string | null
           standby_rate?: number | null
           unit: string
           version: number
@@ -153,6 +155,7 @@ export type Database = {
           org_id?: string
           project_id?: string
           rate?: number
+          sales_item_code?: string | null
           standby_rate?: number | null
           unit?: string
           version?: number
@@ -11971,6 +11974,19 @@ export type Database = {
       budget_account_identity: {
         Args: { p_account: string; p_fy: string; p_version: string }
         Returns: string
+      }
+      get_budget_archive_targets: {
+        Args: { p_version_id: string }
+        Returns: {
+          eligible: boolean
+          erp_budget_name: string
+          erp_docstatus: number | null
+          fiscal_year: string
+          page_key: string
+          push_state: string
+          reason: string
+          source_kind: string
+        }[]
       }
       budget_distribution_gaps: { Args: { p_version: string }; Returns: string[] }
       budget_activation_mode: { Args: { version_id: string }; Returns: string }
