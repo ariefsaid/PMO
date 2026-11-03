@@ -78,6 +78,10 @@ const orderCommand = () => ({
   domain: 'procurement', operation: 'create', idempotencyKey: 'cccccccc-cccc-4ccc-8ccc-000000001506',
   record: { id: 'dddddddd-dddd-4ddd-8ddd-000000001506', erp_doc_kind: 'purchase-order', procurementId: PROC_ID },
 });
+const billCommand = () => ({
+  domain: 'procurement', operation: 'create', idempotencyKey: 'cccccccc-cccc-4ccc-8ccc-000000001508',
+  record: { id: 'dddddddd-dddd-4ddd-8ddd-000000001508', erp_doc_kind: 'purchase-invoice', procurementId: PROC_ID, referenceNumber: 'INV-1', invoiceDate: '2026-11-03' },
+});
 const reviseCommand = () => ({
   domain: 'procurement', operation: 'revise', idempotencyKey: 'cccccccc-cccc-4ccc-8ccc-000000001507',
   record: { id: 'dddddddd-dddd-4ddd-8ddd-000000001507', erp_doc_kind: 'purchase-order', poId: 'eeeeeeee-eeee-4eee-8eee-000000001507', revision: 2 },
@@ -204,6 +208,12 @@ describe('AC-OPP-061 the dispatch gates refuse a tier-odoo procurement command a
     await refusedAlike(orderCommand(), PAYER_ID, { gateViolation: 'gate_approval_before_payment' }, 422, 'gate_approval_before_payment');
   });
 
+  it('AC-OPP-004 a vendor bill: a role outside the money-write set is refused 403, a case of another tenant 422 purchase_not_found, the org\'s purchase rules 422', async () => {
+    await refusedAlike(billCommand(), PAYER_ID, { role: 'Engineer' }, 403, 'role "Engineer" not authorized for a "procurement" money write');
+    await refusedAlike(billCommand(), PAYER_ID, { caseRow: null }, 422, 'purchase_not_found');
+    await refusedAlike(billCommand(), PAYER_ID, { gateViolation: 'gate_approval_before_payment' }, 422, 'gate_approval_before_payment');
+  });
+
   it('AC-SCA-012 a revise that would cancel a billed order is refused 422 before any outbox row', async () => {
     await refusedAlike(reviseCommand(), PAYER_ID, { poRevise: 'po_has_submitted_bill' }, 422, 'po_has_submitted_bill');
   });
@@ -230,6 +240,10 @@ describe('AC-OPP-014 / FR-OPP-020 an Odoo purchase needs its project\'s cost acc
     const command = orderCommand();
     (command.record as Record<string, unknown>).projectId = '88888888-8888-4888-8888-888888888888';
     await refused({ projectLink: '101' }, 'multiple-projects', command);
+  });
+  it('AC-OPP-014 a vendor bill needs the project\'s cost account too: unlinked refuses 422 project-unlinked, with no outbox row and no Odoo request', async () => {
+    await refused({ projectLink: null }, 'project-unlinked', billCommand());
+    await refused({ projectLink: '101', account: null }, 'project-needs-attention', billCommand());
   });
   it('the gate is Odoo\'s: the same unlinked project does not stop an ERPNext order here', async () => {
     const r = await dispatch(orderCommand(), PAYER_ID, { owns: ['erpnext'], ...withProject({ projectLink: null }) });
