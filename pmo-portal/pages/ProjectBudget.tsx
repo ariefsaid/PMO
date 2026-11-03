@@ -402,6 +402,9 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
           toast(headline, detail, 'warning');
         }}
         fiscalYearNames={activationPrecheckQuery.data?.fiscalYearNames ?? null}
+        // budget_mode is DB-check-constrained to 'whole_project' | 'per_year'; anything else (a
+        // legacy fixture without the column) must behave per_year — the historic default.
+        budgetMode={draftVersion.budget_mode === 'whole_project' ? 'whole_project' : 'per_year'}
       />
     </section>
   ) : null;

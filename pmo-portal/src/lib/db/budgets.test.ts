@@ -82,6 +82,9 @@ import {
   listBudgetDocumentLinks,
   addBudgetDocumentLink,
   removeBudgetDocumentLink,
+  getBudgetDistribution,
+  saveBudgetDistribution,
+  type BudgetDistributionPlan,
 } from './budgets';
 import { AppError } from '@/src/lib/appError';
 
@@ -1001,5 +1004,245 @@ describe('budget import authority adapter', () => {
     await expect(importBudgetLine(request)).rejects.toThrow(/Unexpected/);
     mockRpc.mockResolvedValueOnce({ data: [{ outcome: 'created', line_id: null }], error: null });
     await expect(importBudgetLine(request)).rejects.toThrow(/Unexpected/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// #1472 S6A — budget_mode on version writes, distribution read/save seam
+// ---------------------------------------------------------------------------
+
+/** A chainable builder NOT bound to mockFrom, so tests can route per table. */
+function makeStandaloneBuilder(resolved: { data: unknown; error: unknown }) {
+  const builder: Record<string, unknown> = {};
+  builder.select = vi.fn().mockReturnValue(builder);
+  builder.eq = vi.fn().mockReturnValue(builder);
+  builder.in = vi.fn().mockReturnValue(builder);
+  builder.is = vi.fn().mockReturnValue(builder);
+  builder.neq = vi.fn().mockReturnValue(builder);
+  builder.order = vi.fn().mockReturnValue(builder);
+  builder.limit = vi.fn().mockReturnValue(builder);
+  builder.range = vi.fn().mockReturnValue(builder);
+  builder.update = vi.fn().mockReturnValue(builder);
+  builder.delete = vi.fn().mockReturnValue(builder);
+  builder.insert = vi.fn().mockReturnValue(builder);
+  builder.single = vi.fn().mockReturnValue(builder);
+  builder.maybeSingle = vi.fn().mockReturnValue(builder);
+  builder.then = (resolve: (v: typeof resolved) => void, reject?: (e: unknown) => void) =>
+    Promise.resolve(resolved).then(resolve, reject);
+  return builder;
+}
+
+const distributionPlanRow = {
+  budget_version_id: 'v-draft',
+  org_id: 'org-1',
+  method: 'amount_by_year',
+  inputs: { '2026': '40', '2027': '60' },
+  category_overrides: { Materials: { method: 'percent_by_year', inputs: { '2026': '25', '2027': '75' } } },
+  basis: {
+    projectStart: '2026-01-01',
+    projectEnd: '2027-12-31',
+    years: [
+      { name: '2026', start: '2026-01-01', end: '2026-12-31' },
+      { name: '2027', start: '2027-01-01', end: '2027-12-31' },
+    ],
+  },
+  updated_by: 'u1',
+  updated_at: '2026-11-03T00:00:00Z',
+};
+
+const distributionRowRows = [
+  { id: 'd1', budget_version_id: 'v-draft', org_id: 'org-1', category: 'Labor', fiscal_year: '2026', ordinal: 0, amount: 80000, method: 'amount_by_year', is_override: false },
+  { id: 'd2', budget_version_id: 'v-draft', org_id: 'org-1', category: 'Labor', fiscal_year: '2027', ordinal: 1, amount: 120000, method: 'amount_by_year', is_override: false },
+  { id: 'd3', budget_version_id: 'v-draft', org_id: 'org-1', category: 'Materials', fiscal_year: '2026', ordinal: 0, amount: 0, method: 'percent_by_year', is_override: true },
+  { id: 'd4', budget_version_id: 'v-draft', org_id: 'org-1', category: 'Materials', fiscal_year: '2027', ordinal: 1, amount: 30000.5, method: 'percent_by_year', is_override: true },
+];
+
+const expectedPlan: BudgetDistributionPlan = {
+  method: 'amount_by_year',
+  inputs: { '2026': '40', '2027': '60' },
+  categoryOverrides: { Materials: { method: 'percent_by_year', inputs: { '2026': '25', '2027': '75' } } },
+  basis: distributionPlanRow.basis,
+  rows: [
+    { category: 'Labor', fiscal_year: '2026', ordinal: 0, amount: '80000', method: 'amount_by_year', is_override: false },
+    { category: 'Labor', fiscal_year: '2027', ordinal: 1, amount: '120000', method: 'amount_by_year', is_override: false },
+    { category: 'Materials', fiscal_year: '2026', ordinal: 0, amount: '0', method: 'percent_by_year', is_override: true },
+    { category: 'Materials', fiscal_year: '2027', ordinal: 1, amount: '30000.5', method: 'percent_by_year', is_override: true },
+  ],
+};
+
+describe('getBudgetDistribution (#1472 S6A)', () => {
+  it('reads the plan and all of its rows with deterministic ordering and complete paging', async () => {
+    const planBuilder = makeStandaloneBuilder({ data: distributionPlanRow, error: null });
+    const rowsBuilder = makeStandaloneBuilder({ data: distributionRowRows, error: null });
+    mockFrom.mockImplementation((table: string) => (table === 'budget_distribution_plans' ? planBuilder : rowsBuilder));
+
+    await expect(getBudgetDistribution('v-draft')).resolves.toEqual(expectedPlan);
+    expect(mockFrom).toHaveBeenCalledWith('budget_distribution_plans');
+    expect(mockFrom).toHaveBeenCalledWith('budget_year_distributions');
+    expect(planBuilder.eq).toHaveBeenCalledWith('budget_version_id', 'v-draft');
+    expect(rowsBuilder.eq).toHaveBeenCalledWith('budget_version_id', 'v-draft');
+    // Deterministic ordering: category, then the basis ordinal, then the year name as final tiebreak.
+    expect(rowsBuilder.order).toHaveBeenCalledWith('category', { ascending: true });
+    expect(rowsBuilder.order).toHaveBeenCalledWith('ordinal', { ascending: true });
+    expect(rowsBuilder.order).toHaveBeenCalledWith('fiscal_year', { ascending: true });
+    // Bounded paged read for the rows (never a bare unpaginated await); the 1:1 plan is a maybeSingle.
+    expect(planBuilder.maybeSingle).toHaveBeenCalledTimes(1);
+    expect(rowsBuilder.range).toHaveBeenCalledWith(0, 999);
+  });
+
+  it('maps row amounts back to exact decimal strings with zero preserved and no float drift', async () => {
+    const planBuilder = makeStandaloneBuilder({ data: distributionPlanRow, error: null });
+    const rowsBuilder = makeStandaloneBuilder({ data: distributionRowRows, error: null });
+    mockFrom.mockImplementation((table: string) => (table === 'budget_distribution_plans' ? planBuilder : rowsBuilder));
+    const plan = await getBudgetDistribution('v-draft');
+    expect(plan?.rows.map((row) => row.amount)).toEqual(['80000', '120000', '0', '30000.5']);
+    expect(plan?.rows.every((row) => typeof row.amount === 'string')).toBe(true);
+  });
+
+  it('a version without a saved plan reads as null and never requests rows', async () => {
+    const planBuilder = makeStandaloneBuilder({ data: null, error: null });
+    mockFrom.mockImplementation((table: string) => (table === 'budget_distribution_plans' ? planBuilder : makeStandaloneBuilder({ data: [], error: null })));
+    await expect(getBudgetDistribution('v-none')).resolves.toBeNull();
+    expect(mockFrom).toHaveBeenCalledTimes(1);
+    expect(mockFrom).toHaveBeenCalledWith('budget_distribution_plans');
+  });
+
+  it('propagates read failures (plan error and rows error)', async () => {
+    const planErrorBuilder = makeStandaloneBuilder({ data: null, error: { message: 'plan read denied', code: '42501' } });
+    mockFrom.mockImplementation(() => planErrorBuilder);
+    await expect(getBudgetDistribution('v-draft')).rejects.toMatchObject({ message: 'plan read denied', code: '42501' });
+
+    const planBuilder = makeStandaloneBuilder({ data: distributionPlanRow, error: null });
+    const rowsErrorBuilder = makeStandaloneBuilder({ data: null, error: { message: 'rows read truncated', code: '500' } });
+    mockFrom.mockImplementation((table: string) => (table === 'budget_distribution_plans' ? planBuilder : rowsErrorBuilder));
+    await expect(getBudgetDistribution('v-draft')).rejects.toMatchObject({ message: 'rows read truncated' });
+  });
+
+  it('rejects a persisted plan whose jsonb payload is structurally malformed', async () => {
+    for (const broken of [
+      { ...distributionPlanRow, basis: { noYears: true } },
+      { ...distributionPlanRow, inputs: { '2026': 40 } },
+      { ...distributionPlanRow, category_overrides: { Materials: { method: 'nope', inputs: {} } } },
+      { ...distributionPlanRow, method: 'unknown_method' },
+    ]) {
+      const planBuilder = makeStandaloneBuilder({ data: broken, error: null });
+      mockFrom.mockImplementation((table: string) => (table === 'budget_distribution_plans' ? planBuilder : makeStandaloneBuilder({ data: [], error: null })));
+      await expect(getBudgetDistribution('v-draft')).rejects.toThrow(/malformed/);
+    }
+  });
+});
+
+describe('saveBudgetDistribution (#1472 S6A)', () => {
+  it('calls the accepted six-argument RPC with the exact snapshot and no client-supplied org', async () => {
+    makeRpcBuilder({ data: null, error: null });
+    await expect(saveBudgetDistribution('v-draft', expectedPlan)).resolves.toBeUndefined();
+    expect(mockRpc).toHaveBeenCalledTimes(1);
+    const [fn, args] = mockRpc.mock.calls[0];
+    expect(fn).toBe('save_budget_distribution');
+    expect(args).toMatchObject({
+      p_version: 'v-draft',
+      p_method: 'amount_by_year',
+      p_inputs: { '2026': '40', '2027': '60' },
+      p_basis: expectedPlan.basis,
+      p_category_overrides: expectedPlan.categoryOverrides,
+    });
+    // Rows pass through verbatim — category/year/ordinal/exact decimal string/method/flag — nothing more.
+    expect(args.p_rows).toEqual([
+      { category: 'Labor', fiscal_year: '2026', ordinal: 0, amount: '80000', method: 'amount_by_year', is_override: false },
+      { category: 'Labor', fiscal_year: '2027', ordinal: 1, amount: '120000', method: 'amount_by_year', is_override: false },
+      { category: 'Materials', fiscal_year: '2026', ordinal: 0, amount: '0', method: 'percent_by_year', is_override: true },
+      { category: 'Materials', fiscal_year: '2027', ordinal: 1, amount: '30000.5', method: 'percent_by_year', is_override: true },
+    ]);
+    // Tenant scope is stamped server-side: no org_id may ever travel from the client.
+    expect(JSON.stringify(args)).not.toMatch(/org_id/);
+  });
+
+  it('round-trips: the saved snapshot reads back equal', async () => {
+    makeRpcBuilder({ data: null, error: null });
+    await saveBudgetDistribution('v-draft', expectedPlan);
+    const planBuilder = makeStandaloneBuilder({ data: distributionPlanRow, error: null });
+    const rowsBuilder = makeStandaloneBuilder({ data: distributionRowRows, error: null });
+    mockFrom.mockReset();
+    mockFrom.mockImplementation((table: string) => (table === 'budget_distribution_plans' ? planBuilder : rowsBuilder));
+    await expect(getBudgetDistribution('v-draft')).resolves.toEqual(expectedPlan);
+  });
+
+  it('maps server rejections through the shared AppError pattern (message preserved)', async () => {
+    makeRpcBuilder({ data: null, error: { message: 'budget distribution for Labor must reconcile to its source lines', code: 'P0001' } });
+    await expect(saveBudgetDistribution('v-draft', expectedPlan)).rejects.toMatchObject({
+      message: 'budget distribution for Labor must reconcile to its source lines', code: 'P0001',
+    });
+  });
+});
+
+describe('createBudgetVersion budget_mode (#1472 S6A, FR-001)', () => {
+  function stageVersionInsert() {
+    const insertPayloads: Array<Record<string, unknown>> = [];
+    mockFrom.mockImplementation(() => {
+      const b: Record<string, unknown> = {};
+      let call = 0;
+      b.select = vi.fn().mockReturnValue(b);
+      b.eq = vi.fn().mockReturnValue(b);
+      b.order = vi.fn().mockReturnValue(b);
+      b.limit = vi.fn().mockReturnValue(b);
+      b.insert = vi.fn((payload: Record<string, unknown>) => {
+        insertPayloads.push(payload);
+        return b;
+      });
+      b.single = vi.fn().mockReturnValue(b);
+      b.then = (resolve: (v: { data: unknown; error: null }) => void) => {
+        call++;
+        const resolved = call === 1
+          ? { data: [], error: null }
+          : { data: { id: 'v-new', project_id: 'p1', version: 1, name: 'V1', status: 'Draft', org_id: 'org-1' }, error: null };
+        return Promise.resolve(resolved).then(resolve);
+      };
+      return b;
+    });
+    return insertPayloads;
+  }
+
+  it('a UI-created version sends budget_mode whole_project explicitly', async () => {
+    const payloads = stageVersionInsert();
+    await createBudgetVersion('p1', 'V1', undefined, 'whole_project');
+    expect(payloads[0]).toMatchObject({ budget_mode: 'whole_project', status: 'Draft' });
+  });
+
+  it('an explicit per_year request sends per_year (never silently reinterpreted)', async () => {
+    const payloads = stageVersionInsert();
+    await createBudgetVersion('p1', 'V1', undefined, 'per_year');
+    expect(payloads[0]).toMatchObject({ budget_mode: 'per_year' });
+  });
+
+  it('the import/provenance entry omits budget_mode so the column keeps its own per_year default', async () => {
+    const payloads = stageVersionInsert();
+    await createBudgetVersion('p1', 'Imported', { importBatchId: 'batch-1', importedAt: '2026-11-03T00:00:00Z' });
+    expect(payloads[0]).not.toHaveProperty('budget_mode');
+    expect(payloads[0]).toMatchObject({ status: 'Draft' });
+    expect(JSON.stringify(payloads[0])).not.toMatch(/org_id/);
+  });
+
+  it('historic reads preserve the version actual persisted mode and clone writes never touch it', async () => {
+    const versionRow = { id: 'v-old', project_id: 'p1', version: 1, name: 'Old', status: 'Active', budget_mode: 'per_year', org_id: 'org-1' };
+    const versionsBuilder = makeStandaloneBuilder({ data: [versionRow], error: null });
+    const linesBuilder = makeStandaloneBuilder({ data: [], error: null });
+    const editorsBuilder = makeStandaloneBuilder({ data: [], error: null });
+    const totalsBuilder = makeStandaloneBuilder({ data: [{ version_id: 'v-old', total: 100 }], error: null });
+    mockFrom.mockReset();
+    mockRpc.mockReset();
+    mockFrom.mockImplementation((table: string) => {
+      if (table === 'budget_versions') return versionsBuilder;
+      if (table === 'budget_line_items') return linesBuilder;
+      if (table === 'budget_version_editors') return editorsBuilder;
+      return totalsBuilder;
+    });
+    mockRpc.mockImplementation(() => makeStandaloneBuilder({ data: [{ version_id: 'v-old', total: 100 }], error: null }));
+    const versions = await listBudgetVersions('p1');
+    expect(versions[0]?.budget_mode).toBe('per_year');
+    makeRpcBuilder({ data: 'v-clone', error: null });
+    await cloneVersion('v-old');
+    const [cloneFn, cloneArgs] = mockRpc.mock.calls[mockRpc.mock.calls.length - 1];
+    expect(cloneFn).toBe('clone_budget_version');
+    expect(JSON.stringify(cloneArgs)).not.toMatch(/budget_mode|org_id/);
   });
 });

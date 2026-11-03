@@ -79,11 +79,14 @@ export function makeBudgetImportDescriptor(
     const id =
       existing?.id ??
       (
+        // ⚠ #1472 FR-014: an imported version is a HISTORIC annual record — it names its per_year
+        // mode explicitly rather than relying on the column default, so a UI default change can
+        // never silently reinterpret an import (the import/CLI contract keeps its annual meaning).
         await repositories.budget.createVersion(projectId, 'Imported', {
           importBatchId,
           importedAt,
           // DD-BIMP-5: stamps but NO key — see budgets.ts `ImportProvenance`.
-        })
+        }, 'per_year')
       ).id;
     versionByProject.set(projectId, id);
     return id;

@@ -1,9 +1,9 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
 import { useOptionalRealRole } from '@/src/auth/impersonation';
 import { safeTrack, trackBudgetActivated } from '@/src/lib/analytics';
 import { repositories } from '@/src/lib/repositories';
-import type { BudgetVersionWithItems, BudgetVersionRow, BudgetLineItemRow, NewLineItem, ActivateVersionResult, ArchiveVersionResult, BudgetArchiveLiveTarget, BudgetActivationMode } from '@/src/lib/db/budgets';
+import type { BudgetVersionWithItems, BudgetVersionRow, BudgetLineItemRow, NewLineItem, ActivateVersionResult, ArchiveVersionResult, BudgetArchiveLiveTarget, BudgetActivationMode, BudgetDistributionPlan, BudgetVersionMode } from '@/src/lib/db/budgets';
 
 // ---------------------------------------------------------------------------
 // Query key factories — org-scoped (AC-726, FR-QRY-PROC-001 mirror)
@@ -13,6 +13,29 @@ const budgetKey = (orgId: string | undefined, projectId: string) =>
 
 const budgetVersionsKey = (orgId: string | undefined, projectId: string) =>
   ['budget-versions', orgId, projectId] as const;
+
+const budgetDistributionKey = (orgId: string | undefined, projectId: string, versionId: string | undefined) =>
+  ['budget-distribution', orgId, projectId, versionId] as const;
+
+// ---------------------------------------------------------------------------
+// Shared budget invalidation (#1472 S6A)
+// ---------------------------------------------------------------------------
+
+/**
+ * THE one invalidation for every budget write (line-item create/update/delete, paste/import,
+ * version save/clone/delete, distribution save — and #1473's successful/uncertain refresh).
+ * Preserves the established `budget`, `budget-versions`, `budget-activation-precheck` and
+ * `project-finances` keys and adds the whole project's `budget-distribution` prefix, so every
+ * version's saved plan re-evaluates against the changed source lines (a refetch re-reads the
+ * rows and basis; it never deletes or silently re-saves a plan).
+ */
+export function invalidateBudgetQueries(queryClient: QueryClient, orgId: string | undefined, projectId: string): void {
+  queryClient.invalidateQueries({ queryKey: budgetKey(orgId, projectId) });
+  queryClient.invalidateQueries({ queryKey: budgetVersionsKey(orgId, projectId) });
+  queryClient.invalidateQueries({ queryKey: ['budget-activation-precheck'] });
+  queryClient.invalidateQueries({ queryKey: ['project-finances', orgId, projectId] });
+  queryClient.invalidateQueries({ queryKey: ['budget-distribution', orgId, projectId] });
+}
 
 // ---------------------------------------------------------------------------
 // Read hooks (T12)
@@ -59,6 +82,18 @@ export function useBudgetVersions(projectId: string) {
   });
 }
 
+/** One version's saved whole-project distribution plan (`null` before the first save).
+ *  Enabled only with org identity + version; a save invalidates it (see useBudgetMutations). */
+export function useBudgetDistribution(projectId: string, versionId: string | undefined) {
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
+  return useQuery<BudgetDistributionPlan | null>({
+    queryKey: budgetDistributionKey(orgId, projectId, versionId),
+    queryFn: () => repositories.budget.getDistribution(versionId!),
+    enabled: Boolean(orgId && projectId && versionId),
+  });
+}
+
 export function useBudgetArchiveTargets(versionIds: readonly string[], pollWhileLive = false) {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
@@ -82,20 +117,15 @@ export function useBudgetMutations(projectId: string) {
   const orgId = currentUser?.org_id;
   const realRole = useOptionalRealRole();
 
-  const invalidateBoth = () => {
-    queryClient.invalidateQueries({ queryKey: budgetKey(orgId, projectId) });
-    queryClient.invalidateQueries({ queryKey: budgetVersionsKey(orgId, projectId) });
-    queryClient.invalidateQueries({ queryKey: ['budget-activation-precheck'] });
-    queryClient.invalidateQueries({ queryKey: ['project-finances', orgId, projectId] });
-  };
+  const invalidateBoth = () => invalidateBudgetQueries(queryClient, orgId, projectId);
 
   const invalidateMoneyCollections = () => {
     queryClient.invalidateQueries({ queryKey: ['projects-money', orgId] });
     queryClient.invalidateQueries({ queryKey: ['finance-budget-review', orgId] });
   };
 
-  const createVersion = useMutation<BudgetVersionRow, Error, { projectId: string; name: string }>({
-    mutationFn: ({ projectId: pid, name }) => repositories.budget.createVersion(pid, name),
+  const createVersion = useMutation<BudgetVersionRow, Error, { projectId: string; name: string; budgetMode?: BudgetVersionMode }>({
+    mutationFn: ({ projectId: pid, name, budgetMode }) => repositories.budget.createVersion(pid, name, undefined, budgetMode),
     onSuccess: invalidateBoth,
   });
 
@@ -150,6 +180,14 @@ export function useBudgetMutations(projectId: string) {
     onSuccess: invalidateBoth,
   });
 
+  /** #1472 S6A: persists the confirmed snapshot; on success the shared invalidation re-reads the
+   *  plan, the version list, the precheck and project finances. No optimistic save — a rejection
+   *  leaves the prior cached plan untouched for re-review. */
+  const saveDistribution = useMutation<void, Error, { versionId: string; plan: BudgetDistributionPlan }>({
+    mutationFn: ({ versionId, plan }) => repositories.budget.saveDistribution(versionId, plan),
+    onSuccess: invalidateBoth,
+  });
+
   return {
     createVersion,
     cloneVersion,
@@ -159,5 +197,6 @@ export function useBudgetMutations(projectId: string) {
     createLineItem: createLineItemMutation,
     updateLineItem: updateLineItemMutation,
     deleteLineItem: deleteLineItemMutation,
+    saveDistribution,
   };
 }

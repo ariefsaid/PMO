@@ -528,7 +528,8 @@
   "financeCopy": {
     "budget": "Budget",
     "activateEditorBlocked": "You drafted or edited this version, so someone else must activate it.",
-    "activateNeedsAdminOrFinance": "No drafter is recorded for this version. Ask an Admin or Finance user to activate it."
+    "activateNeedsAdminOrFinance": "No drafter is recorded for this version. Ask an Admin or Finance user to activate it.",
+    "wholeProjectEditorHint": "Whole-project budget: enter each category total once — no fiscal year per line."
   },
   "common": {
     "save": "Save",

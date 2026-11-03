@@ -94,7 +94,9 @@ export function useBudgetVersionActions({ projectId, versions, draftVersion, can
     try {
       switch (confirm.kind) {
         case 'create': {
-          const created = await mutations.createVersion.mutateAsync({ projectId, name: confirm.name });
+          // #1472 FR-001: a UI-created version defaults to whole-project mode, named explicitly at
+          // the repository boundary — the import path keeps its own per_year semantics untouched.
+          const created = await mutations.createVersion.mutateAsync({ projectId, name: confirm.name, budgetMode: 'whole_project' });
           // BU-1: the new Draft is the version in view, as after "Clone to revise".
           setSelectedVersionId(created.id);
           setBudgetView('actual');

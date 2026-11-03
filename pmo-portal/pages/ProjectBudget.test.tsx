@@ -1298,7 +1298,7 @@ describe('ProjectBudget Create budget form (empty state)', () => {
     await userEvent.click(screen.getByRole('button', { name: /^Create$/i }));
     expect(mockCreateVersion).not.toHaveBeenCalled();
     await userEvent.click(screen.getByRole('button', { name: /Create version/i }));
-    expect(mockCreateVersion).toHaveBeenCalledWith({ projectId: 'p-1', name: 'Budget v1' });
+    expect(mockCreateVersion).toHaveBeenCalledWith({ projectId: 'p-1', name: 'Budget v1', budgetMode: 'whole_project' });
     resetState();
   });
 
@@ -1471,5 +1471,83 @@ describe('ProjectBudget — the per-line fiscal year (AC-BFY-016)', () => {
     renderPage();
     await userEvent.click(screen.getByRole('button', { name: /^(Manage versions|Kelola versi)$/i }));
     expect(screen.getByTestId('evidence-v-active')).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// budget-whole-project AC-001 (S6A) — whole-project default + phase-free source editor
+// ---------------------------------------------------------------------------
+describe('budget-whole-project AC-001 (S6A)', () => {
+  const wholeProjectDraft = {
+    ...draftVersion,
+    budget_mode: 'whole_project',
+    line_items: [{ ...draftVersion.line_items[0], fiscal_year: null }],
+  };
+
+  afterEach(resetState);
+
+  it('a new budget created from the UI is created in whole_project mode', async () => {
+    budgetState.data = 0;
+    versionsState.data = [];
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: 'Create budget' }));
+    await userEvent.type(screen.getByPlaceholderText(/Version name/i), 'Budget v1');
+    await userEvent.click(screen.getByRole('button', { name: /^Create$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /Create version/i }));
+    expect(mockCreateVersion).toHaveBeenCalledWith({ projectId: 'p-1', name: 'Budget v1', budgetMode: 'whole_project' });
+  });
+
+  it('a whole-project Draft source editor omits the fiscal-year control and new lines save fiscal_year null', async () => {
+    budgetState.data = 0;
+    versionsState.data = [wholeProjectDraft];
+    renderPage();
+    const editor = screen.getByTestId('budget-draft-editor');
+    expect(within(editor).queryByRole('columnheader', { name: 'Fiscal year' })).not.toBeInTheDocument();
+    await userEvent.click(within(editor).getByText(/\+ Add line item/i));
+    expect(within(editor).queryByLabelText(/line item fiscal year/i)).not.toBeInTheDocument();
+    await userEvent.type(within(editor).getByPlaceholderText(/Amount/i), '15000');
+    await userEvent.click(within(editor).getByRole('button', { name: /^Save$/i }));
+    await waitFor(() => expect(mockCreateLineItem).toHaveBeenCalledWith({
+      versionId: 'v-draft',
+      item: expect.objectContaining({ budgeted_amount: 15000, fiscal_year: null }),
+    }));
+  });
+
+  it('editing an existing line in a whole-project Draft never sends a fiscal-year patch', async () => {
+    budgetState.data = 0;
+    versionsState.data = [wholeProjectDraft];
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: 'Edit line item Labor' }));
+    const amount = screen.getByLabelText('Amount');
+    await userEvent.clear(amount);
+    await userEvent.type(amount, '250000');
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(mockUpdateLineItem).toHaveBeenCalledTimes(1));
+    const { patch } = mockUpdateLineItem.mock.calls[0][0] as { patch: Record<string, unknown> };
+    expect(patch).toMatchObject({ budgeted_amount: 250000 });
+    expect(patch).not.toHaveProperty('fiscal_year');
+  });
+
+  it('a per-year Draft keeps its fiscal-year control and still sends the entered year', async () => {
+    budgetState.data = 0;
+    versionsState.data = [{ ...draftVersion, budget_mode: 'per_year' }];
+    renderPage();
+    const editor = screen.getByTestId('budget-draft-editor');
+    expect(within(editor).getByRole('columnheader', { name: 'Fiscal year' })).toBeInTheDocument();
+    await userEvent.click(within(editor).getByText(/\+ Add line item/i));
+    await userEvent.type(within(editor).getByLabelText(/line item fiscal year/i), '2026');
+    await userEvent.type(within(editor).getByPlaceholderText(/Amount/i), '5000');
+    await userEvent.click(within(editor).getByRole('button', { name: /^Save$/i }));
+    await waitFor(() => expect(mockCreateLineItem).toHaveBeenCalledWith({
+      versionId: 'v-draft',
+      item: expect.objectContaining({ budgeted_amount: 5000, fiscal_year: '2026' }),
+    }));
+  });
+
+  it('a whole-project Draft names its mode next to the source editor', () => {
+    budgetState.data = 0;
+    versionsState.data = [wholeProjectDraft];
+    renderPage();
+    expect(screen.getByTestId('budget-whole-project-editor-hint')).toHaveTextContent(/whole-project/i);
   });
 });

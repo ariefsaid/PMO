@@ -247,7 +247,8 @@ describe('version selection (AC-BD)', () => {
     const dialog = screen.getByRole('dialog');
     expect(dialog).toHaveTextContent('named "Budget v2"');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Create version' }));
-    expect(state.createVersion).toHaveBeenCalledWith({ projectId: 'p-1', name: 'Budget v2' });
+    // #1472 AC-001: a UI-created version names whole_project mode at the seam.
+    expect(state.createVersion).toHaveBeenCalledWith({ projectId: 'p-1', name: 'Budget v2', budgetMode: 'whole_project' });
   });
 
   it('BU-1 a newly created version becomes the version in view', async () => {

@@ -134,6 +134,8 @@ vi.mock('@/src/lib/db/budgets', () => ({
   activateVersion: vi.fn(),
   archiveVersion: vi.fn(),
   deleteDraftVersion: vi.fn(),
+  getBudgetDistribution: vi.fn(),
+  saveBudgetDistribution: vi.fn(),
 }));
 vi.mock('@/src/lib/db/budgetImportSkip', () => ({
   findImportTargetDraft: vi.fn(),
@@ -359,7 +361,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
       ['approve', 'createDraft', 'deleteEntry', 'list', 'listAwaitingApproval', 'pushApproved', 'reject', 'submit', 'upsertEntries', 'saveWeek', 'reopen', 'attestNoErpDocument', 'listReopenableApproved', 'listPushesNeedingAttention', 'confirmEmployeeLink', 'getPushState'].sort(),
     );
     expect(Object.keys(repositories.budget).sort()).toEqual(
-      ['activateVersion', 'addDocumentLink', 'archiveVersion', 'cloneVersion', 'createLineItem', 'createVersion', 'deriveProjectBudget', 'deleteDraftVersion', 'deleteLineItem', 'findImportTargetDraft', 'findImportedLine', 'getActivationMode', 'importLine', 'listArchiveLiveTargets', 'listDocumentLinks', 'listVersions', 'precheckActivation', 'removeDocumentLink', 'updateLineItem'].sort(),
+      ['activateVersion', 'addDocumentLink', 'archiveVersion', 'cloneVersion', 'createLineItem', 'createVersion', 'deriveProjectBudget', 'deleteDraftVersion', 'deleteLineItem', 'findImportTargetDraft', 'findImportedLine', 'getActivationMode', 'getDistribution', 'importLine', 'listArchiveLiveTargets', 'listDocumentLinks', 'listVersions', 'precheckActivation', 'removeDocumentLink', 'saveDistribution', 'updateLineItem'].sort(),
     );
     expect(Object.keys(repositories.incident).sort()).toEqual(
       ['create', 'delete', 'get', 'list', 'transition', 'update'].sort(),
@@ -970,7 +972,15 @@ describe('delegation — methods pass args through and return the DAL result', (
     expect(budgetsDal.deleteLineItem).toHaveBeenCalledWith('li1');
 
     await repositories.budget.createVersion('p1', 'v2');
-    expect(budgetsDal.createBudgetVersion).toHaveBeenCalledWith('p1', 'v2', undefined);
+    expect(budgetsDal.createBudgetVersion).toHaveBeenCalledWith('p1', 'v2', undefined, undefined);
+
+    // #1472 S6A — the distribution seam delegates to the accepted S3 RPC wrapper.
+    const plan = { method: 'by_days', inputs: {}, categoryOverrides: {}, basis: { projectStart: '2026-01-01', projectEnd: null, years: [] }, rows: [] } as never;
+    vi.mocked(budgetsDal.getBudgetDistribution).mockResolvedValue(plan);
+    await expect(repositories.budget.getDistribution('v1')).resolves.toBe(plan);
+    expect(budgetsDal.getBudgetDistribution).toHaveBeenCalledWith('v1');
+    await repositories.budget.saveDistribution('v1', plan);
+    expect(budgetsDal.saveBudgetDistribution).toHaveBeenCalledWith('v1', plan);
 
     await repositories.budget.cloneVersion('v1');
     expect(budgetsDal.cloneVersion).toHaveBeenCalledWith('v1');

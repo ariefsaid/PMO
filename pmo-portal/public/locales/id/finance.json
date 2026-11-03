@@ -528,7 +528,8 @@
   "financeCopy": {
     "budget": "Anggaran",
     "activateEditorBlocked": "Anda menyusun atau mengedit versi ini, jadi orang lain harus mengaktifkannya.",
-    "activateNeedsAdminOrFinance": "Penyusun versi ini tidak tercatat. Minta Admin atau Finance untuk mengaktifkannya."
+    "activateNeedsAdminOrFinance": "Penyusun versi ini tidak tercatat. Minta Admin atau Finance untuk mengaktifkannya.",
+    "wholeProjectEditorHint": "Anggaran seluruh proyek: masukkan total setiap kategori sekali — tanpa tahun fiskal per baris."
   },
   "common": {
     "save": "Simpan",

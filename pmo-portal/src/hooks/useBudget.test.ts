@@ -18,6 +18,8 @@ vi.mock('@/src/lib/db/budgets', () => ({
   createLineItem: vi.fn().mockResolvedValue({ id: 'li-new' }),
   updateLineItem: vi.fn().mockResolvedValue(undefined),
   deleteLineItem: vi.fn().mockResolvedValue(undefined),
+  getBudgetDistribution: vi.fn(),
+  saveBudgetDistribution: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock('@/src/auth/useAuth', () => ({
@@ -124,7 +126,7 @@ describe('useBudgetMutations', () => {
       await result.current.createVersion.mutateAsync({ projectId: 'p-1', name: 'V3' });
     });
 
-    expect(createBudgetVersion).toHaveBeenCalledWith('p-1', 'V3', undefined);
+    expect(createBudgetVersion).toHaveBeenCalledWith('p-1', 'V3', undefined, undefined);
     expectBothKeysInvalidated(invalidateSpy);
   });
 
