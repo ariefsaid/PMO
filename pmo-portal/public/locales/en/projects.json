@@ -12,7 +12,13 @@
   "create": {
     "accessDenied": "You can't create projects",
     "leave": "Leave",
-    "stay": "Stay"
+    "stay": "Stay",
+    "limitReached": "You've reached your plan's active-project limit",
+    "limitReachedDetail": "Nothing was created. Archive a project you no longer need, or ask your Operator to upgrade the plan."
+  },
+  "revive": {
+    "limitReached": "You've reached your plan's active-project limit",
+    "limitReachedDetail": "This project was not restored. Archive an active project you no longer need, or ask your Operator to upgrade the plan, then try again."
   },
   "shortName": {
     "label": "Short name (optional)",

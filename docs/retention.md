@@ -28,6 +28,7 @@ table or job and on a stale entry. Decision cell starts with `purge, <N days|mon
 | `agent_automation_fires` | keep: owner decision pending (#1755); automation fire claims |
 | `procurement_import_runs` | keep: owner decision pending (#1755); import run history |
 | `erp_connect_runs` | keep: owner decision pending (#1755); ERP connect run history |
+| `org_ai_allowance_grants` | keep: one row per org per month; the idempotency key for the AI allowance grant (0535), and the pointer from a month to its `credits` row — a grant history, not log noise |
 
 ## Cron jobs
 
@@ -45,3 +46,4 @@ table or job and on a stale entry. Decision cell starts with `purge, <N days|mon
 | `erpnext-sweep-tick` | keep: trigger only, stores no rows |
 | `odoo-sweep-tick` | keep: trigger only, stores no rows |
 | `m365-pkce-sweep` | keep: trigger only, stores no rows |
+| `plan-monthly-ai-allowance` | keep: trigger only, stores no rows (it writes one grant row per org per month, listed above) |

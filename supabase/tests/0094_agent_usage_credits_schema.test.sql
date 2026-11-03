@@ -5,7 +5,7 @@
 --   AC-AUC-003  required indexes exist.
 -- Fixtures inserted as the table owner (bypassing RLS) — this file is schema-shape only, not RLS.
 begin;
-select plan(22);
+select plan(27);
 
 -- ════════════════════════════════════════════════════════════════════════════
 -- AC-AUC-001: agent_usage table exists with required columns.
@@ -30,8 +30,23 @@ select has_table('credits', 'AC-AUC-002 credits table exists with required colum
 select has_column('credits', 'amount', 'AC-AUC-002 credits.amount exists');
 select col_not_null('credits', 'amount', 'AC-AUC-002 credits.amount is not null');
 select has_column('credits', 'note', 'AC-AUC-002 credits.note exists (nullable)');
-select col_not_null('credits', 'granted_by', 'AC-AUC-002 credits.granted_by is not null');
+select has_column('credits', 'grant_source', 'AC-AUC-002 credits.grant_source exists');
+select col_type_is('credits', 'grant_source', 'text', 'AC-AUC-002 credits.grant_source is text');
+select col_not_null('credits', 'grant_source', 'AC-AUC-002 credits.grant_source is not null');
+select ok((select is_nullable = 'YES' from information_schema.columns
+            where table_schema = 'public' and table_name = 'credits' and column_name = 'granted_by'),
+  'AC-AUC-002 granted_by may be null for a plan allowance, with source guarded below');
 select col_default_is('credits', 'granted_by', 'auth.uid()', 'AC-AUC-002 credits.granted_by defaults to auth.uid()');
+
+select throws_ok(
+  $$ insert into credits (org_id, owner_id, amount, granted_by, grant_source)
+       values ('00000000-0000-0000-0000-000000000001', null, 1, null, 'operator') $$,
+  '23514', null,
+  'AC-AUC-002 a manual/operator credit cannot omit its human granter');
+select lives_ok(
+  $$ insert into credits (org_id, owner_id, amount, granted_by, grant_source)
+       values ('00000000-0000-0000-0000-000000000001', null, 1, null, 'plan_allowance') $$,
+  'AC-AUC-002 a system plan allowance may omit a human granter');
 
 select throws_ok(
   $$ insert into credits (owner_id, amount, granted_by) values ('00000000-0000-0000-0000-000000000000', 0, '00000000-0000-0000-0000-000000000000') $$,

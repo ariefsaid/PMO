@@ -231,5 +231,17 @@
       "addPeople": "Add these people in the ERP. It asks for a birth date and gender, which PMO does not hold.",
       "accountantTask": "Ask your accountant to add a direct-cost account for: {{categories}}"
     }
+  },
+  "admin": {
+    "users": {
+      "inviteError": {
+        "seatLimit": "Your plan has no seats left",
+        "seatLimitDetail": "Everyone on your plan already has a seat. Ask your Operator to upgrade the plan, then invite again."
+      },
+      "statusError": {
+        "seatLimit": "Your plan has no seats left",
+        "seatLimitDetail": "Everyone on your plan already has a seat. Ask your Operator to upgrade the plan, then re-enable this user."
+      }
+    }
   }
 }
