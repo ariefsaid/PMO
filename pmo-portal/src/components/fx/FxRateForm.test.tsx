@@ -94,6 +94,31 @@ describe('FX manual rate form', () => {
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
+  // Characterization (T-34): the publication date must be a REAL calendar day. Pinned against
+  // the shipped validation before its internals were simplified — the accepted/rejected set of
+  // four-digit YYYY-MM-DD values must not change. A native date control cannot type these
+  // values, so they reach validate() the way a stale or restored draft would.
+  it.each([
+    ['a non-leap Feb 29', '2026-02-29'],
+    ['a day past the month end', '2026-02-30'],
+    ['a month past December', '2026-13-01'],
+    ['a zero month', '2026-00-10'],
+    ['a zero day', '2026-01-00'],
+  ])('blocks submit for %s — the draft date is not a real calendar day', async (_name, date) => {
+    const { onSubmit } = renderForm({ draft: { rate_date: date, rate: 16234.56 } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save rate' }));
+    await waitFor(() => expect(screen.getAllByRole('alert').length).toBeGreaterThan(0));
+    expect(screen.getAllByText('Enter a valid publication date.').length).toBeGreaterThan(0);
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it('accepts a real past leap-day publication date without a date error', () => {
+    const { onSubmit } = renderForm({ draft: { rate_date: '2024-02-29', rate: 16234.56 } });
+    expect(screen.queryByText('Enter a valid publication date.')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Save rate' }));
+    return waitFor(() => expect(onSubmit).toHaveBeenCalled());
+  });
+
   it.each([
     ['bad grouping', '2026-10-12', '16,23,4'],
     ['out of range', '2026-10-12', '999'],

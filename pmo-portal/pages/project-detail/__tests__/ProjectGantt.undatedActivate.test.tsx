@@ -53,7 +53,7 @@ const milestones: MilestoneWithProgress[] = [];
 describe('AC-C-PD-1: Gantt undated chips are activatable when onActivateTask provided', () => {
   it('AC-C-PD-1: undated chip has role=button when onActivateTask is provided', () => {
     const spy = vi.fn();
-    render(<ProjectGantt tasks={tasks} milestones={milestones} onActivateTask={spy} />);
+    render(<ProjectGantt tasks={tasks} milestones={milestones} onActivateTask={spy} onSwitchView={vi.fn()} />);
 
     // The undated chip should be a button
     const chip = screen.getByRole('button', { name: /Open Undated Design Work/i });
@@ -62,7 +62,7 @@ describe('AC-C-PD-1: Gantt undated chips are activatable when onActivateTask pro
 
   it('AC-C-PD-1: click on undated chip fires onActivateTask with the resolved task', () => {
     const spy = vi.fn();
-    render(<ProjectGantt tasks={tasks} milestones={milestones} onActivateTask={spy} />);
+    render(<ProjectGantt tasks={tasks} milestones={milestones} onActivateTask={spy} onSwitchView={vi.fn()} />);
 
     const chip = screen.getByRole('button', { name: /Open Undated Design Work/i });
     fireEvent.click(chip);
@@ -73,7 +73,7 @@ describe('AC-C-PD-1: Gantt undated chips are activatable when onActivateTask pro
 
   it('AC-C-PD-1: keyboard Enter on undated chip fires onActivateTask', async () => {
     const spy = vi.fn();
-    render(<ProjectGantt tasks={tasks} milestones={milestones} onActivateTask={spy} />);
+    render(<ProjectGantt tasks={tasks} milestones={milestones} onActivateTask={spy} onSwitchView={vi.fn()} />);
 
     const chip = screen.getByRole('button', { name: /Open Undated Design Work/i });
     chip.focus();
@@ -85,7 +85,7 @@ describe('AC-C-PD-1: Gantt undated chips are activatable when onActivateTask pro
 
   it('AC-C-PD-1: keyboard Space on undated chip fires onActivateTask', async () => {
     const spy = vi.fn();
-    render(<ProjectGantt tasks={tasks} milestones={milestones} onActivateTask={spy} />);
+    render(<ProjectGantt tasks={tasks} milestones={milestones} onActivateTask={spy} onSwitchView={vi.fn()} />);
 
     const chip = screen.getByRole('button', { name: /Open Undated Design Work/i });
     chip.focus();
@@ -97,7 +97,7 @@ describe('AC-C-PD-1: Gantt undated chips are activatable when onActivateTask pro
 
 describe('AC-C-PD-1-inert: undated chips are inert when onActivateTask is omitted', () => {
   it('AC-C-PD-1-inert: no role=button on undated chip when callback is omitted', () => {
-    render(<ProjectGantt tasks={tasks} milestones={milestones} />);
+    render(<ProjectGantt tasks={tasks} milestones={milestones} onSwitchView={vi.fn()} />);
 
     // The chip text must be present but NOT a button
     expect(screen.getByText('Undated Design Work')).toBeInTheDocument();

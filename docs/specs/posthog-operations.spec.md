@@ -27,7 +27,7 @@ Issue #1532. Status: **Draft for owner sign-off** (2026-10-31). Spec prefix: `PH
 - **Shipped tables/jobs relied on:** `error_events` (0071), `agent_usage` (0047), `agent_runs`/
   `agent_events` (0046), `external_command_outbox` (0096; states `pending|committing|committed|confirmed|failed|quarantined|held`),
   `org_features` (0070), pg_cron ticks `erpnext-sweep-tick` (every minute, 0356), `clickup-sweep-tick`
-  (5 min, 0094), `clickup-webhook-worker-tick` (every minute, 0143), `agent-dispatch-tick` (hourly, 0082),
+  (5 min, 0094), `clickup-webhook-worker-tick` (5 min, 0563), `agent-dispatch-tick` (hourly, 0082),
   `telegram-notify-tick` (hourly, 0083).
 
 ---
@@ -271,8 +271,8 @@ it replaces nothing. Dollar amounts or record contents in any property.
   failure, and is never awaited on a request/response critical path longer than the existing bounded
   fetch. An emission failure never changes an HTTP status, a stream, a usage insert or an outbox state.
 - **NFR-PHO-QUOTA-001** — Stay inside the free allowances. Sizing (events/month, ~30 days): `job_run`
-  ≈ 43k (erpnext-sweep) + 43k (clickup-webhook-worker) + 9k (clickup-sweep) + 1.5k (two hourly jobs) ≈
-  **97k**; AI events ≈ (generations + spans + trace) per run, bounded by the existing 8-round cap, a few
+  ≈ 43k (erpnext-sweep) + 9k (clickup-webhook-worker) + 9k (clickup-sweep) + 1.5k (two hourly jobs) ≈
+  **63k**; AI events ≈ (generations + spans + trace) per run, bounded by the existing 8-round cap, a few
   thousand runs → low tens of thousands; push outcomes and business events ≈ thousands. Total
   well under 20% of the 1M event allowance; the 80% alarm remains. If volume overshoots, the first lever is
   idle-run thinning on the two minute jobs (emit `ok` + zero items once per N runs), not dropping failures.

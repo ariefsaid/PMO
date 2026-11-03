@@ -18,31 +18,10 @@ export type TimesheetAwaitingApproval = TimesheetWithEntries & {
 };
 
 // ---------------------------------------------------------------------------
-// Transition map (OD-TS-2 config seam — single TS source, mirrors the SQL
-// literal inside transition_timesheet(), AC-900, FR-TS-001)
+// Transition map — ENFORCED by the security-definer RPC transition_timesheet
+// (0180 body, map literal from 0161). The owning acceptance proof is pgTAP —
+// supabase/tests/timesheet_transition_map.test.sql (AC-900, FR-TS-001).
 // ---------------------------------------------------------------------------
-
-export const LEGAL_TIMESHEET_TRANSITIONS: Record<string, string[]> = {
-  Draft:     ['Submitted'],
-  Submitted: ['Approved', 'Rejected'],
-  Rejected:  ['Draft'],
-  // Slice A (FR-TSC-001): `Approved` is no longer terminal — an approver may re-open an Approved
-  // sheet with no confirmed ERP document (the RPC's race-safe precondition gates the live-doc case).
-  Approved:  ['Draft'],
-};
-
-/**
- * Returns true when (from → to) is in the legal transition map (AC-900, FR-TS-001).
- * Pure function; mirrors the map literal in transition_timesheet().
- */
-export function isLegalTimesheetTransition(
-  from: TimesheetStatus,
-  to: TimesheetStatus,
-): boolean {
-  const allowed = LEGAL_TIMESHEET_TRANSITIONS[from as string];
-  if (!allowed) return false;
-  return allowed.includes(to as string);
-}
 
 // ---------------------------------------------------------------------------
 // Cosmetic action-gate helper (AC-901, FR-TS-004/005)
@@ -116,7 +95,7 @@ export async function rejectTimesheet(id: string, notes?: string): Promise<void>
 }
 
 /**
- * Reopens a Rejected timesheet back to Draft (AC-W3-B1, LEGAL_TIMESHEET_TRANSITIONS Rejected→Draft).
+ * Reopens a Rejected timesheet back to Draft (AC-W3-B1; the RPC's Rejected→Draft map edge).
  * Single-click routine reversible step — no confirm dialog (OD-UX-1).
  * org_id is NEVER sent (AC-902, FR-TS-009/010).
  */

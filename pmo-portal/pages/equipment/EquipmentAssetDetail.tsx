@@ -12,7 +12,7 @@ import {
 import { useProjects } from '@/src/hooks/useProjects';
 import type { EquipmentAllocationRow, EquipmentCostingRow, EquipmentUsageTotalRow } from '@/src/lib/db/equipment';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { formatCurrencyAuto, formatNumberMax2, formatMonthYear } from '@/src/lib/format';
+import { formatCurrency, formatNumberMax2, formatMonthYear } from '@/src/lib/format';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { EquipmentCostingForm } from './EquipmentCostingForm';
 import { basisLabel, driverLabel, unitLabel } from './equipmentLabels';
@@ -222,7 +222,7 @@ const EquipmentAssetDetail: React.FC = () => {
   // A project row carries its own currency; a pool with no project (unallocated) has none, so it prints as a plain number.
   const money = (amount: number, projectId: string | null) => {
     const currency = projectId ? byId.get(projectId)?.currency : null;
-    return currency ? formatCurrencyAuto(amount, currency) : formatNumberMax2(amount);
+    return currency ? formatCurrency(amount, currency) : formatNumberMax2(amount);
   };
 
   if (assets.isPending) return <ListState variant="loading" rows={4} />;

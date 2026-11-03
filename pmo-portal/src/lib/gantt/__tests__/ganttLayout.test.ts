@@ -67,7 +67,7 @@ describe('AC-GANTT-001: tasks with start+end become proportional bars', () => {
       makeTask({ id: 'a', name: 'Task A', start_date: '2026-01-01', end_date: '2026-01-11' }),
       makeTask({ id: 'b', name: 'Task B', start_date: '2026-01-06', end_date: '2026-01-11' }),
     ];
-    const model = buildGanttModel(tasks, [], '2026-01-05');
+    const model = buildGanttModel(tasks, [], '2026-01-05', MONTH_CFG);
 
     expect(model.isEmpty).toBe(false);
     expect(model.span).toEqual({ startIso: '2026-01-01', endIso: '2026-01-11' });
@@ -89,7 +89,7 @@ describe('AC-GANTT-001: tasks with start+end become proportional bars', () => {
   });
 
   it('returns isEmpty true when no tasks and no milestones', () => {
-    const model = buildGanttModel([], [], '2026-01-01');
+    const model = buildGanttModel([], [], '2026-01-01', MONTH_CFG);
     expect(model.isEmpty).toBe(true);
     expect(model.span).toBeNull();
     expect(model.lanes.every((l) => l.bars.length === 0)).toBe(true);
@@ -111,7 +111,7 @@ describe('AC-GANTT-002: dated milestone yields a positioned marker', () => {
       makeMilestone({ id: 'ms1', name: 'Phase 1', target_date: '2026-01-06', sort_order: 0 }),
     ];
 
-    const model = buildGanttModel(tasks, milestones, '2026-01-03');
+    const model = buildGanttModel(tasks, milestones, '2026-01-03', MONTH_CFG);
 
     const lane = model.lanes.find((l) => l.milestoneId === 'ms1');
     expect(lane).toBeDefined();
@@ -128,7 +128,7 @@ describe('AC-GANTT-002: dated milestone yields a positioned marker', () => {
       makeMilestone({ id: 'ms1', name: 'Phase 1', target_date: null, sort_order: 0 }),
     ];
 
-    const model = buildGanttModel(tasks, milestones, '2026-01-05');
+    const model = buildGanttModel(tasks, milestones, '2026-01-05', MONTH_CFG);
     const ungrouped = model.lanes.find((l) => l.milestoneId === null);
     expect(ungrouped).toBeDefined();
     expect(ungrouped!.bars.find((b) => b.id === 'a')).toBeDefined();
@@ -148,7 +148,7 @@ describe('AC-GANTT-003: today line always renders — span is extended to includ
 
   it('todayLeft is the correct fraction when today is inside the span', () => {
     // today = 2026-01-06 → 5 days into a 10-day span → 0.5
-    const model = buildGanttModel(tasks, [], '2026-01-06');
+    const model = buildGanttModel(tasks, [], '2026-01-06', MONTH_CFG);
     expect(model.todayLeft).not.toBeNull();
     expect(model.todayLeft!).toBeCloseTo(0.5, 9);
   });
@@ -157,7 +157,7 @@ describe('AC-GANTT-003: today line always renders — span is extended to includ
     // today = 2025-12-01, data span 2026-01-01..2026-01-11.
     // After fix: spanStart = 2025-12-01, spanEnd = 2026-01-11.
     // todayLeft = 0 (at left edge of the expanded axis).
-    const model = buildGanttModel(tasks, [], '2025-12-01');
+    const model = buildGanttModel(tasks, [], '2025-12-01', MONTH_CFG);
     expect(model.todayLeft).not.toBeNull();
     expect(model.todayLeft!).toBeCloseTo(0, 9);
     // Data bars must still be positioned further right (not clamped off-canvas)
@@ -170,7 +170,7 @@ describe('AC-GANTT-003: today line always renders — span is extended to includ
     // today = 2026-02-01, data span 2026-01-01..2026-01-11.
     // After fix: spanStart = 2026-01-01, spanEnd = 2026-02-01.
     // todayLeft = 1 (at right edge of the expanded axis).
-    const model = buildGanttModel(tasks, [], '2026-02-01');
+    const model = buildGanttModel(tasks, [], '2026-02-01', MONTH_CFG);
     expect(model.todayLeft).not.toBeNull();
     expect(model.todayLeft!).toBeCloseTo(1, 9);
     // Data bars must end before the right edge (Task A ends before today)
@@ -180,7 +180,7 @@ describe('AC-GANTT-003: today line always renders — span is extended to includ
   });
 
   it('AC-GANTT-TODAY-WITHIN: todayLeft is 0.5 when today is exactly mid-span', () => {
-    const model = buildGanttModel(tasks, [], '2026-01-06');
+    const model = buildGanttModel(tasks, [], '2026-01-06', MONTH_CFG);
     expect(model.todayLeft).not.toBeNull();
     expect(model.todayLeft!).toBeCloseTo(0.5, 9);
   });
@@ -195,7 +195,7 @@ describe('AC-GANTT-004: one-sided dates become points; no-date tasks land in und
       // another dated task to ensure a span exists
       makeTask({ id: 'b', name: 'Both', start_date: '2026-01-01', end_date: '2026-01-11' }),
     ];
-    const model = buildGanttModel(tasks, [], '2026-01-05');
+    const model = buildGanttModel(tasks, [], '2026-01-05', MONTH_CFG);
     const bars = model.lanes.flatMap((l) => l.bars);
     const pointBar = bars.find((b) => b.id === 'a')!;
     expect(pointBar).toBeDefined();
@@ -208,7 +208,7 @@ describe('AC-GANTT-004: one-sided dates become points; no-date tasks land in und
       makeTask({ id: 'a', name: 'Start only', start_date: '2026-01-06', end_date: null }),
       makeTask({ id: 'b', name: 'Both', start_date: '2026-01-01', end_date: '2026-01-11' }),
     ];
-    const model = buildGanttModel(tasks, [], '2026-01-05');
+    const model = buildGanttModel(tasks, [], '2026-01-05', MONTH_CFG);
     const bars = model.lanes.flatMap((l) => l.bars);
     const pointBar = bars.find((b) => b.id === 'a')!;
     expect(pointBar).toBeDefined();
@@ -221,7 +221,7 @@ describe('AC-GANTT-004: one-sided dates become points; no-date tasks land in und
       makeTask({ id: 'a', name: 'No dates' }),
       makeTask({ id: 'b', name: 'Both', start_date: '2026-01-01', end_date: '2026-01-11' }),
     ];
-    const model = buildGanttModel(tasks, [], '2026-01-05');
+    const model = buildGanttModel(tasks, [], '2026-01-05', MONTH_CFG);
     expect(model.undated.find((u) => u.id === 'a')).toBeDefined();
     const bars = model.lanes.flatMap((l) => l.bars);
     expect(bars.find((b) => b.id === 'a')).toBeUndefined();
@@ -232,7 +232,7 @@ describe('AC-GANTT-004: one-sided dates become points; no-date tasks land in und
       makeTask({ id: 'a', name: 'No dates A' }),
       makeTask({ id: 'b', name: 'No dates B' }),
     ];
-    const model = buildGanttModel(tasks, [], '2026-01-01');
+    const model = buildGanttModel(tasks, [], '2026-01-01', MONTH_CFG);
     expect(model.isEmpty).toBe(true);
     expect(model.undated.length).toBe(2);
   });
@@ -252,7 +252,7 @@ describe('AC-GANTT-006: bars appear under milestone lanes ordered by sort_order 
       makeMilestone({ id: 'ms2', name: 'Beta', sort_order: 1 }),
     ];
 
-    const model = buildGanttModel(tasks, milestones, '2026-01-05');
+    const model = buildGanttModel(tasks, milestones, '2026-01-05', MONTH_CFG);
 
     // Lanes should be: Beta (sort_order 1), Alpha (sort_order 2), then Ungrouped
     const milestoneIds = model.lanes.map((l) => l.milestoneId);
@@ -273,7 +273,7 @@ describe('AC-GANTT-006: bars appear under milestone lanes ordered by sort_order 
       makeMilestone({ id: 'ms1', name: 'Phase 1', sort_order: 0 }),
     ];
 
-    const model = buildGanttModel(tasks, milestones, '2026-01-05');
+    const model = buildGanttModel(tasks, milestones, '2026-01-05', MONTH_CFG);
     const lane = model.lanes.find((l) => l.milestoneId === 'ms1');
     expect(lane!.bars.find((b) => b.id === 'a')).toBeDefined();
   });
@@ -288,7 +288,7 @@ describe('AC-GANTT-006: bars appear under milestone lanes ordered by sort_order 
         dependencies: [{ depends_on_id: 'x' }, { depends_on_id: 'y' }],
       }),
     ];
-    const model = buildGanttModel(tasks, [], '2026-01-05');
+    const model = buildGanttModel(tasks, [], '2026-01-05', MONTH_CFG);
     const bars = model.lanes.flatMap((l) => l.bars);
     expect(bars.find((b) => b.id === 'a')!.dependsOnCount).toBe(2);
   });
@@ -329,18 +329,17 @@ describe('AC-GANTT-011: pixel geometry (config yields absolute px boxes)', () =>
     expect(boxB.y).toBeGreaterThan(boxA.y);
   });
 
-  it('AC-GANTT-011: omitting config keeps geometry null (v1 back-compat)', () => {
+  it('AC-GANTT-011: geometry is built for EVERY nonempty model (config required — OE19-009), null only when empty', () => {
     const tasks: TaskWithRefs[] = [
       makeTask({ id: 'a', name: 'Task A', start_date: '2026-01-01', end_date: '2026-01-11' }),
       makeTask({ id: 'b', name: 'Task B', start_date: '2026-01-06', end_date: '2026-01-11' }),
     ];
-    const withCfg = buildGanttModel(tasks, [], '2026-01-05', MONTH_CFG);
-    const noCfg = buildGanttModel(tasks, [], '2026-01-05');
-    expect(noCfg.geometry).toBeNull();
-    // The v1 fraction lanes are identical whether or not a config is passed.
-    expect(noCfg.lanes).toEqual(withCfg.lanes);
-    expect(noCfg.span).toEqual(withCfg.span);
-    expect(noCfg.ticks).toEqual(withCfg.ticks);
+    const populated = buildGanttModel(tasks, [], '2026-01-05', MONTH_CFG);
+    expect(populated.geometry).not.toBeNull();
+    // The fraction lanes/span/ticks are identical whether or not geometry is consumed.
+    const empty = buildGanttModel([], [], '2026-01-05', MONTH_CFG);
+    expect(empty.isEmpty).toBe(true);
+    expect(empty.geometry).toBeNull();
   });
 });
 
@@ -489,7 +488,7 @@ describe('axis ticks', () => {
     const tasks: TaskWithRefs[] = [
       makeTask({ id: 'a', name: 'Long task', start_date: '2026-01-01', end_date: '2026-03-31' }),
     ];
-    const model = buildGanttModel(tasks, [], '2026-02-15');
+    const model = buildGanttModel(tasks, [], '2026-02-15', MONTH_CFG);
     // Should have at least Jan, Feb, Mar tick labels
     const labels = model.ticks.map((t) => t.label);
     expect(labels.some((l) => l.includes('Jan'))).toBe(true);
@@ -512,7 +511,7 @@ describe('OD-INT-9: subtasks never render as Gantt bars', () => {
       makeTask({ id: 'parent', name: 'Parent', start_date: '2026-01-01', end_date: '2026-01-11' }),
       makeTask({ id: 'sub', name: 'Subtask', start_date: '2026-01-02', end_date: '2026-01-05', parent_task_id: 'parent' }),
     ];
-    const model = buildGanttModel(tasks, [], '2026-01-05');
+    const model = buildGanttModel(tasks, [], '2026-01-05', MONTH_CFG);
     const bars = model.lanes.flatMap((l) => l.bars);
 
     expect(bars.find((b) => b.id === 'parent')).toBeDefined();
@@ -524,7 +523,7 @@ describe('OD-INT-9: subtasks never render as Gantt bars', () => {
       makeTask({ id: 'parent', name: 'Parent', start_date: '2026-01-01', end_date: '2026-01-11' }),
       makeTask({ id: 'sub', name: 'Dated subtask', start_date: '2026-01-02', end_date: '2026-01-05', parent_task_id: 'parent' }),
     ];
-    const model = buildGanttModel(tasks, [], '2026-01-05');
+    const model = buildGanttModel(tasks, [], '2026-01-05', MONTH_CFG);
 
     expect(model.undated.find((u) => u.id === 'sub')).toBeUndefined();
   });
@@ -534,7 +533,7 @@ describe('OD-INT-9: subtasks never render as Gantt bars', () => {
       makeTask({ id: 'parent', name: 'Parent', start_date: '2026-01-01', end_date: '2026-01-11' }),
       makeTask({ id: 'sub', name: 'Undated subtask', parent_task_id: 'parent' }),
     ];
-    const model = buildGanttModel(tasks, [], '2026-01-05');
+    const model = buildGanttModel(tasks, [], '2026-01-05', MONTH_CFG);
 
     expect(model.undated.find((u) => u.id === 'sub')).toBeUndefined();
     // The parent still renders normally.
@@ -549,7 +548,7 @@ describe('OD-INT-9: subtasks never render as Gantt bars', () => {
       makeTask({ id: 'parent', name: 'Parent', start_date: '2026-01-10', end_date: '2026-01-11' }),
       makeTask({ id: 'sub', name: 'Far-future subtask', start_date: '2026-03-01', end_date: '2026-03-31', parent_task_id: 'parent' }),
     ];
-    const model = buildGanttModel(tasks, [], '2026-01-10');
+    const model = buildGanttModel(tasks, [], '2026-01-10', MONTH_CFG);
 
     expect(model.span).toBeDefined();
     // Span end must be well before the subtask's 2026-03-31 end (subtask did not extend it).

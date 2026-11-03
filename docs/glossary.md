@@ -12,8 +12,8 @@ handover/commissioning. One of the nine business spines (see `docs/roadmap-spine
 **Milestone** — a named, ordered chunk of delivery work within a single project (e.g.
 "Engineering design", "Procurement", "Site construction"). Carries a percent-complete, a
 target date, and a weight. Created free-form per project — there is no org-level milestone
-taxonomy. Progress is held in two columns: a *calculated* percent (derived from its tasks'
-completion; empty when it has no tasks) and an *input* percent (typed by the PM, optional).
+taxonomy. Progress is held in two columns: a *calculated* percent (derived from its top-level
+tasks' completion; empty when it has no tasks) and an *input* percent (typed by the PM, optional).
 The effective percent is the input value when present, otherwise the calculated one, or zero
 when neither exists. Calculated progress excludes subtasks and archived tasks. Both values are
 shown side by side, so any divergence between the PM's figure and task-derived progress is
@@ -23,9 +23,13 @@ milestones' effective percent; it is unavailable (null) when no milestone has a 
 progresses*, not a zero-duration checkpoint event.
 **Shown to users as "Phase" / "Fase"** (DD-VOCAB-1); "milestone" stays the model, code and spec term.
 
-**Task** — the smallest unit of tracked work. Belongs to a project; may optionally be grouped
-under exactly one milestone. The delivery hierarchy is two levels only: milestone → tasks
-(decided 2026-06-11; deeper nesting deferred until a real customer needs it).
+**Task** — the smallest unit of tracked work. It may belong to a project or to no project at all
+(a meeting action item can be a task); it may optionally be grouped under exactly one milestone
+(shown to users as **Phase**) and may nest under a parent task as a **subtask** (OD-INT-9,
+2026-07-20 — this superseded the earlier two-level-only hierarchy). Only top-level, non-archived
+tasks count toward milestone and delivery progress; subtasks render nested under their parent and
+never move a percentage on their own. A subtask has no independent project identity — it follows
+its parent between projects (OD-TASK-2).
 
 **Document** — a controlled file record in a project's document register (drawing,
 specification, report, contract …). Carries a category, a revision mark, and a lifecycle
@@ -122,32 +126,119 @@ org boundary, so operator powers are granted by a separate platform-level mechan
 by the in-org role enum. Contrast **Admin**, the client's own in-org administrator role.
 (Decided 2026-07-04.)
 
+**Sole operator** (budget rule) — the single active member of an organisation, NOT the platform
+**Operator** persona. While an org has exactly one active member, that member may activate a
+budget version they drafted or edited (the OD-BUDGET-6 amendment, 2026-10-16); the exception
+switches itself off the moment a second member is active. The version history and badge read
+"Activated by sole member". The stored activation basis keeps the `sole_operator` value.
+
+**Assistant thread** — one user's named conversation context with the Assistant. A thread
+is private to its owner (owner-scoped RLS; no cross-owner read, not even Admin) and may be
+pinned to hold the top of the thread list. Archiving removes a thread from the list without
+deleting its history. (ADR-0040; FR-AGP-007/008.)
+
+**Assistant automation** — an owner's Assistant prompt that runs on a schedule or on a data
+event, with an optional condition narrowing when it fires. Each automation is enabled or
+disabled by its owner; a disabled automation never fires. Individual runs, delivery state
+and credit reservations are operational detail, not part of the definition.
+
+**AI credit grant** — an amount of AI credit granted to an organization (or to one of its
+users) by an Operator, recorded with its grantor and an optional note. Credits are an
+append-only ledger: the balance is the sum of grants less usage, never an in-place edit.
+
+**Organization feature entitlement** — one organization's enabled or disabled access to a
+named product feature. Entitlements are toggled per org by the Operator; a feature with no
+entitlement row resolves to its environment's default for that feature. A member's access
+follows the org's entitlement on top of their role.
+
 **Organization (org)** — the tenant boundary: one paying client **group**, holding all its
 users and data behind one RLS wall. An org is a commercial/contract boundary, not a legal
 entity — a client group with subsidiaries is still **one** org (decided 2026-07-04). Two
 unrelated clients never share an org.
 
-**Entity** — an operating/legal company *within* a client group (parent or subsidiary),
-modeled as a dimension on the org's data (e.g. a project belongs to an Entity), never as a
-separate org. Users and dashboards span Entities by default; intra-group visibility is the
-norm and cross-Entity rollup is a feature. Not to be confused with **Company**, which is a
-CRM counterparty (client/vendor) in the sales sense. (Decided 2026-07-04.)
+**Entity** — an operating/legal company *within* a client group (parent or subsidiary), intended
+as a dimension on the org's data, never as a separate org. The dimension is design vocabulary,
+not a shipped column: no project row carries an Entity reference today. Users and dashboards span
+Entities by default; intra-group visibility is the norm and cross-Entity rollup is a feature.
+Two deliberate overloads are NOT this term: in much of the code "entity" names any persisted
+record or type generically (e.g. the agent's entity catalogue, repository contracts), and
+`projects.bidding_entity` records a bid's participation mode (alone/consortium), not a company.
+Not to be confused with **Company**, which is a CRM counterparty (client/vendor) in the sales
+sense. (Decided 2026-07-04; disambiguated 2026-11-03.)
 
 **User view** — a dashboard/view a user composes at runtime (manually or via the Assistant) and owns as data, not code. Private to its owner by default; sharing shows each viewer only their own authorized data. Distinct from built-in pages, which are part of the app itself. (ADR-0036.)
+
+---
+
+## Projects, CRM & collaboration
+
+**Project** — the organisation's tracked engagement: a name, a lifecycle status, a client, a
+manager, a contract value and dates, to which delivery and financial records attach. Its
+sales-pipeline statuses are the **Pipeline stage** values.
+
+**Pipeline stage** — a project status used in the sales pipeline, with an organisation-configured
+probability of winning.
+
+**Notification** — a message to a user carrying a severity, a title, an optional body and a read
+state.
+
+**Contact** — a named person associated with a CRM **Company**, with a role and contact details.
+
+**CRM activity** — a recorded call, email, meeting or note tied to a contact, a company or a
+project, with an occurrence date and an author.
+
+**Meeting** — a dated, titled meeting record with notes and an optional project, attendees and
+explicit access grants.
+
+**Meeting attendee** — a person recorded as attending a meeting: an internal profile, an external
+contact, or a display name.
+
+**Meeting access grant** — an explicit grant letting a user access a meeting, recording who
+granted it and when.
+
+**Comment** — an authored message on a project or task, optionally mentioning other users.
+
+## Resources, HSE & reference data
+
+**User profile** — an organisation's user record: identity, role, status and an optional
+reporting manager.
+
+**Spend approver** — a user designated to approve spending for a project.
+
+**Task dependency** — a directed relation stating that one task depends on another task (see
+**Task**).
+
+**Timesheet** — a user's weekly record of time entries, with submission and approval status.
+
+**Timesheet entry** — hours recorded against a project on a date within a timesheet, optionally
+with notes.
+
+**Incident report** — a dated report of an incident with a type, severity, location, description
+and status, optionally linked to a project.
+
+**Exchange rate** — the rate converting a base currency to a quote currency on a date, with its
+source.
 
 ---
 
 ## Integration (ERP & external apps)
 
 **Source of truth (SoT)** — the single system whose record is authoritative for a domain.
-When a client employs an external system (ERP, ClickUp), that system is SoT for every domain
-it natively owns; PMO never holds a competing authoritative copy. (Decided 2026-07-10.)
+When a client employs an external system (ERP, ClickUp), ownership follows the org's configured
+assignment (per-domain ownership rows) plus any project bindings — not the system's mere
+presence: a domain the system can natively own is externally owned only where it is actually
+assigned, tasks can be externally owned for bound projects while other tasks stay PMO-owned,
+and PMO stays SoT for timesheets and budgets even though it pushes them into the ERP (the
+PMO-SoT push posture, ADR-0059 — still Proposed). (Decided 2026-07-10; qualified 2026-11-03.)
 _Avoid_: system of record, master.
 
 **Externally-owned domain / PMO-owned domain** — the per-domain ownership split when an
 external system is employed: an externally-owned domain has that system as SoT (PMO holds a
-read-model plus enhancements); a PMO-owned domain has PMO as SoT (optionally pushed down as
-reference data). Ownership is per domain, never per record. (Decided 2026-07-10.)
+read-model plus enhancements); a PMO-owned domain has PMO as SoT — it may still be pushed to
+the external system, where the pushed copy is a mirror (see **Read-model**), never the
+authority. Ownership is configured per org and per domain, and a project binding narrows it
+further (e.g. tasks externally owned only for bound projects); it is never per record.
+(Decided 2026-07-10; qualified 2026-11-03.)
 _Avoid_: ERP-owned (too narrow — ClickUp owns tasks the same way).
 
 **Enhancement** — an additive, PMO-side decoration of an externally-owned record (extra
@@ -156,15 +247,21 @@ the native object carries — the external system owns the record's existence an
 fields — so no field is writable in two places and conflicts are impossible by construction.
 (Decided 2026-07-10.)
 
-**Read-model (mirror)** — PMO's local, machine-written copy of an externally-owned domain,
-kept for display, querying, and the Assistant. Never written by users directly; user actions
-on an externally-owned domain travel to the external system as commands, and the read-model
-reflects that system's answer. (Decided 2026-07-10.)
+**Read-model (mirror)** — the word covers two directions; always name the direction and owner.
+An **external-SoT read-model** is PMO's local, machine-written copy of an externally-owned
+domain, kept for display, querying, and the Assistant — written FROM the external system, never
+by users, and never the authority. An **external-side mirror** (push-state mirror) is the
+opposite direction: the ERP-side state tracking of a PMO-authoritative record PMO pushed — e.g.
+`timesheet_erp_mirror` states where an approved PMO timesheet stands in ERPNext; PMO owns the
+data and the ERP only reflects it. Generic derived views of PMO's own data (a meeting read
+model, a revenue aggregate) are read models, not external mirrors. (Decided 2026-07-10;
+directions separated 2026-11-03.)
 _Avoid_: cache, replica, sync table.
 
-**Capability map** — the per-external-system declaration of which domains it can natively
-own. Employing a system flips exactly the domains in its capability map to externally-owned;
-a missing capability leaves that domain PMO-owned for that client. (Decided 2026-07-10.)
+**Capability map** — the per-external-system declaration of which domains it CAN natively own.
+A capability is an upper bound, not an ownership flip: what is actually externally owned follows
+the org's configured ownership assignment and any project bindings; a missing capability leaves
+that domain PMO-owned for that client. (Decided 2026-07-10; qualified 2026-11-03.)
 
 **Adapter** — the per-system implementation of PMO's adapter contract, running PMO-side and
 speaking that system's stock API (one adapter per product: ERPNext, Odoo, ClickUp, …).
@@ -183,8 +280,10 @@ assumed to accept installs. (Decided 2026-07-10.)
 _Avoid_: pmo_connector (legacy name).
 
 **External tier (optional)** — the per-client choice to employ an external system under PMO
-(an ERP, ClickUp). PMO runs fully standalone without any (all domains PMO-owned); employing
-one flips the domains in its capability map to externally-owned. (Decided 2026-07-10.)
+(an ERP, ClickUp). PMO runs fully standalone without any (all domains PMO-owned). Employing one
+does not by itself flip ownership: the org configures which of the system's capable domains
+become externally owned, and PMO-authoritative domains (timesheets, budgets) may still push
+into it. (Decided 2026-07-10; qualified 2026-11-03.)
 _Avoid_: ERP tier (too narrow).
 
 **Graph connection** — an org's standing authorization for PMO to act on Microsoft 365 on a user's

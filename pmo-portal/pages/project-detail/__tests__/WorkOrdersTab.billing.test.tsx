@@ -31,6 +31,9 @@ vi.mock('@/src/hooks/useWorkOrders', () => ({
     setValue: { mutateAsync: vi.fn(), isPending: false }, transition: { mutateAsync: vi.fn(), isPending: false },
   }),
 }));
+vi.mock('@/src/hooks/useSubcontract', () => ({
+  useWorkOrderCostVariations: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+}));
 vi.mock('@/src/hooks/useProgressBilling', () => ({
   useBoqItems: () => h.boq,
   useProjectBilling: () => h.projectBilling,

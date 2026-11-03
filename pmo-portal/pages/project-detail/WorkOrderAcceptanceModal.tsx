@@ -18,7 +18,7 @@ import type {
  * stage BAST may leave lines out (they contribute nothing); a final one must state every allocated line. Confirming
  * is a separate step by someone else — this dialog only prepares. The server re-checks everything.
  */
-export interface WorkOrderAcceptanceModalProps {
+interface WorkOrderAcceptanceModalProps {
   workOrder: { id: string; wo_number: string | null; title: string; status: string };
   boqItems: BoqItemRow[];
   /** This work order's allocation rows — the only lines a BAST may state. */

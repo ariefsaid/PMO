@@ -4,7 +4,6 @@ import {
   formatMoneyInputValue,
   moneyInputErrorKind,
   parseMoneyInputAtScale,
-  parseNeutralMoneyInput,
   parseNeutralMoneyInputAtScale,
 } from './format';
 
@@ -32,12 +31,13 @@ describe('money target precision', () => {
   it('keeps neutral import values dot-decimal and independent of the active locale', () => {
     for (const locale of [ID, EN]) {
       setActiveLocale(locale);
-      expect(parseNeutralMoneyInput('1.234')).toBe(1.234);
-      expect(parseNeutralMoneyInput('1,234.56')).toBe(1234.56);
-      expect(parseNeutralMoneyInput('12,34')).toBeNull();
-      expect(parseNeutralMoneyInputAtScale('1.234', 2)).toBeNull();
       expect(parseNeutralMoneyInputAtScale('1.2300', 2)).toBe(1.23);
       expect(parseNeutralMoneyInputAtScale('1,234.56', 2)).toBe(1234.56);
+      // A comma is a thousands separator here, never a decimal point: '12,34' is not a neutral money value.
+      expect(parseNeutralMoneyInputAtScale('12,34', 2)).toBeNull();
+      // The AtScale variant is the only shipped neutral parser (T-34 removed the unscaled wrapper):
+      // import cells beyond the target scale are rejected, not rounded.
+      expect(parseNeutralMoneyInputAtScale('1.234', 2)).toBeNull();
     }
   });
 
