@@ -39,7 +39,7 @@ or Luna will do; no Luna where GLM will do. Only a used-up quota moves work up a
 | Work | Model · harness · effort |
 |---|---|
 | Quick, cheap, mechanical (formatting, lookups, summaries, transcript harvests) | Gemini Flash (latest) · antigravity |
-| Bounded build with a precise brief (owner's opencode Go plan; not money/auth until proven on a real PMO slice) | DeepSeek V4.1 Flash, or V4 Pro for harder slices · opencode Go — see DeepSeek launch below |
+| Bounded build with a precise brief (owner's opencode Go plan; not money/auth until proven on a real PMO slice) | DeepSeek V4.1 Flash · opencode Go (not V4 Pro: owner finds Flash better, 2026-11-03) — see DeepSeek launch below |
 | Bounded build with a precise brief; code or security review of a build; read-only audits | GLM-5.3-flash · pi (Z.AI provider) · max — see GLM launch below |
 | Build a slice GLM can't (judgement, UI craft) | GPT-6 Luna · codex · xhigh |
 | Spec, plan, review (spec, code, design/rendered, money or security judgement), hard fix round | GPT-6.1 Terra · codex · medium |
