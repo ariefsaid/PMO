@@ -20,7 +20,7 @@ export function versionPolicy(major: number | null, hasJson2: boolean): VersionV
 export const O1_MODELS: Record<string, readonly string[]> = {
   'res.company': ['name', 'currency_id', 'write_date'],
   'res.partner': ['name', 'vat', 'ref', 'is_company', 'parent_id', 'active', 'supplier_rank', 'customer_rank', 'company_id', 'write_date'],
-  'product.product': ['default_code', 'name', 'uom_id', 'purchase_ok', 'sale_ok', 'is_storable', 'company_id', 'active', 'write_date'],
+  'product.product': ['default_code', 'name', 'uom_id', 'property_account_income_id', 'purchase_ok', 'sale_ok', 'is_storable', 'company_id', 'active', 'write_date'],
   'uom.uom': ['name', 'relative_factor', 'relative_uom_id', 'active', 'write_date'],
   'stock.warehouse': ['name', 'code', 'lot_stock_id', 'view_location_id', 'company_id', 'active', 'write_date'],
   'stock.location': ['complete_name', 'usage', 'location_id', 'warehouse_id', 'company_id', 'active', 'write_date'],

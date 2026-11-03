@@ -478,6 +478,7 @@
     "set_contract_rate_assignee(uuid,uuid,uuid,date,date)",
     "set_external_binding_site_url(uuid,text,text,uuid)",
     "set_imprest_procurement_limit(numeric)",
+    "set_odoo_customer_advance_account(uuid,uuid,text)",
     "set_odoo_analytic_plan(uuid,uuid,text)",
     "set_odoo_payment_journal_default(uuid,uuid,text)",
     "set_procurement_gates(jsonb)",
