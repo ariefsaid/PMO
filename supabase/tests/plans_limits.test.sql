@@ -14,99 +14,90 @@
 -- Concurrency proof (modelled on 0163_automation_cap_race.test.sql: a genuine second session via
 -- dblink holds the SAME organisations row FOR UPDATE, and both the RPC and a concurrent profiles
 -- INSERT are asserted to BLOCK on it — 55P03 under a short lock_timeout — rather than sail through).
--- The concurrency block runs FIRST, before this transaction takes the org lock itself, because a
--- second session's blocking `for update` against a lock this session already holds is an
--- undiscoverable cross-connection deadlock (0163's header warns about exactly this).
+-- It runs FIRST, before this transaction takes the lock itself (a second session's blocking
+-- `for update` against a lock this session already holds is an undiscoverable cross-connection
+-- deadlock — 0163's header warns about exactly this).
 --
--- ⚑ The extension is created BEFORE `begin` and dropped at the very end: `create extension` inside the
--- transaction would be rolled back while the post-rollback cleanup still needs dblink (0163's FR-CPS-050
--- note). The drop is unconditional, so a run also heals a leak left by an earlier aborted one.
-create extension if not exists dblink;
-
+-- ⚑ It locks the DEFAULT organisation, which already exists and always resolves Enterprise (unlimited):
+-- no fixture has to be COMMITTED for the second session to see a row, so this file commits nothing,
+-- and both extensions are created INSIDE the transaction. That also closes 0163's FR-CPS-050 leak
+-- (it must create dblink outside so its post-rollback cleanup can run; nothing here needs that). The
+-- trailing `drop extension if exists` is unconditional, so a run still heals a leak left by an earlier
+-- aborted file.
 begin;
 create extension if not exists pgtap;
+create extension if not exists dblink;
 select plan(42);
 
--- ── Fixtures, committed by the second session (both sessions must be able to see + lock them) ──────
+-- The caller for the lock proof: an Admin in the default org, created in THIS transaction.
+insert into auth.users (id, email) values
+  ('0535a000-0000-0000-0000-0000000000c9','plan-limits-lock-admin@example.invalid');
+insert into profiles (id, org_id, full_name, email, role, status) values
+  ('0535a000-0000-0000-0000-0000000000c9','00000000-0000-0000-0000-000000000001',
+   'Plan Limits Lock Admin','plan-limits-lock-admin@example.invalid','Admin','active');
+
+-- ── AC-PLN-009 concurrency: a second session holds the default org row FOR UPDATE ─────────────────
 select dblink_connect('cap', format(
   'dbname=%s user=%s password=postgres host=%s port=%s',
   current_database(), current_user,
   coalesce(host(inet_server_addr()), 'supabase_db_pmo-portal'),
   coalesce(inet_server_port(), 5432)));
-
-select dblink_exec('cap', $pre$
-  delete from public.projects          where org_id::text like '0535a000-0000-0000-0000-0000000000%';
-  delete from public.profiles          where org_id = '0535a000-0000-0000-0000-000000000001';
-  delete from public.org_plans         where org_id = '0535a000-0000-0000-0000-000000000001';
-  delete from public.organizations     where id     = '0535a000-0000-0000-0000-000000000001';
-  delete from auth.users               where id::text like '0535a000-0000-0000-0000-0000000000%';
-$pre$);
-
-select dblink_exec('cap', $fx$
-  insert into organizations (id, name) values
-    ('0535a000-0000-0000-0000-000000000001', 'Plan Limits A');
-  insert into auth.users (id, email) values
-    ('0535a000-0000-0000-0000-0000000000a1','plan-limits-a1@example.invalid'),
-    ('0535a000-0000-0000-0000-0000000000a2','plan-limits-a2@example.invalid'),
-    ('0535a000-0000-0000-0000-0000000000a3','plan-limits-a3@example.invalid'),
-    ('0535a000-0000-0000-0000-0000000000a4','plan-limits-a4@example.invalid'),
-    ('0535a000-0000-0000-0000-0000000000a5','plan-limits-a5@example.invalid'),
-    ('0535a000-0000-0000-0000-0000000000a6','plan-limits-a6@example.invalid'),
-    ('0535a000-0000-0000-0000-0000000000a7','plan-limits-a7@example.invalid'),
-    ('0535a000-0000-0000-0000-0000000000a8','plan-limits-a8@example.invalid'),
-    ('0535a000-0000-0000-0000-0000000000a9','plan-limits-a9@example.invalid'),
-    ('0535a000-0000-0000-0000-0000000000aa','plan-limits-aa@example.invalid'),
-    ('0535a000-0000-0000-0000-0000000000ab','plan-limits-ab@example.invalid');
-  -- a1 = the org-A Admin (the caller for every seat assertion). Inserted BEFORE the plan exists, so the
-  -- seat trigger (an Enterprise-but-unassigned org = unlimited) cannot interfere with the fixture.
-  insert into profiles (id, org_id, full_name, email, role, status) values
-    ('0535a000-0000-0000-0000-0000000000a1','0535a000-0000-0000-0000-000000000001',
-     'Plan Limits A Admin','plan-limits-a1@example.invalid','Admin','active');
-$fx$);
-
--- ── AC-PLN-009 concurrency: a second session holds the org row FOR UPDATE ─────────────────────────
 select dblink_exec('cap', 'begin');
 select ok(
   (select count(*)::int from dblink('cap', $q$
      select id from public.organizations
-      where id = '0535a000-0000-0000-0000-000000000001' for update$q$) as t(id uuid)) = 1,
+      where id = '00000000-0000-0000-0000-000000000001' for update$q$) as t(id uuid)) = 1,
   'AC-PLN-009 setup: a second session holds the org row FOR UPDATE');
 
 set local lock_timeout = '1500ms';
 set local role authenticated;
 set local request.jwt.claims =
-  '{"sub":"0535a000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+  '{"sub":"0535a000-0000-0000-0000-0000000000c9","role":"authenticated"}';
 select throws_ok(
-  $$ select public.assert_seat_available('0535a000-0000-0000-0000-000000000001') $$,
+  $$ select public.assert_seat_available('00000000-0000-0000-0000-000000000001') $$,
   '55P03', null,
   'AC-PLN-009 assert_seat_available WAITS for the organisation row lock (drop the lock and it sails through)');
 reset role;
 select throws_ok(
   $$ insert into public.profiles (id, org_id, full_name, email, role, status)
-     values ('0535a000-0000-0000-0000-0000000000a2','0535a000-0000-0000-0000-000000000001',
-             'Plan Limits A2','plan-limits-a2@example.invalid','Finance','active') $$,
+     values ('0535a000-0000-0000-0000-0000000000ca','00000000-0000-0000-0000-000000000001',
+             'Plan Limits Lock Two','plan-limits-lock-two@example.invalid','Finance','active') $$,
   '55P03', null,
   'AC-PLN-009 a concurrent profiles INSERT WAITS for the organisation row lock (the seat trigger locks before it counts)');
 set local lock_timeout = 0;
 
 select is(
   (select count(*)::int from public.profiles
-    where org_id = '0535a000-0000-0000-0000-000000000001'),
-  1,
+    where id = '0535a000-0000-0000-0000-0000000000ca'),
+  0,
   'AC-PLN-009 the blocked invite created no profile row (it never got past the lock)');
-select dblink_exec('cap', 'rollback');
+select dblink_disconnect('cap');
 reset request.jwt.claims;   -- the remaining fixtures are written by the migration runner, not a caller
 
 -- ── The rest of the fixtures live in THIS transaction (rolled back at the end) ───────────────────
 insert into organizations (id, name) values
+  ('0535a000-0000-0000-0000-000000000001', 'Plan Limits A Starter'),
   ('0535a000-0000-0000-0000-000000000002', 'Plan Limits B Enterprise'),
   ('0535a000-0000-0000-0000-000000000003', 'Plan Limits C Growth'),
   ('0535a000-0000-0000-0000-000000000004', 'Plan Limits D Downgraded');
 insert into auth.users (id, email) values
+  ('0535a000-0000-0000-0000-0000000000a1','plan-limits-a1@example.invalid'),
+  ('0535a000-0000-0000-0000-0000000000a2','plan-limits-a2@example.invalid'),
+  ('0535a000-0000-0000-0000-0000000000a3','plan-limits-a3@example.invalid'),
+  ('0535a000-0000-0000-0000-0000000000a4','plan-limits-a4@example.invalid'),
+  ('0535a000-0000-0000-0000-0000000000a5','plan-limits-a5@example.invalid'),
+  ('0535a000-0000-0000-0000-0000000000a6','plan-limits-a6@example.invalid'),
+  ('0535a000-0000-0000-0000-0000000000a7','plan-limits-a7@example.invalid'),
+  ('0535a000-0000-0000-0000-0000000000a8','plan-limits-a8@example.invalid'),
+  ('0535a000-0000-0000-0000-0000000000a9','plan-limits-a9@example.invalid'),
+  ('0535a000-0000-0000-0000-0000000000aa','plan-limits-aa@example.invalid'),
+  ('0535a000-0000-0000-0000-0000000000ab','plan-limits-ab@example.invalid'),
+  ('0535a000-0000-0000-0000-0000000000ac','plan-limits-ac@example.invalid'),
   ('0535a000-0000-0000-0000-0000000000b1','plan-limits-b1@example.invalid'),
   ('0535a000-0000-0000-0000-0000000000b9','plan-limits-b9@example.invalid'),
   ('0535a000-0000-0000-0000-0000000000d1','plan-limits-d1@example.invalid');
 insert into profiles (id, org_id, full_name, email, role, status) values
+  ('0535a000-0000-0000-0000-0000000000a1','0535a000-0000-0000-0000-000000000001','Plan Limits A Admin','plan-limits-a1@example.invalid','Admin','active'),
   ('0535a000-0000-0000-0000-0000000000b1','0535a000-0000-0000-0000-000000000002','Plan Limits B Admin','plan-limits-b1@example.invalid','Admin','active'),
   ('0535a000-0000-0000-0000-0000000000b9','0535a000-0000-0000-0000-000000000002','Plan Limits Operator','plan-limits-b9@example.invalid','Finance','active'),
   ('0535a000-0000-0000-0000-0000000000d1','0535a000-0000-0000-0000-000000000004','Plan Limits D Admin','plan-limits-d1@example.invalid','Admin','active');
@@ -385,16 +376,8 @@ select is(
 select * from finish();
 rollback;
 
--- ── Cleanup AFTER this session's own rollback (0163's ordering): this transaction took the org row
--- lock in its own seat/project writes, and those locks release only at ROLLBACK. Deleting the org from
--- the second session first would make that session wait on this one while this one waits on dblink.
-select dblink_exec('cap', $cl$
-  delete from public.projects      where org_id::text like '0535a000-0000-0000-0000-0000000000%';
-  delete from public.org_plans     where org_id::text like '0535a000-0000-0000-0000-0000000000%';
-  delete from public.profiles      where org_id::text like '0535a000-0000-0000-0000-0000000000%';
-  delete from public.organizations where id::text     like '0535a000-0000-0000-0000-0000000000%';
-  delete from public.platform_operators where user_id::text like '0535a000-0000-0000-0000-0000000000%';
-  delete from auth.users           where id::text like '0535a000-0000-0000-0000-0000000000%';
-$cl$);
-select dblink_disconnect('cap');
+-- ⚑ Cleanup is the rollback itself: every fixture in this file lives in the transaction above, so
+-- nothing is committed and nothing needs a second session to delete it. The extension created inside
+-- the transaction is rolled back with it; the drop below is belt-and-braces for a database that
+-- already carried a leaked copy from an earlier aborted file (0163's FR-CPS-050 lesson).
 drop extension if exists dblink;
