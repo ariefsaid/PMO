@@ -12881,6 +12881,26 @@ export type Database = {
           source: string
         }[]
       }
+      list_tm_claims: {
+        Args: { p_project: string }
+        Returns: {
+          confirm_basis: string
+          confirmed_by: string
+          created_at: string
+          currency: string
+          document_id: string
+          gross_amount: number
+          id: string
+          lines: Json
+          note: string
+          period_from: string
+          period_to: string
+          prepared_by: string
+          signoff_prepared_by: string
+          status: string
+          work_order_id: string
+        }[]
+      }
       list_unpaired_native_invoices: {
         Args: never
         Returns: {
@@ -13404,6 +13424,22 @@ export type Database = {
         }[]
       }
       preview_task_reminders: { Args: { p_task_ids: string[] }; Returns: Json }
+      preview_tm_claim: {
+        Args: { p_from: string; p_project: string; p_to: string }
+        Returns: {
+          amount: number
+          kind: string
+          label: string
+          line_key: string
+          rate: number
+          rate_version: number
+          source_count: number
+          unit: string
+          units: number
+          unrated_reason: string
+          user_id: string
+        }[]
+      }
       procurement_evidenced_step: {
         Args: { p_procurement_id: string }
         Returns: Database["public"]["Enums"]["procurement_status"]
