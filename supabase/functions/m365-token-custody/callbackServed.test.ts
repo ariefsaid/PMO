@@ -14,7 +14,7 @@ const idToken = `${b64({ alg: "RS256" })}.${b64({ tid: "synthetic-tenant", oid: 
 
 async function callbackScenario(payload: Record<string, unknown>, fn: (ctx: {
   call: () => Promise<Response>; calls: import("../_shared/testing/edgeTestKit.ts").FetchCall[];
-}) => Promise<void>) {
+}) => Promise<void>, featureEnabled = true) {
   const old = Object.fromEntries(Object.keys(env).map((k) => [k, Deno.env.get(k)]));
   for (const [k, v] of Object.entries(env)) Deno.env.set(k, v);
   let consumed = false;
@@ -33,6 +33,7 @@ async function callbackScenario(payload: Record<string, unknown>, fn: (ctx: {
       { label: "connection", method: "GET", pathname: "/rest/v1/ms_graph_connections", response: () => jsonResponse(null) },
       { label: "membership", pathname: "/rest/v1/rpc/m365_membership_state", response: () => jsonResponse({ state: "active", org_id: "synthetic-org", role: "Project Manager" }) },
       { label: "entitlement", pathname: "/rest/v1/org_features", response: () => jsonResponse({ enabled: true }) },
+      { label: "plan-feature", pathname: "/rest/v1/rpc/service_feature_enabled", response: () => jsonResponse(featureEnabled) },
       { label: "save", pathname: "/rest/v1/rpc/m365_upsert_connection", response: () => jsonResponse("synthetic-connection") },
       { label: "audit", pathname: "/rest/v1/rpc/audit_m365_event", response: () => jsonResponse(null) },
       { label: "error", pathname: "/rest/v1/error_events", response: () => jsonResponse(null) },
@@ -66,4 +67,13 @@ Deno.test("AC-M365DOC-070 served callback pins state, identity, granted consent 
     assert((await call()).headers.get("location")?.includes("m365_error="));
     assertFalse(calls.some((c) => c.url.pathname.endsWith("/m365_upsert_connection")));
   });
+});
+
+Deno.test("FR-PLN-006 callback cannot create a new M365 connection after m365_integration switches off", async () => {
+  await callbackScenario({}, async ({ call, calls }) => {
+    const response = await call();
+    assert(response.headers.get("location")?.includes("m365_error="));
+    assertFalse(calls.some((c) => c.url.hostname === "login.microsoftonline.com"));
+    assertFalse(calls.some((c) => c.url.pathname.endsWith("/m365_upsert_connection")));
+  }, false);
 });

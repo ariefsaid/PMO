@@ -9,6 +9,7 @@ import { linkProject, listProjects, setAnalyticPlan, unlinkProject } from './pro
 import { employDomain, proposeConfig, saveDefaults } from './purchasing.ts';
 import { recheck } from './recheck.ts';
 import { refresh, resetKind } from './sweepVerbs.ts';
+import { erpSyncFeatureDecision } from '../featureGate.ts';
 
 export interface OdooCtx {
   sc: SupabaseClient;
@@ -34,6 +35,7 @@ const VERBS: Record<string, (c: OdooCtx) => Promise<Response>> = {
   'list-projects': listProjects, 'link-project': linkProject, 'unlink-project': unlinkProject, 'set-analytic-plan': setAnalyticPlan,
   'employ-domain': employDomain, 'propose-config': proposeConfig, 'save-defaults': saveDefaults,
 };
+const UNGATED_READ_OR_CLEANUP = new Set(['list-companies', 'list-projects', 'unlink-project']);
 
 export function odooError(c: OdooCtx, message: string, code: string, status: number): Response {
   return c.respond({ error: code, message }, status);
@@ -45,5 +47,10 @@ export async function routeOdoo(c: OdooCtx): Promise<Response> {
   if (error || (state as { active?: unknown } | null)?.active !== true) return odooError(c, 'Only an active member can do this', 'FORBIDDEN', 403);
   if (!Object.hasOwn(VERBS, verb)) return odooError(c, 'Unknown action', 'BAD_REQUEST', 400);
   if (!GATES[verb](c)) return odooError(c, 'Not allowed for your role', 'FORBIDDEN', 403);
+  if (!UNGATED_READ_OR_CLEANUP.has(verb)) {
+    const decision = await erpSyncFeatureDecision(c.sc, c.orgId);
+    if (decision === 'unavailable') return odooError(c, 'Could not resolve the plan switch', 'INTERNAL', 500);
+    if (decision === 'off') return odooError(c, 'ERP integration is not enabled for this organization', 'feature_off', 409);
+  }
   return await VERBS[verb](c);
 }

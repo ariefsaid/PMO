@@ -11,6 +11,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { runDispatchTick } from '../../../../../supabase/functions/agent-dispatch/dispatcher';
 import type { AutomationRow } from '../../../../../supabase/functions/agent-dispatch/dispatcher';
+import { makeDispatcherTestRpc } from './dispatcherTestRpc';
 
 function makeScheduleAutomation(overrides: Partial<AutomationRow> = {}): AutomationRow {
   return {
@@ -54,7 +55,7 @@ function makeServiceClient(automations: AutomationRow[]) {
     return { select: selectMock, update: updateMock };
   });
 
-  return { client: { from }, tablesTouched, updateMock };
+  return { client: { from, rpc: makeDispatcherTestRpc() }, tablesTouched, updateMock };
 }
 
 /** A minted-client mock recording every .from() call, including a notifications insert path. */

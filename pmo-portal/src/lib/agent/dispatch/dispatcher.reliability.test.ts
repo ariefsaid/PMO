@@ -6,6 +6,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { runDispatchTick, selectTriggerMatches } from '../../../../../supabase/functions/agent-dispatch/dispatcher';
 import type { AutomationRow } from '../../../../../supabase/functions/agent-dispatch/dispatcher';
+import { makeDispatcherTestRpc } from './dispatcherTestRpc';
 
 function makeScheduleAutomation(overrides: Partial<AutomationRow> = {}): AutomationRow {
   return {
@@ -49,7 +50,7 @@ function makeServiceClient(automations: AutomationRow[]) {
     return { select: selectMock, update: updateMock };
   });
 
-  return { client: { from }, tablesTouched, updateMock, upsertMock };
+  return { client: { from, rpc: makeDispatcherTestRpc() }, tablesTouched, updateMock, upsertMock };
 }
 
 /** A minted-client mock recording every .from() call, including a notifications insert path. */
@@ -176,10 +177,10 @@ describe('runDispatchTick — item 2: per-automation error isolation (fire loop)
     const triggerIs = vi.fn().mockResolvedValue({ data: [trigger], error: null });
     const makeSelectChain = (isMock: ReturnType<typeof vi.fn>) => ({ eq: () => ({ eq: () => ({ is: isMock }) }) });
     // SEC-HIGH-2: the trigger event comes from the select_trigger_events RPC, not a raw table read.
-    const rpc = vi.fn().mockResolvedValue({
+    const rpc = makeDispatcherTestRpc(() => ({
       data: [{ id: 'evt-1', created_at: '2026-07-06T08:00:00Z', to_status: 'Ordered', org_id: 'org-A' }],
       error: null,
-    });
+    }));
     const wmMaybeSingle = vi.fn().mockResolvedValue({ data: null, error: null });
     const wmSelect = vi.fn().mockReturnValue({ eq: () => ({ maybeSingle: wmMaybeSingle }) });
     const upsertMock = vi.fn().mockResolvedValue({ data: null, error: null });
@@ -333,7 +334,7 @@ describe('selectTriggerMatches — item 4: compound (created_at, id) watermark c
     const wmSelectMock = vi.fn().mockReturnValue({ eq: wmEqMock });
 
     // The RPC applies the compound cursor in SQL and returns only the not-yet-seen eventB.
-    const rpc = vi.fn().mockResolvedValue({ data: [eventB], error: null });
+    const rpc = makeDispatcherTestRpc(() => ({ data: [eventB], error: null }));
 
     const fromMock = vi.fn().mockImplementation((table: string) => {
       if (table === 'agent_dispatch_watermarks') return { select: wmSelectMock };

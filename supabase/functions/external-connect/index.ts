@@ -30,7 +30,7 @@
  * - 500: internal error
  */
 
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { createClient } from '@supabase/supabase-js';
 import {
   verifyCallerJwt,
   JwtVerifyError,
@@ -57,14 +57,6 @@ interface ConnectBody {
     apiKey?: string;          // ERPNext API key
     apiSecret?: string;       // ERPNext API secret
     siteUrl?: string;         // ERPNext site URL (e.g., https://erp.example.com)
-  };
-}
-
-interface ConnectResponse {
-  ok: true;
-  binding: {
-    secret_ref: string;
-    status: 'active';
   };
 }
 
@@ -316,6 +308,14 @@ export async function handleConnectRequest(req: Request): Promise<Response> {
   if (tier !== 'clickup' && tier !== 'erpnext' && tier !== 'odoo') {
     return errorResponse('Unknown tier (must be clickup, erpnext or odoo)', 'BAD_REQUEST', 400);
   }
+
+  const featureKey = tier === 'clickup' ? 'clickup_sync' : 'erp_sync';
+  const { data: integrationEnabled, error: featureError } = await serviceClient.rpc('service_feature_enabled', {
+    p_org_id: profile.org_id,
+    p_key: featureKey,
+  });
+  if (featureError) return errorResponse('Could not resolve the plan switch', 'INTERNAL', 500);
+  if (integrationEnabled !== true) return errorResponse('Integration is not enabled for this organization', 'feature_off', 409);
 
   // 7. The deployment kill-switch is checked before external validation and all writes.
   // It is an operator break-glass, never a client-side status signal.

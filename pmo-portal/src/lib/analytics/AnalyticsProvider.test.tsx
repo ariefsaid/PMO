@@ -39,6 +39,12 @@ vi.mock('./config', () => ({
   persistDemoContext: mockPersistDemoContext,
 }));
 
+// Plans S4 (FR-PLN-016): the org-plan group property is its own hook with its own suite
+// (src/hooks/useOrgPlanGroup.test.tsx). Stubbed here because this provider test has no
+// QueryClientProvider — the hook's plan query would otherwise throw, and its behaviour is not what
+// this suite asserts.
+vi.mock('@/src/hooks/useOrgPlanGroup', () => ({ useOrgPlanGroup: () => {} }));
+
 // ── Mock useAuth ─────────────────────────────────────────────────────────
 import { AuthContext } from '@/src/auth/AuthContext';
 import type { AuthContextValue } from '@/src/auth/AuthContext';

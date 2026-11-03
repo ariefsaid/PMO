@@ -9,7 +9,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 import type { AdapterCommand } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
-import { ODOO_TIER } from '../../../pmo-portal/src/lib/adapterSeam/odoo/connectAdapter.ts';
+import { odooOwnsRevenueTier } from '../../../pmo-portal/src/lib/adapterSeam/odoo/ownership.ts';
 import { resolveExternalRef, type ExternalRefsLookupClient } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
 import { readOdooProgressClaim } from '../_shared/odooProgressClaim.ts';
 import { parseDraftLines, readInvoiceDraft } from '../_shared/odooRevenueRefs.ts';
@@ -22,7 +22,7 @@ const isInvoice = (command: Pick<AdapterCommand, 'domain' | 'record'>) => comman
 
 /** The operations that author or edit the draft: no Odoo document exists for them (a create is not a push). */
 export const isOdooInvoiceDraftWrite = (tier: string | undefined, command: AdapterCommand): boolean =>
-  tier === ODOO_TIER && isInvoice(command) && (command.operation === 'create' || command.operation === 'update');
+  odooOwnsRevenueTier(tier) && isInvoice(command) && (command.operation === 'create' || command.operation === 'update');
 
 /** The approval is the one command that pushes (`revenueAdapter.isInvoicePush`). */
 const isApproval = (command: AdapterCommand): boolean => command.operation === 'transition' && command.record.verb === 'submit';

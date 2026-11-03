@@ -46,4 +46,11 @@ describe('payment doorway on an ERP-owned purchase', () => {
     expect(screen.queryByText(LINE)).toBeNull();
     expect(screen.getByRole('button', { name: 'Capture Payment' })).toBeEnabled();
   });
+
+  it('AC-OPP-080 an Odoo-owned purchase with no bill yet tells the user to record the invoice first, and never names ERPNext', () => {
+    setTaskOwnership([{ domain: 'procurement', externalTier: 'odoo' }]);
+    render(<LedgerCaptureRow status="Vendor Invoiced" existingTypes={new Set()} onCreate={async () => undefined} canWrite invoices={[]} />);
+    expect(screen.getByTestId('ledger-payment-in-erp')).toHaveTextContent('Record the supplier invoice here first; you can then pay it from here.');
+    expect(screen.queryByText(/ERPNext/)).toBeNull();
+  });
 });

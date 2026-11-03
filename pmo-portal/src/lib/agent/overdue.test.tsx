@@ -6,8 +6,8 @@ import { fakeSupabase, opsOf, type FakeCall } from './testing/fakeSupabase';
 
 const NOW = new Date('2026-10-05T18:00:00Z'); // 2026-10-06 in Asia/Jakarta
 const P1 = '11111111-1111-4111-8111-111111111111';
-const ctx = (role: string, client: unknown) =>
-  ({ jwt: '', userId: 'u-me', orgId: 'org-1', role, supabase: client as never });
+const ctx = (role: string, client: unknown, featureSwitches: Record<string, boolean> | null = { revenue: true }) =>
+  ({ jwt: '', userId: 'u-me', orgId: 'org-1', role, supabase: client as never, featureSwitches });
 
 type Rows = Partial<Record<string, (c: FakeCall) => unknown>>;
 function world(rows: Rows = {}) {
@@ -17,7 +17,6 @@ function world(rows: Rows = {}) {
     switch (c.table) {
       case 'profiles': return { data: c.columns === 'timezone' ? { timezone: 'Asia/Jakarta' } : [], error: null };
       case 'organizations': return { data: { default_timezone: 'UTC', default_locale: 'en-US', default_number_locale: 'en-US' }, error: null };
-      case 'org_features': return { data: { enabled: true }, error: null };
       default: return { data: [], error: null };
     }
   };
@@ -196,25 +195,27 @@ describe('loadOverdueFacts — invoices (#787)', () => {
     expect(md).toContain('first 500 managed projects');
   });
 
-  it('AC-AIN-006 Revenue off → no invoice read, no invoice section', async () => {
-    const { client, calls } = fakeSupabase(world({ org_features: () => ({ enabled: false }) }));
-    const facts = await loadOverdueFacts(ctx('Finance', client), NOW);
-    expect(calls.some((c) => c.table === 'sales_invoices')).toBe(false);
-    expect(facts.invoices).toBeNull();
-  });
-
-  it('AC-AIN-006 the Revenue flag read is scoped to the caller org (a platform operator can see several)', async () => {
+  it('AC-AIN-006 Revenue off (resolved) → no invoice read, no invoice section', async () => {
     const { client, calls } = fakeSupabase(world());
-    await loadOverdueFacts(ctx('Finance', client), NOW);
-    expect(opsOf(calls, 'org_features')[0]).toContainEqual(['eq', 'org_id', 'org-1']);
-    expect(opsOf(calls, 'org_features')[0]).toContainEqual(['eq', 'feature_key', 'revenue']);
-  });
-
-  it('AC-AIN-006 a MISSING org_features revenue row means off', async () => {
-    const { client, calls } = fakeSupabase(world({ org_features: () => null }));
-    const facts = await loadOverdueFacts(ctx('Finance', client), NOW);
+    const facts = await loadOverdueFacts(ctx('Finance', client, { revenue: false }), NOW);
     expect(calls.some((c) => c.table === 'sales_invoices')).toBe(false);
     expect(facts.invoices).toBeNull();
+  });
+
+  it('AC-AIN-006 Revenue comes from the caller org\'s resolved switches, never the raw org_features row', async () => {
+    const { client, calls } = fakeSupabase(world());
+    const facts = await loadOverdueFacts(ctx('Finance', client, { revenue: true }), NOW);
+    // The one resolver owns the order; a raw row read here contradicted it (absent row = "off" before).
+    expect(calls.some((c) => c.table === 'org_features')).toBe(false);
+    expect(calls.some((c) => c.table === 'sales_invoices')).toBe(true);
+    expect(facts.invoices).not.toBeNull();
+  });
+
+  it('AC-AIN-006 an unresolved snapshot keeps the read fail-open (no revenue statement either way)', async () => {
+    const { client, calls } = fakeSupabase(world());
+    const facts = await loadOverdueFacts(ctx('Finance', client, null), NOW);
+    expect(calls.some((c) => c.table === 'sales_invoices')).toBe(true);
+    expect(facts.invoices).not.toBeNull();
   });
 
   it('AC-AIN-004 an Engineer never triggers an invoice read', async () => {

@@ -242,7 +242,7 @@ const Incidents: React.FC = () => {
       {/* Body */}
       {state === 'loading' && (
         <div className="rounded-lg border border-border bg-card">
-          <ListState variant="loading" rows={6} />
+          <ListState variant="loading" shape="table" columns={5} rows={6} />
         </div>
       )}
 

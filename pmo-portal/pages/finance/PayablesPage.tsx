@@ -140,7 +140,7 @@ const PayablesPage: React.FC = () => {
       <KPIRow aria-label={t('financeHub:hub.payablesFigures', 'Payables figures')} className="mb-5 sm:grid-cols-2">
         <article className="min-w-0 p-4">
           <div className="flex items-center gap-1 text-sm font-medium text-muted-foreground">{t('financeHub:hub.toPaySuppliers', 'To pay suppliers')}<Tooltip content={t('financeHub:hub.payablesHint', 'Unpaid supplier invoice balances (invoice amount less payments made), grouped by currency. Unknown balances are counted, not added.')}><button type="button" aria-label={t('financeHub:hub.figureHelp', 'How this figure is calculated')} className="-my-1 inline-flex size-7 items-center justify-center rounded-full text-muted-foreground hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"><Icon name="help" className="size-3.5" /></button></Tooltip></div>
-          {isPending ? <div role="status" className="mt-2 h-7 w-36 animate-pulse rounded bg-muted" /> : (() => {
+          {isPending ? <div role="status" aria-live="polite" className="mt-2"><span className="sr-only">{t('financeHub:hub.loadingFigure', 'Loading figure')}</span><span className="skel block h-7 w-36" /></div> : (() => {
             const totals = Object.entries(payablesPosition.payablesTotals).sort(([left], [right]) => left === orgCurrency ? -1 : right === orgCurrency ? 1 : left.localeCompare(right));
             const [lead, ...others] = totals;
             return <>
@@ -158,7 +158,7 @@ const PayablesPage: React.FC = () => {
         </article>
         <article className="min-w-0 p-4">
           <div className="flex items-center gap-1 text-sm font-medium text-muted-foreground">{t('financeHub:hub.oldestWaiting', 'Oldest waiting')}<Tooltip content={t('financeHub:hub.payableBucketBasis', 'Calendar days since invoiced status was recorded, or last update if unavailable. Unknown balances are counted, not added.')}><button type="button" aria-label={t('financeHub:hub.figureHelp', 'How this figure is calculated')} className="-my-1 inline-flex size-7 items-center justify-center rounded-full text-muted-foreground hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"><Icon name="help" className="size-3.5" /></button></Tooltip></div>
-          {isPending ? <div role="status" className="mt-2 h-7 w-24 animate-pulse rounded bg-muted" /> : <>
+          {isPending ? <div role="status" aria-live="polite" className="mt-2"><span className="sr-only">{t('financeHub:hub.loadingFigure', 'Loading figure')}</span><span className="skel block h-7 w-24" /></div> : <>
             <div className="mt-1 text-[20px] font-bold tabular">{oldest ? t('financeHub:hub.daysWaiting', '{{count}} days', { count: oldest.ageDays }) : '—'}</div>
             <div className="mt-1 text-sm text-muted-foreground">{t('financeHub:hub.fix.payables.oldestBasis', 'Calendar days since invoiced status was recorded, or last update if unavailable')}</div>
           </>}

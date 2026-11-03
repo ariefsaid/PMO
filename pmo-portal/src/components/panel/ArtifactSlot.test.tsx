@@ -46,7 +46,8 @@ vi.mock('@/src/lib/viewspec/executor', () => ({
   executeCompiledQuery: mockExecuteCompiledQuery,
 }));
 
-vi.mock('@/src/lib/features', () => ({
+vi.mock('@/src/lib/features', async (importOriginal) => ({
+  ...await importOriginal<typeof import('@/src/lib/features')>(),
   isFeatureEnabled: (key: string) => {
     if (key === 'agentAssistant') return mockAgentAssistant.value;
     if (key === 'aiComposer') return mockAiComposer.value;

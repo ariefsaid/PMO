@@ -32,6 +32,7 @@ function routes(fake: FakeOdoo, o: Opts): MockRoute[] {
     supabaseSelect('profiles', () => one({ org_id: 'org-1', role: o.role ?? 'Admin' })),
     supabaseSelect('platform_operators', () => none()),
     supabaseRpc('actor_authorization_state', () => jsonResponse({ active: true })),
+    rpc('service_feature_enabled', true),
     supabaseSelect('external_org_bindings', () => one({
       id: 'b1', site_url: `https://${ODOO}`, secret_ref: 'odoo_ref', status: 'active', activated_at: '2026-11-01T00:00:00Z',
       config: { database: 'db1', odoo_company_id: 1, ...(o.plan === null ? {} : { analytic_plan_id: o.plan ?? 7 }) } })),
