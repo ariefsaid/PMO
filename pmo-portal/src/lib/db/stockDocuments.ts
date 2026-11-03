@@ -1,4 +1,5 @@
 import { supabase } from '@/src/lib/supabase/client';
+import { fetchAllPages } from '@/src/lib/pagedRead';
 import { toAppError } from '@/src/lib/appError';
 import type { Tables } from '@/src/lib/supabase/database.types';
 
@@ -121,11 +122,21 @@ export async function getStockDocumentCosts(documentId: string): Promise<StockLi
 }
 
 export interface IssuableWorkItem { id: string; line_no: number | null; item_code: string; description: string; unit: string | null }
-/** Work items of a project to issue material to. Never the rate: an Engineer storekeeper must not receive prices here. */
+/**
+ * Work items of a project to issue material to. Never the rate: an Engineer storekeeper must not receive prices here.
+ *
+ * ⚑ #1774 — one project's whole BOQ, so it pages: past 1,000 lines the picker silently omitted
+ * the tail (the work item existed, but could not be chosen). Ordered by (line_no, item_code, id) —
+ * the `id` tiebreak makes the order TOTAL, which a paged scan requires; row order and columns are
+ * otherwise unchanged.
+ */
 export async function listIssuableWorkItems(projectId: string): Promise<IssuableWorkItem[]> {
-  const { data, error } = await supabase.from('boq_items').select('id, line_no, item_code, description, unit').eq('project_id', projectId).order('line_no').order('item_code');
-  if (error) throw toAppError(error);
-  return (data ?? []) as unknown as IssuableWorkItem[];
+  return fetchAllPages<IssuableWorkItem>((from, to) =>
+    supabase.from('boq_items').select('id, line_no, item_code, description, unit')
+      .eq('project_id', projectId)
+      .order('line_no').order('item_code').order('id', { ascending: true })
+      .range(from, to),
+  );
 }
 
 export interface IssueLineRow {
