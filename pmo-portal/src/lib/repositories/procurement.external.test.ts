@@ -271,6 +271,15 @@ describe('task 4.8 — flipped ownership map — procurement/company record crea
     expect(createReceipt).not.toHaveBeenCalled();
   });
 
+  it('AC-OPP-030 the quantities a user entered travel with the receipt; none entered sends no lines (every open quantity)', async () => {
+    setTaskOwnership([{ domain: 'procurement', externalTier: 'odoo' }]);
+    dispatchSpy.mockResolvedValue({ externalRecordId: '77', canonical: { id: 'pmo-gr-1' } });
+    await repositories.procurement.createReceipt('proc-1', 'Partial', '2026-07-11', undefined, undefined, [{ itemRef: 'Pump', quantity: 6 }]);
+    expect(dispatchSpy.mock.calls.at(-1)?.[2]).toMatchObject({ erp_doc_kind: 'goods-receipt', receiptLines: [{ itemRef: 'Pump', quantity: 6 }] });
+    await repositories.procurement.createReceipt('proc-1', 'Complete', '2026-07-11');
+    expect(dispatchSpy.mock.calls.at(-1)?.[2]).not.toHaveProperty('receiptLines');
+  });
+
   it('createPayment dispatches externally with erp_doc_kind payment', async () => {
     dispatchSpy.mockResolvedValue({ externalRecordId: 'ACC-PAY-2026-00001', canonical: { id: 'pmo-1' } });
     await repositories.procurement.createPayment('proc-1', 'inv-1', 'PAY-0001', 'Draft', '2026-07-11', 100);
@@ -381,6 +390,32 @@ describe('task 4.8 — flipped ownership map — procurement/company record crea
     expect(record).not.toHaveProperty('taxes');
     expect(record).not.toHaveProperty('erpTaxAmounts');
     expect(record).not.toHaveProperty('withheldPphType');
+  });
+
+  it('AC-OPP-081 forwards the taxes the user picked from the Odoo directory as taxIds, and nothing else about tax', async () => {
+    dispatchSpy.mockResolvedValue({ externalRecordId: 'SYNTHETIC-BILL-1', canonical: { id: 'pmo-1' } });
+    await repositories.procurement.createInvoice({
+      procurementId: 'proc-1', status: 'Received', invoiceDate: '2026-11-03',
+      taxTreatment: 'inclusive', taxAmount: 0, taxIds: ['7', '12'],
+    });
+    const record = dispatchSpy.mock.calls[0][2] as Record<string, unknown>;
+    expect(record).toMatchObject({ taxIds: ['7', '12'], erp_doc_kind: 'purchase-invoice' });
+    expect(record).not.toHaveProperty('taxAmount');
+    expect(record).not.toHaveProperty('taxTreatment');
+  });
+
+  it('AC-OPP-081 no pick sends no taxIds, so the organisation default applies', async () => {
+    dispatchSpy.mockResolvedValue({ externalRecordId: 'SYNTHETIC-BILL-2', canonical: { id: 'pmo-1' } });
+    await repositories.procurement.createInvoice({ procurementId: 'proc-1', status: 'Received', invoiceDate: '2026-11-03', taxTreatment: 'inclusive', taxAmount: 0 });
+    expect(dispatchSpy.mock.calls[0][2] as Record<string, unknown>).not.toHaveProperty('taxIds');
+  });
+
+  it('AC-OPP-081 a payment forwards the journal the user chose, and omits it when none was chosen', async () => {
+    dispatchSpy.mockResolvedValue({ externalRecordId: 'SYNTHETIC-PAY-1', canonical: { id: 'pmo-1' } });
+    await repositories.procurement.createPayment('proc-1', 'inv-1', null, null, '2026-11-03', 100, undefined, '9');
+    expect(dispatchSpy.mock.calls[0][2]).toMatchObject({ journalId: '9', erp_doc_kind: 'payment', invoiceId: 'inv-1' });
+    await repositories.procurement.createPayment('proc-1', 'inv-1', null, null, '2026-11-03', 100);
+    expect(dispatchSpy.mock.calls[1][2] as Record<string, unknown>).not.toHaveProperty('journalId');
   });
 
   it('forwards the supplied supplier invoice reference and date to external dispatch (#764)', async () => {

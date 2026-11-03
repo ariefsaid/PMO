@@ -601,6 +601,8 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
   return (
     <ListPage
       title={embedded ? t('finance:area.invoicesList', 'Invoices') : t('financeCopy.salesInvoices', "Sales Invoices")}
+      count={data ? filtered.length : undefined}
+      total={data ? all.length : undefined}
       headingLevel={embedded ? 2 : 1}
       description={embedded ? undefined : t('finance:invoices.description', 'Client invoices.')}
       primaryAction={!embedded && mode !== undefined && !createRequested && canCreate ? (
@@ -769,7 +771,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
       )}
       {state === 'loading' && (
         <div className="rounded-lg border border-border bg-card">
-          <ListState variant="loading" rows={6} />
+          <ListState variant="loading" shape="table" columns={6} rows={6} />
         </div>
       )}
 

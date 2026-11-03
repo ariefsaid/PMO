@@ -7,6 +7,8 @@ do $$ begin
   end if;
 end $$;
 
+drop function if exists public.update_odoo_sales_invoice_draft(uuid,uuid,uuid,boolean,jsonb,numeric,boolean,text);
+
 create or replace function public.sales_invoices_native_mirror_guard() returns trigger
   language plpgsql set search_path = public as $$
 begin

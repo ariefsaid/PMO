@@ -6,6 +6,8 @@
   adapters + SoT/enhancement model + P0–P4 phasing. Still standing: ERPNext as accounting
   engine, no homegrown ledger, v1 side-by-side sign-now, per-client instances,
   ledger-sourced display rule.
+  **Narrowed by OD-VISION-ERP (owner, 2026-11-03):** the vision is PMO as an ERP; "no homegrown ledger"
+  now holds only for ERP-connected orgs. An org with no ERP keeps its books in PMO (`docs/decisions.md`).
 - **Date:** 2026-07-04
 - **Deciders:** Owner, Director
 - **Related:** ADR-0047 (GTM topology), `docs/roadmap-spines.md` (spine 4 Revenue/AR),

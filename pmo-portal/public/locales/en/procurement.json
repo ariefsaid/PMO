@@ -92,6 +92,7 @@
       "needsApproval": "needs an approval first",
       "needsReceipt": "needs a goods receipt first"
     },
+    "paymentNeedsBillOdoo": "Record the supplier invoice here first; you can then pay it from here.",
     "preCutover": "Recorded before the ERP connection, not sent",
     "notSent": "Not sent",
     "notSentReason": "Not sent: this purchase started before the ERP connection"
@@ -590,6 +591,75 @@
         "detail": "{{ok}} approved, {{failed}} failed. {{rows}}",
         "headline": "Partially approved"
       }
+    }
+  },
+  "odoo": {
+    "outcome": {
+      "confirmed": "In Odoo",
+      "pending": "Sent, waiting for Odoo",
+      "held": "Needs a decision",
+      "attention": "Check in Odoo",
+      "approval": "Waiting for approval in Odoo",
+      "refused": "Odoo did not accept it",
+      "next": {
+        "pending": "Odoo has not confirmed it yet. PMO checks again by itself; there is nothing to do.",
+        "held": "PMO cannot tell whether Odoo already made it. An Admin or Finance user checks Odoo and decides.",
+        "attention": "Odoo shows a different total than PMO sent. Check the bill in Odoo before paying it.",
+        "approval": "An approver in Odoo has to approve the order. Nothing to do in PMO.",
+        "refused": "Check what you entered, then record it again."
+      },
+      "read": "Read {{age}}",
+      "sent": "Sent {{age}}"
+    },
+    "unreachable": "Odoo cannot be reached. Showing what PMO last read, {{age}}. Try again once Odoo is back.",
+    "billCheckFirst": "check in Odoo first",
+    "readFailed": "What Odoo has not settled could not be read. Try again in a moment.",
+    "unreachableAction": "Odoo is unreachable, try again.",
+    "nothingSent": "Nothing was sent.",
+    "kind": {
+      "purchase-order": "Order",
+      "goods-receipt": "Goods receipt",
+      "purchase-invoice": "Supplier invoice",
+      "payment": "Payment"
+    },
+    "waiting": {
+      "title": "Waiting on Odoo"
+    },
+    "held": {
+      "adopt": "It exists in Odoo",
+      "absent": "It does not exist in Odoo",
+      "adoptTitle": "Link this payment to Odoo?",
+      "adoptBody": "Enter the number of the Odoo payment to link. PMO checks that it belongs to this bill before treating it as the payment.",
+      "adoptField": "Odoo payment number",
+      "adoptHint": "The number Odoo shows for that payment, for example 123.",
+      "absentTitle": "Confirm no payment exists in Odoo?",
+      "absentBody": "PMO will look for it once more and, if it finds nothing, may send the payment again. Only confirm after checking Odoo.",
+      "confirm": "Confirm",
+      "cancel": "Cancel",
+      "done": "Decision recorded.",
+      "failed": "The decision could not be recorded.",
+      "ownCommand": "You sent this payment, so someone else must decide."
+    },
+    "taxes": {
+      "label": "Taxes",
+      "defaultHint": "Leave all unticked to use your organisation's default taxes.",
+      "emptyReason": "No taxes have been read from Odoo yet.",
+      "staleReason": "The tax list was last read {{age}}; refresh the Odoo connection first."
+    },
+    "journal": {
+      "label": "Pay from",
+      "default": "Default journal",
+      "emptyReason": "No payment journals have been read from Odoo yet.",
+      "staleReason": "The journal list was last read {{age}}; refresh the Odoo connection first."
+    },
+    "booked": "Received in Odoo: {{qty}}",
+    "entered": "entered {{qty}}",
+    "paymentAwaiting": "Payment sent, awaiting Odoo",
+    "receipt": {
+      "title": "Quantity received",
+      "hint": "Leave blank to receive everything still open. Odoo refuses more than is open.",
+      "line": "{{name}} (ordered {{qty}})",
+      "invalid": "Enter a quantity above zero and no more than was ordered for {{name}}."
     }
   }
 }

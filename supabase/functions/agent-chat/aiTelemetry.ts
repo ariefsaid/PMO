@@ -3,9 +3,11 @@ import {
   emitAiEval, emitAiGeneration, emitAiSpan, emitAiTrace,
   type AiAction, type AiLink, type AiMessage,
 } from '../_shared/posthogAi.ts';
+import { emitServerEvent } from '../_shared/posthogServer.ts';
 import type { ModelClient, ModelMessage, ModelResponse } from '../_shared/modelClient.ts';
 import { serverTelemetryEnabled } from '../_shared/posthogServer.ts';
 import { evalSampled, isAllowedJudgeModel, runJudge } from './aiJudge.ts';
+import { detectMissingTool, routeTemplate } from './missingTool.ts';
 
 /**
  * Per-run AI telemetry (#1532 S1). Created once in agentChatHandler, carried on `deps.ai`.
@@ -26,6 +28,9 @@ export interface AiRunContext {
   analytics?: { consent: true; sessionId?: string };
   modelClient: Pick<ModelClient, 'create'>;
   model: string;
+  /** S4 (FR-PLN-009): the app route the turn was asked from (`req.context.route`, ADR-0045 §3). Templated
+   *  before it is sent — ids never leave the app. */
+  route?: string;
 }
 
 export interface AiRunTelemetry {
@@ -131,6 +136,22 @@ export function createAiRunTelemetry(ctx: AiRunContext): AiRunTelemetry {
         isError: status === 'errored', errorCode, orgId, action: ctx.action, link,
         text: textOk() ? { input: question, output: answer } : undefined,
       }));
+      // S4 (FR-PLN-009 / AC-PLN-007): the assistant answered that it has no tool for the request.
+      // Emitted here — trace() runs exactly once per run, on the terminal status — so one run can never
+      // produce two signals. Only a COMPLETED answer counts (a partial draft is not an answer), and the
+      // payload carries the org, the templated route and a coarse module guess: no answer or question
+      // text, and the SERVER_EVENT_ALLOWLIST entry for this event has no text key at all.
+      const missing = status === 'completed' ? detectMissingTool({ question, answer }) : null;
+      if (missing) {
+        const route = routeTemplate(ctx.route);
+        later(() => emitServerEvent('agent_missing_tool', 'agent-chat', {
+          org_id: orgId,
+          ...(route ? { route } : {}),
+          module: missing.module,
+          source: missing.source,
+          ...(consent ? { $session_id: ctx.analytics?.sessionId, user_id: ctx.userId } : {}),
+        }));
+      }
       if (status !== 'completed' || !isAllowedJudgeModel(ctx.model)) return;
       later(async () => {
         if (!answer || !question || !evalSampled(ctx.runId, demo)) return;

@@ -80,8 +80,10 @@ import {
 } from './budgetDispatch.ts';
 import { resolveErpMoneyOutboxDeps as resolveErpMoneyOutboxDepsModule } from './erpMoneyOutbox.ts';
 import { resolveOdooMoneyOutboxDeps } from './odooMoneyOutbox.ts';
+import { odooRevenueAnchorKey } from './odooRevenueOutbox.ts';
 import { checkOdooDraftTarget, isOdooInvoiceDraftWrite, writeOdooInvoiceDraft } from './odooInvoiceDraft.ts';
 import { ODOO_TIER } from '../../../pmo-portal/src/lib/adapterSeam/odoo/connectAdapter.ts';
+import { odooOwnsRevenueTier } from '../../../pmo-portal/src/lib/adapterSeam/odoo/ownership.ts';
 
 export { resolveErpBindingRow, resolveErpAdapter } from './dispatchAdapters.ts';
 export type { AdapterSelectContext } from './dispatchAdapters.ts';
@@ -365,7 +367,14 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
   // The exemption is scoped to (budget × create); every other budget operation and every other domain
   // still requires the caller's key here.
   const budgetKeyDerivedByServer = command.domain === ERPNEXT_BUDGET_DOMAIN && (command.operation as string) === 'create';
-  if (isErpDomain && !budgetKeyDerivedByServer && (command.operation as string) !== 'read' && !isOpaqueIdempotencyKey(command.idempotencyKey)) {
+  const odooInvoiceKeyDerivedByServer = odooOwnsRevenueTier(employedTier) && command.domain === ERPNEXT_REVENUE_DOMAIN
+    && command.operation === 'transition' && command.record.erp_doc_kind === 'sales-invoice' && command.record.verb === 'submit';
+  if (odooInvoiceKeyDerivedByServer) {
+    // One Odoo invoice is one PMO intent. Replace the per-click client key before adapter selection,
+    // which also uses this identity to recognize a replay before it dry-builds the draft.
+    command.idempotencyKey = odooRevenueAnchorKey('sales-invoice', command.record as Record<string, unknown>);
+  }
+  if (isErpDomain && !budgetKeyDerivedByServer && !odooInvoiceKeyDerivedByServer && (command.operation as string) !== 'read' && !isOpaqueIdempotencyKey(command.idempotencyKey)) {
     return new Response(
       JSON.stringify({
         error: 'commit-rejected',
@@ -549,7 +558,7 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
       });
     }
     // An Odoo invoice draft has no Odoo mapping by design (OQ-OCI-1): its update and its approval target the PMO draft row itself.
-    const odooDraft = employedTier === ODOO_TIER ? await checkOdooDraftTarget(serviceClient as never, orgId, command) : null;
+    const odooDraft = odooOwnsRevenueTier(employedTier) ? await checkOdooDraftTarget(serviceClient as never, orgId, command) : null;
     if (odooDraft && !odooDraft.ok) {
       return new Response(JSON.stringify({ error: 'commit-rejected', message: odooDraft.message }), { status: odooDraft.status, headers });
     }

@@ -60,6 +60,8 @@ export interface World {
   draftMapped?: boolean;
   /** Shared outbox rows across dispatches (a retry meets the world its first attempt left). */
   outbox?: Map<string, Record<string, unknown>>;
+  /** A submit clearance can be outstanding before the approval has inserted its outbox row. */
+  approvalClearance?: boolean;
   /** Fail reads of a stored payload witness while preserving the initial existence read. */
   outboxPayloadReadError?: boolean;
 }
@@ -133,6 +135,13 @@ export function revenueRoutes(unexpected: FetchCall[], caller: string, world: Wo
         : jsonResponse(null);
     }),
     supabaseRpc('release_sales_invoice_submit_clearance', () => jsonResponse(null)),
+    supabaseRpc('update_odoo_sales_invoice_draft', (call) => {
+      const body = call.bodyJson as Record<string, unknown>;
+      if (world.approvalClearance) return jsonResponse({ code: '55006', message: 'invoice-approval-started' }, { status: 409 });
+      world.writes?.push({ table: 'sales_invoices', method: 'RPC', body });
+      world.writes?.push({ table: 'sales_invoice_authors', method: 'UPSERT', body: { org_id: body.p_org_id, sales_invoice_id: body.p_si_id, user_id: body.p_actor_id } });
+      return jsonResponse(null);
+    }),
     supabaseRpc('read_vault_secret', () => jsonResponse('odoo-test-key')),
     supabaseSelect('external_org_bindings', (call) => bindingTiers.has(param(call, 'external_tier') ?? '')
       ? (world.odooBinding === null ? nullObjectResponse() : objectResponse({
@@ -172,20 +181,31 @@ export function revenueRoutes(unexpected: FetchCall[], caller: string, world: Wo
     } },
     { label: 'outbox insert', method: 'POST', pathname: '/rest/v1/external_command_outbox', response: (call) => {
       const body = call.bodyJson as Record<string, unknown>;
-      const row = { id: 'outbox-1', domain: body.domain, pmo_record_id: body.pmo_record_id, idempotency_key: body.idempotency_key, state: 'pending',
+      const row = { id: `outbox-${outbox.size + 1}`, domain: body.domain, pmo_record_id: body.pmo_record_id, idempotency_key: body.idempotency_key, state: 'pending',
         external_record_id: null, canonical: null, claim_generation: 0, payload_digest: body.payload_digest ?? null, payload: body.payload ?? null,
         actor_user_id: body.actor_user_id ?? null };
       outbox.set(`${String(body.pmo_record_id)}|${String(body.idempotency_key)}`, row);
       return objectResponse(row);
     } },
-    { label: 'outbox update', method: 'PATCH', pathname: '/rest/v1/external_command_outbox', response: () => jsonResponse([{ id: 'outbox-1' }]) },
-    supabaseRpc('claim_outbox_for_commit', () => {
-      const [key, row] = [...outbox.entries()][0] ?? [];
-      if (!key || !row) return jsonResponse(null);
-      const receipt = (row.payload as Record<string, unknown> | null)?.erp_doc_kind === 'incoming-payment';
-      const claimed = { ...row, state: 'committing', claim_generation: receipt ? Number(row.claim_generation ?? 0) + 1 : 1 };
-      if (receipt) outbox.set(key, claimed);
-      return jsonResponse(claimed);
+    { label: 'outbox update', method: 'PATCH', pathname: '/rest/v1/external_command_outbox', response: (call) => {
+      const id = param(call, 'id');
+      const row = [...outbox.values()].find((candidate) => candidate.id === id);
+      if (row) Object.assign(row, call.bodyJson as Record<string, unknown>);
+      return jsonResponse(row ? [{ id }] : []);
+    } },
+    supabaseRpc('claim_outbox_for_commit', (call) => {
+      const id = (call.bodyJson as { p_id?: string }).p_id;
+      const row = [...outbox.values()].find((candidate) => candidate.id === id);
+      if (!row) return jsonResponse(null);
+      row.claim_generation = Number(row.claim_generation ?? 0) + 1;
+      return jsonResponse({ ...row, state: 'committing' });
+    }),
+    supabaseRpc('mark_outbox_held', (call) => {
+      const { p_id, p_generation } = call.bodyJson as { p_id?: string; p_generation?: number };
+      const row = [...outbox.values()].find((candidate) => candidate.id === p_id);
+      if (!row || row.claim_generation !== p_generation) return jsonResponse(0);
+      row.state = 'held';
+      return jsonResponse(1);
     }),
     supabaseRpc('record_outbox_ref', () => jsonResponse(1)),
     supabaseRpc('confirm_outbox', () => jsonResponse(1)),

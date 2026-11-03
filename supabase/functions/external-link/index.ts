@@ -399,6 +399,14 @@ export async function handleLinkRequest(req: Request): Promise<Response> {
     return errorResponse('Unknown tier (must be clickup or erpnext)', 'BAD_REQUEST', 400);
   }
 
+  const featureKey = tier === 'clickup' ? 'clickup_sync' : 'erp_sync';
+  const { data: featureEnabled, error: featureError } = await serviceClient.rpc('service_feature_enabled', {
+    p_org_id: profile.org_id,
+    p_key: featureKey,
+  });
+  if (featureError) return errorResponse('Could not resolve the plan switch', 'INTERNAL', 500);
+  if (featureEnabled !== true) return errorResponse('This integration is not enabled for this organization', 'feature_off', 409);
+
   // 6. Load org's external binding
   const { data: binding, error: bindingError } = await serviceClient
     .from('external_org_bindings')

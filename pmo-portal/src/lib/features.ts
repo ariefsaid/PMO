@@ -86,18 +86,65 @@ export const FEATURE_KEYS = [
 export type OrgFeatureKey = (typeof FEATURE_KEYS)[number];
 
 /**
- * The subset whose toggle takes effect IMMEDIATELY in the UI ( Rail/FeatureRoute resolve them via
- * `useFeature`). The env-gated keys (`agent_assistant`/`user_views`) are excluded — they render
- * read-only in the Features section because their effective gate is still the deployment env flag.
+ * Where each gatable key's effective state comes from (0532's resolver `source`, 0533 for core).
+ * The Operator console shows this next to the state so a switch that "won't turn on" is
+ * self-explaining: a global-off or a plan default outranks the per-org override in that order.
  */
-export const FEATURE_KEYS_TOGGLEABLE: readonly OrgFeatureKey[] = [
-  'incidents',
-  'crm',
-  'procurement',
-  'timesheets',
-  'import_export',
-  'm365_integration',
+export type FeatureSource = 'global' | 'override' | 'plan' | 'core' | 'unknown';
+
+/** One resolved key, as the database projection returns it (FR-PLN-005). */
+export interface FeatureResolution {
+  /** Entitlement — what the server enforces (never the ERP-ownership display rule). */
+  enabled: boolean;
+  /** What the UI shows. Differs from `enabled` only for `revenue` with no override (FR-PLN-005a). */
+  displayEnabled: boolean;
+  source: FeatureSource;
+}
+
+/**
+ * The resolved set: display map (nav/routes) + per-key detail (the console and Your plan).
+ * Keyed by `EntitleableKey` because the projection returns the core keys too (`source: 'core'`) —
+ * the console shows them as always-on, and `useFeature` short-circuits them before reading here.
+ */
+export interface ResolvedFeatureSet {
+  display: Partial<Record<EntitleableKey, boolean>>;
+  states: Partial<Record<EntitleableKey, FeatureResolution>>;
+}
+
+/**
+ * Console grouping — display order only, never authority. Every gatable key appears in exactly one
+ * group (`groupsFor` in the console asserts that) and the DB catalogue is the source of truth for
+ * which keys exist; this map only decides how the Operator reads them.
+ */
+export const FEATURE_GROUPS: ReadonlyArray<{ id: string; keys: readonly OrgFeatureKey[] }> = [
+  {
+    id: 'crm',
+    keys: ['crm', 'sales_pipeline'],
+  },
+  {
+    id: 'delivery',
+    keys: ['procurement', 'procurement_full', 'sales_invoices', 'timesheets', 'imprest', 'stock', 'import_export'],
+  },
+  {
+    id: 'finance',
+    keys: ['revenue', 'budget_projection', 'budget_phasing', 'multi_currency', 'financial_statements', 'management_pack', 'erp_sync', 'erp_purchases'],
+  },
+  {
+    id: 'platform',
+    keys: ['incidents', 'user_views', 'agent_assistant', 'm365_integration', 'clickup_sync', 'api_access', 'sso', 'feedback_surveys'],
+  },
 ];
+
+/**
+ * Deployment kill switches that stay an ADDITIONAL AND over the entitlement (S3 constraint): an
+ * Operator cannot re-enable a capability the deployment turned off, and flipping the env var off
+ * still hides the surface for every org. `aiComposer` is an environment sub-flag only, never an
+ * entitlement, so it is not in this map.
+ */
+export const ENV_FEATURE_GATES: Partial<Record<OrgFeatureKey, FeatureKey>> = {
+  agent_assistant: 'agentAssistant',
+  user_views: 'userViews',
+};
 
 /**
  * Core modules — always enabled, never gated, never persisted (FR-ENT-001/007, AC-ENT-002).
@@ -122,9 +169,14 @@ export type CoreFeature = (typeof CORE_FEATURES)[number];
 export type EntitleableKey = OrgFeatureKey | CoreFeature;
 
 /**
- * Env-default map — the value an org sees when it has NO `org_features` row for the key
- * (FR-ENT-004: absence = included; staging/demo unchanged until an Operator toggles). This is
- * the DEFAULT only; a stored row always overrides it (see `useFeature`).
+ * Pre-resolution placeholder — what a surface shows for the instant before the resolved set lands.
+ * It is NOT the entitlement rule any more (0532 owns global → override → plan and the revenue
+ * display rule; `useFeature` reads `resolved_org_features()`), and its two env-driven entries are
+ * the deployment kill switches, which stay an additional AND (see `ENV_FEATURE_GATES`).
+ *
+ * The values are kept because two states still need a placeholder: the first paint of a session
+ * (the query is in flight — `FeatureRoute` holds the route, the rail paints) and the anonymous
+ * case. Absence of a resolved row is NOT "included" any more: the DB returns a row for every key.
  */
 export const FEATURE_ENV_DEFAULT: Record<OrgFeatureKey, boolean> = {
   incidents: false,

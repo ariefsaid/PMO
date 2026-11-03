@@ -446,6 +446,8 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
       title={embedded
         ? t('finance:area.reportTitle', 'Revenue by project and month')
         : t('finance:area.reports', 'Reports')}
+      count={pack ? filteredRows.length : undefined}
+      total={pack ? pack.rows.length : undefined}
       headingLevel={embedded ? 2 : 1}
       description={embedded ? undefined : t('managementPack.description', 'Planned, recognised and invoiced revenue per project and month. All figures exclude tax.')}
       primaryAction={!embedded ? <BoardPackAction /> : undefined}

@@ -13,6 +13,7 @@ import { createAutomationAction } from '../../../../supabase/functions/agent-cha
 import { agentChatHandler } from '../../../../supabase/functions/agent-chat/handler';
 import type { HandlerDeps } from '../../../../supabase/functions/agent-chat/handler';
 import type { AgentEvent } from './runtime/port';
+import { FEATURES_ALL_ON } from './testing/fakeSupabase';
 
 async function collect(it: AsyncIterable<AgentEvent>): Promise<AgentEvent[]> {
   const out: AgentEvent[] = [];
@@ -30,6 +31,9 @@ function mockSupabase(opts: {
   } = opts;
 
   return {
+    // S4: the caller's own switch snapshot (all on) — the handler resolves it once per request.
+    rpc: vi.fn().mockImplementation(async (fn: string) =>
+      fn === 'resolved_org_features' ? { data: FEATURES_ALL_ON, error: null } : { data: null, error: null }),
     from: vi.fn().mockImplementation((table: string) => {
       if (table === 'profiles') {
         return {
