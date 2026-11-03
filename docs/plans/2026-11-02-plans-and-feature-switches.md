@@ -465,9 +465,12 @@ The failure is logged as a structured code only (no model/user text).
 7. **Implement** in the order above; re-run each red test green as its piece lands.
 8. **Mutation check:** make the offering filter always-allow (`isKeyEnabled` → `true`) — AC-PLN-006 must
    fail; restore.
-9. **Eval cases:** add eval fixtures for "stock off → the answer says it is not on the plan" (see
-   `evals/` layout). Run the local eval harness only if it needs no paid Claude call; otherwise report
-   that it was not run and why.
+9. **Eval cases:** `pmo-portal/evals/cases/plans-switch-off.eval.ts` (ADR-0052 harness, against the
+   deployed function) — with `stock` off the stock question gets no `query_stock` call and an answer
+   naming the plan, while a core question still works; fixture contract in `pmo-portal/evals/README.md`.
+   `notUsesTool` scorer added for it (+ unit test). `evals/plans-switch-off-probe.ts` is the free local
+   probe over the shipped prompt/tools. Run the harness only where it needs no paid Claude call;
+   otherwise report that it was not run and why.
 
 ### Verify (exact commands)
 
