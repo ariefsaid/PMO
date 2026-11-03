@@ -8663,6 +8663,10 @@ export type Database = {
           id: string
           invoice_date: string | null
           native_lines: Json | null
+          odoo_attention: string | null
+          odoo_read_at: string | null
+          odoo_sent_total: number | null
+          odoo_state: string | null
           org_id: string
           overpaid_amount: number | null
           paired_at: string | null
@@ -8707,6 +8711,10 @@ export type Database = {
           id?: string
           invoice_date?: string | null
           native_lines?: Json | null
+          odoo_attention?: string | null
+          odoo_read_at?: string | null
+          odoo_sent_total?: number | null
+          odoo_state?: string | null
           org_id?: string
           overpaid_amount?: number | null
           paired_at?: string | null
@@ -8751,6 +8759,10 @@ export type Database = {
           id?: string
           invoice_date?: string | null
           native_lines?: Json | null
+          odoo_attention?: string | null
+          odoo_read_at?: string | null
+          odoo_sent_total?: number | null
+          odoo_state?: string | null
           org_id?: string
           overpaid_amount?: number | null
           paired_at?: string | null
