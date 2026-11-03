@@ -309,6 +309,7 @@ else
   skip "save_budget_distribution (budget_versions)"
   skip "activate_budget_version (budget_versions)"
 fi
+if [ -n "$A_PROJECT" ] && [ "$A_PROJECT" != null ]; then c=$(rpc get_budget_comparison "{\"p_project_id\":\"$A_PROJECT\"}"); else skip "get_budget_comparison (projects)"; fi
 A_IMPREST_FLOAT=$(jq -r '.[]|select(.table=="imprest_floats")|.id' "$A_ROWS_JSON")
 A_IMPREST_CHANGE=$(jq -r '.[]|select(.table=="imprest_float_changes")|.id' "$A_ROWS_JSON")
 A_IMPREST_PLAN=$(jq -r '.[]|select(.table=="imprest_plans")|.id' "$A_ROWS_JSON")

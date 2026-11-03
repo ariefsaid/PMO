@@ -589,6 +589,7 @@
     {"name":"approve_procurement_amount","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0349_procurement_integrity_guards.sql:196"]},
     {"name":"assemble_tm_claim","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"},{"http":500,"sqlstate":"P0002"}],"source":["supabase/migrations/0516_tm_claim_assembly.sql:138","supabase/migrations/0516_tm_claim_assembly.sql:165","supabase/migrations/0516_tm_claim_assembly.sql:169"]},
     {"name":"budget_distribution_gaps","class":"inert","expect_denial":[],"shape":"empty-array","source":["supabase/migrations/0577_budget_distribution_rpc.sql:6"]},
+    {"name":"get_budget_comparison","class":"inert","expect_denial":[],"shape":"empty-array","source":["supabase/migrations/0580_budget_comparison.sql:42"]},
     {"name":"assign_sales_invoice_project","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"},{"http":500,"sqlstate":"P0002"}],"source":["supabase/migrations/0410_billing_kinds.sql:74","supabase/migrations/0410_billing_kinds.sql:81","supabase/migrations/0410_billing_kinds.sql:84"]},
     {"name":"attribute_subcontract_bill_lines","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"},{"http":500,"sqlstate":"P0002"}],"source":["supabase/migrations/0475_subcontract_erp_guards.sql:186","supabase/migrations/0475_subcontract_erp_guards.sql:189"]},
     {"name":"audit_m365_event","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0211_audit_m365_event_service_only.sql:11"]},
