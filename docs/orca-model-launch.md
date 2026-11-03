@@ -46,13 +46,10 @@ Pi reports `worker_done` to Orca by itself when it finishes (verified 2026-10-28
   brief in with `orca terminal send --terminal <handle> --text "<prompt>" --enter`. Prevent it: `orca terminal wait --terminal <handle> --for tui-idle --timeout-ms 60000` before `worker-start`.
 - **`worker-start --terminal` needs `--worktree` matching the terminal's worktree**, or it fails
   with `terminal_worktree_mismatch`.
-- **zcode does not start from the command line or Orca** (CLI 0.17.0 bundled in ZCode.app 3.16.2):
-  "cannot locate CLI ZCode Built-in Provider Config". The bundled CLI
-  (`/Applications/ZCode.app/Contents/Resources/glm/zcode.cjs`) looks for
-  `Resources/glm/provider/zcode-builtin.json`; the app now ships it at
-  `Resources/config/provider/zcode-builtin.json`. Under Orca it shows as a readiness timeout with
-  an empty, exited terminal. Use pi for GLM. (A symlink `glm/provider → ../config/provider` inside
-  the app would fix it until the next ZCode update.)
+- **zcode under Orca (fixed 2026-11-03):** ZCode.app 3.16.2's bundled CLI looks for
+  `Resources/glm/provider/zcode-builtin.json`, which the app ships at `Resources/config/provider/`. A symlink
+  `glm/provider → ../config/provider` inside the app makes `--agent zcode` work; a ZCode update may remove it
+  (symptom: a readiness timeout with an empty, exited terminal). Re-create the symlink if so.
 - **Never use NVIDIA NIM models for GLM** (slow enough to read as a hang); Z.AI only.
 - **Antigravity print mode** needs the prompt attached: `agy --model gemini-4-argon-high -p='<prompt>'`.
 - **Fresh worker per task**, own child worktree off `origin/dev`; never reuse a worker for another job.
