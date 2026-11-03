@@ -10,7 +10,7 @@
 -- security-definer lock-order RPCs (0105/0106) are the only mutation path (closing the child→parent
 -- deadlock seam). The catalog backstop below excludes it; the exception is asserted explicitly.
 begin;
-select plan(28);
+select plan(34);
 
 -- profiles: the exact table the promote e2e failed on (admin-invite-user inserts here).
 select ok(has_table_privilege('service_role', 'public.profiles', 'INSERT'),
@@ -27,6 +27,18 @@ select ok(has_table_privilege('service_role', 'public.contract_rate_assignees', 
   'AC-SVCROLE-022 service_role has INSERT on contract_rate_assignees');
 select ok(has_table_privilege('service_role', 'public.contract_rate_assignees', 'SELECT'),
   'AC-SVCROLE-022 service_role has SELECT on contract_rate_assignees');
+select ok(has_table_privilege('service_role', 'public.tm_claims', 'INSERT'),
+  'AC-SVCROLE-023 service_role has INSERT on tm_claims');
+select ok(has_table_privilege('service_role', 'public.tm_claims', 'SELECT'),
+  'AC-SVCROLE-023 service_role has SELECT on tm_claims');
+select ok(has_table_privilege('service_role', 'public.tm_claim_lines', 'INSERT'),
+  'AC-SVCROLE-024 service_role has INSERT on tm_claim_lines');
+select ok(has_table_privilege('service_role', 'public.tm_claim_lines', 'SELECT'),
+  'AC-SVCROLE-024 service_role has SELECT on tm_claim_lines');
+select ok(has_table_privilege('service_role', 'public.tm_claim_sources', 'INSERT'),
+  'AC-SVCROLE-025 service_role has INSERT on tm_claim_sources');
+select ok(has_table_privilege('service_role', 'public.tm_claim_sources', 'SELECT'),
+  'AC-SVCROLE-025 service_role has SELECT on tm_claim_sources');
 
 -- A spread of other business tables the backend/dispatcher touches via service_role.
 select ok(has_table_privilege('service_role', 'public.agent_runs', 'INSERT'),
