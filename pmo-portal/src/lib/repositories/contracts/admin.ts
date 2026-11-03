@@ -14,6 +14,7 @@ import type {
   OperatorRunStatsRow,
 } from '@/src/lib/db/usage';
 import type { OrgFeatureKey } from '@/src/lib/features';
+import type { OrgPlan } from '@/src/lib/db/orgPlan';
 import type { ExternalDomainOwnershipRow } from '@/src/lib/db/externalDomainOwnership';
 
 export interface ProfileRepository {
@@ -121,6 +122,12 @@ export interface OrgFeatureRepository {
   toggle(args: { orgId: string; key: OrgFeatureKey; enabled: boolean }): Promise<void>;
   /** Admin-only: switch feedback and surveys for the caller's own org (migration 0419). */
   setFeedbackSurveys(enabled: boolean): Promise<void>;
+  /**
+   * Plans S4 (FR-PLN-016) / S3: the caller's own org plan via the member-scoped `resolved_org_plan()`
+   * projection (migration 0537 — own org, active member). `null` when it cannot be resolved (the RPC is
+   * not deployed yet, no session, transport error); never throws — a plan read is analytics and UI only.
+   */
+  currentPlan(): Promise<OrgPlan | null>;
 }
 
 /**

@@ -9,13 +9,15 @@ import type { EdgeFunctionName } from './errorLog.ts';
  * the edge and THROWN under Vitest (strict), so a smuggled prompt/record text fails a test.
  */
 export type ServerEventName =
-  | 'job_run' | 'erp_push_outcome' | '$ai_generation' | '$ai_span' | '$ai_trace' | 'ai_eval';
+  | 'job_run' | 'erp_push_outcome' | '$ai_generation' | '$ai_span' | '$ai_trace' | 'ai_eval'
+  | 'agent_missing_tool';
 
 const COMMON = ['org_id'] as const;
 /** Present only when the user's analytics consent flag reached the server (S1 owner scope):
  *  `$session_id` links the event to the browser's session replay, `user_id` is the opaque auth id. */
 const LINK = ['$session_id', 'user_id'] as const;
-/** The ONLY keys each server event may carry. Owners: S1 `$ai_*`, S3 `job_run`, S4 `erp_push_outcome`. */
+/** The ONLY keys each server event may carry. Owners: S1 `$ai_*`, S3 `job_run`, S4 `erp_push_outcome`,
+ *  plans-S4 `agent_missing_tool`. */
 export const SERVER_EVENT_ALLOWLIST: Record<ServerEventName, ReadonlySet<string>> = {
   job_run: new Set(['job', 'status', 'items_processed', 'duration_ms', 'error_code', 'org_count',
     'recovered', 'reconcile_errors', 'org_error_count', ...COMMON]),
@@ -29,6 +31,9 @@ export const SERVER_EVENT_ALLOWLIST: Record<ServerEventName, ReadonlySet<string>
   $ai_trace: new Set(['$ai_trace_id', '$ai_session_id', '$ai_latency', '$ai_is_error', 'error_code', 'action', ...COMMON, ...LINK]),
   // Online-eval verdict (LLM judge run in the edge function): a name and a boolean, never text.
   ai_eval: new Set(['$ai_trace_id', '$ai_session_id', 'eval_name', 'eval_pass', 'judge_model', 'action', ...COMMON, ...LINK]),
+  // S4 (FR-PLN-009): the assistant answered that it has no tool for the request. Org + templated route
+  // + a coarse module guess — deliberately NO text key at all, so a message can never be attached.
+  agent_missing_tool: new Set(['route', 'module', ...COMMON, ...LINK]),
 };
 
 /**

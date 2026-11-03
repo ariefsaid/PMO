@@ -6,6 +6,7 @@ import * as operators from '@/src/lib/db/operators';
 import * as usage from '@/src/lib/db/usage';
 import * as views from '@/src/lib/db/userViews';
 import * as features from '@/src/lib/db/orgFeatures';
+import * as orgPlan from '@/src/lib/db/orgPlan';
 import * as orgs from '@/src/lib/db/orgs';
 import * as domains from '@/src/lib/db/externalDomainOwnership';
 import {
@@ -21,6 +22,7 @@ vi.mock('@/src/lib/db/operators');
 vi.mock('@/src/lib/db/usage');
 vi.mock('@/src/lib/db/userViews');
 vi.mock('@/src/lib/db/orgFeatures');
+vi.mock('@/src/lib/db/orgPlan');
 vi.mock('@/src/lib/db/orgs');
 vi.mock('@/src/lib/db/externalDomainOwnership');
 
@@ -63,9 +65,11 @@ describe('userViewRepository', () => {
 });
 
 describe('orgFeatureRepository and credits', () => {
-  itDelegates(orgFeatureRepository as never, features, [
+  itDelegates(orgFeatureRepository as never, { ...features, ...orgPlan }, [
     ['listOwn', 'listOwnOrgFeatures', []],
     ['toggle', 'toggleOrgFeature', [{ feature: 'agent', enabled: true }]],
+    // Plans S4 (FR-PLN-016): the member-scoped plan projection seam.
+    ['currentPlan', 'getOwnOrgPlan', []],
   ]);
   itDelegates(creditsRepository as never, features, [
     ['getOrgBalance', 'getOrgCreditBalance', ['o1']],

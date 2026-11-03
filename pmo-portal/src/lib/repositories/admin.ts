@@ -19,6 +19,7 @@ import {
   deleteUserView,
 } from '@/src/lib/db/userViews';
 import { listOwnOrgFeatures, toggleOrgFeature, setFeedbackSurveys, getOrgCreditBalance, grantOrgCredits } from '@/src/lib/db/orgFeatures';
+import { getOwnOrgPlan } from '@/src/lib/db/orgPlan';
 import {
   getOrgTaxDefault,
   getOrgDefaultCurrency,
@@ -78,6 +79,9 @@ export const orgFeatureRepository: OrgFeatureRepository = {
   listOwn: () => wrap(() => listOwnOrgFeatures()),
   toggle: (args) => wrap(() => toggleOrgFeature(args)),
   setFeedbackSurveys: (enabled) => wrap(() => setFeedbackSurveys(enabled)),
+  // Plans S4 (FR-PLN-016) / S3: the member-scoped plan projection. `null` (not deployed / no session)
+  // is a valid answer — analytics and the Admin page degrade, nothing throws.
+  currentPlan: () => wrap(() => getOwnOrgPlan()),
 };
 
 /**

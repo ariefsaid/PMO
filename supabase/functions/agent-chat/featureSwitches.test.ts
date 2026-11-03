@@ -1,0 +1,110 @@
+/**
+ * S4 (FR-PLN-008) — the one entity/tool → plan-switch-key map.
+ *
+ * Proves the MAP is complete and stays complete: every entity the agent can read and every tool the
+ * agent can register is either CORE (no key, always offered) or mapped to a key the plan catalogue
+ * (migrations 0531/0533 + `pmo-portal/src/lib/features.ts`) actually knows. A new entity or tool with
+ * no row here is exactly how a paid module would leak through the assistant (S6's completeness gate
+ * covers the same surface from the CI side).
+ */
+import { assertEquals } from 'https://deno.land/std@0.224.0/assert/mod.ts';
+import {
+  ENTITY_FEATURE_KEYS,
+  TOOL_FEATURE_KEYS,
+  FEATURE_LABELS,
+  isEntityAllowed,
+  isKeyEnabled,
+  isToolAllowed,
+  keyForEntity,
+  keyForTool,
+  offerableEntities,
+  offerableTools,
+  unavailableFeatureLabels,
+} from './featureSwitches.ts';
+import { AGENT_READ_ENTITIES } from './readEntities.ts';
+
+/** Every switchable key the plan registry accepts (0531 CHECK + 0533 core split). */
+const CATALOGUE_KEYS = new Set([
+  'timesheets', 'crm', 'sales_pipeline', 'procurement', 'procurement_full',
+  'sales_invoices', 'revenue', 'budget_projection', 'imprest', 'user_views',
+  'm365_integration', 'clickup_sync', 'erp_sync', 'erp_purchases',
+  'financial_statements', 'management_pack', 'budget_phasing', 'multi_currency',
+  'stock', 'api_access', 'sso', 'incidents', 'import_export', 'agent_assistant',
+]);
+
+/** Every tool the handler can put in front of the model (BASE_ACTIONS + the two specials). */
+const TOOL_NAMES = [
+  'query_entity', 'query_stock', 'whats_overdue', 'create_activity', 'update_task_status',
+  'draft_invoice', 'remind_overdue', 'notify', 'create_automation', 'compose_view', 'ask_user',
+];
+
+Deno.test('S4 map — every readable entity is core or mapped to a catalogue key', () => {
+  for (const entity of AGENT_READ_ENTITIES) {
+    const key = keyForEntity(entity);
+    if (key === undefined) continue; // core: no key
+    assertEquals(CATALOGUE_KEYS.has(key), true, `entity ${entity} maps to unknown key ${key}`);
+  }
+  // A mapped entity that is not readable is dead data — catches a rename drift.
+  for (const entity of Object.keys(ENTITY_FEATURE_KEYS)) {
+    assertEquals(
+      (AGENT_READ_ENTITIES as readonly string[]).includes(entity),
+      true,
+      `ENTITY_FEATURE_KEYS names ${entity}, which is not a readable entity`,
+    );
+  }
+});
+
+Deno.test('S4 map — every tool is core or mapped to a catalogue key', () => {
+  for (const tool of TOOL_NAMES) {
+    const key = keyForTool(tool);
+    if (key === undefined) continue;
+    assertEquals(CATALOGUE_KEYS.has(key), true, `tool ${tool} maps to unknown key ${key}`);
+  }
+  for (const tool of Object.keys(TOOL_FEATURE_KEYS)) {
+    assertEquals(TOOL_NAMES.includes(tool), true, `TOOL_FEATURE_KEYS names unknown tool ${tool}`);
+  }
+});
+
+Deno.test('S4 map — every switchable key has a human label for the prompt', () => {
+  for (const key of CATALOGUE_KEYS) {
+    if (key === 'feedback_surveys') continue; // Admin-owned, never offered through the assistant
+    assertEquals(typeof FEATURE_LABELS[key], 'string', `no label for ${key}`);
+  }
+});
+
+Deno.test('S4 offering — an off key drops exactly its own entities and tools', () => {
+  const switches = { stock: false };
+  const entities = offerableEntities(switches);
+  assertEquals(entities.includes('stock_items'), false);
+  assertEquals(entities.includes('stock_documents'), false);
+  // core + other keys survive
+  assertEquals(entities.includes('projects'), true);
+  assertEquals(entities.includes('companies'), true);
+
+  const tools = offerableTools([
+    { function: { name: 'query_entity' } },
+    { function: { name: 'query_stock' } },
+    { function: { name: 'create_activity' } },
+    { function: { name: 'ask_user' } },
+  ], switches);
+  assertEquals(tools.map((t) => t.function.name), ['query_entity', 'create_activity', 'ask_user']);
+});
+
+Deno.test('S4 offering — unknown/null switches never hide anything (fail open)', () => {
+  assertEquals(offerableEntities(null).length, AGENT_READ_ENTITIES.length);
+  assertEquals(offerableEntities(undefined).length, AGENT_READ_ENTITIES.length);
+  // A key absent from the resolved map is not "off" — only an explicit false is.
+  assertEquals(isKeyEnabled('stock', { crm: false }), true);
+  assertEquals(isKeyEnabled('stock', { stock: false }), false);
+  // An entity/tool with no key is core: offered under every map.
+  assertEquals(isEntityAllowed('projects', { stock: false, crm: false }), true);
+  assertEquals(isToolAllowed('query_entity', { stock: false }), true);
+});
+
+Deno.test('S4 offering — labels name only the features that are off', () => {
+  assertEquals(unavailableFeatureLabels({ stock: false }), [FEATURE_LABELS.stock]);
+  assertEquals(unavailableFeatureLabels({ stock: true }), []);
+  assertEquals(unavailableFeatureLabels(null), []);
+  // Never leak a raw key to the model when a label exists.
+  assertEquals(unavailableFeatureLabels({ stock: false }).some((l) => l.includes('stock')), true);
+});
