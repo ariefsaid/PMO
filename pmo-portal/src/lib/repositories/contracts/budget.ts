@@ -1,6 +1,6 @@
 /** Budget repository contract. */
 import type { MicrosoftReferenceInput } from '@/src/lib/m365/reference';
-import type { ActivateVersionResult, ArchiveVersionResult, BudgetImportRequest } from '@/src/lib/db/budgets';
+import type { ActivateVersionResult, ArchiveVersionResult, BudgetImportRequest, BudgetDistributionPlan } from '@/src/lib/db/budgets';
 import type { BudgetActivationPrecheckResult } from '@/src/lib/budget/budgetGate';
 import type {
   BudgetActivationMode,
@@ -35,6 +35,8 @@ export interface BudgetRepository {
     name: string,
     provenance?: ImportProvenance,
   ): Promise<BudgetVersionRow>;
+  /** Reads the saved distribution snapshot for one version, or null when no plan exists. */
+  getDistribution(versionId: string): Promise<BudgetDistributionPlan | null>;
   /** #495 import probes — see `src/lib/db/budgetImportSkip.ts` for why each is scoped as it is. */
   findImportTargetDraft(projectId: string): Promise<{ id: string } | null>;
   findImportedLine(versionId: string, importKey: string): Promise<{ id: string } | null>;

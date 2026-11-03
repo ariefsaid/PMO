@@ -175,6 +175,7 @@ const activeVersion = {
   status: 'Active' as const,
   name: 'Version 1',
   version: 1,
+  budget_mode: 'per_year',
   project_id: 'p-1',
   org_id: 'org-1',
   currency: 'USD',

@@ -3,7 +3,7 @@ import { useAuth } from '@/src/auth/useAuth';
 import { useOptionalRealRole } from '@/src/auth/impersonation';
 import { safeTrack, trackBudgetActivated } from '@/src/lib/analytics';
 import { repositories } from '@/src/lib/repositories';
-import type { BudgetVersionWithItems, BudgetVersionRow, BudgetLineItemRow, NewLineItem, ActivateVersionResult, ArchiveVersionResult, BudgetArchiveLiveTarget, BudgetActivationMode } from '@/src/lib/db/budgets';
+import type { BudgetVersionWithItems, BudgetVersionRow, BudgetLineItemRow, NewLineItem, ActivateVersionResult, ArchiveVersionResult, BudgetArchiveLiveTarget, BudgetActivationMode, BudgetDistributionPlan } from '@/src/lib/db/budgets';
 
 // ---------------------------------------------------------------------------
 // Query key factories — org-scoped (AC-726, FR-QRY-PROC-001 mirror)
@@ -13,6 +13,9 @@ const budgetKey = (orgId: string | undefined, projectId: string) =>
 
 const budgetVersionsKey = (orgId: string | undefined, projectId: string) =>
   ['budget-versions', orgId, projectId] as const;
+
+const budgetDistributionKey = (orgId: string | undefined, projectId: string, versionId: string | undefined) =>
+  ['budget-distribution', orgId, projectId, versionId] as const;
 
 // ---------------------------------------------------------------------------
 // Read hooks (T12)
@@ -56,6 +59,17 @@ export function useBudgetVersions(projectId: string) {
     queryKey: budgetVersionsKey(orgId, projectId),
     queryFn: () => repositories.budget.listVersions(projectId),
     enabled: Boolean(orgId && projectId),
+  });
+}
+
+/** Reads one version's saved whole-project distribution. Org, project and version scope the cache. */
+export function useBudgetDistribution(projectId: string, versionId: string | undefined) {
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
+  return useQuery<BudgetDistributionPlan | null>({
+    queryKey: budgetDistributionKey(orgId, projectId, versionId),
+    queryFn: () => repositories.budget.getDistribution(versionId!),
+    enabled: Boolean(orgId && projectId && versionId),
   });
 }
 

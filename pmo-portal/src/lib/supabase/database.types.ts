@@ -12611,6 +12611,10 @@ export type Database = {
           percent_used: number | null
         }[]
       }
+      get_budget_distribution_snapshot: {
+        Args: { p_version_id: string }
+        Returns: Json
+      }
       get_budget_projection: {
         Args: { p_fiscal_year: string; p_project_id: string }
         Returns: {

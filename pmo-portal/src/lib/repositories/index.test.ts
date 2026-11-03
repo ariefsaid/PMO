@@ -134,6 +134,7 @@ vi.mock('@/src/lib/db/budgets', () => ({
   activateVersion: vi.fn(),
   archiveVersion: vi.fn(),
   deleteDraftVersion: vi.fn(),
+  getBudgetDistribution: vi.fn(),
 }));
 vi.mock('@/src/lib/db/budgetImportSkip', () => ({
   findImportTargetDraft: vi.fn(),
@@ -360,7 +361,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
       ['approve', 'createDraft', 'deleteEntry', 'list', 'listAwaitingApproval', 'pushApproved', 'reject', 'submit', 'upsertEntries', 'saveWeek', 'reopen', 'attestNoErpDocument', 'listReopenableApproved', 'listPushesNeedingAttention', 'confirmEmployeeLink', 'getPushState'].sort(),
     );
     expect(Object.keys(repositories.budget).sort()).toEqual(
-      ['activateVersion', 'addDocumentLink', 'archiveVersion', 'cloneVersion', 'createLineItem', 'createVersion', 'deriveProjectBudget', 'deleteDraftVersion', 'deleteLineItem', 'findImportTargetDraft', 'findImportedLine', 'getActivationMode', 'importLine', 'listArchiveLiveTargets', 'listDocumentLinks', 'listVersions', 'precheckActivation', 'removeDocumentLink', 'updateLineItem'].sort(),
+      ['activateVersion', 'addDocumentLink', 'archiveVersion', 'cloneVersion', 'createLineItem', 'createVersion', 'deriveProjectBudget', 'deleteDraftVersion', 'deleteLineItem', 'findImportTargetDraft', 'findImportedLine', 'getActivationMode', 'getDistribution', 'importLine', 'listArchiveLiveTargets', 'listDocumentLinks', 'listVersions', 'precheckActivation', 'removeDocumentLink', 'updateLineItem'].sort(),
     );
     expect(Object.keys(repositories.incident).sort()).toEqual(
       ['create', 'delete', 'get', 'list', 'transition', 'update'].sort(),
@@ -943,6 +944,11 @@ describe('delegation — methods pass args through and return the DAL result', (
 
     await repositories.budget.listVersions('p1');
     expect(budgetsDal.listBudgetVersions).toHaveBeenCalledWith('p1');
+
+    const savedDistribution = { basis: 'contract_span', years: ['FY-A'], amounts: { Labor: { 'FY-A': 100 } } } as never;
+    vi.mocked(budgetsDal.getBudgetDistribution).mockResolvedValue(savedDistribution);
+    await expect(repositories.budget.getDistribution('v1')).resolves.toBe(savedDistribution);
+    expect(budgetsDal.getBudgetDistribution).toHaveBeenCalledWith('v1');
 
     const item = { category: 'Labour', description: null, budgeted_amount: 5 } as never;
     const importRequest = { versionId: 'v1', item, batchId: 'b1', importedAt: 'now', v2Key: 'v2', legacyKey: 'old', hasReference: true };

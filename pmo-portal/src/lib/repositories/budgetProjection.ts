@@ -60,6 +60,22 @@ export interface BudgetProjectionCellRow {
   attributionKnown: boolean;
 }
 
+/** One scope's comparison of approved budget to ledger-recorded spending (AC-013/015). */
+export interface BudgetComparisonRow {
+  category: BudgetCategory;
+  /** Explicit zero is known; null means no approved amount can be stated for this category/scope. */
+  budgetTotal: number | null;
+  /** Explicit zero is known; null means unmapped or the ledger has not been read for this scope. */
+  recorded: number | null;
+  recordedAsOf: string | null;
+  mapped: boolean;
+  hasLedger: boolean;
+  /** Only known when both approved budget and recorded spending are known. */
+  remaining: number | null;
+  /** Fraction (0.7 = 70%); null for unknown inputs and a zero budget. */
+  percentUsed: number | null;
+}
+
 /**
  * C-5 — the project's ERP push status, read at PROJECT grain (`get_budget_push_status`, mig 0141).
  *
@@ -112,8 +128,8 @@ export interface BudgetFiscalYearRow {
   /** The ERPNext `Fiscal Year` NAME as stored — '2026' for a calendar client, '2025-2026' for a Jul–Jun
    *  one. PMO never parses, orders-by-parsing, or synthesizes this: it is the client's own label. */
   fiscalYear: string;
-  /** True for the year the project's ACTIVE budget version was pushed against — a fallback if no listed year has spending. */
-  isActivePush: boolean;
+  /** The SQL RPC's on-record flag: the Active version has an approved budget for this year. */
+  hasActiveBudget: boolean;
 }
 
 /** One `budget_category_account_map` row, camelCase. A category may hold several (#768); at most one of them
@@ -178,6 +194,30 @@ export async function fetchBudgetProjection(
     projectedVariance: num(row.projected_variance),
     projectedUtilization: num(row.projected_utilization),
     attributionKnown: row.attribution_known !== false,
+  }));
+}
+
+/** Reads the canonical comparison for all years (null) or one client-defined fiscal year. */
+export async function fetchBudgetComparison(
+  projectId: string,
+  fiscalYear: string | null,
+): Promise<BudgetComparisonRow[]> {
+  const { data, error } = await supabase.rpc('get_budget_comparison', {
+    p_project_id: projectId,
+    p_fiscal_year: fiscalYear,
+  });
+  if (error) throw toAppError(error);
+  const num = (value: number | string | null | undefined): number | null =>
+    value === null || value === undefined ? null : Number(value);
+  return (data ?? []).map((row) => ({
+    category: row.category,
+    budgetTotal: num(row.budget_total),
+    recorded: num(row.recorded),
+    recordedAsOf: row.recorded_as_of ?? null,
+    mapped: row.mapped,
+    hasLedger: row.has_ledger,
+    remaining: num(row.remaining),
+    percentUsed: num(row.percent_used),
   }));
 }
 
@@ -295,7 +335,7 @@ export async function fetchActiveBudgetCategoryPhasing(projectId: string): Promi
 export async function listBudgetFiscalYears(projectId: string): Promise<BudgetFiscalYearRow[]> {
   const { data, error } = await supabase.rpc('list_budget_fiscal_years', { p_project_id: projectId });
   if (error) throw toAppError(error);
-  return (data ?? []).map((row) => ({ fiscalYear: row.fiscal_year, isActivePush: row.is_active_push }));
+  return (data ?? []).map((row) => ({ fiscalYear: row.fiscal_year, hasActiveBudget: row.is_active_push }));
 }
 
 /** Find the first year with spending in the supplied, opaque fiscal-year order. */

@@ -17,6 +17,7 @@ import {
   listBudgetDocumentLinks,
   addBudgetDocumentLink,
   removeBudgetDocumentLink,
+  getBudgetDistribution,
 } from '@/src/lib/db/budgets';
 import { findImportTargetDraft, findImportedLine } from '@/src/lib/db/budgetImportSkip';
 import { wrap } from './repositoryErrors';
@@ -35,6 +36,7 @@ export const budgetRepository: BudgetRepository = {
   deleteLineItem: (id) => wrap(() => deleteLineItem(id)),
   createVersion: (projectId, name, provenance) =>
     wrap(() => createBudgetVersion(projectId, name, provenance)),
+  getDistribution: (versionId) => wrap(() => getBudgetDistribution(versionId)),
   findImportTargetDraft: (projectId) => wrap(() => findImportTargetDraft(projectId)),
   findImportedLine: (versionId, importKey) => wrap(() => findImportedLine(versionId, importKey)),
   cloneVersion: (versionId) => wrap(() => cloneVersion(versionId)),

@@ -82,6 +82,8 @@ import {
   listBudgetDocumentLinks,
   addBudgetDocumentLink,
   removeBudgetDocumentLink,
+  getBudgetDistribution,
+  type BudgetDistributionPlan,
 } from './budgets';
 import { AppError } from '@/src/lib/appError';
 
@@ -1001,5 +1003,80 @@ describe('budget import authority adapter', () => {
     await expect(importBudgetLine(request)).rejects.toThrow(/Unexpected/);
     mockRpc.mockResolvedValueOnce({ data: [{ outcome: 'created', line_id: null }], error: null });
     await expect(importBudgetLine(request)).rejects.toThrow(/Unexpected/);
+  });
+});
+
+describe('getBudgetDistribution snapshot read', () => {
+  const snapshot = {
+    method: 'amount_by_year',
+    inputs: { 'FY27': '0.00', 'FY28': '100.00' },
+    category_overrides: { Materials: { method: 'percent_by_year', inputs: { FY27: '25', FY28: '75' } } },
+    basis: {
+      projectStart: '2027-01-01',
+      projectEnd: null,
+      years: [
+        { name: 'FY27', start: '2027-01-01', end: '2027-12-31' },
+        { name: 'FY28', start: '2028-01-01', end: '2028-12-31' },
+      ],
+    },
+    rows: [
+      { category: 'Labor', fiscal_year: 'FY27', ordinal: 0, amount: '0.00', method: 'amount_by_year', is_override: false },
+      { category: 'Materials', fiscal_year: 'FY28', ordinal: 1, amount: '100.00', method: 'percent_by_year', is_override: true },
+    ],
+  };
+  const expected: BudgetDistributionPlan = {
+    method: 'amount_by_year',
+    inputs: { FY27: '0.00', FY28: '100.00' },
+    categoryOverrides: { Materials: { method: 'percent_by_year', inputs: { FY27: '25', FY28: '75' } } },
+    basis: snapshot.basis,
+    rows: [
+      { category: 'Labor', fiscal_year: 'FY27', ordinal: 0, amount: '0.00', method: 'amount_by_year', is_override: false },
+      { category: 'Materials', fiscal_year: 'FY28', ordinal: 1, amount: '100.00', method: 'percent_by_year', is_override: true },
+    ],
+  };
+
+  it('reads method, basis, exact string inputs and every ordered row in one RPC call', async () => {
+    makeRpcBuilder({ data: snapshot, error: null });
+    await expect(getBudgetDistribution('version-1')).resolves.toEqual(expected);
+    expect(mockRpc).toHaveBeenCalledTimes(1);
+    expect(mockRpc).toHaveBeenCalledWith('get_budget_distribution_snapshot', { p_version_id: 'version-1' });
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
+
+  it('returns null when the caller-visible version has no saved plan', async () => {
+    makeRpcBuilder({ data: null, error: null });
+    await expect(getBudgetDistribution('version-none')).resolves.toBeNull();
+  });
+
+  it('propagates an RPC failure without presenting a missing plan', async () => {
+    makeRpcBuilder({ data: null, error: { message: 'snapshot read denied', code: '42501' } });
+    await expect(getBudgetDistribution('version-1')).rejects.toMatchObject({ message: 'snapshot read denied', code: '42501' });
+  });
+
+  it('fails closed on malformed snapshot fields rather than dropping years or coercing money', async () => {
+    const malformed = [
+      [],
+      { ...snapshot, method: 'invalid' },
+      { ...snapshot, inputs: null },
+      { ...snapshot, inputs: { FY27: 0 } },
+      { ...snapshot, category_overrides: null },
+      { ...snapshot, category_overrides: { Materials: null } },
+      { ...snapshot, category_overrides: { Materials: { method: 'invalid', inputs: {} } } },
+      { ...snapshot, basis: { ...snapshot.basis, projectEnd: 7 } },
+      { ...snapshot, basis: { ...snapshot.basis, years: [{}] } },
+      { ...snapshot, basis: { ...snapshot.basis, years: null } },
+      { ...snapshot, rows: null },
+      { ...snapshot, rows: [{ ...snapshot.rows[0], category: 'unknown' }] },
+      { ...snapshot, rows: [{ ...snapshot.rows[0], fiscal_year: '' }] },
+      { ...snapshot, rows: [{ ...snapshot.rows[0], ordinal: -1 }] },
+      { ...snapshot, rows: [{ ...snapshot.rows[0], amount: 0 }] },
+      { ...snapshot, rows: [{ ...snapshot.rows[0], is_override: 'false' }] },
+      { ...snapshot, rows: [{ ...snapshot.rows[0], method: 'unknown' }] },
+    ];
+
+    for (const broken of malformed) {
+      makeRpcBuilder({ data: broken, error: null });
+      await expect(getBudgetDistribution('version-1')).rejects.toThrow(/malformed/);
+    }
   });
 });

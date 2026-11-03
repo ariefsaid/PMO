@@ -36,6 +36,7 @@ const { retryBudgetPushMock } = vi.hoisted(() => ({ retryBudgetPushMock: vi.fn()
 vi.mock('@/src/lib/db/budgets', () => ({ retryBudgetPush: retryBudgetPushMock }));
 
 import {
+  fetchBudgetComparison,
   fetchBudgetProjection,
   fetchFirstSpendingYear,
   fetchBudgetPushStatus,
@@ -363,6 +364,101 @@ describe('fetchBudgetProjection (AC-BUD-050/053)', () => {
   });
 });
 
+describe('fetchBudgetComparison (budget-whole-project AC-013/015)', () => {
+  it('passes the tagged year argument and preserves unknown money, known zero, and ledger provenance', async () => {
+    makeRpcBuilder({
+      data: [
+        {
+          category: 'Labor',
+          budget_total: 100,
+          recorded: 0,
+          recorded_as_of: '2026-11-01T10:00:00+00:00',
+          mapped: true,
+          has_ledger: true,
+          remaining: 100,
+          percent_used: 0,
+        },
+        {
+          category: 'Equipment',
+          budget_total: null,
+          recorded: null,
+          recorded_as_of: null,
+          mapped: false,
+          has_ledger: false,
+          remaining: null,
+          percent_used: null,
+        },
+        {
+          category: 'Materials',
+          budget_total: 0,
+          recorded: 25,
+          recorded_as_of: '2026-11-02T10:00:00+00:00',
+          mapped: true,
+          has_ledger: true,
+          remaining: -25,
+          percent_used: null,
+        },
+      ],
+      error: null,
+    });
+
+    const rows = await fetchBudgetComparison('proj-1', 'FY-opaque');
+
+    expect(mockRpc).toHaveBeenCalledWith('get_budget_comparison', {
+      p_project_id: 'proj-1',
+      p_fiscal_year: 'FY-opaque',
+    });
+    expect(rows).toEqual([
+      {
+        category: 'Labor',
+        budgetTotal: 100,
+        recorded: 0,
+        recordedAsOf: '2026-11-01T10:00:00+00:00',
+        mapped: true,
+        hasLedger: true,
+        remaining: 100,
+        percentUsed: 0,
+      },
+      {
+        category: 'Equipment',
+        budgetTotal: null,
+        recorded: null,
+        recordedAsOf: null,
+        mapped: false,
+        hasLedger: false,
+        remaining: null,
+        percentUsed: null,
+      },
+      {
+        category: 'Materials',
+        budgetTotal: 0,
+        recorded: 25,
+        recordedAsOf: '2026-11-02T10:00:00+00:00',
+        mapped: true,
+        hasLedger: true,
+        remaining: -25,
+        percentUsed: null,
+      },
+    ]);
+  });
+
+  it('passes null explicitly for all-years comparison, including when there are no rows', async () => {
+    makeRpcBuilder({ data: [], error: null });
+
+    await expect(fetchBudgetComparison('proj-1', null)).resolves.toEqual([]);
+    expect(mockRpc).toHaveBeenCalledWith('get_budget_comparison', {
+      p_project_id: 'proj-1',
+      p_fiscal_year: null,
+    });
+  });
+
+  it('propagates comparison RPC failures instead of showing an empty or zeroed result', async () => {
+    makeRpcBuilder({ data: null, error: { message: 'not authorized', code: '42501' } });
+
+    await expect(fetchBudgetComparison('proj-1', null)).rejects.toMatchObject({ code: '42501' });
+  });
+});
+
 // ════════════════════════════════════════════════════════════════════════════════════════════════
 // C-5 — the push status moved to its own PROJECT-grained read. It used to ride on every projection
 // cell and be read off `rows[0]`, which made a project-wide money alarm hostage to the grid having
@@ -548,8 +644,8 @@ describe('listBudgetFiscalYears (H-4)', () => {
 
     expect(mockRpc).toHaveBeenCalledWith('list_budget_fiscal_years', { p_project_id: 'proj-1' });
     expect(years).toEqual([
-      { fiscalYear: '2025-2026', isActivePush: true },
-      { fiscalYear: '2024-2025', isActivePush: false },
+      { fiscalYear: '2025-2026', hasActiveBudget: true },
+      { fiscalYear: '2024-2025', hasActiveBudget: false },
     ]);
   });
 

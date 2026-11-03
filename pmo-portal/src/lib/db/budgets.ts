@@ -1,6 +1,6 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { fetchAllPages } from '@/src/lib/pagedRead';
-import type { Tables } from '@/src/lib/supabase/database.types';
+import { Constants, type Tables } from '@/src/lib/supabase/database.types';
 import { AppError, assertWriteLanded, toAppError } from '@/src/lib/appError';
 import { activateAndPush } from '@/src/lib/budget/budgetPushConsequence';
 import { dispatchDomainCommand } from '@/src/lib/adapterSeam/dispatchClient';
@@ -16,6 +16,45 @@ export type BudgetVersionRow = Tables<'budget_versions'>;
 export type BudgetLineItemRow = Tables<'budget_line_items'>;
 export type BudgetDocumentLinkRow = Tables<'budget_version_document_links'>;
 export type BudgetActivationMode = 'allowed' | 'sole_operator' | 'blocked' | 'blocked_editor' | 'blocked_no_drafter';
+export type BudgetDistributionMethod = 'by_days' | 'percent_by_year' | 'amount_by_year';
+
+export interface BudgetDistributionBasisYear {
+  name: string;
+  start: string;
+  end: string;
+}
+
+export interface BudgetDistributionBasis {
+  projectStart: string;
+  projectEnd: string | null;
+  years: BudgetDistributionBasisYear[];
+}
+
+export type BudgetDistributionInputs = Record<string, string>;
+
+export interface BudgetCategoryOverride {
+  method: BudgetDistributionMethod;
+  inputs: BudgetDistributionInputs;
+}
+
+export type BudgetCategoryOverrides = Record<string, BudgetCategoryOverride>;
+
+export interface BudgetDistributionPlanRow {
+  category: BudgetLineItemRow['category'];
+  fiscal_year: string;
+  ordinal: number;
+  amount: string;
+  method: BudgetDistributionMethod;
+  is_override: boolean;
+}
+
+export interface BudgetDistributionPlan {
+  method: BudgetDistributionMethod;
+  inputs: BudgetDistributionInputs;
+  categoryOverrides: BudgetCategoryOverrides;
+  basis: BudgetDistributionBasis;
+  rows: BudgetDistributionPlanRow[];
+}
 
 export type BudgetVersionWithItems = BudgetVersionRow & {
   /** All line-items belonging to this version. */
@@ -149,6 +188,105 @@ export async function deriveProjectBudget(projectId: string): Promise<number> {
   });
   if (error) throw toAppError(error);
   return Number(data);
+}
+
+function isJsonObject(value: unknown): value is { [key: string]: unknown } {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+const DISTRIBUTION_METHODS: readonly BudgetDistributionMethod[] = ['by_days', 'percent_by_year', 'amount_by_year'];
+const BUDGET_CATEGORIES: readonly string[] = Constants.public.Enums.budget_category;
+
+function isBudgetCategory(value: unknown): value is BudgetLineItemRow['category'] {
+  return typeof value === 'string' && BUDGET_CATEGORIES.includes(value);
+}
+
+function parseDistributionMethod(value: unknown, what: string): BudgetDistributionMethod {
+  if (typeof value !== 'string' || !DISTRIBUTION_METHODS.includes(value as BudgetDistributionMethod)) {
+    throw new AppError(`Saved budget distribution is malformed: ${what}`);
+  }
+  return value as BudgetDistributionMethod;
+}
+
+function parseDistributionInputs(value: unknown, what: string): BudgetDistributionInputs {
+  if (!isJsonObject(value)) throw new AppError(`Saved budget distribution is malformed: ${what}`);
+  const inputs: BudgetDistributionInputs = {};
+  for (const [year, entered] of Object.entries(value)) {
+    if (typeof entered !== 'string') throw new AppError(`Saved budget distribution is malformed: ${what}`);
+    inputs[year] = entered;
+  }
+  return inputs;
+}
+
+function parseDistributionBasis(value: unknown): BudgetDistributionBasis {
+  if (!isJsonObject(value)) throw new AppError('Saved budget distribution is malformed: basis');
+  const { projectStart, projectEnd, years } = value;
+  if (typeof projectStart !== 'string' || !(projectEnd === null || typeof projectEnd === 'string') || !Array.isArray(years)) {
+    throw new AppError('Saved budget distribution is malformed: basis');
+  }
+  return {
+    projectStart,
+    projectEnd,
+    years: years.map((year) => {
+      if (!isJsonObject(year) || typeof year.name !== 'string' || typeof year.start !== 'string' || typeof year.end !== 'string') {
+        throw new AppError('Saved budget distribution is malformed: basis year');
+      }
+      return { name: year.name, start: year.start, end: year.end };
+    }),
+  };
+}
+
+function parseCategoryOverrides(value: unknown): BudgetCategoryOverrides {
+  if (!isJsonObject(value)) throw new AppError('Saved budget distribution is malformed: category overrides');
+  const overrides: BudgetCategoryOverrides = {};
+  for (const [category, override] of Object.entries(value)) {
+    if (!isJsonObject(override)) throw new AppError(`Saved budget distribution is malformed: override for ${category}`);
+    overrides[category] = {
+      method: parseDistributionMethod(override.method, `override method for ${category}`),
+      inputs: parseDistributionInputs(override.inputs, `override inputs for ${category}`),
+    };
+  }
+  return overrides;
+}
+
+function parseDistributionRows(value: unknown): BudgetDistributionPlanRow[] {
+  if (!Array.isArray(value)) throw new AppError('Saved budget distribution is malformed: rows');
+  return value.map((row, index) => {
+    if (!isJsonObject(row)
+      || !isBudgetCategory(row.category)
+      || typeof row.fiscal_year !== 'string'
+      || row.fiscal_year.length === 0
+      || typeof row.ordinal !== 'number'
+      || !Number.isInteger(row.ordinal)
+      || row.ordinal < 0
+      || typeof row.amount !== 'string'
+      || typeof row.is_override !== 'boolean') {
+      throw new AppError(`Saved budget distribution is malformed: row ${index}`);
+    }
+    return {
+      category: row.category,
+      fiscal_year: row.fiscal_year,
+      ordinal: row.ordinal,
+      amount: row.amount,
+      method: parseDistributionMethod(row.method, `row method at ${index}`),
+      is_override: row.is_override,
+    };
+  });
+}
+
+/** Reads a saved plan and all ordered distribution rows in one tenant-scoped SQL snapshot. */
+export async function getBudgetDistribution(versionId: string): Promise<BudgetDistributionPlan | null> {
+  const { data, error } = await supabase.rpc('get_budget_distribution_snapshot', { p_version_id: versionId });
+  if (error) throw toAppError(error);
+  if (data === null) return null;
+  if (!isJsonObject(data)) throw new AppError('Saved budget distribution is malformed: snapshot');
+  return {
+    method: parseDistributionMethod(data.method, 'method'),
+    inputs: parseDistributionInputs(data.inputs, 'inputs'),
+    categoryOverrides: parseCategoryOverrides(data.category_overrides),
+    basis: parseDistributionBasis(data.basis),
+    rows: parseDistributionRows(data.rows),
+  };
 }
 
 /** Read all visible versions and their related rows independently, with bounded ordered pages. */

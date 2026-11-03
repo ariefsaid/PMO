@@ -193,7 +193,7 @@ export function validateDenominator(parsed) {
     if (!Array.isArray(r.expect_denial) || r.expect_denial.some(e => !e || ![403, 500].includes(e.http) || !/^[A-Z0-9]{5}$/.test(e.sqlstate) || (e.sqlstate === '42501' ? e.http !== 403 : e.http !== 500))) {
       throw new Error(`invalid denominator: RPC ${r.name} expect_denial must declare SQLSTATE/HTTP pairs (never 401)`);
     }
-    if (r.shape != null && !['empty-array', 'false', 'boolean', 'must-deny'].includes(r.shape)) throw new Error(`invalid denominator: RPC ${r.name} shape is invalid`);
+    if (r.shape != null && !['empty-array', 'false', 'boolean', 'must-deny', 'null'].includes(r.shape)) throw new Error(`invalid denominator: RPC ${r.name} shape is invalid`);
     if (!r.expect_denial.length && !r.shape) throw new Error(`invalid denominator: RPC ${r.name} expect_denial or shape is required`);
     if (!Array.isArray(r.source) || !r.source.length || r.source.some(s => !/^supabase\/migrations\/\d{4}_[a-z0-9_]+\.sql:[1-9][0-9]*$/.test(s))) throw new Error(`invalid denominator: RPC ${r.name} source citations are required`);
     const isDeclaredFunction = r.source.some(s => {
