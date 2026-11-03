@@ -6,7 +6,7 @@ import type { OrderCtx, OrderInput } from './purchase/orderBody.ts';
 import { createOdooProcurementAdapter, recoverBill, recoverOrder, recoverRevise } from './procurementAdapter.ts';
 import { expectedBillTotal, type BillCtx, type BillInput, type BillTax } from './purchase/billBody.ts';
 import type { BillExpect } from './purchase/billReadBack.ts';
-import { unqualifiedId } from './purchase/externalId.ts';
+import { parseOdooExternalRef } from './purchase/anchors.ts';
 import type { ReviseLine } from './purchase/orderRevise.ts';
 import type { BillComposite, OrderComposite } from './purchase/recoveryProbe.ts';
 
@@ -73,7 +73,7 @@ describe('AC-OPP-010 an approved order is created and confirmed once', () => {
     expect(order).toMatchObject({ state: 'purchase', partner_id: 9, partner_ref: 'PO-77', origin: 'PRC-001', amount_total: 50, currency_id: 12 });
     expect(fake.rows('purchase.order.line').map((l) => [l.product_id, l.product_qty, l.analytic_distribution])).toEqual([[55, 4, { '101': 100 }], [56, 2, { '101': 100 }]]);
     expect(fake.rows('ir.model.data')).toEqual([expect.objectContaining({ module: 'pmo', model: 'purchase.order', res_id: order.id })]);
-    expect(result.externalRecordId).toBe(String(order.id));
+    expect(result.externalRecordId).toBe(`purchase.order:${order.id}`);
     expect(result.canonical).toMatchObject({ id: PO_ID, po_number: order.name, amount: '50.00', pmo_amount: '50.00', erp_docstatus: 1, erp_modified: order.write_date });
     expect(count('purchase.order', 'button_confirm')).toBe(1);
   });
@@ -235,7 +235,7 @@ describe('AC-OPP-016 / AC-OPP-017 revising a pushed order edits it in place, onc
     expect(r.fake.rows('purchase.order')).toHaveLength(1);
     expect(r.fake.rows('purchase.order')[0].state).toBe('purchase');
     expect(result.canonical).toMatchObject({ id: PO_ID, amount: '65.00', erp_docstatus: 1 });
-    expect(result.externalRecordId).toBe(String(r.state.orderId));
+    expect(result.externalRecordId).toBe(`purchase.order:${r.state.orderId}`);
     expect(r.fake.rows('ir.model.data').map((d) => d.name)).toContain(`porev_${PO_ID.replaceAll('-', '_')}_2`);
   });
 
@@ -484,10 +484,10 @@ describe('Odoo ids are per model: a bill and an order can be the same number', (
     const bill = await r.attemptBill();
     const orderId = r.fake.rows('purchase.order')[0].id, billId = r.fake.rows('account.move')[0].id;
     expect(billId).toBe(orderId);                                  // the same number in two models
-    expect(order.externalRecordId).toBe(String(orderId));
+    expect(order.externalRecordId).toBe(`purchase.order:${orderId}`);
     expect(bill.externalRecordId).toBe(`account.move:${billId}`);
     expect(bill.externalRecordId).not.toBe(order.externalRecordId);   // external_refs is unique on (org, domain, id)
-    expect(unqualifiedId(bill.externalRecordId, 'account.move')).toBe(billId);
+    expect(parseOdooExternalRef('account.move', bill.externalRecordId)).toBe(billId);
   });
 
   it('the recovery probes stay model-scoped: each finds its own document by its own anchor, and a replay returns the same references', async () => {

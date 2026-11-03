@@ -7,14 +7,14 @@ it('models order, stock, bill and payment transitions, including a lost response
     return r.json();
   };
   await call('purchase.order', 'create', { vals_list: [{ state: 'draft' }] });
-  await call('purchase.order', 'button_confirm', { ids: [1000] });
+  await call('purchase.order', 'button_confirm', { ids: [1] });
   fake.seed('stock.move', [{ id: 7, product_id: 3, quantity: 6 }]);
   await call('stock.picking', 'create', { vals_list: [{ state: 'assigned', move_ids: [7] }] });
   fake.failNext('lost-response');
-  await expect(call('stock.picking', 'button_validate', { ids: [1000] })).rejects.toThrow();
+  await expect(call('stock.picking', 'button_validate', { ids: [1] })).rejects.toThrow();
   expect(fake.rows('stock.picking')[0]).toMatchObject({ state: 'done' });
   expect(fake.rows('stock.quant')[0]).toMatchObject({ product_id: 3, quantity: 6 });
-  await call('stock.picking', 'button_validate', { ids: [1000] });
+  await call('stock.picking', 'button_validate', { ids: [1] });
   expect(fake.rows('stock.quant')[0].quantity).toBe(6);
   const bill = await call('account.move', 'create', { vals_list: [{ state: 'draft' }] });
   await call('account.move', 'action_post', { ids: bill });

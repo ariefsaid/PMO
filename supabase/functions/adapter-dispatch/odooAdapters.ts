@@ -10,11 +10,12 @@ import { odooClientForOrg } from '../_shared/odooClientForOrg.ts';
 import { resolveOdooBillInputs, resolveOdooOrderCurrency, resolveOdooOrderInputs, resolveOdooReviseInputs } from '../_shared/odooPurchaseRefs.ts';
 import type { AdapterFactory, AdapterSelectContext } from './dispatchAdapters.ts';
 
-/** What the Odoo procurement adapter pushes so far: the purchase order and its revision (P3) and the vendor bill (P5). Receipt and payment follow (P4, P6). */
+/** What the Odoo procurement adapter pushes so far: the purchase order and its revision (P3), the goods receipt (P4) and the vendor bill (P5). Payment follows (P6). */
+const isReceipt = (ctx: AdapterSelectContext): boolean => ctx.command.record.erp_doc_kind === 'goods-receipt' && ctx.command.operation === 'create';
 const pushable = (ctx: AdapterSelectContext): boolean => {
   const { erp_doc_kind: kind } = ctx.command.record;
   const operation = String(ctx.command.operation);
-  return (kind === 'purchase-order' && (operation === 'create' || operation === 'revise')) || (kind === 'purchase-invoice' && operation === 'create');
+  return (kind === 'purchase-order' && (operation === 'create' || operation === 'revise')) || ((kind === 'goods-receipt' || kind === 'purchase-invoice') && operation === 'create');
 };
 
 /**
@@ -32,6 +33,11 @@ export async function resolveOdooProcurementAdapter(ctx: AdapterSelectContext): 
   if (!pushable(ctx)) throw new AppError('Purchasing through Odoo is not available yet', 'config-rejected');
   const sc = ctx.serviceClient as SupabaseClient;
   const call = bindCall({ ...resolved.client, deadlineMs: REQUEST_DEADLINE_MS });
+  if (isReceipt(ctx)) {
+    // A receipt books onto the transfer Odoo opened with the order: no order inputs, no currency; its plan comes with the outbox deps.
+    const notAnOrder = () => Promise.reject(new AppError('not a purchase-order step', 'commit-rejected'));
+    return createOdooProcurementAdapter({ call, resolveOrder: notAnOrder, resolveRevise: notAnOrder, resolveBill: notAnOrder });
+  }
   // OQ-OPP-9: company currency only; a mismatch is refused here, before any outbox row, and Odoo is only read.
   const currencyId = await resolveOdooOrderCurrency(sc, ctx.orgId, ctx.command, call, resolved.companyId);
   // A bill is resolved here, with the currency: a malformed tax set, an unmapped item or an unlinked project is refused before any

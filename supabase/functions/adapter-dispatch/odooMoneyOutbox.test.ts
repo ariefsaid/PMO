@@ -19,10 +19,6 @@ const KEY = 'cccccccc-cccc-4ccc-8ccc-0000000015ff';
 const objectResponse = (body: unknown) => jsonResponse(body, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } });
 const BINDING = { id: 'b0000000-0000-4000-8000-000000000001', site_url: `https://${ODOO}`, secret_ref: 'odoo_ref', status: 'active', activated_at: '2026-11-01T00:00:00Z', config: { database: 'db1', odoo_company_id: 1 } };
 
-const KINDS = [
-  ['goods-receipt', 'receipt', 'stock.picking'],
-] as const;
-
 type Rows = Record<string, unknown[] | ((body: { domain: unknown[][] }) => unknown[])>;
 function setup(docKind: string, extra: Record<string, unknown> = {}, over: { binding?: Record<string, unknown> | null; odoo?: Rows; outbox?: Record<string, unknown> | null; replay?: boolean } = {}) {
   const odooCalls: FetchCall[] = [];
@@ -56,7 +52,7 @@ function setup(docKind: string, extra: Record<string, unknown> = {}, over: { bin
 }
 
 describe('OQ-OPP-10 a recovery that finds nothing', () => {
-  for (const kind of ['receipt', 'payment'] as const) {
+  for (const kind of ['payment'] as const) {
     it(`AC-OPP-053 holds a ${kind}, never reissues it (no create-to-anchor composite covers it yet, or its anchor is mutable)`, () => {
       assertEquals(odooReissueOnInconclusiveAbsence(kind), false);
     });
@@ -86,34 +82,6 @@ describe('PD-4 the anchor key follows the PMO record, never the per-click key', 
 });
 
 describe('AC-OPP-053 the Odoo probe closure: zero, one and many matches', () => {
-  for (const [docKind, kind, model] of KINDS) {
-    it(`${kind}: one identifier adopts, none is null, a foreign model's identifier is not ours`, async () => {
-      const identifier = (name: string, m: string, res: number) => ({ module: 'pmo', name, model: m, res_id: res });
-      const mine = identifier(`${kind === 'receipt' ? 'gr' : 'bill'}_${REC.replaceAll('-', '_')}${kind === 'receipt' ? '_ab12' : ''}`, model, 41);
-      // the fake answers every ir.model.data query with these rows: the closure must send the filter (asserted below)
-      const one = setup(docKind, {}, { odoo: { 'ir.model.data': [{ res_id: 41 }] } });
-      await withFetchMock(one.routes, async () => {
-        const deps = await resolveOdooMoneyOutboxDeps(one.ctx);
-        assertEquals(await deps.probeByRemarksKey('procurement', KEY), { externalRecordId: '41', canonical: { id: REC } });
-      });
-      const query = one.odooCalls.find((c) => c.url.pathname.endsWith('/ir.model.data/search_read'))!.bodyJson as { domain: unknown[][] };
-      assert(query.domain.some(([f, op, v]) => f === 'name' && op === '=' && v === mine.name), JSON.stringify(query.domain));
-      assert(query.domain.some(([f, op, v]) => f === 'model' && op === '=' && v === model));
-
-      const none = setup(docKind);
-      await withFetchMock(none.routes, async () => {
-        const deps = await resolveOdooMoneyOutboxDeps(none.ctx);
-        assertEquals(await deps.probeByRemarksKey('procurement', KEY), null);
-      });
-
-      const many = setup(docKind, {}, { odoo: { 'ir.model.data': [{ res_id: 41 }, { res_id: 42 }] } });
-      await withFetchMock(many.routes, async () => {
-        const deps = await resolveOdooMoneyOutboxDeps(many.ctx);
-        await assertRejects(() => deps.probeByRemarksKey('procurement', KEY), Error, 'ambiguous-anchor');
-      });
-    });
-  }
-
   describe('order', () => {
     const ORDER_ROW = { name: 'P00041', state: 'purchase', amount_total: 50, write_date: '2026-11-03 10:00:00' };
     const orderSetup = (odoo: Rows) => setup('purchase-order', { amount: '50.00' }, { odoo });
@@ -124,7 +92,7 @@ describe('AC-OPP-053 the Odoo probe closure: zero, one and many matches', () => 
       await withFetchMock(t.routes, async () => {
         const deps = await resolveOdooMoneyOutboxDeps(t.ctx);
         assertEquals(await deps.probeByRemarksKey('procurement', KEY), {
-          externalRecordId: '41',
+          externalRecordId: 'purchase.order:41',
           canonical: { id: REC, po_number: 'P00041', amount: '50.00', pmo_amount: '50.00', erp_docstatus: 1, erp_modified: '2026-11-03 10:00:00', erp_amended_from: null },
         });
       });
@@ -163,7 +131,7 @@ describe('AC-OPP-053 the Odoo probe closure: zero, one and many matches', () => 
       await withFetchMock(t.routes, async () => {
         const deps = await resolveOdooMoneyOutboxDeps(t.ctx);
         const hit = await deps.probeByRemarksKey('procurement', KEY);
-        assertEquals(hit?.externalRecordId, '41');
+        assertEquals(hit?.externalRecordId, 'purchase.order:41');
         assertEquals(hit?.canonical?.id, PO);
       });
       assert(queries(t, 'ir.model.data')[0].domain.some(([f, op, v]) => f === 'name' && op === '=' && v === `porev_${PO.replaceAll('-', '_')}_2`));
@@ -249,7 +217,7 @@ describe('AC-OPP-053 the Odoo probe closure: zero, one and many matches', () => 
     const t = setup('payment', {}, { odoo: { 'account.payment': (b) => (memoQuery(b) ? [{ id: 90 }] : []) } });
     await withFetchMock(t.routes, async () => {
       const deps = await resolveOdooMoneyOutboxDeps(t.ctx);
-      assertEquals(await deps.probeByRemarksKey('procurement', KEY), { externalRecordId: '90', canonical: { id: REC } });
+      assertEquals(await deps.probeByRemarksKey('procurement', KEY), { externalRecordId: 'account.payment:90', canonical: { id: REC } });
     });
     const sent = t.odooCalls.map((c) => (c.bodyJson as { domain: unknown[][] }).domain);
     assert(sent[0].some(([f, op, v]) => f === 'memo' && op === '=' && v === `pmo:pay:${REC}`), JSON.stringify(sent[0]));
@@ -259,7 +227,7 @@ describe('AC-OPP-053 the Odoo probe closure: zero, one and many matches', () => 
     const t = setup('payment', {}, { odoo: { 'account.payment': (b) => (memoQuery(b) ? [] : [{ id: 91, memo: 'paid Friday' }]) } });
     await withFetchMock(t.routes, async () => {
       const deps = await resolveOdooMoneyOutboxDeps(t.ctx);
-      assertEquals(await deps.probeByRemarksKey('procurement', KEY), { externalRecordId: '91', canonical: { id: REC } });
+      assertEquals(await deps.probeByRemarksKey('procurement', KEY), { externalRecordId: 'account.payment:91', canonical: { id: REC } });
     });
     const composite = (t.odooCalls[1].bodyJson as { domain: unknown[][] }).domain;
     assert(composite.some(([f, op, v]) => f === 'partner_id' && op === '=' && v === 77), JSON.stringify(composite));

@@ -116,7 +116,7 @@ describe('I3 one identity for a PO line across create and revise', () => {
   // The case's free-form line is named "Cable tray 300mm"; the PO's own line is BoQ item ELC-014. Revise can only name the BoQ item,
   // so a PO that has its own lines is created from them: the item map is asked the BoQ code on both paths.
   const world = (over: World = {}): World => ({
-    link: '101', vendorRef: 'Vendor:9', poRef: '312', createLines: [{ boq_item_id: BOQ, quantity: '6.000', rate: '10.00', unit: 'm' }],
+    link: '101', vendorRef: 'Vendor:9', poRef: 'purchase.order:312', createLines: [{ boq_item_id: BOQ, quantity: '6.000', rate: '10.00', unit: 'm' }],
     boq: [{ id: BOQ, item_code: 'ELC-014', description: 'Cable tray 300mm' }], ...over,
   });
   const MAP = { ...RESOLVED, config: { ...CONFIG, item_map: { 'ELC-014': '55', 'Cable tray': '99' } } };
@@ -198,16 +198,18 @@ describe('AC-OPP-016 the revision inputs come from the issued revision, not the 
   const revise = (record: Record<string, unknown> = {}) => ({ domain: 'procurement', operation: 'revise', record: { id: 'r-1', poId: PO, revision: 2, lines: [{ itemRef: 'forged' }], ...record } } as unknown as AdapterCommand);
 
   it('maps the Odoo order, the issued lines (BoQ item code) and the project account', async () => {
-    const r = await withFetchMock(routes({ link: '101', poRef: '312' }), () => resolveOdooReviseInputs(sc(), ORG, revise(), RESOLVED, CURRENCY_ID));
+    const r = await withFetchMock(routes({ link: '101', poRef: 'purchase.order:312' }), () => resolveOdooReviseInputs(sc(), ORG, revise(), RESOLVED, CURRENCY_ID));
     assertEquals(r.orderId, 312);
     assertEquals(r.lines, [{ itemRef: 'Cable tray', quantity: '6.000', rate: '10.00', unit: 'm' }]);
     assertEquals(r.ctx.costAccountId, '101');
   });
 
   it('a PMO order with no Odoo order, no issued lines, or a bad revision refuses', async () => {
+    // an id of another Odoo model (or a bare id) is not an order: ids are per model
+    for (const poRef of ['stock.picking:312', '312']) await assertRejects(() => withFetchMock(routes({ link: '101', poRef }), () => resolveOdooReviseInputs(sc(), ORG, revise(), RESOLVED, CURRENCY_ID)));
     await assertRejects(() => withFetchMock(routes({ link: '101', poRef: null }), () => resolveOdooReviseInputs(sc(), ORG, revise(), RESOLVED, CURRENCY_ID)));
-    await assertRejects(() => withFetchMock(routes({ link: '101', poRef: '312', revisionLines: [] }), () => resolveOdooReviseInputs(sc(), ORG, revise(), RESOLVED, CURRENCY_ID)));
-    await assertRejects(() => withFetchMock(routes({ link: '101', poRef: '312' }), () => resolveOdooReviseInputs(sc(), ORG, revise({ revision: 'x' }), RESOLVED, CURRENCY_ID)));
+    await assertRejects(() => withFetchMock(routes({ link: '101', poRef: 'purchase.order:312', revisionLines: [] }), () => resolveOdooReviseInputs(sc(), ORG, revise(), RESOLVED, CURRENCY_ID)));
+    await assertRejects(() => withFetchMock(routes({ link: '101', poRef: 'purchase.order:312' }), () => resolveOdooReviseInputs(sc(), ORG, revise({ revision: 'x' }), RESOLVED, CURRENCY_ID)));
   });
 });
 

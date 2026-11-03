@@ -55,7 +55,7 @@ Deno.test({
     try {
       // ── AC-OPP-010
       const first = await attempt();
-      const orderId = Number(first.externalRecordId);
+      const orderId = Number(String(first.externalRecordId).split(':')[1]);
       state.orderId = orderId;
       const [order] = await call<Array<{ state: string; amount_total: number; partner_id: [number, string]; partner_ref: string; origin: string; name: string }>>(
         'purchase.order', 'read', { ids: [orderId], fields: ['state', 'amount_total', 'partner_id', 'partner_ref', 'origin', 'name'] });

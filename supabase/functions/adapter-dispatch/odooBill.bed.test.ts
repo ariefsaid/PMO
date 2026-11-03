@@ -15,7 +15,7 @@ import { bindCall, type OdooCall } from '../../../pmo-portal/src/lib/adapterSeam
 import { createOdooProcurementAdapter, recoverBill } from '../../../pmo-portal/src/lib/adapterSeam/odoo/procurementAdapter.ts';
 import { expectedBillTotal, type BillCtx, type BillInput, type BillTax } from '../../../pmo-portal/src/lib/adapterSeam/odoo/purchase/billBody.ts';
 import type { BillExpect } from '../../../pmo-portal/src/lib/adapterSeam/odoo/purchase/billReadBack.ts';
-import { qualifiedId, unqualifiedId } from '../../../pmo-portal/src/lib/adapterSeam/odoo/purchase/externalId.ts';
+import { odooExternalRef, parseOdooExternalRef } from '../../../pmo-portal/src/lib/adapterSeam/odoo/purchase/anchors.ts';
 import type { OrderCtx, OrderInput } from '../../../pmo-portal/src/lib/adapterSeam/odoo/purchase/orderBody.ts';
 import type { BillComposite } from '../../../pmo-portal/src/lib/adapterSeam/odoo/purchase/recoveryProbe.ts';
 
@@ -103,8 +103,8 @@ Deno.test({
       const attempt = async () => (await recoverBill(call, command.record, composite, expectation(input))) ?? adapter.commit(command);
 
       const first = await attempt();
-      const billId = unqualifiedId(first.externalRecordId, 'account.move')!;   // model-qualified: Odoo ids are per model
-      assertEquals(first.externalRecordId, qualifiedId('account.move', billId), label);
+      const billId = parseOdooExternalRef('account.move', first.externalRecordId)!;   // model-qualified: Odoo ids are per model
+      assertEquals(first.externalRecordId, odooExternalRef('account.move', billId), label);
       const [bill] = await moveRead(billId);
       // one posted vendor bill: the vendor's invoice number is the reference, the vendor's date its date
       assertEquals([bill.state, bill.move_type, bill.ref, bill.invoice_date, bill.partner_id[0]], ['posted', 'in_invoice', `${stamp}-INV`, '2026-12-05', partner], label);

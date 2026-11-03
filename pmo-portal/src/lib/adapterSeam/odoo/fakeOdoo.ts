@@ -27,8 +27,8 @@ const FIELDS: Record<string, string[]> = {
   'account.move': ['name', 'move_type', 'state', 'partner_id', 'ref', 'invoice_date', 'invoice_date_due', 'invoice_line_ids', 'amount_untaxed', 'amount_tax', 'amount_total', 'amount_residual', 'payment_state', 'currency_id', 'company_id', 'invoice_origin', 'create_date', 'write_date'],
   'account.move.line': ['move_id', 'display_type', 'product_id', 'quantity', 'price_unit', 'tax_ids', 'tax_line_id', 'tax_base_amount', 'analytic_distribution', 'purchase_line_id', 'balance', 'amount_residual', 'write_date'],
   'account.tax.repartition.line': ['tax_id', 'document_type', 'repartition_type', 'account_id', 'write_date'],
-  'stock.picking': ['name', 'state', 'move_ids', 'backorder_id', 'backorder_ids', 'purchase_id', 'write_date'],
-  'stock.move': ['name', 'state', 'picking_id', 'product_id', 'quantity', 'product_uom_qty', 'write_date'],
+  'stock.picking': ['name', 'state', 'move_ids', 'backorder_id', 'backorder_ids', 'purchase_id', 'picking_type_code', 'write_date'],
+  'stock.move': ['name', 'state', 'picking_id', 'product_id', 'purchase_line_id', 'quantity', 'product_uom_qty', 'write_date'],
   'stock.quant': ['product_id', 'quantity', 'write_date'],
   'account.analytic.line': ['name', 'write_date'],
   'fleet.vehicle': ['name', 'write_date'],
@@ -97,9 +97,9 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
   const store = new Map<string, Map<number, Row>>();
   const table = (m: string) => store.get(m) ?? store.set(m, new Map()).get(m)!;
   let clock = 0;
-  // Odoo numbers ids per model (a bill and an order can both be 1000), so the fake does too.
-  const sequences = new Map<string, number>();
-  const nextId = (model: string) => { const n = sequences.get(model) ?? 1000; sequences.set(model, n + 1); return n; };
+  // Odoo numbers ids per model (purchase.order 1 and stock.picking 1 coexist); one shared sequence hid every cross-model id collision.
+  const seq = new Map<string, number>();
+  const newId = (m: string) => { const id = Math.max(seq.get(m) ?? 0, ...table(m).keys()) + 1; seq.set(m, id); return id; };
   let fault: 'transport' | 'lost-response' | null = null;
   const calls: FakeOdoo['calls'] = [];
   const fields = Object.fromEntries(Object.entries(FIELDS).map(([m, f]) => [m, [...f]]));
@@ -118,11 +118,15 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
   };
   const pick = (r: Row, fields?: string[]) => (fields?.length ? Object.fromEntries([['id', r.id], ...fields.map((f) => [f, r[f] ?? false])]) : { ...r });
 
-  const quantities = (move: Row) => {
-    const planned = Number(move.product_uom_qty ?? move.quantity ?? 0);
-    const entered = Number(move.quantity ?? 0);
-    const done = entered === 0 ? planned : entered;
-    return { planned, done, remaining: Math.max(0, planned - done) };
+  /** What validating a picking books per move: the entered quantity once anything is entered (a move left at zero stays open), else the whole demand. */
+  const splitPicking = (picking: Row) => {
+    const moves = ((Array.isArray(picking.move_ids) ? picking.move_ids as number[] : []).map((id) => table('stock.move').get(id)).filter(Boolean)) as Row[];
+    const anyEntered = moves.some((m) => Number(m.quantity ?? 0) > 0);
+    return moves.map((move) => {
+      const planned = Number(move.product_uom_qty ?? move.quantity ?? 0);
+      const done = anyEntered ? Number(move.quantity ?? 0) : planned;
+      return { move, planned, done, remaining: Math.max(0, planned - done) };
+    });
   };
 
   const pickingIdsFromContext = (context: Record<string, unknown>) => {
@@ -139,7 +143,7 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
     const productId = scalar(product);
     let quant = [...table('stock.quant').values()].find((q) => scalar(q.product_id) === productId);
     if (!quant) {
-      const quantId = nextId('stock.quant');
+      const quantId = newId('stock.quant');
       quant = { id: quantId, product_id: productId, quantity: 0 };
       table('stock.quant').set(quantId, quant);
     }
@@ -148,36 +152,31 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
   };
 
   const completePicking = (picking: Row) => {
-    const moveIds = Array.isArray(picking.move_ids) ? picking.move_ids as number[] : [];
     const completedMoveIds: number[] = [];
     const remaining: Array<{ move: Row; quantity: number }> = [];
 
-    for (const moveId of moveIds) {
-      const move = table('stock.move').get(moveId);
-      if (!move) continue;
-      const amounts = quantities(move);
-      Object.assign(move, {
-        quantity: amounts.done,
-        product_uom_qty: amounts.done,
-        state: 'done',
-        write_date: fmt(++clock),
-      });
-      receive(move.product_id, amounts.done);
-      completedMoveIds.push(moveId);
-      if (amounts.remaining > 0) remaining.push({ move, quantity: amounts.remaining });
+    for (const { move, done, remaining: left } of splitPicking(picking)) {
+      if (done > 0) {
+        Object.assign(move, { quantity: done, product_uom_qty: done, state: 'done', write_date: fmt(++clock) });
+        receive(move.product_id, done);
+        const line = table('purchase.order.line').get(Number(scalar(move.purchase_line_id)));
+        if (line) Object.assign(line, { qty_received: Number(line.qty_received ?? 0) + done, write_date: fmt(++clock) });
+        completedMoveIds.push(move.id);
+      } else table('stock.move').delete(move.id);   // untouched: the whole demand moves to the backorder
+      if (left > 0) remaining.push({ move, quantity: left });
     }
 
     Object.assign(picking, { state: 'done', move_ids: completedMoveIds, write_date: fmt(++clock) });
     if (!remaining.length) return;
 
-    const backorderId = nextId('stock.picking');
+    const backorderId = newId('stock.picking');
     const backorderMoveIds = remaining.map(({ move, quantity }) => {
-      const id = nextId('stock.move');
+      const id = newId('stock.move');
       table('stock.move').set(id, {
         ...move,
         id,
         picking_id: backorderId,
-        quantity: 0,
+        quantity: quantity,
         product_uom_qty: quantity,
         state: 'assigned',
         write_date: fmt(++clock),
@@ -187,13 +186,30 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
     table('stock.picking').set(backorderId, {
       ...picking,
       id: backorderId,
+      name: `${String(picking.name ?? 'WH/IN')}-BO`,
       state: 'assigned',
       move_ids: backorderMoveIds,
       backorder_id: picking.id,
+      backorder_ids: [],
       write_date: fmt(++clock),
     });
     picking.backorder_ids = [...(Array.isArray(picking.backorder_ids) ? picking.backorder_ids as number[] : []), backorderId];
     picking.write_date = fmt(++clock);
+  };
+
+  /** Confirming an order with lines opens its incoming transfer: one move per line, the demand pre-filled as the done quantity (bed V-OPP3/4). */
+  const openReceipt = (orderId: number) => {
+    const order = table('purchase.order').get(orderId);
+    const lineIds = (order?.order_line as number[] | undefined) ?? [];
+    if (!order || !lineIds.length) return;
+    const pickingId = newId('stock.picking');
+    const moveIds = lineIds.map((lineId) => {
+      const line = table('purchase.order.line').get(lineId)!;
+      const id = newId('stock.move');
+      table('stock.move').set(id, { id, active: true, picking_id: pickingId, product_id: line.product_id, purchase_line_id: lineId, product_uom_qty: Number(line.product_qty), quantity: Number(line.product_qty), state: 'assigned', write_date: fmt(++clock) });
+      return id;
+    });
+    table('stock.picking').set(pickingId, { id: pickingId, active: true, name: `WH/IN/${String(pickingId).padStart(5, '0')}`, state: 'assigned', purchase_id: orderId, picking_type_code: 'incoming', move_ids: moveIds, backorder_ids: [], create_date: fmt(++clock), write_date: fmt(clock) });
   };
 
   /** One2many commands on a purchase order: create (0), update (1) and, as on the bed, a refused remove (2) once confirmed (V-OPP9). */
@@ -202,7 +218,7 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
     for (const [op, lineId, vals] of commands) {
       const line = typeof lineId === 'number' ? table('purchase.order.line').get(lineId) : undefined;
       if (op === 0) {
-        const id = nextId('purchase.order.line');
+        const id = newId('purchase.order.line');
         table('purchase.order.line').set(id, { qty_received: 0, qty_invoiced: 0, ...(vals as object), id, order_id: orderId, write_date: fmt(++clock) });
         order.order_line = [...((order.order_line as number[] | undefined) ?? []), id];
       } else if (op === 1 && line) Object.assign(line, vals as object, { write_date: fmt(++clock) });
@@ -226,8 +242,8 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
     search_count: (m, b) => select(m, { ...b, limit: undefined, offset: undefined }).length,
     read: (m, b) => (b.ids as number[]).flatMap((id) => { const r = table(m).get(id); return r ? [pick(r, b.fields as string[])] : []; }),
     create: (m, b) => (b.vals_list as Array<Record<string, unknown>>).map((vals) => {
-      if (m === 'account.move' && isModelledBill(vals)) return createBill({ table, nextId, stamp: () => fmt(++clock) }, vals);
-      const id = nextId(m);
+      if (m === 'account.move' && isModelledBill(vals)) return createBill({ table, nextId: newId, stamp: () => fmt(++clock) }, vals);
+      const id = newId(m);
       const { order_line: lines, ...rest } = vals;
       const stamp = fmt(++clock);
       table(m).set(id, { active: true, ...(m === 'purchase.order' ? { name: `P${String(id).padStart(5, '0')}`, state: 'draft' } : {}), ...(m === 'purchase.order' && Array.isArray(lines) ? rest : vals), id, create_date: stamp, write_date: stamp });
@@ -247,17 +263,22 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
     unlink: (m, b) => { for (const id of b.ids as number[]) table(m).delete(id); return true; },
     fields_get: (m) => Object.fromEntries(fields[m].map((f) => [f, { type: 'char' }])),
     has_access: (m, b) => !denied.has(`${m}:${b.operation}`),
-    button_confirm: (m, b) => transition(m, b, m === 'purchase.order' && doubleValidation ? 'to approve' : 'purchase'),
-    button_approve: (m, b) => transition(m, b, 'purchase'),
+    button_confirm: (m, b) => {
+      transition(m, b, m === 'purchase.order' && doubleValidation ? 'to approve' : 'purchase');
+      if (m === 'purchase.order' && !doubleValidation) for (const id of b.ids as number[]) openReceipt(id);
+      return true;
+    },
+    button_approve: (m, b) => {
+      transition(m, b, 'purchase');
+      if (m === 'purchase.order') for (const id of b.ids as number[]) openReceipt(id);
+      return true;
+    },
     button_validate: (m, b) => {
       const ids = b.ids as number[];
       const hasPartialMove = ids.some((id) => {
         const picking = table(m).get(id);
         if (!picking || picking.state === 'done') return false;
-        return ((picking.move_ids as number[] | undefined) ?? []).some((moveId) => {
-          const move = table('stock.move').get(moveId);
-          return move !== undefined && quantities(move).remaining > 0;
-        });
+        return splitPicking(picking).some((x) => x.remaining > 0);
       });
       if (hasPartialMove) {
         return {
@@ -286,7 +307,7 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
     action_post: (m, b) => {
       for (const id of b.ids as number[]) {
         const row = table(m).get(id);
-        if (m === 'account.move' && row?.move_type === 'in_invoice') postBill({ table, nextId, stamp: () => fmt(++clock) }, row);
+        if (m === 'account.move' && row?.move_type === 'in_invoice') postBill({ table, nextId: newId, stamp: () => fmt(++clock) }, row);
         else transition(m, { ids: [id] }, m === 'account.payment' ? 'paid' : 'posted');
       }
       return true;
@@ -331,7 +352,7 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
     calls,
     seed(model, rows) {
       for (const r of rows) {
-        const id = Number(r.id ?? nextId(model));
+        const id = Number(r.id ?? newId(model));
         table(model).set(id, { active: true, write_date: fmt(clock), ...r, id });
       }
     },

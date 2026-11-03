@@ -1,5 +1,5 @@
-// #1505 O2 P3/P5 (FR-OPP-002, DD-OPP-1, DD-OPP-8): the Odoo adapter factory returns the procurement adapter for the steps pushed so far
-// (purchase order create and revise, vendor bill create) and refuses every other step before any outbox row, as it refuses an unusable connection or a snapshot
+// #1505 O2 P3/P4/P5 (FR-OPP-002, DD-OPP-1, DD-OPP-8): the Odoo adapter factory returns the procurement adapter for the steps pushed so far
+// (purchase order create and revise, goods-receipt create, vendor bill create) and refuses every other step before any outbox row, as it refuses an unusable connection or a snapshot
 // that lacks a model. Supabase is mocked over fetch; the factory is the shipped one.
 import { describe, it } from '@std/testing/bdd';
 import { assertEquals, assertRejects } from '@std/assert';
@@ -48,13 +48,27 @@ describe('P3 the Odoo adapter factory', () => {
     });
   }
 
-  for (const kind of ['goods-receipt', 'payment', 'rfq']) {
+  for (const kind of ['payment', 'rfq']) {
     it(`refuses a ${kind} create: not available yet, config-rejected, before any outbox row`, async () => {
       const err = await withFetchMock(world(), () => assertRejects(() => resolveOdooProcurementAdapter(ctxFor(kind)))) as { code?: string; message: string };
       assertEquals(err.code, 'config-rejected');
       assertEquals(err.message.includes('not available yet'), true);
     });
   }
+
+  it('P4 returns the Odoo procurement adapter for a goods-receipt create, reading nothing from Odoo (no currency, no order inputs)', async () => {
+    const odooCalls: string[] = [];
+    const adapter = await withFetchMock(world(undefined, { odooCalls }), () => resolveOdooProcurementAdapter(ctxFor('goods-receipt')));
+    assertEquals([adapter.tier, [...adapter.capabilityMap]], ['odoo', ['procurement']]);
+    assertEquals(odooCalls, []);
+  });
+
+  it('a goods-receipt update or transition (no such Odoo step) is refused before any outbox row', async () => {
+    for (const operation of ['update', 'transition']) {
+      const err = await withFetchMock(world(), () => assertRejects(() => resolveOdooProcurementAdapter(ctxFor('goods-receipt', operation)))) as { code?: string };
+      assertEquals(err.code, 'config-rejected');
+    }
+  });
 
   it('a purchase-order transition (no such Odoo step) is refused too', async () => {
     await withFetchMock(world(), () => assertRejects(() => resolveOdooProcurementAdapter(ctxFor('purchase-order', 'transition'))));
