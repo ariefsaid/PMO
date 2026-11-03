@@ -40,6 +40,9 @@ function routes(o: Opts = {}): MockRoute[] {
     rpc('start_connect_run', 'run-1'),
     rpc('write_connect_census', null),
     rpc('accept_connect_proposals', { counts: {}, remaining: 0 }),
+    rpc('connect_proposal_counts', {}),
+    rpc('search_connect_staged', []),
+    rpc('list_unlinkable_connect_matches', []),
     rpc('decide_connect_review', null),
     rpc('unlink_connect_match', null),
     rpc('retry_connect_send', null),
@@ -119,7 +122,7 @@ describe('ECA setup verbs — accept, decide, unlink', () => {
     assertEquals(accepts.length, 2);
     for (const a of accepts) {
       assertEquals(a.headers.get('authorization'), `Bearer ${r.jwt}`);   // the caller's JWT, never the service key
-      assertEquals(a.bodyJson, { p_tier: 'erpnext', p_kind: 'party', p_ids: null });
+      assertEquals(a.bodyJson, { p_tier: 'erpnext', p_kind: 'party', p_ids: null, p_exclude: null });
     }
     assertEquals(r.json, { counts: { party: { link: 520, bring_in: 3, send: 0, left_open: 1 } }, remaining: 0 });
   });
@@ -158,6 +161,33 @@ describe('ECA setup verbs — accept, decide, unlink', () => {
     assertEquals(rpcCall(no.calls, 'accept_connect_proposals').length, 0);
     const all = await call({ setupAction: 'accept-proposals' }, { role: 'Finance' });
     assertEquals(all.res.status, 403);
+  });
+
+  it('AC-ECA-016 passes exclusions to the bounded accept function', async () => {
+    const r = await call({ setupAction: 'accept-proposals', kind: 'party', excludeIds: ['p1', 'p2'] }, {
+      rpc: { accept_connect_proposals: () => jsonResponse({ counts: { party: { send: 1 } }, remaining: 0 }) },
+    });
+    assertEquals(r.res.status, 200);
+    assertEquals(rpcCall(r.calls, 'accept_connect_proposals')[0].bodyJson, {
+      p_tier: 'erpnext', p_kind: 'party', p_ids: null, p_exclude: ['p1', 'p2'],
+    });
+  });
+
+  it('AC-ECA-018 searches staged records through the caller RPC and limits Finance to accounts', async () => {
+    const admin = await call({ setupAction: 'search-connect-staged', kind: 'party', query: 'alpha' }, {
+      rpc: { search_connect_staged: () => jsonResponse([{ external_id: 'Supplier:A', name: 'Alpha', code: 'A' }]) },
+    });
+    assertEquals(admin.res.status, 200);
+    assertEquals(rpcCall(admin.calls, 'search_connect_staged')[0].bodyJson, {
+      p_tier: 'erpnext', p_kind: 'party', p_query: 'alpha', p_limit: 20,
+    });
+    const finance = await call({ setupAction: 'search-connect-staged', kind: 'party', query: 'alpha' }, { role: 'Finance' });
+    assertEquals(finance.res.status, 403);
+    assertEquals(rpcCall(finance.calls, 'search_connect_staged').length, 0);
+    const financeAccount = await call({ setupAction: 'search-connect-staged', kind: 'account', query: 'cash' }, {
+      role: 'Finance', rpc: { search_connect_staged: () => jsonResponse([]) },
+    });
+    assertEquals(financeAccount.res.status, 200);
   });
 
   it('FR-ECA-012 decide-review and unlink-match call their RPCs as the caller; unlink is Admin only', async () => {
@@ -218,10 +248,11 @@ describe('ECA setup verbs — list and status', () => {
       supabaseSelect('erp_connect_runs', () => one({ id: 'run-1', state: 'ready', finished_at: null, error_class: null })),
       supabaseSelect('erp_connect_census', () => jsonResponse([{ kind: 'party', pmo_count: 2, erp_count: 3, linked_count: 1, inactive_erp_count: 0, scenario: 'S-D', accepted_at: null }])),
       { label: 'sending', method: 'HEAD', pathname: '/rest/v1/erp_connect_proposals', response: () => countResponse(4) },
-    ] });
+    ], rpc: { connect_proposal_counts: () => jsonResponse({ party: { link: 3, bring_in: 2, send: 0, review: 1, applied_link: 7 } }) } });
     assertEquals(r.res.status, 200);
     assertEquals(r.json.run, { id: 'run-1', state: 'ready', finished_at: null, error_class: null });
     assertEquals(r.json.waitingForSend, 4);
+    assertEquals((r.json.proposalCounts as Record<string, unknown>).party, { link: 3, bring_in: 2, send: 0, review: 1, applied_link: 7 });
     assertEquals((r.json.census as unknown[]).length, 1);
     const head = r.calls.find((c) => c.method === 'HEAD' && c.url.pathname === '/rest/v1/erp_connect_proposals')!;
     assertEquals(head.url.searchParams.get('state'), 'eq.sending');
@@ -232,7 +263,7 @@ describe('ECA setup verbs — list and status', () => {
       supabaseSelect('erp_connect_runs', () => one({ id: 'run-2', state: 'failed', finished_at: '2026-11-02T00:00:00Z', error_class: 'external-unreachable' })),
       supabaseSelect('erp_connect_census', () => jsonResponse([])),
       { label: 'sending', method: 'HEAD', pathname: '/rest/v1/erp_connect_proposals', response: () => countResponse(0) },
-    ] });
+    ], rpc: { connect_proposal_counts: () => jsonResponse({}) } });
     assertEquals((r.json.run as Record<string, unknown>).error_class, 'external-unreachable');
   });
 
@@ -241,7 +272,7 @@ describe('ECA setup verbs — list and status', () => {
       supabaseSelect('erp_connect_runs', () => none()),
       supabaseSelect('erp_connect_census', () => jsonResponse([])),
       { label: 'sending', method: 'HEAD', pathname: '/rest/v1/erp_connect_proposals', response: () => countResponse(0) },
-    ] });
+    ], rpc: { connect_proposal_counts: () => jsonResponse({}) } });
     assertEquals([r.res.status, r.json.run, r.json.waitingForSend], [200, null, 0]);
   });
 

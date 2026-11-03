@@ -10,7 +10,7 @@ import { takeCensus } from '../../../pmo-portal/src/lib/adapterSeam/connect/cens
 import { connectAdapterForOrg } from '../_shared/connectAdapterForOrg.ts';
 import { pmoMasterCounts } from '../_shared/connectPmoMasters.ts';
 
-export const CONNECT_ACTIONS = new Set(['census', 'connect-status', 'list-proposals', 'accept-proposals', 'decide-review', 'unlink-match', 'retry-send']);
+export const CONNECT_ACTIONS = new Set(['census', 'connect-status', 'list-proposals', 'search-connect-staged', 'accept-proposals', 'decide-review', 'unlink-match', 'retry-send']);
 
 const KINDS = ['party', 'item', 'project', 'employee', 'account'];
 const STATES = ['open', 'sending', 'applied', 'dismissed'];
@@ -58,21 +58,67 @@ function allowed(action: string, role: string, kind: unknown): boolean {
   if (role === 'Admin') return true;
   if (role !== 'Finance') return false;
   if (action === 'connect-status' || action === 'decide-review') return true;   // the database limits a Finance decision to account rows
-  return (action === 'list-proposals' || action === 'accept-proposals') && kind === 'account';
+  return (action === 'list-proposals' || action === 'search-connect-staged' || action === 'accept-proposals') && kind === 'account';
 }
 
 async function connectStatus(c: SupabaseClient, tier: string) {
-  const [run, census, sending] = await Promise.all([
+  const [run, census, sending, proposalCounts] = await Promise.all([
     c.from('erp_connect_runs').select('id, state, finished_at, error_class').eq('external_tier', tier).order('started_at', { ascending: false }).limit(1).maybeSingle(),
     c.from('erp_connect_census').select('kind, pmo_count, erp_count, linked_count, inactive_erp_count, scenario, accepted_at').eq('external_tier', tier),
     c.from('erp_connect_proposals').select('id', { count: 'exact', head: true }).eq('external_tier', tier).eq('state', 'sending'),
+    rpc<Record<string, { link: number; bring_in: number; send: number; review: number; applied_link: number }>>(c, 'connect_proposal_counts', { p_tier: tier }),
   ]);
   if (run.error || census.error || sending.error) throw new AppError('The request could not be completed', 'INTERNAL');
   // Minor 10: sends park in `sending` until the ERP confirms them; the screen says "waiting for send", never "done".
-  return { run: run.data ?? null, census: census.data ?? [], waitingForSend: sending.count ?? 0 };
+  return { run: run.data ?? null, census: census.data ?? [], waitingForSend: sending.count ?? 0, proposalCounts };
 }
 
-async function listProposals(c: SupabaseClient, tier: string, body: Record<string, unknown>) {
+type Proposal = Record<string, unknown> & {
+  id: string; kind: string; outcome: string; pmo_ids: string[]; external_ids: string[];
+  snapshot: Record<string, unknown>; state: string;
+};
+
+interface NameQuery extends PromiseLike<{ data: Array<Record<string, unknown>> | null; error: unknown }> {
+  in(column: string, values: string[]): NameQuery;
+}
+interface NameTable {
+  select(columns: string): { eq(column: string, value: string): NameQuery };
+}
+
+async function proposalNames(client: SupabaseClient, orgId: string, proposals: Proposal[]): Promise<Proposal[]> {
+  const names = new Map<string, string>();
+  const kindTables: Record<string, { table: string; column: string; ids: string[] }> = {};
+  for (const proposal of proposals) {
+    const config = proposal.kind === 'party' ? ['companies', 'name']
+      : proposal.kind === 'project' ? ['projects', 'name']
+      : proposal.kind === 'employee' ? ['profiles', 'full_name'] : null;
+    if (!config) {
+      for (const id of proposal.pmo_ids ?? []) names.set(`${proposal.kind}:${id}`, id);
+      continue;
+    }
+    const [table, column] = config;
+    const target = kindTables[proposal.kind] ??= { table, column, ids: [] };
+    target.ids.push(...(proposal.pmo_ids ?? []));
+  }
+  const scopedClient = client as unknown as { from: (table: string) => NameTable };
+  for (const [kind, target] of Object.entries(kindTables)) {
+    const ids = [...new Set(target.ids)].filter((id) => id.length > 0);
+    if (!ids.length) continue;
+    const { data, error } = await scopedClient.from(target.table).select(`id, ${target.column}`).eq('org_id', orgId).in('id', ids);
+    if (error) throw new AppError('The request could not be completed', 'INTERNAL');
+    for (const row of data ?? []) names.set(`${kind}:${String(row.id)}`, String(row[target.column] ?? row.id));
+  }
+  return proposals.map((proposal) => ({
+    ...proposal,
+    pmo_name: (proposal.pmo_ids ?? []).map((id) => names.get(`${proposal.kind}:${id}`) ?? id).join(', ') || null,
+    erp_name: proposal.outcome === 'send' ? null
+      : String(proposal.snapshot?.name ?? proposal.snapshot?.code ?? proposal.external_ids?.[0] ?? '') || null,
+    can_unlink: false,
+  }));
+}
+
+async function listProposals(ctx: ConnectCtx, tier: string, body: Record<string, unknown>) {
+  const c = ctx.callerClient;
   const state = typeof body.state === 'string' && STATES.includes(body.state) ? body.state : 'open';
   let q = c.from('erp_connect_proposals').select('*').eq('external_tier', tier).eq('state', state).order('id', { ascending: true }).limit(LIST_PAGE);
   if (typeof body.kind === 'string') q = q.eq('kind', body.kind);
@@ -80,8 +126,13 @@ async function listProposals(c: SupabaseClient, tier: string, body: Record<strin
   if (typeof body.afterId === 'string') q = q.gt('id', body.afterId);
   const { data, error } = await q;
   if (error) throw new AppError('The request could not be completed', 'INTERNAL');
-  const proposals = data ?? [];
-  return { proposals, nextAfterId: proposals.length === LIST_PAGE ? String((proposals[proposals.length - 1] as { id: string }).id) : null };
+  const proposals = await proposalNames(ctx.serviceClient, ctx.orgId, (data ?? []) as Proposal[]);
+  if (state === 'applied' && ctx.role === 'Admin' && proposals.length > 0) {
+    const ids = proposals.filter((p) => p.outcome === 'link').map((p) => p.id);
+    const unlinkable = new Set(await rpc<string[]>(ctx.callerClient, 'list_unlinkable_connect_matches', { p_ids: ids }));
+    for (const proposal of proposals) proposal.can_unlink = unlinkable.has(proposal.id);
+  }
+  return { proposals, nextAfterId: proposals.length === LIST_PAGE ? String(proposals[proposals.length - 1].id) : null };
 }
 
 export async function handleConnectAction(ctx: ConnectCtx): Promise<unknown> {
@@ -113,20 +164,30 @@ export async function handleConnectAction(ctx: ConnectCtx): Promise<unknown> {
   }
   if (action === 'accept-proposals') {
     const ids = Array.isArray(body.ids) ? body.ids.map(String) : null;
+    const excludeIds = Array.isArray(body.excludeIds) ? body.excludeIds.map(String) : null;
     const counts: Counts = {};
     let remaining = 0;
     const startedAt = Date.now();
     for (let i = 0; i < ACCEPT_CALLS_PER_REQUEST; i += 1) {
-      const r = await rpc<{ counts: Counts; remaining: number }>(ctx.callerClient, 'accept_connect_proposals', { p_tier: tier, p_kind: body.kind ?? null, p_ids: ids });
+      const r = await rpc<{ counts: Counts; remaining: number }>(ctx.callerClient, 'accept_connect_proposals', {
+        p_tier: tier, p_kind: body.kind ?? null, p_ids: ids, p_exclude: excludeIds,
+      });
       addCounts(counts, r.counts);
       remaining = r.remaining;
       if (remaining === 0 || applied(r.counts) === 0 || Date.now() - startedAt >= ACCEPT_BUDGET_MS) break;
     }
     return { counts, remaining };
   }
+  if (action === 'search-connect-staged') {
+    const query = typeof body.query === 'string' ? body.query.slice(0, 120) : '';
+    const records = await rpc<Array<{ external_id: string; name: string; code: string }>>(ctx.callerClient, 'search_connect_staged', {
+      p_tier: tier, p_kind: body.kind, p_query: query, p_limit: 20,
+    });
+    return { records };
+  }
   if (action === 'decide-review') return await rpc(ctx.callerClient, 'decide_connect_review', { p_id: body.id, p_choice: body.choice });
   if (action === 'unlink-match') return await rpc(ctx.callerClient, 'unlink_connect_match', { p_id: body.id });
   if (action === 'retry-send') return await rpc(ctx.callerClient, 'retry_connect_send', { p_id: body.id });
-  if (action === 'list-proposals') return await listProposals(ctx.callerClient, tier, body);
+  if (action === 'list-proposals') return await listProposals(ctx, tier, body);
   return await connectStatus(ctx.callerClient, tier);
 }

@@ -168,6 +168,9 @@ export interface ConnectProposal {
   reason_text: string | null;
   snapshot: { name?: string; code?: string };
   state: 'open' | 'sending' | 'applied' | 'dismissed';
+  pmo_name?: string | null;
+  erp_name?: string | null;
+  can_unlink?: boolean;
 }
 export interface ConnectStatus {
   /** The latest run for the tier. `ready` with `finished_at` null means the proposals are in and sends are still waiting. */
@@ -175,11 +178,18 @@ export interface ConnectStatus {
   census: ConnectCensusRow[];
   /** Sends queued for the ERP and not yet confirmed (shown as "waiting for send", never as done). */
   waitingForSend: number;
+  /** Server-side aggregates; proposal pages stay keyset-paged for large connections. */
+  proposalCounts?: Record<string, { link: number; bring_in: number; send: number; review: number; applied_link: number }>;
 }
+export interface ConnectStagedRecord { external_id: string; name: string; code: string }
 export type ConnectCounts = Record<string, { link: number; bring_in: number; send: number; left_open: number }>;
 /** `remaining` > 0 after the repository stopped means a request applied nothing more: the rest need a person. */
 export interface ConnectAcceptResult { counts: ConnectCounts; remaining: number }
-export type ConnectReviewChoice = { action: 'dismiss' } | { action: 'link'; pmoId: string; externalId: string };
+export type ConnectReviewChoice =
+  | { action: 'dismiss' }
+  | { action: 'link'; pmoId: string; externalId: string }
+  | { action: 'bring-in'; externalId: string }
+  | { action: 'send'; pmoId: string };
 
 export interface IntegrationsRepository {
   getErpSetup(): Promise<ErpSetupReadiness>;
@@ -223,7 +233,8 @@ export interface IntegrationsRepository {
   /** One page of proposals (200) after `afterId`; `nextAfterId` is null on the last page. */
   listConnectProposals(tier: ConnectTier, kind: ConnectKind | null, outcome: ConnectProposal['outcome'] | null, afterId: string | null, state?: ConnectProposal['state']): Promise<{ proposals: ConnectProposal[]; nextAfterId: string | null }>;
   /** Accept every open row of a kind (or all kinds, or the given ids); loops over bounded requests until none are left or one applies nothing. */
-  acceptConnectProposals(tier: ConnectTier, kind: ConnectKind | null, ids: string[] | null): Promise<ConnectAcceptResult>;
+  acceptConnectProposals(tier: ConnectTier, kind: ConnectKind | null, ids: string[] | null, excludeIds?: string[]): Promise<ConnectAcceptResult>;
+  searchConnectStaged(tier: ConnectTier, kind: ConnectKind, query: string): Promise<ConnectStagedRecord[]>;
   decideConnectReview(tier: ConnectTier, id: string, choice: ConnectReviewChoice): Promise<void>;
   unlinkConnectMatch(tier: ConnectTier, id: string): Promise<void>;
   /** Send a held record again (Admin): the hold is released and the drain looks the record up before it creates anything. */

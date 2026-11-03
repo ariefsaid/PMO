@@ -16,6 +16,8 @@ const mockIntegrationsRepo = vi.hoisted(() => ({
   acceptConnectProposals: vi.fn<IntegrationsRepository['acceptConnectProposals']>(),
   decideConnectReview: vi.fn<IntegrationsRepository['decideConnectReview']>(),
   unlinkConnectMatch: vi.fn<IntegrationsRepository['unlinkConnectMatch']>(),
+  searchConnectStaged: vi.fn(),
+  listConnectUnlinkableMatches: vi.fn(),
   startConnectCensus: vi.fn<IntegrationsRepository['startConnectCensus']>(),
 }));
 
@@ -53,6 +55,7 @@ describe('ConnectProposalReview (AC-ECA-003, FR-ECA-012, FR-ECA-042)', () => {
         id: `link-${i}`,
         kind: 'party' as const,
         outcome: 'link' as const,
+        reason: null,
         pmo_ids: [`pmo-${i}`],
         external_ids: [`ext-${i}`],
         reason_text: null,
@@ -63,16 +66,18 @@ describe('ConnectProposalReview (AC-ECA-003, FR-ECA-012, FR-ECA-042)', () => {
         id: `bring-${i}`,
         kind: 'party' as const,
         outcome: 'bring-in' as const,
+        reason: null,
         pmo_ids: [],
         external_ids: [`erp-bring-${i}`],
         reason_text: null,
-        snapshot: { name: `ERP Partner ${i}` },
+        snapshot: { name: `Connected Partner ${i}` },
         state: 'open' as const,
       })),
       {
         id: 'review-1',
         kind: 'party' as const,
         outcome: 'review' as const,
+        reason: null,
         pmo_ids: ['pmo-rev-1'],
         external_ids: ['ext-rev-1a', 'ext-rev-1b'],
         reason_text: 'Two or more records could be this one',
@@ -83,6 +88,7 @@ describe('ConnectProposalReview (AC-ECA-003, FR-ECA-012, FR-ECA-042)', () => {
         id: 'review-2',
         kind: 'party' as const,
         outcome: 'review' as const,
+        reason: null,
         pmo_ids: ['pmo-rev-2'],
         external_ids: ['ext-rev-2'],
         reason_text: 'Tax numbers do not match',
@@ -137,9 +143,12 @@ describe('ConnectProposalReview (AC-ECA-003, FR-ECA-012, FR-ECA-042)', () => {
     });
 
     // The two review rows still render with "Needs a decision"
-    expect(screen.getAllByText('Needs a decision').length).toBeGreaterThanOrEqual(2);
-    expect(screen.getByText('Acme Corp')).toBeInTheDocument();
-    expect(screen.getByText('Beta Ltd')).toBeInTheDocument();
+    fireEvent.click(within(partyCard).getByRole('button', { name: 'Review list' }));
+    expect(await screen.findByTestId('connect-review-list-row-review-1')).toBeInTheDocument();
+    expect(screen.getByTestId('connect-review-list-row-review-2')).toBeInTheDocument();
+    expect(screen.getAllByText('Needs a decision').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('Acme Corp').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('Beta Ltd').length).toBeGreaterThanOrEqual(1);
   });
 
   it('FR-ECA-012 "Accept all" accepts every kind in one action after one confirm', async () => {
@@ -148,6 +157,7 @@ describe('ConnectProposalReview (AC-ECA-003, FR-ECA-012, FR-ECA-042)', () => {
         id: 'p-link-1',
         kind: 'party',
         outcome: 'link',
+        reason: null,
         pmo_ids: ['p1'],
         external_ids: ['e1'],
         reason_text: null,
@@ -158,6 +168,7 @@ describe('ConnectProposalReview (AC-ECA-003, FR-ECA-012, FR-ECA-042)', () => {
         id: 'item-link-1',
         kind: 'item',
         outcome: 'link',
+        reason: null,
         pmo_ids: ['i1'],
         external_ids: ['ei1'],
         reason_text: null,
@@ -168,6 +179,7 @@ describe('ConnectProposalReview (AC-ECA-003, FR-ECA-012, FR-ECA-042)', () => {
         id: 'left-open-1',
         kind: 'party',
         outcome: 'review',
+        reason: null,
         pmo_ids: ['p2'],
         external_ids: ['e2'],
         reason_text: 'This row could not be applied',
@@ -206,10 +218,11 @@ describe('ConnectProposalReview (AC-ECA-003, FR-ECA-012, FR-ECA-042)', () => {
     });
 
     // A row left open by the accept shows its plain reason
-    expect(await screen.findByText('This row could not be applied')).toBeInTheDocument();
+    fireEvent.click(within(screen.getByTestId('connect-kind-party')).getByRole('button', { name: 'Review list' }));
+    expect(await screen.findByText(/This row could not be applied/)).toBeInTheDocument();
   });
 
-  it('FR-ECA-042 purchase documents in the ERP are counted and point to the purchase link screen', async () => {
+  it('FR-ECA-042 purchase documents in the connected system are counted and point to the purchase link screen', async () => {
     mockIntegrationsRepo.getConnectStatus.mockResolvedValue(readyStatus([
       {
         kind: 'purchase',
@@ -231,13 +244,13 @@ describe('ConnectProposalReview (AC-ECA-003, FR-ECA-012, FR-ECA-042)', () => {
     const note = await screen.findByTestId('connect-purchase-note');
     expect(note).toBeInTheDocument();
     expect(
-      within(note).getByText('7 purchase documents are in the ERP.'),
+      within(note).getByText('7 purchase documents are in your connected system.'),
     ).toBeInTheDocument();
     const link = screen.getByRole('link', { name: 'Link them to PMO purchases' });
     expect(link).toHaveAttribute('href', '/procurement#erp-documents');
   });
 
-  it('FR-ECA-042 domain row with erp_count null reads "Not checked for this ERP yet", never "0"', async () => {
+  it('FR-ECA-042 domain row with erp_count null says it has not been checked, never "0"', async () => {
     mockIntegrationsRepo.getConnectStatus.mockResolvedValue(readyStatus([
       {
         kind: 'purchase',
@@ -259,11 +272,11 @@ describe('ConnectProposalReview (AC-ECA-003, FR-ECA-012, FR-ECA-042)', () => {
     // A domain-only census is NOT the empty state
     expect(screen.queryByText('Nothing to set up')).not.toBeInTheDocument();
     const note = await screen.findByTestId('connect-purchase-note');
-    expect(within(note).getByText('Not checked for this ERP yet')).toBeInTheDocument();
-    expect(screen.queryByText('0 purchase documents are in the ERP')).not.toBeInTheDocument();
+    expect(within(note).getByText('Not checked in your connected system yet')).toBeInTheDocument();
+    expect(screen.queryByText('0 purchase documents are in your connected system')).not.toBeInTheDocument();
   });
 
-  it('renders per-kind census lines without doctype jargon (FR-ECA-002, NFR-ECA-006)', async () => {
+  it('renders per-kind census lines without integration-system jargon (FR-ECA-002, NFR-ECA-006)', async () => {
     mockIntegrationsRepo.getConnectStatus.mockResolvedValue(readyStatus([
       {
         kind: 'party',
@@ -299,6 +312,7 @@ describe('ConnectProposalReview (AC-ECA-003, FR-ECA-012, FR-ECA-042)', () => {
         id: `send-${i}`,
         kind: 'project' as const,
         outcome: 'send' as const,
+        reason: null,
         pmo_ids: [`pmo-p-${i}`],
         external_ids: [],
         reason_text: null,
@@ -309,6 +323,7 @@ describe('ConnectProposalReview (AC-ECA-003, FR-ECA-012, FR-ECA-042)', () => {
         id: `bring-${i}`,
         kind: 'project' as const,
         outcome: 'bring-in' as const,
+        reason: null,
         pmo_ids: [],
         external_ids: [`erp-p-${i}`],
         reason_text: null,
@@ -319,6 +334,7 @@ describe('ConnectProposalReview (AC-ECA-003, FR-ECA-012, FR-ECA-042)', () => {
         id: `rev-${i}`,
         kind: 'project' as const,
         outcome: 'review' as const,
+        reason: null,
         pmo_ids: [`pmo-rev-${i}`],
         external_ids: [`erp-rev-${i}`],
         reason_text: 'Two or more records could be this one',
@@ -335,28 +351,32 @@ describe('ConnectProposalReview (AC-ECA-003, FR-ECA-012, FR-ECA-042)', () => {
     const { container } = renderWithRole('Admin', <ConnectProposalReview tier='erpnext' orgId='org-1' />);
 
     // FR-ECA-002's exact plain line, and the same shape for another kind and different numbers (no hard-coded copy)
-    expect(await screen.findByText('12 vendors in PMO, 40 in the ERP, 9 are the same')).toBeInTheDocument();
-    expect(screen.getByText('8 items in PMO, 12 in the ERP, 8 are the same')).toBeInTheDocument();
+    expect(await screen.findByText('12 vendors in PMO, 40 in your connected system, 9 are the same')).toBeInTheDocument();
+    expect(screen.getByText('8 items in PMO, 12 in your connected system, 8 are the same')).toBeInTheDocument();
     expect(
-      screen.getByText('42 in PMO, 57 in the ERP: 38 are the same, 4 will be sent, 15 brought in, 2 need you'),
+      screen.getByText('42 in PMO, 57 in the connected system: 38 are the same, 4 will be sent, 15 brought in, 2 need you'),
     ).toBeInTheDocument();
 
     // NFR-ECA-006: no raw doctype names in user copy
     expect(container.textContent).not.toMatch(/\bSupplier\b/);
     expect(container.textContent).not.toMatch(/\bCustomer\b/);
+    expect(container.textContent).not.toMatch(/\bERP(?:Next)?\b/i);
   });
 
-  it('review row "Choose" opens a Combobox of its candidates and calls decideConnectReview', async () => {
+  it('AC-ECA-017 an unclear row uses the shared staged search picker and can be linked', async () => {
     const proposals: ConnectProposal[] = [
       {
         id: 'review-ambiguous-1',
         kind: 'party',
         outcome: 'review',
+        reason: null,
         pmo_ids: ['pmo-1'],
         external_ids: ['erp-1', 'erp-2'],
         reason_text: 'Two or more records could be this one',
         snapshot: { name: 'Acme Candidate' },
         state: 'open',
+        pmo_name: 'Acme PMO',
+        erp_name: 'Acme Connected Record',
       },
     ];
 
@@ -367,20 +387,21 @@ describe('ConnectProposalReview (AC-ECA-003, FR-ECA-012, FR-ECA-042)', () => {
       proposals,
       nextAfterId: null,
     });
+    mockIntegrationsRepo.searchConnectStaged.mockResolvedValue([
+      { external_id: 'erp-1', name: 'Acme Candidate', code: 'AC-1' },
+    ]);
     mockIntegrationsRepo.decideConnectReview.mockResolvedValue(undefined);
 
     renderWithRole('Admin', <ConnectProposalReview tier='erpnext' orgId='org-1' />);
-
-    expect(await screen.findByText('Acme Candidate')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Choose' }));
-
-    // Combobox appears with the row's candidates
-    const combobox = screen.getByRole('combobox', { name: 'Choose' });
-    expect(combobox).toBeInTheDocument();
-    fireEvent.click(combobox);
-
-    // Pick candidate
-    const candidateOption = await screen.findByRole('option', { name: /erp-1/ });
+    const partyCard = await screen.findByTestId('connect-kind-party');
+    fireEvent.click(within(partyCard).getByRole('button', { name: 'Review list' }));
+    const row = await screen.findByTestId('connect-review-list-row-review-ambiguous-1');
+    expect(within(row).getByText('Acme PMO')).toBeInTheDocument();
+    expect(within(row).getByText('Acme Connected Record')).toBeInTheDocument();
+    fireEvent.click(within(row).getByRole('button', { name: 'Change' }));
+    fireEvent.click(within(row).getByRole('combobox', { name: 'Search records' }));
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'Acme' } });
+    const candidateOption = await screen.findByRole('option', { name: /Acme Candidate/ });
     fireEvent.click(candidateOption);
 
     await waitFor(() => {
@@ -392,7 +413,7 @@ describe('ConnectProposalReview (AC-ECA-003, FR-ECA-012, FR-ECA-042)', () => {
     });
   });
 
-  it('shows staging state with "Reading records from the ERP…" and polls', async () => {
+  it('shows staging state with "Reading records from your connected system…" and polls', async () => {
     mockIntegrationsRepo.getConnectStatus.mockResolvedValue({
       run: { id: 'run-1', state: 'staging', finished_at: null, error_class: null },
       census: [],
@@ -405,7 +426,7 @@ describe('ConnectProposalReview (AC-ECA-003, FR-ECA-012, FR-ECA-042)', () => {
 
     renderWithRole('Admin', <ConnectProposalReview tier='erpnext' orgId='org-1' />);
 
-    expect(await screen.findByText('Reading records from the ERP…')).toBeInTheDocument();
+    expect(await screen.findByText('Reading records from your connected system…')).toBeInTheDocument();
   });
 
   it('shows error state with plain words and retry button', async () => {
@@ -450,7 +471,7 @@ describe('ConnectProposalReview (AC-ECA-003, FR-ECA-012, FR-ECA-042)', () => {
     ]));
     mockIntegrationsRepo.listConnectProposals.mockResolvedValue({
       proposals: [
-        { id: 'app-1', kind: 'party', outcome: 'link', pmo_ids: ['p1'], external_ids: ['e1'], reason_text: null, snapshot: {}, state: 'applied' },
+        { id: 'app-1', kind: 'party', outcome: 'link', reason: null, pmo_ids: ['p1'], external_ids: ['e1'], reason_text: null, snapshot: {}, state: 'applied' },
       ],
       nextAfterId: null,
     });
@@ -470,6 +491,7 @@ describe('ConnectProposalReview (AC-ECA-003, FR-ECA-012, FR-ECA-042)', () => {
         id: `send-${i}`,
         kind: 'party' as const,
         outcome: 'send' as const,
+        reason: null,
         pmo_ids: [`p-${i}`],
         external_ids: [],
         reason_text: null,
@@ -484,7 +506,7 @@ describe('ConnectProposalReview (AC-ECA-003, FR-ECA-012, FR-ECA-042)', () => {
     expect(await screen.findByText('Sending 4 of 12')).toBeInTheDocument();
   });
 
-  it('lists people the ERP cannot take as "Add these in the ERP by hand"', async () => {
+  it('lists people the connected system cannot take as "Add these in your connected system by hand"', async () => {
     mockIntegrationsRepo.getConnectStatus.mockResolvedValue(readyStatus([
       { kind: 'employee', pmo_count: 2, erp_count: 0, linked_count: 0, inactive_erp_count: 0, scenario: 'S-C', accepted_at: null },
     ]));
@@ -494,9 +516,10 @@ describe('ConnectProposalReview (AC-ECA-003, FR-ECA-012, FR-ECA-042)', () => {
           id: 'emp-1',
           kind: 'employee',
           outcome: 'send',
+          reason: null,
           pmo_ids: ['emp-pmo-1'],
           external_ids: [],
-          reason_text: 'The ERP requires birth date and gender, add these in the ERP by hand',
+          reason_text: 'The connected system requires birth date and gender, add these in the connected system by hand',
           snapshot: { name: 'Alice Smith' },
           state: 'open',
         },
@@ -504,9 +527,10 @@ describe('ConnectProposalReview (AC-ECA-003, FR-ECA-012, FR-ECA-042)', () => {
           id: 'emp-2',
           kind: 'employee',
           outcome: 'send',
+          reason: null,
           pmo_ids: ['emp-pmo-2'],
           external_ids: [],
-          reason_text: 'Add these in the ERP by hand',
+          reason_text: 'Add these in the connected system by hand',
           snapshot: { name: 'Bob Jones' },
           state: 'open',
         },
@@ -516,7 +540,7 @@ describe('ConnectProposalReview (AC-ECA-003, FR-ECA-012, FR-ECA-042)', () => {
 
     renderWithRole('Admin', <ConnectProposalReview tier='erpnext' orgId='org-1' />);
 
-    expect(await screen.findByText('Add these in the ERP by hand')).toBeInTheDocument();
+    expect(await screen.findByText('Add these in your connected system by hand')).toBeInTheDocument();
     expect(screen.getByText('Alice Smith')).toBeInTheDocument();
     expect(screen.getByText('Bob Jones')).toBeInTheDocument();
   });
@@ -540,8 +564,8 @@ describe('ConnectProposalReview (AC-ECA-003, FR-ECA-012, FR-ECA-042)', () => {
       ]));
       mockIntegrationsRepo.listConnectProposals.mockResolvedValue({
         proposals: [
-          { id: 'p1', kind: 'party', outcome: 'link', pmo_ids: ['p1'], external_ids: ['e1'], reason_text: null, snapshot: { name: 'P1' }, state: 'open' },
-          { id: 'a1', kind: 'account', outcome: 'link', pmo_ids: ['a1'], external_ids: ['ea1'], reason_text: null, snapshot: { name: 'A1' }, state: 'open' },
+          { id: 'p1', kind: 'party', outcome: 'link', reason: null, pmo_ids: ['p1'], external_ids: ['e1'], reason_text: null, snapshot: { name: 'P1' }, state: 'open' },
+          { id: 'a1', kind: 'account', outcome: 'link', reason: null, pmo_ids: ['a1'], external_ids: ['ea1'], reason_text: null, snapshot: { name: 'A1' }, state: 'open' },
         ],
         nextAfterId: null,
       });
@@ -577,4 +601,111 @@ describe('ConnectProposalReview (AC-ECA-003, FR-ECA-012, FR-ECA-042)', () => {
       }
     },
   );
+
+  it('AC-ECA-016 unticking one paged row accepts the remaining rows by exclusion', async () => {
+    const proposals: ConnectProposal[] = [
+      { id: 'proposal-1', kind: 'party', outcome: 'link', reason: null, pmo_ids: ['p1'], external_ids: ['e1'], reason_text: null, snapshot: { name: 'Connected One' }, state: 'open', pmo_name: 'Partner One', erp_name: 'Connected One' },
+      { id: 'proposal-2', kind: 'party', outcome: 'link', reason: null, pmo_ids: ['p2'], external_ids: ['e2'], reason_text: null, snapshot: { name: 'Connected Two' }, state: 'open', pmo_name: 'Partner Two', erp_name: 'Connected Two' },
+    ];
+    mockIntegrationsRepo.getConnectStatus.mockResolvedValue({
+      ...readyStatus([{ kind: 'party', pmo_count: 2, erp_count: 2, linked_count: 0, inactive_erp_count: 0, scenario: 'S-D', accepted_at: null }]),
+      proposalCounts: { party: { link: 2, bring_in: 0, send: 0, review: 0 } },
+    } as never);
+    mockIntegrationsRepo.listConnectProposals.mockResolvedValue({ proposals, nextAfterId: null });
+    mockIntegrationsRepo.acceptConnectProposals.mockResolvedValue({ counts: {}, remaining: 0 });
+
+    renderWithRole('Admin', <ConnectProposalReview tier='erpnext' orgId='org-1' />);
+    const partyCard = await screen.findByTestId('connect-kind-party');
+    fireEvent.click(within(partyCard).getByRole('button', { name: 'Review list' }));
+    const selectedRow = await screen.findByTestId('connect-review-list-row-proposal-1');
+    expect(within(selectedRow).getByText('Partner One')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select Partner One' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Accept 1 selected' }));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Accept selected' }));
+
+    await waitFor(() => {
+      expect(mockIntegrationsRepo.acceptConnectProposals).toHaveBeenCalledWith('erpnext', 'party', null, ['proposal-1']);
+    });
+  });
+
+  it('AC-ECA-017 Change searches staged records and links the chosen record', async () => {
+    const proposal: ConnectProposal = {
+      id: 'proposal-change', kind: 'party', outcome: 'link', reason: null, pmo_ids: ['pmo-1'], external_ids: ['old-id'],
+      reason_text: null, snapshot: { name: 'Old Connected Name' }, state: 'open',
+    };
+    mockIntegrationsRepo.getConnectStatus.mockResolvedValue({
+      ...readyStatus([{ kind: 'party', pmo_count: 1, erp_count: 2, linked_count: 0, inactive_erp_count: 0, scenario: 'S-D', accepted_at: null }]),
+      proposalCounts: { party: { link: 1, bring_in: 0, send: 0, review: 0 } },
+    } as never);
+    mockIntegrationsRepo.listConnectProposals.mockResolvedValue({ proposals: [proposal], nextAfterId: null });
+    mockIntegrationsRepo.searchConnectStaged.mockResolvedValue([
+      { external_id: 'new-id', name: 'New Connected Name', code: 'N-1' },
+    ]);
+    mockIntegrationsRepo.decideConnectReview.mockResolvedValue(undefined);
+
+    renderWithRole('Admin', <ConnectProposalReview tier='erpnext' orgId='org-1' />);
+    fireEvent.click(within(await screen.findByTestId('connect-kind-party')).getByRole('button', { name: 'Review list' }));
+    const row = await screen.findByTestId('connect-review-list-row-proposal-change');
+    fireEvent.click(within(row).getByRole('button', { name: 'Change' }));
+    fireEvent.click(within(row).getByRole('combobox', { name: 'Search records' }));
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'New' } });
+    const option = await screen.findByRole('option', { name: /New Connected Name/ });
+    fireEvent.click(option);
+
+    await waitFor(() => {
+      expect(mockIntegrationsRepo.decideConnectReview).toHaveBeenCalledWith('erpnext', 'proposal-change', {
+        action: 'link', pmoId: 'pmo-1', externalId: 'new-id',
+      });
+    });
+  });
+
+  it('AC-ECA-019 only links that can still be removed show Undo', async () => {
+    const applied: ConnectProposal[] = [
+      { id: 'safe-link', kind: 'party', outcome: 'link', reason: null, pmo_ids: ['p1'], external_ids: ['e1'], reason_text: null, snapshot: { name: 'Partner One' }, state: 'applied', pmo_name: 'Partner One', erp_name: 'Connected One', can_unlink: true },
+      { id: 'used-link', kind: 'party', outcome: 'link', reason: null, pmo_ids: ['p2'], external_ids: ['e2'], reason_text: null, snapshot: { name: 'Partner Two' }, state: 'applied', pmo_name: 'Partner Two', erp_name: 'Connected Two', can_unlink: false },
+    ];
+    mockIntegrationsRepo.getConnectStatus.mockResolvedValue({
+      ...readyStatus([{ kind: 'party', pmo_count: 2, erp_count: 2, linked_count: 2, inactive_erp_count: 0, scenario: 'S-D', accepted_at: null }]),
+      proposalCounts: { party: { link: 0, bring_in: 0, send: 0, review: 0, applied_link: 2 } },
+    } as never);
+    mockIntegrationsRepo.listConnectProposals.mockImplementation(async (_tier, _kind, _outcome, _afterId, state) => ({
+      proposals: state === 'applied' ? applied : [], nextAfterId: null,
+    }));
+    mockIntegrationsRepo.unlinkConnectMatch.mockResolvedValue(undefined);
+
+    renderWithRole('Admin', <ConnectProposalReview tier='erpnext' orgId='org-1' />);
+    fireEvent.click(within(await screen.findByTestId('connect-kind-party')).getByRole('button', { name: 'Review list' }));
+    const safeRow = await screen.findByTestId('connect-review-list-row-safe-link');
+    const usedRow = await screen.findByTestId('connect-review-list-row-used-link');
+    expect(within(safeRow).getByRole('button', { name: 'Undo' })).toBeInTheDocument();
+    expect(within(usedRow).queryByRole('button', { name: 'Undo' })).toBeNull();
+    fireEvent.click(within(safeRow).getByRole('button', { name: 'Undo' }));
+    await waitFor(() => expect(mockIntegrationsRepo.unlinkConnectMatch).toHaveBeenCalledWith('erpnext', 'safe-link'));
+  });
+
+  it('AC-ECA-020 read-only roles see no Accept, Change, Undo, or row selection', async () => {
+    const proposals: ConnectProposal[] = [
+      { id: 'readonly-open', kind: 'party', outcome: 'link', reason: null, pmo_ids: ['p1'], external_ids: ['e1'], reason_text: null, snapshot: { name: 'Partner One' }, state: 'open' },
+      { id: 'readonly-applied', kind: 'party', outcome: 'link', reason: null, pmo_ids: ['p2'], external_ids: ['e2'], reason_text: null, snapshot: { name: 'Partner Two' }, state: 'applied', can_unlink: true },
+    ];
+    mockIntegrationsRepo.getConnectStatus.mockResolvedValue({
+      ...readyStatus([{ kind: 'party', pmo_count: 2, erp_count: 2, linked_count: 1, inactive_erp_count: 0, scenario: 'S-D', accepted_at: null }]),
+      proposalCounts: { party: { link: 1, bring_in: 0, send: 0, review: 0, applied_link: 1 } },
+    } as never);
+    mockIntegrationsRepo.listConnectProposals.mockImplementation(async (_tier, _kind, _outcome, _afterId, state) => ({
+      proposals: state === 'applied' ? [proposals[1]] : [proposals[0]], nextAfterId: null,
+    }));
+
+    renderWithRole('Engineer', <ConnectProposalReview tier='erpnext' orgId='org-1' />);
+    const partyCard = await screen.findByTestId('connect-kind-party');
+    expect(within(partyCard).queryByRole('button', { name: 'Accept all' })).toBeNull();
+    fireEvent.click(within(partyCard).getByRole('button', { name: 'Review list' }));
+    const openRow = await screen.findByTestId('connect-review-list-row-readonly-open');
+    const appliedRow = await screen.findByTestId('connect-review-list-row-readonly-applied');
+    expect(within(openRow).queryByRole('button', { name: 'Change' })).toBeNull();
+    expect(within(openRow).queryByRole('checkbox')).toBeNull();
+    expect(within(appliedRow).queryByRole('button', { name: 'Undo' })).toBeNull();
+  });
 });
