@@ -27,7 +27,7 @@ const asMap = (value: unknown): Record<string, string> =>
     : {};
 
 /** One line of a draft, as the PMO draft stores it (the native line shape). */
-export interface DraftLine { item_code: string; description: string | null; qty: number; rate: number; amount: number }
+export interface DraftLine { item_code: string; description: string | null; qty: number; rate: number; amount: number; unit?: string }
 export interface InvoiceDraftRow {
   id: string; customerId: string | null; projectId: string | null; workOrderId: string | null; referenceNumber: string | null;
   invoiceDate: string | null; currency: string | null; status: string; erpDocstatus: number | null; pmoNative: boolean; lines: DraftLine[];
@@ -39,13 +39,15 @@ export function parseDraftLines(value: unknown, allowNegative = false, preserveR
   if (!Array.isArray(value) || value.length === 0) return null;
   const lines: DraftLine[] = [];
   for (const raw of value) {
-    const l = raw as { item_code?: unknown; description?: unknown; qty?: unknown; rate?: unknown; amount?: unknown } | null;
+    const l = raw as { item_code?: unknown; description?: unknown; qty?: unknown; rate?: unknown; amount?: unknown; unit?: unknown } | null;
     const code = text(l?.item_code);
     if (!l || !code || typeof l.qty !== 'number' || !(l.qty > 0) || typeof l.rate !== 'number' || !Number.isFinite(l.rate) || (!allowNegative && l.rate < 0)) return null;
     const recordedAmount = typeof l.amount === 'number' ? l.amount : typeof l.amount === 'string' && l.amount.trim() !== '' ? Number(l.amount) : NaN;
     const amount = preserveRecordedAmounts ? recordedAmount : odooFloatRound(l.qty * l.rate, { precisionDigits: 2 });
     if (!Number.isFinite(amount) || odooFloatRound(amount, { precisionDigits: 2 }) !== amount) return null;
-    lines.push({ item_code: code, description: text(l.description), qty: l.qty, rate: l.rate, amount });
+    const unit = preserveRecordedAmounts && l.unit !== undefined ? text(l.unit) : null;
+    if (preserveRecordedAmounts && l.unit !== undefined && unit === null) return null;
+    lines.push({ item_code: code, description: text(l.description), qty: l.qty, rate: l.rate, amount, ...(unit ? { unit } : {}) });
   }
   return lines;
 }
@@ -98,17 +100,20 @@ async function companyCurrency(call: OdooCall, companyId: number | null): Promis
 }
 
 /** account.move.line.quantity uses digits="Product Unit"; Odoo's ORM rounds it through float_round. */
-async function productUnitRounding(call: OdooCall): Promise<number> {
+async function productUnitRounding(call: OdooCall, timeMaterials: boolean): Promise<number> {
+  const message = timeMaterials
+    ? 'config-rejected: the product unit precision could not be checked against Odoo'
+    : 'config-rejected: the product-unit quantity precision could not be read';
   let rows: Array<{ digits?: unknown }>;
   try {
     rows = await call<Array<{ digits?: unknown }>>('decimal.precision', 'search_read', {
       domain: [['name', '=', 'Product Unit']], fields: ['digits'], limit: 2,
     });
   } catch {
-    throw rejected('config-rejected: the product-unit quantity precision could not be read');
+    throw rejected(message);
   }
   const digits = rows.length === 1 ? Number(rows[0].digits) : NaN;
-  if (!Number.isInteger(digits) || digits < 0 || digits > 12) throw rejected('config-rejected: the product-unit quantity precision could not be read');
+  if (!Number.isInteger(digits) || digits < 0 || digits > 12) throw rejected(message);
   return 10 ** -digits;
 }
 
@@ -176,8 +181,12 @@ export function resolveOdooInvoiceInputs(sc: SupabaseClient, orgId: string, comm
     if (claim) {
       const recorded = claim.items.map((line) => ({
         item_code: line.item_code, qty: line.qty, rate: line.rate, amount: line.amount, description: text(line.description),
+        ...(claim.timeMaterials && line.unit ? { unit: line.unit } : {}),
       }));
-      const copied = draft.lines.map((line) => ({ item_code: line.item_code, qty: line.qty, rate: line.rate, amount: line.amount, description: line.description }));
+      const copied = draft.lines.map((line) => ({
+        item_code: line.item_code, qty: line.qty, rate: line.rate, amount: line.amount, description: line.description,
+        ...(claim.timeMaterials && line.unit ? { unit: line.unit } : {}),
+      }));
       if (draft.customerId !== claim.customerId || draft.projectId !== claim.claim.project_id || draft.workOrderId !== claim.claim.work_order_id
         || draft.currency !== claim.claim.currency || draft.referenceNumber !== null || JSON.stringify(copied) !== JSON.stringify(recorded)) {
         return refuse('claim-invoice-draft-mismatch');
@@ -235,11 +244,12 @@ export function resolveOdooInvoiceInputs(sc: SupabaseClient, orgId: string, comm
     const selection = selectSaleTaxes({ vatFlag, defaultTaxId: saleTaxId, taxes, companyId: resolved.companyId });
     if (selection.outcome === 'refused') throw rejected(`config-rejected: the sale tax${selection.tax ? ` ${selection.tax}` : ''} cannot be used on an invoice`);
     const rates = taxes.filter((t) => selection.taxIds.includes(t.id)).map((t) => t.rate);
-    const [quantityRounding, currency] = await Promise.all([productUnitRounding(call), companyCurrency(call, resolved.companyId)]);
+    const [quantityRounding, currency] = await Promise.all([productUnitRounding(call, claim?.timeMaterials === true), companyCurrency(call, resolved.companyId)]);
 
     const lines = draft.lines.map((l, i) => {
       const item = {
         itemId: l.item_code, description: l.description ?? l.item_code, quantity: l.qty, unitPrice: l.rate,
+        ...(claim?.timeMaterials ? { amount: l.amount, unit: l.unit } : {}),
         ...(claim ? { kind: claim.claim.kind === 'down_payment' ? 'down-payment' as const
           : l.item_code === claim.claim.dp_item_code && l.rate < 0 ? 'recovery' as const : undefined } : {}),
       };
@@ -264,7 +274,14 @@ export function resolveOdooInvoiceInputs(sc: SupabaseClient, orgId: string, comm
       id: draft.id, customerId: draft.customerId ?? '', invoiceDate: draft.invoiceDate ?? today, currency: draft.currency ?? '', lines,
       referenceNumber: draft.referenceNumber, workOrderPoNumber: workOrderPo, projectContractRef: contractRef,
     };
-    const maps: InvoiceMaps = { companyCurrency: currency.code, partners, items, units: {}, costAccountId, taxIds: selection.taxIds, ...(downPayment ? { downPayment } : {}) };
+    const units = Object.fromEntries(Object.entries(asMap(resolved.config.unit_map)).flatMap(([unit, id]) => {
+      const parsed = Number(id);
+      return Number.isInteger(parsed) && parsed > 0 ? [[unit, parsed]] : [];
+    }));
+    const maps: InvoiceMaps = {
+      companyCurrency: currency.code, currencyRounding: currency.rounding, quantityRounding, partners, items, units, costAccountId, taxIds: selection.taxIds,
+      ...(downPayment ? { downPayment } : {}),
+    };
 
     // The command is what the draft says: the client's, project's, work order's and lines' values REPLACE whatever the payload carried, so the
     // outbox payload, its digest, the work-order fence and the recovery all read the approved draft (never the approver's say-so).
@@ -275,6 +292,7 @@ export function resolveOdooInvoiceInputs(sc: SupabaseClient, orgId: string, comm
     record.items = lines.map((l, i) => ({
       item_code: l.itemId, qty: l.quantity, rate: l.unitPrice, amount: draft.lines[i].amount,
       ...(l.description ? { description: l.description } : {}),
+      ...(claim?.timeMaterials && draft.lines[i].unit ? { unit: draft.lines[i].unit } : {}),
     }));
     record.reference_number = reference;
     delete record.taxes;
