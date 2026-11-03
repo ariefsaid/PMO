@@ -60,6 +60,25 @@ Deno.test('detectMissingTool — the guess ignores ids and free text (only vocab
   assertEquals(result?.module, UNKNOWN_MODULE);
 });
 
+Deno.test('detectMissingTool — the source separates "not built" from "not on your plan"', () => {
+  assertEquals(
+    detectMissingTool({ question: 'How much cement is on hand?', answer: "Stock isn't on your organisation's plan." })?.source,
+    'plan',
+  );
+  assertEquals(
+    detectMissingTool({ question: 'How much cement is on hand?', answer: 'Stock is not available on your plan.' })?.source,
+    'plan',
+  );
+  assertEquals(
+    detectMissingTool({ question: 'How much cement is on hand?', answer: "I don't have a tool for stock." })?.source,
+    'missing',
+  );
+  assertEquals(
+    detectMissingTool({ question: 'Any incidents?', answer: 'There is no tool that can list incidents.' })?.source,
+    'missing',
+  );
+});
+
 Deno.test('routeTemplate — ids and query strings never leave the app', () => {
   assertEquals(routeTemplate('/projects/0b9a1c2d-3e4f-4a5b-8c9d-0e1f2a3b4c5d/stock?tab=levels'), '/projects/:id/stock');
   assertEquals(routeTemplate('/procurement/42'), '/procurement/:id');

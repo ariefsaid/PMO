@@ -14,7 +14,7 @@
 // No @-alias (Deno has no Vite alias).
 import type { AgentAction, DeputyContext, ReadQueryBuilder, SupabaseLikeWithWrites } from '../../../pmo-portal/src/lib/agent/runtime/port.ts';
 import { resolveAgentEntity } from './entityCatalog.ts';
-import { isEntityAllowed, keyForEntity, notOnPlanError } from './featureSwitches.ts';
+import { isEntityAllowed, keyForEntity, notOnPlanError, writeRefusal } from './featureSwitches.ts';
 import {
   QUERY_ENTITY_SCHEMA,
   CREATE_ACTIVITY_SCHEMA,
@@ -557,6 +557,11 @@ export const createAutomationAction: AgentAction & {
   summarize: (i) =>
     `Watch: ${i.prompt} (${i.kind === 'schedule' ? `on schedule ${i.schedule}` : `when ${i.trigger_on?.event}`})`,
   run: async (input: unknown, ctx: DeputyContext) => {
+    // S4 (FR-PLN-006): a write checks its OWN switch key at execution, and never fails open — the run
+    // gate refuses an explicitly-off assistant, but a chip can be approved after a resolver failure
+    // left the snapshot unknown. Null (unresolved) refuses here; reads keep the fail-open rule.
+    const refusal = writeRefusal('agent_assistant', ctx.featureSwitches);
+    if (refusal) return refusal;
     const v = validateCreateAutomation(input);
     if (v.ok === false) return { error: v.error };
     // Cast: see the write-action comment on createActivityAction.

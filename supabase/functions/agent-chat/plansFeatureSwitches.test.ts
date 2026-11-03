@@ -8,6 +8,7 @@
  */
 import { assertEquals, assert, assertThrows } from 'https://deno.land/std@0.224.0/assert/mod.ts';
 import { agentChatHandler } from './handler.ts';
+import { createAutomationAction } from './actions.ts';
 import type { HandlerDeps } from './handler.ts';
 import { sanitizeServerProps } from '../_shared/posthogServer.ts';
 import type { AgentEvent } from '../../../pmo-portal/src/lib/agent/runtime/port.ts';
@@ -259,6 +260,7 @@ Deno.test('AC-PLN-007 — a missing-tool answer emits exactly one event with org
   assertEquals(p.org_id, 'org-1');
   assertEquals(p.route, '/stock');
   assertEquals(p.module, 'stock');
+  assertEquals(p.source, 'plan', 'the separated demand signal says whether it was the plan or a missing tool');
   const wire = JSON.stringify(r.ph);
   assertEquals(wire.includes('cement'), false, 'no question text may leave the server');
   assertEquals(wire.includes('gudang'), false, 'no question text may leave the server');
@@ -287,6 +289,193 @@ Deno.test('AC-PLN-007 — an ordinary answer emits no missing-tool event', async
   assertEquals(r.ph.filter((e) => e.event === 'agent_missing_tool').length, 0);
 });
 
+// ── D6: `agent_assistant` off is a REFUSAL, not a hidden tool ────────────────────────────────
+// The key gates the assistant capability itself. It is enforced in the ONE handler every assistant
+// run goes through — interactive chat and the fired-automation runner (agent-dispatch drives the same
+// handler under a minted owner client), so both are covered by the same check and no path makes a
+// model call while the feature resolves off.
+
+/** A caller-JWT client stub whose ONLY interesting answer is the resolver. */
+function resolverClient(answer: () => { data: unknown; error: unknown }) {
+  return {
+    from: (table: string) => {
+      if (table === 'profiles') {
+        return { select: () => ({ eq: () => ({ single: async () => ({ data: { org_id: 'org-1', role: 'Finance' }, error: null }) }) }) };
+      }
+      return { select: () => ({ limit: async () => ({ data: [], error: null }) }) };
+    },
+    rpc: async (fn: string) => (fn === 'resolved_org_features' ? answer() : { data: [], error: null }),
+  };
+}
+
+const rows = (switches: Record<string, boolean>) => ({
+  data: Object.entries(switches).map(([feature_key, enabled]) => ({ feature_key, enabled, display_enabled: enabled, source: 'plan' })),
+  error: null,
+});
+
+Deno.test('D6 agent_assistant off — the run is refused before any model call', async () => {
+  let modelCalls = 0;
+  const client = resolverClient(() => rows({ agent_assistant: false, crm: true, stock: true }));
+  const events: AgentEvent[] = [];
+  for await (
+    const e of agentChatHandler(
+      { messages: [{ role: 'user', content: 'How many projects are open?' }] },
+      {
+        modelClient: { create: async () => { modelCalls++; return resp({ finish_reason: 'stop', message: { role: 'assistant', content: 'hi' } }); } } as never,
+        model: MODEL, supabase: client as never, userId: 'user-1',
+      },
+    )
+  ) events.push(e);
+
+  assertEquals(modelCalls, 0, 'no model call may happen while the assistant is off');
+  const errored = events.filter((e) => e.type === 'status' && (e.payload as { status?: string })?.status === 'errored');
+  assertEquals(errored.length, 1);
+  assertEquals((errored[0].payload as { error?: string }).error, 'FEATURE_OFF', 'the refusal is typed');
+  assertEquals(events.some((e) => e.type === 'tool'), false, 'no tool may run');
+});
+
+Deno.test('D6 agent_assistant off — the fired-automation runner enters the same handler, so it is refused too', async () => {
+  // The dispatch tick's deps shape (fireAutomation): model client, model, the MINTED owner client and
+  // the owner id — nothing interactive. Same refusal, so an automation cannot run a switched-off
+  // assistant even if a row still exists.
+  let modelCalls = 0;
+  const events: AgentEvent[] = [];
+  for await (
+    const e of agentChatHandler(
+      { runId: 'run-dispatch', messages: [{ role: 'user', content: 'Daily digest' }] },
+      {
+        modelClient: { create: async () => { modelCalls++; return resp({ finish_reason: 'stop', message: { role: 'assistant', content: 'hi' } }); } } as never,
+        model: MODEL, supabase: resolverClient(() => rows({ agent_assistant: false })) as never, userId: 'owner-1',
+      },
+    )
+  ) events.push(e);
+
+  assertEquals(modelCalls, 0);
+  assertEquals(
+    (events.find((e) => (e.payload as { status?: string })?.status === 'errored')?.payload as { error?: string })?.error,
+    'FEATURE_OFF',
+  );
+});
+
+Deno.test('D6 agent_assistant on — the same org runs, and an unresolved resolver does not refuse', async () => {
+  const on = await run({ switches: { agent_assistant: true }, rounds: [resp({ finish_reason: 'stop', message: { role: 'assistant', content: 'There are 4 active projects.' } })] });
+  assertEquals(on.events.some((e) => (e.payload as { status?: string })?.status === 'errored'), false, 'agent_assistant on ⇒ the run proceeds');
+
+  const unresolved = await run({ switches: 'error', rounds: [resp({ finish_reason: 'stop', message: { role: 'assistant', content: 'There are 4 active projects.' } })] });
+  assertEquals(unresolved.events.some((e) => (e.payload as { status?: string })?.status === 'errored'), false, 'an unreachable resolver keeps the read assistant available');
+});
+
+// ── Writes never fail open ──────────────────────────────────────────────────────────────────
+// A chip can be approved after the resolver read failed, so the WRITE path checks its own key at
+// execution. Reads keep the fail-open rule; a write does not: an unknown entitlement refuses.
+
+/** A two-turn run (propose → approve) with a per-request resolver answer. */
+async function proposeThenApprove(opts: {
+  tool: string;
+  args: Record<string, unknown>;
+  switchesPerTurn: Array<Record<string, boolean> | 'error'>;
+}) {
+  const inserts: Array<{ table: string; row: unknown }> = [];
+  let turn = 0;
+  const client = {
+    from: (table: string) => {
+      if (table === 'profiles') {
+        return { select: () => ({ eq: () => ({ single: async () => ({ data: { org_id: 'org-1', role: 'Finance' }, error: null }) }) }) };
+      }
+      return {
+        insert: (row: unknown) => {
+          inserts.push({ table, row });
+          return { select: () => ({ single: async () => ({ data: { id: 'row-1' }, error: null }) }) };
+        },
+        select: () => ({ limit: async () => ({ data: [], error: null }) }),
+      };
+    },
+    rpc: async (fn: string) => {
+      if (fn !== 'resolved_org_features') return { data: [], error: null };
+      const answer = opts.switchesPerTurn[Math.min(turn, opts.switchesPerTurn.length - 1)];
+      if (answer === 'error') return { data: null, error: { message: 'resolver unavailable' } };
+      return rows(answer);
+    },
+  };
+  const model = async () => resp({
+    finish_reason: 'tool_calls',
+    message: {
+      role: 'assistant', content: null,
+      tool_calls: [{ id: 'tc-1', type: 'function', function: { name: opts.tool, arguments: JSON.stringify(opts.args) } }],
+    },
+  });
+  const base = {
+    model: MODEL, supabase: client as never, userId: 'user-1', verifyAnswer: false,
+    can: () => true,
+    now: () => new Date('2026-11-03T00:00:00Z'),
+  };
+
+  const first: AgentEvent[] = [];
+  for await (const e of agentChatHandler({ runId: 'run-1', threadId: 't-1', messages: [{ role: 'user', content: 'do it' }] }, { ...base, modelClient: { create: model } as never })) first.push(e);
+  const chip = first.find((e) => (e.payload as { status?: string })?.status === 'needs-approval');
+  const pendingId = (chip?.payload as { pendingId?: string } | undefined)?.pendingId;
+
+  turn = 1;
+  const second: AgentEvent[] = [];
+  for await (
+    const e of agentChatHandler(
+      {
+        runId: 'run-1',
+        threadId: 't-1',
+        messages: [
+          { role: 'user', content: 'do it' },
+          { role: 'assistant', content: [{ type: 'tool_use', id: 'tc-1', name: opts.tool, input: opts.args }] as never },
+        ],
+        decision: { pendingId: pendingId ?? '', verdict: 'approve' },
+      },
+      { ...base, modelClient: { create: async () => resp({ finish_reason: 'stop', message: { role: 'assistant', content: 'Not on your plan.' } }) } as never },
+    )
+  ) second.push(e);
+
+  return { chip: chip?.payload, second, inserts };
+}
+
+Deno.test('create_automation — an approved chip writes nothing when the plan could not be resolved', async () => {
+  const r = await proposeThenApprove({
+    tool: 'create_automation',
+    args: { kind: 'schedule', prompt: 'Send the weekly summary', schedule: '0 9 * * 1' },
+    switchesPerTurn: ['error', 'error'],
+  });
+  assertEquals(r.inserts.filter((i) => i.table === 'agent_automations').length, 0, 'no automation row may be written on an unknown entitlement');
+  const rejected = r.second.find((e) => (e.payload as { event?: string })?.event === 'write_resolved');
+  assertEquals((rejected?.payload as { decision?: string }).decision, 'rejected');
+  assertEquals((rejected?.payload as { reason?: string }).reason, 'plan_unverified');
+});
+
+Deno.test('create_automation — the action refuses an off assistant key itself (defence behind the run gate)', async () => {
+  const inserts: unknown[] = [];
+  const ctx = {
+    jwt: '', userId: 'u-1', orgId: 'org-1', role: 'Finance', featureSwitches: { agent_assistant: false },
+    supabase: { from: () => ({ insert: (row: unknown) => { inserts.push(row); return { select: () => ({ single: async () => ({ data: { id: 'x' }, error: null }) }) }; } }) },
+  };
+  const out = await createAutomationAction.run(
+    { kind: 'schedule', prompt: 'Send the weekly summary', schedule: '0 9 * * 1' },
+    ctx as never,
+  );
+  assertEquals((out as { code?: string }).code, 'FEATURE_OFF');
+  assertEquals(inserts.length, 0);
+});
+
+Deno.test('AC-PLN-006 approve after the switch changed — the pending write is refused, not executed', async () => {
+  // The review's own scenario: the chip was proposed while crm resolved on, and the approval re-POST
+  // arrives after the key resolved off. The write must be refused AND resolved as rejected.
+  const r = await proposeThenApprove({
+    tool: 'create_activity',
+    args: { contactId: 'c-1', kind: 'call', subject: 'Kickoff call' },
+    switchesPerTurn: [{ crm: true }, { crm: false }],
+  });
+  assertEquals(!!r.chip, true, 'the chip is proposed while the key is on');
+  assertEquals(r.inserts.filter((i) => i.table === 'crm_activities').length, 0, 'the write must not execute');
+  const rejected = r.second.find((e) => (e.payload as { event?: string })?.event === 'write_resolved');
+  assertEquals((rejected?.payload as { decision?: string; reason?: string }).decision, 'rejected');
+  assertEquals((rejected?.payload as { reason?: string }).reason, 'feature_off');
+});
+
 Deno.test('AC-PLN-007 — the event allowlist has no text key, so a message can never ride along', () => {
   // Strict mode is what CI-adjacent suites use; the emitter in production drops unknown keys. Both
   // directions matter: a text key must not exist for this event, and the allowed set must be exactly
@@ -299,9 +488,9 @@ Deno.test('AC-PLN-007 — the event allowlist has no text key, so a message can 
   assertEquals(
     sanitizeServerProps(
       'agent_missing_tool',
-      { org_id: 'org-1', route: '/stock', module: 'stock', $session_id: 's-1', user_id: 'u-1' },
+      { org_id: 'org-1', route: '/stock', module: 'stock', source: 'plan', $session_id: 's-1', user_id: 'u-1' },
       true,
     ),
-    { org_id: 'org-1', route: '/stock', module: 'stock', $session_id: 's-1', user_id: 'u-1' },
+    { org_id: 'org-1', route: '/stock', module: 'stock', source: 'plan', $session_id: 's-1', user_id: 'u-1' },
   );
 });

@@ -101,7 +101,7 @@ export const FEATURE_LABELS: Readonly<Record<string, string>> = Object.freeze({
 /** Stable display order for the prompt's not-on-plan list (registry order, `features.ts`). */
 const LABEL_ORDER: readonly string[] = Object.freeze([
   'incidents', 'crm', 'procurement', 'timesheets', 'import_export', 'agent_assistant',
-  'sales_invoices', 'user_views', 'revenue', 'm365_integration', 'feedback_surveys',
+  'sales_invoices', 'user_views', 'revenue', 'm365_integration',
   'sales_pipeline', 'procurement_full', 'imprest', 'clickup_sync', 'budget_projection',
   'erp_sync', 'erp_purchases', 'financial_statements', 'management_pack', 'budget_phasing',
   'multi_currency', 'stock', 'api_access', 'sso',
@@ -117,16 +117,84 @@ export function keyForTool(tool: string): string | undefined {
   return TOOL_FEATURE_KEYS[tool];
 }
 
+/** The switch key that gates the assistant capability itself (FR-PLN-006 / D6). */
+export const ASSISTANT_FEATURE_KEY = 'agent_assistant';
+
 /**
  * Is this key on for the caller?
  *
  * Core (no key) is always on. An unresolved snapshot (`null`/`undefined`) means nothing is KNOWN to be
  * off — the resolver is an offering filter, never the enforcement authority (S2's `assert_feature_on`
  * and RLS are), so an unreachable resolver must not blank the assistant. Only an explicit `false` is off.
+ *
+ * READ semantics only. A write must use `writeRefusal`, which never fails open.
  */
 export function isKeyEnabled(key: string | undefined, switches: FeatureSwitches | null | undefined): boolean {
   if (key === undefined || !switches) return true;
   return switches[key] !== false;
+}
+
+/** May the assistant run at all for this request? Explicit `false` only — see `isKeyEnabled`. */
+export function isAssistantEnabled(switches: FeatureSwitches | null | undefined): boolean {
+  return isKeyEnabled(ASSISTANT_FEATURE_KEY, switches);
+}
+
+/** The refusal a write path returns: the key is off, or entitlement could not be established. */
+export interface WriteFeatureRefusal {
+  error: string;
+  code: 'FEATURE_OFF' | 'PLAN_UNVERIFIED';
+}
+
+/** Shown to the model — and through it, the user — when the plan could not be confirmed at write time. */
+export const PLAN_UNVERIFIED_ERROR =
+  "I couldn't confirm your organisation's plan just now, so I did not make that change. Ask me again in a moment.";
+
+/**
+ * The check EVERY assistant write path makes at execution (FR-PLN-006, D6).
+ *
+ * Reads may fail open; a write may not. Two ways to be refused, both deliberate:
+ *   - the key resolves explicitly off → `FEATURE_OFF` (the module is not on this plan);
+ *   - there is no resolved snapshot (the resolver failed, timed out or was never read) →
+ *     `PLAN_UNVERIFIED`. A chip approved after a failed read must not create a row or leave the
+ *     database on a guess.
+ *
+ * `undefined` is "no snapshot in this context" and refuses too: a caller that skips the resolution
+ * cannot silently skip the gate.
+ */
+export function writeRefusal(key: string, switches: FeatureSwitches | null | undefined): WriteFeatureRefusal | null {
+  if (!switches) return { error: PLAN_UNVERIFIED_ERROR, code: 'PLAN_UNVERIFIED' };
+  if (switches[key] === false) {
+    const { error, code } = notOnPlanError(key);
+    return { error, code };
+  }
+  return null;
+}
+
+/**
+ * Tools whose write must ALSO refuse when the switch cannot be verified (not merely when it is off).
+ *
+ * Reads degrade to "nothing known is off"; a write that leaves the database or mints a live row must
+ * not. The list is deliberately explicit, not "every confirm action": each entry is a path whose
+ * approval can execute after the resolver read failed, so `PLAN_UNVERIFIED` is the honest answer.
+ */
+export const FAIL_CLOSED_WRITE_TOOLS: ReadonlySet<string> = Object.freeze(
+  new Set(['create_automation', 'draft_invoice']),
+);
+
+/**
+ * The refusal a pending/executing WRITE gets: an off key always refuses, and a fail-closed tool also
+ * refuses an unresolved snapshot. Core (keyless) tools are never refused here.
+ */
+export function writeRefusalFor(tool: string, switches: FeatureSwitches | null | undefined): WriteFeatureRefusal | null {
+  const key = keyForTool(tool);
+  if (key === undefined) return null;
+  if (isKeyEnabled(key, switches)) {
+    return FAIL_CLOSED_WRITE_TOOLS.has(tool) && !switches
+      ? { error: PLAN_UNVERIFIED_ERROR, code: 'PLAN_UNVERIFIED' }
+      : null;
+  }
+  const { error, code } = notOnPlanError(key);
+  return { error, code };
 }
 
 /** Is this entity offered to the model for this request? */

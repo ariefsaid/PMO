@@ -197,6 +197,18 @@ Offer \`create_automation\` when the user phrases a recurring or triggered job �
   // "not on this organisation's plan" paragraph covers those asks instead.
   const canRead = (entity: string): boolean =>
     opts.offeredEntities === undefined || opts.offeredEntities.has(entity);
+  // The procure-to-pay map line names only the documents this request may actually read: each one has its
+  // own key (receipts sit on `procurement_full`, the rest on `procurement`), so a line advertising an
+  // un-offered entity would send the model at a FEATURE_OFF refusal.
+  const ptpDocumentLines: string[] = [
+    canRead('purchase_requests') ? 'purchase requisitions/PRs → `purchase_requests`' : '',
+    canRead('rfqs') ? 'RFQs/tenders-out → `rfqs`' : '',
+    canRead('procurement_quotations') ? 'vendor quotes → `procurement_quotations`' : '',
+    canRead('purchase_orders') ? 'purchase orders/POs → `purchase_orders`' : '',
+    canRead('procurement_receipts') ? 'goods receipts/GRNs → `procurement_receipts`' : '',
+    canRead('procurement_invoices') ? 'vendor invoices → `procurement_invoices`' : '',
+    canRead('payments') ? '"paid?/payments" → `payments`' : '',
+  ].filter(Boolean);
   const mapLines: string[] = [
     '- "opportunities", "pipeline", "deals", "leads", "prospects" (NO `opportunities` entity exists) → query `projects` filtered to open/early stages: filter `status` in ["Leads","PQ Submitted","Quotation Submitted","Tender Submitted","Negotiation"]. Won / on-hand / active delivery work → `status` in ["Won, Pending KoM","Ongoing Project"]. NOTE: "Won, Pending KoM" is ONE status value — a single enum label that happens to contain a comma. Copy status values EXACTLY as written here; never split a value on its internal comma ("Won" and "Pending KoM" alone are invalid values and the query will fail with a 22P02 error).',
     `${remindMapLine}- "overdue", "late", "past due", "behind", "what's slipping" → call \`whats_overdue\` (one call, no arguments) first; use its rows for requested overdue follow-ups.`,
@@ -206,8 +218,8 @@ Offer \`create_automation\` when the user phrases a recurring or triggered job �
     canRead('procurements')
       ? '- "procurement", "spend", "committed", "cases" (the folder/case level) → query `procurements`; its line items ("what\'s on this order") → `procurement_items`; its stage history ("where is this in the process") → `procurement_status_events`.'
       : '',
-    canRead('procurements')
-      ? '- The procure-to-pay documents each have their OWN entity — query the SPECIFIC one: purchase requisitions/PRs → `purchase_requests`; RFQs/tenders-out → `rfqs`; vendor quotes → `procurement_quotations`; purchase orders/POs → `purchase_orders`; goods receipts/GRNs → `procurement_receipts`; vendor invoices → `procurement_invoices`; "paid?/payments" → `payments`. All scope by `procurement_id`.'
+    canRead('procurements') && ptpDocumentLines.length
+      ? `- The procure-to-pay documents each have their OWN entity — query the SPECIFIC one: ${ptpDocumentLines.join('; ')}. All scope by \`procurement_id\`.`
       : '',
     canRead('budget_line_items') ? '- "budget breakdown", "budgeted vs actual by category", "cost lines" → query `budget_line_items` (project budget/spent TOTALS are on `projects`).' : '',
     canRead('project_documents') || canRead('procurement_documents')

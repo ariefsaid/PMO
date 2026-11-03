@@ -40,6 +40,9 @@ import { buildAgentSystemPrompt } from './prompt.ts';
 import {
   keyForTool,
   isToolAllowed,
+  isKeyEnabled,
+  isAssistantEnabled,
+  writeRefusalFor,
   notOnPlanError,
   offerableEntities,
   offerableTools,
@@ -137,7 +140,12 @@ const INVOICE_DRAFTS_ENABLED = denoGlobal === undefined || denoGlobal.env.get('A
 /** #1639 kill switch: AGENT_REMINDERS=false removes remind_overdue (and the overdue offer line) without a redeploy
  *  (default ON; ON in a Deno-less test context, mirroring INVOICE_DRAFTS_ENABLED). */
 const REMINDERS_ENABLED = denoGlobal === undefined || denoGlobal.env.get('AGENT_REMINDERS') !== 'false';
-const BASE_ACTIONS: AgentAction[] = [
+/**
+ * The always-registered action catalogue, exported so the S4 completeness suite binds to the SHIPPED
+ * registry instead of copying a tool list: a new gated tool added here fails that suite until it has a
+ * switch-key row.
+ */
+export const BASE_ACTIONS: AgentAction[] = [
   queryEntityAction,
   queryStockAction,
   makeWhatsOverdueAction({ offerReminders: REMINDERS_ENABLED }),
@@ -690,8 +698,9 @@ function narrowQueryEntityTool(tool: ModelTool, switches: FeatureSwitches | null
 
 /** Belt-and-braces refusal for the execution layer: a tool whose key is off returns this, never data. */
 function offPlanRefusal(toolName: string, switches: FeatureSwitches | null | undefined): { error: string; code: 'FEATURE_OFF' } | null {
-  if (isToolAllowed(toolName, switches)) return null;
-  return notOnPlanError(keyForTool(toolName) ?? 'unknown');
+  const key = keyForTool(toolName);
+  if (key === undefined) return null; // core tool: never refused by the plan
+  return isKeyEnabled(key, switches) ? null : notOnPlanError(key);
 }
 
 /**
@@ -1534,6 +1543,18 @@ async function* agentChatHandlerInner(
   // own JWT (never service role). Every loop and action below reads this one snapshot, so a switch
   // change mid-turn cannot half-apply. `null` (resolver unavailable) means nothing is known to be off.
   const featureSwitches = await loadOrgFeatureSwitches(deps.supabase);
+
+  // ── S4 (FR-PLN-006 / D6): `agent_assistant` off is a REFUSAL, not just a hidden tool ──────────
+  // This is the ONE enforcement point on the edge for the assistant capability itself. Every assistant
+  // run reaches it: interactive chat, the decision/answer continuations, and the fired-automation
+  // runner (agent-dispatch drives this same handler under a minted owner client). Refused BEFORE any
+  // model call or write, so an off key cannot spend a token or touch a row. Explicit `false` only: an
+  // unresolved snapshot keeps the read assistant available (the offering filter's fail-open rule).
+  if (!isAssistantEnabled(featureSwitches)) {
+    yield statusEvent('errored', { error: 'FEATURE_OFF', detail: 'assistant' });
+    return;
+  }
+
   const deputyCtx: import('../../../pmo-portal/src/lib/agent/runtime/port.ts').DeputyContext = {
     jwt: '',
     userId: deps.userId,
@@ -1908,14 +1929,22 @@ async function* handleDecision(
     }
   }
 
-  // ── S4 (FR-PLN-008): the action's feature may have been switched off after the chip was shown ──
-  // Re-read the SAME per-request snapshot; an off key refuses the write and resolves the pending
-  // decision as rejected, so the model can tell the user the feature is not on their plan.
-  const offPlan = offPlanRefusal(toolName, deputyCtx.featureSwitches);
+  // ── S4 (FR-PLN-006): a pending write re-checks its switch at execution ─────────────────────────
+  // The switch can change between the chip and the approval, and the resolver read behind this request
+  // can fail — a write never fails open. An off key (FEATURE_OFF) or an unverifiable plan
+  // (PLAN_UNVERIFIED) refuses the write and resolves the chip as rejected, so the model tells the user
+  // instead of writing into a module that is not on their plan.
+  const offPlan = writeRefusalFor(toolName, deputyCtx.featureSwitches);
   if (offPlan) {
     yield emit('system', {
       text: 'rejected',
-      payload: { event: 'write_resolved', decision: 'rejected', actionName: toolName, pendingId, reason: 'feature_off' },
+      payload: {
+        event: 'write_resolved',
+        decision: 'rejected',
+        actionName: toolName,
+        pendingId,
+        reason: offPlan.code === 'FEATURE_OFF' ? 'feature_off' : 'plan_unverified',
+      },
     });
     messages.push({ role: 'tool', tool_call_id: toolId, name: toolName, content: JSON.stringify(offPlan) });
     yield* runLoop(req, deps, emit, statusEvent, deputyCtx, messages, persist);

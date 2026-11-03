@@ -13,11 +13,21 @@
 import { UUID_RE } from './looseClient.ts';
 
 /**
- * Narrow phrase set. Each pattern requires an explicit missing/negated TOOL, or the plan wording the
- * system prompt tells the model to use ("not on your organisation's plan"). Deliberately narrow: a
- * false positive inflates a demand signal the owner acts on, so ordinary prose ("I couldn't find any
- * blocking tasks") must not match.
+ * Which of the two demand signals this answer is (FR-PLN-009): the assistant says it has no such
+ * capability (`missing`), or it says the module is not on the org's plan (`plan`). The owner builds for
+ * the first and sells for the second, so the chart must be able to separate them.
  */
+export type MissingToolSource = 'missing' | 'plan';
+
+/** Plan wording — the phrasing the system prompt tells the model to use for a switched-off module. */
+const PLAN_PATTERNS: readonly RegExp[] = Object.freeze([
+  // "stock isn't on your organisation's plan" / "not part of your plan" / "not included in the plan"
+  /\b(?:isn'?t|is\s+not|not)\s+(?:on|part\s+of|included\s+in)\s+(?:your|the)\s+(?:organi[sz]ation'?s?|org'?s?|company'?s?|current\s+)?\s*(?:plan|subscription)\b/i,
+  // "not available on your plan"
+  /\bnot\s+available\s+on\s+(?:your|the)\s+(?:organi[sz]ation'?s?|org'?s?|company'?s?)?\s*(?:plan|subscription)\b/i,
+]);
+
+/** Capability wording — nothing exists for the request. */
 const MISSING_TOOL_PATTERNS: readonly RegExp[] = Object.freeze([
   // "I don't have a tool for that", "I do not have any tool to read stock"
   /\b(?:do|does|did)\s*n[o']?t\s+have\s+(?:a|any|the)\s+(?:tool|way\s+to|capability|ability\s+to)\b/i,
@@ -27,10 +37,6 @@ const MISSING_TOOL_PATTERNS: readonly RegExp[] = Object.freeze([
   /\btool\s+(?:for|to)\b[^.]{0,80}\b(?:isn'?t|is\s+not|not)\s+(?:available|supported|enabled)\b/i,
   // "the tool isn't available to me"
   /\btools?\s+(?:isn'?t|is\s+not|aren'?t|are\s+not)\s+available\b/i,
-  // "stock isn't on your organisation's plan" / "not part of your plan" / "not included in the plan"
-  /\b(?:isn'?t|is\s+not|not)\s+(?:on|part\s+of|included\s+in)\s+(?:your|the)\s+(?:organi[sz]ation'?s?|org'?s?|company'?s?|current\s+)?\s*(?:plan|subscription)\b/i,
-  // "not available on your plan"
-  /\bnot\s+available\s+on\s+(?:your|the)\s+(?:organi[sz]ation'?s?|org'?s?|company'?s?)?\s*(?:plan|subscription)\b/i,
   // "the stock feature is not available/enabled", "that module is not available"
   /\b(?:this|that|the)\s+(?:\w+\s+)?(?:feature|module)\s+(?:is\s+)?(?:not\s+(?:available|enabled|included))\b/i,
 ]);
@@ -88,15 +94,20 @@ export function guessModule(question: string, answer: string): string {
 }
 
 /**
- * Did the assistant answer that it has no tool for this request? Returns the module guess (and nothing
- * else) when it did, `null` otherwise. Only COMPLETED answers should be tested — a partial draft is not
- * an answer.
+ * Did the assistant answer that it has no tool for this request? Returns the module guess and the source
+ * (and nothing else) when it did, `null` otherwise. Only COMPLETED answers should be tested — a partial
+ * draft is not an answer.
  */
 export function detectMissingTool(
   input: { question?: string; answer?: string },
-): { module: string } | null {
+): { module: string; source: MissingToolSource } | null {
   const answer = typeof input.answer === 'string' ? input.answer : '';
   if (!answer.trim()) return null;
-  if (!MISSING_TOOL_PATTERNS.some((re) => re.test(answer))) return null;
-  return { module: guessModule(typeof input.question === 'string' ? input.question : '', answer) };
+  const source: MissingToolSource | null = PLAN_PATTERNS.some((re) => re.test(answer))
+    ? 'plan'
+    : MISSING_TOOL_PATTERNS.some((re) => re.test(answer))
+      ? 'missing'
+      : null;
+  if (!source) return null;
+  return { module: guessModule(typeof input.question === 'string' ? input.question : '', answer), source };
 }

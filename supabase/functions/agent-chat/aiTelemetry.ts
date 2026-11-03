@@ -148,6 +148,7 @@ export function createAiRunTelemetry(ctx: AiRunContext): AiRunTelemetry {
           org_id: orgId,
           ...(route ? { route } : {}),
           module: missing.module,
+          source: missing.source,
           ...(consent ? { $session_id: ctx.analytics?.sessionId, user_id: ctx.userId } : {}),
         }));
       }

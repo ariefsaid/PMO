@@ -405,6 +405,13 @@ Entitlement is not a security boundary: S2's `assert_feature_on` / RLS stay the 
 and hiding the whole assistant because one entitlement read failed would be an availability regression.
 The failure is logged as a structured code only (no model/user text).
 
+**The write half does not fail open.** A read may proceed on an unresolved snapshot; a write may not. The
+two named write paths (`create_automation`, `draft_invoice` including its ERP route) check their own key
+at execution and refuse with `FEATURE_OFF` (key off) or `PLAN_UNVERIFIED` (no snapshot), so a chip
+approved after a failed read cannot create a row or leave the database. An explicit `agent_assistant`
+off refuses the whole run, before any model call, in the one handler every assistant run enters
+(interactive and fired automations).
+
 ### S4.3 — Missing-tool signal (FR-PLN-009, AC-PLN-007)
 
 - `missingTool.ts` (new, pure): `detectMissingTool({ question, answer })` matches a narrow phrase set
@@ -431,7 +438,9 @@ The failure is logged as a structured code only (no model/user text).
   `posthog.group('organisation', orgId, { plan: plan_id })` once per resolve, through a new
   consent-gated `analyticsClient.group(...)` (same guard as every other capture: initialized, enabled,
   not opted out, DNT honoured by `init`). Errors/absent plan register nothing (analytics is not a
-  gate) and never throw.
+  gate) and never throw. The DAL remembers ONE "no such function" answer for the page load (PostgREST
+  `PGRST202`/`PGRST203`, Postgres `42883`, 404), so a deployment that predates 0537 never fires a
+  failing request per session or per stale window; a transient failure does not latch.
 - The Vitest proof mocks the DAL seam and `posthog-js`, and asserts the exact group call, the consent
   guard, and that no group is registered without a plan.
 

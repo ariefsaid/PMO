@@ -31,11 +31,12 @@ function Probe() {
 
 function renderProbe() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(
+  const view = render(
     <QueryClientProvider client={client}>
       <Probe />
     </QueryClientProvider>,
   );
+  return { client, ...view };
 }
 
 beforeEach(() => {
@@ -70,14 +71,26 @@ describe('useOrgPlanGroup — FR-PLN-016', () => {
     expect(analytics.group).not.toHaveBeenCalled();
   });
 
-  it('re-registers exactly once when the plan changes', async () => {
+  it('re-registers exactly once when the plan changes, and never on a plain re-render', async () => {
     currentPlan.mockResolvedValue({ plan_id: 'starter', plan_name: 'Starter', seat_limit: 10, project_limit: 25, ai_monthly_messages: 300 });
-    const view = renderProbe();
+    const { client, rerender } = renderProbe();
     await waitFor(() => expect(analytics.group).toHaveBeenCalledWith(ORG_GROUP_TYPE, 'org-1', { plan: 'starter' }));
+    expect(analytics.group).toHaveBeenCalledTimes(1);
+
+    // A plan assignment invalidates the query (the Operator console owns that invalidation); simulate it
+    // on the SAME client so the hook sees a new plan without being remounted.
     currentPlan.mockResolvedValue({ plan_id: 'pro', plan_name: 'Pro', seat_limit: 50, project_limit: null, ai_monthly_messages: 5000 });
-    // A plan assignment invalidates the query (the Operator console owns that invalidation); simulate it.
-    view.unmount();
-    renderProbe();
+    await client.invalidateQueries({ queryKey: ['orgPlan', 'org-1'] });
     await waitFor(() => expect(analytics.group).toHaveBeenCalledWith(ORG_GROUP_TYPE, 'org-1', { plan: 'pro' }));
+    expect(analytics.group).toHaveBeenCalledTimes(2);
+
+    // A re-render with the same org and plan must not re-send it.
+    rerender(
+      <QueryClientProvider client={client}>
+        <Probe />
+      </QueryClientProvider>,
+    );
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(analytics.group).toHaveBeenCalledTimes(2);
   });
 });

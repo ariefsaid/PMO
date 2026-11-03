@@ -32,8 +32,9 @@ export const SERVER_EVENT_ALLOWLIST: Record<ServerEventName, ReadonlySet<string>
   // Online-eval verdict (LLM judge run in the edge function): a name and a boolean, never text.
   ai_eval: new Set(['$ai_trace_id', '$ai_session_id', 'eval_name', 'eval_pass', 'judge_model', 'action', ...COMMON, ...LINK]),
   // S4 (FR-PLN-009): the assistant answered that it has no tool for the request. Org + templated route
-  // + a coarse module guess — deliberately NO text key at all, so a message can never be attached.
-  agent_missing_tool: new Set(['route', 'module', ...COMMON, ...LINK]),
+  // + a coarse module guess + whether the answer blamed the plan or a missing capability — deliberately
+  // NO text key at all, so a message can never be attached.
+  agent_missing_tool: new Set(['route', 'module', 'source', ...COMMON, ...LINK]),
 };
 
 /**

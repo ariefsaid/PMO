@@ -12,6 +12,7 @@ import {
   ENTITY_FEATURE_KEYS,
   TOOL_FEATURE_KEYS,
   FEATURE_LABELS,
+  FAIL_CLOSED_WRITE_TOOLS,
   isEntityAllowed,
   isKeyEnabled,
   isToolAllowed,
@@ -20,8 +21,11 @@ import {
   offerableEntities,
   offerableTools,
   unavailableFeatureLabels,
+  writeRefusal,
+  writeRefusalFor,
 } from './featureSwitches.ts';
 import { AGENT_READ_ENTITIES } from './readEntities.ts';
+import { BASE_ACTIONS } from './handler.ts';
 
 /** Every switchable key the plan registry accepts (0531 CHECK + 0533 core split). */
 const CATALOGUE_KEYS = new Set([
@@ -32,10 +36,13 @@ const CATALOGUE_KEYS = new Set([
   'stock', 'api_access', 'sso', 'incidents', 'import_export', 'agent_assistant',
 ]);
 
-/** Every tool the handler can put in front of the model (BASE_ACTIONS + the two specials). */
+/** Every tool the handler can put in front of the model — the SHIPPED registry, not a copy. */
 const TOOL_NAMES = [
-  'query_entity', 'query_stock', 'whats_overdue', 'create_activity', 'update_task_status',
-  'draft_invoice', 'remind_overdue', 'notify', 'create_automation', 'compose_view', 'ask_user',
+  ...BASE_ACTIONS.map((action) => action.name),
+  // compose_view is registered per-request (its own capability flag) and ask_user is dispatched
+  // specially by the loop, so neither is in BASE_ACTIONS.
+  'compose_view',
+  'ask_user',
 ];
 
 Deno.test('S4 map — every readable entity is core or mapped to a catalogue key', () => {
@@ -67,7 +74,6 @@ Deno.test('S4 map — every tool is core or mapped to a catalogue key', () => {
 
 Deno.test('S4 map — every switchable key has a human label for the prompt', () => {
   for (const key of CATALOGUE_KEYS) {
-    if (key === 'feedback_surveys') continue; // Admin-owned, never offered through the assistant
     assertEquals(typeof FEATURE_LABELS[key], 'string', `no label for ${key}`);
   }
 });
@@ -107,4 +113,28 @@ Deno.test('S4 offering — labels name only the features that are off', () => {
   assertEquals(unavailableFeatureLabels(null), []);
   // Never leak a raw key to the model when a label exists.
   assertEquals(unavailableFeatureLabels({ stock: false }).some((l) => l.includes('stock')), true);
+});
+
+Deno.test('S4 writes — a read may fail open, a write may not', () => {
+  // Reads: an unresolved snapshot is not "off".
+  assertEquals(isKeyEnabled('sales_invoices', null), true);
+  assertEquals(writeRefusal('sales_invoices', null)?.code, 'PLAN_UNVERIFIED');
+  // An explicit false refuses under both names.
+  assertEquals(writeRefusal('sales_invoices', { sales_invoices: false })?.code, 'FEATURE_OFF');
+  assertEquals(writeRefusal('sales_invoices', { sales_invoices: true }), null);
+
+  // Fail-closed policy is per tool: a keyed tool still refuses an off key, but only a fail-closed write
+  // refuses an unresolved snapshot.
+  assertEquals(writeRefusalFor('create_automation', null)?.code, 'PLAN_UNVERIFIED');
+  assertEquals(writeRefusalFor('draft_invoice', null)?.code, 'PLAN_UNVERIFIED');
+  assertEquals(writeRefusalFor('create_activity', null), null);
+  assertEquals(writeRefusalFor('create_activity', { crm: false })?.code, 'FEATURE_OFF');
+  assertEquals(writeRefusalFor('query_entity', null), null);
+  assertEquals(writeRefusalFor('ask_user', { stock: false }), null);
+
+  // Every fail-closed tool must be a real, gated tool in the shipped registry.
+  for (const tool of FAIL_CLOSED_WRITE_TOOLS) {
+    assertEquals(TOOL_NAMES.includes(tool), true, `${tool} is not in the shipped tool registry`);
+    assertEquals(typeof keyForTool(tool), 'string', `${tool} has no switch key to check`);
+  }
 });
