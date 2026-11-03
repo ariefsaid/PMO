@@ -12,7 +12,7 @@ const INPUT: OrderInput = {
   vendor: 'Vendor:9', caseNumber: 'PRC-001', vendorReference: 'PO-77', expectedDate: '2026-12-01', projectIds: ['p-1'],
   lines: [{ name: 'Cable tray', quantity: 4, rate: 10 }, { name: 'Bolt', quantity: 2, rate: 5 }],
 };
-const CTX: OrderCtx = { companyId: 1, itemMap: { 'Cable tray': '55', Bolt: '56' }, unitMap: {}, costAccountId: '101', taxIds: [] };
+const CTX: OrderCtx = { companyId: 1, currencyId: 12, itemMap: { 'Cable tray': '55', Bolt: '56' }, unitMap: {}, costAccountId: '101', taxIds: [] };
 const COMPOSITE: OrderComposite = { partnerId: 9, amount: '50.00', lineCount: 2, createdAfter: '2026-01-01 00:00:00' };
 const create = (over: Partial<AdapterCommand['record']> = {}): AdapterCommand => ({
   domain: 'procurement', operation: 'create', idempotencyKey: 'k-1',
@@ -46,7 +46,7 @@ describe('AC-OPP-010 an approved order is created and confirmed once', () => {
     const result = await attempt();
     const [order] = fake.rows('purchase.order');
     expect(fake.rows('purchase.order')).toHaveLength(1);
-    expect(order).toMatchObject({ state: 'purchase', partner_id: 9, partner_ref: 'PO-77', origin: 'PRC-001', amount_total: 50 });
+    expect(order).toMatchObject({ state: 'purchase', partner_id: 9, partner_ref: 'PO-77', origin: 'PRC-001', amount_total: 50, currency_id: 12 });
     expect(fake.rows('purchase.order.line').map((l) => [l.product_id, l.product_qty, l.analytic_distribution])).toEqual([[55, 4, { '101': 100 }], [56, 2, { '101': 100 }]]);
     expect(fake.rows('ir.model.data')).toEqual([expect.objectContaining({ module: 'pmo', model: 'purchase.order', res_id: order.id })]);
     expect(result.externalRecordId).toBe(String(order.id));
@@ -124,6 +124,17 @@ describe('AC-OPP-011 an interrupted command ends with one confirmed order and no
     const creates = r.count('purchase.order', 'create');
     await expect(r.attempt()).rejects.toThrow(/ambiguous/);
     expect(r.count('purchase.order', 'create')).toBe(creates);
+  });
+
+  it('I1 a lost create response whose order drifted from the composite (0.01 off) is held: nothing is created again', async () => {
+    const r = rig();
+    r.arm('purchase.order', 'create', 'lost-response');
+    await expect(r.attempt()).rejects.toMatchObject({ code: 'external-unreachable' });
+    r.fake.rows('purchase.order')[0].amount_untaxed = 50.01;   // Odoo's own figure differs from the edge's formula
+    await expect(r.attempt()).rejects.toThrow(/ambiguous/);
+    await expect(r.attempt()).rejects.toThrow(/ambiguous/);
+    expect(r.count('purchase.order', 'create')).toBe(1);
+    expect(r.fake.rows('purchase.order')).toHaveLength(1);
   });
 
   it('an order cancelled in Odoo is not revived or recreated: the command is rejected, naming the state', async () => {
@@ -231,6 +242,29 @@ describe('AC-OPP-016 / AC-OPP-017 revising a pushed order edits it in place, onc
     await r.adapter.commit(revise(2));
     expect(writes(r)).toBe(1);
     expect(r.fake.rows('ir.model.data')).toHaveLength(2);
+  });
+
+  it('I2 an older revision replayed after a newer one applied is held and rolls no line back', async () => {
+    const r = await pushed();
+    r.state.lines = target('9.000', '3.000');
+    await r.adapter.commit(revise(3));   // revision 2's write was lost; revision 3 applied
+    const linesAt3 = r.fake.rows('purchase.order.line').map((l) => [l.product_qty, l.price_unit]);
+    const before = writes(r);
+    r.state.lines = target('6.000', '1.000');
+    await expect(r.adapter.commit(revise(2))).rejects.toMatchObject({ code: 'commit-rejected', message: 'revision-superseded' });
+    await expect(recoverRevise(r.call, revise(2).record)).rejects.toMatchObject({ message: 'revision-superseded' });
+    expect(writes(r)).toBe(before);
+    expect(r.fake.rows('purchase.order.line').map((l) => [l.product_qty, l.price_unit])).toEqual(linesAt3);
+    expect(r.fake.rows('ir.model.data').map((d) => d.name)).not.toContain(`porev_${PO_ID.replaceAll('-', '_')}_2`);
+  });
+
+  it('I2 a newer revision still applies after an older one (the guard only looks upward)', async () => {
+    const r = await pushed();
+    r.state.lines = target('6.000', '1.000');
+    await r.adapter.commit(revise(2));
+    r.state.lines = target('7.000', '1.000');
+    await r.adapter.commit(revise(3));
+    expect(r.fake.rows('purchase.order.line').map((l) => l.product_qty)).toEqual([7, 1]);
   });
 
   it('refuses a quantity below what was received with no write; a lower revision above it applies', async () => {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildOrderBody, type OrderCtx, type OrderInput } from './orderBody.ts';
 
-const CTX: OrderCtx = { companyId: 1, itemMap: { 'Cable tray': '55', Bolt: '56' }, unitMap: { m: '11' }, costAccountId: '101', taxIds: [7] };
+const CTX: OrderCtx = { companyId: 1, currencyId: 12, itemMap: { 'Cable tray': '55', Bolt: '56' }, unitMap: { m: '11' }, costAccountId: '101', taxIds: [7] };
 const PO: OrderInput = {
   vendor: 'Vendor:9', caseNumber: 'PRC-001', vendorReference: 'PO-77', expectedDate: '2026-12-01', projectIds: ['p-1'],
   lines: [{ name: 'Cable tray', quantity: 4, rate: '10.50', unit: 'm' }, { name: 'Bolt', quantity: '2.00', rate: 3, description: 'M8 bolt' }],
@@ -11,12 +11,16 @@ const refusal = (po: OrderInput, ctx: OrderCtx = CTX) => { try { buildOrderBody(
 describe('AC-OPP-010 the order body', () => {
   it('carries vendor, company, references, and one line per PMO item with product, qty, price, unit, taxes, distribution', () => {
     expect(buildOrderBody(PO, CTX)).toEqual({
-      partner_id: 9, company_id: 1, partner_ref: 'PO-77', origin: 'PRC-001',
+      partner_id: 9, company_id: 1, currency_id: 12, partner_ref: 'PO-77', origin: 'PRC-001',
       order_line: [
         [0, 0, { product_id: 55, name: 'Cable tray', product_qty: 4, price_unit: 10.5, date_planned: '2026-12-01 00:00:00', uom_id: 11, tax_ids: [[6, 0, [7]]], analytic_distribution: { '101': 100 } }],
         [0, 0, { product_id: 56, name: 'M8 bolt', product_qty: 2, price_unit: 3, date_planned: '2026-12-01 00:00:00', tax_ids: [[6, 0, [7]]], analytic_distribution: { '101': 100 } }],
       ],
     });
+  });
+
+  it('I4 the order currency is sent explicitly (the company currency PMO checked), never left to the vendor\'s Odoo default', () => {
+    expect(buildOrderBody(PO, { ...CTX, currencyId: 31 })).toMatchObject({ currency_id: 31 });
   });
 
   it('never carries the idempotency key in a business field (the anchor is an external identifier)', () => {

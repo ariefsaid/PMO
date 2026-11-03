@@ -34,22 +34,30 @@ async function byIdentifier(call: OdooCall, kind: PurchaseKind, key: string): Pr
 
 /**
  * Orders: the identifier is a second write after the create, so a crash between the two leaves an order without it. The
- * composite finds that order (vendor, untaxed amount, window; no PMO identifier of its own; our line count). Exactly one adopts;
- * none is conclusive absence; several are doubt and throw, so the order is held and never reissued (OQ-OPP-10).
+ * composite finds that order: our vendor, inside the window, no PMO identifier of its own. Exactly one such order whose untaxed
+ * amount and line count equal ours is adopted. ANY other unanchored order of the vendor in the window is doubt and throws (the row
+ * is held): Odoo's own figure can differ from the edge's formula (float ties, unit precision, price-included taxes, a clerk's
+ * edit), so a near-miss may be our own order and absence is claimed only when the vendor has no unanchored order in the window
+ * at all (OQ-OPP-10, DD-OPP-4 amendment: any doubt holds and never reissues).
  */
 async function byOrderComposite(call: OdooCall, composite: OrderComposite): Promise<ProbeHit> {
-  const rows = await call<Array<{ id: number; order_line: unknown }>>('purchase.order', 'search_read', {
-    domain: [['partner_id', '=', composite.partnerId], ['amount_untaxed', '=', Number(composite.amount)], ['state', '!=', 'cancel'], ['create_date', '>=', composite.createdAfter]],
-    fields: ['id', 'order_line'], limit: 21, context: { active_test: false },
+  const rows = await call<Array<{ id: number; order_line: unknown; amount_untaxed: unknown }>>('purchase.order', 'search_read', {
+    domain: [['partner_id', '=', composite.partnerId], ['state', '!=', 'cancel'], ['create_date', '>=', composite.createdAfter]],
+    fields: ['id', 'order_line', 'amount_untaxed'], limit: 21, context: { active_test: false },
   });
   if (rows.length === 0) return null;
   const anchored = await call<Array<{ res_id: number }>>('ir.model.data', 'search_read', {
     domain: [['module', '=', 'pmo'], ['model', '=', 'purchase.order'], ['res_id', 'in', rows.map((r) => r.id)]], fields: ['res_id'], limit: 21,
   });
   const taken = new Set(anchored.map((a) => a.res_id));
-  const survivors = rows.filter((r) => !taken.has(r.id) && Array.isArray(r.order_line) && r.order_line.length === composite.lineCount);
-  if (survivors.length > 1) throw ambiguous();
-  return survivors.length === 1 ? { externalRecordId: String(survivors[0].id) } : null;
+  const unanchored = rows.filter((r) => !taken.has(r.id));
+  if (unanchored.length === 0) return null;
+  const cents = (v: unknown) => Math.round(Number(v) * 100);
+  const [only] = unanchored;
+  if (unanchored.length === 1 && Array.isArray(only.order_line) && only.order_line.length === composite.lineCount && cents(only.amount_untaxed) === cents(composite.amount)) {
+    return { externalRecordId: String(only.id) };
+  }
+  throw ambiguous();
 }
 
 const OUTBOUND = [['payment_type', '=', 'outbound'], ['partner_type', '=', 'supplier']];

@@ -6,7 +6,7 @@ import { createOdooProcurementAdapter } from '../../../pmo-portal/src/lib/adapte
 import { procurementCapabilityGap } from '../../../pmo-portal/src/lib/adapterSeam/odoo/purchase/capabilities.ts';
 import { REQUEST_DEADLINE_MS } from '../../../pmo-portal/src/lib/adapterSeam/odoo/purchase/constants.ts';
 import { odooClientForOrg } from '../_shared/odooClientForOrg.ts';
-import { resolveOdooOrderInputs, resolveOdooReviseInputs } from '../_shared/odooPurchaseRefs.ts';
+import { resolveOdooOrderCurrency, resolveOdooOrderInputs, resolveOdooReviseInputs } from '../_shared/odooPurchaseRefs.ts';
 import type { AdapterFactory, AdapterSelectContext } from './dispatchAdapters.ts';
 
 /** What the Odoo procurement adapter pushes so far: the purchase order and its revision (P3). Receipt, bill and payment follow (P4..P6). */
@@ -27,10 +27,13 @@ export async function resolveOdooProcurementAdapter(ctx: AdapterSelectContext): 
   if (gap) throw new AppError(`Odoo purchasing needs ${gap}, which this Odoo connection does not show. Run the connection check again.`, 'config-rejected');
   if (!pushable(ctx)) throw new AppError('Purchasing through Odoo is not available yet', 'config-rejected');
   const sc = ctx.serviceClient as SupabaseClient;
+  const call = bindCall({ ...resolved.client, deadlineMs: REQUEST_DEADLINE_MS });
+  // OQ-OPP-9: company currency only; a mismatch is refused here, before any outbox row, and Odoo is only read.
+  const currencyId = await resolveOdooOrderCurrency(sc, ctx.orgId, ctx.command, call, resolved.companyId);
   return createOdooProcurementAdapter({
-    call: bindCall({ ...resolved.client, deadlineMs: REQUEST_DEADLINE_MS }),
-    resolveOrder: (command) => resolveOdooOrderInputs(sc, ctx.orgId, command, resolved),
-    resolveRevise: (command) => resolveOdooReviseInputs(sc, ctx.orgId, command, resolved),
+    call,
+    resolveOrder: (command) => resolveOdooOrderInputs(sc, ctx.orgId, command, resolved, currencyId),
+    resolveRevise: (command) => resolveOdooReviseInputs(sc, ctx.orgId, command, resolved, currencyId),
   });
 }
 

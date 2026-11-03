@@ -32,6 +32,7 @@ function setup(docKind: string, extra: Record<string, unknown> = {}, over: { bin
     supabaseRpc('read_vault_secret', () => jsonResponse('odoo-test-key')),
     supabaseSelect('external_refs', () => objectResponse({ external_record_id: 'Vendor:77' })),
     supabaseSelect('procurements', () => objectResponse({ code: 'PRC-1', project_id: null, vendor_id: 'v-1' })),
+    supabaseSelect('purchase_order_lines', () => jsonResponse([])),   // the PO has no lines of its own: the case's lines are the order
     supabaseSelect('procurement_items', () => jsonResponse([{ name: 'A', quantity: 4, rate: 10, description: null }, { name: 'B', quantity: 2, rate: 5, description: null }])),
     supabaseSelect('external_command_outbox', () => new Response('null', { status: 200, headers: { 'content-type': 'application/json' } })),
     { label: 'odoo', host: ODOO, response: (call) => {
@@ -131,8 +132,12 @@ describe('AC-OPP-053 the Odoo probe closure: zero, one and many matches', () => 
       });
       const composite = queries(t, 'purchase.order')[0].domain;
       assert(composite.some(([f, op, v]) => f === 'partner_id' && op === '=' && v === 77), JSON.stringify(composite));
-      assert(composite.some(([f, op, v]) => f === 'amount_untaxed' && op === '=' && v === 50));
-      assert(composite.some(([f, op]) => f === 'create_date' && op === '>='));
+      assert(composite.some(([f, op, v]) => f === 'state' && op === '!=' && v === 'cancel'));
+      // The amount and line count are compared on the rows read back, not filtered: a near-miss must be seen to hold the row (I1).
+      assert(!composite.some(([f]) => f === 'amount_untaxed'), JSON.stringify(composite));
+      const window = composite.find(([f, op]) => f === 'create_date' && op === '>=');
+      assert(window !== undefined);
+      assert(Date.now() - Date.parse(`${String(window[2]).replace(' ', 'T')}Z`) >= 10 * 60_000 - 5_000, 'the window reaches back at least ten minutes');
     });
 
     it('two orders with the identifier are doubt: the probe throws', async () => {

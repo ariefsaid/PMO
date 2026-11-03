@@ -20,6 +20,8 @@ export interface OrderInput {
 }
 export interface OrderCtx {
   companyId: number;
+  /** The Odoo currency (`res.currency` id) the order is placed in: the company's, which dispatch checked equals PMO's (OQ-OPP-9). */
+  currencyId: number;
   /** PMO line name -> Odoo product id. */
   itemMap: Readonly<Record<string, string>>;
   /** PMO unit -> Odoo `uom.uom` id. */
@@ -76,6 +78,7 @@ export function buildOrderBody(po: OrderInput, ctx: OrderCtx): Record<string, un
   return {
     partner_id: partnerId,
     company_id: ctx.companyId,
+    currency_id: ctx.currencyId,   // explicit: never the vendor's purchase-currency default (OQ-OPP-9)
     ...(po.vendorReference ? { partner_ref: po.vendorReference } : {}),
     ...(po.caseNumber ? { origin: po.caseNumber } : {}),
     order_line: po.lines.map((line) => [0, 0, lineVals(line, ctx, planned)]),

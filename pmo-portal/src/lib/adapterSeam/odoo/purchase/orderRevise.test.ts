@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { OrderCtx } from './orderBody.ts';
 import { planRevise, type CurrentLine, type ReviseLine } from './orderRevise.ts';
 
-const CTX: OrderCtx = { companyId: 1, itemMap: { A: '55', B: '56', C: '57' }, unitMap: {}, costAccountId: '101', taxIds: [] };
+const CTX: OrderCtx = { companyId: 1, currencyId: 12, itemMap: { A: '55', B: '56', C: '57' }, unitMap: {}, costAccountId: '101', taxIds: [] };
 const cur = (id: number, product: number, qty: number, price = 10, received = 0, invoiced = 0): CurrentLine => ({ id, product_id: [product, 'p'], product_qty: qty, price_unit: price, qty_received: received, qty_invoiced: invoiced });
 const tgt = (itemRef: string, quantity: string, rate = '10.00'): ReviseLine => ({ itemRef, quantity, rate, unit: '' });
 const plan = (state: string, current: CurrentLine[], target: ReviseLine[]) => {

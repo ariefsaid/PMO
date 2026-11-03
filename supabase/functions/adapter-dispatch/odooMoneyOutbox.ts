@@ -61,10 +61,13 @@ async function paymentCompositePayload(ctx: AdapterSelectContext): Promise<Recor
   return { odoo_partner_id: partnerIdOf(ref), odoo_amount: record.paid_amount ?? null, created_after: odooDatetime(Date.now() - 60_000) };
 }
 
+/** How far back the composite looks: wide enough to survive a skewed Odoo clock; a wider window only holds more, never reissues. */
+const ORDER_WINDOW_MS = 10 * 60_000;
+
 /** An order's composite-probe inputs, persisted with the outbox row for the same reason (the window is the first attempt's). */
 async function orderCompositePayload(ctx: AdapterSelectContext): Promise<Record<string, unknown>> {
-  const facts = await orderCompositeFacts(ctx.serviceClient as SupabaseClient, ctx.orgId, ctx.command.record as { procurementId?: unknown });
-  return { odoo_partner_id: facts.partnerId, odoo_amount: facts.amount, odoo_line_count: facts.lineCount, created_after: odooDatetime(Date.now() - 60_000) };
+  const facts = await orderCompositeFacts(ctx.serviceClient as SupabaseClient, ctx.orgId, ctx.command.record as { id?: unknown; procurementId?: unknown });
+  return { odoo_partner_id: facts.partnerId, odoo_amount: facts.amount, odoo_line_count: facts.lineCount, created_after: odooDatetime(Date.now() - ORDER_WINDOW_MS) };
 }
 
 const orderCompositeOf = (p: Record<string, unknown> | null | undefined): OrderComposite | undefined =>

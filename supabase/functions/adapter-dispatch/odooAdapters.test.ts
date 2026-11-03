@@ -23,9 +23,20 @@ const binding = (config: Record<string, unknown> = {}) => jsonResponse({
 function ctxFor(kind: string, operation = 'create') {
   const sc = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
   return { orgId: '0d000000-0000-4000-8000-000000000008', serviceClient: sc, userId: 'u-1', faultGate: {}, erpAuth: {},
-    command: { domain: 'procurement', operation, record: { id: '123e4567-e89b-12d3-a456-426614174000', erp_doc_kind: kind } } } as unknown as AdapterSelectContext;
+    command: { domain: 'procurement', operation, record: { id: '123e4567-e89b-12d3-a456-426614174000', erp_doc_kind: kind, procurementId: 'c0000000-0000-4000-8000-000000000001', poId: '123e4567-e89b-12d3-a456-426614174000', revision: 2 } } } as unknown as AdapterSelectContext;
 }
-const world = (config?: Record<string, unknown>) => [supabaseSelect('external_org_bindings', () => binding(config)), supabaseRpc('read_vault_secret', () => jsonResponse('odoo-test-key'))];
+const object = (body: unknown) => jsonResponse(body, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } });
+/** `odooCurrency`: what `res.company.currency_id` reads as; `caseCurrency`: the PMO case's. `odooCalls` records the Odoo methods called. */
+const world = (config?: Record<string, unknown>, { caseCurrency = 'IDR', odooCurrency = [12, 'IDR'], odooCalls = [] as string[] } = {}) => [
+  supabaseSelect('external_org_bindings', () => binding(config)),
+  supabaseRpc('read_vault_secret', () => jsonResponse('odoo-test-key')),
+  supabaseSelect('procurements', () => object({ code: 'PRC-1', project_id: null, vendor_id: null, currency: caseCurrency })),
+  supabaseSelect('purchase_orders', () => object({ procurement_id: 'c0000000-0000-4000-8000-000000000001' })),
+  { label: 'odoo', host: 'odoo.example.test', response: (call: { url: URL }) => {
+    odooCalls.push(call.url.pathname.split('/').slice(-2).join('/'));
+    return jsonResponse([{ id: 1, currency_id: odooCurrency }]);
+  } },
+];
 
 describe('P3 the Odoo adapter factory', () => {
   it('is the procurement domain\'s Odoo factory', () => assertEquals(Object.keys(ODOO_ADAPTER_REGISTRY), ['procurement']));
@@ -52,5 +63,20 @@ describe('P3 the Odoo adapter factory', () => {
   it('a snapshot missing a model refuses and names it, whatever the step', async () => {
     const err = await withFetchMock(world({ capabilities: { ...SNAPSHOT, later: { ...SNAPSHOT.later, 'stock.move': false } } }), () => assertRejects(() => resolveOdooProcurementAdapter(ctxFor('purchase-order')))) as Error;
     assertEquals(err.message.includes('stock.move'), true);
+  });
+
+  for (const operation of ['create', 'revise']) {
+    it(`I4 a ${operation} whose case currency differs from the Odoo company's is config-rejected, names both, and only reads Odoo`, async () => {
+      const odooCalls: string[] = [];
+      const err = await withFetchMock(world(undefined, { caseCurrency: 'USD', odooCalls }), () => assertRejects(() => resolveOdooProcurementAdapter(ctxFor('purchase-order', operation)))) as { code?: string; message: string };
+      assertEquals(err.code, 'config-rejected');
+      assertEquals(err.message.includes('currency-mismatch') && err.message.includes('USD') && err.message.includes('IDR'), true, err.message);
+      assertEquals(odooCalls, ['res.company/read']);
+    });
+  }
+
+  it('I4 an Odoo company whose currency cannot be read refuses closed', async () => {
+    const err = await withFetchMock(world(undefined, { odooCurrency: false as never }), () => assertRejects(() => resolveOdooProcurementAdapter(ctxFor('purchase-order')))) as { code?: string; message: string };
+    assertEquals([err.code, err.message.startsWith('currency-unreadable')], ['config-rejected', true]);
   });
 });

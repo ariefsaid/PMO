@@ -141,13 +141,37 @@ describe('AC-OPP-011 the order composite probe (the create-to-anchor gap, DD-OPP
 
   it.each([
     ['another vendor', { partner_id: [78, 'Other'] }],
-    ['another amount', { amount_untaxed: 24 }],
-    ['another line count', { order_line: [1] }],
     ['before the window', { create_date: '2026-11-03 09:00:00' }],
     ['a cancelled order', { state: 'cancel' }],
   ])('does not match %s: conclusive absence is null', async (_label, over) => {
     const { call, fake } = bed();
     order(fake, { id: 40, ...over });
+    expect(await probeOdooByAnchor(call, 'order', key, ORDER)).toBeNull();
+  });
+
+  // I1: a look-alike that misses the exact figure (float tie, unit precision, tax-included price, an edit in Odoo) is NOT proof of
+  // absence; it may be our own order. Any unanchored vendor order in the window that is not the one exact match holds the row.
+  it.each([
+    ['a 0.01 difference in the untaxed amount', { amount_untaxed: 25.01 }],
+    ['another amount', { amount_untaxed: 24 }],
+    ['another line count', { order_line: [1] }],
+  ])('I1 an unanchored order of our vendor in the window with %s is doubt: held, never absence', async (_label, over) => {
+    const { call, fake } = bed();
+    order(fake, { id: 40, ...over });
+    await expect(probeOdooByAnchor(call, 'order', key, ORDER)).rejects.toThrow(/ambiguous/);
+  });
+
+  it('I1 an exact match beside a near-miss is still doubt (two unanchored orders)', async () => {
+    const { call, fake } = bed();
+    order(fake, { id: 40 });
+    order(fake, { id: 41, amount_untaxed: 25.01 });
+    await expect(probeOdooByAnchor(call, 'order', key, ORDER)).rejects.toThrow(/ambiguous/);
+  });
+
+  it('I1 a near-miss that already carries a PMO identifier is another document: absence stays null', async () => {
+    const { call, fake, identifier } = bed();
+    order(fake, { id: 40, amount_untaxed: 99 });
+    identifier(`po:${OTHER}`, 'purchase.order', 40);
     expect(await probeOdooByAnchor(call, 'order', key, ORDER)).toBeNull();
   });
 

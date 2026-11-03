@@ -27,7 +27,7 @@ Deno.test({
     const call = bindCall({ baseUrl: BED!, apiKey: KEY, database: DB, fetchImpl: fetch });
     const stamp = `P3-${Date.now()}`;
     const make = async (model: string, vals: Record<string, unknown>) => (await call<number[]>(model, 'create', { vals_list: [vals] }))[0];
-    const [company] = await call<Array<{ id: number }>>('res.company', 'search_read', { domain: [], fields: ['id'], limit: 1 });
+    const [company] = await call<Array<{ id: number; currency_id: [number, string] }>>('res.company', 'search_read', { domain: [], fields: ['id', 'currency_id'], limit: 1 });
     const [plan] = await call<Array<{ id: number }>>('account.analytic.plan', 'search_read', { domain: [], fields: ['id'], limit: 1 });
     const partner = await make('res.partner', { name: `${stamp} vendor`, supplier_rank: 1 });
     const productA = await make('product.product', { name: `${stamp} A`, purchase_ok: true, is_storable: true, standard_price: 10 });
@@ -40,7 +40,7 @@ Deno.test({
       vendor: `Vendor:${partner}`, caseNumber: stamp, vendorReference: `${stamp}-REF`, expectedDate: '2026-12-01', projectIds: ['p-1'],
       lines: [{ name: 'A', quantity: 10, rate: 10, unit: 'u' }, { name: 'B', quantity: 8, rate: 5.5 }],
     };
-    const ctx: OrderCtx = { companyId: company.id, itemMap: { A: String(productA), B: String(productB) }, unitMap: { u: String(uomId) }, costAccountId: String(account), taxIds: [] };
+    const ctx: OrderCtx = { companyId: company.id, currencyId: company.currency_id[0], itemMap: { A: String(productA), B: String(productB) }, unitMap: { u: String(uomId) }, costAccountId: String(account), taxIds: [] };
     const state = { orderId: 0, lines: [] as ReviseLine[] };
     const adapter = createOdooProcurementAdapter({
       call, resolveOrder: async () => ({ input, ctx }), resolveRevise: async () => ({ orderId: state.orderId, lines: state.lines, ctx }),

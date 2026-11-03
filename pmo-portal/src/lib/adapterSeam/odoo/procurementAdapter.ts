@@ -15,7 +15,7 @@ import type { OdooCall } from './client.ts';
 import { ODOO_TIER, toAdapterError } from './connectAdapter.ts';
 import { externalIdentifier } from './purchase/anchors.ts';
 import { nextStep } from './purchase/nextStep.ts';
-import { purchaseOrderReviseKey } from '../purchaseOrderRevise.ts';
+import { poReviseRecoveryDecision, purchaseOrderReviseKey } from '../purchaseOrderRevise.ts';
 import { buildOrderBody, plannedAt, type OrderCtx, type OrderInput } from './purchase/orderBody.ts';
 import { planRevise, type CurrentLine, type ReviseLine } from './purchase/orderRevise.ts';
 import { probeOdooByAnchor, type OrderComposite } from './purchase/recoveryProbe.ts';
@@ -101,11 +101,35 @@ function reviseKey(record: PmoRecord): string {
   try { return purchaseOrderReviseKey(String(record.poId), Number(record.revision)); } catch { return refuse('revise-key-invalid'); }
 }
 
-/** The recovery probe for a revision: an applied revision (its identifier exists) is adopted with the order read back; otherwise null. */
+/** The highest revision of this PMO order already marked as applied on its Odoo order, or 0. */
+async function highestAppliedRevision(call: OdooCall, poId: string): Promise<{ revision: number; key: string }> {
+  const prefix = `porev_${poId.replaceAll('-', '_')}_`;
+  // ilike over-matches (`_` is a wildcard); the exact shape is checked here.
+  const rows = await call<Array<{ name: string }>>('ir.model.data', 'search_read', {
+    domain: [['module', '=', 'pmo'], ['model', '=', 'purchase.order'], ['name', 'ilike', prefix]], fields: ['name'], limit: 200,
+  });
+  let top = { revision: 0, key: '' };
+  for (const { name } of rows) {
+    const rest = typeof name === 'string' && name.startsWith(prefix) ? name.slice(prefix.length) : '';
+    if (/^[1-9][0-9]{0,5}$/.test(rest) && Number(rest) > top.revision) top = { revision: Number(rest), key: `porev:${poId}:${rest}` };
+  }
+  return top;
+}
+
+/**
+ * The recovery probe for a revision: an applied revision (its identifier exists) is adopted with the order read back. When it is
+ * not applied but a NEWER revision of the same order is, repeating it would roll the lines back: the shipped seam's decision
+ * (found another key -> held, AC-SCA-011) refuses it. Otherwise null.
+ */
 export async function recoverRevise(rawCall: OdooCall, record: PmoRecord): Promise<CommandResult | null> {
   const call = guarded(rawCall);
-  const hit = await probeOdooByAnchor(call, 'order', reviseKey(record));
-  if (!hit) return null;
+  const key = reviseKey(record);
+  const hit = await probeOdooByAnchor(call, 'order', key);
+  if (!hit) {
+    const newer = await highestAppliedRevision(call, String(record.poId));
+    if (newer.revision > Number(record.revision) && poReviseRecoveryDecision({ probe: 'found', key: newer.key, expectedKey: key }) !== 'adopt') refuse('revision-superseded');
+    return null;
+  }
   return { externalRecordId: hit.externalRecordId, canonical: orderCanonical(await readOrder(call, Number(hit.externalRecordId)), record, String(record.poId)) };
 }
 
