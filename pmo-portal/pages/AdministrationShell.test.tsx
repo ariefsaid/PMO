@@ -245,7 +245,9 @@ describe('Administration route-backed shell', () => {
   it('AC-ADMIA-001/002: an org Admin starts on Users with only the Users panel mounted', async () => {
     renderShell('/administration');
 
-    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/administration/users'));
+    // The Administration chunk now also carries the read-only Your plan page (S3), so the first
+    // navigation under a loaded machine needs more than the 1s default.
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/administration/users'), { timeout: 5000 });
     expect(screen.getByRole('link', { name: 'Users' })).toHaveAttribute('aria-current', 'page');
     // Seven organisation sections + Your plan (S3) for an Admin viewer.
     expect(screen.getAllByRole('link')).toHaveLength(8);

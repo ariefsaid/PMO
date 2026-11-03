@@ -1,7 +1,7 @@
 import { useQuery, type QueryClient } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
 import { useAuth } from '@/src/auth/useAuth';
-import type { FeatureResolution, OrgFeatureKey, ResolvedFeatureSet } from '@/src/lib/features';
+import type { EntitleableKey, FeatureResolution, ResolvedFeatureSet } from '@/src/lib/features';
 
 /**
  * useOrgFeatures — the caller's own-org RESOLVED entitlement set (FR-PLN-005).
@@ -62,10 +62,13 @@ export function invalidateFeatureState(qc: QueryClient): Promise<void> {
 }
 
 export interface OrgFeaturesState {
-  /** Display map (nav, routes, gates). Undefined until the resolved set lands. */
-  data?: Record<OrgFeatureKey, boolean>;
+  /**
+   * Display map (nav, routes, gates). Keys are `EntitleableKey` because the projection returns the
+   * core keys too; a gated consumer always reads an `OrgFeatureKey`. Undefined until it lands.
+   */
+  data?: Partial<Record<EntitleableKey, boolean>>;
   /** Per-key detail: entitlement, display value and source. */
-  states?: Partial<Record<OrgFeatureKey, FeatureResolution>>;
+  states?: Partial<Record<EntitleableKey, FeatureResolution>>;
   isLoading: boolean;
   isError: boolean;
   error: unknown;

@@ -456,8 +456,9 @@ Query keys (`src/hooks/useOrgFeatures.ts`): own `['orgFeatures','own',orgId]`, o
 `['orgPlan']` prefixes. No cross-org shared cache.
 
 **Generated types.** `src/lib/supabase/database.types.ts` predates S1 (it has no
-`resolved_org_features`), so 0537's three functions and S1's three projections are added by hand in
-the generator's shape; the authoritative regen follows the lane's DB slot (see Deviations).
+`resolved_org_features`), so 0537's three functions, S1's three projections and the five S1 Operator
+writers are added by hand in the generator's shape. The authoritative regen needs a database with
+0537 applied, which is the lane's DB slot (heavy-load rule), not this worker's.
 
 ### S3.2 — UI
 
@@ -466,11 +467,14 @@ the generator's shape; the authoritative regen follows the lane's DB slot (see D
   **loading** renders null (existing hold); **error** renders the unavailable state with a Retry,
   and never claims "not on your plan" while the answer is unknown.
 - `pages/AdministrationFeatures.tsx`: Operator console — org picker (`operator_list_orgs`), plan
-  picker + "orgs on this plan", per-key effective state with source pill (global / override / plan /
-  core), override switch + Clear, plan default for the selected org's plan, all-orgs switch (confirm
-  before turning a global switch OFF), and a plan-defaults + limits editor (seats / active projects /
-  AI messages per month; blank = unlimited/per contract). Admin-owned `feedback_surveys` and the core
-  keys render read-only. Non-Operator renders the own-org read-only list (unchanged behaviour).
+  picker (with the selected org's plan limits spelled out in its helper line), per-key effective state
+  with source pill (global / override / plan / core), override switch + Clear, plan default for the
+  selected org's plan, all-orgs switch (confirm before turning a global switch OFF), and a
+  plan-defaults + limits editor (seats / active projects / AI messages per month; blank =
+  unlimited / per contract). Admin-owned `feedback_surveys` and the core keys render read-only.
+  Non-Operator renders the own-org read-only list (unchanged behaviour). A per-plan organisation count
+  is deliberately NOT shown: the catalogue read does not carry one, and inventing it client-side
+  would need a second cross-org read for decoration.
 - `pages/YourPlan.tsx` (AC-PLN-013): read-only plan name, switches on, limits with usage shown as
   "Not tracked yet" until S5, no editable control. Mounted as the `plan` section of Administration
   (`/administration/plan`) for Admin/Executive viewers and Operators.
