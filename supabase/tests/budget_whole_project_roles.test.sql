@@ -1,7 +1,7 @@
 -- AC-008 — server authorization, authorship, RLS and the pre-range deployment fence.
 begin;
 create extension if not exists pgtap;
-select plan(44);
+select plan(72);
 
 insert into organizations (id, name) values
   ('14750000-0000-0000-0000-000000000001', 'Whole Project Roles Org'),
@@ -45,12 +45,17 @@ insert into budget_versions (id, org_id, project_id, version, name, status, crea
 -- so the version-scope authorization predicate is the only tenant gate under test.
 insert into budget_versions (id, org_id, project_id, version, name, status, created_by, budget_mode) values
   ('14752222-0000-0000-0000-000000000010', '14750000-0000-0000-0000-000000000002', '14751111-0000-0000-0000-000000000001', 8, 'Version Tenant Boundary Draft', 'Draft', '14750000-0000-0000-0000-0000000000a2', 'whole_project');
+insert into budget_versions (id, org_id, project_id, version, name, status, created_by, budget_mode) values
+  ('14752222-0000-0000-0000-000000000011', '14750000-0000-0000-0000-000000000001', '14751111-0000-0000-0000-000000000002', 9, 'Project Tenant Boundary Draft', 'Draft', '14750000-0000-0000-0000-0000000000a2', 'whole_project'),
+  ('14752222-0000-0000-0000-000000000012', '14750000-0000-0000-0000-000000000001', '14751111-0000-0000-0000-000000000001', 10, 'Cascade Draft', 'Draft', '14750000-0000-0000-0000-0000000000a2', 'whole_project');
 insert into budget_line_items (org_id, budget_version_id, category, description, budgeted_amount, actual_amount) values
   ('14750000-0000-0000-0000-000000000001', '14752222-0000-0000-0000-000000000001', 'Labor', 'Whole total', 100.00, 0),
   ('14750000-0000-0000-0000-000000000001', '14752222-0000-0000-0000-000000000002', 'Labor', 'Active total', 100.00, 0),
   ('14750000-0000-0000-0000-000000000001', '14752222-0000-0000-0000-000000000003', 'Labor', 'Archived total', 100.00, 0),
   ('14750000-0000-0000-0000-000000000001', '14752222-0000-0000-0000-000000000005', 'Labor', 'Gap total', 100.00, 0),
   ('14750000-0000-0000-0000-000000000002', '14752222-0000-0000-0000-000000000010', 'Labor', 'Tenant boundary total', 100.00, 0);
+insert into budget_line_items (id, org_id, budget_version_id, category, description, budgeted_amount, actual_amount)
+values ('14753333-0000-0000-0000-000000000012', '14750000-0000-0000-0000-000000000001', '14752222-0000-0000-0000-000000000012', 'Labor', 'Cascade probe line', 1, 0);
 
 insert into budget_distribution_plans (org_id, budget_version_id, method, inputs, category_overrides, basis)
 values
@@ -78,6 +83,24 @@ values ('14750000-0000-0000-0000-000000000001', '14752222-0000-0000-0000-0000000
 insert into budget_year_distributions (org_id, budget_version_id, category, fiscal_year, ordinal, amount, method)
 values ('14750000-0000-0000-0000-000000000002', '14752222-0000-0000-0000-000000000004', 'Labor', 'FY27', 0, 100.00, 'by_days');
 reset role;
+
+-- Exercise the line-item trigger's own caller authorization independently of table RLS. The
+-- wrapper is transaction-scoped to this pgTAP file and is removed by the final rollback.
+create function public.test_budget_whole_project_line_item_write(p_org_id uuid, p_version_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+begin
+  insert into public.budget_line_items
+    (org_id, budget_version_id, category, description, budgeted_amount, actual_amount)
+  values
+    (p_org_id, p_version_id, 'Labor', 'Role guard context probe', 1, 0);
+end;
+$$;
+revoke all on function public.test_budget_whole_project_line_item_write(uuid, uuid) from public, anon;
+grant execute on function public.test_budget_whole_project_line_item_write(uuid, uuid) to authenticated;
 
 select ok(
   (select relrowsecurity and relforcerowsecurity from pg_class where oid = 'public.budget_distribution_plans'::regclass)
@@ -108,6 +131,23 @@ select ok(
   and not coalesce(has_function_privilege('anon', to_regprocedure('public.budget_distribution_gaps(uuid)'), 'EXECUTE'), false),
   'AC-008 client RPCs are callable only by authenticated users'
 );
+select ok(
+  (select p.prosecdef
+          and p.proconfig @> array['search_path=public, pg_temp']
+          and not has_function_privilege('authenticated', p.oid, 'EXECUTE')
+          and not has_function_privilege('anon', p.oid, 'EXECUTE')
+     from pg_proc p
+     join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.oid = to_regprocedure('public.enforce_draft_line_item()'))
+  and exists (
+    select 1 from pg_trigger t
+     where t.tgrelid = 'public.budget_line_items'::regclass
+       and t.tgfoid = to_regprocedure('public.enforce_draft_line_item()')
+       and not t.tgisinternal
+       and t.tgenabled <> 'D'
+  ),
+  'AC-008 line-item locking stays on its SECURITY DEFINER trigger with pinned search_path and no direct client execute grant'
+);
 
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"14750000-0000-0000-0000-0000000000a4","role":"authenticated"}';
@@ -129,6 +169,11 @@ select throws_ok(
   $$insert into budget_line_items (org_id,budget_version_id,category,description,budgeted_amount,actual_amount) values ('14750000-0000-0000-0000-000000000001','14752222-0000-0000-0000-000000000007','Labor','disabled line writer',10,0)$$,
   '42501', 'not authorized', 'AC-008 a disabled Finance member cannot use the line-item lock trigger'
 );
+select throws_ok(
+  $$select public.test_budget_whole_project_line_item_write('14750000-0000-0000-0000-000000000001','14752222-0000-0000-0000-000000000007')$$,
+  '42501', 'not authorized',
+  'AC-008 the trigger retains its disabled-member check when called through owner rights'
+);
 reset role;
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"14750000-0000-0000-0000-0000000000a1","role":"authenticated"}';
@@ -136,6 +181,11 @@ select throws_ok($$select public.save_budget_distribution('14752222-0000-0000-00
   '42501', 'not authorized', 'AC-008 a same-role member cannot save to another organization version');
 select throws_ok($$select public.save_budget_distribution('14752222-0000-0000-0000-000000000010','by_days','{}'::jsonb,'{"projectStart":"2027-01-01","projectEnd":"2027-12-31","years":[{"name":"FY27","start":"2027-01-01","end":"2027-12-31"}]}'::jsonb,'[{"category":"Labor","fiscal_year":"FY27","ordinal":0,"amount":"100.00","method":"by_days","is_override":false}]'::jsonb)$$,
   '42501', 'not authorized', 'AC-008 a matching project tenant cannot authorize a mismatched budget-version tenant');
+select throws_ok(
+  $$select public.test_budget_whole_project_line_item_write('14750000-0000-0000-0000-000000000002','14752222-0000-0000-0000-000000000010')$$,
+  '42501', 'not authorized',
+  'AC-008 the trigger retains its version/project tenant check when called through owner rights'
+);
 select is_empty($$select 1 from budget_distribution_plans where budget_version_id = '14752222-0000-0000-0000-000000000010'$$,
   'AC-008 a rejected mismatched version-tenant write leaves no distribution plan');
 select throws_ok($$select public.activate_budget_version('14752222-0000-0000-0000-000000000004')$$,
@@ -281,6 +331,155 @@ select throws_ok(
   '42501', 'permission denied for table budget_year_distributions',
   'AC-008 authenticated cannot directly update resolved rows');
 reset role;
+
+-- The guard uses the active SQL role to decide whether JWT membership claims are authoritative.
+-- Its wrapper above deliberately bypasses table RLS so each caller-context refusal reaches the
+-- trigger itself; direct authenticated writes below separately prove the ordinary RLS path.
+select ok(
+  (select rolbypassrls from pg_roles where rolname = 'postgres')
+  and (select rolbypassrls from pg_roles where rolname = 'service_role')
+  and not (select rolbypassrls from pg_roles where rolname = 'authenticated')
+  and public.actor_bypasses_rls('postgres'::name)
+  and public.actor_bypasses_rls('service_role'::name)
+  and not public.actor_bypasses_rls('authenticated'::name),
+  'AC-008 only the actual trusted database roles bypass caller JWT membership checks'
+);
+
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"14750000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+select lives_ok(
+  $$insert into public.budget_line_items (id,org_id,budget_version_id,category,description,budgeted_amount,actual_amount)
+    values ('14753333-0000-0000-0000-000000000021','14750000-0000-0000-0000-000000000001','14752222-0000-0000-0000-000000000007','Labor','ordinary client insert',1,0)$$,
+  'AC-008 an active same-tenant member can insert a Draft line through ordinary RLS'
+);
+select lives_ok(
+  $$update public.budget_line_items set budgeted_amount = 2 where id = '14753333-0000-0000-0000-000000000021'$$,
+  'AC-008 an active same-tenant member can update a Draft line through ordinary RLS'
+);
+select lives_ok(
+  $$delete from public.budget_line_items where id = '14753333-0000-0000-0000-000000000021'$$,
+  'AC-008 an active same-tenant member can delete a Draft line through ordinary RLS'
+);
+select is_empty(
+  $$select 1 from public.budget_line_items where id = '14753333-0000-0000-0000-000000000021'$$,
+  'AC-008 the ordinary Draft insert/update/delete journey leaves no line behind'
+);
+
+-- A root SQL fixture session can issue trusted maintenance statements after switching roles or
+-- resetting to its session role. Stale caller claims must not turn those SQL writes into client writes.
+set local role postgres;
+set local request.jwt.claims = '{"sub":"14750000-0000-0000-0000-0000000000b1","role":"authenticated"}';
+select lives_ok(
+  $$insert into public.budget_line_items (id,org_id,budget_version_id,category,description,budgeted_amount,actual_amount)
+    values ('14753333-0000-0000-0000-000000000022','14750000-0000-0000-0000-000000000001','14752222-0000-0000-0000-000000000007','Labor','postgres stale tenant claim',1,0)$$,
+  'AC-008 an actual postgres SQL role can write an org-A Draft line with stale org-B JWT claims'
+);
+reset role;
+select is((select count(*)::integer from public.budget_line_items where id = '14753333-0000-0000-0000-000000000022'), 1,
+  'AC-008 the trusted stale-claim SQL write is persisted in its requested tenant');
+set local request.jwt.claims = '{"sub":"14750000-0000-0000-0000-0000000000b1","role":"authenticated"}';
+select lives_ok(
+  $$insert into public.budget_line_items (id,org_id,budget_version_id,category,description,budgeted_amount,actual_amount)
+    values ('14753333-0000-0000-0000-000000000023','14750000-0000-0000-0000-000000000001','14752222-0000-0000-0000-000000000007','Labor','session role stale tenant claim',1,0)$$,
+  'AC-008 reset-to-session postgres with stale JWT claims can write an org-A Draft line'
+);
+select is((select count(*)::integer from public.budget_line_items where id = '14753333-0000-0000-0000-000000000023'), 1,
+  'AC-008 the reset-to-session trusted SQL write is persisted');
+
+set local role service_role;
+set local request.jwt.claims = '{}';
+select lives_ok(
+  $$insert into public.budget_line_items (id,org_id,budget_version_id,category,description,budgeted_amount,actual_amount)
+    values ('14753333-0000-0000-0000-000000000024','14750000-0000-0000-0000-000000000001','14752222-0000-0000-0000-000000000007','Labor','service role no claims',1,0)$$,
+  'AC-008 the actual service_role can write a Draft line without user claims'
+);
+reset role;
+select is((select count(*)::integer from public.budget_line_items where id = '14753333-0000-0000-0000-000000000024'), 1,
+  'AC-008 the service_role no-claims Draft write is persisted');
+set local role service_role;
+set local request.jwt.claims = '{"sub":"14750000-0000-0000-0000-0000000000b1","role":"authenticated"}';
+select lives_ok(
+  $$insert into public.budget_line_items (id,org_id,budget_version_id,category,description,budgeted_amount,actual_amount)
+    values ('14753333-0000-0000-0000-000000000025','14750000-0000-0000-0000-000000000001','14752222-0000-0000-0000-000000000007','Labor','service role stale user claim',1,0)$$,
+  'AC-008 the actual service_role can write an org-A Draft line with stale org-B user claims'
+);
+reset role;
+select is((select count(*)::integer from public.budget_line_items where id = '14753333-0000-0000-0000-000000000025'), 1,
+  'AC-008 the service_role stale-claim Draft write is persisted');
+
+-- Missing-subject calls are always rejected for an unprivileged SQL role, regardless of the JWT role
+-- claim. These owner-rights calls reach the trigger directly instead of being stopped by RLS.
+set local role authenticated;
+set local request.jwt.claims = '{}';
+select throws_ok(
+  $$select public.test_budget_whole_project_line_item_write('14750000-0000-0000-0000-000000000001','14752222-0000-0000-0000-000000000007')$$,
+  '42501', 'not authorized',
+  'AC-008 an authenticated SQL role without JWT claims cannot call the trigger through owner rights'
+);
+set local request.jwt.claims = '{"role":"authenticated"}';
+select throws_ok(
+  $$select public.test_budget_whole_project_line_item_write('14750000-0000-0000-0000-000000000001','14752222-0000-0000-0000-000000000007')$$,
+  '42501', 'not authorized',
+  'AC-008 an authenticated JWT role claim without a subject cannot call the trigger through owner rights'
+);
+set local request.jwt.claims = '{"role":"anon"}';
+select throws_ok(
+  $$select public.test_budget_whole_project_line_item_write('14750000-0000-0000-0000-000000000001','14752222-0000-0000-0000-000000000007')$$,
+  '42501', 'not authorized',
+  'AC-008 an anon JWT role claim without a subject cannot call the trigger through owner rights'
+);
+set local request.jwt.claims = '{"role":"service_role"}';
+select throws_ok(
+  $$select public.test_budget_whole_project_line_item_write('14750000-0000-0000-0000-000000000001','14752222-0000-0000-0000-000000000007')$$,
+  '42501', 'not authorized',
+  'AC-008 a forged service_role JWT claim without a subject cannot bypass the actual authenticated SQL role'
+);
+set local request.jwt.claims = '{"sub":"14750000-0000-0000-0000-0000000000b1","role":"service_role"}';
+select throws_ok(
+  $$select public.test_budget_whole_project_line_item_write('14750000-0000-0000-0000-000000000001','14752222-0000-0000-0000-000000000007')$$,
+  '42501', 'not authorized',
+  'AC-008 a forged service_role claim cannot authorize a cross-tenant subject on the actual authenticated SQL role'
+);
+select throws_ok(
+  $$select public.test_budget_whole_project_line_item_write('14750000-0000-0000-0000-000000000001','14752222-0000-0000-0000-000000000011')$$,
+  '42501', 'not authorized',
+  'AC-008 an active member cannot write through a version whose project belongs to another tenant'
+);
+reset role;
+
+-- Trusted server roles still obey the Draft status and immutable-parent contracts.
+set local role service_role;
+set local request.jwt.claims = '{}';
+select throws_ok(
+  $$insert into public.budget_line_items (org_id,budget_version_id,category,description,budgeted_amount,actual_amount)
+    values ('14750000-0000-0000-0000-000000000001','14752222-0000-0000-0000-000000000002','Labor','trusted active insert',1,0)$$,
+  'P0001', 'line-items can only change while the owning version is Draft',
+  'AC-008 service_role cannot insert into an Active version'
+);
+select throws_ok(
+  $$update public.budget_line_items set budgeted_amount = budgeted_amount + 1 where budget_version_id = '14752222-0000-0000-0000-000000000002'$$,
+  'P0001', 'line-items can only change while the owning version is Draft',
+  'AC-008 service_role cannot update a line in an Active version'
+);
+select throws_ok(
+  $$delete from public.budget_line_items where budget_version_id = '14752222-0000-0000-0000-000000000002'$$,
+  'P0001', 'line-items can only change while the owning version is Draft',
+  'AC-008 service_role cannot delete a line in an Active version'
+);
+select throws_ok(
+  $$update public.budget_line_items set budget_version_id = '14752222-0000-0000-0000-000000000007' where budget_version_id = '14752222-0000-0000-0000-000000000001'$$,
+  'P0001', 'a budget line cannot move to another version',
+  'AC-008 service_role cannot reparent a line between Draft versions'
+);
+select lives_ok(
+  $$delete from public.budget_versions where id = '14752222-0000-0000-0000-000000000012'$$,
+  'AC-008 service_role can cascade-delete a Draft parent after its row is gone before the child trigger runs'
+);
+reset role;
+select is_empty(
+  $$select 1 from public.budget_line_items where id = '14753333-0000-0000-0000-000000000012'$$,
+  'AC-008 parent deletion cascades through its child trigger without leaving an orphan'
+);
 
 select * from finish();
 rollback;

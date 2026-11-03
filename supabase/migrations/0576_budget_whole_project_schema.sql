@@ -153,6 +153,7 @@ declare
   v_status public.budget_status;
   v_version_id uuid;
   v_version_ids uuid[];
+  v_actor_bypasses_rls boolean;
 begin
   -- 0241 (FR-BV-011) stays intact: a budget line belongs to one version for life. Moving it changes
   -- both versions' contents, so it is refused before the serialization below.
@@ -174,7 +175,13 @@ begin
       from unnest(array[old.budget_version_id, new.budget_version_id]) as versions(id);
   end if;
 
-  if auth.uid() is null and auth.role() in ('anon', 'authenticated') then
+  -- This is SECURITY DEFINER, so current_user is the function owner rather than the caller.
+  -- Resolve the invoker's actual database role through the shared RLS trust-boundary predicate.
+  v_actor_bypasses_rls := public.actor_bypasses_rls(
+    coalesce(nullif(current_setting('role', true), 'none'), session_user)::name
+  );
+
+  if not v_actor_bypasses_rls and auth.uid() is null then
     raise exception 'not authorized' using errcode = '42501';
   end if;
 
@@ -189,7 +196,7 @@ begin
   -- JWT callers may lock only versions and projects in their active organization. The trigger runs
   -- with its owner rights solely so it can serialize against the version row without widening the
   -- client's budget_versions UPDATE grant.
-  if auth.uid() is not null and (
+  if not v_actor_bypasses_rls and auth.uid() is not null and (
     not public.is_active_member()
     or (
       select count(*)
