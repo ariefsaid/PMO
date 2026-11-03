@@ -136,7 +136,7 @@ describe('DraggableSalesBoard', () => {
     expect(await screen.findByText('Mark project as lost')).toBeInTheDocument();
     const confirm = screen.getByRole('button', { name: 'Mark lost' });
     expect(confirm).toBeDisabled();
-    expect(screen.getByRole('radio', { name: 'Loss Tender' })).not.toBeChecked();
+    expect(screen.getByRole('radio', { name: 'Lost' })).not.toBeChecked();
     expect(screen.getByRole('radio', { name: 'Declined' })).not.toBeChecked();
     await user.click(screen.getByRole('radio', { name: 'Declined' }));
     expect(confirm).toBeDisabled();
