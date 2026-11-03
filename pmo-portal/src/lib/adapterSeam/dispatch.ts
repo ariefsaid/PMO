@@ -718,15 +718,18 @@ export function toDispatchError(error: unknown): AppError {
   return new AppError('An unexpected error occurred');
 }
 
+/** The tiers whose writes move money: each registers a money-outbox resolver in adapter-dispatch (`MONEY_OUTBOX_RESOLVERS`). */
+const MONEY_TIERS: ReadonlySet<string> = new Set(['erpnext', 'odoo']);
+
 export async function dispatchExternallyOwnedWrite(
   deps: DispatchExternallyOwnedWriteDeps,
 ): Promise<CommandResult> {
-  // ADR-0058: an `erpnext`-tier non-read-only command always takes the money-idempotency path
-  // (which itself enforces the required idempotencyKey). Every other tier — P0 `reference`, P1
+  // ADR-0058: a money-tier (`erpnext`, `odoo`) non-read-only command always takes the money-idempotency
+  // path (which itself enforces the required idempotencyKey). Every other tier — P0 `reference`, P1
   // `clickup`, and any future non-money tier — is completely unaffected (byte-for-byte).
-  if (deps.adapter.tier === 'erpnext' && (deps.command.operation as string) !== 'read') {
+  if (MONEY_TIERS.has(deps.adapter.tier) && (deps.command.operation as string) !== 'read') {
     if (!deps.money) {
-      throw toDispatchError(new Error('erpnext money command dispatched without outbox deps'));
+      throw toDispatchError(new Error(`${deps.adapter.tier} money command dispatched without outbox deps`));
     }
     return dispatchMoneyWrite(deps as DispatchMoneyWriteDeps);
   }

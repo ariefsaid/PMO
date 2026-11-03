@@ -54,6 +54,7 @@ import { authorizeBudgetOccupant, isBudgetOccupantCommand, runBudgetOccupant } f
 import { assertNotPreCutover } from '../../../pmo-portal/src/lib/adapterSeam/cutoverGate.ts';
 import { authorizeClickUpTaskCommand } from './taskAuthorization.ts';
 import { enforcePaymentGate, isProcurementPaymentCreate } from './paymentGate.ts';
+import { checkOdooPaymentGate } from './odooPaymentGate.ts';
 import { checkSiProjectGate } from './projectGateGuard.ts';
 import { checkProcurementGate } from './procurementGateGuard.ts';
 import { checkOdooProjectGate } from './odooProjectGate.ts';
@@ -587,6 +588,18 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
     if (!paymentGate.ok) {
       return new Response(JSON.stringify({ error: 'commit-rejected', message: paymentGate.message }), {
         status: paymentGate.status,
+        headers,
+      });
+    }
+  }
+
+  // FR-OPP-060 / FR-OPP-044 (AC-OPP-054): for a bill pushed to Odoo, the person who entered it cannot pay it, and a bill whose read-back
+  // is flagged needs-attention is not payable. After the shared gate, so its wording and order are unchanged; before the outbox insert.
+  {
+    const odooPayment = await checkOdooPaymentGate(serviceClient as never, orgId, employedTier, userId, command as never);
+    if (!odooPayment.ok) {
+      return new Response(JSON.stringify({ error: 'commit-rejected', message: odooPayment.message }), {
+        status: odooPayment.status,
         headers,
       });
     }

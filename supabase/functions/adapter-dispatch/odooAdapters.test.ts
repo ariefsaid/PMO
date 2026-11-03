@@ -1,5 +1,5 @@
 // #1505 O2 P3/P4/P5 (FR-OPP-002, DD-OPP-1, DD-OPP-8): the Odoo adapter factory returns the procurement adapter for the steps pushed so far
-// (purchase order create and revise, goods-receipt create, vendor bill create) and refuses every other step before any outbox row, as it refuses an unusable connection or a snapshot
+// (purchase order create and revise, goods-receipt create, vendor bill create, vendor payment create) and refuses every other step before any outbox row, as it refuses an unusable connection or a snapshot
 // that lacks a model. Supabase is mocked over fetch; the factory is the shipped one.
 import { describe, it } from '@std/testing/bdd';
 import { assertEquals, assertRejects } from '@std/assert';
@@ -48,7 +48,7 @@ describe('P3 the Odoo adapter factory', () => {
     });
   }
 
-  for (const kind of ['payment', 'rfq']) {
+  for (const kind of ['rfq']) {
     it(`refuses a ${kind} create: not available yet, config-rejected, before any outbox row`, async () => {
       const err = await withFetchMock(world(), () => assertRejects(() => resolveOdooProcurementAdapter(ctxFor(kind)))) as { code?: string; message: string };
       assertEquals(err.code, 'config-rejected');
@@ -158,5 +158,70 @@ describe('P5 the Odoo adapter factory for a vendor bill', () => {
     const adapter = await withFetchMock(billWorld({ item_map: {} }, { account: 'asset_current', odooCalls }), () => resolveOdooProcurementAdapter(bill({}, true)));
     assertEquals(adapter.tier, 'odoo');
     assertEquals(odooCalls.some((c) => c.startsWith('account.')), false);
+  });
+});
+
+describe('P6 the Odoo adapter factory for a vendor payment', () => {
+  const BILL = { state: 'posted', move_type: 'in_invoice', amount_residual: 98, currency_id: [12, 'IDR'], partner_id: [77, 'Vendor'] };
+  const payWorld = (config?: Record<string, unknown>, { bill = BILL as Record<string, unknown> | null, odooCalls = [] as string[], invoice = { procurement_id: 'c0000000-0000-4000-8000-000000000001' } as Record<string, unknown> | null } = {}) => [
+    supabaseSelect('external_org_bindings', () => binding({ default_payment_journal_id: 7, ...config })),
+    supabaseRpc('read_vault_secret', () => jsonResponse('odoo-test-key')),
+    supabaseSelect('procurements', () => object({ code: 'PRC-1', project_id: null, vendor_id: 'v-1', currency: 'IDR' })),
+    supabaseSelect('procurement_invoices', () => invoice === null ? new Response('null', { status: 200, headers: { 'content-type': 'application/json' } }) : object(invoice)),
+    supabaseSelect('external_refs', (call) => object({ external_record_id: call.url.searchParams.get('domain') === 'eq.companies' ? 'Vendor:77' : 'account.move:301' })),
+    { label: 'odoo', host: 'odoo.example.test', response: (call: { url: URL }) => {
+      const [model, method] = call.url.pathname.split('/').slice(-2);
+      odooCalls.push(`${model}/${method}`);
+      if (model === 'res.company') return jsonResponse([{ id: 1, currency_id: [12, 'IDR'] }]);
+      if (model === 'account.move') return jsonResponse(bill ? [{ id: 301, ...bill }] : []);
+      if (model === 'account.journal') return jsonResponse([{ id: 7, type: 'bank', active: true, outbound_payment_method_line_ids: [31] }]);
+      return jsonResponse([]);
+    } },
+  ];
+  const payment = (over: Record<string, unknown> = {}, replay = false) => {
+    const ctx = ctxFor('payment');
+    Object.assign(ctx.command.record, { invoiceId: 'dddddddd-dddd-4ddd-8ddd-000000000001', paid_amount: 98, date: '2026-12-10', ...over });
+    return replay ? { ...ctx, replay: true } as AdapterSelectContext : ctx;
+  };
+  const refused = async (world: ReturnType<typeof payWorld>, cmd = payment()) => {
+    const err = await withFetchMock(world, () => assertRejects(() => resolveOdooProcurementAdapter(cmd))) as { code?: string; message: string };
+    return [err.code, err.message];
+  };
+
+  it('returns the Odoo procurement adapter for a payment create, after reading (never writing) the bill and the journal', async () => {
+    const odooCalls: string[] = [];
+    const adapter = await withFetchMock(payWorld(undefined, { odooCalls }), () => resolveOdooProcurementAdapter(payment()));
+    assertEquals(adapter.tier, 'odoo');
+    assertEquals(odooCalls.every((c) => /\/(read|search_read)$/.test(c)), true, odooCalls.join());
+    assertEquals(odooCalls.includes('account.move/read'), true);
+  });
+
+  it('AC-OPP-050 an amount above the bill\'s residual is refused at selection (Odoo would accept it): no outbox row, nothing written', async () => {
+    const odooCalls: string[] = [];
+    assertEquals(await refused(payWorld(undefined, { odooCalls }), payment({ paid_amount: 99 })), ['commit-rejected', 'over-payment']);
+    assertEquals(odooCalls.every((c) => /\/(read|search_read)$/.test(c)), true, odooCalls.join());
+  });
+
+  it('AC-OPP-051 an unposted bill, no bill mapped, a bill of another case, no default journal: each refused at selection', async () => {
+    assertEquals(await refused(payWorld(undefined, { bill: { ...BILL, state: 'draft' } })), ['commit-rejected', 'bill-not-posted']);
+    assertEquals(await refused(payWorld(undefined, { invoice: null })), ['commit-rejected', 'bill-missing']);
+    assertEquals(await refused(payWorld(undefined, { invoice: { procurement_id: 'someone-elses-case' } })), ['commit-rejected', 'bill-case-mismatch']);
+    assertEquals(await refused(payWorld({ default_payment_journal_id: undefined })), ['commit-rejected', 'journal-missing']);
+    assertEquals(await refused(payWorld(), payment({ invoiceId: undefined })), ['commit-rejected', 'payment-bill-required']);
+  });
+
+  it('a REPLAY resolves nothing at selection: the payment it made has already reduced the residual, and its recovery must not depend on today\'s journal default', async () => {
+    const odooCalls: string[] = [];
+    const adapter = await withFetchMock(payWorld({ default_payment_journal_id: undefined }, { bill: { ...BILL, amount_residual: 0 }, odooCalls }), () => resolveOdooProcurementAdapter(payment({ paid_amount: 98 }, true)));
+    assertEquals(adapter.tier, 'odoo');
+    assertEquals(odooCalls.includes('account.move/read'), false);
+  });
+
+  it('a payment update or transition (no such Odoo step) is refused before any outbox row', async () => {
+    for (const operation of ['update', 'transition']) {
+      const ctx = ctxFor('payment', operation);
+      const err = await withFetchMock(payWorld(), () => assertRejects(() => resolveOdooProcurementAdapter(ctx))) as { code?: string };
+      assertEquals(err.code, 'config-rejected');
+    }
   });
 });
