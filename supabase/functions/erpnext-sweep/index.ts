@@ -398,9 +398,24 @@ export interface ReconcileOrgOutboxResult {
  * per-candidate error, which `runErpSweepCycle` surfaces as `reconcile:<id>:<error>`. Re-granting the
  * domain resumes it on the next tick.
  */
+/**
+ * domain → the plan switch that entitles it (0534). A domain with no switch (`budget`, core
+ * `expenses`) is never held here. `companies` is the CRM master feed.
+ */
+export const DOMAIN_FEATURE_KEY: Record<string, string> = {
+  procurement: 'procurement',
+  revenue: 'revenue',
+  companies: 'crm',
+};
+
+/** True when 0534's entitlement read says this org's module is switched off. */
+export function featureDisabled(org: { disabledFeatureKeys?: readonly string[] }, key: string): boolean {
+  return (org.disabledFeatureKeys ?? []).includes(key);
+}
+
 export async function reconcileOrgOutbox(
   listCandidates: ListOutboxCandidates,
-  org: { orgId: string; ownedDomains: readonly string[] },
+  org: { orgId: string; ownedDomains: readonly string[]; disabledFeatureKeys?: readonly string[] },
   buildDeps: BuildReconcileDeps,
   dispatch: typeof dispatchMoneyWrite = dispatchMoneyWrite,
 ): Promise<ReconcileOrgOutboxResult> {
@@ -435,6 +450,15 @@ export async function reconcileOrgOutbox(
     // report a false `domain-not-owned` "held for an operator" alarm on a budget row that is, in fact,
     // being recovered normally.
     if (candidate.domain === ERPNEXT_BUDGET_DOMAIN) continue;
+    // (0534) ENTITLEMENT gate: a module switched off for this org mints no NEW commands, and its
+    // pending ones are HELD — same treatment as a revoked domain (row untouched, reported, resumes on
+    // re-enable), never a silent drop. This runs BEFORE buildDeps so an off module never resolves ERP
+    // credentials. Budget/timesheets/expenses candidates were skipped above (their own passes own them).
+    const featureKey = DOMAIN_FEATURE_KEY[candidate.domain];
+    if (featureKey && featureDisabled(org, featureKey)) {
+      errors.push({ id: candidate.id, error: `feature-off:${featureKey} is switched off for this organisation — held for an operator, NOT reconciled` });
+      continue;
+    }
     // The gate runs BEFORE buildDeps so a revoked domain never even resolves ERP credentials/adapter.
     // `candidate.domain` is the outbox row's own PMO domain, which the dispatch's authGuard already
     // proved equal to `KIND_DOMAIN[payload.erp_doc_kind]` at insert time — one value, checked here
@@ -509,6 +533,9 @@ interface OrgBinding {
   /** Holder fence for statement-source writes in this sweep tick. */
   statementLockHolder?: string;
   statementReplayNeeded?: boolean;
+  /** 0534: the plan-switch keys that resolve OFF for this org (service_resolved_org_features).
+   *  OPTIONAL so existing per-pass/cycle fixtures stay byte-for-byte; absent ⇒ nothing is held. */
+  disabledFeatureKeys?: string[];
   /** 0358: when this org's full (hourly) sweep last completed under its lock; null = never / unknown. */
   lastFullSweepAt?: string | null;
 }
@@ -894,7 +921,7 @@ export async function listEmployingOrgsLive(serviceClient: SupabaseClient): Prom
     }
   }
 
-  return activated.map((r) => ({
+  const bindings: OrgBinding[] = activated.map((r) => ({
     orgId: r.org_id,
     bindingId: r.id ?? null,
     lastFullSweepAt: lastFullByOrg.get(r.org_id) ?? null,
@@ -908,6 +935,25 @@ export async function listEmployingOrgsLive(serviceClient: SupabaseClient): Prom
     ownedDomains: ownedByOrg.get(r.org_id) ?? [],
     statementReplayNeeded: r.statement_full_ledger_replay_needed === true,
   }));
+
+  // 0534 — each org's resolved switches, the SAME service-only projection the rest of the platform
+  // reads (0533 `service_resolved_org_features`). The sweep holds a domain whose module resolves off
+  // instead of driving it. A failed entitlement read DEGRADES to "nothing held" (logged): the switch is
+  // a pause control, not a security boundary for this trusted service path, and stranding every money
+  // command on a transient read error is the worse outcome (ADR-0058's terminal-state rule).
+  try {
+    const disabled = await Promise.all(bindings.map(async (b) => {
+      const { data, error } = await serviceClient.rpc('service_resolved_org_features', { p_org_id: b.orgId });
+      if (error) throw new Error(error.message);
+      const rows = (data as Array<{ feature_key: string; enabled: boolean }> | null) ?? [];
+      return rows.filter((row) => row.enabled === false).map((row) => row.feature_key);
+    }));
+    bindings.forEach((b, i) => { b.disabledFeatureKeys = disabled[i]; });
+  } catch (err) {
+    console.error(`[erpnext-sweep] service_resolved_org_features failed: `
+      + `${err instanceof Error ? err.message : String(err)} — this tick holds nothing on entitlement`);
+  }
+  return bindings;
 }
 
 type StatementCadenceBindingRow = {
@@ -1304,7 +1350,13 @@ export async function sweepOrgDoctypesLive(serviceClient: SupabaseClient, org: O
   const inFlightProbe = createInFlightAnchorProbe(serviceClient, org.orgId);
   // Luna BLOCK 9: only the doctypes whose PMO domain this org actually assigned to the ERPNext tier —
   // ordered least-recently-completed first (#916 fix round: see `orderedSweepKindsForOrg`).
-  const sweepKinds = await orderedSweepKindsForOrg(serviceClient, org.orgId, org.ownedDomains);
+  // 0534: a domain whose module resolves off is skipped entirely; its watermark is untouched, so the
+  // feed resumes exactly where it stopped when the switch comes back on.
+  const sweepKinds = (await orderedSweepKindsForOrg(serviceClient, org.orgId, org.ownedDomains))
+    .filter(({ kind }) => {
+      const key = DOMAIN_FEATURE_KEY[KIND_DOMAIN[kind]];
+      return !key || !featureDisabled(org, key);
+    });
   for (const { kind, doctype } of sweepKinds) {
     const elapsedMs = nowMs() - tickStartMs;
     if (docsThisTick >= tickMaxDocs || elapsedMs >= tickTimeBudgetMs) {
@@ -2870,6 +2922,9 @@ export function timesheetBackstopDepsLive(
  *  org that never assigned the `timesheets` domain to this tier has nothing to reconcile. */
 async function reconcileOrgTimesheetPushesLive(serviceClient: SupabaseClient, org: OrgBinding): Promise<{ driven: number; error?: string }> {
   if (!org.ownedDomains.includes(ERPNEXT_TIMESHEETS_DOMAIN)) return { driven: 0 };
+  // 0534: a switched-off module is HELD, not driven — reported with the typed reason so ops can see
+  // it, and resumed on the next tick after re-enable (nothing is dropped or abandoned).
+  if (featureDisabled(org, 'timesheets')) return { driven: 0, error: 'feature-off:timesheets' };
   try {
     // The SoT eligibility set (0131), fetched ONCE per pass — the backstop may only re-drive a row this
     // RPC still admits. Scoped to the timesheets domain; other domains' candidates are irrelevant here.
@@ -3312,6 +3367,10 @@ async function reconcileOrgImprestPostingsLive(
   cache?: ErpAuthPairCache,
 ): Promise<{ driven: number; error?: string }> {
   if (!org.ownedDomains.includes(ERPNEXT_EXPENSES_DOMAIN)) return { driven: 0 };
+  // 0534: `imprest` off holds the site-float transfers (this pass's ONLY subject). Core expense
+  // postings keep running — expense claims are a never-gatable key (0533), so the split is per pass,
+  // never per domain. Held, never dropped: the mirror row's queue resumes on re-enable.
+  if (featureDisabled(org, 'imprest')) return { driven: 0, error: 'feature-off:imprest' };
   try {
     const eligibleOutbox = (await listCandidatesLive(serviceClient)(org.orgId)).filter((c) => c.domain === ERPNEXT_EXPENSES_DOMAIN);
     const result = await reconcileOrgImprestPostings(
@@ -3454,6 +3513,9 @@ serveWithErrorReporting('erpnext-sweep', withJobRun('erpnext-sweep', async (req:
       if (error) throw new Error(`statement lock release failed: ${error.code ?? 'unknown'}`);
     },
     refreshNativeStatements: async (org) => {
+      // 0534: financial statements switched off ⇒ the statement pass does not run. The read RPC stays
+      // open (FR-PLN-006 gates writes/jobs; published statements remain readable).
+      if (featureDisabled(org, 'financial_statements')) return {};
       const rawProjectMap = org.config.project_map;
       const context = nativeStatementBindingContext({
         orgId: org.orgId,
@@ -3492,7 +3554,9 @@ serveWithErrorReporting('erpnext-sweep', withJobRun('erpnext-sweep', async (req:
     sweepOrgDoctypes: (org) => sweepOrgDoctypesLive(serviceClient, org, erpAuth, tickBudget),
     repairOrgLinks: (org) => repairOrgLinksLive(serviceClient, org, erpAuth),
     feedOrgLedgers: (org) => feedOrgLedgersLive(serviceClient, org, erpAuth),
-    feedOrgPurchases: (org) => feedOrgPurchasesLive(serviceClient, org, erpAuth),
+    feedOrgPurchases: (org) =>
+      // 0534: the read-only ERP purchases feed is the erp_purchases module's job.
+      featureDisabled(org, 'erp_purchases') ? Promise.resolve({ fed: 0 }) : feedOrgPurchasesLive(serviceClient, org, erpAuth),
     refreshOrgAccounting: (org) => refreshOrgAccountingLive(serviceClient, org, erpAuth),
     reconcileOrgBudgetPushes: (org) => reconcileOrgBudgetPushesLive(serviceClient, org, erpAuth),
     reconcileOrgTimesheetPushes: (org) => reconcileOrgTimesheetPushesLive(serviceClient, org),
