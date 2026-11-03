@@ -11,14 +11,6 @@ export type PoReviseClient = {
 };
 export interface PoReviseResult { ok: boolean; status: number; message: string }
 
-/**
- * Whether a revise on this tier CANCELS the ERP order to replace it. ERPNext amends (cancel then create); Odoo edits the
- * confirmed order's lines in place and never cancels (DD-OPP-9). A tier not listed is treated as cancelling: the stricter
- * check. The Odoo adapter has no cancel call at all, so `false` is a fact about it, not a relaxation.
- */
-export const REVISE_CANCELS_BY_TIER: Readonly<Record<string, boolean>> = { erpnext: true, odoo: false };
-export const reviseCancels = (tier: string | undefined): boolean => REVISE_CANCELS_BY_TIER[tier ?? ''] ?? true;
-
 const FAILED: PoReviseResult = { ok: false, status: 422, message: 'gate-check-failed' };
 
 export async function checkPoRevise(

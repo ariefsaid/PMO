@@ -57,7 +57,7 @@ import { enforcePaymentGate, isProcurementPaymentCreate } from './paymentGate.ts
 import { checkSiProjectGate } from './projectGateGuard.ts';
 import { checkProcurementGate } from './procurementGateGuard.ts';
 import { checkOdooProjectGate } from './odooProjectGate.ts';
-import { checkPoRevise, reviseCancels } from './poReviseGuard.ts';
+import { checkPoRevise } from './poReviseGuard.ts';
 import { checkCreateTargetUnmapped, checkRevenueErpPathTarget, checkTransitionTargetBinding, isCanonicalUuid, isOpaqueIdempotencyKey } from './transitionTargetGuard.ts';
 
 import {
@@ -68,7 +68,7 @@ import {
   type JwksResolver,
 } from '../../../pmo-portal/src/lib/auth/verifyCallerJwt.ts';
 import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
-import { erpRateLimiter, resolveErpBindingRow, selectAdapterFactory, type AdapterSelectContext } from './dispatchAdapters.ts';
+import { erpRateLimiter, resolveErpBindingRow, reviseCancels, selectAdapterFactory, type AdapterSelectContext } from './dispatchAdapters.ts';
 import { runDispatchAttempt } from './dispatchAttempt.ts';
 import {
   buildBudgetDispatchPlan,
@@ -513,7 +513,7 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
 
   // AC-SCA-012 (#1513) — a PO revise never cancels a billed ERP order. Reached by no command until #1505 registers the
   // revise operation; the guard is wired now so that registration cannot ship without it. Whether a revise cancels the ERP
-  // order is the tier's own fact (poReviseGuard.REVISE_CANCELS_BY_TIER): ERPNext amends, Odoo edits in place.
+  // order is the tier's own fact (dispatchAdapters.TIER_REVISE_CANCELS): ERPNext amends, Odoo edits in place.
   if (command.domain === 'procurement' && String(command.operation) === 'revise') {
     const rec = (command as { record?: { poId?: unknown; revision?: unknown } }).record ?? {};
     const poRevise = await checkPoRevise(serviceClient as never, orgId, { poId: rec.poId, revision: rec.revision }, { reviseCancels: reviseCancels(employedTier) });

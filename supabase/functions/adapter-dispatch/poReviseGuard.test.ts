@@ -1,5 +1,6 @@
 import { assertEquals } from '@std/assert';
-import { checkPoRevise, poReviseRecoveryDecision, REVISE_CANCELS_BY_TIER, reviseCancels } from './poReviseGuard.ts';
+import { checkPoRevise, poReviseRecoveryDecision } from './poReviseGuard.ts';
+import { reviseCancels, TIER_REVISE_CANCELS } from './dispatchAdapters.ts';
 import { purchaseOrderReviseKey } from '../../../pmo-portal/src/lib/adapterSeam/purchaseOrderRevise.ts';
 
 const ORG = '15130000-0000-0000-0000-00000000000a';
@@ -50,7 +51,7 @@ Deno.test('AC-SCA-011 recovery after an inconclusive probe holds, never reissues
 });
 
 Deno.test('AC-OPP-017 the cancel flag is the tier\'s own: ERPNext cancels and amends, Odoo edits in place, an unknown tier is strict', () => {
-  assertEquals(REVISE_CANCELS_BY_TIER, { erpnext: true, odoo: false });
+  assertEquals(TIER_REVISE_CANCELS, { erpnext: true, odoo: false });
   assertEquals([reviseCancels('erpnext'), reviseCancels('odoo'), reviseCancels('other'), reviseCancels(undefined)], [true, false, true, true]);
 });
 
