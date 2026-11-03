@@ -242,6 +242,17 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
       { status: 400, headers },
     );
   }
+  // #1462: only the sweep can originate an archive-cancellation job. The public HTTP command can
+  // request a normal budget push; its body cannot select a legacy mirror, predecessor, or durable job.
+  if (command.domain === ERPNEXT_BUDGET_DOMAIN && command.record?.erp_doc_kind === 'budget' &&
+      (Object.hasOwn(command.record, 'source_kind') ||
+       Object.hasOwn(command.record, 'budget_archive_cancel_job_id') ||
+       Object.hasOwn(command.record, 'budget_archive_source_mirror_id'))) {
+    return new Response(JSON.stringify({ error: 'commit-rejected', message: 'budget archive cancellation is server-owned' }), {
+      status: 422,
+      headers,
+    });
+  }
   // #956: the VAT witness is internal command material, never a client authority. This HTTP
   // boundary is a fresh dispatch; trusted sweep replay reconstructs persisted payloads elsewhere.
   if (command.domain === ERPNEXT_REVENUE_DOMAIN && command.record.erp_doc_kind === 'sales-invoice') {

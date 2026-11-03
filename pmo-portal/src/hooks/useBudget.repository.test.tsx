@@ -9,6 +9,8 @@ const budget = vi.hoisted(() => ({
   precheckActivation: vi.fn().mockResolvedValue({ status: 'ready' }),
   listVersions: vi.fn().mockResolvedValue([]),
   listArchiveLiveTargets: vi.fn().mockResolvedValue([]),
+  listLegacyArchiveLiveTargets: vi.fn().mockResolvedValue([]),
+  listArchiveTargets: vi.fn().mockResolvedValue([]),
   createVersion: vi.fn().mockResolvedValue({ id: 'new' }),
 }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { budget } }));

@@ -204,6 +204,7 @@
     "approve_procurement_amount(uuid,numeric)",
     "approved_timesheet_for_push(uuid,uuid)",
     "archive_budget_version_with_cancel_intent(uuid,boolean,uuid)",
+    "get_budget_archive_targets(uuid)",
     "archive_equipment_usage(uuid)",
     "assemble_tm_claim(uuid,date,date,uuid,jsonb)",
     "assert_integration_link_actor(uuid,uuid,uuid)",
