@@ -5,9 +5,9 @@
  * Order, transfer and bill anchor on a stock external identifier (`ir.model.data`, module `pmo`); the payment anchors on its
  * memo, which a clerk can edit. All lookups are EQUALITY on a key `anchorValue` has already validated as a PMO purchase key,
  * so no LIKE metacharacter can reach a query and one key cannot match another. A payment whose memo was edited falls back to a
- * composite (vendor, amount, window), excluding any payment that carries another PMO anchor; the result must be unique.
- * ponytail: the composite has no bill conjunct yet. Odoo's reconciled-bill field is computed and unverified on the bed (V-OPP7);
- * P6-T6 adds it once pinned. Until then a doubtful match is null, which the payment kind turns into a hold, never a reissue.
+ * composite (vendor, amount, window, and the bill Odoo shows it reconciled to), run by the caller in a RECOVERY only. It adopts ONLY the
+ * one unique conjunction; every other candidate, several, or one not reconciled to our bill, throws (the row is held); a payment that
+ * carries another PMO anchor is not a candidate. Nothing in the window is null, which the payment kind turns into a hold, never a reissue.
  */
 import { AdapterError } from '../../contract.ts';
 import type { OdooCall } from '../client.ts';
@@ -16,7 +16,11 @@ import type { PurchaseKind } from './nextStep.ts';
 
 const MODEL: Record<PurchaseKind, string> = { order: 'purchase.order', receipt: 'stock.picking', bill: 'account.move', payment: 'account.payment' };
 
-export interface PaymentComposite { partnerId: number; amount: string | number; createdAfter: string }
+/**
+ * A payment's: vendor, amount, the window the first attempt could have created it in (bounded above too) and the bill it pays. The bill is
+ * the conjunct that tells our payment from a look-alike: Odoo shows which bills a payment is reconciled to (`reconciled_bill_ids`).
+ */
+export interface PaymentComposite { partnerId: number; amount: string | number; createdAfter: string; createdBefore?: string; billId?: number }
 /** An order's create-to-anchor composite: vendor, untaxed amount, line count and the window the first attempt could have created it in. */
 export interface OrderComposite { partnerId: number; amount: string | number; lineCount: number; createdAfter: string; createdBefore?: string }
 /** A vendor bill's: the same facts. Its window is bounded above too: a vendor bill made long after the first attempt cannot be ours. */
@@ -83,15 +87,22 @@ async function byMemo(call: OdooCall, key: string, composite?: PaymentComposite)
   if (exact.length > 1) throw ambiguous();
   if (exact.length === 1) return { externalRecordId: odooExternalRef(MODEL.payment, exact[0].id) };
   if (!composite) return null;
-  // 21 rows is more than any honest window holds; the filter below then needs exactly one survivor.
-  const rows = await call<Array<{ id: number; memo: unknown }>>('account.payment', 'search_read', {
-    domain: [...OUTBOUND, ['partner_id', '=', composite.partnerId], ['amount', '=', Number(composite.amount)], ['state', '!=', 'canceled'], ['create_date', '>=', composite.createdAfter]],
-    fields: ['id', 'memo'], limit: 21, context: { active_test: false },
+  // The memo is editable, so a miss on it proves nothing (C-1). 21 rows is more than any honest window holds; every one is doubt.
+  const rows = await call<Array<{ id: number; memo: unknown; reconciled_bill_ids?: unknown }>>('account.payment', 'search_read', {
+    domain: [...OUTBOUND, ['partner_id', '=', composite.partnerId], ['amount', '=', Number(composite.amount)], ['state', '!=', 'canceled'], ['create_date', '>=', composite.createdAfter], ...(composite.createdBefore ? [['create_date', '<=', composite.createdBefore]] : [])],
+    fields: ['id', 'memo', 'reconciled_bill_ids'], limit: 21, context: { active_test: false },
   });
   const memo = (r: { memo: unknown }) => (typeof r.memo === 'string' ? r.memo : '');
-  // Only an exact memo adopts (above). Any memo that still carries a PMO anchor is held, never adopted.
-  const survivors = rows.filter((r) => !memo(r).includes('pmo:'));
-  return survivors.length === 1 ? { externalRecordId: odooExternalRef(MODEL.payment, survivors[0].id) } : null;
+  // Another PMO payment's anchor is that payment, not a candidate; our own anchor with extra text is certainly ours but not exactly readable: doubt.
+  const candidates = rows.filter((r) => !memo(r).includes('pmo:') || memo(r).includes(anchor));
+  if (candidates.length === 0) return null;
+  const [only] = candidates;
+  const reconciled = Array.isArray(only.reconciled_bill_ids) ? only.reconciled_bill_ids.map((b) => (Array.isArray(b) ? Number(b[0]) : Number(b))) : [];
+  // ponytail: a clerk's identical payment of this bill in the same minutes would be adopted as ours (money is right, the payer wrong); the bounded window keeps that to minutes.
+  if (candidates.length === 1 && composite.billId != null && !memo(only).includes(anchor) && reconciled.includes(composite.billId)) {
+    return { externalRecordId: odooExternalRef(MODEL.payment, only.id) };
+  }
+  throw ambiguous();
 }
 
 /** Throws for a key that is not a PMO purchase key (before any call) and for an ambiguous exact anchor. */

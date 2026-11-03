@@ -160,11 +160,11 @@ No scheduled CI runs: agent evals run manually and locally (the `agent-evals` wo
 
 - **CI is the merge gate, scoped per target (owner 2026-09-29/30; dev re-scoped 2026-10-31, #1584):** a PR to
   `dev` gates on `verify` + affected `unit` tests + `pgtap` when `supabase/**` changes (the top rule above); the push
-  to `dev` runs the full suite as the backstop, so a break a narrowed PR missed is fixed on `dev` first. A PR to
-  `main` gates on `verify` + `integration` (pgTAP, both e2e lanes, consent, visual, served-fn smoke). CI, not a local
+  to `dev` runs the full suite as the backstop, so a break a narrowed PR missed is fixed on `dev` first.
+  PRs to `main` gate on CI's `verify` + `integration` (pgTAP, both e2e lanes, consent, visual, served-fn smoke). CI, not a local
   green, decides the merge; don't repeat the full suite on the shared Mac. `scripts/ci-e2e.sh <branch>` (dev, to
-  diagnose; caps, `--owner-ok` beyond them) and `scripts/verify-main-pr.sh` (a CI failure CI could not report) are
-  diagnosis tools only.
+  diagnose; caps, `--owner-ok` beyond them) and `scripts/verify-main-pr.sh` (reproduces CI's PR-to-`main` run, for a failure CI could not
+  report) are diagnosis tools only.
   **Local final gate** (every builder and brief, before a PR; owner rule 2026-10-26): `npm run check:guards`,
   `npm run typecheck`, `npx eslint --max-warnings=0 <touched files>`, the **directly touched test files** (never
   `vitest --changed` or the full suite locally — CI owns the full run on the push-to-`dev` backstop and the

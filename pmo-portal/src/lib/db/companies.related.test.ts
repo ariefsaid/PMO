@@ -25,6 +25,11 @@ function makeBuilder(resolved: { data: unknown; error: unknown }) {
   const builder = {
     select: mockSelect,
     eq: mockEq,
+    // #1774: `listProcurementsByVendor` now pages by keyset (order id / gt cursor / limit).
+    order: () => builder,
+    gt: () => builder,
+    limit: () => builder,
+    range: () => builder,
     then: (resolve: (v: typeof resolved) => void, reject?: (e: unknown) => void) =>
       Promise.resolve(resolved).then(resolve, reject),
   };

@@ -3,20 +3,32 @@ import type { Adapter } from '../../../pmo-portal/src/lib/adapterSeam/contract.t
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 import { bindCall } from '../../../pmo-portal/src/lib/adapterSeam/odoo/client.ts';
 import { buildBillBody } from '../../../pmo-portal/src/lib/adapterSeam/odoo/purchase/billBody.ts';
-import { createOdooProcurementAdapter } from '../../../pmo-portal/src/lib/adapterSeam/odoo/procurementAdapter.ts';
+import { buildPaymentBody } from '../../../pmo-portal/src/lib/adapterSeam/odoo/purchase/paymentBody.ts';
+import { createOdooProcurementAdapter, paymentKey, readPaymentCtx } from '../../../pmo-portal/src/lib/adapterSeam/odoo/procurementAdapter.ts';
 import { procurementCapabilityGap } from '../../../pmo-portal/src/lib/adapterSeam/odoo/purchase/capabilities.ts';
+import { revenueCapabilityGap } from '../../../pmo-portal/src/lib/adapterSeam/odoo/revenue/capabilities.ts';
 import { REQUEST_DEADLINE_MS } from '../../../pmo-portal/src/lib/adapterSeam/odoo/purchase/constants.ts';
 import { odooClientForOrg } from '../_shared/odooClientForOrg.ts';
-import { resolveOdooBillInputs, resolveOdooOrderCurrency, resolveOdooOrderInputs, resolveOdooReviseInputs } from '../_shared/odooPurchaseRefs.ts';
+import { resolveOdooBillInputs, resolveOdooOrderCurrency, resolveOdooOrderInputs, resolveOdooPaymentFacts, resolveOdooReviseInputs } from '../_shared/odooPurchaseRefs.ts';
 import type { AdapterFactory, AdapterSelectContext } from './dispatchAdapters.ts';
+import { assertOdooRevenueCommandScope } from './odooRevenueGate.ts';
 
-/** What the Odoo procurement adapter pushes so far: the purchase order and its revision (P3), the goods receipt (P4) and the vendor bill (P5). Payment follows (P6). */
+/** What the Odoo procurement adapter pushes so far: the purchase order and its revision (P3), the goods receipt (P4), the vendor bill (P5) and the vendor payment (P6). */
 const isReceipt = (ctx: AdapterSelectContext): boolean => ctx.command.record.erp_doc_kind === 'goods-receipt' && ctx.command.operation === 'create';
 const pushable = (ctx: AdapterSelectContext): boolean => {
   const { erp_doc_kind: kind } = ctx.command.record;
   const operation = String(ctx.command.operation);
-  return (kind === 'purchase-order' && (operation === 'create' || operation === 'revise')) || ((kind === 'goods-receipt' || kind === 'purchase-invoice') && operation === 'create');
+  return (kind === 'purchase-order' && (operation === 'create' || operation === 'revise')) || ((kind === 'goods-receipt' || kind === 'purchase-invoice' || kind === 'payment') && operation === 'create');
 };
+
+/** Has this command (the same record and idempotency key) already left an outbox row? Unreadable is refused, never taken for a first attempt. */
+async function outboxRowExists(ctx: AdapterSelectContext): Promise<boolean> {
+  const { command } = ctx;
+  const { data, error } = await (ctx.serviceClient as SupabaseClient).from('external_command_outbox').select('id')
+    .eq('org_id', ctx.orgId).eq('domain', command.domain).eq('pmo_record_id', command.record.id).eq('idempotency_key', command.idempotencyKey!).maybeSingle();
+  if (error) throw new AppError('The payment could not be checked against its earlier attempt', 'external-unreachable');
+  return data !== null;
+}
 
 /**
  * Adapter selection for an org that employs procurement under tier `odoo` (DD-OPP-1). It refuses, before any outbox row and any
@@ -47,13 +59,39 @@ export async function resolveOdooProcurementAdapter(ctx: AdapterSelectContext): 
     const { input, ctx: billCtx } = await resolveOdooBillInputs(sc, ctx.orgId, ctx.command, resolved, currencyId, call);
     buildBillBody(input, billCtx);   // a dry build: an unmapped vendor, item or unit, two projects or no lines refuse here, naming the thing
   }
+  // A payment is resolved and dry-built here too, with the currency: no bill reference, an unposted bill, another currency, an amount
+  // above the residual (Odoo would accept it) or no journal is refused before any outbox row. A replay skips it: the payment it made
+  // has already reduced the residual, and its recovery must not depend on today's journal default. A payment is a replay when its
+  // outbox row already exists (the receipt rule, FR-OPP-072): a retry of the same intent after a lost response meets a settled bill,
+  // and the outbox answers it. A fresh intent has no row and keeps the over-payment check.
+  if (ctx.command.record.erp_doc_kind === 'payment' && !ctx.replay && !(await outboxRowExists(ctx))) {
+    const facts = await resolveOdooPaymentFacts(sc, ctx.orgId, ctx.command, resolved, currencyId);
+    buildPaymentBody({ billRef: facts.billRef, amount: facts.amount, date: facts.date, vendorPartnerId: facts.vendorPartnerId }, await readPaymentCtx(call, facts), paymentKey(ctx.command.record));
+  }
   return createOdooProcurementAdapter({
     call,
+    resolvePayment: (command) => resolveOdooPaymentFacts(sc, ctx.orgId, command, resolved, currencyId),
     resolveBill: (command) => resolveOdooBillInputs(sc, ctx.orgId, command, resolved, currencyId, call),
     resolveOrder: (command) => resolveOdooOrderInputs(sc, ctx.orgId, command, resolved, currencyId),
     resolveRevise: (command) => resolveOdooReviseInputs(sc, ctx.orgId, command, resolved, currencyId),
   });
 }
 
+/**
+ * Adapter selection for an org that employs revenue under tier `odoo` (FR-OCI-001/002/004, DD-OCI-1, DD-OCI-8). Before any outbox row and any
+ * Odoo request it refuses a connection that is switched off, not activated or unusable, a stored capability snapshot that lacks a model an
+ * invoice or receipt needs (the refusal names it), and a link or receipt scope that is not the caller's. The steps themselves (invoice, claim,
+ * receipt) arrive with their slices (C3-C5); until then every command is refused the same way, so a gate-passing revenue command can neither
+ * reach the ERPNext adapter nor leave an outbox row.
+ */
+export async function resolveOdooRevenueAdapter(ctx: AdapterSelectContext): Promise<Adapter> {
+  const resolved = await odooClientForOrg(ctx.serviceClient as SupabaseClient, ctx.orgId);
+  if ('refusal' in resolved) throw new AppError(`The Odoo connection is not usable (${resolved.refusal})`, 'config-rejected');
+  const gap = revenueCapabilityGap(resolved.config.capabilities as Parameters<typeof revenueCapabilityGap>[0]);
+  if (gap) throw new AppError(`Odoo invoicing needs ${gap}, which this Odoo connection does not show. Run the connection check again.`, 'config-rejected');
+  await assertOdooRevenueCommandScope(ctx.serviceClient as SupabaseClient, ctx.orgId, ctx.command);
+  throw new AppError('Invoicing through Odoo is not available yet', 'config-rejected');
+}
+
 /** The Odoo tier's registry, keyed by the PMO domain it employs. */
-export const ODOO_ADAPTER_REGISTRY: Record<string, AdapterFactory> = { procurement: resolveOdooProcurementAdapter };
+export const ODOO_ADAPTER_REGISTRY: Record<string, AdapterFactory> = { procurement: resolveOdooProcurementAdapter, revenue: resolveOdooRevenueAdapter };

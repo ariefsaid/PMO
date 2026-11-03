@@ -213,3 +213,14 @@ describe('odoo/sweep census — AC-ODC-023 logic', () => {
     expect(parseCursor(s.store.cursor).census_done_at).toBeUndefined();
   });
 });
+
+describe('odoo/sweep reads are language-pinned — FR-OCI-023', () => {
+  it('every directory read asks for en_US, so a translated tax group name never changes what the mirror holds', async () => {
+    const bodies: Array<{ context?: Record<string, unknown> }> = [];
+    const call = (async (_model: string, _method: string, body: { context?: Record<string, unknown> }) => { bodies.push(body); return []; }) as never;
+    const readers = odooKindReaders(call, KIND_SPECS.tax, 1);
+    await readers.read([], 'id asc', 10);
+    await readers.readIds(0, 10);
+    expect(bodies.map((b) => b.context)).toEqual([{ active_test: false, lang: 'en_US' }, { active_test: false, lang: 'en_US' }]);
+  });
+});
