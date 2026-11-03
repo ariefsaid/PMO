@@ -1,6 +1,6 @@
 /**
- * The Odoo `Adapter` (contract.ts) for domain `procurement` (PD-2, DD-OPP-1..3). P3 pushes the purchase order and its revision;
- * receipts, bills and payments arrive with P4..P6 and are refused until then. A command is a state machine over Odoo's state, not
+ * The Odoo `Adapter` (contract.ts) for domain `procurement` (PD-2, DD-OPP-1..3). P3 pushes the purchase order and its revision, P5
+ * the vendor bill; receipts and payments arrive with P4 and P6 and are refused until then. A command is a state machine over Odoo's state, not
  * a script (PD-3): find the document by its anchor, let `nextStep` pick the one missing call, perform it, read it back.
  *
  * P4 adds the goods receipt: Odoo itself opens the incoming transfer when the order is confirmed, so PMO mints no document; it
@@ -22,9 +22,11 @@ import { ODOO_TIER, toAdapterError } from './connectAdapter.ts';
 import { externalIdentifier, odooExternalRef, parseOdooExternalRef } from './purchase/anchors.ts';
 import { nextStep } from './purchase/nextStep.ts';
 import { poReviseRecoveryDecision, purchaseOrderReviseKey } from '../purchaseOrderRevise.ts';
+import { buildBillBody, expectedBillTotal, type BillCtx, type BillInput } from './purchase/billBody.ts';
+import { readBackBill, type BillExpect } from './purchase/billReadBack.ts';
 import { buildOrderBody, plannedAt, type OrderCtx, type OrderInput } from './purchase/orderBody.ts';
 import { planRevise, type CurrentLine, type ReviseLine } from './purchase/orderRevise.ts';
-import { probeOdooByAnchor, type OrderComposite } from './purchase/recoveryProbe.ts';
+import { probeOdooByAnchor, type BillComposite, type OrderComposite } from './purchase/recoveryProbe.ts';
 import { observeReceipt, parseReceiptPlan, receivedStatus, type OrderLineQty, type ReceiptPlan } from './purchase/receiptBody.ts';
 
 export const PROCUREMENT_DOMAIN = 'procurement';
@@ -37,6 +39,8 @@ export interface OdooProcurementDeps {
   resolveOrder(command: AdapterCommand): Promise<{ input: OrderInput; ctx: OrderCtx }>;
   /** A revision's target: the Odoo order the PMO order maps to and the revision's effective line set. */
   resolveRevise(command: AdapterCommand): Promise<{ orderId: number; lines: readonly ReviseLine[]; ctx: OrderCtx }>;
+  /** A bill's PMO-side facts: vendor, lines (with the order-line link when the bill names an order), project's cost account and the validated taxes. */
+  resolveBill(command: AdapterCommand): Promise<{ input: BillInput; ctx: BillCtx }>;
 }
 
 const refuse = (reason: string): never => { throw new AdapterError('commit-rejected', reason); };
@@ -83,13 +87,16 @@ async function settleOrder(call: OdooCall, id: number, record: PmoRecord): Promi
   return { externalRecordId: odooExternalRef(ORDER_MODEL, id), canonical: orderCanonical(order, record, String(record.id)) };
 }
 
-/** Write the stock external identifier that anchors the order; one already there for this order is left alone. */
-async function anchorOrder(call: OdooCall, key: string, id: number): Promise<void> {
-  const hit = await probeOdooByAnchor(call, 'order', key);
-  if (hit) { if (hit.externalRecordId !== odooExternalRef(ORDER_MODEL, id)) refuse('ambiguous-anchor'); return; }
+const ANCHORED_MODEL = { order: 'purchase.order', bill: 'account.move' } as const;
+
+/** Write the stock external identifier that anchors the document; one already there for this document is left alone. */
+async function anchorDocument(call: OdooCall, kind: keyof typeof ANCHORED_MODEL, key: string, id: number): Promise<void> {
+  const hit = await probeOdooByAnchor(call, kind, key);
+  if (hit) { if (hit.externalRecordId !== odooExternalRef(ANCHORED_MODEL[kind], id)) refuse('ambiguous-anchor'); return; }
   const { module, name } = externalIdentifier(key);
-  await call('ir.model.data', 'create', { vals_list: [{ module, name, model: 'purchase.order', res_id: id }] });
+  await call('ir.model.data', 'create', { vals_list: [{ module, name, model: ANCHORED_MODEL[kind], res_id: id }] });
 }
+const anchorOrder = (call: OdooCall, key: string, id: number) => anchorDocument(call, 'order', key, id);
 
 /**
  * The recovery probe for an order (FR-OPP-072): the order this command already created, anchored if need be and brought to its
@@ -324,6 +331,58 @@ async function pushReceipt(deps: OdooProcurementDeps, command: AdapterCommand): 
   return receiptResult(call, { ...after, id: picking.id }, plan, command.record);
 }
 
+export const billKey = (record: PmoRecord): string => `bill:${record.id}`;
+
+interface BillRow { name: string; state: string; move_type: string; amount_total?: number | string; amount_residual?: number | string; ref?: unknown; invoice_date?: unknown; currency_id?: unknown; write_date: string }
+const BILL_FIELDS = ['name', 'state', 'move_type', 'amount_total', 'amount_residual', 'ref', 'invoice_date', 'currency_id', 'write_date'];
+
+const readBill = async (call: OdooCall, id: number): Promise<BillRow> =>
+  (await call<BillRow[]>('account.move', 'read', { ids: [id], fields: BILL_FIELDS }))[0] ?? refuse('bill-missing');
+
+/** Post a draft, adopt a posted one, reject anything else; then read the bill's money and lines back (FR-OPP-041/043). */
+async function settleBill(call: OdooCall, id: number, record: PmoRecord, expect: BillExpect): Promise<CommandResult> {
+  let move = await readBill(call, id);
+  if (move.move_type !== 'in_invoice') return refuse('bill-not-a-vendor-bill');
+  let step = nextStep('bill', { state: move.state, anchor: 'ours' });
+  if (step === 'post') {
+    await call('account.move', 'action_post', { ids: [id] });
+    move = await readBill(call, id);
+    step = nextStep('bill', { state: move.state, anchor: 'ours' });
+  }
+  if (step !== 'adopt') return refuse(`bill-${move.state}`);
+  const taxLines = await call<Array<{ balance?: number | string }>>('account.move.line', 'search_read', { domain: [['move_id', '=', id], ['tax_line_id', '!=', false]], fields: ['balance'] });
+  const productLines = await call<Array<{ analytic_distribution?: unknown }>>('account.move.line', 'search_read', { domain: [['move_id', '=', id], ['display_type', '=', 'product']], fields: ['analytic_distribution'] });
+  return { externalRecordId: odooExternalRef(ANCHORED_MODEL.bill, id), canonical: readBackBill(String(record.id), { move, taxLines, productLines }, expect) };
+}
+
+/**
+ * The recovery probe for a vendor bill (FR-OPP-072, OQ-OPP-10): the bill this command already created, anchored if need be and
+ * posted if still a draft, or null when nothing was created. Throws (the row is held) when the composite finds doubt. A bill is
+ * never reissued on doubt: the outbox holds it (`odooReissueOnInconclusiveAbsence`).
+ */
+export async function recoverBill(rawCall: OdooCall, record: PmoRecord, composite: BillComposite | undefined, expect: BillExpect): Promise<CommandResult | null> {
+  const call = guarded(rawCall);
+  const key = billKey(record);
+  const hit = await probeOdooByAnchor(call, 'bill', key, composite);
+  if (!hit) return null;
+  const id = parseOdooExternalRef(ANCHORED_MODEL.bill, hit.externalRecordId) ?? refuse('ambiguous-anchor');
+  await anchorDocument(call, 'bill', key, id);
+  return settleBill(call, id, record, expect);
+}
+
+async function pushBill(deps: OdooProcurementDeps, command: AdapterCommand): Promise<CommandResult> {
+  const call = guarded(deps.call);
+  const { input, ctx } = await deps.resolveBill(command);
+  const body = buildBillBody(input, ctx);   // refuses before the first Odoo call
+  const expect: BillExpect = { total: expectedBillTotal(input, ctx.taxes), costAccountId: ctx.costAccountId };
+  const found = await recoverBill(call, command.record, undefined, expect);
+  if (found) return found;
+  if (nextStep('bill', { absent: true, probe: 'conclusive' }) !== 'create') return refuse('bill-held');
+  const [id] = await call<number[]>('account.move', 'create', { vals_list: [body] });
+  await anchorDocument(call, 'bill', billKey(command.record), id);
+  return settleBill(call, id, command.record, expect);
+}
+
 export function createOdooProcurementAdapter(deps: OdooProcurementDeps): Adapter {
   return {
     tier: ODOO_TIER,
@@ -334,6 +393,7 @@ export function createOdooProcurementAdapter(deps: OdooProcurementDeps): Adapter
       const kind = String(command.record.erp_doc_kind);
       if (kind === 'purchase-order' && command.operation === 'create') return pushOrder(deps, command);
       if (kind === 'purchase-order' && String(command.operation) === 'revise') return reviseOrder(deps, command);
+      if (kind === 'purchase-invoice' && command.operation === 'create') return pushBill(deps, command);
       if (kind === 'goods-receipt' && command.operation === 'create') return pushReceipt(deps, command);
       return refuse(`odoo purchase ${kind} ${String(command.operation)} is not available yet`);
     },
