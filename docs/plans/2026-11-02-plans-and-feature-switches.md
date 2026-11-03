@@ -341,6 +341,155 @@ S2 changes none.
 
 **Goal / AC:** CI catches unregistered modules and one cross-org journey verifies the full switch (AC-PLN-014, 015). First inventory route/nav/entity sources and assistant registrations so the gate discovers additions independently of its own catalogue. Detailed plan must include failing fixtures for each missing requirement, core modules, plan rows, read tools and draft-confirm write tools. Add one isolated Playwright journey: Operator disables stock in A; A loses nav, URL access and assistant tool while B remains enabled. Read `docs/e2e-parallel-conventions.md` before writing it.
 
+## S6 — detailed plan (written 2026-11-03 against dev @ dd3a63816)
+
+**Goal:** one CI gate makes the D13 rule mechanical — a module cannot ship with a route, a nav item or a
+switch key that lacks its switch key (or an explicit core marking), its plan row, or an assistant read
+path — and one cross-tenant Playwright journey proves the whole switch (AC-PLN-014, AC-PLN-015).
+
+**Scope guard (binding, this slice):** no migration, no `db reset`, no pgTAP, no Docker, no e2e **run**.
+The e2e is authored and handed to the coordinator; the guard is proved by its own fixtures.
+
+### S6.0 — Inventory (shipped sources the gate reads; never a hand-kept list beside them)
+
+| Surface | Source of truth on dev | What the gate discovers |
+|---|---|---|
+| Routes | `pmo-portal/App.tsx` → `appRouteConfig` (`useRoutes` data, NFR-M365SEP-008) | every `path` + whether the element is wrapped in `<FeatureRoute feature="…">` |
+| Rail nav | `pmo-portal/src/components/shell/Rail.tsx` → `ALL_ITEMS` | every `to` + `feature` / `unlessFeature` |
+| ⌘K palette modules | `pmo-portal/src/components/shell/routeMatch.ts` → `MODULES` | every `path` + `feature` |
+| Switch registry | `pmo-portal/src/lib/features.ts` → `FEATURE_KEYS`, `CORE_FEATURES` | the gatable key set and the never-gatable set |
+| Plan catalogue | `supabase/migrations/0530…`–`0531_plan_catalogue.sql` (+ later seed migrations) | `plans` ids, the `feature_tiers` × `plan_tiers` matrix, explicit `plan_features` rows, the latest `org_features_feature_key_check` list |
+| Assistant read path | `supabase/functions/agent-chat/{entityCatalog,readEntities,actions,stockRead,draftInvoice,overdue,remindOverdue}.ts`, `pmo-portal/src/lib/viewspec/types.ts` (`ENTITY_WHITELIST`) | entity keys and tool names (tool = a `name: '<snake>'` literal in a file that also declares `inputSchema`) |
+| Runtime key→surface map | `supabase/functions/agent-chat/featureSwitches.ts` **if S4 has merged** (`ENTITY_FEATURE_KEYS`, `TOOL_FEATURE_KEYS`) | the assistant's own mapping; until then a clearly-labelled pre-S4 fallback map lives in the guard |
+| Enforcement baseline | `supabase/migrations/0534_feature_enforcement.sql` **if S2 has merged** | gated SECURITY DEFINER function → key, and gated write table → key (§B `values` list) |
+
+On dev today the four module gates are only partly wired: `FeatureRoute` covers `incidents`, `revenue`,
+`procurement` and `user_views`; Rail gates `crm`/`procurement`/`timesheets`/`incidents`/`revenue`;
+`routeMatch.MODULES` carries only the three Finance keys; `featureSwitches.ts` is S4's and `0534` is S2's,
+neither merged. Those are the S6 allowlist's entries (§S6.3) — each names its restoring slice, and a stale
+entry fails.
+
+### S6.1 — Interfaces
+
+`scripts/check-module-completeness.mjs` — a Node 22 ESM guard with no dependencies, same shape as
+`check-retention.mjs` / `check-unpaged-reads.mjs`:
+
+- **Pure, exported** (unit-testable, no I/O): `parseRoutes`, `parseRail`, `parsePalette`, `parseFeatures`,
+  `parsePlanCatalogue`, `parseAssistant`, `parseEnforcement`, `check`, `applyAllowlist`.
+- `check(input)` returns `string[]` errors; `main()` prints each as `module-completeness: <detail>` and
+  exits 1. Every message names exactly what is missing and the file to fix.
+- `--self-test` runs the fixtures below in-process (AC-PLN-014), printing `module-completeness self-test: OK`.
+- Replay order: migrations applied by numeric prefix, `rollback/` ignored, SQL comments stripped (the
+  `check-retention.mjs` `strip()` idiom).
+
+Rule set (each failure names the missing artefact):
+
+1. **Routes** — every `appRouteConfig` path except `*` is either `<FeatureRoute feature="<key>">` (key must
+   be in `FEATURE_KEYS`) or listed in `CORE_ROUTES` (explicit core marking: path → module/reason). An
+   unmarked path fails. A `CORE_ROUTES` entry matching no route is stale and fails.
+2. **Rail** — every `ALL_ITEMS` item carries `feature`/`unlessFeature` (valid key) or is in `CORE_NAV`.
+   Gaps and stale entries fail.
+3. **Palette** — every `MODULES` entry carries `feature` (valid key) or is in `CORE_PALETTE`; an entry whose
+   Rail twin is gated by a different key (or ungated) fails as a drift, naming both.
+4. **Registry ↔ DB catalogue** — every `FEATURE_KEYS` key appears in the latest
+   `org_features_feature_key_check` list; the two sets must be equal (a key in the DB but not the FE
+   registry fails too). `CORE_FEATURES` keys must never appear in the gatable catalogue.
+5. **Plan rows** — for every plan in `plans` × every `FEATURE_KEYS` key there is a `plan_features` row
+   (from the `feature_tiers` × `plan_tiers` matrix or an explicit insert). Missing pairs fail as
+   `plan <plan>: no plan_features row for switch key <key>`; a row for an unknown plan or key fails.
+6. **Assistant read path** — every `FEATURE_KEYS` key has ≥1 mapped entity/tool and every mapped target
+   exists in the discovered assistant inventory (an unknown entity/tool fails). The map is S4's
+   `featureSwitches.ts` when present; before S4 a `LEGACY_ASSISTANT_PATHS` table (deleted with the
+   fallback once S4 lands) states the same contract.
+7. **Enforcement recreation (#1783 item 3)** — when `0534_feature_enforcement.sql` exists, parse its gated
+   `create or replace function` bodies (key from `assert_feature_on(... 'key')`,
+   `org_feature_enabled(... 'key')` or `detail = 'key'`) and its §B `(table, key)` values list. Any
+   migration numbered **after** 0534 that recreates one of those functions, or creates/drops+creates a
+   write policy on one of those tables, must carry the same gate call (`assert_feature_on` /
+   `org_feature_enabled` with the same key) in the same statement. A plain text check; deliberate
+   exceptions go in `ENFORCEMENT_ALLOWLIST` with a restore note, and a stale entry fails.
+
+**Allowlist** — one exported array; each entry `{ ids, reason, restore }` where `ids` is one id or a list,
+and an id is `route:<path>`, `nav:<path>`, `palette:<path>`, `assistant:<key>`, `plan:<plan>/<key>` or
+`enforcement:<file>:<name>`. Exact id, or a trailing `*` prefix match. Every entry must suppress at least
+one real gap — a stale entry is itself a failure, so the list cannot decay into "everything".
+
+**Wiring:** `pmo-portal/package.json` gains
+`"check:module-completeness": "node ../scripts/check-module-completeness.mjs && node ../scripts/check-module-completeness.mjs --self-test"`,
+appended to `check:guards` (CI's `verify` job already runs `npm run check:guards`; the
+`ci-integration-order.test.mjs` contract requires every `check:*` to be in that chain). No new CI step:
+one home.
+
+### S6.2 — Tasks (TDD; each 2–5 min)
+
+1. **Red** — `scripts/check-module-completeness.test.mjs`: route fixtures (gated / unmarked / core /
+   unknown key / stale core), Rail and palette fixtures incl. the drift case. **Green** — the three
+   discovery parsers + rules 1–3.
+2. **Red** — plan-catalogue fixtures in the same test file: matrix coverage, a missing (plan,key) pair, a
+   stale key, a core key in the catalogue, a DB key missing from the FE registry. **Green** — rules 4–5.
+3. **Red** — assistant fixtures: `featureSwitches.ts`-shaped map; the legacy fallback; a mapped entity/tool
+   absent from the inventory; a key with no path. **Green** — rule 6.
+4. **Red** — enforcement fixtures: a later `create or replace function` without the gate (fails, names
+   file+function+key), with `assert_feature_on` (passes), with the wrong key (fails), a later write policy
+   on a gated table without `org_feature_enabled` (fails); an allowlisted recreation passes, a stale
+   allowlist entry fails. **Green** — rule 7.
+5. **Red** — `--self-test` (AC-PLN-014): a fixture module with a route but no switch key, no plan row and
+   no assistant read path must exit non-zero and name all three. **Green** — the self-test fixtures +
+   runner.
+6. **Green** — run against the real repo; record each dev gap as an allowlist entry with its reason and
+   restoring slice; re-run until clean.
+7. **E2E (authored, not run)** — `pmo-portal/e2e/serial/AC-PLN-015-switch-off-journey.spec.ts` per
+   `docs/e2e-parallel-conventions.md` (serial lane: it mutates the org-global `org_features` override and
+   creates a second tenant; restored in `afterEach`/`afterAll`). The journey: Operator clears the seed
+   org's `stock` override to OFF through `operator_toggle_feature` under his own JWT; an org-A user sees no
+   Stock rail item, `/stock` renders the not-available state, and (served lane only) the assistant answers
+   that stock is not on the plan; a freshly created org-B user still sees Stock and `/stock`. Assistant
+   arm is annotated when the served lane is absent (never silently dropped, never asserted against a mock).
+8. **Gates** — see §S6.4.
+
+### S6.3 — Allowlist as built (each entry names its restoring slice)
+
+- `route:<path>` for every module route S3 wraps in `FeatureRoute` (`/sales*`, `/procurement*`, `/timesheets`,
+  `/companies*`, `/contacts*`, `/imprest*`, `/stock*`, `/erp-purchases`, `/sales-invoices/:invoiceId`,
+  `/finance/statements`, `/administration/exchange-rates`) — reason "S3 wires the route gate (AC-PLN-008)";
+  restore "delete when S3 lands its route table".
+- `nav:/stock`, `nav:/imprest`, `nav:/finance/statements`, and the palette twins — reason "S3 gates the
+  Rail/palette from the resolved projection"; restore "delete when S3 lands".
+- `route:/incoming-payments/:receiptId` — revenue detail route; S3's inventory gates the redirects only;
+  restore "gate on `revenue` or mark core with the owner's ruling".
+- `assistant:<key>` for registry keys with no assistant read surface yet (`sales_pipeline`, `revenue`,
+  `import_export`, `m365_integration`, `budget_projection`, `imprest`, `clickup_sync`, `erp_sync`,
+  `erp_purchases`, `financial_statements`, `management_pack`, `budget_phasing`, `multi_currency`,
+  `api_access`, `sso`) plus the Admin-owned `feedback_surveys` (deliberately no assistant surface, S4) —
+  reason "no assistant read path yet (D13/S4)"; restore "delete when the module gains a read tool/entity".
+- Nothing is allowlisted for plan rows on dev: 0531 seeds all 25 keys × 4 plans.
+
+### S6.4 — Verify (exact commands; no heavy jobs)
+
+From the repo root: `node scripts/check-module-completeness.mjs --self-test` and
+`node scripts/check-module-completeness.mjs`; from `pmo-portal/`: `npm run check:guards` (runs the new
+guard + self-test), then `scripts/with-test-lock.sh npm run typecheck` and
+`npx eslint --max-warnings=0` on touched JS/TS. Script tests: `node --test scripts/check-module-completeness.test.mjs`.
+The e2e is **not run** here; the coordinator runs it after S3/S4 merge in the serial lane
+(`scripts/e2e-local.sh --project=serial --workers=1 e2e/serial/AC-PLN-015-switch-off-journey.spec.ts`).
+
+### S6.5 — Open questions and the defaults taken
+
+1. **Core marking lives in the guard, not in `App.tsx`.** Default: the `CORE_ROUTES`/`CORE_NAV`/
+   `CORE_PALETTE` tables in the guard (path → module/reason), because S3 rewrites both source files; a
+   marker comment would collide and a stale entry still fails. When S3 lands, `CORE_ROUTES` shrinks to the
+   D5 modules + redirects + auth/settings surfaces.
+2. **Assistant coverage for registry-only keys.** Default: require a read path for every `FEATURE_KEYS`
+   entry (the brief's literal rule) and allowlist the 16 keys with no surface, rather than weakening the
+   rule to "keys that gate a route". When a module ships, its allowlist line disappears and the gate
+   demands the tool.
+3. **S2's enforcement file is optional at build time.** Default: the recreation rule is inert until
+   `0534_feature_enforcement.sql` exists (S6 may merge first); its fixtures prove the rule, and it
+   activates the moment S2 merges — no allowlist needed then.
+4. **E2E lane path.** Brief says `pmo-portal/e2e/…`; the isolation guard requires a `serial`-tagged spec in
+   `e2e/serial/`. Default: `e2e/serial/AC-PLN-015-switch-off-journey.spec.ts` (the conventions are binding);
+   the plan's ownership table row is updated to match.
+
 ## Planned AC ownership (later slices finalize exact paths)
 
 | AC | Owning test |
@@ -354,8 +503,8 @@ S2 changes none.
 | 011 | `supabase/tests/plans_monthly_credits.test.sql` |
 | 012 | `pmo-portal/pages/AdministrationFeatures.test.tsx` |
 | 013 | `pmo-portal/pages/YourPlan.test.tsx` |
-| 014 | `scripts/check-module-completeness.test.mjs` |
-| 015 | `pmo-portal/e2e/AC-PLN-015-plan-switch.spec.ts` |
+| 014 | `scripts/check-module-completeness.test.mjs` (+ the guard's `--self-test`) |
+| 015 | `pmo-portal/e2e/serial/AC-PLN-015-switch-off-journey.spec.ts` |
 | 016 | `supabase/tests/plans_compatibility.test.sql` (FE compatibility cases in the S3 plan) |
 
 ## Final gates per slice
