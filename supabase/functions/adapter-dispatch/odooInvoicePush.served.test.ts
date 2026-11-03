@@ -301,6 +301,23 @@ describe('AC-OCI-020 / AC-OCI-021 / AC-OCI-022 / AC-OCI-023 Odoo billing claims'
     assertEquals([body.canonical?.work_order_id, body.canonical?.odoo_attention], [WORK_ORDER_ID, null], 'the claim work_order_id is retained through read-back');
   });
 
+  it('AC-OCI-020 approval refuses a claim draft whose recovery line differs from the immutable claim rows', async () => {
+    const odoo = invoiceOdooWorld();
+    const driftedDraft = claimDraft();
+    driftedDraft.native_lines[1] = { ...driftedDraft.native_lines[1], rate: -30000, amount: -30000 };
+    const writes: NonNullable<World['writes']> = [];
+    const r = await dispatchAs(APPROVER_ID, approveCommand({ id: CLAIM_ID }), {
+      progressClaim, progressClaimLines: progressLines, progressClaimEvidence: evidence,
+      draft: driftedDraft, invoiceAuthor: AUTHOR_ID, writes, odoo,
+    });
+
+    assertEquals([r.status, JSON.parse(r.body).message], [422, 'claim-invoice-draft-mismatch']);
+    noMoneyPipeline(r);
+    assertEquals(outboxInserts(r).length, 0, 'no outbox row records the drifted claim invoice');
+    assertEquals(writes, []);
+    assertEquals(odoo.calls, []);
+  });
+
   it('a claim-derived draft cannot be edited after it has been copied from the immutable claim', async () => {
     const writes: NonNullable<World['writes']> = [];
     const r = await dispatchAs(APPROVER_ID, { ...draftCommand({ id: CLAIM_ID, items: [{ item_code: 'ITEM-A', qty: 1, rate: 1 }] }), operation: 'update' }, {
@@ -352,6 +369,40 @@ describe('AC-OCI-020 / AC-OCI-021 / AC-OCI-022 / AC-OCI-023 Odoo billing claims'
     }
   });
 
+  it('AC-OCI-022 refuses a down-payment product mirrored to a different income account before any Odoo call', async () => {
+    const downPayment = { ...progressClaim, kind: 'down_payment', down_payment_amount: '200000.00', dp_recovery_amount: '0.00', work_order_id: null };
+    const odoo = invoiceOdooWorld();
+    const r = await dispatchAs(APPROVER_ID, approveCommand({ id: CLAIM_ID }), {
+      progressClaim: downPayment, progressClaimLines: [], progressClaimEvidence: evidence,
+      draft: draftRow({ id: CLAIM_ID, customer_id: CUSTOMER_ID, project_id: PROJECT_ID, work_order_id: null,
+        native_lines: [{ item_code: 'ITEM-DP', description: null, qty: 1, rate: 200000, amount: 200000 }] }),
+      customerAdvanceAccountRef: 'account.account:210', downPaymentProductMirrorIncomeAccount: '149', odoo,
+    });
+
+    assertEquals(r.status, 422, r.body);
+    assertEquals(JSON.parse(r.body).error, 'config-rejected');
+    assert(JSON.parse(r.body).message.includes('ITEM-DP'), r.body);
+    noMoneyPipeline(r);
+    assertEquals(odoo.calls, []);
+  });
+
+  it('AC-OCI-022 a legacy down-payment product mirror without income_account_id refuses before any Odoo call', async () => {
+    const downPayment = { ...progressClaim, kind: 'down_payment', down_payment_amount: '200000.00', dp_recovery_amount: '0.00', work_order_id: null };
+    const odoo = invoiceOdooWorld();
+    const r = await dispatchAs(APPROVER_ID, approveCommand({ id: CLAIM_ID }), {
+      progressClaim: downPayment, progressClaimLines: [], progressClaimEvidence: evidence,
+      draft: draftRow({ id: CLAIM_ID, customer_id: CUSTOMER_ID, project_id: PROJECT_ID, work_order_id: null,
+        native_lines: [{ item_code: 'ITEM-DP', description: null, qty: 1, rate: 200000, amount: 200000 }] }),
+      customerAdvanceAccountRef: 'account.account:210', downPaymentProductMirrorIncomeAccount: null, odoo,
+    });
+
+    assertEquals(r.status, 422, r.body);
+    assertEquals(JSON.parse(r.body).error, 'config-rejected');
+    assert(JSON.parse(r.body).message.includes('ITEM-DP'), r.body);
+    noMoneyPipeline(r);
+    assertEquals(odoo.calls, []);
+  });
+
   it('an Odoo payable account is refused for a customer advance before any Odoo call', async () => {
     const downPayment = { ...progressClaim, kind: 'down_payment', down_payment_amount: '200000.00', dp_recovery_amount: '0.00', work_order_id: null };
     const writes: NonNullable<World['writes']> = [];
@@ -383,16 +434,19 @@ describe('AC-OCI-020 / AC-OCI-021 / AC-OCI-022 / AC-OCI-023 Odoo billing claims'
       }
       return await odooFetch(url, init);
     };
+    const writes: NonNullable<World['writes']> = [];
     const r = await dispatchAs(APPROVER_ID, approveCommand({ id: CLAIM_ID }), {
       progressClaim: downPayment, progressClaimLines: [], progressClaimEvidence: evidence,
       draft: draftRow({ id: CLAIM_ID, customer_id: CUSTOMER_ID, project_id: PROJECT_ID, work_order_id: null,
         native_lines: [{ item_code: 'ITEM-DP', description: null, qty: 1, rate: 200000, amount: 200000 }] }),
-      invoiceAuthor: AUTHOR_ID, odoo,
+      invoiceAuthor: AUTHOR_ID, odoo, writes,
     });
 
     assertEquals(r.status, 200, r.body);
     const body = JSON.parse(r.body) as { canonical?: Record<string, unknown> };
     assertEquals(body.canonical?.odoo_attention, 'advance-account-mismatch');
+    const mirror = writes.find((w) => w.table === 'sales_invoices' && w.method === 'PATCH')?.body as Record<string, unknown> | undefined;
+    assertEquals([mirror?.odoo_state, mirror?.odoo_attention], ['posted', 'advance-account-mismatch'], 'the posted invoice is mirrored with its attention flag');
     const [invoice] = odoo.rows('account.move');
     const [line] = odoo.rows('account.move.line').filter((row) => row.move_id === invoice.id && row.display_type === 'product');
     assertEquals(line.account_id, 149);

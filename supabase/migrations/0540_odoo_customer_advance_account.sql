@@ -1,6 +1,17 @@
 -- #1506 C4 — an organisation selects the Odoo liability account its customer advances post to.
 -- Reversal: rollback/0540_odoo_customer_advance_account_down.sql.
 
+-- C4 read-back can flag an invoice after Odoo posts it; the mirror vocabulary must accept that write.
+alter table public.sales_invoices
+  drop constraint sales_invoices_odoo_attention_check,
+  add constraint sales_invoices_odoo_attention_check check (
+    odoo_attention in (
+      'total-mismatch', 'cost-account-missing', 'money-unreadable', 'lines-unreadable', 'advance-account-mismatch'
+    )
+  );
+comment on column public.sales_invoices.odoo_attention is
+  'Why an Odoo-held invoice needs a person (set by the mirror writer only); includes posted advance-account mismatches.';
+
 create or replace function public.set_odoo_customer_advance_account(p_org_id uuid, p_actor_id uuid, p_account_ref text)
 returns void language plpgsql security definer set search_path = public, pg_temp as $$
 declare

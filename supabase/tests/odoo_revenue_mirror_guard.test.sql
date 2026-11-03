@@ -3,7 +3,7 @@
 -- can, and the org scope holds. Two layers are proved apart so neither hides behind the other: the column grants (no client UPDATE/INSERT
 -- on the new columns) and the trigger pin (the table OWNER, which grants do not stop, still cannot write them under a user's JWT claims).
 begin;
-select plan(23);
+select plan(29);
 
 insert into organizations (id, name) values
  ('a5110000-0000-0000-0000-000000000001', 'Mirror guard A'),
@@ -85,6 +85,14 @@ select lives_ok($$update sales_invoices set odoo_state = 'posted', odoo_attentio
 select is((select odoo_state || '/' || odoo_attention || '/' || odoo_sent_total::text from sales_invoices where id = 'a5110000-0000-0000-0000-0000000000e1'), 'posted/total-mismatch/1000.00', 'AC-OCI-013 the figure PMO sent stays beside Odoo''s amount (amount is not replaced)');
 select is((select amount from sales_invoices where id = 'a5110000-0000-0000-0000-0000000000e1'), 1110.00::numeric, 'AC-OCI-013 amount is Odoo''s total, untouched by the flag');
 select lives_ok($$update sales_invoices set odoo_attention = null where org_id = 'a5110000-0000-0000-0000-000000000001' and id = 'a5110000-0000-0000-0000-0000000000e1'$$, 'AC-OCI-070 the service role clears a flag (a later read that agrees)');
+
+-- Every value the read-back can write remains inside the closed vocabulary, including the advance-account result added by C4.
+select lives_ok($$update sales_invoices set odoo_attention = 'total-mismatch' where id = 'a5110000-0000-0000-0000-0000000000e1'$$, 'AC-OCI-070 the mirror accepts total-mismatch');
+select lives_ok($$update sales_invoices set odoo_attention = 'cost-account-missing' where id = 'a5110000-0000-0000-0000-0000000000e1'$$, 'AC-OCI-070 the mirror accepts cost-account-missing');
+select lives_ok($$update sales_invoices set odoo_attention = 'money-unreadable' where id = 'a5110000-0000-0000-0000-0000000000e1'$$, 'AC-OCI-070 the mirror accepts money-unreadable');
+select lives_ok($$update sales_invoices set odoo_attention = 'lines-unreadable' where id = 'a5110000-0000-0000-0000-0000000000e1'$$, 'AC-OCI-070 the mirror accepts lines-unreadable');
+select lives_ok($$update sales_invoices set odoo_state = 'posted', odoo_attention = 'advance-account-mismatch' where id = 'a5110000-0000-0000-0000-0000000000e1'$$, 'AC-OCI-022 the service-role mirror accepts advance-account-mismatch after Odoo posts');
+select is((select odoo_state || '/' || odoo_attention from sales_invoices where id = 'a5110000-0000-0000-0000-0000000000e1'), 'posted/advance-account-mismatch', 'AC-OCI-022 the posted invoice remains mirrored with the attention flag');
 
 -- vocabulary: a value outside the set is refused by the table, even for the service role
 select throws_ok($$update sales_invoices set odoo_attention = 'whatever' where id = 'a5110000-0000-0000-0000-0000000000e1'$$, '23514', null, 'AC-OCI-070 the attention vocabulary is closed');

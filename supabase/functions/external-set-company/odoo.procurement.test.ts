@@ -123,6 +123,11 @@ describe('Odoo router — the payment journal in propose-config / save-defaults 
       assertEquals(save.res.status, 403, role);
       assertEquals(rpcCall(save.calls, 'set_odoo_payment_journal_default').length, 0, role);
     }
+    const operator = await call({ setupAction: 'save-defaults', default_payment_journal_id: '11' }, { role: 'Engineer', operator: true });
+    assertEquals(operator.res.status, 200, 'the payment-journal setter still permits a platform Operator');
+    assertEquals(rpcCall(operator.calls, 'set_odoo_payment_journal_default').map((c) => c.bodyJson), [
+      { p_org_id: 'org-1', p_actor_id: 'user-1', p_journal_id: '11' },
+    ]);
   });
 
   it('save-defaults writes the journal through the actor-checked setter as the verified caller', async () => {
@@ -140,7 +145,7 @@ describe('Odoo router — the payment journal in propose-config / save-defaults 
     }]);
   });
 
-  it('only Admin and Finance may save Odoo defaults, and an Operator cannot bypass the role gate', async () => {
+  it('the database authority rejects an Operator for the new customer-advance account field', async () => {
     for (const role of ['Admin', 'Finance']) {
       const r = await call({ setupAction: 'save-defaults', customer_advance_account_ref: 'account.account:210' }, { role });
       assertEquals(r.res.status, 200, role);
@@ -150,9 +155,12 @@ describe('Odoo router — the payment journal in propose-config / save-defaults 
       assertEquals(r.res.status, 403, role);
       assertEquals(rpcCall(r.calls, 'set_odoo_customer_advance_account').length, 0, role);
     }
-    const operator = await call({ setupAction: 'save-defaults', customer_advance_account_ref: 'account.account:210' }, { role: 'Engineer', operator: true });
+    const operator = await call({ setupAction: 'save-defaults', customer_advance_account_ref: 'account.account:210' }, {
+      role: 'Engineer', operator: true,
+      rpc: { set_odoo_customer_advance_account: () => pgError('42501', 'current authority required') },
+    });
     assertEquals(operator.res.status, 403);
-    assertEquals(rpcCall(operator.calls, 'set_odoo_customer_advance_account').length, 0);
+    assertEquals(rpcCall(operator.calls, 'set_odoo_customer_advance_account').length, 1, 'the field-specific setter enforces its own Admin/Finance rule');
   });
 
   it('a malformed customer-advance account reference is rejected before the setter', async () => {

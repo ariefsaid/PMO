@@ -58,6 +58,8 @@ export interface World {
   progressClaimEvidence?: Array<Record<string, unknown>>;
   /** Fake Odoo product income account, which may drift from the mirror for a read-back mismatch case. */
   downPaymentProductIncomeAccount?: number;
+  /** Mirrored income account for the down-payment item; null models older product rows without the attribute. */
+  downPaymentProductMirrorIncomeAccount?: string | null;
   /** The configured model-qualified customer-advance account; null removes the setting. */
   customerAdvanceAccountRef?: string | null;
   /** The mirrored Odoo account type selected for the customer-advance account. */
@@ -168,7 +170,10 @@ export function revenueRoutes(unexpected: FetchCall[], caller: string, world: Wo
         attrs: { amount: 11, use: 'sale', tax_group: world.saleTax === 'collector' ? 'Collected by VAT Collector' : 'Non-luxury Good Taxes', price_include: false } }]);
       if (kind === 'product') return jsonResponse([
         { external_id: '71', name: 'Item A', active: true, tombstoned_at: null, attrs: { income_account_id: '149' } },
-        { external_id: '72', name: 'Down payment', active: true, tombstoned_at: null, attrs: { income_account_id: '210' } },
+        { external_id: '72', name: 'Down payment', active: true, tombstoned_at: null, attrs: {
+          ...(world.downPaymentProductMirrorIncomeAccount === undefined ? { income_account_id: '210' }
+            : world.downPaymentProductMirrorIncomeAccount === null ? {} : { income_account_id: world.downPaymentProductMirrorIncomeAccount }),
+        } },
       ].filter((row) => param(call, 'external_id') === null || row.external_id === param(call, 'external_id')));
       if (kind === 'account') return jsonResponse([{ external_id: '210', name: 'Customer Advances', active: true, tombstoned_at: null,
         attrs: { company_ids: ['1'], account_type: world.customerAdvanceAccountType ?? 'liability_current' } }].filter((row) => param(call, 'external_id') === null || row.external_id === param(call, 'external_id')));
