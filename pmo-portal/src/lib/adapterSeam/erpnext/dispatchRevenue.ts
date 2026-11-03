@@ -13,8 +13,8 @@ import { progressClaimItems, type ProgressClaimLineRecord, type ProgressClaimRec
 import type { ErpDispatchFactoryDeps, ExternalOrgBindingRow } from './dispatchTypes.ts';
 import { buildsSalesInvoiceBody } from './dispatchTypes.ts';
 import { resolveErpProjectName } from './dispatchRefs.ts';
-import { formatExactMoney, formatNumberExact } from '@/src/lib/format';
-import { getNumberLocale } from '@/src/lib/locale/activeLocale';
+import { formatTimeMaterialsAmount, formatTimeMaterialsNumber } from './dispatchRevenueFormatting.ts';
+import { getSharedNumberLocale } from '../../locale/numberLocaleState.ts';
 
 // ============================================================================
 // Task 2.3 — Revenue ref resolver (FR-SAR-100/101/121)
@@ -358,18 +358,13 @@ function erpNextCommercialLineAmount(quantity: number, rate: number): number {
   return Number(adjusted.toFixed(2));
 }
 
-function formatTimeMaterialsAmount(amount: number | string, currency: string | undefined): string {
-  const text = String(amount);
-  const formatted = currency ? formatExactMoney(text, currency, getNumberLocale()) : null;
-  return formatted ?? formatNumberExact(Number(amount));
-}
-
 /**
  * T&M line amounts are frozen when the claim is signed. Keep the signed quantity and rate in the
  * invoice body unless ERPNext's per-line rounding would book a different amount; only that line is
  * sent as `1 × frozen amount`, with its signed calculation visible in the description.
  */
 function timeMaterialsInvoiceItems(lines: readonly CanonicalClaimLine[], currency: string | undefined): Array<Record<string, unknown>> {
+  const numberLocale = getSharedNumberLocale();
   return lines.map((line) => {
     const quantity = Number(line.quantity);
     const signedRate = Number(line.rate);
@@ -387,7 +382,7 @@ function timeMaterialsInvoiceItems(lines: readonly CanonicalClaimLine[], currenc
       rate: needsFrozenAmount ? frozenAmount : signedRate,
       ...(line.label ? {
         description: needsFrozenAmount
-          ? `${line.label} (${line.unit}): ${formatNumberExact(quantity)} x ${formatNumberExact(signedRate)}, rounded to ${formatTimeMaterialsAmount(line.amount, currency)}`
+          ? `${line.label} (${line.unit}): ${formatTimeMaterialsNumber(quantity, numberLocale)} x ${formatTimeMaterialsNumber(signedRate, numberLocale)}, rounded to ${formatTimeMaterialsAmount(line.amount, currency, numberLocale)}`
           : `${line.label} (${line.unit})`,
       } : {}),
     };
