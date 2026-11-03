@@ -38,7 +38,7 @@ begin;
 create extension if not exists pgtap;
 select to_regprocedure('public.get_budget_comparison(uuid,text)') is not null as comparison_rpc_present \gset
 \if :comparison_rpc_present
-select plan(36);
+select plan(41);
 
 set timezone = 'UTC';
 
@@ -58,6 +58,7 @@ insert into projects (id, org_id, name, status, start_date, end_date) values
   ('1472c100-0000-0000-0000-000000000002','1472a000-0000-0000-0000-000000000001','BWC Legacy Annual','Ongoing Project',date '2025-08-01',date '2027-03-31'),
   ('1472c100-0000-0000-0000-000000000003','1472a000-0000-0000-0000-000000000001','BWC Draft Only','Ongoing Project',date '2026-01-01',date '2026-12-31'),
   ('1472c100-0000-0000-0000-000000000004','1472a000-0000-0000-0000-000000000001','BWC Bulk Inputs','Ongoing Project',date '2026-01-01',date '2026-12-31'),
+  ('1472c100-0000-0000-0000-000000000005','1472a000-0000-0000-0000-000000000001','BWC Unknown Actual','Ongoing Project',date '2026-01-01',date '2026-12-31'),
   ('1472c200-0000-0000-0000-000000000001','1472a000-0000-0000-0000-000000000002','BWC Other Org','Ongoing Project',date '2026-01-01',date '2026-12-31');
 
 -- Category → ERP account map (org-wide, FR-BUD-111 shape). Subcontractors is deliberately UNMAPPED.
@@ -101,7 +102,10 @@ insert into budget_versions (id, org_id, project_id, version, name, status, crea
 insert into budget_line_items (org_id, budget_version_id, category, description, budgeted_amount, actual_amount, fiscal_year) values
   ('1472a000-0000-0000-0000-000000000001','1472d100-0000-0000-0000-000000000002','Labor','Phased crew',100.00,0,'FY2026'),
   ('1472a000-0000-0000-0000-000000000001','1472d100-0000-0000-0000-000000000002','Materials','Phased steel',25.00,0,'FY2026'),
-  ('1472a000-0000-0000-0000-000000000001','1472d100-0000-0000-0000-000000000002','Materials','UN-PHASED steel',50.00,0,null);
+  ('1472a000-0000-0000-0000-000000000001','1472d100-0000-0000-0000-000000000002','Materials','UN-PHASED steel',50.00,0,null),
+  ('1472a000-0000-0000-0000-000000000001','1472d100-0000-0000-0000-000000000002','Subcontractors','Phased unlinked category',30.00,0,'FY2026'),
+  ('1472a000-0000-0000-0000-000000000001','1472d100-0000-0000-0000-000000000002','Subcontractors','UN-PHASED unlinked category',20.00,0,null),
+  ('1472a000-0000-0000-0000-000000000001','1472d100-0000-0000-0000-000000000002','Equipment','Phased only to next year',10.00,0,'FY2027');
 update budget_versions set status = 'Active', activated_at = now()
  where id = '1472d100-0000-0000-0000-000000000002';
 -- F-A: one pre-issue push that SUCCEEDED for FY2026 with the legacy NULL span witness (backward
@@ -150,6 +154,12 @@ select '1472a000-0000-0000-0000-000000000001','1472c100-0000-0000-0000-000000000
        '1472e000-0000-0000-0000-000000000002', now() - interval '1 hour', timestamptz '2026-11-02 08:00:00+00'
   from generate_series(1,1100);
 
+-- One canonical current-generation reading with a nullable net is a valid source state (0101), and
+-- 0497 deliberately reports its amount as unknown while retaining row presence and provenance.
+insert into erp_actuals_snapshot (org_id, project_id, account, fiscal_year, debit, credit, net, snapshot_id, created_at, as_of) values
+  ('1472a000-0000-0000-0000-000000000001','1472c100-0000-0000-0000-000000000005','5100 - Direct Costs - PSC','FY2026',null,null,null,
+   '1472e000-0000-0000-0000-000000000002', now() - interval '30 minutes', timestamptz '2026-11-02 10:00:00+00');
+
 -- Attribution (#1271): one UNTAGGED GL line on the mapped Labor account, rule-attributed to P1 at
 -- 100%. Its as_of is deliberately the newest so recorded_as_of proves the attribution joins the read.
 insert into erp_gl_entry_mirror (org_id, erp_name, account, fiscal_year, project, posting_date, debit, credit, as_of, erp_modified) values
@@ -166,10 +176,23 @@ select id, '1472a000-0000-0000-0000-000000000001', 0, '1472c100-0000-0000-0000-0
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"1472b000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 
+select results_eq(
+  $$select budget_total, recorded, recorded_as_of, mapped, has_ledger, remaining, percent_used
+      from public.get_budget_comparison('1472c100-0000-0000-0000-000000000005', null)
+     where category = 'Labor'$$,
+  $$values (null::numeric, null::numeric, timestamptz '2026-11-02 10:00:00+00', true, true, null::numeric, null::numeric)$$,
+  'AC-015 a canonical actual-only row with an unknown amount remains visible with ledger provenance'
+);
+
 select is(
   (select array_agg(category::text order by category) from public.get_budget_comparison('1472c100-0000-0000-0000-000000000001', null)),
   array['Labor','Materials','Subcontractors'],
   'AC-014 all-years returns one row per category with a known fact — nothing invented for the silent four'
+);
+
+select is_empty(
+  $$select 1 from public.get_budget_comparison('1472c100-0000-0000-0000-000000000001', null) where category = 'Permits & Fees'$$,
+  'AC-015 an entirely silent category remains absent'
 );
 
 select is(
@@ -309,12 +332,6 @@ select is(
 -- ⚑ STALE SPAN: the witness drifts (project dates changed after the push) ⇒ attribution stops. The
 -- category's whole 75 is WITHHELD (null), not partially printed as the remaining phased 25.
 reset role;
--- Read a current FY2026 ledger row for the legacy project so its mapped Materials category remains
--- observable as a known zero after the stale-span mutation below; that lets the RPC state the unknown
--- budget (NULL) instead of silently omitting the category.
-insert into erp_actuals_snapshot (org_id, project_id, account, fiscal_year, debit, credit, net, snapshot_id, created_at, as_of) values
-  ('1472a000-0000-0000-0000-000000000001','1472c100-0000-0000-0000-000000000002','5100 - Direct Costs - PSC','FY2026',10.00,0,10.00,
-   '1472e000-0000-0000-0000-000000000002', now() - interval '1 hour', timestamptz '2026-11-02 08:00:00+00');
 update budget_version_erp_mirror
    set pushed_project_start_date = date '2025-08-01',
        pushed_project_end_date = date '2026-12-31'
@@ -325,10 +342,40 @@ set local role authenticated;
 set local request.jwt.claims = '{"sub":"1472b000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 
 select results_eq(
+  $$select budget_total, recorded, recorded_as_of, mapped, has_ledger, remaining, percent_used
+      from public.get_budget_comparison('1472c100-0000-0000-0000-000000000002', 'FY2026')
+     where category = 'Materials'$$,
+  $$values (null::numeric, null::numeric, null::timestamptz, true, false, null::numeric, null::numeric)$$,
+  'FR-022 a stale suppressed category remains visible as unknown before any ledger reading'
+);
+
+select results_eq(
+  $$select budget_total, recorded, recorded_as_of, mapped, has_ledger, remaining, percent_used
+      from public.get_budget_comparison('1472c100-0000-0000-0000-000000000002', 'FY2026')
+     where category = 'Subcontractors'$$,
+  $$values (null::numeric, null::numeric, null::timestamptz, false, false, null::numeric, null::numeric)$$,
+  'FR-022 a stale suppressed unmapped category without ledger rows remains visible only as unknown'
+);
+
+-- The stale category facts above must survive independently of any ledger refresh; this later read
+-- preserves the original zero-vs-unknown regression case for the mapped category.
+reset role;
+insert into erp_actuals_snapshot (org_id, project_id, account, fiscal_year, debit, credit, net, snapshot_id, created_at, as_of) values
+  ('1472a000-0000-0000-0000-000000000001','1472c100-0000-0000-0000-000000000002','5100 - Direct Costs - PSC','FY2026',10.00,0,10.00,
+   '1472e000-0000-0000-0000-000000000002', now() - interval '1 hour', timestamptz '2026-11-02 08:00:00+00');
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"1472b000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+
+select results_eq(
   $$select category::text, budget_total from public.get_budget_comparison('1472c100-0000-0000-0000-000000000002', 'FY2026')
      where category in ('Labor','Materials') order by category$$,
   $$values ('Labor'::text, 100.00::numeric), ('Materials'::text, null::numeric)$$,
   'FR-022 a stale span suppresses the entire partially-phased Materials total (F-D); phased Labor stays 100'
+);
+
+select is_empty(
+  $$select 1 from public.get_budget_comparison('1472c100-0000-0000-0000-000000000002', 'FY2026') where category = 'Equipment'$$,
+  'FR-018 a category phased only to another year remains absent from this selected year'
 );
 
 -- ⚑ A FAILED push is an attempt, not an allocation: FY2028 is not on record, nothing sweeps there.

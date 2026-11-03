@@ -1,9 +1,10 @@
 -- 0580_budget_comparison.sql
 -- AC-014 (budget-whole-project FR-017/018): the comparison read behind Forecast's
--- "All years (project to date)" and per-year scopes. One row per budget category with a known fact:
+-- "All years (project to date)" and per-year scopes. One row per relevant budget/ledger category:
 -- the Active version's budget authority vs the ledger-derived recorded spending, plus remaining and
--- percent used. Server-side aggregation only (NFR-005): >1000 source inputs aggregate in SQL, the
--- result is bounded by the category enum, never by row counts.
+-- percent used. Relevant categories retain NULL when attribution or recorded amounts are unknown.
+-- Server-side aggregation only (NFR-005): >1000 source inputs aggregate in SQL, the result is
+-- bounded by the category enum, never by row counts.
 --
 -- Money-honesty contract (the projection domain's invariant — `0` is a claim):
 --   budget_total  NULL = no Active budget attribution for this category/scope (no Active version,
@@ -38,7 +39,6 @@
 -- Proven by supabase/tests/budget_whole_project_comparison.test.sql (AC-014/FR-017/018).
 -- ── REVERSE (supabase/migrations/rollback/0580_budget_comparison_down.sql) ─────────────────────────
 --   drop function if exists public.get_budget_comparison(uuid, text);
-
 create or replace function public.get_budget_comparison(p_project_id uuid, p_fiscal_year text default null)
 returns table(
   category       public.budget_category,
@@ -73,7 +73,7 @@ as $$
   ),
   -- All years: Σ the Active version's source lines per category, counted once (OD-BUDGET-1).
   all_years_budget as (
-    select li.category, sum(li.budgeted_amount) as budget_total
+    select li.category, sum(li.budgeted_amount) as budget_total, true as has_relevant_budget
       from public.budget_line_items li
       join active_version v on v.id = li.budget_version_id
      where li.org_id = public.auth_org_id()
@@ -82,7 +82,7 @@ as $$
   ),
   -- Selected year, whole_project mode: the saved distribution rows are the approved authority.
   whole_year_budget as (
-    select d.category, sum(d.amount) as budget_total
+    select d.category, sum(d.amount) as budget_total, true as has_relevant_budget
       from public.budget_year_distributions d
       join active_version v on v.id = d.budget_version_id
      where d.org_id = public.auth_org_id()
@@ -148,7 +148,14 @@ as $$
            and bool_and(
              li.fiscal_year is not null                        -- phased ⇒ knowably in SOME year
              or exists (select 1 from legacy_attributed_null)  -- un-phased ⇒ only if attributable here
-           ) as attribution_known
+           ) as attribution_known,
+           -- Presence follows relevant attribution evidence, not the numeric SUM. A phased line for
+           -- this year or an un-phased line while a year is on record remains a visible unknown when
+           -- F-D suppresses its amount; lines phased only to another year remain out of this scope.
+           bool_or(
+             coalesce(li.fiscal_year = p_fiscal_year, false)
+             or (li.fiscal_year is null and (select r.on_record from legacy_on_record r))
+           ) as has_relevant_budget
       from public.budget_line_items li
       join active_version v on v.id = li.budget_version_id and v.budget_mode = 'per_year'
      where li.org_id = public.auth_org_id()
@@ -157,16 +164,17 @@ as $$
   ),
   budget as (
     -- Exactly one branch produces rows: all-years vs selected year, whole_project vs per_year mode.
-    select a.category, a.budget_total
+    select a.category, a.budget_total, a.has_relevant_budget
       from all_years_budget a
      union all
-    select w.category, w.budget_total
+    select w.category, w.budget_total, w.has_relevant_budget
       from whole_year_budget w
      union all
     select l.category,
            case when (select r.on_record from legacy_on_record r)
                      and coalesce(l.attribution_known, true)
-                then l.budget_total end as budget_total
+                then l.budget_total end as budget_total,
+           l.has_relevant_budget
       from legacy_year_budget l
   )
   select pm.category,
@@ -182,7 +190,11 @@ as $$
     from visible_project vp
     join public.project_mapped_actuals(p_project_id, p_fiscal_year) pm on true
     left join budget b on b.category = pm.category
+   -- A relevant but unknown amount still has a row: presence comes from the canonical ledger or
+   -- selected-scope budget evidence, while unrelated legacy phases and silent categories stay absent.
    where b.budget_total is not null or pm.actuals_to_date is not null
+      or pm.has_rows
+      or coalesce(b.has_relevant_budget, false)
    order by pm.category;
 $$;
 
