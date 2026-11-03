@@ -568,7 +568,7 @@
     "project-documents"
   ],
   "rpcs": [
-    {"name":"activate_budget_version","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0577_budget_distribution_rpc.sql:608"]},
+    {"name":"activate_budget_version","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0577_budget_distribution_rpc.sql:771"]},
     {"name":"actor_authorization_state","class":"inert","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0135_tier_scoped_ownership_and_actor_state.sql:74"]},
     {"name":"admin_set_user_status","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0065_admin_set_user_status.sql:56"]},
     {"name":"approve_procurement_amount","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0349_procurement_integrity_guards.sql:196"]},
@@ -635,7 +635,7 @@
     {"name":"replace_erp_ple_voucher_rows","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0382_ledger_voucher_replace.sql:145"]},
     {"name":"request_po_variation","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"},{"http":500,"sqlstate":"P0002"}],"source":["supabase/migrations/0474_po_variations.sql:251","supabase/migrations/0474_po_variations.sql:254","supabase/migrations/0474_po_variations.sql:259"]},
     {"name":"reserve_credits","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0077_reserve_credits.sql:78"]},
-    {"name":"save_budget_distribution","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0577_budget_distribution_rpc.sql:184"]},
+    {"name":"save_budget_distribution","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0577_budget_distribution_rpc.sql:186"]},
     {"name":"save_contract_rate_line","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"},{"http":500,"sqlstate":"P0002"}],"source":["supabase/migrations/0515_contract_rates.sql:220","supabase/migrations/0515_contract_rates.sql:225","supabase/migrations/0515_contract_rates.sql:128"]},
     {"name":"set_contract_rate_assignee","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"},{"http":500,"sqlstate":"P0002"}],"source":["supabase/migrations/0515_contract_rates.sql:253","supabase/migrations/0515_contract_rates.sql:264","supabase/migrations/0515_contract_rates.sql:271"]},
     {"name":"set_procurement_invoice_efaktur","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0272_efaktur_number.sql:120"]},

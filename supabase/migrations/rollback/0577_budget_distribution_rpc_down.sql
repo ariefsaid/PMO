@@ -19,12 +19,14 @@ create or replace function public.clone_budget_version(version_id uuid)
   returns uuid language plpgsql security definer set search_path = public as $function$
 declare v_project uuid; v_org uuid; v_next int; v_new uuid;
 begin
-  perform public.assert_is_active_member();
+  perform public.assert_is_active_member();  -- ⚑ 0180 (FR-AMG-001): user-JWT-only caller.
   select project_id, org_id into v_project, v_org from budget_versions where id = version_id;
   if v_project is null then raise exception 'budget version not found' using errcode = 'P0002'; end if;
   if v_org is distinct from auth_org_id()
      or auth_role() not in ('Admin','Executive','Project Manager','Finance')
   then raise exception 'not authorized' using errcode = '42501'; end if;
+  -- Defense-in-depth (audit HIGH-BV-1): the parent project must also be in the caller's org, so a definer
+  -- clone can never read/write across orgs even if a grafted source version slipped past RLS.
   if (select org_id from public.projects where id = v_project) is distinct from auth_org_id()
   then raise exception 'not authorized' using errcode = '42501'; end if;
   select coalesce(max(version),0)+1 into v_next from budget_versions where project_id = v_project;
@@ -32,6 +34,9 @@ begin
     select v_org, v_project, v_next, name || ' (copy)', 'Draft'
     from budget_versions where id = version_id
     returning id into v_new;
+  -- ⚑ THE ONE CHANGE: `fiscal_year` rides along. `actual_amount` is still reset to 0 (a clone has spent
+  -- nothing yet); a NULL year stays NULL — the clone never INVENTS a year for a line the operator
+  -- deliberately left un-phased (ADR-0048).
   insert into budget_line_items (org_id, budget_version_id, category, description, budgeted_amount, actual_amount, fiscal_year)
     select v_org, v_new, category, description, budgeted_amount, 0, fiscal_year
     from budget_line_items where budget_version_id = version_id;
@@ -47,7 +52,7 @@ declare v_project uuid; v_org uuid; v_status budget_status; v_drafter uuid; v_so
 begin
   select project_id, org_id, status, created_by into v_project, v_org, v_status, v_drafter
     from budget_versions where id = version_id
-    for update;
+    for update;  -- 0366: lock the version BEFORE the editor list is read (see §4)
   if v_project is null then raise exception 'budget version not found' using errcode = 'P0002'; end if;
   if v_org is distinct from auth_org_id()
      or auth_role() not in ('Admin','Executive','Project Manager','Finance')

@@ -131,10 +131,15 @@ security definer
 set search_path = public, pg_temp
 as $$
 declare
+  v_initial_project uuid;
+  v_initial_org uuid;
   v_project uuid;
   v_org uuid;
+  v_project_org uuid;
   v_status public.budget_status;
   v_mode text;
+  v_stored_project_start date;
+  v_stored_project_end date;
   v_project_start date;
   v_project_end date;
   v_year jsonb;
@@ -142,6 +147,7 @@ declare
   v_year_end date;
   v_first_year_start date;
   v_first_year_end date;
+  v_last_year_start date;
   v_last_year_end date;
   v_previous_year_end date;
   v_year_name text;
@@ -155,6 +161,7 @@ declare
   v_amount numeric;
   v_expected_amount numeric;
   v_actual_amount numeric;
+  v_day_weight_sum numeric;
   v_row_count integer;
   v_distinct_year_count integer;
   v_override_key text;
@@ -165,17 +172,37 @@ declare
   v_declared_method text;
   v_declared_inputs jsonb;
   v_declared_is_override boolean;
-  v_input_sum numeric;
-  v_expected numeric;
-  v_actual numeric;
 begin
+  -- Lock order is project then version. The first read only discovers the project key; after taking
+  -- both locks, the version key is rechecked so a concurrent re-parent cannot supply a stale witness.
+  select project_id, org_id into v_initial_project, v_initial_org
+    from public.budget_versions where id = p_version;
+  if not found or v_initial_project is null then
+    raise exception 'budget version not found' using errcode = 'P0002';
+  end if;
+  if v_initial_org is distinct from public.auth_org_id()
+     or public.auth_role() not in ('Admin','Executive','Project Manager','Finance')
+     or not public.is_active_member() then
+    raise exception 'not authorized' using errcode = '42501';
+  end if;
+  select org_id into v_project_org from public.projects where id = v_initial_project;
+  if not found or v_project_org is distinct from public.auth_org_id() then
+    raise exception 'not authorized' using errcode = '42501';
+  end if;
+  select org_id, start_date, end_date
+    into v_project_org, v_stored_project_start, v_stored_project_end
+    from public.projects where id = v_initial_project for update;
+  if not found then
+    raise exception 'not authorized' using errcode = '42501';
+  end if;
   select project_id, org_id, status, budget_mode
     into v_project, v_org, v_status, v_mode
-    from public.budget_versions
-   where id = p_version
-   for update;
-  if v_project is null then
+    from public.budget_versions where id = p_version for update;
+  if not found or v_project is null then
     raise exception 'budget version not found' using errcode = 'P0002';
+  end if;
+  if v_project is distinct from v_initial_project then
+    raise exception 'budget version project changed while saving distribution' using errcode = 'P0001';
   end if;
   if v_org is distinct from public.auth_org_id()
      or public.auth_role() not in ('Admin','Executive','Project Manager','Finance')
@@ -183,7 +210,7 @@ begin
   then
     raise exception 'not authorized' using errcode = '42501';
   end if;
-  if (select org_id from public.projects where id = v_project) is distinct from public.auth_org_id() then
+  if v_project_org is distinct from public.auth_org_id() then
     raise exception 'not authorized' using errcode = '42501';
   end if;
   if v_status is distinct from 'Draft' or v_mode is distinct from 'whole_project' then
@@ -203,6 +230,12 @@ begin
   ) then
     raise exception 'budget distribution inputs contain an invalid value' using errcode = 'P0001';
   end if;
+  if p_method = 'amount_by_year' and exists (
+    select 1 from jsonb_each(p_inputs) as input(key, value)
+     where (input.value #>> '{}') !~ '^\d+(\.\d{1,2})?$'
+  ) then
+    raise exception 'budget distribution inputs contain an invalid value' using errcode = 'P0001';
+  end if;
   if p_category_overrides is null or jsonb_typeof(p_category_overrides) is distinct from 'object' then
     raise exception 'budget distribution overrides must be an object' using errcode = 'P0001';
   end if;
@@ -218,6 +251,7 @@ begin
   end if;
 
   if coalesce(p_basis ->> 'projectStart', '') !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+     or not (p_basis ? 'projectEnd')
      or (p_basis ->> 'projectEnd') is not null
         and (p_basis ->> 'projectEnd') !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' then
     raise exception 'budget distribution basis contains an invalid project date' using errcode = 'P0001';
@@ -235,6 +269,10 @@ begin
   end if;
   if v_project_end is not null and v_project_end < v_project_start then
     raise exception 'budget distribution basis has reversed project dates' using errcode = 'P0001';
+  end if;
+  if v_project_start is distinct from v_stored_project_start
+     or v_project_end is distinct from v_stored_project_end then
+    raise exception 'budget distribution project dates do not match the stored project dates' using errcode = 'P0001';
   end if;
 
   if exists (
@@ -281,15 +319,37 @@ begin
     elsif v_year_start <> v_previous_year_end + 1 then
       raise exception 'budget distribution basis has overlapping or incomplete fiscal-year coverage' using errcode = 'P0001';
     end if;
+    if v_year_end < v_project_start
+       or (v_project_end is not null and v_year_start > v_project_end) then
+      raise exception 'budget distribution basis includes a fiscal year outside the project date span'
+        using errcode = 'P0001';
+    end if;
     v_year_count := v_year_count + 1;
+    v_last_year_start := v_year_start;
     v_previous_year_end := v_year_end;
     v_last_year_end := v_year_end;
   end loop;
 
   if v_project_start < v_first_year_start or v_project_start > v_first_year_end
      or (v_project_end is null and v_year_count <> 1)
-     or (v_project_end is not null and (v_project_end < v_project_start or v_project_end > v_last_year_end)) then
+     or (v_project_end is not null and (v_project_end < v_last_year_start or v_project_end > v_last_year_end)) then
     raise exception 'budget distribution basis does not cover the project dates' using errcode = 'P0001';
+  end if;
+
+  -- The open-ended client contract is the containing start year through that fiscal year's end.
+  -- Every submitted year must have a positive inclusive intersection; the check above rejects extra
+  -- zero-day years instead of permitting them into the allocation denominator.
+  select coalesce(sum(
+           greatest(
+             least((year.value ->> 'end')::date, coalesce(v_project_end, v_last_year_end))
+             - greatest((year.value ->> 'start')::date, v_project_start) + 1,
+             0
+           )
+         ), 0)::numeric
+    into v_day_weight_sum
+    from jsonb_array_elements(p_basis -> 'years') as year(value);
+  if v_day_weight_sum <= 0 then
+    raise exception 'budget distribution by-days basis must include at least one project day' using errcode = 'P0001';
   end if;
 
   -- Inputs describe basis years only; an unknown year is never silently dropped.
@@ -346,6 +406,12 @@ begin
       select 1 from jsonb_each(v_override_inputs) as input(key, value)
        where jsonb_typeof(input.value) is distinct from 'string'
           or (input.value #>> '{}') !~ '^\d+(\.\d{1,4})?$'
+    ) then
+      raise exception 'budget distribution inputs for % contain an invalid value', v_override_key using errcode = 'P0001';
+    end if;
+    if v_override_method = 'amount_by_year' and exists (
+      select 1 from jsonb_each(v_override_inputs) as input(key, value)
+       where (input.value #>> '{}') !~ '^\d+(\.\d{1,2})?$'
     ) then
       raise exception 'budget distribution inputs for % contain an invalid value', v_override_key using errcode = 'P0001';
     end if;
@@ -490,34 +556,99 @@ begin
       raise exception 'budget distribution for % has an override flag that does not match its declaration', v_category using errcode = 'P0001';
     end if;
 
-    -- Resolved rows must follow the entered vector, not merely sum to the category total. Percent
-    -- vectors allow the single minor unit a largest-remainder split may move; amount overrides are
-    -- exact; a budget-wide amount vector is a proportion of each category's own total.
-    if v_declared_method in ('percent_by_year','amount_by_year') then
-      v_input_sum := (select sum((input.value #>> '{}')::numeric) from jsonb_each(v_declared_inputs) as input(key, value));
-      for v_year_name in select unnest(v_basis_years) loop
-        select (r.value ->> 'amount')::numeric
-          into v_actual
-          from jsonb_array_elements(p_rows) as r(value)
-         where r.value ->> 'category' = v_category
-           and r.value ->> 'fiscal_year' = v_year_name;
-        if v_declared_method = 'amount_by_year' and v_declared_is_override then
-          v_expected := (v_declared_inputs ->> v_year_name)::numeric;
-          if v_actual is distinct from v_expected then
-            raise exception 'budget distribution for % has rows that do not match its amount inputs', v_category using errcode = 'P0001';
-          end if;
+    -- Resolved rows must equal the exact proposal, not merely sum to the category total. This is the
+    -- budgetDistribution.allocate contract in SQL: floor every share at the currency minor unit, then
+    -- hand the remaining units to the largest fractional remainders (ties to the earlier fiscal year),
+    -- and never hand a unit to a zero weight. Percent inputs are 1e-4 percentage units (sum 1,000,000);
+    -- a budget-wide amount vector is a proportion of each category's own total; a category amount
+    -- override is compared verbatim to its entered figures.
+    if v_declared_method = 'amount_by_year' and v_declared_is_override then
+      select r.value ->> 'fiscal_year' into v_year_name
+        from jsonb_array_elements(p_rows) as r(value)
+       where r.value ->> 'category' = v_category
+         and round((r.value ->> 'amount')::numeric * 100)
+             is distinct from round((v_declared_inputs ->> (r.value ->> 'fiscal_year'))::numeric * 100)
+       order by r.value ->> 'fiscal_year'
+       limit 1;
+      if v_year_name is not null then
+        raise exception 'budget distribution for % has rows that do not match its amount inputs (year %)',
+          v_category, v_year_name using errcode = 'P0001';
+      end if;
+    elsif v_declared_method in ('by_days','percent_by_year','amount_by_year') then
+      with years as (
+        select y.value ->> 'name' as year_name,
+               (y.ordinality - 1)::integer as ordinal,
+               (y.value ->> 'start')::date as year_start,
+               (y.value ->> 'end')::date as year_end
+          from jsonb_array_elements(p_basis -> 'years') with ordinality as y(value, ordinality)
+      ),
+      weighted as (
+        select years.year_name, years.ordinal,
+               case v_declared_method
+                 when 'by_days' then
+                   greatest(
+                     least(years.year_end, coalesce(v_project_end, v_last_year_end))
+                     - greatest(years.year_start, v_project_start) + 1,
+                     0
+                   )
+                 when 'percent_by_year' then round((v_declared_inputs ->> years.year_name)::numeric * 10000)
+                 else round((v_declared_inputs ->> years.year_name)::numeric * 100)
+               end as weight
+          from years
+      ),
+      totals as (
+        select case when v_declared_method = 'by_days' then v_day_weight_sum
+                    else sum(weighted.weight)
+               end as weight_sum
+          from weighted
+      ),
+      floored as (
+        select weighted.year_name, weighted.ordinal, weighted.weight,
+               -- div() truncates the exact integer quotient. Do NOT write trunc(a / b): PostgreSQL's
+               -- numeric division rounds to a selected scale first, so at large magnitudes a quotient
+               -- just below an integer (…999.9999999999) rounds up and trunc() then hands out a cent
+               -- that the largest-remainder step hands out again.
+               div(v_expected_amount * 100 * weighted.weight, totals.weight_sum) as base_cents,
+               mod(v_expected_amount * 100 * weighted.weight, totals.weight_sum) as remainder
+          from weighted cross join totals
+      ),
+      remainder_order as (
+        select floored.year_name,
+               row_number() over (order by floored.remainder desc, floored.ordinal asc) as place
+          from floored
+         where floored.weight > 0
+      ),
+      leftover as (
+        select v_expected_amount * 100 - (select sum(floored.base_cents) from floored) as units
+      ),
+      expected as (
+        select floored.year_name,
+               floored.base_cents
+                 + case when floored.weight > 0 and units.place <= leftover.units then 1 else 0 end as expected_cents
+          from floored
+          left join remainder_order units on units.year_name = floored.year_name
+          cross join leftover
+      )
+      select expected.year_name into v_year_name
+        from expected
+        join jsonb_array_elements(p_rows) as r(value)
+          on r.value ->> 'category' = v_category
+         and r.value ->> 'fiscal_year' = expected.year_name
+       where round((r.value ->> 'amount')::numeric * 100) is distinct from expected.expected_cents
+       order by expected.year_name
+       limit 1;
+      if v_year_name is not null then
+        if v_declared_method = 'by_days' then
+          raise exception 'budget distribution for % has rows that do not follow its by-days basis (year %)',
+            v_category, v_year_name using errcode = 'P0001';
         elsif v_declared_method = 'percent_by_year' then
-          v_expected := round(v_expected_amount * (v_declared_inputs ->> v_year_name)::numeric / 100, 2);
-          if abs(v_actual - v_expected) > 0.0101 then
-            raise exception 'budget distribution for % has rows that do not follow its percentage inputs', v_category using errcode = 'P0001';
-          end if;
+          raise exception 'budget distribution for % has rows that do not follow its percentage inputs (year %)',
+            v_category, v_year_name using errcode = 'P0001';
         else
-          v_expected := round(v_expected_amount * (v_declared_inputs ->> v_year_name)::numeric / v_input_sum, 2);
-          if abs(v_actual - v_expected) > 0.0101 then
-            raise exception 'budget distribution for % has rows that do not follow its amount proportions', v_category using errcode = 'P0001';
-          end if;
+          raise exception 'budget distribution for % has rows that do not follow its amount proportions (year %)',
+            v_category, v_year_name using errcode = 'P0001';
         end if;
-      end loop;
+      end if;
     end if;
   end loop;
 
@@ -549,17 +680,45 @@ grant execute on function public.save_budget_distribution(uuid,text,jsonb,jsonb,
 
 create or replace function public.clone_budget_version(version_id uuid)
   returns uuid language plpgsql security definer set search_path = public as $$
-declare v_project uuid; v_org uuid; v_next int; v_new uuid; v_mode text;
+declare
+  v_initial_project uuid;
+  v_initial_org uuid;
+  v_project uuid;
+  v_project_org uuid;
+  v_org uuid;
+  v_next int;
+  v_new uuid;
+  v_mode text;
 begin
   perform public.assert_is_active_member();
+  -- Keep the shared writer order project -> version. The first read only discovers the project key;
+  -- verify it again after both locks so a concurrent re-parent cannot clone through a stale key.
+  select project_id, org_id into v_initial_project, v_initial_org
+    from public.budget_versions where id = version_id;
+  if not found or v_initial_project is null then
+    raise exception 'budget version not found' using errcode = 'P0002';
+  end if;
+  if v_initial_org is distinct from public.auth_org_id()
+     or auth_role() not in ('Admin','Executive','Project Manager','Finance') then
+    raise exception 'not authorized' using errcode = '42501';
+  end if;
+  select org_id into v_project_org from public.projects where id = v_initial_project;
+  if not found or v_project_org is distinct from public.auth_org_id() then
+    raise exception 'not authorized' using errcode = '42501';
+  end if;
+  select org_id into v_project_org
+    from public.projects where id = v_initial_project for update;
+  if not found then raise exception 'not authorized' using errcode = '42501'; end if;
   select project_id, org_id, budget_mode into v_project, v_org, v_mode
     from public.budget_versions where id = version_id for update;
-  if v_project is null then raise exception 'budget version not found' using errcode = 'P0002'; end if;
+  if not found or v_project is null then raise exception 'budget version not found' using errcode = 'P0002'; end if;
+  if v_project is distinct from v_initial_project then
+    raise exception 'budget version project changed while cloning' using errcode = 'P0001';
+  end if;
   if v_org is distinct from public.auth_org_id()
      or auth_role() not in ('Admin','Executive','Project Manager','Finance')
   then raise exception 'not authorized' using errcode = '42501'; end if;
-  if (select org_id from public.projects where id = v_project) is distinct from public.auth_org_id()
-  then raise exception 'not authorized' using errcode = '42501'; end if;
+  if v_project_org is distinct from public.auth_org_id() then raise exception 'not authorized' using errcode = '42501'; end if;
   select coalesce(max(version),0)+1 into v_next from public.budget_versions where project_id = v_project;
   insert into public.budget_versions (org_id, project_id, version, name, status, budget_mode)
     select v_org, v_project, v_next, name || ' (copy)', 'Draft', budget_mode
@@ -589,7 +748,10 @@ grant execute on function public.clone_budget_version(uuid) to authenticated;
 create or replace function public.activate_budget_version(version_id uuid)
   returns void language plpgsql security definer set search_path = public as $$
 declare
+  v_initial_project uuid;
+  v_initial_org uuid;
   v_project uuid;
+  v_project_org uuid;
   v_org uuid;
   v_status budget_status;
   v_drafter uuid;
@@ -597,17 +759,35 @@ declare
   v_mode text;
   v_gap text;
 begin
+  -- Serialize project-level activation and keep the same project -> version lock order used by
+  -- save/clone. A fresh version read after both locks rejects a stale project witness.
+  select project_id, org_id into v_initial_project, v_initial_org from public.budget_versions where id = version_id;
+  if not found or v_initial_project is null then
+    raise exception 'budget version not found' using errcode = 'P0002';
+  end if;
+  if v_initial_org is distinct from auth_org_id()
+     or auth_role() not in ('Admin','Executive','Project Manager','Finance')
+     or not public.is_active_member() then
+    raise exception 'not authorized' using errcode = '42501';
+  end if;
+  select org_id into v_project_org from public.projects where id = v_initial_project;
+  if not found or v_project_org is distinct from auth_org_id() then
+    raise exception 'not authorized' using errcode = '42501';
+  end if;
+  select org_id into v_project_org from public.projects where id = v_initial_project for update;
+  if not found then raise exception 'not authorized' using errcode = '42501'; end if;
   select project_id, org_id, status, created_by, budget_mode
     into v_project, v_org, v_status, v_drafter, v_mode
-    from budget_versions where id = version_id
-    for update;
-  if v_project is null then raise exception 'budget version not found' using errcode = 'P0002'; end if;
+    from public.budget_versions where id = version_id for update;
+  if not found or v_project is null then raise exception 'budget version not found' using errcode = 'P0002'; end if;
+  if v_project is distinct from v_initial_project then
+    raise exception 'budget version project changed while activating' using errcode = 'P0001';
+  end if;
   if v_org is distinct from auth_org_id()
      or auth_role() not in ('Admin','Executive','Project Manager','Finance')
      or not public.is_active_member()
   then raise exception 'not authorized' using errcode = '42501'; end if;
-  if (select org_id from public.projects where id = v_project) is distinct from auth_org_id()
-  then raise exception 'not authorized' using errcode = '42501'; end if;
+  if v_project_org is distinct from auth_org_id() then raise exception 'not authorized' using errcode = '42501'; end if;
   if exists (select 1 from public.budget_version_editors e
              where e.budget_version_id = version_id and e.user_id = auth.uid()) then
     select count(*)=1 and bool_or(p.id=auth.uid()) into v_sole_operator
