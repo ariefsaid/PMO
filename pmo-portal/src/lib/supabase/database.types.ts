@@ -850,6 +850,61 @@ export type Database = {
           },
         ]
       }
+      budget_distribution_plans: {
+        Row: {
+          basis: Json
+          budget_version_id: string
+          category_overrides: Json
+          inputs: Json
+          method: string
+          org_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          basis: Json
+          budget_version_id: string
+          category_overrides?: Json
+          inputs?: Json
+          method: string
+          org_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          basis?: Json
+          budget_version_id?: string
+          category_overrides?: Json
+          inputs?: Json
+          method?: string
+          org_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budget_distribution_plans_budget_version_id_fkey"
+            columns: ["budget_version_id"]
+            isOneToOne: true
+            referencedRelation: "budget_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budget_distribution_plans_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budget_distribution_plans_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       budget_line_items: {
         Row: {
           actual_amount: number
@@ -1395,6 +1450,7 @@ export type Database = {
         Row: {
           activated_at: string | null
           activation_basis: string | null
+          budget_mode: string
           created_at: string
           created_by: string | null
           currency: string
@@ -1411,6 +1467,7 @@ export type Database = {
         Insert: {
           activated_at?: string | null
           activation_basis?: string | null
+          budget_mode?: string
           created_at?: string
           created_by?: string | null
           currency?: string
@@ -1427,6 +1484,7 @@ export type Database = {
         Update: {
           activated_at?: string | null
           activation_basis?: string | null
+          budget_mode?: string
           created_at?: string
           created_by?: string | null
           currency?: string
@@ -1460,6 +1518,57 @@ export type Database = {
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      budget_year_distributions: {
+        Row: {
+          amount: number
+          budget_version_id: string
+          category: Database["public"]["Enums"]["budget_category"]
+          fiscal_year: string
+          id: string
+          is_override: boolean
+          method: string
+          ordinal: number
+          org_id: string
+        }
+        Insert: {
+          amount: number
+          budget_version_id: string
+          category: Database["public"]["Enums"]["budget_category"]
+          fiscal_year: string
+          id?: string
+          is_override?: boolean
+          method: string
+          ordinal: number
+          org_id?: string
+        }
+        Update: {
+          amount?: number
+          budget_version_id?: string
+          category?: Database["public"]["Enums"]["budget_category"]
+          fiscal_year?: string
+          id?: string
+          is_override?: boolean
+          method?: string
+          ordinal?: number
+          org_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budget_year_distributions_budget_version_id_fkey"
+            columns: ["budget_version_id"]
+            isOneToOne: false
+            referencedRelation: "budget_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budget_year_distributions_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -11798,6 +11907,7 @@ export type Database = {
         Args: { p_account: string; p_fy: string; p_version: string }
         Returns: string
       }
+      budget_distribution_gaps: { Args: { p_version: string }; Returns: string[] }
       budget_activation_mode: { Args: { version_id: string }; Returns: string }
       project_win_eligibility: { Args: { p_id: string }; Returns: string }
       withdraw_subcontract_acceptance: {
@@ -13588,6 +13698,17 @@ export type Database = {
         Returns: number
       }
       save_cost_attribution_rule: { Args: { p_rule: Json }; Returns: Json }
+      save_budget_distribution: {
+        Args: {
+          p_basis: Json
+          p_category_overrides?: Json
+          p_inputs: Json
+          p_method: string
+          p_rows: Json
+          p_version: string
+        }
+        Returns: undefined
+      }
       stage_erp_statement_report: {
         Args: { p_org_id: string; p_holder: string; p_batch_id: string; p_report: Json }
         Returns: undefined

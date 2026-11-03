@@ -104,4 +104,3 @@ describe('FR-OPP-054 a bill whose payment Odoo has not yet shown', () => {
     expect(row).not.toHaveTextContent(/Paid/);
   });
 });
-
