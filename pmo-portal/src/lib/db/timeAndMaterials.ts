@@ -25,16 +25,30 @@ export interface Bounded<T> { rows: T[]; truncated: boolean }
 export type TmRateUnit = 'hour' | 'day';
 export type TmClaimStatus = 'Draft' | 'SignedOff' | 'Withdrawn';
 export type TmConfirmBasis = 'standard' | 'sole_operator';
+/**
+ * A claim line's kind — 0516 `tm_claim_lines.kind check (kind in ('labour'))`. T5 (equipment usage) widens the server
+ * check and this union together; until then the column has exactly one member, so the screen can switch on it.
+ */
+export type TmClaimLineKind = 'labour';
 
 /** The line the save sends: what a person decides. The server stamps org, version, `is_current` and the author. */
 export interface ContractRateLineInput {
   project_id: string;
   /** Omitted on a create; present to add a version to an existing line. */
   line_key?: string | null;
-  kind?: 'labour';
+  /**
+   * REQUIRED by 0515 `contract_rate_line_normalize` (`:114`: anything but `labour` is 22023) — the save always sends it,
+   * because a form cannot know to and the RPC has no default.
+   */
+  kind: TmClaimLineKind;
   label: string;
   unit: TmRateUnit;
   rate: number;
+  /**
+   * REQUIRED by the same function (`:126`): a three-letter code, refused with 23514 unless it equals `projects.currency`
+   * (`:129`). Derived from the project, never typed by hand — this is the server's own currency source for the line.
+   */
+  currency: string;
   effective_from: string;
   effective_to?: string | null;
   /** The version the editor loaded — a mismatch is refused with 40001, never overwritten. */
@@ -95,7 +109,7 @@ export interface TmConfirmResult {
 export interface TmClaimLine {
   lineKey: string;
   rateVersion: number;
-  kind: string;
+  kind: TmClaimLineKind;
   label: string;
   unit: string;
   units: number;
@@ -109,26 +123,31 @@ export interface TmClaimSummary {
   work_order_id: string | null;
   period_from: string;
   period_to: string;
-  status: string;
+  status: TmClaimStatus;
   currency: string;
   gross_amount: number;
   prepared_by: string;
   signoff_prepared_by: string | null;
   confirmed_by: string | null;
-  confirm_basis: string | null;
+  confirm_basis: TmConfirmBasis | null;
   document_id: string | null;
   note: string | null;
   created_at: string;
   lines: TmClaimLine[];
 }
 
-/** One `preview_tm_claim` row: a priced line, or an UNRATED group (no amount, and a reason — never a guessed rate). */
+/**
+ * One `preview_tm_claim` row: a priced line, or an UNRATED group (no amount, and a reason — never a guessed rate).
+ * The line fields (`kind`/`label`/`unit`) belong to the LINE, so they are NULL on an unrated group: 0516's lateral join
+ * finds no rate row for `no_assignee`/`no_rate`, and only `unit_not_supported` carries a line. `units`, `source_count`
+ * and `unrated_reason` always come back.
+ */
 export interface TmClaimPreviewRow {
   line_key: string | null;
   rate_version: number | null;
-  kind: string;
-  label: string;
-  unit: string;
+  kind: TmClaimLineKind | null;
+  label: string | null;
+  unit: string | null;
   rate: number | null;
   user_id: string | null;
   units: number;
@@ -170,6 +189,18 @@ function str(value: unknown, what: string): string {
 
 function strOrNull(value: unknown): string | null {
   return typeof value === 'string' ? value : null;
+}
+
+const CLAIM_STATUSES: readonly TmClaimStatus[] = ['Draft', 'SignedOff', 'Withdrawn'];
+const CONFIRM_BASES: readonly TmConfirmBasis[] = ['standard', 'sole_operator'];
+const CLAIM_LINE_KINDS: readonly TmClaimLineKind[] = ['labour'];
+
+/** A closed server enum, or an error: an unmapped status must never fall through a screen's switch as "no status". */
+function oneOf<T extends string>(value: unknown, allowed: readonly T[], what: string): T {
+  if (typeof value !== 'string' || !(allowed as readonly string[]).includes(value)) {
+    throw new AppError(`the response has a malformed ${what}`, 'tm-malformed');
+  }
+  return value as T;
 }
 
 // ── the rate card (0515) ─────────────────────────────────────────────────────────────────────────
@@ -268,9 +299,15 @@ export async function assembleTmClaim(input: AssembleTmClaimInput): Promise<stri
   return data;
 }
 
-/** Removes one source from a Draft claim (the claim total and the line are recomputed server-side). */
-export async function deselectTmSource(claimId: string, sourceId: string): Promise<void> {
-  const { error } = await supabase.rpc('deselect_tm_source', { p_claim: claimId, p_source: sourceId });
+/**
+ * Removes one source from a Draft claim (the claim total and the line are recomputed server-side).
+ *
+ * `claimSourceId` is the `tm_claim_sources` ROW (`deselect_tm_source` matches `s.id = p_source`, 0516:253) — NOT that
+ * row's `source_id`, which is the timesheet entry / equipment usage it points at (0516:159 reads `p_exclude` as the
+ * entry id, a different id space in the same module).
+ */
+export async function deselectTmSource(claimId: string, claimSourceId: string): Promise<void> {
+  const { error } = await supabase.rpc('deselect_tm_source', { p_claim: claimId, p_source: claimSourceId });
   fail(error);
 }
 
@@ -298,13 +335,9 @@ export async function confirmTmSignoff(claimId: string): Promise<TmConfirmResult
   fail(error);
   const raw = (data ?? null) as Record<string, unknown> | null;
   if (typeof raw !== 'object' || raw === null) throw new AppError('the confirmation response is malformed', 'tm-malformed');
-  const basis = raw.basis;
-  if (basis !== 'standard' && basis !== 'sole_operator') {
-    throw new AppError('the confirmation response is malformed', 'tm-malformed');
-  }
   return {
     claimId: str(raw.claim_id, 'claim id'),
-    basis,
+    basis: oneOf(raw.basis, CONFIRM_BASES, 'confirmation basis'),
     grossAmount: finite(raw.gross_amount, 'claim gross amount'),
   };
 }
@@ -315,7 +348,7 @@ function parseTmClaimLine(raw: unknown): TmClaimLine {
   return {
     lineKey: str(line.line_key, 'claim line key'),
     rateVersion: finite(line.rate_version, 'claim line rate version'),
-    kind: str(line.kind, 'claim line kind'),
+    kind: oneOf(line.kind, CLAIM_LINE_KINDS, 'claim line kind'),
     label: str(line.label, 'claim line label'),
     unit: str(line.unit, 'claim line unit'),
     units: finite(line.units, 'claim line units'),
@@ -333,13 +366,15 @@ function parseTmClaimRow(raw: unknown): TmClaimSummary {
     work_order_id: strOrNull(row.work_order_id),
     period_from: str(row.period_from, 'claim period start'),
     period_to: str(row.period_to, 'claim period end'),
-    status: str(row.status, 'claim status'),
+    status: oneOf(row.status, CLAIM_STATUSES, 'claim status'),
     currency: str(row.currency, 'claim currency'),
     gross_amount: finite(row.gross_amount, 'claim gross amount'),
     prepared_by: str(row.prepared_by, 'claim preparer'),
     signoff_prepared_by: strOrNull(row.signoff_prepared_by),
     confirmed_by: strOrNull(row.confirmed_by),
-    confirm_basis: strOrNull(row.confirm_basis),
+    confirm_basis: row.confirm_basis === null || row.confirm_basis === undefined
+      ? null
+      : oneOf(row.confirm_basis, CONFIRM_BASES, 'claim confirm basis'),
     document_id: strOrNull(row.document_id),
     note: strOrNull(row.note),
     created_at: str(row.created_at, 'claim creation time'),
@@ -359,9 +394,11 @@ function parsePreviewRow(raw: unknown): TmClaimPreviewRow {
   return {
     line_key: strOrNull(row.line_key),
     rate_version: finiteOrNull(row.rate_version, 'preview rate version'),
-    kind: str(row.kind, 'preview kind'),
-    label: str(row.label, 'preview label'),
-    unit: str(row.unit, 'preview unit'),
+    // The line's own fields: NULL by construction on an unrated group (0516's lateral join found no rate row), so a
+    // row without them is the RPC's normal shape, not a malformed response.
+    kind: row.kind === null || row.kind === undefined ? null : oneOf(row.kind, CLAIM_LINE_KINDS, 'preview kind'),
+    label: strOrNull(row.label),
+    unit: strOrNull(row.unit),
     rate: finiteOrNull(row.rate, 'preview rate'),
     user_id: strOrNull(row.user_id),
     units: finite(row.units, 'preview units'),

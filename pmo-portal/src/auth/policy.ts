@@ -736,9 +736,14 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
    *                of a project they manage but never writes them; an Executive never writes them either.
    *   tmClaim    ← `prepare` (assemble, deselect, prepare the sign-off) mirrors `may_record_project_progress` (0245):
    *                Finance rank and above on any project, or the project's own PM (`record.project_manager_id`).
-   *   tmSignoff  ← `confirm` = Admin or Finance AND not the claim's preparer (FR-TM-022). The preparer is stored on the
-   *                claim as `prepared_by`; the RPC also allows the organisation's sole active member with basis
-   *                `sole_operator`, so the refusal is a hint at the call-site, never a hidden affordance.
+   *   tmSignoff  ← `confirm` mirrors ALL of 0517 `confirm_tm_signoff`, both halves of its separation-of-duties rule:
+   *                Admin or Finance (never a view-as session) AND neither SoD identity — the RPC refuses when the actor
+   *                is `prepared_by` (the assembler) OR `signoff_prepared_by` (who prepared the sign-off), so the mirror
+   *                reads both keys. Its ONE exception is mirrored too: an organisation with a single active member may
+   *                confirm their own sign-off (basis `sole_operator`, the 0298 predicate), which the record opens with
+   *                `soleActiveMember`/`sole_active_member` (T8 supplies it from the org's member list — exactly one
+   *                active profile). Without the flag the refusal stands, so the mirror is the plan's stricter reading;
+   *                a record carrying neither identity offers the affordance and lets the RPC's `42501` speak.
    */
   tmRate: { manage: allowUnlessViewOnly(TM_RATE_WRITE) },
   tmClaim: {
@@ -750,8 +755,13 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   tmSignoff: {
     confirm: (role, ctx) => {
       if (ctx.record?.viewOnly === true || !has(TM_CONFIRM, role) || !ctx.currentUserId) return false;
-      const preparer = ctx.record?.preparedBy ?? ctx.record?.prepared_by;
-      return preparer !== ctx.currentUserId;
+      const uid = ctx.currentUserId;
+      const assembler = ctx.record?.preparedBy ?? ctx.record?.prepared_by;
+      const signoffPreparer = ctx.record?.signoffPreparedBy ?? ctx.record?.signoff_prepared_by;
+      if (uid !== assembler && uid !== signoffPreparer) return true;
+      // The 0298 sole-active-member exception: the same person holds both identities and the RPC accepts with basis
+      // `sole_operator`. Hiding it would leave a one-person organisation unable to confirm (and invoice) a claim.
+      return ctx.record?.soleActiveMember === true || ctx.record?.sole_active_member === true;
     },
   },
   // #876 slice 2: a vendor's default VAT / PPh treatment. UX ONLY — set_vendor_tax_defaults is the authority.

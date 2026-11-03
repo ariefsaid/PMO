@@ -960,6 +960,45 @@ describe('can() — time-and-materials rate card and sign-off (#1514 T7; the 051
     expect(can('confirm', 'tmSignoff', { realRole: null })).toBe(false);
   });
 
+  it('T7.2 the SECOND SoD identity is mirrored too: the sign-off preparer never confirms their own sign-off', () => {
+    // 0517 `confirm_tm_signoff` refuses when the actor is `prepared_by` OR `signoff_prepared_by`. Finance F1 prepares
+    // the sign-off on a claim the PM assembled: F1 is not the assembler, but IS the sign-off preparer.
+    for (const realRole of ['Admin', 'Finance'] as const) {
+      expect(can('confirm', 'tmSignoff', {
+        realRole, currentUserId: 'F1', record: { prepared_by: 'pm1', signoff_prepared_by: 'F1' },
+      })).toBe(false);
+      expect(can('confirm', 'tmSignoff', {
+        realRole, currentUserId: 'F1', record: { preparedBy: 'pm1', signoffPreparedBy: 'F1' },
+      })).toBe(false);
+      // a third person confirms it, exactly as the RPC allows
+      expect(can('confirm', 'tmSignoff', {
+        realRole, currentUserId: 'F2', record: { prepared_by: 'pm1', signoff_prepared_by: 'F1' },
+      })).toBe(true);
+    }
+  });
+
+  it('T7.2 the sole_operator path is reachable: an organisation\'s one active member confirms their own sign-off', () => {
+    // 0517:243-250 — the SoD refusal has exactly one exception (the 0298 sole-active-member predicate), and the RPC
+    // accepts it with basis 'sole_operator'. Hiding the affordance would dead-end that org's revenue.
+    for (const realRole of ['Admin', 'Finance'] as const) {
+      expect(can('confirm', 'tmSignoff', {
+        realRole, currentUserId: 'u1', record: { prepared_by: 'u1', sole_active_member: true },
+      })).toBe(true);
+      expect(can('confirm', 'tmSignoff', {
+        realRole, currentUserId: 'u1', record: { signoff_prepared_by: 'u1', soleActiveMember: true },
+      })).toBe(true);
+      // the flag does not widen the ROLE gate, and a view-as session still hides it
+      expect(can('confirm', 'tmSignoff', {
+        realRole: 'Project Manager', currentUserId: 'u1', record: { prepared_by: 'u1', sole_active_member: true },
+      })).toBe(false);
+      expect(can('confirm', 'tmSignoff', {
+        realRole, currentUserId: 'u1', record: { prepared_by: 'u1', sole_active_member: true, viewOnly: true },
+      })).toBe(false);
+      // and it is the exception, not the rule: the same person WITHOUT the flag stays refused
+      expect(can('confirm', 'tmSignoff', { realRole, currentUserId: 'u1', record: { prepared_by: 'u1' } })).toBe(false);
+    }
+  });
+
   it('T7.2 an unknown preparer on the record never blocks the confirmer, and a missing user id denies', () => {
     expect(can('confirm', 'tmSignoff', { realRole: 'Finance', currentUserId: 'u2', record: {} })).toBe(true);
     expect(can('confirm', 'tmSignoff', { realRole: 'Finance', record: { preparedBy: 'u1' } })).toBe(false);

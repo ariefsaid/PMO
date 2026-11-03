@@ -39,16 +39,25 @@ beforeEach(() => {
 });
 
 describe('#1514 T7.1 contract-rate writes', () => {
-  it('T7.1 saveContractRateLine sends the line only — no org_id, no author, no stamp', async () => {
+  it('T7.1 saveContractRateLine carries EVERY field contract_rate_line_normalize requires — kind and currency too', async () => {
     h.result.value = { data: { id: 'l1', line_key: 'k1', version: 2, changed: true }, error: null };
-    const input = {
-      project_id: 'p1', line_key: 'k1', label: 'Site engineer', unit: 'hour' as const, rate: 50000,
-      effective_from: '2026-09-01', effective_to: null, expected_version: 1,
+    // The exact input a form sends. 0515 `contract_rate_line_normalize` requires `kind` (:114) and a
+    // three-letter `currency` that matches the project (:126), so neither may be left to the server.
+    const input: dal.ContractRateLineInput = {
+      project_id: 'p1', line_key: 'k1', kind: 'labour', label: 'Site engineer', unit: 'hour', rate: 50000,
+      currency: 'IDR', effective_from: '2026-09-01', effective_to: null, expected_version: 1,
     };
     await expect(dal.saveContractRateLine(input)).resolves.toEqual({ id: 'l1', lineKey: 'k1', version: 2, changed: true });
-    expect(h.calls.rpc).toEqual([['save_contract_rate_line', { p_line: input }]]);
-    for (const forbidden of ['org_id', 'created_by', 'created_at', 'version', 'is_current']) {
-      expect(Object.keys(input)).not.toContain(forbidden);
+    const [name, args] = h.calls.rpc[0] as [string, { p_line: Record<string, unknown> }];
+    expect(name).toBe('save_contract_rate_line');
+    expect(Object.keys(args.p_line).sort()).toEqual([
+      'currency', 'effective_from', 'effective_to', 'expected_version', 'kind', 'label', 'line_key', 'project_id',
+      'rate', 'unit',
+    ]);
+    expect(args.p_line).toEqual({ ...input });
+    // Nothing the server stamps is ever sent — asserted on the PAYLOAD, not on the literal we built it from.
+    for (const forbidden of ['org_id', 'created_by', 'created_at', 'version', 'is_current', 'applies_to']) {
+      expect(Object.keys(args.p_line)).not.toContain(forbidden);
     }
   });
 
@@ -65,7 +74,8 @@ describe('#1514 T7.1 contract-rate writes', () => {
   it('T7.1 a stale expected_version keeps 40001 so the screen can reload the line', async () => {
     h.result.value = { data: null, error: { message: 'rate line changed since it was loaded (current version 3)', code: '40001' } };
     await expect(dal.saveContractRateLine({
-      project_id: 'p1', label: 'Site engineer', unit: 'hour', rate: 50000, effective_from: '2026-09-01', expected_version: 1,
+      project_id: 'p1', kind: 'labour', label: 'Site engineer', unit: 'hour', rate: 50000, currency: 'IDR',
+      effective_from: '2026-09-01', expected_version: 1,
     })).rejects.toMatchObject({ code: '40001', name: 'AppError' });
   });
 
@@ -87,7 +97,8 @@ describe('#1514 T7.1 contract-rate writes', () => {
   it('T7.1 a refused write surfaces the server message and code unchanged', async () => {
     h.result.value = { data: null, error: { message: 'not authorized to save contract rates', code: '42501' } };
     await expect(dal.saveContractRateLine({
-      project_id: 'p1', label: 'Site engineer', unit: 'hour', rate: 50000, effective_from: '2026-09-01',
+      project_id: 'p1', kind: 'labour', label: 'Site engineer', unit: 'hour', rate: 50000, currency: 'IDR',
+      effective_from: '2026-09-01',
     })).rejects.toMatchObject({ message: 'not authorized to save contract rates', code: '42501' });
   });
 });
@@ -207,18 +218,45 @@ describe('#1514 T7.1 claim and preview reads', () => {
     await expect(dal.listTmClaims('p1')).rejects.toMatchObject({ name: 'AppError' });
   });
 
-  it('T7.1 previewTmClaim sends the range and keeps an unrated group amount NULL', async () => {
+  it('T7.1 previewTmClaim keeps an unrated group in the RPC\'s own (lineless) shape — never a malformed response', async () => {
     h.result.value = {
       data: [
         { line_key: 'k1', rate_version: 1, kind: 'labour', label: 'Site engineer', unit: 'hour', rate: 50000, user_id: null, units: 120, amount: 6000000, source_count: 5, unrated_reason: null },
-        { line_key: null, rate_version: null, kind: 'labour', label: 'Unrated', unit: 'hour', rate: null, user_id: 'u4', units: 6, amount: null, source_count: 1, unrated_reason: 'no rate assigned' },
+        // Verbatim AC-TM-011 shape (tm_reads.test.sql): for `no_assignee`/`no_rate` the lateral join in
+        // tm_assignable_sources matches nothing, so line_key, rate_version, kind, label, unit and rate are ALL NULL
+        // and only `amount` is nulled by preview_tm_claim. Parsing must not reject the row.
+        { line_key: null, rate_version: null, kind: null, label: null, unit: null, rate: null, user_id: 'u4', units: 4, amount: null, source_count: 1, unrated_reason: 'no_assignee' },
       ],
       error: null,
     };
     const page = await dal.previewTmClaim({ projectId: 'p1', from: '2026-09-01', to: '2026-09-30' });
     expect(h.calls.rpc).toEqual([['preview_tm_claim', { p_project: 'p1', p_from: '2026-09-01', p_to: '2026-09-30' }]]);
-    expect(page.rows[1].amount).toBeNull();
-    expect(page.rows[1].unrated_reason).toBe('no rate assigned');
+    expect(page.rows[1]).toEqual({
+      line_key: null, rate_version: null, kind: null, label: null, unit: null, rate: null,
+      user_id: 'u4', units: 4, amount: null, source_count: 1, unrated_reason: 'no_assignee',
+    });
+    // the priced group beside it is unaffected
+    expect(page.rows[0].amount).toBe(6000000);
+  });
+
+  it('T7.1 a preview row without units is still an error — a missing quantity is never a zero', async () => {
+    h.result.value = {
+      data: [{ line_key: null, rate_version: null, kind: null, label: null, unit: null, rate: null, user_id: 'u4', amount: null, source_count: 1, unrated_reason: 'no_assignee' }],
+      error: null,
+    };
+    await expect(dal.previewTmClaim({ projectId: 'p1', from: '2026-09-01', to: '2026-09-30' }))
+      .rejects.toMatchObject({ code: 'tm-malformed' });
+  });
+
+  it('T7.1 a claim status outside the table\'s check constraint is malformed, not an unmapped string', async () => {
+    h.result.value = {
+      data: [{
+        id: 'c1', work_order_id: null, period_from: '2026-09-01', period_to: '2026-09-30', status: 'Paid',
+        currency: 'IDR', gross_amount: 0, prepared_by: 'u1', lines: [],
+      }],
+      error: null,
+    };
+    await expect(dal.listTmClaims('p1')).rejects.toMatchObject({ code: 'tm-malformed' });
   });
 
   it('T7.1 listTmClaimSources reads the drill-down of one claim, bounded', async () => {

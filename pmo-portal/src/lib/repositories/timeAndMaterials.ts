@@ -16,7 +16,7 @@ export const timeAndMaterialsRepository: TimeAndMaterialsRepository = {
   setContractRateAssignee: (input) => wrap(() => dal.setContractRateAssignee(input)),
   endContractRateAssignee: (input) => wrap(() => dal.endContractRateAssignee(input)),
   assembleTmClaim: (input) => wrap(() => dal.assembleTmClaim(input)),
-  deselectTmSource: (claimId, sourceId) => wrap(() => dal.deselectTmSource(claimId, sourceId)),
+  deselectTmSource: (claimId, claimSourceId) => wrap(() => dal.deselectTmSource(claimId, claimSourceId)),
   prepareTmSignoff: (input) => wrap(() => dal.prepareTmSignoff(input)),
   withdrawTmSignoff: (claimId) => wrap(() => dal.withdrawTmSignoff(claimId)),
   confirmTmSignoff: (claimId) => wrap(() => dal.confirmTmSignoff(claimId)),

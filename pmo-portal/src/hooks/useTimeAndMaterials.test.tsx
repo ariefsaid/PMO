@@ -102,12 +102,15 @@ describe('#1514 T7.1 time-and-materials hooks', () => {
       withdraw: useWithdrawTmSignoff(), confirm: useConfirmTmSignoff(),
     }), { wrapper: wrap(client) });
     const runs: Array<() => Promise<unknown>> = [
-      () => result.current.save.mutateAsync({ project_id: 'p1', label: 'Site engineer', unit: 'hour', rate: 50000, effective_from: '2026-09-01' }),
+      () => result.current.save.mutateAsync({
+        project_id: 'p1', kind: 'labour', label: 'Site engineer', unit: 'hour', rate: 50000, currency: 'IDR',
+        effective_from: '2026-09-01',
+      }),
       () => result.current.end.mutateAsync({ projectId: 'p1', lineKey: 'k1', effectiveTo: '2026-12-31', expectedVersion: 1 }),
       () => result.current.assign.mutateAsync({ projectId: 'p1', lineKey: 'k1', userId: 'u1', from: '2026-09-01', to: null }),
       () => result.current.unassign.mutateAsync({ projectId: 'p1', assigneeId: 'a1', effectiveTo: '2026-12-31' }),
       () => result.current.assemble.mutateAsync({ projectId: 'p1', from: '2026-09-01', to: '2026-09-30' }),
-      () => result.current.deselect.mutateAsync({ claimId: 'c1', sourceId: 's1' }),
+      () => result.current.deselect.mutateAsync({ claimId: 'c1', claimSourceId: 's1' }),
       () => result.current.prepare.mutateAsync({ claimId: 'c1', documentId: 'd1', note: null }),
       () => result.current.withdraw.mutateAsync('c1'),
       () => result.current.confirm.mutateAsync('c1'),
@@ -118,6 +121,15 @@ describe('#1514 T7.1 time-and-materials hooks', () => {
       const keys = spy.mock.calls.map((c) => JSON.stringify(c[0]?.queryKey));
       for (const root of roots) expect(keys).toContain(root);
     }
+  });
+
+  it('T7.1 deselecting a source hands the RPC the claim-source ROW id it matches on (not the entry id)', async () => {
+    const client = fresh();
+    const { result } = renderHook(() => useDeselectTmSource(), { wrapper: wrap(client) });
+    // 0516 `deselect_tm_source` matches `s.id = p_source`; `tm_claim_sources.source_id` (the timesheet entry) is a
+    // different id, so the argument is named for the row it is — `claimSourceId`.
+    await act(async () => { await result.current.mutateAsync({ claimId: 'c1', claimSourceId: 'row-1' }); });
+    expect(tm.deselectTmSource).toHaveBeenCalledWith('c1', 'row-1');
   });
 
   it('T7.1 a refused write leaves the cache untouched (invalidate on success only)', async () => {

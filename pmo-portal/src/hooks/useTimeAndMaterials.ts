@@ -87,8 +87,10 @@ export const useEndTmRateLine = () => useTmMutation((input: EndRateLineInput) =>
 export const useSetTmRateAssignee = () => useTmMutation((input: RateAssigneeInput) => repositories.timeAndMaterials.setContractRateAssignee(input));
 export const useEndTmRateAssignee = () => useTmMutation((input: EndRateAssigneeInput) => repositories.timeAndMaterials.endContractRateAssignee(input));
 export const useAssembleTmClaim = () => useTmMutation((input: AssembleTmClaimInput) => repositories.timeAndMaterials.assembleTmClaim(input));
+/** `claimSourceId` is the `tm_claim_sources` row id (0516 matches `s.id`), not the timesheet entry's `source_id`. */
 export const useDeselectTmSource = () =>
-  useTmMutation((arg: { claimId: string; sourceId: string }) => repositories.timeAndMaterials.deselectTmSource(arg.claimId, arg.sourceId));
+  useTmMutation((arg: { claimId: string; claimSourceId: string }) =>
+    repositories.timeAndMaterials.deselectTmSource(arg.claimId, arg.claimSourceId));
 export const usePrepareTmSignoff = () => useTmMutation((input: PrepareTmSignoffInput) => repositories.timeAndMaterials.prepareTmSignoff(input));
 export const useWithdrawTmSignoff = () => useTmMutation((claimId: string) => repositories.timeAndMaterials.withdrawTmSignoff(claimId));
 export const useConfirmTmSignoff = () => useTmMutation((claimId: string) => repositories.timeAndMaterials.confirmTmSignoff(claimId));
