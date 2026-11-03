@@ -1,8 +1,7 @@
 # ERPNext v16 budget range and yearly distribution rehearsal
 
-**Status:** upstream source contract recorded; Director-run rehearsal is pending. The probe has not
-been run against the v16 copy, so no live acceptance, read-back, zero-year, rounding, or overlap result
-is claimed here.
+**Status:** isolated local v16.53.0 rehearsal completed for the bounded cases recorded below.
+The original source analysis remains useful context; results do not establish behavior on a separate deployment.
 
 ## Source checked
 
@@ -42,9 +41,8 @@ the names and access details do not belong in this public evidence file.
 
 The mode is disabled unless `--range-probe` is supplied and refuses to proceed unless the version
 handshake reports ERPNext major 16. It creates one uniquely named Project, reads three configured
-Fiscal Year rows, submits a range Budget with yearly amounts `100.00 / 0.00 / 200.00`, and reads it
-back. It then changes the manual percentages to `25 / 0 / 75`, changes the total to `400.00`, and
-checks whether ERPNext recalculates the row amounts to `100.00 / 0.00 / 300.00`. That distinguishes
+Fiscal Year rows, reads a range Budget draft with yearly amounts `100.00 / 0.00 / 200.00`. It then changes the manual percentages to `25 / 0 / 75`, changes the total to `400.00`, and
+checks whether ERPNext recalculates the row amounts to `100.00 / 0.00 / 300.00` before submission and on read-back. That distinguishes
 percentage-driven recalculation from the saved amount rows. Two additional account cases attempt
 overlapping annual-then-range and range-then-annual Budgets. Submitted test Budgets are cancelled;
 any draft left by an interrupted run is deleted. The run-owned Project and cancelled Budget rows
@@ -58,13 +56,34 @@ opt-in. Those tests prove the runner's behavior only; they do not replace the re
 
 | Question | Current status |
 |---|---|
-| Accepted parent and child field names | Source fields recorded; live request pending |
-| Number and dates of yearly rows across three fiscal years | Live read-back pending |
-| Whether a zero year survives save and submit | Live read-back pending |
-| Amount and percent read-back precision | Live read-back pending |
-| Field that drives manual amount recalculation | Source indicates percent; live read-back pending |
-| Duplicate error for annual→range and range→annual overlap | Source indicates `DuplicateBudgetError`; live result pending |
+| Accepted parent and child field names | Accepted on the isolated v16.53.0 test site |
+| Number and dates of yearly rows across three fiscal years | Three rows matched the three configured fiscal-year date spans |
+| Whether a zero year survives save and submit | Yes, in the tested three-year case |
+| Amount and percent read-back precision | Tested values matched within the 0.001 percentage tolerance; general precision remains unproven |
+| Field that drives manual amount recalculation | Percent, in the tested parent-total change |
+| Duplicate error for annual→range and range→annual overlap | `DuplicateBudgetError` in both tested orders |
 
-Slice 4+5 and AC-018 remain gated on this live result. Slices 2 and 3 can continue as planned. If
-the real copy rejects the body, drops the zero year, or fails to reject overlap, pause before Slice 4
-and take the observed contract to the owner; do not infer a workaround.
+Slice 4+5 and AC-018 require review of these bounded results before proceeding. If a target copy
+differs, take the observed contract to the owner; do not infer a workaround.
+
+## Isolated v16.53.0 rehearsal (2026-11-03)
+
+On a newly created local test site, the range probe passed with three yearly rows, a retained zero
+row, percent-driven recalculation, and duplicate rejection in both overlap orders. The accepted
+request used the parent and child fields described above. The draft read-back matched amounts
+100/0/200 and percentages 33.333/0/66.667 within the probe's 0.001 percentage tolerance; after a
+25/0/75 change and a total of 400, submission read back 100/0/300. This observes these specific
+rounding inputs and tolerance, not a general precision guarantee.
+
+A separate journal-entry check against a 300 range budget submitted 200 in the first year, rejected
+101 in the next year with `BudgetError`, submitted 100 in the final year, and rejected one further
+unit with `BudgetError`. This demonstrates total enforcement for those actual-expense cases across
+years. It does not prove every transaction type, rounding boundary, or calendar configuration.
+Both probes settled their own submitted budgets as cancelled; the journal-entry probe cancelled
+its submitted entries and removed its drafts. The disposable site was stopped after the check.
+
+The tested write sequence is **POST the Budget draft → PUT its explicit `budget_distribution`
+rows → GET the complete saved draft → submit that full document → GET the submitted document**.
+The initial new-document save regenerates child rows, so a create request alone is not the tested
+way to preserve the manual yearly allocation. The saved draft returned by GET includes the current
+modification stamp used in submission.
