@@ -388,7 +388,10 @@ test('a later policy-enforcement migration becomes the baseline for its explicit
         with check (public.org_feature_enabled(public.auth_org_id(), 'procurement'));`,
     },
   ];
-  assert.equal(parseEnforcement(migrations[2].sql).tables.get('purchase_orders'), 'procurement');
+  assert.equal(
+    parseEnforcement(migrations[2].sql).policies.get('purchase_orders\u0000purchase_orders_insert')?.key,
+    'procurement',
+  );
   assert.deepEqual(check(completeInput({ migrations })), [], 'a later gated definition closes historical redefinition gaps');
 
   const laterUngated = [
@@ -398,6 +401,81 @@ test('a later policy-enforcement migration becomes the baseline for its explicit
   assert.ok(
     has(check(completeInput({ migrations: laterUngated })), '0539_rewrite_purchase_order.sql recreates write policy purchase_orders_insert'),
     'a policy rewrite after the latest enforcement baseline still fails when it drops the gate',
+  );
+});
+
+test('a gated INSERT cannot become the baseline for an ungated DELETE in the same migration', () => {
+  const migrations = [
+    {
+      name: '0534_feature_enforcement.sql',
+      sql: `do $$ begin
+        for r in (select 1 join (values ('purchase_orders','procurement')) as m(tablename,feature_key) on true)
+        loop null; end loop;
+      end $$;`,
+    },
+    {
+      name: '0538_procurement_write_policy_enforcement.sql',
+      sql: `create policy purchase_orders_insert on public.purchase_orders for insert
+        with check (public.org_feature_enabled(public.auth_org_id(), 'procurement'));
+        create policy purchase_orders_delete on public.purchase_orders for delete using (true);`,
+    },
+  ];
+  const errors = check(completeInput({ migrations }));
+  assert.ok(
+    has(errors, '0538_procurement_write_policy_enforcement.sql recreates write policy purchase_orders_delete'),
+    errors.join('\n'),
+  );
+});
+
+test('a later gated INSERT cannot reset an earlier ungated DELETE baseline', () => {
+  const migrations = [
+    {
+      name: '0534_feature_enforcement.sql',
+      sql: `do $$ begin
+        for r in (select 1 join (values ('purchase_orders','procurement')) as m(tablename,feature_key) on true)
+        loop null; end loop;
+      end $$;`,
+    },
+    {
+      name: '0539_rewrite_purchase_order_delete.sql',
+      sql: 'create policy purchase_orders_delete on public.purchase_orders for delete using (true);',
+    },
+    {
+      name: '0540_feature_enforcement.sql',
+      sql: `create policy purchase_orders_insert on public.purchase_orders for insert
+        with check (public.org_feature_enabled(public.auth_org_id(), 'procurement'));`,
+    },
+  ];
+  const errors = check(completeInput({ migrations }));
+  assert.ok(
+    has(errors, '0539_rewrite_purchase_order_delete.sql recreates write policy purchase_orders_delete'),
+    errors.join('\n'),
+  );
+});
+
+test('a later gated rewrite cannot hide an earlier ungated rewrite of the same policy', () => {
+  const migrations = [
+    {
+      name: '0534_feature_enforcement.sql',
+      sql: `do $$ begin
+        for r in (select 1 join (values ('purchase_orders','procurement')) as m(tablename,feature_key) on true)
+        loop null; end loop;
+      end $$;`,
+    },
+    {
+      name: '0538_rewrite_purchase_order_delete.sql',
+      sql: 'create policy purchase_orders_delete on public.purchase_orders for delete using (true);',
+    },
+    {
+      name: '0539_restore_purchase_order_delete.sql',
+      sql: `create policy purchase_orders_delete on public.purchase_orders for delete
+        using (public.org_feature_enabled(public.auth_org_id(), 'procurement'));`,
+    },
+  ];
+  const errors = check(completeInput({ migrations }));
+  assert.ok(
+    has(errors, '0538_rewrite_purchase_order_delete.sql recreates write policy purchase_orders_delete'),
+    errors.join('\n'),
   );
 });
 

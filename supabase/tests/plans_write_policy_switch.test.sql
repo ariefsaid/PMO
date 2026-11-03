@@ -1,7 +1,7 @@
 -- AC-PLN-005 / FR-PLN-006: procurement table write policies retain their authorization predicates
 -- and also follow the procurement entitlement, across INSERT, UPDATE and DELETE.
 begin;
-select plan(54);
+select plan(55);
 
 insert into organizations (id, name) values
   ('17830000-0000-0000-0000-000000000001', 'Policy Switch Org A'),
@@ -216,6 +216,19 @@ with removed as (delete from procurement_invoices where id = '17830000-0000-0000
 select is((select count(*)::int from removed), 0, 'AC-PLN-005 procurement off refuses procurement_invoices DELETE');
 with removed as (delete from payments where id = '17830000-0000-0000-0000-000000000144' returning id)
 select is((select count(*)::int from removed), 0, 'AC-PLN-005 procurement off refuses payments DELETE');
+
+-- Isolate UPDATE WITH CHECK: let the caller target the existing row through USING, while the
+-- unchanged check predicate still has to refuse the new row because procurement is off.
+reset role;
+alter policy purchase_orders_update on public.purchase_orders
+  using (org_id = auth_org_id() and public.is_active_member()
+    and auth_role() in ('Admin','Executive','Project Manager','Finance')
+    and exists (select 1 from public.procurements p
+                 where p.id = purchase_orders.procurement_id and p.org_id = auth_org_id()));
+set local request.jwt.claims = '{"sub":"17830000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+set local role authenticated;
+select throws_ok($$ update purchase_orders set reference_number = 'check-only' where id = '17830000-0000-0000-0000-000000000141' $$,
+  '42501', null, 'AC-PLN-005 procurement off UPDATE reaches WITH CHECK and is refused there');
 
 reset role;
 select * from finish();
