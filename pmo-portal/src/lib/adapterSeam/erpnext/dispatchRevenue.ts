@@ -308,25 +308,44 @@ function invoiceItemsFromCanonical(lines: readonly CanonicalClaimLine[]): Array<
   }));
 }
 
+/** Mirror ERPNext's item amount rounding for the active Banker's Rounding setting. */
+function erpNextLineAmount(quantity: number, rate: number): number {
+  const product = quantity * rate;
+  const scaled = Number((Math.abs(product) * 100).toFixed(12));
+  const lower = Math.floor(scaled);
+  const fractional = scaled - lower;
+  const epsilon = 2 ** (Math.log2(scaled) - 52);
+  const isHalfCent = epsilon < 0.5 && Math.abs(fractional - 0.5) < epsilon;
+  const cents = isHalfCent
+    ? lower + (lower % 2)
+    : Math.round(scaled);
+  return Math.sign(product) * cents / 100;
+}
+
 /**
- * ERPNext rounds every invoice item as `round(qty * rate, 2)` (the rule mirrored by
- * `invoice_command_line_total` in migration 0262). A signed T&M line amount is already frozen to
- * cents, so send it as `1 × amount`: ERPNext then receives a product already at currency precision
- * and cannot round the original fractional quantity × rate to a different cent. Keep the original
- * signed rate and quantity in the outbox record for the claim audit; only the ERP-facing qty/rate
- * use the frozen amount. Its description keeps the signed calculation visible on the invoice.
+ * T&M line amounts are frozen when the claim is signed. Keep the signed quantity and rate in the
+ * invoice body unless ERPNext's per-line rounding would book a different amount; only that line is
+ * sent as `1 × frozen amount`, with its signed calculation visible in the description.
  */
 function timeMaterialsInvoiceItems(lines: readonly CanonicalClaimLine[]): Array<Record<string, unknown>> {
-  return lines.map(({ rate: signedRate, ...line }) => ({
-    ...line,
-    signed_rate: Number(signedRate),
-    item_code: line.item,
-    qty: 1,
-    rate: Number(line.amount),
-    ...(line.label ? {
-      description: `${line.label} (${line.unit}): ${line.quantity} x ${signedRate}, rounded to ${line.amount}`,
-    } : {}),
-  }));
+  return lines.map((line) => {
+    const quantity = Number(line.quantity);
+    const signedRate = Number(line.rate);
+    const frozenAmount = Number(line.amount);
+    const needsFrozenAmount = erpNextLineAmount(quantity, signedRate) !== frozenAmount;
+    return {
+      ...line,
+      ...(needsFrozenAmount ? { signed_rate: signedRate } : {}),
+      item_code: line.item,
+      qty: needsFrozenAmount ? 1 : quantity,
+      rate: needsFrozenAmount ? frozenAmount : signedRate,
+      ...(line.label ? {
+        description: needsFrozenAmount
+          ? `${line.label} (${line.unit}): ${line.quantity} x ${line.rate}, rounded to ${line.amount}`
+          : `${line.label} (${line.unit})`,
+      } : {}),
+    };
+  });
 }
 
 function taxBaseFraction(row: unknown): { numerator: number; denominator: number } {
