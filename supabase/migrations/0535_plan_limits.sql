@@ -12,7 +12,7 @@
 --     admin-invite-user edge fn writes it at issuance (index.ts:157) and its saga removes the auth
 --     user if that write fails (index.ts:165-178), so no reservation table and no third
 --     representation exists to drift. The organisations ROW LOCK is what makes the count exact:
---     lock → count → the row write all happen in ONE transaction (the BEFORE INSERT trigger), so two
+--     the AFTER INSERT/activation trigger locks and counts in the same transaction as the row write, so two
 --     concurrent invites serialise (0170_automation_cap_race.sql is the precedent, 0163 its proof).
 --     ⚑ The lock covers the ROW WRITE, never the invite email: `inviteUserByEmail` runs after the
 --     authorising transaction ends, which is exactly why the trigger — not the pre-issuance
@@ -35,9 +35,10 @@
 -- a per-limit code is what lets the FE localise exactly these two (pmo-portal/pages/AdminUsers.tsx,
 -- pmo-portal/pages/ProjectNew.tsx) while every state-machine error keeps its own message.
 --
--- MONEY/ATTRIBUTION: `credits.granted_by` becomes nullable. A scheduled system grant has no human
--- granter; the alternative — stamping a real person's profile — would forge attribution on a money
--- row, and `owner_id` took the same treatment for the org pool (0066:16).
+-- MONEY/ATTRIBUTION: `credits.granted_by` may be NULL only for the system's plan-allowance source.
+-- Operator grants retain their human actor; a restrictive insert policy keeps authenticated writers
+-- from claiming the system source. This preserves attribution without forging a real person's
+-- profile on a money row.
 --
 -- Reversibility: supabase/migrations/rollback/0535_plan_limits_down.sql (and, pre-production,
 -- `supabase db reset` — ADR-0006).
@@ -58,21 +59,33 @@ language sql stable security definer set search_path = public as $$
 $$;
 revoke all on function public.org_plan_limits(uuid) from public, anon, authenticated, service_role;
 
--- The seat count itself, in one place so the RPC and the trigger can never drift.
+-- The seat count itself, in one place so the pre-check and AFTER trigger can never drift. The
+-- optional candidate ID excludes that row from the scan and includes it arithmetically, independent
+-- of whether an AFTER trigger's SQL snapshot can see the current command's row yet.
+create or replace function public.org_seat_usage(p_org_id uuid, p_counted_profile_id uuid)
+returns integer
+language sql stable security definer set search_path = public as $$
+  select count(*)::integer + case when p_counted_profile_id is null then 0 else 1 end
+    from public.profiles
+   where org_id = p_org_id and status = 'active'
+     and (p_counted_profile_id is null or id is distinct from p_counted_profile_id)
+$$;
+revoke all on function public.org_seat_usage(uuid, uuid) from public, anon, authenticated, service_role;
+
 create or replace function public.org_seat_usage(p_org_id uuid)
 returns integer
 language sql stable security definer set search_path = public as $$
-  select count(*)::integer
-    from public.profiles
-   where org_id = p_org_id and status = 'active'
+  select public.org_seat_usage(p_org_id, null::uuid)
 $$;
 revoke all on function public.org_seat_usage(uuid) from public, anon, authenticated, service_role;
 
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
 -- §2 — The seat check: lock the organisation row, then count. This is the ONE implementation both the
---      caller-facing pre-check and the profiles trigger go through.
+--      caller-facing pre-check and the AFTER profiles trigger go through. The trigger excludes the
+--      candidate row and adds it to the result explicitly, so visibility does not depend on command
+--      counter details inside an AFTER trigger.
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
-create or replace function public.plan_enforce_seat_limit(p_org_id uuid)
+create or replace function public.plan_enforce_seat_limit(p_org_id uuid, p_counted_profile_id uuid)
 returns void
 language plpgsql security definer set search_path = public as $$
 declare
@@ -80,10 +93,7 @@ declare
   v_limit integer;
   v_used  integer;
 begin
-  -- Lock FIRST, count second (0170's rule: a count-then-lock is not serialization-proof). Under READ
-  -- COMMITTED — Supabase's session default — the count re-reads the newly committed state once the
-  -- lock is granted, so the second concurrent invite sees the first one's row.
-  perform 1 from public.organizations where id = p_org_id for update;
+  perform 1 from public.organizations where id = p_org_id;
   if not found then
     raise exception 'unknown_org' using errcode = 'P0002';
   end if;
@@ -91,16 +101,40 @@ begin
   select l.plan_id, l.seat_limit into v_plan, v_limit
     from public.org_plan_limits(p_org_id) l;
   if v_limit is null then
-    return;                                   -- NULL = unlimited (D3), no counting needed
+    -- Unlimited orgs take no lock and need no count. A concurrent NULL → finite plan change may
+    -- race one insert; after the change commits, later writes enforce the new finite limit.
+    return;
   end if;
 
-  select public.org_seat_usage(p_org_id) into v_used;
-  if v_used >= v_limit then
+  -- Lock before counting (0170's rule: a count-then-lock is not serialization-proof). Under READ
+  -- COMMITTED, after a waiter gets the lock its next statement sees the prior writer's committed row.
+  -- FOR NO KEY UPDATE serializes bounded-plan seat writers and composes with the revenue lock protocol.
+  perform 1 from public.organizations where id = p_org_id for no key update;
+  if not found then
+    raise exception 'unknown_org' using errcode = 'P0002';
+  end if;
+
+  select l.plan_id, l.seat_limit into v_plan, v_limit
+    from public.org_plan_limits(p_org_id) l;
+  if v_limit is null then
+    return;                                   -- plan became unlimited while this writer waited
+  end if;
+
+  select public.org_seat_usage(p_org_id, p_counted_profile_id) into v_used;
+  if (p_counted_profile_id is null and v_used >= v_limit)
+     or (p_counted_profile_id is not null and v_used > v_limit) then
     raise exception 'seat_limit_reached: the % plan allows % seats; this organisation already uses %',
       v_plan, v_limit, v_used
       using errcode = 'PL001';
   end if;
 end $$;
+revoke all on function public.plan_enforce_seat_limit(uuid, uuid) from public, anon, authenticated, service_role;
+
+create or replace function public.plan_enforce_seat_limit(p_org_id uuid)
+returns void
+language sql security definer set search_path = public as $$
+  select public.plan_enforce_seat_limit(p_org_id, null::uuid)
+$$;
 revoke all on function public.plan_enforce_seat_limit(uuid) from public, anon, authenticated, service_role;
 
 -- The caller-facing pre-check, consumed by pmo-portal/src/lib/invite/inviteHandler.ts before the edge
@@ -126,17 +160,13 @@ grant execute on function public.assert_seat_available(uuid) to authenticated;
 -- §3 — The seat guard on profiles: INSERT (a new member or a pending invite), and an UPDATE that
 --      re-activates a disabled profile (a re-enabled user consumes a seat like any other).
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
--- The authority guard. SECURITY **INVOKER** on purpose — 0173's load-bearing lesson: under DEFINER
--- `current_user` is the owner, so a BYPASSRLS exemption would exempt EVERYONE and the guard would
--- silently do nothing. As the real calling role it exempts exactly the server-side authorities
--- (postgres / service_role / supabase_admin — pgTAP and importer fixtures legitimately write rows for
--- a target org) and enforces on the RLS trust boundary, which is where the cross-org existence oracle
--- 0170 closed actually lives. It needs no elevated privilege: it only raises.
+-- The authority guard runs AFTER INSERT, after RLS has accepted the row. SECURITY INVOKER on purpose:
+-- actor_bypasses_rls() sees the real calling role and exempts server-side writers.
 create or replace function public.assert_profile_plan_org()
 returns trigger
 language plpgsql set search_path = public as $$
 begin
-  if coalesce((select rolbypassrls from pg_roles where rolname = current_user), false) then
+  if public.actor_bypasses_rls() then
     return new;                               -- server-side authority, not a client
   end if;
   -- Same predicate as profiles_admin_insert (0179:166) plus the Operator clause the invite path uses
@@ -163,23 +193,20 @@ begin
   if tg_op = 'UPDATE' and old.status::text = 'active' then
     return new;                               -- already seated: an edit consumes no new slot
   end if;
-  perform public.plan_enforce_seat_limit(new.org_id);
+  perform public.plan_enforce_seat_limit(new.org_id, new.id);
   return new;
 end $$;
 revoke all on function public.enforce_org_seat_limit() from public, anon, authenticated, service_role;
 
--- ⚑ The trigger NAMES are load-bearing, not cosmetic: PostgreSQL fires BEFORE-ROW triggers in name
--- order, and 0074 attaches `<table>_stamp_org_id`, which stamps a default/NULL org_id to auth_org_id()
--- for an authenticated caller (0074:73-87). Everything here must run AFTER that stamp (`zy_`/`zz_`
--- slots, the 0223:45 convention), and the INVOKER org guard must run before the cap count (`zy` < `zz`)
--- so a foreign-org write is refused before it can learn anything about that org's usage.
+-- The trigger names preserve org-check before cap-check order. Both run AFTER row authorization, and
+-- the org_id immutable trigger sorts before the seat trigger on UPDATE so it retains its 23514 result.
 drop trigger if exists profiles_zy_plan_org_guard on public.profiles;
 create trigger profiles_zy_plan_org_guard
-  before insert or update of org_id on public.profiles
+  after insert on public.profiles
   for each row execute function public.assert_profile_plan_org();
 drop trigger if exists profiles_zz_plan_seat_guard on public.profiles;
 create trigger profiles_zz_plan_seat_guard
-  before insert or update of status on public.profiles
+  after insert or update of status on public.profiles
   for each row execute function public.enforce_org_seat_limit();
 
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
@@ -219,7 +246,7 @@ begin
   -- already refused a foreign-org client before this runs, and only a BYPASSRLS authority (whose
   -- target org is legitimate) reaches here.
 
-  perform 1 from public.organizations where id = new.org_id for update;
+  perform 1 from public.organizations where id = new.org_id;
   if not found then
     raise exception 'unknown_org' using errcode = 'P0002';
   end if;
@@ -227,7 +254,22 @@ begin
   select l.plan_id, l.project_limit into v_plan, v_limit
     from public.org_plan_limits(new.org_id) l;
   if v_limit is null then
-    return new;                               -- NULL = unlimited (D3)
+    -- Unlimited orgs take no lock and need no count. A concurrent NULL → finite plan change may
+    -- race one insert; after the change commits, later writes enforce the new finite limit.
+    return new;
+  end if;
+
+  -- Lock before counting so concurrent bounded-plan project writers serialize. NO KEY UPDATE is
+  -- the weakest mode that preserves that guarantee and does not conflict with FK KEY SHARE checks.
+  perform 1 from public.organizations where id = new.org_id for no key update;
+  if not found then
+    raise exception 'unknown_org' using errcode = 'P0002';
+  end if;
+
+  select l.plan_id, l.project_limit into v_plan, v_limit
+    from public.org_plan_limits(new.org_id) l;
+  if v_limit is null then
+    return new;                               -- plan became unlimited while this writer waited
   end if;
 
   select count(*) into v_used
@@ -249,7 +291,7 @@ create or replace function public.assert_project_plan_org()
 returns trigger
 language plpgsql set search_path = public as $$
 begin
-  if coalesce((select rolbypassrls from pg_roles where rolname = current_user), false) then
+  if public.actor_bypasses_rls() then
     return new;
   end if;
   if new.org_id is distinct from public.auth_org_id() then
@@ -314,9 +356,22 @@ comment on column public.org_ai_allowance_grants.credit_id is
 -- exception and pins it (AC-SVCROLE-008e).
 revoke all on table public.org_ai_allowance_grants from public, anon, authenticated, service_role;
 
--- System-attributed grants: no human granted them, so no profile may be named (0066 did the same for
--- owner_id). The FE never reads granted_by; the audit row carries the attribution.
+-- System-attributed grants: no human granted them, so no profile may be named. Manual/operator
+-- credits keep their NOT NULL attribution; only the plan source admits a NULL granted_by.
+alter table public.credits
+  add column grant_source text not null default 'operator'
+    constraint credits_grant_source_check check (grant_source in ('operator', 'plan_allowance'));
 alter table public.credits alter column granted_by drop not null;
+alter table public.credits
+  add constraint credits_granted_by_source_check
+    check (granted_by is not null or grant_source = 'plan_allowance');
+
+-- RLS policies are permissive by default and OR together. This restrictive policy prevents an
+-- authenticated Operator from claiming the system-only source while preserving the existing
+-- Operator insert path. The SECURITY DEFINER monthly job runs as postgres and bypasses RLS.
+create policy credits_grant_source_operator_only on public.credits
+  as restrictive for insert to authenticated
+  with check (grant_source = 'operator');
 
 create or replace function public.plan_monthly_ai_allowance_tick(p_period date default null)
 returns integer
@@ -347,10 +402,10 @@ begin
       continue;                               -- this org already had this month's grant
     end if;
 
-    insert into public.credits (org_id, owner_id, amount, note, granted_by)
+    insert into public.credits (org_id, owner_id, amount, note, granted_by, grant_source)
       values (v_org, null, v_amount,
               format('plan-monthly-ai-allowance: %s plan, %s messages (%s)', v_plan, v_msgs, v_period),
-              null)
+              null, 'plan_allowance')
       returning id into v_credit;
 
     update public.org_ai_allowance_grants

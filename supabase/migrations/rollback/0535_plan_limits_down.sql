@@ -30,13 +30,19 @@ delete from public.credits c
 drop table if exists public.org_ai_allowance_grants;
 
 -- 4. Attribution returns to the pre-0535 contract (safe: no system grant rows remain).
+drop policy if exists credits_grant_source_operator_only on public.credits;
+alter table public.credits drop constraint if exists credits_granted_by_source_check;
+alter table public.credits drop constraint if exists credits_grant_source_check;
+alter table public.credits drop column if exists grant_source;
 alter table public.credits alter column granted_by set not null;
 
 -- 5. The remaining helpers.
 drop function if exists public.plan_ai_credit_unit_usd();
 drop function if exists public.assert_seat_available(uuid);
 drop function if exists public.plan_enforce_seat_limit(uuid);
+drop function if exists public.plan_enforce_seat_limit(uuid, uuid);
 drop function if exists public.org_seat_usage(uuid);
+drop function if exists public.org_seat_usage(uuid, uuid);
 drop function if exists public.org_plan_limits(uuid);
 drop function if exists public.project_counts_toward_limit(public.project_status, timestamptz);
 

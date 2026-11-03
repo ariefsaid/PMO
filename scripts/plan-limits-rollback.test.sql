@@ -1,7 +1,7 @@
 -- Migration 0535 down/up round trip. The test expands the actual shipped migration files.
 begin;
 create extension if not exists pgtap;
-select plan(5);
+select plan(9);
 
 insert into public.organizations (id, name)
 values ('0535b000-0000-0000-0000-000000000001', 'S5 Rollback');
@@ -39,11 +39,22 @@ select is((select count(*)::int from public.credits
   'AC-PLN-012 rollback removes the credit linked from its generated-grant ledger');
 select ok(to_regclass('public.org_ai_allowance_grants') is null,
   'AC-PLN-012 rollback removes the allowance ledger');
+select ok(not exists (select 1 from information_schema.columns
+                       where table_schema = 'public' and table_name = 'credits'
+                         and column_name = 'grant_source'),
+  'AC-PLN-012 rollback removes the system grant source column');
+select col_not_null('credits', 'granted_by',
+  'AC-PLN-012 rollback restores the original non-null actor requirement');
 
 -- @0535_UP@
 
 select ok(to_regclass('public.org_ai_allowance_grants') is not null
           and to_regprocedure('public.plan_monthly_ai_allowance_tick(date)') is not null,
   'AC-PLN-012 reapplying 0535 restores the allowance ledger and tick');
+select has_column('credits', 'grant_source',
+  'AC-PLN-012 reapplying 0535 restores system grant source');
+select ok(not (select attnotnull from pg_attribute
+                where attrelid = 'public.credits'::regclass and attname = 'granted_by' and not attisdropped),
+  'AC-PLN-012 reapplying 0535 allows a null actor under the source constraint');
 select * from finish();
 rollback;

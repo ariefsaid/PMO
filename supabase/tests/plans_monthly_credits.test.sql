@@ -11,7 +11,7 @@
 -- so the period-less call at the end is a real third period rather than a replay.
 begin;
 create extension if not exists pgtap;
-select plan(29);
+select plan(30);
 
 insert into organizations (id, name) values
   ('0535b000-0000-0000-0000-000000000001', 'Plan Grant Starter'),
@@ -93,6 +93,9 @@ select is((select count(*)::int from public.credits
 select ok((select owner_id is null and granted_by is null
              from public.credits where org_id = '0535b000-0000-0000-0000-000000000001'),
   'AC-PLN-011 the grant is an org-pool credit with no human granter');
+select is((select grant_source from public.credits
+            where org_id = '0535b000-0000-0000-0000-000000000001'),
+  'plan_allowance', 'AC-PLN-011 the credit records its system-only plan allowance source');
 select is((select count(*)::int from public.org_ai_allowance_grants g
              join public.credits c on c.id = g.credit_id
             where g.org_id = '0535b000-0000-0000-0000-000000000001'), 1,

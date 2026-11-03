@@ -3,8 +3,8 @@
 -- Seat authority: the count is `profiles.status = 'active'` in the org. A pending invite IS that row —
 -- the admin-invite-user edge fn writes it at issuance (supabase/functions/admin-invite-user/index.ts:157)
 -- — so "active members + pending invites" needs no reservation table. What makes the count exact is
--- that the lock, the count and the row write happen in ONE transaction: the profiles BEFORE INSERT
--- trigger holds the organisations row lock while it counts.
+-- that the lock, the count and the row write happen in ONE transaction: the profiles AFTER INSERT
+-- trigger holds the organisations row lock while it counts and rolls back an over-limit row.
 --
 -- ⚑ The organisation row lock covers the ROW WRITE, never the invite email. The external
 -- `inviteUserByEmail` call happens after the authorising transaction ends, so the trigger — not the
@@ -12,7 +12,7 @@
 -- just-created auth user when the insert is refused (index.ts:165-178).
 --
 -- Concurrency proof (modelled on 0163_automation_cap_race.test.sql: a genuine second session via
--- dblink holds the SAME organisations row FOR UPDATE, and both the RPC and a concurrent profiles
+-- dblink holds the SAME organisations row FOR NO KEY UPDATE, and both the RPC and a concurrent profiles
 -- INSERT are asserted to BLOCK on it — 55P03 under a short lock_timeout — rather than sail through).
 -- It runs FIRST and it locks an organisation this transaction never writes: a row lock is held to the
 -- end of the transaction, so a fixture insert into the SAME org would make this session hold the lock
@@ -28,24 +28,60 @@
 begin;
 create extension if not exists pgtap;
 create extension if not exists dblink;
-select plan(44);
+create extension if not exists pgrowlocks;
+select plan(48);
 
--- ⚑ THE LOCK PROOF RUNS ON AN ORG THIS TRANSACTION NEVER WRITES, and that is the whole trick.
--- `plan_enforce_seat_limit` locks the organisation row FIRST (as it must), and a row lock is held to
--- the END of the transaction — so any fixture insert into the org the second session locks would make
--- this session hold that lock, the second session wait on it, and the synchronous `dblink()` call wait
+select ok(
+  (select (tgtype & 2) = 0 from pg_trigger
+    where tgrelid = 'public.profiles'::regclass and tgname = 'profiles_zy_plan_org_guard'),
+  'AC-PLN-009 the profile org guard runs after row authorization');
+select ok(
+  (select (tgtype & 2) = 0 from pg_trigger
+    where tgrelid = 'public.profiles'::regclass and tgname = 'profiles_zz_plan_seat_guard'),
+  'AC-PLN-009 the seat cap runs after row authorization and immutable-org enforcement');
+
+-- ⚑ THE LOCK PROOF RUNS ON AN ORGANIZATION ROW THIS TRANSACTION NEVER MODIFIES, and that is the whole trick.
+-- `plan_enforce_seat_limit` locks the organisation row before counting (as it must), and a row lock is
+-- held to the END of the transaction — so a successful fixture write to the org the second session locks
+-- would make this session hold that lock, the second session wait on it, and the synchronous `dblink()` call wait
 -- forever: a self-deadlock across two connections that nothing can detect. The DEFAULT organisation is
--- used because it needs no fixture (it exists, and resolves Enterprise = unlimited), and the caller is
--- an OPERATOR of another org, so the RPC's authority check passes without this transaction touching it.
+-- used because it exists without an organization fixture; this transaction assigns it Starter so the
+-- cap takes its bounded-plan lock. The caller is an OPERATOR of another org, so the RPC's authority
+-- check passes without this transaction writing to the locked organization row.
 --
 -- Every second-session statement also carries its own lock/statement timeout, so the competing session
 -- can never hang the suite — it can only fail fast.
+-- FOR NO KEY UPDATE is deliberate: the profile's auth/org foreign keys take KEY SHARE, which is
+-- compatible with this lock, so the INSERT must reach the AFTER seat guard to satisfy its wait check.
 insert into organizations (id, name) values
   ('0535a000-0000-0000-0000-000000000002', 'Plan Limits B Enterprise');
+update public.org_plans
+   set plan_id = 'starter'
+ where org_id = '00000000-0000-0000-0000-000000000001';
 insert into auth.users (id, email) values
   ('0535a000-0000-0000-0000-0000000000b9','plan-limits-b9@example.invalid');
 insert into profiles (id, org_id, full_name, email, role, status) values
   ('0535a000-0000-0000-0000-0000000000b9','0535a000-0000-0000-0000-000000000002','Plan Limits Operator','plan-limits-b9@example.invalid','Finance','active');
+select ok(
+  not exists (
+    select 1
+      from pgrowlocks('public.organizations') l
+      join public.organizations o on o.ctid = l.locked_row
+     where o.id = '0535a000-0000-0000-0000-000000000002'
+       and l.modes && array['For Share','For No Key Update','For Update']::text[]
+  ),
+  'AC-PLN-009 inserting a profile on an unlimited org does not take an org row lock');
+insert into public.projects (org_id, name, status)
+values ('0535a000-0000-0000-0000-000000000002', 'Plan Limits B Unlimited Lock Probe', 'Ongoing Project');
+select ok(
+  not exists (
+    select 1
+      from pgrowlocks('public.organizations') l
+      join public.organizations o on o.ctid = l.locked_row
+     where o.id = '0535a000-0000-0000-0000-000000000002'
+       and l.modes && array['For Share','For No Key Update','For Update']::text[]
+  ),
+  'AC-PLN-010 inserting a project on an unlimited org does not take an org row lock');
 insert into platform_operators (user_id) values ('0535a000-0000-0000-0000-0000000000b9');
 
 select dblink_connect('cap', format(
@@ -53,6 +89,13 @@ select dblink_connect('cap', format(
   current_database(), current_user,
   coalesce(host(inet_server_addr()), 'supabase_db_pmo-portal'),
   coalesce(inet_server_port(), 5432)));
+-- AFTER triggers run only after the profile's auth.users FK and RLS checks. Commit the disposable
+-- auth row through dblink so this session can reach the guard while the cap connection owns the org.
+select dblink_exec('cap', $setup$
+  insert into auth.users (id, email)
+  values ('0535a000-0000-0000-0000-0000000000ca', 'plan-limits-lock-ca@example.invalid')
+  on conflict (id) do nothing
+$setup$);
 select dblink_exec('cap', 'begin');
 -- Hang guard: if this session ever has to wait, it gives up in seconds instead of blocking the suite.
 select dblink_exec('cap', $s1$set lock_timeout = '2s'$s1$);
@@ -60,8 +103,8 @@ select dblink_exec('cap', $s2$set statement_timeout = '5s'$s2$);
 select ok(
   (select count(*)::int from dblink('cap', $q$
      select id from public.organizations
-      where id = '00000000-0000-0000-0000-000000000001' for update$q$) as t(id uuid)) = 1,
-  'AC-PLN-009 setup: a second session holds the default org row FOR UPDATE');
+      where id = '00000000-0000-0000-0000-000000000001' for no key update$q$) as t(id uuid)) = 1,
+  'AC-PLN-009 setup: a second session holds the default org row FOR NO KEY UPDATE');
 
 -- The waiting side gives up after 1500 ms — `lock_timeout` (not statement_timeout) fires ONLY on a
 -- lock wait, so neither assertion can be satisfied by a merely-slow statement.
@@ -82,7 +125,7 @@ select throws_ok(
      values ('0535a000-0000-0000-0000-0000000000ca','00000000-0000-0000-0000-000000000001',
              'Plan Limits Lock Two','plan-limits-lock-two@example.invalid','Finance','active') $$,
   '55P03', null,
-  'AC-PLN-009 a concurrent profiles INSERT WAITS for the organisation row lock (the seat trigger locks before it counts)');
+  'AC-PLN-009 a concurrent profiles INSERT WAITS for the organisation row lock (the AFTER seat trigger locks before it counts)');
 set local lock_timeout = 0;
 
 select is(
@@ -90,6 +133,10 @@ select is(
     where id = '0535a000-0000-0000-0000-0000000000ca'),
   0,
   'AC-PLN-009 the blocked invite created no profile row (it never got past the lock)');
+select dblink_exec('cap', 'rollback');
+select dblink_exec('cap', $cleanup$
+  delete from auth.users where id = '0535a000-0000-0000-0000-0000000000ca'
+$cleanup$);
 select dblink_disconnect('cap');
 reset request.jwt.claims;   -- the remaining fixtures are written by the migration runner, not a caller
 
