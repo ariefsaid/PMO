@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { AdapterError } from '../contract';
 import { BudgetCategoryUnmappedError, type BudgetLineItem, type CategoryAccountMapRow } from '../../budget/categoryAccountMap';
-import { planBudgetAccountIntents, resolveV16BudgetAccounts } from './budgetAccountPlan';
+import { planBudgetAccountIntents, planRangeAccountIntents, resolveV16BudgetAccounts } from './budgetAccountPlan';
 
 const map: CategoryAccountMapRow[] = [
   { category: 'Labor', erp_account: 'Salary' },
@@ -109,5 +109,39 @@ describe('planBudgetAccountIntents', () => {
     expect(() => planBudgetAccountIntents('2026', [], [
       prior[2], { ...prior[2], erpBudgetName: 'B-TRAVEL-2' },
     ])).toThrow(/conflicting live predecessor.*Travel/i);
+  });
+});
+
+describe('planRangeAccountIntents', () => {
+  const range = { fromFiscalYear: 'FY-A/2027', toFiscalYear: 'FY-C:2029' };
+
+  it('AC-010 ensures every desired range account and removes only witnessed live omissions in that exact range', () => {
+    const desired = [
+      { account: 'Salary', budget_amount: '150.00' },
+      { account: 'COGS', budget_amount: '0.10' },
+    ];
+    const prior = [
+      { fiscalYear: range.fromFiscalYear, toFiscalYear: range.toFiscalYear, erpAccount: 'Salary', erpBudgetName: 'R-SAL', cancelledAt: null, pmoWitnessed: true, docstatus: 1 },
+      { fiscalYear: range.fromFiscalYear, toFiscalYear: range.toFiscalYear, erpAccount: 'Travel', erpBudgetName: 'R-TRAVEL', cancelledAt: null, pmoWitnessed: true, docstatus: 1 },
+      { fiscalYear: range.fromFiscalYear, toFiscalYear: 'FY-B/2028', erpAccount: 'Old Range', erpBudgetName: 'OLD-RANGE', cancelledAt: null, pmoWitnessed: true, docstatus: 1 },
+      { fiscalYear: range.fromFiscalYear, toFiscalYear: range.toFiscalYear, erpAccount: 'Desk', erpBudgetName: 'DESK-DOC', cancelledAt: null, pmoWitnessed: false, docstatus: 1 },
+      { fiscalYear: range.fromFiscalYear, toFiscalYear: range.toFiscalYear, erpAccount: 'Cancelled', erpBudgetName: 'CANCELLED', cancelledAt: '2026-10-01T00:00:00Z', pmoWitnessed: true, docstatus: 2 },
+    ];
+
+    expect(planRangeAccountIntents(range, desired, prior)).toEqual([
+      { fiscalYear: range.fromFiscalYear, toFiscalYear: range.toFiscalYear, erpAccount: 'Salary', intent: 'ensure', amount: '150.00', predecessor: 'R-SAL' },
+      { fiscalYear: range.fromFiscalYear, toFiscalYear: range.toFiscalYear, erpAccount: 'COGS', intent: 'ensure', amount: '0.10', predecessor: null },
+      { fiscalYear: range.fromFiscalYear, toFiscalYear: range.toFiscalYear, erpAccount: 'Travel', intent: 'remove', amount: null, predecessor: 'R-TRAVEL' },
+    ]);
+  });
+
+  it('AC-010 refuses conflicting live PMO witnesses for one account and validates range names', () => {
+    const duplicateWitnesses = [
+      { fiscalYear: range.fromFiscalYear, toFiscalYear: range.toFiscalYear, erpAccount: 'Salary', erpBudgetName: 'R-SAL-1', cancelledAt: null, pmoWitnessed: true, docstatus: 1 },
+      { fiscalYear: range.fromFiscalYear, toFiscalYear: range.toFiscalYear, erpAccount: 'Salary', erpBudgetName: 'R-SAL-2', cancelledAt: null, pmoWitnessed: true, docstatus: 1 },
+    ];
+    expect(() => planRangeAccountIntents(range, [], duplicateWitnesses)).toThrow(/conflicting live predecessor.*Salary/i);
+    expect(() => planRangeAccountIntents({ fromFiscalYear: '', toFiscalYear: range.toFiscalYear }, [], [])).toThrow();
+    expect(() => planRangeAccountIntents({ fromFiscalYear: range.fromFiscalYear, toFiscalYear: '' }, [], [])).toThrow();
   });
 });

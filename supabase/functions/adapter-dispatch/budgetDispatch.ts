@@ -4,6 +4,8 @@ import {
   type FiscalYearRow,
   BudgetGateError,
   type BudgetGateDeps,
+  type BudgetDistributionPlan,
+  type BudgetDistributionRow,
   type BudgetVersionGateRow,
   type BudgetGateProjectRow,
 } from '../../../pmo-portal/src/lib/budget/budgetGate.ts';
@@ -14,9 +16,10 @@ import { redactErrorForOutbox } from '../../../pmo-portal/src/lib/adapterSeam/di
 import {
   budgetAccountIdentity,
   budgetAccountPushKey,
+  budgetRangeIdentity,
   parseBudgetIdentity,
 } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/budgetAccountIdentity.ts';
-import { planBudgetAccountIntents, resolveV16BudgetAccounts } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/budgetAccountPlan.ts';
+import { planBudgetAccountIntents, planRangeAccountIntents, resolveV16BudgetAccounts } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/budgetAccountPlan.ts';
 import { encodeFiscalYear } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/fiscalYearEncoding.ts';
 import { budgetPushKey } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/budgetPushKey.ts';
 import { ERPNEXT_BUDGET_DOMAIN, ERPNEXT_TIER } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
@@ -36,6 +39,7 @@ export type ErpBindingResolver = (serviceClient: SupabaseClient, orgId: string) 
 
 export interface BudgetDispatchUnit {
   fiscalYear: string;
+  toFiscalYear?: string | null;
   erpAccount: string | null;
   /** `<budget_version_id>:<encoded_fiscal_year>` — the outbox + external_refs identity. */
   identity: string;
@@ -73,7 +77,7 @@ export function buildBudgetGateDeps(callerClient: SupabaseClient, serviceClient:
     readVersion: async (id) => {
       const { data } = await callerClient
         .from('budget_versions')
-        .select('id, org_id, project_id, status, activated_at')
+        .select('id, org_id, project_id, status, activated_at, budget_mode')
         .eq('id', id)
         .maybeSingle();
       return (data as BudgetVersionGateRow | null) ?? null;
@@ -88,6 +92,25 @@ export function buildBudgetGateDeps(callerClient: SupabaseClient, serviceClient:
     readLineItems: (id) => readBudgetLineItems(callerClient as never, id),
     readCategoryMap: () => readCategoryAccountMap(serviceClient as never, orgId),
     readFiscalYears: () => readErpFiscalYears(serviceClient, orgId, erpAuth, resolveBinding),
+    readDistributionPlan: async () => {
+      const { data, error } = await callerClient.from('budget_distribution_plans')
+        .select('method, inputs, basis, category_overrides')
+        .eq('budget_version_id', versionId)
+        .maybeSingle();
+      if (error) throw new AppError(`budget push: the saved distribution plan could not be read: ${error.message}`, 'commit-rejected');
+      return (data as BudgetDistributionPlan | null) ?? null;
+    },
+    readDistributionRows: async () => {
+      const rows = await fetchAllRowsByKeyset<BudgetDistributionRow & { id: string; amount: number | string }>((afterId, limit) => {
+        const query = callerClient.from('budget_year_distributions')
+          .select('id, category, fiscal_year, ordinal, amount, method, is_override')
+          .eq('budget_version_id', versionId)
+          .order('id', { ascending: true });
+        return (afterId === null ? query : query.gt('id', afterId))
+          .limit(limit) as PromiseLike<{ data: Array<BudgetDistributionRow & { id: string; amount: number | string }> | null; error: { message: string; code?: string } | null }>;
+      });
+      return rows.map(({ id: _id, amount, ...row }) => ({ ...row, amount: String(amount) }));
+    },
   };
 }
 
@@ -223,6 +246,13 @@ export async function buildBudgetDispatchPlan(args: {
       }
       budgetVersionMajor = versionMajor;
       const gate = await runBudgetGate(buildBudgetGateDeps(callerClient, serviceClient, orgId, versionId, erpAuth, resolveBinding));
+      const isWholeProjectRange = versionMajor === 16 && gate.budgetMode === 'whole_project';
+      if (versionMajor === 15 && gate.budgetMode === 'whole_project') {
+        throw new BudgetGateError('commit-rejected', 'budget push: whole-project budgets are unsupported on ERPNext v15');
+      }
+      if (isWholeProjectRange && targetFiscalYear !== null && targetFiscalYear !== gate.range?.fromFiscalYear) {
+        throw new BudgetGateError('commit-rejected', 'budget push: a range budget retry must target its starting fiscal year');
+      }
       // ⚑ BFY FR-BFY-030/031/032/036 — THE FAN-OUT. The gate returns a per-year PLAN; each entry
       // becomes one command with:
       //   • `record.id` UNCHANGED — the bare `budget_version_id` UUID. It is the gate's own query key,
@@ -272,10 +302,10 @@ export async function buildBudgetDispatchPlan(args: {
         activated_at?: unknown;
         erp_account?: unknown;
       };
-      const planEntries = targetFiscalYear === null
+      const planEntries = isWholeProjectRange ? [] : targetFiscalYear === null
         ? gate.plan
         : gate.plan.filter((entry) => entry.fiscal_year === targetFiscalYear);
-      if (targetFiscalYear !== null && planEntries.length === 0 &&
+      if (!isWholeProjectRange && targetFiscalYear !== null && planEntries.length === 0 &&
           !(versionMajor === 16 && gate.inSpanFiscalYears.includes(targetFiscalYear))) {
         throw new BudgetGateError(
           'commit-rejected',
@@ -285,9 +315,9 @@ export async function buildBudgetDispatchPlan(args: {
         );
       }
       if (versionMajor === 16) {
-        const history = await fetchAllRowsByKeyset<{ id: string; fiscal_year: string; erp_account: string; erp_budget_name: string | null; erp_cancelled_at: string | null; erp_docstatus: number | null }>((afterId, limit) => {
+        const history = await fetchAllRowsByKeyset<{ id: string; budget_version_id: string; fiscal_year: string; to_fiscal_year: string | null; erp_account: string; erp_budget_name: string | null; erp_cancelled_at: string | null; erp_docstatus: number | null }>((afterId, limit) => {
           let query = serviceClient.from('budget_version_account_erp_mirror')
-            .select('id,fiscal_year,erp_account,erp_budget_name,erp_cancelled_at,erp_docstatus,budget_versions!inner(project_id)')
+            .select('id,budget_version_id,fiscal_year,to_fiscal_year,erp_account,erp_budget_name,erp_cancelled_at,erp_docstatus,budget_versions!inner(project_id)')
             .eq('org_id', orgId)
             .eq('budget_versions.project_id', gate.projectId)
             .order('id', { ascending: true })
@@ -304,19 +334,66 @@ export async function buildBudgetDispatchPlan(args: {
             outOfSpan.fiscal_year,
           );
         }
-        const prior = history.flatMap((row) => row.erp_account && row.erp_budget_name
-          ? [{ fiscalYear: row.fiscal_year, erpAccount: row.erp_account, erpBudgetName: row.erp_budget_name, cancelledAt: row.erp_cancelled_at }]
-          : []);
-        const byYear = new Map(planEntries.map((entry) => [entry.fiscal_year, entry]));
-        const accountYears = (targetFiscalYear ? [targetFiscalYear] : gate.inSpanFiscalYears)
-          .filter((year) => gate.inSpanFiscalYears.includes(year));
-        budgetUnits = accountYears.flatMap((year) => {
-          const entry = byYear.get(year) ?? { fiscal_year: year, line_items: [] };
-          const desired = resolveV16BudgetAccounts(entry.line_items, gate.categoryMap);
-          return planBudgetAccountIntents(year, desired, prior).map((intent) => {
-            const identity = budgetAccountIdentity(gate.versionId, intent.fiscalYear, intent.erpAccount);
+        const refs = isWholeProjectRange
+          ? await fetchAllRowsByKeyset<{ id: string; pmo_record_id: string; external_record_id: string }>((afterId, limit) => {
+            let query = serviceClient.from('external_refs')
+              .select('id,pmo_record_id,external_record_id')
+              .eq('org_id', orgId).eq('domain', 'budget').eq('external_tier', 'erpnext')
+              .order('id', { ascending: true }).limit(limit);
+            if (afterId !== null) query = query.gt('id', afterId);
+            return query as never;
+          })
+          : [];
+        const refsByIdentity = new Map(refs.map((row) => [row.pmo_record_id, row.external_record_id]));
+        const prior = history.flatMap((row) => {
+          if (!row.erp_account || !row.erp_budget_name) return [];
+          let pmoWitnessed = false;
+          if (isWholeProjectRange && row.to_fiscal_year) {
+            try {
+              const identity = budgetRangeIdentity(row.budget_version_id, row.fiscal_year, row.to_fiscal_year, row.erp_account);
+              pmoWitnessed = refsByIdentity.get(identity) === row.erp_budget_name;
+            } catch {
+              pmoWitnessed = false;
+            }
+          }
+          return [{
+            fiscalYear: row.fiscal_year,
+            toFiscalYear: row.to_fiscal_year,
+            erpAccount: row.erp_account,
+            erpBudgetName: row.erp_budget_name,
+            cancelledAt: row.erp_cancelled_at,
+            pmoWitnessed,
+            docstatus: row.erp_docstatus,
+          }];
+        });
+        if (isWholeProjectRange) {
+          const range = gate.range;
+          if (!range || !gate.distributionRows) throw new BudgetGateError('budget-distribution-stale', 'budget push: approved range rows are unavailable');
+          const desired = resolveV16BudgetAccounts(gate.sourceLineItems, gate.categoryMap);
+          const accountVectors = new Map<string, Array<{ year: string; amount: string }>>();
+          for (const accountRow of desired) {
+            const categories = gate.categoryMap.filter((row) => row.erp_account === accountRow.account)
+              .map((row) => row.category)
+              .filter((category) => gate.sourceLineItems.some((line) => line.category === category));
+            if (categories.length !== 1) {
+              throw new BudgetGateError('commit-rejected', `budget push: range account ${accountRow.account} does not resolve to exactly one source category`);
+            }
+            const category = categories[0]!;
+            const categoryRows = gate.distributionRows.filter((row) => row.category === category);
+            if (categoryRows.length !== range.fiscalYears.length) {
+              throw new BudgetGateError('budget-distribution-stale', `budget push: yearly rows for ${category} are incomplete`);
+            }
+            accountVectors.set(accountRow.account, range.fiscalYears.map((year, index) => {
+              const row = categoryRows.find((candidate) => candidate.fiscal_year === year.name && candidate.ordinal === index);
+              if (!row) throw new BudgetGateError('budget-distribution-stale', `budget push: yearly row for ${category} is missing`);
+              return { year: year.name, amount: row.amount };
+            }));
+          }
+          budgetUnits = planRangeAccountIntents(range, desired, prior).map((intent) => {
+            const identity = budgetRangeIdentity(gate.versionId, intent.fiscalYear, intent.toFiscalYear, intent.erpAccount);
             return {
               fiscalYear: intent.fiscalYear,
+              toFiscalYear: intent.toFiscalYear,
               erpAccount: intent.erpAccount,
               identity,
               idempotencyKey: budgetAccountPushKey(identity, gate.activatedAt),
@@ -324,9 +401,13 @@ export async function buildBudgetDispatchPlan(args: {
                 ...unitRecordBase,
                 id: gate.versionId,
                 erp_doc_kind: 'budget',
+                budget_mode: 'whole_project',
                 projectId: gate.projectId,
                 fiscal_year: intent.fiscalYear,
-                line_items: entry.line_items,
+                to_fiscal_year: intent.toFiscalYear,
+                line_items: gate.sourceLineItems,
+                fiscal_years: range.fiscalYears,
+                ...(intent.intent === 'ensure' ? { year_amounts: accountVectors.get(intent.erpAccount) } : {}),
                 erp_account: intent.erpAccount,
                 budget_intent: intent.intent,
                 budget_predecessor: intent.predecessor,
@@ -337,7 +418,39 @@ export async function buildBudgetDispatchPlan(args: {
               } as AdapterCommand['record'],
             };
           });
-        });
+        } else {
+          const byYear = new Map(planEntries.map((entry) => [entry.fiscal_year, entry]));
+          const accountYears = (targetFiscalYear ? [targetFiscalYear] : gate.inSpanFiscalYears)
+            .filter((year) => gate.inSpanFiscalYears.includes(year));
+          budgetUnits = accountYears.flatMap((year) => {
+            const entry = byYear.get(year) ?? { fiscal_year: year, line_items: [] };
+            const desired = resolveV16BudgetAccounts(entry.line_items, gate.categoryMap);
+            return planBudgetAccountIntents(year, desired, prior).map((intent) => {
+              const identity = budgetAccountIdentity(gate.versionId, intent.fiscalYear, intent.erpAccount);
+              return {
+                fiscalYear: intent.fiscalYear,
+                erpAccount: intent.erpAccount,
+                identity,
+                idempotencyKey: budgetAccountPushKey(identity, gate.activatedAt),
+                record: {
+                  ...unitRecordBase,
+                  id: gate.versionId,
+                  erp_doc_kind: 'budget',
+                  projectId: gate.projectId,
+                  fiscal_year: intent.fiscalYear,
+                  line_items: entry.line_items,
+                  erp_account: intent.erpAccount,
+                  budget_intent: intent.intent,
+                  budget_predecessor: intent.predecessor,
+                  outbox_identity: identity,
+                  project_start_date: gate.projectStartDate,
+                  project_end_date: gate.projectEndDate,
+                  activated_at: gate.activatedAt,
+                } as AdapterCommand['record'],
+              };
+            });
+          });
+        }
       } else {
         budgetUnits = planEntries.map((entry) => {
           const encodedFiscalYear = encodeFiscalYear(entry.fiscal_year);
@@ -377,6 +490,7 @@ export async function buildBudgetDispatchPlan(args: {
           org_id: orgId,
           budget_version_id: gate.versionId,
           fiscal_year: unit.fiscalYear,
+          to_fiscal_year: unit.toFiscalYear ?? null,
           erp_account: unit.erpAccount,
           budget_intent: (unit.record as Record<string, unknown>).budget_intent,
           push_state: 'pending',

@@ -4,6 +4,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { budgetToBody, budgetFromDoc, BUDGET_FROM_DOC_FIELDS } from './budget.ts';
+import { AdapterError } from '../../contract.ts';
 import type { PmoRecord } from '../../contract.ts';
 import type { ErpCtx } from '../doctypeRegistry.ts';
 
@@ -32,8 +33,32 @@ const VERSION = {
   // an estimate into the client's GL controls.
   pmo_etc: '35000.00',
 } as unknown as PmoRecord;
+const V15_JSON = '{"company":"PMO Smoke Co","fiscal_year":"2026","budget_against":"Project","project":"PROJ-0001","accounts":[{"account":"Salary - PSC","budget_amount":"50000.00"},{"account":"Cost of Goods Sold - PSC","budget_amount":"25000.00"}],"action_if_annual_budget_exceeded":"Warn","action_if_accumulated_monthly_budget_exceeded":"Warn","action_if_annual_budget_exceeded_on_mr":"Warn","action_if_accumulated_monthly_budget_exceeded_on_mr":"Warn","action_if_annual_budget_exceeded_on_po":"Warn","action_if_accumulated_monthly_budget_exceeded_on_po":"Warn"}';
 
 describe('erpnext/bodies/budget — the ERP Budget body (AC-BUD-012)', () => {
+  it('AC-017 keeps the annual v15 body serialized bytes unchanged', () => {
+    expect(JSON.stringify(budgetToBody(VERSION, ctx()))).toBe(V15_JSON);
+  });
+
+  it('AC-017 refuses whole-project budgets on v15 before a body can reach ERP', () => {
+    const wholeProject = {
+      ...VERSION,
+      budget_mode: 'whole_project',
+      fiscal_year: 'FY27',
+      to_fiscal_year: 'FY28',
+      year_amounts: [{ year: 'FY27', amount: '50000.00' }, { year: 'FY28', amount: '25000.00' }],
+    } as unknown as PmoRecord;
+
+    try {
+      budgetToBody(wholeProject, ctx());
+      throw new Error('expected v15 whole-project refusal');
+    } catch (error) {
+      expect(error).toBeInstanceOf(AdapterError);
+      expect((error as AdapterError).code).toBe('commit-rejected');
+      expect((error as Error).message).toMatch(/unsupported/i);
+    }
+  });
+
   it('AC-BUD-012 maps categories→accounts, uses the PROJECT dimension, omits zero rows, never leaks the projection', () => {
     const body = budgetToBody(VERSION, ctx()) as Record<string, unknown>;
 
