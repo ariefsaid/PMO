@@ -40,6 +40,7 @@ function routes(o: Opts = {}): MockRoute[] {
   return [
     supabaseSelect('profiles', () => one({ org_id: 'org-1', role: o.role ?? 'Admin', status: 'active' })),
     supabaseRpc('actor_authorization_state', () => one({ active: true, role: o.role ?? 'Admin' })),
+    supabaseRpc('service_feature_enabled', () => jsonResponse(true)),
     supabaseSelect('platform_operators', none),
     supabaseSelect('external_org_bindings', () => (o.erpCheckFails ? pgError('boom', 'XX000') : o.erpActive ? one({ external_tier: 'erpnext' }) : none())),
     { label: 'odoo-companies', host: ODOO, pathname: '/json/2/res.company/search_read',
@@ -263,6 +264,7 @@ describe('external-connect — Odoo refusals before any request or write', () =>
       assertEquals([r.res.status, body(r.text).error], [422, 'destination-refused']);
       assertEquals(r.calls.filter((c) => !c.url.pathname.startsWith('/rest/v1/profiles') && !c.url.pathname.startsWith('/rest/v1/platform_operators')
         && c.url.pathname !== '/rest/v1/rpc/actor_authorization_state'
+        && c.url.pathname !== '/rest/v1/rpc/service_feature_enabled'
         && c.url.pathname !== '/rest/v1/external_org_bindings' && c.url.pathname !== '/rest/v1/rpc/log_audit' && !c.url.pathname.startsWith('/auth/')).length, 0);
     });
   }
@@ -300,6 +302,7 @@ describe('external-connect — FR-ODC-008 the other direction', () => {
     await withFetchMock([
       supabaseSelect('profiles', () => one({ org_id: 'org-1', role: 'Admin', status: 'active' })),
       supabaseRpc('actor_authorization_state', () => one({ active: true, role: 'Admin' })),
+      supabaseRpc('service_feature_enabled', () => jsonResponse(true)),
       supabaseSelect('platform_operators', none),
       supabaseSelect('external_org_bindings', () => one({ external_tier: 'odoo' })),
       { label: 'erp', host: 'erp.example.com', pathname: '/api/method/frappe.auth.get_logged_user', response: () => jsonResponse({ message: 'u@example.com' }) },
@@ -318,6 +321,7 @@ describe('external-connect — FR-ODC-008 the other direction', () => {
     await withFetchMock([
       supabaseSelect('profiles', () => one({ org_id: 'org-1', role: 'Admin', status: 'active' })),
       supabaseRpc('actor_authorization_state', () => one({ active: true, role: 'Admin' })),
+      supabaseRpc('service_feature_enabled', () => jsonResponse(true)),
       supabaseSelect('platform_operators', none),
       supabaseSelect('external_org_bindings', () => pgError('boom', 'XX000')),
       { label: 'erp', host: 'erp.example.com', pathname: '/api/method/frappe.auth.get_logged_user', response: () => jsonResponse({ message: 'u@example.com' }) },

@@ -46,6 +46,7 @@ import { withJobRun, type JobSummary } from '../_shared/jobRun.ts';
  *  150 s (see `_shared/jobRun.ts`); the serial applies, archives and watermark writes need the remainder,
  *  so reads stop at 60 s and the List resumes from its keyset cursor next tick. */
 export const CLICKUP_SWEEP_READ_BUDGET_MS = 60_000;
+export const testSupabaseOptions = { auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false } };
 
 // Shared across invocations of this isolate (NFR-CUA-PERF-003). Bulk lane: the sweep yields to any
 // in-flight interactive write.
@@ -272,7 +273,7 @@ serveWithErrorReporting('clickup-sweep', withJobRun('clickup-sweep', async (req:
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
   if (!supabaseUrl || !serviceRoleKey) return json({ error: 'MISCONFIGURED', message: 'missing Supabase configuration' }, 500);
 
-  const serviceClient = createClient(supabaseUrl, serviceRoleKey);
+  const serviceClient = createClient(supabaseUrl, serviceRoleKey, testSupabaseOptions);
 
   // ── 2. Iterate employing orgs via external_domain_ownership (ClickUp tasks tier) → sweep each with its token.
   // FIX-3: Restore legacy discovery (byte-for-byte the origin/dev query) so flag-off/prod works.
@@ -289,6 +290,20 @@ serveWithErrorReporting('clickup-sweep', withJobRun('clickup-sweep', async (req:
   const failures = [];
   let totalApplied = 0;
   for (const orgId of orgIds) {
+    const { data: clickupSyncOn, error: featureError } = await serviceClient.rpc('service_feature_enabled', {
+      p_org_id: orgId,
+      p_key: 'clickup_sync',
+    });
+    if (featureError) {
+      failures.push({ orgId, error: 'FEATURE_SWITCH_UNREADABLE' });
+      continue;
+    }
+    if (clickupSyncOn !== true) {
+      // Leave the org's task watermarks untouched; the next tick resumes from the same cursor.
+      perOrg.push({ orgId, skipped: 'feature-off:clickup_sync' });
+      continue;
+    }
+
     // Per-org isolation: a fail-closed token error (bound org whose Vault secret is missing) or a
     // sweep error for ONE org must not abort reconciliation for the OTHERS (no cross-org DoS). Record
     // the failure and continue; the org's watermark simply does not advance and retries next schedule.

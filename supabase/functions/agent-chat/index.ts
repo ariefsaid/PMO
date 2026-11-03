@@ -57,6 +57,14 @@ function getJwks(supabaseUrl: string): JwksResolver {
   return _jwks;
 }
 
+export function setTestJwks(resolver: JwksResolver): void {
+  _jwks = resolver;
+}
+
+export const testSupabaseOptions = {
+  auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
+};
+
 // AUDIT quick-win (2026-07-07): CORS narrows to the deployed SPA origin when
 // AGENT_ALLOWED_ORIGIN is set; falls back to SITE_URL, then to '' (fail-closed — never '*').
 // Auth is JWT-header-based (no cookies), so this is defense-in-depth against browser-driven
@@ -69,7 +77,7 @@ const corsHeaders = {
   'Access-Control-Expose-Headers': 'x-deploy-version',
 };
 
-serveWithErrorReporting('agent-chat', async (req: Request): Promise<Response> => {
+export async function handleAgentChatRequest(req: Request): Promise<Response> {
   // ── CORS preflight ────────────────────────────────────────────────────────
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -95,7 +103,7 @@ serveWithErrorReporting('agent-chat', async (req: Request): Promise<Response> =>
   // signature/expiry/issuer/audience/alg failure → a single typed 401.
   const supabaseUrl = (Deno.env.get('SUPABASE_URL') ?? '').replace(/\/$/, '');
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
-  const verifierClient = createClient(supabaseUrl, serviceRoleKey);
+  const verifierClient = createClient(supabaseUrl, serviceRoleKey, testSupabaseOptions);
 
   let userId: string;
   try {
@@ -143,8 +151,47 @@ serveWithErrorReporting('agent-chat', async (req: Request): Promise<Response> =>
   // ── 3. Build caller-JWT Supabase client (deputy auth — FR-AR-014) ─────────
   const anonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
   const callerClient = createClient(supabaseUrl, anonKey, {
+    ...testSupabaseOptions,
     global: { headers: { Authorization: `Bearer ${jwt}` } },
   });
+
+  // The service-only effective plan resolver is the authority for assistant availability. Resolve
+  // the org under the caller JWT first; never accept org_id from the request body or JWT claims.
+  const { data: profile, error: profileError } = await callerClient
+    .from('profiles')
+    .select('org_id')
+    .eq('id', userId)
+    .single();
+  if (profileError || !profile || typeof (profile as { org_id?: unknown }).org_id !== 'string') {
+    return new Response(
+      JSON.stringify({ status: 400, error: 'BAD_REQUEST', detail: 'orgId' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    );
+  }
+  const orgId = (profile as { org_id: string }).org_id;
+  const { data: assistantEnabled, error: assistantError } = await verifierClient.rpc('service_feature_enabled', {
+    p_org_id: orgId,
+    p_key: 'agent_assistant',
+  });
+  if (assistantError) {
+    return new Response(
+      JSON.stringify({ status: 500, error: 'INTERNAL_ERROR', detail: 'could not resolve plan switch' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    );
+  }
+  if (assistantEnabled !== true) {
+    return new Response(
+      JSON.stringify({ status: 409, error: 'feature_off', detail: 'agent_assistant' }),
+      { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    );
+  }
+  const { data: viewsEnabled, error: viewsError } = await verifierClient.rpc('service_feature_enabled', {
+    p_org_id: orgId,
+    p_key: 'user_views',
+  });
+  // `compose_view` is a nested capability. An unreadable user_views switch disables that tool while
+  // leaving the independently entitled assistant available.
+  const composeEnabled = !viewsError && viewsEnabled === true;
 
   // ── 4. Read OPENROUTER_API_KEY from function secrets (NFR-MC-SEC-001) ──────
   const apiKey = Deno.env.get('OPENROUTER_API_KEY');
@@ -269,7 +316,7 @@ serveWithErrorReporting('agent-chat', async (req: Request): Promise<Response> =>
         // The SPA AND-gates panel rendering + ArtifactSlot on agentAssistant && aiComposer,
         // so enabling the tool here is harmless when the SPA never renders an artifact
         // (OQ-A4-2 recommendation — default true; add a function secret if needed).
-        composeEnabled: true,
+        composeEnabled,
         // Cast: createCreditRateGuard's own generic resolution is what trips deno check's TS2589
         // recursion limit here (the direct `supabase: callerClient` field above, and everywhere
         // else in this HandlerDeps literal, checks fine unaided) — the real client structurally
@@ -328,4 +375,6 @@ serveWithErrorReporting('agent-chat', async (req: Request): Promise<Response> =>
       'x-deploy-version': DEPLOY_VERSION,
     },
   });
-});
+}
+
+if (import.meta.main) serveWithErrorReporting('agent-chat', handleAgentChatRequest);
