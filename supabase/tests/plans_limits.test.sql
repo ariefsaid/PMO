@@ -133,7 +133,7 @@ insert into profiles (id, org_id, full_name, email, role, status) values
   ('0535a000-0000-0000-0000-0000000000ab','0535a000-0000-0000-0000-000000000001',
    'Plan Limits A Disabled','plan-limits-ab@example.invalid','Finance','disabled');
 
-select is((select count(*)::int from public.org_seat_usage('0535a000-0000-0000-0000-000000000001')),
+select is(public.org_seat_usage('0535a000-0000-0000-0000-000000000001'),
   10, 'AC-PLN-009 seat usage counts the 10 active members and ignores a disabled one');
 select is((select seat_limit from public.org_plan_limits('0535a000-0000-0000-0000-000000000001')),
   10, 'AC-PLN-009 the org limits come from its plan (starter = 10 seats)');
@@ -322,7 +322,7 @@ set local request.jwt.claims =
   '{"sub":"0535a000-0000-0000-0000-0000000000b1","role":"authenticated"}';
 select lives_ok(
   $$ insert into public.projects (org_id, name, status)
-     select '0535a000-0000-0000-0000-000000000002', 'Plan Limits B Project ' || g, 'Ongoing Project'
+     select '0535a000-0000-0000-0000-000000000002', 'Plan Limits B Project ' || g, 'Leads'
        from generate_series(1, 30) g $$,
   'AC-PLN-010 an Enterprise org (NULL project limit) is unlimited');
 reset role;
