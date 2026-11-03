@@ -182,8 +182,10 @@ export const ListState: React.FC<ListStateProps> = ({
   role,
   module,
 }) => {
-  const { t } = useTranslation();
-  const resolvedRetryLabel = retryLabel ?? t('ui.listState.retry', 'Retry');
+  // Authentication loading can render before I18nProvider finishes its first async init.
+  // This shared state primitive must remain renderable during that boot window.
+  const { t, ready } = useTranslation(undefined, { useSuspense: false });
+  const resolvedRetryLabel = retryLabel ?? (ready ? t('ui.listState.retry', 'Retry') : 'Retry');
   // empty_state_seen (2026-07-13 wiring plan) — fired once on mount, only for the
   // rendered "empty" variant, only when the caller opted in with all three ids. Must
   // run unconditionally (Rules of Hooks) ahead of the loading/error early returns below.
@@ -204,7 +206,7 @@ export const ListState: React.FC<ListStateProps> = ({
         aria-live="polite"
         className={cn('p-4', className)}
       >
-        <span className="sr-only">{loadingLabel ?? t('ui.listState.loading', 'Loading…')}</span>
+        <span className="sr-only">{loadingLabel ?? (ready ? t('ui.listState.loading', 'Loading…') : 'Loading…')}</span>
         <SkeletonBody shape={shape} rows={rows} columns={columns} />
       </div>
     );

@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import React from 'react';
+import { createInstance } from 'i18next';
+import { I18nextProvider } from 'react-i18next';
 
 type Analytics = typeof import('@/src/lib/analytics');
 const analytics = vi.hoisted(() => ({ trackEmptyStateSeen: vi.fn<Analytics['trackEmptyStateSeen']>() }));
@@ -17,6 +20,25 @@ describe('ListState', () => {
     const region = screen.getByTestId('liststate-loading');
     expect(region).toHaveAttribute('aria-busy', 'true');
     expect(region.querySelectorAll('.skel').length).toBeGreaterThan(0);
+  });
+
+  it('loading renders while the locale provider is not initialized yet', () => {
+    const uninitializedI18n = createInstance();
+    render(
+      <I18nextProvider i18n={uninitializedI18n}>
+        <React.Suspense fallback={<div data-testid="i18n-suspended">Waiting for locale</div>}>
+          <ListState
+            variant="loading"
+            loadingRole="status"
+            loadingAriaLabel="Authenticating…"
+            loadingLabel="Authenticating…"
+          />
+        </React.Suspense>
+      </I18nextProvider>,
+    );
+
+    expect(screen.queryByTestId('i18n-suspended')).not.toBeInTheDocument();
+    expect(screen.getByRole('status', { name: 'Authenticating…' })).toHaveAttribute('aria-busy', 'true');
   });
 
   it('loading: testId prop overrides the default liststate-loading testid', () => {
