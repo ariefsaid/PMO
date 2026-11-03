@@ -35,8 +35,7 @@ const StockOnHand: React.FC = () => {
   const isKeeper = (keepers.data ?? []).some((k) => k.user_id === me);
   const canMove = may('create', 'stockDocument', { record: { isKeeper, viewOnly: realRole !== effectiveRole } });
 
-  const rows = useMemo(() => {
-    const q = search.trim().toLowerCase();
+  const allRows = useMemo(() => {
     const have = new Set((onHand.data ?? []).map((r) => `${r.itemId}:${r.warehouseId}`));
     const low = new Set((below.data ?? []).map((b) => `${b.itemId}:${b.warehouseId}`));
     const all = (onHand.data ?? []).filter((r) => !belowOnly || low.has(`${r.itemId}:${r.warehouseId}`));
@@ -49,8 +48,13 @@ const StockOnHand: React.FC = () => {
           warehouseId: b.warehouseId, warehouseCode: b.warehouseCode, warehouseName: w.name, warehouseKind: w.kind as 'central' | 'site', qtyOnHand: b.qtyOnHand });
       }
     }
-    return q ? all.filter((r) => `${r.itemCode} ${r.itemName}`.toLowerCase().includes(q)) : all;
-  }, [onHand.data, search, belowOnly, below.data, warehouses.data, warehouseId]);
+    return all;
+  }, [onHand.data, belowOnly, below.data, warehouses.data, warehouseId]);
+
+  const rows = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return q ? allRows.filter((r) => `${r.itemCode} ${r.itemName}`.toLowerCase().includes(q)) : allRows;
+  }, [allRows, search]);
   // Cost columns follow the DATA, not the role: if the server omitted them they are absent, never a fabricated 0.
   const showCost = (onHand.data ?? []).some((r) => r.valueOnHand !== undefined);
 
@@ -106,6 +110,7 @@ const StockOnHand: React.FC = () => {
       title={t('onHand.title')}
       description={t('onHand.description')}
       count={state === undefined ? rows.length : undefined}
+      total={state === undefined ? allRows.length : undefined}
       primaryAction={canMove && (
         <div className="flex flex-wrap gap-2">
           {NEW_KINDS.map((k) => (

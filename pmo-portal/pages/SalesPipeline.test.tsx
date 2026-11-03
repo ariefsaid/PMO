@@ -220,7 +220,7 @@ describe('SalesPipeline phone stage list (AC-S24-001)', () => {
       { id: 'declined-phone-1', name: 'Declined Deal Echo', client_name: 'Echo', status: 'Declined', contract_value: 300000, currency: 'USD', win_probability: 0 },
     ];
     viewport.isDesktop = false;
-    renderPage('/sales?view=kanban&status=Tender%20Submitted');
+    renderPage('/sales?view=table&scope=Open&status=Tender%20Submitted');
 
     const phoneList = screen.getByTestId('sales-phone-stage-list');
     const selection = screen.getByRole('combobox', { name: 'Pipeline stage' });
@@ -296,7 +296,7 @@ describe.each(['en', 'id'] as const)('SalesPipeline AC-S24-004 synthetic pipelin
       { id: 'syn-7', name: 'Synthetic Declined Service Bid', client_name: 'Example Declined Customer', status: 'Declined', contract_value: 0, currency: 'IDR', win_probability: 0 },
     ];
     viewport.isDesktop = false;
-    await renderLocalized('/sales?view=kanban');
+    await renderLocalized('/sales?view=table&scope=Open');
 
     const selector = screen.getByRole('combobox', { name: word.stage });
     expect(screen.getAllByRole('combobox', { name: word.stage })).toHaveLength(1);
@@ -312,8 +312,8 @@ describe.each(['en', 'id'] as const)('SalesPipeline AC-S24-004 synthetic pipelin
     await user.type(screen.getByRole('searchbox', { name: word.search }), 'no synthetic match');
     expect(await screen.findByText(word.empty)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: word.clear }));
-    await waitFor(() => expect(search()).toBe('?view=kanban'));
-    expect(within(list()).getAllByRole('listitem')).toHaveLength(open.length);
+    await waitFor(() => expect(search()).toBe(''));
+    expect(within(list()).getAllByRole('listitem')).toHaveLength(open.length + lostState.data.length);
 
     await user.click(screen.getByRole('tab', { name: word.lost }));
     await waitFor(() => expect(search()).toMatch(/[?&]scope=Lost/));
@@ -449,6 +449,42 @@ describe('SalesPipeline view toggle (AC-SP-206) + kanban default (AC-SP-204)', (
   });
 });
 
+describe('SalesPipeline All scope and result count', () => {
+  it('defaults to All, searches across open, won, and lost projects, and keeps Won scoped', async () => {
+    const user = userEvent.setup();
+    pipelineState.data = {
+      stages: seedStages,
+      projects: [{ ...seedProjects[0], id: 'open-1', name: 'Open project' }],
+    };
+    wonState.data = [
+      { id: 'won-1', name: 'Won project', short_name: null, client_name: 'Acme', status: 'Ongoing Project', contract_value: 400000, currency: 'USD', win_probability: 1 },
+    ];
+    lostState.data = [
+      { id: 'lost-1', name: 'Lost project', client_name: 'Initech', status: 'Loss Tender', contract_value: 300000, currency: 'USD', win_probability: 0 },
+    ];
+    renderPage('/sales?view=table');
+
+    expect(screen.getByRole('tab', { name: /^All$/i })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByText('Open project')).toBeInTheDocument();
+    expect(screen.getByText('Won project')).toBeInTheDocument();
+    expect(screen.getByText('Lost project')).toBeInTheDocument();
+    expect(screen.getByText('3 projects')).toBeInTheDocument();
+
+    const search = screen.getByRole('searchbox', { name: /search projects/i });
+    await user.type(search, 'Won project');
+    expect(screen.getByText('Showing 1 of 3 projects')).toBeInTheDocument();
+    expect(screen.queryByText('Open project')).not.toBeInTheDocument();
+    expect(screen.queryByText('Lost project')).not.toBeInTheDocument();
+
+    await user.clear(search);
+    await user.click(screen.getByRole('tab', { name: /^Won$/i }));
+    expect(screen.getByText('Won project')).toBeInTheDocument();
+    expect(screen.queryByText('Open project')).not.toBeInTheDocument();
+    expect(screen.queryByText('Lost project')).not.toBeInTheDocument();
+    expect(screen.getByText('1 project')).toBeInTheDocument();
+  });
+});
+
 describe('SalesPipeline drill-down (Model B canonical route)', () => {
   // Model B (ADR-0020): the deal's canonical detail route is /projects/:id (was /sales/:id).
   // Director ruling (2026-09-29): the destination stays canonical `/projects/p2` while the
@@ -504,11 +540,10 @@ describe('SalesPipeline list working set — AC-LRC-001/002', () => {
 });
 
 // #682 Director ruling (2026-09-29): the Board is the open pipeline by stage and has no scope.
-// Switching Table → Board resets scope to Open in the working set's single write, so the URL no
-// longer carries an inert `scope`; a direct/copied board URL with a stale scope parses to Open
-// the same way. Switching back to Table then shows Open, never the scope that was active before.
+// Switching Table → Board drops any table scope; a direct/copied board URL with a stale scope
+// parses to the All default. Switching back to Table then shows All, never the old scope.
 describe('SalesPipeline Board has no scope (#682 Director ruling)', () => {
-  it('switching Table (Lost) → Board resets scope to Open and drops it from the URL; switching back to Table shows Open', async () => {
+  it('switching Table (Lost) → Board drops scope from the URL; switching back to Table shows All', async () => {
     lostState.data = [
       { id: 'pl', name: 'Coastal Depot Bid', client_name: 'Coastal', status: 'Loss Tender', contract_value: 950000, currency: 'USD', win_probability: 0 },
     ];
@@ -525,11 +560,11 @@ describe('SalesPipeline Board has no scope (#682 Director ruling)', () => {
     expect(new URLSearchParams(probe.dataset.search).get('scope')).toBeNull();
 
     await userEvent.click(screen.getByRole('tab', { name: /^Table$/i }));
-    expect(screen.getByRole('tab', { name: /^Open$/i })).toHaveAttribute('aria-selected', 'true');
-    expect(screen.queryByText('Coastal Depot Bid')).toBeNull();
+    expect(screen.getByRole('tab', { name: /^All$/i })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByText('Coastal Depot Bid')).toBeInTheDocument();
   });
 
-  it('a direct/copied `?view=kanban&scope=Lost` URL parses to Open scope (Board renders; Table then shows Open)', async () => {
+  it('a direct/copied `?view=kanban&scope=Lost` URL parses to All scope (Board renders; Table then shows All)', async () => {
     lostState.data = [
       { id: 'pl', name: 'Coastal Depot Bid', client_name: 'Coastal', status: 'Loss Tender', contract_value: 950000, currency: 'USD', win_probability: 0 },
     ];
@@ -540,9 +575,9 @@ describe('SalesPipeline Board has no scope (#682 Director ruling)', () => {
     expect(screen.getByText('Coastal Depot Bid')).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole('tab', { name: /^Table$/i }));
-    expect(screen.getByRole('tab', { name: /^Open$/i })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: /^All$/i })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByText('Northwind ERP Rollout')).toBeInTheDocument();
-    expect(screen.queryByText('Coastal Depot Bid')).toBeNull();
+    expect(screen.getByText('Coastal Depot Bid')).toBeInTheDocument();
   });
 });
 
@@ -560,9 +595,9 @@ describe('SalesPipeline — Lost deals in the Pipeline (AC-IXD-PROJ-007)', () =>
     lostState.data = [
       { id: 'pl', name: 'Coastal Depot Bid', client_name: 'Coastal', status: 'Loss Tender', contract_value: 950000, currency: 'USD', win_probability: 0 },
     ];
-    renderPage();
+    renderPage('/sales?view=table&scope=Open');
     await userEvent.click(screen.getByRole('tab', { name: /^Table$/i }));
-    // default Open scope: the open deal shows, the lost deal does not
+    // Explicit Open scope: the open deal shows, the lost deal does not.
     expect(screen.getByText('Northwind ERP Rollout')).toBeInTheDocument();
     expect(screen.queryByText('Coastal Depot Bid')).toBeNull();
     // switch to the Lost scope: the lost deal shows, the open deal does not
@@ -590,7 +625,7 @@ describe('SalesPipeline table zero-match', () => {
     expect(screen.queryByText(/No lost projects/i)).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: /Clear filters/i }));
     expect(screen.getByText('Northwind ERP Rollout')).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: /^Open$/i })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: /^All$/i })).toHaveAttribute('aria-selected', 'true');
   });
 });
 

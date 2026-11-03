@@ -1,5 +1,8 @@
 {
   "ui": {
+    "listPage": {
+      "showingOf": "Showing {{count}} of {{total}}"
+    },
     "listState": {
       "loading": "Loading…",
       "retry": "Retry"
@@ -3088,7 +3091,7 @@
       "ongoingProject": "Ongoing Project",
       "onHold": "On Hold",
       "closeOut": "Close Out",
-      "lossTender": "Loss Tender",
+      "lossTender": "Lost",
       "declined": "Declined",
       "internalProject": "Internal Project"
     },
