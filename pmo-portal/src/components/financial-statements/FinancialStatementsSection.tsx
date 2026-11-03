@@ -58,7 +58,7 @@ export function FinancialStatementsSection({
 
   let content: ReactNode;
   if (state.kind === 'loading') {
-    content = <ListState variant="loading" />;
+    content = <ListState variant="loading" shape="table" rows={5} />;
   } else if (state.kind === 'error') {
     content = errorState;
   } else if (state.kind === 'unavailable') {

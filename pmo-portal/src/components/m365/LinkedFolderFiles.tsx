@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, Icon } from '@/src/components/ui';
+import { Button, Icon, ListState } from '@/src/components/ui';
 import { useOptionalDocumentViewer } from '@/src/components/documents/viewerContext';
 import { folderChildTarget } from '@/src/components/documents/targets/reference';
 import type { ReferenceOwner } from '@/src/lib/m365/reference';
@@ -33,7 +33,7 @@ export function LinkedFolderFiles({ reference, owner }: { reference: { drive_id:
   }, [drive_id, item_id, attempt]);
 
   if (state.loading) {
-    return <p role="status" className="text-[12.5px] text-muted-foreground">{t('folderFiles.loading', 'Loading files…')}</p>;
+    return <ListState variant="loading" shape="cards" rows={3} loadingLabel={t('folderFiles.loading', 'Loading files…')} loadingRole="status" />;
   }
   if (state.error != null) {
     return (

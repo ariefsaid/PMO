@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import React from 'react';
+import { createInstance } from 'i18next';
+import { I18nextProvider } from 'react-i18next';
 
 type Analytics = typeof import('@/src/lib/analytics');
 const analytics = vi.hoisted(() => ({ trackEmptyStateSeen: vi.fn<Analytics['trackEmptyStateSeen']>() }));
@@ -19,10 +22,73 @@ describe('ListState', () => {
     expect(region.querySelectorAll('.skel').length).toBeGreaterThan(0);
   });
 
+  it('loading renders while the locale provider is not initialized yet', () => {
+    const uninitializedI18n = createInstance();
+    render(
+      <I18nextProvider i18n={uninitializedI18n}>
+        <React.Suspense fallback={<div data-testid="i18n-suspended">Waiting for locale</div>}>
+          <ListState
+            variant="loading"
+            loadingRole="status"
+            loadingAriaLabel="Authenticating…"
+            loadingLabel="Authenticating…"
+          />
+        </React.Suspense>
+      </I18nextProvider>,
+    );
+
+    expect(screen.queryByTestId('i18n-suspended')).not.toBeInTheDocument();
+    expect(screen.getByRole('status', { name: 'Authenticating…' })).toHaveAttribute('aria-busy', 'true');
+  });
+
   it('loading: testId prop overrides the default liststate-loading testid', () => {
     render(<ListState variant="loading" testId="milestone-strip-skeleton" />);
     expect(screen.getByTestId('milestone-strip-skeleton')).toHaveAttribute('aria-busy', 'true');
     expect(screen.queryByTestId('liststate-loading')).toBeNull();
+  });
+
+  it.each(['lines', 'table', 'cards', 'detail', 'chart'] as const)(
+    'loading shape=%s keeps its busy announcement',
+    (shape) => {
+      render(<ListState variant="loading" shape={shape} />);
+      const region = screen.getByTestId('liststate-loading');
+      expect(region).toHaveAttribute('aria-busy', 'true');
+      expect(region).toHaveAttribute('aria-live', 'polite');
+      expect(screen.getByText('Loading…')).toBeInTheDocument();
+    },
+  );
+
+  it('loadingRole=status keeps one busy status region that announces its loading copy', () => {
+    render(
+      <ListState
+        variant="loading"
+        shape="cards"
+        loadingLabel="Loading files…"
+        loadingRole="status"
+      />,
+    );
+    const status = screen.getByRole('status');
+    expect(status).toHaveAttribute('aria-busy', 'true');
+    expect(status).toHaveTextContent('Loading files…');
+    expect(status).toHaveAttribute('aria-live', 'polite');
+  });
+
+  it('loadingAriaLabel preserves an explicit status name while retaining the loading copy', () => {
+    render(
+      <ListState
+        variant="loading"
+        loadingLabel="Loading…"
+        loadingRole="status"
+        loadingAriaLabel="Authenticating…"
+      />,
+    );
+    expect(screen.getByRole('status', { name: 'Authenticating…' })).toHaveAttribute('aria-busy', 'true');
+    expect(screen.getByText('Loading…')).toBeInTheDocument();
+  });
+
+  it('loading: loadingLabel replaces the announced copy for page/section loads', () => {
+    render(<ListState variant="loading" loadingLabel="Loading project finances…" />);
+    expect(screen.getByText('Loading project finances…')).toBeInTheDocument();
   });
 
   it('empty: renders icon tile, title, sub, and a LIVE (never disabled) populating action', async () => {

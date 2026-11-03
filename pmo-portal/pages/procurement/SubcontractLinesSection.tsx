@@ -66,9 +66,7 @@ export const SubcontractLinesSection: React.FC<SubcontractLinesSectionProps> = (
     toast(headline, detail, 'warning');
   };
 
-  if (position.isPending) {
-    return <Card><CardHead>{t('subcontract.lines.title', 'Subcontract BoQ lines')}</CardHead><CardPad><ListState variant="loading" rows={3} /></CardPad></Card>;
-  }
+  if (position.isPending) return <Card><CardHead>{t('subcontract.lines.title', 'Subcontract BoQ lines')}</CardHead><CardPad><ListState variant="loading" shape="table" rows={3} /></CardPad></Card>;
   if (position.isError) {
     return (
       <Card>
