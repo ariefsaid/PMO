@@ -178,10 +178,11 @@ const TimeAndMaterials: React.FC<TimeAndMaterialsProps> = ({ projectId, projectM
   const personFor = (userId: string | null) => userId
     ? profilesById.get(userId)?.full_name ?? t('preview.personUnavailable', 'Person no longer active')
     : t('preview.personUnknown', 'Person not identified');
+  const compactError = 'rounded-none border-0 bg-transparent p-0';
 
   const rateList = rateLines.isPending ? <ListState variant="loading" rows={2} />
-    : rateLines.isError ? <ListState variant="error" title={t('rateCard.loadError', "Couldn't load the rate card")} onRetry={() => void rateLines.refetch()} />
-      : rateRows.length === 0 ? <p className="rounded-md border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">{t('rateCard.empty', 'No labour rates yet. Add a rate before assembling a claim.')}</p>
+    : rateLines.isError ? <ListState variant="error" title={t('rateCard.loadError', "Couldn't load the rate card")} onRetry={() => void rateLines.refetch()} className={compactError} />
+      : rateRows.length === 0 ? <ListState variant="empty" title={t('rateCard.emptyTitle', 'No labour rates yet')} sub={t('rateCard.empty', 'Add a rate before assembling a claim.')} className="items-start justify-start gap-2 px-0 py-3 text-left" />
         : <ul className="divide-y divide-border" aria-label={t('rateCard.title', 'Rate card')}>
           {rateRows.map((line) => {
             const assignedPeople = currentAssigneesFor(line.line_key);
@@ -236,7 +237,7 @@ const TimeAndMaterials: React.FC<TimeAndMaterialsProps> = ({ projectId, projectM
             {rateList}
             {rateLines.data?.truncated && <p role="status" className="mt-2 text-sm text-muted-foreground">{t('rateCard.truncated', 'More than {{limit}} rate lines exist; this list is incomplete.', { limit: LIST_LIMIT })}</p>}
             {assignments.data?.truncated && <p role="status" className="mt-2 text-sm text-muted-foreground">{t('rateCard.assignmentsTruncated', 'Some rate assignments may not be shown.', { limit: LIST_LIMIT })}</p>}
-            {assignments.isError && <ListState variant="error" title={t('rateCard.assignmentError', "Couldn't load rate assignments")} onRetry={() => void assignments.refetch()} />}
+            {assignments.isError && <ListState variant="error" title={t('rateCard.assignmentError', "Couldn't load rate assignments")} onRetry={() => void assignments.refetch()} className={compactError} />}
             {people.isError && <p role="alert" className="mt-2 text-sm text-destructive-text">{t('rateCard.peopleError', "Couldn't load people. Retry before assigning a rate.")}</p>}
           </section>
 
@@ -251,14 +252,14 @@ const TimeAndMaterials: React.FC<TimeAndMaterialsProps> = ({ projectId, projectM
             {!previewRangeValid && <p className="mt-2 text-sm text-destructive-text" role="alert">{t('assembly.invalidRange', 'Choose an end date on or after the start date.')}</p>}
             <div className="mt-4">
               {preview.isPending && <ListState variant="loading" rows={2} />}
-              {preview.isError && <ListState variant="error" title={t('preview.error', "Couldn't preview approved hours")} onRetry={() => void preview.refetch()} />}
+              {preview.isError && <ListState variant="error" title={t('preview.error', "Couldn't preview approved hours")} onRetry={() => void preview.refetch()} className={compactError} />}
               {preview.data?.truncated && <p role="status" className="mb-3 text-sm text-muted-foreground">{t('preview.truncated', 'More than {{limit}} preview groups are returned. Narrow the period before assembling; assembly is disabled.', { limit: LIST_LIMIT })}</p>}
               {!preview.isPending && !preview.isError && previewRangeValid && previewRows.length === 0 && (
-                <p className="rounded-md border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">{t('preview.empty', 'No approved hours in this period.')}</p>
+                <ListState variant="empty" title={t('preview.empty', 'No approved hours in this period.')} className="items-start justify-start gap-2 px-0 py-3 text-left" />
               )}
               {pricedRows.length > 0 && <div className="overflow-x-auto">
                 <h4 className="mb-2 text-sm font-semibold">{t('preview.priced', 'Ready to claim')}</h4>
-                <ul className="divide-y divide-border rounded-md border border-border px-3">
+                <ul className="divide-y divide-border">
                   {pricedRows.map((row, index) => <li key={`${row.line_key ?? row.label}-${row.user_id}-${index}`} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 py-2 text-sm">
                     <span className="min-w-0 font-medium">{row.label ?? t('preview.labour', 'Labour')}</span>
                     <span className="tabular text-muted-foreground">{personFor(row.user_id)} · {formatNumberExact(Number(row.units))} {row.unit ?? t('unit.hour', 'hour')} · {formatCurrency(Number(row.rate), currency)} · {formatCurrency(Number(row.amount), currency)}</span>
@@ -267,7 +268,7 @@ const TimeAndMaterials: React.FC<TimeAndMaterialsProps> = ({ projectId, projectM
               </div>}
               {unratedRows.length > 0 && <div className="mt-4" aria-labelledby="tm-unrated-heading">
                 <h4 id="tm-unrated-heading" className="mb-2 text-sm font-semibold">{t('preview.unratedHeading', 'Unrated hours')}</h4>
-                <ul className="divide-y divide-border rounded-md border border-border px-3">
+                <ul className="divide-y divide-border">
                   {unratedRows.map((row, index) => <li key={`${row.unrated_reason}-${row.user_id}-${index}`} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
                     <span>{reasonFor(row)} · {personFor(row.user_id)}</span>
                     <span className="tabular text-muted-foreground">{formatNumberExact(Number(row.units))} {row.unit ?? t('unit.hour', 'hour')} · {t('preview.sourceCount', '{{count}} approved entries', { count: row.source_count })}</span>
@@ -279,11 +280,11 @@ const TimeAndMaterials: React.FC<TimeAndMaterialsProps> = ({ projectId, projectM
 
           <section aria-labelledby="tm-claims-heading" className="mt-6 border-t border-border pt-5">
             <h3 id="tm-claims-heading" className="text-group font-semibold text-foreground">{t('claims.title', 'Time-and-materials claims')}</h3>
-            {actionError && <p role="alert" className="mt-3 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive-text">{actionError}</p>}
+            {actionError && <p role="alert" className="mt-3 text-sm text-destructive-text">{actionError}</p>}
             <div className="mt-3">
               {claims.isPending && <ListState variant="loading" rows={2} />}
-              {claims.isError && <ListState variant="error" title={t('claims.error', "Couldn't load time-and-materials claims")} onRetry={() => void claims.refetch()} />}
-              {!claims.isPending && !claims.isError && claimRows.length === 0 && <p className="rounded-md border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">{t('claims.empty', 'No time-and-materials claims yet.')}</p>}
+              {claims.isError && <ListState variant="error" title={t('claims.error', "Couldn't load time-and-materials claims")} onRetry={() => void claims.refetch()} className={compactError} />}
+              {!claims.isPending && !claims.isError && claimRows.length === 0 && <ListState variant="empty" title={t('claims.empty', 'No time-and-materials claims yet.')} className="items-start justify-start gap-2 px-0 py-3 text-left" />}
               {claimRows.length > 0 && <ul className="divide-y divide-border">
                 {claimRows.map((claim) => <li key={claim.id} className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between">
                   <button type="button" className="min-w-0 rounded text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring" aria-label={claimOpenLabel(claim)} onClick={() => setSelectedClaim(claim)}>
