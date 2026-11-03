@@ -60,8 +60,8 @@ Deno.test({
     const total = expectedInvoiceTotal(lines, [11]);   // 2000 + 11% = 2220.00
     const moveRead = (id: number) => call<Array<{ state: string; move_type: string; ref: string; invoice_date: string; partner_id: [number, string]; amount_untaxed: number; amount_tax: number; amount_total: number; amount_residual: number; name: string }>>(
       'account.move', 'read', { ids: [id], fields: ['state', 'move_type', 'ref', 'invoice_date', 'partner_id', 'amount_untaxed', 'amount_tax', 'amount_total', 'amount_residual', 'name'] });
-    const productLines = (id: number) => call<Array<{ analytic_distribution: Record<string, number> | false; tax_ids: number[]; product_id: [number, string]; account_id: [number, string]; quantity: number; price_unit: number }>>(
-      'account.move.line', 'search_read', { domain: [['move_id', '=', id], ['display_type', '=', 'product']], fields: ['analytic_distribution', 'tax_ids', 'product_id', 'account_id', 'quantity', 'price_unit'], order: 'id asc' });
+    const productLines = (id: number) => call<Array<{ analytic_distribution: Record<string, number> | false; tax_ids: number[]; product_id: [number, string]; account_id: [number, string]; product_uom_id?: [number, string]; quantity: number; price_unit: number }>>(
+      'account.move.line', 'search_read', { domain: [['move_id', '=', id], ['display_type', '=', 'product']], fields: ['analytic_distribution', 'tax_ids', 'product_id', 'account_id', 'product_uom_id', 'quantity', 'price_unit'], order: 'id asc' });
     const anchored = (id: string) => call<Array<{ res_id: number }>>('ir.model.data', 'search_read', { domain: [['module', '=', 'pmo'], ['name', '=', externalIdentifier(invoiceKey({ id })).name], ['model', '=', 'account.move']], fields: ['res_id'] });
 
     for (const [label, costAccountId] of [['ordinary, with a cost account', account], ['free-standing, no project', null]] as const) {
@@ -164,5 +164,33 @@ Deno.test({
       [downPaymentProduct, 1, -40000, advance.id, { [String(account)]: 100 }],
     ]);
     assertEquals([claimResult.canonical.odoo_attention, claimResult.canonical.amount, claimResult.canonical.reference_number], [null, '510600.00', `${stamp}-WO-PO`]);
+
+    // C4b AC-OCI-024: a signed T&M claim's frozen 120 hours × contract rate is booked on the project distribution.
+    const hourUnits = await call<Array<{ id: number; name: string; category_id: [number, string] }>>('uom.uom', 'search_read', {
+      domain: [['name', 'ilike', 'hour']], fields: ['id', 'name', 'category_id'], limit: 1,
+    });
+    assert(hourUnits[0], 'the bed has an hour unit of measure');
+    const tmService = await make('product.product', {
+      name: `${stamp} T&M service`, type: 'service', sale_ok: true, property_account_income_id: income.id,
+      uom_id: hourUnits[0].id, uom_po_id: hourUnits[0].id,
+    });
+    const tmId = crypto.randomUUID();
+    const tmLines = [{ itemId: 'tm-service', description: `${stamp} Field labour (hour)`, quantity: 120, unitPrice: 50000, unit: 'hour', amount: 6000000 }];
+    const tmInput: PmoInvoice = { id: tmId, customerId: 'c', invoiceDate: '2026-12-05', currency: company.currency_id[1], lines: tmLines };
+    const tmMaps: InvoiceMaps = {
+      ...mapsFor(account), items: { svc: { productId: service, incomeAccountId: income.id }, 'tm-service': { productId: tmService, incomeAccountId: income.id } },
+      units: { hour: hourUnits[0].id },
+    };
+    const tmTotal = expectedInvoiceTotal(tmLines, [11]);
+    const tmExpectation: InvoiceExpect = { total: tmTotal, costAccountId: account };
+    const tmAdapter = createOdooRevenueAdapter({ call, resolveInvoice: () => Promise.resolve({ input: tmInput, maps: tmMaps, expect: tmExpectation }) });
+    const tmCommand: AdapterCommand = { domain: 'revenue', operation: 'transition', idempotencyKey: `${stamp}-TM`, record: { id: tmId, erp_doc_kind: 'sales-invoice', verb: 'submit' } };
+    const tmResult = await tmAdapter.commit(tmCommand);
+    const tmMoveId = parseOdooExternalRef('account.move', tmResult.externalRecordId)!;
+    const [tmMove] = await moveRead(tmMoveId);
+    const [tmPostedLine] = await productLines(tmMoveId);
+    assertEquals([tmPostedLine.product_id[0], tmPostedLine.quantity, tmPostedLine.price_unit, tmPostedLine.product_uom_id?.[0], tmPostedLine.analytic_distribution],
+      [tmService, 120, 50000, hourUnits[0].id, { [String(account)]: 100 }]);
+    assertEquals([tmMove.amount_untaxed, tmMove.amount_tax, tmMove.amount_total, tmResult.canonical.amount], [6000000, 660000, 6660000, '6660000.00']);
   },
 });

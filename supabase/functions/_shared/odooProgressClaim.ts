@@ -8,19 +8,66 @@ const MAX_CLAIM_LINES = 500;
 export interface OdooProgressClaim {
   claim: ProgressClaimRecord;
   customerId: string;
-  items: ReturnType<typeof progressClaimItems>;
+  items: Array<ReturnType<typeof progressClaimItems>[number] & { unit?: string; amount?: number }>;
+  timeMaterials: boolean;
 }
+
+interface TimeMaterialsLine {
+  line_key: string;
+  rate_version: number;
+  kind: string;
+  label: string;
+  unit: string;
+  units: number | string;
+  rate: number | string;
+  amount: number | string;
+}
+
+interface TimeMaterialsState {
+  status: string;
+  confirmed_by: string | null;
+  gross_amount: number | string;
+}
+
+const amountInMinorUnits = (value: unknown): bigint => {
+  const text = typeof value === 'string' || typeof value === 'number' ? String(value) : '';
+  const match = /^(\d+)(?:\.(\d{1,2}))?$/.exec(text);
+  if (!match) throw new AppError('The signed time-and-materials claim amount is invalid', 'commit-rejected');
+  return BigInt(match[1]) * 100n + BigInt((match[2] ?? '').padEnd(2, '0'));
+};
+
+const amountNumber = (value: number | string): number => {
+  const text = typeof value === 'number' || typeof value === 'string' ? String(value) : '';
+  if (!/^\d+(?:\.\d+)?$/.test(text)) throw new AppError('The signed time-and-materials claim line is invalid', 'commit-rejected');
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) throw new AppError('The signed time-and-materials claim line is invalid', 'commit-rejected');
+  return amount;
+};
 
 /** Load immutable claim facts from PMO and build only the lines the claim recorded. */
 export async function readOdooProgressClaim(sc: SupabaseClient, orgId: string, id: string): Promise<OdooProgressClaim | null> {
   const { data, error } = await sc.from('progress_claims')
-    .select('id,kind,project_id,work_order_id,currency,down_payment_amount,dp_recovery_amount,dp_item_code,withdrawn_at')
+    .select('id,kind,project_id,work_order_id,currency,gross_amount,down_payment_amount,dp_recovery_amount,dp_item_code,withdrawn_at')
     .eq('org_id', orgId).eq('id', id).maybeSingle();
   if (error) throw new AppError('The billing claim could not be read', 'gate-check-failed');
-  if (!data) return null;
+  if (!data) {
+    // Draft T&M claims exist before their sign-off projection in progress_claims. Do not let their
+    // lines fall through as an ordinary caller-authored invoice when that projection is absent.
+    const { data: tmData, error: tmError } = await sc.from('tm_claims').select('status,confirmed_by,gross_amount')
+      .eq('org_id', orgId).eq('id', id).maybeSingle();
+    if (tmError) throw new AppError('The time-and-materials sign-off could not be read', 'gate-check-failed');
+    if (!tmData) return null;
+    const tmClaim = tmData as TimeMaterialsState;
+    if (tmClaim.status === 'Withdrawn') throw new AppError('This time-and-materials claim was withdrawn, so no invoice can be raised for it', 'commit-rejected');
+    if (tmClaim.status !== 'SignedOff' || !tmClaim.confirmed_by) {
+      throw new AppError('Confirm the time-and-materials claim before raising its invoice', 'commit-rejected');
+    }
+    throw new AppError('The signed time-and-materials claim is unavailable', 'commit-rejected');
+  }
 
   const raw = data as Record<string, unknown>;
-  if (raw.id !== id || (raw.kind !== 'down_payment' && raw.kind !== 'progress')) {
+  const timeMaterials = raw.kind === 'time_materials';
+  if (raw.id !== id || (!timeMaterials && raw.kind !== 'down_payment' && raw.kind !== 'progress')) {
     throw new AppError('The billing claim cannot be invoiced through Odoo', 'commit-rejected');
   }
   const claim = raw as unknown as ProgressClaimRecord;
@@ -44,6 +91,7 @@ export async function readOdooProgressClaim(sc: SupabaseClient, orgId: string, i
   }
 
   let lines: ProgressClaimLineRecord[] = [];
+  let items: OdooProgressClaim['items'];
   if (claim.kind === 'progress') {
     const { data: rows, error: linesError } = await sc.from('progress_claim_lines')
       .select('item_code,description,unit,quantity,rate').eq('org_id', orgId).eq('claim_id', claim.id)
@@ -51,12 +99,64 @@ export async function readOdooProgressClaim(sc: SupabaseClient, orgId: string, i
     if (linesError) throw new AppError('The billing claim lines could not be read', 'gate-check-failed');
     lines = (rows ?? []) as ProgressClaimLineRecord[];
     if (lines.length > MAX_CLAIM_LINES) throw new AppError(`A progress claim may have at most ${MAX_CLAIM_LINES} lines`, 'commit-rejected');
-  }
+    try {
+      items = progressClaimItems(claim, lines);
+    } catch (error) {
+      if (error instanceof AdapterError) throw new AppError(error.message, error.code);
+      throw error;
+    }
+  } else if (timeMaterials) {
+    if (claim.withdrawn_at) throw new AppError('This time-and-materials claim was withdrawn, so no invoice can be raised for it', 'commit-rejected');
+    const { data: tmData, error: tmError } = await sc.from('tm_claims').select('status,confirmed_by,gross_amount')
+      .eq('org_id', orgId).eq('id', claim.id).maybeSingle();
+    if (tmError) throw new AppError('The time-and-materials sign-off could not be read', 'gate-check-failed');
+    if (!tmData) throw new AppError('This time-and-materials claim is unavailable', 'commit-rejected');
+    const tmClaim = tmData as TimeMaterialsState;
+    if (tmClaim.status === 'Withdrawn') throw new AppError('This time-and-materials claim was withdrawn, so no invoice can be raised for it', 'commit-rejected');
+    if (tmClaim.status !== 'SignedOff' || !tmClaim.confirmed_by) {
+      throw new AppError('Confirm the time-and-materials claim before raising its invoice', 'commit-rejected');
+    }
 
-  try {
-    return { claim, customerId, items: progressClaimItems(claim, lines) };
-  } catch (error) {
-    if (error instanceof AdapterError) throw new AppError(error.message, error.code);
-    throw error;
+    const { data: tmRows, error: tmLinesError } = await sc.from('tm_claim_lines')
+      .select('line_key,rate_version,kind,label,unit,units,rate,amount').eq('org_id', orgId).eq('claim_id', claim.id)
+      .order('line_key', { ascending: true }).order('rate_version', { ascending: true }).limit(MAX_CLAIM_LINES + 1);
+    if (tmLinesError) throw new AppError('The signed time-and-materials lines could not be read', 'gate-check-failed');
+    const tmLines = (tmRows ?? []) as TimeMaterialsLine[];
+    if (tmLines.length > MAX_CLAIM_LINES) throw new AppError(`A time-and-materials claim may have at most ${MAX_CLAIM_LINES} lines`, 'commit-rejected');
+    if (tmLines.length === 0) throw new AppError('This time-and-materials claim has no quantity lines', 'commit-rejected');
+
+    const gross = amountInMinorUnits(raw.gross_amount);
+    const tmGross = amountInMinorUnits(tmClaim.gross_amount);
+    let linesGross = 0n;
+    items = tmLines.map((line) => {
+      const label = typeof line.label === 'string' && line.label.trim() ? line.label.trim() : null;
+      const unit = line.unit === 'hour' || line.unit === 'day' ? line.unit : null;
+      const quantity = amountNumber(line.units);
+      const rate = amountNumber(line.rate);
+      const amount = amountNumber(line.amount);
+      if (!label || !unit || typeof line.kind !== 'string' || !line.kind.trim() || quantity <= 0 || rate < 0 || amount < 0) {
+        throw new AppError('The signed time-and-materials claim line is invalid', 'commit-rejected');
+      }
+      linesGross += amountInMinorUnits(line.amount);
+      return {
+        item_code: label,
+        description: `${label} (${unit})`,
+        qty: quantity,
+        rate,
+        amount,
+        unit,
+      };
+    });
+    if (linesGross !== gross || linesGross !== tmGross) {
+      throw new AppError('The signed time-and-materials claim header does not match its line amounts', 'commit-rejected');
+    }
+  } else {
+    try {
+      items = progressClaimItems(claim, lines);
+    } catch (error) {
+      if (error instanceof AdapterError) throw new AppError(error.message, error.code);
+      throw error;
+    }
   }
+  return { claim, customerId, items: items!, timeMaterials };
 }

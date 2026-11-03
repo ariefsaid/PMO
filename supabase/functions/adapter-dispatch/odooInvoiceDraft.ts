@@ -43,8 +43,11 @@ export async function checkOdooDraftTarget(sc: SupabaseClient, orgId: string, co
   return { ok: true, unmappedDraft: true };
 }
 
-const lineAmounts = (items: unknown, allowNegative = false) => {
-  const lines = parseDraftLines(Array.isArray(items) ? items.map((i: { item_code?: unknown; qty?: unknown; rate?: unknown; description?: unknown }) => ({ item_code: i?.item_code, qty: i?.qty, rate: i?.rate, description: i?.description })) : null, allowNegative);
+const lineAmounts = (items: unknown, allowNegative = false, preserveClaimFacts = false) => {
+  const lines = parseDraftLines(Array.isArray(items) ? items.map((i: { item_code?: unknown; qty?: unknown; rate?: unknown; description?: unknown; amount?: unknown; unit?: unknown }) => ({
+    item_code: i?.item_code, qty: i?.qty, rate: i?.rate, description: i?.description,
+    ...(preserveClaimFacts ? { amount: i?.amount, unit: i?.unit } : {}),
+  })) : null, allowNegative, preserveClaimFacts);
   return lines === null ? null : { lines, total: lines.reduce((sum, l) => sum + Math.round(l.amount * 100), 0) / 100 };
 };
 
@@ -67,7 +70,7 @@ async function hasOutboxRow(sc: SupabaseClient, orgId: string, invoiceId: string
 export async function writeOdooInvoiceDraft(args: { serviceClient: SupabaseClient; orgId: string; userId: string; command: AdapterCommand }): Promise<Reply> {
   const { serviceClient: sc, orgId, userId, command } = args;
   const record = command.record as Record<string, unknown> & { id: string };
-  let claim: Awaited<ReturnType<typeof readOdooProgressClaim>> = null;
+  let claim: Awaited<ReturnType<typeof readOdooProgressClaim>>;
   try {
     claim = await readOdooProgressClaim(sc, orgId, String(record.id));
     if (claim && command.operation === 'update') return reply(409, 'commit-rejected', 'claim-invoice-lines-locked');
@@ -79,7 +82,7 @@ export async function writeOdooInvoiceDraft(args: { serviceClient: SupabaseClien
     if (err instanceof AppError) return reply(422, String(err.code ?? 'commit-rejected'), err.message);
     throw err;
   }
-  const items = lineAmounts(claim?.items ?? record.items, claim !== null);
+  const items = lineAmounts(claim?.items ?? record.items, claim !== null, claim?.timeMaterials === true);
   const reference = claim ? null : typeof record.reference_number === 'string' && record.reference_number.trim() !== '' ? record.reference_number.trim() : null;
 
   if (command.operation === 'create') {
@@ -87,7 +90,9 @@ export async function writeOdooInvoiceDraft(args: { serviceClient: SupabaseClien
     const customerId = claim?.customerId ?? (typeof record.customerId === 'string' && record.customerId !== '' ? record.customerId : null);
     if (customerId === null) return reply(422, 'commit-rejected', 'invoice-customer-required');
     const projectId = claim?.claim.project_id ?? (typeof record.projectId === 'string' && record.projectId !== '' ? record.projectId : null);
-    const workOrderId = claim?.claim.work_order_id ?? (typeof record.workOrderId === 'string' && record.workOrderId !== '' ? record.workOrderId : null);
+    const workOrderId = claim
+      ? claim.claim.work_order_id
+      : (typeof record.workOrderId === 'string' && record.workOrderId !== '' ? record.workOrderId : null);
     const { error } = await sc.from('sales_invoices').insert({
       id: record.id, org_id: orgId, project_id: projectId, customer_id: customerId, ...(workOrderId ? { work_order_id: workOrderId } : {}),
       ...(claim?.claim.currency ? { currency: claim.claim.currency } : {}),

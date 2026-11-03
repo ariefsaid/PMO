@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildInvoiceBody, resolveClientReference, type InvoiceMaps, type PmoInvoice } from './invoiceBody.ts';
+import { expectedInvoiceTotal } from './invoiceReadBack.ts';
 
 const maps: InvoiceMaps = {
   companyCurrency: 'IDR',
@@ -43,6 +44,20 @@ describe('AC-OCI-023 the builder transports the record, never recomputes it', ()
       expect(lineOf(body, i).price_unit).toBe(l.unitPrice);
     });
     expect((body as { invoice_line_ids: unknown[] }).invoice_line_ids).toHaveLength(lines.length);
+  });
+
+  it('AC-OCI-024 preserves frozen T&M line amounts when Odoo currency rounding would book a different quantity × rate', () => {
+    const timeMaterials = {
+      ...invoice,
+      lines: [{ itemId: 'item-km', description: 'Field labour (hour)', quantity: 1.5, unitPrice: 0.67, unit: 'hour', amount: 1.01 }],
+    } as PmoInvoice;
+    const threeDecimalCurrency = { ...maps, units: { ...maps.units, hour: 12 }, currencyRounding: 0.001 } as InvoiceMaps;
+    const body = ready(timeMaterials, threeDecimalCurrency);
+    const line = lineOf(body);
+
+    expect([line.quantity, line.price_unit, line.product_uom_id]).toEqual([1, 1.01, 12]);
+    expect(line.name).toContain('1.5 × 0.67');
+    expect(expectedInvoiceTotal(timeMaterials.lines, [])).toBe('1.01');
   });
 
   it('does not replace a recorded recovery unit rate with its extended amount', () => {

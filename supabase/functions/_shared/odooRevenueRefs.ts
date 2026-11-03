@@ -25,7 +25,7 @@ const asMap = (value: unknown): Record<string, string> =>
     : {};
 
 /** One line of a draft, as the PMO draft stores it (the native line shape). */
-export interface DraftLine { item_code: string; description: string | null; qty: number; rate: number; amount: number }
+export interface DraftLine { item_code: string; description: string | null; qty: number; rate: number; amount: number; unit?: string }
 export interface InvoiceDraftRow {
   id: string; customerId: string | null; projectId: string | null; workOrderId: string | null; referenceNumber: string | null;
   invoiceDate: string | null; currency: string | null; status: string; erpDocstatus: number | null; pmoNative: boolean; lines: DraftLine[];
@@ -33,14 +33,19 @@ export interface InvoiceDraftRow {
 const DRAFT_COLUMNS = 'id,customer_id,project_id,work_order_id,reference_number,invoice_date,currency,status,erp_docstatus,pmo_native,native_lines';
 
 /** A line is valid only in its stored shape: a code, a positive quantity, a finite non-negative rate, and an amount of qty x rate to the cent. */
-export function parseDraftLines(value: unknown, allowNegative = false): DraftLine[] | null {
+export function parseDraftLines(value: unknown, allowNegative = false, preserveClaimFacts = false): DraftLine[] | null {
   if (!Array.isArray(value) || value.length === 0) return null;
   const lines: DraftLine[] = [];
   for (const raw of value) {
-    const l = raw as { item_code?: unknown; description?: unknown; qty?: unknown; rate?: unknown; amount?: unknown } | null;
+    const l = raw as { item_code?: unknown; description?: unknown; qty?: unknown; rate?: unknown; amount?: unknown; unit?: unknown } | null;
     const code = text(l?.item_code);
     if (!l || !code || typeof l.qty !== 'number' || !(l.qty > 0) || typeof l.rate !== 'number' || !Number.isFinite(l.rate) || (!allowNegative && l.rate < 0)) return null;
-    lines.push({ item_code: code, description: text(l.description), qty: l.qty, rate: l.rate, amount: Math.round(l.qty * l.rate * 100) / 100 });
+    const amount = preserveClaimFacts && l.amount !== undefined
+      ? (typeof l.amount === 'number' || typeof l.amount === 'string' ? Number(l.amount) : Number.NaN)
+      : Math.round(l.qty * l.rate * 100) / 100;
+    const unit = preserveClaimFacts && l.unit !== undefined ? text(l.unit) : null;
+    if (!Number.isFinite(amount) || (preserveClaimFacts && l.unit !== undefined && unit === null)) return null;
+    lines.push({ item_code: code, description: text(l.description), qty: l.qty, rate: l.rate, amount, ...(unit ? { unit } : {}) });
   }
   return lines;
 }
@@ -54,7 +59,7 @@ export async function readInvoiceDraft(sc: SupabaseClient, orgId: string, id: st
   return {
     id: String(r.id), customerId: text(r.customer_id), projectId: text(r.project_id), workOrderId: text(r.work_order_id), referenceNumber: text(r.reference_number),
     invoiceDate: text(r.invoice_date), currency: text(r.currency), status: String(r.status), erpDocstatus: typeof r.erp_docstatus === 'number' ? r.erp_docstatus : null,
-    pmoNative: r.pmo_native === true, lines: parseDraftLines(r.native_lines, true) ?? [],
+    pmoNative: r.pmo_native === true, lines: parseDraftLines(r.native_lines, true, true) ?? [],
   };
 }
 
@@ -75,14 +80,19 @@ async function readSaleTax(sc: SupabaseClient, orgId: string, call: OdooCall, id
 }
 
 /** Odoo's company currency (the only currency PMO invoices in, OQ-OCI-13) as `[id, code]`; unreadable is refused. */
-async function companyCurrency(call: OdooCall, companyId: number | null): Promise<string> {
+async function companyCurrency(call: OdooCall, companyId: number | null, requireRounding = false): Promise<{ code: string; rounding: number }> {
   const unreadable = () => rejected('currency-unreadable: the invoice currency could not be confirmed against Odoo');
   if (companyId === null) throw unreadable();
   let company: Array<{ currency_id?: unknown }>;
   try { company = await call<Array<{ currency_id?: unknown }>>('res.company', 'read', { ids: [companyId], fields: ['currency_id'] }); } catch { throw unreadable(); }
   const cur = company[0]?.currency_id;
-  if (!Array.isArray(cur) || typeof cur[1] !== 'string' || cur[1].trim() === '') throw unreadable();
-  return cur[1].trim().toUpperCase();
+  if (!Array.isArray(cur) || typeof cur[0] !== 'number' || !Number.isInteger(cur[0]) || cur[0] < 1 || typeof cur[1] !== 'string' || cur[1].trim() === '') throw unreadable();
+  if (!requireRounding) return { code: cur[1].trim().toUpperCase(), rounding: 0.01 };
+  let currencies: Array<{ rounding?: unknown }>;
+  try { currencies = await call<Array<{ rounding?: unknown }>>('res.currency', 'read', { ids: [cur[0]], fields: ['rounding'] }); } catch { throw unreadable(); }
+  const rounding = Number(currencies[0]?.rounding);
+  if (!Number.isFinite(rounding) || rounding <= 0) throw unreadable();
+  return { code: cur[1].trim().toUpperCase(), rounding };
 }
 
 /** The Odoo products the lines name and the income account each posts to (`false` = none set: the line is refused, never guessed). */
@@ -150,8 +160,11 @@ export function resolveOdooInvoiceInputs(sc: SupabaseClient, orgId: string, comm
     if (claim) {
       const recorded = claim.items.map((line) => ({
         item_code: line.item_code, qty: line.qty, rate: line.rate, description: text(line.description),
+        amount: line.amount ?? Math.round(Number(line.qty) * Number(line.rate ?? 0) * 100) / 100,
+        ...(line.unit ? { unit: line.unit } : {}),
       }));
-      const copied = draft.lines.map((line) => ({ item_code: line.item_code, qty: line.qty, rate: line.rate, description: line.description }));
+      const copied = draft.lines.map((line) => ({ item_code: line.item_code, qty: line.qty, rate: line.rate, description: line.description, amount: line.amount,
+        ...(line.unit ? { unit: line.unit } : {}) }));
       if (draft.customerId !== claim.customerId || draft.projectId !== claim.claim.project_id || draft.workOrderId !== claim.claim.work_order_id
         || draft.currency !== claim.claim.currency || draft.referenceNumber !== null || JSON.stringify(copied) !== JSON.stringify(recorded)) {
         return refuse('claim-invoice-draft-mismatch');
@@ -210,8 +223,10 @@ export function resolveOdooInvoiceInputs(sc: SupabaseClient, orgId: string, comm
     if (selection.outcome === 'refused') throw rejected(`config-rejected: the sale tax${selection.tax ? ` ${selection.tax}` : ''} cannot be used on an invoice`);
     const rates = taxes.filter((t) => selection.taxIds.includes(t.id)).map((t) => t.rate);
 
-    const lines = draft.lines.map((l, i) => ({
+    const lines = draft.lines.map((l) => ({
       itemId: l.item_code, description: l.description ?? l.item_code, quantity: l.qty, unitPrice: l.rate,
+      ...(l.unit ? { unit: l.unit } : {}),
+      ...(claim?.timeMaterials ? { amount: l.amount } : {}),
       ...(claim ? { kind: claim.claim.kind === 'down_payment' ? 'down-payment' as const
         : l.item_code === claim.claim.dp_item_code && l.rate < 0 ? 'recovery' as const : undefined } : {}),
     }));
@@ -221,7 +236,12 @@ export function resolveOdooInvoiceInputs(sc: SupabaseClient, orgId: string, comm
       id: draft.id, customerId: draft.customerId ?? '', invoiceDate: draft.invoiceDate ?? today, currency: draft.currency ?? '', lines,
       referenceNumber: draft.referenceNumber, workOrderPoNumber: workOrderPo, projectContractRef: contractRef,
     };
-    const maps: InvoiceMaps = { companyCurrency: await companyCurrency(call, resolved.companyId), partners, items, units: {}, costAccountId, taxIds: selection.taxIds, ...(downPayment ? { downPayment } : {}) };
+    const currency = await companyCurrency(call, resolved.companyId, claim?.timeMaterials === true);
+    const units = Object.fromEntries(Object.entries(asMap(resolved.config.unit_map)).flatMap(([unit, id]) => {
+      const parsed = Number(id);
+      return Number.isInteger(parsed) && parsed > 0 ? [[unit, parsed]] : [];
+    }));
+    const maps: InvoiceMaps = { companyCurrency: currency.code, currencyRounding: currency.rounding, partners, items, units, costAccountId, taxIds: selection.taxIds, ...(downPayment ? { downPayment } : {}) };
 
     // The command is what the draft says: the client's, project's, work order's and lines' values REPLACE whatever the payload carried, so the
     // outbox payload, its digest, the work-order fence and the recovery all read the approved draft (never the approver's say-so).
@@ -229,7 +249,8 @@ export function resolveOdooInvoiceInputs(sc: SupabaseClient, orgId: string, comm
     record.projectId = draft.projectId;
     record.workOrderId = draft.workOrderId;
     record.currency = draft.currency;
-    record.items = draft.lines.map((l) => ({ item_code: l.item_code, qty: l.qty, rate: l.rate, ...(l.description ? { description: l.description } : {}) }));
+    record.items = draft.lines.map((l) => ({ item_code: l.item_code, qty: l.qty, rate: l.rate, ...(l.description ? { description: l.description } : {}),
+      ...(claim?.timeMaterials ? { amount: l.amount, unit: l.unit } : {}) }));
     record.reference_number = reference;
     delete record.taxes;
     return { input, maps, expect: { total: expectedInvoiceTotal(lines, rates), costAccountId, ...(advanceAccount ? { advanceAccount } : {}) }, draft };

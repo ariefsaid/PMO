@@ -94,10 +94,10 @@ const roundHalfAway = (n: number) => (n < 0 ? -1 : 1) * Math.round(Math.abs(n));
  * The total PMO expects Odoo to answer for the lines it sends and the explicit tax rates (percent): each line's net to the cent, each tax rounded per
  * line as Odoo does. It is an EXPECTATION to judge Odoo's answer by (FR-OCI-024), never a figure PMO stores: the ledger's total is the one written.
  */
-export function expectedInvoiceTotal(lines: ReadonlyArray<{ quantity: number; unitPrice: number }>, taxRates: readonly number[]): string {
+export function expectedInvoiceTotal(lines: ReadonlyArray<{ quantity: number; unitPrice: number; amount?: number }>, taxRates: readonly number[]): string {
   let cents = 0;
   for (const line of lines) {
-    const base = Math.round(line.quantity * line.unitPrice * 100);
+    const base = Math.round((line.amount ?? line.quantity * line.unitPrice) * 100);
     cents += base + taxRates.reduce((sum, rate) => sum + roundHalfAway((base * rate) / 100), 0);
   }
   return `${cents < 0 ? '-' : ''}${Math.trunc(Math.abs(cents) / 100)}.${String(Math.abs(cents) % 100).padStart(2, '0')}`;
