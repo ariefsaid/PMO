@@ -73,10 +73,15 @@ async function settleInvoice(call: OdooCall, id: number, record: PmoRecord, expe
     step = nextStep('sales-invoice', observe(move.state), 'none');
   }
   if (step !== 'adopt') return refuse(`invoice-${move.state}`);
-  const productLines = await call<Array<{ id: number; display_type?: string; analytic_distribution?: Record<string, number> | false | null }>>('account.move.line', 'search_read', {
-    domain: [['move_id', '=', id], ['display_type', '=', 'product']], fields: ['display_type', 'analytic_distribution'],
+  const productLines = await call<Array<{
+    id: number; display_type?: string; analytic_distribution?: Record<string, number> | false | null;
+    product_id?: unknown; account_id?: unknown;
+  }>>('account.move.line', 'search_read', {
+    domain: [['move_id', '=', id], ['display_type', '=', 'product']], fields: ['display_type', 'analytic_distribution', 'product_id', 'account_id'],
   });
-  return { externalRecordId: odooExternalRef(MOVE, id), canonical: readBackInvoice(String(record.id), { move, productLines, readAt: new Date().toISOString() }, expect) };
+  const canonical = readBackInvoice(String(record.id), { move, productLines, readAt: new Date().toISOString() }, expect);
+  const workOrderId = typeof record.workOrderId === 'string' && record.workOrderId !== '' ? record.workOrderId : null;
+  return { externalRecordId: odooExternalRef(MOVE, id), canonical: { ...canonical, ...(workOrderId ? { work_order_id: workOrderId } : {}) } };
 }
 
 /**

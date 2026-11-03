@@ -1,7 +1,7 @@
 /**
- * Odoo purchasing setup verbs (#1505 P2): employ procurement under Odoo (FR-OPP-001, PQ-12 parity with ERPNext's `employ-domain`)
- * the org's default payment journal (FR-OPP-093, OQ-OPP-6), and the C5 tax-prepaid account. Odoo is not called: the journal and
- * account lists are mirrored, and writes go through actor-checked RPCs (0505, 0509, 0512) that enforce their role and scope.
+ * Odoo purchasing setup verbs (#1505 P2): employ procurement under Odoo (FR-OPP-001, PQ-12 parity with ERPNext's `employ-domain`),
+ * the org's default payment journal (FR-OPP-093, OQ-OPP-6), the C5 tax-prepaid account, and customer-advance account. Odoo is not called:
+ * the lists are mirrored, and writes go through actor-checked RPCs (0505, 0509, 0512, 0540) that enforce their role and scope.
  */
 import { odooError, type OdooCtx } from './router.ts';
 
@@ -50,13 +50,28 @@ export async function proposeConfig(c: OdooCtx): Promise<Response> {
   return c.respond({ journal: { state: list.length ? 'choose' : 'none', candidates: list, current: null } });
 }
 
-/** Saves one default at a time through its actor-checked RPC. */
+/** Saves one Odoo default through its actor-checked setter. */
 export async function saveDefaults(c: OdooCtx): Promise<Response> {
-  const savesTaxPrepaid = Object.hasOwn(c.body, 'tax_prepaid_account_id');
-  if (savesTaxPrepaid) {
-    if (Object.hasOwn(c.body, 'default_payment_journal_id')) {
-      return odooError(c, 'Save one Odoo default at a time', 'BAD_REQUEST', 400);
+  const fields = ['customer_advance_account_ref', 'tax_prepaid_account_id', 'default_payment_journal_id'];
+  if (fields.filter((field) => Object.hasOwn(c.body, field)).length > 1) {
+    return odooError(c, 'Save one Odoo default at a time', 'BAD_REQUEST', 400);
+  }
+
+  if (Object.hasOwn(c.body, 'customer_advance_account_ref')) {
+    const ref = c.body.customer_advance_account_ref;
+    if (typeof ref !== 'string' || !/^account\.account:[1-9][0-9]{0,8}$/.test(ref)) {
+      return odooError(c, 'customer_advance_account_ref must be a model-qualified account reference', 'BAD_REQUEST', 400);
     }
+    const { error } = await c.sc.rpc('set_odoo_customer_advance_account', {
+      p_org_id: c.orgId, p_actor_id: c.userId, p_account_ref: ref,
+    });
+    if (!error) return c.respond({ saved: true });
+    if (error.code === '42501') return odooError(c, 'Not allowed for your role', 'FORBIDDEN', 403);
+    if (error.code === 'P0001') return odooError(c, error.message, 'REFUSED', 409);
+    return odooError(c, 'The request could not be completed', 'STORE_FAILED', 500);
+  }
+
+  if (Object.hasOwn(c.body, 'tax_prepaid_account_id')) {
     const account = c.body.tax_prepaid_account_id;
     const accountId = typeof account === 'number' && Number.isInteger(account) ? String(account) : account;
     if (typeof accountId !== 'string' || !/^[1-9][0-9]{0,8}$/.test(accountId)) {

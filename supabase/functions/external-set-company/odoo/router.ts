@@ -30,7 +30,7 @@ const GATES: Record<string, (c: OdooCtx) => boolean> = {
   'list-companies': adminOrOperator, activate: adminOrOperator, recheck: adminOrOperator, refresh: adminOrFinance, 'reset-kind': adminOrOperator,
   // The actor-checked RPCs decide who may link or un-link (the Admin, an Operator, the project's own PM); the plan is an Admin's choice.
   'list-projects': () => true, 'link-project': () => true, 'unlink-project': () => true, 'set-analytic-plan': adminOrOperator,
-  // The journal setter keeps 0509's platform Operator path; the new tax-prepaid account default is Admin/Finance only.
+  // The journal setter keeps 0509's platform Operator path; tax-prepaid is Admin/Finance only, while the advance setter enforces that role in its RPC.
   'employ-domain': adminOrOperator, 'propose-config': (c) => adminOrFinance(c) || c.operator, 'save-defaults': saveDefaultsGate,
 };
 const VERBS: Record<string, (c: OdooCtx) => Promise<Response>> = {

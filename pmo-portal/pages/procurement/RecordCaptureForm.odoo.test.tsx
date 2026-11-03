@@ -159,4 +159,3 @@ describe('AC-OPP-030/031 goods receipt form on an Odoo-owned org', () => {
     expect(screen.queryByRole('spinbutton', { name: /Pump/ })).toBeNull();
   });
 });
-

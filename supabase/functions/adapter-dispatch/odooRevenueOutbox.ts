@@ -47,12 +47,14 @@ const odooDatetime = (ms: number) => new Date(ms).toISOString().slice(0, 19).rep
 const WINDOW_MS = 10 * 60_000;
 
 /** What the read-back is judged against and the composite's inputs: derived, so not command material (they stay out of the payload digest). */
-const DERIVED_KEYS = ['odoo_expected_total', 'odoo_cost_account', 'odoo_partner_id', 'created_after', 'created_before'] as const;
+const DERIVED_KEYS = ['odoo_expected_total', 'odoo_cost_account', 'odoo_advance_product_id', 'odoo_advance_account_id', 'odoo_partner_id', 'created_after', 'created_before'] as const;
 const RECEIPT_DERIVED_KEYS = ['odoo_receipt_probe', 'odoo_adopted_ref', 'odoo_absent_confirmed', 'recorded_by', 'recorded_by_id', 'recordedBy'] as const;
-const expectOf = (p: Record<string, unknown> | null | undefined): InvoiceExpect | undefined =>
-  p && typeof p.odoo_expected_total === 'string' && (typeof p.odoo_cost_account === 'number' || p.odoo_cost_account === null)
-    ? { total: p.odoo_expected_total, costAccountId: p.odoo_cost_account }
-    : undefined;
+const expectOf = (p: Record<string, unknown> | null | undefined): InvoiceExpect | undefined => {
+  if (!p || typeof p.odoo_expected_total !== 'string' || !(typeof p.odoo_cost_account === 'number' || p.odoo_cost_account === null)) return undefined;
+  const advanceAccount = typeof p.odoo_advance_product_id === 'number' && typeof p.odoo_advance_account_id === 'number'
+    ? { productId: p.odoo_advance_product_id, accountId: p.odoo_advance_account_id } : undefined;
+  return { total: p.odoo_expected_total, costAccountId: p.odoo_cost_account, ...(advanceAccount ? { advanceAccount } : {}) };
+};
 const compositeOf = (p: Record<string, unknown> | null | undefined): InvoiceComposite | undefined =>
   p && typeof p.odoo_partner_id === 'number' && typeof p.created_after === 'string'
     ? { partnerId: p.odoo_partner_id, createdAfter: p.created_after, ...(typeof p.created_before === 'string' ? { createdBefore: p.created_before } : {}) }
@@ -73,6 +75,7 @@ async function invoiceOutboxDeps(ctx: AdapterSelectContext, resolved: Exclude<Od
   const facts = await invoiceCompositeFacts(sc, ctx.orgId, record);
   const payload: Record<string, unknown> = {
     ...record, erp_doc_kind: 'sales-invoice', odoo_partner_id: facts.partnerId, odoo_expected_total: expect.total, odoo_cost_account: expect.costAccountId,
+    ...(expect.advanceAccount ? { odoo_advance_product_id: expect.advanceAccount.productId, odoo_advance_account_id: expect.advanceAccount.accountId } : {}),
     created_after: odooDatetime(Date.now() - WINDOW_MS), created_before: odooDatetime(Date.now() + CLAIM_BUDGET_MS + SETTLE_MARGIN_MS),
   };
   const material = Object.fromEntries(Object.entries(payload).filter(([k]) => !(DERIVED_KEYS as readonly string[]).includes(k)));

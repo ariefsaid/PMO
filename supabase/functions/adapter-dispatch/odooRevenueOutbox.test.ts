@@ -230,6 +230,8 @@ describe('FR-OCI-070 / FR-OCI-072 / OQ-OCI-14 an invoice approval goes through t
   async function invoiceDeps() {
     const fake = createFakeOdoo({ key: 'odoo-test-key' });
     fake.seed('res.company', [{ id: 1, name: 'Co', currency_id: [12, 'IDR'] }]);
+    fake.seed('res.currency', [{ id: 12, name: 'Indonesian Rupiah', rounding: 0.01 }]);
+    fake.seed('decimal.precision', [{ id: 1, name: 'Product Unit', digits: 2 }]);
     fake.seed('res.partner', [{ id: 41, name: 'Client' }, { id: 42, name: 'Another' }]);
     fake.seed('account.tax', [{ id: 5, name: 'PPN', amount: 11, company_id: [1, 'Co'] }]);
     fake.seed('product.product', [{ id: 71, name: 'Item A', taxes_id: [], income_account_id: 149, property_account_income_id: [149, 'Sales'] }]);
