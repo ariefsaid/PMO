@@ -10,7 +10,7 @@
 -- security-definer lock-order RPCs (0105/0106) are the only mutation path (closing the child→parent
 -- deadlock seam). The catalog backstop below excludes it; the exception is asserted explicitly.
 begin;
-select plan(39);
+select plan(40);
 
 -- profiles: the exact table the promote e2e failed on (admin-invite-user inserts here).
 select ok(has_table_privilege('service_role', 'public.profiles', 'INSERT'),
@@ -94,6 +94,7 @@ select is(
         'plan_features',
         'org_plans',
         'global_features',
+        'org_ai_allowance_grants',
         'odoo_revenue_census_seen'
       )
       and not has_table_privilege('service_role', c.oid, 'INSERT')),
@@ -119,6 +120,15 @@ select ok(
     and not has_table_privilege('service_role', 'public.org_plans', 'INSERT')
     and not has_table_privilege('service_role', 'public.global_features', 'INSERT'),
   'AC-SVCROLE-008c plan registry tables are private; resolution is through the service RPC');
+
+-- 0535 (plans lane S5): the monthly AI allowance ledger is RPC-minted by the cron tick; like the plan
+-- registry above it carries NO service_role grant, and this pin keeps that true.
+select ok(
+  not has_table_privilege('service_role', 'public.org_ai_allowance_grants', 'SELECT')
+    and not has_table_privilege('service_role', 'public.org_ai_allowance_grants', 'INSERT')
+    and not has_table_privilege('service_role', 'public.org_ai_allowance_grants', 'UPDATE')
+    and not has_table_privilege('service_role', 'public.org_ai_allowance_grants', 'DELETE'),
+  'AC-SVCROLE-008e the AI-allowance ledger is RPC-only (no service_role table grants)');
 
 select ok(
   has_table_privilege('service_role','public.revenue_erp_mirror','SELECT')
