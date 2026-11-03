@@ -47,7 +47,7 @@ const TimeAndMaterials: React.FC<TimeAndMaterialsProps> = ({ projectId, projectM
   const may = usePermission();
   const { currentUser } = useAuth();
   const { realRole, effectiveRole } = useEffectiveRole();
-  const { toast } = useToast();
+  const { toast, clear: clearToasts } = useToast();
   const viewOnly = realRole !== effectiveRole;
   const userId = currentUser?.id ?? '';
 
@@ -121,6 +121,11 @@ const TimeAndMaterials: React.FC<TimeAndMaterialsProps> = ({ projectId, projectM
     const classified = classifyMutationError(error, undefined, { suppressCapture: true });
     setActionError([classified.headline, classified.detail].filter(Boolean).join(' '));
     toast(classified.headline, classified.detail, 'warning');
+  };
+
+  const openClaimDetail = (claim: TmClaimSummary) => {
+    clearToasts();
+    setSelectedClaim(claim);
   };
 
   const runRemove = async () => {
@@ -341,7 +346,7 @@ const TimeAndMaterials: React.FC<TimeAndMaterialsProps> = ({ projectId, projectM
               {!claims.isPending && !claims.isError && claimRows.length === 0 && <ListState variant="empty" title={t('claims.empty', 'No time-and-materials claims yet.')} className="items-start justify-start gap-2 px-0 py-3 text-left" />}
               {claimRows.length > 0 && <ul className="divide-y divide-border">
                 {claimRows.map((claim) => <li key={claim.id} className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between">
-                  <button type="button" className="min-w-0 rounded text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring" aria-label={claimOpenLabel(claim)} onClick={() => setSelectedClaim(claim)}>
+                  <button type="button" className="min-w-0 rounded text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring" aria-label={claimOpenLabel(claim)} onClick={() => openClaimDetail(claim)}>
                     <span className="block font-medium text-foreground">{formatDateOnly(claim.period_from)} – {formatDateOnly(claim.period_to)}</span>
                     <span className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
                       {statusPill(claim)}
@@ -372,7 +377,7 @@ const TimeAndMaterials: React.FC<TimeAndMaterialsProps> = ({ projectId, projectM
         toast(t('rateCard.assigned', 'Person assigned to rate'), undefined, 'success');
       }} onError={reportActionError} />}
       {prepareFor && <PrepareSignoffModal claim={prepareFor} documents={eligibleDocuments} documentsPending={documents.isPending} documentsError={documents.isError} onRetry={() => void documents.refetch()} loading={prepare.isPending} onClose={() => setPrepareFor(null)} onPrepare={runPrepare} />}
-      {selectedClaim && <ClaimDetail claim={selectedClaim} sources={sourceRows} sourcesPending={claimSources.isPending} sourcesError={claimSources.isError} sourcesTruncated={claimSources.data?.truncated === true} statusPill={statusPill(selectedClaim)} unitCount={unitCount} awaitingHint={selectedClaim.status === 'Draft' && Boolean(selectedClaim.signoff_prepared_by) && !mayConfirm(selectedClaim)} onRetry={() => void claimSources.refetch()} onClose={() => setSelectedClaim(null)}
+      {selectedClaim && <ClaimDetail claim={selectedClaim} sources={sourceRows} sourcesTotal={claimSources.data?.totalCount ?? sourceRows.length} sourcesPending={claimSources.isPending} sourcesError={claimSources.isError} sourcesTruncated={claimSources.data?.truncated === true} statusPill={statusPill(selectedClaim)} unitCount={unitCount} awaitingHint={selectedClaim.status === 'Draft' && Boolean(selectedClaim.signoff_prepared_by) && !mayConfirm(selectedClaim)} onRetry={() => void claimSources.refetch()} onClose={() => setSelectedClaim(null)}
         prepareAction={canPrepareClaims && selectedClaim.status === 'Draft' && !selectedClaim.signoff_prepared_by ? () => setPrepareFor(selectedClaim) : undefined}
         confirmAction={selectedClaim.status === 'Draft' && selectedClaim.signoff_prepared_by && mayConfirm(selectedClaim) ? () => setConfirmFor(selectedClaim) : undefined}
         withdrawAction={selectedClaim.status === 'Draft' && selectedClaim.signoff_prepared_by && canPrepareClaims ? () => setWithdrawFor(selectedClaim) : undefined}
@@ -566,6 +571,7 @@ const PrepareSignoffModal: React.FC<PrepareSignoffModalProps> = ({ claim, docume
 interface ClaimDetailProps {
   claim: TmClaimSummary;
   sources: Array<{ id: string; claim_id: string; claim_line_id: string; source_kind: string; source_id: string; units: number }>;
+  sourcesTotal: number;
   sourcesPending: boolean;
   sourcesError: boolean;
   sourcesTruncated: boolean;
@@ -580,7 +586,7 @@ interface ClaimDetailProps {
   invoiceAction?: () => void;
 }
 
-const ClaimDetail: React.FC<ClaimDetailProps> = ({ claim, sources, sourcesPending, sourcesError, sourcesTruncated, statusPill, awaitingHint, unitCount, onRetry, onClose, prepareAction, confirmAction, withdrawAction, invoiceAction }) => {
+const ClaimDetail: React.FC<ClaimDetailProps> = ({ claim, sources, sourcesTotal, sourcesPending, sourcesError, sourcesTruncated, statusPill, awaitingHint, unitCount, onRetry, onClose, prepareAction, confirmAction, withdrawAction, invoiceAction }) => {
   const { t } = useTranslation('timeAndMaterials');
   return <Drawer open title={t('claims.detailTitle', 'Time-and-materials claim')} subtitle={`${formatDateOnly(claim.period_from)} – ${formatDateOnly(claim.period_to)}`}
     status={statusPill}
@@ -609,7 +615,7 @@ const ClaimDetail: React.FC<ClaimDetailProps> = ({ claim, sources, sourcesPendin
     </section>
     <section className="border-t border-border px-4 py-3" aria-labelledby="tm-claim-sources-heading">
       <h2 id="tm-claim-sources-heading" className="text-sm font-semibold">{t('detail.sources', 'Approved source entries')}</h2>
-      {sourcesTruncated && <p role="status" className="mt-2 text-sm text-muted-foreground">{t('detail.sourcesTruncated', 'More than {{limit}} source entries are available; this list is incomplete.', { limit: LIST_LIMIT })}</p>}
+      {sourcesTruncated && <p role="status" className="mt-2 text-sm text-muted-foreground">{t('detail.sourcesTruncated', 'Showing {{shown}} of {{total}} source entries.', { shown: sources.length, total: sourcesTotal })}</p>}
       {sourcesPending ? <ListState variant="loading" rows={2} />
         : sourcesError ? <ListState variant="error" title={t('detail.sourcesError', "Couldn't load source entries")} onRetry={onRetry} />
           : sources.length === 0 ? <p className="mt-2 text-sm text-muted-foreground">{t('detail.noSources', 'No source entries are available for this claim.')}</p>

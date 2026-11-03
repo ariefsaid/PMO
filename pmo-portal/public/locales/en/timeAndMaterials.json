@@ -122,7 +122,7 @@
     "noLines": "This claim has no billable lines.",
     "sources": "Approved source entries",
     "sourcesError": "Couldn't load source entries",
-    "sourcesTruncated": "More than {{limit}} source entries are available; this list is incomplete.",
+    "sourcesTruncated": "Showing {{shown}} of {{total}} source entries.",
     "noSources": "No source entries are available for this claim.",
     "timeEntry": "Approved time entry",
     "equipmentEntry": "Approved usage entry"
