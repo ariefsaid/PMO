@@ -166,13 +166,13 @@ Deno.test({
     assertEquals([claimResult.canonical.odoo_attention, claimResult.canonical.amount, claimResult.canonical.reference_number], [null, '510600.00', `${stamp}-WO-PO`]);
 
     // C4b AC-OCI-024: a signed T&M claim's frozen 120 hours × contract rate is booked on the project distribution.
-    const hourUnits = await call<Array<{ id: number; name: string; category_id: [number, string] }>>('uom.uom', 'search_read', {
-      domain: [['name', 'ilike', 'hour']], fields: ['id', 'name', 'category_id'], limit: 1,
+    const hourUnits = await call<Array<{ id: number; name: string }>>('uom.uom', 'search_read', {
+      domain: [['name', 'ilike', 'hour']], fields: ['id', 'name'], limit: 1,
     });
     assert(hourUnits[0], 'the bed has an hour unit of measure');
     const tmService = await make('product.product', {
       name: `${stamp} T&M service`, type: 'service', sale_ok: true, property_account_income_id: income.id,
-      uom_id: hourUnits[0].id, uom_po_id: hourUnits[0].id,
+      uom_id: hourUnits[0].id,
     });
     const tmId = crypto.randomUUID();
     const tmLines = [{ itemId: 'tm-service', description: `${stamp} Field labour (hour)`, quantity: 120, unitPrice: 50000, unit: 'hour', amount: 6000000 }];
