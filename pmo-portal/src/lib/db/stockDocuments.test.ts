@@ -4,7 +4,7 @@ const h = vi.hoisted(() => {
   const queue: Array<{ data: unknown; error: unknown }> = [];
   const calls = { from: [] as string[], select: [] as string[], or: [] as string[], limit: [] as number[] };
   const builder: Record<string, unknown> = {};
-  for (const n of ['order', 'eq', 'is', 'single', 'maybeSingle']) builder[n] = () => builder;
+  for (const n of ['order', 'eq', 'is', 'range', 'single', 'maybeSingle']) builder[n] = () => builder;
   builder.select = (s: string) => { calls.select.push(s); return builder; };
   builder.or = (s: string) => { calls.or.push(s); return builder; };
   builder.limit = (n: number) => { calls.limit.push(n); return builder; };
