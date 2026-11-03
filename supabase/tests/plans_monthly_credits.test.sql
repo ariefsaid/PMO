@@ -11,7 +11,7 @@
 -- so the period-less call at the end is a real third period rather than a replay.
 begin;
 create extension if not exists pgtap;
-select plan(30);
+select plan(39);
 
 insert into organizations (id, name) values
   ('0535b000-0000-0000-0000-000000000001', 'Plan Grant Starter'),
@@ -36,6 +36,26 @@ insert into org_plans (org_id, plan_id) values
   ('0535b000-0000-0000-0000-000000000002','enterprise'),
   ('0535b000-0000-0000-0000-000000000003','growth'),
   ('0535b000-0000-0000-0000-000000000004','pro');
+
+-- ── The system grant has one server-only path; client grants stay attributed ─────────────────────
+select is(has_function_privilege('anon', 'public.plan_monthly_ai_allowance_tick(date)', 'execute'), false,
+  'AC-PLN-011 anon cannot execute the monthly allowance writer');
+select is(has_function_privilege('authenticated', 'public.plan_monthly_ai_allowance_tick(date)', 'execute'), false,
+  'AC-PLN-011 authenticated cannot execute the monthly allowance writer');
+select is(has_function_privilege('service_role', 'public.plan_monthly_ai_allowance_tick(date)', 'execute'), true,
+  'AC-PLN-011 service_role can execute the monthly allowance writer');
+select is(has_table_privilege('anon', 'public.credits', 'insert'), false,
+  'AC-PLN-011 anon has no direct credits INSERT grant');
+
+set local role authenticated;
+set local request.jwt.claims =
+  '{"sub":"0535b000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select throws_ok(
+  $$ insert into public.credits (org_id, owner_id, amount, note, granted_by, grant_source)
+       values ('0535b000-0000-0000-0000-000000000001', null, 5, 'admin plan allowance attempt', null, 'plan_allowance') $$,
+  '42501', null,
+  'AC-PLN-011 an org Admin cannot directly insert an unattributed plan allowance');
+reset role;
 
 -- ── The credit unit is single-sourced, and the allowance it turns into is exact ────────────────────
 select is(public.plan_ai_credit_unit_usd(), 0.005::numeric,
@@ -134,10 +154,29 @@ select is((select count(*)::int from public.org_ai_allowance_grants
 set local role authenticated;
 set local request.jwt.claims =
   '{"sub":"0535b000-0000-0000-0000-0000000000e1","role":"authenticated"}';
+select throws_ok(
+  $$ insert into public.credits (org_id, owner_id, amount, note, granted_by, grant_source)
+       values ('0535b000-0000-0000-0000-000000000001', null, 5, 'unattributed operator attempt', null, 'operator') $$,
+  '23514', null,
+  'AC-PLN-011 an Operator cannot directly insert an unattributed operator credit');
+reset role;
+select is((select count(*)::int from public.credits where note = 'unattributed operator attempt'), 0,
+  'AC-PLN-011 a rejected unattributed operator insert creates no credit row');
+
+set local role authenticated;
+set local request.jwt.claims =
+  '{"sub":"0535b000-0000-0000-0000-0000000000e1","role":"authenticated"}';
 select lives_ok(
   $$ select public.operator_grant_credits('0535b000-0000-0000-0000-000000000001', 5, 'operator top-up') $$,
   'AC-PLN-011 an Operator grant still works alongside the automatic allowance');
 reset role;
+select is((select grant_source from public.credits
+            where org_id = '0535b000-0000-0000-0000-000000000001' and note = 'operator top-up'),
+  'operator', 'AC-PLN-011 the Operator RPC creates an operator-sourced credit');
+select is((select granted_by from public.credits
+            where org_id = '0535b000-0000-0000-0000-000000000001' and note = 'operator top-up'),
+  '0535b000-0000-0000-0000-0000000000e1'::uuid,
+  'AC-PLN-011 the Operator RPC attributes the credit to the Operator uid');
 set local role authenticated;
 set local request.jwt.claims =
   '{"sub":"0535b000-0000-0000-0000-0000000000a1","role":"authenticated"}';
