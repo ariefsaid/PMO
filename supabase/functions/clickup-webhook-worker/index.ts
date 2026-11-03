@@ -332,12 +332,14 @@ export const MAX_INBOX_ATTEMPTS = 5;
 
 export async function claimPendingLive(serviceClient: SupabaseClient, batchSize: number): Promise<InboxRow[]> {
   // Pending rows plus failed rows still under the attempt cap, oldest first. Two reads (not one `or`) so
-  // each stays a plain filter; the oldest `batchSize` of the union are claimed.
-  const cols = 'id, event, task_id, team_id, history_items, received_at';
+  // each stays a plain filter. Fresh rows (processed_at IS NULL) take priority, then retried rows rotate
+  // by their latest attempt time; original received_at is retained as the stable tie-breaker.
+  const cols = 'id, event, task_id, team_id, history_items, received_at, processed_at';
   const pendingRead = await serviceClient
     .from('clickup_webhook_inbox')
     .select(cols)
     .eq('status', 'pending')
+    .order('processed_at', { ascending: true, nullsFirst: true })
     .order('received_at', { ascending: true })
     .limit(batchSize);
   if (pendingRead.error) throw new AppError(pendingRead.error.message, pendingRead.error.code);
@@ -346,13 +348,14 @@ export async function claimPendingLive(serviceClient: SupabaseClient, batchSize:
     .select(cols)
     .eq('status', 'failed')
     .lt('attempts', MAX_INBOX_ATTEMPTS)
+    .order('processed_at', { ascending: true, nullsFirst: true })
     .order('received_at', { ascending: true })
     .limit(batchSize);
   if (failedRead.error) throw new AppError(failedRead.error.message, failedRead.error.code);
-  const rows = [...((pendingRead.data as Array<InboxRow & { received_at: string }> | null) ?? []), ...((failedRead.data as Array<InboxRow & { received_at: string }> | null) ?? [])]
-    .sort((a, b) => a.received_at.localeCompare(b.received_at))
+  const rows = [...((pendingRead.data as Array<InboxRow & { received_at: string; processed_at: string | null }> | null) ?? []), ...((failedRead.data as Array<InboxRow & { received_at: string; processed_at: string | null }> | null) ?? [])]
+    .sort((a, b) => (a.processed_at ?? '').localeCompare(b.processed_at ?? '') || a.received_at.localeCompare(b.received_at))
     .slice(0, batchSize)
-    .map(({ received_at: _receivedAt, ...row }) => row);
+    .map(({ received_at: _receivedAt, processed_at: _processedAt, ...row }) => row);
   // Best-effort claim: mark processing before working the batch (not a fenced/SKIP LOCKED claim — the
   // apply path is idempotent under a rare double-dequeue by a second concurrent tick, so at-least-once
   // is acceptable here; see the plan's "simplest thing that survives a >7s budget" stance).
@@ -386,7 +389,7 @@ async function markUnresolvableLive(serviceClient: SupabaseClient, id: string, r
 async function markHeldLive(serviceClient: SupabaseClient, id: string, reason: string): Promise<void> {
   const { error } = await serviceClient
     .from('clickup_webhook_inbox')
-    .update({ status: 'pending', last_error: reason, processed_at: null })
+    .update({ status: 'pending', last_error: reason, processed_at: new Date().toISOString() })
     .eq('id', id);
   if (error) throw new AppError(error.message, error.code);
 }

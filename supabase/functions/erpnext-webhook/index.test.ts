@@ -11,12 +11,13 @@
 //
 // Verify: cd supabase/functions/erpnext-webhook && deno test index.test.ts
 
-// Stub Deno.serve BEFORE the dynamic import of index.ts (which calls Deno.serve at top level) so the
-// import does not bind a real port under `deno test`. ES module imports are hoisted above executable
-// code, so a static `import` would run before this stub — a dynamic import after the stub is required
-// (the same stance as scripts/deno-boot-smoke.ts). The handler under test is `handleErpWebhook`
-// (exported), not the Deno.serve wrapper itself.
-(Deno as unknown as { serve: (...a: unknown[]) => unknown }).serve = () => ({ finished: Promise.resolve() });
+// Stub and capture Deno.serve BEFORE the dynamic import of index.ts. The core tests call the exported
+// handler; the entitlement integration proof below invokes the actual served wrapper captured here.
+let servedHandler: ((req: Request) => Response | Promise<Response>) | null = null;
+(Deno as unknown as { serve: (handler: (req: Request) => Response | Promise<Response>) => unknown }).serve = (handler) => {
+  servedHandler = handler;
+  return { finished: Promise.resolve() };
+};
 const { handleErpWebhook, buildIsInFlightAdopt } = await import('./index.ts');
 type ErpWebhookHandlerDeps = Parameters<typeof handleErpWebhook>[1];
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -136,6 +137,76 @@ Deno.test('FR-PLN-006 / FR-ENA-083: a verified webhook retries while off and the
     assert(checkedKeys.length === 2, 'the module key is checked alongside erp_sync');
   } finally {
     globalThis.fetch = originalFetch;
+  }
+});
+
+Deno.test('FR-PLN-006: the served webhook holds and resumes Employee events on the timesheets switch', async () => {
+  const previousEnv = Object.fromEntries(['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'EXTERNAL_CONNECT_ENABLED']
+    .map((key) => [key, Deno.env.get(key)]));
+  Deno.env.set('SUPABASE_URL', 'https://edge-test.supabase.test');
+  Deno.env.set('SUPABASE_SERVICE_ROLE_KEY', 'synthetic-service-role-key');
+  Deno.env.set('EXTERNAL_CONNECT_ENABLED', 'true');
+
+  const event = JSON.stringify({
+    doctype: 'Employee', name: 'EMP-UNIT-1', docstatus: 0, modified: '2026-07-12 12:00:00.000000',
+    doc: { name: 'EMP-UNIT-1', docstatus: 0, modified: '2026-07-12 12:00:00.000000', company: COMPANY, employee_name: null, prefered_email: null, user_id: null, status: 'Active' },
+  });
+  const signature = await sign(event);
+  const originalFetch = globalThis.fetch;
+  const featureKeys: string[] = [];
+  let timesheetsEnabled = false;
+  const applyWrites: string[] = [];
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const request = input instanceof Request ? input : new Request(input, init);
+    const url = new URL(request.url);
+    const method = init?.method ?? request.method;
+    if (url.pathname === '/rest/v1/external_org_bindings' && method === 'GET') {
+      if (url.searchParams.get('select') === 'webhook_secret_ref') return Response.json({ webhook_secret_ref: 'synthetic-vault-ref' });
+      return Response.json([{ org_id: ORG_ID, webhook_secret_ref: 'synthetic-vault-ref', activated_at: '2026-01-01T00:00:00Z', config: { company: COMPANY } }]);
+    }
+    if (url.pathname === '/rest/v1/rpc/read_vault_secret') return Response.json(SECRET);
+    if (url.pathname === '/rest/v1/external_domain_ownership') return Response.json([{ org_id: ORG_ID, domain: 'timesheets' }]);
+    if (url.pathname === '/rest/v1/rpc/service_feature_enabled') {
+      const body = await request.json() as { p_org_id: string; p_key: string };
+      assert(body.p_org_id === ORG_ID, 'feature check is bound to the HMAC-selected org');
+      featureKeys.push(body.p_key);
+      return Response.json(body.p_key === 'timesheets' ? timesheetsEnabled : true);
+    }
+    if (url.pathname === '/rest/v1/external_ref_lineage') return Response.json([]);
+    if (url.pathname === '/rest/v1/external_refs') return Response.json({ pmo_record_id: 'employee-pmo-1' });
+    if (url.pathname === '/rest/v1/erp_employees' && method === 'GET') {
+      if (url.searchParams.get('select') === 'erp_modified') return Response.json({ erp_modified: '2026-07-11T00:00:00.000Z' });
+      return Response.json({ work_email: null, link_state: 'unlinked' });
+    }
+    if (url.pathname === '/rest/v1/erp_employees' && method === 'PATCH') {
+      applyWrites.push('erp_employees');
+      return new Response(null, { status: 204 });
+    }
+    throw new Error(`unexpected request: ${method} ${url.href}`);
+  }) as typeof fetch;
+
+  try {
+    if (servedHandler === null) throw new Error('the shipped serve wrapper was not captured');
+    const served = servedHandler;
+    const request = () => req(event, signature);
+
+    const held = await served(request());
+    assert(held.status === 503, `the off timesheets switch must return retryable 503, got ${held.status}`);
+    assert(applyWrites.length === 0, 'a held event must not enter the employee apply path');
+    assert(featureKeys.join(',') === 'erp_sync,timesheets', `expected both switch reads, got ${featureKeys.join(',')}`);
+
+    timesheetsEnabled = true;
+    featureKeys.length = 0;
+    const resumed = await served(request());
+    assert(resumed.status === 200, `the same event should apply when re-enabled, got ${resumed.status}`);
+    assert(applyWrites.join(',') === 'erp_employees', 'the resumed event must reach the shipped mirror writer');
+    assert(featureKeys.join(',') === 'erp_sync,timesheets', `the resumed request must check both switches, got ${featureKeys.join(',')}`);
+  } finally {
+    globalThis.fetch = originalFetch;
+    for (const [key, value] of Object.entries(previousEnv)) {
+      if (value === undefined) Deno.env.delete(key);
+      else Deno.env.set(key, value as string);
+    }
   }
 });
 

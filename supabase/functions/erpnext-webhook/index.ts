@@ -33,7 +33,7 @@ import { createErpFeedDeps, ERPNEXT_TIER, surfaceActionRequired } from '../_shar
 import { createInFlightAnchorProbe } from '../_shared/inFlightAnchorProbe.ts';
 import { DOCTYPE_BODIES } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeBodies.ts';
 import { DOCTYPE_REGISTRY, type ErpDocKind } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeRegistry.ts';
-import { pollDiscriminatorForKind } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/feedKinds.ts';
+import { featureKeyForKind, pollDiscriminatorForKind } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/feedKinds.ts';
 import type { ErpFeedEvent } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/webhookEvent.ts';
 import type { ApplyOutcome } from '../../../pmo-portal/src/lib/adapterSeam/applyEngine.ts';
 import { resolvePerOrgSecret } from '../_shared/perOrgSecret.ts';
@@ -270,8 +270,8 @@ export async function handleErpWebhook(req: Request, deps: ErpWebhookHandlerDeps
   // while a module is off. Return retryable 503 before applying; the untouched sweep watermark also
   // ensures the same ERP change is discovered when the key is re-enabled.
   if (deps.featureEnabled) {
-    const moduleKey: Record<string, string> = { companies: 'crm', procurement: 'procurement', revenue: 'revenue' };
-    for (const key of ['erp_sync', moduleKey[event.domain]].filter((value): value is string => Boolean(value))) {
+    const moduleKey = event.kind ? featureKeyForKind(event.kind) : undefined;
+    for (const key of ['erp_sync', moduleKey].filter((value): value is string => Boolean(value))) {
       try {
         if (!(await deps.featureEnabled(matchedOrg.orgId, key))) {
           return json({ error: 'feature_off', message: 'ERP sync is paused for this organization' }, 503);

@@ -78,14 +78,33 @@ async function authed(body: unknown, sub = 'user-1') {
 }
 
 describe('external-connect — ClickUp branch', () => {
-  it('FR-PLN-006 erp_sync off refuses before staging credentials or contacting ClickUp', async () => {
+  it('FR-PLN-006 ClickUp checks clickup_sync independently when ERP sync is off', async () => {
     await withFetchMock([
       supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, {
         headers: { 'content-type': 'application/vnd.pgrst.object+json' },
       })),
       supabaseSelect('platform_operators', () => new Response('null', { status: 200 })),
       supabaseRpc('service_feature_enabled', (call) => {
-        assertEquals(call.bodyJson, { p_org_id: 'org-1', p_key: 'erp_sync' });
+        assertEquals(call.bodyJson, { p_org_id: 'org-1', p_key: 'clickup_sync' });
+        return jsonResponse(true);
+      }),
+    ], async ({ calls }) => {
+      const res = await handleConnectRequest(await authed({ tier: 'clickup', credential: {} }));
+      assertEquals(res.status, 400);
+      assertEquals((await res.json()).error, 'BAD_REQUEST');
+      assertEquals(rpcCall(calls, 'stage_vault_secret_for_org').length, 0);
+      assertEquals(calls.filter((call) => call.url.hostname === 'api.clickup.com').length, 0);
+    });
+  });
+
+  it('FR-PLN-006 ClickUp refuses when clickup_sync is off even if ERP sync is on', async () => {
+    await withFetchMock([
+      supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, {
+        headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+      })),
+      supabaseSelect('platform_operators', () => new Response('null', { status: 200 })),
+      supabaseRpc('service_feature_enabled', (call) => {
+        assertEquals(call.bodyJson, { p_org_id: 'org-1', p_key: 'clickup_sync' });
         return jsonResponse(false);
       }),
     ], async ({ calls }) => {

@@ -663,7 +663,7 @@ Deno.test('T-07 B3: resolveBindingLive throws on a failed read at every step (ma
 });
 
 /** An in-memory `clickup_webhook_inbox`: only the PostgREST operations the claim / mark-failed code issues. */
-function fakeInbox(seed: Array<{ id: string; status: string; attempts: number; received_at: string }>, opts: { readError?: PgErr } = {}) {
+function fakeInbox(seed: Array<{ id: string; status: string; attempts: number; received_at: string; processed_at?: string | null; team_id?: string | null }>, opts: { readError?: PgErr } = {}) {
   const rows = seed.map((r) => ({ event: 'taskUpdated', task_id: `t-${r.id}`, team_id: 'team-1', history_items: [], ...r }));
   const client = {
     from() {
@@ -671,7 +671,7 @@ function fakeInbox(seed: Array<{ id: string; status: string; attempts: number; r
       const lt: Array<[string, number]> = [];
       let patch: Record<string, unknown> | null = null;
       let ids: string[] | null = null;
-      let order: string | null = null;
+      const orders: Array<{ column: string; ascending: boolean; nullsFirst: boolean }> = [];
       let limit = Infinity;
       const matches = () => rows.filter((r) =>
         eq.every(([c, v]) => (r as Record<string, unknown>)[c] === v) &&
@@ -684,7 +684,19 @@ function fakeInbox(seed: Array<{ id: string; status: string; attempts: number; r
         }
         if (opts.readError) return { data: null, error: opts.readError };
         let out = matches();
-        if (order) out = [...out].sort((a, b) => String((a as Record<string, unknown>)[order!]).localeCompare(String((b as Record<string, unknown>)[order!])));
+        if (orders.length) out = [...out].sort((a, b) => {
+          for (const { column, ascending, nullsFirst } of orders) {
+            const av = (a as Record<string, unknown>)[column];
+            const bv = (b as Record<string, unknown>)[column];
+            if (av == null || bv == null) {
+              if (av == null && bv == null) continue;
+              return (av == null ? (nullsFirst ? -1 : 1) : (nullsFirst ? 1 : -1)) * (ascending ? 1 : -1);
+            }
+            const cmp = String(av).localeCompare(String(bv));
+            if (cmp !== 0) return cmp * (ascending ? 1 : -1);
+          }
+          return 0;
+        });
         return { data: out.slice(0, limit).map((r) => ({ ...r })), error: null };
       };
       type InboxQuery = {
@@ -692,7 +704,7 @@ function fakeInbox(seed: Array<{ id: string; status: string; attempts: number; r
         eq: (column: string, value: unknown) => InboxQuery;
         lt: (column: string, value: number) => InboxQuery;
         in: (column: string, values: string[]) => InboxQuery;
-        order: (column: string) => InboxQuery;
+        order: (column: string, options?: { ascending?: boolean; nullsFirst?: boolean }) => InboxQuery;
         limit: (count: number) => InboxQuery;
         update: (patch: Record<string, unknown>) => InboxQuery;
         maybeSingle: () => Promise<{ data: unknown; error: PgErr | null }>;
@@ -703,7 +715,10 @@ function fakeInbox(seed: Array<{ id: string; status: string; attempts: number; r
         eq: (c: string, v: unknown) => { eq.push([c, v]); return q; },
         lt: (c: string, v: number) => { lt.push([c, v]); return q; },
         in: (_c: string, v: string[]) => { ids = v; return q; },
-        order: (c: string) => { order = c; return q; },
+        order: (c: string, options: { ascending?: boolean; nullsFirst?: boolean } = {}) => {
+          orders.push({ column: c, ascending: options.ascending ?? true, nullsFirst: options.nullsFirst ?? false });
+          return q;
+        },
         limit: (n: number) => { limit = n; return q; },
         update: (p: Record<string, unknown>) => { patch = p; return q; },
         maybeSingle: async () => ({ ...run(), data: matches()[0] ?? null }),
@@ -737,6 +752,45 @@ Deno.test('T-07 B3: claimPendingLive honours the batch size across pending and f
   ]);
   const claimed = await claimPendingLive(client, 2);
   assert(claimed.map((r) => r.id).join() === 'f1,p1', `expected the 2 oldest, got ${claimed.map((r) => r.id).join()}`);
+});
+
+Deno.test('FR-PLN-006: held rows rotate behind untouched events across batches', async () => {
+  const seed = Array.from({ length: 30 }, (_, index) => ({
+    id: `held-${String(index).padStart(2, '0')}`,
+    status: 'pending',
+    attempts: 0,
+    received_at: new Date(Date.UTC(2026, 0, 1, 0, index)).toISOString(),
+    team_id: 'disabled-team',
+  }));
+  seed.push({
+    id: 'enabled-new', status: 'pending', attempts: 0,
+    received_at: new Date(Date.UTC(2026, 0, 1, 1)).toISOString(), team_id: 'enabled-team',
+  });
+  const { client, rows } = fakeInbox(seed);
+  let enabledProcessed = 0;
+  const tick = () => runWorkerBatch({
+    claimPending: (batchSize) => claimPendingLive(client, batchSize),
+    markDone: async (id) => { const target = rows.find((r) => r.id === id); if (target) target.status = 'done'; },
+    markFailed: async (id, reason) => { const target = rows.find((r) => r.id === id); if (target) Object.assign(target, { status: 'failed', last_error: reason }); },
+    markHeld: async (id, reason) => {
+      const target = rows.find((r) => r.id === id);
+      if (target) Object.assign(target, { status: 'pending', last_error: reason, processed_at: '2026-01-02T00:00:00.000Z' });
+    },
+    markUnresolvable: async (id, reason) => { const target = rows.find((r) => r.id === id); if (target) Object.assign(target, { status: 'done', last_error: reason }); },
+    processRow: async (claimed) => {
+      if (claimed.team_id === 'disabled-team') return { kind: 'held', reason: 'feature-off:clickup_sync' };
+      enabledProcessed += 1;
+      return { kind: 'upserted', pmoRecordId: 'pmo-enabled', adopted: false };
+    },
+  }, 25);
+
+  await tick();
+  await tick();
+
+  assert(enabledProcessed === 1, 'the enabled org event must be reached after the first held batch');
+  assert(rows.find((r) => r.id === 'enabled-new')?.status === 'done', 'the enabled event is acknowledged after apply');
+  assert(rows.filter((r) => r.id.startsWith('held-')).every((r) => r.status === 'pending'), 'disabled org events remain pending for recovery');
+  assert(rows.filter((r) => r.id.startsWith('held-')).some((r) => r.processed_at != null), 'held rows carry their last attempt time for queue rotation');
 });
 
 Deno.test('T-07 B3: markFailedLive counts each failure, so repeated failures reach the cap and stop being reclaimed', async () => {
@@ -814,6 +868,9 @@ Deno.test('FR-PLN-006 clickup_sync off returns a claimed webhook row to pending 
   const inboxWrites = r.calls.filter((c) => c.url.pathname === '/rest/v1/clickup_webhook_inbox' && c.method === 'PATCH');
   assert(inboxWrites.some((c) => c.body.includes('feature-off:clickup_sync') && c.body.includes('pending')),
     'the row must be left pending with its feature-off reason');
+  const heldPatch = inboxWrites.map((call) => JSON.parse(call.body) as Record<string, unknown>)
+    .find((patch) => patch.last_error === 'feature-off:clickup_sync');
+  assert(typeof heldPatch?.processed_at === 'string', 'a hold records its latest attempt time so it can rotate behind fresh events');
 });
 
 Deno.test('FR-PLN-006 clickup_sync on proceeds to fetch and reconcile the queued webhook', async () => {

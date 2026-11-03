@@ -309,12 +309,13 @@ export async function handleConnectRequest(req: Request): Promise<Response> {
     return errorResponse('Unknown tier (must be clickup, erpnext or odoo)', 'BAD_REQUEST', 400);
   }
 
-  const { data: erpSyncOn, error: featureError } = await serviceClient.rpc('service_feature_enabled', {
+  const featureKey = tier === 'clickup' ? 'clickup_sync' : 'erp_sync';
+  const { data: integrationEnabled, error: featureError } = await serviceClient.rpc('service_feature_enabled', {
     p_org_id: profile.org_id,
-    p_key: 'erp_sync',
+    p_key: featureKey,
   });
   if (featureError) return errorResponse('Could not resolve the plan switch', 'INTERNAL', 500);
-  if (erpSyncOn !== true) return errorResponse('ERP integrations are not enabled for this organization', 'feature_off', 409);
+  if (integrationEnabled !== true) return errorResponse('Integration is not enabled for this organization', 'feature_off', 409);
 
   // 7. The deployment kill-switch is checked before external validation and all writes.
   // It is an operator break-glass, never a client-side status signal.

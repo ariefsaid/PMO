@@ -77,7 +77,7 @@ import { DOCTYPE_BODIES } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/
 // Luna BLOCK 6: each body module declares the list-endpoint fields ITS `fromDoc` reads, next to the
 // mapper — the poll is built from those so the two cannot drift apart.
 import { allocationsOf } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/incomingPayment.ts';
-import { KIND_DOMAIN, sweepKindsForOrg } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/feedKinds.ts';
+import { featureKeyForKind, KIND_DOMAIN, sweepKindsForOrg } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/feedKinds.ts';
 import { sweepFieldsForKind, KINDS_NEEDING_FULL_DOC, PAYMENT_TYPE_BY_KIND, pollFiltersForKind } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/pollSpec.ts';
 import { buildImprestPostingCommand, parseImprestGateTruth } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/imprestPostingCommand.ts';
 import { resolveImprestPosting, type ImprestResolveDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/imprestPostingResolve.ts';
@@ -1342,6 +1342,9 @@ export interface SweepTickBudgetOpts {
  *  #916 fix round: the doctypes run LEAST-RECENTLY-ATTEMPTED first (never-run first), so a doctype
  *  the budget keeps skipping cannot starve forever behind an always-busy registry-earlier sibling. */
 export async function sweepOrgDoctypesLive(serviceClient: SupabaseClient, org: OrgBinding, cache?: ErpAuthPairCache, opts: SweepTickBudgetOpts = {}): Promise<{ applied: number; error?: string; complete: boolean }> {
+  // This is the inbound ERP read pass. The global switch holds polling and leaves every cursor alone;
+  // outbox reconciliation and accepted-command closure run in their separate passes.
+  if (featureDisabled(org, 'erp_sync')) return { applied: 0, error: 'feature-off:erp_sync', complete: true };
   const nowMs = opts.nowMs ?? Date.now;
   const tickStartMs = opts.tickStartMs ?? nowMs();
   const tickMaxDocs = opts.tickMaxDocs ?? SWEEP_TICK_MAX_DOCS;
@@ -1374,7 +1377,7 @@ export async function sweepOrgDoctypesLive(serviceClient: SupabaseClient, org: O
   // feed resumes exactly where it stopped when the switch comes back on.
   const sweepKinds = (await orderedSweepKindsForOrg(serviceClient, org.orgId, org.ownedDomains))
     .filter(({ kind }) => {
-      const key = DOMAIN_FEATURE_KEY[KIND_DOMAIN[kind]];
+      const key = featureKeyForKind(kind);
       return !key || !featureDisabled(org, key);
     });
   for (const { kind, doctype } of sweepKinds) {
