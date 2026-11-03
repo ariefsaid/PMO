@@ -5,7 +5,14 @@
     "staleBid": "Stale bid · stage unchanged for 90+ days"
   },
   "scope": {
+    "all": "All",
     "won": "Won"
+  },
+  "results": {
+    "one": "{{count}} project",
+    "many": "{{count}} projects",
+    "showing": "Showing {{shown}} of {{total}} projects",
+    "showingOne": "Showing {{shown}} of {{total}} project"
   },
   "wonError": {
     "sub": "Something went wrong fetching won projects.",
