@@ -25,6 +25,9 @@
  *   pmo attribution list [--history]   (Admin, Finance, Executive, PM; #1271)
  *   pmo equipment usage list (--project <id> | --asset <id>) --from <date> --to <date> [--json]   (#1519)
  *   pmo equipment costing preview <file> [--json] | set <file> [--dry-run] | list [--history]   (#1519)
+ *   pmo tm rates list [--project <id>] [--assignees] [--json]   (#1514)
+ *   pmo tm claim preview --project <id> --from <date> --to <date> [--json]   (#1514; read-only)
+ *   pmo tm claim list --project <id> [--json]   (#1514)
  *
  * Output is JSON on stdout; errors are JSON on stderr. Exit 0 = ok, 1 = the server refused or
  * failed, 2 = the CLI refused (usage, allow-list, DD-API-3 guard) before sending anything.
@@ -49,6 +52,7 @@ import { ACTIVATION_ENABLED, activateBudget, ActivationRefused, linkBudgetSource
 import { ATTRIBUTION_READ_RPCS, ATTRIBUTION_WRITE_RPCS, AttributionFileError, explainError, formatPreview, previewRules, readRules, setRules, validateEnd } from './lib/pmo-attribution.mjs';
 import { EQUIPMENT_READ_RPCS, EQUIPMENT_USAGE_RPCS, EQUIPMENT_WRITE_RPCS, EquipmentFileError, EquipmentUsageError, explainError as explainEquipmentError, formatAllocations, previewSettings, readSettings, setSettings, validateUsageList } from './lib/pmo-equipment.mjs';
 import { LinkFileError, MAX_BATCH, PURCHASE_READ_VIEWS, parseCsv, rowsFromCsv, runLink, runSetAside, setAsideRowsFromCsv, validateLinkRows, validateSetAsideRows } from './lib/pmo-purchases.mjs';
+import { TM_READ_RPCS, TmQueryError, explainError as explainTmError, formatClaims, formatPreview as formatTmPreview, formatRateCard, listClaims, previewClaim, readRateCard } from './lib/pmo-tm.mjs';
 
 // ── the public surface (DD-API-1 / DD-API-3) ─────────────────────────────────────────────────────
 
@@ -115,9 +119,11 @@ export const ADMIN_RPCS = Object.freeze(['recategorise_budget_lines']);
 export { ATTRIBUTION_READ_RPCS, ATTRIBUTION_WRITE_RPCS };
 /** The equipment API-client tiers (#1519), used only by `pmo equipment`. */
 export { EQUIPMENT_READ_RPCS, EQUIPMENT_USAGE_RPCS, EQUIPMENT_WRITE_RPCS };
+/** The T&M read tier (#1514, migration 0518), used only by `pmo tm`: the claim list and the read-only preview. */
+export { TM_READ_RPCS };
 
 /** The verbs. There is deliberately no delete (DD-API-3). */
-export const COMMANDS = Object.freeze(['login', 'logout', 'whoami', 'get', 'create', 'update', 'rpc', 'load', 'purchases', 'erp', 'documents', 'm365', 'budgets', 'accounts', 'attribution', 'equipment']);
+export const COMMANDS = Object.freeze(['login', 'logout', 'whoami', 'get', 'create', 'update', 'rpc', 'load', 'purchases', 'erp', 'documents', 'm365', 'budgets', 'accounts', 'attribution', 'equipment', 'tm']);
 
 const DELETE_VERBS = new Set(['delete', 'del', 'rm', 'remove', 'destroy']);
 
@@ -674,7 +680,7 @@ function defaultOpenBrowser(url) {
 // ── argument parsing ─────────────────────────────────────────────────────────────────────────────
 
 const VALUE_FLAGS = new Set(['url', 'key', 'client-id', 'select', 'filter', 'limit', 'timeout', 'project', 'asset', 'from', 'source', 'to', 'version']);
-const BOOL_FLAGS = new Set(['no-browser', 'help', 'dry-run', 'csv', 'undo', 'include-set-aside', 'json', 'history']);
+const BOOL_FLAGS = new Set(['no-browser', 'help', 'dry-run', 'csv', 'undo', 'include-set-aside', 'json', 'history', 'assignees']);
 
 export function parseArgs(argv) {
   const flags = { filter: [] };
@@ -795,6 +801,11 @@ const USAGE = `usage:
   pmo equipment costing preview <file.json | -> [--json]   (Admin, Finance: amount per project and month)
   pmo equipment costing set <file.json | -> [--dry-run]   (Admin, Finance: --dry-run previews and saves nothing)
   pmo equipment costing list [--history]   (Admin, Finance, Executive, Project Manager)
+  pmo tm rates list [--project <id>] [--assignees] [--json]   (Admin, Finance, Executive, project's Project Manager:
+                                                    the contract rate card; --assignees adds who holds each line)
+  pmo tm claim preview --project <id> --from <date> --to <date> [--json]   (read-only: the approved hours a claim
+                                                    would freeze, priced per line, plus the unrated hours and why)
+  pmo tm claim list --project <id> [--json]   (a project's T&M claims with their frozen lines)
 
 common options: --url <supabase url> (PMO_SUPABASE_URL, default ${DEFAULT_SUPABASE_URL})
                 --key <publishable key> (PMO_SUPABASE_KEY)
@@ -812,6 +823,21 @@ async function readMe(ctx) {
   const q = new URLSearchParams({ id: `eq.${user.id}`, select: 'full_name,role,status' });
   const rows = await authed(ctx, 'GET', `/rest/v1/profiles?${q}`);
   return { user, profile: Array.isArray(rows) && rows[0] ? rows[0] : {} };
+}
+
+/**
+ * Turn ids into names in ONE read — the same `in.(…)` shape `attribution preview` uses — so a report prints a name
+ * where it has an id. Row-level security and the API-client tier decide what comes back; an id the read does not
+ * return (left the organisation, another organisation's project) keeps its raw value at the print.
+ */
+async function readNames(ctx, table, column, ids) {
+  const unique = [...new Set(ids)].filter((id) => UUID.test(id ?? ''));
+  const names = new Map();
+  if (unique.length === 0) return names;
+  const q = new URLSearchParams({ select: `id,${column}`, id: `in.(${unique.join(',')})` });
+  const rows = await authed(ctx, 'GET', `/rest/v1/${table}?${q}`);
+  for (const row of Array.isArray(rows) ? rows : []) names.set(row.id, row[column]);
+  return names;
 }
 
 /** The LoadApi `pmo load` writes through — the user's own token, nothing else (scripts/lib/pmo-load.mjs). */
@@ -930,6 +956,8 @@ async function dispatch(ctx, command, positionals, flags) {
       return attribution(ctx, positionals, flags);
     case 'equipment':
       return equipment(ctx, positionals, flags);
+    case 'tm':
+      return timeAndMaterials(ctx, positionals, flags);
     default:
       throw usage(`Unknown command '${command}'.\n${USAGE}`);
   }
@@ -1180,14 +1208,8 @@ async function attribution(ctx, positionals, flags) {
     if (sub === 'preview') {
       const previews = await previewRules(api, await rulesFrom());
       if (flags.json) return { previews };
-      const ids = [...new Set(previews.flatMap((p) => p.rows.map((r) => r.project_id)))].filter((id) => UUID.test(id ?? ''));
-      const names = new Map();
-      if (ids.length > 0) {
-        const q = new URLSearchParams({ select: 'id,name', id: `in.(${ids.join(',')})` });
-        const rows = await authed(ctx, 'GET', `/rest/v1/projects?${q}`);
-        for (const r of Array.isArray(rows) ? rows : []) names.set(r.id, r.name);
-      }
-      return new Printed(formatPreview(previews, names));
+      const ids = previews.flatMap((p) => p.rows.map((r) => r.project_id));
+      return new Printed(formatPreview(previews, await readNames(ctx, 'projects', 'name', ids)));
     }
     if (sub === 'set') return await setRules(api, await rulesFrom(), { dryRun: Boolean(flags['dry-run']) });
     if (sub === 'end') {
@@ -1265,6 +1287,51 @@ async function equipment(ctx, positionals, flags) {
     throw explain(error);
   }
   throw usage(`Unknown equipment command '${[area, action].filter(Boolean).join(' ')}'. Use usage list or costing preview, set or list.`);
+}
+
+/**
+ * `pmo tm` (#1514): the contract rate card and time-and-materials claims. Every amount, role and sign-off rule is the
+ * database's; `claim preview` is read-only (the T&M read tier carries no writer), so nothing is frozen by asking.
+ */
+async function timeAndMaterials(ctx, positionals, flags) {
+  const [area, action] = positionals;
+  const api = {
+    rpc: (name, body) => authed(ctx, 'POST', `/rest/v1/rpc/${name}`, { body }),
+    get: (table, query) => authed(ctx, 'GET', `/rest/v1/${table}?${query}`),
+  };
+  const explain = (error) => {
+    if (error instanceof TmQueryError) {
+      return new CliError(`Nothing was sent: ${error.problems.length} problem(s).`, {
+        exit: 2,
+        code: 'invalid_tm_query',
+        details: error.problems,
+      });
+    }
+    if ((error instanceof CliError && error.exit === 2) || error?.code === undefined) return error;
+    return new CliError(explainTmError(error), { code: error.code, status: error.status, hint: error.hint });
+  };
+
+  try {
+    if (area === 'rates' && action === 'list') {
+      const card = await readRateCard(api, { project: flags.project, assignees: Boolean(flags.assignees) });
+      if (flags.json) return card;
+      const names = await readNames(ctx, 'profiles', 'full_name', card.assignees.map((person) => person.user_id));
+      return new Printed(formatRateCard(card, names));
+    }
+    if (area === 'claim' && action === 'preview') {
+      const preview = await previewClaim(api, { project: flags.project, from: flags.from, to: flags.to });
+      if (flags.json) return preview;
+      const names = await readNames(ctx, 'profiles', 'full_name', preview.unrated.map((row) => row.user_id));
+      return new Printed(formatTmPreview(preview, names));
+    }
+    if (area === 'claim' && action === 'list') {
+      const claims = await listClaims(api, { project: flags.project });
+      return flags.json ? { claims } : new Printed(formatClaims(claims));
+    }
+  } catch (error) {
+    throw explain(error);
+  }
+  throw usage(`Unknown tm command '${[area, action].filter(Boolean).join(' ')}'. Use rates list, claim preview or claim list.`);
 }
 
 /**
