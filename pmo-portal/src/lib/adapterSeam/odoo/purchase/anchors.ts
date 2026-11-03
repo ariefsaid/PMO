@@ -24,9 +24,23 @@ export function odooExternalRef(model: string, id: number | string): string {
   if (!/^[a-z_]+(\.[a-z_]+)+$/.test(model) || !Number.isInteger(n) || n <= 0) throw new Error('Invalid Odoo external ref');
   return `${model}:${n}`;
 }
+/** The reference a person's "Odoo payment number" stands for (held-payment resolution); the model name stays in this directory. */
+export const odooPaymentRef = (id: number | string): string => odooExternalRef('account.payment', id);
 /** The Odoo id inside a ref of that model, or null for any other model, a bare id or a malformed ref. */
 export function parseOdooExternalRef(model: string, ref: unknown): number | null {
   if (typeof ref !== 'string' || !ref.startsWith(`${model}:`)) return null;
   const id = ref.slice(model.length + 1);
   return /^[1-9][0-9]*$/.test(id) ? Number(id) : null;
+}
+
+/**
+ * The PMO key an order or bill identifier name was made from (`externalIdentifier` replaces every non-alphanumeric with `_`), or
+ * null for any other name. Only keys whose name is lossless are recovered: the feed uses it to tell an anchored orphan from a
+ * document Odoo users created.
+ */
+export function keyFromExternalIdentifier(name: string): string | null {
+  const m = /^(po|bill)_([0-9a-f]{8})_([0-9a-f]{4})_([0-9a-f]{4})_([0-9a-f]{4})_([0-9a-f]{12})$/i.exec(name);
+  if (!m) return null;
+  const key = `${m[1]}:${m[2]}-${m[3]}-${m[4]}-${m[5]}-${m[6]}`;
+  return PURCHASE_KEY_RE.test(key) ? key : null;
 }

@@ -43,6 +43,7 @@ export function world(o: Over = {}) {
 }
 export const oneItem: Invoker = async (name) =>
   name === 'external-items' ? { data: { items: [{ code: 'SVC', name: 'Services' }] }, error: null } : { data: null, error: { message: 'unexpected' } };
-export const ctx = (role: string, client: unknown) => ({ jwt: '', userId: 'u-fin', orgId: 'org-1', role, supabase: client as never });
+export const ctx = (role: string, client: unknown, featureSwitches: Record<string, boolean> | null = { revenue: true, sales_invoices: true }) =>
+  ({ jwt: '', userId: 'u-fin', orgId: 'org-1', role, supabase: client as never, featureSwitches });
 let seq = 0;
 export const newId = () => `00000000-0000-4000-8000-${String(++seq).padStart(12, '0')}`;

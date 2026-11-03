@@ -5463,6 +5463,10 @@ export type Database = {
           erp_cancelled_at: string | null
           erp_docstatus: number | null
           erp_modified: string | null
+          erp_attention: string | null
+          erp_census_seen_at: string | null
+          erp_read_at: string | null
+          erp_state: string | null
           id: string
           import_batch_id: string | null
           import_identity_facts: Json | null
@@ -5486,6 +5490,10 @@ export type Database = {
           erp_cancelled_at?: string | null
           erp_docstatus?: number | null
           erp_modified?: string | null
+          erp_attention?: string | null
+          erp_census_seen_at?: string | null
+          erp_read_at?: string | null
+          erp_state?: string | null
           id?: string
           import_batch_id?: string | null
           import_identity_facts?: Json | null
@@ -5509,6 +5517,10 @@ export type Database = {
           erp_cancelled_at?: string | null
           erp_docstatus?: number | null
           erp_modified?: string | null
+          erp_attention?: string | null
+          erp_census_seen_at?: string | null
+          erp_read_at?: string | null
+          erp_state?: string | null
           id?: string
           import_batch_id?: string | null
           import_identity_facts?: Json | null
@@ -6205,6 +6217,10 @@ export type Database = {
           erp_cancelled_at: string | null
           erp_docstatus: number | null
           erp_modified: string | null
+          erp_attention: string | null
+          erp_census_seen_at: string | null
+          erp_read_at: string | null
+          erp_state: string | null
           erp_outstanding_amount: number | null
           external_ref: string | null
           id: string
@@ -6239,6 +6255,10 @@ export type Database = {
           erp_cancelled_at?: string | null
           erp_docstatus?: number | null
           erp_modified?: string | null
+          erp_attention?: string | null
+          erp_census_seen_at?: string | null
+          erp_read_at?: string | null
+          erp_state?: string | null
           erp_outstanding_amount?: number | null
           external_ref?: string | null
           id?: string
@@ -6273,6 +6293,10 @@ export type Database = {
           erp_cancelled_at?: string | null
           erp_docstatus?: number | null
           erp_modified?: string | null
+          erp_attention?: string | null
+          erp_census_seen_at?: string | null
+          erp_read_at?: string | null
+          erp_state?: string | null
           erp_outstanding_amount?: number | null
           external_ref?: string | null
           id?: string
@@ -6655,6 +6679,12 @@ export type Database = {
           erp_cancelled_at: string | null
           erp_docstatus: number | null
           erp_modified: string | null
+          erp_attention: string | null
+          erp_census_seen_at: string | null
+          erp_read_at: string | null
+          erp_state: string | null
+          odoo_booked: Json | null
+          odoo_entered: Json | null
           gr_number: string | null
           id: string
           import_batch_id: string | null
@@ -6675,6 +6705,12 @@ export type Database = {
           erp_cancelled_at?: string | null
           erp_docstatus?: number | null
           erp_modified?: string | null
+          erp_attention?: string | null
+          erp_census_seen_at?: string | null
+          erp_read_at?: string | null
+          erp_state?: string | null
+          odoo_booked?: Json | null
+          odoo_entered?: Json | null
           gr_number?: string | null
           id?: string
           import_batch_id?: string | null
@@ -6695,6 +6731,12 @@ export type Database = {
           erp_cancelled_at?: string | null
           erp_docstatus?: number | null
           erp_modified?: string | null
+          erp_attention?: string | null
+          erp_census_seen_at?: string | null
+          erp_read_at?: string | null
+          erp_state?: string | null
+          odoo_booked?: Json | null
+          odoo_entered?: Json | null
           gr_number?: string | null
           id?: string
           import_batch_id?: string | null
@@ -7998,6 +8040,10 @@ export type Database = {
           erp_cancelled_at: string | null
           erp_docstatus: number | null
           erp_modified: string | null
+          erp_attention: string | null
+          erp_census_seen_at: string | null
+          erp_read_at: string | null
+          erp_state: string | null
           external_ref: string | null
           id: string
           import_batch_id: string | null
@@ -8020,6 +8066,10 @@ export type Database = {
           erp_cancelled_at?: string | null
           erp_docstatus?: number | null
           erp_modified?: string | null
+          erp_attention?: string | null
+          erp_census_seen_at?: string | null
+          erp_read_at?: string | null
+          erp_state?: string | null
           external_ref?: string | null
           id?: string
           import_batch_id?: string | null
@@ -8042,6 +8092,10 @@ export type Database = {
           erp_cancelled_at?: string | null
           erp_docstatus?: number | null
           erp_modified?: string | null
+          erp_attention?: string | null
+          erp_census_seen_at?: string | null
+          erp_read_at?: string | null
+          erp_state?: string | null
           external_ref?: string | null
           id?: string
           import_batch_id?: string | null
@@ -8612,6 +8666,10 @@ export type Database = {
           id: string
           invoice_date: string | null
           native_lines: Json | null
+          odoo_attention: string | null
+          odoo_read_at: string | null
+          odoo_sent_total: number | null
+          odoo_state: string | null
           org_id: string
           overpaid_amount: number | null
           paired_at: string | null
@@ -8656,6 +8714,10 @@ export type Database = {
           id?: string
           invoice_date?: string | null
           native_lines?: Json | null
+          odoo_attention?: string | null
+          odoo_read_at?: string | null
+          odoo_sent_total?: number | null
+          odoo_state?: string | null
           org_id?: string
           overpaid_amount?: number | null
           paired_at?: string | null
@@ -8700,6 +8762,10 @@ export type Database = {
           id?: string
           invoice_date?: string | null
           native_lines?: Json | null
+          odoo_attention?: string | null
+          odoo_read_at?: string | null
+          odoo_sent_total?: number | null
+          odoo_state?: string | null
           org_id?: string
           overpaid_amount?: number | null
           paired_at?: string | null
@@ -12897,6 +12963,26 @@ export type Database = {
           source: string
         }[]
       }
+      list_tm_claims: {
+        Args: { p_project: string }
+        Returns: {
+          confirm_basis: string
+          confirmed_by: string
+          created_at: string
+          currency: string
+          document_id: string
+          gross_amount: number
+          id: string
+          lines: Json
+          note: string
+          period_from: string
+          period_to: string
+          prepared_by: string
+          signoff_prepared_by: string
+          status: string
+          work_order_id: string
+        }[]
+      }
       list_unpaired_native_invoices: {
         Args: never
         Returns: {
@@ -13323,6 +13409,60 @@ export type Database = {
         }[]
       }
       operator_org_exists: { Args: { p_org_id: string }; Returns: boolean }
+      operator_clear_feature_override: {
+        Args: { p_key: string; p_org_id: string }
+        Returns: undefined
+      }
+      operator_set_global_feature: {
+        Args: { p_enabled: boolean; p_key: string }
+        Returns: undefined
+      }
+      operator_set_org_plan: {
+        Args: { p_org_id: string; p_plan_id: string }
+        Returns: undefined
+      }
+      operator_set_plan_feature: {
+        Args: { p_enabled: boolean; p_key: string; p_plan_id: string }
+        Returns: undefined
+      }
+      operator_set_plan_limits: {
+        Args: {
+          p_ai_monthly_messages: number | null
+          p_plan_id: string
+          p_project_limit: number | null
+          p_seat_limit: number | null
+        }
+        Returns: undefined
+      }
+      operator_org_plan: { Args: { p_org_id: string }; Returns: string | null }
+      operator_org_overrides: {
+        Args: { p_org_id: string }
+        Returns: {
+          feature_key: string
+        }[]
+      }
+      operator_plan_catalogue: {
+        Args: never
+        Returns: {
+          ai_monthly_messages: number | null
+          feature_enabled: boolean
+          feature_key: string
+          global_enabled: boolean | null
+          plan_id: string
+          plan_name: string
+          project_limit: number | null
+          seat_limit: number | null
+        }[]
+      }
+      operator_resolved_org_features: {
+        Args: { p_org_id: string }
+        Returns: {
+          display_enabled: boolean
+          enabled: boolean
+          feature_key: string
+          source: string
+        }[]
+      }
       operator_set_domain_ownership: {
         Args: {
           p_action: string
@@ -13420,6 +13560,22 @@ export type Database = {
         }[]
       }
       preview_task_reminders: { Args: { p_task_ids: string[] }; Returns: Json }
+      preview_tm_claim: {
+        Args: { p_from: string; p_project: string; p_to: string }
+        Returns: {
+          amount: number
+          kind: string
+          label: string
+          line_key: string
+          rate: number
+          rate_version: number
+          source_count: number
+          unit: string
+          units: number
+          unrated_reason: string
+          user_id: string
+        }[]
+      }
       procurement_evidenced_step: {
         Args: { p_procurement_id: string }
         Returns: Database["public"]["Enums"]["procurement_status"]
@@ -13790,6 +13946,15 @@ export type Database = {
         Args: { p_holder: string; p_org_id: string }
         Returns: boolean
       }
+      resolve_held_outbox_command: {
+        Args: {
+          p_external_record_id?: string
+          p_outbox_id: string
+          p_reason?: string
+          p_resolution: string
+        }
+        Returns: undefined
+      }
       release_outbox_hold: {
         Args: {
           p_expected_domain?: string
@@ -13817,6 +13982,25 @@ export type Database = {
       reserve_credits: {
         Args: { p_amount: number; p_org_id: string; p_run_id: string }
         Returns: string
+      }
+      resolved_org_features: {
+        Args: never
+        Returns: {
+          display_enabled: boolean
+          enabled: boolean
+          feature_key: string
+          source: string
+        }[]
+      }
+      resolved_org_plan: {
+        Args: never
+        Returns: {
+          ai_monthly_messages: number | null
+          plan_id: string
+          plan_name: string
+          project_limit: number | null
+          seat_limit: number | null
+        }[]
       }
       role_outranks: {
         Args: {

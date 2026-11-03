@@ -8,6 +8,7 @@
 
 import { assertEquals, assert } from 'jsr:@std/assert';
 import {
+  checkCommandAuthorization,
   checkErpnextCommandAuthorization,
   checkOutboxReplayAuthorization,
   replayMayIssueErpWrite,
@@ -574,4 +575,42 @@ Deno.test('AC-TSP-013 FR-TSP-012: a cross-domain kind is refused 422 in both dir
 
 Deno.test('moneyWriteRolesForDomain: an unknown domain still resolves to the EMPTY set (fail closed)', () => {
   assertEquals(moneyWriteRolesForDomain('some-future-domain'), []);
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// #1506 O3 C2 (AC-OCI-001/051, FR-OCI-004, DD-OCI-1) — revenue is employable under the Odoo tier too: the tier that owns it for the org
+// answers the gate and picks the adapter and the outbox; the role set is the same either way; ERPNext's own entry stays pinned to ERPNext.
+// ════════════════════════════════════════════════════════════════════════════
+
+const REVENUE_INVOICE = { domain: 'revenue', record: { erp_doc_kind: 'sales-invoice' } };
+
+Deno.test('AC-OCI-001: revenue owned by the odoo tier is permitted and the answer names the tier', async () => {
+  const res = await checkCommandAuthorization(fakeClient({ domainOwned: true, role: 'Finance', ownedPairs: ['revenue:odoo'] }), 'org-1', 'user-1', REVENUE_INVOICE);
+  assertEquals([res.ok, res.tier], [true, 'odoo']);
+});
+
+Deno.test('AC-OCI-001: revenue owned by the erpnext tier still answers erpnext', async () => {
+  const res = await checkCommandAuthorization(fakeClient({ domainOwned: true, role: 'Finance', ownedPairs: ['revenue:erpnext'] }), 'org-1', 'user-1', REVENUE_INVOICE);
+  assertEquals([res.ok, res.tier], [true, 'erpnext']);
+});
+
+Deno.test('AC-OCI-001: revenue owned by neither tier is refused 403', async () => {
+  const res = await checkCommandAuthorization(fakeClient({ domainOwned: true, role: 'Finance', ownedPairs: ['procurement:odoo'] }), 'org-1', 'user-1', REVENUE_INVOICE);
+  assertEquals([res.ok, res.status], [false, 403]);
+});
+
+Deno.test('AC-OCI-051: the revenue role set is the same under odoo: Admin and Finance write, every other role is refused 403', async () => {
+  for (const role of ['Admin', 'Finance']) {
+    const res = await checkCommandAuthorization(fakeClient({ domainOwned: true, role, ownedPairs: ['revenue:odoo'] }), 'org-1', 'user-1', REVENUE_INVOICE);
+    assertEquals(res.ok, true, role);
+  }
+  for (const role of ['Executive', 'Project Manager', 'Engineer']) {
+    const res = await checkCommandAuthorization(fakeClient({ domainOwned: true, role, ownedPairs: ['revenue:odoo'] }), 'org-1', 'user-1', REVENUE_INVOICE);
+    assertEquals([res.ok, res.status], [false, 403], role);
+  }
+});
+
+Deno.test('AC-OCI-001: the ERPNext sweep entry stays pinned to ERPNext: odoo-owned revenue is not its to replay', async () => {
+  const res = await checkErpnextCommandAuthorization(fakeClient({ domainOwned: true, role: 'Finance', ownedPairs: ['revenue:odoo'] }), 'org-1', 'user-1', REVENUE_INVOICE as never);
+  assertEquals([res.ok, res.status], [false, 403]);
 });

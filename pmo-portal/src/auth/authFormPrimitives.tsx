@@ -30,7 +30,7 @@ export const ErrorBanner: React.FC<{ message: string }> = ({ message }) => (
     className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/[0.07] px-3 py-2.5 text-[13px]"
   >
     <Icon name="alert" className="mt-px size-4 shrink-0 text-destructive" aria-hidden="true" />
-    <span style={{ color: 'hsl(0 72% 42%)' }}>{message}</span>
+    <span className="text-destructive-text">{message}</span>
   </div>
 );
 

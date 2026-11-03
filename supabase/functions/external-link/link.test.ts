@@ -44,7 +44,11 @@ const withFetchMock: typeof baseWithFetchMock = (routes, run) => {
     } }
     : route);
   return baseWithFetchMock(
-    [...wrapped, supabaseRpc('actor_authorization_state', () => jsonResponse({ active: true, role }))],
+    [
+      ...wrapped,
+      supabaseRpc('actor_authorization_state', () => jsonResponse({ active: true, role })),
+      supabaseRpc('service_feature_enabled', () => jsonResponse(true)),
+    ],
     run,
   );
 };
@@ -92,6 +96,32 @@ const LINKABLE_LIST = {
 const NO_MEMBERS = { members: [] as Array<{ id: number; email?: string }> };
 
 describe('external-link — ClickUp branch', () => {
+  it('FR-PLN-006 refuses a ClickUp project link before binding reads when clickup_sync is off', async () => {
+    await withFetchMock(
+      [
+        supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, {
+          headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+        })),
+        supabaseSelect('platform_operators', () => new Response('null', {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })),
+        supabaseRpc('actor_authorization_state', () => jsonResponse({ active: true, role: 'Admin' })),
+        supabaseRpc('service_feature_enabled', (call) => {
+          assertEquals((call.bodyJson as { p_key: string }).p_key, 'clickup_sync');
+          return jsonResponse(false);
+        }),
+      ],
+      async ({ calls }) => {
+        const response = await handleLinkRequest(await authed({ tier: 'clickup', projectId: 'proj-1', listId: 'list-1', direction: 'push-seed' }));
+        assertEquals(response.status, 409);
+        assertEquals((await response.json()).error, 'feature_off');
+        assertEquals(restCall(calls, 'external_org_bindings', 'GET').length, 0);
+        assertEquals(calls.some((call) => call.url.host === 'api.clickup.com'), false);
+      },
+    );
+  });
+
   it('Admin OK — push-seed with empty List succeeds', async () => {
     await withFetchMock(
       [
@@ -917,6 +947,32 @@ describe('external-link — ClickUp branch', () => {
 });
 
 describe('external-link — ERPNext branch', () => {
+  it('FR-PLN-006 refuses an ERPNext company link before binding reads when erp_sync is off', async () => {
+    await withFetchMock(
+      [
+        supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, {
+          headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+        })),
+        supabaseSelect('platform_operators', () => new Response('null', {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })),
+        supabaseRpc('actor_authorization_state', () => jsonResponse({ active: true, role: 'Admin' })),
+        supabaseRpc('service_feature_enabled', (call) => {
+          assertEquals((call.bodyJson as { p_key: string }).p_key, 'erp_sync');
+          return jsonResponse(false);
+        }),
+      ],
+      async ({ calls }) => {
+        const response = await handleLinkRequest(await authed({ tier: 'erpnext', companyId: 'Example Co' }));
+        assertEquals(response.status, 409);
+        assertEquals((await response.json()).error, 'feature_off');
+        assertEquals(restCall(calls, 'external_org_bindings', 'GET').length, 0);
+        assertEquals(calls.some((call) => call.url.host === 'erp.example.com'), false);
+      },
+    );
+  });
+
   it('Admin/Operator OK — company set', async () => {
     await withFetchMock(
       [

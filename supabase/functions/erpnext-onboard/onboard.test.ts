@@ -42,6 +42,7 @@ async function withWorld(
     const req = input instanceof Request ? input : new Request(String(input), init);
     const url = new URL(req.url);
     seen.push({ method: req.method, url, headers: req.headers });
+    if (url.pathname === '/rest/v1/rpc/service_feature_enabled') return json(true);
     if (url.pathname === '/rest/v1/external_org_bindings') {
       const accept = req.headers.get('accept') ?? '';
       const row = { site_url: SITE, secret_ref: 'local-bench', activated_at: '2026-01-01T00:00:00Z' };

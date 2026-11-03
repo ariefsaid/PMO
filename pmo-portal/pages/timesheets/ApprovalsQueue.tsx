@@ -291,7 +291,7 @@ export const ApprovalsQueue: React.FC = () => {
   if (isPending) {
     return (
       <div className="rounded-lg border border-border bg-card" data-testid="approvals-loading">
-        <ListState variant="loading" rows={4} />
+        <ListState variant="loading" shape="table" rows={4} />
       </div>
     );
   }

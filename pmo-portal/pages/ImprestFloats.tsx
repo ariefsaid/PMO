@@ -138,6 +138,7 @@ const ImprestFloatsPage: React.FC = () => {
   return (
     <ListPage
       title={t('imprest:list.title', 'Site cash')}
+      count={data ? rows.length : undefined}
       description={t('imprest:list.description', 'Cash held on site, by float: what is in hand, what is out as advances and what is waiting to be replenished.')}
       primaryAction={<CanWrite entity="imprestFloat" action="create">
         <Button variant="primary" onClick={() => setEstablishOpen(true)}>
@@ -146,7 +147,7 @@ const ImprestFloatsPage: React.FC = () => {
         </Button>
       </CanWrite>}
     >
-      {isPending && <ListState variant="loading" rows={4} />}
+      {isPending && <ListState variant="loading" shape="table" rows={4} />}
       {!isPending && (isError || !data) && (
         <ListState variant="error" title={t('imprest:list.error', "Couldn't load site cash floats")}
           sub={t('imprest:list.errorSub', 'The request failed. Check your connection and try again.')} onRetry={() => void refetch()} />

@@ -232,6 +232,7 @@ const Meetings: React.FC = () => {
   return (
     <ListPage
       title={t('meetings.title', 'Meetings')}
+      count={data ? rows.length : undefined}
       description={t(
         'meetings.description',
         'Minuted meetings with attendees and action items. You see the meetings you attended, wrote, or were invited to read.',
@@ -287,7 +288,7 @@ const Meetings: React.FC = () => {
     >
       {(state === 'loading' || (state === undefined && awaitingRows)) && (
         <div className="rounded-lg border border-border bg-card">
-          <ListState variant="loading" rows={6} />
+          <ListState variant="loading" shape="table" columns={6} rows={6} />
         </div>
       )}
 

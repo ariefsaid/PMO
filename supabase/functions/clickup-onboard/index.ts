@@ -58,6 +58,8 @@ import {
 } from '../_shared/clickupMirrorDeps.ts';
 import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
 
+export const testSupabaseOptions = { auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false } };
+
 // Shared across invocations of this isolate — the token bucket's budget is real only if it persists
 // across requests (NFR-CUA-PERF-003). Bulk lane: onboarding yields to interactive writes.
 const rateLimiter = new ClickUpRateLimiter();
@@ -162,7 +164,13 @@ serveWithErrorReporting('clickup-onboard', async (req: Request): Promise<Respons
   // Cast: see adapter-dispatch/index.ts — the real supabase-js client structurally satisfies the
   // pure modules' service-client seams at runtime but is not nominally assignable (thenable
   // PostgrestFilterBuilder vs a plain Promise).
-  const serviceClient = createClient(supabaseUrl, serviceRoleKey);
+  const serviceClient = createClient(supabaseUrl, serviceRoleKey, testSupabaseOptions);
+  const { data: clickupSyncOn, error: featureError } = await serviceClient.rpc('service_feature_enabled', {
+    p_org_id: orgId,
+    p_key: 'clickup_sync',
+  });
+  if (featureError) return json({ error: 'INTERNAL', message: 'could not resolve the plan switch' }, 500);
+  if (clickupSyncOn !== true) return json({ error: 'feature_off', message: 'ClickUp sync is not enabled for this organization' }, 409);
 
   // Load the bound List + maps for a project (push-seed/pull-adopt run after provision). A closure
   // capturing serviceClient so the overloaded `createClient` generic is inferred exactly once.

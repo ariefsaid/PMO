@@ -35,7 +35,7 @@ vi.mock('@/src/hooks/useOrgFeatures', () => ({
       procurement: true,
       timesheets: true,
       import_export: true,
-      agent_assistant: false,
+      agent_assistant: true,
       user_views: false,
     },
     isPending: false,

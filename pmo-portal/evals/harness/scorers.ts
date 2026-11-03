@@ -207,6 +207,22 @@ export function noProposal(name: string): Scorer {
   };
 }
 
+/**
+ * `notUsesTool(name)` — passes iff the run NEVER dispatched the named tool. Free (no model call).
+ *
+ * Plans S4 (FR-PLN-008) is the reason it exists: with a module's switch OFF the tool must not be
+ * offered, so a run that still dispatches it is either a leaked catalog or a stale switch snapshot.
+ * Distinct from `noProposal` (which reads a needs-approval status event for a confirm action).
+ */
+export function notUsesTool(name: string): Scorer {
+  return (run) => {
+    const hit = run.toolCalls.find((t) => t.name === name);
+    return hit
+      ? { pass: false, reason: `unexpected tool "${name}" was called` }
+      : { pass: true, reason: `tool "${name}" was not called` };
+  };
+}
+
 /** Repeated-run bar: a case passes iff at least `minPasses` of its runs passed (NFR-AIN-QUAL-001). */
 export function summarizeRuns(results: boolean[], minPasses: number): { pass: boolean; passes: number; runs: number } {
   const passes = results.filter(Boolean).length;

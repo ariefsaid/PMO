@@ -238,6 +238,15 @@ describe('useProcurementMutations', () => {
     ).toBe(true);
   });
 
+  it('AC-OPP-030 (hook): entered receipt quantities reach the repository; without them the call keeps its exact shape', async () => {
+    const { Wrapper } = makeWrapper();
+    const { result } = renderHook(() => useProcurementMutations('proc-1'), { wrapper: Wrapper });
+    await act(async () => {
+      await result.current.createReceipt.mutateAsync({ status: 'Partial', receiptDate: '2026-06-04', receiptLines: [{ itemRef: 'Pump', quantity: 6 }] });
+    });
+    expect(procurement.createReceipt).toHaveBeenLastCalledWith('proc-1', 'Partial', '2026-06-04', undefined, undefined, [{ itemRef: 'Pump', quantity: 6 }]);
+  });
+
   it('AC-816 (hook): createInvoice mutation calls repositories.procurement.createInvoice and invalidates the detail key on success', async () => {
     const { qc, Wrapper } = makeWrapper();
     const invalidateSpy = vi.spyOn(qc, 'invalidateQueries');
