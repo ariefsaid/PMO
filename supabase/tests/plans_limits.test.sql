@@ -27,7 +27,7 @@
 begin;
 create extension if not exists pgtap;
 create extension if not exists dblink;
-select plan(42);
+select plan(44);
 
 -- The caller for the lock proof: an Admin in the default org, created in THIS transaction.
 insert into auth.users (id, email) values
@@ -365,14 +365,28 @@ select ok((select prosecdef from pg_proc where oid = 'public.assert_seat_availab
   'AC-PLN-009 assert_seat_available is SECURITY DEFINER (it must see every row of the org)');
 select is(
   (select count(*)::int from pg_trigger
-    where tgrelid = 'public.profiles'::regclass and tgname = 'profiles_plan_seat_guard'),
+    where tgrelid = 'public.profiles'::regclass and tgname = 'profiles_zz_plan_seat_guard'),
   1,
   'AC-PLN-009 the seat guard is attached to profiles');
 select is(
   (select count(*)::int from pg_trigger
-    where tgrelid = 'public.projects'::regclass and tgname = 'projects_plan_cap_guard'),
+    where tgrelid = 'public.projects'::regclass and tgname = 'projects_zz_plan_cap_guard'),
   1,
   'AC-PLN-010 the active-project guard is attached to projects');
+-- The `zy_`/`zz_` slots are what make the guards see the STAMPED org (0074) and refuse a foreign org
+-- before any count: assert the ordering rather than trusting the names alone.
+select is(
+  (select string_agg(tgname, ',' order by tgname) from pg_trigger
+    where tgrelid = 'public.profiles'::regclass
+      and tgname in ('profiles_stamp_org_id','profiles_zy_plan_org_guard','profiles_zz_plan_seat_guard')),
+  'profiles_stamp_org_id,profiles_zy_plan_org_guard,profiles_zz_plan_seat_guard',
+  'AC-PLN-009 profiles fires stamp → org guard → seat count, in that order');
+select is(
+  (select string_agg(tgname, ',' order by tgname) from pg_trigger
+    where tgrelid = 'public.projects'::regclass
+      and tgname in ('projects_stamp_org_id','projects_zy_plan_org_guard','projects_zz_plan_cap_guard')),
+  'projects_stamp_org_id,projects_zy_plan_org_guard,projects_zz_plan_cap_guard',
+  'AC-PLN-010 projects fires stamp → org guard → cap count, in that order');
 
 select * from finish();
 rollback;

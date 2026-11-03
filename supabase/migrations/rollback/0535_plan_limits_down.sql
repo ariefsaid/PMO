@@ -11,11 +11,15 @@
 select cron.unschedule('plan-monthly-ai-allowance')
  where exists (select 1 from cron.job where jobname = 'plan-monthly-ai-allowance');
 
--- 2. The guards.
-drop trigger if exists projects_plan_cap_guard on public.projects;
+-- 2. The guards (both triggers per table: the invoker org guard and the definer cap/seat count).
+drop trigger if exists projects_zz_plan_cap_guard on public.projects;
+drop trigger if exists projects_zy_plan_org_guard on public.projects;
 drop function if exists public.enforce_org_project_limit();
-drop trigger if exists profiles_plan_seat_guard on public.profiles;
+drop function if exists public.assert_project_plan_org();
+drop trigger if exists profiles_zz_plan_seat_guard on public.profiles;
+drop trigger if exists profiles_zy_plan_org_guard on public.profiles;
 drop function if exists public.enforce_org_seat_limit();
+drop function if exists public.assert_profile_plan_org();
 
 -- 3. The allowance job, its ledger, and the money it minted. The note prefix is the only writable
 --    marker on those rows, so it is what identifies them; a manual Operator grant is never matched.

@@ -126,6 +126,31 @@ grant execute on function public.assert_seat_available(uuid) to authenticated;
 -- §3 — The seat guard on profiles: INSERT (a new member or a pending invite), and an UPDATE that
 --      re-activates a disabled profile (a re-enabled user consumes a seat like any other).
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
+-- The authority guard. SECURITY **INVOKER** on purpose — 0173's load-bearing lesson: under DEFINER
+-- `current_user` is the owner, so a BYPASSRLS exemption would exempt EVERYONE and the guard would
+-- silently do nothing. As the real calling role it exempts exactly the server-side authorities
+-- (postgres / service_role / supabase_admin — pgTAP and importer fixtures legitimately write rows for
+-- a target org) and enforces on the RLS trust boundary, which is where the cross-org existence oracle
+-- 0170 closed actually lives. It needs no elevated privilege: it only raises.
+create or replace function public.assert_profile_plan_org()
+returns trigger
+language plpgsql set search_path = public as $$
+begin
+  if coalesce((select rolbypassrls from pg_roles where rolname = current_user), false) then
+    return new;                               -- server-side authority, not a client
+  end if;
+  -- Same predicate as profiles_admin_insert (0179:166) plus the Operator clause the invite path uses
+  -- (0065:109-122): an Admin of the row's org, or a platform Operator. Anything else is refused here,
+  -- BEFORE the seat count can reveal whether that org is at its cap.
+  if not (new.org_id = public.auth_org_id()
+          and (public.auth_role() = 'Admin' or public.is_operator())
+          and public.is_active_member()) then
+    raise exception 'not authorized' using errcode = '42501';
+  end if;
+  return new;
+end $$;
+revoke all on function public.assert_profile_plan_org() from public, anon, authenticated, service_role;
+
 create or replace function public.enforce_org_seat_limit()
 returns trigger
 language plpgsql security definer set search_path = public as $$
@@ -136,26 +161,22 @@ begin
   if tg_op = 'UPDATE' and old.status::text = 'active' then
     return new;                               -- already seated: an edit consumes no new slot
   end if;
-
-  -- SECURITY (0170's lesson): this trigger is SECURITY DEFINER, so it runs BEFORE profiles' RLS
-  -- WITH CHECK would reject a foreign org_id — without this explicit guard, "at cap" vs the eventual
-  -- RLS refusal would distinguish two states for an org the caller does not belong to. The predicate
-  -- is exactly profiles_admin_insert's (0179:166) plus the Operator clause the invite path uses.
-  if auth.uid() is not null
-     and not (public.is_operator()
-              or (new.org_id = public.auth_org_id()
-                  and public.auth_role() = 'Admin'
-                  and public.is_active_member())) then
-    raise exception 'not authorized' using errcode = '42501';
-  end if;
-
   perform public.plan_enforce_seat_limit(new.org_id);
   return new;
 end $$;
 revoke all on function public.enforce_org_seat_limit() from public, anon, authenticated, service_role;
 
-drop trigger if exists profiles_plan_seat_guard on public.profiles;
-create trigger profiles_plan_seat_guard
+-- ⚑ The trigger NAMES are load-bearing, not cosmetic: PostgreSQL fires BEFORE-ROW triggers in name
+-- order, and 0074 attaches `<table>_stamp_org_id`, which stamps a default/NULL org_id to auth_org_id()
+-- for an authenticated caller (0074:73-87). Everything here must run AFTER that stamp (`zy_`/`zz_`
+-- slots, the 0223:45 convention), and the INVOKER org guard must run before the cap count (`zy` < `zz`)
+-- so a foreign-org write is refused before it can learn anything about that org's usage.
+drop trigger if exists profiles_zy_plan_org_guard on public.profiles;
+create trigger profiles_zy_plan_org_guard
+  before insert or update of org_id on public.profiles
+  for each row execute function public.assert_profile_plan_org();
+drop trigger if exists profiles_zz_plan_seat_guard on public.profiles;
+create trigger profiles_zz_plan_seat_guard
   before insert or update of status on public.profiles
   for each row execute function public.enforce_org_seat_limit();
 
@@ -192,11 +213,9 @@ begin
     return new;                               -- already active: no new slot is being taken
   end if;
 
-  -- SECURITY (0170's lesson, as above): assert the document's org against the caller before the
-  -- count, so the refusal cannot distinguish "at cap" from "not your org".
-  if auth.uid() is not null and new.org_id is distinct from public.auth_org_id() then
-    raise exception 'not authorized' using errcode = '42501';
-  end if;
+  -- NOTE: no authority check in this DEFINER body — the INVOKER twin below (projects_zy_plan_org_guard)
+  -- already refused a foreign-org client before this runs, and only a BYPASSRLS authority (whose
+  -- target org is legitimate) reaches here.
 
   perform 1 from public.organizations where id = new.org_id for update;
   if not found then
@@ -222,8 +241,28 @@ begin
 end $$;
 revoke all on function public.enforce_org_project_limit() from public, anon, authenticated, service_role;
 
-drop trigger if exists projects_plan_cap_guard on public.projects;
-create trigger projects_plan_cap_guard
+-- The INVOKER org guard — identical shape and reasoning to assert_profile_plan_org above (0173's
+-- BYPASSRLS exemption; `zy_` after the 0074 stamp, before the `zz_` cap count).
+create or replace function public.assert_project_plan_org()
+returns trigger
+language plpgsql set search_path = public as $$
+begin
+  if coalesce((select rolbypassrls from pg_roles where rolname = current_user), false) then
+    return new;
+  end if;
+  if new.org_id is distinct from public.auth_org_id() then
+    raise exception 'not authorized' using errcode = '42501';
+  end if;
+  return new;
+end $$;
+revoke all on function public.assert_project_plan_org() from public, anon, authenticated, service_role;
+
+drop trigger if exists projects_zy_plan_org_guard on public.projects;
+create trigger projects_zy_plan_org_guard
+  before insert or update of org_id on public.projects
+  for each row execute function public.assert_project_plan_org();
+drop trigger if exists projects_zz_plan_cap_guard on public.projects;
+create trigger projects_zz_plan_cap_guard
   before insert or update of status, archived_at on public.projects
   for each row execute function public.enforce_org_project_limit();
 
