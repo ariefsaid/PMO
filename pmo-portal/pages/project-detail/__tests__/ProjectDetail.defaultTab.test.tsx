@@ -78,7 +78,29 @@ vi.mock('@/src/hooks/useProjectTransitions', () => ({
   }),
 }));
 
+// Controlled timing for the one genuinely lazy panel in this fixture (#1198). Everything the
+// Overview composes is stubbed synchronously, so Materials is the only chunk whose import can
+// still be in flight when a render settles; holding it open reproduces a cold chunk import on
+// demand instead of depending on machine load.
+const materialsChunk = vi.hoisted(() => {
+  let release: (() => void) | undefined;
+  let ready = false;
+  const gate = new Promise<void>((resolve) => {
+    release = () => {
+      ready = true;
+      resolve();
+    };
+  });
+  return { gate, isReady: () => ready, release: () => release?.() };
+});
+
 // Stub tab contents — we only test which tab is active, not what's inside them.
+vi.mock('../tabs/MaterialsTab', () => ({
+  default: () => {
+    if (!materialsChunk.isReady()) throw materialsChunk.gate;
+    return <div data-testid="tab-materials">Materials</div>;
+  },
+}));
 vi.mock('../tabs/BudgetTab', () => ({ default: () => <div data-testid="tab-budget">Budget</div> }));
 vi.mock('../tabs/ProcurementTab', () => ({ default: () => <div data-testid="tab-procurement">Procurement</div> }));
 vi.mock('../tabs/TasksTab', () => ({ default: () => <div data-testid="tab-tasks">Tasks</div> }));
@@ -141,20 +163,29 @@ vi.mock('@/src/components/comments/CommentsSection', () => ({ CommentsSection: (
 // ProjectErpLink reads the org's ERP binding through react-query; it has its own test (AC-SETUP-001).
 vi.mock('@/pages/project-detail/ProjectErpLink', () => ({ ProjectErpLink: () => null }));
 
+const detailRoute = (realRole: Role, path: string) => (
+  <ImpersonationProvider realRole={realRole}>
+    <ToastProvider>
+      <MemoryRouter initialEntries={[path]}>
+        <Routes>
+          <Route path="/projects/:projectId/:tab" element={<ProjectDetail />} />
+          <Route path="/projects/:projectId" element={<ProjectDetail />} />
+        </Routes>
+      </MemoryRouter>
+    </ToastProvider>
+  </ImpersonationProvider>
+);
+
 const renderAs = async (realRole: Role, path: string) => {
-  const view = render(
-    <ImpersonationProvider realRole={realRole}>
-      <ToastProvider>
-        <MemoryRouter initialEntries={[path]}>
-          <Routes>
-            <Route path="/projects/:projectId/:tab" element={<ProjectDetail />} />
-            <Route path="/projects/:projectId" element={<ProjectDetail />} />
-          </Routes>
-        </MemoryRouter>
-      </ToastProvider>
-    </ImpersonationProvider>,
-  );
-  await waitFor(() => expect(screen.queryByTestId('project-detail-panel-loading')).not.toBeInTheDocument());
+  const view = render(detailRoute(realRole, path));
+  // #1198: the wait has to bind to the boundary ProjectSections actually renders. The tab bar
+  // (which decides the role/default-tab goal) sits outside that boundary and is settled the
+  // moment the record loads; only the demand-loaded panel suspends, behind a `ListState`
+  // loading fallback. The retired `project-detail-panel-loading` id this used to name was
+  // removed with the demand-loading change (#1469), which left the assertion vacuous and let a
+  // chunk still in flight through to the assertions. Same 1 s default: no timeout increase.
+  const panel = screen.getByRole('tabpanel');
+  await waitFor(() => expect(within(panel).queryByTestId('liststate-loading')).not.toBeInTheDocument());
   return view;
 };
 
@@ -227,5 +258,34 @@ describe('AC-IXD-PROJ-W5-C3-A: role-invariant default tab (CW-7, supersedes OD-W
   it('AC-IXD-PROJ-W5-C3-A-10: Finance with explicit /projects/:id/procurement deep-link opens Procurement', async () => {
     await renderAs('Finance', '/projects/p1/procurement');
     expect(screen.getByRole('tab', { name: 'Procurement', selected: true })).toBeInTheDocument();
+  });
+
+  // ── Loader contract: the render wait binds to the panel's real demand-load boundary ──
+  // #1198: the helper used to wait for `project-detail-panel-loading`, an id the demand-loading
+  // change (#1469) retired, so the wait asserted nothing and a panel chunk still in flight slipped
+  // past it. The Materials chunk is held open here on a controlled clock: the wait must cover it.
+  it('AC-PB-008: the role/default-tab goal is settled from the tab bar while the panel chunk is still in flight', async () => {
+    // Chunk deliberately unreleased for the whole case: only the panel is pending, not the goal.
+    const view = render(detailRoute('Engineer', '/projects/p1/materials'));
+    try {
+      expect(await screen.findByRole('tab', { name: 'Materials', selected: true })).toBeInTheDocument();
+      expect(within(screen.getByRole('tabpanel')).getByTestId('liststate-loading')).toBeInTheDocument();
+    } finally {
+      view.unmount();
+    }
+  });
+
+  it('AC-PB-008: the render helper waits for the demand-loaded panel chunk before the assertions run', async () => {
+    // 20 ms: longer than the synchronous first commit (so the fallback is genuinely on screen when
+    // the helper is entered), far inside the helper's unchanged 1 s budget.
+    const release = setTimeout(materialsChunk.release, 20);
+    try {
+      await renderAs('Engineer', '/projects/p1/materials');
+      expect(screen.getByRole('tab', { name: 'Materials', selected: true })).toBeInTheDocument();
+      expect(screen.getByTestId('tab-materials')).toBeInTheDocument();
+    } finally {
+      clearTimeout(release);
+      materialsChunk.release();
+    }
   });
 });
