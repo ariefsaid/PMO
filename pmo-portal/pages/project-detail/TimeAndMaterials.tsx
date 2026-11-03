@@ -24,6 +24,8 @@ interface TimeAndMaterialsProps {
   projectId: string;
   projectManagerId: string | null;
   currency: string;
+  /** Removes the outer card when embedded in the Contract summary card. */
+  embedded?: boolean;
   /** Opens the established Billing-tab invoice confirmation for this claim. */
   onCreateInvoice: (claimId: string) => void;
   /** True only while the existing progress-claim invoice path is available for this signed-off claim. */
@@ -37,7 +39,7 @@ const firstOfMonth = (): string => `${today().slice(0, 7)}-01`;
 const canBeEvidence = (document: ProjectDocumentRow): boolean =>
   (document.status === 'Issued' || document.status === 'Approved') && Boolean(document.file_path);
 
-const TimeAndMaterials: React.FC<TimeAndMaterialsProps> = ({ projectId, projectManagerId, currency, onCreateInvoice, canCreateInvoice }) => {
+const TimeAndMaterials: React.FC<TimeAndMaterialsProps> = ({ projectId, projectManagerId, currency, embedded = false, onCreateInvoice, canCreateInvoice }) => {
   const { t } = useTranslation('timeAndMaterials');
   const may = usePermission();
   const { currentUser } = useAuth();
@@ -218,7 +220,7 @@ const TimeAndMaterials: React.FC<TimeAndMaterialsProps> = ({ projectId, projectM
 
   return (
     <>
-      <Card>
+      <Card variant={embedded ? 'bare' : 'framed'} className={embedded ? 'border-t border-border pt-4' : undefined}>
         <CardHead level={2} className="text-base" actions={canManageRates ? <Button variant="primary" size="sm" onClick={() => setRateFormFor(null)}>{t('rateCard.add', 'Add rate')}</Button> : undefined}>
           {t('title', 'Time and materials')}
         </CardHead>

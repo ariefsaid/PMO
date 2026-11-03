@@ -102,8 +102,8 @@ beforeEach(() => {
     .map((name) => [name, { mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false }]));
 });
 
-function renderTab(clientId: string | null = 'c1', initialEntry = '/') {
-  render(<MemoryRouter initialEntries={[initialEntry]}><ToastProvider><BillingTab projectId="p1" currency="IDR" clientId={clientId} projectManagerId="pm-1" /><RouteSearch /></ToastProvider></MemoryRouter>);
+function renderTab(clientId: string | null = 'c1', initialEntry = '/', mode: 'full' | 'contract-tools' = 'full') {
+  render(<MemoryRouter initialEntries={[initialEntry]}><ToastProvider><BillingTab projectId="p1" currency="IDR" clientId={clientId} projectManagerId="pm-1" mode={mode} /><RouteSearch /></ToastProvider></MemoryRouter>);
   return userEvent.setup();
 }
 
@@ -264,7 +264,7 @@ describe('BillingTab', () => {
     expect(screen.getByRole('link', { name: 'Open full page' })).toBeInTheDocument();
   });
 
-  it('AC-TM-016 opens the existing invoice confirmation with a signed-off T&M claim preselected', async () => {
+  it.each(['full', 'contract-tools'] as const)('AC-TM-016 opens the existing invoice confirmation with a signed-off T&M claim preselected from %s mode', async (mode) => {
     h.claims = [claim('tm-1', {
       kind: 'time_materials', gross_amount: 400000, dp_recovery_amount: 0,
       evidence: [{ id: 'tm-evidence', document_id: 'doc-1', document_status: 'active', document_revision: 'A' }],
@@ -274,7 +274,7 @@ describe('BillingTab', () => {
       currency: 'IDR', gross_amount: 400000, prepared_by: 'u-pm', signoff_prepared_by: 'u-pm', confirmed_by: 'u-fin',
       confirm_basis: 'standard', document_id: 'doc-1', note: null, created_at: '2026-11-03T00:00:00Z', lines: [],
     }], truncated: false }, isPending: false, isError: false, refetch: vi.fn() };
-    const user = renderTab();
+    const user = renderTab('c1', '/', mode);
 
     await user.click(await screen.findByRole('button', { name: /Create invoice/ }));
 

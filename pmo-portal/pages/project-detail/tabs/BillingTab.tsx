@@ -554,6 +554,43 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
     </section>
   </Drawer>;
 
+  const timeAndMaterials = canViewMoney && <TimeAndMaterials projectId={projectId} projectManagerId={projectManagerId} currency={currency}
+    embedded={mode === 'contract-tools'}
+    canCreateInvoice={(claimId) => {
+      const claim = claimRows.find((row) => row.id === claimId);
+      return canBill && Boolean(claim && !claim.withdrawn_at && !claim.invoice && claim.evidence.length > 0);
+    }}
+    onCreateInvoice={(claimId) => {
+      const claim = claimRows.find((row) => row.id === claimId);
+      if (canBill && claim && !claim.withdrawn_at && !claim.invoice && claim.evidence.length > 0) {
+        setRaiseFor({ claim, idempotencyKey: crypto.randomUUID() });
+      }
+    }} />;
+
+  const raiseInvoiceDialog = raiseFor && (
+    <ConfirmDialog
+      open
+      title={t('projectDetail.billing.claims.confirmRaise.title', "Raise this claim's invoice?")}
+      description={
+        <div className="flex flex-col gap-2">
+          <p>{t('projectDetail.billing.claims.confirmRaise.body', 'An ERP sales invoice draft is created from this claim. A different Admin or Finance user submits it.')}</p>
+          <p data-testid="raise-figures">
+            {t('projectDetail.billing.claims.confirmRaise.figures', 'Claimed {{gross}} · down payment recovered {{recovery}} · net {{net}} (excl. PPN)', {
+              gross: cents(raiseFor.claim.gross_amount),
+              recovery: cents(raiseFor.claim.dp_recovery_amount),
+              net: cents(claimNet(Number(raiseFor.claim.gross_amount), Number(raiseFor.claim.dp_recovery_amount))),
+              interpolation: { escapeValue: false },
+            })}
+          </p>
+        </div>
+      }
+      confirmLabel={t('projectDetail.billing.claims.confirmRaise.confirm', 'Create ERP invoice')}
+      loading={mutations.raiseInvoice.isPending}
+      onConfirm={() => void runRaise()}
+      onCancel={() => setRaiseFor(null)}
+    />
+  );
+
   if (mode === 'contract-tools') {
     return (
       <>
@@ -569,6 +606,8 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
             {t('projectDetail.billing.boq.manage', 'Edit contract lines')}
           </Button>
         </div>
+        {timeAndMaterials}
+        {raiseInvoiceDialog}
         <Drawer open={contractLinesOpen} nestedOpen={Boolean(boqDetailFor)} title={t('projectDetail.billing.boq.title', 'Bill of quantities')}
           onClose={() => setContractLinesOpen(false)}>
           <div className="p-4">{boqCard}</div>
@@ -683,17 +722,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
         </>
       )}
 
-      {canViewMoney && <TimeAndMaterials projectId={projectId} projectManagerId={projectManagerId} currency={currency}
-        canCreateInvoice={(claimId) => {
-          const claim = claimRows.find((row) => row.id === claimId);
-          return canBill && Boolean(claim && !claim.withdrawn_at && !claim.invoice && claim.evidence.length > 0);
-        }}
-        onCreateInvoice={(claimId) => {
-          const claim = claimRows.find((row) => row.id === claimId);
-          if (canBill && claim && !claim.withdrawn_at && !claim.invoice && claim.evidence.length > 0) {
-            setRaiseFor({ claim, idempotencyKey: crypto.randomUUID() });
-          }
-        }} />}
+      {timeAndMaterials}
 
       {allowanceFor && <MaterialAllowanceModal projectId={projectId} workItem={allowanceFor} onClose={() => setAllowanceFor(null)} />}
       {boqFormFor !== undefined && (
@@ -725,29 +754,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
           attachedDocumentIds={(evidenceClaim?.evidence ?? []).map((e) => e.document_id)}
           onClose={() => setEvidenceFor(null)} onAttach={attachEvidence} onError={fail} />
       )}
-      {raiseFor && (
-        <ConfirmDialog
-          open
-          title={t('projectDetail.billing.claims.confirmRaise.title', "Raise this claim's invoice?")}
-          description={
-            <div className="flex flex-col gap-2">
-              <p>{t('projectDetail.billing.claims.confirmRaise.body', 'An ERP sales invoice draft is created from this claim. A different Admin or Finance user submits it.')}</p>
-              <p data-testid="raise-figures">
-                {t('projectDetail.billing.claims.confirmRaise.figures', 'Claimed {{gross}} · down payment recovered {{recovery}} · net {{net}} (excl. PPN)', {
-                  gross: cents(raiseFor.claim.gross_amount),
-                  recovery: cents(raiseFor.claim.dp_recovery_amount),
-                  net: cents(claimNet(Number(raiseFor.claim.gross_amount), Number(raiseFor.claim.dp_recovery_amount))),
-                  interpolation: { escapeValue: false },
-                })}
-              </p>
-            </div>
-          }
-          confirmLabel={t('projectDetail.billing.claims.confirmRaise.confirm', 'Create ERP invoice')}
-          loading={mutations.raiseInvoice.isPending}
-          onConfirm={() => void runRaise()}
-          onCancel={() => setRaiseFor(null)}
-        />
-      )}
+      {raiseInvoiceDialog}
       {withdrawFor && (
         <ConfirmDialog
           open
