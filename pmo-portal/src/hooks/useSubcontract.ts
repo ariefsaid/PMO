@@ -180,7 +180,11 @@ export function useSubcontractMutations(poId: string, procurementId?: string) {
       workOrderId: string | null;
       reason: string | null;
     }) => repositories.subcontracts.linkPoVariation(variationId, workOrderId, reason),
-    onSuccess: invalidate,
+    onSuccess: () => {
+      invalidate();
+      // A relink removes the variation from its old work order as well as adding it to the new one.
+      void qc.invalidateQueries({ queryKey: ['subcontract', orgId, 'work-order-variations'] });
+    },
   });
 
   const attributeBillLines = useMutation({

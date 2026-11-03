@@ -57,6 +57,7 @@ import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 import type { BoqItemRow, ProgressAssessmentInput, ProgressClaimWithInvoice } from '@/src/lib/db/progressBilling';
 import { claimNet, summarizeBilling, type AllocationFacts } from '@/src/lib/progressBilling';
 import { summarizeInvoiceSettlement } from '../ContractCascade';
+import { WorkOrderCostVariations } from '../WorkOrderCostVariations';
 import { useRevenueMode } from '@/src/hooks/useRevenueMode';
 import { useOwnershipCacheSynced, useRevenueRouteReady } from '@/src/hooks/useOwnershipCacheSync';
 import {
@@ -1053,6 +1054,10 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
                         </Tooltip>;
                       })}
                     </div>}
+                  </div>
+
+                  <div className="mt-3 border-t border-border pt-3">
+                    <WorkOrderCostVariations workOrderId={row.id} currency={currency} />
                   </div>
 
                   <div className="mt-4 flex flex-col gap-3">

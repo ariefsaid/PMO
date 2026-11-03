@@ -12,6 +12,8 @@ import { useDocuments } from '@/src/hooks/useDocuments';
 import type { SubcontractAcceptanceWithLines, SubcontractCapExceptionRow, SubcontractPoPositionRow } from '@/src/lib/db/subcontracts';
 import SubcontractAcceptanceModal from './SubcontractAcceptanceModal';
 import { SubcontractLinesEditor, SubcontractAttributeModal } from './SubcontractLinesEditor';
+import PoVariationModal from './PoVariationModal';
+import { PoVariationsList } from './PoVariationsList';
 
 /**
  * A subcontract purchase's BoQ lines against the work verified and billed (#1513 S7.2): PO qty, verified,
@@ -52,9 +54,11 @@ export const SubcontractLinesSection: React.FC<SubcontractLinesSectionProps> = (
   const [editing, setEditing] = useState(false);
   const [acceptance, setAcceptance] = useState<{ draft: SubcontractAcceptanceWithLines | null } | null>(null);
   const [attribute, setAttribute] = useState<SubcontractCapExceptionRow | null>(null);
+  const [variation, setVariation] = useState<{ row: SubcontractPoPositionRow; origin: 'pre_work' | 'post_work' } | null>(null);
 
   const canEditLines = may('edit', 'subcontractLines');
   const canPrepare = may('prepare', 'subcontractAcceptance', { currentUserId, record: { project_manager_id: projectManagerId } });
+  const canRequestVariation = may('request', 'poVariation', { currentUserId, record: { requested_by_id: currentUserId } });
   const soleOperator = (users.data ?? []).filter((u) => u.status === 'active').length === 1;
 
   const fail = (err: unknown) => {
@@ -147,6 +151,7 @@ export const SubcontractLinesSection: React.FC<SubcontractLinesSectionProps> = (
                   <th scope="col" className="py-1.5 pr-3 text-right font-semibold">{t('subcontract.col.payable', 'Payable')}</th>
                   <th scope="col" className="py-1.5 pr-3 text-right font-semibold">{t('subcontract.col.notOnPo', 'Verified, not on PO')}</th>
                   <th scope="col" className="py-1.5 text-right font-semibold">{t('subcontract.col.disputed', 'Disputed')}</th>
+                  {canRequestVariation && <th scope="col" className="py-1.5 pl-3 text-right font-semibold">{t('subcontract.variations.request', 'Variation')}</th>}
                 </tr>
               </thead>
               <tbody>
@@ -174,13 +179,23 @@ export const SubcontractLinesSection: React.FC<SubcontractLinesSectionProps> = (
                         )}
                       </td>
                       <td className="py-1.5 text-right">{num(r.disputed)}</td>
+                      {canRequestVariation && <td className="py-1.5 pl-3 text-right">
+                        <div className="flex flex-wrap justify-end gap-1.5">
+                          <Button variant="ghost" size="sm" onClick={() => setVariation({ row: r, origin: 'pre_work' })}>
+                            {t('subcontract.variations.preWorkAction', 'Pre-work')}
+                          </Button>
+                          {r.verified_not_on_po > 0 && <Button variant="outline" size="sm" onClick={() => setVariation({ row: r, origin: 'post_work' })}>
+                            {t('subcontract.variations.postWorkAction', 'Post-work')}
+                          </Button>}
+                        </div>
+                      </td>}
                     </tr>
                   );
                 })}
               </tbody>
               <tfoot>
                 <tr className="text-[12.5px]">
-                  <td colSpan={9} className="pt-2">
+                  <td colSpan={canRequestVariation ? 10 : 9} className="pt-2">
                     <div className="flex flex-wrap justify-end gap-x-6 gap-y-1">
                       <span>
                         {t('subcontract.lines.billedTotal', 'Billed value')}{' '}
@@ -263,6 +278,7 @@ export const SubcontractLinesSection: React.FC<SubcontractLinesSectionProps> = (
             )}
           </div>
         )}
+        {issued && <PoVariationsList poId={poId} projectId={projectId} currency={currency} />}
       </CardPad>
 
       <ConfirmDialog
@@ -296,6 +312,16 @@ export const SubcontractLinesSection: React.FC<SubcontractLinesSectionProps> = (
           onSave={async (input) => { await mutations.prepareAcceptance.mutateAsync(input); toast(t('subcontract.acceptance.prepared', 'Acceptance saved as a draft'), undefined, 'success'); }}
           onConfirm={async (id) => { await mutations.confirmAcceptance.mutateAsync(id); toast(t('subcontract.acceptance.confirmed', 'Acceptance confirmed'), undefined, 'success'); }}
           onWithdraw={async (id) => { await mutations.withdrawAcceptance.mutateAsync(id); toast(t('subcontract.acceptance.withdrawn', 'Acceptance withdrawn'), undefined, 'success'); }}
+          onError={fail}
+        />
+      )}
+      {variation && (
+        <PoVariationModal
+          row={variation.row}
+          origin={variation.origin}
+          currency={currency}
+          onClose={() => setVariation(null)}
+          onSave={(input) => mutations.requestVariation.mutateAsync(input)}
           onError={fail}
         />
       )}
