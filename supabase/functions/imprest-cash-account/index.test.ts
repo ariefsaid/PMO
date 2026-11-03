@@ -36,6 +36,7 @@ function through(role = 'Finance', tier = 'erpnext', active = true): MockRoute[]
   return [
     supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role }, single)),
     supabaseRpc('actor_authorization_state', () => jsonResponse({ role, active })),
+    supabaseRpc('service_feature_enabled', () => jsonResponse(true)),
     supabaseSelect('imprest_floats', () => jsonResponse([{ id: FLOAT }])),
     supabaseSelect('external_org_bindings', () => jsonResponse([
       { external_tier: tier, secret_ref: 'vault-ref', site_url: 'https://erp.example.com', config: { company: 'ACME' } }])),
@@ -65,6 +66,21 @@ describe('imprest-cash-account', () => {
       assertEquals(restCall(calls, 'imprest_floats', 'PATCH')[0].url.searchParams.get('org_id'), 'eq.org-1');
       assertEquals(JSON.parse(restCall(calls, 'imprest_floats', 'PATCH')[0].bodyText ?? '{}'), { erp_cash_account_ref: ACCOUNT });
       assertEquals((audits[0] as Record<string, unknown>).p_action, 'imprest_float.cash_account');
+    });
+  });
+
+  it('FR-PLN-006 imprest off: the function refuses with the typed feature_off before any ERP call', async () => {
+    // 0534: imprest switched off for the caller's org ⇒ refuse, and touch nothing.
+    await withFetchMock([
+      supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Finance' }, single)),
+      supabaseRpc('actor_authorization_state', () => jsonResponse({ role: 'Finance', active: true })),
+      supabaseRpc('service_feature_enabled', () => jsonResponse(false)),
+    ], async ({ calls }) => {
+      const res = await post({ floatId: FLOAT, account: ACCOUNT });
+      assertEquals(res.status, 409);
+      assertEquals((await res.json()).error, 'feature_off');
+      assertEquals(restCall(calls, 'imprest_floats', 'GET').length, 0);
+      assertEquals(restCall(calls, 'imprest_floats', 'PATCH').length, 0);
     });
   });
 

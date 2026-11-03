@@ -105,6 +105,7 @@ const MyViewsPage: React.FC = () => {
   return (
     <ListPage
       title={t('financeCopy.myViews', "My Views")}
+      count={data ? rows.length : undefined}
       primaryAction={
         <div className="flex gap-2">
           {showAIComposer && (
