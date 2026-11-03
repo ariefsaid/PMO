@@ -17,6 +17,7 @@
 import type { AgentAction, DeputyContext } from '../../../pmo-portal/src/lib/agent/runtime/port.ts';
 import { QUERY_STOCK_SCHEMA } from './schema.ts';
 import { asLoose, asRpc, toLikeTerm, UUID_RE, withTimeout } from './looseClient.ts';
+import { isToolAllowed, notOnPlanError } from './featureSwitches.ts';
 
 /** Wall-clock cap per name-resolution read / RPC call (mirrors actions.ts READ_TIMEOUT_MS). */
 export const STOCK_READ_TIMEOUT_MS = 5000;
@@ -138,6 +139,9 @@ type QueryStockResult =
  * JWT, return a structured result (never throws to the handler).
  */
 export async function runQueryStock(input: unknown, ctx: DeputyContext): Promise<QueryStockResult> {
+  // S4 (FR-PLN-008): defence in depth behind the handler's offering filter — a stock read must never
+  // run for an org whose `stock` key is off, even if the model calls the tool it was not offered.
+  if (!isToolAllowed('query_stock', ctx.featureSwitches)) return notOnPlanError('stock');
   const v = validateQueryStockInput(input);
   if (!v.ok) return { error: v.error };
   const inp = v.value;

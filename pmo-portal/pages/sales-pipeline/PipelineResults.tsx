@@ -13,6 +13,7 @@ export interface PipelineResultsProps {
   view: PipelineView;
   isDesktop: boolean;
   scope: DealScope;
+  scopeCount: number;
   filtered: PipelineProject[];
   kanbanFiltered: PipelineProject[];
   tableColumns: Column<PipelineProject>[];
@@ -36,6 +37,7 @@ export const PipelineResults: React.FC<PipelineResultsProps> = ({
   view,
   isDesktop,
   scope,
+  scopeCount,
   filtered,
   kanbanFiltered,
   tableColumns,
@@ -132,7 +134,7 @@ export const PipelineResults: React.FC<PipelineResultsProps> = ({
 
   // Mobile Board/List Presentation
   if (view === 'kanban' && !isDesktop) {
-    if (wonError && scope === 'Won') {
+    if (wonError && (scope === 'Won' || scope === 'All')) {
       return (
         <ListState
           variant="error"
@@ -143,7 +145,7 @@ export const PipelineResults: React.FC<PipelineResultsProps> = ({
       );
     }
 
-    if (lostError && (scope === 'Lost' || scope === 'Needs attention')) {
+    if (lostError && (scope === 'Lost' || scope === 'Needs attention' || scope === 'All')) {
       return (
         <ListState
           variant="error"
@@ -200,7 +202,7 @@ export const PipelineResults: React.FC<PipelineResultsProps> = ({
   }
 
   // Table Presentation
-  if (wonError && scope === 'Won') {
+  if (wonError && (scope === 'Won' || scope === 'All')) {
     return (
       <ListState
         variant="error"
@@ -211,7 +213,7 @@ export const PipelineResults: React.FC<PipelineResultsProps> = ({
     );
   }
 
-  if (lostError && (scope === 'Lost' || scope === 'Needs attention')) {
+  if (lostError && (scope === 'Lost' || scope === 'Needs attention' || scope === 'All')) {
     return (
       <ListState
         variant="error"
@@ -223,42 +225,63 @@ export const PipelineResults: React.FC<PipelineResultsProps> = ({
   }
 
   return (
-    <DataTable<PipelineProject>
-      embedded
-      rows={filtered}
-      columns={tableColumns}
-      rowKey={(r) => r.id}
-      onActivate={onOpen}
-      rowLabel={(r) => `${t('sales.openRow', 'Open')} ${r.name}`}
-      state={filtered.length === 0 ? 'empty' : undefined}
-      emptyTitle={
-        !narrowedWithinScope && scope === 'Won'
-          ? t('sales:tableEmpty.won.title', 'No won projects')
-          : !narrowedWithinScope && scope === 'Lost'
-            ? t('sales.tableEmpty.lost.title', 'No lost projects')
-            : !narrowedWithinScope && scope === 'Needs attention'
-              ? t('sales.tableEmpty.needsAttention.title', 'No projects need attention')
-              : t('sales.tableEmpty.search.title', 'No projects match your search')
-      }
-      emptySub={
-        !narrowedWithinScope && scope === 'Won'
-          ? t('sales:tableEmpty.won.sub', 'Projects marked won will appear here.')
-          : !narrowedWithinScope && scope === 'Lost'
-            ? t('sales.tableEmpty.lost.sub', 'Projects marked lost will appear here.')
-            : !narrowedWithinScope && scope === 'Needs attention'
-              ? t(
-                  'sales.tableEmpty.needsAttention.sub',
-                  'No project has been untouched for {{days}}+ days. Pipeline is active.',
-                  { days: String(ATTENTION_THRESHOLD_DAYS) },
-                )
-              : t('sales.tableEmpty.search.sub', 'Try a different name or customer.')
-      }
-      emptyAction={
-        filtersActive
-          ? { label: t('sales.tableEmpty.clearFilters', 'Clear filters'), onClick: clearFilters }
-          : undefined
-      }
-      tableId="salespipeline-table"
-    />
+    <>
+      <p
+        className="mb-2 px-[var(--space-content-inset)] text-sm text-muted-foreground"
+        role="status"
+        data-testid="pipeline-result-count"
+      >
+        {filtered.length === scopeCount
+          ? scopeCount === 1
+            ? t('sales:results.one', '{{count}} project', { count: scopeCount })
+            : t('sales:results.many', '{{count}} projects', { count: scopeCount })
+          : scopeCount === 1
+            ? t('sales:results.showingOne', 'Showing {{shown}} of {{total}} project', {
+                shown: filtered.length,
+                total: scopeCount,
+              })
+            : t('sales:results.showing', 'Showing {{shown}} of {{total}} projects', {
+                shown: filtered.length,
+                total: scopeCount,
+              })}
+      </p>
+      <DataTable<PipelineProject>
+        embedded
+        rows={filtered}
+        columns={tableColumns}
+        rowKey={(r) => r.id}
+        onActivate={onOpen}
+        rowLabel={(r) => `${t('sales.openRow', 'Open')} ${r.name}`}
+        state={filtered.length === 0 ? 'empty' : undefined}
+        emptyTitle={
+          !narrowedWithinScope && scope === 'Won'
+            ? t('sales:tableEmpty.won.title', 'No won projects')
+            : !narrowedWithinScope && scope === 'Lost'
+              ? t('sales.tableEmpty.lost.title', 'No lost projects')
+              : !narrowedWithinScope && scope === 'Needs attention'
+                ? t('sales.tableEmpty.needsAttention.title', 'No projects need attention')
+                : t('sales.tableEmpty.search.title', 'No projects match your search')
+        }
+        emptySub={
+          !narrowedWithinScope && scope === 'Won'
+            ? t('sales:tableEmpty.won.sub', 'Projects marked won will appear here.')
+            : !narrowedWithinScope && scope === 'Lost'
+              ? t('sales.tableEmpty.lost.sub', 'Projects marked lost will appear here.')
+              : !narrowedWithinScope && scope === 'Needs attention'
+                ? t(
+                    'sales.tableEmpty.needsAttention.sub',
+                    'No project has been untouched for {{days}}+ days. Pipeline is active.',
+                    { days: String(ATTENTION_THRESHOLD_DAYS) },
+                  )
+                : t('sales.tableEmpty.search.sub', 'Try a different name or customer.')
+        }
+        emptyAction={
+          filtersActive
+            ? { label: t('sales.tableEmpty.clearFilters', 'Clear filters'), onClick: clearFilters }
+            : undefined
+        }
+        tableId="salespipeline-table"
+      />
+    </>
   );
 };

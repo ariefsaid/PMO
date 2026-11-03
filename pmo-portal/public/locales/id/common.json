@@ -1,5 +1,8 @@
 {
   "ui": {
+    "listPage": {
+      "showingOf": "Menampilkan {{count}} dari {{total}}"
+    },
     "listState": {
       "loading": "Memuat…",
       "retry": "Coba lagi"
@@ -3088,7 +3091,7 @@
       "ongoingProject": "Proyek berjalan",
       "onHold": "Ditunda",
       "closeOut": "Penutupan",
-      "lossTender": "Tender kalah",
+      "lossTender": "Kalah",
       "declined": "Tidak ikut tender",
       "internalProject": "Proyek internal"
     },

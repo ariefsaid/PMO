@@ -12,6 +12,7 @@ import {
   contains,
   llmJudge,
   noProposal,
+  notUsesTool,
   proposesAction,
   runScorers,
   summarizeRuns,
@@ -180,6 +181,22 @@ describe('proposesAction / summarizeRuns (#787)', () => {
   it('summarizeRuns applies the minimum-passes bar', () => {
     expect(summarizeRuns([true, true, false], 2)).toEqual({ pass: true, passes: 2, runs: 3 });
     expect(summarizeRuns([true, false, false], 2)).toEqual({ pass: false, passes: 1, runs: 3 });
+  });
+});
+
+describe('notUsesTool (plans S4, FR-PLN-008)', () => {
+  const run = (name?: string) => ({
+    events: [], answerText: '',
+    toolCalls: name ? [{ name, input: {}, result: {} }] : [],
+  }) as unknown as EvalRunResult;
+  it('passes when the switched-off tool was never dispatched', async () => {
+    expect((await notUsesTool('query_stock')(run())).pass).toBe(true);
+    expect((await notUsesTool('query_stock')(run('query_entity'))).pass).toBe(true);
+  });
+  it('fails when the switched-off tool was dispatched', async () => {
+    const verdict = await notUsesTool('query_stock')(run('query_stock'));
+    expect(verdict.pass).toBe(false);
+    expect(verdict.reason).toContain('query_stock');
   });
 });
 

@@ -272,6 +272,11 @@ Owns AC-TM-016. Strictly `DESIGN.md` tokens; shared primitives (`EntityFormModal
 
 Owns AC-TM-017. Files: `scripts/lib/pmo-tm.mjs` (new), wired in `scripts/pmo.mjs`, `scripts/pmo-tm.test.mjs` (`node:test`, fake PostgREST; precedent `scripts/lib/pmo-attribution.mjs`).
 `tm claim preview` is read-only. Gate: `node --test scripts/*.test.mjs`.
+Built as: `tm rates list` is a table GET on `contract_rate_lines` / `contract_rate_assignees` (RLS-scoped; `--assignees`
+adds who holds each line); `tm claim preview` and `tm claim list` call the two reads 0518 adds, and `claim list` takes
+`--project` because that read is per project. **Gap found while building:** 0518's API-client tier admits those two
+RPCs but neither rate-card table, so a CLI token is refused the rate card until the tier carries them (a T4 follow-up,
+with the auth review that a tier change takes).
 
 ## T10 - One curated e2e (no migration)
 

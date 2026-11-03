@@ -11,12 +11,13 @@ const SECRET = 'synthetic-sweep-secret';
 Deno.env.set(ODOO_SWEEP_SECRET_ENV, SECRET);
 afterAll(() => { env.restore(); Deno.env.delete(ODOO_SWEEP_SECRET_ENV); });
 
-async function tick(orgs: { org_id: string }[], authorization = `Bearer ${SECRET}`) {
+async function tick(orgs: { org_id: string }[], authorization = `Bearer ${SECRET}`, featureEnabled = true) {
   const routes = [
     supabaseSelect('external_org_bindings', (c) =>
       // the org list is one query; each org's resolver read carries an org_id filter
       c.url.searchParams.has('org_id') ? jsonResponse([]) : jsonResponse(orgs)),
-    // The lock is held elsewhere, so each org stops right after its claim: this suite is about the fan-out.
+    supabaseRpc('service_feature_enabled', () => jsonResponse(featureEnabled)),
+    // The lock is held elsewhere, so each enabled org stops right after its claim: this suite is about the fan-out.
     supabaseRpc('claim_erp_sweep_lock', () => jsonResponse(false)),
   ];
   return await withFetchMock(routes, async ({ calls }) => {
@@ -54,6 +55,16 @@ describe('odoo-sweep — FR-ODC-047', () => {
     assertEquals(r.res.status, 200);
     assertEquals(r.json, { orgs: 0, results: [] });
     assertEquals(nonSupabase(r.calls).length, 0);
+  });
+
+  it('FR-PLN-006 erp_sync off holds the org before claiming work', async () => {
+    const r = await tick([{ org_id: 'org-a' }], `Bearer ${SECRET}`, false);
+    assertEquals(r.res.status, 200);
+    assertEquals(r.json.results, [{ org_id: 'org-a', skipped: 'feature-off:erp_sync' }]);
+    assertEquals(rpcCall(r.calls, 'service_feature_enabled').map((c) => c.bodyJson), [
+      { p_org_id: 'org-a', p_key: 'erp_sync' },
+    ]);
+    assertEquals(rpcCall(r.calls, 'claim_erp_sweep_lock').length, 0);
   });
 
   it('two orgs → two lock claims, one per org', async () => {

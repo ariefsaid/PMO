@@ -156,6 +156,16 @@ export function loadLedger(file, aliases = DEFAULT_ALIASES) {
   return parseLedger(contents, aliases);
 }
 
+// Retained shared history spells "no pull request" as `#0`; current writes always use `#-`
+// (see branchPr). Both markers are the same no-PR identity; any other non-positive-number
+// suffix stays fail-closed so a corrupted row is never counted as a dispatch.
+const NO_PULL_REQUEST_MARKERS = new Set(['-', '0']);
+const PULL_REQUEST_NUMBER = /^[1-9]\d*$/;
+
+function isBranchPrSuffix(value) {
+  return NO_PULL_REQUEST_MARKERS.has(value) || PULL_REQUEST_NUMBER.test(value);
+}
+
 function validateAuditRow(row, index = 'new row', aliases = DEFAULT_ALIASES) {
   if (!row || typeof row !== 'object' || Array.isArray(row)) fail(`audit ${index} must be an object`);
   const at = validTime(row.at, `audit ${index} timestamp`);
@@ -165,7 +175,7 @@ function validateAuditRow(row, index = 'new row', aliases = DEFAULT_ALIASES) {
   if (separator < 1) fail(`audit ${index} branch/PR must end in #<number> or #-`);
   const branch = branchPr.slice(0, separator);
   const pr = branchPr.slice(separator + 1);
-  if (!branch || !(pr === '-' || /^[1-9]\d*$/.test(pr))) fail(`audit ${index} branch/PR is malformed`);
+  if (!branch || !isBranchPrSuffix(pr)) fail(`audit ${index} branch/PR is malformed`);
   if (!REQUEST_KINDS.has(row.kind)) fail(`audit ${index} approval kind is invalid`);
   if (typeof row.quote !== 'string') fail(`audit ${index} quote must be text`);
   return { at, repo, branchPr, kind: row.kind, quote: row.quote };

@@ -142,6 +142,9 @@ async function upsertGoodsReceiptMirror(ctx: ReadModelWriterCtx, canonical: PmoR
     status: canonical.odoo_receipt_status === 'Partial' || canonical.odoo_receipt_status === 'Complete' ? canonical.odoo_receipt_status : deriveProcurementReceiptStatus(docstatus),
     erp_docstatus: docstatus ?? null,
     erp_modified: (canonical.erp_modified as string | null | undefined) ?? null,
+    // What Odoo booked per order line and what the receipt entered (FR-OPP-034): lists, only when the canonical states them. ERPNext canonicals never do.
+    ...(Array.isArray(canonical.odoo_booked) ? { odoo_booked: canonical.odoo_booked } : {}),
+    ...(Array.isArray(canonical.odoo_entered) ? { odoo_entered: canonical.odoo_entered } : {}),
   };
   if (command.operation === 'create') {
     const record = command.record as { procurementId?: string; receiptDate?: string };

@@ -1,7 +1,7 @@
 -- AC-PLN-016 [pgTAP]: the plan registry exists with its documented schema and default-deny posture.
 begin;
 create extension if not exists pgtap;
-select plan(36);
+select plan(40);
 
 select has_table('public', 'plans', 'plan registry table exists');
 select has_column('public', 'plans', 'id', 'plans.id exists');
@@ -133,6 +133,20 @@ insert into public.external_domain_ownership (org_id, external_tier, domain) val
   ('05310000-0000-0000-0000-000000000003', 'erpnext', 'revenue'),
   ('05310000-0000-0000-0000-000000000004', 'erpnext', 'revenue');
 
+-- S1 follow-up (#1734): the compatibility proof must cover EVERY switch key, not just `crm`, in all
+-- three pre-plan shapes (absent row, explicit on, explicit off), and it must exercise the Enterprise
+-- backfill row written for an organisation that already existed when the catalogue landed.
+insert into public.organizations (id, name) values
+  ('05310000-0000-0000-0000-000000000006', 'Plans Compatibility All Keys Absent'),
+  ('05310000-0000-0000-0000-000000000007', 'Plans Compatibility All Keys On'),
+  ('05310000-0000-0000-0000-000000000008', 'Plans Compatibility All Keys Off');
+insert into public.org_features (org_id, feature_key, enabled)
+select '05310000-0000-0000-0000-000000000007', f.feature_key, true
+  from public.plan_features f where f.plan_id = 'enterprise';
+insert into public.org_features (org_id, feature_key, enabled)
+select '05310000-0000-0000-0000-000000000008', f.feature_key, false
+  from public.plan_features f where f.plan_id = 'enterprise';
+
 select is((
   with cases(org_id, feature_key) as (values
     ('05310000-0000-0000-0000-000000000001'::uuid, 'crm'::text),
@@ -178,6 +192,46 @@ select is((select count(*)::int from public.org_features
     ('05310000-0000-0000-0000-000000000004'::uuid, 'revenue', true),
     ('05310000-0000-0000-0000-000000000005'::uuid, 'revenue', false)
   )), 5, 'AC-PLN-016 the resolver leaves explicit fixture overrides intact');
+
+-- Every registered switch key, in all three pre-plan shapes, against the old rule (0070's CASE:
+-- an absent row is included, an explicit row is authoritative) for an org that resolves Enterprise.
+select is((
+  with keys(feature_key) as (
+    select f.feature_key from public.plan_features f where f.plan_id = 'enterprise'
+  ),
+  cases(org_id) as (values
+    ('05310000-0000-0000-0000-000000000006'::uuid),
+    ('05310000-0000-0000-0000-000000000007'::uuid),
+    ('05310000-0000-0000-0000-000000000008'::uuid)
+  )
+  select count(*)::int
+    from cases c
+    cross join keys k
+    cross join lateral public.resolve_feature_internal(c.org_id, k.feature_key) r
+   where r.enabled is distinct from coalesce(
+     (select f.enabled from public.org_features f
+       where f.org_id = c.org_id and f.feature_key = k.feature_key), true)
+), 0, 'AC-PLN-016 every switch key matches the pre-plan absent/on/off rule for an Enterprise org');
+select is((
+  with keys(feature_key) as (
+    select f.feature_key from public.plan_features f where f.plan_id = 'enterprise'
+  ),
+  cases(org_id, expected_source) as (values
+    ('05310000-0000-0000-0000-000000000006'::uuid, 'plan'::text),
+    ('05310000-0000-0000-0000-000000000007'::uuid, 'override'::text),
+    ('05310000-0000-0000-0000-000000000008'::uuid, 'override'::text)
+  )
+  select count(*)::int
+    from cases c
+    cross join keys k
+    cross join lateral public.resolve_feature_internal(c.org_id, k.feature_key) r
+   where r.source is distinct from c.expected_source
+), 0, 'AC-PLN-016 an unassigned org resolves every key from the Enterprise plan; explicit rows report override');
+select is((select op.plan_id from public.org_plans op
+            where op.org_id = '00000000-0000-0000-0000-000000000001'),
+  'enterprise', 'AC-PLN-016 the pre-plan organisation carries the Enterprise backfill row');
+select is((select count(*)::int from public.org_plans where plan_id <> 'enterprise'), 0,
+  'AC-PLN-016 the backfill assigns Enterprise only and never downgrades an existing org');
 
 select * from finish();
 rollback;

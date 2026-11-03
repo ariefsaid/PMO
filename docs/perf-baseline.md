@@ -30,3 +30,32 @@ its own slice: a Lighthouse user-flow script that signs in itself.
   requests (every endpoint repeats at most 3x, from shell/session reads and dev double-fires).
   Nothing worth fixing; numbers above.
 - Font: `index.html` preloads the Latin variable file (covers all weights); `latin-ext` loads only when needed.
+
+## Row counts for virtual scrolling (#1741 part B)
+
+Measured 2026-11-03 against the local rich seed with exact `COUNT(*)` queries under the shared DB lock.
+The question was which list actually renders **hundreds** of rows:
+
+| Table / list surface | Rows |
+|---|---|
+| `tasks` (all projects; the project detail Tasks tab shows this project's subset) | 52 |
+| `budget_line_items` (one budget version, not one flat table) | 41 |
+| `stock_ledger` | 36 |
+| `stock_document_lines` | 27 |
+| `procurement_items` | 21 |
+| `procurements` (procurement list) | 21 |
+| `companies` (companies list) | 21 |
+| `projects` (projects list) | 17 |
+| `project_stage_entries` | 17 |
+| `project_milestones` | 16 |
+| `contacts` | 15 |
+| `timesheet_entries` | 15 |
+| `profiles` (admin user directory) | 11 |
+| `stock_documents` | 8 |
+| `project_documents` | 6 |
+
+**Virtual scrolling: none qualified.** No list surface reaches even 100 rows on the rich seed, let alone the
+hundreds that justify windowing (and every list above is already paged or capped in the repository layer).
+TanStack Virtual was therefore **not** added — windowing a 17-row table would add a measurement surface and a
+scroll-restoration edge case with no row removed from the DOM. Revisit when a real client's data crosses a few
+hundred rows in one unpaged table; the row counts above are the trigger line.
