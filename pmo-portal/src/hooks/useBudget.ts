@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
 import { useOptionalRealRole } from '@/src/auth/impersonation';
 import { safeTrack, trackBudgetActivated } from '@/src/lib/analytics';
@@ -13,6 +13,33 @@ const budgetKey = (orgId: string | undefined, projectId: string) =>
 
 const budgetVersionsKey = (orgId: string | undefined, projectId: string) =>
   ['budget-versions', orgId, projectId] as const;
+
+const budgetDistributionKey = (orgId: string | undefined, projectId: string) =>
+  ['budget-distribution', orgId, projectId] as const;
+
+/**
+ * Shared awaited refresh for budget writes. Active query reads for matching keys are coalesced by
+ * QueryClient, and the returned promise settles after their refetches finish. Distribution plans
+ * are invalidated by project prefix so each version re-reads its basis after source lines change.
+ */
+export function refreshBudgetQueries(
+  queryClient: QueryClient,
+  orgId: string | undefined,
+  projectId: string,
+): Promise<void> {
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: budgetKey(orgId, projectId) }, { throwOnError: true }),
+    queryClient.invalidateQueries({ queryKey: budgetVersionsKey(orgId, projectId) }, { throwOnError: true }),
+    queryClient.invalidateQueries({ queryKey: ['budget-activation-precheck'] }, { throwOnError: true }),
+    queryClient.invalidateQueries({ queryKey: ['project-finances', orgId, projectId] }, { throwOnError: true }),
+    queryClient.invalidateQueries({ queryKey: budgetDistributionKey(orgId, projectId) }, { throwOnError: true }),
+  ]).then(() => undefined);
+}
+
+/** Existing mutation flows keep their fire-and-forget completion behavior. */
+export function invalidateBudgetQueries(queryClient: QueryClient, orgId: string | undefined, projectId: string): void {
+  void refreshBudgetQueries(queryClient, orgId, projectId).catch(() => undefined);
+}
 
 // ---------------------------------------------------------------------------
 // Read hooks (T12)
@@ -82,12 +109,7 @@ export function useBudgetMutations(projectId: string) {
   const orgId = currentUser?.org_id;
   const realRole = useOptionalRealRole();
 
-  const invalidateBoth = () => {
-    queryClient.invalidateQueries({ queryKey: budgetKey(orgId, projectId) });
-    queryClient.invalidateQueries({ queryKey: budgetVersionsKey(orgId, projectId) });
-    queryClient.invalidateQueries({ queryKey: ['budget-activation-precheck'] });
-    queryClient.invalidateQueries({ queryKey: ['project-finances', orgId, projectId] });
-  };
+  const invalidateBoth = () => invalidateBudgetQueries(queryClient, orgId, projectId);
 
   const invalidateMoneyCollections = () => {
     queryClient.invalidateQueries({ queryKey: ['projects-money', orgId] });
