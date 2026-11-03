@@ -21,10 +21,45 @@ export function creditNoteStatus(state: string | undefined): RevenueStatus & { n
   return state === 'posted' ? { mirrored: true, status: 'Posted', cancelled: false, negative: true } : { ...NOT_MIRRORED, negative: true };
 }
 
-/** Odoo 20 has paid/reconciled states; Enterprise and older feeds also report in_process/posted. All mean the receipt is posted. */
 export function paymentStatus(state: string | undefined): RevenueStatus {
-  if (state === 'paid' || state === 'reconciled' || state === 'in_process' || state === 'posted') return { mirrored: true, status: 'Posted', cancelled: false };
-  return state === 'canceled' || state === 'cancelled' || state === 'cancel' || state === 'rejected' ? CANCELLED : NOT_MIRRORED;
+  if (state === 'paid' || state === 'reconciled') return { mirrored: true, status: 'Paid', cancelled: false };
+  if (state === 'draft') return { mirrored: true, status: 'Scheduled', cancelled: false };
+  if (state === 'canceled' || state === 'rejected') return CANCELLED;
+  return NOT_MIRRORED;
+}
+
+const RECEIPT_SENT_STATES = new Set(['pending', 'committing', 'committed', 'quarantined', 'held', 'confirmed']);
+
+function parseUtcTimestamp(value: string): number {
+  // Odoo's `write_date` is UTC without an explicit zone; parse it as UTC instead of browser-local time.
+  const timestamp = /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(?:\.\d+)?$/.test(value)
+    ? `${value.replace(' ', 'T').replace(/Z$/, '')}Z`
+    : value;
+  return Date.parse(timestamp);
+}
+
+/** A posted receipt is not proof that the invoice read model has caught up. Keep its invoice in the
+ *  waiting state until an Odoo invoice read has a write date strictly after the command started.
+ *  `updated_at` is when the outbox confirms; Odoo may have already updated the invoice before then. */
+export function invoiceReceiptAwaitingOdoo(input: {
+  invoiceStatus: string;
+  invoiceErpModified: string | null | undefined;
+  receiptCommandState: string | null | undefined;
+  receiptCommandCreatedAt: string | null | undefined;
+}): boolean {
+  if (input.invoiceStatus !== 'Submitted' && input.invoiceStatus !== 'Unpaid') return false;
+  if (!input.receiptCommandState || !RECEIPT_SENT_STATES.has(input.receiptCommandState)) return false;
+  // While the outbox is active, an invoice read can race the ERP POST that happens after row creation.
+  // Active commands always wait; after completion compare with creation time because Odoo can update
+  // the invoice before the outbox's final updated_at is written.
+  if (input.receiptCommandState === 'pending' || input.receiptCommandState === 'committing') return true;
+  if (!input.receiptCommandCreatedAt) return true;
+
+  const commandAt = parseUtcTimestamp(input.receiptCommandCreatedAt);
+  if (!Number.isFinite(commandAt)) return true;
+  if (!input.invoiceErpModified) return true;
+  const invoiceReadAt = parseUtcTimestamp(input.invoiceErpModified);
+  return !Number.isFinite(invoiceReadAt) || invoiceReadAt <= commandAt;
 }
 
 /** Inbound from a customer is a receipt, outbound to a supplier a vendor payment; any other pair, blank or absent is skipped. */

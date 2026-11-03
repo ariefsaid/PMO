@@ -8,9 +8,9 @@ import { createClient } from '@supabase/supabase-js';
 import { installEdgeEnv, jsonResponse, supabaseRpc, supabaseSelect, withFetchMock, type FetchCall, type MockRoute } from '../_shared/testing/edgeTestKit.ts';
 import { createFakeOdoo } from '../../../pmo-portal/src/lib/adapterSeam/odoo/fakeOdoo.ts';
 import { externalIdentifier } from '../../../pmo-portal/src/lib/adapterSeam/odoo/revenue/anchors.ts';
-import { APPROVER_ID, CUSTOMER_ID, DRAFT_ID, PROJECT_ID, approveCommand, draftItems, revenueRoutes, type World } from './odooRevenueFixtures.ts';
+import { APPROVER_ID, CUSTOMER_ID, DRAFT_ID, ORG_ID, PROJECT_ID, approveCommand, draftItems, receiptCommand, receiptOdooWorld, revenueRoutes, type World } from './odooRevenueFixtures.ts';
 import { resolveOdooMoneyOutboxDeps } from './odooMoneyOutbox.ts';
-import { odooInvoiceDraftDigest, odooRevenueAnchorKey } from './odooRevenueOutbox.ts';
+import { odooInvoiceDraftDigest, odooRevenueAnchorKey, resolveOdooRevenueMoneyOutboxDeps } from './odooRevenueOutbox.ts';
 import type { AdapterSelectContext } from './dispatchAdapters.ts';
 
 const env = installEdgeEnv();
@@ -25,6 +25,8 @@ const BINDING = { id: 'b0000000-0000-4000-8000-000000000001', site_url: 'https:/
 function setup(kind: string, over: { id?: string; binding?: Record<string, unknown> | null; operation?: string } = {}) {
   const routes: MockRoute[] = [
     supabaseSelect('external_org_bindings', () => over.binding === null ? new Response('null', { status: 200, headers: { 'content-type': 'application/json' } }) : objectResponse({ ...BINDING, ...over.binding })),
+    // Receipt dispatch checks for the same record/key before attempting a new outbox command.
+    supabaseSelect('external_command_outbox', () => objectResponse(null)),
     supabaseRpc('read_vault_secret', () => jsonResponse('odoo-test-key')),
   ];
   const sc = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
@@ -62,18 +64,131 @@ it('AC-OCI-063 the recovery digest binds the immutable PMO invoice draft, includ
 });
 
 describe('FR-OCI-001 / ADR-0058 the Odoo revenue deps are the shared money outbox, held on doubt', () => {
-  for (const kind of ['incoming-payment']) {
-    it(`NFR-OCI-001 a ${kind} is never reissued on an inconclusive recovery (composite hold-on-doubt, C-1)`, async () => {
-      const t = setup(kind);
-      await withFetchMock(t.routes, async () => {
-        const deps = await resolveOdooMoneyOutboxDeps(t.ctx);
-        assertEquals(deps.reissueOnInconclusiveAbsence, false);
-        assertEquals(typeof deps.payloadDigest, 'string');
-        // until the adapter's recovery arrives a probe holds the row: an unconfirmed outcome is never reported as success
-        await assertRejects(() => deps.probeByRemarksKey('revenue', KEY), Error, 'odoo-revenue-recovery-unavailable');
-      });
+  it('a receipt operation other than create is refused before resolving the Odoo connection', async () => {
+    const t = setup('incoming-payment', { operation: 'update' });
+    await withFetchMock(t.routes, async ({ calls }) => {
+      await assertRejects(() => resolveOdooRevenueMoneyOutboxDeps(t.ctx), Error, 'not available yet');
+      assertEquals(calls.length, 0, 'an unsupported receipt operation never reads connection facts');
     });
-  }
+  });
+
+  it('AC-OCI-052 a held receipt resolution adopts only the named, reconciled payment without probing look-alikes', async () => {
+    const command = receiptCommand({ date: '2026-11-03', paid_amount: 111000, received_amount: 111000 });
+    const outbox = new Map<string, Record<string, unknown>>();
+    const payload = {
+      erp_doc_kind: 'incoming-payment', salesInvoiceId: command.record.salesInvoiceId,
+      odoo_receipt_probe: { partnerId: 41, amount: 111000, date: '2026-11-03', invoiceId: 301,
+        createdAfter: '2026-11-03 09:50:00', createdBefore: '2026-11-03 10:10:00' },
+      odoo_adopted_ref: 'account.payment:90',
+    };
+    outbox.set(`${command.record.id}|${command.idempotencyKey}`, {
+      id: 'outbox-1', domain: 'revenue', pmo_record_id: command.record.id, idempotency_key: command.idempotencyKey,
+      state: 'failed', payload, actor_user_id: APPROVER_ID,
+    });
+    const odoo = receiptOdooWorld();
+    odoo.seed('account.payment', [
+      { id: 90, name: 'RCPT/90', payment_type: 'inbound', partner_type: 'customer', partner_id: 41, amount: 111000,
+        date: '2026-11-03', state: 'paid', is_reconciled: true, reconciled_invoice_ids: [301], move_id: [390, 'RCPT/90'] },
+      { id: 91, name: 'RCPT/91', payment_type: 'inbound', partner_type: 'customer', partner_id: 41, amount: 111000,
+        date: '2026-11-03', state: 'paid', is_reconciled: true, reconciled_invoice_ids: [301], move_id: [391, 'RCPT/91'] },
+    ]);
+    const world = { odoo, outbox };
+    const unexpected: FetchCall[] = [];
+    const sc = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
+    const ctx = { orgId: ORG_ID, serviceClient: sc, userId: APPROVER_ID, faultGate: {}, erpAuth: {}, command } as unknown as AdapterSelectContext;
+
+    await withFetchMock(revenueRoutes(unexpected, APPROVER_ID, world), async ({ calls }) => {
+      const deps = await resolveOdooRevenueMoneyOutboxDeps(ctx);
+      const found = await deps.probeByRemarksKey(command.domain, command.idempotencyKey!, { recovery: true });
+      assertEquals(found?.externalRecordId, 'account.payment:90');
+      assertEquals(calls.some((call) => call.url.hostname === 'odoo.example.test' && call.url.pathname.endsWith('/account.payment/search_read')), false,
+        'an explicit adopt reads the named payment instead of searching a conjunction');
+      odoo.rows('account.payment').find((payment) => payment.id === 90)!.reconciled_invoice_ids = [999];
+      await assertRejects(() => deps.probeByRemarksKey(command.domain, command.idempotencyKey!, { recovery: true }), Error, 'adopted-receipt-not-reconciled');
+    });
+    assertEquals(unexpected, []);
+  });
+
+  it('AC-OCI-052 an absent confirmation probes only the exact stock anchor and never adopts a composite look-alike', async () => {
+    const command = receiptCommand({ date: '2026-11-03', paid_amount: 111000, received_amount: 111000,
+      odoo_adopted_ref: 'account.payment:999', odoo_absent_confirmed: true });
+    const outbox = new Map<string, Record<string, unknown>>();
+    const payload = {
+      erp_doc_kind: 'incoming-payment', salesInvoiceId: command.record.salesInvoiceId,
+      odoo_receipt_probe: { partnerId: 41, amount: 111000, date: '2026-11-03', invoiceId: 301,
+        createdAfter: '2026-11-03 09:50:00', createdBefore: '2026-11-03 10:10:00' },
+      odoo_absent_confirmed: true,
+    };
+    outbox.set(`${command.record.id}|${command.idempotencyKey}`, {
+      id: 'outbox-1', domain: 'revenue', pmo_record_id: command.record.id, idempotency_key: command.idempotencyKey,
+      state: 'failed', payload, actor_user_id: APPROVER_ID,
+    });
+    const odoo = receiptOdooWorld();
+    odoo.seed('account.payment', [{ id: 91, name: 'RCPT/91', payment_type: 'inbound', partner_type: 'customer', partner_id: 41,
+      amount: 111000, date: '2026-11-03', state: 'paid', memo: 'unrelated receipt', is_reconciled: true, reconciled_invoice_ids: [301] }]);
+    const world = { odoo, outbox };
+    const unexpected: FetchCall[] = [];
+    const sc = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
+    const ctx = { orgId: ORG_ID, serviceClient: sc, userId: APPROVER_ID, faultGate: {}, erpAuth: {}, command } as unknown as AdapterSelectContext;
+
+    await withFetchMock(revenueRoutes(unexpected, APPROVER_ID, world), async ({ calls }) => {
+      const deps = await resolveOdooRevenueMoneyOutboxDeps(ctx);
+      assertEquals(deps.reissueOnInconclusiveAbsence, true, 'an operator-confirmed absence may proceed only after exact-anchor recovery finds nothing');
+      assertEquals(await deps.probeByRemarksKey(command.domain, command.idempotencyKey!, { recovery: true }), null);
+      assertEquals(calls.some((call) => call.url.hostname === 'odoo.example.test' && call.url.pathname.endsWith('/account.payment/search_read')), false,
+        'an absence resolution disables the broad conjunction');
+    });
+    assertEquals(odoo.rows('account.payment').length, 1);
+    assertEquals(unexpected, []);
+  });
+
+  it('a held receipt cannot ignore a failed read of its stored resolution witness', async () => {
+    const command = receiptCommand({ date: '2026-11-03', paid_amount: 111000, received_amount: 111000 });
+    const outbox = new Map<string, Record<string, unknown>>();
+    outbox.set(`${command.record.id}|${command.idempotencyKey}`, {
+      id: 'outbox-1', domain: 'revenue', pmo_record_id: command.record.id, idempotency_key: command.idempotencyKey,
+      state: 'failed', actor_user_id: APPROVER_ID, payload: {
+        erp_doc_kind: 'incoming-payment', salesInvoiceId: command.record.salesInvoiceId,
+        odoo_receipt_probe: { partnerId: 41, amount: 111000, date: '2026-11-03', invoiceId: 301, createdAfter: '2026-11-03 09:50:00' },
+        odoo_absent_confirmed: true,
+      },
+    });
+    const odoo = receiptOdooWorld();
+    const world = { odoo, outbox, outboxPayloadReadError: true };
+    const unexpected: FetchCall[] = [];
+    const sc = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
+    const ctx = { orgId: ORG_ID, serviceClient: sc, userId: APPROVER_ID, faultGate: {}, erpAuth: {}, command } as unknown as AdapterSelectContext;
+
+    await withFetchMock(revenueRoutes(unexpected, APPROVER_ID, world), async () => {
+      await assertRejects(() => resolveOdooRevenueMoneyOutboxDeps(ctx), Error, 'earlier outbox command could not be checked');
+    });
+    assertEquals(odoo.calls.some((call) => call.model === 'account.payment' && call.method === 'search_read'), false,
+      'without the resolution witness, no composite payment adoption is attempted');
+    assertEquals(unexpected, []);
+  });
+
+  it('NFR-OCI-001 a receipt uses composite hold-on-doubt and never probes before the command is recoverable', async () => {
+    const world = { odoo: receiptOdooWorld(), outbox: new Map<string, Record<string, unknown>>() };
+    const unexpected: FetchCall[] = [];
+    const sc = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
+    const command = receiptCommand({ date: '2026-11-03', paid_amount: 111000, received_amount: 111000,
+      odoo_adopted_ref: 'account.payment:999', odoo_absent_confirmed: true });
+    const ctx = { orgId: ORG_ID, serviceClient: sc, userId: APPROVER_ID, faultGate: {}, erpAuth: {}, command } as unknown as AdapterSelectContext;
+
+    await withFetchMock(revenueRoutes(unexpected, APPROVER_ID, world), async ({ calls }) => {
+      const deps = await resolveOdooRevenueMoneyOutboxDeps(ctx);
+      assertEquals(deps.reissueOnInconclusiveAbsence, false);
+      assertEquals(typeof deps.payloadDigest, 'string');
+      await deps.insertOutboxPending(command.domain, command.record.id, command.idempotencyKey!);
+      const insert = calls.find((call) => call.method === 'POST' && call.url.pathname === '/rest/v1/external_command_outbox')!.bodyJson as { payload: Record<string, unknown> };
+      assertEquals(['odoo_adopted_ref', 'odoo_absent_confirmed'].some((key) => key in insert.payload), false,
+        'a client command cannot manufacture a held-row operator decision');
+      assertEquals(await deps.probeByRemarksKey(command.domain, command.idempotencyKey!, { recovery: false }), null,
+        'the first attempt checks only the exact stock anchor; it cannot adopt a composite look-alike');
+      assertEquals(world.odoo!.rows('account.payment').length, 0);
+      assertEquals(unexpected, []);
+    });
+  });
 
   it('a revenue kind Odoo does not push (or none) is refused before any outbox row', async () => {
     for (const kind of ['credit-note', 'sales-order', 'undefined']) {
@@ -82,6 +197,24 @@ describe('FR-OCI-001 / ADR-0058 the Odoo revenue deps are the shared money outbo
         await assertRejects(() => resolveOdooMoneyOutboxDeps(t.ctx), Error, 'is not wired');
       });
     }
+  });
+
+  it('AC-OCI-043 a receipt with zero recovery matches is held, never reissued', async () => {
+    const world = { odoo: receiptOdooWorld(), outbox: new Map<string, Record<string, unknown>>() };
+    const unexpected: FetchCall[] = [];
+    const sc = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
+    const command = receiptCommand({ date: '2026-11-03', paid_amount: 111000, received_amount: 111000 });
+    const ctx = {
+      orgId: ORG_ID, serviceClient: sc, userId: APPROVER_ID, faultGate: {}, erpAuth: {}, command,
+    } as unknown as AdapterSelectContext;
+
+    await withFetchMock(revenueRoutes(unexpected, APPROVER_ID, world), async () => {
+      const deps = await resolveOdooRevenueMoneyOutboxDeps(ctx);
+      assertEquals(deps.reissueOnInconclusiveAbsence, false, 'zero probe matches cannot decide that the original receipt was absent');
+      assertEquals(await deps.probeByRemarksKey(command.domain, command.idempotencyKey!, { recovery: true }), null);
+      assertEquals(world.odoo!.rows('account.payment').length, 0, 'a recovery probe never creates a replacement receipt');
+      assertEquals(unexpected, []);
+    });
   });
 
   it('a delete is refused: Odoo documents are not deleted through the seam', async () => {
