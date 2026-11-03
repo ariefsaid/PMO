@@ -14243,6 +14243,10 @@ export type Database = {
         Args: { p_amount: number }
         Returns: undefined
       }
+      set_odoo_customer_advance_account: {
+        Args: { p_account_ref: string; p_actor_id: string; p_org_id: string }
+        Returns: undefined
+      }
       set_procurement_gates: { Args: { p_gates: Json }; Returns: Json }
       set_procurement_invoice_efaktur: {
         Args: {
