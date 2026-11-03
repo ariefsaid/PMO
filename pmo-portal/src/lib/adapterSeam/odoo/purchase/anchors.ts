@@ -14,3 +14,19 @@ export function externalIdentifier(key: string): { module: string; name: string 
   anchorValue(key);
   return { module: 'pmo', name: key.replace(/[^a-zA-Z0-9_]/g, '_') };
 }
+
+/**
+ * Odoo numbers ids per model (`purchase.order` 1 and `stock.picking` 1 coexist) while `external_refs` is unique on (org, domain,
+ * external_record_id) and every purchase kind shares domain `procurement`. So every purchase external ref is `<model>:<id>`.
+ */
+export function odooExternalRef(model: string, id: number | string): string {
+  const n = Number(id);
+  if (!/^[a-z_]+(\.[a-z_]+)+$/.test(model) || !Number.isInteger(n) || n <= 0) throw new Error('Invalid Odoo external ref');
+  return `${model}:${n}`;
+}
+/** The Odoo id inside a ref of that model, or null for any other model, a bare id or a malformed ref. */
+export function parseOdooExternalRef(model: string, ref: unknown): number | null {
+  if (typeof ref !== 'string' || !ref.startsWith(`${model}:`)) return null;
+  const id = ref.slice(model.length + 1);
+  return /^[1-9][0-9]*$/.test(id) ? Number(id) : null;
+}

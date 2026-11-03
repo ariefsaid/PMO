@@ -49,7 +49,7 @@ describe('AC-OPP-010 an approved order is created and confirmed once', () => {
     expect(order).toMatchObject({ state: 'purchase', partner_id: 9, partner_ref: 'PO-77', origin: 'PRC-001', amount_total: 50, currency_id: 12 });
     expect(fake.rows('purchase.order.line').map((l) => [l.product_id, l.product_qty, l.analytic_distribution])).toEqual([[55, 4, { '101': 100 }], [56, 2, { '101': 100 }]]);
     expect(fake.rows('ir.model.data')).toEqual([expect.objectContaining({ module: 'pmo', model: 'purchase.order', res_id: order.id })]);
-    expect(result.externalRecordId).toBe(String(order.id));
+    expect(result.externalRecordId).toBe(`purchase.order:${order.id}`);
     expect(result.canonical).toMatchObject({ id: PO_ID, po_number: order.name, amount: '50.00', pmo_amount: '50.00', erp_docstatus: 1, erp_modified: order.write_date });
     expect(count('purchase.order', 'button_confirm')).toBe(1);
   });
@@ -211,7 +211,7 @@ describe('AC-OPP-016 / AC-OPP-017 revising a pushed order edits it in place, onc
     expect(r.fake.rows('purchase.order')).toHaveLength(1);
     expect(r.fake.rows('purchase.order')[0].state).toBe('purchase');
     expect(result.canonical).toMatchObject({ id: PO_ID, amount: '65.00', erp_docstatus: 1 });
-    expect(result.externalRecordId).toBe(String(r.state.orderId));
+    expect(result.externalRecordId).toBe(`purchase.order:${r.state.orderId}`);
     expect(r.fake.rows('ir.model.data').map((d) => d.name)).toContain(`porev_${PO_ID.replaceAll('-', '_')}_2`);
   });
 
