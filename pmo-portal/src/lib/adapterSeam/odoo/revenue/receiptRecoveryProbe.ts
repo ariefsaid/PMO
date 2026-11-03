@@ -2,7 +2,7 @@
 import { AdapterError } from '../../contract.ts';
 import type { OdooCall } from '../client.ts';
 import { odooExternalRef } from '../purchase/anchors.ts';
-import { externalIdentifier, ODOO_REVENUE_ANCHORS } from './anchors.ts';
+import { externalIdentifier, ODOO_REVENUE_ANCHORS, REVENUE_KEY_RE } from './anchors.ts';
 
 /** A bounded conjunction for a receipt whose response (and immediate stock anchor) may have been lost. */
 export interface ReceiptComposite {
@@ -43,10 +43,26 @@ export async function probeReceiptByAnchor(call: OdooCall, key: string, composit
     domain: conjunction, fields, limit: 21,
   });
   if (candidates.length > 20) throw ambiguous();
+  const candidateIds = candidates.map(({ id }) => id);
+  const anchors = candidateIds.length === 0 ? [] : await call<Array<{ res_id: number; name: string }>>('ir.model.data', 'search_read', {
+    domain: [['module', '=', 'pmo'], ['model', '=', 'account.payment'], ['res_id', 'in', candidateIds]],
+    fields: ['res_id', 'name'], limit: 21,
+  });
+  if (anchors.length > 20) throw ambiguous();
+  const anchoredByAnotherReceipt = new Set(anchors.filter((anchor) => {
+    const otherKey = anchor.name.startsWith('ip_') ? anchor.name.replace(/^ip_/, 'ip:').replaceAll('_', '-') : '';
+    return anchor.name !== name && REVENUE_KEY_RE.test(otherKey);
+  }).map((anchor) => Number(anchor.res_id)));
   const links = (row: (typeof candidates)[number]) => Array.isArray(row.reconciled_invoice_ids)
     ? row.reconciled_invoice_ids.map((id) => Number(Array.isArray(id) ? id[0] : id)) : [];
   const hasSignedAnchor = (row: (typeof candidates)[number]) => row[RECEIPT_MEMO_FIELD] === 'pmo:' + key;
-  const relevant = candidates.filter((row) => links(row).length === 0 || links(row).includes(composite.invoiceId) || hasSignedAnchor(row));
+  const belongsToAnotherReceipt = (row: (typeof candidates)[number]) => {
+    const memo = row[RECEIPT_MEMO_FIELD];
+    return anchoredByAnotherReceipt.has(row.id)
+      || (typeof memo === 'string' && memo.startsWith('pmo:ip:') && !hasSignedAnchor(row));
+  };
+  const relevant = candidates.filter((row) => !belongsToAnotherReceipt(row)
+    && (links(row).length === 0 || links(row).includes(composite.invoiceId) || hasSignedAnchor(row)));
   if (relevant.length > 1) throw ambiguous();
   const row = relevant[0];
   if (!row) return null;

@@ -41,7 +41,7 @@ const receiptCommand = (over: Record<string, unknown> = {}): AdapterCommand => (
 
 function rig({ receipt = input, inv = invoice, config = defaults, failAfter }: {
   receipt?: ReceiptInput; inv?: ReceiptInvoice | null; config?: ReceiptDefaults;
-  failAfter?: 'create' | 'post' | 'reconcile' | 'lost-response';
+  failAfter?: 'create' | 'anchor' | 'post' | 'reconcile';
 } = {}) {
   const fake = createFakeOdoo({ key: 'k' });
   fake.seed('account.move', [{
@@ -57,10 +57,11 @@ function rig({ receipt = input, inv = invoice, config = defaults, failAfter }: {
   const fetchImpl = (async (url: string | URL | Request, init?: RequestInit) => {
     const [, model, method] = /\/json\/2\/([^/]+)\/([^/]+)$/.exec(String(url)) ?? [];
     const response = await fake.fetch(url, init);
-    const afterAnchor = trigger === 'create' && model === 'account.payment' && method === 'create';
+    const afterCreate = trigger === 'create' && model === 'account.payment' && method === 'create';
+    const afterAnchor = trigger === 'anchor' && model === 'ir.model.data' && method === 'create';
     const afterPost = trigger === 'post' && model === 'account.payment' && method === 'action_post';
-    const afterReconcile = (trigger === 'reconcile' || trigger === 'lost-response') && model === 'account.move.line' && method === 'reconcile';
-    if (afterAnchor || afterPost || afterReconcile) {
+    const afterReconcile = trigger === 'reconcile' && model === 'account.move.line' && method === 'reconcile';
+    if (afterCreate || afterAnchor || afterPost || afterReconcile) {
       trigger = undefined;
       throw new TypeError('error sending request: connection reset');
     }
@@ -85,7 +86,7 @@ function rig({ receipt = input, inv = invoice, config = defaults, failAfter }: {
 }
 
 describe('AC-OCI-042 a customer receipt resumes after each committed step and never creates a duplicate', () => {
-  it.each(['create', 'post', 'reconcile', 'lost-response'] as const)('%s interruption recovers one posted receipt reconciled to the invoice', async (failAfter) => {
+  it.each(['create', 'anchor', 'post', 'reconcile'] as const)('%s interruption recovers one posted receipt reconciled to the invoice', async (failAfter) => {
     const { fake, attempt, command, count } = rig({ failAfter });
     await expect(attempt()).rejects.toThrow();
     const result = await attempt(command(), true);
@@ -106,6 +107,27 @@ describe('AC-OCI-042 a customer receipt resumes after each committed step and ne
 });
 
 describe('AC-OCI-043 a receipt probe holds on doubt and adopts only its unique conjunction', () => {
+  it.each(['signed memo', 'stock external identifier'] as const)('does not adopt a sibling receipt anchored by its %s', async (anchor) => {
+    const sibling = rig({ receipt: { ...input, id: RECEIPT_ID } });
+    sibling.fake.seed('account.payment', [{
+      id: 508, payment_type: 'inbound', partner_type: 'customer', partner_id: 41, amount: 111000, date: RECEIPT_DATE,
+      state: 'reconciled', is_reconciled: true, memo: anchor === 'signed memo' ? `pmo:ip:${RECEIPT_ID}` : 'memo edited after creation',
+      create_date: '2026-11-03 10:03:00', reconciled_invoice_ids: [INVOICE_ODOO_ID], move_id: [708, 'PAY-8'],
+    }]);
+    if (anchor === 'stock external identifier') {
+      await sibling.call('ir.model.data', 'create', { vals_list: [{
+        module: 'pmo', name: `ip_${RECEIPT_ID.replaceAll('-', '_')}`, model: 'account.payment', res_id: 508,
+      }] });
+    }
+
+    const nextReceipt = { ...input, id: SECOND_RECEIPT_ID };
+    const nextCommand = receiptCommand({ id: SECOND_RECEIPT_ID });
+    const recovery = await recoverReceipt(sibling.call, nextCommand.record, {
+      ...COMPOSITE, createdAfter: '2026-11-03 10:00:00', createdBefore: '2026-11-03 10:10:00',
+    }, nextReceipt);
+    expect(recovery).toBeNull();
+  });
+
   it('zero and two matches stay unadopted; one matching inbound customer payment on the invoice is recovered', async () => {
     const none = rig();
     expect(await recoverReceipt(none.call, receiptCommand().record, COMPOSITE)).toBeNull();
@@ -131,6 +153,23 @@ describe('AC-OCI-043 a receipt probe holds on doubt and adopts only its unique c
     const adopted = await recoverReceipt(unique.call, receiptCommand().record, COMPOSITE);
     expect(adopted?.externalRecordId).toBe('account.payment:503');
     expect(unique.count('account.payment', 'create')).toBe(0);
+  });
+
+  it('can adopt a uniquely linked payment whose external identifier and memo were edited', async () => {
+    const edited = rig();
+    edited.fake.seed('account.payment', [{
+      id: 509, payment_type: 'inbound', partner_type: 'customer', partner_id: 41, amount: 111000, date: RECEIPT_DATE,
+      state: 'paid', is_reconciled: true, memo: 'memo edited by accountant', create_date: '2026-11-03 10:03:00',
+      reconciled_invoice_ids: [INVOICE_ODOO_ID], move_id: [709, 'PAY-9'],
+    }]);
+    await edited.call('ir.model.data', 'create', { vals_list: [{
+      module: 'pmo', name: 'renamed-external-id', model: 'account.payment', res_id: 509,
+    }] });
+
+    const adopted = await recoverReceipt(edited.call, receiptCommand().record, COMPOSITE);
+
+    expect(adopted?.externalRecordId).toBe('account.payment:509');
+    expect(edited.count('account.payment', 'create')).toBe(0);
   });
 
   it('holds a memo-edited draft when its invoice link cannot be proven by the immutable conjunction', async () => {

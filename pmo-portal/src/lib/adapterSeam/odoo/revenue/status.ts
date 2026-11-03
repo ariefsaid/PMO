@@ -21,10 +21,11 @@ export function creditNoteStatus(state: string | undefined): RevenueStatus & { n
   return state === 'posted' ? { mirrored: true, status: 'Posted', cancelled: false, negative: true } : { ...NOT_MIRRORED, negative: true };
 }
 
-/** `in_process` is a posted payment awaiting bank reconciliation; `paid` is what a posted payment reads on the bed. */
 export function paymentStatus(state: string | undefined): RevenueStatus {
-  if (state === 'paid' || state === 'in_process' || state === 'posted') return { mirrored: true, status: 'Posted', cancelled: false };
-  return state === 'canceled' || state === 'cancel' || state === 'rejected' ? CANCELLED : NOT_MIRRORED;
+  if (state === 'paid' || state === 'reconciled') return { mirrored: true, status: 'Paid', cancelled: false };
+  if (state === 'draft') return { mirrored: true, status: 'Scheduled', cancelled: false };
+  if (state === 'canceled' || state === 'rejected') return { mirrored: true, status: 'Scheduled', cancelled: true };
+  return NOT_MIRRORED;
 }
 
 const RECEIPT_SENT_STATES = new Set(['pending', 'committing', 'committed', 'quarantined', 'held', 'confirmed']);

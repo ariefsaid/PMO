@@ -34,13 +34,14 @@ describe('AC-OCI-071 credit notes mirror as negative documents; cancelled is mar
 
 describe('AC-OCI-071 receipt status', () => {
   it.each([
-    ['draft', { mirrored: false, status: null, cancelled: false }],
-    ['paid', { mirrored: true, status: 'Posted', cancelled: false }],
-    ['in_process', { mirrored: true, status: 'Posted', cancelled: false }],
-    ['posted', { mirrored: true, status: 'Posted', cancelled: false }],
-    ['canceled', { mirrored: true, status: 'Cancelled', cancelled: true }],
-    ['cancel', { mirrored: true, status: 'Cancelled', cancelled: true }],
-    ['rejected', { mirrored: true, status: 'Cancelled', cancelled: true }],
+    ['draft', { mirrored: true, status: 'Scheduled', cancelled: false }],
+    ['paid', { mirrored: true, status: 'Paid', cancelled: false }],
+    ['reconciled', { mirrored: true, status: 'Paid', cancelled: false }],
+    ['canceled', { mirrored: true, status: 'Scheduled', cancelled: true }],
+    ['rejected', { mirrored: true, status: 'Scheduled', cancelled: true }],
+    ['in_process', { mirrored: false, status: null, cancelled: false }],
+    ['posted', { mirrored: false, status: null, cancelled: false }],
+    ['cancel', { mirrored: false, status: null, cancelled: false }],
     ['weird', { mirrored: false, status: null, cancelled: false }],
   ] as const)('%s → %o', (state, expected) => expect(paymentStatus(state)).toEqual(expected));
 });
