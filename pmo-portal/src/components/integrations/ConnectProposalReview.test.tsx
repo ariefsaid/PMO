@@ -383,7 +383,7 @@ describe('ConnectProposalReview (AC-ECA-003, FR-ECA-012, FR-ECA-042)', () => {
 
     // FR-ECA-002's exact plain line, and the same shape for another kind and different numbers (no hard-coded copy)
     expect(await screen.findByText('12 vendors in PMO, 40 in the connected system, 9 are the same')).toBeInTheDocument();
-    expect(screen.getByText('8 items in PMO, 12 in the connected system, 8 are the same')).toBeInTheDocument();
+    expect(screen.getByText('8 in PMO, 12 in the connected system, 8 are the same')).toBeInTheDocument();
     expect(
       screen.getByText('42 in PMO, 57 in the connected system: 38 are the same, 4 will be sent, 15 brought in, 2 need you'),
     ).toBeInTheDocument();
@@ -607,18 +607,54 @@ describe('ConnectProposalReview (AC-ECA-003, FR-ECA-012, FR-ECA-042)', () => {
       await i18next.changeLanguage('en');
       const english = renderWithRole('Admin', <ConnectProposalReview tier='erpnext' orgId='org-1' />);
       const englishCard = await screen.findByTestId('connect-kind-item');
-      expect(englishCard.textContent).toContain('in the connected system');
-      expect(englishCard.textContent).not.toContain('in your connected system');
+      expect(englishCard.textContent).toContain('3 in PMO, 4 in the connected system, 2 are the same');
+      expect(englishCard.textContent).not.toContain('3 items in PMO');
       english.unmount();
 
       await i18next.changeLanguage('id');
       renderWithRole('Admin', <ConnectProposalReview tier='erpnext' orgId='org-1' />);
-      expect((await screen.findByTestId('connect-kind-item')).textContent).toContain('di sistem yang terhubung');
+      expect((await screen.findByTestId('connect-kind-item')).textContent).toContain('3 di PMO, 4 di sistem yang terhubung, 2 data sama');
     } finally {
       cleanup();
       await i18next.changeLanguage(previousLanguage || 'en');
       i18next.removeResourceBundle('id', 'administration');
     }
+  });
+
+  it('FR-ECA-042 keeps an unticked review-row checkbox empty with a visible focus outline', async () => {
+    mockIntegrationsRepo.getConnectStatus.mockResolvedValue(readyStatus([
+      { kind: 'party', pmo_count: 1, erp_count: 1, linked_count: 0, inactive_erp_count: 0, scenario: 'S-D', accepted_at: null },
+    ]));
+    mockIntegrationsRepo.listConnectProposals.mockResolvedValue({
+      proposals: [{
+        id: 'selectable-row', kind: 'party', outcome: 'send', reason: null,
+        pmo_ids: ['pmo-1'], external_ids: [], reason_text: null,
+        snapshot: { name: 'Acme Corp' }, state: 'open',
+      }],
+      nextAfterId: null,
+    });
+
+    renderWithRole('Admin', <ConnectProposalReview tier='erpnext' orgId='org-1' />);
+    const card = await screen.findByTestId('connect-kind-party');
+    fireEvent.click(within(card).getByRole('button', { name: 'Review list' }));
+    const row = await screen.findByTestId('connect-review-list-row-selectable-row');
+    const checkbox = within(row).getByRole('checkbox', { name: 'Select Acme Corp' });
+
+    fireEvent.click(checkbox);
+
+    await waitFor(() => expect(checkbox).toHaveAttribute('aria-checked', 'false'));
+    expect(checkbox).toHaveClass(
+      'border-input',
+      'bg-background',
+      'hover:bg-background',
+      'focus-visible:bg-background',
+      'focus-visible:outline',
+      'focus-visible:outline-2',
+      'focus-visible:outline-offset-2',
+      'focus-visible:outline-ring',
+      'transition-none',
+    );
+    expect(checkbox).not.toHaveClass('bg-primary');
   });
 
   it('shows staging state with "Reading records from your connected system…" and polls', async () => {
@@ -714,7 +750,7 @@ describe('ConnectProposalReview (AC-ECA-003, FR-ECA-012, FR-ECA-042)', () => {
     expect(await screen.findByText('Sending 4 of 12')).toBeInTheDocument();
   });
 
-  it('lists people the connected system cannot take as "Add these in your connected system by hand"', async () => {
+  it('labels people the connected system cannot take in English and Indonesian', async () => {
     mockIntegrationsRepo.getConnectStatus.mockResolvedValue(readyStatus([
       { kind: 'employee', pmo_count: 2, erp_count: 0, linked_count: 0, inactive_erp_count: 0, scenario: 'S-C', accepted_at: null },
     ]));
@@ -746,11 +782,24 @@ describe('ConnectProposalReview (AC-ECA-003, FR-ECA-012, FR-ECA-042)', () => {
       nextAfterId: null,
     });
 
-    renderWithRole('Admin', <ConnectProposalReview tier='erpnext' orgId='org-1' />);
+    const previousLanguage = i18next.language;
+    i18next.addResourceBundle('id', 'administration', idAdministration, true, true);
+    try {
+      await i18next.changeLanguage('en');
+      const english = renderWithRole('Admin', <ConnectProposalReview tier='erpnext' orgId='org-1' />);
+      expect(await screen.findByText('Add these in the connected system by hand')).toBeInTheDocument();
+      expect(screen.getByText('Alice Smith')).toBeInTheDocument();
+      expect(screen.getByText('Bob Jones')).toBeInTheDocument();
+      english.unmount();
 
-    expect(await screen.findByText('Add these in your connected system by hand')).toBeInTheDocument();
-    expect(screen.getByText('Alice Smith')).toBeInTheDocument();
-    expect(screen.getByText('Bob Jones')).toBeInTheDocument();
+      await i18next.changeLanguage('id');
+      renderWithRole('Admin', <ConnectProposalReview tier='erpnext' orgId='org-1' />);
+      expect(await screen.findByText('Tambahkan orang-orang ini secara manual di sistem yang terhubung')).toBeInTheDocument();
+    } finally {
+      cleanup();
+      await i18next.changeLanguage(previousLanguage || 'en');
+      i18next.removeResourceBundle('id', 'administration');
+    }
   });
 
   // Role gating: all six roles checked

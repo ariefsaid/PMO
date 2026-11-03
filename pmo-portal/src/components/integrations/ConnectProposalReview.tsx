@@ -77,6 +77,14 @@ function formatCensusLine(
     );
   }
 
+  if (row.kind === 'item') {
+    return t(
+      'integrations.connect.censusPlainItems',
+      '{{pmo}} in PMO, {{connected}} in the connected system, {{same}} are the same',
+      { pmo: row.pmo_count, connected: row.erp_count, same },
+    );
+  }
+
   return t(
     'integrations.connect.censusPlain',
     '{{pmo}} {{noun}} in PMO, {{connected}} in the connected system, {{same}} are the same',
@@ -655,6 +663,7 @@ export function ConnectProposalReview({ tier = 'erpnext', open = true, onClose }
           <div className='divide-y divide-panel-border/60'>
             {activeListPageRows.map((proposal) => {
               const isApplied = proposal.state === 'applied';
+              const isSelected = !excludedIds.has(proposal.id);
               const isChoosing = choosingRowId === proposal.id;
               const label = pmoName(proposal);
               return (
@@ -666,9 +675,13 @@ export function ConnectProposalReview({ tier = 'erpnext', open = true, onClose }
                   <div className='flex min-w-0 items-start gap-3'>
                     {!isApplied && proposal.outcome !== 'review' && (
                       <CanWrite action='manage' entity='integration' ctx={{ record: { kind: proposal.kind } }} fallback={null}>
+                        {/* Avoid showing the previous blue fill after the tick disappears on uncheck. */}
                         <Checkbox
-                          checked={!excludedIds.has(proposal.id)}
+                          checked={isSelected}
                           label={t('integrations.connect.selectRow', 'Select {{name}}', { name: label })}
+                          className={isSelected
+                            ? 'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring'
+                            : 'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring hover:bg-background focus-visible:bg-background transition-none'}
                           onChange={(checked) => setExcludedByKind((current) => {
                             const next = new Set(current[reviewListKind] ?? []);
                             if (checked) next.delete(proposal.id);
@@ -803,7 +816,7 @@ export function ConnectProposalReview({ tier = 'erpnext', open = true, onClose }
       {peopleByHand.length > 0 && (
         <div className='rounded-lg border border-panel-border bg-surface-panel p-4'>
           <h4 className='font-medium text-foreground text-sm'>
-            {t('integrations.connect.peopleByHandTitle', 'Add these in your connected system by hand')}
+            {t('integrations.connect.peopleByHandTitle', 'Add these in the connected system by hand')}
           </h4>
           <ul className='mt-2 list-disc pl-5 text-sm text-muted-foreground space-y-1'>
             {peopleByHand.map((name, idx) => (
