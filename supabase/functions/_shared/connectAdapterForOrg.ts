@@ -32,7 +32,11 @@ const FACTORIES: Record<string, (sc: SupabaseClient, orgId: string) => Promise<C
   },
 };
 
+export function hasConnectAdapterForTier(tier: string): boolean {
+  return Object.hasOwn(FACTORIES, tier);
+}
+
 export async function connectAdapterForOrg(sc: SupabaseClient, orgId: string, tier: string): Promise<ConnectAdapter> {
-  if (!Object.hasOwn(FACTORIES, tier)) throw new AppError('Unknown ERP', 'config-rejected');
+  if (!hasConnectAdapterForTier(tier)) throw new AppError('Unknown ERP', 'config-rejected');
   return await FACTORIES[tier](sc, orgId);
 }

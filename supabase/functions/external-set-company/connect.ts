@@ -7,7 +7,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 import { AdapterError } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
 import { takeCensus } from '../../../pmo-portal/src/lib/adapterSeam/connect/census.ts';
-import { connectAdapterForOrg } from '../_shared/connectAdapterForOrg.ts';
+import { connectAdapterForOrg, hasConnectAdapterForTier } from '../_shared/connectAdapterForOrg.ts';
 import { pmoMasterCounts } from '../_shared/connectPmoMasters.ts';
 import { erpSyncFeatureDecision } from './featureGate.ts';
 
@@ -97,7 +97,7 @@ export async function handleConnectAction(ctx: ConnectCtx): Promise<unknown> {
 
   // A census starts new integration work, and accepting proposals can mint new ERP writes. Existing
   // decisions, unlink cleanup and retry recovery remain available while the module is off.
-  if (ERP_SYNC_GATED_ACTIONS.has(action) && (tier === 'erpnext' || tier === 'odoo')) {
+  if (ERP_SYNC_GATED_ACTIONS.has(action) && hasConnectAdapterForTier(tier)) {
     const decision = await erpSyncFeatureDecision(ctx.serviceClient, ctx.orgId);
     if (decision === 'unavailable') throw new AppError('Could not resolve the plan switch', 'INTERNAL');
     if (decision === 'off') throw new AppError('ERP integration is not enabled for this organization', 'feature_off');
