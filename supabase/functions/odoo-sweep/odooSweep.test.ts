@@ -27,7 +27,7 @@ const binding = (over: Record<string, unknown> = {}) => ({
   config: { database: 'db1', odoo_company_id: 1, capabilities: { observed_at: FRESH, missing: [], models: {} } }, ...over,
 });
 
-interface Opts { pmoProjects?: Array<Record<string, unknown>>; pmoCompanies?: Array<Record<string, unknown>>; run?: Record<string, unknown> | null; accepted?: boolean; runError?: boolean; binding?: Record<string, unknown>; lock?: { held: boolean }; applyError?: boolean; rejectAfter?: number; version?: number | null; prepare?: (f: FakeOdoo) => void }
+interface Opts { pmoProjects?: Array<Record<string, unknown>>; pmoCompanies?: Array<Record<string, unknown>>; run?: Record<string, unknown> | null; accepted?: boolean; runError?: boolean; binding?: Record<string, unknown>; lock?: { held: boolean }; applyError?: boolean; employed?: boolean; purchaseModels?: string[]; rejectAfter?: number; version?: number | null; prepare?: (f: FakeOdoo) => void }
 
 function harness(o: Opts = {}) {
   const fake = createFakeOdoo({ key: KEY });
@@ -35,6 +35,7 @@ function harness(o: Opts = {}) {
   fake.seed('product.product', [{ id: 1, name: 'Semen', default_code: 'S1', company_id: false }]);
   fake.seed('account.account', [{ id: 1, name: 'Payable', code: '2100', account_type: 'liability_payable', company_ids: [1] }]);
   o.prepare?.(fake);
+  if (o.purchaseModels && !o.binding) o.binding = binding({ config: { database: 'db1', odoo_company_id: 1, capabilities: { observed_at: FRESH, missing: [], models: {}, later: Object.fromEntries(o.purchaseModels.map((m) => [m, true])) } } });
   const cursors = new Map<string, string>();
   const staged = new Map<string, Array<{ externalId: string }>>();
   const lock = o.lock ?? { held: false };
@@ -54,6 +55,11 @@ function harness(o: Opts = {}) {
       cursors.set(`master:${b.p_kind}`, b.p_cursor);
       return jsonResponse(b.p_rows.length);
     }),
+    // FR-OPP-080: purchase documents are mirrored only for an org that employed procurement under Odoo.
+    supabaseSelect('external_domain_ownership', () => jsonResponse(o.employed ? [{ id: 'own-1' }] : [])),
+    supabaseRpc('apply_odoo_purchase_page', (c) => { const b = c.bodyJson as { p_domain: string; p_cursor: string; p_rows: unknown[] }; cursors.set(`purchase:${b.p_domain}`, b.p_cursor); return jsonResponse(b.p_rows.length); }),
+    supabaseRpc('mark_odoo_purchase_census_seen', () => jsonResponse(null)),
+    supabaseRpc('finish_odoo_purchase_census', (c) => { const b = c.bodyJson as { p_domain: string; p_cursor: string }; cursors.set(`purchase:${b.p_domain}`, b.p_cursor); return jsonResponse(null); }),
     supabaseRpc('mark_odoo_census_seen', () => jsonResponse(null)),
     supabaseRpc('finish_odoo_census', (c) => { const b = c.bodyJson as { p_kind: string; p_cursor: string }; cursors.set(`master:${b.p_kind}`, b.p_cursor); return jsonResponse(0); }),
     supabaseRpc('merge_external_org_binding_config', () => jsonResponse(null)),
@@ -299,5 +305,49 @@ describe('odooSweep — #1504 S6 the setup run and the partner feed', () => {
   it('before the first accept the sweep applies nothing', async () => {
     const r = await sweep({ prepare: (f) => f.seed('res.partner', [partnerRow(9, { write_date: '2026-11-01 00:00:00' })]) });
     assertEquals(rpcCall(r.calls, 'apply_connect_outcome').length, 0);
+  });
+});
+
+describe('odooSweep — #1505 P7 purchase passes (FR-OPP-080)', () => {
+  const bill = { id: 1, name: 'BILL/2026/1', state: 'posted', move_type: 'in_invoice', partner_id: [41, 'V'], company_id: [1, 'Main'], invoice_date: '2026-10-30', invoice_date_due: false, ref: 'INV-1', amount_total: 98, amount_untaxed: 100, amount_residual: 98, write_date: '2026-11-01 10:00:00' };
+  const seedBill = (f: FakeOdoo) => { f.seed('account.move', [bill]); f.seed('account.move.line', [{ id: 1, move_id: [1, 'b'], balance: 100, tax_line_id: false, analytic_distribution: false }]); };
+  const purchasePages = (calls: FetchCall[]) => rpcCall(calls, 'apply_odoo_purchase_page').map((c) => c.bodyJson as { p_org_id: string; p_domain: string; p_rows: unknown[] });
+
+  it('AC-OPP-074 an org that employed procurement mirrors its vendor bills after the directory, in the same tick', async () => {
+    const r = await sweep({ employed: true, purchaseModels: ['account.move'], prepare: seedBill });
+    assertEquals(purchasePages(r.calls).map((p) => [p.p_org_id, p.p_domain, p.p_rows.length]), [[ORG, 'bill', 1]]);
+    const lastDirectory = r.calls.map((c) => c.url.pathname).lastIndexOf('/rest/v1/rpc/apply_odoo_master_page');
+    assert(lastDirectory >= 0 && lastDirectory < r.calls.findIndex((c) => c.url.pathname === '/rest/v1/rpc/apply_odoo_purchase_page'));
+    assert(r.cursors.get('purchase:bill'));
+    assertEquals(rpcCall(r.calls, 'release_erp_sweep_lock').length, 1);
+  });
+
+  it('FR-OPP-080 an org that has not employed procurement under Odoo reads no purchase document', async () => {
+    const r = await sweep({ employed: false, purchaseModels: ['account.move'], prepare: seedBill });
+    assertEquals(purchasePages(r.calls).length, 0);
+    assertEquals(odoo(r.calls).filter((c) => (c.bodyText ?? '').includes('in_invoice')).length, 0);
+  });
+
+  it('FR-OPP-080 a purchase model discovery did not find present and readable is skipped, never a failed tick', async () => {
+    const r = await sweep({ employed: true, purchaseModels: ['purchase.order'], prepare: seedBill });
+    assertEquals(purchasePages(r.calls).map((p) => p.p_domain), ['purchase-order']);
+    assertEquals('ok' in r.result && r.result.failed, undefined);
+  });
+
+  it('FR-OPP-080 a disconnected or kill-switched org makes no purchase read (the resolver refuses first)', async () => {
+    const r = await sweep({ employed: true, purchaseModels: ['account.move'], binding: binding({ status: 'disconnected' }), prepare: seedBill });
+    assertEquals(purchasePages(r.calls).length, 0);
+    assertEquals(odoo(r.calls).length, 0);
+  });
+
+  it('AC-OPP-074 purchase cursors are written only by the purchase apply and census RPCs', async () => {
+    const r = await sweep({ employed: true, purchaseModels: ['account.move'], prepare: seedBill });
+    const writes = r.calls.filter((c) => c.method !== 'GET' && c.method !== 'HEAD' && c.url.pathname.startsWith('/rest/v1/') && !c.url.pathname.startsWith('/rest/v1/rpc/'));
+    assertEquals(writes.length, 0);
+  });
+
+  it('a small tick still reaches the purchase passes: the directory leaves their share of the budget', async () => {
+    const r = await sweep({ employed: true, purchaseModels: ['account.move', 'purchase.order'], prepare: (f) => { seedBill(f); f.seed('res.partner', Array.from({ length: 50 }, (_, i) => ({ id: i + 1, name: `P${i}`, write_date: '2026-11-01 00:00:00' }))); } }, { maxCalls: 14 });
+    assert(purchasePages(r.calls).length >= 1, 'the bill pass ran although the directory had a backlog');
   });
 });

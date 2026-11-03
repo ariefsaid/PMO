@@ -1,7 +1,7 @@
 /**
  * One org's Odoo sweep tick (FR-ODC-042..047, plan §2.7): single-flight on `erp_sweep_lock`, the client from the one
- * resolver, every directory kind within one call/time budget, the daily census and re-discovery, then the connection
- * state. Cursors move only inside apply_odoo_master_page / finish_odoo_census, so any failure leaves them in place.
+ * resolver, every directory kind and (when procurement is employed) every purchase domain within one call/time budget,
+ * the daily census and re-discovery, then the connection state. Cursors move only inside apply_odoo_master_page / finish_odoo_census, so any failure leaves them in place.
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { bindCall, OdooError, type OdooCall } from '../../../pmo-portal/src/lib/adapterSeam/odoo/client.ts';
@@ -11,6 +11,7 @@ import { KIND_SPECS, type DirectoryKind, type DirectoryRow } from '../../../pmo-
 import { odooKindReaders, runCensus, runKind, type KindRunDeps } from '../../../pmo-portal/src/lib/adapterSeam/odoo/sweep.ts';
 import { advanceConnectRuns } from './connectRun.ts';
 import { matchNewPartners } from './odooPartyFeed.ts';
+import { purchaseDomainsReadable, purchaseFeedEmployed, runPurchasePass } from './odooPurchaseFeed.ts';
 import { odooClientForOrg, recordOdooProbe, type OdooClientRefusal } from './odooClientForOrg.ts';
 
 export const ODOO_KIND_ORDER: DirectoryKind[] = ['company', 'analytic_plan', 'analytic_account', 'account', 'tax', 'journal', 'uom', 'product', 'warehouse', 'location', 'partner'];
@@ -102,14 +103,22 @@ export async function sweepOdooOrg(
     };
     try {
       const kinds = ODOO_KIND_ORDER.filter((kind) => readable(capabilities, KIND_SPECS[kind].model));
+      // FR-OPP-080: an org that employed procurement under Odoo also mirrors its purchase documents. The purchase passes run after
+      // the directory (they map through it) and hold back their own share of the tick, so a big directory never starves them.
+      const purchase = (await purchaseFeedEmployed(sc, orgId)) ? purchaseDomainsReadable(capabilities) : [];
       for (const [i, kind] of kinds.entries()) {
-        const cap = maxCalls - RESERVE_PER_KIND * (kinds.length - 1 - i);
+        const cap = maxCalls - RESERVE_PER_KIND * (kinds.length - 1 - i + purchase.length);
         const kindBudget: Budget = { left: () => calls < cap && left(), spend: () => calls < cap && budget.spend() };
         const deps = kindDeps(sc, orgId, kind, call, r.companyId!, kindBudget);
         const run = await runKind(KIND_SPECS[kind], await readCursor(sc, orgId, kind), deps);
         skippedRows += run.skipped;
         await AFTER_APPLY[kind]?.(sc, orgId, run.applied, started + timeBudget);
         if (run.done) await runCensus(await readCursor(sc, orgId, kind), deps);
+      }
+      for (const [i, domain] of purchase.entries()) {
+        const cap = maxCalls - RESERVE_PER_KIND * (purchase.length - 1 - i);
+        const passBudget: Budget = { left: () => calls < cap && left(), spend: () => calls < cap && budget.spend() };
+        skippedRows += (await runPurchasePass(sc, orgId, domain, call, r.companyId!, passBudget)).skipped;
       }
       await runAfterSweep();
       // Daily re-discovery (FR-ODC-021) runs outside the sweep's call budget; it is ~60 calls once a day.
