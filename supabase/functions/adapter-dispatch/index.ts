@@ -80,6 +80,7 @@ import {
 } from './budgetDispatch.ts';
 import { resolveErpMoneyOutboxDeps as resolveErpMoneyOutboxDepsModule } from './erpMoneyOutbox.ts';
 import { resolveOdooMoneyOutboxDeps } from './odooMoneyOutbox.ts';
+import { checkOdooDraftTarget, isOdooInvoiceDraftWrite, writeOdooInvoiceDraft } from './odooInvoiceDraft.ts';
 import { ODOO_TIER } from '../../../pmo-portal/src/lib/adapterSeam/odoo/connectAdapter.ts';
 
 export { resolveErpBindingRow, resolveErpAdapter } from './dispatchAdapters.ts';
@@ -547,7 +548,12 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
         headers,
       });
     }
-    const binding = await checkTransitionTargetBinding(serviceClient as never, orgId, command);
+    // An Odoo invoice draft has no Odoo mapping by design (OQ-OCI-1): its update and its approval target the PMO draft row itself.
+    const odooDraft = employedTier === ODOO_TIER ? await checkOdooDraftTarget(serviceClient as never, orgId, command) : null;
+    if (odooDraft && !odooDraft.ok) {
+      return new Response(JSON.stringify({ error: 'commit-rejected', message: odooDraft.message }), { status: odooDraft.status, headers });
+    }
+    const binding = odooDraft?.ok && odooDraft.unmappedDraft ? { ok: true as const } : await checkTransitionTargetBinding(serviceClient as never, orgId, command);
     if (!binding.ok) {
       return new Response(JSON.stringify({ error: 'commit-rejected', message: binding.message }), {
         status: binding.status,
@@ -717,6 +723,12 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
     requestHost: req.headers.get('x-forwarded-host') ?? req.headers.get('host'),
     allowedHosts: Deno.env.get('ERPNEXT_TEST_FAULTS_ALLOW_HOST'),
   };
+
+  // ── An Odoo invoice draft (authoring and editing) is PMO's alone: no adapter, no outbox row, no Odoo call (OQ-OCI-1). Only the approval pushes. ──
+  if (isOdooInvoiceDraftWrite(employedTier, command)) {
+    const draft = await writeOdooInvoiceDraft({ serviceClient: serviceClient as never, orgId, userId, command });
+    return new Response(JSON.stringify(draft.body), { status: draft.status, headers });
+  }
 
   // ── 3. Adapter select (AC-EAS-033 step 2). ──
   const adapterFactory = selectAdapterFactory(employedTier, command.domain);

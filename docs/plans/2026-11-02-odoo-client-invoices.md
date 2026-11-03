@@ -176,6 +176,14 @@ ACs: 010, 011, 012, 030, 031, 032, 061. Migration **0511**.
 - **C3-T8 (bed)** AC-OCI-010, 030: order-less approved invoice → exactly one posted invoice with client, lines, PO reference, distribution on every line, Odoo number and status in PMO; a free-standing invoice likewise; one posted line stripped of its distribution on the bed → needs-attention.
 - Final gate + review battery (security-auditor mandatory).
 
+**As built (C3, `feat/odoo-ci-c3`).**
+- **Draft model (owner ruling 2026-11-03, OQ-OCI-1).** An Odoo-tier invoice is a PMO DRAFT until its approval. `create` / `update` of it never reach Odoo and leave no outbox row, ref or mapping (`odooInvoiceDraft.ts`); the lines live on the draft row (`sales_invoices.native_lines`). The author, and every editor of the lines, joins the `sales_invoice_authors` set, so nobody who chose the lines can approve them. The approval (`transition submit`, SoD-gated) pushes create + post as ONE command from the draft's lines; the server stamps customer, project, work order, items, currency and reference over the payload's.
+- **Migration 0511** adds only `odoo_state`, `odoo_attention`, `odoo_sent_total`, `odoo_read_at` to `sales_invoices`; the mirror guard pins them to the mirror writer. 0136/0137/0178 inventories and the isolation denominator re-run green.
+- **Push.** `revenueAdapter.ts`: build refuses (zero Odoo calls) before create; the composite probe runs only in recovery inside a 10 min window and never adopts an unanchored look-alike (hold); refs are model-qualified (`account.move:<id>`); taxes are always explicit.
+- **Read-back.** One `odoo_attention` reason, ordered: money-unreadable, cost-account-missing, total-mismatch, lines-unreadable. A withheld money header writes none of the money.
+- **C3-T7.** Covered by the shipped O1 check (`supabase/tests/odoo_project_links_config.test.sql`): a project with a revenue ref cannot be un-linked or re-linked.
+- **C3-T8.** `odooInvoice.bed.test.ts` passes against the stock bed (ordinary, free-standing, stripped-distribution draft).
+
 ## C4 — Billing claims: progress, down payment, recovery (Director-dispatched; ships alone)
 
 ACs: 020, 021, 022, 023.

@@ -16,7 +16,7 @@ const INPUT: PmoInvoice = {
 const EXPECT: InvoiceExpect = { total: expectedInvoiceTotal(INPUT.lines, [11]), costAccountId: 101 };   // 2000 + 11% = 2220.00
 const COMPOSITE: InvoiceComposite = { partnerId: 41, createdAfter: '2000-01-01 00:00:00' };
 const command = (over: Partial<AdapterCommand['record']> = {}): AdapterCommand => ({
-  domain: 'revenue', operation: 'create', idempotencyKey: 'k-1', record: { id: INV_ID, erp_doc_kind: 'sales-invoice', customerId: 'cust-1', ...over },
+  domain: 'revenue', operation: 'transition', idempotencyKey: 'k-1', record: { id: INV_ID, erp_doc_kind: 'sales-invoice', verb: 'submit', customerId: 'cust-1', ...over },
 });
 
 /** A fake Odoo whose next matching call fails the way the bed's network does: before the call, or with the response lost. */
@@ -177,6 +177,12 @@ describe('AC-OCI-012 a command that cannot be built writes nothing', () => {
     await refused({ units: {} });
     await refused({ items: { 'item-a': { productId: 71, incomeAccountId: null } } });
   });
+  it('an ordinary line carries no unit: the product\'s own unit stands and none is sent', async () => {
+    const lines = INPUT.lines.map(({ unit: _unit, ...rest }) => rest);
+    const { fake, attempt } = rig({ input: { ...INPUT, lines } });
+    await attempt();
+    expect(fake.rows('account.move.line').filter((l) => l.display_type === 'product')).toHaveLength(2);
+  });
   it('names the unmapped thing in the refusal', async () => {
     const { adapter } = rig({ maps: { ...MAPS, units: {} } });
     await expect(adapter.commit(command())).rejects.toThrow('config-rejected: unit: km');
@@ -209,7 +215,9 @@ describe('the adapter refuses what C3 does not push', () => {
     await expect(adapter.commit({ ...command(), domain: 'procurement' })).rejects.toThrow('unsupported domain');
     await expect(adapter.commit(command({ erp_doc_kind: 'incoming-payment' }))).rejects.toThrow('not available yet');
     await expect(adapter.commit({ ...command(), operation: 'delete' })).rejects.toThrow('not available yet');
-    await expect(adapter.getByExternalId('account.move:1')).rejects.toThrow('not available yet');
+    await expect(adapter.commit({ ...command(), operation: 'create' })).rejects.toThrow('not available yet');   // a create is the PMO draft: it never reaches Odoo
+    await expect(adapter.commit(command({ verb: 'cancel' }))).rejects.toThrow('not available yet');
+    await expect(adapter.getByExternalId('revenue', 'account.move:1')).rejects.toThrow('not available yet');
   });
 
   it('the anchor key follows the PMO invoice, never the per-click idempotency key', () => {

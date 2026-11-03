@@ -12,6 +12,10 @@ import { odooClientForOrg } from '../_shared/odooClientForOrg.ts';
 import { resolveOdooBillInputs, resolveOdooOrderCurrency, resolveOdooOrderInputs, resolveOdooPaymentFacts, resolveOdooReviseInputs } from '../_shared/odooPurchaseRefs.ts';
 import type { AdapterFactory, AdapterSelectContext } from './dispatchAdapters.ts';
 import { assertOdooRevenueCommandScope } from './odooRevenueGate.ts';
+import { revenueOutboxRowExists } from './odooRevenueOutbox.ts';
+import { resolveOdooInvoiceInputs } from '../_shared/odooRevenueRefs.ts';
+import { createOdooRevenueAdapter, isInvoicePush } from '../../../pmo-portal/src/lib/adapterSeam/odoo/revenueAdapter.ts';
+import { buildInvoiceBody } from '../../../pmo-portal/src/lib/adapterSeam/odoo/revenue/invoiceBody.ts';
 
 /** What the Odoo procurement adapter pushes so far: the purchase order and its revision (P3), the goods receipt (P4), the vendor bill (P5) and the vendor payment (P6). */
 const isReceipt = (ctx: AdapterSelectContext): boolean => ctx.command.record.erp_doc_kind === 'goods-receipt' && ctx.command.operation === 'create';
@@ -80,9 +84,12 @@ export async function resolveOdooProcurementAdapter(ctx: AdapterSelectContext): 
 /**
  * Adapter selection for an org that employs revenue under tier `odoo` (FR-OCI-001/002/004, DD-OCI-1, DD-OCI-8). Before any outbox row and any
  * Odoo request it refuses a connection that is switched off, not activated or unusable, a stored capability snapshot that lacks a model an
- * invoice or receipt needs (the refusal names it), and a link or receipt scope that is not the caller's. The steps themselves (invoice, claim,
- * receipt) arrive with their slices (C3-C5); until then every command is refused the same way, so a gate-passing revenue command can neither
- * reach the ERPNext adapter nor leave an outbox row.
+ * invoice or receipt needs (the refusal names it), and a link or receipt scope that is not the caller's. The one step C3 pushes is the approval of
+ * an invoice draft: it is resolved here (the draft's own client, project, lines, reference, taxes) and dry-built, so an unmapped client, item or
+ * income account, an unlinked project or a tax that does not validate is refused before any outbox row. A retry of the same intent (its outbox
+ * row exists) skips the dry build: the invoice may already exist, and its recovery must not depend on today's mappings. The other steps (claim,
+ * receipt) arrive with their slices (C4, C5); until then they are refused, so a gate-passing command can neither reach the ERPNext adapter nor
+ * leave an outbox row.
  */
 export async function resolveOdooRevenueAdapter(ctx: AdapterSelectContext): Promise<Adapter> {
   const resolved = await odooClientForOrg(ctx.serviceClient as SupabaseClient, ctx.orgId);
@@ -90,7 +97,16 @@ export async function resolveOdooRevenueAdapter(ctx: AdapterSelectContext): Prom
   const gap = revenueCapabilityGap(resolved.config.capabilities as Parameters<typeof revenueCapabilityGap>[0]);
   if (gap) throw new AppError(`Odoo invoicing needs ${gap}, which this Odoo connection does not show. Run the connection check again.`, 'config-rejected');
   await assertOdooRevenueCommandScope(ctx.serviceClient as SupabaseClient, ctx.orgId, ctx.command);
-  throw new AppError('Invoicing through Odoo is not available yet', 'config-rejected');
+  if (!isInvoicePush(ctx.command)) throw new AppError('Invoicing through Odoo is not available yet', 'config-rejected');
+  const sc = ctx.serviceClient as SupabaseClient;
+  const call = bindCall({ ...resolved.client, deadlineMs: REQUEST_DEADLINE_MS });
+  const replay = await revenueOutboxRowExists(ctx);
+  if (!replay) {
+    const { input, maps } = await resolveOdooInvoiceInputs(sc, ctx.orgId, ctx.command, resolved, call);
+    const built = buildInvoiceBody(input, maps);   // a dry build: an unmapped client, item or income account, a foreign currency or a net-negative total refuse here, naming the thing
+    if (built.outcome === 'refused') throw new AppError(`${built.code}: ${built.thing}: ${built.name}`, 'config-rejected');
+  }
+  return createOdooRevenueAdapter({ call, resolveInvoice: (command) => resolveOdooInvoiceInputs(sc, ctx.orgId, command, resolved, call, replay) });
 }
 
 /** The Odoo tier's registry, keyed by the PMO domain it employs. */

@@ -13,7 +13,7 @@ import { AdapterError, type Adapter, type AdapterCommand, type CommandResult, ty
 import type { OdooCall } from './client.ts';
 import { ODOO_TIER, toAdapterError } from './connectAdapter.ts';
 import { odooExternalRef, parseOdooExternalRef } from './purchase/anchors.ts';
-import { externalIdentifier } from './revenue/anchors.ts';
+import { externalIdentifier, ODOO_REVENUE_ANCHORS } from './revenue/anchors.ts';
 import { buildInvoiceBody, type InvoiceMaps, type PmoInvoice } from './revenue/invoiceBody.ts';
 import { readBackInvoice, type InvoiceExpect } from './revenue/invoiceReadBack.ts';
 import { nextStep, type Observed } from './revenue/nextStep.ts';
@@ -54,7 +54,7 @@ async function anchorInvoice(call: OdooCall, key: string, id: number): Promise<v
   const hit = await probeInvoiceByAnchor(call, key);
   if (hit) { if (hit.externalRecordId !== odooExternalRef(MOVE, id)) refuse('ambiguous-anchor'); return; }
   const { module, name } = externalIdentifier(key);
-  await call('ir.model.data', 'create', { vals_list: [{ module, name, model: MOVE, res_id: id }] });
+  await call(ODOO_REVENUE_ANCHORS['sales-invoice'].model, 'create', { vals_list: [{ module, name, model: MOVE, res_id: id }] });
 }
 
 /** Post a draft, adopt a posted one, reject anything else; then read the invoice's money and lines back (FR-OCI-012/014/022a/024). */
@@ -103,9 +103,12 @@ async function pushInvoice(deps: OdooRevenueDeps, command: AdapterCommand): Prom
   return settleInvoice(call, id, command.record, expect);
 }
 
-/** The one revenue step C3 pushes: an ordinary sales invoice. */
+/**
+ * The one revenue step C3 pushes: the approval of a PMO invoice draft. The draft (and its lines) is PMO's until then (OQ-OCI-1: drafts never
+ * exist in Odoo); the approval is the money commitment, so it is the only command that creates and posts the Odoo invoice, in one command.
+ */
 export const isInvoicePush = (command: Pick<AdapterCommand, 'operation' | 'record'>): boolean =>
-  command.record.erp_doc_kind === 'sales-invoice' && command.operation === 'create';
+  command.record.erp_doc_kind === 'sales-invoice' && command.operation === 'transition' && command.record.verb === 'submit';
 
 export function createOdooRevenueAdapter(deps: OdooRevenueDeps): Adapter {
   return {
