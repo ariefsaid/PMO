@@ -1,10 +1,12 @@
 -- 0534_feature_enforcement_down.sql — reverse of 0534: strip the RLS conjuncts, restore the
 -- pre-gate RPC bodies, drop the two helpers.
 --
--- The inverse policy block removes exactly the conjunct 0534 appended (the appended string is a constant,
--- so the reverse matches it as a suffix of the stored qual/with_check); leftover parentheses are
--- semantically empty and harmless. The receipts re-boundary never shipped (Director ruling: goods receipts
--- stay gated on `procurement` until owner sign-off #1720), so there is nothing to rebuild there.
+-- The inverse policy block removes exactly the conjunct 0534 appended. The pattern matches how
+-- `pg_policies` DEPARSES the stored expression (no `public.` prefix for in-search-path objects, the
+-- upper-cased `AND`, the literal's `::text` cast, and an outer closing parenthesis), so the appended
+-- gate is stripped from the live predicate. Leftover parentheses are semantically empty and harmless.
+-- The receipts re-boundary never shipped (Director ruling: goods receipts stay gated on `procurement`
+-- until owner sign-off #1720), so there is nothing to rebuild there.
 -- Canonical pre-production reverse remains `supabase db reset` (ADR-0006).
 
 do $$
@@ -14,7 +16,11 @@ declare
   wc text;
   using_clause text;
   check_clause text;
-  v_pat constant text := '\s+and\s+public\.org_feature_enabled\(public\.auth_org_id\(\), ''[a-z_]+''(::text)?\)$';
+  -- The conjunct §B appended, as live `pg_policies` DEPARSES it (not as §B wrote it): the planner
+  -- re-prints the expression, so `public.` is dropped for in-search-path objects, `and` is uppercased,
+  -- the literal carries its `::text` cast, and the whole predicate is wrapped in an outer parenthesis.
+  -- Hence: optional schema prefix, case-insensitive, and NO end anchor.
+  v_pat constant text := '\s+(?:and|AND)\s+(?:(?:public)\.)?org_feature_enabled\s*\(\s*(?:(?:public)\.)?auth_org_id\s*\(\s*\)\s*,\s*''[a-z_]+''(?:\s*::\s*text)?\s*\)';
 begin
   -- ONLY the tables §B gated. 0081's five module families carry the same conjunct text and are
   -- deliberately outside this list, so their gates survive the rollback.
@@ -44,8 +50,8 @@ begin
             or coalesce(p.with_check, '') like '%org_feature_enabled%')
      order by p.tablename, p.policyname
   ) loop
-    q  := regexp_replace(r.qual, v_pat, '');
-    wc := regexp_replace(r.with_check, v_pat, '');
+    q  := regexp_replace(r.qual, v_pat, '', 'gi');
+    wc := regexp_replace(r.with_check, v_pat, '', 'gi');
     using_clause := case when q is null then '' else ' using (' || q || ')' end;
     check_clause := case when wc is null then '' else ' with check (' || wc || ')' end;
     execute 'drop policy if exists ' || quote_ident(r.policyname) || ' on public.' || quote_ident(r.tablename);

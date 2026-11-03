@@ -41,6 +41,10 @@
 --     the typed 409 `feature_off` before any ERP call. The remaining edge preconditions (m365 custody,
 --     compose-view, agent-chat, clickup, external-connect) are follow-ups in their own slices — the
 --     assistant surfaces are S4's, and the teardown-safe set needs per-route care.
+--   • CLOSURE IS NEVER GATED (FR-PLN-006): cancelling/rejecting/PAYING an existing row, and cancelling a
+--     draft stock document, stay callable while the module is off, so work minted while it was on can
+--     always reach a terminal state. Only the forward/minting transitions are gated. The same rule is
+--     applied in the sweep: a candidate ERP already accepted still finalizes while its module is off.
 -- Reversible: supabase/migrations/rollback/0534_feature_enforcement_down.sql.
 
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
@@ -301,7 +305,12 @@ declare
                                        'Unpaid', jsonb_build_array('Cancelled'));
 begin
   perform public.assert_is_active_member();
-  perform public.assert_feature_on(public.auth_org_id(), 'sales_invoices');
+  -- FR-PLN-006 closure: cancelling an existing invoice is a CLOSING transition, so a switched-off module
+  -- must still let the work it already minted reach a terminal state. Only the forward (approval) path is
+  -- gated.
+  if coalesce(p_to, '') is distinct from 'Cancelled' then
+    perform public.assert_feature_on(public.auth_org_id(), 'sales_invoices');
+  end if;
   select * into v_row from public.sales_invoices where id = p_id for update;
   if not found then
     raise exception 'sales invoice not found' using errcode = 'P0002';
@@ -453,8 +462,9 @@ declare
   v_role   user_role := public.auth_role();
 begin
   -- SECURITY: membership, role, ownership and org re-assertions MUST stay — a SECURITY DEFINER body bypasses RLS.
+  -- FR-PLN-006 closure: reversing a receipt recorded while the module was on is a CLOSING transition and is
+  -- deliberately NOT gated, so a switch-off never strands a transaction that already exists.
   perform public.assert_is_active_member();
-  perform public.assert_feature_on(public.auth_org_id(), 'revenue');
   select * into v_rc from public.incoming_payments where id = p_receipt_id;
   if not found then
     raise exception 'receipt not found' using errcode = 'P0002';
@@ -503,17 +513,19 @@ begin
   if not found then
     raise exception 'sales invoice not found' using errcode = 'P0002';
   end if;
-  perform public.assert_feature_on(v_row.org_id, 'sales_invoices');
-
 
   -- (0124/0130 predicates preserved) org + still-an-active-member; the ROLE set is the revenue write
   -- set (finding 3, owner ruling 2026-07-20) rather than the four master-data money roles.
+  -- SECURITY: this authorization runs BEFORE the switch read, so a row the caller may not touch is
+  -- refused on authorization alone and can never reveal another organisation's plan state.
   if v_row.org_id is distinct from auth_org_id()
      or auth_role() not in ('Admin','Finance')
      or not is_active_member()
   then
     raise exception 'not authorized' using errcode = '42501';
   end if;
+
+  perform public.assert_feature_on(v_row.org_id, 'sales_invoices');
 
   -- 0275: a PMO invoice is approved in PMO (transition_native_sales_invoice), never submitted through the ERP path.
   if v_row.pmo_native then
@@ -538,15 +550,17 @@ begin
   if not found then
     return;
   end if;
-  perform public.assert_feature_on(v_row.org_id, 'sales_invoices');
 
-
+  -- SECURITY: authorize BEFORE the switch read (a foreign row is refused on authorization alone and
+  -- never reveals that organisation's plan state).
   if v_row.org_id is distinct from auth_org_id()
      or auth_role() not in ('Admin','Finance')
      or not is_active_member()
   then
     raise exception 'not authorized' using errcode = '42501';
   end if;
+
+  perform public.assert_feature_on(v_row.org_id, 'sales_invoices');
 
   -- 0275: a PMO invoice's body is fixed at creation; the ERP path never re-authors it.
   if v_row.pmo_native then
@@ -582,16 +596,17 @@ begin
   if not found then
     raise exception 'sales invoice not found' using errcode = 'P0002';
   end if;
-  perform public.assert_feature_on(v_row.org_id, 'sales_invoices');
 
   -- Org comes from the row; same revenue write set as submit/cancel (Admin + Finance); offboarded
   -- members refused (0130).
+  -- SECURITY: authorization first, then the switch read — a foreign row never reveals its org's plan state.
   if v_row.org_id is distinct from auth_org_id()
      or auth_role() not in ('Admin','Finance')
      or not is_active_member()
   then
     raise exception 'not authorized' using errcode = '42501';
   end if;
+  perform public.assert_feature_on(v_row.org_id, 'sales_invoices');
   -- 0275: a PMO invoice is frozen while an ERP owns revenue (DD-NAR-11).
   -- Serialise with an ERP take-over of revenue (§7) BEFORE reading who owns it — the same org-row lock every
   -- PMO revenue writer takes from before its own ownership read, so a take-over either commits first (this
@@ -1105,7 +1120,11 @@ declare
     'Rejected', jsonb_build_array('Draft','Cancelled'), 'Approved', jsonb_build_array(), 'Cancelled', jsonb_build_array());
 begin
   perform public.assert_is_active_member();
-  perform public.assert_feature_on(public.auth_org_id(), 'imprest');
+  -- FR-PLN-006 closure: rejecting or cancelling an EXISTING plan changes nothing forward — a switch-off
+  -- must not strand a plan minted while the module was on. Every other transition is gated.
+  if coalesce(p_to, '') not in ('Rejected','Cancelled') then
+    perform public.assert_feature_on(public.auth_org_id(), 'imprest');
+  end if;
   select * into v_p from public.imprest_plans where id = p_id for update;
   if not found or v_p.org_id is distinct from public.auth_org_id() then
     raise exception 'plan not found' using errcode = 'P0002';
@@ -1286,7 +1305,12 @@ declare
     'Cancelled', jsonb_build_array());
 begin
   perform public.assert_is_active_member();
-  perform public.assert_feature_on(public.auth_org_id(), 'imprest');
+  -- FR-PLN-006 closure: deciding or paying an EXISTING request is a CLOSING transition — a switch-off
+  -- must not strand a request minted while the module was on. Only minting a new decision path forward
+  -- (Approved) is gated.
+  if coalesce(p_to, '') not in ('Rejected','Paid','Cancelled') then
+    perform public.assert_feature_on(public.auth_org_id(), 'imprest');
+  end if;
   select * into v_r from public.imprest_replenishments where id = p_id for update;
   if not found or v_r.org_id is distinct from public.auth_org_id() then
     raise exception 'replenishment not found' using errcode = 'P0002';
@@ -1471,7 +1495,8 @@ create or replace function public.cancel_stock_document(p_document_id uuid) retu
 declare d public.stock_documents; v_uid uuid := auth.uid();
 begin
   perform public.assert_is_active_member();
-  perform public.assert_feature_on(public.auth_org_id(), 'stock');
+  -- FR-PLN-006 closure: cancelling a DRAFT document writes nothing to the ledger; a switch-off must not
+  -- strand a draft minted while the module was on.
   select * into d from public.stock_documents x where x.id = p_document_id and x.org_id = public.auth_org_id() for update;
   if not found then raise exception 'STK_NOT_FOUND: the document is not in your organisation' using errcode = 'P0001'; end if;
   if d.status <> 'Draft' then raise exception 'STK_IMMUTABLE: a posted or cancelled document cannot be cancelled' using errcode = 'P0001'; end if;
@@ -1756,7 +1781,11 @@ declare
   v_allowed_roles text[];
 begin
   perform public.assert_is_active_member();
-  perform public.assert_feature_on(public.auth_org_id(), 'procurement');
+  -- FR-PLN-006 closure: cancelling or rejecting an EXISTING purchase is a CLOSING transition (paid closes
+  -- an already-invoiced one); a switch-off must not strand it. Every forward/minting transition is gated.
+  if p_to is null or p_to::text not in ('Cancelled','Rejected','Paid') then
+    perform public.assert_feature_on(public.auth_org_id(), 'procurement');
+  end if;
   v_is_admin := (v_role = 'Admin');
   select status, org_id, requested_by_id, approved_by_id, project_id, budget_category, currency
     into v_from, v_org, v_requester, v_approver, v_project, v_category, v_currency
@@ -1916,7 +1945,11 @@ declare
   );
 begin
   perform public.assert_is_active_member();  -- ⚑ 0180 (FR-AMG-001): user-JWT-only caller.
-  perform public.assert_feature_on(public.auth_org_id(), 'timesheets');
+  -- FR-PLN-006 closure: rejecting a SUBMITTED sheet is a CLOSING decision on work already minted, so a
+  -- switch-off must not strand the approval queue. Every other transition is gated.
+  if p_to is null or p_to::text is distinct from 'Rejected' then
+    perform public.assert_feature_on(public.auth_org_id(), 'timesheets');
+  end if;
   -- Load + lock the row (serializes concurrent transitions on the SAME timesheet). P0002 if absent.
   select status, org_id, user_id
     into v_from, v_org, v_owner
@@ -2389,9 +2422,11 @@ begin
   if v_org is null then
     raise exception 'project not found' using errcode = 'P0002';
   end if;
+  -- SECURITY: authorization runs BEFORE the switch read — a foreign project is refused on authorization
+  -- alone and can never reveal that organisation's plan state.
+  perform public.assert_stage_date_editor(v_org);
   perform public.assert_feature_on(v_org, 'import_export');
 
-  perform public.assert_stage_date_editor(v_org);
   select count(*) into v_count from public.project_stage_entries where project_id = p_project_id;
   if v_status <> 'Leads' or v_count <> 1 then                         -- idempotent: only a fresh Leads row
     raise exception 'stage history can be imported only into a new lead' using errcode = 'P0001';

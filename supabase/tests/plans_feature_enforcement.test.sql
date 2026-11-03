@@ -13,7 +13,7 @@
 -- whose revenue is ERP-owned (display off, entitlement on).
 begin;
 create extension if not exists pgtap;
-select plan(54);
+select plan(65);
 
 insert into organizations (id, name) values
   ('05340000-0000-0000-0000-000000000001', 'Plans Enforcement A'),
@@ -159,7 +159,8 @@ select lives_ok($$ select public.operator_toggle_feature('05340000-0000-0000-000
   'the Operator can switch imprest back off after the round-trip proof');
 set local request.jwt.claims = '{"sub":"05340000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select throws_ok($$ select public.cancel_native_receipt('05340000-0000-0000-0000-0000000000e1') $$,
-  'P0001', 'feature_off', 'FR-PLN-006 revenue off ⇒ cancel_native_receipt refuses');
+  'P0002', 'receipt not found',
+  'FR-PLN-006 revenue off ⇒ the receipt cancel path is not gated (fails later, not feature_off)');
 select throws_ok($$ select public.record_native_receipt('05340000-0000-0000-0000-0000000000e1') $$,
   'P0001', 'feature_off', 'FR-PLN-006 revenue off ⇒ record_native_receipt refuses');
 select throws_ok($$ select public.create_stock_document('{}'::jsonb, '[]'::jsonb) $$,
@@ -238,6 +239,103 @@ select throws_ok($$ select public.create_native_sales_invoice(
     '05340000-0000-0000-0000-0000000000b4', '05340000-0000-0000-0000-0000000000b4', '[]'::jsonb) $$,
   '42501', null, 'FR-PLN-005a the ERP-owned org still refuses PMO-native invoicing (the ownership rule, not the switch)');
 
+reset role;
+
+-- ══════════════════════════════════════════════════════════════════════════════════════════════
+-- FR-PLN-006 CLOSURE — a switch-off never strands work that already exists. Cancel / reject / pay
+-- transitions and a draft-document cancel stay callable while the module is off, so every in-flight
+-- row can still reach a terminal state; the forward paths stay refused (asserted above).
+-- ══════════════════════════════════════════════════════════════════════════════════════════════
+insert into stock_warehouses (id, org_id, code, name, kind)
+  values ('05340000-0000-0000-0000-0000000000ca', '05340000-0000-0000-0000-000000000001',
+          'WH-RV', 'Enforcement warehouse A', 'central');
+insert into stock_documents (id, org_id, number, kind, status, warehouse_id, occurred_on, created_by)
+  values ('05340000-0000-0000-0000-0000000000cb', '05340000-0000-0000-0000-000000000001', 'STK-RV-1', 'receive',
+          'Draft', '05340000-0000-0000-0000-0000000000ca', current_date, '05340000-0000-0000-0000-0000000000a1');
+insert into imprest_replenishments (id, org_id, float_id, kind, number, amount, requested_by)
+  values ('05340000-0000-0000-0000-0000000000f3', '05340000-0000-0000-0000-000000000001',
+          '05340000-0000-0000-0000-0000000000f1', 'replenishment', 'RV-1', 100,
+          '05340000-0000-0000-0000-0000000000a1');
+insert into imprest_plans (id, org_id, float_id, month, number, author_id)
+  values ('05340000-0000-0000-0000-0000000000f4', '05340000-0000-0000-0000-000000000001',
+          '05340000-0000-0000-0000-0000000000f1', date_trunc('month', current_date)::date, 'PLN-RV-1',
+          '05340000-0000-0000-0000-0000000000a1');
+-- A PMO invoice + its receipt in org A (revenue off by plan): both are closeable while off.
+insert into sales_invoices (id, org_id, amount, tax_treatment, tax_amount, status, pmo_native, native_lines)
+  values ('05340000-0000-0000-0000-0000000000d5', '05340000-0000-0000-0000-000000000001', 100,
+          'exclusive', 0, 'Unpaid', true, '[]'::jsonb);
+insert into incoming_payments (id, org_id, sales_invoice_id, pmo_number, date, amount, status, pmo_native)
+  values ('05340000-0000-0000-0000-0000000000e6', '05340000-0000-0000-0000-000000000001',
+          '05340000-0000-0000-0000-0000000000d5', 'RCV-RV-1', current_date, 40, 'Paid', true);
+-- Org C (sales_invoices/procurement/timesheets off by override): a native draft invoice, a draft
+-- purchase, and a SUBMITTED sheet owned by another member (so a decision is allowed).
+insert into sales_invoices (id, org_id, si_number, amount, tax_treatment, tax_amount, status, pmo_native, native_lines)
+  values ('05340000-0000-0000-0000-0000000000d6', '05340000-0000-0000-0000-000000000003', null, 100,
+          'exclusive', 0, 'Draft', true, '[]'::jsonb);
+insert into sales_invoices (id, org_id, si_number, amount, tax_treatment, tax_amount, status)
+  values ('05340000-0000-0000-0000-0000000000d7', '05340000-0000-0000-0000-000000000003', 'ERP-C-1', 100,
+          'exclusive', 0, 'Draft');
+insert into procurements (id, org_id, title, status)
+  values ('05340000-0000-0000-0000-0000000000f5', '05340000-0000-0000-0000-000000000003',
+          'Enforcement procurement C', 'Draft');
+insert into auth.users (id, email) values
+  ('05340000-0000-0000-0000-0000000000a5', 'plans-enforcement-c2@example.invalid');
+insert into profiles (id, org_id, full_name, email, role, status) values
+  ('05340000-0000-0000-0000-0000000000a5', '05340000-0000-0000-0000-000000000003', 'Enforcement C Engineer',
+   'plans-enforcement-c2@example.invalid', 'Engineer', 'active');
+insert into timesheets (id, org_id, user_id, week_start_date, status)
+  values ('05340000-0000-0000-0000-0000000000f6', '05340000-0000-0000-0000-000000000003',
+          '05340000-0000-0000-0000-0000000000a5', date_trunc('week', current_date)::date, 'Submitted');
+
+set local role authenticated;
+-- Org A, Admin, imprest off / stock off / revenue off.
+set local request.jwt.claims = '{"sub":"05340000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select lives_ok($$ select public.transition_imprest_replenishment(
+    '05340000-0000-0000-0000-0000000000f3', 'Cancelled') $$,
+  'FR-PLN-006 imprest off ⇒ an EXISTING replenishment request can still be cancelled');
+select lives_ok($$ select public.transition_imprest_plan(
+    '05340000-0000-0000-0000-0000000000f4', 'Cancelled') $$,
+  'FR-PLN-006 imprest off ⇒ an EXISTING plan can still be cancelled');
+select lives_ok($$ select public.cancel_stock_document('05340000-0000-0000-0000-0000000000cb') $$,
+  'FR-PLN-006 stock off ⇒ a DRAFT document can still be cancelled');
+select lives_ok($$ select public.cancel_native_receipt('05340000-0000-0000-0000-0000000000e6') $$,
+  'FR-PLN-006 revenue off ⇒ an EXISTING receipt can still be cancelled');
+-- Org C, Admin, sales_invoices / procurement / timesheets off.
+set local request.jwt.claims = '{"sub":"05340000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+select lives_ok($$ select public.transition_native_sales_invoice(
+    '05340000-0000-0000-0000-0000000000d6', 'Cancelled') $$,
+  'FR-PLN-006 sales_invoices off ⇒ an EXISTING invoice can still be cancelled');
+select lives_ok($$ select public.transition_procurement(
+    '05340000-0000-0000-0000-0000000000f5', 'Cancelled') $$,
+  'FR-PLN-006 procurement off ⇒ an EXISTING purchase can still be cancelled');
+select lives_ok($$ select public.transition_timesheet(
+    '05340000-0000-0000-0000-0000000000f6', 'Rejected') $$,
+  'FR-PLN-006 timesheets off ⇒ a SUBMITTED sheet can still be rejected (closed)');
+
+-- ══════════════════════════════════════════════════════════════════════════════════════════════
+-- Authorization before entitlement — a row the caller may NOT touch is refused on authorization
+-- alone, so no caller can read another organisation's plan state through the gate's answer.
+-- ══════════════════════════════════════════════════════════════════════════════════════════════
+set local request.jwt.claims = '{"sub":"05340000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select throws_ok($$ select public.submit_sales_invoice('05340000-0000-0000-0000-0000000000d6') $$,
+  '42501', 'not authorized',
+  'a foreign invoice is refused on authorization before the switch is read');
+select throws_ok($$ select public.import_project_stage_history(
+    '05340000-0000-0000-0000-0000000000b3', '[]'::jsonb) $$,
+  '42501', 'not authorized',
+  'a foreign project is refused on authorization before the switch is read');
+-- …and the gate itself is still enforced for the caller's OWN rows.
+set local request.jwt.claims = '{"sub":"05340000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+select throws_ok($$ select public.submit_sales_invoice('05340000-0000-0000-0000-0000000000d7') $$,
+  'P0001', 'feature_off',
+  'an own-org invoice still refuses on the switched-off module');
+reset role;
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"05340000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select throws_ok($$ select public.import_project_stage_history(
+    '05340000-0000-0000-0000-0000000000b1', '[]'::jsonb) $$,
+  'P0001', 'feature_off',
+  'an own-org project still refuses on the switched-off module');
 reset role;
 
 -- ══════════════════════════════════════════════════════════════════════════════════════════════

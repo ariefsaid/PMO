@@ -390,9 +390,14 @@ export const DOMAIN_FEATURE_KEY: Record<string, string> = {
   companies: 'crm',
 };
 
-/** True when 0534's entitlement read says this org's module is switched off. */
-export function featureDisabled(org: { disabledFeatureKeys?: readonly string[] }, key: string): boolean {
-  return (org.disabledFeatureKeys ?? []).includes(key);
+/** True when 0534's entitlement read says this org's module is switched off. A read that FAILED for this
+ *  org holds every gated key (fail-closed): "we could not read the switch" is never evidence it is on.
+ *  Terminal recovery is unaffected — a candidate ERP already accepted still finalizes (see the pass). */
+export function featureDisabled(
+  org: { disabledFeatureKeys?: readonly string[]; featuresUnreadable?: boolean },
+  key: string,
+): boolean {
+  return org.featuresUnreadable === true || (org.disabledFeatureKeys ?? []).includes(key);
 }
 
 /**
@@ -451,11 +456,15 @@ export async function reconcileOrgOutbox(
     // being recovered normally.
     if (candidate.domain === ERPNEXT_BUDGET_DOMAIN) continue;
     // (0534) ENTITLEMENT gate: a module switched off for this org mints no NEW commands, and its
-    // pending ones are HELD — same treatment as a revoked domain (row untouched, reported, resumes on
+    // outstanding ones are HELD — same treatment as a revoked domain (row untouched, reported, resumes on
     // re-enable), never a silent drop. This runs BEFORE buildDeps so an off module never resolves ERP
     // credentials. Budget/timesheets/expenses candidates were skipped above (their own passes own them).
+    //
+    // ⚑ CLOSURE IS NEVER HELD (FR-PLN-006): a `committed` candidate is one ERP ALREADY ACCEPTED — the
+    // money document exists upstream — so only its LOCAL finalize is outstanding. Holding it would leave
+    // PMO and ERP disagreeing for the whole off interval, so it is always driven to its terminal state.
     const featureKey = DOMAIN_FEATURE_KEY[candidate.domain];
-    if (featureKey && featureDisabled(org, featureKey)) {
+    if (featureKey && featureDisabled(org, featureKey) && candidate.state !== 'committed') {
       errors.push({ id: candidate.id, error: `feature-off:${featureKey} is switched off for this organisation — held for an operator, NOT reconciled` });
       continue;
     }
@@ -536,6 +545,10 @@ interface OrgBinding {
   /** 0534: the plan-switch keys that resolve OFF for this org (service_resolved_org_features).
    *  OPTIONAL so existing per-pass/cycle fixtures stay byte-for-byte; absent ⇒ nothing is held. */
   disabledFeatureKeys?: string[];
+  /** 0534: this org's entitlement read FAILED this tick. Set only for the org whose read failed, and it
+   *  holds every gated key for it (fail-closed) while terminal recovery still runs. OPTIONAL so existing
+   *  fixtures stay byte-for-byte; absent ⇒ the read succeeded (or was never attempted). */
+  featuresUnreadable?: boolean;
   /** 0358: when this org's full (hourly) sweep last completed under its lock; null = never / unknown. */
   lastFullSweepAt?: string | null;
 }
@@ -938,21 +951,22 @@ export async function listEmployingOrgsLive(serviceClient: SupabaseClient): Prom
 
   // 0534 — each org's resolved switches, the SAME service-only projection the rest of the platform
   // reads (0533 `service_resolved_org_features`). The sweep holds a domain whose module resolves off
-  // instead of driving it. A failed entitlement read DEGRADES to "nothing held" (logged): the switch is
-  // a pause control, not a security boundary for this trusted service path, and stranding every money
-  // command on a transient read error is the worse outcome (ADR-0058's terminal-state rule).
-  try {
-    const disabled = await Promise.all(bindings.map(async (b) => {
+  // instead of driving it. A failed entitlement read holds THAT ORG ONLY, and holds EVERY gated key
+  // (fail-closed: an unreadable switch is not evidence the module is on) — while terminal recovery is
+  // preserved, because a candidate ERP already accepted still finalizes (reconcileOrgOutbox). The failure
+  // is per org: one org's bad read never removes another org's hold.
+  await Promise.all(bindings.map(async (b) => {
+    try {
       const { data, error } = await serviceClient.rpc('service_resolved_org_features', { p_org_id: b.orgId });
       if (error) throw new Error(error.message);
       const rows = (data as Array<{ feature_key: string; enabled: boolean }> | null) ?? [];
-      return rows.filter((row) => row.enabled === false).map((row) => row.feature_key);
-    }));
-    bindings.forEach((b, i) => { b.disabledFeatureKeys = disabled[i]; });
-  } catch (err) {
-    console.error(`[erpnext-sweep] service_resolved_org_features failed: `
-      + `${err instanceof Error ? err.message : String(err)} — this tick holds nothing on entitlement`);
-  }
+      b.disabledFeatureKeys = rows.filter((row) => row.enabled === false).map((row) => row.feature_key);
+    } catch (err) {
+      b.featuresUnreadable = true;
+      console.error(`[erpnext-sweep] service_resolved_org_features failed for org ${b.orgId}: `
+        + `${err instanceof Error ? err.message : String(err)} — holding every gated module for THIS org`);
+    }
+  }));
   return bindings;
 }
 
@@ -2739,6 +2753,10 @@ export function timesheetBackstopDepsLive(
   eligibleOutboxIds: ReadonlySet<string>,
   /** 0357: `failed` rows waiting out their retry delay (`outbox_retry_pending`) — not due, not exhausted. */
   retryPendingIds: ReadonlySet<string> = new Set(),
+  /** 0534 (held module): when set, the queue is restricted to these timesheet ids — the ones whose outbox
+   *  command is already `committed`, i.e. ERP accepted the week and only the local finalize is outstanding.
+   *  Omit it while the module is on. */
+  recoverableOnlyIds?: ReadonlySet<string>,
 ): TimesheetBackstopDeps {
   return {
     listPendingTimesheetPushes: async (orgId, limit) => {
@@ -2770,7 +2788,9 @@ export function timesheetBackstopDepsLive(
       // starve rows that already have recorded retryable state, and — the converse the original design
       // missed — a saturated `failed` mirror queue cannot blind the stranded-sheet detector.
       const absent = await listApprovedSheetsWithoutMirror(serviceClient, org, absentQueueBudget(limit, mirrored.length));
-      return [...mirrored, ...absent];
+      const rows = [...mirrored, ...absent];
+      // 0534: while the module is held, only rows whose command ERP already accepted are recoverable.
+      return recoverableOnlyIds ? rows.filter((r) => recoverableOnlyIds.has(r.timesheet_id)) : rows;
     },
 
     markAttempted: async (orgId, rows) => {
@@ -2924,17 +2944,25 @@ async function reconcileOrgTimesheetPushesLive(serviceClient: SupabaseClient, or
   if (!org.ownedDomains.includes(ERPNEXT_TIMESHEETS_DOMAIN)) return { driven: 0 };
   // 0534: a switched-off module is HELD, not driven — reported with the typed reason so ops can see
   // it, and resumed on the next tick after re-enable (nothing is dropped or abandoned).
-  if (featureDisabled(org, 'timesheets')) return { driven: 0, error: 'feature-off:timesheets' };
+  //
+  // ⚑ CLOSURE IS NEVER HELD (FR-PLN-006): the pass still runs while held, restricted to sheets whose
+  // outbox command is `committed` — ERP already accepted that week, so only its LOCAL finalize is
+  // outstanding and leaving it would strand payroll-costing hours for the whole off interval.
+  const held = featureDisabled(org, 'timesheets');
   try {
     // The SoT eligibility set (0131), fetched ONCE per pass — the backstop may only re-drive a row this
     // RPC still admits. Scoped to the timesheets domain; other domains' candidates are irrelevant here.
+    const domainCandidates = (await listCandidatesLive(serviceClient)(org.orgId))
+      .filter((c) => c.domain === ERPNEXT_TIMESHEETS_DOMAIN);
+    const recoverable = held
+      ? new Set(domainCandidates.filter((c) => c.state === 'committed').map((c) => c.pmoRecordId))
+      : null;
     const eligibleOutboxIds = new Set(
-      (await listCandidatesLive(serviceClient)(org.orgId))
-        .filter((c) => c.domain === ERPNEXT_TIMESHEETS_DOMAIN)
-        .map((c) => c.id),
+      domainCandidates.filter((c) => recoverable === null || recoverable.has(c.pmoRecordId)).map((c) => c.id),
     );
     const result = await reconcileOrgTimesheetPushes(
-      timesheetBackstopDepsLive(serviceClient, org, eligibleOutboxIds, await listRetryPendingLive(serviceClient, org.orgId)),
+      timesheetBackstopDepsLive(serviceClient, org, eligibleOutboxIds,
+        await listRetryPendingLive(serviceClient, org.orgId), recoverable ?? undefined),
       { orgId: org.orgId },
     );
     // NEW-3: per-row throws are contained so the queue drains, but they are NEVER silent — a row that
@@ -2942,7 +2970,12 @@ async function reconcileOrgTimesheetPushesLive(serviceClient: SupabaseClient, or
     for (const e of result.errors) {
       console.warn(`[erpnext-sweep] org ${org.orgId} timesheet ${e.timesheetId}: backstop row failed — ${e.error}`);
     }
-    return { driven: result.driven, error: result.errors.length ? `${result.errors.length} timesheet row(s) failed` : undefined };
+    return {
+      driven: result.driven,
+      error: held
+        ? `feature-off:timesheets${result.errors.length ? `; ${result.errors.length} timesheet row(s) failed` : ''}`
+        : (result.errors.length ? `${result.errors.length} timesheet row(s) failed` : undefined),
+    };
   } catch (err) {
     return { driven: 0, error: err instanceof Error ? err.message : String(err) };
   }
@@ -3240,6 +3273,8 @@ export function imprestPostingBackstopDepsLive(
   eligibleOutbox: readonly OutboxRow[],
   cache?: ErpAuthPairCache,
   retryPendingIds: ReadonlySet<string> = new Set(),
+  /** 0534 (held module): list NOTHING as new work — only the stranded/finalize-only pass runs. */
+  holdNewWork = false,
 ): ImprestBackstopDeps {
   const eligibleOutboxIds = new Set(eligibleOutbox.map((row) => row.id));
   const recordOutcome: ImprestBackstopDeps['recordOutcome'] = async (row, outcome) => {
@@ -3268,6 +3303,8 @@ export function imprestPostingBackstopDepsLive(
   return {
     // Round robin: never-attempted first, then least recently attempted; a failed intent waits out its retry delay.
     listPending: async (orgId, limit) => {
+      // 0534: a held module mints nothing new; the stranded/finalize-only pass above still runs.
+      if (holdNewWork) return [];
       const { data, error } = await serviceClient.from('imprest_posting_erp_mirror').select(`${IMPREST_INTENT_COLUMNS}, last_attempt_at`)
         .eq('org_id', orgId).in('push_state', ['pending', 'failed']).is('erp_cancelled_at', null)
         .order('last_attempt_at', { ascending: true, nullsFirst: true }).order('created_at', { ascending: true }).limit(limit);
@@ -3370,17 +3407,24 @@ async function reconcileOrgImprestPostingsLive(
   // 0534: `imprest` off holds the site-float transfers (this pass's ONLY subject). Core expense
   // postings keep running — expense claims are a never-gatable key (0533), so the split is per pass,
   // never per domain. Held, never dropped: the mirror row's queue resumes on re-enable.
-  if (featureDisabled(org, 'imprest')) return { driven: 0, error: 'feature-off:imprest' };
+  //
+  // ⚑ CLOSURE IS NEVER HELD (FR-PLN-006): the pass still FINISHES commands ERP already accepted. A
+  // `committed` outbox row whose intent the read-model writer already marked `pushed` is completed by
+  // the finalize-only replay with no ERP write — leaving it would keep the intent unfinished for the
+  // whole off interval. Only NEW transfers are held.
+  const held = featureDisabled(org, 'imprest');
   try {
     const eligibleOutbox = (await listCandidatesLive(serviceClient)(org.orgId)).filter((c) => c.domain === ERPNEXT_EXPENSES_DOMAIN);
     const result = await reconcileOrgImprestPostings(
-      imprestPostingBackstopDepsLive(serviceClient, org, eligibleOutbox, cache, await listRetryPendingLive(serviceClient, org.orgId)),
+      imprestPostingBackstopDepsLive(serviceClient, org, eligibleOutbox, cache,
+        await listRetryPendingLive(serviceClient, org.orgId), held),
       { orgId: org.orgId },
     );
     for (const e of result.errors) {
       console.warn(`[erpnext-sweep] org ${org.orgId} imprest intent ${e.intentId}: ${e.error}`);
     }
-    return backstopPassResult(result, 'imprest');
+    const summary = backstopPassResult(result, 'imprest');
+    return held ? { ...summary, error: ['feature-off:imprest', summary.error].filter(Boolean).join('; ') } : summary;
   } catch (err) {
     return { driven: 0, error: err instanceof Error ? err.message : String(err) };
   }
