@@ -1,6 +1,6 @@
--- 0500_budget_whole_project_schema.sql
+-- 0576_budget_whole_project_schema.sql
 -- Whole-project version mode and normalized, organization-scoped yearly distribution storage.
--- Reverse: rollback/0500_budget_whole_project_schema_down.sql.
+-- Reverse: rollback/0576_budget_whole_project_schema_down.sql.
 
 alter table public.budget_versions
   add column budget_mode text not null default 'per_year'

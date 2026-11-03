@@ -3,7 +3,7 @@
 Spec: `docs/specs/budget-whole-project.spec.md` (owner decisions #1444, 2026-10-28/29). Builds on `budget-push-v16`,
 `budget-fiscal-year-phasing`, `budget-versioning`; map in `docs/money-path-primer.md`. Money path: ERP push + predecessor
 cancellation. Executor: Orca workers per `docs/orca-dispatch.md`; money slices Director-dispatched, one PR each.
-Migration numbers used: **0500, 0501, 0502, 0503, 0504** (dev head is 0493). Each has `rollback/<NNNN>_<slug>_down.sql`.
+Migration numbers used: **0576, 0577** (Slice 3; reserved after dev head 0565), then **0502, 0503, 0504** for Slices 4–7 (renumber those against the integration base immediately before implementation). Each has `rollback/<NNNN>_<slug>_down.sql`.
 
 ## 0. Grounding: what ships today (file:line, read from this worktree)
 
@@ -72,7 +72,7 @@ Migration numbers used: **0500, 0501, 0502, 0503, 0504** (dev head is 0493). Eac
 |---|---|---|---|---|
 | 1 | v16 yearly-distribution rehearsal spike (field contract) | none | docs + script only | batch with 2 |
 | 2 | Pure `budgetDistribution.ts` (exact allocation, validation, span) | none | pure code | batch with 1 |
-| 3 | Storage + roles: mode, plans/rows tables, `save_budget_distribution`, clone, activation validation | 0500, 0501 | **alone** (auth/SoD) | PR-A |
+| 3 | Storage + roles: mode, plans/rows tables, `save_budget_distribution`, clone, activation validation | 0576, 0577 | **alone** (auth/SoD) | PR-A |
 | 4 | Range identity + body + gate recompute + dispatch fan-out + sweep + feed + mirror writer + status | 0502 (mirror/intent range columns, SQL identity, status, `record_outbox_ref`) | **alone with 5** (money) | PR-B |
 | 5 | Predecessor cancellation at activation + ordering hold | 0503 | **alone with 4** (money) | PR-B |
 | 6 | Repository/hooks + authoring UI (mode, totals, distribution grid, readiness, stale banner) | none | batch | PR-D |
@@ -194,11 +194,11 @@ export function byDays(total: string, start: string, end: string | null, years: 
 - [ ] 2.3 Mutation check: change the tie sort to `b - a`; the AC-003 tie test must go red; restore.
 - [ ] 2.4 Gate: `cd pmo-portal && npm run typecheck && npx eslint --max-warnings=0 src/lib/budget/budgetDistribution.ts src/lib/budget/budgetDistribution.test.ts && npm run check:guards`.
 
-## Slice 3: storage, roles, clone, activation validation — migrations 0500, 0501 (PR-A, alone)
+## Slice 3: storage, roles, clone, activation validation — migrations 0576, 0577 (PR-A, alone)
 
 Read first: `0005`, `0180` (clone), `0271`, `0280`, `0298`, `0137` (service_role grants), `0178` (anon-executable allow-list), `0293` (RLS pattern). Re-read definitions with `pg_get_functiondef` at implementation time.
 
-**0500_budget_whole_project_schema.sql** (`rollback/0500_budget_whole_project_schema_down.sql`):
+**0576_budget_whole_project_schema.sql** (`rollback/0576_budget_whole_project_schema_down.sql`):
 
 ```sql
 alter table public.budget_versions
@@ -340,7 +340,7 @@ PR-A (3: auth/SoD), PR-B (4+5: indivisible money push and cancellation), PR-E (8
 
 ## 6. What #1473 (paste rows) needs from this plan
 
-- Pasted lines go to the selected Draft through `repositories.budget.createLineItem` with `fiscal_year` null. In a `whole_project` Draft that is now the only valid shape; the 0500 trigger rejects a phased line, so paste must not set `fiscal_year` (matches paste FR-009).
+- Pasted lines go to the selected Draft through `repositories.budget.createLineItem` with `fiscal_year` null. In a `whole_project` Draft that is now the only valid shape; the 0576 trigger rejects a phased line, so paste must not set `fiscal_year` (matches paste FR-009).
 - After a paste changes category totals, any saved distribution no longer reconciles. Slice 3 makes that visible (`budget_distribution_gaps`), and Slice 6 shows "re-spread needed"; paste should call the same "invalidate/preview again" hook rather than editing distribution rows. Land Slice 3 + 6.1 before #1473 so paste targets the final line shape.
 - Paste does not touch mode, distribution or activation; no migration from #1473.
 

@@ -1,4 +1,4 @@
--- Reverse 0500 only when no whole-project version or stored distribution would be lost.
+-- Reverse 0576 only when no whole-project version or stored distribution would be lost.
 do $$
 begin
   if exists (select 1 from public.budget_versions where budget_mode = 'whole_project')
@@ -28,7 +28,7 @@ update public.record_history_config
 
 alter table public.budget_versions drop column budget_mode;
 
--- Restore 0241's line-item draft guard after removing the version-row serialization added in 0500.
+-- Restore 0241's line-item draft guard after removing the version-row serialization added in 0576.
 create or replace function public.enforce_draft_line_item()
 returns trigger language plpgsql set search_path = public as $$
 declare v_status public.budget_status;
