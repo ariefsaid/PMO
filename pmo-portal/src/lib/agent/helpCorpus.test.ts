@@ -33,6 +33,16 @@ it('XD1-007/DD-VOCAB-1 the corpus speaks Phase and maps it to the internal miles
   expect(HELP_CORPUS).not.toContain('How do I create or edit a milestone?');
 });
 
+it('gives a glossary-grounded Committed spend definition (sum of record total values, not a record count)', () => {
+  // The glossary basis is Σ of the procurement records' total values in Ordered..Paid — not the
+  // count of records — and the same number surfaces on the at-risk threshold as well.
+  expect(HELP_CORPUS).toMatch(/sum of the total values of a project's procurement records/);
+  expect(HELP_CORPUS).toMatch(/Ordered, Received, Vendor Invoiced, or Paid/);
+  expect(HELP_CORPUS).toMatch(/at-risk threshold/);
+  // The superseded copy summed "all procurement records", which reads as a record count.
+  expect(HELP_CORPUS).not.toMatch(/sum of all procurement records/);
+});
+
 it('gives grounded document source, revision, and verification guidance', () => {
   expect(HELP_CORPUS).toMatch(/PMO-held upload/);
   expect(HELP_CORPUS).toMatch(/linked Microsoft 365 file/);
