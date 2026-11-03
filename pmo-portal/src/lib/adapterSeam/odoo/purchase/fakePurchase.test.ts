@@ -11,10 +11,10 @@ it('models order, stock, bill and payment transitions, including a lost response
   fake.seed('stock.move', [{ id: 7, product_id: 3, quantity: 6 }]);
   await call('stock.picking', 'create', { vals_list: [{ state: 'assigned', move_ids: [7] }] });
   fake.failNext('lost-response');
-  await expect(call('stock.picking', 'button_validate', { ids: [1001] })).rejects.toThrow();
+  await expect(call('stock.picking', 'button_validate', { ids: [1000] })).rejects.toThrow();
   expect(fake.rows('stock.picking')[0]).toMatchObject({ state: 'done' });
   expect(fake.rows('stock.quant')[0]).toMatchObject({ product_id: 3, quantity: 6 });
-  await call('stock.picking', 'button_validate', { ids: [1001] });
+  await call('stock.picking', 'button_validate', { ids: [1000] });
   expect(fake.rows('stock.quant')[0].quantity).toBe(6);
   const bill = await call('account.move', 'create', { vals_list: [{ state: 'draft' }] });
   await call('account.move', 'action_post', { ids: bill });

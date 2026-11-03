@@ -7,7 +7,7 @@
 type Row = Record<string, unknown> & { id: number };
 export class Rejected extends Error {}
 
-interface Env { table(model: string): Map<number, Row>; nextId(): number; stamp(): string }
+interface Env { table(model: string): Map<number, Row>; nextId(model: string): number; stamp(): string }
 
 const away = (n: number) => (n < 0 ? -1 : 1) * Math.round(Math.abs(n));
 const ids = (v: unknown): number[] => (Array.isArray(v) ? v.filter((x): x is number => typeof x === 'number') : []);
@@ -20,14 +20,14 @@ const taxIdsOf = (line: Record<string, unknown>, product: Row | undefined): numb
 export const isModelledBill = (vals: Record<string, unknown>) => Array.isArray(vals.invoice_line_ids);
 
 export function createBill(env: Env, vals: Record<string, unknown>): number {
-  const id = env.nextId();
+  const id = env.nextId('account.move');
   const { invoice_line_ids: commands, ...header } = vals;
   const lineIds: number[] = [];
   const taxTotals = new Map<number, { name: string; base: number; amount: number }>();
   let untaxed = 0;
   for (const [op, , lineVals] of commands as Array<[number, number, Record<string, unknown>]>) {
     if (op !== 0) continue;
-    const lineId = env.nextId();
+    const lineId = env.nextId('account.move.line');
     const product = env.table('product.product').get(Number(lineVals.product_id));
     const base = Math.round(Number(lineVals.quantity) * Number(lineVals.price_unit) * 100);
     untaxed += base;
@@ -47,7 +47,7 @@ export function createBill(env: Env, vals: Record<string, unknown>): number {
   }
   let tax = 0;
   for (const [taxId, t] of taxTotals) {
-    const taxLineId = env.nextId();
+    const taxLineId = env.nextId('account.move.line');
     tax += t.amount;
     env.table('account.move.line').set(taxLineId, {
       id: taxLineId, move_id: id, display_type: 'tax', tax_line_id: [taxId, t.name], tax_base_amount: t.base / 100, balance: t.amount / 100, write_date: env.stamp(),

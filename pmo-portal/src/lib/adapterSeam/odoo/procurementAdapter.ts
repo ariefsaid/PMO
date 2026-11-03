@@ -16,6 +16,7 @@ import { ODOO_TIER, toAdapterError } from './connectAdapter.ts';
 import { externalIdentifier } from './purchase/anchors.ts';
 import { nextStep } from './purchase/nextStep.ts';
 import { poReviseRecoveryDecision, purchaseOrderReviseKey } from '../purchaseOrderRevise.ts';
+import { qualifiedId } from './purchase/externalId.ts';
 import { buildBillBody, expectedBillTotal, type BillCtx, type BillInput } from './purchase/billBody.ts';
 import { readBackBill, type BillExpect } from './purchase/billReadBack.ts';
 import { buildOrderBody, plannedAt, type OrderCtx, type OrderInput } from './purchase/orderBody.ts';
@@ -190,7 +191,7 @@ async function settleBill(call: OdooCall, id: number, record: PmoRecord, expect:
   if (step !== 'adopt') return refuse(`bill-${move.state}`);
   const taxLines = await call<Array<{ balance?: number | string }>>('account.move.line', 'search_read', { domain: [['move_id', '=', id], ['tax_line_id', '!=', false]], fields: ['balance'] });
   const productLines = await call<Array<{ analytic_distribution?: unknown }>>('account.move.line', 'search_read', { domain: [['move_id', '=', id], ['display_type', '=', 'product']], fields: ['analytic_distribution'] });
-  return { externalRecordId: String(id), canonical: readBackBill(String(record.id), { move, taxLines, productLines }, expect) };
+  return { externalRecordId: qualifiedId(ANCHORED_MODEL.bill, id), canonical: readBackBill(String(record.id), { move, taxLines, productLines }, expect) };
 }
 
 /**

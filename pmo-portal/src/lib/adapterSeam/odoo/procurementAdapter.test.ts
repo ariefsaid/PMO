@@ -6,6 +6,7 @@ import type { OrderCtx, OrderInput } from './purchase/orderBody.ts';
 import { createOdooProcurementAdapter, recoverBill, recoverOrder, recoverRevise } from './procurementAdapter.ts';
 import { expectedBillTotal, type BillCtx, type BillInput, type BillTax } from './purchase/billBody.ts';
 import type { BillExpect } from './purchase/billReadBack.ts';
+import { unqualifiedId } from './purchase/externalId.ts';
 import type { ReviseLine } from './purchase/orderRevise.ts';
 import type { BillComposite, OrderComposite } from './purchase/recoveryProbe.ts';
 
@@ -331,7 +332,7 @@ describe('AC-OPP-040 a vendor bill is created, anchored and posted once, and its
     expect(r.fake.rows('purchase.order.line')[0].qty_invoiced).toBe(4);
     expect(r.fake.rows('ir.model.data')).toEqual([expect.objectContaining({ module: 'pmo', model: 'account.move', res_id: bill.id, name: `bill_${BILL_ID.replaceAll('-', '_')}` })]);
     expect(bill.ref).not.toContain(BILL_ID);
-    expect(result.externalRecordId).toBe(String(bill.id));
+    expect(result.externalRecordId).toBe(`account.move:${bill.id}`);   // model-qualified: Odoo ids are per model
     expect(result.canonical).toMatchObject({
       id: BILL_ID, vi_number: bill.name, reference_number: 'INV-77', invoice_date: '2026-12-05',
       amount: '55.50', tax_amount: '5.50', withheld_amount: '1.00', erp_outstanding_amount: '54.50', pmo_amount: '54.50', erp_docstatus: 1, erp_modified: bill.write_date,
@@ -473,5 +474,36 @@ describe('AC-OPP-044 / AC-OPP-020 what Odoo computed is flagged, never overwritt
     for (const line of r.fake.rows('account.move.line').filter((l) => l.display_type === 'product')) line.analytic_distribution = false;   // a clerk edits the draft in Odoo
     const result = await r.attemptBill();
     expect(result.canonical).toMatchObject({ odoo_outcome: 'needs-attention', odoo_attention: ['cost-account-missing'] });
+  });
+});
+
+describe('Odoo ids are per model: a bill and an order can be the same number', () => {
+  it('the bill\'s external reference is qualified by its model, so it never equals the order\'s even when the Odoo ids are equal', async () => {
+    const r = rig();
+    const order = await r.attempt();
+    const bill = await r.attemptBill();
+    const orderId = r.fake.rows('purchase.order')[0].id, billId = r.fake.rows('account.move')[0].id;
+    expect(billId).toBe(orderId);                                  // the same number in two models
+    expect(order.externalRecordId).toBe(String(orderId));
+    expect(bill.externalRecordId).toBe(`account.move:${billId}`);
+    expect(bill.externalRecordId).not.toBe(order.externalRecordId);   // external_refs is unique on (org, domain, id)
+    expect(unqualifiedId(bill.externalRecordId, 'account.move')).toBe(billId);
+  });
+
+  it('the recovery probes stay model-scoped: each finds its own document by its own anchor, and a replay returns the same references', async () => {
+    const r = rig();
+    const order = await r.attempt();
+    const bill = await r.attemptBill();
+    expect(await recoverOrder(r.call, create().record)).toMatchObject({ externalRecordId: order.externalRecordId, canonical: { id: PO_ID } });
+    expect(await recoverBill(r.call, billCommand().record, BILL_COMPOSITE, billExpect())).toMatchObject({ externalRecordId: bill.externalRecordId, canonical: { id: BILL_ID } });
+    expect(r.fake.rows('purchase.order')).toHaveLength(1);
+    expect(r.fake.rows('account.move')).toHaveLength(1);
+  });
+
+  it('a bill id that equals ANOTHER model\'s id is not adopted through that model\'s anchor (a purchase order\'s identifier is not a bill\'s)', async () => {
+    const r = rig();
+    await r.attempt();   // order 1000 with identifier po_<id>
+    r.fake.seed('ir.model.data', [{ module: 'pmo', name: `bill_${BILL_ID.replaceAll('-', '_')}`, model: 'purchase.order', res_id: 1000 }]);   // a mis-modelled identifier
+    expect(await recoverBill(r.call, billCommand().record, undefined, billExpect())).toBeNull();
   });
 });

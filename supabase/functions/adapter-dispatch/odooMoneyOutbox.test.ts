@@ -184,7 +184,7 @@ describe('AC-OPP-053 the Odoo probe closure: zero, one and many matches', () => 
       await withFetchMock(t.routes, async () => {
         const deps = await resolveOdooMoneyOutboxDeps(t.ctx);
         assertEquals(await deps.probeByRemarksKey('procurement', KEY), {
-          externalRecordId: '41',
+          externalRecordId: 'account.move:41',   // qualified by model: Odoo ids are per model, external_refs is unique per (org, domain, id)
           canonical: {
             id: REC, vi_number: 'BILL/2026/00041', invoice_date: '2026-12-05', reference_number: 'INV-77', currency: 'IDR',
             amount: '55.50', tax_amount: '5.50', withheld_amount: '1.00', erp_outstanding_amount: '54.50', pmo_amount: '54.50',

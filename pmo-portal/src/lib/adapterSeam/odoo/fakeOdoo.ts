@@ -97,7 +97,9 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
   const store = new Map<string, Map<number, Row>>();
   const table = (m: string) => store.get(m) ?? store.set(m, new Map()).get(m)!;
   let clock = 0;
-  let nextId = 1000;
+  // Odoo numbers ids per model (a bill and an order can both be 1000), so the fake does too.
+  const sequences = new Map<string, number>();
+  const nextId = (model: string) => { const n = sequences.get(model) ?? 1000; sequences.set(model, n + 1); return n; };
   let fault: 'transport' | 'lost-response' | null = null;
   const calls: FakeOdoo['calls'] = [];
   const fields = Object.fromEntries(Object.entries(FIELDS).map(([m, f]) => [m, [...f]]));
@@ -137,7 +139,7 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
     const productId = scalar(product);
     let quant = [...table('stock.quant').values()].find((q) => scalar(q.product_id) === productId);
     if (!quant) {
-      const quantId = nextId++;
+      const quantId = nextId('stock.quant');
       quant = { id: quantId, product_id: productId, quantity: 0 };
       table('stock.quant').set(quantId, quant);
     }
@@ -168,9 +170,9 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
     Object.assign(picking, { state: 'done', move_ids: completedMoveIds, write_date: fmt(++clock) });
     if (!remaining.length) return;
 
-    const backorderId = nextId++;
+    const backorderId = nextId('stock.picking');
     const backorderMoveIds = remaining.map(({ move, quantity }) => {
-      const id = nextId++;
+      const id = nextId('stock.move');
       table('stock.move').set(id, {
         ...move,
         id,
@@ -200,7 +202,7 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
     for (const [op, lineId, vals] of commands) {
       const line = typeof lineId === 'number' ? table('purchase.order.line').get(lineId) : undefined;
       if (op === 0) {
-        const id = nextId++;
+        const id = nextId('purchase.order.line');
         table('purchase.order.line').set(id, { qty_received: 0, qty_invoiced: 0, ...(vals as object), id, order_id: orderId, write_date: fmt(++clock) });
         order.order_line = [...((order.order_line as number[] | undefined) ?? []), id];
       } else if (op === 1 && line) Object.assign(line, vals as object, { write_date: fmt(++clock) });
@@ -224,8 +226,8 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
     search_count: (m, b) => select(m, { ...b, limit: undefined, offset: undefined }).length,
     read: (m, b) => (b.ids as number[]).flatMap((id) => { const r = table(m).get(id); return r ? [pick(r, b.fields as string[])] : []; }),
     create: (m, b) => (b.vals_list as Array<Record<string, unknown>>).map((vals) => {
-      if (m === 'account.move' && isModelledBill(vals)) return createBill({ table, nextId: () => nextId++, stamp: () => fmt(++clock) }, vals);
-      const id = nextId++;
+      if (m === 'account.move' && isModelledBill(vals)) return createBill({ table, nextId, stamp: () => fmt(++clock) }, vals);
+      const id = nextId(m);
       const { order_line: lines, ...rest } = vals;
       const stamp = fmt(++clock);
       table(m).set(id, { active: true, ...(m === 'purchase.order' ? { name: `P${String(id).padStart(5, '0')}`, state: 'draft' } : {}), ...(m === 'purchase.order' && Array.isArray(lines) ? rest : vals), id, create_date: stamp, write_date: stamp });
@@ -284,7 +286,7 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
     action_post: (m, b) => {
       for (const id of b.ids as number[]) {
         const row = table(m).get(id);
-        if (m === 'account.move' && row?.move_type === 'in_invoice') postBill({ table, nextId: () => nextId++, stamp: () => fmt(++clock) }, row);
+        if (m === 'account.move' && row?.move_type === 'in_invoice') postBill({ table, nextId, stamp: () => fmt(++clock) }, row);
         else transition(m, { ids: [id] }, m === 'account.payment' ? 'paid' : 'posted');
       }
       return true;
@@ -329,7 +331,7 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
     calls,
     seed(model, rows) {
       for (const r of rows) {
-        const id = Number(r.id ?? nextId++);
+        const id = Number(r.id ?? nextId(model));
         table(model).set(id, { active: true, write_date: fmt(clock), ...r, id });
       }
     },
