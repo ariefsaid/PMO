@@ -137,8 +137,8 @@ rewrites), #1520 (PWA/offline), #1254 (RLS auth lookups evaluated per row).
   `AGENT_AGGREGATE_PAGE_SIZE = 1000`, `AGENT_AGGREGATE_GROUP_CAP = 200`);
   `supabase/functions/agent-chat/actions.ts:148-186` (do/while paging, `q.range(offset, …)`),
   `:195-209` (partial-totals note).
-- **Today:** nearest-to-trigger finding in this file — the largest table is ~4.5k rows, so one
-  unfiltered aggregate is already close to the cap.
+- **Today:** far from the cap. The ~4.5k-row tables are statement snapshots, which the assistant
+  cannot query; its entity tables hold hundreds of rows (Director correction, 2026-11-03).
 - **Trigger:** any single aggregate query matching > 5,000 caller-visible rows (e.g. "sum all
   PO amounts this year" once POs pass 5k).
 - **Fix when triggered:** add a `group_by`-in-SQL RPC (one `select … group by` under RLS)
@@ -357,6 +357,7 @@ rewrites), #1520 (PWA/offline), #1254 (RLS auth lookups evaluated per row).
 | FPR-14 | Bundle growth in shared chunk | shared chunk > 400 KB gzip | Low |
 | FPR-13 | Per-project connection/compute ceiling | connections > 80% of tier, > ~100 concurrent users | Low |
 
-**Nearest-term watch item:** FPR-06 — the 5,000-row aggregate cap sits just above today's
-largest table (~4.5k rows); any growth in procurement/PO counts degrades assistant answers
-first, and the fix (a SQL `group by` RPC tool) is small.
+**Nearest-term watch item:** FPR-12 — the silent 1,000-row PostgREST truncation is the first
+cliff any new unpaged read can hit; a CI guard is cheap. FPR-06 is the highest-impact assistant
+item but its entity tables are still in the hundreds (the ~4.5k-row tables are statement
+snapshots the assistant cannot read).
