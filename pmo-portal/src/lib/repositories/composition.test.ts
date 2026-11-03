@@ -60,6 +60,7 @@ vi.mock('@/src/lib/db/procurementFiles', async (importOriginal) => ({ ...(await 
 vi.mock('@/src/lib/db/expenseClaims', async (importOriginal) => ({ ...(await importOriginal<object>()), listExpenseClaims: vi.fn() }));
 vi.mock('@/src/lib/db/imprest', async (importOriginal) => ({ ...(await importOriginal<object>()), listCounts: vi.fn() }));
 vi.mock('@/src/lib/db/equipment', async (importOriginal) => ({ ...(await importOriginal<object>()), listAssets: vi.fn() }));
+vi.mock('@/src/lib/db/timeAndMaterials', async (importOriginal) => ({ ...(await importOriginal<object>()), listTmClaims: vi.fn() }));
 vi.mock('@/src/lib/db/expenseReceipts', async (importOriginal) => ({ ...(await importOriginal<object>()), listExpenseReceipts: vi.fn() }));
 vi.mock('@/src/lib/db/contacts', async (importOriginal) => ({ ...(await importOriginal<object>()), listContacts: vi.fn() }));
 vi.mock('@/src/lib/db/meetings', async (importOriginal) => ({ ...(await importOriginal<object>()), listMeetings: vi.fn() }));
@@ -117,6 +118,7 @@ const ROWS: Row[] = [
   { member: 'expenseClaim', method: 'list', mod: '@/src/lib/db/expenseClaims', fn: 'listExpenseClaims', args: [], mode: 'called' },
   { member: 'imprest', method: 'listCounts', mod: '@/src/lib/db/imprest', fn: 'listCounts', args: ['f1'] },
   { member: 'equipment', method: 'listAssets', mod: '@/src/lib/db/equipment', fn: 'listAssets', args: [] },
+  { member: 'timeAndMaterials', method: 'listTmClaims', mod: '@/src/lib/db/timeAndMaterials', fn: 'listTmClaims', args: ['p1'] },
   { member: 'expenseReceipts', method: 'list', mod: '@/src/lib/db/expenseReceipts', fn: 'listExpenseReceipts', args: ['c1'] },
   { member: 'expensePostings', method: 'listAccountMap', mod: '@/src/lib/supabase/client', fn: 'supabase', args: [], mode: 'called' },
   { member: 'erpPurchases', method: 'list', mod: '@/src/lib/pagedRead', fn: 'fetchAllRowsByKeyset', args: [], mode: 'called', resolve: [] },
