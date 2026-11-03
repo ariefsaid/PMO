@@ -13,7 +13,8 @@ import type {
   RunStatsRow,
   OperatorRunStatsRow,
 } from '@/src/lib/db/usage';
-import type { OrgFeatureKey } from '@/src/lib/features';
+import type { OrgFeatureKey, ResolvedFeatureSet } from '@/src/lib/features';
+import type { PlanCatalogue, PlanRow } from '@/src/lib/db/orgFeatures';
 import type { ExternalDomainOwnershipRow } from '@/src/lib/db/externalDomainOwnership';
 
 export interface ProfileRepository {
@@ -115,10 +116,41 @@ export interface OrgSettingsRepository {
  * toggle is the Operator-only `operator_toggle_feature` RPC (rejects core keys with `P0001`).
  */
 export interface OrgFeatureRepository {
-  /** The caller's own-org feature rows projected into a map (absent keys = env default upstream). */
-  listOwn(): Promise<Record<OrgFeatureKey, boolean>>;
-  /** Upsert a feature row for an org via the Operator-only RPC. */
+  /**
+   * The caller's own-org resolved set — ONE call to the database projection (FR-PLN-005): the
+   * display map navigation/routes read plus the per-key state/source the console and Your plan read.
+   */
+  listOwn(): Promise<ResolvedFeatureSet>;
+  /** The resolved set of one organisation (Operator console; the RPC re-asserts the Operator). */
+  listForOrg(orgId: string): Promise<ResolvedFeatureSet>;
+  /**
+   * Operator console: the override keys that EXIST for one org, independently of whether an
+   * all-orgs off currently outranks them (so a dormant override stays clearable).
+   */
+  listOverrides(orgId: string): Promise<OrgFeatureKey[]>;
+  /** Operator console: every plan, its limits, the plan matrix and the all-orgs flags. */
+  getPlanCatalogue(): Promise<PlanCatalogue>;
+  /** Operator console: the plan assigned to one org (null = unassigned, resolves as Enterprise). */
+  getOrgPlan(orgId: string): Promise<string | null>;
+  /** Read-only Admin page: the caller's own plan and limits (FR-PLN-014). */
+  getOwnPlan(): Promise<PlanRow | null>;
+  /** Set (upsert) a per-org override via the Operator-only RPC. */
   toggle(args: { orgId: string; key: OrgFeatureKey; enabled: boolean }): Promise<void>;
+  /** Remove a per-org override so the key falls back to the plan. */
+  clearOverride(args: { orgId: string; key: OrgFeatureKey }): Promise<void>;
+  /** Assign a plan to an org. */
+  setOrgPlan(args: { orgId: string; planId: string }): Promise<void>;
+  /** Flip one key for every org (a global off outranks any override). */
+  setGlobal(args: { key: OrgFeatureKey; enabled: boolean }): Promise<void>;
+  /** Flip one key inside one plan's default set. */
+  setPlanFeature(args: { planId: string; key: OrgFeatureKey; enabled: boolean }): Promise<void>;
+  /** Replace a plan's limits (null = unlimited / per contract). */
+  setPlanLimits(args: {
+    planId: string;
+    seatLimit: number | null;
+    projectLimit: number | null;
+    aiMonthlyMessages: number | null;
+  }): Promise<void>;
   /** Admin-only: switch feedback and surveys for the caller's own org (migration 0419). */
   setFeedbackSurveys(enabled: boolean): Promise<void>;
 }

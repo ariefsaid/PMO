@@ -3,8 +3,9 @@
  *
  * Exercises the actual <Route path="/incidents"> / <Route path="/incidents/:id">
  * wiring through <FeatureRoute feature="incidents">:
- *  - flag OFF (default) → both routes redirect to "/" (Executive Dashboard), the
- *    hidden pages do NOT render.
+ *  - flag OFF (default) → both routes render the not-available state and neither
+ *    hidden page renders. (S3/AC-PLN-008 replaced the redirect to "/" with that state:
+ *    the goal oracle — a disabled page is never rendered — is unchanged.)
  *  - flag ON → the Incidents list / detail pages render.
  *
  * This is the codebase's first test that mounts the real AppRoutes, so it also
@@ -53,17 +54,18 @@ afterEach(() => {
 });
 
 describe('AppRoutes — Incidents feature gate (real router)', () => {
-  it('flag OFF: /incidents redirects to the dashboard, not the Incidents page', async () => {
+  it('flag OFF: /incidents renders the not-available state, not the Incidents page', async () => {
     featuresState.value = { incidents: false };
     renderAt('/incidents');
-    expect(await screen.findByTestId('exec-dashboard')).toBeInTheDocument();
+    expect(await screen.findByTestId('feature-unavailable')).toBeInTheDocument();
     expect(screen.queryByTestId('incidents-page')).toBeNull();
+    expect(screen.queryByTestId('exec-dashboard')).toBeNull();
   });
 
-  it('flag OFF: /incidents/:id redirects to the dashboard, not the detail page', async () => {
+  it('flag OFF: /incidents/:id renders the not-available state, not the detail page', async () => {
     featuresState.value = { incidents: false };
     renderAt('/incidents/some-uuid');
-    expect(await screen.findByTestId('exec-dashboard')).toBeInTheDocument();
+    expect(await screen.findByTestId('feature-unavailable')).toBeInTheDocument();
     expect(screen.queryByTestId('incident-detail-page')).toBeNull();
   });
 

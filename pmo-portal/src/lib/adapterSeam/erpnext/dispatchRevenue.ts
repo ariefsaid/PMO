@@ -214,6 +214,101 @@ export async function resolveReceiptConfig(
  * body — a wrong claim invoice is cancelled and a new claim raised (DD-PBL-7).
  */
 const MAX_CLAIM_LINES = 500;
+interface CanonicalClaimLine {
+  label: string;
+  unit: string;
+  quantity: number | string;
+  rate: number | string;
+  amount: number | string;
+  item: string;
+}
+interface TimeMaterialsClaimLine extends Omit<CanonicalClaimLine, 'item' | 'quantity'> {
+  line_key: string;
+  rate_version: number;
+  kind: string;
+  units: number | string;
+}
+interface TimeMaterialsClaimState {
+  status: string;
+  confirmed_by: string | null;
+  gross_amount: number | string;
+}
+
+/** Minor-unit parsing keeps the T&M header check exact across PostgREST's numeric strings. */
+function amountInMinorUnits(value: unknown): bigint {
+  const text = typeof value === 'string' || typeof value === 'number' ? String(value) : '';
+  const match = /^(\d+)(?:\.(\d{1,2}))?$/.exec(text);
+  if (!match) throw new AppError('The signed time-and-materials claim amount is invalid', 'commit-rejected');
+  return BigInt(match[1]) * 100n + BigInt((match[2] ?? '').padEnd(2, '0'));
+}
+
+function assertTimeMaterialsHeader(lines: readonly CanonicalClaimLine[], progressGross: unknown, tmGross: unknown): void {
+  if (lines.length === 0) throw new AppError('This time-and-materials claim has no quantity lines', 'commit-rejected');
+  const total = lines.reduce((sum, line) => sum + amountInMinorUnits(line.amount), 0n);
+  if (total !== amountInMinorUnits(progressGross) || total !== amountInMinorUnits(tmGross)) {
+    throw new AppError('The signed time-and-materials claim header does not match its line amounts', 'commit-rejected');
+  }
+}
+
+function canonicalProgressLines(
+  claim: ProgressClaimRecord,
+  lines: readonly ProgressClaimLineRecord[],
+): CanonicalClaimLine[] {
+  if (claim.withdrawn_at) {
+    throw new AppError('This progress claim was withdrawn, so no invoice can be raised for it', 'commit-rejected');
+  }
+  if (lines.length === 0) throw new AppError('This progress claim has no quantity lines', 'commit-rejected');
+  const canonical = lines.map((line) => ({
+    label: line.description,
+    unit: line.unit,
+    quantity: line.quantity,
+    rate: line.rate,
+    amount: line.amount,
+    item: line.item_code,
+  }));
+  const recovery = Number(claim.dp_recovery_amount);
+  if (recovery > 0) {
+    if (!claim.dp_item_code) {
+      throw new AppError('This progress claim recovers a down payment but names no down payment item', 'commit-rejected');
+    }
+    canonical.push({ label: '', unit: '', quantity: 1, rate: -recovery, amount: -recovery, item: claim.dp_item_code });
+  }
+  return canonical;
+}
+
+function configuredClaimItem(config: Record<string, unknown>, label: string): string {
+  const itemMap = config.item_map;
+  if (itemMap && typeof itemMap === 'object' && !Array.isArray(itemMap) && Object.hasOwn(itemMap, label)) {
+    const mapped = (itemMap as Record<string, unknown>)[label];
+    if (typeof mapped === 'string' && mapped !== '') return mapped;
+  }
+  return label;
+}
+
+function canonicalTimeMaterialsLines(
+  lines: readonly TimeMaterialsClaimLine[],
+  config: Record<string, unknown>,
+): CanonicalClaimLine[] {
+  return lines.map((line) => ({
+    label: line.label,
+    unit: line.unit,
+    quantity: Number(line.units),
+    rate: line.rate,
+    amount: line.amount,
+    item: configuredClaimItem(config, line.label),
+  }));
+}
+
+function invoiceItemsFromCanonical(lines: readonly CanonicalClaimLine[], retainCanonical: boolean): Array<Record<string, unknown>> {
+  return lines.map((line) => ({
+    ...(retainCanonical ? line : {}),
+    item_code: line.item,
+    qty: Number(line.quantity),
+    rate: Number(line.rate),
+    ...(line.label ? { description: `${line.label} (${line.unit})` } : {}),
+  }));
+}
+
 function taxBaseFraction(row: unknown): { numerator: number; denominator: number } {
   const r = (row ?? {}) as { tax_base_numerator?: unknown; tax_base_denominator?: unknown };
   const numerator = Number(r.tax_base_numerator ?? 1);
@@ -360,7 +455,7 @@ export async function resolveProgressClaimInvoice(deps: ErpDispatchFactoryDeps, 
     return 'none';
   }
   const { data: claimData, error } = await deps.serviceClient.from('progress_claims')
-    .select('id,kind,project_id,work_order_id,currency,down_payment_amount,dp_recovery_amount,dp_item_code,withdrawn_at')
+    .select('id,kind,project_id,work_order_id,currency,gross_amount,down_payment_amount,dp_recovery_amount,dp_item_code,withdrawn_at')
     .eq('org_id', deps.orgId).eq('id', record.id).maybeSingle();
   if (error) throw new AppError(error.message, error.code);
   // `taxes` is server-resolved for a claim only (deleted above): a caller can never smuggle tax rows into an invoice.
@@ -405,9 +500,10 @@ export async function resolveProgressClaimInvoice(deps: ErpDispatchFactoryDeps, 
     throw new AppError("Attach the billing evidence (for example the progress report or the client's acceptance) before raising this invoice", 'commit-rejected');
   }
   let lines: ProgressClaimLineRecord[] = [];
+  let timeMaterialsLines: CanonicalClaimLine[] | null = null;
   if (claim.kind === 'progress') {
     const { data, error: linesError } = await deps.serviceClient.from('progress_claim_lines')
-      .select('item_code,description,unit,quantity,rate')
+      .select('item_code,description,unit,quantity,rate,amount')
       .eq('org_id', deps.orgId).eq('claim_id', claim.id)
       .order('boq_item_id', { ascending: true }).limit(MAX_CLAIM_LINES + 1);
     if (linesError) throw new AppError(linesError.message, linesError.code);
@@ -415,6 +511,32 @@ export async function resolveProgressClaimInvoice(deps: ErpDispatchFactoryDeps, 
     if (lines.length > MAX_CLAIM_LINES) {
       throw new AppError(`A progress claim may have at most ${MAX_CLAIM_LINES} lines`, 'commit-rejected');
     }
+  } else if (claim.kind === 'time_materials') {
+    if (claim.withdrawn_at) {
+      throw new AppError('This time-and-materials claim was withdrawn, so no invoice can be raised for it', 'commit-rejected');
+    }
+    const { data: tmClaimData, error: tmClaimError } = await deps.serviceClient.from('tm_claims')
+      .select('status,confirmed_by,gross_amount').eq('org_id', deps.orgId).eq('id', claim.id).maybeSingle();
+    if (tmClaimError) throw new AppError(tmClaimError.message, tmClaimError.code);
+    if (!tmClaimData) throw new AppError('This time-and-materials claim is unavailable', 'commit-rejected');
+    const tmClaim = tmClaimData as TimeMaterialsClaimState;
+    if (tmClaim.status === 'Withdrawn') {
+      throw new AppError('This time-and-materials claim was withdrawn, so no invoice can be raised for it', 'commit-rejected');
+    }
+    if (tmClaim.status !== 'SignedOff' || !tmClaim.confirmed_by) {
+      throw new AppError('Confirm the time-and-materials claim before raising its invoice', 'commit-rejected');
+    }
+    const { data, error: linesError } = await deps.serviceClient.from('tm_claim_lines')
+      .select('line_key,rate_version,kind,label,unit,units,rate,amount')
+      .eq('org_id', deps.orgId).eq('claim_id', claim.id)
+      .order('line_key', { ascending: true }).order('rate_version', { ascending: true }).limit(MAX_CLAIM_LINES + 1);
+    if (linesError) throw new AppError(linesError.message, linesError.code);
+    const tmLines = (data ?? []) as TimeMaterialsClaimLine[];
+    if (tmLines.length > MAX_CLAIM_LINES) {
+      throw new AppError(`A time-and-materials claim may have at most ${MAX_CLAIM_LINES} lines`, 'commit-rejected');
+    }
+    timeMaterialsLines = canonicalTimeMaterialsLines(tmLines, binding.config);
+    assertTimeMaterialsHeader(timeMaterialsLines, claim.gross_amount, tmClaim.gross_amount);
   }
   if (claim.work_order_id) {
     const { data: workOrder, error: workOrderError } = await deps.serviceClient.from('work_orders')
@@ -422,7 +544,13 @@ export async function resolveProgressClaimInvoice(deps: ErpDispatchFactoryDeps, 
     if (workOrderError) throw new AppError(workOrderError.message, workOrderError.code);
     if (workOrder) fraction = taxBaseFraction(workOrder);
   }
-  record.items = progressClaimItems(claim, lines);
+  if (claim.kind === 'progress') {
+    record.items = invoiceItemsFromCanonical(canonicalProgressLines(claim, lines), false);
+  } else if (claim.kind === 'time_materials') {
+    record.items = invoiceItemsFromCanonical(timeMaterialsLines ?? [], true);
+  } else {
+    record.items = progressClaimItems(claim);
+  }
   record.workOrderId = claim.work_order_id;
   // #858: sent explicitly so ERPNext itself rejects a mismatch with the party account currency; part of the persisted body, so a replay sends the same.
   if (claim.currency) record.currency = claim.currency;

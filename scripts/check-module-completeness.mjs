@@ -199,32 +199,6 @@ export const ALLOWLIST = [
     restore: 'Delete when S3 gates it on `revenue` or rules it core.',
   },
   {
-    ids: ['nav:/stock', 'nav:/imprest'],
-    reason: 'S3 gates the Rail from the resolved projection; these two items are still ungated on dev',
-    restore: 'Delete when S3 lands the Rail gates (§S3).',
-  },
-  {
-    ids: ['nav:/finance/statements'],
-    reason: 'S3 gates the Rail from the resolved projection; Statements is role-gated in the page but carries no feature',
-    restore: 'Delete when S3 lands the Rail gates (§S3).',
-  },
-  {
-    ids: [
-      'palette:/sales',
-      'palette:/procurement',
-      'palette:/stock',
-      'palette:/timesheets',
-      'palette:/companies',
-      'palette:/companies?type=Vendor',
-      'palette:/contacts',
-      'palette:/incidents',
-      'palette:/imprest',
-      'palette:/finance/statements',
-    ],
-    reason: 'S3 makes the ⌘K palette follow MODULES[].feature; only the three Finance keys carry a feature on dev',
-    restore: 'Delete when S3 lands the palette gates (§S3).',
-  },
-  {
     ids: [
       'assistant:sales_pipeline',
       'assistant:revenue',

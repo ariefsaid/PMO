@@ -1,15 +1,15 @@
 /**
- * OD-NAR-2 (owner, 2026-10-07, #784) — invoicing menus on by default when no ERP owns revenue.
+ * OD-NAR-2 (owner 2026-10-07, #784) — invoicing surfaces follow the RESOLVED revenue display value.
  *
- * Drives the REAL resolution chain (useOrgFeatures → useRevenueMode → Rail / FeatureRoute) with
- * only the auth context, the org-features repository and the ownership query mocked:
+ * ⚑ Moved layer by S3 (FR-PLN-005a). This suite used to drive the old FE rule
+ * (`useOrgFeatures → useRevenueMode`, "native unless an ERP owns revenue"). That rule now lives in
+ * the database resolver (`display_enabled`, migration 0532/0533) and is proven there by
+ * `supabase/tests/plans_resolution.test.sql` and `plans_compatibility.test.sql` (ERP-owned with no
+ * override → display false, entitlement true; explicit override → display true; global off → hidden).
  *
- *   - An explicit `org_features` row for `revenue` ALWAYS wins (on or off).
- *   - With NO row: `revenue` is ON when no ERP owns revenue (native), OFF when an ERP owns it.
- *   - While ownership is still loading the entitlement is unknown → items stay hidden and the
- *     route holds (renders null, no redirect flash), then resolves once ownership lands.
- *
- * ERP-connected orgs are unchanged (OD-NAR-2: "ERP-connected orgs are unchanged").
+ * What the FE still owes is exactly one thing: render `display_enabled` and stop re-deriving. This
+ * suite proves that — a resolved false hides the Finance children (rail + route), a resolved true
+ * shows them, and an unresolved read holds rather than guess.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { act, render, screen } from '@testing-library/react';
@@ -19,8 +19,12 @@ import React from 'react';
 
 // ── Mutable harness state, set per scenario ──────────────────────────────────
 const h = vi.hoisted(() => ({
-  rows: {} as Record<string, boolean>,
-  ownership: { data: undefined as { domain: string; externalTier: string }[] | undefined, isError: false },
+  /** What the DB projection returns: display map + per-key detail. */
+  resolved: { display: {}, states: {} } as {
+    display: Record<string, boolean>;
+    states: Record<string, { enabled: boolean; displayEnabled: boolean; source: string }>;
+  },
+  pending: false,
 }));
 
 vi.mock('@/src/auth/useAuth', () => ({
@@ -28,11 +32,11 @@ vi.mock('@/src/auth/useAuth', () => ({
 }));
 
 vi.mock('@/src/lib/repositories', () => ({
-  repositories: { orgFeature: { listOwn: () => Promise.resolve(h.rows) } },
-}));
-
-vi.mock('@/src/hooks/useExternalDomainOwnership', () => ({
-  useExternalDomainOwnership: () => h.ownership,
+  repositories: {
+    orgFeature: {
+      listOwn: () => (h.pending ? new Promise(() => {}) : Promise.resolve(h.resolved)),
+    },
+  },
 }));
 
 vi.mock('@/src/hooks/useUserViews', () => ({
@@ -50,9 +54,8 @@ import { FeatureRoute } from '@/src/components/FeatureRoute';
 
 const FINANCE_ITEMS = [/^Finance$/i];
 /** The revenue-gated Finance children: invoicing (Receivables) and the revenue report (Reports). */
-const REVENUE_ITEMS = [/^Receivables$/i, /^Reports$/i];
-
-const ownershipRow = (domain: string) => ({ domain, externalTier: 'erpnext' });
+// `Reports` is gated by `management_pack` (not revenue) since S3; Receivables is the revenue child.
+const REVENUE_ITEMS = [/^Receivables$/i];
 
 const makeWrapper = (initial: string) => {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -64,8 +67,7 @@ const makeWrapper = (initial: string) => {
 };
 
 /** The single Finance destination as the Finance role sees it. */
-const renderRail = () =>
-  render(<Rail />, { wrapper: makeWrapper('/') });
+const renderRail = () => render(<Rail />, { wrapper: makeWrapper('/') });
 
 /** The revenue-gated Reports area with a dashboard fallback. */
 const renderReportsRoute = () =>
@@ -77,26 +79,23 @@ const renderReportsRoute = () =>
     { wrapper: makeWrapper('/finance/reports') },
   );
 
-/**
- * Let the org-features query resolve before asserting a gated item is ABSENT — the env default for
- * revenue is off, so an unresolved query would pass a hidden assertion for the wrong reason.
- */
+/** Let the resolved-set query settle before asserting a gated item is ABSENT. */
 const resolveFeatures = () => act(() => new Promise((resolve) => setTimeout(resolve, 50)));
 
-/** Settle the tree on an always-on item before asserting a gated item is absent. */
-const settle = async () => {
-  expect(await screen.findByRole('link', { name: /Dashboard/i })).toBeInTheDocument();
-};
-
 beforeEach(() => {
-  h.rows = {};
-  h.ownership = { data: undefined, isError: false };
+  h.pending = false;
+  h.resolved = {
+    display: { revenue: false },
+    states: { revenue: { enabled: true, displayEnabled: false, source: 'plan' } },
+  };
 });
 
-describe('OD-NAR-2 — invoicing menus on by default when no ERP owns revenue', () => {
-  it('no org_features row + no ERP owns revenue → Finance destination visible and Reports area allowed', async () => {
-    h.rows = {};
-    h.ownership = { data: [ownershipRow('procurement')], isError: false };
+describe('OD-NAR-2 / FR-PLN-005a — the FE renders display_enabled, it does not re-derive ownership', () => {
+  it('display true (no ERP owns revenue, or an explicit override) → Finance children visible and the route renders', async () => {
+    h.resolved = {
+      display: { revenue: true },
+      states: { revenue: { enabled: true, displayEnabled: true, source: 'plan' } },
+    };
     renderRail();
     for (const name of FINANCE_ITEMS) {
       expect(await screen.findByRole('link', { name })).toBeInTheDocument();
@@ -109,9 +108,12 @@ describe('OD-NAR-2 — invoicing menus on by default when no ERP owns revenue', 
     expect(screen.queryByText('DASHBOARD')).toBeNull();
   });
 
-  it('no org_features row + an ERP owns revenue → Finance destination remains visible, revenue items hidden, Reports area redirects', async () => {
-    h.rows = {};
-    h.ownership = { data: [ownershipRow('revenue')], isError: false };
+  it('display false (an ERP owns revenue with no override) → Finance destination stays, revenue items hidden, route explains itself', async () => {
+    h.resolved = {
+      display: { revenue: false },
+      // Entitlement is ON and the policy layer would allow the write; only the DISPLAY is false.
+      states: { revenue: { enabled: true, displayEnabled: false, source: 'plan' } },
+    };
     renderRail();
     for (const name of FINANCE_ITEMS) {
       expect(await screen.findByRole('link', { name })).toBeInTheDocument();
@@ -121,62 +123,28 @@ describe('OD-NAR-2 — invoicing menus on by default when no ERP owns revenue', 
       expect(screen.queryByRole('link', { name })).toBeNull();
     }
     renderReportsRoute();
-    // ERP-connected orgs unchanged: the deep-link degrades to the dashboard.
-    expect(await screen.findByText('DASHBOARD')).toBeInTheDocument();
+    expect(await screen.findByTestId('feature-unavailable')).toBeInTheDocument();
     expect(screen.queryByText('PACK PAGE')).toBeNull();
   });
 
-  it('explicit row off + no ERP → Finance destination remains visible, revenue items hidden (the operator switch still wins)', async () => {
-    h.rows = { revenue: false };
-    h.ownership = { data: [], isError: false };
+  it('an explicit override shows even where the plan would hide (display true, source override)', async () => {
+    h.resolved = {
+      display: { revenue: true },
+      states: { revenue: { enabled: true, displayEnabled: true, source: 'override' } },
+    };
     renderRail();
-    for (const name of FINANCE_ITEMS) {
-      expect(await screen.findByRole('link', { name })).toBeInTheDocument();
-    }
-    await resolveFeatures();
-    for (const name of REVENUE_ITEMS) {
-      expect(screen.queryByRole('link', { name })).toBeNull();
-    }
-  });
-
-  it('explicit row on + an ERP owns revenue → Finance destination and revenue items visible (row beats ownership)', async () => {
-    h.rows = { revenue: true };
-    h.ownership = { data: [ownershipRow('revenue')], isError: false };
-    renderRail();
-    for (const name of FINANCE_ITEMS) {
-      expect(await screen.findByRole('link', { name })).toBeInTheDocument();
-    }
-    for (const name of REVENUE_ITEMS) {
-      expect(await screen.findByRole('link', { name })).toBeInTheDocument();
-    }
-  });
-
-  it('ownership still loading → Finance destination stays visible, revenue items hidden and the Reports area holds (no redirect), then visible once resolved', async () => {
-    h.rows = {};
-    h.ownership = { data: undefined, isError: false };
-    const rail = renderRail();
-    for (const name of FINANCE_ITEMS) {
-      expect(await screen.findByRole('link', { name })).toBeInTheDocument();
-    }
-    await resolveFeatures();
-    for (const name of REVENUE_ITEMS) {
-      expect(screen.queryByRole('link', { name })).toBeNull();
-    }
-    const route = renderReportsRoute();
-    await settle(); // FeatureRoute holds: neither the element nor a redirect — ever — while unknown.
-    expect(screen.queryByText('PACK PAGE')).toBeNull();
-    expect(screen.queryByText('DASHBOARD')).toBeNull();
-    // Ownership resolves to native → the entitlement turns on in BOTH already-mounted surfaces.
-    h.ownership = { data: [ownershipRow('procurement')], isError: false };
-    rail.rerender(<Rail />);
     expect(await screen.findByRole('link', { name: /^Receivables$/i })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /^Reports$/i })).toBeInTheDocument();
-    route.rerender(
-      <Routes>
-        <Route path="/finance/reports" element={<FeatureRoute feature="revenue" element={<div>PACK PAGE</div>} />} />
-        <Route path="*" element={<div>DASHBOARD</div>} />
-      </Routes>,
-    );
-    expect(await screen.findByText('PACK PAGE')).toBeInTheDocument();
+  });
+
+  it('an in-flight read → revenue items hidden and the route HOLDS (no page, no denial)', async () => {
+    h.pending = true;
+    renderRail();
+    for (const name of FINANCE_ITEMS) {
+      expect(await screen.findByRole('link', { name })).toBeInTheDocument();
+    }
+    renderReportsRoute();
+    expect(screen.queryByText('PACK PAGE')).toBeNull();
+    expect(screen.queryByTestId('feature-unavailable')).toBeNull();
+    expect(screen.queryByTestId('feature-unavailable-error')).toBeNull();
   });
 });
