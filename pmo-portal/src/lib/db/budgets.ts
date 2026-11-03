@@ -1,6 +1,6 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { fetchAllPages } from '@/src/lib/pagedRead';
-import type { Tables } from '@/src/lib/supabase/database.types';
+import type { Tables, Json } from '@/src/lib/supabase/database.types';
 import { AppError, assertWriteLanded, toAppError } from '@/src/lib/appError';
 import { activateAndPush } from '@/src/lib/budget/budgetPushConsequence';
 import { dispatchDomainCommand } from '@/src/lib/adapterSeam/dispatchClient';
@@ -310,11 +310,24 @@ export async function getBudgetDistribution(versionId: string): Promise<BudgetDi
  * editor (NFR-002). A rejection throws — the caller keeps its entered values and re-reviews.
  */
 export async function saveBudgetDistribution(versionId: string, plan: BudgetDistributionPlan): Promise<void> {
+  // The wire format is jsonb; these rebuilds copy each field VERBATIM (no numeric conversion, no
+  // re-shaping) — they exist only to give the typed structures Json's index signature honestly.
+  const basisJson: Json = {
+    projectStart: plan.basis.projectStart,
+    projectEnd: plan.basis.projectEnd,
+    years: plan.basis.years.map((year) => ({ name: year.name, start: year.start, end: year.end })),
+  };
+  const overridesJson: Json = Object.fromEntries(
+    Object.entries(plan.categoryOverrides).map(([category, override]) => [
+      category,
+      { method: override.method, inputs: { ...override.inputs } },
+    ]),
+  );
   const { error } = await supabase.rpc('save_budget_distribution', {
     p_version: versionId,
     p_method: plan.method,
-    p_inputs: plan.inputs,
-    p_basis: plan.basis,
+    p_inputs: { ...plan.inputs },
+    p_basis: basisJson,
     p_rows: plan.rows.map((row) => ({
       category: row.category,
       fiscal_year: row.fiscal_year,
@@ -323,7 +336,7 @@ export async function saveBudgetDistribution(versionId: string, plan: BudgetDist
       method: row.method,
       is_override: row.is_override,
     })),
-    p_category_overrides: plan.categoryOverrides,
+    p_category_overrides: overridesJson,
   });
   if (error) throw toAppError(error);
 }
