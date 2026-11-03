@@ -283,6 +283,18 @@ describe('AC-OCI-020 / AC-OCI-021 / AC-OCI-022 / AC-OCI-023 Odoo billing claims'
     assertEquals(insert.native_lines, nativeClaimLines, 'the claim recorded lines and recovery line replace payload items');
   });
 
+  it('AC-OCI-020 a withdrawn progress claim cannot contribute lines to an Odoo invoice draft', async () => {
+    const writes: NonNullable<World['writes']> = [];
+    const r = await dispatchAs(AUTHOR_ID, draftCommand({ id: CLAIM_ID }), {
+      progressClaim: { ...progressClaim, withdrawn_at: '2026-11-03T00:00:00Z' },
+      progressClaimLines: progressLines, progressClaimEvidence: evidence, writes,
+    });
+
+    assertEquals([r.status, JSON.parse(r.body).message], [422, 'This progress claim was withdrawn, so no invoice can be raised for it']);
+    assertEquals(writes, []);
+    noMoneyPipeline(r);
+  });
+
   it('the claim author cannot submit the claim draft; a different approver posts the recorded lines once', async () => {
     const denied = await dispatchAs(AUTHOR_ID, approveCommand({ id: CLAIM_ID }), {
       progressClaim, progressClaimLines: progressLines, progressClaimEvidence: evidence, draft: claimDraft(), invoiceAuthor: AUTHOR_ID,
@@ -396,6 +408,77 @@ describe('AC-OCI-020 / AC-OCI-021 / AC-OCI-022 / AC-OCI-023 Odoo billing claims'
     assertEquals(posted.map((line) => [line.product_id, line.quantity, line.price_unit, line.analytic_distribution]), [[71, 120, 50000, { '101': 100 }]]);
     assertEquals(posted[0].product_uom_id, 13, 'the frozen claim hour unit maps to Odoo');
     assertEquals(JSON.parse(approved.body).canonical.amount, '6000000.00', 'the Odoo booked total equals the signed claim gross to the cent');
+  });
+
+  it('AC-OCI-024 an approved T&M line carries its frozen amount into the reshaped Odoo invoice line', async () => {
+    const amount = 162052101764.36;
+    const claim = { ...timeMaterialsClaim, gross_amount: '162052101764.36' };
+    const signoff = { ...signedTimeMaterialsClaim, gross_amount: '162052101764.36' };
+    const claimLines = [{ ...timeMaterialsLines[0], units: '331052.81', rate: '489505.29', amount: '162052101764.36' }];
+    const draft = draftRow({
+      id: CLAIM_ID, customer_id: CUSTOMER_ID, project_id: PROJECT_ID, work_order_id: null,
+      native_lines: [{ item_code: 'Field labour', description: 'Field labour (hour)', qty: 331052.81, rate: 489505.29, amount, unit: 'hour' }],
+    });
+    const odoo = invoiceOdooWorld();
+    const approved = await dispatchAs(APPROVER_ID, approveCommand({ id: CLAIM_ID }), {
+      progressClaim: claim, timeMaterialsClaim: signoff, timeMaterialsClaimLines: claimLines,
+      progressClaimEvidence: evidence, projectSubjectToVat: false, draft, invoiceAuthor: AUTHOR_ID, odoo,
+    });
+
+    assertEquals(approved.status, 200, approved.body);
+    assertEquals(approved.unexpected, [], 'every signed T&M approval read is modeled');
+    const [invoice] = odoo.rows('account.move');
+    const posted = odoo.rows('account.move.line').filter((line) => line.move_id === invoice.id && line.display_type === 'product');
+    assertEquals(posted.map((line) => [line.quantity, line.price_unit, line.name]), [[
+      1, amount, 'Field labour (hour): 331.052,81 x 489.505,29, rounded to Rp\u00a0162.052.101.764,36',
+    ]]);
+    assertEquals(JSON.parse(approved.body).canonical.amount, '162052101764.36', 'read-back matches the signed gross');
+  });
+
+  it('AC-OCI-024 refuses before the Odoo draft when Product Unit precision is unavailable', async () => {
+    const writes: NonNullable<World['writes']> = [];
+    const odoo = invoiceOdooWorld();
+    odoo.dropModel('decimal.precision');
+    const r = await dispatchAs(APPROVER_ID, approveCommand({ id: CLAIM_ID }), {
+      progressClaim: timeMaterialsClaim, timeMaterialsClaim: signedTimeMaterialsClaim,
+      timeMaterialsClaimLines: timeMaterialsLines, progressClaimEvidence: evidence, draft: timeMaterialsDraft(),
+      invoiceAuthor: AUTHOR_ID, writes, odoo,
+    });
+
+    assertEquals([r.status, JSON.parse(r.body).message], [422, 'config-rejected: the product unit precision could not be checked against Odoo']);
+    assertEquals(odoo.rows('account.move'), []);
+    assertEquals(writes, []);
+    assertEquals(odoo.calls.some((call) => call.model === 'decimal.precision' && call.method === 'search_read'), true, 'Odoo precision is read before any invoice write');
+    assertEquals(odoo.calls.filter((call) => call.model === 'account.move' && (call.method === 'create' || call.method === 'action_post')), []);
+    assertEquals(r.calls.filter((call) => call.url.pathname.includes('external_command_outbox') && call.method === 'POST'), []);
+  });
+
+  it('AC-OCI-024 an existing T&M claim without signed-off confirmation cannot be invoiced', async () => {
+    const writes: NonNullable<World['writes']> = [];
+    const odoo = invoiceOdooWorld();
+    const r = await dispatchAs(APPROVER_ID, approveCommand({ id: CLAIM_ID }), {
+      progressClaim: timeMaterialsClaim, timeMaterialsClaim: { ...signedTimeMaterialsClaim, status: 'Draft' },
+      timeMaterialsClaimLines: timeMaterialsLines, progressClaimEvidence: evidence, draft: timeMaterialsDraft(),
+      invoiceAuthor: AUTHOR_ID, writes, odoo,
+    });
+
+    assertEquals([r.status, JSON.parse(r.body).message], [422, 'Confirm the time-and-materials claim before raising its invoice']);
+    assertEquals(writes, []);
+    noMoneyPipeline(r);
+  });
+
+  it('AC-OCI-024 a T&M header that differs from its signed line sum cannot be invoiced', async () => {
+    const writes: NonNullable<World['writes']> = [];
+    const odoo = invoiceOdooWorld();
+    const r = await dispatchAs(APPROVER_ID, approveCommand({ id: CLAIM_ID }), {
+      progressClaim: { ...timeMaterialsClaim, gross_amount: '6000001.00' }, timeMaterialsClaim: signedTimeMaterialsClaim,
+      timeMaterialsClaimLines: timeMaterialsLines, progressClaimEvidence: evidence, draft: timeMaterialsDraft(),
+      invoiceAuthor: AUTHOR_ID, writes, odoo,
+    });
+
+    assertEquals([r.status, JSON.parse(r.body).message], [422, 'The signed time-and-materials claim header does not match its line amounts']);
+    assertEquals(writes, []);
+    noMoneyPipeline(r);
   });
 
   it('AC-OCI-021 a second user approves the 200,000 down-payment draft and its posted line uses the advance account', async () => {

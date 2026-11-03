@@ -90,20 +90,28 @@ export async function readOdooProgressClaim(sc: SupabaseClient, orgId: string, i
     throw new AppError('Attach billing evidence before raising this claim invoice', 'commit-rejected');
   }
 
-  let lines: ProgressClaimLineRecord[] = [];
   let items: OdooProgressClaim['items'];
   if (claim.kind === 'progress') {
+    if (claim.withdrawn_at) throw new AppError('This progress claim was withdrawn, so no invoice can be raised for it', 'commit-rejected');
     const { data: rows, error: linesError } = await sc.from('progress_claim_lines')
       .select('item_code,description,unit,quantity,rate').eq('org_id', orgId).eq('claim_id', claim.id)
       .order('boq_item_id', { ascending: true }).limit(MAX_CLAIM_LINES + 1);
     if (linesError) throw new AppError('The billing claim lines could not be read', 'gate-check-failed');
-    lines = (rows ?? []) as ProgressClaimLineRecord[];
+    const lines = (rows ?? []) as ProgressClaimLineRecord[];
     if (lines.length > MAX_CLAIM_LINES) throw new AppError(`A progress claim may have at most ${MAX_CLAIM_LINES} lines`, 'commit-rejected');
-    try {
-      items = progressClaimItems(claim, lines);
-    } catch (error) {
-      if (error instanceof AdapterError) throw new AppError(error.message, error.code);
-      throw error;
+    if (lines.length === 0) throw new AppError('This progress claim has no quantity lines', 'commit-rejected');
+    items = lines.map((line) => ({
+      item_code: line.item_code,
+      qty: Number(line.quantity),
+      rate: Number(line.rate),
+      description: `${line.description} (${line.unit})`,
+    }));
+    const recovery = Number(claim.dp_recovery_amount);
+    if (recovery > 0) {
+      if (!claim.dp_item_code) {
+        throw new AppError('This progress claim recovers a down payment but names no down payment item', 'commit-rejected');
+      }
+      items.push({ item_code: claim.dp_item_code, qty: 1, rate: -recovery });
     }
   } else if (timeMaterials) {
     if (claim.withdrawn_at) throw new AppError('This time-and-materials claim was withdrawn, so no invoice can be raised for it', 'commit-rejected');
@@ -152,7 +160,7 @@ export async function readOdooProgressClaim(sc: SupabaseClient, orgId: string, i
     }
   } else {
     try {
-      items = progressClaimItems(claim, lines);
+      items = progressClaimItems(claim);
     } catch (error) {
       if (error instanceof AdapterError) throw new AppError(error.message, error.code);
       throw error;

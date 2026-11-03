@@ -15,6 +15,7 @@ const FIELDS: Record<string, string[]> = {
   'res.currency': ['name', 'rounding', 'decimal_places', 'active', 'write_date'],
   'product.product': ['default_code', 'name', 'uom_id', 'supplier_taxes_id', 'property_account_income_id', 'purchase_ok', 'sale_ok', 'is_storable', 'company_id', 'active', 'write_date'],
   'uom.uom': ['name', 'relative_factor', 'relative_uom_id', 'active', 'write_date'],
+  'decimal.precision': ['name', 'digits', 'write_date'],
   'stock.warehouse': ['name', 'code', 'lot_stock_id', 'view_location_id', 'company_id', 'active', 'write_date'],
   'stock.location': ['complete_name', 'usage', 'location_id', 'warehouse_id', 'company_id', 'active', 'write_date'],
   'account.account': ['code', 'name', 'account_type', 'company_ids', 'active', 'write_date'],

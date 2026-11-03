@@ -177,9 +177,15 @@ Deno.test({
     const tmId = crypto.randomUUID();
     const tmLines = [{ itemId: 'tm-service', description: `${stamp} Field labour (hour)`, quantity: 120, unitPrice: 50000, unit: 'hour', amount: 6000000 }];
     const tmInput: PmoInvoice = { id: tmId, customerId: 'c', invoiceDate: '2026-12-05', currency: company.currency_id[1], lines: tmLines };
+    const [productUnitPrecision] = await call<Array<{ name: string; digits: number }>>('decimal.precision', 'search_read', {
+      domain: [['name', '=', 'Product Unit']], fields: ['name', 'digits'], limit: 1,
+    });
+    assert(productUnitPrecision?.name === 'Product Unit' && Number.isInteger(productUnitPrecision.digits) && productUnitPrecision.digits >= 0,
+      'Odoo exposes the Product Unit precision used by account.move.line.quantity');
     const tmMaps: InvoiceMaps = {
       ...mapsFor(account), items: { svc: { productId: service, incomeAccountId: income.id }, 'tm-service': { productId: tmService, incomeAccountId: income.id } },
       units: { hour: hourUnits[0].id },
+      quantityRounding: 10 ** -productUnitPrecision.digits,
     };
     const tmTotal = expectedInvoiceTotal(tmLines, [11]);
     const tmExpectation: InvoiceExpect = { total: tmTotal, costAccountId: account };

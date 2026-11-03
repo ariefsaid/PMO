@@ -95,6 +95,23 @@ async function companyCurrency(call: OdooCall, companyId: number | null, require
   return { code: cur[1].trim().toUpperCase(), rounding };
 }
 
+/** account.move.line.quantity uses the Odoo decimal.precision record named Product Unit. */
+async function productUnitRounding(call: OdooCall): Promise<number> {
+  const unavailable = () => rejected('config-rejected: the product unit precision could not be checked against Odoo');
+  let rows: Array<{ name?: unknown; digits?: unknown }>;
+  try {
+    rows = await call('decimal.precision', 'search_read', {
+      domain: [['name', '=', 'Product Unit']], fields: ['name', 'digits'], limit: 2,
+    });
+  } catch {
+    throw unavailable();
+  }
+  const digits = rows.length === 1 ? rows[0].digits : null;
+  const rounding = typeof digits === 'number' && Number.isInteger(digits) && digits >= 0 ? 10 ** -digits : Number.NaN;
+  if (rows.length !== 1 || rows[0].name !== 'Product Unit' || !Number.isFinite(rounding) || rounding <= 0) throw unavailable();
+  return rounding;
+}
+
 /** The Odoo products the lines name and the income account each posts to (`false` = none set: the line is refused, never guessed). */
 async function readProducts(call: OdooCall, ids: number[]): Promise<Map<number, number | null>> {
   if (ids.length === 0) return new Map();
@@ -237,11 +254,13 @@ export function resolveOdooInvoiceInputs(sc: SupabaseClient, orgId: string, comm
       referenceNumber: draft.referenceNumber, workOrderPoNumber: workOrderPo, projectContractRef: contractRef,
     };
     const currency = await companyCurrency(call, resolved.companyId, claim?.timeMaterials === true);
+    const quantityRounding = claim?.timeMaterials ? await productUnitRounding(call) : undefined;
     const units = Object.fromEntries(Object.entries(asMap(resolved.config.unit_map)).flatMap(([unit, id]) => {
       const parsed = Number(id);
       return Number.isInteger(parsed) && parsed > 0 ? [[unit, parsed]] : [];
     }));
-    const maps: InvoiceMaps = { companyCurrency: currency.code, currencyRounding: currency.rounding, partners, items, units, costAccountId, taxIds: selection.taxIds, ...(downPayment ? { downPayment } : {}) };
+    const maps: InvoiceMaps = { companyCurrency: currency.code, currencyRounding: currency.rounding, partners, items, units, costAccountId, taxIds: selection.taxIds,
+      ...(quantityRounding === undefined ? {} : { quantityRounding }), ...(downPayment ? { downPayment } : {}) };
 
     // The command is what the draft says: the client's, project's, work order's and lines' values REPLACE whatever the payload carried, so the
     // outbox payload, its digest, the work-order fence and the recovery all read the approved draft (never the approver's say-so).
