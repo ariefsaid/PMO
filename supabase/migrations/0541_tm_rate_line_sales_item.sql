@@ -85,6 +85,8 @@ begin
       end if;
     end if;
 
+    -- Lock order: organization advisory lock before any rate-line row lock, matching the end path.
+    perform pg_advisory_xact_lock(hashtextextended('contract_rates:' || v_org::text, 0));
     -- The project is checked by contract_rate_line_write against the caller's org. This lookup
     -- never accepts an org_id from the payload, and a foreign project's current row is invisible.
     select l.sales_item_code into v_previous_sales_item_code
@@ -134,3 +136,37 @@ end $$;
 revoke all on function public.save_contract_rate_line(jsonb) from public, anon, authenticated;
 grant execute on function public.save_contract_rate_line(jsonb) to authenticated;
 alter function public.save_contract_rate_line(jsonb) owner to postgres;
+
+-- Keep the sales-item reference when the end operation creates a new current rate version.
+create or replace function public.end_contract_rate_line(p_project uuid, p_line_key uuid, p_effective_to date, p_expected_version integer) returns jsonb
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_org uuid := public.auth_org_id();
+  v_line public.contract_rate_lines;
+  v_currency text;
+  v_result jsonb;
+begin
+  perform public.assert_is_active_member();
+  if coalesce(public.auth_role()::text, '') not in ('Admin', 'Finance') then
+    raise exception 'not authorized to end contract rates' using errcode = '42501';
+  end if;
+  if p_effective_to is null then raise exception 'effective_to is required' using errcode = '22023'; end if;
+  perform pg_advisory_xact_lock(hashtextextended('contract_rates:' || v_org::text, 0));
+  select * into v_line from public.contract_rate_lines l
+   where l.org_id = v_org and l.project_id = p_project and l.line_key = p_line_key and l.is_current for update;
+  if not found then raise exception 'rate line not found' using errcode = 'P0002'; end if;
+  select p.currency into v_currency from public.projects p where p.id = p_project and p.org_id = v_org;
+  v_result := public.contract_rate_line_write(jsonb_build_object(
+    'project_id', p_project, 'line_key', p_line_key, 'expected_version', p_expected_version,
+    'kind', v_line.kind, 'label', v_line.label, 'unit', v_line.unit, 'rate', v_line.rate,
+    'currency', v_currency, 'effective_from', v_line.effective_from, 'effective_to', p_effective_to
+  ), 'end');
+  update public.contract_rate_lines l
+     set sales_item_code = v_line.sales_item_code
+   where l.org_id = v_org and l.id = (v_result->>'id')::uuid;
+  return v_result;
+end $$;
+
+revoke all on function public.end_contract_rate_line(uuid, uuid, date, integer) from public, anon, authenticated;
+grant execute on function public.end_contract_rate_line(uuid, uuid, date, integer) to authenticated;
+alter function public.end_contract_rate_line(uuid, uuid, date, integer) owner to postgres;

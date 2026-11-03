@@ -1,7 +1,7 @@
 -- #1802 — ERP sales-item mapping is line-level metadata written through the rate-card RPC.
 begin;
 create extension if not exists pgtap;
-select plan(24);
+select plan(32);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('18020000-0000-0000-0000-0000000000a1', 'TM Sales Item Org A', 'IDR', 'UTC'),
@@ -18,7 +18,8 @@ insert into profiles (id, org_id, full_name, email, role, status) values
   ('18020000-0000-0000-0000-0000000000b4', '18020000-0000-0000-0000-0000000000a1', 'TM Sales Admin', 'tm-sales-admin@example.test', 'Admin', 'active');
 insert into projects (id, org_id, name, status, currency) values
   ('18020000-0000-0000-0000-0000000000c1', '18020000-0000-0000-0000-0000000000a1', 'TM Sales Project A', 'Ongoing Project', 'IDR'),
-  ('18020000-0000-0000-0000-0000000000c2', '18020000-0000-0000-0000-0000000000a2', 'TM Sales Project B', 'Ongoing Project', 'IDR');
+  ('18020000-0000-0000-0000-0000000000c2', '18020000-0000-0000-0000-0000000000a2', 'TM Sales Project B', 'Ongoing Project', 'IDR'),
+  ('18020000-0000-0000-0000-0000000000c3', '18020000-0000-0000-0000-0000000000a1', 'TM Sales Project A Other', 'Ongoing Project', 'IDR');
 
 create temp table _sales_item_state (id text primary key, result jsonb not null) on commit drop;
 grant all on _sales_item_state to authenticated;
@@ -96,10 +97,39 @@ select is((select sales_item_code from public.contract_rate_lines where line_key
   'LABOUR-BULK', 'AC-TM-018 a normal rate version carries the mapping forward');
 select is((select version from public.contract_rate_lines where line_key='18020000-0000-0000-0000-0000000000e1' and is_current), 2,
   'AC-TM-018 only the commercial rate change creates a new version');
+select lives_ok($q$select end_contract_rate_line(
+  '18020000-0000-0000-0000-0000000000c1', '18020000-0000-0000-0000-0000000000e1', '2026-12-31', 2)$q$,
+  'AC-TM-018 ending a mapped rate line creates its final version');
+select is((select sales_item_code from public.contract_rate_lines where line_key='18020000-0000-0000-0000-0000000000e1' and is_current),
+  'LABOUR-BULK', 'AC-TM-018 ending a mapped rate line keeps its sales item on the new current version');
 
 reset role;
+insert into public.contract_rate_lines (id, org_id, project_id, line_key, version, is_current, kind, label, unit, rate, effective_from, created_by) values
+  ('18020000-0000-0000-0000-0000000000f1', '18020000-0000-0000-0000-0000000000a1', '18020000-0000-0000-0000-0000000000c3', '18020000-0000-0000-0000-0000000000e1', 1, true, 'labour', 'Other Site engineer', 'hour', 50000, '2026-12-01', '18020000-0000-0000-0000-0000000000b1');
+set local request.jwt.claims = '{"sub":"18020000-0000-0000-0000-0000000000b3","role":"authenticated"}';
+insert into public.contract_rate_lines (id, org_id, project_id, line_key, version, is_current, kind, label, unit, rate, effective_from, created_by) values
+  ('18020000-0000-0000-0000-0000000000f2', '18020000-0000-0000-0000-0000000000a2', '18020000-0000-0000-0000-0000000000c2', '18020000-0000-0000-0000-0000000000e1', 1, true, 'labour', 'Foreign Site engineer', 'hour', 50000, '2026-12-01', '18020000-0000-0000-0000-0000000000b3');
+reset role;
+select is((select count(*)::int from public.contract_rate_lines where id='18020000-0000-0000-0000-0000000000f1'), 1,
+  'AC-TM-018 prepares another project rate with the same line key');
+select is((select count(*)::int from public.contract_rate_lines where id='18020000-0000-0000-0000-0000000000f2'), 1,
+  'AC-TM-018 prepares an equivalent rate line in another organization');
+set local request.jwt.claims = '{"sub":"18020000-0000-0000-0000-0000000000b1","role":"authenticated"}';
+set local role authenticated;
+select lives_ok($q$select save_contract_rate_line(
+  '{"line_key":"18020000-0000-0000-0000-0000000000e1","expected_version":3,"expected_sales_item_code":"LABOUR-BULK","project_id":"18020000-0000-0000-0000-0000000000c1","kind":"labour","label":"Site engineer","unit":"hour","rate":55000,"currency":"IDR","effective_from":"2026-12-01","effective_to":"2026-12-31","sales_item_code":"TARGET-MAP"}')$q$,
+  'AC-TM-018 updates a mapping on its selected rate line');
+select is((select sales_item_code from public.contract_rate_lines where org_id='18020000-0000-0000-0000-0000000000a1' and project_id='18020000-0000-0000-0000-0000000000c1' and line_key='18020000-0000-0000-0000-0000000000e1' and is_current),
+  'TARGET-MAP', 'AC-TM-018 an in-place mapping update changes the selected rate line');
+select is((select count(*)::int from public.contract_rate_lines where line_key='18020000-0000-0000-0000-0000000000e1' and is_current and sales_item_code is null
+       and org_id='18020000-0000-0000-0000-0000000000a1' and project_id='18020000-0000-0000-0000-0000000000c3'),
+  1, 'AC-TM-018 an in-place mapping update leaves another project rate line unchanged');
+
+reset role;
+select is((select sales_item_code from public.contract_rate_lines where org_id='18020000-0000-0000-0000-0000000000a2' and project_id='18020000-0000-0000-0000-0000000000c2' and line_key='18020000-0000-0000-0000-0000000000e1' and is_current),
+  null::text, 'AC-TM-018 an in-place mapping update leaves another organization rate line unchanged');
 select ok(exists(select 1 from public.audit_events where action='contract_rate_line.item_map'
-  and entity_id = (select id from public.contract_rate_lines where line_key='18020000-0000-0000-0000-0000000000e1' and is_current)
+  and entity_id = (select id from public.contract_rate_lines where org_id='18020000-0000-0000-0000-0000000000a1' and project_id='18020000-0000-0000-0000-0000000000c1' and line_key='18020000-0000-0000-0000-0000000000e1' and is_current)
   and detail ? 'before' and detail ? 'after'), 'AC-TM-018 mapping changes are audited');
 
 select * from finish();

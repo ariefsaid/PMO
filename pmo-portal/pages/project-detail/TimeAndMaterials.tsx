@@ -327,11 +327,11 @@ const TimeAndMaterials: React.FC<TimeAndMaterialsProps> = ({ projectId, projectM
                     {index < assignedPeople.length - 1 && <span aria-hidden>,</span>}
                   </span>)}
                 </p>
-                <div className="mt-2 max-w-md">
+                {erpItemsConnected && <div className="mt-2 max-w-md">
                   {!line.sales_item_code && <p role="status" className="mb-1 text-sm text-muted-foreground">
                     {t('rateCard.notMapped', 'Not mapped')}
                   </p>}
-                  {canManageRates && erpItems.connected
+                  {canManageRates
                     ? <Combobox
                       label={t('rateCard.salesItemFor', 'Sales item for {{label}}', { label: line.label })}
                       value={line.sales_item_code}
@@ -349,7 +349,7 @@ const TimeAndMaterials: React.FC<TimeAndMaterialsProps> = ({ projectId, projectM
                     : line.sales_item_code && <p className="text-sm text-muted-foreground">
                       <span>{t('rateCard.salesItem', 'ERP sales item')}: </span><span className="font-medium text-foreground">{line.sales_item_code}</span>
                     </p>}
-                </div>
+                </div>}
               </div>
               {canManageRates && !ended && <div className="flex flex-wrap items-center gap-2">
                 <Button variant="outline" size="sm" onClick={() => setRateFormFor(line)}>{t('rateCard.edit', 'Edit rate')}</Button>
@@ -397,7 +397,9 @@ const TimeAndMaterials: React.FC<TimeAndMaterialsProps> = ({ projectId, projectM
               {canManageRates && <Button variant="outline" size="sm" disabled={rateRows.length === 0 || rateLines.data?.truncated === true || assignments.isPending || assignments.isError || people.isPending || people.isError} onClick={() => setAssignOpen(true)}>{t('rateCard.assign', 'Assign person')}</Button>}
             </div>
             {rateList}
-            {canManageRates && erpItems.connected && unmappedRateRows.length > 0 && <div className="mt-3 rounded-md border border-border bg-secondary/40 p-3">
+            {canManageRates && erpItemsConnected && unmappedRateRows.length > 0
+              && (proposalCatalogState === 'loading' || proposalCatalogState === 'error' || (proposalCatalogState === 'ready' && proposedRateRows.length > 0))
+              && <div className="mt-3 rounded-md border border-border bg-secondary/40 p-3">
               {proposalCatalogState === 'loading' && <p role="status" className="text-sm text-muted-foreground">{t('rateCard.proposalsLoading', 'Checking ERP sales items for possible matches…')}</p>}
               {proposalCatalogState === 'error' && <div className="flex flex-wrap items-center justify-between gap-2">
                 <p role="alert" className="text-sm text-destructive-text">{t('rateCard.proposalsError', "Couldn't load ERP sales items. Retry to check for matches.")}</p>

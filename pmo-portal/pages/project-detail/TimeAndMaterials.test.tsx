@@ -21,6 +21,7 @@ const h = vi.hoisted(() => ({
   sources: { data: { rows: [] as unknown[], truncated: false, totalCount: 0 }, isPending: false, isError: false, refetch: vi.fn() },
   profiles: [] as unknown[],
   documents: [] as unknown[],
+  erpConnected: true,
   loadItems: vi.fn(async () => [] as Array<{ value: string; label: string; sub?: string }>),
   mutations: {} as Record<string, ReturnType<typeof vi.fn>>,
 }));
@@ -46,7 +47,7 @@ vi.mock('@/src/hooks/useTimeAndMaterials', () => ({
 }));
 vi.mock('@/src/hooks/useTasks', () => ({ useAssignableProfiles: () => ({ data: h.profiles, isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => ({ data: h.documents, isPending: false, isError: false, refetch: vi.fn() }) }));
-vi.mock('@/src/hooks/useErpItemOptions', () => ({ useErpItemOptions: () => ({ connected: true, loadOptions: h.loadItems }) }));
+vi.mock('@/src/hooks/useErpItemOptions', () => ({ useErpItemOptions: () => ({ connected: h.erpConnected, loadOptions: h.loadItems }) }));
 
 import TimeAndMaterials from './TimeAndMaterials';
 
@@ -107,6 +108,7 @@ beforeEach(() => {
   h.sources = { data: { rows: [{ id: 'source-row-1', claim_id: 'claim-1', claim_line_id: 'line-1', source_kind: 'timesheet_entry', source_id: 'entry-1', units: 8 }], truncated: false, totalCount: 1 }, isPending: false, isError: false, refetch: vi.fn() };
   h.profiles = [profile('u-engineer', 'Site engineer'), profile('u-pm', 'Project manager'), profile('u-fin', 'Finance user')];
   h.documents = [documentRow];
+  h.erpConnected = true;
   h.loadItems = vi.fn(async () => [{ value: 'ITEM-LABOUR', label: 'ITEM-LABOUR', sub: 'Site engineer' }]);
   h.mutations = {
     saveRate: vi.fn().mockResolvedValue({ id: 'rate-row-2', lineKey: 'labour-2', version: 1, changed: true }),
@@ -207,6 +209,29 @@ describe('TimeAndMaterials', () => {
     expect(await screen.findByText('Not mapped')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Accept proposed/ })).not.toBeInTheDocument();
     expect(screen.getByRole('combobox', { name: /Sales item for Site engineer/ })).toBeInTheDocument();
+  });
+
+  it('hides rate-line ERP mappings when the organization has no connected ERP', () => {
+    h.erpConnected = false;
+    h.rates = { ...h.rates, data: { rows: [rate, { ...rate, id: 'rate-row-2', line_key: 'labour-2', label: 'Field technician', sales_item_code: 'ITEM-SAVED' }], truncated: false } };
+
+    renderPanel();
+
+    expect(screen.queryByText('Not mapped')).not.toBeInTheDocument();
+    expect(screen.queryByText('ITEM-SAVED')).not.toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: /Sales item for/ })).not.toBeInTheDocument();
+    expect(h.loadItems).not.toHaveBeenCalled();
+  });
+
+  it('does not render an empty proposal panel when no ERP item matches', async () => {
+    h.loadItems = vi.fn(async () => [{ value: 'ITEM-OTHER', label: 'ITEM-OTHER', sub: 'Electrical work' }]);
+    const { container } = renderPanel();
+
+    await waitFor(() => expect(h.loadItems).toHaveBeenCalledOnce());
+
+    expect(screen.queryByText(/clear sales item match/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Accept proposed/ })).not.toBeInTheDocument();
+    expect(container.querySelector('[class*="bg-secondary/40"]')).toBeNull();
   });
 
   it('shows saved item codes and keeps the picker read-only for viewers and impersonation', async () => {
