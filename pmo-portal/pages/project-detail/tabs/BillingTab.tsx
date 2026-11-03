@@ -24,6 +24,7 @@ import ProgressAssessmentModal from '../ProgressAssessmentModal';
 import ProgressClaimModal from '../ProgressClaimModal';
 import ClaimEvidenceModal from '../ClaimEvidenceModal';
 import ProjectBillingStart from '../ProjectBillingStart';
+import TimeAndMaterials from '../TimeAndMaterials';
 import { useRevenueMode } from '@/src/hooks/useRevenueMode';
 import { useRevenueRouteReady } from '@/src/hooks/useOwnershipCacheSync';
 
@@ -334,7 +335,9 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
     { key: 'claim', header: t('projectDetail.billing.claims.column.claim', 'Claim'), cell: (c) => (
       <span>{c.kind === 'down_payment'
         ? t('projectDetail.billing.claims.kind.downPayment', 'Down payment')
-        : t('projectDetail.billing.claims.kind.progress', 'Progress')}</span>
+        : c.kind === 'time_materials'
+          ? t('timeAndMaterials:title', 'Time and materials')
+          : t('projectDetail.billing.claims.kind.progress', 'Progress')}</span>
     ) },
     { key: 'gross', header: t('projectDetail.billing.claims.column.claimedLabel', 'Claimed'), align: 'num',
       cell: (c) => <Tooltip content={t('projectDetail.billing.claims.source.gross', 'Source: the progress claim gross amount, copied from accepted quantities and contract rates.') }><span className="cursor-help tabular">{cents(c.gross_amount)}</span></Tooltip> },
@@ -501,7 +504,9 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
           errorSub={t('projectDetail.billing.claims.errorSub', 'Retry, or reopen the project.')}
           onRetry={() => claims.refetch()}
           rowLabel={(claim) => t('projectDetail.billing.claims.openLabel', 'Open {{kind}} claim from {{date}}', {
-            kind: claim.kind === 'down_payment' ? t('projectDetail.billing.claims.kind.downPayment', 'Down payment') : t('projectDetail.billing.claims.kind.progress', 'Progress'),
+            kind: claim.kind === 'down_payment' ? t('projectDetail.billing.claims.kind.downPayment', 'Down payment')
+              : claim.kind === 'time_materials' ? t('timeAndMaterials:title', 'Time and materials')
+                : t('projectDetail.billing.claims.kind.progress', 'Progress'),
             date: formatDateOnly(claim.created_at),
           })}
           onActivate={(claim) => setOpenRecord(claim.id, 'billingClaim')}
@@ -521,7 +526,9 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
   const claimDetailDrawer = canViewMoney && claimDetailFor && <Drawer open
     title={claimDetailFor.kind === 'down_payment'
       ? t('projectDetail.billing.claims.kind.downPayment', 'Down payment')
-      : t('projectDetail.billing.claims.kind.progress', 'Progress')}
+      : claimDetailFor.kind === 'time_materials'
+        ? t('timeAndMaterials:title', 'Time and materials')
+        : t('projectDetail.billing.claims.kind.progress', 'Progress')}
     subtitle={formatDateOnly(claimDetailFor.created_at)}
     status={<StatusPill variant={claimDetailFor.withdrawn_at ? 'lost' : claimDetailFor.invoice?.status === 'Paid' ? 'won' : 'neutral'}>{claimDetailFor.withdrawn_at
       ? t('projectDetail.billing.claims.withdrawn', 'Withdrawn')
@@ -675,6 +682,18 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
           {canViewMoney && claimsCard}
         </>
       )}
+
+      {canViewMoney && <TimeAndMaterials projectId={projectId} projectManagerId={projectManagerId} currency={currency}
+        canCreateInvoice={(claimId) => {
+          const claim = claimRows.find((row) => row.id === claimId);
+          return canBill && Boolean(claim && !claim.withdrawn_at && !claim.invoice && claim.evidence.length > 0);
+        }}
+        onCreateInvoice={(claimId) => {
+          const claim = claimRows.find((row) => row.id === claimId);
+          if (canBill && claim && !claim.withdrawn_at && !claim.invoice && claim.evidence.length > 0) {
+            setRaiseFor({ claim, idempotencyKey: crypto.randomUUID() });
+          }
+        }} />}
 
       {allowanceFor && <MaterialAllowanceModal projectId={projectId} workItem={allowanceFor} onClose={() => setAllowanceFor(null)} />}
       {boqFormFor !== undefined && (

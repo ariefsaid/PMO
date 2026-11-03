@@ -1,0 +1,258 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import React from 'react';
+import { render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import i18next from 'i18next';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { I18nextProvider } from 'react-i18next';
+import { axe } from 'jest-axe';
+import { MemoryRouter } from 'react-router';
+import { ToastProvider } from '@/src/components/ui';
+
+const h = vi.hoisted(() => ({
+  role: 'Finance' as string,
+  effectiveRole: 'Finance' as string,
+  userId: 'u-fin' as string,
+  rates: { data: { rows: [] as unknown[], truncated: false }, isPending: false, isError: false, refetch: vi.fn() },
+  assignees: { data: { rows: [] as unknown[], truncated: false }, isPending: false, isError: false, refetch: vi.fn() },
+  claims: { data: { rows: [] as unknown[], truncated: false }, isPending: false, isError: false, refetch: vi.fn() },
+  preview: { data: { rows: [] as unknown[], truncated: false }, isPending: false, isError: false, refetch: vi.fn() },
+  sources: { data: { rows: [] as unknown[], truncated: false }, isPending: false, isError: false, refetch: vi.fn() },
+  profiles: [] as unknown[],
+  documents: [] as unknown[],
+  mutations: {} as Record<string, ReturnType<typeof vi.fn>>,
+}));
+
+vi.mock('@/src/auth/impersonation', () => ({
+  useEffectiveRole: () => ({ realRole: h.role, effectiveRole: h.effectiveRole }),
+}));
+vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: h.userId, org_id: 'org-1' } }) }));
+vi.mock('@/src/hooks/useTimeAndMaterials', () => ({
+  useTmRateLines: () => h.rates,
+  useTmRateAssignees: () => h.assignees,
+  useTmClaims: () => h.claims,
+  useTmClaimPreview: () => h.preview,
+  useTmClaimSources: () => h.sources,
+  useSaveTmRateLine: () => ({ mutateAsync: h.mutations.saveRate, isPending: false }),
+  useSetTmRateAssignee: () => ({ mutateAsync: h.mutations.assign, isPending: false }),
+  useAssembleTmClaim: () => ({ mutateAsync: h.mutations.assemble, isPending: false }),
+  usePrepareTmSignoff: () => ({ mutateAsync: h.mutations.prepare, isPending: false }),
+  useWithdrawTmSignoff: () => ({ mutateAsync: h.mutations.withdraw, isPending: false }),
+  useConfirmTmSignoff: () => ({ mutateAsync: h.mutations.confirm, isPending: false }),
+}));
+vi.mock('@/src/hooks/useTasks', () => ({ useAssignableProfiles: () => ({ data: h.profiles, isPending: false, isError: false, refetch: vi.fn() }) }));
+vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => ({ data: h.documents, isPending: false, isError: false, refetch: vi.fn() }) }));
+
+import TimeAndMaterials from './TimeAndMaterials';
+
+const rate = {
+  id: 'rate-row-1', project_id: 'p1', line_key: 'labour-1', kind: 'labour', label: 'Site engineer', unit: 'hour',
+  rate: 50000, currency: 'IDR', effective_from: '2026-11-01', effective_to: null, is_current: true, version: 1,
+};
+const assignment = {
+  id: 'assignment-1', project_id: 'p1', line_key: 'labour-1', user_id: 'u-engineer',
+  effective_from: '2026-11-01', effective_to: null,
+};
+const claim = {
+  id: 'claim-1', work_order_id: null, period_from: '2026-11-01', period_to: '2026-11-30', status: 'Draft',
+  currency: 'IDR', gross_amount: 400000, prepared_by: 'u-pm', signoff_prepared_by: null, confirmed_by: null,
+  confirm_basis: null, document_id: null, note: null, created_at: '2026-11-03T00:00:00Z',
+  lines: [{ lineKey: 'labour-1', rateVersion: 1, kind: 'labour', label: 'Site engineer', unit: 'hour', units: 8, rate: 50000, amount: 400000 }],
+};
+const profile = (id: string, full_name: string, status = 'active') => ({ id, full_name, status, role: 'Engineer' });
+const documentRow = { id: 'doc-1', code: 'DOC-01', title: 'Approved timesheet summary', status: 'Approved', file_path: 'stored-file', revision: '1' };
+const priced = {
+  line_key: 'labour-1', rate_version: 1, kind: 'labour', label: 'Site engineer', unit: 'hour', rate: 50000,
+  user_id: 'u-engineer', units: 8, amount: 400000, source_count: 1, unrated_reason: null,
+};
+const unrated = {
+  line_key: null, rate_version: null, kind: null, label: null, unit: null, rate: null,
+  user_id: 'u-other', units: 2, amount: null, source_count: 1, unrated_reason: 'no_rate',
+};
+
+function page(resources = { en: { timeAndMaterials: {} }, id: { timeAndMaterials: {} } }) {
+  const instance = i18next.createInstance();
+  void instance.init({ lng: 'en', fallbackLng: 'en', defaultNS: 'timeAndMaterials', ns: ['timeAndMaterials'], resources, interpolation: { escapeValue: false } });
+  return instance;
+}
+
+function renderPanel(props: Partial<React.ComponentProps<typeof TimeAndMaterials>> = {}) {
+  const i18n = page();
+  const user = userEvent.setup();
+  const result = render(
+    <I18nextProvider i18n={i18n}>
+      <MemoryRouter>
+        <ToastProvider><main><TimeAndMaterials projectId="p1" projectManagerId="u-pm" currency="IDR" onCreateInvoice={vi.fn()} canCreateInvoice={() => true} {...props} /></main></ToastProvider>
+      </MemoryRouter>
+    </I18nextProvider>,
+  );
+  return { ...result, user };
+}
+
+beforeEach(() => {
+  h.role = 'Finance';
+  h.effectiveRole = 'Finance';
+  h.userId = 'u-fin';
+  h.rates = { data: { rows: [rate], truncated: false }, isPending: false, isError: false, refetch: vi.fn() };
+  h.assignees = { data: { rows: [assignment], truncated: false }, isPending: false, isError: false, refetch: vi.fn() };
+  h.claims = { data: { rows: [claim], truncated: false }, isPending: false, isError: false, refetch: vi.fn() };
+  h.preview = { data: { rows: [priced, unrated], truncated: false }, isPending: false, isError: false, refetch: vi.fn() };
+  h.sources = { data: { rows: [{ id: 'source-row-1', claim_id: 'claim-1', claim_line_id: 'line-1', source_kind: 'timesheet_entry', source_id: 'entry-1', units: 8 }], truncated: false }, isPending: false, isError: false, refetch: vi.fn() };
+  h.profiles = [profile('u-engineer', 'Site engineer'), profile('u-pm', 'Project manager'), profile('u-fin', 'Finance user')];
+  h.documents = [documentRow];
+  h.mutations = {
+    saveRate: vi.fn().mockResolvedValue({ id: 'rate-row-2', lineKey: 'labour-2', version: 1, changed: true }),
+    assign: vi.fn().mockResolvedValue(undefined),
+    assemble: vi.fn().mockResolvedValue('claim-2'),
+    prepare: vi.fn().mockResolvedValue(undefined),
+    withdraw: vi.fn().mockResolvedValue(undefined),
+    confirm: vi.fn().mockResolvedValue({ claimId: 'claim-1', basis: 'standard', grossAmount: 400000 }),
+  };
+});
+
+describe('TimeAndMaterials', () => {
+  it('ships complete English and Indonesian catalogues for the screen', () => {
+    const read = (locale: 'en' | 'id') => JSON.parse(readFileSync(join(process.cwd(), `public/locales/${locale}/timeAndMaterials.json`), 'utf8')) as Record<string, unknown>;
+    const flatten = (value: Record<string, unknown>, prefix = ''): string[] => Object.entries(value).flatMap(([key, child]) => {
+      const path = prefix ? `${prefix}.${key}` : key;
+      return typeof child === 'string' ? [path] : flatten(child as Record<string, unknown>, path);
+    }).sort();
+    const en = read('en');
+    const id = read('id');
+    expect(flatten(en)).not.toHaveLength(0);
+    expect(flatten(id)).toEqual(flatten(en));
+    expect([...Object.values(en), ...Object.values(id)].every(Boolean)).toBe(true);
+  });
+
+  it('AC-TM-016 saves a rate, assigns a person, previews rated and unrated hours, assembles, and drills into claim sources', async () => {
+    const { user } = renderPanel();
+    expect((await screen.findAllByText('Site engineer')).length).toBeGreaterThan(0);
+    expect(screen.getByText(/No rate/)).toBeInTheDocument();
+
+    screen.getByRole('button', { name: /Add rate/ }).focus();
+    await user.keyboard('{Enter}');
+    const rateDialog = screen.getByRole('dialog', { name: /Add labour rate/ });
+    await user.type(within(rateDialog).getByLabelText(/Role or work description/), 'Field technician');
+    await user.type(within(rateDialog).getByLabelText(/Rate per hour/), '75000');
+    await user.click(within(rateDialog).getByRole('button', { name: /Save rate/ }));
+    await waitFor(() => expect(h.mutations.saveRate).toHaveBeenCalledWith(expect.objectContaining({
+      project_id: 'p1', kind: 'labour', label: 'Field technician', unit: 'hour', rate: 75000, currency: 'IDR',
+    })));
+
+    await user.click(screen.getByRole('button', { name: /Assign person/ }));
+    const assignDialog = screen.getByRole('dialog', { name: /Assign a person to a rate/ });
+    await user.selectOptions(within(assignDialog).getByLabelText(/Rate line/), 'labour-1');
+    await user.click(within(assignDialog).getByRole('combobox', { name: 'Person' }));
+    await user.click(await screen.findByRole('option', { name: 'Site engineer' }));
+    await user.click(within(assignDialog).getByRole('button', { name: /Assign person/ }));
+    await waitFor(() => expect(h.mutations.assign).toHaveBeenCalledWith(expect.objectContaining({ projectId: 'p1', lineKey: 'labour-1', userId: 'u-engineer' })));
+
+    expect(screen.getByText(/Unrated hours/)).toBeInTheDocument();
+    expect(screen.getByText(/No rate applies/)).toBeInTheDocument();
+    h.sources = { ...h.sources, data: { rows: [{ id: 'source-row-1', claim_id: 'claim-1', claim_line_id: 'line-1', source_kind: 'timesheet_entry', source_id: 'entry-1', units: 8 }], truncated: true } };
+    await user.click(screen.getByRole('button', { name: /Assemble claim/ }));
+    await waitFor(() => expect(h.mutations.assemble).toHaveBeenCalledWith(expect.objectContaining({ projectId: 'p1', from: expect.any(String), to: expect.any(String) })));
+
+    await user.click(screen.getByRole('button', { name: /Open claim/ }));
+    expect(await screen.findByRole('dialog', { name: /Time-and-materials claim/ })).toHaveTextContent('400,000');
+    expect(screen.getByText(/Approved source entries/)).toBeInTheDocument();
+    expect(screen.getByText(/source entries are available; this list is incomplete/)).toBeInTheDocument();
+    expect(await axe(document.body)).toHaveNoViolations();
+  });
+
+  it('AC-TM-016 lets a PM prepare sign-off, blocks the preparer, then opens the existing invoice flow for a second user', async () => {
+    const { user, rerender } = renderPanel();
+    h.role = 'Project Manager';
+    h.effectiveRole = 'Project Manager';
+    h.userId = 'u-pm';
+    rerender(
+      <I18nextProvider i18n={page()}>
+        <MemoryRouter><ToastProvider><main><TimeAndMaterials projectId="p1" projectManagerId="u-pm" currency="IDR" onCreateInvoice={vi.fn()} canCreateInvoice={() => true} /></main></ToastProvider></MemoryRouter>
+      </I18nextProvider>,
+    );
+    await user.click(await screen.findByRole('button', { name: /Prepare sign-off/ }));
+    const prepareDialog = screen.getByRole('dialog', { name: /Prepare client sign-off/ });
+    await user.selectOptions(within(prepareDialog).getByLabelText(/Evidence document/), 'doc-1');
+    await user.click(within(prepareDialog).getByRole('button', { name: /Prepare sign-off/ }));
+    await waitFor(() => expect(h.mutations.prepare).toHaveBeenCalledWith({ claimId: 'claim-1', documentId: 'doc-1', note: null }));
+
+    h.claims = { ...h.claims, data: { rows: [{ ...claim, signoff_prepared_by: 'u-pm', document_id: 'doc-1' }], truncated: false } };
+    rerender(
+      <I18nextProvider i18n={page()}>
+        <MemoryRouter><ToastProvider><main><TimeAndMaterials projectId="p1" projectManagerId="u-pm" currency="IDR" onCreateInvoice={vi.fn()} canCreateInvoice={() => true} /></main></ToastProvider></MemoryRouter>
+      </I18nextProvider>,
+    );
+    expect(screen.queryByRole('button', { name: /Confirm sign-off/ })).not.toBeInTheDocument();
+
+    const createInvoice = vi.fn();
+    h.role = 'Finance';
+    h.effectiveRole = 'Finance';
+    h.userId = 'u-fin';
+    rerender(
+      <I18nextProvider i18n={page()}>
+        <MemoryRouter><ToastProvider><main><TimeAndMaterials projectId="p1" projectManagerId="u-pm" currency="IDR" onCreateInvoice={createInvoice} canCreateInvoice={() => true} /></main></ToastProvider></MemoryRouter>
+      </I18nextProvider>,
+    );
+    await user.click(await screen.findByRole('button', { name: /Confirm sign-off/ }));
+    const confirmDialog = screen.getByRole('dialog', { name: /Confirm client sign-off/ });
+    await user.click(within(confirmDialog).getByRole('button', { name: /Confirm sign-off/ }));
+    await waitFor(() => expect(h.mutations.confirm).toHaveBeenCalledWith('claim-1'));
+    h.claims = { ...h.claims, data: { rows: [{ ...claim, status: 'SignedOff', signoff_prepared_by: 'u-pm', document_id: 'doc-1' }], truncated: false } };
+    rerender(
+      <I18nextProvider i18n={page()}>
+        <MemoryRouter><ToastProvider><TimeAndMaterials projectId="p1" projectManagerId="u-pm" currency="IDR" onCreateInvoice={createInvoice} canCreateInvoice={() => true} /></ToastProvider></MemoryRouter>
+      </I18nextProvider>,
+    );
+    await user.click(screen.getByRole('button', { name: /Create invoice/ }));
+    expect(createInvoice).toHaveBeenCalledWith('claim-1');
+  });
+
+  it('AC-TM-016 hides write actions in view-as mode and confirms a sign-off withdrawal', async () => {
+    h.effectiveRole = 'Project Manager';
+    renderPanel();
+    expect(screen.queryByRole('button', { name: /Add rate/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Assemble claim/ })).not.toBeInTheDocument();
+
+    h.effectiveRole = 'Finance';
+    h.claims = { ...h.claims, data: { rows: [{ ...claim, signoff_prepared_by: 'u-pm', document_id: 'doc-1' }], truncated: false } };
+    const { user: financeUser } = renderPanel();
+    await financeUser.click(await screen.findByRole('button', { name: /Withdraw sign-off/ }));
+    const dialog = screen.getByRole('alertdialog', { name: /Withdraw client sign-off/ });
+    await financeUser.click(within(dialog).getByRole('button', { name: /Withdraw sign-off/ }));
+    await waitFor(() => expect(h.mutations.withdraw).toHaveBeenCalledWith('claim-1'));
+  });
+
+  it('shows loading, empty, and retry states for rates and claims', async () => {
+    h.rates = { ...h.rates, data: undefined as never, isPending: true };
+    h.claims = { ...h.claims, data: undefined as never, isPending: true };
+    const pending = renderPanel();
+    expect(screen.getAllByRole('status').length).toBeGreaterThan(0);
+    pending.unmount();
+
+    h.rates = { data: { rows: [], truncated: false }, isPending: false, isError: false, refetch: vi.fn() };
+    h.claims = { data: { rows: [], truncated: false }, isPending: false, isError: false, refetch: vi.fn() };
+    renderPanel();
+    expect(screen.getByText(/No labour rates yet/)).toBeInTheDocument();
+    expect(screen.getByText(/No time-and-materials claims yet/)).toBeInTheDocument();
+  });
+
+  it('shows local retry controls when a rate or claim read fails', async () => {
+    const retryRates = vi.fn();
+    const retryClaims = vi.fn();
+    h.rates = { ...h.rates, isError: true, isPending: false, refetch: retryRates };
+    h.claims = { ...h.claims, isError: true, isPending: false, refetch: retryClaims };
+    const { user } = renderPanel();
+    expect(screen.getByText(/Couldn't load the rate card/)).toBeInTheDocument();
+    expect(screen.getByText(/Couldn't load time-and-materials claims/)).toBeInTheDocument();
+    await user.click(screen.getAllByRole('button', { name: /Retry/ })[0]);
+    expect(retryRates).toHaveBeenCalled();
+  });
+
+  it('disables assembly when the money preview is truncated', () => {
+    h.preview = { ...h.preview, data: { rows: [priced], truncated: true } };
+    renderPanel();
+    expect(screen.getByText(/Narrow the period before assembling/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Assemble claim/ })).toBeDisabled();
+  });
+});

@@ -24,6 +24,8 @@ const h = vi.hoisted(() => ({
   docs: [] as unknown[],
   docsState: { isPending: false, isError: false, refetch: vi.fn() },
   ordersState: { isPending: false, isError: false, refetch: vi.fn() },
+  tmClaims: { data: { rows: [] as unknown[], truncated: false }, isPending: false, isError: false, refetch: vi.fn() },
+  tmMutation: vi.fn().mockResolvedValue(undefined),
   m: {} as Record<string, { mutateAsync: ReturnType<typeof vi.fn>; isPending: boolean }>,
 }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.role, effectiveRole: h.effectiveRole ?? h.role }) }));
@@ -47,6 +49,20 @@ vi.mock('@/src/hooks/useWorkOrderAcceptances', () => ({
   useProjectWorkOrderLines: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
 vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => ({ data: h.docs, ...h.docsState }) }));
+vi.mock('@/src/hooks/useTasks', () => ({ useAssignableProfiles: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }) }));
+vi.mock('@/src/hooks/useTimeAndMaterials', () => ({
+  useTmRateLines: () => ({ data: { rows: [], truncated: false }, isPending: false, isError: false, refetch: vi.fn() }),
+  useTmRateAssignees: () => ({ data: { rows: [], truncated: false }, isPending: false, isError: false, refetch: vi.fn() }),
+  useTmClaims: () => h.tmClaims,
+  useTmClaimPreview: () => ({ data: { rows: [], truncated: false }, isPending: false, isError: false, refetch: vi.fn() }),
+  useTmClaimSources: () => ({ data: { rows: [], truncated: false }, isPending: false, isError: false, refetch: vi.fn() }),
+  useSaveTmRateLine: () => ({ mutateAsync: h.tmMutation, isPending: false }),
+  useSetTmRateAssignee: () => ({ mutateAsync: h.tmMutation, isPending: false }),
+  useAssembleTmClaim: () => ({ mutateAsync: h.tmMutation, isPending: false }),
+  usePrepareTmSignoff: () => ({ mutateAsync: h.tmMutation, isPending: false }),
+  useWithdrawTmSignoff: () => ({ mutateAsync: h.tmMutation, isPending: false }),
+  useConfirmTmSignoff: () => ({ mutateAsync: h.tmMutation, isPending: false }),
+}));
 import BillingTab from '../BillingTab';
 import { summarizeInvoiceSettlement } from '../../ContractCascade';
 
@@ -80,6 +96,8 @@ beforeEach(() => {
   h.boq = BOQ; h.claims = CLAIMS; h.docs = DOCS;
   h.docsState = { isPending: false, isError: false, refetch: vi.fn() };
   h.ordersState = { isPending: false, isError: false, refetch: vi.fn() };
+  h.tmClaims = { data: { rows: [], truncated: false }, isPending: false, isError: false, refetch: vi.fn() };
+  h.tmMutation.mockReset().mockResolvedValue(undefined);
   h.m = Object.fromEntries(['createBoq', 'updateBoq', 'deleteBoq', 'recordAssessment', 'createClaim', 'attachEvidence', 'withdrawClaim', 'raiseInvoice']
     .map((name) => [name, { mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false }]));
 });
@@ -244,6 +262,24 @@ describe('BillingTab', () => {
     expect(screen.getByTestId('billing-route-search')).toHaveTextContent('open=k1&openType=billingClaim');
     expect(screen.getByText('No evidence attached yet.')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Open full page' })).toBeInTheDocument();
+  });
+
+  it('AC-TM-016 opens the existing invoice confirmation with a signed-off T&M claim preselected', async () => {
+    h.claims = [claim('tm-1', {
+      kind: 'time_materials', gross_amount: 400000, dp_recovery_amount: 0,
+      evidence: [{ id: 'tm-evidence', document_id: 'doc-1', document_status: 'active', document_revision: 'A' }],
+    })];
+    h.tmClaims = { data: { rows: [{
+      id: 'tm-1', work_order_id: null, period_from: '2026-11-01', period_to: '2026-11-30', status: 'SignedOff',
+      currency: 'IDR', gross_amount: 400000, prepared_by: 'u-pm', signoff_prepared_by: 'u-pm', confirmed_by: 'u-fin',
+      confirm_basis: 'standard', document_id: 'doc-1', note: null, created_at: '2026-11-03T00:00:00Z', lines: [],
+    }], truncated: false }, isPending: false, isError: false, refetch: vi.fn() };
+    const user = renderTab();
+
+    await user.click(await screen.findByRole('button', { name: /Create invoice/ }));
+
+    const dialog = screen.getByRole('dialog', { name: "Raise this claim's invoice?" });
+    expect(within(dialog).getByText(/Claimed IDR/)).toBeInTheDocument();
   });
 
   it('AC-1402 restores a billing record drawer from the open URL', async () => {
