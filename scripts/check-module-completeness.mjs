@@ -162,67 +162,9 @@ export const LEGACY_ASSISTANT_PATHS = {
  */
 export const ALLOWLIST = [
   {
-    ids: [
-      'route:/sales',
-      'route:/sales/:opportunityId',
-      'route:/procurement',
-      'route:/procurement/new',
-      'route:/procurement/:procurementId',
-      'route:/procurement/:procurementId/:tab',
-      'route:/timesheets',
-      'route:/companies',
-      'route:/companies/:companyId',
-      'route:/contacts',
-      'route:/contacts/:contactId',
-      'route:/imprest',
-      'route:/imprest/:floatId',
-      'route:/stock',
-      'route:/stock/setup',
-      'route:/stock/documents',
-      'route:/stock/documents/:documentId',
-      'route:/stock/documents/:documentId/edit',
-      'route:/stock/ledger',
-      'route:/stock/reorder',
-      'route:/stock/new/:kind',
-      'route:/erp-purchases',
-      'route:/sales-invoices/:invoiceId',
-      'route:/finance/statements',
-      'route:/administration/exchange-rates',
-    ],
-    reason:
-      'S3 wires FeatureRoute for the module routes (AC-PLN-008); dev wraps only incidents/revenue/procurement/user_views',
-    restore: 'Delete when S3 lands its route table (docs/plans/2026-11-02-plans-and-feature-switches.md §S3).',
-  },
-  {
     ids: ['route:/incoming-payments/:receiptId'],
     reason: 'revenue detail route; S3 gates the redirects but not this one',
     restore: 'Delete when S3 gates it on `revenue` or rules it core.',
-  },
-  {
-    ids: ['nav:/stock', 'nav:/imprest'],
-    reason: 'S3 gates the Rail from the resolved projection; these two items are still ungated on dev',
-    restore: 'Delete when S3 lands the Rail gates (§S3).',
-  },
-  {
-    ids: ['nav:/finance/statements'],
-    reason: 'S3 gates the Rail from the resolved projection; Statements is role-gated in the page but carries no feature',
-    restore: 'Delete when S3 lands the Rail gates (§S3).',
-  },
-  {
-    ids: [
-      'palette:/sales',
-      'palette:/procurement',
-      'palette:/stock',
-      'palette:/timesheets',
-      'palette:/companies',
-      'palette:/companies?type=Vendor',
-      'palette:/contacts',
-      'palette:/incidents',
-      'palette:/imprest',
-      'palette:/finance/statements',
-    ],
-    reason: 'S3 makes the ⌘K palette follow MODULES[].feature; only the three Finance keys carry a feature on dev',
-    restore: 'Delete when S3 lands the palette gates (§S3).',
   },
   {
     ids: [
@@ -445,7 +387,8 @@ export function parseRoutes(appTsx) {
       const code = stripTsComments(block);
       const path = field(code, 'path');
       const feature = jsxFeature(code);
-      return { path, feature: feature ? (feature[1] ?? feature[2] ?? feature[3]) : null };
+      const helperFeature = code.match(/\bgated\s*\(\s*['"]([^'"]+)['"]/);
+      return { path, feature: feature ? (feature[1] ?? feature[2] ?? feature[3]) : (helperFeature?.[1] ?? null) };
     })
     .filter((route) => route.path);
 }
@@ -464,12 +407,12 @@ export function parseRail(railTsx) {
     .filter((item) => item.to);
 }
 
-/** routeMatch.ts MODULES -> [{ path, feature }]. Comment text is not a gate. */
+/** routeMatch.ts MODULES -> [{ path, feature, unlessFeature }]. Comment text is not a gate. */
 export function parsePalette(routeMatchTs) {
   return objectBlocks(routeMatchTs, 'export const MODULES')
     .map((raw) => {
       const block = stripTsComments(raw);
-      return { path: field(block, 'path'), feature: field(block, 'feature') };
+      return { path: field(block, 'path'), feature: field(block, 'feature'), unlessFeature: field(block, 'unlessFeature') };
     })
     .filter((module) => module.path);
 }
@@ -854,18 +797,20 @@ export function check(input) {
 
   // 3. ⌘K palette modules (+ drift from the Rail twin, when the Rail gates it)
   const seenPalette = new Set();
-  for (const { path, feature } of palette) {
+  for (const { path, feature, unlessFeature } of palette) {
     seenPalette.add(path);
     if (feature) validKey(feature, `palette ${path}`);
+    else if (unlessFeature) validKey(unlessFeature, `palette ${path}`);
     else if (!(path in corePalette)) {
       gap(`palette:${path}`, `palette ${path}: no switch key and no core marking — add feature (${PALETTE}) or CORE_PALETTE in this guard`);
     }
-    const twin = rail.find((item) => basePath(item.to) === basePath(path) && item.feature);
-    if (twin && feature !== twin.feature) {
-      gap(
-        `palette:${path}`,
-        `palette ${path}: drift from its Rail item — Rail gates it on '${twin.feature}' but MODULES declares ${feature ? `'${feature}'` : 'no feature'} (${PALETTE})`,
-      );
+    const gatedTwin = (item) => item.feature || item.unlessFeature;
+    const twin = rail.find((item) => item.to === path && gatedTwin(item))
+      ?? rail.find((item) => basePath(item.to) === basePath(path) && gatedTwin(item));
+    if (twin && (feature !== twin.feature || unlessFeature !== twin.unlessFeature)) {
+      const railGate = twin.feature ? `feature '${twin.feature}'` : `unlessFeature '${twin.unlessFeature}'`;
+      const paletteGate = feature ? `feature '${feature}'` : unlessFeature ? `unlessFeature '${unlessFeature}'` : 'no feature';
+      gap(`palette:${path}`, `palette ${path}: drift from its Rail item — Rail gates it on ${railGate} but MODULES declares ${paletteGate} (${PALETTE})`);
     }
   }
   for (const path of Object.keys(corePalette)) {
@@ -1038,17 +983,20 @@ function selfTest() {
   { path: '/', element: <ExecutiveDashboard /> },
   { path: '/projects', element: <Projects /> },
   { path: '/incidents', element: <FeatureRoute feature="incidents" element={<IncidentsPage />} /> },
+  { path: '/fixture-helper', element: gated('stock', <FixturePage />) },
   { path: '/fixture-module', element: <FixturePage /> },
   { path: '*', element: <NotFoundPage /> },
 ];`;
   const railTsx = `const ALL_ITEMS: NavItem[] = [
   { to: '/', text: 'Dashboard', group: 'Overview' },
   { to: '/incidents', text: 'Incidents', group: 'Delivery', feature: 'incidents' },
+  { to: '/fixture-negative', text: 'Fallback', group: 'Delivery', unlessFeature: 'incidents' },
   { to: '/fixture-nav', text: 'Fixture', group: 'Delivery' },
 ];`;
   const paletteTs = `export const MODULES: ModuleDef[] = [
   { module: 'dashboard', path: '/' },
   { module: 'incidents', path: '/incidents', feature: 'incidents' },
+  { module: 'fixture-negative', path: '/fixture-negative', unlessFeature: 'incidents' },
   { module: 'fixture-module', path: '/fixture-module' },
 ];`;
   const featuresTs = `export const FEATURE_KEYS = ['incidents', 'stock'] as const;
@@ -1115,7 +1063,7 @@ export const TOOL_FEATURE_KEYS: Readonly<Record<string, string>> = Object.freeze
   ok(!has(errors, 'stale core route'), 'no stale core marking in the fixture');
 
   // Parsers discover every entry, including adjacent single-line objects.
-  ok(parseRoutes(appTsx).length === 5, `parseRoutes discovers all 5 route entries (got ${parseRoutes(appTsx).length})`);
+  ok(parseRoutes(appTsx).length === 6, `parseRoutes discovers all 6 route entries (got ${parseRoutes(appTsx).length})`);
   ok(parseFeatures(featuresTs).keys.join() === 'incidents,stock', 'parseFeatures discovers the registry keys');
   ok(assistant.entities.has('incidents') && assistant.entities.has('projects'), 'parseAssistant discovers both entity sources');
   ok(assistant.tools.has('query_entity') && !assistant.tools.has('right_tool'), 'only inputSchema-backed names are tools');
@@ -1296,6 +1244,7 @@ create or replace function public.save_stock() returns void language plpgsql as 
     parseRoutes(commentedApp).find((route) => route.path === '/fixture-module')?.feature === null,
     'a commented-out FeatureRoute is not a gate',
   );
+  ok(parsePalette(paletteTs).find((module) => module.path === '/fixture-negative')?.unlessFeature === 'incidents', 'parsePalette recognizes the intentional negative gate');
   ok(parseRail(commentedRail).find((item) => item.to === '/fixture-nav')?.feature === null, 'a commented-out Rail feature is not a gate');
   ok(
     parsePalette(commentedPalette).find((module) => module.path === '/fixture-module')?.feature === null,

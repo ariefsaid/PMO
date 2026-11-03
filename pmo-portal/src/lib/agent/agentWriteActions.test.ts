@@ -575,9 +575,10 @@ it('AC-AGENTDENY-WIRING-001 can() denies → audit_agent_denial RPC invoked with
   // The durable audit RPC was invoked exactly once with the refusal reason + annotation
   // (attempted tool/action/entity + run/thread/pending ids). Org/actor are NOT passed — the
   // 0079 RPC stamps them server-side from the JWT (proven non-forgeable by pgTAP 0136).
-  const auditCalls = () => supabaseMock.rpc.mock.calls.filter((call) => call[0] === 'audit_agent_denial');
+  const rpcMock = supabaseMock.rpc as unknown as ReturnType<typeof vi.fn>;
+  const auditCalls = () => rpcMock.mock.calls.filter((call) => call[0] === 'audit_agent_denial');
   expect(auditCalls()).toHaveLength(1);
-  expect(supabaseMock.rpc).toHaveBeenCalledWith('audit_agent_denial', {
+  expect(rpcMock).toHaveBeenCalledWith('audit_agent_denial', {
     p_reason: 'permission_denied',
     p_detail: {
       tool: 'create_activity',
@@ -639,7 +640,8 @@ it('AC-AGENTDENY-WIRING-002 a throwing audit_agent_denial RPC is FAIL-OPEN — r
   );
 
   // The RPC was attempted, and the refusal signal is identical to the happy-audit path.
-  expect(supabaseMock.rpc.mock.calls.filter((call) => call[0] === 'audit_agent_denial')).toHaveLength(1);
+  const rpcMock = supabaseMock.rpc as unknown as ReturnType<typeof vi.fn>;
+  expect(rpcMock.mock.calls.filter((call) => call[0] === 'audit_agent_denial')).toHaveLength(1);
   expect(events.find(
     (e) => e.type === 'status' && (e.payload as { error?: string })?.error === 'PERMISSION_DENIED',
   )).toBeDefined();

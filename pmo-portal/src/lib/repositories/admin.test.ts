@@ -65,7 +65,7 @@ describe('userViewRepository', () => {
 });
 
 describe('orgFeatureRepository and credits', () => {
-  itDelegates(orgFeatureRepository as never, features, [
+  itDelegates(orgFeatureRepository as never, { ...features, ...orgPlan }, [
     ['listOwn', 'listOwnResolvedFeatures', []],
     ['listForOrg', 'listOperatorResolvedFeatures', ['org-1']],
     ['listOverrides', 'listOperatorOrgOverrides', ['org-1']],
