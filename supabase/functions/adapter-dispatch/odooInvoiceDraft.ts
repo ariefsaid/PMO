@@ -11,6 +11,7 @@ import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 import type { AdapterCommand } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
 import { odooOwnsRevenueTier } from '../../../pmo-portal/src/lib/adapterSeam/odoo/ownership.ts';
 import { resolveExternalRef, type ExternalRefsLookupClient } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
+import { readOdooProgressClaim } from '../_shared/odooProgressClaim.ts';
 import { parseDraftLines, readInvoiceDraft } from '../_shared/odooRevenueRefs.ts';
 import { assertOdooRevenueCommandScope } from './odooRevenueGate.ts';
 
@@ -42,8 +43,11 @@ export async function checkOdooDraftTarget(sc: SupabaseClient, orgId: string, co
   return { ok: true, unmappedDraft: true };
 }
 
-const lineAmounts = (items: unknown) => {
-  const lines = parseDraftLines(Array.isArray(items) ? items.map((i: { item_code?: unknown; qty?: unknown; rate?: unknown; description?: unknown }) => ({ item_code: i?.item_code, qty: i?.qty, rate: i?.rate, description: i?.description })) : null);
+const lineAmounts = (items: unknown, allowNegative = false, useRecordedAmounts = false) => {
+  const lines = parseDraftLines(Array.isArray(items) ? items.map((i: { item_code?: unknown; qty?: unknown; rate?: unknown; description?: unknown; amount?: unknown }) => ({
+    item_code: i?.item_code, qty: i?.qty, rate: i?.rate, description: i?.description,
+    ...(useRecordedAmounts ? { amount: i?.amount } : {}),
+  })) : null, allowNegative, useRecordedAmounts);
   return lines === null ? null : { lines, total: lines.reduce((sum, l) => sum + Math.round(l.amount * 100), 0) / 100 };
 };
 
@@ -66,24 +70,31 @@ async function hasOutboxRow(sc: SupabaseClient, orgId: string, invoiceId: string
 export async function writeOdooInvoiceDraft(args: { serviceClient: SupabaseClient; orgId: string; userId: string; command: AdapterCommand }): Promise<Reply> {
   const { serviceClient: sc, orgId, userId, command } = args;
   const record = command.record as Record<string, unknown> & { id: string };
+  let claim: Awaited<ReturnType<typeof readOdooProgressClaim>>;
   try {
-    await assertOdooRevenueCommandScope(sc, orgId, command);   // links in this org; the project's cost account resolves (FR-OCI-020)
+    claim = await readOdooProgressClaim(sc, orgId, String(record.id));
+    if (claim && command.operation === 'update') return reply(409, 'commit-rejected', 'claim-invoice-lines-locked');
+    const scopedCommand = claim ? { ...command, record: {
+      ...record, customerId: claim.customerId, projectId: claim.claim.project_id, workOrderId: claim.claim.work_order_id,
+    } } as AdapterCommand : command;
+    await assertOdooRevenueCommandScope(sc, orgId, scopedCommand);   // links in this org; the project's cost account resolves (FR-OCI-020)
   } catch (err) {
     if (err instanceof AppError) return reply(422, String(err.code ?? 'commit-rejected'), err.message);
     throw err;
   }
-  const items = lineAmounts(record.items);
-  const reference = typeof record.reference_number === 'string' && record.reference_number.trim() !== '' ? record.reference_number.trim() : null;
+  const items = lineAmounts(claim?.items ?? record.items, claim !== null, claim !== null);
+  const reference = claim ? null : typeof record.reference_number === 'string' && record.reference_number.trim() !== '' ? record.reference_number.trim() : null;
 
   if (command.operation === 'create') {
     if (items === null) return reply(422, 'commit-rejected', 'invoice-lines-invalid');
-    const customerId = typeof record.customerId === 'string' && record.customerId !== '' ? record.customerId : null;
+    const customerId = claim?.customerId ?? (typeof record.customerId === 'string' && record.customerId !== '' ? record.customerId : null);
     if (customerId === null) return reply(422, 'commit-rejected', 'invoice-customer-required');
-    const projectId = typeof record.projectId === 'string' && record.projectId !== '' ? record.projectId : null;
-    const workOrderId = typeof record.workOrderId === 'string' && record.workOrderId !== '' ? record.workOrderId : null;
+    const projectId = claim?.claim.project_id ?? (typeof record.projectId === 'string' && record.projectId !== '' ? record.projectId : null);
+    const workOrderId = claim?.claim.work_order_id ?? (typeof record.workOrderId === 'string' && record.workOrderId !== '' ? record.workOrderId : null);
     const { error } = await sc.from('sales_invoices').insert({
       id: record.id, org_id: orgId, project_id: projectId, customer_id: customerId, ...(workOrderId ? { work_order_id: workOrderId } : {}),
-      ...(projectId && (record.billingKind === 'contract' || record.billingKind === 'other') ? { billing_kind: record.billingKind } : {}),
+      ...(claim?.claim.currency ? { currency: claim.claim.currency } : {}),
+      ...(!claim && projectId && (record.billingKind === 'contract' || record.billingKind === 'other') ? { billing_kind: record.billingKind } : {}),
       reference_number: reference, native_lines: items.lines, amount: items.total, tax_treatment: 'exclusive', tax_amount: 0, status: 'Draft', author_user_id: userId,
     });
     if (error) return reply(error.code === '23505' ? 422 : 500, 'commit-rejected', error.code === '23505' ? 'a revenue create must name a new record' : 'The invoice draft could not be saved');
