@@ -81,7 +81,7 @@ describe('#1514 T7.1 time-and-materials hooks', () => {
     for (const fn of Object.values(tm)) expect(fn).not.toHaveBeenCalled();
   });
 
-  it('T7.1 confirming a sign-off invalidates the claims AND the project finances', async () => {
+  it('T7.1 confirming a sign-off invalidates the claims, project finances, and existing billing flow', async () => {
     const client = fresh();
     const spy = vi.spyOn(client, 'invalidateQueries');
     const { result } = renderHook(() => useConfirmTmSignoff(), { wrapper: wrap(client) });
@@ -90,6 +90,7 @@ describe('#1514 T7.1 time-and-materials hooks', () => {
     const keys = spy.mock.calls.map((c) => JSON.stringify(c[0]?.queryKey));
     expect(keys).toContain(JSON.stringify(['tm-claims']));
     expect(keys).toContain(JSON.stringify(['project-finances']));
+    expect(keys).toContain(JSON.stringify(['progress-claims']));
   });
 
   it('T7.1 every write invalidates every T&M root plus project finances', async () => {

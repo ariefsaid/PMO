@@ -10,7 +10,7 @@ import { CLAIM_BUDGET_MS, REQUEST_DEADLINE_MS, SETTLE_MARGIN_MS } from '../../..
 import type { InvoiceExpect } from '../../../pmo-portal/src/lib/adapterSeam/odoo/revenue/invoiceReadBack.ts';
 import type { InvoiceComposite } from '../../../pmo-portal/src/lib/adapterSeam/odoo/revenue/recoveryProbe.ts';
 import { odooClientForOrg, type OdooClientForOrgResult } from '../_shared/odooClientForOrg.ts';
-import { invoiceCompositeFacts, resolveOdooInvoiceCommandMaterial, resolveOdooInvoiceInputs } from '../_shared/odooRevenueRefs.ts';
+import { invoiceCompositeFacts, resolveOdooInvoiceCommandMaterial, resolveOdooInvoiceInputs, type InvoiceDraftRow } from '../_shared/odooRevenueRefs.ts';
 import { readOutboxCompositePayload } from './erpMoneyOutbox.ts';
 import { canonicalCommandDigest, createDbMoneyOutboxDeps } from './moneyOutboxDeps.ts';
 import type { AdapterSelectContext } from './dispatchAdapters.ts';
@@ -45,15 +45,29 @@ const odooDatetime = (ms: number) => new Date(ms).toISOString().slice(0, 19).rep
 const WINDOW_MS = 10 * 60_000;
 
 /** What the read-back is judged against and the composite's inputs: derived, so not command material (they stay out of the payload digest). */
-const DERIVED_KEYS = ['odoo_expected_total', 'odoo_cost_account', 'odoo_partner_id', 'created_after', 'created_before', 'odoo_adopted_ref', 'odoo_absent_confirmed'] as const;
-const expectOf = (p: Record<string, unknown> | null | undefined): InvoiceExpect | undefined =>
-  p && typeof p.odoo_expected_total === 'string' && (typeof p.odoo_cost_account === 'number' || p.odoo_cost_account === null)
-    ? { total: p.odoo_expected_total, costAccountId: p.odoo_cost_account }
-    : undefined;
+const DERIVED_KEYS = [
+  'odoo_expected_total', 'odoo_cost_account', 'odoo_advance_product_id', 'odoo_advance_account_id',
+  'odoo_partner_id', 'created_after', 'created_before', 'odoo_adopted_ref', 'odoo_absent_confirmed',
+] as const;
+const expectOf = (p: Record<string, unknown> | null | undefined): InvoiceExpect | undefined => {
+  if (!p || typeof p.odoo_expected_total !== 'string' || !(typeof p.odoo_cost_account === 'number' || p.odoo_cost_account === null)) return undefined;
+  const advanceAccount = typeof p.odoo_advance_product_id === 'number' && typeof p.odoo_advance_account_id === 'number'
+    ? { productId: p.odoo_advance_product_id, accountId: p.odoo_advance_account_id } : undefined;
+  return { total: p.odoo_expected_total, costAccountId: p.odoo_cost_account, ...(advanceAccount ? { advanceAccount } : {}) };
+};
 const compositeOf = (p: Record<string, unknown> | null | undefined): InvoiceComposite | undefined =>
   p && typeof p.odoo_partner_id === 'number' && typeof p.created_after === 'string'
     ? { partnerId: p.odoo_partner_id, createdAfter: p.created_after, ...(typeof p.created_before === 'string' ? { createdBefore: p.created_before } : {}) }
     : undefined;
+
+/** Bind retries to the PMO draft source, including lines that Odoo rounding normalized in the outbox payload. */
+export const odooInvoiceDraftDigest = (draft: InvoiceDraftRow): Promise<string> => canonicalCommandDigest({
+  domain: 'revenue', operation: 'create', record: {
+    id: draft.id, customerId: draft.customerId, projectId: draft.projectId, workOrderId: draft.workOrderId,
+    referenceNumber: draft.referenceNumber, invoiceDate: draft.invoiceDate, currency: draft.currency,
+    items: draft.lines.map(({ item_code, description, qty, rate, amount }) => ({ item_code, description, qty, rate, amount })),
+  },
+});
 
 /**
  * The approval of an invoice draft (FR-OCI-070): the outbox row is a `create` (the Odoo document is created and posted by this one command, and
@@ -81,16 +95,27 @@ async function invoiceOutboxDeps(ctx: AdapterSelectContext, resolved: Exclude<Od
     if (!persisted || !persistedExpect || !persistedComposite) {
       throw new AppError('invoice-recovery-payload-incomplete', 'commit-rejected');
     }
-    await resolveOdooInvoiceCommandMaterial(sc, ctx.orgId, ctx.command, true);
+    const commandMaterial = await resolveOdooInvoiceCommandMaterial(sc, ctx.orgId, ctx.command, true);
     expect = persistedExpect;
-    payload = {
-      ...record, erp_doc_kind: 'sales-invoice',
-      odoo_partner_id: persistedComposite.partnerId, odoo_expected_total: persistedExpect.total,
-      odoo_cost_account: persistedExpect.costAccountId, created_after: persistedComposite.createdAfter,
-      ...(persistedComposite.createdBefore ? { created_before: persistedComposite.createdBefore } : {}),
-      ...(typeof persisted.odoo_adopted_ref === 'string' ? { odoo_adopted_ref: persisted.odoo_adopted_ref } : {}),
-      ...(persisted.odoo_absent_confirmed === true ? { odoo_absent_confirmed: true } : {}),
-    };
+    if (typeof persisted.odoo_draft_digest === 'string') {
+      // Preserve the original normalized command material, but bind its replay to the current PMO source lines.
+      // This avoids depending on mutable Odoo mappings while still rejecting a changed draft under the same key.
+      payload = { ...persisted, odoo_draft_digest: await odooInvoiceDraftDigest(commandMaterial.draft) };
+    } else {
+      // Older rows predate the source digest and used the unrounded draft command material.
+      payload = {
+        ...record, erp_doc_kind: 'sales-invoice',
+        odoo_partner_id: persistedComposite.partnerId, odoo_expected_total: persistedExpect.total,
+        odoo_cost_account: persistedExpect.costAccountId, created_after: persistedComposite.createdAfter,
+        ...(persistedComposite.createdBefore ? { created_before: persistedComposite.createdBefore } : {}),
+        ...(persistedExpect.advanceAccount ? {
+          odoo_advance_product_id: persistedExpect.advanceAccount.productId,
+          odoo_advance_account_id: persistedExpect.advanceAccount.accountId,
+        } : {}),
+        ...(typeof persisted.odoo_adopted_ref === 'string' ? { odoo_adopted_ref: persisted.odoo_adopted_ref } : {}),
+        ...(persisted.odoo_absent_confirmed === true ? { odoo_absent_confirmed: true } : {}),
+      };
+    }
   } else {
     const resolvedInvoice = await resolveOdooInvoiceInputs(sc, ctx.orgId, ctx.command, resolved, call, false);
     const facts = await invoiceCompositeFacts(sc, ctx.orgId, record);
@@ -98,6 +123,11 @@ async function invoiceOutboxDeps(ctx: AdapterSelectContext, resolved: Exclude<Od
     payload = {
       ...record, erp_doc_kind: 'sales-invoice', odoo_partner_id: facts.partnerId,
       odoo_expected_total: expect.total, odoo_cost_account: expect.costAccountId,
+      odoo_draft_digest: await odooInvoiceDraftDigest(resolvedInvoice.draft),
+      ...(expect.advanceAccount ? {
+        odoo_advance_product_id: expect.advanceAccount.productId,
+        odoo_advance_account_id: expect.advanceAccount.accountId,
+      } : {}),
       created_after: odooDatetime(Date.now() - WINDOW_MS), created_before: odooDatetime(Date.now() + CLAIM_BUDGET_MS + SETTLE_MARGIN_MS),
     };
   }

@@ -10,7 +10,7 @@ import { createFakeOdoo } from '../../../pmo-portal/src/lib/adapterSeam/odoo/fak
 import { externalIdentifier } from '../../../pmo-portal/src/lib/adapterSeam/odoo/revenue/anchors.ts';
 import { APPROVER_ID, CUSTOMER_ID, DRAFT_ID, PROJECT_ID, approveCommand, draftItems, revenueRoutes, type World } from './odooRevenueFixtures.ts';
 import { resolveOdooMoneyOutboxDeps } from './odooMoneyOutbox.ts';
-import { odooRevenueAnchorKey } from './odooRevenueOutbox.ts';
+import { odooInvoiceDraftDigest, odooRevenueAnchorKey } from './odooRevenueOutbox.ts';
 import type { AdapterSelectContext } from './dispatchAdapters.ts';
 
 const env = installEdgeEnv();
@@ -47,6 +47,18 @@ describe('PD-4 the revenue anchor key follows the PMO record, never the per-clic
       assert(thrown instanceof Error && (thrown as { code?: string }).code === 'commit-rejected', String(id));
     }
   });
+});
+
+it('AC-OCI-063 the recovery digest binds the immutable PMO invoice draft, including its stored line amounts', async () => {
+  const draft = {
+    id: DRAFT_ID, customerId: CUSTOMER_ID, projectId: PROJECT_ID, workOrderId: null, referenceNumber: 'PO-1',
+    invoiceDate: '2026-11-03', currency: 'IDR', status: 'Unpaid', erpDocstatus: 1, pmoNative: false,
+    lines: [{ item_code: 'ITEM-A', description: 'work', qty: 2, rate: 100, amount: 200 }],
+  };
+  const first = await odooInvoiceDraftDigest(draft);
+  assertEquals(await odooInvoiceDraftDigest(draft), first, 'the same frozen draft produces a stable replay digest');
+  assertEquals(await odooInvoiceDraftDigest({ ...draft, lines: [{ ...draft.lines[0], rate: 101, amount: 202 }] }) === first, false,
+    'a changed PMO source line changes the replay digest even when the payload stores Odoo-normalized line values');
 });
 
 describe('FR-OCI-001 / ADR-0058 the Odoo revenue deps are the shared money outbox, held on doubt', () => {
@@ -97,6 +109,8 @@ describe('FR-OCI-070 / FR-OCI-072 / OQ-OCI-14 an invoice approval goes through t
   async function invoiceDeps(worldOverrides: Pick<World, 'saleTax' | 'outbox'> = {}) {
     const fake = createFakeOdoo({ key: 'odoo-test-key' });
     fake.seed('res.company', [{ id: 1, name: 'Co', currency_id: [12, 'IDR'] }]);
+    fake.seed('res.currency', [{ id: 12, name: 'Indonesian Rupiah', rounding: 0.01 }]);
+    fake.seed('decimal.precision', [{ id: 1, name: 'Product Unit', digits: 2 }]);
     fake.seed('res.partner', [{ id: 41, name: 'Client' }, { id: 42, name: 'Another' }]);
     fake.seed('account.tax', [{ id: 5, name: 'PPN', amount: 11, company_id: [1, 'Co'] }]);
     fake.seed('product.product', [{ id: 71, name: 'Item A', taxes_id: [], income_account_id: 149, property_account_income_id: [149, 'Sales'] }]);
