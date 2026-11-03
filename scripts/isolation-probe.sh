@@ -209,8 +209,10 @@ else
 fi
 if [ -n "$A_SI" ] && [ "$A_SI" != null ]; then
   c=$(rpc set_sales_invoice_billing_kind "{\"p_si_id\":\"$A_SI\",\"p_billing_kind\":\"other\"}")
+  c=$(rpc update_odoo_sales_invoice_draft "{\"p_org_id\":\"$A_ORG\",\"p_si_id\":\"$A_SI\",\"p_actor_id\":\"$A_PROFILE\",\"p_update_native_lines\":false,\"p_native_lines\":null,\"p_amount\":null,\"p_update_reference_number\":true,\"p_reference_number\":\"probe\"}")
 else
   skip "set_sales_invoice_billing_kind (sales_invoices)"
+  skip "update_odoo_sales_invoice_draft (sales_invoices)"
 fi
 A_PI=$(jq -r '.[]|select(.table=="procurement_invoices")|.id' "$A_ROWS_JSON")
 A_CLAIM=$(jq -r '.[]|select(.table=="expense_claims")|.id' "$A_ROWS_JSON")

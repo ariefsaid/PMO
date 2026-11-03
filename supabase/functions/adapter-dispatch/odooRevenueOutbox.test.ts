@@ -5,7 +5,10 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals, assertRejects } from '@std/assert';
 import { createClient } from '@supabase/supabase-js';
-import { installEdgeEnv, jsonResponse, supabaseRpc, supabaseSelect, withFetchMock, type MockRoute } from '../_shared/testing/edgeTestKit.ts';
+import { installEdgeEnv, jsonResponse, supabaseRpc, supabaseSelect, withFetchMock, type FetchCall, type MockRoute } from '../_shared/testing/edgeTestKit.ts';
+import { createFakeOdoo } from '../../../pmo-portal/src/lib/adapterSeam/odoo/fakeOdoo.ts';
+import { externalIdentifier } from '../../../pmo-portal/src/lib/adapterSeam/odoo/revenue/anchors.ts';
+import { APPROVER_ID, DRAFT_ID, approveCommand, revenueRoutes } from './odooRevenueFixtures.ts';
 import { resolveOdooMoneyOutboxDeps } from './odooMoneyOutbox.ts';
 import { odooRevenueAnchorKey } from './odooRevenueOutbox.ts';
 import type { AdapterSelectContext } from './dispatchAdapters.ts';
@@ -47,7 +50,7 @@ describe('PD-4 the revenue anchor key follows the PMO record, never the per-clic
 });
 
 describe('FR-OCI-001 / ADR-0058 the Odoo revenue deps are the shared money outbox, held on doubt', () => {
-  for (const kind of ['sales-invoice', 'incoming-payment']) {
+  for (const kind of ['incoming-payment']) {
     it(`NFR-OCI-001 a ${kind} is never reissued on an inconclusive recovery (composite hold-on-doubt, C-1)`, async () => {
       const t = setup(kind);
       await withFetchMock(t.routes, async () => {
@@ -87,5 +90,69 @@ describe('FR-OCI-001 / ADR-0058 the Odoo revenue deps are the shared money outbo
       const t = setup('sales-invoice', { binding });
       await withFetchMock(t.routes, async () => { await assertRejects(() => resolveOdooMoneyOutboxDeps(t.ctx), Error, 'The Odoo connection is not usable'); });
     }
+  });
+});
+
+describe('FR-OCI-070 / FR-OCI-072 / OQ-OCI-14 an invoice approval goes through the shared money outbox: a create, held on doubt, probed by its anchor', () => {
+  async function invoiceDeps() {
+    const fake = createFakeOdoo({ key: 'odoo-test-key' });
+    fake.seed('res.company', [{ id: 1, name: 'Co', currency_id: [12, 'IDR'] }]);
+    fake.seed('res.partner', [{ id: 41, name: 'Client' }, { id: 42, name: 'Another' }]);
+    fake.seed('account.tax', [{ id: 5, name: 'PPN', amount: 11, company_id: [1, 'Co'] }]);
+    fake.seed('product.product', [{ id: 71, name: 'Item A', taxes_id: [], income_account_id: 149, property_account_income_id: [149, 'Sales'] }]);
+    const unexpected: FetchCall[] = [];
+    const sc = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
+    const ctx = { orgId: '11111111-1111-4111-8111-111111111111', serviceClient: sc, userId: APPROVER_ID, faultGate: {}, erpAuth: {}, command: approveCommand() } as unknown as AdapterSelectContext;
+    const call = (model: string, method: string, body: unknown) => fake.fetch(`https://odoo.example.test/json/2/${model}/${method}`, { method: 'POST', headers: { Authorization: 'bearer odoo-test-key' }, body: JSON.stringify(body) }).then((r) => r.json());
+    return { fake, ctx, call, unexpected, routes: revenueRoutes(unexpected, APPROVER_ID, { projectLink: '101', odoo: fake }) };
+  }
+
+  it('the row is a create, never reissued on doubt, and its payload carries what the recovery judges by (client, expected total, cost account, bounded window)', async () => {
+    const t = await invoiceDeps();
+    await withFetchMock(t.routes, async ({ calls }) => {
+      const deps = await resolveOdooMoneyOutboxDeps(t.ctx);
+      assertEquals(deps.reissueOnInconclusiveAbsence, false);
+      await deps.insertOutboxPending('revenue', DRAFT_ID, KEY);
+      const insert = calls.find((c) => c.method === 'POST' && c.url.pathname === '/rest/v1/external_command_outbox')!.bodyJson as { operation: string; payload: Record<string, unknown> };
+      assertEquals(insert.operation, 'create');
+      const payload = insert.payload;
+      assertEquals([payload.odoo_partner_id, payload.odoo_expected_total, payload.odoo_cost_account, payload.erp_doc_kind], [41, '2220.00', 101, 'sales-invoice']);
+      assertEquals(typeof payload.created_after === 'string' && typeof payload.created_before === 'string', true);
+      assertEquals(t.unexpected, []);
+    });
+  });
+
+  it('the digest is the command\'s, not the derived facts: the window and the judged figures stay out of it', async () => {
+    const [a, b] = [await invoiceDeps(), await invoiceDeps()];
+    const digests: string[] = [];
+    for (const t of [a, b]) {
+      await withFetchMock(t.routes, async () => { await new Promise((r) => setTimeout(r, 1100)); digests.push((await resolveOdooMoneyOutboxDeps(t.ctx)).payloadDigest as string); });
+    }
+    assertEquals(digests[0], digests[1], 'the same approval digests the same, whenever it is made');
+  });
+
+  it('a RECOVERY holds on an unanchored look-alike of the client in the window, never adopting it; a first attempt (no recovery) finds nothing', async () => {
+    const t = await invoiceDeps();
+    await t.call('account.move', 'create', { vals_list: [{ move_type: 'out_invoice', partner_id: 41, invoice_date: '2026-11-03', invoice_line_ids: [] }] });
+    t.fake.rows('account.move')[0].create_date = new Date().toISOString().slice(0, 19).replace('T', ' ');   // made just now, inside the window
+    await withFetchMock(t.routes, async () => {
+      const deps = await resolveOdooMoneyOutboxDeps(t.ctx);
+      assertEquals(await deps.probeByRemarksKey('revenue', KEY, { recovery: false }), null);
+      await assertRejects(() => deps.probeByRemarksKey('revenue', KEY, { recovery: true }), Error, 'ambiguous-anchor');
+      assertEquals(t.fake.rows('account.move')[0].state, 'draft', 'nothing was posted or anchored');
+    });
+  });
+
+  it('a RECOVERY finds our anchored draft and posts it exactly once; the canonical it returns is the read-back', async () => {
+    const t = await invoiceDeps();
+    const [id] = await t.call('account.move', 'create', { vals_list: [{ move_type: 'out_invoice', partner_id: 41, invoice_date: '2026-11-03', invoice_line_ids: [[0, 0, { product_id: 71, name: 'x', quantity: 1, price_unit: 2000, tax_ids: [[6, 0, [5]]], analytic_distribution: { '101': 100 } }]] }] });
+    await t.call('ir.model.data', 'create', { vals_list: [{ ...externalIdentifier(`si:${DRAFT_ID}`), model: 'account.move', res_id: id }] });
+    await withFetchMock(t.routes, async () => {
+      const deps = await resolveOdooMoneyOutboxDeps(t.ctx);
+      const found = await deps.probeByRemarksKey('revenue', KEY, { recovery: true });
+      assertEquals(found?.externalRecordId, `account.move:${id}`);
+      assertEquals(t.fake.rows('account.move').length, 1);
+      assertEquals(t.fake.rows('account.move')[0].state, 'posted');
+    });
   });
 });

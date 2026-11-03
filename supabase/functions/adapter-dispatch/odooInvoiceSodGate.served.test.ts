@@ -2,14 +2,15 @@
 // tier `odoo`, through the SHIPPED handler (`./index.ts`, fetch mocked). The invoice's author and a different approver each approve under their
 // own JWT, with a payload that claims another approver. The author is refused `sod-self-approval` 403 (the database rule, answered as a fact by
 // the clearance-grant route); the other user passes the gate, and the approver the clearance is granted for is the JWT subject, whatever the
-// payload claims. A refused approval leaves no outbox row and no Odoo request. ERPNext answers the author identically. Until the Odoo adapter
-// lands (C3) a gate-passing approval is stopped at adapter selection, which releases the clearance.
+// payload claims. A refused approval leaves no outbox row and no Odoo request. ERPNext answers the author identically. C3: a gate-passing approval
+// goes on to push (one outbox row, one posted invoice from the draft's lines), and a retry of it adds no second row and no second invoice.
 import { describe, it } from '@std/testing/bdd';
 import { assertEquals } from '@std/assert';
 import { createJwtAuthority, createTestJwksResolver, installEdgeEnv, withFetchMock } from '../_shared/testing/edgeTestKit.ts';
 import type { FetchCall } from '../_shared/testing/edgeTestKit.ts';
-import { APPROVER_ID, AUTHOR_ID, ODOO_HOST, revenueRoutes, submitCommand, type World } from './odooRevenueFixtures.ts';
+import { APPROVER_ID, AUTHOR_ID, ODOO_HOST, approveCommand, draftRow, invoiceOdooWorld, revenueRoutes, submitCommand, type World } from './odooRevenueFixtures.ts';
 
+const draftRowPushed = () => draftRow({ status: 'Unpaid', erp_docstatus: 1 });
 const env = installEdgeEnv();
 Deno.env.set('SUPABASE_ANON_KEY', 'test-anon-key');
 const auth = await createJwtAuthority(env.SUPABASE_URL);
@@ -23,7 +24,7 @@ const { setTestJwks } = await import('./index.ts');
 setTestJwks(createTestJwksResolver(auth));
 addEventListener('unload', () => env.restore());
 
-async function approveAs(caller: string, world: World, command: Record<string, unknown> = submitCommand()) {
+async function approveAs(caller: string, world: World, command: Record<string, unknown> = approveCommand()) {
   const unexpected: FetchCall[] = [];
   const grants: string[] = [];
   const result = await withFetchMock(revenueRoutes(unexpected, caller, { projectLink: '101', ...world, grants }), async ({ calls }) => {
@@ -44,7 +45,7 @@ const noMoneyPipeline = (r: Awaited<ReturnType<typeof approveAs>>) => {
 
 describe('AC-OCI-050 the invoice-approval SoD gate for a tier-odoo invoice, through the served handler', () => {
   // A payload that claims another approver changes nothing (FR-OCI-062): the verified caller decides.
-  const claiming = (who: string) => submitCommand({ approved_by: who, approvedBy: who, author: who, recorded_by: who });
+  const claiming = (who: string) => approveCommand({ approved_by: who, approvedBy: who, author: who, recorded_by: who });
 
   it('the invoice\'s AUTHOR approving is refused 403 sod-self-approval, whoever the payload names; no outbox row, no Odoo request', async () => {
     const r = await approveAs(AUTHOR_ID, {}, claiming(APPROVER_ID));
@@ -53,17 +54,24 @@ describe('AC-OCI-050 the invoice-approval SoD gate for a tier-odoo invoice, thro
     noMoneyPipeline(r);
   });
 
-  it('a DIFFERENT user passes the gate: the approver recorded is the JWT subject, whatever the payload claims, and the clearance is released', async () => {
-    const r = await approveAs(APPROVER_ID, {}, claiming(AUTHOR_ID));
+  it('a DIFFERENT user passes the gate: the approver recorded is the JWT subject, whatever the payload claims; one outbox row and one posted Odoo invoice; a retry adds neither', async () => {
+    const odoo = invoiceOdooWorld();
+    const outbox = new Map<string, Record<string, unknown>>();
+    const r = await approveAs(APPROVER_ID, { odoo, outbox }, claiming(AUTHOR_ID));
+    assertEquals(r.status, 200, r.body);
     assertEquals(r.grants, [APPROVER_ID], 'the clearance is granted for the JWT subject, never the payload\'s approver');
-    assertEquals([r.status, JSON.parse(r.body).error], [422, 'config-rejected']);   // stopped at the Odoo adapter (C3), after the gate
-    noMoneyPipeline(r);
+    assertEquals(r.unexpected.map((c) => `${c.method} ${c.url.pathname}${c.url.search}`), [], 'every read is mocked');
+    const insertsOf = (x: typeof r) => x.calls.filter((c) => c.method === 'POST' && c.url.pathname === '/rest/v1/external_command_outbox').length;
+    assertEquals([insertsOf(r), odoo.rows('account.move').length, odoo.rows('account.move')[0].state], [1, 1, 'posted']);
     assertEquals(r.calls.some((c) => c.url.pathname.endsWith('/rpc/release_sales_invoice_submit_clearance')), true, 'the clearance ends with the dispatch');
+    const again = await approveAs(APPROVER_ID, { odoo, outbox, draftMapped: true, draft: draftRowPushed() }, claiming(AUTHOR_ID));
+    assertEquals(again.status, 200, again.body);
+    assertEquals([insertsOf(again), odoo.rows('account.move').length, odoo.calls.filter((c) => c.model === 'account.move' && c.method === 'create').length], [0, 1, 1], 'no second row, no second invoice');
   });
 
   it('ERPNext answers the author identically: the gate is keyed on the command, not the tier', async () => {
-    const odoo = await approveAs(AUTHOR_ID, { owns: ['odoo'] });
-    const erpnext = await approveAs(AUTHOR_ID, { owns: ['erpnext'] });
+    const odoo = await approveAs(AUTHOR_ID, { owns: ['odoo'], draftMapped: true });
+    const erpnext = await approveAs(AUTHOR_ID, { owns: ['erpnext'], draftMapped: true });
     assertEquals([erpnext.status, erpnext.body], [odoo.status, odoo.body]);
     noMoneyPipeline(erpnext);
   });
