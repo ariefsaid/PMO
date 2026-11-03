@@ -74,4 +74,22 @@ describe('v16 binding snapshot', () => {
       assertEquals(calls.filter((call) => !call.url.host.includes('supabase') && !call.url.host.startsWith('127.') && !call.url.host.startsWith('localhost')).length, 0);
     });
   });
+
+  it('AC-BUD-122: refuses a kindless budget command before creating an outbox row or contacting ERP', async () => {
+    const { routes } = servedRoutes(twoYearPhasedSeed(), 16);
+    await withFetchMock(routes, async ({ calls }) => {
+      const jwt = await auth.mintJwt({ sub: USER_ID });
+      const response = await servedHandler!(new Request('http://edge.test/adapter-dispatch', {
+        method: 'POST',
+        headers: { authorization: `Bearer ${jwt}`, 'content-type': 'application/json' },
+        body: JSON.stringify({
+          domain: 'budget', operation: 'create', record: { id: VERSION_ID },
+        }),
+      }));
+      assertEquals(response.status, 422);
+      assert((await response.text()).includes('missing or unknown erp_doc_kind'));
+      assertEquals(calls.filter((call) => call.method === 'POST' && call.url.pathname.endsWith('/external_command_outbox')).length, 0);
+      assertEquals(calls.filter((call) => !call.url.host.includes('supabase') && !call.url.host.startsWith('127.') && !call.url.host.startsWith('localhost')).length, 0);
+    });
+  });
 });
