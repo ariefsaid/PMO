@@ -85,3 +85,9 @@ revoke all on function public.odoo_receipt_quantities_guard() from public, anon,
 
 create trigger procurement_receipts_odoo_quantities_guard_trg before insert or update on public.procurement_receipts
   for each row execute function public.odoo_receipt_quantities_guard();
+
+-- Record history (AC-CHG-011): the four sync-bookkeeping columns are written by the sweep, not by a person, so they are
+-- omitted from history on the tracked tables.
+update public.record_history_config
+   set omit_cols = omit_cols || array['erp_state','erp_attention','erp_read_at','erp_census_seen_at']
+ where table_name in ('payments','procurement_invoices','purchase_orders');
