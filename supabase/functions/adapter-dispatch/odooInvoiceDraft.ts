@@ -98,9 +98,22 @@ export async function writeOdooInvoiceDraft(args: { serviceClient: SupabaseClien
   if (started === 'unreadable') return reply(503, 'commit-rejected', 'The invoice could not be checked');
   if (started) return reply(409, 'commit-rejected', 'invoice-approval-started');
   if (record.items !== undefined && items === null) return reply(422, 'commit-rejected', 'invoice-lines-invalid');
-  const patch = { ...(items ? { native_lines: items.lines, amount: items.total } : {}), ...(Object.hasOwn(record, 'reference_number') ? { reference_number: reference } : {}), author_user_id: userId };
-  const { error } = await sc.from('sales_invoices').update(patch).eq('org_id', orgId).eq('id', record.id);
+  const updateLines = record.items !== undefined;
+  const updateReference = Object.hasOwn(record, 'reference_number');
+  const { error } = await sc.rpc('update_odoo_sales_invoice_draft', {
+    p_org_id: orgId,
+    p_si_id: record.id,
+    p_actor_id: userId,
+    p_update_native_lines: updateLines,
+    p_native_lines: updateLines ? items!.lines : null,
+    p_amount: updateLines ? items!.total : null,
+    p_update_reference_number: updateReference,
+    p_reference_number: updateReference ? reference : null,
+  });
+  if (error?.code === '55006') return reply(409, 'commit-rejected', 'invoice-approval-started');
+  if (error?.code === '55000') return reply(422, 'commit-rejected', 'invoice-not-a-draft');
+  if (error?.code === 'P0002') return reply(422, 'commit-rejected', 'invoice-draft-missing');
+  if (error?.code === '42501') return reply(403, 'commit-rejected', 'not authorized');
   if (error) return reply(500, 'commit-rejected', 'The invoice draft could not be saved');
-  await appendAuthor(sc, orgId, record.id, userId);   // whoever chose the lines can never approve them
   return { status: 200, body: { externalRecordId: null, canonical: { id: record.id, si_number: null, status: 'Draft' }, draft: true } };
 }
