@@ -27,7 +27,7 @@ describe('AC-OPP-053 the recovery probe finds a document by its anchor, and neve
   ] as const)('a %s is adopted through its external identifier', async (kind, key, model) => {
     const { call, identifier } = bed();
     identifier(key, model, 41);
-    expect(await probeOdooByAnchor(call, kind, key)).toEqual({ externalRecordId: '41' });
+    expect(await probeOdooByAnchor(call, kind, key)).toEqual({ externalRecordId: `${model}:41` });
   });
 
   it('zero matches is null (the caller decides whether that is conclusive)', async () => {
@@ -53,7 +53,7 @@ describe('AC-OPP-053 the recovery probe finds a document by its anchor, and neve
   it('a payment is adopted by its exact memo', async () => {
     const { call, payment } = bed();
     payment({ id: 90, memo: anchorValue(`pay:${UUID}`) });
-    expect(await probeOdooByAnchor(call, 'payment', `pay:${UUID}`, COMPOSITE)).toEqual({ externalRecordId: '90' });
+    expect(await probeOdooByAnchor(call, 'payment', `pay:${UUID}`, COMPOSITE)).toEqual({ externalRecordId: 'account.payment:90' });
   });
 
   it('two documents with the exact anchor are ambiguous: the probe throws rather than choose', async () => {
@@ -70,7 +70,7 @@ describe('AC-OPP-053 the payment composite probe (the memo is editable)', () => 
   it('adopts the one payment with our vendor and amount inside the window when the memo was edited away', async () => {
     const { call, payment } = bed();
     payment({ id: 90, memo: 'edited by a clerk' });
-    expect(await probeOdooByAnchor(call, 'payment', key, COMPOSITE)).toEqual({ externalRecordId: '90' });
+    expect(await probeOdooByAnchor(call, 'payment', key, COMPOSITE)).toEqual({ externalRecordId: 'account.payment:90' });
   });
 
   it('holds (does not adopt) a payment whose memo was edited to carry extra text after our anchor', async () => {
@@ -121,7 +121,7 @@ describe('AC-OPP-011 the order composite probe (the create-to-anchor gap, DD-OPP
   it('adopts the one unanchored order with our vendor, amount and line count inside the window', async () => {
     const { call, fake } = bed();
     order(fake, { id: 40 });
-    expect(await probeOdooByAnchor(call, 'order', key, ORDER)).toEqual({ externalRecordId: '40' });
+    expect(await probeOdooByAnchor(call, 'order', key, ORDER)).toEqual({ externalRecordId: 'purchase.order:40' });
   });
 
   it('the exact identifier wins over any look-alike', async () => {
@@ -129,7 +129,7 @@ describe('AC-OPP-011 the order composite probe (the create-to-anchor gap, DD-OPP
     order(fake, { id: 40 });
     order(fake, { id: 41 });
     identifier(key, 'purchase.order', 41);
-    expect(await probeOdooByAnchor(call, 'order', key, ORDER)).toEqual({ externalRecordId: '41' });
+    expect(await probeOdooByAnchor(call, 'order', key, ORDER)).toEqual({ externalRecordId: 'purchase.order:41' });
   });
 
   it('never adopts an order that already carries a PMO identifier (another PMO document)', async () => {

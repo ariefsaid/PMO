@@ -8,9 +8,11 @@ import { ODOO_ANCHORS } from '../../../pmo-portal/src/lib/adapterSeam/odoo/purch
 import { REQUEST_DEADLINE_MS } from '../../../pmo-portal/src/lib/adapterSeam/odoo/purchase/constants.ts';
 import type { PurchaseKind } from '../../../pmo-portal/src/lib/adapterSeam/odoo/purchase/nextStep.ts';
 import { probeOdooByAnchor, type OrderComposite, type PaymentComposite } from '../../../pmo-portal/src/lib/adapterSeam/odoo/purchase/recoveryProbe.ts';
-import { recoverOrder, recoverRevise } from '../../../pmo-portal/src/lib/adapterSeam/odoo/procurementAdapter.ts';
+import { readOrderLines, recoverOrder, recoverReceipt, recoverRevise } from '../../../pmo-portal/src/lib/adapterSeam/odoo/procurementAdapter.ts';
 import { odooClientForOrg } from '../_shared/odooClientForOrg.ts';
-import { orderCompositeFacts } from '../_shared/odooPurchaseRefs.ts';
+import { orderCompositeFacts, resolveOdooReceiptFacts } from '../_shared/odooPurchaseRefs.ts';
+import { parseReceiptPlan, planReceipt } from '../../../pmo-portal/src/lib/adapterSeam/odoo/purchase/receiptBody.ts';
+import { AdapterError } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
 import { readOutboxCompositePayload } from './erpMoneyOutbox.ts';
 import { canonicalCommandDigest, createDbMoneyOutboxDeps } from './moneyOutboxDeps.ts';
 import { checkQueuedProcurementCreate } from './procurementGateGuard.ts';
@@ -27,11 +29,13 @@ const KEY_PREFIX: Record<PurchaseKind, string> = { order: 'po', receipt: 'gr', b
  * reissue only on CONCLUSIVE absence. Absence is conclusive only where a probe also covers the create-to-anchor gap (DD-OPP-4
  * amendment: a composite of vendor, lines, amount and window). The order and payment composites exist (recoveryProbe.ts); the
  * receipt and bill composites arrive with their adapters (P4, P5), which flip their entry here with the probe. Until then those
- * kinds hold on a miss: a held row costs a person a click, a reissue could cost a duplicate document.
+ * kinds hold on a miss: a held row costs a person a click, a reissue could cost a duplicate document. The receipt (P4) mints no
+ * document and has no create-to-anchor gap: its probe returns "nothing" only when Odoo's received quantities are provably still at
+ * the plan's base (anything else throws and holds), so a miss there is conclusive.
  * A revision is the exception that proves the rule: it edits the order in place, towards a line set, so repeating it after a
  * miss is a no-op and cannot mint anything (AC-SCA-011 `absent-conclusive` -> reissue).
  */
-const GAP_COVERED: Record<PurchaseKind, boolean> = { order: true, receipt: false, bill: false, payment: true };
+const GAP_COVERED: Record<PurchaseKind, boolean> = { order: true, receipt: true, bill: false, payment: true };
 export function odooReissueOnInconclusiveAbsence(kind: PurchaseKind, operation?: string): boolean {
   if (operation === 'revise') return true;
   return GAP_COVERED[kind] && !ODOO_ANCHORS[kind].mutable && kind !== 'bill';
@@ -81,6 +85,29 @@ const compositeOf = (p: Record<string, unknown> | null | undefined): PaymentComp
     : undefined;
 
 /**
+ * A goods receipt's plan, fixed ONCE (FR-OPP-033): the first attempt plans from live Odoo (refusing above the open quantity before
+ * any outbox row); every retry of that command reads the plan back from its outbox row verbatim, because Odoo's quantities already
+ * include a validate the lost response hid and a fresh plan would book it again. An unreadable or broken stored plan is refused,
+ * never re-planned. The server's plan replaces anything the client put in the record.
+ */
+async function stampReceiptPlan(ctx: AdapterSelectContext, call: OdooCall, resolved: { config: Record<string, unknown>; companyId: number | null }): Promise<void> {
+  const command = ctx.command;
+  const record = command.record as Record<string, unknown>;
+  const stored = await ctx.serviceClient.from('external_command_outbox').select('payload').eq('org_id', ctx.orgId).eq('domain', command.domain)
+    .eq('pmo_record_id', command.record.id).eq('idempotency_key', command.idempotencyKey!).maybeSingle();
+  if (stored.error) throw new AppError('The receipt could not be checked against its earlier attempt', 'external-unreachable');
+  const row = stored.data as { payload?: Record<string, unknown> | null } | null;
+  let plan;
+  if (row) plan = await parseReceiptPlan(row.payload?.odooReceipt) ?? (() => { throw new AdapterError('commit-rejected', 'receipt-plan-invalid'); })();
+  else {
+    const facts = await resolveOdooReceiptFacts(ctx.serviceClient as SupabaseClient, ctx.orgId, command, resolved);
+    plan = await planReceipt(facts.orderId, await readOrderLines(call, facts.orderId), facts.wanted, facts.itemMap);
+  }
+  record.odooReceipt = plan;
+  record.receiptDigest = plan.digest;
+}
+
+/**
  * The DB-backed money-outbox deps for ONE Odoo procurement command (FR-OPP-070): the shared outbox, claim, fence and finalize,
  * with Odoo's recovery probe. A command whose connection cannot be used is refused here, before any outbox row (DD-OPP-8).
  */
@@ -93,11 +120,13 @@ export async function resolveOdooMoneyOutboxDeps(ctx: AdapterSelectContext): Pro
   if (!kind) throw new AppError(`odoo purchase kind '${docKind}' is not wired`, 'commit-rejected');
   const resolved = await odooClientForOrg(ctx.serviceClient as SupabaseClient, ctx.orgId);
   if ('refusal' in resolved) throw new AppError(`The Odoo connection is not usable (${resolved.refusal})`, 'config-rejected');
-  const anchorKey = odooAnchorKey(kind, record, operation);
   const raw = bindCall({ ...resolved.client, deadlineMs: REQUEST_DEADLINE_MS });
   const call: OdooCall = async <T>(model: string, method: string, body?: Record<string, unknown>) => {
     try { return await raw<T>(model, method, body); } catch (err) { return toAdapterError(err); }
   };
+  const isReceiptCreate = kind === 'receipt' && operation === 'create';
+  if (isReceiptCreate) await stampReceiptPlan(ctx, call, resolved);
+  const anchorKey = odooAnchorKey(kind, record, operation);
 
   const isOrderCreate = kind === 'order' && operation !== 'revise';
   const payload: Record<string, unknown> = {
@@ -124,6 +153,7 @@ export async function resolveOdooMoneyOutboxDeps(ctx: AdapterSelectContext): Pro
       // An order and a revision are not adopted as a bare reference: the probe also anchors a found order and completes its
       // confirm, and returns it read back (a draft adopted as it stands would be mirrored as issued).
       if (operation === 'revise') return recoverRevise(call, ctx.command.record);
+      if (isReceiptCreate) return recoverReceipt(call, ctx.command.record);
       if (isOrderCreate) {
         const persisted = await readOutboxCompositePayload(ctx.serviceClient, ctx.orgId, domain, ctx.command.record.id, idempotencyKey);
         return recoverOrder(call, ctx.command.record, orderCompositeOf(persisted) ?? orderCompositeOf(payload));
