@@ -1,9 +1,11 @@
 /** Task repository contract (ADR-0017). */
-import type { TaskRow, TaskWithRefs, TaskInput, TaskPatch, TaskStatus, MyTask } from '@/src/lib/db/tasks';
+import type { TaskRow, TaskDueRow, TaskWithRefs, TaskInput, TaskPatch, TaskStatus, MyTask } from '@/src/lib/db/tasks';
 
 export interface TaskRepository {
   /** Per-project tasks with assignee + dependency edges. */
   list(projectId: string): Promise<TaskWithRefs[]>;
+  /** Status + due date of live tasks across projects, one batched read (dashboard overdue counts). */
+  listDueRows(projectIds: readonly string[]): Promise<TaskDueRow[]>;
   /** Tasks minuted out of one meeting (the /action seam, migration 0206). */
   listByMeeting(meetingId: string): Promise<TaskWithRefs[]>;
   listByAssignee(userId: string): Promise<MyTask[]>;

@@ -84,6 +84,9 @@ export const READ_ONLY_TABLES = Object.freeze({
   org_m365_document_settings: Object.freeze(['default_site_id', 'default_site_name', 'default_drive_id', 'default_drive_name', 'updated_at']),
   budget_versions: Object.freeze(['id', 'project_id', 'version', 'name', 'status', 'created_at']),
   budget_line_items: Object.freeze(['id', 'budget_version_id', 'category', 'description', 'budgeted_amount', 'actual_amount', 'fiscal_year']),
+  // #1514 T1: the rate card is a plain table read (0518 puts both tables in the guard's operator read tier).
+  contract_rate_lines: Object.freeze(['id', 'project_id', 'line_key', 'version', 'is_current', 'kind', 'asset_id', 'label', 'unit', 'rate', 'standby_rate', 'effective_from', 'effective_to', 'applies_to']),
+  contract_rate_assignees: Object.freeze(['id', 'project_id', 'line_key', 'user_id', 'effective_from', 'effective_to']),
 });
 
 /**
@@ -93,7 +96,7 @@ export const READ_ONLY_TABLES = Object.freeze({
  */
 export const ALLOWED_RPCS = Object.freeze(['get_project_milestones']);
 /** The operator read tier (migration 0367): active Admin/Executive/PM/Finance tokens, GET only. Mirrors the guard's `operator_read_tables`. */
-export const OPERATOR_READ_TABLES = Object.freeze(['budget_versions', 'budget_line_items', 'budget_category_account_map', 'erp_gl_entry_mirror', 'project_documents', 'org_m365_document_settings', 'm365_record_folder_sweeps']);
+export const OPERATOR_READ_TABLES = Object.freeze(['budget_versions', 'budget_line_items', 'budget_category_account_map', 'erp_gl_entry_mirror', 'project_documents', 'org_m365_document_settings', 'm365_record_folder_sweeps', 'contract_rate_lines', 'contract_rate_assignees']);
 export const OPERATOR_READ_RPCS = Object.freeze(['project_mapped_actuals', 'link_m365_documents_batch']);
 
 /**

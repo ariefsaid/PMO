@@ -321,6 +321,7 @@ describe('external-set-company — Odoo refresh and reset-kind (FR-ODC-047, FR-O
     window(),
     supabaseRpc('claim_erp_sweep_lock', () => jsonResponse(true)),
     supabaseRpc('release_erp_sweep_lock', () => jsonResponse(true)),
+    supabaseSelect('external_domain_ownership', () => jsonResponse([])),
     supabaseSelect('external_sync_watermarks', () => jsonResponse([])),
     supabaseRpc('apply_odoo_master_page', () => jsonResponse(0)),
     supabaseRpc('mark_odoo_census_seen', () => jsonResponse(null)),

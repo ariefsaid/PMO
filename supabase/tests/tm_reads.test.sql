@@ -3,7 +3,7 @@
 -- Ids: 15140000-… (synthetic). Users: b1 fin1, b2 fin2, b3 admin, b4 pm1 (project c1), b5 pm2 (c2), b6 eng1, b7 eng2, b8 foreign admin, ba exec.
 begin;
 create extension if not exists pgtap;
-select plan(60);
+select plan(74);
 
 -- ── Fixture F1 ──────────────────────────────────────────────────────────────────────────────
 insert into organizations (id, name, default_currency, default_timezone) values
@@ -74,6 +74,13 @@ insert into project_documents (id, org_id, project_id, category, title, status, 
 insert into work_orders (id, org_id, project_id, title, status, wo_number, order_value, tax_treatment, tax_amount, currency) values
   ('15140000-0000-0000-0000-0000000000f3', '15140000-0000-0000-0000-0000000000a1', '15140000-0000-0000-0000-0000000000c1', 'TM WO small', 'Issued', 'WO-TM-3', 5000000, 'exclusive', 0, 'IDR'),
   ('15140000-0000-0000-0000-0000000000f4', '15140000-0000-0000-0000-0000000000a1', '15140000-0000-0000-0000-0000000000c1', 'TM WO large', 'Issued', 'WO-TM-4', 10000000, 'exclusive', 0, 'IDR');
+-- Another organisation's own rate card: a foreign-org API client must read this row and never Org A's (read tier, #1514 T4).
+insert into contract_rate_lines (id, org_id, project_id, line_key, version, kind, label, unit, rate, effective_from, created_by) values
+  ('15140000-0000-0000-0000-0000000000e6', '15140000-0000-0000-0000-0000000000a2', '15140000-0000-0000-0000-0000000000cb',
+   '15140000-0000-0000-0000-0000000000e7', 1, 'labour', 'Foreign site engineer', 'hour', 60000, '2026-01-01', '15140000-0000-0000-0000-0000000000b8');
+insert into contract_rate_assignees (id, org_id, project_id, line_key, user_id, effective_from, created_by) values
+  ('15140000-0000-0000-0000-0000000000e8', '15140000-0000-0000-0000-0000000000a2', '15140000-0000-0000-0000-0000000000cb',
+   '15140000-0000-0000-0000-0000000000e7', '15140000-0000-0000-0000-0000000000b8', '2026-01-01', '15140000-0000-0000-0000-0000000000b8');
 
 create temp table _state (k text primary key, v text not null) on commit drop;
 grant all on _state to authenticated;
@@ -262,6 +269,40 @@ select pg_temp.req('15140000-0000-0000-0000-0000000000b1', '/rpc/list_equipment_
 select lives_ok('select public.api_client_request_guard()', 'AC-TM-011 an earlier tier (equipment reads) is unchanged');
 select pg_temp.req('15140000-0000-0000-0000-0000000000b1', '/tm_claims', 'GET');
 select throws_ok('select public.api_client_request_guard()', '42501', null, 'AC-TM-011 the claim tables are not exposed to API clients directly');
+
+-- ── AC-TM-011 (rate-card read tier): contract_rate_lines / contract_rate_assignees ──────────
+-- The rate card is a read the CLI needs, so both tables join the operator read tier. The guard widens *reach*;
+-- RLS still narrows the rows to the client's own organisation and its projects (the guard is not the tenancy rule).
+select pg_temp.req('15140000-0000-0000-0000-0000000000b1', '/contract_rate_lines', 'GET');
+select lives_ok('select public.api_client_request_guard()', 'AC-TM-011 a Finance API client may read the rate card');
+select pg_temp.req('15140000-0000-0000-0000-0000000000b1', '/contract_rate_assignees', 'GET');
+select lives_ok('select public.api_client_request_guard()', 'AC-TM-011 a Finance API client may read rate assignments');
+select is(pg_temp.sc('select count(*) from public.contract_rate_lines'), '1',
+  'AC-TM-011 the Finance client reads its own organisation''s rate lines only');
+select is(pg_temp.sc('select count(*) from public.contract_rate_assignees'), '1',
+  'AC-TM-011 the Finance client reads its own organisation''s assignments only');
+select pg_temp.req('15140000-0000-0000-0000-0000000000b3', '/contract_rate_lines', 'GET');
+select lives_ok('select public.api_client_request_guard()', 'AC-TM-011 an Admin API client may read the rate card');
+select pg_temp.req('15140000-0000-0000-0000-0000000000b3', '/contract_rate_assignees', 'GET');
+select lives_ok('select public.api_client_request_guard()', 'AC-TM-011 an Admin API client may read rate assignments');
+select pg_temp.req('15140000-0000-0000-0000-0000000000b6', '/contract_rate_lines', 'GET');
+select throws_ok('select public.api_client_request_guard()', '42501', null, 'AC-TM-011 an Engineer API client is refused the rate card');
+select is(pg_temp.sc('select count(*) from public.contract_rate_lines'), '0',
+  'AC-TM-011 and RLS hides every rate line from an Engineer');
+select is(pg_temp.sc('select count(*) from public.contract_rate_assignees'), '0',
+  'AC-TM-011 RLS hides every assignment from an Engineer');
+select pg_temp.req('15140000-0000-0000-0000-0000000000b8', '/contract_rate_lines', 'GET');
+select lives_ok('select public.api_client_request_guard()', 'AC-TM-011 another organisation''s Admin API client may read its own rate card');
+select is(pg_temp.sc($q$select count(*)::text || ' own / ' || (count(*) filter (where org_id = '15140000-0000-0000-0000-0000000000a1'))::text || ' foreign'
+  from public.contract_rate_lines$q$), '1 own / 0 foreign',
+  'AC-TM-011 the foreign-org client sees its own rate line and none of this organisation''s');
+select is(pg_temp.sc($q$select count(*)::text || ' own / ' || (count(*) filter (where org_id = '15140000-0000-0000-0000-0000000000a1'))::text || ' foreign'
+  from public.contract_rate_assignees$q$), '1 own / 0 foreign',
+  'AC-TM-011 the foreign-org client sees its own assignment and none of this organisation''s');
+select pg_temp.req('15140000-0000-0000-0000-0000000000b1', '/tm_claim_lines', 'GET');
+select throws_ok('select public.api_client_request_guard()', '42501', null, 'AC-TM-011 a table outside the read tier is still refused');
+select pg_temp.req('15140000-0000-0000-0000-0000000000b1', '/contract_rate_lines', 'POST');
+select throws_ok('select public.api_client_request_guard()', '42501', null, 'AC-TM-011 the rate card stays read-only for API clients');
 
 select * from finish();
 rollback;

@@ -4,6 +4,8 @@
  * advances the linked order lines' billed quantity and a second post is a 422 (V-OPP5). A line that names no taxes takes the
  * product's own supplier taxes, which is exactly the hidden default the adapter must never rely on (OQ-OPP-4).
  */
+import { addPayableLine } from './fakePayment.ts';
+
 type Row = Record<string, unknown> & { id: number };
 export class Rejected extends Error {}
 
@@ -59,6 +61,7 @@ export function createBill(env: Env, vals: Record<string, unknown>): number {
     invoice_line_ids: lineIds, amount_untaxed: untaxed / 100, amount_tax: tax / 100, amount_total: (untaxed + tax) / 100, amount_residual: (untaxed + tax) / 100,
     create_date: stamp, write_date: stamp,
   });
+  addPayableLine(env, id, (untaxed + tax) / 100);
   return id;
 }
 

@@ -2,7 +2,7 @@
 -- scopes the authenticated wrappers, and separates revenue display from policy enforcement.
 begin;
 create extension if not exists pgtap;
-select plan(60);
+select plan(78);
 
 select ok(to_regprocedure('public.resolve_feature_internal(uuid,text)') is not null,
   'the shared resolver exists');
@@ -78,6 +78,16 @@ select is((select count(*)::int from public.operator_resolved_org_features('0532
             where feature_key in ('projects', 'dashboard', 'approvals', 'administration')
               and enabled and source = 'core'),
   4, 'all four established core keys resolve on with source core');
+select is((select count(*)::int from public.operator_resolved_org_features('05320000-0000-0000-0000-000000000003')
+            where feature_key in ('projects', 'dashboard', 'approvals', 'administration',
+                                  'expense_claims', 'roles', 'budgets', 'tasks')
+              and enabled and source = 'core'),
+  8, 'AC-PLN-004 every D5 core key resolves on with source core (expense claims, roles, budgets, tasks included)');
+select ok(public.org_has_feature('05320000-0000-0000-0000-000000000001', 'expense_claims')
+      and public.org_has_feature('05320000-0000-0000-0000-000000000001', 'roles')
+      and public.org_has_feature('05320000-0000-0000-0000-000000000001', 'budgets')
+      and public.org_has_feature('05320000-0000-0000-0000-000000000001', 'tasks'),
+  'AC-PLN-004 expense claims, roles, budgets and tasks always resolve on for a member');
 select is(public.org_has_feature('05320000-0000-0000-0000-000000000001', 'feedback_surveys'),
   true, 'feedback_surveys defaults on through its independent Admin path');
 select lives_ok($$ select public.admin_set_feedback_surveys(false) $$,
@@ -165,6 +175,39 @@ select throws_ok($$ select public.operator_set_plan_feature('starter', 'approval
   'P0001', 'core_not_gatable', 'AC-PLN-004 approvals core plan value cannot be written');
 select throws_ok($$ select public.operator_set_plan_feature('starter', 'administration', false) $$,
   'P0001', 'core_not_gatable', 'AC-PLN-004 administration core plan value cannot be written');
+-- Expense claims, roles, budgets and tasks are never switchable at ANY layer (D5).
+select throws_ok($$ select public.operator_toggle_feature('05320000-0000-0000-0000-000000000001', 'expense_claims', false) $$,
+  'P0001', 'core_not_gatable', 'AC-PLN-004 expense_claims core cannot be overridden');
+select throws_ok($$ select public.operator_toggle_feature('05320000-0000-0000-0000-000000000001', 'roles', false) $$,
+  'P0001', 'core_not_gatable', 'AC-PLN-004 roles core cannot be overridden');
+select throws_ok($$ select public.operator_toggle_feature('05320000-0000-0000-0000-000000000001', 'budgets', false) $$,
+  'P0001', 'core_not_gatable', 'AC-PLN-004 budgets core cannot be overridden');
+select throws_ok($$ select public.operator_toggle_feature('05320000-0000-0000-0000-000000000001', 'tasks', false) $$,
+  'P0001', 'core_not_gatable', 'AC-PLN-004 tasks core cannot be overridden');
+select throws_ok($$ select public.operator_clear_feature_override('05320000-0000-0000-0000-000000000001', 'expense_claims') $$,
+  'P0001', 'core_not_gatable', 'AC-PLN-004 expense_claims core override cannot be cleared');
+select throws_ok($$ select public.operator_clear_feature_override('05320000-0000-0000-0000-000000000001', 'roles') $$,
+  'P0001', 'core_not_gatable', 'AC-PLN-004 roles core override cannot be cleared');
+select throws_ok($$ select public.operator_clear_feature_override('05320000-0000-0000-0000-000000000001', 'budgets') $$,
+  'P0001', 'core_not_gatable', 'AC-PLN-004 budgets core override cannot be cleared');
+select throws_ok($$ select public.operator_clear_feature_override('05320000-0000-0000-0000-000000000001', 'tasks') $$,
+  'P0001', 'core_not_gatable', 'AC-PLN-004 tasks core override cannot be cleared');
+select throws_ok($$ select public.operator_set_global_feature('expense_claims', false) $$,
+  'P0001', 'core_not_gatable', 'AC-PLN-004 expense_claims core global switch cannot be written');
+select throws_ok($$ select public.operator_set_global_feature('roles', false) $$,
+  'P0001', 'core_not_gatable', 'AC-PLN-004 roles core global switch cannot be written');
+select throws_ok($$ select public.operator_set_global_feature('budgets', false) $$,
+  'P0001', 'core_not_gatable', 'AC-PLN-004 budgets core global switch cannot be written');
+select throws_ok($$ select public.operator_set_global_feature('tasks', false) $$,
+  'P0001', 'core_not_gatable', 'AC-PLN-004 tasks core global switch cannot be written');
+select throws_ok($$ select public.operator_set_plan_feature('starter', 'expense_claims', false) $$,
+  'P0001', 'core_not_gatable', 'AC-PLN-004 expense_claims core plan value cannot be written');
+select throws_ok($$ select public.operator_set_plan_feature('starter', 'roles', false) $$,
+  'P0001', 'core_not_gatable', 'AC-PLN-004 roles core plan value cannot be written');
+select throws_ok($$ select public.operator_set_plan_feature('starter', 'budgets', false) $$,
+  'P0001', 'core_not_gatable', 'AC-PLN-004 budgets core plan value cannot be written');
+select throws_ok($$ select public.operator_set_plan_feature('starter', 'tasks', false) $$,
+  'P0001', 'core_not_gatable', 'AC-PLN-004 tasks core plan value cannot be written');
 select throws_ok($$ select public.operator_set_global_feature('not_a_feature', false) $$,
   'P0001', 'unknown_feature', 'unknown feature keys are rejected');
 
