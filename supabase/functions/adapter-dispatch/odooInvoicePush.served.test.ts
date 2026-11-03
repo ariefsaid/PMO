@@ -85,9 +85,19 @@ describe('OQ-OCI-1 authoring and editing an invoice draft is PMO\'s alone: no Od
     const r = await dispatchAs(APPROVER_ID, { ...draftCommand({ id: DRAFT_ID, items: [{ item_code: 'ITEM-A', qty: 1, rate: 300 }] }), operation: 'update' }, { writes });
     assertEquals(r.status, 200, r.body);
     noMoneyPipeline(r);
-    const patch = writes.find((w) => w.method === 'PATCH')!.body as Record<string, unknown>;
-    assertEquals([patch.author_user_id, patch.amount], [APPROVER_ID, 300]);
+    const patch = writes.find((w) => w.method === 'RPC')!.body as Record<string, unknown>;
+    assertEquals([patch.p_actor_id, patch.p_amount, patch.p_update_native_lines], [APPROVER_ID, 300, true]);
+    assertEquals((patch.p_native_lines as Array<Record<string, unknown>>).map((line) => [line.item_code, line.qty, line.rate, line.amount]), [['ITEM-A', 1, 300, 300]]);
+    assertEquals(writes.some((w) => w.table === 'sales_invoices' && w.method === 'PATCH'), false, 'the guarded update is one database operation');
     assertEquals((writes.find((w) => w.table === 'sales_invoice_authors')!.body as Record<string, unknown>).user_id, APPROVER_ID);
+  });
+
+  it('an edit that reaches the database after approval clearance begins is refused, even before the outbox row exists', async () => {
+    const writes: NonNullable<World['writes']> = [];
+    const r = await dispatchAs(APPROVER_ID, { ...draftCommand({ id: DRAFT_ID, items: [{ item_code: 'ITEM-A', qty: 1, rate: 301 }] }), operation: 'update' }, { writes, approvalClearance: true });
+    assertEquals([r.status, JSON.parse(r.body).message], [409, 'invoice-approval-started']);
+    assertEquals(writes.some((w) => w.table === 'sales_invoices' && w.method === 'RPC'), false, 'no draft lines were changed');
+    noMoneyPipeline(r);
   });
 
   it('a draft whose approval has started, or that is no longer a draft, cannot be edited', async () => {
@@ -147,6 +157,52 @@ describe('AC-OCI-010 / FR-OCI-060 the approval: the author is refused before any
     assertEquals(outboxInserts(again).length, 0, 'the retry reuses the first attempt\'s row');
   });
 
+  it('FR-OCI-070 a new approval after a rejected anchor write uses the same server-derived key and never creates a second invoice', async () => {
+    const odoo = odooWorld();
+    const call = odoo.fetch.bind(odoo);
+    let rejectAnchor = true;
+    odoo.fetch = (url: string | URL | Request, init?: RequestInit) => {
+      if (rejectAnchor && /\/ir\.model\.data\/create$/.test(String(url))) {
+        rejectAnchor = false;
+        return Promise.resolve(Response.json({ name: 'odoo.exceptions.ValidationError', message: 'private fixture text' }, { status: 422 }));
+      }
+      return call(url, init);
+    };
+    const outbox = new Map<string, Record<string, unknown>>();
+    const first = await dispatchAs(APPROVER_ID, approveCommand(), { odoo, outbox });
+    assertEquals(first.status, 422, first.body);
+    assertEquals([moves(odoo).length, creates(odoo)], [1, 1], 'the non-transient anchor rejection follows a successful create');
+    // Fake Odoo starts on a fixed clock; model the created invoice as recent enough for the bounded recovery probe.
+    moves(odoo)[0].create_date = new Date().toISOString().slice(0, 19).replace('T', ' ');
+
+    const second = await dispatchAs(APPROVER_ID, { ...approveCommand(), idempotencyKey: 'cccccccc-cccc-4ccc-8ccc-000000001509' }, { odoo, outbox });
+    assertEquals([second.status, JSON.parse(second.body).message.includes('held for operator resolution')], [409, true], second.body);
+    assertEquals([moves(odoo).length, creates(odoo)], [1, 1], 'a later approval under a different client key cannot mint a second invoice');
+    const invoiceOutboxRows = [...outbox.values()].filter((row) => row.pmo_record_id === DRAFT_ID);
+    assertEquals(invoiceOutboxRows.map((row) => row.idempotency_key), [`si:${DRAFT_ID}`], 'the Odoo invoice key is derived from the PMO invoice on the server');
+    assertEquals(invoiceOutboxRows.map((row) => row.state), ['held'], 'the same outbox command is durably held for reconciliation');
+  });
+
+  it('FR-OCI-070 an Odoo invoice approval does not need a caller-supplied idempotency key', async () => {
+    const odoo = odooWorld();
+    const { idempotencyKey: _callerKey, ...command } = approveCommand();
+    const outbox = new Map<string, Record<string, unknown>>();
+    const r = await dispatchAs(APPROVER_ID, command, { odoo, outbox });
+    assertEquals(r.status, 200, r.body);
+    assertEquals(moves(odoo).length, 1);
+    assertEquals([...outbox.values()].map((row) => row.idempotency_key), [`si:${DRAFT_ID}`]);
+  });
+
+  it('M-1 a mapped invoice that is no longer a draft is refused by the adapter path under a new key', async () => {
+    const odoo = odooWorld();
+    const command = { ...approveCommand(), idempotencyKey: 'cccccccc-cccc-4ccc-8ccc-000000001510' };
+    const r = await dispatchAs(APPROVER_ID, command, { odoo, draft: draftRow({ status: 'Unpaid', erp_docstatus: 1 }), draftMapped: true });
+    assertEquals([r.status, JSON.parse(r.body).message], [422, 'invoice-not-a-draft']);
+    assertEquals(outboxInserts(r).length, 0, 'no outbox row');
+    assertEquals(creates(odoo), 0, 'no Odoo invoice create');
+    assertEquals(r.calls.filter((c) => c.url.host === ODOO_HOST).length, 0, 'no Odoo write');
+  });
+
   it('AC-OCI-011 a lost response on the post: the retry adopts the posted invoice, creates nothing, posts nothing again', async () => {
     const odoo = odooWorld();
     odoo.failAt('after-post');
@@ -155,6 +211,7 @@ describe('AC-OCI-010 / FR-OCI-060 the approval: the author is refused before any
     assert(first.status >= 500 || first.status === 409 || first.status === 202, `pending, not success and not rejection: ${first.status} ${first.body}`);
     assertEquals(moves(odoo)[0].state, 'posted');
     const retry = await dispatchAs(APPROVER_ID, approveCommand(), { odoo, outbox, draft: draftRow(), draftMapped: true });
+    assertEquals(retry.unexpected.map((c) => `${c.method} ${c.url.pathname}${c.url.search}`), [], 'every read is mocked');
     assertEquals(retry.status, 200, retry.body);
     assertEquals([moves(odoo).length, creates(odoo), odoo.calls.filter((c) => c.method === 'action_post').length], [1, 1, 1]);
   });

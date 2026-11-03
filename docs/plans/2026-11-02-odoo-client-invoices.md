@@ -178,7 +178,8 @@ ACs: 010, 011, 012, 030, 031, 032, 061. Migration **0511**.
 
 **As built (C3, `feat/odoo-ci-c3`).**
 - **Draft model (owner ruling 2026-11-03, OQ-OCI-1).** An Odoo-tier invoice is a PMO DRAFT until its approval. `create` / `update` of it never reach Odoo and leave no outbox row, ref or mapping (`odooInvoiceDraft.ts`); the lines live on the draft row (`sales_invoices.native_lines`). The author, and every editor of the lines, joins the `sales_invoice_authors` set, so nobody who chose the lines can approve them. The approval (`transition submit`, SoD-gated) pushes create + post as ONE command from the draft's lines; the server stamps customer, project, work order, items, currency and reference over the payload's.
-- **Migration 0511** adds only `odoo_state`, `odoo_attention`, `odoo_sent_total`, `odoo_read_at` to `sales_invoices`; the mirror guard pins them to the mirror writer. 0136/0137/0178 inventories and the isolation denominator re-run green.
+- **Draft update serialization (C3 review I-2).** The service-role draft-update RPC takes the invoice row lock shared with the submit clearance, checks the outstanding clearance and outbox, and writes the lines, total, reference and author in that transaction.
+- **Migration 0511** adds `odoo_state`, `odoo_attention`, `odoo_sent_total`, `odoo_read_at` to `sales_invoices` and the service-role-only draft-update RPC; the mirror guard pins the Odoo facts to the mirror writer. 0136/0137/0178 inventories and the isolation denominator re-run green.
 - **Push.** `revenueAdapter.ts`: build refuses (zero Odoo calls) before create; the composite probe runs only in recovery inside a 10 min window and never adopts an unanchored look-alike (hold); refs are model-qualified (`account.move:<id>`); taxes are always explicit.
 - **Read-back.** One `odoo_attention` reason, ordered: money-unreadable, cost-account-missing, total-mismatch, lines-unreadable. A withheld money header writes none of the money.
 - **C3-T7.** Covered by the shipped O1 check (`supabase/tests/odoo_project_links_config.test.sql`): a project with a revenue ref cannot be un-linked or re-linked.
@@ -246,6 +247,7 @@ ACs: 080, 081, 082 (or 082b), 083, 084. Migration **0514** (conditional).
 
 ACs: 090, 091, 092.
 
+- **C8-T0 (from C3 review, M-2)** expose approval for an Odoo draft before it has an Odoo number; dispatch the approval by the PMO invoice id.
 - **C8-T1 (red→green)** `src/components/revenue/OdooOutcome.tsx` + test: plain-words outcome class, age of last read, next step per *pending / held / needs attention / refused*; unhealthy connection shows last data with its age and fails Odoo actions honestly with nothing queued (AC-OCI-090).
 - **C8-T2 (red→green)** `pages/SalesInvoices.tsx` + tests: Odoo document number, project attribution, payments and credit notes against the invoice, the e-Faktur record, and the Odoo-held tax-document block **only if C7 proved it**; a plain invoice renders exactly as today (AC-OCI-091, FR-OCI-103).
 - **C8-T3 (red→green)** receipt form: settled / cash / withheld figures shown only for a withheld receipt; journal picker from the mirror, disabled with a reason when empty or stale; `ConfirmDialog` for the money action (AC-OCI-091).

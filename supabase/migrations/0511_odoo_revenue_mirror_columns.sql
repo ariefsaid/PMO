@@ -22,6 +22,90 @@ comment on column public.sales_invoices.odoo_attention is
 comment on column public.sales_invoices.native_lines is
   '#784 DD-NAR-8: the lines of a PMO invoice as raised - [{item_code, description, qty, rate, amount}]; amount = round(qty x rate, 2). Fixed at creation. #1506: an Odoo-tier invoice draft (pmo_native false, no Odoo document yet) keeps its lines here until its approval pushes them in one command; written by the dispatch only.';
 
+-- Draft edits and the dispatch-only submit clearance share this row lock. Checking the clearance and
+-- updating the lines in one RPC prevents an edit that passed an earlier read from changing the
+-- invoice after an approval has begun.
+create or replace function public.update_odoo_sales_invoice_draft(
+  p_org_id uuid,
+  p_si_id uuid,
+  p_actor_id uuid,
+  p_update_native_lines boolean,
+  p_native_lines jsonb,
+  p_amount numeric,
+  p_update_reference_number boolean,
+  p_reference_number text
+) returns void
+language plpgsql set search_path = public as $$
+declare
+  v_row public.sales_invoices;
+  v_actor_org uuid;
+  v_actor_role text;
+begin
+  if p_org_id is null or p_si_id is null or p_actor_id is null
+     or p_update_native_lines is null or p_update_reference_number is null
+     or (not p_update_native_lines and not p_update_reference_number)
+     or (p_update_native_lines and (
+       p_native_lines is null or jsonb_typeof(p_native_lines) is distinct from 'array'
+       or p_amount is null or p_amount < 0
+     )) then
+    raise exception 'invalid Odoo invoice draft update' using errcode = '22023';
+  end if;
+
+  select * into v_row
+    from public.sales_invoices
+   where org_id = p_org_id and id = p_si_id
+   for update;
+  if not found then
+    raise exception 'invoice-draft-missing' using errcode = 'P0002';
+  end if;
+
+  select p.org_id, p.role::text into v_actor_org, v_actor_role
+    from public.profiles p
+   where p.id = p_actor_id and p.status = 'active';
+  if v_actor_org is distinct from p_org_id
+     or v_actor_role not in ('Admin','Finance')
+     or not exists (
+       select 1 from public.external_domain_ownership o
+        where o.org_id = p_org_id and o.external_tier = 'odoo' and o.domain = 'revenue'
+     ) then
+    raise exception 'not authorized' using errcode = '42501';
+  end if;
+
+  if v_row.pmo_native is distinct from false or v_row.status is distinct from 'Draft' or v_row.erp_docstatus is not null
+     or exists (
+       select 1 from public.external_refs r
+        where r.org_id = p_org_id and r.domain = 'revenue' and r.external_tier = 'odoo' and r.pmo_record_id = p_si_id::text
+     ) then
+    raise exception 'invoice-not-a-draft' using errcode = '55000';
+  end if;
+
+  if (coalesce(v_row.erp_docstatus, 0) < 1 and exists (
+       select 1 from public.sales_invoice_submit_authorizations s
+        where s.sales_invoice_id = p_si_id and s.authorized_at > now() - public.si_submit_clearance_ttl()
+     )) or exists (
+       select 1 from public.external_command_outbox o
+        where o.org_id = p_org_id and o.domain = 'revenue' and o.pmo_record_id = p_si_id::text
+     ) then
+    raise exception 'invoice-approval-started' using errcode = '55006';
+  end if;
+
+  update public.sales_invoices
+     set native_lines = case when p_update_native_lines then p_native_lines else v_row.native_lines end,
+         amount = case when p_update_native_lines then p_amount else v_row.amount end,
+         reference_number = case when p_update_reference_number then p_reference_number else v_row.reference_number end,
+         author_user_id = p_actor_id
+   where org_id = p_org_id and id = p_si_id;
+
+  insert into public.sales_invoice_authors (org_id, sales_invoice_id, user_id)
+  values (p_org_id, p_si_id, p_actor_id)
+  on conflict (sales_invoice_id, user_id) do nothing;
+end; $$;
+
+revoke all on function public.update_odoo_sales_invoice_draft(uuid,uuid,uuid,boolean,jsonb,numeric,boolean,text) from public, anon, authenticated;
+grant execute on function public.update_odoo_sales_invoice_draft(uuid,uuid,uuid,boolean,jsonb,numeric,boolean,text) to service_role;
+comment on function public.update_odoo_sales_invoice_draft(uuid,uuid,uuid,boolean,jsonb,numeric,boolean,text) is
+  'Atomically updates an Odoo-tier PMO invoice draft under the same invoice-row lock used by submit clearances; service-role dispatcher only.';
+
 -- The catalog gate fails on an unclassified column: these are read-side facts, not history events.
 update public.record_history_config
    set omit_cols = omit_cols || array['odoo_state','odoo_attention','odoo_sent_total','odoo_read_at']
