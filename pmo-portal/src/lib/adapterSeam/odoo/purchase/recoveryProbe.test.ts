@@ -7,7 +7,8 @@ import { probeOdooByAnchor, type BillComposite, type OrderComposite, type Paymen
 const UUID = '123e4567-e89b-12d3-a456-426614174000';
 const OTHER = '223e4567-e89b-12d3-a456-426614174000';
 const WINDOW = '2026-11-03 10:00:00';
-const COMPOSITE: PaymentComposite = { partnerId: 77, amount: '98.00', createdAfter: WINDOW };
+const BILL = 301;
+const COMPOSITE: PaymentComposite = { partnerId: 77, amount: '98.00', createdAfter: WINDOW, createdBefore: '2026-11-03 10:30:00', billId: BILL };
 
 function bed() {
   const fake = createFakeOdoo({ key: 'k' });
@@ -64,24 +65,42 @@ describe('AC-OPP-053 the recovery probe finds a document by its anchor, and neve
   });
 });
 
-describe('AC-OPP-053 the payment composite probe (the memo is editable)', () => {
+describe('AC-OPP-053 the payment composite probe (the memo is editable; recovery only; doubt holds)', () => {
   const key = `pay:${UUID}`;
+  const reconciledToBill = { reconciled_bill_ids: [BILL] };
 
-  it('adopts the one payment with our vendor and amount inside the window when the memo was edited away', async () => {
+  it('adopts the ONE payment with our vendor and amount in the window that Odoo shows reconciled to THIS bill when the memo was edited away', async () => {
     const { call, payment } = bed();
-    payment({ id: 90, memo: 'edited by a clerk' });
+    payment({ id: 90, memo: 'edited by a clerk', ...reconciledToBill });
     expect(await probeOdooByAnchor(call, 'payment', key, COMPOSITE)).toEqual({ externalRecordId: 'account.payment:90' });
   });
 
-  it('holds (does not adopt) a payment whose memo was edited to carry extra text after our anchor', async () => {
+  it.each([
+    ['not reconciled to any bill (created, or posted and not yet reconciled)', { reconciled_bill_ids: [] }],
+    ['reconciled to another bill', { reconciled_bill_ids: [BILL + 1] }],
+    ['carrying our anchor with extra text after it', { memo: `${anchorValue(key)} paid on Friday`, ...reconciledToBill }],
+  ])('HOLDS (throws, never adopts, never null) on a look-alike %s', async (_label, over) => {
     const { call, payment } = bed();
-    payment({ id: 90, memo: `${anchorValue(key)} paid on Friday` });
-    expect(await probeOdooByAnchor(call, 'payment', key, COMPOSITE)).toBeNull();
+    payment({ id: 90, memo: 'edited by a clerk', ...over });
+    await expect(probeOdooByAnchor(call, 'payment', key, COMPOSITE)).rejects.toThrow(/ambiguous/);
   });
 
-  it('never adopts a payment that carries another PMO payment\'s anchor (wrong-document adoption)', async () => {
+  it('HOLDS on two look-alikes, even when both are reconciled to the bill', async () => {
     const { call, payment } = bed();
-    payment({ id: 90, memo: anchorValue(`pay:${OTHER}`) });
+    payment({ id: 90, memo: 'a', ...reconciledToBill });
+    payment({ id: 91, memo: 'b', ...reconciledToBill });
+    await expect(probeOdooByAnchor(call, 'payment', key, COMPOSITE)).rejects.toThrow(/ambiguous/);
+  });
+
+  it('holds on a look-alike when the composite names no bill: nothing can then say it is ours', async () => {
+    const { call, payment } = bed();
+    payment({ id: 90, memo: 'edited', ...reconciledToBill });
+    await expect(probeOdooByAnchor(call, 'payment', key, { ...COMPOSITE, billId: undefined })).rejects.toThrow(/ambiguous/);
+  });
+
+  it('never adopts a payment that carries another PMO payment\'s anchor (wrong-document adoption): it is not a candidate at all', async () => {
+    const { call, payment } = bed();
+    payment({ id: 90, memo: anchorValue(`pay:${OTHER}`), ...reconciledToBill });
     expect(await probeOdooByAnchor(call, 'payment', key, COMPOSITE)).toBeNull();
   });
 
@@ -89,26 +108,26 @@ describe('AC-OPP-053 the payment composite probe (the memo is editable)', () => 
     ['another vendor', { partner_id: [78, 'Other'] }],
     ['another amount', { amount: 97 }],
     ['before the window', { create_date: '2026-11-03 09:00:00' }],
+    ['after the window', { create_date: '2026-11-03 11:00:00' }],
     ['a cancelled payment', { state: 'canceled' }],
     ['a customer receipt', { payment_type: 'inbound', partner_type: 'customer' }],
   ])('does not match %s', async (_label, over) => {
     const { call, payment } = bed();
-    payment({ id: 90, memo: null, ...over });
+    payment({ id: 90, memo: null, ...reconciledToBill, ...over });
     expect(await probeOdooByAnchor(call, 'payment', key, COMPOSITE)).toBeNull();
   });
 
-  it('zero or several look-alikes are inconclusive (null), never an adoption', async () => {
-    const { call, payment } = bed();
-    expect(await probeOdooByAnchor(call, 'payment', key, COMPOSITE)).toBeNull();
-    payment({ id: 90, memo: 'a' });
-    payment({ id: 91, memo: 'b' });
+  it('nothing in the window is plain absence (null): the caller holds it, a payment is never reissued on doubt', async () => {
+    const { call } = bed();
     expect(await probeOdooByAnchor(call, 'payment', key, COMPOSITE)).toBeNull();
   });
 
-  it('without composite inputs a missing anchor is simply null', async () => {
-    const { call, payment } = bed();
-    payment({ id: 90, memo: 'edited' });
+  it('without composite inputs (a first attempt) a missing anchor is simply null: no look-alike is consulted', async () => {
+    const { call, payment, fake } = bed();
+    payment({ id: 90, memo: 'edited', ...reconciledToBill });
+    fake.calls.length = 0;
     expect(await probeOdooByAnchor(call, 'payment', key)).toBeNull();
+    expect(fake.calls).toHaveLength(1);   // the exact-memo lookup only
   });
 });
 

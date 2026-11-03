@@ -2,13 +2,17 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { wrap } from './repositoryErrors';
 import { erpSetupRequest } from './integrations';
+import { odooPaymentRef } from '@/src/lib/adapterSeam/odoo/purchase/anchors';
 import { SENDS_FINISHED_KEY, type ConnectionRecord } from '@/src/lib/adapterSeam/odoo/connectionState';
-import type { DirectoryKind, ListMasterInput, MasterRecord, OdooConnectionRead, OdooRepository } from './contracts/odoo';
+import type { MirrorKind, ListMasterInput, MasterRecord, OdooConnectionRead, OdooRepository, PurchaseCommand, PurchaseCommandKind } from './contracts/odoo';
 
 // ilike pattern inside a double-quoted PostgREST value: commas and parens are then literal. LIKE wildcards get a `\` escape, then `\` and `"` are escaped for the quoting.
 const likeAny = (s: string) => `"%${s.replace(/[\\%_]/g, '\\$&').replace(/[\\"]/g, '\\$&')}%"`;
 
-const CONFIG_KEYS = ['database', 'odoo_company_name', 'key_expires_on', 'account_defaults', 'unit_map', 'default_warehouse_id', SENDS_FINISHED_KEY];
+const COMMAND_KINDS: ReadonlySet<string> = new Set<PurchaseCommandKind>(['purchase-order', 'goods-receipt', 'purchase-invoice', 'payment']);
+const DAY_MS = 86_400_000;
+
+const CONFIG_KEYS = ['database', 'odoo_company_name', 'key_expires_on', 'account_defaults', 'unit_map', 'default_warehouse_id', 'default_payment_journal_id', SENDS_FINISHED_KEY];
 
 export const odooRepository: OdooRepository = {
   listMasterRecords: (input: ListMasterInput) => wrap(async () => {
@@ -25,7 +29,7 @@ export const odooRepository: OdooRepository = {
     return { rows: (data ?? []) as MasterRecord[], total: count ?? 0 };
   }),
   /** The counts and freshness the directory header shows: rows hidden by default (inactive, deleted in Odoo) and the newest sync time. */
-  masterSummary: (kind: DirectoryKind) => wrap(async () => {
+  masterSummary: (kind: MirrorKind) => wrap(async () => {
     const base = () => supabase.from('external_master_records').select('as_of', { count: 'exact', head: true }).eq('external_tier', 'odoo').eq('kind', kind);
     const [inactive, tombstoned, newest] = await Promise.all([
       base().eq('active', false),
@@ -48,6 +52,26 @@ export const odooRepository: OdooRepository = {
       capabilities: (raw.capabilities ?? null) as OdooConnectionRead['capabilities'],
       config,
     };
+  }),
+  listPurchaseCommands: (procurementId, now = new Date()) => wrap(async (): Promise<PurchaseCommand[]> => {
+    const { data, error } = await supabase.from('external_command_outbox').select('id,state,last_error,updated_at,actor_user_id,payload')
+      .eq('external_tier', 'odoo').eq('domain', 'procurement').eq('payload->>procurementId', procurementId).neq('state', 'confirmed').order('updated_at', { ascending: false });
+    if (error) throw error;
+    return (data ?? []).flatMap((r) => {
+      const kind = (r.payload as { erp_doc_kind?: unknown } | null)?.erp_doc_kind;
+      if (typeof kind !== 'string' || !COMMAND_KINDS.has(kind)) return [];
+      // A rejected attempt that a person has since redone is history after a day; held and in-flight ones stay until settled.
+      if (r.state === 'failed' && now.getTime() - Date.parse(r.updated_at) > DAY_MS) return [];
+      return [{ id: r.id, kind: kind as PurchaseCommandKind, state: r.state, lastError: r.last_error, updatedAt: r.updated_at, actorUserId: r.actor_user_id }];
+    });
+  }),
+  resolveHeldPayment: ({ outboxId, resolution, paymentNumber, reason }) => wrap(async () => {
+    if (resolution === 'adopt' && !/^[1-9][0-9]*$/.test(paymentNumber?.trim() ?? '')) throw new Error('Enter the Odoo payment number');
+    const { error } = await supabase.rpc('resolve_held_outbox_command', {
+      p_outbox_id: outboxId, p_resolution: resolution,
+      p_external_record_id: resolution === 'adopt' ? odooPaymentRef(paymentNumber!.trim()) : undefined, p_reason: reason,
+    });
+    if (error) throw error;
   }),
   setup: <T>(setupAction: string, input: Record<string, unknown> = {}) => erpSetupRequest<T>(setupAction, input, 'odoo'),
 };

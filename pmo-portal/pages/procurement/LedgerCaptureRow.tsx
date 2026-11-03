@@ -30,6 +30,7 @@ import type { VendorInvoiceContext } from '@/src/components/procurement/vendorIn
 // mirror → no drift) without a react-refresh component-export lint violation.
 import { nextExpectedType } from './ledgerCapture';
 import { groupRefIsPmoAuthored } from './groupRef';
+import { odooOwnsProcurement } from '@/src/lib/adapterSeam/odoo/ownership';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 
@@ -236,7 +237,9 @@ export const LedgerCaptureRow: React.FC<LedgerCaptureRowProps> = ({
           )}
           {paymentRecordInErp ? (
             <p data-testid="ledger-payment-in-erp" className="ml-auto text-[13px] text-muted-foreground">
-              {t('procurement:ledger.paymentInErp', 'Record the payment in ERPNext; it links here on the next sync.')}
+              {odooOwnsProcurement()
+                ? t('procurement:ledger.paymentNeedsBillOdoo', 'Record the supplier invoice here first; you can then pay it from here.')
+                : t('procurement:ledger.paymentInErp', 'Record the payment in ERPNext; it links here on the next sync.')}
             </p>
           ) : (<>
           <button

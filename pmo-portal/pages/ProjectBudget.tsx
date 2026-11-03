@@ -160,7 +160,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   const { newVersionForm, showNewVersionForm, setShowNewVersionForm, pendingConfirm, budgetConfirm, dismissActivationNotice, requestActivate, requestClone, requestArchive, requestDeleteDraft, requestDeleteLineItem } = useBudgetVersionActions({ projectId, versions, draftVersion, canActivate, canConfirmActivation, hasOpenLineBuffers, soleOperator, activateBlockedReason, readinessMessages, archiveTargetsQuery, activationPrecheckQuery, mutations, setSelectedVersionId, setDraftEditorOpen, setBudgetView });
 
   if (budgetQuery.isPending || versionsQuery.isPending) {
-    return <div data-testid="budget-loading"><ListState variant="loading" rows={4} /></div>;
+    return <div data-testid="budget-loading"><ListState variant="loading" shape="detail" rows={4} /></div>;
   }
   if (budgetQuery.isError || versionsQuery.isError) {
     return (

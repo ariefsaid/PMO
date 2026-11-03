@@ -74,3 +74,14 @@ it('AC-DH-003 caller role interpolated into prompt; null role omits the role sen
   expect(noRole).not.toMatch(/The current user's role is/i);
   expect(noRole).not.toContain('null');
 });
+
+it('AC-PLN-006 the procure-to-pay map line never advertises an entity this request was not offered', () => {
+  // A Starter org: procurement on, the full tier (goods receipts) off. The map line must list the
+  // documents it may read and stay silent about the one it may not.
+  const offered = AGENT_READ_ENTITIES.filter((e) => e !== 'procurement_receipts');
+  const p = buildAgentSystemPrompt(offered, AGENT_READ_ROW_CAP, null, {
+    offeredEntities: new Set<string>(offered),
+  });
+  expect(p).toContain('purchase orders/POs → `purchase_orders`');
+  expect(p).not.toContain('procurement_receipts');
+});

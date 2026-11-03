@@ -33,6 +33,7 @@ async function run(state?: string, mapped = false) {
   globalThis.fetch = (async (input, init) => {
     const req = input instanceof Request ? input : new Request(input, init);
     const url = new URL(req.url), table = url.pathname.split('/').at(-1)!;
+    if (url.pathname === '/rest/v1/rpc/service_feature_enabled') return new Response('true', { headers: { 'content-type': 'application/json' } });
     if (url.pathname === '/rest/v1/rpc/read_vault_secret') return new Response(JSON.stringify(SECRET), { headers: { 'content-type': 'application/json' } });
     if (!url.pathname.startsWith('/rest/v1/')) throw new Error('unexpected fetch');
     let q = req.method === 'PATCH' ? db.client.from(table).update(await req.json()) : db.client.from(table).select('*');

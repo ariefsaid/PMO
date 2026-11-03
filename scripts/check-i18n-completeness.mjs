@@ -771,15 +771,6 @@ export function flattenCatalogue(node, prefix = '', out = []) {
 
 /** `{a: {b: 'x'}}` → `Map('a.b' → 'x')` — the value-preserving flatten the id half needs, because
  *  "present but empty" and "absent" are different defects with the same rendered symptom. */
-function catalogueValueForDefault(catalogue, dotted) {
-  let cur = catalogue;
-  for (const part of dotted.split('.')) {
-    if (cur == null || typeof cur !== 'object') return undefined;
-    cur = cur[part];
-  }
-  return cur;
-}
-
 export function flattenCatalogueEntries(node, prefix = '', out = new Map()) {
   for (const [k, v] of Object.entries(node)) {
     const key = prefix ? `${prefix}.${k}` : k;
@@ -866,7 +857,7 @@ export function analyse({ launchScopeFiles, referenceFiles, catalogue, namespace
       });
     }
     for (const hit of inlineDefaultsFromCandidates(candidates, resolution.values)) {
-      const catalogueText = catalogueValueForDefault(catalogue, hit.key);
+      const catalogueText = catalogueValue(catalogue, hit.key);
       if (catalogueText === undefined) continue; // Existing missing-key rule owns this finding.
       const normalize = (value) => value.replace(/\s+/g, ' ').trim();
       if (typeof catalogueText === 'string' && normalize(catalogueText) !== normalize(hit.value)) {
@@ -1618,9 +1609,6 @@ function selfTest() {
     }
     ac('one byte over 1 MiB fails before AST analysis', oversizedError, `${acFile}: source-limit`);
 
-    const readSource = (rel) => typeof readSourceFile === 'function'
-      ? readSourceFile(rel)
-      : (() => { throw new Error(`${rel}: source-reader-unavailable`); })();
     const suffix = `${process.pid}-${Date.now()}`;
     const ordinaryRel = `pages/.i18n-guard-selftest-${suffix}.ts`;
     const outsideDir = fs.mkdtempSync(path.join(path.dirname(APP), `.i18n-guard-external-${suffix}-`));
@@ -1652,10 +1640,10 @@ function selfTest() {
         reads.push(resolved);
         return originalReadFileSync.call(this, file, ...args);
       };
-      try { ordinaryText = readSource(ordinaryRel); } catch (error) { ordinaryError = error.message; }
-      try { readSource(linkRel); } catch (error) { linkError = error.message; }
-      try { readSource(largeRel); } catch (error) { largeError = error.message; }
-      try { readSource('../outside.ts'); } catch (error) { escapeError = error.message; }
+      try { ordinaryText = readSourceFile(ordinaryRel); } catch (error) { ordinaryError = error.message; }
+      try { readSourceFile(linkRel); } catch (error) { linkError = error.message; }
+      try { readSourceFile(largeRel); } catch (error) { largeError = error.message; }
+      try { readSourceFile('../outside.ts'); } catch (error) { escapeError = error.message; }
     } finally {
       fs.readFileSync = originalReadFileSync;
       fs.rmSync(ordinaryAbs, { force: true });
@@ -2100,6 +2088,22 @@ function selfTest() {
         'a REORDERED translation with the same tokens passes',
         !rReordered.placeholderMismatches.length,
         `mismatches=${JSON.stringify(rReordered.placeholderMismatches)}`,
+      );
+
+      // The same token-parity rule must hold when the en value is read from a feature namespace
+      // rather than common — a namespaced translation that drops a token is the same broken
+      // sentence for id readers.
+      const rNamespacedDropped = analyseId({
+        launchScopeFiles: { [acFile]: "const { t } = useTranslation('feature'); t('title');" },
+        catalogue: {},
+        idCatalogue: {},
+        namespaces: { feature: { title: 'Order {{count}} items' } },
+        idNamespaces: { feature: { title: 'Pesanan item' } },
+      });
+      check(
+        'a NAMESPACED id value that DROPS an interpolation token fails the gate',
+        rNamespacedDropped.placeholderMismatches.some((m) => m.key === 'title'),
+        `mismatches=${JSON.stringify(rNamespacedDropped.placeholderMismatches)}`,
       );
     }
 

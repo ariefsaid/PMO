@@ -86,6 +86,7 @@ const ExpenseClaims: React.FC = () => {
   return (
     <ListPage
       title={t('expenses.title', 'Expenses')}
+      count={rows ? rows.length : undefined}
       description={t('expenses.description', 'Expense claims and cash advances. You see your own; approvers see the whole team.')}
       primaryAction={
         canCreate && (
@@ -107,7 +108,7 @@ const ExpenseClaims: React.FC = () => {
       }
     >
       <AdvanceAgingCard />
-      {isPending && <ListState variant="loading" rows={6} />}
+      {isPending && <ListState variant="loading" shape="table" columns={6} rows={6} />}
       {!isPending && (isError || !data) && (
         <ListState
           variant="error"

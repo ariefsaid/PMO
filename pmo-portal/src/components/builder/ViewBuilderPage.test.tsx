@@ -101,7 +101,8 @@ vi.mock('@/src/components/builder/ViewPreview', () => ({
 }));
 
 // Mock feature flags — default all false so existing tests are unaffected
-vi.mock('@/src/lib/features', () => ({
+vi.mock('@/src/lib/features', async (importOriginal) => ({
+  ...await importOriginal<typeof import('@/src/lib/features')>(),
   isFeatureEnabled: (key: string) => mockIsFeatureEnabled(key),
   FEATURES: {},
 }));

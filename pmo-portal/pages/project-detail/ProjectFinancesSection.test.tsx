@@ -178,7 +178,7 @@ describe('ProjectFinancesSection reading states', () => {
   it('AC-PFIN-015 announces loading without presenting zero-valued finance', () => {
     h.query.isPending = true;
     render(<ProjectFinancesSection project={project} />);
-    expect(screen.getByText('Loading project finances…')).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('Loading project finances…');
     expect(screen.queryByText('$0.00')).not.toBeInTheDocument();
   });
 

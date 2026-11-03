@@ -383,6 +383,20 @@ export const analyticsClient = {
     posthog.register({ role: input.role, org_id: input.orgId });
   },
 
+  /**
+   * Plans S4 (FR-PLN-016): register a PostHog GROUP and its properties (today: the caller's
+   * `organisation` group with its `plan`), so every later event can be sliced by plan without carrying
+   * a property of its own. Group properties describe the group, not the person: callers pass plan
+   * identifiers only — never a name, an id the group does not already carry, or any row data.
+   *
+   * Same consent gate as every other call (initialized + enabled + not opted out; a DNT browser never
+   * inits at all), so a group is never created for a user who has not consented.
+   */
+  group(type: string, key: string, properties: Record<string, string> = {}) {
+    if (!initialized || !activeConfig?.enabled || readOptOut()) return;
+    posthog.group(type, key, properties);
+  },
+
   register(properties: SafeProperties) {
     if (!initialized || !activeConfig?.enabled || readOptOut()) return;
     posthog.register(buildEventProperties('app_route_viewed', properties, activeConfig.isProd));

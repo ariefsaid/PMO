@@ -19,7 +19,7 @@ export const ProjectAttention: React.FC<{
       <section aria-labelledby="pd-attention" className={className}>
         <Card>
           <CardHead id="pd-attention">{t('projectDetail.attention.title', 'Needs attention')}</CardHead>
-          <CardPad><ListState variant="loading" rows={2} /></CardPad>
+          <CardPad><ListState variant="loading" shape="cards" rows={2} /></CardPad>
         </Card>
       </section>
     );

@@ -1,4 +1,5 @@
 import { supabase } from '@/src/lib/supabase/client';
+import { fetchAllPages } from '@/src/lib/pagedRead';
 import { AppError } from '@/src/lib/appError';
 import type { WorkOrderStatus } from '@/src/lib/db/workOrders';
 
@@ -128,13 +129,27 @@ export async function listWorkOrderBilling(projectId: string): Promise<WorkOrder
  */
 async function attachBillingProblems(rows: WorkOrderBillingRow[]): Promise<void> {
   const byId = new Map(rows.map((r) => [r.workOrderId, r] as const));
-  const lines = await supabase
-    .from('work_order_billing_lines')
-    .select('record_id, work_order_id, billed, currency')
-    .in('work_order_id', [...byId.keys()]);
-  if (lines.error) return;
+  // ⚑ #1774 — paged: a work order with a long billing history has more than 1,000 lines, and the
+  // tail used to vanish silently (the row said "Can't total" without naming the cause it could not
+  // read). The view has no `id`; `record_id` is the record's own primary key (an invoice or an
+  // unraised claim — 0250 makes a raised claim appear once, as its invoice), so ordering by it is
+  // the view's total order. A failed page still leaves the row untotallable and attaches NO causes —
+  // never a partial set behind a figure the user could act on.
+  let lines: ReadonlyArray<Record<string, unknown>>;
+  try {
+    lines = await fetchAllPages<Record<string, unknown>>((from, to) =>
+      supabase
+        .from('work_order_billing_lines')
+        .select('record_id, work_order_id, billed, currency')
+        .in('work_order_id', [...byId.keys()])
+        .order('record_id', { ascending: true })
+        .range(from, to),
+    );
+  } catch {
+    return;
+  }
   const found: Array<{ wo: WorkOrderBillingRow; problem: WorkOrderBillingProblem }> = [];
-  for (const l of (lines.data ?? []) as ReadonlyArray<Record<string, unknown>>) {
+  for (const l of lines) {
     const wo = byId.get(String(l.work_order_id));
     if (!wo || typeof l.record_id !== 'string') continue;
     const currency = typeof l.currency === 'string' ? l.currency : null;

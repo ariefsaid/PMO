@@ -23,6 +23,9 @@ import type {
   DocumentTarget,
 } from '@/src/lib/db/procurementCrud';
 import type { Tables } from '@/src/lib/supabase/database.types';
+
+/** #1505 P8: one goods-receipt line the user entered: the order line's name and the quantity received. */
+export interface ReceiptLineInput { itemRef: string; quantity: number }
 import type { ProcPhase, ProcurementFileRow } from '@/src/lib/db/procurementFiles';
 
 /**
@@ -77,6 +80,8 @@ export interface ProcurementRepository {
     referenceNumber?: string | null,
     /** BLOCK 2: the per-INTENT command identity — pass the SAME value on every retry (see CommandIntent). */
     intent?: CommandIntent,
+    /** #1505 P8: the quantities entered per line (Odoo-owned org); absent = everything still open. */
+    receiptLines?: ReceiptLineInput[],
   ): Promise<ProcurementReceiptRow>;
   /**
    * #505: a SINGLE object param, not the old positional list. `taxTreatment`/`taxAmount` are
@@ -179,6 +184,8 @@ export interface ProcurementRepository {
     amount: number | null,
     /** BLOCK 2: the per-INTENT command identity — pass the SAME value on every retry (see CommandIntent). */
     intent?: CommandIntent,
+    /** #1505 P8: the Odoo payment journal the user chose; omitted = the organisation's default. Never used on the PMO path. */
+    journalId?: string,
   ): Promise<PaymentRow>;
 }
 
