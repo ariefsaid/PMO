@@ -28,6 +28,7 @@ function routes(o: Opts): MockRoute[] {
     supabaseSelect('profiles', () => one({ org_id: 'org-1', role: o.role ?? 'Admin' })),
     supabaseSelect('platform_operators', () => (o.operator ? one({ user_id: 'user-1' }) : none())),
     supabaseRpc('actor_authorization_state', () => jsonResponse({ active: true })),
+    supabaseRpc('service_feature_enabled', () => jsonResponse(true)),
     supabaseSelect('external_org_bindings', () => one({ config: o.config ?? {} })),
     supabaseSelect('external_master_records', () => jsonResponse(o.journals ?? [])),
     rpc('admin_change_domain_ownership'), rpc('set_odoo_payment_journal_default'),

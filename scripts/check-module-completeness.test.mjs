@@ -283,7 +283,7 @@ test('nav and palette gaps fail; an unlessFeature item is a declared key, not a 
 test('a palette entry drifting from its gated Rail twin fails naming both sides', () => {
   const palette = [{ path: '/', feature: null }, { path: '/sales', feature: null }];
   const errors = check(completeInput({ palette, corePalette: { '/': 'dashboard' } }));
-  assert.ok(has(errors, `palette /sales: drift from its Rail item — Rail gates it on 'crm'`), errors.join('\n'));
+  assert.ok(has(errors, `palette /sales: drift from its Rail item — Rail gates it on feature 'crm'`), errors.join('\n'));
 });
 
 // ── rule 4–5: registry and plan catalogue ──────────────────────────────────────────────────────

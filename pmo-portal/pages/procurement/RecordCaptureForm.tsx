@@ -32,6 +32,11 @@ import { usePurchaseTaxTemplates } from '@/src/hooks/usePurchaseTaxTemplates';
 import { useVendorTaxDefault } from '@/src/hooks/useVendorTaxDefault';
 import { useErpVendorTax, useNativeVendorTax } from '@/src/hooks/useVendorBillTax';
 import { ErpTaxAmountFields, NativeWithholdingField, TaxSuggestedFrom } from './VendorBillTaxFields';
+import { OdooJournalSelect, OdooTaxPicker } from '@/src/components/procurement/OdooDirectoryPickers';
+import { OdooReceiptQuantities } from '@/src/components/procurement/OdooReceiptQuantities';
+import { parseReceiptQuantities, type ReceiptItem, type ReceiptLine } from '@/src/lib/procurement/receiptQuantities';
+import { odooOwnsProcurement } from '@/src/lib/adapterSeam/odoo/ownership';
+import { odooActionError } from '@/src/lib/procurement/odooActionError';
 import type { ErpVendorTaxAmounts, PphType } from '@/src/lib/vendorWithholding';
 import { useTranslation } from 'react-i18next';
 import { groupRefIsPmoAuthored } from './groupRef';
@@ -271,6 +276,8 @@ export interface StagedGR {
   status: 'Partial' | 'Complete';
   receiptDate: string;
   referenceNumber: string | null;
+  /** #1505 P8: the quantities entered per line on an Odoo-owned org (absent = everything still open). */
+  receiptLines?: ReceiptLine[];
 }
 
 export interface StagedVI {
@@ -301,6 +308,8 @@ export interface StagedVI {
   withheldPphType?: PphType;
   /** #876 slice 2 (DD-VWH-13/14): the VAT / PPh entered for an ERP-bound bill ("Enter the tax amounts" mode). */
   erpTaxAmounts?: ErpVendorTaxAmounts;
+  /** #1505 P8: the taxes picked from the Odoo tax directory on an Odoo-owned org (absent = the organisation default). */
+  taxIds?: string[];
 }
 
 export type StagedRecord = StagedGR | StagedVI;
@@ -333,6 +342,8 @@ export interface RecordCaptureFormProps {
   vendorId?: string | null;
   /** #876 slice 2: the case's items total before tax — the base an ERP-bound bill's tax is pre-filled on. */
   itemsNet?: number | null;
+  /** #1505 P8: the case's lines; an Odoo-owned org enters the quantity received against them (FR-OPP-030). */
+  items?: readonly ReceiptItem[];
   /** The purchase's currency. The server records the document in it (no conversion), so the amount field names it. */
   currency?: string | null;
   /** Issued subcontract PO whose payable BoQ quantities cap this invoice. */
@@ -353,6 +364,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
   onStage,
   vendorId = null,
   itemsNet = null,
+  items = [],
   currency = null,
   subcontractPoId,
 }) => {
@@ -419,11 +431,20 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
       : ERP_AUTHORED_TAX;
   // #520: on a flipped org the user chooses WHICH ERPNext template applies — or (#876 slice 2, DD-VWH-15) enters the
   // tax AMOUNTS, which is '' in the template select and the default. "ERPNext default" is no longer offered.
-  const choosesErpTaxTemplate = isVendorInvoice && !pmoAuthorsTax;
+  // #1505 P8: on an Odoo-owned org the user picks taxes from Odoo's directory instead of an ERPNext template or amounts.
+  const odooProcurement = odooOwnsProcurement();
+  const odooBill = isVendorInvoice && !pmoAuthorsTax && odooProcurement;
+  const [odooTaxIds, setOdooTaxIds] = useState<string[]>([]);
+  const [odooJournalId, setOdooJournalId] = useState('');
+  // A receipt on an Odoo-owned org: the quantity per line replaces the typed Partial/Complete (Odoo derives the status, FR-OPP-034).
+  const odooReceipt = kind === 'goods_receipt' && odooProcurement && items.length > 0;
+  const [receiptQty, setReceiptQty] = useState<Record<string, string>>({});
+  const [receiptInvalid, setReceiptInvalid] = useState<string | undefined>(undefined);
+  const choosesErpTaxTemplate = isVendorInvoice && !pmoAuthorsTax && !odooProcurement;
   const [taxTemplate, setTaxTemplate] = useState('');
   const erpTaxTemplates = usePurchaseTaxTemplates(choosesErpTaxTemplate);
   // OQ-VWH-8: the bill amount is never sent on the ERP path (ERPNext totals the items), so it is not asked there.
-  const showsAmount = cfg.showAmount && !choosesErpTaxTemplate;
+  const showsAmount = cfg.showAmount && !choosesErpTaxTemplate && !odooBill;
 
   // #876 slice 2 (OD-VWH-1, DD-VWH-17): the vendor's default pre-fills the AMOUNTS; every amount stays editable and
   // the bill records exactly what is submitted (DD-VWH-13/19).
@@ -471,12 +492,15 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
     if (onStage) {
       const refNum = referenceNumber.trim() || null;
       if (kind === 'goods_receipt') {
+        const parsedQty = odooReceipt ? parseReceiptQuantities(items, receiptQty) : { lines: [] as ReceiptLine[] };
+        if ('invalid' in parsedQty) { setReceiptInvalid(parsedQty.invalid); return; }
         onStage({
           kind: 'createGR',
           intent,
           status: status as 'Partial' | 'Complete',
           receiptDate: date,
           referenceNumber: refNum,
+          ...(parsedQty.lines.length ? { receiptLines: parsedQty.lines } : {}),
         });
       } else {
         // #505: refuse to stage without the tax facts. Unreachable through the UI (Save VI is
@@ -499,6 +523,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
           ...(pmoAuthorsTax && nativeTax.value?.pphType
             ? { withheldAmount: nativeTax.value.withheldAmount, withheldPphType: nativeTax.value.pphType } : {}),
           ...(entersErpAmounts && erpTax.amounts ? { erpTaxAmounts: erpTax.amounts } : {}),
+          ...(odooBill && odooTaxIds.length ? { taxIds: odooTaxIds } : {}),
         });
       }
       return;
@@ -527,6 +552,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
           status: statusVal,
           date: dateVal,
           amount: parsedAmount,
+          ...(odooProcurement && odooJournalId ? { journalId: odooJournalId } : {}),
           intent,
         } satisfies CreatePaymentInput;
       } else {
@@ -544,7 +570,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
       toast(isPayment ? t('procurementDetail.paymentRecorded', 'Payment recorded') : t('procurementDetail.captureRecorded', '{{label}} recorded', { label }), refNum ?? undefined, 'success');
       onClose();
     } catch (err) {
-      const { headline, detail } = classifyMutationError(err);
+      const { headline, detail } = odooActionError(err, odooProcurement, t) ?? classifyMutationError(err);
       toast(headline, detail, 'warning');
     } finally {
       setSubmitting(false);
@@ -637,7 +663,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
         </div>
 
         {/* Status — never rendered for a payment: DD-VPAY-8 (the options are illegal; null is sent). */}
-        {!isPayment && (
+        {!isPayment && !odooReceipt && (
           <div className="min-w-[140px] flex-1">
             <SelectField
               id={`${formId}-status`}
@@ -654,6 +680,8 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
           </div>
         )}
       </div>
+
+      {odooReceipt && <OdooReceiptQuantities items={items} value={receiptQty} onChange={(next) => { setReceiptQty(next); setReceiptInvalid(undefined); }} invalid={receiptInvalid} />}
 
       {/* Amount — hidden for kinds without a money field (e.g. Goods Receipt) */}
       {isSubcontractInvoice && subcontractPoId && (
@@ -721,6 +749,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
           data-testid="vi-tax-template-select"
         />
       )}
+      {odooBill && <OdooTaxPicker value={odooTaxIds} onChange={setOdooTaxIds} />}
       {entersErpAmounts && <ErpTaxAmountFields formId={formId} tax={erpTax} />}
       {pmoAuthorsTax && <TaxRateFields fields={taxFields} />}
       {pmoAuthorsTax && (
@@ -799,16 +828,20 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
             }}
             data-testid="payment-invoice-select"
             placeholder={t('procurementDetail.noInvoiceSelected', '— none —')}
-            options={invoices.map((inv) => ({
-              value: inv.id,
-              label: vendorInvoiceIdentityAccessibleLabel({
+            options={invoices.map((inv) => {
+              const label = vendorInvoiceIdentityAccessibleLabel({
                 t,
                 referenceNumber: inv.reference_number,
                 viNumber: inv.vi_number,
                 invoiceDate: inv.invoice_date,
                 context: invoiceIdentityContext ?? { state: 'unavailable' },
-              }),
-            }))}
+              });
+              // FR-OPP-044: a bill whose total Odoo computed differently is not payable until a person has checked it in Odoo.
+              const needsAttention = odooProcurement && Boolean((inv as { erp_attention?: string | null }).erp_attention);
+              return needsAttention
+                ? { value: inv.id, label: `${label} — ${t('procurement:odoo.billCheckFirst', 'check in Odoo first')}`, disabled: true }
+                : { value: inv.id, label };
+            })}
           />
           {invoiceId && (() => {
             const selected = invoices.find((inv) => inv.id === invoiceId);
@@ -826,6 +859,8 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
           <FieldError id={`${formId}-invoice-error`}>{billError}</FieldError>
         </div>
       )}
+
+      {isPayment && odooProcurement && <OdooJournalSelect value={odooJournalId} onChange={setOdooJournalId} id={`${formId}-journal`} />}
 
       {isVendorInvoice && pmoAuthorsTax && !amountStr && vendorTax?.pphType && taxIncomplete && (
         <p role="status" className="text-[12px] text-muted-foreground">

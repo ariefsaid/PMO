@@ -364,6 +364,8 @@ export interface CreateInvoiceInput extends VendorInvoiceTaxInput {
    * external branch (forwarded to the dispatch, which builds the ERPNext rows); the native RPC has no such parameter.
    */
   erpTaxAmounts?: ErpVendorTaxAmounts;
+  /** #1505 P8: the taxes picked from the Odoo tax directory. Consumed ONLY by the repository's external branch; the native RPC has no such parameter. */
+  taxIds?: string[];
 }
 
 /**

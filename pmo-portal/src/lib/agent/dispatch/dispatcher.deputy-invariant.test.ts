@@ -20,6 +20,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { runDispatchTick } from '../../../../../supabase/functions/agent-dispatch/dispatcher';
 import type { AutomationRow } from '../../../../../supabase/functions/agent-dispatch/dispatcher';
+import { makeDispatcherTestRpc } from './dispatcherTestRpc';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DISPATCH_DIR = resolve(HERE, '../../../../../supabase/functions/agent-dispatch');
@@ -71,7 +72,7 @@ function makeServiceClient(automations: AutomationRow[]) {
     return { select: selectMock, update: updateMock };
   });
 
-  return { client: { from }, tablesTouched, updateMock, updateEqMock };
+  return { client: { from, rpc: makeDispatcherTestRpc() }, tablesTouched, updateMock, updateEqMock };
 }
 
 /** A minted-client mock recording its own .from() calls (the fired run's business surface). */
@@ -221,10 +222,10 @@ describe('runDispatchTick — AC-AAN-019 minted-JWT cross-tenant denial identica
     const makeSelectChain = (isMock: ReturnType<typeof vi.fn>) => ({
       eq: () => ({ eq: () => ({ is: isMock }) }),
     });
-    const rpc = vi.fn().mockResolvedValue({
+    const rpc = makeDispatcherTestRpc(() => ({
       data: [{ id: 'evt-1', created_at: '2026-07-06T08:00:00Z', to_status: 'Ordered', org_id: 'org-A' }],
       error: null,
-    });
+    }));
     const wmMaybeSingle = vi.fn().mockResolvedValue({ data: null, error: null });
     const wmSelect = vi.fn().mockReturnValue({ eq: () => ({ maybeSingle: wmMaybeSingle }) });
     const upsertMock = vi.fn().mockResolvedValue({ data: null, error: null });

@@ -46,6 +46,7 @@ export type Action =
   | 'withdraw'
   | 'post'
   | 'confirm'
+  | 'resolve'
   | 'prepare'
   | 'request'
   | 'decide'
@@ -100,6 +101,7 @@ export type Entity =
   | 'orgProjectClassification'
   | 'employeeLink'
   | 'pushHold'
+  | 'odooHeldCommand'
   | 'managementPack'
   | 'projectProgress'
   | 'fxRate'
@@ -782,6 +784,11 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   // UX ONLY: the RPC is the enforcement authority (ADR-0016).
   pushHold: {
     manage: allow(ADMIN),
+  },
+  // #1505 P8 (FR-OPP-063/094): resolving a held Odoo payment is Admin or Finance, and never while viewing as another role.
+  // UX ONLY: `resolve_held_outbox_command` re-checks role, org, standing and that the resolver is not the dispatcher.
+  odooHeldCommand: {
+    resolve: (role, ctx) => has(TAX_SETUP, role) && ctx.record?.viewOnly !== true,
   },
   // #765 (DD-MMP-4): the management pack mirrors the revenue READ set (salesInvoice.view). RLS on
   // sales_invoices admits every active member; the FE is stricter, exactly as for the invoice lists.

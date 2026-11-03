@@ -35,6 +35,7 @@ Deno.test('AC-OUT-841: a hung ClickUp during external-connect returns 502 extern
             headers: { 'content-type': 'application/vnd.pgrst.object+json' },
           })),
         supabaseRpc('actor_authorization_state', () => jsonResponse({ active: true, role: 'Admin' })),
+        supabaseRpc('service_feature_enabled', () => jsonResponse(true)),
         supabaseSelect('platform_operators', () =>
           new Response('null', { status: 200, headers: { 'content-type': 'application/json' } })),
       ],

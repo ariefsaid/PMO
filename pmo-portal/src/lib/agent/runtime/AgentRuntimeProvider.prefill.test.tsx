@@ -26,7 +26,8 @@ vi.mock('./pmoNativeRuntime', () => ({
   },
 }));
 
-vi.mock('@/src/lib/features', () => ({
+vi.mock('@/src/lib/features', async (importOriginal) => ({
+  ...await importOriginal<typeof import('@/src/lib/features')>(),
   isFeatureEnabled: (key: string) => key === 'agentAssistant',
   FEATURES: { agentAssistant: true },
 }));

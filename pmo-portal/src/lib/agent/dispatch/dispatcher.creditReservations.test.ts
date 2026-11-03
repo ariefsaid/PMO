@@ -7,6 +7,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { runDispatchTick } from '../../../../../supabase/functions/agent-dispatch/dispatcher';
 import type { AutomationRow } from '../../../../../supabase/functions/agent-dispatch/dispatcher';
+import { makeDispatcherTestRpc } from './dispatcherTestRpc';
 
 const EVENT = { id: 'evt-1', created_at: '2026-07-06T08:00:00Z', to_status: 'Ordered', org_id: 'org-A' };
 
@@ -34,7 +35,7 @@ function setup(auto: AutomationRow, events: Array<typeof EVENT> = [EVENT], opts:
   const isTrigger = auto.kind === 'trigger';
   let automationSelects = 0;
   const service = {
-    rpc: vi.fn().mockResolvedValue({ data: events, error: null }),
+    rpc: makeDispatcherTestRpc(() => ({ data: events, error: null })),
     from: vi.fn((table: string) => {
       if (table === 'agent_automations') {
         return {

@@ -91,6 +91,27 @@ Deno.test('FR-PLN-006/FR-PLN-007: re-enabling the module resumes the same candid
   assert(result.errors.length === 0, 'no hold is reported while the modules are on');
 });
 
+Deno.test('FR-PLN-006 / FR-ENA-083: a change missed by webhook apply converges through the same sweep candidate after re-enable', async () => {
+  const sameChange = candidate('webhook-change-1', 'revenue');
+  const org = { orgId: 'org-1', ownedDomains: ['revenue'], disabledFeatureKeys: ['revenue'] as string[] };
+  const driven: string[] = [];
+  const tick = () => reconcileOrgOutbox(
+    async () => [sameChange],
+    org,
+    ((row: OutboxRow) => { driven.push(row.id); return {} as never; }) as never,
+    (async () => { /* injected dispatch */ }) as never,
+  );
+
+  const held = await tick();
+  assert(held.errors.some((item) => item.id === sameChange.id), 'the off tick holds the same external change');
+  assert(driven.length === 0, 'the sweep does not apply the change while off');
+
+  org.disabledFeatureKeys = [];
+  const resumed = await tick();
+  assert(resumed.reconciled === 1, 'the sweep applies the held change after re-enable');
+  assert(driven.join(',') === sameChange.id, 'the exact same candidate is driven once');
+});
+
 Deno.test('FR-PLN-006: legacy fixtures with no entitlement data are unchanged (nothing held)', async () => {
   const h = harness(undefined);
   const result = await run(h);

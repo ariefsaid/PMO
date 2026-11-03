@@ -212,6 +212,26 @@ export async function selectTriggerMatches(
   return matches;
 }
 
+/** Filter the org-scoped automation metadata through the shared entitlement resolver before
+ * polling events, claiming fires, minting owners, or advancing trigger watermarks. */
+async function enabledFeatureAutomations(
+  sb: ServiceClientLike,
+  automations: AutomationRow[],
+): Promise<AutomationRow[]> {
+  if (typeof sb.rpc !== 'function') return [];
+  const orgIds = [...new Set(automations.map((automation) => automation.org_id).filter(Boolean))];
+  const enabledOrgs = new Set<string>();
+  for (const orgId of orgIds) {
+    const { data, error } = await sb.rpc('service_feature_enabled', { p_org_id: orgId, p_key: 'agent_assistant' });
+    if (error) {
+      logStructuredError({ fn: 'agent-dispatch', errorCode: 'FEATURE_SWITCH_UNREADABLE' });
+      continue;
+    }
+    if (data === true) enabledOrgs.add(orgId);
+  }
+  return automations.filter((automation) => enabledOrgs.has(automation.org_id));
+}
+
 /** Dedupe the (org_id, trigger_on.event) filter pairs across a source's automations for the RPC. */
 function dedupeFilters(automations: AutomationRow[]): TriggerFilter[] {
   const seen = new Set<string>();
@@ -367,10 +387,19 @@ export async function runDispatchTick(deps: RunDispatchTickDeps): Promise<void> 
   const rateGuard: DispatchRateGuard = deps.rateGuard ?? { check: async () => ({ exceeded: false }) };
 
   // ── Selection (service_role, metadata enumeration ONLY — FR-AAN-014) ──
-  const dueSchedules = await selectDueSchedules(deps.serviceClient, now);
+  const selectedSchedules = await selectDueSchedules(deps.serviceClient, now);
 
   // Trigger automations: enumerate enabled/live kind='trigger' rows, then poll-since-watermark.
-  const triggerAutomations = await selectEnabledTriggers(deps.serviceClient);
+  const selectedTriggers = await selectEnabledTriggers(deps.serviceClient);
+  // Resolve each org once across both kinds. A disabled or unreadable entitlement must leave its
+  // schedules unclaimed and its trigger watermark untouched so work resumes after re-enable.
+  const eligibleAutomations = await enabledFeatureAutomations(
+    deps.serviceClient,
+    [...selectedSchedules, ...selectedTriggers],
+  );
+  const eligibleIds = new Set(eligibleAutomations.map((automation) => automation.id));
+  const dueSchedules = selectedSchedules.filter((automation) => eligibleIds.has(automation.id));
+  const triggerAutomations = selectedTriggers.filter((automation) => eligibleIds.has(automation.id));
   const triggerMatches = await selectTriggerMatches(deps.serviceClient, now, triggerAutomations);
 
   // Track the max-ATTEMPTED event per source to advance the watermark AFTER the batch (item 4/2:
@@ -395,7 +424,7 @@ export async function runDispatchTick(deps: RunDispatchTickDeps): Promise<void> 
   const closeSilentAudit = async (audited: { minted: MintedSession; runId: string; threadId: string }, automation: AutomationRow): Promise<void> => {
     type Writer = { from(t: string): { update(p: object): { eq(c: string, v: string): PromiseLike<{ error: unknown }> } } };
     const sb = audited.minted.client as Writer;
-    let failed = false;
+    let failed: boolean;
     try {
       const thread = await sb.from('agent_threads').update({ archived_at: now.toISOString() }).eq('id', audited.threadId);
       const run = await sb.from('agent_runs').update({ status: 'completed' }).eq('id', audited.runId);
@@ -621,7 +650,7 @@ export async function runDispatchTick(deps: RunDispatchTickDeps): Promise<void> 
       if (automation.kind === 'trigger') {
         await stampLastFired(deps.serviceClient, automation.id, now.toISOString());
       }
-    } catch (err) {
+    } catch {
       // Item 2 (reliability): isolate this unit's failure — log code-only (NFR-AAN-SEC-007/008,
       // never the prompt/condition text), continue to the next unit. The watermark for an
       // attempted trigger event has already been recorded above (markAttempted), independent of
