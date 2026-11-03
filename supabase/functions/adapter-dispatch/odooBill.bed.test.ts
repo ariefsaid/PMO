@@ -93,7 +93,7 @@ Deno.test({
     const anchored = (key: string) => call<Array<{ res_id: number }>>('ir.model.data', 'search_read', { domain: [['module', '=', 'pmo'], ['name', '=', key], ['model', '=', 'account.move']], fields: ['res_id'] });
 
     const order = await adapterFor(billInput(null)).commit(orderCommand);
-    const [orderLine] = await call<Array<{ id: number }>>('purchase.order.line', 'search_read', { domain: [['order_id', '=', Number(order.externalRecordId)]], fields: ['id'] });
+    const [orderLine] = await call<Array<{ id: number }>>('purchase.order.line', 'search_read', { domain: [['order_id', '=', parseOdooExternalRef('purchase.order', order.externalRecordId)]], fields: ['id'] });
 
     for (const [label, link] of [['from an order', orderLine.id], ['free-standing', null]] as const) {
       const input = billInput(link);
