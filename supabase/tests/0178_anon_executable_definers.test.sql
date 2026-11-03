@@ -109,6 +109,7 @@
 -- A SECURITY DEFINER READ invoked through PostgREST under a member's JWT; its body re-asserts active
 -- membership, the caller's org, project access and the archive role gate, and it exposes no internal
 -- reference. Graceful pairing: supabase/tests/budget_archive_cancel_intents.test.sql (AC-BUD-122).
+-- Current retained set: 150 names after #1505 added `resolve_held_outbox_command` below.
 --
 -- ⚑ AMENDED BY #1422: `archive_budget_version_with_cancel_intent` joins the retained set (+1, count 84).
 -- It preserves the four-role archive gate while atomically recording the ERP cancellation decision;
@@ -413,8 +414,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  149,
-  'AC-ACL-002 all 149 retained client-callable RPC names still have a public function');
+  150,
+  'AC-ACL-002 all 150 retained client-callable RPC names still have a public function');
 
 select is(
   (select count(*)::int
@@ -423,8 +424,8 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  149,
-  'AC-ACL-003 all 149 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  150,
+  'AC-ACL-003 all 150 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
 -- granted to both roles from being named twice. Retained names exempt authenticated grants only;
