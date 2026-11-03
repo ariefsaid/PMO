@@ -667,14 +667,17 @@ export async function dispatchMoneyWrite(deps: DispatchMoneyWriteDeps): Promise<
  * table (and the mirror tables), and the name alone would match any message that merely mentions it.
  */
 const OUTBOX_IN_FLIGHT_INDEX = 'external_command_outbox_one_inflight_per_record';
+/** 0508: at most one in-flight Odoo payment command per bill, whatever the intent (two payers can each pass the residual check). */
+const OUTBOX_PAYMENT_PER_BILL_INDEX = 'external_command_outbox_one_inflight_odoo_payment_per_bill';
 export const COMMAND_IN_FLIGHT_FOR_RECORD = 'command-in-flight-for-record';
 
-function isOutboxInFlightConflict(error: unknown): boolean {
+function violatesIndex(error: unknown, index: string): boolean {
   const e = error as { code?: unknown; message?: unknown; details?: unknown } | null | undefined;
   if (e?.code !== '23505') return false;
   const text = `${typeof e.message === 'string' ? e.message : ''} ${typeof e.details === 'string' ? e.details : ''}`;
-  return text.includes(OUTBOX_IN_FLIGHT_INDEX);
+  return text.includes(index);
 }
+const isOutboxInFlightConflict = (error: unknown): boolean => violatesIndex(error, OUTBOX_IN_FLIGHT_INDEX);
 
 /** A structurally-present string `code`, or undefined. Mirrors `appError.ts`'s private `readCode`. */
 function readThrownCode(error: unknown): string | undefined {
@@ -687,6 +690,9 @@ function readThrownCode(error: unknown): string | undefined {
  *  there dropped the `.code` of a plain-`Error` subclass (`BudgetCategoryUnmappedError`, thrown from
  *  `resolveBudgetRefs`'s pre-flight) and turned a precise 422 into a bare, code-less 400. */
 export function toDispatchError(error: unknown): AppError {
+  if (violatesIndex(error, OUTBOX_PAYMENT_PER_BILL_INDEX)) {
+    return new AppError('payment already in progress for this bill', COMMAND_IN_FLIGHT_FOR_RECORD);
+  }
   if (isOutboxInFlightConflict(error)) {
     return new AppError(
       'another command for this record is already in flight — wait for it to settle (or resolve it) before dispatching again',
