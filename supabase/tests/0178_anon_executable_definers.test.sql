@@ -190,7 +190,7 @@
 -- from the list). Only external-connect calls it, through the service role with p_actor_id; the frontend never did.
 -- With it off the list, a renewed authenticated grant fails AC-ACL-004 by name.
 --
--- ⚑ AMENDED BY 0494 (#1606): `retry_connect_send` joins the retained set (+1; final count 130 after ECA-6's 0495 grant, re-derived from the merged list). A SECURITY DEFINER writer under a member's JWT; it re-asserts the
+-- ⚑ AMENDED BY 0494 (#1606): `retry_connect_send` joined the prior retained set (+1; count 130). S1 plans adds five Operator writers and two authenticated projections (+7; current count 141). A SECURITY DEFINER writer under a member's JWT; it re-asserts the
 -- org, active membership and the Admin role in its body (a held send is released and queued again, audited); proved by
 -- supabase/tests/erp_connect_sends.test.sql. The other 0494 functions are service-role-only or internal.
 --
@@ -225,8 +225,8 @@ select plan(6);
 -- authenticated grant explicitly after the default-privilege guard; otherwise the count below fails.
 -- The names are by proname, matching the migration's conservative overload-safe allow-list (42 literal
 -- frontend calls plus six existing authenticated RPC contracts).
--- ⚑ AMENDED BY 0517 (#1514 T3): `prepare_tm_signoff`, `withdraw_tm_signoff` and `confirm_tm_signoff` join the retained set (+3, count 139 on 136,
--- re-derived by hand from the 139 rows of the list). SECURITY DEFINER writers under a member's JWT: each re-asserts active membership and the caller's
+-- ⚑ AMENDED BY 0517 (#1514 T3): `prepare_tm_signoff`, `withdraw_tm_signoff` and `confirm_tm_signoff` join the retained set (+3, count 146 on dev's 141 with T2's two,
+-- re-derived by hand from the 146 rows of the list). SECURITY DEFINER writers under a member's JWT: each re-asserts active membership and the caller's
 -- org; prepare also the project's progress authority, confirm Admin / Finance and preparer ≠ confirmer unless the sole active member. Proven by
 -- supabase/tests/tm_signoff.test.sql.
 create temp table client_callable_rpc_names (proname text primary key) on commit drop;
@@ -316,6 +316,11 @@ insert into client_callable_rpc_names (proname) values
   ('operator_create_org'),
   ('operator_grant_credits'),
   ('operator_set_domain_ownership'),
+  ('operator_set_org_plan'),
+  ('operator_set_global_feature'),
+  ('operator_clear_feature_override'),
+  ('operator_set_plan_feature'),
+  ('operator_set_plan_limits'),
   ('operator_set_org_lifecycle_state'),
   ('operator_list_orgs'),
   ('post_stock_document'),
@@ -325,6 +330,8 @@ insert into client_callable_rpc_names (proname) values
   ('org_agent_run_stats'),
   ('org_credit_balance'),
   ('org_usage_summary'),
+  ('resolved_org_features'),
+  ('operator_resolved_org_features'),
   ('record_expense_advance_return'),
   ('record_imprest_count'),
   ('record_native_receipt'),
@@ -391,8 +398,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  139,
-  'AC-ACL-002 all 139 retained client-callable RPC names still have a public function');
+  146,
+  'AC-ACL-002 all 146 retained client-callable RPC names still have a public function');
 
 select is(
   (select count(*)::int
@@ -401,8 +408,8 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  139,
-  'AC-ACL-003 all 139 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  146,
+  'AC-ACL-003 all 146 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
 -- granted to both roles from being named twice. Retained names exempt authenticated grants only;
