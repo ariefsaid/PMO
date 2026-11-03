@@ -19,3 +19,12 @@ export function purchaseDocstatus(kind: PurchaseKind, state: string): 0 | 1 | 2 
     case 'payment': return POSTED_PAYMENT.includes(state) ? 1 : 0;
   }
 }
+
+/**
+ * What a vendor bill shows about its payment (FR-OPP-054, AC-OPP-055): Paid only when Odoo's own residual is zero on a posted bill;
+ * a payment Odoo accepted that the last read does not yet show settled is "payment sent, awaiting Odoo"; otherwise unpaid.
+ */
+export function billPaymentView(bill: { state: string; residual: string | null; paymentsSent: number }): 'paid' | 'awaiting-odoo' | 'unpaid' {
+  if (purchaseStatus('bill', bill.state, bill.residual ?? undefined).status === 'Paid') return 'paid';
+  return bill.state === 'posted' && bill.paymentsSent > 0 ? 'awaiting-odoo' : 'unpaid';
+}
