@@ -251,57 +251,6 @@ export const ALLOWLIST = [
     reason: 'Admin-owned switch (0419); S4 deliberately gives it no assistant surface',
     restore: 'Delete only if the owner gives the assistant a feedback-surveys read path.',
   },
-  // ── Rule 7's baseline is 0081's live gated-table list, so the write policies the ERPNext-flip
-  // family recreated after it are visible. S6 adds no migration, so re-creating them is a later
-  // slice's change; each id below names the policy its migration re-creates.
-  {
-    ids: [
-      'enforcement:0099_purchase_orders_receipts_flip.sql:purchase_orders_insert',
-      'enforcement:0099_purchase_orders_receipts_flip.sql:purchase_orders_update',
-      'enforcement:0099_purchase_orders_receipts_flip.sql:purchase_orders_delete',
-      'enforcement:0099_purchase_orders_receipts_flip.sql:procurement_receipts_insert',
-      'enforcement:0099_purchase_orders_receipts_flip.sql:procurement_receipts_update',
-      'enforcement:0099_purchase_orders_receipts_flip.sql:procurement_receipts_delete',
-    ],
-    reason: 'ERPNext-flip P2 (0099) recreated these write policies after 0081 introduced the rule',
-    restore: 'Delete each id when its policy is next recreated carrying the org_feature_enabled conjunct — it then goes stale and the gate demands the deletion.',
-  },
-  {
-    ids: [
-      'enforcement:0100_invoices_payments_flip.sql:procurement_invoices_insert',
-      'enforcement:0100_invoices_payments_flip.sql:procurement_invoices_update',
-      'enforcement:0100_invoices_payments_flip.sql:procurement_invoices_delete',
-      'enforcement:0100_invoices_payments_flip.sql:payments_insert',
-      'enforcement:0100_invoices_payments_flip.sql:payments_update',
-      'enforcement:0100_invoices_payments_flip.sql:payments_delete',
-    ],
-    reason: 'ERPNext-flip P2 (0100) recreated these write policies after 0081 introduced the rule',
-    restore: 'Delete each id when its policy is next recreated carrying the org_feature_enabled conjunct — it then goes stale and the gate demands the deletion.',
-  },
-  {
-    ids: [
-      'enforcement:0129_ap_invoices_payments_active_member.sql:procurement_invoices_insert',
-      'enforcement:0129_ap_invoices_payments_active_member.sql:procurement_invoices_update',
-      'enforcement:0129_ap_invoices_payments_active_member.sql:procurement_invoices_delete',
-      'enforcement:0129_ap_invoices_payments_active_member.sql:payments_insert',
-      'enforcement:0129_ap_invoices_payments_active_member.sql:payments_update',
-      'enforcement:0129_ap_invoices_payments_active_member.sql:payments_delete',
-    ],
-    reason: '0129 recomposed these AP write policies for active membership after 0081 introduced the rule',
-    restore: 'Delete each id when its policy is next recreated carrying the org_feature_enabled conjunct — it then goes stale and the gate demands the deletion.',
-  },
-  {
-    ids: [
-      'enforcement:0203_rls_active_member_write_composition.sql:purchase_orders_insert',
-      'enforcement:0203_rls_active_member_write_composition.sql:purchase_orders_update',
-      'enforcement:0203_rls_active_member_write_composition.sql:purchase_orders_delete',
-      'enforcement:0203_rls_active_member_write_composition.sql:procurement_receipts_insert',
-      'enforcement:0203_rls_active_member_write_composition.sql:procurement_receipts_update',
-      'enforcement:0203_rls_active_member_write_composition.sql:procurement_receipts_delete',
-    ],
-    reason: '0203 recomposed these write policies for active membership after 0081 introduced the rule',
-    restore: 'Delete each id when its policy is next recreated carrying the org_feature_enabled conjunct — it then goes stale and the gate demands the deletion.',
-  },
 ];
 
 // ── source scanning helpers (pure) ──────────────────────────────────────────────────────────────
@@ -628,8 +577,7 @@ export function parseKeyMap(files) {
 
 // ── S2 enforcement: a later migration must keep the gate (#1783 item 3) ─────────────────────────
 
-/** An enforcement migration: 0081's write-policy gate (the baseline that exists today) and S2's 0534.
- *  Everything either one gates must survive every later migration. */
+/** An enforcement migration: 0081/0534 or a later numbered enforcement baseline. */
 const ENFORCEMENT_FILE_RE = /^\d+_.*_enforcement\.sql$/i;
 
 /**
@@ -710,9 +658,10 @@ function policyCommand(body) {
 const isRestrictive = (body) => /\bas\s+restrictive\b/i.test(body);
 
 /**
- * Parse an enforcement migration: gated function name -> key, gated write table -> key. Two shapes ship:
- * 0081's `case <alias>.tablename when 'table' then 'key' … end` mapping (the live list), and S2's
- * `join (values ('table','key'), …) as m(tablename, feature_key)` list.
+ * Parse an enforcement migration: gated function name -> key, gated write table -> key. Table baselines
+ * can be declared by 0081's `case <alias>.tablename when 'table' then 'key' … end` mapping, S2's
+ * `join (values ('table','key'), …) as m(tablename, feature_key)` list, or explicit gated permissive
+ * write-policy definitions in a later enforcement migration.
  */
 export function parseEnforcement(sql) {
   const text = strip(sql);
@@ -733,14 +682,20 @@ export function parseEnforcement(sql) {
       tables.set(m[1], m[2]);
     }
   }
+  for (const m of text.matchAll(POLICY_RE)) {
+    const [, kind, , table, body] = m;
+    if (kind.toLowerCase() !== 'create' || policyCommand(body) === 'select' || isRestrictive(body)) continue;
+    const key = keyOfCall(body, 'org_feature_enabled');
+    if (key) tables.set(table, key);
+  }
   return { functions, tables };
 }
 
 /**
- * The gate each table/function carries TODAY, and the migration that introduced it. A later migration
- * (higher number) must preserve it; the gate's own migration is not a "recreation".
- * Folding every enforcement migration means 0081's list is covered before S2 lands and 0534 layers on
- * top of it afterwards (#1783 item 3 says "a gated table", not "a 0534 table").
+ * The gate each table/function carries TODAY, and the latest enforcement migration that establishes
+ * it. A higher-numbered migration must preserve it; the baseline migration itself is not a
+ * "recreation". Folding every enforcement migration includes 0081's live list, S2's 0534 catalogue,
+ * and explicit policy baselines added when a previously composed table is repaired.
  */
 export function enforcementBaseline(migrations) {
   const functions = new Map();
@@ -926,7 +881,7 @@ export function check(input) {
   }
 
   // 7. A gate that exists today must survive every later migration (#1783 item 3). The baseline is
-  // every enforcement migration (0081's live list + S2's 0534 when it merges), not one file.
+  // every enforcement migration (0081's live list, S2's 0534, and explicit later policy baselines).
   const baseline = enforcementBaseline(migrations);
   const commands = policyCommands(migrations);
   if (baseline.functions.size || baseline.tables.size) {
@@ -1201,6 +1156,36 @@ begin perform public.assert_feature_on(public.auth_org_id(), 'incidents'); end $
     allowlist: [{ ids: ['enforcement:0600_rewrite.sql:save_stock', 'enforcement:0600_rewrite.sql:write_stock'], reason: 'r', restore: 'x' }],
   });
   ok(allowlistedEnforcement.length === 0, `an allowlisted enforcement exception passes, got: ${allowlistedEnforcement.join(' | ')}`);
+
+  const procurementBaseline = `create policy purchase_orders_insert on public.purchase_orders for insert
+    with check (public.org_feature_enabled(public.auth_org_id(), 'procurement'));`;
+  const procurementHistory = [
+    {
+      name: '0534_feature_enforcement.sql',
+      sql: `do $$ begin
+        for r in (select 1 join (values ('purchase_orders','procurement')) as m(tablename,feature_key) on true)
+        loop null; end loop;
+      end $$;`,
+    },
+    { name: '0536_recompose.sql', sql: 'create policy purchase_orders_insert on public.purchase_orders for insert with check (true);' },
+    { name: '0538_procurement_write_policy_enforcement.sql', sql: procurementBaseline },
+  ];
+  ok(
+    parseEnforcement(procurementBaseline).tables.get('purchase_orders') === 'procurement',
+    'an explicit gated write policy declares its table baseline',
+  );
+  ok(
+    check({ ...complete, migrations: procurementHistory }).length === 0,
+    'a later enforcement baseline closes earlier policy redefinition gaps',
+  );
+  const afterProcurementBaseline = [
+    ...procurementHistory,
+    { name: '0539_recompose.sql', sql: 'create policy purchase_orders_insert on public.purchase_orders for insert with check (true);' },
+  ];
+  ok(
+    has(check({ ...complete, migrations: afterProcurementBaseline }), '0539_recompose.sql recreates write policy purchase_orders_insert'),
+    'a rewrite after the latest baseline still fails when it drops the gate',
+  );
 
   // ── The 0081 baseline, `alter policy`, the RAISING-only function gate, and body/table-name forms ──
   // Each fixture below passes on the pre-fix guard; they exist so a revert reddens immediately.

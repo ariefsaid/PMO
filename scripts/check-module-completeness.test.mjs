@@ -369,6 +369,38 @@ test('parseEnforcement extracts the gated function and the gated write table', (
   assert.equal(parsed.tables.get('vendor_withholding_slips'), 'procurement');
 });
 
+test('a later policy-enforcement migration becomes the baseline for its explicit gated policies', () => {
+  const migrations = [
+    {
+      name: '0534_feature_enforcement.sql',
+      sql: `do $$ begin
+        for r in (select 1 join (values ('purchase_orders','procurement')) as m(tablename,feature_key) on true)
+        loop null; end loop;
+      end $$;`,
+    },
+    {
+      name: '0536_recompose_purchase_order.sql',
+      sql: 'create policy purchase_orders_insert on public.purchase_orders for insert with check (true);',
+    },
+    {
+      name: '0538_procurement_write_policy_enforcement.sql',
+      sql: `create policy purchase_orders_insert on public.purchase_orders for insert
+        with check (public.org_feature_enabled(public.auth_org_id(), 'procurement'));`,
+    },
+  ];
+  assert.equal(parseEnforcement(migrations[2].sql).tables.get('purchase_orders'), 'procurement');
+  assert.deepEqual(check(completeInput({ migrations })), [], 'a later gated definition closes historical redefinition gaps');
+
+  const laterUngated = [
+    ...migrations,
+    { name: '0539_rewrite_purchase_order.sql', sql: 'create policy purchase_orders_insert on public.purchase_orders for insert with check (true);' },
+  ];
+  assert.ok(
+    has(check(completeInput({ migrations: laterUngated })), '0539_rewrite_purchase_order.sql recreates write policy purchase_orders_insert'),
+    'a policy rewrite after the latest enforcement baseline still fails when it drops the gate',
+  );
+});
+
 test('a later migration recreating a gated function or write policy without the gate fails', () => {
   const migrations = [
     { name: '0534_feature_enforcement.sql', sql: ENFORCEMENT_SQL },
