@@ -18,14 +18,17 @@ import { returnToState } from './returnTo';
 /** Full-page loading state — the shape of an app page while the session resolves. */
 const AuthLoading: React.FC = () => (
   <div
-    role="status"
-    aria-live="polite"
-    aria-label="Authenticating…"
     className="min-h-[100dvh] bg-secondary/35"
   >
-    <div className="mx-auto w-full max-w-3xl px-4 py-10">
-      <ListState variant="loading" shape="detail" rows={4} loadingLabel="Authenticating…" />
-    </div>
+    <ListState
+      variant="loading"
+      shape="detail"
+      rows={4}
+      loadingLabel="Authenticating…"
+      loadingRole="status"
+      loadingAriaLabel="Authenticating…"
+      className="mx-auto w-full max-w-3xl px-4 py-10"
+    />
   </div>
 );
 

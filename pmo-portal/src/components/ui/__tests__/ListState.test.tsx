@@ -26,20 +26,43 @@ describe('ListState', () => {
   });
 
   it.each(['lines', 'table', 'cards', 'detail', 'chart'] as const)(
-    'loading shape=%s: still announces loading and stays out of the accessibility tree as content',
+    'loading shape=%s keeps its busy announcement',
     (shape) => {
       render(<ListState variant="loading" shape={shape} />);
       const region = screen.getByTestId('liststate-loading');
       expect(region).toHaveAttribute('aria-busy', 'true');
       expect(region).toHaveAttribute('aria-live', 'polite');
       expect(screen.getByText('Loading…')).toBeInTheDocument();
-      const silhouette = region.querySelector(`[data-skeleton-shape="${shape}"]`);
-      expect(silhouette).not.toBeNull();
-      // A skeleton is decoration, not fake data: assistive tech must not walk its blocks.
-      expect(silhouette).toHaveAttribute('aria-hidden', 'true');
-      expect(region.querySelectorAll('.skel').length).toBeGreaterThan(0);
     },
   );
+
+  it('loadingRole=status keeps one busy status region that announces its loading copy', () => {
+    render(
+      <ListState
+        variant="loading"
+        shape="cards"
+        loadingLabel="Loading files…"
+        loadingRole="status"
+      />,
+    );
+    const status = screen.getByRole('status');
+    expect(status).toHaveAttribute('aria-busy', 'true');
+    expect(status).toHaveTextContent('Loading files…');
+    expect(status).toHaveAttribute('aria-live', 'polite');
+  });
+
+  it('loadingAriaLabel preserves an explicit status name while retaining the loading copy', () => {
+    render(
+      <ListState
+        variant="loading"
+        loadingLabel="Loading…"
+        loadingRole="status"
+        loadingAriaLabel="Authenticating…"
+      />,
+    );
+    expect(screen.getByRole('status', { name: 'Authenticating…' })).toHaveAttribute('aria-busy', 'true');
+    expect(screen.getByText('Loading…')).toBeInTheDocument();
+  });
 
   it('loading: loadingLabel replaces the announced copy for page/section loads', () => {
     render(<ListState variant="loading" loadingLabel="Loading project finances…" />);

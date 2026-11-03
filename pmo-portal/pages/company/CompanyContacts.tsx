@@ -51,14 +51,14 @@ export const CompanyContactsList: React.FC<{ companyId: string }> = ({ companyId
 
   if (isPending) {
     return (
-      <div role="status" aria-live="polite" aria-label={t('companyDetail.contacts.loadingLabel', 'Loading contacts')}>
-        <ListState
-          variant="loading"
-          shape="cards"
-          rows={3}
-          loadingLabel={t('companyDetail.contacts.loading', 'Loading…')}
-        />
-      </div>
+      <ListState
+        variant="loading"
+        shape="cards"
+        rows={3}
+        loadingLabel={t('companyDetail.contacts.loading', 'Loading…')}
+        loadingRole="status"
+        loadingAriaLabel={t('companyDetail.contacts.loadingLabel', 'Loading contacts')}
+      />
     );
   }
 

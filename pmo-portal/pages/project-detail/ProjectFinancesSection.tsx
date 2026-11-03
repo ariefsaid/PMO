@@ -42,9 +42,7 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
   if (query.isPending) return (
     <section data-testid="project-finances" aria-label={t('projectFinances.title', 'Project finances')}>
       {title}
-      <div role="status" aria-live="polite">
-        <ListState variant="loading" shape="detail" rows={4} loadingLabel={t('projectFinances.loading', 'Loading project finances…')} />
-      </div>
+      <ListState variant="loading" shape="detail" rows={4} loadingLabel={t('projectFinances.loading', 'Loading project finances…')} loadingRole="status" />
     </section>
   );
   if (query.isError || !query.data) return (

@@ -165,14 +165,17 @@ const UpdatePasswordPage: React.FC = () => {
   if (phase === 'verifying') {
     return (
       <div
-        role="status"
-        aria-live="polite"
-        aria-label="Verifying your link…"
         className="min-h-[100dvh] bg-secondary/35"
       >
-        <div className="mx-auto w-full max-w-sm px-4 py-10">
-          <ListState variant="loading" shape="detail" rows={3} loadingLabel="Verifying your link…" />
-        </div>
+        <ListState
+          variant="loading"
+          shape="detail"
+          rows={3}
+          loadingLabel="Verifying your link…"
+          loadingRole="status"
+          loadingAriaLabel="Verifying your link…"
+          className="mx-auto w-full max-w-sm px-4 py-10"
+        />
       </div>
     );
   }

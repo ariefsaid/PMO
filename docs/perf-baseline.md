@@ -33,8 +33,8 @@ its own slice: a Lighthouse user-flow script that signs in itself.
 
 ## Row counts for virtual scrolling (#1741 part B)
 
-Measured 2026-11-03 against the same local rich seed (the standard `supabase/seed.sql`, one `db reset`,
-`pg_stat_user_tables.n_live_tup`). The question was which list actually renders **hundreds** of rows:
+Measured 2026-11-03 against the local rich seed with exact `COUNT(*)` queries under the shared DB lock.
+The question was which list actually renders **hundreds** of rows:
 
 | Table / list surface | Rows |
 |---|---|
@@ -59,4 +59,3 @@ hundreds that justify windowing (and every list above is already paged or capped
 TanStack Virtual was therefore **not** added — windowing a 17-row table would add a measurement surface and a
 scroll-restoration edge case with no row removed from the DOM. Revisit when a real client's data crosses a few
 hundred rows in one unpaged table; the row counts above are the trigger line.
-

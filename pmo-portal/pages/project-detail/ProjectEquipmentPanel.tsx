@@ -46,9 +46,7 @@ export const ProjectEquipmentPanel: React.FC<{ projectId: string; currency: stri
   }, [totals.data, allocations.data, canSeeAmounts]);
 
   if (totals.isPending) return (
-    <div role="status" aria-live="polite">
-      <ListState variant="loading" shape="table" rows={3} loadingLabel={t('equipment:panel.loading', 'Loading equipment…')} />
-    </div>
+    <ListState variant="loading" shape="table" rows={3} loadingLabel={t('equipment:panel.loading', 'Loading equipment…')} loadingRole="status" />
   );
   if (totals.isError || !totals.data) return (
     <div role="alert" className="text-sm">

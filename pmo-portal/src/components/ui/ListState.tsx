@@ -37,6 +37,10 @@ export interface ListStateProps {
   columns?: number;
   /** Screen-reader loading copy (page/section loads keep their own wording). */
   loadingLabel?: string;
+  /** Use a semantic status region for loading surfaces that previously announced with role=status. */
+  loadingRole?: 'status';
+  /** Preserve an explicit accessible name for a status loading region. */
+  loadingAriaLabel?: string;
   className?: string;
   /** Override the default `liststate-loading` testid for the loading skeleton wrapper. */
   testId?: string;
@@ -170,6 +174,8 @@ export const ListState: React.FC<ListStateProps> = ({
   shape = 'lines',
   columns = 5,
   loadingLabel,
+  loadingRole,
+  loadingAriaLabel,
   className,
   testId,
   stateId,
@@ -192,7 +198,9 @@ export const ListState: React.FC<ListStateProps> = ({
     return (
       <div
         data-testid={testId ?? 'liststate-loading'}
+        role={loadingRole}
         aria-busy="true"
+        aria-label={loadingAriaLabel}
         aria-live="polite"
         className={cn('p-4', className)}
       >

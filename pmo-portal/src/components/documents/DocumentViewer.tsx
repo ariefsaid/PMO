@@ -171,9 +171,7 @@ export function DocumentViewer({ state, onClose, onRetry, onRenderError }: Docum
           </p>
         )}
         {state.phase === 'loading' && (
-          <div role="status" aria-live="polite">
-            <ListState variant="loading" shape="detail" rows={4} loadingLabel={t('viewer.loading', 'Loading preview…')} />
-          </div>
+          <ListState variant="loading" shape="detail" rows={4} loadingLabel={t('viewer.loading', 'Loading preview…')} loadingRole="status" />
         )}
         {state.phase === 'failed' && (
           <Failure kind={state.kind} place={target.sourceLabel} retryAfterSeconds={state.retryAfterSeconds} onRetry={onRetry} t={t} />

@@ -33,7 +33,7 @@ export function LinkedFolderFiles({ reference, owner }: { reference: { drive_id:
   }, [drive_id, item_id, attempt]);
 
   if (state.loading) {
-    return <ListState variant="loading" shape="cards" rows={3} loadingLabel={t('folderFiles.loading', 'Loading files…')} />;
+    return <ListState variant="loading" shape="cards" rows={3} loadingLabel={t('folderFiles.loading', 'Loading files…')} loadingRole="status" />;
   }
   if (state.error != null) {
     return (
