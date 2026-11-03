@@ -10,7 +10,7 @@
 -- security-definer lock-order RPCs (0105/0106) are the only mutation path (closing the child→parent
 -- deadlock seam). The catalog backstop below excludes it; the exception is asserted explicitly.
 begin;
-select plan(32);
+select plan(34);
 
 -- profiles: the exact table the promote e2e failed on (admin-invite-user inserts here).
 select ok(has_table_privilege('service_role', 'public.profiles', 'INSERT'),
@@ -61,6 +61,9 @@ select ok(has_table_privilege('service_role', 'public.projects', 'SELECT'),
 -- stock_immutability_idempotency.test.sql (service role cannot insert/update/delete/truncate them).
 -- Also imprest_cash_counts (0424): write-once cash counts, written only by record_imprest_count; service_role's
 -- writes are revoked on purpose.
+-- org_features (0070) remains service-readable but its switch writes use the audited RPC path.
+-- The plan registry (0530) is also RPC-only: service_role has no direct table grants and reads
+-- effective state through service_resolved_org_features; plans_permissions.test.sql owns that contract.
 -- Uses pg_class BY OID (relkind 'r'), which is authoritative —
 -- no name-resolution phantoms, unlike information_schema. If a future migration adds an ordinary
 -- table without the default-priv grant landing, this fails loud.
@@ -77,13 +80,37 @@ select is(
         'stock_document_lines',
         'stock_ledger',
         'stock_balances',
-        'imprest_cash_counts'
+        'imprest_cash_counts',
+        'org_features',
+        'plans',
+        'plan_features',
+        'org_plans',
+        'global_features'
       )
       and not has_table_privilege('service_role', c.oid, 'INSERT')),
   0,
   'AC-SVCROLE-008 every ordinary public base table grants service_role INSERT');
 
 -- 0399's exemption is a named pin, not a silent omission: runs are RPC-minted (see above).
+select ok(
+  has_table_privilege('service_role', 'public.org_features', 'SELECT')
+    and not has_table_privilege('service_role', 'public.org_features', 'INSERT')
+    and not has_table_privilege('service_role', 'public.org_features', 'UPDATE')
+    and not has_table_privilege('service_role', 'public.org_features', 'DELETE')
+    and not has_table_privilege('service_role', 'public.org_features', 'TRUNCATE'),
+  'AC-SVCROLE-008d org_features stays service-readable with audited-only switch writes');
+
+select ok(
+  not has_table_privilege('service_role', 'public.plans', 'SELECT')
+    and not has_table_privilege('service_role', 'public.plan_features', 'SELECT')
+    and not has_table_privilege('service_role', 'public.org_plans', 'SELECT')
+    and not has_table_privilege('service_role', 'public.global_features', 'SELECT')
+    and not has_table_privilege('service_role', 'public.plans', 'INSERT')
+    and not has_table_privilege('service_role', 'public.plan_features', 'INSERT')
+    and not has_table_privilege('service_role', 'public.org_plans', 'INSERT')
+    and not has_table_privilege('service_role', 'public.global_features', 'INSERT'),
+  'AC-SVCROLE-008c plan registry tables are private; resolution is through the service RPC');
+
 select is(has_table_privilege('service_role', 'public.procurement_import_runs', 'INSERT'), false,
   'AC-SVCROLE-008b service_role may NOT directly INSERT procurement_import_runs (RPC-minted only)');
 select is(has_table_privilege('service_role', 'public.procurement_import_runs', 'SELECT'), true,
