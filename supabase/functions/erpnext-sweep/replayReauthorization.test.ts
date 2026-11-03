@@ -73,7 +73,7 @@ function fakeServiceClient(opts: {
       const b: any = {
         select: () => b,
         eq: () => b,
-        maybeSingle: async () => ({
+        maybeSingle: () => Promise.resolve({
           data: {
             operation: 'create',
             payload: opts.payload ?? { id: 'si-1', erp_doc_kind: 'sales-invoice' },
@@ -85,14 +85,15 @@ function fakeServiceClient(opts: {
       };
       return b;
     },
-    rpc: async (fn: string, args: Record<string, unknown>) => {
+    rpc: (fn: string, args: Record<string, unknown>) => {
       rpcCalls.push({ fn, args });
-      if (fn === 'domain_owned_by_tier') return { data: opts.domainOwned ?? true, error: null };
+      if (fn === 'domain_owned_by_tier') return Promise.resolve({ data: opts.domainOwned ?? true, error: null });
+      if (fn === 'org_has_active_erpnext_binding') return Promise.resolve({ data: true, error: null });
       if (fn === 'actor_authorization_state') {
-        return { data: opts.actorState === undefined ? { role: 'Finance', active: true } : opts.actorState, error: null };
+        return Promise.resolve({ data: opts.actorState === undefined ? { role: 'Finance', active: true } : opts.actorState, error: null });
       }
-      if (fn === 'pre_cutover_procurement') return { data: opts.preCutover === undefined ? false : opts.preCutover, error: null };
-      return { data: null, error: { message: `unexpected rpc ${fn}` } };
+      if (fn === 'pre_cutover_procurement') return Promise.resolve({ data: opts.preCutover === undefined ? false : opts.preCutover, error: null });
+      return Promise.resolve({ data: null, error: { message: `unexpected rpc ${fn}` } });
     },
   } as unknown as SupabaseClient;
   return { client, rpcCalls };
@@ -174,6 +175,33 @@ Deno.test('B6: an UNATTRIBUTABLE row (no recorded actor) is held, never replayed
   assert(envReads === 0, 'no credential resolution for a held row');
 });
 
+Deno.test('AC-BUD-122: a pending kindless historical budget row is held before credentials or ERP fetch', async () => {
+  const { client, rpcCalls } = fakeServiceClient({ actorUserId: ACTOR, payload: { id: 'budget-history-1' } });
+  const row = { ...outboxRow('pending'), domain: 'budget' };
+  const originalFetch = globalThis.fetch;
+  let fetchCalls = 0;
+  globalThis.fetch = (() => {
+    fetchCalls += 1;
+    return Promise.resolve(new Response('unexpected network request', { status: 500 }));
+  }) as typeof fetch;
+  let error: Error | null = null;
+  let envReads = 0;
+  try {
+    const result = await buildAndCatch(client, row);
+    error = result.error;
+    envReads = result.envReads;
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+
+  assert(error !== null, 'the historical budget row must be held, not replayed');
+  assert(error!.message.includes('missing or unknown erp_doc_kind'), `the missing kind is the refusal reason: ${error!.message}`);
+  assert((error as { code?: string }).code === 'commit-rejected', 'the kindless row is held as a non-retryable authorization refusal');
+  assert(rpcCalls.some((call) => call.fn === 'org_has_active_erpnext_binding'), 'the actual budget replay authorization path was evaluated');
+  assert(envReads === 0, 'refusal happens before credentials are resolved');
+  assert(fetchCalls === 0, 'refusal happens before any network or ERP request');
+});
+
 Deno.test('B6: an AUTHORIZED replay proceeds past the guard (the wiring gates, it does not block the pass)', async () => {
   const { client } = fakeServiceClient({ actorUserId: ACTOR });
   const { error, envReads } = await buildAndCatch(client, outboxRow('pending'));
@@ -195,15 +223,15 @@ Deno.test('B6: a COMMITTED row (finalize-only — the ERP document already exist
 Deno.test('B6: through the real pass, a refused candidate is reported and its row is left UNTOUCHED (never dropped)', async () => {
   const { client } = fakeServiceClient({ actorUserId: ACTOR, domainOwned: false });
   const row = outboxRow('pending');
-  let dispatched = 0;
+  const dispatched = { count: 0 };
   const result = await reconcileOrgOutbox(
-    async () => [row],
+    () => Promise.resolve([row]),
     { orgId: ORG, ownedDomains: ['revenue'] },
     (candidate) => buildReconcileDepsLive(client, org, candidate),
-    (async () => { dispatched += 1; return { externalRecordId: 'SI-1', canonical: { id: 'si-1' } }; }) as never,
+    (() => { dispatched.count += 1; return Promise.resolve({ externalRecordId: 'SI-1', canonical: { id: 'si-1' } }); }) as never,
   );
 
-  assert(dispatched === 0, 'a refused candidate must never reach dispatchMoneyWrite');
+  assert(dispatched.count === 0, 'a refused candidate must never reach dispatchMoneyWrite');
   assert(result.reconciled === 0, 'nothing was reconciled');
   assert(result.errors.length === 1 && result.errors[0].id === row.id, 'the refusal is reported per candidate');
   assert(
