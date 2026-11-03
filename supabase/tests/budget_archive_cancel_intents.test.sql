@@ -1,9 +1,12 @@
 -- #1422 / FR-BUD-122: archiving and queuing ERPNext cancellation is atomic,
 -- idempotent, actor-attributed, and preserves the existing four-role gate.
-begin;
--- Transaction-scoped: creating dblink before BEGIN left two SECURITY DEFINER functions in the shared
--- catalog after this file's rollback, which then read as MISSING surface to the isolation denominator.
+-- dblink must outlive the test transaction: the post-rollback cleanup below deletes rows the second
+-- session committed. Remember whether this run created it, so only run-created extension state is
+-- removed (a pre-existing extension is never dropped) and the shared catalog returns to baseline.
+create temporary table archive_cancel_dblink_extension_state as
+  select exists (select 1 from pg_extension where extname = 'dblink') as preexisted;
 create extension if not exists dblink;
+begin;
 select plan(49);
 select dblink_connect('archive_race', format('dbname=%s user=%s password=postgres host=%s port=%s', current_database(), current_user, coalesce(host(inet_server_addr()), 'supabase_db_pmo-portal'), coalesce(inet_server_port(),5432)));
 select dblink_exec('archive_race', $q$
@@ -189,3 +192,10 @@ select finish();
 rollback;
 select dblink_exec('archive_race', $$delete from error_events where org_id='04040000-0000-0000-0000-000000000001'; delete from projects where org_id='04040000-0000-0000-0000-000000000001'; delete from profiles where org_id='04040000-0000-0000-0000-000000000001'; delete from organizations where id='04040000-0000-0000-0000-000000000001'; delete from auth.users where id='04040000-0000-0000-0000-000000000002'$$);
 select dblink_disconnect('archive_race');
+do $$
+begin
+  if not (select preexisted from archive_cancel_dblink_extension_state) then
+    drop extension dblink;
+  end if;
+end $$;
+drop table archive_cancel_dblink_extension_state;
