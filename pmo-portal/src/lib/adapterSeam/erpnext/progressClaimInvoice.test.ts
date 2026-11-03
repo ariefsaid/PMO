@@ -162,14 +162,14 @@ describe('billing claim invoice (AC-PB-006)', () => {
     const timeMaterials = { claims: [TM_STATE], lines: TM_LINES };
     const { body, command: cmd } = await push({}, TM_CLAIM, {}, {}, {}, timeMaterials, 'claim-1');
     const lines = cmd.record.items as Array<Row>;
-    expect(lines.map(({ label, unit, quantity, rate, amount, item }) => ({ label, unit, quantity, rate, amount, item }))).toEqual([
+    expect(lines.map(({ label, unit, quantity, signed_rate: rate, amount, item }) => ({ label, unit, quantity, rate, amount, item }))).toEqual([
       { label: 'Site engineer', unit: 'hour', quantity: 120, rate: 50000, amount: '6000000.00', item: 'SERVICE-LABOUR' },
       { label: 'Rounding case', unit: 'hour', quantity: 0.33, rate: 0.05, amount: '0.02', item: 'SERVICE-LABOUR' },
     ]);
-    expect(lines.every(({ quantity, rate }) => typeof quantity === 'number' && typeof rate === 'number')).toBe(true);
+    expect(lines.every(({ quantity, signed_rate: rate }) => typeof quantity === 'number' && typeof rate === 'number')).toBe(true);
     expect(body.items).toEqual([
-      { item_code: 'SERVICE-LABOUR', qty: 120, rate: 50000, description: 'Site engineer (hour)' },
-      { item_code: 'SERVICE-LABOUR', qty: 0.33, rate: 0.05, description: 'Rounding case (hour)' },
+      { item_code: 'SERVICE-LABOUR', qty: 1, rate: 6000000, description: 'Site engineer (hour): 120 x 50000.00, rounded to 6000000.00' },
+      { item_code: 'SERVICE-LABOUR', qty: 1, rate: 0.02, description: 'Rounding case (hour): 0.33 x 0.05, rounded to 0.02' },
     ]);
     expect(lines.reduce((sum, line) => sum + Number(line.amount), 0)).toBe(Number(TM_STATE.gross_amount));
     const roundingLine = TM_LINES.find((line) => line.label === 'Rounding case');
@@ -178,7 +178,7 @@ describe('billing claim invoice (AC-PB-006)', () => {
     expect(cmd.idempotencyKey).toBe('claim-1');
   });
 
-  it('AC-TM-014 keeps the frozen amount for a half-cent tie while sending quantity and rate', async () => {
+  it('AC-TM-014 sends a half-cent tie as its frozen amount so ERPNext books the signed cents', async () => {
     const halfCentTie = [{
       org_id: ORG, claim_id: 'claim-1', line_key: 'rate-line-1', rate_version: 1, kind: 'labour',
       label: 'Site engineer', unit: 'hour', units: '0.25', rate: '1000.02', amount: '250.01',
@@ -187,10 +187,36 @@ describe('billing claim invoice (AC-PB-006)', () => {
     const tmClaim = { ...TM_STATE, gross_amount: '250.01' };
     const { body, command: cmd } = await push({}, claim, {}, {}, {}, { claims: [tmClaim], lines: halfCentTie });
     const [line] = cmd.record.items as Array<Row>;
-    expect(line).toMatchObject({ quantity: 0.25, rate: 1000.02, amount: '250.01' });
-    expect(Number(line.quantity) * Number(line.rate)).toBe(250.005);
+    expect(line).toMatchObject({ quantity: 0.25, signed_rate: 1000.02, rate: 250.01, amount: '250.01' });
+    expect(Number(line.quantity) * Number(line.signed_rate)).toBe(250.005);
     expect(body.items).toEqual([
-      { item_code: 'SERVICE-LABOUR', qty: 0.25, rate: 1000.02, description: 'Site engineer (hour)' },
+      { item_code: 'SERVICE-LABOUR', qty: 1, rate: 250.01, description: 'Site engineer (hour): 0.25 x 1000.02, rounded to 250.01' },
+    ]);
+  });
+
+  it('AC-TM-014 sends half-cent ties and large signed quantities at their exact frozen cents', async () => {
+    const lines = [
+      { org_id: ORG, claim_id: 'claim-1', line_key: 'rate-line-1', rate_version: 1, kind: 'labour', label: 'Site engineer', unit: 'hour', units: '0.25', rate: '1000.02', amount: '250.01' },
+      { org_id: ORG, claim_id: 'claim-1', line_key: 'rate-line-2', rate_version: 1, kind: 'labour', label: 'Site engineer', unit: 'hour', units: '0.5', rate: '0.03', amount: '0.02' },
+      { org_id: ORG, claim_id: 'claim-1', line_key: 'rate-line-3', rate_version: 1, kind: 'labour', label: 'Site engineer', unit: 'hour', units: '99999999.5', rate: '0.01', amount: '1000000.00' },
+    ];
+    const gross = '1000250.03';
+    const { body, command: cmd } = await push({}, { ...TM_CLAIM, gross_amount: gross }, {}, {}, {}, {
+      claims: [{ ...TM_STATE, gross_amount: gross }], lines,
+    });
+    const signedLines = cmd.record.items as Array<Row>;
+    expect(body.items).toEqual([
+      { item_code: 'SERVICE-LABOUR', qty: 1, rate: 250.01, description: 'Site engineer (hour): 0.25 x 1000.02, rounded to 250.01' },
+      { item_code: 'SERVICE-LABOUR', qty: 1, rate: 0.02, description: 'Site engineer (hour): 0.5 x 0.03, rounded to 0.02' },
+      { item_code: 'SERVICE-LABOUR', qty: 1, rate: 1000000, description: 'Site engineer (hour): 99999999.5 x 0.01, rounded to 1000000.00' },
+    ]);
+    const bodyItems = body.items as Array<Row>;
+    expect(bodyItems.map((item) => Math.round(Number(item.qty) * Number(item.rate) * 100) / 100))
+      .toEqual(signedLines.map((line) => Number(line.amount)));
+    expect(signedLines.map(({ quantity, signed_rate: rate, amount }) => ({ quantity, rate, amount }))).toEqual([
+      { quantity: 0.25, rate: 1000.02, amount: '250.01' },
+      { quantity: 0.5, rate: 0.03, amount: '0.02' },
+      { quantity: 99999999.5, rate: 0.01, amount: '1000000.00' },
     ]);
   });
 
@@ -228,8 +254,8 @@ describe('billing claim invoice (AC-PB-006)', () => {
     };
     const { body } = await push({}, TM_CLAIM, {}, {}, {}, { claims: [TM_STATE], lines: [...TM_LINES, otherOrgLine] });
     expect(body.items).toEqual([
-      { item_code: 'SERVICE-LABOUR', qty: 120, rate: 50000, description: 'Site engineer (hour)' },
-      { item_code: 'SERVICE-LABOUR', qty: 0.33, rate: 0.05, description: 'Rounding case (hour)' },
+      { item_code: 'SERVICE-LABOUR', qty: 1, rate: 6000000, description: 'Site engineer (hour): 120 x 50000.00, rounded to 6000000.00' },
+      { item_code: 'SERVICE-LABOUR', qty: 1, rate: 0.02, description: 'Rounding case (hour): 0.33 x 0.05, rounded to 0.02' },
     ]);
   });
 

@@ -299,13 +299,33 @@ function canonicalTimeMaterialsLines(
   }));
 }
 
-function invoiceItemsFromCanonical(lines: readonly CanonicalClaimLine[], retainCanonical: boolean): Array<Record<string, unknown>> {
+function invoiceItemsFromCanonical(lines: readonly CanonicalClaimLine[]): Array<Record<string, unknown>> {
   return lines.map((line) => ({
-    ...(retainCanonical ? line : {}),
     item_code: line.item,
     qty: Number(line.quantity),
     rate: Number(line.rate),
     ...(line.label ? { description: `${line.label} (${line.unit})` } : {}),
+  }));
+}
+
+/**
+ * ERPNext rounds every invoice item as `round(qty * rate, 2)` (the rule mirrored by
+ * `invoice_command_line_total` in migration 0262). A signed T&M line amount is already frozen to
+ * cents, so send it as `1 × amount`: ERPNext then receives a product already at currency precision
+ * and cannot round the original fractional quantity × rate to a different cent. Keep the original
+ * signed rate and quantity in the outbox record for the claim audit; only the ERP-facing qty/rate
+ * use the frozen amount. Its description keeps the signed calculation visible on the invoice.
+ */
+function timeMaterialsInvoiceItems(lines: readonly CanonicalClaimLine[]): Array<Record<string, unknown>> {
+  return lines.map(({ rate: signedRate, ...line }) => ({
+    ...line,
+    signed_rate: Number(signedRate),
+    item_code: line.item,
+    qty: 1,
+    rate: Number(line.amount),
+    ...(line.label ? {
+      description: `${line.label} (${line.unit}): ${line.quantity} x ${signedRate}, rounded to ${line.amount}`,
+    } : {}),
   }));
 }
 
@@ -545,9 +565,9 @@ export async function resolveProgressClaimInvoice(deps: ErpDispatchFactoryDeps, 
     if (workOrder) fraction = taxBaseFraction(workOrder);
   }
   if (claim.kind === 'progress') {
-    record.items = invoiceItemsFromCanonical(canonicalProgressLines(claim, lines), false);
+    record.items = invoiceItemsFromCanonical(canonicalProgressLines(claim, lines));
   } else if (claim.kind === 'time_materials') {
-    record.items = invoiceItemsFromCanonical(timeMaterialsLines ?? [], true);
+    record.items = timeMaterialsInvoiceItems(timeMaterialsLines ?? []);
   } else {
     record.items = progressClaimItems(claim);
   }
