@@ -307,8 +307,10 @@ comment on column public.org_ai_allowance_grants.period is
 comment on column public.org_ai_allowance_grants.credit_id is
   'The credits row this grant minted, so a ledger row and its money are always reconcilable.';
 
-revoke all on table public.org_ai_allowance_grants from public, anon, authenticated;
-grant select, insert on table public.org_ai_allowance_grants to service_role;
+-- RPC-only, exactly like the plan registry (0530): no client AND no service_role table grant. The only
+-- writer is plan_monthly_ai_allowance_tick() (security definer, cron-owned). 0137 carries the named
+-- exception and pins it (AC-SVCROLE-008e).
+revoke all on table public.org_ai_allowance_grants from public, anon, authenticated, service_role;
 
 -- System-attributed grants: no human granted them, so no profile may be named (0066 did the same for
 -- owner_id). The FE never reads granted_by; the audit row carries the attribution.
