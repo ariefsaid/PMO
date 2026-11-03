@@ -19,7 +19,7 @@ import { deriveArDueDate, overdueAgeDays } from '@/src/lib/repositories/revenueD
 export interface CategoryPosition { category: string; budget: number; actual: number | null }
 
 /**
- * Budget vs actual per Active-budget category, shared by the cost block and "Needs attention" so the
+ * Budget vs actual per Active-budget or spent category, shared by the cost block and "Needs attention" so the
  * two can never disagree. `spent`/`over` are project-level only when every category is known.
  */
 export function useBudgetPosition(project: ProjectWithRefs, enabled = true) {
@@ -34,6 +34,11 @@ export function useBudgetPosition(project: ProjectWithRefs, enabled = true) {
     for (const li of active?.line_items ?? []) {
       const cat = li.category ?? 'Other';
       budgets.set(cat, (budgets.get(cat) ?? 0) + (Number(li.budgeted_amount) || 0));
+    }
+    for (const category of actuals?.categories ?? []) {
+      if (!budgets.has(category.category) && category.mapped && category.amount !== null && Number(category.amount) !== 0) {
+        budgets.set(category.category, 0);
+      }
     }
     const same = actuals?.currency === project.currency;
     const rows: CategoryPosition[] = [...budgets.entries()].map(([category, budget]) => {

@@ -54,6 +54,9 @@ insert into erp_gl_entry_mirror (id, org_id, erp_name, company, account, cost_ce
   ('03760000-0000-0000-0000-0000000001a8','03760000-0000-0000-0000-00000000000a','GL-8','RIS','Utilities - RIS',null,'2025',null,null,null,'2025-04-01',100,0,false,'1'),
   ('03760000-0000-0000-0000-0000000001a9','03760000-0000-0000-0000-00000000000a','GL-9','RIS','Salary - RIS','Eng - RIS','2025','',null,null,'2025-05-01',100,0,false,'1'),
   ('03760000-0000-0000-0000-0000000001b1','03760000-0000-0000-0000-00000000000b','GL-1','RIS','Salary - RIS',null,'2025',null,null,null,'2025-01-15',5000,0,false,'1');
+-- The snapshot is read only with an active ERPNext binding (0307, #1530).
+insert into public.external_org_bindings (org_id, external_tier, site_url, secret_ref, status, connected_by, connected_at)
+values ('03760000-0000-0000-0000-00000000000a', 'erpnext', 'https://erp.example.test', 'test-ref', 'active', '03760000-0000-0000-0000-0000000000a2', now());
 -- the tagged line GL-3 is in the snapshot under the anchor project
 insert into erp_actuals_snapshot (org_id, project_id, cost_center, account, fiscal_year, debit, credit, net, snapshot_id) values
   ('03760000-0000-0000-0000-00000000000a','03760000-0000-0000-0000-0000000000c1','Eng - RIS','Salary - RIS','2025',300,0,300,'03760000-0000-0000-0000-0000000000e1');

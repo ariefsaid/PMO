@@ -189,7 +189,8 @@
     "mobileInvoiceAmount": "Total faktur tidak termasuk PPN",
     "mobileOutstandingUnknown": "Saldo terutang tidak diketahui",
     "mobileInvoiceAmountInclusive": "Total faktur termasuk PPN",
-    "mobileInvoiceAmountUnspecified": "Jumlah faktur"
+    "mobileInvoiceAmountUnspecified": "Jumlah faktur",
+    "pairedCountedOnce": "Dihitung sekali bersama faktur ERP {{number}}."
   },
   "invoices": {
     "description": "Faktur klien.",

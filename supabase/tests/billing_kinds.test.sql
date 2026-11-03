@@ -187,6 +187,9 @@ insert into public.projects (id,org_id,name,status,currency,contract_value,tax_t
  ('04080000-0000-0000-0000-0000000000d7','04080000-0000-0000-0000-000000000001','BK P7','Ongoing Project','USD',1000,'exclusive',0,0,1,1,false,'BK-7');
 set local request.jwt.claims = '{}';
 set local role service_role;
+-- The snapshot is read only with an active ERPNext binding (0307, #1530).
+insert into public.external_org_bindings (org_id, external_tier, site_url, secret_ref, status, connected_by, connected_at)
+values ('04080000-0000-0000-0000-000000000001', 'erpnext', 'https://erp.example.test', 'test-ref', 'active', '04080000-0000-0000-0000-0000000000a2', now());
 insert into public.budget_category_account_map (org_id,category,erp_account,is_push_target) values
  ('04080000-0000-0000-0000-000000000001','Labor','ACC-BK-LABOR',true);
 insert into public.erp_actuals_snapshot (org_id,project_id,account,fiscal_year,net,as_of,snapshot_id,created_at) values

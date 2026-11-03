@@ -5,6 +5,9 @@ describe('purchase recovery decisions', () => {
   it.each([
     ['order', { state: 'draft', anchor: 'ours' }, 'confirm'],
     ['order', { state: 'purchase' }, 'adopt'],
+    ['order', { state: 'sent', anchor: 'ours' }, 'confirm'],
+    ['order', { state: 'to approve', anchor: 'ours' }, 'adopt'],   // waiting inside Odoo: reported as such, never re-confirmed or approved
+    ['order', { state: 'cancel', anchor: 'ours' }, 'hold'],
     ['order', { absent: true, probe: 'conclusive' }, 'create'],
     ['order', { absent: true, probe: 'inconclusive' }, 'hold'],
     ['bill', { state: 'draft', anchor: 'ours' }, 'post'],

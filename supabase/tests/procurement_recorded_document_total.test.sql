@@ -47,10 +47,10 @@ set local request.jwt.claims = '{"sub":"03710000-0000-0000-0000-0000000000a2","r
 select lives_ok($$ select transition_procurement('03710000-0000-0000-0000-0000000000e1','Paid') $$, '0371 fixture: Finance pays it');
 select results_eq($$ select status::text, total_value from procurements where id = '03710000-0000-0000-0000-0000000000e1' $$,
   $$ values ('Paid', 1500::numeric) $$, '0371 the invoice amount still wins over the gross payment once paid');
-select is((select coalesce(sum(amount) filter (where is_project_currency), 0) from project_committed_spend('03710000-0000-0000-0000-0000000000d1')), 1500::numeric,
-  '0371 a purchase started at a vendor invoice and paid counts its amount in committed spend');
-select is((select procurement_open_commitment(p) from procurements p where p.id = '03710000-0000-0000-0000-0000000000e1'), 1500::numeric,
-  '0371 its open commitment is the recorded amount');
+select is((select coalesce(sum(amount) filter (where is_project_currency), 0) from project_committed_spend('03710000-0000-0000-0000-0000000000d1')), 0::numeric,
+  '0371 a purchase started at a vendor invoice and paid leaves committed spend (#1530: paid spend is an actual)');
+select is((select procurement_open_commitment(p) from procurements p where p.id = '03710000-0000-0000-0000-0000000000e1'), 0::numeric,
+  '0371 its open commitment is the unpaid remainder, zero once paid (#1530)');
 select lives_ok($$ select create_payment('03710000-0000-0000-0000-0000000000e6', null, null, null, current_date, 800) $$,
   '0371 fixture: a scheduled payment is recorded on a purchase with nothing else');
 select is((select total_value from procurements where id = '03710000-0000-0000-0000-0000000000e6'), 800::numeric,

@@ -314,6 +314,11 @@ export function classifyMutationError(
 
   if (isPurchaseRule) return { headline: 'A purchase rule applies', detail, rawDetail, classification };
 
+  // 22023 is also raised by other app paths with their own copy; only the rejection rule is mapped here.
+  if (code === '22023' && /rejection comment required/i.test(rawDetail)) {
+    return { headline: 'Add a rejection comment', detail: 'Tell the requester why this purchase is rejected, then try again.', rawDetail, classification };
+  }
+
   switch (code) {
     case 'P0001':
       return { headline: "That move isn't allowed from the current stage.", detail, rawDetail, classification };
