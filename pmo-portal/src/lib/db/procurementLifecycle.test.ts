@@ -21,7 +21,6 @@ vi.mock('@/src/lib/supabase/client', () => ({
 import {
   isLegalTransition,
   canCancel,
-  formatDocNumber,
   transitionProcurement,
   getProcurementDetail,
   createReceipt,
@@ -29,6 +28,7 @@ import {
   captureVendorInvoice,
   createQuotation,
   setProcurementInvoiceEfaktur,
+  isPreCutoverProcurement,
   ProcurementError,
 } from './procurementLifecycle';
 
@@ -121,21 +121,10 @@ describe('canCancel', () => {
 });
 
 // ---------------------------------------------------------------------------
-// B5 — Ref-number formatter (AC-803)
+// B5 — Ref-number format (AC-803) lives at pgTAP now: the minter
+// next_procurement_doc_number (0006) is the enforcement authority —
+// supabase/tests/procurement_doc_number_format.test.sql (#1710 re-home).
 // ---------------------------------------------------------------------------
-
-describe('formatDocNumber', () => {
-  it('AC-803: formatDocNumber pads width-4 — PO+2026-06-04+1 → PO-2606040001, seq 42 → PO-2606040042 (FR-PROC-010)', () => {
-    // UTC-fixed construction: Date.UTC makes TZ-independence explicit; avoids any engine
-    // that might interpret a date-only ISO string as local midnight in non-UTC environments.
-    const date = new Date(Date.UTC(2026, 5, 4)); // 2026-06-04 UTC
-    expect(formatDocNumber('PO', date, 1)).toBe('PO-2606040001');
-    expect(formatDocNumber('PO', date, 42)).toBe('PO-2606040042');
-    expect(formatDocNumber('PR', date, 1)).toBe('PR-2606040001');
-    expect(formatDocNumber('VQ', date, 999)).toBe('VQ-2606040999');
-    expect(formatDocNumber('GR', date, 1000)).toBe('GR-2606041000');
-  });
-});
 
 // ---------------------------------------------------------------------------
 // B6 — DAL RPC error surfacing (AC-806)
@@ -502,5 +491,20 @@ describe('createQuotation', () => {
   it('AC-816 (DAL): createQuotation throws on RPC error', async () => {
     makeRpcBuilder({ data: null, error: { message: 'quotation error' } });
     await expect(createQuotation('proc-1', 'vendor-1', 50000, '2026-06-04')).rejects.toThrow('quotation error');
+  });
+});
+
+describe('isPreCutoverProcurement (FR-ECA-030)', () => {
+  beforeEach(() => mockRpc.mockReset());
+
+  it.each([[true, true], [false, false], [null, false]])('asks the server, never sends org_id, and reads %s as %s', async (answer, expected) => {
+    makeRpcBuilder({ data: answer, error: null });
+    await expect(isPreCutoverProcurement('proc-1')).resolves.toBe(expected);
+    expect(mockRpc).toHaveBeenCalledWith('pre_cutover_procurement', { p_procurement_id: 'proc-1' });
+  });
+
+  it('throws the server error so the caller can fall back to the dispatch gate', async () => {
+    makeRpcBuilder({ data: null, error: { message: 'boom', code: '42501' } });
+    await expect(isPreCutoverProcurement('proc-1')).rejects.toMatchObject({ code: '42501' });
   });
 });

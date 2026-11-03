@@ -42,6 +42,7 @@ function routes(o: Opts = {}): MockRoute[] {
     rpc('accept_connect_proposals', { counts: {}, remaining: 0 }),
     rpc('decide_connect_review', null),
     rpc('unlink_connect_match', null),
+    rpc('retry_connect_send', null),
   ];
 }
 
@@ -79,7 +80,7 @@ describe('ECA setup verbs — census', () => {
   });
 
   it('Minor 6 a tier whose sweep pass does not exist yet takes no census and starts no run', async () => {
-    const r = await call({ setupAction: 'census', tier: 'odoo' });
+    const r = await call({ setupAction: 'census', tier: 'some-future-erp' });
     assertEquals(r.res.status, 400);
     assertEquals(rpcCall(r.calls, 'start_connect_run').length, 0);
     assertEquals(erpCalls(r.calls).length, 0);
@@ -169,6 +170,16 @@ describe('ECA setup verbs — accept, decide, unlink', () => {
     const f = await call({ setupAction: 'unlink-match', id: 'p2' }, { role: 'Finance' });
     assertEquals(f.res.status, 403);
     assertEquals(rpcCall(f.calls, 'unlink_connect_match').length, 0);
+  });
+
+  it('I2 retry-send sends a held record again, as the caller, and only an Admin may', async () => {
+    const a = await call({ setupAction: 'retry-send', id: 'h1' });
+    assertEquals(a.res.status, 200);
+    const rc = rpcCall(a.calls, 'retry_connect_send')[0];
+    assertEquals([rc.headers.get('authorization'), rc.bodyJson], [`Bearer ${a.jwt}`, { p_id: 'h1' }]);
+    const f = await call({ setupAction: 'retry-send', id: 'h1' }, { role: 'Finance' });
+    assertEquals(f.res.status, 403);
+    assertEquals(rpcCall(f.calls, 'retry_connect_send').length, 0);
   });
 
   it('FR-ECA-015 a refused unlink says so in plain words', async () => {

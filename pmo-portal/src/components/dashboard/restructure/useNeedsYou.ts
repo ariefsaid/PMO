@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { useQueries, useQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import type { ReactNode } from 'react';
 import type { Role } from '@/src/auth/AuthContext';
@@ -123,7 +123,7 @@ export function buildNeedsItems(role: Role | null, facts: NeedsYouFacts, t: Tran
       const unknown = overdue.unknownBalances > 0
         ? ` · ${t('needs.unknownBalanceDays', '{{count}} balance unknown; {{days}} days overdue', { count: overdue.unknownBalances, days: overdue.oldestDays ?? '—' })}`
         : '';
-      add({ id: 'overdue-invoices', count: overdue.count, label: base + unknown, amount: amountsText(overdue.knownTotals, t), href: '/sales-invoices?overdue=true', tone: 'lost' });
+      add({ id: 'overdue-invoices', count: overdue.count, label: base + unknown, amount: amountsText(overdue.knownTotals, t), href: '/finance/receivables?overdue=true', tone: 'lost' });
     }
     if (facts.supplierInvoices) add({
       id: 'supplier-invoices', count: facts.supplierInvoices.count,
@@ -298,12 +298,12 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
     queryFn: getPMDashboardProjects,
     enabled: Boolean(orgId && userId && role === 'Project Manager'),
   });
-  const projectTasks = useQueries({
-    queries: (pmProjectsQuery.data ?? []).map((project) => ({
-      queryKey: ['tasks', orgId, project.id],
-      queryFn: () => repositories.task.list(project.id),
-      enabled: Boolean(orgId && role === 'Project Manager'),
-    })),
+  const pmProjectIds = (pmProjectsQuery.data ?? []).map((project) => project.id);
+  // One batched read for every project's tasks (was one list per project).
+  const projectTasks = useQuery({
+    queryKey: ['pm-overdue-tasks', orgId, pmProjectIds],
+    queryFn: () => repositories.task.listDueRows(pmProjectIds),
+    enabled: Boolean(orgId && role === 'Project Manager' && pmProjectsQuery.data),
   });
   const timesheetsQuery = useTimesheets();
   const myTasksQuery = useMyTasks();
@@ -370,9 +370,9 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
   const pmUnknownRiskCount = pmAtRisk === null
     ? pmDeliveryProjects.filter((project) => !projectRiskBasisKnown(project)).length
     : undefined;
-  const pmOverdueTaskCount = useMemo(() => projectTasks.flatMap((query) => query.data ?? []).filter((task) =>
+  const pmOverdueTaskCount = useMemo(() => (projectTasks.data ?? []).filter((task) =>
     activeTask(task.status) && task.end_date !== null && organizationDay.day !== null && task.end_date < organizationDay.day,
-  ).length, [organizationDay.day, projectTasks]);
+  ).length, [organizationDay.day, projectTasks.data]);
 
   const currentWeek = organizationDay.day ? currentWeekStart(organizationDay.day) : null;
   const currentTimesheet = (timesheetsQuery.data ?? []).find((sheet) => sheet.week_start_date === currentWeek) ?? null;
@@ -399,7 +399,7 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
     projectsOverBudget: role === 'Project Manager' && pmProjectsQuery.data ? pmAtRisk?.count ?? 0 : undefined,
     projectsOverBudgetPartial: role === 'Project Manager' ? pmAtRisk?.partial : undefined,
     projectsOverBudgetUnknown: role === 'Project Manager' && pmProjectsQuery.data ? pmUnknownRiskCount : undefined,
-    overdueProjectTasks: role === 'Project Manager' && !projectTasks.some((query) => query.isPending || query.isError) ? pmOverdueTaskCount : undefined,
+    overdueProjectTasks: role === 'Project Manager' && !projectTasks.isPending && !projectTasks.isError ? pmOverdueTaskCount : undefined,
     timesheetsToApprove: role === 'Project Manager' && !timesheetsAwaitingQuery.isPending && !timesheetsAwaitingQuery.isError ? timesheetsAwaitingQuery.data?.length ?? 0 : undefined,
     timesheetStatus: currentTimesheet?.status ?? (currentWeek && !timesheetsQuery.isPending && !timesheetsQuery.isError ? 'Draft' : null),
     engineerTasks: role === 'Engineer' && !myTasksQuery.isPending && !myTasksQuery.isError && currentWeek ? engineerTasksCount : undefined,
@@ -409,14 +409,14 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
   const needsPending = companyRole
     ? dashboardQuery.isPending || salesInvoiceQuery.isPending || (procurementApprovalRole && procurementsQuery.isPending) || workOrdersQuery.isPending || organizationDay.isPending || budgetReviewQuery.isPending || approvalSourcesPending || !invoiceNeeds && !salesInvoiceQuery.isError && !organizationDay.isError
     : role === 'Project Manager'
-      ? pmProjectsQuery.isPending || projectTasks.some((query) => query.isPending) || organizationDay.isPending || approvalSourcesPending
+      ? pmProjectsQuery.isPending || projectTasks.isPending || organizationDay.isPending || approvalSourcesPending
       : role === 'Engineer'
         ? timesheetsQuery.isPending || myTasksQuery.isPending || expenseClaimsQuery.isPending || organizationDay.isPending
         : false;
   const needsError = companyRole
     ? dashboardQuery.isError || salesInvoiceQuery.isError || (procurementApprovalRole && procurementsQuery.isError) || workOrdersQuery.isError || organizationDay.isError || budgetReviewQuery.isError || approvalSourcesError
     : role === 'Project Manager'
-      ? pmProjectsQuery.isError || projectTasks.some((query) => query.isError) || organizationDay.isError || approvalSourcesError
+      ? pmProjectsQuery.isError || projectTasks.isError || organizationDay.isError || approvalSourcesError
       : role === 'Engineer'
         ? timesheetsQuery.isError || myTasksQuery.isError || expenseClaimsQuery.isError || organizationDay.isError
         : false;
@@ -429,9 +429,9 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
       .filter((item) => ['at-risk', 'procurement-approvals', 'overdue-invoices', 'supplier-invoices', 'budgets-over', 'ready-to-bill'].includes(item.id))
     : [];
   const areaItems = [...items, ...companyAreaItems.filter((item) => !items.some((existing) => existing.id === item.id))];
-  const pmOverdueTasksByProject = Object.fromEntries((pmProjectsQuery.data ?? []).map((project, index) => [
+  const pmOverdueTasksByProject = Object.fromEntries((pmProjectsQuery.data ?? []).map((project) => [
     project.id,
-    (projectTasks[index]?.data ?? []).filter((task) => activeTask(task.status) && task.end_date !== null && organizationDay.day !== null && task.end_date < organizationDay.day).length,
+    (projectTasks.data ?? []).filter((task) => task.project_id === project.id && activeTask(task.status) && task.end_date !== null && organizationDay.day !== null && task.end_date < organizationDay.day).length,
   ]));
   const refetch = () => {
     void dashboardQuery.refetch();
@@ -440,7 +440,7 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
     void workOrdersQuery.refetch();
     void budgetReviewQuery.refetch();
     void pmProjectsQuery.refetch();
-    void Promise.all(projectTasks.map((query) => query.refetch()));
+    void projectTasks.refetch();
     void timesheetsQuery.refetch();
     void myTasksQuery.refetch();
     void expenseClaimsQuery.refetch();

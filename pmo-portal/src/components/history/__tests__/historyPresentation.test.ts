@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { HistoryEvent } from '@/src/lib/repositories/recordHistory';
+import type { HistoryEvent } from '@/src/lib/repositories/types';
 import { groupHistoryEvents } from '../historyPresentation';
 
 const instant = '2026-10-18T10:00:00.000Z';

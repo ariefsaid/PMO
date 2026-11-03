@@ -4,6 +4,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // pattern — the reference DAL slice this file follows).
 const h = vi.hoisted(() => {
   const result = { value: { data: null as unknown, error: null as unknown } };
+  const pages: Array<{ data: unknown; error: unknown }> = [];
+  const ranges: unknown[] = [];
   const calls = {
     from: [] as unknown[],
     select: [] as unknown[],
@@ -27,12 +29,16 @@ const h = vi.hoisted(() => {
     calls.single++;
     return builder;
   };
-  builder.then = (resolve: (v: unknown) => unknown) => resolve(result.value);
+  builder.range = (...args: unknown[]) => {
+    ranges.push(args);
+    return builder;
+  };
+  builder.then = (resolve: (v: unknown) => unknown) => resolve(pages.length ? pages.shift() : result.value);
   const from = vi.fn((table: string) => {
     calls.from.push(table);
     return builder;
   });
-  return { from, calls, result };
+  return { from, calls, result, pages, ranges };
 });
 
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: h.from } }));
@@ -48,6 +54,8 @@ beforeEach(() => {
     else (h.calls[k] as unknown[]).length = 0;
   }
   h.result.value = { data: null, error: null };
+  h.pages.length = 0;
+  h.ranges.length = 0;
 });
 
 describe('AC-AGP-019 listAgentThreads', () => {
@@ -118,6 +126,14 @@ describe('AC-AGP-019 listAgentThreads', () => {
 });
 
 describe('createAgentThread', () => {
+  it('defaults the title to "New conversation" — an Assistant thread is a named conversation context (attachment-first path)', async () => {
+    // useAgentAttachments creates the thread with no title, so the default name is the product path.
+    h.result.value = { data: { id: 'thread-default', title: 'New conversation' }, error: null };
+    await createAgentThread();
+
+    expect(h.calls.insert).toEqual([{ title: 'New conversation' }]);
+  });
+
   it('AC-AT2-001 creates a caller-owned thread for attachment-first upload without sending org_id/owner_id', async () => {
     h.result.value = { data: { id: 'thread-1', title: 'New conversation' }, error: null };
     const thread = await createAgentThread('New conversation');
@@ -129,5 +145,15 @@ describe('createAgentThread', () => {
     expect(h.calls.single).toBe(1);
     expect(JSON.stringify(h.calls.insert)).not.toContain('org_id');
     expect(JSON.stringify(h.calls.insert)).not.toContain('owner_id');
+  });
+});
+
+describe('AC-AGP-019 paging past the row cap (T-10)', () => {
+  it('reads every page, not just the first 1000 rows', async () => {
+    const full = Array.from({ length: 1000 }, (_, i) => ({ id: `r${i}`, seq: i }));
+    h.pages.push({ data: full, error: null }, { data: [{ id: 'last', seq: 1000 }], error: null });
+    const rows = await listAgentThreads();
+    expect(rows).toHaveLength(1001);
+    expect(h.ranges).toEqual([[0, 999], [1000, 1999]]);
   });
 });

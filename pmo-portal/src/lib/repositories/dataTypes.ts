@@ -38,6 +38,7 @@ export type { PurchaseRequestRow, RfqRow, PurchaseOrderRow, PaymentRow } from '@
 export type { ProcurementWithRefs, ProjectCommittedSpend } from '@/src/lib/db/procurements';
 export type {
   MeetingWithRefs,
+  MeetingListItem,
   MeetingInput,
   MeetingPatch,
   MeetingListParams,

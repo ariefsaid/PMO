@@ -23,6 +23,8 @@
  *   pmo accounts map set <category> <account...> [--dry-run]   (active Admin; #1270)
  *   pmo attribution preview <file> [--json] | set <file> [--dry-run] | end <rule_key> --to <date> --version <n>   (Admin, Finance; #1271)
  *   pmo attribution list [--history]   (Admin, Finance, Executive, PM; #1271)
+ *   pmo equipment usage list (--project <id> | --asset <id>) --from <date> --to <date> [--json]   (#1519)
+ *   pmo equipment costing preview <file> [--json] | set <file> [--dry-run] | list [--history]   (#1519)
  *
  * Output is JSON on stdout; errors are JSON on stderr. Exit 0 = ok, 1 = the server refused or
  * failed, 2 = the CLI refused (usage, allow-list, DD-API-3 guard) before sending anything.
@@ -45,6 +47,7 @@ import { applyLoad, countActions, resolveLoad, validateLoadFile } from './lib/pm
 import { applyMapSet, MAP_COLUMNS, MAP_TABLE, MapSetError, planMapSet } from './lib/pmo-accounts.mjs';
 import { ACTIVATION_ENABLED, activateBudget, ActivationRefused, linkBudgetSource, validateSource } from './lib/pmo-budgets.mjs';
 import { ATTRIBUTION_READ_RPCS, ATTRIBUTION_WRITE_RPCS, AttributionFileError, explainError, formatPreview, previewRules, readRules, setRules, validateEnd } from './lib/pmo-attribution.mjs';
+import { EQUIPMENT_READ_RPCS, EQUIPMENT_USAGE_RPCS, EQUIPMENT_WRITE_RPCS, EquipmentFileError, EquipmentUsageError, explainError as explainEquipmentError, formatAllocations, previewSettings, readSettings, setSettings, validateUsageList } from './lib/pmo-equipment.mjs';
 import { LinkFileError, MAX_BATCH, PURCHASE_READ_VIEWS, parseCsv, rowsFromCsv, runLink, runSetAside, setAsideRowsFromCsv, validateLinkRows, validateSetAsideRows } from './lib/pmo-purchases.mjs';
 
 // ── the public surface (DD-API-1 / DD-API-3) ─────────────────────────────────────────────────────
@@ -107,9 +110,11 @@ export const ADMIN_RPCS = Object.freeze(['recategorise_budget_lines']);
 
 /** The cost attribution tiers (#1271, migration 0376), used only by `pmo attribution`: preview/save/end for active Admin/Finance, list also for Executive/PM. */
 export { ATTRIBUTION_READ_RPCS, ATTRIBUTION_WRITE_RPCS };
+/** The equipment API-client tiers (#1519), used only by `pmo equipment`. */
+export { EQUIPMENT_READ_RPCS, EQUIPMENT_USAGE_RPCS, EQUIPMENT_WRITE_RPCS };
 
 /** The verbs. There is deliberately no delete (DD-API-3). */
-export const COMMANDS = Object.freeze(['login', 'logout', 'whoami', 'get', 'create', 'update', 'rpc', 'load', 'purchases', 'erp', 'documents', 'm365', 'budgets', 'accounts', 'attribution']);
+export const COMMANDS = Object.freeze(['login', 'logout', 'whoami', 'get', 'create', 'update', 'rpc', 'load', 'purchases', 'erp', 'documents', 'm365', 'budgets', 'accounts', 'attribution', 'equipment']);
 
 const DELETE_VERBS = new Set(['delete', 'del', 'rm', 'remove', 'destroy']);
 
@@ -665,7 +670,7 @@ function defaultOpenBrowser(url) {
 
 // ── argument parsing ─────────────────────────────────────────────────────────────────────────────
 
-const VALUE_FLAGS = new Set(['url', 'key', 'client-id', 'select', 'filter', 'limit', 'timeout', 'project', 'source', 'to', 'version']);
+const VALUE_FLAGS = new Set(['url', 'key', 'client-id', 'select', 'filter', 'limit', 'timeout', 'project', 'asset', 'from', 'source', 'to', 'version']);
 const BOOL_FLAGS = new Set(['no-browser', 'help', 'dry-run', 'csv', 'undo', 'include-set-aside', 'json', 'history']);
 
 export function parseArgs(argv) {
@@ -783,6 +788,10 @@ const USAGE = `usage:
   pmo attribution set <file.json | -> [--dry-run]   (Admin, Finance: one rule or an array; --dry-run previews and saves nothing)
   pmo attribution end <rule_key> --to <YYYY-MM-DD> --version <n>   (Admin, Finance: a new version with that end date)
   pmo attribution list [--history]   (Admin, Finance, Executive, Project Manager)
+  pmo equipment usage list (--project <id> | --asset <id>) --from <date> --to <date> [--json]
+  pmo equipment costing preview <file.json | -> [--json]   (Admin, Finance: amount per project and month)
+  pmo equipment costing set <file.json | -> [--dry-run]   (Admin, Finance: --dry-run previews and saves nothing)
+  pmo equipment costing list [--history]   (Admin, Finance, Executive, Project Manager)
 
 common options: --url <supabase url> (PMO_SUPABASE_URL, default ${DEFAULT_SUPABASE_URL})
                 --key <publishable key> (PMO_SUPABASE_KEY)
@@ -916,6 +925,8 @@ async function dispatch(ctx, command, positionals, flags) {
       return accounts(ctx, positionals, flags);
     case 'attribution':
       return attribution(ctx, positionals, flags);
+    case 'equipment':
+      return equipment(ctx, positionals, flags);
     default:
       throw usage(`Unknown command '${command}'.\n${USAGE}`);
   }
@@ -1184,6 +1195,73 @@ async function attribution(ctx, positionals, flags) {
     throw explain(e);
   }
   throw usage(`Unknown attribution command '${sub ?? ''}'. Use preview, set, end or list.`);
+}
+
+/**
+ * `pmo equipment` (#1519): usage totals and costing settings. The database owns content validation and role checks.
+ */
+async function equipment(ctx, positionals, flags) {
+  const [area, action, arg] = positionals;
+  const api = { rpc: (name, body) => authed(ctx, 'POST', `/rest/v1/rpc/${name}`, { body }) };
+  const explain = (error) => {
+    if (error instanceof EquipmentFileError) {
+      return new CliError(`Nothing was sent: ${error.problems.length} problem(s).`, {
+        exit: 2,
+        code: 'invalid_equipment_costing_file',
+        details: error.problems,
+      });
+    }
+    if (error instanceof EquipmentUsageError) {
+      return new CliError(`Nothing was sent: ${error.problems.length} problem(s).`, {
+        exit: 2,
+        code: 'invalid_equipment_usage_query',
+        details: error.problems,
+      });
+    }
+    if ((error instanceof CliError && error.exit === 2) || error?.code === undefined) return error;
+    const err = new CliError(`${error.settingIndex ? `Setting ${error.settingIndex}: ` : ''}${explainEquipmentError(error)}`, {
+      code: error.code,
+      status: error.status,
+      hint: error.hint,
+    });
+    if (error.applied) {
+      err.details = {
+        applied: error.applied,
+        note: 'Settings listed in applied were saved; fix the refused setting and run set again for the rest.',
+      };
+    }
+    return err;
+  };
+  const settingsFrom = async () => {
+    if (!arg) throw usage(`equipment costing ${action} needs a settings file: pmo equipment costing ${action} <file.json | ->`);
+    return readSettings(await readPayload(ctx, arg === '-' ? '-' : `@${arg.replace(/^@/, '')}`));
+  };
+
+  try {
+    if (area === 'usage' && action === 'list') {
+      const rows = await api.rpc('list_equipment_usage_totals', validateUsageList({
+        project: flags.project,
+        asset: flags.asset,
+        from: flags.from,
+        to: flags.to,
+      }));
+      return flags.json ? rows : new Printed(formatAllocations(Array.isArray(rows) ? rows : []));
+    }
+    if (area === 'costing' && action === 'preview') {
+      const previews = await previewSettings(api, await settingsFrom());
+      if (flags.json) return { previews };
+      return new Printed(formatAllocations(previews.flatMap((preview) => preview.rows)));
+    }
+    if (area === 'costing' && action === 'set') {
+      return await setSettings(api, await settingsFrom(), { dryRun: Boolean(flags['dry-run']) });
+    }
+    if (area === 'costing' && action === 'list') {
+      return await api.rpc('list_equipment_costing', { p_include_history: Boolean(flags.history) });
+    }
+  } catch (error) {
+    throw explain(error);
+  }
+  throw usage(`Unknown equipment command '${[area, action].filter(Boolean).join(' ')}'. Use usage list or costing preview, set or list.`);
 }
 
 /**

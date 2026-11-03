@@ -84,6 +84,7 @@ import { resolveImprestPosting, type ImprestResolveDeps } from '../../../pmo-por
 import { imprestTransferKey } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/imprestTransferKey.ts';
 import { IMPREST_TRANSFER_KEY_RE } from '../../../pmo-portal/src/lib/adapterSeam/imprestTransfer.ts';
 import { advanceConnectRuns } from './connectRun.ts';
+import { drainConnectSends } from './connectSends.ts';
 import { reconcileOrgImprestPostings, type ImprestBackstopDeps, type ImprestIntentRow } from './imprestPostingBackstop.ts';
 import { feedLedgerMirrors } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/ledgerMirrorFeed.ts';
 import { feedPurchaseMirror, type PurchaseFeedServiceClient } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/purchaseMirrorFeed.ts';
@@ -99,7 +100,7 @@ export const STATEMENT_SOURCE_READ_REQUEST_TIMEOUT_MS = 5_000;
 export const STATEMENT_SOURCE_READ_STAGE_TIMEOUT_MS = 7_000;
 import { feedAccountMirror } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/accountMirrorFeed.ts';
 import { refreshAccountingSnapshots, type OrgAccountingScope } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/accountingFanout.ts';
-import { dispatchMoneyWrite, type DispatchMoneyWriteDeps, type ExternalRefMapping, type OutboxRow } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
+import { dispatchMoneyWrite as dispatchMoneyWriteCore, type DispatchMoneyWriteDeps, type ExternalRefMapping, type OutboxRow } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
 import type { AdapterCommand, PmoRecord } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
 import { erpnextRequest, ErpError, getDoc, withProbeBudget, ERP_PROBE_TIMEOUT_MS, type ErpClientDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/client.ts';
 import { AdapterError } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
@@ -124,6 +125,7 @@ import { guardedErpFetch, isPermittedErpSiteUrl } from '../_shared/erpHostGuard.
 import { resolveErpAuthPair, createErpAuthPairCache, type ErpAuthPairCache } from '../_shared/erpAuthPair.ts';
 import { canonicalCommandDigest, createDbMoneyOutboxDeps } from '../adapter-dispatch/moneyOutboxDeps.ts';
 import { checkErpnextCommandAuthorization, checkOutboxReplayAuthorization, replayMayIssueErpWrite } from '../adapter-dispatch/authGuard.ts';
+import { assertNotPreCutover } from '../../../pmo-portal/src/lib/adapterSeam/cutoverGate.ts';
 import { checkQueuedProcurementCreate } from '../adapter-dispatch/procurementGateGuard.ts';
 import { getReadModelWriter } from '../adapter-dispatch/readModelWriters.ts';
 import { recordExternalRef as recordExternalRefWrite } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
@@ -407,6 +409,11 @@ export async function reconcileOrgOutbox(
   let reconciled = 0;
   const errors: Array<{ id: string; error: string }> = [];
   for (const candidate of candidates) {
+    // ECA-3 (#1606): a master send (`seed:<kind>:<id>`) is driven by the connect drain ALONE, which rebuilds its master from the PMO row;
+    // replaying one here as an ordinary command of its domain would post the wrong body. The row is not dropped: when it has a proposal
+    // (an accepted send) that proposal stays `sending` and the drain finishes it; a project sent from its own page has none, and its
+    // retry finds the project by lookup (a held one leaves a decision row with a way out).
+    if (candidate.idempotencyKey.startsWith('seed:')) continue;
     // ⚑ NEW-2/NEW-5 (audit r4): the `budget` domain is owned by pass 5 (`reconcileOrgBudgetPushes`)
     // ALONE. Two originators must never both drive one budget row:
     //   • CORRECTNESS — pass 5 re-asserts the version is STILL `Active` with its stamp, from DB truth
@@ -540,6 +547,8 @@ export interface ErpSweepCycleDeps {
   reconcileOrgImprestPostings?: (org: OrgBinding) => Promise<{ driven: number; error?: string }>;
   /** ECA2-T13 (#1605) — pass (8): advance the org's open connect run by one bounded step. Optional like its siblings; the live wiring always supplies it. */
   advanceConnectRun?: (org: OrgBinding) => Promise<{ state?: string; error?: string }>;
+  /** ECA3-T7 (#1606) — pass (8b): send the masters an Admin accepted as "send", a few per tick. Optional like its siblings. */
+  drainConnectSends?: (org: OrgBinding) => Promise<{ error?: string }>;
   /** 0358: on a money-only tick, whether this org's hourly work is due (its last full run is stale). */
   isFullSweepDue?: (org: OrgBinding) => boolean;
   /** 0358: stamp a completed full run — only after the hourly passes ran, and only by the lock holder. */
@@ -677,6 +686,14 @@ export async function runErpSweepCycle(
         if (r.error) errors.push(`connect:${r.error}`);
       } catch (err) {
         errors.push(`connect:${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+    if (deps.drainConnectSends) {
+      try {
+        const r = await deps.drainConnectSends(org);
+        if (r.error) errors.push(`sends:${r.error}`);
+      } catch (err) {
+        errors.push(`sends:${err instanceof Error ? err.message : String(err)}`);
       }
     }
     // (2) doctype modified-poll sweep. (2)–(4) are the hourly inbound/statement work: a money-only
@@ -3490,6 +3507,7 @@ serveWithErrorReporting('erpnext-sweep', withJobRun('erpnext-sweep', async (req:
     },
     reconcileOrgImprestPostings: (org) => reconcileOrgImprestPostingsLive(serviceClient, org, erpAuth),
     advanceConnectRun: (org) => advanceConnectRuns(serviceClient, org),
+    drainConnectSends: (org) => drainConnectSends(serviceClient, org),
     isFullSweepDue: (org) => fullSweepDue(org.lastFullSweepAt, handlerEntryMs),
     markFullSweepDone: async (org) => {
       if (!org.statementLockHolder) throw new Error('no sweep lock held');
@@ -3543,6 +3561,10 @@ export async function buildReconcileDepsLive(serviceClient: SupabaseClient, org:
     payload,
   });
   if (!replayAuth.ok) throw new AppError(replayAuth.message, 'commit-rejected');
+  // ECA-4 backstop (FR-ECA-030): dispatch refuses a later step of a purchase ordered before the connection, so no such
+  // row should exist; one that does (queued before this rule) is held here, before credentials, rather than re-driven.
+  // Same states as the authorization above: only a replay that can mint a new ERP document is checked.
+  if (replayMayIssueErpWrite(row.state)) await assertNotPreCutover(serviceClient as never, { domain: row.domain, record: payload });
 
   let trustedReceiptSnapshot = false;
   if (rowExtra.procurement_input_digest != null) {
@@ -3609,12 +3631,26 @@ export function moneyWriteReadModelContext(args: { orgId: string; actorUserId: s
   };
 }
 
+/** Runs after a swept money write lands (set by `buildMoneyWriteDepsLive`). */
+type SweepAfterSuccess = { afterSuccess?: () => Promise<void> };
+
+/**
+ * ECA-6: every sweep dispatch goes through here, so a replace the sweep finishes spends its consent exactly as the
+ * foreground push does. Runs only after `dispatchMoneyWrite` resolves; a spend failure is logged, not surfaced (the
+ * consent names a document that is now cancelled, so it unlocks nothing).
+ */
+export async function dispatchMoneyWrite(deps: DispatchMoneyWriteDeps & SweepAfterSuccess): ReturnType<typeof dispatchMoneyWriteCore> {
+  const result = await dispatchMoneyWriteCore(deps);
+  await deps.afterSuccess?.();
+  return result;
+}
+
 export async function buildMoneyWriteDepsLive(
   serviceClient: SupabaseClient,
   org: OrgBinding,
   args: { command: AdapterCommand; actorUserId: string | null; outboxRecordId: string; persistPayload: boolean; trustedReceiptSnapshot?: boolean },
   cache?: ErpAuthPairCache,
-): Promise<DispatchMoneyWriteDeps> {
+): Promise<DispatchMoneyWriteDeps & SweepAfterSuccess> {
   const command = args.command;
   const operation = command.operation as 'create' | 'update' | 'transition';
   const payload = command.record as Record<string, unknown>;
@@ -3632,6 +3668,8 @@ export async function buildMoneyWriteDepsLive(
   // consuming the whole 300s quarantine window and letting a claimant POST after its own reissue.
   const client = withProbeBudget({ fetchImpl: guardedErpFetch(org.siteUrl), apiKey, apiSecret, baseUrl: org.siteUrl });
 
+  // ECA-6: a budget replace the sweep finishes names its recorded consent; it is spent once the write lands.
+  let occupantConsentId: string | null = null;
   const adapter = await resolveErpDispatchAdapter({
     serviceClient: serviceClient as never,
     orgId: org.orgId,
@@ -3640,6 +3678,7 @@ export async function buildMoneyWriteDepsLive(
     apiKey,
     apiSecret,
     rateLimiter: { acquire: async () => {} },
+    onOccupantConsent: (id) => { occupantConsentId = id; },
     doctypeBodies: DOCTYPE_BODIES,
     // #858: recovery replays the persisted items/taxes (inside the digest) and makes no ERPNext read to rebuild them.
     // Fresh expense commands carry their own frozen payload and must use the ordinary first-build path.
@@ -3712,7 +3751,14 @@ export async function buildMoneyWriteDepsLive(
   // FR-BFY-032: the outbox row + `external_refs` are keyed on the row's OWN `pmo_record_id` — the
   // year-qualified `<vid>:<encoded_fy>` for a budget fan-out, the bare record id for every other
   // domain (where the two are the same string, so this is byte-for-byte).
-  return { adapter, command, writeReadModel, recordExternalRef, money, outboxRecordId: args.outboxRecordId };
+  const afterSuccess = async (): Promise<void> => {
+    if (!occupantConsentId) return;
+    const { error: spendError } = await serviceClient.rpc('consume_budget_occupant_consent', {
+      p_org_id: org.orgId, p_id: occupantConsentId, p_actor_id: args.actorUserId,
+    });
+    if (spendError) console.error('[erpnext-sweep] could not spend the budget replace consent:', spendError.message);
+  };
+  return { adapter, command, writeReadModel, recordExternalRef, money, outboxRecordId: args.outboxRecordId, afterSuccess };
 }
 
 /**

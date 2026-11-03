@@ -27,7 +27,7 @@ const SP2402_NAME = 'Cascade Foods 6.0 MW Ground-Mount PV';
 /** Pin the signed-in persona's resolved locale to en for this journey, whatever the shared DB says. */
 async function pinEnglishLocale(page: import('@playwright/test').Page) {
   await page.route('**/rest/v1/profiles?*', async (route) => {
-    const response = await route.fetch();
+    const response = await route.fetch({ maxRetries: 2 });
     const profile = await response.json() as Record<string, unknown> | Record<string, unknown>[];
     const localized = Array.isArray(profile)
       ? profile.map((row) => ({ ...row, locale: 'en' }))

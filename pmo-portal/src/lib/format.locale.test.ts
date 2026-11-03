@@ -6,10 +6,9 @@ import {
   formatNumber,
   formatNumberExact,
   formatDate,
-  formatDateNumeric,
-  formatDateUtc,
   formatDayMonth,
   formatUtcDayMonthYear,
+  formatUtcMonthYearFull,
   formatRelativeTime,
   currencySymbol,
   parseMoneyInput,
@@ -76,7 +75,6 @@ describe('format.ts reads the resolved locale (FR-L10N-010/011)', () => {
   it('dates follow the resolved locale', () => {
     setActiveLocale(ID);
     expect(formatDate('2026-06-14')).toBe('14 Jun 2026');
-    expect(formatDateNumeric(new Date(2026, 5, 14))).toBe('14/6/2026');
   });
 
   it('currencySymbol is locale-sensitive: IDR shows the code in en, the glyph in id', () => {
@@ -134,12 +132,15 @@ describe('what the locale must NOT reach', () => {
     expect(jakarta).toBe('Jun 14, 2026');
   });
 
-  it('⛔ the UTC pin survives a locale switch (a 23:00Z instant must not drift a day)', () => {
-    const lateUtc = new Date(Date.UTC(2026, 5, 14, 23, 30));
+  it('⛔ the UTC pin survives a locale switch (a month-boundary 23:30Z instant must not drift a month)', () => {
+    // The viewer-locale UTC formatters carry the pin formatUtcDateUtc once carried: Aug 31 23:30Z is
+    // Aug in UTC but Sep in WIB, and the en/id short-month glyphs differ — so BOTH properties are
+    // observable in one assertion pair: the glyphs swap, the month does not.
+    const monthBoundaryUtc = new Date(Date.UTC(2026, 7, 31, 23, 30));
     setActiveLocale(EN);
-    expect(formatDateUtc(lateUtc)).toBe('Jun 14, 2026');
+    expect(formatUtcMonthYearFull(monthBoundaryUtc)).toBe('Aug 2026');
     setActiveLocale(ID);
-    expect(formatDateUtc(lateUtc)).toBe('14 Jun 2026'); // locale swapped, day did not
+    expect(formatUtcMonthYearFull(monthBoundaryUtc)).toBe('Agu 2026'); // locale swapped, month did not
   });
 
   it('the two day-month formatters stay pinned: en-GB is a SHAPE here, not a locale', () => {

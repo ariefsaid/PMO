@@ -29,6 +29,7 @@ import type { HandlerDeps } from '../../../../supabase/functions/agent-chat/hand
 import { createCreditRateGuard } from '../../../../supabase/functions/_shared/creditRateGuard';
 import type { AgentEvent } from './runtime/port';
 import type { AgentChatRequest, ConversationMessage } from './runtime/transport';
+import { makeCreditLedger } from './creditLedger.fake';
 
 async function collect(it: AsyncIterable<AgentEvent>): Promise<AgentEvent[]> {
   const out: AgentEvent[] = [];
@@ -46,7 +47,7 @@ function mockZeroBalanceSupabase(): HandlerDeps['supabase'] {
         }),
       }),
     })),
-    rpc: vi.fn().mockResolvedValue({ data: 0, error: null }),
+    rpc: makeCreditLedger(0).rpc,
   } as unknown as HandlerDeps['supabase'];
 }
 

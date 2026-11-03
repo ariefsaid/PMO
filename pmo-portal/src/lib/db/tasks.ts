@@ -116,6 +116,32 @@ export async function listTasks(projectId: string): Promise<TaskWithRefs[]> {
   }));
 }
 
+/** Narrow task row for dashboard overdue counts: no joins, no description. */
+export type TaskDueRow = Pick<TaskRow, 'project_id' | 'status' | 'end_date'>;
+
+const DUE_CHUNK = 100;
+
+/**
+ * Status + due date of every live task across `projectIds`, in `.in(project_id)` chunks (one read
+ * per chunk, not one per project). Narrow select: the PM dashboard only counts overdue tasks.
+ * Excludes tombstoned rows like listTasks. Throws on any chunk failure (never a partial set).
+ */
+export async function listTaskDueRows(projectIds: readonly string[]): Promise<TaskDueRow[]> {
+  const unique = [...new Set(projectIds)];
+  const out: TaskDueRow[] = [];
+  for (let i = 0; i < unique.length; i += DUE_CHUNK) {
+    const chunk = unique.slice(i, i + DUE_CHUNK);
+    out.push(...(await fetchAllPages((from, to) => supabase
+      .from('tasks')
+      .select('id, project_id, status, end_date')
+      .in('project_id', chunk)
+      .is('tombstoned_at', null)
+      .order('id', { ascending: true })
+      .range(from, to)) as unknown as TaskDueRow[]));
+  }
+  return out;
+}
+
 /**
  * List the tasks minuted out of one meeting (the /action seam, migration 0206) with their
  * assignee — the meeting detail's "Action items" list. Excludes tombstoned rows, mirrors
@@ -167,15 +193,15 @@ export async function getTask(id: string): Promise<TaskWithRefs | null> {
  * direct DAL (this branch) whenever the ownership cache is empty/never-loaded (FR-CUA-030/031).
  *
  * OD-INT-9: parent_task_id IS forwarded to the external dispatch; the dispatch factory resolves
- * it via `external_refs` to a ClickUp `parent` id. Unresolvable parents create a flat task
- * (reconciled later). milestone_id remains omitted (PMO-native grouping).
+ * it via `external_refs` to a ClickUp `parent` id. An unmapped parent refuses the dispatch
+ * (commit-rejected — nothing is created). milestone_id is forwarded too: ClickUp has no such field and ignores it, but the
+ * dispatch's mirror write stamps it so the task lands in the chosen group.
  */
 export async function createTask(input: TaskInput): Promise<TaskRow> {
   if (routeTaskWrite(input.project_id) === 'external') {
     // OD-INT-9: parent_task_id IS forwarded to the external dispatch; the dispatch factory
-    // resolves it via `external_refs` to a ClickUp `parent` id. Unresolvable parents create
-    // a flat task (reconciled later by the sweep). milestone_id remains omitted (PMO-native
-    // grouping).
+    // resolves it via `external_refs` to a ClickUp `parent` id. An unmapped parent refuses
+    // the dispatch (commit-rejected — nothing is created).
     const res = await dispatchTaskCommand('create', {
       id: crypto.randomUUID(),
       project_id: input.project_id,
@@ -185,8 +211,8 @@ export async function createTask(input: TaskInput): Promise<TaskRow> {
       start_date: input.start_date || null,
       end_date: input.end_date || null,
       parent_task_id: input.parent_task_id ?? null,
-      // OD-INT-9: description + priority DO map to ClickUp (unlike milestone_id, a PMO-native
-      // enhancement that stays excluded). Follow the parent_task_id precedent.
+      milestone_id: input.milestone_id ?? null, // PMO-native: stamped on the mirror, never sent to ClickUp
+      // OD-INT-9: description + priority DO map to ClickUp. Follow the parent_task_id precedent.
       description: input.description || null,
       priority: input.priority ?? null,
     });
@@ -223,11 +249,9 @@ export async function createTask(input: TaskInput): Promise<TaskRow> {
  */
 export async function updateTask(id: string, patch: TaskPatch, projectId?: string): Promise<void> {
   if (routeTaskWrite(projectId) === 'external') {
-    // NOTE (OD-INT-9 gap): strip parent_task_id before dispatch — same exclusion + reason as
-    // create above (ClickUp `parent` mapping is a separate issue). Forwarding an unhandled
-    // field to the ClickUp edge function risks rejecting the whole write.
-    const { parent_task_id: _omitted, ...rest } = patch;
-    await dispatchTaskCommand('update', { id, ...rest });
+    // parent_task_id (re-parent, or null = promote) and milestone_id ride along: the dispatch maps the
+    // parent to ClickUp's `parent` and stamps both on the mirror. Absent keys stay absent.
+    await dispatchTaskCommand('update', { id, ...patch });
     return;
   }
   const next: TablesUpdate<'tasks'> = {};

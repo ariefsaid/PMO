@@ -240,8 +240,13 @@ interface AgingRpcRow {
   age_days: number | null; bucket: AgingBucket;
 }
 
-export async function getExpenseAdvanceAging(): Promise<{ rows: ExpenseAdvanceAgingRow[]; truncated: boolean }> {
-  const { data, error } = await supabase.rpc('get_expense_advance_aging').range(0, AGING_LIMIT);
+/** `claimantId` narrows on the server BEFORE the page cap, so one person's advances are never crowded out by an
+ *  org-wide list longer than AGING_LIMIT (the claim form's "settle against" choices). */
+export async function getExpenseAdvanceAging(
+  opts: { claimantId?: string } = {},
+): Promise<{ rows: ExpenseAdvanceAgingRow[]; truncated: boolean }> {
+  const base = supabase.rpc('get_expense_advance_aging');
+  const { data, error } = await (opts.claimantId ? base.eq('claimant_id', opts.claimantId) : base).range(0, AGING_LIMIT);
   if (error) throwWrite(error);
   const raw = (data ?? []) as unknown as AgingRpcRow[];
   return {
@@ -263,4 +268,18 @@ export async function getExpenseAdvanceAging(): Promise<{ rows: ExpenseAdvanceAg
       bucket: r.bucket,
     })),
   };
+}
+
+interface AgingTotalsRpcRow { currency: string; bucket: AgingBucket; outstanding: number | string; advance_count: number }
+
+/** Bucket totals per currency over EVERY advance the caller can see (not the AGING_LIMIT page the list shows). */
+export async function getExpenseAdvanceAgingTotals(): Promise<Record<string, Record<AgingBucket, number>>> {
+  const { data, error } = await supabase.rpc('get_expense_advance_aging_totals');
+  if (error) throwWrite(error);
+  const totals: Record<string, Record<AgingBucket, number>> = {};
+  for (const r of (data ?? []) as unknown as AgingTotalsRpcRow[]) {
+    totals[r.currency] ??= { '0-30': 0, '31-60': 0, '61-90': 0, '90+': 0 };
+    totals[r.currency][r.bucket] = Number(r.outstanding);
+  }
+  return totals;
 }

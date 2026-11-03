@@ -10,7 +10,6 @@ import {
   TextArea,
   SelectField,
   FieldError,
-  FormRow,
   FormGrid,
   FormSection,
   FormActions,
@@ -104,6 +103,19 @@ describe('TextField: label + a11y wiring', () => {
   it('disabled => disabled input (distinct from read-only)', () => {
     render(<TextField label="Name" value="x" onChange={() => {}} disabled />);
     expect(screen.getByLabelText('Name')).toBeDisabled();
+  });
+
+  it('CMP-023: password reveal button is in the normal tab sequence and toggles input type', async () => {
+    render(<TextField label="API Token" type="password" value="secret-123" onChange={() => {}} />);
+    const input = screen.getByLabelText('API Token');
+    expect(input).toHaveAttribute('type', 'password');
+    const toggle = screen.getByRole('button', { name: 'Show value' });
+    expect(toggle).not.toHaveAttribute('tabindex', '-1');
+    expect(toggle).toHaveAttribute('aria-pressed', 'false');
+    await userEvent.click(toggle);
+    expect(input).toHaveAttribute('type', 'text');
+    expect(toggle).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Hide value' })).toBeInTheDocument();
   });
 });
 
@@ -405,7 +417,7 @@ describe('FieldError: standalone inline error', () => {
   });
 });
 
-describe('FormRow / FormGrid / FormActions: composition', () => {
+describe('FormGrid / FormActions: composition', () => {
   it('FormGrid renders its children', () => {
     render(
       <FormGrid>
@@ -447,15 +459,6 @@ describe('FormRow / FormGrid / FormActions: composition', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(onCancel).toHaveBeenCalledTimes(1);
     expect(screen.getByRole('button', { name: 'Save' })).toHaveAttribute('type', 'submit');
-  });
-
-  it('FormRow renders its children inline', () => {
-    render(
-      <FormRow>
-        <span>child-a</span>
-      </FormRow>,
-    );
-    expect(screen.getByText('child-a')).toBeInTheDocument();
   });
 });
 

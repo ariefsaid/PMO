@@ -1,6 +1,8 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError, assertWriteLanded } from '@/src/lib/appError';
+import { fetchAllRowsByKeyset, type PageResult } from '@/src/lib/pagedRead';
 import type { Tables } from '@/src/lib/supabase/database.types';
+import { BY_IDS_CHUNK } from './opportunity';
 import type { VendorTaxDefaultsInput } from '@/src/lib/vendorWithholding';
 
 export type CompanyRow = Tables<'companies'>;
@@ -33,31 +35,46 @@ function throwWrite(error: PostgrestErrorLike): never {
  * Kept for the existing project/opportunity FK pickers (FR-DAL-005). Archived companies
  * (archived_at IS NOT NULL) are excluded so a soft-archived company can never be selected as the
  * client on a new project/opportunity (ADR-0018 soft-archive contract).
+ *
+ * DAL01-005: reads EVERY keyset page (ordered by id — the only unique, total order) so a directory
+ * past PostgREST's single-response cap cannot silently omit records; the name-ordered contract is
+ * restored in memory. A page error throws (code preserved) — a partial directory can never be
+ * mistaken for a complete one.
  */
 export async function listClientCompanies(): Promise<CompanyRow[]> {
-  const { data, error } = await supabase
-    .from('companies')
-    .select('*')
-    .eq('type', 'Client')
-    .is('archived_at', null);
-  if (error) throw new Error(error.message);
-  return data ?? [];
+  const rows = await fetchAllRowsByKeyset<CompanyRow>((afterId, limit) => {
+    let query = supabase
+      .from('companies')
+      .select('*')
+      .eq('type', 'Client')
+      .is('archived_at', null)
+      .order('id', { ascending: true })
+      .limit(limit);
+    if (afterId !== null) query = query.gt('id', afterId);
+    return query as unknown as PromiseLike<PageResult<CompanyRow>>;
+  });
+  return rows.sort((a, b) => a.name.localeCompare(b.name));
 }
 
 /**
  * List ALL companies in the caller's org for the Companies index (AC-CO-001). org_id is NEVER sent
  * — RLS (companies_select: org_id = auth_org_id()) scopes rows. Archived rows (archived_at IS NOT NULL)
  * are hidden by default; pass `type` to filter to one company_type (Internal / Client / Vendor).
- * Ordered by name for a stable, scannable list. Throws an `AppError` (code preserved) on failure.
+ *
+ * DAL01-005: reads EVERY keyset page (ordered by id) so the index, FK pickers and export see the
+ * complete directory even past PostgREST's single-response cap; the name-ordered contract is
+ * restored in memory. Throws an `AppError` (code preserved) on failure — never a partial set.
  */
 export async function listCompanies(
   params?: { type?: CompanyType },
 ): Promise<CompanyRow[]> {
-  let query = supabase.from('companies').select('*').is('archived_at', null);
-  if (params?.type) query = query.eq('type', params.type);
-  const { data, error } = await query.order('name');
-  if (error) throwWrite(error);
-  return data ?? [];
+  const rows = await fetchAllRowsByKeyset<CompanyRow>((afterId, limit) => {
+    let query = supabase.from('companies').select('*').is('archived_at', null).order('id', { ascending: true }).limit(limit);
+    if (params?.type) query = query.eq('type', params.type);
+    if (afterId !== null) query = query.gt('id', afterId);
+    return query as unknown as PromiseLike<PageResult<CompanyRow>>;
+  });
+  return rows.sort((a, b) => a.name.localeCompare(b.name));
 }
 
 /**
@@ -68,6 +85,18 @@ export async function getCompany(id: string): Promise<CompanyRow | null> {
   const { data, error } = await supabase.from('companies').select('*').eq('id', id).maybeSingle();
   if (error) throwWrite(error);
   return data ?? null;
+}
+
+/** Companies readable by the caller among `ids`; inaccessible ids are simply absent. Reads in chunks. */
+export async function getCompaniesByIds(ids: readonly string[]): Promise<CompanyRow[]> {
+  const unique = [...new Set(ids)];
+  const out: CompanyRow[] = [];
+  for (let i = 0; i < unique.length; i += BY_IDS_CHUNK) {
+    const { data, error } = await supabase.from('companies').select('*').in('id', unique.slice(i, i + BY_IDS_CHUNK));
+    if (error) throwWrite(error);
+    out.push(...(data ?? []));
+  }
+  return out;
 }
 
 /**

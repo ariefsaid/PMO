@@ -152,18 +152,23 @@ Dev remains the ceiling. This supersedes older per-slice browser and single-disp
 merge a PR to dev once its `verify`, `unit` and (when run) `pgtap` checks are green. CI's `integration` job runs the browser suite on the release PR
 to `main`; a red run there is fixed on `dev`. `scripts/ci-e2e.sh` on a dev branch only to diagnose.
 
-- **CI is the full-suite gate for every PR (owner 2026-09-29/30):** PRs to `dev` gate on CI's `verify` +
-  `pgtap`; PRs to `main` gate on CI's `verify` + `integration` (pgTAP, both e2e lanes, consent, visual,
-  served-fn smoke), which runs automatically on the PR. Don't repeat the full suite on the shared Mac; run
-  the local final gate below. Targeted runs can MISS cross-component breakage — that is why CI's full suite,
-  not a local green, decides the merge. Heavy e2e for a PR to `dev` only via
-  `scripts/ci-e2e.sh <branch>` (once per PR, for shared-code or milestone-closing PRs; it enforces the caps
-  and needs `--owner-ok` beyond them — CI fair-use rule shared with MOS). `scripts/verify-main-pr.sh`
-  reproduces CI's PR-to-`main` run locally; use it only to diagnose a CI failure CI could not report (e.g. a
-  job that timed out before printing). **Local final gate** (every builder and brief, before a PR; owner rule 2026-10-26): `npm run check:guards`,
+**Don't waste CI minutes (owner, 2026-11-02; v0.30.0 spent 3 release runs on one test):** a red release test is fixed only
+after its root cause is stated from the run's trace and video (`gh run download <run>`). A workaround that doesn't explain
+the failure is rejected, and a local green is not proof. Same test red twice: stop and re-diagnose; don't patch again.
+Batch release fixes into one PR to `dev`. Never push to `dev` (docs included) while the release PR's CI runs; it restarts it.
+No scheduled CI runs: agent evals run manually and locally (the `agent-evals` workflow is disabled).
+
+- **CI is the merge gate, scoped per target (owner 2026-09-29/30; dev re-scoped 2026-10-31, #1584):** a PR to
+  `dev` gates on `verify` + affected `unit` tests + `pgtap` when `supabase/**` changes (the top rule above); the push
+  to `dev` runs the full suite as the backstop, so a break a narrowed PR missed is fixed on `dev` first. A PR to
+  `main` gates on `verify` + `integration` (pgTAP, both e2e lanes, consent, visual, served-fn smoke). CI, not a local
+  green, decides the merge; don't repeat the full suite on the shared Mac. `scripts/ci-e2e.sh <branch>` (dev, to
+  diagnose; caps, `--owner-ok` beyond them) and `scripts/verify-main-pr.sh` (a CI failure CI could not report) are
+  diagnosis tools only.
+  **Local final gate** (every builder and brief, before a PR; owner rule 2026-10-26): `npm run check:guards`,
   `npm run typecheck`, `npx eslint --max-warnings=0 <touched files>`, the **directly touched test files** (never
-  `vitest --changed` or the full suite locally — CI's two unit shards are the full proof; a local near-full run
-  queues every parallel build behind one lock for hours), the touched e2e journeys (`scripts/e2e-local.sh
+  `vitest --changed` or the full suite locally — CI owns the full run on the push-to-`dev` backstop and the
+  release PR; a local near-full run queues every parallel build behind one lock for hours), the touched e2e journeys (`scripts/e2e-local.sh
   <fragment>`), rendered captures for UI (`scripts/ux-proof.sh`), and for DB changes only the touched pgTAP
   files (`supabase test db <files>`; CI's `pgtap` job is the full proof) — DB work under `scripts/with-db-lock.sh`;
   `scripts/with-test-lock.sh` only for the rare deliberate full run (`npm run verify:locked`). `db reset` (and `e2e-local.sh --reset`)
@@ -199,7 +204,7 @@ to `main`; a red run there is fixed on `dev`. `scripts/ci-e2e.sh` on a dev branc
 - **Coverage:** ≥80% lines on changed code to merge; tests must assert behavior, not inflate numbers.
 - **Typecheck/lint:** `npm run typecheck` zero errors; ESLint zero errors (CI `--max-warnings=0`). Both block merge.
 - **⛔ HARD STOP — PRODUCTION (binding, owner directive 2026-06-17, RE-ENFORCED 2026-07-14 after a violation):** **NEVER push/deploy/promote to `production` without the owner's EXPLICIT, per-instance, this-message "yes" naming production.** This includes `git push origin main:production`, CF Pages prod, prod DB push (`db-push-prod.sh`), prod reseed, and prod edge-fn deploy. **Do NOT infer prod authorization** from "do it all", "ship it", "make it reachable", a stated deploy plan, or any prior approval — a prior "ship to prod" is **per-instance, never standing**, and ambiguity means STOP and ASK. Reaching `main` is the autonomous ceiling; the `main`→`production` step is ALWAYS a separate, explicit, owner-gated action. *(2026-07-14 incident: read "do it all and on by default" as prod authorization and promoted `main:production` without an explicit prod OK — this is exactly what must not happen; when in doubt, stop at `main` and ask.)*
-- **Branch flow (binding, owner directive 2026-06-17):** **work lands on `dev` → promoted to `main` (gated). `main` is the ceiling for autonomous work.** A prior "ship to prod" is per-instance, never standing. CI is tiered + resource-lean: PR→`dev` = `verify` + `pgtap` (fast lane; `ci.yml` gates pgtap on `base_ref == 'dev'`); PR→`main` = `verify` + `integration` (pgTAP + e2e + visual gates) so `main` is always clean; push to `main` = `verify` smoke (the only re-test of the merged result). `integration` fires automatically on the PR→`main`, and on a PR→`dev` only when dispatched via `scripts/ci-e2e.sh` (a dispatch skips `verify` + pgTAP — the PR ran them) and starts Supabase without the CI-unused containers (`studio,realtime,vector`) with Playwright browsers cached. `main`→`production` is a manual, owner-instructed promote only.
+- **Branch flow (binding, owner directive 2026-06-17):** **work lands on `dev` → promoted to `main` (gated). `main` is the ceiling for autonomous work.** A prior "ship to prod" is per-instance, never standing. CI is tiered: PR→`dev` = `verify` + affected `unit` + `pgtap` on `supabase/**` changes, no browser e2e (the push to `dev` runs the full suite); PR→`main` = `verify` + `integration` (pgTAP + e2e + visual gates) so `main` is always clean; push to `main` = `verify` smoke (the only re-test of the merged result). `integration` fires automatically on the PR→`main`, and on a PR→`dev` only via `scripts/ci-e2e.sh` to diagnose (a dispatch skips `verify` + pgTAP). `main`→`production` is a manual, owner-instructed promote only.
 - **Checkpoints:** the **owner** approves spec sign-off + **every production deploy** / irreversible infra (see Branch flow — prod requires a direct, per-instance instruction); the **Director** approves merge-to-`dev` and merge-to-`main` within the signed spec, and escalates anything strategic or out-of-spec.
 - **PRs: batch 3–5 related branches into one PR to `dev` (owner, 2026-10-31).** Workers push branches only; the
   Director merges each into a batch branch with `git merge --no-ff` and opens one PR listing every `Closes`. Merge the
@@ -222,7 +227,7 @@ matching one ONLY when your task touches that surface — that is the whole poin
 |---|---|
 | About to start ANY build — or to decide who runs it | [`docs/orca-dispatch.md`](docs/orca-dispatch.md) — Orca workers on any harness/model; routing table there |
 | Any money flow (budget activate · invoice/payment submit · procurement transition · timesheet push) | [`docs/money-path-primer.md`](docs/money-path-primer.md) — a map of the outbox/sweep/SoD architecture so you don't re-derive it from source |
-| The agent / LLM surface (prompts, tools, evals, the assistant panel) | [`docs/adr/0050-layered-agent-prompt-charter-and-skills.md`](docs/adr/0050-layered-agent-prompt-charter-and-skills.md) + [`docs/adr/0052-agent-eval-harness.md`](docs/adr/0052-agent-eval-harness.md) — ⚑ the deployed model (`deepseek-v4-flash`) is a **weak tool-selector**; prompt steering is unit-tested for text presence but NOT verified against the live model. The eval harness is the real gate. |
+| The agent / LLM surface (prompts, tools, evals, the assistant panel) | [`docs/adr/0050-layered-agent-prompt-charter-and-skills.md`](docs/adr/0050-layered-agent-prompt-charter-and-skills.md) + [`docs/adr/0052-agent-eval-harness.md`](docs/adr/0052-agent-eval-harness.md) — the deployed model (`deepseek/deepseek-v4.1-flash-1017`) chose the right tool on every completed turn in the 10-run local eval (86/90, 2026-11-02, #1596). Run the eval harness locally (not CI) after prompt or tool changes; it is the real gate. |
 | Authoring or editing any e2e spec | [`docs/e2e-parallel-conventions.md`](docs/e2e-parallel-conventions.md) — isolation classes, the `@e2e-isolation` tag, and the guard-polarity rule |
 | Local/prod Supabase, secrets, or a deploy | [`docs/environments.md`](docs/environments.md) |
 

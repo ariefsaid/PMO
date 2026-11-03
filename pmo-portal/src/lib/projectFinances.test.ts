@@ -277,3 +277,48 @@ describe('parseContractExcess (FR-009/FR-010)', () => {
     expect(parseContractExcess(raw, '-100.00')).toEqual({ state: 'incomplete', amount: '100.00' });
   });
 });
+
+describe('equipment charge fields (#1519 S5; 0473 adds them to get_project_finances)', () => {
+  const base = {
+    project_id: '02900000-0000-0000-0000-000000000001',
+    contract_invoiced: '1000.00',
+    remaining_to_invoice: '420.00',
+    invoices: [],
+    budget: null,
+    actuals: {
+      currency: 'IDR', as_of: '2026-09-30T00:00:00Z', total: '580.00', tagged_total: '0.00', attributed_total: '580.00',
+      excludes_restricted_rows: false,
+      categories: [{ category: 'Equipment', mapped: true, amount: '580.00' }],
+    },
+  };
+  /** Compiles ONLY with the S5.5 type additions, and reads them off a payload the guard has accepted. */
+  const readCharge = (value: unknown): { total: string | null | undefined; perCategory: string | null | undefined } => {
+    if (!isProjectFinances(value)) throw new Error('not project finances');
+    return { total: value.actuals.equipment_charge_total, perCategory: value.actuals.categories[0]?.equipment_charge_amount };
+  };
+
+  it('AC-EQU-012 reads equipment_charge_total when present and tolerates its absence', () => {
+    const withCharge = {
+      ...base,
+      actuals: {
+        ...base.actuals,
+        equipment_charge_total: '580.00',
+        categories: [{ category: 'Equipment', mapped: true, amount: '580.00', equipment_charge_amount: '580.00' }],
+      },
+    };
+    expect(isProjectFinances(withCharge)).toBe(true);
+    expect(readCharge(withCharge)).toEqual({ total: '580.00', perCategory: '580.00' });
+    // a payload from before 0473: both fields absent, still a valid reading, and the split reads as "none stated"
+    expect(isProjectFinances(base)).toBe(true);
+    expect(readCharge(base)).toEqual({ total: undefined, perCategory: undefined });
+  });
+
+  it('AC-EQU-012 a stated unknown charge (null) is preserved, never read as zero', () => {
+    const withNull = {
+      ...base,
+      actuals: { ...base.actuals, equipment_charge_total: null, categories: [{ category: 'Equipment', mapped: true, amount: null, equipment_charge_amount: null }] },
+    };
+    expect(isProjectFinances(withNull)).toBe(true);
+    expect(readCharge(withNull)).toEqual({ total: null, perCategory: null });
+  });
+});

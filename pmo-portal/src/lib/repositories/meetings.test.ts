@@ -13,6 +13,7 @@ describe('meetingRepository', () => {
     ['create', 'createMeeting', [{ title: 'Kickoff' }]],
     ['update', 'updateMeeting', ['m1', { title: 'New' }]],
     ['archive', 'archiveMeeting', ['m1']],
+    ['restore', 'restoreMeeting', ['m1']],
     ['delete', 'deleteMeeting', ['m1']],
     ['listAttendees', 'listMeetingAttendees', ['m1']],
     ['addAttendee', 'addMeetingAttendee', ['m1', { contactId: 'c1' }]],

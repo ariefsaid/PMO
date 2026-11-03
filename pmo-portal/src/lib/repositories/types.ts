@@ -11,12 +11,17 @@
  * consumed only by new CRUD code. No signature here diverges from its DAL counterpart;
  * the repository is a thin wrapper that normalizes the thrown error type.
  *
+ * ⚠ Vocabulary: "entity" in this seam ("one interface per entity", `Repositories`) names any
+ * persisted record type generically. It is NOT the operating-company **Entity** dimension of
+ * docs/GLOSSARY.md, and nothing here implies a project-to-Entity relation.
+ *
  * Since the domain split (T-29) the per-domain contracts live in `./contracts/*`, grouped
  * by domain. This module keeps the `Repositories` aggregate plus TYPE-ONLY re-exports of
  * every contract, so the external import surface of the seam is unchanged.
  */
-import type { RecordHistoryRepository } from './recordHistory';
-import type { ProjectStageRepository } from './projectStages';
+import type { RecordHistoryRepository } from './contracts/recordHistory';
+import type { ProjectStageRepository } from './contracts/projectStages';
+import type { SubcontractRepository } from './contracts/subcontracts';
 import type { ProjectMoneyRepository } from './contracts/projectMoney';
 import type { DashboardRepository } from './contracts/dashboard';
 import type { AgentRunRepository } from './contracts/agentRuns';
@@ -56,6 +61,7 @@ import type {
   ExpenseReceiptRepository,
 } from './contracts/expenses';
 import type { ImprestRepository } from './contracts/imprest';
+import type { EquipmentRepository } from './contracts/equipment';
 import type {
   IncidentRepository,
 } from './contracts/incidents';
@@ -98,7 +104,7 @@ import type {
   WorkOrderRepository,
 } from './contracts/workOrders';
 
-import type { OdooRepository } from './odoo';
+import type { OdooRepository } from './contracts/odoo';
 
 export interface Repositories {
   fxRates: FxRatesRepository;
@@ -113,6 +119,7 @@ export interface Repositories {
   agentAttachment: AgentAttachmentRepository;
   profile: ProfileRepository;
   procurement: ProcurementRepository;
+  subcontracts: SubcontractRepository;
   revenue: RevenueRepository;
   timesheet: TimesheetRepository;
   budget: BudgetRepository;
@@ -127,6 +134,7 @@ export interface Repositories {
   procurementFiles: ProcurementFileRepository;
   expenseClaim: ExpenseClaimRepository;
   imprest: ImprestRepository;
+  equipment: EquipmentRepository;
   expenseReceipts: ExpenseReceiptRepository;
   expensePostings: ExpensePostingRepository;
   erpPurchases: ErpPurchaseRepository;
@@ -151,6 +159,10 @@ export interface Repositories {
 }
 
 export type { CommandIntent } from './contracts/commandIntent';
+export type { SubcontractRepository, CaptureSubcontractVendorInvoiceInput } from './contracts/subcontracts';
+export type { FieldChange, HistoryCursor, HistoryEvent, HistoryNameKind, HistoryPage, RecordHistoryRepository } from './contracts/recordHistory';
+export type { ProjectStageRepository } from './contracts/projectStages';
+export type { DirectoryKind, ListMasterInput, MasterRecord, OdooConnectionRead, OdooRepository } from './contracts/odoo';
 export type { ProjectRepository } from './contracts/projects';
 export type { CompanyCollectionsRepository, CompanyRepository, ContactRepository } from './contracts/companies';
 export type { TaskRepository } from './contracts/tasks';
@@ -169,6 +181,7 @@ export type { CommentRepository } from './contracts/comments';
 export type { MilestoneRepository, ProgressBillingRepository, WorkOrderAcceptanceRepository, WorkOrderRepository } from './contracts/workOrders';
 export type { ExpenseClaimRepository, ExpensePostingRepository, ExpenseReceiptRepository } from './contracts/expenses';
 export type { ImprestRepository } from './contracts/imprest';
+export type { EquipmentRepository } from './contracts/equipment';
 export type { ErpPurchaseRepository } from './contracts/erpPurchases';
 export type { VendorWithholdingSlipsRepository } from './contracts/vendorWithholdingSlips';
 export type { CreditsRepository, ExternalDomainOwnershipRepository, OperatorRepository, OrgFeatureRepository, OrgSettingsRepository, ProfileRepository, UsageRepository, UserViewRepository } from './contracts/admin';

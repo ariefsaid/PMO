@@ -189,7 +189,8 @@
     "mobileInvoiceAmount": "Invoice total excl. PPN",
     "mobileOutstandingUnknown": "Outstanding balance unknown",
     "mobileInvoiceAmountInclusive": "Invoice total incl. PPN",
-    "mobileInvoiceAmountUnspecified": "Invoice amount"
+    "mobileInvoiceAmountUnspecified": "Invoice amount",
+    "pairedCountedOnce": "Counted once with the ERP invoice {{number}}."
   },
   "invoices": {
     "description": "Client invoices.",
@@ -306,6 +307,9 @@
     "purchaseNoun": "open purchase",
     "choosePurchase": "Choose a purchase…",
     "choosePurchaseFirst": "Choose a purchase first.",
+    "loadingPurchases": "Loading purchases…",
+    "purchasesLoadFailed": "Could not load purchases.",
+    "retry": "Retry",
     "link": "Link",
     "cancel": "Cancel",
     "noneLinked": "Nothing was linked.",

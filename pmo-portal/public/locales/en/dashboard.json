@@ -28,7 +28,7 @@
     "netUnavailableReason": "The source snapshot did not supply a Net value.",
     "nothingAwaitingPayment": "Nothing awaiting payment",
     "oneDay": "1 day",
-    "openRequest": "Open procurement record {{request}}",
+    "openRequest": "Open procurement case: {{request}}",
     "party": "Party",
     "payables": "Supplier payables",
     "payablesDetail": "Supplier-invoiced, awaiting payment",
@@ -411,7 +411,7 @@
         "margin": "Known margin is billed-work revenue less recorded spending. It is not cash received. The margin amount is available, while the percentage is unavailable until billed revenue is available company-wide. A currency whose source value is unavailable is shown as —.",
         "pipeline": "Weighted pipeline is project value multiplied by stage win probability across open opportunities. The forecast margin is shown when the source can compute it. Missing comparable currency values are shown as —.",
         "clientOverdue": "Count of submitted or unpaid client invoices whose recorded due date has passed. The age is the oldest overdue invoice; amounts include only known balances.",
-        "supplierPayables": "Sum of procurement records in the supplier-invoiced state awaiting payment. Unknown balances are omitted and counted below the amount.",
+        "supplierPayables": "Sum of procurement cases in the supplier-invoiced state awaiting payment. Unknown balances are omitted and counted below the amount.",
         "unbilled": "Remaining amount and count from open work orders that are not fully invoiced. If any work order could not be totaled, the note shows how many.",
         "period": "Period result from the selected date range.",
         "invoiced": "Sum of invoices issued within the selected period, excluding tax. Source: management pack by currency.",
@@ -554,7 +554,7 @@
       "procStatus": {
         "chartLabel": "Procurement by status",
         "empty": "No procurement activity yet",
-        "noun": "procurement records"
+        "noun": "procurement cases"
       }
     }
   },
@@ -563,7 +563,7 @@
     "pmoPurchasingScope": "ERP-native purchases are outside this PMO request chart."
   },
   "uxs19": {
-    "dashboardEmpty": "No procurement records to show"
+    "dashboardEmpty": "No procurement cases to show"
   },
   "winRate": {
     "title": "Win rate",

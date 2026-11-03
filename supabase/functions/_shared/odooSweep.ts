@@ -9,9 +9,11 @@ import { fetchOdooVersionMajor } from '../../../pmo-portal/src/lib/adapterSeam/o
 import { discoverCapabilities, DISCOVERY_BUDGET_MS, type CapabilitySnapshot } from '../../../pmo-portal/src/lib/adapterSeam/odoo/discovery.ts';
 import { KIND_SPECS, type DirectoryKind, type DirectoryRow } from '../../../pmo-portal/src/lib/adapterSeam/odoo/kinds.ts';
 import { odooKindReaders, runCensus, runKind, type KindRunDeps } from '../../../pmo-portal/src/lib/adapterSeam/odoo/sweep.ts';
+import { advanceConnectRuns } from './connectRun.ts';
+import { matchNewPartners } from './odooPartyFeed.ts';
 import { odooClientForOrg, recordOdooProbe, type OdooClientRefusal } from './odooClientForOrg.ts';
 
-export const ODOO_KIND_ORDER: DirectoryKind[] = ['company', 'analytic_plan', 'analytic_account', 'account', 'tax', 'uom', 'product', 'warehouse', 'location', 'partner'];
+export const ODOO_KIND_ORDER: DirectoryKind[] = ['company', 'analytic_plan', 'analytic_account', 'account', 'tax', 'journal', 'uom', 'product', 'warehouse', 'location', 'partner'];
 export const ODOO_SWEEP_TICK_MAX_CALLS = 60;
 export const ODOO_SWEEP_TICK_TIME_BUDGET_MS = 100_000;
 const LOCK_TTL = '15 minutes';
@@ -21,9 +23,20 @@ const DAY_MS = 86_400_000;
 
 type Resolved = Extract<Awaited<ReturnType<typeof odooClientForOrg>>, { client: unknown }>;
 type Budget = { spend: () => boolean; left: () => boolean };
-/** Extension seams: S6 adds the party feed match after `partner` pages, S7/S8 the link reconcile and accepted sends. */
-export const AFTER_APPLY: Partial<Record<DirectoryKind, (sc: SupabaseClient, orgId: string, rows: DirectoryRow[]) => Promise<void>>> = {};
-export const AFTER_SWEEP: Array<(sc: SupabaseClient, orgId: string, r: Resolved, budget: Budget) => Promise<void>> = [];
+/** Extension seams: S6 matches new partners after `partner` pages; S7/S8 add the link reconcile and accepted sends. */
+export const AFTER_APPLY: Partial<Record<DirectoryKind, (sc: SupabaseClient, orgId: string, rows: DirectoryRow[], deadlineAt: number) => Promise<void>>> = {
+  partner: matchNewPartners,
+};
+/** S6: one bounded step of the org's open setup run (census staging, proposals), the same loop ERPNext's sweep runs. It has its
+ *  own ERP-call cap (`CONNECT_CALLS_PER_TICK`), so a long initial scan cannot starve it, and it never fails the tick; it also runs when the sweep failed, so an unreachable Odoo counts. */
+const advanceSetupRun = async (sc: SupabaseClient, orgId: string, r: Resolved) => {
+  try {
+    await advanceConnectRuns(sc, { orgId, bindingId: r.bindingId }, 'odoo');
+  } catch {
+    console.error('odoo setup run step failed');   // the run counts its own failures; a store outage is retried next tick
+  }
+};
+export const AFTER_SWEEP: Array<(sc: SupabaseClient, orgId: string, r: Resolved, budget: Budget) => Promise<void>> = [advanceSetupRun];
 
 export type OdooSweepResult =
   | { skipped: 'lock-held' | OdooClientRefusal }
@@ -79,6 +92,14 @@ export async function sweepOdooOrg(
     const call = bindCall(r.client);
     const capabilities = r.config.capabilities as CapabilitySnapshot | undefined;
     let skippedRows = 0;
+    // The setup run's step runs once per tick, whether the kind reads finished or Odoo failed: a tick that cannot reach Odoo
+    // must still count against the run (ECA-2: three failed ticks end it), or the run would sit open while Odoo is down.
+    let stepsRun = false;
+    const runAfterSweep = async () => {
+      if (stepsRun) return;
+      stepsRun = true;
+      for (const step of AFTER_SWEEP) await step(sc, orgId, r, budget);
+    };
     try {
       const kinds = ODOO_KIND_ORDER.filter((kind) => readable(capabilities, KIND_SPECS[kind].model));
       for (const [i, kind] of kinds.entries()) {
@@ -87,10 +108,10 @@ export async function sweepOdooOrg(
         const deps = kindDeps(sc, orgId, kind, call, r.companyId!, kindBudget);
         const run = await runKind(KIND_SPECS[kind], await readCursor(sc, orgId, kind), deps);
         skippedRows += run.skipped;
-        await AFTER_APPLY[kind]?.(sc, orgId, run.applied);
+        await AFTER_APPLY[kind]?.(sc, orgId, run.applied, started + timeBudget);
         if (run.done) await runCensus(await readCursor(sc, orgId, kind), deps);
       }
-      for (const step of AFTER_SWEEP) await step(sc, orgId, r, budget);
+      await runAfterSweep();
       // Daily re-discovery (FR-ODC-021) runs outside the sweep's call budget; it is ~60 calls once a day.
       const stale = !capabilities?.observed_at || Date.now() - Date.parse(capabilities.observed_at) > DAY_MS;
       let snapshot: CapabilitySnapshot | undefined;
@@ -104,6 +125,7 @@ export async function sweepOdooOrg(
       return { ok: true, calls, skipped_rows: skippedRows };
     } catch (err) {
       if (!(err instanceof OdooError)) throw err;
+      await runAfterSweep();
       await recordOdooProbe(sc, orgId, r.config, { ok: false, errorClass: err.errorClass });
       return { ok: true, calls, skipped_rows: skippedRows, failed: err.errorClass };
     }

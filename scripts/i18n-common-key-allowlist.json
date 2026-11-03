@@ -1,4 +1,12 @@
 [
+  "companies.form.partialSave.headline",
+  "companies.form.partialSave.segmentDetail",
+  "contactDetail.field.companyArchived",
+  "contactDetail.field.companyUnavailable",
+  "contacts.companiesUnavailable",
+  "contacts.form.company.loadFailed",
+  "contacts.form.company.loading",
+  "dashboard.stillToInvoice.daysSinceAcceptance",
   "fx.expandedFileTooLarge",
   "history.action.project_stage_entry_add",
   "history.action.project_stage_entry_redate",
@@ -192,9 +200,9 @@
   "m365Documents.versions.loading",
   "m365Documents.versions.title",
   "m365Documents.versions.version",
+  "procurementDetail.statusOption.submitted",
   "shell.contextBar.feedback",
   "shell.nav.stock",
   "uxs38.previewGapSummary_one",
-  "uxs38.previewGapSummary_other",
-  "dashboard.stillToInvoice.daysSinceAcceptance"
+  "uxs38.previewGapSummary_other"
 ]

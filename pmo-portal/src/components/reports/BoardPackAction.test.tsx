@@ -22,7 +22,8 @@ const renderAt = () =>
     <MemoryRouter initialEntries={['/']}>
       <Routes>
         <Route path="/" element={<BoardPackAction />} />
-        <Route path="/reports" element={<p>pack page</p>} />
+        {/* #1524: the action navigates to the finance area directly, not the legacy /reports redirect. */}
+        <Route path="/finance/reports" element={<p>pack page</p>} />
       </Routes>
     </MemoryRouter>,
   );

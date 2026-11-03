@@ -10,7 +10,7 @@ import { takeCensus } from '../../../pmo-portal/src/lib/adapterSeam/connect/cens
 import { connectAdapterForOrg } from '../_shared/connectAdapterForOrg.ts';
 import { pmoMasterCounts } from '../_shared/connectPmoMasters.ts';
 
-export const CONNECT_ACTIONS = new Set(['census', 'connect-status', 'list-proposals', 'accept-proposals', 'decide-review', 'unlink-match']);
+export const CONNECT_ACTIONS = new Set(['census', 'connect-status', 'list-proposals', 'accept-proposals', 'decide-review', 'unlink-match', 'retry-send']);
 
 const KINDS = ['party', 'item', 'project', 'employee', 'account'];
 const STATES = ['open', 'sending', 'applied', 'dismissed'];
@@ -20,7 +20,7 @@ const ACCEPT_CALLS_PER_REQUEST = 20;
 /** ... and stops once this much time has passed, so one request ends before the platform's request limit. */
 const ACCEPT_BUDGET_MS = 60_000;
 /** Tiers whose sweep pass advances a setup run. A census starts a run, so a tier without a pass would leave it open forever. */
-const CENSUS_TIERS = new Set(['erpnext']);
+const CENSUS_TIERS = new Set(['erpnext', 'odoo']);
 
 export interface ConnectCtx {
   serviceClient: SupabaseClient;
@@ -91,7 +91,7 @@ export async function handleConnectAction(ctx: ConnectCtx): Promise<unknown> {
   if (!CONNECT_ACTIONS.has(action)) throw new AppError('Unknown action', 'BAD_REQUEST');
   if (body.kind !== undefined && body.kind !== null && !KINDS.includes(String(body.kind))) throw new AppError('Unknown kind', 'BAD_REQUEST');
   if (!allowed(action, ctx.role, body.kind)) throw new AppError('Not allowed for your role', 'FORBIDDEN');
-  if (action === 'unlink-match' && ctx.role !== 'Admin') throw new AppError('Not allowed for your role', 'FORBIDDEN');
+  if ((action === 'unlink-match' || action === 'retry-send') && ctx.role !== 'Admin') throw new AppError('Not allowed for your role', 'FORBIDDEN');
 
   if (action === 'census') {
     if (ctx.role !== 'Admin') throw new AppError('Not allowed for your role', 'FORBIDDEN');
@@ -126,6 +126,7 @@ export async function handleConnectAction(ctx: ConnectCtx): Promise<unknown> {
   }
   if (action === 'decide-review') return await rpc(ctx.callerClient, 'decide_connect_review', { p_id: body.id, p_choice: body.choice });
   if (action === 'unlink-match') return await rpc(ctx.callerClient, 'unlink_connect_match', { p_id: body.id });
+  if (action === 'retry-send') return await rpc(ctx.callerClient, 'retry_connect_send', { p_id: body.id });
   if (action === 'list-proposals') return await listProposals(ctx.callerClient, tier, body);
   return await connectStatus(ctx.callerClient, tier);
 }

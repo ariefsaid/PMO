@@ -21,7 +21,8 @@ describe('expenseClaimRepository', () => {
     ['recordReturn', 'recordExpenseAdvanceReturn', ['c1', 50, 'REF-1']],
     ['outstanding', 'getExpenseAdvanceOutstanding', ['adv1']],
     ['routes', 'getExpenseClaimRoutes', [['c1', 'c2']]],
-    ['aging', 'getExpenseAdvanceAging', []],
+    ['aging', 'getExpenseAdvanceAging', [{ claimantId: 'u1' }]],
+    ['agingTotals', 'getExpenseAdvanceAgingTotals', []],
   ]);
 });
 

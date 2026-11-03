@@ -96,7 +96,7 @@ describe('AC-CUA-104: the reconciliation sweep enumerates only bound Lists', () 
 });
 
 describe('SEC-HIGH-1: each bound List advances on its OWN watermark, independent of a sibling List', () => {
-  it('a 404d List keeps its watermark UNTOUCHED while a healthy sibling List still advances', async () => {
+  it('AC-CUA-043 a 404d List keeps its watermark UNTOUCHED while a healthy sibling List still advances (the sweep applies what changed and advances)', async () => {
     const fetchImpl = vi.fn(async (url: string) => {
       if (url.includes('/list/list-gone/')) return new Response('not found', { status: 404 });
       if (url.includes('/list/list-ok/')) {
@@ -250,7 +250,7 @@ describe('SEC-MEDIUM-6: an archived ClickUp task archives its EXISTING PMO mirro
 });
 
 describe('failure isolation: a non-404 read failure aborts the WHOLE cycle (no partial watermark advance)', () => {
-  it('propagates a non-404 error and advances NO List watermark this cycle, even one already read successfully', async () => {
+  it('AC-CUA-044 propagates a non-404 error and advances NO List watermark this cycle, even one already read successfully', async () => {
     const fetchImpl = vi.fn(async (url: string) => {
       if (url.includes('/list/list-a/')) {
         return new Response(JSON.stringify({ tasks: [task('cu-1', '2000')], last_page: true }), { status: 200 });
@@ -267,5 +267,256 @@ describe('failure isolation: a non-404 read failure aborts the WHOLE cycle (no p
 
     expect(harness.watermarks.get('list-a')).toBe('1000'); // untouched despite reading fine
     expect(harness.watermarks.get('list-b')).toBe('1000');
+  });
+});
+
+describe('claim-first adoption: the sweep forwards the atomic-adopt strategy and resolves the project per mint', () => {
+  function recordingStrategy() {
+    const order: string[] = [];
+    const mints: Array<{ canonicalId: string; projectId: unknown; pmoRecordId: string }> = [];
+    const claims: Array<{ externalRecordId: string; pmoRecordId: string }> = [];
+    return {
+      order,
+      mints,
+      claims,
+      strategy: {
+        newPmoRecordId: () => 'pmo-claimed-sweep',
+        claimExternalRef: async (mapping: { externalRecordId: string; pmoRecordId: string }) => {
+          order.push('claim');
+          claims.push({ externalRecordId: mapping.externalRecordId, pmoRecordId: mapping.pmoRecordId });
+        },
+        mintWithId: async (canonical: { id: string; project_id?: string }, _ms: number, pmoRecordId: string) => {
+          order.push('mint');
+          mints.push({ canonicalId: canonical.id, projectId: canonical.project_id, pmoRecordId });
+        },
+        mirrorExists: async () => true,
+      },
+    };
+  }
+
+  it('an unmapped task adopts CLAIM-FIRST: the ref claim precedes the mint and the mint lands in the binding\'s project', async () => {
+    const fetchImpl = vi.fn(async (url: string) => {
+      if (url.includes('/list/list-a/')) {
+        return new Response(JSON.stringify({ tasks: [task('cu-adopt-me', '6000')], last_page: true }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ tasks: [], last_page: true }), { status: 200 });
+    });
+    const harness = makeFakeDeps({ clientDeps: { fetchImpl: fetchImpl as unknown as typeof fetch, token: 't' } });
+    const rec = recordingStrategy();
+
+    const result = await runMultiListSweep({
+      ...harness.deps,
+      bindings: [binding('list-a', 'proj-a')],
+      adoptAtomically: rec.strategy,
+    });
+
+    expect(result.applied).toBe(1);
+    expect(rec.order).toEqual(['claim', 'mint']); // the claim is the adoption lock
+    expect(rec.claims).toEqual([{ externalRecordId: 'cu-adopt-me', pmoRecordId: 'pmo-claimed-sweep' }]);
+    expect(rec.mints).toEqual([
+      { canonicalId: 'pmo-claimed-sweep', projectId: 'proj-a', pmoRecordId: 'pmo-claimed-sweep' },
+    ]);
+    expect(harness.minted).toEqual([]); // the legacy mint-then-ref path is not used
+  });
+
+  it('a LOSING claim (23505) aborts the sweep cycle before any mint or watermark advance', async () => {
+    const fetchImpl = vi.fn(async (url: string) => {
+      if (url.includes('/list/list-a/')) {
+        return new Response(JSON.stringify({ tasks: [task('cu-loser', '6000')], last_page: true }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ tasks: [], last_page: true }), { status: 200 });
+    });
+    const harness = makeFakeDeps({ clientDeps: { fetchImpl: fetchImpl as unknown as typeof fetch, token: 't' } });
+    harness.watermarks.set('list-a', '1000');
+    const conflict = Object.assign(new Error('duplicate key value violates unique constraint'), { code: '23505' });
+
+    await expect(
+      runMultiListSweep({
+        ...harness.deps,
+        bindings: [binding('list-a', 'proj-a')],
+        adoptAtomically: {
+          newPmoRecordId: () => 'pmo-lose',
+          claimExternalRef: async () => {
+            throw conflict;
+          },
+          mintWithId: async () => {
+            throw new Error('mintWithId must never run after a lost claim');
+          },
+          mirrorExists: async () => true,
+        },
+      }),
+    ).rejects.toMatchObject({ code: '23505' });
+
+    // No mirror was minted and the cursor stays where it was — the next tick reconciles to the winner.
+    expect(harness.minted).toEqual([]);
+    expect(harness.watermarks.get('list-a')).toBe('1000');
+  });
+});
+
+describe('mapped tasks resolve current status, parent and project through the shared inbound routine', () => {
+  const stickyStatusMap: ClickUpStatusMap = { ...statusMap, pmoOnlyStatuses: ['Blocked'] };
+  const stickyBinding = (listId: string, projectId: string): MultiListSweepBinding => ({
+    listId,
+    projectId,
+    statusMap: stickyStatusMap,
+    memberMap,
+  });
+  const listOf = (...tasks: Array<ReturnType<typeof task>>) =>
+    (async () => new Response(JSON.stringify({ tasks, last_page: true }), { status: 200 })) as unknown as typeof fetch;
+
+  function recordCanonicals() {
+    const canonicals: Array<Record<string, unknown>> = [];
+    return {
+      canonicals,
+      updateMirror: async (_id: string, canonical: Record<string, unknown>) => {
+        canonicals.push(canonical);
+      },
+    };
+  }
+
+  it('a pmo-only mirror status survives an unrelated inbound change (readMirrorStatus is consulted)', async () => {
+    const rec = recordCanonicals();
+    const harness = makeFakeDeps({
+      clientDeps: { fetchImpl: listOf(task('cu-1', '3000')), token: 't' },
+      updateMirror: rec.updateMirror,
+      readMirrorStatus: async () => 'Blocked',
+    });
+    harness.mirrorByExternalId.set('cu-1', 'pmo-1');
+    harness.mirrorProjectByPmoId.set('pmo-1', 'proj-a');
+
+    await runMultiListSweep({ ...harness.deps, bindings: [stickyBinding('list-a', 'proj-a')] });
+
+    expect(rec.canonicals[0].status).toBe('Blocked');
+  });
+
+  it('a task with no ClickUp parent leaves parent_task_id omitted so a linked PMO subtask is not flattened', async () => {
+    const rec = recordCanonicals();
+    const harness = makeFakeDeps({
+      clientDeps: { fetchImpl: listOf(task('cu-1', '3000')), token: 't' },
+      updateMirror: rec.updateMirror,
+      resolveParentPmoId: async () => 'pmo-parent',
+    });
+    harness.mirrorByExternalId.set('cu-1', 'pmo-1');
+    harness.mirrorProjectByPmoId.set('pmo-1', 'proj-a');
+
+    await runMultiListSweep({ ...harness.deps, bindings: [binding('list-a', 'proj-a')] });
+
+    expect('parent_task_id' in rec.canonicals[0]).toBe(false);
+  });
+
+  it('a ClickUp parent resolves to its PMO id on an update; a parent in another project is refused', async () => {
+    const rec = recordCanonicals();
+    const harness = makeFakeDeps({
+      clientDeps: {
+        fetchImpl: listOf(task('cu-1', '3000', { parent: 'cu-p1' }), task('cu-2', '3000', { parent: 'cu-p2' })),
+        token: 't',
+      },
+      updateMirror: rec.updateMirror,
+      resolveParentPmoId: async (id) => (id === 'cu-p1' ? 'pmo-p1' : 'pmo-p2'),
+    });
+    harness.mirrorByExternalId.set('cu-1', 'pmo-1');
+    harness.mirrorByExternalId.set('cu-2', 'pmo-2');
+    harness.mirrorProjectByPmoId.set('pmo-1', 'proj-a');
+    harness.mirrorProjectByPmoId.set('pmo-2', 'proj-a');
+    harness.mirrorProjectByPmoId.set('pmo-p1', 'proj-a');
+    harness.mirrorProjectByPmoId.set('pmo-p2', 'proj-other');
+
+    await runMultiListSweep({ ...harness.deps, bindings: [binding('list-a', 'proj-a')] });
+
+    expect(rec.canonicals.map((c) => c.parent_task_id)).toEqual(['pmo-p1', null]);
+  });
+
+  it('an adopted subtask reaches the mint with its resolved parent', async () => {
+    const mintedParents: unknown[] = [];
+    const harness = makeFakeDeps({
+      clientDeps: { fetchImpl: listOf(task('cu-new', '3000', { parent: 'cu-p1' })), token: 't' },
+      resolveParentPmoId: async () => 'pmo-p1',
+      mintMirror: async (canonical) => {
+        mintedParents.push(canonical.parent_task_id);
+        return 'pmo-new';
+      },
+    });
+    harness.mirrorProjectByPmoId.set('pmo-p1', 'proj-a');
+
+    await runMultiListSweep({ ...harness.deps, bindings: [binding('list-a', 'proj-a')] });
+
+    expect(mintedParents).toEqual(['pmo-p1']);
+  });
+});
+
+describe('ADP-023 an incomplete List read is reported and advances only to its partial cursor', () => {
+  /** Two rows per answer, always newer than the requested `date_updated_gt`: the feed never ends. */
+  const endless = () =>
+    vi.fn(async (url: string) => {
+      const gt = Number(new URL(url).searchParams.get('date_updated_gt'));
+      return new Response(
+        JSON.stringify({ tasks: [task(`cu-${gt + 1}`, String(gt + 1)), task(`cu-${gt + 2}`, String(gt + 2))], last_page: false }),
+        { status: 200 },
+      );
+    }) as unknown as typeof fetch;
+  /** A tie that never ends: every answer is a full page of rows sharing one timestamp. */
+  const endlessTie = () =>
+    vi.fn(async (url: string) => {
+      const page = new URL(url).searchParams.get('page');
+      return new Response(JSON.stringify({ tasks: [task(`cu-${page}-a`, '5000'), task(`cu-${page}-b`, '5000')], last_page: false }), { status: 200 });
+    }) as unknown as typeof fetch;
+  const oneTask = () =>
+    vi.fn(async () => new Response(JSON.stringify({ tasks: [task('cu-1', '5000')], last_page: true }), { status: 200 })) as unknown as typeof fetch;
+
+  it('flags the List incomplete, applies what was read, and stores the partial cursor', async () => {
+    const harness = makeFakeDeps({ clientDeps: { fetchImpl: endless(), token: 't' } });
+    harness.watermarks.set('list-a', '10000');
+
+    const result = await runMultiListSweep({ ...harness.deps, bindings: [binding('list-a', 'proj-a')] });
+
+    expect(result.perList[0]).toMatchObject({ listId: 'list-a', incomplete: true, nextCursor: '10010' });
+    expect(result.applied).toBe(11);
+    expect(harness.watermarks.get('list-a')).toBe('10010');
+  });
+
+  it('a plain stored cursor plus a tie wider than the page cap advances the watermark to the page offset', async () => {
+    const harness = makeFakeDeps({ clientDeps: { fetchImpl: endlessTie(), token: 't' } });
+    harness.watermarks.set('list-a', '5000');
+
+    const result = await runMultiListSweep({ ...harness.deps, bindings: [binding('list-a', 'proj-a')] });
+
+    expect(result.perList[0]).toMatchObject({ incomplete: true, nextCursor: '5000:10' });
+    expect(harness.watermarks.get('list-a')).toBe('5000:10');
+  });
+
+  it('a drained tie replaces the stored offset cursor with the plain timestamp (the offset is not kept forever)', async () => {
+    const harness = makeFakeDeps({ clientDeps: { fetchImpl: oneTask(), token: 't' } });
+    harness.watermarks.set('list-a', '5000:2000');
+
+    await runMultiListSweep({ ...harness.deps, bindings: [binding('list-a', 'proj-a')] });
+
+    expect(harness.watermarks.get('list-a')).toBe('5000');
+  });
+
+  it('a cursor another sweep advanced while this one ran is never rewound', async () => {
+    const harness = makeFakeDeps({ clientDeps: { fetchImpl: oneTask(), token: 't' } });
+    harness.watermarks.set('list-a', '5000');
+    let reads = 0;
+    const deps = {
+      ...harness.deps,
+      // the first read is this run's own start cursor; the re-read before the write sees a concurrent run's progress
+      readListWatermark: async () => (reads++ === 0 ? '5000' : '5000:7'),
+    };
+
+    await runMultiListSweep({ ...deps, bindings: [binding('list-a', 'proj-a')] });
+
+    expect(harness.watermarks.get('list-a')).toBe('5000:7');
+  });
+
+  it('a read deadline that has already passed reads nothing, reports the List incomplete and moves no cursor', async () => {
+    const fetchImpl = endless();
+    const harness = makeFakeDeps({ clientDeps: { fetchImpl, token: 't' } });
+    harness.watermarks.set('list-a', '10000');
+
+    const result = await runMultiListSweep({ ...harness.deps, bindings: [binding('list-a', 'proj-a')], readDeadlineAtMs: Date.now() - 1 });
+
+    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(result.perList[0]).toMatchObject({ incomplete: true, nextCursor: null });
+    expect(harness.watermarks.get('list-a')).toBe('10000');
   });
 });

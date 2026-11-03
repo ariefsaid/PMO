@@ -83,6 +83,8 @@ export type ProcurementDetail = Omit<
   /** The server payment ceiling, read only while the request awaits payment (Vendor Invoiced). */
   paymentCeiling?: ProcurementPaymentCeiling | null;
   paymentEligibility?: string | null;
+  /** ECA-4: this purchase was ordered before the ERP connection, so its later steps are recorded in PMO only. Set only for an org that employs procurement. */
+  pre_cutover?: boolean;
 };
 
 // ---------------------------------------------------------------------------
@@ -150,31 +152,11 @@ export function canCancel(role: string, isRequester: boolean, from: ProcurementS
 }
 
 // ---------------------------------------------------------------------------
-// Reference-number formatter (AC-803, FR-PROC-010)
-// Pure TS mirror of the SQL: prefix-YYMMDD####
+// Reference-number format (AC-803, FR-PROC-010) — ENFORCED by the shipped minter
+// next_procurement_doc_number (0006): <prefix>-<YYMMDD><seq zero-padded to 4>.
+// Its owning acceptance proof is pgTAP — supabase/tests/procurement_doc_number_format.test.sql
+// (#1710 re-home); the deleted TS mirror was a second date authority (the C4 TZ bug's source).
 // ---------------------------------------------------------------------------
-
-/**
- * Formats a procurement document number. Mirrors the SQL lpad/to_char in next_procurement_doc_number
- * (AC-803, FR-PROC-010). `date` is the server date; `seq` is the per-(org,prefix,day) sequence.
- *
- * Stays native-UTC intentionally: the `yyMMdd` parts use `getUTC*` (the C4 fix) so a date-only
- * value never drifts by one day in behind-UTC zones. date-fns `format` is LOCAL → it would shift
- * the day, and the UTC-correct fix (`date-fns-tz` `formatInTimeZone`) is a second package we
- * intentionally do not add for a dependency-free getter that is already correct (ADR-0030 §F).
- */
-export function formatDocNumber(
-  prefix: 'PR' | 'VQ' | 'PO' | 'GR' | 'VI',
-  date: Date,
-  seq: number,
-): string {
-  // C4: use UTC parts so a date constructed from a UTC ISO string (e.g. new Date('2026-06-04'))
-  // or the server date never shifts by one day in behind-UTC timezones (date-only convention).
-  const yy = String(date.getUTCFullYear()).slice(2);
-  const mm = String(date.getUTCMonth() + 1).padStart(2, '0');
-  const dd = String(date.getUTCDate()).padStart(2, '0');
-  return `${prefix}-${yy}${mm}${dd}${String(seq).padStart(4, '0')}`;
-}
 
 // ---------------------------------------------------------------------------
 // DAL reads — getProcurementDetail (AC-816)
@@ -248,6 +230,20 @@ export async function transitionProcurement(
     p_notes: notes,
   })) as unknown as { data: null; error: RpcErrorLike | null };
   if (error) throwRpc(error);
+}
+
+/**
+ * ECA-4 (FR-ECA-030, PD-ECA-9): was this purchase started before the ERP connection? A payment names its bill: one the
+ * ERP holds is paid there. The server answers from PMO's own tables; `null` (a case the caller cannot see) reads as "no".
+ * The ERP write gate re-checks, so this only picks a route.
+ */
+export async function isPreCutoverProcurement(procurementId: string, invoiceId?: string): Promise<boolean> {
+  const { data, error } = (await supabase.rpc('pre_cutover_procurement', {
+    p_procurement_id: procurementId,
+    ...(invoiceId ? { p_invoice_id: invoiceId } : {}),
+  })) as unknown as { data: boolean | null; error: RpcErrorLike | null };
+  if (error) throwRpc(error);
+  return data === true;
 }
 
 /** DD-EFK-1: set PMO-owned supplier e-Faktur facts directly; no procurement/ERP command is created. */

@@ -1,6 +1,6 @@
 import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
-import type { DirectoryKind, ListMasterInput } from '@/src/lib/repositories/odoo';
+import type { DirectoryKind, ListMasterInput } from '@/src/lib/repositories/types';
 import type { ConnectCredential } from '@/src/lib/repositories/types';
 import { useAuth } from '@/src/auth/useAuth';
 

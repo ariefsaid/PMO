@@ -35,6 +35,8 @@ export interface PushErrorCopy {
   transport: boolean;
   /** What must change first. Always set when `retryable` is false. */
   remedy: string | null;
+  /** `info`: nothing went wrong, so a surface must not style it as a failure. Absent for every real failure. */
+  severity?: 'info';
 }
 
 interface Entry {
@@ -42,6 +44,7 @@ interface Entry {
   retryable: boolean;
   transport?: boolean;
   remedy?: string;
+  severity?: 'info';
 }
 
 const CODES: Record<string, Entry> = {
@@ -71,7 +74,7 @@ const CODES: Record<string, Entry> = {
     message: 'ERPNext already holds a budget for this project and fiscal year that PMO did not create.',
     retryable: false,
     remedy:
-      'Someone authored that budget in ERPNext directly. PMO will not cancel or amend it. In ERPNext, remove it if it is superseded — or leave it in place and stop pushing this project’s budget, since ERPNext is already enforcing one.',
+      'Someone authored that budget in ERPNext directly. PMO will not cancel or amend it unless an Admin or Finance user confirms. They can use its figures as a PMO draft, or replace it with this version.',
   },
   'budget-enforcement-absent': {
     // HIGH-1: the previous ERP budget was cancelled and its replacement never landed.
@@ -123,6 +126,14 @@ const CODES: Record<string, Entry> = {
     message: 'There is no queued push command left for this budget, so the automatic recovery had nothing to work with.',
     retryable: true,
     remedy: 'Retry the push to queue a fresh command.',
+  },
+  // ── cut-over (FR-ECA-030, OQ-ECA-1) ──────────────────────────────────────────────────────────
+  // Not a failure: a purchase ordered before the ERP connection is finished in PMO, on purpose.
+  'pre-cutover': {
+    message: 'Not sent: this purchase started before the ERP connection',
+    retryable: false,
+    severity: 'info',
+    remedy: 'Nothing was saved. Record this step again in PMO: this purchase finishes there.',
   },
   // ── shared ───────────────────────────────────────────────────────────────────────────────────
   'commit-rejected': {
@@ -206,6 +217,8 @@ function splitCode(raw: string): string {
  * live rejection — goes through here, so there is one vocabulary and one place to extend it.
  */
 export function describePushMutationError(err: unknown): PushErrorCopy {
+  // A classified code beats prose: the cut-over answer is information, and its sentence must not be re-parsed.
+  if ((err as { code?: unknown } | null)?.code === 'pre-cutover') return describePushError('pre-cutover');
   const raw =
     err instanceof Error ? err.message : typeof err === 'string' ? err : null;
   return describePushError(raw);
@@ -235,6 +248,7 @@ export function describePushError(raw: string | null | undefined): PushErrorCopy
       retryable: entry.retryable,
       transport: entry.transport ?? false,
       remedy: entry.remedy ?? null,
+      ...(entry.severity ? { severity: entry.severity } : {}),
     };
   }
 

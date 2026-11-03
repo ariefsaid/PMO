@@ -8,6 +8,7 @@ import {
   installEdgeEnv,
   jsonResponse,
   rpcCall,
+  supabaseRpc,
   supabaseSelect,
   withFetchMock,
 } from '../_shared/testing/edgeTestKit.ts';
@@ -30,9 +31,10 @@ Deno.test('AC-OUT-841: a hung ClickUp during external-connect returns 502 extern
     await withFetchMock(
       [
         supabaseSelect('profiles', () =>
-          jsonResponse({ org_id: 'org-1', role: 'Admin' }, {
+          jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, {
             headers: { 'content-type': 'application/vnd.pgrst.object+json' },
           })),
+        supabaseRpc('actor_authorization_state', () => jsonResponse({ active: true, role: 'Admin' })),
         supabaseSelect('platform_operators', () =>
           new Response('null', { status: 200, headers: { 'content-type': 'application/json' } })),
       ],

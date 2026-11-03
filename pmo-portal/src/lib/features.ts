@@ -67,6 +67,21 @@ export const FEATURE_KEYS = [
   'revenue',
   'm365_integration',
   'feedback_surveys',
+  'sales_pipeline',
+  'procurement_full',
+  'sales_invoices',
+  'budget_projection',
+  'imprest',
+  'clickup_sync',
+  'erp_sync',
+  'erp_purchases',
+  'financial_statements',
+  'management_pack',
+  'budget_phasing',
+  'multi_currency',
+  'stock',
+  'api_access',
+  'sso',
 ] as const;
 export type OrgFeatureKey = (typeof FEATURE_KEYS)[number];
 
@@ -84,8 +99,23 @@ export const FEATURE_KEYS_TOGGLEABLE: readonly OrgFeatureKey[] = [
   'm365_integration',
 ];
 
-/** Core modules — always enabled, never gated, never persisted (FR-ENT-001/007, AC-ENT-002). */
-export const CORE_FEATURES = ['projects', 'dashboard', 'approvals', 'administration'] as const;
+/**
+ * Core modules — always enabled, never gated, never persisted (FR-ENT-001/007, AC-ENT-002).
+ * D5 rules these modules as entitlement-independent, so the registry mirrors the DB's
+ * `core_feature_keys()` (#1734): projects, dashboard, approvals with SoD, administration,
+ * expense claims, roles, budgets and tasks. A module hidden on the client must never be
+ * switchable on the server (or the reverse) — the two lists move together.
+ */
+export const CORE_FEATURES = [
+  'projects',
+  'dashboard',
+  'approvals',
+  'administration',
+  'expense_claims',
+  'roles',
+  'budgets',
+  'tasks',
+] as const;
 export type CoreFeature = (typeof CORE_FEATURES)[number];
 
 /** The full key set `useFeature()` accepts: gatable entitlements + core modules. */
@@ -106,6 +136,21 @@ export const FEATURE_ENV_DEFAULT: Record<OrgFeatureKey, boolean> = {
   revenue: false,
   user_views: import.meta.env.VITE_FEATURES_USERVIEWS !== 'false', // ON BY DEFAULT (owner 2026-07-14)
   m365_integration: false,
+  sales_pipeline: true,
+  procurement_full: true,
+  sales_invoices: true,
+  budget_projection: true,
+  imprest: true,
+  clickup_sync: true,
+  erp_sync: true,
+  erp_purchases: true,
+  financial_statements: true,
+  management_pack: true,
+  budget_phasing: true,
+  multi_currency: true,
+  stock: true,
+  api_access: true,
+  sso: true,
   feedback_surveys: true, // absence = on; an org Admin switches it off (admin_set_feedback_surveys, 0419)
 };
 
@@ -122,14 +167,33 @@ export const FEATURE_LABELS: Record<EntitleableKey, string> = {
   user_views: 'User Views',
   m365_integration: 'Microsoft 365 integration',
   feedback_surveys: 'Feedback and surveys',
+  sales_pipeline: 'Sales pipeline',
+  procurement_full: 'Procurement (full)',
+  sales_invoices: 'Sales invoices',
+  budget_projection: 'Budget projection',
+  imprest: 'Imprest',
+  clickup_sync: 'ClickUp sync',
+  erp_sync: 'ERP sync',
+  erp_purchases: 'ERP purchases',
+  financial_statements: 'Financial statements',
+  management_pack: 'Management pack',
+  budget_phasing: 'Budget phasing',
+  multi_currency: 'Multi-currency',
+  stock: 'Stock',
+  api_access: 'API access',
+  sso: 'Single sign-on',
   projects: 'Projects',
   dashboard: 'Dashboard',
   approvals: 'Approvals',
   administration: 'Administration',
+  expense_claims: 'Expense claims',
+  roles: 'Roles',
+  budgets: 'Budgets',
+  tasks: 'Tasks',
   revenue: 'Revenue (Sales Invoices, Incoming Payments, Revenue by Project)',
 };
 
-/** Type guard: true for the four core modules (always-on, never gated). */
+/** Type guard: true for the core modules (always-on, never gated). */
 export function isCoreFeature(key: string): key is CoreFeature {
   return (CORE_FEATURES as readonly string[]).includes(key);
 }

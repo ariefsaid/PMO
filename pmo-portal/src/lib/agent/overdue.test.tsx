@@ -128,6 +128,20 @@ describe('loadOverdueFacts — invoices (#787)', () => {
     ]);
   });
 
+  it('AC-ECA-030 an unpaid PMO copy paired to an ERP invoice is not reported overdue next to its ERP twin', async () => {
+    const rows = [
+      inv('SI-ERP', '2026-08-20', 30),
+      inv('PMO-COPY', '2026-08-20', 30, { paired_erp_invoice_id: 'erp-invoice-id' }),
+    ];
+    const { client } = fakeSupabase(world({
+      // honour the `.is(column, null)` filters the tool asked for, as PostgREST would
+      sales_invoices: (c) => rows.filter((r) => c.ops.filter((o) => o[0] === 'is')
+        .every(([, col, v]) => ((r as Record<string, unknown>)[col as string] ?? null) === v)),
+    }));
+    const facts = await loadOverdueFacts(ctx('Finance', client), NOW);
+    expect(facts.invoices?.map((i) => i.siNumber)).toEqual(['SI-ERP']);
+  });
+
   it('AC-AIN-013 selects received_date + erp_due_date, the columns the Sales Invoices Due column reads', async () => {
     const { client, calls } = fakeSupabase(world({ sales_invoices: () => [] }));
     await loadOverdueFacts(ctx('Finance', client), NOW);
@@ -158,6 +172,28 @@ describe('loadOverdueFacts — invoices (#787)', () => {
       ['SI-45', '2026-10-04', 2],
       ['SI-14', '2026-10-04', 2],
     ].sort((a, b) => String(a[1]).localeCompare(String(b[1]))));
+  });
+
+  it('a truncated invoice scan with no overdue row in the page is flagged partial', async () => {
+    const page = Array.from({ length: 201 }, (_, i) => inv(`SI-${i}`, '2026-10-05', 30));
+    const { client } = fakeSupabase(world({ sales_invoices: () => page }));
+    const facts = await loadOverdueFacts(ctx('Finance', client), NOW);
+    expect(facts.invoices).toEqual([]);
+    expect(facts.invoicesTruncated).toBe(true);
+    const md = renderOverdueMarkdown(facts);
+    expect(md).not.toContain('nothing is overdue');
+    expect(md).toContain('partial');
+  });
+
+  it('a PM with more than 500 managed projects gets a partial-scope answer', async () => {
+    const ids = Array.from({ length: 501 }, (_, i) => ({ id: `p-${i}` }));
+    const { client, calls } = fakeSupabase(world({ projects: (c) => (c.columns === 'id' ? ids : []) }));
+    const facts = await loadOverdueFacts(ctx('Project Manager', client), NOW);
+    expect(opsOf(calls, 'projects')[0]).toContainEqual(['limit', 501]);
+    expect(facts.scopeTruncated).toBe(true);
+    const md = renderOverdueMarkdown(facts);
+    expect(md).not.toContain('nothing is overdue');
+    expect(md).toContain('first 500 managed projects');
   });
 
   it('AC-AIN-006 Revenue off → no invoice read, no invoice section', async () => {
@@ -211,7 +247,7 @@ describe('renderOverdueMarkdown / runWhatsOverdue (#787)', () => {
     const md = renderOverdueMarkdown(base);
     expect(md).toContain('**Overdue as of 6 Oct** — 1 task, 1 invoice');
     expect(md).toContain(`[\\[x\\]\\(https:\u200B//evil.example\\)](/projects/${P1}/tasks) — Harbor · due 2 Oct (4 days late) · Budi`);
-    expect(md).toContain('[ACC-SINV-2026-00012](/sales-invoices?q=ACC-SINV-2026-00012) — PT Client · $1,500.50 outstanding (incl. tax) · due 1 Oct (5 days late)');
+    expect(md).toContain('[ACC-SINV-2026-00012](/finance/receivables?q=ACC-SINV-2026-00012) — PT Client · $1,500.50 outstanding (incl. tax) · due 1 Oct (5 days late)');
   });
 
   it('FR-AIN-008 every user-authored field renders as inert text (customer, assignee, project, name)', () => {
@@ -250,7 +286,7 @@ describe('renderOverdueMarkdown / runWhatsOverdue (#787)', () => {
     };
     const md = renderOverdueMarkdown(f);
     expect(md).not.toContain('x/../../admin');
-    expect(md).toContain('/sales-invoices?q=A%20%281%29%26q%3D2%20%23x)');
+    expect(md).toContain('/finance/receivables?q=A%20%281%29%26q%3D2%20%23x)');
   });
 
   it('caps each section at 10 rows and says how many more', () => {

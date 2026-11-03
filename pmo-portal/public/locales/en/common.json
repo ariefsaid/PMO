@@ -297,7 +297,7 @@
     "view": "View bukti potong",
     "record": "Record bukti potong",
     "setVendor": "Set supplier",
-    "vendorRequired": "Set a supplier on the procurement record before recording this slip.",
+    "vendorRequired": "Set a supplier on the procurement case before recording this slip.",
     "vendorSet": "Supplier set",
     "vendorAlreadySet": "A supplier was already set. Refresh to see it.",
     "selectVendor": "Select a supplier…",
@@ -319,13 +319,13 @@
     "type": "PPh type",
     "identity": {
       "vendorReference": "Supplier invoice reference",
-      "systemNumber": "System VI number",
+      "systemNumber": "Supplier invoice no. (accounting)",
       "case": "Case",
       "project": "Project",
       "pmoNumber": "PMO project number",
       "billDate": "Bill date",
       "referenceMissing": "Supplier invoice reference not recorded",
-      "systemNumberMissing": "System VI number unavailable",
+      "systemNumberMissing": "Supplier invoice no. (accounting) unavailable",
       "contextPending": "Details loading",
       "contextUnavailable": "Details unavailable",
       "caseMissing": "Case not recorded",
@@ -717,13 +717,13 @@
       },
       "confirm": {
         "title": "Remove {{name}}?",
-        "description": "They will no longer approve procurement records. Records already decided are unchanged.",
+        "description": "They will no longer approve procurement cases. Cases already decided are unchanged.",
         "confirm": "Remove"
       },
       "form": {
         "orgTitle": "Add an overhead approver",
         "projectTitle": "Add a project approver",
-        "subtitle": "Any one listed approver can approve a procurement record.",
+        "subtitle": "Any one listed approver can approve a procurement case.",
         "legend": "Approver",
         "person": "Person",
         "personPlaceholder": "Select a person…",
@@ -733,8 +733,7 @@
         "projectRequired": "Choose a project.",
         "save": "Add"
       }
-    },
-    "vendorTaxAccounts": {}
+    }
   },
   "approvals": {
     "salesInvoices": {
@@ -817,9 +816,9 @@
     "entryOther": "entries",
     "group": {
       "procurement": {
-        "emptySub": "Procurement records that need your approval will appear here.",
-        "emptyTitle": "No procurement records awaiting your decision",
-        "title": "Procurement records"
+        "emptySub": "Procurement cases that need your approval will appear here.",
+        "emptyTitle": "No procurement cases awaiting your decision",
+        "title": "Procurement cases"
       },
       "timesheets": {
         "emptySub": "Submitted timesheets from your reports will appear here for review.",
@@ -829,7 +828,7 @@
     },
     "noProjectLinked": "No project linked",
     "previewEmpty": {
-      "sub": "When a pending procurement record is available, its preview and actions appear here.",
+      "sub": "When a pending procurement case is available, its preview and actions appear here.",
       "title": "Select an approval item"
     },
     "previewError": {
@@ -869,7 +868,7 @@
     },
     "scope": {
       "all": "All pending",
-      "procurement": "Procurement records",
+      "procurement": "Procurement cases",
       "timesheets": "Timesheets",
       "expense": "Expense claims",
       "invoice": "Customer invoices"
@@ -960,6 +959,10 @@
       "clientNumberSegment": {
         "label": "Client number segment",
         "placeholder": "e.g. RIS"
+      },
+      "partialSave": {
+        "headline": "Company saved, but one change did not persist",
+        "segmentDetail": "The client-number segment could not be saved. Review it and save again."
       }
     },
     "search": {
@@ -967,7 +970,7 @@
       "placeholder": "Search companies…"
     },
     "states": {
-      "emptySub": "Add your first client or supplier to start linking projects and procurement records to a directory.",
+      "emptySub": "Add your first client or supplier to start linking projects and procurement cases to a directory.",
       "emptyTitle": "No companies yet",
       "errorSub": "The request failed. Check your connection and try again.",
       "errorTitle": "Couldn't load companies"
@@ -1026,11 +1029,7 @@
       "note": "Note"
     },
     "addContact": {
-      "legendContact": "Contact details",
-      "legendIdentity": "Identity",
-      "submitLabel": "Create contact",
-      "subtitle": "Add a person at this company",
-      "title": "New contact"
+      "subtitle": "Add a person at this company"
     },
     "archive": "Archive",
     "archiveConfirm": {
@@ -1053,47 +1052,15 @@
       "title": "Contacts"
     },
     "edit": "Edit",
-    "editActivity": {
-      "legend": "Details",
-      "submitLabel": "Save",
-      "subtitle": "Update this activity log entry",
-      "title": "Edit activity"
-    },
-    "editCompany": {
-      "legendIdentity": "Identity",
-      "submitLabel": "Save company",
-      "subtitle": "Update this company record",
-      "title": "Edit company"
-    },
     "error": {
       "sub": "Something went wrong fetching this company.",
       "title": "Couldn't load company"
     },
     "field": {
-      "company": "Company",
-      "companyName": "Company name",
-      "companyNamePlaceholder": "e.g. Cascade Port Authority",
-      "email": "Email",
-      "emailPlaceholder": "name@example.com",
-      "fullName": "Full name",
-      "fullNamePlaceholder": "e.g. Jane Doe",
       "name": "Name",
-      "notes": "Notes",
-      "notesPlaceholder": "Anything worth remembering about this contact",
-      "phone": "Phone",
-      "phonePlaceholder": "e.g. +1 555 010 0000",
       "primaryContact": "Primary contact",
-      "title": "Title",
-      "titlePlaceholder": "e.g. Procurement Lead",
       "type": "Type",
-      "clientNumberSegment": "Client number segment",
-      "clientNumberSegmentPlaceholder": "e.g. RIS"
-    },
-    "form": {
-      "errors": {
-        "companyNameRequired": "Company name is required.",
-        "contactNameRequired": "Contact name is required."
-      }
+      "clientNumberSegment": "Client number segment"
     },
     "notFound": {
       "sub": "This company either doesn't exist or isn't visible to you. Return to the directory to find it.",
@@ -1120,11 +1087,6 @@
       "archived": "Company archived",
       "contactCreated": "Contact created",
       "updated": "Company updated"
-    },
-    "type": {
-      "client": "Client",
-      "internal": "Internal",
-      "vendor": "Supplier"
     },
     "vendorTax": {
       "hint": "Pre-fills new bills from this supplier. The amounts stay editable on each bill.",
@@ -1192,36 +1154,18 @@
       "subtitle": "Update this activity log entry",
       "title": "Edit activity"
     },
-    "editContact": {
-      "legendContact": "Contact details",
-      "legendIdentity": "Identity",
-      "submitLabel": "Save contact",
-      "subtitle": "Update this contact record",
-      "title": "Edit contact"
-    },
     "error": {
       "sub": "Something went wrong fetching this contact.",
       "title": "Couldn't load contact"
     },
     "field": {
       "company": "Company",
-      "companyPlaceholder": "Select a company…",
       "email": "Email",
-      "emailPlaceholder": "name@example.com",
-      "fullName": "Full name",
-      "fullNamePlaceholder": "e.g. Jane Doe",
       "notes": "Notes",
-      "notesPlaceholder": "Anything worth remembering about this contact",
       "phone": "Phone",
-      "phonePlaceholder": "e.g. +1 555 010 0000",
       "title": "Title",
-      "titlePlaceholder": "e.g. Procurement Lead"
-    },
-    "form": {
-      "errors": {
-        "companyRequired": "A company is required.",
-        "nameRequired": "Contact name is required."
-      }
+      "companyUnavailable": "This company is not in your company directory.",
+      "companyArchived": "Archived"
     },
     "meetings": {
       "error": "Minuted meetings could not be loaded.",
@@ -1275,7 +1219,9 @@
     "form": {
       "company": {
         "label": "Company",
-        "placeholder": "Select a company…"
+        "placeholder": "Select a company…",
+        "loading": "Loading companies…",
+        "loadFailed": "Companies could not be loaded."
       },
       "editSubmit": "Save contact",
       "editSubtitle": "Update this contact record",
@@ -1333,7 +1279,8 @@
       "created": "Contact created",
       "deleted": "Contact deleted",
       "updated": "Contact updated"
-    }
+    },
+    "companiesUnavailable": "The company directory could not be loaded. Company names, filtering and export are unavailable."
   },
   "dashboard": {
     "winRate": {
@@ -1408,7 +1355,7 @@
       "procStatus": {
         "chartLabel": "Procurement by status",
         "empty": "No procurement activity yet",
-        "noun": "procurement records"
+        "noun": "procurement cases"
       }
     },
     "kpi": {
@@ -1748,13 +1695,7 @@
       "archiveTitle": "Archive meeting?",
       "deleteConfirm": "Delete meeting",
       "deleteDescription": "This permanently removes the meeting and its minutes. A meeting whose action items still exist as tasks cannot be deleted; archive it instead.",
-      "deleteTitle": "Delete meeting?",
-      "unsavedMinutes": {
-        "description": "Your meeting minutes have unsaved changes. Leave this page and discard them?",
-        "leave": "Leave",
-        "stay": "Stay",
-        "title": "Unsaved minutes"
-      }
+      "deleteTitle": "Delete meeting?"
     },
     "delete": "Delete",
     "error": {
@@ -1764,7 +1705,7 @@
     "form": {
       "errors": {
         "titleRequired": "Meeting title is required.",
-        "whenInvalid": "Enter a valid date and time."
+        "whenInvalid": "Choose a valid date and a local time that exists."
       },
       "location": {
         "label": "Location"
@@ -1807,7 +1748,6 @@
       "title": "Meeting not found"
     },
     "pill": {
-      "archived": "Archived",
       "meeting": "Meeting"
     },
     "share": {
@@ -1940,7 +1880,7 @@
       "toggle": "Show preview for {{title}}",
       "loadErrorSub": "Something went wrong fetching the preview.",
       "lineItems": "Line items",
-      "viewFullRequest": "View procurement record"
+      "viewFullRequest": "View procurement case"
     },
     "filter": {
       "paid": "Paid"
@@ -1954,7 +1894,7 @@
       "vq": "Supplier Quote"
     },
     "error": {
-      "sub": "Something went wrong fetching your procurement records.",
+      "sub": "Something went wrong fetching your procurement cases.",
       "title": "Couldn't load procurements"
     }
   },
@@ -1987,7 +1927,7 @@
   },
   "procurementDetail": {
     "accessDenied": {
-      "sub": "This procurement record either doesn't exist or isn't visible to your role. If you created it, open it from your procurement list.",
+      "sub": "This procurement case either doesn't exist or isn't visible to your role. If you created it, open it from your procurement list.",
       "title": "You don't have access to this record"
     },
     "action": {
@@ -2007,6 +1947,7 @@
     },
     "statusOption": {
       "draft": "Draft",
+      "submitted": "Submitted",
       "requested": "Requested",
       "approved": "Approved",
       "rejected": "Rejected",
@@ -2061,7 +2002,7 @@
       "approveBody": "Approve <money/>?",
       "cancelTitle": "Cancel this procurement?",
       "destructiveTitle": "{{action}} this procurement",
-      "grBody": "This records a {{status}} goods receipt against procurement record {{request}}.",
+      "grBody": "This records a {{status}} goods receipt against procurement case {{request}}.",
       "grTitle": "Record this goods receipt?",
       "keepRequest": "Keep procurement",
       "markPaidBody": "Record {{amount}} as paid? This records payment evidence; it does not transfer funds.",
@@ -2071,7 +2012,7 @@
       "saveGR": "Save GR",
       "saveVI": "Save supplier invoice",
       "terminal": "This is a terminal action for this procurement and cannot be undone.",
-      "viBody": "This records a supplier invoice against procurement record {{request}}.",
+      "viBody": "This records a supplier invoice against procurement case {{request}}.",
       "viTitle": "Record this supplier invoice?"
     },
     "detail": {
@@ -2195,8 +2136,7 @@
         "toast": {
           "deleted": "Bill of quantities line deleted",
           "saved": "Bill of quantities line saved"
-        },
-        "source": {}
+        }
       },
       "boqForm": {
         "description": "Description",
@@ -2284,8 +2224,7 @@
           "withdrawn": "Claim withdrawn"
         },
         "withdraw": "Withdraw",
-        "withdrawn": "Withdrawn",
-        "source": {}
+        "withdrawn": "Withdrawn"
       },
       "evidence": {
         "document": "Evidence document",
@@ -2307,8 +2246,7 @@
         "notSubmitted": "Claims raised, not yet submitted",
         "remaining": "Contract not yet billed",
         "title": "Billing summary"
-      },
-      "source": {}
+      }
     },
     "documents": {
       "action": {
@@ -2647,15 +2585,13 @@
     },
     "procurement": {
       "empty": {
-        "title": "No procurement records for this project yet"
+        "title": "No procurement cases for this project yet"
       },
       "error": {
-        "sub": "Something went wrong fetching this project's procurement records.",
+        "sub": "Something went wrong fetching this project's procurement cases.",
         "title": "Couldn't load procurement"
       },
-      "group": {},
       "newRequest": "New procurement",
-      "summary": {},
       "title": "Procurement"
     },
     "rail": {
@@ -3001,7 +2937,6 @@
       "placeholder": "Assign a PM…",
       "noun": "manager"
     },
-    "code": {},
     "stage": {
       "label": "Origination stage",
       "helper": "On-hand is reached only by winning a project in the pipeline, never created directly."
@@ -3856,7 +3791,7 @@
     "total": "Total",
     "addBudgetLineItem": "+ Add line item",
     "activate": "Activate",
-    "activatedBySoleOperator": "Activated by sole operator",
+    "activatedBySoleOperator": "Activated by sole member",
     "deleteDraft": "Delete draft",
     "archive": "Archive",
     "cloneToRevise": "Clone to revise",
@@ -4592,14 +4527,14 @@
   },
   "uxs32": {
     "roleList": "{{first}}, {{second}}, {{third}} or {{fourth}}",
-    "roleRoute": "Standard rules: any of {{roles}} can approve another person's procurement record.",
+    "roleRoute": "Standard rules: any of {{roles}} can approve another person's procurement case.",
     "holders": "Right now: {{names}}.",
     "holdersNone": "Nobody active holds these roles right now.",
     "holdersUnavailable": "Couldn't check who holds these roles right now.",
     "routeUnavailable": "Couldn't verify who can approve right now.",
-    "noEligible": "Nobody listed can approve right now. Only an Admin can decide these procurement records until someone eligible is added.",
-    "escalate": "Nobody listed can approve right now. These procurement records go to the overhead approvers.",
-    "projectEmpty": "No project approvers listed. Within budget, the standard rules apply: any of {{roles}} can approve. Over the budget line, or when the line cannot be checked, procurement records go to the overhead approvers."
+    "noEligible": "Nobody listed can approve right now. Only an Admin can decide these procurement cases until someone eligible is added.",
+    "escalate": "Nobody listed can approve right now. These procurement cases go to the overhead approvers.",
+    "projectEmpty": "No project approvers listed. Within budget, the standard rules apply: any of {{roles}} can approve. Over the budget line, or when the line cannot be checked, procurement cases go to the overhead approvers."
   },
   "uxs38": {
     "emptyScope": "Reference rates affect displayed rupiah equivalents only. Accounting records are never changed.",
@@ -4747,7 +4682,7 @@
       "vendorInvoiced": "Record payment"
     },
     "nextStepPrefix": "Next:",
-    "projectEmptyScope": "This list covers PMO procurement records. Purchases recorded in ERPNext appear below."
+    "projectEmptyScope": "This list covers purchases recorded in PMO. Purchases recorded in ERPNext appear below."
   },
   "uxs29": {
     "expenseCapture": {

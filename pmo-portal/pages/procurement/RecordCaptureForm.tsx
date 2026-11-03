@@ -27,6 +27,7 @@ import {
   ERP_AUTHORED_TAX,
 } from './vendorInvoiceTax';
 import { useCommandIntent } from '@/src/hooks/useCommandIntent';
+import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { usePurchaseTaxTemplates } from '@/src/hooks/usePurchaseTaxTemplates';
 import { useVendorTaxDefault } from '@/src/hooks/useVendorTaxDefault';
 import { useErpVendorTax, useNativeVendorTax } from '@/src/hooks/useVendorBillTax';
@@ -38,6 +39,8 @@ import { formatMoneyInputValue } from '@/src/lib/format';
 import type { CommandIntent } from '@/src/lib/repositories/types';
 import { vendorInvoiceIdentityAccessibleLabel, type VendorInvoiceContext } from '@/src/components/procurement/vendorInvoiceIdentityLabels';
 import { VendorInvoiceIdentity } from '@/src/components/procurement/VendorInvoiceIdentity';
+import { SubcontractBillLines } from './SubcontractBillLines';
+import type { SubcontractBillLineInput } from '@/src/lib/db/subcontracts';
 
 // ---------------------------------------------------------------------------
 // Record-type config
@@ -54,8 +57,8 @@ export type RecordKind =
   | 'vendor_invoice';
 
 const STATUS_OPTIONS: Record<RecordKind, string[]> = {
-  purchase_request: ['Draft', 'Requested', 'Approved', 'Rejected'],
-  rfq: ['Draft', 'Sent', 'Received', 'Closed'],
+  purchase_request: ['Draft', 'Submitted', 'Approved', 'Closed'],
+  rfq: ['Draft', 'Issued', 'Closed'],
   purchase_order: ['Draft', 'Issued', 'Acknowledged', 'Closed'],
   payment: ['Pending', 'Processed', 'Cleared'],
   // GR: default Complete (the field-config below sorts Partial first then Complete,
@@ -127,6 +130,7 @@ function localizedRecordKindLabel(kind: RecordKind, t: TFunction): string {
 function statusOptionLabel(value: string, t: (key: string, fallback: string) => string): string {
   switch (value) {
     case 'Draft': return t('procurementDetail.statusOption.draft', 'Draft');
+    case 'Submitted': return t('procurementDetail.statusOption.submitted', 'Submitted');
     case 'Requested': return t('procurementDetail.statusOption.requested', 'Requested');
     case 'Approved': return t('procurementDetail.statusOption.approved', 'Approved');
     case 'Rejected': return t('procurementDetail.statusOption.rejected', 'Rejected');
@@ -280,6 +284,8 @@ export interface StagedVI {
   /** #769: the parent group's number for this invoice. */
   externalRef?: string | null;
   amount: number | null;
+  /** Present for a subcontract purchase; the page routes these lines through the capped RPC. */
+  lines?: SubcontractBillLineInput[];
   /** #505: REQUIRED — the staged payload carries the tax facts through the confirm to the RPC.
    *  Non-optional on purpose: a staged VI that reaches the confirm dialog without them would fail
    *  at commit with P0001 after the user has already confirmed. */
@@ -329,6 +335,8 @@ export interface RecordCaptureFormProps {
   itemsNet?: number | null;
   /** The purchase's currency. The server records the document in it (no conversion), so the amount field names it. */
   currency?: string | null;
+  /** Issued subcontract PO whose payable BoQ quantities cap this invoice. */
+  subcontractPoId?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -346,6 +354,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
   vendorId = null,
   itemsNet = null,
   currency = null,
+  subcontractPoId,
 }) => {
   const { toast } = useToast();
   const { t } = useTranslation();
@@ -366,10 +375,12 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
   const [groupRef, setGroupRef] = useState('');
   // Hidden on an ERP-owned org: the dispatched create never carries it (see groupRefIsPmoAuthored).
   const hasGroupRef = GROUP_REF_KINDS.has(kind) && groupRefIsPmoAuthored();
+  const today = useOrgToday();
   const [status, setStatus] = useState(cfg.defaultStatus);
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(today);
   const [amountStr, setAmountStr] = useState('');
   const [amountError, setAmountError] = useState<string | undefined>(undefined);
+  const [subcontractBill, setSubcontractBill] = useState<{ lines: SubcontractBillLineInput[]; amount: number } | null>(null);
   // #505: vendor-invoice tax facts. '' is "not answered yet", never a value (see vendorInvoiceTax.ts).
   // OD-TAX-1 (#548) then gave the org a PRE-SELECTION for this control — see the hook call below.
   // Unused by every other kind.
@@ -394,6 +405,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
   const statusOptions = STATUS_OPTIONS[kind].map((value) => ({ value, label: statusOptionLabel(value, t) }));
   const formId = `record-capture-${kind}`;
   const isVendorInvoice = kind === 'vendor_invoice';
+  const isSubcontractInvoice = isVendorInvoice && Boolean(subcontractPoId);
   // #505: the ONE predicate — null ⇒ incomplete tax facts ⇒ Save VI disabled AND submit refuses.
   // Non-VI kinds have no tax fields, so they are never gated by it.
   // ⛔ On a FLIPPED org the ERP computes the tax and owns the answer, so PMO does not ask — see
@@ -450,6 +462,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
       return;
     }
     const parsedAmount = amountParse.amount;
+    if (isSubcontractInvoice && (!subcontractBill || subcontractBill.lines.length === 0)) return;
 
     // GR/VI confirm-before-commit hand-off (refactor: procurement-detail-dedup).
     // When `onStage` is provided we stage the parsed fields for the page's
@@ -477,7 +490,8 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
           invoiceDate: date,
           referenceNumber: refNum,
           ...(hasGroupRef && groupRef.trim() ? { externalRef: groupRef.trim() } : {}),
-          amount: parsedAmount,
+          amount: isSubcontractInvoice && subcontractBill ? subcontractBill.amount : parsedAmount,
+          ...(isSubcontractInvoice && subcontractBill ? { lines: subcontractBill.lines } : {}),
           taxTreatment: parsedTax.taxTreatment,
           taxAmount: parsedTax.taxAmount,
           ...(pmoAuthorsTax && taxFields.facts ? { taxRate: taxFields.facts.taxRate, taxBaseNumerator: taxFields.facts.taxBaseNumerator, taxBaseDenominator: taxFields.facts.taxBaseDenominator } : {}),
@@ -642,13 +656,28 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
       </div>
 
       {/* Amount — hidden for kinds without a money field (e.g. Goods Receipt) */}
+      {isSubcontractInvoice && subcontractPoId && (
+        <SubcontractBillLines
+          poId={subcontractPoId}
+          currency={currency ?? ''}
+          onChange={(lines, amount) => {
+            setSubcontractBill({ lines, amount });
+            setAmountStr(formatMoneyInputValue(amount));
+            setAmountError(undefined);
+          }}
+        />
+      )}
       {showsAmount && (
         <div className="flex flex-col gap-1">
           <label
             htmlFor={`${formId}-amount`}
             className="text-[12px] font-semibold text-muted-foreground"
           >
-            {kind === 'vendor_invoice' ? t('procurementDetail.vendorInvoice.amountOptional', 'Amount (optional)') : t('procurementDetail.amountOptional', 'Amount (optional)')}
+            {isSubcontractInvoice
+              ? t('procurement:subcontract.bill.amountFromLines', 'Amount from payable lines')
+              : kind === 'vendor_invoice'
+                ? t('procurementDetail.vendorInvoice.amountOptional', 'Amount (optional)')
+                : t('procurementDetail.amountOptional', 'Amount (optional)')}
             {currency ? ` · ${currency}` : null}
           </label>
           <input
@@ -657,7 +686,8 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
             inputMode="decimal"
             ref={amountMask.ref}
             value={amountStr}
-            onChange={amountMask.onChange}
+            onChange={isSubcontractInvoice ? undefined : amountMask.onChange}
+            readOnly={isSubcontractInvoice}
             aria-invalid={amountError ? true : undefined}
             aria-describedby={amountError ? `${formId}-amount-error` : undefined}
             placeholder="0.00"
@@ -811,7 +841,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
           size="sm"
           loading={isBusy}
           // #505: a VI cannot be saved until its tax treatment + tax amount are stated.
-          disabled={taxIncomplete}
+          disabled={taxIncomplete || (isSubcontractInvoice && !subcontractBill?.lines.length)}
           data-testid={cfg.saveTestId}
         >
           {kind === 'payment' ? t('procurementDetail.savePayment', 'Save Payment') : kind === 'vendor_invoice' ? t('procurementDetail.confirm.saveVI', 'Save supplier invoice') : cfg.saveLabel}

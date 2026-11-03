@@ -55,7 +55,7 @@ const milestones: MilestoneWithProgress[] = [];
 describe('AC-JR-W5-01: ProjectGantt onActivateTask / GanttBarRow onActivate', () => {
   it('AC-JR-W5-01: bar has role=button and calls onActivateTask with the task when clicked', () => {
     const spy = vi.fn();
-    render(<ProjectGantt tasks={tasks} milestones={milestones} onActivateTask={spy} />);
+    render(<ProjectGantt tasks={tasks} milestones={milestones} onActivateTask={spy} onSwitchView={vi.fn()} />);
 
     // The bar should be a button (role=button)
     const btn = screen.getByRole('button', { name: /Foundation Work/i });
@@ -68,7 +68,7 @@ describe('AC-JR-W5-01: ProjectGantt onActivateTask / GanttBarRow onActivate', ()
 
   it('AC-JR-W5-01: bar activates via keyboard Enter', async () => {
     const spy = vi.fn();
-    render(<ProjectGantt tasks={tasks} milestones={milestones} onActivateTask={spy} />);
+    render(<ProjectGantt tasks={tasks} milestones={milestones} onActivateTask={spy} onSwitchView={vi.fn()} />);
 
     const btn = screen.getByRole('button', { name: /Foundation Work/i });
     btn.focus();
@@ -79,7 +79,7 @@ describe('AC-JR-W5-01: ProjectGantt onActivateTask / GanttBarRow onActivate', ()
 
   it('AC-JR-W5-01: bar activates via keyboard Space', () => {
     const spy = vi.fn();
-    render(<ProjectGantt tasks={tasks} milestones={milestones} onActivateTask={spy} />);
+    render(<ProjectGantt tasks={tasks} milestones={milestones} onActivateTask={spy} onSwitchView={vi.fn()} />);
 
     const btn = screen.getByRole('button', { name: /Foundation Work/i });
     btn.focus();
@@ -88,7 +88,7 @@ describe('AC-JR-W5-01: ProjectGantt onActivateTask / GanttBarRow onActivate', ()
   });
 
   it('AC-JR-W5-01: without onActivateTask the bar has NO button role (inert display)', () => {
-    render(<ProjectGantt tasks={tasks} milestones={milestones} />);
+    render(<ProjectGantt tasks={tasks} milestones={milestones} onSwitchView={vi.fn()} />);
     // Bar text is still visible but not a button.
     // (Gantt v2 MS-Project layout shows the name in both the table cell and the bar.)
     expect(screen.queryByRole('button', { name: /Foundation Work/i })).toBeNull();
@@ -97,14 +97,14 @@ describe('AC-JR-W5-01: ProjectGantt onActivateTask / GanttBarRow onActivate', ()
 
   it('AC-JR-W5-01: bar has cursor-pointer class when onActivateTask is provided', () => {
     const spy = vi.fn();
-    render(<ProjectGantt tasks={tasks} milestones={milestones} onActivateTask={spy} />);
+    render(<ProjectGantt tasks={tasks} milestones={milestones} onActivateTask={spy} onSwitchView={vi.fn()} />);
     const btn = screen.getByRole('button', { name: /Foundation Work/i });
     expect(btn.className).toContain('cursor-pointer');
   });
 
   it('AC-JR-W5-01: bar has focus-visible ring class when onActivateTask is provided', () => {
     const spy = vi.fn();
-    render(<ProjectGantt tasks={tasks} milestones={milestones} onActivateTask={spy} />);
+    render(<ProjectGantt tasks={tasks} milestones={milestones} onActivateTask={spy} onSwitchView={vi.fn()} />);
     const btn = screen.getByRole('button', { name: /Foundation Work/i });
     expect(btn.className).toContain('focus-visible:');
   });

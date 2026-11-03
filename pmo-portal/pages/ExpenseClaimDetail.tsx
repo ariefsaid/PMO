@@ -15,7 +15,7 @@ import { useImprestFloat } from '@/src/hooks/useImprest';
 import { availableExpenseActions, settlementPreview } from '@/src/lib/expenses/expenseRules';
 import { approvalRouteNote } from '@/src/lib/procurement/approvalRoute';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
-import { formatCurrencyAuto } from '@/src/lib/format';
+import { formatCurrency } from '@/src/lib/format';
 import { workflowVariant } from '@/src/lib/status/statusVariants';
 import { ExpenseDecisionBar } from './expenses/ExpenseDecisionBar';
 import { ExpenseLinesCard } from './expenses/ExpenseLinesCard';
@@ -41,7 +41,7 @@ const ExpenseClaimDetail: React.FC = () => {
   const { update } = useExpenseClaimMutations();
   const float = useImprestFloat(claim?.imprest_float_id);
   const { data: projects } = useProjects();
-  const advanceOptions = useOwnAdvanceOptions(claim?.advance_id ?? null);
+  const ownAdvances = useOwnAdvanceOptions(claim?.advance_id ?? null);
   const projectOptions = useMemo(() => (projects ?? []).map((p) => ({ value: p.id, label: projectDisplayName(p) })), [projects]);
   const [editOpen, setEditOpen] = useState(false);
   const backLabel = t('expenses.detail.back', 'Expenses');
@@ -118,24 +118,24 @@ const ExpenseClaimDetail: React.FC = () => {
           <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <div>
               <dt className="text-xs text-muted-foreground">{t('expenses.detail.amount', 'Amount')}</dt>
-              <dd className="font-semibold tabular-nums" data-testid="expense-amount">{formatCurrencyAuto(amount, claim.currency)}</dd>
+              <dd className="font-semibold tabular-nums" data-testid="expense-amount">{formatCurrency(amount, claim.currency)}</dd>
             </div>
             {claim.kind === 'claim' && claim.status === 'Paid' && (
               <>
                 <div>
                   <dt className="text-xs text-muted-foreground">{t('expenses.detail.advanceApplied', 'Advance applied')}</dt>
-                  <dd className="tabular-nums">{formatCurrencyAuto(paidSplit.applied, claim.currency)}</dd>
+                  <dd className="tabular-nums">{formatCurrency(paidSplit.applied, claim.currency)}</dd>
                 </div>
                 <div>
                   <dt className="text-xs text-muted-foreground">{t('expenses.detail.cashPaid', 'Cash paid')}</dt>
-                  <dd className="tabular-nums">{formatCurrencyAuto(paidSplit.cash, claim.currency)}</dd>
+                  <dd className="tabular-nums">{formatCurrency(paidSplit.cash, claim.currency)}</dd>
                 </div>
               </>
             )}
             {claim.kind === 'advance' && claim.status === 'Paid' && (
               <div>
                 <dt className="text-xs text-muted-foreground">{t('expenses.detail.outstanding', 'Outstanding')}</dt>
-                <dd className="tabular-nums">{outstanding === null ? '—' : formatCurrencyAuto(outstanding, claim.currency)}</dd>
+                <dd className="tabular-nums">{outstanding === null ? '—' : formatCurrency(outstanding, claim.currency)}</dd>
               </div>
             )}
             {claim.payment_reference && (
@@ -187,7 +187,8 @@ const ExpenseClaimDetail: React.FC = () => {
         <ExpenseClaimFormModal
           kind={claim.kind}
           projectOptions={projectOptions}
-          advanceOptions={advanceOptions}
+          advanceOptions={ownAdvances.options}
+          advanceLoad={ownAdvances}
           initial={{
             title: claim.title, projectId: claim.project_id, budgetCategory: claim.budget_category,
             purpose: claim.purpose, amount, advanceId: claim.advance_id, imprestFloatId: claim.imprest_float_id,

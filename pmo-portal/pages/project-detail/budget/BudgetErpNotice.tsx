@@ -12,6 +12,7 @@ import {
   retryActiveBudgetPush,
   type BudgetPushStatusRow,
 } from '@/src/lib/repositories/budgetProjection';
+import BudgetOccupantActions from '@/src/components/budget/BudgetOccupantActions';
 import { describePushError } from '@/src/lib/adapterSeam/pushErrorCopy';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 
@@ -30,11 +31,14 @@ export default function BudgetErpNotice({
   activeVersion,
   hasDraft = false,
   onRecover,
+  onOpenDraft,
 }: {
   projectId: string;
   activeVersion: BudgetVersionWithItems | undefined;
   hasDraft?: boolean;
   onRecover?: () => void;
+  /** Open the Draft that "use the ERP figures" created. */
+  onOpenDraft?: (draftVersionId: string) => void;
 }) {
   const { t } = useTranslation('project');
   const { realRole } = useEffectiveRole();
@@ -154,6 +158,9 @@ export default function BudgetErpNotice({
               </>
             )}
             {!needsMap && !unstamped && copy.remedy && <span>{copy.remedy}</span>}
+            {copy.code === 'budget-unowned-live-occupant' && row.fiscalYear && canRetry && (
+              <BudgetOccupantActions projectId={projectId} versionId={activeVersion.id} fiscalYear={row.fiscalYear} onOpenDraft={onOpenDraft} />
+            )}
             {offerRetry && (
               <Button variant="ghost" size="sm" loading={retry.isPending} onClick={() => void retryPush(row)}>
                 {t('financeCopy.retryThePush', 'Retry the push')}

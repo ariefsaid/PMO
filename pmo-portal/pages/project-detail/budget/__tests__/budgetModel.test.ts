@@ -103,6 +103,18 @@ describe('budgetModel', () => {
     expect(rows[0]).toMatchObject({ category: 'Labor', spent: 30, committed: 20 });
   });
 
+  it.each([[60, 0], [30, 30]])('derives headroom for paid %i and open %i', (spent, open) => {
+    const [row] = buildBudgetSummaryRows({
+      lines: [line('Labor', 'Work', 100)],
+      actuals: [{ category: 'Labor', budget: 100, actual: spent }],
+      procurements: [{ status: 'Paid', budget_category: 'Labor', approved_total_value: 60, total_value: 60, open_commitment: open, currency: 'USD' }],
+      canReadProcurements: true,
+      currency: 'USD',
+    });
+    expect(row).toMatchObject({ budget: 100, spent, committed: open });
+    expect(row!.budget - row!.spent! - row!.committed!).toBe(40);
+  });
+
   it('totals committed spend from the category rows, Uncategorized included, and stays unknown when a row is unknown', () => {
     const base = {
       lines: [line('Labor', 'Work', 100)],

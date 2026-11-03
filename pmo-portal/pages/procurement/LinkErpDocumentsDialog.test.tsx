@@ -5,7 +5,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const linkMock = vi.fn();
 vi.mock('@/src/hooks/useErpPurchaseLinks', () => ({ useLinkErpDocuments: () => ({ mutateAsync: linkMock, isPending: false }) }));
-vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => ({ data: [
+const listState = { isPending: false, isError: false, refetch: vi.fn() };
+vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => ({ ...listState, data: [
   { id: 'pur-1', title: 'Steel', status: 'Ordered', project_id: 'p1', currency: 'IDR', vendor: { name: 'Supplier One' } },
   { id: 'pur-2', title: 'Other', status: 'Ordered', project_id: 'p2', currency: 'IDR', vendor: null },
   { id: 'pur-3', title: 'Old', status: 'Cancelled', project_id: 'p1', currency: 'IDR', vendor: null },
@@ -32,7 +33,7 @@ const choose = async (name: RegExp) => {
   await userEvent.click(screen.getByRole('option', { name }));
 };
 
-beforeEach(() => linkMock.mockReset());
+beforeEach(() => { linkMock.mockReset(); Object.assign(listState, { isPending: false, isError: false }); listState.refetch.mockReset(); });
 
 describe('LinkErpDocumentsDialog', () => {
   it('AC-PFE-004: links the chosen documents to the chosen open purchase of the project', async () => {
@@ -143,5 +144,19 @@ describe('LinkErpDocumentsDialog', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(onClose).toHaveBeenCalled();
     expect(linkMock).not.toHaveBeenCalled();
+  });
+
+  it('T-11: while the purchase list loads, says so instead of offering an empty list', () => {
+    listState.isPending = true;
+    render(<LinkErpDocumentsDialog docs={[doc('PINV-1')]} projectId="p1" onClose={vi.fn()} onLinked={vi.fn()} />);
+    expect(screen.getByText(/loading purchases/i)).toBeInTheDocument();
+  });
+
+  it('T-11: when the purchase list fails, shows an error with Retry that refetches', async () => {
+    listState.isError = true;
+    render(<LinkErpDocumentsDialog docs={[doc('PINV-1')]} projectId="p1" onClose={vi.fn()} onLinked={vi.fn()} />);
+    expect(screen.getByRole('alert')).toHaveTextContent(/could not load purchases/i);
+    await userEvent.click(screen.getByRole('button', { name: /retry/i }));
+    expect(listState.refetch).toHaveBeenCalledTimes(1);
   });
 });

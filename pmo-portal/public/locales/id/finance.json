@@ -189,7 +189,8 @@
     "mobileInvoiceAmount": "Total faktur tidak termasuk PPN",
     "mobileOutstandingUnknown": "Saldo terutang tidak diketahui",
     "mobileInvoiceAmountInclusive": "Total faktur termasuk PPN",
-    "mobileInvoiceAmountUnspecified": "Jumlah faktur"
+    "mobileInvoiceAmountUnspecified": "Jumlah faktur",
+    "pairedCountedOnce": "Dihitung sekali bersama faktur ERP {{number}}."
   },
   "invoices": {
     "description": "Faktur klien.",
@@ -306,6 +307,9 @@
     "purchaseNoun": "pembelian terbuka",
     "choosePurchase": "Pilih pembelian…",
     "choosePurchaseFirst": "Pilih pembelian terlebih dahulu.",
+    "loadingPurchases": "Memuat pembelian…",
+    "purchasesLoadFailed": "Pembelian tidak dapat dimuat.",
+    "retry": "Coba lagi",
     "link": "Tautkan",
     "cancel": "Batal",
     "noneLinked": "Tidak ada yang ditautkan.",

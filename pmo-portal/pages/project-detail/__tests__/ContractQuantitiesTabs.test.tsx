@@ -56,6 +56,7 @@ vi.mock('@/src/hooks/useWorkOrderAcceptances', () => ({
   useWorkOrderAcceptanceMutations: () => h.acc,
 }));
 vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => ({ data: h.docs, isPending: false, isError: false }) }));
+vi.mock('@/src/hooks/useSubcontract', () => ({ useWorkOrderCostVariations: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }) }));
 import BillingTab from '../tabs/BillingTab';
 import WorkOrdersTab from '../tabs/WorkOrdersTab';
 

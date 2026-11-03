@@ -31,8 +31,8 @@ vi.mock('@/src/hooks/useUserViews', () => ({
   useUserViews: () => ({ data: [], isPending: false, isError: false }),
 }));
 
-import { FeatureGate } from '@/src/auth/useFeature';
 import { FeatureRoute } from '@/src/components/FeatureRoute';
+import { FeatureGate } from '@/src/auth/useFeature';
 import { Rail } from '@/src/components/shell/Rail';
 
 const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -46,21 +46,28 @@ const wrap = (ui: React.ReactNode, initial = '/crm') =>
     </QueryClientProvider>,
   );
 
-describe('AC-ENT-003 — FeatureGate + FeatureRoute hide CRM affordances', () => {
-  it('<FeatureGate> renders children when the feature is enabled', () => {
-    featuresState.value = { crm: true };
-    wrap(
-      <FeatureGate feature="crm"><div>CRM content</div></FeatureGate>,
-    );
-    expect(screen.getByText('CRM content')).toBeInTheDocument();
-  });
+describe('AC-ENT-003 — FeatureRoute hides CRM affordances', () => {
 
-  it('<FeatureGate> omits children when the feature is disabled', () => {
+  it('AC-ENT-003 FeatureGate hides an in-page affordance when crm is disabled', () => {
     featuresState.value = { crm: false };
     wrap(
-      <FeatureGate feature="crm"><div>CRM content</div></FeatureGate>,
+      <FeatureGate feature="crm">
+        <button type="button">Create company</button>
+      </FeatureGate>,
+      '/',
     );
-    expect(screen.queryByText('CRM content')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Create company' })).toBeNull();
+  });
+
+  it('AC-ENT-003 FeatureGate renders an in-page affordance when crm is enabled', () => {
+    featuresState.value = { crm: true };
+    wrap(
+      <FeatureGate feature="crm">
+        <button type="button">Create company</button>
+      </FeatureGate>,
+      '/',
+    );
+    expect(screen.getByRole('button', { name: 'Create company' })).toBeInTheDocument();
   });
 
   it('<FeatureRoute> redirects a /crm deep-link to / when crm is disabled', () => {

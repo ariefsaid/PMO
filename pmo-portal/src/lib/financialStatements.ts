@@ -1,5 +1,5 @@
 // Compatibility seam for the financial-statement parsers. The implementation
-// lives in focused sibling modules (validation, nativeReport, snapshotRow,
+// lives in focused sibling modules (validation, nativeReport,
 // readEnvelope); this file preserves the original public import path and the
 // parsers' existing TypeError contracts.
 export type {
@@ -15,9 +15,6 @@ export type {
   FinancialStatementNativeScalar,
   FinancialStatementTotalsPayload,
 } from './financialStatements/nativeReport';
-
-export type { FinancialStatementRow } from './financialStatements/snapshotRow';
-export { parseFinancialStatementRow } from './financialStatements/snapshotRow';
 
 export type {
   FinancialStatementCatalogue,

@@ -32,6 +32,7 @@ export async function toWorkbookBuffer({
   sheetName,
   header,
   body,
+  types,
 }: WorkbookInput): Promise<ArrayBuffer> {
   const ExcelJS = (await import('exceljs')).default;
   const wb = new ExcelJS.Workbook();
@@ -43,7 +44,8 @@ export async function toWorkbookBuffer({
     const row = ws.addRow(r);
     r.forEach((v, i) => {
       const cell = row.getCell(i + 1);
-      const t = cellType(v);
+      const declaredType = types?.[i];
+      const t = cellType(v, declaredType);
       if (t === 'number') {
         cell.numFmt = NUMBER_FMT;
       } else if (t === 'date') {

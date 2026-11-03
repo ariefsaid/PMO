@@ -10,6 +10,8 @@ const h = vi.hoisted(() => {
     eq: [] as unknown[],
     is: [] as unknown[],
     order: [] as unknown[],
+    gt: [] as unknown[],
+    limit: [] as unknown[],
     insert: [] as unknown[],
     update: [] as unknown[],
     delete: 0,
@@ -32,6 +34,8 @@ const h = vi.hoisted(() => {
   builder.eq = chain('eq');
   builder.is = chain('is');
   builder.order = chain('order');
+  builder.gt = chain('gt');
+  builder.limit = chain('limit');
   builder.insert = chain('insert');
   builder.update = chain('update');
   builder.delete = chain('delete');

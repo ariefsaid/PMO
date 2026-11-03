@@ -71,9 +71,6 @@ export interface ComboboxProps {
   placeholder?: string;
   required?: boolean;
   error?: React.ReactNode;
-  /** Optional inline-create from the empty state; receives the current query. */
-  onCreate?: (query: string) => void;
-  createLabel?: string;
   /** Search input placeholder. */
   searchPlaceholder?: string;
   /** Noun for the empty/error copy, e.g. "company". */
@@ -106,8 +103,6 @@ export const Combobox: React.FC<ComboboxProps> = ({
   placeholder = 'Select…',
   required,
   error,
-  onCreate,
-  createLabel = 'Create',
   searchPlaceholder,
   noun = 'option',
   clearable,
@@ -243,9 +238,38 @@ export const Combobox: React.FC<ComboboxProps> = ({
   // Position the portal popover under the trigger (escapes overflow clipping).
   useLayoutEffect(() => {
     if (!open || !triggerRef.current) return;
-    const r = triggerRef.current.getBoundingClientRect();
-    setPos({ top: r.bottom + 5, left: r.left, width: r.width });
-  }, [open]);
+    const compute = () => {
+      const t = triggerRef.current;
+      if (!t) return;
+      const r = t.getBoundingClientRect();
+      const pop = popRef.current;
+      const ph = pop?.offsetHeight ?? 260;
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const GUTTER = 8;
+      const GAP = 5;
+
+      const width = Math.min(r.width, vw - GUTTER * 2);
+      let left = r.left;
+      left = Math.min(left, vw - GUTTER - width);
+      left = Math.max(left, GUTTER);
+
+      const below = r.bottom + GAP;
+      const above = r.top - GAP - ph;
+      const flipUp = below + ph > vh - GUTTER && above >= GUTTER;
+      const top = flipUp ? Math.max(GUTTER, above) : Math.max(GUTTER, Math.min(below, vh - GUTTER - ph));
+
+      setPos({ top, left, width });
+    };
+
+    compute();
+    window.addEventListener('resize', compute);
+    window.addEventListener('scroll', compute, true);
+    return () => {
+      window.removeEventListener('resize', compute);
+      window.removeEventListener('scroll', compute, true);
+    };
+  }, [open, state, filtered.length]);
 
   // Close on outside click.
   useEffect(() => {
@@ -501,16 +525,6 @@ export const Combobox: React.FC<ComboboxProps> = ({
                     {query
                       ? t('combobox.empty.withQuery', { defaultValue: 'No {{noun}} matches "{{query}}".', noun, query })
                       : t('combobox.empty.bare', { defaultValue: 'No {{noun}} matches.', noun })}
-                    {onCreate && query.trim() && (
-                      <button
-                        type="button"
-                        onClick={() => onCreate(query.trim())}
-                        className="mt-2 inline-flex items-center gap-1.5 font-semibold text-primary"
-                      >
-                        <Icon name="plus" className="size-[14px]" />
-                        {createLabel}
-                      </button>
-                    )}
                   </li>
                 )}
               </ul>

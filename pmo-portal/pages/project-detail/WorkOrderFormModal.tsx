@@ -94,7 +94,7 @@ const validate = (
   return errors;
 };
 
-export interface WorkOrderFormModalProps {
+interface WorkOrderFormModalProps {
   /** null = create a Draft; a row = edit that Draft's body. */
   workOrder: WorkOrderRow | null;
   currencySymbolPrefix: string;

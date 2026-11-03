@@ -208,7 +208,7 @@ async function runWithFixture(
 
 async function installLocaleOverride(page: Page, locale: Locale): Promise<void> {
   await page.route('**/rest/v1/profiles?*', async (route) => {
-    const response = await route.fetch();
+    const response = await route.fetch({ maxRetries: 2 });
     const profile = await response.json() as Record<string, unknown> | Record<string, unknown>[];
     const localized = Array.isArray(profile)
       ? profile.map((row) => ({ ...row, locale }))
@@ -318,7 +318,7 @@ async function assertDetails(page: Page, fixture: Fixture): Promise<void> {
   await expect(details).toBeVisible({ timeout: 20_000 });
   await expect(details.getByText(fixture.slipNumber)).toBeVisible();
   await expect(details.getByText(
-    fixture.locale === 'en' ? `System VI number: ${fixture.viNumber}` : `Nomor VI sistem: ${fixture.viNumber}`,
+    fixture.locale === 'en' ? `Supplier invoice no. (accounting): ${fixture.viNumber}` : `No. faktur pemasok (akuntansi): ${fixture.viNumber}`,
     { exact: true },
   )).toBeVisible();
   const historyLinkLabel = fixture.locale === 'en' ? 'Bukti potong bill link' : 'Tautan tagihan bukti potong';

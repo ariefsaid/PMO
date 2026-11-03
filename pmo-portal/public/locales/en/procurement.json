@@ -45,7 +45,7 @@
     "vendor": "Supplier",
     "selectVendor": "Optional: select a supplier…",
     "budgetCategory": "Budget category",
-    "denied": "You do not have permission to create procurement records.",
+    "denied": "You do not have permission to create procurement cases.",
     "unsaved": {
       "title": "Unsaved procurement",
       "description": "This procurement has not been saved. Leave this page and discard it?",
@@ -91,7 +91,10 @@
       "needsRequest": "needs a purchase request first",
       "needsApproval": "needs an approval first",
       "needsReceipt": "needs a goods receipt first"
-    }
+    },
+    "preCutover": "Recorded before the ERP connection, not sent",
+    "notSent": "Not sent",
+    "notSentReason": "Not sent: this purchase started before the ERP connection"
   },
   "gates": {
     "heading": "Purchase rules",
@@ -207,8 +210,8 @@
         "accessibleName": "Project procurement"
       },
       "noSupplier": "No supplier",
-      "ownerTooltip": "Requested by {{name}}. Source: procurement record.",
-      "stageCountTooltip": "Count of procurements currently in {{stage}}. Source: project procurement records.",
+      "ownerTooltip": "Requested by {{name}}. Source: procurement case.",
+      "stageCountTooltip": "Count of procurements currently in {{stage}}. Source: project procurement cases.",
       "forYou": "{{count}} for you",
       "selection": {
         "selectRow": "Select {{name}}",
@@ -250,7 +253,9 @@
         "returnManyTitle": "Return these procurements?",
         "returnTitle": "Return this procurement?",
         "cancelDescription": "This procurement will be marked as cancelled.",
-        "returnDescription": "The procurement goes back to the person who raised it."
+        "returnDescription": "The procurement goes back to the person who raised it.",
+        "returnComment": "Return comment",
+        "returnCommentHelp": "Say what the requester needs to change."
       },
       "stage": {
         "cancelled": "Cancelled",
@@ -299,7 +304,7 @@
     "ageShort": "Age",
     "ageInStageDays": "{{count}}d",
     "raisedBy": "Raised by",
-    "stageCountTooltip": "Count of procurements currently in {{stage}}. Source: company procurement records.",
+    "stageCountTooltip": "Count of procurements currently in {{stage}}. Source: company procurement cases.",
     "table": {
       "accessibleName": "Procurement"
     },
@@ -321,11 +326,11 @@
     "selectionDescription": "The selected quote sets the procurement value and supplier. If it is above the approved amount, the procurement goes back for approval."
   },
   "approvalSection": {
-    "heading": "Procurement records awaiting you ({{total}})",
-    "error": "Couldn't load procurement records",
+    "heading": "Procurement cases awaiting you ({{total}})",
+    "error": "Couldn't load procurement cases",
     "errorSub": "Something went wrong fetching requests awaiting you.",
-    "empty": "No procurement records awaiting your decision",
-    "emptySub": "Procurement records that need your approval will appear here."
+    "empty": "No procurement cases awaiting your decision",
+    "emptySub": "Procurement cases that need your approval will appear here."
   },
   "approvalRow": {
     "approve": "Approve",
@@ -350,7 +355,9 @@
     "rejected": "Procurement rejected",
     "reject": "Reject procurement",
     "approveDescription": "Approve {{title}} ({{amount}})? This will advance the procurement to the ordering stage.",
-    "rejectDescription": "Reject {{title}}? The requester will be notified and may revise and resubmit."
+    "rejectDescription": "Reject {{title}}? The requester will be notified and may revise and resubmit.",
+    "rejectionComment": "Rejection comment",
+    "rejectionCommentHelp": "Add a comment for the requester before rejecting this purchase."
   },
   "decisionSupport": {
     "thisProcurement": "This procurement",
@@ -374,6 +381,215 @@
       "vendorInvoiced": "Releasing payment: the approver can't also pay (separation of duties). You may mark this as paid below.",
       "default": "Ready to advance. Select an action below to move this procurement to its next stage."
     },
-    "sodPreannounce": "Submitting hands this to another approver. You can't approve your own procurement record."
+    "sodPreannounce": "Submitting hands this to another approver. You can't approve your own procurement case."
+  },
+  "subcontract": {
+    "form": {
+      "noLines": "Enter a quantity for at least one line",
+      "quantity": "Quantity must be more than 0 with at most 3 decimal places"
+    },
+    "editor": {
+      "title": "Set BoQ lines",
+      "subtitle": "The contract lines this purchase order covers, at the BoQ rate. Saving replaces the draft; issuing freezes it.",
+      "save": "Save lines",
+      "legend": "Quantity per line",
+      "noBoq": "This project has no BoQ items yet.",
+      "line": "{{item}} ({{unit}})",
+      "rate": "Rate {{rate}}"
+    },
+    "attribute": {
+      "title": "Attribute lines to bill {{number}}",
+      "subtitle": "This bill of {{amount}} was recorded without line quantities. State what it covers, at the PO rate.",
+      "save": "Attribute lines",
+      "legend": "Quantity billed per line",
+      "helper": "PO {{po}}, verified {{verified}}, rate {{rate}}"
+    },
+    "lines": {
+      "title": "Subcontract BoQ lines",
+      "loadError": "Could not load the subcontract position.",
+      "retry": "Retry",
+      "setLines": "Set BoQ lines",
+      "empty": "No BoQ lines issued",
+      "draftCount": "{{count}} draft lines, not yet issued. Issuing freezes revision 1.",
+      "issue": "Issue lines",
+      "emptyHint": "Set the BoQ lines this purchase order covers, then issue them to freeze revision 1.",
+      "billedTotal": "Billed value",
+      "billLinesTotal": "Bill lines total",
+      "issueTitle": "Issue BoQ lines?",
+      "issueBody": "Issuing freezes revision 1 of this purchase order. Later changes go through a variation.",
+      "issueConfirm": "Issue",
+      "issued": "BoQ lines issued",
+      "notOnPoAge_one": "verified, not on PO for {{count}} day",
+      "notOnPoAge_other": "verified, not on PO for {{count}} days"
+    },
+    "exceptions": {
+      "reason": {
+        "no_lines": "billed without line quantities",
+        "other": "could not be checked against the cap ({{reason}})"
+      },
+      "title": "Bills the cap could not check",
+      "attribute": "Attribute lines"
+    },
+    "acceptance": {
+      "record": "Record acceptance",
+      "title": "Acceptances",
+      "loadError": "Could not load the acceptances.",
+      "empty": "No acceptances recorded",
+      "document": "Signed document: {{title}}",
+      "noDocument": "No signed document linked",
+      "soleOperator": "Confirmed by the only active member",
+      "review": "Review draft",
+      "prepared": "Acceptance saved as a draft",
+      "confirmed": "Acceptance confirmed",
+      "withdrawn": "Acceptance withdrawn",
+      "form": {
+        "errors": {
+          "date": "Enter the acceptance date",
+          "quantity": "Enter 0 or more with at most 3 decimal places",
+          "belowConfirmed": "This is cumulative and cannot be less than the last confirmed {{qty}}",
+          "noLines": "Enter a verified quantity for at least one line"
+        },
+        "noDocument": "None yet",
+        "titleEdit": "Edit acceptance",
+        "titleNew": "Record acceptance",
+        "subtitle": "Work verified on site, as cumulative quantities to date. Someone else confirms it with the signed document; it does not create a bill.",
+        "save": "Save acceptance",
+        "prepare": "Prepare acceptance",
+        "details": "Acceptance",
+        "date": "Period date",
+        "document": "Signed acceptance document",
+        "noEligibleDocument": "Upload and issue the signed document in the project register first. It is needed to confirm.",
+        "documentHelp": "From this project’s register: issued or approved, with a file. It is needed to confirm.",
+        "quantities": "Verified to date",
+        "quantityLine": "{{item}}: verified to date ({{unit}})",
+        "ordered": "PO {{qty}} {{unit}}{{confirmed}}",
+        "lastConfirmed": ", last confirmed {{qty}}",
+        "overPo": "{{item}}: {{qty}} {{unit}} more than the PO, shown as verified, not on PO.",
+        "noteLegend": "Note",
+        "note": "Note (optional)",
+        "decide": "Decide",
+        "confirm": "Confirm acceptance",
+        "withdraw": "Withdraw draft"
+      },
+      "selfConfirmHint": "You prepared this. Another Admin or Finance user must confirm it, unless you are the only active member.",
+      "status": {
+        "Draft": "Draft",
+        "Confirmed": "Confirmed",
+        "Withdrawn": "Withdrawn"
+      }
+    },
+    "col": {
+      "line": "Line",
+      "unit": "Unit",
+      "rate": "Rate",
+      "po": "PO qty",
+      "verified": "Verified",
+      "billed": "Billed",
+      "payable": "Payable",
+      "notOnPo": "Verified, not on PO",
+      "disputed": "Disputed"
+    },
+    "cap": {
+      "capRefused": "This bill is more than the accepted work allows",
+      "linesRequired": "This purchase has no issued BoQ lines to bill against",
+      "nothingPayable": "{{code}}: nothing payable — {{verified}} verified, {{po}} on the PO, {{billed}} already billed"
+    },
+    "bill": {
+      "clamped": "{{code}} limited to {{max}}, the most still payable",
+      "loading": "Loading the BoQ lines…",
+      "title": "Bill these BoQ lines (up to what is still payable)",
+      "payable": "payable {{max}} at {{rate}}",
+      "amountFromLines": "Amount from payable lines"
+    },
+    "variations": {
+      "title": "Cost variations",
+      "loadError": "Could not load cost variations.",
+      "empty": "No cost variations requested",
+      "request": "Request variation",
+      "preWorkAction": "Pre-work",
+      "postWorkAction": "Post-work",
+      "newTitle": "Request PO variation",
+      "newSubtitle": "{{item}} · {{unit}} · PO rate {{rate}}",
+      "details": "Variation details",
+      "quantity": "Additional quantity ({{unit}})",
+      "quantityError": "Enter a quantity above 0 with at most 3 decimal places.",
+      "maxError": "The quantity cannot exceed the {{max}} verified amount not yet on the PO.",
+      "preWorkHelper": "Before work is completed, request the additional quantity needed.",
+      "postWorkHelper": "Maximum verified amount not yet on PO: {{max}} {{unit}}",
+      "amount": "Variation amount",
+      "reason": "Reason",
+      "reasonRequired": "Give a reason for the variation.",
+      "routeLegend": "Approval route",
+      "routeLoading": "Loading the approval route…",
+      "routeUnavailable": "The approval route could not be loaded.",
+      "noRoute": "No approval route is configured for this request.",
+      "seniorRoute": "Needs a senior approver",
+      "decidedBy": "Decided by {{names}}",
+      "projectApprovers": "project approvers",
+      "done": "Done",
+      "status": { "Requested": "Requested", "Approved": "Approved", "Revised": "Revised", "Rejected": "Rejected", "Disputed": "Disputed" },
+      "postWork": "Post-work",
+      "preWork": "Pre-work",
+      "approve": "Approve",
+      "reject": "Reject",
+      "issueRevision": "Issue revision",
+      "approved": "Variation approved",
+      "rejected": "Variation rejected",
+      "revised": "PO revision issued",
+      "reviseNotSentHeadline": "Not sent: the ERP revision route is not available yet",
+      "reviseNotSentDetail": "The approved variation remains in PMO. No purchase order revision was issued.",
+      "chooseWorkOrder": "Choose a work order",
+      "notPassed": "Not passed on",
+      "linkLabel": "Client work order",
+      "notPassedReason": "Reason not passed on",
+      "notPassedRequired": "Give a reason this variation was not passed on.",
+      "saveLink": "Save link",
+      "linked": "Variation link saved",
+      "linkedReadOnly": "Linked to a client work order",
+      "notPassedReadOnly": "Not passed on: {{reason}}",
+      "workOrdersLoading": "Loading project work orders…",
+      "workOrdersLoadError": "Project work orders could not be loaded.",
+      "workOrderHeading": "Cost variations",
+      "workOrderLoadError": "Could not load cost variations.",
+      "workOrderEmpty": "No linked cost variations",
+      "approveTitle": "Approve this variation?",
+      "rejectTitle": "Reject this variation?",
+      "approveBody": "Approval increases the purchase commitment by this amount.",
+      "rejectBody": "This variation will be rejected or disputed and will not increase the PO.",
+      "reviseTitle": "Issue a new PO revision?",
+      "reviseBody": "This applies the approved quantity change to the purchase order."
+    }
+  },
+  "procurementBulk": {
+    "approveN": "Approve {{count}}",
+    "clear": "Clear",
+    "confirmDescription": "Each purchase is approved separately. If one cannot be approved, the others can still be completed.",
+    "confirmMore": "{{count}} more selected",
+    "confirmTitleMany": "Approve {{count}} purchase requests?",
+    "confirmTitleOne": "Approve 1 purchase request?",
+    "groupLabel": "Bulk approve purchases",
+    "rowSelect": "Select {{title}}",
+    "scopeAll": "All {{count}} purchase requests in this queue can be approved.",
+    "scopeOne": "The 1 purchase request in this queue can be approved.",
+    "scopeSome": "{{eligible}} of {{total}} purchase requests in this queue can be approved.",
+    "select": "Select purchases",
+    "selectAll": "Select all purchase requests",
+    "selectedCount": "{{count}} selected",
+    "toast": {
+      "allOk": {
+        "detail": "{{count}} approved",
+        "headline": "Purchases approved"
+      },
+      "failureRows": "Could not approve: {{titles}}{{more}}",
+      "more": " and {{count}} more",
+      "noneOk": {
+        "detail": "{{count}} failed. {{rows}}",
+        "headline": "Couldn't approve purchases"
+      },
+      "partial": {
+        "detail": "{{ok}} approved, {{failed}} failed. {{rows}}",
+        "headline": "Partially approved"
+      }
+    }
   }
 }

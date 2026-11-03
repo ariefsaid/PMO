@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
+import { externalDomainOwnershipKey } from '@/src/hooks/approvalsQueryKeys';
 import { repositories } from '@/src/lib/repositories';
 import {
   Button,
@@ -13,7 +14,9 @@ import {
 import { useEntityForm } from '@/src/components/ui/useEntityForm';
 import { domainLabel } from './integrationLabels';
 import { EXPENSES_EMPLOYABLE } from '@/src/lib/adapterSeam/erpnext/expenseEnablement';
-import { COMPANY_DEFAULTS, getErpSetupIncompleteness, requiredBudgetCategories } from './erpSetupIncompleteness';
+import { COMPANY_DEFAULTS, getErpSetupIncompleteness, missingAccountCategories, requiredBudgetCategories } from './erpSetupIncompleteness';
+import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
+import { ErpSendStates } from './ErpSendStates';
 import { ProjectMatchReview } from './ProjectMatchReview';
 import { ConnectProposalReview } from './ConnectProposalReview';
 
@@ -50,7 +53,7 @@ export function ErpSetupChecklist(
   const refresh = async () => {
     await setup.refetch();
     void qc.invalidateQueries({
-      queryKey: ['external-domain-ownership', orgId],
+      queryKey: externalDomainOwnershipKey(orgId),
     });
     void qc.invalidateQueries({
       queryKey: ['integrations', 'bindings', orgId],
@@ -219,6 +222,13 @@ export function ErpSetupChecklist(
                       },
                     )}
                   </p>
+                  {((missing) => missing.length > 0 && (
+                    <p className='mt-1 break-words text-muted-foreground'>
+                      {t('administration:integrations.send.accountantTask', 'Ask your accountant to add a direct-cost account for: {{categories}}', {
+                        categories: missing.map((category) => budgetCategoryLabel(category, t)).join(', '),
+                      })}
+                    </p>
+                  ))(missingAccountCategories(setup.data))}
                 </div>
                 <Button variant='outline' size='sm' onClick={onRefreshCompany}>
                   {t(
@@ -277,6 +287,7 @@ export function ErpSetupChecklist(
                   {t('uxs08.budgetAction', 'Review budget account setup')}
                 </a>
               </li>
+              <ErpSendStates enabled={Boolean(orgId)} />
               <li id='erp-setup-employee-links' hidden={!incomplete?.employees} className='grid gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center'>
                 <div>
                   <p className='font-medium'>

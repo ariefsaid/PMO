@@ -4,9 +4,9 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
-import { formatCurrencyAuto } from '@/src/lib/format';
+import { formatCurrency } from '@/src/lib/format';
 // The DOM matchers collapse NBSP to a space; Intl emits NBSP between code and digits.
-const money = (v: number, c: string) => formatCurrencyAuto(v, c).replace(/\u00a0/g, ' ');
+const money = (v: number, c: string) => formatCurrency(v, c).replace(/\u00a0/g, ' ');
 
 const mockNavigate = vi.fn();
 vi.mock('react-router', async (importOriginal) => {
@@ -17,12 +17,16 @@ const h = vi.hoisted(() => ({
   listSpy: vi.fn(),
   list: { data: { rows: [] as unknown[], truncated: false }, isPending: false, isError: false, refetch: vi.fn() },
   aging: { data: { rows: [] as unknown[], truncated: false }, isPending: false, isError: false, refetch: vi.fn() },
+  totals: { data: {} as Record<string, unknown>, isPending: false, isError: false, refetch: vi.fn() },
+  own: { data: { rows: [] as unknown[], truncated: false } as unknown, isPending: false, isError: false, refetch: vi.fn() },
   create: { mutateAsync: vi.fn(), isPending: false },
   capture: { capture: vi.fn(), cleanupUnlinkedAttachment: vi.fn(), recovery: null as null | Record<string, unknown>, progress: null as number | null },
 }));
 vi.mock('@/src/hooks/useExpenseClaims', () => ({
   useExpenseClaims: (filters: unknown) => { h.listSpy(filters); return h.list; },
   useExpenseAdvanceAging: () => h.aging,
+  useExpenseAdvanceAgingTotals: () => h.totals,
+  useOwnExpenseAdvances: () => h.own,
   useExpenseClaimMutations: () => ({ create: h.create }),
 }));
 vi.mock('@/src/hooks/useExpenseCapture', async () => {

@@ -31,7 +31,7 @@ vi.mock('@/src/hooks/useExpenseClaims', () => ({
   useExpenseClaimLines: () => ({ data: [], isPending: false, isError: false }),
   useExpenseClaimRoute: () => ({ data: h.route }),
   useExpenseAdvanceOutstanding: () => ({ data: h.outstanding, isPending: h.outstandingState === 'loading', isError: h.outstandingState === 'error' }),
-  useExpenseAdvanceAging: () => ({ data: { rows: h.agingRows, truncated: false } }),
+  useOwnExpenseAdvances: () => ({ data: { rows: h.agingRows, truncated: false }, isPending: false, isError: false, refetch: vi.fn() }),
   useExpenseClaimMutations: () => h.m,
 }));
 vi.mock('@/src/hooks/useExpenseReceipts', () => ({

@@ -19,9 +19,9 @@ import { Icon } from '@/src/components/ui/icons';
 import { useFocusTrap } from '@/src/hooks/useFocusTrap';
 import { useAssistantPanel } from '@/src/hooks/useAssistantPanel';
 import { useAgentAttachments } from '@/src/hooks/useAgentAttachments';
-import { listAgentThreads } from '@/src/lib/db/agentThreads';
 import type { AgentThreadListItem } from '@/src/lib/db/agentThreads';
-import { rateAgentEvent } from '@/src/lib/db/agentEvents';
+import type { DownvoteReason } from '@/src/lib/db/agentEvents';
+import { repositories } from '@/src/lib/repositories';
 import type { AgentRunStatus } from '@/src/lib/agent/runtime/port';
 import { Transcript } from './Transcript';
 import { Composer } from './Composer';
@@ -236,7 +236,7 @@ export const AssistantPanel: React.FC = () => {
       if (next) {
         setThreadsLoading(true);
         setThreadsError(false);
-        void listAgentThreads()
+        void repositories.agentRun.listThreads()
           .then((rows) => setThreads(rows))
           .catch(() => setThreadsError(true))
           .finally(() => setThreadsLoading(false));
@@ -286,11 +286,11 @@ export const AssistantPanel: React.FC = () => {
   // force-rerender; it moved into the hook so the SAME tick can also poll the server).
 
   const handleRate = useCallback(
-    (eventId: string, rating: 'up' | 'down', reason?: Parameters<typeof rateAgentEvent>[2]) => {
+    (eventId: string, rating: 'up' | 'down', reason?: DownvoteReason) => {
       // Fire-and-forget, same as before #534: a denied/not-found rating is not worth a toast
       // over a thumbs-up/down click, but the rejection must be caught explicitly now that
-      // rateAgentEvent throws on a silent RLS no-op instead of resolving.
-      rateAgentEvent(eventId, rating, reason).catch(() => {});
+      // rateEvent throws on a silent RLS no-op instead of resolving.
+      repositories.agentRun.rateEvent(eventId, rating, reason).catch(() => {});
     },
     [],
   );
@@ -359,11 +359,14 @@ export const AssistantPanel: React.FC = () => {
       // Make the background inert on mobile (the panel is modal)
       const main = document.getElementById('main');
       const railPersistent = document.querySelector('.rail-persistent');
+      const header = document.querySelector('.shell-header') || document.querySelector('header');
       if (main) main.setAttribute('inert', '');
       if (railPersistent) railPersistent.setAttribute('inert', '');
+      if (header) header.setAttribute('inert', '');
       return () => {
         if (main) main.removeAttribute('inert');
         if (railPersistent) railPersistent.removeAttribute('inert');
+        if (header) header.removeAttribute('inert');
       };
     }
   }, [open, isDesktop]);
@@ -373,7 +376,7 @@ export const AssistantPanel: React.FC = () => {
     // Block send while running, awaiting an approval decision (A3), or out of credits
     // (FR-AUC-016) — the Composer's disabled prop already hard-blocks the UI, this guard
     // is defense-in-depth against a programmatic/Enter-key send bypassing the disabled DOM.
-    if (!composerValue.trim() || phase === 'running' || phase === 'needs-approval' || phase === 'out-of-credits') return;
+    if (attachments.isUploading || !composerValue.trim() || phase === 'running' || phase === 'needs-approval' || phase === 'out-of-credits') return;
     const text = composerValue;
     const attachmentIds = pendingAttachmentIds;
     setComposerValue('');
@@ -382,7 +385,7 @@ export const AssistantPanel: React.FC = () => {
       attachmentIds,
       threadId: attachments.threadId ?? undefined,
     });
-  }, [attachments.threadId, composerValue, pendingAttachmentIds, phase, send]);
+  }, [attachments.isUploading, attachments.threadId, composerValue, pendingAttachmentIds, phase, send]);
 
   const handleStop = useCallback(() => {
     void stop();
@@ -698,6 +701,7 @@ export const AssistantPanel: React.FC = () => {
           needsApproval={phase === 'needs-approval'}
           disabled={phase === 'out-of-credits'}
           onAttachFile={handleAttachFile}
+          uploading={attachments.isUploading}
           onAttachmentError={attachments.reportError}
         />
       </section>

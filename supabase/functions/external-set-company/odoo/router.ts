@@ -5,6 +5,8 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { activate, listCompanies } from './activate.ts';
+import { linkProject, listProjects, setAnalyticPlan, unlinkProject } from './projectLinks.ts';
+import { employDomain, proposeConfig, saveDefaults } from './purchasing.ts';
 import { recheck } from './recheck.ts';
 import { refresh, resetKind } from './sweepVerbs.ts';
 
@@ -22,8 +24,16 @@ const adminOrOperator = (c: OdooCtx) => c.role === 'Admin' || c.operator;
 const adminOrFinance = (c: OdooCtx) => c.role === 'Admin' || c.role === 'Finance';
 const GATES: Record<string, (c: OdooCtx) => boolean> = {
   'list-companies': adminOrOperator, activate: adminOrOperator, recheck: adminOrOperator, refresh: adminOrFinance, 'reset-kind': adminOrOperator,
+  // The actor-checked RPCs decide who may link or un-link (the Admin, an Operator, the project's own PM); the plan is an Admin's choice.
+  'list-projects': () => true, 'link-project': () => true, 'unlink-project': () => true, 'set-analytic-plan': adminOrOperator,
+  // The employ RPC decides again (Admin of the org or an Operator, 0505); the defaults are Admin/Finance (the setter checks standing).
+  'employ-domain': adminOrOperator, 'propose-config': (c) => adminOrFinance(c) || c.operator, 'save-defaults': (c) => adminOrFinance(c) || c.operator,
 };
-const VERBS: Record<string, (c: OdooCtx) => Promise<Response>> = { 'list-companies': listCompanies, activate, recheck, refresh, 'reset-kind': resetKind };
+const VERBS: Record<string, (c: OdooCtx) => Promise<Response>> = {
+  'list-companies': listCompanies, activate, recheck, refresh, 'reset-kind': resetKind,
+  'list-projects': listProjects, 'link-project': linkProject, 'unlink-project': unlinkProject, 'set-analytic-plan': setAnalyticPlan,
+  'employ-domain': employDomain, 'propose-config': proposeConfig, 'save-defaults': saveDefaults,
+};
 
 export function odooError(c: OdooCtx, message: string, code: string, status: number): Response {
   return c.respond({ error: code, message }, status);

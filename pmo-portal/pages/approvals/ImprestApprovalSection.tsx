@@ -6,7 +6,7 @@ import { useAuth } from '@/src/auth/useAuth';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useImprestAwaiting } from '@/src/hooks/useImprest';
 import { availablePlanActions, availableReplenishmentActions } from '@/src/lib/imprest/imprestRules';
-import { formatCurrencyAuto } from '@/src/lib/format';
+import { formatCurrency } from '@/src/lib/format';
 
 /** "Site cash awaiting you" on /approvals (FR-IMP-073): Submitted plans the viewer may decide and replenishments they may
  *  approve or pay. Decisions happen on the float page. Out-of-plan claims already appear in the expense section.
@@ -20,12 +20,12 @@ export const ImprestApprovalSection: React.FC = () => {
     const plans = (data?.plans ?? [])
       .filter((p) => p.float && availablePlanActions({ userId, realRole, custodianId: p.float.custodian_id, plan: p }).includes('approvePlan'))
       .map((p) => ({ key: `plan:${p.id}`, floatId: p.float_id, label: t('imprest:approvals.plan', 'Plan {{month}}', { month: p.month.slice(0, 7) }),
-        project: p.float?.project?.name ?? '—', amount: formatCurrencyAuto(Number(p.total), p.float?.currency ?? ''), kind: t('imprest:approvals.planKind', 'Site cash plan') }));
+        project: p.float?.project?.name ?? '—', amount: formatCurrency(Number(p.total), p.float?.currency ?? ''), kind: t('imprest:approvals.planKind', 'Site cash plan') }));
     const reps = (data?.replenishments ?? [])
       .filter((r) => r.float && availableReplenishmentActions({ userId, realRole, custodianId: r.float.custodian_id, rep: r })
         .some((a) => a === 'approveReplenishment' || a === 'payReplenishment'))
       .map((r) => ({ key: `rep:${r.id}`, floatId: r.float_id, label: r.number,
-        project: r.float?.project?.name ?? '—', amount: formatCurrencyAuto(Number(r.amount), r.float?.currency ?? ''),
+        project: r.float?.project?.name ?? '—', amount: formatCurrency(Number(r.amount), r.float?.currency ?? ''),
         kind: r.status === 'Approved' ? t('imprest:approvals.toPay', 'Replenishment to pay') : t('imprest:approvals.toApprove', 'Replenishment to approve') }));
     return [...plans, ...reps];
   }, [data, userId, realRole, t]);

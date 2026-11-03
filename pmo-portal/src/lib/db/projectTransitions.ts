@@ -32,8 +32,11 @@ export interface TransitionProjectOpts {
 
 // ---------------------------------------------------------------------------
 // Transition map — single TS source, mirrors the SQL literal inside
-// transition_project() (AC-1000, FR-PR-001/003/012)
+// transition_project() (FR-PR-001/003/012; the map's owning acceptance proof
+// is pgTAP — supabase/tests/project_transition_map.test.sql, AC-1000).
 // Note: status literals are EXACT enum spellings, including 'Won, Pending KoM' with comma.
+// The map is the DRAG/drop + inline-menu affordance seam (PipelineLens, DraggableSalesBoard);
+// the RPC remains the only enforcement authority.
 // ---------------------------------------------------------------------------
 
 export const LEGAL_PROJECT_TRANSITIONS: Record<string, string[]> = {
@@ -76,18 +79,6 @@ export const ON_HAND_STATUSES: readonly string[] = [
 export const LOST_STATUSES: readonly string[] = ['Loss Tender', 'Declined'];
 
 export const INTERNAL_STATUSES: readonly string[] = ['Internal Project'];
-
-/**
- * Returns true when (from → to) is in the legal transition map (AC-1000, FR-PR-001/003).
- * Pure function; mirrors the map literal in transition_project().
- * Returns false when from === to (no-op), from is not in the map, or to is not in the allowed list.
- */
-export function isLegalProjectTransition(from: ProjectStatus, to: ProjectStatus): boolean {
-  if (from === to) return false;
-  const allowed = LEGAL_PROJECT_TRANSITIONS[from as string];
-  if (!allowed) return false;
-  return allowed.includes(to as string);
-}
 
 /**
  * Returns the OD-SP-1 group for a given project status (AC-1001, FR-PR-012).

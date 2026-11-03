@@ -93,6 +93,13 @@ describe('erpnext/feedKinds — sweepKindsForOrg (the sweep poll scope, #656)', 
     for (const { kind, doctype } of kinds) expect(doctype).toBe(DOCTYPE_REGISTRY[kind].doctype);
   });
 
+  it('an org that owns every current domain can poll each registry doctype exactly once', () => {
+    const ownedDomains = [...new Set(Object.values(KIND_DOMAIN))];
+    const actual = sweepKindsForOrg(ownedDomains);
+    const registeredKinds = Object.keys(DOCTYPE_REGISTRY) as Array<keyof typeof DOCTYPE_REGISTRY>;
+    expect(actual).toEqual(registeredKinds.map((kind) => ({ kind, doctype: DOCTYPE_REGISTRY[kind].doctype })));
+  });
+
   it('unions multiple owned domains and ignores unknown ones', () => {
     const kinds = sweepKindsForOrg(['timesheets', 'not-a-domain']).map((k) => k.kind).sort();
     expect(kinds).toEqual(['employee', 'timesheet']);
