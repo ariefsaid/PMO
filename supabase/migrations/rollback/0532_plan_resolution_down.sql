@@ -80,7 +80,9 @@ create policy org_features_write on public.org_features for all
   using (public.is_operator() and public.is_active_member())
   with check (public.is_operator() and public.is_active_member());
 
+-- The 0532 forward revoke of API-role TRUNCATE on this table is kept instead of restoring the
+-- pre-0532 grant: TRUNCATE is not row-level-scoped, so it stays revoked for API roles. Needs no
+-- undo (rollback hygiene, #1734 item 4; detail held privately per the public-repo rule).
 grant insert, update, delete, truncate on public.org_features to service_role;
-grant truncate on public.org_features to anon, authenticated;
 
 notify pgrst, 'reload schema';
