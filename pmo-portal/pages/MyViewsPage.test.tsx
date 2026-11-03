@@ -28,7 +28,8 @@ const {
   };
 });
 
-vi.mock('@/src/lib/features', () => ({
+vi.mock('@/src/lib/features', async (importOriginal) => ({
+  ...await importOriginal<typeof import('@/src/lib/features')>(),
   isFeatureEnabled: (key: string) => mockIsFeatureEnabled(key),
   FEATURES: {},
 }));
