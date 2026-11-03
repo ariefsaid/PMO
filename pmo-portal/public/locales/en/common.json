@@ -1,5 +1,8 @@
 {
   "ui": {
+    "listPage": {
+      "showingOf": "Showing {{count}} of {{total}}"
+    },
     "listState": {
       "loading": "Loading…",
       "retry": "Retry"

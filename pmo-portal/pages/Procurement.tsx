@@ -441,7 +441,13 @@ const ProcurementPage: React.FC = () => {
 
   return (
     // L6: the All tab carries the total, so the title has no second count.
-    <ListPage title={title} description={description} primaryAction={primaryAction}>
+    <ListPage
+      title={title}
+      count={ready ? (tab === 'orphans' ? orphanRows.length : filtered.length) : undefined}
+      total={ready ? (tab === 'orphans' ? orphanRows.length : tabRows.length) : undefined}
+      description={description}
+      primaryAction={primaryAction}
+    >
       <div className="space-y-4 pb-20 sm:pb-0">
         <Tabs
           items={tabs.map(({ key, label, count, money }) => ({ value: key, label, count, detail: money || undefined }))}

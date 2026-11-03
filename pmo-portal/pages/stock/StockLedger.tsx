@@ -105,6 +105,7 @@ const StockLedger: React.FC<{ projectId?: string; embedded?: boolean }> = ({ pro
   return (
     <ListPage
       title={t('ledger.title')}
+      count={ledger.data ? rows.length : undefined}
       description={t('ledger.description')}
       filters={
         <div className="flex flex-wrap items-end gap-3">
