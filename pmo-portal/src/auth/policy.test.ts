@@ -592,6 +592,23 @@ describe('can() — manage a held ERP push (MED-2; UX only — release_outbox_ho
   });
 });
 
+describe('can() — resolve a held Odoo payment (AC-OPP-082; UX only — resolve_held_outbox_command (0508) is the authority)', () => {
+  it('AC-OPP-082 Admin and Finance may resolve, on their real role', () => {
+    expect(can('resolve', 'odooHeldCommand', { realRole: 'Admin' })).toBe(true);
+    expect(can('resolve', 'odooHeldCommand', { realRole: 'Finance' })).toBe(true);
+  });
+
+  it('AC-OPP-082 every other role and a null role is denied', () => {
+    for (const realRole of ['Executive', 'Project Manager', 'Engineer', null] as Array<Role | null>) {
+      expect(can('resolve', 'odooHeldCommand', { realRole })).toBe(false);
+    }
+  });
+
+  it('AC-OPP-082 an impersonating Admin is view-only', () => {
+    expect(can('resolve', 'odooHeldCommand', { realRole: 'Admin', record: { viewOnly: true } })).toBe(false);
+  });
+});
+
 describe('can() — confirm_employee_link (P3b OQ-TSP-10(C); UX only — confirm_erp_employee_link (0111/0141) is the enforcement authority)', () => {
   it('AC-TSP-092(ux): Admin may confirm a proposed Employee link', () => {
     expect(can('confirm_employee_link', 'employeeLink', { realRole: 'Admin' })).toBe(true);

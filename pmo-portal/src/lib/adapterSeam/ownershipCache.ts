@@ -60,6 +60,11 @@ export function clearOwnershipCache(): void {
   notifyOwnershipCacheListeners();
 }
 
+/** The ERP tier that owns a domain once the cache is loaded, else null (cold cache, or PMO owns it). Lets a form name the tier it writes to. */
+export function domainTier(domain: string): string | null {
+  return cache?.[domain] ?? null;
+}
+
 /**
  * The generalized per-domain write route (ADR-0056 generalized, FR-ENA-005). Fail-closed: a
  * `null`/never-loaded cache always routes `'pmo'` for ANY domain. Once loaded, delegates to the

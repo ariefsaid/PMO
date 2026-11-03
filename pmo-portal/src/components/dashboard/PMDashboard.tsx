@@ -249,7 +249,7 @@ export const PMDashboard: React.FC = () => {
       )}
 
       {primaryLoading ? (
-        <ListState variant="loading" />
+        <ListState variant="loading" shape="cards" rows={6} />
       ) : primaryError ? (
         <ListState
           variant="error"

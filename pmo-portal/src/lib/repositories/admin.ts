@@ -35,6 +35,7 @@ import {
   getOrgCreditBalance,
   grantOrgCredits,
 } from '@/src/lib/db/orgFeatures';
+import { getOwnOrgPlan } from '@/src/lib/db/orgPlan';
 import {
   getOrgTaxDefault,
   getOrgDefaultCurrency,
@@ -104,6 +105,9 @@ export const orgFeatureRepository: OrgFeatureRepository = {
   setPlanFeature: (args) => wrap(() => setPlanFeature(args)),
   setPlanLimits: (args) => wrap(() => setPlanLimits(args)),
   setFeedbackSurveys: (enabled) => wrap(() => setFeedbackSurveys(enabled)),
+  // Plans S4 (FR-PLN-016) / S3: the member-scoped plan projection. `null` (not deployed / no session)
+  // is a valid answer — analytics and the Admin page degrade, nothing throws.
+  currentPlan: () => wrap(() => getOwnOrgPlan()),
 };
 
 /**

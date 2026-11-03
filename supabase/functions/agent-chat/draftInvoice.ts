@@ -12,6 +12,7 @@ import type { AgentAction, DeputyContext } from '../../../pmo-portal/src/lib/age
 import { AGENT_REVENUE_WRITE_ROLES } from '../../../pmo-portal/src/auth/agentRoles.ts';
 import { salesInvoiceCreateFields } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/salesInvoiceCommand.ts';
 import { DRAFT_INVOICE_SCHEMA } from './schema.ts';
+import { isKeyEnabled, writeRefusal } from './featureSwitches.ts';
 import { formatMoney, isMoney, resolveNumberLocale } from './agentFormat.ts';
 import {
   asFunctions, asLoose, asRpc, readOne, readRows, toLikeTerm, UUID_RE, withTimeout,
@@ -168,15 +169,16 @@ type Gate = { ok: true; path: 'erp' | 'native' } | { ok: false; error: PrepareRe
 /**
  * DD-AIN-3 (amended by #1595): Finance/Admin only; Revenue on. ERPNext owning revenue → the ERP path (adapter-dispatch);
  * no external system owning it → the native path (create_native_sales_invoice); any other owner → refused.
+ *
+ * The Revenue check reads the caller org's RESOLVED switches (S4, FR-PLN-005: one resolver, never the raw
+ * `org_features` row): an org with no `revenue` override row is on, and a global off wins. This is a read-side
+ * gate, so an unresolved snapshot is not "off"; the write itself is refused separately by `runDraftInvoice`.
  */
 async function gate(sb: LooseClient, ctx: DeputyContext): Promise<Gate> {
   const no = (error: string): Gate => ({ ok: false, error: { error } });
   if (!ctx.role || !AGENT_REVENUE_WRITE_ROLES.includes(ctx.role)) return no('Only Finance or Admin can raise an invoice.');
-  const [feature, owned] = await Promise.all([
-    readOne<{ enabled: boolean }>(sb.from('org_features').select('enabled').eq('feature_key', 'revenue').maybeSingle()),
-    readRows<{ external_tier: string }>(sb.from('external_domain_ownership').select('external_tier').eq('domain', 'revenue')),
-  ]);
-  if (feature?.enabled !== true) return no('Invoicing is not turned on for this organisation.');
+  const owned = await readRows<{ external_tier: string }>(sb.from('external_domain_ownership').select('external_tier').eq('domain', 'revenue'));
+  if (!isKeyEnabled('revenue', ctx.featureSwitches)) return no('Invoicing is not turned on for this organisation.');
   if (owned.some((r) => r.external_tier === 'erpnext')) return { ok: true, path: 'erp' };
   if (owned.length > 0) return no('Invoices for this organisation are raised in the connected system, not through the assistant.');
   return { ok: true, path: 'native' };
@@ -522,6 +524,11 @@ async function runNativeDraft(p: DraftInvoicePrepared, ctx: DeputyContext): Prom
 export async function runDraftInvoice(input: unknown, ctx: DeputyContext): Promise<unknown> {
   const v = validatePreparedDraft(input);
   if (v.ok === false) return { error: v.error };
+  // S4 (FR-PLN-006): the write checks its own switch key at execution and NEVER fails open. The approval
+  // can arrive after a resolver failure, and this route leaves the database (adapter-dispatch), so an off
+  // key or an unverifiable plan refuses before either route dispatches anything.
+  const refusal = writeRefusal('sales_invoices', ctx.featureSwitches);
+  if (refusal) return refusal;
   const p = v.value;
   if (p.path === 'native') return runNativeDraft(p, ctx);
   const fns = asFunctions(ctx.supabase);

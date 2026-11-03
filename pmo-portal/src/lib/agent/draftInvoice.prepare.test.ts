@@ -19,10 +19,15 @@ describe('prepareDraftInvoice — gate (#787)', () => {
     expect(calls).toHaveLength(0);
     expect(invoke).not.toHaveBeenCalled();
   });
-  it('Revenue off → refused', async () => {
-    const { client } = fakeSupabase(world({ org_features: () => ({ enabled: false }) }), oneItem);
-    expect(await prepareDraftInvoice({ workOrder: 'x' }, ctx('Finance', client), newId))
+  it('AC-PLN-006 Revenue off (resolved) → refused; an unresolved snapshot is not "off" for the read-side gate', async () => {
+    const { client, calls } = fakeSupabase(world(), oneItem);
+    expect(await prepareDraftInvoice({ workOrder: 'x' }, ctx('Finance', client, { revenue: false }), newId))
       .toEqual({ ok: false, error: { error: 'Invoicing is not turned on for this organisation.' } });
+    // No revenue override row exists for this org — the resolver says revenue is on, so the proposal is
+    // built (the old raw-row read treated an absent row as off).
+    expect(calls.some((c) => c.table === 'org_features')).toBe(false);
+    const on = await prepareDraftInvoice({ workOrder: 'WO-20261001-001' }, ctx('Finance', client), newId);
+    expect(on.ok).toBe(true);
   });
   it('AC-AIN-NAT-003 an ERPNext org stays on the ERP path, and ownership is read once', async () => {
     const { client, calls } = fakeSupabase(world(), oneItem);
@@ -56,8 +61,8 @@ describe('prepareDraftInvoice — no ERP owns revenue (#1595)', () => {
     expect(calls.some((c) => c.table === 'external_refs')).toBe(false); // no ERPNext customer link needed
   });
   it('AC-AIN-NAT-001 Revenue off or a non-Finance/Admin role is still refused', async () => {
-    const off = fakeSupabase(world({ external_domain_ownership: () => [], org_features: () => ({ enabled: false }) }), oneItem);
-    expect(await prepareDraftInvoice({ workOrder: 'x' }, ctx('Finance', off.client), newId))
+    const off = fakeSupabase(noErp(), oneItem);
+    expect(await prepareDraftInvoice({ workOrder: 'x' }, ctx('Finance', off.client, { revenue: false }), newId))
       .toEqual({ ok: false, error: { error: 'Invoicing is not turned on for this organisation.' } });
     const pm = fakeSupabase(noErp(), oneItem);
     expect(await prepareDraftInvoice({ workOrder: 'x' }, ctx('Project Manager', pm.client), newId))

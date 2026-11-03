@@ -108,7 +108,7 @@ const ExpenseClaims: React.FC = () => {
       }
     >
       <AdvanceAgingCard />
-      {isPending && <ListState variant="loading" rows={6} />}
+      {isPending && <ListState variant="loading" shape="table" columns={6} rows={6} />}
       {!isPending && (isError || !data) && (
         <ListState
           variant="error"

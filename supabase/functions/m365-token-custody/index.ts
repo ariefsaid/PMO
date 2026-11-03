@@ -31,11 +31,11 @@ import {
   handleIssueMicrosoftDocument,
   handleRefreshReferences,
 } from "./documentVerification.ts";
-import { handleEnsureRecordFolder } from "./recordFolders.ts";
+import { handleEnsureRecordFolder, parseEnsureRequest } from "./recordFolders.ts";
 import { handleLinkExistingRecordFolders } from "./recordFolderBackfill.ts";
 import { handlePreviewDocument } from "./documentPreview.ts";
 import { authorizeUploadCaller, handleUploadRecordFile, readUploadForm, UPLOAD_BODY_LIMIT } from "./recordFileUpload.ts";
-import { corsHeaders } from "./auth.ts";
+import { corsHeaders, resolveOrgOrResult } from "./auth.ts";
 import type {
   GraphProxyRequest,
   HandlerDeps,
@@ -165,6 +165,8 @@ async function routeRequest(req: Request, scope?: RequestDeadline): Promise<Resp
 
   // Multipart POST: the one file-upload action (ADR-0095). Authenticated above, BEFORE the body is read.
   if ((req.headers.get("content-type") ?? "").startsWith("multipart/form-data")) {
+    const featureOff = await requireM365Feature(authed);
+    if (featureOff) return toResponse(featureOff, env.allowedOrigin);
     scope?.limit(30_000); // mutation-witness:upload-request-deadline
     let uploaded: HandlerResult;
     try {
@@ -209,6 +211,11 @@ async function routeRequest(req: Request, scope?: RequestDeadline): Promise<Resp
       },
       env.allowedOrigin,
     );
+  }
+
+  if (requiresM365Feature(body.action, body)) {
+    const featureOff = await requireM365Feature(authed);
+    if (featureOff) return toResponse(featureOff, env.allowedOrigin);
   }
 
   if (body?.action === "ensure_record_folder") scope?.limit(12_000); // mutation-witness:folder-request-deadline
@@ -296,6 +303,39 @@ async function routeRequest(req: Request, scope?: RequestDeadline): Promise<Resp
   }
 
   return toResponse(result, env.allowedOrigin);
+}
+
+const M365_FEATURE_ACTIONS = new Set([
+  "initiate_connect",
+  "initiate_org_approval",
+  "issue_document",
+  "refresh_references",
+  "ensure_record_folder",
+  "link_existing_record_folders",
+]);
+
+function requiresM365Feature(action: unknown, body: unknown): boolean {
+  if (typeof action !== "string" || !M365_FEATURE_ACTIONS.has(action)) return false;
+  // Keep malformed folder requests on their existing cheap typed-400 path, before authz RPCs.
+  if (action === "ensure_record_folder") return parseEnsureRequest(body) !== null;
+  return true;
+}
+
+/** New M365 setup and write actions stop before touching Microsoft or PMO state when switched off. */
+async function requireM365Feature(deps: HandlerDeps): Promise<HandlerResult | null> {
+  const org = await resolveOrgOrResult(deps);
+  if (typeof org !== "string") return org;
+  const { data, error } = await deps.serviceClient.rpc("service_feature_enabled", {
+    p_org_id: org,
+    p_key: "m365_integration",
+  });
+  if (error) {
+    return { status: 500, body: { error: "INTERNAL_ERROR", message: "could not resolve plan switch" } };
+  }
+  if (data !== true) {
+    return { status: 409, body: { error: "feature_off", message: "M365 integration is not enabled for this organization" } };
+  }
+  return null;
 }
 
 if (import.meta.main) serveWithErrorReporting("m365-token-custody", handler);

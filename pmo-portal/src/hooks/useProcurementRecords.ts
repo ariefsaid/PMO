@@ -88,6 +88,8 @@ export interface CreatePaymentInput {
   status: string | null;
   date: string | null;
   amount: number | null;
+  /** #1505 P8: the Odoo payment journal chosen on the form (omitted = the organisation default). */
+  journalId?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -169,8 +171,10 @@ export function useProcurementRecordMutations(procurementId: string) {
   });
 
   const createPaymentMut = useMutation<PaymentRow, ProcurementError, CreatePaymentInput>({
-    mutationFn: ({ invoiceId, referenceNumber, status, date, amount, intent }) =>
-      repositories.procurement.createPayment(procurementId, invoiceId, referenceNumber, status, date, amount, intent),
+    mutationFn: ({ invoiceId, referenceNumber, status, date, amount, intent, journalId }) =>
+      journalId
+        ? repositories.procurement.createPayment(procurementId, invoiceId, referenceNumber, status, date, amount, intent, journalId)
+        : repositories.procurement.createPayment(procurementId, invoiceId, referenceNumber, status, date, amount, intent),
     ...handlers(true),
   });
 

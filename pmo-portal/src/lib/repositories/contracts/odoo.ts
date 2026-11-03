@@ -13,9 +13,11 @@ export interface MasterRecord {
 }
 
 export type DirectoryKind = 'product' | 'uom' | 'warehouse' | 'location' | 'account' | 'tax' | 'analytic_account';
+/** Every kind the mirror holds; the pickers also read payment journals, which have no directory page. */
+export type MirrorKind = DirectoryKind | 'journal';
 
 export interface ListMasterInput {
-  kind: DirectoryKind;
+  kind: MirrorKind;
   search?: string;
   page: number;
   pageSize: number;
@@ -35,9 +37,26 @@ export interface OdooConnectionRead {
   config: Record<string, unknown>;
 }
 
+export type PurchaseCommandKind = 'purchase-order' | 'goods-receipt' | 'purchase-invoice' | 'payment';
+
+/** One command PMO sent (or tried to send) to Odoo for a purchase case that Odoo has not settled yet (FR-OPP-071). */
+export interface PurchaseCommand {
+  id: string;
+  kind: PurchaseCommandKind;
+  state: string;
+  lastError: string | null;
+  updatedAt: string;
+  /** Who dispatched it: a held payment cannot be resolved by this person (FR-OPP-063). */
+  actorUserId: string | null;
+}
+
 export interface OdooRepository {
   listMasterRecords(input: ListMasterInput): Promise<{ rows: MasterRecord[]; total: number }>;
-  masterSummary(kind: DirectoryKind): Promise<{ inactive: number; tombstoned: number; asOf: string | null }>;
+  masterSummary(kind: MirrorKind): Promise<{ inactive: number; tombstoned: number; asOf: string | null }>;
   getConnection(): Promise<OdooConnectionRead>;
+  /** Unsettled Odoo commands of one case (RLS: own org). `now` is injectable for the day a failed one stops being news. */
+  listPurchaseCommands(procurementId: string, now?: Date): Promise<PurchaseCommand[]>;
+  /** FR-OPP-063: Admin or Finance, never the dispatcher (the database decides). `paymentNumber` is the number Odoo shows for the payment. */
+  resolveHeldPayment(input: { outboxId: string; resolution: 'adopt' | 'absent'; paymentNumber?: string; reason?: string }): Promise<void>;
   setup<T>(setupAction: string, input?: Record<string, unknown>): Promise<T>;
 }

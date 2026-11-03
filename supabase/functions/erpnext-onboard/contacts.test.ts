@@ -44,6 +44,9 @@ function fixture() {
     const u = new URL(String(input));
     calls.push(u.pathname);
     let data: unknown = [];
+    if (u.pathname === "/rest/v1/rpc/service_feature_enabled") {
+      return new Response("true", { status: 200, headers: { "content-type": "application/json" } });
+    }
     if (u.pathname.startsWith("/rest/v1/")) {
       const table = u.pathname.split("/").at(-1)!;
       let q = db.client.from(table).select("*");

@@ -15,9 +15,9 @@
  * - Audit asserted on success only
  */
 
-import { describe, it, beforeAll, afterAll } from '@std/testing/bdd';
-import { assertEquals, assertRejects, assert } from '@std/assert';
-import { handleSetCompanyRequest, setTestJwks, testSupabaseOptions } from './index.ts';
+import { describe, it, afterAll } from '@std/testing/bdd';
+import { assertEquals, assert } from '@std/assert';
+import { handleSetCompanyRequest, setTestJwks } from './index.ts';
 import {
   createJwtAuthority,
   installEdgeEnv,
@@ -31,6 +31,7 @@ import {
   createTestJwksResolver,
   erp,
   type FetchCall,
+  type MockRoute,
 } from '../_shared/testing/edgeTestKit.ts';
 
 // One stable authority + env per test module (see TEST-ARCH.md _jwks memoization nuance)
@@ -47,6 +48,13 @@ const auth = await createJwtAuthority(env.SUPABASE_URL);
 setTestJwks(createTestJwksResolver(auth));
 
 afterAll(() => { env.restore(); Deno.resolveDns = originalResolveDns; });
+
+function withFeatureEnabled<T>(routes: MockRoute[], run: (ctx: { calls: FetchCall[] }) => Promise<T>): Promise<T> {
+  return withFetchMock([
+    supabaseRpc('service_feature_enabled', () => jsonResponse(true)),
+    ...routes,
+  ], run);
+}
 
 /** The org's ERPNext domain ownership (#656 — the probe scope) + every probed doctype readable. The
  *  probe paths are `/api/resource/<DocType>` (one segment), so the Company lookup never matches here. */
@@ -97,7 +105,7 @@ async function authed(body: unknown, sub = 'user-1') {
 
 describe('external-set-company — ERPNext branch', () => {
   it('Admin OK — sets config.company', async () => {
-    await withFetchMock(
+    await withFeatureEnabled(
       [
         supabaseSelect('profiles', () =>
           jsonResponse({ org_id: 'org-1', role: 'Admin' }, {
@@ -152,7 +160,7 @@ describe('external-set-company — ERPNext branch', () => {
   });
 
   it('Operator OK', async () => {
-    await withFetchMock(
+    await withFeatureEnabled(
       [
         supabaseSelect('profiles', () =>
           jsonResponse({ org_id: 'org-1', role: 'Engineer' }, {
@@ -199,7 +207,7 @@ describe('external-set-company — ERPNext branch', () => {
   });
 
   it('Engineer 403', async () => {
-    await withFetchMock(
+    await withFeatureEnabled(
       [
         supabaseSelect('profiles', () =>
           jsonResponse({ org_id: 'org-1', role: 'Engineer' }, {
@@ -222,7 +230,7 @@ describe('external-set-company — ERPNext branch', () => {
   });
 
   it('missing binding 404', async () => {
-    await withFetchMock(
+    await withFeatureEnabled(
       [
         supabaseSelect('profiles', () =>
           jsonResponse({ org_id: 'org-1', role: 'Admin' }, {
@@ -249,7 +257,7 @@ describe('external-set-company — ERPNext branch', () => {
   });
 
   it('inactive binding 422', async () => {
-    await withFetchMock(
+    await withFeatureEnabled(
       [
         supabaseSelect('profiles', () =>
           jsonResponse({ org_id: 'org-1', role: 'Admin' }, {
@@ -276,7 +284,7 @@ describe('external-set-company — ERPNext branch', () => {
   });
 
   it('Vault secret missing 422', async () => {
-    await withFetchMock(
+    await withFeatureEnabled(
       [
         supabaseSelect('profiles', () =>
           jsonResponse({ org_id: 'org-1', role: 'Admin' }, {
@@ -305,7 +313,7 @@ describe('external-set-company — ERPNext branch', () => {
   });
 
   it('company not found in ERP 404', async () => {
-    await withFetchMock(
+    await withFeatureEnabled(
       [
         supabaseSelect('profiles', () =>
           jsonResponse({ org_id: 'org-1', role: 'Admin' }, {
@@ -336,7 +344,7 @@ describe('external-set-company — ERPNext branch', () => {
   });
 
   it('ERP network/non-404 failure → 502', async () => {
-    await withFetchMock(
+    await withFeatureEnabled(
       [
         supabaseSelect('profiles', () =>
           jsonResponse({ org_id: 'org-1', role: 'Admin' }, {
@@ -367,7 +375,7 @@ describe('external-set-company — ERPNext branch', () => {
   });
 
   it('invalid companyId 400', async () => {
-    await withFetchMock(
+    await withFeatureEnabled(
       [
         supabaseSelect('profiles', () =>
           jsonResponse({ org_id: 'org-1', role: 'Admin' }, {
@@ -396,7 +404,7 @@ describe('external-set-company — ERPNext branch', () => {
   });
 
   it('no PATCH on 4xx/5xx preconditions', async () => {
-    await withFetchMock(
+    await withFeatureEnabled(
       [
         supabaseSelect('profiles', () =>
           jsonResponse({ org_id: 'org-1', role: 'Engineer' }, {
@@ -420,7 +428,7 @@ describe('external-set-company — ERPNext branch', () => {
 
   it('audit event logged on success', async () => {
     let auditCalled = false;
-    await withFetchMock(
+    await withFeatureEnabled(
       [
         supabaseSelect('profiles', () =>
           jsonResponse({ org_id: 'org-1', role: 'Admin' }, {
@@ -472,7 +480,7 @@ describe('external-set-company — ERPNext branch', () => {
   });
 
   it('AC-EAC-104 an empty site_url refuses Company selection before any external call', async () => {
-    await withFetchMock(
+    await withFeatureEnabled(
       [
         supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Admin' },
           { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
@@ -495,7 +503,7 @@ describe('external-set-company — ERPNext branch', () => {
   });
 
   it('AC-EAC-106 an unsupported ERPNext major refuses with a legible 422 and writes nothing', async () => {
-    await withFetchMock(
+    await withFeatureEnabled(
       [
         supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Admin' },
           { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
@@ -530,7 +538,7 @@ describe('external-set-company — ERPNext branch', () => {
   });
 
   it('AC-EAC-105 the handshake runs before any write — Company-validate → version-handshake → activation RPC, and no direct PATCH', async () => {
-    await withFetchMock(
+    await withFeatureEnabled(
       [
         supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Admin' },
           { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
@@ -565,7 +573,7 @@ describe('external-set-company — ERPNext branch', () => {
   });
 
   it('AC-EAC-107 a v15 handshake activates with the Company account defaults', async () => {
-    await withFetchMock(
+    await withFeatureEnabled(
       [
         supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Admin' },
           { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
@@ -607,7 +615,7 @@ describe('external-set-company — ERPNext branch', () => {
   });
 
   it('AC-EAC-108 a v16 handshake activates (DD-OPS-10 — RIS targets v16.33); the v16.33 Company shape (four defaults present, default_bank_account ABSENT) maps bank to null', async () => {
-    await withFetchMock(
+    await withFeatureEnabled(
       [
         supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Admin' },
           { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
@@ -659,7 +667,7 @@ describe('external-set-company — ERPNext branch', () => {
   // ── #656: the integration user's read permissions are probed before activated_at is stamped ──────
 
   it('AC-ENA-074 (#656) a user missing reads is refused with a 422 naming EVERY unreadable doctype, and nothing is activated', async () => {
-    await withFetchMock(
+    await withFeatureEnabled(
       [
         ...throughHandshake(),
         ...activationProbeRoutes(['timesheets'], (doctype) =>
@@ -685,7 +693,7 @@ describe('external-set-company — ERPNext branch', () => {
   });
 
   it('AC-ENA-074 (#656) an unreachable site during the probe is a 502 (not a permission claim), and nothing is activated', async () => {
-    await withFetchMock(
+    await withFeatureEnabled(
       [
         ...throughHandshake(),
         ...activationProbeRoutes(['procurement'], (doctype) =>
@@ -703,7 +711,7 @@ describe('external-set-company — ERPNext branch', () => {
   });
 
   it('#656 an unreadable domain ownership fails closed with a 500, and nothing is activated', async () => {
-    await withFetchMock(
+    await withFeatureEnabled(
       [
         ...throughHandshake(),
         supabaseSelect('external_domain_ownership', () => jsonResponse({ message: 'boom', code: 'XX000' }, { status: 500 })),
@@ -718,7 +726,7 @@ describe('external-set-company — ERPNext branch', () => {
   });
 
   it('#656 a fully readable user activates; the probe covers the owned domains + ledgers only, after the handshake, never following redirects', async () => {
-    await withFetchMock(
+    await withFeatureEnabled(
       [
         ...throughHandshake(),
         ...activationProbeRoutes(['procurement']),
@@ -747,7 +755,7 @@ describe('external-set-company — ERPNext branch', () => {
   // ── #656 review: caller standing + the probe's total time budget ─────────────────────────────────
 
   it('AC-ENA-074 (#656) a disabled or banned Admin with a valid token is refused 403 and nothing is read or activated', async () => {
-    await withFetchMock(
+    await withFeatureEnabled(
       [
         supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Admin' },
           { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
@@ -772,7 +780,7 @@ describe('external-set-company — ERPNext branch', () => {
   });
 
   it('#656 an unresolvable caller standing fails closed with a 403', async () => {
-    await withFetchMock(
+    await withFeatureEnabled(
       [
         supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Admin' },
           { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
@@ -797,7 +805,7 @@ describe('external-set-company — ERPNext branch', () => {
       const t = setTimeout(() => resolve(jsonResponse({ data: [] })), 3_000);
       call.signal.addEventListener('abort', () => { clearTimeout(t); reject(call.signal.reason); });
     });
-    await withFetchMock(
+    await withFeatureEnabled(
       [
         ...throughHandshake(),
         supabaseSelect('external_domain_ownership', () => jsonResponse([{ domain: 'procurement' }])),
@@ -862,7 +870,7 @@ describe('external-set-company — host guard (#751)', () => {
   ];
   for (const [where, records] of resolvingPrivate) {
     it(`#751 refuses a binding whose site name resolves to ${where} — nothing is activated`, async () => {
-      await withFetchMock(routes(), async ({ calls }) =>
+      await withFeatureEnabled(routes(), async ({ calls }) =>
         withDns(records, async () => {
           const res = await handleSetCompanyRequest(await authed({ tier: 'erpnext', companyId: 'ACME' }));
           assertEquals(res.status, 422);
@@ -878,7 +886,7 @@ describe('external-set-company — host guard (#751)', () => {
   }
 
   it('#751 accepts a binding whose site name resolves PUBLIC (sslip.io-style real ERP) — full activation', async () => {
-    await withFetchMock(
+    await withFeatureEnabled(
       [
         ...routes(),
         erp(HOST, '/api/resource/Company/ACME', () => jsonResponse({ data: { name: 'ACME' } })),
@@ -900,7 +908,7 @@ describe('external-set-company — host guard (#751)', () => {
   });
 
   it('#751 fails closed when the resolver errors — nothing is activated', async () => {
-    await withFetchMock(routes(), async ({ calls }) =>
+    await withFeatureEnabled(routes(), async ({ calls }) =>
       withDns('failure', async () => {
         const res = await handleSetCompanyRequest(await authed({ tier: 'erpnext', companyId: 'ACME' }));
         assertEquals(res.status, 422);

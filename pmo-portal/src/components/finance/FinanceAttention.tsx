@@ -87,7 +87,7 @@ export const FinanceAttention: React.FC<FinanceAttentionProps> = ({
     }] : []),
   ];
 
-  if (isPending) return <ListState variant="loading" rows={4} testId="finance-attention-loading" />;
+  if (isPending) return <ListState variant="loading" shape="cards" rows={4} testId="finance-attention-loading" />;
   if (isError) return <ListState variant="error" title={t('finance:area.attentionLoadError', "Couldn't load finance activity")} onRetry={onRetry} />;
 
   const overdueCount = position.overdue.length;
