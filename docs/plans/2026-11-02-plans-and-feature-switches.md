@@ -337,6 +337,151 @@ S2 changes none.
 
 **Goal / AC:** Enforce seats and active projects and grant monthly credits exactly once (AC-PLN-009–011). First inventory the invite lifecycle, project status taxonomy, credit ledger and scheduler, including the transaction boundary around external invite issuance. Count active members plus pending invites inside the invite RPC under the organisation row lock, without a reservation table; prove concurrency and failure cleanup. Detailed plan owns the limits migration (this outline's `0534_plan_limits.sql` renumbers — 0534 is S2's enforcement migration, see the S2 detailed plan), rollback, monthly idempotency and per-contract behavior. Decide credit rollover and the invite transaction boundary before implementation; do not claim a SQL lock covers an external request after its transaction ends.
 
+## S5 — detailed plan (written 2026-11-03 against dev @ dd3a63816)
+
+Migration **`0535_plan_limits.sql`** only (+ `rollback/0535_plan_limits_down.sql`). 0534 belongs to S2; dev's
+migration head is 0565, so 0535 lands out of numeric order and must depend on nothing numbered above 0535
+(it depends only on 0001/0044/0047/0066/0067/0076/0179/0461/0530–0533) and must be safe whether it applies
+before or after 0536–0565.
+
+### Decisions taken (recorded before implementation)
+
+1. **Seats = `profiles` rows with `status = 'active'` in the org.** There is no separate invite state today:
+   the edge function writes the profile row at issuance (`supabase/functions/admin-invite-user/index.ts:157`),
+   and the compensating delete at `:171` removes the auth user if that write fails. So "active members +
+   pending invites" is one count over one table — no reservation table, no third representation to drift.
+2. **The lock covers the row write, never the email.** The external `inviteUserByEmail` call (`…/index.ts:145`)
+   happens after the authorising transaction ends, so the plan's warning is honoured: the organisation row
+   lock is held by the profiles `BEFORE INSERT` trigger for the duration of the *insert* transaction, and the
+   trigger — not the pre-check — is the authority. `assert_seat_available` exists to refuse *before* an email
+   is sent (the common case); the trigger catches the two-invites-in-flight case, and the existing saga
+   (`…/index.ts:165-178`) already empties the partially-created auth user when the insert is refused.
+3. **Active project = `archived_at is null and status not in ('Loss Tender','Declined')`.** `Close Out` counts:
+   it is in the on-hand set (`supabase/migrations/0044_dashboard_status_helpers.sql:52`) and still carries
+   delivery/billing work; lost/declined are outcomes, not projects. Reactivation is any `UPDATE` that crosses
+   into the counted set — `transition_project`'s revival edges (`supabase/migrations/0461_lost_reason.sql:193/201/209`,
+   e.g. `Close Out → Ongoing Project`, `Loss Tender → Negotiation`) and clearing `archived_at`.
+4. **Monthly AI allowance is additive, no expiry** (plan Decision 4): the pool is a balance over an append-only
+   ledger (`supabase/migrations/0067_org_credit_balance.sql:13`), so a month's grant is a new `credits` row and
+   nothing is revoked. Unspent credits roll over by construction.
+5. **One message credit = $0.005** (plan Decision 4, spec D10). Single-sourced as the immutable helper
+   `plan_ai_credit_unit_usd()`; the grant amount is `ai_monthly_messages × 0.005` in the existing monetary unit
+   that `org_credit_balance` already compares against `agent_usage.cost`.
+6. **NULL allowance = no grant** (plan Decision 3): Enterprise has `(NULL,NULL,NULL)` (`0531:14-16`), so the
+   tick writes nothing for it rather than inventing an amount.
+7. **Typed refusals get their own SQLSTATEs**, `PL001` (seats) and `PL002` (active projects), following the
+   `BW001` precedent (`supabase/migrations/0262_billing_by_work_order.sql:15`). P0001 is already carried by
+   hundreds of unrelated refusals, so a per-limit code is what lets the FE localise these two without
+   hijacking every state-machine error; `boundReasonCode` already passes any 5-character SQLSTATE through
+   (`pmo-portal/src/lib/classifyMutationError.ts:168`). The raised **message** names the limit and the plan
+   (FR-PLN-010/011); the FE renders reviewed en/id copy keyed on the code.
+8. **`credits.granted_by` becomes nullable.** A scheduled system grant has no human granter, and `owner_id`
+   took the same treatment for the org pool (`supabase/migrations/0066_credits_org_pool.sql:16`). The
+   alternative — stamping a real person's profile — would forge attribution on a money row.
+
+### S5.0 — Inventory (shipped code; exact paths)
+
+**Invite lifecycle (the seat path).**
+- `pmo-portal/pages/AdminUsers.tsx:196-219` — `submitInvite`, classifies the edge fn's code through
+  `classifyMutationError` overrides (`:210-215`); this is the FE seam that gains the seat copy.
+- `pmo-portal/src/hooks/useUsers.ts:62-65` — `invite` mutation → repository.
+- `pmo-portal/src/lib/db/adminUsers.ts:88-112` — invokes `admin-invite-user`, reads `{error}` off the response
+  into an `AppError(code)`.
+- `pmo-portal/src/lib/invite/inviteHandler.ts:70-116` — `authorizeInvite`: role/authority (`:80-93`), target-org
+  pinning (`:98-105`), duplicate email (`:109-113`). The seat check joins this sequence after the duplicate
+  check (a duplicate is the better message) and before returning.
+- `supabase/functions/admin-invite-user/index.ts:145` (issue invite), `:157` (insert profile), `:165-178`
+  (compensating delete). The insert is the transaction the seat trigger guards; a `PL001` there now maps to
+  the typed `SEAT_LIMIT_REACHED` instead of the generic `PROFILE_CREATE_FAILED`.
+- Authority templates to mirror, not reinvent: `supabase/migrations/0065_admin_set_user_status.sql:109-122`
+  (`org_has_member_email` = Operator OR Admin-in-own-org, `is_active_member()` at entry) and
+  `supabase/migrations/0179_profiles_hierarchy_write.sql:166-167` (`profiles_admin_insert`).
+- Concurrency precedent to mirror: `supabase/migrations/0170_automation_cap_race.sql:40-59` (definer trigger,
+  per-row `FOR UPDATE` before the count, explicit authority guard against a cross-org oracle) and its two-session
+  proof `supabase/tests/0163_automation_cap_race.test.sql:100-125`.
+
+**Project create / reactivate (the active-project path).**
+- `pmo-portal/pages/ProjectNew.tsx:46-60` — `create.mutateAsync` + `onError` → `classifyMutationError`.
+- `pmo-portal/src/hooks/useProjects.ts:131-141` — `create` mutation → repository.
+- `pmo-portal/src/lib/db/projects.ts:257-305` — `createProject` (direct PostgREST INSERT; `throwWrite` at `:78-80`
+  preserves `code`), `:257` is the row the cap trigger guards. There is **no** create RPC.
+- `supabase/migrations/0173_project_create_origination_sod.sql:183-185` — the existing `BEFORE INSERT`
+  trigger on `projects`; 0535 adds a second, independent one.
+- Reactivation: `supabase/migrations/0461_lost_reason.sql:25-229` (`transition_project`, the only status writer —
+  `status` is withheld from the UPDATE grant, `0014:25`), plus `archived_at` clearing.
+- Status taxonomy: `supabase/migrations/0001_init_schema.sql:13-17` (+ `Declined`, 0235) and the on-hand/pipeline
+  sets at `0044:52/60`.
+
+**Credit ledger and scheduler.**
+- `supabase/migrations/0047_agent_usage_credits.sql:31-39` — `credits` (append-only; `amount > 0`, `granted_by`
+  not null), `:49-52` force RLS, no UPDATE/DELETE policy for anyone.
+- `supabase/migrations/0066_credits_org_pool.sql:16` — `owner_id` nullable (org pool).
+- `supabase/migrations/0067_org_credit_balance.sql:13-20` — balance = `sum(credits.amount) − sum(agent_usage.cost)`.
+- `supabase/migrations/0077_reserve_credits.sql`, `0491_reserve_credits_stale_hold.sql`,
+  `supabase/functions/_shared/creditRateGuard.ts:63` (`RESERVE_UNIT`) — the spend side that reads the same pool.
+  Nothing here changes.
+- Scheduler pattern: `supabase/migrations/0094_clickup_sweep_cron.sql:51-71` (definer helper + `cron.schedule`,
+  idempotent by job name); `0564/0565` show the same shape for jobs that run unattended.
+- Audit: `supabase/migrations/0076_audit_events.sql:80-91` (`log_audit`, `actor_id` NULL for a system event).
+
+### Tasks (TDD; each 2–5 min; `supabase` commands from the repo root)
+
+1. **Red pgTAP — seats** (`supabase/tests/plans_limits.test.sql`): fixtures org A `starter` (10/25/300) with 10
+   active + 1 disabled profile, org B `enterprise`, org C `growth`; `throws_ok(... 'PL001')` for
+   `assert_seat_available(A)` as A's Admin, for an 11th `profiles` INSERT, and for re-enabling a disabled
+   profile while full; `lives_ok` for B (NULL = unlimited) and for A after disabling a member; `throws_ok 42501`
+   for a non-Admin member calling the RPC and for a caller naming another org; the 10 existing members are
+   still `is_active_member()`. Concurrency: a `dblink` session holds `organizations` FOR UPDATE, the RPC and a
+   profiles INSERT both time out at `55P03`. Run `scripts/with-db-lock.sh bash -c 'supabase db reset &&
+   supabase test db supabase/tests/plans_limits.test.sql'`; grep `not ok` / `Parse errors`.
+2. **Red pgTAP — projects** (same file): org A at its 25-project cap → `insert` and a `transition_project`
+   reactivation both `PL002`; archived / lost / declined rows do not consume a slot; org B unlimited;
+   a downgrade (`operator_set_org_plan` enterprise → starter with 30 active projects) leaves all 30 rows and
+   still refuses a new one (D12).
+3. **Red pgTAP — monthly grant** (`supabase/tests/plans_monthly_credits.test.sql`): A starter (300 → 1.50),
+   C growth (1500 → 7.50), D pro (5000 → 25.00), B enterprise (NULL → nothing); tick twice for one period →
+   exactly one grant per org; a second period is additive; ledger rows carry plan, allowance, amount and the
+   `credits.id`; a NULL allowance writes no ledger row; `cron.job` has the one schedule row.
+4. **Implement 0535** — `org_plan_limits`, `org_seat_usage`, `assert_seat_available`, the profiles seat trigger,
+   the projects cap trigger, `plan_ai_credit_unit_usd`, `org_ai_allowance_grants`, `plan_monthly_ai_allowance_tick`
+   and the `cron.schedule`; explicit revokes/grants (no anon, `assert_seat_available` to authenticated only),
+   RLS forced on the new ledger, `granted_by` nullable. Re-run 1–3: green. Rollback file in the same commit.
+5. **Red Vitest** — `pmo-portal/src/lib/invite/__tests__/inviteHandler.test.ts`: `assert_seat_available` is called
+   with the resolved target org; a `PL001`/`seat_limit_reached` error becomes `InviteError('SEAT_LIMIT_REACHED')`
+   (409); other RPC failures stay generic. `pmo-portal/pages/AdminUsers.test.tsx`: a seat refusal renders the
+   en copy. `pmo-portal/pages/__tests__/ProjectNew.test.tsx`: a `PL002` refusal renders the project-limit copy
+   and no navigation. `pmo-portal/src/lib/classifyMutationError.test.ts`: both codes are retained reason codes.
+6. **Implement the FE** — `inviteHandler.ts` seat check + code, `admin-invite-user` maps the trigger refusal,
+   `AdminUsers.tsx` + `ProjectNew.tsx` override maps, `KNOWN_REASON_CODES`, and the en/id catalogue entries.
+   Re-run 5: green.
+7. **Mutation checks** — remove the seat lock (count before lock) → the concurrency assertion goes red; drop the
+   ledger unique key → the idempotency assertion goes red; make `org_plan_limits` ignore a NULL limit → the
+   unlimited assertions go red; invert the project "counted" predicate → the reactivation assertion goes red.
+   Restore each and re-run green.
+8. **Gates** — `npm run check:guards`, `typecheck`, eslint on touched files, touched vitest files, the touched
+   pgTAP set plus 0137/0178 under one DB-lock hold, `node scripts/check-isolation-denominator.mjs` (+
+   `--self-test`) for the new table/definers, `npm run check:i18n` for the en/id pairs.
+
+### AC → owning test
+
+| AC | Owning proof |
+|---|---|
+| AC-PLN-009 (at seat limit → refused, existing members unaffected) | `supabase/tests/plans_limits.test.sql` |
+| AC-PLN-010 (at project cap → create refused; reactivate refused) | `supabase/tests/plans_limits.test.sql` |
+| AC-PLN-011 (monthly reset grants exactly the allowance once, idempotent) | `supabase/tests/plans_monthly_credits.test.sql` |
+| FR-PLN-010/011 typed refusal + FE copy | `pmo-portal/pages/AdminUsers.test.tsx`, `pmo-portal/pages/__tests__/ProjectNew.test.tsx` |
+| D12 (downgrade keeps over-limit items, blocks new) | `supabase/tests/plans_limits.test.sql` |
+
+### Open questions (defaults so no task blocks)
+
+1. **`Close Out` counts as active** (decision 3). The owner can move it out of the counted set by editing
+   `project_counts_toward_limit()`, one function, no data migration.
+2. **Seat refusal for the Operator path**: `assert_seat_available` mirrors `org_has_member_email`'s authority
+   (Operator OR Admin-in-org), so an Operator inviting into a full org is refused identically. An override
+   ("Operator may exceed") would be a product decision, not implemented.
+3. **Rollover** is additive-forever for now; an expiry policy would be a separate slice (it would need a
+   negative-amount mechanism the append-only ledger does not have today).
+
 ## S6 — completeness and one journey: outline
 
 **Goal / AC:** CI catches unregistered modules and one cross-org journey verifies the full switch (AC-PLN-014, 015). First inventory route/nav/entity sources and assistant registrations so the gate discovers additions independently of its own catalogue. Detailed plan must include failing fixtures for each missing requirement, core modules, plan rows, read tools and draft-confirm write tools. Add one isolated Playwright journey: Operator disables stock in A; A loses nav, URL access and assistant tool while B remains enabled. Read `docs/e2e-parallel-conventions.md` before writing it.
