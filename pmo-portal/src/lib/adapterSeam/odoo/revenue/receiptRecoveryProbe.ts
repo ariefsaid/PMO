@@ -44,7 +44,7 @@ export async function probeReceiptByAnchor(call: OdooCall, key: string, composit
   });
   if (candidates.length > 20) throw ambiguous();
   const candidateIds = candidates.map(({ id }) => id);
-  const anchors = candidateIds.length === 0 ? [] : await call<Array<{ res_id: number; name: string }>>('ir.model.data', 'search_read', {
+  const anchors = candidateIds.length === 0 ? [] : await call<Array<{ res_id: number; name: string }>>(RECEIPT_ANCHOR, 'search_read', {
     domain: [['module', '=', 'pmo'], ['model', '=', 'account.payment'], ['res_id', 'in', candidateIds]],
     fields: ['res_id', 'name'], limit: 21,
   });
