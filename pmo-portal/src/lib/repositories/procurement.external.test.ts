@@ -246,6 +246,18 @@ describe('task 4.8 — flipped ownership map — procurement/company record crea
     expect(dispatchSpy).toHaveBeenCalledWith('procurement', 'create', expect.objectContaining({ erp_doc_kind: 'purchase-order' }), expect.any(Object));
   });
 
+  it('AC-OPP-015 on an Odoo-owned org the order comes back with Odoo\'s total AND the entered figure; neither replaces the other', async () => {
+    setTaskOwnership([{ domain: 'procurement', externalTier: 'odoo' }]);
+    dispatchSpy.mockResolvedValue({
+      externalRecordId: '41',
+      canonical: { id: 'pmo-1', po_number: 'P00041', amount: '111.00', pmo_amount: '100.00', erp_docstatus: 1 },
+    });
+    const row = await repositories.procurement.createPurchaseOrder('proc-1', 'PO-0001', 'Draft', '2026-07-11', 100);
+    expect(row).toMatchObject({ po_number: 'P00041', amount: '111.00', pmo_amount: '100.00' });
+    expect(dispatchSpy).toHaveBeenCalledWith('procurement', 'create', expect.objectContaining({ erp_doc_kind: 'purchase-order', amount: 100 }), expect.any(Object));
+    expect(createPurchaseOrder).not.toHaveBeenCalled();
+  });
+
   it('createPayment dispatches externally with erp_doc_kind payment', async () => {
     dispatchSpy.mockResolvedValue({ externalRecordId: 'ACC-PAY-2026-00001', canonical: { id: 'pmo-1' } });
     await repositories.procurement.createPayment('proc-1', 'inv-1', 'PAY-0001', 'Draft', '2026-07-11', 100);

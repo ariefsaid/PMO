@@ -17,6 +17,8 @@ import type { PurchaseKind } from './nextStep.ts';
 const MODEL: Record<PurchaseKind, string> = { order: 'purchase.order', receipt: 'stock.picking', bill: 'account.move', payment: 'account.payment' };
 
 export interface PaymentComposite { partnerId: number; amount: string | number; createdAfter: string }
+/** An order's create-to-anchor composite: vendor, untaxed amount, line count and the window the first attempt could have created it in. */
+export interface OrderComposite { partnerId: number; amount: string | number; lineCount: number; createdAfter: string }
 export type ProbeHit = { externalRecordId: string } | null;
 
 const ambiguous = () => new AdapterError('commit-rejected', 'ambiguous-anchor');
@@ -28,6 +30,26 @@ async function byIdentifier(call: OdooCall, kind: PurchaseKind, key: string): Pr
   });
   if (rows.length > 1) throw ambiguous();
   return rows.length === 1 ? { externalRecordId: String(rows[0].res_id) } : null;
+}
+
+/**
+ * Orders: the identifier is a second write after the create, so a crash between the two leaves an order without it. The
+ * composite finds that order (vendor, untaxed amount, window; no PMO identifier of its own; our line count). Exactly one adopts;
+ * none is conclusive absence; several are doubt and throw, so the order is held and never reissued (OQ-OPP-10).
+ */
+async function byOrderComposite(call: OdooCall, composite: OrderComposite): Promise<ProbeHit> {
+  const rows = await call<Array<{ id: number; order_line: unknown }>>('purchase.order', 'search_read', {
+    domain: [['partner_id', '=', composite.partnerId], ['amount_untaxed', '=', Number(composite.amount)], ['state', '!=', 'cancel'], ['create_date', '>=', composite.createdAfter]],
+    fields: ['id', 'order_line'], limit: 21, context: { active_test: false },
+  });
+  if (rows.length === 0) return null;
+  const anchored = await call<Array<{ res_id: number }>>('ir.model.data', 'search_read', {
+    domain: [['module', '=', 'pmo'], ['model', '=', 'purchase.order'], ['res_id', 'in', rows.map((r) => r.id)]], fields: ['res_id'], limit: 21,
+  });
+  const taken = new Set(anchored.map((a) => a.res_id));
+  const survivors = rows.filter((r) => !taken.has(r.id) && Array.isArray(r.order_line) && r.order_line.length === composite.lineCount);
+  if (survivors.length > 1) throw ambiguous();
+  return survivors.length === 1 ? { externalRecordId: String(survivors[0].id) } : null;
 }
 
 const OUTBOUND = [['payment_type', '=', 'outbound'], ['partner_type', '=', 'supplier']];
@@ -52,7 +74,9 @@ async function byMemo(call: OdooCall, key: string, composite?: PaymentComposite)
 }
 
 /** Throws for a key that is not a PMO purchase key (before any call) and for an ambiguous exact anchor. */
-export async function probeOdooByAnchor(call: OdooCall, kind: PurchaseKind, key: string, composite?: PaymentComposite): Promise<ProbeHit> {
+export async function probeOdooByAnchor(call: OdooCall, kind: PurchaseKind, key: string, composite?: PaymentComposite | OrderComposite): Promise<ProbeHit> {
   anchorValue(key);
-  return kind === 'payment' ? byMemo(call, key, composite) : byIdentifier(call, kind, key);
+  if (kind === 'payment') return byMemo(call, key, composite as PaymentComposite | undefined);
+  const hit = await byIdentifier(call, kind, key);
+  return hit ?? (kind === 'order' && composite ? byOrderComposite(call, composite as OrderComposite) : null);
 }

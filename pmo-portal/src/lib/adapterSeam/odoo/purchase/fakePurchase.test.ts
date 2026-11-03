@@ -1,4 +1,4 @@
-import { expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { createFakeOdoo } from '../fakeOdoo.ts';
 it('models order, stock, bill and payment transitions, including a lost response', async () => {
   const fake = createFakeOdoo({ key: 'key' });
@@ -69,4 +69,47 @@ it('completes the full receipt when no done quantity was entered', async () => {
   expect(fake.rows('stock.picking')[0]).toMatchObject({ state: 'done' });
   expect(fake.rows('stock.move')[0]).toMatchObject({ state: 'done', quantity: 3, product_uom_qty: 3 });
   expect(fake.rows('stock.quant')[0]).toMatchObject({ product_id: 3, quantity: 3 });
+});
+
+describe('the fake purchase order (P3)', () => {
+  const rig = (options: { doubleValidation?: boolean } = {}) => {
+    const fake = createFakeOdoo({ key: 'key', ...options });
+    const call = async (model: string, method: string, body: object) => {
+      const r = await fake.fetch(`https://example.test/json/2/${model}/${method}`, { method: 'POST', headers: { Authorization: 'bearer key' }, body: JSON.stringify(body) });
+      return { status: r.status, json: await r.json() };
+    };
+    return { fake, call };
+  };
+  const line = (qty: number, price: number) => [0, 0, { product_id: 5, product_qty: qty, price_unit: price }];
+
+  it('expands order_line commands into lines, totals them, and stamps create_date', async () => {
+    const { fake, call } = rig();
+    const { json: [id] } = await call('purchase.order', 'create', { vals_list: [{ partner_id: 9, order_line: [line(2, 10), line(1, 5)] }] });
+    expect(fake.rows('purchase.order')[0]).toMatchObject({ id, state: 'draft', amount_total: 25, partner_id: 9 });
+    expect(fake.rows('purchase.order')[0].create_date).toMatch(/^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d$/);
+    expect(fake.rows('purchase.order.line')).toHaveLength(2);
+    expect(fake.rows('purchase.order.line')[0]).toMatchObject({ order_id: id, qty_received: 0, qty_invoiced: 0 });
+  });
+
+  it('edits a line in place and adds one, but refuses to remove one (as the bed does)', async () => {
+    const { fake, call } = rig();
+    await call('purchase.order', 'create', { vals_list: [{ order_line: [line(2, 10)] }] });
+    const [first] = fake.rows('purchase.order.line');
+    const order = fake.rows('purchase.order')[0];
+    await call('purchase.order', 'write', { ids: [order.id], vals: { order_line: [[1, first.id, { product_qty: 3 }], line(1, 4)] } });
+    expect(fake.rows('purchase.order')[0].amount_total).toBe(34);
+    const removed = await call('purchase.order', 'write', { ids: [order.id], vals: { order_line: [[2, first.id, 0]] } });
+    expect(removed.status).toBe(422);
+    expect(fake.rows('purchase.order.line')).toHaveLength(2);
+  });
+
+  it('waits in "to approve" under double validation until button_approve', async () => {
+    const { fake, call } = rig({ doubleValidation: true });
+    await call('purchase.order', 'create', { vals_list: [{ order_line: [line(1, 1)] }] });
+    const id = fake.rows('purchase.order')[0].id;
+    await call('purchase.order', 'button_confirm', { ids: [id] });
+    expect(fake.rows('purchase.order')[0].state).toBe('to approve');
+    await call('purchase.order', 'button_approve', { ids: [id] });
+    expect(fake.rows('purchase.order')[0].state).toBe('purchase');
+  });
 });

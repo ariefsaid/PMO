@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { bindCall } from '../client.ts';
 import { createFakeOdoo } from '../fakeOdoo.ts';
 import { anchorValue, externalIdentifier } from './anchors.ts';
-import { probeOdooByAnchor, type PaymentComposite } from './recoveryProbe.ts';
+import { probeOdooByAnchor, type OrderComposite, type PaymentComposite } from './recoveryProbe.ts';
 
 const UUID = '123e4567-e89b-12d3-a456-426614174000';
 const OTHER = '223e4567-e89b-12d3-a456-426614174000';
@@ -109,5 +109,58 @@ describe('AC-OPP-053 the payment composite probe (the memo is editable)', () => 
     const { call, payment } = bed();
     payment({ id: 90, memo: 'edited' });
     expect(await probeOdooByAnchor(call, 'payment', key)).toBeNull();
+  });
+});
+
+describe('AC-OPP-011 the order composite probe (the create-to-anchor gap, DD-OPP-4 amendment)', () => {
+  const key = `po:${UUID}`;
+  const ORDER: OrderComposite = { partnerId: 77, amount: '25.00', lineCount: 2, createdAfter: WINDOW };
+  const order = (fake: ReturnType<typeof bed>['fake'], row: Record<string, unknown>) =>
+    fake.seed('purchase.order', [{ state: 'draft', partner_id: [77, 'Vendor'], amount_untaxed: 25, order_line: [1, 2], create_date: '2026-11-03 10:05:00', ...row }]);
+
+  it('adopts the one unanchored order with our vendor, amount and line count inside the window', async () => {
+    const { call, fake } = bed();
+    order(fake, { id: 40 });
+    expect(await probeOdooByAnchor(call, 'order', key, ORDER)).toEqual({ externalRecordId: '40' });
+  });
+
+  it('the exact identifier wins over any look-alike', async () => {
+    const { call, fake, identifier } = bed();
+    order(fake, { id: 40 });
+    order(fake, { id: 41 });
+    identifier(key, 'purchase.order', 41);
+    expect(await probeOdooByAnchor(call, 'order', key, ORDER)).toEqual({ externalRecordId: '41' });
+  });
+
+  it('never adopts an order that already carries a PMO identifier (another PMO document)', async () => {
+    const { call, fake, identifier } = bed();
+    order(fake, { id: 40 });
+    identifier(`po:${OTHER}`, 'purchase.order', 40);
+    expect(await probeOdooByAnchor(call, 'order', key, ORDER)).toBeNull();
+  });
+
+  it.each([
+    ['another vendor', { partner_id: [78, 'Other'] }],
+    ['another amount', { amount_untaxed: 24 }],
+    ['another line count', { order_line: [1] }],
+    ['before the window', { create_date: '2026-11-03 09:00:00' }],
+    ['a cancelled order', { state: 'cancel' }],
+  ])('does not match %s: conclusive absence is null', async (_label, over) => {
+    const { call, fake } = bed();
+    order(fake, { id: 40, ...over });
+    expect(await probeOdooByAnchor(call, 'order', key, ORDER)).toBeNull();
+  });
+
+  it('two look-alikes are doubt: the probe throws (the order is held), it neither adopts nor reports absence', async () => {
+    const { call, fake } = bed();
+    order(fake, { id: 40 });
+    order(fake, { id: 41 });
+    await expect(probeOdooByAnchor(call, 'order', key, ORDER)).rejects.toThrow(/ambiguous/);
+  });
+
+  it('without composite inputs a missing identifier is simply null', async () => {
+    const { call, fake } = bed();
+    order(fake, { id: 40 });
+    expect(await probeOdooByAnchor(call, 'order', key)).toBeNull();
   });
 });
