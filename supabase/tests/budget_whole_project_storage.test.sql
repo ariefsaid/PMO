@@ -1,7 +1,7 @@
 -- AC-007 — the saved whole-project distribution is durable, replaceable and cloneable.
 begin;
 create extension if not exists pgtap;
-select plan(49);
+select plan(70);
 
 insert into organizations (id, name)
 values ('14730000-0000-0000-0000-000000000001', 'Whole Project Storage Org');
@@ -11,8 +11,8 @@ insert into auth.users (id, email) values
 insert into profiles (id, org_id, full_name, email, role) values
   ('14730000-0000-0000-0000-0000000000a1', '14730000-0000-0000-0000-000000000001', 'Storage PM', 'whole-storage-pm@example.com', 'Project Manager'),
   ('14730000-0000-0000-0000-0000000000a2', '14730000-0000-0000-0000-000000000001', 'Storage Finance', 'whole-storage-finance@example.com', 'Finance');
-insert into projects (id, org_id, name, status)
-values ('14731111-0000-0000-0000-000000000001', '14730000-0000-0000-0000-000000000001', 'Storage Project', 'Ongoing Project');
+insert into projects (id, org_id, name, status, start_date, end_date)
+values ('14731111-0000-0000-0000-000000000001', '14730000-0000-0000-0000-000000000001', 'Storage Project', 'Ongoing Project', '2027-01-01', '2028-12-31');
 
 create temporary table whole_project_clone (id uuid) on commit drop;
 grant all on whole_project_clone to authenticated;
@@ -346,9 +346,11 @@ select throws_ok($$select public.save_budget_distribution(
 -- (S2/Hamilton) answer is 50,000,000.00 / 25,000,000.00 / 24,999,999.99 because the first two years
 -- receive the two largest remainders; a rounded before-trunc division hands the first year a cent from
 -- the largest-remainder step as well.
+insert into projects (id, org_id, name, status, start_date, end_date)
+values ('14731111-0000-0000-0000-000000000060', '14730000-0000-0000-0000-000000000001', 'Large Value Project', 'Internal Project', '2027-01-01', '2029-12-31');
 insert into budget_versions (id, org_id, project_id, version, name, status, budget_mode)
 values ('14732222-0000-0000-0000-000000000060', '14730000-0000-0000-0000-000000000001',
-        '14731111-0000-0000-0000-000000000001', 60, 'Large Value Draft', 'Draft', 'whole_project');
+        '14731111-0000-0000-0000-000000000060', 1, 'Large Value Draft', 'Draft', 'whole_project');
 insert into budget_line_items (org_id, budget_version_id, category, description, budgeted_amount, actual_amount)
 values ('14730000-0000-0000-0000-000000000001', '14732222-0000-0000-0000-000000000060', 'Labor', 'Large total', 99999999.99, 0);
 select lives_ok($$select public.save_budget_distribution(
@@ -371,6 +373,139 @@ select throws_ok($$select public.save_budget_distribution(
   '[{"category":"Labor","fiscal_year":"FY27","ordinal":0,"amount":"50000000.01","method":"amount_by_year","is_override":false},{"category":"Labor","fiscal_year":"FY28","ordinal":1,"amount":"24999999.99","method":"amount_by_year","is_override":false},{"category":"Labor","fiscal_year":"FY29","ordinal":2,"amount":"24999999.99","method":"amount_by_year","is_override":false}]'::jsonb
 )$$, 'P0001', 'budget distribution for Labor has rows that do not follow its amount proportions (year FY27)',
   'AC-007 the vector the old rounded-quotient arithmetic produced is refused');
+
+-- By-days rows are recomputed server-side from the submitted, contiguous civil-date intersections.
+-- The project dates below intersect FY27 for 365 days and FY28 for 366 days. The exact Hamilton
+-- split of 100.00 is therefore 49.93 / 50.07; a balanced 100.00 / 0.00 vector is not equivalent.
+select lives_ok($$select public.save_budget_distribution(
+  '14732222-0000-0000-0000-000000000001', 'by_days', '{}'::jsonb,
+  '{"projectStart":"2027-01-01","projectEnd":"2028-12-31","years":[{"name":"FY27","start":"2027-01-01","end":"2027-12-31"},{"name":"FY28","start":"2028-01-01","end":"2028-12-31"}]}'::jsonb,
+  '[{"category":"Labor","fiscal_year":"FY27","ordinal":0,"amount":"49.93","method":"by_days","is_override":false},{"category":"Labor","fiscal_year":"FY28","ordinal":1,"amount":"50.07","method":"by_days","is_override":false},{"category":"Travel & accommodation","fiscal_year":"FY27","ordinal":0,"amount":"0.00","method":"by_days","is_override":false},{"category":"Travel & accommodation","fiscal_year":"FY28","ordinal":1,"amount":"0.00","method":"by_days","is_override":false}]'::jsonb
+)$$, 'AC-007 by-days inheritance uses inclusive 365/366-day weights and preserves explicit-zero rows');
+select is(
+  (select string_agg(amount::text, ',' order by ordinal) from budget_year_distributions
+    where budget_version_id = '14732222-0000-0000-0000-000000000001' and category = 'Labor'),
+  '49.93,50.07',
+  'AC-007 inherited by-days persists the exact inclusive intersection allocation'
+);
+select is(
+  (select count(*)::int from budget_year_distributions
+    where budget_version_id = '14732222-0000-0000-0000-000000000001'
+      and category = 'Travel & accommodation' and amount = 0),
+  2,
+  'AC-007 explicit zero source totals retain a row for every in-span basis year'
+);
+select throws_ok($$select public.save_budget_distribution(
+  '14732222-0000-0000-0000-000000000001', 'by_days', '{}'::jsonb,
+  '{"projectStart":"2027-01-01","projectEnd":"2028-12-31","years":[{"name":"FY27","start":"2027-01-01","end":"2027-12-31"},{"name":"FY28","start":"2028-01-01","end":"2028-12-31"}]}'::jsonb,
+  '[{"category":"Labor","fiscal_year":"FY27","ordinal":0,"amount":"100.00","method":"by_days","is_override":false},{"category":"Labor","fiscal_year":"FY28","ordinal":1,"amount":"0.00","method":"by_days","is_override":false},{"category":"Travel & accommodation","fiscal_year":"FY27","ordinal":0,"amount":"0.00","method":"by_days","is_override":false},{"category":"Travel & accommodation","fiscal_year":"FY28","ordinal":1,"amount":"0.00","method":"by_days","is_override":false}]'::jsonb
+)$$, 'P0001', 'budget distribution for Labor has rows that do not follow its by-days basis (year FY27)',
+  'AC-007 inherited by-days rejects a balanced vector that disagrees with inclusive day weights');
+select is(
+  (select string_agg(amount::text, ',' order by ordinal) from budget_year_distributions
+    where budget_version_id = '14732222-0000-0000-0000-000000000001' and category = 'Labor'),
+  '49.93,50.07',
+  'AC-007 rejected inherited by-days input preserves the previous plan'
+);
+
+-- A category-level by-days override follows the same server-computed rule as the inherited method.
+select lives_ok($$select public.save_budget_distribution(
+  '14732222-0000-0000-0000-000000000001', 'percent_by_year', '{"FY27":"50","FY28":"50"}'::jsonb,
+  '{"projectStart":"2027-01-01","projectEnd":"2028-12-31","years":[{"name":"FY27","start":"2027-01-01","end":"2027-12-31"},{"name":"FY28","start":"2028-01-01","end":"2028-12-31"}]}'::jsonb,
+  '[{"category":"Labor","fiscal_year":"FY27","ordinal":0,"amount":"49.93","method":"by_days","is_override":true},{"category":"Labor","fiscal_year":"FY28","ordinal":1,"amount":"50.07","method":"by_days","is_override":true},{"category":"Travel & accommodation","fiscal_year":"FY27","ordinal":0,"amount":"0.00","method":"percent_by_year","is_override":false},{"category":"Travel & accommodation","fiscal_year":"FY28","ordinal":1,"amount":"0.00","method":"percent_by_year","is_override":false}]'::jsonb,
+  '{"Labor":{"method":"by_days","inputs":{}}}'::jsonb
+)$$, 'AC-007 a category by-days override uses inclusive project-day weights');
+select is(
+  (select string_agg(amount::text, ',' order by ordinal) from budget_year_distributions
+    where budget_version_id = '14732222-0000-0000-0000-000000000001' and category = 'Labor'),
+  '49.93,50.07',
+  'AC-007 a category by-days override persists the exact inclusive intersection allocation'
+);
+select throws_ok($$select public.save_budget_distribution(
+  '14732222-0000-0000-0000-000000000001', 'percent_by_year', '{"FY27":"50","FY28":"50"}'::jsonb,
+  '{"projectStart":"2027-01-01","projectEnd":"2028-12-31","years":[{"name":"FY27","start":"2027-01-01","end":"2027-12-31"},{"name":"FY28","start":"2028-01-01","end":"2028-12-31"}]}'::jsonb,
+  '[{"category":"Labor","fiscal_year":"FY27","ordinal":0,"amount":"100.00","method":"by_days","is_override":true},{"category":"Labor","fiscal_year":"FY28","ordinal":1,"amount":"0.00","method":"by_days","is_override":true},{"category":"Travel & accommodation","fiscal_year":"FY27","ordinal":0,"amount":"0.00","method":"percent_by_year","is_override":false},{"category":"Travel & accommodation","fiscal_year":"FY28","ordinal":1,"amount":"0.00","method":"percent_by_year","is_override":false}]'::jsonb,
+  '{"Labor":{"method":"by_days","inputs":{}}}'::jsonb
+)$$, 'P0001', 'budget distribution for Labor has rows that do not follow its by-days basis (year FY27)',
+  'AC-007 a category by-days override rejects a balanced but misweighted vector');
+select is(
+  (select category_overrides from budget_distribution_plans where budget_version_id = '14732222-0000-0000-0000-000000000001'),
+  '{"Labor":{"method":"by_days","inputs":{}}}'::jsonb,
+  'AC-007 rejected category by-days input preserves the prior category override'
+);
+
+-- A trailing FY with zero intersection days is invalid rather than an accepted zero-weight row.
+select throws_ok($$select public.save_budget_distribution(
+  '14732222-0000-0000-0000-000000000001', 'by_days', '{}'::jsonb,
+  '{"projectStart":"2027-01-01","projectEnd":"2028-12-31","years":[{"name":"FY27","start":"2027-01-01","end":"2027-12-31"},{"name":"FY28","start":"2028-01-01","end":"2028-12-31"},{"name":"FY29","start":"2029-01-01","end":"2029-12-31"}]}'::jsonb,
+  '[{"category":"Labor","fiscal_year":"FY27","ordinal":0,"amount":"49.93","method":"by_days","is_override":false},{"category":"Labor","fiscal_year":"FY28","ordinal":1,"amount":"50.07","method":"by_days","is_override":false},{"category":"Labor","fiscal_year":"FY29","ordinal":2,"amount":"0.00","method":"by_days","is_override":false},{"category":"Travel & accommodation","fiscal_year":"FY27","ordinal":0,"amount":"0.00","method":"by_days","is_override":false},{"category":"Travel & accommodation","fiscal_year":"FY28","ordinal":1,"amount":"0.00","method":"by_days","is_override":false},{"category":"Travel & accommodation","fiscal_year":"FY29","ordinal":2,"amount":"0.00","method":"by_days","is_override":false}]'::jsonb
+)$$, 'P0001', 'budget distribution basis includes a fiscal year outside the project date span',
+  'AC-007 a zero-day trailing year cannot be added to an otherwise balanced basis');
+select is((select basis ->> 'projectEnd' from budget_distribution_plans where budget_version_id='14732222-0000-0000-0000-000000000001'),
+  '2028-12-31', 'AC-007 rejected trailing year preserves the prior stored project basis');
+select is((select string_agg(amount::text, ',' order by ordinal) from budget_year_distributions
+  where budget_version_id='14732222-0000-0000-0000-000000000001' and category='Labor'),
+  '49.93,50.07', 'AC-007 rejected trailing year preserves the prior resolved plan rows');
+
+-- The RPC binds the witness to the stored project dates, including an explicitly open end.
+select throws_ok($$select public.save_budget_distribution(
+  '14732222-0000-0000-0000-000000000001', 'percent_by_year', '{"FY27":"50","FY28":"50"}'::jsonb,
+  '{"projectStart":"2027-01-02","projectEnd":"2028-12-31","years":[{"name":"FY27","start":"2027-01-01","end":"2027-12-31"},{"name":"FY28","start":"2028-01-01","end":"2028-12-31"}]}'::jsonb,
+  '[{"category":"Labor","fiscal_year":"FY27","ordinal":0,"amount":"50.00","method":"percent_by_year","is_override":false},{"category":"Labor","fiscal_year":"FY28","ordinal":1,"amount":"50.00","method":"percent_by_year","is_override":false},{"category":"Travel & accommodation","fiscal_year":"FY27","ordinal":0,"amount":"0.00","method":"percent_by_year","is_override":false},{"category":"Travel & accommodation","fiscal_year":"FY28","ordinal":1,"amount":"0.00","method":"percent_by_year","is_override":false}]'::jsonb
+)$$, 'P0001', 'budget distribution project dates do not match the stored project dates',
+  'AC-007 a stale actual project start date is refused');
+select throws_ok($$select public.save_budget_distribution(
+  '14732222-0000-0000-0000-000000000001', 'percent_by_year', '{"FY27":"50","FY28":"50"}'::jsonb,
+  '{"projectStart":"2027-01-01","projectEnd":"2028-12-30","years":[{"name":"FY27","start":"2027-01-01","end":"2027-12-31"},{"name":"FY28","start":"2028-01-01","end":"2028-12-31"}]}'::jsonb,
+  '[{"category":"Labor","fiscal_year":"FY27","ordinal":0,"amount":"50.00","method":"percent_by_year","is_override":false},{"category":"Labor","fiscal_year":"FY28","ordinal":1,"amount":"50.00","method":"percent_by_year","is_override":false},{"category":"Travel & accommodation","fiscal_year":"FY27","ordinal":0,"amount":"0.00","method":"percent_by_year","is_override":false},{"category":"Travel & accommodation","fiscal_year":"FY28","ordinal":1,"amount":"0.00","method":"percent_by_year","is_override":false}]'::jsonb
+)$$, 'P0001', 'budget distribution project dates do not match the stored project dates',
+  'AC-007 a stale actual project end date is refused');
+select throws_ok($$select public.save_budget_distribution(
+  '14732222-0000-0000-0000-000000000001', 'by_days', '{}'::jsonb,
+  '{"projectStart":"2027-01-01","projectEnd":null,"years":[{"name":"FY27","start":"2027-01-01","end":"2027-12-31"}]}'::jsonb,
+  '[{"category":"Labor","fiscal_year":"FY27","ordinal":0,"amount":"100.00","method":"by_days","is_override":false},{"category":"Travel & accommodation","fiscal_year":"FY27","ordinal":0,"amount":"0.00","method":"by_days","is_override":false}]'::jsonb
+)$$, 'P0001', 'budget distribution project dates do not match the stored project dates',
+  'AC-007 a null submitted end cannot replace a stored project end');
+select is((select basis ->> 'projectEnd' from budget_distribution_plans where budget_version_id='14732222-0000-0000-0000-000000000001'),
+  '2028-12-31', 'AC-007 all stale-date refusals preserve the prior stored project witness');
+select is((select string_agg(amount::text, ',' order by ordinal) from budget_year_distributions
+  where budget_version_id='14732222-0000-0000-0000-000000000001' and category='Labor'),
+  '49.93,50.07', 'AC-007 all stale-date refusals preserve the prior resolved plan rows');
+
+-- Equal one-day intersections tie by fiscal-year order; leap-day intersections use civil dates.
+insert into projects (id, org_id, name, status, start_date, end_date) values
+  ('14731111-0000-0000-0000-000000000070', '14730000-0000-0000-0000-000000000001', 'Tie Project', 'Internal Project', '2027-12-31', '2028-01-01'),
+  ('14731111-0000-0000-0000-000000000071', '14730000-0000-0000-0000-000000000001', 'Leap Project', 'Internal Project', '2028-02-28', '2028-03-01'),
+  ('14731111-0000-0000-0000-000000000072', '14730000-0000-0000-0000-000000000001', 'Open Project', 'Internal Project', '2027-06-01', null);
+insert into budget_versions (id, org_id, project_id, version, name, status, budget_mode) values
+  ('14732222-0000-0000-0000-000000000070', '14730000-0000-0000-0000-000000000001', '14731111-0000-0000-0000-000000000070', 1, 'Tie Draft', 'Draft', 'whole_project'),
+  ('14732222-0000-0000-0000-000000000071', '14730000-0000-0000-0000-000000000001', '14731111-0000-0000-0000-000000000071', 1, 'Leap Draft', 'Draft', 'whole_project'),
+  ('14732222-0000-0000-0000-000000000072', '14730000-0000-0000-0000-000000000001', '14731111-0000-0000-0000-000000000072', 1, 'Open Draft', 'Draft', 'whole_project');
+insert into budget_line_items (org_id, budget_version_id, category, description, budgeted_amount, actual_amount) values
+  ('14730000-0000-0000-0000-000000000001', '14732222-0000-0000-0000-000000000070', 'Labor', 'Tied cent', 1.01, 0),
+  ('14730000-0000-0000-0000-000000000001', '14732222-0000-0000-0000-000000000071', 'Labor', 'Leap intersection', 100.01, 0),
+  ('14730000-0000-0000-0000-000000000001', '14732222-0000-0000-0000-000000000072', 'Labor', 'Open-ended default year', 100.00, 0);
+select lives_ok($$select public.save_budget_distribution(
+  '14732222-0000-0000-0000-000000000070', 'by_days', '{}'::jsonb,
+  '{"projectStart":"2027-12-31","projectEnd":"2028-01-01","years":[{"name":"FY27","start":"2027-01-01","end":"2027-12-31"},{"name":"FY28","start":"2028-01-01","end":"2028-12-31"}]}'::jsonb,
+  '[{"category":"Labor","fiscal_year":"FY27","ordinal":0,"amount":"0.51","method":"by_days","is_override":false},{"category":"Labor","fiscal_year":"FY28","ordinal":1,"amount":"0.50","method":"by_days","is_override":false}]'::jsonb
+)$$, 'AC-007 by-days one-cent ties award the earlier intersecting fiscal year');
+select lives_ok($$select public.save_budget_distribution(
+  '14732222-0000-0000-0000-000000000071', 'by_days', '{}'::jsonb,
+  '{"projectStart":"2028-02-28","projectEnd":"2028-03-01","years":[{"name":"FY27","start":"2027-03-01","end":"2028-02-29"},{"name":"FY28","start":"2028-03-01","end":"2029-02-28"}]}'::jsonb,
+  '[{"category":"Labor","fiscal_year":"FY27","ordinal":0,"amount":"66.67","method":"by_days","is_override":false},{"category":"Labor","fiscal_year":"FY28","ordinal":1,"amount":"33.34","method":"by_days","is_override":false}]'::jsonb
+)$$, 'AC-007 by-days leap-day intersections use inclusive civil-date weights');
+select lives_ok($$select public.save_budget_distribution(
+  '14732222-0000-0000-0000-000000000072', 'by_days', '{}'::jsonb,
+  '{"projectStart":"2027-06-01","projectEnd":null,"years":[{"name":"FY27","start":"2027-01-01","end":"2027-12-31"}]}'::jsonb,
+  '[{"category":"Labor","fiscal_year":"FY27","ordinal":0,"amount":"100.00","method":"by_days","is_override":false}]'::jsonb
+)$$, 'AC-007 an open-ended project uses only the fiscal year containing its actual start date');
+select throws_ok($$select public.save_budget_distribution(
+  '14732222-0000-0000-0000-000000000072', 'by_days', '{}'::jsonb,
+  '{"projectStart":"2027-06-01","projectEnd":"2027-12-31","years":[{"name":"FY27","start":"2027-01-01","end":"2027-12-31"}]}'::jsonb,
+  '[{"category":"Labor","fiscal_year":"FY27","ordinal":0,"amount":"100.00","method":"by_days","is_override":false}]'::jsonb
+)$$, 'P0001', 'budget distribution project dates do not match the stored project dates',
+  'AC-007 a supplied end date cannot replace a null stored project end');
 
 reset role;
 select * from finish();
