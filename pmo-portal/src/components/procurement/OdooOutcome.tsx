@@ -14,7 +14,7 @@ const NEXT: Partial<Record<OdooOutcomeClass, string>> = {
   pending: 'Odoo has not confirmed it yet. PMO checks again by itself; there is nothing to do.',
   held: 'PMO cannot tell whether Odoo already made it. An Admin or Finance user checks Odoo and decides.',
   'needs-attention': 'Odoo shows a different total than PMO sent. Check the bill in Odoo before paying it.',
-  refused: 'Fix the cause, then record it again.',
+  refused: 'Check what you entered, then record it again.',
 };
 
 /** `quiet`: a settled record in a dense table reads as one muted line, not a second pill (the attention classes always keep theirs). */

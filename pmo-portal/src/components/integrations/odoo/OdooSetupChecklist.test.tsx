@@ -105,6 +105,15 @@ describe('AC-OPP-081 / P8-T5 the payment journal default', () => {
     expect(h.save).toHaveBeenCalledWith({ default_payment_journal_id: '4' });
   });
 
+  it('a save Odoo or the database refuses says so instead of doing nothing', async () => {
+    h.conn.data = read({});
+    h.proposal.data = { journal: { state: 'proposed', proposed: cands[0], candidates: cands, current: null } };
+    h.save.mockRejectedValueOnce(new Error('nope'));
+    render(<OdooSetupChecklist />);
+    await userEvent.click(within(item('Payment journal')).getByRole('button', { name: 'Accept Bank BCA' }));
+    expect(await within(item('Payment journal')).findByRole('alert')).toHaveTextContent('The journal could not be saved. Try again.');
+  });
+
   it('with no bank or cash journal read it says so and offers nothing', () => {
     h.conn.data = read({});
     h.proposal.data = { journal: { state: 'none', candidates: [], current: null } };

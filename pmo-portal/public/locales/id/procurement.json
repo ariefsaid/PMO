@@ -606,7 +606,7 @@
         "held": "PMO tidak dapat memastikan apakah Odoo sudah membuatnya. Admin atau Keuangan memeriksa Odoo lalu memutuskan.",
         "attention": "Odoo menunjukkan total yang berbeda dari yang dikirim PMO. Periksa tagihan di Odoo sebelum membayarnya.",
         "approval": "Penyetuju di Odoo perlu menyetujui pesanan ini. Tidak ada yang perlu dilakukan di PMO.",
-        "refused": "Perbaiki penyebabnya, lalu catat lagi."
+        "refused": "Periksa yang Anda masukkan, lalu catat lagi."
       },
       "read": "Dibaca {{age}}",
       "sent": "Dikirim {{age}}"
@@ -626,9 +626,6 @@
       "title": "Menunggu Odoo"
     },
     "held": {
-      "title": "Pembayaran yang perlu keputusan",
-      "empty": "Tidak ada pembayaran yang menunggu keputusan.",
-      "item": "{{kind}} dikirim {{age}}",
       "adopt": "Sudah ada di Odoo",
       "absent": "Tidak ada di Odoo",
       "adoptTitle": "Tautkan pembayaran ini ke Odoo?",
@@ -645,7 +642,7 @@
     },
     "taxes": {
       "label": "Pajak",
-      "none": "Tanpa pajak",
+      "defaultHint": "Biarkan semua tidak dicentang untuk memakai pajak bawaan organisasi Anda.",
       "emptyReason": "Belum ada pajak yang dibaca dari Odoo.",
       "staleReason": "Daftar pajak terakhir dibaca {{age}}; segarkan koneksi Odoo terlebih dahulu."
     },
@@ -656,6 +653,13 @@
       "staleReason": "Daftar jurnal terakhir dibaca {{age}}; segarkan koneksi Odoo terlebih dahulu."
     },
     "booked": "Diterima di Odoo: {{qty}}",
-    "entered": "dimasukkan {{qty}}"
+    "entered": "dimasukkan {{qty}}",
+    "paymentAwaiting": "Pembayaran terkirim, menunggu Odoo",
+    "receipt": {
+      "title": "Jumlah diterima",
+      "hint": "Kosongkan untuk menerima semua yang masih terbuka. Odoo menolak jumlah di atas yang masih terbuka.",
+      "line": "{{name}} (dipesan {{qty}})",
+      "invalid": "Masukkan jumlah di atas nol dan tidak lebih dari yang dipesan untuk {{name}}."
+    }
   }
 }

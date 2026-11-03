@@ -33,6 +33,8 @@ import { useVendorTaxDefault } from '@/src/hooks/useVendorTaxDefault';
 import { useErpVendorTax, useNativeVendorTax } from '@/src/hooks/useVendorBillTax';
 import { ErpTaxAmountFields, NativeWithholdingField, TaxSuggestedFrom } from './VendorBillTaxFields';
 import { OdooJournalSelect, OdooTaxPicker } from '@/src/components/procurement/OdooDirectoryPickers';
+import { OdooReceiptQuantities } from '@/src/components/procurement/OdooReceiptQuantities';
+import { parseReceiptQuantities, type ReceiptItem, type ReceiptLine } from '@/src/lib/procurement/receiptQuantities';
 import { odooOwnsProcurement } from '@/src/lib/adapterSeam/odoo/ownership';
 import { odooActionError } from '@/src/lib/procurement/odooActionError';
 import type { ErpVendorTaxAmounts, PphType } from '@/src/lib/vendorWithholding';
@@ -274,6 +276,8 @@ export interface StagedGR {
   status: 'Partial' | 'Complete';
   receiptDate: string;
   referenceNumber: string | null;
+  /** #1505 P8: the quantities entered per line on an Odoo-owned org (absent = everything still open). */
+  receiptLines?: ReceiptLine[];
 }
 
 export interface StagedVI {
@@ -338,6 +342,8 @@ export interface RecordCaptureFormProps {
   vendorId?: string | null;
   /** #876 slice 2: the case's items total before tax — the base an ERP-bound bill's tax is pre-filled on. */
   itemsNet?: number | null;
+  /** #1505 P8: the case's lines; an Odoo-owned org enters the quantity received against them (FR-OPP-030). */
+  items?: readonly ReceiptItem[];
   /** The purchase's currency. The server records the document in it (no conversion), so the amount field names it. */
   currency?: string | null;
   /** Issued subcontract PO whose payable BoQ quantities cap this invoice. */
@@ -358,6 +364,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
   onStage,
   vendorId = null,
   itemsNet = null,
+  items = [],
   currency = null,
   subcontractPoId,
 }) => {
@@ -429,6 +436,10 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
   const odooBill = isVendorInvoice && !pmoAuthorsTax && odooProcurement;
   const [odooTaxIds, setOdooTaxIds] = useState<string[]>([]);
   const [odooJournalId, setOdooJournalId] = useState('');
+  // A receipt on an Odoo-owned org: the quantity per line replaces the typed Partial/Complete (Odoo derives the status, FR-OPP-034).
+  const odooReceipt = kind === 'goods_receipt' && odooProcurement && items.length > 0;
+  const [receiptQty, setReceiptQty] = useState<Record<string, string>>({});
+  const [receiptInvalid, setReceiptInvalid] = useState<string | undefined>(undefined);
   const choosesErpTaxTemplate = isVendorInvoice && !pmoAuthorsTax && !odooProcurement;
   const [taxTemplate, setTaxTemplate] = useState('');
   const erpTaxTemplates = usePurchaseTaxTemplates(choosesErpTaxTemplate);
@@ -481,12 +492,15 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
     if (onStage) {
       const refNum = referenceNumber.trim() || null;
       if (kind === 'goods_receipt') {
+        const parsedQty = odooReceipt ? parseReceiptQuantities(items, receiptQty) : { lines: [] as ReceiptLine[] };
+        if ('invalid' in parsedQty) { setReceiptInvalid(parsedQty.invalid); return; }
         onStage({
           kind: 'createGR',
           intent,
           status: status as 'Partial' | 'Complete',
           receiptDate: date,
           referenceNumber: refNum,
+          ...(parsedQty.lines.length ? { receiptLines: parsedQty.lines } : {}),
         });
       } else {
         // #505: refuse to stage without the tax facts. Unreachable through the UI (Save VI is
@@ -649,7 +663,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
         </div>
 
         {/* Status — never rendered for a payment: DD-VPAY-8 (the options are illegal; null is sent). */}
-        {!isPayment && (
+        {!isPayment && !odooReceipt && (
           <div className="min-w-[140px] flex-1">
             <SelectField
               id={`${formId}-status`}
@@ -666,6 +680,8 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
           </div>
         )}
       </div>
+
+      {odooReceipt && <OdooReceiptQuantities items={items} value={receiptQty} onChange={(next) => { setReceiptQty(next); setReceiptInvalid(undefined); }} invalid={receiptInvalid} />}
 
       {/* Amount — hidden for kinds without a money field (e.g. Goods Receipt) */}
       {isSubcontractInvoice && subcontractPoId && (

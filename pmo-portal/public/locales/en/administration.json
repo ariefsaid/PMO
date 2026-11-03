@@ -95,6 +95,7 @@
       "journalAccept": "Accept {{name}}",
       "journalChoose": "Choose a journal",
       "journalSave": "Save",
+      "journalFailed": "The journal could not be saved. Try again.",
       "employHint": "After this, Odoo owns vendor and client records.",
       "title": "Odoo setup",
       "done": "Done",

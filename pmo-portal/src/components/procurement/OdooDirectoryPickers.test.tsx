@@ -35,6 +35,12 @@ describe('AC-OPP-081 OdooTaxPicker', () => {
     expect(screen.getByRole('checkbox', { name: 'PPN 11%' })).not.toBeChecked();
   });
 
+  it('says what leaving every tax unticked does', () => {
+    h.records = { data: { rows: [tax('7', 'PPN 11%')], total: 1 }, isError: false }; h.summary = { data: { asOf: FRESH } };
+    render(<OdooTaxPicker value={[]} onChange={vi.fn()} />);
+    expect(screen.getByText("Leave all unticked to use your organisation's default taxes.")).toBeInTheDocument();
+  });
+
   it('picking and unpicking reports the chosen ids in order', async () => {
     h.records = { data: { rows: [tax('7', 'PPN 11%'), tax('12', 'PPh 23')], total: 2 }, isError: false }; h.summary = { data: { asOf: FRESH } };
     const onChange = vi.fn();

@@ -1023,6 +1023,16 @@ describe('Action bar covers mid-flow transitions', () => {
     await waitFor(() => expect(mockCreateInvoice).toHaveBeenCalledWith(expect.objectContaining({ taxIds: ['7'] })));
   });
 
+  it('AC-OPP-080 what Odoo has not settled shows on the case\'s first screen, not only under the documents tab', async () => {
+    setTaskOwnership([{ domain: 'procurement', externalTier: 'odoo' }]);
+    detailState.data = { ...baseProcurement, status: 'Draft', requested_by_id: 'u-other' };
+    odooPurchase.commands = [{ id: 'c1', kind: 'payment', state: 'held', lastError: null, updatedAt: new Date().toISOString(), actorUserId: 'someone-else' }];
+    try {
+      renderPage('proc-001');
+      expect(await screen.findByTestId('odoo-case-status')).toHaveTextContent('Needs a decision');
+    } finally { odooPurchase.commands = []; }
+  });
+
   it('FR-SCA-051 routes the existing supplier-invoice form through the capped subcontract RPC', async () => {
     detailState.data = {
       ...baseProcurement,
@@ -1681,8 +1691,9 @@ vi.mock('@/src/hooks/useOdoo', () => ({
   useMasterRecords: () => ({ data: { rows: [{ external_id: '7', name: 'PPN 11%', code: null, attrs: {} }], total: 1 }, isError: false }),
   useMasterSummary: () => ({ data: { asOf: new Date().toISOString() } }),
 }));
+const odooPurchase = vi.hoisted(() => ({ commands: [] as unknown[] }));
 vi.mock('@/src/hooks/useOdooPurchase', () => ({
-  useOdooPurchaseCommands: () => ({ data: [], isError: false }),
+  useOdooPurchaseCommands: () => ({ data: odooPurchase.commands, isError: false }),
   useOdooUnreachable: () => ({ unreachable: false, lastOkAt: null }),
   useResolveHeldPayment: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));

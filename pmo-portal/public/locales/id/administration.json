@@ -95,6 +95,7 @@
       "journalAccept": "Terima {{name}}",
       "journalChoose": "Pilih jurnal",
       "journalSave": "Simpan",
+      "journalFailed": "Jurnal tidak dapat disimpan. Coba lagi.",
       "employHint": "Setelah ini, Odoo memegang data vendor dan klien.",
       "title": "Penyiapan Odoo",
       "done": "Selesai",

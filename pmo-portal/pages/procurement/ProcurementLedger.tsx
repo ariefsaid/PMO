@@ -36,7 +36,6 @@ import { EfakturCell } from '@/src/components/EfakturCell';
 import { LedgerCaptureRow } from './LedgerCaptureRow';
 import { LedgerFileCell } from './LedgerFileCell';
 import { WithholdingBreakdown } from './WithholdingBreakdown';
-import { OdooCaseStatus } from './OdooCaseStatus';
 import { OdooOutcome } from '@/src/components/procurement/OdooOutcome';
 import { odooOutcome } from '@/src/lib/procurement/odooOutcome';
 import type { RecordKind, StagedRecord } from './RecordCaptureForm';
@@ -123,6 +122,7 @@ const OdooRowStatus: React.FC<{ row: LedgerRow }> = ({ row }) => {
     <div className="inline-flex flex-col items-start gap-1">
       <StatusPill variant={row.statusVariant}>{row.status}</StatusPill>
       {outcome && <OdooOutcome outcome={outcome} quiet />}
+      {facts.paymentView === 'awaiting-odoo' && <span data-testid="odoo-payment-awaiting" className="text-[12px] text-muted-foreground">{t('procurement:odoo.paymentAwaiting', 'Payment sent, awaiting Odoo')}</span>}
       {facts.booked !== null && (
         <span data-testid="odoo-quantities" className="text-[12px] text-muted-foreground tabular-nums">
           {t('procurement:odoo.booked', 'Received in Odoo: {{qty}}', { qty: facts.booked })}
@@ -460,7 +460,6 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
 
   return (
     <div data-testid="procurement-ledger">
-      <OdooCaseStatus procurementId={procurementId} />
       {/* Toolbar: card-head + filter chips */}
       <div className="mb-0 flex flex-wrap items-center justify-between gap-3 rounded-t-lg border border-b-0 border-border bg-card px-4 py-3">
         <span className="text-[13px] font-semibold">{t('procurementLedger.title', 'Case ledger')}</span>

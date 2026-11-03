@@ -42,4 +42,30 @@ describe('AC-OPP-080 buildLedgerRows carries the Odoo facts of a mirrored record
     const rows = buildLedgerRows(detail({ receipts: [{ id: 'r1', receipt_date: '2026-04-20', created_at: '2026-04-20T00:00:00Z', status: 'Partial', erp_state: 'confirmed', erp_read_at: READ, odoo_booked: null, odoo_entered: null }] }));
     expect(rows[0].odoo).toMatchObject({ booked: null, entered: null });
   });
+
+  it('FR-OPP-054 a payment PMO sent that the last read does not yet show settled marks the bill "awaiting Odoo"', () => {
+    const rows = buildLedgerRows(detail({
+      invoices: [inv({ amount: 1000, status: 'Received', erp_state: 'posted', erp_read_at: READ, erp_outstanding_amount: 1000 })],
+      payments: [{ id: 'y1', invoice_id: 'i1', amount: 1000, date: '2026-05-02', created_at: '2026-05-02T00:00:00Z', status: 'Posted', currency: 'IDR', erp_state: 'paid', erp_read_at: READ }],
+    }));
+    expect(rows.find((r) => r.type === 'Invoice')?.odoo?.paymentView).toBe('awaiting-odoo');
+  });
+
+  it('FR-OPP-046 a bill Odoo shows paid is paid, and a bill with no payment sent is plainly unpaid', () => {
+    const paid = buildLedgerRows(detail({
+      invoices: [inv({ amount: 1000, status: 'Paid', erp_state: 'posted', erp_read_at: READ, erp_outstanding_amount: 0 })],
+      payments: [{ id: 'y1', invoice_id: 'i1', amount: 1000, date: '2026-05-02', created_at: '2026-05-02T00:00:00Z', status: 'Posted', currency: 'IDR', erp_state: 'paid', erp_read_at: READ }],
+    }));
+    expect(paid.find((r) => r.type === 'Invoice')?.odoo?.paymentView).toBe('paid');
+    const unpaid = buildLedgerRows(detail({ invoices: [inv({ amount: 1000, erp_state: 'posted', erp_read_at: READ, erp_outstanding_amount: 1000 })] }));
+    expect(unpaid.find((r) => r.type === 'Invoice')?.odoo?.paymentView).toBe('unpaid');
+  });
+
+  it('a part-paid bill Odoo already reflects is not "awaiting Odoo" for ever', () => {
+    const rows = buildLedgerRows(detail({
+      invoices: [inv({ amount: 1000, erp_state: 'posted', erp_read_at: READ, erp_outstanding_amount: 600 })],
+      payments: [{ id: 'y1', invoice_id: 'i1', amount: 400, date: '2026-05-02', created_at: '2026-05-02T00:00:00Z', status: 'Posted', currency: 'IDR', erp_state: 'paid', erp_read_at: READ }],
+    }));
+    expect(rows.find((r) => r.type === 'Invoice')?.odoo?.paymentView).toBe('unpaid');
+  });
 });

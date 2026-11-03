@@ -50,7 +50,7 @@ describe('AC-OPP-080 OdooCaseStatus', () => {
     expect(within(items[0]).getByText('Sent, waiting for Odoo')).toBeInTheDocument();
     expect(within(items[1]).getByText('Goods receipt')).toBeInTheDocument();
     expect(within(items[1]).getByText('Odoo did not accept it')).toBeInTheDocument();
-    expect(within(items[1]).getByTestId('odoo-outcome-next')).toHaveTextContent('Fix the cause, then record it again.');
+    expect(within(items[1]).getByTestId('odoo-outcome-next')).toHaveTextContent('Check what you entered, then record it again.');
   });
 
   it('FR-OPP-091 while Odoo cannot be reached it says so, keeps showing the last read, and states that nothing is sent', () => {

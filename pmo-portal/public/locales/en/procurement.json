@@ -606,7 +606,7 @@
         "held": "PMO cannot tell whether Odoo already made it. An Admin or Finance user checks Odoo and decides.",
         "attention": "Odoo shows a different total than PMO sent. Check the bill in Odoo before paying it.",
         "approval": "An approver in Odoo has to approve the order. Nothing to do in PMO.",
-        "refused": "Fix the cause, then record it again."
+        "refused": "Check what you entered, then record it again."
       },
       "read": "Read {{age}}",
       "sent": "Sent {{age}}"
@@ -626,9 +626,6 @@
       "title": "Waiting on Odoo"
     },
     "held": {
-      "title": "Payments needing a decision",
-      "empty": "No payments are waiting for a decision.",
-      "item": "{{kind}} sent {{age}}",
       "adopt": "It exists in Odoo",
       "absent": "It does not exist in Odoo",
       "adoptTitle": "Link this payment to Odoo?",
@@ -645,7 +642,7 @@
     },
     "taxes": {
       "label": "Taxes",
-      "none": "No taxes",
+      "defaultHint": "Leave all unticked to use your organisation's default taxes.",
       "emptyReason": "No taxes have been read from Odoo yet.",
       "staleReason": "The tax list was last read {{age}}; refresh the Odoo connection first."
     },
@@ -656,6 +653,13 @@
       "staleReason": "The journal list was last read {{age}}; refresh the Odoo connection first."
     },
     "booked": "Received in Odoo: {{qty}}",
-    "entered": "entered {{qty}}"
+    "entered": "entered {{qty}}",
+    "paymentAwaiting": "Payment sent, awaiting Odoo",
+    "receipt": {
+      "title": "Quantity received",
+      "hint": "Leave blank to receive everything still open. Odoo refuses more than is open.",
+      "line": "{{name}} (ordered {{qty}})",
+      "invalid": "Enter a quantity above zero and no more than was ordered for {{name}}."
+    }
   }
 }

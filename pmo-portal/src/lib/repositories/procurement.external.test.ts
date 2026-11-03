@@ -271,6 +271,15 @@ describe('task 4.8 — flipped ownership map — procurement/company record crea
     expect(createReceipt).not.toHaveBeenCalled();
   });
 
+  it('AC-OPP-030 the quantities a user entered travel with the receipt; none entered sends no lines (every open quantity)', async () => {
+    setTaskOwnership([{ domain: 'procurement', externalTier: 'odoo' }]);
+    dispatchSpy.mockResolvedValue({ externalRecordId: '77', canonical: { id: 'pmo-gr-1' } });
+    await repositories.procurement.createReceipt('proc-1', 'Partial', '2026-07-11', undefined, undefined, [{ itemRef: 'Pump', quantity: 6 }]);
+    expect(dispatchSpy.mock.calls.at(-1)?.[2]).toMatchObject({ erp_doc_kind: 'goods-receipt', receiptLines: [{ itemRef: 'Pump', quantity: 6 }] });
+    await repositories.procurement.createReceipt('proc-1', 'Complete', '2026-07-11');
+    expect(dispatchSpy.mock.calls.at(-1)?.[2]).not.toHaveProperty('receiptLines');
+  });
+
   it('createPayment dispatches externally with erp_doc_kind payment', async () => {
     dispatchSpy.mockResolvedValue({ externalRecordId: 'ACC-PAY-2026-00001', canonical: { id: 'pmo-1' } });
     await repositories.procurement.createPayment('proc-1', 'inv-1', 'PAY-0001', 'Draft', '2026-07-11', 100);

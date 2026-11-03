@@ -44,7 +44,9 @@ export const OdooTaxPicker: React.FC<{ value: string[]; onChange: (ids: string[]
           </label>
         ))}
       </div>
-      {reason && <p id="odoo-tax-reason" className="mt-1 text-[12px] text-muted-foreground">{reason}</p>}
+      <p id={reason ? 'odoo-tax-reason' : undefined} className="mt-1 text-[12px] text-muted-foreground">
+        {reason ?? t('odoo.taxes.defaultHint', "Leave all unticked to use your organisation's default taxes.")}
+      </p>
     </fieldset>
   );
 };

@@ -1,10 +1,8 @@
-import type React from 'react';
 /** The Odoo setup steps (FR-ODC-110, plan S5-T6). A tier-keyed list: ERPNext's activity-type and budget-category steps never appear here. */
 import { useTranslation } from 'react-i18next';
-import { Icon } from '@/src/components/ui';
+import { Button, Icon, SelectField } from '@/src/components/ui';
 import { SENDS_FINISHED_KEY } from '@/src/lib/adapterSeam/odoo/connectionState';
-import { useState } from 'react';
-import { Button } from '@/src/components/ui';
+import React, { useState } from 'react';
 import { useOdooConnection, useOdooJournalProposal, useOdooSetup, type JournalCandidate } from '@/src/hooks/useOdoo';
 import { useOdooCan } from './useOdooCan';
 import { useExternalDomainOwnership } from '@/src/hooks/useExternalDomainOwnership';
@@ -14,9 +12,14 @@ function JournalDefault({ proposal, canSet }: { proposal: ReturnType<typeof useO
   const { t } = useTranslation();
   const save = useOdooSetup('save-defaults');
   const [picked, setPicked] = useState('');
+  const [failed, setFailed] = useState(false);
   const j = proposal?.journal;
   if (!j) return null;
-  const submit = (id: string) => { void save.mutateAsync({ default_payment_journal_id: id }); };
+  const submit = async (id: string) => {
+    setFailed(false);
+    try { await save.mutateAsync({ default_payment_journal_id: id }); } catch { setFailed(true); }
+  };
+  const failure = failed && <span role="alert" className="text-[12px] text-destructive-text">{t('administration:odoo.checklist.journalFailed', 'The journal could not be saved. Try again.')}</span>;
   if (j.state === 'set') return j.current ? <span className="text-muted-foreground">{j.current.name}</span> : null;
   if (j.state === 'none') return <span className="text-muted-foreground">{t('administration:odoo.checklist.journalNone', 'No bank or cash journal has been read from Odoo yet.')}</span>;
   if (!canSet) return null;
@@ -24,24 +27,25 @@ function JournalDefault({ proposal, canSet }: { proposal: ReturnType<typeof useO
     return (
       <span className="inline-flex flex-wrap items-center gap-2">
         <span className="text-muted-foreground">{t('administration:odoo.checklist.journalProposed', 'Proposed: {{name}}', { name: j.proposed.name })}</span>
-        <Button size="sm" variant="outline" loading={save.isPending} onClick={() => submit(j.proposed!.id)}>
+        <Button size="sm" variant="outline" loading={save.isPending} onClick={() => { void submit(j.proposed!.id); }}>
           {t('administration:odoo.checklist.journalAccept', 'Accept {{name}}', { name: j.proposed.name })}
         </Button>
+        {failure}
       </span>
     );
   }
   return (
-    <span className="inline-flex flex-wrap items-center gap-2">
-      <select
-        aria-label={t('administration:odoo.checklist.journal', 'Payment journal')}
+    <span className="inline-flex flex-wrap items-end gap-2">
+      <SelectField
+        label={t('administration:odoo.checklist.journal', 'Payment journal')}
+        hideLabel
         value={picked}
-        onChange={(e) => setPicked(e.target.value)}
-        className="h-8 rounded-md border border-input bg-background px-2 text-[13px]"
-      >
-        <option value="">{t('administration:odoo.checklist.journalChoose', 'Choose a journal')}</option>
-        {j.candidates.map((c: JournalCandidate) => <option key={c.id} value={c.id}>{c.name}</option>)}
-      </select>
-      <Button size="sm" variant="outline" disabled={!picked} loading={save.isPending} onClick={() => submit(picked)}>{t('administration:odoo.checklist.journalSave', 'Save')}</Button>
+        onChange={setPicked}
+        placeholder={t('administration:odoo.checklist.journalChoose', 'Choose a journal')}
+        options={j.candidates.map((c: JournalCandidate) => ({ value: c.id, label: c.name }))}
+      />
+      <Button size="sm" variant="outline" disabled={!picked} loading={save.isPending} onClick={() => { void submit(picked); }}>{t('administration:odoo.checklist.journalSave', 'Save')}</Button>
+      {failure}
     </span>
   );
 }
@@ -76,7 +80,7 @@ export function OdooSetupChecklist() {
             <Icon name={s.done ? 'check' : 'info'} className={`mt-0.5 size-3.55 shrink-0 ${s.done ? 'text-success' : 'text-muted-foreground'}`} aria-hidden="true" />
             <span className="min-w-0 flex-1">
               <span className="font-medium text-foreground">{s.name}</span>{' '}
-              <span className="text-muted-foreground">{s.done ? '' : s.hint}</span>{s.extra && <div className="mt-1">{s.extra}</div>}
+              <span className="text-muted-foreground">{s.done ? '' : s.hint}</span>{s.extra && <span className="mt-1 block">{s.extra}</span>}
             </span>
             <span className={s.done ? 'text-xs font-medium text-success-text' : 'text-xs text-muted-foreground'}>{s.done ? t('administration:odoo.checklist.done', 'Done') : t('administration:odoo.checklist.todo', 'To do')}</span>
           </li>

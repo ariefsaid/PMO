@@ -122,13 +122,13 @@ export const procurementRepository: ProcurementRepository = {
   // call ONLY when the caller actually supplied one, so a bare 3-arg call keeps its exact pre-existing
   // shape (index.test.ts's byte-for-byte assertion). Never forwarded on the external-dispatch payload
   // (FR-ENA-114 — it is mirrored back from the ERP doc, not client-supplied at creation).
-  createReceipt: (procurementId, status, receiptDate, referenceNumber, intent) =>
+  createReceipt: (procurementId, status, receiptDate, referenceNumber, intent, receiptLines) =>
     viaErp(
       procurementId,
       () =>
         dispatchCreate(
           'procurement',
-          { procurementId, status, receiptDate, erp_doc_kind: 'goods-receipt' },
+          { procurementId, status, receiptDate, erp_doc_kind: 'goods-receipt', ...(receiptLines?.length ? { receiptLines } : {}) },
           intent,
         ).then((res) => res.canonical as unknown as ProcurementReceiptRow),
       () =>

@@ -92,3 +92,16 @@ describe('AC-OPP-081 withholding figures follow the bill', () => {
     expect(screen.queryByTestId('vi-withholding-breakdown')).toBeNull();
   });
 });
+
+describe('FR-OPP-054 a bill whose payment Odoo has not yet shown', () => {
+  it('says the payment was sent and Odoo has not caught up, never Paid', () => {
+    show(detail({
+      invoices: [inv({ amount: 1000, tax_amount: 0, erp_state: 'posted', erp_read_at: READ, erp_outstanding_amount: 1000 })],
+      payments: [{ id: 'y1', invoice_id: 'i1', amount: 1000, date: '2026-05-02', created_at: '2026-05-02T00:00:00Z', status: 'Posted', currency: 'IDR', erp_state: 'paid', erp_read_at: READ }],
+    }));
+    const row = screen.getByRole('row', { name: /VI-1/ });
+    expect(row).toHaveTextContent('Payment sent, awaiting Odoo');
+    expect(row).not.toHaveTextContent(/Paid/);
+  });
+});
+

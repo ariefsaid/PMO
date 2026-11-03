@@ -120,3 +120,43 @@ describe('AC-OPP-080 an action fails honestly while Odoo is unreachable', () => 
     expect(onCreate).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('AC-OPP-030/031 goods receipt form on an Odoo-owned org', () => {
+  const items = [{ name: 'Pump', quantity: 10 }, { name: 'Valve', quantity: 4 }];
+  const form = (onStage = vi.fn()) => render(<ToastProvider><RecordCaptureForm kind="goods_receipt" items={items} onCreate={vi.fn()} onClose={vi.fn()} onStage={onStage} /></ToastProvider>);
+
+  it('asks for a quantity per line and stages only the lines the user filled', async () => {
+    odoo();
+    const onStage = vi.fn();
+    form(onStage);
+    await userEvent.type(screen.getByRole('spinbutton', { name: /Pump/ }), '6');
+    expect(screen.queryByTestId('gr-status-select')).toBeNull(); // Odoo derives Partial/Complete from what it booked
+    await userEvent.click(screen.getByTestId('btn-save-gr'));
+    expect(onStage).toHaveBeenCalledWith(expect.objectContaining({ kind: 'createGR', receiptLines: [{ itemRef: 'Pump', quantity: 6 }] }));
+  });
+
+  it('with nothing entered it stages no lines, so everything still open is received', async () => {
+    odoo();
+    const onStage = vi.fn();
+    form(onStage);
+    await userEvent.click(screen.getByTestId('btn-save-gr'));
+    expect(onStage.mock.calls[0][0]).not.toHaveProperty('receiptLines');
+  });
+
+  it('a quantity above what was ordered is refused before anything is staged', async () => {
+    odoo();
+    const onStage = vi.fn();
+    form(onStage);
+    await userEvent.type(screen.getByRole('spinbutton', { name: /Valve/ }), '5');
+    await userEvent.click(screen.getByTestId('btn-save-gr'));
+    expect(onStage).not.toHaveBeenCalled();
+    expect(screen.getByText(/no more than was ordered for Valve/)).toBeInTheDocument();
+  });
+
+  it('an ERPNext org is unchanged: no quantity fields', () => {
+    setTaskOwnership([{ domain: 'procurement', externalTier: 'erpnext' }]);
+    form();
+    expect(screen.queryByRole('spinbutton', { name: /Pump/ })).toBeNull();
+  });
+});
+
