@@ -46,6 +46,423 @@ async function attachExternalId(model, resId) {
   return item
 }
 
+// ---- O3 revenue claims (V-OCI1..15, plan C0): node scripts/odoo-probe.mjs --revenue ----
+// Synthetic Indonesian-chart company only; prints statuses, shapes, numbers and field names, never keys/hosts/db names.
+if (process.argv.includes('--revenue')) {
+  const run = Date.now()
+  const errShape = (r) => (r.status >= 400 && r.json && typeof r.json === 'object' ? { keys: Object.keys(r.json).sort(), cls: r.json.name } : null)
+  const sec = async (name, fn) => { try { await fn() } catch (e) { record(name, 'probe', { status: 0, json: null }, `probe-error: ${String(e.message).slice(0, 80)}`) } }
+  let co = (await call('res.company', 'search_read', { domain: [['name', '=', 'Synthetic Indonesian chart']], fields: ['id', 'chart_template'], limit: 1 })).json?.[0]
+  if (!co) {
+    const idc = (await call('res.country', 'search_read', { domain: [['code', '=', 'ID']], fields: ['id'], limit: 1 })).json?.[0]?.id
+    const made = await call('res.company', 'create', { vals_list: [{ name: 'Synthetic Indonesian chart', country_id: idc }] })
+    co = { id: made.json?.[0] }
+    await call('account.chart.template', 'try_loading', { template_code: 'id', company: co.id })
+  }
+  const ctx = { allowed_company_ids: [co.id], company_id: co.id }
+  const q = (m, me, b = {}) => call(m, me, { ...b, context: { ...ctx, ...(b.context || {}) } })
+  const one = async (m, domain, fields) => (await q(m, 'search_read', { domain, fields, limit: 1 })).json?.[0]
+  const rd = async (m, id, fields) => (await q(m, 'read', { ids: [id], fields })).json?.[0]
+  const ppn11 = await one('account.tax', [['company_id', '=', co.id], ['type_tax_use', '=', 'sale'], ['amount', '=', 11], ['amount_type', '=', 'percent']], ['id', 'name'])
+  const ppn12 = await one('account.tax', [['company_id', '=', co.id], ['type_tax_use', '=', 'sale'], ['amount', '=', 12], ['amount_type', '=', 'percent']], ['id', 'name'])
+  const incomeStock = await one('account.account', [['account_type', '=', 'income'], ['company_ids', 'in', [co.id]]], ['id'])
+  const mkAccount = async (type, label, n) => (await q('account.account', 'create', { vals_list: [{ code: `${n}${String(run).slice(-5)}`, name: `synthetic ${label} ${run}`, account_type: type, company_ids: [[6, 0, [co.id]]] }] })).json?.[0]
+  const incomeOwn = await mkAccount('income', 'income', 48)
+  const advance = await mkAccount('liability_current', 'advance', 28)
+  const prepaidTax = await mkAccount('asset_current', 'prepaid tax', 18)
+  const partner = (await q('res.partner', 'create', { vals_list: [{ name: `Synthetic client ${run}`, vat: '1234567890123456', country_id: (await one('res.country', [['code', '=', 'ID']], ['id']))?.id, l10n_id_buyer_document_type: 'TIN' }] })).json?.[0]
+  const prod = async (name, extra = {}) => (await q('product.product', 'create', { vals_list: [{ name: `${name} ${run}`, type: 'service', list_price: 100, taxes_id: [[6, 0, [ppn11.id]]], ...extra }] })).json?.[0]
+  const pTax = await prod('synthetic taxed service')
+  const pOwn = await prod('synthetic own-income service', { property_account_income_id: incomeOwn })
+  // The bed's bot needs the analytic group to create plans (a bed-setup fact, recorded under V-OCI14).
+  const analyticGroup = (await call('ir.model.data', 'search_read', { domain: [['module', '=', 'analytic'], ['name', '=', 'group_analytic_accounting']], fields: ['res_id'], limit: 1 })).json?.[0]?.res_id
+  const botId = (await call('res.users', 'search_read', { domain: [['login', '=', 'pmo_adapter_bot']], fields: ['id'], limit: 1 })).json?.[0]?.id
+  if (analyticGroup && botId) await call('res.users', 'write', { ids: [botId], vals: { group_ids: [[4, analyticGroup]] } })
+  const plan = (await q('account.analytic.plan', 'create', { vals_list: [{ name: `synthetic plan ${run}` }] })).json?.[0]
+  const analytic = (await q('account.analytic.account', 'create', { vals_list: [{ name: `synthetic project ${run}`, plan_id: plan }] })).json?.[0]
+  const bank = await one('account.journal', [['company_id', '=', co.id], ['type', '=', 'bank']], ['id', 'inbound_payment_method_line_ids'])
+  const INV_F = ['state', 'name', 'amount_untaxed', 'amount_tax', 'amount_total', 'amount_residual', 'payment_state']
+  const inv = (lines, extra = {}) => q('account.move', 'create', { vals_list: [{ move_type: 'out_invoice', partner_id: partner, invoice_date: '2026-11-03', invoice_line_ids: lines.map((l) => [0, 0, l]), ...extra }] })
+  const post = (id) => q('account.move', 'action_post', { ids: [id] })
+  const line = (price, extra = {}) => ({ product_id: pTax, name: 'synthetic line', quantity: 1, price_unit: price, ...extra })
+  const nameShape = (n) => (typeof n === 'string' ? n.replace(/\d/g, '#') : typeof n)
+  const newPosted = async (price = 1000, extra = {}) => { const c = await inv([line(price)], extra); await post(c.json[0]); return c.json[0] }
+
+  await sec('V-OCI1', async () => {
+    const c = await inv([line(1000)])
+    const draft = await rd('account.move', c.json?.[0], INV_F)
+    const p = await post(c.json[0])
+    const after = await rd('account.move', c.json[0], INV_F)
+    record('V-OCI1 create with line tuples then action_post', 'account.move/create+action_post', p, c.status === 200 && p.status === 200 && after.state === 'posted' ? 'verified' : 'wrong', { draftName: draft?.name, postedNameShape: nameShape(after?.name), total: after?.amount_total, tax: after?.amount_tax, postReturn: typeof p.json })
+    const variants = {
+      omitted: line(1000),
+      emptyReplace: line(1000, { tax_ids: [[6, 0, []]] }),
+      emptyClear: line(1000, { tax_ids: [[5, 0, 0]] }),
+      explicit12: line(1000, { tax_ids: [[6, 0, [ppn12.id]]] }),
+    }
+    const facts = {}
+    for (const [k, l] of Object.entries(variants)) { const v = await inv([l]); facts[k] = (await rd('account.move', v.json?.[0], INV_F))?.amount_tax }
+    record('V-OCI1 default product tax: omitted vs empty vs explicit tax_ids', 'account.move/create', c, 'verified', facts)
+    const neg = await inv([line(1000), line(-200, { name: 'synthetic recovery' })])
+    const negPost = await post(neg.json[0])
+    record('V-OCI1 negative-price line beside a positive one', 'account.move/create+action_post', negPost, negPost.status === 200 ? 'verified' : 'refused', { read: await rd('account.move', neg.json[0], INV_F) })
+    const allNeg = await inv([line(-500)])
+    const allNegPost = await post(allNeg.json[0])
+    record('V-OCI1 post an invoice with a negative total', 'account.move/action_post', allNegPost, allNegPost.status === 200 ? 'posted' : 'refused', { err: errShape(allNegPost), read: await rd('account.move', allNeg.json[0], INV_F) })
+    const zero = await inv([line(0)])
+    const zeroPost = await post(zero.json[0])
+    record('V-OCI1 post an invoice with a zero total', 'account.move/action_post', zeroPost, zeroPost.status === 200 ? 'posted' : 'refused', { err: errShape(zeroPost), read: await rd('account.move', zero.json[0], INV_F) })
+  })
+
+  await sec('V-OCI6', async () => {
+    const id = await newPosted(1000)
+    const again = await post(id)
+    record('V-OCI6 second action_post on a posted invoice', 'account.move/action_post', again, again.status === 422 ? 'error (422)' : `unexpected ${again.status}`, { err: errShape(again), after: await rd('account.move', id, INV_F) })
+  })
+
+  await sec('V-OCI5', async () => {
+    const incl = (await q('account.tax', 'create', { vals_list: [{ name: `synthetic ppn included ${run}`, type_tax_use: 'sale', amount_type: 'percent', amount: 11, price_include_override: 'tax_included' }] }))
+    const incl2 = incl.status === 200 ? incl : await q('account.tax', 'create', { vals_list: [{ name: `synthetic ppn included ${run}`, type_tax_use: 'sale', amount_type: 'percent', amount: 11, price_include: true }] })
+    const cases = {
+      ppn11_1000: [line(1000)],
+      ppn11_odd: [line(1000.5)],
+      ppn11_rounding: [line(333.33, { quantity: 3 })],
+      ppn12_reduced_base: [line(Math.round((11 / 12) * 1000 * 100) / 100, { tax_ids: [[6, 0, [ppn12.id]]] })],
+      two_lines: [line(1000), line(250.25)],
+    }
+    if (incl2.status === 200) cases.included_1110 = [line(1110, { tax_ids: [[6, 0, [incl2.json[0]]]] })]
+    const facts = { ppn11Name: ppn11.name, ppn12Name: ppn12.name, includedCreate: incl2.status }
+    for (const [k, ls] of Object.entries(cases)) {
+      const c = await inv(ls); await post(c.json[0])
+      const m = await rd('account.move', c.json[0], INV_F)
+      const taxLines = (await q('account.move.line', 'search_read', { domain: [['move_id', '=', c.json[0]], ['display_type', '=', 'tax']], fields: ['balance'] })).json
+      facts[k] = { untaxed: m.amount_untaxed, tax: m.amount_tax, total: m.amount_total, residual: m.amount_residual, taxLineBalances: taxLines.map((x) => x.balance) }
+    }
+    record('V-OCI5 Indonesian sale taxes: PPN 11% effective, price_include, reduced base, amounts', 'account.move/read', { status: 200, json: {} }, 'verified', facts)
+  })
+
+  await sec('V-OCI3', async () => {
+    const dp = await inv([line(1000, { name: 'synthetic down payment', account_id: advance })])
+    await post(dp.json[0])
+    const dpLine = await one('account.move.line', [['move_id', '=', dp.json[0]], ['display_type', '=', 'product']], ['account_id'])
+    const own = await inv([{ product_id: pOwn, name: 'synthetic own income', quantity: 1, price_unit: 500 }])
+    await post(own.json[0])
+    const ownLine = await one('account.move.line', [['move_id', '=', own.json[0]], ['display_type', '=', 'product']], ['account_id'])
+    const dflt = await inv([line(100)]); await post(dflt.json[0])
+    const dfltLine = await one('account.move.line', [['move_id', '=', dflt.json[0]], ['display_type', '=', 'product']], ['account_id'])
+    record('V-OCI3 line account_id override and product income account, read back after post', 'account.move.line/read', { status: 200, json: {} }, dpLine?.account_id?.[0] === advance && ownLine?.account_id?.[0] === incomeOwn && dfltLine?.account_id?.[0] === incomeStock.id ? 'verified' : 'wrong', { overrideHonoured: dpLine?.account_id?.[0] === advance, productIncomeHonoured: ownLine?.account_id?.[0] === incomeOwn, defaultIsStockIncome: dfltLine?.account_id?.[0] === incomeStock.id })
+  })
+
+  await sec('V-OCI4', async () => {
+    const dist = { [String(analytic)]: 100 }
+    const c = await inv([line(1000, { analytic_distribution: dist }), line(-200, { name: 'synthetic recovery', analytic_distribution: dist })])
+    const p = await post(c.json[0])
+    const ls = (await q('account.move.line', 'search_read', { domain: [['move_id', '=', c.json[0]], ['display_type', '=', 'product']], fields: ['analytic_distribution', 'balance'] })).json
+    const al = (await q('account.analytic.line', 'search_read', { domain: [['move_line_id', 'in', ls.map((x) => x.id)]], fields: ['amount'] })).json
+    record('V-OCI4 analytic_distribution on positive and negative lines survives post', 'account.move/create+action_post', p, p.status === 200 && ls.every((x) => x.analytic_distribution?.[String(analytic)] === 100) ? 'verified' : 'wrong', { lines: ls.map((x) => ({ balance: x.balance, dist: x.analytic_distribution })), analyticLineAmounts: al.map((x) => x.amount) })
+  })
+
+  const payVals = (amount, extra = {}) => ({ payment_type: 'inbound', partner_type: 'customer', partner_id: partner, amount, journal_id: bank.id, payment_method_line_id: bank.inbound_payment_method_line_ids[0], ...extra })
+  const PAY_F = ['state', 'amount', 'memo', 'payment_reference', 'is_reconciled', 'is_matched', 'move_id']
+  await sec('V-OCI7', async () => {
+    // A: standalone payment + move.line reconcile
+    const a = await newPosted(1000)
+    const pa = await q('account.payment', 'create', { vals_list: [payVals(1110)] })
+    const pap = await q('account.payment', 'action_post', { ids: pa.json?.[0] ? [pa.json[0]] : [] })
+    const payMove = (await rd('account.payment', pa.json[0], ['move_id'])).move_id[0]
+    const arLines = (await q('account.move.line', 'search_read', { domain: [['move_id', 'in', [a, payMove]], ['account_type', '=', 'asset_receivable']], fields: ['id', 'reconciled'] })).json
+    const rec = await q('account.move.line', 'reconcile', { ids: arLines.map((x) => x.id) })
+    record('V-OCI7 payment create+post, reconcile via account.move.line/reconcile', 'account.payment/create+action_post; account.move.line/reconcile', rec, rec.status === 200 ? 'verified' : 'wrong', { createStatus: pa.status, postStatus: pap.status, receivableLines: arLines.length, invoice: await rd('account.move', a, INV_F), err: errShape(rec) })
+    // B: register wizard full / partial / overpay
+    const wiz = async (invId, vals) => {
+      const c = { active_model: 'account.move', active_ids: [invId] }
+      const w = await q('account.payment.register', 'create', { vals_list: [vals], context: c })
+      if (w.status !== 200) return { w, done: w }
+      const done = await q('account.payment.register', 'action_create_payments', { ids: w.json, context: c })
+      return { w, done, wizard: w.json?.[0] }
+    }
+    const full = await newPosted(1000)
+    const f = await wiz(full, {})
+    record('V-OCI7 register wizard, full amount', 'account.payment.register/create+action_create_payments', f.done, f.done.status === 200 ? 'verified' : 'wrong', { invoice: await rd('account.move', full, INV_F), returnType: typeof f.done.json, err: errShape(f.done) })
+    const part = await newPosted(1000)
+    const pt = await wiz(part, { amount: 400 })
+    record('V-OCI7 register wizard, partial amount', 'account.payment.register/create+action_create_payments', pt.done, pt.done.status === 200 ? 'verified' : 'wrong', { invoice: await rd('account.move', part, INV_F), err: errShape(pt.done) })
+    const over = await newPosted(1000)
+    const ov = await wiz(over, { amount: 2000 })
+    const ovPayments = ov.done.status === 200 ? (await q('account.payment', 'search_read', { domain: [['partner_id', '=', partner], ['amount', '=', 2000]], fields: ['id', 'state'] })).json : []
+    record('V-OCI7 register wizard, amount above the residual', 'account.payment.register/create+action_create_payments', ov.done, ov.done.status === 200 ? 'accepted (overpay)' : 'refused', { createStatus: ov.w.status, invoice: await rd('account.move', over, INV_F), paymentCount: ovPayments.length, err: errShape(ov.done.status === 200 ? { status: 0 } : ov.done) })
+    const second = await wiz(full, {})
+    record('V-OCI7 register wizard on an already paid invoice', 'account.payment.register/create', second.w, second.w.status === 200 && second.done.status === 200 ? 'accepted' : 'refused', { err: errShape(second.done.status === 200 ? { status: 0 } : second.done.status ? second.done : second.w) })
+  })
+
+  await sec('V-OCI8', async () => {
+    const c = await newPosted(1000)
+    const ctxw = { active_model: 'account.move', active_ids: [c] }
+    const w = await q('account.payment.register', 'create', { vals_list: [{ amount: 1090, payment_difference_handling: 'reconcile', writeoff_account_id: prepaidTax, writeoff_label: 'synthetic client withholding' }], context: ctxw })
+    const done = w.status === 200 ? await q('account.payment.register', 'action_create_payments', { ids: w.json, context: ctxw }) : w
+    const lines = (await q('account.move.line', 'search_read', { domain: [['account_id', '=', prepaidTax]], fields: ['balance', 'reconciled', 'move_id'], order: 'id desc', limit: 3 })).json
+    record('V-OCI8 client-withheld tax: wizard reconcile with write-off account', 'account.payment.register/create+action_create_payments', done, done.status === 200 ? 'verified' : 'unavailable', { invoice: await rd('account.move', c, INV_F), writeOffLineBalances: lines.map((x) => x.balance), err: errShape(done.status === 200 ? { status: 0 } : done) })
+  })
+
+  await sec('V-OCI2', async () => {
+    const P = `synthetic-anchor-${run}`
+    const cand = { 'account.move': ['ref', 'payment_reference', 'invoice_origin', 'narration'] }
+    const create = (f) => inv([line(1000)], { [f]: f === 'narration' ? `<p>${P}</p>` : P })
+    const facts = {}
+    for (const f of cand['account.move']) {
+      const c = await create(f)
+      if (c.status !== 200) { facts[f] = { createStatus: c.status, err: errShape(c) }; continue }
+      const id = c.json[0]
+      const d = (await rd('account.move', id, [f]))[f]
+      await post(id)
+      const a = (await rd('account.move', id, [f]))[f]
+      const hit = await q('account.move', 'search_read', { domain: [[f, 'ilike', P], ['id', '=', id]], fields: ['id'] })
+      facts[f] = { draftKept: String(d).includes(P), postedKept: String(a).includes(P), exactEqualAfterPost: a === P, searchHit: hit.json?.length === 1 }
+    }
+    record('V-OCI2 invoice anchor candidates: survive create and post, ilike search', 'account.move/create+read+search_read', { status: 200, json: {} }, 'verified', facts)
+    const pf = {}
+    for (const f of ['memo', 'payment_reference']) {
+      const c = await q('account.payment', 'create', { vals_list: [payVals(100, { [f]: P })] })
+      if (c.status !== 200) { pf[f] = { createStatus: c.status, err: errShape(c) }; continue }
+      const d = (await rd('account.payment', c.json[0], [f]))[f]
+      await q('account.payment', 'action_post', { ids: c.json })
+      const a = (await rd('account.payment', c.json[0], [f]))[f]
+      const hit = await q('account.payment', 'search_read', { domain: [[f, 'ilike', P], ['id', '=', c.json[0]]], fields: ['id'] })
+      pf[f] = { draftKept: d === P, postedKept: a === P, searchHit: hit.json?.length === 1 }
+    }
+    record('V-OCI2 payment anchor candidates: survive create and post, ilike search', 'account.payment/create+read+search_read', { status: 200, json: {} }, 'verified', pf)
+    // external identifier on both models
+    const ext = {}
+    const aInv = await newPosted(1000)
+    const aPay = (await q('account.payment', 'create', { vals_list: [payVals(100)] })).json[0]
+    await q('account.payment', 'action_post', { ids: [aPay] })
+    for (const [m, id] of [['account.move', aInv], ['account.payment', aPay]]) {
+      const x = await attachExternalId(m, id)
+      const hit = await call('ir.model.data', 'search_read', { domain: [['module', '=', 'pmo_probe'], ['name', '=', x.name], ['model', '=', m]], fields: ['res_id'] })
+      ext[m] = { createStatus: x.status, searchHit: hit.json?.[0]?.res_id === id }
+    }
+    record('V-OCI2 external identifier (ir.model.data) on a posted invoice and payment', 'ir.model.data/create+search_read', { status: 200, json: {} }, 'verified', ext)
+    // print label of each candidate on the stock invoice template
+    const views = (await q('ir.ui.view', 'search_read', { domain: [['key', 'in', ['account.report_invoice_document', 'l10n_id.report_invoice_document']]], fields: ['key', 'arch_db'] })).json || []
+    const arch = views.map((v) => v.arch_db).join('\n')
+    const printed = {}
+    for (const f of ['ref', 'payment_reference', 'invoice_origin', 'narration']) {
+      const m = arch.match(new RegExp(`t-if="[^"]*\\bo\\.${f}"[^>]*?(?:name="(\\w+)")?[^>]*>\\s*(?:<strong>([^<]*)</strong>)?`))
+      printed[f] = m ? { block: m[1] ?? null, label: m[2] ?? null } : new RegExp(`o\\.${f}\\b`).test(arch) ? 'terms-and-conditions block (no label)' : 'not in template'
+    }
+    const lab = (await q('account.move', 'fields_get', { allfields: ['ref', 'payment_reference', 'invoice_origin', 'narration'], attributes: ['string'] })).json
+    printed.formLabels = Object.fromEntries(Object.entries(lab || {}).map(([k, v]) => [k, v.string]))
+    printed.paymentCommunicationLiteral = /Payment Communication:\s*<span[^>]*o\.payment_reference/.test(arch.replace(/\s+/g, ' '))
+    record('V-OCI2 which candidate prints on the stock invoice template, and its label', 'ir.ui.view/read', { status: 200, json: {} }, 'verified', printed)
+  })
+
+  await sec('V-OCI9', async () => {
+    const id = await newPosted(1000)
+    const mf = Object.keys((await q('account.move', 'fields_get', { attributes: ['type'] })).json)
+    const taxInvoiceNumberFields = mf.filter((k) => /nsfp|faktur|tax_invoice|efaktur|seri/i.test(k))
+    const l10n = mf.filter((k) => k.startsWith('l10n_id'))
+    const vals = (await rd('account.move', id, l10n.filter((k) => !k.includes('qris')))) || {}
+    const types = Object.fromEntries(Object.entries(vals).map(([k, v]) => [k, Array.isArray(v) ? 'many2one/list' : v === false ? 'false' : typeof v === 'string' ? `string(${v.length})` : typeof v]))
+    const mod = (await call('ir.module.module', 'search_read', { domain: [['name', 'in', ['l10n_id', 'l10n_id_efaktur_coretax', 'l10n_id_efaktur']]], fields: ['name', 'state', 'license'] })).json
+    record('V-OCI9 tax-invoice facts a stock read of a posted Indonesian invoice exposes', 'account.move/read', { status: 200, json: {} }, 'verified', { l10nFieldsOnMove: l10n, taxInvoiceNumberFields, valuesAfterPostBeforeExport: types, modules: mod })
+  })
+
+  let exportInvoice
+  await sec('V-OCI10', async () => {
+    await q('res.company', 'write', { ids: [co.id], vals: { vat: false } })
+    exportInvoice = await newPosted(1000)
+    const miss = await q('account.move', 'download_efaktur', { ids: [exportInvoice] })
+    const reasons = typeof miss.json?.message === 'string' ? miss.json.message.split('\n').length - 1 : null
+    record('V-OCI10 Coretax export with mandatory data missing (company tax id unset)', 'account.move/download_efaktur', miss, miss.status === 422 ? 'refused (422)' : `unexpected ${miss.status}`, { err: errShape(miss), reasonCount: reasons })
+    await q('res.company', 'write', { ids: [co.id], vals: { vat: '1234567890123456' } })
+    const ok = await q('account.move', 'download_efaktur', { ids: [exportInvoice] })
+    const after = await rd('account.move', exportInvoice, ['l10n_id_coretax_document', 'l10n_id_kode_transaksi'])
+    const docId = after?.l10n_id_coretax_document?.[0]
+    const doc = docId ? await rd('l10n_id_efaktur_coretax.document', docId, ['name', 'attachment_id']) : null
+    const attId = doc?.attachment_id?.[0]
+    const att = attId ? await rd('ir.attachment', attId, ['mimetype', 'file_size', 'type', 'res_model']) : null
+    const raw = attId ? await q('ir.attachment', 'read', { ids: [attId], fields: ['raw'] }) : { status: 0, json: null }
+    const rawValue = raw.json?.[0]?.raw
+    const decoded = typeof rawValue?.content === 'string' ? Buffer.from(rawValue.content, 'base64').toString('utf8') : ''
+    record('V-OCI10 Coretax export for one invoice: stock call, return value, document and attachment', 'account.move/download_efaktur', ok, ok.status === 200 ? 'verified' : `refused (${ok.status})`, { returnKeys: ok.json && typeof ok.json === 'object' ? Object.keys(ok.json).sort() : typeof ok.json, actionType: ok.json?.type, urlShape: typeof ok.json?.url === 'string' ? ok.json.url.replace(/\d+/g, '#') : null, wizardNeeded: false, kodeTransaksiSetOnInvoice: !!after?.l10n_id_kode_transaksi, err: errShape(ok.status === 200 ? { status: 0 } : ok), documentCreated: !!docId, attachment: att ? { mimetype: att.mimetype, size: att.file_size, type: att.type, resModel: att.res_model } : null, rawReadStatus: raw.status, rawShape: rawValue && typeof rawValue === 'object' ? Object.keys(rawValue).sort() : typeof rawValue, xmlRoot: decoded.match(/<([A-Za-z]\w*)[ >]/)?.[1] ?? null, xmlHasInvoiceMarker: decoded.length > 0 })
+    if (docId && attId) {
+      const again = await q('account.move', 'download_efaktur', { ids: [exportInvoice] })
+      record('V-OCI10 Coretax export repeated on the same invoice', 'account.move/download_efaktur', again, again.status === 200 ? 'idempotent (same document)' : `refused (${again.status})`, { sameDocument: (await rd('account.move', exportInvoice, ['l10n_id_coretax_document']))?.l10n_id_coretax_document?.[0] === docId })
+    }
+  })
+
+  await sec('V-OCI12', async () => {
+    const id = await newPosted(1000)
+    const tried = {}
+    for (const [m, me, b] of [['account.move', 'action_invoice_print', { ids: [id] }], ['ir.actions.report', 'render_qweb_pdf', { report_ref: 'account.account_invoices', res_ids: [id] }], ['ir.actions.report', '_render_qweb_pdf', { report_ref: 'account.account_invoices', res_ids: [id] }]]) {
+      const r = await q(m, me, b)
+      tried[`${m}/${me}`] = { status: r.status, returnType: r.status === 200 ? (Array.isArray(r.json) ? `list(${r.json.length})` : typeof r.json) : null, actionKeys: r.status === 200 && r.json && typeof r.json === 'object' ? Object.keys(r.json).sort() : undefined }
+    }
+    record('V-OCI12 invoice print by a stock JSON-2 model call', 'account.move/action_invoice_print + ir.actions.report', { status: 200, json: {} }, 'verified', tried)
+  })
+
+  await sec('V-OCI13', async () => {
+    const id = await newPosted(1000)
+    const c = { active_model: 'account.move', active_ids: [id] }
+    const src = await rd('account.move', id, ['journal_id', 'company_id'])
+    const w = await q('account.move.reversal', 'create', { vals_list: [{ reason: 'synthetic credit note', date: '2026-11-04', journal_id: src.journal_id[0], company_id: src.company_id[0] }], context: c })
+    const done = w.status === 200 ? await q('account.move.reversal', 'refund_moves', { ids: w.json, context: c }) : w
+    const note = (await q('account.move', 'search_read', { domain: [['reversed_entry_id', '=', id]], fields: ['move_type', 'state', 'reversed_entry_id', 'amount_total', 'ref'] })).json?.[0]
+    record('V-OCI13 credit note via the reversal wizard; reversed_entry_id link', 'account.move.reversal/create+refund_moves', done, done.status === 200 && note?.move_type === 'out_refund' ? 'verified' : 'wrong', { returnKeys: done.json && typeof done.json === 'object' ? Object.keys(done.json).sort() : typeof done.json, note: note ? { moveType: note.move_type, state: note.state, linked: note.reversed_entry_id?.[0] === id, total: note.amount_total } : null, err: errShape(done.status === 200 ? { status: 0 } : done) })
+    const marker = `synthetic-page-${run}`
+    const ts = /^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d$/
+    const cases = [
+      ['account.move', 'ref', { move_type: 'out_invoice', partner_id: partner, ref: marker }, [['move_type', 'in', ['out_invoice', 'out_refund']]]],
+      ['account.payment', 'memo', payVals(1, { memo: marker }), [['payment_type', '=', 'inbound'], ['partner_type', '=', 'customer']]],
+    ]
+    for (const [model, field, vals, extra] of cases) {
+      const ids = []
+      let passed = true
+      let last = 200
+      try {
+        for (let i = 0; i < 11; i++) {
+          const cr = await q(model, 'create', { vals_list: Array.from({ length: i === 10 ? 1 : 100 }, () => vals) })
+          last = cr.status
+          if (cr.status !== 200) { passed = false; break }
+          ids.push(...cr.json)
+        }
+        for (const limit of [200, 1000]) {
+          const seen = []
+          let cursor = null
+          do {
+            const domain = [[field, '=', marker], ...extra]
+            if (cursor) domain.push('|', ['write_date', '>', cursor.write_date], '&', ['write_date', '=', cursor.write_date], ['id', '>', cursor.id])
+            const page = await q(model, 'search_read', { domain, fields: ['id', 'write_date'], order: 'write_date asc, id asc', limit })
+            last = page.status
+            if (page.status !== 200) { passed = false; break }
+            seen.push(...page.json)
+            cursor = page.json.length === limit ? page.json.at(-1) : null
+          } while (cursor)
+          if (seen.length !== ids.length || new Set(seen.map((x) => x.id)).size !== ids.length || !seen.every((x) => ts.test(x.write_date))) passed = false
+        }
+      } finally {
+        for (let i = 0; i < ids.length; i += 100) {
+          const rm = await q(model, 'unlink', { ids: ids.slice(i, i + 100) })
+          if (rm.status !== 200) passed = false
+        }
+      }
+      record(`V-OCI13 ${model} keyset paging with the sweep filters (200 and 1000)`, `${model}/search_read`, { status: last, json: {} }, passed ? `verified (${ids.length} records)` : 'unverified')
+    }
+  })
+
+  const mkUser = (label, groups) => {
+    const script = `from datetime import datetime, timedelta
+import json
+env = self.env
+gs = [g for g in ${JSON.stringify(groups)} if env.ref(g, raise_if_not_found=False)]
+u = env['res.users'].sudo().with_context(no_reset_password=True).create({'name': 'Synthetic ${label} ${run}', 'login': 'synthetic-${label}-${run}', 'group_ids': [(6, 0, [env.ref(g).id for g in gs])], 'company_ids': [(6, 0, [${co.id}])], 'company_id': ${co.id}})
+k = env['res.users.apikeys'].with_user(u)._generate('rpc', 'synthetic probe', datetime.now() + timedelta(hours=20))
+env.cr.commit()
+print('PROBE_USER=' + json.dumps({'id': u.id, 'key': k, 'missing': [g for g in ${JSON.stringify(groups)} if g not in gs]}))
+`
+    const out = spawnSync('docker', ['compose', '-f', fileURLToPath(new URL('./odoo-bed/compose.yml', import.meta.url)), '--env-file', envPath, 'run', '--rm', '--no-deps', '-T', 'odoo', 'odoo', 'shell', '-d', probeDatabase, '--no-http'], { input: script, encoding: 'utf8' })
+    try { return JSON.parse(out.stdout.split('\n').find((x) => x.startsWith('PROBE_USER=')).slice('PROBE_USER='.length)) } catch { return { failed: String(out.stderr || out.stdout).split('\n').filter(Boolean).slice(-1)[0]?.replace(/\d+/g, '#').slice(0, 140) } }
+  }
+  const battery = async (key) => {
+    const as = (m, me, b = {}) => call(m, me, { ...b, context: { ...ctx, ...(b.context || {}) } }, { key })
+    const out = []
+    const step = (label, r) => { out.push([label, r.status]); return r }
+    const c = step('create invoice', await as('account.move', 'create', { vals_list: [{ move_type: 'out_invoice', partner_id: partner, invoice_date: '2026-11-03', invoice_line_ids: [[0, 0, { product_id: pTax, name: 'synthetic line', quantity: 1, price_unit: 1000, analytic_distribution: { [String(analytic)]: 100 } }]] }] }))
+    const id = c.json?.[0]
+    if (!id) return out
+    step('read invoice', await as('account.move', 'read', { ids: [id], fields: INV_F }))
+    step('post invoice', await as('account.move', 'action_post', { ids: [id] }))
+    step('sweep search_read', await as('account.move', 'search_read', { domain: [['move_type', 'in', ['out_invoice', 'out_refund']]], fields: ['id', 'write_date'], limit: 2 }))
+    const wc = { active_model: 'account.move', active_ids: [id] }
+    const w = step('register wizard create', await as('account.payment.register', 'create', { vals_list: [{ amount: 400 }], context: wc }))
+    if (w.status === 200) step('register wizard pay', await as('account.payment.register', 'action_create_payments', { ids: w.json, context: wc }))
+    const p = step('create payment', await as('account.payment', 'create', { vals_list: [payVals(500)] }))
+    if (p.status === 200) {
+      step('post payment', await as('account.payment', 'action_post', { ids: p.json }))
+      const pm = (await as('account.payment', 'read', { ids: p.json, fields: ['move_id'] })).json?.[0]?.move_id?.[0]
+      const ls = (await as('account.move.line', 'search_read', { domain: [['move_id', 'in', [id, pm]], ['account_type', '=', 'asset_receivable'], ['reconciled', '=', false]], fields: ['id'] })).json || []
+      step('reconcile lines', await as('account.move.line', 'reconcile', { ids: ls.map((x) => x.id) }))
+    }
+    const src = (await as('account.move', 'read', { ids: [id], fields: ['journal_id', 'company_id'] })).json?.[0]
+    const rv = step('reversal wizard create', await as('account.move.reversal', 'create', { vals_list: [{ reason: 'synthetic credit note', journal_id: src?.journal_id?.[0], company_id: src?.company_id?.[0] }], context: wc }))
+    if (rv.status === 200) step('reversal refund_moves', await as('account.move.reversal', 'refund_moves', { ids: rv.json, context: wc }))
+    step('coretax export', await as('account.move', 'download_efaktur', { ids: [id] }))
+    step('read export attachment', await as('ir.attachment', 'search_read', { domain: [['res_model', '=', 'l10n_id_efaktur_coretax.document']], fields: ['mimetype', 'file_size'], limit: 1 }))
+    const x = await call('ir.model.data', 'create', { vals_list: [{ module: 'pmo_probe', name: `synthetic_${run}_${out.length}_${Math.random().toString(36).slice(2, 7)}`, model: 'account.move', res_id: id, noupdate: true }] }, { key })
+    step('external id create', x)
+    step('external id search', await call('ir.model.data', 'search_read', { domain: [['module', '=', 'pmo_probe'], ['model', '=', 'account.move']], fields: ['res_id'], limit: 1 }, { key }))
+    return out
+  }
+  const summarise = (res) => res.filter(([, s]) => s !== 200).map(([l, s]) => `${l}:${s}`)
+  const sets = {
+    billing: ['base.group_user', 'account.group_account_invoice'],
+    accountant: ['base.group_user', 'account.group_account_user'],
+    billingPlusAccessRights: ['base.group_user', 'account.group_account_invoice', 'base.group_erp_manager'],
+    internalOnly: ['base.group_user'],
+  }
+  const users = {}
+  for (const [name, groups] of Object.entries(sets)) {
+    await sec(`V-OCI14 ${name}`, async () => {
+      const u = mkUser(name, groups)
+      users[name] = u
+      if (!u || u.failed) return record(`V-OCI14 service user set: ${name}`, 'res.users/create', { status: 0, json: null }, 'user creation failed', { reason: u?.failed })
+      const res = await battery(u.key)
+      record(`V-OCI14 service user set: ${name}`, `battery of ${res.length} revenue calls`, { status: 200, json: {} }, summarise(res).length ? `refused: ${summarise(res).join(', ')}` : 'all calls passed', { groups: groups, missingGroups: u.missing, steps: res.length })
+    })
+  }
+  // V-OCI2 second user: can a billing user edit each candidate on a posted invoice / posted payment, and what does the form say
+  await sec('V-OCI2 second user', async () => {
+    const key = users.billing?.key
+    if (!key) return
+    const as = (m, me, b = {}) => call(m, me, { ...b, context: { ...ctx, ...(b.context || {}) } }, { key })
+    const id = await newPosted(1000, { ref: 'synthetic-original' })
+    const facts = {}
+    for (const f of ['ref', 'payment_reference', 'invoice_origin', 'narration']) {
+      const w = await as('account.move', 'write', { ids: [id], vals: { [f]: f === 'narration' ? '<p>edited</p>' : 'synthetic-edited' } })
+      facts[f] = { postedWriteStatus: w.status }
+    }
+    const views = await q('account.move', 'get_views', { views: [[false, 'form']] })
+    const arch = views.json?.views?.form?.arch || ''
+    for (const f of ['ref', 'payment_reference', 'invoice_origin', 'narration']) {
+      const m = arch.match(new RegExp(`<field name="${f}"[^>]*>`))
+      facts[f] = { ...(facts[f] || {}), formReadonlyAttr: m ? (m[0].match(/readonly="([^"]*)"/)?.[1] ?? 'none') : 'field not on form' }
+    }
+    const pay = (await q('account.payment', 'create', { vals_list: [payVals(100, { memo: 'synthetic-original' })] })).json[0]
+    await q('account.payment', 'action_post', { ids: [pay] })
+    const pw = await as('account.payment', 'write', { ids: [pay], vals: { memo: 'synthetic-edited' } })
+    const pviews = await q('account.payment', 'get_views', { views: [[false, 'form']] })
+    const parch = pviews.json?.views?.form?.arch || ''
+    facts.paymentMemo = { postedWriteStatus: pw.status, after: (await rd('account.payment', pay, ['memo'])).memo, formReadonlyAttr: (parch.match(/<field name="memo"[^>]*>/) ? (parch.match(/<field name="memo"[^>]*>/)[0].match(/readonly="([^"]*)"/)?.[1] ?? 'none') : 'field not on form') }
+    record('V-OCI2 second (billing) user edits a candidate after post; form readonly modifier', 'account.move/write, account.payment/write, get_views', { status: 200, json: {} }, 'verified', facts)
+  })
+
+  await sec('V-OCI15', async () => {
+    const shapes = {}
+    const note = (label, r) => { shapes[label] = { status: r.status, ...(errShape(r) || {}) } }
+    note('create with a missing partner reference', await q('account.move', 'create', { vals_list: [{ move_type: 'out_invoice', partner_id: 987654321 }] }))
+    const nop = (await inv([line(100)], { partner_id: false })).json[0]
+    note('post invoice without a partner', await post(nop))
+    note('negative payment amount', await q('account.payment', 'create', { vals_list: [payVals(-5)] }))
+    note('register wizard without active_ids', await q('account.payment.register', 'create', { vals_list: [{}] }))
+    const draft = (await inv([line(100)])).json[0]
+    const rc = { active_model: 'account.move', active_ids: [draft] }
+    const dsrc = await rd('account.move', draft, ['journal_id', 'company_id'])
+    const rw = await q('account.move.reversal', 'create', { vals_list: [{ reason: 'x', journal_id: dsrc.journal_id[0], company_id: dsrc.company_id[0] }], context: rc })
+    note('reverse a draft invoice', rw.status === 200 ? await q('account.move.reversal', 'refund_moves', { ids: rw.json, context: rc }) : rw)
+    note('coretax export of a draft invoice', await q('account.move', 'download_efaktur', { ids: [draft] }))
+    const posted = await newPosted(100)
+    const ar = (await q('account.move.line', 'search_read', { domain: [['move_id', '=', posted], ['account_type', '=', 'asset_receivable']], fields: ['id'] })).json.map((x) => x.id)
+    note('reconcile a single line', await q('account.move.line', 'reconcile', { ids: ar }))
+    note('unknown method', await q('account.move', 'no_such_method', { ids: [posted] }))
+    note('unlink a posted invoice', await q('account.move', 'unlink', { ids: [posted] }))
+    const lim = users.internalOnly?.key
+    if (lim) note('access refused (internal user, no accounting group)', await call('account.move', 'create', { vals_list: [{ move_type: 'out_invoice' }], context: ctx }, { key: lim }))
+    record('V-OCI15 error body shape for a failure on each call', 'various', { status: 200, json: {} }, 'verified', shapes)
+  })
+  for (const x of results) console.log(JSON.stringify(x))
+  process.exit(0)
+}
+
 // 1. endpoint + auth
 let r = await call('res.partner', 'search_read', { domain: [['is_company', '=', true]], fields: ['name', 'email', 'vat', 'write_date'], limit: 2 })
 record('JSON-2 POST /json/2/{model}/{method} with bearer key returns 200 + list', 'res.partner/search_read', r, r.status === 200 && Array.isArray(r.json) ? 'verified' : 'wrong')

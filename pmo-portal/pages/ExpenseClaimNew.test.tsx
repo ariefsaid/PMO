@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ToastProvider } from '@/src/components/ui';
-import { formatCurrencyAuto } from '@/src/lib/format';
+import { formatCurrency } from '@/src/lib/format';
 const h = vi.hoisted(() => ({ create: vi.fn(), addLine: vi.fn(), capture: vi.fn(), cleanup: vi.fn(), may: vi.fn(() => true), navigate: vi.fn(), claims: [] as unknown[], readiness: 'ready' as string, choices: [] as unknown[], choicesArgs: [] as unknown[][], limit: null as number | null, setFloat: vi.fn(), adv: { pending: false, error: false, refetch: vi.fn() } }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => h.may }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'user-1' } }) }));
@@ -177,8 +177,8 @@ describe('Charge to site float (AC-IMP-084, FR-IMP-072)', () => {
     fireEvent.change(screen.getByLabelText('Charge to site float'), { target: { value: 'f1' } });
     fill('100');
     const note = screen.getByRole('note');
-    expect(note).toHaveTextContent(formatCurrencyAuto(500000, 'USD'));
-    expect(note).not.toHaveTextContent(formatCurrencyAuto(500000, 'IDR'));
+    expect(note).toHaveTextContent(formatCurrency(500000, 'USD'));
+    expect(note).not.toHaveTextContent(formatCurrency(500000, 'IDR'));
   });
 
   it('#1635 two floats of one custodian are told apart by project and custodian', () => {

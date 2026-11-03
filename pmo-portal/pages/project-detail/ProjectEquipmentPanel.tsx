@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Button, DataTable, type Column } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEquipmentAllocations, useEquipmentUsageTotals } from '@/src/hooks/useEquipment';
-import { formatCurrencyAuto, formatExactMoney, formatNumberMax2 } from '@/src/lib/format';
+import { formatCurrency, formatExactMoney, formatNumberMax2 } from '@/src/lib/format';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import { basisLabel, unitLabel } from '../equipment/equipmentLabels';
 import { monthStart, toIso } from '../equipment/equipmentWeek';
@@ -62,7 +62,7 @@ export const ProjectEquipmentPanel: React.FC<{ projectId: string; currency: stri
     { key: 'waiting', header: t('equipment:usage.waiting', 'Waiting approval'), align: 'num', cell: (l) => <span className="tabular-nums">{l.waiting}</span> },
     ...(canSeeAmounts ? [
       { key: 'amount', header: t('equipment:panel.columns.allocated', 'Allocated'), align: 'num' as const,
-        cell: (l: AssetLine) => l.amount == null ? <span className="text-muted-foreground">—</span> : <span className="tabular-nums">{formatCurrencyAuto(l.amount, currency)}</span> },
+        cell: (l: AssetLine) => l.amount == null ? <span className="text-muted-foreground">—</span> : <span className="tabular-nums">{formatCurrency(l.amount, currency)}</span> },
       { key: 'basis', header: t('equipment:allocations.basis', 'Basis'),
         cell: (l: AssetLine) => l.basis.length === 0 ? '—' : l.basis.map((b) => b === 'usage_only' ? t('equipment:allocations.usageOnly', 'Usage recorded; no costing set') : basisLabel(t, b)).join(' · ') },
     ] : []),

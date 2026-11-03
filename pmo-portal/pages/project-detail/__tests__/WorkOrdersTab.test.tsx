@@ -52,6 +52,9 @@ vi.mock('@/src/hooks/useWorkOrders', () => ({
   useProjectDrawdown: () => drawdownState,
   useWorkOrderMutations: () => mutations,
 }));
+vi.mock('@/src/hooks/useSubcontract', () => ({
+  useWorkOrderCostVariations: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+}));
 // OD-BILL-1: the tab now reads work-order billing through react-query. These specs predate it and mount without a
 // QueryClientProvider, so the hook is held in its loading state and contributes no figures; billing is covered in
 // WorkOrdersTab.billing.test.tsx.

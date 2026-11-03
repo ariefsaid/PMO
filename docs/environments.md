@@ -519,6 +519,15 @@ lot creation, revision, bill and payment posting, and reconciliation. Removing e
 blocked an exercised operation. This is the smallest set tested on this bed, not a proof for every possible
 customized installation; see the O2 findings below.
 
+For the exercised customer-invoice and receipt calls (#1506 findings, research doc §10), an internal user with the
+Billing group (`account.group_account_invoice`) completed invoice create and post, the register-payment wizard, line
+reconcile, the credit-note wizard and the Coretax export. The stock external identifier (`ir.model.data`) read and
+create additionally needed Access Rights (`base.group_erp_manager`). An API key for an internal-only user could not
+exceed one day. Smallest set tested on this bed, not a proof for every customized installation.
+
+**OWNER go-live check (O2 and O3):** Access Rights is an elevated grant on the service user. The owner confirms it
+for the real Odoo before an org employs `procurement` or `revenue` under Odoo; the build does not block on it.
+
 What the bed showed about the Odoo API, including where the research docs were wrong:
 `docs/research/2026-10-31-odoo20-dev-bed-verification.md`.
 

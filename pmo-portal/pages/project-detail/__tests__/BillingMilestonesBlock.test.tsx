@@ -5,7 +5,7 @@ import React from 'react';
 import { MemoryRouter } from 'react-router';
 import type { WorkOrderRow } from '@/src/lib/db/workOrders';
 import type { WorkOrderBillingRow } from '@/src/lib/db/workOrderBilling';
-import { formatCurrencyAuto, formatDateOnly } from '@/src/lib/format';
+import { formatCurrency, formatDateOnly } from '@/src/lib/format';
 
 type Q = { data: unknown[] | undefined; isPending: boolean; isError: boolean; refetch: ReturnType<typeof vi.fn> };
 const q = (data: unknown[] | undefined = []): Q => ({ data, isPending: false, isError: false, refetch: vi.fn() });
@@ -85,7 +85,7 @@ describe('BillingMilestonesBlock (#1640)', () => {
     expect(screen.getByText(`${formatDateOnly('2026-11-10')} – ${formatDateOnly('2026-12-01')}`)).toBeInTheDocument();
     expect(screen.getByText('No dates')).toBeInTheDocument();
     const both = screen.getByTestId('billing-milestone-b');
-    expect(both.textContent).toContain(formatCurrencyAuto(2500, 'USD'));
+    expect(both.textContent).toContain(formatCurrency(2500, 'USD'));
     for (const id of ids) expect(within(screen.getByTestId(id!)).getByTestId('tax-basis')).toHaveTextContent(/excl/i);
   });
 

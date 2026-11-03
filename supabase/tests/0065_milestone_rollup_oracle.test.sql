@@ -1,9 +1,11 @@
 -- 0065_milestone_rollup_oracle.test.sql — worked-example rollup oracle (AC-DEL-019).
 -- Milestones E(w=20)/P(w=30)/C(w=50) → effective% 100/40/0 → project delivery = 32%.
 -- Also covers: null calculated_pct for a task-less milestone; project with no milestones returns a summary row with null delivery.
+-- The derivation ACs (AC-DEL-001..007) are owned here at the SQL layer since OE17R02-001 retired
+-- the parallel TS oracle: the RPC is the derivation the app actually executes.
 -- Fixture namespace: 00650000-… (unique to this test).
 begin;
-select plan(12);
+select plan(13);
 
 -- ── Fixtures (table owner, bypassing RLS) ───────────────────────────────────
 insert into auth.users (id, email) values
@@ -51,7 +53,9 @@ insert into project_milestones (id, org_id, project_id, name, weight, sort_order
   ('00650000-0000-0000-0000-000000000033','00000000-0000-0000-0000-000000000001',
    '00650000-0000-0000-0000-000000000020','Construction',50,2),
   ('00650000-0000-0000-0000-000000000034','00000000-0000-0000-0000-000000000001',
-   '00650000-0000-0000-0000-000000000020','No-tasks Milestone',0,3);
+   '00650000-0000-0000-0000-000000000020','No-tasks Milestone',0,3),
+  ('00650000-0000-0000-0000-000000000035','00000000-0000-0000-0000-000000000001',
+   '00650000-0000-0000-0000-000000000020','Partial 3-of-5',0,4);
 
 -- E: 5 tasks all Done → calculated_pct = 100.
 insert into tasks (id, org_id, project_id, milestone_id, name, status) values
@@ -75,6 +79,15 @@ insert into tasks (id, org_id, project_id, milestone_id, name, status) values
   ('00650000-0000-0001-0003-000000000002','00000000-0000-0000-0000-000000000001','00650000-0000-0000-0000-000000000020','00650000-0000-0000-0000-000000000033','C-T2','To Do'),
   ('00650000-0000-0001-0003-000000000003','00000000-0000-0000-0000-000000000001','00650000-0000-0000-0000-000000000020','00650000-0000-0000-0000-000000000033','C-T3','To Do'),
   ('00650000-0000-0001-0003-000000000004','00000000-0000-0000-0000-000000000001','00650000-0000-0000-0000-000000000020','00650000-0000-0000-0000-000000000033','C-T4','To Do');
+
+-- Partial: 5 tasks, 3 Done → calculated_pct = 60 (AC-DEL-001). Weight 0 keeps it out of the
+-- rollup denominator so the worked example above stays 32%.
+insert into tasks (id, org_id, project_id, milestone_id, name, status) values
+  ('00650000-0000-0001-0005-000000000001','00000000-0000-0000-0000-000000000001','00650000-0000-0000-0000-000000000020','00650000-0000-0000-0000-000000000035','PA-T1','Done'),
+  ('00650000-0000-0001-0005-000000000002','00000000-0000-0000-0000-000000000001','00650000-0000-0000-0000-000000000020','00650000-0000-0000-0000-000000000035','PA-T2','Done'),
+  ('00650000-0000-0001-0005-000000000003','00000000-0000-0000-0000-000000000001','00650000-0000-0000-0000-000000000020','00650000-0000-0000-0000-000000000035','PA-T3','Done'),
+  ('00650000-0000-0001-0005-000000000004','00000000-0000-0000-0000-000000000001','00650000-0000-0000-0000-000000000020','00650000-0000-0000-0000-000000000035','PA-T4','To Do'),
+  ('00650000-0000-0001-0005-000000000005','00000000-0000-0000-0000-000000000001','00650000-0000-0000-0000-000000000020','00650000-0000-0000-0000-000000000035','PA-T5','To Do');
 
 -- N: no tasks (to test calculated_pct is null and effective_pct = 0).
 
@@ -100,6 +113,13 @@ select is(
     where id = '00650000-0000-0000-0000-000000000033'),
   0::numeric,
   'AC-DEL-019: get_project_milestones effective_pct = 0 for milestone C (0/4 Done)');
+
+-- AC-DEL-001: calculated % is Done/total — 3 of 5 Done → 60 (SQL-path owner since OE17R02-001).
+select is(
+  (select calculated_pct from get_project_milestones('00650000-0000-0000-0000-000000000020')
+    where id = '00650000-0000-0000-0000-000000000035'),
+  60::numeric,
+  'AC-DEL-001: calculated_pct = 60 for a milestone with 5 tasks, 3 Done');
 
 -- AC-DEL-019: calculated_pct is null for a task-less milestone; effective_pct = 0.
 select ok(

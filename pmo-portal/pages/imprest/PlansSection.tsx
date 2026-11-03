@@ -12,7 +12,7 @@ import type { BudgetCategory, ImprestPlanRow } from '@/src/lib/db/imprest';
 import { Constants } from '@/src/lib/supabase/database.types';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { formatCurrencyAuto, parseMoneyInputAtScale } from '@/src/lib/format';
+import { formatCurrency, parseMoneyInputAtScale } from '@/src/lib/format';
 import { workflowVariant } from '@/src/lib/status/statusVariants';
 import { imprestStatusLabel } from './imprestLabels';
 
@@ -47,7 +47,7 @@ const PlanLines: React.FC<{ plan: ImprestPlanRow; currency: string; editable: bo
         {(lines.data ?? []).map((l) => (
           <li key={l.id} className="flex items-center gap-3 py-1.5">
             <span className="flex-1">{budgetCategoryLabel(l.budget_category, t)}</span>
-            <span className="tabular-nums">{formatCurrencyAuto(Number(l.planned_amount), currency)}</span>
+            <span className="tabular-nums">{formatCurrency(Number(l.planned_amount), currency)}</span>
             {editable && <Button variant="ghost" size="sm" aria-label={t('imprest:plan.removeLine', 'Remove {{category}}', { category: budgetCategoryLabel(l.budget_category, t) })}
               disabled={remove.isPending} onClick={() => void run(() => remove.mutateAsync(l.id))}>{t('imprest:plan.remove', 'Remove')}</Button>}
           </li>
@@ -122,7 +122,7 @@ export const PlansSection: React.FC<{ floatId: string; custodianId: string; curr
                     <span className="text-muted-foreground">{plan.number ?? t('imprest:plan.draftNumber', 'Draft')}</span>
                     <StatusPill variant={workflowVariant(plan.status)}>{imprestStatusLabel(plan.status, t)}</StatusPill>
                     {plan.is_late && <span className="text-muted-foreground">{t('imprest:plan.late', 'Late')}</span>}
-                    <span className="flex-1 text-right tabular-nums">{formatCurrencyAuto(Number(plan.total), currency)}</span>
+                    <span className="flex-1 text-right tabular-nums">{formatCurrency(Number(plan.total), currency)}</span>
                     <Button variant="ghost" size="sm" aria-expanded={open === plan.id} onClick={() => setOpen((c) => (c === plan.id ? null : plan.id))}>
                       {open === plan.id ? t('imprest:plan.hideLines', 'Hide lines') : t('imprest:plan.showLines', 'Show lines')}
                     </Button>
@@ -146,7 +146,7 @@ export const PlansSection: React.FC<{ floatId: string; custodianId: string; curr
           : dialog?.action === 'rejectPlan' ? t('imprest:plan.confirm.rejectTitle', 'Reject the {{month}} plan?', { month: monthLabel(dialog.plan.month) })
           : t('imprest:plan.confirm.cancelTitle', 'Cancel the {{month}} plan?', { month: dialog ? monthLabel(dialog.plan.month) : '' })}
         description={<div className="space-y-3">
-          <p>{dialog ? formatCurrencyAuto(Number(dialog.plan.total), currency) : ''}</p>
+          <p>{dialog ? formatCurrency(Number(dialog.plan.total), currency) : ''}</p>
           {dialog?.action === 'rejectPlan' && <TextArea label={t('imprest:plan.confirm.notes', 'Note to the author (optional)')} value={notes} onChange={setNotes} />}
         </div>}
         confirmLabel={dialog?.action === 'approvePlan' ? t('imprest:actions.approve', 'Approve') : dialog?.action === 'rejectPlan' ? t('imprest:actions.reject', 'Reject') : t('imprest:actions.cancel', 'Cancel')}

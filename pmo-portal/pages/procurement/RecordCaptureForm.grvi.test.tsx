@@ -19,9 +19,15 @@ vi.mock('@/src/hooks/useOrgTaxDefault', async (orig) => {
   return { ...actual, useOrgTaxDefault: () => orgDefault.value };
 });
 
+const subcontractPosition = vi.hoisted(() => ({ data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() }));
+vi.mock('@/src/hooks/useSubcontract', () => ({ usePoPosition: () => subcontractPosition }));
+
 beforeEach(() => {
   orgDefault.value = 'exclusive';
   setActiveLocale(EN_LOCALE);
+  subcontractPosition.data = [];
+  subcontractPosition.isPending = false;
+  subcontractPosition.isError = false;
 });
 afterEach(() => resetActiveLocale());
 import { render, screen, waitFor, within } from '@testing-library/react';
@@ -46,6 +52,8 @@ function renderForm(props: Partial<React.ComponentProps<typeof RecordCaptureForm
         onStage={props.onStage}
         busy={props.busy}
         invoices={props.invoices}
+        subcontractPoId={props.subcontractPoId}
+        currency={props.currency}
       />
     </ToastProvider>,
   );
@@ -133,6 +141,28 @@ describe('RecordCaptureForm — Supplier Invoice kind', () => {
         taxAmount: 123.95,
       }),
     );
+  });
+
+  it('FR-SCA-051 uses payable BoQ lines and stages them for the capped subcontract RPC', async () => {
+    subcontractPosition.data = [{
+      boq_item_id: 'boq-1', item_code: 'L1', description: 'Concrete', unit: 'm3', rate: 100,
+      po_qty: 100, revision: 1, verified: 100, verified_not_on_po: 0, verified_at: null,
+      disputed: 0, billed: 0, payable: 100,
+    }];
+    const onStage = vi.fn();
+    renderForm({ kind: 'vendor_invoice', onStage, subcontractPoId: 'po-1', currency: 'IDR' });
+    const line = screen.getByRole('textbox', { name: 'L1 Concrete' });
+    await waitFor(() => expect(line).toHaveValue('100'));
+    await waitFor(() => expect(screen.getByTestId('vi-amount-input')).not.toHaveValue(''));
+    expect(screen.getByTestId('vi-amount-input')).toHaveAttribute('readonly');
+    await userEvent.selectOptions(screen.getByTestId('vi-tax-treatment-select'), 'exclusive');
+    await userEvent.type(screen.getByTestId('vi-tax-amount-input'), '0');
+    await userEvent.click(screen.getByTestId('btn-save-vi'));
+    expect(onStage).toHaveBeenCalledWith(expect.objectContaining({
+      kind: 'createVI',
+      amount: 10000,
+      lines: [{ boqItemId: 'boq-1', quantity: 100, rate: 100 }],
+    }));
   });
 
   it('AC-PLC-009: rejects an en-US invoice amount with excess precision before staging', async () => {

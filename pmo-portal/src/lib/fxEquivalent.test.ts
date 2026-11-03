@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { formatFxEquivalent, orgDay } from './fxEquivalent';
+import { formatCalendarDayInTimeZone } from './format';
+import { formatFxEquivalent } from './fxEquivalent';
 import { resetActiveLocale, setActiveLocale } from './locale/activeLocale';
 import type { FxRateMatch } from './repositories/types';
 
@@ -8,11 +9,11 @@ const match: FxRateMatch = { rate: 16234.56, rate_date: '2026-10-09' };
 afterEach(resetActiveLocale);
 
 describe('display-only JISDOR equivalent', () => {
-  it('uses organization calendar date across UTC midnight without the viewer timezone', () => {
+  it('the FX org day uses the organization calendar date across UTC midnight without the viewer timezone', () => {
     const instant = new Date('2026-10-09T17:30:00.000Z');
-    expect(orgDay(instant, 'Asia/Jakarta')).toBe('2026-10-10');
-    expect(orgDay(instant, 'UTC')).toBe('2026-10-09');
-    expect(orgDay(instant, 'America/New_York')).toBe('2026-10-09');
+    expect(formatCalendarDayInTimeZone(instant, 'Asia/Jakarta')).toBe('2026-10-10');
+    expect(formatCalendarDayInTimeZone(instant, 'UTC')).toBe('2026-10-09');
+    expect(formatCalendarDayInTimeZone(instant, 'America/New_York')).toBe('2026-10-09');
   });
 
   it('rounds the approximation once, keeps source/date explicit and does not mutate the amount', () => {

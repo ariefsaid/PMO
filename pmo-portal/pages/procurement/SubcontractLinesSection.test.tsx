@@ -16,6 +16,8 @@ const h = vi.hoisted(() => ({
   acceptances: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
   exceptions: { data: [] as unknown[], isError: false },
   issue: vi.fn(),
+  requestVariation: vi.fn(),
+  variations: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
   may: vi.fn((_a: string, _e: string) => true),
 }));
 
@@ -24,14 +26,18 @@ vi.mock('@/src/hooks/useSubcontract', () => ({
   usePoDraftLines: () => h.draft,
   useSubcontractAcceptances: () => h.acceptances,
   useSubcontractCapExceptions: () => h.exceptions,
+  usePoVariations: () => h.variations,
   useSubcontractMutations: () => {
     const m = () => ({ mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false });
     return {
       setPoLines: m(), issuePoLines: { mutateAsync: h.issue, isPending: false }, prepareAcceptance: m(),
       confirmAcceptance: m(), withdrawAcceptance: m(), attributeBillLines: m(),
+      requestVariation: { mutateAsync: h.requestVariation, isPending: false },
+      decideVariation: m(), issueRevision: m(), linkVariation: m(),
     };
   },
 }));
+vi.mock('@/src/hooks/useWorkOrders', () => ({ useProjectWorkOrders: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => h.may }));
 vi.mock('@/src/hooks/useUsers', () => ({ useUsers: () => ({ data: [{ id: 'u1', status: 'active' }, { id: 'u2', status: 'active' }] }) }));
 vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => ({ data: [] }) }));
@@ -69,8 +75,10 @@ beforeEach(() => {
   h.draft = { data: [], isPending: false };
   h.acceptances = { data: [], isPending: false, isError: false, refetch: vi.fn() };
   h.exceptions = { data: [], isError: false };
+  h.variations = { data: [], isPending: false, isError: false, refetch: vi.fn() };
   h.may = vi.fn(() => true);
   h.issue.mockReset().mockResolvedValue(undefined);
+  h.requestVariation.mockReset().mockResolvedValue('var-1');
 });
 
 describe('SubcontractLinesSection', () => {
@@ -167,5 +175,23 @@ describe('SubcontractLinesSection', () => {
     renderSection();
     await screen.findByRole('row', { name: /L1/ });
     expect(screen.queryByRole('button', { name: /record acceptance/i })).toBeNull();
+  });
+
+  it('FR-SCA-034 offers a post-work variation from verified excess and bounds its quantity', async () => {
+    const user = userEvent.setup();
+    renderSection();
+    const line = await screen.findByRole('row', { name: /L1/ });
+    await user.click(within(line).getByRole('button', { name: /post-work/i }));
+    expect(await screen.findByRole('heading', { name: /request po variation/i })).toBeInTheDocument();
+    expect(screen.getByLabelText(/additional quantity/i)).toHaveValue('20');
+    expect(screen.getByText(/maximum verified amount not yet on po: 20 m3/i)).toBeInTheDocument();
+  });
+
+  it('FR-SCA-036 variation requests are hidden when can(request, poVariation) denies the user', async () => {
+    h.may = vi.fn((a: string, e: string) => !(a === 'request' && e === 'poVariation'));
+    renderSection();
+    await screen.findByRole('row', { name: /L1/ });
+    expect(screen.queryByRole('button', { name: /pre-work/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /post-work/i })).toBeNull();
   });
 });
