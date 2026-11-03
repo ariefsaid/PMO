@@ -88,7 +88,6 @@ const ALLOWLIST = {
   'pmo-portal/src/lib/db/fxRates.ts :: fx_rates #1': 'bounded: .in(rate_date, dates), one row per date, caller-bounded',
   'pmo-portal/src/lib/db/imprest.ts :: imprest_plan_lines #1': 'bounded: lines of one plan, one per budget category',
   'pmo-portal/src/lib/db/opportunity.ts :: projects #1': 'bounded: .in(id) chunked by BY_IDS_CHUNK',
-  'pmo-portal/src/lib/db/orgFeatures.ts :: org_features #1': 'bounded: one row per feature key (fixed registry)',
   'pmo-portal/src/lib/db/orgs.ts :: organizations #1': 'bounded: single-tenant, org count is 1 (RLS)',
   'pmo-portal/src/lib/db/orgs.ts :: organizations #2': 'bounded: single-tenant, org count is 1 (RLS)',
   'pmo-portal/src/lib/db/orgs.ts :: organizations #3': 'bounded: single-tenant, org count is 1 (RLS)',

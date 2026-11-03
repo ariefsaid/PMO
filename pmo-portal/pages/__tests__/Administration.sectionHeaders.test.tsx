@@ -49,13 +49,52 @@ vi.mock('@/src/hooks/useUsage', () => ({
   useUsage: () => ({ data: [], isPending: false, isError: false, refetch: () => {} }),
   useAgentRunStats: () => ({ data: [], isPending: false, isError: false, refetch: () => {} }),
 }));
-vi.mock('@/src/hooks/useOrgFeatures', () => ({
-  useOrgFeatures: () => ({ data: { incidents: true } }),
+vi.mock('@/src/hooks/useOrgFeatures', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/src/hooks/useOrgFeatures')>()),
+  // A resolved set with a mix of sources so every row kind renders (S3: the panel reads the
+  // database projection, and `usePlans` imports the query keys from this same module).
+  useOrgFeatures: () => ({
+    data: { incidents: true, crm: false, procurement: true },
+    states: {
+      incidents: { enabled: true, displayEnabled: true, source: 'override' },
+      crm: { enabled: false, displayEnabled: false, source: 'plan' },
+      procurement: { enabled: true, displayEnabled: true, source: 'global' },
+    },
+  }),
 }));
 vi.mock('@/src/lib/repositories', () => ({
   repositories: {
     credits: { getOrgBalance: () => Promise.resolve(100), grant: () => Promise.resolve(undefined) },
-    orgFeature: { listOwn: () => Promise.resolve({}), toggle: () => Promise.resolve(undefined) },
+    orgFeature: {
+      listOwn: vi.fn().mockResolvedValue({ display: {}, states: {} }),
+      listForOrg: vi.fn().mockResolvedValue({
+        display: { incidents: true, crm: false, procurement: true },
+        states: {
+          incidents: { enabled: true, displayEnabled: true, source: 'override' },
+          crm: { enabled: false, displayEnabled: false, source: 'plan' },
+          procurement: { enabled: true, displayEnabled: true, source: 'global' },
+        },
+      }),
+      getPlanCatalogue: vi.fn().mockResolvedValue({
+        plans: [{ planId: 'starter', name: 'Starter', seatLimit: 10, projectLimit: 25, aiMonthlyMessages: 300 }],
+        defaults: { starter: { incidents: true, crm: false, procurement: true } },
+        global: { incidents: true, crm: true, procurement: true },
+      }),
+      getOrgPlan: vi.fn().mockResolvedValue('starter'),
+      getOwnPlan: vi.fn().mockResolvedValue({
+        planId: 'starter',
+        name: 'Starter',
+        seatLimit: 10,
+        projectLimit: 25,
+        aiMonthlyMessages: 300,
+      }),
+      toggle: vi.fn().mockResolvedValue(undefined),
+      clearOverride: vi.fn().mockResolvedValue(undefined),
+      setOrgPlan: vi.fn().mockResolvedValue(undefined),
+      setGlobal: vi.fn().mockResolvedValue(undefined),
+      setPlanFeature: vi.fn().mockResolvedValue(undefined),
+      setPlanLimits: vi.fn().mockResolvedValue(undefined),
+    },
   },
 }));
 

@@ -1,50 +1,181 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError } from '@/src/lib/appError';
-import { FEATURE_KEYS, type OrgFeatureKey } from '@/src/lib/features';
+import {
+  CORE_FEATURES,
+  FEATURE_KEYS,
+  type EntitleableKey,
+  type FeatureResolution,
+  type FeatureSource,
+  type OrgFeatureKey,
+  type ResolvedFeatureSet,
+} from '@/src/lib/features';
 
 /**
- * org_features DAL (ops-admin-surface S6, FR-ENT-001..004). The read path selects own-org rows
- * (RLS scopes `org_id = auth_org_id()` so a member reads only their own org — no `org_id` is sent).
- * The write path is the Operator-only `operator_toggle_feature` RPC (core keys rejected with
- * errcode `P0001` `core_not_gated`; unknown org rejected with `23503`). `org_credit_balance` +
- * `operator_grant_credits` are the credits RPCs shipped in mig 0065 (FR-CRE-002/005).
+ * org_features DAL — now a thin seam over the database resolver (FR-PLN-005).
+ *
+ * Reads: `resolved_org_features()` (own org) and `operator_resolved_org_features(uuid)` (the org an
+ * Operator is looking at) return the SAME resolved projection the server enforces, so no layer
+ * re-implements the global → override → plan order, and the revenue display rule (FR-PLN-005a)
+ * arrives as `display_enabled` instead of the FE's old `useRevenueMode()` copy.
+ *
+ * Operator reads for the console: `operator_plan_catalogue()` (plans, limits, plan matrix, all-orgs
+ * flags), `operator_org_plan(uuid)`, and `resolved_org_plan()` for the read-only Admin page.
+ *
+ * Writes: the guarded Operator RPCs from 0532/0533 plus the Admin-owned feedback switch (0419).
+ * Every one of them re-asserts its own authority server-side; the FE gate is clarity only (ADR-0016).
  */
 
-/** Row shape returned by the own-org features select. */
-export interface OrgFeatureRow {
+/** One row of the resolved projection (0532:177). */
+export interface ResolvedFeatureRow {
   feature_key: string;
   enabled: boolean;
+  display_enabled: boolean;
+  source: string;
 }
 
-/**
- * Read the caller's own-org feature rows and project them into a `Record<OrgFeatureKey, boolean>`.
- * Keys with no row are ABSENT from the map (the `useFeature` resolver falls back to the env
- * default for those — FR-ENT-004 absence = included).
- */
-export async function listOwnOrgFeatures(): Promise<Record<OrgFeatureKey, boolean>> {
-  const { data, error } = await supabase
-    .from('org_features')
-    .select('feature_key, enabled');
-  if (error) throw new AppError(error.message, error.code);
-  const out: Partial<Record<OrgFeatureKey, boolean>> = {};
-  for (const row of (data ?? []) as OrgFeatureRow[]) {
-    // Only known keys land in the map (defensive against a CHECK-list expansion lagging the FE).
-    if (isValidFeatureKey(row.feature_key)) {
-      out[row.feature_key] = row.enabled;
-    }
-  }
-  return out as Record<OrgFeatureKey, boolean>;
-}
+const SOURCES: ReadonlySet<string> = new Set<FeatureSource>(['global', 'override', 'plan', 'core', 'unknown']);
 
-// Derive the validation set from the CANONICAL FEATURE_KEYS registry (code review I1: a
-// hand-maintained copy would silently drop toggled rows when the SQL CHECK + FEATURE_KEYS list
-// diverged — the Operator's toggle would persist yet the FE would ignore it).
+// Derive the validation set from the CANONICAL registries (gatable + core): a hand-maintained copy
+// would silently drop rows when the SQL registry and the FE list diverged. Core keys are accepted
+// because the projection returns them (`source: 'core'`) for the console's always-on rows.
 const FEATURE_KEY_SET: ReadonlySet<string> = new Set<string>(FEATURE_KEYS);
+const ENTITLEMENT_KEY_SET: ReadonlySet<string> = new Set<string>([...FEATURE_KEYS, ...CORE_FEATURES]);
 function isValidFeatureKey(key: string): key is OrgFeatureKey {
   return FEATURE_KEY_SET.has(key);
 }
+function isEntitlementKey(key: string): key is EntitleableKey {
+  return ENTITLEMENT_KEY_SET.has(key);
+}
 
-/** Toggle (upsert) a feature row for an org via the Operator-only RPC. */
+function toSource(value: string): FeatureSource {
+  return SOURCES.has(value) ? (value as FeatureSource) : 'unknown';
+}
+
+/**
+ * Project the resolved rows into the two maps the UI needs. Pure, so the shape is proven in a unit
+ * test without a client: `display` is what navigation and routes read, `states` is the console's
+ * per-key detail. Unknown keys are dropped (a DB registry ahead of the FE must never leak a key the
+ * FE cannot label).
+ */
+export function projectResolvedFeatures(rows: ResolvedFeatureRow[]): ResolvedFeatureSet {
+  const display: Partial<Record<EntitleableKey, boolean>> = {};
+  const states: Partial<Record<EntitleableKey, FeatureResolution>> = {};
+  for (const row of rows) {
+    if (!isEntitlementKey(row.feature_key)) continue;
+    display[row.feature_key] = row.display_enabled;
+    states[row.feature_key] = {
+      enabled: row.enabled,
+      displayEnabled: row.display_enabled,
+      source: toSource(row.source),
+    };
+  }
+  return { display, states };
+}
+
+/** The caller's own-org resolved set (one call — the single source of display gating). */
+export async function listOwnResolvedFeatures(): Promise<ResolvedFeatureSet> {
+  const { data, error } = await supabase.rpc('resolved_org_features');
+  if (error) throw new AppError(error.message, error.code);
+  return projectResolvedFeatures((data ?? []) as ResolvedFeatureRow[]);
+}
+
+/** The resolved set of ONE organisation, for the Operator console (active Operator only, server-side). */
+export async function listOperatorResolvedFeatures(orgId: string): Promise<ResolvedFeatureSet> {
+  const { data, error } = await supabase.rpc('operator_resolved_org_features', { p_org_id: orgId });
+  if (error) throw new AppError(error.message, error.code);
+  return projectResolvedFeatures((data ?? []) as ResolvedFeatureRow[]);
+}
+
+/** A plan and its limits. `null` limits mean "per contract" / unlimited (spec limits table). */
+export interface PlanRow {
+  planId: string;
+  name: string;
+  seatLimit: number | null;
+  projectLimit: number | null;
+  aiMonthlyMessages: number | null;
+}
+
+/** The Operator console catalogue: every plan, the plan matrix and the all-orgs flags. */
+export interface PlanCatalogue {
+  plans: PlanRow[];
+  /** planId → key → enabled. */
+  defaults: Record<string, Partial<Record<OrgFeatureKey, boolean>>>;
+  /** key → all-orgs flag; `null`/absent for the Admin-owned key that has no global row. */
+  global: Partial<Record<OrgFeatureKey, boolean | null>>;
+}
+
+interface CatalogueRow {
+  plan_id: string;
+  plan_name: string;
+  seat_limit: number | null;
+  project_limit: number | null;
+  ai_monthly_messages: number | null;
+  feature_key: string;
+  feature_enabled: boolean;
+  global_enabled: boolean | null;
+}
+
+/** Pure projection of `operator_plan_catalogue()` rows. */
+export function projectPlanCatalogue(rows: CatalogueRow[]): PlanCatalogue {
+  const plans = new Map<string, PlanRow>();
+  const defaults: Record<string, Partial<Record<OrgFeatureKey, boolean>>> = {};
+  const global: Partial<Record<OrgFeatureKey, boolean | null>> = {};
+  for (const row of rows) {
+    if (!plans.has(row.plan_id)) {
+      plans.set(row.plan_id, {
+        planId: row.plan_id,
+        name: row.plan_name,
+        seatLimit: row.seat_limit,
+        projectLimit: row.project_limit,
+        aiMonthlyMessages: row.ai_monthly_messages,
+      });
+      defaults[row.plan_id] = {};
+    }
+    if (!isValidFeatureKey(row.feature_key)) continue;
+    defaults[row.plan_id][row.feature_key] = row.feature_enabled;
+    global[row.feature_key] = row.global_enabled;
+  }
+  return { plans: [...plans.values()], defaults, global };
+}
+
+/** Operator-only: the whole registry, in one read. */
+export async function getPlanCatalogue(): Promise<PlanCatalogue> {
+  const { data, error } = await supabase.rpc('operator_plan_catalogue');
+  if (error) throw new AppError(error.message, error.code);
+  return projectPlanCatalogue((data ?? []) as CatalogueRow[]);
+}
+
+/** Operator-only: the plan assigned to one org (`null` = unassigned, resolves as Enterprise). */
+export async function getOrgPlan(orgId: string): Promise<string | null> {
+  const { data, error } = await supabase.rpc('operator_org_plan', { p_org_id: orgId });
+  if (error) throw new AppError(error.message, error.code);
+  return typeof data === 'string' ? data : null;
+}
+
+interface OwnPlanRow {
+  plan_id: string;
+  plan_name: string;
+  seat_limit: number | null;
+  project_limit: number | null;
+  ai_monthly_messages: number | null;
+}
+
+/** Own-org plan for the read-only Admin page (FR-PLN-014). Null when the projection is empty. */
+export async function getOwnPlan(): Promise<PlanRow | null> {
+  const { data, error } = await supabase.rpc('resolved_org_plan');
+  if (error) throw new AppError(error.message, error.code);
+  const row = ((data ?? []) as OwnPlanRow[])[0];
+  if (!row) return null;
+  return {
+    planId: row.plan_id,
+    name: row.plan_name,
+    seatLimit: row.seat_limit,
+    projectLimit: row.project_limit,
+    aiMonthlyMessages: row.ai_monthly_messages,
+  };
+}
+
+/** Set (upsert) a per-org override via the Operator-only RPC. */
 export async function toggleOrgFeature(args: {
   orgId: string;
   key: OrgFeatureKey;
@@ -56,8 +187,68 @@ export async function toggleOrgFeature(args: {
     p_enabled: args.enabled,
   });
   if (error) throw new AppError(error.message, error.code);
-  // RPC returns void; `data` is null on success. Reference it so the unused-var lint is satisfied
-  // and a future non-void return is not silently dropped.
+  void data;
+}
+
+/** Remove a per-org override so the key falls back to the plan (Operator-only). */
+export async function clearOrgFeatureOverride(args: { orgId: string; key: OrgFeatureKey }): Promise<void> {
+  const { data, error } = await supabase.rpc('operator_clear_feature_override', {
+    p_org_id: args.orgId,
+    p_key: args.key,
+  });
+  if (error) throw new AppError(error.message, error.code);
+  void data;
+}
+
+/** Assign one org a plan (Operator-only). */
+export async function setOrgPlan(args: { orgId: string; planId: string }): Promise<void> {
+  const { data, error } = await supabase.rpc('operator_set_org_plan', {
+    p_org_id: args.orgId,
+    p_plan_id: args.planId,
+  });
+  if (error) throw new AppError(error.message, error.code);
+  void data;
+}
+
+/** Flip one key for every org (Operator-only; a global off outranks any override). */
+export async function setGlobalFeature(args: { key: OrgFeatureKey; enabled: boolean }): Promise<void> {
+  const { data, error } = await supabase.rpc('operator_set_global_feature', {
+    p_key: args.key,
+    p_enabled: args.enabled,
+  });
+  if (error) throw new AppError(error.message, error.code);
+  void data;
+}
+
+/** Flip one key inside one plan's default set (Operator-only). */
+export async function setPlanFeature(args: {
+  planId: string;
+  key: OrgFeatureKey;
+  enabled: boolean;
+}): Promise<void> {
+  const { data, error } = await supabase.rpc('operator_set_plan_feature', {
+    p_plan_id: args.planId,
+    p_key: args.key,
+    p_enabled: args.enabled,
+  });
+  if (error) throw new AppError(error.message, error.code);
+  void data;
+}
+
+/** Replace a plan's limits (Operator-only; null = unlimited / per contract). */
+export async function setPlanLimits(args: {
+  planId: string;
+  seatLimit: number | null;
+  projectLimit: number | null;
+  aiMonthlyMessages: number | null;
+}): Promise<void> {
+  const { data, error } = await supabase.rpc('operator_set_plan_limits', {
+    p_plan_id: args.planId,
+    p_seat_limit: args.seatLimit,
+    p_project_limit: args.projectLimit,
+    p_ai_monthly_messages: args.aiMonthlyMessages,
+  });
+  if (error) throw new AppError(error.message, error.code);
   void data;
 }
 

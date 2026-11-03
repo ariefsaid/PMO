@@ -53,6 +53,9 @@ vi.mock('@/src/hooks/useOrgFeatures', () => ({
       import_export: true,
       agent_assistant: false,
       user_views: false,
+      // S3: Reports follows `management_pack`, not `revenue`. This fixture org has no management
+      // pack, which is what the "Reports is not in the rail" assertion below now proves.
+      management_pack: false,
       ...featureOverrides,
     },
     isPending: false,
@@ -92,7 +95,7 @@ describe('Rail role-gating (preserves getNavItems — AC-AUTH-003/009/010/011, A
     // Incidents is hidden by the interim UI feature flag (FEATURES.incidents = false).
     // Flip the flag in src/lib/features.ts to re-enable. See Rail.features.test.tsx.
     expect(screen.queryByText('Incidents')).not.toBeInTheDocument();
-    // Reports is demoted from the rail until the module ships (AC-IXD-DASH-004 / IA F8).
+    // Reports is gated by the `management_pack` switch (S3); this org has none (AC-IXD-DASH-004 / IA F8).
     expect(screen.queryByText('Reports')).not.toBeInTheDocument();
   });
 

@@ -64,8 +64,18 @@ describe('userViewRepository', () => {
 
 describe('orgFeatureRepository and credits', () => {
   itDelegates(orgFeatureRepository as never, features, [
-    ['listOwn', 'listOwnOrgFeatures', []],
+    ['listOwn', 'listOwnResolvedFeatures', []],
+    ['listForOrg', 'listOperatorResolvedFeatures', ['org-1']],
+    ['getPlanCatalogue', 'getPlanCatalogue', []],
+    ['getOrgPlan', 'getOrgPlan', ['org-1']],
+    ['getOwnPlan', 'getOwnPlan', []],
     ['toggle', 'toggleOrgFeature', [{ feature: 'agent', enabled: true }]],
+    ['clearOverride', 'clearOrgFeatureOverride', [{ orgId: 'org-1', key: 'crm' }]],
+    ['setOrgPlan', 'setOrgPlan', [{ orgId: 'org-1', planId: 'starter' }]],
+    ['setGlobal', 'setGlobalFeature', [{ key: 'stock', enabled: false }]],
+    ['setPlanFeature', 'setPlanFeature', [{ planId: 'starter', key: 'stock', enabled: true }]],
+    ['setPlanLimits', 'setPlanLimits', [{ planId: 'starter', seatLimit: 10, projectLimit: 25, aiMonthlyMessages: 300 }]],
+    ['setFeedbackSurveys', 'setFeedbackSurveys', [true]],
   ]);
   itDelegates(creditsRepository as never, features, [
     ['getOrgBalance', 'getOrgCreditBalance', ['o1']],

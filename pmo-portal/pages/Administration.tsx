@@ -13,6 +13,7 @@ import AdminUsers from './AdminUsers';
 import AdministrationCredits from './AdministrationCredits';
 import { AdministrationUsage } from './AdministrationUsage';
 import AdministrationFeatures from './AdministrationFeatures';
+import YourPlan from './YourPlan';
 import { FeedbackSurveysSetting } from '@/src/components/feedback/FeedbackSurveysSetting';
 import AdministrationExchangeRates from './AdministrationExchangeRates';
 import { AgentCostMetrics } from '@/src/components/admin/AgentCostMetrics';
@@ -34,6 +35,7 @@ export type AdministrationSection =
   | 'integrations'
   | 'accounting'
   | 'projects'
+  | 'plan'
   | 'credits'
   | 'exchange-rates'
   | 'cost-attribution'
@@ -41,7 +43,7 @@ export type AdministrationSection =
   | 'features';
 
 /** Canonical section order (Task 4/6): the four organization destinations, then the Operator-only pair. */
-const ORGANIZATION_SECTIONS: AdministrationSection[] = ['users', 'integrations', 'accounting', 'projects', 'credits', 'exchange-rates'];
+const ORGANIZATION_SECTIONS: AdministrationSection[] = ['users', 'integrations', 'accounting', 'projects', 'plan', 'credits', 'exchange-rates'];
 const OPERATOR_SECTIONS: AdministrationSection[] = ['usage', 'features'];
 /** #1271: Finance's second destination, beside Exchange rates. Admin/Executive reach cost attribution inside Accounting setup, so it is not in their nav. */
 const FINANCE_SECTIONS: AdministrationSection[] = ['exchange-rates', 'cost-attribution'];
@@ -53,6 +55,7 @@ const SECTION_LABEL_DEFAULTS: Record<AdministrationSection, string> = {
   integrations: 'Organization integrations',
   accounting: 'Accounting setup',
   projects: 'Project setup',
+  plan: 'Your plan',
   credits: 'Credits',
   'exchange-rates': 'Exchange rates',
   'cost-attribution': 'Cost attribution',
@@ -70,6 +73,7 @@ const buildSectionLabels = (t: TFunction): Record<AdministrationSection, string>
   integrations: t('admin.nav.integrations', SECTION_LABEL_DEFAULTS.integrations),
   accounting: t('admin.nav.accounting', SECTION_LABEL_DEFAULTS.accounting),
   projects: t('admin.nav.projects', SECTION_LABEL_DEFAULTS.projects),
+  plan: t('plans:yourPlan.navLabel', SECTION_LABEL_DEFAULTS.plan),
   credits: t('admin.nav.credits', SECTION_LABEL_DEFAULTS.credits),
   'exchange-rates': t('admin.nav.exchangeRates', SECTION_LABEL_DEFAULTS['exchange-rates']),
   'cost-attribution': t('costAttribution:title', SECTION_LABEL_DEFAULTS['cost-attribution']),
@@ -272,6 +276,13 @@ const SelectedAdministrationPanel: React.FC<{
           </div>
         </div>
       );
+    case 'plan':
+      return (
+        <div data-testid="administration-panel-plan" className="min-w-0">
+          <SectionHeader title={label('plan')} />
+          <YourPlan />
+        </div>
+      );
     case 'credits':
       return (
         <div data-testid="administration-panel-credits" className="min-w-0">
@@ -323,7 +334,9 @@ const Administration: React.FC = () => {
   const navigationSections: AdministrationSection[] = isFinance
     ? FINANCE_SECTIONS.filter((id) => id !== 'cost-attribution' || canManageCostAttribution)
     : [
-      ...ORGANIZATION_SECTIONS.filter((id) => id !== 'exchange-rates' || canFx),
+      ...ORGANIZATION_SECTIONS.filter((id) => id !== 'exchange-rates' || canFx)
+        // "Your plan" is the org Admin's read-only page (FR-PLN-014); an Operator reaches it too.
+        .filter((id) => id !== 'plan' || isAdminViewer || isOperator),
       ...(canViewCostAttribution ? ['cost-attribution' as const] : []),
     ];
   const sectionLabels = buildSectionLabels(t);
