@@ -1,6 +1,6 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { fetchAllPages } from '@/src/lib/pagedRead';
-import type { Tables, Json } from '@/src/lib/supabase/database.types';
+import { Constants, type Tables, type Json } from '@/src/lib/supabase/database.types';
 import { AppError, assertWriteLanded, toAppError } from '@/src/lib/appError';
 import { activateAndPush } from '@/src/lib/budget/budgetPushConsequence';
 import { dispatchDomainCommand } from '@/src/lib/adapterSeam/dispatchClient';
@@ -214,6 +214,11 @@ function isJsonObject(value: unknown): value is { [key: string]: unknown } {
 }
 
 const DISTRIBUTION_METHODS: readonly BudgetDistributionMethod[] = ['by_days', 'percent_by_year', 'amount_by_year'];
+const BUDGET_CATEGORIES: readonly string[] = Constants.public.Enums.budget_category;
+
+function isBudgetCategory(value: unknown): value is BudgetLineItemRow['category'] {
+  return typeof value === 'string' && BUDGET_CATEGORIES.includes(value);
+}
 
 function parseDistributionMethod(value: unknown, what: string): BudgetDistributionMethod {
   if (typeof value !== 'string' || !DISTRIBUTION_METHODS.includes(value as BudgetDistributionMethod)) {
@@ -257,48 +262,55 @@ function parseCategoryOverrides(value: unknown): BudgetCategoryOverrides {
     if (!isJsonObject(override)) throw new AppError(`Saved budget distribution is malformed: override for ${category}`);
     overrides[category] = {
       method: parseDistributionMethod(override.method, `override method for ${category}`),
-      inputs: parseDistributionInputs(override.inputs ?? {}, `override inputs for ${category}`),
+      inputs: parseDistributionInputs(override.inputs, `override inputs for ${category}`),
     };
   }
   return overrides;
 }
 
+function parseDistributionRows(value: unknown): BudgetDistributionPlanRow[] {
+  if (!Array.isArray(value)) throw new AppError('Saved budget distribution is malformed: rows');
+  return value.map((row, index) => {
+    if (!isJsonObject(row)
+      || !isBudgetCategory(row.category)
+      || typeof row.fiscal_year !== 'string'
+      || row.fiscal_year.length === 0
+      || typeof row.ordinal !== 'number'
+      || !Number.isInteger(row.ordinal)
+      || row.ordinal < 0
+      || typeof row.amount !== 'string'
+      || typeof row.is_override !== 'boolean') {
+      throw new AppError(`Saved budget distribution is malformed: row ${index}`);
+    }
+    return {
+      category: row.category,
+      fiscal_year: row.fiscal_year,
+      ordinal: row.ordinal,
+      amount: row.amount,
+      method: parseDistributionMethod(row.method, `row method at ${index}`),
+      is_override: row.is_override,
+    };
+  });
+}
+
 /**
- * Reads one version's whole-project distribution plan and ALL of its year rows in bounded,
- * deterministically ordered pages (NFR-005: no per-cell requests, no silent truncation).
- * A version without a saved plan reads as `null`; any read failure propagates.
- * org_id is NEVER sent — RLS scopes via `auth_org_id()` (NFR-002).
+ * Reads one version's whole-project distribution from one tenant-scoped SQL statement. Plan fields
+ * and every ordered row share the statement snapshot; the row aggregate is one JSON value, so the
+ * PostgREST response-row limit cannot silently cap the distribution. A version without a visible
+ * plan reads as `null`; any read failure propagates. org_id is NEVER sent — invoker RLS scopes the
+ * plan and rows via the existing policies (NFR-002).
  */
 export async function getBudgetDistribution(versionId: string): Promise<BudgetDistributionPlan | null> {
-  const { data: plan, error: planError } = await supabase
-    .from('budget_distribution_plans')
-    .select('*')
-    .eq('budget_version_id', versionId)
-    .maybeSingle();
-  if (planError) throw toAppError(planError);
-  if (!plan) return null;
-  const rows = await fetchAllPages((from, to) => supabase.from('budget_year_distributions')
-    .select('*').eq('budget_version_id', versionId)
-    .order('category', { ascending: true }).order('ordinal', { ascending: true }).order('fiscal_year', { ascending: true })
-    .range(from, to));
+  const { data, error } = await supabase.rpc('get_budget_distribution_snapshot', { p_version_id: versionId });
+  if (error) throw toAppError(error);
+  if (data === null) return null;
+  if (!isJsonObject(data)) throw new AppError('Saved budget distribution is malformed: snapshot');
   return {
-    method: parseDistributionMethod((plan as { method: unknown }).method, 'method'),
-    inputs: parseDistributionInputs((plan as { inputs: unknown }).inputs, 'inputs'),
-    categoryOverrides: parseCategoryOverrides((plan as { category_overrides: unknown }).category_overrides),
-    basis: parseDistributionBasis((plan as { basis: unknown }).basis),
-    rows: rows.map((row): BudgetDistributionPlanRow => {
-      // The generated `amount` type is a JS number; the 0577 constraints cap amounts at 12 integer
-      // digits + 2 decimals, where every 2-decimal value round-trips through a double exactly, so
-      // String() recovers the exact persisted figure. The write path (below) passes strings verbatim.
-      return {
-        category: (row as { category: BudgetLineItemRow['category'] }).category,
-        fiscal_year: row.fiscal_year,
-        ordinal: row.ordinal,
-        amount: String(row.amount),
-        method: parseDistributionMethod(row.method, `row method for ${row.category}`),
-        is_override: row.is_override,
-      };
-    }),
+    method: parseDistributionMethod(data.method, 'method'),
+    inputs: parseDistributionInputs(data.inputs, 'inputs'),
+    categoryOverrides: parseCategoryOverrides(data.category_overrides),
+    basis: parseDistributionBasis(data.basis),
+    rows: parseDistributionRows(data.rows),
   };
 }
 

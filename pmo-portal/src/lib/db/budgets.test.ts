@@ -1071,62 +1071,92 @@ const expectedPlan: BudgetDistributionPlan = {
 };
 
 describe('getBudgetDistribution (#1472 S6A)', () => {
-  it('reads the plan and all of its rows with deterministic ordering and complete paging', async () => {
+  it('reads one atomic snapshot so replacement cannot mix old plan metadata with new rows', async () => {
+    const replacementPlan: BudgetDistributionPlan = {
+      method: 'by_days',
+      inputs: {},
+      categoryOverrides: {},
+      basis: {
+        projectStart: '2028-01-01',
+        projectEnd: '2028-12-31',
+        years: [{ name: '2028', start: '2028-01-01', end: '2028-12-31' }],
+      },
+      rows: [
+        { category: 'Labor', fiscal_year: '2028', ordinal: 0, amount: '200000', method: 'by_days', is_override: false },
+      ],
+    };
     const planBuilder = makeStandaloneBuilder({ data: distributionPlanRow, error: null });
-    const rowsBuilder = makeStandaloneBuilder({ data: distributionRowRows, error: null });
+    const rowsBuilder = makeStandaloneBuilder({
+      data: [{ ...distributionRowRows[0], fiscal_year: '2028', ordinal: 0, amount: 200000, method: 'by_days' }],
+      error: null,
+    });
     mockFrom.mockImplementation((table: string) => (table === 'budget_distribution_plans' ? planBuilder : rowsBuilder));
+    makeRpcBuilder({
+      data: {
+        method: 'by_days',
+        inputs: {},
+        category_overrides: {},
+        basis: replacementPlan.basis,
+        rows: replacementPlan.rows,
+      },
+      error: null,
+    });
 
-    await expect(getBudgetDistribution('v-draft')).resolves.toEqual(expectedPlan);
-    expect(mockFrom).toHaveBeenCalledWith('budget_distribution_plans');
-    expect(mockFrom).toHaveBeenCalledWith('budget_year_distributions');
-    expect(planBuilder.eq).toHaveBeenCalledWith('budget_version_id', 'v-draft');
-    expect(rowsBuilder.eq).toHaveBeenCalledWith('budget_version_id', 'v-draft');
-    // Deterministic ordering: category, then the basis ordinal, then the year name as final tiebreak.
-    expect(rowsBuilder.order).toHaveBeenCalledWith('category', { ascending: true });
-    expect(rowsBuilder.order).toHaveBeenCalledWith('ordinal', { ascending: true });
-    expect(rowsBuilder.order).toHaveBeenCalledWith('fiscal_year', { ascending: true });
-    // Bounded paged read for the rows (never a bare unpaginated await); the 1:1 plan is a maybeSingle.
-    expect(planBuilder.maybeSingle).toHaveBeenCalledTimes(1);
-    expect(rowsBuilder.range).toHaveBeenCalledWith(0, 999);
+    await expect(getBudgetDistribution('v-draft')).resolves.toEqual(replacementPlan);
+    expect(mockRpc).toHaveBeenCalledTimes(1);
+    expect(mockRpc).toHaveBeenCalledWith('get_budget_distribution_snapshot', { p_version_id: 'v-draft' });
+    expect(mockFrom).not.toHaveBeenCalled();
   });
 
-  it('maps row amounts back to exact decimal strings with zero preserved and no float drift', async () => {
-    const planBuilder = makeStandaloneBuilder({ data: distributionPlanRow, error: null });
-    const rowsBuilder = makeStandaloneBuilder({ data: distributionRowRows, error: null });
-    mockFrom.mockImplementation((table: string) => (table === 'budget_distribution_plans' ? planBuilder : rowsBuilder));
+  it('parses exact strings, zero, overrides, basis, and every row from one RPC response', async () => {
+    makeRpcBuilder({
+      data: {
+        method: expectedPlan.method,
+        inputs: expectedPlan.inputs,
+        category_overrides: expectedPlan.categoryOverrides,
+        basis: expectedPlan.basis,
+        rows: expectedPlan.rows,
+      },
+      error: null,
+    });
     const plan = await getBudgetDistribution('v-draft');
+    expect(plan).toEqual(expectedPlan);
     expect(plan?.rows.map((row) => row.amount)).toEqual(['80000', '120000', '0', '30000.5']);
     expect(plan?.rows.every((row) => typeof row.amount === 'string')).toBe(true);
+    expect(mockRpc).toHaveBeenCalledTimes(1);
+    expect(mockFrom).not.toHaveBeenCalled();
   });
 
-  it('a version without a saved plan reads as null and never requests rows', async () => {
-    const planBuilder = makeStandaloneBuilder({ data: null, error: null });
-    mockFrom.mockImplementation((table: string) => (table === 'budget_distribution_plans' ? planBuilder : makeStandaloneBuilder({ data: [], error: null })));
+  it('a missing visible plan is null from the RPC', async () => {
+    makeRpcBuilder({ data: null, error: null });
     await expect(getBudgetDistribution('v-none')).resolves.toBeNull();
-    expect(mockFrom).toHaveBeenCalledTimes(1);
-    expect(mockFrom).toHaveBeenCalledWith('budget_distribution_plans');
+    expect(mockRpc).toHaveBeenCalledWith('get_budget_distribution_snapshot', { p_version_id: 'v-none' });
+    expect(mockFrom).not.toHaveBeenCalled();
   });
 
-  it('propagates read failures (plan error and rows error)', async () => {
-    const planErrorBuilder = makeStandaloneBuilder({ data: null, error: { message: 'plan read denied', code: '42501' } });
-    mockFrom.mockImplementation(() => planErrorBuilder);
-    await expect(getBudgetDistribution('v-draft')).rejects.toMatchObject({ message: 'plan read denied', code: '42501' });
-
-    const planBuilder = makeStandaloneBuilder({ data: distributionPlanRow, error: null });
-    const rowsErrorBuilder = makeStandaloneBuilder({ data: null, error: { message: 'rows read truncated', code: '500' } });
-    mockFrom.mockImplementation((table: string) => (table === 'budget_distribution_plans' ? planBuilder : rowsErrorBuilder));
-    await expect(getBudgetDistribution('v-draft')).rejects.toMatchObject({ message: 'rows read truncated' });
+  it('propagates snapshot RPC failures', async () => {
+    makeRpcBuilder({ data: null, error: { message: 'snapshot read denied', code: '42501' } });
+    await expect(getBudgetDistribution('v-draft')).rejects.toMatchObject({ message: 'snapshot read denied', code: '42501' });
   });
 
-  it('rejects a persisted plan whose jsonb payload is structurally malformed', async () => {
+  it('rejects a snapshot whose JSON payload is structurally malformed', async () => {
+    const snapshot = {
+      method: expectedPlan.method,
+      inputs: expectedPlan.inputs,
+      category_overrides: expectedPlan.categoryOverrides,
+      basis: expectedPlan.basis,
+      rows: expectedPlan.rows,
+    };
     for (const broken of [
-      { ...distributionPlanRow, basis: { noYears: true } },
-      { ...distributionPlanRow, inputs: { '2026': 40 } },
-      { ...distributionPlanRow, category_overrides: { Materials: { method: 'nope', inputs: {} } } },
-      { ...distributionPlanRow, method: 'unknown_method' },
+      { ...snapshot, basis: { noYears: true } },
+      { ...snapshot, inputs: { '2026': 40 } },
+      { ...snapshot, category_overrides: { Materials: { method: 'nope', inputs: {} } } },
+      { ...snapshot, method: 'unknown_method' },
+      { ...snapshot, rows: null },
+      { ...snapshot, rows: [{ ...expectedPlan.rows[0], amount: 80000 }] },
+      { ...snapshot, rows: [{ ...expectedPlan.rows[0], category: 'invalid' }] },
     ]) {
-      const planBuilder = makeStandaloneBuilder({ data: broken, error: null });
-      mockFrom.mockImplementation((table: string) => (table === 'budget_distribution_plans' ? planBuilder : makeStandaloneBuilder({ data: [], error: null })));
+      makeRpcBuilder({ data: broken, error: null });
       await expect(getBudgetDistribution('v-draft')).rejects.toThrow(/malformed/);
     }
   });
@@ -1160,11 +1190,18 @@ describe('saveBudgetDistribution (#1472 S6A)', () => {
   it('round-trips: the saved snapshot reads back equal', async () => {
     makeRpcBuilder({ data: null, error: null });
     await saveBudgetDistribution('v-draft', expectedPlan);
-    const planBuilder = makeStandaloneBuilder({ data: distributionPlanRow, error: null });
-    const rowsBuilder = makeStandaloneBuilder({ data: distributionRowRows, error: null });
-    mockFrom.mockReset();
-    mockFrom.mockImplementation((table: string) => (table === 'budget_distribution_plans' ? planBuilder : rowsBuilder));
+    makeRpcBuilder({
+      data: {
+        method: expectedPlan.method,
+        inputs: expectedPlan.inputs,
+        category_overrides: expectedPlan.categoryOverrides,
+        basis: expectedPlan.basis,
+        rows: expectedPlan.rows,
+      },
+      error: null,
+    });
     await expect(getBudgetDistribution('v-draft')).resolves.toEqual(expectedPlan);
+    expect(mockRpc).toHaveBeenNthCalledWith(2, 'get_budget_distribution_snapshot', { p_version_id: 'v-draft' });
   });
 
   it('maps server rejections through the shared AppError pattern (message preserved)', async () => {

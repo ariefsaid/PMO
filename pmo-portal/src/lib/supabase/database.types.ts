@@ -11766,6 +11766,10 @@ export type Database = {
         Args: { p_project_id: string }
         Returns: { version_id: string; total: number }[]
       }
+      get_budget_distribution_snapshot: {
+        Args: { p_version_id: string }
+        Returns: Json
+      }
       _m365_disconnect_cascade_core: {
         Args: {
           p_actor_id: string
