@@ -76,9 +76,254 @@ A source search of `pmo-portal`, `supabase/functions`, and migrations found no p
 - [ ] Add explicit revoke/grant, RLS and active Operator checks; do not broaden anon-definer allow-list. Grant service role only the privileges required by inventory and service operations; make explicit exceptions in 0137 only where RPC-only writes are required, with tests.
 - [ ] Re-run the same command; inspect all TAP, zero failures and parse errors. Mutation-check the Operator guard by bypassing it, show the test fails, then restore.
 
-## S2 — server enforcement (0533): outline
+## S2 — server enforcement (0534): outline
 
-**Goal / AC:** Refuse writes, RPCs, sync and jobs for disabled modules while retaining data (AC-PLN-005). First produce a reviewed catalogue mapping every existing gated key to its table writes, RPCs, edge handlers and job consumers, including service-role paths and the procurement basic/full boundary. The slice's own detailed plan must enumerate each exact path and failing test, introduce `0533_feature_enforcement.sql` and rollback, and prove both denial and restoration. Include typed `feature_off` and mutation checks.
+**Goal / AC:** Refuse writes, RPCs, sync and jobs for disabled modules while retaining data (AC-PLN-005). First produce a reviewed catalogue mapping every existing gated key to its table writes, RPCs, edge handlers and job consumers, including service-role paths and the procurement basic/full boundary. The slice's own detailed plan must enumerate each exact path and failing test, introduce the enforcement migration and rollback, and prove both denial and restoration. Include typed `feature_off` and mutation checks. Detailed plan below (migration renumbered 0533→0534: the #1734 follow-ups took 0533).
+
+## S2 — detailed plan (written 2026-11-03 against dev @ a3e54d3bb)
+
+Corrections recorded at planning time:
+
+- S1 is merged to `dev` (0530/0531/0532 shipped). #1734 follow-ups are in flight on
+  `fix/1734-switches-s1-followups` and are treated as merged before S2 lands: migration 0533 widens the
+  core (never-gatable) key list with `expense_claims`, `roles`, `budgets`, `tasks`
+  (`assert_switchable_feature_key`, 0532:17). S2 therefore owns **`0534_feature_enforcement.sql`**; the
+  S5 outline's `0534_plan_limits.sql` renumbers to the next free number when S5 is planned.
+- The `org_features` CHECK registry already accepts every catalogue key (0531:5-15), so overrides are
+  storable for all keys today; the FE registry test (`pmo-portal/src/lib/features.dbRegistry.test.ts`)
+  reads the CHECK from the latest migration, and 0534 must not break that equivalence.
+- `service_role` bypasses RLS (`rolbypassrls`; stated in 0173_project_create_origination_sod.sql:45),
+  so table conjuncts gate client roles only — every service path self-gates in code (§Jobs and edges).
+
+### S2.0 — Inventory per switch key (shipped code; "gate" = enforcement that exists today)
+
+Gate legend — **RLS** = `org_feature_enabled` conjoined onto write policies by 0081's DO block
+(0081:135-214; the feature→tables map is commented at 0081:44-62 and executed at 0081:149-190);
+**RPC** = an explicit `org_feature_enabled` check inside the definer body. "—" = nothing yet; 0534 adds it.
+
+| Key | Tables (creation site) | Write RPCs (latest definition) | Outbox/sync jobs | Edge functions | Gate today |
+|---|---|---|---|---|---|
+| `incidents` | incident_reports (0001:228) | none — direct PostgREST writes only (only guard: check_incident_reports_project_org trigger, 0043:38) | — | — | RLS (0081; policy set re-stated 0203:173) |
+| `timesheets` | timesheets (0001:177), timesheet_entries (0001:193) | transition_timesheet (0007:51 → 0161:39 → 0516:268) | insert_timesheet_outbox_pending (0161:232, service-only), witness 0161:206, mirror hold 0162:45; inbound kinds `timesheet`+`employee` (feedKinds.ts:35-40); erpnext-sweep pass 6 (erpnext-sweep/index.ts:41-42) | adapter-dispatch (served push) | RLS (0081); RPC — |
+| `crm` | companies (0001:40), contacts (0030:14), crm_activities (0030:45) | contacts_native_mirror_guard (0233:5) | inbound kinds `supplier`/`customer`/`contact` → `companies` domain (feedKinds.ts:28-30); erpnext-sweep pass 1 | erpnext-onboard (writes companies as service, erpnext-onboard/index.ts:110) | RLS (0081, re-stated 0097:59-140); RPC (0233:28) |
+| `sales_pipeline` | none — projection over projects (get_sales_pipeline, 0020 → latest 0261_pipeline_hides_archived.sql:4) | transition_project (0461_lost_reason.sql:25) into pipeline-open statuses | — | — | — (OQ-3) |
+| `procurement` | procurements (0001:92), procurement_items (0001:111), procurement_quotations (0001:123), procurement_documents (0001:138), procurement_invoices (0006:47), file tables (0028:20/78, 0036:21/56/85/114), purchase_requests/rfqs/purchase_orders/payments (0035:37/50/63/76), purchase_order_lines/revisions (0449:115/130), po_variations+lines (0474:27), subcontract_acceptances+lines (0470:18), procurement_invoice_lines (0472:20), procurement_create_intents (0406:2), procurement_import_runs (0399:2), procurement_erp_links (0360:75), vendor_withholding_slips+bills (0281:17) | create_procurement_with_items (0406:38), update_procurement_header (0393:158), procurement_item_values_editable (0393:83), transition_procurement (0362:154), create_procurement_quotation (0180:293), create_procurement_invoice (0481:75), create_payment (0481:132), guards 0449:148/177 | insert_procurement_outbox_pending (0393:114, service-only); native mirror guards 0481:192/222/261; inbound kinds purchase-* → `procurement` domain (feedKinds.ts:21-27) | adapter-dispatch | RLS (0081); RPC (0393:89, 0406:24, 0449:48); newer tables + the 0481 RPCs — |
+| `procurement_full` | procurement_receipts (0006:36), procurement_receipt_files (0028:52) | create_procurement_receipt (0481:36) | ERP push of receipt commands (`goods-receipt` kind, adapter-dispatch/index.ts:250) | adapter-dispatch | wrongly RLS-gated as `procurement` (0081 map :54) — **re-boundary** to `procurement_full` in 0534 |
+| `sales_invoices` | sales_invoices (0123:17), sales_invoice_authors (0132:57), sales_invoice_submit_authorizations (0132:103), progress_claims+lines+evidence (0250:259/293/519), progress_assessment_quantities (0250:112), boq_items (0250:40), views work_order_billing/work_order_billing_lines/sales_invoice_work_billed (0262:63/39, 0250:690 — no client writes), contract_rate_lines+assignees (0515:4), tm_claims+lines+sources (0516:6, select-only policies 0516:71-86) | create_native_sales_invoice (0275:189), transition_native_sales_invoice (0275:316), submit_sales_invoice (0275:561), claim_sales_invoice_author (0275:592), set_sales_invoice_received_date (0275:692), create_progress_claim (0347:2), record_progress_assessment (0337:498), assemble_tm_claim (0516:138), deselect_tm_source (0516:230) | sales-invoice ERP kind → `revenue` domain push (feedKinds.ts:32; see OQ-2 for the key split) | — | — (mirror guards 0125:14 fire only inside the gated writes) |
+| `revenue` | incoming_payments (0123:41), erp_payment_ledger_mirror (0101:58, service-written) | record_native_receipt (0275:394), cancel_native_receipt (0275:482), native_revenue_doc_number (0275:122) | inbound kinds `sales-invoice`/`incoming-payment` → `revenue` domain (feedKinds.ts:32-33); erpnext-sweep pass 1 | external-invoice-pdf/-evidence (ERP console reads) | — (0081's map, 0081:50-58, lists no revenue table) |
+| `budget_projection` | budget_projections (0137:104) | direct table writes under budget_projections_write (0137:144-151); read RPC get_budget_projection (0149) stays open | never pushed to ERP (0137:13) | — | — |
+| `imprest` | imprest_plans (0422:300), imprest_plan_lines (0422), imprest_floats (0422:99), imprest_float_changes (0422), imprest_replenishments (0422:134), imprest_cash_counts (0424:22), imprest_posting_erp_mirror (0425:22), org_imprest_settings (0422:63) | establish_imprest_float (0422:188), decide_imprest_float_change (0422:251), transition_imprest_plan (0422:418), imprest_lock_float (0422:56), set_imprest_procurement_limit (0422:77), request_imprest_replenishment (0423:404), transition_imprest_replenishment (0423:452), record_imprest_count (0424:58) | enqueue_imprest_replenishment_posting (0425:91) → `expenses` domain kind `imprest-transfer` (feedKinds.ts:45-49) | imprest-cash-account (service write into imprest_floats, imprest-cash-account/index.ts:109) | — (AC-PLN-005's owning path) |
+| `user_views` | user_views (0045:18) | PostgREST CRUD (0045:42-59) | — | compose-view (AI composer for views) | RLS (0081); edge — |
+| `m365_integration` | ms_graph_connections (0106:15), m365_pkce_states (0108) | insert path is the definer lock-order RPC (0115:67), m365_delete_connection (0116:42), m365_link_record_folder (0338:31), link_m365_documents_batch (0375:12), m365_record_folder_sweep_save (0375:125) | m365-pkce-sweep cron (0112:31) — hygiene only, never gated | m365-token-custody; document-linking flows | disentitle cascade trigger (0113:144) + 0178_m365_member_gate.test.sql; link RPCs — |
+| `clickup_sync` | none own — clickup_webhook_inbox (0143:24) is service-written raw input | — (tasks table is core) | clickup-sweep-tick (0094:46 → cron 0094:71), clickup-webhook-worker-tick (0143:58 → 0143:82) | clickup-webhook/-worker/-sweep/-onboard (write `tasks` as service, clickup-onboard/index.ts:283) | — (jobs only; `tasks` stays core) |
+| `erp_sync` | seam: external_domain_ownership (0087:13), external_sync_watermarks (0089:7), external_command_outbox (0096:47), external_refs/-lineage/-master_records/-bindings/-project_bindings, erp_account_mirror/erp_actuals_snapshot (0101), budget_version_erp_mirror/budget_push_mirror_rows (0137), erp_sweep_lock/full_run, erp_connect_runs/staged/census/proposals (0480:11-48) | connect/apply RPCs are service-called (apply_connect_outcome 0480:404) | erpnext-sweep-tick (0102:46 → every minute 0356:14), odoo-sweep-tick (0421:154 → 0421:169) | erpnext/odoo onboard+webhook+sweep, external-connect/-link/-unlink/-set-company/-lists/-items/-companies/-invoice-* | tier-ownership checks only (erpnext-sweep/index.ts:390-443); entitlement — |
+| `erp_purchases` | erp_purchase_documents (0335:9), erp_purchase_document_marks (0335), views erp_purchase_documents_linked / erp_purchase_orphans* | none — service-written, select policy only (0335:42) | erpnext-sweep purchases pass | — | — (read stays open; job gates, OQ-5) |
+| `financial_statements` | erp_financial_statement_snapshot (0316:3), _dirty_date, _published_context, _report_batch, _report_pending (0316/0321), availability view (0390) | statement refresh batch writers (0321:268/273, definer, sweep-called) | erpnext-sweep statement handler (statementHandlerCadence.test.ts) | — | — (read RPC get_financial_statement 0321:1126 stays open, OQ-5) |
+| `management_pack` | project_progress_entries (0245:9) | record_project_progress (0245:98) | — | — | — |
+| `budget_phasing` | none shipped | none | — | — | registry-only (OQ-6) |
+| `multi_currency` | fx_rates (0291:2) | direct update under fx_rates_update (0291:28) | — | — | — |
+| `stock` | stock_items/units/warehouses/keepers (0412:37/26/51/64), stock_documents/lines/ledger/balances (0413:12/49/68/94), stock_reorder_levels (0418:4) | create/save/post/cancel_stock_document (0413:442/481/507/515, latest save 0416:81), set_stock_reorder_level (0418:23), set_stock_warehouse_keeper (0412:161); master data written direct under stock_master_writer() role predicate (0412:14) | inbound `goods-receipt` belongs to `procurement`, not stock (feedKinds.ts:22) | — | — |
+| `api_access` | none shipped | none | — | — | registry-only (OQ-6) |
+| `sso` | none shipped | none | — | — | registry-only (OQ-6) |
+| `import_export` | none own (action key; 0081:64-66 reasoning stands) | import_budget_line_v2 (0397:36), start_procurement_import_run (0407:30), normalize_procurement_import_refs (0399:47), lookup_procurement_import_cases (0399:62), import_project_stage_history (0448:254) | — | — | — |
+| `agent_assistant` | agent_threads/runs/events (0046:41/53/68), agent_usage (0047:19), agent_automation_fires (0078:15) — owner-scoped; 0081:69-72 skip note stands | — | agent-dispatch-tick (0082:32 → cron 0082:56) | agent-chat, agent-dispatch | — (edge/tick gates only) |
+| `feedback_surveys` | feedback_surveys (0419) | admin_set_feedback_surveys (0419:29) | — | — | **excluded** — Admin-owned writer, out of switch controls (constraint; resolver branch 0532:53-64) |
+
+Core (never gated; 0533 list): projects, dashboard, approvals, administration, expense_claims
+(expense_claims 0247:48 + lines/files/advance_returns + enqueue_expense_posting 0270:187 and its two
+triggers 0270:200/230 — the `expenses` domain minus `imprest-transfer` must never hold), roles,
+budgets (budget_versions 0001:151 + line items + archive/intent tables + the `budget` push domain —
+ERP receives a copy; PMO-side budget writes are core), tasks (tasks 0001:206 — ClickUp sync gates the
+sync, not the table), meetings (0205:30).
+
+### Jobs and edges — the exact hold semantics
+
+Enforcement applies at **enqueue and pass start**, never mid-flight:
+
+1. **Outbox enqueue gates** — insert_timesheet_outbox_pending (0161:232),
+   insert_procurement_outbox_pending (0393:114) and the definer triggers that call them gain an
+   entitlement check on their module key: a `feature_off` org never mints new commands.
+2. **Sweep pass start, per org per domain** — if the domain's key resolves off, that org's outbox
+   candidates for the domain take the existing domain-not-owned treatment: `held` for an operator with
+   reason `feature-off:<key>` (mechanics precedent erpnext-sweep/index.ts:442); the inbound watermark
+   (0089:7) is untouched, so the feed resumes exactly where it stopped on re-enable. Budget pass 5,
+   timesheets pass 6 and expenses pass 7 re-assert their own gates (erpnext-sweep/index.ts:41-42).
+3. **Edge function precondition** — per-module functions check `service_feature_enabled` first and
+   return the typed refusal (HTTP 409, error code `feature_off`), before any ERP call.
+
+**Service-role paths that must NOT be blocked (why, per path):**
+
+- `claim_outbox_for_commit` / `confirm_outbox` / `quarantine_committing` (0096:137/233/164),
+  `record_outbox_ref` (0096:210) and `release_outbox_hold` (0156:47): a command already claimed must
+  reach a terminal state or a real ERP document strands mid-flight — the `held`/double-pay machinery
+  (0096:56-61) exists because half-blocked money commands are worse than paused ones.
+- Timesheet push finalize/witness paths (0161:206-306, 0164-0166): same terminal-state rule for
+  already-minted sheet pushes.
+- Core `expenses` postings (0270:187-242): expense claims are core (0533); only the `imprest-transfer`
+  kind holds when `imprest` is off (feedKinds.ts:45-49 keeps it in the same domain on purpose — the
+  split is per kind, never per domain, for this pass).
+- Hygiene jobs never module-gated: m365_pkce_sweep_tick (0112:31) only clears abandoned PKCE states;
+  error-events-purge (0171:53); telegram_notify_tick (0083:29) only drains an existing queue;
+  ops_job_heartbeats. Blocking these manages hygiene, not entitlement.
+- Native mirror guards (0123:117/146, 0481:192/222/261, 0099:136) fire inside client writes that are
+  themselves gated — they must not gain their own refusal or the gated write becomes ambiguous.
+- `feedback_surveys` Admin writer (0419:29) and every Operator switch RPC (0532:237-410): switching
+  features must work regardless of the state being switched.
+- Disconnect/unlink paths (`external-unlink`, `m365_delete_connection` 0116:42): an off feature must
+  still be tearable-down; only new links refuse.
+
+### Enforcement mechanics (0534 contents)
+
+- **`assert_feature_on(p_org_id uuid, p_key text)`** — plpgsql security-definer helper, pinned
+  search_path; raises `feature_off` with errcode P0001 unless `org_feature_enabled(p_org_id,p_key)` is
+  true (the non-raising wrapper stays the RLS-side hook, 0532:127; the raising helper is the RPC-side
+  twin). Revoked from public/anon/authenticated/service_role — callable only inside definers, so the
+  0178 anon-executable allow-list is unchanged. Reads entitlement (`enabled`), never `display_enabled`
+  — FR-PLN-005a keeps revenue's ERP-ownership rule display-only (resolver split, 0532:118-126).
+- **`service_feature_enabled(p_org_id uuid, p_key text) returns boolean`** — service-only twin of
+  `service_resolved_org_features` (0532:193-215): same `auth.role()` guard, non-raising, false on
+  unknown org (fail closed). Sweeps and edge functions call this; cheap enough for hot loops.
+- **RLS conjunct DO block** — mirrors 0081's mechanics exactly (read live pg_policies so the 0063
+  is_active_member append survives; paren-wrap before AND-ing; preserve permissive/cmd; write commands
+  only, 0081:135-214), over the **new** gated tables listed in S2.0. Idempotence guard: skip any
+  policy whose qual/with_check already contains `org_feature_enabled`. Grant/permission surfaces are
+  untouched, so 0137's service-grant inventory is unaffected.
+- **Re-boundary** — procurement_receipts + procurement_receipt_files write policies switch their
+  conjunct from `procurement` to `procurement_full` (targeted rebuild that first asserts the old
+  conjunct text is present), and create_procurement_receipt (0481:36) checks `procurement_full`.
+  Existing orgs are Enterprise (both keys on) so AC-PLN-016 compatibility is unaffected.
+- **AND rule for ERP flows** — a domain's push/poll requires `erp_sync` AND the domain's module key
+  (constraints: capability gates AND entitlement; entitlement never grants capability).
+- **Import RPCs** get `import_export` ANDed with their entity's own key (budget import rides the core
+  budgets key, so `import_export` alone there).
+
+### Tasks (TDD — red first; each 2–5 min; run supabase from repo root)
+
+1. **Red pgTAP** — create `supabase/tests/plans_feature_enforcement.test.sql` (house style:
+   begin/plan/finish/rollback, namespaced `0534…` UUID fixtures, `set local role authenticated`):
+   fixture org A on `starter` (plan-level off: procurement_full, revenue, budget_projection, imprest,
+   stock, erp_sync/erp_purchases, financial_statements, management_pack, multi_currency, sso,
+   api_access, clickup_sync, sales_pipeline, m365_integration, import_export all off by matrix) and
+   org B on `enterprise`; plus override-level off rows for timesheets and agent_assistant. Assert
+   `throws_ok(...'P0001', 'feature_off')` for: establish_imprest_float (AC-PLN-005),
+   create_procurement_receipt (re-boundary: passes today under `procurement` — the red that proves the
+   change), transition_timesheet, create_native_sales_invoice, record_native_receipt,
+   create_stock_document, an fx_rates update, a budget_projections insert, record_project_progress,
+   import_budget_line_v2, assemble_tm_claim. Then data-kept (FR-PLN-007): rows written while on stay
+   readable after off (read policies untouched), and after re-enable the same org writes again
+   successfully. Run `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db
+   supabase/tests/plans_feature_enforcement.test.sql'` — every new assertion fails on the current
+   schema; grep TAP for `not ok` and `Parse errors`.
+2. **0534 §A helpers** — `0534_feature_enforcement.sql` adds assert_feature_on +
+   service_feature_enabled (grants/revokes per above); create
+   `supabase/migrations/rollback/0534_feature_enforcement_down.sql` skeleton. Re-run task 1's command —
+   still red (helpers alone enforce nothing).
+3. **0534 §B RLS conjuncts** — the DO block over the new tables (revenue, imprest, stock,
+   budget_projections, project_progress_entries, fx_rates, incoming_payments, sales-invoice family
+   tables that have client write policies; newer procurement tables without policies no-op safely).
+   Re-run: the direct-insert assertions go green; RPC assertions stay red.
+4. **0534 §C1 revenue/sales_invoices RPC gates** — 0275:189/316/394/482/561/592/692 + 0347:2 +
+   0337:498 + 0516:138/230 gain `perform public.assert_feature_on(v_org,'<key>')` right after the org
+   is resolved (receipts → `revenue`; invoice/claim/progress paths → `sales_invoices`; OQ-1/OQ-2).
+   Re-run: revenue/sales_invoices cases green.
+5. **0534 §C2 imprest family** — 0422:56/77/188/251/418, 0423:404/452, 0424:58 gated on `imprest`.
+   AC-PLN-005's case goes green.
+6. **0534 §C3 stock family** — 0413:442/481/507/515, 0418:23, 0412:161 on `stock`.
+7. **0534 §C4 procurement re-boundary + remaining RPC gates** — receipts conjunct rebuild +
+   0481:36 on `procurement_full`; 0481:75/132, 0180:293, 0362:154 on `procurement` (where not already
+   gated). Re-run: full file green through here.
+8. **0534 §C5 timesheets/m365/management-pack** — 0516:268 on `timesheets`; 0338:31, 0375:12/125 gain
+   the `m365_integration` check on link/batch (0116:42 delete stays ungated); 0245:98 on
+   `management_pack`.
+9. **0534 §C6 import RPCs** — 0397:36, 0407:30, 0399:47/62, 0448:254 gain
+   `assert_feature_on(org,'import_export')` ANDed with the entity key where one exists.
+10. **Red deno tests for job/edge gates** — per touched function: erpnext-sweep (hold on
+    entitlement-off domain, resume on re-enable, expenses/imprest kind split), odoo-sweep, clickup
+    sweep/webhook-worker, agent_dispatch_tick gating (pgTAP side: call as superuser with
+    agent_assistant off, assert no fire), m365-token-custody, imprest-cash-account, compose-view,
+    agent-chat precondition, external-connect/onboard. Tests import the shipped handler
+    (check-edge-fn-test-binding) and mock globalThis.fetch. Observe red.
+11. **Implement the job/edge gates** — sweep pass-start entitlement check producing the
+    `feature-off:<key>` hold; edge preconditions returning `feature_off`; agent_dispatch_tick and
+    clickup ticks skip gated orgs. Deno tests green.
+12. **Mutation checks** (each: break → the owning test goes red → restore → green): invert
+    global-off precedence in assert_feature_on; drop the receipts re-boundary; make
+    service_feature_enabled return true unconditionally; bypass the sweep hold for one domain.
+13. **Full battery** — verify commands below, incl. sibling suites (0137, 0138, 0178 both,
+    plans_resolution, plans_compatibility, 0178_m365_member_gate) and the FE registry test; no new
+    tables ship, so the isolation-denominator manifest is untouched (assert via
+    `node scripts/check-isolation-denominator.mjs --self-test`).
+
+### Rollback
+
+`supabase/migrations/rollback/0534_feature_enforcement_down.sql`: drop the two helpers; inverse DO
+block stripping exactly the appended conjunct text (the migration's own appended string is a constant,
+so the reverse matches on it verbatim); rebuild the receipts conjuncts back to `procurement`;
+`notify pgrst, 'reload schema'`. As with 0081, the canonical pre-production reverse remains
+`supabase db reset` (ADR-0006).
+
+### Verify (exact commands)
+
+From repo root, one DB-lock hold (reset+test MUST share one hold):
+
+```
+scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db \
+  supabase/tests/plans_feature_enforcement.test.sql \
+  supabase/tests/0137_service_role_grants.test.sql \
+  supabase/tests/0178_anon_executable_definers.test.sql \
+  supabase/tests/0138_feature_flag_write_enforcement.test.sql \
+  supabase/tests/plans_resolution.test.sql \
+  supabase/tests/plans_compatibility.test.sql'
+```
+
+Inspect TAP for `not ok` and `Parse errors` (an aborted file reports 0 tests and looks green).
+Edge functions: `scripts/deno-test-edge-fns.sh` for every touched function (agent-chat, compose-view,
+m365-token-custody, imprest-cash-account, external-connect, erpnext-onboard, clickup-onboard,
+clickup-webhook, clickup-webhook-worker, clickup-sweep, erpnext-sweep, odoo-sweep, adapter-dispatch).
+FE (untouched by 0534, run to prove it): `scripts/with-test-lock.sh npx vitest run
+pmo-portal/src/lib/features.dbRegistry.test.ts`. If any `.ts`/`.tsx` outside `supabase/functions`
+changes: `npm run check:guards`, `scripts/with-test-lock.sh npm run typecheck`, eslint
+`--max-warnings=0` on touched files. Agent prompt/tool changes would require the local eval harness —
+S2 changes none.
+
+### AC → test
+
+| AC | Owning proof |
+|---|---|
+| AC-PLN-005 (imprest off refuses; data kept; re-enable restores) | `supabase/tests/plans_feature_enforcement.test.sql` |
+| FR-PLN-006 refusal matrix (per-key write/RPC rows) | same file, one named assertion per S2.0 row |
+| FR-PLN-007 data kept + restore | same file (read-policy invariance + re-enable writes) |
+| FR-PLN-005a (revenue keys on entitlement, display rule untouched) | `plans_resolution.test.sql` (owns the resolver split) + the revenue refusal rows |
+| Job hold/resume + kind split | erpnext-sweep deno tests (`erpnext-sweep/*.test.ts`) |
+| Edge preconditions | each function's `index.test.ts` |
+| agent automations gate | pgTAP case in `plans_feature_enforcement.test.sql` (tick call as superuser) |
+
+### Open questions (each with a default so no task blocks)
+
+1. **tm_claims attribution** — `assemble_tm_claim`/`deselect_tm_source` (0516:138/230) assemble
+   billable time into client claims. Default: gate on `sales_invoices` (client-billing surface); the
+   module→key mapping stays data-driven so the owner can amend (decision #2).
+2. **revenue ↔ sales_invoices coupling** — a receipt (revenue) can reference an invoice
+   (sales_invoices). Default: receipts gate on `revenue` alone; the invoice link stays data; no
+   cross-key conjunct (the catalogue gives every tier `sales_invoices`, so shipped tiers never hit the
+   split mid-flow).
+3. **sales_pipeline write boundary** — projects are core, so 0534 gates only `transition_project`
+   (0461:25) when `p_to` is a pipeline-open status, via a shared immutable status-list helper
+   extracted next to get_sales_pipeline (0261:4) so RPC and read never drift. Default: that helper;
+   reads stay open (0081 SELECT invariant).
+4. **Hold vs skip for entitlement-off domains** — Default: `held` with reason `feature-off:<key>`
+   reusing the domain-not-owned machinery (erpnext-sweep/index.ts:442): visible to ops, auto-resumes
+   on re-enable, never silently drops a pending command.
+5. **Server read-gating of disabled modules** — FR-PLN-006 enumerates writes/RPCs/jobs/edges; 0081's
+   SELECT invariant deliberately never gates reads. Default: reads stay open in S2
+   (get_financial_statement 0321:1126, get_sales_pipeline, erp purchase reads 0335:42); S3 hides
+   nav/routes; server-side read refusal is a follow-up only if the owner asks.
+6. **api_access / sso / budget_phasing** — no shipped surface (S2.0). Default: registry-only keys in
+   S2; enforcement lands with their surfaces, and FR-PLN-014's completeness gate (S6) fails any future
+   module that forgets its key.
+7. **agent_assistant automation tick granularity** — Default: agent_dispatch_tick (0082:32) skips
+   orgs whose `agent_assistant` resolves off (enqueue-side gate); telegram_notify_tick stays ungated
+   (it only drains already-queued notifications).
 
 ## S3 — FE and console: outline
 
@@ -88,9 +333,9 @@ A source search of `pmo-portal`, `supabase/functions`, and migrations found no p
 
 **Goal / AC:** Follow resolved switches and emit a privacy-preserving missing-tool signal (AC-PLN-006, 007); register plan as analytics group property (FR-PLN-016). First inventory entities and named actions against keys, including write actions and both tool loops. Filter the generic `query_entity` entity catalogue and reject disabled entities on execution; filter named tools through the same mapping. Test the shipped handler, no message text in the single event, consent, org changes, and run agent evals. Add the missing stock read tool as needed.
 
-## S5 — limits (0534): outline
+## S5 — limits (0535 on renumber): outline
 
-**Goal / AC:** Enforce seats and active projects and grant monthly credits exactly once (AC-PLN-009–011). First inventory the invite lifecycle, project status taxonomy, credit ledger and scheduler, including the transaction boundary around external invite issuance. Count active members plus pending invites inside the invite RPC under the organisation row lock, without a reservation table; prove concurrency and failure cleanup. Detailed plan owns migration `0534_plan_limits.sql`, rollback, monthly idempotency and per-contract behavior. Decide credit rollover and the invite transaction boundary before implementation; do not claim a SQL lock covers an external request after its transaction ends.
+**Goal / AC:** Enforce seats and active projects and grant monthly credits exactly once (AC-PLN-009–011). First inventory the invite lifecycle, project status taxonomy, credit ledger and scheduler, including the transaction boundary around external invite issuance. Count active members plus pending invites inside the invite RPC under the organisation row lock, without a reservation table; prove concurrency and failure cleanup. Detailed plan owns the limits migration (this outline's `0534_plan_limits.sql` renumbers — 0534 is S2's enforcement migration, see the S2 detailed plan), rollback, monthly idempotency and per-contract behavior. Decide credit rollover and the invite transaction boundary before implementation; do not claim a SQL lock covers an external request after its transaction ends.
 
 ## S6 — completeness and one journey: outline
 
