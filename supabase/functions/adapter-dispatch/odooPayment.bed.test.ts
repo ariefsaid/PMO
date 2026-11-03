@@ -182,7 +182,7 @@ Deno.test({
     const selectedJournal = journal && journal.inbound_payment_method_line_ids.length > 0 ? journal : null;
     assert(selectedJournal, 'the bank journal has an inbound payment method line');
     const [taxPrepaid] = await call<Array<{ id: number; currency_id: false | [number, string]; account_type: string }>>('account.account', 'search_read', {
-      domain: [['account_type', 'in', ['asset_current', 'asset_prepayments']], ['company_ids', 'in', [companyId]], ['deprecated', '=', false]],
+      domain: [['account_type', 'in', ['asset_current', 'asset_prepayments']], ['company_ids', 'in', [companyId]]],
       fields: ['currency_id', 'account_type'], limit: 20,
     });
     assert(taxPrepaid, 'the chart has a live current asset account for client withholding');
@@ -246,15 +246,16 @@ Deno.test({
         domain: 'revenue', operation: 'create', idempotencyKey: `bed-${id}`,
         record: { id, erp_doc_kind: 'incoming-payment', salesInvoiceId: `pmo-${invoiceId}`, customerId: 'bed-customer', date, paid_amount: settled, received_amount: options.cash ?? settled, withheld_amount: options.withheld ?? 0, withholding_slip_number: options.slip ?? null },
       };
-      const observed = async () => {
-        const window: ReceiptComposite = {
+      const recoveryWindow = (): ReceiptComposite => ({
           partnerId: customer, amount: options.cash ?? settled, date, invoiceId,
           createdAfter: new Date(Date.now() - 10 * 60_000).toISOString().slice(0, 19).replace('T', ' '),
           createdBefore: new Date(Date.now() + 120_000).toISOString().slice(0, 19).replace('T', ' '),
-        };
+        });
+      const observed = async () => {
+        const window = recoveryWindow();
         return { window, result: await recoverReceipt(receiptCall, command.record, window, receiptInput) };
       };
-      return { id, input: receiptInput, command, adapter, call: receiptCall, observed };
+      return { id, input: receiptInput, command, adapter, call: receiptCall, recoveryWindow, observed };
     };
 
     // One receipt closes the invoice in Odoo; the PMO status changes only when the next invoice read supplies residual zero.
@@ -294,8 +295,11 @@ Deno.test({
     assertEquals((await readInvoice(withheldInvoice)).amount_residual, 0);
     assertEquals({ amount: withheldResult.canonical.amount, received: withheldResult.canonical.received_amount, withheld: withheldResult.canonical.withheld_amount, slip: withheldResult.canonical.withholding_slip_number, actor: withheldResult.canonical.recorded_by_id },
       { amount: 111_000, received: 109_000, withheld: 2_000, slip: `${stamp}-SLIP`, actor: 'bed-finance-user' });
+    const paymentId = Number(withheldResult.externalRecordId.split(':')[1]);
+    const [withheldPayment] = await call<Array<{ move_id: [number, string] }>>('account.payment', 'read', { ids: [paymentId], fields: ['move_id'] });
+    assert(withheldPayment?.move_id, 'the posted receipt has its accounting move');
     const writeOff = await call<Array<{ account_id: [number, string]; balance: number }>>('account.move.line', 'search_read', {
-      domain: [['move_id', '=', Number(withheldResult.externalRecordId.split(':')[1])], ['account_id', '=', taxPrepaid.id]], fields: ['account_id', 'balance'],
+      domain: [['move_id', '=', withheldPayment.move_id[0]], ['account_id', '=', taxPrepaid.id]], fields: ['account_id', 'balance'],
     });
     assert(writeOff.some((line) => line.account_id[0] === taxPrepaid.id && Math.abs(line.balance) === 2_000), 'the withheld amount is booked to the chosen tax-prepaid asset');
 
@@ -342,7 +346,7 @@ Deno.test({
     assert(originalAnchorRow, 'the primary identifier was written before the post response was lost');
     await call('ir.model.data', 'write', { ids: [originalAnchorRow.id], vals: { name: `${stamp}-external-id-edited` } });
     await call('account.payment', 'write', { ids: [postedWithoutLink.id], vals: { memo: `${stamp}-memo-edited` } });
-    const { window: renamedWindow } = await renamedAnchor.observed();
+    const renamedWindow = renamedAnchor.recoveryWindow();
     await assertRejects(() => recoverReceipt(renamedAnchor.call, renamedAnchor.command.record, renamedWindow, renamedAnchor.input), Error, 'ambiguous-anchor');
     assertEquals([(await paymentsOf(renamedAnchorInvoice)).length, (await readInvoice(renamedAnchorInvoice)).amount_residual], [0, 111_000]);
 
@@ -358,7 +362,7 @@ Deno.test({
     assert(secondUnanchored, 'the pending receipt has no external identifier yet');
     await call('account.payment', 'write', { ids: [secondUnanchored.id], vals: { memo: `${stamp}-memo-edited-ambiguous` } });
     const beforeHeld = await paymentsOf(heldInvoice);
-    const { window } = await held.observed();
+    const window = held.recoveryWindow();
     await assertRejects(() => recoverReceipt(held.call, held.command.record, window, held.input), Error, 'ambiguous-anchor');
     assertEquals([(await paymentsOf(heldInvoice)).length, (await readInvoice(heldInvoice)).amount_residual], [beforeHeld.length, 71_000]);
   },

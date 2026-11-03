@@ -110,7 +110,8 @@ async function pushInvoice(deps: OdooRevenueDeps, command: AdapterCommand): Prom
 
 const receiptKey = (record: PmoRecord) => `ip:${record.id}`;
 const paymentState = (payment: PaymentRow): Observed => payment.state === 'draft' ? 'payment-created'
-  : payment.state === 'paid' || payment.state === 'in_process' || payment.state === 'posted'
+  : payment.state === 'reconciled' ? 'payment-reconciled'
+    : payment.state === 'paid' || payment.state === 'in_process' || payment.state === 'posted'
     ? payment.is_reconciled === true ? 'payment-reconciled' : 'payment-posted'
     : 'state-unreadable';
 interface PaymentRow {

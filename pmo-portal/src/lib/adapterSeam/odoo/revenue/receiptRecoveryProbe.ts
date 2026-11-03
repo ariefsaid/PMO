@@ -32,18 +32,27 @@ export async function probeReceiptByAnchor(call: OdooCall, key: string, composit
 
   // A create response can be lost before the identifier is written. Match the PMO memo plus every bounded, immutable fact;
   // multiple matches are doubt, never a reason to choose the newest payment.
+  const conjunction = [['payment_type', '=', 'inbound'], ['partner_type', '=', 'customer'], ['partner_id', '=', composite.partnerId],
+    ['amount', '=', composite.amount], ['date', '=', composite.date],
+    ['create_date', '>=', composite.createdAfter], ['create_date', '<=', composite.createdBefore ?? '9999-12-31 23:59:59'],
+    ['state', '!=', 'canceled']] as unknown[][];
+  const fields = ['id', RECEIPT_MEMO_FIELD, 'reconciled_invoice_ids', 'state'];
+  // The invoice is part of the conjunction: same-customer receipts settled against other invoices are not matches.
+  // Keep unlinked rows too, so a changed trace is held and the exact signed memo can bridge a lost external identifier.
   const candidates = await call<Array<{ id: number; reconciled_invoice_ids?: unknown; [field: string]: unknown }>>('account.payment', 'search_read', {
-    domain: [['payment_type', '=', 'inbound'], ['partner_type', '=', 'customer'], ['partner_id', '=', composite.partnerId],
-      ['amount', '=', composite.amount], ['date', '=', composite.date],
-      ['create_date', '>=', composite.createdAfter], ['create_date', '<=', composite.createdBefore ?? '9999-12-31 23:59:59'],
-      ['state', '!=', 'canceled']], fields: ['id', RECEIPT_MEMO_FIELD, 'reconciled_invoice_ids'], limit: 3,
+    domain: conjunction, fields, limit: 21,
   });
-  if (candidates.length > 1) throw ambiguous();
-  if (!candidates.length) return null;
-  const row = candidates[0];
-  const linked = Array.isArray(row.reconciled_invoice_ids) && row.reconciled_invoice_ids.some((id) => Number(id) === composite.invoiceId);
-  // Before posting, Odoo has not created receivable lines yet. The exact secondary trace on a unique draft is the only
-  // safe way to finish the create-to-anchor gap; a similar unlinked payment is held as ambiguity.
-  if (!linked && row[RECEIPT_MEMO_FIELD] !== 'pmo:' + key) throw ambiguous();
+  if (candidates.length > 20) throw ambiguous();
+  const links = (row: (typeof candidates)[number]) => Array.isArray(row.reconciled_invoice_ids)
+    ? row.reconciled_invoice_ids.map((id) => Number(Array.isArray(id) ? id[0] : id)) : [];
+  const hasSignedAnchor = (row: (typeof candidates)[number]) => row[RECEIPT_MEMO_FIELD] === 'pmo:' + key;
+  const relevant = candidates.filter((row) => links(row).length === 0 || links(row).includes(composite.invoiceId) || hasSignedAnchor(row));
+  if (relevant.length > 1) throw ambiguous();
+  const row = relevant[0];
+  if (!row) return null;
+  const rowLinks = links(row);
+  const linked = rowLinks.includes(composite.invoiceId);
+  // An unlinked row is attributable only by the exact secondary trace; a similar payment is held as ambiguity.
+  if (!linked && (rowLinks.length > 0 || !hasSignedAnchor(row))) throw ambiguous();
   return { externalRecordId: odooExternalRef('account.payment', row.id) };
 }

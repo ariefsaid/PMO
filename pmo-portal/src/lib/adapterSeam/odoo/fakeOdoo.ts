@@ -338,8 +338,8 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
     }
     const paymentId = newId('account.payment');
     table('account.payment').set(paymentId, {
-      id: paymentId, payment_type: 'inbound', partner_type: 'customer', partner_id: invoice.partner_id, amount: units(amount), state: 'paid', memo: wizard.communication ?? false,
-      journal_id: wizard.journal_id ?? false, date: wizard.payment_date ?? false, is_reconciled: true, is_matched: false,
+      id: paymentId, payment_type: 'inbound', partner_type: 'customer', partner_id: invoice.partner_id, amount: units(amount), state: 'reconciled', memo: wizard.communication ?? false,
+      journal_id: wizard.journal_id ?? false, date: wizard.payment_date ?? false, is_reconciled: difference === 0, is_matched: false,
       reconciled_invoice_ids: [invoice.id], move_id: [moveId, name], write_date: fmt(++clock),
     });
     settleInvoice(invoice, Math.max(0, residual - amount - difference));
@@ -454,7 +454,9 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
         const residual = cents(receivable.amount_residual);
         const move = table('account.move').get(Number(moveId));
         if (isCustomerMove(move)) settleInvoice(move!, residual);
-        for (const p of table('account.payment').values()) if (Array.isArray(p.move_id) && p.move_id[0] === moveId) Object.assign(p, { is_reconciled: residual === 0, is_matched: residual === 0 });
+        for (const p of table('account.payment').values()) if (Array.isArray(p.move_id) && p.move_id[0] === moveId) {
+          Object.assign(p, { is_reconciled: residual === 0, is_matched: residual === 0, ...(residual === 0 ? { state: 'reconciled' } : {}) });
+        }
       }
       const invoiceIds = rows.map((r) => Number(r.move_id)).filter((moveId) => isCustomerMove(table('account.move').get(moveId))).map((moveId) => moveId);
       for (const payment of table('account.payment').values()) {

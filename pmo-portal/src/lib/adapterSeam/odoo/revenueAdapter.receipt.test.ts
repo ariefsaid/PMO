@@ -91,7 +91,7 @@ describe('AC-OCI-042 a customer receipt resumes after each committed step and ne
     const result = await attempt(command(), true);
     expect(result.externalRecordId).toMatch(/^account\.payment:\d+$/);
     expect(fake.rows('account.payment')).toHaveLength(1);
-    expect(fake.rows('account.payment')[0]).toMatchObject({ state: 'paid', payment_type: 'inbound', partner_type: 'customer', is_reconciled: true });
+    expect(fake.rows('account.payment')[0]).toMatchObject({ state: 'reconciled', payment_type: 'inbound', partner_type: 'customer', is_reconciled: true });
     expect(fake.rows('account.move')[0].amount_residual).toBe(0);
     expect([count('account.payment', 'create'), count('account.payment', 'action_post'), count('account.move.line', 'reconcile')]).toEqual([1, 1, 1]);
   });
@@ -122,6 +122,7 @@ describe('AC-OCI-043 a receipt probe holds on doubt and adopts only its unique c
     const unique = rig();
     unique.fake.seed('account.payment', [
       { id: 503, payment_type: 'inbound', partner_type: 'customer', partner_id: 41, amount: 111000, date: RECEIPT_DATE, state: 'paid', memo: 'edited-by-accountant', create_date: '2026-11-03 10:03:00', move_id: [703, 'PAY-3'], is_reconciled: true, reconciled_invoice_ids: [INVOICE_ODOO_ID] },
+      { id: 506, payment_type: 'inbound', partner_type: 'customer', partner_id: 41, amount: 111000, date: RECEIPT_DATE, state: 'paid', memo: 'another invoice receipt', create_date: '2026-11-03 10:03:30', move_id: [705, 'PAY-5'], is_reconciled: true, reconciled_invoice_ids: [999] },
     ]);
     unique.fake.seed('account.move.line', [
       { id: INVOICE_MOVE_ID, move_id: INVOICE_ODOO_ID, account_type: 'asset_receivable', partner_id: 41, balance: 111000, amount_residual: 0, reconciled: true },
@@ -158,6 +159,17 @@ describe('AC-OCI-043 a receipt probe holds on doubt and adopts only its unique c
     await expect(recoverReceipt(wrongInvoice.call, receiptCommand().record, COMPOSITE)).rejects.toThrow('receipt-does-not-match-command');
     expect(wrongInvoice.count('account.payment', 'create')).toBe(0);
   });
+
+  it('holds an unanchored signed payment reconciled against another invoice', async () => {
+    const wrongInvoice = rig();
+    wrongInvoice.fake.seed('account.payment', [{
+      id: 507, payment_type: 'inbound', partner_type: 'customer', partner_id: 41, amount: 111000, date: RECEIPT_DATE, create_date: '2026-11-03 10:04:00',
+      state: 'reconciled', is_reconciled: true, memo: `pmo:ip:${RECEIPT_ID}`, reconciled_invoice_ids: [999], move_id: [707, 'PAY-7'],
+    }]);
+
+    await expect(recoverReceipt(wrongInvoice.call, receiptCommand().record, COMPOSITE)).rejects.toThrow('ambiguous-anchor');
+    expect(wrongInvoice.count('account.payment', 'create')).toBe(0);
+  });
 });
 
 describe('AC-OCI-040 a receipt cannot overpay the invoice', () => {
@@ -178,6 +190,7 @@ describe('AC-OCI-044 a withheld receipt reconciles the gross using the tax-prepa
     expect(fake.rows('account.move')[0].amount_residual).toBe(0);
     expect(fake.rows('account.move.line')).toContainEqual(expect.objectContaining({ account_id: 88, balance: 2000 }));
     expect(fake.rows('account.payment')[0]).toMatchObject({ amount: 109000, payment_type: 'inbound', partner_type: 'customer' });
+    expect(fake.rows('account.payment')[0]).toMatchObject({ state: 'reconciled', is_reconciled: false, reconciled_invoice_ids: [INVOICE_ODOO_ID] });
     expect(result.canonical).toMatchObject({ amount: 111000, received_amount: 109000, withheld_amount: 2000, withholding_slip_number: 'BP-2026-001' });
   });
 });
