@@ -3,10 +3,14 @@
  *
  *   - <FeatureGate feature="crm"> renders children when useFeature('crm') is true and omits
  *     them when false.
- *   - <FeatureRoute feature="crm"> renders the element when enabled and <Navigate>s to `/`
- *     (dashboard) when disabled — a deep-link degrades gracefully, never a 404.
- *   - Rail integration: with crm disabled, the CRM rail items (Sales Pipeline / Companies /
- *     Contacts) are absent; a deep-link to /crm redirects to `/`.
+ *   - <FeatureRoute feature="crm"> renders the element when enabled and the not-available state
+ *     when disabled — a deep-link degrades gracefully, never a 404. (S3/AC-PLN-008 replaced the
+ *     old redirect to `/` with that state: the route now says why, and data is kept either way.
+ *     The goal oracle is unchanged — the disabled page is never rendered.)
+ *   - Rail integration: with crm (and sales_pipeline, its own key since S3) disabled, the CRM rail
+ *     items (Sales Pipeline / Companies / Contacts) are absent.
+ *
+ * The RPC seam is mocked at `useOrgFeatures`, the same projection every consumer reads (FR-PLN-005).
  */
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
@@ -70,7 +74,7 @@ describe('AC-ENT-003 — FeatureRoute hides CRM affordances', () => {
     expect(screen.getByRole('button', { name: 'Create company' })).toBeInTheDocument();
   });
 
-  it('<FeatureRoute> redirects a /crm deep-link to / when crm is disabled', () => {
+  it('AC-PLN-008 <FeatureRoute> renders the not-available state for a /crm deep-link when crm is disabled', () => {
     featuresState.value = { crm: false };
     wrap(
       <Routes>
@@ -78,8 +82,10 @@ describe('AC-ENT-003 — FeatureRoute hides CRM affordances', () => {
         <Route path="/" element={<div>Dashboard</div>} />
       </Routes>,
     );
+    // The page is never rendered (the goal oracle), and the route explains itself in place
+    // instead of bouncing to the dashboard.
     expect(screen.queryByText('CRM page')).toBeNull();
-    expect(screen.getByText('Dashboard')).toBeInTheDocument();
+    expect(screen.getByTestId('feature-unavailable')).toBeInTheDocument();
   });
 
   it('<FeatureRoute> renders the element when crm is enabled', () => {
@@ -94,7 +100,9 @@ describe('AC-ENT-003 — FeatureRoute hides CRM affordances', () => {
   });
 
   it('Rail integration: with crm disabled, the CRM rail items are absent', () => {
-    featuresState.value = { crm: false };
+    // `sales_pipeline` became its own switch in S3 (it is a Growth+ feature); a CRM-less org
+    // without the pipeline therefore shows neither.
+    featuresState.value = { crm: false, sales_pipeline: false };
     // Other gated features off too so only the always-on items show.
     wrap(<Rail />, '/');
     expect(screen.queryByRole('link', { name: /sales pipeline/i })).toBeNull();
@@ -106,7 +114,7 @@ describe('AC-ENT-003 — FeatureRoute hides CRM affordances', () => {
   });
 
   it('Rail integration: with crm enabled, the CRM rail items reappear', () => {
-    featuresState.value = { crm: true };
+    featuresState.value = { crm: true, sales_pipeline: true };
     wrap(<Rail />, '/');
     expect(screen.getByRole('link', { name: /sales pipeline/i })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /companies/i })).toBeInTheDocument();
