@@ -12598,6 +12598,19 @@ export type Database = {
         Args: { p_fiscal_years: string[]; p_project_id: string }
         Returns: string
       }
+      get_budget_comparison: {
+        Args: { p_fiscal_year?: string | null; p_project_id: string }
+        Returns: {
+          category: Database["public"]["Enums"]["budget_category"]
+          budget_total: number | null
+          recorded: number | null
+          recorded_as_of: string | null
+          mapped: boolean
+          has_ledger: boolean
+          remaining: number | null
+          percent_used: number | null
+        }[]
+      }
       get_budget_projection: {
         Args: { p_fiscal_year: string; p_project_id: string }
         Returns: {
