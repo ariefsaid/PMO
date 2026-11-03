@@ -822,6 +822,21 @@ async function readMe(ctx) {
   return { user, profile: Array.isArray(rows) && rows[0] ? rows[0] : {} };
 }
 
+/**
+ * Turn ids into names in ONE read — the same `in.(…)` shape `attribution preview` uses — so a report prints a name
+ * where it has an id. Row-level security and the API-client tier decide what comes back; an id the read does not
+ * return (left the organisation, another organisation's project) keeps its raw value at the print.
+ */
+async function readNames(ctx, table, column, ids) {
+  const unique = [...new Set(ids)].filter((id) => UUID.test(id ?? ''));
+  const names = new Map();
+  if (unique.length === 0) return names;
+  const q = new URLSearchParams({ select: `id,${column}`, id: `in.(${unique.join(',')})` });
+  const rows = await authed(ctx, 'GET', `/rest/v1/${table}?${q}`);
+  for (const row of Array.isArray(rows) ? rows : []) names.set(row.id, row[column]);
+  return names;
+}
+
 /** The LoadApi `pmo load` writes through — the user's own token, nothing else (scripts/lib/pmo-load.mjs). */
 function loadApi(ctx) {
   const representation = { prefer: 'return=representation' };
@@ -1190,14 +1205,8 @@ async function attribution(ctx, positionals, flags) {
     if (sub === 'preview') {
       const previews = await previewRules(api, await rulesFrom());
       if (flags.json) return { previews };
-      const ids = [...new Set(previews.flatMap((p) => p.rows.map((r) => r.project_id)))].filter((id) => UUID.test(id ?? ''));
-      const names = new Map();
-      if (ids.length > 0) {
-        const q = new URLSearchParams({ select: 'id,name', id: `in.(${ids.join(',')})` });
-        const rows = await authed(ctx, 'GET', `/rest/v1/projects?${q}`);
-        for (const r of Array.isArray(rows) ? rows : []) names.set(r.id, r.name);
-      }
-      return new Printed(formatPreview(previews, names));
+      const ids = previews.flatMap((p) => p.rows.map((r) => r.project_id));
+      return new Printed(formatPreview(previews, await readNames(ctx, 'projects', 'name', ids)));
     }
     if (sub === 'set') return await setRules(api, await rulesFrom(), { dryRun: Boolean(flags['dry-run']) });
     if (sub === 'end') {
@@ -1302,11 +1311,15 @@ async function timeAndMaterials(ctx, positionals, flags) {
   try {
     if (area === 'rates' && action === 'list') {
       const card = await readRateCard(api, { project: flags.project, assignees: Boolean(flags.assignees) });
-      return flags.json ? card : new Printed(formatRateCard(card));
+      if (flags.json) return card;
+      const names = await readNames(ctx, 'profiles', 'full_name', card.assignees.map((person) => person.user_id));
+      return new Printed(formatRateCard(card, names));
     }
     if (area === 'claim' && action === 'preview') {
       const preview = await previewClaim(api, { project: flags.project, from: flags.from, to: flags.to });
-      return flags.json ? preview : new Printed(formatTmPreview(preview));
+      if (flags.json) return preview;
+      const names = await readNames(ctx, 'profiles', 'full_name', preview.unrated.map((row) => row.user_id));
+      return new Printed(formatTmPreview(preview, names));
     }
     if (area === 'claim' && action === 'list') {
       const claims = await listClaims(api, { project: flags.project });

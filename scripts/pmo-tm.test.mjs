@@ -119,7 +119,11 @@ test('AC-TM-017 the CLI reads are exactly the database T&M read tier (latest api
 });
 
 test('AC-TM-017 tm claim preview sends preview_tm_claim with the project and window', async () => {
-  const f = await fake({ 'POST /rest/v1/rpc/preview_tm_claim': [200, PREVIEW_ROWS] });
+  // No profile row for the engineer: an id the directory read cannot resolve keeps its raw value.
+  const f = await fake({
+    'POST /rest/v1/rpc/preview_tm_claim': [200, PREVIEW_ROWS],
+    'GET /rest/v1/profiles': [200, []],
+  });
   try {
     const r = await cli(['tm', 'claim', 'preview', '--project', PROJECT, '--from', '2026-01-01', '--to', '2026-01-31'], f);
     assert.equal(r.code, 0, JSON.stringify(r.error));
@@ -131,6 +135,39 @@ test('AC-TM-017 tm claim preview sends preview_tm_claim with the project and win
     assert.match(r.out, /unassigned/);
     assert.match(r.out, /no rate line is assigned to this person/);
     assert.match(r.out, new RegExp(ENGINEER));
+    assert.ok(r.out.indexOf('Unrated') < r.out.indexOf('Total'), 'the total follows the unrated block, as the runbook says');
+  } finally { await f.close(); }
+});
+
+test('AC-TM-017 a preview where every hour is unrated still prints Total 0.00', async () => {
+  const f = await fake({
+    'POST /rest/v1/rpc/preview_tm_claim': [200, [PREVIEW_ROWS[1]]],
+    'GET /rest/v1/profiles': [200, []],
+  });
+  try {
+    const r = await cli(['tm', 'claim', 'preview', '--project', PROJECT, '--from', '2026-01-01', '--to', '2026-01-31'], f);
+    assert.equal(r.code, 0, JSON.stringify(r.error));
+    assert.match(r.out, /Unrated \(listed, not billed\)/);
+    assert.match(r.out, /Total 0\.00/, 'nothing is billable reads as a total of zero, not as a preview that stopped early');
+  } finally { await f.close(); }
+});
+
+test('AC-TM-017 the preview names the unrated person with one read for the ids it prints', async () => {
+  const f = await fake({
+    'POST /rest/v1/rpc/preview_tm_claim': [200, PREVIEW_ROWS],
+    'GET /rest/v1/profiles': [200, [{ id: ENGINEER, full_name: 'Siti Engineer' }]],
+  });
+  try {
+    const r = await cli(['tm', 'claim', 'preview', '--project', PROJECT, '--from', '2026-01-01', '--to', '2026-01-31'], f);
+    assert.equal(r.code, 0, JSON.stringify(r.error));
+    const reads = f.requests.filter((q) => q.path === '/rest/v1/profiles');
+    assert.equal(reads.length, 1, 'one read for the whole preview');
+    assert.equal(reads[0].method, 'GET');
+    const search = new URLSearchParams(reads[0].search);
+    assert.equal(search.get('select'), 'id,full_name');
+    assert.equal(search.get('id'), `in.(${ENGINEER})`);
+    assert.match(r.out, /Siti Engineer/);
+    assert.equal(r.out.includes(ENGINEER), false, 'the id gives way to the name when the name resolves');
   } finally { await f.close(); }
 });
 
@@ -140,20 +177,24 @@ test('AC-TM-017 tm claim preview --json returns the priced lines, the unrated ro
     const r = await cli(['tm', 'claim', 'preview', '--project', PROJECT, '--from', '2026-01-01', '--to', '2026-01-31', '--json'], f);
     assert.equal(r.code, 0, JSON.stringify(r.error));
     assert.deepEqual(r.json, { lines: [PREVIEW_ROWS[0]], unrated: [PREVIEW_ROWS[1]], total: '6000000.00' });
+    assert.deepEqual(f.requests.map((q) => q.path), ['/rest/v1/rpc/preview_tm_claim'], 'the rows are the database\'s: --json reads no names');
   } finally { await f.close(); }
 });
 
 test('AC-TM-017 tm claim preview is read-only: it never calls a writer', async () => {
   const writers = guardList('tm_write_rpcs');
   assert.ok(writers.length > 0, 'the guard declares the T&M writers');
-  const f = await fake({ 'POST /rest/v1/rpc/preview_tm_claim': [200, PREVIEW_ROWS] });
+  const f = await fake({
+    'POST /rest/v1/rpc/preview_tm_claim': [200, PREVIEW_ROWS],
+    'GET /rest/v1/profiles': [200, []],
+  });
   try {
     const r = await cli(['tm', 'claim', 'preview', '--project', PROJECT, '--from', '2026-01-01', '--to', '2026-01-31'], f);
     assert.equal(r.code, 0, JSON.stringify(r.error));
     assert.deepEqual(rpcCalls(f), ['preview_tm_claim']);
+    assert.deepEqual(f.requests.filter((q) => q.method !== 'GET').map((q) => q.path), ['/rest/v1/rpc/preview_tm_claim'], 'the only POST is the read RPC');
     for (const request of f.requests) {
-      assert.equal(request.method, 'POST');
-      assert.equal(request.path, '/rest/v1/rpc/preview_tm_claim');
+      assert.ok(['GET', 'POST'].includes(request.method), `${request.method} is not a read`);
       for (const writer of writers) assert.equal(request.path.includes(writer), false, `${writer} is a writer`);
     }
   } finally { await f.close(); }
@@ -174,7 +215,7 @@ test('AC-TM-017 tm claim list sends list_tm_claims with the project and prints f
   } finally { await f.close(); }
 });
 
-test('AC-TM-017 tm claim list --json returns the claim rows unchanged', async () => {
+test('AC-TM-017 tm claim list --json returns the {claims} wrapper, as the runbook documents', async () => {
   const f = await fake({ 'POST /rest/v1/rpc/list_tm_claims': [200, CLAIMS] });
   try {
     const r = await cli(['tm', 'claim', 'list', '--project', PROJECT, '--json'], f);
@@ -217,16 +258,35 @@ test('AC-TM-017 tm rates list --assignees reads who holds each line, and no writ
   const f = await fake({
     'GET /rest/v1/contract_rate_lines': [200, RATES],
     'GET /rest/v1/contract_rate_assignees': [200, ASSIGNEES],
+    'GET /rest/v1/profiles': [200, []],
   });
   try {
     const r = await cli(['tm', 'rates', 'list', '--project', PROJECT, '--assignees'], f);
     assert.equal(r.code, 0, JSON.stringify(r.error));
-    assert.deepEqual(f.requests.map((q) => q.path), ['/rest/v1/contract_rate_lines', '/rest/v1/contract_rate_assignees']);
+    assert.deepEqual(f.requests.slice(0, 2).map((q) => q.path), ['/rest/v1/contract_rate_lines', '/rest/v1/contract_rate_assignees']);
     assert.equal(new URLSearchParams(f.requests[1].search).get('project_id'), `eq.${PROJECT}`);
     assert.match(r.out, new RegExp(ENGINEER));
     assert.equal(r.out.match(new RegExp(ENGINEER, 'g')).length, 1, 'the holder prints once, on the newest version');
     assert.match(formatAssignees(ASSIGNEES), new RegExp(`^  ${ENGINEER}`));
     for (const request of f.requests) for (const writer of writers) assert.equal(request.path.includes(writer), false);
+  } finally { await f.close(); }
+});
+
+test('AC-TM-017 tm rates list --assignees prints the holder by name, one read for the ids it prints', async () => {
+  const f = await fake({
+    'GET /rest/v1/contract_rate_lines': [200, RATES],
+    'GET /rest/v1/contract_rate_assignees': [200, ASSIGNEES],
+    'GET /rest/v1/profiles': [200, [{ id: ENGINEER, full_name: 'Siti Engineer' }]],
+  });
+  try {
+    const r = await cli(['tm', 'rates', 'list', '--project', PROJECT, '--assignees'], f);
+    assert.equal(r.code, 0, JSON.stringify(r.error));
+    const reads = f.requests.filter((q) => q.path === '/rest/v1/profiles');
+    assert.equal(reads.length, 1);
+    assert.equal(new URLSearchParams(reads[0].search).get('id'), `in.(${ENGINEER})`);
+    assert.match(r.out, new RegExp('Siti Engineer\\s+from 2026-01-01'));
+    assert.equal(r.out.includes(ENGINEER), false, 'the id gives way to the name when the name resolves');
+    assert.match(formatAssignees(ASSIGNEES, new Map([[ENGINEER, 'Siti Engineer']])), /^ {2}Siti Engineer {2}from 2026-01-01$/);
   } finally { await f.close(); }
 });
 
@@ -321,4 +381,12 @@ test('AC-TM-017 explainError maps every documented code and passes others throug
 test('AC-TM-017 formatPreview and formatClaims say when there is nothing to show', () => {
   assert.match(formatPreview([]), /no approved hours to price in this window/);
   assert.match(formatClaims([]), /no time-and-materials claims for this project/);
+});
+
+test('AC-TM-017 formatPreview totals an unpriced window and falls back to the id it cannot name', () => {
+  const only = { lines: [], unrated: [PREVIEW_ROWS[1]], total: '0.00' };
+  const named = formatPreview(only, new Map([[ENGINEER, 'Siti Engineer']]));
+  assert.match(named, /Siti Engineer\s+no rate line is assigned to this person/);
+  assert.match(named, /Total 0\.00/);
+  assert.match(formatPreview(only), new RegExp(`^Unrated \\(listed, not billed\\):\\n  .*${ENGINEER}`, 'm'));
 });

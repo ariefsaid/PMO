@@ -136,8 +136,13 @@ function total(rows) {
   return (cents / 100).toFixed(2);
 }
 
-/** A readable preview: the priced lines as a table, then the hours nobody may bill, with the reason. */
-export function formatPreview({ lines = [], unrated = [], total: sum = '0.00' } = {}) {
+/**
+ * A readable preview: the priced lines as a table, then the hours nobody may bill, with the reason, then `Total` —
+ * which sums the priced lines only, so a window where nothing is rated still ends `Total 0.00` (nothing is billable,
+ * rather than a preview that stopped early). `names` maps a person's id to their name; an id it does not carry prints
+ * as the id, so a person the directory read cannot resolve still appears.
+ */
+export function formatPreview({ lines = [], unrated = [], total: sum = '0.00' } = {}, names = new Map()) {
   if (lines.length === 0 && unrated.length === 0) return '(no approved hours to price in this window)\n';
   const out = [];
   if (lines.length > 0) {
@@ -153,14 +158,15 @@ export function formatPreview({ lines = [], unrated = [], total: sum = '0.00' } 
     const widths = head.map((heading, column) => Math.max(heading.length, ...table.map((row) => row[column].length)));
     const format = (row) => row.map((value, column) => (column >= 2 ? value.padStart(widths[column]) : value.padEnd(widths[column]))).join('  ').trimEnd();
     out.push(format(head), format(widths.map((width) => '-'.repeat(width))), ...table.map(format));
-    out.push(`Total ${sum}`, '');
   }
   if (unrated.length > 0) {
+    if (out.length > 0) out.push('');
     out.push('Unrated (listed, not billed):');
     for (const row of unrated) {
-      out.push(`  ${row.label ?? '(no label)'}  ${money(row.units)} ${row.unit ?? ''}  ${row.user_id ?? '(no person)'}  ${row.unrated_reason}`);
+      out.push(`  ${row.label ?? '(no label)'}  ${money(row.units)} ${row.unit ?? ''}  ${names?.get?.(row.user_id) ?? row.user_id ?? '(no person)'}  ${row.unrated_reason}`);
     }
   }
+  out.push(`Total ${sum}`);
   return `${out.join('\n').trimEnd()}\n`;
 }
 
@@ -178,7 +184,7 @@ export function formatClaims(claims) {
 }
 
 /** The rate card as text: each line, and (with `--assignees`) the people holding it — printed once, on its newest version. */
-export function formatRateCard({ rates = [], assignees = [] } = {}) {
+export function formatRateCard({ rates = [], assignees = [] } = {}, names = new Map()) {
   if (!Array.isArray(rates) || rates.length === 0) return '(no contract rate lines are visible to you)\n';
   const holders = new Map();
   for (const assignee of Array.isArray(assignees) ? assignees : []) {
@@ -198,15 +204,15 @@ export function formatRateCard({ rates = [], assignees = [] } = {}) {
     out.push(`${line.project_id} · ${line.label} · ${line.kind} · ${line.unit} · ${money(line.rate)} · ${window} · ${state}`);
     const key = `${line.project_id}|${line.line_key}`;
     if (Number(line.version ?? 0) !== newest.get(key)) continue;
-    for (const person of holders.get(key) ?? []) out.push(formatAssignees([person]));
+    for (const person of holders.get(key) ?? []) out.push(formatAssignees([person], names));
   }
   out.push(`${rates.length} rate line${rates.length === 1 ? '' : 's'}`);
   return `${out.join('\n')}\n`;
 }
 
-/** Assignee rows as indented lines under their rate line. */
-export function formatAssignees(assignees) {
+/** Assignee rows as indented lines under their rate line; `names` (id → name) prints a person by name, else their id. */
+export function formatAssignees(assignees, names = new Map()) {
   return (Array.isArray(assignees) ? assignees : [])
-    .map((person) => `  ${person.user_id}  from ${person.effective_from}${person.effective_to ? ` to ${person.effective_to}` : ''}`)
+    .map((person) => `  ${names?.get?.(person.user_id) ?? person.user_id}  from ${person.effective_from}${person.effective_to ? ` to ${person.effective_to}` : ''}`)
     .join('\n');
 }
