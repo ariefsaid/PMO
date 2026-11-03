@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Button, Icon, ListState, StatusPill } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useInvoicePdfDownload } from '@/src/hooks/useInvoicePdfDownload';
-import { formatCurrencyAuto, formatDateOnly } from '@/src/lib/format';
+import { formatCurrency, formatDateOnly } from '@/src/lib/format';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 import { deriveArDueDate, overdueAgeDays } from '@/src/lib/repositories/revenueDisplay';
 import { salesInvoiceStatusVariant } from '@/src/lib/status/statusVariants';
@@ -93,7 +93,7 @@ export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, mode,
                     {viewTarget.erp_outstanding_amount == null
                       ? t('uxs17.outstandingUnavailable', 'Outstanding amount not available')
                       : <>
-                        {formatCurrencyAuto(viewTarget.erp_outstanding_amount, viewTarget.currency)}
+                        {formatCurrency(viewTarget.erp_outstanding_amount, viewTarget.currency)}
                         <FxEquivalent amount={viewTarget.erp_outstanding_amount} currency={viewTarget.currency} date="latest" />
                       </>}
                   </dd>
