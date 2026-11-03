@@ -3,6 +3,7 @@ import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { Button, Drawer, Icon } from '@/src/components/ui';
+import { ListState } from '@/src/components/ui/ListState';
 import { AppError } from '@/src/lib/appError';
 import type { ViewerState } from './viewerContext';
 import type { DocumentViewTarget, PreviewFailureKind, PreviewResult } from './types';
@@ -170,9 +171,8 @@ export function DocumentViewer({ state, onClose, onRetry, onRenderError }: Docum
           </p>
         )}
         {state.phase === 'loading' && (
-          <div role="status" aria-live="polite" className="flex items-center gap-2 text-support text-muted-foreground">
-            <Icon name="refresh" className="animate-spin motion-reduce:animate-none" />
-            {t('viewer.loading', 'Loading preview…')}
+          <div role="status" aria-live="polite">
+            <ListState variant="loading" shape="detail" rows={4} loadingLabel={t('viewer.loading', 'Loading preview…')} />
           </div>
         )}
         {state.phase === 'failed' && (

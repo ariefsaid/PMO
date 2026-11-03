@@ -146,7 +146,7 @@ const ImprestFloatsPage: React.FC = () => {
         </Button>
       </CanWrite>}
     >
-      {isPending && <ListState variant="loading" rows={4} />}
+      {isPending && <ListState variant="loading" shape="table" rows={4} />}
       {!isPending && (isError || !data) && (
         <ListState variant="error" title={t('imprest:list.error', "Couldn't load site cash floats")}
           sub={t('imprest:list.errorSub', 'The request failed. Check your connection and try again.')} onRetry={() => void refetch()} />

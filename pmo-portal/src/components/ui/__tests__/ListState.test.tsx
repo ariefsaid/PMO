@@ -25,6 +25,27 @@ describe('ListState', () => {
     expect(screen.queryByTestId('liststate-loading')).toBeNull();
   });
 
+  it.each(['lines', 'table', 'cards', 'detail', 'chart'] as const)(
+    'loading shape=%s: still announces loading and stays out of the accessibility tree as content',
+    (shape) => {
+      render(<ListState variant="loading" shape={shape} />);
+      const region = screen.getByTestId('liststate-loading');
+      expect(region).toHaveAttribute('aria-busy', 'true');
+      expect(region).toHaveAttribute('aria-live', 'polite');
+      expect(screen.getByText('Loading…')).toBeInTheDocument();
+      const silhouette = region.querySelector(`[data-skeleton-shape="${shape}"]`);
+      expect(silhouette).not.toBeNull();
+      // A skeleton is decoration, not fake data: assistive tech must not walk its blocks.
+      expect(silhouette).toHaveAttribute('aria-hidden', 'true');
+      expect(region.querySelectorAll('.skel').length).toBeGreaterThan(0);
+    },
+  );
+
+  it('loading: loadingLabel replaces the announced copy for page/section loads', () => {
+    render(<ListState variant="loading" loadingLabel="Loading project finances…" />);
+    expect(screen.getByText('Loading project finances…')).toBeInTheDocument();
+  });
+
   it('empty: renders icon tile, title, sub, and a LIVE (never disabled) populating action', async () => {
     const onAction = vi.fn();
     render(

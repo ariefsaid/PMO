@@ -295,6 +295,18 @@ describe('DataTable', () => {
     expect(screen.getByTestId('liststate-loading')).toBeInTheDocument();
   });
 
+  it('state="loading" shows a table-shaped skeleton that still announces loading', () => {
+    render(<DataTable rows={[]} columns={columns} rowKey={(r) => r.id} state="loading" />);
+    const region = screen.getByTestId('liststate-loading');
+    expect(region).toHaveAttribute('aria-busy', 'true');
+    expect(screen.getByText('Loading…')).toBeInTheDocument();
+    // Rows still arrive keyboard-reachable after load; while loading the silhouette is decoration,
+    // never a fake role="table" a screen reader would try to walk.
+    const silhouette = region.querySelector('[data-skeleton-shape="table"]');
+    expect(silhouette).not.toBeNull();
+    expect(silhouette).toHaveAttribute('aria-hidden', 'true');
+  });
+
   it('state="error" renders an alert with a Retry that calls onRetry', async () => {
     const onRetry = vi.fn();
     render(

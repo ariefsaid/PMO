@@ -499,17 +499,17 @@ const ProcurementPage: React.FC = () => {
         )}
 
         <div id={tabPanelId('procurement-list-tabs', tab)} role="tabpanel" aria-labelledby={tabId('procurement-list-tabs', tab)}>
-          {isPending && <div className="rounded-lg border border-border bg-card"><ListState variant="loading" rows={6} /></div>}
+          {isPending && <div className="rounded-lg border border-border bg-card"><ListState variant="loading" shape="table" columns={6} rows={6} /></div>}
 
           {(isError || (!isPending && !data)) && (
             <ListState variant="error" title={t('error.title', "Couldn't load procurements")} sub={t('error.sub', 'Reload the list to try again.')} onRetry={() => void refetch()} />
           )}
 
           {ready && tab === 'orphans' && (
-            orphanQuery.isPending ? <div className="rounded-lg border border-border bg-card"><ListState variant="loading" rows={5} /></div>
+            orphanQuery.isPending ? <div className="rounded-lg border border-border bg-card"><ListState variant="loading" shape="table" rows={5} /></div>
               : orphanQuery.isError ? <ListState variant="error" title={t('orphans.error', "Couldn't load documents not in a procurement")} onRetry={() => void orphanQuery.refetch()} />
                 : orphanRows.length === 0 ? <ListState variant="empty" icon="table" title={t('orphans.empty.title', 'Every accounting-system document is in a procurement')} sub={t('orphans.empty.sub', 'New documents appear here after the next sync.')} />
-                  : projectQueryForOrphans.isPending ? <div className="rounded-lg border border-border bg-card"><ListState variant="loading" rows={5} /></div>
+                  : projectQueryForOrphans.isPending ? <div className="rounded-lg border border-border bg-card"><ListState variant="loading" shape="table" rows={5} /></div>
                     : projectQueryForOrphans.isError || projectQueryForOrphans.data === undefined
                       ? <ListState
                         variant="error"

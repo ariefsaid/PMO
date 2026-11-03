@@ -351,7 +351,7 @@ const ProcurementDetails: React.FC = () => {
       <>
         <BackBar label={t('procurementDetail.backToProcurement', 'Procurement')} phoneOnly onBack={goBack} />
         <div data-testid="procurement-loading">
-          <ListState variant="loading" rows={6} />
+          <ListState variant="loading" shape="detail" rows={6} />
         </div>
       </>
     );
@@ -416,7 +416,7 @@ const ProcurementDetails: React.FC = () => {
   if (role === 'Project Manager' && !raisedByMe && p.project_id && projectScopeQuery.isPending) {
     return <>
       <div data-testid="mobile-back-bar" className="hidden max-[920px]:block"><BackBar label={t('procurementDetail.backToProcurement', 'Procurement')} onBack={goBack} /></div>
-      <div data-testid="procurement-loading"><ListState variant="loading" rows={6} /></div>
+      <div data-testid="procurement-loading"><ListState variant="loading" shape="detail" rows={6} /></div>
     </>;
   }
   const recordInScope = role === 'Engineer'

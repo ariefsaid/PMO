@@ -85,7 +85,9 @@ const AreaCard: React.FC<AreaCardProps> = ({ title, to, amount, otherCurrencies 
         <span className="truncate">{title}</span><Icon name="chev" className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
       </Link>
       {loading ? (
-        <div role="status" aria-label={t('financeHub:hub.loadingFigure', 'Loading figure')} className="mt-2 h-7 w-36 animate-pulse rounded bg-muted" />
+        <div role="status" aria-live="polite" aria-label={t('financeHub:hub.loadingFigure', 'Loading figure')} className="mt-2">
+          <span className="skel block h-7 w-36" />
+        </div>
       ) : error ? (
         <button type="button" onClick={retry} className="mt-2 min-h-11 text-left text-sm text-destructive underline underline-offset-2">{t('financeHub:hub.retry', 'Retry')}</button>
       ) : (

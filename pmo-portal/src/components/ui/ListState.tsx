@@ -10,6 +10,9 @@ interface ActionSpec {
   onClick: () => void;
 }
 
+/** Loading silhouettes shaped like the content they stand in for. */
+export type SkeletonShape = 'lines' | 'table' | 'cards' | 'detail' | 'chart';
+
 export interface ListStateProps {
   variant: 'loading' | 'empty' | 'error';
   /** Empty/error heading. */
@@ -28,6 +31,12 @@ export interface ListStateProps {
   retryLabel?: string;
   /** Number of skeleton rows for the loading variant. */
   rows?: number;
+  /** Loading silhouette: match the page/section it stands in for (defaults to plain lines). */
+  shape?: SkeletonShape;
+  /** Column count for the `table` silhouette. */
+  columns?: number;
+  /** Screen-reader loading copy (page/section loads keep their own wording). */
+  loadingLabel?: string;
   className?: string;
   /** Override the default `liststate-loading` testid for the loading skeleton wrapper. */
   testId?: string;
@@ -45,6 +54,105 @@ export interface ListStateProps {
 }
 
 /**
+ * The loading silhouette. Every block is the shared `.skel` shimmer utility — the
+ * SAME primitive KPI tiles and charts use — so a page never grows a second skeleton
+ * vocabulary. The whole silhouette is aria-hidden: it is a promise of shape, not data.
+ */
+const SkeletonBody: React.FC<{ shape: SkeletonShape; rows: number; columns: number }> = ({
+  shape,
+  rows,
+  columns,
+}) => {
+  const lines = (
+    <>
+      {Array.from({ length: rows }).map((_, i) => (
+        <div key={i} className="skel skel-line" style={{ width: `${90 - (i % 3) * 12}%` }} />
+      ))}
+    </>
+  );
+
+  if (shape === 'table') {
+    return (
+      <div data-skeleton-shape="table" aria-hidden="true" className="space-y-2.5">
+        <div className="flex items-center gap-3 border-b border-border pb-2.5">
+          {Array.from({ length: columns }).map((_, i) => (
+            <div key={i} className="skel h-2.5 flex-1" style={{ opacity: 0.75 }} />
+          ))}
+        </div>
+        {Array.from({ length: rows }).map((_, r) => (
+          <div key={r} className="flex items-center gap-3">
+            {Array.from({ length: columns }).map((_, c) => (
+              <div key={c} className={c === 0 ? 'skel h-4 flex-[1.6]' : 'skel h-4 flex-1'} />
+            ))}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (shape === 'cards') {
+    return (
+      <div data-skeleton-shape="cards" aria-hidden="true" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {Array.from({ length: Math.max(rows, 3) }).map((_, i) => (
+          <div key={i} className="space-y-2.5 rounded-lg border border-border bg-card p-4">
+            <div className="skel h-3 w-1/2" />
+            <div className="skel h-6 w-2/3" />
+            <div className="skel h-3 w-3/4" />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (shape === 'detail') {
+    return (
+      <div data-skeleton-shape="detail" aria-hidden="true" className="space-y-4">
+        <div className="space-y-2 border-b border-border pb-3.5">
+          <div className="skel h-5 w-1/3" />
+          <div className="skel h-3 w-1/2" />
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: Math.max(rows, 3) }).map((_, i) => (
+            <div key={i} className="space-y-2.5 rounded-lg border border-border bg-card p-4">
+              <div className="skel h-3 w-1/2" />
+              <div className="skel h-5 w-2/3" />
+              <div className="skel h-3 w-3/4" />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (shape === 'chart') {
+    return (
+      <div data-skeleton-shape="chart" aria-hidden="true" className="space-y-3">
+        <div className="flex h-28 items-end gap-2 sm:h-36">
+          {Array.from({ length: Math.max(rows, 6) }).map((_, i) => (
+            <div
+              key={i}
+              className="skel flex-1"
+              style={{ height: `${35 + ((i * 37) % 55)}%` }}
+            />
+          ))}
+        </div>
+        <div className="flex gap-3">
+          <div className="skel h-2.5 w-16" />
+          <div className="skel h-2.5 w-12" />
+          <div className="skel h-2.5 w-14" />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div data-skeleton-shape="lines" aria-hidden="true">
+      {lines}
+    </div>
+  );
+};
+
+/**
  * The single source of truth for the three async list states. Consumers render
  * exactly one ListState in place of their content — never hand-roll a spinner
  * or an ad-hoc empty message.
@@ -59,6 +167,9 @@ export const ListState: React.FC<ListStateProps> = ({
   onRetry,
   retryLabel,
   rows = 5,
+  shape = 'lines',
+  columns = 5,
+  loadingLabel,
   className,
   testId,
   stateId,
@@ -85,10 +196,8 @@ export const ListState: React.FC<ListStateProps> = ({
         aria-live="polite"
         className={cn('p-4', className)}
       >
-        <span className="sr-only">{t('ui.listState.loading', 'Loading…')}</span>
-        {Array.from({ length: rows }).map((_, i) => (
-          <div key={i} className="skel skel-line" style={{ width: `${90 - (i % 3) * 12}%` }} />
-        ))}
+        <span className="sr-only">{loadingLabel ?? t('ui.listState.loading', 'Loading…')}</span>
+        <SkeletonBody shape={shape} rows={rows} columns={columns} />
       </div>
     );
   }

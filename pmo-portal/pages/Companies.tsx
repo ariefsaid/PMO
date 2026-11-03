@@ -320,7 +320,7 @@ const Companies: React.FC = () => {
       {ownership.mode === 'external' && may('delete', 'company') && <p className="mb-3 text-sm text-muted-foreground">{t('crm:deleteManaged', 'Records managed in ERP can be archived here.')}</p>}
       {state === 'loading' && (
         <div className="rounded-lg border border-border bg-card">
-          <ListState variant="loading" rows={6} />
+          <ListState variant="loading" shape="table" columns={6} rows={6} />
         </div>
       )}
 

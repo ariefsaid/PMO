@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, DataTable, TaxBasisLabel, type Column } from '@/src/components/ui';
+import { Button, DataTable, ListState, TaxBasisLabel, type Column } from '@/src/components/ui';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { useProjectFinances } from '@/src/hooks/useProjectFinances';
 import { useProjectsMoneyCollection } from '@/src/hooks/useProjectsMoneyCollection';
@@ -41,7 +41,10 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
 
   if (query.isPending) return (
     <section data-testid="project-finances" aria-label={t('projectFinances.title', 'Project finances')}>
-      {title}<p role="status">{t('projectFinances.loading', 'Loading project finances…')}</p>
+      {title}
+      <div role="status" aria-live="polite">
+        <ListState variant="loading" shape="detail" rows={4} loadingLabel={t('projectFinances.loading', 'Loading project finances…')} />
+      </div>
     </section>
   );
   if (query.isError || !query.data) return (

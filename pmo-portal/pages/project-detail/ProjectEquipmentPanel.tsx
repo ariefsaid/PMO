@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, DataTable, type Column } from '@/src/components/ui';
+import { Button, DataTable, ListState, type Column } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEquipmentAllocations, useEquipmentUsageTotals } from '@/src/hooks/useEquipment';
 import { formatCurrency, formatExactMoney, formatNumberMax2 } from '@/src/lib/format';
@@ -45,7 +45,11 @@ export const ProjectEquipmentPanel: React.FC<{ projectId: string; currency: stri
     return [...byAsset.values()].sort((a, b) => a.code.localeCompare(b.code));
   }, [totals.data, allocations.data, canSeeAmounts]);
 
-  if (totals.isPending) return <p role="status" className="text-xs text-muted-foreground">{t('equipment:panel.loading', 'Loading equipment…')}</p>;
+  if (totals.isPending) return (
+    <div role="status" aria-live="polite">
+      <ListState variant="loading" shape="table" rows={3} loadingLabel={t('equipment:panel.loading', 'Loading equipment…')} />
+    </div>
+  );
   if (totals.isError || !totals.data) return (
     <div role="alert" className="text-sm">
       {t('equipment:panel.error', "Couldn't load equipment.")}{' '}

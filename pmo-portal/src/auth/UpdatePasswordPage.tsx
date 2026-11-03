@@ -5,6 +5,7 @@ import { useAuth } from './useAuth';
 import { Button } from '../components/ui/Button';
 import { buttonClasses } from '../components/ui/buttonClasses';
 import { Card, CardPad } from '../components/ui/Card';
+import { ListState } from '../components/ui/ListState';
 import { ErrorBanner, AuthInput } from './authFormPrimitives';
 import { trackAuthLoginSucceeded, trackAuthLoginFailed } from '../lib/analytics';
 import type { AuthFailureReason, AuthMethod } from '../lib/analytics';
@@ -167,13 +168,11 @@ const UpdatePasswordPage: React.FC = () => {
         role="status"
         aria-live="polite"
         aria-label="Verifying your link…"
-        className="flex min-h-[100dvh] items-center justify-center bg-secondary/35"
+        className="min-h-[100dvh] bg-secondary/35"
       >
-        <svg className="size-7 animate-spin text-primary" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2.5" opacity="0.25" />
-          <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
-        </svg>
-        <span className="sr-only">Verifying your link…</span>
+        <div className="mx-auto w-full max-w-sm px-4 py-10">
+          <ListState variant="loading" shape="detail" rows={3} loadingLabel="Verifying your link…" />
+        </div>
       </div>
     );
   }
