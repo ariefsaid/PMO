@@ -19,8 +19,8 @@ const KEY = 'cccccccc-cccc-4ccc-8ccc-0000000015ff';
 const objectResponse = (body: unknown) => jsonResponse(body, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } });
 const BINDING = { id: 'b0000000-0000-4000-8000-000000000001', site_url: `https://${ODOO}`, secret_ref: 'odoo_ref', status: 'active', activated_at: '2026-11-01T00:00:00Z', config: { database: 'db1', odoo_company_id: 1 } };
 
+// The goods receipt (P4) probes by quantities and its anchored transfer, not by a bare identifier: odooReceipt.test.ts.
 const KINDS = [
-  ['goods-receipt', 'receipt', 'stock.picking'],
   ['purchase-invoice', 'bill', 'account.move'],
 ] as const;
 
@@ -51,7 +51,7 @@ function setup(docKind: string, extra: Record<string, unknown> = {}, over: { bin
 }
 
 describe('OQ-OPP-10 a recovery that finds nothing', () => {
-  for (const kind of ['receipt', 'bill', 'payment'] as const) {
+  for (const kind of ['bill', 'payment'] as const) {
     it(`AC-OPP-053 holds a ${kind}, never reissues it (no create-to-anchor composite covers it yet, or its anchor is mutable)`, () => {
       assertEquals(odooReissueOnInconclusiveAbsence(kind), false);
     });
@@ -81,7 +81,7 @@ describe('AC-OPP-053 the Odoo probe closure: zero, one and many matches', () => 
   for (const [docKind, kind, model] of KINDS) {
     it(`${kind}: one identifier adopts, none is null, a foreign model's identifier is not ours`, async () => {
       const identifier = (name: string, m: string, res: number) => ({ module: 'pmo', name, model: m, res_id: res });
-      const mine = identifier(`${kind === 'receipt' ? 'gr' : 'bill'}_${REC.replaceAll('-', '_')}${kind === 'receipt' ? '_ab12' : ''}`, model, 41);
+      const mine = identifier(`bill_${REC.replaceAll('-', '_')}`, model, 41);
       // the fake answers every ir.model.data query with these rows: the closure must send the filter (asserted below)
       const one = setup(docKind, {}, { odoo: { 'ir.model.data': [{ res_id: 41 }] } });
       await withFetchMock(one.routes, async () => {

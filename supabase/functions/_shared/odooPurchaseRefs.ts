@@ -11,6 +11,7 @@ import { resolveExternalRef, type ExternalRefsLookupClient } from '../../../pmo-
 import type { OdooCall } from '../../../pmo-portal/src/lib/adapterSeam/odoo/client.ts';
 import type { OrderCtx, OrderInput } from '../../../pmo-portal/src/lib/adapterSeam/odoo/purchase/orderBody.ts';
 import type { ReviseLine } from '../../../pmo-portal/src/lib/adapterSeam/odoo/purchase/orderRevise.ts';
+import type { ReceiptLineInput } from '../../../pmo-portal/src/lib/adapterSeam/odoo/purchase/receiptBody.ts';
 
 export type CostAccount = { status: 'resolved'; accountId: string } | { status: 'unlinked' } | { status: 'needs-attention'; reason: string };
 
@@ -144,6 +145,22 @@ export async function resolveOdooReviseInputs(sc: SupabaseClient, orgId: string,
       itemRef: codes.get(l.boq_item_id) ?? refuse('revision-lines-missing'), quantity: String(l.quantity), rate: String(l.rate), unit: l.unit,
     })),
   };
+}
+
+/**
+ * A goods receipt (FR-OPP-030): the Odoo order of the case's latest PMO order, the lines the user entered (none = everything open)
+ * and the item mapping to read them by. The order is found through the org-scoped external reference, never from the command.
+ */
+export async function resolveOdooReceiptFacts(sc: SupabaseClient, orgId: string, command: AdapterCommand, resolved: Resolved): Promise<{ orderId: number; wanted: ReceiptLineInput[] | undefined; itemMap: Record<string, string> }> {
+  const { procurementId, receiptLines } = command.record as { procurementId?: unknown; receiptLines?: unknown };
+  if (typeof procurementId !== 'string' || procurementId === '') return refuse('case-missing');
+  const po = await sc.from('purchase_orders').select('id').eq('org_id', orgId).eq('procurement_id', procurementId).order('created_at', { ascending: false }).limit(1);
+  if (po.error) return refuse('po-unreadable');
+  const poId = (po.data as Array<{ id: string }> | null)?.[0]?.id ?? refuse('po-missing');
+  const orderId = Number(await resolveExternalRef(sc as unknown as ExternalRefsLookupClient, orgId, 'procurement', poId));
+  if (!Number.isInteger(orderId) || orderId <= 0) return refuse('order-not-in-odoo');
+  if (receiptLines !== undefined && (!Array.isArray(receiptLines) || !receiptLines.every((l) => l && typeof l.itemRef === 'string' && (typeof l.quantity === 'number' || typeof l.quantity === 'string')))) return refuse('receipt-lines-invalid');
+  return { orderId, wanted: receiptLines as ReceiptLineInput[] | undefined, itemMap: asMap(resolved.config.item_map) };
 }
 
 /**
