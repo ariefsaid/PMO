@@ -76,8 +76,19 @@ declare
   v_request public.budget_archive_requests%rowtype;
   v_identity text;
   v_key text;
+  v_has_archive_marker boolean;
 begin
-  if new.domain <> 'budget' or new.operation <> 'create' or new.payload->>'erp_doc_kind' <> 'budget' then
+  if new.domain <> 'budget' or new.operation <> 'create' then
+    return new;
+  end if;
+  v_has_archive_marker := coalesce(new.payload ? 'budget_archive_cancel_job_id', false)
+    or coalesce(new.payload ? 'budget_archive_source_mirror_id', false)
+    or new.idempotency_key like 'bud15-archive:%'
+    or new.idempotency_key like 'bud16-archive:%';
+  if new.payload->>'erp_doc_kind' is distinct from 'budget' then
+    if v_has_archive_marker then
+      raise exception 'budget archive marker requires erp_doc_kind=budget' using errcode = 'P0001';
+    end if;
     return new;
   end if;
   if new.external_tier is distinct from 'erpnext' or new.state is distinct from 'pending'
@@ -90,7 +101,10 @@ begin
     raise exception 'budget outbox command has no canonical version id' using errcode = 'P0001';
   end;
 
-  if nullif(new.payload->>'budget_archive_cancel_job_id', '') is null then
+  if v_has_archive_marker and nullif(new.payload->>'budget_archive_cancel_job_id', '') is null then
+    raise exception 'budget archive outbox command has an invalid job id' using errcode = 'P0001';
+  end if;
+  if not v_has_archive_marker then
     if new.pmo_record_id <> v_version_id::text
        and new.pmo_record_id not like v_version_id::text || ':%' then
       raise exception 'budget outbox identity does not match its version' using errcode = 'P0001';
@@ -251,7 +265,8 @@ end;
 $$;
 revoke all on function public.enforce_budget_archive_outbox_state() from public, anon, authenticated;
 drop trigger if exists enforce_budget_archive_outbox_state on public.external_command_outbox;
-create trigger enforce_budget_archive_outbox_state
+drop trigger if exists external_command_outbox_zz_enforce_budget_archive_outbox_state on public.external_command_outbox;
+create trigger external_command_outbox_zz_enforce_budget_archive_outbox_state
   before insert on public.external_command_outbox
   for each row when (new.domain = 'budget' and new.operation = 'create')
   execute function public.enforce_budget_archive_outbox_state();
