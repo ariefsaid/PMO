@@ -10,13 +10,27 @@ export interface ReadModelServiceClient {
       options: { onConflict: string; ignoreDuplicates?: boolean },
     ): Promise<{ error: { message: string; code?: string } | null }>;
     update(patch: unknown): ReadModelEqChain;
+    select(columns: string): ReadModelSelectChain;
   };
   // Fenced outcome writers (migration 0155): a mirror write that must read the outbox atomically to
   // avoid a TOCTOU race routes through a security-definer RPC rather than a bare upsert.
   rpc(fn: string, args: Record<string, unknown>): Promise<{ error: { message: string; code?: string } | null }>;
 }
 export interface ReadModelEqChain {
-  eq(column: string, value: string): ReadModelEqChain;
+  eq(column: string, value: string | number | boolean): ReadModelEqChain;
+  in(column: string, values: readonly unknown[]): ReadModelEqChain;
+  is(column: string, value: boolean | null): ReadModelEqChain;
+  select(columns: string): PromiseLike<{
+    data: unknown[] | null;
+    error: { message: string; code?: string } | null;
+  }>;
+}
+export interface ReadModelSelectChain {
+  eq(column: string, value: string | number | boolean): ReadModelSelectChain;
+  maybeSingle(): PromiseLike<{
+    data: Record<string, unknown> | null;
+    error: { message: string; code?: string } | null;
+  }>;
 }
 
 export interface ReadModelWriterCtx {

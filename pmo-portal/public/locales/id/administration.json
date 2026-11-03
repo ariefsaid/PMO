@@ -231,5 +231,17 @@
       "addPeople": "Tambahkan orang-orang ini di ERP. ERP meminta tanggal lahir dan jenis kelamin, yang tidak dimiliki PMO.",
       "accountantTask": "Minta akuntan Anda menambahkan akun biaya langsung untuk: {{categories}}"
     }
+  },
+  "admin": {
+    "users": {
+      "inviteError": {
+        "seatLimit": "Paket Anda tidak memiliki sisa kursi",
+        "seatLimitDetail": "Semua kursi pada paket Anda sudah terpakai. Minta Operator meningkatkan paket, lalu undang kembali."
+      },
+      "statusError": {
+        "seatLimit": "Paket Anda tidak memiliki sisa kursi",
+        "seatLimitDetail": "Semua kursi pada paket Anda sudah terpakai. Minta Operator meningkatkan paket, lalu aktifkan kembali pengguna ini."
+      }
+    }
   }
 }

@@ -441,6 +441,11 @@ jobs:
       - name: Plans feature-enforcement rollback harness
         run: scripts/test-plans-feature-enforcement-rollback.sh
 
+      # AC-PLN-012: reversing the allowance ledger removes only credits linked by the ledger, then
+      # reapplying the migration restores the scheduled-grant objects.
+      - name: Plans limit rollback harness
+        run: scripts/test-plan-limits-rollback.sh
+
       # A push to `dev` is the full suite that backstops every PR's narrowed run; when it fails, say
       # which merge it ran on (a squash merge's subject ends in the PR number).
       - name: Name the merged change

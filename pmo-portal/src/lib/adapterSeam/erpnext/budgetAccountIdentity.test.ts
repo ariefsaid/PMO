@@ -4,10 +4,13 @@ import {
   budgetAccountIdentity,
   budgetAccountArchiveKey,
   budgetAccountPushKey,
+  budgetLegacyArchiveKey,
+  budgetLegacyIdentity,
   decodeBudgetAccount,
   encodeBudgetAccount,
   isBudgetAccountPushKey,
   isBudgetAccountArchiveKey,
+  isBudgetLegacyArchiveKey,
   parseBudgetIdentity,
 } from './budgetAccountIdentity';
 
@@ -74,5 +77,33 @@ describe('budgetAccountIdentity', () => {
     expect(isBudgetAccountArchiveKey(key)).toBe(true);
     expect(isBudgetAccountArchiveKey(`bud16-archive:${identity}:01x`)).toBe(false);
     expect(() => budgetAccountArchiveKey(identity, null)).toThrow();
+  });
+
+  it('AC-BUD-122 gives a year-qualified legacy Budget its own archive key', () => {
+    const identity = budgetLegacyIdentity(VERSION, '2026');
+    const activatedAt = '2026-10-15T10:00:00Z';
+    const key = budgetLegacyArchiveKey(identity, activatedAt);
+
+    // The legacy identity is the SHIPPED pre-v16 year-qualified identity, and its key is distinct from
+    // the account key so the two never collide on one outbox record.
+    expect(identity).toBe(`${VERSION}:${encodeFiscalYear('2026')}`);
+    expect(parseBudgetIdentity(identity)).toEqual({ versionId: VERSION, fiscalYear: '2026', erpAccount: null });
+    expect(key).toBe(`bud15-archive:${identity}:${Date.parse('2026-10-15T10:00:00Z')}`);
+    expect(key).not.toBe(budgetAccountArchiveKey(budgetAccountIdentity(VERSION, '2026', 'COGS'), activatedAt));
+    expect(isBudgetLegacyArchiveKey(key)).toBe(true);
+    expect(isBudgetLegacyArchiveKey(budgetLegacyArchiveKey(identity, '2026-10-15T17:00:00+07:00'))).toBe(true);
+  });
+
+  it('AC-BUD-122 rejects bare, account-framed and malformed legacy archive identities', () => {
+    // A bare version id cannot prove WHICH old ERP document the year-grained cancellation names.
+    expect(() => budgetLegacyArchiveKey(VERSION, '2026-10-15T10:00:00Z')).toThrow();
+    // An account-framed identity is the v16 unit, never a legacy one.
+    expect(() => budgetLegacyArchiveKey(budgetAccountIdentity(VERSION, '2026', 'COGS'), '2026-10-15T10:00:00Z')).toThrow();
+    expect(isBudgetLegacyArchiveKey(`bud15-archive:${VERSION}:01x`)).toBe(false);
+    expect(isBudgetLegacyArchiveKey(`bud15-archive:${VERSION}:${encodeFiscalYear('2026')}:01x`)).toBe(false);
+    expect(isBudgetLegacyArchiveKey(`bud16-archive:${budgetAccountIdentity(VERSION, '2026', 'COGS')}:1`)).toBe(false);
+    expect(() => budgetLegacyArchiveKey(budgetLegacyIdentity(VERSION, '2026'), null)).toThrow();
+    expect(() => budgetLegacyIdentity(VERSION, '')).toThrow();
+    expect(() => budgetLegacyIdentity('not-a-uuid', '2026')).toThrow();
   });
 });

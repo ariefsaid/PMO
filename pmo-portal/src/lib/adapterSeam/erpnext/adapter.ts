@@ -18,6 +18,7 @@ import { cancelDoc, createDoc, getDoc, submitDoc, updateDoc, withCommitDeadline,
 import { DOCTYPE_REGISTRY, type ErpCtx, type ErpDocKind } from './doctypeRegistry.ts';
 import { findDefaultPurchaseTaxTemplate, resolvePurchaseTaxRows } from './erpPurchaseTaxRows.ts';
 import { routeEdit } from './transitionPolicy.ts';
+import { isLegacyBudgetArchiveCommand } from './dispatchBudget.ts';
 import { erpGetByExternalId, erpListChangesSinceWatermark } from './adapterReads.ts';
 import { toCents } from '../../budget/budgetAmount.ts';
 
@@ -247,9 +248,84 @@ function withBudgetUnitCanonical(command: AdapterCommand, deps: ErpAdapterDeps, 
   return { ...canonical, id: command.record.id, fiscal_year: record.fiscal_year, erp_account: record.erp_account, budget_intent: intent };
 }
 
+/**
+ * #1462 — cancel an OLDER (year-grained, pre-v16) ERP `Budget` by its exact witnessed name.
+ *
+ * ⚑ CANCEL ONLY. There is no body builder here and there must never be one: an amendment/replacement is
+ * a different, operator-initiated revision, and re-POSTing an old push would overwrite a document whose
+ * figure PMO never re-approved. The whole operation is: read THAT document, prove it is still the one the
+ * activation created, cancel it if submitted, read it back, and require docstatus 2.
+ *
+ * ⚑ Every dimension is proven from the DOCUMENT, never from the current map. A 15→16 re-bind changes the
+ * map and the grain; neither is evidence about which old document this alarm names. On v16 the upgraded
+ * representation must name ONE fiscal year (from == to); anything else is an unproven shape and holds.
+ */
+async function commitLegacyBudgetRemove(
+  command: AdapterCommand,
+  deps: ErpAdapterDeps,
+  entry: (typeof DOCTYPE_REGISTRY)[ErpDocKind],
+): Promise<CommandResult> {
+  const record = command.record as Record<string, unknown>;
+  const fiscalYear = record.fiscal_year;
+  const target = deps.ctx.refs.self;
+  const fail = (detail: string): never => {
+    throw new AdapterError('commit-rejected', `legacy budget archive: ${String(target)} ${detail}`);
+  };
+  if (typeof fiscalYear !== 'string' || !fiscalYear) return fail('has no fiscal year');
+  if (!target) return fail('has no witnessed predecessor');
+  if (typeof deps.ctx.refs.project !== 'string' || !deps.ctx.refs.project) {
+    return fail('cannot establish the expected ERP project');
+  }
+  if (typeof deps.ctx.config.company !== 'string' || !deps.ctx.config.company) {
+    return fail('cannot establish the expected ERP company');
+  }
+  const bodyFns = requireBodyFns(deps, 'budget');
+  const verify = (doc: Record<string, unknown>): void => {
+    if (doc.name !== target) fail(`read back a different document (${String(doc.name ?? '')})`);
+    if (doc.company !== deps.ctx.config.company) fail('has a different ERP company');
+    if (doc.project !== deps.ctx.refs.project) fail('has a different ERP project');
+    // An account-grained document is NOT this job's target: a legacy cancellation is account-less.
+    if (doc.account !== undefined && doc.account !== null) fail('is account-grained, not a legacy document');
+    // A legacy cancellation is currently enabled only on v15. If an installation exposes multiple
+    // year fields, every supplied field must agree; a matching fiscal_year cannot mask a conflicting
+    // span supplied by the same ERP document.
+    const ownYear = typeof doc.fiscal_year === 'string' ? doc.fiscal_year : null;
+    const fromYear = typeof doc.from_fiscal_year === 'string' ? doc.from_fiscal_year : null;
+    const toYear = typeof doc.to_fiscal_year === 'string' ? doc.to_fiscal_year : null;
+    if ((ownYear !== null && ownYear !== fiscalYear) ||
+        (fromYear !== null && fromYear !== fiscalYear) ||
+        (toYear !== null && toYear !== fiscalYear) ||
+        (ownYear === null && (fromYear === null || toYear === null))) {
+      fail('does not state an unambiguous matching fiscal year');
+    }
+    const status = Number(doc.docstatus);
+    if (status === 0) fail('is a draft');
+    else if (![1, 2].includes(status)) fail(`has unsupported document status ${String(doc.docstatus)}`);
+  };
+  const canonical = (doc: unknown): PmoRecord => ({
+    ...bodyFns.fromDoc(doc), id: command.record.id, fiscal_year: fiscalYear,
+    budget_intent: 'remove', source_kind: 'legacy',
+  });
+
+  const doc = (await getDoc(deps.client, entry.doctype, target)) as Record<string, unknown>;
+  verify(doc);
+  if (Number(doc.docstatus) === 2) return { externalRecordId: target, canonical: canonical(doc) };
+  await cancelDoc(deps.client, entry.doctype, target);
+  await deps.afterCancelHook?.();
+  const readback = (await getDoc(deps.client, entry.doctype, target)) as Record<string, unknown>;
+  verify(readback);
+  if (Number(readback.docstatus) !== 2) fail('could not confirm cancellation');
+  return { externalRecordId: target, canonical: canonical(readback) };
+}
+
 async function commitCreate(command: AdapterCommand, deps: ErpAdapterDeps): Promise<CommandResult> {
   const kind = requireKind(command.record);
   const entry = DOCTYPE_REGISTRY[kind];
+  // #1462 — dispatch the LEGACY archive cancellation by source kind BEFORE either version branch, so a
+  // v16 binding can never coerce an old year-grained document into the account-grained path.
+  if (kind === 'budget' && isLegacyBudgetArchiveCommand(command)) {
+    return commitLegacyBudgetRemove(command, deps, entry);
+  }
   if (kind === 'budget' && deps.ctx.versionMajor === 16) {
     const result = await commitV16BudgetCreate(command, deps, entry);
     if (result) return result;
