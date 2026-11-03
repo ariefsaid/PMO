@@ -19,6 +19,9 @@ const h = vi.hoisted(() => {
     builder.in = (...a: unknown[]) => { calls.in.push([t, ...a]); return builder; };
     builder.is = (...a: unknown[]) => { calls.is.push([t, ...a]); return builder; };
     builder.limit = (n: number) => { calls.limit.push(n); return builder; };
+    // #1774: the billing-lines diagnostic read pages (order by record_id, then a range window).
+    builder.order = () => builder;
+    builder.range = () => builder;
     builder.then = (resolve: (v: unknown) => unknown) => resolve(state.tables[t] ?? state.rows);
     return builder;
   });

@@ -1,4 +1,5 @@
 import { supabase } from '@/src/lib/supabase/client';
+import { fetchAllPages } from '@/src/lib/pagedRead';
 import { AppError, assertWriteLanded } from '@/src/lib/appError';
 import type { Tables } from '@/src/lib/supabase/database.types';
 import { ON_HAND_STATUSES, INTERNAL_STATUSES } from './projectTransitions';
@@ -200,41 +201,51 @@ export interface ProjectHeaderInput extends ProjectClassification {
  * default partition with a precise `.eq('status', …)`. Every default and explicit status
  * scope is live-only via `.is('archived_at', null)`; explicit id and client-history reads
  * use their separate functions and retain their own archive semantics.
+ *
+ * ⚑ #1774 — this is the WHOLE project table's active scope, so it pages (`fetchAllPages`):
+ * PostgREST truncates at 1,000 rows silently, and an org with more than 1,000 live projects
+ * would have shown a short list with no error. Paging needs a TOTAL order, so the rows come
+ * back ordered by `id` (nothing depended on the previous, unspecified order).
  */
 export async function listProjects(
   params?: { status?: ProjectRow['status']; statuses?: ProjectRow['status'][]; pmId?: string },
 ): Promise<ProjectWithRefs[]> {
-  // `any` is a localized escape hatch: PostgREST's TypeScript builder types
-  // make it difficult to accumulate `.eq()`/`.in()` chains conditionally without
-  // widening the type here. The pattern is intentional and contained — do not
-  // propagate `any` beyond this function.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let q: any = supabase.from('projects').select(SELECT);
-  if (params?.statuses?.length) {
-    // Multi-status override (e.g. the Lost column = Loss Tender + Declined, #774).
-    q = q.in('status', params.statuses as string[]);
-  } else if (params?.status) {
-    // Explicit override → a precise single-status filter (e.g. the Lost partition).
-    q = q.eq('status', params.status);
-  } else {
-    // Default → the active Projects partition (on-hand ∪ internal), disjoint from the pipeline.
-    q = q.in('status', ACTIVE_PROJECT_STATUSES as string[]);
-  }
-  q = q.is('archived_at', null);
-  if (params?.pmId) q = q.eq('project_manager_id', params.pmId);
-  const { data, error } = await q;
-  if (error) throw new Error(error.message);
-  return (data ?? []) as unknown as ProjectWithRefs[];
+  const data = await fetchAllPages<ProjectWithRefs>((from, to) => {
+    // `any` is a localized escape hatch: PostgREST's TypeScript builder types
+    // make it difficult to accumulate `.eq()`/`.in()` chains conditionally without
+    // widening the type here. The pattern is intentional and contained — do not
+    // propagate `any` beyond this function.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let q: any = supabase.from('projects').select(SELECT);
+    if (params?.statuses?.length) {
+      // Multi-status override (e.g. the Lost column = Loss Tender + Declined, #774).
+      q = q.in('status', params.statuses as string[]);
+    } else if (params?.status) {
+      // Explicit override → a precise single-status filter (e.g. the Lost partition).
+      q = q.eq('status', params.status);
+    } else {
+      // Default → the active Projects partition (on-hand ∪ internal), disjoint from the pipeline.
+      q = q.in('status', ACTIVE_PROJECT_STATUSES as string[]);
+    }
+    q = q.is('archived_at', null);
+    if (params?.pmId) q = q.eq('project_manager_id', params.pmId);
+    return q.order('id', { ascending: true }).range(from, to);
+  });
+  return data;
 }
 
 /**
- * One project by id at ANY stage (on-hand, internal, pipeline or lost) — the project detail route's
- * read. Same select as the list, so the row shape is identical; `null` when absent / not visible.
+ * Every project's id + name, at ANY stage (on-hand, internal, pipeline or lost) — the
+ * cross-org identity lookup behind record search and the pipeline's project labels.
+ *
+ * ⚑ #1774 — the whole table, so it pages: the 1,000-row response cap would otherwise cut
+ * the identity map short and make existing projects look unknown. Ordered by `id` so the
+ * scan is total (the previous read had no order at all).
  */
 export async function listProjectIdentity(): Promise<Array<Pick<ProjectRow, 'id' | 'name'>>> {
-  const { data, error } = await supabase.from('projects').select('id,name');
-  if (error) throw new Error(error.message);
-  return data ?? [];
+  return fetchAllPages<Pick<ProjectRow, 'id' | 'name'>>((from, to) =>
+    supabase.from('projects').select('id,name').order('id', { ascending: true }).range(from, to),
+  );
 }
 
 export async function getProject(id: string): Promise<ProjectWithRefs | null> {

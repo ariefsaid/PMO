@@ -9,6 +9,7 @@ import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 import { AdapterError, type AdapterCommand } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
 import { resolveExternalRef, type ExternalRefsLookupClient } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
 import { parseOdooExternalRef } from '../../../pmo-portal/src/lib/adapterSeam/odoo/purchase/anchors.ts';
+import type { PaymentFacts } from '../../../pmo-portal/src/lib/adapterSeam/odoo/procurementAdapter.ts';
 import type { OdooCall } from '../../../pmo-portal/src/lib/adapterSeam/odoo/client.ts';
 import { toAdapterError } from '../../../pmo-portal/src/lib/adapterSeam/odoo/connectAdapter.ts';
 import { chooseTaxIds, selectBillTaxes, type BillCtx, type BillInput, type BillTax } from '../../../pmo-portal/src/lib/adapterSeam/odoo/purchase/billBody.ts';
@@ -311,4 +312,53 @@ export function resolveOdooBillInputs(sc: SupabaseClient, orgId: string, command
   })();
   resolvedBills.set(command, run);
   return run;
+}
+
+// ── P6: the vendor payment ───────────────────────────────────────────────────────────────────────────────────────────────
+
+/** The journal a payment leaves from: Finance's per-payment choice, else the org's default (OQ-OPP-6); a chosen journal must be a live bank or cash journal of this connection. */
+async function paymentJournalId(sc: SupabaseClient, orgId: string, record: { journalId?: unknown }, config: Record<string, unknown>): Promise<number | null> {
+  const chosen = typeof record.journalId === 'string' && record.journalId !== '' ? record.journalId : null;
+  if (chosen === null) return Number.isInteger(config.default_payment_journal_id) && (config.default_payment_journal_id as number) > 0 ? config.default_payment_journal_id as number : null;
+  if (!/^[0-9]{1,9}$/.test(chosen)) return refuse('journal-invalid');
+  const mirror = await sc.from('external_master_records').select('active,tombstoned_at,attrs').eq('org_id', orgId).eq('external_tier', 'odoo').eq('kind', 'journal').eq('external_id', chosen).maybeSingle();
+  if (mirror.error) return refuse('journal-unreadable');
+  const row = mirror.data as { active: boolean; tombstoned_at: string | null; attrs: { type?: unknown } | null } | null;
+  if (!row || row.active !== true || row.tombstoned_at !== null || !['bank', 'cash'].includes(String(row.attrs?.type))) return refuse('journal-invalid');
+  return Number(chosen);
+}
+
+/**
+ * A vendor-payment create: the bill's Odoo reference (the mapping written when the bill was pushed), the vendor's partner, the
+ * journal, and what to pay. The bill must belong to the command's case: a payment for another case's bill is refused here. Nothing
+ * that Odoo owns (the bill's state and residual) is decided here; the adapter reads it just before the write.
+ */
+export async function resolveOdooPaymentFacts(sc: SupabaseClient, orgId: string, command: AdapterCommand, resolved: Resolved, companyCurrencyId: number): Promise<PaymentFacts> {
+  const record = command.record as { procurementId?: unknown; invoiceId?: unknown; paid_amount?: unknown; date?: unknown; journalId?: unknown };
+  const c = await readCase(sc, orgId, record.procurementId);
+  const invoiceId = typeof record.invoiceId === 'string' && record.invoiceId !== '' ? record.invoiceId : null;
+  let billRef: string | null = null;
+  if (invoiceId !== null) {
+    const bill = await sc.from('procurement_invoices').select('procurement_id').eq('org_id', orgId).eq('id', invoiceId).maybeSingle();
+    if (bill.error) return refuse('bill-unreadable');
+    if (!bill.data) return refuse('bill-missing');
+    if ((bill.data as { procurement_id: string }).procurement_id !== record.procurementId) return refuse('bill-case-mismatch');
+    billRef = await resolveExternalRef(sc as unknown as ExternalRefsLookupClient, orgId, 'procurement', invoiceId);
+  }
+  const vendor = c.vendor_id ? await resolveExternalRef(sc as unknown as ExternalRefsLookupClient, orgId, 'companies', c.vendor_id) : null;
+  const partner = Number(/^Vendor:(\d+)$/.exec(vendor ?? '')?.[1]);
+  return {
+    billRef, amount: record.paid_amount as number | string, date: typeof record.date === 'string' ? record.date : null,
+    vendorPartnerId: Number.isInteger(partner) && partner > 0 ? partner : null,
+    journalId: await paymentJournalId(sc, orgId, record, resolved.config), companyCurrencyId,
+  };
+}
+
+/** The facts a payment's recovery composite matches on, from PMO's tables only: the case vendor's Odoo partner and the bill's Odoo reference (null when unmapped). */
+export async function paymentCompositeFacts(sc: SupabaseClient, orgId: string, record: { procurementId?: unknown; invoiceId?: unknown }): Promise<{ partnerId: number | null; billRef: string | null }> {
+  const c = await readCase(sc, orgId, record.procurementId);
+  const vendor = c.vendor_id ? await resolveExternalRef(sc as unknown as ExternalRefsLookupClient, orgId, 'companies', c.vendor_id) : null;
+  const partner = Number(/^Vendor:(\d+)$/.exec(vendor ?? '')?.[1]);
+  const billRef = typeof record.invoiceId === 'string' && record.invoiceId !== '' ? await resolveExternalRef(sc as unknown as ExternalRefsLookupClient, orgId, 'procurement', record.invoiceId) : null;
+  return { partnerId: Number.isInteger(partner) && partner > 0 ? partner : null, billRef };
 }

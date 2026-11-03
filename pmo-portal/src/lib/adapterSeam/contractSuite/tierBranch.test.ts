@@ -36,7 +36,6 @@ const ALLOWED: Record<string, number> = {
   'pmo-portal/src/hooks/useErpItemOptions.ts': 1,
   'pmo-portal/src/hooks/useExpensePostingReadiness.ts': 1,
   'pmo-portal/src/lib/repositories/integrations.ts': 2,
-  'pmo-portal/src/lib/adapterSeam/dispatch.ts': 1,
   'supabase/functions/external-unlink/index.ts': 2,
   'supabase/functions/external-invoice-evidence/index.ts': 1,
   // +3 / +1 / +1: the Odoo connect, disconnect and setup routing and the one-ERP-tier check (#1504 S2, PQ-12).
