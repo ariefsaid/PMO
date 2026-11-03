@@ -165,9 +165,10 @@ export function revenueRoutes(unexpected: FetchCall[], caller: string, world: Wo
     supabaseSelect('external_org_bindings', (call) => bindingTiers.has(param(call, 'external_tier') ?? '')
       ? (world.odooBinding === null ? nullObjectResponse() : objectResponse({
           id: 'b0000000-0000-4000-8000-000000000001', site_url: `https://${ODOO_HOST}`, secret_ref: 'odoo_ref', status: 'active', activated_at: '2026-11-01T00:00:00Z',
-          config: { database: 'db1', odoo_company_id: 1, default_payment_journal_id: 9, tax_prepaid_account_id: 88,
+          config: { database: 'db1', odoo_company_id: 1,
             capabilities: world.snapshot === undefined ? REVENUE_SNAPSHOT : world.snapshot,
             item_map: { 'ITEM-A': '71', 'ITEM-DP': '72', 'Field labour': '71' }, unit_map: { hour: '13', day: '14' }, sale_tax_id: 5,
+            default_payment_journal_id: 9, tax_prepaid_account_id: 88,
             ...(world.customerAdvanceAccountRef === null ? {} : { customer_advance_account_ref: world.customerAdvanceAccountRef ?? 'account.account:210' }) },
           ...world.odooBinding,
         }))
