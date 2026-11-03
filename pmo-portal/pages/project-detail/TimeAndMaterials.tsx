@@ -9,7 +9,7 @@ import { useAuth } from '@/src/auth/useAuth';
 import { usePermission } from '@/src/auth/usePermission';
 import { useAssignableProfiles } from '@/src/hooks/useTasks';
 import {
-  useAssembleTmClaim, useConfirmTmSignoff, usePrepareTmSignoff, useSaveTmRateLine,
+  useAssembleTmClaim, useConfirmTmSignoff, useEndTmRateAssignee, useEndTmRateLine, usePrepareTmSignoff, useSaveTmRateLine,
   useSetTmRateAssignee, useTmClaimPreview, useTmClaimSources, useTmClaims, useTmRateAssignees,
   useTmRateLines, useWithdrawTmSignoff,
 } from '@/src/hooks/useTimeAndMaterials';
@@ -19,6 +19,7 @@ import type { ProjectDocumentRow } from '@/src/lib/db/documents';
 import type { ProfileRow } from '@/src/lib/db/profiles';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatCurrency, formatDateOnly, formatNumberExact } from '@/src/lib/format';
+import { localToday } from '@/src/lib/efaktur';
 
 interface TimeAndMaterialsProps {
   projectId: string;
@@ -30,16 +31,18 @@ interface TimeAndMaterialsProps {
   onCreateInvoice: (claimId: string) => void;
   /** True only while the existing progress-claim invoice path is available for this signed-off claim. */
   canCreateInvoice?: (claimId: string) => boolean;
+  /** The invoice number a signed-off claim already has, when it has one. */
+  invoiceNumberFor?: (claimId: string) => string | null;
 }
 
 type RateValues = { label: string; unit: 'hour' | 'day'; rate: string; effectiveFrom: string };
 
-const today = (): string => new Date().toISOString().slice(0, 10);
+const today = localToday;
 const firstOfMonth = (): string => `${today().slice(0, 7)}-01`;
 const canBeEvidence = (document: ProjectDocumentRow): boolean =>
   (document.status === 'Issued' || document.status === 'Approved') && Boolean(document.file_path);
 
-const TimeAndMaterials: React.FC<TimeAndMaterialsProps> = ({ projectId, projectManagerId, currency, embedded = false, onCreateInvoice, canCreateInvoice }) => {
+const TimeAndMaterials: React.FC<TimeAndMaterialsProps> = ({ projectId, projectManagerId, currency, embedded = false, onCreateInvoice, canCreateInvoice, invoiceNumberFor }) => {
   const { t } = useTranslation('timeAndMaterials');
   const may = usePermission();
   const { currentUser } = useAuth();
@@ -54,6 +57,8 @@ const TimeAndMaterials: React.FC<TimeAndMaterialsProps> = ({ projectId, projectM
   const people = useAssignableProfiles();
   const documents = useDocuments(projectId);
   const assignPerson = useSetTmRateAssignee();
+  const endAssignee = useEndTmRateAssignee();
+  const endRate = useEndTmRateLine();
   const assemble = useAssembleTmClaim();
   const prepare = usePrepareTmSignoff();
   const confirm = useConfirmTmSignoff();
@@ -67,6 +72,8 @@ const TimeAndMaterials: React.FC<TimeAndMaterialsProps> = ({ projectId, projectM
   const [prepareFor, setPrepareFor] = useState<TmClaimSummary | null>(null);
   const [confirmFor, setConfirmFor] = useState<TmClaimSummary | null>(null);
   const [withdrawFor, setWithdrawFor] = useState<TmClaimSummary | null>(null);
+  const [removeFor, setRemoveFor] = useState<{ id: string; person: string; line: string } | null>(null);
+  const [endRateFor, setEndRateFor] = useState<ContractRateLineRow | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
   const rateRows = rateLines.data?.rows ?? [];
@@ -105,15 +112,41 @@ const TimeAndMaterials: React.FC<TimeAndMaterialsProps> = ({ projectId, projectM
       viewOnly,
     },
   });
-  const currentAssigneesFor = (lineKey: string) => {
-    const assignments = assignmentsByLine.get(lineKey) ?? [];
-    return assignments.map((assignment) => profilesById.get(assignment.user_id)?.full_name).filter((name): name is string => Boolean(name));
-  };
+  const currentAssigneesFor = (lineKey: string) => (assignmentsByLine.get(lineKey) ?? []).map((assignment) => ({
+    id: assignment.id,
+    name: profilesById.get(assignment.user_id)?.full_name ?? t('preview.personUnavailable', 'Person no longer active'),
+  }));
 
   const reportActionError = (error: unknown) => {
     const classified = classifyMutationError(error, undefined, { suppressCapture: true });
     setActionError([classified.headline, classified.detail].filter(Boolean).join(' '));
     toast(classified.headline, classified.detail, 'warning');
+  };
+
+  const runRemove = async () => {
+    if (!removeFor) return;
+    setActionError(null);
+    try {
+      await endAssignee.mutateAsync({ projectId, assigneeId: removeFor.id, effectiveTo: today() });
+      setRemoveFor(null);
+      toast(t('rateCard.removed', 'Assignment removed'), undefined, 'success');
+    } catch (error) {
+      setRemoveFor(null);
+      reportActionError(error);
+    }
+  };
+
+  const runEndRate = async () => {
+    if (!endRateFor) return;
+    setActionError(null);
+    try {
+      await endRate.mutateAsync({ projectId, lineKey: endRateFor.line_key, effectiveTo: today(), expectedVersion: endRateFor.version });
+      setEndRateFor(null);
+      toast(t('rateCard.ended', 'Rate ended'), undefined, 'success');
+    } catch (error) {
+      setEndRateFor(null);
+      reportActionError(error);
+    }
   };
 
   const handleAssemble = async () => {
@@ -163,10 +196,14 @@ const TimeAndMaterials: React.FC<TimeAndMaterialsProps> = ({ projectId, projectM
     }
   };
 
-  const claimStatus = (status: TmClaimSummary['status']) => {
-    if (status === 'SignedOff') return t('claims.statusSignedOff', 'Signed off');
-    if (status === 'Withdrawn') return t('claims.statusWithdrawn', 'Withdrawn');
-    return t('claims.statusDraft', 'Draft');
+  const unitCount = (units: number | string, unit: string | null) => t(unit === 'day' ? 'unitCount.day' : 'unitCount.hour', {
+    count: Number(units), amount: formatNumberExact(Number(units)),
+  });
+  const statusPill = (claim: TmClaimSummary) => {
+    if (claim.status === 'SignedOff') return <StatusPill variant="won">{t('claims.statusSignedOff', 'Signed off')}</StatusPill>;
+    if (claim.status === 'Withdrawn') return <StatusPill variant="lost">{t('claims.statusWithdrawn', 'Withdrawn')}</StatusPill>;
+    if (claim.signoff_prepared_by) return <StatusPill variant="warn">{t('claims.statusAwaiting', 'Awaiting confirmation')}</StatusPill>;
+    return <StatusPill variant="neutral">{t('claims.statusDraft', 'Draft')}</StatusPill>;
   };
 
   const reasonFor = (row: TmClaimPreviewRow) => {
@@ -186,17 +223,29 @@ const TimeAndMaterials: React.FC<TimeAndMaterialsProps> = ({ projectId, projectM
         : <ul className="divide-y divide-border" aria-label={t('rateCard.title', 'Rate card')}>
           {rateRows.map((line) => {
             const assignedPeople = currentAssigneesFor(line.line_key);
+            const ended = line.effective_to !== null && line.effective_to <= today();
             return <li key={line.id} className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0">
                 <p className="font-medium text-foreground">{line.label}</p>
                 <p className="mt-0.5 text-sm text-muted-foreground tabular">
                   {formatCurrency(Number(line.rate), currency)} <span aria-hidden>/</span> {line.unit === 'day' ? t('unit.day', 'day') : t('unit.hour', 'hour')}
-                  <span className="px-2" aria-hidden>·</span>{t('rateCard.assignedTo', 'Assigned to {{people}}', {
-                    people: assignedPeople.length ? assignedPeople.join(', ') : t('rateCard.unassigned', 'No one'),
-                  })}
+                  {ended && <><span className="px-2" aria-hidden>·</span>{t('rateCard.endedOn', 'Ended {{date}}', { date: formatDateOnly(line.effective_to) })}</>}
+                </p>
+                <p className="mt-0.5 flex flex-wrap items-center gap-x-1 gap-y-1 text-sm text-muted-foreground">
+                  {assignedPeople.length === 0 ? <span>{t('rateCard.unassigned', 'Not assigned yet')}</span> : <span>{t('rateCard.assignedLabel', 'Assigned to')}</span>}
+                  {assignedPeople.map((assignee, index) => <span key={assignee.id} className="inline-flex items-center gap-1">
+                    <span className="text-foreground">{assignee.name}</span>
+                    {canManageRates && !ended && <Button variant="ghost" size="sm" className="text-destructive-text hover:bg-destructive/10"
+                      aria-label={t('rateCard.removeFrom', 'Remove {{person}} from {{line}}', { person: assignee.name, line: line.label })}
+                      onClick={() => setRemoveFor({ id: assignee.id, person: assignee.name, line: line.label })}>{t('rateCard.remove', 'Remove')}</Button>}
+                    {index < assignedPeople.length - 1 && <span aria-hidden>,</span>}
+                  </span>)}
                 </p>
               </div>
-              {canManageRates && <Button variant="outline" size="sm" onClick={() => setRateFormFor(line)}>{t('rateCard.edit', 'Edit rate')}</Button>}
+              {canManageRates && !ended && <div className="flex flex-wrap items-center gap-2">
+                <Button variant="outline" size="sm" onClick={() => setRateFormFor(line)}>{t('rateCard.edit', 'Edit rate')}</Button>
+                <Button variant="ghost" size="sm" className="text-destructive-text hover:bg-destructive/10" onClick={() => setEndRateFor(line)}>{t('rateCard.end', 'End rate')}</Button>
+              </div>}
             </li>;
           })}
         </ul>;
@@ -204,6 +253,7 @@ const TimeAndMaterials: React.FC<TimeAndMaterialsProps> = ({ projectId, projectM
   const previewRows = preview.data?.rows ?? [];
   const pricedRows = previewRows.filter((row) => row.amount !== null);
   const unratedRows = previewRows.filter((row) => row.amount === null);
+  const previewTotal = Math.round(pricedRows.reduce((sum, row) => sum + Number(row.amount), 0) * 100) / 100;
 
   const claimOpenLabel = (claim: TmClaimSummary) => t('claims.open', 'Open claim for {{date}}', {
     date: formatDateOnly(claim.period_from),
@@ -219,13 +269,16 @@ const TimeAndMaterials: React.FC<TimeAndMaterialsProps> = ({ projectId, projectM
     </div>;
   };
 
+  const nothingToShow = !canManageRates && !rateLines.isPending && !rateLines.isError && !claims.isPending && !claims.isError && rateRows.length === 0 && claimRows.length === 0;
+  if (nothingToShow) return null;
+
   return (
     <>
       <Card variant={embedded ? 'bare' : 'framed'} className={embedded ? 'border-t border-border pt-4' : undefined}>
         <CardHead level={2} className="text-base" actions={canManageRates ? <Button variant="primary" size="sm" onClick={() => setRateFormFor(null)}>{t('rateCard.add', 'Add rate')}</Button> : undefined}>
           {t('title', 'Time and materials')}
         </CardHead>
-        <CardPad>
+        <CardPad className="pt-0">
           <section aria-labelledby="tm-rate-card-heading">
             <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
               <div>
@@ -237,7 +290,7 @@ const TimeAndMaterials: React.FC<TimeAndMaterialsProps> = ({ projectId, projectM
             {rateList}
             {rateLines.data?.truncated && <p role="status" className="mt-2 text-sm text-muted-foreground">{t('rateCard.truncated', 'More than {{limit}} rate lines exist; this list is incomplete.', { limit: LIST_LIMIT })}</p>}
             {assignments.data?.truncated && <p role="status" className="mt-2 text-sm text-muted-foreground">{t('rateCard.assignmentsTruncated', 'Some rate assignments may not be shown.', { limit: LIST_LIMIT })}</p>}
-            {assignments.isError && <ListState variant="error" title={t('rateCard.assignmentError', "Couldn't load rate assignments")} onRetry={() => void assignments.refetch()} className={compactError} />}
+            {assignments.isError && !rateLines.isError && <ListState variant="error" title={t('rateCard.assignmentError', "Couldn't load rate assignments")} onRetry={() => void assignments.refetch()} className={compactError} />}
             {people.isError && <p role="alert" className="mt-2 text-sm text-destructive-text">{t('rateCard.peopleError', "Couldn't load people. Retry before assigning a rate.")}</p>}
           </section>
 
@@ -253,7 +306,7 @@ const TimeAndMaterials: React.FC<TimeAndMaterialsProps> = ({ projectId, projectM
             <div className="mt-4">
               {preview.isPending && <ListState variant="loading" rows={2} />}
               {preview.isError && <ListState variant="error" title={t('preview.error', "Couldn't preview approved hours")} onRetry={() => void preview.refetch()} className={compactError} />}
-              {preview.data?.truncated && <p role="status" className="mb-3 text-sm text-muted-foreground">{t('preview.truncated', 'More than {{limit}} preview groups are returned. Narrow the period before assembling; assembly is disabled.', { limit: LIST_LIMIT })}</p>}
+              {preview.data?.truncated && <p role="status" className="mb-3 text-sm text-muted-foreground">{t('preview.truncated', 'More than {{limit}} groups of hours match. Narrow the period to assemble a claim.', { limit: LIST_LIMIT })}</p>}
               {!preview.isPending && !preview.isError && previewRangeValid && previewRows.length === 0 && (
                 <ListState variant="empty" title={t('preview.empty', 'No approved hours in this period.')} className="items-start justify-start gap-2 px-0 py-3 text-left" />
               )}
@@ -262,16 +315,17 @@ const TimeAndMaterials: React.FC<TimeAndMaterialsProps> = ({ projectId, projectM
                 <ul className="divide-y divide-border">
                   {pricedRows.map((row, index) => <li key={`${row.line_key ?? row.label}-${row.user_id}-${index}`} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 py-2 text-sm">
                     <span className="min-w-0 font-medium">{row.label ?? t('preview.labour', 'Labour')}</span>
-                    <span className="tabular text-muted-foreground">{personFor(row.user_id)} · {formatNumberExact(Number(row.units))} {row.unit ?? t('unit.hour', 'hour')} · {formatCurrency(Number(row.rate), currency)} · {formatCurrency(Number(row.amount), currency)}</span>
+                    <span className="tabular text-muted-foreground">{personFor(row.user_id)} · {unitCount(row.units, row.unit)} × {formatCurrency(Number(row.rate), currency)} = {formatCurrency(Number(row.amount), currency)}</span>
                   </li>)}
                 </ul>
+                <p className="flex items-center justify-between gap-2 border-t border-border pt-2 text-sm font-semibold"><span>{t('claims.total', 'Claim total')}</span><span className="tabular">{formatCurrency(previewTotal, currency)}</span></p>
               </div>}
               {unratedRows.length > 0 && <div className="mt-4" aria-labelledby="tm-unrated-heading">
                 <h4 id="tm-unrated-heading" className="mb-2 text-sm font-semibold">{t('preview.unratedHeading', 'Unrated hours')}</h4>
                 <ul className="divide-y divide-border">
                   {unratedRows.map((row, index) => <li key={`${row.unrated_reason}-${row.user_id}-${index}`} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
                     <span>{reasonFor(row)} · {personFor(row.user_id)}</span>
-                    <span className="tabular text-muted-foreground">{formatNumberExact(Number(row.units))} {row.unit ?? t('unit.hour', 'hour')} · {t('preview.sourceCount', '{{count}} approved entries', { count: row.source_count })}</span>
+                    <span className="tabular text-muted-foreground">{unitCount(row.units, row.unit)} · {t('preview.sourceCount', '{{count}} approved entries', { count: row.source_count })}</span>
                   </li>)}
                 </ul>
               </div>}
@@ -290,10 +344,12 @@ const TimeAndMaterials: React.FC<TimeAndMaterialsProps> = ({ projectId, projectM
                   <button type="button" className="min-w-0 rounded text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring" aria-label={claimOpenLabel(claim)} onClick={() => setSelectedClaim(claim)}>
                     <span className="block font-medium text-foreground">{formatDateOnly(claim.period_from)} – {formatDateOnly(claim.period_to)}</span>
                     <span className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-                      <StatusPill variant={claim.status === 'SignedOff' ? 'won' : claim.status === 'Withdrawn' ? 'lost' : 'neutral'}>{claimStatus(claim.status)}</StatusPill>
+                      {statusPill(claim)}
                       <span className="tabular">{formatCurrency(Number(claim.gross_amount), claim.currency)}</span>
                       <span>{t('claims.lineCount', '{{count}} lines', { count: claim.lines.length })}</span>
                     </span>
+                    {claim.status === 'SignedOff' && invoiceNumberFor?.(claim.id) && <span className="mt-1 block text-sm text-muted-foreground">{t('claims.invoiced', 'Invoiced · {{number}}', { number: invoiceNumberFor(claim.id) })}</span>}
+                    {claim.status === 'Draft' && claim.signoff_prepared_by && !mayConfirm(claim) && <span className="mt-1 block text-sm text-muted-foreground">{t('signoff.preparerHint', 'A different user must confirm this sign-off.')}</span>}
                   </button>
                   {claim.status === 'SignedOff' && canCreateInvoice?.(claim.id) && <Button variant="outline" size="sm" onClick={() => onCreateInvoice(claim.id)}>{t('claims.createInvoice', 'Create invoice')}</Button>}
                   {rowActions(claim)}
@@ -316,16 +372,22 @@ const TimeAndMaterials: React.FC<TimeAndMaterialsProps> = ({ projectId, projectM
         toast(t('rateCard.assigned', 'Person assigned to rate'), undefined, 'success');
       }} onError={reportActionError} />}
       {prepareFor && <PrepareSignoffModal claim={prepareFor} documents={eligibleDocuments} documentsPending={documents.isPending} documentsError={documents.isError} onRetry={() => void documents.refetch()} loading={prepare.isPending} onClose={() => setPrepareFor(null)} onPrepare={runPrepare} />}
-      {selectedClaim && <ClaimDetail claim={selectedClaim} sources={sourceRows} sourcesPending={claimSources.isPending} sourcesError={claimSources.isError} sourcesTruncated={claimSources.data?.truncated === true} onRetry={() => void claimSources.refetch()} onClose={() => setSelectedClaim(null)}
+      {selectedClaim && <ClaimDetail claim={selectedClaim} sources={sourceRows} sourcesPending={claimSources.isPending} sourcesError={claimSources.isError} sourcesTruncated={claimSources.data?.truncated === true} statusPill={statusPill(selectedClaim)} unitCount={unitCount} awaitingHint={selectedClaim.status === 'Draft' && Boolean(selectedClaim.signoff_prepared_by) && !mayConfirm(selectedClaim)} onRetry={() => void claimSources.refetch()} onClose={() => setSelectedClaim(null)}
         prepareAction={canPrepareClaims && selectedClaim.status === 'Draft' && !selectedClaim.signoff_prepared_by ? () => setPrepareFor(selectedClaim) : undefined}
         confirmAction={selectedClaim.status === 'Draft' && selectedClaim.signoff_prepared_by && mayConfirm(selectedClaim) ? () => setConfirmFor(selectedClaim) : undefined}
         withdrawAction={selectedClaim.status === 'Draft' && selectedClaim.signoff_prepared_by && canPrepareClaims ? () => setWithdrawFor(selectedClaim) : undefined}
         invoiceAction={selectedClaim.status === 'SignedOff' && canCreateInvoice?.(selectedClaim.id) ? () => onCreateInvoice(selectedClaim.id) : undefined} />}
       {confirmFor && <ConfirmDialog open title={t('signoff.confirmTitle', 'Confirm client sign-off?')}
-        description={t('signoff.confirmDescription', 'Confirming this claim makes it available in the existing invoice flow. A different person prepared the claim sign-off.')}
+        description={t('signoff.confirmDescription', 'Confirming marks this claim as signed off by the client and lets Finance raise its invoice.')}
         confirmLabel={t('signoff.confirm', 'Confirm sign-off')} loading={confirm.isPending} onConfirm={() => void runConfirm()} onCancel={() => setConfirmFor(null)} />}
+      {removeFor && <ConfirmDialog open tone="destructive" title={t('rateCard.removeTitle', 'Remove this assignment?')}
+        description={t('rateCard.removeDescription', "{{person}}'s hours after today will no longer be priced with {{line}}. Claims already assembled keep their rate.", { person: removeFor.person, line: removeFor.line })}
+        confirmLabel={t('rateCard.remove', 'Remove')} loading={endAssignee.isPending} onConfirm={() => void runRemove()} onCancel={() => setRemoveFor(null)} />}
+      {endRateFor && <ConfirmDialog open tone="destructive" title={t('rateCard.endTitle', 'End this rate?')}
+        description={t('rateCard.endDescription', 'No new hours after today will be priced with {{line}}. Claims already assembled keep their rate.', { line: endRateFor.label })}
+        confirmLabel={t('rateCard.end', 'End rate')} loading={endRate.isPending} onConfirm={() => void runEndRate()} onCancel={() => setEndRateFor(null)} />}
       {withdrawFor && <ConfirmDialog open tone="destructive" title={t('signoff.withdrawTitle', 'Withdraw client sign-off?')}
-        description={t('signoff.withdrawDescription', 'This removes the claim from the live billing set. Its approved hours can be assembled into a later claim.')}
+        description={t('signoff.withdrawDescription', 'This claim can no longer be invoiced. Its approved hours go back to unclaimed and can be assembled into a later claim.')}
         confirmLabel={t('signoff.withdraw', 'Withdraw sign-off')} loading={withdraw.isPending} onConfirm={() => void runWithdraw()} onCancel={() => setWithdrawFor(null)} />}
     </>
   );
@@ -423,7 +485,7 @@ const AssignPersonModal: React.FC<AssignPersonModalProps> = ({ rates, profiles, 
   const [from, setFrom] = useState(today());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const lineOptions = rates.map((line) => ({ value: line.line_key, label: `${line.label} · ${line.unit}` }));
+  const lineOptions = rates.map((line) => ({ value: line.line_key, label: `${line.label} · ${line.unit === 'day' ? t('unit.day', 'day') : t('unit.hour', 'hour')}` }));
   const personOptions = profiles.map((profile) => ({ value: profile.id, label: profile.full_name }));
   const selectedPerson = profiles.find((profile) => profile.id === personId);
   const personOption = selectedPerson ? { value: selectedPerson.id, label: selectedPerson.full_name } : null;
@@ -507,6 +569,9 @@ interface ClaimDetailProps {
   sourcesPending: boolean;
   sourcesError: boolean;
   sourcesTruncated: boolean;
+  statusPill: React.ReactNode;
+  awaitingHint: boolean;
+  unitCount: (units: number | string, unit: string | null) => string;
   onRetry: () => void;
   onClose: () => void;
   prepareAction?: () => void;
@@ -515,10 +580,10 @@ interface ClaimDetailProps {
   invoiceAction?: () => void;
 }
 
-const ClaimDetail: React.FC<ClaimDetailProps> = ({ claim, sources, sourcesPending, sourcesError, sourcesTruncated, onRetry, onClose, prepareAction, confirmAction, withdrawAction, invoiceAction }) => {
+const ClaimDetail: React.FC<ClaimDetailProps> = ({ claim, sources, sourcesPending, sourcesError, sourcesTruncated, statusPill, awaitingHint, unitCount, onRetry, onClose, prepareAction, confirmAction, withdrawAction, invoiceAction }) => {
   const { t } = useTranslation('timeAndMaterials');
   return <Drawer open title={t('claims.detailTitle', 'Time-and-materials claim')} subtitle={`${formatDateOnly(claim.period_from)} – ${formatDateOnly(claim.period_to)}`}
-    status={<StatusPill variant={claim.status === 'SignedOff' ? 'won' : claim.status === 'Withdrawn' ? 'lost' : 'neutral'}>{claim.status === 'SignedOff' ? t('claims.statusSignedOff', 'Signed off') : claim.status === 'Withdrawn' ? t('claims.statusWithdrawn', 'Withdrawn') : t('claims.statusDraft', 'Draft')}</StatusPill>}
+    status={statusPill}
     onClose={onClose} headerActions={<div className="flex flex-wrap items-center gap-2">
       {prepareAction && <Button variant="outline" size="sm" onClick={prepareAction}>{t('signoff.prepare', 'Prepare sign-off')}</Button>}
       {confirmAction && <Button variant="primary" size="sm" onClick={confirmAction}>{t('signoff.confirm', 'Confirm sign-off')}</Button>}
@@ -529,15 +594,16 @@ const ClaimDetail: React.FC<ClaimDetailProps> = ({ claim, sources, sourcesPendin
       <div><dt className="text-muted-foreground">{t('claims.period', 'Period')}</dt><dd className="mt-1 font-medium">{formatDateOnly(claim.period_from)} – {formatDateOnly(claim.period_to)}</dd></div>
       <div><dt className="text-muted-foreground">{t('claims.total', 'Claim total')}</dt><dd className="mt-1 font-semibold tabular">{formatCurrency(Number(claim.gross_amount), claim.currency)}</dd></div>
     </dl>
+    {awaitingHint && <p className="px-4 pb-3 text-sm text-muted-foreground">{t('signoff.preparerHint', 'A different user must confirm this sign-off.')}</p>}
     <section className="border-t border-border px-4 py-3" aria-labelledby="tm-claim-lines-heading">
-      <h2 id="tm-claim-lines-heading" className="text-sm font-semibold">{t('detail.lines', 'Frozen claim lines')}</h2>
+      <h2 id="tm-claim-lines-heading" className="text-sm font-semibold">{t('detail.lines', 'Claim lines')}</h2>
       {claim.lines.length === 0 ? <p className="mt-2 text-sm text-muted-foreground">{t('detail.noLines', 'This claim has no billable lines.')}</p> : <ul className="mt-2 divide-y divide-border">
         {claim.lines.map((line, index) => <li key={`${line.lineKey}-${index}`} className="py-3 text-sm">
           <div className="flex flex-wrap items-start justify-between gap-2">
             <span className="font-medium">{line.label}</span>
             <span className="tabular font-medium">{formatCurrency(Number(line.amount), claim.currency)}</span>
           </div>
-          <p className="mt-1 text-muted-foreground tabular">{formatNumberExact(Number(line.units))} {line.unit} × {formatCurrency(Number(line.rate), claim.currency)} · {t('detail.rateVersion', 'rate version {{version}}', { version: line.rateVersion })}</p>
+          <p className="mt-1 text-muted-foreground tabular">{unitCount(line.units, line.unit)} × {formatCurrency(Number(line.rate), claim.currency)}</p>
         </li>)}
       </ul>}
     </section>
@@ -550,7 +616,7 @@ const ClaimDetail: React.FC<ClaimDetailProps> = ({ claim, sources, sourcesPendin
             : <ul className="mt-2 divide-y divide-border text-sm">
               {sources.map((source) => <li key={source.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
                 <span>{source.source_kind === 'timesheet_entry' ? t('detail.timeEntry', 'Approved time entry') : t('detail.equipmentEntry', 'Approved usage entry')}</span>
-                <span className="tabular text-muted-foreground">{formatNumberExact(Number(source.units))} {t('unit.hour', 'hour')}</span>
+                <span className="tabular text-muted-foreground">{unitCount(source.units, 'hour')}</span>
               </li>)}
             </ul>}
     </section>

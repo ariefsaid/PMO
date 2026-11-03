@@ -556,6 +556,10 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
 
   const timeAndMaterials = canViewMoney && <TimeAndMaterials projectId={projectId} projectManagerId={projectManagerId} currency={currency}
     embedded={mode === 'contract-tools'}
+    invoiceNumberFor={(claimId) => {
+      const invoice = claimRows.find((row) => row.id === claimId)?.invoice;
+      return invoice ? invoice.si_number ?? invoice.status : null;
+    }}
     canCreateInvoice={(claimId) => {
       const claim = claimRows.find((row) => row.id === claimId);
       return canBill && Boolean(claim && !claim.withdrawn_at && !claim.invoice && claim.evidence.length > 0);

@@ -36,6 +36,8 @@ vi.mock('@/src/hooks/useTimeAndMaterials', () => ({
   useTmClaimSources: () => h.sources,
   useSaveTmRateLine: () => ({ mutateAsync: h.mutations.saveRate, isPending: false }),
   useSetTmRateAssignee: () => ({ mutateAsync: h.mutations.assign, isPending: false }),
+  useEndTmRateAssignee: () => ({ mutateAsync: h.mutations.endAssignee, isPending: false }),
+  useEndTmRateLine: () => ({ mutateAsync: h.mutations.endRate, isPending: false }),
   useAssembleTmClaim: () => ({ mutateAsync: h.mutations.assemble, isPending: false }),
   usePrepareTmSignoff: () => ({ mutateAsync: h.mutations.prepare, isPending: false }),
   useWithdrawTmSignoff: () => ({ mutateAsync: h.mutations.withdraw, isPending: false }),
@@ -71,7 +73,9 @@ const unrated = {
   user_id: 'u-other', units: 2, amount: null, source_count: 1, unrated_reason: 'no_rate',
 };
 
-function page(resources = { en: { timeAndMaterials: {} }, id: { timeAndMaterials: {} } }) {
+const shipped = (locale: 'en' | 'id') => JSON.parse(readFileSync(join(process.cwd(), `public/locales/${locale}/timeAndMaterials.json`), 'utf8')) as Record<string, unknown>;
+
+function page(resources: Record<string, { timeAndMaterials: Record<string, unknown> }> = { en: { timeAndMaterials: shipped('en') }, id: { timeAndMaterials: shipped('id') } }) {
   const instance = i18next.createInstance();
   void instance.init({ lng: 'en', fallbackLng: 'en', defaultNS: 'timeAndMaterials', ns: ['timeAndMaterials'], resources, interpolation: { escapeValue: false } });
   return instance;
@@ -104,6 +108,8 @@ beforeEach(() => {
   h.mutations = {
     saveRate: vi.fn().mockResolvedValue({ id: 'rate-row-2', lineKey: 'labour-2', version: 1, changed: true }),
     assign: vi.fn().mockResolvedValue(undefined),
+    endAssignee: vi.fn().mockResolvedValue(undefined),
+    endRate: vi.fn().mockResolvedValue({ id: 'rate-row-1', lineKey: 'labour-1', version: 2, changed: true }),
     assemble: vi.fn().mockResolvedValue('claim-2'),
     prepare: vi.fn().mockResolvedValue(undefined),
     withdraw: vi.fn().mockResolvedValue(undefined),
@@ -252,7 +258,143 @@ describe('TimeAndMaterials', () => {
   it('disables assembly when the money preview is truncated', () => {
     h.preview = { ...h.preview, data: { rows: [priced], truncated: true } };
     renderPanel();
-    expect(screen.getByText(/Narrow the period before assembling/)).toBeInTheDocument();
+    expect(screen.getByText(/Narrow the period to assemble/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Assemble claim/ })).toBeDisabled();
+  });
+
+  it('names counts and units in plain singular/plural language', async () => {
+    h.preview = { ...h.preview, data: { rows: [priced, unrated], truncated: false } };
+    renderPanel();
+    expect(await screen.findByText(/8 hours/)).toBeInTheDocument();
+    expect(screen.getByText(/1 line$/)).toBeInTheDocument();
+    expect(screen.getByText(/1 approved entry/)).toBeInTheDocument();
+    expect(screen.queryByText(/1 lines/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/1 approved entries/)).not.toBeInTheDocument();
+  });
+
+  it('shows the claim total before assembling so the user knows what will be created', async () => {
+    renderPanel();
+    const assemble = await screen.findByRole('region', { name: /Assemble a claim/ });
+    expect(within(assemble).getByText(/Claim total/)).toBeInTheDocument();
+    expect(within(assemble).getAllByText(/400,000/).length).toBeGreaterThan(0);
+  });
+
+  it('says a prepared claim is waiting for confirmation, and tells the preparer why they cannot confirm', async () => {
+    h.claims = { ...h.claims, data: { rows: [{ ...claim, signoff_prepared_by: 'u-pm', document_id: 'doc-1' }], truncated: false } };
+    h.role = 'Project Manager';
+    h.effectiveRole = 'Project Manager';
+    h.userId = 'u-pm';
+    renderPanel();
+    const claims = await screen.findByRole('region', { name: /Time-and-materials claims/ });
+    expect(within(claims).getByText('Awaiting confirmation')).toBeInTheDocument();
+    expect(within(claims).queryByText('Draft')).not.toBeInTheDocument();
+    expect(within(claims).getByText(/different user must confirm/i)).toBeInTheDocument();
+    expect(within(claims).queryByRole('button', { name: /Confirm sign-off/ })).not.toBeInTheDocument();
+  });
+
+  it('keeps developer wording out of the claim detail', async () => {
+    const { user } = renderPanel();
+    await user.click(await screen.findByRole('button', { name: /Open claim/ }));
+    const drawer = await screen.findByRole('dialog', { name: /Time-and-materials claim/ });
+    expect(drawer).not.toHaveTextContent(/frozen|rate version/i);
+    expect(drawer).toHaveTextContent('Claim lines');
+    expect(drawer).toHaveTextContent('8 hours');
+  });
+
+  it('defaults the assemble period to the local calendar date, not UTC', async () => {
+    const previousTz = process.env.TZ;
+    process.env.TZ = 'Asia/Jakarta';
+    vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-11-03T20:00:00Z') });
+    try {
+      renderPanel();
+      expect(await screen.findByLabelText('To')).toHaveValue('2026-11-04');
+      expect(screen.getByLabelText('From')).toHaveValue('2026-11-01');
+    } finally {
+      vi.useRealTimers();
+      if (previousTz === undefined) delete process.env.TZ; else process.env.TZ = previousTz;
+    }
+  });
+
+  it('lets Finance undo a wrong assignment after a confirmation, and shows people who are no longer active', async () => {
+    h.profiles = [profile('u-pm', 'Project manager'), profile('u-fin', 'Finance user')];
+    const { user } = renderPanel();
+    expect((await screen.findAllByText(/Person no longer active/)).length).toBeGreaterThan(0);
+    await user.click(screen.getByRole('button', { name: /Remove .* from Site engineer/ }));
+    const dialog = screen.getByRole('alertdialog', { name: /Remove this assignment/ });
+    expect(h.mutations.endAssignee).not.toHaveBeenCalled();
+    await user.click(within(dialog).getByRole('button', { name: /^Remove/ }));
+    await waitFor(() => expect(h.mutations.endAssignee).toHaveBeenCalledWith({ projectId: 'p1', assigneeId: 'assignment-1', effectiveTo: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/) }));
+  });
+
+  it('lets Finance end a rate after a confirmation, and shows an ended rate as ended', async () => {
+    const { user } = renderPanel();
+    await user.click(await screen.findByRole('button', { name: /End rate/ }));
+    const dialog = screen.getByRole('alertdialog', { name: /End this rate/ });
+    expect(h.mutations.endRate).not.toHaveBeenCalled();
+    await user.click(within(dialog).getByRole('button', { name: /End rate/ }));
+    await waitFor(() => expect(h.mutations.endRate).toHaveBeenCalledWith({ projectId: 'p1', lineKey: 'labour-1', expectedVersion: 1, effectiveTo: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/) }));
+  });
+
+  it('marks an ended rate and hides its edit and end actions', async () => {
+    h.rates = { ...h.rates, data: { rows: [{ ...rate, effective_to: '2026-10-31' }], truncated: false } };
+    renderPanel();
+    expect(await screen.findByText(/Ended/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /End rate/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Edit rate/ })).not.toBeInTheDocument();
+  });
+
+  it('keeps remove and end actions away from people who cannot manage rates', async () => {
+    h.role = 'Project Manager';
+    h.effectiveRole = 'Project Manager';
+    h.userId = 'u-pm';
+    renderPanel();
+    expect(await screen.findByText('Rate card')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /End rate|Remove/ })).not.toBeInTheDocument();
+  });
+
+  it('renders nothing for a read-only viewer when the project has no rates and no claims', async () => {
+    h.role = 'Executive';
+    h.effectiveRole = 'Executive';
+    h.userId = 'u-exec';
+    h.rates = { ...h.rates, data: { rows: [], truncated: false } };
+    h.claims = { ...h.claims, data: { rows: [], truncated: false } };
+    const { container } = renderPanel();
+    expect(screen.queryByText('Rate card')).not.toBeInTheDocument();
+    expect(container.querySelector('main')).toBeEmptyDOMElement();
+  });
+
+  it('says a rate has nobody assigned in a plain phrase', async () => {
+    h.assignees = { ...h.assignees, data: { rows: [], truncated: false } };
+    renderPanel();
+    expect(await screen.findByText('Not assigned yet')).toBeInTheDocument();
+    expect(screen.queryByText(/Assigned to/)).not.toBeInTheDocument();
+  });
+
+  it('shows one error, not two, when the rate card itself cannot load', async () => {
+    h.rates = { ...h.rates, isError: true, isPending: false };
+    h.assignees = { ...h.assignees, isError: true, isPending: false };
+    renderPanel();
+    expect(await screen.findByText(/Couldn't load the rate card/)).toBeInTheDocument();
+    expect(screen.queryByText(/Couldn't load rate assignments/)).not.toBeInTheDocument();
+  });
+
+  it('explains in the claim detail why a prepared claim is waiting', async () => {
+    h.claims = { ...h.claims, data: { rows: [{ ...claim, signoff_prepared_by: 'u-pm', document_id: 'doc-1' }], truncated: false } };
+    h.role = 'Project Manager';
+    h.effectiveRole = 'Project Manager';
+    h.userId = 'u-pm';
+    const { user } = renderPanel();
+    await user.click(await screen.findByRole('button', { name: /Open claim/ }));
+    const drawer = await screen.findByRole('dialog', { name: /Time-and-materials claim/ });
+    expect(within(drawer).getByText('Awaiting confirmation')).toBeInTheDocument();
+    expect(within(drawer).getByText(/different user must confirm/i)).toBeInTheDocument();
+  });
+
+  it('shows which invoice a signed-off claim already has instead of staying silent', async () => {
+    h.claims = { ...h.claims, data: { rows: [{ ...claim, status: 'SignedOff', signoff_prepared_by: 'u-pm', document_id: 'doc-1' }], truncated: false } };
+    renderPanel({ canCreateInvoice: () => false, invoiceNumberFor: () => 'INV-0042' });
+    const claims = await screen.findByRole('region', { name: /Time-and-materials claims/ });
+    expect(within(claims).getByText(/Invoiced · INV-0042/)).toBeInTheDocument();
+    expect(within(claims).queryByRole('button', { name: /Create invoice/ })).not.toBeInTheDocument();
   });
 });
