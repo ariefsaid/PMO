@@ -72,12 +72,12 @@ export function useTmClaimSources(claimId: string) {
   });
 }
 
-function useTmMutation<A, R>(fn: (arg: A) => Promise<R>) {
+function useTmMutation<A, R>(fn: (arg: A) => Promise<R>, extraRoots: readonly string[] = []) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: fn,
     onSuccess: () => {
-      for (const root of [...TM_QUERY_ROOTS, PROJECT_FINANCES_ROOT]) void qc.invalidateQueries({ queryKey: [root] });
+      for (const root of [...TM_QUERY_ROOTS, PROJECT_FINANCES_ROOT, ...extraRoots]) void qc.invalidateQueries({ queryKey: [root] });
     },
   });
 }
@@ -93,4 +93,6 @@ export const useDeselectTmSource = () =>
     repositories.timeAndMaterials.deselectTmSource(arg.claimId, arg.claimSourceId));
 export const usePrepareTmSignoff = () => useTmMutation((input: PrepareTmSignoffInput) => repositories.timeAndMaterials.prepareTmSignoff(input));
 export const useWithdrawTmSignoff = () => useTmMutation((claimId: string) => repositories.timeAndMaterials.withdrawTmSignoff(claimId));
-export const useConfirmTmSignoff = () => useTmMutation((claimId: string) => repositories.timeAndMaterials.confirmTmSignoff(claimId));
+export const useConfirmTmSignoff = () => useTmMutation(
+  (claimId: string) => repositories.timeAndMaterials.confirmTmSignoff(claimId), ['progress-claims'],
+);

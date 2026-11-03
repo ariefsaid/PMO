@@ -10,7 +10,7 @@
 -- security-definer lock-order RPCs (0105/0106) are the only mutation path (closing the child→parent
 -- deadlock seam). The catalog backstop below excludes it; the exception is asserted explicitly.
 begin;
-select plan(35);
+select plan(37);
 
 -- profiles: the exact table the promote e2e failed on (admin-invite-user inserts here).
 select ok(has_table_privilege('service_role', 'public.profiles', 'INSERT'),
@@ -49,6 +49,14 @@ select ok(has_table_privilege('service_role', 'public.agent_dispatch_watermarks'
   'AC-SVCROLE-006 service_role has UPDATE on agent_dispatch_watermarks');
 select ok(has_table_privilege('service_role', 'public.projects', 'SELECT'),
   'AC-SVCROLE-007 service_role has SELECT on projects');
+select ok(
+  has_table_privilege('service_role', 'public.budget_distribution_plans', 'SELECT,INSERT,UPDATE,DELETE'),
+  'AC-SVCROLE-007a service_role has full access to budget_distribution_plans'
+);
+select ok(
+  has_table_privilege('service_role', 'public.budget_year_distributions', 'SELECT,INSERT,UPDATE,DELETE'),
+  'AC-SVCROLE-007b service_role has full access to budget_year_distributions'
+);
 
 -- Catalog-driven backstop: NO ordinary base table in public is missing service_role INSERT —
 -- EXCEPT the deliberate RPC-only tables: ms_graph_connections (0106) and the two internal
