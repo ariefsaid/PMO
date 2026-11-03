@@ -361,7 +361,7 @@ The e2e is authored and handed to the coordinator; the guard is proved by its ow
 | Plan catalogue | `supabase/migrations/0530…`–`0531_plan_catalogue.sql` (+ later seed migrations) | `plans` ids, the `feature_tiers` × `plan_tiers` matrix, explicit `plan_features` rows, the latest `org_features_feature_key_check` list |
 | Assistant read path | `supabase/functions/agent-chat/{entityCatalog,readEntities,actions,stockRead,draftInvoice,overdue,remindOverdue}.ts`, `pmo-portal/src/lib/viewspec/types.ts` (`ENTITY_WHITELIST`) | entity keys and tool names (tool = a `name: '<snake>'` literal in a file that also declares `inputSchema`) |
 | Runtime key→surface map | `supabase/functions/agent-chat/featureSwitches.ts` **if S4 has merged** (`ENTITY_FEATURE_KEYS`, `TOOL_FEATURE_KEYS`) | the assistant's own mapping; until then a clearly-labelled pre-S4 fallback map lives in the guard |
-| Enforcement baseline | `supabase/migrations/0534_feature_enforcement.sql` **if S2 has merged** | gated SECURITY DEFINER function → key, and gated write table → key (§B `values` list) |
+| Enforcement baseline | **every** `supabase/migrations/*_enforcement.sql` — `0081_feature_flag_write_enforcement.sql` today, plus `0534_feature_enforcement.sql` **if S2 has merged** | gated write table → key (0081's `case tablename … end` mapping, S2's §B `values` list) and gated SECURITY DEFINER function → key (S2) |
 
 On dev today the four module gates are only partly wired: `FeatureRoute` covers `incidents`, `revenue`,
 `procurement` and `user_views`; Rail gates `crm`/`procurement`/`timesheets`/`incidents`/`revenue`;
@@ -375,7 +375,8 @@ entry fails.
 `check-retention.mjs` / `check-unpaged-reads.mjs`:
 
 - **Pure, exported** (unit-testable, no I/O): `parseRoutes`, `parseRail`, `parsePalette`, `parseFeatures`,
-  `parsePlanCatalogue`, `parseAssistant`, `parseEnforcement`, `check`, `applyAllowlist`.
+  `parsePlanCatalogue`, `parseAssistant`, `parseKeyMap`, `parseEnforcement`, `enforcementBaseline`,
+  `policyCommands`, `check`.
 - `check(input)` returns `string[]` errors; `main()` prints each as `module-completeness: <detail>` and
   exits 1. Every message names exactly what is missing and the file to fix.
 - `--self-test` runs the fixtures below in-process (AC-PLN-014), printing `module-completeness self-test: OK`.
@@ -401,13 +402,19 @@ Rule set (each failure names the missing artefact):
    exists in the discovered assistant inventory (an unknown entity/tool fails). The map is S4's
    `featureSwitches.ts` when present; before S4 a `LEGACY_ASSISTANT_PATHS` table (deleted with the
    fallback once S4 lands) states the same contract.
-7. **Enforcement recreation (#1783 item 3)** — when `0534_feature_enforcement.sql` exists, parse its gated
-   `create or replace function` bodies (key from `assert_feature_on(... 'key')`,
-   `org_feature_enabled(... 'key')` or `detail = 'key'`) and its §B `(table, key)` values list. Any
-   migration numbered **after** 0534 that recreates one of those functions, or creates/drops+creates a
-   write policy on one of those tables, must carry the same gate call (`assert_feature_on` /
-   `org_feature_enabled` with the same key) in the same statement. A plain text check; deliberate
-   exceptions go in `ENFORCEMENT_ALLOWLIST` with a restore note, and a stale entry fails.
+7. **Enforcement recreation (#1783 item 3)** — the baseline is **every** enforcement migration, folded by
+   numeric order: `0081_feature_flag_write_enforcement.sql`'s live gated-table list (`case tablename … end`)
+   *and* S2's `0534_feature_enforcement.sql` when it merges (its gated functions, key from the **raising**
+   `assert_feature_on(... 'key')` or `raise exception 'feature_off' … detail = 'key'`, and its §B
+   `(table, key)` values list). Any migration numbered **after** a gate's own migration that recreates one
+   of those (a) functions, or (b) **write** policies — `create policy` or `alter policy` — on one of those
+   tables, must carry the same gate in the same statement: `assert_feature_on` in a function body
+   (`org_feature_enabled` only *returns false*, so it is never a function gate), `org_feature_enabled` in a
+   policy predicate. Read policies (`for select`) and `as restrictive` policies are out of scope — 0081
+   gates the permissive write policy, so a read or narrowing policy is not where the gate lives, and an
+   `alter policy` that only names roles (`to …`) or renames keeps the predicate. A plain text check;
+   deliberate exceptions (e.g. a receipt re-boundary that moves a conjunct to another key) go in
+   `ALLOWLIST` with an `enforcement:<file>:<name>` id and a restore note, and a stale entry fails.
 
 **Allowlist** — one exported array; each entry `{ ids, reason, restore }` where `ids` is one id or a list,
 and an id is `route:<path>`, `nav:<path>`, `palette:<path>`, `assistant:<key>`, `plan:<plan>/<key>` or
@@ -440,7 +447,8 @@ one home.
    restoring slice; re-run until clean.
 7. **E2E (authored, not run)** — `pmo-portal/e2e/serial/AC-PLN-015-switch-off-journey.spec.ts` per
    `docs/e2e-parallel-conventions.md` (serial lane: it mutates the org-global `org_features` override and
-   creates a second tenant; restored in `afterEach`/`afterAll`). The journey: Operator clears the seed
+   creates a second tenant; the override is restored in a `finally` around every arm, the tenant in
+   `afterAll`). The journey: Operator clears the seed
    org's `stock` override to OFF through `operator_toggle_feature` under his own JWT; an org-A user sees no
    Stock rail item, `/stock` renders the not-available state, and (served lane only) the assistant answers
    that stock is not on the plan; a freshly created org-B user still sees Stock and `/stock`. Assistant
@@ -449,15 +457,16 @@ one home.
 
 ### S6.3 — Allowlist as built (each entry names its restoring slice)
 
-Six entries, 55 ids; every id suppresses at least one real gap on dev (a stale id fails). The real-repo
-run reports 62 gaps across those ids before the allowlist — 26 routes, 3 Rail items, 17 palette gaps
-(10 modules, 7 of which also drift from their gated Rail twin) and 16 switch keys with no assistant read
-path.
+Eleven entries, 79 ids; every id suppresses at least one real gap on dev (a stale id fails). The
+real-repo run reports 86 gaps across those ids before the allowlist — 26 routes, 3 Rail items, 17
+palette gaps (10 modules, 7 of which also drift from their gated Rail twin), 16 switch keys with no
+assistant read path, and 24 write-policy recreations on tables 0081 gates.
 
-- `route:<path>` × 26 — the module routes S3 wraps in `FeatureRoute` (`/sales*`, `/procurement*`,
+- `route:<path>` × 25 — the module routes S3 wraps in `FeatureRoute` (`/sales*`, `/procurement*`,
   `/timesheets`, `/companies*`, `/contacts*`, `/imprest*`, `/stock*`, `/erp-purchases`,
   `/sales-invoices/:invoiceId`, `/finance/statements`, `/administration/exchange-rates`); reason "S3
-  wires the route gate (AC-PLN-008)"; restore "delete when S3 lands its route table".
+  wires the route gate (AC-PLN-008)"; restore "delete when S3 lands its route table". The 26th route
+  id is the next line's own entry.
 - `route:/incoming-payments/:receiptId` (its own entry) — revenue detail route; S3 gates the redirects
   only; restore "gate on `revenue` or mark core with the owner's ruling".
 - `nav:/stock`, `nav:/imprest` — one entry; reason "S3 gates the Rail from the resolved projection";
@@ -472,10 +481,12 @@ path.
   `multi_currency`, `api_access`, `sso`) plus the Admin-owned `feedback_surveys` (deliberately no
   assistant surface, S4) — reason "no assistant read path yet (D13/S4)"; restore "delete when the module
   gains a read tool/entity".
+- `enforcement:<file>:<policy>` × 24 — one entry per migration that re-created a write policy on a table
+  0081 gates after 0081 landed (`0099` × 6, `0100` × 6, `0129` × 6, `0203` × 6). S6 adds no migration, so
+  re-creating them is a later slice's change; each `restore` says to delete the id when its policy is
+  next re-created carrying the conjunct (it then goes stale and the gate demands the deletion).
 - Nothing is allowlisted for plan rows on dev: 0531 seeds all 25 keys × 4 plans (100 rows), and the
   guard's DB-key check proves the FE registry and `org_features_feature_key_check` are the same 25.
-- Nothing is allowlisted for the enforcement rule: `0534_feature_enforcement.sql` is not on dev, so the
-  rule is inert; its fixtures prove it reddens the moment a later migration drops a gate.
 
 ### S6.4 — Verify (exact commands; no heavy jobs)
 
@@ -485,9 +496,11 @@ guard + self-test), then `scripts/with-test-lock.sh npm run typecheck` and
 `npx eslint --max-warnings=0` on touched JS/TS. Script tests: `node --test scripts/check-module-completeness.test.mjs`.
 The e2e is **not run** here; the coordinator runs it after S3/S4 merge in the serial lane
 (`scripts/e2e-local.sh --project=serial --workers=1 e2e/serial/AC-PLN-015-switch-off-journey.spec.ts`).
-Its two nav/URL arms run in the ordinary lane; the served-lane-only assistant arm carries an explicit,
-justified skip entry in `scripts/check-e2e-skips.mjs` (reason names the missing dependency, restore names
-how to run it), so a lane without `SUPABASE_FUNCTIONS_URL` cannot silently drop it.
+All three arms are skipped on dev: (a) and (b) are `test.fixme` until S3 wires the `/stock` route and
+Rail gates, and (c) needs the served-functions lane plus the agent-assistant flag. The skip carries ONE
+justified entry in `scripts/check-e2e-skips.mjs` whose `reason` names the missing dependencies and whose
+`restore` names S3 (`feat/plans-s3-console`); restoring the arms makes the entry stale and fails the
+skip gate, so it cannot outlive its reason.
 
 ### S6.5 — Open questions and the defaults taken
 
@@ -499,12 +512,24 @@ how to run it), so a lane without `SUPABASE_FUNCTIONS_URL` cannot silently drop 
    entry (the brief's literal rule) and allowlist the 16 keys with no surface, rather than weakening the
    rule to "keys that gate a route". When a module ships, its allowlist line disappears and the gate
    demands the tool.
-3. **S2's enforcement file is optional at build time.** Default: the recreation rule is inert until
-   `0534_feature_enforcement.sql` exists (S6 may merge first); its fixtures prove the rule, and it
-   activates the moment S2 merges — no allowlist needed then.
+3. **The enforcement baseline is what exists today, not what S2 will add.** Default: the rule reads
+   **every** `*_enforcement.sql`, so it covers 0081's live gated-table list now and layers S2's 0534 on
+   top when it merges. Consequence, recorded honestly: the write policies 0099/0100/0129/0203 re-created
+   after 0081 are visible as gaps and carry 24 `enforcement:` allowlist ids. S6 adds no migration, so
+   re-creating them belongs to a later slice; each id goes stale (and must be deleted) the moment its
+   policy is re-created with the conjunct.
 4. **E2E lane path.** Brief says `pmo-portal/e2e/…`; the isolation guard requires a `serial`-tagged spec in
    `e2e/serial/`. Default: `e2e/serial/AC-PLN-015-switch-off-journey.spec.ts` (the conventions are binding);
    the plan's ownership table row is updated to match.
+5. **A route gated on the *wrong* (but registered) key is not a failure.** FR-PLN-015's letter is "carries a
+   registered key"; deciding that `/stock/cycle-count` belongs to `stock` and not `crm` needs a path→module
+   catalogue that does not exist yet (it is S3's route table). The guard checks the same class of thing where
+   it *is* derivable — a palette entry drifting from its gated Rail twin. When S3 lands its route table, the
+   table itself is the catalogue and this becomes checkable; do not hand-list paths here in the meantime.
+6. **D13's draft-and-confirm half is not mechanised.** D13 also asks for a draft-confirm write tool where the
+   screen writes; the gate enforces one read path per key only. "This screen writes" is not derivable from the
+   route/registry sources (a page's mutations are not declared), so a rule here would need a per-module
+   declaration that does not exist. Recorded as a narrowed scope, not a regression: FR-PLN-015 is read-only.
 
 ## Planned AC ownership (later slices finalize exact paths)
 
