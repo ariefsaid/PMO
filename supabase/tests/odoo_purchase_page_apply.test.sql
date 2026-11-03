@@ -3,7 +3,7 @@
 -- AC-OPP-073 DB half (the census tombstones what Odoo no longer returns and clears it when it returns), AC-OPP-072
 -- (an Odoo-native document is stored once at its newest figures; an anchored orphan is proposed, never created).
 begin;
-select plan(44);
+select plan(62);
 
 insert into organizations (id, name) values
  ('a5070000-0000-0000-0000-000000000001','Apply A'),
@@ -35,6 +35,7 @@ insert into procurement_invoices (id, org_id, procurement_id, status, amount, cu
  ('a5070000-0000-0000-0000-0000000000e5','a5070000-0000-0000-0000-000000000001','a5070000-0000-0000-0000-0000000000f1','Received',50,'IDR','inclusive',0),
  ('a5070000-0000-0000-0000-0000000000e6','a5070000-0000-0000-0000-000000000001','a5070000-0000-0000-0000-0000000000f1','Received',60,'IDR','inclusive',0),
  ('a5070000-0000-0000-0000-0000000000e7','a5070000-0000-0000-0000-000000000001','a5070000-0000-0000-0000-0000000000f1','Received',70,'IDR','inclusive',0),
+ ('a5070000-0000-0000-0000-0000000000e9','a5070000-0000-0000-0000-000000000001','a5070000-0000-0000-0000-0000000000f1','Received',80,'IDR','inclusive',0),
  ('a5070000-0000-0000-0000-0000000000b3','a5070000-0000-0000-0000-000000000002','a5070000-0000-0000-0000-0000000000f2','Received',100,'IDR','inclusive',0);
 insert into payments (id, org_id, procurement_id, status, amount, currency) values
  ('a5070000-0000-0000-0000-0000000000e4','a5070000-0000-0000-0000-000000000001','a5070000-0000-0000-0000-0000000000f1','Scheduled',10,'IDR');
@@ -46,6 +47,7 @@ insert into external_refs (org_id, domain, pmo_record_id, external_tier, externa
  ('a5070000-0000-0000-0000-000000000001','procurement','a5070000-0000-0000-0000-0000000000e5','odoo','account.move:8', now() - interval '1 day'),
  ('a5070000-0000-0000-0000-000000000002','procurement','a5070000-0000-0000-0000-0000000000b1','odoo','purchase.order:7', now() - interval '1 day'),
  ('a5070000-0000-0000-0000-000000000002','procurement','a5070000-0000-0000-0000-0000000000b3','odoo','account.move:7', now() - interval '1 day'),
+ ('a5070000-0000-0000-0000-000000000001','procurement','a5070000-0000-0000-0000-0000000000ff','odoo','account.move:63', now() - interval '1 day'),
  ('a5070000-0000-0000-0000-000000000001','companies','a5070000-0000-0000-0000-0000000000c9','odoo','Vendor:41', now());
 
 set local role service_role;
@@ -163,7 +165,73 @@ select is((select erp_attention from erp_purchase_documents where external_ref='
   'AC-OPP-072 an unmapped vendor and project are stored with a needs-attention reason, not dropped');
 select is((select count(*) from erp_purchase_documents where external_ref='account.move:23' and org_id='a5070000-0000-0000-0000-000000000001'), 0::bigint, 'AC-OPP-072 a draft native document is not listed');
 select is((select pmo_owned from erp_purchase_documents where external_ref='account.move:7' and org_id='a5070000-0000-0000-0000-000000000001'), true, 'AC-OPP-072 a document PMO pushed is flagged as PMO''s, so the case counts it once');
-select is((select count(*) from procurement_invoices where org_id='a5070000-0000-0000-0000-000000000001'), 4::bigint, 'AC-OPP-072 the feed never creates a PMO bill');
+select is((select count(*) from procurement_invoices where org_id='a5070000-0000-0000-0000-000000000001'), 5::bigint, 'AC-OPP-072 the feed never creates a PMO bill');
+
+
+-- Org B holds the SAME native bill (same ref, same name); org A's later census and pages must never touch it, and A's mappings never reach it.
+set local role service_role;
+set local request.jwt.claims = '{"role":"service_role"}';
+select public.apply_odoo_purchase_page('a5070000-0000-0000-0000-000000000002','bill', $$[
+  {"external_id":"21","name":"BILL/2026/0021","active":true,"source_write_date":"2026-11-01 10:00:00",
+   "attrs":{"state":"posted","status":"Received","docstatus":1,"partner":"41","partner_name":"Vendor V","currency":"IDR","analytic_ids":["88"],"amount_total":"7.00","residual":"7.00"}}]$$::jsonb, 'b-1');
+reset role;
+select results_eq($$select pmo_owned, project_ids, erp_attention from erp_purchase_documents where org_id='a5070000-0000-0000-0000-000000000002' and external_ref='account.move:21'$$,
+  $$values (false, '{}'::uuid[], 'vendor-unmapped,project-unmapped'::text)$$, 'AC-OPP-070 org A''s vendor and project mappings never reach org B''s identical document');
+
+-- never older over newer: a native document, an order
+set local role service_role;
+set local request.jwt.claims = '{"role":"service_role"}';
+select public.apply_odoo_purchase_page('a5070000-0000-0000-0000-000000000001','bill', $$[
+  {"external_id":"21","name":"BILL/2026/0021","active":true,"source_write_date":"2026-11-01 08:00:00",
+   "attrs":{"state":"posted","status":"Received","docstatus":1,"partner":"41","currency":"IDR","amount_total":"1.00","residual":"1.00"}}]$$::jsonb, 'cur-old');
+select public.apply_odoo_purchase_page('a5070000-0000-0000-0000-000000000001','purchase-order', $$[
+  {"external_id":"7","name":"P00007","active":true,"source_write_date":"2026-11-01 08:00:00",
+   "attrs":{"state":"draft","status":"Draft","docstatus":0,"amount_total":"1.00"}}]$$::jsonb, 'po-old');
+reset role;
+select is((select grand_total from erp_purchase_documents where org_id='a5070000-0000-0000-0000-000000000001' and external_ref='account.move:21'), 300.00::numeric, 'AC-OPP-074 an older write_date never overwrites a native document');
+select is((select status from purchase_orders where id='a5070000-0000-0000-0000-0000000000e1'), 'Closed', 'AC-OPP-074 an older write_date never overwrites an order');
+
+-- a page no value of which may pin the cursor: an amount beyond the column, a negative order total, a date that is not a date, two
+-- documents with one name, a document named like another's ref, a name another row already holds
+set local role service_role;
+set local request.jwt.claims = '{"role":"service_role"}';
+select lives_ok($$select public.apply_odoo_purchase_page('a5070000-0000-0000-0000-000000000001','bill', $j$[
+  {"external_id":"71","name":"DUP","active":true,"source_write_date":"2026-11-01 10:00:00","attrs":{"state":"posted","status":"Received","docstatus":1,"partner":"41","date":"2026-02-31","amount_total":"99999999999999999.00","residual":"1.00","money":{"gross":"99999999999999999.00","vat":"0.00","withheld":"0.00","outstanding":"1.00"}}},
+  {"external_id":"72","name":"DUP","active":true,"source_write_date":"2026-11-01 10:00:00","attrs":{"state":"posted","status":"Received","docstatus":1,"partner":"41","amount_total":"5.00","residual":"5.00"}},
+  {"external_id":"73","name":"account.move:21","active":true,"source_write_date":"2026-11-01 10:00:00","attrs":{"state":"posted","status":"Received","docstatus":1,"partner":"41","amount_total":"6.00","residual":"6.00"}},
+  {"external_id":"74","name":"BILL/2026/0021","active":true,"source_write_date":"2026-11-01 10:00:00","attrs":{"state":"posted","status":"Received","docstatus":1,"partner":"41","amount_total":"8.00","residual":"8.00"}}]$j$::jsonb, 'cur-poison')$$,
+  'AC-OPP-074 no value in a page can pin the cursor (huge amount, impossible date, repeated or colliding names)');
+select is((select count(*) from erp_purchase_documents where org_id='a5070000-0000-0000-0000-000000000001' and external_ref in ('account.move:71','account.move:72','account.move:73','account.move:74')), 4::bigint, 'AC-OPP-074 every document of that page is stored once');
+select is((select erp_name from erp_purchase_documents where org_id='a5070000-0000-0000-0000-000000000001' and external_ref='account.move:74'), 'account.move:74', 'AC-OPP-074 a name another row already holds is replaced by the document''s own ref');
+select lives_ok($$select public.apply_odoo_purchase_page('a5070000-0000-0000-0000-000000000001','purchase-order', $j$[
+  {"external_id":"7","name":"P00007","active":true,"source_write_date":"2026-11-09 10:00:00","attrs":{"state":"purchase","status":"Issued","docstatus":1,"amount_total":"-5.00"}}]$j$::jsonb, 'po-neg')$$,
+  'AC-OPP-074 a negative order total does not pin the cursor');
+select is((select amount from purchase_orders where id='a5070000-0000-0000-0000-0000000000e1'), 111.00::numeric, 'AC-OPP-074 a negative order total is not written');
+-- a document set back to draft in Odoo stops counting
+select public.apply_odoo_purchase_page('a5070000-0000-0000-0000-000000000001','bill', $$[
+  {"external_id":"62","name":"BILL/2026/0062","active":true,"source_write_date":"2026-11-01 10:00:00","attrs":{"state":"posted","status":"Received","docstatus":1,"partner":"41","amount_total":"9.00","residual":"9.00"}}]$$::jsonb, 'cur-62');
+select public.apply_odoo_purchase_page('a5070000-0000-0000-0000-000000000001','bill', $$[
+  {"external_id":"62","name":"BILL/2026/0062","active":true,"source_write_date":"2026-11-02 10:00:00","attrs":{"state":"draft","status":"Received","docstatus":0,"partner":"41","amount_total":"9.00","residual":"9.00"}}]$$::jsonb, 'cur-62b');
+reset role;
+select results_eq($$select erp_docstatus, erp_attention from erp_purchase_documents where org_id='a5070000-0000-0000-0000-000000000001' and external_ref='account.move:62'$$,
+  $$values (2::smallint, 'reset-to-draft'::text)$$, 'AC-OPP-072 a native bill set back to draft stops counting');
+
+-- "PMO's own" is live: a planted anchor and a dangling link row own nothing
+set local role service_role;
+set local request.jwt.claims = '{"role":"service_role"}';
+select public.apply_odoo_purchase_page('a5070000-0000-0000-0000-000000000001','bill', $$[
+  {"external_id":"32","name":"BILL/2026/0032","active":true,"source_write_date":"2026-11-01 10:00:00",
+   "attrs":{"state":"posted","status":"Received","docstatus":1,"anchor_key":"bill:a5070000-0000-0000-0000-0000000000aa","partner":"41","currency":"IDR","amount_total":"71.00","residual":"71.00"}},
+  {"external_id":"63","name":"BILL/2026/0063","active":true,"source_write_date":"2026-11-01 10:00:00",
+   "attrs":{"state":"posted","status":"Received","docstatus":1,"partner":"41","currency":"IDR","amount_total":"72.00","residual":"72.00"}},
+  {"external_id":"61","name":"BILL/2026/0061","active":true,"source_write_date":"2026-11-01 10:00:00",
+   "attrs":{"state":"cancel","status":"Received","docstatus":2,"cancelled":true,"partner":"41","currency":"IDR","amount_total":"73.00","residual":"73.00"}}]$$::jsonb, 'cur-32');
+reset role;
+select results_eq($$select pmo_owned, adoption_key, erp_attention from erp_purchase_documents where org_id='a5070000-0000-0000-0000-000000000001' and external_ref='account.move:32'$$,
+  $$values (false, null::text, 'anchor-unresolved'::text)$$, 'AC-OPP-072 an anchor that names no PMO record owns nothing');
+select is((select pmo_owned from erp_purchase_documents where org_id='a5070000-0000-0000-0000-000000000001' and external_ref='account.move:63'), false, 'AC-OPP-072 a link row whose PMO record is gone owns nothing');
+select is(public.erp_document_recorded_by_pmo('a5070000-0000-0000-0000-000000000001','Purchase Invoice','BILL/2026/0032'), false, 'AC-OPP-072 link-existing stays open for a planted anchor');
+select is(public.erp_document_recorded_by_pmo('a5070000-0000-0000-0000-000000000001','Purchase Invoice','BILL/2026/0063'), false, 'AC-OPP-072 link-existing stays open for a dangling link row');
 
 -- an anchored orphan (the anchor names a PMO bill, no link row): proposed for adoption, never created
 set local role service_role;
@@ -177,7 +245,7 @@ select results_eq($$select adoption_key, pmo_owned from erp_purchase_documents w
 select is(public.erp_document_recorded_by_pmo('a5070000-0000-0000-0000-000000000001','Purchase Invoice','BILL/2026/0031'), true, 'AC-OPP-072 link-existing refuses the anchored orphan (the recorded-by-PMO rule)');
 select is(public.erp_document_recorded_by_pmo('a5070000-0000-0000-0000-000000000001','Purchase Invoice','BILL/2026/0007'), true, 'AC-OPP-072 link-existing refuses a bill PMO pushed (a case counts it once)');
 select is(public.erp_document_recorded_by_pmo('a5070000-0000-0000-0000-000000000001','Purchase Invoice','BILL/2026/0021'), false, 'AC-OPP-072 an Odoo-native bill stays linkable');
-select is((select count(*) from procurement_invoices where org_id='a5070000-0000-0000-0000-000000000001'), 4::bigint, 'AC-OPP-072 the orphan created no PMO bill');
+select is((select count(*) from procurement_invoices where org_id='a5070000-0000-0000-0000-000000000001'), 5::bigint, 'AC-OPP-072 the orphan created no PMO bill');
 -- once the link row exists the proposal clears
 insert into external_refs (org_id, domain, pmo_record_id, external_tier, external_record_id) values
  ('a5070000-0000-0000-0000-000000000001','procurement','a5070000-0000-0000-0000-0000000000e7','odoo','account.move:31');
@@ -232,42 +300,61 @@ select throws_ok($$select public.apply_odoo_purchase_page('a5070000-0000-0000-00
 reset role;
 
 -- AC-OPP-073 the census: ids Odoo still returns are marked; the rest are tombstoned at finish; a returning id clears it.
--- Org A holds linked bills 7 and 8 and native bills 21, 22, 31 and 41; the census sees 7 and 21.
+-- Org A holds linked bills 7 and 8 and many native bills; the census sees all but 8 (linked), 22, 31, 41 and 61 (a cancelled native).
 create temp table runs as select now() + interval '10 minutes' as r1, now() + interval '20 minutes' as r2, now() + interval '30 minutes' as r3;
 grant select on runs to public;
 update external_refs set created_at = now() - interval '1 day' where org_id='a5070000-0000-0000-0000-000000000001';
-update erp_purchase_documents set updated_at = now() - interval '1 day' where org_id='a5070000-0000-0000-0000-000000000001';
+update erp_purchase_documents set updated_at = now() - interval '1 day' where org_id in ('a5070000-0000-0000-0000-000000000001','a5070000-0000-0000-0000-000000000002');
 set local role service_role;
 set local request.jwt.claims = '{"role":"service_role"}';
-select public.mark_odoo_purchase_census_seen('a5070000-0000-0000-0000-000000000001','bill', (select r1 from runs), array['7','21']);
-select is(public.finish_odoo_purchase_census('a5070000-0000-0000-0000-000000000001','bill', (select r1 from runs), 'cen-1'), 4,
-  'AC-OPP-073 the census finish tombstones what the census did not see (linked bill 8; native 22, 31, 41; and nothing else)');
+select public.mark_odoo_purchase_census_seen('a5070000-0000-0000-0000-000000000001','bill', (select r1 from runs), array['7','21','32','71','72','73','74','62','63']);
+select is(public.finish_odoo_purchase_census('a5070000-0000-0000-0000-000000000001','bill', (select r1 from runs), 'cen-1'), 5,
+  'AC-OPP-073 the census finish tombstones what the census did not see (linked bill 8; native 22, 31, 41, 61)');
 reset role;
-select results_eq($$select erp_docstatus, erp_state, erp_cancelled_at is not null from procurement_invoices where id='a5070000-0000-0000-0000-0000000000e5'$$,
-  $$values (2::smallint, 'deleted'::text, true)$$, 'AC-OPP-073 a PMO bill Odoo no longer returns is tombstoned, so it stops counting');
+select results_eq($$select erp_docstatus, erp_attention, erp_cancelled_at is not null from procurement_invoices where id='a5070000-0000-0000-0000-0000000000e5'$$,
+  $$values (2::smallint, 'deleted-in-erp:1'::text, true)$$, 'AC-OPP-073 a PMO bill Odoo no longer returns is tombstoned, so it stops counting');
+select is((select erp_attention from erp_purchase_documents where org_id='a5070000-0000-0000-0000-000000000001' and external_ref='account.move:61'), 'deleted-in-erp:2', 'AC-OPP-073 the tombstone remembers the docstatus the document had');
 select results_eq($$select erp_docstatus, erp_state from procurement_invoices where id='a5070000-0000-0000-0000-0000000000e3'$$,
   $$values (1::smallint, 'posted'::text)$$, 'AC-OPP-073 a bill the census saw is untouched');
 select is((select erp_docstatus from erp_purchase_documents where external_ref='account.move:22' and org_id='a5070000-0000-0000-0000-000000000001'), 2::smallint, 'AC-OPP-073 a native bill Odoo no longer returns is tombstoned');
 select is((select erp_docstatus from erp_purchase_documents where external_ref='account.move:21' and org_id='a5070000-0000-0000-0000-000000000001'), 1::smallint, 'AC-OPP-073 a native bill the census saw is untouched');
 select is((select watermark_cursor from external_sync_watermarks where org_id='a5070000-0000-0000-0000-000000000001' and domain='purchase:bill'), 'cen-1', 'AC-OPP-073 the census finish writes the cursor');
 select is((select erp_docstatus from procurement_invoices where id='a5070000-0000-0000-0000-0000000000b3'), null, 'AC-OPP-073 org B''s bill with the same Odoo id is untouched');
-select is((select count(*) from purchase_orders where org_id='a5070000-0000-0000-0000-000000000001' and erp_state = 'deleted'), 0::bigint, 'AC-OPP-073 a census of bills touches no order');
+select is((select count(*) from purchase_orders where org_id='a5070000-0000-0000-0000-000000000001' and starts_with(coalesce(erp_attention,''), 'deleted-in-erp:')), 0::bigint, 'AC-OPP-073 a census of bills touches no order');
+select results_eq($$select erp_docstatus, erp_attention, erp_census_seen_at is null from erp_purchase_documents where org_id='a5070000-0000-0000-0000-000000000002' and external_ref='account.move:21'$$,
+  $$values (1::smallint, 'vendor-unmapped,project-unmapped'::text, true)$$, 'AC-OPP-070 org A''s census neither marks nor tombstones org B''s document of the same ref and name');
 -- a returning id clears the tombstone
 set local role service_role;
 set local request.jwt.claims = '{"role":"service_role"}';
-select public.mark_odoo_purchase_census_seen('a5070000-0000-0000-0000-000000000001','bill', (select r2 from runs), array['8','22']);
+select public.mark_odoo_purchase_census_seen('a5070000-0000-0000-0000-000000000001','bill', (select r2 from runs), array['8','22','61']);
 reset role;
-select results_eq($$select erp_docstatus, erp_state, erp_cancelled_at is null from procurement_invoices where id='a5070000-0000-0000-0000-0000000000e5'$$,
+select results_eq($$select erp_docstatus, erp_attention, erp_cancelled_at is null from procurement_invoices where id='a5070000-0000-0000-0000-0000000000e5'$$,
   $$values (1::smallint, null::text, true)$$, 'AC-OPP-073 a returning bill clears its tombstone');
+select is((select erp_docstatus from erp_purchase_documents where external_ref='account.move:61' and org_id='a5070000-0000-0000-0000-000000000001'), 2::smallint, 'AC-OPP-073 a returning cancelled bill is restored to cancelled, never to live money');
 select is((select erp_docstatus from erp_purchase_documents where external_ref='account.move:22' and org_id='a5070000-0000-0000-0000-000000000001'), 1::smallint, 'AC-OPP-073 a returning native bill counts again');
 -- a document linked after the run began is never tombstoned by it
 insert into external_refs (org_id, domain, pmo_record_id, external_tier, external_record_id, created_at) values
  ('a5070000-0000-0000-0000-000000000001','procurement','a5070000-0000-0000-0000-0000000000e6','odoo','account.move:99', now() + interval '1 hour');
 set local role service_role;
 set local request.jwt.claims = '{"role":"service_role"}';
+select public.mark_odoo_purchase_census_seen('a5070000-0000-0000-0000-000000000001','bill', (select r3 from runs), array['7','8','21','22','31','32','41','71','72','73','74','61','62','63']);
 select public.finish_odoo_purchase_census('a5070000-0000-0000-0000-000000000001','bill', (select r3 from runs), 'cen-2');
 reset role;
-select is((select erp_state from procurement_invoices where id='a5070000-0000-0000-0000-0000000000e6'), null, 'AC-OPP-073 a link made after the run began is never tombstoned by it');
+select is((select erp_attention from procurement_invoices where id='a5070000-0000-0000-0000-0000000000e6'), null, 'AC-OPP-073 a link made after the run began is never tombstoned by it');
+
+-- a census that would erase most of a sizeable set raises and changes nothing (a narrowed integration user answers with fewer ids and no error)
+insert into procurement_invoices (id, org_id, procurement_id, status, amount, currency, tax_treatment, tax_amount)
+  select ('a5070000-0000-0000-0000-00000000' || lpad((1000 + g)::text, 4, '0'))::uuid, 'a5070000-0000-0000-0000-000000000002', 'a5070000-0000-0000-0000-0000000000f2', 'Received', 1, 'IDR', 'inclusive', 0
+    from generate_series(1, 12) g;
+insert into external_refs (org_id, domain, pmo_record_id, external_tier, external_record_id, created_at)
+  select 'a5070000-0000-0000-0000-000000000002', 'procurement', ('a5070000-0000-0000-0000-00000000' || lpad((1000 + g)::text, 4, '0')), 'odoo', 'account.move:' || (500 + g), now() - interval '1 day'
+    from generate_series(1, 12) g;
+set local role service_role;
+set local request.jwt.claims = '{"role":"service_role"}';
+select throws_ok($$select public.finish_odoo_purchase_census('a5070000-0000-0000-0000-000000000002','bill', (select r3 from runs), 'cen-B')$$,
+  'P0001', 'census saw implausibly few documents', 'AC-OPP-073 a census that would tombstone most of a sizeable set raises');
+reset role;
+select is((select count(*) from procurement_invoices where org_id='a5070000-0000-0000-0000-000000000002' and erp_docstatus is not null), 0::bigint, 'AC-OPP-073 the refused census changed nothing');
 
 select * from finish();
 rollback;

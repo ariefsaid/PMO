@@ -33,11 +33,12 @@ alter table public.erp_purchase_documents
 create unique index erp_purchase_documents_external_ref_idx on public.erp_purchase_documents (org_id, external_ref) where external_ref is not null;
 
 -- Invoker, not definer: it reads nothing, and the caller's role decides. `role` is the session role PostgREST sets, so a definer
--- RPC called on a user's behalf is still refused; a migration or the owner (no PostgREST role) is not.
+-- RPC called on a user's behalf is still refused. Allow-list: the service role, the owner roles and a session with no role set
+-- (migrations); any other role, including one added later, is refused.
 create or replace function public.odoo_mirror_columns_guard() returns trigger
   language plpgsql set search_path = public as $$
 begin
-  if coalesce(current_setting('role', true), '') not in ('authenticated', 'anon') then
+  if coalesce(current_setting('role', true), '') in ('', 'none', 'postgres', 'supabase_admin', 'service_role') then
     return new;
   end if;
   if tg_op = 'INSERT' then

@@ -27,7 +27,7 @@ const binding = (over: Record<string, unknown> = {}) => ({
   config: { database: 'db1', odoo_company_id: 1, capabilities: { observed_at: FRESH, missing: [], models: {} } }, ...over,
 });
 
-interface Opts { pmoProjects?: Array<Record<string, unknown>>; pmoCompanies?: Array<Record<string, unknown>>; run?: Record<string, unknown> | null; accepted?: boolean; runError?: boolean; binding?: Record<string, unknown>; lock?: { held: boolean }; applyError?: boolean; employed?: boolean; purchaseModels?: string[]; rejectAfter?: number; version?: number | null; prepare?: (f: FakeOdoo) => void }
+interface Opts { pmoProjects?: Array<Record<string, unknown>>; pmoCompanies?: Array<Record<string, unknown>>; run?: Record<string, unknown> | null; accepted?: boolean; runError?: boolean; binding?: Record<string, unknown>; lock?: { held: boolean }; applyError?: boolean; employed?: boolean; failPurchaseDomain?: string; purchaseModels?: string[]; rejectAfter?: number; version?: number | null; prepare?: (f: FakeOdoo) => void }
 
 function harness(o: Opts = {}) {
   const fake = createFakeOdoo({ key: KEY });
@@ -57,7 +57,7 @@ function harness(o: Opts = {}) {
     }),
     // FR-OPP-080: purchase documents are mirrored only for an org that employed procurement under Odoo.
     supabaseSelect('external_domain_ownership', () => jsonResponse(o.employed ? [{ id: 'own-1' }] : [])),
-    supabaseRpc('apply_odoo_purchase_page', (c) => { const b = c.bodyJson as { p_domain: string; p_cursor: string; p_rows: unknown[] }; cursors.set(`purchase:${b.p_domain}`, b.p_cursor); return jsonResponse(b.p_rows.length); }),
+    supabaseRpc('apply_odoo_purchase_page', (c) => { const b = c.bodyJson as { p_domain: string; p_cursor: string; p_rows: unknown[] }; if (b.p_domain === o.failPurchaseDomain) return jsonResponse({ code: '22023', message: 'x' }, { status: 400 }); cursors.set(`purchase:${b.p_domain}`, b.p_cursor); return jsonResponse(b.p_rows.length); }),
     supabaseRpc('mark_odoo_purchase_census_seen', () => jsonResponse(null)),
     supabaseRpc('finish_odoo_purchase_census', (c) => { const b = c.bodyJson as { p_domain: string; p_cursor: string }; cursors.set(`purchase:${b.p_domain}`, b.p_cursor); return jsonResponse(null); }),
     supabaseRpc('mark_odoo_census_seen', () => jsonResponse(null)),
@@ -349,5 +349,16 @@ describe('odooSweep — #1505 P7 purchase passes (FR-OPP-080)', () => {
   it('a small tick still reaches the purchase passes: the directory leaves their share of the budget', async () => {
     const r = await sweep({ employed: true, purchaseModels: ['account.move', 'purchase.order'], prepare: (f) => { seedBill(f); f.seed('res.partner', Array.from({ length: 50 }, (_, i) => ({ id: i + 1, name: `P${i}`, write_date: '2026-11-01 00:00:00' }))); } }, { maxCalls: 14 });
     assert(purchasePages(r.calls).length >= 1, 'the bill pass ran although the directory had a backlog');
+  });
+
+  it('AC-OPP-074 a purchase domain the database refuses keeps its cursor and does not starve the domains after it or the tick', async () => {
+    const r = await sweep({ employed: true, purchaseModels: ['purchase.order', 'account.move'], failPurchaseDomain: 'purchase-order',
+      prepare: (f) => { seedBill(f); f.seed('purchase.order', [{ id: 1, name: 'P1', state: 'purchase', partner_id: [41, 'V'], company_id: [1, 'Main'], date_order: '2026-10-30 08:00:00', amount_total: 1, amount_untaxed: 1, write_date: '2026-11-01 10:00:00' }]); } });
+    assertEquals(purchasePages(r.calls).map((p) => p.p_domain).sort(), ['bill', 'purchase-order']);
+    assertEquals(r.cursors.get('purchase:purchase-order'), undefined);
+    assert(r.cursors.get('purchase:bill'));
+    assertEquals('ok' in r.result && r.result.failed, undefined);
+    assertEquals(stored(r.calls)?.connection.state, 'healthy');
+    assertEquals(rpcCall(r.calls, 'release_erp_sweep_lock').length, 1);
   });
 });

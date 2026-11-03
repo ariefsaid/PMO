@@ -118,7 +118,14 @@ export async function sweepOdooOrg(
       for (const [i, domain] of purchase.entries()) {
         const cap = maxCalls - RESERVE_PER_KIND * (purchase.length - 1 - i);
         const passBudget: Budget = { left: () => calls < cap && left(), spend: () => calls < cap && budget.spend() };
-        skippedRows += (await runPurchasePass(sc, orgId, domain, call, r.companyId!, passBudget)).skipped;
+        try {
+          skippedRows += (await runPurchasePass(sc, orgId, domain, call, r.companyId!, passBudget)).skipped;
+        } catch (err) {
+          // One domain the database refuses (its cursor stays, so it is retried) must not starve the domains after it, the setup
+          // run's step or the probe record. Odoo's own errors still end the tick through the catch below.
+          if (err instanceof OdooError) throw err;
+          console.error(`odoo purchase pass ${domain} failed`);
+        }
       }
       await runAfterSweep();
       // Daily re-discovery (FR-ODC-021) runs outside the sweep's call budget; it is ~60 calls once a day.

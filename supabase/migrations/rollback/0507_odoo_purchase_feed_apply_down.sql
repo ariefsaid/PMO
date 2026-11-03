@@ -3,6 +3,7 @@ drop function if exists public.finish_odoo_purchase_census(uuid, text, timestamp
 drop function if exists public.mark_odoo_purchase_census_seen(uuid, text, timestamptz, text[]);
 drop function if exists public.apply_odoo_purchase_page(uuid, text, jsonb, text);
 drop function if exists public.odoo_purchase_page_rows(jsonb);
+drop function if exists public.odoo_safe_date(text);
 drop function if exists public.odoo_num(text);
 drop function if exists public.odoo_purchase_model(text);
 -- 0378's body, as before 0507.

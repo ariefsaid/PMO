@@ -2,7 +2,7 @@
 -- AC-OPP-070 (FR-OPP-080, 084): org A's user cannot write any purchase mirror column; a service-role page apply carrying
 -- org B's context cannot touch org A's rows; force row level security stays on every mirror table.
 begin;
-select plan(26);
+select plan(27);
 
 insert into organizations (id, name) values
  ('a5060000-0000-0000-0000-000000000001','Guard A flipped'),
@@ -51,32 +51,41 @@ select is((select count(*) from pg_class where relnamespace='public'::regnamespa
 -- A user JWT of the flipped org cannot change any mirror column (each statement is refused, the row is unchanged)
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"a5060000-0000-0000-0000-0000000000a1","role":"authenticated"}';
-select throws_ok($$update purchase_orders set erp_state = 'purchase' where id = 'a5060000-0000-0000-0000-0000000000e1'$$, '42501', null, 'AC-OPP-070 a user cannot set purchase_orders.erp_state');
-select throws_ok($$update purchase_orders set erp_attention = 'x' where id = 'a5060000-0000-0000-0000-0000000000e1'$$, '42501', null, 'AC-OPP-070 a user cannot set purchase_orders.erp_attention');
-select throws_ok($$update procurement_receipts set erp_state = 'done' where id = 'a5060000-0000-0000-0000-0000000000e2'$$, '42501', null, 'AC-OPP-070 a user cannot set procurement_receipts.erp_state');
-select throws_ok($$update procurement_invoices set erp_state = 'posted' where id = 'a5060000-0000-0000-0000-0000000000e3'$$, '42501', null, 'AC-OPP-070 a user cannot set procurement_invoices.erp_state');
-select throws_ok($$update procurement_invoices set erp_read_at = now() where id = 'a5060000-0000-0000-0000-0000000000e3'$$, '42501', null, 'AC-OPP-070 a user cannot set procurement_invoices.erp_read_at');
-select throws_ok($$update payments set erp_census_seen_at = now() where id = 'a5060000-0000-0000-0000-0000000000e4'$$, '42501', null, 'AC-OPP-070 a user cannot set payments.erp_census_seen_at');
-select throws_ok($$update payments set erp_state = 'posted' where id = 'a5060000-0000-0000-0000-0000000000e4'$$, '42501', null, 'AC-OPP-070 a user cannot set payments.erp_state');
+select throws_ok($$update purchase_orders set erp_state = 'purchase' where id = 'a5060000-0000-0000-0000-0000000000e1'$$, '42501', 'purchase_orders Odoo mirror columns are machine-written', 'AC-OPP-070 a user cannot set purchase_orders.erp_state');
+select throws_ok($$update purchase_orders set erp_attention = 'x' where id = 'a5060000-0000-0000-0000-0000000000e1'$$, '42501', 'purchase_orders Odoo mirror columns are machine-written', 'AC-OPP-070 a user cannot set purchase_orders.erp_attention');
+select throws_ok($$update procurement_receipts set erp_state = 'done' where id = 'a5060000-0000-0000-0000-0000000000e2'$$, '42501', 'procurement_receipts Odoo mirror columns are machine-written', 'AC-OPP-070 a user cannot set procurement_receipts.erp_state');
+select throws_ok($$update procurement_invoices set erp_state = 'posted' where id = 'a5060000-0000-0000-0000-0000000000e3'$$, '42501', 'procurement_invoices Odoo mirror columns are machine-written', 'AC-OPP-070 a user cannot set procurement_invoices.erp_state');
+select throws_ok($$update procurement_invoices set erp_read_at = now() where id = 'a5060000-0000-0000-0000-0000000000e3'$$, '42501', 'procurement_invoices Odoo mirror columns are machine-written', 'AC-OPP-070 a user cannot set procurement_invoices.erp_read_at');
+select throws_ok($$update payments set erp_census_seen_at = now() where id = 'a5060000-0000-0000-0000-0000000000e4'$$, '42501', 'payments Odoo mirror columns are machine-written', 'AC-OPP-070 a user cannot set payments.erp_census_seen_at');
+select throws_ok($$update payments set erp_state = 'posted' where id = 'a5060000-0000-0000-0000-0000000000e4'$$, '42501', 'payments Odoo mirror columns are machine-written', 'AC-OPP-070 a user cannot set payments.erp_state');
 -- INSERT: org C is not flipped, so no RLS policy refuses these; only the guard stops a user stating a mirror column.
 reset role;
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"a5060000-0000-0000-0000-0000000000c1","role":"authenticated"}';
 select throws_ok($$insert into procurement_invoices (org_id, procurement_id, status, amount, currency, tax_treatment, tax_amount, erp_state)
   values ('a5060000-0000-0000-0000-000000000003','a5060000-0000-0000-0000-0000000000f3','Received',1,'IDR','inclusive',0,'posted')$$,
-  '42501', null, 'AC-OPP-070 a user cannot insert a bill that states a mirror column');
+  '42501', 'procurement_invoices Odoo mirror columns are machine-written', 'AC-OPP-070 a user cannot insert a bill that states a mirror column');
 select throws_ok($$insert into procurement_invoices (org_id, procurement_id, status, amount, currency, tax_treatment, tax_amount, erp_attention)
   values ('a5060000-0000-0000-0000-000000000003','a5060000-0000-0000-0000-0000000000f3','Received',1,'IDR','inclusive',0,'x')$$,
-  '42501', null, 'AC-OPP-070 a user cannot insert a bill that states a mirror attention reason');
+  '42501', 'procurement_invoices Odoo mirror columns are machine-written', 'AC-OPP-070 a user cannot insert a bill that states a mirror attention reason');
 select throws_ok($$insert into procurement_receipts (org_id, procurement_id, status, erp_state)
   values ('a5060000-0000-0000-0000-000000000003','a5060000-0000-0000-0000-0000000000f3','Partial','done')$$,
-  '42501', null, 'AC-OPP-070 a user cannot insert a receipt that states a mirror column');
+  '42501', 'procurement_receipts Odoo mirror columns are machine-written', 'AC-OPP-070 a user cannot insert a receipt that states a mirror column');
 select lives_ok($$insert into procurement_invoices (org_id, procurement_id, status, amount, currency, tax_treatment, tax_amount)
   values ('a5060000-0000-0000-0000-000000000003','a5060000-0000-0000-0000-0000000000f3','Received',1,'IDR','inclusive',0)$$,
   'AC-OPP-070 an ordinary native bill insert is unaffected');
 select lives_ok($$insert into procurement_receipts (org_id, procurement_id, status)
   values ('a5060000-0000-0000-0000-000000000003','a5060000-0000-0000-0000-0000000000f3','Partial')$$,
   'AC-OPP-070 an ordinary native receipt insert is unaffected');
+reset role;
+
+-- A SECURITY DEFINER function a user calls on their own behalf is the same user: the guard follows the session role, not the owner.
+create function public.a506_definer_write() returns void language sql security definer set search_path = public as
+  $$update public.purchase_orders set erp_state = 'x' where id = 'a5060000-0000-0000-0000-0000000000e1'$$;
+grant execute on function public.a506_definer_write() to authenticated;
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"a5060000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select throws_ok($$select public.a506_definer_write()$$, '42501', 'purchase_orders Odoo mirror columns are machine-written', 'AC-OPP-070 a definer function a user calls cannot write a mirror column either');
 reset role;
 
 -- the rows are unchanged
