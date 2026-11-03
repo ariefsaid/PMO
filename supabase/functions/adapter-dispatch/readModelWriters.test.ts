@@ -5,6 +5,7 @@
 
 import { READ_MODEL_WRITERS, getReadModelWriter, upsertProcurementItemMirror } from './readModelWriters.ts';
 import { resolveExternalRef, findPmoRecordId } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
+import { budgetLegacyIdentity } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/budgetAccountIdentity.ts';
 
 function assertEquals<T>(actual: T, expected: T, msg?: string): void {
   const a = JSON.stringify(actual);
@@ -65,7 +66,19 @@ function makeFakeClient(rows: Record<string, unknown> = {}) {
               calls.push({ table, method: 'update.eq', args: [column, value] });
               return updateChain;
             },
-            then: (resolve: (v: { error: null }) => void) => resolve({ error: null }),
+            in(column: string, values: string[]) {
+              calls.push({ table, method: 'update.in', args: [column, values] });
+              return updateChain;
+            },
+            is(column: string, value: unknown) {
+              calls.push({ table, method: 'update.is', args: [column, value] });
+              return updateChain;
+            },
+            select(columns: string) {
+              calls.push({ table, method: 'update.select', args: [columns] });
+              return { data: (rows[`${table}#updated`] ?? [{ id: 'updated' }]) as unknown[], error: null };
+            },
+            then: (resolve: (v: { data: null; error: null }) => void) => resolve({ data: null, error: null }),
           };
           return updateChain;
         },
@@ -734,4 +747,219 @@ Deno.test('AC-WHT-003 outbound receipt mirror preserves ERP cash and withholding
   assertEquals(row.received_amount, '980.00');
   assertEquals(row.withheld_amount, '20.00');
   assertEquals(row.withholding_slip_number, 'WHT-001');
+});
+
+// ── #1462 — the LEGACY archive finalizer. ─────────────────────────────────────────────────────────
+const LEGACY_IDENTITY = budgetLegacyIdentity('11111111-1111-4111-8111-111111111111', '2026');
+const LEGACY_JOB_ID = '22222222-2222-4222-8222-222222222222';
+const LEGACY_SOURCE_ID = '33333333-3333-4333-8333-333333333333';
+const LEGACY_COMMAND = {
+  domain: 'budget' as const,
+  operation: 'create' as const,
+  record: {
+    id: '11111111-1111-4111-8111-111111111111',
+    erp_doc_kind: 'budget',
+    source_kind: 'legacy',
+    budget_intent: 'remove',
+    budget_archive_cancel_job_id: LEGACY_JOB_ID,
+    budget_archive_source_mirror_id: LEGACY_SOURCE_ID,
+    fiscal_year: '2026',
+    outbox_identity: LEGACY_IDENTITY,
+    project_start_date: '2026-01-01',
+    project_end_date: '2026-12-31',
+    activated_at: '2026-10-15T10:00:00.000Z',
+  },
+};
+const LEGACY_CANONICAL = {
+  id: '11111111-1111-4111-8111-111111111111',
+  erp_budget_name: 'BUD-LEGACY-FINAL',
+  erp_docstatus: 2,
+  fiscal_year: '2026',
+};
+
+Deno.test({
+  name: 'AC-BUD-122 a legacy archive cancellation tombstones the OLD mirror row by exact name CAS',
+  fn: async () => {
+    const { client, calls } = makeFakeClient();
+    await getReadModelWriter('budget').upsert(
+      { serviceClient: client as never, orgId: 'org-1' },
+      LEGACY_CANONICAL,
+      LEGACY_COMMAND,
+    );
+
+    const update = calls.find((c) => c.method === 'update' && c.table === 'budget_version_erp_mirror');
+    assert(update !== undefined, 'the legacy finalizer must update the year-grained mirror');
+    const patch = update!.args[0] as Record<string, unknown>;
+    assertEquals(patch.erp_docstatus, 2);
+    assert(typeof patch.erp_cancelled_at === 'string', 'the mirror keeps a durable cancellation tombstone');
+    assertEquals(patch.erp_budget_name, 'BUD-LEGACY-FINAL');
+    // The CAS: only the row that still names this exact document and is not already cancelled.
+    assertEquals(
+      calls.filter((c) => c.method === 'update.eq').map((c) => c.args),
+      [
+        ['org_id', 'org-1'],
+        ['id', LEGACY_SOURCE_ID],
+        ['budget_version_id', '11111111-1111-4111-8111-111111111111'],
+        ['fiscal_year', '2026'],
+        ['erp_budget_name', 'BUD-LEGACY-FINAL'],
+        ['activated_at_witness', '2026-10-15T10:00:00.000Z'],
+        ['pushed_project_start_date', '2026-01-01'],
+        ['pushed_project_end_date', '2026-12-31'],
+      ],
+    );
+    assertEquals(
+      calls.filter((c) => c.method === 'update.in').map((c) => c.args),
+      [['push_state', ['pending', 'failed']]],
+      'the source row must still be in an archive queue state',
+    );
+    assertEquals(
+      calls.some((c) => c.method === 'update.is' && c.args[0] === 'erp_cancelled_at' && c.args[1] === null),
+      true,
+      'the tombstone CAS must only match an un-cancelled row',
+    );
+    assert(
+      !calls.some((c) => c.table === 'budget_version_account_erp_mirror'),
+      'a legacy cancellation must never be written as an account-grained mirror',
+    );
+  },
+});
+
+Deno.test({
+  name: 'AC-BUD-122 a legacy mirror with no end-date witness uses an IS NULL compare-and-set',
+  fn: async () => {
+    const { client, calls } = makeFakeClient();
+    const noEndDate = {
+      ...LEGACY_COMMAND,
+      record: { ...LEGACY_COMMAND.record, project_end_date: null },
+    };
+
+    await getReadModelWriter('budget').upsert(
+      { serviceClient: client as never, orgId: 'org-1' },
+      LEGACY_CANONICAL,
+      noEndDate,
+    );
+
+    assert(
+      calls.some((call) => call.method === 'update.is' && call.args[0] === 'pushed_project_end_date' && call.args[1] === null),
+      'a null end-date witness must be matched with IS NULL in the mirror CAS',
+    );
+    assert(
+      !calls.some((call) => call.method === 'update.eq' && call.args[0] === 'pushed_project_end_date'),
+      'a nullable date must never be compared with equality to null',
+    );
+  },
+});
+
+Deno.test({
+  name: 'AC-BUD-122 a legacy cancellation is final only after confirmed docstatus 2',
+  fn: async () => {
+    const { client, calls } = makeFakeClient();
+    let threw = false;
+    try {
+      await getReadModelWriter('budget').upsert(
+        { serviceClient: client as never, orgId: 'org-1' },
+        { ...LEGACY_CANONICAL, erp_docstatus: 1 },
+        LEGACY_COMMAND,
+      );
+    } catch {
+      threw = true;
+    }
+    assert(threw, 'an unconfirmed cancellation must never tombstone the mirror');
+    assert(!calls.some((c) => c.method === 'update'), 'no write may happen before the cancellation is proven');
+  },
+});
+
+Deno.test({
+  name: 'AC-BUD-122 a replay over an existing legacy tombstone writes nothing (never resurrects it)',
+  fn: async () => {
+    const { client, calls } = makeFakeClient({
+      'budget_version_erp_mirror#updated': [],
+      budget_version_erp_mirror: {
+        id: LEGACY_SOURCE_ID, erp_budget_name: 'BUD-LEGACY-FINAL', erp_docstatus: 2,
+        erp_cancelled_at: '2026-10-20T00:00:00.000Z', activated_at_witness: '2026-10-15T10:00:00.000Z',
+        pushed_project_start_date: '2026-01-01', pushed_project_end_date: '2026-12-31',
+      },
+    });
+    await getReadModelWriter('budget').upsert(
+      { serviceClient: client as never, orgId: 'org-1' },
+      LEGACY_CANONICAL,
+      LEGACY_COMMAND,
+    );
+    assert(
+      !calls.some((c) => c.method === 'upsert'),
+      'a converged replay must not overwrite the tombstone',
+    );
+  },
+});
+
+Deno.test({
+  name: 'AC-BUD-122 a verified cancellation can finalize a stale legacy mirror status',
+  fn: async () => {
+    for (const staleStatus of [null, 0, 1, 2, 3]) {
+      const { client, calls } = makeFakeClient({
+        budget_version_erp_mirror: {
+          id: LEGACY_SOURCE_ID, erp_budget_name: 'BUD-LEGACY-FINAL', erp_docstatus: staleStatus,
+          erp_cancelled_at: null, activated_at_witness: '2026-10-15T10:00:00.000Z',
+          pushed_project_start_date: '2026-01-01', pushed_project_end_date: '2026-12-31',
+        },
+      });
+      await getReadModelWriter('budget').upsert(
+        { serviceClient: client as never, orgId: 'org-1' },
+        LEGACY_CANONICAL,
+        LEGACY_COMMAND,
+      );
+
+      assert(
+        !calls.some((c) => c.method === 'update.eq' && c.args[0] === 'erp_docstatus'),
+        `the exact source CAS must trust the verified remote cancellation, not stale mirror status ${staleStatus}`,
+      );
+    }
+  },
+});
+
+Deno.test({
+  name: 'AC-BUD-122 a tombstoned legacy mirror without confirmed docstatus 2 cannot complete a replay',
+  fn: async () => {
+    const { client, calls } = makeFakeClient({
+      'budget_version_erp_mirror#updated': [],
+      budget_version_erp_mirror: {
+        id: LEGACY_SOURCE_ID, erp_budget_name: 'BUD-LEGACY-FINAL', erp_docstatus: 1,
+        erp_cancelled_at: '2026-10-20T00:00:00.000Z', activated_at_witness: '2026-10-15T10:00:00.000Z',
+        pushed_project_start_date: '2026-01-01', pushed_project_end_date: '2026-12-31',
+      },
+    });
+    let threw = false;
+    try {
+      await getReadModelWriter('budget').upsert(
+        { serviceClient: client as never, orgId: 'org-1' },
+        LEGACY_CANONICAL,
+        LEGACY_COMMAND,
+      );
+    } catch {
+      threw = true;
+    }
+    assert(threw, 'an inconsistent tombstone must not count as confirmed cancellation');
+    assert(!calls.some((c) => c.method === 'upsert'), 'a failed confirmation must not rewrite the legacy mirror');
+  },
+});
+
+Deno.test({
+  name: 'AC-BUD-122 a legacy row that no longer names the cancelled document is refused, never completed',
+  fn: async () => {
+    const { client } = makeFakeClient({
+      'budget_version_erp_mirror#updated': [],
+      budget_version_erp_mirror: { erp_budget_name: 'SOMEONE-ELSES-DOCUMENT', erp_cancelled_at: null },
+    });
+    let threw = false;
+    try {
+      await getReadModelWriter('budget').upsert(
+        { serviceClient: client as never, orgId: 'org-1' },
+        LEGACY_CANONICAL,
+        LEGACY_COMMAND,
+      );
+    } catch {
+      threw = true;
+    }
+    assert(threw, 'an unproven mirror row must keep the intent unresolved');
+  },
 });

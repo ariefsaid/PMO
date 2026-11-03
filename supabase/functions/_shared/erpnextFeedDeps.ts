@@ -173,6 +173,20 @@ export function createErpFeedDeps(serviceClient: SupabaseClient, orgId: string, 
         const current = data as { budget_intent?: string; push_state?: string; erp_docstatus?: number | null } | null;
         if (current?.budget_intent === 'remove' && current.push_state === 'pushed' && current.erp_docstatus === 2) return;
       }
+      // #1462 — the LEGACY twin. An archive cancellation of an older year-grained document is OUR write,
+      // recorded by the archive finalizer as tombstone + docstatus 2 with the row still `pushed`. Without
+      // this branch the feed would treat PMO's own cancellation as a human Desk cancel and raise a false
+      // "someone cancelled this budget" alarm on every archive. A genuine Desk cancel reaches here with
+      // `erp_cancelled_at` still NULL (or after this same path set `failed`), so it stays surfaced.
+      if (kind === 'budget' && mirrorTable(kind, pmoRecordId) === 'budget_version_erp_mirror') {
+        const { data, error } = await scopeMirrorQuery(
+          serviceClient.from(tableFor(pmoRecordId)).select('push_state,erp_docstatus,erp_cancelled_at'),
+          kind, lookupColumn, orgId, pmoRecordId,
+        ).maybeSingle();
+        if (error) throw new AppError(error.message, error.code);
+        const current = data as { push_state?: string; erp_docstatus?: number | null; erp_cancelled_at?: string | null } | null;
+        if (current?.erp_cancelled_at != null && current.push_state === 'pushed' && current.erp_docstatus === 2) return;
+      }
       const tombstoneUpdate = serviceClient.from(tableFor(pmoRecordId)).update({
         erp_cancelled_at: new Date().toISOString(),
         erp_docstatus: 2,

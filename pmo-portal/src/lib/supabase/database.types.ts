@@ -967,7 +967,7 @@ export type Database = {
           consented_at: string
           consented_by: string
           consumed_at: string | null
-          erp_account: string
+          erp_account: string | null
           erp_budget_name: string
           fiscal_year: string
           id: string
@@ -1090,7 +1090,7 @@ export type Database = {
           actor_user_id: string
           budget_version_id: string
           created_at: string
-          erp_account: string
+          erp_account: string | null
           erp_budget_name: string
           fiscal_year: string
           id: string
@@ -1101,6 +1101,7 @@ export type Database = {
           pushed_project_end_date: string | null
           pushed_project_start_date: string | null
           request_id: string
+          source_kind: string
           source_mirror_id: string
           state: string
           updated_at: string
@@ -1110,7 +1111,7 @@ export type Database = {
           actor_user_id: string
           budget_version_id: string
           created_at?: string
-          erp_account: string
+          erp_account?: string | null
           erp_budget_name: string
           fiscal_year: string
           id?: string
@@ -1121,6 +1122,7 @@ export type Database = {
           pushed_project_end_date?: string | null
           pushed_project_start_date?: string | null
           request_id: string
+          source_kind?: string
           source_mirror_id: string
           state?: string
           updated_at?: string
@@ -1130,7 +1132,7 @@ export type Database = {
           actor_user_id?: string
           budget_version_id?: string
           created_at?: string
-          erp_account?: string
+          erp_account?: string | null
           erp_budget_name?: string
           fiscal_year?: string
           id?: string
@@ -1141,6 +1143,7 @@ export type Database = {
           pushed_project_end_date?: string | null
           pushed_project_start_date?: string | null
           request_id?: string
+          source_kind?: string
           source_mirror_id?: string
           state?: string
           updated_at?: string
@@ -8772,6 +8775,10 @@ export type Database = {
           id: string
           invoice_date: string | null
           native_lines: Json | null
+          odoo_attention: string | null
+          odoo_read_at: string | null
+          odoo_sent_total: number | null
+          odoo_state: string | null
           org_id: string
           overpaid_amount: number | null
           paired_at: string | null
@@ -8816,6 +8823,10 @@ export type Database = {
           id?: string
           invoice_date?: string | null
           native_lines?: Json | null
+          odoo_attention?: string | null
+          odoo_read_at?: string | null
+          odoo_sent_total?: number | null
+          odoo_state?: string | null
           org_id?: string
           overpaid_amount?: number | null
           paired_at?: string | null
@@ -8860,6 +8871,10 @@ export type Database = {
           id?: string
           invoice_date?: string | null
           native_lines?: Json | null
+          odoo_attention?: string | null
+          odoo_read_at?: string | null
+          odoo_sent_total?: number | null
+          odoo_state?: string | null
           org_id?: string
           overpaid_amount?: number | null
           paired_at?: string | null
@@ -11893,6 +11908,19 @@ export type Database = {
         Returns: string
       }
       budget_distribution_gaps: { Args: { p_version: string }; Returns: string[] }
+      get_budget_archive_targets: {
+        Args: { p_version_id: string }
+        Returns: {
+          eligible: boolean
+          erp_budget_name: string
+          erp_docstatus: number | null
+          fiscal_year: string
+          page_key: string
+          push_state: string
+          reason: string
+          source_kind: string
+        }[]
+      }
       budget_activation_mode: { Args: { version_id: string }; Returns: string }
       project_win_eligibility: { Args: { p_id: string }; Returns: string }
       withdraw_subcontract_acceptance: {

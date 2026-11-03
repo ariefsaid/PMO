@@ -51,4 +51,27 @@ describe('v16 binding snapshot', () => {
       assert(bindingReads.some((call) => call.url.searchParams.get('select')?.includes('activated_at')));
     });
   });
+
+  it('refuses a caller-supplied legacy archive job before creating an outbox row', async () => {
+    const { routes } = servedRoutes(twoYearPhasedSeed(), 16);
+    await withFetchMock(routes, async ({ calls }) => {
+      const jwt = await auth.mintJwt({ sub: USER_ID });
+      const response = await servedHandler!(new Request('http://edge.test/adapter-dispatch', {
+        method: 'POST',
+        headers: { authorization: `Bearer ${jwt}`, 'content-type': 'application/json' },
+        body: JSON.stringify({
+          domain: 'budget', operation: 'create',
+          record: {
+            id: VERSION_ID, erp_doc_kind: 'budget', fiscal_year: '2026',
+            source_kind: 'legacy', budget_intent: 'remove', budget_predecessor: 'BUD-FORGED',
+            budget_archive_cancel_job_id: '66666666-6666-4666-8666-666666666666',
+          },
+        }),
+      }));
+      assertEquals(response.status, 422);
+      assertEquals((await response.json()).message, 'budget archive cancellation is server-owned');
+      assertEquals(calls.filter((call) => call.method === 'POST' && call.url.pathname.endsWith('/external_command_outbox')).length, 0);
+      assertEquals(calls.filter((call) => !call.url.host.includes('supabase') && !call.url.host.startsWith('127.') && !call.url.host.startsWith('localhost')).length, 0);
+    });
+  });
 });
