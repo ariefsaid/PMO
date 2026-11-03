@@ -1,7 +1,7 @@
 -- AC-007 — the saved whole-project distribution is durable, replaceable and cloneable.
 begin;
 create extension if not exists pgtap;
-select plan(48);
+select plan(49);
 
 insert into organizations (id, name)
 values ('14730000-0000-0000-0000-000000000001', 'Whole Project Storage Org');
@@ -364,6 +364,13 @@ select throws_ok($$select public.save_budget_distribution(
   '[{"category":"Labor","fiscal_year":"FY27","ordinal":0,"amount":"49999999.99","method":"amount_by_year","is_override":false},{"category":"Labor","fiscal_year":"FY28","ordinal":1,"amount":"25000000.01","method":"amount_by_year","is_override":false},{"category":"Labor","fiscal_year":"FY29","ordinal":2,"amount":"24999999.99","method":"amount_by_year","is_override":false}]'::jsonb
 )$$, 'P0001', 'budget distribution for Labor has rows that do not follow its amount proportions (year FY27)',
   'AC-007 a cent moved between large-value years is refused');
+select throws_ok($$select public.save_budget_distribution(
+  '14732222-0000-0000-0000-000000000060', 'amount_by_year',
+  '{"FY27":"50000000.01","FY28":"25000000.00","FY29":"25000000.00"}'::jsonb,
+  '{"projectStart":"2027-01-01","projectEnd":"2029-12-31","years":[{"name":"FY27","start":"2027-01-01","end":"2027-12-31"},{"name":"FY28","start":"2028-01-01","end":"2028-12-31"},{"name":"FY29","start":"2029-01-01","end":"2029-12-31"}]}'::jsonb,
+  '[{"category":"Labor","fiscal_year":"FY27","ordinal":0,"amount":"50000000.01","method":"amount_by_year","is_override":false},{"category":"Labor","fiscal_year":"FY28","ordinal":1,"amount":"24999999.99","method":"amount_by_year","is_override":false},{"category":"Labor","fiscal_year":"FY29","ordinal":2,"amount":"24999999.99","method":"amount_by_year","is_override":false}]'::jsonb
+)$$, 'P0001', 'budget distribution for Labor has rows that do not follow its amount proportions (year FY27)',
+  'AC-007 the vector the old rounded-quotient arithmetic produced is refused');
 
 reset role;
 select * from finish();
