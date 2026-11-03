@@ -16,7 +16,10 @@ export interface InvoiceRead {
     ref?: unknown; invoice_date?: unknown; currency_id?: unknown; write_date: string;
   };
   /** The posted product lines (`account.move.line`, display_type product); null when they could not be read. */
-  productLines: ReadonlyArray<{ id: number; display_type?: string; analytic_distribution?: Record<string, number> | false | null }> | null;
+  productLines: ReadonlyArray<{
+    id: number; display_type?: string; analytic_distribution?: Record<string, number> | false | null;
+    product_id?: unknown; account_id?: unknown;
+  }> | null;
   /** When Odoo was read (the as-of age the screens show). */
   readAt: string;
 }
@@ -25,12 +28,32 @@ export interface InvoiceExpect {
   total: string;
   /** The project's cost account id, or null when the invoice has no project. */
   costAccountId: number | null;
+  /** A down-payment or recovery product and the configured customer-advance liability account it must post to. */
+  advanceAccount?: { productId: number; accountId: number };
 }
-export type InvoiceAttention = 'total-mismatch' | 'cost-account-missing' | 'money-unreadable' | 'lines-unreadable';
+export type InvoiceAttention = 'total-mismatch' | 'cost-account-missing' | 'advance-account-mismatch' | 'money-unreadable' | 'lines-unreadable';
 
 const text = (v: unknown): string | null => (typeof v === 'string' && v !== '' ? v : null);
+const many2oneId = (value: unknown): number | null => typeof value === 'number' && Number.isInteger(value) && value > 0
+  ? value
+  : Array.isArray(value) && typeof value[0] === 'number' && Number.isInteger(value[0]) && value[0] > 0 ? value[0] : null;
 const STATES: ReadonlySet<string> = new Set(['draft', 'posted', 'cancel']);
 const docstatus = (state: string): number => (state === 'posted' ? 1 : state === 'cancel' ? 2 : 0);
+
+function checkAdvanceAccount(
+  lines: InvoiceRead['productLines'],
+  expected: InvoiceExpect['advanceAccount'],
+): { outcome: 'ok' } | { outcome: 'needs-attention' } | { outcome: 'unreadable' } {
+  if (!expected) return { outcome: 'ok' };
+  if (lines === null) return { outcome: 'unreadable' };
+  const productLines = lines.filter((line) => line.display_type === undefined || line.display_type === 'product');
+  if (productLines.some((line) => many2oneId(line.product_id) === null)) return { outcome: 'unreadable' };
+  const advanceLines = productLines.filter((line) => many2oneId(line.product_id) === expected.productId);
+  if (advanceLines.length === 0) return { outcome: 'needs-attention' };
+  return advanceLines.every((line) => many2oneId(line.account_id) === expected.accountId)
+    ? { outcome: 'ok' }
+    : { outcome: 'needs-attention' };
+}
 
 export function readBackInvoice(pmoId: string, read: InvoiceRead, expect: InvoiceExpect): PmoRecord {
   const { move } = read;
@@ -39,11 +62,13 @@ export function readBackInvoice(pmoId: string, read: InvoiceRead, expect: Invoic
   const sane = header !== null && untaxed !== null && tax !== null && total !== null && total >= 0n && tax >= 0n && tax <= total;
   const mismatch = sane && compareSent(expect.total, move.amount_total) === 'mismatch';
   const costAccount = expect.costAccountId === null ? ({ outcome: 'ok' } as const) : checkCostAccount(read.productLines, expect.costAccountId);
+  const advanceAccount = checkAdvanceAccount(read.productLines, expect.advanceAccount);
   // One column holds one reason; the order is the order a person should look in.
   const attention: InvoiceAttention | null = !sane ? 'money-unreadable'
     : costAccount.outcome === 'needs-attention' ? 'cost-account-missing'
+    : advanceAccount.outcome === 'needs-attention' ? 'advance-account-mismatch'
     : mismatch ? 'total-mismatch'
-    : costAccount.outcome === 'unreadable' ? 'lines-unreadable'
+    : costAccount.outcome === 'unreadable' || advanceAccount.outcome === 'unreadable' ? 'lines-unreadable'
     : null;
   const currency = Array.isArray(move.currency_id) ? text(move.currency_id[1]) : null;
   return {

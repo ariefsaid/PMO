@@ -3,7 +3,8 @@
  * order-less project) and free-standing (no cost account), is created, anchored and posted exactly once; Odoo's number, reference, total and
  * explicit tax land in the canonical; every product line carries the project's cost account; a replay finds the same invoice and writes
  * nothing; and a draft that was left with one line stripped of its cost account is posted by the recovery probe and flagged
- * `cost-account-missing`. The SHIPPED Odoo revenue adapter and recovery probe run against the real JSON-2 API. Gated on the dependency,
+ * `cost-account-missing`. C4 also bills a 200,000 down payment and a 10 km x 50,000 progress claim with its -40,000 recovery line; both
+ * use the liability account and project distribution, and Odoo's totals are the canonical. The SHIPPED Odoo revenue adapter and recovery probe run against the real JSON-2 API. Gated on the dependency,
  * never on CI: the bed's URL, database and key come from its untracked env file, sourced and never printed. Everything is synthetic and
  * stamped; the bed is throwaway (a posted invoice cannot be deleted, it stays as stamped data).
  *   scripts/with-odoo-lock.sh bash -c 'set -a; . ./.env.odoo.local; set +a; ODOO_BED_URL=http://127.0.0.1:$ODOO_PORT \
@@ -59,8 +60,8 @@ Deno.test({
     const total = expectedInvoiceTotal(lines, [11]);   // 2000 + 11% = 2220.00
     const moveRead = (id: number) => call<Array<{ state: string; move_type: string; ref: string; invoice_date: string; partner_id: [number, string]; amount_untaxed: number; amount_tax: number; amount_total: number; amount_residual: number; name: string }>>(
       'account.move', 'read', { ids: [id], fields: ['state', 'move_type', 'ref', 'invoice_date', 'partner_id', 'amount_untaxed', 'amount_tax', 'amount_total', 'amount_residual', 'name'] });
-    const productLines = (id: number) => call<Array<{ analytic_distribution: Record<string, number> | false; tax_ids: number[] }>>(
-      'account.move.line', 'search_read', { domain: [['move_id', '=', id], ['display_type', '=', 'product']], fields: ['analytic_distribution', 'tax_ids'], order: 'id asc' });
+    const productLines = (id: number) => call<Array<{ analytic_distribution: Record<string, number> | false; tax_ids: number[]; product_id: [number, string]; account_id: [number, string]; quantity: number; price_unit: number }>>(
+      'account.move.line', 'search_read', { domain: [['move_id', '=', id], ['display_type', '=', 'product']], fields: ['analytic_distribution', 'tax_ids', 'product_id', 'account_id', 'quantity', 'price_unit'], order: 'id asc' });
     const anchored = (id: string) => call<Array<{ res_id: number }>>('ir.model.data', 'search_read', { domain: [['module', '=', 'pmo'], ['name', '=', externalIdentifier(invoiceKey({ id })).name], ['model', '=', 'account.move']], fields: ['res_id'] });
 
     for (const [label, costAccountId] of [['ordinary, with a cost account', account], ['free-standing, no project', null]] as const) {
@@ -106,5 +107,62 @@ Deno.test({
     const recovered = await recoverInvoice(call, { id }, undefined, { total, costAccountId: account });
     assertEquals(recovered?.externalRecordId, `account.move:${draft}`);
     assertEquals([(await moveRead(draft))[0].state, recovered?.canonical.odoo_state, recovered?.canonical.odoo_attention], ['posted', 'posted', 'cost-account-missing']);
+
+    // C4 AC-OCI-021: a down-payment invoice is an ordinary invoice line on the configured customer-advance liability account.
+    const [advance] = await call<Array<{ id: number; account_type: string }>>('account.account', 'search_read', {
+      domain: [['account_type', '=', 'liability_current'], ['company_ids', 'in', [companyId]]], fields: ['id', 'account_type'], limit: 1,
+    });
+    assert(advance && advance.account_type.startsWith('liability'), 'the Indonesian chart has a customer-advance liability account');
+    const downPaymentProduct = await make('product.product', {
+      name: `${stamp} advance item`, type: 'service', sale_ok: true, property_account_income_id: advance.id,
+    });
+    const downPaymentInput: PmoInvoice = {
+      id: crypto.randomUUID(), customerId: 'c', invoiceDate: '2026-12-05', currency: company.currency_id[1], referenceNumber: `${stamp}-DP`,
+      lines: [{ itemId: 'advance', description: 'Down payment', quantity: 1, unitPrice: 200000, kind: 'down-payment' }],
+    };
+    const downPaymentMaps: InvoiceMaps = {
+      ...mapsFor(account), items: { svc: { productId: service, incomeAccountId: income.id }, advance: { productId: downPaymentProduct, incomeAccountId: advance.id } },
+      downPayment: { itemId: 'advance', advanceAccountId: advance.id },
+    };
+    const downPaymentExpectation: InvoiceExpect = { total: expectedInvoiceTotal(downPaymentInput.lines, [11]), costAccountId: account,
+      advanceAccount: { productId: downPaymentProduct, accountId: advance.id } };
+    const downPaymentAdapter = createOdooRevenueAdapter({ call, resolveInvoice: async () => ({ input: downPaymentInput, maps: downPaymentMaps, expect: downPaymentExpectation }) });
+    const downPaymentCommand: AdapterCommand = {
+      domain: 'revenue', operation: 'transition', idempotencyKey: `${stamp}-DP`,
+      record: { id: downPaymentInput.id, erp_doc_kind: 'sales-invoice', verb: 'submit', workOrderId: null },
+    };
+    const downPaymentResult = await downPaymentAdapter.commit(downPaymentCommand);
+    const downPaymentId = parseOdooExternalRef('account.move', downPaymentResult.externalRecordId)!;
+    const [postedDownPaymentLine] = await productLines(downPaymentId);
+    assertEquals([postedDownPaymentLine.product_id[0], postedDownPaymentLine.account_id[0], postedDownPaymentLine.analytic_distribution],
+      [downPaymentProduct, advance.id, { [String(account)]: 100 }], 'the posted down-payment line uses the advance account and project distribution');
+    assertEquals(downPaymentResult.canonical.odoo_attention, null);
+
+    // C4 AC-OCI-020: Odoo receives the immutable claim lines, including the negative recovery, unchanged.
+    const claimId = crypto.randomUUID();
+    const claimLines = [
+      { itemId: 'svc', description: 'Roadworks (km)', quantity: 10, unitPrice: 50000 },
+      { itemId: 'advance', description: 'Down-payment recovery', quantity: 1, unitPrice: -40000, kind: 'recovery' as const },
+    ];
+    const claimInput: PmoInvoice = {
+      id: claimId, customerId: 'c', invoiceDate: '2026-12-05', currency: company.currency_id[1], referenceNumber: null,
+      workOrderPoNumber: `${stamp}-WO-PO`, lines: claimLines,
+    };
+    const claimMaps = downPaymentMaps;
+    const claimExpectation: InvoiceExpect = { total: expectedInvoiceTotal(claimLines, [11]), costAccountId: account,
+      advanceAccount: { productId: downPaymentProduct, accountId: advance.id } };
+    const claimAdapter = createOdooRevenueAdapter({ call, resolveInvoice: async () => ({ input: claimInput, maps: claimMaps, expect: claimExpectation }) });
+    const claimCommand: AdapterCommand = { domain: 'revenue', operation: 'transition', idempotencyKey: `${stamp}-CLAIM`,
+      record: { id: claimId, erp_doc_kind: 'sales-invoice', verb: 'submit', workOrderId: crypto.randomUUID() } };
+    const claimResult = await claimAdapter.commit(claimCommand);
+    const claimMoveId = parseOdooExternalRef('account.move', claimResult.externalRecordId)!;
+    const [claimMove] = await moveRead(claimMoveId);
+    const claimPostedLines = await productLines(claimMoveId);
+    assertEquals([claimMove.amount_untaxed, claimMove.amount_tax, claimMove.amount_total], [460000, 50600, 510600], 'Odoo computes the same total from the recorded claim and explicit tax');
+    assertEquals(claimPostedLines.map((line) => [line.product_id[0], line.quantity, line.price_unit, line.account_id[0], line.analytic_distribution]), [
+      [service, 10, 50000, income.id, { [String(account)]: 100 }],
+      [downPaymentProduct, 1, -40000, advance.id, { [String(account)]: 100 }],
+    ]);
+    assertEquals([claimResult.canonical.odoo_attention, claimResult.canonical.amount, claimResult.canonical.reference_number], [null, '510600.00', `${stamp}-WO-PO`]);
   },
 });

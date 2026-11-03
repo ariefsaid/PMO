@@ -27,7 +27,7 @@ const GATES: Record<string, (c: OdooCtx) => boolean> = {
   // The actor-checked RPCs decide who may link or un-link (the Admin, an Operator, the project's own PM); the plan is an Admin's choice.
   'list-projects': () => true, 'link-project': () => true, 'unlink-project': () => true, 'set-analytic-plan': adminOrOperator,
   // The employ RPC decides again (Admin of the org or an Operator, 0505); the defaults are Admin/Finance (the setter checks standing).
-  'employ-domain': adminOrOperator, 'propose-config': (c) => adminOrFinance(c) || c.operator, 'save-defaults': (c) => adminOrFinance(c) || c.operator,
+  'employ-domain': adminOrOperator, 'propose-config': (c) => adminOrFinance(c) || c.operator, 'save-defaults': adminOrFinance,
 };
 const VERBS: Record<string, (c: OdooCtx) => Promise<Response>> = {
   'list-companies': listCompanies, activate, recheck, refresh, 'reset-kind': resetKind,

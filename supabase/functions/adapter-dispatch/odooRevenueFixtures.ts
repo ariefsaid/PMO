@@ -14,6 +14,8 @@ export const NEW_INVOICE_ID = '77777777-7777-4777-8777-777777777700';
 export const INVOICE_ID = '77777777-7777-4777-8777-777777777777';
 /** An invoice DRAFT (PMO's alone until its approval, OQ-OCI-1): no Odoo document, no mapping. */
 export const DRAFT_ID = '77777777-7777-4777-8777-777777777701';
+/** A PMO invoice draft created from an immutable billing claim. */
+export const CLAIM_ID = '77777777-7777-4777-8777-777777777702';
 export const RECEIPT_ID = '88888888-8888-4888-8888-888888888888';
 export const FOREIGN_ORG_ID = '99999999-9999-4999-8999-999999999999';
 export const ODOO_HOST = 'odoo.example.test';
@@ -50,6 +52,16 @@ export interface World {
   grants?: string[];
   /** The PMO draft row an approval reads its lines from (default: a two-line draft; null: no such row). */
   draft?: Record<string, unknown> | null;
+  /** Immutable billing-claim facts and their recorded lines for Odoo claim tests. */
+  progressClaim?: Record<string, unknown> | null;
+  progressClaimLines?: Array<Record<string, unknown>>;
+  progressClaimEvidence?: Array<Record<string, unknown>>;
+  /** Fake Odoo product income account, which may drift from the mirror for a read-back mismatch case. */
+  downPaymentProductIncomeAccount?: number;
+  /** The configured model-qualified customer-advance account; null removes the setting. */
+  customerAdvanceAccountRef?: string | null;
+  /** The mirrored Odoo account type selected for the customer-advance account. */
+  customerAdvanceAccountType?: string;
   /** The fake Odoo behind the Odoo host (an approval talks to it over fetch). */
   odoo?: { fetch: (url: string, init?: RequestInit) => Promise<Response> };
   /** The org's default sale tax is mirrored as a PPN output tax (default true) / absent. */
@@ -104,9 +116,10 @@ export function revenueRoutes(unexpected: FetchCall[], caller: string, world: Wo
     const select = call.url.searchParams.get('select') ?? '';
     const id = param(call, 'id');
     // the native-row guard reads `id, pmo_native`; the receipt scope reads `customer_id`; the link pre-flight reads `org_id`
-    if (table === 'sales_invoices' && select.includes('native_lines')) return world.draft === null || (id !== DRAFT_ID) ? nullObjectResponse() : objectResponse(world.draft ?? draftRow());
+    if (table === 'sales_invoices' && select.includes('native_lines')) return world.draft === null || (id !== DRAFT_ID && id !== CLAIM_ID) ? nullObjectResponse() : objectResponse(world.draft ?? draftRow());
     if (select.includes('pmo_native')) return nullObjectResponse();
     if (select === 'project_id') return objectResponse({ project_id: PROJECT_ID });   // the submit-time process gate reads the mirror row's project
+    if (table === 'projects' && select.includes('client_id')) return objectResponse({ client_id: CUSTOMER_ID, subject_to_vat: true, customer_contract_ref: 'CT-1' });
     if (table === 'projects' && select.includes('subject_to_vat')) return objectResponse({ subject_to_vat: true, customer_contract_ref: 'CT-1' });
     if (table === 'work_orders' && select.includes('client_po_number')) return objectResponse({ client_po_number: 'WO-PO-9' });
     if (select.includes('customer_id')) return table === 'sales_invoices' && orgOf(table, id) !== null ? objectResponse({ customer_id: world.invoiceCustomer === undefined ? CUSTOMER_ID : world.invoiceCustomer }) : nullObjectResponse();
@@ -133,16 +146,29 @@ export function revenueRoutes(unexpected: FetchCall[], caller: string, world: Wo
     supabaseSelect('external_org_bindings', (call) => bindingTiers.has(param(call, 'external_tier') ?? '')
       ? (world.odooBinding === null ? nullObjectResponse() : objectResponse({
           id: 'b0000000-0000-4000-8000-000000000001', site_url: `https://${ODOO_HOST}`, secret_ref: 'odoo_ref', status: 'active', activated_at: '2026-11-01T00:00:00Z',
-          config: { database: 'db1', odoo_company_id: 1, capabilities: world.snapshot === undefined ? REVENUE_SNAPSHOT : world.snapshot, item_map: { 'ITEM-A': '71' }, sale_tax_id: 5 },
+          config: { database: 'db1', odoo_company_id: 1, capabilities: world.snapshot === undefined ? REVENUE_SNAPSHOT : world.snapshot,
+            item_map: { 'ITEM-A': '71', 'ITEM-DP': '72' }, sale_tax_id: 5,
+            ...(world.customerAdvanceAccountRef === null ? {} : { customer_advance_account_ref: world.customerAdvanceAccountRef ?? 'account.account:210' }) },
           ...world.odooBinding,
         }))
       : nullObjectResponse()),
     supabaseSelect('external_project_bindings', () => world.projectLink ? objectResponse({ external_container_id: world.projectLink }) : nullObjectResponse()),
-    supabaseSelect('external_master_records', (call) => param(call, 'kind') === 'tax'
-      ? jsonResponse(world.saleTax === 'absent' ? [] : [{ external_id: '5', name: '12% (Non-Luxury Good)', active: true, tombstoned_at: null,
-          attrs: { amount: 11, use: 'sale', tax_group: world.saleTax === 'collector' ? 'Collected by VAT Collector' : 'Non-luxury Good Taxes', price_include: false } }])
-      : world.account === null ? nullObjectResponse() : objectResponse(world.account ?? { active: true, tombstoned_at: null })),
+    supabaseSelect('external_master_records', (call) => {
+      const kind = param(call, 'kind');
+      if (kind === 'tax') return jsonResponse(world.saleTax === 'absent' ? [] : [{ external_id: '5', name: '12% (Non-Luxury Good)', active: true, tombstoned_at: null,
+        attrs: { amount: 11, use: 'sale', tax_group: world.saleTax === 'collector' ? 'Collected by VAT Collector' : 'Non-luxury Good Taxes', price_include: false } }]);
+      if (kind === 'product') return jsonResponse([
+        { external_id: '71', name: 'Item A', active: true, tombstoned_at: null, attrs: { income_account_id: '149' } },
+        { external_id: '72', name: 'Down payment', active: true, tombstoned_at: null, attrs: { income_account_id: '210' } },
+      ].filter((row) => param(call, 'external_id') === null || row.external_id === param(call, 'external_id')));
+      if (kind === 'account') return jsonResponse([{ external_id: '210', name: 'Customer Advances', active: true, tombstoned_at: null,
+        attrs: { company_ids: ['1'], account_type: world.customerAdvanceAccountType ?? 'liability_current' } }].filter((row) => param(call, 'external_id') === null || row.external_id === param(call, 'external_id')));
+      return world.account === null ? nullObjectResponse() : objectResponse(world.account ?? { active: true, tombstoned_at: null });
+    }),
     owned('companies'), owned('projects'), owned('work_orders'), owned('sales_invoices'), owned('incoming_payments'),
+    supabaseSelect('progress_claims', () => world.progressClaim ? objectResponse(world.progressClaim) : nullObjectResponse()),
+    supabaseSelect('progress_claim_lines', () => jsonResponse(world.progressClaimLines ?? [])),
+    supabaseSelect('progress_claim_evidence', () => jsonResponse(world.progressClaimEvidence ?? [])),
     // an invoice a receipt settles has its Odoo reference unless the world says it has none; a submit's own record is mapped
     supabaseSelect('external_refs', (call) => {
       const id = param(call, 'pmo_record_id');
@@ -189,11 +215,15 @@ export function revenueRoutes(unexpected: FetchCall[], caller: string, world: Wo
 }
 
 /** A fake Odoo with the client, the products and the two taxes (the chosen 11% and a hidden 10% product default) an invoice approval reads and writes. */
-export function invoiceOdooWorld() {
+export function invoiceOdooWorld(downPaymentProductIncomeAccount = 210) {
   const fake = createFakeOdoo({ key: 'odoo-test-key' });
   fake.seed('res.company', [{ id: 1, name: 'Co', currency_id: [12, 'IDR'] }]);
   fake.seed('res.partner', [{ id: 41, name: 'Client' }]);
   fake.seed('account.tax', [{ id: 5, name: '12% (Non-Luxury Good)', amount: 11, company_id: [1, 'Co'] }, { id: 9, name: 'Hidden default 10%', amount: 10, company_id: [1, 'Co'] }]);
-  fake.seed('product.product', [{ id: 71, name: 'Item A', taxes_id: [9], income_account_id: 149, property_account_income_id: [149, 'Sales'] }]);
+  fake.seed('product.product', [
+    { id: 71, name: 'Item A', taxes_id: [9], income_account_id: 149, property_account_income_id: [149, 'Sales'] },
+    { id: 72, name: 'Down payment', taxes_id: [9], income_account_id: downPaymentProductIncomeAccount,
+      property_account_income_id: [downPaymentProductIncomeAccount, 'Customer Advances'] },
+  ]);
   return fake;
 }

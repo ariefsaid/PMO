@@ -9,9 +9,11 @@ import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 import { AdapterError, type AdapterCommand } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
 import { resolveExternalRef, type ExternalRefsLookupClient } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
 import type { OdooCall } from '../../../pmo-portal/src/lib/adapterSeam/odoo/client.ts';
+import { parseOdooExternalRef } from '../../../pmo-portal/src/lib/adapterSeam/odoo/purchase/anchors.ts';
 import { resolveClientReference, type InvoiceMaps, type PmoInvoice } from '../../../pmo-portal/src/lib/adapterSeam/odoo/revenue/invoiceBody.ts';
 import { expectedInvoiceTotal, type InvoiceExpect } from '../../../pmo-portal/src/lib/adapterSeam/odoo/revenue/invoiceReadBack.ts';
 import { selectSaleTaxes, type SaleTax } from '../../../pmo-portal/src/lib/adapterSeam/odoo/revenue/taxValidate.ts';
+import { readOdooProgressClaim } from './odooProgressClaim.ts';
 import { resolveOdooCostAccount } from './odooPurchaseRefs.ts';
 
 const refuse = (reason: string): never => { throw new AdapterError('commit-rejected', reason); };
@@ -31,13 +33,13 @@ export interface InvoiceDraftRow {
 const DRAFT_COLUMNS = 'id,customer_id,project_id,work_order_id,reference_number,invoice_date,currency,status,erp_docstatus,pmo_native,native_lines';
 
 /** A line is valid only in its stored shape: a code, a positive quantity, a finite non-negative rate, and an amount of qty x rate to the cent. */
-export function parseDraftLines(value: unknown): DraftLine[] | null {
+export function parseDraftLines(value: unknown, allowNegative = false): DraftLine[] | null {
   if (!Array.isArray(value) || value.length === 0) return null;
   const lines: DraftLine[] = [];
   for (const raw of value) {
     const l = raw as { item_code?: unknown; description?: unknown; qty?: unknown; rate?: unknown; amount?: unknown } | null;
     const code = text(l?.item_code);
-    if (!l || !code || typeof l.qty !== 'number' || !(l.qty > 0) || typeof l.rate !== 'number' || !Number.isFinite(l.rate) || l.rate < 0) return null;
+    if (!l || !code || typeof l.qty !== 'number' || !(l.qty > 0) || typeof l.rate !== 'number' || !Number.isFinite(l.rate) || (!allowNegative && l.rate < 0)) return null;
     lines.push({ item_code: code, description: text(l.description), qty: l.qty, rate: l.rate, amount: Math.round(l.qty * l.rate * 100) / 100 });
   }
   return lines;
@@ -52,7 +54,7 @@ export async function readInvoiceDraft(sc: SupabaseClient, orgId: string, id: st
   return {
     id: String(r.id), customerId: text(r.customer_id), projectId: text(r.project_id), workOrderId: text(r.work_order_id), referenceNumber: text(r.reference_number),
     invoiceDate: text(r.invoice_date), currency: text(r.currency), status: String(r.status), erpDocstatus: typeof r.erp_docstatus === 'number' ? r.erp_docstatus : null,
-    pmoNative: r.pmo_native === true, lines: parseDraftLines(r.native_lines) ?? [],
+    pmoNative: r.pmo_native === true, lines: parseDraftLines(r.native_lines, true) ?? [],
   };
 }
 
@@ -91,6 +93,37 @@ async function readProducts(call: OdooCall, ids: number[]): Promise<Map<number, 
   return new Map(rows.map((r) => [r.id, Array.isArray(r.property_account_income_id) ? Number(r.property_account_income_id[0]) : null]));
 }
 
+/** The mirrored item and a live liability account must agree before any Odoo read or write. */
+async function customerAdvanceAccount(
+  sc: SupabaseClient,
+  orgId: string,
+  companyId: number,
+  itemCode: string,
+  productId: number,
+  accountRef: unknown,
+): Promise<{ productId: number; accountId: number }> {
+  const accountId = parseOdooExternalRef('account.account', accountRef);
+  const refuseItem = () => { throw rejected(`config-rejected: down-payment-account: ${itemCode}`); };
+  if (accountId === null) return refuseItem();
+
+  const [product, account] = await Promise.all([
+    sc.from('external_master_records').select('active,tombstoned_at,attrs').eq('org_id', orgId).eq('external_tier', 'odoo')
+      .eq('kind', 'product').eq('external_id', String(productId)).maybeSingle(),
+    sc.from('external_master_records').select('active,tombstoned_at,attrs').eq('org_id', orgId).eq('external_tier', 'odoo')
+      .eq('kind', 'account').eq('external_id', String(accountId)).maybeSingle(),
+  ]);
+  if (product.error || account.error) throw rejected(`config-rejected: down-payment-account: ${itemCode}`);
+  const productRow = product.data as { active?: unknown; tombstoned_at?: unknown; attrs?: { income_account_id?: unknown } | null } | null;
+  const accountRow = account.data as { active?: unknown; tombstoned_at?: unknown; attrs?: { account_type?: unknown; company_ids?: unknown } | null } | null;
+  const companies = accountRow?.attrs?.company_ids;
+  if (!productRow || productRow.active !== true || productRow.tombstoned_at !== null
+    || !accountRow || accountRow.active !== true || accountRow.tombstoned_at !== null
+    || productRow.attrs?.income_account_id !== String(accountId)
+    || typeof accountRow.attrs?.account_type !== 'string' || !accountRow.attrs.account_type.startsWith('liability') || accountRow.attrs.account_type === 'liability_payable'
+    || !Array.isArray(companies) || !companies.includes(String(companyId))) return refuseItem();
+  return { productId, accountId };
+}
+
 const resolvedInvoices = new WeakMap<object, Promise<{ input: PmoInvoice; maps: InvoiceMaps; expect: InvoiceExpect; draft: InvoiceDraftRow }>>();
 
 /**
@@ -112,6 +145,18 @@ export function resolveOdooInvoiceInputs(sc: SupabaseClient, orgId: string, comm
     if (!replay && (draft.status !== 'Draft' || draft.erpDocstatus !== null)) return refuse('invoice-not-a-draft');
     if (draft.lines.length === 0) return refuse('invoice-draft-lines-missing');
     if (resolved.companyId === null) return refuse('company-not-set');
+
+    const claim = await readOdooProgressClaim(sc, orgId, draft.id);
+    if (claim) {
+      const recorded = claim.items.map((line) => ({
+        item_code: line.item_code, qty: line.qty, rate: line.rate, description: text(line.description),
+      }));
+      const copied = draft.lines.map((line) => ({ item_code: line.item_code, qty: line.qty, rate: line.rate, description: line.description }));
+      if (draft.customerId !== claim.customerId || draft.projectId !== claim.claim.project_id || draft.workOrderId !== claim.claim.work_order_id
+        || draft.currency !== claim.claim.currency || draft.referenceNumber !== null || JSON.stringify(copied) !== JSON.stringify(recorded)) {
+        return refuse('claim-invoice-draft-mismatch');
+      }
+    }
 
     const project = draft.projectId
       ? await sc.from('projects').select('subject_to_vat,customer_contract_ref').eq('org_id', orgId).eq('id', draft.projectId).maybeSingle()
@@ -138,6 +183,18 @@ export function resolveOdooInvoiceInputs(sc: SupabaseClient, orgId: string, comm
     const partners: Record<string, number> = draft.customerId && Number.isInteger(partner) && partner > 0 ? { [draft.customerId]: partner } : {};
 
     const itemMap = asMap(resolved.config.item_map);
+    const advanceItemCode = claim && (claim.claim.kind === 'down_payment' || Number(claim.claim.dp_recovery_amount) > 0)
+      ? claim.claim.dp_item_code : null;
+    let downPayment: { itemId: string; advanceAccountId: number } | undefined;
+    let advanceAccount: InvoiceExpect['advanceAccount'];
+    if (claim && (claim.claim.kind === 'down_payment' || Number(claim.claim.dp_recovery_amount) > 0)) {
+      if (!advanceItemCode || !/^[1-9][0-9]*$/.test(itemMap[advanceItemCode] ?? '')) {
+        throw rejected(`config-rejected: down-payment-account: ${advanceItemCode ?? 'missing down-payment item'}`);
+      }
+      const validated = await customerAdvanceAccount(sc, orgId, resolved.companyId, advanceItemCode, Number(itemMap[advanceItemCode]), resolved.config.customer_advance_account_ref);
+      downPayment = { itemId: advanceItemCode, advanceAccountId: validated.accountId };
+      advanceAccount = validated;
+    }
     const productIds = [...new Set(draft.lines.flatMap((l) => (/^[1-9][0-9]*$/.test(itemMap[l.item_code] ?? '') ? [Number(itemMap[l.item_code])] : [])))];
     const incomeOf = await readProducts(call, productIds);
     const items: Record<string, { productId: number; incomeAccountId: number | null }> = {};
@@ -153,14 +210,18 @@ export function resolveOdooInvoiceInputs(sc: SupabaseClient, orgId: string, comm
     if (selection.outcome === 'refused') throw rejected(`config-rejected: the sale tax${selection.tax ? ` ${selection.tax}` : ''} cannot be used on an invoice`);
     const rates = taxes.filter((t) => selection.taxIds.includes(t.id)).map((t) => t.rate);
 
-    const lines = draft.lines.map((l) => ({ itemId: l.item_code, description: l.description ?? l.item_code, quantity: l.qty, unitPrice: l.rate }));
+    const lines = draft.lines.map((l, i) => ({
+      itemId: l.item_code, description: l.description ?? l.item_code, quantity: l.qty, unitPrice: l.rate,
+      ...(claim ? { kind: claim.claim.kind === 'down_payment' ? 'down-payment' as const
+        : l.item_code === claim.claim.dp_item_code && l.rate < 0 ? 'recovery' as const : undefined } : {}),
+    }));
     const reference = resolveClientReference({ invoice: draft.referenceNumber, workOrderPo, projectContractRef: contractRef });
     const today = new Date().toISOString().slice(0, 10);
     const input: PmoInvoice = {
       id: draft.id, customerId: draft.customerId ?? '', invoiceDate: draft.invoiceDate ?? today, currency: draft.currency ?? '', lines,
       referenceNumber: draft.referenceNumber, workOrderPoNumber: workOrderPo, projectContractRef: contractRef,
     };
-    const maps: InvoiceMaps = { companyCurrency: await companyCurrency(call, resolved.companyId), partners, items, units: {}, costAccountId, taxIds: selection.taxIds };
+    const maps: InvoiceMaps = { companyCurrency: await companyCurrency(call, resolved.companyId), partners, items, units: {}, costAccountId, taxIds: selection.taxIds, ...(downPayment ? { downPayment } : {}) };
 
     // The command is what the draft says: the client's, project's, work order's and lines' values REPLACE whatever the payload carried, so the
     // outbox payload, its digest, the work-order fence and the recovery all read the approved draft (never the approver's say-so).
@@ -171,7 +232,7 @@ export function resolveOdooInvoiceInputs(sc: SupabaseClient, orgId: string, comm
     record.items = draft.lines.map((l) => ({ item_code: l.item_code, qty: l.qty, rate: l.rate, ...(l.description ? { description: l.description } : {}) }));
     record.reference_number = reference;
     delete record.taxes;
-    return { input, maps, expect: { total: expectedInvoiceTotal(lines, rates), costAccountId }, draft };
+    return { input, maps, expect: { total: expectedInvoiceTotal(lines, rates), costAccountId, ...(advanceAccount ? { advanceAccount } : {}) }, draft };
   })();
   resolvedInvoices.set(command, run);
   return run;
