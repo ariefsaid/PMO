@@ -10,10 +10,11 @@ import type { PmoLineItem } from './bodies/shared.ts';
 
 export interface ProgressClaimRecord {
   id: string;
-  kind: 'down_payment' | 'progress';
+  kind: 'down_payment' | 'progress' | 'time_materials';
   project_id: string;
   work_order_id: string | null;
   currency?: string;
+  gross_amount?: number | string;
   down_payment_amount: number | string | null;
   dp_recovery_amount: number | string;
   dp_item_code: string | null;
@@ -26,6 +27,7 @@ export interface ProgressClaimLineRecord {
   unit: string;
   quantity: number | string;
   rate: number | string;
+  amount: number | string;
 }
 
 export function progressClaimItems(
@@ -34,6 +36,9 @@ export function progressClaimItems(
 ): PmoLineItem[] {
   if (claim.withdrawn_at) {
     throw new AdapterError('commit-rejected', 'This progress claim was withdrawn, so no invoice can be raised for it');
+  }
+  if (claim.kind === 'time_materials') {
+    throw new AdapterError('commit-rejected', 'Time-and-materials lines must be resolved from the signed claim');
   }
   if (claim.kind === 'down_payment') {
     if (!claim.dp_item_code || claim.down_payment_amount === null) {

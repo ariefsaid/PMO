@@ -6,7 +6,7 @@ const DP: ProgressClaimRecord = {
   down_payment_amount: '200000.00', dp_recovery_amount: '0.00', dp_item_code: 'DP-ITEM', withdrawn_at: null,
 };
 const PROGRESS: ProgressClaimRecord = { ...DP, id: 'claim-1', kind: 'progress', down_payment_amount: null, dp_recovery_amount: '40000.00' };
-const LINE = { item_code: 'SURVEY', description: 'Route survey', unit: 'km', quantity: '4.000', rate: '50000.00' };
+const LINE = { item_code: 'SURVEY', description: 'Route survey', unit: 'km', quantity: '4.000', rate: '50000.00', amount: '200000.00' };
 
 describe('progressClaimItems', () => {
   it('AC-PB-006 a down payment is one line on its down payment item at its amount', () => {

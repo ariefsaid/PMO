@@ -8,19 +8,32 @@ type Row = Record<string, unknown>;
 const ORG = 'org-1';
 const CLAIM: Row = {
   id: 'claim-1', org_id: ORG, kind: 'progress', currency: 'IDR', project_id: 'proj-1', work_order_id: null,
-  down_payment_amount: null, dp_recovery_amount: '40000.00', dp_item_code: 'DP-ITEM', withdrawn_at: null,
+  gross_amount: '260000.00', down_payment_amount: null, dp_recovery_amount: '40000.00', dp_item_code: 'DP-ITEM', withdrawn_at: null,
 };
+const TM_CLAIM: Row = {
+  ...CLAIM, kind: 'time_materials', gross_amount: '6000000.02', dp_recovery_amount: '0.00', dp_item_code: null,
+};
+const TM_STATE: Row = {
+  id: 'claim-1', org_id: ORG, status: 'SignedOff', confirmed_by: 'confirmer-1', gross_amount: '6000000.02',
+};
+const TM_LINES: Row[] = [
+  // Product is 0.0165; the frozen claim-line amount is rounded once to 0.02.
+  { org_id: ORG, claim_id: 'claim-1', line_key: 'rate-line-2', rate_version: 1, kind: 'labour', label: 'Rounding case', unit: 'hour', units: '0.33', rate: '0.05', amount: '0.02' },
+  // Deliberately after rate-line-2 in the fixture to pin the reader's stable line_key ordering.
+  { org_id: ORG, claim_id: 'claim-1', line_key: 'rate-line-1', rate_version: 1, kind: 'labour', label: 'Site engineer', unit: 'hour', units: '120.00', rate: '50000.00', amount: '6000000.00' },
+];
 // Deliberately out of BoQ order: the resolver must sort by boq_item_id so every resolution is identical.
 const LINES: Row[] = [
-  { org_id: ORG, claim_id: 'claim-1', boq_item_id: 'boq-b', item_code: 'STATION', description: 'Station build', unit: 'unit', quantity: '1.000', rate: '100000.00' },
-  { org_id: ORG, claim_id: 'claim-1', boq_item_id: 'boq-a', item_code: 'SURVEY', description: 'Route survey', unit: 'km', quantity: '4.000', rate: '50000.00' },
+  { org_id: ORG, claim_id: 'claim-1', boq_item_id: 'boq-b', item_code: 'STATION', description: 'Station build', unit: 'unit', quantity: '1.000', rate: '100000.00', amount: '100000.00' },
+  { org_id: ORG, claim_id: 'claim-1', boq_item_id: 'boq-a', item_code: 'SURVEY', description: 'Route survey', unit: 'km', quantity: '4.000', rate: '50000.00', amount: '200000.00' },
 ];
 const EVIDENCE: Row[] = [{ id: 'ev-1', org_id: ORG, claim_id: 'claim-1' }];
 
 /** PostgREST boundary fake: enforces filters and selected columns (a missing column throws). */
-function serviceClient(claim: Row | null, evidence: Row[] = EVIDENCE, workOrderTax: Row = {}, projectTax: Row = {}): DispatchServiceClient {
+function serviceClient(claim: Row | null, evidence: Row[] = EVIDENCE, workOrderTax: Row = {}, projectTax: Row = {},
+  timeMaterials: { claims?: Row[]; lines?: Row[] } = {}): DispatchServiceClient {
   const rows: Record<string, Row[]> = {
-    external_org_bindings: [{ org_id: ORG, external_tier: 'erpnext', site_url: 'https://erp.example.test', version_major: 15, activated_at: '2026-09-01', config: { company: 'Synthetic Co', project_map: { 'proj-1': 'ERP-PROJ-001', 'proj-2': 'ERP-PROJ-002' } } }],
+    external_org_bindings: [{ org_id: ORG, external_tier: 'erpnext', site_url: 'https://erp.example.test', version_major: 15, activated_at: '2026-09-01', config: { company: 'Synthetic Co', project_map: { 'proj-1': 'ERP-PROJ-001', 'proj-2': 'ERP-PROJ-002' }, item_map: { 'Site engineer': 'SERVICE-LABOUR', 'Rounding case': 'SERVICE-LABOUR' } } }],
     companies: [{ id: 'cust-1', org_id: ORG }, { id: 'cust-2', org_id: ORG }, { id: 'cust-org2', org_id: 'org-2' }],
     external_refs: [
       { org_id: ORG, domain: 'companies', pmo_record_id: 'cust-1', external_record_id: 'Customer:Synthetic Customer' },
@@ -37,18 +50,26 @@ function serviceClient(claim: Row | null, evidence: Row[] = EVIDENCE, workOrderT
     progress_claims: claim ? [claim] : [],
     progress_claim_lines: LINES,
     progress_claim_evidence: evidence,
+    tm_claims: timeMaterials.claims ?? [],
+    tm_claim_lines: timeMaterials.lines ?? [],
   };
   return {
     from(table: string) {
       return {
         select(columns: string) {
           const filters: Record<string, string> = {};
-          let orderBy: string | null = null;
+          const orderBy: string[] = [];
           const matches = () => {
             // uuid columns compare case-insensitively in Postgres; model that for `id` so a case-variant id finds its row.
             const found = (rows[table] ?? []).filter((row) => Object.entries(filters).every(([key, value]) =>
               key === 'id' ? String(row[key]).toLowerCase() === String(value).toLowerCase() : row[key] === value));
-            return orderBy === null ? found : [...found].sort((a, b) => String(a[orderBy as string]).localeCompare(String(b[orderBy as string])));
+            return orderBy.length === 0 ? found : [...found].sort((a, b) => {
+              for (const column of orderBy) {
+                const comparison = String(a[column]).localeCompare(String(b[column]));
+                if (comparison !== 0) return comparison;
+              }
+              return 0;
+            });
           };
           const pick = (row: Row): Row => Object.fromEntries(columns.split(',').map((col) => col.trim()).map((col) => {
             if (!(col in row)) throw new Error(`fixture lacks selected column ${table}.${col}`);
@@ -56,7 +77,7 @@ function serviceClient(claim: Row | null, evidence: Row[] = EVIDENCE, workOrderT
           }));
           const chain = {
             eq(col: string, val: string) { filters[col] = val; return chain; },
-            order(col: string) { orderBy = col; return chain; },
+            order(col: string) { orderBy.push(col); return chain; },
             limit() { return chain; },
             gt() { return chain; },
             async maybeSingle() { const row = matches()[0]; return { data: row ? pick(row) : null, error: null }; },
@@ -69,9 +90,9 @@ function serviceClient(claim: Row | null, evidence: Row[] = EVIDENCE, workOrderT
   } as unknown as DispatchServiceClient;
 }
 
-function command(record: Row, operation: AdapterCommand['operation'] = 'create'): AdapterCommand {
+function command(record: Row, operation: AdapterCommand['operation'] = 'create', idempotencyKey = 'pb-test-key'): AdapterCommand {
   return {
-    domain: 'revenue', operation, idempotencyKey: 'pb-test-key',
+    domain: 'revenue', operation, idempotencyKey,
     record: { id: 'claim-1', erp_doc_kind: 'sales-invoice', customerId: 'cust-1', projectId: 'proj-1', ...record },
   };
 }
@@ -80,11 +101,11 @@ const TAX_TEMPLATE = { name: 'Synthetic Sales Tax', taxes: [{ charge_type: 'On N
 
 function erpFetch(opts: { negativeRates?: boolean; template?: unknown; settingsDenied?: boolean; customerCurrency?: string | null; companyCurrency?: string } = {}) {
   const { negativeRates = true, template = TAX_TEMPLATE, settingsDenied = false, customerCurrency = 'IDR', companyCurrency = 'IDR' } = opts;
-  const sent: { body: Row } = { body: {} };
+  const sent: { body: Row; bodyText: string } = { body: {}, bodyText: '' };
   const fetchImpl = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
     const path = decodeURIComponent(new URL(String(url)).pathname);
     if (path === '/api/resource/Item' && init?.method === 'GET') {
-      return Response.json({ data: ['SURVEY', 'STATION', 'DP-ITEM', 'OWN-ITEM'].map((name) => ({ name, item_name: name, disabled: 0, is_sales_item: 1, is_purchase_item: 0 })) });
+      return Response.json({ data: ['SURVEY', 'STATION', 'DP-ITEM', 'OWN-ITEM', 'SERVICE-LABOUR'].map((name) => ({ name, item_name: name, disabled: 0, is_sales_item: 1, is_purchase_item: 0 })) });
     }
     if (path === '/api/resource/Customer/Synthetic Customer') return Response.json({ data: { name: 'Synthetic Customer', default_currency: customerCurrency } });
     if (path === '/api/resource/Company/Synthetic Co') return Response.json({ data: { name: 'Synthetic Co', default_currency: companyCurrency } });
@@ -92,29 +113,32 @@ function erpFetch(opts: { negativeRates?: boolean; template?: unknown; settingsD
     if (path === '/api/resource/Selling Settings/Selling Settings') return Response.json({ data: { allow_negative_rates_for_items: negativeRates ? 1 : 0 } });
     if (path === '/api/resource/Sales Taxes and Charges Template') return Response.json({ data: template ? [{ name: 'Synthetic Sales Tax' }] : [] });
     if (path === '/api/resource/Sales Taxes and Charges Template/Synthetic Sales Tax') return Response.json({ data: template });
-    sent.body = JSON.parse(String(init?.body)) as Row;
+    sent.bodyText = String(init?.body);
+    sent.body = JSON.parse(sent.bodyText) as Row;
     return new Response(JSON.stringify({ data: { name: 'SYNTHETIC-SI-766', ...sent.body, docstatus: 0 } }), { status: 200 });
   });
   return { sent, fetchImpl };
 }
 
-async function push(record: Row, claim: Row | null = CLAIM, erp: Parameters<typeof erpFetch>[0] = {}, workOrderTax: Row = {}, projectTax: Row = {}) {
-  const cmd = command(record);
+async function push(record: Row, claim: Row | null = CLAIM, erp: Parameters<typeof erpFetch>[0] = {}, workOrderTax: Row = {},
+  projectTax: Row = {}, timeMaterials: { claims?: Row[]; lines?: Row[] } = {}, idempotencyKey = 'pb-test-key') {
+  const cmd = command(record, 'create', idempotencyKey);
   const { sent, fetchImpl } = erpFetch(erp);
   const adapter = await resolveErpDispatchAdapter({
-    serviceClient: serviceClient(claim, EVIDENCE, workOrderTax, projectTax), orgId: ORG, command: cmd,
+    serviceClient: serviceClient(claim, EVIDENCE, workOrderTax, projectTax, timeMaterials), orgId: ORG, command: cmd,
     fetchImpl: fetchImpl as typeof fetch, apiKey: 'synthetic-key', apiSecret: 'synthetic-secret',
     doctypeBodies: { 'sales-invoice': { toBody: siToBody, fromDoc: siFromDoc } },
   });
   await adapter.commit(cmd);
-  return { body: sent.body, command: cmd };
+  return { body: sent.body, bodyText: sent.bodyText, command: cmd };
 }
 
 /** Synchronous on purpose: the caller attaches `.rejects` in the same tick, so no rejection goes unhandled. */
-function refused(cmd: AdapterCommand, claim: Row | null = CLAIM, evidence: Row[] = EVIDENCE, erp: Parameters<typeof erpFetch>[0] = {}, projectTax: Row = {}) {
+function refused(cmd: AdapterCommand, claim: Row | null = CLAIM, evidence: Row[] = EVIDENCE, erp: Parameters<typeof erpFetch>[0] = {},
+  projectTax: Row = {}, timeMaterials: { claims?: Row[]; lines?: Row[] } = {}) {
   const { fetchImpl } = erpFetch(erp);
   const attempt = resolveErpDispatchAdapter({
-    serviceClient: serviceClient(claim, evidence, {}, projectTax), orgId: ORG, command: cmd,
+    serviceClient: serviceClient(claim, evidence, {}, projectTax, timeMaterials), orgId: ORG, command: cmd,
     fetchImpl: fetchImpl as typeof fetch, apiKey: 'synthetic-key', apiSecret: 'synthetic-secret',
     doctypeBodies: { 'sales-invoice': { toBody: siToBody, fromDoc: siFromDoc } },
   });
@@ -125,12 +149,46 @@ const digest = (cmd: AdapterCommand) => canonicalCommandDigest({ domain: cmd.dom
 
 describe('billing claim invoice (AC-PB-006)', () => {
   it('AC-PB-006 builds a progress invoice from the claim lines in BoQ order plus the recovery line', async () => {
-    const { body } = await push({});
+    const { body, bodyText } = await push({});
     expect(body.items).toEqual([
       { item_code: 'SURVEY', qty: 4, rate: 50000, description: 'Route survey (km)' },
       { item_code: 'STATION', qty: 1, rate: 100000, description: 'Station build (unit)' },
       { item_code: 'DP-ITEM', qty: 1, rate: -40000 },
     ]);
+    expect(bodyText).toBe('{"customer":"Synthetic Customer","items":[{"item_code":"SURVEY","qty":4,"rate":50000,"description":"Route survey (km)"},{"item_code":"STATION","qty":1,"rate":100000,"description":"Station build (unit)"},{"item_code":"DP-ITEM","qty":1,"rate":-40000}],"project":"ERP-PROJ-001","currency":"IDR","taxes":[{"charge_type":"On Net Total","account_head":"VAT - SC","description":"VAT","rate":10}],"remarks":"pb-test-key"}');
+  });
+
+  it('AC-TM-014 carries signed T&M claim lines and their frozen amounts into the canonical invoice lines', async () => {
+    const timeMaterials = { claims: [TM_STATE], lines: TM_LINES };
+    const { body, command: cmd } = await push({}, TM_CLAIM, {}, {}, {}, timeMaterials, 'claim-1');
+    const lines = cmd.record.items as Array<Row>;
+    expect(lines.map(({ label, unit, quantity, rate, amount, item }) => ({ label, unit, quantity, rate, amount, item }))).toEqual([
+      { label: 'Site engineer', unit: 'hour', quantity: '120.00', rate: 50000, amount: '6000000.00', item: 'SERVICE-LABOUR' },
+      { label: 'Rounding case', unit: 'hour', quantity: '0.33', rate: 0.05, amount: '0.02', item: 'SERVICE-LABOUR' },
+    ]);
+    expect(body.items).toEqual([
+      { item_code: 'SERVICE-LABOUR', qty: 120, rate: 50000, description: 'Site engineer (hour)' },
+      { item_code: 'SERVICE-LABOUR', qty: 0.33, rate: 0.05, description: 'Rounding case (hour)' },
+    ]);
+    expect(lines.reduce((sum, line) => sum + Number(line.amount), 0)).toBe(Number(TM_STATE.gross_amount));
+    const roundingLine = TM_LINES.find((line) => line.label === 'Rounding case');
+    expect(roundingLine).toBeDefined();
+    expect(Number(roundingLine?.amount)).not.toBe(Number(roundingLine?.units) * Number(roundingLine?.rate));
+    expect(cmd.idempotencyKey).toBe('claim-1');
+  });
+
+  it('AC-TM-014 refuses unsigned T&M claim lines before they can reach an invoice body', async () => {
+    const unsigned = { claims: [{ ...TM_STATE, status: 'Draft', confirmed_by: null }], lines: TM_LINES };
+    const { attempt, fetchImpl } = refused(command({}), TM_CLAIM, EVIDENCE, {}, {}, unsigned);
+    await expect(attempt).rejects.toMatchObject({ code: 'commit-rejected' });
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('AC-TM-014 refuses withdrawn T&M claim lines before they can reach an invoice body', async () => {
+    const withdrawn = { claims: [{ ...TM_STATE, status: 'Withdrawn' }], lines: TM_LINES };
+    const { attempt, fetchImpl } = refused(command({}), { ...TM_CLAIM, withdrawn_at: '2026-10-06T00:00:00Z' }, EVIDENCE, {}, {}, withdrawn);
+    await expect(attempt).rejects.toThrow('This progress claim was withdrawn, so no invoice can be raised for it');
+    expect(fetchImpl).not.toHaveBeenCalled();
   });
 
   it('AC-PB-006 builds a down payment invoice as one line on the claim item', async () => {
