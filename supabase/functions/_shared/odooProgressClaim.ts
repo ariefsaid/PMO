@@ -11,6 +11,32 @@ export interface OdooProgressClaim {
   items: ReturnType<typeof progressClaimItems>;
 }
 
+function invoiceItemsFromClaim(claim: ProgressClaimRecord, lines: readonly ProgressClaimLineRecord[]): ReturnType<typeof progressClaimItems> {
+  if (claim.kind === 'down_payment') return progressClaimItems(claim);
+  if (claim.withdrawn_at) {
+    throw new AdapterError('commit-rejected', 'This progress claim was withdrawn, so no invoice can be raised for it');
+  }
+  if (claim.kind !== 'progress') {
+    throw new AdapterError('commit-rejected', 'Time-and-materials lines must be resolved from the signed claim');
+  }
+  if (lines.length === 0) throw new AdapterError('commit-rejected', 'This progress claim has no quantity lines');
+
+  const items: ReturnType<typeof progressClaimItems> = lines.map((line) => ({
+    item_code: line.item_code,
+    qty: Number(line.quantity),
+    rate: Number(line.rate),
+    description: `${line.description} (${line.unit})`,
+  }));
+  const recovery = Number(claim.dp_recovery_amount);
+  if (recovery > 0) {
+    if (!claim.dp_item_code) {
+      throw new AdapterError('commit-rejected', 'This progress claim recovers a down payment but names no down payment item');
+    }
+    items.push({ item_code: claim.dp_item_code, qty: 1, rate: -recovery });
+  }
+  return items;
+}
+
 /** Load immutable claim facts from PMO and build only the lines the claim recorded. */
 export async function readOdooProgressClaim(sc: SupabaseClient, orgId: string, id: string): Promise<OdooProgressClaim | null> {
   const { data, error } = await sc.from('progress_claims')
@@ -54,7 +80,7 @@ export async function readOdooProgressClaim(sc: SupabaseClient, orgId: string, i
   }
 
   try {
-    return { claim, customerId, items: progressClaimItems(claim, lines) };
+    return { claim, customerId, items: invoiceItemsFromClaim(claim, lines) };
   } catch (error) {
     if (error instanceof AdapterError) throw new AppError(error.message, error.code);
     throw error;
