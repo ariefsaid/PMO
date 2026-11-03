@@ -3,6 +3,7 @@
  * domain subset the adapter uses, `write_date` stamping, 401 on a wrong key, and one-shot transport faults.
  */
 import { createBill, isModelledBill, postBill, Rejected } from './purchase/fakeBill.ts';
+import { createPayment, isModelledPayment, postPayment, reconcileLines, RejectedPayment } from './purchase/fakePayment.ts';
 
 type Row = Record<string, unknown> & { id: number };
 type Domain = unknown[];
@@ -22,7 +23,7 @@ const FIELDS: Record<string, string[]> = {
   'purchase.order': ['name', 'state', 'partner_id', 'partner_ref', 'origin', 'order_line', 'amount_untaxed', 'amount_total', 'company_id', 'create_date', 'write_date'],
   'purchase.order.line': ['name', 'order_id', 'product_id', 'product_qty', 'price_unit', 'uom_id', 'qty_received', 'qty_invoiced', 'analytic_distribution', 'write_date'],
   'ir.model.data': ['module', 'name', 'model', 'res_id', 'write_date'],
-  'account.payment': ['state', 'memo', 'write_date'],
+  'account.payment': ['state', 'memo', 'amount', 'partner_id', 'payment_type', 'partner_type', 'journal_id', 'move_id', 'reconciled_bill_ids', 'write_date'],
   'account.journal': ['name', 'code', 'type', 'company_id', 'active', 'write_date'],
   'account.move': ['name', 'move_type', 'state', 'partner_id', 'ref', 'invoice_date', 'invoice_date_due', 'invoice_line_ids', 'amount_untaxed', 'amount_tax', 'amount_total', 'amount_residual', 'payment_state', 'currency_id', 'company_id', 'invoice_origin', 'create_date', 'write_date'],
   'account.move.line': ['move_id', 'display_type', 'product_id', 'quantity', 'price_unit', 'tax_ids', 'tax_line_id', 'tax_base_amount', 'analytic_distribution', 'purchase_line_id', 'balance', 'amount_residual', 'write_date'],
@@ -244,6 +245,7 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
     read: (m, b) => (b.ids as number[]).flatMap((id) => { const r = table(m).get(id); return r ? [pick(r, b.fields as string[])] : []; }),
     create: (m, b) => (b.vals_list as Array<Record<string, unknown>>).map((vals) => {
       if (m === 'account.move' && isModelledBill(vals)) return createBill({ table, nextId: newId, stamp: () => fmt(++clock) }, vals);
+      if (m === 'account.payment' && isModelledPayment(vals)) return createPayment({ table, nextId: newId, stamp: () => fmt(++clock) }, vals);
       const id = newId(m);
       const { order_line: lines, ...rest } = vals;
       const stamp = fmt(++clock);
@@ -309,21 +311,13 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
       for (const id of b.ids as number[]) {
         const row = table(m).get(id);
         if (m === 'account.move' && row?.move_type === 'in_invoice') postBill({ table, nextId: newId, stamp: () => fmt(++clock) }, row);
+        else if (m === 'account.payment' && row && 'move_id' in row) postPayment({ table, nextId: newId, stamp: () => fmt(++clock) }, row);
         else transition(m, { ids: [id] }, m === 'account.payment' ? 'paid' : 'posted');
       }
       return true;
     },
     reconcile: (m, b) => {
-      const rows = (b.ids as number[]).flatMap((id) => { const row = table(m).get(id); return row ? [row] : []; });
-      const debits = rows.filter((r) => Number(r.amount_residual ?? r.balance) > 0);
-      const credits = rows.filter((r) => Number(r.amount_residual ?? r.balance) < 0);
-      for (const debit of debits) for (const credit of credits) {
-        const d = Math.round(Number(debit.amount_residual ?? debit.balance) * 100);
-        const c = Math.round(Number(credit.amount_residual ?? credit.balance) * 100);
-        const applied = Math.min(d, -c);
-        debit.amount_residual = (d - applied) / 100;
-        credit.amount_residual = (c + applied) / 100;
-      }
+      reconcileLines({ table, nextId: newId, stamp: () => fmt(++clock) }, (b.ids as number[]).flatMap((id) => { const row = table(m).get(id); return row ? [row] : []; }));
       return true;
     },
   };
@@ -341,7 +335,7 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
     if (!handler || dropped.has(model) || (capability && !fields[model])) return Response.json({ name: 'werkzeug.exceptions.NotFound', message: '404 Not Found', arguments: [], context: {}, debug: '' }, { status: 404 });
     let result: unknown;
     try { result = handler(model, JSON.parse(String(init?.body ?? '{}'))); } catch (err) {
-      if (!(err instanceof Rejected)) throw err;
+      if (!(err instanceof Rejected || err instanceof RejectedPayment)) throw err;
       return Response.json({ name: 'odoo.exceptions.ValidationError', message: err.message, arguments: [err.message], context: {}, debug: '' }, { status: 422 });
     }
     if (f === 'lost-response') throw new TypeError('error sending request: connection reset');

@@ -19,13 +19,14 @@ const KEY = 'cccccccc-cccc-4ccc-8ccc-0000000015ff';
 const objectResponse = (body: unknown) => jsonResponse(body, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } });
 const BINDING = { id: 'b0000000-0000-4000-8000-000000000001', site_url: `https://${ODOO}`, secret_ref: 'odoo_ref', status: 'active', activated_at: '2026-11-01T00:00:00Z', config: { database: 'db1', odoo_company_id: 1 } };
 
-type Rows = Record<string, unknown[] | ((body: { domain: unknown[][] }) => unknown[])>;
+type Rows = Record<string, unknown[] | ((body: { domain: unknown[][] }, method: string) => unknown[])>;
 function setup(docKind: string, extra: Record<string, unknown> = {}, over: { binding?: Record<string, unknown> | null; odoo?: Rows; outbox?: Record<string, unknown> | null; replay?: boolean } = {}) {
   const odooCalls: FetchCall[] = [];
   const routes: MockRoute[] = [
     supabaseSelect('external_org_bindings', () => over.binding === null ? new Response('null', { status: 200, headers: { 'content-type': 'application/json' } }) : objectResponse({ ...BINDING, ...over.binding })),
     supabaseRpc('read_vault_secret', () => jsonResponse('odoo-test-key')),
-    supabaseSelect('external_refs', () => objectResponse({ external_record_id: 'Vendor:77' })),
+    // the vendor's partner, and the bill a payment pays (the bill's own mapping, written when the bill was pushed)
+    supabaseSelect('external_refs', (call) => objectResponse({ external_record_id: call.url.searchParams.get('pmo_record_id') === 'eq.inv-1' ? 'account.move:301' : 'Vendor:77' })),
     supabaseSelect('procurements', () => objectResponse({ code: 'PRC-1', project_id: null, vendor_id: 'v-1', currency: 'IDR' })),
     supabaseSelect('purchase_orders', () => jsonResponse([])),   // a bill with no order of its own
     supabaseSelect('external_master_records', () => jsonResponse([
@@ -39,13 +40,13 @@ function setup(docKind: string, extra: Record<string, unknown> = {}, over: { bin
       odooCalls.push(call);
       const model = call.url.pathname.split('/')[3];
       const answer = (over.odoo ?? {})[model] ?? [];
-      return jsonResponse(typeof answer === 'function' ? answer(call.bodyJson as { domain: unknown[][] }) : answer);
+      return jsonResponse(typeof answer === 'function' ? answer(call.bodyJson as { domain: unknown[][] }, call.url.pathname.split('/')[4]) : answer);
     } },
   ];
   const sc = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
   const ctx = {
     orgId: ORG, serviceClient: sc, userId: 'u-1', faultGate: {}, erpAuth: {},
-    command: { domain: 'procurement', operation: 'create', idempotencyKey: KEY, record: { id: REC, erp_doc_kind: docKind, procurementId: 'p', receiptDigest: 'ab12', supplier: 'v-1', paid_amount: 98, ...extra } },
+    command: { domain: 'procurement', operation: 'create', idempotencyKey: KEY, record: { id: REC, erp_doc_kind: docKind, procurementId: 'p', receiptDigest: 'ab12', supplier: 'v-1', paid_amount: 98, invoiceId: 'inv-1', ...extra } },
     ...(over.replay ? { replay: true } : {}),
   } as unknown as AdapterSelectContext;
   return { routes, ctx, odooCalls };
@@ -246,35 +247,64 @@ describe('AC-OPP-053 the Odoo probe closure: zero, one and many matches', () => 
     });
   });
 
-  const memoQuery = (body: { domain: unknown[][] }) => body.domain.some((t) => t[0] === 'memo');
+  const memoQuery = (body: { domain: unknown[][] }) => Array.isArray(body?.domain) && body.domain.some((t) => t[0] === 'memo');
+  const PAID = { id: 90, name: 'PBNK1/2026/00001', state: 'paid', payment_type: 'outbound', partner_type: 'supplier', amount: 98, move_id: [500, 'x'], reconciled_bill_ids: [301], write_date: '2026-11-03 10:00:00' };
+  /** The payment search (by memo, then by composite), the payment itself and its bill, as Odoo answers them. */
+  const paymentOdoo = (memo: unknown[], composite: unknown[], payment: Record<string, unknown> = PAID): Rows => ({
+    'account.payment': (b, method) => (method === 'read' ? [{ ...PAID, ...payment }] : memoQuery(b) ? memo : composite),
+    'account.move': [{ amount_residual: 0 }],
+  });
 
-  it('payment: the exact memo adopts', async () => {
-    const t = setup('payment', {}, { odoo: { 'account.payment': (b) => (memoQuery(b) ? [{ id: 90 }] : []) } });
+  it('payment: the exact memo adopts, settled and read back with the bill it paid (never a bare reference)', async () => {
+    const t = setup('payment', {}, { odoo: paymentOdoo([{ id: 90 }], []) });
     await withFetchMock(t.routes, async () => {
       const deps = await resolveOdooMoneyOutboxDeps(t.ctx);
-      assertEquals(await deps.probeByRemarksKey('procurement', KEY), { externalRecordId: 'account.payment:90', canonical: { id: REC } });
+      assertEquals(await deps.probeByRemarksKey('procurement', KEY), {
+        externalRecordId: 'account.payment:90',
+        canonical: { id: REC, pay_number: 'PBNK1/2026/00001', reference_number: null, amount: '98.00', erp_docstatus: 1, erp_modified: '2026-11-03 10:00:00', erp_amended_from: null, odoo_bill_residual: '0.00' },
+      });
     });
     const sent = t.odooCalls.map((c) => (c.bodyJson as { domain: unknown[][] }).domain);
     assert(sent[0].some(([f, op, v]) => f === 'memo' && op === '=' && v === `pmo:pay:${REC}`), JSON.stringify(sent[0]));
   });
 
-  it('payment: an edited memo falls back to the composite built from the supplier\'s Odoo partner, the amount and the window', async () => {
-    const t = setup('payment', {}, { odoo: { 'account.payment': (b) => (memoQuery(b) ? [] : [{ id: 91, memo: 'paid Friday' }]) } });
+  it('payment: in a RECOVERY an edited memo falls back to the composite: the supplier\'s partner, the amount, the window on both sides and the bill', async () => {
+    const t = setup('payment', {}, { odoo: paymentOdoo([], [{ id: 91, memo: 'paid Friday', reconciled_bill_ids: [301] }], { id: 91 }) });
     await withFetchMock(t.routes, async () => {
       const deps = await resolveOdooMoneyOutboxDeps(t.ctx);
-      assertEquals(await deps.probeByRemarksKey('procurement', KEY), { externalRecordId: 'account.payment:91', canonical: { id: REC } });
+      assertEquals((await deps.probeByRemarksKey('procurement', KEY, { recovery: true }))?.externalRecordId, 'account.payment:91');
     });
-    const composite = (t.odooCalls[1].bodyJson as { domain: unknown[][] }).domain;
+    const composite = (t.odooCalls[1].bodyJson as { domain: unknown[][]; fields: string[] }).domain;
     assert(composite.some(([f, op, v]) => f === 'partner_id' && op === '=' && v === 77), JSON.stringify(composite));
     assert(composite.some(([f, op, v]) => f === 'amount' && op === '=' && v === 98));
-    assert(composite.some(([f, op]) => f === 'create_date' && op === '>='));
+    const ms = (op: string) => Date.parse(`${String(composite.find(([f, o]) => f === 'create_date' && o === op)?.[2]).replace(' ', 'T')}Z`);
+    assert(ms('>=') <= Date.now() - 10 * 60_000 + 5_000, 'reaches back ten minutes');
+    assert(ms('<=') > Date.now() && ms('<=') <= Date.now() + 10 * 60_000, 'closes shortly after the first attempt, not never');
+    assert((t.odooCalls[1].bodyJson as { fields: string[] }).fields.includes('reconciled_bill_ids'));
   });
 
-  it('payment: a look-alike that carries another PMO payment\'s anchor is never adopted', async () => {
-    const t = setup('payment', {}, { odoo: { 'account.payment': (b) => (memoQuery(b) ? [] : [{ id: 92, memo: `pmo:pay:${OTHER}` }]) } });
+  it('payment: a FIRST attempt looks by memo alone: no look-alike of the vendor is consulted', async () => {
+    const t = setup('payment', {}, { odoo: paymentOdoo([], [{ id: 91, memo: 'someone else\'s', reconciled_bill_ids: [301] }]) });
     await withFetchMock(t.routes, async () => {
       const deps = await resolveOdooMoneyOutboxDeps(t.ctx);
-      assertEquals(await deps.probeByRemarksKey('procurement', KEY), null);
+      assertEquals(await deps.probeByRemarksKey('procurement', KEY, { recovery: false }), null);
+    });
+    assertEquals(t.odooCalls.length, 1);
+  });
+
+  it('payment: a look-alike that carries another PMO payment\'s anchor is not a candidate: nothing found', async () => {
+    const t = setup('payment', {}, { odoo: paymentOdoo([], [{ id: 92, memo: `pmo:pay:${OTHER}`, reconciled_bill_ids: [301] }]) });
+    await withFetchMock(t.routes, async () => {
+      const deps = await resolveOdooMoneyOutboxDeps(t.ctx);
+      assertEquals(await deps.probeByRemarksKey('procurement', KEY, { recovery: true }), null);
+    });
+  });
+
+  it('payment: a look-alike not reconciled to OUR bill is doubt: the probe throws and the row is held, never adopted', async () => {
+    const t = setup('payment', {}, { odoo: paymentOdoo([], [{ id: 93, memo: 'edited', reconciled_bill_ids: [999] }]) });
+    await withFetchMock(t.routes, async () => {
+      const deps = await resolveOdooMoneyOutboxDeps(t.ctx);
+      await assertRejects(() => deps.probeByRemarksKey('procurement', KEY, { recovery: true }), Error, 'ambiguous-anchor');
     });
   });
 

@@ -1,6 +1,6 @@
 /**
- * The Odoo `Adapter` (contract.ts) for domain `procurement` (PD-2, DD-OPP-1..3). P3 pushes the purchase order and its revision, P5
- * the vendor bill; receipts and payments arrive with P4 and P6 and are refused until then. A command is a state machine over Odoo's state, not
+ * The Odoo `Adapter` (contract.ts) for domain `procurement` (PD-2, DD-OPP-1..3). P3 pushes the purchase order and its revision, P4 the
+ * goods receipt, P5 the vendor bill and P6 the vendor payment (created, posted and reconciled to its bill). A command is a state machine over Odoo's state, not
  * a script (PD-3): find the document by its anchor, let `nextStep` pick the one missing call, perform it, read it back.
  *
  * P4 adds the goods receipt: Odoo itself opens the incoming transfer when the order is confirmed, so PMO mints no document; it
@@ -26,7 +26,8 @@ import { buildBillBody, expectedBillTotal, type BillCtx, type BillInput } from '
 import { readBackBill, type BillExpect } from './purchase/billReadBack.ts';
 import { buildOrderBody, plannedAt, type OrderCtx, type OrderInput } from './purchase/orderBody.ts';
 import { planRevise, type CurrentLine, type ReviseLine } from './purchase/orderRevise.ts';
-import { probeOdooByAnchor, type BillComposite, type OrderComposite } from './purchase/recoveryProbe.ts';
+import { probeOdooByAnchor, type BillComposite, type OrderComposite, type PaymentComposite } from './purchase/recoveryProbe.ts';
+import { buildPaymentBody, type PaymentCtx } from './purchase/paymentBody.ts';
 import { observeReceipt, parseReceiptPlan, receivedStatus, type OrderLineQty, type ReceiptPlan } from './purchase/receiptBody.ts';
 
 export const PROCUREMENT_DOMAIN = 'procurement';
@@ -41,6 +42,8 @@ export interface OdooProcurementDeps {
   resolveRevise(command: AdapterCommand): Promise<{ orderId: number; lines: readonly ReviseLine[]; ctx: OrderCtx }>;
   /** A bill's PMO-side facts: vendor, lines (with the order-line link when the bill names an order), project's cost account and the validated taxes. */
   resolveBill(command: AdapterCommand): Promise<{ input: BillInput; ctx: BillCtx }>;
+  /** A payment's PMO-side facts (the bill's Odoo reference, amount, vendor, journal), resolved before any write; absent where payments are not wired. */
+  resolvePayment?(command: AdapterCommand): Promise<PaymentFacts>;
 }
 
 const refuse = (reason: string): never => { throw new AdapterError('commit-rejected', reason); };
@@ -383,6 +386,126 @@ async function pushBill(deps: OdooProcurementDeps, command: AdapterCommand): Pro
   return settleBill(call, id, command.record, expect);
 }
 
+// ── Vendor payment (P6) ────────────────────────────────────────────────────────────────────────────────────────────────────
+
+const PAYMENT_MODEL = 'account.payment';
+const PAID_STATES = new Set(['in_process', 'paid', 'posted']);   // Odoo 20 says in_process or paid once a payment is posted
+
+export const paymentKey = (record: PmoRecord): string => `pay:${record.id}`;
+
+/** The PMO-side facts of a payment, resolved before any write: the bill's Odoo reference, what to pay, the vendor and the chosen journal. */
+export interface PaymentFacts {
+  billRef: string | null;
+  amount: number | string;
+  date?: string | null;
+  vendorPartnerId?: number | null;
+  journalId: number | null;
+  companyCurrencyId: number;
+}
+
+interface PaymentRow { name: string; state: string; payment_type: string; partner_type: string; amount: number | string; move_id: unknown; reconciled_bill_ids?: unknown; write_date: string }
+const PAYMENT_FIELDS = ['name', 'state', 'payment_type', 'partner_type', 'amount', 'move_id', 'reconciled_bill_ids', 'write_date'];
+
+const readPayment = async (call: OdooCall, id: number): Promise<PaymentRow> =>
+  (await call<PaymentRow[]>(PAYMENT_MODEL, 'read', { ids: [id], fields: PAYMENT_FIELDS }))[0] ?? refuse('payment-missing');
+
+const cents = (v: unknown): number => Math.round(Number(v) * 100);
+const reconciledBills = (p: PaymentRow): number[] => (Array.isArray(p.reconciled_bill_ids) ? p.reconciled_bill_ids.map(idOf) : []);
+
+/** The bill and journal as Odoo has them now (read only): what `buildPaymentBody` judges the payment against. */
+export async function readPaymentCtx(call: OdooCall, facts: PaymentFacts): Promise<PaymentCtx> {
+  const billId = parseOdooExternalRef(ANCHORED_MODEL.bill, facts.billRef);
+  const [row] = billId === null ? [] : await call<Array<{ state: string; move_type: string; amount_residual: number | string; currency_id: unknown; partner_id: unknown }>>(
+    'account.move', 'read', { ids: [billId], fields: ['state', 'move_type', 'amount_residual', 'currency_id', 'partner_id'] });
+  const bill = billId !== null && row
+    ? { id: billId, state: row.state, moveType: row.move_type, residual: row.amount_residual, currencyId: row.currency_id ? idOf(row.currency_id) : null, partnerId: row.partner_id ? idOf(row.partner_id) : null }
+    : null;
+  let journal: PaymentCtx['journal'] = null;
+  if (facts.journalId != null) {
+    const [j] = await call<Array<{ type: string; active?: boolean; outbound_payment_method_line_ids?: unknown }>>('account.journal', 'read', { ids: [facts.journalId], fields: ['type', 'active', 'outbound_payment_method_line_ids'] });
+    if (j) {
+      if (!['bank', 'cash'].includes(j.type) || j.active === false) refuse('journal-invalid');
+      const lines = Array.isArray(j.outbound_payment_method_line_ids) ? j.outbound_payment_method_line_ids : [];
+      journal = { id: facts.journalId, methodLineId: lines.length ? idOf(lines[0]) : null };
+    }
+  }
+  return { companyCurrencyId: facts.companyCurrencyId, journal, bill };
+}
+
+/** Reconcile the payment's payable line with the bill's (V-OPP7): one line on the payment, at least one open on the bill, or it is not ours to guess. */
+async function reconcilePayment(call: OdooCall, payment: PaymentRow, billId: number): Promise<void> {
+  const moveId = idOf(payment.move_id);
+  const lines = await call<Array<{ id: number; move_id: unknown }>>('account.move.line', 'search_read', {
+    domain: [['move_id', 'in', [billId, moveId]], ['account_type', '=', 'liability_payable'], ['reconciled', '=', false]], fields: ['move_id'],
+  });
+  const own = lines.filter((l) => idOf(l.move_id) === moveId);
+  const bill = lines.filter((l) => idOf(l.move_id) === billId);
+  if (own.length !== 1 || bill.length < 1) refuse('payment-reconcile-ambiguous');
+  await call('account.move.line', 'reconcile', { ids: lines.map((l) => l.id) });
+}
+
+/** draft / posted, and whether Odoo shows it reconciled to THIS bill: the observation `nextStep('payment', …)` decides on. */
+const paymentObserved = (p: PaymentRow, billId: number): string =>
+  p.state === 'draft' ? 'draft' : PAID_STATES.has(p.state) ? (reconciledBills(p).includes(billId) ? 'reconciled' : 'posted-unreconciled') : p.state;
+
+/**
+ * Complete the payment Odoo already holds: post a draft, reconcile a posted one, adopt a reconciled one, hold anything else; then
+ * read it and its bill back. Never creates. A payment that is not an outbound supplier payment of the entered amount is not ours to
+ * adopt (the anchor is a memo anyone can edit), so it is refused before it is touched.
+ */
+async function settlePayment(call: OdooCall, id: number, record: PmoRecord, billRef: string): Promise<CommandResult> {
+  const billId = parseOdooExternalRef(ANCHORED_MODEL.bill, billRef) ?? refuse('payment-bill-required');
+  let payment = await readPayment(call, id);
+  if (payment.payment_type !== 'outbound' || payment.partner_type !== 'supplier') refuse('payment-not-outbound');
+  if (cents(payment.amount) !== cents(record.paid_amount)) refuse('payment-amount-differs');
+  for (let transitions = 0; transitions < 3; transitions++) {
+    const step = nextStep('payment', { state: paymentObserved(payment, billId), anchor: 'ours' });
+    if (step === 'adopt') {
+      const [bill] = await call<Array<{ amount_residual: number | string }>>('account.move', 'read', { ids: [billId], fields: ['amount_residual'] });
+      return {
+        externalRecordId: odooExternalRef(PAYMENT_MODEL, id),
+        canonical: {
+          id: String(record.id), pay_number: payment.name, reference_number: null, amount: mirrorMoney(payment.amount),
+          erp_docstatus: 1, erp_modified: payment.write_date, erp_amended_from: null,
+          odoo_bill_residual: bill ? mirrorMoney(bill.amount_residual) : null,   // Odoo's, for the sweep and the screens; the bill mirror is the feed's (P7)
+        },
+      };
+    }
+    if (step === 'post') await call(PAYMENT_MODEL, 'action_post', { ids: [id] });
+    else if (step === 'reconcile') await reconcilePayment(call, payment, billId);
+    else return refuse(`payment-${payment.state}`);
+    payment = await readPayment(call, id);
+  }
+  return refuse('payment-not-settled');
+}
+
+/**
+ * The recovery probe for a vendor payment (FR-OPP-051/052, OQ-OPP-10): the payment this command already created, found by its memo
+ * (or, only in a RECOVERY and only as a unique conjunction with the bill, by the composite) and brought to its settled state, or
+ * null when nothing was created. Throws (the row is held) on any doubt. A payment is never reissued on doubt: the outbox holds it.
+ */
+export async function recoverPayment(rawCall: OdooCall, record: PmoRecord, composite: PaymentComposite | undefined, billRef: string): Promise<CommandResult | null> {
+  const call = guarded(rawCall);
+  const hit = await probeOdooByAnchor(call, 'payment', paymentKey(record), composite);
+  if (!hit) return null;
+  const id = parseOdooExternalRef(PAYMENT_MODEL, hit.externalRecordId) ?? refuse('ambiguous-anchor');
+  return settlePayment(call, id, record, billRef);
+}
+
+/**
+ * Create, post and reconcile. Reached only when dispatch ruled the absence acceptable (a first attempt, or a definite failure): a
+ * recovery that found nothing is held by the outbox before this runs (`odooReissueOnInconclusiveAbsence`), so this never mints on doubt.
+ */
+async function pushPayment(deps: OdooProcurementDeps, command: AdapterCommand): Promise<CommandResult> {
+  const call = guarded(deps.call);
+  const facts = await (deps.resolvePayment ?? (() => refuse('odoo payment is not available')))(command);
+  const found = await recoverPayment(call, command.record, undefined, facts.billRef ?? '');   // before the residual check: a retry's own payment has already reduced it
+  if (found) return found;
+  const body = buildPaymentBody({ billRef: facts.billRef, amount: facts.amount, date: facts.date, vendorPartnerId: facts.vendorPartnerId }, await readPaymentCtx(call, facts), paymentKey(command.record));   // refuses before the first write
+  const [id] = await call<number[]>(PAYMENT_MODEL, 'create', { vals_list: [body] });
+  return settlePayment(call, id, command.record, facts.billRef!);
+}
+
 export function createOdooProcurementAdapter(deps: OdooProcurementDeps): Adapter {
   return {
     tier: ODOO_TIER,
@@ -395,6 +518,7 @@ export function createOdooProcurementAdapter(deps: OdooProcurementDeps): Adapter
       if (kind === 'purchase-order' && String(command.operation) === 'revise') return reviseOrder(deps, command);
       if (kind === 'purchase-invoice' && command.operation === 'create') return pushBill(deps, command);
       if (kind === 'goods-receipt' && command.operation === 'create') return pushReceipt(deps, command);
+      if (kind === 'payment' && command.operation === 'create') return pushPayment(deps, command);
       return refuse(`odoo purchase ${kind} ${String(command.operation)} is not available yet`);
     },
 
