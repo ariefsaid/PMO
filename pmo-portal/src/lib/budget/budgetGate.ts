@@ -46,6 +46,8 @@ export interface BudgetActivationPrecheckResult {
   erpCheck: 'available' | 'unavailable' | 'not-required';
   /** `null` means the external calendar was not read. */
   fiscalYearNames: string[] | null;
+  /** The live external calendar in chronological order; null means the project span is unresolved. */
+  fiscalYears: FiscalYearSpan[] | null;
   issues: BudgetReadinessIssue[];
 }
 
@@ -122,6 +124,22 @@ export interface FiscalYearRow {
   name: string;
   year_start_date: string;
   year_end_date: string;
+}
+
+/** UI-safe fiscal-year span from the server-resolved external calendar. */
+export interface FiscalYearSpan {
+  name: string;
+  start: string;
+  end: string;
+}
+
+function toFiscalYearSpans(fiscalYears: readonly FiscalYearRow[]): FiscalYearSpan[] {
+  return fiscalYears
+    .map(({ name, year_start_date, year_end_date }) => ({ name, start: year_start_date, end: year_end_date }))
+    .sort((left, right) =>
+      left.start.localeCompare(right.start)
+      || left.end.localeCompare(right.end)
+      || left.name.localeCompare(right.name));
 }
 
 function invalidFiscalYearError(
@@ -380,7 +398,7 @@ export async function runBudgetActivationPrecheck(deps: BudgetGateDeps, erpBudge
   }
 
   if (!erpBudgetPushConfigured) {
-    return { status: 'ready', erpCheck: 'not-required', fiscalYearNames: null, issues: [] };
+    return { status: 'ready', erpCheck: 'not-required', fiscalYearNames: null, fiscalYears: null, issues: [] };
   }
 
   const lineItems = await deps.readLineItems(deps.versionId);
@@ -398,6 +416,7 @@ export async function runBudgetActivationPrecheck(deps: BudgetGateDeps, erpBudge
       status: issues.length > 0 ? 'blocked' : 'erp-unavailable',
       erpCheck: 'unavailable',
       fiscalYearNames: null,
+      fiscalYears: null,
       issues: issues.map((issue) => issue.finding ?? { code: issue.code, categories: issue.unmappedCategories }),
     };
   }
@@ -429,6 +448,7 @@ export async function runBudgetActivationPrecheck(deps: BudgetGateDeps, erpBudge
     status: issueDetails.length > 0 ? 'blocked' : 'ready',
     erpCheck: 'available',
     fiscalYearNames: [...new Set(fiscalYears.map((fy) => fy.name))],
+    fiscalYears: span ? toFiscalYearSpans(fiscalYears) : null,
     issues: issueDetails,
   };
 }
