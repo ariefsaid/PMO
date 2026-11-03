@@ -445,7 +445,7 @@ export function DataTable<Row>({
   // local variable so the async-state code is one source of truth.
   const listStateNode = state ? (
     <>
-      {state === 'loading' && <ListState variant="loading" />}
+      {state === 'loading' && <ListState variant="loading" shape="table" columns={Math.min(colSpan, 8)} rows={6} />}
       {state === 'empty' && (
         <ListState
           variant="empty"

@@ -35,7 +35,7 @@ export const ChartFrame: React.FC<ChartFrameProps> = ({
   children,
 }) => {
   if (state === 'loading') {
-    return <ListState variant="loading" rows={loadingRows} />;
+    return <ListState variant="loading" shape="chart" rows={loadingRows} />;
   }
   if (state === 'empty') {
     return <ListState variant="empty" title={emptyTitle} sub={emptySub} icon={emptyIcon} />;

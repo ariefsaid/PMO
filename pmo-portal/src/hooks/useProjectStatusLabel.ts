@@ -19,7 +19,7 @@ export function useProjectStatusLabel(): (status: string) => string {
     'Ongoing Project': t('projects.status.ongoingProject', 'Ongoing Project'),
     'On Hold': t('projects.status.onHold', 'On Hold'),
     'Close Out': t('projects.status.closeOut', 'Close Out'),
-    'Loss Tender': t('projects.status.lossTender', 'Loss Tender'),
+    'Loss Tender': t('projects.status.lossTender', 'Lost'),
     Declined: t('projects.status.declined', 'Declined'),
     'Internal Project': t('projects.status.internalProject', 'Internal Project'),
   };

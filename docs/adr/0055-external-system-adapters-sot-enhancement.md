@@ -83,7 +83,7 @@ ERP"), reconciling on the external answer — semantics unchanged underneath.
 
 | PMO domain | Owner when ERPNext employed | Notes | Live standalone → ERPNext crossing |
 |---|---|---|---|
-| Accounting (GL) | **ERP** | always; PMO has no ledger (ADR-0048 stands) | **n/a** — PMO never held the ledger; nothing is demoted or backfilled |
+| Accounting (GL) | **ERP** when connected; **PMO** when no ERP (OD-VISION-ERP, 2026-11-03) | PMO is an ERP; a connected ERP owns the ledger (ADR-0048 for connected orgs) | **n/a** — PMO never held the ledger; nothing is demoted or backfilled |
 | Procurement chain (PR/RFQ/PO/GR/Invoice/Payment) | **ERP** | 1:1 native match; PMO is the UI over it | **Posture B** — PMO ran the process; retain PMO SoT and side-mirror the outcome |
 | Companies/Contacts (Customer/Supplier/Contact) | **ERP** | party master; created via synchronous command | **Posture A + adopt** — reference/master-data exception; use the ordinary party-adopt route |
 | Sales money documents (Quotation, Sales Order, Sales Invoice) | **ERP** | = spine 4 Revenue/AR lands as commands | **Posture B** — PMO ran the process; retain PMO SoT and side-mirror |

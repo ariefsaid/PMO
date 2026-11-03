@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { agentChatHandler, type HandlerDeps } from '../../../../supabase/functions/agent-chat/handler';
 import type { AgentEvent } from './runtime/port';
-import { fakeSupabase, type FakeCall, type Invoker } from './testing/fakeSupabase';
+import { fakeSupabase, FEATURES_ALL_ON, type FakeCall, type Invoker } from './testing/fakeSupabase';
 import { C1, P1, world } from './testing/draftInvoiceFixtures';
 
 async function collect(it: AsyncIterable<AgentEvent>) { const out: AgentEvent[] = []; for await (const e of it) out.push(e); return out; }
@@ -57,20 +57,23 @@ describe('draft_invoice through the handler (#787)', () => {
     const base = world({ external_domain_ownership: () => [] });
     const NEW = '77777777-7777-4777-8777-777777777777';
     const s = fakeSupabase((c: FakeCall) => (c.table === 'profiles' ? { data: { org_id: 'org-1', role: 'Finance' }, error: null } : base(c)));
-    const rpc = vi.fn(async () => ({ data: NEW, error: null }));
+    const rpc = vi.fn(async (fn: string) => fn === 'create_native_sales_invoice'
+      ? { data: NEW, error: null }
+      : { data: FEATURES_ALL_ON, error: null });
     (s.client as unknown as { rpc: typeof rpc }).rpc = rpc;
     const first = vi.fn().mockResolvedValueOnce(toolCall('draft_invoice', { workOrder: 'WO-20261001-001' })).mockResolvedValueOnce(stop('ok'));
     const events = await collect(agentChatHandler({ runId: 'run-1', messages: [USER] }, deps(s.client, first)));
     const chip = events.find((e) => (e.payload as { status?: string } | undefined)?.status === 'needs-approval')?.payload as
       { pendingId: string; humanSummary: string; structuredArgs: Record<string, unknown> };
     expect(chip.structuredArgs).toMatchObject({ path: 'native', items: [{ item_code: '', rate: 1_000_000 }] });
-    expect(rpc).not.toHaveBeenCalled();
+    const nativeCalls = () => rpc.mock.calls.filter(([name]) => name === 'create_native_sales_invoice');
+    expect(nativeCalls()).toHaveLength(0);
 
     const can = vi.fn(() => true);
     const done = await collect(agentChatHandler(approveReq(chip.pendingId, chip.structuredArgs), deps(s.client, vi.fn().mockResolvedValueOnce(stop('Saved.')), can)));
     expect(can).toHaveBeenCalledWith('create', 'salesInvoice', { realRole: 'Finance' });
-    expect(rpc).toHaveBeenCalledTimes(1);
-    expect(rpc.mock.calls[0]).toEqual(['create_native_sales_invoice', expect.objectContaining({ p_project_id: P1, p_customer_id: C1 })]);
+    expect(nativeCalls()).toHaveLength(1);
+    expect(nativeCalls()[0]).toEqual(['create_native_sales_invoice', expect.objectContaining({ p_project_id: P1, p_customer_id: C1 })]);
     expect(s.invoke).not.toHaveBeenCalled();
     expect(done.find((e) => e.type === 'tool')).toMatchObject({ payload: { name: 'draft_invoice', result: { ok: true, status: 'Draft', id: NEW } } });
   });

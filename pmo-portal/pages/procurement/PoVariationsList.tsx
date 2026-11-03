@@ -47,7 +47,7 @@ export const PoVariationsList: React.FC<PoVariationsListProps> = ({ poId, projec
     { value: 'not-passed', label: t('subcontract.variations.notPassed', 'Not passed on') },
   ];
 
-  if (variations.isPending) return <section aria-label={t('subcontract.variations.title', 'Cost variations')}><ListState variant="loading" rows={2} /></section>;
+  if (variations.isPending) return <section aria-label={t('subcontract.variations.title', 'Cost variations')}><ListState variant="loading" shape="table" rows={2} /></section>;
   if (variations.isError) return <section aria-label={t('subcontract.variations.title', 'Cost variations')}>
     <ListState variant="error" title={t('subcontract.variations.loadError', 'Could not load cost variations.')}
       onRetry={() => void variations.refetch()} retryLabel={t('subcontract.lines.retry', 'Retry')} />

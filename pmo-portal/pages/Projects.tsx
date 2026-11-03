@@ -126,7 +126,7 @@ const Projects: React.FC = () => {
         primaryAction={primaryAction}
       >
         <div data-testid="projects-loading" className="rounded-lg border border-border bg-card">
-          <ListState variant="loading" rows={6} />
+          <ListState variant="loading" shape="table" columns={6} rows={6} />
         </div>
       </ListPage>
     );
@@ -153,6 +153,8 @@ const Projects: React.FC = () => {
     return (
       <ListPage
         title={t('projects.title', 'Projects')}
+        count={0}
+        total={0}
         description={pageDescription}
         primaryAction={primaryAction}
       >
@@ -195,6 +197,8 @@ const Projects: React.FC = () => {
   return (
     <ListPage
       title={t('projects.title', 'Projects')}
+      count={filtered.length}
+      total={all.length}
       description={pageDescription}
       primaryAction={primaryAction}
       {...toolbar}

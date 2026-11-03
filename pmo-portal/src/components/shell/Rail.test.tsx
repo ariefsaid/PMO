@@ -41,7 +41,7 @@ vi.mock('@/src/hooks/useOrgFeatures', () => ({
       timesheets: true,
       import_export: true,
       agent_assistant: false,
-      user_views: false,
+      user_views: featureEnabled.userViews,
     },
     isPending: false,
     isError: false,

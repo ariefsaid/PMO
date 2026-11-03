@@ -31,7 +31,7 @@ vi.mock('@/src/lib/db/agentRuns', () => ({ getRunHeartbeat: vi.fn().mockResolved
 
 vi.mock('@/src/hooks/useCachedRecordLists', () => ({ useCachedRecordLists: () => ({ lists: { projects: [], opportunities: [], procurements: [], companies: [], contacts: [], userViews: [] }, resolved: true }) }));
 vi.mock('@/src/hooks/useRecordSearch', async (importOriginal) => ({ ...await importOriginal<typeof import('@/src/hooks/useRecordSearch')>(), useRecordSearch: () => ({ records: [], isPending: false, isError: false, refetch: vi.fn() }) }));
-vi.mock('@/src/hooks/useOrgFeatures', () => ({ useOrgFeatures: () => ({ data: { crm: true, procurement: true, timesheets: true } }) }));
+vi.mock('@/src/hooks/useOrgFeatures', () => ({ useOrgFeatures: () => ({ data: { crm: true, procurement: true, timesheets: true, agent_assistant: true } }) }));
 vi.mock('@/src/hooks/useUserViews', () => ({ useUserViews: () => ({ data: [], isPending: false, isError: false }) }));
 vi.mock('@/src/auth/useIsOperator', () => ({ useOperatorMembership: () => ({ isOperator: false, isError: false }), useIsOperator: () => false }));
 const roleState = vi.hoisted(() => ({ value: null as string | null }));

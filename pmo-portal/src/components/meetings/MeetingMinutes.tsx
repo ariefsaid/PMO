@@ -67,6 +67,7 @@ const MeetingMinutes = React.forwardRef<MeetingMinutesHandle, MeetingMinutesProp
 
   const guardLeave = useUnsavedChangesGuard({
     dirty: minutesDirty || additionalDirty,
+    guardHistory: true,
     onBlocked: onBlockedLeave,
   });
   useImperativeHandle(ref, () => ({

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ConfirmDialog } from '@/src/components/ui';
 import { projectStatusGroup, type ProjectStatus } from '@/src/lib/db/projectTransitions';
+import { useProjectStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 import { projectConfirmCopy } from './projectTransitionCopy';
 import { LostReasonFields, type LostReasonValue } from './LostReasonFields';
 import { lostReasonValid } from '@/src/lib/lostReasons';
@@ -16,6 +17,7 @@ export const ProjectTransitionConfirm: React.FC<{
   onConfirm: (to: ProjectStatus, lost?: LostReasonValue) => void;
 }> = ({ target, choice, loading, onCancel, onConfirm }) => {
   const { t } = useTranslation('boardDrag');
+  const statusLabel = useProjectStatusLabel();
   const [picked, setPicked] = useState<ProjectStatus | null>(null);
   const [lost, setLost] = useState<LostReasonValue>({ reason: '', note: '' });
   const copy = projectConfirmCopy(target);
@@ -31,7 +33,7 @@ export const ProjectTransitionConfirm: React.FC<{
           {choice.map((s) => (
             <label key={s} className="mt-1 flex items-center gap-2 text-sm">
               <input type="radio" name="lost-outcome" value={s} checked={picked === s} onChange={() => setPicked(s)} />
-              {s}
+              {statusLabel(s)}
             </label>
           ))}
         </fieldset>
