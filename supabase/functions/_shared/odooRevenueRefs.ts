@@ -12,7 +12,9 @@ import type { OdooCall } from '../../../pmo-portal/src/lib/adapterSeam/odoo/clie
 import { parseOdooExternalRef } from '../../../pmo-portal/src/lib/adapterSeam/odoo/purchase/anchors.ts';
 import { resolveClientReference, type InvoiceMaps, type PmoInvoice } from '../../../pmo-portal/src/lib/adapterSeam/odoo/revenue/invoiceBody.ts';
 import { expectedInvoiceTotal, type InvoiceExpect } from '../../../pmo-portal/src/lib/adapterSeam/odoo/revenue/invoiceReadBack.ts';
+import { odooCurrencyAmountsEqual, odooFloatRound, odooLineSubtotal } from '../../../pmo-portal/src/lib/adapterSeam/odoo/revenue/odooRounding.ts';
 import { selectSaleTaxes, type SaleTax } from '../../../pmo-portal/src/lib/adapterSeam/odoo/revenue/taxValidate.ts';
+import { formatTimeMaterialsDescription } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/dispatchRevenueFormatting.ts';
 import { readOdooProgressClaim } from './odooProgressClaim.ts';
 import { resolveOdooCostAccount } from './odooPurchaseRefs.ts';
 
@@ -32,15 +34,18 @@ export interface InvoiceDraftRow {
 }
 const DRAFT_COLUMNS = 'id,customer_id,project_id,work_order_id,reference_number,invoice_date,currency,status,erp_docstatus,pmo_native,native_lines';
 
-/** A line is valid only in its stored shape: a code, a positive quantity, a finite non-negative rate, and an amount of qty x rate to the cent. */
-export function parseDraftLines(value: unknown, allowNegative = false): DraftLine[] | null {
+/** A line is valid only in its stored shape: a code, a positive quantity, a finite rate and a verified amount to the cent. */
+export function parseDraftLines(value: unknown, allowNegative = false, preserveRecordedAmounts = false): DraftLine[] | null {
   if (!Array.isArray(value) || value.length === 0) return null;
   const lines: DraftLine[] = [];
   for (const raw of value) {
     const l = raw as { item_code?: unknown; description?: unknown; qty?: unknown; rate?: unknown; amount?: unknown } | null;
     const code = text(l?.item_code);
     if (!l || !code || typeof l.qty !== 'number' || !(l.qty > 0) || typeof l.rate !== 'number' || !Number.isFinite(l.rate) || (!allowNegative && l.rate < 0)) return null;
-    lines.push({ item_code: code, description: text(l.description), qty: l.qty, rate: l.rate, amount: Math.round(l.qty * l.rate * 100) / 100 });
+    const recordedAmount = typeof l.amount === 'number' ? l.amount : typeof l.amount === 'string' && l.amount.trim() !== '' ? Number(l.amount) : NaN;
+    const amount = preserveRecordedAmounts ? recordedAmount : odooFloatRound(l.qty * l.rate, { precisionDigits: 2 });
+    if (!Number.isFinite(amount) || odooFloatRound(amount, { precisionDigits: 2 }) !== amount) return null;
+    lines.push({ item_code: code, description: text(l.description), qty: l.qty, rate: l.rate, amount });
   }
   return lines;
 }
@@ -54,7 +59,7 @@ export async function readInvoiceDraft(sc: SupabaseClient, orgId: string, id: st
   return {
     id: String(r.id), customerId: text(r.customer_id), projectId: text(r.project_id), workOrderId: text(r.work_order_id), referenceNumber: text(r.reference_number),
     invoiceDate: text(r.invoice_date), currency: text(r.currency), status: String(r.status), erpDocstatus: typeof r.erp_docstatus === 'number' ? r.erp_docstatus : null,
-    pmoNative: r.pmo_native === true, lines: parseDraftLines(r.native_lines, true) ?? [],
+    pmoNative: r.pmo_native === true, lines: parseDraftLines(r.native_lines, true, true) ?? [],
   };
 }
 
@@ -74,15 +79,37 @@ async function readSaleTax(sc: SupabaseClient, orgId: string, call: OdooCall, id
     : []);
 }
 
-/** Odoo's company currency (the only currency PMO invoices in, OQ-OCI-13) as `[id, code]`; unreadable is refused. */
-async function companyCurrency(call: OdooCall, companyId: number | null): Promise<string> {
+/** Odoo's company currency and its actual rounding increment (OQ-OCI-13); unreadable configuration is refused. */
+async function companyCurrency(call: OdooCall, companyId: number | null): Promise<{ code: string; rounding: number }> {
   const unreadable = () => rejected('currency-unreadable: the invoice currency could not be confirmed against Odoo');
   if (companyId === null) throw unreadable();
   let company: Array<{ currency_id?: unknown }>;
   try { company = await call<Array<{ currency_id?: unknown }>>('res.company', 'read', { ids: [companyId], fields: ['currency_id'] }); } catch { throw unreadable(); }
   const cur = company[0]?.currency_id;
-  if (!Array.isArray(cur) || typeof cur[1] !== 'string' || cur[1].trim() === '') throw unreadable();
-  return cur[1].trim().toUpperCase();
+  const currencyId = Array.isArray(cur) ? Number(cur[0]) : NaN;
+  if (!Number.isInteger(currencyId) || currencyId <= 0 || !Array.isArray(cur) || typeof cur[1] !== 'string' || cur[1].trim() === '') throw unreadable();
+  let currencies: Array<{ rounding?: unknown }>;
+  try { currencies = await call<Array<{ rounding?: unknown }>>('res.currency', 'read', { ids: [currencyId], fields: ['rounding'] }); } catch {
+    throw rejected('config-rejected: the invoice currency rounding could not be read');
+  }
+  const rounding = Number(currencies[0]?.rounding);
+  if (!Number.isFinite(rounding) || rounding <= 0) throw rejected('config-rejected: the invoice currency rounding could not be read');
+  return { code: cur[1].trim().toUpperCase(), rounding };
+}
+
+/** account.move.line.quantity uses digits="Product Unit"; Odoo's ORM rounds it through float_round. */
+async function productUnitRounding(call: OdooCall): Promise<number> {
+  let rows: Array<{ digits?: unknown }>;
+  try {
+    rows = await call<Array<{ digits?: unknown }>>('decimal.precision', 'search_read', {
+      domain: [['name', '=', 'Product Unit']], fields: ['digits'], limit: 2,
+    });
+  } catch {
+    throw rejected('config-rejected: the product-unit quantity precision could not be read');
+  }
+  const digits = rows.length === 1 ? Number(rows[0].digits) : NaN;
+  if (!Number.isInteger(digits) || digits < 0 || digits > 12) throw rejected('config-rejected: the product-unit quantity precision could not be read');
+  return 10 ** -digits;
 }
 
 /** The Odoo products the lines name and the income account each posts to (`false` = none set: the line is refused, never guessed). */
@@ -145,13 +172,12 @@ export function resolveOdooInvoiceInputs(sc: SupabaseClient, orgId: string, comm
     if (!replay && (draft.status !== 'Draft' || draft.erpDocstatus !== null)) return refuse('invoice-not-a-draft');
     if (draft.lines.length === 0) return refuse('invoice-draft-lines-missing');
     if (resolved.companyId === null) return refuse('company-not-set');
-
     const claim = await readOdooProgressClaim(sc, orgId, draft.id);
     if (claim) {
       const recorded = claim.items.map((line) => ({
-        item_code: line.item_code, qty: line.qty, rate: line.rate, description: text(line.description),
+        item_code: line.item_code, qty: line.qty, rate: line.rate, amount: line.amount, description: text(line.description),
       }));
-      const copied = draft.lines.map((line) => ({ item_code: line.item_code, qty: line.qty, rate: line.rate, description: line.description }));
+      const copied = draft.lines.map((line) => ({ item_code: line.item_code, qty: line.qty, rate: line.rate, amount: line.amount, description: line.description }));
       if (draft.customerId !== claim.customerId || draft.projectId !== claim.claim.project_id || draft.workOrderId !== claim.claim.work_order_id
         || draft.currency !== claim.claim.currency || draft.referenceNumber !== null || JSON.stringify(copied) !== JSON.stringify(recorded)) {
         return refuse('claim-invoice-draft-mismatch');
@@ -209,19 +235,36 @@ export function resolveOdooInvoiceInputs(sc: SupabaseClient, orgId: string, comm
     const selection = selectSaleTaxes({ vatFlag, defaultTaxId: saleTaxId, taxes, companyId: resolved.companyId });
     if (selection.outcome === 'refused') throw rejected(`config-rejected: the sale tax${selection.tax ? ` ${selection.tax}` : ''} cannot be used on an invoice`);
     const rates = taxes.filter((t) => selection.taxIds.includes(t.id)).map((t) => t.rate);
+    const [quantityRounding, currency] = await Promise.all([productUnitRounding(call), companyCurrency(call, resolved.companyId)]);
 
-    const lines = draft.lines.map((l, i) => ({
-      itemId: l.item_code, description: l.description ?? l.item_code, quantity: l.qty, unitPrice: l.rate,
-      ...(claim ? { kind: claim.claim.kind === 'down_payment' ? 'down-payment' as const
-        : l.item_code === claim.claim.dp_item_code && l.rate < 0 ? 'recovery' as const : undefined } : {}),
-    }));
+    const lines = draft.lines.map((l, i) => {
+      const item = {
+        itemId: l.item_code, description: l.description ?? l.item_code, quantity: l.qty, unitPrice: l.rate,
+        ...(claim ? { kind: claim.claim.kind === 'down_payment' ? 'down-payment' as const
+          : l.item_code === claim.claim.dp_item_code && l.rate < 0 ? 'recovery' as const : undefined } : {}),
+      };
+      if (odooCurrencyAmountsEqual(odooLineSubtotal(l.qty, l.rate, quantityRounding, currency.rounding), l.amount, currency.rounding)) return item;
+      if (!odooCurrencyAmountsEqual(odooLineSubtotal(1, l.amount, quantityRounding, currency.rounding), l.amount, currency.rounding)) {
+        throw rejected('config-rejected: the invoice currency rounding cannot preserve the signed line amount');
+      }
+      const claimItem = claim?.items[i];
+      const sourceDescription = l.description ?? l.item_code;
+      const unitSuffix = /^(.*) \(([^()]*)\)$/.exec(sourceDescription);
+      const hasUnitSuffix = unitSuffix !== null && (!claimItem?.unit || unitSuffix[2] === claimItem.unit);
+      const description = formatTimeMaterialsDescription(
+        hasUnitSuffix ? unitSuffix[1] : sourceDescription,
+        claimItem?.unit ?? (hasUnitSuffix ? unitSuffix[2] : 'unit'),
+        l.qty, l.rate, l.amount, currency.code,
+      );
+      return { ...item, description, quantity: 1, unitPrice: l.amount };
+    });
     const reference = resolveClientReference({ invoice: draft.referenceNumber, workOrderPo, projectContractRef: contractRef });
     const today = new Date().toISOString().slice(0, 10);
     const input: PmoInvoice = {
       id: draft.id, customerId: draft.customerId ?? '', invoiceDate: draft.invoiceDate ?? today, currency: draft.currency ?? '', lines,
       referenceNumber: draft.referenceNumber, workOrderPoNumber: workOrderPo, projectContractRef: contractRef,
     };
-    const maps: InvoiceMaps = { companyCurrency: await companyCurrency(call, resolved.companyId), partners, items, units: {}, costAccountId, taxIds: selection.taxIds, ...(downPayment ? { downPayment } : {}) };
+    const maps: InvoiceMaps = { companyCurrency: currency.code, partners, items, units: {}, costAccountId, taxIds: selection.taxIds, ...(downPayment ? { downPayment } : {}) };
 
     // The command is what the draft says: the client's, project's, work order's and lines' values REPLACE whatever the payload carried, so the
     // outbox payload, its digest, the work-order fence and the recovery all read the approved draft (never the approver's say-so).
@@ -229,10 +272,17 @@ export function resolveOdooInvoiceInputs(sc: SupabaseClient, orgId: string, comm
     record.projectId = draft.projectId;
     record.workOrderId = draft.workOrderId;
     record.currency = draft.currency;
-    record.items = draft.lines.map((l) => ({ item_code: l.item_code, qty: l.qty, rate: l.rate, ...(l.description ? { description: l.description } : {}) }));
+    record.items = lines.map((l, i) => ({
+      item_code: l.itemId, qty: l.quantity, rate: l.unitPrice, amount: draft.lines[i].amount,
+      ...(l.description ? { description: l.description } : {}),
+    }));
     record.reference_number = reference;
     delete record.taxes;
-    return { input, maps, expect: { total: expectedInvoiceTotal(lines, rates), costAccountId, ...(advanceAccount ? { advanceAccount } : {}) }, draft };
+    return {
+      input, maps,
+      expect: { total: expectedInvoiceTotal(lines.map((line, i) => ({ ...line, amount: draft.lines[i].amount })), rates, currency.rounding), costAccountId, ...(advanceAccount ? { advanceAccount } : {}) },
+      draft,
+    };
   })();
   resolvedInvoices.set(command, run);
   return run;

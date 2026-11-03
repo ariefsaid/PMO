@@ -8,31 +8,32 @@ const MAX_CLAIM_LINES = 500;
 export interface OdooProgressClaim {
   claim: ProgressClaimRecord;
   customerId: string;
-  items: ReturnType<typeof progressClaimItems>;
+  items: OdooProgressClaimItem[];
 }
 
-function invoiceItemsFromClaim(claim: ProgressClaimRecord, lines: readonly ProgressClaimLineRecord[]): ReturnType<typeof progressClaimItems> {
-  if (claim.kind === 'down_payment') return progressClaimItems(claim);
+export type OdooProgressClaimItem = ReturnType<typeof progressClaimItems>[number] & { amount: number; unit?: string };
+
+function invoiceItemsFromClaim(claim: ProgressClaimRecord, lines: readonly ProgressClaimLineRecord[]): OdooProgressClaimItem[] {
+  if (claim.kind === 'down_payment') return progressClaimItems(claim).map((line) => ({ ...line, amount: Number(line.rate) }));
   if (claim.withdrawn_at) {
     throw new AdapterError('commit-rejected', 'This progress claim was withdrawn, so no invoice can be raised for it');
   }
-  if (claim.kind !== 'progress') {
-    throw new AdapterError('commit-rejected', 'Time-and-materials lines must be resolved from the signed claim');
-  }
   if (lines.length === 0) throw new AdapterError('commit-rejected', 'This progress claim has no quantity lines');
 
-  const items: ReturnType<typeof progressClaimItems> = lines.map((line) => ({
+  const items: OdooProgressClaimItem[] = lines.map((line) => ({
     item_code: line.item_code,
     qty: Number(line.quantity),
     rate: Number(line.rate),
     description: `${line.description} (${line.unit})`,
+    amount: Number(line.amount),
+    unit: line.unit,
   }));
   const recovery = Number(claim.dp_recovery_amount);
   if (recovery > 0) {
     if (!claim.dp_item_code) {
       throw new AdapterError('commit-rejected', 'This progress claim recovers a down payment but names no down payment item');
     }
-    items.push({ item_code: claim.dp_item_code, qty: 1, rate: -recovery });
+    items.push({ item_code: claim.dp_item_code, qty: 1, rate: -recovery, amount: -recovery });
   }
   return items;
 }
@@ -72,7 +73,7 @@ export async function readOdooProgressClaim(sc: SupabaseClient, orgId: string, i
   let lines: ProgressClaimLineRecord[] = [];
   if (claim.kind === 'progress') {
     const { data: rows, error: linesError } = await sc.from('progress_claim_lines')
-      .select('item_code,description,unit,quantity,rate').eq('org_id', orgId).eq('claim_id', claim.id)
+      .select('item_code,description,unit,quantity,rate,amount').eq('org_id', orgId).eq('claim_id', claim.id)
       .order('boq_item_id', { ascending: true }).limit(MAX_CLAIM_LINES + 1);
     if (linesError) throw new AppError('The billing claim lines could not be read', 'gate-check-failed');
     lines = (rows ?? []) as ProgressClaimLineRecord[];
