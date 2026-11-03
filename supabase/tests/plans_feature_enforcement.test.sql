@@ -36,6 +36,7 @@ insert into org_features (org_id, feature_key, enabled) values
   ('05340000-0000-0000-0000-000000000001', 'import_export', false),
   ('05340000-0000-0000-0000-000000000003', 'sales_invoices', false),
   ('05340000-0000-0000-0000-000000000003', 'timesheets', false),
+  ('05340000-0000-0000-0000-000000000003', 'import_export', false),
   ('05340000-0000-0000-0000-000000000003', 'procurement', false),
   ('05340000-0000-0000-0000-000000000003', 'agent_assistant', false);
 insert into external_domain_ownership (org_id, external_tier, domain)
