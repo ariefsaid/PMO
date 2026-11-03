@@ -11,7 +11,8 @@ const { mockAgentAssistant } = vi.hoisted(() => ({
   mockAgentAssistant: { value: true },
 }));
 
-vi.mock('@/src/lib/features', () => ({
+vi.mock('@/src/lib/features', async (importOriginal) => ({
+  ...await importOriginal<typeof import('@/src/lib/features')>(),
   isFeatureEnabled: (key: string) => (key === 'agentAssistant' ? mockAgentAssistant.value : false),
   FEATURES: { agentAssistant: true, aiComposer: false, userViews: false, incidents: false },
   // FEATURE_KEYS: consumed transitively (orgFeatures.ts, imported via repositories/index.ts) by

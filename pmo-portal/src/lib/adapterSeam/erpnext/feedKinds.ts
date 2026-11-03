@@ -49,6 +49,24 @@ export const KIND_DOMAIN: Record<ErpDocKind, 'companies' | 'procurement' | 'reve
   'imprest-transfer': 'expenses',
 };
 
+const DOMAIN_FEATURE_KEY: Partial<Record<(typeof KIND_DOMAIN)[ErpDocKind], string>> = {
+  companies: 'crm',
+  procurement: 'procurement',
+  revenue: 'revenue',
+  timesheets: 'timesheets',
+};
+
+const KIND_FEATURE_KEY: Partial<Record<ErpDocKind, string>> = {
+  // A site-float transfer shares the `expenses` storage domain with core expense postings, but its
+  // forward transition is specifically entitled by the imprest module.
+  'imprest-transfer': 'imprest',
+};
+
+/** The plan switch that gates inbound reads for one ERP kind; core domains without a switch return undefined. */
+export function featureKeyForKind(kind: ErpDocKind): string | undefined {
+  return KIND_FEATURE_KEY[kind] ?? DOMAIN_FEATURE_KEY[KIND_DOMAIN[kind]];
+}
+
 /** kind → the PMO mirror table the feed upserts/reads (the table carrying `erp_modified`/`erp_docstatus`).
  *  Procurement sub-doctypes each have their own mirror table (slices 4-6); parties share `companies`;
  *  Revenue kinds map to the new slice-0 tables. */

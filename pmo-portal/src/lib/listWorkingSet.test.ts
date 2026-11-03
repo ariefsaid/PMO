@@ -32,7 +32,7 @@ describe('list working-set URL codec', () => {
       view: 'table',
     });
     expect(parseListWorkingSet('sales', '')).toEqual({
-      scope: 'Open',
+      scope: 'All',
       status: '',
       q: '',
       view: 'kanban',
@@ -191,7 +191,7 @@ describe('list working-set URL codec', () => {
       'sales',
       '?scope=bogus&status=Not+A+stage&view=crazy&q=review',
     );
-    expect(sales).toEqual({ scope: 'Open', status: '', q: 'review', view: 'kanban' });
+    expect(sales).toEqual({ scope: 'All', status: '', q: 'review', view: 'kanban' });
   });
 
   it('AC-LRC-001/002: round-trips Contacts and Meetings identifiers and search', () => {
@@ -259,6 +259,7 @@ describe('list working-set URL codec', () => {
 
     const lostAlone: SalesWorkingSet = parseListWorkingSet('sales', '?scope=Lost&view=table');
     expect(lostAlone).toMatchObject({ scope: 'Lost', status: '' });
+    expect(parseListWorkingSet('sales', '?scope=All&view=table')).toMatchObject({ scope: 'All', status: '' });
     expect(parseListWorkingSet('sales', '?scope=Won&view=table')).toMatchObject({
       scope: 'Won', status: '',
     });
@@ -266,15 +267,15 @@ describe('list working-set URL codec', () => {
       scope: 'Open', status: 'Leads',
     });
 
-    // Serializing a contradictory Lost + open stage omits scope (Open is the default), so the URL
-    // and the controls both read Open + Leads.
+    // Serializing a contradictory Lost + open stage normalizes to explicit Open, since All is now
+    // the default. The URL and the controls both read Open + Leads.
     const lostQuery = serializeListWorkingSet('sales', '?campaign=fall', {
       scope: 'Lost',
       status: 'Leads',
       q: '',
       view: 'table',
     });
-    expect(lostQuery.toString()).toBe('campaign=fall&status=Leads&view=table');
+    expect(lostQuery.toString()).toBe('campaign=fall&scope=Open&status=Leads&view=table');
     expect(parseListWorkingSet('sales', lostQuery)).toMatchObject({ scope: 'Open', status: 'Leads' });
     // Lost without a stage is not contradictory and is written as-is.
     expect(
@@ -285,6 +286,14 @@ describe('list working-set URL codec', () => {
       serializeListWorkingSet('sales', '', { scope: 'Won', status: '', q: '', view: 'table' })
         .toString(),
     ).toBe('scope=Won&view=table');
+    expect(
+      serializeListWorkingSet('sales', '', { scope: 'Open', status: '', q: '', view: 'table' })
+        .toString(),
+    ).toBe('scope=Open&view=table');
+    expect(
+      serializeListWorkingSet('sales', '', { scope: 'All', status: '', q: '', view: 'table' })
+        .toString(),
+    ).toBe('view=table');
 
     // Round-trips: Needs attention + stage survives serialization.
     const roundTrip = parseListWorkingSet(
@@ -295,13 +304,13 @@ describe('list working-set URL codec', () => {
   });
 
   it('#682 Director ruling (2026-09-29): scope is meaningful only for the Sales table view — the board carries no scope', () => {
-    // A direct/copied board URL with a stale scope parses to Open, never Lost/Needs attention.
+    // A direct/copied board URL with a stale scope parses to All, never Lost/Needs attention.
     expect(parseListWorkingSet('sales', '?view=kanban&scope=Lost')).toMatchObject({
-      scope: 'Open',
+      scope: 'All',
       view: 'kanban',
     });
     expect(parseListWorkingSet('sales', '?view=kanban&scope=Needs+attention')).toMatchObject({
-      scope: 'Open',
+      scope: 'All',
       view: 'kanban',
     });
     // Serializing a working set whose view is the board never writes an inert `scope` key, even
@@ -313,9 +322,9 @@ describe('list working-set URL codec', () => {
       view: 'kanban',
     });
     expect(boardQuery.get('scope')).toBeNull();
-    // Switching the view back to table (same working set otherwise) reads Open, not the stale
+    // Switching the view back to table (same working set otherwise) reads All, not the stale
     // Lost — the URL no longer carries it, so there is nothing to snap back to.
-    expect(parseListWorkingSet('sales', boardQuery)).toMatchObject({ scope: 'Open', view: 'kanban' });
+    expect(parseListWorkingSet('sales', boardQuery)).toMatchObject({ scope: 'All', view: 'kanban' });
   });
 
   it('AC-LRC-002: falls back from invalid enums without discarding valid referenced IDs or unrelated keys', () => {

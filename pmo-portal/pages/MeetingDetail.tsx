@@ -79,7 +79,7 @@ const MeetingDetail: React.FC = () => {
     return (
       <>
         <BackBar label={backLabel} phoneOnly onBack={goBack} />
-        <div data-testid="meeting-loading"><ListState variant="loading" rows={5} /></div>
+        <div data-testid="meeting-loading"><ListState variant="loading" shape="detail" rows={5} /></div>
       </>
     );
   }

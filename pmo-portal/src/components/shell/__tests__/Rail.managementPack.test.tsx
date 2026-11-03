@@ -7,12 +7,13 @@ import { Rail } from '../Rail';
 
 let effectiveRole = 'Finance';
 let revenue = true;
+let managementPack = true;
 vi.mock('@/src/auth/impersonation', () => ({
   useEffectiveRole: () => ({ effectiveRole, realRole: effectiveRole, canImpersonate: false, viewAs: vi.fn() }),
 }));
 vi.mock('@/src/hooks/useUserViews', () => ({ useUserViews: () => ({ data: [], isPending: false, isError: false }) }));
 vi.mock('@/src/hooks/useOrgFeatures', () => ({
-  useOrgFeatures: () => ({ data: { revenue }, isPending: false, isError: false }),
+  useOrgFeatures: () => ({ data: { revenue, management_pack: managementPack }, isPending: false, isError: false }),
 }));
 
 const renderRail = () => render(<MemoryRouter><Rail /></MemoryRouter>);
@@ -25,24 +26,24 @@ describe('Finance area in the rail', () => {
     expect(screen.getByRole('link', { name: 'Finance' })).toHaveAttribute('href', '/finance');
   });
 
-  // AC-MMP-015 (ported): the management pack is now Finance › Reports. Finance sees it with Revenue
-  // on; Engineers never do; nobody does when Revenue is off (the Finance hub itself stays).
-  it('AC-MMP-015: Finance sees Reports (the management pack) linking to /finance/reports when Revenue is on', () => {
+  // AC-MMP-015 (ported): the management pack is now Finance › Reports. Engineers never see it,
+  // and its own entitlement controls visibility independently of the Finance hub.
+  it('AC-MMP-015: Finance sees Reports (the management pack) linking to /finance/reports when Management Pack is on', () => {
     effectiveRole = 'Finance';
-    revenue = true;
+    managementPack = true;
     renderRail();
     expect(screen.getByRole('link', { name: 'Reports' })).toHaveAttribute('href', '/finance/reports');
   });
 
-  it('AC-MMP-015: Engineers do not see Reports, and nobody does when Revenue is off', () => {
+  it('AC-MMP-015: Engineers do not see Reports, and nobody does when Management Pack is off', () => {
     effectiveRole = 'Engineer';
-    revenue = true;
+    managementPack = true;
     const { unmount } = renderRail();
     expect(screen.queryByRole('link', { name: 'Reports' })).toBeNull();
     unmount();
     for (const role of ['Finance', 'Executive', 'Admin']) {
       effectiveRole = role;
-      revenue = false;
+      managementPack = false;
       const view = renderRail();
       expect(screen.queryByRole('link', { name: 'Reports' })).toBeNull();
       view.unmount();

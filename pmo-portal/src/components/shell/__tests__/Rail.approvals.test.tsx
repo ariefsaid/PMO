@@ -31,12 +31,12 @@ vi.mock('@/src/auth/useIsOperator', () => ({ useIsOperator: () => false }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: userId, org_id: 'synthetic-org' }, role: roleState.activeRole }) }));
 vi.mock('@/src/hooks/useUserViews', () => ({ useUserViews: () => ({ data: [] }) }));
 vi.mock('@/src/hooks/useOrgFeatures', () => ({
-  useOrgFeatures: () => ({ data: { crm: true, procurement: true, timesheets: true, revenue: true } }),
+  useOrgFeatures: () => ({ data: { crm: true, procurement: true, timesheets: true, revenue: true, sales_pipeline: true } }),
 }));
 vi.mock('@/src/lib/features', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/src/lib/features')>()),
   isFeatureEnabled: () => false,
-  FEATURE_ENV_DEFAULT: { crm: true, procurement: true, timesheets: true, revenue: true },
+  FEATURE_ENV_DEFAULT: { crm: true, procurement: true, timesheets: true, revenue: true, sales_pipeline: true },
 }));
 
 import { Rail } from '../Rail';

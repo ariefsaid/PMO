@@ -192,6 +192,8 @@ const Incidents: React.FC = () => {
   return (
     <ListPage
       title="Incidents"
+      count={data ? filtered.length : undefined}
+      total={data ? all.length : undefined}
       description="The organisation incident register. Anyone can file an incident; managers investigate and close them."
       primaryAction={
         canCreate && (
@@ -240,7 +242,7 @@ const Incidents: React.FC = () => {
       {/* Body */}
       {state === 'loading' && (
         <div className="rounded-lg border border-border bg-card">
-          <ListState variant="loading" rows={6} />
+          <ListState variant="loading" shape="table" columns={5} rows={6} />
         </div>
       )}
 

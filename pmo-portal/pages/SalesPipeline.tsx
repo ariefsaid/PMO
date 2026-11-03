@@ -113,7 +113,20 @@ const SalesPipeline: React.FC = () => {
   // The RPC returns open stages only; terminal Won and Lost rows use their RLS-backed project reads.
   const kanbanProjects = useMemo(() => [...openProjects, ...won, ...lost], [openProjects, won, lost]);
 
-  // Table rows scoped by Open / Won / Lost / Needs attention and funnel stage, then filtered by shared search (XG02-006, OE04-004)
+  // The scope total excludes search and classification filters but retains the selected open stage.
+  const scopeRows = useMemo(
+    () =>
+      filterPipelineTable({
+        openProjects,
+        wonProjects: won,
+        lostProjects: lost,
+        scope,
+        selectedStatus,
+      }),
+    [openProjects, won, lost, scope, selectedStatus],
+  );
+
+  // Table rows are scoped, classification-filtered, and searched (XG02-006, OE04-004).
   const filtered = useMemo(
     () =>
       filterPipelineTable({
@@ -150,6 +163,7 @@ const SalesPipeline: React.FC = () => {
   // Display labels for the scope segments. The VALUES stay literal — they drive `filtered`'s
   // branch and terminal-query error gates below.
   const scopeLabels: Record<DealScope, string> = {
+    All: t('sales:scope.all', 'All'),
     Open: t('sales.scope.open', 'Open'),
     Won: t('sales:scope.won', 'Won'),
     Lost: declinedCount > 0
@@ -170,8 +184,8 @@ const SalesPipeline: React.FC = () => {
       ...ws,
       scope: nextScope,
       ...(nextScope === 'Lost' || nextScope === 'Won' ? { status: '' } : {}),
-      // The URL codec only allows a non-Open scope on the table view; the phone still shows its list.
-      ...(nextScope !== 'Open' ? { view: 'table' as const } : {}),
+      // Every non-default scope needs table view in the URL; the phone still shows its list.
+      ...(nextScope !== 'All' ? { view: 'table' as const } : {}),
     }));
 
   /** Board title for the stage (Pre-Qual, not "PQ Submitted"); other statuses use their own label. */
@@ -193,7 +207,7 @@ const SalesPipeline: React.FC = () => {
   // already active, so it can be cleared).
   const hasClassification = classificationsActive || kanbanProjects.some((p) =>
     p.service_line || p.sector || p.location || p.award_type || p.bidding_entity);
-  const filtersActive = classificationsActive || search.trim() !== '' || scope !== 'Open' || stageIndex !== null;
+  const filtersActive = classificationsActive || search.trim() !== '' || scope !== 'All' || stageIndex !== null;
   const narrowedWithinScope = classificationsActive || search.trim() !== '' || stageIndex !== null;
 
   // #682/#683: Clear all is ONE working-set update plus the search reset, so the URL and
@@ -373,6 +387,7 @@ const SalesPipeline: React.FC = () => {
         view={view}
         isDesktop={isDesktop}
         scope={scope}
+        scopeCount={scopeRows.length}
         filtered={filtered}
         kanbanFiltered={kanbanFiltered}
         tableColumns={tableColumns}

@@ -220,6 +220,8 @@ const Contacts: React.FC = () => {
   return (
     <ListPage
       title={t('contacts.title', 'Contacts')}
+      count={data ? filtered.length : undefined}
+      total={data ? all.length : undefined}
       description={
         // DD-MTG-6: the CRM 'Meeting' kind is the lightweight touchpoint log; anything with
         // attendees and minutes lives in the Meetings module — so this copy no longer promises
@@ -308,7 +310,7 @@ const Contacts: React.FC = () => {
       {external && may('delete', 'contact') && <p className="mb-3 text-sm text-muted-foreground">{t('crm:deleteManaged', 'Records managed in ERP can be archived here.')}</p>}
       {state === 'loading' && (
         <div className="rounded-lg border border-border bg-card">
-          <ListState variant="loading" rows={6} />
+          <ListState variant="loading" shape="table" columns={6} rows={6} />
         </div>
       )}
 

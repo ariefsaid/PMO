@@ -27,7 +27,7 @@ const StillToInvoiceBody: React.FC = () => {
       <CardHead>{t('dashboard.stillToInvoice.title', 'Still to invoice on work orders')}</CardHead>
       <div className={isClear ? 'px-4 py-2' : 'p-4'}>
         {isPending ? (
-          <ListState variant="loading" rows={3} testId="still-to-invoice-loading" />
+          <ListState variant="loading" shape="cards" rows={3} testId="still-to-invoice-loading" />
         ) : isError || !data ? (
           <ListState
             variant="error"

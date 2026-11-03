@@ -120,8 +120,8 @@ test('AC-SCA-001 verified subcontract work is billed only after a PO variation i
     await expect(firstBillRow.getByRole('cell').nth(6)).toContainText('20');
     await capture(page, testInfo, 'first-bill-capped');
 
-    const line = page.getByRole('row', { name: new RegExp(itemCode) });
-    await expect(line).toContainText('0');
+    const line = page.getByTestId('subcontract-lines').getByRole('row', { name: new RegExp(itemCode) });
+    await expect(line.getByRole('cell').nth(5)).toHaveText('0');
     await expect(line).toContainText('20');
     await page.getByRole('button', { name: 'Post-work' }).click();
     const variationDialog = page.getByRole('dialog', { name: 'Request PO variation' });
