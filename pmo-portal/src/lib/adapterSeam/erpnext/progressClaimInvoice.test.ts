@@ -163,9 +163,10 @@ describe('billing claim invoice (AC-PB-006)', () => {
     const { body, command: cmd } = await push({}, TM_CLAIM, {}, {}, {}, timeMaterials, 'claim-1');
     const lines = cmd.record.items as Array<Row>;
     expect(lines.map(({ label, unit, quantity, rate, amount, item }) => ({ label, unit, quantity, rate, amount, item }))).toEqual([
-      { label: 'Site engineer', unit: 'hour', quantity: '120.00', rate: 50000, amount: '6000000.00', item: 'SERVICE-LABOUR' },
-      { label: 'Rounding case', unit: 'hour', quantity: '0.33', rate: 0.05, amount: '0.02', item: 'SERVICE-LABOUR' },
+      { label: 'Site engineer', unit: 'hour', quantity: 120, rate: 50000, amount: '6000000.00', item: 'SERVICE-LABOUR' },
+      { label: 'Rounding case', unit: 'hour', quantity: 0.33, rate: 0.05, amount: '0.02', item: 'SERVICE-LABOUR' },
     ]);
+    expect(lines.every(({ quantity, rate }) => typeof quantity === 'number' && typeof rate === 'number')).toBe(true);
     expect(body.items).toEqual([
       { item_code: 'SERVICE-LABOUR', qty: 120, rate: 50000, description: 'Site engineer (hour)' },
       { item_code: 'SERVICE-LABOUR', qty: 0.33, rate: 0.05, description: 'Rounding case (hour)' },
@@ -177,6 +178,22 @@ describe('billing claim invoice (AC-PB-006)', () => {
     expect(cmd.idempotencyKey).toBe('claim-1');
   });
 
+  it('AC-TM-014 keeps the frozen amount for a half-cent tie while sending quantity and rate', async () => {
+    const halfCentTie = [{
+      org_id: ORG, claim_id: 'claim-1', line_key: 'rate-line-1', rate_version: 1, kind: 'labour',
+      label: 'Site engineer', unit: 'hour', units: '0.25', rate: '1000.02', amount: '250.01',
+    }];
+    const claim = { ...TM_CLAIM, gross_amount: '250.01' };
+    const tmClaim = { ...TM_STATE, gross_amount: '250.01' };
+    const { body, command: cmd } = await push({}, claim, {}, {}, {}, { claims: [tmClaim], lines: halfCentTie });
+    const [line] = cmd.record.items as Array<Row>;
+    expect(line).toMatchObject({ quantity: 0.25, rate: 1000.02, amount: '250.01' });
+    expect(Number(line.quantity) * Number(line.rate)).toBe(250.005);
+    expect(body.items).toEqual([
+      { item_code: 'SERVICE-LABOUR', qty: 0.25, rate: 1000.02, description: 'Site engineer (hour)' },
+    ]);
+  });
+
   it('AC-TM-014 refuses unsigned T&M claim lines before they can reach an invoice body', async () => {
     const unsigned = { claims: [{ ...TM_STATE, status: 'Draft', confirmed_by: null }], lines: TM_LINES };
     const { attempt, fetchImpl } = refused(command({}), TM_CLAIM, EVIDENCE, {}, {}, unsigned);
@@ -184,11 +201,52 @@ describe('billing claim invoice (AC-PB-006)', () => {
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
-  it('AC-TM-014 refuses withdrawn T&M claim lines before they can reach an invoice body', async () => {
-    const withdrawn = { claims: [{ ...TM_STATE, status: 'Withdrawn' }], lines: TM_LINES };
-    const { attempt, fetchImpl } = refused(command({}), { ...TM_CLAIM, withdrawn_at: '2026-10-06T00:00:00Z' }, EVIDENCE, {}, {}, withdrawn);
-    await expect(attempt).rejects.toThrow('This progress claim was withdrawn, so no invoice can be raised for it');
+  it.each([
+    ['the progress-claim row', { ...TM_CLAIM, withdrawn_at: '2026-10-06T00:00:00Z' }, TM_STATE],
+    ['the T&M claim row', TM_CLAIM, { ...TM_STATE, status: 'Withdrawn' }],
+  ])('AC-TM-014 refuses a T&M claim withdrawn in %s with its claim type in the message', async (_label, claim, tmState) => {
+    const withdrawn = { claims: [tmState], lines: TM_LINES };
+    const { attempt, fetchImpl } = refused(command({}), claim, EVIDENCE, {}, {}, withdrawn);
+    await expect(attempt).rejects.toThrow('This time-and-materials claim was withdrawn, so no invoice can be raised for it');
     expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['progress-claim header', { ...TM_CLAIM, gross_amount: '6000000.03' }, TM_STATE],
+    ['T&M claim header', TM_CLAIM, { ...TM_STATE, gross_amount: '6000000.03' }],
+  ])('AC-TM-014 refuses T&M lines that do not match the %s before any ERP call', async (_label, claim, tmState) => {
+    const mismatched = { claims: [tmState], lines: TM_LINES };
+    const { attempt, fetchImpl } = refused(command({}), claim, EVIDENCE, {}, {}, mismatched);
+    await expect(attempt).rejects.toMatchObject({ code: 'commit-rejected' });
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('AC-TM-014 scopes signed T&M lines to the dispatching org', async () => {
+    const otherOrgLine = {
+      ...TM_LINES[0], org_id: 'org-2', line_key: 'rate-line-3', label: 'Foreign org line',
+      units: '1.00', rate: '1.00', amount: '1.00',
+    };
+    const { body } = await push({}, TM_CLAIM, {}, {}, {}, { claims: [TM_STATE], lines: [...TM_LINES, otherOrgLine] });
+    expect(body.items).toEqual([
+      { item_code: 'SERVICE-LABOUR', qty: 120, rate: 50000, description: 'Site engineer (hour)' },
+      { item_code: 'SERVICE-LABOUR', qty: 0.33, rate: 0.05, description: 'Rounding case (hour)' },
+    ]);
+  });
+
+  it('AC-TM-014 refuses an unmapped T&M label before the ERP write', async () => {
+    const lines = TM_LINES.map((line) => line.line_key === 'rate-line-1' ? { ...line, label: 'Unmapped rate label' } : line);
+    const cmd = command({});
+    const { fetchImpl } = erpFetch();
+    const adapter = await resolveErpDispatchAdapter({
+      serviceClient: serviceClient(TM_CLAIM, EVIDENCE, {}, {}, { claims: [TM_STATE], lines }), orgId: ORG, command: cmd,
+      fetchImpl: fetchImpl as typeof fetch, apiKey: 'synthetic-key', apiSecret: 'synthetic-secret',
+      doctypeBodies: { 'sales-invoice': { toBody: siToBody, fromDoc: siFromDoc } },
+    });
+    const attempt = adapter.commit(cmd);
+    await expect(attempt).rejects.toMatchObject({
+      code: 'commit-rejected', message: expect.stringContaining('Unmapped rate label'),
+    });
+    expect(fetchImpl.mock.calls.some(([, init]) => (init as RequestInit | undefined)?.method === 'POST')).toBe(false);
   });
 
   it('AC-PB-006 builds a down payment invoice as one line on the claim item', async () => {

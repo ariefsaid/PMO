@@ -292,7 +292,7 @@ function canonicalTimeMaterialsLines(
   return lines.map((line) => ({
     label: line.label,
     unit: line.unit,
-    quantity: line.units,
+    quantity: Number(line.units),
     rate: line.rate,
     amount: line.amount,
     item: configuredClaimItem(config, line.label),
@@ -513,7 +513,7 @@ export async function resolveProgressClaimInvoice(deps: ErpDispatchFactoryDeps, 
     }
   } else if (claim.kind === 'time_materials') {
     if (claim.withdrawn_at) {
-      throw new AppError('This progress claim was withdrawn, so no invoice can be raised for it', 'commit-rejected');
+      throw new AppError('This time-and-materials claim was withdrawn, so no invoice can be raised for it', 'commit-rejected');
     }
     const { data: tmClaimData, error: tmClaimError } = await deps.serviceClient.from('tm_claims')
       .select('status,confirmed_by,gross_amount').eq('org_id', deps.orgId).eq('id', claim.id).maybeSingle();
@@ -521,7 +521,7 @@ export async function resolveProgressClaimInvoice(deps: ErpDispatchFactoryDeps, 
     if (!tmClaimData) throw new AppError('This time-and-materials claim is unavailable', 'commit-rejected');
     const tmClaim = tmClaimData as TimeMaterialsClaimState;
     if (tmClaim.status === 'Withdrawn') {
-      throw new AppError('This progress claim was withdrawn, so no invoice can be raised for it', 'commit-rejected');
+      throw new AppError('This time-and-materials claim was withdrawn, so no invoice can be raised for it', 'commit-rejected');
     }
     if (tmClaim.status !== 'SignedOff' || !tmClaim.confirmed_by) {
       throw new AppError('Confirm the time-and-materials claim before raising its invoice', 'commit-rejected');
@@ -549,7 +549,7 @@ export async function resolveProgressClaimInvoice(deps: ErpDispatchFactoryDeps, 
   } else if (claim.kind === 'time_materials') {
     record.items = invoiceItemsFromCanonical(timeMaterialsLines ?? [], true);
   } else {
-    record.items = progressClaimItems(claim, lines);
+    record.items = progressClaimItems(claim);
   }
   record.workOrderId = claim.work_order_id;
   // #858: sent explicitly so ERPNext itself rejects a mismatch with the party account currency; part of the persisted body, so a replay sends the same.
