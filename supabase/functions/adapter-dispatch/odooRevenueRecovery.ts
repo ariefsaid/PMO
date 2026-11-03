@@ -4,6 +4,7 @@ import { dispatchMoneyWrite, type DispatchMoneyWriteDeps, type OutboxRow } from 
 import { recordExternalRef as recordExternalRefWrite } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 import { ODOO_TIER } from '../../../pmo-portal/src/lib/adapterSeam/odoo/connectAdapter.ts';
+import { odooOwnsRevenueTier } from '../../../pmo-portal/src/lib/adapterSeam/odoo/ownership.ts';
 import { assertNotPreCutover } from '../../../pmo-portal/src/lib/adapterSeam/cutoverGate.ts';
 import { replayMayIssueErpWrite, checkOutboxReplayAuthorization } from './authGuard.ts';
 import { getReadModelWriter } from './readModelWriters.ts';
@@ -30,7 +31,7 @@ export type DispatchOdooRevenueRecovery = (deps: DispatchMoneyWriteDeps) => Prom
 const isInvoiceSubmit = (candidate: OdooRevenueCandidate): boolean =>
   // The foreground user command is a transition to submit, but the Odoo money outbox persists
   // its physical create operation so one invoice is created and posted as a single fenced write.
-  candidate.externalTier === ODOO_TIER && candidate.row.domain === 'revenue' && candidate.operation === 'create'
+  odooOwnsRevenueTier(candidate.externalTier) && candidate.row.domain === 'revenue' && candidate.operation === 'create'
   && candidate.payload?.erp_doc_kind === 'sales-invoice' && candidate.payload.verb === 'submit';
 
 /** Bounded Odoo invoice recovery using the same fenced dispatcher as the foreground command. */
@@ -86,7 +87,7 @@ async function buildOdooRevenueRecoveryDeps(
     payload: Record<string, unknown> | null; actor_user_id: string | null;
   };
   const payload = stored.payload ?? {};
-  if (stored.external_tier !== ODOO_TIER || stored.domain !== 'revenue' || stored.pmo_record_id !== candidate.row.pmoRecordId
+  if (!odooOwnsRevenueTier(stored.external_tier) || stored.domain !== 'revenue' || stored.pmo_record_id !== candidate.row.pmoRecordId
       || stored.operation !== 'create' || payload.erp_doc_kind !== 'sales-invoice' || payload.verb !== 'submit') {
     throw new AppError('Odoo invoice recovery row no longer matches its frozen command', 'commit-rejected');
   }
