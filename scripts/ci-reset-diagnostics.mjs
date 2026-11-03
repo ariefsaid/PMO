@@ -12,6 +12,9 @@
 //   * Allow-listed data only. Docker is queried with explicit `--format` field templates for
 //     container state/health/exit facts. No logs, no environment, no mounted paths, no requests
 //     that return rows, and no raw response bodies.
+//   * Failure text is never forwarded. Tool output and error messages render as fixed diagnostic
+//     categories plus, at most, a numeric exit code, a fixed signal name or one of the well-known
+//     native error codes below — never the text itself.
 //   * Redacted anyway. Every rendered value passes through `redact()` as defence in depth.
 //   * Never changes the job outcome. A collection or write failure is reported on stderr and the
 //     process still exits 0, so the already-failed reset step remains the only failure.
@@ -19,6 +22,7 @@
 // Usage: node scripts/ci-reset-diagnostics.mjs [--out <path>]
 import { mkdirSync, writeFileSync } from 'node:fs';
 import http from 'node:http';
+import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
@@ -72,6 +76,42 @@ export function redact(value) {
   return text;
 }
 
+// The only native error codes a failure may render. Anything outside this set collapses to the
+// bare category, so no unrecognized code text can be carried into the report.
+export const NATIVE_ERROR_CODES = Object.freeze(new Set([
+  'E2BIG', 'EACCES', 'EADDRINUSE', 'EADDRNOTAVAIL', 'EAI_AGAIN', 'EAI_FAIL', 'EAGAIN', 'EBUSY',
+  'ECONNABORTED', 'ECONNREFUSED', 'ECONNRESET', 'EEXIST', 'EHOSTUNREACH', 'EINTR', 'EINVAL',
+  'EISDIR', 'ELOOP', 'EMFILE', 'ENAMETOOLONG', 'ENETDOWN', 'ENETUNREACH', 'ENOENT', 'ENOSPC',
+  'ENOTDIR', 'ENOTEMPTY', 'ENOTFOUND', 'ENOTSUP', 'EPERM', 'EPIPE', 'EPROTO', 'ESRCH', 'ETIMEDOUT',
+]));
+
+function nativeCode(error) {
+  const code = error?.code;
+  return typeof code === 'string' && NATIVE_ERROR_CODES.has(code) ? code : null;
+}
+
+// Real signal names only — never SIG-shaped text.
+const SIGNALS = Object.freeze(new Set(Object.keys(os.constants.signals)));
+
+/** Fixed category for a thrown error: a well-known native code or the bare category. */
+export function describeError(error) {
+  const code = nativeCode(error);
+  return code ? `error ${code}` : 'error';
+}
+
+/** Fixed category for one spawned-tool result. Free-form tool output is never consulted. */
+export function describeExecFailure(result) {
+  const code = nativeCode(result?.error);
+  if (code) return `error ${code}`;
+  if (result?.error) return 'spawn failed';
+  const status = result?.status;
+  if (typeof status === 'number' && Number.isInteger(status) && status >= 0 && status <= 255) return `exit ${status}`;
+  if (typeof result?.signal === 'string' && SIGNALS.has(result.signal)) {
+    return `signal ${result.signal}`;
+  }
+  return 'failed';
+}
+
 /** Redact, flatten to one line, and bound a single field. Empty values become `unknown`. */
 export function sanitizeField(value, maxChars = DEFAULT_LIMITS.maxFieldChars) {
   const flattened = redact(value)
@@ -118,12 +158,6 @@ function succeeded(result) {
   return Boolean(result) && !result.error && result.status === 0;
 }
 
-function firstFailureLine(result, limits) {
-  const raw = result?.error?.message || result?.stderr || result?.stdout || 'unknown error';
-  const line = String(raw).split('\n').map((entry) => entry.trim()).find(Boolean) ?? 'unknown error';
-  return sanitizeField(line, limits.maxNoteChars);
-}
-
 /**
  * Snapshot every `supabase_*` container's state/health/exit facts.
  * Returns `{ containers, notes }`; collection problems become notes, never exceptions.
@@ -133,7 +167,7 @@ export function collectContainerDiagnostics({ exec = defaultExec, limits = DEFAU
   const notes = [];
   const listing = exec(['ps', '-a', '--filter', CONTAINER_NAME_FILTER, '--format', '{{.Names}}']);
   if (!succeeded(listing)) {
-    notes.push(`docker ps unavailable: ${firstFailureLine(listing, limits)}`);
+    notes.push(`docker ps unavailable: ${describeExecFailure(listing)}`);
     return { containers, notes };
   }
 
@@ -147,7 +181,7 @@ export function collectContainerDiagnostics({ exec = defaultExec, limits = DEFAU
     const cleanName = sanitizeField(name, limits.maxFieldChars);
     const inspected = exec(['inspect', '--format', INSPECT_TEMPLATE, name]);
     if (!succeeded(inspected)) {
-      notes.push(`docker inspect failed for ${cleanName}: ${firstFailureLine(inspected, limits)}`);
+      notes.push(`docker inspect failed for ${cleanName}: ${describeExecFailure(inspected)}`);
       continue;
     }
     const parsed = parseInspect(inspected.stdout, limits);
@@ -179,7 +213,7 @@ export function httpProbe(url, { timeoutMs = DEFAULT_LIMITS.probeTimeoutMs } = {
       request.destroy(Object.assign(new Error('probe timed out'), { code: 'ETIMEDOUT' }));
     });
     request.on('error', (error) => {
-      settle({ error: sanitizeField(error?.code || 'error', 60) });
+      settle({ error: nativeCode(error) || 'error' });
     });
   });
 }
@@ -191,9 +225,10 @@ export async function collectProbeResults({ probe = httpProbe, urls = DEFAULT_PR
       const outcome = await probe(url);
       const status = Number(outcome?.status);
       if (Number.isInteger(status) && status >= 100 && status <= 599) return { url, result: `HTTP ${status}` };
-      return { url, result: `no response (${sanitizeField(outcome?.error || 'error', 60)})` };
+      const code = typeof outcome?.error === 'string' && NATIVE_ERROR_CODES.has(outcome.error) ? outcome.error : 'error';
+      return { url, result: `no response (${code})` };
     } catch (error) {
-      return { url, result: `no response (${sanitizeField(error?.code || error?.message || 'error', 60)})` };
+      return { url, result: `no response (${nativeCode(error) || 'error'})` };
     }
   }));
 }
@@ -209,7 +244,7 @@ export function renderReport({
   const lines = [
     '# CI database reset diagnostics',
     '',
-    'Bounded, redacted snapshot captured because the database reset step failed. Container data is restricted to allow-listed Docker health/status/exit fields; API probes record status codes only. No environment variables, credentials, database rows, response bodies or container logs are collected.',
+    'Bounded, redacted snapshot captured because the database reset step failed. Container data is restricted to allow-listed Docker health/status/exit fields; API probes record status codes only. Failure details are rendered as fixed diagnostic categories with bounded numeric or native codes only; no tool output text is reproduced. No environment variables, credentials, database rows, response bodies or container logs are collected.',
     '',
     `- Captured: ${sanitizeField(generatedAt, 64)}`,
     `- Container limit: ${limits.maxContainers}, each field truncated to ${limits.maxFieldChars} characters`,
@@ -280,7 +315,7 @@ export async function main(argv = process.argv.slice(2)) {
       }
       continue;
     }
-    process.stderr.write(`ci-reset-diagnostics: unknown argument ${sanitizeField(arg, 60)}\n`);
+    process.stderr.write('ci-reset-diagnostics: unknown argument rejected before collection\n');
     return 2;
   }
 
@@ -292,7 +327,7 @@ export async function main(argv = process.argv.slice(2)) {
       mkdirSync(path.dirname(path.resolve(out)), { recursive: true });
       writeFileSync(out, report);
     } catch (error) {
-      process.stderr.write(`ci-reset-diagnostics: could not write ${sanitizeField(path.basename(out), 80)}: ${sanitizeField(error?.message || 'write failed', 160)}\n`);
+      process.stderr.write(`ci-reset-diagnostics: report write failed (${describeError(error)})\n`);
     }
   }
   return 0;
@@ -305,7 +340,7 @@ if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) 
     },
     (error) => {
       // Diagnostics are best-effort: an unexpected failure here must not mask the real one.
-      process.stderr.write(`ci-reset-diagnostics: ${sanitizeField(error?.message || 'unexpected failure', 200)}\n`);
+      process.stderr.write(`ci-reset-diagnostics: collection aborted (${describeError(error)})\n`);
       process.exitCode = 0;
     },
   );

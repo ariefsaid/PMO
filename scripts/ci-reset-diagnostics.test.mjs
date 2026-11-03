@@ -24,6 +24,11 @@ const WORKFLOW = path.join(ROOT, '.github', 'workflows', 'ci.yml');
 
 const JWT = 'eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIn0.c2lnbmF0dXJlLXZhbHVl';
 const DB_URL = 'postgresql://postgres:sup3rs3cret@127.0.0.1:54322/postgres';
+// Adversarial fixtures: credential shapes the redaction patterns deliberately do NOT recognize.
+// The contract under test is that failure paths render fixed categories and allow-listed codes
+// only, so none of this text may reach the log, the report or the artifact — redacted or not.
+const HOSTILE_URL = 'https://ci_bot:sk_unknown_credential_9f8e7d6c5a4b@registry.invalid/v2/deploy';
+const HOSTILE_TOKEN = 'tok_9f8e7d6c5a4b3210feed';
 
 async function api() {
   return import(new URL('./ci-reset-diagnostics.mjs', import.meta.url).href);
@@ -152,15 +157,92 @@ test('collectContainerDiagnostics reports bounded, redacted notes when Docker fa
   const exec = () => ({
     status: 1,
     stdout: '',
-    stderr: `Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running? ${JWT}\nsecond line`,
+    stderr: `Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running? ${JWT} ${HOSTILE_URL} ${HOSTILE_TOKEN}\nsecond line`,
   });
   const { containers, notes } = collectContainerDiagnostics({ exec });
   assert.deepEqual(containers, []);
   assert.equal(notes.length, 1);
   assert.ok(notes[0].length <= 240);
-  assert.match(notes[0], /Cannot connect to the Docker daemon/);
+  assert.equal(notes[0], 'docker ps unavailable: exit 1', 'the note is the fixed category plus the numeric exit code, and nothing else');
   assert.ok(!notes[0].includes(JWT));
-  assert.ok(!notes[0].includes('second line'), 'only the first failure line is retained');
+  assert.ok(!notes[0].includes(HOSTILE_URL));
+  assert.ok(!notes[0].includes(HOSTILE_TOKEN));
+  assert.ok(!notes[0].includes('Cannot connect'), 'tool output text is never forwarded');
+  assert.ok(!notes[0].includes('second line'), 'only one bounded note is produced');
+});
+
+test('docker inspect failures render the fixed category without tool text', async () => {
+  const { collectContainerDiagnostics } = await api();
+  const exec = (args) => {
+    if (args[0] === 'ps') return { status: 0, stdout: 'supabase_ghost\n', stderr: '' };
+    return {
+      status: 1,
+      stdout: '',
+      stderr: `Error response from daemon: Get "${HOSTILE_URL}": ${HOSTILE_TOKEN} denied\nmore output`,
+    };
+  };
+  const { containers, notes } = collectContainerDiagnostics({ exec });
+  assert.deepEqual(containers, []);
+  assert.deepEqual(notes, ['docker inspect failed for supabase_ghost: exit 1']);
+});
+
+test('failure descriptions are fixed categories plus allow-listed codes only', async () => {
+  const { collectContainerDiagnostics, collectProbeResults, describeExecFailure } = await api();
+
+  // A missing binary is reported by its native code, never the Node error message.
+  const missing = collectContainerDiagnostics({
+    exec: () => ({ status: null, signal: null, error: Object.assign(new Error('spawn ENOENT'), { code: 'ENOENT' }) }),
+  });
+  assert.deepEqual(missing.notes, ['docker ps unavailable: error ENOENT']);
+
+  // A timed-out call is reported by its native code, not the internal timeout message.
+  assert.equal(
+    describeExecFailure({ status: null, signal: 'SIGTERM', error: Object.assign(new Error('probe timed out'), { code: 'ETIMEDOUT' }) }),
+    'error ETIMEDOUT',
+  );
+  // A signal death keeps the fixed signal name; a real signal table entry is required, not just
+  // SIG-shaped text.
+  assert.equal(describeExecFailure({ status: null, signal: 'SIGKILL', error: null }), 'signal SIGKILL');
+  assert.equal(describeExecFailure({ status: null, signal: 'SIGTERM', error: null }), 'signal SIGTERM');
+  assert.equal(describeExecFailure({ status: null, signal: 'SIGSTOREDTOKEN', error: null }), 'failed');
+  // A spawn failure without a known code stays a bare category.
+  assert.equal(describeExecFailure({ status: null, signal: null, error: new Error('something broke') }), 'spawn failed');
+  // A thrown-error description carries only the allow-listed code or the bare category.
+  const { describeError } = await api();
+  assert.equal(describeError(Object.assign(new Error(`boom ${HOSTILE_TOKEN}`), { code: 'EACCES' })), 'error EACCES');
+  const bare = describeError(new Error(`boom ${HOSTILE_TOKEN}`));
+  assert.equal(bare, 'error');
+  assert.ok(!bare.includes(HOSTILE_TOKEN));
+
+  // Probe failures keep only validated native codes; unrecognized codes and messages collapse to
+  // the bare category.
+  const unrecognized = await collectProbeResults({
+    probe: async () => {
+      throw Object.assign(new Error(`connect failed ${HOSTILE_URL} ${HOSTILE_TOKEN}`), { code: 'NOT_A_REAL_CODE_CLASS' });
+    },
+  });
+  assert.ok(unrecognized.every((entry) => entry.result === 'no response (error)'), JSON.stringify(unrecognized));
+  assert.ok(!JSON.stringify(unrecognized).includes(HOSTILE_URL));
+  assert.ok(!JSON.stringify(unrecognized).includes(HOSTILE_TOKEN));
+
+  // A hostile injected outcome is held to the same fixed-category contract.
+  const hostileOutcome = await collectProbeResults({
+    probe: async () => ({ error: `E${HOSTILE_TOKEN.toUpperCase()}` }),
+  });
+  assert.ok(hostileOutcome.every((entry) => entry.result === 'no response (error)'), JSON.stringify(hostileOutcome));
+  assert.ok(!JSON.stringify(hostileOutcome).includes(HOSTILE_TOKEN));
+
+  const validatedOutcome = await collectProbeResults({
+    probe: async () => ({ error: 'ECONNRESET' }),
+  });
+  assert.ok(validatedOutcome.every((entry) => entry.result === 'no response (ECONNRESET)'));
+
+  const native = await collectProbeResults({
+    probe: async () => {
+      throw Object.assign(new Error('connect ECONNREFUSED 127.0.0.1:54321'), { code: 'ECONNREFUSED' });
+    },
+  });
+  assert.ok(native.every((entry) => entry.result === 'no response (ECONNREFUSED)'));
 });
 
 test('collectProbeResults keeps status codes and never body content', async () => {
@@ -196,6 +278,14 @@ test('httpProbe keeps the status code and never surfaces the response body', asy
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }
+  // With nothing listening, only the validated native connection code is surfaced (the OS
+  // reports a closed port as a refusal or a reset depending on platform).
+  const refused = await httpProbe(`http://127.0.0.1:${port}/auth/v1/health`);
+  assert.deepEqual(Object.keys(refused), ['error']);
+  assert.ok(
+    ['ECONNREFUSED', 'ECONNRESET'].includes(refused.error),
+    `only a native connection code is surfaced: ${JSON.stringify(refused)}`,
+  );
 });
 
 test('renderReport is bounded, table-escaped and states what it never collects', async () => {
@@ -277,24 +367,62 @@ test('the CLI still succeeds and reports when Docker is absent and the report ca
   const directory = makeTempDir(t);
   const emptyBin = path.join(directory, 'bin');
   mkdirSync(emptyBin);
-  const blockedParent = path.join(directory, 'blocked');
+  const blockedParent = path.join(directory, `blocked-${HOSTILE_TOKEN}`);
   writeFileSync(blockedParent, 'a file where a directory is needed');
+  const outPath = path.join(blockedParent, 'ci-reset-diagnostics.md');
 
-  const run = spawnSync(process.execPath, [SCRIPT, '--out', path.join(blockedParent, 'ci-reset-diagnostics.md')], {
+  const run = spawnSync(process.execPath, [SCRIPT, '--out', outPath], {
     encoding: 'utf8',
     env: { ...process.env, PATH: emptyBin, DOCKER_CALLS: path.join(directory, 'calls.log') },
     timeout: 30_000,
   });
 
   assert.equal(run.status, 0, `stderr: ${run.stderr}`);
-  assert.match(run.stdout, /docker ps unavailable/);
-  assert.match(run.stderr, /could not write ci-reset-diagnostics\.md/);
+  assert.match(run.stdout, /docker ps unavailable: error ENOENT/);
+  assert.match(run.stderr, /report write failed \(error(?: [A-Z][A-Z0-9_]*)?\)/);
+  assert.ok(!run.stderr.includes('ci-reset-diagnostics.md'), 'the report path is never echoed');
+  assert.ok(!run.stderr.includes(HOSTILE_TOKEN), 'untrusted path text is never echoed');
+  assert.ok(!run.stderr.includes('mkdir'), 'filesystem error messages are never forwarded');
+  assert.ok(!run.stdout.includes(HOSTILE_TOKEN) && !run.stdout.includes(HOSTILE_URL));
+});
+
+test('adversarial: Docker failure and report-write failure never surface untrusted text', async (t) => {
+  const directory = makeTempDir(t);
+  const fake = path.join(directory, 'docker');
+  writeFileSync(
+    fake,
+    `#!/bin/sh
+printf 'refused: ${HOSTILE_URL} credential ${HOSTILE_TOKEN}\\nsecond hostile line\\n' >&2
+exit 1
+`,
+  );
+  chmodSync(fake, 0o755);
+  const blockedParent = path.join(directory, `blocked-${HOSTILE_TOKEN}`);
+  writeFileSync(blockedParent, 'a file where a directory is needed');
+  const outPath = path.join(blockedParent, 'ci-reset-diagnostics.md');
+
+  const run = spawnSync(process.execPath, [SCRIPT, '--out', outPath], {
+    encoding: 'utf8',
+    env: { ...process.env, PATH: `${directory}:${process.env.PATH}`, DOCKER_CALLS: path.join(directory, 'calls.log') },
+    timeout: 30_000,
+  });
+
+  assert.equal(run.status, 0, `diagnostics must never alter the job outcome (stderr: ${run.stderr})`);
+  assert.ok(!existsSync(outPath), 'the failed write leaves no artifact file');
+  assert.match(run.stdout, /docker ps unavailable: exit 1/);
+  assert.match(run.stderr, /report write failed \(error(?: [A-Z][A-Z0-9_]*)?\)/);
+  const rendered = `${run.stdout}\n${run.stderr}`;
+  for (const secret of [HOSTILE_URL, HOSTILE_TOKEN, 'ci_bot', 'registry.invalid', 'refused:', 'second hostile line']) {
+    assert.ok(!rendered.includes(secret), `untrusted text must never render: ${secret}`);
+  }
 });
 
 test('the CLI rejects unknown arguments without collecting', async () => {
-  const run = spawnSync(process.execPath, [SCRIPT, '--nope'], { encoding: 'utf8', timeout: 30_000 });
+  const run = spawnSync(process.execPath, [SCRIPT, `--nope=${HOSTILE_TOKEN}`], { encoding: 'utf8', timeout: 30_000 });
   assert.equal(run.status, 2);
-  assert.match(run.stderr, /unknown argument --nope/);
+  assert.match(run.stderr, /unknown argument rejected before collection/);
+  assert.ok(!run.stderr.includes(HOSTILE_TOKEN), 'the rejected argument text is never echoed');
+  assert.equal(run.stdout, '', 'nothing is collected before the rejection');
 });
 
 // ─── ci.yml contract ────────────────────────────────────────────────────────────────────────────
