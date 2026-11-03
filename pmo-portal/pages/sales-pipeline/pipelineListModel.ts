@@ -2,8 +2,8 @@ import type { PipelineProject } from '@/src/lib/db/dashboard';
 import { matchesProjectClassification, type ProjectClassificationFilters } from '@/src/lib/projectClassification';
 import { isNeedsAttention, type OpenFunnelStage } from '../../components/salesPipeline';
 
-export type DealScope = 'Open' | 'Won' | 'Lost' | 'Needs attention';
-export const DEAL_SCOPES: DealScope[] = ['Open', 'Won', 'Lost', 'Needs attention'];
+export type DealScope = 'All' | 'Open' | 'Won' | 'Lost' | 'Needs attention';
+export const DEAL_SCOPES: DealScope[] = ['All', 'Open', 'Won', 'Lost', 'Needs attention'];
 
 /**
  * Shared eight-field search predicate for both table and board views (OE04-004, PGA05-008).
@@ -36,7 +36,8 @@ export interface FilterPipelineTableOptions {
 
 /**
  * Scope-selected and filtered rows for table and mobile list presentations.
- * Retains table-scope semantics (Open / Won / Lost / Needs attention) and funnel stage filter.
+ * Retains table-scope semantics and funnel stage filter. All is the stable union of the three
+ * source queries, with the open row winning if a project ID is present in multiple sources.
  */
 export function filterPipelineTable({
   openProjects,
@@ -48,7 +49,14 @@ export function filterPipelineTable({
   search = '',
 }: FilterPipelineTableOptions): PipelineProject[] {
   let base: PipelineProject[];
-  if (scope === 'Won') {
+  if (scope === 'All') {
+    const seen = new Set<string>();
+    base = [...openProjects, ...wonProjects, ...lostProjects].filter((project) => {
+      if (seen.has(project.id)) return false;
+      seen.add(project.id);
+      return true;
+    });
+  } else if (scope === 'Won') {
     base = wonProjects;
   } else if (scope === 'Lost') {
     base = lostProjects;

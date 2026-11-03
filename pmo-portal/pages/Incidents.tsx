@@ -192,6 +192,8 @@ const Incidents: React.FC = () => {
   return (
     <ListPage
       title="Incidents"
+      count={data ? filtered.length : undefined}
+      total={data ? all.length : undefined}
       description="The organisation incident register. Anyone can file an incident; managers investigate and close them."
       primaryAction={
         canCreate && (

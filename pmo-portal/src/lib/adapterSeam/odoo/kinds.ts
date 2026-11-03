@@ -25,6 +25,9 @@ const m2o = (v: unknown): string | null | undefined =>
 /** A many2many is a list of ids; anything else is malformed (`undefined`). */
 const m2m = (v: unknown): string[] | undefined =>
   Array.isArray(v) && v.every((x) => typeof x === 'number') ? v.map(String) : undefined;
+/** The display name of a many2one, `null` when empty; anything else is malformed (`undefined`). */
+const m2oName = (v: unknown): string | null | undefined =>
+  v === false || v == null ? null : Array.isArray(v) && typeof v[0] === 'number' && typeof v[1] === 'string' ? v[1] : undefined;
 const str = (v: unknown): string | null => (typeof v === 'string' && v !== '' ? v : null);
 
 function base(r: Raw, name: unknown, code: unknown, parent: unknown): DirectoryRow | null {
@@ -61,8 +64,9 @@ export const KIND_SPECS: Record<DirectoryKind, KindSpec> = {
     parse: (r) => withAttrs(base(r, r.complete_name, null, r.location_id), { usage: str(r.usage), warehouse_id: m2o(r.warehouse_id) }) },
   account: { model: 'account.account', fields: ['code', 'name', 'account_type', 'company_ids', 'active', 'write_date'], company: 'company_ids',
     parse: (r) => withAttrs(base(r, r.name, r.code, false), { account_type: str(r.account_type), company_ids: m2m(r.company_ids) }) },
-  tax: { model: 'account.tax', fields: ['name', 'amount', 'type_tax_use', 'active', 'write_date'], company: 'company_id',
-    parse: (r) => (typeof r.amount !== 'number' ? null : withAttrs(base(r, r.name, null, false), { amount: r.amount, use: str(r.type_tax_use) })) },
+  // The tax group's name is what tells a PPN output tax from a withholding or a collector tax (FR-OCI-023; revenue/taxValidate.ts).
+  tax: { model: 'account.tax', fields: ['name', 'amount', 'type_tax_use', 'tax_group_id', 'price_include', 'active', 'write_date'], company: 'company_id',
+    parse: (r) => (typeof r.amount !== 'number' ? null : withAttrs(base(r, r.name, null, false), { amount: r.amount, use: str(r.type_tax_use), tax_group: m2oName(r.tax_group_id), price_include: r.price_include === true })) },
   analytic_plan: { model: 'account.analytic.plan', fields: ['name', 'write_date'], company: null, parse: (r) => base(r, r.name, null, false) },
   analytic_account: { model: 'account.analytic.account', fields: ['name', 'code', 'plan_id', 'company_id', 'active', 'write_date'], company: 'company_id',
     parse: (r) => withAttrs(base(r, r.name, r.code, r.plan_id), { company_id: m2o(r.company_id) }) },

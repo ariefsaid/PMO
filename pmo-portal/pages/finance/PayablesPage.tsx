@@ -134,7 +134,8 @@ const PayablesPage: React.FC = () => {
     <ListPage
       title={t('financeHub:hub.payablesTitle', 'Payables')}
       description={t('financeHub:hub.payablesDescription', 'Supplier invoices waiting to be paid.')}
-      count={payablesPosition.payables.length}
+      count={filteredRows.length}
+      total={payablesPosition.payables.length}
     >
       <KPIRow aria-label={t('financeHub:hub.payablesFigures', 'Payables figures')} className="mb-5 sm:grid-cols-2">
         <article className="min-w-0 p-4">
