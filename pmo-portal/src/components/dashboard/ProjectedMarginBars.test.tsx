@@ -55,7 +55,7 @@ describe('ProjectedMarginBars (Exec — real useSalesPipeline)', () => {
     expect(screen.getByTitle(formatDashboardMoney(600_000, 'USD', 'en')!)).toHaveTextContent('$600.0K');
     // terminal stages excluded
     expect(screen.queryByText('Won, Pending KoM')).toBeNull();
-    expect(screen.queryByText('Loss Tender')).toBeNull();
+    expect(screen.queryByText('Lost')).toBeNull();
   });
 
   it('labels the section and each bar for assistive tech', () => {

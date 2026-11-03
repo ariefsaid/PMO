@@ -431,7 +431,7 @@ describe('PMDashboard — ported baseline cases (delivery scope, money, risk, st
     expect(screen.getByText('Won, Pending KoM')).toBeInTheDocument();
     expect(screen.getByText('On Hold')).toBeInTheDocument();
     expect(screen.getByText('Close Out')).toBeInTheDocument();
-    expect(screen.queryByText('Loss Tender')).toBeNull();
+    expect(screen.queryByText('Lost')).toBeNull();
     expect(screen.queryByText('Leads')).toBeNull();
   });
 
