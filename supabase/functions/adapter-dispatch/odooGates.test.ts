@@ -57,6 +57,9 @@ interface World {
   amountApproverId?: string | null;
   poRevise?: string | null;
   snapshot?: unknown;
+  /** The Odoo cost account the case's project is linked to (null: unlinked) and what the mirror says about it. */
+  projectLink?: string | null;
+  account?: { active: boolean; tombstoned_at: string | null } | null;
   odooBinding?: Record<string, unknown> | null;
 }
 
@@ -108,6 +111,8 @@ function routes(unexpected: FetchCall[], caller: string, world: World): MockRout
       id: PROC_ID, org_id: ORG_ID, status: 'Vendor Invoiced', approved_by_id: APPROVER_ID, amount_approved_by_id: world.amountApproverId ?? null,
       approved_total_value: 100000, vendor_id: VENDOR_ID, ...world.caseRow,
     })),
+    supabaseSelect('external_project_bindings', () => world.projectLink ? objectResponse({ external_container_id: world.projectLink }) : nullObjectResponse()),
+    supabaseSelect('external_master_records', () => world.account === null ? nullObjectResponse() : objectResponse(world.account ?? { active: true, tombstoned_at: null })),
     supabaseSelect('external_refs', () => nullObjectResponse()),
     { label: 'outbox read', method: 'GET', pathname: '/rest/v1/external_command_outbox', response: (call) => {
       const row = outbox.get(`${param(call, 'pmo_record_id')}|${param(call, 'idempotency_key')}`);
@@ -204,6 +209,48 @@ describe('AC-OPP-061 the dispatch gates refuse a tier-odoo procurement command a
   });
 });
 
+describe('AC-OPP-014 / FR-OPP-020 an Odoo purchase needs its project\'s cost account', () => {
+  const PROJECT = '77777777-7777-4777-8777-777777777777';
+  const withProject = (world: World): World => ({ ...world, caseRow: { project_id: PROJECT, ...(world.caseRow ?? {}) } });
+  const refused = async (world: World, message: string, command: Record<string, unknown> = orderCommand()) => {
+    const r = await dispatch(command, PAYER_ID, { owns: ['odoo'], ...withProject(world) });
+    assertEquals(r.unexpected.map((c) => `${c.method} ${c.url.pathname}${c.url.search}`), [], 'every read is mocked');
+    assertEquals([r.status, JSON.parse(r.body)], [422, { error: 'commit-rejected', message }]);
+    assertEquals(r.calls.filter((c) => c.url.host === ODOO_HOST).length, 0, 'no Odoo request');
+    assertEquals(r.calls.filter((c) => c.url.pathname.includes('external_command_outbox')).length, 0, 'no outbox row');
+  };
+
+  it('an unlinked project refuses 422 project-unlinked', async () => { await refused({ projectLink: null }, 'project-unlinked'); });
+  it('a link whose Odoo account is archived, tombstoned or gone refuses 422 project-needs-attention', async () => {
+    await refused({ projectLink: '101', account: { active: false, tombstoned_at: null } }, 'project-needs-attention');
+    await refused({ projectLink: '101', account: { active: true, tombstoned_at: '2026-11-01T00:00:00Z' } }, 'project-needs-attention');
+    await refused({ projectLink: '101', account: null }, 'project-needs-attention');
+  });
+  it('a command naming another project than the case refuses 422 multiple-projects', async () => {
+    const command = orderCommand();
+    (command.record as Record<string, unknown>).projectId = '88888888-8888-4888-8888-888888888888';
+    await refused({ projectLink: '101' }, 'multiple-projects', command);
+  });
+  it('the gate is Odoo\'s: the same unlinked project does not stop an ERPNext order here', async () => {
+    const r = await dispatch(orderCommand(), PAYER_ID, { owns: ['erpnext'], ...withProject({ projectLink: null }) });
+    assert(!r.body.includes('project-unlinked'), r.body);
+  });
+});
+
+describe('AC-OPP-017 the revise guard takes its cancel flag from the tier', () => {
+  const revisePath = async (owns: Tier) => {
+    const r = await dispatch(reviseCommand(), PAYER_ID, { owns: [owns], poRevise: 'po_has_submitted_bill' });
+    const refusal = r.calls.find((c) => c.url.pathname.endsWith('/rpc/po_revision_push_refusal'));
+    return { body: r.body, cancels: (refusal?.bodyJson as { p_revise_cancels?: boolean } | undefined)?.p_revise_cancels };
+  };
+  it('ERPNext evaluates the cancel path (cancel-and-amend); Odoo does not (edit in place), and both refuse as the database answers', async () => {
+    const erpnext = await revisePath('erpnext');
+    const odoo = await revisePath('odoo');
+    assertEquals([erpnext.cancels, odoo.cancels], [true, false]);
+    assertEquals(odoo.body, erpnext.body);
+  });
+});
+
 describe('AC-OPP-001 a command that passes every gate still reaches no Odoo request until the Odoo adapter exists', () => {
   const refusal = async (world: World) => {
     const r = await dispatch(paymentCommand(), PAYER_ID, { owns: ['odoo'], ...world });
@@ -241,7 +288,7 @@ describe('AC-OPP-001 a command that passes every gate still reaches no Odoo requ
     } finally { Deno.env.delete('EXTERNAL_CONNECT_ENABLED'); }
   });
 
-  it('a ready connection is refused as not available yet: fail closed, nothing sent', async () => {
+  it('a ready connection is refused for a step Odoo does not push yet (a payment): fail closed, nothing sent', async () => {
     const r = await refusal({});
     assertEquals(r.status, 422);
     assertEquals(r.body.error, 'config-rejected');

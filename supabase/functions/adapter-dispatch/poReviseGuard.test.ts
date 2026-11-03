@@ -1,5 +1,6 @@
 import { assertEquals } from '@std/assert';
 import { checkPoRevise, poReviseRecoveryDecision } from './poReviseGuard.ts';
+import { reviseCancels, TIER_REVISE_CANCELS } from './dispatchAdapters.ts';
 import { purchaseOrderReviseKey } from '../../../pmo-portal/src/lib/adapterSeam/purchaseOrderRevise.ts';
 
 const ORG = '15130000-0000-0000-0000-00000000000a';
@@ -47,4 +48,16 @@ Deno.test('AC-SCA-011 recovery after an inconclusive probe holds, never reissues
   assertEquals(poReviseRecoveryDecision({ probe: 'found', key: `porev:${PO}:2`, expectedKey: `porev:${PO}:2` }), 'adopt');
   assertEquals(poReviseRecoveryDecision({ probe: 'found', key: `porev:${PO}:3`, expectedKey: `porev:${PO}:2` }), 'held');
   assertEquals(poReviseRecoveryDecision({ probe: 'absent-conclusive' }), 'reissue');
+});
+
+Deno.test('AC-OPP-017 the cancel flag is the tier\'s own: ERPNext cancels and amends, Odoo edits in place, an unknown tier is strict', () => {
+  assertEquals(TIER_REVISE_CANCELS, { erpnext: true, odoo: false });
+  assertEquals([reviseCancels('erpnext'), reviseCancels('odoo'), reviseCancels('other'), reviseCancels(undefined)], [true, false, true, true]);
+});
+
+Deno.test('AC-OPP-017 the flag reaches the database question unchanged: the cancel path is evaluated only when the tier cancels', async () => {
+  const erp = rpcClient(null), odoo = rpcClient(null);
+  await checkPoRevise(erp, ORG, { poId: PO, revision: 2 }, { reviseCancels: reviseCancels('erpnext') });
+  await checkPoRevise(odoo, ORG, { poId: PO, revision: 2 }, { reviseCancels: reviseCancels('odoo') });
+  assertEquals([erp.calls[0].p_revise_cancels, odoo.calls[0].p_revise_cancels], [true, false]);
 });

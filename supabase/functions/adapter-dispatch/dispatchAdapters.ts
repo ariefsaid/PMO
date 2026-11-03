@@ -143,6 +143,14 @@ export async function resolveErpAdapter(ctx: AdapterSelectContext): Promise<Adap
 /** A tier's own registry; a tier not listed (ERPNext, and the non-ERP domains) is served by `ADAPTER_REGISTRY`. A lookup, not a tier-name branch (AC-ECA-043). */
 const TIER_REGISTRIES: Record<string, Record<string, AdapterFactory>> = { [ODOO_TIER]: ODOO_ADAPTER_REGISTRY };
 
+/**
+ * Whether a purchase-order revise on this tier CANCELS the ERP order to replace it (read by the revise guard, `poReviseGuard.ts`,
+ * which names no tier). ERPNext amends (cancel then create); Odoo edits the confirmed order's lines in place and never cancels
+ * (DD-OPP-9; its adapter has no cancel call). A tier not listed is treated as cancelling: the stricter check.
+ */
+export const TIER_REVISE_CANCELS: Readonly<Record<string, boolean>> = { [ERPNEXT_TIER]: true, [ODOO_TIER]: false };
+export const reviseCancels = (tier: string | undefined): boolean => TIER_REVISE_CANCELS[tier ?? ''] ?? true;
+
 /** The adapter factory for a command: the tier that owns the domain for this org (authGuard's answer) picks the registry. */
 export function selectAdapterFactory(tier: string | undefined, domain: string): AdapterFactory | undefined {
   return (TIER_REGISTRIES[tier ?? ''] ?? ADAPTER_REGISTRY)[domain];

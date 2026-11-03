@@ -20,7 +20,6 @@ const objectResponse = (body: unknown) => jsonResponse(body, { headers: { 'conte
 const BINDING = { id: 'b0000000-0000-4000-8000-000000000001', site_url: `https://${ODOO}`, secret_ref: 'odoo_ref', status: 'active', activated_at: '2026-11-01T00:00:00Z', config: { database: 'db1', odoo_company_id: 1 } };
 
 const KINDS = [
-  ['purchase-order', 'order', 'purchase.order'],
   ['goods-receipt', 'receipt', 'stock.picking'],
   ['purchase-invoice', 'bill', 'account.move'],
 ] as const;
@@ -32,6 +31,9 @@ function setup(docKind: string, extra: Record<string, unknown> = {}, over: { bin
     supabaseSelect('external_org_bindings', () => over.binding === null ? new Response('null', { status: 200, headers: { 'content-type': 'application/json' } }) : objectResponse({ ...BINDING, ...over.binding })),
     supabaseRpc('read_vault_secret', () => jsonResponse('odoo-test-key')),
     supabaseSelect('external_refs', () => objectResponse({ external_record_id: 'Vendor:77' })),
+    supabaseSelect('procurements', () => objectResponse({ code: 'PRC-1', project_id: null, vendor_id: 'v-1' })),
+    supabaseSelect('purchase_order_lines', () => jsonResponse([])),   // the PO has no lines of its own: the case's lines are the order
+    supabaseSelect('procurement_items', () => jsonResponse([{ name: 'A', quantity: 4, rate: 10, description: null }, { name: 'B', quantity: 2, rate: 5, description: null }])),
     supabaseSelect('external_command_outbox', () => new Response('null', { status: 200, headers: { 'content-type': 'application/json' } })),
     { label: 'odoo', host: ODOO, response: (call) => {
       odooCalls.push(call);
@@ -49,11 +51,18 @@ function setup(docKind: string, extra: Record<string, unknown> = {}, over: { bin
 }
 
 describe('OQ-OPP-10 a recovery that finds nothing', () => {
-  for (const kind of ['order', 'receipt', 'bill', 'payment'] as const) {
-    it(`AC-OPP-053 holds a ${kind}, never reissues it (no create-to-anchor composite covers it yet; a payment is mutable)`, () => {
+  for (const kind of ['receipt', 'bill', 'payment'] as const) {
+    it(`AC-OPP-053 holds a ${kind}, never reissues it (no create-to-anchor composite covers it yet, or its anchor is mutable)`, () => {
       assertEquals(odooReissueOnInconclusiveAbsence(kind), false);
     });
   }
+  it('AC-OPP-011 reissues an order only on conclusive absence: its composite covers the create-to-anchor gap', () => {
+    assertEquals(odooReissueOnInconclusiveAbsence('order'), true);
+  });
+  it('AC-SCA-011 a revision reissues: it edits towards a line set, so a repeat cannot mint a second document', () => {
+    assertEquals(odooReissueOnInconclusiveAbsence('order', 'revise'), true);
+    assertEquals(odooReissueOnInconclusiveAbsence('payment', 'revise'), true);
+  });
 });
 
 describe('PD-4 the anchor key follows the PMO record, never the per-click key', () => {
@@ -63,13 +72,16 @@ describe('PD-4 the anchor key follows the PMO record, never the per-click key', 
     assertEquals(odooAnchorKey('bill', { id: REC }), `bill:${REC}`);
     assertEquals(odooAnchorKey('payment', { id: REC }), `pay:${REC}`);
   });
+  it('a revision is keyed by the PMO order and revision, not by its own record id', () => {
+    assertEquals(odooAnchorKey('order', { id: OTHER, poId: REC, revision: 2 }, 'revise'), `porev:${REC}:2`);
+  });
 });
 
 describe('AC-OPP-053 the Odoo probe closure: zero, one and many matches', () => {
   for (const [docKind, kind, model] of KINDS) {
     it(`${kind}: one identifier adopts, none is null, a foreign model's identifier is not ours`, async () => {
       const identifier = (name: string, m: string, res: number) => ({ module: 'pmo', name, model: m, res_id: res });
-      const mine = identifier(`${kind === 'order' ? 'po' : kind === 'receipt' ? 'gr' : 'bill'}_${REC.replaceAll('-', '_')}${kind === 'receipt' ? '_ab12' : ''}`, model, 41);
+      const mine = identifier(`${kind === 'receipt' ? 'gr' : 'bill'}_${REC.replaceAll('-', '_')}${kind === 'receipt' ? '_ab12' : ''}`, model, 41);
       // the fake answers every ir.model.data query with these rows: the closure must send the filter (asserted below)
       const one = setup(docKind, {}, { odoo: { 'ir.model.data': [{ res_id: 41 }] } });
       await withFetchMock(one.routes, async () => {
@@ -93,6 +105,62 @@ describe('AC-OPP-053 the Odoo probe closure: zero, one and many matches', () => 
       });
     });
   }
+
+  describe('order', () => {
+    const ORDER_ROW = { name: 'P00041', state: 'purchase', amount_total: 50, write_date: '2026-11-03 10:00:00' };
+    const orderSetup = (odoo: Rows) => setup('purchase-order', { amount: '50.00' }, { odoo });
+    const queries = (t: ReturnType<typeof setup>, model: string) => t.odooCalls.filter((c) => c.url.pathname.includes(`/${model}/`)).map((c) => c.bodyJson as { domain: unknown[][] });
+
+    it('AC-OPP-011 an anchored order is adopted read back (full canonical), never as a bare reference', async () => {
+      const t = orderSetup({ 'ir.model.data': [{ res_id: 41 }], 'purchase.order': [ORDER_ROW] });
+      await withFetchMock(t.routes, async () => {
+        const deps = await resolveOdooMoneyOutboxDeps(t.ctx);
+        assertEquals(await deps.probeByRemarksKey('procurement', KEY), {
+          externalRecordId: '41',
+          canonical: { id: REC, po_number: 'P00041', amount: '50.00', pmo_amount: '50.00', erp_docstatus: 1, erp_modified: '2026-11-03 10:00:00', erp_amended_from: null },
+        });
+      });
+      const identifier = queries(t, 'ir.model.data')[0];
+      assert(identifier.domain.some(([f, op, v]) => f === 'name' && op === '=' && v === `po_${REC.replaceAll('-', '_')}`), JSON.stringify(identifier));
+    });
+
+    it('AC-OPP-011 a miss asks the composite built from the case: vendor partner, untaxed total, line count, window', async () => {
+      const t = orderSetup({});
+      await withFetchMock(t.routes, async () => {
+        const deps = await resolveOdooMoneyOutboxDeps(t.ctx);
+        assertEquals(await deps.probeByRemarksKey('procurement', KEY), null);
+      });
+      const composite = queries(t, 'purchase.order')[0].domain;
+      assert(composite.some(([f, op, v]) => f === 'partner_id' && op === '=' && v === 77), JSON.stringify(composite));
+      assert(composite.some(([f, op, v]) => f === 'state' && op === '!=' && v === 'cancel'));
+      // The amount and line count are compared on the rows read back, not filtered: a near-miss must be seen to hold the row (I1).
+      assert(!composite.some(([f]) => f === 'amount_untaxed'), JSON.stringify(composite));
+      const window = composite.find(([f, op]) => f === 'create_date' && op === '>=');
+      assert(window !== undefined);
+      assert(Date.now() - Date.parse(`${String(window[2]).replace(' ', 'T')}Z`) >= 10 * 60_000 - 5_000, 'the window reaches back at least ten minutes');
+    });
+
+    it('two orders with the identifier are doubt: the probe throws', async () => {
+      const t = orderSetup({ 'ir.model.data': [{ res_id: 41 }, { res_id: 42 }] });
+      await withFetchMock(t.routes, async () => {
+        const deps = await resolveOdooMoneyOutboxDeps(t.ctx);
+        await assertRejects(() => deps.probeByRemarksKey('procurement', KEY), Error, 'ambiguous-anchor');
+      });
+    });
+
+    it('AC-OPP-016 a revision probes its own key (porev) and adopts an applied revision with the order read back, keyed by the PMO order', async () => {
+      const PO = OTHER;
+      const t = setup('purchase-order', { id: 'aaaaaaaa-aaaa-4aaa-8aaa-000000000009', poId: PO, revision: 2 }, { odoo: { 'ir.model.data': [{ res_id: 41 }], 'purchase.order': [ORDER_ROW] } });
+      (t.ctx.command as unknown as { operation: string }).operation = 'revise';
+      await withFetchMock(t.routes, async () => {
+        const deps = await resolveOdooMoneyOutboxDeps(t.ctx);
+        const hit = await deps.probeByRemarksKey('procurement', KEY);
+        assertEquals(hit?.externalRecordId, '41');
+        assertEquals(hit?.canonical?.id, PO);
+      });
+      assert(queries(t, 'ir.model.data')[0].domain.some(([f, op, v]) => f === 'name' && op === '=' && v === `porev_${PO.replaceAll('-', '_')}_2`));
+    });
+  });
 
   const memoQuery = (body: { domain: unknown[][] }) => body.domain.some((t) => t[0] === 'memo');
 

@@ -56,6 +56,7 @@ import { authorizeClickUpTaskCommand } from './taskAuthorization.ts';
 import { enforcePaymentGate, isProcurementPaymentCreate } from './paymentGate.ts';
 import { checkSiProjectGate } from './projectGateGuard.ts';
 import { checkProcurementGate } from './procurementGateGuard.ts';
+import { checkOdooProjectGate } from './odooProjectGate.ts';
 import { checkPoRevise } from './poReviseGuard.ts';
 import { checkCreateTargetUnmapped, checkRevenueErpPathTarget, checkTransitionTargetBinding, isCanonicalUuid, isOpaqueIdempotencyKey } from './transitionTargetGuard.ts';
 
@@ -67,7 +68,7 @@ import {
   type JwksResolver,
 } from '../../../pmo-portal/src/lib/auth/verifyCallerJwt.ts';
 import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
-import { erpRateLimiter, resolveErpBindingRow, selectAdapterFactory, type AdapterSelectContext } from './dispatchAdapters.ts';
+import { erpRateLimiter, resolveErpBindingRow, reviseCancels, selectAdapterFactory, type AdapterSelectContext } from './dispatchAdapters.ts';
 import { runDispatchAttempt } from './dispatchAttempt.ts';
 import {
   buildBudgetDispatchPlan,
@@ -499,12 +500,23 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
     }
   }
 
+  // FR-OPP-020 (AC-OPP-014) — an Odoo purchase needs its project's cost account resolved, before any outbox row or Odoo call.
+  {
+    const odooProjectGate = await checkOdooProjectGate(serviceClient as never, orgId, employedTier, command as never);
+    if (!odooProjectGate.ok) {
+      return new Response(JSON.stringify({ error: 'commit-rejected', message: odooProjectGate.message }), {
+        status: odooProjectGate.status,
+        headers,
+      });
+    }
+  }
+
   // AC-SCA-012 (#1513) — a PO revise never cancels a billed ERP order. Reached by no command until #1505 registers the
-  // revise operation; the guard is wired now so that registration cannot ship without it. ponytail: reviseCancels is
-  // true (the strict ERPNext amend); the Odoo edit-style tier relaxes it when #1505 adds that tier.
+  // revise operation; the guard is wired now so that registration cannot ship without it. Whether a revise cancels the ERP
+  // order is the tier's own fact (dispatchAdapters.TIER_REVISE_CANCELS): ERPNext amends, Odoo edits in place.
   if (command.domain === 'procurement' && String(command.operation) === 'revise') {
     const rec = (command as { record?: { poId?: unknown; revision?: unknown } }).record ?? {};
-    const poRevise = await checkPoRevise(serviceClient as never, orgId, { poId: rec.poId, revision: rec.revision }, { reviseCancels: true });
+    const poRevise = await checkPoRevise(serviceClient as never, orgId, { poId: rec.poId, revision: rec.revision }, { reviseCancels: reviseCancels(employedTier) });
     if (!poRevise.ok) {
       return new Response(JSON.stringify({ error: 'commit-rejected', message: poRevise.message }), {
         status: poRevise.status,

@@ -17,8 +17,9 @@ const FIELDS: Record<string, string[]> = {
   'account.tax': ['name', 'amount', 'type_tax_use', 'company_id', 'active', 'write_date'],
   'account.analytic.plan': ['name', 'write_date'],
   'account.analytic.account': ['name', 'code', 'plan_id', 'company_id', 'active', 'write_date'],
-  'purchase.order': ['name', 'state', 'write_date'],
-  'purchase.order.line': ['name', 'write_date'],
+  'purchase.order': ['name', 'state', 'partner_id', 'partner_ref', 'origin', 'order_line', 'amount_untaxed', 'amount_total', 'company_id', 'create_date', 'write_date'],
+  'purchase.order.line': ['name', 'order_id', 'product_id', 'product_qty', 'price_unit', 'uom_id', 'qty_received', 'qty_invoiced', 'analytic_distribution', 'write_date'],
+  'ir.model.data': ['module', 'name', 'model', 'res_id', 'write_date'],
   'account.payment': ['state', 'memo', 'write_date'],
   'account.journal': ['name', 'code', 'type', 'company_id', 'active', 'write_date'],
   'account.move': ['name', 'write_date'],
@@ -87,7 +88,11 @@ export interface FakeOdoo {
   readonly calls: Array<{ model: string; method: string }>;
 }
 
-export function createFakeOdoo({ key }: { key: string }): FakeOdoo {
+/** A validation failure the way the bed answers one (422 with an Odoo error body). */
+class Rejected extends Error {}
+
+/** `doubleValidation`: Odoo's purchase approval setting; a confirmed order then waits in `to approve` (bed V-OPP1). */
+export function createFakeOdoo({ key, doubleValidation = false }: { key: string; doubleValidation?: boolean }): FakeOdoo {
   const store = new Map<string, Map<number, Row>>();
   const table = (m: string) => store.get(m) ?? store.set(m, new Map()).get(m)!;
   let clock = 0;
@@ -188,6 +193,25 @@ export function createFakeOdoo({ key }: { key: string }): FakeOdoo {
     picking.write_date = fmt(++clock);
   };
 
+  /** One2many commands on a purchase order: create (0), update (1) and, as on the bed, a refused remove (2) once confirmed (V-OPP9). */
+  const applyLines = (orderId: number, commands: unknown[][]) => {
+    const order = table('purchase.order').get(orderId)!;
+    for (const [op, lineId, vals] of commands) {
+      const line = typeof lineId === 'number' ? table('purchase.order.line').get(lineId) : undefined;
+      if (op === 0) {
+        const id = nextId++;
+        table('purchase.order.line').set(id, { qty_received: 0, qty_invoiced: 0, ...(vals as object), id, order_id: orderId, write_date: fmt(++clock) });
+        order.order_line = [...((order.order_line as number[] | undefined) ?? []), id];
+      } else if (op === 1 && line) Object.assign(line, vals as object, { write_date: fmt(++clock) });
+      else if (op === 2) throw new Rejected('Cannot delete a purchase order line which is not in draft or cancelled state');
+    }
+    // no tax model: the untaxed and the total figure coincide
+    order.amount_untaxed = order.amount_total = ((order.order_line as number[] | undefined) ?? []).reduce((sum, id) => {
+      const l = table('purchase.order.line').get(id)!;
+      return sum + Number(l.product_qty) * Number(l.price_unit);
+    }, 0);
+  };
+
   const transition = (model: string, body: Record<string, unknown>, state: string) => {
     for (const id of body.ids as number[]) { const row = table(model).get(id); if (row) Object.assign(row, { state, write_date: fmt(++clock) }); }
     return true;
@@ -200,17 +224,27 @@ export function createFakeOdoo({ key }: { key: string }): FakeOdoo {
     read: (m, b) => (b.ids as number[]).flatMap((id) => { const r = table(m).get(id); return r ? [pick(r, b.fields as string[])] : []; }),
     create: (m, b) => (b.vals_list as Array<Record<string, unknown>>).map((vals) => {
       const id = nextId++;
-      table(m).set(id, { active: true, ...vals, id, write_date: fmt(++clock) });
+      const { order_line: lines, ...rest } = vals;
+      const stamp = fmt(++clock);
+      table(m).set(id, { active: true, ...(m === 'purchase.order' ? { name: `P${String(id).padStart(5, '0')}`, state: 'draft' } : {}), ...(m === 'purchase.order' && Array.isArray(lines) ? rest : vals), id, create_date: stamp, write_date: stamp });
+      if (m === 'purchase.order' && Array.isArray(lines)) { applyLines(id, lines as unknown[][]); }
       return id;
     }),
     write: (m, b) => {
-      for (const id of b.ids as number[]) { const r = table(m).get(id); if (r) table(m).set(id, { ...r, ...(b.vals as object), id, write_date: fmt(++clock) }); }
+      for (const id of b.ids as number[]) {
+        const r = table(m).get(id);
+        if (!r) continue;
+        const { order_line: lines, ...rest } = b.vals as Record<string, unknown>;
+        table(m).set(id, { ...r, ...(m === 'purchase.order' && lines ? rest : (b.vals as object)), id, write_date: fmt(++clock) });
+        if (m === 'purchase.order' && Array.isArray(lines)) applyLines(id, lines as unknown[][]);
+      }
       return true;
     },
     unlink: (m, b) => { for (const id of b.ids as number[]) table(m).delete(id); return true; },
     fields_get: (m) => Object.fromEntries(fields[m].map((f) => [f, { type: 'char' }])),
     has_access: (m, b) => !denied.has(`${m}:${b.operation}`),
-    button_confirm: (m, b) => transition(m, b, 'purchase'),
+    button_confirm: (m, b) => transition(m, b, m === 'purchase.order' && doubleValidation ? 'to approve' : 'purchase'),
+    button_approve: (m, b) => transition(m, b, 'purchase'),
     button_validate: (m, b) => {
       const ids = b.ids as number[];
       const hasPartialMove = ids.some((id) => {
@@ -272,7 +306,11 @@ export function createFakeOdoo({ key }: { key: string }): FakeOdoo {
     const handler = methods[method];
     const capability = method === 'fields_get' || method === 'has_access';
     if (!handler || dropped.has(model) || (capability && !fields[model])) return Response.json({ name: 'werkzeug.exceptions.NotFound', message: '404 Not Found', arguments: [], context: {}, debug: '' }, { status: 404 });
-    const result = handler(model, JSON.parse(String(init?.body ?? '{}')));
+    let result: unknown;
+    try { result = handler(model, JSON.parse(String(init?.body ?? '{}'))); } catch (err) {
+      if (!(err instanceof Rejected)) throw err;
+      return Response.json({ name: 'odoo.exceptions.ValidationError', message: err.message, arguments: [err.message], context: {}, debug: '' }, { status: 422 });
+    }
     if (f === 'lost-response') throw new TypeError('error sending request: connection reset');
     return Response.json(result);
   }) as typeof fetch;
