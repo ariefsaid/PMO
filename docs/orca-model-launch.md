@@ -46,13 +46,11 @@ Pi reports `worker_done` to Orca by itself when it finishes (verified 2026-10-28
   brief in with `orca terminal send --terminal <handle> --text "<prompt>" --enter`. Prevent it: `orca terminal wait --terminal <handle> --for tui-idle --timeout-ms 60000` before `worker-start`.
 - **`worker-start --terminal` needs `--worktree` matching the terminal's worktree**, or it fails
   with `terminal_worktree_mismatch`.
-- **zcode does not start from the command line or Orca** (CLI 0.17.0 bundled in ZCode.app 3.16.2):
-  "cannot locate CLI ZCode Built-in Provider Config". The bundled CLI
-  (`/Applications/ZCode.app/Contents/Resources/glm/zcode.cjs`) looks for
-  `Resources/glm/provider/zcode-builtin.json`; the app now ships it at
-  `Resources/config/provider/zcode-builtin.json`. Under Orca it shows as a readiness timeout with
-  an empty, exited terminal. Use pi for GLM. (A symlink `glm/provider → ../config/provider` inside
-  the app would fix it until the next ZCode update.)
+- **zcode does not run under Orca (ZCode.app 3.16.2, re-checked 2026-11-03).** Two faults: the bundled CLI looks for
+  `Resources/glm/provider/zcode-builtin.json` (the app ships it in `Resources/config/provider/`; a symlink
+  `glm/provider → ../config/provider` fixes that one), and then the TUI import fails, "Cannot find package
+  '@zcode/tui'", because that package is packed inside `app.asar`, which plain Node cannot read. `zcode --help` works;
+  a real session exits after ~3 s. Use pi for GLM until a ZCode release ships the CLI standalone.
 - **Never use NVIDIA NIM models for GLM** (slow enough to read as a hang); Z.AI only.
 - **Antigravity print mode** needs the prompt attached: `agy --model gemini-4-argon-high -p='<prompt>'`.
 - **Fresh worker per task**, own child worktree off `origin/dev`; never reuse a worker for another job.

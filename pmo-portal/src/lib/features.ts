@@ -99,8 +99,23 @@ export const FEATURE_KEYS_TOGGLEABLE: readonly OrgFeatureKey[] = [
   'm365_integration',
 ];
 
-/** Core modules — always enabled, never gated, never persisted (FR-ENT-001/007, AC-ENT-002). */
-export const CORE_FEATURES = ['projects', 'dashboard', 'approvals', 'administration'] as const;
+/**
+ * Core modules — always enabled, never gated, never persisted (FR-ENT-001/007, AC-ENT-002).
+ * D5 rules these modules as entitlement-independent, so the registry mirrors the DB's
+ * `core_feature_keys()` (#1734): projects, dashboard, approvals with SoD, administration,
+ * expense claims, roles, budgets and tasks. A module hidden on the client must never be
+ * switchable on the server (or the reverse) — the two lists move together.
+ */
+export const CORE_FEATURES = [
+  'projects',
+  'dashboard',
+  'approvals',
+  'administration',
+  'expense_claims',
+  'roles',
+  'budgets',
+  'tasks',
+] as const;
 export type CoreFeature = (typeof CORE_FEATURES)[number];
 
 /** The full key set `useFeature()` accepts: gatable entitlements + core modules. */
@@ -171,10 +186,14 @@ export const FEATURE_LABELS: Record<EntitleableKey, string> = {
   dashboard: 'Dashboard',
   approvals: 'Approvals',
   administration: 'Administration',
+  expense_claims: 'Expense claims',
+  roles: 'Roles',
+  budgets: 'Budgets',
+  tasks: 'Tasks',
   revenue: 'Revenue (Sales Invoices, Incoming Payments, Revenue by Project)',
 };
 
-/** Type guard: true for the four core modules (always-on, never gated). */
+/** Type guard: true for the core modules (always-on, never gated). */
 export function isCoreFeature(key: string): key is CoreFeature {
   return (CORE_FEATURES as readonly string[]).includes(key);
 }
