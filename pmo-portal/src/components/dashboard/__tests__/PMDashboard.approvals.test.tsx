@@ -71,7 +71,7 @@ vi.mock('@/src/lib/repositories', async () => {
     },
     revenue: { listInvoices: () => Promise.resolve([]) },
     expenseClaim: { list: () => Promise.resolve({ rows: [] }), routes: () => Promise.resolve([]) },
-    task: { list: () => Promise.resolve([]) },
+    task: { list: () => Promise.resolve([]), listDueRows: () => Promise.resolve([]) },
   },
 };
 });

@@ -116,6 +116,32 @@ export async function listTasks(projectId: string): Promise<TaskWithRefs[]> {
   }));
 }
 
+/** Narrow task row for dashboard overdue counts: no joins, no description. */
+export type TaskDueRow = Pick<TaskRow, 'project_id' | 'status' | 'end_date'>;
+
+const DUE_CHUNK = 100;
+
+/**
+ * Status + due date of every live task across `projectIds`, in `.in(project_id)` chunks (one read
+ * per chunk, not one per project). Narrow select: the PM dashboard only counts overdue tasks.
+ * Excludes tombstoned rows like listTasks. Throws on any chunk failure (never a partial set).
+ */
+export async function listTaskDueRows(projectIds: readonly string[]): Promise<TaskDueRow[]> {
+  const unique = [...new Set(projectIds)];
+  const out: TaskDueRow[] = [];
+  for (let i = 0; i < unique.length; i += DUE_CHUNK) {
+    const chunk = unique.slice(i, i + DUE_CHUNK);
+    out.push(...(await fetchAllPages((from, to) => supabase
+      .from('tasks')
+      .select('id, project_id, status, end_date')
+      .in('project_id', chunk)
+      .is('tombstoned_at', null)
+      .order('id', { ascending: true })
+      .range(from, to)) as unknown as TaskDueRow[]));
+  }
+  return out;
+}
+
 /**
  * List the tasks minuted out of one meeting (the /action seam, migration 0206) with their
  * assignee — the meeting detail's "Action items" list. Excludes tombstoned rows, mirrors

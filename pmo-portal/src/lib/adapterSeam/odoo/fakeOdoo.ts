@@ -85,6 +85,8 @@ export interface FakeOdoo {
   seed(model: string, rows: Array<Record<string, unknown>>): void;
   rows(model: string): Row[];
   failNext(kind: 'transport' | 'lost-response'): void;
+  /** One-shot named fault: the step completes in Odoo, then its response is lost (`lost-response` = whichever call is next). */
+  failAt(step: 'after-create' | 'after-post' | 'after-reconcile' | 'lost-response'): void;
   /** Capability faults for discovery: a model that 404s, a field `fields_get` omits, an operation `has_access` denies. */
   dropModel(model: string): void;
   dropField(model: string, field: string): void;
@@ -93,6 +95,13 @@ export interface FakeOdoo {
   readonly calls: Array<{ model: string; method: string }>;
 }
 
+/** An Odoo exception: the fake answers it with the six-key failure body (bed report §10, V-OCI15). */
+class OdooFailure extends Error {
+  constructor(readonly status: number, readonly exception: string, message: string) { super(message); }
+}
+const userError = (message: string) => new OdooFailure(422, 'odoo.exceptions.UserError', message);
+/** A validation failure the way the bed answers one (422 with an Odoo error body). */
+const rejected = (message: string) => new OdooFailure(422, 'odoo.exceptions.ValidationError', message);
 
 /** `doubleValidation`: Odoo's purchase approval setting; a confirmed order then waits in `to approve` (bed V-OPP1). */
 export function createFakeOdoo({ key, doubleValidation = false }: { key: string; doubleValidation?: boolean }): FakeOdoo {
@@ -103,6 +112,9 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
   const seq = new Map<string, number>();
   const newId = (m: string) => { const id = Math.max(seq.get(m) ?? 0, ...table(m).keys()) + 1; seq.set(m, id); return id; };
   let fault: 'transport' | 'lost-response' | null = null;
+  let stepFault: 'after-create' | 'after-post' | 'after-reconcile' | null = null;
+  let invoiceSeq = 0;
+  let paymentSeq = 0;
   const calls: FakeOdoo['calls'] = [];
   const fields = Object.fromEntries(Object.entries(FIELDS).map(([m, f]) => [m, [...f]]));
   const denied = new Set<string>();
@@ -224,7 +236,7 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
         table('purchase.order.line').set(id, { qty_received: 0, qty_invoiced: 0, ...(vals as object), id, order_id: orderId, write_date: fmt(++clock) });
         order.order_line = [...((order.order_line as number[] | undefined) ?? []), id];
       } else if (op === 1 && line) Object.assign(line, vals as object, { write_date: fmt(++clock) });
-      else if (op === 2) throw new Rejected('Cannot delete a purchase order line which is not in draft or cancelled state');
+      else if (op === 2) throw rejected('Cannot delete a purchase order line which is not in draft or cancelled state');
     }
     // no tax model: the untaxed and the total figure coincide
     order.amount_untaxed = order.amount_total = ((order.order_line as number[] | undefined) ?? []).reduce((sum, id) => {
@@ -238,14 +250,116 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
     return true;
   };
 
+  // --- customer invoices, inbound payments and the register wizard (bed report §10). Purchase documents never take this path. ---
+  const cents = (v: unknown) => Math.round(Number(v ?? 0) * 100);
+  const units = (c: number) => c / 100;
+  const isCustomerMove = (r: Row | undefined) => r?.move_type === 'out_invoice' || r?.move_type === 'out_refund';
+  const tupleIds = (v: unknown): number[] | undefined => {
+    if (!Array.isArray(v)) return undefined;
+    let ids: number[] = [];
+    for (const cmd of v as unknown[][]) {
+      if (cmd[0] === 6) ids = [...(cmd[2] as number[])];
+      else if (cmd[0] === 5) ids = [];
+      else if (cmd[0] === 4) ids.push(Number(cmd[1]));
+    }
+    return ids;
+  };
+  const moveLines = (moveId: number, display: string) => [...table('account.move.line').values()].filter((l) => l.move_id === moveId && l.display_type === display);
+  /** Odoo's own money for a move: per-line tax in cents, summed (an approximation of Odoo's per-tax rounding). */
+  const totals = (moveId: number) => {
+    let untaxed = 0;
+    const byTax = new Map<number, number>();
+    for (const l of moveLines(moveId, 'product')) {
+      const lineCents = Math.round(Number(l.quantity ?? 1) * Number(l.price_unit ?? 0) * 100);
+      untaxed += lineCents;
+      for (const t of l.tax_ids as number[]) byTax.set(t, (byTax.get(t) ?? 0) + Math.round(lineCents * Number(table('account.tax').get(t)?.amount ?? 0) / 100));
+    }
+    const tax = [...byTax.values()].reduce((a, b) => a + b, 0);
+    return { untaxed, tax, byTax, total: untaxed + tax };
+  };
+  const createInvoice = (vals: Record<string, unknown>) => {
+    const id = newId('account.move');
+    const { invoice_line_ids: tuples, ...rest } = vals;
+    table('account.move').set(id, { active: true, state: 'draft', name: false, payment_state: 'not_paid', ...rest, id, write_date: fmt(++clock) });
+    for (const tuple of (tuples as unknown[][] | undefined) ?? []) {
+      const l = tuple[2] as Record<string, unknown>;
+      const product = table('product.product').get(Number(l.product_id));
+      const lineId = newId('account.move.line');
+      table('account.move.line').set(lineId, {
+        id: lineId, move_id: id, display_type: 'product', name: l.name ?? false, product_id: l.product_id ?? false, quantity: l.quantity ?? 1, price_unit: l.price_unit ?? 0,
+        tax_ids: tupleIds(l.tax_ids) ?? (product?.taxes_id as number[] | undefined) ?? [], account_id: l.account_id ?? product?.income_account_id ?? false,
+        analytic_distribution: l.analytic_distribution ?? false, balance: -units(Math.round(Number(l.quantity ?? 1) * Number(l.price_unit ?? 0) * 100)), write_date: fmt(clock),
+      });
+    }
+    const t = totals(id);
+    Object.assign(table('account.move').get(id)!, { amount_untaxed: units(t.untaxed), amount_tax: units(t.tax), amount_total: units(t.total), amount_residual: units(t.total) });
+    return id;
+  };
+  const postInvoice = (row: Row) => {
+    if (row.state !== 'draft') throw userError('The entry must be in draft state to be posted.');
+    if (!row.partner_id) throw userError('The field Customer is required.');
+    const t = totals(row.id);
+    if (t.total < 0) throw userError('An invoice with a negative total cannot be posted.');
+    const prefix = row.move_type === 'out_refund' ? 'RINV' : 'INV';
+    Object.assign(row, { state: 'posted', name: `${prefix}/2026/${String(++invoiceSeq).padStart(5, '0')}`, write_date: fmt(++clock) });
+    for (const [taxId, c] of t.byTax) {
+      const id = newId('account.move.line');
+      table('account.move.line').set(id, { id, move_id: row.id, display_type: 'tax', tax_line_id: taxId, account_id: 122, balance: -units(c), write_date: fmt(clock) });
+    }
+    const id = newId('account.move.line');
+    table('account.move.line').set(id, { id, move_id: row.id, display_type: 'payment_term', account_type: 'asset_receivable', partner_id: row.partner_id, balance: units(t.total), amount_residual: units(t.total), write_date: fmt(clock) });
+    if (t.total === 0) Object.assign(row, { amount_residual: 0, payment_state: 'paid' });
+  };
+  const postInboundPayment = (row: Row) => {
+    const moveId = newId('account.move');
+    const name = `PBNK1/2026/${String(++paymentSeq).padStart(5, '0')}`;
+    table('account.move').set(moveId, { id: moveId, move_type: 'entry', state: 'posted', name, write_date: fmt(++clock) });
+    const lineId = newId('account.move.line');
+    table('account.move.line').set(lineId, { id: lineId, move_id: moveId, display_type: 'payment_term', account_type: 'asset_receivable', partner_id: row.partner_id, balance: -units(cents(row.amount)), amount_residual: -units(cents(row.amount)), write_date: fmt(clock) });
+    Object.assign(row, { state: 'paid', is_reconciled: false, is_matched: false, move_id: [moveId, name], write_date: fmt(++clock) });
+  };
+  const settleInvoice = (invoice: Row, residualCents: number) => {
+    Object.assign(invoice, { amount_residual: units(residualCents), payment_state: residualCents === 0 ? 'paid' : 'partial', write_date: fmt(++clock) });
+  };
+  const createPayments = (b: Record<string, unknown>) => {
+    const wizard = table('account.payment.register').get((b.ids as number[])[0]);
+    const invoice = wizard ? table('account.move').get(Number(wizard.invoice_id)) : undefined;
+    if (!wizard || !invoice) throw new OdooFailure(404, 'odoo.exceptions.MissingError', 'Record does not exist or has been deleted.');
+    const residual = cents(invoice.amount_residual);
+    const amount = wizard.amount === undefined ? residual : cents(wizard.amount);
+    const difference = wizard.payment_difference_handling === 'reconcile' && amount < residual ? residual - amount : 0;
+    const moveId = newId('account.move');
+    const name = `PBNK1/2026/${String(++paymentSeq).padStart(5, '0')}`;
+    table('account.move').set(moveId, { id: moveId, move_type: 'entry', state: 'posted', name, write_date: fmt(++clock) });
+    if (difference > 0) {
+      const lineId = newId('account.move.line');
+      table('account.move.line').set(lineId, { id: lineId, move_id: moveId, display_type: 'product', account_id: wizard.writeoff_account_id ?? false, name: wizard.writeoff_label ?? false, balance: units(difference), write_date: fmt(clock) });
+    }
+    const paymentId = newId('account.payment');
+    table('account.payment').set(paymentId, {
+      id: paymentId, payment_type: 'inbound', partner_type: 'customer', partner_id: invoice.partner_id, amount: units(amount), state: 'paid', memo: wizard.communication ?? false,
+      journal_id: wizard.journal_id ?? false, date: wizard.payment_date ?? false, is_reconciled: true, is_matched: false, move_id: [moveId, name], write_date: fmt(++clock),
+    });
+    settleInvoice(invoice, Math.max(0, residual - amount - difference));
+    return { name: 'Payments', type: 'ir.actions.act_window', res_model: 'account.payment', context: { create: false }, view_mode: 'form', res_id: paymentId };
+  };
+
   const methods: Record<string, (model: string, body: Record<string, unknown>) => unknown> = {
     search_read: (m, b) => select(m, b).map((r) => pick(r, b.fields as string[] | undefined)),
     search: (m, b) => select(m, b).map((r) => r.id),
     search_count: (m, b) => select(m, { ...b, limit: undefined, offset: undefined }).length,
     read: (m, b) => (b.ids as number[]).flatMap((id) => { const r = table(m).get(id); return r ? [pick(r, b.fields as string[])] : []; }),
     create: (m, b) => (b.vals_list as Array<Record<string, unknown>>).map((vals) => {
+      if (m === 'account.move' && (vals.move_type === 'out_invoice' || vals.move_type === 'out_refund')) return createInvoice(vals);
       if (m === 'account.move' && isModelledBill(vals)) return createBill({ table, nextId: newId, stamp: () => fmt(++clock) }, vals);
       if (m === 'account.payment' && isModelledPayment(vals)) return createPayment({ table, nextId: newId, stamp: () => fmt(++clock) }, vals);
+      if (m === 'account.payment.register') {
+        const invoice = table('account.move').get(Number(((b.context ?? {}) as { active_ids?: number[] }).active_ids?.[0]));
+        if (!invoice || invoice.state !== 'posted' || cents(invoice.amount_residual) <= 0) throw userError('You can only register payments for open invoices.');
+        const id = newId(m);
+        table(m).set(id, { ...vals, id, invoice_id: invoice.id, write_date: fmt(++clock) });
+        return id;
+      }
       const id = newId(m);
       const { order_line: lines, ...rest } = vals;
       const stamp = fmt(++clock);
@@ -311,13 +425,26 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
       for (const id of b.ids as number[]) {
         const row = table(m).get(id);
         if (m === 'account.move' && row?.move_type === 'in_invoice') postBill({ table, nextId: newId, stamp: () => fmt(++clock) }, row);
+        else if (m === 'account.move' && isCustomerMove(row)) postInvoice(row!);
+        else if (m === 'account.payment' && row?.payment_type === 'inbound' && row.partner_type === 'customer') postInboundPayment(row);
         else if (m === 'account.payment' && row && 'move_id' in row) postPayment({ table, nextId: newId, stamp: () => fmt(++clock) }, row);
         else transition(m, { ids: [id] }, m === 'account.payment' ? 'paid' : 'posted');
       }
       return true;
     },
+    action_create_payments: (_m, b) => createPayments(b),
     reconcile: (m, b) => {
-      reconcileLines({ table, nextId: newId, stamp: () => fmt(++clock) }, (b.ids as number[]).flatMap((id) => { const row = table(m).get(id); return row ? [row] : []; }));
+      const rows = (b.ids as number[]).flatMap((id) => { const row = table(m).get(id); return row ? [row] : []; });
+      reconcileLines({ table, nextId: newId, stamp: () => fmt(++clock) }, rows);
+      // Customer documents follow their receivable line: the invoice's residual and the payment's reconciled flag.
+      for (const moveId of new Set(rows.map((r) => r.move_id).filter((v) => v !== undefined))) {
+        const receivable = [...table('account.move.line').values()].find((l) => l.move_id === moveId && l.account_type === 'asset_receivable');
+        if (!receivable) continue;
+        const residual = cents(receivable.amount_residual);
+        const move = table('account.move').get(Number(moveId));
+        if (isCustomerMove(move)) settleInvoice(move!, residual);
+        for (const p of table('account.payment').values()) if (Array.isArray(p.move_id) && p.move_id[0] === moveId) Object.assign(p, { is_reconciled: residual === 0, is_matched: residual === 0 });
+      }
       return true;
     },
   };
@@ -334,11 +461,18 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
     const capability = method === 'fields_get' || method === 'has_access';
     if (!handler || dropped.has(model) || (capability && !fields[model])) return Response.json({ name: 'werkzeug.exceptions.NotFound', message: '404 Not Found', arguments: [], context: {}, debug: '' }, { status: 404 });
     let result: unknown;
-    try { result = handler(model, JSON.parse(String(init?.body ?? '{}'))); } catch (err) {
-      if (!(err instanceof Rejected || err instanceof RejectedPayment)) throw err;
-      return Response.json({ name: 'odoo.exceptions.ValidationError', message: err.message, arguments: [err.message], context: {}, debug: '' }, { status: 422 });
+    try {
+      result = handler(model, JSON.parse(String(init?.body ?? '{}')));
+    } catch (e) {
+      if (e instanceof Rejected || e instanceof RejectedPayment) return Response.json({ name: 'odoo.exceptions.ValidationError', message: e.message, arguments: [e.message], context: {}, debug: '' }, { status: 422 });
+      if (!(e instanceof OdooFailure)) throw e;
+      return Response.json({ name: e.exception, message: e.message, arguments: [e.message], timestamp: 0, context: {}, debug: 'synthetic' }, { status: e.status });
     }
-    if (f === 'lost-response') throw new TypeError('error sending request: connection reset');
+    const atStep = (stepFault === 'after-create' && method === 'create' && (model === 'account.move' || model === 'account.payment'))
+      || (stepFault === 'after-post' && method === 'action_post')
+      || (stepFault === 'after-reconcile' && (method === 'reconcile' || method === 'action_create_payments'));
+    if (atStep) stepFault = null;
+    if (f === 'lost-response' || atStep) throw new TypeError('error sending request: connection reset');
     return Response.json(result);
   }) as typeof fetch;
 
@@ -353,6 +487,7 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
     },
     rows: (model) => [...table(model).values()],
     failNext(kind) { fault = kind; },
+    failAt(step) { if (step === 'lost-response') fault = step; else stepFault = step; },
     dropModel(model) { delete fields[model]; dropped.add(model); },
     dropField(model, field) { fields[model] = fields[model].filter((f) => f !== field); },
     denyAccess(model, operation) { denied.add(`${model}:${operation}`); },
