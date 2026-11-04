@@ -47,6 +47,8 @@ export interface AdapterSelectContext {
   captureOccupantConsent?: (consentId: string) => void;
   procurementSnapshot?: { caseId: string; lines: ProcurementSourceLine[] };
   procurementInputDigest?: string;
+  /** Sweep-only per-tick budget for every Odoo request made by revenue outbox recovery. */
+  odooCallBudget?: { left: () => boolean; spend: () => boolean };
 }
 
 export type AdapterFactory = (ctx: AdapterSelectContext) => Adapter | Promise<Adapter>;

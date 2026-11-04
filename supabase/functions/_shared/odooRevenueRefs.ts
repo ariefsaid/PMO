@@ -159,6 +159,53 @@ async function customerAdvanceAccount(
 
 const resolvedInvoices = new WeakMap<object, Promise<{ input: PmoInvoice; maps: InvoiceMaps; expect: InvoiceExpect; draft: InvoiceDraftRow }>>();
 
+export interface OdooInvoiceCommandMaterial { draft: InvoiceDraftRow; input: PmoInvoice; vatFlag: boolean }
+
+/** Rebuild command material from PMO's draft without consulting mutable Odoo mappings. Recovery uses it to retain the
+ * payload-digest guard while judging the landed document against the expectations frozen in its outbox row. */
+export async function resolveOdooInvoiceCommandMaterial(
+  sc: SupabaseClient, orgId: string, command: AdapterCommand, replay = false,
+): Promise<OdooInvoiceCommandMaterial> {
+  const record = command.record as Record<string, unknown>;
+  const draft = await readInvoiceDraft(sc, orgId, String(record.id));
+  if (!draft) return refuse('invoice-draft-missing');
+  if (draft.pmoNative) return refuse('invoice-raised-in-pmo');
+  if (!replay && (draft.status !== 'Draft' || draft.erpDocstatus !== null)) return refuse('invoice-not-a-draft');
+  if (draft.lines.length === 0) return refuse('invoice-draft-lines-missing');
+
+  const project = draft.projectId
+    ? await sc.from('projects').select('subject_to_vat,customer_contract_ref').eq('org_id', orgId).eq('id', draft.projectId).maybeSingle()
+    : null;
+  if (project?.error) throw new AppError('The project could not be read', 'gate-check-failed');
+  const projectFacts = project?.data as { subject_to_vat?: unknown; customer_contract_ref?: unknown } | null | undefined;
+  const vat = projectFacts?.subject_to_vat;
+  if (draft.projectId && typeof vat !== 'boolean') throw rejected('config-rejected: the project VAT context could not be verified');
+
+  const workOrder = draft.workOrderId
+    ? await sc.from('work_orders').select('client_po_number').eq('org_id', orgId).eq('id', draft.workOrderId).maybeSingle()
+    : null;
+  if (workOrder?.error) throw new AppError('The work order could not be read', 'gate-check-failed');
+  const workOrderPo = text((workOrder?.data as { client_po_number?: unknown } | null | undefined)?.client_po_number);
+  const contractRef = text(projectFacts?.customer_contract_ref);
+  const lines = draft.lines.map((line) => ({
+    itemId: line.item_code, description: line.description ?? line.item_code, quantity: line.qty, unitPrice: line.rate,
+  }));
+  const reference = resolveClientReference({ invoice: draft.referenceNumber, workOrderPo, projectContractRef: contractRef });
+  const input: PmoInvoice = {
+    id: draft.id, customerId: draft.customerId ?? '', invoiceDate: draft.invoiceDate ?? new Date().toISOString().slice(0, 10),
+    currency: draft.currency ?? '', lines, referenceNumber: draft.referenceNumber, workOrderPoNumber: workOrderPo, projectContractRef: contractRef,
+  };
+
+  record.customerId = draft.customerId;
+  record.projectId = draft.projectId;
+  record.workOrderId = draft.workOrderId;
+  record.currency = draft.currency;
+  record.items = draft.lines.map((line) => ({ item_code: line.item_code, qty: line.qty, rate: line.rate, ...(line.description ? { description: line.description } : {}) }));
+  record.reference_number = reference;
+  delete record.taxes;
+  return { draft, input, vatFlag: draft.projectId ? vat === true : true };
+}
+
 /**
  * An invoice approval: the draft's own client, project, work order and lines (the command's are replaced by them), the client's reference resolved
  * exactly as the ERPNext path resolves it (invoice, else work order PO, else project contract reference) BEFORE the outbox snapshots the command,

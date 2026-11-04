@@ -22,3 +22,11 @@ export function externalIdentifier(key: string): { module: string; name: string 
 export function anchorMemo(key: string): string {
   return `pmo:${valid(key)}`;
 }
+
+/** Recover a PMO revenue key from the stock external identifier name, or null for an unrelated or malformed name. */
+export function keyFromExternalIdentifier(name: string): string | null {
+  const match = /^(si|ip)_([0-9a-f]{8})_([0-9a-f]{4})_([0-9a-f]{4})_([0-9a-f]{4})_([0-9a-f]{12})$/i.exec(name);
+  if (!match) return null;
+  const key = `${match[1]}:${match[2]}-${match[3]}-${match[4]}-${match[5]}-${match[6]}`;
+  return REVENUE_KEY_RE.test(key) ? key : null;
+}

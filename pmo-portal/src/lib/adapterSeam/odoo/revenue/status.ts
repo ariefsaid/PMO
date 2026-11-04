@@ -11,20 +11,20 @@ const NOT_MIRRORED: RevenueStatus = { mirrored: false, status: null, cancelled: 
 const CANCELLED: RevenueStatus = { mirrored: true, status: 'Cancelled', cancelled: true };
 
 export function invoiceStatus(state: string | undefined, residual: number | string | null | undefined): RevenueStatus {
-  if (state === 'cancel') return CANCELLED;
+  if (state === 'cancel' || state === 'cancelled' || state === 'canceled') return CANCELLED;
   if (state !== 'posted') return NOT_MIRRORED;
   return { mirrored: true, status: centsOf(residual) === 0n ? 'Paid' : 'Unpaid', cancelled: false };
 }
 
 export function creditNoteStatus(state: string | undefined): RevenueStatus & { negative: true } {
-  if (state === 'cancel') return { ...CANCELLED, negative: true };
+  if (state === 'cancel' || state === 'cancelled' || state === 'canceled') return { ...CANCELLED, negative: true };
   return state === 'posted' ? { mirrored: true, status: 'Posted', cancelled: false, negative: true } : { ...NOT_MIRRORED, negative: true };
 }
 
 export function paymentStatus(state: string | undefined): RevenueStatus {
   if (state === 'paid' || state === 'reconciled') return { mirrored: true, status: 'Paid', cancelled: false };
   if (state === 'draft') return { mirrored: true, status: 'Scheduled', cancelled: false };
-  if (state === 'canceled' || state === 'rejected') return { mirrored: true, status: 'Scheduled', cancelled: true };
+  if (state === 'canceled' || state === 'rejected') return CANCELLED;
   return NOT_MIRRORED;
 }
 

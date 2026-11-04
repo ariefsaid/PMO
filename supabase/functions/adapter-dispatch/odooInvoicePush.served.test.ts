@@ -217,6 +217,25 @@ describe('AC-OCI-010 / FR-OCI-060 the approval: the author is refused before any
     assertEquals(outboxInserts(again).length, 0, 'the retry reuses the first attempt\'s row');
   });
 
+  it('FR-OCI-063 a user retry after an adopted resolution confirms its invoice without a second create', async () => {
+    const odoo = odooWorld();
+    const outbox = new Map<string, Record<string, unknown>>();
+    const first = await dispatchAs(APPROVER_ID, approveCommand(), { odoo, outbox });
+    assertEquals(first.status, 200, first.body);
+    const invoice = moves(odoo)[0];
+    const createdCount = creates(odoo);
+    assertEquals(createdCount, 1);
+
+    for (const anchor of odoo.rows('ir.model.data').filter((row) => row.res_id === invoice.id && row.module === 'pmo')) anchor.module = 'edited';
+    const row = [...outbox.values()][0];
+    row.state = 'failed';
+    row.payload = { ...(row.payload as Record<string, unknown>), odoo_adopted_ref: `account.move:${invoice.id}` };
+
+    const retry = await dispatchAs(APPROVER_ID, approveCommand(), { odoo, outbox });
+    assertEquals(retry.status, 200, retry.body);
+    assertEquals([moves(odoo).length, creates(odoo) - createdCount], [1, 0], 'the resolved reference confirms the existing invoice; the retry makes zero create calls');
+  });
+
   it('FR-OCI-070 a new approval after a rejected anchor write uses the same server-derived key and never creates a second invoice', async () => {
     const odoo = odooWorld();
     const call = odoo.fetch.bind(odoo);
