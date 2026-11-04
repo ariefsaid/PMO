@@ -78,9 +78,10 @@ const mockDeleteLineItem = vi.fn().mockResolvedValue(undefined);
 const mockUpdateLineItem = vi.fn().mockResolvedValue(undefined);
 const mockSwitchBudgetDraftMode = vi.fn().mockResolvedValue(undefined);
 const mockSaveBudgetDistribution = vi.fn().mockResolvedValue(undefined);
+const mockRefreshBudgetQueries = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 
 vi.mock('@/src/hooks/useBudget', () => ({
-  refreshBudgetQueries: vi.fn().mockResolvedValue(undefined),
+  refreshBudgetQueries: mockRefreshBudgetQueries,
   useProjectBudget: () => budgetState,
   useBudgetVersions: () => versionsState,
   useBudgetDistribution: () => budgetDistributionState,
@@ -290,6 +291,7 @@ function resetState() {
   procurementsState.isError = false;
   budgetPushState.rows = [];
   mockBudgetRepository.getDistribution.mockReset().mockResolvedValue(null);
+  mockRefreshBudgetQueries.mockReset().mockResolvedValue(undefined);
   roleState.realRole = 'Project Manager';
 }
 
@@ -1912,6 +1914,32 @@ describe('budget-whole-project AC-001 (S6A)', () => {
 
     expect(await screen.findByText(/saved fiscal-year distribution no longer matches this draft/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^Activate v2$/i })).toBeDisabled();
+  });
+
+  it('keeps a confirmed save whose shared awaited refresh fails on the read-recovery path without replaying the write', async () => {
+    budgetState.data = 0;
+    versionsState.data = [wholeProjectDraft];
+    mockRefreshBudgetQueries.mockRejectedValueOnce(new Error('shared refresh read failed'));
+    renderPage();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Preview distribution' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save reviewed distribution' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Save this distribution?' });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Save distribution' }));
+
+    const recovery = await screen.findByTestId('budget-authoring-recovery');
+    expect(recovery).toHaveTextContent(/a change was saved, but a selected budget read failed/i);
+    expect(screen.queryByText('Fiscal-year distribution saved')).not.toBeInTheDocument();
+    expect(mockSaveBudgetDistribution).toHaveBeenCalledTimes(1);
+
+    // The read-retry path refreshes again through the same shared awaited helper, then
+    // source-verifies: a failed shared refresh can never be promoted to a success signal.
+    mockRefreshBudgetQueries.mockResolvedValueOnce(undefined);
+    await userEvent.click(within(recovery).getByRole('button', { name: 'Refresh budget data' }));
+    const reverified = await screen.findByTestId('budget-authoring-recovery');
+    expect(reverified).toHaveTextContent(/change was saved, but the refreshed draft differs/i);
+    expect(screen.queryByText('Fiscal-year distribution saved')).not.toBeInTheDocument();
+    expect(mockSaveBudgetDistribution).toHaveBeenCalledTimes(1);
   });
 
   it('keeps the confirmed distribution write visible when its refreshed plan does not match the reviewed plan', async () => {
