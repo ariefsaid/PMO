@@ -1,4 +1,4 @@
-// @e2e-isolation: self-isolated — creates a unique client, project, evidence document, rates and claim; uses the dedicated TSE-021 engineer's otherwise-empty current week and removes its rows afterward.
+// @e2e-isolation: self-isolated — creates a unique client, project, evidence document, rates and claim; uses the first empty week for the dedicated TSE-021 engineer. A confirmed claim is immutable, so that complete fixture is retained and its project archived per AC-CQ-020.
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { expect, test } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
@@ -38,19 +38,49 @@ let itemCode = '';
 
 test.setTimeout(180_000);
 
+const FIXTURE_PROJECT_PATTERN = 'Time materials TM018-%';
+
+/** Preserve older confirmed fixture records while keeping them out of active project lists. */
+async function archiveEarlierSignedOffFixtures(service: SupabaseClient): Promise<void> {
+  const projects = await service
+    .from('projects')
+    .select('id')
+    .eq('org_id', orgId)
+    .like('name', FIXTURE_PROJECT_PATTERN)
+    .is('archived_at', null);
+  if (projects.error) throw new Error(`AC-TM-018 prior fixture projects: ${projects.error.message}`);
+
+  let archivedCount = 0;
+  for (const project of projects.data ?? []) {
+    const claims = await service
+      .from('tm_claims')
+      .select('id')
+      .eq('project_id', project.id)
+      .eq('status', 'SignedOff')
+      .limit(1);
+    if (claims.error) throw new Error(`AC-TM-018 prior fixture claim: ${claims.error.message}`);
+    if (!claims.data?.length) continue;
+
+    const archived = await service
+      .from('projects')
+      .update({ archived_at: new Date().toISOString() })
+      .eq('id', project.id)
+      .is('archived_at', null)
+      .select('id')
+      .maybeSingle();
+    if (archived.error) throw new Error(`AC-TM-018 prior fixture archive: ${archived.error.message}`);
+    if (archived.data) archivedCount += 1;
+  }
+  if (archivedCount > 0) {
+    console.info(`AC-TM-018 archived ${archivedCount} earlier confirmed fixture project(s); immutable records were retained per AC-CQ-020.`);
+  }
+}
+
 test.beforeEach(async () => {
   const serviceKey = requireServiceRoleKey();
   if (!serviceKey) throw new Error('AC-TM-018 requires the local fixture service client.');
 
-  const now = new Date();
-  fixedNow = new Date(Math.floor(now.getTime() / 60_000) * 60_000);
-  const utcDayStart = Date.UTC(fixedNow.getUTCFullYear(), fixedNow.getUTCMonth(), fixedNow.getUTCDate());
-  const dayStart = new Date(utcDayStart);
-  const mondayOffset = (dayStart.getUTCDay() + 6) % 7;
-  dayStart.setUTCDate(dayStart.getUTCDate() - mondayOffset);
-  weekStart = dayStart.toISOString().slice(0, 10);
-  today = new Date(utcDayStart).toISOString().slice(0, 10);
-  workdayLabel = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][fixedNow.getUTCDay()] ?? 'Mon';
+  const now = new Date(Math.floor(Date.now() / 60_000) * 60_000);
 
   admin = createClient(requireMatchingLocalSupabaseUrls(undefined, undefined), serviceKey, { auth: { persistSession: false } });
   const suffix = `TM018-${Date.now()}-${randomUUID().slice(0, 8)}`;
@@ -75,14 +105,31 @@ test.beforeEach(async () => {
   managerId = manager.id;
   financeId = finance.id;
 
-  const existingSheet = await admin
+  await archiveEarlierSignedOffFixtures(admin);
+
+  const existingSheets = await admin
     .from('timesheets')
-    .select('id')
-    .eq('user_id', engineerId)
-    .eq('week_start_date', weekStart)
-    .maybeSingle();
-  if (existingSheet.error) throw new Error(`AC-TM-018 timesheet slot check: ${existingSheet.error.message}`);
-  if (existingSheet.data) throw new Error('AC-TM-018 will not reuse an existing engineer week.');
+    .select('week_start_date')
+    .eq('user_id', engineerId);
+  if (existingSheets.error) throw new Error(`AC-TM-018 timesheet slot check: ${existingSheets.error.message}`);
+  const occupiedWeeks = new Set((existingSheets.data ?? []).map((sheet) => sheet.week_start_date));
+  const dayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  dayStart.setUTCDate(dayStart.getUTCDate() - ((dayStart.getUTCDay() + 6) % 7));
+  for (let offset = 0; offset < 52; offset += 1) {
+    const candidate = new Date(dayStart);
+    candidate.setUTCDate(candidate.getUTCDate() + (offset * 7));
+    const candidateWeek = candidate.toISOString().slice(0, 10);
+    if (occupiedWeeks.has(candidateWeek)) continue;
+    weekStart = candidateWeek;
+    fixedNow = new Date(Date.UTC(
+      candidate.getUTCFullYear(), candidate.getUTCMonth(), candidate.getUTCDate(),
+      now.getUTCHours(), now.getUTCMinutes(),
+    ));
+    break;
+  }
+  if (!weekStart) throw new Error('AC-TM-018 could not find an empty engineer week within the next year.');
+  today = fixedNow.toISOString().slice(0, 10);
+  workdayLabel = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][fixedNow.getUTCDay()] ?? 'Mon';
   timesheetSlotReserved = true;
 
   const company = await admin
@@ -148,39 +195,57 @@ test.afterEach(async () => {
     const claims = await admin.from('tm_claims').select('id').eq('project_id', projectId);
     if (claims.error) cleanupFailures.push(`read claims: ${claims.error.message}`);
     const claimIds = (claims.data ?? []).map((claim) => claim.id);
-    if (claimIds.length > 0) {
-      await runCleanup('claim evidence', () => admin!.from('progress_claim_evidence').delete().in('claim_id', claimIds));
-      await runCleanup('progress claims', () => admin!.from('progress_claims').delete().in('id', claimIds));
-      await runCleanup('time-and-materials claims', () => admin!.from('tm_claims').delete().in('id', claimIds));
-    }
-    await runCleanup('rate assignments', () => admin!.from('contract_rate_assignees').delete().eq('project_id', projectId));
-    await runCleanup('rate lines', () => admin!.from('contract_rate_lines').delete().eq('project_id', projectId));
-    await runCleanup('project evidence', () => admin!.from('project_documents').delete().eq('project_id', projectId));
-    await runCleanup('timesheet entries', () => admin!.from('timesheet_entries').delete().eq('project_id', projectId));
-  }
+    const signedOff = claimIds.length > 0
+      ? await admin.from('tm_claims').select('id').in('id', claimIds).eq('status', 'SignedOff').limit(1)
+      : { data: [], error: null };
+    if (signedOff.error) cleanupFailures.push(`read signed-off claims: ${signedOff.error.message}`);
 
-  if (timesheetSlotReserved && engineerId && weekStart) {
-    const sheet = await admin
-      .from('timesheets')
-      .select('id')
-      .eq('user_id', engineerId)
-      .eq('week_start_date', weekStart)
-      .maybeSingle();
-    if (sheet.error) cleanupFailures.push(`read timesheet: ${sheet.error.message}`);
-    else if (sheet.data) {
-      const entries = await admin.from('timesheet_entries').select('project_id').eq('timesheet_id', sheet.data.id);
-      if (entries.error) cleanupFailures.push(`read timesheet entries: ${entries.error.message}`);
-      else if ((entries.data ?? []).every((entry) => entry.project_id === projectId)) {
-        await runCleanup('timesheet entries', () => admin!.from('timesheet_entries').delete().eq('timesheet_id', sheet.data!.id));
-        await runCleanup('timesheet', () => admin!.from('timesheets').delete().eq('id', sheet.data!.id));
-      } else {
-        cleanupFailures.push('timesheet slot contains another project and was preserved');
+    const preserveFixture = Boolean(claims.error || signedOff.error || signedOff.data?.length);
+    if (preserveFixture) {
+      // A confirmed claim and its billing evidence are immutable. If status readback failed, fail
+      // closed the same way: retain the source chain and archive its project instead of guessing.
+      await runCleanup('archive confirmed project', () => admin!.from('projects')
+        .update({ archived_at: new Date().toISOString() })
+        .eq('id', projectId)
+        .select('id')
+        .single());
+    } else {
+      if (claimIds.length > 0) {
+        await runCleanup('claim evidence', () => admin!.from('progress_claim_evidence').delete().in('claim_id', claimIds));
+        await runCleanup('progress claims', () => admin!.from('progress_claims').delete().in('id', claimIds));
+        await runCleanup('time-and-materials claims', () => admin!.from('tm_claims').delete().in('id', claimIds));
+      }
+      await runCleanup('rate assignments', () => admin!.from('contract_rate_assignees').delete().eq('project_id', projectId));
+      await runCleanup('rate lines', () => admin!.from('contract_rate_lines').delete().eq('project_id', projectId));
+      await runCleanup('project evidence', () => admin!.from('project_documents').delete().eq('project_id', projectId));
+      await runCleanup('timesheet entries', () => admin!.from('timesheet_entries').delete().eq('project_id', projectId));
+    }
+
+    if (!preserveFixture && timesheetSlotReserved && engineerId && weekStart) {
+      const sheet = await admin
+        .from('timesheets')
+        .select('id')
+        .eq('user_id', engineerId)
+        .eq('week_start_date', weekStart)
+        .maybeSingle();
+      if (sheet.error) cleanupFailures.push(`read timesheet: ${sheet.error.message}`);
+      else if (sheet.data) {
+        const entries = await admin.from('timesheet_entries').select('project_id').eq('timesheet_id', sheet.data.id);
+        if (entries.error) cleanupFailures.push(`read timesheet entries: ${entries.error.message}`);
+        else if ((entries.data ?? []).every((entry) => entry.project_id === projectId)) {
+          await runCleanup('timesheet entries', () => admin!.from('timesheet_entries').delete().eq('timesheet_id', sheet.data!.id));
+          await runCleanup('timesheet', () => admin!.from('timesheets').delete().eq('id', sheet.data!.id));
+        } else {
+          cleanupFailures.push('timesheet slot contains another project and was preserved');
+        }
       }
     }
-  }
 
-  if (projectId) await runCleanup('project', () => admin!.from('projects').delete().eq('id', projectId));
-  if (companyId) await runCleanup('client', () => admin!.from('companies').delete().eq('id', companyId));
+    if (!preserveFixture) {
+      await runCleanup('project', () => admin!.from('projects').delete().eq('id', projectId));
+      if (companyId) await runCleanup('client', () => admin!.from('companies').delete().eq('id', companyId));
+    }
+  }
   if (cleanupFailures.length > 0) throw new Error(`AC-TM-018 cleanup failed: ${cleanupFailures.join('; ')}`);
 });
 
