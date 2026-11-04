@@ -100,8 +100,17 @@ for (const locale of ['en', 'id'] as const) {
       await expect(selector).toBeVisible();
       await expect(page.getByRole('combobox', { name: locale === 'id' ? 'Tahap pipeline' : 'Pipeline stage' })).toHaveCount(1);
       const phoneList = page.getByTestId('sales-phone-stage-list');
-      await expect(phoneList.locator(':scope > li')).toHaveCount(OPEN_PROJECTS.length);
-      const firstCard = phoneList.getByTestId('project-card').first();
+      const fixtureCards = OPEN_PROJECTS.map((project) => phoneList.getByTestId('project-card').filter({ hasText: project.name }));
+      const expectFixtureCardsInOrder = async () => {
+        for (const card of fixtureCards) await expect(card).toHaveCount(1);
+        const fixtureOrder = await phoneList.getByTestId('project-card').evaluateAll((cards, names) =>
+          names.map((name) => cards.findIndex((card) => card.textContent?.includes(name))),
+          OPEN_PROJECTS.map(({ name }) => name),
+        );
+        expect(fixtureOrder).toEqual([...fixtureOrder].sort((a, b) => a - b));
+      };
+      await expectFixtureCardsInOrder();
+      const firstCard = fixtureCards[0];
       await expect(firstCard.getByText(LONG_NAME, { exact: true })).toBeVisible();
       await expect(firstCard.getByText(LONG_CUSTOMER, { exact: true })).toBeVisible();
       await expect(firstCard.getByText(/1[.,]250(?:[.,]000){3}/)).toBeVisible();
@@ -116,7 +125,7 @@ for (const locale of ['en', 'id'] as const) {
       await expect(page).toHaveURL(new RegExp(`/projects/${OPEN_PROJECTS[0].id}$`));
       await page.goBack();
       await expect(page).toHaveURL(/\/sales\?view=kanban$/);
-      await expect(phoneList.locator(':scope > li')).toHaveCount(OPEN_PROJECTS.length);
+      await expectFixtureCardsInOrder();
     });
   }
 }

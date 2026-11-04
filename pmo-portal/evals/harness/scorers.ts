@@ -22,6 +22,10 @@
  */
 import type { AgentEvent } from '../../src/lib/agent/runtime/port';
 import type { ModelClient, ModelClientParams } from '../../../supabase/functions/_shared/modelClient';
+import {
+  OpenRouterModelClient,
+  modelOverrideFromEnv,
+} from '../../../supabase/functions/_shared/openRouterModelClient';
 
 /**
  * The collected outcome of one deployed run, consumed by every scorer.
@@ -85,6 +89,33 @@ export function contains(needle: string | RegExp): Scorer {
 }
 
 /**
+ * The judge's model id: the eval transport override's model when set, so a run makes no
+ * OpenRouter call; otherwise the configured cheap judge tier.
+ */
+export function judgeModelFromEnv(env: {
+  AGENT_MODEL_ID?: string;
+  EVAL_JUDGE_MODEL?: string;
+}): string {
+  return env.AGENT_MODEL_ID?.trim() || env.EVAL_JUDGE_MODEL || 'deepseek/deepseek-v4-flash';
+}
+
+/**
+ * Build the judge's model client from process env — the SAME transport the agent-chat run uses:
+ * OpenRouter when no override is set, the env override (base URL + key + model) when it is.
+ */
+export function judgeClientFromEnv(env: {
+  AGENT_MODEL_BASE_URL?: string;
+  AGENT_MODEL_API_KEY?: string;
+  AGENT_MODEL_ID?: string;
+  OPENROUTER_API_KEY?: string;
+}): ModelClient {
+  return new OpenRouterModelClient({
+    apiKey: env.OPENROUTER_API_KEY,
+    override: modelOverrideFromEnv(env),
+  });
+}
+
+/**
  * `llmJudge(rubric, opts?)` — asks a cheap-tier model to grade the answer PASS/FAIL
  * against `rubric`. The ONLY scorer that costs a model call. FR-AT2-EV-002, DEC-5.
  *
@@ -93,18 +124,19 @@ export function contains(needle: string | RegExp): Scorer {
  * fail-closed), NEVER executed or re-injected as an instruction (NFR-AT2-SEC-005).
  *
  * `judgeClient` is injected (DI) so the scorer logic is unit-testable with a fake
- * client (no network). The eval runner wires the real `OpenRouterModelClient`; the
- * unit test wires a stub. `judgeModel` defaults to `EVAL_JUDGE_MODEL` at the call site.
+ * client (no network). When omitted the caller uses `judgeClientFromEnv`, which honours
+ * the eval transport override (`AGENT_MODEL_*`) — so an override run's judge makes no
+ * OpenRouter call either. `judgeModel` defaults to `judgeModelFromEnv`.
  */
 export function llmJudge(
   rubric: string,
   opts: {
-    judgeClient: ModelClient;
+    judgeClient?: ModelClient;
     judgeModel?: string;
-  },
+  } = {},
 ): Scorer {
   return async (run) => {
-    const model = opts.judgeModel ?? process.env.EVAL_JUDGE_MODEL ?? 'deepseek/deepseek-v4-flash';
+    const model = opts.judgeModel ?? judgeModelFromEnv(process.env);
     const prompt = buildJudgePrompt(rubric, run.answerText);
     const params: ModelClientParams = {
       model,
@@ -121,7 +153,8 @@ export function llmJudge(
     };
     let resp;
     try {
-      resp = await opts.judgeClient.create(params);
+      const client = opts.judgeClient ?? judgeClientFromEnv(process.env);
+      resp = await client.create(params);
     } catch (err) {
       return {
         pass: false,
