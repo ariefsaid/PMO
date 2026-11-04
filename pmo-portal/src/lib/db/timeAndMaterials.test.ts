@@ -4,9 +4,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
  * #1514 T7.1 (data half) — the time-and-materials DAL.
  *
  * Every write is an RPC (0515-0517): no `org_id`, author, stamp or status ever leaves the client, and the RPCs keep
- * their refusal codes (42501/22023/23514/23505/40001/P0001/P0002) untouched. Both reads are RPCs too (0518); the rate
- * card and the claim-source drill-down are table reads, bounded at `LIST_LIMIT + 1` so a silently trimmed read can never
- * be mistaken for the whole set (money-path bucket 5). An unrated preview row keeps `amount` NULL — never zero.
+ * their refusal codes (42501/22023/23514/23505/40001/P0001/P0002) untouched. Reads are RPCs too; the rate card remains
+ * an RLS-scoped table read, and the claim-source drill-down is an org-scoped RPC bounded at `LIST_LIMIT + 1` with exact
+ * totals (money-path bucket 5). An unrated preview row keeps `amount` NULL — never zero.
  */
 const h = vi.hoisted(() => {
   const result: { value: { data: unknown; error: unknown; count?: number | null } } = {
@@ -22,7 +22,7 @@ const h = vi.hoisted(() => {
   builder.single = () => { calls.single++; return builder; };
   builder.then = (resolve: (v: unknown) => unknown) => resolve(result.value);
   const from = vi.fn((t: string) => { calls.from.push(t); return builder; });
-  const rpc = vi.fn((n: string, a?: unknown) => { calls.rpc.push([n, a]); return Promise.resolve(result.value); });
+  const rpc = vi.fn((n: string, a?: unknown) => { calls.rpc.push([n, a]); return builder; });
   return { from, rpc, calls, result };
 });
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: h.from, rpc: h.rpc } }));
@@ -280,22 +280,41 @@ describe('#1514 T7.1 claim and preview reads', () => {
     await expect(dal.listTmClaims('p1')).rejects.toMatchObject({ code: 'tm-malformed' });
   });
 
-  it('T7.1 listTmClaimSources reads the drill-down of one claim, bounded', async () => {
-    h.result.value = { data: [], error: null, count: 0 };
-    await expect(dal.listTmClaimSources('c1')).resolves.toEqual({ rows: [], truncated: false, totalCount: 0 });
-    expect(h.calls.from).toEqual(['tm_claim_sources']);
-    expect(h.calls.eq).toContainEqual(['claim_id', 'c1']);
+  it('T7.1 listTmClaimSources reads dated, named source details and each person subtotal through the claim reader RPC', async () => {
+    h.result.value = { data: [{
+      id: 'source-row-1', entry_id: 'entry-1', entry_date: '2026-11-03', person_id: 'u1', person_name: 'Engineer One',
+      units: '8.00', unit: 'hour', line_label: 'Site engineer', is_selected: true, person_unit_total: '8.00', total_count: 1,
+    }], error: null };
+    await expect(dal.listTmClaimSources('c1')).resolves.toEqual({
+      rows: [{
+        id: 'source-row-1', entry_id: 'entry-1', entry_date: '2026-11-03', person_id: 'u1', person_name: 'Engineer One',
+        units: 8, unit: 'hour', line_label: 'Site engineer', is_selected: true, person_unit_total: 8,
+      }], truncated: false, totalCount: 1,
+    });
+    expect(h.calls.rpc).toEqual([['list_tm_claim_source_details', { p_claim: 'c1' }]]);
     expect(h.calls.limit).toContain(LIST_LIMIT + 1);
-    expect(h.calls.select).toContainEqual(['*', { count: 'exact' }]);
   });
 
-  it('T7.1 listTmClaimSources reports the exact total when the visible source read is capped', async () => {
-    const sources = Array.from({ length: LIST_LIMIT + 1 }, (_, index) => ({ id: `source-${index}` }));
-    h.result.value = { data: sources, error: null, count: 237 };
-
+  it('T7.1 source details keep the exact total when the visible rows are capped', async () => {
+    const sources = Array.from({ length: LIST_LIMIT + 1 }, (_, index) => ({
+      id: `source-${index}`, entry_id: `entry-${index}`, entry_date: '2026-11-03', person_id: 'u1', person_name: 'Engineer One',
+      units: '1.00', unit: 'hour', line_label: 'Site engineer', is_selected: true, person_unit_total: '237.00', total_count: 237,
+    }));
+    h.result.value = { data: sources, error: null };
     const result = await dal.listTmClaimSources('c1');
+    expect(result.rows).toHaveLength(LIST_LIMIT);
+    expect(result.truncated).toBe(true);
+    expect(result.totalCount).toBe(237);
+    expect(result.rows[0]).not.toHaveProperty('total_count');
+    expect(h.calls.limit).toContain(LIST_LIMIT + 1);
+  });
 
-    expect(result).toEqual({ rows: sources.slice(0, LIST_LIMIT), truncated: true, totalCount: 237 });
+  it('T7.1 rejects a source read whose exact totals disagree across rows', async () => {
+    h.result.value = { data: [
+      { id: 'source-1', entry_id: 'entry-1', entry_date: null, person_id: null, person_name: null, units: '1', unit: 'hour', line_label: 'Site engineer', is_selected: true, person_unit_total: '1', total_count: 2 },
+      { id: 'source-2', entry_id: 'entry-2', entry_date: null, person_id: null, person_name: null, units: '1', unit: 'hour', line_label: 'Site engineer', is_selected: true, person_unit_total: '1', total_count: 3 },
+    ], error: null };
+    await expect(dal.listTmClaimSources('c1')).rejects.toMatchObject({ code: 'tm-malformed' });
   });
 
   it('T7.1 an Engineer refused by the amounts gate keeps 42501', async () => {

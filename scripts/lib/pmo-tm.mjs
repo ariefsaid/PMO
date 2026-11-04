@@ -10,8 +10,8 @@
  * Contract: docs/specs/time-and-materials-claims.spec.md §4 AC-6 (FR-TM-051), plan T9. Node 22 standard library only.
  */
 
-/** The database's T&M read tier (0518) — keep in step with `tm_read_rpcs` in `api_client_request_guard`. */
-export const TM_READ_RPCS = Object.freeze(['list_tm_claims', 'preview_tm_claim']);
+/** The database's T&M read tier — keep in step with `tm_read_rpcs` in `api_client_request_guard`. */
+export const TM_READ_RPCS = Object.freeze(['list_tm_claim_source_details', 'list_tm_claims', 'preview_tm_claim']);
 
 /** The rate-card columns the CLI reads: no `org_id`, no `created_by`, nothing a reader does not need. */
 export const RATE_LINE_COLUMNS = Object.freeze([

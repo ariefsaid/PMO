@@ -181,12 +181,16 @@ else
 fi
 A_PROJECT=$(jq -r '.[]|select(.table=="projects")|.id' "$A_ROWS_JSON")
 if [ -n "$A_PROJECT" ] && [ "$A_PROJECT" != null ]; then
+  A_TM_CLAIM=$(jq -r '.[]|select(.table=="tm_claims")|.id' "$A_ROWS_JSON")
   rate_key=b0000000-0000-4000-8000-0000000000ac
   c=$(rpc save_contract_rate_line "$(jq -nc --arg project "$A_PROJECT" '{p_line:{project_id:$project,line_key:"b0000000-0000-4000-8000-0000000000ac",kind:"labour",label:"Isolation probe",unit:"hour",rate:1,currency:"IDR",effective_from:"2026-01-01"}}')")
   c=$(rpc end_contract_rate_line "{\"p_project\":\"$A_PROJECT\",\"p_line_key\":\"$rate_key\",\"p_effective_to\":\"2026-01-01\",\"p_expected_version\":1}")
   c=$(rpc end_contract_rate_assignee "{\"p_project\":\"$A_PROJECT\",\"p_assignee\":\"$A_PROFILE\",\"p_effective_to\":\"2026-01-01\"}")
   c=$(rpc set_contract_rate_assignee "{\"p_project\":\"$A_PROJECT\",\"p_line_key\":\"$rate_key\",\"p_user\":\"$A_PROFILE\",\"p_from\":\"2026-01-01\",\"p_to\":\"2026-01-01\"}")
   c=$(rpc assemble_tm_claim "{\"p_project\":\"$A_PROJECT\",\"p_from\":\"2026-01-01\",\"p_to\":\"2026-01-31\"}")
+  if [ -n "$A_TM_CLAIM" ] && [ "$A_TM_CLAIM" != null ]; then
+    c=$(rpc list_tm_claim_source_details "{\"p_claim\":\"$A_TM_CLAIM\"}")
+  else skip "list_tm_claim_source_details (tm_claims)"; fi
   c=$(rpc deselect_tm_source "{\"p_claim\":\"b0000000-0000-4000-8000-0000000000ad\",\"p_source\":\"b0000000-0000-4000-8000-0000000000ae\"}")
   c=$(rpc prepare_tm_signoff "{\"p_claim\":\"b0000000-0000-4000-8000-0000000000ad\",\"p_document\":\"b0000000-0000-4000-8000-0000000000af\",\"p_note\":\"probe\"}")
   c=$(rpc withdraw_tm_signoff "{\"p_claim\":\"b0000000-0000-4000-8000-0000000000ad\"}")
