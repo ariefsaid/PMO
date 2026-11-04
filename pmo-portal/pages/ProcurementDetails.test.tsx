@@ -18,7 +18,7 @@ vi.mock('@/src/hooks/useOrgTaxDefault', async (orig) => {
   return { ...actual, useOrgTaxDefault: () => orgDefault.value };
 });
 
-import { render, screen, fireEvent, waitFor, within, cleanup } from '@testing-library/react';
+import { act, render, screen, fireEvent, waitFor, within, cleanup } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router';
@@ -1284,6 +1284,32 @@ describe('GR creation panel (D3, AC-816 UI support)', () => {
     detailState.data = { ...baseProcurement, status: 'Received', requested_by_id: 'u-other', receipts: [], invoices: [] };
     renderPage();
     expect(screen.getByTestId('procurement-no-access')).toBeInTheDocument();
+  });
+
+  it('AC-OPP-090 mints a new command intent after a confirmed receipt before a bill is captured', async () => {
+    mockEffectiveRole = 'Admin';
+    setTaskOwnership([{ domain: 'procurement', externalTier: 'odoo' }]);
+    detailState.data = { ...baseProcurement, status: 'Ordered', requested_by_id: 'u-other', receipts: [], invoices: [] };
+    mockCreateReceipt.mockClear();
+    mockCreateInvoice.mockClear();
+    renderPage('proc-001', 'files');
+
+    await chooseRecordKind('Receipt');
+    await userEvent.click(screen.getByTestId('btn-save-gr'));
+    await confirmInDialog(/save gr/i);
+    await waitFor(() => expect(mockCreateReceipt).toHaveBeenCalledTimes(1));
+    const receiptIntent = mockCreateReceipt.mock.calls[0][0].intent;
+    act(() => { detailState.data = { ...detailState.data, status: 'Received' }; });
+
+    await chooseRecordKind('Supplier invoice');
+    await userEvent.click(screen.getByTestId('btn-save-vi'));
+    await confirmInDialog(/save supplier invoice/i);
+    await waitFor(() => expect(mockCreateInvoice).toHaveBeenCalledTimes(1));
+    const invoiceIntent = mockCreateInvoice.mock.calls[0][0].intent;
+
+    expect(receiptIntent?.idempotencyKey).toEqual(expect.any(String));
+    expect(invoiceIntent?.idempotencyKey).toEqual(expect.any(String));
+    expect(invoiceIntent?.idempotencyKey).not.toBe(receiptIntent?.idempotencyKey);
   });
 
   // AC-AUTHZ: GR form mirrors the Ordered→Received authority — requester OR PM, not Finance.

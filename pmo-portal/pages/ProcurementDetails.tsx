@@ -758,6 +758,7 @@ const ProcurementDetails: React.FC = () => {
           intent: pendingConfirm.intent,
         });
         setShowCreateGR(false);
+        setCaptureKind(null);
         toast(t('procurementDetail.toast.grRecorded', 'Goods receipt recorded'), undefined, 'success');
       } else {
         const invoice = {
