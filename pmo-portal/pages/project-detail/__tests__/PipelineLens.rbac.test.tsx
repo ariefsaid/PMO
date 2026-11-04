@@ -89,7 +89,7 @@ beforeEach(() => transitionProject.mockClear());
 describe('PipelineLens — RBAC write-affordance gate (A-1)', () => {
   it('AC-W2-RBAC-002: a PM sees Advance / Mark won / Mark lost (authorized)', async () => {
     renderAs('Project Manager');
-    await userEvent.click(screen.getByText('More about this deal'));
+    await userEvent.click(screen.getByText('More project details'));
     expect(screen.getByRole('button', { name: /Advance to/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Mark won/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Mark lost/i })).toBeInTheDocument();
@@ -99,7 +99,7 @@ describe('PipelineLens — RBAC write-affordance gate (A-1)', () => {
 
   it('AC-W2-RBAC-001: an Engineer sees the stage + journey but NO lifecycle control (denied)', async () => {
     renderAs('Engineer');
-    await userEvent.click(screen.getByText('More about this deal'));
+    await userEvent.click(screen.getByText('More project details'));
     // The deal still renders its stats + journey (read-only surface).
     expect(screen.getByRole('list', { name: /Project stage journey/i })).toBeInTheDocument();
     // No reject-bound lifecycle control is rendered.
@@ -112,7 +112,7 @@ describe('PipelineLens — RBAC write-affordance gate (A-1)', () => {
 
   it('keeps deal value and weighted money out of the Engineer delivery lens', async () => {
     renderAs('Engineer');
-    await userEvent.click(screen.getByText('More about this deal'));
+    await userEvent.click(screen.getByText('More project details'));
     expect(screen.queryByText('Value')).not.toBeInTheDocument();
     expect(screen.queryByText('Weighted')).not.toBeInTheDocument();
     expect(screen.queryByText('$1,200,000')).not.toBeInTheDocument();
@@ -122,19 +122,19 @@ describe('PipelineLens — RBAC write-affordance gate (A-1)', () => {
     renderAs('Project Manager');
     expect(screen.getByText('Tender Submitted')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Advance to/i })).toBeInTheDocument();
-    const details = screen.getByText('More about this deal').closest('details');
+    const details = screen.getByText('More project details').closest('details');
     expect(details).not.toHaveAttribute('open');
     expect(details).not.toHaveTextContent('Weighted');
     const journey = screen.getByRole('list', { name: /Project stage journey/i });
     expect(journey.closest('details')).toBeNull();
-    await userEvent.click(screen.getByText('More about this deal'));
+    await userEvent.click(screen.getByText('More project details'));
     expect(details).toHaveTextContent('Weighted');
     expect(journey).toBeInTheDocument();
   });
 
   it('keeps the full read-only explanation inside the phone disclosure and the summary to one line', async () => {
     renderAs('Engineer');
-    const summary = screen.getByText('More about this deal');
+    const summary = screen.getByText('More project details');
     const details = summary.closest('details');
     expect(details).not.toHaveAttribute('open');
     await userEvent.click(summary);

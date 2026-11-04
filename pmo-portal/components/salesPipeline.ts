@@ -49,8 +49,8 @@ export interface SalesColumn {
  */
 export const OPEN_FUNNEL_STAGES = [
   'Leads',
-  'PQ Submitted',
   'Quotation Submitted',
+  'PQ Submitted',
   'Tender Submitted',
   'Negotiation',
 ] as const satisfies readonly string[];
@@ -59,8 +59,8 @@ export type OpenFunnelStage = (typeof OPEN_FUNNEL_STAGES)[number];
 /** Board titles for the open stages (may differ from the enum, e.g. "Pre-Qual"). */
 const OPEN_STAGE_TITLES: Record<OpenFunnelStage, string> = {
   Leads: 'Leads',
-  'PQ Submitted': 'Pre-Qual',
   'Quotation Submitted': 'Quotation',
+  'PQ Submitted': 'Pre-Qual',
   'Tender Submitted': 'Tender',
   Negotiation: 'Negotiation',
 };
@@ -145,9 +145,13 @@ export function isNeedsAttention(p: Pick<PipelineProject, 'last_update'>): boole
   return d !== null && d >= ATTENTION_THRESHOLD_DAYS;
 }
 
-/** Weighted forecast value (computed client-side per Director decision 1). */
-export function weightedValue(p: Pick<PipelineProject, 'contract_value' | 'win_probability'>): number {
-  return p.contract_value * p.win_probability;
+/** Weighted forecast value from independent stage Go and project Get probabilities. */
+export function weightedValue(
+  p: Pick<PipelineProject, 'contract_value'> & Partial<Pick<PipelineProject, 'go_probability' | 'get_probability' | 'win_probability'>>,
+): number {
+  const go = p.go_probability ?? p.win_probability ?? 0;
+  const get = p.get_probability ?? 1;
+  return p.contract_value * go * get;
 }
 
 /**
@@ -198,7 +202,7 @@ export function openOpportunity(
  */
 export function dealJourneySteps(status: PipelineProject['status']): LifecycleStep[] {
   const group = projectStatusGroup(status);
-  const labels = ['Leads', 'Pre-Qualification', 'Quotation', 'Tender', 'Negotiation'];
+  const labels = ['Leads', 'Quotation', 'Pre-Qualification', 'Tender', 'Negotiation'];
 
   if (group === 'onHand') {
     return [

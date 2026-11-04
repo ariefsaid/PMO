@@ -14,14 +14,14 @@ import { formatCurrency } from '@/src/lib/format';
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 
 const projects: PipelineProject[] = [
-  { id: 'q1', name: 'Quotation Deal Alpha', short_name: null, client_name: 'Acme', status: 'Quotation Submitted', contract_value: 500_000, currency: 'USD', tax_treatment: 'exclusive', win_probability: 0.4 },
+  { id: 'q1', name: 'Quotation Deal Alpha', short_name: null, client_name: 'Acme', status: 'Quotation Submitted', contract_value: 500_000, currency: 'USD', tax_treatment: 'exclusive', go_probability: 0.4, get_probability: 0.25, win_probability: 0.1 },
   { id: 't1', name: 'Tender Deal Bravo', short_name: null, client_name: null, status: 'Tender Submitted', contract_value: 1_200_000, currency: 'USD', tax_treatment: 'inclusive', win_probability: 0.5 },
   { id: 'w1', name: 'Won Deal Charlie', short_name: null, client_name: 'Globex', status: 'Won, Pending KoM', contract_value: 2_000_000, currency: 'USD', tax_treatment: 'exclusive', win_probability: 1 },
   { id: 'l1', name: 'Lost Deal Delta', short_name: null, client_name: 'Initech', status: 'Loss Tender', contract_value: 700_000, currency: 'USD', tax_treatment: 'exclusive', win_probability: 0 },
   // #530 / FR-L10N-020: a mixed-currency pair proves a card renders ITS OWN currency, not the
   // USD org default — a single-currency fixture set cannot tell a record currency from a
   // hardcoded literal (which is exactly how this issue shipped in 0044).
-  { id: 'idr1', name: 'IDR Deal', short_name: null, client_name: 'Garuda', status: 'Quotation Submitted', contract_value: 1_234, currency: 'IDR', tax_treatment: 'inclusive', win_probability: 0.4 },
+  { id: 'idr1', name: 'IDR Deal', short_name: null, client_name: 'Garuda', status: 'Quotation Submitted', contract_value: 1_234, currency: 'IDR', tax_treatment: 'inclusive', go_probability: 0.4, get_probability: 0.25, win_probability: 0.1 },
   { id: 'usd1', name: 'USD Deal', short_name: null, client_name: 'Acme Corp', status: 'Quotation Submitted', contract_value: 9_000, currency: 'USD', tax_treatment: 'exclusive', win_probability: 0.4 },
   // 0197 permits a NULL basis ONLY at zero value, and OD-TAX-1 says render NOTHING for it rather
   // than invent one. Without this row the "unknown renders nothing" branch has no witness here.
@@ -29,7 +29,7 @@ const projects: PipelineProject[] = [
 ];
 
 describe('SalesKanbanBoard compact list presentation (AC-S24-002)', () => {
-  it('SUB-H keeps full identity, value, basis and win % visible with no details disclosure', async () => {
+  it('SUB-H keeps full identity, value, basis and Go/Get estimates visible with no details disclosure', async () => {
     const longProject: PipelineProject = {
       ...projects[4],
       id: 'compact-long-id',
@@ -56,7 +56,8 @@ describe('SalesKanbanBoard compact list presentation (AC-S24-002)', () => {
     expect(within(card).getAllByText((_, node) => node?.textContent?.includes('IDR\u00A01,234') ?? false).length).toBeGreaterThan(0);
 
     expect(card.querySelector('details')).toBeNull();
-    expect(within(card).getByText('40%')).toBeVisible();
+    expect(within(card).getByLabelText('% Go 40%')).toBeVisible();
+    expect(within(card).getByLabelText('% Get 25%')).toBeVisible();
     expect(within(card).queryByText(/wtd/)).toBeNull();
 
     await userEvent.click(within(card).getByRole('button', { name: new RegExp(longProject.short_name!) }));
@@ -120,15 +121,16 @@ describe('SalesKanbanBoard (AC-SP-204 / AC-IXD-PROJ-007)', () => {
     expect(within(lostCol).getByTestId('lost-column-counts')).toHaveTextContent('Lost 1 · Declined 1');
   });
 
-  it('AC-SP-204: a Quotation deal renders name, customer, value and win% (no weighted chip, SUB-H)', () => {
+  it('AC-SP-204: a Quotation deal renders name, customer, value and Go/Get (no weighted chip, SUB-H)', () => {
     render(<SalesKanbanBoard projects={projects} onOpen={vi.fn()} />);
     const card = screen.getByText('Quotation Deal Alpha').closest('[role="button"]')!;
     const c = within(card as HTMLElement);
     expect(c.getByText('Acme')).toBeInTheDocument();
     expect(c.getByText(formatCurrency(500_000, 'USD'))).toBeInTheDocument();
     expect(c.queryByText(/wtd/)).toBeNull();
-    // win% from the RPC (40%), not a hard-coded legacy value
-    expect(c.getByText('40%')).toBeInTheDocument();
+    // Independent probability inputs from the RPC, not a single hard-coded legacy win percentage.
+    expect(c.getByLabelText('% Go 40%')).toBeInTheDocument();
+    expect(c.getByLabelText('% Get 25%')).toBeInTheDocument();
   });
 
   it('AC-SP-204: a deal with no customer renders an em-dash, never blank', () => {

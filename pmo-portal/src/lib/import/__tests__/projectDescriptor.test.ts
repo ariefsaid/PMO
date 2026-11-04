@@ -156,8 +156,8 @@ describe('#1638 stage dates', () => {
   afterEach(() => { vi.useRealTimers(); });
   it('AC-PSH-015: stage dates out of order are rejected at preview, on the later column', () => {
     const d = makeProjectImportDescriptor([], []);
-    expect(d.validateRow!({ name: 'X', status: 'Leads', pq_submitted_on: '2026-07-15', quoted_on: '2026-07-01' }))
-      .toEqual({ quoted_on: 'Stage dates must not go backwards.' });
+    expect(d.validateRow!({ name: 'X', status: 'Leads', quoted_on: '2026-07-15', pq_submitted_on: '2026-07-01' }))
+      .toEqual({ pq_submitted_on: 'Stage dates must not go backwards.' });
   });
   it('AC-PSH-015: a future stage date is rejected', () => {
     vi.useFakeTimers({ now: new Date('2026-11-01T05:00:00Z'), toFake: ['Date'] });
@@ -172,14 +172,25 @@ describe('#1638 stage dates', () => {
   });
   it('AC-PSH-015: in-order past dates pass and ride to the history call', () => {
     const d = makeProjectImportDescriptor([], []);
-    const cells = { name: 'X', status: 'Leads', lead_on: '2026-06-20', pq_submitted_on: '2026-07-01', quoted_on: '2026-07-15' };
+    const cells = { name: 'X', status: 'Leads', lead_on: '2026-06-20', quoted_on: '2026-07-01', pq_submitted_on: '2026-07-15' };
     expect(d.validateRow!(cells)).toEqual({});
-    expect(d.toInput(cells)).toMatchObject({ lead_on: '2026-06-20', pq_submitted_on: '2026-07-01', quoted_on: '2026-07-15' });
+    expect(d.toInput(cells)).toMatchObject({ lead_on: '2026-06-20', quoted_on: '2026-07-01', pq_submitted_on: '2026-07-15' });
   });
   it('AC-PSH-015: create writes the project, then its stage history, without the date columns on the project', async () => {
     const d = makeProjectImportDescriptor([], []);
     await d.create(d.toInput({ name: 'X', status: 'Leads', pq_submitted_on: '2026-07-01' }));
     expect(create).toHaveBeenCalledWith(expect.not.objectContaining({ pq_submitted_on: expect.anything() }));
     expect(importHistory).toHaveBeenCalledWith('new-id', [{ stage: 'PQ Submitted', entered_on: '2026-07-01' }]);
+  });
+
+  it('AC-1793: imported stage dates are written in Quotation before Pre-Qual order', async () => {
+    const d = makeProjectImportDescriptor([], []);
+    await d.create(d.toInput({
+      name: 'X', status: 'Leads', quoted_on: '2026-06-25', pq_submitted_on: '2026-07-01',
+    }));
+    expect(importHistory).toHaveBeenCalledWith('new-id', [
+      { stage: 'Quotation Submitted', entered_on: '2026-06-25' },
+      { stage: 'PQ Submitted', entered_on: '2026-07-01' },
+    ]);
   });
 });

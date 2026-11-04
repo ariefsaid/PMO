@@ -4,9 +4,9 @@
 -- needed to prove the weighted-value formula. UUID prefix 00350000-…
 --
 -- Fixture: 4 pipeline deals
---   Tender Submitted (×0.500): 1,200,000 + 950,000 + 1,000,000 = 3,150,000 → 1,575,000 weighted
---   PQ Submitted     (×0.250):   800,000                                   →   200,000 weighted
---   Σ pipeline_weighted_value = 1,775,000
+--   Tender Submitted (×0.500 Go ×0.250 Get): 1,200,000 + 950,000 + 1,000,000 = 3,150,000 → 393,750 weighted
+--   PQ Submitted     (×0.250 Go ×0.250 Get):   800,000                                   →    50,000 weighted
+--   Σ pipeline_weighted_value = 443,750
 begin;
 select plan(1);
 
@@ -53,11 +53,11 @@ values
 set local role authenticated;
 set local request.jwt.claims to '{"sub":"00350000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 
--- AC-1101: pipeline_weighted_value = 3,150,000×0.5 + 800,000×0.25 = 1,575,000 + 200,000 = 1,775,000
+-- AC-1101: pipeline_weighted_value = 3,150,000×0.5×0.25 + 800,000×0.25×0.25 = 393,750 + 50,000 = 443,750
 select is(
   (get_executive_dashboard() ->> 'pipeline_weighted_value')::numeric,
-  1775000::numeric,
-  'AC-1101: Σ(contract_value × win_prob) = (1.2M+0.95M+1.0M)×0.5 + 0.8M×0.25 = 1775000 (FR-SPD-002)'
+  443750::numeric,
+  'AC-1101: Σ(contract_value × win_prob) = (1.2M+0.95M+1.0M)×0.5 + 0.8M×0.25 = 443750 (FR-SPD-002)'
 );
 
 reset role;

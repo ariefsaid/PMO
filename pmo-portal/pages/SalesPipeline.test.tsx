@@ -27,7 +27,7 @@ const seedStages = [
   { status: 'Negotiation', count: 0, total_value: 0, win_probability: 0.75, weighted_value: 0 },
 ];
 const seedProjects = [
-  { id: 'p2', name: 'Northwind ERP Rollout', short_name: null as string | null, client_name: 'Northwind', pmo_project_number: 'PMO-26-7712', code: 'CLIENT-82', status: 'Tender Submitted', contract_value: 1200000, currency: 'USD', win_probability: 0.5 },
+  { id: 'p2', name: 'Northwind ERP Rollout', short_name: null as string | null, client_name: 'Northwind', pmo_project_number: 'PMO-26-7712', code: 'CLIENT-82', status: 'Tender Submitted', contract_value: 1200000, currency: 'USD', go_probability: 0.5, get_probability: 0.25, win_probability: 0.125 },
   { id: 'p10', name: 'Regional Services', short_name: null as string | null, client_name: null, status: 'PQ Submitted', contract_value: 800000, currency: 'USD', win_probability: 0.25 },
   // #530 / FR-L10N-020: mixed-currency pair for the table regression — each row shows its OWN
   // currency, not the USD org default (a single-currency fixture set could hide a hardcoded literal).
@@ -672,10 +672,9 @@ describe('SalesPipeline Board stage selection (#697)', () => {
     // The selected column carries a visible mark; the others do not.
     expect(screen.getByTestId('stage-Tender Submitted').querySelector('[data-selected="true"]')).not.toBeNull();
     expect(screen.getByTestId('stage-Leads').querySelector('[data-selected="true"]')).toBeNull();
-    // Not colour-only: the selected column is announced (aria-current) and carries a ring cue.
+    // Not colour-only: the selected column is announced (aria-current).
     const selectedColumn = screen.getByTestId('stage-Tender Submitted').querySelector('[data-selected="true"]');
     expect(selectedColumn).toHaveAttribute('aria-current', 'true');
-    expect(selectedColumn).toHaveClass('ring-2');
     expect(screen.getByTestId('stage-Leads').querySelector('[aria-current="true"]')).toBeNull();
   });
 
@@ -868,7 +867,7 @@ describe('SalesPipeline subtraction (SUB-H)', () => {
     expect(r.queryByText(/11%/)).toBeNull();
   });
 
-  it('SUB-H phone: no Board/Table toggle, no Export, no per-card details disclosure, win % beside the value', () => {
+  it('SUB-H phone: no Board/Table toggle, no Export, no per-card details disclosure, Go/Get beside the value', () => {
     viewport.isDesktop = false;
     renderPage('/sales?view=kanban');
     expect(screen.queryByRole('tablist', { name: /Pipeline view/i })).toBeNull();
@@ -876,7 +875,8 @@ describe('SalesPipeline subtraction (SUB-H)', () => {
     const list = screen.getByTestId('sales-phone-stage-list');
     expect(within(list).queryByText('Financial and project details')).toBeNull();
     const card = within(list).getByText('Northwind ERP Rollout').closest('li')!;
-    expect(within(card as HTMLElement).getByText('50%')).toBeVisible();
+    expect(within(card as HTMLElement).getByLabelText('% Go 50%')).toBeVisible();
+    expect(within(card as HTMLElement).getByLabelText('% Get 25%')).toBeVisible();
   });
 
   it('SUB-H phone: a table-view URL still shows the card list (no toggle to get stuck behind)', () => {

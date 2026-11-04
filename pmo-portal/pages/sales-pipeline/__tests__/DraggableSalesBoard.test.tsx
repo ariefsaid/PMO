@@ -62,30 +62,30 @@ beforeEach(() => {
 });
 
 describe('DraggableSalesBoard', () => {
-  it("AC-DND-002: Leads → Tender is refused: no request, card stays in Leads, refusal message shown", async () => {
+  it("AC-DND-002: Leads → Pre-Qualification is refused: no request, card stays in Leads, refusal message shown", async () => {
     renderBoard();
-    await drop('leads', 'stage-Tender Submitted');
+    await drop('leads', 'stage-PQ Submitted');
     expect(mutateAsync).not.toHaveBeenCalled();
     expect(inColumn('stage-Leads', 'leads')).toBeInTheDocument();
-    expect(await screen.findByText("leads deal can't move from Leads to Tender.")).toBeInTheDocument();
+    expect(await screen.findByText("leads deal can't move from Leads to Pre-Qual.")).toBeInTheDocument();
   });
 
-  it('AC-DND-003: Quotation → Tender opens the menu confirm; Cancel snaps back with no write; Confirm writes once', async () => {
+  it('AC-DND-003: Quotation → Pre-Qualification opens the menu confirm; Cancel snaps back with no write; Confirm writes once', async () => {
     const user = userEvent.setup();
     renderBoard();
-    await drop('quotation', 'stage-Tender Submitted');
-    expect(await screen.findByText('Move project to Tender Submitted?')).toBeInTheDocument();
-    expect(inColumn('stage-Tender Submitted', 'quotation')).toBeInTheDocument();
-    expect(inColumn('stage-Tender Submitted', 'quotation')!.closest('[data-drag-state]')).toHaveAttribute('data-drag-state', 'held');
+    await drop('quotation', 'stage-PQ Submitted');
+    expect(await screen.findByText('Move project to PQ Submitted?')).toBeInTheDocument();
+    expect(inColumn('stage-PQ Submitted', 'quotation')).toBeInTheDocument();
+    expect(inColumn('stage-PQ Submitted', 'quotation')!.closest('[data-drag-state]')).toHaveAttribute('data-drag-state', 'held');
 
     await user.click(screen.getByRole('button', { name: 'Cancel' }));
     await waitFor(() => expect(inColumn('stage-Quotation Submitted', 'quotation')).toBeInTheDocument());
     expect(mutateAsync).not.toHaveBeenCalled();
 
-    await drop('quotation', 'stage-Tender Submitted');
-    await user.click(await screen.findByRole('button', { name: 'Move to Tender Submitted' }));
+    await drop('quotation', 'stage-PQ Submitted');
+    await user.click(await screen.findByRole('button', { name: 'Move to PQ Submitted' }));
     await waitFor(() => expect(mutateAsync).toHaveBeenCalledTimes(1));
-    expect(mutateAsync).toHaveBeenCalledWith({ id: 'quotation', to: 'Tender Submitted', opts: undefined });
+    expect(mutateAsync).toHaveBeenCalledWith({ id: 'quotation', to: 'PQ Submitted', opts: undefined });
   });
 
   it('AC-DND-004: Negotiation → Won with eligibility allowed opens the win form; submit needs ref and date', async () => {
@@ -157,8 +157,8 @@ describe('DraggableSalesBoard', () => {
     const user = userEvent.setup();
     mutateAsync.mockRejectedValueOnce(new Error('Illegal transition'));
     renderBoard();
-    await drop('quotation', 'stage-Tender Submitted');
-    await user.click(await screen.findByRole('button', { name: 'Move to Tender Submitted' }));
+    await drop('quotation', 'stage-PQ Submitted');
+    await user.click(await screen.findByRole('button', { name: 'Move to PQ Submitted' }));
     expect(await screen.findByText('Status change failed')).toBeInTheDocument();
     expect(screen.getByText('Illegal transition')).toBeInTheDocument();
     await waitFor(() => expect(inColumn('stage-Quotation Submitted', 'quotation')).toBeInTheDocument());
@@ -186,10 +186,10 @@ describe('DraggableSalesBoard', () => {
     const gate = new Promise<void>((r) => { release = r; });
     const spy = vi.spyOn(qc, 'invalidateQueries').mockImplementation(() => gate);
     renderBoard();
-    await drop('quotation', 'stage-Tender Submitted');
-    await user.click(await screen.findByRole('button', { name: 'Move to Tender Submitted' }));
+    await drop('quotation', 'stage-PQ Submitted');
+    await user.click(await screen.findByRole('button', { name: 'Move to PQ Submitted' }));
     await waitFor(() => expect(spy).toHaveBeenCalledTimes(3));
-    const card = inColumn('stage-Tender Submitted', 'quotation')!.closest('[data-drag-state]');
+    const card = inColumn('stage-PQ Submitted', 'quotation')!.closest('[data-drag-state]');
     expect(card).toHaveAttribute('data-drag-state', 'saving');
     expect(inColumn('stage-Quotation Submitted', 'quotation')).toBeNull();
     await act(async () => { release(); await gate; });
@@ -201,8 +201,8 @@ describe('DraggableSalesBoard', () => {
 
   it('AC-DND-012: canDrop mirrors resolveProjectDrop', () => {
     renderBoard();
-    expect(dnd.props!.canDrop('leads', 'stage-Tender Submitted')).toBe(false);
-    expect(dnd.props!.canDrop('quotation', 'stage-Tender Submitted')).toBe(true);
+    expect(dnd.props!.canDrop('leads', 'stage-PQ Submitted')).toBe(false);
+    expect(dnd.props!.canDrop('quotation', 'stage-PQ Submitted')).toBe(true);
     expect(dnd.props!.canDrop('leads', 'stage-Leads')).toBe(false);
     expect(dnd.props!.canDrop('tender', 'stage-Lost')).toBe(true);
   });
@@ -257,12 +257,12 @@ describe('DraggableSalesBoard', () => {
     let finish!: () => void;
     mutateAsync.mockImplementationOnce(() => new Promise((resolve) => { finish = () => resolve({ erpSetupPending: false }); }));
     renderBoard();
-    await drop('quotation', 'stage-Tender Submitted');
-    await user.click(await screen.findByRole('button', { name: 'Move to Tender Submitted' }));
+    await drop('quotation', 'stage-PQ Submitted');
+    await user.click(await screen.findByRole('button', { name: 'Move to PQ Submitted' }));
     await waitFor(() => expect(mutateAsync).toHaveBeenCalledTimes(1));
-    expect(screen.getByText('Move project to Tender Submitted?')).toBeInTheDocument();
+    expect(screen.getByText('Move project to PQ Submitted?')).toBeInTheDocument();
     await act(async () => { finish(); });
-    await waitFor(() => expect(screen.queryByText('Move project to Tender Submitted?')).toBeNull());
+    await waitFor(() => expect(screen.queryByText('Move project to PQ Submitted?')).toBeNull());
   });
 
   it('AC-DND-005: a second drop during the win-eligibility check is ignored and its card never leaves its column', async () => {
@@ -270,13 +270,13 @@ describe('DraggableSalesBoard', () => {
     eligibility.mockImplementationOnce(() => new Promise<string>((resolve) => { answer = resolve; }));
     renderBoard();
     await drop('negotiation', 'stage-Won');
-    await drop('quotation', 'stage-Tender Submitted');
-    expect(screen.queryByText('Move project to Tender Submitted?')).toBeNull();
+    await drop('quotation', 'stage-PQ Submitted');
+    expect(screen.queryByText('Move project to PQ Submitted?')).toBeNull();
     expect(inColumn('stage-Quotation Submitted', 'quotation')).toBeInTheDocument();
     await act(async () => { answer('allowed'); });
     expect(await screen.findByText('Win — enter contract details')).toBeInTheDocument();
     expect(inColumn('stage-Quotation Submitted', 'quotation')).toBeInTheDocument();
-    expect(screen.queryByText('Move project to Tender Submitted?')).toBeNull();
+    expect(screen.queryByText('Move project to PQ Submitted?')).toBeNull();
   });
 
   it('AC-SETUP-001: the ERP-linking note shows after every win that needs it, including a second one', async () => {
@@ -298,7 +298,7 @@ describe('DraggableSalesBoard', () => {
     renderBoard();
     expect(dnd.props!.isHome('leads', 'stage-Leads')).toBe(true);
     expect(dnd.props!.isHome('won', 'stage-Won')).toBe(true);
-    expect(dnd.props!.isHome('leads', 'stage-Tender Submitted')).toBe(false);
+    expect(dnd.props!.isHome('leads', 'stage-PQ Submitted')).toBe(false);
   });
 
   it('FR-DND-016: a card is not draggable without the transition permission or without a legal target', () => {
