@@ -60,64 +60,99 @@ test('AC-018: a reviewed whole-project budget replaces annual ERP budgets and ap
   let primaryError: unknown = null;
   const cleanupErrors: string[] = [];
 
-  try {
-    // This proof drives a full shipped sweep tick to settle the annual-budget removals. Fail before
-    // fixture writes if that tick could touch another active ERP org or pre-existing queued work.
-    const { data: activeErpBindings, error: activeBindingsError } = await admin
-      .from('external_org_bindings').select('org_id').eq('external_tier', 'erpnext').not('activated_at', 'is', null);
+  const assertFullSweepScope = async (
+    allowedVersionIds: readonly string[] = [],
+    allowedCancellation: { versionId: string; names: readonly string[] } | null = null,
+  ) => {
+    const allowedVersions = new Set(allowedVersionIds);
+    const cancellationNames = new Set(allowedCancellation?.names ?? []);
+    const assertCompleteRead = (rows: unknown[] | null, count: number | null, label: string) => {
+      expect(count, `${label} returns an exact row count`).not.toBeNull();
+      expect(rows?.length ?? 0, `${label} is not truncated`).toBe(count);
+    };
+
+    // This journey drives a full shipped sweep tick. Recheck its bounded local scope both before
+    // fixture setup and immediately before the tick; the second pass permits only this run's
+    // budget/version work and the witnessed predecessor cancellation intents.
+    const { data: activeErpBindings, count: activeBindingsCount, error: activeBindingsError } = await admin
+      .from('external_org_bindings').select('org_id', { count: 'exact' }).eq('external_tier', 'erpnext').not('activated_at', 'is', null).limit(1001);
     if (activeBindingsError) throw new Error(`read active ERP binding scope before the full sweep failed: ${activeBindingsError.message}`);
+    assertCompleteRead(activeErpBindings, activeBindingsCount, 'active ERP organization scope');
     expect((activeErpBindings ?? []).map((row) => row.org_id).filter((orgId) => orgId !== ORG_ID), 'the full sweep has no other active ERP organization in scope').toEqual([]);
 
-    const { data: sweepDomains, error: sweepDomainsError } = await admin
-      .from('external_domain_ownership').select('domain').eq('org_id', ORG_ID).eq('external_tier', 'erpnext');
-    if (sweepDomainsError) throw new Error(`read ERP sweep domains before fixture setup failed: ${sweepDomainsError.message}`);
+    const { data: sweepDomains, count: sweepDomainsCount, error: sweepDomainsError } = await admin
+      .from('external_domain_ownership').select('domain', { count: 'exact' }).eq('org_id', ORG_ID).eq('external_tier', 'erpnext').limit(1001);
+    if (sweepDomainsError) throw new Error(`read ERP sweep domains before the full sweep failed: ${sweepDomainsError.message}`);
+    assertCompleteRead(sweepDomains, sweepDomainsCount, 'ERP sweep domain scope');
     const ownsTimesheets = (sweepDomains ?? []).some((row) => row.domain === 'timesheets');
 
-    const { data: unsettledCommands, error: unsettledCommandsError } = await admin
-      .from('external_command_outbox').select('id, domain, state').eq('org_id', ORG_ID)
-      .neq('state', 'confirmed').neq('state', 'held').limit(1000);
+    const { data: unsettledCommands, count: unsettledCommandsCount, error: unsettledCommandsError } = await admin
+      .from('external_command_outbox').select('id, domain, state, pmo_record_id', { count: 'exact' }).eq('org_id', ORG_ID)
+      .neq('state', 'confirmed').neq('state', 'held').limit(1001);
     if (unsettledCommandsError) throw new Error(`read outbox work before the full sweep failed: ${unsettledCommandsError.message}`);
-    expect(unsettledCommands, 'the full sweep starts with no unrelated unsettled outbox command').toEqual([]);
+    assertCompleteRead(unsettledCommands, unsettledCommandsCount, 'unsettled outbox scope');
+    const unrelatedOutbox = (unsettledCommands ?? []).filter((row) => !(
+      row.domain === 'budget' && typeof row.pmo_record_id === 'string'
+      && [...allowedVersions].some((versionId) => row.pmo_record_id === versionId || row.pmo_record_id.startsWith(`${versionId}:`))
+    ));
+    expect(unrelatedOutbox, 'the full sweep has no unrelated unsettled outbox work').toEqual([]);
 
-    const { data: pendingBudgetPushes, error: pendingBudgetPushesError } = await admin
-      .from('budget_version_erp_mirror').select('id, budget_version_id, push_state').eq('org_id', ORG_ID).in('push_state', ['pending', 'failed']).limit(1000);
+    const { data: pendingBudgetPushes, count: pendingBudgetPushesCount, error: pendingBudgetPushesError } = await admin
+      .from('budget_version_erp_mirror').select('id, budget_version_id, push_state', { count: 'exact' }).eq('org_id', ORG_ID)
+      .in('push_state', ['pending', 'failed']).limit(1001);
     if (pendingBudgetPushesError) throw new Error(`read legacy budget push backlog before the full sweep failed: ${pendingBudgetPushesError.message}`);
-    expect(pendingBudgetPushes, 'the full sweep starts with no unrelated legacy budget push').toEqual([]);
-    const { data: pendingAccountBudgetPushes, error: pendingAccountBudgetPushesError } = await admin
-      .from('budget_version_account_erp_mirror').select('id, budget_version_id, push_state').eq('org_id', ORG_ID).in('push_state', ['pending', 'failed']).limit(1000);
+    assertCompleteRead(pendingBudgetPushes, pendingBudgetPushesCount, 'legacy budget mirror scope');
+    expect((pendingBudgetPushes ?? []).filter((row) => !allowedVersions.has(row.budget_version_id)), 'the full sweep has no unrelated legacy budget push').toEqual([]);
+
+    const { data: pendingAccountBudgetPushes, count: pendingAccountBudgetPushesCount, error: pendingAccountBudgetPushesError } = await admin
+      .from('budget_version_account_erp_mirror').select('id, budget_version_id, push_state', { count: 'exact' }).eq('org_id', ORG_ID)
+      .in('push_state', ['pending', 'failed']).limit(1001);
     if (pendingAccountBudgetPushesError) throw new Error(`read account budget push backlog before the full sweep failed: ${pendingAccountBudgetPushesError.message}`);
-    expect(pendingAccountBudgetPushes, 'the full sweep starts with no unrelated account budget push').toEqual([]);
-    const { data: pendingBudgetCancellations, error: pendingBudgetCancellationsError } = await admin
-      .from('budget_archive_cancel_intents').select('id, budget_version_id, state').eq('org_id', ORG_ID).eq('state', 'pending').limit(1000);
+    assertCompleteRead(pendingAccountBudgetPushes, pendingAccountBudgetPushesCount, 'account budget mirror scope');
+    expect((pendingAccountBudgetPushes ?? []).filter((row) => !allowedVersions.has(row.budget_version_id)), 'the full sweep has no unrelated account budget push').toEqual([]);
+
+    const { data: pendingBudgetCancellations, count: pendingBudgetCancellationsCount, error: pendingBudgetCancellationsError } = await admin
+      .from('budget_archive_cancel_intents').select('id, budget_version_id, erp_budget_name, state', { count: 'exact' }).eq('org_id', ORG_ID)
+      .eq('state', 'pending').limit(1001);
     if (pendingBudgetCancellationsError) throw new Error(`read budget cancellation backlog before the full sweep failed: ${pendingBudgetCancellationsError.message}`);
-    expect(pendingBudgetCancellations, 'the full sweep starts with no unrelated budget cancellation').toEqual([]);
+    assertCompleteRead(pendingBudgetCancellations, pendingBudgetCancellationsCount, 'budget cancellation scope');
+    expect((pendingBudgetCancellations ?? []).filter((row) => row.budget_version_id !== allowedCancellation?.versionId || !cancellationNames.has(row.erp_budget_name)), 'the full sweep has no unrelated budget cancellation').toEqual([]);
 
-    const { data: pendingTimesheets, error: pendingTimesheetsError } = await admin
-      .from('timesheet_erp_mirror').select('id, timesheet_id, push_state').eq('org_id', ORG_ID)
-      .in('push_state', ['pending', 'failed']).is('erp_cancelled_at', null).limit(1000);
+    const { data: pendingTimesheets, count: pendingTimesheetsCount, error: pendingTimesheetsError } = await admin
+      .from('timesheet_erp_mirror').select('id, timesheet_id, push_state', { count: 'exact' }).eq('org_id', ORG_ID)
+      .in('push_state', ['pending', 'failed']).is('erp_cancelled_at', null).limit(1001);
     if (pendingTimesheetsError) throw new Error(`read timesheet push backlog before the full sweep failed: ${pendingTimesheetsError.message}`);
-    expect(pendingTimesheets, 'the full sweep starts with no unrelated retryable timesheet push').toEqual([]);
-    const { data: pendingExpensePostings, error: pendingExpensePostingsError } = await admin
-      .from('expense_posting_erp_mirror').select('id, posting_identity, push_state').eq('org_id', ORG_ID)
-      .in('push_state', ['pending', 'failed']).is('erp_cancelled_at', null).limit(1000);
-    if (pendingExpensePostingsError) throw new Error(`read expense posting backlog before the full sweep failed: ${pendingExpensePostingsError.message}`);
-    expect(pendingExpensePostings, 'the full sweep starts with no unrelated retryable expense posting').toEqual([]);
-    const { data: pendingImprestPostings, error: pendingImprestPostingsError } = await admin
-      .from('imprest_posting_erp_mirror').select('id, posting_identity, push_state').eq('org_id', ORG_ID)
-      .in('push_state', ['pending', 'failed']).is('erp_cancelled_at', null).limit(1000);
-    if (pendingImprestPostingsError) throw new Error(`read site-float posting backlog before the full sweep failed: ${pendingImprestPostingsError.message}`);
-    expect(pendingImprestPostings, 'the full sweep starts with no unrelated retryable site-float posting').toEqual([]);
+    assertCompleteRead(pendingTimesheets, pendingTimesheetsCount, 'timesheet push backlog scope');
+    expect(pendingTimesheets, 'the full sweep has no unrelated retryable timesheet push').toEqual([]);
 
-    const { data: openConnectRuns, error: openConnectRunsError } = await admin
-      .from('erp_connect_runs').select('id, state').eq('org_id', ORG_ID).eq('external_tier', 'erpnext')
-      .in('state', ['staging', 'proposing']).limit(1000);
+    const { data: pendingExpensePostings, count: pendingExpensePostingsCount, error: pendingExpensePostingsError } = await admin
+      .from('expense_posting_erp_mirror').select('id, posting_identity, push_state', { count: 'exact' }).eq('org_id', ORG_ID)
+      .in('push_state', ['pending', 'failed']).is('erp_cancelled_at', null).limit(1001);
+    if (pendingExpensePostingsError) throw new Error(`read expense posting backlog before the full sweep failed: ${pendingExpensePostingsError.message}`);
+    assertCompleteRead(pendingExpensePostings, pendingExpensePostingsCount, 'expense posting retry scope');
+    expect(pendingExpensePostings, 'the full sweep has no unrelated retryable expense posting').toEqual([]);
+
+    const { data: pendingImprestPostings, count: pendingImprestPostingsCount, error: pendingImprestPostingsError } = await admin
+      .from('imprest_posting_erp_mirror').select('id, posting_identity, push_state', { count: 'exact' }).eq('org_id', ORG_ID)
+      .in('push_state', ['pending', 'failed']).is('erp_cancelled_at', null).limit(1001);
+    if (pendingImprestPostingsError) throw new Error(`read site-float posting backlog before the full sweep failed: ${pendingImprestPostingsError.message}`);
+    assertCompleteRead(pendingImprestPostings, pendingImprestPostingsCount, 'site-float posting retry scope');
+    expect(pendingImprestPostings, 'the full sweep has no unrelated retryable site-float posting').toEqual([]);
+
+    const { data: openConnectRuns, count: openConnectRunsCount, error: openConnectRunsError } = await admin
+      .from('erp_connect_runs').select('id, state', { count: 'exact' }).eq('org_id', ORG_ID).eq('external_tier', 'erpnext')
+      .in('state', ['staging', 'proposing']).limit(1001);
     if (openConnectRunsError) throw new Error(`read ERP connect setup runs before the full sweep failed: ${openConnectRunsError.message}`);
-    expect(openConnectRuns, 'the full sweep starts with no unrelated ERP connect setup run').toEqual([]);
-    const { data: queuedConnectSends, error: queuedConnectSendsError } = await admin
-      .from('erp_connect_proposals').select('id, kind').eq('org_id', ORG_ID).eq('external_tier', 'erpnext')
-      .eq('state', 'sending').eq('outcome', 'send').limit(1000);
+    assertCompleteRead(openConnectRuns, openConnectRunsCount, 'ERP connect run scope');
+    expect(openConnectRuns, 'the full sweep has no unrelated ERP connect setup run').toEqual([]);
+
+    const { data: queuedConnectSends, count: queuedConnectSendsCount, error: queuedConnectSendsError } = await admin
+      .from('erp_connect_proposals').select('id, kind', { count: 'exact' }).eq('org_id', ORG_ID).eq('external_tier', 'erpnext')
+      .eq('state', 'sending').eq('outcome', 'send').limit(1001);
     if (queuedConnectSendsError) throw new Error(`read ERP connect sends before the full sweep failed: ${queuedConnectSendsError.message}`);
-    expect(queuedConnectSends, 'the full sweep starts with no unrelated accepted ERP master send').toEqual([]);
+    assertCompleteRead(queuedConnectSends, queuedConnectSendsCount, 'ERP connect send scope');
+    expect(queuedConnectSends, 'the full sweep has no unrelated accepted ERP master send').toEqual([]);
+
     const { data: itemCensus, error: itemCensusError } = await admin
       .from('erp_connect_census').select('pmo_count, accepted_at').eq('org_id', ORG_ID)
       .eq('external_tier', 'erpnext').eq('kind', 'item').maybeSingle();
@@ -128,23 +163,23 @@ test('AC-018: a reviewed whole-project budget replaces annual ERP budgets and ap
       if (currentBindingError) throw new Error(`read ERP item map before the full sweep failed: ${currentBindingError.message}`);
       const config = (currentBinding?.config ?? {}) as { item_map?: Record<string, string> };
       const mappedItems = new Set(Object.keys(config.item_map ?? {}));
-      const { data: items, error: itemsError } = await admin.from('procurement_items')
-        .select('name, procurement_id').eq('org_id', ORG_ID).limit(10_000);
+      const { data: items, count: itemsCount, error: itemsError } = await admin.from('procurement_items')
+        .select('name, procurement_id', { count: 'exact' }).eq('org_id', ORG_ID).limit(10_001);
       if (itemsError) throw new Error(`read ERP item-send candidates before the full sweep failed: ${itemsError.message}`);
-      expect((items ?? []).length, 'item-send preflight is not truncated').toBeLessThan(10_000);
+      assertCompleteRead(items, itemsCount, 'item-send preflight');
       const procurementIds = [...new Set((items ?? []).map((item) => item.procurement_id))];
-      const { data: procurements, error: procurementsError } = procurementIds.length === 0
-        ? { data: [], error: null }
-        : await admin.from('procurements').select('id, status').eq('org_id', ORG_ID).in('id', procurementIds).limit(10_000);
+      const { data: procurements, count: procurementsCount, error: procurementsError } = procurementIds.length === 0
+        ? { data: [], count: 0, error: null }
+        : await admin.from('procurements').select('id, status', { count: 'exact' }).eq('org_id', ORG_ID).in('id', procurementIds).limit(10_001);
       if (procurementsError) throw new Error(`read procurement states before the full sweep failed: ${procurementsError.message}`);
-      expect((procurements ?? []).length, 'procurement-state preflight is not truncated').toBeLessThan(10_000);
+      assertCompleteRead(procurements, procurementsCount, 'procurement-state preflight');
       const eligibleProcurements = new Set((procurements ?? [])
         .filter((procurement) => ['Approved', 'Vendor Quoted', 'Quote Selected', 'Ordered', 'Received', 'Vendor Invoiced'].includes(procurement.status))
         .map((procurement) => procurement.id));
-      const { data: itemProposals, error: itemProposalsError } = await admin.from('erp_connect_proposals')
-        .select('pmo_ids').eq('org_id', ORG_ID).eq('external_tier', 'erpnext').eq('kind', 'item').limit(10_000);
+      const { data: itemProposals, count: itemProposalsCount, error: itemProposalsError } = await admin.from('erp_connect_proposals')
+        .select('pmo_ids', { count: 'exact' }).eq('org_id', ORG_ID).eq('external_tier', 'erpnext').eq('kind', 'item').limit(10_001);
       if (itemProposalsError) throw new Error(`read existing ERP item proposals before the full sweep failed: ${itemProposalsError.message}`);
-      expect((itemProposals ?? []).length, 'item-proposal preflight is not truncated').toBeLessThan(10_000);
+      assertCompleteRead(itemProposals, itemProposalsCount, 'item-proposal preflight');
       const alreadyQueued = new Set((itemProposals ?? []).flatMap((proposal) => proposal.pmo_ids ?? []));
       const wouldEnqueue = [...new Set((items ?? [])
         .filter((item) => item.name && eligibleProcurements.has(item.procurement_id))
@@ -152,6 +187,24 @@ test('AC-018: a reviewed whole-project budget replaces annual ERP budgets and ap
         .filter((name) => !mappedItems.has(name) && !alreadyQueued.has(name));
       expect(wouldEnqueue, 'the full sweep cannot enqueue unrelated new ERP Item sends').toEqual([]);
     }
+
+    if (ownsTimesheets) {
+      const { data: binding, error: bindingError } = await admin.from('external_org_bindings')
+        .select('activated_at').eq('org_id', ORG_ID).eq('external_tier', 'erpnext').maybeSingle();
+      if (bindingError || !binding?.activated_at) throw new Error(`read current ERP activation before the full sweep failed: ${bindingError?.message ?? 'no activation stamp'}`);
+      const lookbackFloor = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
+      const approvedAfter = lookbackFloor > binding.activated_at ? lookbackFloor : binding.activated_at;
+      const { data: unmirroredApprovedTimesheets, count: unmirroredTimesheetsCount, error: unmirroredTimesheetsError } = await admin.from('timesheets')
+        .select('id, timesheet_erp_mirror!left(timesheet_id)', { count: 'exact' }).eq('org_id', ORG_ID).eq('status', 'Approved')
+        .gte('approved_at', approvedAfter).is('timesheet_erp_mirror', null).limit(1001);
+      if (unmirroredTimesheetsError) throw new Error(`read newly eligible timesheet sends before the full sweep failed: ${unmirroredTimesheetsError.message}`);
+      assertCompleteRead(unmirroredApprovedTimesheets, unmirroredTimesheetsCount, 'newly eligible timesheet scope');
+      expect(unmirroredApprovedTimesheets, 'the full sweep has no newly eligible unmirrored timesheet send').toEqual([]);
+    }
+  };
+
+  try {
+    await assertFullSweepScope();
 
     const [firstYear, secondYear] = await twoAdjacentFiscalYears();
     const seeded = await seedBud(admin, suffix, {
@@ -326,18 +379,10 @@ test('AC-018: a reviewed whole-project budget replaces annual ERP budgets and ap
     await expect(dialog).not.toBeVisible({ timeout: 60_000 });
     await expect(successorDraft).not.toBeVisible({ timeout: 30_000 });
     await expect(successorRow).toContainText('Active', { timeout: 30_000 });
-    if (ownsTimesheets) {
-      const { data: binding, error: bindingError } = await admin.from('external_org_bindings')
-        .select('activated_at').eq('org_id', ORG_ID).eq('external_tier', 'erpnext').maybeSingle();
-      if (bindingError || !binding?.activated_at) throw new Error(`read current ERP activation before the full sweep failed: ${bindingError?.message ?? 'no activation stamp'}`);
-      const lookbackFloor = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
-      const approvedAfter = lookbackFloor > binding.activated_at ? lookbackFloor : binding.activated_at;
-      const { data: unmirroredApprovedTimesheets, error: unmirroredTimesheetsError } = await admin.from('timesheets')
-        .select('id, timesheet_erp_mirror!left(timesheet_id)').eq('org_id', ORG_ID).eq('status', 'Approved')
-        .gte('approved_at', approvedAfter).is('timesheet_erp_mirror', null).limit(1000);
-      if (unmirroredTimesheetsError) throw new Error(`read newly eligible timesheet sends before the full sweep failed: ${unmirroredTimesheetsError.message}`);
-      expect(unmirroredApprovedTimesheets, 'the full sweep starts with no newly eligible unmirrored timesheet send').toEqual([]);
-    }
+    await assertFullSweepScope([predecessorId, successorId], {
+      versionId: predecessorId,
+      names: predecessorTargets.map((target) => target.name),
+    });
     const sweep = await runSweepBud(FUNCTIONS_URL);
     expect(sweep.status, `the shipped full sweep settles the actual budget push and predecessor removals: ${JSON.stringify(sweep.body)}`).toBe(200);
 
