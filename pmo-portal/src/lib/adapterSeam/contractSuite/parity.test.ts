@@ -37,9 +37,9 @@ describe('AC-OCI-094 Odoo revenue declarations match the shared suite versions',
     expect(ODOO_WORKFLOWS['invoice.pair-existing']).toEqual({ status: 'pending', version: WORKFLOWS['invoice.pair-existing'].version, issue: 1506 });
   });
 
-  it('leaves activation to the procurement slice', () => {
+  it('AC-OPP-084 accepts activation after the production resolver suite passes', () => {
     expect(SUITES['cutover.activation']).toBeDefined();
-    expect(ODOO_WORKFLOWS['cutover.activation']).toEqual({ status: 'pending', version: WORKFLOWS['cutover.activation'].version, issue: 1505 });
+    expect(ODOO_WORKFLOWS['cutover.activation']).toEqual({ status: 'supported', version: WORKFLOWS['cutover.activation'].version });
   });
 
   it('keeps revenue cutover pending on its owning issue until a shared suite exists', () => {
