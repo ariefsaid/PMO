@@ -1,7 +1,7 @@
 -- #1472 B2/B3: atomic Draft-only mode changes, exact source witnesses and activation SoD.
 begin;
 create extension if not exists pgtap;
-select plan(38);
+select plan(42);
 
 insert into organizations (id, name) values
   ('14760000-0000-0000-0000-000000000001', 'Draft Mode Switch Fixture Org'),
@@ -36,24 +36,26 @@ insert into budget_versions (id, org_id, project_id, version, name, status, crea
   ('14762222-0000-0000-0000-000000000005', '14760000-0000-0000-0000-000000000001', '14761111-0000-0000-0000-000000000001', 5, 'Active Per Year Version', 'Draft', '14760000-0000-0000-0000-000000000011', 'per_year'),
   ('14762222-0000-0000-0000-000000000006', '14760000-0000-0000-0000-000000000001', '14761111-0000-0000-0000-000000000001', 6, 'Archived Per Year Version', 'Draft', '14760000-0000-0000-0000-000000000011', 'per_year'),
   ('14762222-0000-0000-0000-000000000007', '14760000-0000-0000-0000-000000000001', '14761111-0000-0000-0000-000000000001', 7, 'Rollback Per Year Draft', 'Draft', '14760000-0000-0000-0000-000000000011', 'per_year'),
+  ('14762222-0000-0000-0000-000000000009', '14760000-0000-0000-0000-000000000001', '14761111-0000-0000-0000-000000000001', 9, 'Amount Guard Per Year Draft', 'Draft', '14760000-0000-0000-0000-000000000011', 'per_year'),
   ('14762222-0000-0000-0000-000000000008', '14760000-0000-0000-0000-000000000002', '14761111-0000-0000-0000-000000000002', 1, 'Other Tenant Draft', 'Draft', '14760000-0000-0000-0000-000000000021', 'per_year');
 insert into budget_line_items (id, org_id, budget_version_id, category, description, budgeted_amount, actual_amount, fiscal_year) values
   ('14763333-0000-0000-0000-000000000001', '14760000-0000-0000-0000-000000000001', '14762222-0000-0000-0000-000000000001', 'Labor', 'Developers', 200000.00, 0, 'FY26'),
-  ('14763333-0000-0000-0000-000000000002', '14760000-0000-0000-0000-000000000001', '14762222-0000-0000-0000-000000000001', 'Travel', 'Travel', 1000.25, 0, 'FY27'),
+  ('14763333-0000-0000-0000-000000000002', '14760000-0000-0000-0000-000000000001', '14762222-0000-0000-0000-000000000001', 'Equipment', 'Equipment', 1000.25, 0, 'FY27'),
   ('14763333-0000-0000-0000-000000000003', '14760000-0000-0000-0000-000000000001', '14762222-0000-0000-0000-000000000002', 'Labor', 'Developers', 200000.00, 0, null),
-  ('14763333-0000-0000-0000-000000000009', '14760000-0000-0000-0000-000000000001', '14762222-0000-0000-0000-000000000002', 'Travel', 'Travel', 1000.25, 0, null),
+  ('14763333-0000-0000-0000-000000000009', '14760000-0000-0000-0000-000000000001', '14762222-0000-0000-0000-000000000002', 'Equipment', 'Equipment', 1000.25, 0, null),
   ('14763333-0000-0000-0000-000000000004', '14760000-0000-0000-0000-000000000002', '14762222-0000-0000-0000-000000000008', 'Labor', 'Other tenant line', 10.00, 0, 'FY26'),
   ('14763333-0000-0000-0000-000000000005', '14760000-0000-0000-0000-000000000001', '14762222-0000-0000-0000-000000000005', 'Labor', 'Active line', 10.00, 0, 'FY26'),
   ('14763333-0000-0000-0000-000000000006', '14760000-0000-0000-0000-000000000001', '14762222-0000-0000-0000-000000000006', 'Labor', 'Archived line', 10.00, 0, 'FY26'),
   ('14763333-0000-0000-0000-000000000007', '14760000-0000-0000-0000-000000000001', '14762222-0000-0000-0000-000000000007', 'Labor', 'Rollback line one', 10.00, 0, 'FY26'),
-  ('14763333-0000-0000-0000-000000000008', '14760000-0000-0000-0000-000000000001', '14762222-0000-0000-0000-000000000007', 'Travel', 'Rollback line two', 0.25, 0, 'FY27');
+  ('14763333-0000-0000-0000-000000000008', '14760000-0000-0000-0000-000000000001', '14762222-0000-0000-0000-000000000007', 'Equipment', 'Rollback line two', 0.25, 0, 'FY27'),
+  ('14763333-0000-0000-0000-000000000010', '14760000-0000-0000-0000-000000000001', '14762222-0000-0000-0000-000000000009', 'Labor', 'Amount guard line', 10.00, 0, 'FY26');
 insert into budget_distribution_plans (org_id, budget_version_id, method, inputs, category_overrides, basis)
 values ('14760000-0000-0000-0000-000000000001', '14762222-0000-0000-0000-000000000002', 'by_days', '{}'::jsonb, '{}'::jsonb,
         '{"projectStart":"2026-01-01","projectEnd":"2027-12-31","years":[{"name":"FY26","start":"2026-01-01","end":"2026-12-31"},{"name":"FY27","start":"2027-01-01","end":"2027-12-31"}]}'::jsonb);
 insert into budget_year_distributions (org_id, budget_version_id, category, fiscal_year, ordinal, amount, method, is_override)
 values
   ('14760000-0000-0000-0000-000000000001', '14762222-0000-0000-0000-000000000002', 'Labor', 'FY26', 0, 200000.00, 'by_days', false),
-  ('14760000-0000-0000-0000-000000000001', '14762222-0000-0000-0000-000000000002', 'Travel', 'FY27', 1, 1000.25, 'by_days', false);
+  ('14760000-0000-0000-0000-000000000001', '14762222-0000-0000-0000-000000000002', 'Equipment', 'FY27', 1, 1000.25, 'by_days', false);
 update budget_versions set status = 'Active' where id = '14762222-0000-0000-0000-000000000005';
 update budget_versions set status = 'Archived' where id = '14762222-0000-0000-0000-000000000006';
 reset role;
@@ -103,48 +105,48 @@ set local role authenticated;
 set local request.jwt.claims = '{"sub":"14760000-0000-0000-0000-000000000012","role":"authenticated"}';
 select throws_ok(
   $$select public.switch_budget_draft_mode('14762222-0000-0000-0000-000000000001','whole_project',
-    '[{"id":"14763333-0000-0000-0000-000000000001","category":"Labor","budgeted_amount":"200000.01","fiscal_year":"FY26"},{"id":"14763333-0000-0000-0000-000000000002","category":"Travel","budgeted_amount":"1000.25","fiscal_year":"FY27"}]'::jsonb,'[]'::jsonb)$$,
+    '[{"id":"14763333-0000-0000-0000-000000000001","category":"Labor","budgeted_amount":"200000.01","fiscal_year":"FY26"},{"id":"14763333-0000-0000-0000-000000000002","category":"Equipment","budgeted_amount":"1000.25","fiscal_year":"FY27"}]'::jsonb,'[]'::jsonb)$$,
   '40001', 'budget lines changed; refresh and review the mode change again', 'AC-1472-B2 stale exact line totals reject the switch'
 );
 select is((select budget_mode from budget_versions where id = '14762222-0000-0000-0000-000000000001'), 'per_year', 'AC-1472-B2 stale witness leaves the source mode unchanged');
 select is((select fiscal_year from budget_line_items where id = '14763333-0000-0000-0000-000000000001'), 'FY26', 'AC-1472-B2 stale witness leaves every source phase unchanged');
 select throws_ok(
   $$select public.switch_budget_draft_mode('14762222-0000-0000-0000-000000000001','whole_project',
-    '[{"id":"14763333-0000-0000-0000-000000000001","category":"Labor","budgeted_amount":"200000.00","fiscal_year":"FY26"},{"id":"14763333-0000-0000-0000-000000000002","category":"Travel","budgeted_amount":"1000.25","fiscal_year":"FY27"}]'::jsonb,
+    '[{"id":"14763333-0000-0000-0000-000000000001","category":"Labor","budgeted_amount":"200000.00","fiscal_year":"FY26"},{"id":"14763333-0000-0000-0000-000000000002","category":"Equipment","budgeted_amount":"1000.25","fiscal_year":"FY27"}]'::jsonb,
     '[{"id":"14763333-0000-0000-0000-000000000001","fiscal_year":"FY26"}]'::jsonb)$$,
   'P0001', 'whole-project mode does not accept fiscal-year assignments', 'AC-1472-B2 whole-project mode rejects supplied assignments'
 );
 select throws_ok(
   $$select public.switch_budget_draft_mode('14762222-0000-0000-0000-000000000001','per_year',
-    '[{"id":"14763333-0000-0000-0000-000000000001","category":"Labor","budgeted_amount":"200000.00","fiscal_year":"FY26"},{"id":"14763333-0000-0000-0000-000000000002","category":"Travel","budgeted_amount":"1000.25","fiscal_year":"FY27"}]'::jsonb,'[]'::jsonb)$$,
+    '[{"id":"14763333-0000-0000-0000-000000000001","category":"Labor","budgeted_amount":"200000.00","fiscal_year":"FY26"},{"id":"14763333-0000-0000-0000-000000000002","category":"Equipment","budgeted_amount":"1000.25","fiscal_year":"FY27"}]'::jsonb,'[]'::jsonb)$$,
   'P0001', 'budget is already in the requested mode', 'AC-1472-B2 mode change cannot be replayed to the current mode'
 );
 select throws_ok(
   $$select public.switch_budget_draft_mode('14762222-0000-0000-0000-000000000002','per_year',
-    '[{"id":"14763333-0000-0000-0000-000000000003","category":"Labor","budgeted_amount":"200000.00","fiscal_year":null},{"id":"14763333-0000-0000-0000-000000000009","category":"Travel","budgeted_amount":"1000.25","fiscal_year":null}]'::jsonb,'[]'::jsonb)$$,
+    '[{"id":"14763333-0000-0000-0000-000000000003","category":"Labor","budgeted_amount":"200000.00","fiscal_year":null},{"id":"14763333-0000-0000-0000-000000000009","category":"Equipment","budgeted_amount":"1000.25","fiscal_year":null}]'::jsonb,'[]'::jsonb)$$,
   'P0001', 'every budget line needs an explicit fiscal-year assignment', 'AC-1472-B2 per-year switch refuses missing line assignments'
 );
 select throws_ok(
   $$select public.switch_budget_draft_mode('14762222-0000-0000-0000-000000000002','per_year',
-    '[{"id":"14763333-0000-0000-0000-000000000003","category":"Labor","budgeted_amount":"200000.00","fiscal_year":null},{"id":"14763333-0000-0000-0000-000000000009","category":"Travel","budgeted_amount":"1000.25","fiscal_year":null}]'::jsonb,
+    '[{"id":"14763333-0000-0000-0000-000000000003","category":"Labor","budgeted_amount":"200000.00","fiscal_year":null},{"id":"14763333-0000-0000-0000-000000000009","category":"Equipment","budgeted_amount":"1000.25","fiscal_year":null}]'::jsonb,
     '[{"id":"14763333-0000-0000-0000-000000000003","fiscal_year":"FY26"},{"id":"14763333-0000-0000-0000-000000000003","fiscal_year":"FY27"}]'::jsonb)$$,
   'P0001', 'fiscal-year assignments must name every line exactly once', 'AC-1472-B2 duplicate assignments cannot replace a missing line'
 );
 select throws_ok(
   $$select public.switch_budget_draft_mode('14762222-0000-0000-0000-000000000002','per_year',
-    '[{"id":"14763333-0000-0000-0000-000000000003","category":"Labor","budgeted_amount":"200000.00","fiscal_year":null},{"id":"14763333-0000-0000-0000-000000000009","category":"Travel","budgeted_amount":"1000.25","fiscal_year":null}]'::jsonb,
+    '[{"id":"14763333-0000-0000-0000-000000000003","category":"Labor","budgeted_amount":"200000.00","fiscal_year":null},{"id":"14763333-0000-0000-0000-000000000009","category":"Equipment","budgeted_amount":"1000.25","fiscal_year":null}]'::jsonb,
     '[{"id":"14763333-0000-0000-0000-000000000003","fiscal_year":"FY26"},{"id":"14763333-0000-0000-0000-000000000099","fiscal_year":"FY27"}]'::jsonb)$$,
   'P0001', 'fiscal-year assignments must name every line exactly once', 'AC-1472-B2 assignments cannot name an unknown line'
 );
 select throws_ok(
   $$select public.switch_budget_draft_mode('14762222-0000-0000-0000-000000000002','per_year',
-    '[{"id":"14763333-0000-0000-0000-000000000003","category":"Labor","budgeted_amount":"200000.00","fiscal_year":null},{"id":"14763333-0000-0000-0000-000000000009","category":"Travel","budgeted_amount":"1000.25","fiscal_year":null}]'::jsonb,
+    '[{"id":"14763333-0000-0000-0000-000000000003","category":"Labor","budgeted_amount":"200000.00","fiscal_year":null},{"id":"14763333-0000-0000-0000-000000000009","category":"Equipment","budgeted_amount":"1000.25","fiscal_year":null}]'::jsonb,
     '[{"id":"14763333-0000-0000-0000-000000000003","fiscal_year":"FY26"},{"id":"14763333-0000-0000-0000-000000000009","fiscal_year":" "}]'::jsonb)$$,
   'P0001', 'fiscal-year assignments must name every line exactly once', 'AC-1472-B2 blank assignments are rejected'
 );
 select lives_ok(
   $$select public.switch_budget_draft_mode('14762222-0000-0000-0000-000000000001','whole_project',
-    '[{"id":"14763333-0000-0000-0000-000000000001","category":"Labor","budgeted_amount":"200000.00","fiscal_year":"FY26"},{"id":"14763333-0000-0000-0000-000000000002","category":"Travel","budgeted_amount":"1000.25","fiscal_year":"FY27"}]'::jsonb,'[]'::jsonb)$$,
+    '[{"id":"14763333-0000-0000-0000-000000000001","category":"Labor","budgeted_amount":"200000.00","fiscal_year":"FY26"},{"id":"14763333-0000-0000-0000-000000000002","category":"Equipment","budgeted_amount":"1000.25","fiscal_year":"FY27"}]'::jsonb,'[]'::jsonb)$$,
   'AC-1472-B2 Finance changes a per-year Draft to whole-project mode'
 );
 reset role;
@@ -163,7 +165,7 @@ set local role authenticated;
 set local request.jwt.claims = '{"sub":"14760000-0000-0000-0000-000000000013","role":"authenticated"}';
 select lives_ok(
   $$select public.switch_budget_draft_mode('14762222-0000-0000-0000-000000000002','per_year',
-    '[{"id":"14763333-0000-0000-0000-000000000003","category":"Labor","budgeted_amount":"200000.00","fiscal_year":null},{"id":"14763333-0000-0000-0000-000000000009","category":"Travel","budgeted_amount":"1000.25","fiscal_year":null}]'::jsonb,
+    '[{"id":"14763333-0000-0000-0000-000000000003","category":"Labor","budgeted_amount":"200000.00","fiscal_year":null},{"id":"14763333-0000-0000-0000-000000000009","category":"Equipment","budgeted_amount":"1000.25","fiscal_year":null}]'::jsonb,
     '[{"id":"14763333-0000-0000-0000-000000000003","fiscal_year":"FY26"},{"id":"14763333-0000-0000-0000-000000000009","fiscal_year":"FY27"}]'::jsonb)$$,
   'AC-1472-B2 Project Manager changes a whole-project Draft to per-year mode'
 );
@@ -202,7 +204,7 @@ language plpgsql
 set search_path = public, pg_temp
 as $$
 begin
-  if new.category = 'Travel' and new.fiscal_year is null then
+  if new.category = 'Equipment' and new.fiscal_year is null then
     raise exception 'mode switch rollback probe' using errcode = 'P0001';
   end if;
   return new;
@@ -215,13 +217,39 @@ set local role authenticated;
 set local request.jwt.claims = '{"sub":"14760000-0000-0000-0000-000000000011","role":"authenticated"}';
 select throws_ok(
   $$select public.switch_budget_draft_mode('14762222-0000-0000-0000-000000000007','whole_project',
-    '[{"id":"14763333-0000-0000-0000-000000000007","category":"Labor","budgeted_amount":"10.00","fiscal_year":"FY26"},{"id":"14763333-0000-0000-0000-000000000008","category":"Travel","budgeted_amount":"0.25","fiscal_year":"FY27"}]'::jsonb,'[]'::jsonb)$$,
+    '[{"id":"14763333-0000-0000-0000-000000000007","category":"Labor","budgeted_amount":"10.00","fiscal_year":"FY26"},{"id":"14763333-0000-0000-0000-000000000008","category":"Equipment","budgeted_amount":"0.25","fiscal_year":"FY27"}]'::jsonb,'[]'::jsonb)$$,
   'P0001', 'mode switch rollback probe', 'AC-1472-B2 a failure during phase clearing rolls the mode switch back atomically'
 );
 reset role;
 select is((select budget_mode from budget_versions where id = '14762222-0000-0000-0000-000000000007'), 'per_year', 'AC-1472-B2 failed transition leaves the version mode unchanged');
 select is((select count(*)::integer from budget_line_items where budget_version_id = '14762222-0000-0000-0000-000000000007' and fiscal_year is not null), 2, 'AC-1472-B2 failed transition restores every source phase');
 select is((select count(*)::integer from budget_version_editors where budget_version_id = '14762222-0000-0000-0000-000000000007' and user_id = '14760000-0000-0000-0000-000000000011'), 0, 'AC-1472-B2 failed transition does not stamp a partial editor change');
+
+create function public.test_budget_mode_switch_change_amount()
+returns trigger
+language plpgsql
+set search_path = public, pg_temp
+as $$
+begin
+  if old.id = '14763333-0000-0000-0000-000000000010' and new.fiscal_year is null then
+    new.budgeted_amount := new.budgeted_amount + 0.01;
+  end if;
+  return new;
+end;
+$$;
+create trigger zz_test_budget_mode_switch_change_amount
+  before update of fiscal_year on public.budget_line_items
+  for each row execute function public.test_budget_mode_switch_change_amount();
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"14760000-0000-0000-0000-000000000011","role":"authenticated"}';
+select throws_ok(
+  $$select public.switch_budget_draft_mode('14762222-0000-0000-0000-000000000009','whole_project',
+    '[{"id":"14763333-0000-0000-0000-000000000010","category":"Labor","budgeted_amount":"10.00","fiscal_year":"FY26"}]'::jsonb,'[]'::jsonb)$$,
+  'P0001', 'budget line totals changed during mode switch', 'AC-1472-B2 a source amount change during conversion aborts atomically');
+reset role;
+select is((select budget_mode from budget_versions where id = '14762222-0000-0000-0000-000000000009'), 'per_year', 'AC-1472-B2 an amount guard failure leaves the mode unchanged');
+select is((select fiscal_year from budget_line_items where id = '14763333-0000-0000-0000-000000000010'), 'FY26', 'AC-1472-B2 an amount guard failure restores the source phase');
+select is((select budgeted_amount::numeric from budget_line_items where id = '14763333-0000-0000-0000-000000000010'), 10.00::numeric, 'AC-1472-B2 an amount guard failure restores the exact source amount');
 
 select * from finish();
 rollback;
