@@ -16,6 +16,9 @@
     "limitReached": "Batas proyek aktif pada paket Anda sudah tercapai",
     "limitReachedDetail": "Tidak ada yang dibuat. Arsipkan proyek yang tidak lagi diperlukan, atau minta Operator meningkatkan paket."
   },
+  "erpLink": {
+    "createdSyncing": "{{name}} tersimpan. Penghubungan ERP berjalan di latar belakang; proyek PMO siap digunakan."
+  },
   "revive": {
     "limitReached": "Batas proyek aktif pada paket Anda sudah tercapai",
     "limitReachedDetail": "Proyek ini tidak dipulihkan. Arsipkan proyek aktif yang tidak lagi diperlukan, atau minta Operator meningkatkan paket, lalu coba lagi."

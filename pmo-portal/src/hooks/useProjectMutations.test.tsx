@@ -167,13 +167,28 @@ describe('useProjectMutations', () => {
 });
 
 describe('ERP setup after native creation', () => {
-  it('AC-SETUP-001 keeps the saved project identity when ERP setup fails, so linking retries cannot recreate it', async () => {
+  it('AC-SETUP-001 project creation completes while the ERP project request is still unresolved', async () => {
+    integrations.getBinding.mockResolvedValueOnce({ status: 'active', config: { company: 'Example Company' } } as never);
+    integrations.ensureErpProject.mockReturnValueOnce(new Promise(() => {}));
+    const { result } = renderHook(() => useProjectMutations(), { wrapper: wrap(freshClient()) });
+    const input = { name: 'Delivery', status: 'Leads' as const, client_id: 'c1', project_manager_id: null, contract_value: 0, tax_treatment: 'exclusive' as const, tax_amount: 0, start_date: null, end_date: null };
+
+    await act(async () => {
+      await result.current.create.mutateAsync(input);
+    });
+
+    expect(project.create).toHaveBeenCalledWith(input);
+    expect(integrations.ensureErpProject).toHaveBeenCalledWith('p9');
+    await waitFor(() => expect(result.current.create.isSuccess).toBe(true));
+  });
+
+  it('AC-SETUP-001 keeps the saved project identity while ERP setup is handled in the background', async () => {
     integrations.getBinding.mockResolvedValueOnce({status:'active',config:{company:'Example Company'}} as never);
     integrations.ensureErpProject.mockRejectedValueOnce(new Error('unavailable'));
     const {result}=renderHook(()=>useProjectMutations(),{wrapper:wrap(freshClient())});
     let saved: {id:string;erpSetup?:string} | undefined;
     await act(async()=>{ saved=await result.current.create.mutateAsync({name:'Delivery',status:'Leads',client_id:'c1',project_manager_id:null,contract_value:0,start_date:null,end_date:null}); });
-    expect(saved).toMatchObject({id:'p9',erpSetup:'pending'});
+    expect(saved).toMatchObject({id:'p9',erpSetup:'syncing'});
     await waitFor(() => expect(result.current.create.isSuccess).toBe(true));
     expect(integrations.ensureErpProject).toHaveBeenCalledWith('p9');
     expect(project.create).toHaveBeenCalledTimes(1);
