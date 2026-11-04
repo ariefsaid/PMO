@@ -17,8 +17,11 @@ the different-Finance-user gate. A separate FR-072 bed case proves same-intent r
 money outbox after a lost bill-post response and holds an edited anchor; it does not prove the AC-OPP-062
 sweep path. That sweep acceptance remains unmet: `odooSweep.ts` recovers revenue documents, while
 `erpnext-sweep` is ERPNext-specific. The acceptance browser journey passed both Chromium and serial projects;
-the shared-money-outbox behavior is already on `dev` from P6. This status does not make a release-to-`main`
-recommendation; that remains the owner's decision.
+the shared-money-outbox behavior is already on `dev` from P6. The post-merge affected-e2e sweep selected
+22 of 194 specs: Chromium passed 53 with one dependency skip, and serial passed 14 with one dependency
+skip, with no failures. AC-PFE-021 now checks that the invoice remains on the project's purchase row and
+is absent from the orphan list. This status does not make a release-to-`main` recommendation; that remains
+the owner's decision.
 
 **Current drive boundary (owner, 2026-10-17): `dev` only. Do not promote to `main` or production.**
 **Dev gate:** regression #1182 is fixed in PR #1183 (`90fba37e`). The full dev browser run
