@@ -3,7 +3,7 @@ import { buildReceiptBody, type ReceiptDefaults, type ReceiptInput, type Receipt
 
 const RECEIPT_ID = '123e4567-e89b-12d3-a456-426614174000';
 const invoice: ReceiptInvoice = { id: 'inv-1', orgId: 'A', customerId: 'cust-1', state: 'posted', outstanding: '111000.00', currency: 'IDR' };
-const defaults: ReceiptDefaults = { companyCurrency: 'IDR', partners: { 'cust-1': 41 }, journalId: 9, taxPrepaidAccountId: 88, accountCurrencies: { receivable: 'IDR', cash: 'IDR' } };
+const defaults: ReceiptDefaults = { companyCurrency: 'IDR', partners: { 'cust-1': 41 }, journalId: 9, inboundMethodLineId: 31, taxPrepaidAccountId: 88, accountCurrencies: { receivable: 'IDR', cash: 'IDR', taxPrepaid: 'IDR' } };
 const receipt: ReceiptInput = { id: RECEIPT_ID, orgId: 'A', date: '2026-11-05', currency: 'IDR', settled: 111000, cash: 111000 };
 const build = (r: Partial<ReceiptInput> = {}, i: ReceiptInvoice | null = invoice, d: ReceiptDefaults = defaults, recorder = 'user-jwt') =>
   buildReceiptBody({ ...receipt, ...r }, i, d, recorder);
@@ -13,12 +13,15 @@ describe('AC-OCI-041 one receipt settles one posted invoice of the caller\'s ten
   it('builds the inbound customer payment, memo carrying the anchor, in the chosen journal', () => {
     expect(build()).toEqual({
       outcome: 'ready', recordedBy: 'user-jwt', writeOff: null,
-      body: { payment_type: 'inbound', partner_type: 'customer', partner_id: 41, amount: 111000, date: '2026-11-05', journal_id: 9, memo: `pmo:ip:${RECEIPT_ID}` },
+      body: { payment_type: 'inbound', partner_type: 'customer', partner_id: 41, amount: 111000, date: '2026-11-05', journal_id: 9, payment_method_line_id: 31, memo: `pmo:ip:${RECEIPT_ID}` },
     });
   });
   it('a per-receipt journal overrides the org default; with neither the receipt refuses', () => {
     expect((build({ journalId: 12 }) as { body: Record<string, unknown> }).body.journal_id).toBe(12);
     expect(build({}, invoice, { ...defaults, journalId: null })).toMatchObject(refusal('journal'));
+  });
+  it('refuses a journal with no inbound payment method before any ERP write', () => {
+    expect(build({}, invoice, { ...defaults, inboundMethodLineId: null })).toMatchObject(refusal('journal-method'));
   });
   it.each([
     ['no invoice reference', null, refusal('invoice')],
@@ -31,6 +34,9 @@ describe('AC-OCI-041 one receipt settles one posted invoice of the caller\'s ten
   });
   it('refuses a receipt in another currency than the company\'s', () => {
     expect(build({ currency: 'USD' })).toMatchObject(refusal('currency'));
+  });
+  it.each(['', '2026-02-30', '03/11/2026'])('refuses an invalid receipt date %s before any write', (date) => {
+    expect(build({ date })).toMatchObject(refusal('date'));
   });
 });
 
@@ -55,14 +61,16 @@ describe('AC-OCI-045 tax withheld by the client: cash + withheld = settled, each
     expect(build(withheld)).toEqual({
       outcome: 'ready', recordedBy: 'user-jwt',
       writeOff: { accountId: 88, amount: 2000, label: 'BP-2026-001' },
-      body: { payment_type: 'inbound', partner_type: 'customer', partner_id: 41, amount: 109000, date: '2026-11-05', journal_id: 9, memo: `pmo:ip:${RECEIPT_ID}` },
+      body: { payment_type: 'inbound', partner_type: 'customer', partner_id: 41, amount: 109000, date: '2026-11-05', journal_id: 9, payment_method_line_id: 31, memo: `pmo:ip:${RECEIPT_ID}` },
     });
   });
   it.each([
     ['no tax-prepaid account', withheld, { ...defaults, taxPrepaidAccountId: null }, 'tax-prepaid-account'],
     ['no bukti-potong number', { ...withheld, slipNumber: '  ' }, defaults, 'withholding-slip'],
     ['an over-long bukti-potong number', { ...withheld, slipNumber: 'x'.repeat(141) }, defaults, 'withholding-slip'],
-    ['accounts in different currencies', withheld, { ...defaults, accountCurrencies: { receivable: 'IDR', cash: 'USD' } }, 'account-currency'],
+    ['accounts in different currencies', withheld, { ...defaults, accountCurrencies: { receivable: 'IDR', cash: 'USD', taxPrepaid: 'IDR' } }, 'account-currency'],
+    ['the tax-prepaid account in a different currency', withheld, { ...defaults, accountCurrencies: { receivable: 'IDR', cash: 'IDR', taxPrepaid: 'USD' } }, 'account-currency'],
+    ['all settlement accounts outside company currency', withheld, { ...defaults, accountCurrencies: { receivable: 'USD', cash: 'USD', taxPrepaid: 'USD' } }, 'account-currency'],
     ['cash + withheld above settled', { ...withheld, cash: 110000 }, defaults, 'amounts'],
     ['cash + withheld below settled', { ...withheld, cash: 108000 }, defaults, 'amounts'],
     ['a negative withheld amount', { ...withheld, withheld: -2000, cash: 113000 }, defaults, 'amounts'],

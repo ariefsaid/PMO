@@ -4,7 +4,7 @@
  */
 import { pickPartyCandidate, proposeMatches } from '../connect/match.ts';
 import type { MasterKind, NormalisedMaster } from '../connect/types.ts';
-import type { ConnectHarness, ErpHarness, ErpPartyInput, PartyMatchResult, PmoPartyCandidate } from '../contractSuite/harness.ts';
+import type { ConnectHarness, ErpHarness, ErpPartyInput, InboundInvoiceDoc, PartyMatchResult, PmoPartyCandidate } from '../contractSuite/harness.ts';
 import { bindCall } from './client.ts';
 import { createOdooSetupAdapter, LIST_PAGE, type OdooConnectCtx } from './connectAdapter.ts';
 import { createFakeOdoo, type FakeOdoo } from './fakeOdoo.ts';
@@ -14,6 +14,7 @@ import { revenuePreflight } from './revenue/preflight.ts';
 import { buildReceiptBody } from './revenue/receiptBody.ts';
 import { classifyPaymentDirection } from './revenue/status.ts';
 import { normaliseItem, normaliseParty, normaliseProject } from './normalise.ts';
+import { REVENUE_FEED_SPECS } from './revenue/feed.ts';
 
 const KEY = 'test-key';
 const CTX: OdooConnectCtx = { companyId: 1, analyticPlanId: 7, unitMap: { sak: '11' } };
@@ -160,6 +161,25 @@ export function createOdooHarness(): ErpHarness {
     async pushRevenue(s) {
       const result = revenuePreflight(s);
       return result.outcome === 'accepted' ? { outcome: 'accepted', erpCalls: 0 } : { outcome: 'refused', code: result.code, erpCalls: 0 };
+    },
+    async mapInboundInvoice(doc: InboundInvoiceDoc) {
+      const total = Number(doc.total), tax = Number(doc.taxAmount);
+      const row = REVENUE_FEED_SPECS['sales-invoice'].parse({
+        id: 1, name: doc.number, move_type: 'out_invoice', state: 'posted', partner_id: [41, doc.client],
+        invoice_date: doc.date, ref: doc.poRef ?? false, currency_id: [1, doc.currency],
+        amount_total: total, amount_untaxed: total - tax, amount_tax: tax, amount_residual: total,
+        write_date: `${doc.date} 00:00:00`,
+      });
+      if (!row) throw new Error('Odoo invoice did not produce a readable pair candidate');
+      return {
+        customer: row.attrs.partner_name,
+        reference_number: row.attrs.reference_number,
+        si_number: row.name,
+        amount: row.attrs.amount_total,
+        tax_amount: row.attrs.amount_tax,
+        currency: row.attrs.currency,
+        invoice_date: row.attrs.date,
+      };
     },
     pushBudgetVersion() { return Promise.reject(pending('budget.push', 1507)); },
     readActuals() { return Promise.reject(pending('actuals.read', 1507)); },

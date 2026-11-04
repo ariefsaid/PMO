@@ -114,6 +114,10 @@ export interface IncomingPaymentRow {
   pmo_number?: string | null;
   /** #784 (DD-NAR-10): set when a PMO receipt is cancelled. */
   cancelled_at?: string | null;
+  /** Latest Odoo receipt command; the invoice stays in an awaiting state until its ERP read advances. */
+  push_command_state?: string | null;
+  push_command_created_at?: string | null;
+  push_command_updated_at?: string | null;
 }
 
 export type SalesInvoiceStatus = SalesInvoiceRow['status'];
@@ -237,6 +241,51 @@ function toIncomingPaymentRow(row: Record<string, unknown>): IncomingPaymentRow 
   } as unknown as IncomingPaymentRow;
 }
 
+const RECEIPT_PUSH_STATES = ['pending', 'committing', 'committed', 'quarantined', 'held', 'confirmed'] as const;
+
+/** Reads only the caller's RLS-visible Odoo receipt commands. Errors fail closed so the UI cannot
+ *  claim an invoice is current when the command state could not be read. */
+async function receiptPushCommands(paymentIds: string[]): Promise<Map<string, { state: string; createdAt: string; updatedAt: string }>> {
+  const commands = new Map<string, { state: string; createdAt: string; updatedAt: string }>();
+  // Bound PostgREST URL size even when the incoming-payment list spans many pages.
+  for (let i = 0; i < paymentIds.length; i += 500) {
+    const ids = paymentIds.slice(i, i + 500);
+    for (let from = 0; ; from += 500) {
+      const { data, error } = await supabase
+        .from('external_command_outbox')
+        .select('pmo_record_id, state, created_at, updated_at')
+        .eq('domain', 'revenue')
+        .eq('external_tier', 'odoo')
+        .in('pmo_record_id', ids)
+        .in('state', RECEIPT_PUSH_STATES)
+        .order('updated_at', { ascending: true })
+        .range(from, from + 499);
+      if (error) throwWrite(error);
+      const rows = (data ?? []) as Array<{ pmo_record_id: string; state: string; created_at: string; updated_at: string }>;
+      for (const row of rows) {
+        const previous = commands.get(row.pmo_record_id);
+        if (!previous || Date.parse(row.updated_at) > Date.parse(previous.updatedAt)) {
+          commands.set(row.pmo_record_id, { state: row.state, createdAt: row.created_at, updatedAt: row.updated_at });
+        }
+      }
+      if (rows.length < 500) break;
+    }
+  }
+  return commands;
+}
+
+async function withReceiptPushCommands(rows: IncomingPaymentRow[]): Promise<IncomingPaymentRow[]> {
+  const ids = rows.map((row) => row.id).filter(Boolean);
+  if (ids.length === 0 || !rows.some((row) => row.status === 'Scheduled' || row.status === 'Paid')) return rows;
+  const commands = await receiptPushCommands(ids);
+  return rows.map((row) => {
+    const command = commands.get(row.id);
+    return command
+      ? { ...row, push_command_state: command.state, push_command_created_at: command.createdAt, push_command_updated_at: command.updatedAt }
+      : row;
+  });
+}
+
 /**
  * List all incoming payments in the caller's org (RLS scopes org).
  * Optional `customerId` filters to one customer. `salesInvoiceId` narrows to receipts attached to that
@@ -269,7 +318,7 @@ export async function listIncomingPayments(
   const data = await fetchAllPages<Record<string, unknown>>((from, to) =>
     build(from, to) as unknown as PromiseLike<PageResult<Record<string, unknown>>>,
   );
-  return data.map(toIncomingPaymentRow);
+  return withReceiptPushCommands(data.map(toIncomingPaymentRow));
 }
 
 /**
@@ -284,7 +333,8 @@ export async function getIncomingPayment(id: string): Promise<IncomingPaymentRow
     .maybeSingle();
   if (error) throwWrite(error);
   if (!data) return null;
-  return toIncomingPaymentRow(data as Record<string, unknown>);
+  const row = toIncomingPaymentRow(data as Record<string, unknown>);
+  return (await withReceiptPushCommands([row]))[0];
 }
 
 /**

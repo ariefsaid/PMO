@@ -17,7 +17,7 @@ export function addPayableLine(env: Env, billId: number, total: number): void {
   env.table('account.move.line').set(id, { id, move_id: billId, display_type: 'payment_term', account_type: 'liability_payable', tax_line_id: false, balance: -total, amount_residual: -total, reconciled: false, write_date: env.stamp() });
 }
 
-export const isModelledPayment = (vals: Record<string, unknown>) => vals.payment_type === 'outbound' && 'amount' in vals;
+export const isModelledPayment = (vals: Record<string, unknown>) => ['inbound', 'outbound'].includes(String(vals.payment_type)) && 'amount' in vals;
 
 export function createPayment(env: Env, vals: Record<string, unknown>): number {
   if (!(Number(vals.amount) > 0)) throw new RejectedPayment('The payment amount must be strictly positive.');

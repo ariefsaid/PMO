@@ -111,7 +111,7 @@ export async function checkCommandAuthorization(
       if (domainOwned.data === true) { owner = candidate; break; }
     }
     if (!owner) {
-      return { ok: false, status: 403, message: `org ${orgId} does not own domain "${command.domain}" on the "${ERPNEXT_TIER}" tier` };
+      return { ok: false, status: 403, message: `org ${orgId} does not own domain "${command.domain}" on the "${onlyTier ?? ERPNEXT_TIER}" tier` };
     }
     tier = owner;
   }
@@ -195,6 +195,8 @@ export interface OutboxReplayCandidate {
   actorUserId: string | null;
   /** The frozen command payload (carries `erp_doc_kind`). */
   payload: Record<string, unknown> | null;
+  /** The tier stored with this command; absent keeps the existing ERPNext replay behavior. */
+  tier?: string;
 }
 
 /**
@@ -233,10 +235,10 @@ export async function checkOutboxReplayAuthorization(
   }
 
   const payload = candidate.payload ?? {};
-  const result = await checkErpnextCommandAuthorization(client, orgId, candidate.actorUserId, {
+  const result = await checkCommandAuthorization(client, orgId, candidate.actorUserId, {
     domain: candidate.domain,
     record: { erp_doc_kind: payload.erp_doc_kind },
-  });
+  }, candidate.tier ?? ERPNEXT_TIER);
   if (result.ok) return result;
   return {
     ...result,
