@@ -113,6 +113,12 @@ export const ALLOWED_SKIPS = [
     verified: '2026-09-30',
   })),
   {
+    file: 'serial/AC-018-budget-whole-project.spec.ts',
+    reason: 'Whole-project budget acceptance reads the actual served adapter/outbox and native ERPNext v16.53 Budget documents; the ordinary CI lane does not provision that TEST fixture.',
+    restore: 'Prepare the approved local served adapter and native v16.53 TEST fixture, then run scripts/e2e-local.sh --project=serial --workers=1 e2e/serial/AC-018-budget-whole-project.spec.ts.',
+    verified: '2026-11-05',
+  },
+  {
     file: 'serial/AC-SETUP-001-project-erp-link.spec.ts',
     reason: 'ERP setup journey needs the disposable ERP bench and a prepared HTTPS binding.',
     restore: 'Run in the local served-functions lane with the disposable HTTPS ERP relay and ready binding.',

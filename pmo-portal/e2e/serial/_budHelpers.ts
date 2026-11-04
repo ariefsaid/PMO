@@ -133,12 +133,23 @@ export async function listProjectErpBudgetNames(erpProject: string): Promise<Arr
 /** Cancel only submitted Budget documents attached to this run's unique ERP Project. */
 export async function cancelOwnedErpBudgets(erpProject: string): Promise<string[]> {
   const owned = await listProjectErpBudgetNames(erpProject);
+  const cancelFailures: string[] = [];
   for (const doc of owned) {
-    if (doc.docstatus === 1) await benchCancel('Budget', doc.name);
+    if (doc.docstatus === 1) {
+      try {
+        await benchCancel('Budget', doc.name);
+      } catch (error) {
+        cancelFailures.push(`${doc.name}: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
   }
   const remaining = (await listProjectErpBudgetNames(erpProject)).filter((doc) => doc.docstatus !== 2);
-  if (remaining.length > 0) {
-    throw new Error(`owned ERP Budget cleanup left non-cancelled documents: ${remaining.map((doc) => doc.name).join(', ')}`);
+  if (cancelFailures.length > 0 || remaining.length > 0) {
+    const stillLive = remaining.map((doc) => `${doc.name}(docstatus=${doc.docstatus})`);
+    throw new Error([
+      ...(cancelFailures.length > 0 ? [`failed to cancel owned ERP Budgets: ${cancelFailures.join('; ')}`] : []),
+      ...(stillLive.length > 0 ? [`owned ERP Budget cleanup left non-cancelled documents: ${stillLive.join(', ')}`] : []),
+    ].join('; '));
   }
   return owned.map((doc) => doc.name);
 }
@@ -218,6 +229,68 @@ export async function twoAdjacentFiscalYears(): Promise<[BenchFiscalYear, BenchF
   throw new Error(`the bench has no two CONSECUTIVE Fiscal Years — the multi-FY fixture needs them: ${JSON.stringify(years)}`);
 }
 
+function canonicalJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
+  if (typeof value !== 'object' || value === null) return JSON.stringify(value);
+  const record = value as Record<string, unknown>;
+  return `{${Object.keys(record).sort().map((key) => `${JSON.stringify(key)}:${canonicalJson(record[key])}`).join(',')}}`;
+}
+
+function canonicalCategoryRows(rows: BudSeed['prior']['categoryMap']): string {
+  const sorted = [...rows].sort((left, right) => `${left.category}:${left.erp_account}:${left.is_push_target}`.localeCompare(`${right.category}:${right.erp_account}:${right.is_push_target}`));
+  return canonicalJson(sorted);
+}
+
+async function restoreBudOrgState(
+  admin: SupabaseClient,
+  prior: BudSeed['prior'],
+  restore: { binding: boolean; categoryMap: boolean },
+): Promise<void> {
+  const errors: string[] = [];
+
+  if (restore.categoryMap) {
+    const { error: deleteError } = await admin.from('budget_category_account_map').delete()
+      .eq('org_id', ORG_ID).in('category', ['Labor', 'Materials']);
+    if (deleteError) {
+      errors.push(`budget_category_account_map delete: ${deleteError.message}`);
+    } else if (prior.categoryMap.length > 0) {
+      const { error: insertError } = await admin.from('budget_category_account_map').insert(prior.categoryMap);
+      if (insertError) errors.push(`budget_category_account_map restore insert: ${insertError.message}`);
+    }
+    const { data: restoredRows, error: verifyError } = await admin.from('budget_category_account_map')
+      .select('org_id, category, erp_account, is_push_target')
+      .eq('org_id', ORG_ID).in('category', ['Labor', 'Materials']);
+    if (verifyError) errors.push(`budget_category_account_map restore readback: ${verifyError.message}`);
+    else if (canonicalCategoryRows((restoredRows ?? []) as BudSeed['prior']['categoryMap']) !== canonicalCategoryRows(prior.categoryMap)) {
+      errors.push('budget_category_account_map restore readback did not match the captured rows');
+    }
+  }
+
+  if (restore.binding) {
+    if (prior.binding) {
+      const { error } = await admin.from('external_org_bindings').upsert(prior.binding, { onConflict: 'org_id,external_tier' });
+      if (error) errors.push(`external_org_bindings restore upsert: ${error.message}`);
+    } else {
+      const { error } = await admin.from('external_org_bindings').delete().eq('org_id', ORG_ID).eq('external_tier', 'erpnext');
+      if (error) errors.push(`external_org_bindings restore delete: ${error.message}`);
+    }
+    const { data: restoredBinding, error: verifyError } = await admin.from('external_org_bindings').select('*')
+      .eq('org_id', ORG_ID).eq('external_tier', 'erpnext').maybeSingle();
+    if (verifyError) errors.push(`external_org_bindings restore readback: ${verifyError.message}`);
+    else if (canonicalJson(restoredBinding) !== canonicalJson(prior.binding)) {
+      errors.push('external_org_bindings restore readback did not match the captured row');
+    }
+  }
+
+  if (errors.length > 0) throw new Error(errors.join('; '));
+}
+
+async function listErpProjectsByExactName(projectName: string): Promise<Array<{ name: string; project_name: string }>> {
+  const filters = encodeURIComponent(JSON.stringify([['project_name', '=', projectName]]));
+  const fields = encodeURIComponent(JSON.stringify(['name', 'project_name']));
+  return await benchGet(`/api/resource/Project?limit_page_length=0&filters=${filters}&fields=${fields}`) as Array<{ name: string; project_name: string }>;
+}
+
 /** Submit a bench document (`docstatus: 1`) — what makes an ERP `Budget` actually enforce. */
 export async function benchSubmit(doctype: string, name: string): Promise<void> {
   const res = await fetch(`${BENCH_URL}/api/resource/${encodeURIComponent(doctype)}/${encodeURIComponent(name)}`, {
@@ -228,6 +301,15 @@ export async function benchSubmit(doctype: string, name: string): Promise<void> 
   if (!res.ok) throw new Error(`bench submit ${doctype}/${name} failed: ${res.status} ${await res.text()}`);
 }
 
+/** Delete one exact run-owned draft fixture when seed setup fails before the journey starts. */
+export async function benchDelete(doctype: string, name: string): Promise<void> {
+  const res = await fetch(`${BENCH_URL}/api/resource/${encodeURIComponent(doctype)}/${encodeURIComponent(name)}`, {
+    method: 'DELETE',
+    headers: benchHeaders(),
+  });
+  if (!res.ok) throw new Error(`bench DELETE ${doctype}/${name} failed: ${res.status} ${(await res.text()).slice(0, 400)}`);
+}
+
 /** Seed the org for a budget e2e. `projectStart`/`projectEnd` sit inside ONE Fiscal Year for the P3c
  *  specs; the BFY multi-FY specs deliberately pass a span that crosses two (see twoAdjacentFiscalYears). */
 export async function seedBud(
@@ -236,76 +318,138 @@ export async function seedBud(
   opts: { projectStart: string; projectEnd: string; versionMajor?: 15 | 16 },
 ): Promise<BudSeed> {
   const projectId = crypto.randomUUID();
-  const erpProject = ((await benchPost('Project', { project_name: `PMO-E2E-BUD-${suffix}`, company: ERP_COMPANY })) as { name: string }).name;
-
-  const { error: projErr } = await admin.from('projects').insert({
-    id: projectId,
-    org_id: ORG_ID,
-    name: `BUD-PROJ-${suffix}`,
-    status: 'Ongoing Project',
-    start_date: opts.projectStart,
-    end_date: opts.projectEnd,
-  });
-  if (projErr) throw new Error(`seed projects failed: ${projErr.message}`);
-
-  // ⚑ MERGE into the org's single erpnext binding rather than clobbering it — the timesheets lane
-  // shares this one `(org_id, external_tier)` row, and overwriting its config makes an unrelated spec
-  // fail with a bogus `activity-type-unconfigured`.
-  const { data: existingBinding } = await admin
+  const erpProjectFixtureName = `PMO-E2E-BUD-${suffix}`;
+  const { data: existingBinding, error: bindingReadError } = await admin
     .from('external_org_bindings').select('*')
     .eq('org_id', ORG_ID).eq('external_tier', 'erpnext').maybeSingle();
+  if (bindingReadError) throw new Error(`snapshot external_org_bindings before budget fixture setup failed: ${bindingReadError.message}`);
   const priorBinding = (existingBinding as Record<string, unknown> | null) ?? null;
   const priorConfig = ((priorBinding?.config as Record<string, unknown> | undefined) ?? {}) as Record<string, unknown>;
   const priorMap = (priorConfig.project_map as Record<string, string> | undefined) ?? {};
-  const { error: bindingErr } = await admin.from('external_org_bindings').upsert(
-    {
-      org_id: ORG_ID,
-      external_tier: 'erpnext',
-      site_url: ERPNEXT_SITE_URL,
-      secret_ref: 'local-bench',
-      webhook_secret_ref: 'DEMO_ERP_WEBHOOK_SECRET',
-      version_major: opts.versionMajor ?? 15,
-      // ⚑ `budget_overspend_action` is DELIBERATELY unset: FR-BUD-131 says the default must be 'Warn',
-      // never 'Stop' (which would start BLOCKING the client's purchase orders org-wide as a side effect
-      // of an integration). The spec asserts the default that results.
-      config: { ...priorConfig, company: ERP_COMPANY, project_map: { ...priorMap, [projectId]: erpProject } },
-      activated_at: new Date().toISOString(),
-    },
-    { onConflict: 'org_id,external_tier' },
-  );
-  if (bindingErr) throw new Error(`seed external_org_bindings failed: ${bindingErr.message}`);
-
-  // ⚑ FR-BUD-006(a)/FR-BUD-010 (AC-BUD-003): employment is the ACTIVE binding above — NEVER a
-  // `domain_externally_owned('budget')` flip. Budget is Posture B (PMO stays SoT) and that row is
-  // forbidden from ever being created, so this lane no longer seeds one; the FE panel gate and the
-  // `get_budget_push_status` gate both read the binding (mig 0160), so the feature still renders.
-
-  // THE CRUX (FR-BUD-110..113, #768). 0246 replaced unique(org_id, category) with a partial push index, which a
-  // PostgREST upsert cannot target — so: snapshot every Labor/Materials row as found, clear them, insert ours.
   const { data: priorMapRows, error: priorMapErr } = await admin
     .from('budget_category_account_map').select('org_id, category, erp_account, is_push_target')
     .eq('org_id', ORG_ID).in('category', ['Labor', 'Materials']);
-  if (priorMapErr) throw new Error(`read budget_category_account_map failed: ${priorMapErr.message}`);
-  const { error: clearErr } = await admin
-    .from('budget_category_account_map').delete().eq('org_id', ORG_ID).in('category', ['Labor', 'Materials']);
-  if (clearErr) throw new Error(`clear budget_category_account_map failed: ${clearErr.message}`);
-  const { error: mapErr } = await admin.from('budget_category_account_map').insert([
-    { org_id: ORG_ID, category: 'Labor', erp_account: LABOR_ACCOUNT, is_push_target: true },
-    { org_id: ORG_ID, category: 'Labor', erp_account: LABOR_SIBLING_ACCOUNT, is_push_target: false },
-    { org_id: ORG_ID, category: 'Materials', erp_account: MATERIALS_ACCOUNT, is_push_target: true },
-  ]);
-  if (mapErr) throw new Error(`seed budget_category_account_map failed: ${mapErr.message}`);
+  if (priorMapErr) throw new Error(`snapshot budget_category_account_map before budget fixture setup failed: ${priorMapErr.message}`);
 
-  return {
+  const seed: BudSeed = {
     suffix,
     projectId,
-    erpProject,
+    erpProject: '',
     versionIds: [],
     prior: {
       binding: priorBinding,
       categoryMap: (priorMapRows as Array<{ org_id: string; category: string; erp_account: string; is_push_target: boolean }> | null) ?? [],
     },
   };
+
+  // Read the exact fixture name before any mutation. If a prior run left a collision, do not adopt or delete it.
+  const existingProjects = await listErpProjectsByExactName(erpProjectFixtureName);
+  if (existingProjects.length > 0) throw new Error(`the namespaced ERP Project already exists (${existingProjects.length} exact matches)`);
+
+  let erpProjectPostAttempted = false;
+  let projectInsertAttempted = false;
+  let bindingWriteAttempted = false;
+  let categoryMapWriteAttempted = false;
+  try {
+    erpProjectPostAttempted = true;
+    const createdErpProject = (await benchPost('Project', { project_name: erpProjectFixtureName, company: ERP_COMPANY })) as { name?: string };
+    if (!createdErpProject.name) throw new Error('ERP Project create returned no exact document name');
+    seed.erpProject = createdErpProject.name;
+
+    projectInsertAttempted = true;
+    const { error: projErr } = await admin.from('projects').insert({
+      id: projectId,
+      org_id: ORG_ID,
+      name: `BUD-PROJ-${suffix}`,
+      status: 'Ongoing Project',
+      start_date: opts.projectStart,
+      end_date: opts.projectEnd,
+    });
+    if (projErr) throw new Error(`seed projects failed: ${projErr.message}`);
+
+    // ⚑ MERGE into the org's single erpnext binding rather than clobbering it — the timesheets lane
+    // shares this one `(org_id, external_tier)` row, and overwriting its config makes an unrelated spec
+    // fail with a bogus `activity-type-unconfigured`.
+    bindingWriteAttempted = true;
+    const { error: bindingErr } = await admin.from('external_org_bindings').upsert(
+      {
+        org_id: ORG_ID,
+        external_tier: 'erpnext',
+        site_url: ERPNEXT_SITE_URL,
+        secret_ref: 'local-bench',
+        webhook_secret_ref: 'DEMO_ERP_WEBHOOK_SECRET',
+        version_major: opts.versionMajor ?? 15,
+        // ⚑ `budget_overspend_action` is DELIBERATELY unset: FR-BUD-131 says the default must be 'Warn',
+        // never 'Stop' (which would start BLOCKING the client's purchase orders org-wide as a side effect
+        // of an integration). The spec asserts the default that results.
+        config: { ...priorConfig, company: ERP_COMPANY, project_map: { ...priorMap, [projectId]: seed.erpProject } },
+        activated_at: new Date().toISOString(),
+      },
+      { onConflict: 'org_id,external_tier' },
+    );
+    if (bindingErr) throw new Error(`seed external_org_bindings failed: ${bindingErr.message}`);
+
+    // ⚑ FR-BUD-006(a)/FR-BUD-010 (AC-BUD-003): employment is the ACTIVE binding above — NEVER a
+    // `domain_externally_owned('budget')` flip. Budget is Posture B (PMO stays SoT) and that row is
+    // forbidden from ever being created, so this lane no longer seeds one; the FE panel gate and the
+    // `get_budget_push_status` gate both read the binding (mig 0160), so the feature still renders.
+
+    // THE CRUX (FR-BUD-110..113, #768). 0246 replaced unique(org_id, category) with a partial push index, which a
+    // PostgREST upsert cannot target — so: snapshot every Labor/Materials row as found, clear them, insert ours.
+    categoryMapWriteAttempted = true;
+    const { error: clearErr } = await admin
+      .from('budget_category_account_map').delete().eq('org_id', ORG_ID).in('category', ['Labor', 'Materials']);
+    if (clearErr) throw new Error(`clear budget_category_account_map failed: ${clearErr.message}`);
+    const { error: mapErr } = await admin.from('budget_category_account_map').insert([
+      { org_id: ORG_ID, category: 'Labor', erp_account: LABOR_ACCOUNT, is_push_target: true },
+      { org_id: ORG_ID, category: 'Labor', erp_account: LABOR_SIBLING_ACCOUNT, is_push_target: false },
+      { org_id: ORG_ID, category: 'Materials', erp_account: MATERIALS_ACCOUNT, is_push_target: true },
+    ]);
+    if (mapErr) throw new Error(`seed budget_category_account_map failed: ${mapErr.message}`);
+    return seed;
+  } catch (error) {
+    const compensationErrors: string[] = [];
+    if (projectInsertAttempted) {
+      const { error: deleteError } = await admin.from('projects').delete().eq('id', projectId);
+      if (deleteError) compensationErrors.push(`projects delete: ${deleteError.message}`);
+      const { data: remaining, error: verifyError } = await admin.from('projects').select('id').eq('id', projectId);
+      if (verifyError) compensationErrors.push(`projects cleanup readback: ${verifyError.message}`);
+      else if ((remaining ?? []).length > 0) compensationErrors.push('projects cleanup readback still contains the run-owned project');
+    }
+    if (bindingWriteAttempted || categoryMapWriteAttempted) {
+      try {
+        await restoreBudOrgState(admin, seed.prior, {
+          binding: bindingWriteAttempted,
+          categoryMap: categoryMapWriteAttempted,
+        });
+      } catch (restoreError) {
+        compensationErrors.push(`org-global restore: ${restoreError instanceof Error ? restoreError.message : String(restoreError)}`);
+      }
+    }
+    if (erpProjectPostAttempted) {
+      try {
+        const projects = await listErpProjectsByExactName(erpProjectFixtureName);
+        if (projects.length > 1) {
+          compensationErrors.push('exact ERP Project cleanup: multiple fixture-name matches; refusing to choose a delete target');
+        } else {
+          const ownedProject = seed.erpProject
+            ? projects.find((project) => project.name === seed.erpProject && project.project_name === erpProjectFixtureName)
+            : projects.find((project) => project.project_name === erpProjectFixtureName);
+          if (ownedProject) {
+            await benchDelete('Project', ownedProject.name);
+            const remaining = await listErpProjectsByExactName(erpProjectFixtureName);
+            if (remaining.some((project) => project.name === ownedProject.name)) compensationErrors.push('exact ERP Project cleanup: run-owned document remained after DELETE');
+          }
+        }
+      } catch (cleanupError) {
+        compensationErrors.push(`exact ERP Project cleanup: ${cleanupError instanceof Error ? cleanupError.message : String(cleanupError)}`);
+      }
+    }
+    if (compensationErrors.length > 0) {
+      throw new Error(`budget fixture setup failed (${error instanceof Error ? error.message : String(error)}); partial setup cleanup failed: ${compensationErrors.join('; ')}`, { cause: error });
+    }
+    throw error;
+  }
 }
 
 /** Seed a Draft budget version + its line items. */
@@ -400,54 +544,99 @@ export async function readBudgetRefs(
   return (data ?? []) as never;
 }
 
-export async function cleanupBud(admin: SupabaseClient, seed: BudSeed): Promise<void> {
-  const { data: projectVersions, error: projectVersionsErr } = await admin
-    .from('budget_versions').select('id').eq('project_id', seed.projectId);
-  if (projectVersionsErr) throw new Error(`read run-owned budget versions for cleanup failed: ${projectVersionsErr.message}`);
-  const versionIds = [...new Set([
-    ...seed.versionIds,
-    ...((projectVersions ?? []) as Array<{ id: string }>).map((version) => version.id),
-  ])];
-  for (const versionId of versionIds) {
-    // ⚑ BFY: `pmo_record_id` is now `<versionId>:<encoded_fy>` — one row PER YEAR. An `.eq(versionId)`
-    // delete (what this used to do) matches NOTHING from this release on, silently leaking a mapping
-    // and an outbox row per run; the next run's create-guard then resolves a stale pointer. `like`
-    // covers both the bare pre-BFY shape and every year-qualified row.
-    await admin.from('external_command_outbox').delete().eq('org_id', ORG_ID).eq('domain', 'budget').like('pmo_record_id', `${versionId}%`);
-    await admin.from('external_refs').delete().eq('org_id', ORG_ID).eq('domain', 'budget').like('pmo_record_id', `${versionId}%`);
-    await admin.from('external_ref_lineage').delete().eq('org_id', ORG_ID).eq('domain', 'budget').like('pmo_record_id', `${versionId}%`);
-    await admin.from('budget_version_account_erp_mirror').delete().eq('budget_version_id', versionId);
-    await admin.from('budget_version_erp_mirror').delete().eq('budget_version_id', versionId);
-    await admin.from('budget_line_items').delete().eq('budget_version_id', versionId);
-    for (const actionRequired of ['budget-push-failed', 'budget-enforcement-absent', 'budget-archive-live-erp']) {
-      await admin.from('notifications').delete().eq('org_id', ORG_ID).contains('metadata', { action_required: actionRequired, versionId });
+export async function cleanupBud(
+  admin: SupabaseClient,
+  seed: BudSeed,
+  options: { preserveBudgetEvidence?: boolean } = {},
+): Promise<void> {
+  const errors: string[] = [];
+  if (options.preserveBudgetEvidence) {
+    try {
+      await restoreBudOrgState(admin, seed.prior, { binding: true, categoryMap: true });
+    } catch (error) {
+      errors.push(`org-global restore: ${error instanceof Error ? error.message : String(error)}`);
     }
-    await admin.from('budget_versions').delete().eq('id', versionId);
-  }
-  // Any version the UI created (a clone) that the run did not register explicitly.
-  await admin.from('budget_versions').delete().eq('project_id', seed.projectId);
-  await admin.from('projects').delete().eq('id', seed.projectId);
-
-  // ── ⚑ MEDIUM-2: ORG-GLOBAL STATE IS RESTORED, NEVER DELETED ─────────────────────────────────────
-  // These tables are keyed on the ORG, so they are shared with every other spec AND with
-  // `supabase/seed.sql`. Deleting them (the previous behaviour) meant one budget spec stripped the
-  // seeded org's ERPNext binding for the rest of the run — after which any surface gated on the active
-  // binding silently renders its not-employed branch, and the failure surfaces somewhere else entirely,
-  // as flake. Put back exactly what was found; delete only what this run introduced.
-  // Put back exactly what was found: clear every Labor/Materials row this run wrote, re-insert the prior rows.
-  const priorMap = seed.prior?.categoryMap ?? [];
-  await admin.from('budget_category_account_map').delete().eq('org_id', ORG_ID).in('category', ['Labor', 'Materials']);
-  if (priorMap.length > 0) {
-    await admin.from('budget_category_account_map').insert(priorMap);
+    if (errors.length > 0) throw new Error(`budget cleanup incomplete: ${errors.join('; ')}`);
+    return;
   }
 
-  if (seed.prior?.binding) {
-    // Restore the WHOLE row (site_url/secret_ref/config/activated_at) — `seedBud` merges into config,
-    // and the timesheets lane shares this same `(org_id, external_tier)` row.
-    await admin.from('external_org_bindings').upsert(seed.prior.binding, { onConflict: 'org_id,external_tier' });
-  } else {
-    await admin.from('external_org_bindings').delete().eq('org_id', ORG_ID).eq('external_tier', 'erpnext');
+  const versionIds = new Set(seed.versionIds);
+  const { data: projectVersions, error: projectVersionsError } = await admin
+    .from('budget_versions').select('id').eq('project_id', seed.projectId);
+  if (projectVersionsError) errors.push(`budget_versions cleanup inventory: ${projectVersionsError.message}`);
+  for (const version of (projectVersions ?? []) as Array<{ id: string }>) versionIds.add(version.id);
+
+  const runCleanup = async (label: string, action: () => PromiseLike<{ error: { message: string } | null }>) => {
+    try {
+      const { error } = await action();
+      if (error) errors.push(`${label}: ${error.message}`);
+    } catch (error) {
+      errors.push(`${label}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  };
+  const verifyEmpty = async (
+    label: string,
+    query: () => PromiseLike<{ data: unknown[] | null; error: { message: string } | null }>,
+  ) => {
+    try {
+      const { data, error } = await query();
+      if (error) errors.push(`${label} readback: ${error.message}`);
+      else if ((data ?? []).length > 0) errors.push(`${label} readback still contains ${(data ?? []).length} scoped row(s)`);
+    } catch (error) {
+      errors.push(`${label} readback: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  };
+
+  for (const versionId of versionIds) {
+    // BFY adds a year suffix to each identity; prefix filters cover both that shape and pre-BFY rows.
+    await runCleanup(`external_command_outbox(${versionId})`, () => admin.from('external_command_outbox').delete()
+      .eq('org_id', ORG_ID).eq('domain', 'budget').like('pmo_record_id', `${versionId}%`));
+    await runCleanup(`external_refs(${versionId})`, () => admin.from('external_refs').delete()
+      .eq('org_id', ORG_ID).eq('domain', 'budget').like('pmo_record_id', `${versionId}%`));
+    await runCleanup(`external_ref_lineage(${versionId})`, () => admin.from('external_ref_lineage').delete()
+      .eq('org_id', ORG_ID).eq('domain', 'budget').like('pmo_record_id', `${versionId}%`));
+    await runCleanup(`budget_version_account_erp_mirror(${versionId})`, () => admin.from('budget_version_account_erp_mirror').delete().eq('budget_version_id', versionId));
+    await runCleanup(`budget_version_erp_mirror(${versionId})`, () => admin.from('budget_version_erp_mirror').delete().eq('budget_version_id', versionId));
+    await runCleanup(`budget_archive_cancel_intents(${versionId})`, () => admin.from('budget_archive_cancel_intents').delete()
+      .eq('org_id', ORG_ID).eq('budget_version_id', versionId));
+    await runCleanup(`budget_line_items(${versionId})`, () => admin.from('budget_line_items').delete().eq('budget_version_id', versionId));
+    for (const actionRequired of ['budget-push-failed', 'budget-enforcement-absent', 'budget-archive-live-erp']) {
+      await runCleanup(`notifications(${versionId},${actionRequired})`, () => admin.from('notifications').delete()
+        .eq('org_id', ORG_ID).contains('metadata', { action_required: actionRequired, versionId }));
+    }
+    await runCleanup(`budget_versions(${versionId})`, () => admin.from('budget_versions').delete().eq('id', versionId));
   }
+  await runCleanup(`budget_versions(project ${seed.projectId})`, () => admin.from('budget_versions').delete().eq('project_id', seed.projectId));
+  await runCleanup(`projects(${seed.projectId})`, () => admin.from('projects').delete().eq('id', seed.projectId));
+
+  for (const versionId of versionIds) {
+    await verifyEmpty(`external_command_outbox(${versionId})`, () => admin.from('external_command_outbox').select('id')
+      .eq('org_id', ORG_ID).eq('domain', 'budget').like('pmo_record_id', `${versionId}%`));
+    await verifyEmpty(`external_refs(${versionId})`, () => admin.from('external_refs').select('id')
+      .eq('org_id', ORG_ID).eq('domain', 'budget').like('pmo_record_id', `${versionId}%`));
+    await verifyEmpty(`external_ref_lineage(${versionId})`, () => admin.from('external_ref_lineage').select('id')
+      .eq('org_id', ORG_ID).eq('domain', 'budget').like('pmo_record_id', `${versionId}%`));
+    await verifyEmpty(`budget_version_account_erp_mirror(${versionId})`, () => admin.from('budget_version_account_erp_mirror').select('budget_version_id').eq('budget_version_id', versionId));
+    await verifyEmpty(`budget_version_erp_mirror(${versionId})`, () => admin.from('budget_version_erp_mirror').select('budget_version_id').eq('budget_version_id', versionId));
+    await verifyEmpty(`budget_archive_cancel_intents(${versionId})`, () => admin.from('budget_archive_cancel_intents').select('id')
+      .eq('org_id', ORG_ID).eq('budget_version_id', versionId));
+    await verifyEmpty(`budget_line_items(${versionId})`, () => admin.from('budget_line_items').select('id').eq('budget_version_id', versionId));
+    for (const actionRequired of ['budget-push-failed', 'budget-enforcement-absent', 'budget-archive-live-erp']) {
+      await verifyEmpty(`notifications(${versionId},${actionRequired})`, () => admin.from('notifications').select('id')
+        .eq('org_id', ORG_ID).contains('metadata', { action_required: actionRequired, versionId }));
+    }
+    await verifyEmpty(`budget_versions(${versionId})`, () => admin.from('budget_versions').select('id').eq('id', versionId));
+  }
+  await verifyEmpty(`budget_versions(project ${seed.projectId})`, () => admin.from('budget_versions').select('id').eq('project_id', seed.projectId));
+  await verifyEmpty(`projects(${seed.projectId})`, () => admin.from('projects').select('id').eq('id', seed.projectId));
+
+  // Restore shared org state even if a run-owned deletion failed, so that a cleanup error cannot poison the next spec.
+  try {
+    await restoreBudOrgState(admin, seed.prior, { binding: true, categoryMap: true });
+  } catch (error) {
+    errors.push(`org-global restore: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  if (errors.length > 0) throw new Error(`budget cleanup incomplete: ${errors.join('; ')}`);
 }
 
 // ---------------------------------------------------------------------------
