@@ -1,7 +1,7 @@
 -- pipeline_stage_history_write.test.sql — #1638 stage entries: append, key dates, win pull-back, re-date,
 -- add-skipped, authority, audit. Spec docs/specs/pipeline-stage-history.spec.md.
 begin;
-select plan(40);
+select plan(43);
 
 insert into organizations (id, name) values
   ('16380000-0000-0000-0000-000000000001','PSH Org A'),
@@ -248,5 +248,33 @@ select ok(exists (select 1 from audit_events where action = 'project.stage_entry
 select ok(exists (select 1 from audit_events where action = 'project.stage_entry.add'
    and entity_id = '16380000-0000-0000-0000-000000000014'),
   'AC-PSH-007: the added stage is on the audit trail');
+insert into projects (id, org_id, code, name, status, project_manager_id) values
+  ('16380000-0000-0000-0000-000000000018','16380000-0000-0000-0000-000000000001','PSH-9','PSH redated walk','Leads',
+   '16380000-0000-0000-0000-0000000000a2');
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"16380000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+select transition_project('16380000-0000-0000-0000-000000000018','PQ Submitted');
+select transition_project('16380000-0000-0000-0000-000000000018','Quotation Submitted');
+select redate_stage_entry((select id from project_stage_entries where project_id = '16380000-0000-0000-0000-000000000018' and stage = 'Quotation Submitted'),
+  (now() at time zone 'Asia/Jakarta')::date - 20);
+select results_eq(
+  $$ select stage::text, entered_on, redated_at is not null from project_stage_entries
+      where project_id = '16380000-0000-0000-0000-000000000018' order by position $$,
+  $$ values ('Leads', (now() at time zone 'Asia/Jakarta')::date - 20, true),
+            ('PQ Submitted', (now() at time zone 'Asia/Jakarta')::date - 20, true),
+            ('Quotation Submitted', (now() at time zone 'Asia/Jakarta')::date - 20, true) $$,
+  'AC-1835-DB-001 redating a later stage pulls earlier system-dated entries back');
+reset role;
+update project_stage_entries set redated_at = now()
+ where project_id = '16380000-0000-0000-0000-000000000018' and stage = 'Leads';
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"16380000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+select throws_ok(
+  $$ select redate_stage_entry((select id from project_stage_entries where project_id = '16380000-0000-0000-0000-000000000018' and stage = 'Quotation Submitted'),
+       (now() at time zone 'Asia/Jakarta')::date - 25) $$,
+  '23514', null, 'AC-1835-DB-002 an earlier person-dated entry still blocks a pull-back');
+select is((select entered_on from project_stage_entries where project_id = '16380000-0000-0000-0000-000000000018' and stage = 'Quotation Submitted'),
+  (now() at time zone 'Asia/Jakarta')::date - 20, 'AC-1835-DB-002 refused pull-back leaves the target unchanged');
+reset role;
 select * from finish();
 rollback;

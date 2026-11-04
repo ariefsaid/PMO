@@ -285,6 +285,35 @@ describe('analyticsClient', () => {
       expect(beforeSend(rawEvent)).toEqual(rawEvent);
     });
 
+    it('sanitizes nested URL values on performance events and preserves ordinary events', () => {
+      analyticsClient.__resetForTests();
+      analyticsClient.init({ ...base, enabled: true, posthogKey: 'phc_' + 'a'.repeat(20) });
+      const [, initOpts] = posthog.init.mock.calls[0];
+      const beforeSend = initOpts.before_send as (cr: unknown) => unknown;
+      const rawEvent = {
+        uuid: 'u3',
+        event: '$web_vitals',
+        properties: {
+          $web_vitals_LCP_event: {
+            $current_url: 'https://example.test/projects?a=sample#access_token=sample&refresh_token=sample',
+            navigationURL: 'https://example.test/projects?code=sample#section',
+            nested: { otherUrl: 'https://example.test/route?code=sample#section' },
+            label: 'unchanged',
+          },
+        },
+      };
+
+      const result = beforeSend(rawEvent) as typeof rawEvent;
+      const nested = result.properties.$web_vitals_LCP_event;
+      expect(nested.$current_url).toBeUndefined();
+      expect(nested.navigationURL).toBeUndefined();
+      expect(nested.nested.otherUrl).toBe('https://example.test/route');
+      expect(nested.label).toBe('unchanged');
+
+      const ordinaryEvent = { uuid: 'u4', event: 'app_route_viewed', properties: { route: '/projects' } };
+      expect(beforeSend(ordinaryEvent)).toEqual(ordinaryEvent);
+    });
+
     describe('FR-OF-011: redaction hardening — 4 named leak vectors (fix round)', () => {
       function redactViaBeforeSend(exceptionMessage: string): string {
         analyticsClient.__resetForTests();

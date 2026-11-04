@@ -145,6 +145,9 @@ changed — none matched, or the database did not let you change it.
 - **`pmo load`** (active Admin only, ADR-0074): companies, projects at their real stage with contract
   value, draft budgets and contract lines from one JSON file. It alone uses `set_project_contract_value`,
   `transition_project`, `budget_versions`, `budget_line_items`, `boq_items`; `rpc` / `create` refuse them.
+- **`pmo stages <project>`** and **`pmo stage-date <project> "<Stage name>" <YYYY-MM-DD>`** (#1835,
+  active Admin only): read a project's stage history and correct the most recent matching stage entry.
+  Earlier system-dated stages move with a backdated entry; an earlier person-dated stage must be corrected first.
 - **`pmo purchases`** (active Admin, Executive, Project Manager or Finance; #1319, migration `0363`): reads
   the ERP orphan list (`erp_purchase_orphans`) and links ERPNext purchase documents and SharePoint items
   into purchases through `link_erp_purchase_documents` and `link_procurement_sharepoint_item` (§5).
