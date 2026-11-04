@@ -490,6 +490,7 @@
     "set_odoo_analytic_plan(uuid,uuid,text)",
     "set_odoo_customer_advance_account(uuid,uuid,text)",
     "set_odoo_payment_journal_default(uuid,uuid,text)",
+    "set_odoo_tax_prepaid_account(uuid,uuid,text)",
     "set_procurement_gates(jsonb)",
     "set_procurement_invoice_efaktur(uuid,text,date)",
     "set_project_contract_value(uuid,numeric,text,numeric,numeric,text,integer,integer,boolean)",

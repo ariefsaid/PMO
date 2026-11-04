@@ -357,7 +357,7 @@ insert into client_callable_rpc_names (proname) values
   ('release_credits'),
   ('release_outbox_hold'),
   ('request_imprest_replenishment'),
-  ('resolve_held_outbox_command'),  -- ⚑ AMENDED BY 0508 (#1505 P6)
+  ('resolve_held_outbox_command'),  -- ⚑ AMENDED BY 0508 (#1505 P6); 0512 adds receipt resolution (C5)
   ('request_po_variation'),
   ('reserve_credits'),
   ('retry_connect_send'),

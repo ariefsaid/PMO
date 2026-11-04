@@ -1414,6 +1414,16 @@ describe('WIRE 4: the 0116 one-in-flight-per-record violation is a clean, action
     expect(error.message).not.toContain('external_command_outbox');
     expect(commit).not.toHaveBeenCalled();
   });
+
+  it('AC-OCI-040 a second receipt for one Odoo invoice is refused 409-class without exposing the index', async () => {
+    const err = new Error('duplicate key value violates unique constraint "external_command_outbox_one_inflight_odoo_receipt_per_invoice"') as Error & { code?: string };
+    err.code = '23505';
+    const { run, commit } = dispatchWithInsertError(err);
+    const error: AppError = await run().then(() => { throw new Error('must reject'); }, (e: unknown) => e as AppError);
+    expect(error).toMatchObject({ code: 'command-in-flight-for-record', message: 'receipt already in progress for this invoice' });
+    expect(error.message).not.toContain('external_command_outbox');
+    expect(commit).not.toHaveBeenCalled();
+  });
 });
 
 /**

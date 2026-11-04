@@ -71,7 +71,7 @@ describe('odoo contract', () => {
     const receipt = bed.buildReceiptBody(
       { id: '123e4567-e89b-12d3-a456-426614174000', orgId: 'A', date: '2026-11-05', currency: 'IDR', settled: '1110.00' },
       { id: 'inv-1', orgId: 'A', customerId: 'cust-1', state: 'posted', outstanding: '1110.00', currency: 'IDR' },
-      { companyCurrency: 'IDR', partners: { 'cust-1': 41 }, journalId: 9, taxPrepaidAccountId: null }, 'jwt-subject',
+      { companyCurrency: 'IDR', partners: { 'cust-1': 41 }, journalId: 9, inboundMethodLineId: 31, taxPrepaidAccountId: null }, 'jwt-subject',
     );
     if (receipt.outcome !== 'ready') throw new Error('refused');
     const context = { active_model: 'account.move', active_ids: [id] };
