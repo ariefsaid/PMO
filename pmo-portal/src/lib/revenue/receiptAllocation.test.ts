@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { knownUnappliedCash, receiptAllocations } from './receiptAllocation';
+import { displayAllocations, knownUnappliedCash, receiptAllocations } from './receiptAllocation';
 import type { IncomingPaymentRow } from '@/src/lib/db/revenue';
 
 /** S-06 (RF-030/031): synthetic fixtures only. `allocation_details` is the ERP-authored mirror:
@@ -102,5 +102,18 @@ describe('knownUnappliedCash — cash the ERP has not matched to any invoice (S-
       received_amount: 100.1, withheld_amount: 0,
       allocation_details: [allocation('A', '30.00'), allocation('B', '70.09')],
     }))).toBe(0.01);
+  });
+});
+
+describe('displayAllocations — a receipt PMO sent to Odoo (review)', () => {
+  const numberOf = (id: string) => (id === 'si-1' ? 'INV/2026/1' : null);
+
+  it('settles exactly its one named invoice, since PMO recorded it (no "not reported")', () => {
+    const sent = row({ sales_invoice_id: 'si-1', amount: 1000, allocation_details: null, push_command_state: 'pending' });
+    expect(displayAllocations(sent, numberOf)).toEqual([{ invoice_id: 'si-1', invoice_number: 'INV/2026/1', amount: '1000.00', currency: 'IDR' }]);
+  });
+
+  it('a receipt Odoo created itself stays unknown until Odoo reports where it was applied', () => {
+    expect(displayAllocations(row({ sales_invoice_id: 'si-1', allocation_details: null }), numberOf)).toBeNull();
   });
 });
