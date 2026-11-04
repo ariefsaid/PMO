@@ -1,5 +1,4 @@
 import React from 'react';
-import { Navigate } from 'react-router';
 import { useFeature } from '@/src/auth/useFeature';
 import { useOrgFeatures } from '@/src/hooks/useOrgFeatures';
 import { FeatureUnavailable } from '@/src/components/FeatureUnavailable';
@@ -27,8 +26,7 @@ import type { EntitleableKey } from '@/src/lib/features';
 export const FeatureRoute: React.FC<{
   feature: EntitleableKey;
   element: React.ReactNode;
-  disabledRedirectTo?: string;
-}> = ({ feature, element, disabledRedirectTo }) => {
+}> = ({ feature, element }) => {
   const { data, isLoading, isError, refetch } = useOrgFeatures();
   const enabled = useFeature(feature);
 
@@ -39,8 +37,6 @@ export const FeatureRoute: React.FC<{
   if (isLoading || (!data && !isError)) return null;
 
   if (isError) return <FeatureUnavailable variant="error" onRetry={refetch} />;
-
-  if (!enabled && disabledRedirectTo) return <Navigate to={disabledRedirectTo} replace />;
 
   return enabled ? <>{element}</> : <FeatureUnavailable variant="off" feature={feature} />;
 };
