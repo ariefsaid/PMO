@@ -9,16 +9,22 @@ export interface StatementCheckContext {
   fingerprint: string;
 }
 interface Top { name: string; modified: string }
+export interface StatementHintObservation {
+  version: 1;
+  context: StatementCheckContext;
+  sources: Array<{ source: string; top: Top | null }>;
+}
 export interface StatementCheckInput {
   context: StatementCheckContext;
-  previous: { context: StatementCheckContext; tops: readonly (Top | null)[] } | null;
+  previous: StatementHintObservation | null;
   signal?: AbortSignal;
   deadlineAtMs?: number;
 }
 export type StatementChangeResult =
-  | { status: 'changed'; reason: 'source_hint_changed' }
-  | { status: 'unknown'; reason: 'first_observation' | 'context_mismatch' | 'invalid_response' | 'request_failed' | 'cancelled' | 'ambiguous_hint' }
-  | { status: 'unknown'; reason: 'unverified_dependencies'; hint: 'no_observed_change' };
+  | { status: 'changed'; reason: 'source_hint_changed'; observation: StatementHintObservation }
+  | { status: 'unknown'; reason: 'first_observation'; observation: StatementHintObservation }
+  | { status: 'unknown'; reason: 'context_mismatch' | 'invalid_response' | 'request_failed' | 'cancelled' | 'ambiguous_hint' }
+  | { status: 'unknown'; reason: 'unverified_dependencies'; hint: 'no_observed_change'; observation: StatementHintObservation };
 
 // These are only candidate company-scoped hints. Other report dependencies and complete
 // role visibility have not been established; equality cannot clear pending work.
@@ -54,46 +60,69 @@ function sameContext(a: StatementCheckContext, b: StatementCheckContext): boolea
   return a.bindingId === b.bindingId && a.activatedAt === b.activatedAt && a.company === b.company && a.profile === b.profile && a.fingerprint === b.fingerprint;
 }
 
-/** Read-only hint only: never persists or advances an observation or publication cursor. */
+function readPrevious(value: unknown): StatementHintObservation | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const candidate = value as Record<string, unknown>;
+  if (candidate.version !== 1 || !candidate.context || typeof candidate.context !== 'object' || Array.isArray(candidate.context) || !Array.isArray(candidate.sources) || candidate.sources.length !== SOURCES.length) return undefined;
+  const seen = new Set<string>();
+  for (let i = 0; i < candidate.sources.length; i += 1) {
+    if (!(i in candidate.sources)) return undefined;
+    const entry: unknown = candidate.sources[i];
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return undefined;
+    const { source, top } = entry as Record<string, unknown>;
+    if (typeof source !== 'string' || !(SOURCES as readonly string[]).includes(source) || seen.has(source)) return undefined;
+    seen.add(source);
+    if (top !== null) {
+      if (!top || typeof top !== 'object' || Array.isArray(top)) return undefined;
+      const item = top as Record<string, unknown>;
+      if (!validText(item.name) || !validTimestamp(item.modified)) return undefined;
+    }
+  }
+  return candidate as unknown as StatementHintObservation;
+}
+
+/** Diagnostic candidate hints only: neither complete coverage nor a cursor. */
 export async function checkStatementChanges(client: ErpClientDeps, input: StatementCheckInput): Promise<StatementChangeResult> {
   const cancelled = (): StatementChangeResult => ({ status: 'unknown', reason: 'cancelled' });
   if (input.signal?.aborted || (input.deadlineAtMs !== undefined && input.deadlineAtMs <= Date.now())) return cancelled();
   if (!input.context || ![input.context.bindingId, input.context.activatedAt, input.context.company, input.context.profile, input.context.fingerprint].every(validText) || input.context.profile !== '16.33.0/16.31.0') return { status: 'unknown', reason: 'context_mismatch' };
-  if (!input.previous) return { status: 'unknown', reason: 'first_observation' };
-  if (!input.previous.context || !sameContext(input.context, input.previous.context)) return { status: 'unknown', reason: 'context_mismatch' };
-  if (!Array.isArray(input.previous.tops) || input.previous.tops.length !== SOURCES.length || input.previous.tops.some(top => top !== null && (!validText(top.name) || !validTimestamp(top.modified)))) return { status: 'unknown', reason: 'ambiguous_hint' };
-  const remaining = Math.min(TIMEOUT_MS, (input.deadlineAtMs ?? Date.now() + TIMEOUT_MS) - Date.now());
+  const previous = input.previous === null ? null : readPrevious(input.previous);
+  if (previous === undefined) return { status: 'unknown', reason: 'ambiguous_hint' };
+  if (previous && !sameContext(input.context, previous.context)) return { status: 'unknown', reason: 'context_mismatch' };
+  const deadlineAtMs = Math.min(input.deadlineAtMs ?? Infinity, Date.now() + TIMEOUT_MS);
+  const remaining = deadlineAtMs - Date.now();
   const controller = new AbortController();
   const onAbort = () => controller.abort();
   input.signal?.addEventListener('abort', onAbort, { once: true });
+  if (input.signal?.aborted) onAbort();
   const timer = setTimeout(onAbort, Math.max(0, remaining));
-  const boundedClient: ErpClientDeps = {
-    ...client, maxRetries: 0, timeoutMs: Math.max(1, remaining),
-    fetchImpl: (url, init) => client.fetchImpl(url, { ...init, signal: AbortSignal.any([controller.signal, ...(init?.signal ? [init.signal] : [])]) }),
-  };
+  const boundedClient: ErpClientDeps = { ...client, maxRetries: 0, timeoutMs: Math.max(1, remaining) };
   try {
     let changed = false;
-    for (let index = 0; index < SOURCES.length; index += 1) {
+    const sources: StatementHintObservation['sources'] = [];
+    for (const source of SOURCES) {
       if (controller.signal.aborted) return cancelled();
-      const params = new URLSearchParams({ doctype: SOURCES[index], fields: JSON.stringify(['name', 'modified']), filters: JSON.stringify([['company', '=', input.context.company]]), order_by: 'modified desc, name desc', limit_page_length: '1' });
-      const body = await Promise.race([
-        erpnextRequest(boundedClient, { method: 'GET', path: `/api/method/frappe.client.get_list?${params}`, maxResponseBytes: 8192 }),
-        new Promise<never>((_, reject) => controller.signal.addEventListener('abort', () => reject(new Error('cancelled')), { once: true })),
-      ]);
+      const params = new URLSearchParams({ doctype: source, fields: JSON.stringify(['name', 'modified']), filters: JSON.stringify([['company', '=', input.context.company]]), order_by: 'modified desc, name desc', limit_page_length: '1' });
+      const body = await erpnextRequest(boundedClient, { method: 'GET', path: `/api/method/frappe.client.get_list?${params}`, maxResponseBytes: 8192, safeDiagnostic: true, signal: controller.signal, deadlineAtMs });
       if (controller.signal.aborted) return cancelled();
       const top = parseTop(body);
       if (top === undefined) return { status: 'unknown', reason: 'invalid_response' };
-      const old = input.previous.tops[index];
-      if (top && old) {
-        const currentTime = comparableTimestamp(top.modified);
-        const oldTime = comparableTimestamp(old.modified);
-        if (currentTime < oldTime || (currentTime === oldTime && top.name !== old.name)) return { status: 'unknown', reason: 'ambiguous_hint' };
-        if (currentTime > oldTime) changed = true;
-      } else if (top !== old) changed = true;
+      sources.push({ source, top });
+      if (previous) {
+        const old = previous.sources.find(entry => entry.source === source)!.top;
+        if (top && old) {
+          const currentTime = comparableTimestamp(top.modified);
+          const oldTime = comparableTimestamp(old.modified);
+          if (currentTime < oldTime || (currentTime === oldTime && top.name !== old.name)) return { status: 'unknown', reason: 'ambiguous_hint' };
+          if (currentTime > oldTime) changed = true;
+        } else if (top !== old) changed = true;
+      }
     }
-    return changed ? { status: 'changed', reason: 'source_hint_changed' } : { status: 'unknown', reason: 'unverified_dependencies', hint: 'no_observed_change' };
+    const observation: StatementHintObservation = { version: 1, context: { ...input.context }, sources };
+    if (!previous) return { status: 'unknown', reason: 'first_observation', observation };
+    return changed ? { status: 'changed', reason: 'source_hint_changed', observation } : { status: 'unknown', reason: 'unverified_dependencies', hint: 'no_observed_change', observation };
   } catch {
-    return controller.signal.aborted ? cancelled() : { status: 'unknown', reason: 'request_failed' };
+    return controller.signal.aborted || Date.now() >= deadlineAtMs ? cancelled() : { status: 'unknown', reason: 'request_failed' };
   } finally {
     clearTimeout(timer);
     input.signal?.removeEventListener('abort', onAbort);

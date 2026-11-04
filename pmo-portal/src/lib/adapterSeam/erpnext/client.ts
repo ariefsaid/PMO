@@ -218,6 +218,10 @@ export interface ErpRequestOptions {
   maxResponseBytes?: number;
   /** Preserve raw numeric lexemes for GL debit/credit, avoiding JSON Number precision loss. */
   responseNumbers?: 'ledger_decimal_text' | 'financial_decimal_text';
+  /** Static errors and cancellation fencing for bounded internal diagnostic reads. */
+  safeDiagnostic?: boolean;
+  signal?: AbortSignal;
+  deadlineAtMs?: number;
 }
 
 /** Lossless financial response: parsed lexical values plus the exact capped UTF-8 response text. */
@@ -427,19 +431,38 @@ export async function erpnextRequest(deps: ErpClientDeps, opts: ErpRequestOption
     if (!supportsJsonNumberSource()) throw new ErpError(0, 'external-unreachable', 'Statement report request failed', false);
   }
   const financialMode = opts.responseNumbers === 'financial_decimal_text';
+  const safeMode = financialMode || opts.safeDiagnostic === true;
+  const diagnosticSignal = opts.safeDiagnostic ? opts.signal : undefined;
   const safeFailure = (): ErpError => new ErpError(0, 'external-unreachable', 'Statement report request failed', true);
+  const waitForDiagnostic = async <T>(work: Promise<T>): Promise<T> => {
+    if (!diagnosticSignal) return work;
+    if (diagnosticSignal.aborted) {
+      void work.catch(() => {});
+      throw safeFailure();
+    }
+    return new Promise<T>((resolve, reject) => {
+      const onAbort = () => { cleanup(); reject(safeFailure()); };
+      const cleanup = () => diagnosticSignal.removeEventListener('abort', onAbort);
+      diagnosticSignal.addEventListener('abort', onAbort, { once: true });
+      if (diagnosticSignal.aborted) onAbort();
+      work.then(value => { cleanup(); resolve(value); }, error => { cleanup(); reject(error); });
+    });
+  };
+  const assertDiagnosticActive = () => {
+    if (opts.safeDiagnostic && (diagnosticSignal?.aborted || (opts.deadlineAtMs !== undefined && (deps.now?.() ?? Date.now()) >= opts.deadlineAtMs))) throw safeFailure();
+  };
   const sleep = deps.sleep ?? defaultSleep;
   const pause = async (ms: number): Promise<void> => {
     try { await sleep(ms); }
     catch (err) {
-      if (financialMode) {
-        if (err instanceof AppError) throw err;
+      if (safeMode) {
+        if (financialMode && err instanceof AppError) throw err;
         throw safeFailure();
       }
       throw err;
     }
   };
-  const maxRetries = opts.method === 'POST' ? 0 : (deps.maxRetries ?? ERP_DEFAULT_MAX_RETRIES);
+  const maxRetries = opts.method === 'POST' || opts.safeDiagnostic ? 0 : (deps.maxRetries ?? ERP_DEFAULT_MAX_RETRIES);
   const headers = {
     Authorization: `token ${deps.apiKey}:${deps.apiSecret}`,
     'Content-Type': 'application/json',
@@ -475,10 +498,12 @@ export async function erpnextRequest(deps: ErpClientDeps, opts: ErpRequestOption
     // and refusing them would strand a committed document.
     assertWriteWithinDeadline();
     try {
-      if (deps.rateLimiter) await deps.rateLimiter.acquire();
+      assertDiagnosticActive();
+      if (deps.rateLimiter) await waitForDiagnostic(deps.rateLimiter.acquire());
+      assertDiagnosticActive();
     } catch (err) {
-      if (financialMode) {
-        if (err instanceof AppError) throw err;
+      if (safeMode) {
+        if (financialMode && err instanceof AppError) throw err;
         throw safeFailure();
       }
       throw err;
@@ -500,23 +525,24 @@ export async function erpnextRequest(deps: ErpClientDeps, opts: ErpRequestOption
       timeoutMs,
     );
     try {
-      res = await deps.fetchImpl(`${deps.baseUrl}${opts.path}`, {
+      assertDiagnosticActive();
+      res = await waitForDiagnostic(deps.fetchImpl(`${deps.baseUrl}${opts.path}`, {
         method: opts.method,
         headers,
         body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
-        signal: controller.signal,
+        signal: diagnosticSignal ? AbortSignal.any([controller.signal, diagnosticSignal]) : controller.signal,
         // #655: the base URL is admin-nominated — never follow a redirect (the Authorization header
         // would travel with it). Same policy as the connect-time probes in external-connect /
         // external-set-company; a 3xx is refused below.
         redirect: 'manual',
-      });
+      }));
     } catch (err) {
       clearTimeout(deadline);
       if (err instanceof Error && err.message === 'ERPNext destination is not permitted') {
         throw new ErpError(0, 'destination_not_permitted', 'ERPNext destination is not permitted', false);
       }
-      if (financialMode) {
-        if (err instanceof AppError && err.code !== 'external-unreachable') throw err;
+      if (safeMode) {
+        if (financialMode && err instanceof AppError && err.code !== 'external-unreachable') throw err;
         if (attempt < maxRetries) {
           attempt += 1;
           await pause(500 * attempt);
@@ -542,35 +568,35 @@ export async function erpnextRequest(deps: ErpClientDeps, opts: ErpRequestOption
       // is classified `external-unreachable` — the outbox reconciler, not this client, decides what landed.
       // `opaqueredirect` is the fetch-spec form of a manual redirect (status 0); Deno/undici return the 3xx.
       if (res.type === 'opaqueredirect' || (res.status >= 300 && res.status < 400)) {
-        if (!financialMode) console.error(`[erpnext-client] refused redirect ${res.status} ${opts.method} ${opts.path}`);
+        if (!safeMode) console.error(`[erpnext-client] refused redirect ${res.status} ${opts.method} ${opts.path}`);
         throw new ErpError(
           res.status,
           'external-unreachable',
-          financialMode ? 'Statement report request failed' : `ERPNext answered with a redirect (HTTP ${res.status}); redirects are not followed — check the site URL`,
+          safeMode ? 'Statement report request failed' : `ERPNext answered with a redirect (HTTP ${res.status}); redirects are not followed — check the site URL`,
           false,
         );
       }
 
       if (res.status === 429 || res.status >= 500) {
-        const body = await safeParseBody(res, maxBodyBytes, opts.responseNumbers);
+        const body = await waitForDiagnostic(safeParseBody(res, maxBodyBytes, opts.responseNumbers));
         const parsed = parseFrappeErrorBody(body);
         // The 500-TypeError bucket is non-retryable regardless of method or remaining budget.
         if (res.status === 500 && isTypeErrorBucket(parsed)) {
-          throw new ErpError(500, 'commit-rejected', financialMode ? 'Statement report request failed' : parsed.message ?? 'ERPNext server error (TypeError)', false);
+          throw new ErpError(500, 'commit-rejected', safeMode ? 'Statement report request failed' : parsed.message ?? 'ERPNext server error (TypeError)', false);
         }
         if (attempt < maxRetries) {
           attempt += 1;
-          await (financialMode ? pause : sleep)(retryDelayMs(res.headers.get('Retry-After'), attempt));
+          await (safeMode ? pause : sleep)(retryDelayMs(res.headers.get('Retry-After'), attempt));
           continue;
         }
-        if (!financialMode) console.error(`[erpnext-client] upstream status=${res.status} code=external-unreachable type=${parsed.excType ?? 'unknown'}`);
-        throw new ErpError(res.status, 'external-unreachable', financialMode ? 'Statement report request failed' : parsed.message ?? `ERPNext request failed with status ${res.status}`, true);
+        if (!safeMode) console.error(`[erpnext-client] upstream status=${res.status} code=external-unreachable type=${parsed.excType ?? 'unknown'}`);
+        throw new ErpError(res.status, 'external-unreachable', safeMode ? 'Statement report request failed' : parsed.message ?? `ERPNext request failed with status ${res.status}`, true);
       }
 
-      const body = await safeParseBody(res, maxBodyBytes, opts.responseNumbers);
+      const body = await waitForDiagnostic(safeParseBody(res, maxBodyBytes, opts.responseNumbers));
       if (res.status >= 400) {
         const parsed = parseFrappeErrorBody(body);
-        throw new ErpError(res.status, 'commit-rejected', financialMode ? 'Statement report request failed' : parsed.message ?? `ERPNext request failed with status ${res.status}`, true);
+        throw new ErpError(res.status, 'commit-rejected', safeMode ? 'Statement report request failed' : parsed.message ?? `ERPNext request failed with status ${res.status}`, true);
       }
       return body;
     } catch (err) {
@@ -578,11 +604,11 @@ export async function erpnextRequest(deps: ErpClientDeps, opts: ErpRequestOption
       if (err instanceof BodyTooLargeError) {
         // #918: an over-cap body is a deterministic answer this client refuses to consume — the same
         // policy as a redirect (re-asking cannot shrink it), so it is NOT retried.
-        if (!financialMode) console.error(`[erpnext-client] response body over the ${maxBodyBytes}-byte cap ${res.status} ${opts.method} ${opts.path}`);
+        if (!safeMode) console.error(`[erpnext-client] response body over the ${maxBodyBytes}-byte cap ${res.status} ${opts.method} ${opts.path}`);
         throw new ErpError(
           res.status,
           'external-unreachable',
-          financialMode ? 'Statement report request failed' : `ERPNext response body exceeded the ${maxBodyBytes}-byte response cap`,
+          safeMode ? 'Statement report request failed' : `ERPNext response body exceeded the ${maxBodyBytes}-byte response cap`,
           false,
         );
       }
@@ -590,10 +616,10 @@ export async function erpnextRequest(deps: ErpClientDeps, opts: ErpRequestOption
       // same failure while waiting for headers — same budget, same `external-unreachable` (#918).
       if (attempt < maxRetries) {
         attempt += 1;
-        await (financialMode ? pause : sleep)(500 * attempt);
+        await (safeMode ? pause : sleep)(500 * attempt);
         continue;
       }
-      if (financialMode) throw safeFailure();
+      if (safeMode) throw safeFailure();
       console.error(`[erpnext-client] body read failed ${opts.method} ${opts.path}:`, err instanceof Error ? err.message : String(err));
       throw new ErpError(0, 'external-unreachable', err instanceof Error ? err.message : 'ERPNext response body failed', true);
     } finally {
