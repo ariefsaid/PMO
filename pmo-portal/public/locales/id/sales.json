@@ -1,4 +1,12 @@
 {
+  "goProbability": "% Go",
+  "getProbability": "% Get",
+  "goShort": "Go",
+  "getShort": "Get",
+  "column": {
+    "goPct": "% Go",
+    "getPct": "% Get"
+  },
   "pipeline": {
     "endCustomerLine": "untuk {{name}}",
     "mixedCurrency": "Mata uang campuran, jadi tidak ada total tunggal",

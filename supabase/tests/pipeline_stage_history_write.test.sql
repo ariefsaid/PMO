@@ -28,21 +28,22 @@ insert into projects (id, org_id, code, name, status, project_manager_id, create
 
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"16380000-0000-0000-0000-0000000000a2","role":"authenticated"}';
-select transition_project('16380000-0000-0000-0000-000000000010','PQ Submitted');
 select transition_project('16380000-0000-0000-0000-000000000010','Quotation Submitted');
+select transition_project('16380000-0000-0000-0000-000000000010','PQ Submitted');
 select transition_project('16380000-0000-0000-0000-000000000010','Tender Submitted');
+select transition_project('16380000-0000-0000-0000-000000000010','PQ Submitted');
 select transition_project('16380000-0000-0000-0000-000000000010','Quotation Submitted');
 
 select results_eq(
   $$ select stage::text, source from project_stage_entries
      where project_id = '16380000-0000-0000-0000-000000000010' order by position $$,
-  $$ values ('Leads','origination'),('PQ Submitted','transition'),('Quotation Submitted','transition'),
-            ('Tender Submitted','transition'),('Quotation Submitted','transition') $$,
+  $$ values ('Leads','origination'),('Quotation Submitted','transition'),('PQ Submitted','transition'),
+            ('Tender Submitted','transition'),('PQ Submitted','transition'),('Quotation Submitted','transition') $$,
   'AC-PSH-001: every stage entry is kept in journey order, including the re-quote');
 select is(
   (select count(*)::int from project_stage_entries
     where project_id = '16380000-0000-0000-0000-000000000010' and recorded_by = '16380000-0000-0000-0000-0000000000a2'),
-  4, 'AC-PSH-001: each move records who made it');
+  5, 'AC-PSH-001: each move records who made it');
 reset role;
 insert into projects (id, org_id, code, name, status, project_manager_id) values
   ('16380000-0000-0000-0000-000000000012','16380000-0000-0000-0000-000000000001','PSH-3','PSH win','Leads','16380000-0000-0000-0000-0000000000a2'),
@@ -52,19 +53,23 @@ insert into projects (id, org_id, code, name, status, project_manager_id) values
   ('16380000-0000-0000-0000-000000000017','16380000-0000-0000-0000-000000000001','PSH-8','PSH future win','Leads','16380000-0000-0000-0000-0000000000a2');
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"16380000-0000-0000-0000-0000000000a3","role":"authenticated"}';
-select transition_project('16380000-0000-0000-0000-000000000012','PQ Submitted');
 select transition_project('16380000-0000-0000-0000-000000000012','Quotation Submitted');
+select transition_project('16380000-0000-0000-0000-000000000012','PQ Submitted');
+select transition_project('16380000-0000-0000-0000-000000000012','Tender Submitted');
 -- contract_value is 0 → the win SoD has nothing to ratify (0236 clause (i)).
 select transition_project('16380000-0000-0000-0000-000000000012','Won, Pending KoM','PO-PSH-1', (now() at time zone 'Asia/Jakarta')::date);
 select transition_project('16380000-0000-0000-0000-000000000013','Loss Tender',null,null,'price',null);
 -- Deal recorded after it was signed (spec T17): every earlier entry is dated today, the contract 10 days ago.
-select transition_project('16380000-0000-0000-0000-000000000015','PQ Submitted');
 select transition_project('16380000-0000-0000-0000-000000000015','Quotation Submitted');
+select transition_project('16380000-0000-0000-0000-000000000015','PQ Submitted');
+select transition_project('16380000-0000-0000-0000-000000000015','Tender Submitted');
 select transition_project('16380000-0000-0000-0000-000000000015','Won, Pending KoM','PO-PSH-2', (now() at time zone 'Asia/Jakarta')::date - 10);
-select transition_project('16380000-0000-0000-0000-000000000016','PQ Submitted');
 select transition_project('16380000-0000-0000-0000-000000000016','Quotation Submitted');
-select transition_project('16380000-0000-0000-0000-000000000017','PQ Submitted');
+select transition_project('16380000-0000-0000-0000-000000000016','PQ Submitted');
+select transition_project('16380000-0000-0000-0000-000000000016','Tender Submitted');
 select transition_project('16380000-0000-0000-0000-000000000017','Quotation Submitted');
+select transition_project('16380000-0000-0000-0000-000000000017','PQ Submitted');
+select transition_project('16380000-0000-0000-0000-000000000017','Tender Submitted');
 select transition_project('16380000-0000-0000-0000-000000000017','Won, Pending KoM','PO-PSH-4', (now() at time zone 'Asia/Jakarta')::date + 30);
 reset role;
 select is(
@@ -79,11 +84,11 @@ select is(
 select results_eq(
   $$ select stage::text, entered_on, redated_at is not null from project_stage_entries
       where project_id = '16380000-0000-0000-0000-000000000015' order by position $$,
-  $$ values ('Leads', (now() at time zone 'Asia/Jakarta')::date - 10, false), ('PQ Submitted', (now() at time zone 'Asia/Jakarta')::date - 10, false),
-            ('Quotation Submitted', (now() at time zone 'Asia/Jakarta')::date - 10, false), ('Won, Pending KoM', (now() at time zone 'Asia/Jakarta')::date - 10, false) $$,
+  $$ values ('Leads', (now() at time zone 'Asia/Jakarta')::date - 10, false), ('Quotation Submitted', (now() at time zone 'Asia/Jakarta')::date - 10, false),
+            ('PQ Submitted', (now() at time zone 'Asia/Jakarta')::date - 10, false), ('Tender Submitted', (now() at time zone 'Asia/Jakarta')::date - 10, false), ('Won, Pending KoM', (now() at time zone 'Asia/Jakarta')::date - 10, false) $$,
   'AC-PSH-002: a win dated before system-dated entries moves them back without person markers');
 -- A person dated the Quoted entry 2 days ago (as stage_entry_set_date would); a win dated before it is refused.
--- The system-dated Leads/PQ entries move with it in one statement, so the journey stays in order.
+-- The system-dated Leads/Quotation/PQ entries move with it in one statement, so the journey stays in order.
 update project_stage_entries
    set entered_on = (now() at time zone 'Asia/Jakarta')::date - 2,
        redated_at = case when stage = 'Quotation Submitted' then now() end
@@ -113,6 +118,7 @@ select is(
 update projects set contract_date = (now() at time zone 'Asia/Jakarta')::date where id = '16380000-0000-0000-0000-000000000012';
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"16380000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+select transition_project('16380000-0000-0000-0000-000000000011','Quotation Submitted');
 select transition_project('16380000-0000-0000-0000-000000000011','PQ Submitted');
 reset role;
 select is(
@@ -160,8 +166,9 @@ select results_eq(
   $$ select stage::text, entered_on from project_stage_entries
       where project_id = '16380000-0000-0000-0000-000000000012' and stage <> 'Won, Pending KoM' order by position $$,
   $$ values ('Leads', (now() at time zone 'Asia/Jakarta')::date - 31),
+            ('Quotation Submitted', (now() at time zone 'Asia/Jakarta')::date - 31),
             ('PQ Submitted', (now() at time zone 'Asia/Jakarta')::date - 31),
-            ('Quotation Submitted', (now() at time zone 'Asia/Jakarta')::date - 31) $$,
+            ('Tender Submitted', (now() at time zone 'Asia/Jakarta')::date - 31) $$,
   'AC-PSH-004: earlier system-dated entries follow the re-dated contract date');
 reset role;
 insert into projects (id, org_id, code, name, status, project_manager_id, created_at) values
@@ -258,16 +265,16 @@ insert into projects (id, org_id, code, name, status, project_manager_id) values
    '16380000-0000-0000-0000-0000000000a2');
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"16380000-0000-0000-0000-0000000000a2","role":"authenticated"}';
-select transition_project('16380000-0000-0000-0000-000000000018','PQ Submitted');
 select transition_project('16380000-0000-0000-0000-000000000018','Quotation Submitted');
+select transition_project('16380000-0000-0000-0000-000000000018','PQ Submitted');
 select redate_stage_entry((select id from project_stage_entries where project_id = '16380000-0000-0000-0000-000000000018' and stage = 'Quotation Submitted'),
   (now() at time zone 'Asia/Jakarta')::date - 20);
 select results_eq(
   $$ select stage::text, entered_on, redated_at is not null from project_stage_entries
       where project_id = '16380000-0000-0000-0000-000000000018' order by position $$,
   $$ values ('Leads', (now() at time zone 'Asia/Jakarta')::date - 20, false),
-            ('PQ Submitted', (now() at time zone 'Asia/Jakarta')::date - 20, false),
-            ('Quotation Submitted', (now() at time zone 'Asia/Jakarta')::date - 20, true) $$,
+            ('Quotation Submitted', (now() at time zone 'Asia/Jakarta')::date - 20, true),
+            ('PQ Submitted', (now() at time zone 'Asia/Jakarta')::date, false) $$,
   'AC-1835-DB-001 redating a later stage pulls earlier system-dated entries back without person markers');
 reset role;
 update project_stage_entries set redated_at = now()
@@ -286,16 +293,17 @@ values ('16380000-0000-0000-0000-000000000019','16380000-0000-0000-0000-00000000
         '16380000-0000-0000-0000-0000000000a2');
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"16380000-0000-0000-0000-0000000000a2","role":"authenticated"}';
-select transition_project('16380000-0000-0000-0000-000000000019','PQ Submitted');
 select transition_project('16380000-0000-0000-0000-000000000019','Quotation Submitted');
+select transition_project('16380000-0000-0000-0000-000000000019','PQ Submitted');
+select transition_project('16380000-0000-0000-0000-000000000019','Tender Submitted');
 select transition_project('16380000-0000-0000-0000-000000000019','Won, Pending KoM','PO-PSH-10', (now() at time zone 'Asia/Jakarta')::date);
 reset role;
 update projects set contract_date = (now() at time zone 'Asia/Jakarta')::date - 3
  where id = '16380000-0000-0000-0000-000000000019';
 select is((select count(*)::int from project_stage_entries
-  where project_id = '16380000-0000-0000-0000-000000000019' and position < 4
+  where project_id = '16380000-0000-0000-0000-000000000019' and position < 5
     and entered_on = (now() at time zone 'Asia/Jakarta')::date - 3 and redated_at is null),
-  3, 'AC-1835-DB-003 a contract-date pull-back stays system-dated');
+  4, 'AC-1835-DB-003 a contract-date pull-back stays system-dated');
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"16380000-0000-0000-0000-0000000000a2","role":"authenticated"}';
 select redate_stage_entry((select id from project_stage_entries
@@ -306,8 +314,9 @@ select results_eq(
   $$ select stage::text, entered_on, redated_at is not null from project_stage_entries
       where project_id = '16380000-0000-0000-0000-000000000019' order by position $$,
   $$ values ('Leads', (now() at time zone 'Asia/Jakarta')::date - 5, false),
-            ('PQ Submitted', (now() at time zone 'Asia/Jakarta')::date - 5, false),
             ('Quotation Submitted', (now() at time zone 'Asia/Jakarta')::date - 5, true),
+            ('PQ Submitted', (now() at time zone 'Asia/Jakarta')::date - 3, false),
+            ('Tender Submitted', (now() at time zone 'Asia/Jakarta')::date - 3, false),
             ('Won, Pending KoM', (now() at time zone 'Asia/Jakarta')::date - 3, false) $$,
   'AC-1835-DB-004 a person can redate quotation after a system contract-date pull-back');
 select * from finish();

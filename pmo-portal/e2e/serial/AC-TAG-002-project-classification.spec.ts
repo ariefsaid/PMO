@@ -1,6 +1,6 @@
 // @e2e-isolation: serial — temporarily adds options to the org-wide project setup lists and restores them.
 import { test, expect } from '@playwright/test';
-import { login, pickComboboxOption, visibleToast } from '../helpers';
+import { login, pickComboboxOption, stubErpProjectSync, visibleToast } from '../helpers';
 
 test.setTimeout(120_000);
 test('AC-TAG-002 classifications persist through form, detail editing, Projects and Pipeline filters', async ({ page }) => {
@@ -14,6 +14,7 @@ test('AC-TAG-002 classifications persist through form, detail editing, Projects 
     await page.getByRole('button', { name: 'Project details', exact: true }).click();
   };
   await login(page, 'admin@acme.test');
+  await stubErpProjectSync(page);
   await page.goto('/administration/projects');
   const lines = page.getByLabel('Service lines');
   const sectors = page.getByLabel('Sectors');

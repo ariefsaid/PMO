@@ -8,7 +8,7 @@
 --   1. Manager D (active, PM) is W's `manager_id`. D calls set_project_contract_value(project,
 --      77000000) — the witness trigger stamps contract_value_set_by = D.
 --   2. D is offboarded (profiles.status='disabled').
---   3. W alone walks Leads -> PQ Submitted -> Quotation Submitted -> 'Won, Pending KoM'.
+--   3. W alone walks Leads -> Quotation Submitted -> PQ Submitted -> 'Won, Pending KoM'.
 --   RESULT: Won, Pending KoM, contract_value 77,000,000 — booked on an OFFBOARDED witness. 0181 does
 --   NOT cover this: D != W (self-backstop never fires) and may_approve_work_of(D, W) is TRUE (D is
 --   W's manager_id), so the "senior" limb passes too.
@@ -31,7 +31,7 @@
 
 begin;
 create extension if not exists pgtap;
-select plan(21);
+select plan(22);
 
 -- ── Fixtures (inserted as table owner, RLS bypassed) ────────────────────────────────────────────
 insert into organizations (id, name) values
@@ -118,11 +118,14 @@ select is(
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"01760000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select lives_ok(
-  $$ select transition_project('01760000-0000-0000-0000-0000000000b1'::uuid,'PQ Submitted'::project_status) $$,
-  'AC-WMA-031 W walks the exploit deal Leads -> PQ Submitted (W is active, this stage is unaffected)');
-select lives_ok(
   $$ select transition_project('01760000-0000-0000-0000-0000000000b1'::uuid,'Quotation Submitted'::project_status) $$,
-  'AC-WMA-032 …PQ Submitted -> Quotation Submitted');
+  'AC-WMA-031 W walks the exploit deal Leads -> Quotation Submitted (W is active, this stage is unaffected)');
+select lives_ok(
+  $$ select transition_project('01760000-0000-0000-0000-0000000000b1'::uuid,'PQ Submitted'::project_status) $$,
+  'AC-WMA-032 …Quotation Submitted -> PQ Submitted');
+select lives_ok(
+  $$ select transition_project('01760000-0000-0000-0000-0000000000b1'::uuid,'Tender Submitted'::project_status) $$,
+  'AC-WMA-032 …and advances from Pre-Qual to Tender before the win check');
 -- ⚑ pgTAP matches errmsg EXACTLY. This is 0183's NEW offboarded-witness message — deliberately
 -- distinguishable from 0181's "not set by anyone senior to you" (FR-AMG-004): it fires because the
 -- witness HAD authority (D is W's manager) but is no longer active, not because the witness lacks rank.
@@ -135,7 +138,7 @@ select throws_ok(
 reset role;
 select is(
   (select status::text from public.projects where id = '01760000-0000-0000-0000-0000000000b1'),
-  'Quotation Submitted',
+  'Tender Submitted',
   'AC-WMA-034 the exploit deal did NOT move to Won — status is unchanged (the goal-oracle: no 77M deal was booked on an offboarded witness)');
 select is(
   (select contract_value::text from public.projects where id = '01760000-0000-0000-0000-0000000000b1'),
