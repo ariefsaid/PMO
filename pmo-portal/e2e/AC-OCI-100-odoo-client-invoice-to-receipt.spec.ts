@@ -5,6 +5,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { SEED_PASSWORD } from './helpers';
 import { bindCall, createPacer, OdooError } from '../src/lib/adapterSeam/odoo/client';
 import { externalIdentifier } from '../src/lib/adapterSeam/odoo/revenue/anchors';
+import { paymentStatus } from '../src/lib/adapterSeam/odoo/revenue/status';
 import { parseOdooExternalRef } from '../src/lib/adapterSeam/odoo/purchase/anchors';
 import type { Database, Json } from '../src/lib/supabase/database.types';
 
@@ -392,7 +393,8 @@ test('AC-OCI-100: one user raises project invoices, another approves them, and r
       const [payment] = await fixture.raw<Array<{ state: string; reconciled_invoice_ids: number[] }>>('account.payment', 'read', {
         ids: [paymentId], fields: ['state', 'reconciled_invoice_ids'],
       });
-      expect(payment.state).toBe('paid');
+      expect(['paid', 'reconciled']).toContain(payment.state);
+      expect(paymentStatus(payment.state)).toMatchObject({ mirrored: true, status: 'Paid', cancelled: false });
       const linkedInvoiceId = invoiceMoveIds.get(receipt.sales_invoice_id);
       expect(linkedInvoiceId).toBeDefined();
       expect(payment.reconciled_invoice_ids).toContain(linkedInvoiceId);
