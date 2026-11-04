@@ -18,7 +18,7 @@ const h = vi.hoisted(() => ({
   assignees: { data: { rows: [] as unknown[], truncated: false }, isPending: false, isError: false, refetch: vi.fn() },
   claims: { data: { rows: [] as unknown[], truncated: false }, isPending: false, isError: false, refetch: vi.fn() },
   preview: { data: { rows: [] as unknown[], truncated: false }, isPending: false, isError: false, refetch: vi.fn() },
-  sources: { data: { rows: [] as unknown[], truncated: false, totalCount: 0 }, isPending: false, isError: false, refetch: vi.fn() },
+  sources: { data: { rows: [] as unknown[], truncated: false, totalCount: 0, signoffCurrent: null as boolean | null }, isPending: false, isError: false, refetch: vi.fn() },
   profiles: [] as unknown[],
   documents: [] as unknown[],
   erpConnected: true,
@@ -36,6 +36,7 @@ vi.mock('@/src/hooks/useTimeAndMaterials', () => ({
   useTmClaims: () => h.claims,
   useTmClaimPreview: () => h.preview,
   useTmClaimSources: () => h.sources,
+  useDeselectTmSource: () => ({ mutateAsync: h.mutations.deselect, isPending: false }),
   useSaveTmRateLine: () => ({ mutateAsync: h.mutations.saveRate, isPending: false }),
   useSetTmRateAssignee: () => ({ mutateAsync: h.mutations.assign, isPending: false }),
   useEndTmRateAssignee: () => ({ mutateAsync: h.mutations.endAssignee, isPending: false }),
@@ -78,14 +79,14 @@ const unrated = {
 
 const shipped = (locale: 'en' | 'id') => JSON.parse(readFileSync(join(process.cwd(), `public/locales/${locale}/timeAndMaterials.json`), 'utf8')) as Record<string, unknown>;
 
-function page(resources: Record<string, { timeAndMaterials: Record<string, unknown> }> = { en: { timeAndMaterials: shipped('en') }, id: { timeAndMaterials: shipped('id') } }) {
+function page(lng: 'en' | 'id' = 'en', resources: Record<string, { timeAndMaterials: Record<string, unknown> }> = { en: { timeAndMaterials: shipped('en') }, id: { timeAndMaterials: shipped('id') } }) {
   const instance = i18next.createInstance();
-  void instance.init({ lng: 'en', fallbackLng: 'en', defaultNS: 'timeAndMaterials', ns: ['timeAndMaterials'], resources, interpolation: { escapeValue: false } });
+  void instance.init({ lng, fallbackLng: 'en', defaultNS: 'timeAndMaterials', ns: ['timeAndMaterials'], resources, interpolation: { escapeValue: false } });
   return instance;
 }
 
-function renderPanel(props: Partial<React.ComponentProps<typeof TimeAndMaterials>> = {}) {
-  const i18n = page();
+function renderPanel(props: Partial<React.ComponentProps<typeof TimeAndMaterials>> = {}, lng: 'en' | 'id' = 'en') {
+  const i18n = page(lng);
   const user = userEvent.setup();
   const result = render(
     <I18nextProvider i18n={i18n}>
@@ -105,7 +106,11 @@ beforeEach(() => {
   h.assignees = { data: { rows: [assignment], truncated: false }, isPending: false, isError: false, refetch: vi.fn() };
   h.claims = { data: { rows: [claim], truncated: false }, isPending: false, isError: false, refetch: vi.fn() };
   h.preview = { data: { rows: [priced, unrated], truncated: false }, isPending: false, isError: false, refetch: vi.fn() };
-  h.sources = { data: { rows: [{ id: 'source-row-1', claim_id: 'claim-1', claim_line_id: 'line-1', source_kind: 'timesheet_entry', source_id: 'entry-1', units: 8 }], truncated: false, totalCount: 1 }, isPending: false, isError: false, refetch: vi.fn() };
+  h.sources = { data: { signoffCurrent: true, rows: [
+    { id: 'source-row-1', entry_id: 'entry-1', entry_date: '2026-11-03', person_id: 'u-engineer', person_name: 'Engineer One', units: 5, unit: 'hour', line_label: 'Site engineer', is_selected: true, person_unit_total: 6 },
+    { id: 'source-row-2', entry_id: 'entry-2', entry_date: '2026-11-04', person_id: 'u-engineer', person_name: 'Engineer One', units: 1, unit: 'hour', line_label: 'Site engineer', is_selected: true, person_unit_total: 6 },
+    { id: 'source-row-3', entry_id: 'entry-3', entry_date: '2026-11-04', person_id: 'u-other', person_name: 'Engineer Two', units: 2, unit: 'hour', line_label: 'Site engineer', is_selected: true, person_unit_total: 2 },
+  ], truncated: false, totalCount: 3 }, isPending: false, isError: false, refetch: vi.fn() };
   h.profiles = [profile('u-engineer', 'Site engineer'), profile('u-pm', 'Project manager'), profile('u-fin', 'Finance user')];
   h.documents = [documentRow];
   h.erpConnected = true;
@@ -116,6 +121,7 @@ beforeEach(() => {
     endAssignee: vi.fn().mockResolvedValue(undefined),
     endRate: vi.fn().mockResolvedValue({ id: 'rate-row-1', lineKey: 'labour-1', version: 2, changed: true }),
     assemble: vi.fn().mockResolvedValue('claim-2'),
+    deselect: vi.fn().mockResolvedValue(undefined),
     prepare: vi.fn().mockResolvedValue(undefined),
     withdraw: vi.fn().mockResolvedValue(undefined),
     confirm: vi.fn().mockResolvedValue({ claimId: 'claim-1', basis: 'standard', grossAmount: 400000 }),
@@ -161,7 +167,10 @@ describe('TimeAndMaterials', () => {
 
     expect(screen.getByText(/Unrated hours/)).toBeInTheDocument();
     expect(screen.getByText(/No rate applies/)).toBeInTheDocument();
-    h.sources = { ...h.sources, data: { rows: [{ id: 'source-row-1', claim_id: 'claim-1', claim_line_id: 'line-1', source_kind: 'timesheet_entry', source_id: 'entry-1', units: 8 }], truncated: true, totalCount: 2 } };
+    h.sources = { ...h.sources, data: { rows: [{
+      id: 'source-row-1', entry_id: 'entry-1', entry_date: '2026-11-03', person_id: 'u-engineer', person_name: 'Engineer One',
+      units: 8, unit: 'hour', line_label: 'Site engineer', is_selected: true, person_unit_total: 8,
+    }], truncated: true, totalCount: 2, signoffCurrent: true } };
     await user.click(screen.getByRole('button', { name: /Assemble claim/ }));
     await waitFor(() => expect(h.mutations.assemble).toHaveBeenCalledWith(expect.objectContaining({ projectId: 'p1', from: expect.any(String), to: expect.any(String) })));
 
@@ -269,19 +278,19 @@ describe('TimeAndMaterials', () => {
     h.claims = { ...h.claims, data: { rows: [multiLineClaim], truncated: false } };
     h.sources = {
       ...h.sources,
-      data: { rows: [
-        { id: 'source-row-1', claim_id: 'claim-1', claim_line_id: 'line-1', source_kind: 'timesheet_entry', source_id: 'entry-1', units: 8 },
-        { id: 'source-row-2', claim_id: 'claim-1', claim_line_id: 'line-1', source_kind: 'timesheet_entry', source_id: 'entry-2', units: 4 },
-        { id: 'source-row-3', claim_id: 'claim-1', claim_line_id: 'line-1', source_kind: 'timesheet_entry', source_id: 'entry-3', units: 20 },
-        { id: 'source-row-4', claim_id: 'claim-1', claim_line_id: 'line-2', source_kind: 'timesheet_entry', source_id: 'entry-4', units: 1 },
+      data: { signoffCurrent: true, rows: [
+        { id: 'source-row-1', entry_id: 'entry-1', entry_date: '2026-11-01', person_id: 'u-engineer', person_name: 'Engineer One', units: 8, unit: 'hour', line_label: 'Site engineer', is_selected: true, person_unit_total: 32 },
+        { id: 'source-row-2', entry_id: 'entry-2', entry_date: '2026-11-02', person_id: 'u-engineer', person_name: 'Engineer One', units: 4, unit: 'hour', line_label: 'Site engineer', is_selected: true, person_unit_total: 32 },
+        { id: 'source-row-3', entry_id: 'entry-3', entry_date: '2026-11-03', person_id: 'u-engineer', person_name: 'Engineer One', units: 20, unit: 'hour', line_label: 'Site engineer', is_selected: true, person_unit_total: 32 },
+        { id: 'source-row-4', entry_id: 'entry-4', entry_date: '2026-11-04', person_id: 'u-other', person_name: 'Engineer Two', units: 1, unit: 'hour', line_label: 'Electrician', is_selected: true, person_unit_total: 1 },
       ], truncated: false, totalCount: 4 },
     };
 
     const { user } = renderPanel();
     await user.click(screen.getByRole('button', { name: /Open claim/ }));
     const sources = screen.getByRole('region', { name: /Approved source entries/ });
-    const displayedHours = within(sources).getAllByText(/^\d+ hours?$/)
-      .reduce((sum, element) => sum + Number(element.textContent?.match(/^\d+/)?.[0] ?? 0), 0);
+    const displayedHours = within(sources).getAllByText(/Nov \d+, 2026 · \d+ hours?/)
+      .reduce((sum, element) => sum + Number(element.textContent?.match(/· (\d+)/)?.[1] ?? 0), 0);
 
     expect(displayedHours).toBe(33);
   });
@@ -289,13 +298,17 @@ describe('TimeAndMaterials', () => {
   it('AC-TM-016 names the visible and total source counts when the source read is capped', async () => {
     h.sources = {
       ...h.sources,
-      data: { rows: Array.from({ length: 200 }, (_, index) => ({
+      data: { signoffCurrent: true, rows: Array.from({ length: 200 }, (_, index) => ({
         id: `source-row-${index}`,
-        claim_id: 'claim-1',
-        claim_line_id: 'line-1',
-        source_kind: 'timesheet_entry',
-        source_id: `entry-${index}`,
+        entry_id: `entry-${index}`,
+        entry_date: '2026-11-03',
+        person_id: 'u-engineer',
+        person_name: 'Engineer One',
         units: 1,
+        unit: 'hour',
+        line_label: 'Site engineer',
+        is_selected: true,
+        person_unit_total: 237,
       })), truncated: true, totalCount: 237 },
     };
 
@@ -351,7 +364,11 @@ describe('TimeAndMaterials', () => {
         <MemoryRouter><ToastProvider><main><TimeAndMaterials projectId="p1" projectManagerId="u-pm" currency="IDR" onCreateInvoice={createInvoice} canCreateInvoice={() => true} /></main></ToastProvider></MemoryRouter>
       </I18nextProvider>,
     );
-    await user.click(await screen.findByRole('button', { name: /Confirm sign-off/ }));
+    const claims = await screen.findByRole('region', { name: /Time-and-materials claims/ });
+    expect(within(claims).queryByRole('button', { name: /Confirm sign-off/ })).not.toBeInTheDocument();
+    await user.click(within(claims).getByRole('button', { name: /Open claim/ }));
+    const claimDrawer = await screen.findByRole('dialog', { name: /Time-and-materials claim/ });
+    await user.click(within(claimDrawer).getByRole('button', { name: /Confirm sign-off/ }));
     const confirmDialog = screen.getByRole('dialog', { name: /Confirm client sign-off/ });
     await user.click(within(confirmDialog).getByRole('button', { name: /Confirm sign-off/ }));
     await waitFor(() => expect(h.mutations.confirm).toHaveBeenCalledWith('claim-1'));
@@ -443,13 +460,118 @@ describe('TimeAndMaterials', () => {
     expect(within(claims).queryByRole('button', { name: /Confirm sign-off/ })).not.toBeInTheDocument();
   });
 
-  it('keeps developer wording out of the claim detail', async () => {
+  it('shows each approved source by person and date, with subtotals that close to the claim units', async () => {
     const { user } = renderPanel();
     await user.click(await screen.findByRole('button', { name: /Open claim/ }));
     const drawer = await screen.findByRole('dialog', { name: /Time-and-materials claim/ });
     expect(drawer).not.toHaveTextContent(/frozen|rate version/i);
     expect(drawer).toHaveTextContent('Claim lines');
     expect(drawer).toHaveTextContent('8 hours');
+    expect(within(drawer).getByRole('heading', { name: 'Engineer One' })).toBeInTheDocument();
+    expect(within(drawer).getByRole('heading', { name: 'Engineer Two' })).toBeInTheDocument();
+    expect(within(drawer).getByText(/Nov 3, 2026/)).toBeInTheDocument();
+    expect(within(drawer).getAllByText(/Nov 4, 2026/)).toHaveLength(2);
+    expect(within(drawer).getByText('Subtotal · 6 hours')).toBeInTheDocument();
+    expect(within(drawer).getByText('Subtotal · 2 hours')).toBeInTheDocument();
+    expect(within(drawer).getAllByText('Site engineer')).toHaveLength(4);
+  });
+
+  it('lets a preparer remove one draft source only after confirming the removal', async () => {
+    const { user } = renderPanel();
+    await user.click(await screen.findByRole('button', { name: /Open claim/ }));
+    const drawer = await screen.findByRole('dialog', { name: /Time-and-materials claim/ });
+    const remove = within(drawer).getByRole('button', { name: /Remove 5 hours for Engineer One/ });
+    expect(remove).toHaveTextContent(/^Remove$/);
+    await user.click(remove);
+    const confirmation = screen.getByRole('alertdialog', { name: /Remove approved hours/ });
+    expect(h.mutations.deselect).not.toHaveBeenCalled();
+    expect(confirmation).toHaveTextContent('Nov 3, 2026');
+    await user.click(within(confirmation).getByRole('button', { name: /^Remove$/ }));
+    await waitFor(() => expect(h.mutations.deselect).toHaveBeenCalledWith({ claimId: 'claim-1', claimSourceId: 'source-row-1' }));
+  });
+
+  it('keeps the visible remove label inside its accessible name in Indonesian', async () => {
+    const { user } = renderPanel({}, 'id');
+    await user.click(await screen.findByRole('button', { name: /Buka klaim/ }));
+    const drawer = await screen.findByRole('dialog', { name: /Klaim waktu dan material/ });
+    const remove = within(drawer).getByRole('button', { name: /Hapus 5 jam/ });
+    expect(remove).toHaveTextContent(/^Hapus$/);
+  });
+
+  it('does not offer confirmation when the prepared sign-off no longer matches the claim', async () => {
+    h.claims = { ...h.claims, data: { rows: [{ ...claim, signoff_prepared_by: 'u-pm', document_id: 'doc-1' }], truncated: false } };
+    h.sources = { ...h.sources, data: { ...h.sources.data, signoffCurrent: false } };
+    const { user } = renderPanel();
+    await user.click(await screen.findByRole('button', { name: /Open claim/ }));
+    const drawer = await screen.findByRole('dialog', { name: /Time-and-materials claim/ });
+    expect(screen.queryByRole('button', { name: /Confirm sign-off/ })).not.toBeInTheDocument();
+    expect(within(drawer).getByText(/changed after the sign-off was prepared/i)).toBeInTheDocument();
+  });
+
+  it('allows the project manager to remove a draft source', async () => {
+    h.role = 'Project Manager';
+    h.effectiveRole = 'Project Manager';
+    h.userId = 'u-pm';
+    const { user } = renderPanel();
+    await user.click(await screen.findByRole('button', { name: /Open claim/ }));
+    const drawer = await screen.findByRole('dialog', { name: /Time-and-materials claim/ });
+    expect(within(drawer).getByRole('button', { name: /Remove 5 hours for Engineer One/ })).toBeInTheDocument();
+  });
+
+  it('shows a way to prepare the sign-off again after a draft source changes', async () => {
+    h.claims = { ...h.claims, data: { rows: [{ ...claim, signoff_prepared_by: 'u-pm', document_id: 'doc-1' }], truncated: false } };
+    const { user } = renderPanel();
+    await user.click(await screen.findByRole('button', { name: /Open claim/ }));
+    const drawer = await screen.findByRole('dialog', { name: /Time-and-materials claim/ });
+    await user.click(within(drawer).getByRole('button', { name: /Prepare sign-off again/ }));
+    const dialog = await screen.findByRole('dialog', { name: /Update client sign-off/ });
+    await user.selectOptions(within(dialog).getByLabelText(/Evidence document/), 'doc-1');
+    await user.click(within(dialog).getByRole('button', { name: /Prepare sign-off again/ }));
+    await waitFor(() => expect(h.mutations.prepare).toHaveBeenCalledWith({ claimId: 'claim-1', documentId: 'doc-1', note: null }));
+  });
+
+  it('keeps a released source visible without offering another deselect action', async () => {
+    const firstSource = h.sources.data.rows[0] as Record<string, unknown>;
+    h.sources = {
+      ...h.sources,
+      data: { ...h.sources.data, rows: [{ ...firstSource, is_selected: false, person_unit_total: 0 }], truncated: false, totalCount: 1 },
+    };
+    const { user } = renderPanel();
+    await user.click(await screen.findByRole('button', { name: /Open claim/ }));
+    const drawer = await screen.findByRole('dialog', { name: /Time-and-materials claim/ });
+    expect(within(drawer).getByText('Not selected')).toBeInTheDocument();
+    expect(within(drawer).queryByRole('button', { name: /Remove .* for Engineer One/ })).not.toBeInTheDocument();
+  });
+
+  it('explains released hours once on a withdrawn claim without a zero subtotal', async () => {
+    h.claims = { ...h.claims, data: { rows: [{ ...claim, status: 'Withdrawn' }], truncated: false } };
+    h.sources = {
+      ...h.sources,
+      data: { ...h.sources.data, rows: h.sources.data.rows.map((source) => ({ ...(source as Record<string, unknown>), is_selected: false, person_unit_total: 0 })) },
+    };
+    const { user } = renderPanel();
+    await user.click(await screen.findByRole('button', { name: /Open claim/ }));
+    const drawer = await screen.findByRole('dialog', { name: /Time-and-materials claim/ });
+    expect(within(drawer).getAllByText('Released when the claim was withdrawn')).toHaveLength(1);
+    expect(within(drawer).queryByText('Not selected')).not.toBeInTheDocument();
+    expect(within(drawer).queryByText('Subtotal · 0 hours')).not.toBeInTheDocument();
+    expect(within(drawer).getByText('Nov 3, 2026 · 5 hours')).toBeInTheDocument();
+  });
+
+  it('hides source removal after sign-off and while viewing through impersonation', async () => {
+    h.claims = { ...h.claims, data: { rows: [{ ...claim, status: 'SignedOff', signoff_prepared_by: 'u-pm', document_id: 'doc-1' }], truncated: false } };
+    const signedOff = renderPanel();
+    await signedOff.user.click(await screen.findByRole('button', { name: /Open claim/ }));
+    let drawer = await screen.findByRole('dialog', { name: /Time-and-materials claim/ });
+    expect(within(drawer).queryByRole('button', { name: /Remove .* for Engineer/ })).not.toBeInTheDocument();
+    signedOff.unmount();
+
+    h.claims = { ...h.claims, data: { rows: [claim], truncated: false } };
+    h.effectiveRole = 'Project Manager';
+    const impersonated = renderPanel();
+    await impersonated.user.click(await screen.findByRole('button', { name: /Open claim/ }));
+    drawer = await screen.findByRole('dialog', { name: /Time-and-materials claim/ });
+    expect(within(drawer).queryByRole('button', { name: /Remove .* for Engineer/ })).not.toBeInTheDocument();
   });
 
   it('defaults the assemble period to the local calendar date, not UTC', async () => {

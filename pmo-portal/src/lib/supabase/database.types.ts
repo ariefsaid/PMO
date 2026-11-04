@@ -13199,6 +13199,23 @@ export type Database = {
           source: string
         }[]
       }
+      list_tm_claim_source_details: {
+        Args: { p_claim: string }
+        Returns: {
+          entry_date: string | null
+          entry_id: string
+          id: string
+          is_selected: boolean
+          line_label: string
+          person_id: string | null
+          person_name: string | null
+          person_unit_total: number
+          signoff_is_current: boolean
+          total_count: number
+          unit: string
+          units: number
+        }[]
+      }
       list_tm_claims: {
         Args: { p_project: string }
         Returns: {

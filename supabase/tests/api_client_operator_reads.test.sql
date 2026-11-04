@@ -1,5 +1,5 @@
 begin;
-select plan(46);
+select plan(52);
 insert into organizations (id,name,default_currency) values ('03670000-0000-0000-0000-0000000000c0','API operator reads','IDR');
 insert into auth.users(id,email) values
 ('03670000-0000-0000-0000-0000000000c1','op-fin@example.com'),('03670000-0000-0000-0000-0000000000c2','op-eng@example.com'),
@@ -123,6 +123,19 @@ select pg_temp.req('03670000-0000-0000-0000-0000000000c7','POST','/rpc/link_m365
 select throws_ok($q$select public.link_m365_documents_batch('[{"procurement_id":"03670000-0000-0000-0000-0000000000f2","drive_id":"d1","item_id":"f3","web_url":"https://x.sharepoint.com/f","name":"F","kind":"file"}]'::jsonb,false)$q$,'22023','m365_not_configured','AC-OPR-005 an org with no SharePoint library configured is refused with m365_not_configured');
 select pg_temp.req('03670000-0000-0000-0000-0000000000c4','GET','/erp_gl_entry_mirror');
 select is((select count(*)::int from public.erp_gl_entry_mirror),0,'AC-OPR-006 a Project Manager token reads zero GL mirror rows (ledger stays Admin/Finance by RLS)');
+-- The latest stage-date tier and D1's source-detail read must coexist in the request guard.
+select pg_temp.req('03670000-0000-0000-0000-0000000000c6','POST','/rpc/redate_stage_entry');
+select lives_ok('select public.api_client_request_guard()','AC-OPR-007 active Admin passes the stage-date RPC arm');
+select pg_temp.req('03670000-0000-0000-0000-0000000000c6','GET','/project_stage_entries');
+select lives_ok('select public.api_client_request_guard()','AC-OPR-007 active Admin passes the stage-date table-read arm');
+select pg_temp.req('03670000-0000-0000-0000-0000000000c1','POST','/rpc/list_tm_claim_source_details');
+select lives_ok('select public.api_client_request_guard()','AC-OPR-007 active Finance passes the claim-source detail read arm');
+select pg_temp.req('03670000-0000-0000-0000-0000000000c1','POST','/rpc/redate_stage_entry');
+select throws_ok('select public.api_client_request_guard()','42501',null,'AC-OPR-007 Finance is outside the stage-date RPC arm');
+select pg_temp.req('03670000-0000-0000-0000-0000000000c1','GET','/project_stage_entries');
+select throws_ok('select public.api_client_request_guard()','42501',null,'AC-OPR-007 Finance is outside the stage-date table-read arm');
+select pg_temp.req('03670000-0000-0000-0000-0000000000c2','POST','/rpc/list_tm_claim_source_details');
+select throws_ok('select public.api_client_request_guard()','42501',null,'AC-OPR-007 Engineer is outside the claim-source detail read arm');
 reset role;
 select * from finish();
 rollback;

@@ -115,7 +115,7 @@ function guardList(name) {
 
 test('AC-TM-017 the CLI reads are exactly the database T&M read tier (latest api_client_request_guard)', () => {
   assert.deepEqual([...TM_READ_RPCS].sort(), guardList('tm_read_rpcs'));
-  assert.deepEqual([...TM_READ_RPCS].sort(), ['list_tm_claims', 'preview_tm_claim']);
+  assert.deepEqual([...TM_READ_RPCS].sort(), ['list_tm_claim_source_details', 'list_tm_claims', 'preview_tm_claim']);
 });
 
 test('AC-TM-017 tm claim preview sends preview_tm_claim with the project and window', async () => {
