@@ -49,40 +49,6 @@ test('AC-RAM-001: a RIS Admin goes from organization setup to a first project, o
   page,
 }) => {
   const name = `${NAME_PREFIX}${Date.now()}`;
-  // This journey verifies navigation and native project creation, not a live ERP round-trip.
-  // The seed organization has an active ERP binding, so stub the optional setup calls at the
-  // function boundary instead of waiting on an external service during the CRUD journey.
-  await page.route('**/functions/v1/external-set-company', async (route) => {
-    const corsHeaders = {
-      'access-control-allow-origin': '*',
-      'access-control-allow-headers': '*',
-      'access-control-allow-methods': 'POST, OPTIONS',
-    };
-    if (route.request().method() === 'OPTIONS') {
-      await route.fulfill({ status: 204, headers: corsHeaders });
-      return;
-    }
-
-    const { setupAction } = route.request().postDataJSON() as { setupAction?: string };
-    const payloadByAction: Record<string, unknown> = {
-      readiness: {
-        defaults: {},
-        domains: [],
-        unmappedProjects: [],
-        budgetMappedCategories: [],
-        unlinkedEmployeeCount: 0,
-      },
-      'connect-status': { run: null, census: [], waitingForSend: 0, proposalCounts: {} },
-      'list-proposals': { proposals: [], nextAfterId: null, counts: {} },
-      'ensure-project': { ok: true, erpProject: 'E2E-project' },
-    };
-    await route.fulfill({
-      status: 200,
-      headers: corsHeaders,
-      contentType: 'application/json',
-      body: JSON.stringify(payloadByAction[setupAction ?? ''] ?? {}),
-    });
-  });
   await page.setViewportSize({ width: 1280, height: 800 });
   await signIn(page, ADMIN);
 

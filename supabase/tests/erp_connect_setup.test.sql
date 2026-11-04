@@ -1,9 +1,10 @@
+set search_path = public, extensions;
 -- ECA-2 (#1605, migration 0480): census, match proposals and one-pass accept. Tier-keyed, shared by every ERP.
 -- AC-ECA-004 here is sequential in one session (two accepts, then a pre-written ref race); the concurrent claim rests on
 -- FOR UPDATE re-checking state='open' after the lock wait plus the external_refs reverse-unique claim (AC-ECA-004 traceability note).
 -- AC-ECA-004 (exactly-once apply), AC-ECA-007 (audited, undoable while unused), plus the role / tenancy / grant contract.
 begin;
-select plan(145);
+select plan(157);
 
 insert into organizations (id, name) values
  ('a4510000-0000-0000-0000-000000000001','Connect A'),
@@ -582,6 +583,90 @@ select throws_ok($$select * from public.search_connect_staged('erpnext','party',
 reset role;
 select is(has_function_privilege('anon', 'public.search_connect_staged(text,text,text,int)', 'execute'), false,
   'AC-ECA-018 staged search is not executable by anon');
+
+reset role;
+select set_config('eca2.a_proposal', (select id::text from erp_connect_proposals where identity='review-list-excluded'), true);
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"a4510000-0000-0000-0000-0000000000b1","role":"authenticated"}';
+select throws_ok($$select public.decide_connect_review(current_setting('eca2.a_proposal')::uuid, '{"action":"dismiss"}')$$,'P0002',null,'B cannot decide A proposal');
+select is(public.accept_connect_proposals('erpnext','party',array[current_setting('eca2.a_proposal')::uuid],500,array[current_setting('eca2.a_proposal')::uuid])->'counts','{}'::jsonb,'B cannot accept or exclude A proposal');
+select is(public.list_unlinkable_connect_matches(array[current_setting('eca2.a_proposal')::uuid]),'{}'::uuid[],'B cannot inspect A proposal');
+select is((select count(*)::int from public.search_connect_staged('erpnext','party','Alpha',20)),0,'B cannot search A staged row');
+select is(public.connect_proposal_counts('erpnext'),'{}'::jsonb,'B cannot count A proposals');
+set local request.jwt.claims = '{"sub":"a4510000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select is((select count(*)::int from public.search_connect_staged('erpnext','party','%_',100)),0,'wildcards escaped');
+select is((select count(*)::int from public.search_connect_staged('erpnext','party',''' OR true --',100)),0,'SQL injection is literal');
+
+
+reset role;
+insert into erp_connect_staged (run_id,org_id,kind,external_id,row)
+select 'a4510000-0000-0000-0000-0000000000e7','a4510000-0000-0000-0000-000000000001','party','BOUND-'||g,jsonb_build_object('name','Limit Test '||g) from generate_series(1,25) g;
+update profiles set status='disabled' where id='a4510000-0000-0000-0000-0000000000b1';
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"a4510000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select is((select count(*)::int from public.search_connect_staged('erpnext','party','Limit Test',1000)),20,'search caps results');
+set local request.jwt.claims = '{"sub":"a4510000-0000-0000-0000-0000000000b1","role":"authenticated"}';
+select throws_ok($$select * from public.search_connect_staged('erpnext','party','Alpha',20)$$,'42501',null,'inactive member denied search');
+select throws_ok($$select public.decide_connect_review(current_setting('eca2.a_proposal')::uuid,'{"action":"dismiss"}')$$,'42501',null,'inactive member denied decision');
+set local request.jwt.claims = '{"sub":"a4510000-0000-0000-0000-000000000099","role":"authenticated"}';
+select throws_ok($$select * from public.search_connect_staged('erpnext','party','Alpha',20)$$,'42501',null,'non-member denied search');
+
+reset role;
+set local role service_role;
+set local request.jwt.claims = '{"role":"service_role"}';
+update profiles set status = 'active' where id = 'a4510000-0000-0000-0000-0000000000b1';
+insert into erp_connect_runs (id, org_id, binding_id, external_tier, state, started_at, finished_at)
+select 'a4510000-0000-0000-0000-0000000000e9', org_id, binding_id, external_tier, 'ready',
+       started_at + interval '1 minute', started_at + interval '2 minutes'
+  from erp_connect_runs where id = 'a4510000-0000-0000-0000-0000000000e7';
+update external_org_bindings set status = 'disconnected'
+ where org_id = 'a4510000-0000-0000-0000-000000000002' and external_tier = 'erpnext';
+insert into erp_connect_runs (id, org_id, binding_id, external_tier, state, started_at, finished_at)
+select 'a4510000-0000-0000-0000-0000000000ea', b.org_id, b.id, b.external_tier, 'ready',
+       coalesce(max(r.started_at), now()) + interval '1 minute',
+       coalesce(max(r.started_at), now()) + interval '2 minutes'
+  from external_org_bindings b
+  left join erp_connect_runs r on r.org_id = b.org_id and r.binding_id = b.id and r.external_tier = b.external_tier
+ where b.org_id = 'a4510000-0000-0000-0000-000000000002' and b.external_tier = 'erpnext'
+ group by b.org_id, b.id, b.external_tier;
+insert into erp_connect_staged (run_id, org_id, kind, external_id, row) values
+ ('a4510000-0000-0000-0000-0000000000ea','a4510000-0000-0000-0000-000000000002','party','Supplier:INACTIVE','{"name":"Inactive binding row"}');
+insert into erp_connect_proposals (org_id, binding_id, external_tier, run_id, kind, outcome, identity, pmo_ids, external_ids, match_key, snapshot)
+select b.org_id, b.id, b.external_tier, 'a4510000-0000-0000-0000-0000000000ea', 'party', 'link', 'inactive-binding-review',
+       '{a4510000-0000-0000-0000-0000000000d9}', '{Supplier:INACTIVE}', 'name', '{"name":"Inactive binding row"}'
+  from external_org_bindings b
+ where b.org_id = 'a4510000-0000-0000-0000-000000000002' and b.external_tier = 'erpnext';
+reset role;
+set local role authenticated;
+select lives_ok($test$do $assert$
+declare v_count int;
+begin
+  perform set_config('request.jwt.claims', '{"sub":"a4510000-0000-0000-0000-0000000000a1","role":"authenticated"}', true);
+  select count(*) into v_count from public.search_connect_staged('erpnext','party','Alpha',20);
+  if v_count <> 0 then raise exception 'older-run staged record remained searchable' using errcode = 'XX000'; end if;
+  begin
+    perform public.decide_connect_review(
+      (select id from erp_connect_proposals where identity = 'review-list-wrong-kind'),
+      '{"action":"link","pmoId":"a4510000-0000-0000-0000-0000000000d6","externalId":"Supplier:MUTIARA"}'::jsonb);
+    raise exception 'older-run staged record remained linkable' using errcode = 'XX000';
+  exception when sqlstate '22023' then null;
+  end;
+
+  perform set_config('request.jwt.claims', '{"sub":"a4510000-0000-0000-0000-0000000000b1","role":"authenticated"}', true);
+  begin
+    perform * from public.search_connect_staged('erpnext','party','Inactive',20);
+    raise exception 'inactive-binding staged record remained searchable' using errcode = 'XX000';
+  exception when sqlstate 'P0001' then null;
+  end;
+  begin
+    perform public.decide_connect_review(
+      (select id from erp_connect_proposals where identity = 'inactive-binding-review'),
+      '{"action":"link","pmoId":"a4510000-0000-0000-0000-0000000000d9","externalId":"Supplier:INACTIVE"}'::jsonb);
+    raise exception 'inactive-binding staged record remained linkable' using errcode = 'XX000';
+  exception when sqlstate 'P0001' then null;
+  end;
+end
+$assert$;$test$, 'AC-ECA-018 staged search and non-candidate link reject older-run and inactive-binding records');
 
 select * from finish();
 rollback;
