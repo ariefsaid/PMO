@@ -10,13 +10,14 @@
 
 ### ⚑⚑⚑ CURRENT STATE (2026-10-19) — v0.22.0 is LIVE; run the four commands below before quoting any number
 
-**2026-11-04 — Odoo purchase-to-payment P9 (#1505):** the seven Odoo procurement workflow declarations
-are backed by the production adapter contract suite, and the vocabulary guard covers the Odoo model and
-field terms. The composite Odoo bed run covers order/revision, receipt, VAT/PPh bill, payment recovery and
-the different-Finance-user gate. A separate FR-072 bed case proves same-intent recovery through the shipped
-money outbox after a lost bill-post response and holds an edited anchor; it does not prove the AC-OPP-062
-sweep path. That sweep acceptance remains unmet: `odooSweep.ts` recovers revenue documents, while
-`erpnext-sweep` is ERPNext-specific. The acceptance browser journey passed both Chromium and serial projects;
+**2026-11-04 — Odoo purchase-to-payment P9 (#1505):** `purchase.link-existing`, `cutover.purchase`, and
+`cutover.activation` remain supported; `purchase.push`, `bill.push`, `vendor-payment.push`, and
+`purchase-order.revise` remain pending under #1505. The vocabulary guard covers the Odoo model and field
+terms. The composite Odoo bed run covers order/revision, receipt, VAT/PPh bill, payment recovery and the
+different-Finance-user gate. Receipt interruption is covered by `odooReceipt.bed.test.ts`; bill and payment
+interruption are covered by `odooPayment.bed.test.ts`, through adapter/recovery calls. The browser journey
+proves replay after a lost browser response. AC-OPP-062 sweep recovery remains unmet and blocks any release
+of Odoo procurement; an interrupted entry may await follow-up and delay finance processing. The acceptance browser journey passed both Chromium and serial projects;
 the shared-money-outbox behavior is already on `dev` from P6. The post-merge affected-e2e sweep selected
 22 of 194 specs: Chromium passed 53 with one dependency skip, and serial passed 14 with one dependency
 skip, with no failures. AC-PFE-021 now checks that the invoice remains on the project's purchase row and

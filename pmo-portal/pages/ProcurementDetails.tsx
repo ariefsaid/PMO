@@ -1358,9 +1358,7 @@ const ProcurementDetails: React.FC = () => {
           items={p.items}
           currency={p.currency}
           subcontractPoId={p.is_subcontract ? p.purchase_orders[0]?.id : undefined}
-          onStage={captureKind === 'goods_receipt' || captureKind === 'vendor_invoice'
-            ? (staged) => { setMutationError(null); setPendingConfirm(staged); }
-            : undefined}
+          onStage={(staged) => { setMutationError(null); setPendingConfirm(staged); }}
           onClose={() => setCaptureKind(null)}
         />
       </div>}

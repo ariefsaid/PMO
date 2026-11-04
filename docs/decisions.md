@@ -3636,11 +3636,12 @@ The owner signed `docs/specs/odoo-purchase-to-payment.spec.md` (#1505), `docs/sp
 
 ### DD-OPP-P9-OUTBOX — Odoo procurement money writes use the shared outbox (Director, 2026-11-04)
 The shipped `adapter-dispatch` selects `resolveOdooMoneyOutboxDeps` for Odoo, and P6 is on `dev` (#1781).
-The Odoo runbook therefore describes the shared outbox and same-intent retry recovery. The P9 bed case
-proves recovery after a lost bill-post response and holds an edited anchor; it does not prove the AC-OPP-062
-sweep path, which remains unmet (`odooSweep.ts` recovers revenue documents and `erpnext-sweep` is
-ERPNext-specific). This records implementation evidence only; the owner decides when the work is ready to
-release to `main`.
+The Odoo runbook describes the shared outbox and same-intent retry recovery. Interruption evidence is
+covered by the receipt bed (`odooReceipt.bed.test.ts`) and the bill/payment bed
+(`odooPayment.bed.test.ts`); these exercise adapter/recovery calls. The browser journey proves replay after
+a lost browser response. AC-OPP-062 sweep recovery remains unmet and blocks any release of Odoo procurement.
+An interrupted entry may await follow-up and delay finance processing. This records implementation evidence;
+the owner decides when the work is ready to release to `main`.
 
 ### OD-1530-COMMIT — PMO open commitment is the order total minus what is already paid (Director ruling, 2026-11-03)
 For an org without an active ERP binding (#1530), budget actuals are PMO paid purchases, so a purchase's open

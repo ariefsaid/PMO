@@ -42,7 +42,7 @@ export function odooAnchorKey(kind: PurchaseKind, record: Record<string, unknown
 const odooDatetime = (ms: number) => new Date(ms).toISOString().slice(0, 19).replace('T', ' ');
 
 /**
- * A payment's composite-probe inputs, persisted with the outbox row so the retry and the sweep probe identically (C-1): the vendor,
+ * A payment's composite-probe inputs, persisted with the outbox row so a retry can probe the same facts (C-1; sweep coverage is tracked under AC-OPP-062): the vendor,
  * the amount, the bill it pays (the conjunct that tells our payment from a look-alike) and the window the first attempt could have
  * created it in, bounded on both sides. DB reads only: a recovery must not depend on Odoo being reachable to know what to look for.
  */
@@ -66,7 +66,7 @@ async function orderCompositePayload(ctx: AdapterSelectContext): Promise<Record<
 
 /**
  * A bill's composite-probe inputs plus what its read-back is judged against (the figure PMO expected, the project's cost account),
- * persisted with the outbox row so a retry or the sweep probes and judges identically. A replay resolves nothing new (the document
+ * persisted with the outbox row so a retry can use the same facts (sweep coverage is tracked under AC-OPP-062). A replay resolves nothing new (the document
  * may already exist and today's mappings are not its concern): it takes the composite facts alone and the expectation from the
  * stored row.
  */

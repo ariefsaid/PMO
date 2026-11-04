@@ -25,7 +25,7 @@ function outsideTheOdooAdapter(models: readonly string[]): string[] {
 }
 
 describe('AC-ODC-083 Odoo model names stay below the adapter contract', () => {
-  it('appear in pmo-portal/src and pages only under adapterSeam/odoo/', () => {
+  it('AC-OPP-083 keeps procurement vocabulary in the Odoo adapter seam', () => {
     expect(outsideTheOdooAdapter(ODOO_VOCABULARY)).toEqual([]);
   });
 

@@ -6,6 +6,7 @@
 import { describe, expect, it } from 'vitest';
 import { SUITES } from '../contractSuite/index.ts';
 import { invoicePushSuite, receiptReadSuite } from '../contractSuite/revenue.suite.ts';
+import { purchaseOrderReviseSuite } from '../contractSuite/purchaseOrderRevise.suite.ts';
 import { TIER_HARNESSES } from '../contractSuite/tiers.ts';
 import { createOdooRevenueHarness } from './contract.harness.ts';
 import { checkCostAccount, moneyHeader } from './revenue/moneyHeader.ts';
@@ -19,6 +20,7 @@ const harness = TIER_HARNESSES.odoo;
 invoicePushSuite(harness);
 receiptReadSuite(harness);
 SUITES['invoice.pair-existing']!(harness);
+purchaseOrderReviseSuite(harness);
 
 describe('odoo contract', () => {
   it('declares itself as the odoo tier', () => {
@@ -39,9 +41,12 @@ describe('odoo contract', () => {
     await expect(harness.readActuals({ ledger: [], projectLinks: {} })).rejects.toThrow(/pending/);
   });
   it('AC-OPP-084 declares every proven P9 workflow at its shared suite version', async () => {
-    for (const id of ['purchase.push', 'bill.push', 'vendor-payment.push', 'purchase.link-existing', 'cutover.purchase', 'cutover.activation', 'purchase-order.revise'] as const) {
+    for (const id of ['purchase.link-existing', 'cutover.purchase', 'cutover.activation'] as const) {
       expect(ODOO_WORKFLOWS[id]).toEqual({ status: 'supported', version: 1 });
       expect(SUITES, id).toHaveProperty([id]);
+    }
+    for (const id of ['purchase.push', 'bill.push', 'vendor-payment.push', 'purchase-order.revise'] as const) {
+      expect(ODOO_WORKFLOWS[id]).toEqual({ status: 'pending', version: 1, issue: 1505 });
     }
     expect(await harness.pushPurchase('activated')).toMatchObject({ outcome: 'pushed' });
     expect(await harness.pushProcurement({ doc: 'bill', caller: 'A', procurement: 'B' })).toMatchObject({ outcome: 'refused', erpCalls: 0 });
@@ -55,9 +60,21 @@ describe('odoo contract', () => {
       { doc: 'vendor-payment', caller: 'A', procurement: 'A', invoice: 'A' },
     ] as const) {
       const result = await harness.pushProcurement(scenario);
-      expect(result.outcome).toBe('accepted');
+      expect(result.outcome, JSON.stringify(result)).toBe('accepted');
       expect(result.erpCalls).toBeGreaterThan(0);
     }
+  });
+
+  it('AC-OPP-084 exposes the production refusal contract for foreign procurement links', async () => {
+    const purchase = await harness.pushProcurement({ doc: 'purchase-order', caller: 'A', procurement: 'B' });
+    const bill = await harness.pushProcurement({ doc: 'bill', caller: 'A', procurement: 'B' });
+    const vendor = await harness.pushProcurement({ doc: 'purchase-order', caller: 'A', procurement: 'A', vendor: 'B' });
+    const payment = await harness.pushProcurement({ doc: 'vendor-payment', caller: 'A', procurement: 'A', invoice: 'B' });
+
+    expect(purchase).toMatchObject({ outcome: 'refused', code: 'commit-rejected', erpCalls: 0 });
+    expect(bill).toMatchObject({ outcome: 'refused', code: 'commit-rejected', erpCalls: 0 });
+    expect(vendor).toMatchObject({ outcome: 'refused', code: 'commit-rejected', erpCalls: 1 });
+    expect(payment).toMatchObject({ outcome: 'refused', code: 'commit-rejected', erpCalls: 1 });
   });
 
   it('keeps the revenue declarations pending while the harness runs the shared revenue suites (SD-2)', () => {

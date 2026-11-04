@@ -12,13 +12,13 @@ import { bindCall } from './client.ts';
 import { createOdooSetupAdapter, LIST_PAGE, type OdooConnectCtx } from './connectAdapter.ts';
 import { createFakeOdoo, type FakeOdoo } from './fakeOdoo.ts';
 import { createOdooProcurementAdapter, readOrderLines, type PaymentFacts } from './procurementAdapter.ts';
+import { productionProcurement, productionPurchase } from './contract.production.harness.ts';
 import type { BillCtx, BillInput } from './purchase/billBody.ts';
 import { parseOdooExternalRef } from './purchase/anchors.ts';
 import { PURCHASE_SPECS } from './purchase/feed.ts';
 import type { OrderCtx, OrderInput } from './purchase/orderBody.ts';
 import type { ReviseLine } from './purchase/orderRevise.ts';
 import { planReceipt } from './purchase/receiptBody.ts';
-import { procurementPreflight } from './purchase/preflight.ts';
 import { buildInvoiceBody } from './revenue/invoiceBody.ts';
 import { revenuePreflight } from './revenue/preflight.ts';
 import { buildReceiptBody } from './revenue/receiptBody.ts';
@@ -225,17 +225,7 @@ export function createOdooHarness(): ErpHarness {
 
     resolveProjectLink() { throw pending('project.match', 1504); },
     pushBudget() { return Promise.reject(pending('budget.unowned-occupant', 1507)); },
-    async pushPurchase(connection) {
-      const gate = procurementPreflight({ caller: 'A', activated: connection === 'activated' });
-      if (gate.outcome === 'refused') return { outcome: 'refused', code: gate.code, erpCalls: 0 };
-      const purchase = purchaseConnection();
-      try {
-        await purchase.pushOrder();
-        return { outcome: 'pushed', erpCalls: purchase.callCount() };
-      } catch (error) {
-        return { outcome: 'refused', ...commandFailure(error), erpCalls: purchase.callCount() };
-      }
-    },
+    pushPurchase: productionPurchase,
     async pushPurchaseStep(step, beforeCutover) {
       const purchase = purchaseConnection();
       const record = {
@@ -264,26 +254,11 @@ export function createOdooHarness(): ErpHarness {
         return { outcome: 'pushed', erpCalls: purchase.callCount() };
       } catch (error) {
         const failure = commandFailure(error);
-        return { outcome: 'refused', ...failure, code: failure.code === 'commit-rejected' && beforeCutover === 'unknown' ? 'config-rejected' : failure.code, erpCalls: purchase.callCount() };
+        return { outcome: 'refused', ...failure, erpCalls: purchase.callCount() };
       }
     },
     pushTimesheet() { return Promise.reject(pending('timesheet.push', 1510)); },
-    async pushProcurement(scenario) {
-      const gate = procurementPreflight(scenario);
-      if (gate.outcome === 'refused') return gate;
-      const purchase = purchaseConnection();
-      try {
-        if (scenario.doc === 'purchase-order') await purchase.pushOrder();
-        else if (scenario.doc === 'bill') await purchase.pushBill();
-        else if (scenario.doc === 'vendor-payment') {
-          const bill = await purchase.pushBill();
-          await purchase.pushPayment(bill.externalRecordId);
-        }
-        return { outcome: 'accepted', erpCalls: purchase.callCount() };
-      } catch (error) {
-        return { outcome: 'refused', ...commandFailure(error), erpCalls: purchase.callCount() };
-      }
-    },
+    pushProcurement: productionProcurement,
     async pushRevenue(s) {
       const result = revenuePreflight(s);
       return result.outcome === 'accepted' ? { outcome: 'accepted', erpCalls: 0 } : { outcome: 'refused', code: result.code, erpCalls: 0 };

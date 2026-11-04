@@ -13,13 +13,15 @@ const BED_DB = process.env.ODOO_BED_DB ?? '';
 const BED_KEY = process.env.ODOO_BED_KEY ?? '';
 const SERVICE_KEY = FUNCTIONS_URL && BED_URL ? (requireServiceRoleKey() ?? '') : '';
 const READY = Boolean(FUNCTIONS_URL && AUTH_URL && ANON_KEY && SERVICE_KEY && BED_URL && BED_DB && BED_KEY);
+const ODOO_CONFIGURATION = [BED_URL, BED_DB, BED_KEY];
+const PARTIAL_ODOO_CONFIGURATION = ODOO_CONFIGURATION.some(Boolean) && !ODOO_CONFIGURATION.every(Boolean);
 const directBedUrl = () => {
   const url = new URL(BED_URL);
   url.hostname = '127.0.0.1';
   return url.origin;
 };
 
-if ((FUNCTIONS_URL || BED_URL) && !READY) {
+if (PARTIAL_ODOO_CONFIGURATION) {
   throw new Error('AC-OPP-090: the served functions lane, local Odoo bed, and local Supabase test credentials must be available together.');
 }
 test.skip(!READY, 'AC-OPP-090 requires the served functions lane and the local Odoo bed.');
@@ -328,7 +330,7 @@ async function cleanupTenant(admin: SupabaseClient, tenant: Tenant | null): Prom
   if (failures.length) throw new Error(`AC-OPP-090 cleanup did not finish: ${failures.join('; ')}`);
 }
 
-test('AC-OPP-090: an approved purchase reaches Paid through Odoo with VAT, withholding, and same-intent recovery', async ({ page, browser }) => {
+test('AC-OPP-090: an approved purchase reaches Paid through Odoo with VAT, withholding, and replay after a lost browser response', async ({ page, browser }) => {
   const admin = createClient(AUTH_URL, SERVICE_KEY);
   const suffix = `${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
   const stamp = `AC-OPP-090-${suffix}`;
@@ -475,7 +477,7 @@ test('AC-OPP-090: an approved purchase reaches Paid through Odoo with VAT, withh
     expect(digits(await withheldShown.innerText())).toBe(String(WITHHELD));
     expect(digits(await netShown.innerText())).toBe(String(NET));
 
-    // A second Finance member signs in and pays the bill; the bill author cannot pay it.
+    // A second Finance member signs in and pays the bill.
     payerPage = await browser.newPage();
     await signIn(payerPage, activeTenant.emails[2]);
     await payerPage.goto(`/procurement/${activeTenant.procurementId}/files`);
@@ -502,7 +504,26 @@ test('AC-OPP-090: an approved purchase reaches Paid through Odoo with VAT, withh
     const paidBill = await fixture.call<Array<{ amount_residual: number }>>('account.move', 'read', { ids: [billId], fields: ['amount_residual'] });
     expect(paidBill[0].amount_residual).toBe(0);
 
-    await expect(payerPage.getByText('Paid', { exact: true }).first()).toBeVisible();
+    const [orders, receiptsIn, bills, outboundPayments] = await Promise.all([
+      fixture.call<Array<{ id: number }>>('purchase.order', 'search_read', {
+        domain: [['partner_id', '=', fixture.partnerId]], fields: ['id'],
+      }),
+      fixture.call<Array<{ id: number }>>('stock.picking', 'search_read', {
+        domain: [['partner_id', '=', fixture.partnerId], ['picking_type_code', '=', 'incoming']], fields: ['id'],
+      }),
+      fixture.call<Array<{ id: number }>>('account.move', 'search_read', {
+        domain: [['move_type', '=', 'in_invoice'], ['partner_id', '=', fixture.partnerId]], fields: ['id'],
+      }),
+      fixture.call<Array<{ id: number }>>('account.payment', 'search_read', {
+        domain: [['payment_type', '=', 'outbound'], ['partner_type', '=', 'supplier'], ['partner_id', '=', fixture.partnerId]], fields: ['id'],
+      }),
+    ]);
+    expect(orders).toHaveLength(1);
+    expect(receiptsIn).toHaveLength(1);
+    expect(bills).toHaveLength(1);
+    expect(outboundPayments).toHaveLength(1);
+
+    await expect(payerPage.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Paid');
     await expect(payerPage.getByTestId('vi-withholding-vat')).toContainText(/110[,.]000/);
     await expect(payerPage.getByTestId('vi-withholding-withheld')).toContainText(/20[,.]000/);
     await expect(payerPage.getByTestId('vi-withholding-net')).toContainText(/1[,.]090[,.]000/);
