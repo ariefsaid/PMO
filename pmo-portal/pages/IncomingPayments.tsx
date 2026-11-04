@@ -33,6 +33,7 @@ import { incomingPaymentStatusVariant, salesInvoiceStatusVariant } from '@/src/l
 import { useRevenueMode } from '@/src/hooks/useRevenueMode';
 import { useExternalDomainOwnership } from '@/src/hooks/useExternalDomainOwnership';
 import { useOdooUnreachable } from '@/src/hooks/useOdooPurchase';
+import { odooOwnsRevenueTier } from '@/src/lib/adapterSeam/odoo/ownership';
 import { invoiceNumber, receiptNumber } from '@/src/lib/revenue/nativeInvoice';
 import { useRecordContext } from '@/src/hooks/useRecordContext';
 import { nativeRevenueHeadlines } from '@/src/lib/revenue/nativeRevenueErrors';
@@ -65,7 +66,7 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
   // #784: undefined while ownership loads — the page waits rather than flash the wrong mode's copy and actions.
   const mode = useRevenueMode();
   const revenueOwnership = useExternalDomainOwnership().data ?? [];
-  const odoo = revenueOwnership.some((row) => row.domain === 'revenue' && row.externalTier === 'odoo');
+  const odoo = revenueOwnership.some((row) => row.domain === 'revenue' && odooOwnsRevenueTier(row.externalTier));
   const odooOffline = useOdooUnreachable(odoo).unreachable;
   const native = mode === 'native';
   const statusFilters = native ? NATIVE_STATUS_FILTERS : data?.some((p) => displayStatus(p) === 'Cancelled') ? [...ERP_STATUS_FILTERS, 'Cancelled' as const] : ERP_STATUS_FILTERS;

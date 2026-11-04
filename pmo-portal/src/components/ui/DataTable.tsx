@@ -1,5 +1,5 @@
 import React, { useContext, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { getCoreRowModel, useReactTable, type ColumnDef, type RowSelectionState, type Row as TableRow, type Updater } from '@tanstack/react-table';
+import { getCoreRowModel, useReactTable, type ColumnDef, type RowSelectionState, type Updater } from '@tanstack/react-table';
 import { useTranslation } from 'react-i18next';
 import { cn } from './cn';
 import { ListState } from './ListState';
@@ -15,6 +15,7 @@ import {
 } from './useTableColumnSizing';
 import { DataTableDesktop } from './DataTableDesktop';
 import { DataTableMobile } from './DataTableMobile';
+import type { GroupedRowEntry } from './DataTableShared';
 
 export { RowMenu, MenuButton, type RowMenuItem };
 export { Toolbar, SearchMini, type SearchMiniProps };
@@ -148,10 +149,6 @@ export interface DataTableProps<Row> {
   onOverflowChange?: (overflowing: boolean) => void;
 }
 
-export type GroupedRowEntry<Row> =
-  | { type: 'heading'; label: string; count: number; rows: TableRow<Row>[] }
-  | { type: 'data'; modelRow: TableRow<Row>; group: string | undefined };
-
 /** Whether `ref`'s width is below `below` px — measured before paint, then followed with a ResizeObserver. An unmeasured
  *  width (0, e.g. no layout) reads as wide, so the table stays the default. Switching branches never changes the width
  *  (the parent column decides it), so this cannot oscillate. */
@@ -249,6 +246,16 @@ export function DataTable<Row>({
   const wideViewport = useIsDesktop();
   const narrowTable = useNarrowerThan(rootRef, cardBelow);
   const isDesktop = wideViewport && !narrowTable;
+  // Overflow-lifecycle contract: whenever the branch decision is NOT desktop, report
+  // `onOverflowChange?.(false)` so the consumer's scroll mask (DataTableWidget's
+  // `data-table-widget-scroll-mask`) never stays painted over the mobile cards — at the
+  // initial mobile render and whenever the viewport leaves desktop. The desktop module
+  // owns the seam hook and unmounts on that transition, so this report lives at the
+  // owner level, which stays mounted across the switch and never fires on a whole-table
+  // unmount (identical to the pre-extraction component's disabled-branch report).
+  useLayoutEffect(() => {
+    if (!isDesktop) onOverflowChange?.(false);
+  }, [isDesktop, onOverflowChange]);
   const tableColumns = useMemo<ColumnDef<Row>[]>(() => columns.map((column) => {
     return {
       id: column.key,

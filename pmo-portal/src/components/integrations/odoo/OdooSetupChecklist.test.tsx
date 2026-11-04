@@ -6,7 +6,7 @@ const h = vi.hoisted(() => ({
   conn: { data: undefined as unknown }, owned: { data: [] as Array<{ externalTier: string; domain: string }> },
   proposal: { data: undefined as unknown }, save: vi.fn(), can: { setValue: true },
   accounts: { data: { rows: [{ external_id: '210', name: 'Advance Liability', code: '210', attrs: {} }, { external_id: '88', name: 'Tax Prepayments', code: '1350', attrs: {} }], total: 2 }, isError: false },
-  accountSummary: { data: { inactive: 0, tombstoned: 0, asOf: '2026-11-03T11:00:00Z' } },
+  accountSummary: { data: { inactive: 0, tombstoned: 0, asOf: new Date().toISOString() } },
 }));
 vi.mock('@/src/hooks/useOdoo', () => ({
   useOdooConnection: () => h.conn,

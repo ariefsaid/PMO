@@ -14,8 +14,9 @@ import type {
   Column,
   ColAlign,
   DataTableSelection,
-  GroupedRowEntry,
 } from './DataTable';
+import { PrimaryCell } from './DataTableShared';
+import type { GroupedRowEntry } from './DataTableShared';
 
 /** Sticky row-actions column (⋯). Chromium sticky-table-cell paint quirks, pinned empirically
  *  (2026-10-08 fix round, AC-TBL-STICKY-001):
@@ -41,14 +42,6 @@ function alignClass(align?: ColAlign) {
   if (align === 'num') return 'text-right';
   if (align === 'center') return 'text-center';
   return 'text-left';
-}
-
-function PrimaryCell({ title, titleText, secondary }: { title: React.ReactNode; titleText?: string; secondary?: React.ReactNode }) {
-  const accessibleTitle = titleText ?? (typeof title === 'string' ? title : undefined);
-  return <span className="block min-w-0">
-    <span title={accessibleTitle} className="block line-clamp-2 break-words font-semibold text-foreground">{title}</span>
-    {secondary != null && <span className="block truncate text-[12px] font-normal text-muted-foreground">{secondary}</span>}
-  </span>;
 }
 
 function useStickyRowMenuSeam(
@@ -178,6 +171,10 @@ export function DataTableDesktop<Row>({
   const colSpan = columns.length + (rowMenu ? 1 : 0) + (selection ? 1 : 0);
 
   return (
+    /* ── Desktop table branch (≥768px — only branch in the DOM; markup byte-unchanged) ── */
+    // `relative` makes this scroller the containing block for the absolutely-positioned
+    // `sr-only` "Actions" header (not sticky, so it is otherwise unpositioned) — without it the
+    // header escapes the clip and the whole page scrolls sideways (AC-TBL-OVERFLOW-001).
     <div
       ref={tableBranchRef}
       data-testid="dt-table-branch"

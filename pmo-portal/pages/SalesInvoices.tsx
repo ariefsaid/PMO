@@ -52,6 +52,7 @@ import { BulkBar } from '@/src/components/finance/receivables/BulkBar';
 import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
 import { isTaxTreatment } from '@/src/lib/taxTreatment';
 import { invoiceReceiptAwaitingOdoo } from '@/src/lib/adapterSeam/odoo/revenue/status';
+import { odooOwnsRevenueTier } from '@/src/lib/adapterSeam/odoo/ownership';
 import { useExternalDomainOwnership } from '@/src/hooks/useExternalDomainOwnership';
 import { useOdooRevenueCommandsForInvoices } from '@/src/hooks/useOdooRevenue';
 import { useOdooUnreachable } from '@/src/hooks/useOdooPurchase';
@@ -140,7 +141,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
   const { data, isPending, isError, refetch } = useSalesInvoices();
   const mode = useRevenueMode();
   const ownership = useExternalDomainOwnership().data ?? [];
-  const odoo = ownership.some((row) => row.domain === 'revenue' && row.externalTier === 'odoo');
+  const odoo = ownership.some((row) => row.domain === 'revenue' && odooOwnsRevenueTier(row.externalTier));
   const odooUnreachable = useOdooUnreachable(odoo).unreachable;
   const odooOffline = odoo && odooUnreachable;
   const odooCommands = useOdooRevenueCommandsForInvoices((data ?? []).map((invoice) => invoice.id), odoo);

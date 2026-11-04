@@ -1,9 +1,10 @@
+set search_path = public, extensions;
 -- ECA-2 (#1605, migration 0480): census, match proposals and one-pass accept. Tier-keyed, shared by every ERP.
 -- AC-ECA-004 here is sequential in one session (two accepts, then a pre-written ref race); the concurrent claim rests on
 -- FOR UPDATE re-checking state='open' after the lock wait plus the external_refs reverse-unique claim (AC-ECA-004 traceability note).
 -- AC-ECA-004 (exactly-once apply), AC-ECA-007 (audited, undoable while unused), plus the role / tenancy / grant contract.
 begin;
-select plan(124);
+select plan(161);
 
 insert into organizations (id, name) values
  ('a4510000-0000-0000-0000-000000000001','Connect A'),
@@ -56,6 +57,9 @@ select public.replace_connect_proposals('a4510000-0000-0000-0000-000000000001','
   {"outcome":"link","pmoIds":["a4510000-0000-0000-0000-0000000000c2"],"externalIds":["HR-EMP-404"],"key":"code","snapshot":{"code":"a451-u2@example.com"}}]'::jsonb, true);
 select public.replace_connect_proposals('a4510000-0000-0000-0000-000000000001','erpnext',current_setting('a451.run')::uuid,'account','[
   {"outcome":"link","pmoIds":["Labor"],"externalIds":["5100 - Labor"],"key":"code","snapshot":{"code":"Labor"}}]'::jsonb, true);
+insert into erp_connect_staged (run_id, org_id, kind, external_id, row) values
+ (current_setting('a451.run')::uuid, 'a4510000-0000-0000-0000-000000000001', 'employee', 'HR-EMP-N1',
+  '{"employeeName":"Person One","email":"a451-u1@example.com","active":true}'::jsonb);
 reset role;
 set local request.jwt.claims = '{}';
 
@@ -91,7 +95,7 @@ select throws_ok($$select count(*) from erp_connect_staged$$, '42501', null, 'AC
 select throws_ok($$delete from erp_connect_census$$, '42501', null, 'AC-ECA-007 even an Admin cannot delete census rows');
 reset role;
 select is(has_function_privilege('anon', f, 'execute'), false, 'AC-ECA-007 ' || f || ' is not executable by anon')
-  from unnest(array['public.accept_connect_proposals(text,text,uuid[],int)','public.decide_connect_review(uuid,jsonb)','public.unlink_connect_match(uuid)',
+  from unnest(array['public.accept_connect_proposals(text,text,uuid[],int,uuid[])','public.decide_connect_review(uuid,jsonb)','public.unlink_connect_match(uuid)',
     'public.start_connect_run(uuid,text,uuid)','public.write_connect_census(uuid,text,jsonb)','public.replace_connect_proposals(uuid,text,uuid,text,jsonb,boolean)',
     'public.apply_connect_outcome(uuid,text,text,text,text,text,jsonb)']) f;
 select is(has_function_privilege('authenticated', f, 'execute'), false, 'AC-ECA-007 ' || f || ' is service-role only')
@@ -288,8 +292,14 @@ insert into companies (id, org_id, name, type) values ('a4510000-0000-0000-0000-
 insert into erp_connect_proposals (org_id, binding_id, external_tier, kind, outcome, identity, pmo_ids, external_ids, state, match_key) values
  ('a4510000-0000-0000-0000-000000000001',(select id from external_org_bindings where org_id='a4510000-0000-0000-0000-000000000001'),'erpnext','party','link','gone',
   '{a4510000-0000-0000-0000-0000000000d3}','{Supplier:GONE}','applied','tax');
+insert into external_refs (org_id, domain, pmo_record_id, external_tier, external_record_id) values
+ ('a4510000-0000-0000-0000-000000000001','companies','a4510000-0000-0000-0000-0000000000d3','erpnext','Supplier:GONE');
+delete from external_refs where org_id='a4510000-0000-0000-0000-000000000001' and domain='companies'
+  and pmo_record_id='a4510000-0000-0000-0000-0000000000d3' and external_record_id='Supplier:GONE';
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"a4510000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select is(public.list_unlinkable_connect_matches(array[(select id from erp_connect_proposals where identity='gone')]), array[]::uuid[],
+  'AC-ECA-019 Undo is unavailable after the current link has disappeared');
 select throws_ok($$select public.unlink_connect_match((select id from erp_connect_proposals where identity='gone'))$$, 'P0001', 'nothing to unlink',
   'an unlink whose link is already gone raises instead of reporting success');
 reset role;
@@ -423,6 +433,8 @@ select throws_ok($$select public.replace_connect_proposals('a4510000-0000-0000-0
 -- Minor 10: all five kinds proposed while a send is still waiting: the proposals are ready, the run is not complete.
 update erp_connect_runs set started_at = started_at - interval '1 hour' where id in (current_setting('a451.f1')::uuid, current_setting('a451.f2')::uuid);   -- one transaction: give the latest run a distinct start
 select set_config('a451.f3', public.start_connect_run('a4510000-0000-0000-0000-000000000001','erpnext',null)::text, true);
+select public.stage_connect_master_page('a4510000-0000-0000-0000-000000000001', current_setting('a451.f3')::uuid, 'party',
+  '[{"kind":"party","externalId":"Supplier:KEEP","name":"Latest Snapshot","active":true}]'::jsonb, null);
 insert into erp_connect_runs (id, org_id, binding_id, external_tier, state, started_at, finished_at) values
  ('a4510000-0000-0000-0000-0000000000e5','a4510000-0000-0000-0000-000000000001',(select id from external_org_bindings where org_id='a4510000-0000-0000-0000-000000000001'),'erpnext','ready','2026-01-01 00:00+00','2026-01-02 00:00+00'),
  ('a4510000-0000-0000-0000-0000000000e6','a4510000-0000-0000-0000-000000000001',(select id from external_org_bindings where org_id='a4510000-0000-0000-0000-000000000001'),'erpnext','ready','2026-01-03 00:00+00',null);
@@ -432,6 +444,8 @@ select public.replace_connect_proposals('a4510000-0000-0000-0000-000000000001','
   from unnest(array['party','item','project','employee','account']) k;
 select is((select state || ':' || (finished_at is null)::text from erp_connect_runs where id = current_setting('a451.f3')::uuid), 'ready:true',
   'Minor 10 a run with sends waiting is ready but not complete');
+select is((select count(*)::int from erp_connect_staged where run_id = current_setting('a451.f3')::uuid), 1,
+  'AC-ECA-018 the latest complete staged snapshot remains searchable');
 update erp_connect_proposals set state = 'applied' where identity = 'send|["p-wait"]|[]';
 select public.settle_connect_run('a4510000-0000-0000-0000-000000000001', 'erpnext');
 select is((select finished_at is not null from erp_connect_runs where id = current_setting('a451.f3')::uuid), true,
@@ -466,6 +480,8 @@ select is((select count(*)::int from erp_connect_proposals where org_id = 'a4510
 select is((select count(*)::int from erp_connect_census where org_id = 'a4510000-0000-0000-0000-000000000001'), 0, 'I1 a disconnect removes the census');
 select is((select state || ':' || error_class || ':' || (finished_at is not null)::text from erp_connect_runs where id = current_setting('a451.r1')::uuid), 'failed:disconnected:true', 'I1 a disconnect ends the open run');
 select is((select count(*)::int from erp_connect_staged where run_id = current_setting('a451.r1')::uuid), 0, 'I1 a disconnect drops the old site''s staged pages');
+select is((select count(*)::int from erp_connect_staged where run_id = current_setting('a451.f3')::uuid), 0,
+  'AC-ECA-018 a disconnect also clears the completed run''s staged search snapshot');
 select is((select state from erp_connect_proposals where identity = 'send|["p-wait"]|[]'), 'applied', 'I1 applied history survives a disconnect');
 set local role service_role;
 set local request.jwt.claims = '{"role":"service_role"}';
@@ -481,6 +497,201 @@ select is((has_function_privilege('authenticated', 'public.fail_connect_run(uuid
         or has_function_privilege('anon', 'public.settle_connect_run(uuid,text)', 'execute')), false, 'Minor 8/10 the new writers are not client-callable');
 select is((has_function_privilege('service_role', 'public.fail_connect_run(uuid,uuid,text,boolean)', 'execute')
        and has_function_privilege('service_role', 'public.settle_connect_run(uuid,text)', 'execute')), true, 'Minor 8/10 the new writers are service-role callable');
+
+-- ECA-2 review list: exclusion-based bulk accept and a same-kind staged-record picker.
+set local role service_role;
+set local request.jwt.claims = '{"role":"service_role"}';
+insert into companies (id, org_id, name, type) values
+ ('a4510000-0000-0000-0000-0000000000d5','a4510000-0000-0000-0000-000000000001','Review One','Vendor'),
+ ('a4510000-0000-0000-0000-0000000000d6','a4510000-0000-0000-0000-000000000001','Review Two','Vendor');
+insert into external_org_bindings (org_id, external_tier, site_url, secret_ref, status, config, activated_at) values
+ ('a4510000-0000-0000-0000-000000000002','erpnext','https://b-erp.example.test','a451_b','active','{}',now());
+insert into erp_connect_runs (id, org_id, binding_id, external_tier, state, started_at, finished_at) values
+ ('a4510000-0000-0000-0000-0000000000e7','a4510000-0000-0000-0000-000000000001',
+   (select id from external_org_bindings where org_id='a4510000-0000-0000-0000-000000000001'),'erpnext','ready',now(),now()),
+ ('a4510000-0000-0000-0000-0000000000e8','a4510000-0000-0000-0000-000000000002',
+   (select id from external_org_bindings where org_id='a4510000-0000-0000-0000-000000000002'),'erpnext','ready',now(),now());
+update erp_connect_runs set started_at = now() + interval '1 second' where id in
+  ('a4510000-0000-0000-0000-0000000000e7','a4510000-0000-0000-0000-0000000000e8');
+insert into erp_connect_staged (run_id, org_id, kind, external_id, row) values
+ ('a4510000-0000-0000-0000-0000000000e7','a4510000-0000-0000-0000-000000000001','party','Supplier:ALT','{"name":"Alpha Partner","code":"ALT","role":"vendor"}'),
+ ('a4510000-0000-0000-0000-0000000000e7','a4510000-0000-0000-0000-000000000001','party','Supplier:MUTIARA','{"name":"PT Mutiara Engineering","taxId":"02.123.456"}'),
+ ('a4510000-0000-0000-0000-0000000000e7','a4510000-0000-0000-0000-000000000001','party','Supplier:TAKEN','{"name":"Already linked","code":"TAKEN","role":"vendor"}'),
+ ('a4510000-0000-0000-0000-0000000000e7','a4510000-0000-0000-0000-000000000001','item','Item:WRONG','{"name":"Wrong kind","code":"WRONG"}'),
+ -- Deliberately mismatched ownership under A's run: mutations that remove the explicit org filter must leak this row.
+ ('a4510000-0000-0000-0000-0000000000e7','a4510000-0000-0000-0000-000000000002','party','Supplier:B','{"name":"Beta only","code":"B","role":"vendor"}');
+insert into erp_connect_proposals (org_id, binding_id, external_tier, run_id, kind, outcome, identity, pmo_ids, external_ids, match_key, snapshot) values
+ ('a4510000-0000-0000-0000-000000000001',(select id from external_org_bindings where org_id='a4510000-0000-0000-0000-000000000001'),'erpnext','a4510000-0000-0000-0000-0000000000e7','party','link','review-list-change','{a4510000-0000-0000-0000-0000000000d5}','{Supplier:OLD}','name','{"name":"Old candidate"}'),
+ ('a4510000-0000-0000-0000-000000000001',(select id from external_org_bindings where org_id='a4510000-0000-0000-0000-000000000001'),'erpnext','a4510000-0000-0000-0000-0000000000e7','party','link','review-list-wrong-kind','{a4510000-0000-0000-0000-0000000000d6}','{Supplier:OLD}','name','{}'),
+ ('a4510000-0000-0000-0000-000000000001',(select id from external_org_bindings where org_id='a4510000-0000-0000-0000-000000000001'),'erpnext','a4510000-0000-0000-0000-0000000000e7','party','link','review-list-wrong-org','{a4510000-0000-0000-0000-0000000000d6}','{Supplier:OLD}','name','{}'),
+ ('a4510000-0000-0000-0000-000000000001',(select id from external_org_bindings where org_id='a4510000-0000-0000-0000-000000000001'),'erpnext','a4510000-0000-0000-0000-0000000000e7','party','link','review-list-already-linked','{a4510000-0000-0000-0000-0000000000d6}','{Supplier:OLD}','name','{}'),
+ ('a4510000-0000-0000-0000-000000000001',(select id from external_org_bindings where org_id='a4510000-0000-0000-0000-000000000001'),'erpnext','a4510000-0000-0000-0000-0000000000e7','party','send','review-list-excluded','{p-excluded}','{}',null,'{}'),
+ ('a4510000-0000-0000-0000-000000000001',(select id from external_org_bindings where org_id='a4510000-0000-0000-0000-000000000001'),'erpnext','a4510000-0000-0000-0000-0000000000e7','party','send','review-list-included','{p-included}','{}',null,'{}');
+select set_config('a451.review_list_wrong_kind_id',
+  (select id::text from erp_connect_proposals where identity='review-list-wrong-kind'), true);
+reset role;
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"a4510000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select set_config('a451.review_accept', public.accept_connect_proposals('erpnext','party',
+  array[(select id from erp_connect_proposals where identity='review-list-included'),
+       (select id from erp_connect_proposals where identity='review-list-excluded')], 500,
+  array[(select id from erp_connect_proposals where identity='review-list-excluded')])::text, true);
+reset role;
+select is(current_setting('a451.review_accept')::jsonb #>> '{counts,party,send}', '1', 'AC-ECA-016 accept excludes only the unticked rows');
+select is((select state from erp_connect_proposals where identity='review-list-included'), 'sending', 'AC-ECA-016 a selected send is queued');
+select is((select state from erp_connect_proposals where identity='review-list-excluded'), 'open', 'AC-ECA-016 an excluded row stays open');
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"a4510000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select lives_ok($$select public.decide_connect_review((select id from erp_connect_proposals where identity='review-list-change'),
+  '{"action":"link","pmoId":"a4510000-0000-0000-0000-0000000000d5","externalId":"Supplier:ALT"}')$$,
+  'AC-ECA-017 a suggestion can link to a staged same-kind record outside its original candidates');
+reset role;
+select is((select external_record_id from external_refs where pmo_record_id='a4510000-0000-0000-0000-0000000000d5'), 'Supplier:ALT',
+  'AC-ECA-017 the selected staged record becomes the PMO link');
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"a4510000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select throws_ok($$select public.decide_connect_review(current_setting('a451.review_list_wrong_kind_id')::uuid,
+  '{"action":"link","pmoId":"a4510000-0000-0000-0000-0000000000d6","externalId":"Item:WRONG"}')$$,
+  '22023', 'That record is not available for this kind', 'AC-ECA-017 a staged row of another kind cannot be linked');
+select throws_ok($$select public.decide_connect_review((select id from erp_connect_proposals where identity='review-list-wrong-org'),
+  '{"action":"link","pmoId":"a4510000-0000-0000-0000-0000000000d6","externalId":"Supplier:B"}')$$,
+  '22023', 'That record is not available for this kind', 'AC-ECA-017 another organisation''s staged row cannot be linked');
+select throws_ok($$select public.decide_connect_review((select id from erp_connect_proposals where identity='review-list-already-linked'),
+  '{"action":"link","pmoId":"a4510000-0000-0000-0000-0000000000d6","externalId":"Supplier:ALT"}')$$,
+  'P0001', 'This record is already linked to another ERP record', 'AC-ECA-017 a target already linked to another PMO row gets a plain refusal');
+select results_eq($$select external_id from public.search_connect_staged('erpnext','party','Alpha',20)$$,
+  $$values ('Supplier:ALT'::text)$$, 'AC-ECA-018 search returns only a matching staged record from this organisation and kind');
+select results_eq($$select external_id from public.search_connect_staged('erpnext','party','ALT',20)$$,
+  $$values ('Supplier:ALT'::text)$$, 'AC-ECA-018 search also matches a staged record code');
+select results_eq($$select name, code from public.search_connect_staged('erpnext','party','Mutiara',20)$$,
+  $$values ('PT Mutiara Engineering'::text, '02.123.456'::text)$$, 'FR-ECA-018 a search result shows the tax id when no code is available');
+select results_eq($$select external_id from public.search_connect_staged('erpnext','party','02.123.456',20)$$,
+  $$values ('Supplier:MUTIARA'::text)$$, 'FR-ECA-018 a staged record can be found by its tax id');
+select results_eq($$select external_id from public.search_connect_staged('erpnext','party','Beta',20)$$,
+  $$select null::text where false$$, 'AC-ECA-018 search never returns another organisation''s staged record');
+select results_eq($$select external_id from public.search_connect_staged('erpnext','party','Wrong kind',20)$$,
+  $$select null::text where false$$, 'AC-ECA-018 search never returns a record of another kind');
+set local request.jwt.claims = '{"sub":"a4510000-0000-0000-0000-0000000000f1","role":"authenticated"}';
+select throws_ok($$select public.decide_connect_review(current_setting('a451.review_list_wrong_kind_id')::uuid,
+  '{"action":"link","pmoId":"a4510000-0000-0000-0000-0000000000d6","externalId":"Item:WRONG"}')$$,
+  '42501', null, 'AC-ECA-007 Finance cannot change a non-account row');
+select throws_ok($$select * from public.search_connect_staged('erpnext','party','Alpha',20)$$,
+  '42501', null, 'AC-ECA-018 Finance cannot search a non-account kind');
+set local request.jwt.claims = '{"sub":"a4510000-0000-0000-0000-0000000000e1","role":"authenticated"}';
+select throws_ok($$select * from public.search_connect_staged('erpnext','party','Alpha',20)$$,
+  '42501', null, 'AC-ECA-018 a non-admin cannot search staged records');
+reset role;
+select is(has_function_privilege('anon', 'public.search_connect_staged(text,text,text,int)', 'execute'), false,
+  'AC-ECA-018 staged search is not executable by anon');
+
+reset role;
+select set_config('eca2.a_proposal', (select id::text from erp_connect_proposals where identity='review-list-excluded'), true);
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"a4510000-0000-0000-0000-0000000000b1","role":"authenticated"}';
+select throws_ok($$select public.decide_connect_review(current_setting('eca2.a_proposal')::uuid, '{"action":"dismiss"}')$$,'P0002',null,'B cannot decide A proposal');
+select is(public.accept_connect_proposals('erpnext','party',array[current_setting('eca2.a_proposal')::uuid],500,array[current_setting('eca2.a_proposal')::uuid])->'counts','{}'::jsonb,'B cannot accept or exclude A proposal');
+select is(public.list_unlinkable_connect_matches(array[current_setting('eca2.a_proposal')::uuid]),'{}'::uuid[],'B cannot inspect A proposal');
+select is((select count(*)::int from public.search_connect_staged('erpnext','party','Alpha',20)),0,'B cannot search A staged row');
+select is(public.connect_proposal_counts('erpnext'),'{}'::jsonb,'B cannot count A proposals');
+set local request.jwt.claims = '{"sub":"a4510000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select is((select count(*)::int from public.search_connect_staged('erpnext','party','%_',100)),0,'wildcards escaped');
+select is((select count(*)::int from public.search_connect_staged('erpnext','party',''' OR true --',100)),0,'SQL injection is literal');
+
+
+reset role;
+insert into erp_connect_staged (run_id,org_id,kind,external_id,row)
+select 'a4510000-0000-0000-0000-0000000000e7','a4510000-0000-0000-0000-000000000001','party','BOUND-'||g,jsonb_build_object('name','Limit Test '||g) from generate_series(1,25) g;
+update profiles set status='disabled' where id='a4510000-0000-0000-0000-0000000000b1';
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"a4510000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select is((select count(*)::int from public.search_connect_staged('erpnext','party','Limit Test',1000)),20,'search caps results');
+set local request.jwt.claims = '{"sub":"a4510000-0000-0000-0000-0000000000b1","role":"authenticated"}';
+select throws_ok($$select * from public.search_connect_staged('erpnext','party','Alpha',20)$$,'42501',null,'inactive member denied search');
+select throws_ok($$select public.decide_connect_review(current_setting('eca2.a_proposal')::uuid,'{"action":"dismiss"}')$$,'42501',null,'inactive member denied decision');
+set local request.jwt.claims = '{"sub":"a4510000-0000-0000-0000-000000000099","role":"authenticated"}';
+select throws_ok($$select * from public.search_connect_staged('erpnext','party','Alpha',20)$$,'42501',null,'non-member denied search');
+
+reset role;
+set local role service_role;
+set local request.jwt.claims = '{"role":"service_role"}';
+update profiles set status = 'active' where id = 'a4510000-0000-0000-0000-0000000000b1';
+insert into erp_connect_runs (id, org_id, binding_id, external_tier, state, started_at, finished_at)
+select 'a4510000-0000-0000-0000-0000000000e9', org_id, binding_id, external_tier, 'ready',
+       started_at + interval '1 minute', started_at + interval '2 minutes'
+  from erp_connect_runs where id = 'a4510000-0000-0000-0000-0000000000e7';
+update external_org_bindings set status = 'disconnected'
+ where org_id = 'a4510000-0000-0000-0000-000000000002' and external_tier = 'erpnext';
+insert into erp_connect_runs (id, org_id, binding_id, external_tier, state, started_at, finished_at)
+select 'a4510000-0000-0000-0000-0000000000ea', b.org_id, b.id, b.external_tier, 'ready',
+       coalesce(max(r.started_at), now()) + interval '1 minute',
+       coalesce(max(r.started_at), now()) + interval '2 minutes'
+  from external_org_bindings b
+  left join erp_connect_runs r on r.org_id = b.org_id and r.binding_id = b.id and r.external_tier = b.external_tier
+ where b.org_id = 'a4510000-0000-0000-0000-000000000002' and b.external_tier = 'erpnext'
+ group by b.org_id, b.id, b.external_tier;
+insert into erp_connect_staged (run_id, org_id, kind, external_id, row) values
+ ('a4510000-0000-0000-0000-0000000000ea','a4510000-0000-0000-0000-000000000002','party','Supplier:INACTIVE','{"name":"Inactive binding row"}');
+insert into erp_connect_proposals (org_id, binding_id, external_tier, run_id, kind, outcome, identity, pmo_ids, external_ids, match_key, snapshot)
+select b.org_id, b.id, b.external_tier, 'a4510000-0000-0000-0000-0000000000ea', 'party', 'link', 'inactive-binding-review',
+       '{a4510000-0000-0000-0000-0000000000d9}', '{Supplier:INACTIVE}', 'name', '{"name":"Inactive binding row"}'
+  from external_org_bindings b
+ where b.org_id = 'a4510000-0000-0000-0000-000000000002' and b.external_tier = 'erpnext';
+reset role;
+set local role authenticated;
+select lives_ok($test$do $assert$
+declare v_count int;
+begin
+  perform set_config('request.jwt.claims', '{"sub":"a4510000-0000-0000-0000-0000000000a1","role":"authenticated"}', true);
+  select count(*) into v_count from public.search_connect_staged('erpnext','party','Alpha',20);
+  if v_count <> 0 then raise exception 'older-run staged record remained searchable' using errcode = 'XX000'; end if;
+  begin
+    perform public.decide_connect_review(
+      (select id from erp_connect_proposals where identity = 'review-list-wrong-kind'),
+      '{"action":"link","pmoId":"a4510000-0000-0000-0000-0000000000d6","externalId":"Supplier:MUTIARA"}'::jsonb);
+    raise exception 'older-run staged record remained linkable' using errcode = 'XX000';
+  exception when sqlstate '22023' then null;
+  end;
+
+  perform set_config('request.jwt.claims', '{"sub":"a4510000-0000-0000-0000-0000000000b1","role":"authenticated"}', true);
+  begin
+    perform * from public.search_connect_staged('erpnext','party','Inactive',20);
+    raise exception 'inactive-binding staged record remained searchable' using errcode = 'XX000';
+  exception when sqlstate 'P0001' then null;
+  end;
+  begin
+    perform public.decide_connect_review(
+      (select id from erp_connect_proposals where identity = 'inactive-binding-review'),
+      '{"action":"link","pmoId":"a4510000-0000-0000-0000-0000000000d9","externalId":"Supplier:INACTIVE"}'::jsonb);
+    raise exception 'inactive-binding staged record remained linkable' using errcode = 'XX000';
+  exception when sqlstate 'P0001' then null;
+  end;
+end
+$assert$;$test$, 'AC-ECA-018 staged search and non-candidate link reject older-run and inactive-binding records');
+
+-- AC-ECA-017: a feed review without staged rows can still be decided using one of its candidates.
+reset role;
+set local role service_role;
+set local request.jwt.claims = '{"role":"service_role"}';
+select public.record_connect_review('a4510000-0000-0000-0000-000000000001','erpnext','party',
+  array['a4510000-0000-0000-0000-0000000000d6'], array['Supplier:FROM-FEED'], 'ambiguous', 'The feed could not distinguish this company.');
+reset role;
+select is((select count(*)::int from erp_connect_staged where org_id='a4510000-0000-0000-0000-000000000001'
+            and kind='party' and external_id='Supplier:FROM-FEED'), 0,
+  'AC-ECA-017 a record_connect_review candidate has no staged row');
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"a4510000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select lives_ok($$select public.decide_connect_review(
+  (select id from erp_connect_proposals where org_id='a4510000-0000-0000-0000-000000000001' and external_tier='erpnext'
+    and kind='party' and outcome='review' and pmo_ids='{a4510000-0000-0000-0000-0000000000d6}' and external_ids='{Supplier:FROM-FEED}'),
+  '{"action":"link","pmoId":"a4510000-0000-0000-0000-0000000000d6","externalId":"Supplier:FROM-FEED"}'::jsonb)$$,
+  'AC-ECA-017 an Admin links a record_connect_review candidate without a staged row');
+select is((select external_record_id from external_refs where org_id='a4510000-0000-0000-0000-000000000001'
+            and domain='companies' and pmo_record_id='a4510000-0000-0000-0000-0000000000d6'), 'Supplier:FROM-FEED',
+  'AC-ECA-017 the candidate becomes the company link');
+select is((select state || '/' || outcome || '/' || snapshot::text from erp_connect_proposals where org_id='a4510000-0000-0000-0000-000000000001'
+            and external_tier='erpnext' and kind='party' and pmo_ids='{a4510000-0000-0000-0000-0000000000d6}'
+            and external_ids='{Supplier:FROM-FEED}'), 'applied/link/{}',
+  'AC-ECA-017 deciding the candidate preserves the review row snapshot');
 
 select * from finish();
 rollback;

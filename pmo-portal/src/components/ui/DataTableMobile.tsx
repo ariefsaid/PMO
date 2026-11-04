@@ -6,8 +6,9 @@ import { RowMenu, type RowMenuItem } from './RowMenu';
 import type {
   Column,
   DataTableSelection,
-  GroupedRowEntry,
 } from './DataTable';
+import { PrimaryCell } from './DataTableShared';
+import type { GroupedRowEntry } from './DataTableShared';
 
 /**
  * Strips responsive-hide classes (e.g. "hidden xl:table-cell") from colClassName
@@ -28,14 +29,6 @@ function stripHiddenClasses(colClassName?: string): string {
       return !cls.startsWith('hidden') && !cls.endsWith(':hidden');
     })
     .join(' ');
-}
-
-function PrimaryCell({ title, titleText, secondary }: { title: React.ReactNode; titleText?: string; secondary?: React.ReactNode }) {
-  const accessibleTitle = titleText ?? (typeof title === 'string' ? title : undefined);
-  return <span className="block min-w-0">
-    <span title={accessibleTitle} className="block line-clamp-2 break-words font-semibold text-foreground">{title}</span>
-    {secondary != null && <span className="block truncate text-[12px] font-normal text-muted-foreground">{secondary}</span>}
-  </span>;
 }
 
 export interface DataTableMobileProps<Row> {
@@ -92,6 +85,22 @@ export function DataTableMobile<Row>({
   const { t } = useTranslation('projects');
 
   return (
+    /* ── Mobile card branch (<768px — only branch in the DOM) ─────────────
+     * OD-W4-4 / AC-IXD-MOBILE-W4-C1: stacked record-card list.
+     * Card anatomy (DESIGN.md tokens):
+     *   - Container: bg-card, border, rounded-md (8px), p-4 (16px), gap-2 (8px) between cards
+     *   - Title row: first column = activation <button> (rowLabel accessible name)
+     *   - Field rows: <dl> grid — <dt> = column header (overline/label voice), <dd> = cell value
+     *   - Numeric columns: tabular + text-right on <dd>
+     *   - rowMenu ⋯: top-right corner of the card, .touch-target
+     * Sorting is a desktop-density affordance — not reproduced on cards (sort headers not shown).
+     * All columns render in the card (no hidden data) regardless of colClassName responsive-hide.
+     *
+     * AT scoping: at <768px this card branch is the ONLY structure rendered, so it
+     * is fully AT-readable. No aria-hidden is needed (or wanted — it would hide the
+     * sole row data from a mobile screen-reader user); the table branch simply isn't
+     * in the DOM at this viewport.
+     */
     <ul
       data-testid="dt-card-branch"
       data-dt-cards=""
