@@ -219,11 +219,10 @@ export const appRouteConfig: RouteObject[] = [
   { path: '/contacts', element: gated('crm', <ContactsPage />) },
   // CW-4b: /contacts/:id — the routable Contact record page (retires the drawer-as-record).
   { path: '/contacts/:contactId', element: gated('crm', <ContactDetailPage />) },
-  // Incidents is hidden behind the interim `incidents` UI feature flag (UI-hide-first):
-  //   FeatureRoute renders the page when enabled, else redirects deep-links to home instead of
-  //   404. CW-4a: /incidents/:id is the routable detail page when the module is on.
-  { path: '/incidents', element: <FeatureRoute feature="incidents" element={<IncidentsPage />} /> },
-  { path: '/incidents/:incidentId', element: <FeatureRoute feature="incidents" element={<IncidentDetailPage />} /> },
+  // Incidents is hidden when its org switch is off; preserve AC-ENT-005's home redirect for
+  // deep-links while other entitlement routes explain their unavailable state in place.
+  { path: '/incidents', element: <FeatureRoute feature="incidents" element={<IncidentsPage />} disabledRedirectTo="/" /> },
+  { path: '/incidents/:incidentId', element: <FeatureRoute feature="incidents" element={<IncidentDetailPage />} disabledRedirectTo="/" /> },
   // B-1 (AC-W2-IXD-001/002): My Tasks — IC-scoped own-assigned cross-project task list.
   { path: '/my-tasks', element: <MyTasksPage /> },
   // #526: Meetings — minuted meetings with attendees, action items and view-only shares.

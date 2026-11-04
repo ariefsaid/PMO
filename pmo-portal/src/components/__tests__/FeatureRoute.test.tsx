@@ -35,14 +35,18 @@ import { FeatureRoute } from '../FeatureRoute';
 const Home = () => <div data-testid="home">Home</div>;
 const Guarded = () => <div data-testid="guarded">INCIDENTS</div>;
 
-const renderAt = (path: string, feature: 'incidents' | 'projects' = 'incidents') =>
+const renderAt = (
+  path: string,
+  feature: 'incidents' | 'projects' = 'incidents',
+  disabledRedirectTo?: string,
+) =>
   render(
     <MemoryRouter initialEntries={[path]}>
       <Routes>
         <Route path="/" element={<Home />} />
         <Route
           path="/guarded"
-          element={<FeatureRoute feature={feature} element={feature === 'incidents' ? <Guarded /> : <div data-testid="guarded-projects">PROJECTS</div>} />}
+          element={<FeatureRoute feature={feature} element={feature === 'incidents' ? <Guarded /> : <div data-testid="guarded-projects">PROJECTS</div>} disabledRedirectTo={disabledRedirectTo} />}
         />
       </Routes>
     </MemoryRouter>,
@@ -64,6 +68,12 @@ describe('AC-PLN-008 — FeatureRoute states', () => {
     expect(screen.queryByTestId('guarded')).toBeNull();
     // The old behaviour redirected to `/`; the route now stays put and explains itself.
     expect(screen.queryByTestId('home')).toBeNull();
+  });
+
+  it('AC-ENT-005: a disabled incidents deep-link redirects home when configured', () => {
+    renderAt('/guarded', 'incidents', '/');
+    expect(screen.getByTestId('home')).toBeInTheDocument();
+    expect(screen.queryByTestId('feature-unavailable')).toBeNull();
   });
 
   it('AC-PLN-008: resolved ON renders the page', () => {

@@ -35,8 +35,8 @@ test.setTimeout(120_000);
 /** The Incidents rail nav link (text "Incidents"). */
 const incidentsRail = (page: Page) => page.getByRole('link', { name: /^incidents$/i });
 
-/** The Incidents `role="switch"` toggle in the Features section (aria-label="Incidents"). */
-const incidentsSwitch = (page: Page) => page.getByRole('switch', { name: /^incidents$/i });
+/** The S3 console's Incidents per-organisation override switch. */
+const incidentsSwitch = (page: Page) => page.getByRole('switch', { name: /^incidents: override for this organisation$/i });
 
 test(
   'AC-ENT-005: the Operator disables incidents — an org member loses the rail item + /incidents redirects to /, then re-enabling restores both (goal oracle: disable = hide, never destroy)',
