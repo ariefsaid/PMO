@@ -105,6 +105,7 @@
     {"table":"payment_files","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
     {"table":"payments","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
     {"table":"pipeline_stage_config","has_org":true,"pk":"org_id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
+    {"table":"pipeline_stage_config_0591_backup","has_org":true,"pk":"org_id","columns":"*","b_read":"none","by_id":"applicable"},
     {"table":"plan_features","has_org":false,"pk":"plan_id","columns":"*","b_read":"none","by_id":"n/a: no org_id; blind read covers the declared B visibility"},
     {"table":"plans","has_org":false,"pk":"id","columns":"*","b_read":"none","by_id":"n/a: no org_id; blind read covers the declared B visibility"},
     {"table":"platform_operators","has_org":false,"pk":"user_id","columns":"*","b_read":"none","by_id":"n/a: no org_id; blind read covers the declared B visibility"},

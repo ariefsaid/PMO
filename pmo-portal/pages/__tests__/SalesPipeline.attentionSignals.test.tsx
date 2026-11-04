@@ -268,7 +268,7 @@ describe('AC-IXD-PIPE-W5-C5 — Pipeline table attention signals (N14)', () => {
     expect(ownerHeader.textContent?.trim()).toBeTruthy();
   });
 
-  it('AC-W6-H8: win-probability bar uses neutral primary tone, never destructive at high win %', async () => {
+  it('AC-W6-H8: % Go bar uses neutral primary tone, never destructive at high Go %', async () => {
     // A deal with 92% win probability — "higher = good". The bar must NOT render red (destructive).
     pipelineState.data = {
       stages: [],
@@ -287,7 +287,7 @@ describe('AC-IXD-PIPE-W5-C5 — Pipeline table attention signals (N14)', () => {
     };
     renderPage();
     await userEvent.click(screen.getByRole('tab', { name: /Table/i }));
-    const winBar = screen.getByRole('progressbar', { name: /win probability 92%/i });
+    const winBar = screen.getByRole('progressbar', { name: /% Go 92%/i });
     const fill = winBar.querySelector('[data-testid="progress-fill"]')!;
     expect(fill).toHaveClass('bg-primary');
     expect(fill).not.toHaveClass('bg-destructive');

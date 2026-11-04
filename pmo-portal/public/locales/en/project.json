@@ -336,7 +336,7 @@
     "pipeline": {
       "currentStage": "Current stage",
       "readOnlyShort": "Project manager manages this pipeline.",
-      "moreAboutDeal": "More about this deal",
+      "moreAboutDeal": "More project details",
       "statLoading": "Loading…",
       "statUnavailable": "Unavailable",
       "retry": "Retry",

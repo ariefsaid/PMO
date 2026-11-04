@@ -83,10 +83,12 @@ export function useSalesPipeline(opts?: { enabled?: boolean }) {
 
 /** Keep terminal rows aligned with the pipeline RPC projection when they come from the project DAL. */
 function toPipelineProject(row: ProjectWithRefs, winProbability: number): PipelineProject {
-  const isWon = row.status === 'Won, Pending KoM';
+  // Once a won opportunity enters delivery, its stage is still an on-hand won outcome.
+  // Its legacy stage default is irrelevant; keep the pipeline projection at 100% Go/Get.
+  const isWon = ON_HAND_STATUSES.includes(row.status);
   const isLost = row.status === 'Loss Tender' || row.status === 'Declined';
   const goProbability = isWon || isLost ? 1 : winProbability;
-  const getProbability = row.get_probability ?? (isWon ? 1 : isLost ? 0 : 0.25);
+  const getProbability = isWon ? 1 : row.get_probability ?? (isLost ? 0 : 0.25);
   return {
     service_line: row.service_line,
     sector: row.sector,

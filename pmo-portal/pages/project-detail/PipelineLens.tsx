@@ -46,7 +46,7 @@ import { synchronizeErpProject } from '@/src/lib/repositories/projectErpSetup';
 // two languages on one screen. Belongs with the cross-cutting status-vocabulary decision.
 const NEXT_PIPELINE_LABEL: Record<string, string> = {
   Leads: 'Quotation',
-  'Quotation Submitted': 'Pre-Qual',
+  'Quotation Submitted': 'Pre-Qualification',
   'PQ Submitted': 'Tender',
   'Tender Submitted': 'Negotiation',
 };
@@ -430,7 +430,7 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState }) =
 
       <details ref={detailsRef} open={isDesktop || detailsOpen} onToggle={(event) => setDetailsOpen(event.currentTarget.open)} className="min-w-0">
         <summary className="mb-4 cursor-pointer text-sm font-semibold text-foreground md:hidden">
-          {t('projectDetail.pipeline.moreAboutDeal', 'More about this deal')}
+          {t('projectDetail.pipeline.moreAboutDeal', 'More project details')}
         </summary>
         {showDetails && <>
           {stats.length > 0 && (
