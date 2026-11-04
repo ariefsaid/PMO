@@ -489,7 +489,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
     // When `onStage` is provided we stage the parsed fields for the page's
     // ConfirmDialog INSTEAD of creating directly — no toast, no `onCreate`, no
     // `onClose` (the page closes the form once the staged write commits).
-    if (onStage) {
+    if (onStage && (kind === 'goods_receipt' || kind === 'vendor_invoice')) {
       const refNum = referenceNumber.trim() || null;
       if (kind === 'goods_receipt') {
         const parsedQty = odooReceipt ? parseReceiptQuantities(items, receiptQty) : { lines: [] as ReceiptLine[] };

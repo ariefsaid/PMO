@@ -3634,8 +3634,17 @@ say so. Proven in `supabase/tests/equipment_actual_cost.test.sql` (one row per h
 ## OD-SIGN-20261102 — three EPC-route specs signed with their defaults (owner 2026-11-02)
 The owner signed `docs/specs/odoo-purchase-to-payment.spec.md` (#1505), `docs/specs/odoo-client-invoices.spec.md` (#1506) and `docs/specs/time-and-materials-claims.spec.md` (#1514), accepting every owner-decision default as written. This includes #1506's default that retention (holding part of a claim and releasing it later) stays out of scope; it remains tracked separately (#1572). Builds follow each spec's plan; money slices ship alone.
 
+### DD-OPP-P9-OUTBOX — Odoo procurement money writes use the shared outbox (Director, 2026-11-04)
+The shipped `adapter-dispatch` selects `resolveOdooMoneyOutboxDeps` for Odoo, and P6 is on `dev` (#1781).
+The Odoo runbook describes the shared outbox and same-intent retry recovery. Interruption evidence is
+covered by the receipt bed (`odooReceipt.bed.test.ts`) and the bill/payment bed
+(`odooPayment.bed.test.ts`); these exercise adapter/recovery calls. The browser journey proves replay after
+a lost browser response. AC-OPP-062 sweep recovery remains unmet and blocks any release of Odoo procurement.
+An interrupted entry may await follow-up and delay finance processing. This records implementation evidence;
+the owner decides when the work is ready to release to `main`.
+
 ## OD-OCI-C9-20261104 — honest #1506 workflow claims (implementation evidence)
-The Odoo adapter declares `invoice.push`, `receipt.read`, `invoice.pair-existing`, and `cutover.activation` supported only at the versions exercised by the shared contract suites. `cutover.revenue` stays pending on #1602 until its shared suite exists. C7 tax-document review remains on owner hold: `tax-document.read` stays pending on #1506; do not claim that Odoo-held tax-document facts are available until that review closes. The recorded receipt journal must be a bank or cash journal with an inbound payment method. Client-withheld tax requires a company-currency current-asset or prepayment account configured in the Odoo setup checklist. Odoo money writes use the revenue outbox; this evidence does not make a release-readiness claim.
+The Odoo adapter declares `invoice.push` supported at the version exercised by its shared contract suite. `receipt.read` and `invoice.pair-existing` remain pending on #1506; `cutover.revenue` stays pending on #1602 until its shared suite exists. C7 tax-document review remains on owner hold: `tax-document.read` stays pending on #1506; do not claim that Odoo-held tax-document facts are available until that review closes. `cutover.activation` is covered by the P9 production resolver contract. The recorded receipt journal must be a bank or cash journal with an inbound payment method. Client-withheld tax requires a company-currency current-asset or prepayment account configured in the Odoo setup checklist. Odoo money writes use the revenue outbox; this evidence does not make a release-readiness claim.
 
 Verification after the final dev merge (#1872): adapter-seam and Odoo integration unit suites passed (212 files, 3,031 tests); the C9 bed composite passed 2/2 tests; the served AC-OCI-100 journey passed 1/1 Chromium spec with 10/10 auth setup checks. Changed-line coverage was 50/54 (92.6%), and the post-merge affected-e2e gate found no additional supported UI paths to run.
 

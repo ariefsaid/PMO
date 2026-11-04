@@ -7,8 +7,11 @@ import { describe, expect, it } from 'vitest';
 const PORTAL = new URL('../../../../', import.meta.url).pathname;
 const ODOO_VOCABULARY = [
   'res.partner', 'res.company', 'product.product', 'product.template', 'uom.uom', 'stock.warehouse', 'stock.location',
-  'account.account', 'account.tax', 'account.analytic.account', 'account.analytic.plan', 'purchase.order', 'account.move',
-  'account.move.line', 'account.payment', 'account.payment.register', 'account.journal', 'l10n_id_efaktur_coretax.document',
+  'account.account', 'account.tax', 'account.analytic.account', 'account.analytic.plan', 'purchase.order', 'purchase.order.line',
+  'stock.picking', 'stock.move', 'stock.backorder.confirmation', 'account.move', 'account.move.line', 'account.payment',
+  'account.payment.register', 'account.journal', 'l10n_id_efaktur_coretax.document',
+  'amount_untaxed', 'amount_tax', 'amount_residual', 'invoice_origin', 'picking_type_code', 'purchase_line_id',
+  'reconciled_bill_ids', 'outbound_payment_method_line_ids',
   'move_type', 'invoice_line_ids', 'invoice_date_due', 'payment_state', 'reversed_entry_id',
   'analytic_distribution', 'payment_method_line_id', 'inbound_payment_method_line_id', 'l10n_id_kode_transaksi', 'l10n_id_coretax_efaktur_available',
   'l10n_id_coretax_document', 'l10n_id_add_info_07', 'l10n_id_add_info_08', 'l10n_id_facility_info_07',
@@ -29,7 +32,7 @@ function outsideTheOdooAdapter(vocabulary: readonly string[], paths = ['src', 'p
 }
 
 describe('AC-ODC-083 Odoo model names stay below the adapter contract', () => {
-  it('appear in pmo-portal/src and pages only under adapterSeam/odoo/', () => {
+  it('AC-OPP-083 keeps Odoo vocabulary in the adapter seam', () => {
     expect(outsideTheOdooAdapter(ODOO_VOCABULARY)).toEqual([]);
   });
 
