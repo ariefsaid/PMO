@@ -1,5 +1,6 @@
 /** Revenue repository implementation: native vs externally-owned routing, SoD-ordered transitions, ERP invoice PDF. */
 import { salesInvoiceCreateFields } from '@/src/lib/adapterSeam/erpnext/salesInvoiceCommand';
+import { odooOwnsRevenueTier } from '@/src/lib/adapterSeam/odoo/ownership';
 import { AppError } from '@/src/lib/appError';
 import { supabase } from '@/src/lib/supabase/client';
 import { invokeWithTimeout } from '@/src/lib/supabase/invokeWithTimeout';
@@ -94,7 +95,7 @@ export const revenueRepository: RevenueRepository = {
           const si = await getSalesInvoice(siId);
           if (!si) throw new AppError('sales invoice not found', 'not-found');
           if (si?.pmo_native) throw nativeReadOnly();
-          if (!si.si_number && domainTier('revenue') !== 'odoo') throw new AppError('sales invoice not found or missing si_number', 'not-found');
+          if (!si.si_number && !odooOwnsRevenueTier(domainTier('revenue') ?? undefined)) throw new AppError('sales invoice not found or missing si_number', 'not-found');
           await submitSalesInvoiceSod(siId);   // SoD: server-enforced approver≠author (42501 on self-approval) BEFORE any ERP submit
           await dispatchDomainCommand(
             'revenue',

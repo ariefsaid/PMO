@@ -143,7 +143,7 @@ export function budgetToBody(rec: PmoRecord, ctx: ErpCtx): unknown {
   return body;
 }
 
-interface BudgetRangeYearAmount extends YearAmount {}
+type BudgetRangeYearAmount = YearAmount;
 
 function v16RangeBody(rec: PmoRecord, ctx: ErpCtx): Record<string, unknown> {
   const record = rec as Record<string, unknown>;
