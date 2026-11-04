@@ -202,6 +202,9 @@
     },
     "noProgressNote": "Belum ada progres tercatat, jadi pendapatan yang diperoleh mengikuti nilai yang sudah ditagih.",
     "backlogUnknownNote": "Sisa nilai kontrak tidak ditampilkan jika faktur mata uang asing perlu direkonsiliasi sebelum saldonya dapat diketahui.",
-    "reviewInvoices": "Tinjau faktur"
+    "reviewInvoices": "Tinjau faktur",
+    "invoiceCountsUnavailable": "Jumlah faktur tidak tersedia",
+    "invoiceCountsLoading": "Memuat jumlah faktur",
+    "retryInvoiceCounts": "Coba lagi jumlah faktur"
   }
 }
