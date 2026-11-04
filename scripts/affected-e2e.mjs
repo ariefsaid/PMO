@@ -61,8 +61,8 @@ function closure(start) {
 }
 function routeMatches(pattern, value) {
   const p = pattern.split('/').filter(Boolean), v = value.split('/').filter(Boolean);
-  if (p.length !== v.length) return false;
-  return p.every((part, i) => part.startsWith(':') || part === '*' || part === v[i]);
+  const common = Math.min(p.length, v.length);
+  return p.slice(0, common).every((part, i) => part.startsWith(':') || part === '*' || v[i].startsWith(':') || part === v[i]);
 }
 function routeForLink(label, routes) {
   const normalized = label.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
@@ -77,16 +77,57 @@ function specs() {
     .filter(name => name.endsWith('.spec.ts') && !/AC-CON-(003|012)-|AC-VISUAL-CHECKBOX-001-/.test(name))
     .map(name => path.join(app, 'e2e', name));
 }
+function specFiles(file, seen = new Set()) {
+  if (seen.has(file)) return seen;
+  seen.add(file);
+  for (const ref of imports(file)) {
+    if (ref.startsWith(path.join(app, 'e2e') + path.sep)) specFiles(ref, seen);
+  }
+  return seen;
+}
+function literalText(node, constants = new Map()) {
+  if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) return node.text;
+  if (ts.isTemplateExpression(node)) return node.head.text + node.templateSpans.map(span => span.literal.text).join('');
+  if (ts.isParenthesizedExpression(node)) return literalText(node.expression, constants);
+  if (ts.isIdentifier(node)) return constants.has(node.text) ? constants.get(node.text) : '';
+  if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.PlusToken) return literalText(node.left, constants) + literalText(node.right, constants);
+  return '';
+}
 function specRoutes(file, routes) {
-  const text = fs.readFileSync(file, 'utf8'), visited = [];
-  for (const match of text.matchAll(/\.goto\(\s*([`'"])(.*?)\1/g)) {
-    const raw = match[2].replace(/\$\{[^}]*\}/g, 'fixture');
-    try { visited.push(new URL(raw, 'http://local').pathname); } catch {}
+  const visited = [], files = specFiles(file);
+  for (const sourceFile of files) {
+    const ast = source(sourceFile);
+    const constants = new Map();
+    walk(ast, n => {
+      if (ts.isVariableDeclaration(n) && ts.isIdentifier(n.name) && n.initializer) {
+        const value = literalText(n.initializer, constants);
+        if (value) constants.set(n.name.text, value);
+      }
+    });
+    walk(ast, n => {
+      if (ts.isCallExpression(n) && ts.isPropertyAccessExpression(n.expression)) {
+        const method = n.expression.name.text;
+        if (method === 'goto' && n.arguments[0]) {
+          const raw = literalText(n.arguments[0], constants);
+          try { if (raw) visited.push(new URL(raw.replace(/\$\{[^}]*\}/g, 'fixture'), 'http://local').pathname); } catch {}
+        }
+        if (method === 'getByRole' && n.arguments.length > 1 && ts.isObjectLiteralExpression(n.arguments[1])) {
+          const name = n.arguments[1].properties.find(p => ts.isPropertyAssignment(p) && p.name.getText(ast) === 'name');
+          const role = literalText(n.arguments[0], constants);
+          if (name && ts.isPropertyAssignment(name) && ['link', 'button'].includes(role)) visited.push(...routeForLink(literalText(name.initializer, constants) || name.initializer.getText(ast).replace(/^\/(.*)\/[a-z]*$/i, '$1').replaceAll('\\s+', ' '), routes));
+        }
+      }
+      if (ts.isPropertyAssignment(n) && n.name.getText(ast) === 'path') {
+        const raw = literalText(n.initializer, constants);
+        if (raw.startsWith('/')) visited.push(raw);
+      }
+      // Conservatively recognize route constants and helper navigation literals anywhere in the imported helper graph.
+      if (ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n)) {
+        const raw = n.text;
+        if (raw.startsWith('/')) { try { visited.push(new URL(raw, 'http://local').pathname); } catch {} }
+      }
+    });
   }
-  for (const match of text.matchAll(/getByRole\(\s*['"]link['"]\s*,\s*\{\s*name\s*:\s*(?:\/([^/]+)\/i|['"]([^'"]+)['"])/g)) {
-    const label = match[1]?.replaceAll('\\s+', ' ') ?? match[2]; visited.push(...routeForLink(label, routes));
-  }
-  for (const match of text.matchAll(/path\s*:\s*['"]([^'"]+)['"]/g)) visited.push(match[1]);
   return [...new Set(visited)];
 }
 function select(changed, routeData, allSpecs) {
@@ -105,27 +146,30 @@ function select(changed, routeData, allSpecs) {
   }).sort();
 }
 function selfTest() {
-  const routes = [
-    { path: '/companies', roots: [path.join(app, 'pages/Companies.tsx')] },
-    { path: '/projects', roots: [path.join(app, 'pages/Projects.tsx')] },
+  const allSpecs = specs(), routeData = appRoutes();
+  const companies = select(['pmo-portal/pages/Companies.tsx'], routeData, allSpecs).map(f => path.relative(app, f));
+  const expected = [
+    'e2e/AC-IMP-011-bulk-import-journey.spec.ts', 'e2e/AC-CO-001-companies-crud.spec.ts',
+    'e2e/AC-LRC-006-companies-return.spec.ts', 'e2e/layout/companies.layout.spec.ts',
+    'e2e/AC-A11Y-MODAL-001-focus-containment.spec.ts', 'e2e/serial/AC-LRC-013-locale-phone-return.spec.ts',
+    'e2e/serial/AC-CODE-002-project-number-proposal.spec.ts',
   ];
-  const shared = path.join(app, 'src/components/ui/SharedFixture.tsx');
-  const deps = new Map([
-    [routes[0].roots[0], new Set([routes[0].roots[0], shared])],
-    [routes[1].roots[0], new Set([routes[1].roots[0], shared])],
-  ]);
-  const specsFixture = [
-    { file: 'e2e/AC-IMP-011-bulk-import-journey.spec.ts', route: '/companies' },
-    { file: 'e2e/AC-LRC-006-companies-return.spec.ts', route: '/companies' },
-    { file: 'e2e/AC-401-projects-smoke.spec.ts', route: '/projects' },
-  ];
-  const run = changed => routes.filter(r => changed.some(c => [...(deps.get(r.roots[0]) ?? new Set([r.roots[0]]) )].includes(c))).map(r => r.path);
-  const visit = paths => specsFixture.filter(s => paths.some(p => routeMatches(p, s.route))).map(s => s.file);
-  const companies = visit(run([routes[0].roots[0]]));
-  const sharedSpecs = visit(run([shared]));
-  if (companies.join() !== 'e2e/AC-IMP-011-bulk-import-journey.spec.ts,e2e/AC-LRC-006-companies-return.spec.ts' || sharedSpecs.join() !== 'e2e/AC-IMP-011-bulk-import-journey.spec.ts,e2e/AC-LRC-006-companies-return.spec.ts,e2e/AC-401-projects-smoke.spec.ts') throw new Error('affected-e2e self-test failed');
-  console.log('Example diff: pmo-portal/pages/Companies.tsx\nSelected: e2e/AC-IMP-011-bulk-import-journey.spec.ts, e2e/AC-LRC-006-companies-return.spec.ts\nRun: scripts/e2e-local.sh --project=chromium --project=serial e2e/AC-IMP-011-bulk-import-journey.spec.ts e2e/AC-LRC-006-companies-return.spec.ts');
-  console.log('Example diff: pmo-portal/src/components/ui/SharedFixture.tsx\nSelected: e2e/AC-IMP-011-bulk-import-journey.spec.ts, e2e/AC-LRC-006-companies-return.spec.ts, e2e/AC-401-projects-smoke.spec.ts\nRun: scripts/e2e-local.sh --project=chromium --project=serial e2e/AC-IMP-011-bulk-import-journey.spec.ts e2e/AC-LRC-006-companies-return.spec.ts e2e/AC-401-projects-smoke.spec.ts');
+  if (expected.some(file => !companies.includes(file))) throw new Error(`affected-e2e Companies recall self-test failed: missing ${expected.filter(file => !companies.includes(file)).join(', ')}`);
+
+  // This fixture's route is reachable only through an imported helper function.
+  const fixtureDir = path.join(app, 'e2e', `affected-e2e-fixture-${process.pid}`);
+  const helper = path.join(fixtureDir, 'navigation.ts'), fixture = path.join(fixtureDir, 'helper-only.spec.ts'), page = path.join(fixtureDir, 'Projects.tsx');
+  try {
+    fs.mkdirSync(fixtureDir, { recursive: true });
+    fs.writeFileSync(helper, "export async function openProjects(page) { await page.goto('/projects'); }\n");
+    fs.writeFileSync(fixture, "import { openProjects } from './navigation';\nvoid openProjects;\n");
+    fs.writeFileSync(page, 'export default function Projects() { return null; }\n');
+    const helperSelection = select([path.relative(root, page)], { routes: [{ path: '/projects', roots: [page] }], shared: [] }, [fixture]).map(f => path.relative(app, f));
+    if (helperSelection.length !== 1 || helperSelection[0] !== 'e2e/affected-e2e-fixture-' + process.pid + '/helper-only.spec.ts') throw new Error('affected-e2e helper-route self-test failed');
+  } finally { fs.rmSync(fixtureDir, { recursive: true, force: true }); }
+  console.log(`Fixture 1 (Companies diff): selected ${companies.length} of ${allSpecs.length} specs`);
+  console.log(`Required selections: ${expected.join(', ')}`);
+  console.log(`Fixture 2 (helper-only navigation): selected ${path.relative(app, fixture)}`);
   console.log('affected-e2e self-test passed');
 }
 function gitChanged(base) {
@@ -146,6 +190,7 @@ else {
   const selected = select(changed, appRoutes(), specs());
   const files = selected.map(f => path.relative(app, f));
   console.log(files.length ? files.join('\n') : '(no matching e2e specs)');
+  console.log(`Selected ${files.length} of ${specs().length} specs.`);
   const command = `scripts/e2e-local.sh --project=chromium --project=serial ${files.join(' ')}`;
   console.log(`\nRun command: ${command}`);
   if (args.includes('--run') && files.length) {
