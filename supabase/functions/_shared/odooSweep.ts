@@ -15,6 +15,7 @@ import { matchNewPartners } from './odooPartyFeed.ts';
 import { purchaseDomainsReadable, purchaseFeedEmployed, runPurchasePass } from './odooPurchaseFeed.ts';
 import { revenueDomainsReadable, revenueFeedEmployed, runRevenuePass } from './odooRevenueFeed.ts';
 import { reconcileOdooRevenueOutbox } from '../adapter-dispatch/odooRevenueRecovery.ts';
+import { reconcileOdooProcurementOutbox } from '../adapter-dispatch/odooProcurementRecovery.ts';
 import { odooClientForOrg, recordOdooProbe, type OdooClientRefusal } from './odooClientForOrg.ts';
 
 export const ODOO_KIND_ORDER: DirectoryKind[] = ['company', 'analytic_plan', 'analytic_account', 'account', 'tax', 'journal', 'uom', 'product', 'warehouse', 'location', 'partner'];
@@ -44,7 +45,12 @@ export const AFTER_SWEEP: Array<(sc: SupabaseClient, orgId: string, r: Resolved,
 
 export type OdooSweepResult =
   | { skipped: 'lock-held' | OdooClientRefusal }
-  | { ok: true; calls: number; skipped_rows: number; outbox_reconciled: number; outbox_errors: Array<{ id: string; error: string }>; failed?: string; purchase_hold?: PurchaseHold };
+  | {
+    ok: true; calls: number; skipped_rows: number; outbox_reconciled: number; outbox_errors: Array<{ id: string; error: string }>;
+    outbox_procurement_reconciled: number; outbox_procurement_skipped: number; outbox_procurement_budget_exhausted: boolean;
+    outbox_procurement_errors: Array<{ id: string; error: string }>;
+    failed?: string; purchase_hold?: PurchaseHold;
+  };
 
 /** Why this tick mirrors no purchase document (FR-PLN-006 at pass start, #1783 item 4). Reported, never logged with data. */
 export type PurchaseHold = 'feature-off:procurement' | 'feature-switch-unreadable:procurement';
@@ -125,6 +131,10 @@ export async function sweepOdooOrg(
     };
     let outboxReconciled = 0;
     let outboxErrors: Array<{ id: string; error: string }> = [];
+    let procurementOutboxReconciled = 0;
+    let procurementOutboxSkipped = 0;
+    let procurementOutboxBudgetExhausted = false;
+    let procurementOutboxErrors: Array<{ id: string; error: string }> = [];
     let hold: PurchaseHold | null = null;
     try {
       const kinds = ODOO_KIND_ORDER.filter((kind) => readable(capabilities, KIND_SPECS[kind].model));
@@ -134,13 +144,13 @@ export async function sweepOdooOrg(
       hold = await procurementHold(sc, orgId);
       const purchase = hold || !(await purchaseFeedEmployed(sc, orgId)) ? [] : purchaseDomainsReadable(capabilities);
       const revenue = (await revenueFeedEmployed(sc, orgId)) ? revenueDomainsReadable(capabilities) : [];
-      // Outbound recovery runs before the bounded inbound walk, so one long backfill cannot leave a
-      // posted invoice unconfirmed. Only the invoice command is owned here; incoming-payment recovery
-      // stays with its own slice. The pass is bounded by the remaining org-tick budget and the claim window.
+      // Outbound recovery runs before the bounded inbound walk, so a long backfill cannot leave a
+      // committed money document unconfirmed. Revenue keeps its existing share first; procurement
+      // consumes the same remaining recovery budget, so neither pass can exceed the org-tick cap.
+      const recoveryCap = maxCalls - RESERVE_PER_KIND * (kinds.length + purchase.length + revenue.length);
+      const recoveryBudget: Budget = { left: () => calls < recoveryCap && left(), spend: () => calls < recoveryCap && budget.spend() };
       if (revenue.includes('sales-invoice')) {
         try {
-          const recoveryCap = maxCalls - RESERVE_PER_KIND * (kinds.length + purchase.length + revenue.length);
-          const recoveryBudget: Budget = { left: () => calls < recoveryCap && left(), spend: () => calls < recoveryCap && budget.spend() };
           const recovery = await reconcileOdooRevenueOutbox(sc, orgId, {
             timeBudgetMs: Math.max(0, timeBudget - (Date.now() - started)),
             callBudget: recoveryBudget,
@@ -149,6 +159,20 @@ export async function sweepOdooOrg(
           outboxErrors = recovery.errors;
         } catch {
           outboxErrors = [{ id: 'revenue', error: 'recovery-unavailable' }];
+        }
+      }
+      if (purchase.length > 0) {
+        try {
+          const recovery = await reconcileOdooProcurementOutbox(sc, orgId, {
+            timeBudgetMs: Math.max(0, timeBudget - (Date.now() - started)),
+            callBudget: recoveryBudget,
+          });
+          procurementOutboxReconciled = recovery.reconciled;
+          procurementOutboxSkipped = recovery.skipped;
+          procurementOutboxBudgetExhausted = recovery.budgetExhausted;
+          procurementOutboxErrors = recovery.errors;
+        } catch {
+          procurementOutboxErrors = [{ id: 'procurement', error: 'recovery-unavailable' }];
         }
       }
       for (const [i, kind] of kinds.entries()) {
@@ -193,12 +217,22 @@ export async function sweepOdooOrg(
         snapshot = await discoverCapabilities(call, { versionMajor, now: new Date(), deadlineAt: Date.now() + Math.min(DISCOVERY_BUDGET_MS, timeBudget - (Date.now() - started)) });
       }
       await recordOdooProbe(sc, orgId, r.config, { ok: true, missing: (snapshot ?? capabilities)?.missing ?? [] }, snapshot);
-      return { ok: true, calls, skipped_rows: skippedRows, outbox_reconciled: outboxReconciled, outbox_errors: outboxErrors, ...(hold ? { purchase_hold: hold } : {}) };
+      return {
+        ok: true, calls, skipped_rows: skippedRows, outbox_reconciled: outboxReconciled, outbox_errors: outboxErrors,
+        outbox_procurement_reconciled: procurementOutboxReconciled, outbox_procurement_skipped: procurementOutboxSkipped,
+        outbox_procurement_budget_exhausted: procurementOutboxBudgetExhausted,
+        outbox_procurement_errors: procurementOutboxErrors, ...(hold ? { purchase_hold: hold } : {}),
+      };
     } catch (err) {
       if (!(err instanceof OdooError)) throw err;
       await runAfterSweep();
       await recordOdooProbe(sc, orgId, r.config, { ok: false, errorClass: err.errorClass });
-      return { ok: true, calls, skipped_rows: skippedRows, outbox_reconciled: outboxReconciled, outbox_errors: outboxErrors, failed: err.errorClass, ...(hold ? { purchase_hold: hold } : {}) };
+      return {
+        ok: true, calls, skipped_rows: skippedRows, outbox_reconciled: outboxReconciled, outbox_errors: outboxErrors,
+        outbox_procurement_reconciled: procurementOutboxReconciled, outbox_procurement_skipped: procurementOutboxSkipped,
+        outbox_procurement_budget_exhausted: procurementOutboxBudgetExhausted,
+        outbox_procurement_errors: procurementOutboxErrors, failed: err.errorClass, ...(hold ? { purchase_hold: hold } : {}),
+      };
     }
   } finally {
     const { error } = await sc.rpc('release_erp_sweep_lock', { p_org_id: orgId, p_holder: holder });

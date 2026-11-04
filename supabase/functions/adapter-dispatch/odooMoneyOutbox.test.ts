@@ -117,6 +117,44 @@ describe('AC-OPP-053 the Odoo probe closure: zero, one and many matches', () => 
       assert(Date.now() - Date.parse(`${String(window[2]).replace(' ', 'T')}Z`) >= 10 * 60_000 - 5_000, 'the window reaches back at least ten minutes');
     });
 
+    it('AC-OPP-062 replay probes with the composite facts frozen on the outbox row', async () => {
+      const stored = {
+        id: REC, erp_doc_kind: 'purchase-order', procurementId: 'removed-case', odoo_partner_id: 88,
+        odoo_amount: '987.00', odoo_line_count: 6, created_after: '2026-11-04 11:00:00',
+      };
+      const t = setup('purchase-order', { amount: '50.00' }, { replay: true, outbox: stored });
+      const calls = await withFetchMock(t.routes, async ({ calls }) => {
+        const deps = await resolveOdooMoneyOutboxDeps(t.ctx);
+        await deps.probeByRemarksKey('procurement', KEY, { recovery: true });
+        return calls;
+      });
+
+      assertEquals(calls.some((c) => c.url.pathname === '/rest/v1/procurements' || c.url.pathname === '/rest/v1/procurement_items'), false);
+      assertEquals(queries(t, 'purchase.order')[0].domain.some(([field, op, value]) => field === 'partner_id' && op === '=' && value === 88), true);
+    });
+
+    it('AC-OPP-062 recovery holds an order that matches amount and window but not the frozen line count', async () => {
+      const stored = {
+        id: REC, erp_doc_kind: 'purchase-order', procurementId: 'removed-case', odoo_partner_id: 88,
+        odoo_amount: '987.00', odoo_line_count: 6, created_after: '2026-11-04 11:00:00',
+      };
+      const t = setup('purchase-order', { amount: '50.00' }, {
+        replay: true,
+        outbox: stored,
+        odoo: {
+          'ir.model.data': [],
+          'purchase.order': [{
+            id: 41, name: 'P00041', state: 'purchase', amount_untaxed: 987, amount_total: 987,
+            order_line: [1, 2], create_date: '2026-11-04 11:45:00', write_date: '2026-11-04 11:45:00',
+          }],
+        },
+      });
+      await withFetchMock(t.routes, async () => {
+        const deps = await resolveOdooMoneyOutboxDeps(t.ctx);
+        await assertRejects(() => deps.probeByRemarksKey('procurement', KEY, { recovery: true }), Error, 'ambiguous-anchor');
+      });
+    });
+
     it('two orders with the identifier are doubt: the probe throws', async () => {
       const t = orderSetup({ 'ir.model.data': [{ res_id: 41 }, { res_id: 42 }] });
       await withFetchMock(t.routes, async () => {

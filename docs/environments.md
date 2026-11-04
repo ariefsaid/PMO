@@ -525,6 +525,14 @@ the mirrored bank or cash journals that have an outbound payment method; Finance
 for an individual payment. Odoo procurement money writes use the shared money outbox, including same-intent
 recovery after a lost response.
 
+**Background recovery (AC-OPP-062):** each eligible Odoo sweep tick runs bounded procurement recovery beside
+revenue recovery and shares the tick's Odoo-call budget. It rebuilds the recorded command and uses persisted
+composite facts where a recovery probe needs them, re-checking the recorded actor before a replay that could
+issue a new Odoo write. A uniquely proved document is confirmed and linked; an ambiguous match remains held,
+and a document already linked to another PMO row is skipped. Do not adopt a document by amount, vendor or
+date alone. The AC-OPP-062 bed proves a lost bill-post response is linked with exactly one Odoo bill for that
+command and an edited stock anchor remains held.
+
 **Held payment procedure:** only an Admin or Finance user other than the dispatching user may resolve a held
 payment. Compare the candidate in Odoo with the bill, vendor, amount and bounded creation window; adopt only
 after confirming the named payment is reconciled to that bill. Mark the payment absent only after searching

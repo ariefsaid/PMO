@@ -9,22 +9,16 @@
  */
 import { assert, assertEquals, assertRejects } from '@std/assert';
 import { createClient } from '@supabase/supabase-js';
-import { dispatchMoneyWrite, type DispatchMoneyWriteDeps } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
-import { AdapterError, type AdapterCommand, type PmoRecord } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
+import { AdapterError, type AdapterCommand } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
 import { expectedBillTotal, type BillCtx, type BillInput } from '../../../pmo-portal/src/lib/adapterSeam/odoo/purchase/billBody.ts';
 import { externalIdentifier, parseOdooExternalRef } from '../../../pmo-portal/src/lib/adapterSeam/odoo/purchase/anchors.ts';
-import { ODOO_TIER } from '../../../pmo-portal/src/lib/adapterSeam/odoo/connectAdapter.ts';
-import { recordExternalRef as recordExternalRefWrite } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
 import { readOdooBedContext } from '../_shared/testing/odooBedContext.ts';
-import { resolveOdooProcurementAdapter } from './odooAdapters.ts';
-import type { AdapterSelectContext } from './dispatchAdapters.ts';
-import { getReadModelWriter } from './readModelWriters.ts';
 import { canonicalCommandDigest } from './moneyOutboxDeps.ts';
-import { resolveOdooMoneyOutboxDeps } from './odooMoneyOutbox.ts';
 import { bindCall, type OdooCall } from '../../../pmo-portal/src/lib/adapterSeam/odoo/client.ts';
 import { createOdooProcurementAdapter, recoverOrder } from '../../../pmo-portal/src/lib/adapterSeam/odoo/procurementAdapter.ts';
 import type { OrderCtx, OrderInput } from '../../../pmo-portal/src/lib/adapterSeam/odoo/purchase/orderBody.ts';
 import type { ReviseLine } from '../../../pmo-portal/src/lib/adapterSeam/odoo/purchase/orderRevise.ts';
+import { sweepOdooOrg } from '../_shared/odooSweep.ts';
 
 const BED = Deno.env.get('ODOO_BED_URL');
 const DB = Deno.env.get('ODOO_BED_DB') ?? '';
@@ -131,7 +125,7 @@ Deno.test({
 
 
 Deno.test({
-  name: 'FR-072 partial on the bed: a lost bill-post response is recovered by the Odoo money outbox; an edited anchor is held',
+  name: 'AC-OPP-062 on the bed: sweep recovers one lost bill-post response and holds an edited anchor',
   ignore: !RECOVERY_READY,
   sanitizeResources: false,
   sanitizeOps: false,
@@ -280,14 +274,6 @@ Deno.test({
         'odoo_expected_total', 'odoo_cost_account', 'odoo_bill_ref', 'odoo_adopted_ref', 'odoo_absent_confirmed', 'created_after', 'created_before',
       ].includes(key)));
       const payloadDigest = await canonicalCommandDigest({ domain: 'procurement', operation: 'create', record: digestMaterial });
-      const replayCtx = {
-        orgId, command, serviceClient: sc, userId: actorId!, replay: true, erpAuth: new Map(),
-        faultGate: { envFaults: undefined, header: null, requestHost: null, allowedHosts: undefined },
-      } as unknown as AdapterSelectContext;
-      const [money, replayAdapter] = await Promise.all([
-        resolveOdooMoneyOutboxDeps(replayCtx), resolveOdooProcurementAdapter(replayCtx),
-      ]);
-      assertEquals(payloadDigest, money.payloadDigest, 'the recovery row digest matches the shipped Odoo money-outbox payload');
       const now = Date.now();
       await must(sc.from('external_command_outbox').insert({
         org_id: orgId, domain: 'procurement', pmo_record_id: pmoId, idempotency_key: idempotencyKey, external_tier: 'odoo', actor_user_id: actorId,
@@ -298,22 +284,6 @@ Deno.test({
       const stored = await must(sc.from('external_command_outbox').select('id').eq('org_id', orgId)
         .eq('domain', 'procurement').eq('pmo_record_id', pmoId).eq('idempotency_key', idempotencyKey).single()) as { id: string };
       entry.outboxId = stored.id;
-      const writer = getReadModelWriter('procurement');
-      const deps: DispatchMoneyWriteDeps = {
-        command, adapter: replayAdapter, money, outboxRecordId: pmoId,
-        writeReadModel: (canonical: PmoRecord, options?: { isReplay?: boolean }) => writer.upsert({
-          serviceClient: sc as never, orgId, callerUserId: actorId!, isReplay: options?.isReplay ?? false,
-        }, canonical, command),
-        recordExternalRef: (mapping) => recordExternalRefWrite(sc as never, { ...mapping, orgId, externalTier: ODOO_TIER }),
-      };
-      if (editAnchor) {
-        const held = await assertRejects(() => dispatchMoneyWrite(deps), Error);
-        assertEquals((held as AdapterError).code, 'command-held');
-      } else {
-        const recovered = await dispatchMoneyWrite(deps);
-        assertEquals(parseOdooExternalRef('account.move', recovered.externalRecordId), moveId);
-        assertEquals(recovered.canonical.erp_docstatus, 1);
-      }
       return entry;
     };
 
@@ -328,6 +298,11 @@ Deno.test({
 
       const adopt = cases[0];
       const edited = cases[1];
+      const tick = await sweepOdooOrg(sc, orgId, { maxCalls: 2_000 });
+      if (!('ok' in tick)) throw new Error(`the Odoo sweep reaches procurement recovery: ${JSON.stringify(tick)}`);
+      assertEquals(tick.outbox_procurement_reconciled, 1,
+        `one posted bill is confirmed by the sweep; recovery errors: ${tick.outbox_procurement_errors.map(({ error }) => error).join(', ') || 'none'}`);
+      assert(tick.outbox_procurement_errors.some((error) => error.id === edited.outboxId), 'the edited anchor is surfaced as held');
       const firstOutbox = await must(sc.from('external_command_outbox').select('state,external_record_id')
         .eq('org_id', orgId).eq('id', adopt.outboxId).single()) as { state: string; external_record_id: string | null };
       const heldOutbox = await must(sc.from('external_command_outbox').select('state')

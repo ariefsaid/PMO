@@ -429,6 +429,21 @@ describe('odooSweep — #1506 C6 revenue passes', () => {
     assertEquals('ok' in r.result && r.result.outbox_reconciled, 0, 'the tick reports the outbox recovery pass');
     assert('ok' in r.result && r.result.calls > 0, 'the tick reports real work rather than a stale zero');
   });
+
+  it('AC-OPP-062 procurement recovery reports its own results in the sweep tick', async () => {
+    const r = await sweep({ employed: true, purchaseModels: ['purchase.order'] });
+    const candidateReads = rpcCall(r.calls, 'outbox_reconcile_candidates');
+    const directory = r.calls.findIndex((call) => call.url.pathname === '/rest/v1/rpc/apply_odoo_master_page');
+    const recovery = r.calls.findIndex((call) => call.url.pathname === '/rest/v1/rpc/outbox_reconcile_candidates');
+
+    assert(candidateReads.length > 0, 'procurement outbox candidates are selected during the sweep tick');
+    assert(recovery >= 0 && recovery < directory, 'outbox recovery runs before the bounded inbound walk');
+    assert('ok' in r.result);
+    assertEquals(r.result.outbox_procurement_reconciled, 0);
+    assertEquals(r.result.outbox_procurement_skipped, 0);
+    assertEquals(r.result.outbox_procurement_budget_exhausted, false);
+    assertEquals(r.result.outbox_procurement_errors, []);
+  });
 });
 
 describe('odooSweep — #1783 item 4 the procurement switch holds the purchase feed at pass start', () => {

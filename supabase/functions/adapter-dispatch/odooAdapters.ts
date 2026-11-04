@@ -50,7 +50,7 @@ export async function resolveOdooProcurementAdapter(ctx: AdapterSelectContext): 
   if (gap) throw new AppError(`Odoo purchasing needs ${gap}, which this Odoo connection does not show. Run the connection check again.`, 'config-rejected');
   if (!pushable(ctx)) throw new AppError('Purchasing through Odoo is not available yet', 'config-rejected');
   const sc = ctx.serviceClient as SupabaseClient;
-  const call = bindCall({ ...resolved.client, deadlineMs: REQUEST_DEADLINE_MS });
+  const call = withOdooCallBudget(bindCall({ ...resolved.client, deadlineMs: REQUEST_DEADLINE_MS }), ctx.odooCallBudget);
   if (isReceipt(ctx)) {
     // A receipt books onto the transfer Odoo opened with the order: no order inputs, no currency; its plan comes with the outbox deps.
     const notAnOrder = () => Promise.reject(new AppError('not a purchase-order step', 'commit-rejected'));
