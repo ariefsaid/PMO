@@ -378,16 +378,23 @@ test('AC-TM-018 Finance rates a week, its manager assembles it, and a second use
   await claimLink.click();
   const claimDrawer = page.getByRole('dialog', { name: 'Time-and-materials claim' });
   await expect(claimDrawer.getByRole('heading', { name: 'Claim lines' })).toBeVisible();
-  const pmClaimLine = claimDrawer.getByRole('listitem').filter({ hasText: LINE_LABEL });
+  const claimLines = claimDrawer.getByRole('region', { name: 'Claim lines' });
+  const pmClaimLine = claimLines.getByRole('listitem').filter({ hasText: LINE_LABEL });
   await expect(pmClaimLine).toContainText(new RegExp(`${HOURS} hours?\\s*×.*50[,\\s]000`));
   await expect(pmClaimLine).toContainText(/400[,\s]000/);
+  const sourceEntries = claimDrawer.getByRole('region', { name: 'Approved source entries' });
+  const engineerSources = sourceEntries.getByRole('listitem').filter({ hasText: ENGINEER_NAME });
+  const sourceDate = new Intl.DateTimeFormat('en-US', {
+    month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC',
+  }).format(new Date(`${today}T00:00:00.000Z`));
+  await expect(engineerSources).toContainText(new RegExp(`${LINE_LABEL}.*${sourceDate}.*${HOURS} hours?`, 'i'));
   await claimDrawer.getByRole('button', { name: 'Prepare sign-off' }).click();
   const prepareDialog = page.getByRole('dialog', { name: 'Prepare client sign-off' });
   await expect(prepareDialog).toBeVisible();
   await prepareDialog.getByLabel('Evidence document').selectOption(documentId);
   await prepareDialog.getByRole('button', { name: 'Prepare sign-off' }).click();
   await expect(prepareDialog).not.toBeVisible({ timeout: 15_000 });
-  await expect(page.getByText('A different user must confirm this sign-off.')).toBeVisible({ timeout: 15_000 });
+  await expect(claimDrawer.getByText('A different user must confirm this sign-off.')).toBeVisible({ timeout: 15_000 });
   await expect(page.getByRole('button', { name: 'Confirm sign-off' })).toHaveCount(0);
 
   await page.clock.setFixedTime(new Date());
@@ -410,7 +417,8 @@ test('AC-TM-018 Finance rates a week, its manager assembles it, and a second use
   await expect(signedOffClaims.getByText('Signed off', { exact: true })).toBeVisible({ timeout: 20_000 });
   await signedOffClaims.getByRole('button', { name: /Open claim for/i }).click();
   const signedOffDrawer = page.getByRole('dialog', { name: 'Time-and-materials claim' });
-  const finalLine = signedOffDrawer.getByRole('listitem').filter({ hasText: LINE_LABEL });
+  const signedOffLines = signedOffDrawer.getByRole('region', { name: 'Claim lines' });
+  const finalLine = signedOffLines.getByRole('listitem').filter({ hasText: LINE_LABEL });
   await expect(finalLine).toContainText(new RegExp(`${HOURS} hours?\\s*×.*50[,\\s]000`));
   await expect(finalLine).toContainText(/400[,\s]000/);
 
