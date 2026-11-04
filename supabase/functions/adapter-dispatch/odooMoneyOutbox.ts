@@ -168,6 +168,16 @@ export async function resolveOdooMoneyOutboxDeps(ctx: AdapterSelectContext): Pro
     serviceClient: ctx.serviceClient as never,
     orgId: ctx.orgId,
     externalTier: ODOO_TIER,
+    // #1783 item 1: same legacy-receipt verification as the ERPNext resolver, with THIS resolver's
+    // material rule (windows + DERIVED_KEYS excluded) — Odoo first restores the stored plan exactly as
+    // `stampReceiptPlan` does above, so the comparison runs against the restored command, never a
+    // forged plan. Receipt-scoped: only a line-intent command sets the context flag.
+    ...(ctx.receiptLineIntent
+      ? { verifyLegacyReceiptDigest: { material: (p: Record<string, unknown>) => {
+        const { created_after: _window, created_before: _windowEnd, ...withDerived } = p;
+        return Object.fromEntries(Object.entries(withDerived).filter(([k]) => !(DERIVED_KEYS as readonly string[]).includes(k)));
+      } } }
+      : {}),
     // The outbox column takes create|update|transition; a revise edits the confirmed order in place.
     operation: operation === 'revise' ? 'update' : (operation as 'create' | 'update' | 'transition'),
     actorUserId: ctx.userId,

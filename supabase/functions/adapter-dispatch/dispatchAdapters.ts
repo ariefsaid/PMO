@@ -42,6 +42,12 @@ export interface AdapterSelectContext {
   erpAuth: ErpAuthPairCache;
   replay?: boolean;
   trustedReceiptSnapshot?: boolean;
+  /** #1783 item 1: the ORIGINAL inbound command carried caller-directed receipt lines (tier-keyed
+   *  guard). Receipt-scoped by construction: the money-outbox resolvers use it to verify a LEGACY
+   *  accepted row (no stored digest) in memory from its persisted payload + persisted operation
+   *  before the M-3 comparison. Whole-purchase Basic receipts and every other document kind leave it
+   *  unset, so their shipped skip-digest behavior is byte-for-byte unchanged. */
+  receiptLineIntent?: boolean;
   captureProcurementSourceLines?: (lines: ProcurementSourceLine[]) => void;
   /** ECA-6: told the recorded consent a budget push used to amend an ERP budget PMO did not create. */
   captureOccupantConsent?: (consentId: string) => void;

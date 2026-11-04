@@ -8,6 +8,7 @@ import type { Adapter, AdapterCommand, PmoRecord } from '../../../pmo-portal/src
 import type { DispatchMoneyOutboxDeps } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
 import type { ErpAuthPairCache } from '../_shared/erpAuthPair.ts';
 import { canonicalCommandDigest } from './moneyOutboxDeps.ts';
+import { assertNewReceiptLinesAllowed, requiresReceiptLineEntitlement } from './receiptLineGuard.ts';
 import { dispatchErrorStatus } from './dispatchErrorStatus.ts';
 import { maybeFault, type FaultGate } from './faultSeams.ts';
 import { getReadModelWriter } from './readModelWriters.ts';
@@ -20,6 +21,9 @@ export type DispatchAttemptOutcome = { ok: true; result: unknown } | { ok: false
 /** Run adapter selection, the fenced dispatch, and the post-write mirror/ref recording for one command. */
 export async function runDispatchAttempt(args: {
   command: AdapterCommand;
+  /** The tier `checkCommandAuthorization` employed for this org/domain (index.ts) — the receipt-line
+   *  guard's registry key. Required: the guard must never guess a tier from the payload. */
+  tier: string;
   serviceClient: SupabaseClient;
   orgId: string;
   adapterFactory: AdapterFactory;
@@ -34,7 +38,7 @@ export async function runDispatchAttempt(args: {
   recordTimesheetPushFailure: (failure: AppError) => Promise<void>;
 }): Promise<DispatchAttemptOutcome> {
   const {
-    command, serviceClient, orgId, adapterFactory, faultGate, userId, erpAuth,
+    command, serviceClient, orgId, adapterFactory, faultGate, userId, erpAuth, tier,
     moneyOutboxResolvers, budgetVersionMajor, headers, outboxRecordId,
     releaseSubmitClearance, recordTimesheetPushFailure,
   } = args;
@@ -45,17 +49,30 @@ export async function runDispatchAttempt(args: {
     const context: AdapterSelectContext = { orgId, command, serviceClient, faultGate, userId, erpAuth };
     context.captureOccupantConsent = (id) => { occupantConsentId = id; };
     const record = command.record as Record<string, unknown>;
+    // The ORIGINAL inbound record reference, kept for the guard below: a create replay replaces
+    // `command.record` with the stored payload, and the guard's predicate must classify caller intent,
+    // not server-stamped transport material.
+    const inboundRecord = command.record;
     const isReceiptCreate = command.domain === ERPNEXT_PROCUREMENT_DOMAIN && command.operation === 'create'
       && record.erp_doc_kind === 'goods-receipt';
+    // #1783 item 1: the receipt-line intent is decided on the ORIGINAL inbound record, BEFORE a create
+    // replay can replace `command.record` with the stored payload — server-stamped transport lines must
+    // never select this guard's policy on a retry.
+    const receiptLineIntent = requiresReceiptLineEntitlement(tier, command);
+    context.receiptLineIntent = receiptLineIntent;
     let rawReceiptDigest: string | undefined;
-    if (isReceiptCreate) {
-      rawReceiptDigest = await canonicalCommandDigest({ domain: command.domain, operation: command.operation, record });
+    let existingRow = false;
+    if (isReceiptCreate || receiptLineIntent) {
+      if (isReceiptCreate) {
+        rawReceiptDigest = await canonicalCommandDigest({ domain: command.domain, operation: command.operation, record });
+      }
       const { data, error } = await serviceClient.from('external_command_outbox')
         .select('payload,payload_digest,procurement_input_digest')
         .eq('org_id', orgId).eq('domain', command.domain).eq('pmo_record_id', command.record.id)
         .eq('idempotency_key', command.idempotencyKey!).maybeSingle();
       if (error) throw new AppError(error.message, error.code);
-      if (data) {
+      existingRow = Boolean(data);
+      if (isReceiptCreate && data) {
         context.replay = true;
         const stored = data as { payload: Record<string, unknown> | null; payload_digest: string | null; procurement_input_digest: string | null };
         if (stored.procurement_input_digest != null) {
@@ -78,6 +95,17 @@ export async function runDispatchAttempt(args: {
         && ['purchase-order', 'goods-receipt', 'purchase-invoice'].includes(String(record.erp_doc_kind))) {
       context.captureProcurementSourceLines = (lines) => { sourceLines = lines; };
     }
+    // #1783 item 1 (FR-PLN-004/006): the NEW caller-directed line write requires Full — after the
+    // replay/digest block above (so an accepted row is exempt through the EXISTING protocol) and
+    // before the adapter factory (so a refusal leaves no credential read, no outbox row, no ERP call).
+    // The predicate sees the original inbound record, not a replayed one.
+    await assertNewReceiptLinesAllowed({
+      tier,
+      command: { ...command, record: inboundRecord },
+      orgId,
+      serviceClient,
+      existingRow,
+    });
     adapter = await adapterFactory(context);
     const snapshot = command.record.pmo_gr_snapshot as Record<string, unknown> | undefined;
     if (isReceiptCreate && !context.replay && snapshot && rawReceiptDigest) {

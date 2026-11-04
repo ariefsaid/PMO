@@ -771,6 +771,10 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
   const runOneDispatch = (dispatchCommand: AdapterCommand, outboxRecordId?: string): Promise<{ ok: true; result: unknown } | { ok: false; response: Response }> =>
     runDispatchAttempt({
       command: dispatchCommand,
+      // The receipt-line guard's registry key: the tier `checkCommandAuthorization` already employed
+      // for this org/domain (never re-derived from the payload). Every dispatch that reaches here
+      // passed the adapter-select gate on exactly this tier.
+      tier: employedTier!,
       serviceClient,
       orgId,
       adapterFactory,
