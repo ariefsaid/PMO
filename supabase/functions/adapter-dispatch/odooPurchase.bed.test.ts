@@ -57,7 +57,7 @@ Deno.test({
     const ctx: OrderCtx = { companyId: company.id, currencyId: company.currency_id[0], itemMap: { A: String(productA), B: String(productB) }, unitMap: { u: String(uomId) }, costAccountId: String(account), taxIds: [] };
     const state = { orderId: 0, lines: [] as ReviseLine[] };
     const adapter = createOdooProcurementAdapter({
-      call, resolveOrder: async () => ({ input, ctx }), resolveRevise: async () => ({ orderId: state.orderId, lines: state.lines, ctx }),
+      call, resolveOrder: () => Promise.resolve({ input, ctx }), resolveRevise: () => Promise.resolve({ orderId: state.orderId, lines: state.lines, ctx }),
       resolveBill: () => Promise.reject(new Error('no bill in this test')),
     });
     const create: AdapterCommand = { domain: 'procurement', operation: 'create', idempotencyKey: 'bed-1', record: { id: PO_ID, erp_doc_kind: 'purchase-order', procurementId: 'case-1', amount: '144.00' } };
@@ -165,7 +165,7 @@ Deno.test({
     });
     assert(bedCompany, 'the Odoo bed exposes a company for the temporary binding');
     const companyId = bedCompany.id;
-    const call: OdooCall = async <T>(model: string, method: string, body: Record<string, unknown> = {}) => raw<T>(model, method, {
+    const call: OdooCall = <T>(model: string, method: string, body: Record<string, unknown> = {}) => raw<T>(model, method, {
       ...body, context: { allowed_company_ids: [companyId], ...((body.context as object) ?? {}) },
     });
     const make = async (model: string, vals: Record<string, unknown>) => (await call<number[]>(model, 'create', { vals_list: [vals] }))[0];
@@ -174,7 +174,7 @@ Deno.test({
       vendor: '', reference: '', invoiceDate: '2026-11-04', projectIds: [],
       lines: [{ name: 'service', quantity: 1, rate: 100, purchaseLineId: null }],
     };
-    const billCtx: BillCtx = { companyId, currencyId: company.currency_id[0], itemMap: {}, unitMap: {}, costAccountId: null, taxes: [] };
+    const billCtx = (): BillCtx => ({ companyId, currencyId: company.currency_id[0], itemMap: { service: String(productId) }, unitMap: {}, costAccountId: null, taxes: [] });
     const upsertCase = async (procurementId: string, suffix: string) => {
       await must(sc.from('procurements').insert({
         id: procurementId, org_id: orgId, code: `${stamp}-${suffix}`, title: `${stamp} ${suffix}`, vendor_id: vendorId,
@@ -248,7 +248,7 @@ Deno.test({
         call: cutAfterPost,
         resolveOrder: () => Promise.reject(new Error('not an order command')),
         resolveRevise: () => Promise.reject(new Error('not a revision command')),
-        resolveBill: async () => ({ input: fixture, ctx: billCtx }),
+        resolveBill: () => Promise.resolve({ input: fixture, ctx: billCtx() }),
       });
       const lost = await assertRejects(() => adapter.commit(command), Error);
       assertEquals((lost as AdapterError).code, 'external-unreachable');
