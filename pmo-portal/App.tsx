@@ -203,7 +203,14 @@ export const appRouteConfig: RouteObject[] = [
   { path: '/sales', element: gated('sales_pipeline', <SalesPipeline />) },
   // Model B: the canonical detail route is /projects/:id; /sales/:id redirects there.
   { path: '/sales/:opportunityId', element: gated('sales_pipeline', <SalesDetailRedirect />) },
-  { path: '/procurement', element: gated('procurement', <ProcurementPage />) },
+  {
+    path: '/procurement',
+    element: gated('procurement', (
+      <Suspense fallback={<LoadingFallback />}>
+        <ProcurementPage />
+      </Suspense>
+    )),
+  },
   { path: '/procurement/new', element: gated('procurement', <ProcurementCreate />) },
   // Tabbed record shell (mirrors /projects/:id/:tab). The bare /procurement/:id keeps working
   //   (defaults to the Overview tab); :tab deep-links a panel.

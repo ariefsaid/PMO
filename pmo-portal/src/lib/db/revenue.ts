@@ -74,6 +74,11 @@ export interface SalesInvoiceRow {
   /** #784 (DD-NAR-16): the balance carried into the ERP's opening entry when the ERP took revenue over, and when. */
   erp_opening_amount?: number | null;
   erp_opening_at?: string | null;
+  /** C8: latest facts read from Odoo's revenue mirror. */
+  odoo_state?: string | null;
+  odoo_attention?: string | null;
+  odoo_sent_total?: number | null;
+  odoo_read_at?: string | null;
   /** DD-EFK-1: PMO-owned tax-invoice reference (never mirrored to ERP). */
   efaktur_number: string | null;
   /** DD-EFK-1: PMO-owned tax-invoice date (never mirrored to ERP). */

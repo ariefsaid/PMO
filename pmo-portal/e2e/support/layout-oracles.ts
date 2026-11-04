@@ -57,6 +57,12 @@ export async function findOversizedIcons(page: Page, maxSize: number): Promise<O
     document.querySelectorAll<SVGSVGElement>('svg[viewBox="0 0 24 24"]').forEach((svg) => {
       // Skip display:none elements.
       if (getComputedStyle(svg).display === 'none') return;
+      // The page-loading status is not a shared icon; its aria-hidden spinner grows as it rotates.
+      if (
+        svg.getAttribute('aria-hidden') === 'true' &&
+        svg.classList.contains('animate-spin') &&
+        svg.closest('[role="status"][aria-label="Loading page"]')
+      ) return;
 
       const rect = svg.getBoundingClientRect();
       // Skip zero-size (hidden / not laid out / off-screen).

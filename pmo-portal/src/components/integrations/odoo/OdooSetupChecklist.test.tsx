@@ -5,11 +5,15 @@ import userEvent from '@testing-library/user-event';
 const h = vi.hoisted(() => ({
   conn: { data: undefined as unknown }, owned: { data: [] as Array<{ externalTier: string; domain: string }> },
   proposal: { data: undefined as unknown }, save: vi.fn(), can: { setValue: true },
+  accounts: { data: { rows: [{ external_id: '210', name: 'Advance Liability', code: '210', attrs: {} }, { external_id: '88', name: 'Tax Prepayments', code: '1350', attrs: {} }], total: 2 }, isError: false },
+  accountSummary: { data: { inactive: 0, tombstoned: 0, asOf: '2026-11-03T11:00:00Z' } },
 }));
 vi.mock('@/src/hooks/useOdoo', () => ({
   useOdooConnection: () => h.conn,
   useOdooJournalProposal: () => h.proposal,
   useOdooSetup: () => ({ mutateAsync: h.save, isPending: false }),
+  useMasterRecords: () => h.accounts,
+  useMasterSummary: () => h.accountSummary,
 }));
 vi.mock('./useOdooCan', () => ({ useOdooCan: () => h.can }));
 vi.mock('@/src/hooks/useExternalDomainOwnership', () => ({ useExternalDomainOwnership: () => h.owned }));
@@ -28,7 +32,7 @@ it('FR-ODC-110 an Odoo org lists the Odoo steps and none of ERPNext\'s activity-
   h.conn.data = read({});
   render(<OdooSetupChecklist />);
   const names = screen.getAllByRole('listitem').map((li) => li.getAttribute('aria-label'));
-  expect(names).toEqual(['Odoo connected', 'Company chosen', 'Odoo apps available', 'Map once', 'Payment journal', 'Sends finished', 'Vendors and clients managed in Odoo']);
+  expect(names).toEqual(['Odoo connected', 'Company chosen', 'Odoo apps available', 'Map once', 'Payment journal', 'Customer-advance account', 'Tax-prepaid account', 'Sends finished', 'Vendors and clients managed in Odoo']);
   expect(screen.queryByText(/activity type/i)).not.toBeInTheDocument();
   expect(screen.queryByText(/budget categor/i)).not.toBeInTheDocument();
 });
@@ -129,4 +133,18 @@ describe('AC-OPP-081 / P8-T5 the payment journal default', () => {
     render(<OdooSetupChecklist />);
     expect(within(item('Payment journal')).queryByRole('button')).toBeNull();
   });
+});
+
+it('AC-OCI-091 saves the account defaults using the mirror ids', async () => {
+  h.can.setValue = true;
+  h.conn.data = read({});
+  h.proposal.data = { journal: { state: 'none', candidates: [], current: null } };
+  h.save.mockResolvedValue({ saved: true });
+  render(<OdooSetupChecklist />);
+  await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Customer-advance account' }), '210');
+  await userEvent.click(within(item('Customer-advance account')).getByRole('button', { name: 'Save' }));
+  await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Tax-prepaid account' }), '88');
+  await userEvent.click(within(item('Tax-prepaid account')).getByRole('button', { name: 'Save' }));
+  expect(h.save).toHaveBeenNthCalledWith(1, { customer_advance_account_ref: 'account.account:210' });
+  expect(h.save).toHaveBeenNthCalledWith(2, { tax_prepaid_account_id: '88' });
 });
