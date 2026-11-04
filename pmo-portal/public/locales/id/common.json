@@ -3952,7 +3952,6 @@
     "editBudgetLineItemNamed": "Edit item anggaran {{category}}",
     "invoiceDetails": "Detail faktur",
     "lineItemsSection": "Item faktur",
-    "erpLineItemsStoredInErpNext": "Rincian item untuk faktur ini disimpan di ERPNext.",
     "paymentDetails": "Detail pembayaran",
     "invoiceCount_one": "{{count}} faktur",
     "invoiceCount_other": "{{count}} faktur",

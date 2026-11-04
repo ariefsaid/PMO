@@ -1,6 +1,6 @@
 import React, { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { EntityFormModal, TextField, NumberField, Combobox, FormGrid, FormSection, Button, type SubmitError, type ComboboxOption } from '@/src/components/ui';
+import { EntityFormModal, TextField, NumberField, Combobox, FormGrid, FormSection, Button, ConfirmDialog, type SubmitError, type ComboboxOption } from '@/src/components/ui';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { useSalesInvoices } from '@/src/hooks/useRevenue';
 import { useClientCompanyOptions } from '@/src/hooks/useFkOptions';
@@ -15,6 +15,7 @@ import type { PendingPushState } from '@/src/lib/adapterSeam/pendingPush';
 import { useEntityForm } from '@/src/components/ui/useEntityForm';
 import { useCommandIntent } from '@/src/hooks/useCommandIntent';
 import type { CommandIntent } from '@/src/lib/repositories/types';
+import { OdooJournalSelect } from '@/src/components/procurement/OdooDirectoryPickers';
 
 /** Form values for the payment modal. */
 interface FormValues {
@@ -25,7 +26,10 @@ interface FormValues {
   withheldAmount: string;
   withholdingSlipNumber: string;
   date: string;
+  journalId: string;
 }
+
+type ReceiptInput = { customerId: string; salesInvoiceId: string | null; paidAmount: number; receivedAmount: number; withheldAmount?: number; withholdingSlipNumber?: string | null; journalId?: string; date: string };
 
 /**
  * #684 (AC-PLC-009): both payment amounts are stored as numeric(14,2). This ONE locale-aware
@@ -131,6 +135,7 @@ interface IncomingPaymentFormModalProps {
       receivedAmount: number;
       withheldAmount?: number;
       withholdingSlipNumber?: string | null;
+      journalId?: string;
       date: string;
     },
     intent: CommandIntent,
@@ -138,6 +143,9 @@ interface IncomingPaymentFormModalProps {
   pendingPush: PendingPushState;
   /** #784: true while PMO owns revenue — the receipt names its invoice and states its payment date (DD-NAR-17). */
   native: boolean;
+  /** Odoo-owned revenue shows the mirrored payment journal and confirms the money action. */
+  odoo?: boolean;
+  unreachable?: boolean;
 }
 
 export const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> = ({
@@ -146,6 +154,8 @@ export const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> =
   onCreate,
   pendingPush,
   native,
+  odoo = false,
+  unreachable = false,
 }) => {
   const { t } = useTranslation();
   const orgTimezone = useOrgBusinessTimezone();
@@ -168,6 +178,7 @@ export const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> =
       receivedAmount: '0',
       withheldAmount: '0',
       withholdingSlipNumber: '',
+      journalId: '',
       // #784 (DD-NAR-17): a PMO receipt's payment date starts at today in the org's time zone.
       date: today,
     },
@@ -205,6 +216,7 @@ export const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> =
   const withheldAmountField = form.fieldProps('withheldAmount');
   const slipField = form.fieldProps('withholdingSlipNumber');
   const dateField = form.fieldProps('date');
+  const journalField = form.fieldProps('journalId');
   const withholdingPanelId = React.useId();
   const [withholdingExpanded, setWithholdingExpanded] = useState(false);
   const withheldForSummary = form.values.withheldAmount.trim()
@@ -250,6 +262,19 @@ export const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> =
   // data in it. `suppressCapture` because the page's own `onError` classifies the same rejection
   // for the toast and owns the single `save_failed` event (ADR-0067).
   const [saveError, setSaveError] = useState<SubmitError | null>(null);
+  const [confirmInput, setConfirmInput] = useState<ReceiptInput | null>(null);
+  const [confirmSaving, setConfirmSaving] = useState(false);
+
+  const saveReceipt = async (input: ReceiptInput) => {
+    if (odoo && unreachable) return;
+    try {
+      await onCreate(input, intent);
+      setConfirmInput(null);
+    } catch (err) {
+      const { headline, detail } = classifyMutationError(err, nativeRevenueHeadlines(t), { module: 'sales' });
+      setSaveError({ headline, detail });
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
 
@@ -279,16 +304,11 @@ export const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> =
           withheldAmount,
           withholdingSlipNumber: values.withholdingSlipNumber.trim(),
         } : {}),
+        ...(values.journalId ? { journalId: values.journalId } : {}),
         date: values.date,
       };
-      try {
-        await onCreate(input, intent);
-      } catch (err) {
-        // A rejected save is shown ONCE — here, persistently, in the dialog (#559) — not also as a toast, so this is
-        // the form's one `save_failed` capture point (ADR-0067). Headlines are keyed on the refusal code (#784).
-        const { headline, detail } = classifyMutationError(err, nativeRevenueHeadlines(t), { module: 'sales' });
-        setSaveError({ headline, detail });
-      }
+      if (odoo) setConfirmInput(input);
+      else await saveReceipt(input);
     });
   };
 
@@ -304,14 +324,15 @@ export const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> =
       onClose={onClose}
       loading={form.isSubmitting}
       dirty={form.isDirty}
-      submitDisabled={!form.isComplete}
+      submitDisabled={!form.isComplete || (odoo && unreachable)}
       errorSummary={errorSummary}
     >
       {!native && pendingPush.status !== 'idle' && (
         <div className="mb-3.5 flex justify-end">
-          <span className="text-xs text-muted-foreground">{t('financeCopy.pushingToERPNext', "Pushing to ERPNext…")}</span>
+          <span className="text-xs text-muted-foreground">{t(odoo ? 'financeCopy.pushingToOdoo' : 'financeCopy.pushingToERPNext', odoo ? 'Sending to Odoo…' : 'Pushing to ERPNext…')}</span>
         </div>
       )}
+      {odoo && unreachable && <p role="status" className="mb-3 text-sm text-muted-foreground">{t('finance:odooOutcome.offlineAction', 'Odoo is unavailable. You can still view the last data PMO read; no new changes were sent from this screen.')}</p>}
       <FormSection legend={t('financeCopy.paymentDetails', 'Payment details')}>
         <FormGrid>
           <Combobox
@@ -355,7 +376,7 @@ export const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> =
             onChange={(v) => {
               // I-5: while nothing is withheld, the cash received IS the amount paid — keep them in step.
               const withheldNow = form.values.withheldAmount.trim() ? parseMoneyInputAtScale(form.values.withheldAmount, 2) : 0;
-              if (native && withheldNow === 0) form.setValues({ paidAmount: v, receivedAmount: v });
+              if ((native || odoo) && withheldNow === 0) form.setValues({ paidAmount: v, receivedAmount: v });
               else paidAmountField.onChange(v);
             }}
             required
@@ -370,7 +391,8 @@ export const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> =
               : undefined}
             localeAware
           />
-          {cashReceivedField}
+          {(!odoo || withheldForSummary !== 0) && cashReceivedField}
+          {odoo && <div className="sm:col-span-2"><OdooJournalSelect value={journalField.value} onChange={journalField.onChange} id={journalField.id} label={t('finance:receipts.journalLabel', 'Received into')} /></div>}
           <div className="sm:col-span-2">
             <Button
               variant="outline"
@@ -437,6 +459,21 @@ export const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> =
           />
         </FormGrid>
       </FormSection>
+      <ConfirmDialog
+        open={confirmInput !== null}
+        title={t('finance:receipts.confirmOdooTitle', 'Record this receipt in Odoo?')}
+        description={<span className="space-y-2"><span className="block">{t('finance:receipts.confirmOdooBody', 'PMO sends this receipt to Odoo. Check the settled amount and any tax withheld before continuing.')}</span>{saveError && <span role="alert" className="block">{saveError.headline} {saveError.detail}</span>}</span>}
+        confirmLabel={t('financeCopy.recordPayment', 'Record payment')}
+        cancelLabel={t('financeCopy.cancel', 'Cancel')}
+        loading={confirmSaving}
+        confirmDisabled={unreachable}
+        onConfirm={() => {
+          if (!confirmInput || unreachable) return;
+          setConfirmSaving(true);
+          void saveReceipt(confirmInput).finally(() => setConfirmSaving(false));
+        }}
+        onCancel={() => setConfirmInput(null)}
+      />
     </EntityFormModal>
   );
 };
