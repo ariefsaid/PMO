@@ -16,6 +16,9 @@
     "limitReached": "You've reached your plan's active-project limit",
     "limitReachedDetail": "Nothing was created. Archive a project you no longer need, or ask your Operator to upgrade the plan."
   },
+  "erpLink": {
+    "createdSyncing": "{{name}} saved. ERP linking is running in the background; the PMO project is ready to use."
+  },
   "revive": {
     "limitReached": "You've reached your plan's active-project limit",
     "limitReachedDetail": "This project was not restored. Archive an active project you no longer need, or ask your Operator to upgrade the plan, then try again."
