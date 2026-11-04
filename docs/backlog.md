@@ -10,6 +10,16 @@
 
 ### ⚑⚑⚑ CURRENT STATE (2026-10-19) — v0.22.0 is LIVE; run the four commands below before quoting any number
 
+**2026-11-04 — Odoo purchase-to-payment P9 (#1505):** the seven Odoo procurement workflow declarations
+are backed by the production adapter contract suite, and the vocabulary guard covers the Odoo model and
+field terms. The composite Odoo bed run covers order/revision, receipt, VAT/PPh bill, payment recovery and
+the different-Finance-user gate. A separate FR-072 bed case proves same-intent recovery through the shipped
+money outbox after a lost bill-post response and holds an edited anchor; it does not prove the AC-OPP-062
+sweep path. That sweep acceptance remains unmet: `odooSweep.ts` recovers revenue documents, while
+`erpnext-sweep` is ERPNext-specific. The acceptance browser journey passed both Chromium and serial projects;
+the shared-money-outbox behavior is already on `dev` from P6. This status does not make a release-to-`main`
+recommendation; that remains the owner's decision.
+
 **Current drive boundary (owner, 2026-10-17): `dev` only. Do not promote to `main` or production.**
 **Dev gate:** regression #1182 is fixed in PR #1183 (`90fba37e`). The full dev browser run
 39188480565 passed 385 cases and 12 served-function checks, with zero timing warnings or failures.

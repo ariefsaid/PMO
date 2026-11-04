@@ -519,6 +519,18 @@ lot creation, revision, bill and payment posting, and reconciliation. Removing e
 blocked an exercised operation. This is the smallest set tested on this bed, not a proof for every possible
 customized installation; see the O2 findings below.
 
+**Purchase-to-payment setup:** double validation must be off (`po_double_validation = one_step`) so an
+order confirmation completes within the tested flow. Select the organisation's default payment journal from
+the mirrored bank or cash journals that have an outbound payment method; Finance can choose another journal
+for an individual payment. Odoo procurement money writes use the shared money outbox, including same-intent
+recovery after a lost response.
+
+**Held payment procedure:** only an Admin or Finance user other than the dispatching user may resolve a held
+payment. Compare the candidate in Odoo with the bill, vendor, amount and bounded creation window; adopt only
+after confirming the named payment is reconciled to that bill. Mark the payment absent only after searching
+those same facts and repeating the search; then retry the original command. Leave the row held when the
+evidence is inconclusive. This runbook records dev-bed evidence; release to `main` remains the owner's call.
+
 For the exercised customer-invoice and receipt calls (#1506 findings, research doc §10), an internal user with the
 Billing group (`account.group_account_invoice`) completed invoice create and post, the register-payment wizard, line
 reconcile, the credit-note wizard and the Coretax export. The stock external identifier (`ir.model.data`) read and

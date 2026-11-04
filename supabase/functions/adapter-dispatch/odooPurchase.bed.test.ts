@@ -8,8 +8,20 @@
  *     ODOO_BED_DB=$ODOO_DB ODOO_BED_KEY=$ODOO_API_KEY deno test --allow-env --allow-net --allow-read supabase/functions/adapter-dispatch/odooPurchase.bed.test.ts'
  */
 import { assert, assertEquals, assertRejects } from '@std/assert';
-import type { AdapterCommand } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
-import { bindCall } from '../../../pmo-portal/src/lib/adapterSeam/odoo/client.ts';
+import { createClient } from '@supabase/supabase-js';
+import { dispatchMoneyWrite, type DispatchMoneyWriteDeps } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
+import { AdapterError, type AdapterCommand, type PmoRecord } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
+import { expectedBillTotal, type BillCtx, type BillInput } from '../../../pmo-portal/src/lib/adapterSeam/odoo/purchase/billBody.ts';
+import { externalIdentifier, parseOdooExternalRef } from '../../../pmo-portal/src/lib/adapterSeam/odoo/purchase/anchors.ts';
+import { ODOO_TIER } from '../../../pmo-portal/src/lib/adapterSeam/odoo/connectAdapter.ts';
+import { recordExternalRef as recordExternalRefWrite } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
+import { readOdooBedContext } from '../_shared/testing/odooBedContext.ts';
+import { resolveOdooProcurementAdapter } from './odooAdapters.ts';
+import type { AdapterSelectContext } from './dispatchAdapters.ts';
+import { getReadModelWriter } from './readModelWriters.ts';
+import { canonicalCommandDigest } from './moneyOutboxDeps.ts';
+import { resolveOdooMoneyOutboxDeps } from './odooMoneyOutbox.ts';
+import { bindCall, type OdooCall } from '../../../pmo-portal/src/lib/adapterSeam/odoo/client.ts';
 import { createOdooProcurementAdapter, recoverOrder } from '../../../pmo-portal/src/lib/adapterSeam/odoo/procurementAdapter.ts';
 import type { OrderCtx, OrderInput } from '../../../pmo-portal/src/lib/adapterSeam/odoo/purchase/orderBody.ts';
 import type { ReviseLine } from '../../../pmo-portal/src/lib/adapterSeam/odoo/purchase/orderRevise.ts';
@@ -17,6 +29,8 @@ import type { ReviseLine } from '../../../pmo-portal/src/lib/adapterSeam/odoo/pu
 const BED = Deno.env.get('ODOO_BED_URL');
 const DB = Deno.env.get('ODOO_BED_DB') ?? '';
 const KEY = Deno.env.get('ODOO_BED_KEY') ?? '';
+const BED_CONTEXT = readOdooBedContext();
+const RECOVERY_READY = Boolean(BED_CONTEXT?.odooUrl && BED_CONTEXT.odooDatabase && BED_CONTEXT.odooKey && BED_CONTEXT.supabaseUrl && BED_CONTEXT.serviceRoleKey);
 
 Deno.test({
   name: 'AC-OPP-010 / AC-OPP-016 on the bed: one confirmed order with the project distribution on every line; revised in place after a partial receipt',
@@ -111,6 +125,255 @@ Deno.test({
       // best effort: the bed is throwaway, and a received order cannot be cancelled
       const ids = await call<number[]>('purchase.order', 'search', { domain: [['origin', '=', stamp]] }).catch(() => []);
       if (ids.length) await call('purchase.order', 'button_cancel', { ids }).catch(() => undefined);
+    }
+  },
+});
+
+
+Deno.test({
+  name: 'FR-072 partial on the bed: a lost bill-post response is recovered by the Odoo money outbox; an edited anchor is held',
+  ignore: !RECOVERY_READY,
+  sanitizeResources: false,
+  sanitizeOps: false,
+  fn: async () => {
+    const bed = BED_CONTEXT!;
+    const bedUrl = new URL(bed.odooUrl);
+    const raw = bindCall({ baseUrl: bed.odooUrl, apiKey: bed.odooKey, database: bed.odooDatabase, fetchImpl: fetch });
+    const sc = createClient(bed.supabaseUrl, bed.serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } });
+    const stamp = `P9-R-${Date.now()}`;
+    const hostGuardEnv = ['SUPABASE_URL', 'ERPNEXT_ALLOW_LOCAL_BENCH', 'ERPNEXT_LOCAL_BENCH_ORIGINS']
+      .map((name) => [name, Deno.env.get(name)] as const);
+    Deno.env.set('SUPABASE_URL', bed.supabaseUrl);
+    Deno.env.set('ERPNEXT_ALLOW_LOCAL_BENCH', '1');
+    Deno.env.set('ERPNEXT_LOCAL_BENCH_ORIGINS', bedUrl.origin);
+    const must = async <T>(p: PromiseLike<{ data: T; error: { message: string; code?: string } | null }>) => {
+      const { data, error } = await p;
+      if (error) throw new Error(error.message);
+      return data;
+    };
+    const orgId = crypto.randomUUID();
+    const vendorId = crypto.randomUUID();
+    const caseIds = [crypto.randomUUID(), crypto.randomUUID()];
+    const email = `p9-${crypto.randomUUID()}@example.test`;
+    const cases: Array<{ pmoId: string; procurementId: string; idempotencyKey: string; partnerId: number; productId: number; moveId: number; outboxId: string }> = [];
+    let actorId: string | null = null;
+    let secretRef: string | null = null;
+    let partnerId = 0;
+    let productId = 0;
+    const [bedCompany] = await raw<Array<{ id: number; name: string; currency_id: [number, string] }>>('res.company', 'search_read', {
+      domain: [], fields: ['id', 'name', 'currency_id'], limit: 1,
+    });
+    assert(bedCompany, 'the Odoo bed exposes a company for the temporary binding');
+    const companyId = bedCompany.id;
+    const call: OdooCall = async <T>(model: string, method: string, body: Record<string, unknown> = {}) => raw<T>(model, method, {
+      ...body, context: { allowed_company_ids: [companyId], ...((body.context as object) ?? {}) },
+    });
+    const make = async (model: string, vals: Record<string, unknown>) => (await call<number[]>(model, 'create', { vals_list: [vals] }))[0];
+    const [company] = await call<Array<{ currency_id: [number, string] }>>('res.company', 'read', { ids: [companyId], fields: ['currency_id'] });
+    const fixture: BillInput = {
+      vendor: '', reference: '', invoiceDate: '2026-11-04', projectIds: [],
+      lines: [{ name: 'service', quantity: 1, rate: 100, purchaseLineId: null }],
+    };
+    const billCtx: BillCtx = { companyId, currencyId: company.currency_id[0], itemMap: {}, unitMap: {}, costAccountId: null, taxes: [] };
+    const upsertCase = async (procurementId: string, suffix: string) => {
+      await must(sc.from('procurements').insert({
+        id: procurementId, org_id: orgId, code: `${stamp}-${suffix}`, title: `${stamp} ${suffix}`, vendor_id: vendorId,
+        currency: company.currency_id[1], total_value: 100, status: 'Approved',
+      }).select());
+      await must(sc.from('procurement_items').insert({
+        org_id: orgId, procurement_id: procurementId, name: 'service', description: `${stamp} line`, quantity: 1, rate: 100,
+      }).select());
+    };
+    const provisionBinding = async () => {
+      await must(sc.from('organizations').insert({ id: orgId, name: `${stamp} org` }).select());
+      const created = await sc.auth.admin.createUser({ email, password: `${crypto.randomUUID()}Aa1!`, email_confirm: true });
+      if (created.error || !created.data.user) throw new Error('could not create the temporary Odoo recovery actor');
+      actorId = created.data.user.id;
+      await must(sc.from('profiles').insert({ id: actorId, org_id: orgId, full_name: `${stamp} admin`, email, role: 'Admin', status: 'active' }).select());
+      secretRef = await must(sc.rpc('stage_vault_secret_for_org', {
+        p_org_id: orgId, p_external_tier: 'odoo', p_secret_value: bed.odooKey, p_secret_name: `${stamp}-secret`, p_actor_id: actorId,
+      })) as string;
+      await must(sc.rpc('finalize_odoo_connect', {
+        p_org_id: orgId, p_secret_ref: secretRef, p_site_url: bedUrl.origin, p_database: bed.odooDatabase,
+        p_key_expires_on: new Date(Date.now() + 86_400_000).toISOString().slice(0, 10),
+        p_discard: false, p_kill_switch_enabled: true, p_actor_id: actorId,
+      }));
+      const directoryModels = [
+        'res.company', 'account.analytic.plan', 'account.analytic.account', 'account.account', 'account.tax', 'account.journal',
+        'uom.uom', 'product.product', 'stock.warehouse', 'stock.location', 'res.partner',
+      ];
+      const models = Object.fromEntries(directoryModels.map((model) => [model, {
+        exists: true, read: model === 'account.journal', create: false, write: false, unlink: false, fields_missing: [],
+      }]));
+      const capability = {
+        observed_at: new Date().toISOString(), version_major: 20, untested_version: false, companies: [], missing: [], models,
+        later: {
+          'purchase.order': true, 'purchase.order.line': true, 'stock.picking': true, 'stock.move': true,
+          'account.move': true, 'account.payment': true,
+        },
+      };
+      await must(sc.rpc('activate_odoo_binding', {
+        p_org_id: orgId, p_version_major: 20, p_company_id: companyId, p_company_name: bedCompany.name,
+        p_config_patch: { capabilities: capability, item_map: { service: String(productId) }, unit_map: {}, purchase_tax_ids: [] }, p_actor_id: actorId,
+      }));
+      await must(sc.from('external_domain_ownership').insert({ org_id: orgId, external_tier: 'odoo', domain: 'procurement' }).select());
+      await must(sc.from('companies').insert({ id: vendorId, org_id: orgId, name: `${stamp} vendor`, type: 'Vendor' }).select());
+      await must(sc.from('external_refs').insert({
+        org_id: orgId, domain: 'companies', pmo_record_id: vendorId, external_tier: 'odoo', external_record_id: `Vendor:${partnerId}`,
+      }).select());
+    };
+    const stageLostResponse = async (suffix: string, procurementId: string, editAnchor: boolean) => {
+      const pmoId = crypto.randomUUID();
+      const idempotencyKey = `${stamp}-${suffix}-submit`;
+      const reference = `${stamp}-${suffix}`;
+      fixture.vendor = `Vendor:${partnerId}`;
+      fixture.reference = reference;
+      const command: AdapterCommand = {
+        domain: 'procurement', operation: 'create', idempotencyKey,
+        record: {
+          id: pmoId, erp_doc_kind: 'purchase-invoice', procurementId, referenceNumber: reference,
+          invoiceDate: fixture.invoiceDate, odoo_expected_total: expectedBillTotal(fixture, []), odoo_cost_account: null,
+        },
+      };
+      let lostPostResponse = false;
+      const cutAfterPost: OdooCall = async <T>(model: string, method: string, body: Record<string, unknown> = {}) => {
+        const result = await call<T>(model, method, body);
+        if (!lostPostResponse && model === 'account.move' && method === 'action_post') {
+          lostPostResponse = true;
+          throw new AdapterError('external-unreachable', 'simulated response cut after the bill was posted');
+        }
+        return result;
+      };
+      const adapter = createOdooProcurementAdapter({
+        call: cutAfterPost,
+        resolveOrder: () => Promise.reject(new Error('not an order command')),
+        resolveRevise: () => Promise.reject(new Error('not a revision command')),
+        resolveBill: async () => ({ input: fixture, ctx: billCtx }),
+      });
+      const lost = await assertRejects(() => adapter.commit(command), Error);
+      assertEquals((lost as AdapterError).code, 'external-unreachable');
+      assert(lostPostResponse, 'the Odoo post committed before the response was cut');
+      const matches = await call<number[]>('account.move', 'search', { domain: [
+        ['move_type', '=', 'in_invoice'], ['ref', '=', reference], ['partner_id', '=', partnerId],
+      ] });
+      assertEquals(matches.length, 1, 'the cut left exactly one vendor bill in Odoo');
+      const moveId = matches[0];
+      const entry = { pmoId, procurementId, idempotencyKey, partnerId, productId, moveId, outboxId: '' };
+      cases.push(entry);
+      const [posted] = await call<Array<{ state: string }>>('account.move', 'read', { ids: [moveId], fields: ['state'] });
+      assertEquals(posted.state, 'posted');
+      if (editAnchor) {
+        const anchor = externalIdentifier(`bill:${pmoId}`);
+        const ids = await call<number[]>('ir.model.data', 'search', { domain: [
+          ['module', '=', anchor.module], ['name', '=', anchor.name], ['model', '=', 'account.move'],
+        ] });
+        assertEquals(ids.length, 1, 'the posted bill has one stock external identifier');
+        await call('ir.model.data', 'write', { ids, vals: { module: 'edited' } });
+      }
+      const record = command.record as Record<string, unknown>;
+      const outboxPayload = {
+        ...record, odoo_partner_id: partnerId, odoo_amount: '100.00', odoo_line_count: 1,
+        created_after: new Date(Date.now() - 5 * 60_000).toISOString().slice(0, 19).replace('T', ' '),
+        created_before: new Date(Date.now() + 60_000).toISOString().slice(0, 19).replace('T', ' '),
+      };
+      const digestMaterial = Object.fromEntries(Object.entries(outboxPayload).filter(([key]) => ![
+        'odoo_expected_total', 'odoo_cost_account', 'odoo_bill_ref', 'odoo_adopted_ref', 'odoo_absent_confirmed', 'created_after', 'created_before',
+      ].includes(key)));
+      const payloadDigest = await canonicalCommandDigest({ domain: 'procurement', operation: 'create', record: digestMaterial });
+      const replayCtx = {
+        orgId, command, serviceClient: sc, userId: actorId!, replay: true, erpAuth: new Map(),
+        faultGate: { envFaults: undefined, header: null, requestHost: null, allowedHosts: undefined },
+      } as unknown as AdapterSelectContext;
+      const [money, replayAdapter] = await Promise.all([
+        resolveOdooMoneyOutboxDeps(replayCtx), resolveOdooProcurementAdapter(replayCtx),
+      ]);
+      assertEquals(payloadDigest, money.payloadDigest, 'the recovery row digest matches the shipped Odoo money-outbox payload');
+      const now = Date.now();
+      await must(sc.from('external_command_outbox').insert({
+        org_id: orgId, domain: 'procurement', pmo_record_id: pmoId, idempotency_key: idempotencyKey, external_tier: 'odoo', actor_user_id: actorId,
+        operation: 'create', state: 'quarantined', payload: outboxPayload, payload_digest: payloadDigest, attempt_count: 1, claim_generation: 2,
+        claimed_at: new Date(now - 6 * 60_000).toISOString(), reconcile_after: new Date(now - 60_000).toISOString(),
+        updated_at: new Date(now - 6 * 60_000).toISOString(),
+      }).select());
+      const stored = await must(sc.from('external_command_outbox').select('id').eq('org_id', orgId)
+        .eq('domain', 'procurement').eq('pmo_record_id', pmoId).eq('idempotency_key', idempotencyKey).single()) as { id: string };
+      entry.outboxId = stored.id;
+      const writer = getReadModelWriter('procurement');
+      const deps: DispatchMoneyWriteDeps = {
+        command, adapter: replayAdapter, money, outboxRecordId: pmoId,
+        writeReadModel: (canonical: PmoRecord, options?: { isReplay?: boolean }) => writer.upsert({
+          serviceClient: sc as never, orgId, callerUserId: actorId!, isReplay: options?.isReplay ?? false,
+        }, canonical, command),
+        recordExternalRef: (mapping) => recordExternalRefWrite(sc as never, { ...mapping, orgId, externalTier: ODOO_TIER }),
+      };
+      if (editAnchor) {
+        const held = await assertRejects(() => dispatchMoneyWrite(deps), Error);
+        assertEquals((held as AdapterError).code, 'command-held');
+      } else {
+        const recovered = await dispatchMoneyWrite(deps);
+        assertEquals(parseOdooExternalRef('account.move', recovered.externalRecordId), moveId);
+        assertEquals(recovered.canonical.erp_docstatus, 1);
+      }
+      return entry;
+    };
+
+    try {
+      partnerId = await make('res.partner', { name: `${stamp} supplier`, supplier_rank: 1 });
+      productId = await make('product.product', { name: `${stamp} service`, type: 'service', purchase_ok: true });
+      await provisionBinding();
+      await upsertCase(caseIds[0], 'adopt');
+      await upsertCase(caseIds[1], 'edited');
+      await stageLostResponse('adopt', caseIds[0], false);
+      await stageLostResponse('edited', caseIds[1], true);
+
+      const adopt = cases[0];
+      const edited = cases[1];
+      const firstOutbox = await must(sc.from('external_command_outbox').select('state,external_record_id')
+        .eq('org_id', orgId).eq('id', adopt.outboxId).single()) as { state: string; external_record_id: string | null };
+      const heldOutbox = await must(sc.from('external_command_outbox').select('state')
+        .eq('org_id', orgId).eq('id', edited.outboxId).single()) as { state: string };
+      assertEquals(firstOutbox.state, 'confirmed');
+      assertEquals(parseOdooExternalRef('account.move', firstOutbox.external_record_id), adopt.moveId);
+      assertEquals(heldOutbox.state, 'held', 'an edited stock anchor is held instead of creating another bill');
+      const firstRef = await must(sc.from('external_refs').select('external_record_id').eq('org_id', orgId)
+        .eq('domain', 'procurement').eq('pmo_record_id', adopt.pmoId).single()) as { external_record_id: string };
+      assertEquals(parseOdooExternalRef('account.move', firstRef.external_record_id), adopt.moveId);
+      const firstMirror = await must(sc.from('procurement_invoices').select('status,erp_docstatus,erp_outstanding_amount')
+        .eq('org_id', orgId).eq('id', adopt.pmoId).single()) as { status: string; erp_docstatus: number; erp_outstanding_amount: number };
+      assertEquals([firstMirror.status, firstMirror.erp_docstatus, Number(firstMirror.erp_outstanding_amount)], ['Received', 1, 100]);
+      const editedRef = await must(sc.from('external_refs').select('pmo_record_id').eq('org_id', orgId)
+        .eq('domain', 'procurement').eq('pmo_record_id', edited.pmoId).maybeSingle());
+      assertEquals(editedRef, null, 'a held command has no external link');
+      for (const entry of cases) {
+        const ids = await call<number[]>('account.move', 'search', { domain: [
+          ['move_type', '=', 'in_invoice'], ['ref', '=', `${stamp}-${entry === adopt ? 'adopt' : 'edited'}`], ['partner_id', '=', partnerId],
+        ] });
+        assertEquals(ids, [entry.moveId], 'recovery keeps exactly one Odoo bill for each PMO record');
+      }
+    } finally {
+      for (const entry of cases) {
+        await sc.from('external_command_outbox').delete().eq('org_id', orgId).eq('domain', 'procurement').eq('pmo_record_id', entry.pmoId);
+        await sc.from('external_refs').delete().eq('org_id', orgId).eq('pmo_record_id', entry.pmoId);
+        await sc.from('procurement_invoices').delete().eq('org_id', orgId).eq('id', entry.pmoId);
+      }
+      await sc.from('external_refs').delete().eq('org_id', orgId).eq('pmo_record_id', vendorId);
+      await sc.from('procurement_items').delete().eq('org_id', orgId);
+      await sc.from('procurements').delete().eq('org_id', orgId);
+      await sc.from('companies').delete().eq('org_id', orgId);
+      if (actorId) {
+        await Promise.resolve(sc.rpc('disconnect_external_integration', { p_org_id: orgId, p_external_tier: 'odoo', p_actor_id: actorId })).catch(() => {});
+        await sc.auth.admin.deleteUser(actorId).catch(() => {});
+      }
+      await Promise.resolve(sc.from('organizations').delete().eq('id', orgId).throwOnError()).catch(() => {});
+      for (const entry of cases) {
+        const ids = await call<number[]>('ir.model.data', 'search', { domain: [['model', '=', 'account.move'], ['name', '=', `bill_${entry.pmoId.replaceAll('-', '_')}`]] }).catch(() => []);
+        if (ids.length) await call('ir.model.data', 'unlink', { ids }).catch(() => {});
+        await call('account.move', 'button_draft', { ids: [entry.moveId] }).catch(() => {});
+        await call('account.move', 'unlink', { ids: [entry.moveId] }).catch(() => {});
+      }
+      if (productId) await call('product.product', 'unlink', { ids: [productId] }).catch(() => {});
+      if (partnerId) await call('res.partner', 'unlink', { ids: [partnerId] }).catch(() => {});
+      for (const [name, value] of hostGuardEnv) value === undefined ? Deno.env.delete(name) : Deno.env.set(name, value);
     }
   },
 });

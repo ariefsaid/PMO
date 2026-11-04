@@ -11,7 +11,6 @@ import type { TierWorkflows } from '../connect/workflows.ts';
 const SETUP_CENSUS_AND_PROPOSALS = 1605;
 // Odoo route items (map #1481).
 const ODOO_CONNECT = 1504; // O1 slice S7: project links over cost accounts
-const ODOO_PROCUREMENT = 1505;
 const ODOO_REVENUE = 1506;
 const ODOO_ACTUALS_AND_BUDGET = 1507;
 const ODOO_LABOUR = 1510;
@@ -29,14 +28,14 @@ export const ODOO_WORKFLOWS: TierWorkflows = {
   'account.match': { status: 'pending', version: 1, issue: SETUP_CENSUS_AND_PROPOSALS },
   'employee.match': { status: 'pending', version: 1, issue: ODOO_LABOUR },
   'employee.send': { status: 'pending', version: 1, issue: ODOO_LABOUR },
-  'purchase.push': { status: 'pending', version: 1, issue: ODOO_PROCUREMENT },
-  'bill.push': { status: 'pending', version: 1, issue: ODOO_PROCUREMENT },
-  'vendor-payment.push': { status: 'pending', version: 1, issue: ODOO_PROCUREMENT },
-  'purchase.link-existing': { status: 'pending', version: 1, issue: ODOO_PROCUREMENT },
-  'cutover.purchase': { status: 'pending', version: 1, issue: ODOO_PROCUREMENT },
+  'purchase.push': { status: 'supported', version: 1 },
+  'bill.push': { status: 'supported', version: 1 },
+  'vendor-payment.push': { status: 'supported', version: 1 },
+  'purchase.link-existing': { status: 'supported', version: 1 },
+  'cutover.purchase': { status: 'supported', version: 1 },
   'cutover.timesheet': { status: 'pending', version: 1, issue: ODOO_LABOUR },
   // The shared suite drives a purchase push; Odoo has none until O2.
-  'cutover.activation': { status: 'pending', version: 1, issue: ODOO_PROCUREMENT },
+  'cutover.activation': { status: 'supported', version: 1 },
   'invoice.push': { status: 'pending', version: 1, issue: ODOO_REVENUE },
   'receipt.read': { status: 'pending', version: 1, issue: ODOO_REVENUE },
   'invoice.pair-existing': { status: 'pending', version: 1, issue: ODOO_REVENUE },
@@ -48,5 +47,5 @@ export const ODOO_WORKFLOWS: TierWorkflows = {
   'budget.resolve-occupant': { status: 'pending', version: 1, issue: ODOO_ACTUALS_AND_BUDGET },
   'timesheet.push': { status: 'pending', version: 1, issue: ODOO_LABOUR },
   'imprest.transfer': { status: 'pending', version: 1, issue: ODOO_SITE_CASH },
-  'purchase-order.revise': { status: 'pending', version: 1, issue: 1505 }, // #1505 carries the revise transport
+  'purchase-order.revise': { status: 'supported', version: 1 },
 };

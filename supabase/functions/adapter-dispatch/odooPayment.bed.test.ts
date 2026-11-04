@@ -180,7 +180,7 @@ Deno.test({
       domain: [['type', '=', 'bank'], ['company_id', '=', companyId]], fields: ['inbound_payment_method_line_ids', 'default_account_id'], limit: 20,
     });
     const selectedJournal = journal && journal.inbound_payment_method_line_ids.length > 0 ? journal : null;
-    assert(selectedJournal, 'the bank journal has an inbound payment method line');
+    if (!selectedJournal) throw new Error('the bank journal has an inbound payment method line');
     const [taxPrepaid] = await call<Array<{ id: number; currency_id: false | [number, string]; account_type: string }>>('account.account', 'search_read', {
       domain: [['account_type', 'in', ['asset_current', 'asset_prepayments']], ['company_ids', 'in', [companyId]]],
       fields: ['currency_id', 'account_type'], limit: 20,

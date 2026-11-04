@@ -38,13 +38,26 @@ describe('odoo contract', () => {
     await expect(harness.pushBudgetVersion({ categories: [], mappedCategories: [], project: 'own' })).rejects.toThrow(/pending/);
     await expect(harness.readActuals({ ledger: [], projectLinks: {} })).rejects.toThrow(/pending/);
   });
-  it('keeps purchase declarations pending while the harness exercises the P1 seam', async () => {
+  it('AC-OPP-084 declares every proven P9 workflow at its shared suite version', async () => {
     for (const id of ['purchase.push', 'bill.push', 'vendor-payment.push', 'purchase.link-existing', 'cutover.purchase', 'cutover.activation', 'purchase-order.revise'] as const) {
-      expect(ODOO_WORKFLOWS[id].status).toBe('pending');
+      expect(ODOO_WORKFLOWS[id]).toEqual({ status: 'supported', version: 1 });
+      expect(SUITES, id).toHaveProperty([id]);
     }
     expect(await harness.pushPurchase('activated')).toMatchObject({ outcome: 'pushed' });
     expect(await harness.pushProcurement({ doc: 'bill', caller: 'A', procurement: 'B' })).toMatchObject({ outcome: 'refused', erpCalls: 0 });
-    expect(await harness.mirrorPurchases([{ kind: 'bill', reference: 'B1', supplier: 'Vendor', total: 10, modifiedAt: '2026-01-01' }])).toEqual([{ kind: 'bill', reference: 'B1', total: '10' }]);
+    expect(await harness.mirrorPurchases([{ kind: 'bill', reference: 'B1', supplier: 'Vendor', total: 10, modifiedAt: '2026-01-01' }])).toEqual([{ kind: 'bill', reference: 'B1', total: '10.00' }]);
+  });
+
+  it('AC-OPP-084 sends owned Odoo purchases through the shipped production adapter', async () => {
+    for (const scenario of [
+      { doc: 'purchase-order', caller: 'A', procurement: 'A' },
+      { doc: 'bill', caller: 'B', procurement: 'B' },
+      { doc: 'vendor-payment', caller: 'A', procurement: 'A', invoice: 'A' },
+    ] as const) {
+      const result = await harness.pushProcurement(scenario);
+      expect(result.outcome).toBe('accepted');
+      expect(result.erpCalls).toBeGreaterThan(0);
+    }
   });
 
   it('keeps the revenue declarations pending while the harness runs the shared revenue suites (SD-2)', () => {

@@ -3,8 +3,13 @@ import { execFileSync } from 'node:child_process';
 import { describe, expect, it } from 'vitest';
 
 const PORTAL = new URL('../../../../', import.meta.url).pathname;
-const ODOO_MODELS = ['res.partner', 'res.company', 'product.product', 'product.template', 'uom.uom', 'stock.warehouse', 'stock.location',
-  'account.account', 'account.tax', 'account.analytic.account', 'account.analytic.plan', 'purchase.order', 'account.move'];
+const ODOO_VOCABULARY = [
+  'res.partner', 'res.company', 'product.product', 'product.template', 'uom.uom', 'stock.warehouse', 'stock.location',
+  'account.account', 'account.tax', 'account.analytic.account', 'account.analytic.plan', 'purchase.order', 'purchase.order.line',
+  'stock.picking', 'stock.move', 'stock.backorder.confirmation', 'account.move', 'account.move.line', 'account.payment',
+  'account.payment.register', 'ir.model.data', 'amount_untaxed', 'amount_tax', 'amount_residual', 'invoice_origin',
+  'picking_type_code', 'purchase_line_id', 'reconciled_bill_ids', 'outbound_payment_method_line_ids',
+];
 
 /** A model named in code is a string literal (`account.account` alone is also a JS property access). */
 const literals = (models: readonly string[]) => models.flatMap((m) => ["'", '"', '`'].flatMap((q) => ['-e', `${q}${m}${q}`]));
@@ -21,11 +26,11 @@ function outsideTheOdooAdapter(models: readonly string[]): string[] {
 
 describe('AC-ODC-083 Odoo model names stay below the adapter contract', () => {
   it('appear in pmo-portal/src and pages only under adapterSeam/odoo/', () => {
-    expect(outsideTheOdooAdapter(ODOO_MODELS)).toEqual([]);
+    expect(outsideTheOdooAdapter(ODOO_VOCABULARY)).toEqual([]);
   });
 
   it('the scan finds the adapter\'s own model literals, so an empty result above is not a blind scan', () => {
-    const inAdapter = execFileSync('git', ['grep', '-l', '-F', ...literals(ODOO_MODELS), '--', 'src/lib/adapterSeam/odoo'], { cwd: PORTAL, encoding: 'utf8' });
+    const inAdapter = execFileSync('git', ['grep', '-l', '-F', ...literals(ODOO_VOCABULARY), '--', 'src/lib/adapterSeam/odoo'], { cwd: PORTAL, encoding: 'utf8' });
     expect(inAdapter).toMatch(/connectAdapter\.ts/);
   });
 });

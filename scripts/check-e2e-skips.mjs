@@ -79,6 +79,12 @@ export const ALLOWED_SKIPS = [
     verified: '2026-09-30',
   },
   {
+    file: 'AC-OPP-090-odoo-purchase-to-payment.spec.ts',
+    reason: 'The live Odoo purchase-to-payment acceptance journey needs the local served-functions lane and Odoo bed.',
+    restore: 'Run scripts/e2e-local.sh against the local served-functions lane and Odoo bed.',
+    verified: '2026-11-04',
+  },
+  {
     file: 'serial/AC-PLN-015-switch-off-journey.spec.ts',
     reason:
       'Arms (a) and (b) assert the /stock ROUTE and RAIL gates that S3 (feat/plans-s3-console) has not wired on dev, so they are test.fixme; arm (c) additionally needs the served-functions lane AND the agent-assistant capability flag. Nothing in this SERIAL-lane spec can run on dev until S3 lands.',
