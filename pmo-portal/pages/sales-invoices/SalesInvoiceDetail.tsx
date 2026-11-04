@@ -25,11 +25,12 @@ interface Props {
   recordPrimaryAction: { label: string; onClick: () => void } | null;
   invoiceDisplayLabel: (invoice: SalesInvoiceRow) => string;
   receiptAwaitingOdoo?: boolean;
+  odoo?: boolean;
   may: ReturnType<typeof usePermission>;
   pdfDownload: ReturnType<typeof useInvoicePdfDownload>;
   dialogs: React.ReactNode;
 }
-export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, mode, organizationToday, onBack, refetch, recordPrimaryAction, invoiceDisplayLabel, receiptAwaitingOdoo = false, may, pdfDownload, dialogs }: Props) {
+export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, mode, organizationToday, onBack, refetch, recordPrimaryAction, invoiceDisplayLabel, receiptAwaitingOdoo = false, odoo = false, may, pdfDownload, dialogs }: Props) {
   const { t } = useTranslation();
   const viewTargetNumber = viewTarget ? invoiceNumber(viewTarget) : null;
     return (
@@ -145,7 +146,7 @@ export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, mode,
                 )}
               </section>
             )}
-            <SalesInvoiceEvidenceSection invoice={viewTarget} />
+            <SalesInvoiceEvidenceSection invoice={viewTarget} odoo={odoo} />
             {/* hideLines: the Bill evidence section above is the record page's single lines render
                 (AC-991-001's accessible "Line items" list lives there); the approvals panel keeps
                 the preview as its own lines surface. */}

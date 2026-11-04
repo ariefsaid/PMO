@@ -1,500 +1,327 @@
-# PMO command-line client (`scripts/pmo.mjs`)
+# PMO agent operator runbook
 
-**Purpose:** read, create and update PMO records from a terminal — by the owner, or by Claude Code on
-the owner's machine — signed in **as the owner**. Issue #728; decisions DD-API-1/2/3 in
-`docs/decisions.md`.
+> **Audience:** an agent operating PMO for the owner. Read this page before preparing client data.
+> The commands use the signed-in user's permissions. They do not bypass PMO role checks.
 
-**How it signs in:** through Supabase Auth's OAuth 2.1 server (authorization code + PKCE S256, a
-pre-registered public client, loopback redirect). The token it holds is an ordinary user session
-token, so row-level security treats every CLI call exactly like the same user in the browser. The CLI
-never uses a service-role key.
+## Read this first
 
-**Requirements:** Node 22 (standard library only — no `npm install`).
+### What the CLI can and cannot do
 
----
+`node scripts/pmo.mjs --help` is the command reference. The CLI supports bounded reads, selected record writes, a starting-data loader, stage-date correction, ERP checks, purchase-document linking, document-reference linking, account maps, cost-attribution rules, and read-only T&M inspection. It is not a general database console: there is no delete command, no arbitrary RPC, and some writes remain app-only. Do not invent flags or call database tables directly.
 
-## 1. One-time setup
+Use Node 22 or newer. Sign in with `node scripts/pmo.mjs login`, then confirm the identity and role with `node scripts/pmo.mjs whoami`. The CLI stores an ordinary owner session and applies the same row-level permissions as the app. Use a real, active Admin account for loading client data and other Admin-only commands.
 
-### Local stack
+`pmo load`, `pmo stages`, `pmo stage-date`, `pmo accounts map set`, and ERP setup checks require an active Admin. Purchase reads/links are for active Admin, Executive, Project Manager, or Finance members; the `--include-set-aside` read and setting documents aside are Admin/Finance only. Attribution preview/set/end are Admin/Finance; `pmo attribution list` also serves Executive and Project Manager. T&M reads are for Admin, Finance, Executive, or the project's Project Manager. Other writes remain subject to the signed-in member's normal app permissions.
 
-`supabase/config.toml` enables the OAuth server (`[auth.oauth_server] enabled = true`, consent screen at
-`/oauth/consent`). Register the CLI's client once:
+### Data ownership when an ERP is connected
 
-```bash
-eval "$(supabase status -o env | grep -E '^(API_URL|SERVICE_ROLE_KEY|ANON_KEY)=')"
-SUPABASE_URL="$API_URL" SUPABASE_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY" node scripts/register-oauth-client.mjs
-# → { "created": true, "client_id": "…", "client_name": "PMO CLI", "redirect_uris": [ … ] }
-```
+PMO is the app and canonical workflow. When ERPNext or Odoo is connected, the ERP owns its native accounting ledger, procurement chain, party master, sales money documents, and timesheet records; PMO reads synchronized data and sends supported writes through the adapter. Projects, milestones, tasks, CRM and the documents register remain PMO-owned. Budgets combine ERP objects with PMO versions. PMO provides the weekly timesheet entry and approval surface. For a live standalone organization that connects an ERP later, the ADR-0055 §5A Posture B crossing keeps PMO entry/approval as the source of truth and side-mirrors the approved result.
 
-It is idempotent (an existing "PMO CLI" client is reported, not duplicated). The client id is not a
-secret — a public client has none.
+For a new **Client** company when an ERP owns companies, use `pmo load` with the company in its `companies` list. The loader creates the ERP-owned Client through the same synchronous adapter command as the app and uses the returned PMO company id for the project in that load; do not create a duplicate in the ERP and wait for the hourly sweep. If a command refuses or reports an ambiguous/archived party, resolve it in **Companies**; **Companies → New** remains the immediate app fallback for an approved Client creation. Vendors and other party types stay in their supported ERP/app flow.
 
-### Hosted project — owner-gated
+> **Updated after merge:** the fix from `fix/cli-create-erp-owned-company` is on `dev`; a missing ERP-owned Client can now be created synchronously by `pmo load`. Revisit this note if that loader behavior changes.
 
-Enabling the OAuth server on the hosted project and registering the client there is an
-**infrastructure change that needs the owner's explicit go-ahead** (DD-API-2). The steps, once approved:
-enable the OAuth 2.1 server in the project's Auth settings with the authorization path
-`/oauth/consent` (dynamic client registration stays off), deploy an app build that contains the
-consent route, then run the registration script with the hosted URL and `--hosted`. The script refuses
-a non-local URL without that flag, and refuses to reuse an existing client of the same name unless it
-is the public client with exactly the CLI's loopback redirects.
+For a project that names a new Client, include the company in the load file's `companies` list so the loader can create it before creating the project. Never create a second copy to resolve a matching error.
 
-Migration `0222` installs the API-client guard as PostgREST's pre-request function, as in-database
-configuration on the `authenticator` role. After pushing it, confirm on the hosted project that the
-setting took effect: with a CLI token, a request outside the surface (e.g. a `DELETE`) must answer
-`403` / `42501`, and the app must work as before.
+### Timing: what is immediate and what waits
 
-Recommended with it (owner-gated Auth setting): a session time-box and an inactivity timeout, so a CLI
-sign-in that is no longer used expires on its own.
+- App writes to ERP-owned domains are synchronous: PMO waits for the ERP response and returns the result. The app-created Client company is available immediately.
+- CLI writes such as `pmo load`, purchase links, and budget/account-map operations make their supported calls in the current command. A successful command reports the applied/skipped rows; no hourly refresh is needed for those writes.
+- Changes made directly in ERPNext or Odoo arrive in PMO through webhooks and reconciliation. ERPNext reconciliation may take up to an hour outside its initial collection window. Avoid waiting when the operation is a PMO-supported synchronous command or app action. If an external edit has not appeared, use **Administration → Integrations** and the relevant read checks below before retrying anything.
 
-### Environment
+### Safety and reruns
 
-| Variable | Meaning | Default |
-|---|---|---|
-| `PMO_SUPABASE_URL` | Supabase project URL (`--url`) | `http://127.0.0.1:54321` (local stack) |
-| `PMO_SUPABASE_KEY` | the project's publishable (anon) key (`--key`) | the key saved by `pmo login` (set it once at login; later calls need no env var); secret keys (`sb_secret_…`, or a JWT with role `service_role`) are refused and never saved |
-| `PMO_CLIENT_ID` | the registered client id (`--client-id`), needed for `login` | none |
-| `PMO_CONFIG_DIR` | where credentials are stored | `~/.config/pmo` |
+1. Confirm the target organization, signed-in user, and role with `node scripts/pmo.mjs whoami` before any write.
+2. Run the command's `--dry-run` first, inspect every planned action/refusal, and only then rerun without `--dry-run`. Do not assume every command has a dry-run flag. For a write that has no preview mode (for example `stage-date` or the organization-creation RPC), stop before writing unless the owner has approved the exact target and values; inspect its current state first.
+3. Never run a command against production, create a production organization, or change hosted setup without the owner's explicit go for that instance. A local dry-run does not authorize a hosted write.
+4. `pmo load` is idempotent for the same source after a completed write: re-running resumes, skips already-loaded rows, and reports conflicts instead of overwriting. If a write's result is unknown because the connection failed, inspect PMO and ERP first. Correct conflicting data in the app, then make a deliberate corrected source file. Do not edit a source row in the hope that an existing project, contract line, or budget line will be overwritten.
+5. Keep source files outside the repository and do not include client names, personal details, access tokens, credentials, or live ERP links in public issues or tracked documentation.
 
-A remote URL must be `https`; plain `http` is accepted only for the local stack.
+Roles below mean an active organization member with that role. Admin-only commands are stated explicitly. Other commands still enforce the signed-in user's own RLS permissions; a CLI success does not grant app permissions.
 
----
+### When a command refuses
 
-## 2. Sign in and out
+Read the complete JSON error on stderr and its `details`; exit `2` means the CLI stopped before sending a request, exit `1` means the server refused or a remote operation failed.
 
-```bash
-node scripts/pmo.mjs login       # prints a sign-in URL and opens the browser
-node scripts/pmo.mjs whoami      # → { id, email, full_name, role, status }
-node scripts/pmo.mjs logout      # ends THIS session only; browser sessions stay signed in
-```
-
-Logout revokes the refresh token at once; an access token already issued expires within the hour
-(standard token behaviour). If the stored access token has expired, logout refreshes it first so the
-revoke is authenticated. If the server does not confirm the revoke, the credentials are kept and the
-command fails — run it again.
-
-`login` listens on `127.0.0.1` for the browser's return, on the first free port of a small fixed set
-(Supabase matches redirect URIs exactly, so the ports are registered with the client). The browser
-shows PMO's consent screen — the client's name and the account you are signed in as — and you choose
-**Allow** or **Deny**. It times out after 5 minutes (`--timeout <seconds>`); `--no-browser` only prints
-the URL.
-
-If the browser is signed out, the consent screen sends you to the sign-in page and brings you back
-after a **password** sign-in. Microsoft and magic-link sign-in leave the page, so the consent request
-is lost: sign in to PMO in the browser first, then run `pmo login`.
-
-Tokens are stored in `~/.config/pmo/credentials.json`, keyed by Supabase URL, owner-only (file `0600`,
-directory `0700`). An expired access token is refreshed automatically; each refresh issues a new
-refresh token, which replaces the old one. If a refresh is refused (signed out elsewhere, account
-disabled), the CLI says so — run `pmo login` again.
-
----
-
-## 3. Commands
-
-Output is JSON on stdout. Errors are JSON on stderr: `{"error":{"message", "code", "status", …}}`.
-Exit `0` = done, `1` = the server refused or failed, `2` = the CLI refused before sending anything.
-
-```bash
-# read
-pmo get projects --select id,name,status --filter status=eq.Leads --limit 20
-pmo get companies --select id,name --filter name=ilike.*Steel*
-pmo get tasks --filter project_id=eq.<uuid> --filter archived_at=is.null
-pmo get profiles --filter role=eq.Engineer      # people, for project_manager_id / assignee_id
-pmo get budget_line_items --filter budget_version_id=eq.<uuid>   # read-only: ids for re-categorising; also budget_versions, budget_category_account_map, erp_gl_entry_mirror, project_documents
-pmo rpc project_mapped_actuals '{"p_project_id":"<uuid>"}'      # read-only, Admin/Executive/PM/Finance tokens
-
-# create — inline JSON, @file, or - for stdin; one object or a list
-pmo create companies '{"name":"Solaris Grid EPC","type":"Client"}'
-pmo create projects '{"name":"Depot Expansion","status":"Leads","client_id":"<company uuid>"}'
-pmo create project_milestones @milestones.json
-cat tasks.json | pmo create tasks -
-
-# update — at least one --filter; one object
-pmo update projects --filter id=eq.<uuid> '{"name":"Depot Expansion Phase 1"}'
-
-# optional display alias; name stays contractual and is still required
-pmo get projects --select id,name,short_name --filter id=eq.<uuid>
-pmo update projects --filter id=eq.<uuid> '{"short_name":"Depot"}'
-pmo update projects --filter id=eq.<uuid> '{"short_name":null}' # explicit clear
-# one common value may be patched across multiple IDs; distinct values need one PATCH per ID
-pmo update projects --filter 'id=in.(<uuid-1>,<uuid-2>)' '{"short_name":"Depot"}'
-
-# rpc — allow-listed read helpers, plus the active-Admin tier
-pmo rpc get_project_milestones '{"p_project_id":"<uuid>"}'
-pmo rpc recategorise_budget_lines '{"p_line_ids":["<line uuid>","<line uuid>"],"p_category":"Vehicle"}'
-```
-
-(`pmo` = `node scripts/pmo.mjs`.) Filters are PostgREST filters: `col=op.value` with `eq neq gt gte lt
-lte like ilike match imatch is isdistinct in cs cd ov fts plfts phfts wfts`, optionally `not.`-prefixed.
-`--select` takes `*` or plain column names (no embedded tables). `update` reports an error when no row
-changed — none matched, or the database did not let you change it.
-
-**What the CLI offers (DD-API-3):**
-
-- Tables: `projects`, `project_milestones`, `tasks`, `meetings`, `crm_activities`, `companies`,
-  `contacts`.
-- Read-only: `profiles`, limited to `id, full_name, role, title, status` (the default `--select`; a
-  narrower one is allowed, and filters are limited to the same columns). Change people in the app.
-  Also read-only: `external_domain_ownership` (`domain, external_tier`).
-- RPCs: `get_project_milestones`.
-- **Active Admin RPCs** (#1326): `recategorise_budget_lines` moves Draft "Special expenses" budget lines to
-  `Travel & accommodation` or `Vehicle`, one or many per call, all or nothing. It refuses a line on an
-  Active or Archived budget, and returns how many lines moved. It takes line ids; `pmo get` does not list
-  budget lines (AC-CSD-016), so the ids come from outside the CLI.
-- **`pmo load`** (active Admin only, ADR-0074): companies, projects at their real stage with contract
-  value, draft budgets and contract lines from one JSON file. It alone uses `set_project_contract_value`,
-  `transition_project`, `budget_versions`, `budget_line_items`, `boq_items`; `rpc` / `create` refuse them.
-- **`pmo stages <project>`** and **`pmo stage-date <project> "<Stage name>" <YYYY-MM-DD>`** (#1835,
-  active Admin only): read a project's stage history and correct the most recent matching stage entry.
-  Earlier system-dated stages move with a backdated entry; an earlier person-dated stage must be corrected first.
-- **`pmo purchases`** (active Admin, Executive, Project Manager or Finance; #1319, migration `0363`): reads
-  the ERP orphan list (`erp_purchase_orphans`) and links ERPNext purchase documents and SharePoint items
-  into purchases through `link_erp_purchase_documents` and `link_procurement_sharepoint_item` (§5).
-  Unlinking stays in the app. Admin and Finance tokens also set documents aside as overhead with
-  `mark_erp_purchase_documents` and read `erp_purchase_orphans_all` (migration `0364`, §5).
-- **`pmo budgets activate`** (#1270, migration `0370`): **not enabled yet** — the command refuses with "budget
-  activation from the CLI is not enabled yet — activate in the app" and sends nothing, because the API-client guard has
-  no tier for `activate_budget_version` (pending an owner ruling). The guard does allow the activation check
-  (`budget_activation_mode`) to active Admin, Executive, Project Manager and Finance, and **`pmo budgets link`**
-  attaches a SharePoint file to a Draft through `link_m365_documents_batch` (§5b). **`pmo accounts map set`** (active Admin; #1270): writes the budget category →
-  ERP account map with the Accounting setup screen's checks (§5b).
-- **`pmo tm`** (#1514, read tier in migration `0518`, §5d): a project's contract rate card (`rates list`), the
-  approved hours a claim would freeze (`claim preview`, read-only) and its T&M claims in every status — Draft,
-  SignedOff and Withdrawn — each with its frozen lines (`claim list`). The two claim reads are `list_tm_claims` and
-  `preview_tm_claim`, which decide the amounts audience themselves. The rate card is read straight from
-  `contract_rate_lines` / `contract_rate_assignees`, which are not yet in the API-client read tier, so a CLI token is
-  refused there until that tier lands; browser sessions are unaffected.
-- **No delete.** Archive or delete in the app.
-- **No `contract_value`** in any payload, **no project status change**, **no `archived_at`** (archive and
-  restore in the app), and a project can only be created as `Leads` or `Internal Project`. Moving a project through its stages, contract values, work orders,
-  budget activation and every money action stay in the app.
-
-⚑ **What the database enforces, and what it does not.** A token issued to an OAuth client carries a
-`client_id` claim. On the **REST API**, PostgREST's pre-request guard (`public.api_client_request_guard`,
-migration `0222`) restricts which endpoints and methods such a token may call: GET on the table
-endpoints above, POST/PATCH on the writable ones, POST on the RPCs. Any other endpoint or method is
-refused with `42501`. The guard governs the endpoint called, not what a read returns: an embedded read
-(`select=id,related(...)`) follows row-level security exactly as it does in the browser. Browser
-sessions carry no `client_id` and are unaffected. Row-level security, column grants and the
-security-definer RPCs decide every read and write exactly as in the app.
-
-**The guard covers the REST API only.** Edge functions and Storage accept a client token with the
-user's normal permissions. That is acceptable for this tool, which the owner runs as the owner. It must
-be closed before any client used by someone other than the owner, or an MCP client, is offered. The CLI checks the same lists first, so it can
-explain a refusal before anything is sent; `scripts/pmo.test.mjs` fails if the CLI's lists and the
-migration's drift apart. The field-level refusals (`contract_value`, project status, `archived_at`)
-are checked by the CLI; contract value and status are also column-restricted in the database. A refusal from the database comes back verbatim (e.g. `42501`, "new row
-violates row-level security policy").
-
----
-
-## 4. Seeding a client's starting data — `pmo load`
-
-1. In the app (Admin): configure classification options (service lines, sectors). If ERPNext owns
-   companies, create every missing company first — in the app (Companies → New, pushed to ERPNext)
-   or as a Customer in ERPNext — and wait for it to appear in PMO. The loader matches a company by
-   legal name and prefers the Client row when a Vendor row shares the name; two Client rows are refused.
-2. Claude writes the load file (spec §2) **outside the repository** from the client's spreadsheets.
-   For contract quantities, convert each project's price sheet or SPK (the contractual service list)
-   into `projects[].contract_lines[]`: one row per item with a stable `key` (e.g. the sheet's row id),
-   the ERP service `item_code` (required), `description`, `unit`, `quantity`, `rate`, optional `line_no`
-   and `basis`. Lump-sum units (`lot`, `ls`, `lump sum`) default to `lump_sum` and need quantity 1.
-   Generic shape: `{"key":"L-001","item_code":"SVC-001","description":"Survey service","unit":"m2","quantity":100,"rate":25000}`.
-3. `node scripts/pmo.mjs load <file.json> --dry-run` — fix every problem it lists; read the plan
-   (`contract_line.create` / `contract_line.skip` per line).
-4. `node scripts/pmo.mjs load <file.json>` — companies → projects (Leads → value → stage) → draft
-   budgets → contract lines. On exit 1, read `details.failed`, fix the cause, run it again: it resumes.
-   Since #1326, a `Special expenses` line whose description names travel, hotel, tickets or per diem is
-   written as `Travel & accommodation`, and one naming a vehicle (or fuel with a vehicle or rental) as
-   `Vehicle` (a line naming both travel and a vehicle or fuel stays `Special expenses`). Its key still uses the file's category, so re-running an older file over a
-   Draft it already loaded adds nothing; move those older lines with `recategorise_budget_lines`.
-   Fuel with no vehicle word (e.g. "BBM genset") stays `Special expenses`; the output lists every line whose
-   category the loader decided (`budget.category`: row, from, to).
-   ⚑ Order of the switch-over: activate the split Draft budget (with its Travel & accommodation and Vehicle lines) before the new accounts are mapped or posted to. Otherwise budget-vs-actual shows the reclass window as unbudgeted: actuals land in the new categories while the Active budget still holds that money under Special expenses.
-5. In the app: review and activate each draft budget; link each project to its ERP project (#772);
-   work orders are created by the client's users.
-
-### Optional project short names
-
-`projects.name` remains the required contractual identity. `projects.short_name` is an optional PMO display
-alias used in lists and search; invoices, statements, exports and ERPNext Project creation continue to use
-`name` or the established ERP mapping. Read both explicitly with
-`node scripts/pmo.mjs get projects --select id,name,short_name`.
-
-For API/CLI updates, omitted `short_name` means leave it unchanged; whitespace-only text, empty text, or
-`null` explicitly clears it. PATCH a common value across IDs with one filtered request, as above. For a
-backfill where every project needs a distinct alias, issue one filtered `pmo update projects --filter
-id=eq.<uuid> '{"short_name":"<alias>"}'` per project; do not send an array of PATCH values or use
-upsert. This keeps each update tied to a stable project UUID and leaves `name` alone.
-
-A load file may carry both identities:
-
-```json
-{
-  "projects": [
-    {
-      "name": "Contractual Depot Expansion",
-      "short_name": "Depot",
-      "client": "Synthetic Client",
-      "stage": "Leads"
-    }
-  ]
-}
-```
-
-`pmo load` trims nonblank aliases, includes them when creating a project, and on an existing project fills
-an empty alias, skips an identical alias, and reports a different nonblank alias without overwriting it.
-Blank aliases in a load file mean “no enhancement supplied,” not “clear the stored value.” A project that
-has diverged from its load-file stage is still skipped for stage movement; use the generic filtered
-`pmo update` command to backfill its alias separately. Re-running a successful load does not repeat the
-alias write.
-
-Short names are unique per organization (case-insensitive). A load whose alias is already used by another
-project reports `project.short_name_conflict` and carries on: a new project is still created without its alias,
-and an existing project keeps its current value. Pick another alias and set it with `pmo update`.
-
-Re-runs never overwrite: a different stored value, stage or short name is reported, not changed. A
-contract line whose `key` already exists is skipped even if its quantity or rate in the file differs
-(`contract_line.skip`): correct it in the app (Billing). The load never creates work-order allocations
-or acceptances (BAST) — those are made in the app.
-Milestones, tasks, meetings and CRM activities still use `create` (§3).
-
----
-
-## 5. Loading purchase history — `pmo purchases`
-
-ERPNext purchase documents (Purchase Order, Purchase Receipt, Purchase Invoice, Payment Entry) reach PMO
-through the sweep and appear as **orphans** until linked to a purchase. Linking writes nothing to
-ERPNext; a linked document is never pushed. Documents authored in PMO (which push to ERPNext) are made in
-the app, not here.
-
-```bash
-node scripts/pmo.mjs purchases orphans [--project <project id>] [--limit n]   # unlinked, submitted ERP documents (set-aside ones hidden)
-node scripts/pmo.mjs purchases orphans --include-set-aside                    # the same list with the set-aside ones, flagged
-node scripts/pmo.mjs purchases set-aside overhead.csv --dry-run               # Admin/Finance: mark documents as not a project purchase
-node scripts/pmo.mjs purchases set-aside overhead.csv [--undo]                # the same checks, for real; --undo brings them back
-node scripts/pmo.mjs purchases link history.csv --dry-run                     # ALWAYS first: what would happen
-node scripts/pmo.mjs purchases link history.csv                               # the same checks, for real
-node scripts/pmo.mjs purchases link-file '{"procurement_id":"…","item":{…}}'  # one SharePoint item on a purchase
-```
-
-**The link file** is JSON (a list of row objects) or CSV (`.csv`, or `--csv` for stdin `-`) with this header:
-
-```
-erp_doctype,erp_name,procurement_id,project_id,group,title,budget_category,sp_drive_id,sp_item_id,sp_web_url,sp_name,sp_kind
-```
-
-- `erp_name` (required): the ERPNext document number. `erp_doctype` is needed only when two document types
-  share the number.
-- `procurement_id` **or** `project_id`, not both. A row naming a purchase links into it. A row naming a
-  project (or nothing) creates a new Draft purchase from the document (title = `title`, else
-  "<supplier> <document number>"); rows sharing a `group` and project go into one new purchase.
-- `sp_*` (optional, all five together): a SharePoint item the operator already has the ids for — drive id,
-  item id, web URL, name, and `sp_kind` `file` or `folder`. It is attached to that document on the purchase.
-  A folder is linked as a folder. The CLI does not resolve URLs.
-- In JSON the SharePoint item is `"sharepoint": {"drive_id","item_id","web_url","name","kind"}`.
-
-**Dry run first, always.** `--dry-run` sends the identical rows to the same database function with
-`p_dry_run = true`: every check runs and each call is rolled back, so nothing is written. The report lists
-every row as `link`, `skip` or `refused` with a reason, plus counts; a new purchase shows
-`procurement_id: null` in a dry run. Fix the refused rows, dry-run again, then run without `--dry-run`. The
-real run reports the same outcomes.
-
-**Batches and groups.** Rows go to the database in calls of at most 500. Rows that make one new purchase (same
-project and `group`) always travel in the same call, so **one group must have 500 rows or fewer**; a larger
-group is refused before anything is sent. Row numbers in the report are always the file's.
-
-**The CLI refuses the file, sending nothing (exit 2), when:** a CSV column is not one of the header names above
-(a misspelt `procurement_id` would otherwise create a new purchase); a CSV row has more cells than the header;
-a quote is not closed; a JSON row has a field not in the header; `erp_name` is missing; a row names both
-`procurement_id` and `project_id`; a SharePoint item is incomplete; **the same ERP document is listed twice**;
-or a group exceeds 500 rows. Every problem is listed.
-
-**Exit codes.** Exit 0: every row linked or skipped (or any dry run that completed). Exit 1: a real run refused at
-least one row, or a call failed. The report is printed either way. When a call fails, the report holds what the
-earlier calls saved, plus `failed_at_row` (the first row of the failed call), `not_saved_rows` and `error`; the
-failed call itself saved nothing.
-
-**Re-running is safe.** After fixing refused rows (or after a failed call), run the whole file again: rows already
-linked report `skip` / `already_linked` with their purchase id, and only the rest are linked.
-
-**Reason codes** (`refused`):
-
-| Reason | Meaning |
+| Refusal or result | Next action |
 |---|---|
-| `erp_name_missing` | the row has no document number |
-| `document_not_found` | no such ERP document mirrored in PMO for your organisation |
-| `document_ambiguous` | the number matches more than one document type — add `erp_doctype` |
-| `document_cancelled` | the document is cancelled in ERPNext |
-| `document_recorded_by_pmo` | PMO pushed it; it is already a PMO record |
-| `document_linked_to_another_purchase` | it already belongs to a different purchase |
-| `purchase_not_found` / `purchase_closed` | the purchase does not exist in your organisation, or is Cancelled / Rejected |
-| `project_not_found` | the project does not exist in your organisation |
-| `invalid_id` | an id is not a valid uuid |
-| `supplier_mismatch` / `project_mismatch` / `currency_mismatch` | the document's supplier, project or currency differs from the purchase |
-| `gate_request_before_order`, `gate_approval_before_order`, `gate_receipt_before_invoice`, `gate_approval_before_payment` | an organisation procurement gate refuses that step |
-| any other sentence | a guard refused the resulting status (e.g. "separation of duties: approver cannot pay own procurement") |
+| `Not signed in` / session could not be refreshed | Run `node scripts/pmo.mjs login`, complete sign-in as the intended user, then rerun `whoami`. |
+| Login asks for a registered client id or consent is unavailable | Ask the owner to complete the approved CLI setup; do not use a service key or copy credentials into a file or issue. If the public client id was provided through the approved setup, `node scripts/pmo.mjs login --client-id <registered-client-id>` is supported. |
+| `pmo … is for an active Admin` | Sign in as the active Admin for the target organization. Do not work around the role check. |
+| `… is read-only from the CLI` / `only pmo load writes it` | Use the app screen named in the recipe and file the enhancement issue linked there. |
+| `contract_value cannot be set`, project status cannot change, or `archived_at cannot be set` | Use the project or record workflow in the app; these fields are deliberately not generic CLI writes. |
+| ERP-owned company creation is refused or the command loses its connection during the write | Inspect **Companies** and the ERP party list before retrying; the request may have completed. If the party is absent, correct the cause and use the app's **Companies → New** flow for an approved Client. Never create a duplicate directly in ERPNext. |
+| Company is ambiguous or archived | Resolve the duplicate or restore the company in **Companies**; rerun the same load after checking the dry-run. |
+| Project / contract-line / budget conflict, or `short_name_conflict` | Compare the source with the existing record in the app. Correct there, or choose a unique alias; rerun the unchanged source first to confirm the skip/conflict. |
+| `42501`, row-level-security refusal, or `Not allowed` | Check the active role, organization context, and whether the operation is app-only. Use the named app workflow; do not retry with broader credentials. |
+| `budget activation from the CLI is not enabled yet — activate in the app` | Open **Project → Budget**, review the draft and activate there. |
+| `No '<stage>' stage entry was found` | Run `pmo stages <project-uuid>` and use the exact stage label from its output. |
+| Purchase/document report has `refused` rows or a failed row | Do not repeat the entire batch blindly. Inspect each row result and existing link, correct only the refused source rows, dry-run the corrected file, then rerun. |
+| `No row was updated` | Check the UUID/filter and current record in the app. The command did not confirm a changed row. |
+| Unknown command, option, table, or RPC | Run `node scripts/pmo.mjs --help`; use only the listed surface. |
 
+## One-time setup and sign-in
 
-**Setting overhead aside** (Admin and Finance only). Rent, insurance, cloud and similar invoices never join a
-project purchase; set them aside so the orphan list shows only what still needs a home. The file is JSON or CSV
-with the header `erp_doctype,erp_name,note` (`erp_doctype` and `note` optional; `note` is up to 500 characters and
-is kept when a document is set aside or brought back). Setting aside changes nothing in ERPNext or in actuals, can
-be undone (`--undo`; a note is refused with `--undo`), and a document that is later linked leaves the set-aside
-list. `--dry-run` runs the same checks and writes nothing. The file is refused (exit 2) for the same reasons as a
-link file: unknown column or field, a ragged CSV row, an unclosed quote, a missing `erp_name`, a document listed
-twice. Extra reason codes: `document_linked` (already in a purchase; unlink it in the app first), `note_too_long`,
-`note_invalid`; a row that changes nothing is reported `skip` / `no_change`. Counts are `apply`, `skip`, `refused`.
-A note without setting aside is a screen feature (the database function supports it); the CLI sets notes only with set-aside.
+### OAuth client
 
----
+The CLI signs in through Supabase Auth's OAuth 2.1 server (authorization code + PKCE) as a pre-registered public client with loopback redirects, and holds an ordinary user session — row-level security treats every CLI call exactly like the same user in the browser. It never uses a service key. `login` needs that registered client id, passed as `--client-id <registered-client-id>` (or the `PMO_CLIENT_ID` environment variable).
 
-## 5b. Activating a budget and mapping accounts — `pmo budgets`, `pmo accounts` (#1270)
+On a fresh **local stack**, the client is registered once with `scripts/register-oauth-client.mjs`. It is idempotent — an existing `PMO CLI` client is reported, not duplicated — and a public client id is not a secret. On a **hosted project**, enabling the OAuth server and registering the client there is an owner-gated infrastructure change (DD-API-2 in `docs/decisions.md`): ask the owner, and never register a hosted client or change hosted auth setup without that explicit go.
 
-```bash
-node scripts/pmo.mjs budgets link <version id> --source '{"drive_id":"…","item_id":"…","web_url":"https://…","name":"SBP.xlsx","kind":"file"}'
-node scripts/pmo.mjs budgets activate <version id>        # currently refuses: not enabled yet
-node scripts/pmo.mjs budgets activate <version id> --source '{"drive_id":"…","item_id":"…","web_url":"https://…","name":"SBP.xlsx","kind":"file"}'
-node scripts/pmo.mjs accounts map set Labor "5110 - Salary" "5120 - Allowance" --dry-run   # ALWAYS first
-node scripts/pmo.mjs accounts map set Labor "5110 - Salary" "5120 - Allowance"
-```
+### Environment variables
 
-**Loading an existing project's budget (owner rule, 2026-10-24).** Before activating a budget for a project that
-already exists, link its SBP to the version, and check that the version total equals the SBP total exactly, to the
-rupiah. If it doesn't match, stop and report the difference; never adjust lines to force a match. New budgets don't
-need an SBP.
+The CLI reads these names (the owner or the login flow supplies the values):
 
-**`budgets activate`** is **not enabled yet**. It checks its arguments (version id, `--source` shape), then stops with
-"budget activation from the CLI is not enabled yet — activate in the app" and exit 2, before any request: the API-client
-guard has no `activate_budget_version` tier until the owner rules on one. The pieces behind it are in place and tested
-(the database's activation check `budget_activation_mode`, allowed by the guard to active Admin, Executive, Project
-Manager and Finance, and the source-file link below), so enabling it later is a guard tier plus one switch in
-`scripts/lib/pmo-budgets.mjs`. `--source` takes a SharePoint row (`drive_id, item_id, web_url, name, kind`).
+| Variable | Feeds |
+|---|---|
+| `PMO_SUPABASE_URL` | the Supabase project URL (`--url`) |
+| `PMO_SUPABASE_KEY` | the project's publishable key (`--key`); secret keys are refused and never saved |
+| `PMO_CLIENT_ID` | the registered OAuth client id (`--client-id`) |
+| `PMO_CONFIG_DIR` | the directory that holds the stored credentials |
 
-**`budgets link <version id> --source <row>`** attaches the file to a Draft version through `link_m365_documents_batch`
-(one `budget_version_id` row), which accepts only links on the organisation's own SharePoint host (an organisation with no
-default library is refused with `m365_not_configured`). Linking the same item twice is a no-op. The same host rule now
-applies to `pmo purchases link-file` (`link_procurement_sharepoint_item`).
-
-**`accounts map set <category> <account...>`** is for an active Admin (the database refuses anyone else). The FIRST
-account becomes the category's push account (the only one the ERP Budget is sent to); the rest count toward actuals only.
-Same checks as the Admin → Accounting setup screen, read from the same ERP account chart: every account must be an
-enabled Expense ledger account (not a group), the push account must be a direct-cost account (cost of sales / direct
-cost group or 51-numbered; overhead is not a substitute), and an account already mapped to another category is refused
-by name. Accounts already on the category stay as they are, accounts you do not list are left in place (the report
-lists them under `left_in_place`), and nothing is deleted: remove an account in the app. Adding the new push account
-first and then moving the push flag is atomic per step; if a step fails the error lists what `applied`. Re-running the
-same command changes nothing. `--dry-run` runs every check and prints the plan (`add`, `add_push`, `make_push`, `keep`,
-`keep_push`) without writing. If the ERP chart cannot be read (ERP not connected), the command stops: nothing is guessed.
-
----
-
-## 5c. Cost attribution rules — `pmo attribution` (#1271)
-
-Ledger lines with no ERP project (payroll, overhead) reach projects through a rule. PMO only reads; nothing is
-written to ERPNext. Attributed cost counts in project actuals and in budget vs actual, through the same
-account → category map as tagged cost, and is shown apart from it. Contract: `docs/specs/cost-attribution.spec.md`.
+### Sign in and out
 
 ```bash
-pmo attribution preview rules.json            # amount per project, month and category (table); --json for rows
-pmo attribution set rules.json --dry-run      # preview + validation, saves nothing
-pmo attribution set rules.json                # saves each rule in order (new rule, or a new version of rule_key)
-pmo attribution list [--history]              # current rules; --history adds past versions
-pmo attribution end <rule_key> --to 2025-12-31 --version 2   # new version ending on that date
+node scripts/pmo.mjs login --client-id <registered-client-id>   # prints a sign-in URL and opens the browser
+node scripts/pmo.mjs whoami                                     # confirm identity, role, and organization before any write
+node scripts/pmo.mjs logout                                     # ends THIS session only; browser sessions stay signed in
 ```
 
-The file holds one rule or an array of them:
+The browser shows PMO's consent screen — the client's name and the signed-in account — and you choose **Allow**. If the browser is signed out it sends you through a **password** sign-in and back; Microsoft and magic-link sign-ins lose the consent request, so sign in to PMO in the browser first, then run `login`. `login` times out after 5 minutes (`--timeout <seconds>`); `--no-browser` only prints the URL.
+
+Tokens are stored owner-only under the config directory, keyed by Supabase URL. An expired access token is refreshed automatically; if a refresh is refused (signed out elsewhere, account disabled), the CLI says so — run `login` again. `logout` revokes the stored refresh token at once; if the server does not confirm the revoke, the credentials are kept and the command fails — run it again.
+
+## Recipes
+
+All write files below are illustrative JSON shapes. Replace placeholders in a private working file with approved source data. First run the listed dry-run. If a command has no dry-run option, the recipe says how to inspect it and the write remains subject to the safety rule above.
+
+### 1. Seed a new client organization
+
+**Goal:** create an organization, its operating currency, and its first Admin together.
+
+**Exact commands:** organization creation is not a `pmo` CLI command. For a deployment that already has an active platform Operator, use the guarded `operator_create_org` RPC. There is no dry-run variant; do not run it until the owner has approved the target and values. The request shape is:
+
+First create the intended Admin's auth user through the approved Auth Admin process, for example `supabase auth-admin invite <admin-email> --project-ref <project-ref>`, and obtain that user's UUID through the authorized admin path. The user must not already have an organization profile.
+
+```bash
+curl --fail-with-body -X POST '<approved PMO API URL>/rest/v1/rpc/operator_create_org' \
+  -H 'apikey: <publishable key>' \
+  -H 'Authorization: Bearer <active Operator session token>' \
+  -H 'Content-Type: application/json' \
+  --data '{"p_name":"<organization display name>","p_admin_user_id":"<existing auth user UUID>","p_admin_full_name":"<Admin display name>","p_default_currency":"IDR"}'
+```
+
+Use the supported provisioning procedure for the first organization on a new deployment; the Operator RPC cannot bootstrap an Operator that does not exist. The intended first Admin's auth user must exist and have no organization profile. Follow [Creating an org (Operator)](../environments.md#creating-an-org-operator--operator_create_org-dd-org-1--484) for prerequisites and companion setup; do not run SQL inserts.
+
+**How to verify:** the RPC returns the new organization UUID. Confirm its Admin membership and currency through the authorized operator read path, then sign in as that Admin and run `node scripts/pmo.mjs whoami`.
+
+**Common errors:** `42501` means the caller is not an active Operator; `23503` means the auth user is unknown; `23505` means the organization name already exists or the user already has a profile; blank required fields and malformed currency are rejected. Each refusal leaves no partial organization. A new deployment without an Operator must use the controlled provisioning procedure.
+
+### 2. Add a new client company
+
+**Goal:** add one Client party exactly once and have it available to project loading.
+
+**Exact commands:** include the legal company name under `companies` in the private load file. The loader creates it as a Client when missing and, if ERP owns companies, sends the create through the synchronous ERP adapter. Prepare and preview the full load:
+
+```bash
+node scripts/pmo.mjs load <load-file.json> --dry-run
+```
+
+Review the plan. For a new ERP-owned Client, a planned company creation will complete in the current `pmo load` invocation; the project load then uses the canonical company id returned by the adapter. Apply only after the full plan is correct:
+
+```bash
+node scripts/pmo.mjs load <load-file.json>
+```
+
+Do not create that Client directly in ERPNext and wait for the hourly sync. If the command refuses because the company is ambiguous, archived, or another party type, resolve the case in **Companies** or use its **New company** action for the Client, then rerun the load dry-run. If the command ends without a clear result, inspect both Companies and the ERP before retrying.
+
+**How to verify:** confirm the company appears once in **Companies**, then run the same load dry-run again. It should report the company as existing/skipped and the intended project actions without proposing a duplicate.
+
+**Common errors:** if the load reports multiple matching companies, resolve the duplicate in **Companies**; if archived, restore it there before rerunning. If ERP creation is refused or the command ends without a clear result, inspect whether the company exists in **Companies** and the ERP before trying again. Use the app's **Companies → New** action only when the approved Client is absent on both sides; do not create a second party in ERPNext.
+
+### 3. Load projects with their stage dates
+
+**Goal:** load projects at the correct stage, set contract details, and correct the recorded date of the latest matching stage.
+
+**Exact commands:** prepare the private load file with `projects` entries. Required fields include `name`, `client` (the company's exact legal name), and `stage`. A won-stage project also needs `contract_value`, `tax_treatment`, `tax_amount`, `customer_contract_ref`, and `contract_date` (`YYYY-MM-DD`). Optional contract quantities use `contract_lines` with stable `key`, `item_code`, `description`, `unit`, `quantity`, and `rate`; `basis` may be `unit_rate` or `lump_sum`.
+
+```bash
+node scripts/pmo.mjs load <load-file.json> --dry-run
+node scripts/pmo.mjs load <load-file.json>
+node scripts/pmo.mjs get projects --select id,name,status,client_id --filter name=eq.<project-name>
+node scripts/pmo.mjs stages <project-uuid>
+```
+
+`pmo load` walks the legal path from `Leads` to the requested stage and writes the contract value through the guarded app RPC. The load's transition dates are load/audit time, not historical pipeline dates. To correct one, inspect the history, then set the date of the most recent matching stage entry:
+
+```bash
+node scripts/pmo.mjs stages <project-uuid>
+node scripts/pmo.mjs stage-date <project-uuid> "Quotation Submitted" <YYYY-MM-DD>
+node scripts/pmo.mjs stages <project-uuid>
+```
+
+`stage-date` has no dry-run flag; verify the project and entry first. It selects the latest occurrence of the exact stage label. Older system-dated entries can move with a backdated stage; if the next earlier entry was person-dated and is now after the target date, correct that earlier stage first, then retry. This matches the shipped #1835 command behavior.
+
+**How to verify:** the load output lists created/skipped/conflicting actions. Re-run `pmo stages` after any date change and check stage order and entered dates against the approved chronology.
+
+**Common errors:** a project already moved away from the load file's stage is not moved backward by rerunning the load; use `stages` and the controlled date correction instead. A missing stage label must be copied from `stages` exactly. A win without its contract value, tax treatment/amount, client contract reference, or contract date fails preflight.
+
+### 4. Budgets and account maps
+
+**Goal:** import a Draft budget, map each category to ERP expense accounts, and route activation to the app.
+
+**Exact commands:** put budget lines in each project's `budget` array. Each line has `category`, `budgeted_amount` and optional `description`, `fiscal_year`, and `reference`. Supported categories are `Labor`, `Materials`, `Subcontractors`, `Equipment`, `Permits & Fees`, `Overheads`, `Contingency`, `Special expenses`, `Travel & accommodation`, and `Vehicle`.
+
+```bash
+node scripts/pmo.mjs load <budget-load.json> --dry-run
+node scripts/pmo.mjs load <budget-load.json>
+node scripts/pmo.mjs get budget_versions --select id,project_id,version,name,status --filter project_id=eq.<project-uuid>
+node scripts/pmo.mjs get budget_line_items --select id,budget_version_id,category,description,budgeted_amount,fiscal_year --filter budget_version_id=eq.<draft-version-uuid>
+node scripts/pmo.mjs accounts map set Labor '<push account>' '<count-only account>' --dry-run
+node scripts/pmo.mjs accounts map set Labor '<push account>' '<count-only account>'
+```
+
+The first account is the push account. The dry-run checks that each named account is an enabled Expense ledger account, that the push account is eligible for direct-cost posting, and that it is not already mapped to another category. It leaves unmentioned existing map rows in place. `pmo budgets activate` is deliberately disabled in the CLI; review and activate from **Project → Budget**. The CLI also has `pmo budgets link <draft-version-uuid> --source <json|@file|->` for attaching a source file; its source object has `drive_id`, `item_id`, `web_url`, `name`, and `kind` (`file` or `folder`). That command has no dry-run, so for this runbook use **Project → Budget** to attach the source unless the owner has approved that exact action and source.
+
+**How to verify:** inspect the load output and read back the Draft version and lines. For maps, inspect the dry-run's `actions`, `push_account`, and `left_in_place`, then verify the saved map with `pmo get budget_category_account_map --select category,erp_account --filter category=eq.Labor`. Confirm the expected Draft is Active in **Project → Budget** after an authorized app activation.
+
+**Common errors:** fix invalid category/amount in the private file and dry-run again. If an identical budget line is skipped, do not change its amount in the file expecting an overwrite; correct it in the app. If an account map refuses, use **Administration → Accounting setup → Budget account map** to inspect the chart and mappings. Never map a category before reviewing the Draft split: `Special expenses` may be classified into Travel & accommodation or Vehicle by the loader based on its description.
+
+### 5. Cost attribution rules
+
+**Goal:** route ERP ledger lines that carry no ERP project (payroll, overhead) to projects through a rule, and preview the attributed amounts before saving anything.
+
+**Exact commands:** the file holds one rule or an array of them (shape below).
+
+```bash
+node scripts/pmo.mjs attribution preview <rules.json> --json
+node scripts/pmo.mjs attribution set <rules.json> --dry-run
+node scripts/pmo.mjs attribution set <rules.json>
+node scripts/pmo.mjs attribution list
+node scripts/pmo.mjs attribution end <rule-key> --to <YYYY-MM-DD> --version <n>
+```
+
+`preview` shows the amount per project, month, and category (`--json` for rows) and writes nothing. `set --dry-run` validates against the saved rules and saves nothing; apply only after reviewing its output. `set` saves each rule in order — a new rule, or a new version when the file names a `rule_key`. `list` shows the current rules; `--history` adds past versions. `end` saves a new version with that end date.
+
+A rule matches exactly one account or account group (`account` or `account_group`), optionally narrowed by `cost_center`, `party_type`, or `party`, and applies from `effective_from` to the inclusive `effective_to`:
 
 ```json
 { "name": "Engineer payroll to anchor project",
   "account": "Salary - RIS",
   "cost_center": null, "party_type": null, "party": null,
   "effective_from": "2025-01-01", "effective_to": null,
-  "targets": [{ "project_id": "<uuid>", "percent": 100 }] }
+  "targets": [{ "project_id": "<project-uuid>", "percent": 100 }] }
 ```
 
-- Use `account_group` instead of `account` to cover every account under a group. Percentages need at most
-  4 decimals and must total 100.
-- To edit a rule, add `"rule_key"` and `"expected_version"` (the current version from `list`). If someone changed
-  the rule since, the save is refused.
-- The most specific rule takes a line: cost centre or party first, then account, then group. A rule that ties an
-  existing one is refused. Narrow it, or change its dates.
-- To void a mistaken rule, end it the day before it starts.
-- `--dry-run` checks each rule against the saved rules, not against the other rules in the same file. Two new
-  rules in one file that tie each other pass the dry run, and the second is refused at the real save.
-- Roles: Admin and Finance preview, set and end. Executive and Project Manager can list.
+Target percentages need at most 4 decimals and must total exactly 100. To edit a rule, add `rule_key` and `expected_version` (the current version from `list`); a stale `expected_version` is refused. The most specific current rule takes a line — each narrowing field (cost centre, party) outweighs a named account, which outweighs an account group — and a save that would leave two current rules with equal specificity and overlapping windows is refused: narrow the rule or change its dates. `--dry-run` checks each rule against the saved rules only, so two new rules in one file that tie each other pass the dry run and the second is refused at the real save. To void a mistaken rule, end it the day before it starts. PMO reads and attributes only; nothing is written to ERPNext or to the ledger mirror. Attributed cost counts in project actuals and budget vs actual through the same account → category map as tagged cost, and is reported apart from it (recipe 4 maps the accounts). Roles: Admin and Finance preview, set and end; Executive and Project Manager can list.
 
-## 5d. Time and materials — `pmo tm` (#1514)
+**How to verify:** rerun `attribution preview` on the same file and compare the project/month/category amounts; confirm the saved version and dates with `attribution list`, and `--history` after an edit or end.
 
-One project's contract rate card, the approved hours a claim would freeze, and its T&M claims in every status
-(Draft, SignedOff, Withdrawn), each with its frozen lines.
-Nothing here prices an hour by guess: the preview groups approved, unclaimed hours exactly as the claim assembly
-would, lists the hours it cannot price with the reason, and writes nothing. Contract:
-`docs/specs/time-and-materials-claims.spec.md`.
+**Common errors:** a conflicting-rule refusal means an existing current rule ties the new one — read `list`, then narrow the match or change the dates. A stale-version refusal means someone edited the rule since your read — re-read `list` and retry with the current `expected_version`. A preview category shown as unmapped means the account is missing from the budget category account map, so the attributed cost cannot reach actuals until it is mapped. Contract: `docs/specs/cost-attribution.spec.md`.
+
+### 6. Purchase history
+
+**Goal:** reconcile already-existing ERP purchase documents to PMO purchases without duplicating a purchase.
+
+**Exact commands:** read the orphan list and filter to the known project if useful:
 
 ```bash
-pmo tm rates list [--project <id>] [--assignees] [--json]   # versioned rate lines; --assignees adds who holds each
-pmo tm claim preview --project <id> --from 2026-01-01 --to 2026-01-31 [--json]   # read-only
-pmo tm claim list --project <id> [--json]                   # every claim status, with its frozen lines
+node scripts/pmo.mjs purchases orphans --limit 100
+node scripts/pmo.mjs purchases orphans --project <project-uuid> --limit 100
 ```
 
-- The rate card is a table read under row-level security: Admin, Finance, Executive, and the project's Project
-  Manager see their projects' lines and assignments; Engineers see nothing. `--assignees` prints each holder by name
-  (their id when the profile read cannot resolve it). `--json` returns `{ rates, assignees }` — `assignees` is an
-  empty array unless `--assignees` was given.
-- `claim preview` prints the priced lines (label, units, rate, amount, source count), then the unrated hours under
-  `Unrated (listed, not billed)` with the person — by name, or the id when the profile read cannot resolve it — and the
-  reason, then `Total` — which sums the priced lines only, so a window where nothing is rated still ends `Total 0.00`
-  rather than stopping early. `--json` returns `{ lines, unrated, total }` (ids unresolved; no name read); the window may
-  not exceed two years.
-- `claim list` prints each claim's period, status, currency and gross, then every frozen line at the rate that was
-  in force when it was assembled. It lists **every** status, so a Draft claim is not a signed-off one: read the status
-  on each line rather than taking the list as the signed-off set. `--json` returns `{ claims: [...] }` — one object
-  with the rows under `claims`, not a bare array.
-- Both claim reads are the two T&M reads the database exposes to API clients (`list_tm_claims`, `preview_tm_claim`)
-  and decide the audience themselves: an Engineer or another organisation's project is refused with `42501`/`P0002`.
-- A refusal from the database exits 1 with its own message; a bad argument exits 2 before anything is sent.
-- Known limitation while the T&M API-client tier is still being rolled out: `tm rates list` reads
-  `contract_rate_lines` / `contract_rate_assignees` directly, and those two tables are not yet in the API-client read
-  tier, so a CLI token is refused there until that tier lands. The claim commands are unaffected.
+Prepare a private JSON array or CSV of existing ERP document references and intended PMO procurement links using the field format shown by the orphan results and the CLI help. Preview, inspect per-row decisions, then apply:
 
-## 6. ERP setup reads — `pmo erp`
+```bash
+node scripts/pmo.mjs purchases link <links.json> --dry-run
+node scripts/pmo.mjs purchases link <links.json>
+```
+
+If a document is organization overhead, an active Admin or Finance can preview and mark it aside with `pmo purchases set-aside <rows.json> --dry-run` followed by the same command without `--dry-run`. Undo a mistaken set-aside with `--undo` after verifying the row.
+
+**How to verify:** linked documents leave the default orphan list. Read `pmo purchases orphans --include-set-aside` to confirm overhead rows are marked; compare the link command's `link`, `skip`, and `refused` counts with its row details.
+
+**Common errors:** an unknown ERP document or an invalid project/procurement reference is refused by the server. Correct the row using the read result and inspect the existing procurement in **Procurement** before rerunning. In a client with no ERP, create purchases through **Procurement → New**; the CLI does not import PMO-native purchase history yet. Enhancement: [CLI purchase history import](https://github.com/ariefsaid/PMO/issues/1855).
+
+### 7. Time and materials
+
+**Goal:** inspect the rate card, estimate the approved unclaimed hours, and review existing claims.
+
+**Exact commands:**
+
+```bash
+node scripts/pmo.mjs tm rates list --project <project-uuid> --assignees --json
+node scripts/pmo.mjs tm claim preview --project <project-uuid> --from <YYYY-MM-DD> --to <YYYY-MM-DD> --json
+node scripts/pmo.mjs tm claim list --project <project-uuid> --json
+```
+
+The preview is read-only and shows priced hours, unrated hours and the total. The CLI cannot author timesheets, change rates, prepare/sign off a T&M claim, or invoice one. Use **Timesheets** for time entry and approval, then open **Project → Contract & billing → Time and materials** for claim preparation, review and invoicing.
+
+**How to verify:** confirm the preview's dates and project, resolve every unrated row in the rate card, then compare `claim list` with the app's T&M panel. After a user completes an app action, rerun the relevant read command.
+
+**Common errors:** the range must be valid and no longer than two years. A rate-card read refusal means the current role or CLI API-client tier does not allow that read; use the app with an authorized role. Enhancement: [CLI T&M entry and claim workflow](https://github.com/ariefsaid/PMO/issues/1856).
+
+### 8. Documents
+
+**Goal:** inspect the project register and attach an existing Microsoft 365 item to the right PMO record.
+
+**Exact commands:**
+
+```bash
+node scripts/pmo.mjs documents list --project <project-uuid>
+node scripts/pmo.mjs m365 status
+node scripts/pmo.mjs documents link <document-links.json> --dry-run
+node scripts/pmo.mjs documents link <document-links.json>
+```
+
+Each JSON row names exactly one `project_id`, `budget_version_id`, or `procurement_id`, plus `drive_id`, `item_id`, `web_url`, `name`, and `kind` (`file` or `folder`). The CLI links an existing Microsoft 365 item; it does not create a document-register entry or upload the file. Create/upload/register it in the relevant **Project → Documents** screen, or use the matching Procurement or Budget source-link action. Enhancement: [CLI document register and upload](https://github.com/ariefsaid/PMO/issues/1857).
+
+**How to verify:** read the register again with `documents list` and confirm the expected row and source; confirm `m365 status` reports the expected connection before linking.
+
+**Common errors:** the link must target exactly one record type and identify a file or folder. If the M365 item does not exist or is in the wrong library, correct it in **Project → Documents** or the library before rerunning. Same-item links are idempotent.
+
+### 9. ERP checks
+
+**Goal:** confirm the ERP connection and project mapping without changing data.
+
+**Exact commands:**
 
 ```bash
 node scripts/pmo.mjs erp readiness
 node scripts/pmo.mjs erp list-projects
 node scripts/pmo.mjs erp verify-links
+node scripts/pmo.mjs get external_domain_ownership --select domain,external_tier
+node scripts/pmo.mjs get erp_gl_entry_mirror --select project,account,cost_center,fiscal_year,posting_date,debit,credit --limit 100
 ```
 
-These call the existing `external-set-company` ERP setup actions using the signed-in user token (Admin only, as in the app); no ERP credentials are read or printed by the CLI. `readiness` reports setup gaps, `list-projects` lists active ERP projects for the connected company, and `verify-links` checks each mapped project's ERP record (same key, connected company, active, same project name) and prints mismatches; the PMO code is not compared, since ERPNext may allocate its own project key. Exit 0 means the call completed (mismatches are report data); a server refusal exits 1.
+**How to verify:** `readiness` reports setup checks, `list-projects` reports mapped ERP projects, and `verify-links` reports PMO-to-ERP project-link status. For accounting evidence, inspect the GL mirror read output with an Admin, Executive, Project Manager, or Finance account. These commands are reads; they do not repair mappings or force a sync.
 
-## 7. Project documents — `pmo documents`
+**Common errors:** if the ERP is disconnected or a mapping is absent, use **Administration → Integrations** to correct setup. If a change made directly in ERPNext has not arrived yet, wait for the reconciliation window or use the immediate PMO command when one exists; do not create a duplicate record.
+
+### 10. Correcting data after a load
+
+**Goal:** repair a specific mismatch without creating duplicate projects, lines, or versions.
+
+**Exact commands:** first repeat the original source file as a dry-run and save the output privately:
 
 ```bash
-node scripts/pmo.mjs documents list --project <project-id>
-node scripts/pmo.mjs documents link links.json --dry-run
-node scripts/pmo.mjs documents link links.csv
+node scripts/pmo.mjs load <original-load.json> --dry-run
+node scripts/pmo.mjs get projects --select id,name,short_name,status,contract_value --filter id=eq.<project-uuid>
+node scripts/pmo.mjs stages <project-uuid>
+node scripts/pmo.mjs get budget_versions --select id,project_id,version,name,status --filter project_id=eq.<project-uuid>
+node scripts/pmo.mjs get budget_line_items --select id,budget_version_id,category,description,budgeted_amount,fiscal_year --filter budget_version_id=eq.<draft-version-uuid>
 ```
 
-Link input is a JSON array or CSV with columns `project_id,budget_version_id,procurement_id,drive_id,item_id,web_url,name,kind`. Each row names exactly one target id; `kind` is `file` or `folder`. `--dry-run` uses the same org-, role- and reference-validation RPC as a real run and returns its validation plan without writes. Active Admin, Executive, Project Manager and Finance memberships can link; unlinking stays in the app. Every `web_url` must be on the organisation's own SharePoint host (taken from its default library); an organisation with no default library is refused with `m365_not_configured`. A folder already linked to another project or purchase is refused. Link files are limited to 500 rows per call.
+`pmo load` intentionally skips matching rows and never overwrites project fields, contract lines, or loaded budget lines. Use **Project header → Edit** for editable project fields, **Project → Contract & billing** for contract quantities, **Project → Budget** for Draft line corrections, and **Companies** for party corrections. If the historical stage date is wrong, use the stage-date sequence in recipe 3. If an already loaded contract-line value must be changed, use **Project → Contract & billing** and file [CLI correction of loaded records](https://github.com/ariefsaid/PMO/issues/1858).
 
-## 8. Microsoft 365 setup — `pmo m365 status`
+After the app correction, rerun the original load with `--dry-run`; verify it plans no duplicate and reports existing rows as skipped. Do not delete and reload records to force a correction.
 
-```bash
-node scripts/pmo.mjs m365 status
-```
+**How to verify:** inspect the repaired record in the named app screen and compare the new `pmo load --dry-run` output to the original input. Verify the affected version/project IDs, values, and stage history.
 
-Reports the configured default library, the caller's Microsoft connection status, and the latest `Link existing folders` sweep state, counts and unmatched record ids. Sweep summaries accumulate across pages and are scoped to the organization; the stored unmatched list is de-duplicated and capped at 500 (`unmatched_truncated` says when it was cut). A page whose summary could not be saved still succeeds and carries `summary_warning`.
+**Common errors:** if the dry-run still reports a different stored value, check that the app save completed and that you selected the correct record ID. A contract-line `skip` means the stable key already exists; it does not mean the line's amount or rate was updated. A budget-line identity conflict needs review of both source and Draft in **Project → Budget** before any further import.
 
-## 9. For Claude Code
+## Command scope and current constraints
 
-- Run `node scripts/pmo.mjs whoami` first; if it says "Not signed in", ask the owner to run
-  `node scripts/pmo.mjs login` — never try to sign in on their behalf.
-- Read before you write: `get` with a name filter, and skip rows that already exist.
-- Create in the order above; use the ids returned by `create` (it echoes the created rows).
-- Do not create companies or contacts for an organization whose ERP owns them (RIS): look them up
-  with `get` and use their ids; if one is missing, tell the owner — it comes from ERPNext.
-- Treat exit `1` as the database's answer — report it, do not retry around it. Treat exit `2` as a
-  closed door: the action belongs in the app.
-- There is no delete. If something was created by mistake, tell the owner.
+The full shipped command list and flags are printed by `node scripts/pmo.mjs --help`. Generic `get`, `create`, `update`, and `rpc` are constrained by closed table/RPC allow-lists; do not treat them as arbitrary access. Generic `create` and `update` do not offer `--dry-run`; use an app workflow for a write that must be previewed first. `pmo load`, `purchases link`, `purchases set-aside`, `documents link`, `accounts map set`, and `attribution set` do support previews. No command deletes records.
+
+The CLI does not create an ERP company directly as a separate ad hoc step, activate a budget, author T&M data, upload a document, or overwrite a loaded project/contract/budget line. Use the recipes above for their app screens and tracked enhancements: [budget activation](https://github.com/ariefsaid/PMO/issues/1859), [T&M operations](https://github.com/ariefsaid/PMO/issues/1856), [document register and upload](https://github.com/ariefsaid/PMO/issues/1857), [purchase history import](https://github.com/ariefsaid/PMO/issues/1855), and [loader corrections](https://github.com/ariefsaid/PMO/issues/1858).

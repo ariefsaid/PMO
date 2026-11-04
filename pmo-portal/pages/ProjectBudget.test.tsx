@@ -32,6 +32,10 @@ const readyActivationPrecheck: BudgetActivationPrecheckResult = {
   status: 'ready',
   erpCheck: 'available',
   fiscalYearNames: ['2026', '2027'],
+  fiscalYears: [
+    { name: '2026', start: '2026-01-01', end: '2026-12-31' },
+    { name: '2027', start: '2027-01-01', end: '2027-12-31' },
+  ],
   issues: [],
 };
 const activationPrecheckState: {
@@ -869,7 +873,7 @@ describe('ProjectBudget Draft version actions', () => {
     roleState.realRole = 'Finance';
     budgetState.data = 0;
     versionsState.data = [draftVersion];
-    activationPrecheckState.data = { status: 'blocked', erpCheck: 'available', fiscalYearNames: ['2026'], issues: [{ code, datePart, categories: ['Labor'], lines: [{ category: 'Labor', fiscalYear: '2026' }], date: '2026-01-01', fiscalYears: ['FY1', 'FY2'] }] };
+    activationPrecheckState.data = { status: 'blocked', erpCheck: 'available', fiscalYearNames: ['2026'], fiscalYears: [{ name: '2026', start: '2026-01-01', end: '2026-12-31' }], issues: [{ code, datePart, categories: ['Labor'], lines: [{ category: 'Labor', fiscalYear: '2026' }], date: '2026-01-01', fiscalYears: ['FY1', 'FY2'] }] };
     renderPage();
     expect(screen.getByTestId('budget-readiness-summary')).toHaveTextContent(expected);
   });
@@ -882,6 +886,10 @@ describe('ProjectBudget Draft version actions', () => {
       status: 'blocked',
       erpCheck: 'available',
       fiscalYearNames: ['2026', '2027'],
+      fiscalYears: [
+        { name: '2026', start: '2026-01-01', end: '2026-12-31' },
+        { name: '2027', start: '2027-01-01', end: '2027-12-31' },
+      ],
       issues: [{
         code: 'budget-multi-fiscal-year-unphased',
         categories: ['Materials'],
@@ -903,7 +911,7 @@ describe('ProjectBudget Draft version actions', () => {
   it('issue #1421: a native budget activates without ERP findings', async () => {
     roleState.realRole = 'Finance';
     versionsState.data = [{ ...draftVersion, line_items: [{ ...draftVersion.line_items[0], fiscal_year: null }] }];
-    activationPrecheckState.data = { status: 'ready', erpCheck: 'not-required', fiscalYearNames: null, issues: [] };
+    activationPrecheckState.data = { status: 'ready', erpCheck: 'not-required', fiscalYearNames: null, fiscalYears: null, issues: [] };
     renderPage();
     expect(screen.getByTestId('budget-readiness-summary')).toBeEmptyDOMElement();
     await userEvent.click(screen.getByRole('button', { name: /^Activate v2$/i }));
@@ -919,7 +927,7 @@ describe('ProjectBudget Draft version actions', () => {
     ['id', /pemeriksaan akan dilakukan lagi saat anggaran dikirim/i],
   ] as const)('issue #1421: %s outage copy describes the next push check', (locale, message) => {
     versionsState.data = [draftVersion];
-    activationPrecheckState.data = { status: 'erp-unavailable', erpCheck: 'unavailable', fiscalYearNames: null, issues: [] };
+    activationPrecheckState.data = { status: 'erp-unavailable', erpCheck: 'unavailable', fiscalYearNames: null, fiscalYears: null, issues: [] };
     render(<BahasaProvider locale={locale}><QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><MemoryRouter><ToastProvider><ProjectBudget projectId="p-1" project={project} /></ToastProvider></MemoryRouter></QueryClientProvider></BahasaProvider>);
     expect(screen.getByTestId('budget-readiness-summary')).toHaveTextContent(message);
   });
@@ -932,6 +940,7 @@ describe('ProjectBudget Draft version actions', () => {
       status: 'erp-unavailable',
       erpCheck: 'unavailable',
       fiscalYearNames: null,
+      fiscalYears: null,
       issues: [],
     };
     renderPage();
@@ -1094,6 +1103,21 @@ describe('ProjectBudget Active version actions', () => {
     expect(mockArchive).toHaveBeenCalledWith({ versionId: 'v-active', cancelErp: false });
   });
 
+  it('discloses both fiscal-year endpoints for an eligible range target before offering cancellation', async () => {
+    budgetState.data = 4700000;
+    versionsState.data = [activeVersion];
+    mockListArchiveTargets.mockResolvedValue([
+      { source_kind: 'account', fiscal_year: 'FY/Alpha', to_fiscal_year: 'FY:Beta', erp_budget_name: 'BUD-RANGE', eligible: true, reason: 'eligible', push_state: 'pushed', erp_docstatus: 1 },
+    ]);
+    renderPage();
+
+    await userEvent.click(screen.getByRole('button', { name: /^(Manage versions|Kelola versi)$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^Archive$/i }));
+    const dialog = screen.getByRole('alertdialog');
+    expect(within(dialog).getByText('FY/Alpha–FY:Beta — BUD-RANGE')).toBeInTheDocument();
+    expect(within(dialog).getByRole('checkbox', { name: /Also cancel 1 Budget document in ERPNext/ })).toBeInTheDocument();
+  });
+
   it('never opens the archive dialog out of a failed inventory read', async () => {
     budgetState.data = 4700000;
     versionsState.data = [activeVersion];
@@ -1159,6 +1183,20 @@ describe('ProjectBudget Active version actions', () => {
     expect(within(list).queryByText(/Labor/)).not.toBeInTheDocument();
     expect(screen.getByText('ERPNext is still enforcing an archived budget for this project. Cancel the ERPNext Budget documents or activate a new PMO budget.'))
       .toHaveAttribute('role', 'alert');
+  });
+
+  it('shows both fiscal-year endpoints for a live archived range Budget', () => {
+    budgetState.data = 0;
+    versionsState.data = [archivedVersion];
+    archiveTargetsState.data = [{
+      id: 'range-mirror-arch', budget_version_id: 'v-arch', fiscal_year: 'FY/Alpha', to_fiscal_year: 'FY:Beta', erp_account: 'Labor',
+      erp_budget_name: 'BUD-RANGE-OLD', erp_docstatus: 1, erp_cancelled_at: null, push_state: 'pushed', budget_intent: 'ensure',
+      activated_at_witness: archivedVersion.activated_at,
+    }];
+    renderPage();
+
+    const list = screen.getByRole('list', { name: 'ERPNext Budget documents that may still be live' });
+    expect(within(list).getByText('FY/Alpha–FY:Beta — BUD-RANGE-OLD')).toBeInTheDocument();
   });
 
   it('keeps a live archived ERP Budget visible when its activation witness is older', () => {
@@ -1513,8 +1551,8 @@ describe('ProjectBudget — the per-line fiscal year (AC-BFY-016)', () => {
 
   it.each([['FY1', false], ['A', false], ['FY1', true], ['A', true]] as const)('issue #1421: accepts custom fiscal-year label %s with live calendar %s', async (label, online) => {
     activationPrecheckState.data = online
-      ? { status: 'ready', erpCheck: 'available', fiscalYearNames: [label], issues: [] }
-      : { status: 'erp-unavailable', erpCheck: 'unavailable', fiscalYearNames: null, issues: [] };
+      ? { status: 'ready', erpCheck: 'available', fiscalYearNames: [label], fiscalYears: [{ name: label, start: '2026-01-01', end: '2026-12-31' }], issues: [] }
+      : { status: 'erp-unavailable', erpCheck: 'unavailable', fiscalYearNames: null, fiscalYears: null, issues: [] };
     versionsState.data = [draftVersion];
     renderPage();
     await userEvent.click(screen.getByRole('button', { name: /add line item/i }));
@@ -1527,7 +1565,7 @@ describe('ProjectBudget — the per-line fiscal year (AC-BFY-016)', () => {
   });
 
   it('issue #1421: preserves a short custom fiscal-year label when editing offline', async () => {
-    activationPrecheckState.data = { status: 'erp-unavailable', erpCheck: 'unavailable', fiscalYearNames: null, issues: [] };
+    activationPrecheckState.data = { status: 'erp-unavailable', erpCheck: 'unavailable', fiscalYearNames: null, fiscalYears: null, issues: [] };
     versionsState.data = [{ ...draftVersion, line_items: [{ ...draftVersion.line_items[0], fiscal_year: 'A' }] }];
     renderPage();
     await userEvent.click(screen.getByRole('button', { name: /edit line item Labor/i }));
@@ -1538,7 +1576,7 @@ describe('ProjectBudget — the per-line fiscal year (AC-BFY-016)', () => {
   });
 
   it('issue #1421: rejects a numeric year typo while offline', async () => {
-    activationPrecheckState.data = { status: 'erp-unavailable', erpCheck: 'unavailable', fiscalYearNames: null, issues: [] };
+    activationPrecheckState.data = { status: 'erp-unavailable', erpCheck: 'unavailable', fiscalYearNames: null, fiscalYears: null, issues: [] };
     versionsState.data = [draftVersion];
     renderPage();
     await userEvent.click(screen.getByRole('button', { name: /add line item/i }));

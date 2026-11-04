@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { anchorValue, externalIdentifier, keyFromExternalIdentifier, ODOO_ANCHORS, odooExternalRef, parseOdooExternalRef } from './anchors.ts';
+import { anchorValue, externalIdentifier, keyFromExternalIdentifier, ODOO_ANCHORS, odooExternalRef, odooRevenueDocumentRef, parseOdooExternalRef } from './anchors.ts';
 it('uses validated keys and separates identifiers from payment memo', () => {
   const key = 'po:123e4567-e89b-12d3-a456-426614174000';
   expect(anchorValue(key)).toBe(`pmo:${key}`);
@@ -26,4 +26,10 @@ it('AC-OPP-072 an identifier name turns back into the PMO key it was made from (
   for (const bad of ['po_123e4567_e89b_12d3_a456', 'pay_123e4567_e89b_12d3_a456_426614174000', 'PO_123E4567_E89B_12D3_A456_426614174000x', 'po-123e4567-e89b-12d3-a456-426614174000', '', 'x']) {
     expect(keyFromExternalIdentifier(bad), bad).toBeNull();
   }
+});
+
+it('maps a held customer document number to the Odoo model that holds it', () => {
+  expect(odooRevenueDocumentRef('sales-invoice', '42')).toBe('account.move:42');
+  expect(odooRevenueDocumentRef('incoming-payment', 42)).toBe('account.payment:42');
+  expect(() => odooRevenueDocumentRef('sales-invoice', 'abc')).toThrow();
 });

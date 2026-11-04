@@ -53,6 +53,7 @@ export interface LineItem {
 export interface ServedSeed {
   /** Budget version state for read-only activation prechecks; normal dispatch fixtures remain Active. */
   versionStatus?: 'Draft' | 'Active';
+  budgetMode?: 'per_year' | 'whole_project';
   fiscalYears: FiscalYear[];
   lineItems: LineItem[];
   categoryMap: Array<{ category: string; erp_account: string }>;
@@ -68,6 +69,10 @@ export interface ServedSeed {
   rejectBudgetAccount?: string;
   /** Existing account mirror rows returned by the real handler's project-scoped keyset scan. */
   accountMirrorHistory?: Array<Record<string, unknown> & { org_id?: string; project_id?: string }>;
+  distributionPlan?: Record<string, unknown> | null;
+  distributionRows?: Array<Record<string, unknown> & { id?: string }>;
+  archiveCancelIntents?: Array<{ id: string; state: string }>;
+  issuedArchiveIntentIds?: string[];
 }
 
 /** The 2-fiscal-year, fully-phased seed AC-BFY-009 is about. */
@@ -155,6 +160,7 @@ export function servedRoutes(seed: ServedSeed, versionMajor = 15, siteUrl = ERP_
         project_id: PROJECT_ID,
         status: seed.versionStatus ?? 'Active',
         activated_at: ACTIVATED_AT,
+        budget_mode: seed.budgetMode ?? 'per_year',
       })),
     supabaseSelect('projects', () =>
       objectResponse({
@@ -167,6 +173,15 @@ export function servedRoutes(seed: ServedSeed, versionMajor = 15, siteUrl = ERP_
     supabaseSelect('budget_line_items', (call) =>
       jsonResponse(call.url.searchParams.has('id') ? [] : seed.lineItems)),
     supabaseSelect('budget_category_account_map', () => jsonResponse(seed.categoryMap)),
+    supabaseSelect('budget_distribution_plans', () => objectResponse(seed.distributionPlan ?? null)),
+    supabaseSelect('budget_year_distributions', (call) => {
+      const afterId = call.url.searchParams.get('id')?.replace(/^gt\./, '');
+      const rows = (seed.distributionRows ?? []).map((row, index) => ({ id: row.id ?? `distribution-${index + 1}`, ...row }))
+        .filter((row) => !afterId || String(row.id) > afterId)
+        .sort((left, right) => String(left.id).localeCompare(String(right.id)))
+        .slice(0, Number(call.url.searchParams.get('limit') ?? '1000'));
+      return jsonResponse(rows);
+    }),
     supabaseSelect('budget_version_account_erp_mirror', (call) => {
       const param = (key: string) => call.url.searchParams.get(key)?.replace(/^eq\./, '');
       const account = param('erp_account');
@@ -198,14 +213,42 @@ export function servedRoutes(seed: ServedSeed, versionMajor = 15, siteUrl = ERP_
       response: (call) => {
         const incomingRows = (Array.isArray(call.bodyJson) ? call.bodyJson : [call.bodyJson]) as Array<Record<string, unknown>>;
         for (const incoming of incomingRows) {
-          const key = ['budget_version_id', 'fiscal_year', 'erp_account'].map((field) => incoming[field]).join('|');
-          const old = accountMirrorRows.find((row) => [row.budget_version_id, row.fiscal_year, row.erp_account].join('|') === key);
+          const key = ['budget_version_id', 'fiscal_year', 'to_fiscal_year', 'erp_account'].map((field) => incoming[field]).join('|');
+          const old = accountMirrorRows.find((row) => [row.budget_version_id, row.fiscal_year, row.to_fiscal_year, row.erp_account].join('|') === key);
           if (old) Object.assign(old, incoming);
           else accountMirrorRows.push({ id: `mirror-${++mirrorSeq}`, ...incoming });
         }
         return jsonResponse([]);
       },
     },
+    {
+      label: 'v16 account mirror wait-state update', method: 'PATCH', pathname: '/rest/v1/budget_version_account_erp_mirror',
+      response: (call) => {
+        const param = (key: string) => call.url.searchParams.get(key)?.replace(/^eq\./, '');
+        for (const row of accountMirrorRows) {
+          if (param('org_id') && row.org_id !== param('org_id')) continue;
+          if (param('budget_version_id') && row.budget_version_id !== param('budget_version_id')) continue;
+          if (param('fiscal_year') && row.fiscal_year !== param('fiscal_year')) continue;
+          if (param('to_fiscal_year') && row.to_fiscal_year !== param('to_fiscal_year')) continue;
+          const accounts = call.url.searchParams.get('erp_account')?.replace(/^in\./, '').replace(/[()]/g, '').split(',');
+          if (accounts && accounts.length > 0 && !accounts.includes(String(row.erp_account))) continue;
+          if (call.bodyJson && typeof call.bodyJson === 'object') Object.assign(row, call.bodyJson);
+        }
+        return jsonResponse([]);
+      },
+    },
+    supabaseSelect('budget_archive_cancel_intents', (call) => {
+      const p = call.url.searchParams;
+      const eq = (key: string) => p.get(key)?.replace(/^eq\./, '');
+      const afterId = p.get('id')?.replace(/^gt\./, '');
+      const rows = (seed.archiveCancelIntents ?? []).filter((row) => row.state !== 'complete'
+        && (!eq('org_id') || eq('org_id') === ORG_ID)
+        && (!eq('project_id') || eq('project_id') === PROJECT_ID)
+        && (!afterId || row.id > afterId))
+        .sort((left, right) => left.id.localeCompare(right.id))
+        .slice(0, Number(p.get('limit') ?? '1000'));
+      return jsonResponse(rows);
+    }),
     // ECA-6: a push that meets an ERP budget PMO did not create asks for a recorded replace consent. None by default
     // (the refusal is the behaviour under test elsewhere); budgetOccupant.served.test.ts supplies its own rows.
     supabaseSelect('budget_occupant_consents', () => nullObjectResponse()),
@@ -234,6 +277,12 @@ export function servedRoutes(seed: ServedSeed, versionMajor = 15, siteUrl = ERP_
       method: 'GET',
       pathname: '/rest/v1/external_command_outbox',
       response: (call) => {
+        const archiveJob = call.url.searchParams.get('payload->>budget_archive_cancel_job_id')?.replace(/^eq\./, '');
+        if (archiveJob) {
+          return jsonResponse((seed.issuedArchiveIntentIds ?? []).includes(archiveJob)
+            ? [{ id: `archive-outbox-${archiveJob}` }]
+            : []);
+        }
         const key = outboxKeyOf(call);
         const row = outboxRows.get(key);
         return row ? objectResponse(row) : nullObjectResponse();

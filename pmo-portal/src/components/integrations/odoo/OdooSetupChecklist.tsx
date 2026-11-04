@@ -6,6 +6,32 @@ import React, { useState } from 'react';
 import { useOdooConnection, useOdooJournalProposal, useOdooSetup, type JournalCandidate } from '@/src/hooks/useOdoo';
 import { useOdooCan } from './useOdooCan';
 import { useExternalDomainOwnership } from '@/src/hooks/useExternalDomainOwnership';
+import { OdooAccountSelect } from '@/src/components/procurement/OdooDirectoryPickers';
+
+function AccountDefault({ kind, value, canSet }: { kind: 'advance' | 'prepaid'; value: string; canSet: boolean }) {
+  const { t } = useTranslation();
+  const save = useOdooSetup('save-defaults');
+  const [picked, setPicked] = useState('');
+  const [failed, setFailed] = useState(false);
+  const label = kind === 'advance'
+    ? t('administration:odoo.checklist.customerAdvance', 'Customer-advance account')
+    : t('administration:odoo.checklist.taxPrepaid', 'Tax-prepaid account');
+  const savedId = kind === 'advance' ? value.replace(/^account\.account:/, '') : value;
+  const submit = async (id: string) => {
+    setFailed(false);
+    try {
+      await save.mutateAsync(kind === 'advance' ? { customer_advance_account_ref: `account.account:${id}` } : { tax_prepaid_account_id: id });
+    } catch { setFailed(true); }
+  };
+  if (!canSet) return savedId ? <span className="text-muted-foreground">{savedId}</span> : null;
+  return (
+    <span className="inline-flex flex-wrap items-start gap-2">
+      <OdooAccountSelect id={`odoo-${kind}-account`} label={label} hideLabel value={picked || savedId} onChange={setPicked} />
+      <Button size="sm" variant="outline" disabled={!picked || picked === savedId} loading={save.isPending} onClick={() => { void submit(picked); }}>{t('administration:odoo.checklist.journalSave', 'Save')}</Button>
+      {failed && <span role="alert" className="text-[12px] text-destructive-text">{t('administration:odoo.checklist.accountFailed', 'The account could not be saved. Try again.')}</span>}
+    </span>
+  );
+}
 
 /** #1505 P8-T5: the default payment journal. One bank journal is proposed and accepted in one click; several are chosen from; none says so. */
 function JournalDefault({ proposal, canSet }: { proposal: ReturnType<typeof useOdooJournalProposal>['data']; canSet: boolean }) {
@@ -68,6 +94,8 @@ export function OdooSetupChecklist() {
     { name: t('administration:odoo.checklist.mapOnce', 'Map once'), done: Boolean(cfg.account_defaults && cfg.unit_map && cfg.default_warehouse_id), hint: t('administration:odoo.checklist.mapOnceHint', 'Accounts, units and the default warehouse, proposed together and accepted in one step.') },
     { name: t('administration:odoo.checklist.journal', 'Payment journal'), done: Boolean(cfg.default_payment_journal_id), hint: t('administration:odoo.checklist.journalHint', 'The bank or cash journal supplier payments are made from, unless Finance picks another.'),
       extra: <JournalDefault proposal={proposal} canSet={canSet} /> },
+    { name: t('administration:odoo.checklist.customerAdvance', 'Customer-advance account'), done: Boolean(cfg.customer_advance_account_ref), hint: t('administration:odoo.checklist.customerAdvanceHint', 'Choose the account that holds customer advances.'), extra: <AccountDefault kind="advance" value={String(cfg.customer_advance_account_ref ?? '')} canSet={canSet} /> },
+    { name: t('administration:odoo.checklist.taxPrepaid', 'Tax-prepaid account'), done: Boolean(cfg.tax_prepaid_account_id), hint: t('administration:odoo.checklist.taxPrepaidHint', 'Choose the asset account used for client tax withheld.'), extra: <AccountDefault kind="prepaid" value={String(cfg.tax_prepaid_account_id ?? '')} canSet={canSet} /> },
     { name: t('administration:odoo.checklist.sends', 'Sends finished'), done: Boolean(cfg[SENDS_FINISHED_KEY]), hint: t('administration:odoo.checklist.sendsHint', 'Records PMO holds that Odoo should also have are sent once.') },
     { name: t('administration:odoo.checklist.employ', 'Vendors and clients managed in Odoo'), done: owned.some((o) => o.externalTier === 'odoo' && o.domain === 'companies'), hint: t('administration:odoo.checklist.employHint', 'After this, Odoo owns vendor and client records.') },
   ];

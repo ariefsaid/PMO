@@ -9,8 +9,9 @@
  * the gate's pure per-year plan logic.
  */
 import { describe, it, expect } from 'vitest';
-import { runBudgetGate, BudgetGateError, type BudgetGateDeps, type BudgetVersionGateRow, type BudgetGateProjectRow, type FiscalYearRow } from './budgetGate';
+import { runBudgetActivationPrecheck, runBudgetGate, BudgetGateError, type BudgetGateDeps, type BudgetVersionGateRow, type BudgetGateProjectRow, type FiscalYearRow } from './budgetGate';
 import type { BudgetLineItem, CategoryAccountMapRow } from './categoryAccountMap';
+import { yearsInSpan, type FiscalYearSpan } from './budgetDistribution';
 
 const ORG = 'org-a';
 
@@ -46,6 +47,53 @@ function makeDeps(opts: {
     readCategoryMap: async () => map,
     readFiscalYears: async () => opts.fiscalYears ?? CALENDAR_FISCAL_YEARS,
   };
+}
+
+const RANGE_CALENDAR: FiscalYearSpan[] = [
+  { name: 'FY27/2027', start: '2027-01-01', end: '2027-12-31' },
+  { name: 'FY28:2028', start: '2028-01-01', end: '2028-12-31' },
+];
+const RANGE_PROJECT: BudgetGateProjectRow = {
+  id: 'proj-1', org_id: ORG, start_date: '2027-12-31', end_date: '2028-01-02',
+};
+const RANGE_LINES: BudgetLineItem[] = [
+  { category: 'Labor', budgeted_amount: '100.01' },
+  { category: 'Materials', budgeted_amount: '0.10' },
+];
+const RANGE_PLAN = {
+  method: 'by_days',
+  inputs: {},
+  category_overrides: {},
+  basis: { projectStart: RANGE_PROJECT.start_date, projectEnd: RANGE_PROJECT.end_date, years: RANGE_CALENDAR },
+};
+const RANGE_ROWS = [
+  { category: 'Labor', fiscal_year: 'FY27/2027', ordinal: 0, amount: '33.34', method: 'by_days', is_override: false },
+  { category: 'Labor', fiscal_year: 'FY28:2028', ordinal: 1, amount: '66.67', method: 'by_days', is_override: false },
+  { category: 'Materials', fiscal_year: 'FY27/2027', ordinal: 0, amount: '0.03', method: 'by_days', is_override: false },
+  { category: 'Materials', fiscal_year: 'FY28:2028', ordinal: 1, amount: '0.07', method: 'by_days', is_override: false },
+];
+
+function makeWholeProjectDeps(overrides: {
+  version?: BudgetVersionGateRow;
+  project?: BudgetGateProjectRow;
+  lineItems?: BudgetLineItem[];
+  fiscalYears?: FiscalYearSpan[];
+  plan?: unknown;
+  rows?: unknown[];
+} = {}): BudgetGateDeps {
+  const calendar = overrides.fiscalYears ?? RANGE_CALENDAR;
+  const version = { ...ACTIVE_VERSION, budget_mode: 'whole_project' } as BudgetVersionGateRow;
+  const base = makeDeps({
+    project: overrides.project ?? RANGE_PROJECT,
+    lineItems: overrides.lineItems ?? RANGE_LINES,
+    version: overrides.version ?? version,
+    fiscalYears: calendar.map(({ name, start, end }) => ({ name, year_start_date: start, year_end_date: end })),
+  });
+  return {
+    ...base,
+    readDistributionPlan: async () => overrides.plan === undefined ? RANGE_PLAN : overrides.plan,
+    readDistributionRows: async () => overrides.rows ?? RANGE_ROWS,
+  } as unknown as BudgetGateDeps;
 }
 
 describe('runBudgetGate — BFY per-year push plan (AC-BFY-004..008)', () => {
@@ -155,5 +203,56 @@ describe('runBudgetGate — BFY per-year push plan (AC-BFY-004..008)', () => {
       code: 'budget-category-unmapped',
       fiscalYear: '2026',
     });
+  });
+});
+
+describe('runBudgetGate — accepted whole-project range (AC-016)', () => {
+  it('revalidates the exact saved yearly rows against the live calendar, project dates, and source totals', async () => {
+    const result = await runBudgetGate(makeWholeProjectDeps());
+    const liveYears = yearsInSpan(RANGE_PROJECT.start_date!, RANGE_PROJECT.end_date, RANGE_CALENDAR);
+
+    expect(result.budgetMode).toBe('whole_project');
+    expect(result.range).toMatchObject({
+      fromFiscalYear: 'FY27/2027',
+      toFiscalYear: 'FY28:2028',
+      fiscalYears: liveYears,
+    });
+    expect(result.inSpanFiscalYears).toEqual(liveYears.map((year) => year.name));
+    expect(result.distributionRows).toEqual(RANGE_ROWS);
+  });
+
+  it('refuses a missing plan, changed project span, stale source total, or missing calendar coverage', async () => {
+    await expect(runBudgetGate(makeWholeProjectDeps({ plan: null }))).rejects.toMatchObject({
+      code: 'budget-distribution-stale',
+    });
+    await expect(runBudgetGate(makeWholeProjectDeps({
+      project: { ...RANGE_PROJECT, end_date: '2028-01-03' },
+    }))).rejects.toMatchObject({ code: 'budget-distribution-stale' });
+    await expect(runBudgetGate(makeWholeProjectDeps({
+      lineItems: [{ ...RANGE_LINES[0]!, budgeted_amount: '100.02' }, RANGE_LINES[1]!],
+    }))).rejects.toMatchObject({ code: 'budget-distribution-stale' });
+    await expect(runBudgetGate(makeWholeProjectDeps({ fiscalYears: [RANGE_CALENDAR[0]!] }))).rejects.toMatchObject({
+      code: 'budget-distribution-stale',
+    });
+  });
+
+  it('precheck reports stale or invalid calendar basis, while an ERP outage stays informational', async () => {
+    const changed = await runBudgetActivationPrecheck(makeWholeProjectDeps({
+      version: { ...ACTIVE_VERSION, status: 'Draft', budget_mode: 'whole_project' } as BudgetVersionGateRow,
+      project: { ...RANGE_PROJECT, end_date: '2028-01-03' },
+    }));
+
+    expect(changed.status).toBe('blocked');
+    expect(changed.issues).toEqual(expect.arrayContaining([expect.objectContaining({ code: 'budget-distribution-stale' })]));
+
+    const offlineDeps = makeWholeProjectDeps() as unknown as BudgetGateDeps;
+    const offline = await runBudgetActivationPrecheck({
+      ...offlineDeps,
+      readVersion: async () => ({ ...ACTIVE_VERSION, status: 'Draft', budget_mode: 'whole_project' }) as BudgetVersionGateRow,
+      readFiscalYears: async () => { throw new Error('external-unreachable'); },
+    });
+    expect(offline.status).toBe('erp-unavailable');
+    expect(offline.fiscalYears).toBeNull();
+    expect(offline.issues).not.toEqual(expect.arrayContaining([expect.objectContaining({ code: 'budget-distribution-stale' })]));
   });
 });

@@ -198,7 +198,13 @@
     "clearProject": "Hapus filter proyek"
   },
   "receipts": {
-    "someUnreported": "Beberapa angka tidak dilaporkan."
+    "someUnreported": "Beberapa angka tidak dilaporkan.",
+    "confirmOdooTitle": "Catat kuitansi ini di Odoo?",
+    "confirmOdooBody": "PMO akan mengirim kuitansi ini ke Odoo. Periksa jumlah yang dilunasi dan pajak yang dipotong sebelum melanjutkan.",
+    "statusAwaitingOdoo": "Kuitansi terkirim, menunggu Odoo",
+    "statusPaidOdoo": "Lunas",
+    "journalLabel": "Diterima di",
+    "titleUnnumbered": "Kuitansi, belum bernomor"
   },
   "statements": {
     "amountsIn": "Jumlah dalam",
@@ -537,7 +543,39 @@
   "financeCopy": {
     "budget": "Anggaran",
     "activateEditorBlocked": "Anda menyusun atau mengedit versi ini, jadi orang lain harus mengaktifkannya.",
-    "activateNeedsAdminOrFinance": "Penyusun versi ini tidak tercatat. Minta Admin atau Finance untuk mengaktifkannya."
+    "activateNeedsAdminOrFinance": "Penyusun versi ini tidak tercatat. Minta Admin atau Finance untuk mengaktifkannya.",
+    "invoiceNumber": "Nomor faktur",
+    "odooDraftNumber": "Draf — Odoo memberi nomor setelah disetujui",
+    "erpLineItemsStoredExternally": "Baris faktur disimpan di sistem akuntansi untuk faktur ini.",
+    "paymentsReceivedFromClientsMirroredFromOdoo": "Pembayaran dari klien yang disalin dari Odoo."
+  },
+  "odooOutcome": {
+    "confirmed": "Ada di Odoo",
+    "pending": "Terkirim, menunggu Odoo",
+    "held": "Perlu keputusan",
+    "needs-attention": "Periksa di Odoo",
+    "refused": "Odoo tidak menerima dokumen ini",
+    "read": "Dibaca {{age}}",
+    "sent": "Terkirim {{age}}",
+    "unreachable": "Odoo tidak dapat dihubungi. Menampilkan data terakhir yang dibaca PMO{{age}}.",
+    "offlineAction": "Odoo tidak tersedia. Anda masih dapat melihat data terakhir yang dibaca PMO; tidak ada perubahan baru yang dikirim dari layar ini.",
+    "creditNotes": "Nota kredit",
+    "amountUnavailable": "Jumlah tidak tersedia",
+    "creditNotesUnavailable": "Nota kredit tidak dapat dibaca saat ini.",
+    "next": {
+      "pending": "Odoo belum mengonfirmasinya. PMO akan memeriksa kembali otomatis; tidak ada tindakan yang perlu dilakukan.",
+      "held": "PMO tidak dapat memastikan apakah Odoo sudah membuatnya. Admin atau Finance perlu memeriksa Odoo dan menentukan langkah berikutnya.",
+      "needs-attention": "Periksa faktur di Odoo sebelum melanjutkan.",
+      "refused": "Periksa data yang dimasukkan, lalu catat kembali."
+    },
+    "reason": {
+      "total-mismatch": "Total di Odoo tidak sama dengan yang dikirim PMO.",
+      "cost-account-missing": "Satu baris yang sudah diposting tidak memiliki akun biaya untuk proyek.",
+      "money-unreadable": "PMO tidak dapat membaca jumlah dari Odoo.",
+      "lines-unreadable": "PMO tidak dapat membaca baris faktur dari Odoo.",
+      "advance-account-mismatch": "Uang muka pelanggan diposting ke akun yang berbeda dari yang dipilih di pengaturan."
+    },
+    "sentTotal": "PMO mengirim {{amount}}."
   },
   "common": {
     "save": "Simpan",

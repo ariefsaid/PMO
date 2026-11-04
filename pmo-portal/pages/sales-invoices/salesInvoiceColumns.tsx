@@ -12,6 +12,8 @@ import { deriveArDueDate } from '@/src/lib/repositories/revenueDisplay';
 import { salesInvoiceStatusVariant } from '@/src/lib/status/statusVariants';
 import { invoiceGross, invoiceNumber, isPartlyPaid, overpaidBy, paidToDate } from '@/src/lib/revenue/nativeInvoice';
 import { salesInvoiceStatusLabel } from './salesInvoiceListModel';
+import { OdooOutcome } from '@/src/components/revenue/OdooOutcome';
+import type { OdooOutcome as OdooOutcomeValue } from '@/src/lib/procurement/odooOutcome';
 
 interface Props {
   t: ReturnType<typeof useTranslation>['t'];
@@ -29,6 +31,8 @@ interface Props {
     variant: ReturnType<typeof salesInvoiceStatusVariant>;
     partlySettled: boolean;
     receiptAwaitingOdoo?: boolean;
+    odooOutcome?: OdooOutcomeValue | null;
+    odooOffline?: boolean;
   };
 }
 export function salesInvoiceColumns({ t, all, embedded, native, location, orgCurrency, sharedTaxBasis, projectOptionsById, projectsById, profilesById, invoiceStatus }: Props) {
@@ -112,7 +116,10 @@ export function salesInvoiceColumns({ t, all, embedded, native, location, orgCur
       const legacyLabel = status.partlySettled
         ? t('financeCopy.statusPartlyPaid', 'Partly paid')
         : salesInvoiceStatusLabel(inv.status, t);
-      return <StatusPill className={embedded ? 'max-w-full whitespace-normal!' : undefined} variant={embedded || receiptAwaitingOdoo ? status.variant : status.partlySettled ? salesInvoiceStatusVariant('Unpaid') : salesInvoiceStatusVariant(inv.status)}>{embedded || receiptAwaitingOdoo ? status.label : legacyLabel}</StatusPill>;
+      const pill = <StatusPill className={embedded ? 'max-w-full whitespace-normal!' : undefined} variant={embedded || receiptAwaitingOdoo ? status.variant : status.partlySettled ? salesInvoiceStatusVariant('Unpaid') : salesInvoiceStatusVariant(inv.status)}>{embedded || receiptAwaitingOdoo ? status.label : legacyLabel}</StatusPill>;
+      // The invoice keeps its own status; Odoo's word is added only while something is unsettled (a settled invoice is the normal case).
+      if (!status.odooOutcome || status.odooOutcome.cls === 'confirmed') return pill;
+      return <span className="flex min-w-0 flex-col items-start gap-1">{pill}<OdooOutcome outcome={status.odooOutcome} unreachable={status.odooOffline} compact /></span>;
     },
     exportValue: (inv) => inv.status,
   };

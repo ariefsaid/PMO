@@ -17,6 +17,7 @@ import {
   escapeLikePattern,
   listDocNamesByAnchor,
   listDocsByFilters,
+  listDocsByFiltersPaged,
   ERP_REQUEST_TIMEOUT_MS,
   ERP_QUARANTINE_WINDOW_MS,
   ERP_RESPONSE_MAX_BYTES,
@@ -24,6 +25,7 @@ import {
   ERP_RETRY_AFTER_CAP_MS,
   withProbeBudget,
   withCommitDeadline,
+  withRangeWriteDeadline,
   isFinancialDecimalTextResponse,
   type ErpClientDeps,
 } from './client.ts';
@@ -426,6 +428,32 @@ describe('erpnext/client', () => {
     });
   });
 
+  it('AC-010 pages a complete candidate list by name and refuses duplicate or malformed page identities', async () => {
+    const urls: string[] = [];
+    const deps = fetchDeps(async (input) => {
+      const url = new URL(String(input));
+      urls.push(url.toString());
+      const filters = JSON.parse(url.searchParams.get('filters') ?? '[]') as unknown[][];
+      const after = filters.find(([field, op]) => field === 'name' && op === '>')?.[2] as string | undefined;
+      const last = filters.find(([field, op]) => field === 'name' && op === '>')?.[2] as string | undefined;
+      const rows = !after ? [{ name: 'BUDGET-1' }] : last === 'BUDGET-1' ? [{ name: 'BUDGET-2' }] : [];
+      return jsonResponse(200, { data: rows });
+    });
+    const rows = await listDocsByFiltersPaged(deps, 'Budget', [], ['name'], { pageSize: 1, maxPages: 3 });
+    expect(rows).toEqual([{ name: 'BUDGET-1' }, { name: 'BUDGET-2' }]);
+    expect(urls.map((value) => JSON.parse(new URL(value).searchParams.get('filters') ?? '[]'))).toEqual([
+      [], [['name', '>', 'BUDGET-1']], [['name', '>', 'BUDGET-2']],
+    ]);
+
+    const duplicate = fetchDeps(async (input) => {
+      const url = new URL(String(input));
+      const after = JSON.parse(url.searchParams.get('filters') ?? '[]').length > 0;
+      return jsonResponse(200, { data: after ? [{ name: 'BUDGET-1' }] : [{ name: 'BUDGET-1' }] });
+    });
+    await expect(listDocsByFiltersPaged(duplicate, 'Budget', [], ['name'], { pageSize: 1, maxPages: 2 }))
+      .rejects.toMatchObject({ code: 'external-unreachable' });
+  });
+
   // ── Luna BLOCK 5 (money path): a hung POST must never race its own recovery ────────────────────
   describe('commit deadline (Luna BLOCK 10 — the claim budget bounds the POST itself, not the commit entry)', () => {
     it('refuses a POST issued AT/PAST the commit deadline — the request never reaches ERP', async () => {
@@ -464,6 +492,33 @@ describe('erpnext/client', () => {
       expect(budgeted.commitDeadlineAtMs).toBe(42);
       expect(base.commitDeadlineAtMs).toBeUndefined();
       expect(budgeted.fetchImpl).toBe(base.fetchImpl);
+    });
+
+    it('withRangeWriteDeadline gives staged Budget writes one attempt so recovery reads back before any retry', async () => {
+      const base = { ...fetchDeps(async () => jsonResponse(503, { exception: 'ServiceUnavailable' })), now: () => 0 };
+      const budgeted = withRangeWriteDeadline(base, 42);
+
+      await expect(updateDoc(budgeted, 'Budget', 'BUD-RANGE-1', { budget_distribution: [] }))
+        .rejects.toMatchObject({ code: 'external-unreachable' });
+      expect(budgeted.rangeWriteDeadlineAtMs).toBe(42);
+      expect(budgeted.maxRetries).toBe(0);
+      expect(budgeted.fetchImpl).toHaveBeenCalledTimes(1);
+      expect(base.maxRetries).toBeUndefined();
+    });
+
+    it('rechecks a range-write deadline after waiting for the rate limiter and before sending the write', async () => {
+      let now = 41;
+      const deps = withRangeWriteDeadline({
+        ...fetchDeps(async () => jsonResponse(200, { name: 'BUD-RANGE-1' })),
+        now: () => now,
+        rateLimiter: {
+          acquire: async () => { now = 42; },
+        },
+      }, 42);
+
+      await expect(updateDoc(deps, 'Budget', 'BUD-RANGE-1', { budget_distribution: [] }))
+        .rejects.toMatchObject({ code: 'external-unreachable', retryable: true });
+      expect(deps.fetchImpl).not.toHaveBeenCalled();
     });
   });
 

@@ -36,6 +36,8 @@ export interface ComboboxOption {
   label: string;
   /** Optional secondary line (e.g. "Client" / "Vendor"). */
   sub?: string;
+  /** Render a full, wrapping label with `sub` on its own line for server results that need distinguishing details. */
+  wrapLabel?: boolean;
   /** Optional non-truncating labels shown as separate badges in the option row. */
   badges?: string[];
   /** Optional 2-letter avatar + color for the chip/row. */
@@ -482,13 +484,20 @@ export const Combobox: React.FC<ComboboxProps> = ({
                       onClick={() => select(opt)}
                       className={cn(
                         'flex cursor-pointer gap-2 rounded-sm px-2 text-[13.5px]',
-                        opt.badges?.length ? 'min-h-[34px] items-start py-1.5' : 'h-[34px] items-center',
+                        opt.badges?.length || opt.wrapLabel ? 'min-h-[34px] items-start py-1.5' : 'h-[34px] items-center',
                         isSelected && 'bg-primary/[0.07]',
                         isActive && !isSelected && 'bg-accent',
                       )}
                     >
                       <Avatar opt={opt} size={22} />
-                      {opt.badges?.length ? (
+                      {opt.wrapLabel ? (
+                        <div className="min-w-0 flex-1">
+                          <span className="block whitespace-normal break-words">{opt.label}</span>
+                          {opt.sub && (
+                            <span title={opt.sub} className="mt-1 block whitespace-normal break-words text-[11.5px] text-muted-foreground">{opt.sub}</span>
+                          )}
+                        </div>
+                      ) : opt.badges?.length ? (
                         <div className="min-w-0 flex-1">
                           <div className="flex min-w-0 flex-wrap items-center gap-1.5">
                             <span className="min-w-0 flex-1 truncate">{opt.label}</span>

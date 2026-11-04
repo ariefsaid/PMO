@@ -876,6 +876,20 @@ function loadApi(ctx) {
     post: (table, body) => authed(ctx, 'POST', `/rest/v1/${table}`, { body, headers: representation }),
     patch: (table, q, body) => authed(ctx, 'PATCH', `/rest/v1/${table}?${q}`, { body, headers: representation }),
     rpc: (name, body) => authed(ctx, 'POST', `/rest/v1/rpc/${name}`, { body }),
+    // Match Companies → New: the authenticated caller's JWT invokes the same synchronous ERP
+    // dispatch command, which creates the ERP party and returns its canonical PMO row.
+    createExternalCompany: async ({ name, type }) => {
+      const id = crypto.randomUUID();
+      const result = await authed(ctx, 'POST', '/functions/v1/adapter-dispatch', {
+        body: {
+          domain: 'companies',
+          operation: 'create',
+          record: { id, name, type, erp_doc_kind: 'customer' },
+          idempotencyKey: crypto.randomUUID(),
+        },
+      });
+      return result?.canonical;
+    },
   };
 }
 
