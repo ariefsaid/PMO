@@ -2977,7 +2977,7 @@
         }
       ],
       "source": [
-        "supabase/migrations/0581_budget_draft_mode_switch.sql:5"
+        "supabase/migrations/0581_budget_draft_mode_switch.sql:61"
       ]
     },
     {

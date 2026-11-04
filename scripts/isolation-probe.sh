@@ -299,11 +299,13 @@ if [ -n "$A_SLIP" ] && [ "$A_SLIP" != null ]; then
 else skip "correct_vendor_withholding_slip (vendor_withholding_slips)"; skip "void_vendor_withholding_slip (vendor_withholding_slips)"; fi
 if [ -n "$A_CLAIM" ] && [ "$A_CLAIM" != null ]; then c=$(rpc record_expense_advance_return "{\"p_id\":\"$A_CLAIM\",\"p_amount\":0.01,\"p_reference\":\"probe\"}"); else skip "record_expense_advance_return (expense_claims)"; fi
 if [ -n "$A_BUDGET" ] && [ "$A_BUDGET" != null ]; then
+  c=$(rpc switch_budget_draft_mode "{\"p_version\":\"$A_BUDGET\",\"p_target_mode\":\"whole_project\",\"p_expected_lines\":[],\"p_assignments\":[]}")
   c=$(rpc get_budget_distribution_snapshot "{\"p_version_id\":\"$A_BUDGET\"}")
   c=$(rpc budget_distribution_gaps "{\"p_version\":\"$A_BUDGET\"}")
   c=$(rpc save_budget_distribution "{\"p_version\":\"$A_BUDGET\",\"p_method\":\"by_days\",\"p_inputs\":{},\"p_basis\":{},\"p_rows\":[]}")
   c=$(rpc activate_budget_version "{\"version_id\":\"$A_BUDGET\"}")
 else
+  skip "switch_budget_draft_mode (budget_versions)"
   skip "get_budget_distribution_snapshot (budget_versions)"
   skip "budget_distribution_gaps (budget_versions)"
   skip "save_budget_distribution (budget_versions)"
