@@ -80,7 +80,10 @@ import {
 } from './budgetDispatch.ts';
 import { resolveErpMoneyOutboxDeps as resolveErpMoneyOutboxDepsModule } from './erpMoneyOutbox.ts';
 import { resolveOdooMoneyOutboxDeps } from './odooMoneyOutbox.ts';
+import { odooRevenueAnchorKey } from './odooRevenueOutbox.ts';
+import { checkOdooDraftTarget, isOdooInvoiceDraftWrite, writeOdooInvoiceDraft } from './odooInvoiceDraft.ts';
 import { ODOO_TIER } from '../../../pmo-portal/src/lib/adapterSeam/odoo/connectAdapter.ts';
+import { odooOwnsRevenueTier } from '../../../pmo-portal/src/lib/adapterSeam/odoo/ownership.ts';
 
 export { resolveErpBindingRow, resolveErpAdapter } from './dispatchAdapters.ts';
 export type { AdapterSelectContext } from './dispatchAdapters.ts';
@@ -243,6 +246,17 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
       { status: 400, headers },
     );
   }
+  // #1462: only the sweep can originate an archive-cancellation job. The public HTTP command can
+  // request a normal budget push; its body cannot select a legacy mirror, predecessor, or durable job.
+  if (command.domain === ERPNEXT_BUDGET_DOMAIN && command.record?.erp_doc_kind === 'budget' &&
+      (Object.hasOwn(command.record, 'source_kind') ||
+       Object.hasOwn(command.record, 'budget_archive_cancel_job_id') ||
+       Object.hasOwn(command.record, 'budget_archive_source_mirror_id'))) {
+    return new Response(JSON.stringify({ error: 'commit-rejected', message: 'budget archive cancellation is server-owned' }), {
+      status: 422,
+      headers,
+    });
+  }
   // #956: the VAT witness is internal command material, never a client authority. This HTTP
   // boundary is a fresh dispatch; trusted sweep replay reconstructs persisted payloads elsewhere.
   if (command.domain === ERPNEXT_REVENUE_DOMAIN && command.record.erp_doc_kind === 'sales-invoice') {
@@ -364,7 +378,14 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
   // The exemption is scoped to (budget × create); every other budget operation and every other domain
   // still requires the caller's key here.
   const budgetKeyDerivedByServer = command.domain === ERPNEXT_BUDGET_DOMAIN && (command.operation as string) === 'create';
-  if (isErpDomain && !budgetKeyDerivedByServer && (command.operation as string) !== 'read' && !isOpaqueIdempotencyKey(command.idempotencyKey)) {
+  const odooInvoiceKeyDerivedByServer = odooOwnsRevenueTier(employedTier) && command.domain === ERPNEXT_REVENUE_DOMAIN
+    && command.operation === 'transition' && command.record.erp_doc_kind === 'sales-invoice' && command.record.verb === 'submit';
+  if (odooInvoiceKeyDerivedByServer) {
+    // One Odoo invoice is one PMO intent. Replace the per-click client key before adapter selection,
+    // which also uses this identity to recognize a replay before it dry-builds the draft.
+    command.idempotencyKey = odooRevenueAnchorKey('sales-invoice', command.record as Record<string, unknown>);
+  }
+  if (isErpDomain && !budgetKeyDerivedByServer && !odooInvoiceKeyDerivedByServer && (command.operation as string) !== 'read' && !isOpaqueIdempotencyKey(command.idempotencyKey)) {
     return new Response(
       JSON.stringify({
         error: 'commit-rejected',
@@ -547,7 +568,12 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
         headers,
       });
     }
-    const binding = await checkTransitionTargetBinding(serviceClient as never, orgId, command);
+    // An Odoo invoice draft has no Odoo mapping by design (OQ-OCI-1): its update and its approval target the PMO draft row itself.
+    const odooDraft = odooOwnsRevenueTier(employedTier) ? await checkOdooDraftTarget(serviceClient as never, orgId, command) : null;
+    if (odooDraft && !odooDraft.ok) {
+      return new Response(JSON.stringify({ error: 'commit-rejected', message: odooDraft.message }), { status: odooDraft.status, headers });
+    }
+    const binding = odooDraft?.ok && odooDraft.unmappedDraft ? { ok: true as const } : await checkTransitionTargetBinding(serviceClient as never, orgId, command);
     if (!binding.ok) {
       return new Response(JSON.stringify({ error: 'commit-rejected', message: binding.message }), {
         status: binding.status,
@@ -717,6 +743,12 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
     requestHost: req.headers.get('x-forwarded-host') ?? req.headers.get('host'),
     allowedHosts: Deno.env.get('ERPNEXT_TEST_FAULTS_ALLOW_HOST'),
   };
+
+  // ── An Odoo invoice draft (authoring and editing) is PMO's alone: no adapter, no outbox row, no Odoo call (OQ-OCI-1). Only the approval pushes. ──
+  if (isOdooInvoiceDraftWrite(employedTier, command)) {
+    const draft = await writeOdooInvoiceDraft({ serviceClient: serviceClient as never, orgId, userId, command });
+    return new Response(JSON.stringify(draft.body), { status: draft.status, headers });
+  }
 
   // ── 3. Adapter select (AC-EAS-033 step 2). ──
   const adapterFactory = selectAdapterFactory(employedTier, command.domain);

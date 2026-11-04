@@ -12,6 +12,8 @@ import { odooKindReaders, runCensus, runKind, type KindRunDeps } from '../../../
 import { advanceConnectRuns } from './connectRun.ts';
 import { matchNewPartners } from './odooPartyFeed.ts';
 import { purchaseDomainsReadable, purchaseFeedEmployed, runPurchasePass } from './odooPurchaseFeed.ts';
+import { revenueDomainsReadable, revenueFeedEmployed, runRevenuePass } from './odooRevenueFeed.ts';
+import { reconcileOdooRevenueOutbox } from '../adapter-dispatch/odooRevenueRecovery.ts';
 import { odooClientForOrg, recordOdooProbe, type OdooClientRefusal } from './odooClientForOrg.ts';
 
 export const ODOO_KIND_ORDER: DirectoryKind[] = ['company', 'analytic_plan', 'analytic_account', 'account', 'tax', 'journal', 'uom', 'product', 'warehouse', 'location', 'partner'];
@@ -41,7 +43,7 @@ export const AFTER_SWEEP: Array<(sc: SupabaseClient, orgId: string, r: Resolved,
 
 export type OdooSweepResult =
   | { skipped: 'lock-held' | OdooClientRefusal }
-  | { ok: true; calls: number; skipped_rows: number; failed?: string };
+  | { ok: true; calls: number; skipped_rows: number; outbox_reconciled: number; outbox_errors: Array<{ id: string; error: string }>; failed?: string };
 
 async function rpc(sc: SupabaseClient, fn: string, args: Record<string, unknown>): Promise<unknown> {
   const { data, error } = await sc.rpc(fn, args);
@@ -101,13 +103,33 @@ export async function sweepOdooOrg(
       stepsRun = true;
       for (const step of AFTER_SWEEP) await step(sc, orgId, r, budget);
     };
+    let outboxReconciled = 0;
+    let outboxErrors: Array<{ id: string; error: string }> = [];
     try {
       const kinds = ODOO_KIND_ORDER.filter((kind) => readable(capabilities, KIND_SPECS[kind].model));
-      // FR-OPP-080: an org that employed procurement under Odoo also mirrors its purchase documents. The purchase passes run after
-      // the directory (they map through it) and hold back their own share of the tick, so a big directory never starves them.
+      // Document feeds run after the directory (they map through it) and reserve a share of the tick, so the initial directory
+      // scan cannot starve purchase or revenue reconciliation.
       const purchase = (await purchaseFeedEmployed(sc, orgId)) ? purchaseDomainsReadable(capabilities) : [];
+      const revenue = (await revenueFeedEmployed(sc, orgId)) ? revenueDomainsReadable(capabilities) : [];
+      // Outbound recovery runs before the bounded inbound walk, so one long backfill cannot leave a
+      // posted invoice unconfirmed. Only the invoice command is owned here; incoming-payment recovery
+      // stays with its own slice. The pass is bounded by the remaining org-tick budget and the claim window.
+      if (revenue.includes('sales-invoice')) {
+        try {
+          const recoveryCap = maxCalls - RESERVE_PER_KIND * (kinds.length + purchase.length + revenue.length);
+          const recoveryBudget: Budget = { left: () => calls < recoveryCap && left(), spend: () => calls < recoveryCap && budget.spend() };
+          const recovery = await reconcileOdooRevenueOutbox(sc, orgId, {
+            timeBudgetMs: Math.max(0, timeBudget - (Date.now() - started)),
+            callBudget: recoveryBudget,
+          });
+          outboxReconciled = recovery.reconciled;
+          outboxErrors = recovery.errors;
+        } catch {
+          outboxErrors = [{ id: 'revenue', error: 'recovery-unavailable' }];
+        }
+      }
       for (const [i, kind] of kinds.entries()) {
-        const cap = maxCalls - RESERVE_PER_KIND * (kinds.length - 1 - i + purchase.length);
+        const cap = maxCalls - RESERVE_PER_KIND * (kinds.length - 1 - i + purchase.length + revenue.length);
         const kindBudget: Budget = { left: () => calls < cap && left(), spend: () => calls < cap && budget.spend() };
         const deps = kindDeps(sc, orgId, kind, call, r.companyId!, kindBudget);
         const run = await runKind(KIND_SPECS[kind], await readCursor(sc, orgId, kind), deps);
@@ -116,7 +138,7 @@ export async function sweepOdooOrg(
         if (run.done) await runCensus(await readCursor(sc, orgId, kind), deps);
       }
       for (const [i, domain] of purchase.entries()) {
-        const cap = maxCalls - RESERVE_PER_KIND * (purchase.length - 1 - i);
+        const cap = maxCalls - RESERVE_PER_KIND * (purchase.length - 1 - i + revenue.length);
         const passBudget: Budget = { left: () => calls < cap && left(), spend: () => calls < cap && budget.spend() };
         try {
           skippedRows += (await runPurchasePass(sc, orgId, domain, call, r.companyId!, passBudget)).skipped;
@@ -125,6 +147,16 @@ export async function sweepOdooOrg(
           // run's step or the probe record. Odoo's own errors still end the tick through the catch below.
           if (err instanceof OdooError) throw err;
           console.error(`odoo purchase pass ${domain} failed`);
+        }
+      }
+      for (const [i, domain] of revenue.entries()) {
+        const cap = maxCalls - RESERVE_PER_KIND * (revenue.length - 1 - i);
+        const passBudget: Budget = { left: () => calls < cap && left(), spend: () => calls < cap && budget.spend() };
+        try {
+          skippedRows += (await runRevenuePass(sc, orgId, domain, call, r.companyId!, passBudget)).skipped;
+        } catch (err) {
+          if (err instanceof OdooError) throw err;
+          console.error(`odoo revenue pass ${domain} failed`);
         }
       }
       await runAfterSweep();
@@ -138,12 +170,12 @@ export async function sweepOdooOrg(
         snapshot = await discoverCapabilities(call, { versionMajor, now: new Date(), deadlineAt: Date.now() + Math.min(DISCOVERY_BUDGET_MS, timeBudget - (Date.now() - started)) });
       }
       await recordOdooProbe(sc, orgId, r.config, { ok: true, missing: (snapshot ?? capabilities)?.missing ?? [] }, snapshot);
-      return { ok: true, calls, skipped_rows: skippedRows };
+      return { ok: true, calls, skipped_rows: skippedRows, outbox_reconciled: outboxReconciled, outbox_errors: outboxErrors };
     } catch (err) {
       if (!(err instanceof OdooError)) throw err;
       await runAfterSweep();
       await recordOdooProbe(sc, orgId, r.config, { ok: false, errorClass: err.errorClass });
-      return { ok: true, calls, skipped_rows: skippedRows, failed: err.errorClass };
+      return { ok: true, calls, skipped_rows: skippedRows, outbox_reconciled: outboxReconciled, outbox_errors: outboxErrors, failed: err.errorClass };
     }
   } finally {
     const { error } = await sc.rpc('release_erp_sweep_lock', { p_org_id: orgId, p_holder: holder });

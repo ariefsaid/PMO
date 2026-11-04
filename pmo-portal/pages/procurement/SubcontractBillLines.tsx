@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { ListState } from '@/src/components/ui/ListState';
 import { usePoPosition } from '@/src/hooks/useSubcontract';
 import { formatCurrency, formatNumberExact, parseMoneyInputAtScale } from '@/src/lib/format';
 import { prefillBillLines } from '@/src/lib/subcontracts/subcontractRules';
@@ -59,7 +60,7 @@ export const SubcontractBillLines: React.FC<SubcontractBillLinesProps> = ({ poId
     setQty({ ...current, [id]: raw });
   };
 
-  if (position.isPending) return <p className="text-[12px] text-muted-foreground">{t('subcontract.bill.loading', 'Loading the BoQ lines…')}</p>;
+  if (position.isPending) return <ListState variant="loading" rows={2} loadingLabel={t('subcontract.bill.loading', 'Loading the BoQ lines…')} />;
   if (position.isError) {
     return <p role="alert" className="text-[12px] text-destructive-text">{t('subcontract.lines.loadError', 'Could not load the subcontract position.')}</p>;
   }

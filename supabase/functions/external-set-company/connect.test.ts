@@ -21,7 +21,7 @@ const one = (body: unknown) => jsonResponse(body, { headers: { 'content-type': '
 const none = () => new Response('null', { status: 200, headers: { 'content-type': 'application/json' } });
 const pgError = (code: string, message: string) => jsonResponse({ code, message, details: null, hint: null }, { status: 400 });
 
-interface Opts { role?: string; active?: boolean; rpc?: Record<string, (call: FetchCall) => Response>; extra?: MockRoute[] }
+interface Opts { role?: string; active?: boolean; featureEnabled?: boolean; rpc?: Record<string, (call: FetchCall) => Response>; extra?: MockRoute[] }
 function routes(o: Opts = {}): MockRoute[] {
   const rpc = (fn: string, fallback: unknown) => supabaseRpc(fn, o.rpc?.[fn] ?? (() => jsonResponse(fallback)));
   return [
@@ -29,6 +29,7 @@ function routes(o: Opts = {}): MockRoute[] {
     supabaseSelect('profiles', () => one({ org_id: 'org-1', role: o.role ?? 'Admin' })),
     supabaseSelect('platform_operators', () => none()),
     supabaseRpc('actor_authorization_state', () => jsonResponse({ active: o.active ?? true })),
+    supabaseRpc('service_feature_enabled', () => jsonResponse(o.featureEnabled ?? true)),
     supabaseSelect('external_org_bindings', () => one({
       site_url: `https://${ERP}`, secret_ref: 'ref', status: 'active', activated_at: '2026-11-01T00:00:00Z', config: { company: 'Example Co' } })),
     supabaseRpc('read_vault_secret', () => jsonResponse('key:secret')),
@@ -60,6 +61,14 @@ async function call(body: Record<string, unknown>, o: Opts = {}) {
 const erpCalls = (calls: FetchCall[]) => calls.filter((c) => c.url.host === ERP);
 
 describe('ECA setup verbs — census', () => {
+  it('FR-PLN-006 an ERP census is refused before creating a run while erp_sync is off', async () => {
+    const r = await call({ setupAction: 'census' }, { featureEnabled: false });
+    assertEquals([r.res.status, r.json.error], [409, 'feature_off']);
+    assertEquals(rpcCall(r.calls, 'service_feature_enabled').length, 1);
+    assertEquals(rpcCall(r.calls, 'start_connect_run').length, 0);
+    assertEquals(erpCalls(r.calls).length, 0);
+  });
+
   it('FR-ECA-001 an Admin takes the census with the org from their profile, never from the body; the ERP is only read', async () => {
     const r = await call({ setupAction: 'census', orgId: 'org-other' });
     assertEquals(r.res.status, 200);

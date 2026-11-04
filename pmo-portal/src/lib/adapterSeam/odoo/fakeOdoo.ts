@@ -12,21 +12,23 @@ type Domain = unknown[];
 const FIELDS: Record<string, string[]> = {
   'res.partner': ['name', 'vat', 'ref', 'email', 'is_company', 'parent_id', 'active', 'supplier_rank', 'customer_rank', 'company_id', 'write_date'],
   'res.company': ['name', 'currency_id', 'partner_id', 'write_date'],
-  'product.product': ['default_code', 'name', 'uom_id', 'supplier_taxes_id', 'purchase_ok', 'sale_ok', 'is_storable', 'company_id', 'active', 'write_date'],
+  'res.currency': ['name', 'rounding', 'decimal_places', 'active', 'write_date'],
+  'product.product': ['default_code', 'name', 'uom_id', 'supplier_taxes_id', 'property_account_income_id', 'purchase_ok', 'sale_ok', 'is_storable', 'company_id', 'active', 'write_date'],
   'uom.uom': ['name', 'relative_factor', 'relative_uom_id', 'active', 'write_date'],
+  'decimal.precision': ['name', 'digits', 'write_date'],
   'stock.warehouse': ['name', 'code', 'lot_stock_id', 'view_location_id', 'company_id', 'active', 'write_date'],
   'stock.location': ['complete_name', 'usage', 'location_id', 'warehouse_id', 'company_id', 'active', 'write_date'],
-  'account.account': ['code', 'name', 'account_type', 'company_ids', 'active', 'write_date'],
+  'account.account': ['code', 'name', 'account_type', 'company_ids', 'currency_id', 'active', 'write_date'],
   'account.tax': ['name', 'amount', 'type_tax_use', 'tax_group_id', 'price_include', 'company_id', 'active', 'write_date'],
   'account.analytic.plan': ['name', 'write_date'],
   'account.analytic.account': ['name', 'code', 'plan_id', 'company_id', 'active', 'write_date'],
   'purchase.order': ['name', 'state', 'partner_id', 'partner_ref', 'origin', 'order_line', 'amount_untaxed', 'amount_total', 'company_id', 'create_date', 'write_date'],
   'purchase.order.line': ['name', 'order_id', 'product_id', 'product_qty', 'price_unit', 'uom_id', 'qty_received', 'qty_invoiced', 'analytic_distribution', 'write_date'],
   'ir.model.data': ['module', 'name', 'model', 'res_id', 'write_date'],
-  'account.payment': ['state', 'memo', 'amount', 'partner_id', 'payment_type', 'partner_type', 'journal_id', 'move_id', 'reconciled_bill_ids', 'write_date'],
-  'account.journal': ['name', 'code', 'type', 'company_id', 'active', 'write_date'],
-  'account.move': ['name', 'move_type', 'state', 'partner_id', 'ref', 'invoice_date', 'invoice_date_due', 'invoice_line_ids', 'amount_untaxed', 'amount_tax', 'amount_total', 'amount_residual', 'payment_state', 'currency_id', 'company_id', 'invoice_origin', 'create_date', 'write_date'],
-  'account.move.line': ['move_id', 'display_type', 'product_id', 'quantity', 'price_unit', 'tax_ids', 'tax_line_id', 'tax_base_amount', 'analytic_distribution', 'purchase_line_id', 'balance', 'amount_residual', 'write_date'],
+  'account.payment': ['state', 'memo', 'amount', 'partner_id', 'payment_type', 'partner_type', 'journal_id', 'payment_method_line_id', 'date', 'move_id', 'reconciled_bill_ids', 'reconciled_invoice_ids', 'is_reconciled', 'is_matched', 'create_date', 'write_date'],
+  'account.journal': ['name', 'code', 'type', 'company_id', 'active', 'inbound_payment_method_line_ids', 'outbound_payment_method_line_ids', 'default_account_id', 'write_date'],
+  'account.move': ['name', 'move_type', 'state', 'partner_id', 'ref', 'invoice_date', 'invoice_date_due', 'invoice_line_ids', 'amount_untaxed', 'amount_tax', 'amount_total', 'amount_residual', 'payment_state', 'reversed_entry_id', 'currency_id', 'company_id', 'invoice_origin', 'create_date', 'write_date'],
+  'account.move.line': ['move_id', 'display_type', 'product_id', 'product_uom_id', 'quantity', 'price_unit', 'tax_ids', 'tax_line_id', 'tax_base_amount', 'analytic_distribution', 'purchase_line_id', 'account_id', 'account_type', 'partner_id', 'balance', 'amount_residual', 'reconciled', 'write_date'],
   'account.tax.repartition.line': ['tax_id', 'document_type', 'repartition_type', 'account_id', 'write_date'],
   'stock.picking': ['name', 'state', 'move_ids', 'backorder_id', 'backorder_ids', 'purchase_id', 'picking_type_code', 'write_date'],
   'stock.move': ['name', 'state', 'picking_id', 'product_id', 'purchase_line_id', 'quantity', 'product_uom_qty', 'write_date'],
@@ -280,13 +282,14 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
   const createInvoice = (vals: Record<string, unknown>) => {
     const id = newId('account.move');
     const { invoice_line_ids: tuples, ...rest } = vals;
-    table('account.move').set(id, { active: true, state: 'draft', name: false, payment_state: 'not_paid', ...rest, id, write_date: fmt(++clock) });
+    const stamp = fmt(++clock);   // Odoo stamps create_date; the recovery probe's window reads it
+    table('account.move').set(id, { active: true, state: 'draft', name: false, payment_state: 'not_paid', ...rest, id, create_date: stamp, write_date: stamp });
     for (const tuple of (tuples as unknown[][] | undefined) ?? []) {
       const l = tuple[2] as Record<string, unknown>;
       const product = table('product.product').get(Number(l.product_id));
       const lineId = newId('account.move.line');
       table('account.move.line').set(lineId, {
-        id: lineId, move_id: id, display_type: 'product', name: l.name ?? false, product_id: l.product_id ?? false, quantity: l.quantity ?? 1, price_unit: l.price_unit ?? 0,
+        id: lineId, move_id: id, display_type: 'product', name: l.name ?? false, product_id: l.product_id ?? false, product_uom_id: l.product_uom_id ?? product?.uom_id ?? false, quantity: l.quantity ?? 1, price_unit: l.price_unit ?? 0,
         tax_ids: tupleIds(l.tax_ids) ?? (product?.taxes_id as number[] | undefined) ?? [], account_id: l.account_id ?? product?.income_account_id ?? false,
         analytic_distribution: l.analytic_distribution ?? false, balance: -units(Math.round(Number(l.quantity ?? 1) * Number(l.price_unit ?? 0) * 100)), write_date: fmt(clock),
       });
@@ -337,8 +340,9 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
     }
     const paymentId = newId('account.payment');
     table('account.payment').set(paymentId, {
-      id: paymentId, payment_type: 'inbound', partner_type: 'customer', partner_id: invoice.partner_id, amount: units(amount), state: 'paid', memo: wizard.communication ?? false,
-      journal_id: wizard.journal_id ?? false, date: wizard.payment_date ?? false, is_reconciled: true, is_matched: false, move_id: [moveId, name], write_date: fmt(++clock),
+      id: paymentId, payment_type: 'inbound', partner_type: 'customer', partner_id: invoice.partner_id, amount: units(amount), state: 'reconciled', memo: wizard.communication ?? false,
+      journal_id: wizard.journal_id ?? false, date: wizard.payment_date ?? false, is_reconciled: difference === 0, is_matched: false,
+      reconciled_invoice_ids: [invoice.id], move_id: [moveId, name], write_date: fmt(++clock),
     });
     settleInvoice(invoice, Math.max(0, residual - amount - difference));
     return { name: 'Payments', type: 'ir.actions.act_window', res_model: 'account.payment', context: { create: false }, view_mode: 'form', res_id: paymentId };
@@ -452,7 +456,19 @@ export function createFakeOdoo({ key, doubleValidation = false }: { key: string;
         const residual = cents(receivable.amount_residual);
         const move = table('account.move').get(Number(moveId));
         if (isCustomerMove(move)) settleInvoice(move!, residual);
-        for (const p of table('account.payment').values()) if (Array.isArray(p.move_id) && p.move_id[0] === moveId) Object.assign(p, { is_reconciled: residual === 0, is_matched: residual === 0 });
+        for (const p of table('account.payment').values()) if (Array.isArray(p.move_id) && p.move_id[0] === moveId) {
+          Object.assign(p, { is_reconciled: residual === 0, is_matched: residual === 0, ...(residual === 0 ? { state: 'reconciled' } : {}) });
+        }
+      }
+      const invoiceIds = rows.map((r) => Number(r.move_id)).filter((moveId) => isCustomerMove(table('account.move').get(moveId))).map((moveId) => moveId);
+      for (const payment of table('account.payment').values()) {
+        const paymentMoveId = Array.isArray(payment.move_id) ? Number(payment.move_id[0]) : Number(payment.move_id);
+        if (!rows.some((r) => Number(r.move_id) === paymentMoveId)) continue;
+        const linkedInvoice = invoiceIds.find((invoiceId) => invoiceId !== paymentMoveId);
+        if (linkedInvoice !== undefined) Object.assign(payment, {
+          is_reconciled: true, is_matched: true,
+          reconciled_invoice_ids: [...new Set([...(Array.isArray(payment.reconciled_invoice_ids) ? payment.reconciled_invoice_ids as number[] : []), linkedInvoice])],
+        });
       }
       return true;
     },

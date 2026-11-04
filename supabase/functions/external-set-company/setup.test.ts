@@ -34,7 +34,7 @@ const binding = {
     default_payable_account: "Creditors - EX",
   },
 };
-function base(role = "Admin", active = true) {
+function base(role = "Admin", active = true, featureEnabled = true) {
   return [
     supabaseSelect(
       "profiles",
@@ -51,6 +51,7 @@ function base(role = "Admin", active = true) {
       "actor_authorization_state",
       () => jsonResponse({ role, active }),
     ),
+    supabaseRpc("service_feature_enabled", () => jsonResponse(featureEnabled)),
     supabaseSelect("external_org_bindings", () => jsonResponse(binding)),
     supabaseRpc(
       "read_vault_secret",
@@ -118,9 +119,18 @@ Deno.test("AC-SETUP-003 Admin saves validated ERP activity and receivable defaul
     );
   });
 });
+Deno.test("FR-PLN-006 ERPNext company activation refuses before binding or ERP access while erp_sync is off", async () => {
+  await withFetchMock(base("Admin", true, false), async ({ calls }) => {
+    const response = await handleSetCompanyRequest(await request({ tier: "erpnext", companyId: "Example Company" }));
+    assertEquals(response.status, 409);
+    assertEquals((await response.json()).error, "feature_off");
+    assertEquals(rpcCall(calls, "service_feature_enabled").length, 1);
+    assertEquals(restCall(calls, "external_org_bindings", "GET").length, 0);
+  });
+});
 Deno.test("AC-SETUP-002 / RF-049 readiness lists actionable configuration and counts only active time-entry participants", async () => {
   await withFetchMock([
-    ...base(),
+    ...base("Admin", true, false),
     supabaseSelect("external_domain_ownership", (call) => {
       assertEquals(call.url.searchParams.get("org_id"), "eq.org-1");
       return jsonResponse([{ domain: "companies" }]);
@@ -146,11 +156,12 @@ Deno.test("AC-SETUP-002 / RF-049 readiness lists actionable configuration and co
       "erp_employees",
       () => jsonResponse([{ profile_id: "admin-1", link_state: "confirmed" }]),
     ),
-  ], async () => {
+  ], async ({ calls }) => {
     const response = await handleSetCompanyRequest(
       await request({ tier: "erpnext", setupAction: "readiness" }),
     );
     assertEquals(response.status, 200);
+    assertEquals(rpcCall(calls, "service_feature_enabled").length, 0);
     const body = await response.json();
     assertEquals(body.domains, ["companies"]);
     assertEquals(body.unmappedProjects, [{

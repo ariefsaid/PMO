@@ -2,7 +2,17 @@ import React from 'react';
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { AuthInput } from '../authFormPrimitives';
+import { AuthInput, ErrorBanner } from '../authFormPrimitives';
+
+describe('authFormPrimitives: ErrorBanner contrast', () => {
+  it('uses the accessible destructive text token on its tinted background', () => {
+    render(<ErrorBanner message="This link is invalid or expired." />);
+
+    const message = screen.getByText('This link is invalid or expired.');
+    expect(message).toHaveClass('text-destructive-text');
+    expect(message).not.toHaveAttribute('style');
+  });
+});
 
 describe('authFormPrimitives: AuthInput (HKA-018)', () => {
   it('password reveal button is in the normal tab sequence and toggles password mask', async () => {

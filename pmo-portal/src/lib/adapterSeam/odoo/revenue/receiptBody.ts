@@ -26,12 +26,13 @@ export interface ReceiptDefaults {
   companyCurrency: string;
   partners: Readonly<Record<string, number>>;
   journalId: number | null;
+  inboundMethodLineId: number | null;
   taxPrepaidAccountId: number | null;
-  /** The currencies of the receivable and cash accounts a withholding receipt posts between. */
-  accountCurrencies?: { receivable: string; cash: string };
+  /** The currencies of the receivable, cash, and tax-prepaid accounts a withholding receipt posts between. */
+  accountCurrencies?: { receivable: string; cash: string; taxPrepaid: string };
 }
 export type ReceiptRefusal = 'invoice' | 'invoice-not-posted' | 'currency' | 'client' | 'amount' | 'over-receipt' | 'amounts'
-  | 'withheld-partial' | 'receipt' | 'tax-prepaid-account' | 'withholding-slip' | 'account-currency' | 'journal';
+  | 'withheld-partial' | 'receipt' | 'date' | 'tax-prepaid-account' | 'withholding-slip' | 'account-currency' | 'journal' | 'journal-method';
 export type ReceiptBodyResult =
   | { outcome: 'ready'; body: Record<string, unknown>; writeOff: { accountId: number; amount: number; label: string } | null; recordedBy: string }
   | { outcome: 'refused'; code: 'config-rejected' | 'cross-org-link-rejected'; thing: ReceiptRefusal };
@@ -39,8 +40,15 @@ export type ReceiptBodyResult =
 const refuse = (thing: ReceiptRefusal, code: 'config-rejected' | 'cross-org-link-rejected' = 'config-rejected'): ReceiptBodyResult => ({ outcome: 'refused', code, thing });
 const SLIP_MAX = 140;
 
+function validDateOnly(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const date = new Date(`${value}T00:00:00.000Z`);
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
+}
+
 export function buildReceiptBody(receipt: ReceiptInput, invoice: ReceiptInvoice | null, defaults: ReceiptDefaults, recordedBy: string): ReceiptBodyResult {
   if (!REVENUE_KEY_RE.test(`ip:${receipt.id}`)) return refuse('receipt');
+  if (!validDateOnly(receipt.date)) return refuse('date');
   if (!invoice) return refuse('invoice');
   if (invoice.orgId !== receipt.orgId) return refuse('invoice', 'cross-org-link-rejected');
   if (invoice.state !== 'posted') return refuse('invoice-not-posted');
@@ -61,10 +69,12 @@ export function buildReceiptBody(receipt: ReceiptInput, invoice: ReceiptInvoice 
     if (settled !== outstanding) return refuse('withheld-partial');
     if (defaults.taxPrepaidAccountId === null) return refuse('tax-prepaid-account');
     if (slip === '' || slip.length > SLIP_MAX) return refuse('withholding-slip');
-    if (!defaults.accountCurrencies || defaults.accountCurrencies.receivable !== defaults.accountCurrencies.cash) return refuse('account-currency');
+    if (!defaults.accountCurrencies || [defaults.accountCurrencies.receivable, defaults.accountCurrencies.cash, defaults.accountCurrencies.taxPrepaid]
+      .some((currency) => currency !== defaults.companyCurrency)) return refuse('account-currency');
   }
   const journalId = receipt.journalId ?? defaults.journalId;
   if (journalId === null) return refuse('journal');
+  if (defaults.inboundMethodLineId === null) return refuse('journal-method');
 
   const trace = ODOO_REVENUE_ANCHORS['incoming-payment'].secondary.field;
   return {
@@ -73,7 +83,7 @@ export function buildReceiptBody(receipt: ReceiptInput, invoice: ReceiptInvoice 
     writeOff: withheld > 0n ? { accountId: defaults.taxPrepaidAccountId!, amount: Number(centsToDecimal(withheld)), label: slip } : null,
     body: {
       payment_type: 'inbound', partner_type: 'customer', partner_id: partnerId, amount: Number(centsToDecimal(cash)), date: receipt.date,
-      journal_id: journalId, [trace]: anchorMemo(`ip:${receipt.id}`),
+      journal_id: journalId, payment_method_line_id: defaults.inboundMethodLineId, [trace]: anchorMemo(`ip:${receipt.id}`),
     },
   };
 }

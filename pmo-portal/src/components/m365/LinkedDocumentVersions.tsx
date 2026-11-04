@@ -69,7 +69,7 @@ export function LinkedDocumentVersionsModal({ reference, pinned, onClose }: Vers
       width="sm"
     >
       <div className="min-w-0 space-y-3">
-        {state.loading && <p role="status" className="text-[13px] text-muted-foreground">{t('m365Documents.versions.loading', 'Loading…')}</p>}
+        {state.loading && <ListState variant="loading" shape="cards" rows={3} loadingLabel={t('m365Documents.versions.loading', 'Loading…')} loadingRole="status" />}
         {!state.loading && state.error != null && (
           <M365BrowseNotice code={codeOf(state.error)} onRetry={state.versions.length ? () => void loadMore() : retry} />
         )}

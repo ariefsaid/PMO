@@ -51,6 +51,7 @@ import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
 import { BulkBar } from '@/src/components/finance/receivables/BulkBar';
 import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
 import { isTaxTreatment } from '@/src/lib/taxTreatment';
+import { invoiceReceiptAwaitingOdoo } from '@/src/lib/adapterSeam/odoo/revenue/status';
 
 import { ERP_STATUS_FILTERS, NATIVE_STATUS_FILTERS, salesInvoiceStatusLabel, matchesStatus, type StatusFilter } from './sales-invoices/salesInvoiceListModel';
 import { SalesInvoiceEvidenceSection } from './sales-invoices/SalesInvoiceEvidence';
@@ -133,7 +134,8 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
   const { currentUser } = useAuth();
   const { toast } = useToast();
   const { data, isPending, isError, refetch } = useSalesInvoices();
-  const { data: paymentRows = [] } = useIncomingPayments(undefined, embedded);
+  const mode = useRevenueMode();
+  const { data: paymentRows = [] } = useIncomingPayments(undefined, embedded || mode === 'erp');
   const { data: profileRows = [] } = useAssignableProfiles();
   const profilesById = useMemo(() => new Map(profileRows.map((profile) => [profile.id, profile])), [profileRows]);
   const { day: organizationToday, isError: orgDayError, retry: retryOrgDay } = useFxOrgDay(true);
@@ -142,7 +144,6 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
   const { create, setReceivedDate, setEfaktur, submitInvoice, pendingPush, cancelTarget, setCancelTarget, submitTarget, setSubmitTarget, receiptTarget, setReceiptTarget, efakturTarget, setEfakturTarget, projectTarget, setProjectTarget } = actions;
   const pdfDownload = useInvoicePdfDownload();
   // #784: undefined while ownership loads — the page waits rather than flash the wrong mode's copy and actions.
-  const mode = useRevenueMode();
   const native = mode === 'native';
   const statusFilters = native ? NATIVE_STATUS_FILTERS : ERP_STATUS_FILTERS;
   const { invoiceId } = useParams<{ invoiceId: string }>();
@@ -176,6 +177,15 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
       currentUserId: currentUser?.id,
       record: { author_id: inv.author_user_id, author_ids: inv.author_user_ids },
     }), [currentUser?.id, may]);
+  const receiptAwaitingOdooForInvoice = (inv: SalesInvoiceRow) => paymentRows.some((payment) =>
+    (payment.sales_invoice_id === inv.id || Boolean(payment.allocation_details?.some((allocation) => allocation.invoice_id === inv.id)))
+    && invoiceReceiptAwaitingOdoo({
+      invoiceStatus: inv.status,
+      invoiceErpModified: inv.erp_modified,
+      receiptCommandState: payment.push_command_state,
+      receiptCommandCreatedAt: payment.push_command_created_at,
+    }),
+  );
   const invoiceStatus = (inv: SalesInvoiceRow) => {
     const gross = invoiceGross(inv);
     const partlySettled = isPartlyPaid(inv) || (
@@ -196,6 +206,12 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
     };
     if (inv.status === 'Cancelled') return { label: t('finance:receivables.statusCancelled', 'Cancelled'), variant: salesInvoiceStatusVariant(inv.status), partlySettled };
     if (inv.status === 'Paid') return { label: t('finance:receivables.statusPaid', 'Paid'), variant: salesInvoiceStatusVariant(inv.status), partlySettled };
+    if (receiptAwaitingOdooForInvoice(inv)) return {
+      label: t('finance:receivables.statusReceiptAwaitingOdoo', 'Receipt sent, awaiting Odoo'),
+      variant: 'progress' as const,
+      partlySettled,
+      receiptAwaitingOdoo: true,
+    };
     if (partlySettled) return {
       label: lateDays > 0
         ? lateDays === 1
@@ -474,7 +490,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
   }
 
   if (invoiceId) {
-    return <SalesInvoiceDetail viewTarget={viewTarget} isPending={isPending || unlisted.isFetching} isError={isError || unlisted.isError} data={data} mode={mode} organizationToday={organizationToday} onBack={recordContext.closeRecord} refetch={refetch} recordPrimaryAction={recordPrimaryAction} invoiceDisplayLabel={invoiceDisplayLabel} may={may} pdfDownload={pdfDownload} dialogs={<SalesInvoiceDialogs actions={actions} submitFallback={invoiceDisplayLabel} />} />;
+    return <SalesInvoiceDetail viewTarget={viewTarget} isPending={isPending || unlisted.isFetching} isError={isError || unlisted.isError} data={data} mode={mode} organizationToday={organizationToday} onBack={recordContext.closeRecord} refetch={refetch} recordPrimaryAction={recordPrimaryAction} invoiceDisplayLabel={invoiceDisplayLabel} receiptAwaitingOdoo={viewTarget ? receiptAwaitingOdooForInvoice(viewTarget) : false} may={may} pdfDownload={pdfDownload} dialogs={<SalesInvoiceDialogs actions={actions} submitFallback={invoiceDisplayLabel} />} />;
   }
 
   const { projectLabelOf, displayColumns, exportColumns, mobileCardDetails } = salesInvoiceColumns({ t, all, embedded, native, location, orgCurrency, sharedTaxBasis, projectOptionsById, projectsById, profilesById, invoiceStatus });
@@ -585,6 +601,8 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
   return (
     <ListPage
       title={embedded ? t('finance:area.invoicesList', 'Invoices') : t('financeCopy.salesInvoices', "Sales Invoices")}
+      count={data ? filtered.length : undefined}
+      total={data ? all.length : undefined}
       headingLevel={embedded ? 2 : 1}
       description={embedded ? undefined : t('finance:invoices.description', 'Client invoices.')}
       primaryAction={!embedded && mode !== undefined && !createRequested && canCreate ? (
@@ -753,7 +771,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
       )}
       {state === 'loading' && (
         <div className="rounded-lg border border-border bg-card">
-          <ListState variant="loading" rows={6} />
+          <ListState variant="loading" shape="table" columns={6} rows={6} />
         </div>
       )}
 

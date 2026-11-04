@@ -104,7 +104,7 @@ const ContactDetail: React.FC = () => {
       <>
         <BackBar label={t('contactDetail.backToContacts', 'Contacts')} phoneOnly onBack={goBack} />
         <div data-testid="contact-loading">
-          <ListState variant="loading" rows={5} />
+          <ListState variant="loading" shape="detail" rows={5} />
         </div>
       </>
     );

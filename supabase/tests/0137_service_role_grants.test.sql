@@ -10,7 +10,7 @@
 -- security-definer lock-order RPCs (0105/0106) are the only mutation path (closing the child→parent
 -- deadlock seam). The catalog backstop below excludes it; the exception is asserted explicitly.
 begin;
-select plan(34);
+select plan(40);
 
 -- profiles: the exact table the promote e2e failed on (admin-invite-user inserts here).
 select ok(has_table_privilege('service_role', 'public.profiles', 'INSERT'),
@@ -49,6 +49,14 @@ select ok(has_table_privilege('service_role', 'public.agent_dispatch_watermarks'
   'AC-SVCROLE-006 service_role has UPDATE on agent_dispatch_watermarks');
 select ok(has_table_privilege('service_role', 'public.projects', 'SELECT'),
   'AC-SVCROLE-007 service_role has SELECT on projects');
+select ok(
+  has_table_privilege('service_role', 'public.budget_distribution_plans', 'SELECT,INSERT,UPDATE,DELETE'),
+  'AC-SVCROLE-007a service_role has full access to budget_distribution_plans'
+);
+select ok(
+  has_table_privilege('service_role', 'public.budget_year_distributions', 'SELECT,INSERT,UPDATE,DELETE'),
+  'AC-SVCROLE-007b service_role has full access to budget_year_distributions'
+);
 
 -- Catalog-driven backstop: NO ordinary base table in public is missing service_role INSERT —
 -- EXCEPT the deliberate RPC-only tables: ms_graph_connections (0106) and the two internal
@@ -85,7 +93,9 @@ select is(
         'plans',
         'plan_features',
         'org_plans',
-        'global_features'
+        'global_features',
+        'org_ai_allowance_grants',
+        'odoo_revenue_census_seen'
       )
       and not has_table_privilege('service_role', c.oid, 'INSERT')),
   0,
@@ -110,6 +120,34 @@ select ok(
     and not has_table_privilege('service_role', 'public.org_plans', 'INSERT')
     and not has_table_privilege('service_role', 'public.global_features', 'INSERT'),
   'AC-SVCROLE-008c plan registry tables are private; resolution is through the service RPC');
+
+-- 0535 (plans lane S5): the monthly AI allowance ledger is RPC-minted by the cron tick; like the plan
+-- registry above it carries NO service_role grant, and this pin keeps that true.
+select ok(
+  not has_table_privilege('service_role', 'public.org_ai_allowance_grants', 'SELECT')
+    and not has_table_privilege('service_role', 'public.org_ai_allowance_grants', 'INSERT')
+    and not has_table_privilege('service_role', 'public.org_ai_allowance_grants', 'UPDATE')
+    and not has_table_privilege('service_role', 'public.org_ai_allowance_grants', 'DELETE'),
+  'AC-SVCROLE-008e the AI-allowance ledger is RPC-only (no service_role table grants)');
+
+select ok(
+  has_table_privilege('service_role','public.revenue_erp_mirror','SELECT')
+    and has_table_privilege('service_role','public.revenue_erp_mirror','INSERT')
+    and has_table_privilege('service_role','public.revenue_erp_mirror','UPDATE')
+    and has_table_privilege('service_role','public.revenue_erp_mirror','DELETE'),
+  'AC-OCI-070 the revenue side mirror grants the service role its feed writes');
+select ok(
+  has_table_privilege('authenticated','public.revenue_erp_mirror','SELECT')
+    and not has_table_privilege('authenticated','public.revenue_erp_mirror','INSERT')
+    and not has_table_privilege('authenticated','public.revenue_erp_mirror','UPDATE')
+    and not has_table_privilege('authenticated','public.revenue_erp_mirror','DELETE'),
+  'AC-OCI-070 a user may read but cannot write the revenue side mirror');
+select ok(
+  not has_table_privilege('service_role','public.odoo_revenue_census_seen','SELECT')
+    and not has_table_privilege('service_role','public.odoo_revenue_census_seen','INSERT')
+    and not has_table_privilege('authenticated','public.odoo_revenue_census_seen','SELECT')
+    and not has_table_privilege('anon','public.odoo_revenue_census_seen','SELECT'),
+  'AC-OCI-070 census staging is available only through its security-definer RPCs');
 
 select is(has_table_privilege('service_role', 'public.procurement_import_runs', 'INSERT'), false,
   'AC-SVCROLE-008b service_role may NOT directly INSERT procurement_import_runs (RPC-minted only)');

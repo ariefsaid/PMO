@@ -48,6 +48,14 @@ function getJwks(supabaseUrl: string): JwksResolver {
   return _jwks;
 }
 
+export function setTestJwks(resolver: JwksResolver): void {
+  _jwks = resolver;
+}
+
+export const testSupabaseOptions = {
+  auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
+};
+
 /**
  * Body-shape gate for the parsed JSON request: it must be a plain non-null object (an array
  * body is malformed for this API) before it is handed to the pure handler (the handler owns
@@ -58,7 +66,7 @@ export function isComposeViewRequestBody(value: unknown): value is ComposeViewRe
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-serveWithErrorReporting('compose-view', async (req: Request): Promise<Response> => {
+export async function handleComposeViewRequest(req: Request): Promise<Response> {
   // AUDIT quick-win (2026-07-07): same origin-narrowing seam as agent-chat/index.ts —
   // set AGENT_ALLOWED_ORIGIN in prod; falls back to SITE_URL, then '' (fail-closed — never '*').
   const corsHeaders = {
@@ -92,7 +100,7 @@ serveWithErrorReporting('compose-view', async (req: Request): Promise<Response> 
   // slash — a malformed SUPABASE_URL would otherwise fail-closed the whole function.
   const supabaseUrl = (Deno.env.get('SUPABASE_URL') ?? '').replace(/\/$/, '');
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
-  const verifierClient = createClient(supabaseUrl, serviceRoleKey);
+  const verifierClient = createClient(supabaseUrl, serviceRoleKey, testSupabaseOptions);
 
   let userId: string;
   try {
@@ -139,10 +147,61 @@ serveWithErrorReporting('compose-view', async (req: Request): Promise<Response> 
   // RLS scopes it exactly as the human user.
   const anonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
   const callerClient = createClient(supabaseUrl, anonKey, {
+    ...testSupabaseOptions,
     global: { headers: { Authorization: `Bearer ${token}` } },
   });
 
-  // ── 4. Read the OpenRouter API key from function secrets (NFR-MC-SEC-001) ──
+  // Resolve the org through the caller's RLS-scoped profile, then consult the service-only effective
+  // switch. This protects the edge action even if a client bypasses navigation or route visibility.
+  const { data: profile, error: profileError } = await callerClient
+    .from('profiles')
+    .select('org_id')
+    .eq('id', userId)
+    .single();
+  if (profileError || !profile || typeof (profile as { org_id?: unknown }).org_id !== 'string') {
+    return new Response(
+      JSON.stringify({ status: 400, error: 'BAD_REQUEST', detail: 'orgId' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    );
+  }
+  const { data: viewsEnabled, error: featureError } = await verifierClient.rpc('service_feature_enabled', {
+    p_org_id: (profile as { org_id: string }).org_id,
+    p_key: 'user_views',
+  });
+  if (featureError) {
+    return new Response(
+      JSON.stringify({ status: 500, error: 'INTERNAL_ERROR', detail: 'could not resolve plan switch' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    );
+  }
+  if (viewsEnabled !== true) {
+    return new Response(
+      JSON.stringify({ status: 409, error: 'feature_off', detail: 'user_views' }),
+      { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    );
+  }
+
+  // ── 4. Parse request body ─────────────────────────────────────────────────
+  let body: ComposeViewRequest;
+  try {
+    body = await req.json() as ComposeViewRequest;
+  } catch {
+    return new Response(
+      JSON.stringify({ status: 400, error: 'BAD_REQUEST', detail: 'invalid JSON body' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    );
+  }
+  // A parsed body that is not a non-null object (the literal JSON `null`, a string, number,
+  // boolean, array) is a malformed request, not a handler crash: it gets the same typed 400
+  // as a parse failure instead of surfacing as an unhandled failure inside the handler.
+  if (!isComposeViewRequestBody(body)) {
+    return new Response(
+      JSON.stringify({ status: 400, error: 'BAD_REQUEST', detail: 'invalid JSON body' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    );
+  }
+
+  // ── 5. Read the OpenRouter API key from function secrets (NFR-MC-SEC-001) ──
   const apiKey = Deno.env.get('OPENROUTER_API_KEY');
   if (!apiKey) {
     logStructuredError({ fn: 'compose-view', errorCode: 'MISSING_OPENROUTER_API_KEY' });
@@ -174,26 +233,6 @@ serveWithErrorReporting('compose-view', async (req: Request): Promise<Response> 
     AGENT_MODEL_DEFAULT: Deno.env.get('AGENT_MODEL_DEFAULT') ?? undefined,
     AGENT_MODEL_COMPOSE: Deno.env.get('AGENT_MODEL_COMPOSE') ?? undefined,
   });
-
-  // ── 5. Parse request body ─────────────────────────────────────────────────
-  let body: ComposeViewRequest;
-  try {
-    body = await req.json() as ComposeViewRequest;
-  } catch {
-    return new Response(
-      JSON.stringify({ status: 400, error: 'BAD_REQUEST', detail: 'invalid JSON body' }),
-      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-    );
-  }
-  // A parsed body that is not a non-null object (the literal JSON `null`, a string, number,
-  // boolean, array) is a malformed request, not a handler crash: it gets the same typed 400
-  // as a parse failure instead of surfacing as an unhandled failure inside the handler.
-  if (!isComposeViewRequestBody(body)) {
-    return new Response(
-      JSON.stringify({ status: 400, error: 'BAD_REQUEST', detail: 'invalid JSON body' }),
-      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-    );
-  }
 
   // ── ADR-0044 §6 / FR-AUC-015/017: the SAME credit-backed RateGuard + env toggle as
   // agent-chat — a user's compose-view calls and agent-chat calls draw from one shared
@@ -227,4 +266,6 @@ serveWithErrorReporting('compose-view', async (req: Request): Promise<Response> 
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     },
   );
-});
+}
+
+if (import.meta.main) serveWithErrorReporting('compose-view', handleComposeViewRequest);

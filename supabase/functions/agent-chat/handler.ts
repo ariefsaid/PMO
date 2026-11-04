@@ -37,6 +37,19 @@ import {
   AGENT_READ_ROW_CAP,
 } from './actions.ts';
 import { buildAgentSystemPrompt } from './prompt.ts';
+import {
+  keyForTool,
+  isToolAllowed,
+  isKeyEnabled,
+  isAssistantEnabled,
+  writeRefusalFor,
+  notOnPlanError,
+  offerableEntities,
+  offerableTools,
+  unavailableFeatureLabels,
+  type FeatureSwitches,
+} from './featureSwitches.ts';
+import { loadOrgFeatureSwitches } from './featureResolution.ts';
 import { makeWhatsOverdueAction } from './overdue.ts';
 import { draftInvoiceAction } from './draftInvoice.ts';
 import { remindOverdueAction } from './remindOverdue.ts';
@@ -127,7 +140,12 @@ const INVOICE_DRAFTS_ENABLED = denoGlobal === undefined || denoGlobal.env.get('A
 /** #1639 kill switch: AGENT_REMINDERS=false removes remind_overdue (and the overdue offer line) without a redeploy
  *  (default ON; ON in a Deno-less test context, mirroring INVOICE_DRAFTS_ENABLED). */
 const REMINDERS_ENABLED = denoGlobal === undefined || denoGlobal.env.get('AGENT_REMINDERS') !== 'false';
-const BASE_ACTIONS: AgentAction[] = [
+/**
+ * The always-registered action catalogue, exported so the S4 completeness suite binds to the SHIPPED
+ * registry instead of copying a tool list: a new gated tool added here fails that suite until it has a
+ * switch-key row.
+ */
+export const BASE_ACTIONS: AgentAction[] = [
   queryEntityAction,
   queryStockAction,
   makeWhatsOverdueAction({ offerReminders: REMINDERS_ENABLED }),
@@ -627,19 +645,98 @@ async function auditAgentDenial(
 
 // ── Tool catalog builder (FR-MC-017) ──────────────────────────────────────────
 
-function buildTools(composeEnabled: boolean | undefined): ModelTool[] {
-  const tools: ModelTool[] = BASE_ACTIONS.map((a) => ({
-    type: 'function',
+/**
+ * The tool catalog for ONE request (S4, FR-PLN-008). Two filters, both from the caller org's resolved
+ * switches:
+ *   1. a tool whose switch key is off is DROPPED (never renamed, never a dangling affordance —
+ *      FR-AXP-010);
+ *   2. `query_entity`'s `entity` enum is narrowed to the entities whose key is on, so the model is never
+ *      told an off entity exists.
+ * A `null` snapshot (resolver unavailable) offers everything — see featureResolution.ts.
+ *
+ * Exported so the prompt's tool index is built from the SAME catalog the loop offers (the prompt must
+ * never advertise a tool that was not registered for this request).
+ */
+export function buildTools(composeEnabled: boolean | undefined, switches: FeatureSwitches | null | undefined): ModelTool[] {
+  const tools: ModelTool[] = offerableTools(BASE_ACTIONS.map((a) => ({
+    type: 'function' as const,
     function: { name: a.name, description: a.description, parameters: a.inputSchema },
-  }));
+  })), switches);
   tools.push(ASK_USER_TOOL);
-  if (composeEnabled) {
+  if (composeEnabled && isToolAllowed(composeViewAction.name, switches)) {
     tools.push({
       type: 'function',
       function: { name: composeViewAction.name, description: composeViewAction.description, parameters: composeViewAction.inputSchema },
     });
   }
-  return tools;
+  return tools.map((tool) => tool.function.name === 'query_entity' ? narrowQueryEntityTool(tool, switches) : tool);
+}
+
+/**
+ * Copy the shipped `query_entity` tool with its entity enum narrowed to the offered entities. Only the
+ * enum is replaced — every other schema key (columns/filter/order_by/group_by/sum/limit/as) is the
+ * SHIPPED schema object, so the action-side validation stays the authority.
+ */
+function narrowQueryEntityTool(tool: ModelTool, switches: FeatureSwitches | null | undefined): ModelTool {
+  const schema = tool.function.parameters as { properties?: { entity?: Record<string, unknown> } };
+  const entity = schema?.properties?.entity;
+  if (!schema?.properties || !entity) return tool;
+  return {
+    ...tool,
+    function: {
+      ...tool.function,
+      parameters: {
+        ...schema,
+        properties: {
+          ...schema.properties,
+          entity: { ...entity, enum: offerableEntities(switches) },
+        },
+      },
+    },
+  };
+}
+
+/** Belt-and-braces refusal for the execution layer: a tool whose key is off returns this, never data. */
+function offPlanRefusal(toolName: string, switches: FeatureSwitches | null | undefined): { error: string; code: 'FEATURE_OFF' } | null {
+  const key = keyForTool(toolName);
+  if (key === undefined) return null; // core tool: never refused by the plan
+  return isKeyEnabled(key, switches) ? null : notOnPlanError(key);
+}
+
+/**
+ * Build the system prompt for ONE request with the caller org's plan switches applied (S4, FR-PLN-008).
+ *
+ * The prompt is built from the SAME offer the loop makes, in the same order:
+ *   - only the entities whose key is on appear in the schema section (an off entity is never described);
+ *   - only the tools actually registered for this request appear in the tool index (FR-AXP-010);
+ *   - the switched-off features are named once, so the model can say "not on your plan" instead of
+ *     improvising an answer from core entities.
+ * `allowCompose` mirrors the loop's own parameter so the index matches that loop's catalog.
+ */
+function buildPlanAwarePrompt(
+  rowCap: number,
+  role: string | null,
+  deputyCtx: DeputyContext,
+  gates: {
+    composeEnabled: boolean | undefined;
+    automationsEnabled: boolean;
+    invoiceDraftsEnabled: boolean;
+    remindersEnabled: boolean;
+  },
+  allowCompose: boolean,
+): string {
+  const switches = deputyCtx.featureSwitches ?? null;
+  const offered = buildTools(allowCompose ? gates.composeEnabled : false, switches);
+  const entities = offerableEntities(switches, AGENT_READ_ENTITIES);
+  return buildAgentSystemPrompt(entities, rowCap, role, {
+    composeEnabled: gates.composeEnabled,
+    automationsEnabled: gates.automationsEnabled,
+    invoiceDraftsEnabled: gates.invoiceDraftsEnabled,
+    remindersEnabled: gates.remindersEnabled,
+    offeredTools: new Set(offered.map((t) => t.function.name)),
+    offeredEntities: new Set<string>(entities),
+    unavailableFeatures: unavailableFeatureLabels(switches),
+  });
 }
 
 // ── Shared tool-use loop (item 1 — deferred-debt refactor) ────────────────────
@@ -742,7 +839,7 @@ async function* runToolLoop(opts: RunToolLoopOptions): AsyncGenerator<AgentEvent
     yield emit('assistant', { text: finalText });
   };
 
-  const tools = buildTools(allowCompose ? deps.composeEnabled : false);
+  const tools = buildTools(allowCompose ? deps.composeEnabled : false, deputyCtx.featureSwitches);
   deps.ai?.setTools(tools.map((t) => `${t.function.name}: ${t.function.description.split('.')[0].slice(0, 120)}`));
   const actionByName = new Map<string, AgentAction>(BASE_ACTIONS.map((a) => [a.name, a]));
 
@@ -768,6 +865,7 @@ async function* runToolLoop(opts: RunToolLoopOptions): AsyncGenerator<AgentEvent
    */
   const isParallelizableRead = (tc: { function: { name: string; arguments: string } }): boolean =>
     PARALLELIZABLE_READ_ACTIONS.has(tc.function.name) &&
+    isToolAllowed(tc.function.name, deputyCtx.featureSwitches) &&
     actionByName.has(tc.function.name) &&
     parseArgs(tc.function.arguments) !== undefined;
 
@@ -935,6 +1033,19 @@ async function* runToolLoop(opts: RunToolLoopOptions): AsyncGenerator<AgentEvent
         // round — reset the flag so a prior malformed round doesn't misreport exhaustion
         // as MALFORMED_TOOL_CALL when later rounds are merely missing a tool call.
         lastRoundMalformed = false;
+      }
+
+      // ── S4 (FR-PLN-008): a switched-off tool is refused at execution ──────────
+      // The catalog above already dropped it, so reaching here means the model called a tool it was
+      // never offered (or a continuation pass built its catalog from an earlier snapshot). Return the
+      // typed refusal as the tool result — never data — so the model tells the user the feature is not
+      // on their plan instead of improvising an answer from other entities.
+      const offPlan = offPlanRefusal(toolName, deputyCtx.featureSwitches);
+      if (offPlan) {
+        yield emit('status', { payload: { kind: 'step', label: 'Checking your plan…' } });
+        yield emit('tool', { payload: { name: toolName, input: toolInput, result: offPlan } });
+        messages.push({ role: 'tool', tool_call_id: toolId, name: toolName, content: JSON.stringify(offPlan) });
+        continue;
       }
 
       // Live step trail: announce the tool about to run as a present-tense status hint
@@ -1334,6 +1445,9 @@ export async function* agentChatHandler(
   const ai = createAiRunTelemetry({
     runId, threadId: req.threadId, action: deps.usageAction ?? 'chat', userId: deps.userId,
     analytics: req.analytics, modelClient: deps.modelClient, model: deps.model,
+    // S4 (FR-PLN-009): the route the turn came from rides along for the missing-tool signal (templated
+    // before it is sent). ADR-0045 §3 already carries it on the wire; it is a grouping hint only.
+    ...(req.context?.route ? { route: req.context.route } : {}),
   });
   const creditHolds: string[] = [];
   const aiDeps = { ...deps, ai, creditHolds };
@@ -1424,12 +1538,30 @@ async function* agentChatHandlerInner(
   // Cast: HandlerSupabaseLike vs the port's SupabaseLike is a genuine structural mismatch
   // (see the identical cast + comment in the compose_view dispatch branch above) — deps.supabase
   // is always the real Supabase client at runtime, which does satisfy SupabaseLike's shape.
+  //
+  // S4 (FR-PLN-008): resolve the caller org's plan switches ONCE for this request, under the caller's
+  // own JWT (never service role). Every loop and action below reads this one snapshot, so a switch
+  // change mid-turn cannot half-apply. `null` (resolver unavailable) means nothing is known to be off.
+  const featureSwitches = await loadOrgFeatureSwitches(deps.supabase);
+
+  // ── S4 (FR-PLN-006 / D6): `agent_assistant` off is a REFUSAL, not just a hidden tool ──────────
+  // This is the ONE enforcement point on the edge for the assistant capability itself. Every assistant
+  // run reaches it: interactive chat, the decision/answer continuations, and the fired-automation
+  // runner (agent-dispatch drives this same handler under a minted owner client). Refused BEFORE any
+  // model call or write, so an off key cannot spend a token or touch a row. Explicit `false` only: an
+  // unresolved snapshot keeps the read assistant available (the offering filter's fail-open rule).
+  if (!isAssistantEnabled(featureSwitches)) {
+    yield statusEvent('errored', { error: 'FEATURE_OFF', detail: 'assistant' });
+    return;
+  }
+
   const deputyCtx: import('../../../pmo-portal/src/lib/agent/runtime/port.ts').DeputyContext = {
     jwt: '',
     userId: deps.userId,
     orgId,
     role: initialRole,
     supabase: deps.supabase as unknown as import('../../../pmo-portal/src/lib/agent/runtime/port.ts').SupabaseLike,
+    featureSwitches,
   };
 
   // ── A3: Decision branch (req.decision present → approve/reject a pending write) ──
@@ -1484,12 +1616,12 @@ async function* agentChatHandlerInner(
   }
 
   // ── Build system prompt (+ ADR-0045 §3 untrusted grounding hint) ──────────
-  const system = buildAgentSystemPrompt(AGENT_READ_ENTITIES, AGENT_READ_ROW_CAP, initialRole, {
+  const system = buildPlanAwarePrompt(AGENT_READ_ROW_CAP, initialRole, deputyCtx, {
     composeEnabled: deps.composeEnabled,
     automationsEnabled: AUTOMATIONS_ENABLED,
     invoiceDraftsEnabled: INVOICE_DRAFTS_ENABLED,
     remindersEnabled: REMINDERS_ENABLED,
-  }) + buildGroundingHint(req.context?.entity);
+  }, true) + buildGroundingHint(req.context?.entity);
 
   // The full conversation messages for the model call — system prompt is
   // messages[0] (FR-MC-003), replacing Anthropic's top-level `system` field.
@@ -1569,12 +1701,12 @@ async function* handleAnswer(
 
   // Track C (DEC-5): the initial-run build site appends buildGroundingHint so the
   // model keeps the live-context grounding across a follow-up turn — match it here.
-  const system = buildAgentSystemPrompt(AGENT_READ_ENTITIES, AGENT_READ_ROW_CAP, initialRole, {
+  const system = buildPlanAwarePrompt(AGENT_READ_ROW_CAP, initialRole, deputyCtx, {
     composeEnabled: deps.composeEnabled,
     automationsEnabled: AUTOMATIONS_ENABLED,
     invoiceDraftsEnabled: INVOICE_DRAFTS_ENABLED,
     remindersEnabled: REMINDERS_ENABLED,
-  }) + buildGroundingHint(req.context?.entity);
+  }, true) + buildGroundingHint(req.context?.entity);
 
   const messages: ModelMessage[] = [
     { role: 'system', content: system },
@@ -1646,12 +1778,12 @@ async function* handleDecision(
   // composeEnabled:false — this decision-continuation pass runs runToolLoop with
   // allowCompose:false (see :1403), so compose_view is NOT registered here; advertising
   // it would be a dangling affordance (FR-AXP-010). (Wave-1 code-quality review fix.)
-  const system = buildAgentSystemPrompt(AGENT_READ_ENTITIES, AGENT_READ_ROW_CAP, initialRole, {
+  const system = buildPlanAwarePrompt(AGENT_READ_ROW_CAP, initialRole, deputyCtx, {
     composeEnabled: false,
     automationsEnabled: AUTOMATIONS_ENABLED,
     invoiceDraftsEnabled: INVOICE_DRAFTS_ENABLED,
     remindersEnabled: REMINDERS_ENABLED,
-  }) + buildGroundingHint(req.context?.entity);
+  }, false) + buildGroundingHint(req.context?.entity);
 
   const messages: ModelMessage[] = [
     { role: 'system', content: system },
@@ -1795,6 +1927,28 @@ async function* handleDecision(
       // But we already emitted errored — stop here per AC-AW-008 assertion
       return;
     }
+  }
+
+  // ── S4 (FR-PLN-006): a pending write re-checks its switch at execution ─────────────────────────
+  // The switch can change between the chip and the approval, and the resolver read behind this request
+  // can fail — a write never fails open. An off key (FEATURE_OFF) or an unverifiable plan
+  // (PLAN_UNVERIFIED) refuses the write and resolves the chip as rejected, so the model tells the user
+  // instead of writing into a module that is not on their plan.
+  const offPlan = writeRefusalFor(toolName, deputyCtx.featureSwitches);
+  if (offPlan) {
+    yield emit('system', {
+      text: 'rejected',
+      payload: {
+        event: 'write_resolved',
+        decision: 'rejected',
+        actionName: toolName,
+        pendingId,
+        reason: offPlan.code === 'FEATURE_OFF' ? 'feature_off' : 'plan_unverified',
+      },
+    });
+    messages.push({ role: 'tool', tool_call_id: toolId, name: toolName, content: JSON.stringify(offPlan) });
+    yield* runLoop(req, deps, emit, statusEvent, deputyCtx, messages, persist);
+    return;
   }
 
   // ── FR-AGP-013/015: resume de-dupe gate — inside the single dispatch-forced site ──

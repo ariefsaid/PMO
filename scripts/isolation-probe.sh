@@ -209,8 +209,10 @@ else
 fi
 if [ -n "$A_SI" ] && [ "$A_SI" != null ]; then
   c=$(rpc set_sales_invoice_billing_kind "{\"p_si_id\":\"$A_SI\",\"p_billing_kind\":\"other\"}")
+  c=$(rpc update_odoo_sales_invoice_draft "{\"p_org_id\":\"$A_ORG\",\"p_si_id\":\"$A_SI\",\"p_actor_id\":\"$A_PROFILE\",\"p_update_native_lines\":false,\"p_native_lines\":null,\"p_amount\":null,\"p_update_reference_number\":true,\"p_reference_number\":\"probe\"}")
 else
   skip "set_sales_invoice_billing_kind (sales_invoices)"
+  skip "update_odoo_sales_invoice_draft (sales_invoices)"
 fi
 A_PI=$(jq -r '.[]|select(.table=="procurement_invoices")|.id' "$A_ROWS_JSON")
 A_CLAIM=$(jq -r '.[]|select(.table=="expense_claims")|.id' "$A_ROWS_JSON")
@@ -292,7 +294,16 @@ if [ -n "$A_SLIP" ] && [ "$A_SLIP" != null ]; then
   c=$(rpc void_vendor_withholding_slip "{\"p_slip_id\":\"$A_SLIP\",\"p_expected_revision\":1,\"p_reason\":\"probe\"}")
 else skip "correct_vendor_withholding_slip (vendor_withholding_slips)"; skip "void_vendor_withholding_slip (vendor_withholding_slips)"; fi
 if [ -n "$A_CLAIM" ] && [ "$A_CLAIM" != null ]; then c=$(rpc record_expense_advance_return "{\"p_id\":\"$A_CLAIM\",\"p_amount\":0.01,\"p_reference\":\"probe\"}"); else skip "record_expense_advance_return (expense_claims)"; fi
-if [ -n "$A_BUDGET" ] && [ "$A_BUDGET" != null ]; then c=$(rpc activate_budget_version "{\"version_id\":\"$A_BUDGET\"}"); else skip "activate_budget_version (budget_versions)"; fi
+if [ -n "$A_BUDGET" ] && [ "$A_BUDGET" != null ]; then
+  c=$(rpc budget_distribution_gaps "{\"p_version\":\"$A_BUDGET\"}")
+  c=$(rpc save_budget_distribution "{\"p_version\":\"$A_BUDGET\",\"p_method\":\"by_days\",\"p_inputs\":{},\"p_basis\":{},\"p_rows\":[]}")
+  c=$(rpc activate_budget_version "{\"version_id\":\"$A_BUDGET\"}")
+else
+  skip "budget_distribution_gaps (budget_versions)"
+  skip "save_budget_distribution (budget_versions)"
+  skip "activate_budget_version (budget_versions)"
+fi
+if [ -n "$A_PROJECT" ] && [ "$A_PROJECT" != null ]; then c=$(rpc get_budget_comparison "{\"p_project_id\":\"$A_PROJECT\"}"); else skip "get_budget_comparison (projects)"; fi
 A_IMPREST_FLOAT=$(jq -r '.[]|select(.table=="imprest_floats")|.id' "$A_ROWS_JSON")
 A_IMPREST_CHANGE=$(jq -r '.[]|select(.table=="imprest_float_changes")|.id' "$A_ROWS_JSON")
 A_IMPREST_PLAN=$(jq -r '.[]|select(.table=="imprest_plans")|.id' "$A_ROWS_JSON")

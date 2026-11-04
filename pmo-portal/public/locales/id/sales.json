@@ -5,7 +5,14 @@
     "staleBid": "Tender tidak aktif · tahap tidak berubah selama 90+ hari"
   },
   "scope": {
+    "all": "Semua",
     "won": "Menang"
+  },
+  "results": {
+    "one": "{{count}} proyek",
+    "many": "{{count}} proyek",
+    "showing": "Menampilkan {{shown}} dari {{total}} proyek",
+    "showingOne": "Menampilkan {{shown}} dari {{total}} proyek"
   },
   "wonError": {
     "sub": "Terjadi kesalahan saat mengambil proyek yang menang.",

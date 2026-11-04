@@ -10,8 +10,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   contains,
+  judgeModelFromEnv,
   llmJudge,
   noProposal,
+  notUsesTool,
   proposesAction,
   runScorers,
   summarizeRuns,
@@ -135,6 +137,13 @@ describe('AC-AT2-015 usesTool/contains/llmJudge scorers pass/fail with reasons',
     expect(verdict.reason).toContain('503');
   });
 
+  it('judgeModelFromEnv prefers the eval transport override, so an override run judges on the same provider', () => {
+    expect(judgeModelFromEnv({ AGENT_MODEL_ID: 'deepseek-v4.1-flash', EVAL_JUDGE_MODEL: 'x/y' }))
+      .toBe('deepseek-v4.1-flash');
+    expect(judgeModelFromEnv({ EVAL_JUDGE_MODEL: 'x/y' })).toBe('x/y');
+    expect(judgeModelFromEnv({})).toBe('deepseek/deepseek-v4-flash');
+  });
+
   // ── composition ─────────────────────────────────────────────────────────────
   it('runScorers passes iff every scorer passes, merging failure reasons', async () => {
     const run = runWith({
@@ -180,6 +189,22 @@ describe('proposesAction / summarizeRuns (#787)', () => {
   it('summarizeRuns applies the minimum-passes bar', () => {
     expect(summarizeRuns([true, true, false], 2)).toEqual({ pass: true, passes: 2, runs: 3 });
     expect(summarizeRuns([true, false, false], 2)).toEqual({ pass: false, passes: 1, runs: 3 });
+  });
+});
+
+describe('notUsesTool (plans S4, FR-PLN-008)', () => {
+  const run = (name?: string) => ({
+    events: [], answerText: '',
+    toolCalls: name ? [{ name, input: {}, result: {} }] : [],
+  }) as unknown as EvalRunResult;
+  it('passes when the switched-off tool was never dispatched', async () => {
+    expect((await notUsesTool('query_stock')(run())).pass).toBe(true);
+    expect((await notUsesTool('query_stock')(run('query_entity'))).pass).toBe(true);
+  });
+  it('fails when the switched-off tool was dispatched', async () => {
+    const verdict = await notUsesTool('query_stock')(run('query_stock'));
+    expect(verdict.pass).toBe(false);
+    expect(verdict.reason).toContain('query_stock');
   });
 });
 

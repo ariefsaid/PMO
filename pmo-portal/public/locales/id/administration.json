@@ -88,6 +88,14 @@
       "sends": "Pengiriman selesai",
       "sendsHint": "Data yang dimiliki PMO dan juga harus ada di Odoo dikirim satu kali.",
       "employ": "Vendor dan klien dikelola di Odoo",
+      "journal": "Jurnal pembayaran",
+      "journalHint": "Jurnal bank atau kas tempat pembayaran pemasok dilakukan, kecuali Keuangan memilih yang lain.",
+      "journalNone": "Belum ada jurnal bank atau kas yang dibaca dari Odoo.",
+      "journalProposed": "Diusulkan: {{name}}",
+      "journalAccept": "Terima {{name}}",
+      "journalChoose": "Pilih jurnal",
+      "journalSave": "Simpan",
+      "journalFailed": "Jurnal tidak dapat disimpan. Coba lagi.",
       "employHint": "Setelah ini, Odoo memegang data vendor dan klien.",
       "title": "Penyiapan Odoo",
       "done": "Selesai",
@@ -302,5 +310,30 @@
       "accepted": "Faktur yang sudah dihitung sekali gagal dimuat."
     },
     "retry": "Coba lagi"
+  },
+  "integrations": {
+    "send": {
+      "title": "Data yang sedang dikirim ke ERP",
+      "sending": "Sedang dikirim ke ERP",
+      "waiting": "{{count}} menunggu konfirmasi ERP.",
+      "needsDecision": "Perlu keputusan",
+      "retry": "Tidak ada di ERP: kirim lagi",
+      "retryFailed": "Kami tidak dapat mengirim ulang. Coba lagi sebentar lagi.",
+      "unnamed": "Sebuah data",
+      "addPeople": "Tambahkan orang-orang ini di ERP. ERP meminta tanggal lahir dan jenis kelamin, yang tidak dimiliki PMO.",
+      "accountantTask": "Minta akuntan Anda menambahkan akun biaya langsung untuk: {{categories}}"
+    }
+  },
+  "admin": {
+    "users": {
+      "inviteError": {
+        "seatLimit": "Paket Anda tidak memiliki sisa kursi",
+        "seatLimitDetail": "Semua kursi pada paket Anda sudah terpakai. Minta Operator meningkatkan paket, lalu undang kembali."
+      },
+      "statusError": {
+        "seatLimit": "Paket Anda tidak memiliki sisa kursi",
+        "seatLimitDetail": "Semua kursi pada paket Anda sudah terpakai. Minta Operator meningkatkan paket, lalu aktifkan kembali pengguna ini."
+      }
+    }
   }
 }

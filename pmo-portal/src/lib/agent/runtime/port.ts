@@ -95,6 +95,15 @@ export interface DeputyContext {
   /** #787 / ADR-0079: the caller's role as read under their own JWT at turn start (profiles.role). A scoping and
    *  UX input for coarse tools — never an authority (RLS and the served write path are). */
   role?: string | null;
+  /**
+   * Plans S4 / FR-PLN-008: the caller org's resolved plan switches (`key → enabled`), read ONCE per
+   * request under the caller's own JWT (`resolved_org_features()`), so an action can refuse a
+   * module whose key is off even when the handler's offering filter was bypassed. Optional and
+   * nullable by contract: `null`/absent means "not resolved" — nothing is known to be off — because
+   * the entitlement read is an offering filter, never the enforcement authority (RLS / the served
+   * write path remain it). Only an explicit `false` is off.
+   */
+  featureSwitches?: Readonly<Record<string, boolean>> | null;
 }
 
 /** ADR-0079 §2: what an async `prepare` returns. `value` becomes the chip's structuredArgs; `summary` its text. */

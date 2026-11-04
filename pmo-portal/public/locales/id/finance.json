@@ -164,6 +164,7 @@
     "statusOverdueDay": "Terlambat · {{count}} hari",
     "statusOverdueDays": "Terlambat · {{count}} hari",
     "statusPaid": "Lunas",
+    "statusReceiptAwaitingOdoo": "Penerimaan terkirim, menunggu Odoo",
     "statusCancelled": "Dibatalkan",
     "paymentDrawerTitle": "{{client}} · {{amount}}",
     "cash": "Kas diterima",
@@ -280,7 +281,15 @@
     "alsoCancelErpBudgets_other": "Batalkan juga {{count}} dokumen Budget di ERPNext",
     "archivedBudgetStillLiveInErp": "ERPNext masih menerapkan anggaran yang diarsipkan untuk proyek ini. Batalkan dokumen Budget di ERPNext atau aktifkan anggaran PMO yang baru.",
     "cancellationQueuedDetail": "ERPNext akan dihubungi untuk membatalkan {{count}} dokumen Budget.",
-    "versionArchivedCancellationQueued": "Versi diarsipkan; pembatalan ERPNext dimasukkan ke antrean"
+    "versionArchivedCancellationQueued": "Versi diarsipkan; pembatalan ERPNext dimasukkan ke antrean",
+    "stillLiveList": "Dokumen Budget ERPNext yang mungkin masih aktif:",
+    "stillLiveListAria": "Dokumen Budget ERPNext yang mungkin masih aktif",
+    "targetLine": "{{year}} — {{name}}",
+    "legacyTargetLine": "{{year}} — {{name}} (push versi lama)",
+    "cancellationUnavailableWarning": "PMO tidak dapat membatalkan dokumen ini secara otomatis karena kepemilikan atau statusnya tidak dapat dibuktikan. Pengarsipan tidak akan menghapusnya — batalkan di ERPNext, atau coba lagi setelah perubahan lain selesai.",
+    "archivedStillLiveWarning_one": "ERPNext mungkin masih menerapkan {{count}} dokumen Budget untuk proyek ini.",
+    "archivedStillLiveWarning_other": "ERPNext mungkin masih menerapkan {{count}} dokumen Budget untuk proyek ini.",
+    "cancellationNotQueued": "Versi diarsipkan, tetapi tidak ada pembatalan ERPNext yang dimasukkan ke antrean"
   },
   "erpLinks": {
     "orphansTitle": "Dokumen ERPNext yang belum masuk pembelian",

@@ -82,6 +82,17 @@ async function upsertSalesInvoiceMirror(ctx: ReadModelWriterCtx, canonical: PmoR
     // stamp erp_cancelled_at on a cancel tombstone (docstatus 2)
     erp_cancelled_at: docstatus === 2 ? new Date().toISOString() : null,
   };
+  // #1506 (0511): an Odoo-held invoice also records the Odoo facts (state, why it needs a person, the figure PMO sent, when it was read). ERPNext
+  // canonicals carry none of these keys, so its writes are byte-for-byte unchanged. A read-back whose money header was incomplete carries no
+  // `amount` at all: the money keys (and the status derived from them) are then left out whole, so an update never erases what the ledger said
+  // and a create (which needs them) is refused by the NOT NULL it meets.
+  if (Object.prototype.hasOwnProperty.call(canonical, 'odoo_state')) {
+    patch.odoo_state = canonical.odoo_state ?? null;
+    patch.odoo_attention = canonical.odoo_attention ?? null;
+    patch.odoo_sent_total = canonical.odoo_sent_total ?? null;
+    patch.odoo_read_at = canonical.odoo_read_at ?? null;
+    if (canonical.amount === undefined) for (const key of ['amount', 'erp_outstanding_amount', 'status', 'tax_treatment']) delete patch[key];
+  }
   // #478: `currency`, `tax_amount` and `tax_template` are OMITTED rather than written as null when the
   // canonical does not carry them (the `authorPatch` discipline already used below). `currency` and
   // `tax_amount` are NOT NULL columns — writing null would fail the write outright — and nulling a
@@ -224,6 +235,10 @@ async function upsertIncomingPaymentMirror(ctx: ReadModelWriterCtx, canonical: P
       customer_id: customerId,
       sales_invoice_id: salesInvoiceId,
       date: record.date ?? null,
+      // A same-key recovery may be retried under a different Finance JWT after Odoo committed. The
+      // canonical was stamped from the original actor persisted on the money outbox; prefer that
+      // verified witness over the replay caller.
+      recorded_by_id: typeof canonical.recorded_by_id === 'string' ? canonical.recorded_by_id : ctx.callerUserId ?? null,
       ...patch,
     });
     if (error) throw new AppError(error.message, error.code);

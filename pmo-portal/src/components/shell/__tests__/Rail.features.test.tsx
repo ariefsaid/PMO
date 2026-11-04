@@ -119,3 +119,108 @@ describe('Rail — feature-flag gate for Incidents', () => {
     expect(screen.getByRole('link', { name: /projects/i })).toBeInTheDocument();
   });
 });
+
+/**
+ * AC-PLN-008 — the S3 nav matrix: every rail item that carries a switch key follows the resolved
+ * set, two-sided (off → absent, on → present), and the CRM-less Suppliers doorway still appears
+ * exactly when CRM is off. The rail reads the resolved display map only; nothing here re-derives
+ * the order (that is the DB projection's job, proven in the useFeature suite).
+ */
+describe('AC-PLN-008 — rail gate matrix follows the resolved switches', () => {
+  /** A resolved map with everything on, then the per-test override applied. */
+  const resolvedWith = (overrides: Record<string, boolean>) => ({
+    incidents: true,
+    crm: true,
+    procurement: true,
+    procurement_full: true,
+    timesheets: true,
+    import_export: true,
+    agent_assistant: true,
+    user_views: true,
+    revenue: true,
+    m365_integration: true,
+    sales_pipeline: true,
+    sales_invoices: true,
+    budget_projection: true,
+    imprest: true,
+    clickup_sync: true,
+    erp_sync: true,
+    erp_purchases: true,
+    financial_statements: true,
+    management_pack: true,
+    budget_phasing: true,
+    multi_currency: true,
+    stock: true,
+    api_access: true,
+    sso: true,
+    feedback_surveys: true,
+    ...overrides,
+  });
+
+  it('sales_pipeline: absent when off, present when on', () => {
+    orgFeaturesState.value = resolvedWith({ sales_pipeline: false });
+    const { unmount } = renderRail();
+    expect(screen.queryByRole('link', { name: /sales pipeline/i })).toBeNull();
+    unmount();
+    orgFeaturesState.value = resolvedWith({});
+    renderRail();
+    expect(screen.getByRole('link', { name: /sales pipeline/i })).toBeInTheDocument();
+  });
+
+  it('stock: absent when off, present when on', () => {
+    orgFeaturesState.value = resolvedWith({ stock: false });
+    const { unmount } = renderRail();
+    expect(screen.queryByRole('link', { name: /^stock$/i })).toBeNull();
+    unmount();
+    orgFeaturesState.value = resolvedWith({});
+    renderRail();
+    expect(screen.getByRole('link', { name: /^stock$/i })).toBeInTheDocument();
+  });
+
+  it('imprest: absent when off, present when on (Site cash)', () => {
+    orgFeaturesState.value = resolvedWith({ imprest: false });
+    const { unmount } = renderRail();
+    expect(screen.queryByRole('link', { name: /site cash/i })).toBeNull();
+    unmount();
+    orgFeaturesState.value = resolvedWith({});
+    renderRail();
+    expect(screen.getByRole('link', { name: /site cash/i })).toBeInTheDocument();
+  });
+
+  it('management_pack and financial_statements gate their own Finance items', () => {
+    orgFeaturesState.value = resolvedWith({ management_pack: false, financial_statements: false });
+    const { unmount } = renderRail();
+    expect(screen.queryByRole('link', { name: /^reports$/i })).toBeNull();
+    expect(screen.queryByRole('link', { name: /^statements$/i })).toBeNull();
+    unmount();
+    orgFeaturesState.value = resolvedWith({});
+    renderRail();
+    expect(screen.getByRole('link', { name: /^reports$/i })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /^statements$/i })).toBeInTheDocument();
+  });
+
+  it('revenue gates Receivables', () => {
+    orgFeaturesState.value = resolvedWith({ revenue: false });
+    const { unmount } = renderRail();
+    expect(screen.queryByRole('link', { name: /receivables/i })).toBeNull();
+    unmount();
+    orgFeaturesState.value = resolvedWith({});
+    renderRail();
+    expect(screen.getByRole('link', { name: /receivables/i })).toBeInTheDocument();
+  });
+
+  it('crm gates Companies and Contacts', () => {
+    orgFeaturesState.value = resolvedWith({ crm: false });
+    const { unmount } = renderRail();
+    expect(screen.queryByRole('link', { name: /companies/i })).toBeNull();
+    expect(screen.queryByRole('link', { name: /contacts/i })).toBeNull();
+    unmount();
+    orgFeaturesState.value = resolvedWith({ crm: true });
+    renderRail();
+    expect(screen.getByRole('link', { name: /companies/i })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /contacts/i })).toBeInTheDocument();
+    // The CRM-less Suppliers doorway is role-scoped (Project Manager / Finance / Admin); this
+    // harness renders an Executive, so it is correctly absent in both states.
+    expect(screen.queryByRole('link', { name: /suppliers/i })).toBeNull();
+  });
+});

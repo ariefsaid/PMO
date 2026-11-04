@@ -7,7 +7,7 @@ import { assert, assertEquals } from '@std/assert';
 import { createJwtAuthority, createTestJwksResolver, installEdgeEnv, withFetchMock } from '../_shared/testing/edgeTestKit.ts';
 import type { FetchCall } from '../_shared/testing/edgeTestKit.ts';
 import {
-  AUTHOR_ID, CUSTOMER_ID, FOREIGN_ORG_ID, INVOICE_ID, ODOO_HOST, PROJECT_ID, REVENUE_SNAPSHOT, WORK_ORDER_ID, invoiceCommand, receiptCommand, revenueRoutes,
+  APPROVER_ID, AUTHOR_ID, CUSTOMER_ID, NEW_INVOICE_ID, FOREIGN_ORG_ID, INVOICE_ID, ODOO_HOST, PROJECT_ID, REVENUE_SNAPSHOT, WORK_ORDER_ID, approveCommand, draftCommand, invoiceCommand, receiptCommand, receiptOdooWorld, revenueRoutes, submitCommand,
   type Tier, type World,
 } from './odooRevenueFixtures.ts';
 
@@ -83,17 +83,19 @@ describe('AC-OCI-051 / FR-OCI-004 the shared dispatch gates refuse a tier-odoo r
     await refusedAlike(invoiceCommand(), { gates: 'unreadable' }, 422, { error: 'commit-rejected', message: 'gate-check-failed' });
   });
 
-  it('AC-OCI-005 require_project_on_si off: an invoice with no project passes the gate and reaches the Odoo adapter, not the ERPNext one', async () => {
-    const r = await dispatch(invoiceCommand({ projectId: null }), AUTHOR_ID, { owns: ['odoo'], gates: { require_project_on_si: false } });
+  it('AC-OCI-005 require_project_on_si off: an invoice with no project passes the gate and is saved as a PMO draft: no ERPNext adapter, no outbox row, no Odoo request', async () => {
+    const writes: NonNullable<World['writes']> = [];
+    const r = await dispatch(draftCommand({ projectId: null }), AUTHOR_ID, { owns: ['odoo'], gates: { require_project_on_si: false }, writes });
     untouched(r, 'gate off');
-    assertEquals([r.status, JSON.parse(r.body).error], [422, 'config-rejected']);
-    assert(JSON.parse(r.body).message.includes('not available yet'), r.body);
+    assertEquals([r.status, JSON.parse(r.body)], [200, { externalRecordId: null, canonical: { id: NEW_INVOICE_ID, si_number: null, status: 'Draft' }, draft: true }]);
+    assertEquals(writes.map((w) => w.table), ['sales_invoices', 'sales_invoice_authors']);
   });
 });
 
 describe('AC-OCI-001 / FR-OCI-002 the Odoo connection and capability snapshot are checked before any outbox row or Odoo request', () => {
-  const refused = async (world: World, expected: (message: string) => boolean, command: Record<string, unknown> = invoiceCommand()) => {
-    const r = await dispatch(command, AUTHOR_ID, { owns: ['odoo'], ...world });
+  // the approval is what reaches the Odoo adapter (authoring a draft is PMO's alone), so it is the command that meets the connection checks
+  const refused = async (world: World, expected: (message: string) => boolean, command: Record<string, unknown> = approveCommand()) => {
+    const r = await dispatch(command, APPROVER_ID, { owns: ['odoo'], ...world });
     untouched(r, 'refusal');
     assertEquals([r.status, JSON.parse(r.body).error], [422, 'config-rejected']);
     assert(expected(JSON.parse(r.body).message), r.body);
@@ -122,8 +124,10 @@ describe('AC-OCI-001 / FR-OCI-002 the Odoo connection and capability snapshot ar
   });
 
   it('a ready connection is refused for a step Odoo does not push yet: fail closed, nothing sent', async () => {
-    await refused({ projectLink: '101' }, (m) => m.includes('not available yet'));
-    await refused({ projectLink: '101' }, (m) => m.includes('not available yet'), receiptCommand());
+    const receiptUpdate = await dispatch({ ...receiptCommand(), operation: 'update' }, APPROVER_ID, { owns: ['odoo'], projectLink: '101' });
+    untouched(receiptUpdate, 'unsupported receipt update');
+    assertEquals([receiptUpdate.status, JSON.parse(receiptUpdate.body).error], [422, 'commit-rejected']);
+    await refused({ projectLink: '101' }, (m) => m.includes('not available yet'), submitCommand({ verb: 'cancel' }));   // a posted invoice's cancel is not offered (OQ-OCI-7)
   });
 });
 
@@ -136,10 +140,10 @@ describe('AC-OCI-003 / FR-OCI-004 a link that is not the caller\'s tenant\'s ref
   };
 
   it('another tenant\'s customer, project, work order or invoice, and an absent one, refuse an invoice', async () => {
-    await refused({ rows: { [`companies:${CUSTOMER_ID}`]: FOREIGN_ORG_ID } }, invoiceCommand());
-    await refused({ rows: { [`projects:${PROJECT_ID}`]: FOREIGN_ORG_ID } }, invoiceCommand());
-    await refused({ rows: { [`work_orders:${WORK_ORDER_ID}`]: FOREIGN_ORG_ID } }, invoiceCommand());
-    await refused({ rows: { [`companies:${CUSTOMER_ID}`]: null } }, invoiceCommand());
+    await refused({ rows: { [`companies:${CUSTOMER_ID}`]: FOREIGN_ORG_ID } }, draftCommand());
+    await refused({ rows: { [`projects:${PROJECT_ID}`]: FOREIGN_ORG_ID } }, draftCommand());
+    await refused({ rows: { [`work_orders:${WORK_ORDER_ID}`]: FOREIGN_ORG_ID } }, draftCommand());
+    await refused({ rows: { [`companies:${CUSTOMER_ID}`]: null } }, draftCommand());
   });
 
   it('another tenant\'s invoice or customer, and an absent invoice, refuse a receipt', async () => {
@@ -151,7 +155,7 @@ describe('AC-OCI-003 / FR-OCI-004 a link that is not the caller\'s tenant\'s ref
 
 describe('FR-OCI-020 an invoice that names a project needs its Odoo cost account', () => {
   const refused = async (world: World, message: string) => {
-    const r = await dispatch(invoiceCommand(), AUTHOR_ID, { owns: ['odoo'], ...world });
+    const r = await dispatch(draftCommand(), AUTHOR_ID, { owns: ['odoo'], ...world });
     untouched(r, 'project');
     assertEquals([r.status, JSON.parse(r.body)], [422, { error: 'commit-rejected', message }]);
   };
@@ -161,9 +165,9 @@ describe('FR-OCI-020 an invoice that names a project needs its Odoo cost account
     await refused({ projectLink: '101', account: { active: true, tombstoned_at: '2026-11-01T00:00:00Z' } }, 'project-needs-attention');
     await refused({ projectLink: '101', account: null }, 'project-needs-attention');
   });
-  it('a resolved account passes on to the adapter step', async () => {
-    const r = await dispatch(invoiceCommand(), AUTHOR_ID, { owns: ['odoo'], projectLink: '101' });
-    assert(JSON.parse(r.body).message.includes('not available yet'), r.body);
+  it('a resolved account lets the draft be saved', async () => {
+    const r = await dispatch(draftCommand(), AUTHOR_ID, { owns: ['odoo'], projectLink: '101', writes: [] });
+    assertEquals(r.status, 200, r.body);
   });
 });
 
@@ -180,9 +184,12 @@ describe('FR-OCI-050 / FR-OCI-055 a receipt settles one invoice, in the same rev
     await refused({ invoiceCustomer: '12121212-1212-4121-8121-121212121212' }, receiptCommand(), 'receipt-customer-mismatch');
   });
   it('a receipt in the invoice\'s own scope passes on to the adapter step', async () => {
-    const r = await dispatch(receiptCommand(), AUTHOR_ID, { owns: ['odoo'], projectLink: '101' });
-    untouched(r, 'scope');
-    assert(JSON.parse(r.body).message.includes('not available yet'), r.body);
+    const fake = receiptOdooWorld();
+    const world: World = { owns: ['odoo'], projectLink: '101', odoo: fake, writes: [] };
+    const r = await dispatch(receiptCommand({ date: '2026-11-03', paid_amount: 111000, received_amount: 111000 }), AUTHOR_ID, world);
+    assertEquals(r.status, 200, r.body);
+    assertEquals(fake.rows('account.payment').length, 1, 'the scoped receipt reached the supported Odoo adapter step');
+    assertEquals(r.calls.filter((call) => call.method === 'POST' && call.url.pathname === '/rest/v1/external_command_outbox').length, 1);
   });
 });
 

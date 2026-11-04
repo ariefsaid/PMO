@@ -3642,3 +3642,12 @@ already spent). Rules: no amount counts twice — a disconnected org reads no le
 budget and the order total; sums are in the project currency, and an org-currency internal charge on a project in
 another currency is unknown, not relabelled; an unusable paid amount keeps the full order total committed. Spec:
 `procurement-flexible-entry.spec.md` FR-PFE-035/036, NFR-PFE-002, AC-PFE-005.
+
+### OD-VISION-ERP — PMO is an ERP; a client with no ERP is the floor (owner, 2026-11-03)
+The product vision is **PMO as an ERP**. At minimum PMO covers, on its own, a client that runs **no ERP**: its books,
+receivables and payables, bank, statements, tax and close all live in PMO. A connected ERPNext or Odoo stays optional;
+when one is connected it owns the domains the ownership map gives it (ADR-0055 §5), the same switch native revenue
+already uses (OD-NAR / #784). This supersedes, for orgs with no ERP, the "PMO has no ledger / no homegrown ledger" stance
+in ADR-0048 and ADR-0055 §5. Building a native ledger **extends** the vision, it does not reverse a decision. Not
+scheduled yet: the owner said record, don't build (2026-11-03). A future build takes a new ADR for the native ledger
+and a roadmap map.

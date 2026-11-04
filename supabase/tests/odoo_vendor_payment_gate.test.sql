@@ -1,10 +1,10 @@
 -- odoo_vendor_payment_gate.test.sql — 0508 (#1505 O2 P6, AC-OPP-064 P half, FR-OPP-063, FR-OPP-060).
 -- (1) The database's payment rule and ceiling answer an Odoo-tier purchase exactly as any other: they take a purchase id, never a tier.
--- (2) resolve_held_outbox_command: the route out of a HELD Odoo vendor payment. Admin or Finance, never the user who dispatched the
+-- (2) resolve_held_outbox_command: the route out of HELD Odoo money commands. Admin or Finance, never the user who dispatched the
 --     command, never another org, never a non-held row; it moves the row to `failed` (the ordinary recovery re-runs every gate) with the
 --     operator's resolution recorded in the row's payload, and writes an audit row naming the actor.
 begin;
-select plan(43);
+select plan(46);
 
 -- ── Fixtures ─────────────────────────────────────────────────────────────────────────────────────────────────────
 insert into organizations (id, name, default_currency) values
@@ -26,7 +26,7 @@ insert into profiles (id, org_id, full_name, email, role, status) values
   ('05080000-0000-0000-0000-0000000000b1','05080000-0000-0000-0000-00000000000b','Admin OrgB Pay','admin-orgb-pay@example.com','Admin','active');
 
 -- The outbox is policy-less and machine-written: seeded as owner, the dispatch service role's stand-in. f1..f3 are HELD Odoo payments the
--- creator (a2) dispatched; f4 is a confirmed one; f5 an ERPNext payment; f6 a held Odoo bill; f7 a held Odoo payment of org B.
+-- creator (a2) dispatched; f4 is a confirmed one; f5 an ERPNext payment; f6 a held Odoo bill; f7 a held Odoo payment of org B; f8 a held Odoo invoice.
 insert into external_command_outbox (id, org_id, domain, pmo_record_id, idempotency_key, external_tier, operation, state, actor_user_id, payload, claim_generation, last_error) values
   ('05080000-0000-0000-0000-0000000000f1','05080000-0000-0000-0000-00000000000a','procurement','pay-1','k-pay-1','odoo','create','held','05080000-0000-0000-0000-0000000000a2','{"erp_doc_kind":"payment","paid_amount":98}',2,'recovery-inconclusive-absence'),
   ('05080000-0000-0000-0000-0000000000f2','05080000-0000-0000-0000-00000000000a','procurement','pay-2','k-pay-2','odoo','create','held','05080000-0000-0000-0000-0000000000a2','{"erp_doc_kind":"payment","paid_amount":98}',2,'recovery-probe-failed'),
@@ -34,7 +34,8 @@ insert into external_command_outbox (id, org_id, domain, pmo_record_id, idempote
   ('05080000-0000-0000-0000-0000000000f4','05080000-0000-0000-0000-00000000000a','procurement','pay-4','k-pay-4','odoo','create','confirmed','05080000-0000-0000-0000-0000000000a2','{"erp_doc_kind":"payment"}',1,null),
   ('05080000-0000-0000-0000-0000000000f5','05080000-0000-0000-0000-00000000000a','procurement','pay-5','k-pay-5','erpnext','create','held','05080000-0000-0000-0000-0000000000a2','{"erp_doc_kind":"payment"}',2,'held'),
   ('05080000-0000-0000-0000-0000000000f6','05080000-0000-0000-0000-00000000000a','procurement','bill-6','k-bill-6','odoo','create','held','05080000-0000-0000-0000-0000000000a2','{"erp_doc_kind":"purchase-invoice"}',2,'held'),
-  ('05080000-0000-0000-0000-0000000000f7','05080000-0000-0000-0000-00000000000b','procurement','pay-7','k-pay-7','odoo','create','held','05080000-0000-0000-0000-0000000000a2','{"erp_doc_kind":"payment"}',2,'held');
+  ('05080000-0000-0000-0000-0000000000f7','05080000-0000-0000-0000-00000000000b','procurement','pay-7','k-pay-7','odoo','create','held','05080000-0000-0000-0000-0000000000a2','{"erp_doc_kind":"payment"}',2,'held'),
+  ('05080000-0000-0000-0000-0000000000f8','05080000-0000-0000-0000-00000000000a','revenue','05080000-0000-0000-0000-0000000000c08','k-si-8','odoo','create','held','05080000-0000-0000-0000-0000000000a2','{"erp_doc_kind":"sales-invoice"}',2,'recovery-inconclusive-absence');
 -- Odoo payment 77 is already mapped to another PMO record.
 insert into external_refs (org_id, domain, pmo_record_id, external_tier, external_record_id) values
   ('05080000-0000-0000-0000-00000000000a','procurement','some-other-payment','odoo','account.payment:77');
@@ -114,7 +115,7 @@ set local role authenticated;
 set local request.jwt.claims = '{"sub":"05080000-0000-0000-0000-0000000000a3","role":"authenticated"}';
 select throws_ok($$ select resolve_held_outbox_command('05080000-0000-0000-0000-0000000000f4', 'absent', null, 'confirmed') $$, 'P0001', null, 'AC-OPP-064 a confirmed command is not resolvable: only a held one has a hold');
 select throws_ok($$ select resolve_held_outbox_command('05080000-0000-0000-0000-0000000000f5', 'absent', null, 'erpnext') $$, 'P0001', null, 'AC-OPP-064 an ERPNext command is not resolved here (its route is release_outbox_hold)');
-select throws_ok($$ select resolve_held_outbox_command('05080000-0000-0000-0000-0000000000f6', 'absent', null, 'a bill') $$, 'P0001', null, 'AC-OPP-064 only a vendor payment is resolvable until the other kinds can consume a resolution');
+select throws_ok($$ select resolve_held_outbox_command('05080000-0000-0000-0000-0000000000f6', 'absent', null, 'a bill') $$, 'P0001', null, 'AC-OPP-064 a held Odoo vendor bill is not resolvable through the payment path');
 select throws_ok($$ select resolve_held_outbox_command('05080000-0000-0000-0000-0000000000ff', 'absent', null, 'nope') $$, 'P0002', null, 'AC-OPP-064 an unknown id is a not-found');
 select throws_ok($$ select resolve_held_outbox_command('05080000-0000-0000-0000-0000000000f1', 'retry', null, 'bad word') $$, '22023', null, 'AC-OPP-064 a resolution other than adopt or absent is refused');
 select throws_ok($$ select resolve_held_outbox_command('05080000-0000-0000-0000-0000000000f1', 'adopt', null, 'no document named') $$, '22023', null, 'AC-OPP-064 adopt must name the Odoo payment');
@@ -142,6 +143,17 @@ select lives_ok($$ select resolve_held_outbox_command('05080000-0000-0000-0000-0
 reset role;
 select is((select payload->>'odoo_adopted_ref' from external_command_outbox where id = '05080000-0000-0000-0000-0000000000f2'), 'account.payment:90', 'AC-OPP-064 the adopted document is recorded for the recovery probe to verify (it is not trusted blindly)');
 select is((select state from external_command_outbox where id = '05080000-0000-0000-0000-0000000000f2'), 'failed', 'AC-OPP-064 an adopted row is re-driven by the ordinary recovery too');
+
+-- C6 extends the same actor-checked decision to a held Odoo revenue invoice; it still returns to ordinary recovery.
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"05080000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select throws_ok($$ select resolve_held_outbox_command('05080000-0000-0000-0000-0000000000f8', 'adopt', 'account.payment:90', 'wrong kind') $$,
+  '22023', null, 'AC-OCI-052 an invoice resolution must name an Odoo account.move');
+select lives_ok($$ select resolve_held_outbox_command('05080000-0000-0000-0000-0000000000f8', 'adopt', 'account.move:90', 'invoice exists in Odoo') $$,
+  'AC-OCI-052 a different Admin may adopt the held invoice');
+reset role;
+select results_eq($$select state, payload->>'odoo_adopted_ref' from external_command_outbox where id='05080000-0000-0000-0000-0000000000f8'$$,
+  $$values ('failed'::text,'account.move:90'::text)$$,'AC-OCI-052 invoice adoption records the decision and returns to recovery');
 
 -- ── 6) The audit trail ───────────────────────────────────────────────────────────────────────────────────────────
 select is((select count(*)::int from audit_events where action = 'resolve_held_outbox_command' and actor_id = '05080000-0000-0000-0000-0000000000a3' and entity_id = '05080000-0000-0000-0000-0000000000f1'

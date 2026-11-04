@@ -24,7 +24,12 @@ interface Props {
   projectOptionsById: Map<string, { contractualName?: string | null }>;
   projectsById: Map<string, { pm?: { full_name: string | null } | null }>;
   profilesById: Map<string, { full_name: string | null }>;
-  invoiceStatus: (invoice: SalesInvoiceRow) => { label: string; variant: ReturnType<typeof salesInvoiceStatusVariant>; partlySettled: boolean };
+  invoiceStatus: (invoice: SalesInvoiceRow) => {
+    label: string;
+    variant: ReturnType<typeof salesInvoiceStatusVariant>;
+    partlySettled: boolean;
+    receiptAwaitingOdoo?: boolean;
+  };
 }
 export function salesInvoiceColumns({ t, all, embedded, native, location, orgCurrency, sharedTaxBasis, projectOptionsById, projectsById, profilesById, invoiceStatus }: Props) {
   // FIN-S1 / T4 (AC-RD-TBL-INV-001): one primary cell (number over customer), then at most six more
@@ -103,10 +108,11 @@ export function salesInvoiceColumns({ t, all, embedded, native, location, orgCur
     size: embedded ? 180 : undefined,
     cell: (inv) => {
       const status = invoiceStatus(inv);
+      const receiptAwaitingOdoo = status.receiptAwaitingOdoo === true;
       const legacyLabel = status.partlySettled
         ? t('financeCopy.statusPartlyPaid', 'Partly paid')
         : salesInvoiceStatusLabel(inv.status, t);
-      return <StatusPill className={embedded ? 'max-w-full whitespace-normal!' : undefined} variant={embedded ? status.variant : status.partlySettled ? salesInvoiceStatusVariant('Unpaid') : salesInvoiceStatusVariant(inv.status)}>{embedded ? status.label : legacyLabel}</StatusPill>;
+      return <StatusPill className={embedded ? 'max-w-full whitespace-normal!' : undefined} variant={embedded || receiptAwaitingOdoo ? status.variant : status.partlySettled ? salesInvoiceStatusVariant('Unpaid') : salesInvoiceStatusVariant(inv.status)}>{embedded || receiptAwaitingOdoo ? status.label : legacyLabel}</StatusPill>;
     },
     exportValue: (inv) => inv.status,
   };

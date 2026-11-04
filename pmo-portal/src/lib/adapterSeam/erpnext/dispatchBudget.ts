@@ -6,7 +6,7 @@
 import { AppError } from '../../appError.ts';
 import { fetchAllRowsByKeyset } from '../../pagedRead.ts';
 import { resolveBudgetAccounts, type BudgetLineItem, type CategoryAccountMapRow } from '../../budget/categoryAccountMap.ts';
-import { parseBudgetIdentity } from './budgetAccountIdentity.ts';
+import { parseBudgetIdentity, budgetLegacyIdentity } from './budgetAccountIdentity.ts';
 import { resolveV16BudgetAccounts } from './budgetAccountPlan.ts';
 import { listDocsByFilters, type ErpClientDeps, type ErpFilter } from './client.ts';
 import { findPmoRecordId, type ExternalRefsLookupClient } from '../refs.ts';
@@ -18,6 +18,20 @@ import { resolveErpProjectName } from './dispatchRefs.ts';
  *  so every other domain stays byte-for-byte: no extra DB round trip, no mutated `ctx.config`.) */
 export function isBudgetCommand(command: AdapterCommand): boolean {
   return (command.record as { erp_doc_kind?: string }).erp_doc_kind === 'budget';
+}
+
+/**
+ * #1462 — is this command the archive cancellation of a LEGACY (year-grained, pre-v16) ERP Budget?
+ *
+ * ⚑ It is classified by the SERVER-derived `source_kind` the durable archive intent carries, never by
+ * "the identity has no account" (an empty/malformed identity would then read as legacy) and never by
+ * the current binding (a v16 org can still hold an old year-grained document). The two kinds travel
+ * through one dispatch path but must never be coerced into each other: a legacy job has no account
+ * plan to re-derive, and an account job is never cancelled by an account-less identity.
+ */
+export function isLegacyBudgetArchiveCommand(command: AdapterCommand): boolean {
+  const record = command.record as { erp_doc_kind?: unknown; source_kind?: unknown };
+  return record.erp_doc_kind === 'budget' && record.source_kind === 'legacy';
 }
 
 /**
@@ -99,6 +113,39 @@ export function assertBudgetBindingIdentity(deps: ErpDispatchFactoryDeps, bindin
   const major = binding.version_major;
   if (major !== 15 && major !== 16) throw new AppError('budget push requires a supported ERP binding version', 'config-rejected');
   const identity = deps.command.record.outbox_identity;
+  // #1462: legacy documents retain year-grained identity after a 15→16 re-bind. Until the upgraded
+  // document representation is verified against the test installation, legacy cancellation stays
+  // v15-only and fails closed on v16.
+  if (isLegacyBudgetArchiveCommand(deps.command)) {
+    const record = deps.command.record as {
+      id?: unknown;
+      budget_intent?: unknown;
+      erp_account?: unknown;
+      fiscal_year?: unknown;
+      budget_archive_cancel_job_id?: unknown;
+    };
+    if (major !== 15) {
+      throw new AppError('legacy budget archive cancellation is not enabled for this ERP binding version', 'config-rejected');
+    }
+    if (record.budget_intent !== 'remove' || record.erp_account != null ||
+        typeof record.budget_archive_cancel_job_id !== 'string' ||
+        !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(record.budget_archive_cancel_job_id)) {
+      throw new AppError('legacy budget archive command carries account or non-removal dimensions', 'config-rejected');
+    }
+    let parsed: ReturnType<typeof parseBudgetIdentity>;
+    try {
+      if (typeof identity !== 'string') throw new Error();
+      parsed = parseBudgetIdentity(identity);
+    } catch {
+      throw new AppError('legacy budget archive command has an invalid year-qualified identity', 'config-rejected');
+    }
+    if (parsed.erpAccount !== null || parsed.fiscalYear === null || parsed.versionId !== record.id ||
+        parsed.fiscalYear !== record.fiscal_year ||
+        budgetLegacyIdentity(parsed.versionId, parsed.fiscalYear) !== identity) {
+      throw new AppError('legacy budget archive identity does not match the command dimensions', 'config-rejected');
+    }
+    return;
+  }
   const account = deps.command.record.erp_account;
   if ((typeof identity === 'string' && identity.includes(':a:')) !== (major === 16) ||
       (major === 16 && (typeof identity !== 'string' || typeof account !== 'string'))) {
@@ -209,12 +256,75 @@ export async function resolveBudgetRefs(
     erp_account?: unknown;
     budget_intent?: unknown;
     budget_predecessor?: unknown;
+    budget_archive_cancel_job_id?: unknown;
+    budget_archive_source_mirror_id?: unknown;
+    activated_at?: unknown;
+    project_start_date?: unknown;
+    project_end_date?: unknown;
   };
   const project = resolveErpProjectName(binding.config, record.projectId);
   const refs: Record<string, string | null> = { project };
+  const fiscalYear = record.fiscal_year;
+
+  // #1462 — a LEGACY archive cancellation names ONE exact ERP document by witnessed name. It does not
+  // read the account plan (there is no account), it does not resolve an upsert target (a cancellation is
+  // not a revision), and it never consults current grain occupancy: occupancy says nothing about which
+  // old document this activation created, and picking one from the grain would be a guess.
+  if (isLegacyBudgetArchiveCommand(deps.command)) {
+    if (record.budget_intent !== 'remove' || typeof record.budget_predecessor !== 'string' || !record.budget_predecessor) {
+      throw new AppError('legacy budget archive: cancellation has no witnessed predecessor', 'commit-rejected');
+    }
+    const jobId = record.budget_archive_cancel_job_id;
+    const sourceMirrorId = record.budget_archive_source_mirror_id;
+    if (typeof jobId !== 'string' || typeof sourceMirrorId !== 'string') {
+      throw new AppError('legacy budget archive: durable source witness is missing', 'commit-rejected');
+    }
+    const { data: jobData, error: jobError } = await deps.serviceClient.from('budget_archive_cancel_intents')
+      .select('id,org_id,request_id,project_id,budget_version_id,source_mirror_id,source_kind,actor_user_id,state,fiscal_year,erp_account,erp_budget_name,activated_at_witness,pushed_project_start_date,pushed_project_end_date')
+      .eq('id', jobId).eq('org_id', deps.orgId).maybeSingle();
+    if (jobError) throw new AppError(`legacy budget archive: cancellation intent could not be read: ${jobError.message}`, 'commit-rejected');
+    const job = jobData as Record<string, unknown> | null;
+    if (!job || job.source_kind !== 'legacy' || job.state !== 'pending' || job.source_mirror_id !== sourceMirrorId ||
+        job.project_id !== record.projectId || job.budget_version_id !== record.id || job.fiscal_year !== fiscalYear ||
+        job.erp_account !== null || job.erp_budget_name !== record.budget_predecessor ||
+        job.activated_at_witness !== record.activated_at ||
+        job.pushed_project_start_date !== record.project_start_date ||
+        job.pushed_project_end_date !== (record.project_end_date ?? null) ||
+        typeof job.actor_user_id !== 'string' || typeof job.request_id !== 'string') {
+      throw new AppError('legacy budget archive: command does not match its pending durable intent', 'commit-rejected');
+    }
+    const { data: requestData, error: requestError } = await deps.serviceClient.from('budget_archive_requests')
+      .select('id,org_id,project_id,budget_version_id,requested_by,cancel_erp')
+      .eq('id', job.request_id).eq('org_id', deps.orgId).maybeSingle();
+    if (requestError) throw new AppError(`legacy budget archive: original request could not be read: ${requestError.message}`, 'commit-rejected');
+    const request = requestData as Record<string, unknown> | null;
+    if (!request || request.project_id !== job.project_id || request.budget_version_id !== job.budget_version_id ||
+        request.requested_by !== job.actor_user_id || request.cancel_erp !== true) {
+      throw new AppError('legacy budget archive: original request or actor no longer matches', 'commit-rejected');
+    }
+    const { data: mirrorData, error: mirrorError } = await deps.serviceClient.from('budget_version_erp_mirror')
+      .select('id,org_id,budget_version_id,fiscal_year,push_state,erp_budget_name,erp_docstatus,erp_cancelled_at,activated_at_witness,pushed_project_start_date,pushed_project_end_date')
+      .eq('id', sourceMirrorId).eq('org_id', deps.orgId).eq('budget_version_id', String(record.id))
+      .eq('fiscal_year', String(fiscalYear)).maybeSingle();
+    if (mirrorError) throw new AppError(`legacy budget archive: mirror witness could not be read: ${mirrorError.message}`, 'commit-rejected');
+    const mirror = mirrorData as Record<string, unknown> | null;
+    if (!mirror || mirror.erp_budget_name !== record.budget_predecessor || mirror.erp_docstatus === 2 ||
+        mirror.erp_cancelled_at != null || !['pending', 'failed'].includes(String(mirror.push_state)) ||
+        mirror.activated_at_witness !== record.activated_at ||
+        mirror.pushed_project_start_date !== record.project_start_date ||
+        mirror.pushed_project_end_date !== (record.project_end_date ?? null)) {
+      throw new AppError('legacy budget archive: mirror witness changed before dispatch', 'commit-rejected');
+    }
+    const { data: refData, error: refError } = await deps.serviceClient.from('external_refs')
+      .select('external_record_id').eq('org_id', deps.orgId).eq('domain', 'budget').eq('external_tier', 'erpnext')
+      .eq('pmo_record_id', record.outbox_identity as string).eq('external_record_id', String(record.budget_predecessor)).maybeSingle();
+    if (refError) throw new AppError(`legacy budget archive: exact external reference could not be read: ${refError.message}`, 'commit-rejected');
+    if (!refData) throw new AppError('legacy budget archive: exact external reference is unavailable', 'commit-rejected');
+    refs.self = record.budget_predecessor;
+    return { refs };
+  }
 
   const company = binding.config?.company;
-  const fiscalYear = record.fiscal_year;
   // Any of these unresolved ⇒ `budgetToBody` refuses the push anyway (fail-closed, zero ERP calls);
   // probing the grain with a missing coordinate would ask a question with no meaning.
   if (!project || typeof company !== 'string' || !company || typeof fiscalYear !== 'string' || !fiscalYear) {

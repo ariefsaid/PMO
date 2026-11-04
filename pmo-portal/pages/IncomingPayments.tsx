@@ -166,7 +166,7 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
 
   if (receiptId) {
     const record = all.find((p) => p.id === receiptId);
-    if (state === 'loading') return <main className="mx-auto w-full max-w-[1200px] px-4 py-5 sm:px-6"><ListState variant="loading" rows={3} /></main>;
+    if (state === 'loading') return <main className="mx-auto w-full max-w-[1200px] px-4 py-5 sm:px-6"><ListState variant="loading" shape="table" rows={3} /></main>;
     if (state === 'error') {
       return (
         <main className="mx-auto w-full max-w-[1200px] px-4 py-5 sm:px-6">
@@ -238,6 +238,8 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
   return (
     <ListPage
       title={embedded ? t('finance:area.paymentsList', 'Payments received') : t('financeCopy.incomingPayments', "Incoming Payments")}
+      count={data ? filtered.length : undefined}
+      total={data ? all.length : undefined}
       headingLevel={embedded ? 2 : 1}
       description={embedded ? undefined : mode === undefined
         ? undefined

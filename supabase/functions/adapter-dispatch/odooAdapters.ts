@@ -12,6 +12,12 @@ import { odooClientForOrg } from '../_shared/odooClientForOrg.ts';
 import { resolveOdooBillInputs, resolveOdooOrderCurrency, resolveOdooOrderInputs, resolveOdooPaymentFacts, resolveOdooReviseInputs } from '../_shared/odooPurchaseRefs.ts';
 import type { AdapterFactory, AdapterSelectContext } from './dispatchAdapters.ts';
 import { assertOdooRevenueCommandScope } from './odooRevenueGate.ts';
+import { revenueOutboxRowExists } from './odooRevenueOutbox.ts';
+import { resolveOdooInvoiceInputs, resolveOdooReceiptInputs } from '../_shared/odooRevenueRefs.ts';
+import { createOdooRevenueAdapter, isInvoicePush } from '../../../pmo-portal/src/lib/adapterSeam/odoo/revenueAdapter.ts';
+import { buildInvoiceBody } from '../../../pmo-portal/src/lib/adapterSeam/odoo/revenue/invoiceBody.ts';
+import { buildReceiptBody } from '../../../pmo-portal/src/lib/adapterSeam/odoo/revenue/receiptBody.ts';
+import { withOdooCallBudget } from '../_shared/odooCallBudget.ts';
 
 /** What the Odoo procurement adapter pushes so far: the purchase order and its revision (P3), the goods receipt (P4), the vendor bill (P5) and the vendor payment (P6). */
 const isReceipt = (ctx: AdapterSelectContext): boolean => ctx.command.record.erp_doc_kind === 'goods-receipt' && ctx.command.operation === 'create';
@@ -80,9 +86,11 @@ export async function resolveOdooProcurementAdapter(ctx: AdapterSelectContext): 
 /**
  * Adapter selection for an org that employs revenue under tier `odoo` (FR-OCI-001/002/004, DD-OCI-1, DD-OCI-8). Before any outbox row and any
  * Odoo request it refuses a connection that is switched off, not activated or unusable, a stored capability snapshot that lacks a model an
- * invoice or receipt needs (the refusal names it), and a link or receipt scope that is not the caller's. The steps themselves (invoice, claim,
- * receipt) arrive with their slices (C3-C5); until then every command is refused the same way, so a gate-passing revenue command can neither
- * reach the ERPNext adapter nor leave an outbox row.
+ * invoice or receipt needs (the refusal names it), and a link or receipt scope that is not the caller's. Invoice approval and customer receipt
+ * commands are resolved and dry-built here before the outbox opens, so a missing mapping, unlinked project, invalid receipt journal or tax
+ * account refuses before any outbox row. An invoice-approval retry skips its dry build: its Odoo document may already exist, and recovery must
+ * not depend on today's mappings. Claims remain unavailable until their slice ships, so a gate-passing claim cannot reach ERPNext or leave an
+ * outbox row.
  */
 export async function resolveOdooRevenueAdapter(ctx: AdapterSelectContext): Promise<Adapter> {
   const resolved = await odooClientForOrg(ctx.serviceClient as SupabaseClient, ctx.orgId);
@@ -90,7 +98,32 @@ export async function resolveOdooRevenueAdapter(ctx: AdapterSelectContext): Prom
   const gap = revenueCapabilityGap(resolved.config.capabilities as Parameters<typeof revenueCapabilityGap>[0]);
   if (gap) throw new AppError(`Odoo invoicing needs ${gap}, which this Odoo connection does not show. Run the connection check again.`, 'config-rejected');
   await assertOdooRevenueCommandScope(ctx.serviceClient as SupabaseClient, ctx.orgId, ctx.command);
-  throw new AppError('Invoicing through Odoo is not available yet', 'config-rejected');
+  const isReceiptCreate = ctx.command.record.erp_doc_kind === 'incoming-payment' && ctx.command.operation === 'create';
+  if (!isInvoicePush(ctx.command) && !isReceiptCreate) throw new AppError('This Odoo revenue command is not available yet', 'config-rejected');
+  const sc = ctx.serviceClient as SupabaseClient;
+  const call = withOdooCallBudget(bindCall({ ...resolved.client, deadlineMs: REQUEST_DEADLINE_MS }), ctx.odooCallBudget);
+  const replay = await revenueOutboxRowExists(ctx);
+  if (isInvoicePush(ctx.command) && !replay) {
+    const { input, maps } = await resolveOdooInvoiceInputs(sc, ctx.orgId, ctx.command, resolved, call);
+    const built = buildInvoiceBody(input, maps);   // a dry build: an unmapped client, item or income account, a foreign currency or a net-negative total refuse here, naming the thing
+    if (built.outcome === 'refused') throw new AppError(`${built.code}: ${built.thing}: ${built.name}`, 'config-rejected');
+  }
+  const receiptRecord = ctx.command.record as Record<string, unknown>;
+  if (isReceiptCreate && !replay) {
+    delete receiptRecord.recorded_by;
+    delete receiptRecord.recorded_by_id;
+    delete receiptRecord.recordedBy;
+    const facts = await resolveOdooReceiptInputs(sc, ctx.orgId, ctx.command, resolved.companyId, resolved.config, call, ctx.userId);
+    const built = buildReceiptBody(facts.input, facts.invoice, facts.defaults, ctx.userId);
+    if (built.outcome === 'refused') throw new AppError(`${built.code}: ${built.thing}`, built.code);
+  }
+  return createOdooRevenueAdapter({
+    call,
+    resolveInvoice: (command) => resolveOdooInvoiceInputs(sc, ctx.orgId, command, resolved, call, replay),
+    ...(isReceiptCreate ? { resolveReceipt: async (command) => ({
+      ...(await resolveOdooReceiptInputs(sc, ctx.orgId, command, resolved.companyId, resolved.config, call, ctx.userId)), recordedBy: ctx.userId,
+    }) } : {}),
+  });
 }
 
 /** The Odoo tier's registry, keyed by the PMO domain it employs. */

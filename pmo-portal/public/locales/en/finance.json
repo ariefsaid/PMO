@@ -164,6 +164,7 @@
     "statusOverdueDay": "Overdue · {{count}} day",
     "statusOverdueDays": "Overdue · {{count}} days",
     "statusPaid": "Paid",
+    "statusReceiptAwaitingOdoo": "Receipt sent, awaiting Odoo",
     "statusCancelled": "Cancelled",
     "paymentDrawerTitle": "{{client}} · {{amount}}",
     "cash": "Cash received",
@@ -280,7 +281,15 @@
     "alsoCancelErpBudgets_other": "Also cancel {{count}} Budget documents in ERPNext",
     "archivedBudgetStillLiveInErp": "ERPNext is still enforcing an archived budget for this project. Cancel the ERPNext Budget documents or activate a new PMO budget.",
     "cancellationQueuedDetail": "ERPNext will be contacted to cancel {{count}} Budget documents.",
-    "versionArchivedCancellationQueued": "Version archived; ERPNext cancellation queued"
+    "versionArchivedCancellationQueued": "Version archived; ERPNext cancellation queued",
+    "stillLiveList": "ERPNext Budget documents that may still be live:",
+    "stillLiveListAria": "ERPNext Budget documents that may still be live",
+    "targetLine": "{{year}} — {{name}}",
+    "legacyTargetLine": "{{year}} — {{name}} (older push)",
+    "cancellationUnavailableWarning": "PMO cannot cancel these automatically because their ownership or status could not be proven. Archiving will not remove them — cancel them in ERPNext, or retry once the other change has settled.",
+    "archivedStillLiveWarning_one": "ERPNext may still enforce {{count}} Budget document for this project.",
+    "archivedStillLiveWarning_other": "ERPNext may still enforce {{count}} Budget documents for this project.",
+    "cancellationNotQueued": "Version archived, but no ERPNext cancellation was queued"
   },
   "erpLinks": {
     "orphansTitle": "ERPNext documents not in a purchase",

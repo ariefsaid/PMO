@@ -17,6 +17,7 @@ const h = vi.hoisted(() => ({
   effectiveRole: null as string | null,
   userId: 'u-fin',
   connected: true,
+  loadItems: vi.fn(),
   routeReady: true,
   billing: { data: null as unknown, isPending: false, isError: false, refetch: vi.fn() },
   boq: [] as unknown[],
@@ -24,6 +25,8 @@ const h = vi.hoisted(() => ({
   docs: [] as unknown[],
   docsState: { isPending: false, isError: false, refetch: vi.fn() },
   ordersState: { isPending: false, isError: false, refetch: vi.fn() },
+  tmClaims: { data: { rows: [] as unknown[], truncated: false }, isPending: false, isError: false, refetch: vi.fn() },
+  tmMutation: vi.fn().mockResolvedValue(undefined),
   m: {} as Record<string, { mutateAsync: ReturnType<typeof vi.fn>; isPending: boolean }>,
 }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.role, effectiveRole: h.effectiveRole ?? h.role }) }));
@@ -32,7 +35,7 @@ vi.mock('@/src/auth/usePermission', async () => {
   const { can } = await vi.importActual<typeof import('@/src/auth/policy')>('@/src/auth/policy');
   return { usePermission: () => (action: never, entity: never, ctx: Record<string, unknown> = {}) => can(action, entity, { realRole: h.role, ...ctx } as never) };
 });
-vi.mock('@/src/hooks/useErpItemOptions', () => ({ useErpItemOptions: () => ({ connected: h.connected, loadOptions: vi.fn() }) }));
+vi.mock('@/src/hooks/useErpItemOptions', () => ({ useErpItemOptions: () => ({ connected: h.connected, loadOptions: h.loadItems }) }));
 vi.mock('@/src/hooks/useRevenueMode', () => ({ useRevenueMode: () => 'native' }));
 vi.mock('@/src/hooks/useOwnershipCacheSync', () => ({ useRevenueRouteReady: () => h.routeReady }));
 vi.mock('@/src/hooks/useProgressBilling', () => ({
@@ -47,6 +50,22 @@ vi.mock('@/src/hooks/useWorkOrderAcceptances', () => ({
   useProjectWorkOrderLines: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
 vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => ({ data: h.docs, ...h.docsState }) }));
+vi.mock('@/src/hooks/useTasks', () => ({ useAssignableProfiles: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }) }));
+vi.mock('@/src/hooks/useTimeAndMaterials', () => ({
+  useTmRateLines: () => ({ data: { rows: [], truncated: false }, isPending: false, isError: false, refetch: vi.fn() }),
+  useTmRateAssignees: () => ({ data: { rows: [], truncated: false }, isPending: false, isError: false, refetch: vi.fn() }),
+  useTmClaims: () => h.tmClaims,
+  useTmClaimPreview: () => ({ data: { rows: [], truncated: false }, isPending: false, isError: false, refetch: vi.fn() }),
+  useTmClaimSources: () => ({ data: { rows: [], truncated: false, totalCount: 0 }, isPending: false, isError: false, refetch: vi.fn() }),
+  useSaveTmRateLine: () => ({ mutateAsync: h.tmMutation, isPending: false }),
+  useSetTmRateAssignee: () => ({ mutateAsync: h.tmMutation, isPending: false }),
+  useEndTmRateAssignee: () => ({ mutateAsync: h.tmMutation, isPending: false }),
+  useEndTmRateLine: () => ({ mutateAsync: h.tmMutation, isPending: false }),
+  useAssembleTmClaim: () => ({ mutateAsync: h.tmMutation, isPending: false }),
+  usePrepareTmSignoff: () => ({ mutateAsync: h.tmMutation, isPending: false }),
+  useWithdrawTmSignoff: () => ({ mutateAsync: h.tmMutation, isPending: false }),
+  useConfirmTmSignoff: () => ({ mutateAsync: h.tmMutation, isPending: false }),
+}));
 import BillingTab from '../BillingTab';
 import { summarizeInvoiceSettlement } from '../../ContractCascade';
 
@@ -80,12 +99,14 @@ beforeEach(() => {
   h.boq = BOQ; h.claims = CLAIMS; h.docs = DOCS;
   h.docsState = { isPending: false, isError: false, refetch: vi.fn() };
   h.ordersState = { isPending: false, isError: false, refetch: vi.fn() };
+  h.tmClaims = { data: { rows: [], truncated: false }, isPending: false, isError: false, refetch: vi.fn() };
+  h.tmMutation.mockReset().mockResolvedValue(undefined);
   h.m = Object.fromEntries(['createBoq', 'updateBoq', 'deleteBoq', 'recordAssessment', 'createClaim', 'attachEvidence', 'withdrawClaim', 'raiseInvoice']
     .map((name) => [name, { mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false }]));
 });
 
-function renderTab(clientId: string | null = 'c1', initialEntry = '/') {
-  render(<MemoryRouter initialEntries={[initialEntry]}><ToastProvider><BillingTab projectId="p1" currency="IDR" clientId={clientId} projectManagerId="pm-1" /><RouteSearch /></ToastProvider></MemoryRouter>);
+function renderTab(clientId: string | null = 'c1', initialEntry = '/', mode: 'full' | 'contract-tools' = 'full') {
+  render(<MemoryRouter initialEntries={[initialEntry]}><ToastProvider><BillingTab projectId="p1" currency="IDR" clientId={clientId} projectManagerId="pm-1" mode={mode} /><RouteSearch /></ToastProvider></MemoryRouter>);
   return userEvent.setup();
 }
 
@@ -244,6 +265,24 @@ describe('BillingTab', () => {
     expect(screen.getByTestId('billing-route-search')).toHaveTextContent('open=k1&openType=billingClaim');
     expect(screen.getByText('No evidence attached yet.')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Open full page' })).toBeInTheDocument();
+  });
+
+  it.each(['full', 'contract-tools'] as const)('AC-TM-016 opens the existing invoice confirmation with a signed-off T&M claim preselected from %s mode', async (mode) => {
+    h.claims = [claim('tm-1', {
+      kind: 'time_materials', gross_amount: 400000, dp_recovery_amount: 0,
+      evidence: [{ id: 'tm-evidence', document_id: 'doc-1', document_status: 'active', document_revision: 'A' }],
+    })];
+    h.tmClaims = { data: { rows: [{
+      id: 'tm-1', work_order_id: null, period_from: '2026-11-01', period_to: '2026-11-30', status: 'SignedOff',
+      currency: 'IDR', gross_amount: 400000, prepared_by: 'u-pm', signoff_prepared_by: 'u-pm', confirmed_by: 'u-fin',
+      confirm_basis: 'standard', document_id: 'doc-1', note: null, created_at: '2026-11-03T00:00:00Z', lines: [],
+    }], truncated: false }, isPending: false, isError: false, refetch: vi.fn() };
+    const user = renderTab('c1', '/', mode);
+
+    await user.click(await screen.findByRole('button', { name: /Create invoice/ }));
+
+    const dialog = screen.getByRole('dialog', { name: "Raise this claim's invoice?" });
+    expect(within(dialog).getByText(/Claimed IDR/)).toBeInTheDocument();
   });
 
   it('AC-1402 restores a billing record drawer from the open URL', async () => {
