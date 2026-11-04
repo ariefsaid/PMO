@@ -42,12 +42,14 @@ export { resolveInvoiceProject, resolveInvoiceProjects } from '../_shared/projec
  *   (1) skips all three, so each domain's gate is re-asserted by exactly one pass and `0131`'s attempt
  *   budget is spent once per tick, not twice.
  * Cadence (owner ruling 2026-10-23): the outbound money passes — (1), (5), (6), (7) — run on EVERY
- *   tick so postings reach ERPNext within a minute; the inbound/statement work — (2), (2b), native
- *   statements, (3), (3b), (4) — runs about hourly per org: when the org's last completed full run
- *   (0358, stamped under its lock) is 55+ minutes old, plus #1212's five-minute backfill ticks
- *   (`sweepCadenceAt`). Each `perOrg` entry and the top-level body carry `cadence: 'full' |
- *   'money-only'` (top level `mixed` when orgs differ). A caller holding the sweep secret may post
- *   `{"mode":"full"}` to force the full tick (the e2e journeys do).
+ *   tick so postings reach ERPNext within a minute; the inbound work — (2), (2b), (3), (3b), (4) — runs
+ *   about hourly per org: when the org's last completed full run (0358, stamped under its lock) is 55+
+ *   minutes old, plus #1212's five-minute backfill ticks (`sweepCadenceAt`). Each `perOrg` entry and the
+ *   top-level body carry `cadence: 'full' | 'money-only'` (top level `mixed` when orgs differ). A caller
+ *   holding the sweep secret may post `{"mode":"full"}` to force the full tick (the e2e journeys do).
+ * ⚑ 0642: the native statement batch has its OWN per-org freshness marker (`erp_statement_pass_run`),
+ *   not the full-run marker: it is due hourly per org, an unfinished/failed pass is retried on the
+ *   five-minute backfill cadence, and a `{"mode":"full"}` request bypasses the interval.
  * An org's failure is recorded WITHOUT blocking the others (sweep resilience: one client's bench
  * hiccup must not kill every org's refresh). Interactive priority over bulk (NFR-ENA-PERF-001).
  *
@@ -139,9 +141,12 @@ import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 import { findOutboxRowByKey, outboxRowOf } from './outboxRows.ts';
 import {
   type ErpSweepCadence, fullSweepDue, HOURLY_INVOCATION_DEADLINE_MS, SWEEP_BACKFILL_EVERY_MINUTES, SWEEP_FULL_INTERVAL_MS,
-  SWEEP_RETRY_DELAY_SECONDS, sweepCadenceAt,
+  SWEEP_RETRY_DELAY_SECONDS, statementPassDue, STATEMENT_PASS_INTERVAL_MS, STATEMENT_PASS_RETRY_DELAY_SECONDS, sweepCadenceAt,
 } from './sweepCadence.ts';
-export { type ErpSweepCadence, fullSweepDue, SWEEP_BACKFILL_EVERY_MINUTES, SWEEP_FULL_INTERVAL_MS, SWEEP_RETRY_DELAY_SECONDS, sweepCadenceAt };
+export {
+  type ErpSweepCadence, fullSweepDue, SWEEP_BACKFILL_EVERY_MINUTES, SWEEP_FULL_INTERVAL_MS, SWEEP_RETRY_DELAY_SECONDS,
+  statementPassDue, STATEMENT_PASS_INTERVAL_MS, STATEMENT_PASS_RETRY_DELAY_SECONDS, sweepCadenceAt,
+};
 // P3c slice 5 (FR-BUD-141, AC-BUD-023) — the budget push's sweep backstop, pure orchestration.
 import {
   reconcileOrgBudgetPushes,
@@ -557,7 +562,26 @@ interface OrgBinding {
   featuresUnreadable?: boolean;
   /** 0358: when this org's full (hourly) sweep last completed under its lock; null = never / unknown. */
   lastFullSweepAt?: string | null;
+  /** 0642: when this org's native statement pass last PUBLISHED (its own marker, independent of the
+   *  full run); null = never / unknown. Optional so existing cycle fixtures stay byte-for-byte. */
+  lastStatementPassAt?: string | null;
 }
+
+/**
+ * 0642 — one native statement pass outcome, as the shipped `refreshStatementReportBatch` reports it.
+ * `published` = a batch committed a generation; `progress` = a bounded segment ended with work left
+ * (resumable); `failed` = the segment could not complete. An absent status means the pass did nothing
+ * this tick (the module is switched off, or the binding is not statement-eligible).
+ */
+export interface NativeStatementPassResult {
+  errorCode?: string;
+  status?: 'published' | 'progress' | 'failed';
+}
+
+/** How the statement pass was treated on this org's tick (reported in `perOrg[].statement`):
+ *  `published`/`progress`/`failed` = the segment ran; `skipped` = due but not run on this tick (a
+ *  money-only tick, or the hourly block ran out of invocation time); `not-due` = inside its interval. */
+export type NativeStatementPassOutcome = 'published' | 'progress' | 'failed' | 'skipped' | 'not-due';
 
 export interface ErpSweepCycleDeps {
   listEmployingOrgs: () => Promise<OrgBinding[]>;
@@ -565,7 +589,7 @@ export interface ErpSweepCycleDeps {
   claimStatementLock?: (orgId: string, holder: string) => Promise<boolean>;
   releaseStatementLock?: (orgId: string, holder: string) => Promise<void>;
   /** Native statement collection is independent of raw-ledger catch-up and legacy readiness. */
-  refreshNativeStatements?: (org: OrgBinding) => Promise<{ errorCode?: string }>;
+  refreshNativeStatements?: (org: OrgBinding) => Promise<NativeStatementPassResult>;
   reconcileOrgOutbox: (org: OrgBinding) => Promise<ReconcileOrgOutboxResult>;
   /** `complete: false` = the bounded walk stopped early (budget/page quantum); it resumes next tick. */
   sweepOrgDoctypes: (org: OrgBinding) => Promise<{ applied: number; error?: string; complete?: boolean }>;
@@ -597,6 +621,15 @@ export interface ErpSweepCycleDeps {
   drainConnectSends?: (org: OrgBinding) => Promise<{ error?: string }>;
   /** 0358: on a money-only tick, whether this org's hourly work is due (its last full run is stale). */
   isFullSweepDue?: (org: OrgBinding) => boolean;
+  /** 0642: whether this org's native statement pass is due (its own hourly marker). Absent ⇒ always due,
+   *  which keeps every existing cycle fixture byte-for-byte. */
+  isStatementPassDue?: (org: OrgBinding) => boolean;
+  /** 0642: stamp a PUBLISHED statement pass (lock-holder fenced in the RPC, like the full-run stamp). */
+  markStatementPassDone?: (org: OrgBinding) => Promise<void>;
+  /** 0642: an unfinished or failed statement pass is due again in `dueInSeconds` (never on the next tick). */
+  deferStatementPass?: (org: OrgBinding, dueInSeconds: number) => Promise<void>;
+  /** 0642: an explicit full-mode request (the documented operator refresh) runs the pass inside its interval. */
+  forceStatementPass?: boolean;
   /** 0358: stamp a completed full run — only after the hourly passes ran, and only by the lock holder. */
   markFullSweepDone?: (org: OrgBinding) => Promise<void>;
   /** THEME-BACK-07: an unfinished or failed full run is deferred, not stamped: due again in `dueInSeconds`. */
@@ -629,7 +662,7 @@ export interface OrgLedgerFeedResult {
 
 export interface ErpSweepCycleResult {
   orgs: number;
-  perOrg: Array<{ orgId: string; cadence?: ErpSweepCadence; reconcile: ReconcileOrgOutboxResult | null; sweep?: { applied: number }; ledger?: { gl: number; ple: number; glCaughtUp?: boolean; pleCaughtUp?: boolean; statementReady?: boolean }; errors: string[] }>;
+  perOrg: Array<{ orgId: string; cadence?: ErpSweepCadence; statement?: NativeStatementPassOutcome; reconcile: ReconcileOrgOutboxResult | null; sweep?: { applied: number }; ledger?: { gl: number; ple: number; glCaughtUp?: boolean; pleCaughtUp?: boolean; statementReady?: boolean }; errors: string[] }>;
 }
 
 /**
@@ -675,6 +708,43 @@ export async function runErpSweepCycle(
     // The tick forces the full sweep (an explicit request, or a backfilling binding); otherwise each org
     // runs its hourly work when its last completed full run is stale (0358).
     const hourly = cadence === 'full' || (deps.isFullSweepDue?.(org) ?? false);
+    // 0642 — the native statement pass keeps its OWN freshness marker, so its cadence does not follow
+    // how often the full run happens: 0358 leaves a deferred full run due again on the next tick, which
+    // suits the inbound passes but not a resumable report batch. An explicit full-mode request (the
+    // documented operator refresh) still bypasses the interval.
+    const statementDue = deps.refreshNativeStatements !== undefined &&
+      (deps.forceStatementPass === true || (deps.isStatementPassDue?.(org) ?? true));
+    let statement: NativeStatementPassOutcome | undefined = deps.refreshNativeStatements === undefined
+      ? undefined
+      : statementDue ? 'skipped' : 'not-due';
+    const runStatementPass = async (): Promise<void> => {
+      if (!deps.refreshNativeStatements) return;
+      let result: NativeStatementPassResult;
+      try {
+        result = await deps.refreshNativeStatements(org);
+      } catch {
+        errors.push('native-statement:native-refresh-failed');
+        result = { status: 'failed' };
+      }
+      if (result.errorCode) errors.push(`native-statement:${result.errorCode}`);
+      statement = result.status ?? 'skipped';
+      // Only the lock holder can settle the marker (both RPCs re-check the lease), so a tick whose lease
+      // lapsed leaves the org due. Published ⇒ hourly. Anything that ran but did not publish ⇒ the
+      // five-minute retry cadence: never the next one-minute tick, never a whole hour (a bounded,
+      // resumable batch should keep making progress).
+      const settle = result.status === 'published'
+        ? deps.markStatementPassDone?.bind(null, org)
+        : result.status === undefined
+          ? undefined
+          : deps.deferStatementPass?.bind(null, org, STATEMENT_PASS_RETRY_DELAY_SECONDS);
+      if (settle) {
+        try {
+          await settle();
+        } catch (err) {
+          errors.push(`statement-pass-mark:${err instanceof Error ? err.message : String(err)}`);
+        }
+      }
+    };
     try {
     // (1) outbox recovery FIRST.
     let reconcile: ReconcileOrgOutboxResult | null = null;
@@ -777,14 +847,10 @@ export async function runErpSweepCycle(
           errors.push(`repair:${err instanceof Error ? err.message : String(err)}`);
         }
       }
-      // Native report capture is independently resumable; raw ledger readiness never gates it.
-      if (deps.refreshNativeStatements && stillTime()) {
-        try {
-          const result = await deps.refreshNativeStatements(org);
-          if (result.errorCode) errors.push(`native-statement:${result.errorCode}`);
-        } catch {
-          errors.push('native-statement:native-refresh-failed');
-        }
+      // Native report capture is independently resumable; raw ledger readiness never gates it. 0642: it
+      // also has its own hourly marker — a due full run no longer implies a statement pass.
+      if (deps.refreshNativeStatements && statementDue && stillTime()) {
+        await runStatementPass();
       }
       // (3) ledger-mirror feed.
       let ledgerBehind = false;
@@ -838,7 +904,7 @@ export async function runErpSweepCycle(
         }
       }
     }
-    perOrg.push({ orgId: org.orgId, cadence: hourly ? 'full' : 'money-only', reconcile, sweep, ledger, errors });
+    perOrg.push({ orgId: org.orgId, cadence: hourly ? 'full' : 'money-only', ...(statement ? { statement } : {}), reconcile, sweep, ledger, errors });
     // #651 review (per-org cache scope): clear this org's entry so only the CURRENT org's pair is ever
     // resident. One org's refusal already never aborts the loop; deleting here also guarantees a
     // resolution failure can't leave a stale org resident for a later org's passes.
@@ -940,10 +1006,28 @@ export async function listEmployingOrgsLive(serviceClient: SupabaseClient): Prom
     }
   }
 
+  // 0642: each org's last COMPLETED statement pass. The native batch has its own freshness marker so its
+  // cadence cannot follow how often the full run happens (a deferred full run is due on every tick).
+  // A failed read leaves every org unknown, i.e. due — the pass then runs rather than silently stopping.
+  const lastStatementByOrg = new Map<string, string>();
+  {
+    const { data: passes, error: passesError } = await serviceClient.from('erp_statement_pass_run')
+      .select('org_id, completed_at')
+      .in('org_id', activated.map((r) => r.org_id));
+    if (passesError) {
+      console.error(`[erpnext-sweep] erp_statement_pass_run load failed: code=${passesError.code ?? 'none'} message=${passesError.message}`);
+    } else {
+      for (const row of (passes as Array<{ org_id: string; completed_at: string }> | null) ?? []) {
+        lastStatementByOrg.set(row.org_id, row.completed_at);
+      }
+    }
+  }
+
   const bindings: OrgBinding[] = activated.map((r) => ({
     orgId: r.org_id,
     bindingId: r.id ?? null,
     lastFullSweepAt: lastFullByOrg.get(r.org_id) ?? null,
+    lastStatementPassAt: lastStatementByOrg.get(r.org_id) ?? null,
     siteUrl: r.site_url,
     secretRef: r.secret_ref,
     company: (r.config?.company as string | undefined) ?? '',
@@ -3697,9 +3781,9 @@ serveWithErrorReporting('erpnext-sweep', withJobRun('erpnext-sweep', async (req:
           service: serviceClient as unknown as StatementReportBatchService,
           remainingTickBudgetMs,
         });
-        return { errorCode: result.errorCode };
+        return { errorCode: result.errorCode, status: result.status };
       } catch {
-        return { errorCode: 'native-refresh-failed' };
+        return { errorCode: 'native-refresh-failed', status: 'failed' as const };
       }
     },
     reconcileOrgOutbox: (org) => reconcileOrgOutbox(listCandidates, org, (row) => buildReconcileDepsLive(serviceClient, org, row, erpAuth)),
@@ -3725,6 +3809,23 @@ serveWithErrorReporting('erpnext-sweep', withJobRun('erpnext-sweep', async (req:
     advanceConnectRun: (org) => advanceConnectRuns(serviceClient, org),
     drainConnectSends: (org) => drainConnectSends(serviceClient, org),
     isFullSweepDue: (org) => fullSweepDue(org.lastFullSweepAt, handlerEntryMs),
+    // 0642: the statement pass has its own hourly marker; an explicit full-mode request bypasses it.
+    isStatementPassDue: (org) => statementPassDue(org.lastStatementPassAt, handlerEntryMs),
+    forceStatementPass: forceFull,
+    markStatementPassDone: async (org) => {
+      if (!org.statementLockHolder) throw new Error('no sweep lock held');
+      const { data, error } = await serviceClient.rpc('mark_erp_statement_pass_done', { p_org_id: org.orgId, p_holder: org.statementLockHolder });
+      if (error) throw new Error(`statement-pass stamp failed: ${error.code ?? 'unknown'}`);
+      if (data !== true) throw new Error('the sweep lock lapsed before the statement pass was stamped');
+    },
+    deferStatementPass: async (org, dueInSeconds) => {
+      if (!org.statementLockHolder) throw new Error('no sweep lock held');
+      const { data, error } = await serviceClient.rpc('defer_erp_statement_pass', {
+        p_org_id: org.orgId, p_holder: org.statementLockHolder, p_due_in_seconds: dueInSeconds,
+      });
+      if (error) throw new Error(`statement-pass defer failed: ${error.code ?? 'unknown'}`);
+      if (data !== true) throw new Error('the sweep lock lapsed before the statement pass was deferred');
+    },
     markFullSweepDone: async (org) => {
       if (!org.statementLockHolder) throw new Error('no sweep lock held');
       const { data, error } = await serviceClient.rpc('mark_erp_full_sweep_done', { p_org_id: org.orgId, p_holder: org.statementLockHolder });
