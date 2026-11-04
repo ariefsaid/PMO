@@ -83,11 +83,11 @@ vi.mock('@/src/hooks/useProcurements', () => ({
 }));
 vi.mock('@/src/hooks/useProgressBilling', () => ({ useBoqItems: () => ({ data: state.boqItems, isPending: false, isError: false, refetch: vi.fn() }), useProjectBilling: () => ({ data: state.billing, isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useTasks', () => ({ useTasks: () => ({ data: state.tasks, isPending: false, isError: false, refetch: vi.fn() }) }));
-vi.mock('../ProjectProfitLossSection', () => ({ default: () => null }));
+vi.mock('../ProjectProfitLossSection', () => ({ default: () => <div data-testid="project-profit-loss" /> }));
 
 import { useBudgetPosition, useOverdueReceivables, useProjectAttention } from '../useProjectPosition';
 import { buildBudgetSummaryRows } from '../budget/budgetModel';
-import { CostBlock, DeliveryBlock, MoneyBlock } from '../ProjectBlocks';
+import { CostBlock, DeliveryBlock, MoneyBlock, ProjectMoneyOverview } from '../ProjectBlocks';
 import { PrimaryProjectAction } from '../ProjectSections';
 import { ProjectAttention } from '../ProjectAttention';
 import { MyOpenTasks } from '../ProjectActivity';
@@ -480,6 +480,15 @@ describe('pipeline overview blocks and engineer task links', () => {
 });
 
 describe('contract billing block', () => {
+  it('mounts project statements while the independent money position is still loading', () => {
+    state.financePending = true;
+
+    renderWithQueryClient(<MemoryRouter><ProjectMoneyOverview project={project()} /></MemoryRouter>);
+
+    expect(screen.getByTestId('project-profit-loss')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Money position' })).toBeInTheDocument();
+  });
+
   it('AC-1402-M1/M5/M6 keeps full finance provenance in a quiet Money position Details disclosure', async () => {
     state.role = 'Finance';
     state.finances = {

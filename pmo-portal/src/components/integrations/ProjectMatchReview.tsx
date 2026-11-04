@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { usePermission } from '@/src/auth/usePermission';
+import { useProject } from '@/src/hooks/useProjects';
 import { INTERNAL_STATUSES, ON_HAND_STATUSES } from '@/src/lib/db/projectTransitions';
 import { repositories } from '@/src/lib/repositories';
 import type {
@@ -102,12 +103,9 @@ export function ProjectMatchReview({
     enabled: Boolean(orgId && !projectId && queueProjects === undefined),
     retry: false,
   });
-  const project = useQuery({
-    queryKey: ['opportunity', orgId, projectId],
-    queryFn: () => repositories.project.get(projectId!),
-    enabled: Boolean(orgId && projectId),
-    retry: false,
-  });
+  // The detail route already owns this project query. Reuse its canonical org-scoped
+  // key so the ERP review surfaces in the header and rail don't fetch a second project row.
+  const project = useProject(projectId);
   const connected = binding.data?.status === 'active' &&
     Boolean(binding.data.config.company);
   const candidates = useQuery({

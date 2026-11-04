@@ -7,6 +7,7 @@ import { cn } from '@/src/components/ui/cn';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { usePermission } from '@/src/auth/usePermission';
 import { useProjectFinances } from '@/src/hooks/useProjectFinances';
+import { useOrgCurrencyState } from '@/src/hooks/useOrgCurrency';
 import { useProjectCommittedSpend, useProjectProcurements } from '@/src/hooks/useProcurements';
 import { buildBudgetSummaryRows, committedTotal } from './budget/budgetModel';
 import { useTasks } from '@/src/hooks/useTasks';
@@ -71,9 +72,12 @@ export const MoneyBlock: React.FC<{ project: ProjectWithRefs }> = ({ project }) 
   const boq = useBoqItems(project.id);
   const billing = useProjectBilling(project.id);
   const invoices = useSalesInvoices(project.id, { enabled: canViewMoney });
+  // Warm the org currency alongside the money reads; the FxEquivalent renders only after those finish.
+  const orgCurrencyState = useOrgCurrencyState();
+  const moneyCurrency = project.currency || orgCurrencyState.currency;
   const unit = (
     <>
-      {project.currency}
+      {moneyCurrency}
       {isTaxTreatment(project.tax_treatment) && <> · <TaxBasisLabel treatment={project.tax_treatment} showDetails={false} className="inline text-xs text-muted-foreground" /></>}
     </>
   );
@@ -161,7 +165,7 @@ export const MoneyBlock: React.FC<{ project: ProjectWithRefs }> = ({ project }) 
               </dd>
               <dd className="text-right text-sm">
                 {step.key === 'contract'
-                  ? <span data-testid="contract-value-amount">{explain(step.source, formatCurrency(step.value, project.currency))}</span>
+                  ? <span data-testid="contract-value-amount">{explain(step.source, formatCurrency(step.value, moneyCurrency))}</span>
                   : explain(step.source, whole(step.value))}
               </dd>
               {step.key === 'contract' && contractValue !== null && (
@@ -217,10 +221,17 @@ export const MoneyBlock: React.FC<{ project: ProjectWithRefs }> = ({ project }) 
         </button>
         {financeDetailsOpen && <div className="space-y-4 pt-4"><ProjectFinancesSection project={project} /></div>}
       </div>
-      <ProjectProfitLossSection projectId={project.id} />
     </Block>
   );
 };
+
+/** Mounts the independent statement section without waiting for the money-position summary. */
+export const ProjectMoneyOverview: React.FC<{ project: ProjectWithRefs }> = ({ project }) => (
+  <>
+    <MoneyBlock project={project} />
+    <ProjectProfitLossSection projectId={project.id} />
+  </>
+);
 
 /* ── Cost: are we spending within budget, and where not? ─────────────────────────────────── */
 const CostUnit: React.FC<{ project: ProjectWithRefs }> = ({ project }) => (

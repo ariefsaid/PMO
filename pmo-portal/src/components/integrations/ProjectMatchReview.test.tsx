@@ -9,6 +9,7 @@ const h = vi.hoisted(() => ({
   listErpProjects: vi.fn(),
   linkErpProject: vi.fn(),
   getProject: vi.fn(),
+  getProjectWithRefs: vi.fn(),
 }));
 vi.mock('@/src/lib/repositories', () => ({
   repositories: {
@@ -18,7 +19,7 @@ vi.mock('@/src/lib/repositories', () => ({
       listErpProjects: h.listErpProjects,
       linkErpProject: h.linkErpProject,
     },
-    project: { get: h.getProject },
+    project: { get: h.getProject, getWithRefs: h.getProjectWithRefs },
   },
 }));
 vi.mock('@/src/auth/useAuth', () => ({
@@ -54,6 +55,7 @@ beforeEach(() => {
     code: 'PMO-ALPHA',
     status: 'Ongoing Project',
   });
+  h.getProjectWithRefs.mockImplementation(() => h.getProject());
 });
 afterEach(cleanup);
 
@@ -137,6 +139,21 @@ it('AC-S09-003 retains failed row choices and reports partial saves exactly', as
   expect(retryConfirmation).not.toHaveTextContent('Delivery Alpha');
   fireEvent.click(screen.getByRole('button', { name: 'Confirm links' }));
   await waitFor(() => expect(h.linkErpProject).toHaveBeenCalledTimes(3));
+});
+
+it('reuses the org-scoped project detail query across duplicate ERP review surfaces', async () => {
+  render(
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <ImpersonationProvider realRole="Admin">
+        <>
+          <ProjectMatchReview projectId="project-1" orgId="org-1" />
+          <ProjectMatchReview projectId="project-1" orgId="org-1" />
+        </>
+      </ImpersonationProvider>
+    </QueryClientProvider>,
+  );
+
+  await waitFor(() => expect(h.getProjectWithRefs).toHaveBeenCalledTimes(1));
 });
 
 it('AC-S09-003 names current and proposed ERP projects before confirming a rematch', async () => {

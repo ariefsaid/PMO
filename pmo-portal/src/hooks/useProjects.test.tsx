@@ -10,11 +10,12 @@ vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Project Manager' }),
 }));
 
-const { milestoneDatesForProjects, repoCreate, repoUpdateHeader, repoList, listClientCompanies, listProjectManagers } = vi.hoisted(() => ({
+const { milestoneDatesForProjects, repoCreate, repoUpdateHeader, repoList, repoGetWithRefs, listClientCompanies, listProjectManagers } = vi.hoisted(() => ({
   listClientCompanies: vi.fn().mockResolvedValue([{ id: 'c1', name: 'Acme', type: 'Client' }]),
   listProjectManagers: vi.fn().mockResolvedValue([{ id: 'u1', full_name: 'Alice Manager', role: 'Project Manager' }]),
   milestoneDatesForProjects: vi.fn().mockResolvedValue([]),
   repoList: vi.fn().mockResolvedValue([{ id: 'p1', name: 'X', client: null, pm: null }]),
+  repoGetWithRefs: vi.fn().mockResolvedValue({ id: 'p1', name: 'X', client: null, pm: null }),
   repoCreate: vi.fn().mockResolvedValue({ id: 'new' }),
   repoUpdateHeader: vi.fn().mockResolvedValue(undefined),
 }));
@@ -25,6 +26,7 @@ vi.mock('@/src/lib/repositories', () => ({
     profile: { listProjectManagers },
     project: {
       list: repoList,
+      getWithRefs: repoGetWithRefs,
       create: repoCreate,
       updateHeader: repoUpdateHeader,
       archive: vi.fn(),
@@ -36,11 +38,14 @@ vi.mock('@/src/lib/repositories', () => ({
 
 import {
   useProjects,
+  useProject,
+  usePrefetchProject,
   useClientCompanies,
   useProjectManagers,
   useProjectsMilestoneDates,
   useProjectMutations,
 } from './useProjects';
+import { projectKeys } from './projectQueryKeys';
 
 /** Fresh QueryClient per test to avoid cross-test cache bleed. */
 const makeWrapper = () => {
@@ -160,5 +165,76 @@ describe('useProjectMutations — cache invalidation (AC-EC-003)', () => {
     const keys = spy.mock.calls.flatMap((c) => (c[0]?.queryKey ?? []) as string[]);
     expect(keys).toContain('sales-pipeline');
     expect(keys).toContain('lost-deals');
+  });
+});
+
+describe('projectKeys.detail', () => {
+  it('returns org-scoped project query key matching useProject', () => {
+    expect(projectKeys.detail('org-1', 'p1')).toEqual(['project', 'org-1', 'p1']);
+  });
+});
+
+describe('useProject', () => {
+  it("keys by ['project', orgId, id] and loads project with refs", async () => {
+    const { result } = renderHook(() => useProject('p1'), { wrapper: makeWrapper() });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data?.name).toBe('X');
+    expect(repoGetWithRefs).toHaveBeenCalledWith('p1');
+  });
+
+  it('is disabled when id is undefined', () => {
+    const { result } = renderHook(() => useProject(undefined), { wrapper: makeWrapper() });
+    expect(result.current.isPending).toBe(true);
+    expect(repoGetWithRefs).not.toHaveBeenCalled();
+  });
+});
+
+describe('usePrefetchProject', () => {
+  it('prefetches project record using exact org-scoped useProject key', async () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const prefetchSpy = vi.spyOn(qc, 'prefetchQuery');
+    const Wrapper = ({ children }: { children: React.ReactNode }) => (
+      <QueryClientProvider client={qc}>{children}</QueryClientProvider>
+    );
+
+    const { result } = renderHook(() => usePrefetchProject(), { wrapper: Wrapper });
+    result.current('p1');
+
+    expect(prefetchSpy).toHaveBeenCalledTimes(1);
+    expect(prefetchSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        queryKey: ['project', 'org-1', 'p1'],
+        staleTime: 30_000,
+      }),
+    );
+  });
+
+  it('dedupes repeated prefetch triggers for the same project', () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const prefetchSpy = vi.spyOn(qc, 'prefetchQuery');
+    const Wrapper = ({ children }: { children: React.ReactNode }) => (
+      <QueryClientProvider client={qc}>{children}</QueryClientProvider>
+    );
+
+    const { result } = renderHook(() => usePrefetchProject(), { wrapper: Wrapper });
+    // Simulate hover, focus, and click in rapid succession
+    result.current('p1');
+    result.current('p1');
+    result.current('p1');
+
+    expect(prefetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('does nothing when id is undefined', () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const prefetchSpy = vi.spyOn(qc, 'prefetchQuery');
+    const Wrapper = ({ children }: { children: React.ReactNode }) => (
+      <QueryClientProvider client={qc}>{children}</QueryClientProvider>
+    );
+
+    const { result } = renderHook(() => usePrefetchProject(), { wrapper: Wrapper });
+    result.current(undefined);
+
+    expect(prefetchSpy).not.toHaveBeenCalled();
   });
 });

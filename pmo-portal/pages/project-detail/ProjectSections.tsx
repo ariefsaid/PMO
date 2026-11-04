@@ -9,7 +9,7 @@ import { useProjectFinances } from '@/src/hooks/useProjectFinances';
 import { useProjectBilling } from '@/src/hooks/useProgressBilling';
 import { ProjectAttention } from './ProjectAttention';
 import { useOverdueReceivables, useProjectAttention } from './useProjectPosition';
-import { CostBlock, DeliveryBlock, MoneyBlock } from './ProjectBlocks';
+import { CostBlock, DeliveryBlock, ProjectMoneyOverview } from './ProjectBlocks';
 import { BillingMilestonesBlock } from './BillingMilestonesBlock';
 import { ProjectFinancesSection } from './ProjectFinancesSection';
 import { ActivityFooter, MyOpenTasks, ProjectActivity } from './ProjectActivity';
@@ -103,7 +103,7 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
             so the budget fills the space under the (usually short) attention list instead of leaving it empty. */}
         <div className={`grid min-w-0 items-start gap-[var(--space-panel-gap)] ${canSeeMoney ? 'xl:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]' : 'xl:grid-cols-2'}`}>
           <ProjectAttention items={attention.items} isPending={attention.isPending} error={attention.error} className="min-w-0 xl:col-start-1 xl:row-start-1" />
-          {canSeeMoney && <div className="min-w-0 xl:col-start-2 xl:row-span-2 xl:row-start-1"><MoneyBlock project={project} /></div>}
+          {canSeeMoney && <div className="min-w-0 xl:col-start-2 xl:row-span-2 xl:row-start-1"><ProjectMoneyOverview project={project} /></div>}
           <div className={`min-w-0 ${canSeeMoney ? 'xl:col-start-1 xl:row-start-2' : ''}`}><CostBlock project={project} onOpenBudget={() => onOpen('budget')} /></div>
         </div>
         <DeliveryBlock projectId={project.id}>{curve}</DeliveryBlock>
