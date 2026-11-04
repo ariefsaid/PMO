@@ -36,6 +36,7 @@ export interface BudgetRange {
 
 export interface BudgetRangeAccountIntent extends BudgetAccountIntent {
   toFiscalYear: string;
+  predecessorModified: string | null;
 }
 
 export interface PriorBudgetAccount {
@@ -48,6 +49,8 @@ export interface PriorBudgetAccount {
   pmoWitnessed?: boolean;
   /** Only a submitted ERP Budget is a live predecessor eligible for an in-place revision. */
   docstatus?: number | null;
+  /** Exact latest ERP modified stamp cached with the source mirror. */
+  erpModified?: string | null;
 }
 
 export function resolveV16BudgetAccounts(
@@ -129,7 +132,7 @@ export function planRangeAccountIntents(
     desiredAccounts.add(row.account);
   }
 
-  const livePredecessors = new Map<string, string>();
+  const livePredecessors = new Map<string, { name: string; modified: string | null }>();
   const seenHistory = new Set<string>();
   for (const row of prior) {
     if (row.fiscalYear !== range.fromFiscalYear || row.toFiscalYear !== range.toFiscalYear
@@ -140,13 +143,17 @@ export function planRangeAccountIntents(
     if (seenHistory.has(historyKey)) continue;
     seenHistory.add(historyKey);
     const predecessor = livePredecessors.get(row.erpAccount);
-    if (predecessor !== undefined && predecessor !== row.erpBudgetName) {
+    if (predecessor !== undefined && (predecessor.name !== row.erpBudgetName
+        || (predecessor.modified !== null && row.erpModified != null && predecessor.modified !== row.erpModified))) {
       throw new AdapterError(
         'commit-rejected',
         `budget push: conflicting live predecessor names for account ${row.erpAccount}`,
       );
     }
-    livePredecessors.set(row.erpAccount, row.erpBudgetName);
+    livePredecessors.set(row.erpAccount, {
+      name: row.erpBudgetName,
+      modified: typeof row.erpModified === 'string' && row.erpModified !== '' ? row.erpModified : null,
+    });
   }
 
   const intents: BudgetRangeAccountIntent[] = desired.map((row) => ({
@@ -155,7 +162,8 @@ export function planRangeAccountIntents(
     erpAccount: row.account,
     intent: 'ensure',
     amount: row.budget_amount,
-    predecessor: livePredecessors.get(row.account) ?? null,
+    predecessor: livePredecessors.get(row.account)?.name ?? null,
+    predecessorModified: livePredecessors.get(row.account)?.modified ?? null,
   }));
   for (const [erpAccount, predecessor] of livePredecessors) {
     if (!desiredAccounts.has(erpAccount)) {
@@ -165,7 +173,8 @@ export function planRangeAccountIntents(
         erpAccount,
         intent: 'remove',
         amount: null,
-        predecessor,
+        predecessor: predecessor.name,
+        predecessorModified: predecessor.modified,
       });
     }
   }

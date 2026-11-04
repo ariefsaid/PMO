@@ -1092,7 +1092,9 @@ export type Database = {
           created_at: string
           erp_account: string
           erp_budget_name: string
+          erp_modified: string | null
           fiscal_year: string
+          to_fiscal_year: string | null
           id: string
           last_attempt_at: string | null
           last_error: string | null
@@ -1112,7 +1114,9 @@ export type Database = {
           created_at?: string
           erp_account: string
           erp_budget_name: string
+          erp_modified?: string | null
           fiscal_year: string
+          to_fiscal_year?: string | null
           id?: string
           last_attempt_at?: string | null
           last_error?: string | null
@@ -1132,7 +1136,9 @@ export type Database = {
           created_at?: string
           erp_account?: string
           erp_budget_name?: string
+          erp_modified?: string | null
           fiscal_year?: string
+          to_fiscal_year?: string | null
           id?: string
           last_attempt_at?: string | null
           last_error?: string | null
@@ -1157,6 +1163,7 @@ export type Database = {
           org_id: string
           project_id: string
           requested_by: string
+          queued_by_activation: boolean
         }
         Insert: {
           budget_version_id: string
@@ -1167,6 +1174,7 @@ export type Database = {
           org_id: string
           project_id: string
           requested_by: string
+          queued_by_activation?: boolean
         }
         Update: {
           budget_version_id?: string
@@ -1177,6 +1185,7 @@ export type Database = {
           org_id?: string
           project_id?: string
           requested_by?: string
+          queued_by_activation?: boolean
         }
         Relationships: []
       }
@@ -1192,6 +1201,7 @@ export type Database = {
           erp_docstatus: number | null
           erp_modified: string | null
           fiscal_year: string
+          to_fiscal_year: string | null
           id: string
           last_attempt_at: string | null
           org_id: string
@@ -1213,6 +1223,7 @@ export type Database = {
           erp_docstatus?: number | null
           erp_modified?: string | null
           fiscal_year: string
+          to_fiscal_year?: string | null
           id?: string
           last_attempt_at?: string | null
           org_id?: string
@@ -1234,6 +1245,7 @@ export type Database = {
           erp_docstatus?: number | null
           erp_modified?: string | null
           fiscal_year?: string
+          to_fiscal_year?: string | null
           id?: string
           last_attempt_at?: string | null
           org_id?: string
@@ -3741,6 +3753,7 @@ export type Database = {
           payload_digest: string | null
           pmo_record_id: string
           procurement_input_digest: string | null
+          budget_range_operation: Json | null
           reconcile_after: string | null
           state: string
           updated_at: string
@@ -3764,6 +3777,7 @@ export type Database = {
           payload_digest?: string | null
           pmo_record_id: string
           procurement_input_digest?: string | null
+          budget_range_operation?: Json | null
           reconcile_after?: string | null
           state: string
           updated_at?: string
@@ -3787,6 +3801,7 @@ export type Database = {
           payload_digest?: string | null
           pmo_record_id?: string
           procurement_input_digest?: string | null
+          budget_range_operation?: Json | null
           reconcile_after?: string | null
           state?: string
           updated_at?: string
@@ -11016,6 +11031,7 @@ export type Database = {
           erp_docstatus: number | null
           erp_modified: string | null
           fiscal_year: string | null
+          to_fiscal_year: string | null
           id: string | null
           org_id: string | null
           push_error: string | null
@@ -11424,6 +11440,7 @@ export type Database = {
           amount: number
           as_of: string
           fiscal_year: string
+          to_fiscal_year: string | null
           gl_id: string
           party_type: string
           posting_date: string
@@ -11841,6 +11858,10 @@ export type Database = {
         Args: { p_archive_request_id?: string; p_cancel_erp?: boolean; p_version_id: string }
         Returns: Json
       }
+      queue_budget_archive_cancel: {
+        Args: { p_actor: string; p_request: string; p_version: string }
+        Returns: Json
+      }
       activate_external_binding: {
         Args: {
           p_actor_id: string
@@ -11959,8 +11980,25 @@ export type Database = {
       bfy_migration_0154_rekey: { Args: never; Returns: undefined }
       bfy_migration_0154_revert: { Args: never; Returns: undefined }
       budget_account_identity: {
-        Args: { p_account: string; p_fy: string; p_version: string }
+        Args:
+          | { p_account: string; p_fy: string; p_version: string }
+          | { p_account: string; p_fy: string; p_to_fy: string; p_version: string }
         Returns: string
+      }
+      read_budget_range_outbox_state: {
+        Args: { p_generation: number; p_id: string; p_identity: string; p_payload_digest: string }
+        Returns: Json
+      }
+      advance_budget_range_outbox_stage: {
+        Args: {
+          p_expected_stage: string | null
+          p_generation: number
+          p_id: string
+          p_identity: string
+          p_next: Json
+          p_payload_digest: string
+        }
+        Returns: boolean
       }
       budget_distribution_gaps: { Args: { p_version: string }; Returns: string[] }
       get_budget_archive_targets: {
@@ -11970,6 +12008,7 @@ export type Database = {
           erp_budget_name: string
           erp_docstatus: number | null
           fiscal_year: string
+          to_fiscal_year: string | null
           page_key: string
           push_state: string
           reason: string

@@ -256,6 +256,8 @@ export interface BudgetGateResult {
   sourceLineItems: BudgetLineItem[];
   /** Live-calendar fiscal years overlapping the current project span; v16 removals may only target these. */
   inSpanFiscalYears: string[];
+  /** Full trusted ERP calendar, including dates needed to classify overlapping prior Budget ranges. */
+  fiscalYears: FiscalYearSpan[];
   /** Approved range and resolved rows, present only for whole-project v16 units. */
   range?: BudgetGateRange;
   distributionRows?: BudgetDistributionRow[];
@@ -763,6 +765,7 @@ export async function runBudgetGate(deps: BudgetGateDeps): Promise<BudgetGateRes
     categoryMap: map,
     sourceLineItems: lineItems,
     inSpanFiscalYears: range ? range.fiscalYears.map((year) => year.name) : [...span.inSpanFYNames],
+    fiscalYears: toFiscalYearSpans(fiscalYears),
     projectStartDate: project.start_date,
     projectEndDate: project.end_date,
     ...(range ? { range, distributionRows } : {}),

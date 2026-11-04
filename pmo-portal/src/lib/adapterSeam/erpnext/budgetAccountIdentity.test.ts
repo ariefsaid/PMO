@@ -14,6 +14,7 @@ import {
   isBudgetLegacyArchiveKey,
   parseBudgetIdentity,
 } from './budgetAccountIdentity';
+import { assertBudgetBindingIdentity } from './dispatchBudget';
 
 const VERSION = '3f1b0c9e-1a2b-4c3d-8e4f-5a6b7c8d9e0f';
 
@@ -58,6 +59,16 @@ describe('budgetAccountIdentity', () => {
       kind: 'range',
     });
     expect(parseBudgetIdentity(sameYearRange).kind).toBe('range');
+  });
+
+  it('AC-010 accepts only the exact range identity on an ERPNext 16 whole-project command', () => {
+    const identity = budgetRangeIdentity(VERSION, '2026', '2027', 'COGS');
+    const deps = { command: { domain: 'budget', record: {
+      erp_doc_kind: 'budget', budget_mode: 'whole_project', outbox_identity: identity,
+      fiscal_year: '2026', to_fiscal_year: '2027', erp_account: 'COGS',
+    } } };
+    expect(() => assertBudgetBindingIdentity(deps as never, { version_major: 16 } as never)).not.toThrow();
+    expect(() => assertBudgetBindingIdentity(deps as never, { version_major: 15 } as never)).toThrow();
   });
 
   it('AC-010 range keys round-trip through the shared money-outbox identity and archive-key shapes', () => {

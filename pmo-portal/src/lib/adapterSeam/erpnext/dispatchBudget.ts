@@ -6,9 +6,10 @@
 import { AppError } from '../../appError.ts';
 import { fetchAllRowsByKeyset } from '../../pagedRead.ts';
 import { resolveBudgetAccounts, type BudgetLineItem, type CategoryAccountMapRow } from '../../budget/categoryAccountMap.ts';
+import { yearsInSpan } from '../../budget/budgetDistribution.ts';
 import { parseBudgetIdentity, budgetLegacyIdentity } from './budgetAccountIdentity.ts';
 import { resolveV16BudgetAccounts } from './budgetAccountPlan.ts';
-import { listDocsByFilters, type ErpClientDeps, type ErpFilter } from './client.ts';
+import { listDocsByFilters, listDocsByFiltersPaged, type ErpClientDeps, type ErpFilter } from './client.ts';
 import { findPmoRecordId, type ExternalRefsLookupClient } from '../refs.ts';
 import type { AdapterCommand } from '../contract.ts';
 import type { DispatchServiceClient, ErpDispatchFactoryDeps, ExternalOrgBindingRow } from './dispatchTypes.ts';
@@ -147,14 +148,20 @@ export function assertBudgetBindingIdentity(deps: ErpDispatchFactoryDeps, bindin
     return;
   }
   const account = deps.command.record.erp_account;
-  if ((typeof identity === 'string' && identity.includes(':a:')) !== (major === 16) ||
-      (major === 16 && (typeof identity !== 'string' || typeof account !== 'string'))) {
+  const isWholeProjectRange = deps.command.record.budget_mode === 'whole_project';
+  if ((major === 16 && (typeof identity !== 'string' || typeof account !== 'string')) ||
+      (major === 15 && isWholeProjectRange) ||
+      (major === 16 && typeof identity === 'string' &&
+        ((isWholeProjectRange && !identity.includes(':r:')) || (!isWholeProjectRange && !identity.includes(':a:'))))) {
     throw new AppError('budget account identity does not match the active ERP binding', 'config-rejected');
   }
   if (major === 16) {
     try {
       const parsed = parseBudgetIdentity(identity as string);
-      if (parsed.erpAccount !== account || parsed.fiscalYear !== deps.command.record.fiscal_year) throw new Error();
+      if (parsed.erpAccount !== account || parsed.fiscalYear !== deps.command.record.fiscal_year ||
+          parsed.kind !== (isWholeProjectRange ? 'range' : 'annual') ||
+          (isWholeProjectRange && parsed.toFiscalYear !== deps.command.record.to_fiscal_year) ||
+          (!isWholeProjectRange && parsed.toFiscalYear !== null)) throw new Error();
     } catch {
       throw new AppError('budget account identity does not match the command dimensions', 'config-rejected');
     }
@@ -189,6 +196,94 @@ export async function readBudgetGrain(
 /** How long a recorded replace consent stays usable. The consent also names one ERP document, so it dies with
  *  that document; this bounds the case where nobody retries. */
 export const OCCUPANT_CONSENT_TTL_MS = 24 * 3_600_000;
+
+/** Prove a range account target from its reverse reference and current mirror before allowing either
+ *  a replacement or a removal to reach the adapter. A matching ERP name or a same-grain row by
+ *  itself does not establish PMO ownership. */
+async function verifyRangePredecessor(
+  deps: ErpDispatchFactoryDeps,
+  record: { projectId?: string | null; budget_predecessor?: unknown; budget_predecessor_modified?: unknown },
+  fromYear: string,
+  toYear: string,
+  account: string,
+): Promise<string> {
+  const predecessor = record.budget_predecessor;
+  if (typeof predecessor !== 'string' || predecessor === ''
+      || typeof record.budget_predecessor_modified !== 'string' || record.budget_predecessor_modified === '') {
+    throw new AppError('whole-project budget predecessor witness is incomplete', 'commit-rejected');
+  }
+  const sourceIdentity = await findPmoRecordId(
+    deps.serviceClient as unknown as ExternalRefsLookupClient,
+    deps.orgId,
+    'budget',
+    predecessor,
+  );
+  let parsedSource: ReturnType<typeof parseBudgetIdentity>;
+  try { parsedSource = sourceIdentity ? parseBudgetIdentity(sourceIdentity) : (() => { throw new Error(); })(); }
+  catch { throw new AppError('whole-project predecessor has no exact PMO range identity witness', 'commit-rejected'); }
+  if (parsedSource.kind !== 'range' || parsedSource.fiscalYear !== fromYear
+      || parsedSource.toFiscalYear !== toYear || parsedSource.erpAccount !== account) {
+    throw new AppError('whole-project predecessor identity does not match the complete range and account', 'commit-rejected');
+  }
+  const { data: mirrorData, error: mirrorError } = await deps.serviceClient.from('budget_version_account_erp_mirror')
+    .select('budget_version_id,fiscal_year,to_fiscal_year,erp_account,erp_budget_name,erp_docstatus,erp_cancelled_at,erp_modified,push_state,activated_at_witness,budget_versions!inner(project_id,status,activated_at)')
+    .eq('org_id', deps.orgId).eq('budget_version_id', parsedSource.versionId)
+    .eq('fiscal_year', fromYear).eq('to_fiscal_year', toYear).eq('erp_account', account)
+    .eq('erp_budget_name', predecessor).eq('budget_versions.project_id', String(record.projectId)).maybeSingle();
+  if (mirrorError) throw new AppError('whole-project predecessor mirror witness could not be read', 'external-unreachable');
+  const mirror = mirrorData as Record<string, unknown> | null;
+  const sourceVersion = mirror?.budget_versions as Record<string, unknown> | undefined;
+  if (!mirror || !sourceVersion || mirror.budget_version_id !== parsedSource.versionId
+      || mirror.fiscal_year !== fromYear || mirror.to_fiscal_year !== toYear || mirror.erp_account !== account
+      || mirror.erp_budget_name !== predecessor || !['Active', 'Archived'].includes(String(sourceVersion.status))
+      || sourceVersion.activated_at !== mirror.activated_at_witness
+      || mirror.erp_cancelled_at !== null || mirror.erp_docstatus !== 1 || mirror.push_state !== 'pushed'
+      || mirror.erp_modified !== record.budget_predecessor_modified) {
+    throw new AppError('whole-project predecessor mirror is no longer a reconciled live witness', 'commit-rejected');
+  }
+  return predecessor;
+}
+
+type BudgetRangeRecoveryState = {
+  stage?: unknown;
+  identity?: unknown;
+  payloadDigest?: unknown;
+  mode?: unknown;
+  draftName?: unknown;
+};
+
+/**
+ * The resolver runs before the outbox claim, but it must still distinguish a desk-authored overlap
+ * from the exact draft a prior, fenced range attempt already witnessed. The adapter re-reads this
+ * state after the new claim and verifies owner, modified stamp, and full content before any write;
+ * this preflight only uses the durable name to avoid rejecting that same candidate as a rival.
+ */
+async function readBudgetRangeRecoveryState(
+  deps: ErpDispatchFactoryDeps,
+  identity: string,
+): Promise<BudgetRangeRecoveryState | null> {
+  const idempotencyKey = deps.command.idempotencyKey;
+  if (typeof idempotencyKey !== 'string' || idempotencyKey === '') return null;
+  const { data, error } = await deps.serviceClient.from('external_command_outbox')
+    .select('org_id,domain,pmo_record_id,idempotency_key,payload_digest,budget_range_operation')
+    .eq('org_id', deps.orgId).eq('domain', 'budget').eq('pmo_record_id', identity)
+    .eq('idempotency_key', idempotencyKey).maybeSingle();
+  if (error) throw new AppError('whole-project budget recovery state could not be read', 'external-unreachable');
+  const row = data as Record<string, unknown> | null;
+  if (!row) return null;
+  if (row.org_id !== deps.orgId || row.domain !== 'budget' || row.pmo_record_id !== identity
+      || row.idempotency_key !== idempotencyKey) {
+    throw new AppError('whole-project budget recovery row does not match its exact command identity', 'command-held');
+  }
+  if (row.budget_range_operation == null) return null;
+  const state = row.budget_range_operation as BudgetRangeRecoveryState;
+  if (typeof state !== 'object' || state === null || state.identity !== identity
+      || typeof row.payload_digest !== 'string' || row.payload_digest === ''
+      || state.payloadDigest !== row.payload_digest) {
+    throw new AppError('whole-project budget recovery state does not match its immutable outbox payload', 'command-held');
+  }
+  return state;
+}
 
 /**
  * ECA-6 / PD-ECA-12 — the id of a live, unconsumed consent naming exactly this ERP document for this org, project,
@@ -250,12 +345,16 @@ export async function resolveBudgetRefs(
     id?: unknown;
     projectId?: string | null;
     fiscal_year?: unknown;
+    to_fiscal_year?: unknown;
+    fiscal_years?: unknown;
     line_items?: unknown;
     /** FR-BFY-032: the year-qualified outbox/external_refs identity, derived at the served boundary. */
     outbox_identity?: unknown;
     erp_account?: unknown;
     budget_intent?: unknown;
     budget_predecessor?: unknown;
+    budget_predecessor_modified?: unknown;
+    budget_mode?: unknown;
     budget_archive_cancel_job_id?: unknown;
     budget_archive_source_mirror_id?: unknown;
     activated_at?: unknown;
@@ -349,7 +448,11 @@ export async function resolveBudgetRefs(
     } catch {
       throw new AppError('v16 budget command has an invalid account identity', 'config-rejected');
     }
+    const isWholeProjectRange = record.budget_mode === 'whole_project';
     if (identity.erpAccount !== record.erp_account || identity.fiscalYear !== fiscalYear ||
+        (isWholeProjectRange
+          ? identity.kind !== 'range' || identity.toFiscalYear !== record.to_fiscal_year
+          : identity.kind !== 'annual') ||
         (record.budget_intent !== 'ensure' && record.budget_intent !== 'remove')) {
       throw new AppError('v16 budget command dimensions do not match its identity', 'config-rejected');
     }
@@ -362,10 +465,128 @@ export async function resolveBudgetRefs(
     } else if (typeof record.budget_predecessor !== 'string' || !record.budget_predecessor) {
       throw new AppError(`budget push: removal for account ${selectedAccount} has no witnessed predecessor`, 'commit-rejected');
     }
+    if (record.budget_intent === 'remove' && isWholeProjectRange) {
+      if (typeof fiscalYear !== 'string' || typeof record.to_fiscal_year !== 'string') {
+        throw new AppError('whole-project budget removal has unresolved range dimensions', 'budget-distribution-stale');
+      }
+      refs.self = await verifyRangePredecessor(deps, record, fiscalYear, record.to_fiscal_year, selectedAccount);
+      return { refs };
+    }
     if (record.budget_intent === 'remove') {
-      // A removal names a durable predecessor; current grain occupancy is irrelevant.
-      // The adapter reads that exact document and validates its dimensions and status.
+      // An annual account removal is also an exact source cancellation, never an upsert lookup. Its
+      // durable archive intent was validated by the sweep before the immutable outbox command was made.
       refs.self = record.budget_predecessor as string;
+      return { refs };
+    }
+    if (isWholeProjectRange) {
+      const fromYear = record.fiscal_year;
+      const toYear = record.to_fiscal_year;
+      const years = record.fiscal_years;
+      if (typeof fromYear !== 'string' || typeof toYear !== 'string' || !Array.isArray(years) || years.length === 0) {
+        throw new AppError('whole-project budget range calendar is unresolved', 'budget-distribution-stale');
+      }
+      const calendar = years as Array<{ name?: unknown; start?: unknown; end?: unknown }>;
+      const names = new Set<string>();
+      for (let index = 0; index < calendar.length; index += 1) {
+        const year = calendar[index]!;
+        if (typeof year.name !== 'string' || year.name === '' || names.has(year.name)
+            || typeof year.start !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(year.start)
+            || typeof year.end !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(year.end)
+            || year.start > year.end
+            || (index > 0 && (calendar[index - 1]!.start as string) >= year.start)) {
+          throw new AppError('whole-project budget range calendar is ambiguous', 'budget-distribution-stale');
+        }
+        names.add(year.name);
+      }
+      try {
+        const checked = yearsInSpan(calendar[0]!.start as string, calendar.at(-1)!.end as string,
+          calendar as Array<{ name: string; start: string; end: string }>);
+        if (checked.length !== calendar.length || checked.some((year, index) =>
+          year.name !== calendar[index]?.name || year.start !== calendar[index]?.start || year.end !== calendar[index]?.end)) throw new Error();
+      } catch {
+        throw new AppError('whole-project budget range calendar has a gap, overlap, or invalid date', 'budget-distribution-stale');
+      }
+      const firstIndex = calendar.findIndex((year) => year.name === fromYear);
+      const lastIndex = calendar.findIndex((year) => year.name === toYear);
+      if (firstIndex < 0 || lastIndex < firstIndex) {
+        throw new AppError('whole-project budget range boundaries are not in the trusted calendar', 'budget-distribution-stale');
+      }
+      const desiredStart = calendar[firstIndex]!.start as string;
+      const desiredEnd = calendar[lastIndex]!.end as string;
+      const predecessor = record.budget_predecessor;
+      if (predecessor !== null) {
+        refs.self = await verifyRangePredecessor(deps, record, fromYear, toYear, selectedAccount);
+      }
+
+      const clientDeps: ErpClientDeps = {
+        fetchImpl: deps.fetchImpl, apiKey: deps.apiKey, apiSecret: deps.apiSecret,
+        baseUrl: binding.site_url, rateLimiter: deps.rateLimiter,
+      };
+      const candidates = await listDocsByFiltersPaged(clientDeps, 'Budget', [
+        ['company', '=', company], ['project', '=', project], ['account', '=', selectedAccount!], ['docstatus', '<', 2],
+      ], ['name', 'docstatus', 'company', 'project', 'account', 'from_fiscal_year', 'to_fiscal_year', 'modified'], {
+        pageSize: 100, maxPages: 100,
+      });
+      const overlaps: Array<{ name: string; docstatus: number; from: string; to: string }> = [];
+      for (const candidate of candidates) {
+        if (typeof candidate.name !== 'string' || candidate.name === ''
+            || candidate.company !== company || candidate.project !== project || candidate.account !== selectedAccount) {
+          throw new AppError('whole-project ERP candidate scan returned an ambiguous document', 'external-unreachable');
+        }
+        const status = Number(candidate.docstatus);
+        if (!Number.isInteger(status) || status < 0 || status > 1) {
+          throw new AppError('whole-project ERP candidate status is ambiguous', 'external-unreachable');
+        }
+        const from = candidate.from_fiscal_year;
+        const to = candidate.to_fiscal_year;
+        if (typeof from !== 'string' || typeof to !== 'string') {
+          throw new AppError('whole-project ERP candidate has unresolved fiscal-year bounds', 'budget-range-ambiguous');
+        }
+        const candidateFrom = calendar.findIndex((year) => year.name === from);
+        const candidateTo = calendar.findIndex((year) => year.name === to);
+        if (candidateFrom < 0 || candidateTo < candidateFrom) {
+          throw new AppError('whole-project ERP candidate fiscal-year bounds are outside the trusted calendar', 'budget-range-ambiguous');
+        }
+        const candidateStart = calendar[candidateFrom]!.start as string;
+        const candidateEnd = calendar[candidateTo]!.end as string;
+        if (candidateStart <= desiredEnd && desiredStart <= candidateEnd) {
+          overlaps.push({ name: candidate.name, docstatus: status, from, to });
+        }
+      }
+      const recoveryState = await readBudgetRangeRecoveryState(deps, record.outbox_identity as string);
+      const recoveryStage = recoveryState?.stage;
+      const draftStages = new Set(['draft_witnessed', 'distribution_put_started', 'distribution_saved', 'submit_started', 'submitted']);
+      const witnessedDraft = draftStages.has(String(recoveryStage)) ? recoveryState?.draftName : null;
+      let recoveredOccupancyIsValid = false;
+      if (typeof witnessedDraft === 'string' && witnessedDraft !== '') {
+        const exactDraft = overlaps.length === 1 ? overlaps[0]! : null;
+        const stageStatusValid = recoveryStage === 'submitted'
+          ? exactDraft?.docstatus === 1
+          : recoveryStage === 'submit_started'
+            ? exactDraft?.docstatus === 0 || exactDraft?.docstatus === 1
+            : exactDraft?.docstatus === 0;
+        recoveredOccupancyIsValid = recoveryState?.mode !== 'remove'
+          && exactDraft?.name === witnessedDraft && exactDraft.from === fromYear && exactDraft.to === toYear
+          && stageStatusValid;
+      } else if (recoveryStage === 'post_started') {
+        // An anchorless POST may have landed without a durable name. Nothing on this grain is safe to adopt;
+        // with no visible overlap the adapter will hold the uncertain operation before issuing any write.
+        recoveredOccupancyIsValid = overlaps.length === 0;
+      } else if (recoveryStage === 'cancel_started' && recoveryState?.mode === 'replace') {
+        recoveredOccupancyIsValid = overlaps.length === 0 || (overlaps.length === 1
+          && overlaps[0]!.name === predecessor && overlaps[0]!.docstatus === 1
+          && overlaps[0]!.from === fromYear && overlaps[0]!.to === toYear);
+      } else if (recoveryStage === 'cancelled' && recoveryState?.mode === 'replace') {
+        recoveredOccupancyIsValid = overlaps.length === 0;
+      }
+      const hasRecognizedRecoveryStage = recoveryStage === 'post_started' || recoveryStage === 'cancel_started'
+        || recoveryStage === 'cancelled' || draftStages.has(String(recoveryStage));
+      if (hasRecognizedRecoveryStage ? !recoveredOccupancyIsValid
+        : overlaps.length > 1 || (overlaps.length === 1 && overlaps[0]!.name !== predecessor)
+          || (predecessor !== null && (overlaps.length !== 1 || overlaps[0]!.docstatus !== 1
+            || overlaps[0]!.from !== fromYear || overlaps[0]!.to !== toYear))) {
+        throw new AppError('whole-project budget range overlaps another live or draft ERP Budget; operator review is required', 'budget-range-occupied');
+      }
       return { refs };
     }
   } else {

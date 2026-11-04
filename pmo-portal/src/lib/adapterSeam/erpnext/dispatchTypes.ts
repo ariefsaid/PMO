@@ -21,6 +21,10 @@ export interface DispatchServiceClient {
   from(table: string): {
     select(columns: string): DispatchFilterBuilder;
   };
+  rpc(functionName: string, args?: Record<string, unknown>): Promise<{
+    data: unknown;
+    error: { message: string; code?: string } | null;
+  }>;
 }
 export interface DispatchFilterBuilder extends PromiseLike<{ data: unknown; error: { message: string; code?: string } | null }> {
   eq(column: string, value: string | boolean): DispatchFilterBuilder;

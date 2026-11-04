@@ -47,6 +47,32 @@ export interface BudgetDispatchUnit {
   record: AdapterCommand['record'];
 }
 
+/** Return whether an archive cancellation can still have changed ERP state. A `superseded` intent
+ *  is safe to release only when the service-role lookup proves no cancellation outbox row was ever
+ *  issued for it; a stale/superseded command can still have reached ERPNext. */
+export async function hasUnsettledBudgetArchiveCancellation(
+  serviceClient: SupabaseClient,
+  orgId: string,
+  projectId: string,
+): Promise<boolean> {
+  const intents = await fetchAllRowsByKeyset<{ id: string; state: string }>((afterId, limit) => {
+    let query = serviceClient.from('budget_archive_cancel_intents')
+      .select('id,state').eq('org_id', orgId).eq('project_id', projectId)
+      .neq('state', 'complete').order('id', { ascending: true }).limit(limit);
+    if (afterId !== null) query = query.gt('id', afterId);
+    return query as never;
+  });
+  for (const intent of intents) {
+    if (intent.state !== 'superseded') return true;
+    const { data, error } = await serviceClient.from('external_command_outbox')
+      .select('id').eq('org_id', orgId).eq('domain', 'budget').eq('operation', 'create')
+      .filter('payload->>budget_archive_cancel_job_id', 'eq', intent.id).limit(1);
+    if (error) throw new AppError('budget push: predecessor cancellation state could not be read', 'external-unreachable');
+    if ((data ?? []).length > 0) return true;
+  }
+  return false;
+}
+
 export function isBudgetPushCommand(cmd: { domain: string; record: Record<string, unknown> }): boolean {
   return cmd.domain === ERPNEXT_BUDGET_DOMAIN && cmd.record.erp_doc_kind === 'budget';
 }
@@ -194,7 +220,8 @@ async function recordBudgetGateFailure(serviceClient: SupabaseClient, orgId: str
     if (versionMajor === 16) {
       const { error } = await serviceClient.from('budget_version_account_erp_mirror').upsert({
         ...row, erp_account: '', budget_intent: 'ensure', created_at: new Date().toISOString(),
-      }, { onConflict: 'org_id,budget_version_id,fiscal_year,erp_account' });
+        to_fiscal_year: null,
+      }, { onConflict: 'org_id,budget_version_id,fiscal_year,to_fiscal_year,erp_account' });
       if (error) throw error;
     } else {
       const { error } = await serviceClient.from('budget_version_erp_mirror').upsert(row, {
@@ -281,6 +308,7 @@ export async function buildBudgetDispatchPlan(args: {
         budget_intent: _callerBudgetIntent,
         source_kind: _callerSourceKind,
         budget_predecessor: _callerBudgetPredecessor,
+        budget_predecessor_modified: _callerPredecessorModified,
         budget_archive_cancel_job_id: _callerArchiveJobId,
         budget_archive_source_mirror_id: _callerArchiveMirrorId,
         outbox_identity: _callerOutboxIdentity,
@@ -294,6 +322,7 @@ export async function buildBudgetDispatchPlan(args: {
         budget_intent?: unknown;
         source_kind?: unknown;
         budget_predecessor?: unknown;
+        budget_predecessor_modified?: unknown;
         budget_archive_cancel_job_id?: unknown;
         budget_archive_source_mirror_id?: unknown;
         outbox_identity?: unknown;
@@ -315,9 +344,9 @@ export async function buildBudgetDispatchPlan(args: {
         );
       }
       if (versionMajor === 16) {
-        const history = await fetchAllRowsByKeyset<{ id: string; budget_version_id: string; fiscal_year: string; to_fiscal_year: string | null; erp_account: string; erp_budget_name: string | null; erp_cancelled_at: string | null; erp_docstatus: number | null }>((afterId, limit) => {
+        const history = await fetchAllRowsByKeyset<{ id: string; budget_version_id: string; fiscal_year: string; to_fiscal_year: string | null; erp_account: string; erp_budget_name: string | null; erp_cancelled_at: string | null; erp_docstatus: number | null; erp_modified: string | null }>((afterId, limit) => {
           let query = serviceClient.from('budget_version_account_erp_mirror')
-            .select('id,budget_version_id,fiscal_year,to_fiscal_year,erp_account,erp_budget_name,erp_cancelled_at,erp_docstatus,budget_versions!inner(project_id)')
+            .select('id,budget_version_id,fiscal_year,to_fiscal_year,erp_account,erp_budget_name,erp_cancelled_at,erp_docstatus,erp_modified,budget_versions!inner(project_id)')
             .eq('org_id', orgId)
             .eq('budget_versions.project_id', gate.projectId)
             .order('id', { ascending: true })
@@ -325,7 +354,7 @@ export async function buildBudgetDispatchPlan(args: {
           if (afterId !== null) query = query.gt('id', afterId);
           return query as never;
         });
-        const outOfSpan = history.find((row) => row.erp_account && row.erp_budget_name && !row.erp_cancelled_at && row.erp_docstatus !== 2 && !gate.inSpanFiscalYears.includes(row.fiscal_year));
+        const outOfSpan = isWholeProjectRange ? undefined : history.find((row) => row.erp_account && row.erp_budget_name && !row.erp_cancelled_at && row.erp_docstatus !== 2 && !gate.inSpanFiscalYears.includes(row.fiscal_year));
         if (outOfSpan) {
           throw new BudgetGateError(
             'commit-rejected',
@@ -364,6 +393,7 @@ export async function buildBudgetDispatchPlan(args: {
             cancelledAt: row.erp_cancelled_at,
             pmoWitnessed,
             docstatus: row.erp_docstatus,
+            erpModified: row.erp_modified,
           }];
         });
         if (isWholeProjectRange) {
@@ -406,11 +436,12 @@ export async function buildBudgetDispatchPlan(args: {
                 fiscal_year: intent.fiscalYear,
                 to_fiscal_year: intent.toFiscalYear,
                 line_items: gate.sourceLineItems,
-                fiscal_years: range.fiscalYears,
+                fiscal_years: gate.fiscalYears,
                 ...(intent.intent === 'ensure' ? { year_amounts: accountVectors.get(intent.erpAccount) } : {}),
                 erp_account: intent.erpAccount,
                 budget_intent: intent.intent,
                 budget_predecessor: intent.predecessor,
+                budget_predecessor_modified: intent.predecessorModified,
                 outbox_identity: identity,
                 project_start_date: gate.projectStartDate,
                 project_end_date: gate.projectEndDate,
@@ -486,6 +517,12 @@ export async function buildBudgetDispatchPlan(args: {
         }
       }
       if (versionMajor === 16 && budgetUnits.length > 0) {
+        let cancellationWait: string | null = null;
+        if (isWholeProjectRange) {
+          if (await hasUnsettledBudgetArchiveCancellation(serviceClient, orgId, gate.projectId)) {
+            cancellationWait = 'waiting-for-budget-archive-cancellation';
+          }
+        }
         const slots = budgetUnits.map((unit) => ({
           org_id: orgId,
           budget_version_id: gate.versionId,
@@ -494,12 +531,13 @@ export async function buildBudgetDispatchPlan(args: {
           erp_account: unit.erpAccount,
           budget_intent: (unit.record as Record<string, unknown>).budget_intent,
           push_state: 'pending',
+          push_error: cancellationWait,
           activated_at_witness: gate.activatedAt,
           pushed_project_start_date: gate.projectStartDate,
           pushed_project_end_date: gate.projectEndDate,
         }));
         const { error: slotError } = await serviceClient.from('budget_version_account_erp_mirror').upsert(slots, {
-          onConflict: 'org_id,budget_version_id,fiscal_year,erp_account',
+          onConflict: 'org_id,budget_version_id,fiscal_year,to_fiscal_year,erp_account',
           ignoreDuplicates: true,
         });
         if (slotError) throw new BudgetGateError('commit-rejected', 'budget push: could not persist the account unit queue');
@@ -509,6 +547,25 @@ export async function buildBudgetDispatchPlan(args: {
           .eq('org_id', orgId).eq('budget_version_id', gate.versionId).eq('erp_account', '')
           .in('fiscal_year', [...new Set(budgetUnits.map((unit) => unit.fiscalYear))]);
         if (sentinelError) throw new BudgetGateError('commit-rejected', 'budget push: could not clear the prior gate-failure status');
+        if (isWholeProjectRange) {
+          let waitingRows = serviceClient.from('budget_version_account_erp_mirror')
+            .update({ push_state: 'pending', push_error: cancellationWait })
+            .eq('org_id', orgId).eq('budget_version_id', gate.versionId)
+            .eq('fiscal_year', gate.range!.fromFiscalYear).eq('to_fiscal_year', gate.range!.toFiscalYear)
+            .in('erp_account', [...new Set(budgetUnits.map((unit) => unit.erpAccount).filter((account): account is string => account !== null))])
+            .is('erp_cancelled_at', null);
+          waitingRows = cancellationWait
+            ? waitingRows.in('push_state', ['pending', 'failed']) as typeof waitingRows
+            : waitingRows.eq('push_state', 'pending').eq('push_error', 'waiting-for-budget-archive-cancellation') as typeof waitingRows;
+          const { error: waitingError } = await waitingRows;
+          if (waitingError) throw new BudgetGateError('commit-rejected', 'budget push: predecessor cancellation wait state could not be recorded');
+          if (cancellationWait) {
+            return new Response(JSON.stringify({
+              error: 'budget-cancellation-pending',
+              message: 'An earlier ERPNext Budget cancellation is unresolved; range units are pending and no replacement was created.',
+            }), { status: 202, headers });
+          }
+        }
       }
     } catch (err) {
       const gateErr = err instanceof BudgetGateError ? err : new BudgetGateError('commit-rejected', err instanceof Error ? err.message : 'budget gate failed');
@@ -575,6 +632,7 @@ export async function recordBudgetPushFailure(args: {
         org_id: orgId,
         budget_version_id: versionId,
         fiscal_year: fiscalYear,
+        to_fiscal_year: (command.record as { to_fiscal_year?: unknown }).to_fiscal_year ?? null,
         push_state: outcome.pushState,
         push_error: pushError,
         ...(typeof witnessActivatedAt === 'string' && witnessActivatedAt !== ''
@@ -596,12 +654,12 @@ export async function recordBudgetPushFailure(args: {
           ...failureRow,
           erp_account: accountIdentity.erpAccount,
           budget_intent: accountRecord.budget_intent === 'remove' ? 'remove' : 'ensure',
-        }, { onConflict: 'org_id,budget_version_id,fiscal_year,erp_account' });
+        }, { onConflict: 'org_id,budget_version_id,fiscal_year,to_fiscal_year,erp_account' });
         if (error) throw error;
       } else if (budgetVersionMajor === 16) {
         const { error } = await serviceClient.from('budget_version_account_erp_mirror').upsert({
           ...failureRow, erp_account: '', budget_intent: 'ensure', created_at: new Date().toISOString(),
-        }, { onConflict: 'org_id,budget_version_id,fiscal_year,erp_account' });
+        }, { onConflict: 'org_id,budget_version_id,fiscal_year,to_fiscal_year,erp_account' });
         if (error) throw error;
       } else {
         const { error } = await serviceClient.from('budget_version_erp_mirror').upsert(failureRow, {

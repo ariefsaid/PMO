@@ -121,17 +121,17 @@ describe('planRangeAccountIntents', () => {
       { account: 'COGS', budget_amount: '0.10' },
     ];
     const prior = [
-      { fiscalYear: range.fromFiscalYear, toFiscalYear: range.toFiscalYear, erpAccount: 'Salary', erpBudgetName: 'R-SAL', cancelledAt: null, pmoWitnessed: true, docstatus: 1 },
-      { fiscalYear: range.fromFiscalYear, toFiscalYear: range.toFiscalYear, erpAccount: 'Travel', erpBudgetName: 'R-TRAVEL', cancelledAt: null, pmoWitnessed: true, docstatus: 1 },
+      { fiscalYear: range.fromFiscalYear, toFiscalYear: range.toFiscalYear, erpAccount: 'Salary', erpBudgetName: 'R-SAL', cancelledAt: null, pmoWitnessed: true, docstatus: 1, erpModified: '2026-10-01 00:00:00' },
+      { fiscalYear: range.fromFiscalYear, toFiscalYear: range.toFiscalYear, erpAccount: 'Travel', erpBudgetName: 'R-TRAVEL', cancelledAt: null, pmoWitnessed: true, docstatus: 1, erpModified: '2026-10-02 00:00:00' },
       { fiscalYear: range.fromFiscalYear, toFiscalYear: 'FY-B/2028', erpAccount: 'Old Range', erpBudgetName: 'OLD-RANGE', cancelledAt: null, pmoWitnessed: true, docstatus: 1 },
       { fiscalYear: range.fromFiscalYear, toFiscalYear: range.toFiscalYear, erpAccount: 'Desk', erpBudgetName: 'DESK-DOC', cancelledAt: null, pmoWitnessed: false, docstatus: 1 },
       { fiscalYear: range.fromFiscalYear, toFiscalYear: range.toFiscalYear, erpAccount: 'Cancelled', erpBudgetName: 'CANCELLED', cancelledAt: '2026-10-01T00:00:00Z', pmoWitnessed: true, docstatus: 2 },
     ];
 
     expect(planRangeAccountIntents(range, desired, prior)).toEqual([
-      { fiscalYear: range.fromFiscalYear, toFiscalYear: range.toFiscalYear, erpAccount: 'Salary', intent: 'ensure', amount: '150.00', predecessor: 'R-SAL' },
-      { fiscalYear: range.fromFiscalYear, toFiscalYear: range.toFiscalYear, erpAccount: 'COGS', intent: 'ensure', amount: '0.10', predecessor: null },
-      { fiscalYear: range.fromFiscalYear, toFiscalYear: range.toFiscalYear, erpAccount: 'Travel', intent: 'remove', amount: null, predecessor: 'R-TRAVEL' },
+      { fiscalYear: range.fromFiscalYear, toFiscalYear: range.toFiscalYear, erpAccount: 'Salary', intent: 'ensure', amount: '150.00', predecessor: 'R-SAL', predecessorModified: '2026-10-01 00:00:00' },
+      { fiscalYear: range.fromFiscalYear, toFiscalYear: range.toFiscalYear, erpAccount: 'COGS', intent: 'ensure', amount: '0.10', predecessor: null, predecessorModified: null },
+      { fiscalYear: range.fromFiscalYear, toFiscalYear: range.toFiscalYear, erpAccount: 'Travel', intent: 'remove', amount: null, predecessor: 'R-TRAVEL', predecessorModified: '2026-10-02 00:00:00' },
     ]);
   });
 
