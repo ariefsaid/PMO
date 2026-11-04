@@ -69,6 +69,7 @@ vi.mock('@/src/hooks/useBudget', () => ({
   useBudgetActivationMode: () => activationModeState,
   useBudgetActivationPrecheck: () => activationPrecheckState,
   useBudgetArchiveTargets: () => archiveTargetsState,
+  useBudgetDistribution: () => ({ data: null, isPending: false, isError: false, isSuccess: true, refetch: vi.fn() }),
   useBudgetMutations: () => ({
     createVersion: { mutateAsync: mockCreateVersion, isPending: false },
     cloneVersion: { mutateAsync: mockClone, isPending: false },
@@ -86,7 +87,13 @@ vi.mock('./project-detail/useProjectPosition', () => ({ useBudgetPosition: () =>
 vi.mock('@/src/hooks/useUsers', () => ({ useUsers: () => ({ data: [], isPending: false }) }));
 vi.mock('@/src/hooks/useErpnextBinding', () => ({ useErpnextBinding: () => ({ data: { status: 'active' }, isPending: false }) }));
 vi.mock('@/src/lib/repositories/budgetProjection', () => ({
+  fetchActiveBudgetCategoryPhasing: vi.fn().mockResolvedValue({ years: {}, unphased: {} }),
+  fetchBudgetComparison: vi.fn().mockResolvedValue([]),
+  fetchBudgetProjection: vi.fn().mockResolvedValue([]),
   fetchBudgetPushStatus: () => Promise.resolve(budgetPushState.rows),
+  fetchProjectFiscalCalendar: vi.fn().mockResolvedValue({ status: 'bad-project-dates', project: { start: null, end: null } }),
+  listBudgetFiscalYears: vi.fn().mockResolvedValue([]),
+  upsertBudgetProjectionEtc: vi.fn().mockResolvedValue(undefined),
   retryActiveBudgetPush: vi.fn(),
   releaseActiveBudgetPushHold: vi.fn(),
 }));

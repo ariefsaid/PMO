@@ -101,6 +101,14 @@ export function useBudgetMutations(projectId: string) {
     queryClient.invalidateQueries({ queryKey: budgetVersionsKey(orgId, projectId) });
     queryClient.invalidateQueries({ queryKey: ['budget-activation-precheck'] });
     queryClient.invalidateQueries({ queryKey: ['project-finances', orgId, projectId] });
+    for (const family of [
+      'budget-comparison',
+      'budget-projection',
+      'active-budget-category-phasing',
+      'budget-fiscal-years',
+    ]) {
+      queryClient.invalidateQueries({ queryKey: [family, orgId, projectId] });
+    }
   };
 
   const invalidateMoneyCollections = () => {

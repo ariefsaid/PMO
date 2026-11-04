@@ -42,6 +42,7 @@ import {
   fetchBudgetPushStatus,
   fetchActiveBudgetCategoryPhasing,
   listBudgetFiscalYears,
+  fetchProjectFiscalCalendar,
   retryActiveBudgetPush,
   releaseActiveBudgetPushHold,
   listBudgetPostingAccountCatalogue,
@@ -64,6 +65,70 @@ describe('first spending year summary', () => {
   it('surfaces a failed summary instead of inventing a result', async () => {
     mockRpc.mockResolvedValueOnce({ data: null, error: { message: 'unavailable', code: 'XX000' } });
     await expect(fetchFirstSpendingYear('project', ['FY-B'])).rejects.toBeInstanceOf(AppError);
+  });
+});
+
+describe('current project fiscal calendar read', () => {
+  it('sends only the exact project calendar request and preserves opaque returned dates and names', async () => {
+    mockInvoke.mockResolvedValueOnce({
+      data: {
+        status: 'resolved',
+        project: { start: '2025-06-15', end: '2027-02-15' },
+        years: [
+          { name: 'FY opaque A', start: '2025-04-01', end: '2026-03-31' },
+          { name: 'FY opaque B', start: '2026-04-01', end: '2027-03-31' },
+        ],
+      },
+      error: null,
+    });
+    await expect(fetchProjectFiscalCalendar('project-1')).resolves.toEqual({
+      status: 'resolved',
+      project: { start: '2025-06-15', end: '2027-02-15' },
+      years: [
+        { name: 'FY opaque A', start: '2025-04-01', end: '2026-03-31' },
+        { name: 'FY opaque B', start: '2026-04-01', end: '2027-03-31' },
+      ],
+    });
+    expect(mockInvoke).toHaveBeenCalledWith('external-items', {
+      body: { purpose: 'budget-project-calendar', projectId: 'project-1' },
+    });
+  });
+
+  it('keeps unresolved statuses explicit and rejects malformed DTOs or transport errors', async () => {
+    mockInvoke.mockResolvedValueOnce({
+      data: { status: 'unresolved', project: { start: '2025-06-15', end: '2027-02-15' } },
+      error: null,
+    });
+    await expect(fetchProjectFiscalCalendar('project-1')).resolves.toEqual({
+      status: 'unresolved', project: { start: '2025-06-15', end: '2027-02-15' },
+    });
+
+    mockInvoke.mockResolvedValueOnce({ data: { status: 'resolved', years: [] }, error: null });
+    await expect(fetchProjectFiscalCalendar('project-1')).rejects.toBeInstanceOf(AppError);
+
+    mockInvoke.mockResolvedValueOnce({ data: null, error: { message: 'offline', code: 'FETCH_ERROR' } });
+    await expect(fetchProjectFiscalCalendar('project-1')).rejects.toBeInstanceOf(AppError);
+  });
+
+  it('rejects impossible civil dates and duplicate current fiscal-year names', async () => {
+    mockInvoke.mockResolvedValueOnce({
+      data: {
+        status: 'resolved', project: { start: '2025-02-31', end: '2026-03-31' },
+        years: [{ name: 'FY-one', start: '2025-04-01', end: '2026-03-31' }],
+      }, error: null,
+    });
+    await expect(fetchProjectFiscalCalendar('project-1')).rejects.toBeInstanceOf(AppError);
+
+    mockInvoke.mockResolvedValueOnce({
+      data: {
+        status: 'resolved', project: { start: '2025-04-01', end: '2027-03-31' },
+        years: [
+          { name: 'FY-duplicate', start: '2025-04-01', end: '2026-03-31' },
+          { name: 'FY-duplicate', start: '2026-04-01', end: '2027-03-31' },
+        ],
+      }, error: null,
+    });
+    await expect(fetchProjectFiscalCalendar('project-1')).rejects.toBeInstanceOf(AppError);
   });
 });
 

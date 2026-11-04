@@ -66,6 +66,11 @@ vi.mock('@/src/components/m365/BudgetDocumentLinks', () => ({ BudgetDocumentLink
 vi.mock('@/src/lib/repositories/budgetProjection', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/src/lib/repositories/budgetProjection')>()),
   fetchBudgetPushStatus: vi.fn().mockImplementation(() => Promise.resolve(state.pushRows)),
+  fetchProjectFiscalCalendar: vi.fn().mockResolvedValue({
+    status: 'resolved',
+    project: { start: '2026-01-01', end: '2026-12-31' },
+    years: [{ name: 'FY-2026', start: '2026-01-01', end: '2026-12-31' }],
+  }),
   retryActiveBudgetPush: state.retryPush,
   releaseActiveBudgetPushHold: state.releaseHold,
   fetchBudgetProjection: vi.fn().mockImplementation(() => Promise.resolve(state.projectionRows)),
@@ -94,7 +99,7 @@ vi.mock('@/src/lib/repositories/budgetProjection', async (importOriginal) => ({
 import ProjectBudget from '../ProjectBudget';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 
-const project = { id: 'p-1', currency: 'USD', tax_treatment: 'exclusive', tax_rate: null } as unknown as ProjectWithRefs;
+const project = { id: 'p-1', currency: 'USD', tax_treatment: 'exclusive', tax_rate: null, start_date: '2026-01-01', end_date: '2026-12-31' } as unknown as ProjectWithRefs;
 
 const line = (id: string, versionId: string, category: string, amount: number, fiscal_year: string | null = 'FY-2026') => ({
   id, budget_version_id: versionId, category, description: `${category} work`, budgeted_amount: amount, actual_amount: 0, fiscal_year, org_id: 'org-1',
@@ -153,7 +158,7 @@ describe('the ERP Forecast is offered only where it can mean something (LOW-2, S
     state.versions.data = [version('v-active', 'Active', 1, [line('a-future', 'v-active', 'Materials', 250, 'FY-2028')])];
     renderPage(['/projects/p-1/budget?budgetView=forecast']);
 
-    expect(await screen.findByRole('option', { name: 'FY-2028 · approved budget' })).toBeInTheDocument();
+    expect(await screen.findByRole('option', { name: 'FY-2028 · approved / historical' })).toBeInTheDocument();
   });
 
   it('exports the active budget comparison using its all-years scope and truthful column set', async () => {
@@ -169,6 +174,10 @@ describe('the ERP Forecast is offered only where it can mean something (LOW-2, S
 
       renderPage(['/projects/p-1/budget?budgetView=forecast']);
       await screen.findByTestId('budget-forecast-view');
+      await userEvent.selectOptions(
+        screen.getByRole('combobox', { name: 'Fiscal year' }),
+        screen.getByRole('option', { name: 'All years (project to date)' }),
+      );
       await userEvent.click(await screen.findByRole('button', { name: 'Export' }));
 
       expect(click).toHaveBeenCalledOnce();
@@ -177,7 +186,8 @@ describe('the ERP Forecast is offered only where it can mean something (LOW-2, S
       expect(anchor.href).toBe('blob:budget-comparison');
       expect(createObjectURL).toHaveBeenCalledOnce();
       const csv = await (createObjectURL.mock.calls[0][0] as Blob).text();
-      expect(csv).toContain('"Approved total (USD)","Recorded to date (USD)","Remaining (USD)","% recorded"');
+      expect(csv).toContain('"Scope","Fiscal year","Category","Approved total (USD)","Budget source","Recorded to date (USD)","Recorded source","Recorded as of","Remaining (USD)","% recorded"');
+      expect(csv).toContain('"All years (project to date)","","Labor","100","Active budget version","35","ERP ledger","2026-02-01T00:00:00Z","",""');
       expect(csv).not.toMatch(/Cost to finish|Forecast final|Forecast remaining/);
       expect(revokeObjectURL).toHaveBeenCalledWith('blob:budget-comparison');
     } finally {
@@ -225,6 +235,11 @@ describe('the ERP Forecast is offered only where it can mean something (LOW-2, S
     state.versions.data = [version('v-active', 'Active', 1, [])];
     state.pushRows = [{ ...PUSH, pushState: 'never-pushed', fiscalYear: null, erpBudgetName: null }];
     renderPage(['/projects/p-1/budget?budgetView=forecast']);
+    await screen.findByTestId('budget-forecast-view');
+    await userEvent.selectOptions(
+      screen.getByRole('combobox', { name: 'Fiscal year' }),
+      screen.getByRole('option', { name: 'All years (project to date)' }),
+    );
     expect(await screen.findByText('No approved budget or recorded spending is available yet')).toBeInTheDocument();
     await userEvent.click(screen.getByText('Sources and budget enforcement'));
     expect(await screen.findByTestId('budget-erp-notice')).toHaveTextContent('No ERP budget yet');

@@ -91,6 +91,11 @@ vi.mock('@/src/lib/repositories/budgetProjection', async (importOriginal) => {
     }))),
     fetchActiveBudgetCategoryPhasing: vi.fn().mockImplementation(() => Promise.resolve(state.phasing)),
     listBudgetFiscalYears: vi.fn().mockImplementation(() => Promise.resolve(state.fiscalYears)),
+    fetchProjectFiscalCalendar: vi.fn().mockResolvedValue({
+      status: 'resolved',
+      project: { start: '2026-01-01', end: '2026-12-31' },
+      years: [{ name: 'FY-2026', start: '2026-01-01', end: '2026-12-31' }],
+    }),
     fetchFirstSpendingYear: vi.fn().mockResolvedValue(null),
     upsertBudgetProjectionEtc: state.saveEtc,
   };
@@ -103,7 +108,7 @@ import { buildBudgetSummaryRows, committedTotal } from './project-detail/budget/
 
 const project = {
   id: 'p-1', currency: 'USD', tax_treatment: 'exclusive', tax_rate: null,
-  tax_base_numerator: 1, tax_base_denominator: 1,
+  tax_base_numerator: 1, tax_base_denominator: 1, start_date: '2026-01-01', end_date: '2026-12-31',
 } as unknown as ProjectWithRefs;
 
 const line = (id: string, category: string, description: string, amount: number) => ({

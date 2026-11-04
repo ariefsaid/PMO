@@ -1,20 +1,20 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Link, useSearchParams } from 'react-router';
 import type { Column } from '@/src/components/ui';
 import { Button, DataTable, Drawer, Icon, ListState, NumberField, ProgressBar, StatusPill, Tooltip } from '@/src/components/ui';
 import type { ActiveBudgetCategoryPhasing, BudgetComparisonRow, BudgetProjectionCellRow } from '@/src/lib/repositories/budgetProjection';
-import { fetchActiveBudgetCategoryPhasing, fetchBudgetComparison, fetchBudgetProjection, listBudgetFiscalYears } from '@/src/lib/repositories/budgetProjection';
+import { fetchActiveBudgetCategoryPhasing, fetchBudgetComparison, fetchBudgetProjection, fetchProjectFiscalCalendar, listBudgetFiscalYears } from '@/src/lib/repositories/budgetProjection';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import {
   deriveBudgetComparisonForecast,
+  chooseDefaultBudgetProjectionScope,
   mergeBudgetProjectionYears,
-  resolveBudgetProjectionScope,
   summarizeBudgetComparison,
   type BudgetProjectionScope,
-  type BudgetProjectionScopeSelection,
 } from '@/src/lib/budget/budgetProjection';
+import type { BudgetProjectFiscalCalendar } from '@/src/lib/budget/budgetProjectFiscalCalendar';
 import { formatCurrency, formatInstantDate } from '@/src/lib/format';
 import { useForecastEditor } from './budget-projection/useForecastEditor';
 import { interpretForecast } from './budget-projection/forecastInterpretation';
@@ -28,7 +28,10 @@ type BudgetForecastCellRow = BudgetProjectionCellRow & {
 
 interface BudgetProjectionProps {
   projectId: string;
+  orgId: string | undefined;
   budgetVersionId: string;
+  projectStartDate: string | null;
+  projectEndDate: string | null;
   budgetMode: string;
   approvedBudgetYears: readonly string[];
   currency: string;
@@ -62,52 +65,82 @@ function projectionTone(row: BudgetProjectionCellRow): 'neutral' | 'won' | 'warn
 
 const scopeToken = (scope: BudgetProjectionScope) => JSON.stringify(scope);
 
-export default function BudgetProjection({ projectId, budgetVersionId, budgetMode, approvedBudgetYears, currency, budgetCurrency, canEdit, committedByCategory, canReadCommitments, onAdjustInDraft, onExport }: BudgetProjectionProps) {
+export default function BudgetProjection({ projectId, orgId, budgetVersionId, projectStartDate, projectEndDate, budgetMode, approvedBudgetYears, currency, budgetCurrency, canEdit, committedByCategory, canReadCommitments, onAdjustInDraft, onExport }: BudgetProjectionProps) {
   const { t } = useTranslation('finance');
   const [searchParams, setSearchParams] = useSearchParams();
-  const [selection, setSelection] = useState<BudgetProjectionScopeSelection | null>(null);
+  const [selection, setSelection] = useState<{ identity: string; scope: BudgetProjectionScope } | null>(null);
+  const identity = JSON.stringify([orgId, projectId, budgetVersionId, projectStartDate, projectEndDate]);
+  const mismatchedCalendarRefresh = useRef<string | null>(null);
+  const calendarQuery = useQuery<BudgetProjectFiscalCalendar>({
+    queryKey: ['budget-project-calendar', orgId, projectId, budgetVersionId, projectStartDate, projectEndDate],
+    queryFn: () => fetchProjectFiscalCalendar(projectId),
+    enabled: Boolean(orgId && projectId && budgetVersionId),
+    staleTime: 0,
+    retry: false,
+  });
+  const calendarData = calendarQuery.data;
+  const calendarIsError = calendarQuery.isError;
+  const calendarIsFetching = calendarQuery.isFetching;
+  const calendarIsPending = calendarQuery.isPending;
+  const calendarIsSuccess = calendarQuery.isSuccess;
+  const refetchCalendar = calendarQuery.refetch;
   const yearsQuery = useQuery({
-    queryKey: ['budget-fiscal-years', projectId],
+    queryKey: ['budget-fiscal-years', orgId, projectId, budgetVersionId],
     queryFn: () => listBudgetFiscalYears(projectId),
-    enabled: Boolean(projectId),
+    enabled: Boolean(orgId && projectId && budgetVersionId),
   });
   const wholeProjectMode = budgetMode === 'whole_project';
   const distributionQuery = useBudgetDistribution(projectId, wholeProjectMode ? budgetVersionId : undefined);
   const yearsReady = yearsQuery.isSuccess && (!wholeProjectMode || distributionQuery.isSuccess);
+  const calendarResult = calendarIsError ? null : calendarData;
+  const calendarBasisMatches = calendarResult?.status === 'resolved' &&
+    calendarResult.project.start === projectStartDate && calendarResult.project.end === projectEndDate;
+  const calendarMatches = Boolean(calendarBasisMatches && !calendarIsFetching);
+  useEffect(() => {
+    if (calendarData?.status !== 'resolved' || calendarBasisMatches || calendarIsFetching) {
+      if (calendarIsSuccess && calendarBasisMatches) mismatchedCalendarRefresh.current = null;
+      return;
+    }
+    if (mismatchedCalendarRefresh.current === identity) return;
+    mismatchedCalendarRefresh.current = identity;
+    void refetchCalendar();
+  }, [calendarBasisMatches, calendarData, calendarIsFetching, calendarIsSuccess, identity, refetchCalendar]);
+  const currentCalendarYears = calendarBasisMatches && !calendarIsFetching && calendarResult?.status === 'resolved'
+    ? calendarResult.years.map((year) => year.name)
+    : null;
   const years = useMemo(() => mergeBudgetProjectionYears(
-    wholeProjectMode ? distributionQuery.data?.basis.years.map((year) => year.name) ?? null : null,
+    currentCalendarYears,
     wholeProjectMode ? distributionQuery.data?.rows.map((row) => row.fiscal_year) ?? [] : [],
     yearsQuery.data ?? [],
     approvedBudgetYears,
-  ), [approvedBudgetYears, distributionQuery.data, wholeProjectMode, yearsQuery.data]);
-  const scope = yearsReady
-    ? resolveBudgetProjectionScope(projectId, selection, years, new Set())
-    : null;
-  useEffect(() => {
-    if (!yearsReady) return;
-    setSelection((current) => {
-      const resolved = resolveBudgetProjectionScope(projectId, current, years, new Set());
-      if (current?.projectId === projectId && scopeToken(current.scope) === scopeToken(resolved)) return current;
-      return { projectId, scope: resolved };
-    });
-  }, [projectId, years, yearsReady]);
+  ), [approvedBudgetYears, currentCalendarYears, distributionQuery.data, wholeProjectMode, yearsQuery.data]);
+  const currentYearNames = new Set(currentCalendarYears ?? []);
+  const currentYearOptions = years.filter((year) => currentYearNames.has(year.fiscalYear));
+  const activeSelection = selection?.identity === identity ? selection.scope : null;
+  const scope = activeSelection?.kind === 'all'
+    ? activeSelection
+    : activeSelection?.kind === 'year' && years.some((year) => year.fiscalYear === activeSelection.year)
+      ? activeSelection
+      : calendarMatches && yearsReady
+        ? chooseDefaultBudgetProjectionScope(currentYearOptions, new Set())
+        : null;
   const allYears = scope?.kind === 'all';
   const fiscalYear = scope?.kind === 'year' ? scope.year : null;
   const scopeKey = scope ? scopeToken(scope) : 'unresolved';
   const comparisonQuery = useQuery({
-    queryKey: ['budget-comparison', projectId, scopeKey],
+    queryKey: ['budget-comparison', orgId, projectId, budgetVersionId, scopeKey],
     queryFn: () => fetchBudgetComparison(projectId, fiscalYear),
-    enabled: Boolean(projectId && yearsReady),
+    enabled: Boolean(orgId && projectId && budgetVersionId && scope),
   });
   const projectionQuery = useQuery({
-    queryKey: ['budget-projection', projectId, fiscalYear],
+    queryKey: ['budget-projection', orgId, projectId, budgetVersionId, fiscalYear],
     queryFn: () => fetchBudgetProjection(projectId, fiscalYear!),
-    enabled: Boolean(projectId && yearsReady && fiscalYear),
+    enabled: Boolean(orgId && projectId && budgetVersionId && fiscalYear),
   });
   const phasingQuery = useQuery({
-    queryKey: ['active-budget-category-phasing', projectId],
+    queryKey: ['active-budget-category-phasing', orgId, projectId, budgetVersionId],
     queryFn: () => fetchActiveBudgetCategoryPhasing(projectId),
-    enabled: Boolean(projectId && yearsReady && fiscalYear && budgetMode === 'per_year'),
+    enabled: Boolean(orgId && projectId && budgetVersionId && fiscalYear && budgetMode === 'per_year'),
   });
   const distributionPhasing = useMemo<ActiveBudgetCategoryPhasing | undefined>(() => {
     if (!wholeProjectMode || !distributionQuery.data) return undefined;
@@ -121,10 +154,10 @@ export default function BudgetProjection({ projectId, budgetVersionId, budgetMod
   }, [distributionQuery.data, wholeProjectMode]);
   const phasing = wholeProjectMode ? distributionPhasing : phasingQuery.data;
   const compatibleBasis = budgetCurrency === currency;
-  const comparisonRows = useMemo(() => comparisonQuery.data ?? [], [comparisonQuery.data]);
+  const comparisonRows = useMemo(() => comparisonQuery.isError ? [] : comparisonQuery.data ?? [], [comparisonQuery.data, comparisonQuery.isError]);
   const rows = useMemo<BudgetForecastCellRow[]>(() => {
     if (!fiscalYear) return [];
-    const projectionByCategory = new Map((projectionQuery.data ?? []).map((row) => [row.category, row]));
+    const projectionByCategory = new Map((projectionQuery.isError ? [] : projectionQuery.data ?? []).map((row) => [row.category, row]));
     const categoryOrder = [...new Set([...comparisonRows.map((row) => row.category), ...projectionByCategory.keys()])];
     const forecastRows = categoryOrder.map((category) => {
       const comparison = comparisonRows.find((row) => row.category === category);
@@ -153,12 +186,13 @@ export default function BudgetProjection({ projectId, budgetVersionId, budgetMod
     return forecastRows.map((row, index) => budgetFacts[index].budgetStatus === 'known-absent' && row.projectedFinalCost !== null
       ? { ...row, projectedVariance: compatibleBasis ? -row.projectedFinalCost : null }
       : row);
-  }, [canReadCommitments, committedByCategory, comparisonRows, compatibleBasis, fiscalYear, phasing, projectionQuery.data]);
+  }, [canReadCommitments, committedByCategory, comparisonRows, compatibleBasis, fiscalYear, phasing, projectionQuery.data, projectionQuery.isError]);
   const allYearSummary = useMemo(() => summarizeBudgetComparison(comparisonRows), [comparisonRows]);
   const hasForecastRows = Boolean(fiscalYear && !comparisonQuery.isPending && !comparisonQuery.isError && !projectionQuery.isPending && !projectionQuery.isError && rows.length > 0);
+  const hasAllYearRows = Boolean(scope?.kind === 'all' && !comparisonQuery.isPending && !comparisonQuery.isError && comparisonRows.length > 0);
   const selectedYearScope = scope?.kind === 'year' ? scope : null;
-  const selectedYearRow = selectedYearScope ? rows.find((row) => row.category === searchParams.get('open')) ?? null : null;
-  const selectedComparisonRow = scope?.kind === 'all' ? comparisonRows.find((row) => row.category === searchParams.get('open')) ?? null : null;
+  const selectedYearRow = selectedYearScope && hasForecastRows ? rows.find((row) => row.category === searchParams.get('open')) ?? null : null;
+  const selectedComparisonRow = hasAllYearRows ? comparisonRows.find((row) => row.category === searchParams.get('open')) ?? null : null;
   const selected = selectedYearRow ?? selectedComparisonRow;
   const interpretation = fiscalYear ? interpretForecast(rows, fiscalYear, phasing, committedByCategory, canReadCommitments) : null;
   const incompleteRows = interpretation?.rows.filter((item) => item.incomplete) ?? [];
@@ -184,7 +218,7 @@ export default function BudgetProjection({ projectId, budgetVersionId, budgetMod
     next.delete('open');
     setSearchParams(next, { replace: true });
   };
-  const { editing, draft: etcDraft, errors: etcErrors, sectionRef, triggerRef, beginEdit, cancelEdit, changeDraft, saveEdits, save: saveEtc } = useForecastEditor(projectId, fiscalYear ?? '', rows);
+  const { editing, draft: etcDraft, errors: etcErrors, sectionRef, triggerRef, beginEdit, cancelEdit, changeDraft, saveEdits, save: saveEtc } = useForecastEditor(projectId, fiscalYear ?? '', rows, orgId, budgetVersionId);
 
   const columns: Column<BudgetForecastCellRow>[] = useMemo(() => [
     {
@@ -319,28 +353,54 @@ export default function BudgetProjection({ projectId, budgetVersionId, budgetMod
       remaining: moneyText(totalForecastRemaining, currency),
     },
   }] : [];
-  const hasAllYearRows = allYears && !comparisonQuery.isPending && !comparisonQuery.isError && comparisonRows.length > 0;
-  const viewLoading = !yearsReady || comparisonQuery.isPending || (!allYears && projectionQuery.isPending);
-  const viewError = comparisonQuery.isError || (!allYears && projectionQuery.isError);
-  const viewRetry = () => void (comparisonQuery.isError ? comparisonQuery.refetch() : projectionQuery.refetch());
+  const viewLoading = !scope || comparisonQuery.isPending || (scope.kind === 'year' && (!yearsReady || projectionQuery.isPending));
+  const viewError = Boolean(scope && (comparisonQuery.isError || (scope.kind === 'year' && projectionQuery.isError)));
+  const viewRetry = () => {
+    if (calendarQuery.isError) void calendarQuery.refetch();
+    else if (yearsQuery.isError) void yearsQuery.refetch();
+    else if (wholeProjectMode && distributionQuery.isError) void distributionQuery.refetch();
+    else if (comparisonQuery.isError) void comparisonQuery.refetch();
+    else if (projectionQuery.isError) void projectionQuery.refetch();
+    else void calendarQuery.refetch();
+  };
   const allYearsScope = { kind: 'all' as const };
   const setScopeFromToken = (value: string) => {
     const next = value === scopeToken(allYearsScope)
       ? allYearsScope
       : years.map(({ fiscalYear }) => ({ kind: 'year' as const, year: fiscalYear })).find((option) => scopeToken(option) === value);
-    if (next) setSelection({ projectId, scope: next });
+    if (next) setSelection({ identity, scope: next });
   };
-
-  if (yearsQuery.isError || (wholeProjectMode && distributionQuery.isError)) {
-    return <ListState
-      variant="error"
-      title={t('projectDetail.budget.fiscalYearsError', 'Fiscal years could not be loaded')}
-      onRetry={() => void (yearsQuery.isError ? yearsQuery.refetch() : distributionQuery.refetch())}
-    />;
-  }
+  const calendarMessage = calendarIsPending || calendarIsFetching
+    ? t('projectDetail.budget.currentCalendarLoading', 'Loading the current project fiscal calendar…')
+    : calendarQuery.isError || calendarResult?.status === 'unavailable'
+      ? t('projectDetail.budget.currentCalendarUnavailable', 'The current project fiscal calendar is unavailable.')
+      : !calendarResult || (calendarResult.status === 'resolved' && !calendarMatches) || calendarResult.status === 'unresolved'
+        ? t('projectDetail.budget.currentCalendarUnresolved', 'Current fiscal calendar could not be resolved.')
+        : calendarResult.status === 'bad-project-dates'
+          ? t('projectDetail.budget.currentCalendarBadDates', 'Project dates are missing or invalid, so the current fiscal years cannot be determined.')
+          : calendarResult.status === 'binding-unavailable'
+            ? t('projectDetail.budget.currentCalendarBindingUnavailable', 'The connected ERP company fiscal calendar is unavailable.')
+            : null;
+  const fiscalYearLabel = (year: (typeof years)[number]) => {
+    const source = currentYearNames.has(year.fiscalYear)
+      ? year.hasActiveBudget ? 'currentApprovedYear' : 'currentYear'
+      : year.hasActiveBudget ? 'approvedHistoricalYear' : 'observedHistoricalYear';
+    const fallback = source === 'currentApprovedYear' ? 'current · approved budget'
+      : source === 'currentYear' ? 'current'
+        : source === 'approvedHistoricalYear' ? 'approved / historical' : 'observed / historical';
+    return `${year.fiscalYear} · ${t(`projectDetail.budget.${source}`, fallback)}`;
+  };
 
   return (
     <section ref={sectionRef} className="min-w-0 space-y-3" aria-label={t('projectDetail.budget.forecast', 'Forecast')} data-testid="budget-forecast-view">
+      {calendarMessage && <p role="status" className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+        <span>{calendarMessage}</span>
+        <Button variant="ghost" size="sm" onClick={() => void calendarQuery.refetch()}>{t('common.retry', 'Retry')}</Button>
+      </p>}
+      {(yearsQuery.isError || (wholeProjectMode && distributionQuery.isError)) && <p role="status" className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+        <span>{t('projectDetail.budget.fiscalYearsError', 'Saved fiscal-year choices could not be loaded')}</span>
+        <Button variant="ghost" size="sm" onClick={() => void (yearsQuery.isError ? yearsQuery.refetch() : distributionQuery.refetch())}>{t('common.retry', 'Retry')}</Button>
+      </p>}
       {!compatibleBasis && <p role="status" className="text-sm text-muted-foreground">{t('projectDetail.budget.currencyBasisNotice', 'Budget: {{budgetCurrency}}. Spending and commitments: {{projectCurrency}}. Comparisons are unavailable across currencies.', { budgetCurrency, projectCurrency: currency })}</p>}
       {hasAllYearRows && <>
         <dl className="grid grid-cols-2 gap-x-3 gap-y-3 border-y border-border/70 py-3 text-sm sm:grid-cols-4 sm:max-w-4xl sm:gap-x-6">
@@ -363,16 +423,16 @@ export default function BudgetProjection({ projectId, budgetVersionId, budgetMod
       <div className="flex min-w-0 flex-wrap items-end justify-between gap-3">
         <label className="flex min-w-44 flex-col gap-1 text-xs font-medium text-muted-foreground">
           {t('projectDetail.budget.fiscalYear', 'Fiscal year')}
-          <select aria-label={t('projectDetail.budget.fiscalYear', 'Fiscal year')} value={scopeKey} disabled={editing || saveEtc.isPending || !yearsReady} onChange={(event) => setScopeFromToken(event.target.value)} className="h-9 rounded-md border border-input bg-background px-2 text-sm text-foreground">
-            {!scope && <option value="unresolved" disabled>{t('projectDetail.budget.scopeLoading', 'Loading fiscal years')}</option>}
+          <select aria-label={t('projectDetail.budget.fiscalYear', 'Fiscal year')} value={scopeKey} disabled={editing || saveEtc.isPending} onChange={(event) => setScopeFromToken(event.target.value)} className="h-9 rounded-md border border-input bg-background px-2 text-sm text-foreground">
+            {!scope && <option value="unresolved" disabled>{calendarIsPending || calendarIsFetching || yearsQuery.isPending ? t('projectDetail.budget.scopeLoading', 'Loading fiscal years') : t('projectDetail.budget.scopeUnresolved', 'Current fiscal years unavailable')}</option>}
             <option value={scopeToken(allYearsScope)}>{t('projectDetail.budget.allYearsProjectToDate', 'All years (project to date)')}</option>
-            {years.map((year) => <option key={year.fiscalYear} value={scopeToken({ kind: 'year', year: year.fiscalYear })}>{year.fiscalYear}{year.hasActiveBudget ? ` · ${t('projectDetail.budget.approvedBudgetOnRecord', 'approved budget')}` : ''}</option>)}
+            {years.map((year) => <option key={year.fiscalYear} value={scopeToken({ kind: 'year', year: year.fiscalYear })}>{fiscalYearLabel(year)}</option>)}
           </select>
         </label>
         <div className="flex flex-wrap items-center gap-2">
-          {allYears && comparisonRows.length > 0 && <Button variant="outline" size="sm" onClick={() => onExport({ scope: allYearsScope, rows: comparisonRows })}>{t('projectDetail.budget.export', 'Export')}</Button>}
+          {hasAllYearRows && <Button variant="outline" size="sm" onClick={() => onExport({ scope: allYearsScope, rows: comparisonRows })}>{t('projectDetail.budget.export', 'Export')}</Button>}
           {selectedYearScope && hasForecastRows && <Button variant="outline" size="sm" onClick={() => onExport({ scope: selectedYearScope, rows })}>{t('projectDetail.budget.export', 'Export')}</Button>}
-          {!allYears && canEdit && rows.length > 0 && (editing ? <>
+          {selectedYearScope && hasForecastRows && canEdit && rows.length > 0 && (editing ? <>
             <Button variant="primary" size="sm" loading={saveEtc.isPending} onClick={saveEdits}>{saveEtc.data?.failed.length ? t('projectDetail.budget.retryFailedEtc', 'Retry failed edits') : t('common.save', 'Save')}</Button>
             <Button variant="outline" size="sm" onClick={cancelEdit}>{t('common.cancel', 'Cancel')}</Button>
           </> : <Button ref={triggerRef} variant="outline" size="sm" onClick={beginEdit}>{t('projectDetail.budget.editCostToFinish', 'Edit cost to finish')}</Button>)}

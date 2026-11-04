@@ -593,7 +593,6 @@
   "rpcs": [
     {"class":"inert","expect_denial":[],"name":"budget_distribution_gaps","shape":"empty-array","source":["supabase/migrations/0577_budget_distribution_rpc.sql:6"]},
     {"class":"inert","expect_denial":[],"name":"get_budget_comparison","shape":"empty-array","source":["supabase/migrations/0580_budget_comparison.sql:42"]},
-    {"class":"read","expect_denial":[],"name":"get_budget_distribution_snapshot","shape":"null","source":["supabase/migrations/0582_budget_distribution_snapshot.sql:5"]},
     {"class":"inert","expect_denial":[],"name":"get_projects_money_collection","shape":"empty-array","source":["supabase/migrations/0299_projects_money_collection.sql:12"]},
     {"class":"inert","expect_denial":[],"name":"imprest_float_choices","shape":"empty-array","source":["supabase/migrations/0424_imprest_position.sql:142","supabase/migrations/0424_imprest_position.sql:152"]},
     {"class":"inert","expect_denial":[],"name":"operator_list_orgs","shape":"empty-array","source":["supabase/migrations/0069_usage_summary_rpcs.sql:67"]},
@@ -604,6 +603,7 @@
     {"class":"inert","expect_denial":[{"http":403,"sqlstate":"42501"}],"name":"operator_agent_run_stats","source":["supabase/migrations/0217_operator_readers_raise.sql:58"]},
     {"class":"inert","expect_denial":[{"http":403,"sqlstate":"42501"}],"name":"operator_usage_summary","source":["supabase/migrations/0217_operator_readers_raise.sql:26"]},
     {"class":"inert","expect_denial":[{"http":403,"sqlstate":"42501"}],"name":"org_credit_balance","source":["supabase/migrations/0067_org_credit_balance.sql:24"]},
+    {"class":"read","expect_denial":[],"name":"get_budget_distribution_snapshot","shape":"null","source":["supabase/migrations/0582_budget_distribution_snapshot.sql:5"]},
     {"class":"read","expect_denial":[],"name":"org_reads_erp_ledger","shape":"boolean","source":["supabase/migrations/0307_erp_ledger_basis.sql:2"]},
     {"class":"read","expect_denial":[{"http":403,"sqlstate":"42501"}],"name":"get_financial_statement","shape":"must-deny","source":["supabase/migrations/0318_financial_statement_reads.sql:212","supabase/migrations/0318_financial_statement_reads.sql:252"]},
     {"class":"read","expect_denial":[{"http":403,"sqlstate":"42501"}],"name":"get_financial_statement_catalogue","shape":"must-deny","source":["supabase/migrations/0318_financial_statement_reads.sql:51","supabase/migrations/0318_financial_statement_reads.sql:67"]},

@@ -1,7 +1,7 @@
 import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
 
 const budget = vi.hoisted(() => ({
   deriveProjectBudget: vi.fn().mockResolvedValue(123),
@@ -10,6 +10,7 @@ const budget = vi.hoisted(() => ({
   listVersions: vi.fn().mockResolvedValue([]),
   listArchiveLiveTargets: vi.fn().mockResolvedValue([]),
   createVersion: vi.fn().mockResolvedValue({ id: 'new' }),
+  activateVersion: vi.fn().mockResolvedValue({}),
   getDistribution: vi.fn().mockResolvedValue(null),
 }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { budget } }));
@@ -28,6 +29,57 @@ describe('budget repository boundary', () => {
     await waitFor(() => expect(result.current.versions.data).toEqual([]));
     await act(async () => { await result.current.mutations.createVersion.mutateAsync({ projectId: 'p', name: 'Draft' }); });
     expect(budget.createVersion).toHaveBeenCalledWith('p', 'Draft');
+  });
+
+  it('invalidates comparison, yearly projection, phasing and fiscal-year reads only for the owning organization after activation', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const wrapper = ({ children }: { children: React.ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+    const forecastKeys = [
+      ['budget-comparison', 'org', 'p', 'active-version', '{"kind":"all"}'],
+      ['budget-projection', 'org', 'p', 'active-version', 'FY-2026'],
+      ['active-budget-category-phasing', 'org', 'p', 'active-version'],
+      ['budget-fiscal-years', 'org', 'p', 'active-version'],
+    ];
+    const otherOrganizationKeys = [
+      ['budget-comparison', 'org-two', 'p', 'active-version', '{"kind":"all"}'],
+      ['budget-projection', 'org-two', 'p', 'active-version', 'FY-2026'],
+      ['active-budget-category-phasing', 'org-two', 'p', 'active-version'],
+      ['budget-fiscal-years', 'org-two', 'p', 'active-version'],
+    ];
+    forecastKeys.forEach((key) => client.setQueryData(key, []));
+    otherOrganizationKeys.forEach((key) => client.setQueryData(key, []));
+    const { result } = renderHook(() => useBudgetMutations('p'), { wrapper });
+
+    await act(async () => { await result.current.activate.mutateAsync('successor'); });
+
+    for (const key of forecastKeys) {
+      expect(client.getQueryCache().find({ queryKey: key, exact: true })?.state.isInvalidated).toBe(true);
+    }
+    for (const key of otherOrganizationKeys) {
+      expect(client.getQueryCache().find({ queryKey: key, exact: true })?.state.isInvalidated).toBe(false);
+    }
+  });
+
+  it('returns the successor budget through an active comparison read within 30 seconds after activation', async () => {
+    let successorIsActive = false;
+    budget.activateVersion.mockImplementation(async () => {
+      successorIsActive = true;
+      return {};
+    });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const wrapper = ({ children }: { children: React.ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+    const readActiveBudget = vi.fn(async () => successorIsActive ? 'successor' : 'predecessor');
+    const queryKey = ['budget-comparison', 'org', 'p', 'active-version', '{"kind":"all"}'];
+    const { result: comparison } = renderHook(() => useQuery({ queryKey, queryFn: readActiveBudget }), { wrapper });
+    const { result: mutations } = renderHook(() => useBudgetMutations('p'), { wrapper });
+    await waitFor(() => expect(comparison.current.data).toBe('predecessor'));
+
+    const activatedAt = Date.now();
+    await act(async () => { await mutations.current.activate.mutateAsync('successor'); });
+    await waitFor(() => expect(comparison.current.data).toBe('successor'));
+
+    expect(Date.now() - activatedAt).toBeLessThan(30_000);
+    expect(readActiveBudget).toHaveBeenCalledTimes(2);
   });
 });
 
