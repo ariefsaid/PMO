@@ -109,12 +109,38 @@ export interface ErpBudgetDoc extends ErpBudgetSummary {
   action_if_annual_budget_exceeded_on_po: string;
   action_if_accumulated_monthly_budget_exceeded: string;
   accounts: Array<{ account: string; budget_amount: number }>;
+  account?: string;
+  budget_amount?: number | string;
+  from_fiscal_year?: string;
+  to_fiscal_year?: string;
+  distribution_frequency?: string;
+  budget_distribution?: Array<{ start_date: string; end_date: string; amount: number | string; percent: number | string }>;
 }
 
 /** The per-document read — the ONLY way to see a Budget's `accounts` child rows (the list endpoint
  *  silently drops child tables; budget-write spike §10(b)). */
 export async function readErpBudget(name: string): Promise<ErpBudgetDoc> {
   return (await benchGet(`/api/resource/Budget/${encodeURIComponent(name)}`)) as ErpBudgetDoc;
+}
+
+/** A range-safe inventory read: v16 Budget rows do not rely on the v15 `fiscal_year` field. */
+export async function listProjectErpBudgetNames(erpProject: string): Promise<Array<{ name: string; docstatus: number }>> {
+  const filters = encodeURIComponent(JSON.stringify([['project', '=', erpProject]]));
+  const fields = encodeURIComponent(JSON.stringify(['name', 'docstatus', 'budget_against', 'project']));
+  return (await benchGet(`/api/resource/Budget?limit_page_length=0&filters=${filters}&fields=${fields}`)) as Array<{ name: string; docstatus: number }>;
+}
+
+/** Cancel only submitted Budget documents attached to this run's unique ERP Project. */
+export async function cancelOwnedErpBudgets(erpProject: string): Promise<string[]> {
+  const owned = await listProjectErpBudgetNames(erpProject);
+  for (const doc of owned) {
+    if (doc.docstatus === 1) await benchCancel('Budget', doc.name);
+  }
+  const remaining = (await listProjectErpBudgetNames(erpProject)).filter((doc) => doc.docstatus !== 2);
+  if (remaining.length > 0) {
+    throw new Error(`owned ERP Budget cleanup left non-cancelled documents: ${remaining.map((doc) => doc.name).join(', ')}`);
+  }
+  return owned.map((doc) => doc.name);
 }
 
 /** The budgeted amount ERP is enforcing for one account on one Budget. */
@@ -207,7 +233,7 @@ export async function benchSubmit(doctype: string, name: string): Promise<void> 
 export async function seedBud(
   admin: SupabaseClient,
   suffix: string,
-  opts: { projectStart: string; projectEnd: string },
+  opts: { projectStart: string; projectEnd: string; versionMajor?: 15 | 16 },
 ): Promise<BudSeed> {
   const projectId = crypto.randomUUID();
   const erpProject = ((await benchPost('Project', { project_name: `PMO-E2E-BUD-${suffix}`, company: ERP_COMPANY })) as { name: string }).name;
@@ -238,7 +264,7 @@ export async function seedBud(
       site_url: ERPNEXT_SITE_URL,
       secret_ref: 'local-bench',
       webhook_secret_ref: 'DEMO_ERP_WEBHOOK_SECRET',
-      version_major: 15,
+      version_major: opts.versionMajor ?? 15,
       // ⚑ `budget_overspend_action` is DELIBERATELY unset: FR-BUD-131 says the default must be 'Warn',
       // never 'Stop' (which would start BLOCKING the client's purchase orders org-wide as a side effect
       // of an integration). The spec asserts the default that results.
@@ -375,7 +401,14 @@ export async function readBudgetRefs(
 }
 
 export async function cleanupBud(admin: SupabaseClient, seed: BudSeed): Promise<void> {
-  for (const versionId of seed.versionIds) {
+  const { data: projectVersions, error: projectVersionsErr } = await admin
+    .from('budget_versions').select('id').eq('project_id', seed.projectId);
+  if (projectVersionsErr) throw new Error(`read run-owned budget versions for cleanup failed: ${projectVersionsErr.message}`);
+  const versionIds = [...new Set([
+    ...seed.versionIds,
+    ...((projectVersions ?? []) as Array<{ id: string }>).map((version) => version.id),
+  ])];
+  for (const versionId of versionIds) {
     // ⚑ BFY: `pmo_record_id` is now `<versionId>:<encoded_fy>` — one row PER YEAR. An `.eq(versionId)`
     // delete (what this used to do) matches NOTHING from this release on, silently leaking a mapping
     // and an outbox row per run; the next run's create-guard then resolves a stale pointer. `like`
@@ -383,13 +416,16 @@ export async function cleanupBud(admin: SupabaseClient, seed: BudSeed): Promise<
     await admin.from('external_command_outbox').delete().eq('org_id', ORG_ID).eq('domain', 'budget').like('pmo_record_id', `${versionId}%`);
     await admin.from('external_refs').delete().eq('org_id', ORG_ID).eq('domain', 'budget').like('pmo_record_id', `${versionId}%`);
     await admin.from('external_ref_lineage').delete().eq('org_id', ORG_ID).eq('domain', 'budget').like('pmo_record_id', `${versionId}%`);
+    await admin.from('budget_version_account_erp_mirror').delete().eq('budget_version_id', versionId);
     await admin.from('budget_version_erp_mirror').delete().eq('budget_version_id', versionId);
     await admin.from('budget_line_items').delete().eq('budget_version_id', versionId);
+    for (const actionRequired of ['budget-push-failed', 'budget-enforcement-absent', 'budget-archive-live-erp']) {
+      await admin.from('notifications').delete().eq('org_id', ORG_ID).contains('metadata', { action_required: actionRequired, versionId });
+    }
     await admin.from('budget_versions').delete().eq('id', versionId);
   }
   // Any version the UI created (a clone) that the run did not register explicitly.
   await admin.from('budget_versions').delete().eq('project_id', seed.projectId);
-  await admin.from('notifications').delete().eq('org_id', ORG_ID).contains('metadata', { action_required: 'budget-push-failed' });
   await admin.from('projects').delete().eq('id', seed.projectId);
 
   // ── ⚑ MEDIUM-2: ORG-GLOBAL STATE IS RESTORED, NEVER DELETED ─────────────────────────────────────
