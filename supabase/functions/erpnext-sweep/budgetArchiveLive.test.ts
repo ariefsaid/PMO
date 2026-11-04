@@ -1,5 +1,6 @@
 import '../_shared/testing/publicErpDns.ts';
 import { budgetAccountIdentity, budgetLegacyArchiveKey, budgetLegacyIdentity, budgetRangeIdentity } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/budgetAccountIdentity.ts';
+import { hasUnsettledBudgetArchiveCancellation } from '../adapter-dispatch/budgetDispatch.ts';
 
 type ShippedHandler = (request: Request) => Response | Promise<Response>;
 let shippedHandler: ShippedHandler | undefined;
@@ -174,6 +175,31 @@ function parseBody(text: string): unknown {
   } catch {
     return text;
   }
+}
+
+function archiveFenceClient(intents: Row[]) {
+  return {
+    from(table: string) {
+      const filters: Array<[string, 'eq' | 'neq', unknown]> = [];
+      const query = {
+        select() { return query; },
+        eq(column: string, value: unknown) { filters.push([column, 'eq', value]); return query; },
+        neq(column: string, value: unknown) { filters.push([column, 'neq', value]); return query; },
+        order() { return query; },
+        limit() { return query; },
+        gt() { return query; },
+        then(resolve: (result: { data: Row[]; error: null }) => unknown,
+          reject?: (reason: unknown) => unknown) {
+          const rows = table === 'budget_archive_cancel_intents' ? intents : [];
+          const data = rows.filter((row) => filters.every(([column, op, value]) =>
+            op === 'eq' ? row[column] === value : row[column] !== value
+          ));
+          return Promise.resolve({ data, error: null }).then(resolve, reject);
+        },
+      };
+      return query;
+    },
+  } as never;
 }
 
 function makeFixture(args: {
@@ -677,6 +703,11 @@ Deno.test('AC-BUD-122 the shipped sweep cancels an archived pending range source
   assert(sourceMirror.erp_cancelled_at, 'the exact cancelled range source receives its durable tombstone');
   assertEquals((fixture.tables.budget_archive_cancel_intents as Row[])[0]!.state, 'complete',
     'the settled archive intent releases successor processing on the following sweep pass');
+  assertEquals(await hasUnsettledBudgetArchiveCancellation(
+    archiveFenceClient(fixture.tables.budget_archive_cancel_intents as Row[]),
+    ORG,
+    PROJECT,
+  ), false, 'the completed intent produced by the shipped sweep releases the real successor fence');
   const outbox = (fixture.tables.external_command_outbox as Row[])[0]!;
   assertEquals(outbox.state, 'confirmed', 'the range cancellation outbox finalizes only after its readback');
   assertEquals((outbox.budget_range_operation as Row).stage, 'cancelled',
