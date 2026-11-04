@@ -1,5 +1,8 @@
 -- #1422 / FR-BUD-122: archiving and queuing ERPNext cancellation is atomic,
 -- idempotent, actor-attributed, and preserves the existing four-role gate.
+-- dblink must outlive the test transaction: the post-rollback cleanup below deletes rows the second
+-- session committed. Remember whether this run created it, so only run-created extension state is
+-- removed (a pre-existing extension is never dropped) and the shared catalog returns to baseline.
 create temp table _budget_archive_dblink_extension_state as
 select exists (select 1 from pg_extension where extname = 'dblink') as existed_before_test;
 create extension if not exists dblink;

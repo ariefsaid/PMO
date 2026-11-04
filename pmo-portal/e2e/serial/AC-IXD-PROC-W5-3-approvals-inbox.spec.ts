@@ -60,11 +60,12 @@ test(
     await expect(preview).toBeVisible({ timeout: 15_000 });
 
     const procurementRows = queue.locator('button[aria-pressed]');
-    await expect(procurementRows.first()).toBeVisible({ timeout: 15_000 });
-    const initialCount = await procurementRows.count();
+    const approvedName = 'Safety Equipment & PPE';
+    const approvedRow = procurementRows.filter({ hasText: approvedName });
+    await expect(approvedRow).toHaveCount(1, { timeout: 15_000 });
 
-    // When: select a procurement queue row. The right pane should preview that request.
-    await procurementRows.first().click();
+    // When: select the named PROC-2026-002 request, not whichever shared row sorts first.
+    await approvedRow.click();
 
     // Goal oracle 1: NO navigation — still inside /approvals, never on a detail route.
     await expect(page).toHaveURL(/\/approvals(?:\?|$)/, { timeout: 5_000 });
@@ -85,7 +86,7 @@ test(
     await expect(page).toHaveURL(/\/approvals(?:\?|$)/, { timeout: 5_000 });
     const approvalToast = visibleToast(page, 'Procurement approved');
     await expect(approvalToast.getByText('Procurement approved', { exact: true })).toBeVisible({ timeout: 15_000 });
-    await expect(queue.getByRole('button')).toHaveCount(initialCount - 1, { timeout: 15_000 });
+    await expect(queue.getByRole('button', { name: new RegExp(approvedName, 'i') })).toHaveCount(0, { timeout: 15_000 });
   },
 );
 

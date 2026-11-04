@@ -117,7 +117,40 @@ function redactExceptionProperties(
       else if (Array.isArray(v)) properties[key] = v.map((x) => (typeof x === 'string' ? redactExceptionText(x) : x));
     }
   }
+  sanitizeNestedEventValue(properties);
   return captureResult;
+}
+
+function sanitizeNestedEventValue(value: unknown): unknown {
+  if (typeof value === 'string') {
+    try {
+      const parsed = new URL(value);
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return value;
+      const queryStart = value.indexOf('?');
+      const hashStart = value.indexOf('#');
+      const suffixStart = [queryStart, hashStart].filter((index) => index >= 0).sort((a, b) => a - b)[0];
+      return suffixStart === undefined ? value : value.slice(0, suffixStart);
+    } catch {
+      return value;
+    }
+  }
+  if (Array.isArray(value)) {
+    for (let index = 0; index < value.length; index += 1) {
+      value[index] = sanitizeNestedEventValue(value[index]);
+    }
+    return value;
+  }
+  if (value && typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    for (const key of Object.keys(record)) {
+      if (POSTHOG_PROPERTY_DENYLIST.includes(key) || key === 'navigationURL') {
+        delete record[key];
+      } else {
+        record[key] = sanitizeNestedEventValue(record[key]);
+      }
+    }
+  }
+  return value;
 }
 
 export interface CaptureExceptionInput {
