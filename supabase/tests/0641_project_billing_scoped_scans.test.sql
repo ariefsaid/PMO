@@ -9,7 +9,7 @@
 
 begin;
 create extension if not exists pgtap;
-select plan(25);
+select plan(35);
 
 -- ── 1. Privileges & Definition ───────────────────────────────────────────────
 select has_function('public', 'get_project_billing', ARRAY['uuid'], 'get_project_billing(uuid) exists');
@@ -112,6 +112,36 @@ insert into work_order_acceptance_lines (acceptance_id, boq_item_id, quantity) v
   ('64100000-0000-0000-0000-000000000055', '64100000-0000-0000-0000-000000000043', 300),
   ('64100000-0000-0000-0000-000000000056', '64100000-0000-0000-0000-000000000044', 250);
 
+-- Project for equal-confirmed_at tie break testing
+insert into projects (id, org_id, name, status, contract_value, tax_treatment, tax_amount, currency) values
+  ('64100000-0000-0000-0000-000000000024', '64100000-0000-0000-0000-000000000001', 'Tie-Break Project', 'Ongoing Project', 100000, 'exclusive', 0, 'USD');
+
+insert into boq_items (id, org_id, project_id, item_code, description, unit, quantity, rate, earning_basis, line_no) values
+  ('64100000-0000-0000-0000-000000000045', '64100000-0000-0000-0000-000000000001', '64100000-0000-0000-0000-000000000024', 'BOQ-TIE', 'Tie Item', 'm', 100, 250, 'unit_rate', 1);
+
+insert into work_orders (id, org_id, project_id, title, status, order_value, tax_treatment, tax_amount) values
+  ('64100000-0000-0000-0000-000000000036', '64100000-0000-0000-0000-000000000001', '64100000-0000-0000-0000-000000000024', 'WO Tie-Break', 'Issued', 25000, 'exclusive', 0);
+
+insert into work_order_lines (org_id, work_order_id, boq_item_id, quantity) values
+  ('64100000-0000-0000-0000-000000000001', '64100000-0000-0000-0000-000000000036', '64100000-0000-0000-0000-000000000045', 60);
+
+-- Two acceptances on WO Tie-Break with identical confirmed_at timestamp:
+-- Lower ID (...57): stage acceptance (is_final = false), quantity 15
+-- Higher ID (...58): final acceptance (is_final = true), quantity 40
+insert into work_order_acceptances (id, org_id, project_id, work_order_id, acceptance_date, is_final, status, prepared_by, confirmed_by, confirmed_at, confirm_basis) values
+  ('64100000-0000-0000-0000-000000000057', '64100000-0000-0000-0000-000000000001', '64100000-0000-0000-0000-000000000024', '64100000-0000-0000-0000-000000000036', current_date, false, 'Confirmed', '64100000-0000-0000-0000-000000000011', '64100000-0000-0000-0000-000000000012', timestamp '2026-11-03 14:00:00', 'standard'),
+  ('64100000-0000-0000-0000-000000000058', '64100000-0000-0000-0000-000000000001', '64100000-0000-0000-0000-000000000024', '64100000-0000-0000-0000-000000000036', current_date, true, 'Confirmed', '64100000-0000-0000-0000-000000000011', '64100000-0000-0000-0000-000000000012', timestamp '2026-11-03 14:00:00', 'standard');
+
+insert into work_order_acceptance_lines (acceptance_id, boq_item_id, quantity) values
+  ('64100000-0000-0000-0000-000000000057', '64100000-0000-0000-0000-000000000045', 15),
+  ('64100000-0000-0000-0000-000000000058', '64100000-0000-0000-0000-000000000045', 40);
+
+-- Close WO Tie-Break with closing acceptance ...58
+set pmo.confirming_work_order_acceptance = 'on';
+update work_orders set status = 'Closed', closing_acceptance_id = '64100000-0000-0000-0000-000000000058', closing_value = 10000
+where id = '64100000-0000-0000-0000-000000000036';
+reset pmo.confirming_work_order_acceptance;
+
 -- Set authenticated session for Org A user
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"64100000-0000-0000-0000-000000000011","role":"authenticated"}';
@@ -161,6 +191,14 @@ select is((pg_temp.get_line(current_setting('test.billing')::jsonb, '64100000-00
   'BOQ-2 contract_balance = 200 - 70 = 130');
 select is(jsonb_array_length(pg_temp.get_line(current_setting('test.billing')::jsonb, '64100000-0000-0000-0000-000000000042')->'allocations'), 2,
   'BOQ-2 allocations array has 2 work orders');
+select is((pg_temp.get_line(current_setting('test.billing')::jsonb, '64100000-0000-0000-0000-000000000041')->>'earned_quantity')::numeric, 10::numeric,
+  'BOQ-1 earned_quantity = closed_final = 10');
+select is(pg_temp.get_line(current_setting('test.billing')::jsonb, '64100000-0000-0000-0000-000000000042')->'allocations'->1->>'accepted_quantity', null::text,
+  'BOQ-2 allocation 2 (WO2) accepted_quantity is JSON null (unaccepted allocation)');
+select is((pg_temp.get_line(current_setting('test.billing')::jsonb, '64100000-0000-0000-0000-000000000042')->>'earned_quantity')::numeric, 0::numeric,
+  'BOQ-2 earned_quantity = 0');
+select is((current_setting('test.billing')::jsonb->>'earned_value')::numeric, 5000::numeric,
+  'target project earned_value = 5000 (BOQ-1 earned 10 * 500)');
 
 -- ── 4. Cross-Project Isolation (Same Org) ────────────────────────────────────
 -- Sibling project in Org A had 500 ordered and 300 accepted.
@@ -210,6 +248,48 @@ select is(
   public.get_project_billing('64100000-0000-0000-0000-000000000021'),
   null::jsonb,
   'Org B user cannot read Org A project (returns NULL)'
+);
+
+-- ── 6. Equal confirmed_at Acceptance Tie-Break (DESC id) ──────────────────
+-- Switch back to Org A user
+set local request.jwt.claims = '{"sub":"64100000-0000-0000-0000-000000000011","role":"authenticated"}';
+
+-- Evaluates Tie-Break Project where WO 36 has two confirmed acceptances with identical confirmed_at.
+-- Acceptance ...58 (higher ID, final, qty 40) must supersede Acceptance ...57 (lower ID, stage, qty 15).
+do $$
+begin
+  perform set_config('test.billing_tie', public.get_project_billing('64100000-0000-0000-0000-000000000024')::text, true);
+end $$;
+
+select is(
+  ((pg_temp.get_line(current_setting('test.billing_tie')::jsonb, '64100000-0000-0000-0000-000000000045')->'allocations'->0)->>'accepted_quantity')::numeric,
+  40::numeric,
+  'Tie-break selects higher ID acceptance allocation accepted_quantity (40 not 15)'
+);
+select is(
+  ((pg_temp.get_line(current_setting('test.billing_tie')::jsonb, '64100000-0000-0000-0000-000000000045')->'allocations'->0)->>'final')::boolean,
+  true,
+  'Tie-break selects higher ID acceptance allocation final flag (true)'
+);
+select is(
+  (pg_temp.get_line(current_setting('test.billing_tie')::jsonb, '64100000-0000-0000-0000-000000000045')->>'accepted_quantity')::numeric,
+  40::numeric,
+  'Tie-break selects higher ID acceptance BOQ accepted_quantity total (40 not 15)'
+);
+select is(
+  (pg_temp.get_line(current_setting('test.billing_tie')::jsonb, '64100000-0000-0000-0000-000000000045')->>'closed_final')::numeric,
+  40::numeric,
+  'Tie-break selects higher ID acceptance BOQ closed_final total (40 not 0)'
+);
+select is(
+  (pg_temp.get_line(current_setting('test.billing_tie')::jsonb, '64100000-0000-0000-0000-000000000045')->>'earned_quantity')::numeric,
+  40::numeric,
+  'Tie-break selects higher ID acceptance BOQ earned_quantity (40 not 0)'
+);
+select is(
+  (current_setting('test.billing_tie')::jsonb->>'earned_value')::numeric,
+  10000::numeric,
+  'Tie-break selects higher ID acceptance project earned_value (40 * 250 = 10000, not 0)'
 );
 
 select * from finish();
