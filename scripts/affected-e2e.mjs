@@ -14,7 +14,7 @@ function source(file) {
 }
 function walk(node, visit) { visit(node); ts.forEachChild(node, child => walk(child, visit)); }
 function resolveImport(from, spec) {
-  let base = spec.startsWith('@/') ? path.join(app, spec.slice(2)) : path.resolve(path.dirname(from), spec);
+  const base = spec.startsWith('@/') ? path.join(app, spec.slice(2)) : path.resolve(path.dirname(from), spec);
   if (!spec.startsWith('.') && !spec.startsWith('@/')) return null;
   for (const candidate of [base, ...['.tsx', '.ts', '.jsx', '.js', '/index.tsx', '/index.ts'].map(ext => base + ext)]) {
     if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) return candidate;
@@ -62,15 +62,7 @@ function closure(start) {
 function routeMatches(pattern, value) {
   const p = pattern.split('/').filter(Boolean), v = value.split('/').filter(Boolean);
   const common = Math.min(p.length, v.length);
-  return p.slice(0, common).every((part, i) => part.startsWith(':') || part === '*' || v[i].startsWith(':') || part === v[i]);
-}
-function routeForLink(label, routes) {
-  const normalized = label.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-  if (!normalized) return [];
-  return routes.filter(({ path: route }) => {
-    const segments = route.split('/').filter(s => s && !s.startsWith(':'));
-    return segments.some(segment => normalized.includes(segment.toLowerCase())) || normalized === route.split('/').filter(Boolean).at(-1)?.toLowerCase();
-  }).map(r => r.path);
+  return common > 0 && p.slice(0, common).every((part, i) => part.startsWith(':') || part === '*' || v[i].startsWith(':') || part === v[i]);
 }
 function specs() {
   return fs.readdirSync(path.join(app, 'e2e'), { recursive: true })
@@ -109,22 +101,38 @@ function specRoutes(file, routes) {
         const method = n.expression.name.text;
         if (method === 'goto' && n.arguments[0]) {
           const raw = literalText(n.arguments[0], constants);
-          try { if (raw) visited.push(new URL(raw.replace(/\$\{[^}]*\}/g, 'fixture'), 'http://local').pathname); } catch {}
-        }
-        if (method === 'getByRole' && n.arguments.length > 1 && ts.isObjectLiteralExpression(n.arguments[1])) {
-          const name = n.arguments[1].properties.find(p => ts.isPropertyAssignment(p) && p.name.getText(ast) === 'name');
-          const role = literalText(n.arguments[0], constants);
-          if (name && ts.isPropertyAssignment(name) && ['link', 'button'].includes(role)) visited.push(...routeForLink(literalText(name.initializer, constants) || name.initializer.getText(ast).replace(/^\/(.*)\/[a-z]*$/i, '$1').replaceAll('\\s+', ' '), routes));
+          try { if (raw) visited.push(new URL(raw.replace(/\$\{[^}]*\}/g, 'fixture'), 'http://local').pathname); } catch { /* Ignore malformed navigation values. */ }
         }
       }
-      if (ts.isPropertyAssignment(n) && n.name.getText(ast) === 'path') {
-        const raw = literalText(n.initializer, constants);
-        if (raw.startsWith('/')) visited.push(raw);
+      // Layout route entries are meaningful only at the registration site; arbitrary `path`
+      // properties in a spec (API fixtures, data, etc.) are not browser navigation.
+      if (ts.isCallExpression(n) && ts.isIdentifier(n.expression) && n.expression.text === 'registerLayoutSweep' && n.arguments[0] && ts.isObjectLiteralExpression(n.arguments[0])) {
+        const route = n.arguments[0].properties.find(p => ts.isPropertyAssignment(p) && p.name.getText(ast) === 'path');
+        if (route && ts.isPropertyAssignment(route)) {
+          const raw = literalText(route.initializer, constants);
+          if (raw.startsWith('/')) visited.push(raw);
+        }
       }
-      // Conservatively recognize route constants and helper navigation literals anywhere in the imported helper graph.
-      if (ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n)) {
-        const raw = n.text;
-        if (raw.startsWith('/')) { try { visited.push(new URL(raw, 'http://local').pathname); } catch {} }
+    });
+    // A click only establishes navigation when its test also asserts the resulting URL.
+    // Merely querying a rail link (which is rendered on most pages) has no routing weight.
+    walk(ast, n => {
+      if (!ts.isCallExpression(n) || !ts.isIdentifier(n.expression) || !['test', 'it'].includes(n.expression.text)) return;
+      const callback = n.arguments.find(arg => ts.isArrowFunction(arg) || ts.isFunctionExpression(arg));
+      if (!callback || !callback.body.getText(ast).includes('.click(')) return;
+      const calls = [];
+      walk(callback.body, child => {
+        if (ts.isCallExpression(child) && ts.isPropertyAccessExpression(child.expression) && child.expression.name.text === 'toHaveURL' && child.arguments[0]) calls.push(child.arguments[0]);
+      });
+      for (const assertion of calls) {
+        let urlPattern = '';
+        if (ts.isRegularExpressionLiteral(assertion)) urlPattern = assertion.text.slice(1, assertion.text.lastIndexOf('/'));
+        else urlPattern = literalText(assertion, constants);
+        if (!urlPattern) continue;
+        for (const route of routes) {
+          const segments = route.path.split('/').filter(Boolean).filter(segment => !segment.startsWith(':'));
+          if (segments.length && segments.every(segment => urlPattern.includes(segment))) visited.push(route.path);
+        }
       }
     });
   }
@@ -155,21 +163,27 @@ function selfTest() {
     'e2e/serial/AC-CODE-002-project-number-proposal.spec.ts',
   ];
   if (expected.some(file => !companies.includes(file))) throw new Error(`affected-e2e Companies recall self-test failed: missing ${expected.filter(file => !companies.includes(file)).join(', ')}`);
+  if (companies.length > 15) throw new Error(`affected-e2e Companies precision self-test failed: selected ${companies.length} specs (maximum 15)`);
+
+  const shell = select(['pmo-portal/src/components/shell/index.ts'], routeData, allSpecs);
+  if (shell.length <= 100) throw new Error(`affected-e2e shared-shell self-test failed: selected ${shell.length} specs (expected more than 100)`);
 
   // This fixture's route is reachable only through an imported helper function.
   const fixtureDir = path.join(app, 'e2e', `affected-e2e-fixture-${process.pid}`);
   const helper = path.join(fixtureDir, 'navigation.ts'), fixture = path.join(fixtureDir, 'helper-only.spec.ts'), page = path.join(fixtureDir, 'Projects.tsx');
+  let helperSelection;
   try {
     fs.mkdirSync(fixtureDir, { recursive: true });
     fs.writeFileSync(helper, "export async function openProjects(page) { await page.goto('/projects'); }\n");
     fs.writeFileSync(fixture, "import { openProjects } from './navigation';\nvoid openProjects;\n");
     fs.writeFileSync(page, 'export default function Projects() { return null; }\n');
-    const helperSelection = select([path.relative(root, page)], { routes: [{ path: '/projects', roots: [page] }], shared: [] }, [fixture]).map(f => path.relative(app, f));
+    helperSelection = select([path.relative(root, page)], { routes: [{ path: '/projects', roots: [page] }], shared: [] }, [fixture]).map(f => path.relative(app, f));
     if (helperSelection.length !== 1 || helperSelection[0] !== 'e2e/affected-e2e-fixture-' + process.pid + '/helper-only.spec.ts') throw new Error('affected-e2e helper-route self-test failed');
   } finally { fs.rmSync(fixtureDir, { recursive: true, force: true }); }
   console.log(`Fixture 1 (Companies diff): selected ${companies.length} of ${allSpecs.length} specs`);
   console.log(`Required selections: ${expected.join(', ')}`);
-  console.log(`Fixture 2 (helper-only navigation): selected ${path.relative(app, fixture)}`);
+  console.log(`Fixture 2 (helper-only navigation): selected ${helperSelection.length} of 1 fixture spec (${path.relative(app, fixture)})`);
+  console.log(`Fixture 3 (shared shell diff): selected ${shell.length} of ${allSpecs.length} specs`);
   console.log('affected-e2e self-test passed');
 }
 function gitChanged(base) {
