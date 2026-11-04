@@ -31,6 +31,7 @@ pay for and what fits how they work, without a release.
 | D14 | Switches live in our database, not PostHog (they decide entitlement and must be server-enforced). The org's plan is sent to PostHog as a group property so analytics can split by plan. |
 | D15 | When the assistant cannot answer for lack of a tool, it emits one PostHog event (no message text), so missing tools show on a chart. |
 | D16 | *(owner, 2026-11-04)* Gross margin is on every plan, company and project, from PMO's own contract, billing, procurement and budget actuals. The P&L presents gross margin first; overheads and net profit below it show only where `financial_statements` is on (Pro, ERP-fed). Management pack and receivables are PMO-fed and sit at Growth. |
+| D17 | *(owner, 2026-11-04, #1720)* Basic procurement = request → approve → quote → order → received → vendor invoiced → paid at whole-purchase level, every plan. Full (Growth) adds line-level goods receipts, the order/receipt/invoice match and vendor withholding. Basic sales invoices = raise, approve, track; payments and ageing are `revenue`. ERP push of purchases belongs to `erp_sync` (Pro), not `procurement_full`. |
 
 ## Switch catalogue (recommended placement — owner signs off per row)
 
@@ -42,9 +43,10 @@ pay for and what fits how they work, without a release.
 | `crm` *(exists)* | Companies and contacts | ✓ | ✓ | ✓ | ✓ |
 | `sales_pipeline` | Sales pipeline and opportunities (split out of `crm`) | – | ✓ | ✓ | ✓ |
 | `procurement` *(exists)* | Procurement cases, basic flow | ✓ | ✓ | ✓ | ✓ |
-| `procurement_full` | Procurement full flow (definition: owner ticket) | – | ✓ | ✓ | ✓ |
-| `sales_invoices` | Raise and track sales invoices, basic | ✓ | ✓ | ✓ | ✓ |
+| `procurement_full` | Procurement full flow: line-level goods receipts, order/receipt/invoice match, vendor withholding (D17) | – | ✓ | ✓ | ✓ |
+| `sales_invoices` | Raise, approve and track sales invoices, basic (D17) | ✓ | ✓ | ✓ | ✓ |
 | `revenue` *(exists)* | Incoming payments, receivables ageing, reports | – | ✓ | ✓ | ✓ |
+| `payables` | PMO-fed payables: unpaid vendor invoices with ageing, company and project (D17) | – | ✓ | ✓ | ✓ |
 | `budget_projection` | Budget projection / forecasting | – | ✓ | ✓ | ✓ |
 | `imprest` | Imprest / petty-cash floats | – | ✓ | ✓ | ✓ |
 | `user_views` *(exists)* | Custom fields and saved views/reports | – | ✓ | ✓ | ✓ |
