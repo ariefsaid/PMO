@@ -2576,8 +2576,7 @@
         "decision": "Keputusan",
         "owner": "Pemilik",
         "value": "Nilai",
-        "weighted": "Tertimbang",
-        "winProbability": "Peluang menang"
+        "weighted": "Tertimbang"
       },
       "terminalNotice": "Proyek ini sudah mencapai tahap akhir. Tidak ada tindakan pipeline lagi.",
       "toast": {
@@ -3149,7 +3148,6 @@
       "stage": "Tahap",
       "value": "Nilai",
       "weighted": "Tertimbang",
-      "winPct": "% menang",
       "endCustomer": "Pelanggan akhir"
     },
     "empty": {
@@ -3215,7 +3213,6 @@
     },
     "viewToggleLabel": "Tampilan pipeline",
     "weightedForecast": "Proyeksi pipeline tertimbang",
-    "winProbability": "Peluang menang",
     "board": {
       "ariaLabel": "Papan pipeline penjualan"
     },

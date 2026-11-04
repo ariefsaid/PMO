@@ -4,7 +4,7 @@
 
 begin;
 create extension if not exists pgtap;
-select plan(10);
+select plan(11);
 
 -- Every priced seed row except the named self-witness fixture must have a witness.  The
 -- string_agg is intentional: a future missing witness reports the project(s), not only a count.
@@ -46,15 +46,20 @@ set local request.jwt.claims = '{"sub":"00000000-0000-0000-0000-0000000000a2","r
 select lives_ok(
   $$ select transition_project(
        (select id from public.projects where code = 'SP-2408'),
-       'PQ Submitted'::project_status) $$,
-  'AC-0179-004 the seeded PM can walk the deliberate self-witness deal from Leads to PQ Submitted'
+       'Quotation Submitted'::project_status) $$,
+  'AC-0179-004 the seeded PM can walk the deliberate self-witness deal from Leads to Quotation Submitted'
 );
 select lives_ok(
   $$ select transition_project(
        (select id from public.projects where code = 'SP-2408'),
-       'Quotation Submitted'::project_status) $$,
-  'AC-0179-005 the seeded PM can walk the deliberate self-witness deal from PQ Submitted to Quotation Submitted'
+       'PQ Submitted'::project_status) $$,
+  'AC-0179-005 the seeded PM can walk the deliberate self-witness deal from Quotation Submitted to PQ Submitted'
 );
+select lives_ok(
+  $$ select transition_project(
+       (select id from public.projects where code = 'SP-2408'),
+       'Tender Submitted'::project_status) $$,
+  'AC-0179-005 the self-witness deal reaches the legal win stage');
 select throws_ok(
   $$ select transition_project(
        (select id from public.projects where code = 'SP-2408'),
@@ -66,7 +71,7 @@ select throws_ok(
 reset role;
 select is(
   (select status::text from public.projects where code = 'SP-2408'),
-  'Quotation Submitted',
+  'Tender Submitted',
   'AC-0179-007 the deliberately self-witnessed SP-2408 deal does not move after the refused win'
 );
 

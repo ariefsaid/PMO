@@ -126,7 +126,14 @@ const DealCard: React.FC<{
                   ambiguity must not sit where it could be read as qualifying another number. */}
               <TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate} taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator} showDetails={false} />
             </div>
-            <Badge className="shrink-0 px-1.5">{formatPercent(project.win_probability)}</Badge>
+            <div className="flex shrink-0 flex-wrap gap-1">
+              <Badge aria-label={`${t('sales:goProbability', '% Go')} ${formatPercent(project.go_probability ?? project.win_probability)}`} className="px-1.5">
+                {t('sales:goShort', 'Go')} {formatPercent(project.go_probability ?? project.win_probability)}
+              </Badge>
+              <Badge aria-label={`${t('sales:getProbability', '% Get')} ${formatPercent(project.get_probability ?? 1)}`} className="px-1.5">
+                {t('sales:getShort', 'Get')} {formatPercent(project.get_probability ?? 1)}
+              </Badge>
+            </div>
           </div>
           {isStaleBid(project) && (
             <Badge role="status" data-testid={`stale-bid-${project.id}`} className="px-1.5">
@@ -185,7 +192,14 @@ const CompactDealCard: React.FC<{
                 showDetails={false}
               />
             </div>
-            <Badge className="shrink-0 px-1.5">{formatPercent(project.win_probability)}</Badge>
+            <div className="flex shrink-0 flex-wrap gap-1">
+              <Badge aria-label={`${t('sales:goProbability', '% Go')} ${formatPercent(project.go_probability ?? project.win_probability)}`} className="px-1.5">
+                {t('sales:goShort', 'Go')} {formatPercent(project.go_probability ?? project.win_probability)}
+              </Badge>
+              <Badge aria-label={`${t('sales:getProbability', '% Get')} ${formatPercent(project.get_probability ?? 1)}`} className="px-1.5">
+                {t('sales:getShort', 'Get')} {formatPercent(project.get_probability ?? 1)}
+              </Badge>
+            </div>
           </div>
           {isStaleBid(project) && (
             <Badge role="status" data-testid={`stale-bid-${project.id}`} className="px-1.5">
@@ -332,6 +346,7 @@ const SalesKanbanBoardView: React.FC<SalesKanbanBoardProps> = ({
               totals={col.terminal ? lostCountsLine : undefined}
               emptyMessage={t('projects.kanban.empty', { defaultValue: 'No projects in {{stage}}', stage: colTitle })}
               selected={colIdx === selectedStageIndex}
+              presentation="flat"
               dropState={dropState}
             >
               {colProjects.map((p) => {

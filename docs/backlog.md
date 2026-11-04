@@ -10,6 +10,8 @@
 
 ### ⚑⚑⚑ CURRENT STATE (2026-10-19) — v0.22.0 is LIVE; run the four commands below before quoting any number
 
+**2026-11-05 — #1506 C9 evidence (branch only):** `invoice.push`, `receipt.read`, `invoice.pair-existing` and `cutover.activation` are declared supported at the versions exercised by their shared adapter suites. Revenue cutover remains pending #1602 because its shared suite is not available. C7 tax-document work remains on owner hold; `tax-document.read` stays pending on #1506 and no tax-document availability is claimed. The live Odoo bed composite passed both tests; the served AC-OCI-100 browser journey passed one Chromium journey plus ten setup checks, with persisted invoice/receipt rows and rendered e-Faktur, project, amounts, withholding and statuses. The post-merge affected-e2e gate selected no additional specs because this slice changes no supported UI paths. This branch does not claim readiness for a release to `main`.
+
 **Current drive boundary (owner, 2026-10-17): `dev` only. Do not promote to `main` or production.**
 **Dev gate:** regression #1182 is fixed in PR #1183 (`90fba37e`). The full dev browser run
 39188480565 passed 385 cases and 12 served-function checks, with zero timing warnings or failures.

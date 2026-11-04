@@ -2576,8 +2576,7 @@
         "decision": "Decision",
         "owner": "Owner",
         "value": "Value",
-        "weighted": "Weighted",
-        "winProbability": "Win probability"
+        "weighted": "Weighted"
       },
       "terminalNotice": "This project has reached a terminal stage. No further pipeline actions.",
       "toast": {
@@ -3149,7 +3148,6 @@
       "stage": "Stage",
       "value": "Value",
       "weighted": "Weighted",
-      "winPct": "Win %",
       "endCustomer": "End customer"
     },
     "empty": {
@@ -3215,7 +3213,6 @@
     },
     "viewToggleLabel": "Pipeline view",
     "weightedForecast": "Weighted pipeline forecast",
-    "winProbability": "Win probability",
     "board": {
       "ariaLabel": "Sales pipeline board"
     },

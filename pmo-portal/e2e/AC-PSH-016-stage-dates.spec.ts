@@ -26,10 +26,10 @@ test.beforeAll(async () => {
     id: ID, org_id: ORG_ID, name: NAME, status: 'Leads', created_at: new Date(Date.now() - 60 * 86_400_000).toISOString(),
   });
   if (error) throw new Error(`AC-PSH-016 seed failed: ${error.message}`);
-  const { error: moveError } = await admin.from('projects').update({ status: 'PQ Submitted' }).eq('id', ID);
+  const { error: moveError } = await admin.from('projects').update({ status: 'Quotation Submitted' }).eq('id', ID);
   if (moveError) throw new Error(`AC-PSH-016 seed move failed: ${moveError.message}`);
   const { error: dateError } = await admin.from('project_stage_entries').update({ entered_on: orgDay(30) })
-    .eq('project_id', ID).eq('stage', 'PQ Submitted');
+    .eq('project_id', ID).eq('stage', 'Quotation Submitted');
   if (dateError) throw new Error(`AC-PSH-016 seed date failed: ${dateError.message}`);
 });
 test.afterAll(async () => {
@@ -48,16 +48,16 @@ test('AC-PSH-016: a PM advances a deal, backdates the new stage on the deal page
   // Single click, no dialog (write policy AC-IXD-WP-004): the move is dated today.
   await page.getByRole('button', { name: /advance to/i }).click();
   const history = page.getByRole('list', { name: 'Stage history' });
-  await expect(history.getByRole('listitem').first()).toContainText(`Quoted ${orgDayMonth(0)}`);
+  await expect(history.getByRole('listitem').first()).toContainText(`Pre-qual sent ${orgDayMonth(0)}`);
 
   await history.getByRole('listitem').first().getByRole('button', { name: 'Change date' }).click();
   const dialog = page.getByRole('dialog');
   await dialog.getByLabel('Stage date').fill(orgDay(12));
   await dialog.getByRole('button', { name: 'Save date' }).click();
   await expect(dialog).toBeHidden();
-  await expect(history.getByRole('listitem').first()).toContainText(`Quoted ${orgDayMonth(12)}`);
+  await expect(history.getByRole('listitem').first()).toContainText(`Pre-qual sent ${orgDayMonth(12)}`);
   await expect(history.getByRole('listitem').first()).toContainText('Date changed');
 
   await page.goto('/sales');
-  await expect(page.getByTestId(`stage-line-${ID}`)).toHaveText(`Quoted ${orgDayMonth(12)} · 12 d`);
+  await expect(page.getByTestId(`stage-line-${ID}`)).toHaveText(`Pre-qual sent ${orgDayMonth(12)} · 12 d`);
 });
