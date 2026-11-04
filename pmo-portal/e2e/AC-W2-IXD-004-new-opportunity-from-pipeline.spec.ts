@@ -1,6 +1,6 @@
 // @e2e-isolation: self-isolated — unique opportunity name (Date.now()), PM creates project from Pipeline; appears in Pipeline immediately; no seed coupling.
 import { test, expect } from '@playwright/test';
-import { login, pickComboboxOption } from './helpers';
+import { login, pickComboboxOption, stubErpProjectSync } from './helpers';
 
 /**
  * AC-W2-IXD-004 (B-3, Wave 2 IxD naturalness): A PM creates a new project
@@ -24,6 +24,7 @@ test(
     const runId = Date.now();
     const opportunityName = `E2E-Pipeline-CTA-${runId}`;
 
+    await stubErpProjectSync(page);
     await login(page, 'pm@acme.test');
     await page.goto('/sales?status=Leads');
 

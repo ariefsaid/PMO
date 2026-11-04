@@ -1,4 +1,12 @@
 {
+  "goProbability": "% Go",
+  "getProbability": "% Get",
+  "goShort": "Go",
+  "getShort": "Get",
+  "column": {
+    "goPct": "% Go",
+    "getPct": "% Get"
+  },
   "pipeline": {
     "endCustomerLine": "for {{name}}",
     "mixedCurrency": "Mixed currencies, so no single total",

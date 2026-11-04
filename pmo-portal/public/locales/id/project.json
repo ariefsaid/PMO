@@ -339,7 +339,14 @@
       "moreAboutDeal": "Selengkapnya tentang peluang ini",
       "statLoading": "Memuat…",
       "statUnavailable": "Tidak tersedia",
-      "retry": "Coba lagi"
+      "retry": "Coba lagi",
+      "goProbability": "% Go",
+      "getProbability": "% Get",
+      "goInputLabel": "Peluang proyek berlanjut (%)",
+      "getInputLabel": "Peluang kita menang jika klien melanjutkan (%)",
+      "saveProbability": "Simpan",
+      "getProbabilitySaved": "Perkiraan peluang diperbarui",
+      "probabilityFailed": "Perkiraan peluang tidak dapat disimpan. Periksa akses Anda lalu coba lagi."
     },
     "activity": {
       "title": "Aktivitas",
