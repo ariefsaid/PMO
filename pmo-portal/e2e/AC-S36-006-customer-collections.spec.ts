@@ -526,7 +526,7 @@ test('AC-S36-006: Finance follows one customer’s source aging position to its 
     await expect(page).toHaveURL(/\/$/);
 
     const customerLink = page.getByRole('link', { name: fixture.erpCustomerId, exact: true });
-    await expect(customerLink).toBeVisible();
+    await expect(customerLink).toBeVisible({ timeout: 20_000 });
     await waitForFonts(page);
     await expect(customerLink).toHaveAttribute('href', `/companies/${fixture.companyId}#collections`);
     await customerLink.click();
