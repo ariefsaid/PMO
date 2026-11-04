@@ -162,6 +162,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "contract_rate_lines_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "equipment_assets"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "contract_rate_lines_created_by_fkey"
             columns: ["created_by"]
             isOneToOne: false
@@ -10170,6 +10177,7 @@ export type Database = {
       tm_claim_lines: {
         Row: {
           amount: number
+          basis: string
           claim_id: string
           id: string
           kind: string
@@ -10183,6 +10191,7 @@ export type Database = {
         }
         Insert: {
           amount: number
+          basis?: string
           claim_id: string
           id?: string
           kind: string
@@ -10196,6 +10205,7 @@ export type Database = {
         }
         Update: {
           amount?: number
+          basis?: string
           claim_id?: string
           id?: string
           kind?: string
@@ -11830,17 +11840,18 @@ export type Database = {
         Args: { p_from: string; p_project: string; p_to: string }
         Returns: {
           entry_date: string
-          kind: string
-          label: string
-          line_key: string
-          rate: number
-          rate_version: number
+          basis: string
+          kind: string | null
+          label: string | null
+          line_key: string | null
+          rate: number | null
+          rate_version: number | null
           source_id: string
           source_kind: string
-          unit: string
+          unit: string | null
           units: number
           unrated_reason: string
-          user_id: string
+          user_id: string | null
         }[]
       }
       tm_source_is_live: {
@@ -13204,6 +13215,7 @@ export type Database = {
         Returns: {
           entry_date: string | null
           entry_id: string
+          basis: string
           id: string
           is_selected: boolean
           line_label: string
@@ -13817,16 +13829,17 @@ export type Database = {
         Args: { p_from: string; p_project: string; p_to: string }
         Returns: {
           amount: number
-          kind: string
-          label: string
-          line_key: string
-          rate: number
-          rate_version: number
+          basis: string
+          kind: string | null
+          label: string | null
+          line_key: string | null
+          rate: number | null
+          rate_version: number | null
           source_count: number
-          unit: string
+          unit: string | null
           units: number
           unrated_reason: string
-          user_id: string
+          user_id: string | null
         }[]
       }
       procurement_evidenced_step: {

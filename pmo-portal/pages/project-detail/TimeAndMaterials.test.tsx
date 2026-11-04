@@ -64,16 +64,16 @@ const claim = {
   id: 'claim-1', work_order_id: null, period_from: '2026-11-01', period_to: '2026-11-30', status: 'Draft',
   currency: 'IDR', gross_amount: 400000, prepared_by: 'u-pm', signoff_prepared_by: null, confirmed_by: null,
   confirm_basis: null, document_id: null, note: null, created_at: '2026-11-03T00:00:00Z',
-  lines: [{ lineKey: 'labour-1', rateVersion: 1, kind: 'labour', label: 'Site engineer', unit: 'hour', units: 8, rate: 50000, amount: 400000 }],
+  lines: [{ lineKey: 'labour-1', rateVersion: 1, kind: 'labour', basis: 'work', label: 'Site engineer', unit: 'hour', units: 8, rate: 50000, amount: 400000 }],
 };
 const profile = (id: string, full_name: string, status = 'active') => ({ id, full_name, status, role: 'Engineer' });
 const documentRow = { id: 'doc-1', code: 'DOC-01', title: 'Approved timesheet summary', status: 'Approved', file_path: 'stored-file', revision: '1' };
 const priced = {
-  line_key: 'labour-1', rate_version: 1, kind: 'labour', label: 'Site engineer', unit: 'hour', rate: 50000,
+  line_key: 'labour-1', rate_version: 1, kind: 'labour', basis: 'work', label: 'Site engineer', unit: 'hour', rate: 50000,
   user_id: 'u-engineer', units: 8, amount: 400000, source_count: 1, unrated_reason: null,
 };
 const unrated = {
-  line_key: null, rate_version: null, kind: null, label: null, unit: null, rate: null,
+  line_key: null, rate_version: null, kind: null, basis: 'work', label: null, unit: null, rate: null,
   user_id: 'u-other', units: 2, amount: null, source_count: 1, unrated_reason: 'no_rate',
 };
 

@@ -19,9 +19,9 @@ const TM_STATE: Row = {
 };
 const TM_LINES: Row[] = [
   // Product is 0.0165; the frozen claim-line amount is rounded once to 0.02.
-  { org_id: ORG, claim_id: 'claim-1', line_key: 'rate-line-2', rate_version: 1, kind: 'labour', label: 'Rounding case', unit: 'hour', units: '0.33', rate: '0.05', amount: '0.02' },
+  { org_id: ORG, claim_id: 'claim-1', line_key: 'rate-line-2', rate_version: 1, kind: 'labour', basis: 'work', label: 'Rounding case', unit: 'hour', units: '0.33', rate: '0.05', amount: '0.02' },
   // Deliberately after rate-line-2 in the fixture to pin the reader's stable line_key ordering.
-  { org_id: ORG, claim_id: 'claim-1', line_key: 'rate-line-1', rate_version: 1, kind: 'labour', label: 'Site engineer', unit: 'hour', units: '120.00', rate: '50000.00', amount: '6000000.00' },
+  { org_id: ORG, claim_id: 'claim-1', line_key: 'rate-line-1', rate_version: 1, kind: 'labour', basis: 'work', label: 'Site engineer', unit: 'hour', units: '120.00', rate: '50000.00', amount: '6000000.00' },
 ];
 // Deliberately out of BoQ order: the resolver must sort by boq_item_id so every resolution is identical.
 const LINES: Row[] = [
@@ -207,6 +207,20 @@ describe('billing claim invoice (AC-PB-006)', () => {
     ]);
   });
 
+  it('AC-TM-014 carries a frozen standby basis into the invoice description', async () => {
+    const standbyClaim = { ...TM_CLAIM, gross_amount: '1200000.00' };
+    const standbyState = { ...TM_STATE, gross_amount: '1200000.00' };
+    const { body } = await push({}, standbyClaim, {}, {}, {}, {
+      claims: [standbyState],
+      lines: [{
+        org_id: ORG, claim_id: 'claim-1', line_key: 'equipment-line', rate_version: 1, kind: 'equipment', basis: 'standby',
+        label: 'Excavator', unit: 'hour', units: '6.00', rate: '200000.00', amount: '1200000.00',
+      }],
+      rateLines: [{ org_id: ORG, project_id: 'proj-1', line_key: 'equipment-line', is_current: true, sales_item_code: 'SERVICE-LABOUR' }],
+    });
+    expect(body.items).toEqual([{ item_code: 'SERVICE-LABOUR', qty: 6, rate: 200000, description: 'Excavator (siaga) (hour)' }]);
+  });
+
   it('AC-TM-014 an unknown saved ERP item is refused before any ERP write', async () => {
     const cmd = command({});
     const { fetchImpl } = erpFetch();
@@ -234,7 +248,7 @@ describe('billing claim invoice (AC-PB-006)', () => {
   it('AC-TM-014 sends a half-cent tie as its frozen amount so ERPNext books the signed cents', async () => {
     setActiveLocale({ locale: 'id', numberLocale: 'id', timezone: 'Asia/Jakarta' });
     const halfCentTie = [{
-      org_id: ORG, claim_id: 'claim-1', line_key: 'rate-line-1', rate_version: 1, kind: 'labour',
+      org_id: ORG, claim_id: 'claim-1', line_key: 'rate-line-1', rate_version: 1, kind: 'labour', basis: 'work',
       label: 'Site engineer', unit: 'hour', units: '0.25', rate: '1000.02', amount: '250.01',
     }];
     const claim = { ...TM_CLAIM, gross_amount: '250.01' };
@@ -250,8 +264,8 @@ describe('billing claim invoice (AC-PB-006)', () => {
 
   it('AC-TM-014 reshapes both reviewer tie cases because at least one Frappe rounding method loses a cent', async () => {
     const lines = [
-      { org_id: ORG, claim_id: 'claim-1', line_key: 'rate-line-1', rate_version: 1, kind: 'labour', label: 'Site engineer', unit: 'hour', units: '4.31', rate: '3148.50', amount: '13570.04' },
-      { org_id: ORG, claim_id: 'claim-1', line_key: 'rate-line-2', rate_version: 1, kind: 'labour', label: 'Site engineer', unit: 'hour', units: '30.25', rate: '4637199.02', amount: '140275270.36' },
+      { org_id: ORG, claim_id: 'claim-1', line_key: 'rate-line-1', rate_version: 1, kind: 'labour', basis: 'work', label: 'Site engineer', unit: 'hour', units: '4.31', rate: '3148.50', amount: '13570.04' },
+      { org_id: ORG, claim_id: 'claim-1', line_key: 'rate-line-2', rate_version: 1, kind: 'labour', basis: 'work', label: 'Site engineer', unit: 'hour', units: '30.25', rate: '4637199.02', amount: '140275270.36' },
     ];
     const gross = '140288840.40';
     const { body } = await push({}, { ...TM_CLAIM, gross_amount: gross }, {}, {}, {}, {
@@ -266,8 +280,8 @@ describe('billing claim invoice (AC-PB-006)', () => {
 
   it('AC-TM-014 books every reshaped amount at its frozen cent under all three Frappe rounding methods', async () => {
     const lines = [
-      { org_id: ORG, claim_id: 'claim-1', line_key: 'rate-line-1', rate_version: 1, kind: 'labour', label: 'Site engineer', unit: 'hour', units: '4.31', rate: '3148.50', amount: '13570.04' },
-      { org_id: ORG, claim_id: 'claim-1', line_key: 'rate-line-2', rate_version: 1, kind: 'labour', label: 'Site engineer', unit: 'hour', units: '30.25', rate: '4637199.02', amount: '140275270.36' },
+      { org_id: ORG, claim_id: 'claim-1', line_key: 'rate-line-1', rate_version: 1, kind: 'labour', basis: 'work', label: 'Site engineer', unit: 'hour', units: '4.31', rate: '3148.50', amount: '13570.04' },
+      { org_id: ORG, claim_id: 'claim-1', line_key: 'rate-line-2', rate_version: 1, kind: 'labour', basis: 'work', label: 'Site engineer', unit: 'hour', units: '30.25', rate: '4637199.02', amount: '140275270.36' },
     ];
     const gross = '140288840.40';
     const { body } = await push({}, { ...TM_CLAIM, gross_amount: gross }, {}, {}, {}, {
@@ -294,7 +308,7 @@ describe('billing claim invoice (AC-PB-006)', () => {
 
   it('AC-TM-014 preserves quantity and rate when all three Frappe rounding methods agree with the frozen cent', async () => {
     const ordinary = [{
-      org_id: ORG, claim_id: 'claim-1', line_key: 'rate-line-1', rate_version: 1, kind: 'labour',
+      org_id: ORG, claim_id: 'claim-1', line_key: 'rate-line-1', rate_version: 1, kind: 'labour', basis: 'work',
       label: 'Site engineer', unit: 'hour', units: '0.50', rate: '1.02', amount: '0.51',
     }];
     const claim = { ...TM_CLAIM, gross_amount: '0.51' };
@@ -308,11 +322,11 @@ describe('billing claim invoice (AC-PB-006)', () => {
 
   it('AC-TM-014 keeps every matching line quantity and rate, shaping only lines ERPNext would round away from frozen cents', async () => {
     const lines = [
-      { org_id: ORG, claim_id: 'claim-1', line_key: 'rate-line-1', rate_version: 1, kind: 'labour', label: 'Site engineer', unit: 'hour', units: '0.25', rate: '1000.02', amount: '250.01' },
-      { org_id: ORG, claim_id: 'claim-1', line_key: 'rate-line-2', rate_version: 1, kind: 'labour', label: 'Site engineer', unit: 'hour', units: '120.00', rate: '50000.00', amount: '6000000.00' },
-      { org_id: ORG, claim_id: 'claim-1', line_key: 'rate-line-3', rate_version: 1, kind: 'labour', label: 'Rounding case', unit: 'hour', units: '0.33', rate: '0.05', amount: '0.02' },
-      { org_id: ORG, claim_id: 'claim-1', line_key: 'rate-line-4', rate_version: 1, kind: 'labour', label: 'Site engineer', unit: 'hour', units: '0.5', rate: '0.03', amount: '0.02' },
-      { org_id: ORG, claim_id: 'claim-1', line_key: 'rate-line-5', rate_version: 1, kind: 'labour', label: 'Site engineer', unit: 'hour', units: '99999999.5', rate: '0.01', amount: '1000000.00' },
+      { org_id: ORG, claim_id: 'claim-1', line_key: 'rate-line-1', rate_version: 1, kind: 'labour', basis: 'work', label: 'Site engineer', unit: 'hour', units: '0.25', rate: '1000.02', amount: '250.01' },
+      { org_id: ORG, claim_id: 'claim-1', line_key: 'rate-line-2', rate_version: 1, kind: 'labour', basis: 'work', label: 'Site engineer', unit: 'hour', units: '120.00', rate: '50000.00', amount: '6000000.00' },
+      { org_id: ORG, claim_id: 'claim-1', line_key: 'rate-line-3', rate_version: 1, kind: 'labour', basis: 'work', label: 'Rounding case', unit: 'hour', units: '0.33', rate: '0.05', amount: '0.02' },
+      { org_id: ORG, claim_id: 'claim-1', line_key: 'rate-line-4', rate_version: 1, kind: 'labour', basis: 'work', label: 'Site engineer', unit: 'hour', units: '0.5', rate: '0.03', amount: '0.02' },
+      { org_id: ORG, claim_id: 'claim-1', line_key: 'rate-line-5', rate_version: 1, kind: 'labour', basis: 'work', label: 'Site engineer', unit: 'hour', units: '99999999.5', rate: '0.01', amount: '1000000.00' },
     ];
     const gross = '7000250.05';
     const { body, command: cmd } = await push({}, { ...TM_CLAIM, gross_amount: gross }, {}, {}, {}, {

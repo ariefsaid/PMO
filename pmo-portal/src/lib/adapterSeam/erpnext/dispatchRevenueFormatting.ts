@@ -39,6 +39,11 @@ export function formatTimeMaterialsAmount(
   }
 }
 
+export function formatTimeMaterialsLabel(label: string, basis: string | undefined, currency: string | undefined): string {
+  if (basis !== 'standby') return label;
+  return `${label} (${currency === 'IDR' ? 'siaga' : 'standby'})`;
+}
+
 export function formatTimeMaterialsDescription(
   label: string,
   unit: string,
@@ -46,6 +51,8 @@ export function formatTimeMaterialsDescription(
   signedRate: number,
   amount: number | string,
   currency: string | undefined,
+  basis?: string,
 ): string {
-  return `${label} (${unit}): ${formatTimeMaterialsNumber(quantity, currency)} x ${formatTimeMaterialsNumber(signedRate, currency)}, rounded to ${formatTimeMaterialsAmount(amount, currency)}`;
+  const namedLabel = formatTimeMaterialsLabel(label, basis, currency);
+  return `${namedLabel} (${unit}): ${formatTimeMaterialsNumber(quantity, currency)} x ${formatTimeMaterialsNumber(signedRate, currency)}, rounded to ${formatTimeMaterialsAmount(amount, currency)}`;
 }
