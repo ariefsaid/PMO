@@ -4,7 +4,7 @@ set search_path = public, extensions;
 -- FOR UPDATE re-checking state='open' after the lock wait plus the external_refs reverse-unique claim (AC-ECA-004 traceability note).
 -- AC-ECA-004 (exactly-once apply), AC-ECA-007 (audited, undoable while unused), plus the role / tenancy / grant contract.
 begin;
-select plan(157);
+select plan(161);
 
 insert into organizations (id, name) values
  ('a4510000-0000-0000-0000-000000000001','Connect A'),
@@ -667,6 +667,31 @@ begin
   end;
 end
 $assert$;$test$, 'AC-ECA-018 staged search and non-candidate link reject older-run and inactive-binding records');
+
+-- AC-ECA-017: a feed review without staged rows can still be decided using one of its candidates.
+reset role;
+set local role service_role;
+set local request.jwt.claims = '{"role":"service_role"}';
+select public.record_connect_review('a4510000-0000-0000-0000-000000000001','erpnext','party',
+  array['a4510000-0000-0000-0000-0000000000d6'], array['Supplier:FROM-FEED'], 'ambiguous', 'The feed could not distinguish this company.');
+reset role;
+select is((select count(*)::int from erp_connect_staged where org_id='a4510000-0000-0000-0000-000000000001'
+            and kind='party' and external_id='Supplier:FROM-FEED'), 0,
+  'AC-ECA-017 a record_connect_review candidate has no staged row');
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"a4510000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select lives_ok($$select public.decide_connect_review(
+  (select id from erp_connect_proposals where org_id='a4510000-0000-0000-0000-000000000001' and external_tier='erpnext'
+    and kind='party' and outcome='review' and pmo_ids='{a4510000-0000-0000-0000-0000000000d6}' and external_ids='{Supplier:FROM-FEED}'),
+  '{"action":"link","pmoId":"a4510000-0000-0000-0000-0000000000d6","externalId":"Supplier:FROM-FEED"}'::jsonb)$$,
+  'AC-ECA-017 an Admin links a record_connect_review candidate without a staged row');
+select is((select external_record_id from external_refs where org_id='a4510000-0000-0000-0000-000000000001'
+            and domain='companies' and pmo_record_id='a4510000-0000-0000-0000-0000000000d6'), 'Supplier:FROM-FEED',
+  'AC-ECA-017 the candidate becomes the company link');
+select is((select state || '/' || outcome || '/' || snapshot::text from erp_connect_proposals where org_id='a4510000-0000-0000-0000-000000000001'
+            and external_tier='erpnext' and kind='party' and pmo_ids='{a4510000-0000-0000-0000-0000000000d6}'
+            and external_ids='{Supplier:FROM-FEED}'), 'applied/link/{}',
+  'AC-ECA-017 deciding the candidate preserves the review row snapshot');
 
 select * from finish();
 rollback;

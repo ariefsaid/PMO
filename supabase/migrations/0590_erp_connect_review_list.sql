@@ -220,7 +220,7 @@ create or replace function public.decide_connect_review(p_id uuid, p_choice json
 language plpgsql security definer set search_path = public, pg_temp as $$
 declare v_actor uuid := auth.uid(); v_org uuid := public.auth_org_id(); v_role text := public.auth_role()::text;
         r public.erp_connect_proposals%rowtype; v_reason text; v_pmo text := p_choice->>'pmoId'; v_ext text := p_choice->>'externalId';
-        v_action text := p_choice->>'action'; v_snapshot jsonb; v_accept jsonb;
+        v_action text := p_choice->>'action'; v_snapshot jsonb; v_apply_snapshot jsonb; v_accept jsonb;
 begin
   if v_actor is null or v_org is null or not public.is_active_member() or v_role is null or v_role not in ('Admin','Finance') then
     raise exception 'not allowed' using errcode = '42501';
@@ -236,23 +236,32 @@ begin
     update public.erp_connect_proposals set state = 'dismissed', decided_by = v_actor, decided_at = now() where id = p_id;
   elsif v_action = 'link' then
     if v_pmo is null or not (v_pmo = any(r.pmo_ids)) or coalesce(v_ext, '') = '' then raise exception 'That record is not available for this kind' using errcode = '22023'; end if;
-    select s.row into v_snapshot from public.erp_connect_staged s
-     where s.org_id = v_org and s.run_id = (select x.id from public.erp_connect_runs x
-       where x.org_id = v_org and x.binding_id = r.binding_id and x.external_tier = r.external_tier order by x.started_at desc, x.id desc limit 1)
-       and s.kind = r.kind and s.external_id = v_ext;
-    if not found then raise exception 'That record is not available for this kind' using errcode = '22023'; end if;
-    v_reason := public.apply_connect_link(v_org, r.external_tier, r.kind, v_pmo, v_ext,
-      coalesce(v_snapshot, '{}'::jsonb) || jsonb_build_object('reviewed', true), v_actor);
+    if v_ext = any(r.external_ids) then
+      v_snapshot := r.snapshot;
+      v_apply_snapshot := r.snapshot || jsonb_build_object('matchKey', r.match_key, 'reviewed', true);
+    else
+      select s.row into v_snapshot from public.erp_connect_staged s
+       where s.org_id = v_org and s.run_id = (select x.id from public.erp_connect_runs x
+         where x.org_id = v_org and x.binding_id = r.binding_id and x.external_tier = r.external_tier order by x.started_at desc, x.id desc limit 1)
+         and s.kind = r.kind and s.external_id = v_ext;
+      if not found then raise exception 'That record is not available for this kind' using errcode = '22023'; end if;
+      v_apply_snapshot := coalesce(v_snapshot, '{}'::jsonb) || jsonb_build_object('reviewed', true);
+    end if;
+    v_reason := public.apply_connect_link(v_org, r.external_tier, r.kind, v_pmo, v_ext, v_apply_snapshot, v_actor);
     if v_reason is not null then raise exception '%', v_reason using errcode = 'P0001'; end if;
     update public.erp_connect_proposals set state = 'applied', outcome = 'link', pmo_ids = array[v_pmo], external_ids = array[v_ext],
       snapshot = coalesce(v_snapshot, '{}'::jsonb), reason_text = null, decided_by = v_actor, decided_at = now() where id = p_id;
   elsif v_action = 'bring-in' then
     if cardinality(r.pmo_ids) <> 0 or coalesce(v_ext, '') = '' then raise exception 'This row cannot be brought in' using errcode = '22023'; end if;
-    select s.row into v_snapshot from public.erp_connect_staged s
-     where s.org_id = v_org and s.run_id = (select x.id from public.erp_connect_runs x
-       where x.org_id = v_org and x.binding_id = r.binding_id and x.external_tier = r.external_tier order by x.started_at desc, x.id desc limit 1)
-       and s.kind = r.kind and s.external_id = v_ext;
-    if not found then raise exception 'That record is not available for this kind' using errcode = '22023'; end if;
+    if v_ext = any(r.external_ids) then
+      v_snapshot := r.snapshot;
+    else
+      select s.row into v_snapshot from public.erp_connect_staged s
+       where s.org_id = v_org and s.run_id = (select x.id from public.erp_connect_runs x
+         where x.org_id = v_org and x.binding_id = r.binding_id and x.external_tier = r.external_tier order by x.started_at desc, x.id desc limit 1)
+         and s.kind = r.kind and s.external_id = v_ext;
+      if not found then raise exception 'That record is not available for this kind' using errcode = '22023'; end if;
+    end if;
     v_reason := public.apply_connect_bring_in(v_org, r.external_tier, r.kind, v_ext, coalesce(v_snapshot, '{}'::jsonb));
     if v_reason is not null then raise exception '%', v_reason using errcode = 'P0001'; end if;
     update public.erp_connect_proposals set state = 'applied', outcome = 'bring-in', external_ids = array[v_ext],
