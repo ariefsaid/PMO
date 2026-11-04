@@ -27,4 +27,38 @@ describe('ReceiptRecord', () => {
     expect(screen.getAllByText('$123.45')).toHaveLength(2);
     expect(screen.queryByText('$123')).not.toBeInTheDocument();
   });
+
+  it('AC-OCI-091 shows settled, cash and withheld figures only when the Odoo receipt includes withholding', () => {
+    const receipt = {
+      id: 'receipt-2', org_id: 'org-1', customer_id: null, customer_name: 'Example customer',
+      sales_invoice_id: null, ip_number: 'RCP-02', reference_number: null, date: '2026-10-01',
+      amount: 123.45, currency: 'IDR', status: 'Paid', erp_docstatus: 1, erp_modified: null,
+      erp_amended_from: null, erp_cancelled_at: null, created_at: '2026-10-01T00:00:00Z',
+      received_amount: 100, withheld_amount: 23.45, withholding_slip_number: 'SLIP-2',
+    } as IncomingPaymentRow;
+    const { rerender } = render(<MemoryRouter><ReceiptRecord receipt={receipt} allocations={[]} onBack={() => {}} odoo /></MemoryRouter>);
+    expect(screen.getByText('Receipt total')).toBeInTheDocument();
+    expect(screen.getByText('Cash received')).toBeInTheDocument();
+    expect(screen.getByText('Tax withheld')).toBeInTheDocument();
+    rerender(<MemoryRouter><ReceiptRecord receipt={{ ...receipt, received_amount: 123.45, withheld_amount: 0, withholding_slip_number: null }} allocations={[]} onBack={() => {}} odoo /></MemoryRouter>);
+    expect(screen.queryByText('Cash received')).toBeNull();
+    expect(screen.queryByText('Tax withheld')).toBeNull();
+  });
+
+  it('AC-OCI-090 shows Odoo receipt waiting and refusal outcomes plainly', () => {
+    const receipt = {
+      id: 'receipt-3', org_id: 'org-1', customer_id: null, customer_name: 'Example customer',
+      sales_invoice_id: null, ip_number: 'RCP-03', reference_number: null, date: '2026-10-01',
+      amount: 123.45, currency: 'IDR', status: 'Scheduled', erp_docstatus: null, erp_modified: null,
+      erp_amended_from: null, erp_cancelled_at: null, created_at: '2026-10-01T00:00:00Z',
+      push_command_state: 'committing', received_amount: 123.45, withheld_amount: 0,
+    } as IncomingPaymentRow;
+    const { rerender } = render(<MemoryRouter><ReceiptRecord receipt={receipt} allocations={[]} onBack={() => {}} odoo /></MemoryRouter>);
+    expect(screen.getByText('Receipt sent, awaiting Odoo')).toBeInTheDocument();
+    rerender(<MemoryRouter><ReceiptRecord receipt={{ ...receipt, erp_cancelled_at: '2026-10-02T00:00:00Z' }} allocations={[]} onBack={() => {}} odoo /></MemoryRouter>);
+    expect(screen.getByText('Needs attention')).toBeInTheDocument();
+    expect(screen.queryByText('Cancelled')).toBeNull();
+    rerender(<MemoryRouter><ReceiptRecord receipt={{ ...receipt, push_command_state: 'failed' }} allocations={[]} onBack={() => {}} odoo /></MemoryRouter>);
+    expect(screen.getByText('Needs attention')).toBeInTheDocument();
+  });
 });

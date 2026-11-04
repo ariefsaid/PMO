@@ -12,6 +12,7 @@ vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { org_id: 
 vi.mock('@/src/lib/repositories', () => ({ repositories: { odoo: h } }));
 
 import { useOdooConnection, useMasterRecords, useOdooSetup } from './useOdoo';
+import { useOdooUnreachable } from './useOdooPurchase';
 
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 const mk = () => {
@@ -30,6 +31,16 @@ it('every Odoo query key includes the org id', async () => {
   const keys = client.getQueryCache().getAll().map((q) => q.queryKey);
   expect(keys).toHaveLength(2);
   for (const k of keys) { expect(k[0]).toBe('odoo'); expect(k).toContain('org-a'); }
+});
+
+it('a disabled health read ignores a cached outage for an Odoo-owned feature', () => {
+  const { client, wrapper } = mk();
+  client.setQueryData(['odoo', 'connection', 'org-a'], {
+    status: 'active', activated: true, capabilities: null, config: {},
+    connection: { state: 'unreachable', failures: 3, last_ok_at: '2026-11-03T10:00:00Z', last_checked_at: '2026-11-03T10:02:00Z', error_class: 'timeout', missing: [] },
+  });
+  const { result } = renderHook(() => useOdooUnreachable(false), { wrapper });
+  expect(result.current).toEqual({ unreachable: false, lastOkAt: null });
 });
 
 it('a setup action invalidates the Odoo and integration-health families', async () => {

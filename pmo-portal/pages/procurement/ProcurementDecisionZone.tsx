@@ -309,7 +309,7 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
             </div>
           ) : (
             <p className="text-[13px] text-muted-foreground">
-              No further lifecycle actions are available to you at this stage.
+              {tProcurement('procurementDetail.noLifecycleActions', 'No lifecycle buttons are available at this stage.')}
             </p>
           )}
 

@@ -5,13 +5,30 @@ import { useSalesInvoiceEvidence, useIncomingPayments } from '@/src/hooks/useRev
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 import { displayAllocations } from '@/src/lib/revenue/receiptAllocation';
 import { formatCurrencyCents, formatDateOnly } from '@/src/lib/format';
+import { useOdooRevenueCommands, useOdooRevenueCreditNotes } from '@/src/hooks/useOdooRevenue';
+import { useOdooUnreachable } from '@/src/hooks/useOdooPurchase';
+import { odooOutcome } from '@/src/lib/procurement/odooOutcome';
+import { OdooOutcome } from '@/src/components/revenue/OdooOutcome';
+import { OdooCaseStatus } from '../procurement/OdooCaseStatus';
 
-export const SalesInvoiceEvidenceSection: React.FC<{ invoice: SalesInvoiceRow }> = ({ invoice }) => {
+export const SalesInvoiceEvidenceSection: React.FC<{ invoice: SalesInvoiceRow; odoo?: boolean }> = ({ invoice, odoo = false }) => {
   const { t } = useTranslation();
   const canFetchEvidence = !invoice.pmo_native && invoice.erp_docstatus !== null;
   const evidence = useSalesInvoiceEvidence(invoice.id, canFetchEvidence);
   const [pendingTimedOut, setPendingTimedOut] = useState(false);
   const payments = useIncomingPayments(undefined, true, invoice.id);
+  const commands = useOdooRevenueCommands(invoice.id, odoo);
+  const creditNotes = useOdooRevenueCreditNotes(invoice.id, odoo);
+  const { unreachable } = useOdooUnreachable(odoo);
+  const latestInvoiceCommand = (commands.data ?? []).find((command) => command.kind === 'sales-invoice');
+  const outcome = odooOutcome({
+    erpState: invoice.odoo_state,
+    erpAttention: invoice.odoo_attention,
+    erpReadAt: invoice.odoo_read_at,
+    outboxState: latestInvoiceCommand?.state,
+    outboxUpdatedAt: latestInvoiceCommand?.updatedAt,
+    lastError: latestInvoiceCommand?.lastError,
+  });
   useEffect(() => {
     if (!canFetchEvidence || !evidence.isPending) {
       setPendingTimedOut(false);
@@ -47,6 +64,13 @@ export const SalesInvoiceEvidenceSection: React.FC<{ invoice: SalesInvoiceRow }>
   return (
     <section aria-labelledby="invoice-evidence-heading" className="mb-5 border-b border-border pb-4">
       <h2 id="invoice-evidence-heading" className="mb-3 text-base font-semibold">{t('uxs17.billEvidence', 'Bill evidence')}</h2>
+      {odoo && (
+        <div className="mb-4 space-y-3">
+          {unreachable && <p role="status" className="text-[12px] text-muted-foreground">{t('finance:odooOutcome.offlineAction', 'Odoo is unavailable. You can still view the last data PMO read; no new changes were sent from this screen.')}</p>}
+          {outcome && <OdooOutcome outcome={outcome} unreachable={unreachable} />}
+          <OdooCaseStatus invoiceId={invoice.id} />
+        </div>
+      )}
       {canFetchEvidence && evidence.isPending && !pendingTimedOut ? (
         <p className="text-sm text-muted-foreground">{t('uxs17.evidenceLoading', 'Loading invoice evidence…')}</p>
       ) : canFetchEvidence && (evidence.isError || pendingTimedOut) ? (
@@ -141,6 +165,31 @@ export const SalesInvoiceEvidenceSection: React.FC<{ invoice: SalesInvoiceRow }>
           <p className="text-sm text-muted-foreground">{t('uxs17.receiptsCoverageUnknown', 'Receipt allocations have not all been reported.')}</p>
         )}
       </div>
+      )}
+      {odoo && creditNotes.data && creditNotes.data.length > 0 && (
+        <div className="mt-5 border-t border-border/70 pt-3">
+          <h3 className="mb-1 text-sm font-medium">{t('finance:odooOutcome.creditNotes', 'Credit notes')}</h3>
+          <ul className="divide-y divide-border/70" aria-label={t('finance:odooOutcome.creditNotes', 'Credit notes')}>
+            {creditNotes.data.map((note) => (
+              <li key={note.id} className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-2 text-sm">
+                <span className="min-w-0 break-words">
+                  <span className="font-mono">{note.number}</span>
+                  {note.date && <span className="ml-2 text-muted-foreground">{formatDateOnly(note.date)}</span>}
+                </span>
+                <span className="tabular text-right">{note.amount == null || !note.currency ? t('finance:odooOutcome.amountUnavailable', 'Amount not available') : formatCurrencyCents(note.amount, note.currency)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {odoo && creditNotes.isError && (
+        <p role="status" className="mt-3 text-sm text-muted-foreground">{t('finance:odooOutcome.creditNotesUnavailable', 'Credit notes could not be read right now.')}</p>
+      )}
+      {invoice.efaktur_number && (
+        <dl className="mt-4 border-t border-border/70 pt-3 text-sm">
+          <dt className="text-xs font-medium text-muted-foreground">{t('finance:receivables.eFaktur', 'e-Faktur')}</dt>
+          <dd className="mt-1 break-words">{invoice.efaktur_number}{invoice.efaktur_date ? ` · ${formatDateOnly(invoice.efaktur_date)}` : ''}</dd>
+        </dl>
       )}
     </section>
   );

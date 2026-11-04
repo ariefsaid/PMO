@@ -239,9 +239,8 @@ export const ProcurementMoneySummary: React.FC<ProcurementMoneySummaryProps> = (
 
   return (
     <Card data-testid="procurement-money-summary">
-      <CardHead className="flex flex-wrap items-center gap-x-4 gap-y-1">
+      <CardHead className="flex flex-wrap items-center gap-x-4 gap-y-1" subline={budgetSignal}>
         <span>{t('money.title', { defaultValue: 'Money · {{currency}}, before tax', currency: procurement.currency })}</span>
-        {budgetSignal}
       </CardHead>
       <CardPad>
         <div className="grid grid-cols-2 gap-x-5 gap-y-4 sm:grid-cols-5">

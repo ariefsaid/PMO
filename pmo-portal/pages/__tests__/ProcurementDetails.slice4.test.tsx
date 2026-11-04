@@ -48,6 +48,10 @@ vi.mock('@/src/hooks/useDomainOwnershipMode', async () => await import('@/test/d
 vi.mock('@/src/hooks/useProcurementItemEligibility', () => ({ useProcurementItemEligibility: () => ({ data: true, isPending: false, isError: false, isFetching: false, refetch: vi.fn() }) }));
 
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
+vi.mock('@/src/hooks/useOrgTaxDefault', async (orig) => ({
+  ...((await orig()) as Record<string, unknown>),
+  useOrgTaxDefault: () => undefined,
+}));
 vi.mock('@/src/hooks/useProcurementRecords', () => ({
   useProcurementRecordMutations: () => ({
     createPurchaseRequest: { mutateAsync: vi.fn(), isPending: false },
@@ -324,13 +328,25 @@ describe('AC-PR-S4-001: per-stage action verbs appear in the action zone', () =>
     expect(screen.getByTestId('procurement-status-badge')).toHaveTextContent('Paid');
   });
 
-  // The "No further lifecycle actions…" sentence lived in the removed decision card (#1404); a terminal
-  // purchase now simply carries no lifecycle button and its status badge says why.
+  // A terminal purchase carries no lifecycle buttons and the helper copy names only those buttons.
   it('Cancelled: no advance verbs — the status reads Cancelled', () => {
     detailState.data = { ...BASE, status: 'Cancelled' };
     renderPage();
     expect(screen.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Cancelled');
     expect(headerActions().queryByRole('button', { name: /approve|submit|record (order|receipt|payment|supplier invoice)|rework|choose quote/i })).toBeNull();
+  });
+
+  it('F3: while a goods receipt form is open, the helper copy refers only to lifecycle buttons', async () => {
+    const { default: userEvent } = await import('@testing-library/user-event');
+    roleState.realRole = 'Project Manager';
+    roleState.effectiveRole = 'Project Manager';
+    authState.userId = 'u-alice';
+    detailState.data = { ...BASE, status: 'Ordered', requested_by_id: 'u-other' };
+    renderPage();
+    await userEvent.click(headerActions().getByRole('button', { name: 'Record receipt' }));
+    expect(screen.getByTestId('form-create-gr')).toBeInTheDocument();
+    expect(screen.getByText('No lifecycle buttons are available at this stage.')).toBeInTheDocument();
+    expect(screen.queryByText(/No further lifecycle actions are available to you/)).toBeNull();
   });
 
   it('Rejected (requester=self): shows Rework (Back to Draft)', () => {

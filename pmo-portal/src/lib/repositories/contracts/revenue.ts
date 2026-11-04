@@ -28,6 +28,8 @@ export interface RevenueRepository {
     receivedAmount?: number;
     withheldAmount?: number;
     withholdingSlipNumber?: string | null;
+    /** Odoo mirrored journal selected for this receipt, when set. */
+    journalId?: string;
     date: string;
   }, intent?: CommandIntent): Promise<{ id: string; ip_number: string | null }>;
   /** #767: record/clear the date the client received the invoice (Admin/Finance, RPC-enforced). */

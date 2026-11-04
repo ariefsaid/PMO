@@ -12,6 +12,8 @@ import { deriveArDueDate } from '@/src/lib/repositories/revenueDisplay';
 import { salesInvoiceStatusVariant } from '@/src/lib/status/statusVariants';
 import { invoiceGross, invoiceNumber, isPartlyPaid, overpaidBy, paidToDate } from '@/src/lib/revenue/nativeInvoice';
 import { salesInvoiceStatusLabel } from './salesInvoiceListModel';
+import { OdooOutcome } from '@/src/components/revenue/OdooOutcome';
+import type { OdooOutcome as OdooOutcomeValue } from '@/src/lib/procurement/odooOutcome';
 
 interface Props {
   t: ReturnType<typeof useTranslation>['t'];
@@ -29,6 +31,8 @@ interface Props {
     variant: ReturnType<typeof salesInvoiceStatusVariant>;
     partlySettled: boolean;
     receiptAwaitingOdoo?: boolean;
+    odooOutcome?: OdooOutcomeValue | null;
+    odooOffline?: boolean;
   };
 }
 export function salesInvoiceColumns({ t, all, embedded, native, location, orgCurrency, sharedTaxBasis, projectOptionsById, projectsById, profilesById, invoiceStatus }: Props) {
@@ -108,6 +112,7 @@ export function salesInvoiceColumns({ t, all, embedded, native, location, orgCur
     size: embedded ? 180 : undefined,
     cell: (inv) => {
       const status = invoiceStatus(inv);
+      if (status.odooOutcome) return <OdooOutcome outcome={status.odooOutcome} unreachable={status.odooOffline} compact />;
       const receiptAwaitingOdoo = status.receiptAwaitingOdoo === true;
       const legacyLabel = status.partlySettled
         ? t('financeCopy.statusPartlyPaid', 'Partly paid')

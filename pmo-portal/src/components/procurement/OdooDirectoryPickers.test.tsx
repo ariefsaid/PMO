@@ -16,7 +16,7 @@ vi.mock('@/src/hooks/useOdoo', () => ({
 }));
 vi.mock('@/src/lib/format', async (orig) => ({ ...(await orig<typeof import('@/src/lib/format')>()), formatRelativeTime: () => '3 days ago' }));
 
-import { OdooJournalSelect, OdooTaxPicker } from './OdooDirectoryPickers';
+import { OdooAccountSelect, OdooJournalSelect, OdooTaxPicker } from './OdooDirectoryPickers';
 
 const tax = (id: string, name: string) => ({ external_id: id, name, code: null, attrs: {} });
 const journal = (id: string, name: string, type: string) => ({ external_id: id, name, code: null, attrs: { type } });
@@ -104,5 +104,29 @@ describe('AC-OPP-081 OdooJournalSelect', () => {
     render(<OdooJournalSelect value="" onChange={vi.fn()} />);
     expect(screen.getByRole('combobox', { name: 'Pay from' })).toBeDisabled();
     expect(screen.getByText('The journal list was last read 3 days ago; refresh the Odoo connection first.')).toBeInTheDocument();
+  });
+});
+
+describe('AC-OCI-091 OdooAccountSelect', () => {
+  it('offers active mirrored accounts from the directory', async () => {
+    h.records = { data: { rows: [{ external_id: '88', name: 'Tax prepayments', code: '1350', attrs: {} }], total: 1 }, isError: false };
+    h.summary = { data: { asOf: FRESH } };
+    const onChange = vi.fn();
+    render(<OdooAccountSelect id="tax-prepaid" label="Tax-prepaid account" value="" onChange={onChange} />);
+    expect(h.seen[0]).toMatchObject({ kind: 'account' });
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Tax-prepaid account' }), '88');
+    expect(onChange).toHaveBeenCalledWith('88');
+  });
+
+  it('is disabled with a clear reason when the account directory is empty or stale', () => {
+    h.records = { data: { rows: [], total: 0 }, isError: false }; h.summary = { data: { asOf: null } };
+    const { rerender } = render(<OdooAccountSelect id="tax-prepaid" label="Tax-prepaid account" value="" onChange={vi.fn()} />);
+    expect(screen.getByRole('combobox', { name: 'Tax-prepaid account' })).toBeDisabled();
+    expect(screen.getByText('No accounts have been read from Odoo yet.')).toBeInTheDocument();
+    h.records = { data: { rows: [{ external_id: '88', name: 'Tax prepayments', code: '1350', attrs: {} }], total: 1 }, isError: false };
+    h.summary = { data: { asOf: '2026-10-30T00:00:00Z' } };
+    rerender(<OdooAccountSelect id="tax-prepaid" label="Tax-prepaid account" value="" onChange={vi.fn()} />);
+    expect(screen.getByRole('combobox', { name: 'Tax-prepaid account' })).toBeDisabled();
+    expect(screen.getByText('The account list was last read 3 days ago; refresh the Odoo connection first.')).toBeInTheDocument();
   });
 });

@@ -17,7 +17,8 @@ function useDirectory(kind: MirrorKind, purpose?: 'purchase') {
   const summary = useMasterSummary(kind);
   const rows: MasterRecord[] = (records.data?.rows ?? []) as MasterRecord[];
   const asOf = summary.data?.asOf ?? null;
-  const stale = asOf !== null && Date.now() - Date.parse(asOf) > STALE_AFTER_MS;
+  const age = asOf === null ? Number.NaN : Date.parse(asOf);
+  const stale = !Number.isFinite(age) || Date.now() - age > STALE_AFTER_MS;
   const state: 'loading' | 'empty' | 'stale' | 'ready' = records.data === undefined && !records.isError ? 'loading' : rows.length === 0 ? 'empty' : stale ? 'stale' : 'ready';
   return { rows, asOf, state };
 }
@@ -68,6 +69,26 @@ export const OdooJournalSelect: React.FC<{ value: string; onChange: (id: string)
       disabled={disabled}
       helper={reason}
       options={[{ value: '', label: t('odoo.journal.default', 'Default journal') }, ...payable.map((r) => ({ value: r.external_id, label: r.name }))]}
+    />
+  );
+};
+
+/** Selects an Odoo account from the mirrored directory; unavailable or old data cannot be chosen. */
+export const OdooAccountSelect: React.FC<{ value: string; onChange: (id: string) => void; id: string; label: string }> = ({ value, onChange, id, label }) => {
+  const { t } = useTranslation('procurement');
+  const { rows, asOf, state } = useDirectory('account');
+  const disabled = state !== 'ready';
+  const reason = state === 'empty' ? t('odoo.accounts.emptyReason', 'No accounts have been read from Odoo yet.')
+    : state === 'stale' ? t('odoo.accounts.staleReason', 'The account list was last read {{age}}; refresh the Odoo connection first.', { age: formatRelativeTime(asOf) }) : undefined;
+  return (
+    <SelectField
+      id={id}
+      label={label}
+      value={value}
+      onChange={onChange}
+      disabled={disabled}
+      helper={reason}
+      options={[{ value: '', label: t('odoo.accounts.choose', 'Choose an account') }, ...rows.map((row) => ({ value: row.external_id, label: [row.code, row.name].filter(Boolean).join(' · ') }))]}
     />
   );
 };

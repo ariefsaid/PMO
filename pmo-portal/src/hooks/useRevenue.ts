@@ -65,6 +65,17 @@ export function useNativeDraftInvoices(enabled: boolean) {
   });
 }
 
+/** Drafts raised in Odoo's PMO approval flow. The enabled flag keeps other revenue owners out of this read. */
+export function useDraftInvoices(enabled: boolean) {
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
+  return useQuery<SalesInvoiceRow[]>({
+    queryKey: ['salesInvoices', orgId, 'odoo-drafts'],
+    queryFn: () => repositories.revenue.listInvoices({ status: 'Draft' }),
+    enabled: Boolean(orgId) && enabled,
+  });
+}
+
 /**
  * Org-scoped incoming payments list over the repository seam (ADR-0017).
  * Optional `customerId` narrows to one customer.
@@ -199,7 +210,7 @@ export function useRevenueMutations() {
 
 
   const createPayment = useMutation({
-    mutationFn: ({ intent, ...input }: { customerId: string; salesInvoiceId?: string | null; paidAmount: number; receivedAmount: number; withheldAmount?: number; withholdingSlipNumber?: string | null; date: string; intent?: CommandIntent }) =>
+    mutationFn: ({ intent, ...input }: { customerId: string; salesInvoiceId?: string | null; paidAmount: number; receivedAmount: number; withheldAmount?: number; withholdingSlipNumber?: string | null; journalId?: string; date: string; intent?: CommandIntent }) =>
       repositories.revenue.createPayment(input, intent),
     onMutate: () => {
       if (isExternal) setPendingPush(beginPush(IDLE_PENDING_PUSH));

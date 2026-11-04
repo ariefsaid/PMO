@@ -8,6 +8,7 @@ import type { IncomingPaymentRow, IncomingPaymentStatus } from '@/src/lib/db/rev
 import { incomingPaymentStatusVariant, salesInvoiceStatusVariant } from '@/src/lib/status/statusVariants';
 import { receiptNumber } from '@/src/lib/revenue/nativeInvoice';
 import { displayAllocations, knownUnappliedCash } from '@/src/lib/revenue/receiptAllocation';
+import { OdooReceiptStatus } from './OdooReceiptStatus';
 
 /** Status filter segments. "Received"/"Cancelled" are how a PMO receipt reads (I-5): it is recorded as received, never
  *  Scheduled, and a cancelled one keeps its row (DD-NAR-10). */
@@ -36,11 +37,12 @@ export function matchesStatus(p: IncomingPaymentRow, filter: StatusFilter): bool
   return filter === 'All' || (filter === 'Received' ? status === 'Paid' : status === filter);
 }
 
-export function receiptColumns({ t, embedded, location, invoiceNumberById }: {
+export function receiptColumns({ t, embedded, location, invoiceNumberById, odoo = false }: {
   t: ReturnType<typeof useTranslation>['t'];
   embedded: boolean;
   location: ReturnType<typeof useLocation>;
   invoiceNumberById: Map<string, string | null>;
+  odoo?: boolean;
 }) {
   const invoiceNumberOf = (id: string) => invoiceNumberById.get(id) ?? null;
   const notReported = t('uxs06.notReported', 'Not reported');
@@ -103,9 +105,12 @@ export function receiptColumns({ t, embedded, location, invoiceNumberById }: {
       header: t('financeCopy.status', "Status"),
       // #784 AC-NAR-006: a cancelled PMO receipt keeps its row (status stays Paid) and reads Cancelled.
       // I-5: a live PMO receipt reads Received — the same word as its filter.
-      cell: (p) => displayStatus(p) === 'Cancelled'
-        ? <StatusPill variant={salesInvoiceStatusVariant('Cancelled')}>{t('financeCopy.statusCancelled', 'Cancelled')}</StatusPill>
-        : <StatusPill variant={incomingPaymentStatusVariant(p.status)}>{incomingPaymentStatusLabel(displayStatus(p), t)}</StatusPill>,
+      cell: (p) => {
+        const fallback = displayStatus(p) === 'Cancelled'
+          ? <StatusPill variant={salesInvoiceStatusVariant('Cancelled')}>{t('financeCopy.statusCancelled', 'Cancelled')}</StatusPill>
+          : <StatusPill variant={incomingPaymentStatusVariant(p.status)}>{incomingPaymentStatusLabel(displayStatus(p), t)}</StatusPill>;
+        return odoo ? <OdooReceiptStatus receipt={p} fallback={fallback} /> : fallback;
+      },
       exportValue: (p) => (displayStatus(p) === 'Cancelled' ? 'Cancelled' : displayStatus(p) === 'Paid' ? 'Received' : 'Expected'),
     },
     {
