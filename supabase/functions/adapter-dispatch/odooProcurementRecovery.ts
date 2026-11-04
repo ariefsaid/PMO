@@ -4,6 +4,7 @@ import { AdapterError } from '../../../pmo-portal/src/lib/adapterSeam/contract.t
 import { dispatchMoneyWrite, type DispatchMoneyWriteDeps, type OutboxRow } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
 import { recordExternalRef as recordExternalRefWrite } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
 import { ODOO_TIER } from '../../../pmo-portal/src/lib/adapterSeam/odoo/connectAdapter.ts';
+import { odooOwnsTier } from '../../../pmo-portal/src/lib/adapterSeam/odoo/ownership.ts';
 import { assertNotPreCutover } from '../../../pmo-portal/src/lib/adapterSeam/cutoverGate.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 import { checkOutboxReplayAuthorization, replayMayIssueErpWrite, type AuthorizationResult } from './authGuard.ts';
@@ -42,7 +43,7 @@ const PROCUREMENT_COMMANDS: Readonly<Record<string, readonly string[]>> = {
 
 function isProcurementCandidate(candidate: OdooProcurementCandidate): boolean {
   const kind = candidate.payload?.erp_doc_kind;
-  return candidate.externalTier === ODOO_TIER && candidate.row.domain === 'procurement' &&
+  return odooOwnsTier(candidate.externalTier) && candidate.row.domain === 'procurement' &&
     candidate.row.state !== 'held' && typeof kind === 'string' &&
     (PROCUREMENT_COMMANDS[kind]?.includes(candidate.operation) ?? false) &&
     (candidate.operation !== 'update' || (kind === 'purchase-order' && Number.isInteger(candidate.payload?.revision)));
@@ -132,7 +133,7 @@ export async function buildOdooProcurementRecoveryDeps(
     payload: Record<string, unknown> | null; actor_user_id: string | null;
   };
   const payload = stored.payload ?? {};
-  if (stored.external_tier !== ODOO_TIER || stored.domain !== 'procurement' || stored.pmo_record_id !== candidate.row.pmoRecordId ||
+  if (!odooOwnsTier(stored.external_tier) || stored.domain !== 'procurement' || stored.pmo_record_id !== candidate.row.pmoRecordId ||
       stored.operation !== candidate.operation || !isProcurementCandidate({ ...candidate, externalTier: stored.external_tier, payload })) {
     throw new AppError('Odoo procurement recovery row no longer matches its frozen command', 'commit-rejected');
   }

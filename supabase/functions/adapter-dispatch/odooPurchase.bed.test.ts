@@ -348,7 +348,10 @@ Deno.test({
       }
       if (productId) await call('product.product', 'unlink', { ids: [productId] }).catch(() => {});
       if (partnerId) await call('res.partner', 'unlink', { ids: [partnerId] }).catch(() => {});
-      for (const [name, value] of hostGuardEnv) value === undefined ? Deno.env.delete(name) : Deno.env.set(name, value);
+      for (const [name, value] of hostGuardEnv) {
+        if (value === undefined) Deno.env.delete(name);
+        else Deno.env.set(name, value);
+      }
     }
   },
 });
