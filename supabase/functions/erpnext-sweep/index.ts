@@ -156,8 +156,9 @@ import {
 } from './budgetArchiveBackstop.ts';
 import { budgetPushKey } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/budgetPushKey.ts';
 import { budgetVersionIdOf, decodeFiscalYear, encodeFiscalYear } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/fiscalYearEncoding.ts';
-import { budgetAccountArchiveKey, budgetAccountIdentity, budgetAccountPushKey, budgetLegacyArchiveKey, budgetLegacyIdentity, parseBudgetIdentity } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/budgetAccountIdentity.ts';
+import { budgetAccountArchiveKey, budgetAccountIdentity, budgetAccountPushKey, budgetLegacyArchiveKey, budgetLegacyIdentity, budgetRangeIdentity, parseBudgetIdentity } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/budgetAccountIdentity.ts';
 import { resolveV16BudgetAccounts } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/budgetAccountPlan.ts';
+import { parseExactCents } from '../../../pmo-portal/src/lib/exactDecimal.ts';
 
 /** FR-BFY-075 — the named state a sweep budget recovery takes when the CURRENT gate would refuse the
  *  frozen year/body. Surfaced per candidate; the row itself is left untouched (no POST, no state
@@ -182,6 +183,13 @@ function fiscalYearOfIdentity(pmoRecordId: string): string | null {
   }
 }
 
+function toFiscalYearOfIdentity(pmoRecordId: string): string | null {
+  try {
+    const identity = parseBudgetIdentity(pmoRecordId);
+    return identity.kind === 'range' ? identity.toFiscalYear : null;
+  } catch { return null; }
+}
+
 function accountOfIdentity(pmoRecordId: string): string | null {
   try { return parseBudgetIdentity(pmoRecordId).erpAccount; } catch { return null; }
 }
@@ -190,8 +198,8 @@ function accountOfIdentity(pmoRecordId: string): string | null {
  *  fiscal_year), so an outbox orphan is a duplicate of a mirror row ONLY when BOTH match. A NUL (\u0000)
  *  delimiter — which neither a UUID nor an ERPNext Fiscal Year name can contain — keeps the
  *  composite unambiguous. */
-function budgetDedupKey(versionId: string, fiscalYear: string | null | undefined, account?: string | null): string {
-  return `${versionId}\u0000${fiscalYear ?? ''}\u0000${account ?? ''}`;
+function budgetDedupKey(versionId: string, fiscalYear: string | null | undefined, account?: string | null, toFiscalYear?: string | null): string {
+  return `${versionId}\u0000${fiscalYear ?? ''}\u0000${toFiscalYear ?? ''}\u0000${account ?? ''}`;
 }
 import { ERPNEXT_BUDGET_DOMAIN, ERPNEXT_EXPENSES_DOMAIN, ERPNEXT_TIMESHEETS_DOMAIN } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
 // #775 phase B (ADR-0081) — the expense posting pass (7), the only originator of expense postings.
@@ -2075,7 +2083,7 @@ function holdBudgetMirrorRow(
   row: BudgetMirrorCandidateRow,
   reason: string,
 ): PromiseLike<{ error: { message: string; code?: string } | null }> {
-  const { budget_version_id: budgetVersionId, push_state: pushState, fiscal_year: fiscalYear } = row;
+  const { budget_version_id: budgetVersionId, push_state: pushState, fiscal_year: fiscalYear, to_fiscal_year: toFiscalYear } = row;
   const account = typeof row.erp_account === 'string' && row.erp_account !== '' ? row.erp_account : null;
   const mirrorName = account ? 'budget_version_account_erp_mirror' : 'budget_version_erp_mirror';
   // ⚑ MEDIUM-2: an `absent` candidate (an outbox-only orphan — a dispatch that died between the ERP
@@ -2104,7 +2112,7 @@ function holdBudgetMirrorRow(
           org_id: orgId,
           budget_version_id: budgetVersionId,
           fiscal_year: fiscalYear,
-          ...(account ? { erp_account: account, budget_intent: row.budget_intent ?? 'ensure' } : {}),
+          ...(account ? { to_fiscal_year: toFiscalYear ?? null, erp_account: account, budget_intent: row.budget_intent ?? 'ensure' } : {}),
           push_state: 'held',
           push_error: reason,
         });
@@ -2127,7 +2135,10 @@ function holdBudgetMirrorRow(
     .eq('org_id', orgId)
     .eq('budget_version_id', budgetVersionId)
     .eq('fiscal_year', fiscalYear);
-  if (account) hold = hold.eq('erp_account', account) as typeof hold;
+  if (account) {
+    hold = hold.eq('erp_account', account) as typeof hold;
+    hold = toFiscalYear == null ? hold.is('to_fiscal_year', null) as typeof hold : hold.eq('to_fiscal_year', toFiscalYear) as typeof hold;
+  }
   return hold
     // the SAME eligibility `listPendingBudgetPushes` asserted — never a state this pass did not observe
     .in('push_state', ['pending', 'failed'])
@@ -2165,7 +2176,7 @@ export function budgetBackstopDepsLive(
   /** ⚑ MEDIUM-2: the budget-domain rows `outbox_reconcile_candidates` (0131) STILL ADMITS — the id set
    *  the attempts-exhausted gate already used, plus each row's `pmo_record_id` so the queue can also
    *  find an outbox-only ORPHAN (a dispatch that died between the ERP commit and the mirror write). */
-  eligibleBudgetCandidates: ReadonlyArray<{ id: string; pmo_record_id: string; fiscal_year?: string | null; budget_intent?: 'ensure' | 'remove' | null }>,
+  eligibleBudgetCandidates: ReadonlyArray<{ id: string; pmo_record_id: string; fiscal_year?: string | null; to_fiscal_year?: string | null; budget_intent?: 'ensure' | 'remove' | null }>,
   /** 0357: `failed` rows waiting out their retry delay (`outbox_retry_pending`) — not due, not exhausted. */
   retryPendingIds: ReadonlySet<string> = new Set(),
 ): BudgetBackstopDeps {
@@ -2178,7 +2189,7 @@ export function budgetBackstopDepsLive(
           .eq('org_id', orgId).in('push_state', ['pending', 'failed']).is('erp_cancelled_at', null)
           .order('last_attempt_at', { ascending: true, nullsFirst: true }).order('created_at', { ascending: true }).order('id', { ascending: true }).limit(limit),
         serviceClient.from('budget_version_account_erp_mirror')
-          .select('id,budget_version_id,push_state,erp_cancelled_at,fiscal_year,erp_account,budget_intent,created_at,last_attempt_at')
+          .select('id,budget_version_id,push_state,erp_cancelled_at,fiscal_year,to_fiscal_year,erp_account,budget_intent,created_at,last_attempt_at')
           .eq('org_id', orgId).in('push_state', ['pending', 'failed']).is('erp_cancelled_at', null)
           .order('last_attempt_at', { ascending: true, nullsFirst: true }).order('created_at', { ascending: true }).order('id', { ascending: true }).limit(limit),
       ]);
@@ -2190,6 +2201,7 @@ export function budgetBackstopDepsLive(
         push_state: String(r.push_state),
         erp_cancelled_at: (r.erp_cancelled_at as string | null) ?? null,
         fiscal_year: (r.fiscal_year as string | null) ?? null,
+        to_fiscal_year: accountGrained ? (r.to_fiscal_year as string | null) ?? null : null,
         ...(accountGrained ? {
           erp_account: (r.erp_account as string | null) ?? null,
           budget_intent: (r.budget_intent as 'ensure' | 'remove' | null) ?? null,
@@ -2220,7 +2232,7 @@ export function budgetBackstopDepsLive(
       // set silently discarded that orphan (its version had *a* mirror), stranding a live ERP Budget PMO
       // reports as never-pushed. A pre-fan-out bare orphan (no year on record) keeps version-level
       // suppression — pre-fan-out there is exactly one year per version, so the two agree.
-      const knownComposite = new Set(mirrored.map((r) => budgetDedupKey(r.budget_version_id, r.fiscal_year, r.erp_account)));
+      const knownComposite = new Set(mirrored.map((r) => budgetDedupKey(r.budget_version_id, r.fiscal_year, r.erp_account, r.to_fiscal_year)));
       const knownVersions = new Set(mirrored.map((r) => r.budget_version_id));
       const orphans = eligibleBudgetCandidates
         // ⚑ FR-BFY-032: an outbox row's `pmo_record_id` is now the YEAR-QUALIFIED identity, so the
@@ -2230,18 +2242,20 @@ export function budgetBackstopDepsLive(
           ...c,
           versionId: bareBudgetVersionId(c.pmo_record_id),
           year: fiscalYearOfIdentity(c.pmo_record_id) ?? c.fiscal_year ?? null,
+          toYear: toFiscalYearOfIdentity(c.pmo_record_id) ?? c.to_fiscal_year ?? null,
           account: accountOfIdentity(c.pmo_record_id),
         }))
         // Suppress only an exact version/year/account mirror. Bare legacy rows keep version suppression.
         .filter((c) => c.account !== null
-          ? !knownComposite.has(budgetDedupKey(c.versionId, c.year, c.account))
-          : c.year ? !knownComposite.has(budgetDedupKey(c.versionId, c.year, null)) : !knownVersions.has(c.versionId))
+          ? !knownComposite.has(budgetDedupKey(c.versionId, c.year, c.account, c.toYear))
+          : c.year ? !knownComposite.has(budgetDedupKey(c.versionId, c.year, null, c.toYear)) : !knownVersions.has(c.versionId))
         .map((c) => ({
           id: c.id,
           budget_version_id: c.versionId,
           push_state: BUDGET_MIRROR_ABSENT,
           erp_cancelled_at: null,
           fiscal_year: c.year,
+          to_fiscal_year: c.toYear,
           erp_account: c.account,
           budget_intent: c.budget_intent ?? 'ensure',
           created_at: null,
@@ -2276,7 +2290,9 @@ export function budgetBackstopDepsLive(
       // legacy shape is used verbatim for it.
       const encodedFiscalYear = row.fiscal_year ? encodeFiscalYear(row.fiscal_year) : null;
       const identity = row.erp_account
-        ? budgetAccountIdentity(row.budget_version_id, String(row.fiscal_year ?? ''), row.erp_account)
+        ? row.to_fiscal_year
+          ? budgetRangeIdentity(row.budget_version_id, String(row.fiscal_year ?? ''), row.to_fiscal_year, row.erp_account)
+          : budgetAccountIdentity(row.budget_version_id, String(row.fiscal_year ?? ''), row.erp_account)
         : encodedFiscalYear ? `${row.budget_version_id}:${encodedFiscalYear}` : row.budget_version_id;
       const idempotencyKey = row.erp_account
         ? budgetAccountPushKey(identity, version.activated_at)
@@ -2350,6 +2366,9 @@ async function reconcileOrgBudgetPushesLive(serviceClient: SupabaseClient, org: 
         fiscal_year: typeof (c.canonical as Record<string, unknown> | null)?.fiscal_year === 'string'
           ? ((c.canonical as Record<string, string>).fiscal_year)
           : null,
+        to_fiscal_year: typeof (c.canonical as Record<string, unknown> | null)?.to_fiscal_year === 'string'
+          ? ((c.canonical as Record<string, string>).to_fiscal_year)
+          : toFiscalYearOfIdentity(c.pmoRecordId),
         budget_intent: (c.canonical as Record<string, unknown> | null)?.budget_intent === 'remove' ? 'remove' as const : 'ensure' as const,
       }));
     const retryPendingIds = await listRetryPendingLive(serviceClient, org.orgId);
@@ -2402,7 +2421,9 @@ async function readBudgetArchiveLifecycleLive(
   const legacy = job.source_kind === 'legacy';
   const identity = legacy
     ? budgetLegacyIdentity(job.budget_version_id, job.fiscal_year)
-    : budgetAccountIdentity(job.budget_version_id, job.fiscal_year, job.erp_account!);
+    : job.to_fiscal_year
+      ? budgetRangeIdentity(job.budget_version_id, job.fiscal_year, job.to_fiscal_year, job.erp_account!)
+      : budgetAccountIdentity(job.budget_version_id, job.fiscal_year, job.erp_account!);
   const archiveKey = legacy
     ? budgetLegacyArchiveKey(identity, job.activated_at_witness)
     : budgetAccountArchiveKey(identity, job.activated_at_witness);
@@ -2481,22 +2502,31 @@ async function budgetArchiveTargetStillLiveAndOwnedLive(
     return !!legacyRef;
   }
 
-  const { data: mirror, error: mirrorError } = await serviceClient.from('budget_version_account_erp_mirror')
-    .select('id,org_id,budget_version_id,fiscal_year,erp_account,budget_intent,push_state,erp_budget_name,erp_docstatus,erp_cancelled_at,activated_at_witness,pushed_project_start_date,pushed_project_end_date')
+  const mirrorQuery = serviceClient.from('budget_version_account_erp_mirror')
+    .select('id,org_id,budget_version_id,fiscal_year,to_fiscal_year,erp_account,budget_intent,push_state,erp_budget_name,erp_docstatus,erp_cancelled_at,erp_modified,activated_at_witness,pushed_project_start_date,pushed_project_end_date')
     .eq('id', job.source_mirror_id).eq('org_id', job.org_id)
     .eq('budget_version_id', job.budget_version_id).eq('fiscal_year', job.fiscal_year)
-    .eq('erp_account', job.erp_account).maybeSingle();
+    .eq('erp_account', job.erp_account);
+  const scopedMirror = job.to_fiscal_year == null
+    ? mirrorQuery.is('to_fiscal_year', null)
+    : mirrorQuery.eq('to_fiscal_year', job.to_fiscal_year);
+  const { data: mirror, error: mirrorError } = await scopedMirror.maybeSingle();
   if (mirrorError) throw new AppError(mirrorError.message, mirrorError.code);
-  if (!mirror || mirror.erp_budget_name !== job.erp_budget_name ||
-      mirror.activated_at_witness !== job.activated_at_witness || mirror.budget_intent !== 'remove' ||
-      mirror.pushed_project_start_date !== job.pushed_project_start_date ||
-      mirror.pushed_project_end_date !== job.pushed_project_end_date) return false;
-  const isStillLive = mirror.erp_cancelled_at === null && mirror.erp_docstatus !== 2 &&
-    ['pending', 'failed', 'held', 'pushed'].includes(mirror.push_state);
-  const alreadyCancelled = mirror.erp_cancelled_at !== null && mirror.erp_docstatus === 2;
+  const accountRow = mirror as Record<string, unknown> | null;
+  if (!accountRow || (accountRow.to_fiscal_year ?? null) !== (job.to_fiscal_year ?? null) ||
+      accountRow.erp_budget_name !== job.erp_budget_name ||
+      (job.to_fiscal_year != null && accountRow.erp_modified !== job.erp_modified) ||
+      accountRow.activated_at_witness !== job.activated_at_witness || accountRow.budget_intent !== 'remove' ||
+      accountRow.pushed_project_start_date !== job.pushed_project_start_date ||
+      accountRow.pushed_project_end_date !== job.pushed_project_end_date) return false;
+  const isStillLive = accountRow.erp_cancelled_at === null && accountRow.erp_docstatus !== 2 &&
+    ['pending', 'failed', 'held', 'pushed'].includes(String(accountRow.push_state));
+  const alreadyCancelled = accountRow.erp_cancelled_at !== null && accountRow.erp_docstatus === 2;
   if (!isStillLive && !alreadyCancelled) return false;
 
-  try { identity = budgetAccountIdentity(job.budget_version_id, job.fiscal_year, job.erp_account!); }
+  try { identity = job.to_fiscal_year
+    ? budgetRangeIdentity(job.budget_version_id, job.fiscal_year, job.to_fiscal_year, job.erp_account!)
+    : budgetAccountIdentity(job.budget_version_id, job.fiscal_year, job.erp_account!); }
   catch { return false; }
   const { data: externalRef, error: refError } = await serviceClient.from('external_refs')
     .select('external_record_id').eq('org_id', job.org_id).eq('domain', ERPNEXT_BUDGET_DOMAIN)
@@ -2516,7 +2546,7 @@ async function reconcileOrgBudgetArchiveCancellationsLive(
   const deps: BudgetArchiveBackstopDeps = {
     listPending: async (orgId, limit) => {
       const { data, error } = await serviceClient.from('budget_archive_cancel_intents')
-        .select('id,org_id,request_id,project_id,budget_version_id,source_mirror_id,source_kind,actor_user_id,fiscal_year,erp_account,erp_budget_name,activated_at_witness,pushed_project_start_date,pushed_project_end_date')
+        .select('id,org_id,request_id,project_id,budget_version_id,source_mirror_id,source_kind,actor_user_id,fiscal_year,to_fiscal_year,erp_modified,erp_account,erp_budget_name,activated_at_witness,pushed_project_start_date,pushed_project_end_date')
         .eq('org_id', orgId).eq('state', 'pending')
         .order('last_attempt_at', { ascending: true, nullsFirst: true })
         .order('created_at', { ascending: true }).order('id', { ascending: true }).limit(limit);
@@ -2532,7 +2562,9 @@ async function reconcileOrgBudgetArchiveCancellationsLive(
       const legacy = (job.source_kind ?? 'account') === 'legacy';
       const identity = legacy
         ? budgetLegacyIdentity(job.budget_version_id, job.fiscal_year)
-        : budgetAccountIdentity(job.budget_version_id, job.fiscal_year, job.erp_account!);
+        : job.to_fiscal_year
+          ? budgetRangeIdentity(job.budget_version_id, job.fiscal_year, job.to_fiscal_year, job.erp_account!)
+          : budgetAccountIdentity(job.budget_version_id, job.fiscal_year, job.erp_account!);
       const idempotencyKey = legacy
         ? budgetLegacyArchiveKey(identity, job.activated_at_witness)
         : budgetAccountArchiveKey(identity, job.activated_at_witness);
@@ -2562,6 +2594,8 @@ async function reconcileOrgBudgetArchiveCancellationsLive(
           erp_doc_kind: 'budget',
           projectId: job.project_id,
           fiscal_year: job.fiscal_year,
+          ...(job.to_fiscal_year ? { to_fiscal_year: job.to_fiscal_year, budget_mode: 'whole_project' } : {}),
+          ...(job.to_fiscal_year ? { budget_predecessor_modified: job.erp_modified } : {}),
           ...(legacy
             ? { source_kind: 'legacy' }
             : { erp_account: job.erp_account }),
@@ -3889,6 +3923,7 @@ export async function buildMoneyWriteDepsLive(
   const adapter = await resolveErpDispatchAdapter({
     serviceClient: serviceClient as never,
     orgId: org.orgId,
+    actorUserId: args.actorUserId ?? undefined,
     command,
     fetchImpl: guardedErpFetch(org.siteUrl),
     apiKey,
@@ -3995,7 +4030,7 @@ async function assertBudgetArchiveSweepGate(
   const jobId = typeof payload.budget_archive_cancel_job_id === 'string' ? payload.budget_archive_cancel_job_id : '';
   if (!jobId) throw new AppError('budget archive recovery HELD: cancellation job witness is missing', BUDGET_SWEEP_GATE_HELD);
   const { data, error } = await serviceClient.from('budget_archive_cancel_intents')
-    .select('id,org_id,request_id,project_id,budget_version_id,source_mirror_id,source_kind,actor_user_id,fiscal_year,erp_account,erp_budget_name,activated_at_witness,pushed_project_start_date,pushed_project_end_date,state')
+    .select('id,org_id,request_id,project_id,budget_version_id,source_mirror_id,source_kind,actor_user_id,fiscal_year,to_fiscal_year,erp_modified,erp_account,erp_budget_name,activated_at_witness,pushed_project_start_date,pushed_project_end_date,state')
     .eq('id', jobId).eq('org_id', org.orgId).maybeSingle();
   if (error) throw new AppError(error.message, error.code);
   const job = data as (BudgetArchiveCancelIntent & { state: string }) | null;
@@ -4018,7 +4053,9 @@ async function assertBudgetArchiveSweepGate(
   try {
     identity = legacy
       ? budgetLegacyIdentity(job.budget_version_id, job.fiscal_year)
-      : budgetAccountIdentity(job.budget_version_id, job.fiscal_year, job.erp_account!);
+      : job.to_fiscal_year
+        ? budgetRangeIdentity(job.budget_version_id, job.fiscal_year, job.to_fiscal_year, job.erp_account!)
+        : budgetAccountIdentity(job.budget_version_id, job.fiscal_year, job.erp_account!);
     key = legacy
       ? budgetLegacyArchiveKey(identity, job.activated_at_witness)
       : budgetAccountArchiveKey(identity, job.activated_at_witness);
@@ -4026,6 +4063,9 @@ async function assertBudgetArchiveSweepGate(
   if (versionId !== job.budget_version_id || payload.projectId !== job.project_id ||
       payload.budget_archive_source_mirror_id !== job.source_mirror_id ||
       payload.fiscal_year !== job.fiscal_year ||
+      (legacy ? job.to_fiscal_year != null : (payload.to_fiscal_year ?? null) !== (job.to_fiscal_year ?? null)) ||
+      (job.to_fiscal_year != null && (payload.budget_mode !== 'whole_project' ||
+        payload.budget_predecessor_modified !== job.erp_modified)) ||
       (legacy ? payload.erp_account != null : payload.erp_account !== job.erp_account) ||
       (legacy ? payload.source_kind !== 'legacy' : payload.source_kind != null) ||
       payload.budget_intent !== 'remove' || payload.budget_predecessor !== job.erp_budget_name ||
@@ -4078,7 +4118,7 @@ async function assertBudgetSweepGate(
       readVersion: async (id) => {
         const { data, error } = await serviceClient
           .from('budget_versions')
-          .select('id, org_id, project_id, status, activated_at')
+          .select('id, org_id, project_id, status, activated_at, budget_mode')
           .eq('id', id)
           .eq('org_id', org.orgId)
           .maybeSingle();
@@ -4126,7 +4166,12 @@ async function assertBudgetSweepGate(
   }
   const account = identity.erpAccount;
   const frozenAccount = typeof payload.erp_account === 'string' ? payload.erp_account : null;
-  if (!account || !frozenAccount || account !== frozenAccount || identity.versionId !== versionId || identity.fiscalYear !== frozenYear) {
+  const isWholeProjectRange = plan.budgetMode === 'whole_project';
+  if (!account || !frozenAccount || account !== frozenAccount || identity.versionId !== versionId ||
+      identity.fiscalYear !== frozenYear ||
+      (isWholeProjectRange
+        ? identity.kind !== 'range' || identity.toFiscalYear !== payload.to_fiscal_year
+        : identity.kind !== 'annual' || identity.toFiscalYear !== null)) {
     throw new AppError('erpnext-sweep budget recovery HELD: frozen account identity is missing or inconsistent', BUDGET_SWEEP_GATE_HELD);
   }
   let currentKey: string;
@@ -4137,6 +4182,72 @@ async function assertBudgetSweepGate(
   }
   if (currentKey !== outbox.idempotencyKey) {
     throw new AppError('erpnext-sweep budget recovery HELD: activation changed since this account intent was created', BUDGET_SWEEP_GATE_HELD);
+  }
+
+  if (isWholeProjectRange) {
+    const range = plan.range;
+    if (!range || !plan.distributionRows || range.fromFiscalYear !== frozenYear ||
+        range.toFiscalYear !== identity.toFiscalYear || payload.budget_mode !== 'whole_project') {
+      throw new AppError('erpnext-sweep budget recovery HELD: approved range basis is missing or changed', BUDGET_SWEEP_GATE_HELD);
+    }
+    let desiredRangeAccounts: ReturnType<typeof resolveV16BudgetAccounts>;
+    try { desiredRangeAccounts = resolveV16BudgetAccounts(plan.sourceLineItems, plan.categoryMap); }
+    catch (err) {
+      throw new AppError(`erpnext-sweep budget recovery HELD: current range account resolution failed — ${err instanceof Error ? err.message : String(err)}`, BUDGET_SWEEP_GATE_HELD);
+    }
+    const removeRangeAccount = payload.budget_intent === 'remove';
+    if (!removeRangeAccount) {
+      const accountMap = plan.categoryMap.filter((row) => row.erp_account === account).map((row) => row.category)
+        .filter((category) => plan.sourceLineItems.some((line) => line.category === category));
+      const yearAmounts = payload.year_amounts;
+      if (accountMap.length !== 1 || !Array.isArray(yearAmounts) || yearAmounts.length !== range.fiscalYears.length) {
+        throw new AppError('erpnext-sweep budget recovery HELD: frozen range amount vector is missing or ambiguous', BUDGET_SWEEP_GATE_HELD);
+      }
+      const categoryRows = plan.distributionRows.filter((row) => row.category === accountMap[0]);
+      const expected = range.fiscalYears.map((year, index) => {
+        const row = categoryRows.find((candidate) => candidate.fiscal_year === year.name && candidate.ordinal === index);
+        const amount = row ? parseExactCents(row.amount) : null;
+        if (amount === null) throw new AppError('erpnext-sweep budget recovery HELD: approved range row is missing or malformed', BUDGET_SWEEP_GATE_HELD);
+        return { year: year.name, amount };
+      });
+      const actual = yearAmounts.map((candidate) => {
+        if (!candidate || typeof candidate !== 'object') return null;
+        const value = candidate as Record<string, unknown>;
+        return typeof value.year === 'string' && typeof value.amount === 'string'
+          ? { year: value.year, amount: parseExactCents(value.amount) }
+          : null;
+      });
+      if (actual.some((row, index) => row === null || row.year !== expected[index]?.year || row.amount !== expected[index]?.amount)) {
+        throw new AppError('erpnext-sweep budget recovery HELD: frozen range amount vector differs from the approved distribution', BUDGET_SWEEP_GATE_HELD);
+      }
+    }
+    if (removeRangeAccount) {
+      if (desiredRangeAccounts.some((row) => row.account === account)) {
+        throw new AppError('erpnext-sweep budget recovery HELD: removed range account is desired again', BUDGET_SWEEP_GATE_HELD);
+      }
+      const predecessor = typeof payload.budget_predecessor === 'string' ? payload.budget_predecessor : '';
+      if (!predecessor) throw new AppError('erpnext-sweep budget recovery HELD: range removal has no predecessor witness', BUDGET_SWEEP_GATE_HELD);
+      const prior = await serviceClient.from('budget_version_account_erp_mirror')
+        .select('budget_version_id,erp_budget_name,to_fiscal_year,budget_versions!inner(project_id)')
+        .eq('org_id', org.orgId).eq('budget_versions.project_id', plan.projectId)
+        .eq('fiscal_year', frozenYear).eq('to_fiscal_year', identity.toFiscalYear)
+        .eq('erp_account', account).eq('erp_budget_name', predecessor)
+        .eq('budget_intent', 'ensure').is('erp_cancelled_at', null).maybeSingle();
+      if (prior.error || !prior.data || (prior.data as { to_fiscal_year?: unknown }).to_fiscal_year !== identity.toFiscalYear) {
+        throw new AppError('erpnext-sweep budget recovery HELD: range predecessor has no exact same-org project/range/account witness', BUDGET_SWEEP_GATE_HELD);
+      }
+      const priorVersionId = String((prior.data as { budget_version_id?: unknown }).budget_version_id ?? '');
+      let reverseIdentity: string;
+      try { reverseIdentity = budgetRangeIdentity(priorVersionId, frozenYear, identity.toFiscalYear!, account); }
+      catch { throw new AppError('erpnext-sweep budget recovery HELD: range predecessor identity is invalid', BUDGET_SWEEP_GATE_HELD); }
+      const reverseRef = await serviceClient.from('external_refs').select('external_record_id')
+        .eq('org_id', org.orgId).eq('domain', 'budget').eq('external_tier', ERPNEXT_TIER)
+        .eq('pmo_record_id', reverseIdentity).eq('external_record_id', predecessor).maybeSingle();
+      if (reverseRef.error || !reverseRef.data) throw new AppError('erpnext-sweep budget recovery HELD: range predecessor has no reverse reference witness', BUDGET_SWEEP_GATE_HELD);
+    } else if (!desiredRangeAccounts.some((row) => row.account === account)) {
+      throw new AppError('erpnext-sweep budget recovery HELD: range account is no longer desired by the current map', BUDGET_SWEEP_GATE_HELD);
+    }
+    return;
   }
 
   let desired: ReturnType<typeof resolveV16BudgetAccounts>;

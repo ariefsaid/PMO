@@ -569,6 +569,9 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
           {t('budgetArchive.archivedBudgetStillLiveInErp')}
           <ul className="mt-2 list-disc space-y-1 pl-5 text-muted-foreground" aria-label={t('budgetArchive.stillLiveListAria', 'ERPNext Budget documents that may still be live')}>
             {archivedLiveTargets.map((target, index) => {
+              const yearLabel = target.to_fiscal_year
+                ? `${target.fiscal_year}–${target.to_fiscal_year}`
+                : target.fiscal_year;
               const status = target.push_state === 'pending'
                 ? { label: t('projectDetail.budget.pushQueued', 'Queued'), variant: 'progress' as const }
                 : target.push_state === 'held'
@@ -579,8 +582,8 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
               return (
                 <li key={`${target.source_kind}:${target.fiscal_year}:${target.erp_budget_name}:${index}`} className="flex flex-wrap items-center gap-x-2 gap-y-1">
                   <span>{target.source_kind === 'legacy'
-                    ? t('budgetArchive.legacyTargetLine', '{{year}} — {{name}} (older push)', { year: target.fiscal_year, name: target.erp_budget_name })
-                    : t('budgetArchive.targetLine', '{{year}} — {{name}}', { year: target.fiscal_year, name: target.erp_budget_name })}</span>
+                    ? t('budgetArchive.legacyTargetLine', '{{year}} — {{name}} (older push)', { year: yearLabel, name: target.erp_budget_name })
+                    : t('budgetArchive.targetLine', '{{year}} — {{name}}', { year: yearLabel, name: target.erp_budget_name })}</span>
                   {status && <StatusPill variant={status.variant}>{status.label}</StatusPill>}
                 </li>
               );

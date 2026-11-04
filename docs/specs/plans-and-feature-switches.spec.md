@@ -30,6 +30,8 @@ pay for and what fits how they work, without a release.
 | D13 | Every new module ships with: a switch, a row in the plan table, and assistant tools (a read tool always; a draft-and-confirm write tool where the screen writes). CI fails a module that lacks any of the three. |
 | D14 | Switches live in our database, not PostHog (they decide entitlement and must be server-enforced). The org's plan is sent to PostHog as a group property so analytics can split by plan. |
 | D15 | When the assistant cannot answer for lack of a tool, it emits one PostHog event (no message text), so missing tools show on a chart. |
+| D16 | *(owner, 2026-11-04)* Gross margin is on every plan, company and project, from PMO's own contract, billing, procurement and budget actuals. The P&L presents gross margin first; overheads and net profit below it show only where `financial_statements` is on (Pro, ERP-fed). Management pack and receivables are PMO-fed and sit at Growth. |
+| D17 | *(owner, 2026-11-04, #1720)* Basic procurement = request → approve → quote → order → received → vendor invoiced → paid at whole-purchase level, every plan. Full (Growth) adds line-level goods receipts, the order/receipt/invoice match and vendor withholding. Basic sales invoices = raise, approve, track; payments and ageing are `revenue`. ERP push of purchases belongs to `erp_sync` (Pro), not `procurement_full`. |
 
 ## Switch catalogue (recommended placement — owner signs off per row)
 
@@ -41,9 +43,10 @@ pay for and what fits how they work, without a release.
 | `crm` *(exists)* | Companies and contacts | ✓ | ✓ | ✓ | ✓ |
 | `sales_pipeline` | Sales pipeline and opportunities (split out of `crm`) | – | ✓ | ✓ | ✓ |
 | `procurement` *(exists)* | Procurement cases, basic flow | ✓ | ✓ | ✓ | ✓ |
-| `procurement_full` | Procurement full flow (definition: owner ticket) | – | ✓ | ✓ | ✓ |
-| `sales_invoices` | Raise and track sales invoices, basic | ✓ | ✓ | ✓ | ✓ |
+| `procurement_full` | Procurement full flow: line-level goods receipts, order/receipt/invoice match, vendor withholding (D17) | – | ✓ | ✓ | ✓ |
+| `sales_invoices` | Raise, approve and track sales invoices, basic (D17) | ✓ | ✓ | ✓ | ✓ |
 | `revenue` *(exists)* | Incoming payments, receivables ageing, reports | – | ✓ | ✓ | ✓ |
+| `payables` | PMO-fed payables: unpaid vendor invoices with ageing, company and project (D17) | – | ✓ | ✓ | ✓ |
 | `budget_projection` | Budget projection / forecasting | – | ✓ | ✓ | ✓ |
 | `imprest` | Imprest / petty-cash floats | – | ✓ | ✓ | ✓ |
 | `user_views` *(exists)* | Custom fields and saved views/reports | – | ✓ | ✓ | ✓ |
@@ -51,8 +54,9 @@ pay for and what fits how they work, without a release.
 | `clickup_sync` | ClickUp sync | – | ✓ | ✓ | ✓ |
 | `erp_sync` | ERPNext/Odoo connection: budget push, actuals, statements feed | – | – | ✓ | ✓ |
 | `erp_purchases` | Payables view of ERP purchases | – | – | ✓ | ✓ |
-| `financial_statements` | P&L, balance sheet, cash flow | – | – | ✓ | ✓ |
-| `management_pack` | Management pack | – | – | ✓ | ✓ |
+| *(core, no switch)* | Gross-margin P&L, company and project: billed revenue minus project costs, from PMO records (D16) | ✓ | ✓ | ✓ | ✓ |
+| `financial_statements` | ERP-fed statements: overheads and net profit below gross margin, balance sheet, cash flow | – | – | ✓ | ✓ |
+| `management_pack` | Management pack (PMO-fed) | – | ✓ | ✓ | ✓ |
 | `budget_phasing` | Multi-year budget phasing | – | – | ✓ | ✓ |
 | `multi_currency` | Exchange rates / multi-currency | – | – | ✓ | ✓ |
 | `stock` | Warehouse and stock | – | – | ✓ | ✓ |

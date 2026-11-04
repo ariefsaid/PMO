@@ -447,10 +447,12 @@ export interface RevenueByProjectRow {
   /** NET of tax, from the shared `sales_invoice_work_billed` view (the management pack's definition). */
   total_amount: number;
   open_ar: number;
+  /** Count of submitted invoices whose ERP outstanding balance is unknown (#1475). */
+  open_ar_unknown_count: number;
   invoice_count: number;
 }
 
-type RevenueAgg = { currency: string; total_amount: number; open_ar: number; invoice_count: number };
+type RevenueAgg = { currency: string; total_amount: number; open_ar: number; open_ar_unknown_count: number; invoice_count: number };
 
 /**
  * #831: Total Revenue is billed WORK, net of tax, read from the one shared definition the management
@@ -466,7 +468,7 @@ export async function getRevenueByProject(): Promise<RevenueByProjectRow[]> {
     const key = `${projectId ?? '__unassigned__'}|${currency}`;
     let entry = agg.get(key);
     if (!entry) {
-      entry = { project_id: projectId, currency, total_amount: 0, open_ar: 0, invoice_count: 0 };
+      entry = { project_id: projectId, currency, total_amount: 0, open_ar: 0, open_ar_unknown_count: 0, invoice_count: 0 };
       agg.set(key, entry);
     }
     return entry;
@@ -505,7 +507,12 @@ export async function getRevenueByProject(): Promise<RevenueByProjectRow[]> {
   for (const row of ar) {
     // Every submitted invoice counts (down payments and all) so the count matches the Sales Invoices list.
     const entry = bucket(row.project_id, row.currency ?? '');
-    entry.open_ar += Number(row.erp_outstanding_amount ?? 0);
+    const outstanding = row.erp_outstanding_amount;
+    if (outstanding != null && Number.isFinite(Number(outstanding))) {
+      entry.open_ar += Number(outstanding);
+    } else {
+      entry.open_ar_unknown_count += 1;
+    }
     entry.invoice_count += 1;
   }
 
@@ -531,6 +538,7 @@ export async function getRevenueByProject(): Promise<RevenueByProjectRow[]> {
     currency: v.currency,
     total_amount: v.total_amount,
     open_ar: v.open_ar,
+    open_ar_unknown_count: v.open_ar_unknown_count,
     invoice_count: v.invoice_count,
   }));
 }

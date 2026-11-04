@@ -21,6 +21,7 @@ function target(overrides: Partial<BudgetArchiveTarget> = {}): BudgetArchiveTarg
     push_state: 'pushed',
     erp_docstatus: 1,
     ...overrides,
+    to_fiscal_year: overrides.to_fiscal_year ?? null,
   };
 }
 
@@ -34,7 +35,7 @@ describe('#1462 budgetArchiveConfirmFromTargets', () => {
     expect(confirm.cancellable).toBe(true);
     expect(confirm.cancelErp).toBe(true);
     expect(confirm.targets).toEqual([
-      { source_kind: 'legacy', fiscal_year: '2026', erp_budget_name: 'BUD-OLD', eligible: true, reason: 'eligible', push_state: 'pushed', erp_docstatus: 1 },
+      { source_kind: 'legacy', fiscal_year: '2026', to_fiscal_year: null, erp_budget_name: 'BUD-OLD', eligible: true, reason: 'eligible', push_state: 'pushed', erp_docstatus: 1 },
     ]);
     // No account is fabricated for a year-grained document.
     expect('erp_account' in confirm.targets[0]).toBe(false);
