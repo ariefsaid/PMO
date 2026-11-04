@@ -13,6 +13,7 @@
  *   pmo update <table> --filter col=op.value [...] <json | @file | ->
  *   pmo rpc <name> [<json | @file | ->]
  *   pmo load <file.json | -> [--dry-run]   (active Admin only — #796)
+ *   pmo stages <project> | stage-date <project> <stage> <YYYY-MM-DD> (active Admin — #1835)
  *   pmo purchases orphans [--include-set-aside] | link <file> [--dry-run] | link-file <json>   (Admin, Executive, PM, Finance — #1319)
  *   pmo purchases set-aside <file> [--undo] [--dry-run]   (Admin, Finance — #1319 AC-13)
  *   pmo erp readiness | list-projects | verify-links
@@ -106,6 +107,9 @@ export const OPERATOR_READ_RPCS = Object.freeze(['project_mapped_actuals', 'link
  */
 export const LOAD_RPCS = Object.freeze(['set_project_contract_value', 'transition_project', 'import_budget_line_v2']);
 export const LOAD_TABLES = Object.freeze(['budget_versions', 'budget_line_items', 'boq_items']);
+/** #1835 stage history is available only through the active-Admin stage commands. */
+export const STAGE_ADMIN_TABLES = Object.freeze(['project_stage_entries']);
+export const STAGE_ADMIN_RPCS = Object.freeze(['redate_stage_entry']);
 
 /**
  * The ACTIVE-ADMIN `pmo rpc` tier (#1326). The database guard (migration 0366) admits these only to an active
@@ -123,7 +127,7 @@ export { EQUIPMENT_READ_RPCS, EQUIPMENT_USAGE_RPCS, EQUIPMENT_WRITE_RPCS };
 export { TM_READ_RPCS };
 
 /** The verbs. There is deliberately no delete (DD-API-3). */
-export const COMMANDS = Object.freeze(['login', 'logout', 'whoami', 'get', 'create', 'update', 'rpc', 'load', 'purchases', 'erp', 'documents', 'm365', 'budgets', 'accounts', 'attribution', 'equipment', 'tm']);
+export const COMMANDS = Object.freeze(['login', 'logout', 'whoami', 'get', 'create', 'update', 'rpc', 'load', 'stages', 'stage-date', 'purchases', 'erp', 'documents', 'm365', 'budgets', 'accounts', 'attribution', 'equipment', 'tm']);
 
 const DELETE_VERBS = new Set(['delete', 'del', 'rm', 'remove', 'destroy']);
 
@@ -780,6 +784,8 @@ const USAGE = `usage:
   pmo update <table> --filter col=op.value [...] <json | @file | ->
   pmo rpc <name> [<json | @file | ->]
   pmo load <file.json | -> [--dry-run]   (active Admin: companies, projects, draft budgets, contract lines)
+  pmo stages <project>   (active Admin: read stage history)
+  pmo stage-date <project> "<Stage name>" <YYYY-MM-DD>   (active Admin: correct a stage date)
   pmo purchases orphans [--project <id>] [--limit n] [--include-set-aside]
   pmo purchases set-aside <file.json | file.csv | -> [--csv] [--undo] [--dry-run]   (Admin, Finance: rows of
                                                    erp_doctype, erp_name, note; hides overhead documents from orphans)
@@ -823,6 +829,28 @@ async function readMe(ctx) {
   const q = new URLSearchParams({ id: `eq.${user.id}`, select: 'full_name,role,status' });
   const rows = await authed(ctx, 'GET', `/rest/v1/profiles?${q}`);
   return { user, profile: Array.isArray(rows) && rows[0] ? rows[0] : {} };
+}
+
+async function requireActiveAdmin(ctx, command) {
+  const { profile } = await readMe(ctx);
+  if (profile.role !== 'Admin' || profile.status !== 'active') {
+    throw usage(`pmo ${command} is for an active Admin. Sign in as the organisation's Admin.`);
+  }
+}
+
+function validIsoDate(value) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value ?? '')) return false;
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+  return Number.isFinite(parsed.valueOf()) && parsed.toISOString().slice(0, 10) === value;
+}
+
+async function readStageEntries(ctx, projectId) {
+  const query = new URLSearchParams({
+    select: 'id,stage,entered_on,position,source,redated_at',
+    project_id: `eq.${projectId}`,
+    order: 'position.asc',
+  });
+  return authed(ctx, 'GET', `/rest/v1/project_stage_entries?${query}`);
 }
 
 /**
@@ -921,10 +949,7 @@ async function dispatch(ctx, command, positionals, flags) {
       if (problems.length > 0) {
         throw new CliError(`The load file has ${problems.length} problem(s); nothing was sent.`, { exit: 2, code: 'invalid_load_file', details: problems });
       }
-      const { profile } = await readMe(ctx);
-      if (profile.role !== 'Admin' || profile.status !== 'active') {
-        throw usage("pmo load is for an active Admin (the owner). Sign in as the organisation's Admin.");
-      }
+      await requireActiveAdmin(ctx, 'load');
       const api = loadApi(ctx);
       const resolved = await resolveLoad(doc, api);
       if (resolved.problems.length > 0) {
@@ -939,6 +964,27 @@ async function dispatch(ctx, command, positionals, flags) {
         err.details = { cause: err.details ?? null, ...(e?.loadReport ?? {}) };
         throw err;
       }
+    }
+    case 'stages': {
+      const [projectId] = positionals;
+      if (!projectId || !UUID.test(projectId)) throw usage('stages needs a project UUID: pmo stages <project>');
+      await requireActiveAdmin(ctx, 'stages');
+      return readStageEntries(ctx, projectId);
+    }
+    case 'stage-date': {
+      const [projectId, stage, enteredOn] = positionals;
+      if (!projectId || !UUID.test(projectId) || !stage || !enteredOn || positionals.length !== 3) {
+        throw usage('stage-date needs a project UUID, stage name and date: pmo stage-date <project> "<Stage name>" <YYYY-MM-DD>');
+      }
+      if (!validIsoDate(enteredOn)) throw usage('stage-date needs a real date in YYYY-MM-DD format');
+      await requireActiveAdmin(ctx, 'stage-date');
+      const entries = await readStageEntries(ctx, projectId);
+      const entry = [...(Array.isArray(entries) ? entries : [])].reverse().find((candidate) => candidate.stage === stage);
+      if (!entry) throw usage(`No '${stage}' stage entry was found for project ${projectId}.`);
+      await authed(ctx, 'POST', '/rest/v1/rpc/redate_stage_entry', {
+        body: { p_entry_id: entry.id, p_entered_on: enteredOn },
+      });
+      return { project_id: projectId, entry_id: entry.id, stage, entered_on: enteredOn };
     }
     case 'purchases':
       return purchases(ctx, positionals, flags);
