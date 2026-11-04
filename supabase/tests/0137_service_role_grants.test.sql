@@ -10,7 +10,7 @@
 -- security-definer lock-order RPCs (0105/0106) are the only mutation path (closing the child→parent
 -- deadlock seam). The catalog backstop below excludes it; the exception is asserted explicitly.
 begin;
-select plan(40);
+select plan(42);
 
 -- profiles: the exact table the promote e2e failed on (admin-invite-user inserts here).
 select ok(has_table_privilege('service_role', 'public.profiles', 'INSERT'),
@@ -83,6 +83,7 @@ select is(
         'ms_graph_connections',
         'erp_financial_statement_dirty_date',
         'erp_financial_statement_published_context',
+        'erp_statement_change_state',
         'procurement_import_runs',
         'stock_documents',
         'stock_document_lines',
@@ -191,6 +192,19 @@ select ok(
     and not has_table_privilege('authenticated', 'public.erp_financial_statement_published_context', 'SELECT')
     and not has_table_privilege('anon', 'public.erp_financial_statement_published_context', 'SELECT'),
   'AC-SVCROLE-020 published statement context is service-readable and user-private');
+
+-- 0643 scoped statement state is service-readable, but all writes use its fenced RPCs.
+select ok(has_table_privilege('service_role','public.erp_statement_change_state','SELECT')
+  and not has_table_privilege('service_role','public.erp_statement_change_state','INSERT')
+  and not has_table_privilege('service_role','public.erp_statement_change_state','UPDATE')
+  and not has_table_privilege('service_role','public.erp_statement_change_state','DELETE')
+  and not has_table_privilege('service_role','public.erp_statement_change_state','TRUNCATE'),
+  'AC-NS-001 statement change state is service-readable and RPC-written');
+select ok(not exists (
+  select 1 from unnest(array['anon','authenticated']) as roles(role_name)
+  cross join unnest(array['SELECT','INSERT','UPDATE','DELETE','TRUNCATE']) as privileges(privilege_name)
+  where has_table_privilege(role_name,'public.erp_statement_change_state',privilege_name)),
+  'AC-NS-001 statement change state denies ordinary role access');
 
 select * from finish();
 rollback;
