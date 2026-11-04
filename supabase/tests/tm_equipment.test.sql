@@ -2,7 +2,7 @@
 -- The fixture is synthetic; internal equipment costing and customer billing stay separate.
 begin;
 create extension if not exists pgtap;
-select plan(28);
+select plan(30);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('06800000-0000-0000-0000-0000000000a1', 'TM Equipment Org A', 'IDR', 'UTC'),
@@ -61,8 +61,14 @@ set local role authenticated;
 set local request.jwt.claims = '{"sub":"06800000-0000-0000-0000-0000000000b1","role":"authenticated"}';
 select lives_ok($q$select save_contract_rate_line('{"line_key":"06800000-0000-0000-0000-0000000000e1","project_id":"06800000-0000-0000-0000-0000000000c1","kind":"equipment","asset_id":"06800000-0000-0000-0000-0000000000d1","label":"TM Excavator","unit":"hour","rate":800000,"currency":"IDR","effective_from":"2026-01-01"}')$q$,
   'AC-TM-015 a customer equipment work rate can be saved for an org asset');
-select lives_ok($q$select save_contract_rate_line('{"line_key":"06800000-0000-0000-0000-0000000000e2","project_id":"06800000-0000-0000-0000-0000000000c1","kind":"equipment","asset_id":"06800000-0000-0000-0000-0000000000d2","label":"TM Loader","unit":"hour","rate":800000,"standby_rate":200000,"currency":"IDR","effective_from":"2026-01-01"}')$q$,
+select lives_ok($q$select save_contract_rate_line('{"line_key":"06800000-0000-0000-0000-0000000000e2","project_id":"06800000-0000-0000-0000-0000000000c1","kind":"equipment","asset_id":"06800000-0000-0000-0000-0000000000d2","label":"TM Loader","unit":"hour","rate":800000,"standby_rate":200000,"sales_item_code":"TM-EQ-ERP","currency":"IDR","effective_from":"2026-01-01"}')$q$,
   'AC-TM-015 a customer standby rate can be saved separately');
+select lives_ok($q$select end_contract_rate_line('06800000-0000-0000-0000-0000000000c1', '06800000-0000-0000-0000-0000000000e2', '2026-12-31', 1)$q$,
+  'AC-TM-015 ending an equipment rate creates its final version');
+select is((select asset_id::text || ':' || standby_rate::text || ':' || sales_item_code
+            from contract_rate_lines where line_key = '06800000-0000-0000-0000-0000000000e2' and is_current),
+  '06800000-0000-0000-0000-0000000000d2:200000.00:TM-EQ-ERP',
+  'AC-TM-015 ending an equipment rate preserves its asset, standby price, and ERP mapping');
 select ok(pg_temp.err('select save_contract_rate_line(''{"line_key":"06800000-0000-0000-0000-0000000000e3","project_id":"06800000-0000-0000-0000-0000000000c1","kind":"equipment","asset_id":"06800000-0000-0000-0000-0000000000d1","label":"Duplicate asset rate","unit":"hour","rate":900000,"currency":"IDR","effective_from":"2026-01-01"}'')') like '23505:%',
   'AC-TM-015 one current customer rate card line per equipment asset avoids ambiguous pricing');
 select throws_ok($q$select save_contract_rate_line('{"line_key":"06800000-0000-0000-0000-0000000000e9","project_id":"06800000-0000-0000-0000-0000000000c1","kind":"equipment","asset_id":"06800000-0000-0000-0000-0000000000d9","label":"Foreign Asset","unit":"hour","rate":800000,"currency":"IDR","effective_from":"2026-01-01"}')$q$,
@@ -89,7 +95,11 @@ insert into equipment_usage_entries (id, org_id, asset_id, project_id, work_date
 select has_column('public', 'tm_claim_lines', 'basis', 'T5 gives frozen claim lines an explicit work/standby basis');
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"06800000-0000-0000-0000-0000000000b2","role":"authenticated"}';
-select is(pg_temp.capture_claim('no_standby_rate', '06800000-0000-0000-0000-0000000000c1', '2026-11-01', '2026-11-10'), 'ok',
+select is(pg_temp.sc('select basis || '':'' || units || '':'' || unrated_reason || '':'' || coalesce(amount::text, '''')
+             from preview_tm_claim(''06800000-0000-0000-0000-0000000000c1'', ''2026-11-01'', ''2026-11-05'')
+            where line_key = ''06800000-0000-0000-0000-0000000000e1'' and basis = ''standby'''),
+  'standby:6.00:no_standby_rate:', 'AC-TM-015 the 6 standby hours remain visible and unbilled');
+select is(pg_temp.capture_claim('no_standby_rate', '06800000-0000-0000-0000-0000000000c1', '2026-11-01', '2026-11-05'), 'ok',
   'AC-TM-015 assembly succeeds for approved usage with no standby rate');
 select is((select gross_amount from tm_claims where id = pg_temp.st('no_standby_rate')::uuid), 32000000.00::numeric,
   'AC-TM-015 40 work hours at 800,000.00 bill 32,000,000.00');
@@ -98,10 +108,6 @@ select is(pg_temp.sc(format('select basis || '':'' || units || ''x'' || rate || 
   'work:40.00x800000.00=32000000.00', 'AC-TM-015 the frozen work line keeps the customer rate');
 select is((select count(*)::int from tm_claim_sources where claim_id = pg_temp.st('no_standby_rate')::uuid), 2,
   'AC-TM-015 only the two approved work entries are selected when standby is unrated');
-select is(pg_temp.sc('select basis || '':'' || units || '':'' || unrated_reason || '':'' || amount::text
-             from preview_tm_claim(''06800000-0000-0000-0000-0000000000c1'', ''2026-11-01'', ''2026-11-10'')
-            where line_key = ''06800000-0000-0000-0000-0000000000e1'' and basis = ''standby'''),
-  'standby:6.00:no_standby_rate:', 'AC-TM-015 the 6 standby hours remain visible and unbilled');
 reset role;
 select is((select count(*)::int from tm_assignable_sources('06800000-0000-0000-0000-0000000000c1', '2026-11-01', '2026-11-10')
             where source_id in ('06800000-0000-0000-0000-000000000104', '06800000-0000-0000-0000-000000000105')),
@@ -139,6 +145,9 @@ select is((select archived_at is not null from equipment_usage_entries where id 
 
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"06800000-0000-0000-0000-0000000000b2","role":"authenticated"}';
+select is(pg_temp.sc('select string_agg(basis, '','' order by basis) from preview_tm_claim(''06800000-0000-0000-0000-0000000000c1'', ''2026-11-07'', ''2026-11-08'')
+            where line_key = ''06800000-0000-0000-0000-0000000000e2'' and unrated_reason is null'),
+  'standby,work', 'AC-TM-015 preview keeps the two billable bases distinct');
 select is(pg_temp.capture_claim('with_standby_rate', '06800000-0000-0000-0000-0000000000c1', '2026-11-07', '2026-11-08'), 'ok',
   'AC-TM-015 assembly succeeds for an asset with a standby rate');
 select is((select gross_amount from tm_claims where id = pg_temp.st('with_standby_rate')::uuid), 33200000.00::numeric,
@@ -147,9 +156,6 @@ select is(pg_temp.sc(format('select string_agg(basis || '':'' || units || ''x'' 
             where claim_id = %L::uuid', pg_temp.st('with_standby_rate'))),
   'standby:6.00x200000.00=1200000.00,work:40.00x800000.00=32000000.00',
   'AC-TM-015 the claim freezes distinct work and standby lines');
-select is(pg_temp.sc('select string_agg(basis, '','' order by basis) from preview_tm_claim(''06800000-0000-0000-0000-0000000000c1'', ''2026-11-07'', ''2026-11-08'')
-            where line_key = ''06800000-0000-0000-0000-0000000000e2'' and unrated_reason is null'),
-  'standby,work', 'AC-TM-015 preview keeps the two billable bases distinct');
 select is(pg_temp.sc(format('select count(*)::text from list_tm_claim_source_details(%L::uuid) where basis in (''work'',''standby'')',
                             pg_temp.st('with_standby_rate'))),
   '3', 'D1 equipment source details identify each selected basis');
