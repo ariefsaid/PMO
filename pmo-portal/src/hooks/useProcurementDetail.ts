@@ -21,9 +21,11 @@ import {
   type PendingPushState,
 } from '@/src/lib/adapterSeam/pendingPush';
 import type { Tables } from '@/src/lib/supabase/database.types';
-import type { CommandIntent } from '@/src/lib/repositories/types';
+import type { CommandIntent, CaptureSubcontractVendorInvoiceInput } from '@/src/lib/repositories/types';
+import type { ReceiptLineInput } from '@/src/lib/repositories/contracts/procurement';
 import { efakturRefusal } from '@/src/lib/efaktur';
 import { useStartRecordFolder } from '@/src/hooks/useStartRecordFolder';
+import { subcontractKeys } from '@/src/hooks/useSubcontract';
 import { procurementDetailKey, cachedProcurementProjectId, invalidateProcurementCase } from '@/src/hooks/procurementQueryKeys';
 
 // ---------------------------------------------------------------------------
@@ -130,10 +132,12 @@ export function useProcurementMutations(id: string) {
   const createReceipt = useMutation<
     ProcurementReceiptRow,
     ProcurementError,
-    { status: 'Partial' | 'Complete'; receiptDate: string; referenceNumber?: string | null; intent?: CommandIntent }
+    { status: 'Partial' | 'Complete'; receiptDate: string; referenceNumber?: string | null; intent?: CommandIntent; receiptLines?: ReceiptLineInput[] }
   >({
-    mutationFn: ({ status, receiptDate, referenceNumber, intent }) =>
-      repositories.procurement.createReceipt(id, status, receiptDate, referenceNumber, intent),
+    mutationFn: ({ status, receiptDate, referenceNumber, intent, receiptLines }) =>
+      receiptLines
+        ? repositories.procurement.createReceipt(id, status, receiptDate, referenceNumber, intent, receiptLines)
+        : repositories.procurement.createReceipt(id, status, receiptDate, referenceNumber, intent),
     onMutate: () => {
       if (isExternal()) {
         queryClient.setQueryData(['procurement-item-eligibility', orgId, id], false);
@@ -197,6 +201,18 @@ export function useProcurementMutations(id: string) {
     onSuccess: invalidateDetail,
   });
 
+  const captureSubcontractVendorInvoice = useMutation<
+    ProcurementInvoiceRow,
+    ProcurementError,
+    Omit<CaptureSubcontractVendorInvoiceInput, 'procurementId'>
+  >({
+    mutationFn: (input) => repositories.subcontracts.captureSubcontractVendorInvoice({ ...input, procurementId: id }),
+    onSuccess: () => {
+      invalidateDetail();
+      queryClient.invalidateQueries({ queryKey: subcontractKeys.all(orgId) });
+    },
+  });
+
   // DD-EFK-1: vendor e-Faktur facts are PMO-owned, never dispatched or marked pending-push.
   const setEfaktur = useMutation<
     void,
@@ -219,5 +235,31 @@ export function useProcurementMutations(id: string) {
     onSuccess: invalidateDetail,
   });
 
-  return { transition, createQuotation, createReceipt, createInvoice, captureVendorInvoice, setEfaktur, approveAmount, pendingPush };
+  return { transition, createQuotation, createReceipt, createInvoice, captureVendorInvoice, captureSubcontractVendorInvoice, setEfaktur, approveAmount, pendingPush };
+}
+
+/**
+ * One mutation instance for the approvals inbox's multi-select action. Each selected procurement
+ * still calls the same repository transition as the single-row action, so the server rechecks its
+ * route and separation-of-duties rules independently for every record.
+ */
+export function useProcurementBulkTransition() {
+  const queryClient = useQueryClient();
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
+  const realRole = useOptionalRealRole();
+
+  return useMutation<
+    void,
+    ProcurementError,
+    { id: string; to: ProcurementStatus; notes?: string }
+  >({
+    mutationFn: ({ id, to, notes }) => repositories.procurement.transition(id, to, notes),
+    onSuccess: (_data, { id, to }) => {
+      invalidateProcurementCase(queryClient, orgId, id, [cachedProcurementProjectId(queryClient, orgId, id)]);
+      queryClient.invalidateQueries({ queryKey: ['procurements', orgId] });
+      queryClient.invalidateQueries({ queryKey: ['procurement-item-eligibility', orgId, id] });
+      if (to === 'Approved') safeTrack(() => trackPurchaseApproved(realRole ?? 'unknown'));
+    },
+  });
 }

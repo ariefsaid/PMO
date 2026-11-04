@@ -28,7 +28,6 @@ const { listState, childDocs, mutations, fileUploadState, revisionState, reposit
   },
   fileUploadState: {
     upload: { mutate: vi.fn(), isPending: false },
-    replace: { mutate: vi.fn(), isPending: false },
     progress: {} as Record<string, number>,
     uploadErrors: {} as Record<string, { message: string }>,
     cancelUpload: vi.fn(),
@@ -192,7 +191,6 @@ beforeEach(() => {
   Object.keys(childDocs).forEach((key) => delete childDocs[key]);
   childDocs.d5 = seed[5];
   fileUploadState.upload.mutate.mockReset();
-  fileUploadState.replace.mutate.mockReset();
   fileUploadState.cancelUpload.mockReset();
   fileUploadState.clearUploadError.mockReset();
   fileUploadState.progress = {};
@@ -807,7 +805,8 @@ describe('DocumentsTab — file upload integration (AC-DOC-050 / AC-DOC-080 / AC
     await userEvent.click(screen.getByRole('button', { name: 'View Site Plan' }));
     await userEvent.click(within(screen.getByRole('complementary')).getByRole('button', { name: /Replace file for Site Plan/i }));
     await userEvent.upload(screen.getByTestId('file-input') as HTMLInputElement, file);
-    expect(fileUploadState.replace.mutate).toHaveBeenCalledWith({ docId: 'd1', file, destination: 'microsoft', oldPath: 'org-1/p1/d1/site-plan.pdf' });
+    // OE13R01-001: upload and replace share ONE hook mutation; the replace action carries the old path.
+    expect(fileUploadState.upload.mutate).toHaveBeenCalledWith({ docId: 'd1', file, destination: 'microsoft', oldPath: 'org-1/p1/d1/site-plan.pdf' });
   });
 
   it('document-preview AC-008: while the destination is unknown no Upload or Replace is offered', async () => {
@@ -826,11 +825,11 @@ describe('DocumentsTab — file upload integration (AC-DOC-050 / AC-DOC-080 / AC
     destinationState.value = { kind: 'unknown' }; // the settings read failed while the OS chooser was open
     await userEvent.click(screen.getByRole('button', { name: 'Close preview' })); // any re-render picks up the new destination
     await userEvent.upload(fileInput, file);
+    // One shared mutation (OE13R01-001): neither action may dispatch.
     expect(fileUploadState.upload.mutate).not.toHaveBeenCalled();
-    expect(fileUploadState.replace.mutate).not.toHaveBeenCalled();
   });
 
-  it('AC-DOC-021: selecting a valid file from Replace dispatches the replace mutation', async () => {
+  it('AC-DOC-021: selecting a valid file from Replace dispatches the shared upload mutation with the old path', async () => {
     listState.data = seed.map((doc) => doc.id === 'd1' ? { ...doc, file_path: 'org-1/p1/d1/site-plan.pdf' } : doc);
     renderTab('Admin', 'admin-1');
     const fileInput = screen.getByTestId('file-input') as HTMLInputElement;
@@ -839,7 +838,7 @@ describe('DocumentsTab — file upload integration (AC-DOC-050 / AC-DOC-080 / AC
     await userEvent.click(screen.getByRole('button', { name: 'View Site Plan' }));
     await userEvent.click(within(screen.getByRole('complementary')).getByRole('button', { name: /Replace file for Site Plan/i }));
     await userEvent.upload(fileInput, file);
-    expect(fileUploadState.replace.mutate).toHaveBeenCalledWith({ docId: 'd1', file, destination: 'private', oldPath: 'org-1/p1/d1/site-plan.pdf' });
+    expect(fileUploadState.upload.mutate).toHaveBeenCalledWith({ docId: 'd1', file, destination: 'private', oldPath: 'org-1/p1/d1/site-plan.pdf' });
   });
 
   it('AC-DOC-040: download affordances generate a signed URL in the preview', async () => {

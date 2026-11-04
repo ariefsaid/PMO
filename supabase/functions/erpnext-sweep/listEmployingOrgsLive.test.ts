@@ -23,6 +23,9 @@ function fakeClient(
   bindings: { data: unknown; error: { code?: string; message: string } | null },
   ownership: { data: unknown; error: { code?: string; message: string } | null } = { data: [], error: null },
   watermarks: { data: unknown; error: { code?: string; message: string } | null } = { data: [], error: null },
+  /** 0534: the per-org resolved switches read. An all-on matrix is the clean case. */
+  features: { data: unknown; error: { code?: string; message: string } | null } =
+    { data: [{ feature_key: 'procurement', enabled: true }, { feature_key: 'revenue', enabled: true }], error: null },
 ): SupabaseClient {
   return {
     from: (table: string) => {
@@ -34,6 +37,7 @@ function fakeClient(
       };
       return { select: () => builder };
     },
+    rpc: () => Promise.resolve(features),
   } as unknown as SupabaseClient;
 }
 

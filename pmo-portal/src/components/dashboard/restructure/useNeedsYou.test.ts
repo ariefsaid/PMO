@@ -50,7 +50,7 @@ describe('needs-you dashboard selectors', () => {
     }, translate);
 
     expect(items.map(({ count, href }) => [count, href])).toEqual([
-      [2, '/sales-invoices?overdue=true'],
+      [2, '/finance/receivables?overdue=true'],
       [4, '/procurement?status=Vendor+Invoiced'],
       [1, '/projects'],
     ]);

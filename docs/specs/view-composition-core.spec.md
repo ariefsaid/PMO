@@ -203,8 +203,6 @@ The compiler's whitelist maps to the existing repository read methods only (no w
 - **FR-VC-020** (ubiquitous) The system shall provide a `ENTITY_WHITELIST` constant in
   `src/lib/viewspec/types.ts` (or a co-located `whitelist.ts`) mapping each whitelisted entity to:
   - `table`: the Postgres table name (for documentation; the compiler never string-interpolates it).
-  - `repositoryMethod`: the repository read method the compiler calls (one of the existing
-    `repositories.*` methods listed in §1 above).
   - `allowedColumns`: the set of column names permitted in `select`, `filters`, `groupBy`,
     `orderBy.column` for that entity.
   - `numericColumns`: the subset of `allowedColumns` that are numeric (permitted for `sum/avg/min/max`
@@ -253,19 +251,17 @@ The compiler's whitelist maps to the existing repository read methods only (no w
   (YYYY-MM-DD); `$start_of_month` / `$end_of_month` to the first and last day of the current month
   in YYYY-MM-DD. Resolution is deterministic given a fixed clock (testable with a mocked date).
 - **FR-VC-036** (ubiquitous) The compiled output `CompiledQuery` shall be a plain TypeScript
-  object that describes which repository method to call and with what parameters — it MUST NOT be a
+  object that describes the whitelisted entity and validated query parameters — it MUST NOT be a
   raw SQL string, a string fragment, a template literal with user-controlled data, or a call to
   `supabase.rpc()` with a non-whitelisted name. The compiler is a **translator**, not an executor.
 - **FR-VC-037** (ubiquitous) The `CompiledQuery` shape shall be:
   ```
   CompiledQuery {
     entity:            WhitelistedEntity
-    repositoryMethod:  string         // e.g. 'project.list', 'company.list' — matches whitelist entry
     resolvedFilters:   ResolvedFilter[]   // token-expanded, validated filter clauses
     resolvedSelect:    string[]           // validated column names
     resolvedGroupBy?:  string
     resolvedAggregate?: ResolvedAggregate
-    resolvedTimeRange?: ResolvedTimeRange
     resolvedOrderBy?:  { column: string; dir: 'asc' | 'desc' }
     limit?:            number
   }
@@ -402,10 +398,8 @@ The compiler's whitelist maps to the existing repository read methods only (no w
   `TRUNCATE`, `EXECUTE`, `GRANT`, `REVOKE` (case-insensitive) — asserting the compiler produces
   a call descriptor, not SQL. The value scan recurses into nested objects and arrays; key names are
   excluded because they are structural constants of the call descriptor, not user-controlled SQL.
-  (b) `compiled.repositoryMethod` is one of the whitelisted method names (e.g. `'project.list'`),
-  NOT a free-form string;
-  (c) `compiled.entity` equals `'projects'`;
-  (d) `Object.keys(compiled)` contains exactly the whitelisted `CompiledQuery` field names —
+  (b) `compiled.entity` equals `'projects'`;
+  (c) `Object.keys(compiled)` contains exactly the whitelisted `CompiledQuery` field names —
   no free-form `query` or `sql` field is present.
   **Rationale for (a) amendment:** `JSON.stringify(compiled)` always includes the string
   `'resolvedSelect'` (a key name), whose uppercase contains `'SELECT'`. Since key names are
@@ -424,7 +418,7 @@ The compiler's whitelist maps to the existing repository read methods only (no w
   and a `ctx = { userId: 'u1', orgId: 'org1' }`,
   **When** `compileQuerySpec(spec, ctx)` is called,
   **Then** it returns a `CompiledQuery` with `entity === 'companies'`,
-  `repositoryMethod === 'company.list'`, `resolvedSelect` containing `['id', 'name', 'type']`,
+  `resolvedSelect` containing `['id', 'name', 'type']`,
   `resolvedFilters` containing `[{ column: 'type', op: 'eq', value: 'Client' }]`,
   and `limit === 50`; it does NOT throw. (FR-VC-030, FR-VC-037)
 
@@ -500,12 +494,11 @@ The compiler's whitelist maps to the existing repository read methods only (no w
   **Then** it throws a `ValidationError` with `code === 'NOT_GROUPABLE_COLUMN'` and `detail` contains
   `'name'`; it does NOT throw `UNKNOWN_COLUMN`. (FR-VC-032, FR-VC-020)
 
-- **AC-VC-015** — `timeRange` validates the column and resolves token `from`/`to` values; the result
-  appears in both `resolvedTimeRange` and `resolvedFilters` as a `date-range` clause (OQ-3).
+- **AC-VC-015** — `timeRange` validates the column and resolves token `from`/`to` values into the
+  canonical `resolvedFilters` date-range clause (OQ-3).
   **Given** entity `'projects'` with `timeRange: { column: 'start_date', from: '2026-01-01', to: '2026-12-31' }`,
   **When** `compileQuerySpec(spec, ctx)` is called,
-  **Then** `compiled.resolvedTimeRange` equals `{ column: 'start_date', from: '2026-01-01', to: '2026-12-31' }`
-  and `compiled.resolvedFilters` contains `{ column: 'start_date', op: 'date-range', value: ['2026-01-01', '2026-12-31'] }`.
+  **Then** `compiled.resolvedFilters` contains `{ column: 'start_date', op: 'date-range', value: ['2026-01-01', '2026-12-31'] }`.
   **And** when `from`/`to` are tokens (e.g. `'$start_of_month'`/`'$end_of_month'`), they are resolved to
   their concrete date strings before appearing in output.
   **And** when `timeRange.column` is not in `allowedColumns`, it throws `ValidationError({ code: 'UNKNOWN_COLUMN' })`.

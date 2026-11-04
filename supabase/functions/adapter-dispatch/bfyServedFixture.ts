@@ -206,6 +206,9 @@ export function servedRoutes(seed: ServedSeed, versionMajor = 15, siteUrl = ERP_
         return jsonResponse([]);
       },
     },
+    // ECA-6: a push that meets an ERP budget PMO did not create asks for a recorded replace consent. None by default
+    // (the refusal is the behaviour under test elsewhere); budgetOccupant.served.test.ts supplies its own rows.
+    supabaseSelect('budget_occupant_consents', () => nullObjectResponse()),
     // Both directions are asked: `resolveExternalRef` (pmo_record_id → external_record_id, the
     // create-target guard) and `findPmoRecordId` (external_record_id → pmo_record_id, the FR-BFY-076
     // ownership witness).

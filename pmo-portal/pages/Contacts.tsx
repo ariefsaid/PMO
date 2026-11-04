@@ -1,5 +1,4 @@
 import { useDomainOwnershipMode } from '@/src/hooks/useDomainOwnershipMode';
-import { contactIdentityChanged } from '@/src/lib/crmOwnership';
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import React, { useMemo, useState } from 'react';
 import {
@@ -8,18 +7,11 @@ import {
   ListState,
   DataTable,
   ConfirmDialog,
-  EntityFormModal,
-  TextField,
-  TextArea,
   SelectField,
-  FormSection,
-  FormGrid,
   AccessDenied,
-  useEntityForm,
   useToast,
   Button,
   Icon,
-  type SubmitError,
   type Column,
   type RowMenuItem,
 } from '@/src/components/ui';
@@ -28,7 +20,6 @@ import { ImportButton } from '@/src/components/import';
 import { makeContactImportDescriptor } from '@/src/lib/import';
 import { Link, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import type { TFunction } from 'i18next';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useContacts, useContactMutations } from '@/src/hooks/useContacts';
@@ -37,31 +28,8 @@ import { useCompanyPartyMappings } from '@/src/hooks/useCompanyPartyMappings';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { useListSearchWorkingSet } from '@/src/hooks/useListSearchWorkingSet';
 import { useListReturn } from '@/src/hooks/useListReturn';
-import type { ContactRow, ContactInput } from '@/src/lib/db/contacts';
-
-interface FormValues {
-  full_name: string;
-  company_id: string;
-  title: string;
-  email: string;
-  phone: string;
-  notes: string;
-}
-
-/**
- * `t` has to be threaded in: both messages are user-visible, and a module-level literal cannot
- * reach the active locale. The validation SHAPE is unchanged — same fields, same trigger, same keys.
- */
-const makeValidate =
-  (t: TFunction) =>
-  (v: FormValues): Partial<Record<keyof FormValues, string>> => {
-    const errors: Partial<Record<keyof FormValues, string>> = {};
-    if (!v.full_name.trim())
-      errors.full_name = t('contacts.form.errors.nameRequired', 'Contact name is required.');
-    if (!v.company_id)
-      errors.company_id = t('contacts.form.errors.companyRequired', 'A company is required.');
-    return errors;
-  };
+import type { ContactRow } from '@/src/lib/db/contacts';
+import { ContactFormModal } from './contact/ContactFormModal';
 
 const Contacts: React.FC = () => {
   const { t } = useTranslation();
@@ -70,7 +38,9 @@ const Contacts: React.FC = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { data, isPending, isError, refetch } = useContacts();
-  const { data: companyData } = useCompanies();
+  // PGA02-004: the company directory backs this page's filter options, export company names and
+  // the create/edit form's company select — its loading/error state is consumed, not discarded.
+  const { data: companyData, isPending: companiesPending, isError: companiesError, refetch: refetchCompanies } = useCompanies();
   const { create, update, archive, remove } = useContactMutations();
   const ownership = useDomainOwnershipMode('companies');
   const ownershipReady = ownership.mode === 'pmo' || ownership.mode === 'external';
@@ -127,6 +97,9 @@ const Contacts: React.FC = () => {
   const creatableCompanies = external ? companies.filter((company) => mappings.ids.includes(company.id)) : companies;
   const createOptions = creatableCompanies.map((company) => ({ value: company.id, label: companyDisplayName(company) }));
   const importDescriptor = makeContactImportDescriptor(creatableCompanies);
+  // PGA02-004: the export carries each contact's company name — it must not download until the
+  // directory has actually resolved (a transient failure would silently export blank names).
+  const companiesReady = !companiesPending && !companiesError;
 
   const all = useMemo(() => data ?? [], [data]);
 
@@ -247,6 +220,8 @@ const Contacts: React.FC = () => {
   return (
     <ListPage
       title={t('contacts.title', 'Contacts')}
+      count={data ? filtered.length : undefined}
+      total={data ? all.length : undefined}
       description={
         // DD-MTG-6: the CRM 'Meeting' kind is the lightweight touchpoint log; anything with
         // attendees and minutes lives in the Meetings module — so this copy no longer promises
@@ -298,7 +273,7 @@ const Contacts: React.FC = () => {
         )
       }
       exportAction={
-        state !== 'loading' && (
+        state !== 'loading' && companiesReady && (
           <ExportButton rows={filtered} columns={columns} entity="Contacts" />
         )
       }
@@ -313,6 +288,18 @@ const Contacts: React.FC = () => {
       }
     >
       {!ownershipReady && <p className="mb-3 text-sm text-muted-foreground">{ownership.mode === 'error' ? t('crm:ownershipError', 'Ownership could not be loaded. Try again.') : t('crm:ownershipChecking', 'Checking ownership…')}{ownership.mode === 'error' && <Button variant="ghost" size="sm" onClick={ownership.retry}>{t('crm:retry', 'Retry')}</Button>}</p>}
+      {/* PGA02-004: a failed company-directory read is named, with a retry — the filter options,
+          export names and form company select all depend on it. */}
+      {companiesError && (
+        <div className="mb-3 flex items-center gap-2">
+          <p className="text-sm text-muted-foreground">{t('contacts.companiesUnavailable', 'The company directory could not be loaded. Company names, filtering and export are unavailable.')}</p>
+          {refetchCompanies && (
+            <Button variant="outline" size="sm" onClick={() => void refetchCompanies()}>
+              {t('crm:retry', 'Retry')}
+            </Button>
+          )}
+        </div>
+      )}
       {external && may('create', 'contact') && (
         <p className="mb-3 text-sm text-muted-foreground">
           {mappings.isError ? t('crm:mappingUnavailable', 'Company mappings could not be loaded. Try again later.')
@@ -323,7 +310,7 @@ const Contacts: React.FC = () => {
       {external && may('delete', 'contact') && <p className="mb-3 text-sm text-muted-foreground">{t('crm:deleteManaged', 'Records managed in ERP can be archived here.')}</p>}
       {state === 'loading' && (
         <div className="rounded-lg border border-border bg-card">
-          <ListState variant="loading" rows={6} />
+          <ListState variant="loading" shape="table" columns={6} rows={6} />
         </div>
       )}
 
@@ -386,6 +373,8 @@ const Contacts: React.FC = () => {
           contact={formTarget.contact}
           ownership={ownership.mode}
           companyOptions={formTarget.contact ? companyOptions : createOptions}
+          companyOptionsState={companiesPending ? 'pending' : companiesError ? 'error' : 'ready'}
+          onRetryCompanies={companiesError && refetchCompanies ? () => void refetchCompanies() : undefined}
           onClose={() => setFormTarget(null)}
           onCreate={async (input) => {
             await create.mutateAsync(input);
@@ -441,212 +430,6 @@ const Contacts: React.FC = () => {
         onCancel={() => setDeleteTarget(null)}
       />
     </ListPage>
-  );
-};
-
-// ── Create / edit form modal ─────────────────────────────────────────────────
-
-interface ContactFormModalProps {
-  contact: ContactRow | null;
-  ownership: 'pmo' | 'external' | 'unknown' | 'error';
-  companyOptions: { value: string; label: string }[];
-  /** When provided (T14 — "Add contact" from CompanyDetail), pre-fills and locks
-   *  the company_id field so the user cannot change it. */
-  defaultCompanyId?: string;
-  onClose: () => void;
-  onCreate: (input: ContactInput) => Promise<void>;
-  onUpdate: (id: string, input: ContactInput) => Promise<void>;
-  onError: (err: unknown) => void;
-}
-
-const ContactFormModal: React.FC<ContactFormModalProps> = ({
-  contact,
-  ownership,
-  companyOptions,
-  defaultCompanyId,
-  onClose,
-  onCreate,
-  onUpdate,
-  onError,
-}) => {
-  const { t } = useTranslation();
-  const isEdit = !!contact;
-  const ready = ownership === 'pmo' || ownership === 'external';
-  const mirrorReadOnly = !ready || (isEdit && ownership === 'external');
-  // Identity changes only when `t` does (i.e. on a language change), so `useEntityForm`'s
-  // `runValidate` memo behaves exactly as it did with the old module-level function.
-  const validate = useMemo(() => makeValidate(t), [t]);
-  // When defaultCompanyId is set (in-context create from CompanyDetail) the
-  // company_id initialises to it and the field is disabled.
-  const lockedCompanyId = defaultCompanyId ?? null;
-  const form = useEntityForm<FormValues>({
-    initialValues: {
-      full_name: contact?.full_name ?? '',
-      company_id: contact?.company_id ?? lockedCompanyId ?? '',
-      title: contact?.title ?? '',
-      email: contact?.email ?? '',
-      phone: contact?.phone ?? '',
-      notes: contact?.notes ?? '',
-    },
-    validate,
-    idPrefix: 'contact-form',
-    requiredFields: ['full_name', 'company_id'],
-    module: 'contacts',
-  });
-
-  const nameField = form.fieldProps('full_name');
-  const companyField = form.fieldProps('company_id');
-  const titleField = form.fieldProps('title');
-  const emailField = form.fieldProps('email');
-  const phoneField = form.fieldProps('phone');
-  const notesField = form.fieldProps('notes');
-
-  // AC-ERR-001: a rejected save gets PERSISTENT in-dialog evidence, not only the corner
-  // toast (which auto-dismisses, leaving the modal indistinguishable from a pristine form
-  // with data in it). `suppressCapture` because the page's `onError` classifies the same
-  // rejection for the toast and owns the single `save_failed` event.
-  const [saveError, setSaveError] = useState<SubmitError | null>(null);
-
-  const errorSummary = [
-    form.errors.full_name ? { fieldId: nameField.id, message: form.errors.full_name } : null,
-    form.errors.company_id ? { fieldId: companyField.id, message: form.errors.company_id } : null,
-  ].filter(Boolean) as { fieldId: string; message: string }[];
-  const identityChanged = mirrorReadOnly && contact !== null && contactIdentityChanged(form.values, contact);
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    void form.handleSubmit(async (values) => {
-      if (!ready || (mirrorReadOnly && contact && contactIdentityChanged(values, contact))
-        || (!isEdit && !companyOptions.some((option) => option.value === values.company_id))) return;
-      const input: ContactInput = {
-        company_id: mirrorReadOnly ? contact!.company_id : values.company_id,
-        full_name: mirrorReadOnly ? contact!.full_name : values.full_name.trim(),
-        title: values.title.trim() || null,
-        email: mirrorReadOnly ? contact!.email : values.email.trim() || null,
-        phone: mirrorReadOnly ? contact!.phone : values.phone.trim() || null,
-        notes: values.notes.trim() || null,
-      };
-      try {
-        if (isEdit && contact) await onUpdate(contact.id, input);
-        else await onCreate(input);
-      } catch (err) {
-        const { headline, detail } = classifyMutationError(err, undefined, {
-          module: 'contacts',
-          operation: isEdit ? 'update' : 'create',
-          suppressCapture: true,
-        });
-        setSaveError({ headline, detail });
-        onError(err);
-      }
-    });
-  };
-
-  return (
-    <EntityFormModal
-      open
-      title={
-        isEdit
-          ? t('contacts.form.editTitle', 'Edit contact')
-          : t('contacts.form.newTitle', 'New contact')
-      }
-      subtitle={
-        isEdit
-          ? t('contacts.form.editSubtitle', 'Update this contact record')
-          : t('contacts.form.newSubtitle', 'Add a person at one of your companies')
-      }
-      submitLabel={
-        isEdit
-          ? t('contacts.form.editSubmit', 'Save contact')
-          : t('contacts.form.newSubmit', 'Create contact')
-      }
-      onSubmit={handleSubmit}
-      onClose={onClose}
-      loading={form.isSubmitting}
-      dirty={form.isDirty}
-      submitDisabled={!form.isComplete || !ready || identityChanged || (!isEdit && !companyOptions.some((option) => option.value === form.values.company_id))}
-      errorSummary={errorSummary.length ? errorSummary : undefined}
-      submitError={saveError}
-    >
-      {identityChanged && <p className="mb-3 text-sm text-muted-foreground">{t('crm:ownershipChanged', 'Ownership changed while you were editing. Close and reopen the form to continue.')}</p>}
-      {mirrorReadOnly && <p className="mb-3 text-sm text-muted-foreground">{t('crm:mirrorFields', 'Name, company, email and phone are managed in ERP.')}</p>}
-      <FormSection legend={t('contacts.form.sections.identity', 'Identity')}>
-        <FormGrid>
-          <TextField
-            disabled={mirrorReadOnly}
-            id={nameField.id}
-            label={t('contacts.form.fullName.label', 'Full name')}
-            required
-            value={nameField.value}
-            onChange={nameField.onChange}
-            onBlur={nameField.onBlur}
-            error={nameField.error}
-            placeholder={t('contacts.form.fullName.placeholder', 'e.g. Jane Doe')}
-            autoComplete="name"
-            fullWidth
-          />
-          <SelectField
-            id={companyField.id}
-            label={t('contacts.form.company.label', 'Company')}
-            required
-            value={companyField.value}
-            onChange={(v) => companyField.onChange(v)}
-            onBlur={companyField.onBlur}
-            error={companyField.error}
-            options={[
-              { value: '', label: t('contacts.form.company.placeholder', 'Select a company…') },
-              ...companyOptions,
-            ]}
-            disabled={!!lockedCompanyId || mirrorReadOnly}
-          />
-          <TextField
-            id={titleField.id}
-            label={t('contacts.form.jobTitle.label', 'Title')}
-            value={titleField.value}
-            onChange={titleField.onChange}
-            onBlur={titleField.onBlur}
-            placeholder={t('contacts.form.jobTitle.placeholder', 'e.g. Procurement Lead')}
-          />
-        </FormGrid>
-      </FormSection>
-      <FormSection legend={t('contacts.form.sections.contactDetails', 'Contact details')}>
-        <FormGrid>
-          <TextField
-            disabled={mirrorReadOnly}
-            id={emailField.id}
-            label={t('contacts.form.email.label', 'Email')}
-            type="email"
-            value={emailField.value}
-            onChange={emailField.onChange}
-            onBlur={emailField.onBlur}
-            placeholder="name@example.com"
-            autoComplete="email"
-          />
-          <TextField
-            disabled={mirrorReadOnly}
-            id={phoneField.id}
-            label={t('contacts.form.phone.label', 'Phone')}
-            value={phoneField.value}
-            onChange={phoneField.onChange}
-            onBlur={phoneField.onBlur}
-            placeholder={t('contacts.form.phone.placeholder', 'e.g. +1 555 010 0000')}
-            autoComplete="tel"
-          />
-          <TextArea
-            id={notesField.id}
-            label={t('contacts.form.notes.label', 'Notes')}
-            value={notesField.value}
-            onChange={notesField.onChange}
-            onBlur={notesField.onBlur}
-            rows={3}
-            fullWidth
-            placeholder={t(
-              'contacts.form.notes.placeholder',
-              'Anything worth remembering about this contact',
-            )}
-          />
-        </FormGrid>
-      </FormSection>
-    </EntityFormModal>
   );
 };
 

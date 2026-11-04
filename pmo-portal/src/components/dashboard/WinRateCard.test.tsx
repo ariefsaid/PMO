@@ -30,6 +30,7 @@ type Oracle = Omit<typeof populatedOracle, 'value_by_currency' | 'bids_by_curren
 };
 let oracle: Oracle = populatedOracle;
 let lastRange: { key: string } | null = null;
+let pending = false;
 
 vi.mock('@/src/hooks/useDashboard', async (orig) => {
   const actual = await orig<typeof import('@/src/hooks/useDashboard')>();
@@ -37,14 +38,14 @@ vi.mock('@/src/hooks/useDashboard', async (orig) => {
     ...actual,
     useWinRate: (range: { key: string }) => {
       lastRange = range;
-      return { data: oracle, isPending: false, isError: false, refetch: vi.fn() };
+      return pending ? { data: undefined, isPending: true, isError: false, refetch: vi.fn() } : { data: oracle, isPending: false, isError: false, refetch: vi.fn() };
     },
     useLossBreakdown: () => ({ data: undefined, isPending: true, isError: false, refetch: vi.fn() }),
   };
 });
 
 describe('WinRateCard (AC-1117 — preserve win-rate logic, re-skin chrome)', () => {
-  beforeEach(() => { lastRange = null; oracle = populatedOracle; });
+  beforeEach(() => { lastRange = null; oracle = populatedOracle; pending = false; });
   afterEach(async () => {
     await act(async () => { await i18next.changeLanguage('en'); });
   });
@@ -225,5 +226,28 @@ describe('WinRateCard (AC-1117 — preserve win-rate logic, re-skin chrome)', ()
     render(<WinRateCard currency="USD" />);
     expect(screen.getByText(/No closed projects in this window/i)).toBeInTheDocument();
     expect(screen.queryByTestId('kpi-win-rate')).toBeNull();
+  });
+
+  it('shows loading, not the empty message, until the win-rate query settles', () => {
+    pending = true;
+    render(<WinRateCard currency="USD" />);
+    expect(screen.queryByText(/No closed projects in this window/i)).toBeNull();
+    expect(screen.getByTestId('liststate-loading')).toBeInTheDocument();
+  });
+
+  it('moves the trailing window forward when the local date rolls over while open', () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date(2026, 5, 10, 23, 59, 0));
+      render(<WinRateCard currency="USD" />);
+      fireEvent.click(screen.getByTestId('win-rate-period-t12'));
+      const before = lastRange?.key;
+      expect(before).toContain('2026-06-10');
+      act(() => { vi.advanceTimersByTime(2 * 60 * 1000); });
+      expect(lastRange?.key).toContain('2026-06-11');
+      expect(lastRange?.key).not.toBe(before);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

@@ -595,5 +595,8 @@ select is((select (detail ->> 'rounding_delta')::numeric from audit_events where
 set local role authenticated;
 rollback to savepoint sround;
 
+-- pgTAP numbers assertions with a sequence, but caches curr_test transactionally.
+-- Savepoint rollbacks discard that cache; restore the final count from the sequence before finish().
+select _set('curr_test', currval('pg_temp.__tresults___numb_seq')::integer);
 select * from finish();
 rollback;

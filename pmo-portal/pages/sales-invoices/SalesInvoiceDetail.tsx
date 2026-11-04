@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Button, Icon, ListState, StatusPill } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useInvoicePdfDownload } from '@/src/hooks/useInvoicePdfDownload';
-import { formatCurrencyAuto, formatDateOnly } from '@/src/lib/format';
+import { formatCurrency, formatDateOnly } from '@/src/lib/format';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 import { deriveArDueDate, overdueAgeDays } from '@/src/lib/repositories/revenueDisplay';
 import { salesInvoiceStatusVariant } from '@/src/lib/status/statusVariants';
@@ -24,11 +24,12 @@ interface Props {
   refetch: () => unknown;
   recordPrimaryAction: { label: string; onClick: () => void } | null;
   invoiceDisplayLabel: (invoice: SalesInvoiceRow) => string;
+  receiptAwaitingOdoo?: boolean;
   may: ReturnType<typeof usePermission>;
   pdfDownload: ReturnType<typeof useInvoicePdfDownload>;
   dialogs: React.ReactNode;
 }
-export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, mode, organizationToday, onBack, refetch, recordPrimaryAction, invoiceDisplayLabel, may, pdfDownload, dialogs }: Props) {
+export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, mode, organizationToday, onBack, refetch, recordPrimaryAction, invoiceDisplayLabel, receiptAwaitingOdoo = false, may, pdfDownload, dialogs }: Props) {
   const { t } = useTranslation();
   const viewTargetNumber = viewTarget ? invoiceNumber(viewTarget) : null;
     return (
@@ -56,6 +57,11 @@ export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, mode,
                     : invoiceDisplayLabel(viewTarget)}
                 </h1>
                 <p className="mt-1 text-sm text-muted-foreground">{viewTarget.customer_name ?? '—'}</p>
+                {viewTarget.paired_erp_invoice_id && (
+                  <p className="mt-1 text-sm">
+                    {t('finance:receivables.pairedCountedOnce', 'Counted once with the ERP invoice {{number}}.', { number: viewTarget.paired_erp_number ?? '—' })}
+                  </p>
+                )}
               </div>
               {recordPrimaryAction && <Button variant="primary" onClick={recordPrimaryAction.onClick}>{recordPrimaryAction.label}</Button>}
             </header>
@@ -77,7 +83,9 @@ export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, mode,
                 <div>
                   <dt className="text-xs font-medium text-muted-foreground">{t('uxs17.status', 'Status')}</dt>
                   <dd className="mt-1">
-                    {isPartlyPaid(viewTarget)
+                    {receiptAwaitingOdoo
+                      ? <StatusPill variant="progress">{t('finance:receivables.statusReceiptAwaitingOdoo', 'Receipt sent, awaiting Odoo')}</StatusPill>
+                      : isPartlyPaid(viewTarget)
                       ? <StatusPill variant={salesInvoiceStatusVariant('Unpaid')}>{t('financeCopy.statusPartlyPaid', 'Partly paid')}</StatusPill>
                       : <StatusPill variant={salesInvoiceStatusVariant(viewTarget.status)}>{salesInvoiceStatusLabel(viewTarget.status, t)}</StatusPill>}
                   </dd>
@@ -88,7 +96,7 @@ export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, mode,
                     {viewTarget.erp_outstanding_amount == null
                       ? t('uxs17.outstandingUnavailable', 'Outstanding amount not available')
                       : <>
-                        {formatCurrencyAuto(viewTarget.erp_outstanding_amount, viewTarget.currency)}
+                        {formatCurrency(viewTarget.erp_outstanding_amount, viewTarget.currency)}
                         <FxEquivalent amount={viewTarget.erp_outstanding_amount} currency={viewTarget.currency} date="latest" />
                       </>}
                   </dd>

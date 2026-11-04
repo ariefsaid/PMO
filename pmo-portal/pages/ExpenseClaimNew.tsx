@@ -16,7 +16,7 @@ import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
 import { Constants } from '@/src/lib/supabase/database.types';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { formatCurrencyAuto, parseMoneyInputAtScale } from '@/src/lib/format';
+import { formatCurrency, parseMoneyInputAtScale } from '@/src/lib/format';
 import type { BudgetCategory, ExpenseLineInput, ExpenseType } from '@/src/lib/db/expenseClaims';
 import { RECEIPT_INPUT_ACCEPT } from '@/src/lib/db/expenseReceipts';
 import { BackBar } from '@/src/components/shell';
@@ -62,7 +62,7 @@ const ExpenseClaimNew: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [blockedLeave, setBlockedLeave] = useState<(() => void) | null>(null);
   const dirty = Boolean(title || advanceId || projectId || category || purpose || receipt || lines.some((line) => line.date || line.type || line.description || line.amount));
-  const guardLeave = useUnsavedChangesGuard({ dirty, onBlocked: (leave) => setBlockedLeave(() => leave) });
+  const guardLeave = useUnsavedChangesGuard({ dirty, guardHistory: true, onBlocked: (leave) => setBlockedLeave(() => leave) });
   const options = (projects ?? []).map((project) => ({ value: project.id, label: projectDisplayName(project) }));
   const categoryPrecedents = useMemo(() => {
     const newestByProject = new Map<string, { budgetCategory: BudgetCategory; sourceTitle: string }>();
@@ -86,7 +86,7 @@ const ExpenseClaimNew: React.FC = () => {
   const advanceOptions = ownAdvances.options.filter((option) => (advanceFloat.get(option.value) ?? '') === chargedFloatId);
   const totalCents = toCents(lineInputs.reduce((sum, line) => sum + line.amount, 0));
   const floatHint = chosenFloat && totalCents > 0 ? {
-    remaining: category && chosenFloat.remaining != null ? formatCurrencyAuto(Number(chosenFloat.remaining), chosenFloat.currency ?? currency) : null,
+    remaining: category && chosenFloat.remaining != null ? formatCurrency(Number(chosenFloat.remaining), chosenFloat.currency ?? currency) : null,
     exception: Boolean(category) && isPlanException(totalCents / 100, chosenFloat.remaining),
     overLimit: procurementLimit !== null && totalCents > toCents(procurementLimit),
   } : null;
@@ -161,7 +161,7 @@ const ExpenseClaimNew: React.FC = () => {
             {floatHint && <div className="col-span-full space-y-1 text-xs text-muted-foreground" role="note">
               {floatHint.remaining && <p>{t('imprest:form.remainingHint', 'Remaining this month for this category: {{amount}}.', { amount: floatHint.remaining })}</p>}
               {floatHint.exception && <p>{t('imprest:form.exceptionHint', "This is above this month's plan: it goes to a senior approver as an out-of-plan item.")}</p>}
-              {floatHint.overLimit && <p>{t('imprest:form.limitHint', 'Above the procurement limit ({{limit}}): site cash will refuse this. Raise it as a procurement request.', { limit: formatCurrencyAuto(procurementLimit as number, currency) })}</p>}
+              {floatHint.overLimit && <p>{t('imprest:form.limitHint', 'Above the procurement limit ({{limit}}): site cash will refuse this. Raise it as a procurement request.', { limit: formatCurrency(procurementLimit as number, currency) })}</p>}
             </div>}
           </>}
           <AdvanceLoadNotice advances={ownAdvances} />

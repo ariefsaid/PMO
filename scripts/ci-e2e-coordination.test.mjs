@@ -383,6 +383,124 @@ test('AC-OPS-1133-3 history: aliases, UTC buckets, legacy rows and approvals ret
   assert.equal(decideWith([], fourthAcrossMidnight, 'normal', '2026-10-19T00:01:00.000Z').allowed, false, 'branch history spans UTC days');
 });
 
+test('AC-OPS-1133-3 legacy: exact #0 no-PR markers are retained, aliased, counted and still fail closed', async (t) => {
+  const { parseAudit, decide, reconcile } = await api();
+
+  const retained = [
+    '2026-10-19T01:00Z\tPMO\trelease/one#0\tnormal\tfirst legacy attempt',
+    '2026-10-19T02:00Z\tmos\trelease/one#0\tbugfix-proof\tpeer attempt; quoted "evidence"',
+    '2026-10-19T03:00Z\tariefsaid/PMO\trelease/one#-\towner-ok\tcurrent no-PR marker',
+    '2026-10-19T04:00Z\tariefsaid/PMO\trelease/one#82\tnormal\tpull request present',
+  ].join('\n');
+  const rows = parseAudit(`${retained}\n`);
+  assert.equal(rows.length, 4, 'every retained row stays one audit row');
+  assert.deepEqual(rows.map((row) => row.branchPr), [
+    'release/one#0', 'release/one#0', 'release/one#-', 'release/one#82',
+  ], 'the five audit columns are preserved byte-for-byte');
+  assert.deepEqual(rows.map((row) => row.repo), [
+    'ariefsaid/PMO', 'ariefsaid/gordi-mos', 'ariefsaid/PMO', 'ariefsaid/PMO',
+  ], 'repository alias normalization still applies to legacy rows');
+  assert.deepEqual(rows.map((row) => row.quote), [
+    'first legacy attempt',
+    'peer attempt; quoted "evidence"',
+    'current no-PR marker',
+    'pull request present',
+  ], 'approval quotes are unchanged');
+  assert.deepEqual(rows.map((row) => row.kind), ['normal', 'bugfix-proof', 'owner-ok', 'normal']);
+
+  const malformed = [
+    'release/one#00', 'release/one#01', 'release/one#-0', 'release/one#-1', 'release/one#0 ',
+    'release/one# 0', 'release/one#0.0', 'release/one#ZERO', 'release/one#', 'release/one',
+    '#0', '#-',
+  ];
+  for (const branchPr of malformed) {
+    assert.throws(
+      () => parseAudit(`2026-10-19T01:00Z\tfixture/alpha\t${branchPr}\tnormal\tquote\n`),
+      undefined,
+      `a genuinely malformed marker must fail closed: ${branchPr}`,
+    );
+  }
+
+  const baseState = reconcile({ reservations: [], remoteRuns: [], queryComplete: true, observedAt: KNOWN_NOW });
+  const request = {
+    requestId: '77777777-7777-4777-8777-777777777777',
+    repo: 'fixture/alpha',
+    workflow: 'alpha.yml',
+    branch: 'release/nine',
+    head: HEAD_A,
+    startedAt: KNOWN_NOW,
+    baselineRunIds: [],
+    kind: 'normal',
+    quote: '',
+    pr: null,
+  };
+  const decideWith = (auditRows, kind = 'normal') => decide({
+    state: { ...baseState, auditRows, now: KNOWN_NOW },
+    policy: { capacity: 2, dailyCap: 3 },
+    request: { ...request, kind },
+  });
+  const row = (at, repo, branchPr) => ({ at, repo, branchPr, kind: 'normal', quote: '' });
+
+  const oneLegacy = [row('2026-10-19T01:00:00Z', 'fixture/alpha', 'release/nine#0')];
+  assert.equal(decideWith(oneLegacy).allowed, false, 'a legacy #0 row still counts as one branch attempt');
+  assert.equal(decideWith(oneLegacy, 'bugfix-proof').allowed, true);
+  const mixedMarkers = [
+    row('2026-10-19T01:00:00Z', 'fixture/alpha', 'release/nine#0'),
+    row('2026-10-19T02:00:00Z', 'fixture/alpha', 'release/nine#-'),
+  ];
+  const mixedDecision = decideWith(mixedMarkers, 'bugfix-proof');
+  assert.equal(mixedDecision.allowed, false, 'legacy and current no-PR rows stay separate counted rows');
+  assert.match(mixedDecision.reason, /2 dispatches already on this branch/);
+  assert.equal(decideWith(mixedMarkers, 'owner-ok').allowed, true);
+  const threeLegacyToday = [1, 2, 3].map((n) =>
+    row(`2026-10-19T0${n}:00:00Z`, 'fixture/alpha', `legacy/branch-${n}#0`));
+  assert.equal(decideWith(threeLegacyToday).allowed, false, 'legacy rows count toward the UTC daily cap');
+  assert.equal(decideWith(threeLegacyToday, 'owner-ok').allowed, true);
+  const peerHistory = [1, 2, 3].map((n) =>
+    row(`2026-10-19T0${n}:00:00Z`, 'ariefsaid/gordi-mos', 'release/nine#0'));
+  assert.equal(decideWith(peerHistory).allowed, true,
+    'mixed PMO/MOS history keeps per-repository accounting');
+  const yesterday = [row('2026-10-18T23:59:00Z', 'fixture/alpha', 'release/nine#0')];
+  assert.equal(decideWith(yesterday).allowed, false, 'legacy branch history spans UTC days');
+  assert.equal(decideWith(yesterday, 'owner-ok').allowed, true);
+
+  const retainedFixture = makeFixture(t);
+  const retainedBytes = [
+    '2026-10-19T01:00Z\tPMO\tlegacy/one#0\tnormal\tretained legacy row',
+    '2026-10-19T02:00Z\tmos\tlegacy/two#0\tbugfix-proof\tpeer legacy row; quotes "kept"',
+  ].join('\n') + '\n';
+  writeFileSync(retainedFixture.log, retainedBytes);
+  const accepted = runCoordinator(retainedFixture);
+  assert.equal(accepted.status, 0, accepted.stderr);
+  const appendedBytes = readFileSync(retainedFixture.log, 'utf8');
+  assert.ok(appendedBytes.startsWith(retainedBytes), 'retained legacy audit bytes are never rewritten');
+  const appendedLine = appendedBytes.slice(retainedBytes.length).replace(/\r?\n$/, '');
+  const appendedColumns = appendedLine.split('\t');
+  assert.equal(appendedColumns.length, 5, 'a new write still carries five audit columns');
+  assert.match(appendedColumns[0], /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/);
+  assert.equal(appendedColumns[1], 'fixture/alpha');
+  assert.equal(appendedColumns[2], 'release/one#-', 'new writes keep the current no-PR marker');
+  assert.equal(appendedColumns[3], 'normal');
+  assert.equal(appendedColumns[4], '');
+  assert.equal(appendedAuditRows(appendedBytes).length, 3);
+  assert.equal(retainedFixture.journal().filter((entry) => entry.args[0] === 'workflow' && entry.args[1] === 'run').length, 1);
+  assert.equal(JSON.parse(readFileSync(retainedFixture.ledger, 'utf8')).reservations.length, 1);
+
+  const malformedFixture = makeFixture(t);
+  const malformedBytes = '2026-10-19T01:00Z\tPMO\tlegacy/one#00\tnormal\tmalformed retained row\n';
+  writeFileSync(malformedFixture.log, malformedBytes);
+  const refused = runCoordinator(malformedFixture);
+  assert.notEqual(refused.status, 0, 'a genuinely malformed retained marker still refuses the dispatch');
+  assert.match(refused.stderr, /malformed/i);
+  assert.equal(readFileSync(malformedFixture.log, 'utf8'), malformedBytes, 'refusal leaves the audit bytes untouched');
+  assert.equal(existsSync(malformedFixture.ledger), false);
+  assert.equal(malformedFixture.journal().filter((entry) => entry.args[0] === 'workflow' && entry.args[1] === 'run').length, 0);
+});
+
+function appendedAuditRows(text) {
+  return text.split('\n').filter((line) => line !== '').map((line) => line.split('\t'));
+}
+
 test('AC-OPS-1133-2 persistence: malformed destinations preserve bytes; audit fields stay five columns', async (t) => {
   const { saveLedger, appendAudit, parseAudit } = await api();
   const fx = makeFixture(t);

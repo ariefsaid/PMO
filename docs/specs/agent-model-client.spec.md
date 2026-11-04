@@ -284,13 +284,15 @@ read the tool call from `response.message.tool_calls?.[0]` (FR-MC-005), `JSON.pa
 untrusted until it passes the compiler).
 
 **FR-MC-020** (event-driven)
-When `composeSpec`'s repair loop (L177-217) re-invokes the model with validation feedback, it SHALL append
-the repair turn as `{ role: 'user', content: repairFeedback }` (a plain user-role text message — OpenAI has
-no equivalent of Anthropic's placeholder `tool_use` echo block requirement per FR-MC-006's simplification);
-the placeholder `{ role: 'assistant', content: [{ type: 'tool_use', id: 'repair_placeholder', ... }] }`
-push (L211-213) SHALL be removed as unnecessary under the new message-shape rules. **The repair semantics are
-unchanged**: `MAX_REPAIR_ATTEMPTS` (2), the single caught `ValidationError.{code,detail}` fed back per
-attempt, and `REPAIR_EXHAUSTED` after exhaustion all carry over byte-for-byte (ADR-0039 decision 4).
+When `composeSpec`'s repair loop re-invokes the model with validation feedback, it SHALL append the
+failed attempt as the model's own echoed tool call — `{ role: 'assistant', content: null, tool_calls: [<the
+compose_view call just made>] }` — followed by the matching tool result `{ role: 'tool', tool_call_id:
+<that call's id>, content: repairFeedback }` (OpenAI message sequencing: an assistant `tool_calls` turn is
+answered by the `tool` turn carrying the same id). Showing the model its own invalid call plus the
+validation error lets each repair attempt correct the offending properties instead of re-deriving them
+from scratch. **The repair semantics are otherwise unchanged**: `MAX_REPAIR_ATTEMPTS` (2), the single
+caught `ValidationError.{code,detail}` fed back per attempt, and `REPAIR_EXHAUSTED` after exhaustion all
+carry over (ADR-0039 decision 4).
 
 **FR-MC-021** (ubiquitous)
 `compose-view/handler.ts`'s HTTP gate order, error-code mapping (400/401/422/429/502), and logging discipline

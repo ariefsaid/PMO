@@ -23,6 +23,7 @@ const { listState, mutations, useMeetingsSpy } = vi.hoisted(() => ({
     create: { mutateAsync: vi.fn(), isPending: false },
     update: { mutateAsync: vi.fn(), isPending: false },
     archive: { mutateAsync: vi.fn(), isPending: false },
+    restore: { mutateAsync: vi.fn(), isPending: false },
     remove: { mutateAsync: vi.fn(), isPending: false },
     addAttendee: { mutateAsync: vi.fn(), isPending: false },
     removeAttendee: { mutateAsync: vi.fn(), isPending: false },
@@ -43,7 +44,7 @@ vi.mock('@/src/components/meetings/MinutesEditor', async () => {
 });
 
 vi.mock('@/src/hooks/useMeetings', () => ({
-  useMeetings: (params: { projectId?: string; search?: string } = {}) => {
+  useMeetings: (params: { projectId?: string; search?: string; includeArchived?: boolean } = {}) => {
     useMeetingsSpy(params);
     // list-working-set-return (#683): Meetings' search/project narrowing is a SERVER query
     // (DD-MTG-5) — simulate that here so an AC-LRC-012 zero-match/clear-filters case is
@@ -52,7 +53,10 @@ vi.mock('@/src/hooks/useMeetings', () => ({
     if (!narrowed && listState.unfilteredPlaceholder) {
       return { ...listState, data: [], isPlaceholderData: true };
     }
-    return { ...listState, data: narrowed ? [] : listState.data };
+    const visibleRows = params.includeArchived
+      ? listState.data
+      : listState.data.filter((row) => !(row as { archived_at?: string | null }).archived_at);
+    return { ...listState, data: narrowed ? [] : visibleRows };
   },
   useMeetingMutations: () => mutations,
 }));
@@ -103,6 +107,18 @@ const seed = [
     notes: [],
   },
 ];
+
+const archivedSeed = {
+  id: 'm-archived',
+  title: 'Archived planning session',
+  occurred_at: '2026-08-19T09:00:00Z',
+  location: null,
+  project_id: null,
+  project: null,
+  created_by_id: 'u1',
+  archived_at: '2026-08-21T09:00:00Z',
+  is_template: false,
+};
 
 // list-working-set-return (#683): reads the REAL router location so tests can assert the URL
 // (filter/search round-trip) and the record-open return-context `location.state`.
@@ -229,6 +245,48 @@ describe('Meetings — row menu gating', () => {
     expect(screen.queryByRole('menuitem', { name: 'Archive' })).not.toBeInTheDocument();
     expect(screen.queryByRole('menuitem', { name: 'Delete' })).not.toBeInTheDocument();
   });
+
+  it('hides archived meetings by default', () => {
+    listState.data = [...seed, archivedSeed];
+    renderPage('Engineer');
+    expect(screen.getByText('Kickoff with Acme')).toBeInTheDocument();
+    expect(screen.queryByText('Archived planning session')).not.toBeInTheDocument();
+  });
+
+  it('Show archived is URL-backed, includes live rows, and an author can restore into the active list', async () => {
+    listState.data = [...seed, archivedSeed];
+    renderPage('Engineer');
+    await userEvent.click(screen.getByRole('switch', { name: 'Show archived' }));
+
+    expect(useMeetingsSpy).toHaveBeenLastCalledWith(expect.objectContaining({ includeArchived: true }));
+    expect(screen.getByTestId('location-probe')).toHaveAttribute('data-search', '?archived=1');
+    expect(screen.getByText('Kickoff with Acme')).toBeInTheDocument();
+    const title = screen.getAllByText('Archived planning session').find((element) => element.closest('tr'))!;
+    const row = title.closest('tr')!;
+    expect(within(row).getByText('Archived')).toBeInTheDocument();
+    expect(within(row).getByText('Archived planning session')).toHaveClass('text-muted-foreground');
+    await userEvent.click(within(row).getByRole('button', { name: 'Row actions' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Restore' }));
+
+    await waitFor(() => expect(mutations.restore.mutateAsync).toHaveBeenCalledWith('m-archived'));
+    listState.data = listState.data.map((item) => {
+      const row = item as { id: string; archived_at?: string | null };
+      return row.id === archivedSeed.id ? { ...row, archived_at: null } : item;
+    });
+    await userEvent.click(screen.getByRole('switch', { name: 'Show archived' }));
+    const restoredTitle = (await screen.findAllByText('Archived planning session')).find((element) => element.closest('tr'))!;
+    expect(restoredTitle).toBeInTheDocument();
+    expect(within(restoredTitle.closest('tr')!).queryByText('Archived')).not.toBeInTheDocument();
+  });
+
+  it('does not offer restore for an archived meeting owned by someone else', async () => {
+    listState.data = [{ ...archivedSeed, created_by_id: 'u9' }];
+    renderPage('Engineer');
+    await userEvent.click(screen.getByRole('switch', { name: 'Show archived' }));
+    const row = screen.getByText('Archived planning session').closest('tr')!;
+    await userEvent.click(within(row).getByRole('button', { name: 'Row actions' }));
+    expect(screen.queryByRole('menuitem', { name: 'Restore' })).not.toBeInTheDocument();
+  });
 });
 
 describe('Meetings — states', () => {
@@ -315,7 +373,7 @@ describe('AC-PLC-005/006 (#684): New-meeting "When" prefill and submit follow th
     await userEvent.clear(when);
     await userEvent.click(screen.getByRole('button', { name: /Save meeting/ }));
     // The field error is shown inline.
-    expect((await screen.findAllByText(/valid date and time/i)).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText(/valid date and a local time that exists/i)).length).toBeGreaterThan(0);
     expect(mutations.create.mutateAsync).not.toHaveBeenCalled();
   });
 });

@@ -1304,6 +1304,19 @@ describe('AC-ENA-012 classified failures: commit-rejected marks failed; external
     expect(id).toBeTruthy();
   });
 
+  it('I1 (#1505 P5 review) tells the recovery probe whether this is a recovery: a first claim is not, the retry of a failed row is', async () => {
+    const fake = createFakeOutbox();
+    await fake.deps.insertOutboxPending('procurement', 'pmo-1', 'key-1');
+    const probe = vi.spyOn(fake.deps, 'probeByRemarksKey');
+    const commit = vi.fn()
+      .mockRejectedValueOnce(new AdapterError('commit-rejected', 'MandatoryError: supplier'))
+      .mockResolvedValueOnce({ externalRecordId: 'PI-0001', canonical: { id: 'pmo-1' } });
+    const run = () => dispatchMoneyWrite({ adapter: erpnextAdapter(commit), command: baseCommand, writeReadModel: vi.fn(), recordExternalRef: vi.fn(), money: fake.deps });
+    await expect(run()).rejects.toBeInstanceOf(AppError);
+    await run();
+    expect(probe.mock.calls.map((c) => c[2])).toEqual([{ recovery: false }, { recovery: true }]);
+  });
+
   it('external-unreachable rethrows and leaves the row committing (reclaimable after the lease)', async () => {
     const fake = createFakeOutbox();
     await fake.deps.insertOutboxPending('procurement', 'pmo-1', 'key-1');
@@ -1388,6 +1401,28 @@ describe('WIRE 4: the 0116 one-in-flight-per-record violation is a clean, action
     const noCode = new Error('unrelated failure mentioning external_command_outbox_one_inflight_per_record');
     const { run } = dispatchWithInsertError(noCode);
     await expect(run()).rejects.not.toMatchObject({ code: 'command-in-flight-for-record' });
+  });
+
+  // #1505 P6 (I1/I2): 0508's one-in-flight-payment-per-bill index. A second intent for a bill that already has a payment in flight
+  // (or held) is a conflict the payer can act on, not a 500 naming an index.
+  it('AC-OPP-050 a second payment intent for one bill is refused 409-class with the reason, naming no index', async () => {
+    const err = new Error('duplicate key value violates unique constraint "external_command_outbox_one_inflight_odoo_payment_per_bill"') as Error & { code?: string };
+    err.code = '23505';
+    const { run, commit } = dispatchWithInsertError(err);
+    const error: AppError = await run().then(() => { throw new Error('must reject'); }, (e: unknown) => e as AppError);
+    expect(error).toMatchObject({ code: 'command-in-flight-for-record', message: 'payment already in progress for this bill' });
+    expect(error.message).not.toContain('external_command_outbox');
+    expect(commit).not.toHaveBeenCalled();
+  });
+
+  it('AC-OCI-040 a second receipt for one Odoo invoice is refused 409-class without exposing the index', async () => {
+    const err = new Error('duplicate key value violates unique constraint "external_command_outbox_one_inflight_odoo_receipt_per_invoice"') as Error & { code?: string };
+    err.code = '23505';
+    const { run, commit } = dispatchWithInsertError(err);
+    const error: AppError = await run().then(() => { throw new Error('must reject'); }, (e: unknown) => e as AppError);
+    expect(error).toMatchObject({ code: 'command-in-flight-for-record', message: 'receipt already in progress for this invoice' });
+    expect(error.message).not.toContain('external_command_outbox');
+    expect(commit).not.toHaveBeenCalled();
   });
 });
 

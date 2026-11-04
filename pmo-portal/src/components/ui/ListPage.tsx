@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Toolbar } from './DataTable';
 import { useIsDesktop } from './useIsDesktop';
 import { Card } from './Card';
@@ -15,6 +16,8 @@ export interface ListPageProps {
    * number is supplied (0 still renders, so an empty list reads "0").
    */
   count?: number;
+  /** Total count before filters. */
+  total?: number;
   /**
    * The single per-screen primary CTA ("New <Entity>" / "Raise request" / …),
    * gated by the consumer. Lives top-right in the header row.
@@ -70,6 +73,7 @@ export const ListPage: React.FC<ListPageProps> = ({
   headingLevel = 1,
   description,
   count,
+  total,
   primaryAction,
   filters,
   search,
@@ -84,6 +88,7 @@ export const ListPage: React.FC<ListPageProps> = ({
   bodyPanel = false,
   className,
 }) => {
+  const { t } = useTranslation();
   const isBelowMd = !useIsDesktop();
   // A slot is "present" only when it renders something. Pages gate slots with
   // `state !== 'loading' && (…)`, which yields `false` during loading — so a
@@ -112,7 +117,9 @@ export const ListPage: React.FC<ListPageProps> = ({
                 data-testid="list-page-count"
                 className="inline-flex h-[22px] min-w-[22px] items-center justify-center rounded-full bg-secondary px-2 text-[12.5px] font-semibold tabular text-muted-foreground"
               >
-                {count}
+                {total !== undefined && count < total
+                  ? t('ui.listPage.showingOf', 'Showing {{count}} of {{total}}', { count, total })
+                  : count}
               </span>
             )}
           </div>

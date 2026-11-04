@@ -9,6 +9,9 @@ import {
   useEntityForm,
 } from '@/src/components/ui';
 import { formatMoneyInputValue, parseMoneyInputAtScale } from '@/src/lib/format';
+// Deep date-fns import (same convention as src/lib/format.ts).
+import { isValid } from 'date-fns/isValid';
+import { parseISO } from 'date-fns/parseISO';
 import type { FxRateInput, FxRateRow } from '@/src/lib/repositories/types';
 
 export interface FxRateFormProps {
@@ -24,15 +27,9 @@ export interface FxRateFormProps {
 type Values = { date: string; rate: string };
 
 function isCalendarDate(value: string): boolean {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
-  if (!match) return false;
-  const year = Number(match[1]);
-  const month = Number(match[2]);
-  const day = Number(match[3]);
-  const date = new Date(0);
-  date.setUTCHours(0, 0, 0, 0);
-  date.setUTCFullYear(year, month - 1, day);
-  return date.toISOString().slice(0, 10) === value;
+  // The strict four-digit YYYY-MM-DD shape stays pinned here; the project's date-fns parser
+  // owns the calendar validity check (rejects e.g. 2026-02-30, 2026-13-01, 2026-00-10).
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) && isValid(parseISO(value));
 }
 
 const FxRateForm: React.FC<FxRateFormProps> = ({

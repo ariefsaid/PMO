@@ -15,7 +15,7 @@ import { availableFloatActions, availableReplenishmentActions, booksState, toCen
 import { LIST_LIMIT, type ImprestReplenishmentRow } from '@/src/lib/db/imprest';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { formatCurrencyAuto, parseMoneyInputAtScale } from '@/src/lib/format';
+import { formatCurrency, parseMoneyInputAtScale } from '@/src/lib/format';
 import { workflowVariant } from '@/src/lib/status/statusVariants';
 import { PlansSection } from './imprest/PlansSection';
 import { FloatAmountSection } from './imprest/FloatAmountSection';
@@ -61,7 +61,7 @@ const ImprestFloatDetail: React.FC = () => {
   const backLabel = t('imprest:detail.back', 'Site cash');
   const goBack = () => navigate('/imprest');
 
-  if (floats.isPending) return <><BackBar label={backLabel} phoneOnly onBack={goBack} /><ListState variant="loading" rows={5} /></>;
+  if (floats.isPending) return <><BackBar label={backLabel} phoneOnly onBack={goBack} /><ListState variant="loading" shape="detail" rows={5} /></>;
   if (floats.isError) {
     return <><BackBar label={backLabel} phoneOnly onBack={goBack} />
       <ListState variant="error" title={t('imprest:detail.errorTitle', "Couldn't load this float")} onRetry={() => void floats.refetch()} /></>;
@@ -80,7 +80,7 @@ const ImprestFloatDetail: React.FC = () => {
     return <span className={state === 'failed' ? 'text-destructive-text' : 'text-muted-foreground'}>{text}</span>;
   };
   const cur = flt.currency;
-  const money = (v: number | string) => formatCurrencyAuto(Number(v), cur);
+  const money = (v: number | string) => formatCurrency(Number(v), cur);
   const pos = position.data ?? null;
   const repRows = reps.data?.rows ?? [];
   // A receipt is replenished only once the replenishment it was swept into is Paid (the position's receipts-waiting rule).

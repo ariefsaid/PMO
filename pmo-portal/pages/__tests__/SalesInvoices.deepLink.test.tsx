@@ -6,13 +6,16 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
-import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
+import type { IncomingPaymentRow, SalesInvoiceRow } from '@/src/lib/db/revenue';
 
 /** SalesInvoices page — ?q= deep link (#787, AC-AIN-015). */
 
 // Mock hooks to provide stable test data
 const hoisted = vi.hoisted(() => ({
   received: vi.fn(async () => {}),
+  revenueMode: 'native' as 'native' | 'erp',
+  incomingPaymentsArgs: undefined as unknown[] | undefined,
+  getInvoice: vi.fn(),
   projectOptions: [{ value: 'project-1', label: 'Northwind Build', contractualName: 'Northwind Build', sub: 'NW-1', clientId: 'cust-1', subjectToVat: false, taxRate: null, archived: false, customerContractRef: 'CLIENT-PO-1' }],
   incomingPaymentsState: {
     data: [{
@@ -21,7 +24,7 @@ const hoisted = vi.hoisted(() => ({
       date: '2026-10-08', amount: 250, currency: 'USD', status: 'Paid', erp_docstatus: 1,
       erp_modified: null, erp_amended_from: null, erp_cancelled_at: null, created_at: '2026-10-08T00:00:00Z',
       allocation_details: [{ invoice_id: 'inv-1', invoice_number: 'ACC-SINV-2026-00001', amount: '250.00', currency: 'USD' }],
-    }], isPending: false, isError: false,
+    }] as IncomingPaymentRow[], isPending: false, isError: false,
   },
   invoiceEvidenceState: {
     data: {
@@ -95,6 +98,7 @@ const salesInvoicesState = hoisted.salesInvoicesState;
 const invoiceEvidenceState = hoisted.invoiceEvidenceState;
 const incomingPaymentsState = hoisted.incomingPaymentsState;
 const SEED_INVOICES = structuredClone(salesInvoicesState.data);
+const SEED_PAYMENTS = structuredClone(incomingPaymentsState.data);
 
 beforeEach(() => {
   hoisted.received.mockReset().mockResolvedValue(undefined);
@@ -105,13 +109,18 @@ beforeEach(() => {
   invoiceEvidenceState.isError = false;
   incomingPaymentsState.isPending = false;
   incomingPaymentsState.isError = false;
-  incomingPaymentsState.data = structuredClone(hoisted.incomingPaymentsState.data);
+  incomingPaymentsState.data = structuredClone(SEED_PAYMENTS);
+  hoisted.revenueMode = 'native';
+  hoisted.incomingPaymentsArgs = undefined;
 });
 
 vi.mock('@/src/hooks/useRevenue', () => ({
   useSalesInvoiceEvidence: () => invoiceEvidenceState,
   useInvoiceEvidence: () => invoiceEvidenceState,
-  useIncomingPayments: () => incomingPaymentsState,
+  useIncomingPayments: (...args: unknown[]) => {
+    hoisted.incomingPaymentsArgs = args;
+    return incomingPaymentsState;
+  },
   useAssignInvoiceProject: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useSalesInvoices: () => salesInvoicesState,
   useRevenueMutations: () => ({
@@ -128,10 +137,15 @@ vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u-pm', org_id: 'org-1' }, role: 'Project Manager' }),
 }));
 
+vi.mock('@/src/lib/repositories', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/src/lib/repositories')>();
+  return { ...actual, repositories: { ...actual.repositories, revenue: { ...actual.repositories.revenue, getInvoice: hoisted.getInvoice } } };
+});
 vi.mock('@/src/lib/adapterSeam/ownershipCache', () => ({
   routeDomainWrite: vi.fn(() => 'pmo'),
 }));
 vi.mock('@/src/hooks/useExternalDomainOwnership', () => ({ useExternalDomainOwnership: () => ({ data: [], isError: false }) }));
+vi.mock('@/src/hooks/useRevenueMode', () => ({ useRevenueMode: () => hoisted.revenueMode }));
 vi.mock('@/src/hooks/useFxOrgDay', () => ({ useFxOrgDay: () => ({ day: '2026-10-16', isPending: false, isError: false, retry: vi.fn() }) }));
 vi.mock('@/src/hooks/useFkOptions', () => ({
   useInvoiceProjectOptions: () => ({ data: hoisted.projectOptions }),
@@ -179,7 +193,39 @@ const renderAt = (url: string) =>
     </QueryClientProvider>,
   );
 
+describe('SalesInvoices — a paired PMO copy by direct link (ECA-5 M10)', () => {
+  it('opens a paired copy the list leaves out and says it counts once with its ERP invoice', async () => {
+    hoisted.getInvoice.mockResolvedValue({ ...SEED_INVOICES[0], id: 'inv-paired', pmo_number: 'PMO-P1', paired_erp_invoice_id: 'inv-2', paired_erp_number: 'SI-9' });
+    renderAt('/sales-invoices/inv-paired');
+    expect(await screen.findByText('Counted once with the ERP invoice SI-9.')).toBeInTheDocument();
+    expect(hoisted.getInvoice).toHaveBeenCalledWith('inv-paired');
+  });
+  it('a failed by-id read is an error, never "not found"', async () => {
+    hoisted.getInvoice.mockRejectedValue(new Error('network'));
+    renderAt('/sales-invoices/inv-paired');
+    expect(await screen.findByText("Couldn't load sales invoices")).toBeInTheDocument();
+    expect(screen.queryByText('Invoice not found')).not.toBeInTheDocument();
+  });
+  it('does not fetch when the list already holds the invoice', () => {
+    hoisted.getInvoice.mockClear();
+    renderAt('/sales-invoices/inv-2');
+    expect(hoisted.getInvoice).not.toHaveBeenCalled();
+  });
+});
+
 describe('SalesInvoices — deep link (#787)', () => {
+  it('loads incoming receipts for the standalone ERP invoice list so pending receipt status is visible', () => {
+    hoisted.revenueMode = 'erp';
+    salesInvoicesState.data[0] = { ...salesInvoicesState.data[0], pmo_native: false, status: 'Unpaid', erp_modified: '2026-11-02T09:00:00.000Z' };
+    incomingPaymentsState.data[0] = {
+      ...incomingPaymentsState.data[0], sales_invoice_id: 'inv-1', push_command_state: 'confirmed',
+      push_command_created_at: '2026-11-02T09:00:30.000Z', push_command_updated_at: '2026-11-02T09:01:00.000Z',
+    };
+    renderAt('/sales-invoices');
+    expect(hoisted.incomingPaymentsArgs).toEqual([undefined, true]);
+    expect(screen.getByText('ACC-SINV-2026-00001').closest('tr')).toHaveTextContent('Receipt sent, awaiting Odoo');
+  });
+
   it('AC-AIN-015 ?q= seeds the search and filters the list to that invoice', () => {
     renderAt('/sales-invoices?q=ACC-SINV-2026-00002');
     expect(screen.getByDisplayValue('ACC-SINV-2026-00002')).toBeInTheDocument();
@@ -323,6 +369,23 @@ describe('SalesInvoices — deep link (#787)', () => {
     expect(appliedReceiptsHeading.parentElement).toHaveTextContent('$250.00');
   });
 
+  it('AC-OCI-054 keeps the invoice in awaiting-Odoo status until its ERP read advances past the sent receipt', () => {
+    salesInvoicesState.data[0] = {
+      ...SEED_INVOICES[0], status: 'Unpaid', pmo_native: false,
+      erp_modified: '2026-11-02T09:00:00.000Z', erp_outstanding_amount: 5000,
+    };
+    incomingPaymentsState.data = ([{
+      ...incomingPaymentsState.data[0], sales_invoice_id: 'inv-1', allocation_details: null,
+      push_command_state: 'confirmed', push_command_created_at: '2026-11-02T09:00:30.000Z',
+      push_command_updated_at: '2026-11-02T09:01:00.000Z',
+    }] as unknown) as typeof incomingPaymentsState.data;
+
+    renderAt('/sales-invoices/inv-1');
+
+    expect(screen.getByText('Receipt sent, awaiting Odoo')).toBeInTheDocument();
+    expect(screen.queryByText('Partly paid')).not.toBeInTheDocument();
+  });
+
   it('shows only this invoice’s settled receipts for PMO-native detail and ignores scheduled, cancelled, and unrelated unknown rows', () => {
     salesInvoicesState.data[0] = { ...SEED_INVOICES[0], pmo_native: true, status: 'Paid' };
     incomingPaymentsState.data = ([
@@ -412,9 +475,10 @@ describe('SalesInvoices — deep link (#787)', () => {
     expect(screen.getByDisplayValue('ACC-SINV-2026-00002')).toBeInTheDocument();
   });
 
-  it('UXS-014 an unknown invoice id reads as not found', () => {
+  it('UXS-014 an unknown invoice id reads as not found', async () => {
+    hoisted.getInvoice.mockResolvedValue(null); // the list has no such id; the by-id read finds none either
     renderAt('/sales-invoices/inv-missing');
-    expect(screen.getByText('Invoice not found')).toBeInTheDocument();
+    expect(await screen.findByText('Invoice not found')).toBeInTheDocument();
   });
 
   it('UXS-014 a failed load on a record link is an error with retry, never "not found"', async () => {

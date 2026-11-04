@@ -52,6 +52,14 @@ export const AGENT_READ_ENTITIES = [
   'payments',
   'procurement_items',
   'procurement_status_events',
+  // Warehouse + stock (#1721; screens #1512). SELECT-granted tables with org+member RLS (0412/0413/0418).
+  // stock_balances / stock_ledger are deliberately NOT client-readable (0413 revokes SELECT; cost is
+  // rank-gated inside the read RPCs) — they are answered by the query_stock tool (stockRead.ts), not here.
+  'stock_items',
+  'stock_warehouses',
+  'stock_documents',
+  'stock_document_lines',
+  'stock_reorder_levels',
   // Planning / spend / team / docs / alerts:
   'budget_line_items',
   'project_documents',
@@ -168,6 +176,48 @@ export const AGENT_ENTITY_TABLES: Readonly<Record<string, AgentCuratedEntity>> =
   procurement_status_events: {
     table: 'procurement_status_events',
     allowedColumns: ['id', 'procurement_id', 'from_status', 'to_status', 'actor_id', 'created_at'],
+  },
+
+  // ── Warehouse + stock (#1721; the #1512 stock screens' data) ─────────────────
+  // Master data + document records, each SELECT-granted to authenticated with org+active-member RLS
+  // (0412 §4, 0413, 0418). Every entry EXCLUDES org_id (tenancy seam). On-hand figures and the
+  // movement ledger are NOT here — stock_balances/stock_ledger carry no client SELECT grant (0413
+  // D5: cost is read only through the rank-gated RPCs); the query_stock tool (stockRead.ts) answers
+  // those through get_stock_on_hand / get_stock_ledger under the caller JWT.
+  stock_items: {
+    table: 'stock_items', numericColumns: ['lead_time_days'],
+    allowedColumns: ['id', 'code', 'name', 'description', 'unit_id', 'lead_time_days', 'archived_at', 'created_at'],
+  },
+  stock_warehouses: {
+    table: 'stock_warehouses',
+    allowedColumns: ['id', 'code', 'name', 'kind', 'project_id', 'archived_at', 'created_at'],
+  },
+  // Stock documents (receive/transfer/issue/return/adjustment/count). Excludes client_request_id
+  // (idempotency plumbing), created_by/posted_by/cancelled_by (audit actor ids — the ledger RPC
+  // already resolves actor_name for movements) and the cancelled_* timestamps (audit trail).
+  stock_documents: {
+    table: 'stock_documents',
+    allowedColumns: [
+      'id', 'number', 'kind', 'status', 'warehouse_id', 'to_warehouse_id', 'project_id',
+      'procurement_id', 'reason', 'note', 'occurred_on', 'created_at', 'posted_at',
+    ],
+  },
+  // Lines of a stock document. unit_cost is DELIBERATELY absent: it is outside the client SELECT
+  // column grant (0413 D5 — cost is rank-gated through the RPCs, AC-STK-020).
+  stock_document_lines: {
+    table: 'stock_document_lines', numericColumns: ['quantity', 'counted_quantity', 'expected_quantity'],
+    allowedColumns: [
+      'id', 'document_id', 'line_no', 'item_id', 'quantity', 'counted_quantity',
+      'expected_quantity', 'direction', 'boq_item_id', 'source_line_id',
+    ],
+  },
+  // Reorder levels (0418). NOTE: this table's primary key is (item_id, warehouse_id) — there is no
+  // `id` column, so id is NOT whitelisted and query_entity's aggregate path (which projects a forced
+  // `id` under group_by) cannot serve this entity; plain reads are the ask here. Reorder SUGGESTIONS
+  // live on the screens' RPC, not in the agent surface.
+  stock_reorder_levels: {
+    table: 'stock_reorder_levels', numericColumns: ['reorder_level', 'reorder_quantity'],
+    allowedColumns: ['item_id', 'warehouse_id', 'reorder_level', 'reorder_quantity', 'set_by', 'set_at'],
   },
 
   // ── Spend detail / docs / team / alerts ─────────────────────────────────────

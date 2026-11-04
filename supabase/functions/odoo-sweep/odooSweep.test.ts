@@ -6,7 +6,7 @@
 import { afterAll, describe, it } from '@std/testing/bdd';
 import { assert, assertEquals, assertRejects } from '@std/assert';
 import { createClient } from '@supabase/supabase-js';
-import { installEdgeEnv, jsonResponse, rpcCall, supabaseRpc, supabaseSelect, withFetchMock, type FetchCall, type MockRoute } from '../_shared/testing/edgeTestKit.ts';
+import { countResponse, installEdgeEnv, jsonResponse, rpcCall, supabaseRpc, supabaseSelect, withFetchMock, type FetchCall, type MockRoute } from '../_shared/testing/edgeTestKit.ts';
 import { ODOO_SWEEP_TICK_MAX_CALLS, sweepOdooOrg } from '../_shared/odooSweep.ts';
 import { createFakeOdoo, type FakeOdoo } from '../../../pmo-portal/src/lib/adapterSeam/odoo/fakeOdoo.ts';
 import type { ConnectionRecord } from '../../../pmo-portal/src/lib/adapterSeam/odoo/connectionState.ts';
@@ -21,12 +21,13 @@ const ORG = '0d000000-0000-4000-8000-000000000004';
 const ODOO = 'odoo.example.test';
 const KEY = 'stored-odoo-key';
 const FRESH = new Date().toISOString();
+const BINDING_ID = '0b000000-0000-4000-8000-000000000001';
 const binding = (over: Record<string, unknown> = {}) => ({
-  site_url: `https://${ODOO}`, secret_ref: 'odoo_ref', status: 'active', activated_at: '2026-11-01T00:00:00Z',
+  id: BINDING_ID, site_url: `https://${ODOO}`, secret_ref: 'odoo_ref', status: 'active', activated_at: '2026-11-01T00:00:00Z',
   config: { database: 'db1', odoo_company_id: 1, capabilities: { observed_at: FRESH, missing: [], models: {} } }, ...over,
 });
 
-interface Opts { binding?: Record<string, unknown>; lock?: { held: boolean }; applyError?: boolean; rejectAfter?: number; version?: number | null; prepare?: (f: FakeOdoo) => void }
+interface Opts { pmoProjects?: Array<Record<string, unknown>>; pmoCompanies?: Array<Record<string, unknown>>; run?: Record<string, unknown> | null; accepted?: boolean; runError?: boolean; binding?: Record<string, unknown>; lock?: { held: boolean }; applyError?: boolean; employed?: boolean; revenueEmployed?: boolean; failPurchaseDomain?: string; failRevenueDomain?: string; purchaseModels?: string[]; revenueModels?: string[]; rejectAfter?: number; version?: number | null; prepare?: (f: FakeOdoo) => void }
 
 function harness(o: Opts = {}) {
   const fake = createFakeOdoo({ key: KEY });
@@ -34,13 +35,17 @@ function harness(o: Opts = {}) {
   fake.seed('product.product', [{ id: 1, name: 'Semen', default_code: 'S1', company_id: false }]);
   fake.seed('account.account', [{ id: 1, name: 'Payable', code: '2100', account_type: 'liability_payable', company_ids: [1] }]);
   o.prepare?.(fake);
+  const documentModels = [...(o.purchaseModels ?? []), ...(o.revenueModels ?? [])];
+  if (documentModels.length && !o.binding) o.binding = binding({ config: { database: 'db1', odoo_company_id: 1, capabilities: { observed_at: FRESH, missing: [], models: {}, later: Object.fromEntries(documentModels.map((m) => [m, true])) } } });
   const cursors = new Map<string, string>();
+  const staged = new Map<string, Array<{ externalId: string }>>();
   const lock = o.lock ?? { held: false };
   let odooCalls = 0;
   const routes: MockRoute[] = [
     supabaseRpc('claim_erp_sweep_lock', () => { const ok = !lock.held; lock.held = true; return jsonResponse(ok); }),
     supabaseRpc('release_erp_sweep_lock', () => { lock.held = false; return jsonResponse(true); }),
     supabaseSelect('external_org_bindings', () => jsonResponse([o.binding ?? binding()])),
+    supabaseRpc('outbox_reconcile_candidates', () => jsonResponse([])),
     supabaseRpc('read_vault_secret', () => jsonResponse(KEY)),
     supabaseSelect('external_sync_watermarks', (c) => {
       const v = cursors.get(c.url.searchParams.get('domain')!.replace(/^eq\./, ''));
@@ -52,10 +57,40 @@ function harness(o: Opts = {}) {
       cursors.set(`master:${b.p_kind}`, b.p_cursor);
       return jsonResponse(b.p_rows.length);
     }),
+    // FR-OPP-080: purchase documents are mirrored only for an org that employed procurement under Odoo.
+    supabaseSelect('external_domain_ownership', (c) => {
+      const domain = c.url.searchParams.get('domain')?.replace(/^eq\./, '');
+      const employed = domain === 'revenue' ? o.revenueEmployed : o.employed;
+      return jsonResponse(employed ? [{ id: `own-${domain}` }] : []);
+    }),
+    supabaseRpc('apply_odoo_purchase_page', (c) => { const b = c.bodyJson as { p_domain: string; p_cursor: string; p_rows: unknown[] }; if (b.p_domain === o.failPurchaseDomain) return jsonResponse({ code: '22023', message: 'x' }, { status: 400 }); cursors.set(`purchase:${b.p_domain}`, b.p_cursor); return jsonResponse(b.p_rows.length); }),
+    supabaseRpc('mark_odoo_purchase_census_seen', () => jsonResponse(null)),
+    supabaseRpc('finish_odoo_purchase_census', (c) => { const b = c.bodyJson as { p_domain: string; p_cursor: string }; cursors.set(`purchase:${b.p_domain}`, b.p_cursor); return jsonResponse(null); }),
+    supabaseRpc('apply_odoo_revenue_page', (c) => { const b = c.bodyJson as { p_domain: string; p_cursor: string; p_rows: unknown[] }; if (b.p_domain === o.failRevenueDomain) return jsonResponse({ code: '22023', message: 'x' }, { status: 400 }); cursors.set(`revenue:${b.p_domain}`, b.p_cursor); return jsonResponse(b.p_rows.length); }),
+    supabaseRpc('mark_odoo_revenue_census_seen', () => jsonResponse(null)),
+    supabaseRpc('finish_odoo_revenue_census', (c) => { const b = c.bodyJson as { p_domain: string; p_cursor: string }; cursors.set(`revenue:${b.p_domain}`, b.p_cursor); return jsonResponse(0); }),
     supabaseRpc('mark_odoo_census_seen', () => jsonResponse(null)),
     supabaseRpc('finish_odoo_census', (c) => { const b = c.bodyJson as { p_kind: string; p_cursor: string }; cursors.set(`master:${b.p_kind}`, b.p_cursor); return jsonResponse(0); }),
     supabaseRpc('merge_external_org_binding_config', () => jsonResponse(null)),
     supabaseRpc('log_audit', () => jsonResponse(null)),
+    // S6: the setup run's pass and the partner feed read these; by default there is no run and the party kind was never accepted.
+    supabaseSelect('erp_connect_runs', () => (o.runError ? jsonResponse({ code: 'XX000', message: 'x' }, { status: 500 }) : o.run ? one(o.run) : none())),
+    supabaseSelect('erp_connect_census', () => (o.accepted ? one({ accepted_at: '2026-11-01T00:00:00Z' }) : none())),
+    supabaseSelect('external_master_records', () => jsonResponse([])),
+    supabaseSelect('external_refs', () => jsonResponse([])),
+    supabaseSelect('companies', (c) => jsonResponse(c.url.searchParams.has('erp_tax_id') || c.url.searchParams.has('name') ? [] : (o.pmoCompanies ?? []))),
+    supabaseSelect('projects', () => jsonResponse(o.pmoProjects ?? [])),
+    ...['profiles', 'procurement_items'].map((t) => supabaseSelect(t, () => jsonResponse([]))),
+    { label: 'categories-in-use', method: 'HEAD', pathname: '/rest/v1/budget_line_items', response: () => countResponse(0) },
+    supabaseSelect('erp_connect_staged', (c) => jsonResponse((staged.get(c.url.searchParams.get('kind')!.replace(/^eq\./, '')) ?? []).map((row) => ({ external_id: row.externalId, row })))),
+    supabaseRpc('stage_connect_master_page', (c) => {
+      const b = c.bodyJson as { p_kind: string; p_rows: Array<{ externalId: string }> };
+      staged.set(b.p_kind, [...(staged.get(b.p_kind) ?? []), ...b.p_rows]);
+      return jsonResponse(null);
+    }),
+    supabaseRpc('replace_connect_proposals', () => jsonResponse(null)),
+    supabaseRpc('fail_connect_run', () => jsonResponse('staging')),
+    supabaseRpc('apply_connect_outcome', () => jsonResponse(null)),
     { label: 'odoo-json2', host: ODOO, pathname: /^\/json\/2\//, response: (c: FetchCall) => {
       odooCalls++;
       const key = o.rejectAfter !== undefined && odooCalls > o.rejectAfter ? 'revoked' : (c.headers.get('authorization') ?? '');
@@ -66,6 +101,8 @@ function harness(o: Opts = {}) {
   return { fake, cursors, lock, routes };
 }
 
+const one = (body: unknown) => jsonResponse(body, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } });
+const none = () => new Response('null', { status: 200, headers: { 'content-type': 'application/json' } });
 const client = () => createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
 async function sweep(o: Opts = {}, opts?: Parameters<typeof sweepOdooOrg>[2]) {
   const h = harness(o);
@@ -122,6 +159,16 @@ describe('odooSweep — AC-ODC-025 budget and outcomes', () => {
   it('AC-ODC-025 a kind with a backlog larger than the tick leaves budget for every kind after it', async () => {
     const r = await sweep({ prepare: (f) => f.seed('product.product', Array.from({ length: 15_000 }, (_, i) => ({ id: i + 10, name: `P${i}`, company_id: false }))) });
     for (const kind of ['warehouse', 'location', 'partner']) assert(r.cursors.get(`master:${kind}`), `${kind} got no budget`);
+  });
+
+  it('AC-OPP-093 the journal directory is swept with its type, so Finance can pick a bank or cash book', async () => {
+    const r = await sweep({ prepare: (f) => f.seed('account.journal', [{ id: 5, name: 'Bank Utama', code: 'BNK1', type: 'bank', company_id: [1, 'Main Co'] }]) });
+    assert(r.cursors.has('master:journal'), 'the journal kind has a cursor');
+    const rows = rpcCall(r.calls, 'apply_odoo_master_page').flatMap((c) => {
+      const b = c.bodyJson as { p_kind: string; p_rows: Array<{ external_id: string; attrs: { type: string } }> };
+      return b.p_kind === 'journal' ? b.p_rows : [];
+    });
+    assertEquals(rows.map((x) => [x.external_id, x.attrs.type]), [['5', 'bank']]);
   });
 
   it('AC-ODC-025 a spent time budget makes no Odoo call', async () => {
@@ -192,5 +239,157 @@ describe('odooSweep — AC-ODC-025 budget and outcomes', () => {
     const r = await sweep({ prepare: (f) => f.seed('product.product', [{ id: 2, name: 'Other', company_id: [2, 'Other Co'] }]) });
     const rows = rpcCall(r.calls, 'apply_odoo_master_page').flatMap((c) => (c.bodyJson as { p_kind: string; p_rows: { external_id: string }[] }).p_kind === 'product' ? (c.bodyJson as { p_rows: { external_id: string }[] }).p_rows : []);
     assertEquals([...new Set(rows.map((x) => x.external_id))], ['1']);
+  });
+});
+
+const RUN = { id: 'run-1', state: 'staging', cursor: {}, proposed_kinds: [], started_at: new Date().toISOString() };
+const partnerRow = (id: number, over: Record<string, unknown> = {}) => ({ id, name: `Partner ${id}`, vat: false, ref: false, is_company: true, parent_id: false, supplier_rank: 1, customer_rank: 0, ...over });
+
+describe('odooSweep — #1504 S6 the setup run and the partner feed', () => {
+  it('FR-ECA-002 an open setup run of this connection is advanced in the same tick: Odoo parties are staged for it', async () => {
+    const r = await sweep({ run: RUN, prepare: (f) => f.seed('res.partner', [partnerRow(5), partnerRow(6, { supplier_rank: 0, customer_rank: 1 })]) });
+    assert('ok' in r.result);
+    const read = r.calls.find((c) => c.url.pathname === '/rest/v1/erp_connect_runs')!;
+    assertEquals([read.url.searchParams.get('org_id'), read.url.searchParams.get('external_tier'), read.url.searchParams.get('binding_id')], [`eq.${ORG}`, 'eq.odoo', `eq.${BINDING_ID}`]);
+    const staged = rpcCall(r.calls, 'stage_connect_master_page').map((c) => c.bodyJson as { p_org_id: string; p_run_id: string; p_kind: string; p_rows: Array<{ externalId: string }> });
+    assert(staged.every((b) => b.p_org_id === ORG && b.p_run_id === 'run-1'));
+    assertEquals(staged.find((b) => b.p_kind === 'party')?.p_rows.map((x) => x.externalId), ['Vendor:5', 'Client:6']);
+  });
+
+  it('FR-ECA-010 once every kind is staged the next tick step proposes with the shared matcher, for tier odoo, against PMO\'s companies', async () => {
+    const r = await sweep({ run: RUN, pmoCompanies: [{ id: 'c1', name: 'Partner 5', type: 'Vendor', erp_tax_id: null }], prepare: (f) => f.seed('res.partner', [partnerRow(5)]) });
+    const writes = rpcCall(r.calls, 'replace_connect_proposals').map((c) => c.bodyJson as { p_org_id: string; p_tier: string; p_kind: string; p_rows: Array<Record<string, unknown>> });
+    assertEquals(writes.map((w) => [w.p_org_id, w.p_tier, w.p_kind]), [[ORG, 'odoo', 'party']]);
+    assertEquals(writes[0].p_rows.map((x) => [x.outcome, x.pmoIds, x.externalIds]), [['link', ['c1'], ['Vendor:5']]]);
+    assertEquals(rpcCall(r.calls, 'fail_connect_run').length, 0);
+  });
+
+  it('AC-ODC-050 a PMO project links to the cost account carrying its PMO project number, not its client code', async () => {
+    const DONE = { party: null, item: null, project: null, employee: null, account: null };
+    const run = { ...RUN, state: 'proposing', cursor: DONE, proposed_kinds: ['party', 'item'] };
+    const h = harness({ run, pmoProjects: [{ id: 'p1', name: 'Jembatan', pmo_project_number: 'PRJ-26-0001', code: 'CLIENT-9' }] });
+    h.routes.unshift(supabaseSelect('erp_connect_staged', () => jsonResponse([{ external_id: '10', row: { kind: 'project', externalId: '10', code: 'PRJ-26-0001', name: 'PRJ-26-0001 Jembatan', active: true } }])));
+    const r = await withFetchMock(h.routes, async ({ calls }) => (await sweepOdooOrg(client(), ORG), calls));
+    const read = r.find((c) => c.url.pathname === '/rest/v1/projects')!;
+    assert(read.url.searchParams.get('select')!.includes('pmo_project_number'));
+    const write = rpcCall(r, 'replace_connect_proposals').map((c) => c.bodyJson as { p_kind: string; p_rows: Array<Record<string, unknown>> }).find((w) => w.p_kind === 'project')!;
+    assertEquals(write.p_rows.map((x) => [x.outcome, x.pmoIds, x.externalIds, x.key]), [['link', ['p1'], ['10'], 'code']]);
+  });
+
+  it('with no open run the pass reads nothing more from Odoo and stages nothing', async () => {
+    const quiet = await sweep();
+    const running = await sweep({ run: RUN });
+    assertEquals(rpcCall(quiet.calls, 'stage_connect_master_page').length, 0);
+    assert(odoo(running.calls).length > odoo(quiet.calls).length);
+  });
+
+  it('FR-ECA-002 an Odoo key revoked mid-sweep still counts one failed tick against the open setup run (three end it)', async () => {
+    const r = await sweep({ run: RUN, rejectAfter: 0 });
+    assertEquals('ok' in r.result && r.result.failed, 'key-rejected');
+    const fails = rpcCall(r.calls, 'fail_connect_run').map((c) => c.bodyJson as { p_org_id: string; p_run_id: string; p_fatal: boolean });
+    assertEquals(fails.map((f) => [f.p_org_id, f.p_run_id, f.p_fatal]), [[ORG, 'run-1', false]]);
+    assertEquals(rpcCall(r.calls, 'release_erp_sweep_lock').length, 1);
+  });
+
+  it('a failed tick with no open setup run counts nothing', async () => {
+    const r = await sweep({ rejectAfter: 0 });
+    assertEquals(rpcCall(r.calls, 'fail_connect_run').length, 0);
+  });
+
+  it('a setup run that cannot be read does not fail the tick: the connection state is still stored', async () => {
+    const r = await sweep({ runError: true });
+    assertEquals('ok' in r.result && r.result.failed, undefined);
+    assertEquals(stored(r.calls)?.connection.state, 'healthy');
+    assertEquals(rpcCall(r.calls, 'release_erp_sweep_lock').length, 1);
+  });
+
+  it('AC-ECA-005 a partner Odoo just changed is matched after the page is saved, once the party kind was accepted', async () => {
+    const r = await sweep({ accepted: true, prepare: (f) => f.seed('res.partner', [partnerRow(9, { write_date: '2026-11-01 00:00:00' })]) });
+    const apply = rpcCall(r.calls, 'apply_connect_outcome').map((c) => c.bodyJson);
+    assertEquals(apply, [{ p_org_id: ORG, p_tier: 'odoo', p_outcome: 'bring-in', p_external_id: 'Vendor:9', p_pmo_id: null, p_kind: 'party', p_snapshot: { name: 'Partner 9', taxId: null, code: null, role: 'vendor' } }]);
+    const pageSaved = r.calls.findIndex((c) => c.url.pathname === '/rest/v1/rpc/apply_odoo_master_page' && (c.bodyJson as { p_kind: string }).p_kind === 'partner');
+    assert(pageSaved >= 0 && pageSaved < r.calls.findIndex((c) => c.url.pathname === '/rest/v1/rpc/apply_connect_outcome'));
+  });
+
+  it('before the first accept the sweep applies nothing', async () => {
+    const r = await sweep({ prepare: (f) => f.seed('res.partner', [partnerRow(9, { write_date: '2026-11-01 00:00:00' })]) });
+    assertEquals(rpcCall(r.calls, 'apply_connect_outcome').length, 0);
+  });
+});
+
+describe('odooSweep — #1505 P7 purchase passes (FR-OPP-080)', () => {
+  const bill = { id: 1, name: 'BILL/2026/1', state: 'posted', move_type: 'in_invoice', partner_id: [41, 'V'], company_id: [1, 'Main'], invoice_date: '2026-10-30', invoice_date_due: false, ref: 'INV-1', amount_total: 98, amount_untaxed: 100, amount_residual: 98, write_date: '2026-11-01 10:00:00' };
+  const seedBill = (f: FakeOdoo) => { f.seed('account.move', [bill]); f.seed('account.move.line', [{ id: 1, move_id: [1, 'b'], balance: 100, tax_line_id: false, analytic_distribution: false }]); };
+  const purchasePages = (calls: FetchCall[]) => rpcCall(calls, 'apply_odoo_purchase_page').map((c) => c.bodyJson as { p_org_id: string; p_domain: string; p_rows: unknown[] });
+
+  it('AC-OPP-074 an org that employed procurement mirrors its vendor bills after the directory, in the same tick', async () => {
+    const r = await sweep({ employed: true, purchaseModels: ['account.move'], prepare: seedBill });
+    assertEquals(purchasePages(r.calls).map((p) => [p.p_org_id, p.p_domain, p.p_rows.length]), [[ORG, 'bill', 1]]);
+    const lastDirectory = r.calls.map((c) => c.url.pathname).lastIndexOf('/rest/v1/rpc/apply_odoo_master_page');
+    assert(lastDirectory >= 0 && lastDirectory < r.calls.findIndex((c) => c.url.pathname === '/rest/v1/rpc/apply_odoo_purchase_page'));
+    assert(r.cursors.get('purchase:bill'));
+    assertEquals(rpcCall(r.calls, 'release_erp_sweep_lock').length, 1);
+  });
+
+  it('FR-OPP-080 an org that has not employed procurement under Odoo reads no purchase document', async () => {
+    const r = await sweep({ employed: false, purchaseModels: ['account.move'], prepare: seedBill });
+    assertEquals(purchasePages(r.calls).length, 0);
+    assertEquals(odoo(r.calls).filter((c) => (c.bodyText ?? '').includes('in_invoice')).length, 0);
+  });
+
+  it('FR-OPP-080 a purchase model discovery did not find present and readable is skipped, never a failed tick', async () => {
+    const r = await sweep({ employed: true, purchaseModels: ['purchase.order'], prepare: seedBill });
+    assertEquals(purchasePages(r.calls).map((p) => p.p_domain), ['purchase-order']);
+    assertEquals('ok' in r.result && r.result.failed, undefined);
+  });
+
+  it('FR-OPP-080 a disconnected or kill-switched org makes no purchase read (the resolver refuses first)', async () => {
+    const r = await sweep({ employed: true, purchaseModels: ['account.move'], binding: binding({ status: 'disconnected' }), prepare: seedBill });
+    assertEquals(purchasePages(r.calls).length, 0);
+    assertEquals(odoo(r.calls).length, 0);
+  });
+
+  it('AC-OPP-074 purchase cursors are written only by the purchase apply and census RPCs', async () => {
+    const r = await sweep({ employed: true, purchaseModels: ['account.move'], prepare: seedBill });
+    const writes = r.calls.filter((c) => c.method !== 'GET' && c.method !== 'HEAD' && c.url.pathname.startsWith('/rest/v1/') && !c.url.pathname.startsWith('/rest/v1/rpc/'));
+    assertEquals(writes.length, 0);
+  });
+
+  it('a small tick still reaches the purchase passes: the directory leaves their share of the budget', async () => {
+    const r = await sweep({ employed: true, purchaseModels: ['account.move', 'purchase.order'], prepare: (f) => { seedBill(f); f.seed('res.partner', Array.from({ length: 50 }, (_, i) => ({ id: i + 1, name: `P${i}`, write_date: '2026-11-01 00:00:00' }))); } }, { maxCalls: 14 });
+    assert(purchasePages(r.calls).length >= 1, 'the bill pass ran although the directory had a backlog');
+  });
+
+  it('AC-OPP-074 a purchase domain the database refuses keeps its cursor and does not starve the domains after it or the tick', async () => {
+    const r = await sweep({ employed: true, purchaseModels: ['purchase.order', 'account.move'], failPurchaseDomain: 'purchase-order',
+      prepare: (f) => { seedBill(f); f.seed('purchase.order', [{ id: 1, name: 'P1', state: 'purchase', partner_id: [41, 'V'], company_id: [1, 'Main'], date_order: '2026-10-30 08:00:00', amount_total: 1, amount_untaxed: 1, write_date: '2026-11-01 10:00:00' }]); } });
+    assertEquals(purchasePages(r.calls).map((p) => p.p_domain).sort(), ['bill', 'purchase-order']);
+    assertEquals(r.cursors.get('purchase:purchase-order'), undefined);
+    assert(r.cursors.get('purchase:bill'));
+    assertEquals('ok' in r.result && r.result.failed, undefined);
+    assertEquals(stored(r.calls)?.connection.state, 'healthy');
+    assertEquals(rpcCall(r.calls, 'release_erp_sweep_lock').length, 1);
+  });
+});
+
+describe('odooSweep — #1506 C6 revenue passes', () => {
+  it('AC-OCI-074 revenue feeds run after the directory and publish actual invoice progress', async () => {
+    const r = await sweep({ revenueEmployed: true, revenueModels: ['account.move'], prepare: (fake) => fake.seed('account.move', [{
+      id: 91, name: 'INV/2026/00091', move_type: 'out_invoice', state: 'posted', partner_id: [41, 'Client A'], company_id: [1, 'Main'],
+      invoice_date: '2026-11-01', invoice_date_due: '2026-12-01', ref: 'PO-91', currency_id: [1, 'IDR'],
+      amount_total: 1110, amount_untaxed: 1000, amount_tax: 110, amount_residual: 710, write_date: '2026-11-02 10:00:00',
+    }]) });
+    const pages = rpcCall(r.calls, 'apply_odoo_revenue_page').map((call) => call.bodyJson as { p_org_id: string; p_domain: string; p_rows: Array<{ external_id: string; attrs: { residual: string } }> });
+    const directory = r.calls.findIndex((call) => call.url.pathname === '/rest/v1/rpc/apply_odoo_master_page');
+    const revenue = r.calls.findIndex((call) => call.url.pathname === '/rest/v1/rpc/apply_odoo_revenue_page');
+    const recovery = r.calls.findIndex((call) => call.url.pathname === '/rest/v1/rpc/outbox_reconcile_candidates');
+    assert(recovery >= 0 && recovery < directory, 'outbox recovery is part of the sweep tick before the bounded inbound walk');
+    assert(directory >= 0 && directory < revenue, 'revenue feed follows the directory mappings');
+    const invoicePages = pages.filter((page) => page.p_domain === 'sales-invoice');
+    assertEquals(invoicePages.map((page) => [page.p_org_id, page.p_domain, page.p_rows.map((row) => [row.external_id, row.attrs.residual])]), [[ORG, 'sales-invoice', [['91', '710.00']]]]);
+    assert(pages.some((page) => page.p_domain === 'credit-note'), 'the credit-note cursor is advanced in the same tick');
+    assert(r.cursors.get('revenue:sales-invoice'), 'the page apply committed a visible revenue cursor');
+    assertEquals('ok' in r.result && r.result.outbox_reconciled, 0, 'the tick reports the outbox recovery pass');
+    assert('ok' in r.result && r.result.calls > 0, 'the tick reports real work rather than a stale zero');
   });
 });

@@ -18,9 +18,60 @@ spec `docs/specs/agent-tier2-capabilities.spec.md` §4 (FR-AT2-EV-001..006).
 
 ## How to run
 
+### Local Supabase
+
+Set the local Finance test user's credentials in the process environment, then run from the repository root:
+
 ```bash
-# From pmo-portal/. Requires the eval env (below) to be provisioned — otherwise
-# every case SKIPS gracefully (exit 0, never red on a missing secret).
+OPENROUTER_API_KEY=… EVAL_TEST_USER_EMAIL=… EVAL_TEST_USER_PASSWORD=… scripts/agent-eval-local.sh
+OPENROUTER_API_KEY=… EVAL_TEST_USER_EMAIL=… EVAL_TEST_USER_PASSWORD=… N=3 scripts/agent-eval-local.sh
+```
+
+To route a run through a different OpenAI-compatible provider instead (so it makes **no**
+production-provider call), supply the all-or-nothing override triple and no `OPENROUTER_API_KEY`.
+You provide the key value yourself; nothing here fetches secrets:
+
+```bash
+AGENT_MODEL_BASE_URL=… AGENT_MODEL_API_KEY=… AGENT_MODEL_ID=… \
+EVAL_TEST_USER_EMAIL=… EVAL_TEST_USER_PASSWORD=… scripts/agent-eval-local.sh
+```
+
+An OpenAI-compatible provider that requires extra request headers (for example a routing/session
+id) takes `AGENT_MODEL_EXTRA_HEADERS='name=value;name2=value2'` alongside the triple; those headers
+are sent only while the override is active.
+
+The override also covers the `llmJudge` scorer, so such a run never calls the production provider.
+Setting both the triple and `OPENROUTER_API_KEY`, or only part of the triple, fails fast.
+
+Each invocation resets the local database, provisions the fixtures listed below, serves local `agent-chat`, and runs
+the complete eval suite under one database lock. `N=3` runs the suite three times serially (default `N=1`). The runner
+reads the local Auth issuer from OpenID metadata and passes it to `functions serve`; it keeps ES256/JWKS verification
+unchanged. Pass the model key in the process environment; the runner writes the function env file with mode 600 and
+removes temporary files and the serve process when finished. Eval output is reduced to scores and redacted HTTP error metadata.
+
+Optional selectors: `EVAL_CASE_FILES` limits a run to the named case files (space-separated, relative to
+`pmo-portal`), and `EVAL_STOCK_OFF=1` disables the `stock` feature for the run (the plans-switch-off
+fixture) and removes that override before the lock is released. Local eval runs also raise the
+agent's per-minute throttle through the temporary env file; the function's production default is untouched.
+
+Check prerequisites without resetting or writing to the database:
+
+```bash
+OPENROUTER_API_KEY=… EVAL_TEST_USER_EMAIL=… EVAL_TEST_USER_PASSWORD=… scripts/agent-eval-local.sh --dry-run
+```
+
+The dry run checks the local stack, signing key, eval dependencies, database container, process credentials, and that
+the process environment includes the model key (or the override triple). It does not run fixture SQL, serve the
+function, or run evals. The script and eval harness read credentials from the process environment; neither reads
+`.env` files.
+
+### Hosted target
+
+For a deployed target, from `pmo-portal/`, configure the eval environment:
+
+```bash
+# Requires the eval env (below) to be provisioned — otherwise every case
+# SKIPS gracefully (exit 0, never red on a missing secret).
 export EVAL_AGENT_CHAT_URL=https://<staging-project-ref>.functions.supabase.co/agent-chat
 export EVAL_TEST_USER_EMAIL=…
 export EVAL_TEST_USER_PASSWORD=…
@@ -107,3 +158,22 @@ the org (so it is among the 10 oldest a proposal carries), assigned to **another
 last 24 hours; and an open task named **`EVAL own overdue task`**, past its end date, assigned to the
 eval user. The suite only proposes, never approves, so it sends nothing and uses none of the daily allowance.
 
+## Stock fixture (#1721)
+
+`evals/cases/stock-on-hand.eval.ts` runs as the same eval test user. The org needs the seed stock master data loaded
+(supabase/seed.sql, #1512): item **`Solar panel mounting rail`** (code `PANEL-PV`, unit pcs) with **80 pcs on hand** in
+the **`Central store`** (code `CENTRAL`) — 120 received minus the 40 transferred out. The suite is read-only
+(`query_stock` is a pure read; it never approves a write), so a run mutates nothing.
+
+
+## Plans switch-off fixture (S4)
+
+`evals/cases/plans-switch-off.eval.ts` runs as the same eval test user, whose org must have the
+**`stock`** switch OFF for the run: either the org sits on a plan that excludes `stock` (Starter/Growth
+per the 0531 matrix) or an Operator set an explicit `org_features` override `stock = false`
+(`operator_toggle_feature`). With stock ON the suite fails on purpose — the assistant then legitimately
+reads stock, so the fixture, not the product, is wrong.
+
+The suite is read-only (`query_stock` is a pure read and no case approves a write). It checks both
+halves of FR-PLN-008: a stock question gets no stock tool and an answer naming the plan, while a core
+question (`query_entity` over projects) still works — the switch gates the module, never the assistant.

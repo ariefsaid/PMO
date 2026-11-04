@@ -14,6 +14,7 @@
 // No @-alias (Deno has no Vite alias).
 import type { AgentAction, DeputyContext, ReadQueryBuilder, SupabaseLikeWithWrites } from '../../../pmo-portal/src/lib/agent/runtime/port.ts';
 import { resolveAgentEntity } from './entityCatalog.ts';
+import { isEntityAllowed, keyForEntity, notOnPlanError, writeRefusal } from './featureSwitches.ts';
 import {
   QUERY_ENTITY_SCHEMA,
   CREATE_ACTIVITY_SCHEMA,
@@ -87,6 +88,12 @@ export async function runQueryEntity(input: unknown, ctx: DeputyContext): Promis
   if (!(AGENT_READ_ENTITIES as readonly string[]).includes(entityKey)) return { error: `unknown entity: ${inp?.entity}` };
   const entry = resolveAgentEntity(entityKey);
   if (!entry) return { error: `unknown entity: ${inp?.entity}` };
+  // S4 (FR-PLN-008): an entity whose module is off on the caller's plan is refused HERE too — the
+  // handler's offering filter already hides it, so this is the depth that catches a model that calls it
+  // anyway (or a stale snapshot from a continuation pass). Typed so the model says "not on your plan".
+  if (!isEntityAllowed(entityKey, ctx.featureSwitches)) {
+    return { ...notOnPlanError(keyForEntity(entityKey) ?? 'unknown') };
+  }
   // Migration 0350: only the four money roles read bills and payments. Say so rather than return RLS's empty list,
   // which the model would report as "there are none". An unknown role is refused too (allow-list).
   if (AGENT_MONEY_READ_ENTITIES.has(entityKey) && !AGENT_MONEY_READ_ROLES.includes(ctx.role ?? '')) {
@@ -550,6 +557,11 @@ export const createAutomationAction: AgentAction & {
   summarize: (i) =>
     `Watch: ${i.prompt} (${i.kind === 'schedule' ? `on schedule ${i.schedule}` : `when ${i.trigger_on?.event}`})`,
   run: async (input: unknown, ctx: DeputyContext) => {
+    // S4 (FR-PLN-006): a write checks its OWN switch key at execution, and never fails open — the run
+    // gate refuses an explicitly-off assistant, but a chip can be approved after a resolver failure
+    // left the snapshot unknown. Null (unresolved) refuses here; reads keep the fail-open rule.
+    const refusal = writeRefusal('agent_assistant', ctx.featureSwitches);
+    if (refusal) return refusal;
     const v = validateCreateAutomation(input);
     if (v.ok === false) return { error: v.error };
     // Cast: see the write-action comment on createActivityAction.

@@ -265,16 +265,24 @@ describe('AC-IFW-PROC-02: Approve fires transition with to:Approved', () => {
 // ── AC-IFW-PROC-02: Reject fires transition({to:'Rejected'}) ─────────────────
 
 describe('AC-IFW-PROC-02: Reject fires transition with to:Rejected', () => {
-  it('Reject → ConfirmDialog → confirm fires transition.mutate with {to:"Rejected"}', async () => {
+  it('AC-1578: rejection requires a non-empty comment and sends it with the transition', async () => {
     transitionMutate.mockImplementation((_arg: unknown, opts: { onSuccess?: () => void }) => opts?.onSuccess?.());
     renderAs();
     await userEvent.click(screen.getByRole('button', { name: /show budget impact/i }));
     await userEvent.click(screen.getByRole('button', { name: /^Reject$/i }));
     // tone="destructive" → role="alertdialog" (ConfirmDialog a11y contract)
     const dialog = await screen.findByRole('alertdialog');
-    await userEvent.click(within(dialog).getByRole('button', { name: /Reject procurement/i }));
+    const confirm = within(dialog).getByRole('button', { name: /Reject procurement/i });
+    expect(confirm).toBeDisabled();
+    const comment = within(dialog).getByRole('textbox', { name: /rejection comment/i });
+    await userEvent.type(comment, '   ');
+    expect(confirm).toBeDisabled();
+    await userEvent.clear(comment);
+    await userEvent.type(comment, 'Please revise the requested quantities.');
+    expect(confirm).toBeEnabled();
+    await userEvent.click(confirm);
     expect(transitionMutate).toHaveBeenCalledWith(
-      { to: 'Rejected' },
+      { to: 'Rejected', notes: 'Please revise the requested quantities.' },
       expect.any(Object),
     );
     expect(navigateMock).not.toHaveBeenCalled();

@@ -16,8 +16,10 @@ import {
   OpenRouterModelClient,
   providerPolicyFromEnv,
   fallbackModelsFromEnv,
+  modelOverrideFromEnv,
   DEFAULT_PROVIDER_POLICY,
 } from '../../../../supabase/functions/_shared/openRouterModelClient';
+import { DEFAULT_MODEL } from '../../../../supabase/functions/_shared/modelResolution';
 
 function mockFetchOnce(body: unknown, status = 200): ReturnType<typeof vi.fn> {
   const fn = vi.fn().mockResolvedValue({
@@ -577,4 +579,103 @@ it('AUDIT-C1 does NOT retry a timeout (single attempt only)', async () => {
   await assertion;
   expect(fn).toHaveBeenCalledTimes(1);
   vi.useRealTimers();
+});
+
+// ── Eval transport override (2026-11-04: local evals route away from the production provider) ──
+
+/** A complete override triple; the base URL carries a trailing slash to prove normalisation. */
+const OVERRIDE_ENV = {
+  AGENT_MODEL_BASE_URL: 'https://openai-compatible.test/v1/',
+  AGENT_MODEL_API_KEY: 'override-key',
+  AGENT_MODEL_ID: 'deepseek-v4.1-flash',
+  AGENT_MODEL_EXTRA_HEADERS: 'x-provider-session=pmo-evals',
+};
+
+it('override unset: posts to OpenRouter with the deployed model id and OpenRouter routing fields', async () => {
+  const fetchMock = mockFetchOnce({
+    model: DEFAULT_MODEL,
+    choices: [{ finish_reason: 'stop', message: { role: 'assistant', content: 'hi' } }],
+  });
+
+  await new OpenRouterModelClient({ apiKey: 'or-key', override: modelOverrideFromEnv({}) }).create({
+    model: DEFAULT_MODEL,
+    max_tokens: 10,
+    messages: [{ role: 'user', content: 'hello' }],
+  });
+
+  const [url, init] = fetchMock.mock.calls[0];
+  expect(url).toBe('https://openrouter.ai/api/v1/chat/completions');
+  expect(init.headers.Authorization).toBe('Bearer or-key');
+  expect(init.headers['x-provider-session']).toBeUndefined();
+  const body = JSON.parse(init.body as string);
+  expect(body.model).toBe('deepseek/deepseek-v4.1-flash-1017');
+  expect(body.models).toEqual([DEFAULT_MODEL, 'openai/gpt-6-luna']);
+  expect(body.provider).toEqual(DEFAULT_PROVIDER_POLICY);
+  expect(body.usage).toEqual({ include: true });
+});
+
+it('override set: posts the override URL, key and model, with no OpenRouter routing fields', async () => {
+  const fetchMock = mockFetchOnce({
+    model: 'deepseek-v4.1-flash',
+    choices: [{ finish_reason: 'stop', message: { role: 'assistant', content: 'hi' } }],
+  });
+
+  const override = modelOverrideFromEnv(OVERRIDE_ENV);
+  expect(override).toEqual({
+    baseUrl: 'https://openai-compatible.test/v1',
+    apiKey: 'override-key',
+    model: 'deepseek-v4.1-flash',
+    extraHeaders: { 'x-provider-session': 'pmo-evals' },
+  });
+
+  // The OpenRouter key is still in scope: the override's key must win.
+  await new OpenRouterModelClient({ apiKey: 'or-key', override }).create({
+    model: DEFAULT_MODEL,
+    max_tokens: 10,
+    messages: [{ role: 'user', content: 'hello' }],
+    temperature: 0,
+  });
+
+  const [url, init] = fetchMock.mock.calls[0];
+  expect(url).toBe('https://openai-compatible.test/v1/chat/completions');
+  expect(init.headers.Authorization).toBe('Bearer override-key');
+  expect(init.headers['x-provider-session']).toBe('pmo-evals');
+  const body = JSON.parse(init.body as string);
+  expect(body.model).toBe('deepseek-v4.1-flash'); // NOT the production slug
+  expect(body.provider).toBeUndefined();
+  expect(body.models).toBeUndefined();
+  expect(body.usage).toBeUndefined();
+  expect(JSON.stringify(body)).not.toMatch(/openrouter|gpt-6-luna|deepseek\/deepseek/i);
+  expect(body.temperature).toBe(0);
+});
+
+it('override is all-or-nothing: a partial set throws instead of silently calling the wrong provider', () => {
+  expect(() => modelOverrideFromEnv({ AGENT_MODEL_BASE_URL: 'https://x.test/v1' })).toThrow(
+    /AGENT_MODEL_BASE_URL, AGENT_MODEL_API_KEY and AGENT_MODEL_ID together/,
+  );
+  expect(() => modelOverrideFromEnv({ AGENT_MODEL_ID: 'deepseek-v4.1-flash' })).toThrow(
+    /together/,
+  );
+  expect(() => modelOverrideFromEnv({ AGENT_MODEL_BASE_URL: ' ', AGENT_MODEL_API_KEY: 'k' })).toThrow(
+    /together/,
+  );
+});
+
+it('a client refuses to construct with neither an OpenRouter key nor an override key', () => {
+  expect(() => new OpenRouterModelClient({})).toThrow(/requires an API key/);
+});
+
+it('extra override headers are optional, parsed as name=value pairs, and never sent without the override', () => {
+  const withoutHeaders = modelOverrideFromEnv({
+    AGENT_MODEL_BASE_URL: 'https://openai-compatible.test/v1',
+    AGENT_MODEL_API_KEY: 'k',
+    AGENT_MODEL_ID: 'm',
+  });
+  expect(withoutHeaders && 'extraHeaders' in withoutHeaders).toBe(false);
+
+  const parsed = modelOverrideFromEnv({
+    ...OVERRIDE_ENV,
+    AGENT_MODEL_EXTRA_HEADERS: ' ; a=1;b= ; c==2',
+  });
+  expect(parsed?.extraHeaders).toEqual({ a: '1', c: '=2' });
 });

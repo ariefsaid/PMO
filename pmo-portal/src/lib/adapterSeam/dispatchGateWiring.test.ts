@@ -11,11 +11,13 @@
  * Invoice could still be SUBMITTED and post revenue to the ERP GL with no project dimension
  * (FR-SAR-191), and the 0116 one-in-flight index surfaced as a raw 500 naming the index.
  *
- * These assertions are about the WIRING, read from the entry point's own source — the same idiom as
- * `handlerDeputyInvariant.test.ts` (which scans the agent-chat handler source for the deputy invariant)
- * and `erpnext/submitClearanceTtl.test.ts` (which asserts a constant relationship against the migration
- * that declares it). It lives under `src/lib/` per the repo's handler-unit-test convention: there is no
- * Vitest project rooted in `supabase/`.
+ * These assertions are about the WIRING, read from the entry point and the delegated modules that own
+ * the moved work. Cross-file order checks follow the calls from `index.ts` into those modules, while
+ * module-local checks pin the order inside each delegated operation. This uses the same source-scan
+ * idiom as `handlerDeputyInvariant.test.ts` (which scans the agent-chat handler source for the deputy
+ * invariant) and `erpnext/submitClearanceTtl.test.ts` (which asserts a constant relationship against
+ * the migration that declares it). It lives under `src/lib/` per the repo's handler-unit-test convention:
+ * there is no Vitest project rooted in `supabase/`.
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -28,6 +30,16 @@ const INDEX = readFileSync(
 );
 /** The same source with comments stripped — a rule may be DESCRIBED in prose without being inlined. */
 const CODE = INDEX.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+const readDispatchSource = (file: string): string => readFileSync(
+  resolve(dirname(fileURLToPath(import.meta.url)), `../../../../supabase/functions/adapter-dispatch/${file}`),
+  'utf8',
+);
+const DISPATCH_ATTEMPT = readDispatchSource('dispatchAttempt.ts');
+const DISPATCH_ATTEMPT_CODE = DISPATCH_ATTEMPT.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+const DISPATCH_ADAPTERS = readDispatchSource('dispatchAdapters.ts');
+const DISPATCH_ADAPTERS_CODE = DISPATCH_ADAPTERS.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+const BUDGET_DISPATCH = readDispatchSource('budgetDispatch.ts');
+const BUDGET_DISPATCH_CODE = BUDGET_DISPATCH.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
 /** The timesheet approval guard's own source — Luna r2 BLOCK 3 moved the canonical-truth adoption
  *  (record fields + the deterministic key) out of index.ts and into this shared, unit-tested seam. */
 const GUARD = readFileSync(
@@ -75,6 +87,7 @@ describe('WIRE 4: the in-flight-for-record conflict is mapped to 409', () => {
   it('the status map imports the classified code from dispatch.ts (never re-spells the string)', () => {
     expect(STATUS_MAP).toMatch(/import \{[^}]*COMMAND_IN_FLIGHT_FOR_RECORD[^}]*\} from '[^']*\/dispatch\.ts'/);
     expect(INDEX).toMatch(/import \{[^}]*dispatchErrorStatus[^}]*\} from '\.\/dispatchErrorStatus\.ts'/);
+    expect(DISPATCH_ATTEMPT).toMatch(/import \{[^}]*dispatchErrorStatus[^}]*\} from '\.\/dispatchErrorStatus\.ts'/);
   });
 
   it('a second concurrent create for one PMO record answers 409, not a raw 500', () => {
@@ -86,10 +99,10 @@ describe('WIRE 4: the in-flight-for-record conflict is mapped to 409', () => {
     const fn = STATUS_MAP.slice(anchor, STATUS_MAP.indexOf('\n}', anchor));
     expect(fn).toContain('COMMAND_IN_FLIGHT_FOR_RECORD');
     expect(fn).toMatch(/COMMAND_IN_FLIGHT_FOR_RECORD[\s\S]{0,40}409/);
-    // …and BOTH of index.ts's failure exits answer through it (the fork this replaced answered a flat
+    // …and BOTH delegated failure exits answer through it (the fork this replaced answered a flat
     // 400 at adapter-select, so a classified business rejection said "malformed request").
-    expect(CODE).toMatch(/status: dispatchErrorStatus\(appError\.code, 400\)/);
-    expect(CODE).toMatch(/status: dispatchErrorStatus\(budgetAppError\.code, 500\)/);
+    expect(DISPATCH_ATTEMPT_CODE).toMatch(/status: dispatchErrorStatus\(appError\.code, 400\)/);
+    expect(DISPATCH_ATTEMPT_CODE).toMatch(/status: dispatchErrorStatus\(budgetAppError\.code, 500\)/);
   });
 });
 
@@ -103,11 +116,38 @@ describe('WIRE 4: the in-flight-for-record conflict is mapped to 409', () => {
 // service client / adapter select / outbox claim would refuse only AFTER the work it exists to
 // prevent — the Luna BLOCK-6 class (validate before the external write, never after).
 //
-// Same source-scan idiom, and same justification, as WIRE 2/WIRE 4 above.
+// Same source-scan idiom, and same justification, as WIRE 2/WIRE 4 above; the gate call in index.ts
+// and the adapter-select failure handling in dispatchAttempt.ts together pin both failure paths.
 // ════════════════════════════════════════════════════════════════════════════════════════════════
 
 /** Character offset of `needle` in the comment-stripped source (−1 when absent). */
 const at = (needle: string): number => CODE.indexOf(needle);
+const expectSourceOrder = (source: string, first: string, later: string): void => {
+  const firstAt = source.indexOf(first);
+  const laterAt = source.indexOf(later);
+  expect(firstAt, `missing source-order anchor: ${first}`).toBeGreaterThan(-1);
+  expect(laterAt, `missing source-order anchor: ${later}`).toBeGreaterThan(firstAt);
+};
+const runDispatchAttemptArgs = (): string => {
+  const call = at('runDispatchAttempt({');
+  expect(call, 'index.ts must invoke the delegated dispatch attempt').toBeGreaterThan(-1);
+  const close = CODE.indexOf('\n    });', call);
+  expect(close, 'runDispatchAttempt argument block must be closed').toBeGreaterThan(call);
+  return CODE.slice(call, close);
+};
+const expectOutboxResolutionChain = (): void => {
+  const resolverMap = at('const MONEY_OUTBOX_RESOLVERS');
+  expect(resolverMap, 'index.ts must configure the money outbox resolver').toBeGreaterThan(-1);
+  const resolverMapEnd = CODE.indexOf('\n};', resolverMap);
+  expect(resolverMapEnd, 'money outbox resolver map must be closed').toBeGreaterThan(resolverMap);
+  expect(CODE.slice(resolverMap, resolverMapEnd)).toMatch(/\[ERPNEXT_TIER\]: resolveErpMoneyOutboxDeps/);
+  expect(CODE.slice(resolverMap, resolverMapEnd), 'the Odoo tier resolves its own outbox deps (#1505 P2)').toMatch(/\[ODOO_TIER\]: resolveOdooMoneyOutboxDeps/);
+  expect(runDispatchAttemptArgs()).toMatch(/moneyOutboxResolvers:\s*MONEY_OUTBOX_RESOLVERS/);
+  expect(DISPATCH_ATTEMPT_CODE).toMatch(/const resolveMoneyOutbox = moneyOutboxResolvers\[adapter\.tier\]/);
+  expect(DISPATCH_ATTEMPT_CODE).toMatch(/if \(resolveMoneyOutbox && \(command\.operation as string\) !== 'read'\)/);
+  expectSourceOrder(DISPATCH_ATTEMPT_CODE, 'adapter = await adapterFactory(context)', 'await resolveMoneyOutbox(context)');
+  expectSourceOrder(DISPATCH_ATTEMPT_CODE, 'await resolveMoneyOutbox(context)', 'await dispatchExternallyOwnedWrite({');
+};
 
 describe('WIRE P3B: the Approved-only timesheet gate is wired into the dispatch entry point', () => {
   it('FR-TSP-010 index.ts imports AND awaits enforceTimesheetApproved (the gate is not inert)', () => {
@@ -140,12 +180,12 @@ describe('WIRE P3B: the Approved-only timesheet gate is wired into the dispatch 
     expect(gate).toBeGreaterThan(-1);
     for (const later of [
       'createClient(supabaseUrl, serviceRoleKey,', // no machine-write client exists before the refusal
-      'ADAPTER_REGISTRY[command.domain]', // no adapter is selected for an unapproved sheet
-      'await resolveMoneyOutbox(', // no outbox row, therefore no ERP POST (the per-tier registry CALL, not the resolvers)
-      'dispatchExternallyOwnedWrite(',
-    ]) {
-      expect(at(later), `${later} must come AFTER the Approved gate`).toBeGreaterThan(gate);
-    }
+      'selectAdapterFactory(employedTier, command.domain)', // no adapter is selected for an unapproved sheet
+      'runDispatchAttempt({', // the delegated attempt contains adapter creation and outbox resolution
+    ]) expectSourceOrder(CODE, 'await enforceTimesheetApproved(', later);
+    // The entry point passes the configured tier resolver into the attempt, which creates the adapter,
+    // resolves its money outbox for writes, and only then enters the write-through dispatcher.
+    expectOutboxResolutionChain();
   });
 
   it('FR-TSP-014 the DB-read sheet REPLACES the payload for every field the push is built from', () => {
@@ -169,9 +209,12 @@ describe('WIRE P3B: the Approved-only timesheet gate is wired into the dispatch 
     // keyed off caller-chosen values.
     const adopt = at('applyCanonicalTimesheetTruth(command, approvedSheet)');
     expect(adopt).toBeGreaterThan(-1);
-    for (const later of ['createClient(supabaseUrl, serviceRoleKey,', 'ADAPTER_REGISTRY[command.domain]', 'dispatchExternallyOwnedWrite(']) {
-      expect(at(later), `${later} must come AFTER the canonical-truth adoption`).toBeGreaterThan(adopt);
-    }
+    for (const later of [
+      'createClient(supabaseUrl, serviceRoleKey,',
+      'selectAdapterFactory(employedTier, command.domain)',
+      'runDispatchAttempt({',
+    ]) expectSourceOrder(CODE, 'applyCanonicalTimesheetTruth(command, approvedSheet)', later);
+    expectOutboxResolutionChain();
   });
 });
 
@@ -191,9 +234,9 @@ describe('WIRE P3B: the Approved-only timesheet gate is wired into the dispatch 
 
 describe('WIRE P3C: a post-gate budget push failure is recorded durably (HIGH-2)', () => {
   it('recordBudgetPushFailure is defined and gated on isBudgetPushCommand + a resolved fiscal_year', () => {
-    const decl = at('const recordBudgetPushFailure = async');
+    const decl = BUDGET_DISPATCH_CODE.indexOf('export async function recordBudgetPushFailure');
     expect(decl, 'recordBudgetPushFailure must exist — a post-gate budget failure needs SOMEWHERE durable to land').toBeGreaterThan(-1);
-    const body = CODE.slice(decl, CODE.indexOf('\n  };', decl) + 5);
+    const body = BUDGET_DISPATCH_CODE.slice(decl);
     expect(body).toMatch(/if \(!isBudgetPushCommand\(command\)\) return;/);
     // Never invents a grain-less row: an earlier rejection (before the gate resolves a fiscal year)
     // has nothing to key the mirror's (org_id, budget_version_id, fiscal_year) row on.
@@ -210,9 +253,10 @@ describe('WIRE P3C: a post-gate budget push failure is recorded durably (HIGH-2)
   //    alarm. The DECISION is proven in `budgetPushOutcome.test.ts`; what no unit test can see is
   //    whether the handler asks it — an unconsulted policy leaves the old unconditional 'failed'.
   it('M-2 the recorder classifies the error through budgetPushOutcome instead of hardcoding failed', () => {
-    expect(INDEX).toMatch(/import \{[^}]*classifyBudgetPushOutcome[^}]*\} from '\.\/budgetPushOutcome\.ts'/);
-    const decl = at('const recordBudgetPushFailure = async');
-    const body = CODE.slice(decl, CODE.indexOf('\n  };', decl) + 5);
+    expect(BUDGET_DISPATCH).toMatch(/import \{[^}]*classifyBudgetPushOutcome[^}]*\} from '\.\/budgetPushOutcome\.ts'/);
+    const decl = BUDGET_DISPATCH_CODE.indexOf('export async function recordBudgetPushFailure');
+    expect(decl, 'recordBudgetPushFailure must exist').toBeGreaterThan(-1);
+    const body = BUDGET_DISPATCH_CODE.slice(decl);
     expect(body).toMatch(/classifyBudgetPushOutcome\(/);
     // A no-record outcome returns BEFORE any mirror write or notification.
     const guard = body.search(/if \(!outcome\.record\) return;/);
@@ -225,35 +269,64 @@ describe('WIRE P3C: a post-gate budget push failure is recorded durably (HIGH-2)
   });
 
   it('is called from BOTH failure paths: adapter-select AND the dispatch/ERP-write catch', () => {
-    const selectCatch = at('await recordTimesheetPushFailure(appError);\n    await recordBudgetPushFailure(appError);');
+    const selectCatch = DISPATCH_ATTEMPT_CODE.indexOf('await recordBudgetPushFailure({ serviceClient, orgId, command, budgetVersionMajor, failure: appError });');
     expect(selectCatch, 'the adapter-select catch must also record a budget push failure').toBeGreaterThan(-1);
-    const dispatchCall = CODE.indexOf('await recordBudgetPushFailure(budgetAppError);');
+    const dispatchCall = DISPATCH_ATTEMPT_CODE.indexOf('await recordBudgetPushFailure({ serviceClient, orgId, command, budgetVersionMajor, failure: budgetAppError });');
     expect(dispatchCall, 'the dispatch/ERP-write catch must record with the BEST-classified error (budgetAppError), not the generic one').toBeGreaterThan(-1);
+    expectSourceOrder(DISPATCH_ATTEMPT_CODE, 'await recordTimesheetPushFailure(appError);', 'await recordBudgetPushFailure({ serviceClient, orgId, command, budgetVersionMajor, failure: appError });');
+    expectSourceOrder(DISPATCH_ATTEMPT_CODE, 'await recordBudgetPushFailure({ serviceClient, orgId, command, budgetVersionMajor, failure: appError });', 'await dispatchExternallyOwnedWrite({');
+    expectSourceOrder(DISPATCH_ATTEMPT_CODE, 'await dispatchExternallyOwnedWrite({', 'await recordBudgetPushFailure({ serviceClient, orgId, command, budgetVersionMajor, failure: budgetAppError });');
     // The dispatch-catch recording must happen with the reclassified error already computed, and
     // strictly BEFORE the HTTP status/response is built (never after the caller already got an answer).
-    const budgetAppErrorDecl = at('const budgetAppError:');
-    const statusDecl = CODE.indexOf('status: dispatchErrorStatus(budgetAppError.code', dispatchCall);
+    const budgetAppErrorDecl = DISPATCH_ATTEMPT_CODE.indexOf('const budgetAppError:');
+    const statusDecl = DISPATCH_ATTEMPT_CODE.indexOf('status: dispatchErrorStatus(budgetAppError.code', dispatchCall);
     expect(budgetAppErrorDecl).toBeGreaterThan(-1);
     expect(dispatchCall).toBeGreaterThan(budgetAppErrorDecl);
     expect(statusDecl).toBeGreaterThan(dispatchCall);
   });
 });
 
+describe('WIRE #1505 P2: the tier that owns the domain picks the adapter, and the gates run first', () => {
+  it('index.ts takes the tier from the authorization answer and selects the adapter by it', () => {
+    expect(INDEX).toMatch(/import \{[^}]*checkCommandAuthorization[^}]*\} from '\.\/authGuard\.ts'/);
+    expect(CODE).toMatch(/employedTier = auth\.tier/);
+    expectSourceOrder(CODE, 'await checkCommandAuthorization(', 'employedTier = auth.tier');
+    expectSourceOrder(CODE, 'employedTier = auth.tier', 'selectAdapterFactory(employedTier, command.domain)');
+  });
+
+  it('selectAdapterFactory serves the Odoo registry for tier odoo and the shipped registry otherwise', () => {
+    const select = DISPATCH_ADAPTERS_CODE.slice(DISPATCH_ADAPTERS_CODE.indexOf('export function selectAdapterFactory'));
+    expect(select.slice(0, select.indexOf('\n}'))).toMatch(/\(TIER_REGISTRIES\[tier \?\? ''\] \?\? ADAPTER_REGISTRY\)\[domain\]/);
+    expect(DISPATCH_ADAPTERS_CODE).toMatch(/TIER_REGISTRIES[^=]*=\s*\{\s*\[ODOO_TIER\]: ODOO_ADAPTER_REGISTRY/);
+    expect(readDispatchSource('odooAdapters.ts')).toMatch(/ODOO_ADAPTER_REGISTRY[^=]*=\s*\{\s*procurement: resolveOdooProcurementAdapter/);
+  });
+
+  it('every gate between authorization and adapter selection is keyed on the command, not the tier', () => {
+    for (const file of ['paymentGate.ts', 'procurementGateGuard.ts', 'poReviseGuard.ts']) {
+      expect(readDispatchSource(file).replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, ''), file).not.toMatch(/erpnext|odoo/i);
+    }
+  });
+});
+
 describe('WIRE P3B: the `timesheets` domain resolves an ERPNext adapter and rides every erp gate', () => {
   it('FR-TSP-005 ADAPTER_REGISTRY routes the timesheets domain to the ERPNext factory', () => {
     expect(INDEX).toMatch(/import \{[^}]*ERPNEXT_TIMESHEETS_DOMAIN[^}]*\} from '[^']*\/erpnext\/adapter\.ts'/);
-    const registry = CODE.slice(at('const ADAPTER_REGISTRY'));
+    expect(INDEX).toMatch(/import \{[^}]*selectAdapterFactory[^}]*\} from '\.\/dispatchAdapters\.ts'/);
+    const registry = DISPATCH_ADAPTERS_CODE.slice(DISPATCH_ADAPTERS_CODE.indexOf('export const ADAPTER_REGISTRY'));
     expect(
       registry.slice(0, registry.indexOf('};')),
       'without a registry entry a timesheet command answers UNSUPPORTED_DOMAIN, never a push',
     ).toMatch(/\[ERPNEXT_TIMESHEETS_DOMAIN\]: resolveErpAdapter/);
+    expectSourceOrder(CODE, 'await enforceTimesheetApproved(', 'selectAdapterFactory(employedTier, command.domain)');
+    expectSourceOrder(CODE, 'selectAdapterFactory(employedTier, command.domain)', 'runDispatchAttempt({');
+    expect(runDispatchAttemptArgs()).toMatch(/adapterFactory,/);
   });
 
   it('FR-TSP-012/013 isErpDomain includes timesheets, so authz + idempotency + target binding all apply', () => {
     const decl = CODE.slice(at('const isErpDomain'));
     expect(decl.slice(0, decl.indexOf(';'))).toContain('ERPNEXT_TIMESHEETS_DOMAIN');
     // The three gates keyed on that predicate, each of which a timesheets push must pass.
-    expect(CODE).toMatch(/await checkErpnextCommandAuthorization\(/);
+    expect(CODE).toMatch(/await checkCommandAuthorization\(/);
     expect(CODE).toMatch(/await checkTransitionTargetBinding\(/);
     expect(CODE).toMatch(/isOpaqueIdempotencyKey\(command\.idempotencyKey\)/);
   });
@@ -303,7 +376,8 @@ describe('FR-SCA-022: the PO revise guard is wired into the dispatch entry point
     expect(INDEX).toMatch(/import \{[^}]*checkPoRevise[^}]*\} from '\.\/poReviseGuard\.ts'/);
     const guard = at('await checkPoRevise(');
     expect(guard, 'an imported-but-uncalled guard lets a revise cancel a billed ERP order').toBeGreaterThan(-1);
-    expect(guard, 'checkPoRevise must run before resolveMoneyOutbox').toBeLessThan(at('await resolveMoneyOutbox('));
+    expectSourceOrder(CODE, 'await checkPoRevise(', 'runDispatchAttempt({');
+    expectOutboxResolutionChain();
     expect(CODE).toMatch(/String\(command\.operation\) === 'revise'/);
     const refusal = CODE.slice(guard, guard + 400);
     expect(refusal).toContain("error: 'commit-rejected'");

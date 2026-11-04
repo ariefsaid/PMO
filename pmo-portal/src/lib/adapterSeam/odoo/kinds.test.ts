@@ -8,8 +8,8 @@ const FIXTURES: Record<DirectoryKind, { raw: Record<string, unknown>; row: Recor
     row: { external_id: '1', code: null, name: 'Contoh Konstruksi', parent_external_id: null, active: true, attrs: { currency: '12' } } },
   partner: { raw: { id: 5, name: 'PT Sinar Baja', vat: '01.234', ref: 'V-1', is_company: true, parent_id: false, active: true, supplier_rank: 2, customer_rank: 0, write_date: W },
     row: { external_id: '5', code: 'V-1', name: 'PT Sinar Baja', parent_external_id: null, active: true, attrs: { vat: '01.234', is_company: true, supplier_rank: 2, customer_rank: 0 } } },
-  product: { raw: { id: 7, default_code: 'SEM-50', name: 'Semen 50kg', uom_id: [3, 'Sak'], purchase_ok: true, sale_ok: false, is_storable: true, active: false, write_date: W },
-    row: { external_id: '7', code: 'SEM-50', name: 'Semen 50kg', parent_external_id: null, active: false, attrs: { uom_id: '3', purchasable: true, sellable: false, storable: true } } },
+  product: { raw: { id: 7, default_code: 'SEM-50', name: 'Semen 50kg', uom_id: [3, 'Sak'], property_account_income_id: [19, 'Customer Advances'], purchase_ok: true, sale_ok: false, is_storable: true, active: false, write_date: W },
+    row: { external_id: '7', code: 'SEM-50', name: 'Semen 50kg', parent_external_id: null, active: false, attrs: { uom_id: '3', income_account_id: '19', purchasable: true, sellable: false, storable: true } } },
   uom: { raw: { id: 3, name: 'Sak', relative_factor: 1, relative_uom_id: false, active: true, write_date: W },
     row: { external_id: '3', code: null, name: 'Sak', parent_external_id: null, active: true, attrs: { relative_factor: 1 } } },
   warehouse: { raw: { id: 2, name: 'Gudang Utama', code: 'WH', lot_stock_id: [8, 'WH/Stock'], view_location_id: [7, 'WH'], active: true, write_date: W },
@@ -18,12 +18,14 @@ const FIXTURES: Record<DirectoryKind, { raw: Record<string, unknown>; row: Recor
     row: { external_id: '8', code: null, name: 'WH/Stock', parent_external_id: '7', active: true, attrs: { usage: 'internal', warehouse_id: '2' } } },
   account: { raw: { id: 40, code: '211000', name: 'Hutang Usaha', account_type: 'liability_payable', company_ids: [1, 3], active: true, write_date: W },
     row: { external_id: '40', code: '211000', name: 'Hutang Usaha', parent_external_id: null, active: true, attrs: { account_type: 'liability_payable', company_ids: ['1', '3'] } } },
-  tax: { raw: { id: 9, name: 'PPN 12%', amount: 12, type_tax_use: 'purchase', active: true, write_date: W },
-    row: { external_id: '9', code: null, name: 'PPN 12%', parent_external_id: null, active: true, attrs: { amount: 12, use: 'purchase' } } },
+  tax: { raw: { id: 9, name: 'PPN 12%', amount: 12, type_tax_use: 'purchase', tax_group_id: [5, 'Non-luxury Good Taxes'], price_include: false, active: true, write_date: W },
+    row: { external_id: '9', code: null, name: 'PPN 12%', parent_external_id: null, active: true, attrs: { amount: 12, use: 'purchase', tax_group: 'Non-luxury Good Taxes', price_include: false } } },
   analytic_plan: { raw: { id: 4, name: 'Projects', write_date: W },
     row: { external_id: '4', code: null, name: 'Projects', parent_external_id: null, active: true, attrs: {} } },
   analytic_account: { raw: { id: 11, name: 'Gedung A', code: 'PRJ-1', plan_id: [4, 'Projects'], company_id: [1, 'Contoh'], active: true, write_date: W },
     row: { external_id: '11', code: 'PRJ-1', name: 'Gedung A', parent_external_id: '4', active: true, attrs: { company_id: '1' } } },
+  journal: { raw: { id: 6, name: 'Bank Utama', code: 'BNK1', type: 'bank', company_id: [1, 'Contoh'], active: true, write_date: W },
+    row: { external_id: '6', code: 'BNK1', name: 'Bank Utama', parent_external_id: null, active: true, attrs: { type: 'bank', company_id: '1' } } },
 };
 
 const nameField = (k: DirectoryKind) => (k === 'location' ? 'complete_name' : 'name');
@@ -53,9 +55,27 @@ describe('odoo/kinds — AC-ODC-024', () => {
     expect(KIND_SPECS.tax.parse({ ...FIXTURES.tax.raw, amount: null })).toBeNull();
   });
 
+  it('AC-OCI-023 a tax row carries its tax group name; a tax with none carries null; a malformed group rejects the row', () => {
+    expect(KIND_SPECS.tax.parse({ ...FIXTURES.tax.raw, tax_group_id: false })?.attrs.tax_group).toBeNull();
+    // FR-OCI-024: a price-included tax is mirrored as such, and an absent flag reads as not price-included
+    expect(KIND_SPECS.tax.parse({ ...FIXTURES.tax.raw, price_include: true })?.attrs.price_include).toBe(true);
+    expect(KIND_SPECS.tax.parse({ ...FIXTURES.tax.raw, price_include: undefined })?.attrs.price_include).toBe(false);
+    const { tax_group_id: _omitted, ...withoutGroup } = FIXTURES.tax.raw as Record<string, unknown>;
+    expect(KIND_SPECS.tax.parse(withoutGroup)?.attrs.tax_group).toBeNull();
+    expect(KIND_SPECS.tax.parse({ ...FIXTURES.tax.raw, tax_group_id: 'x' })).toBeNull();
+    expect(KIND_SPECS.tax.parse({ ...FIXTURES.tax.raw, tax_group_id: [5] })).toBeNull();
+  });
+
   it('AC-ODC-024 an account row carries its companies; a malformed company set rejects the row', () => {
     expect(KIND_SPECS.account.parse({ ...FIXTURES.account.raw, company_ids: 'x' })).toBeNull();
     expect(KIND_SPECS.account.parse({ ...FIXTURES.account.raw, company_ids: [[1, 'Main']] })).toBeNull();
+  });
+
+  it('FR-OPP-093 a journal carries its type, so the picker can offer bank and cash books only', () => {
+    expect(KIND_SPECS.journal.model).toBe('account.journal');
+    expect(KIND_SPECS.journal.parse({ ...FIXTURES.journal.raw, type: 'cash' })?.attrs).toEqual({ type: 'cash', company_id: '1' });
+    expect(KIND_SPECS.journal.parse({ ...FIXTURES.journal.raw, type: false })?.attrs).toEqual({ type: null, company_id: '1' });
+    expect(companyDomain(KIND_SPECS.journal, 3)).toEqual([['company_id', 'in', [3, false]]]);
   });
 
   it('a many2one of false is no parent, never a malformed row', () => {

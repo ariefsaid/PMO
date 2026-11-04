@@ -12,7 +12,13 @@
   "create": {
     "accessDenied": "Anda tidak dapat membuat proyek",
     "leave": "Keluar",
-    "stay": "Tetap di sini"
+    "stay": "Tetap di sini",
+    "limitReached": "Batas proyek aktif pada paket Anda sudah tercapai",
+    "limitReachedDetail": "Tidak ada yang dibuat. Arsipkan proyek yang tidak lagi diperlukan, atau minta Operator meningkatkan paket."
+  },
+  "revive": {
+    "limitReached": "Batas proyek aktif pada paket Anda sudah tercapai",
+    "limitReachedDetail": "Proyek ini tidak dipulihkan. Arsipkan proyek aktif yang tidak lagi diperlukan, atau minta Operator meningkatkan paket, lalu coba lagi."
   },
   "shortName": {
     "label": "Nama singkat (opsional)",

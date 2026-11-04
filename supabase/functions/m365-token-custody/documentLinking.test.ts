@@ -100,6 +100,7 @@ Deno.test("AC-M365DOC-066 served refresh refuses a project author demoted to a n
           org_id: "synthetic-org",
           role: "Engineer",
         })),
+      supabaseRpc("service_feature_enabled", () => jsonResponse(true)),
       supabaseSelect("org_features", () =>
         jsonResponse({ enabled: true }, {
           headers: { "content-type": "application/vnd.pgrst.object+json" },

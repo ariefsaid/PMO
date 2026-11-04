@@ -21,11 +21,16 @@ const h = vi.hoisted(() => ({
   collection: { data: {} as Record<string, { ledgerBasis: 'pmo' | 'erp'; actuals: { currency: string; total: string | null; complete: boolean } }>, isPending: false, isError: false },
   role: 'Project Manager' as 'Admin' | 'Finance' | 'Project Manager' | 'Engineer' | 'Executive',
   effectiveRole: 'Project Manager' as 'Admin' | 'Finance' | 'Project Manager' | 'Engineer' | 'Executive',
+  equipment: { rows: [] as unknown[] },
   commitments: { data: 75, isPending: false, isError: false, commitmentSource: 'not-tracked' as const, ledgerBasis: 'erp' as 'erp' | 'pmo' | 'unavailable',
     otherCurrencies: [] as Array<{ currency: string | null; amount: number }> },
 }));
 vi.mock('@/src/hooks/useProjectsMoneyCollection', () => ({ useProjectsMoneyCollection: () => h.collection }));
 vi.mock('@/src/hooks/useProcurements', () => ({ useProjectCommittedSpend: () => h.commitments }));
+vi.mock('@/src/hooks/useEquipment', () => ({
+  useEquipmentUsageTotals: () => ({ data: { rows: h.equipment.rows, truncated: false }, isPending: false, isError: false, refetch: vi.fn() }),
+  useEquipmentAllocations: () => ({ data: { rows: [], truncated: false }, isPending: false, isError: false, refetch: vi.fn() }),
+}));
 vi.mock('@/src/hooks/useProjectFinances', () => ({ useProjectFinances: () => h.query }));
 vi.mock('@/src/components/fx/FxEquivalent', () => ({ default: () => null }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => (action: string, entity: string) =>
@@ -66,6 +71,7 @@ beforeEach(() => {
   h.query.isError = false;
   h.query.refetch.mockReset().mockResolvedValue(undefined);
   h.collection = { data: { [project.id]: { ledgerBasis: 'pmo', actuals: { currency: 'USD', total: '75', complete: true } } }, isPending: false, isError: false };
+  h.equipment.rows = [];
   h.role = 'Project Manager';
   h.effectiveRole = 'Project Manager';
   h.commitments = { data: 75, isPending: false, isError: false, commitmentSource: 'not-tracked', ledgerBasis: 'erp', otherCurrencies: [] };
@@ -98,6 +104,26 @@ describe('ProjectFinancesSection attributed cost (#1271 AC-3)', () => {
     fireEvent.click(screen.getByText('Show category details'));
     expect(screen.queryByTestId('spending-attributed-note')).toBeNull();
     expect(screen.queryByText(/attributed/i)).toBeNull();
+  });
+});
+
+describe('ProjectFinancesSection equipment panel (#1519 S6)', () => {
+  const usage = { asset_id: 'a1', asset_code: 'EQU-1', asset_name: 'Loader 1', project_id: project.id, month: '2026-10-01', work_units: 6, standby_units: 0, unit: 'hours', submitted_count: 0 };
+
+  it('AC-EQU-017 shows the equipment panel and the internal-charge line on the finances tab when the project has usage', () => {
+    h.equipment.rows = [usage];
+    h.query.data = payload({ actuals: { currency: 'USD', as_of: '2026-10-14T00:00:00Z', total: '150.00', equipment_charge_total: '40.00',
+      excludes_restricted_rows: false, categories: [] } });
+    render(<ProjectFinancesSection project={project} />);
+    const panel = screen.getByTestId('project-equipment-panel');
+    expect(within(panel).getByText('Loader 1')).toBeInTheDocument();
+    expect(within(panel).getByText(/Includes .*40.* internal equipment charges/)).toBeInTheDocument();
+  });
+
+  it('AC-EQU-017 leaves the finances tab exactly as it was when the project has no equipment usage', () => {
+    h.query.data = payload();
+    render(<ProjectFinancesSection project={project} />);
+    expect(screen.queryByTestId('project-equipment-panel')).toBeNull();
   });
 });
 
@@ -152,7 +178,7 @@ describe('ProjectFinancesSection reading states', () => {
   it('AC-PFIN-015 announces loading without presenting zero-valued finance', () => {
     h.query.isPending = true;
     render(<ProjectFinancesSection project={project} />);
-    expect(screen.getByText('Loading project finances…')).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('Loading project finances…');
     expect(screen.queryByText('$0.00')).not.toBeInTheDocument();
   });
 

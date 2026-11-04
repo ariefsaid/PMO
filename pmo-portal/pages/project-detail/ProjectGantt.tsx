@@ -13,6 +13,13 @@
  * (pure) and paints absolute-px geometry. No hooks beyond local zoom state, no
  * network calls, no writes.
  *
+ * Composition (XG03-003): this file is the VIEW owner — the single scroll container,
+ * the toolbar, the mobile notice and the undated footer — composing the two extracted
+ * panes, GanttTaskTable (role=grid table + roving focus) and GanttTimeline (axis +
+ * connector SVG + diamonds + bars). The shared flattened rows (src/lib/gantt/ganttRows.ts)
+ * and the model's geometry are the seam: no second scroll owner, no independent
+ * row-height source.
+ *
  * Accessibility (NFR-GANTT-A11Y-001/002):
  *   - Wrapped in a labelled <figure>; interactive descendants stay independently reachable.
  *   - The left task table is a real role="grid" with roving tabindex + Arrow/Enter
@@ -23,31 +30,26 @@
  *   - Bar status is always a text label (never color-only).
  *   - Respects prefers-reduced-motion (no bar-grow transition when set).
  */
-import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ListState, StatusPill, Button, useIsNarrow, type RowMenuItem } from '@/src/components/ui';
+import { ListState, Button, useIsNarrow, type RowMenuItem } from '@/src/components/ui';
 import { ViewToggle } from '@/src/components/ui/ViewToggle';
-import { usePrefersReducedMotion } from '@/src/components/dashboard/usePrefersReducedMotion';
+import { useOrgToday } from '@/src/hooks/useOrgToday';
+import { buildGanttModel, type GanttScale } from '@/src/lib/gantt/ganttLayout';
 import {
-  buildGanttModel,
-  type GanttAxisTick,
-  type GanttBar,
-  type GanttBarBox,
-  type GanttMarkerBox,
-  type GanttScale,
-} from '@/src/lib/gantt/ganttLayout';
-import { edgePath, arrowHead } from '@/src/lib/gantt/ganttGeometry';
+  flattenGanttRows,
+  GANTT_LANE_HEADER_H,
+  GANTT_ROW_H,
+  GANTT_TABLE_W,
+} from '@/src/lib/gantt/ganttRows';
+import GanttTaskTable from './GanttTaskTable';
+import GanttTimeline from './GanttTimeline';
 import type { TaskWithRefs } from '@/src/lib/db/tasks';
 import type { MilestoneWithProgress } from '@/src/lib/db/milestones';
-import { workflowVariant } from '@/src/lib/status/statusVariants';
-
-// Task-status pill comes from the single status registry (`workflowVariant`): In
-// Progress = neutral grey `progress` (NOT the action-blue, per the Freed-Blue Status
-// Rule). Same mapping as the Tasks tab — one source of truth.
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
-export interface ProjectGanttProps {
+interface ProjectGanttProps {
   tasks: TaskWithRefs[];
   milestones: MilestoneWithProgress[];
   /**
@@ -61,42 +63,17 @@ export interface ProjectGanttProps {
   /**
    * Mobile fallback (defect D1): on viewports below the `sm` (640px) breakpoint the
    * cramped MS-Project split is replaced by a notice that points the user at a
-   * better-fitting view. When provided, the notice's switch buttons fire this with
-   * 'list' / 'board' (TasksTab wires it to its view state). When omitted the buttons
-   * still render the notice but without a switch action (defensive — TasksTab always passes it).
+   * better-fitting view. The notice's switch buttons fire this with 'list' / 'board'
+   * (TasksTab wires it to its view state). Required — OE07-002: the sole production
+   * caller always supplies it, and an inert switch button is a defect, not a mode.
    */
-  onSwitchView?: (view: 'list' | 'board') => void;
+  onSwitchView: (view: 'list' | 'board') => void;
 }
-
-// ── Layout geometry constants (not design tokens — like the v1 ROW_H) ─────────
-// Bar block height is derived inside buildGanttModel (min(28, rowHeight-12)) and
-// returned per-bar as box.h, so it is no longer a standalone const here.
-const ROW_H = 40; // px — lane row height (bar + vertical padding)
-const LANE_HEADER_H = 36; // px — milestone lane header height
-const AXIS_H = 32; // px — time axis height
-const TABLE_W = 360; // px — left task-name pane needs room for readable labels
-
-// ── Flattened row model (shared by the table + the timeline so they align) ─────
-
-interface LaneHeaderRow {
-  kind: 'lane';
-  key: string;
-  label: string;
-  markerIso: string | null;
-}
-interface TaskRow {
-  kind: 'task';
-  key: string;
-  bar: GanttBar;
-  predecessorNames: string[];
-}
-type FlatRow = LaneHeaderRow | TaskRow;
 
 // ── Main component ────────────────────────────────────────────────────────────
 
 const ProjectGantt: React.FC<ProjectGanttProps> = ({ tasks, milestones, onActivateTask, rowMenu, onSwitchView }) => {
   const { t } = useTranslation('project');
-  const prefersReducedMotion = usePrefersReducedMotion();
   const isNarrow = useIsNarrow();
   const [scale, setScale] = useState<GanttScale>('month');
   const [scrollport, setScrollport] = useState<HTMLDivElement | null>(null);
@@ -107,7 +84,7 @@ const ProjectGantt: React.FC<ProjectGanttProps> = ({ tasks, milestones, onActiva
     const update = () => {
       const next = {
         scrollLeft: Math.max(0, scrollport.scrollLeft - 16),
-        viewportWidth: Math.max(1, scrollport.clientWidth - TABLE_W),
+        viewportWidth: Math.max(1, scrollport.clientWidth - GANTT_TABLE_W),
       };
       setViewport((old) => old.scrollLeft === next.scrollLeft && old.viewportWidth === next.viewportWidth ? old : next);
     };
@@ -123,7 +100,7 @@ const ProjectGantt: React.FC<ProjectGanttProps> = ({ tasks, milestones, onActiva
     };
   }, [scrollport]);
 
-  const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const today = useOrgToday();
 
   const scaleOptions = useMemo(
     () => [
@@ -139,78 +116,18 @@ const ProjectGantt: React.FC<ProjectGanttProps> = ({ tasks, milestones, onActiva
     () =>
       buildGanttModel(tasks, milestones, today, {
         scale,
-        rowHeight: ROW_H,
-        laneHeaderHeight: LANE_HEADER_H,
+        rowHeight: GANTT_ROW_H,
+        laneHeaderHeight: GANTT_LANE_HEADER_H,
         viewport,
       }),
     [tasks, milestones, today, scale, viewport],
   );
 
-  // Resolve bar.id → TaskWithRefs (used by onActivateTask) and id → name (deps).
+  // Resolve bar.id → TaskWithRefs (used by onActivateTask / rowMenu).
   const taskMap = useMemo(() => new Map(tasks.map((t) => [t.id, t])), [tasks]);
-  const nameById = useMemo(() => new Map(tasks.map((t) => [t.id, t.name])), [tasks]);
 
-  // Flatten lanes → ordered rows (lane header + task rows), matching the geometry walk.
-  const flatRows = useMemo<FlatRow[]>(() => {
-    const rows: FlatRow[] = [];
-    for (const lane of model.lanes) {
-      rows.push({
-        kind: 'lane',
-        key: `lane:${lane.milestoneId ?? '__ungrouped__'}`,
-        label: lane.label,
-        markerIso: lane.marker?.targetIso ?? null,
-      });
-      for (const bar of lane.bars) {
-        const predecessorNames = (taskMap.get(bar.id)?.dependencies ?? [])
-          .map((d) => nameById.get(d.depends_on_id))
-          .filter((n): n is string => n != null);
-        rows.push({ kind: 'task', key: `task:${bar.id}`, bar, predecessorNames });
-      }
-    }
-    return rows;
-  }, [model.lanes, taskMap, nameById]);
-
-  const taskRowKeys = useMemo(
-    () => flatRows.filter((r): r is TaskRow => r.kind === 'task').map((r) => r.key),
-    [flatRows],
-  );
-
-  // Roving focus across the grid's task rows. PGB-020: if the focused row was removed
-  // or filtered out, fall back to the first available task row so keyboard users can still tab in.
-  const [focusedRowKey, setFocusedRowKey] = useState<string | null>(null);
-  const rowRefs = useRef<Map<string, HTMLDivElement | null>>(new Map());
-  const currentRowKeys = useRef(taskRowKeys);
-  const restoreFocus = useRef(false);
-  currentRowKeys.current = taskRowKeys;
-
-  useLayoutEffect(() => {
-    if (restoreFocus.current && document.activeElement === document.body &&
-        !document.querySelector('[role="dialog"][aria-modal="true"], dialog[open]')) {
-      const first = taskRowKeys[0];
-      if (first) rowRefs.current.get(first)?.focus();
-    }
-    restoreFocus.current = false;
-  });
-
-  const activeRowKey =
-    focusedRowKey && taskRowKeys.includes(focusedRowKey)
-      ? focusedRowKey
-      : (taskRowKeys[0] ?? null);
-
-  // Geometry-indexed lookups for the timeline pane.
-  const barBoxById = useMemo(() => {
-    const m = new Map<string, GanttBarBox>();
-    model.geometry?.bars.forEach((b) => m.set(b.id, b));
-    return m;
-  }, [model.geometry]);
-
-  const moveFocus = (delta: number, fromKey: string) => {
-    const idx = taskRowKeys.indexOf(fromKey);
-    if (idx === -1) return;
-    const next = taskRowKeys[Math.min(taskRowKeys.length - 1, Math.max(0, idx + delta))];
-    setFocusedRowKey(next);
-    rowRefs.current.get(next)?.focus();
-  };
+  // ONE flattening shared by the table and the timeline (the row seam).
+  const flatRows = useMemo(() => flattenGanttRows(model.lanes, tasks), [model.lanes, tasks]);
 
   // Empty state: no dated work at all
   if (model.isEmpty || !model.geometry) {
@@ -227,8 +144,8 @@ const ProjectGantt: React.FC<ProjectGanttProps> = ({ tasks, milestones, onActiva
     );
   }
 
-  // D1: on narrow viewports (<640px) the MS-Project split is unusable — the 260px
-  // task table eats the width and leaves the timeline a sliver. When there IS dated
+  // D1: on narrow viewports (<640px) the MS-Project split is unusable — the task
+  // table eats the width and leaves the timeline a sliver. When there IS dated
   // work to show, swap the cramped Gantt for a friendly notice pointing at List/Board.
   // (Empty state still wins above — an empty project shows the honest empty state.)
   if (isNarrow) {
@@ -236,7 +153,7 @@ const ProjectGantt: React.FC<ProjectGanttProps> = ({ tasks, milestones, onActiva
   }
 
   const { geometry, ticks, todayLeft, undated } = model;
-  const tasksCount = barBoxById.size;
+  const tasksCount = geometry.bars.length;
   const edgeCount = geometry.edges.length;
   // ⚑ The note that used to sit here said plurals could not be translated because an
   // `Intl.PluralRules` helper "does not exist yet". Nothing needed to be built: i18next resolves
@@ -301,8 +218,6 @@ const ProjectGantt: React.FC<ProjectGanttProps> = ({ tasks, milestones, onActiva
       }
     : undefined;
 
-  const { contentWidth, contentHeight } = geometry;
-
   return (
     <div className="min-w-0">
       {/* Toolbar: caption + zoom toggle (D6) */}
@@ -341,152 +256,33 @@ const ProjectGantt: React.FC<ProjectGanttProps> = ({ tasks, milestones, onActiva
           an opaque `bg-card`/`bg-secondary` so bars scroll UNDER them, not through.
         */}
         <div ref={setScrollport} data-gantt-scroll className="flex max-h-[60vh] overflow-auto">
-          {/* Left column — the task TABLE (role=grid). Frozen on horizontal scroll
-              via sticky left-0; its own header cell freezes on vertical scroll. */}
-          <div
-            role="grid"
-            aria-label={t('projectDetail.gantt.taskTableAriaLabel', 'Task table')}
-            aria-rowcount={flatRows.length}
-            className="sticky left-0 z-30 shrink-0 border-r border-border bg-card"
-            style={{ width: TABLE_W }}
-          >
-            {/* Corner header cell ("Task") — frozen in BOTH directions (top-0 + the
-                column's own sticky left-0), highest z so nothing scrolls over it. */}
-            <div
-              role="row"
-              className="sticky top-0 z-40 flex items-center border-b border-border bg-card px-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"
-              style={{ height: AXIS_H }}
-            >
-              <span role="columnheader" className="flex-1">
-                {t('projectDetail.gantt.taskColumn', 'Task')}
-              </span>
-            </div>
-
-            {flatRows.map((row) =>
-              row.kind === 'lane' ? (
-                <div
-                  key={row.key}
-                  role="row"
-                  data-row-kind="lane"
-                  className="flex items-center gap-2 border-b border-border/70 bg-secondary/30 px-3 text-[12px] font-semibold text-muted-foreground"
-                  style={{ height: LANE_HEADER_H }}
-                >
-                  <span role="gridcell" className="truncate">{row.label}</span>
-                </div>
-              ) : (
-                <TaskTableRow
-                  key={row.key}
-                  row={row}
-                  rovingActive={row.key === activeRowKey}
-                  activatable={!!activate}
-                  setRef={(el) => {
-                    const previous = rowRefs.current.get(row.key);
-                    if (!el && previous && !currentRowKeys.current.includes(row.key) &&
-                        previous.contains(document.activeElement)) restoreFocus.current = true;
-                    rowRefs.current.set(row.key, el);
-                  }}
-                  onFocus={() => setFocusedRowKey(row.key)}
-                  onArrow={(delta) => moveFocus(delta, row.key)}
-                  onActivate={activate ? () => activate(row.bar.id) : undefined}
-                  rowMenuItems={rowMenu ? rowMenu(taskMap.get(row.bar.id)!) : undefined}
-                />
-              ),
-            )}
-          </div>
+          {/* Left column — the task TABLE (role=grid), with its roving focus. */}
+          <GanttTaskTable
+            rows={flatRows}
+            tasksById={taskMap}
+            activatable={!!activate}
+            onRowActivate={activate}
+            rowMenu={rowMenu}
+          />
 
           {/* Right column — the timeline (axis frozen on vertical scroll via
               sticky top-0; content box uses absolute-px geometry, math unchanged). */}
-          <div className="shrink-0" style={{ width: contentWidth + 32, padding: '0 16px' }}>
-            {/* Axis — frozen on vertical scroll. Opaque bg so bars pass under it. */}
-            <div className="sticky top-0 z-20 bg-card">
-              <GanttAxis ticks={ticks} todayLeft={todayLeft} contentWidth={contentWidth} />
-            </div>
-
-            {/* Content box: SVG overlay (gridlines + edges) under the bars/diamonds. */}
-            <div className="relative" style={{ width: contentWidth, height: contentHeight }}>
-                <svg
-                  aria-hidden="true"
-                  width={contentWidth}
-                  height={contentHeight}
-                  className="pointer-events-none absolute inset-0"
-                >
-                  {/* Vertical gridlines at each tick */}
-                  {ticks.map((t) => (
-                    <line
-                      key={`grid-${t.iso}`}
-                      x1={t.left * contentWidth}
-                      x2={t.left * contentWidth}
-                      y1={0}
-                      y2={contentHeight}
-                      stroke="hsl(var(--border))"
-                      strokeWidth={1}
-                    />
-                  ))}
-                  {/* Today line */}
-                  {todayLeft != null && (
-                    <line
-                      x1={todayLeft * contentWidth}
-                      x2={todayLeft * contentWidth}
-                      y1={0}
-                      y2={contentHeight}
-                      stroke="hsl(var(--primary))"
-                      strokeWidth={1}
-                      strokeDasharray="2 2"
-                    />
-                  )}
-                  {/* Dependency connectors (structural — muted-foreground, NOT action-blue) */}
-                  {geometry.edges.map((e) => (
-                    <g key={e.id}>
-                      <path
-                        d={edgePath(e)}
-                        fill="none"
-                        stroke="hsl(var(--muted-foreground) / 0.55)"
-                        strokeWidth={1.25}
-                      />
-                      <polygon
-                        points={arrowHead(e)}
-                        fill="hsl(var(--muted-foreground) / 0.55)"
-                      />
-                    </g>
-                  ))}
-                </svg>
-
-                {/* Milestone diamonds + vertical dotted guides (D4) */}
-                {geometry.markers.map((mk) => (
-                  <MilestoneDiamond
-                    key={`marker-${mk.id}`}
-                    marker={mk}
-                    name={markerName(model.lanes, mk.id)}
-                    targetIso={markerIso(model.lanes, mk.id)}
-                    contentHeight={contentHeight}
-                  />
-                ))}
-
-                {/* Bars */}
-                {flatRows.map((row) => {
-                  if (row.kind !== 'task') return null;
-                  const box = barBoxById.get(row.bar.id);
-                  if (!box) return null;
-                  return (
-                    <GanttBarBlock
-                      key={`bar-${row.bar.id}`}
-                      bar={row.bar}
-                      box={box}
-                      predecessorNames={row.predecessorNames}
-                      prefersReducedMotion={prefersReducedMotion}
-                      onActivate={activate ? () => activate(row.bar.id) : undefined}
-                    />
-                  );
-                })}
-            </div>
-          </div>
+          <GanttTimeline
+            lanes={model.lanes}
+            geometry={geometry}
+            ticks={ticks}
+            todayLeft={todayLeft}
+            rows={flatRows}
+            edges={geometry.edges}
+            onBarActivate={activate}
+          />
         </div>
 
         {/* Undated footer (AC-GANTT-005) */}
         {undated.length > 0 && (
           <UndatedFooter
             undated={undated}
-            onActivateTask={activate ? (id) => activate(id) : undefined}
+            onActivateTask={activate}
           />
         )}
       </figure>
@@ -502,7 +298,7 @@ const ProjectGantt: React.FC<ProjectGanttProps> = ({ tasks, milestones, onActiva
 // muted sub-line + actions) so the two states read as one family.
 
 interface GanttMobileNoticeProps {
-  onSwitchView?: (view: 'list' | 'board') => void;
+  onSwitchView: (view: 'list' | 'board') => void;
 }
 
 const GanttMobileNotice: React.FC<GanttMobileNoticeProps> = ({ onSwitchView }) => {
@@ -522,313 +318,14 @@ const GanttMobileNotice: React.FC<GanttMobileNoticeProps> = ({ onSwitchView }) =
       )}
     </div>
     <div className="mt-1 flex flex-wrap items-center justify-center gap-2">
-      <Button variant="outline" size="sm" onClick={() => onSwitchView?.('list')}>
+      <Button variant="outline" size="sm" onClick={() => onSwitchView('list')}>
         {t('projectDetail.gantt.listView', 'List view')}
       </Button>
-      <Button variant="outline" size="sm" onClick={() => onSwitchView?.('board')}>
+      <Button variant="outline" size="sm" onClick={() => onSwitchView('board')}>
         {t('projectDetail.gantt.boardView', 'Board view')}
       </Button>
     </div>
   </div>
-  );
-};
-
-// ── Helpers to resolve marker name/iso from lanes ─────────────────────────────
-
-function markerName(lanes: GanttBarLanes, id: string): string {
-  for (const l of lanes) if (l.marker?.id === id) return l.marker.name;
-  return '';
-}
-function markerIso(lanes: GanttBarLanes, id: string): string {
-  for (const l of lanes) if (l.marker?.id === id) return l.marker.targetIso;
-  return '';
-}
-type GanttBarLanes = ReturnType<typeof buildGanttModel>['lanes'];
-
-// ── Axis ──────────────────────────────────────────────────────────────────────
-
-interface GanttAxisProps {
-  ticks: GanttAxisTick[];
-  todayLeft: number | null;
-  contentWidth: number;
-}
-
-const GanttAxis: React.FC<GanttAxisProps> = ({ ticks, todayLeft, contentWidth }) => {
-  const { t } = useTranslation('project');
-  return (
-  <div
-    className="relative border-b border-border"
-    style={{ height: AXIS_H, width: contentWidth }}
-    aria-hidden="true"
-  >
-    {ticks.map((tick) =>
-      tick.showLabel ? (
-        <span
-          key={tick.iso}
-          className="absolute top-0 translate-y-1/4 whitespace-nowrap text-xs text-muted-foreground"
-          style={{ left: tick.left * contentWidth }}
-        >
-          {tick.label}
-        </span>
-      ) : null,
-    )}
-    {todayLeft != null && (
-      <span
-        className="absolute bottom-0 text-[10px] font-semibold text-primary"
-        style={{ left: todayLeft * contentWidth, transform: 'translateX(-50%)' }}
-      >
-        {t('projectDetail.gantt.today', 'Today')}
-      </span>
-    )}
-  </div>
-  );
-};
-
-// ── Milestone diamond (on the axis — D4) ──────────────────────────────────────
-
-interface MilestoneDiamondProps {
-  marker: GanttMarkerBox;
-  name: string;
-  targetIso: string;
-  contentHeight: number;
-}
-
-const MilestoneDiamond: React.FC<MilestoneDiamondProps> = ({
-  marker,
-  name,
-  targetIso,
-  contentHeight,
-}) => {
-  const { t } = useTranslation('project');
-  return (
-  <>
-    {/* Vertical dotted guide from the diamond through the lane band */}
-    <span
-      aria-hidden="true"
-      className="pointer-events-none absolute"
-      style={{
-        left: marker.x,
-        top: marker.y,
-        height: Math.max(0, contentHeight - marker.y),
-        borderLeft: '1px dashed hsl(var(--violet) / 0.3)',
-      }}
-    />
-    {/* The diamond glyph (rotated square) — a labelled image now the figure no longer carries role="img" */}
-    <span
-      role="img"
-      aria-label={`${name} ${t('projectDetail.gantt.milestoneWord', 'phase')} — ${t(
-        'projectDetail.gantt.targetWord',
-        'target',
-      )} ${targetIso}`}
-      title={`${name} — ${t('projectDetail.gantt.targetWord', 'target')} ${targetIso}`}
-      className="absolute"
-      style={{
-        left: marker.x,
-        top: marker.y,
-        width: 10,
-        height: 10,
-        transform: 'translate(-50%, -50%) rotate(45deg)',
-        background: 'hsl(var(--violet))',
-        borderRadius: 2,
-      }}
-    />
-  </>
-  );
-};
-
-// ── Bar block (absolute-positioned via geometry) ──────────────────────────────
-
-interface GanttBarBlockProps {
-  bar: GanttBar;
-  box: GanttBarBox;
-  predecessorNames: string[];
-  prefersReducedMotion: boolean;
-  onActivate?: () => void;
-}
-
-const GanttBarBlock: React.FC<GanttBarBlockProps> = ({
-  bar,
-  box,
-  predecessorNames,
-  prefersReducedMotion,
-  onActivate,
-}) => {
-  const { t } = useTranslation('project');
-  const isPoint = bar.kind === 'point';
-  const depsSuffix =
-    predecessorNames.length > 0
-      ? `, ${t('projectDetail.gantt.dependsOn', 'depends on')} ${predecessorNames.join(', ')}`
-      : '';
-  const datesPart = `${bar.startIso ?? ''}${bar.startIso && bar.endIso ? '–' : ''}${bar.endIso ?? ''}`;
-  // Accessible name: keep the task name FIRST so getByRole('button', {name}) matches it.
-  const label = `${bar.name}: ${bar.status}${datesPart ? `, ${datesPart}` : ''}${depsSuffix}`;
-
-  const handleKeyDown = onActivate
-    ? (e: React.KeyboardEvent) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          onActivate();
-        }
-      }
-    : undefined;
-
-  const width = Math.max(0, box.xEnd - box.xStart);
-  /** A3: suppress the in-bar label when the bar is too narrow to show text legibly. */
-  const showInBarLabel = width >= 40;
-
-  if (isPoint) {
-    return (
-      <span
-        role={onActivate ? 'button' : undefined}
-        tabIndex={onActivate ? 0 : undefined}
-        aria-label={label}
-        onClick={onActivate}
-        onKeyDown={handleKeyDown}
-        title={label}
-        className={`absolute -translate-x-1/2 -translate-y-1/2 text-[14px] text-violet${onActivate ? ' cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring' : ''}`}
-        style={{ left: box.xStart, top: box.y + box.h / 2 }}
-      >
-        <span aria-hidden="true" className="block size-2.5 rotate-45 rounded-[2px] bg-violet" />
-      </span>
-    );
-  }
-
-  return (
-    <div
-      role={onActivate ? 'button' : undefined}
-      tabIndex={onActivate ? 0 : undefined}
-      aria-label={onActivate ? label : undefined}
-      onClick={onActivate}
-      onKeyDown={handleKeyDown}
-      title={label}
-      className={`absolute flex items-center overflow-hidden rounded px-2${onActivate ? ' cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring' : ''}`}
-      style={{
-        left: box.xStart,
-        width,
-        top: box.y,
-        height: box.h,
-        background: 'hsl(var(--violet) / 0.12)',
-        border: '1px solid hsl(var(--violet) / 0.35)',
-        transition: prefersReducedMotion ? 'none' : 'opacity 150ms ease',
-      }}
-    >
-      {showInBarLabel && (
-        <span className="truncate text-[11.5px] font-semibold leading-none text-foreground">
-          {bar.name}
-        </span>
-      )}
-    </div>
-  );
-};
-
-// ── Task table row (role=row, roving tabindex, Arrow/Enter — D7) ──────────────
-
-interface TaskTableRowProps {
-  row: TaskRow;
-  rovingActive: boolean;
-  activatable: boolean;
-  setRef: (el: HTMLDivElement | null) => void;
-  onFocus: () => void;
-  onArrow: (delta: number) => void;
-  onActivate?: () => void;
-  rowMenuItems?: RowMenuItem[];
-}
-
-/** B1: convert ISO date (YYYY-MM-DD) to compact human format ("Jan 1"). */
-function formatCompactDate(iso: string | null): string | null {
-  if (!iso) return null;
-  const [, m, d] = iso.split('-');
-  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  return `${months[Number(m) - 1]} ${Number(d)}`;
-}
-
-const TaskTableRow: React.FC<TaskTableRowProps> = ({
-  row,
-  rovingActive,
-  activatable,
-  setRef,
-  onFocus,
-  onArrow,
-  onActivate,
-  rowMenuItems,
-}) => {
-  const { t } = useTranslation('project');
-  const [actionsOpen, setActionsOpen] = useState(false);
-  const { bar } = row;
-  // B1: use compact human dates ("Jan 1 – Jan 11") to prevent date string from
-  // dominating the 260px table pane and starving the name column.
-  const startFmt = formatCompactDate(bar.startIso);
-  const endFmt = formatCompactDate(bar.endIso);
-  const dates =
-    startFmt || endFmt
-      ? `${startFmt ?? '—'} – ${endFmt ?? '—'}`
-      : '—';
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if ((e.target as HTMLElement).closest('button, summary, a, select, input')) return;
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      onArrow(1);
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      onArrow(-1);
-    } else if ((e.key === 'Enter' || e.key === ' ') && onActivate) {
-      e.preventDefault();
-      onActivate();
-    }
-  };
-
-  const closeActionsOnEscape = (event: React.KeyboardEvent<HTMLDetailsElement>) => {
-    if (event.key !== 'Escape') return;
-    event.preventDefault();
-    event.currentTarget.removeAttribute('open');
-    setActionsOpen(false);
-    event.currentTarget.querySelector('summary')?.focus();
-  };
-
-  return (
-    <div
-      ref={setRef}
-      role="row"
-      data-row-kind="task"
-      tabIndex={activatable ? (rovingActive ? 0 : -1) : undefined}
-      onFocus={onFocus}
-      onKeyDown={activatable ? handleKeyDown : undefined}
-      className={`flex items-center gap-2 border-b border-border/70 px-3${activatable ? ' cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring hover:bg-secondary/30' : ''}`}
-      style={{ height: ROW_H }}
-      onClick={onActivate}
-    >
-      <span
-        role="gridcell"
-        className="min-w-0 flex-1 truncate text-[12px] font-medium text-foreground"
-        title={bar.name}
-      >
-        {bar.name}
-      </span>
-      {/* D1: status + date columns collapse on narrow viewports so the timeline
-          (the point of the view) is not squeezed off screen at 390px. */}
-      <span role="gridcell" className="hidden shrink-0 sm:block">
-        <StatusPill variant={workflowVariant(bar.status)}>{bar.status}</StatusPill>
-      </span>
-      <span
-        role="gridcell"
-        className="hidden shrink-0 whitespace-nowrap text-xs tabular-nums text-muted-foreground sm:block"
-      >
-        {dates}
-      </span>
-      {rowMenuItems && rowMenuItems.length > 0 && <span role="gridcell" className="shrink-0" onClick={(event) => event.stopPropagation()}>
-        <details className="relative" onToggle={(event) => setActionsOpen(event.currentTarget.open)} onKeyDown={closeActionsOnEscape}>
-          <summary role="button" aria-label={t('table.rowActions', 'Row actions')} aria-haspopup="menu" aria-expanded={actionsOpen} className="touch-target grid size-8 cursor-pointer list-none place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">⋯</summary>
-          <div role="menu" className="absolute right-0 top-full z-30 mt-1 min-w-[160px] rounded-md border border-border bg-popover p-1 shadow-[0_10px_30px_hsl(240_10%_8%/0.16)]">
-            {rowMenuItems.map((item) => <button key={item.label} role="menuitem" type="button" disabled={item.disabled} className={`block min-h-8 w-full rounded-sm px-2.5 py-1.5 text-left text-[13px] hover:bg-accent disabled:opacity-50${item.danger ? ' text-destructive-text' : ''}`} onClick={(event) => {
-              event.stopPropagation();
-              event.currentTarget.closest('details')?.removeAttribute('open');
-              item.onClick();
-            }}>{item.label}</button>)}
-          </div>
-        </details>
-      </span>}
-    </div>
   );
 };
 

@@ -128,4 +128,30 @@ describe('MyTasks timezone day rollover and overdue determination (PGA03-008)', 
     const order = overdueEl.compareDocumentPosition(futureEl);
     expect(order & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
+
+  it('updates the day boundary at the first real local time when midnight is skipped', () => {
+    mockActiveTimezone = 'America/Santiago';
+    // 03:59Z is 23:59 on Sept 7 in Santiago; the clock jumps to 01:00 at 04:00Z.
+    vi.setSystemTime(new Date('2024-09-08T03:59:00Z'));
+    tasksState.data = [
+      {
+        id: 't-due-yesterday',
+        project_id: 'p-1',
+        project_name: 'Solar Phase 1',
+        name: 'Task due yesterday',
+        status: 'To Do',
+        start_date: null,
+        end_date: '2024-09-07',
+      },
+    ];
+
+    renderMyTasks();
+    expect(screen.queryByText(/^overdue$/i)).not.toBeInTheDocument();
+
+    act(() => {
+      vi.advanceTimersByTime(61 * 1000);
+    });
+
+    expect(screen.getByText(/^overdue$/i)).toBeInTheDocument();
+  });
 });

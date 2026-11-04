@@ -4,7 +4,9 @@ import { render, screen, within, act, waitFor, cleanup } from '@testing-library/
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '@/src/components/ui';
+import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
 import type { PipelineProject } from '@/src/lib/db/dashboard';
+import { AppError } from '@/src/lib/appError';
 
 // The BoardDnd seam: jsdom cannot drive dnd-kit sensors, so the test captures the controller's
 // onMove / canDrop and calls them as a drop would. The real pointer path is proven in AC-DND-014.
@@ -43,9 +45,9 @@ const deal = (id: string, status: PipelineProject['status']): PipelineProject =>
 const projects = [deal('won', 'Won, Pending KoM'), deal('negotiation2', 'Negotiation'), deal('leads', 'Leads'), deal('quotation', 'Quotation Submitted'), deal('tender', 'Tender Submitted'), deal('negotiation', 'Negotiation')];
 
 let qc: QueryClient;
-const renderBoard = () => render(
+const renderBoard = (rows: PipelineProject[] = projects) => render(
   <QueryClientProvider client={qc}>
-    <ToastProvider><DraggableSalesBoard projects={projects} onOpen={vi.fn()} /></ToastProvider>
+    <ToastProvider><DraggableSalesBoard projects={rows} onOpen={vi.fn()} /></ToastProvider>
   </QueryClientProvider>,
 );
 const drop = (id: string, col: string) => act(async () => { dnd.props!.onMove(id, col); });
@@ -136,7 +138,7 @@ describe('DraggableSalesBoard', () => {
     expect(await screen.findByText('Mark project as lost')).toBeInTheDocument();
     const confirm = screen.getByRole('button', { name: 'Mark lost' });
     expect(confirm).toBeDisabled();
-    expect(screen.getByRole('radio', { name: 'Loss Tender' })).not.toBeChecked();
+    expect(screen.getByRole('radio', { name: 'Lost' })).not.toBeChecked();
     expect(screen.getByRole('radio', { name: 'Declined' })).not.toBeChecked();
     await user.click(screen.getByRole('radio', { name: 'Declined' }));
     expect(confirm).toBeDisabled();
@@ -160,6 +162,22 @@ describe('DraggableSalesBoard', () => {
     expect(await screen.findByText('Status change failed')).toBeInTheDocument();
     expect(screen.getByText('Illegal transition')).toBeInTheDocument();
     await waitFor(() => expect(inColumn('stage-Quotation Submitted', 'quotation')).toBeInTheDocument());
+  });
+
+  it('AC-PLN-010: reviving a lost project at the active-project cap shows localized limit guidance', async () => {
+    mutateAsync.mockRejectedValueOnce(
+      new AppError('project_limit_reached: the starter plan allows 25 active projects', 'PL002'),
+    );
+    renderBoard([...projects, deal('lost-project', 'Loss Tender')]);
+
+    await drop('lost-project', 'stage-Negotiation');
+    await userEvent.click(await screen.findByRole('button', { name: 'Move to Negotiation' }));
+
+    const toast = await findToastAnnouncement('alert', /active-project limit/i);
+    expect(toast).toHaveTextContent(/active-project limit/i);
+    expect(toast).toHaveTextContent(/project was not restored/i);
+    expect(toast).not.toHaveTextContent(/project_limit_reached/);
+    await waitFor(() => expect(inColumn('stage-Lost', 'lost-project')).toBeInTheDocument());
   });
 
   it('AC-DND-008: on success the card stays in the target column (saving) until the pipeline queries refetch', async () => {

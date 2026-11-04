@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { AdapterError } from '../contract.ts';
 import { bindCall } from './client.ts';
-import { createOdooConnectAdapter, LIST_PAGE, type OdooConnectCtx } from './connectAdapter.ts';
+import { createOdooConnectAdapter, createOdooSetupAdapter, LIST_PAGE, type OdooConnectCtx } from './connectAdapter.ts';
 import { createFakeOdoo } from './fakeOdoo.ts';
 
 const CTX: OdooConnectCtx = { companyId: 1, analyticPlanId: 7, unitMap: { sak: '11' } };
@@ -146,5 +146,39 @@ describe('odoo ConnectAdapter — sendMaster (lookup-then-create)', () => {
   it('refuses to send a kind it does not create', async () => {
     const { adapter } = setup();
     await expect(adapter.sendMaster('account', { id: 'a', name: 'a' }, 'k')).rejects.toMatchObject({ code: 'commit-rejected' });
+  });
+});
+
+describe('odoo setup adapter (what the shared census and run see)', () => {
+  const setupOf = (ctx: OdooConnectCtx = CTX) => {
+    const fake = createFakeOdoo({ key: 'k' });
+    const call = bindCall({ baseUrl: 'https://odoo.example.test', apiKey: 'k', database: 'db1', fetchImpl: fake.fetch });
+    return { fake, adapter: createOdooSetupAdapter(call, ctx) };
+  };
+
+  it('AC-ECA-001 people are empty and uncounted until O7, and send nothing: an unserved kind is not an error', async () => {
+    const { fake, adapter } = setupOf();
+    expect(await adapter.countDomain('employee')).toBe(0);
+    expect(await adapter.listMasters('employee', null)).toEqual({ rows: [], nextCursor: null });
+    expect(adapter.canSend?.('employee')).toBe(false);
+    expect(fake.calls).toEqual([]);
+  });
+
+  it('with no analytic plan chosen there are no cost accounts to count or list, and no project to send', async () => {
+    const { fake, adapter } = setupOf({ ...CTX, analyticPlanId: null });
+    expect(await adapter.countDomain('project')).toBe(0);
+    expect(await adapter.listMasters('project', null)).toEqual({ rows: [], nextCursor: null });
+    expect(adapter.canSend?.('project')).toBe(false);
+    expect(fake.calls).toEqual([]);
+  });
+
+  it('every other kind is the Odoo adapter itself', async () => {
+    const { fake, adapter } = setupOf();
+    fake.seed('res.partner', [partner(1)]);
+    expect(await adapter.countDomain('party')).toBe(1);
+    expect((await adapter.listMasters('party', null)).rows).toHaveLength(1);
+    expect(adapter.canSend?.('party')).toBe(true);
+    expect(adapter.canSend?.('project')).toBe(true);
+    await expect(adapter.countDomain('invoice')).rejects.toMatchObject({ code: 'commit-rejected' });
   });
 });

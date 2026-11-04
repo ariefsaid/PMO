@@ -63,15 +63,14 @@ const SELECT_WITH_SHARED_DETAILS =
 const PROJECT_DETAIL_SELECT = `${SELECT_WITH_SHARED_DETAILS}`;
 
 /**
- * Committed-spend basis for ONE project (OD-W5-4): Σ procurement total_value where the PR is
- * Ordered / Received / Vendor Invoiced / Paid — the EXACT basis the dashboards use
- * (0009_dashboard_margin.sql `on_hand.spent`). org_id is NEVER sent — RLS scopes by org.
- * Returns 0 when the project has no committed POs.
- *
- * SINGLE DEFINITION (OD-BUDGET-2): committed spend = Σ(total_value) for statuses Ordered,
- * Received, Vendor Invoiced, Paid. The three implementations of this basis — this client hook,
- * projects.spent (0009), and get_projects_delivery.committed_spend (0026) — MUST agree. A pgTAP
- * drift guard (0069_dashboard_at_risk_boundary.test.sql) asserts the SQL pair stays in sync.
+ * Committed-spend statuses (OD-BUDGET-2): Ordered / Received / Vendor Invoiced / Paid. The spend
+ * basis itself is SQL `project_committed_spend` (0361; per currency since 0373): Σ open commitment
+ * (`procurement_open_commitment`) over purchases in these statuses. In an org that reads its
+ * ledger from the ERP, a purchase contributes its total minus the amounts the ledger already
+ * holds (floored at 0) — NOT a full case total; when no ledger is read, the full total is the
+ * PMO-proxy commitment. Dashboards label the DD-MONEY-1 actual separately ("Recorded spending"):
+ * mapped ledger cost when the org reads its ledger, else this committed-purchase basis.
+ * org_id is NEVER sent — RLS scopes by org. See getProjectCommittedSpend below (the RPC caller).
  */
 export const COMMITTED_STATUSES: ProcurementRow['status'][] = [
   'Ordered',
@@ -183,12 +182,16 @@ export async function listProcurementsByProject(projectId: string): Promise<Proc
  * List procurements for a given vendor company (AC-IFW-COMPANY-01). Returns all PRs where
  * `vendor_id = vendorId` so the company record shows the full procurement history. org_id is
  * NEVER sent — RLS (procurements select: org_id = auth_org_id()) scopes rows. No new RLS.
+ *
+ * ⚑ #1774 — a vendor's history has no natural ceiling, so this pages by KEYSET (like
+ * `listProcurements` / `listProcurementsByProject` beside it): PostgREST's 1,000-row cap would
+ * otherwise cut the company record's procurement history short with no error.
  */
 export async function listProcurementsByVendor(vendorId: string): Promise<ProcurementWithRefs[]> {
-  const { data, error } = await supabase
-    .from('procurements')
-    .select(SELECT)
-    .eq('vendor_id', vendorId);
-  if (error) throw new Error(error.message);
-  return (data ?? []) as unknown as ProcurementWithRefs[];
+  return fetchAllRowsByKeyset((afterId, limit) => {
+    let query = supabase.from('procurements').select(SELECT)
+      .eq('vendor_id', vendorId).order('id', { ascending: true }).limit(limit);
+    if (afterId !== null) query = query.gt('id', afterId);
+    return query as unknown as PromiseLike<{ data: ProcurementWithRefs[] | null; error: { message: string; code?: string } | null }>;
+  });
 }

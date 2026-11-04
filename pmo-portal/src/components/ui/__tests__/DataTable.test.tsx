@@ -295,6 +295,28 @@ describe('DataTable', () => {
     expect(screen.getByTestId('liststate-loading')).toBeInTheDocument();
   });
 
+  it('state="loading" announces loading and rows remain keyboard reachable after load', async () => {
+    const onActivate = vi.fn();
+    const { rerender } = render(<DataTable rows={[]} columns={columns} rowKey={(r) => r.id} state="loading" />);
+    const region = screen.getByTestId('liststate-loading');
+    expect(region).toHaveAttribute('aria-busy', 'true');
+    expect(screen.getByText('Loading…')).toBeInTheDocument();
+
+    rerender(
+      <DataTable
+        rows={rows}
+        columns={columns}
+        rowKey={(r) => r.id}
+        onActivate={onActivate}
+        rowLabel={(r) => `Open ${r.name}`}
+      />,
+    );
+    const firstRow = screen.getByRole('button', { name: 'Open Alpha' });
+    firstRow.focus();
+    await userEvent.keyboard('{Enter}');
+    expect(onActivate).toHaveBeenCalledWith(rows[0]);
+  });
+
   it('state="error" renders an alert with a Retry that calls onRetry', async () => {
     const onRetry = vi.fn();
     render(
@@ -312,20 +334,16 @@ describe('DataTable', () => {
     expect(onRetry).toHaveBeenCalled();
   });
 
-  it('Toolbar/SearchMini/TableFoot render their content', async () => {
-    const { Toolbar, SearchMini, TableFoot } = await import('../DataTable');
+  it('Toolbar/SearchMini render their content', async () => {
+    const { Toolbar, SearchMini } = await import('../DataTable');
     render(
       <div>
         <Toolbar standalone>
           <SearchMini placeholder="Find…" />
         </Toolbar>
-        <TableFoot>
-          <span>Total: 2,180</span>
-        </TableFoot>
       </div>
     );
     expect(screen.getByPlaceholderText('Find…')).toBeInTheDocument();
-    expect(screen.getByText('Total: 2,180')).toBeInTheDocument();
   });
 
   it('SearchMini focuses its input when its expanded hit area is clicked', async () => {

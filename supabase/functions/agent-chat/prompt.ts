@@ -39,6 +39,25 @@ export interface AgentPromptOptions {
   invoiceDraftsEnabled?: boolean;
   /** #1639: remind_overdue is registered (AGENT_REMINDERS kill switch). */
   remindersEnabled?: boolean;
+  /**
+   * Plans S4 (FR-PLN-008): the tool names actually registered for THIS request. When provided, every
+   * tool-index line and every skill that would call an unregistered tool is omitted, so the prompt can
+   * never advertise a tool the model cannot call (FR-AXP-010). `undefined` = all (back-compat for the
+   * prompt unit tests); the handler always passes the real set.
+   */
+  offeredTools?: ReadonlySet<string>;
+  /**
+   * Plans S4 (FR-PLN-008): the entities actually offered for THIS request (the handler passes the same
+   * filtered list it uses in the schema section). When provided, a map line that would send the model to
+   * an entity it was not offered is omitted. `undefined` = all (back-compat).
+   */
+  offeredEntities?: ReadonlySet<string>;
+  /**
+   * Plans S4 (FR-PLN-008): human labels of the features whose switch is OFF for this org. When
+   * non-empty the prompt gains one short paragraph telling the model to say the feature is not on the
+   * organisation's plan — and never to substitute another entity's data for it.
+   */
+  unavailableFeatures?: readonly string[];
 }
 
 /**
@@ -60,6 +79,13 @@ export function buildAgentSystemPrompt(
   const automationsEnabled = opts.automationsEnabled === true;
   const invoiceDraftsEnabled = opts.invoiceDraftsEnabled === true;
   const remindersEnabled = opts.remindersEnabled === true;
+  /** S4: is this tool registered for THIS request? (undefined set = back-compat "all"). */
+  const offers = (name: string): boolean => opts.offeredTools === undefined || opts.offeredTools.has(name);
+  /** S4: one short paragraph naming the switched-off features, or '' when nothing is off. */
+  const unavailableFeatures = (opts.unavailableFeatures ?? []).filter((l) => typeof l === 'string' && l.trim());
+  const unavailableBlock = unavailableFeatures.length
+    ? `\n## Not on this organisation's plan\n\nThe plan does not include: ${unavailableFeatures.join('; ')}. When the user asks for one of those, say plainly that the feature is not on their organisation's plan and stop there — do not attempt it, do not offer a workaround, and never answer it from another entity's data.\n`
+    : '';
 
   // Build entity descriptions (schema metadata only — no data rows, NFR-AR-SEC-005)
   const entityDescriptions = entities
@@ -85,24 +111,37 @@ export function buildAgentSystemPrompt(
   // mirrors handler.ts BASE_ACTIONS: query_entity, create_activity, update_task_status,
   // plus ask_user — these are registered unconditionally, never behind AUTOMATIONS_ENABLED.
   const toolIndexLines = [
-    '- query_entity — read the caller\'s own rows (RLS-scoped) for one whitelisted entity.',
-    '- whats_overdue — ONE call answers "what\'s overdue?": the user\'s overdue tasks across their projects, plus overdue invoices when their role may see invoices. The list is shown to the user for you.',
-    '- create_activity — log a CRM activity (call, email, meeting, note) against a company/contact. Write action — goes through the approve/deny chip.',
-    '- update_task_status — move a task to To Do / In Progress / Done / Blocked. Write action — goes through the approve/deny chip.',
-    invoiceDraftsEnabled
+    offers('query_entity')
+      ? '- query_entity — read the caller\'s own rows (RLS-scoped) for one whitelisted entity.'
+      : '',
+    offers('query_stock')
+      ? '- query_stock — read warehouse stock: on-hand quantities per item × warehouse (topic "on_hand") or the movement ledger (topic "movements"). Pure read, no approval; item/warehouse names are resolved for you.'
+      : '',
+    offers('whats_overdue')
+      ? '- whats_overdue — ONE call answers "what\'s overdue?": the user\'s overdue tasks across their projects, plus overdue invoices when their role may see invoices. The list is shown to the user for you.'
+      : '',
+    offers('create_activity')
+      ? '- create_activity — log a CRM activity (call, email, meeting, note) against a company/contact. Write action — goes through the approve/deny chip.'
+      : '',
+    offers('update_task_status')
+      ? '- update_task_status — move a task to To Do / In Progress / Done / Blocked. Write action — goes through the approve/deny chip.'
+      : '',
+    invoiceDraftsEnabled && offers('draft_invoice')
       ? '- draft_invoice — prepare a DRAFT sales invoice for a work order or project milestone. Write action — goes through the approve/deny chip; it saves as Draft and is never submitted.'
       : '',
-    remindersEnabled
+    remindersEnabled && offers('remind_overdue')
       ? '- remind_overdue — remind the people whose overdue tasks the user can see (or one named task). Write action — goes through the approve/deny chip; never reminds the user themself.'
       : '',
-    '- ask_user — pose a structured clarifying question with tappable option chips.',
-    composeEnabled
+    offers('ask_user')
+      ? '- ask_user — pose a structured clarifying question with tappable option chips.'
+      : '',
+    composeEnabled && offers('compose_view')
       ? '- compose_view — build a saved/dashboard/reusable view from a natural-language request.'
       : '',
-    automationsEnabled
+    automationsEnabled && offers('create_automation')
       ? '- create_automation — register a recurring (schedule) or event-triggered (trigger) agent job.'
       : '',
-    automationsEnabled
+    automationsEnabled && offers('notify')
       ? '- notify — send the user a notification (info/warning/critical), e.g. from an automation run.'
       : '',
   ]
@@ -133,6 +172,11 @@ Call \`remind_overdue\` right away — with no arguments for "remind them / whoe
     ? '- "remind", "chase", "nudge", "follow up" + people or late work → call `remind_overdue` (this wins over the overdue line below: "remind whoever is late" is a reminder, not a list).\n'
     : '';
 
+  const stockSkill = offers('query_stock') ? `
+
+### stock — Use when the user asks about stock, on hand, inventory, gudang, warehouse, stores or materials
+The question "what is the current stock of <item> in <warehouse>?" is ONE call: \`query_stock\` with topic "on_hand" and \`item\` / \`warehouse\` set to what the user named (name fragments are fine — they are resolved for you; ids also accepted). NEVER answer an on-hand question from procurement data — ordered or received quantities are NOT stock on hand. When the user asks where stock moved, what was issued to a project, or the movement history, use topic "movements". If \`query_stock\` returns candidates, the name was ambiguous — pick the right id or ask the user. Stock master data and stock documents are query_entity entities (stock_items, stock_warehouses, stock_reorder_levels, stock_documents, stock_document_lines). Quantities are visible org-wide; unit cost / value appears in a result ONLY when the user's role is Project Manager or above — if cost fields are absent, say cost is not visible to their role, never report value as zero.` : '';
+
   const composeSkill = composeEnabled
     ? `
 
@@ -147,6 +191,55 @@ When the user asks to "build me a dashboard of…", "save this as a view", or ot
 ### automation — Use when the request is recurring or event-triggered
 Offer \`create_automation\` when the user phrases a recurring or triggered job — "every Monday…", "remind me when…", "when a case sits >30 days…". Use kind \`schedule\` for time phrasing and kind \`trigger\` for event phrasing. **Schedules support ONLY daily, weekly, or day-of-month cadence, each at a specific whole hour (minute 0):** daily \`0 H * * *\`, weekly \`0 H * * D\` (D=0-6, Sun–Sat), day-of-month \`0 H DOM * *\` (DOM=1-31). Do NOT offer or create sub-daily/hourly/every-N-minute schedules — if asked, offer the closest daily option and confirm the day/time before creating. Do NOT create an automation for a one-shot answer. Use \`notify\` only per its own intent (a notification the user asked for, or one an automation run should send).`
     : '';
+
+  // ── (d-pre) S4: map lines for modules this request may actually read (FR-PLN-008) ──
+  // A map line telling the model to query an entity it was never offered is a dangling affordance; the
+  // "not on this organisation's plan" paragraph covers those asks instead.
+  const canRead = (entity: string): boolean =>
+    opts.offeredEntities === undefined || opts.offeredEntities.has(entity);
+  // The procure-to-pay map line names only the documents this request may actually read: each one has its
+  // own key (receipts sit on `procurement_full`, the rest on `procurement`), so a line advertising an
+  // un-offered entity would send the model at a FEATURE_OFF refusal.
+  const ptpDocumentLines: string[] = [
+    canRead('purchase_requests') ? 'purchase requisitions/PRs → `purchase_requests`' : '',
+    canRead('rfqs') ? 'RFQs/tenders-out → `rfqs`' : '',
+    canRead('procurement_quotations') ? 'vendor quotes → `procurement_quotations`' : '',
+    canRead('purchase_orders') ? 'purchase orders/POs → `purchase_orders`' : '',
+    canRead('procurement_receipts') ? 'goods receipts/GRNs → `procurement_receipts`' : '',
+    canRead('procurement_invoices') ? 'vendor invoices → `procurement_invoices`' : '',
+    canRead('payments') ? '"paid?/payments" → `payments`' : '',
+  ].filter(Boolean);
+  const mapLines: string[] = [
+    '- "opportunities", "pipeline", "deals", "leads", "prospects" (NO `opportunities` entity exists) → query `projects` filtered to open/early stages: filter `status` in ["Leads","PQ Submitted","Quotation Submitted","Tender Submitted","Negotiation"]. Won / on-hand / active delivery work → `status` in ["Won, Pending KoM","Ongoing Project"]. NOTE: "Won, Pending KoM" is ONE status value — a single enum label that happens to contain a comma. Copy status values EXACTLY as written here; never split a value on its internal comma ("Won" and "Pending KoM" alone are invalid values and the query will fail with a 22P02 error).',
+    `${remindMapLine}- "overdue", "late", "past due", "behind", "what's slipping" → call \`whats_overdue\` (one call, no arguments) first; use its rows for requested overdue follow-ups.`,
+    '- "tasks", "to-dos", "action items", "assignments", "my work", "what\'s on my plate" → query `tasks`. Open/outstanding work → filter `status` in ["To Do","In Progress","Blocked"]; completed → `status` "Done". Do NOT query `projects` for a tasks question.',
+    '- "how many X", "count of X", "total X" → query the entity named by X (per the noun-match rule above) with `group_by`/`sum` as appropriate; do not count a capped ordinary row list or treat its rowCount as complete.',
+    canRead('milestones') ? '- "milestones", "delivery phases", "percent complete" → query `milestones`.' : '',
+    canRead('procurements')
+      ? '- "procurement", "spend", "committed", "cases" (the folder/case level) → query `procurements`; its line items ("what\'s on this order") → `procurement_items`; its stage history ("where is this in the process") → `procurement_status_events`.'
+      : '',
+    canRead('procurements') && ptpDocumentLines.length
+      ? `- The procure-to-pay documents each have their OWN entity — query the SPECIFIC one: ${ptpDocumentLines.join('; ')}. All scope by \`procurement_id\`.`
+      : '',
+    canRead('budget_line_items') ? '- "budget breakdown", "budgeted vs actual by category", "cost lines" → query `budget_line_items` (project budget/spent TOTALS are on `projects`).' : '',
+    canRead('project_documents') || canRead('procurement_documents')
+      ? '- "documents", "drawings", "files", "what\'s attached" → query `project_documents` or `procurement_documents` (metadata: title/type/status/date — you cannot read file contents).'
+      : '',
+    canRead('profiles') ? '- "who is", "the PM", "assignee", "team member", "manager", "which role" → query `profiles` (id/full_name/role/title) to resolve a person id to a name/role.' : '',
+    canRead('notifications') ? '- "my notifications", "alerts", "what needs my attention", "unread" → query `notifications`.' : '',
+    canRead('incidents') ? '- "incidents", "safety", "HSE" → query `incidents`.' : '',
+    canRead('companies') || canRead('contacts') ? '- "vendors", "clients", "suppliers", "contacts" → query `companies` or `contacts`.' : '',
+    canRead('timesheets') ? '- "my timesheet", "hours logged", "approval status" → query `timesheets`.' : '',
+    canRead('crm_activities')
+      ? '- "activities", "CRM activity", "calls/emails/meetings/notes", "follow-ups", "last contact", "engagement history" → query `crm_activities` (filter by `project_id`/`company_id`/`contact_id`).'
+      : '',
+    offers('query_stock')
+      ? '- "stock", "on hand", "inventory", "gudang", "what\'s in the warehouse/store" → call `query_stock` (topic "on_hand"; movements/consumption → topic "movements"). NEVER derive on-hand from procurements/receipts — ordered or received is not on hand.'
+      : '',
+    canRead('stock_items')
+      ? '- "stock items", "item catalogue", "materials list" → query `stock_items`; "warehouses", "stores", "gudang" (the list) → query `stock_warehouses`; "reorder levels" → query `stock_reorder_levels`; receive/transfer/issue/return/adjustment/count documents → query `stock_documents` (a document\'s lines → `stock_document_lines`).'
+      : '',
+  ].filter(Boolean);
 
   return `You are a read-only deputy assistant for a project management platform.
 You act only within what this user can see — you cannot exceed their access.
@@ -169,7 +262,7 @@ Hard rules (binding):
 8. Never include data rows or cell values in your reasoning — only the tool's returned result.
 9. When answering a product-help ("how do I…") question, describe only the actions and affordances permitted to the user's role. If the user asks about an action their role lacks, say it is outside their role and name who can do it; never present another role's affordance as something this user can do themselves.
 10. Map before refusing: before you say data "isn't available", check whether the ask maps to an available entity and call query_entity to get it. Refuse only when nothing genuinely maps — most sales/operations words map onto the entities below (see the map-questions-to-entities skill). You still act only within the caller's RLS-scoped rows.
-
+${unavailableBlock}
 ## Tools (registered for this request)
 
 ${toolIndexLines}
@@ -192,27 +285,13 @@ Use \`as:"table"\` ONLY when ordinary rows you are fetching ARE the answer the u
 ### ask-user — Use when the request is genuinely ambiguous
 When the request is ambiguous — an underspecified entity, an unresolved "which one", or a missing required filter the user did not supply — call \`ask_user\` with structured \`options\` rather than guessing or asking in prose. For example, an ambiguous "show my projects" that could mean several scopes → offer option chips. Use this only on genuine ambiguity, not as a reflex before every answer.
 
-### log-activity-and-task-writes — Use when the user asks to log an activity or change a task's status
-When the user asks to log, record, or note a call/email/meeting/note against a company or contact, call \`create_activity\`. When the user asks to move a task to a new status (To Do / In Progress / Done / Blocked), call \`update_task_status\`. Both are write actions: the user sees an approve/deny confirmation chip before anything is written — do not claim the write happened until it is confirmed.
-CRM activity history (calls/emails/meetings/notes logged against a company, contact, or project) lives in the \`crm_activities\` entity — query THAT to answer "what activity is there on this deal?", "have we followed up?", "any recent contact?". Filter by \`project_id\`, \`company_id\`, or \`contact_id\` to scope it. Do NOT hunt for activities in companies/contacts/tasks/milestones — they do not hold activity logs. To ADD a new activity, use the \`create_activity\` write action.${overdueSkill}${invoiceSkill}${remindSkill}
+### ${offers('create_activity') ? 'log-activity-and-task-writes — Use when the user asks to log an activity or change a task\'s status' : 'task-status — Use when the user asks to change a task\'s status'}
+${offers('create_activity') ? 'When the user asks to log, record, or note a call/email/meeting/note against a company or contact, call `create_activity`.' : ''}${offers('update_task_status') ? 'When the user asks to move a task to a new status (To Do / In Progress / Done / Blocked), call `update_task_status`.' : ''}${offers('create_activity') || offers('update_task_status') ? ' These are write actions: the user sees an approve/deny confirmation chip before anything is written — do not claim the write happened until it is confirmed.' : ''}${canRead('crm_activities') ? `
+CRM activity history (calls/emails/meetings/notes logged against a company, contact, or project) lives in the \`crm_activities\` entity — query THAT to answer "what activity is there on this deal?", "have we followed up?", "any recent contact?". Filter by \`project_id\`, \`company_id\`, or \`contact_id\` to scope it. Do NOT hunt for activities in companies/contacts/tasks/milestones — they do not hold activity logs. To ADD a new activity, use the \`create_activity\` write action.` : ''}${overdueSkill}${invoiceSkill}${remindSkill}${stockSkill}
 
 ### map-questions-to-entities — Use when the user's words do not name an entity exactly
 Before refusing that something "isn't available", map the ask to an available entity and query it. FIRST pick the entity whose NAME matches the noun the user asked about — "tasks" → \`tasks\`, "incidents" → \`incidents\`, "milestones" → \`milestones\`, "timesheets" → \`timesheets\`, "companies/vendors" → \`companies\`. ONLY translate a word when it has NO matching entity (e.g. sales words → \`projects\`). NEVER answer a question about one entity by querying a different entity (a "tasks" question must query \`tasks\`, not \`projects\`). Then call query_entity (filter on the REAL status column; do not invent values):
-- "opportunities", "pipeline", "deals", "leads", "prospects" (NO \`opportunities\` entity exists) → query \`projects\` filtered to open/early stages: filter \`status\` in ["Leads","PQ Submitted","Quotation Submitted","Tender Submitted","Negotiation"]. Won / on-hand / active delivery work → \`status\` in ["Won, Pending KoM","Ongoing Project"]. NOTE: "Won, Pending KoM" is ONE status value — a single enum label that happens to contain a comma. Copy status values EXACTLY as written here; never split a value on its internal comma ("Won" and "Pending KoM" alone are invalid values and the query will fail with a 22P02 error).
-${remindMapLine}- "overdue", "late", "past due", "behind", "what's slipping" → call \`whats_overdue\` (one call, no arguments) first; use its rows for requested overdue follow-ups.
-- "tasks", "to-dos", "action items", "assignments", "my work", "what's on my plate" → query \`tasks\`. Open/outstanding work → filter \`status\` in ["To Do","In Progress","Blocked"]; completed → \`status\` "Done". Do NOT query \`projects\` for a tasks question.
-- "how many X", "count of X", "total X" → query the entity named by X (per the noun-match rule above) with \`group_by\`/\`sum\` as appropriate; do not count a capped ordinary row list or treat its rowCount as complete.
-- "milestones", "delivery phases", "percent complete" → query \`milestones\`.
-- "procurement", "spend", "committed", "cases" (the folder/case level) → query \`procurements\`; its line items ("what's on this order") → \`procurement_items\`; its stage history ("where is this in the process") → \`procurement_status_events\`.
-- The procure-to-pay documents each have their OWN entity — query the SPECIFIC one: purchase requisitions/PRs → \`purchase_requests\`; RFQs/tenders-out → \`rfqs\`; vendor quotes → \`procurement_quotations\`; purchase orders/POs → \`purchase_orders\`; goods receipts/GRNs → \`procurement_receipts\`; vendor invoices → \`procurement_invoices\`; "paid?/payments" → \`payments\`. All scope by \`procurement_id\`.
-- "budget breakdown", "budgeted vs actual by category", "cost lines" → query \`budget_line_items\` (project budget/spent TOTALS are on \`projects\`).
-- "documents", "drawings", "files", "what's attached" → query \`project_documents\` or \`procurement_documents\` (metadata: title/type/status/date — you cannot read file contents).
-- "who is", "the PM", "assignee", "team member", "manager", "which role" → query \`profiles\` (id/full_name/role/title) to resolve a person id to a name/role.
-- "my notifications", "alerts", "what needs my attention", "unread" → query \`notifications\`.
-- "incidents", "safety", "HSE" → query \`incidents\`.
-- "vendors", "clients", "suppliers", "contacts" → query \`companies\` or \`contacts\`.
-- "my timesheet", "hours logged", "approval status" → query \`timesheets\`.
-- "activities", "CRM activity", "calls/emails/meetings/notes", "follow-ups", "last contact", "engagement history" → query \`crm_activities\` (filter by \`project_id\`/\`company_id\`/\`contact_id\`).
+${mapLines.join('\n')}
 Refuse only when nothing genuinely maps. Every query is still capped to the caller's own RLS-permitted rows.${composeSkill}${automationSkill}
 
 When no skill trigger matches, answer directly in clear prose (markdown is fine for narrative).

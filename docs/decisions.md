@@ -3630,3 +3630,24 @@ amounts of non-Employee-party pools. The pool, its line count and the driver tot
 and so is the amount of any Employee-party row. Admin, Finance and Executive read every value. The ledger-read
 ruling (0311, mirror rows for Admin/Finance/Executive) outranks FR-EQU-062 and FR-EQU-044, which are amended to
 say so. Proven in `supabase/tests/equipment_actual_cost.test.sql` (one row per hidden field, PM null / Finance value).
+
+## OD-SIGN-20261102 — three EPC-route specs signed with their defaults (owner 2026-11-02)
+The owner signed `docs/specs/odoo-purchase-to-payment.spec.md` (#1505), `docs/specs/odoo-client-invoices.spec.md` (#1506) and `docs/specs/time-and-materials-claims.spec.md` (#1514), accepting every owner-decision default as written. This includes #1506's default that retention (holding part of a claim and releasing it later) stays out of scope; it remains tracked separately (#1572). Builds follow each spec's plan; money slices ship alone.
+
+### OD-1530-COMMIT — PMO open commitment is the order total minus what is already paid (Director ruling, 2026-11-03)
+For an org without an active ERP binding (#1530), budget actuals are PMO paid purchases, so a purchase's open
+commitment is `total_value − pre-tax paid amount` (floor 0), the PMO analogue of ADR-0093 §2 (total minus what is
+already spent). Rules: no amount counts twice — a disconnected org reads no ledger snapshot or attribution term
+(0307), even when an old snapshot survives; paid amounts are compared at their pre-tax value, the basis of the
+budget and the order total; sums are in the project currency, and an org-currency internal charge on a project in
+another currency is unknown, not relabelled; an unusable paid amount keeps the full order total committed. Spec:
+`procurement-flexible-entry.spec.md` FR-PFE-035/036, NFR-PFE-002, AC-PFE-005.
+
+### OD-VISION-ERP — PMO is an ERP; a client with no ERP is the floor (owner, 2026-11-03)
+The product vision is **PMO as an ERP**. At minimum PMO covers, on its own, a client that runs **no ERP**: its books,
+receivables and payables, bank, statements, tax and close all live in PMO. A connected ERPNext or Odoo stays optional;
+when one is connected it owns the domains the ownership map gives it (ADR-0055 §5), the same switch native revenue
+already uses (OD-NAR / #784). This supersedes, for orgs with no ERP, the "PMO has no ledger / no homegrown ledger" stance
+in ADR-0048 and ADR-0055 §5. Building a native ledger **extends** the vision, it does not reverse a decision. Not
+scheduled yet: the owner said record, don't build (2026-11-03). A future build takes a new ADR for the native ledger
+and a roadmap map.

@@ -41,6 +41,9 @@ const PGTAP = [
   /^supabase\//,
   /^scripts\/(check-migration-collisions\.sh|check-project-short-name-reversal\.mjs|check-isolation-denominator\.mjs|isolation-probe-denominator\.json|with-db-lock\.sh)$/,
   /^scripts\/financial-statements-[\w-]+\.test\.mjs$/,
+  // The rollback harness the pgtap job runs (AC-CQ-003) and the pgTAP template it expands.
+  /^scripts\/(test-contract-quantities-rollback\.sh|contract-quantities-rollback\.test\.sql)$/,
+  /^scripts\/(test-plan-limits-rollback\.sh|plan-limits-rollback\.test\.sql)$/,
   /^scripts\/lib\/flock-run\.sh$/,
   /^\.github\/workflows\/ci\.yml$/,
   /^scripts\/ci-test-scope\.mjs$/,
@@ -186,7 +189,9 @@ async function selfTest() {
     assert.equal(s(many(5), { threshold: 4 }).unit, 'full');
   });
   for (const p of ['supabase/migrations/0400_x.sql', 'supabase/tests/x.sql', 'supabase/functions/a/index.ts', 'scripts/with-db-lock.sh',
-    'scripts/check-isolation-denominator.mjs', 'scripts/isolation-probe-denominator.json', 'scripts/financial-statements-rollback.test.mjs', '.github/workflows/ci.yml']) {
+    'scripts/check-isolation-denominator.mjs', 'scripts/isolation-probe-denominator.json', 'scripts/financial-statements-rollback.test.mjs',
+    'scripts/test-contract-quantities-rollback.sh', 'scripts/contract-quantities-rollback.test.sql',
+    'scripts/test-plan-limits-rollback.sh', 'scripts/plan-limits-rollback.test.sql', '.github/workflows/ci.yml']) {
     test(`pgtap: ${p}`, () => assert.equal(s([p]).pgtap, true));
   }
   test('pgtap false for app-only, docs and unrelated scripts', () => {

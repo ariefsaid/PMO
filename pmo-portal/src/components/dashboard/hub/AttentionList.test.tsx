@@ -11,7 +11,7 @@ const items: AttentionItem[] = [
     label: 'Client invoices overdue',
     sub: 'Oldest is 38 days late',
     amount: 'Rp 412.000',
-    href: '/sales-invoices?overdue=true',
+    href: '/finance/receivables?overdue=true',
   },
   {
     id: 'waiting-approvals',
@@ -32,7 +32,7 @@ describe('AttentionList', () => {
 
     const invoices = screen.getByRole('link', { name: /3 client invoices overdue/i });
     const approvals = screen.getByRole('link', { name: /5 waiting for your approval/i });
-    expect(invoices).toHaveAttribute('href', '/sales-invoices?overdue=true');
+    expect(invoices).toHaveAttribute('href', '/finance/receivables?overdue=true');
     expect(approvals).toHaveAttribute('href', '/approvals');
     expect(invoices).toHaveTextContent('Rp 412.000');
     expect(screen.getByRole('heading', { name: 'Needs your attention' })).toBeInTheDocument();

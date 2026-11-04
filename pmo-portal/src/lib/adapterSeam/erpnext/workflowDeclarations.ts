@@ -6,23 +6,25 @@
 import type { TierWorkflows } from '../connect/workflows.ts';
 
 // ECA slices that will build the missing behaviour (the ERP-connect-anytime map).
-const SEND_TO_EMPTY_ERP = 1606;
-const INVOICE_PAIRING = 1602;
 // Cut-over proofs that live outside Vitest (the SQL revenue guard, the Deno timesheet backstop): shared suite or permanent exception.
 const CUTOVER_PROOFS_OUTSIDE_VITEST = 1676;
+
+/** Why a person cannot be sent: the declaration's reason, and the sentence the Admin reads (one copy, so another tier never shows this one's). */
+export const EMPLOYEE_SEND_UNAVAILABLE_REASON = 'This ERP asks for a birth date and gender for each person, which PMO does not hold.';
 
 export const ERPNEXT_WORKFLOWS: TierWorkflows = {
   'census': { status: 'supported', version: 1 },
   'party.match': { status: 'supported', version: 2 },
   'party.bring-in': { status: 'supported', version: 1 },
-  'party.send': { status: 'pending', version: 1, issue: SEND_TO_EMPTY_ERP },
+  'party.send': { status: 'supported', version: 1 },
   'project.match': { status: 'supported', version: 1 },
-  'project.send': { status: 'pending', version: 1, issue: SEND_TO_EMPTY_ERP },
+  'project.send': { status: 'supported', version: 1 },
   'item.match': { status: 'supported', version: 1 },
-  'item.send': { status: 'pending', version: 1, issue: SEND_TO_EMPTY_ERP },
+  'item.send': { status: 'supported', version: 1 },
   'account.match': { status: 'supported', version: 1 },
   'employee.match': { status: 'supported', version: 1 },
-  'employee.send': { status: 'pending', version: 1, issue: SEND_TO_EMPTY_ERP },
+  // PQ-ECA-1, verified on the bed (ECA3-T1): the ERP requires gender, date of birth and date of joining for an employee; PMO holds none of them and never invents them.
+  'employee.send': { status: 'unavailable', version: 1, reason: EMPLOYEE_SEND_UNAVAILABLE_REASON },
   'purchase.push': { status: 'supported', version: 1 },
   'bill.push': { status: 'supported', version: 1 },
   'vendor-payment.push': { status: 'supported', version: 1 },
@@ -32,12 +34,13 @@ export const ERPNEXT_WORKFLOWS: TierWorkflows = {
   'cutover.activation': { status: 'supported', version: 1 },
   'invoice.push': { status: 'supported', version: 1 },
   'receipt.read': { status: 'supported', version: 1 },
-  'invoice.pair-existing': { status: 'pending', version: 1, issue: INVOICE_PAIRING },
+  'invoice.pair-existing': { status: 'supported', version: 1 },
   // SQL guard, tier-agnostic, proven by pgTAP (0275 §7); the shared suite or a documented exception is #1676.
   'cutover.revenue': { status: 'pending', version: 1, issue: CUTOVER_PROOFS_OUTSIDE_VITEST },
   'actuals.read': { status: 'supported', version: 1 },
   'budget.push': { status: 'supported', version: 1 },
   'budget.unowned-occupant': { status: 'supported', version: 1 },
+  'budget.resolve-occupant': { status: 'supported', version: 1 },
   'timesheet.push': { status: 'supported', version: 1 },
   'imprest.transfer': { status: 'supported', version: 1 },
   'purchase-order.revise': { status: 'pending', version: 1, issue: 1505 }, // #1505 carries the revise transport

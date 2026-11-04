@@ -117,6 +117,7 @@ const Incidents: React.FC = () => {
     {
       key: 'incident_date',
       header: 'Date',
+      kind: 'date',
       cell: (i) => <span className="tabular text-muted-foreground">{i.incident_date}</span>,
       exportValue: (i) => i.incident_date,
       colClassName: 'hidden sm:table-cell',
@@ -191,6 +192,8 @@ const Incidents: React.FC = () => {
   return (
     <ListPage
       title="Incidents"
+      count={data ? filtered.length : undefined}
+      total={data ? all.length : undefined}
       description="The organisation incident register. Anyone can file an incident; managers investigate and close them."
       primaryAction={
         canCreate && (
@@ -239,7 +242,7 @@ const Incidents: React.FC = () => {
       {/* Body */}
       {state === 'loading' && (
         <div className="rounded-lg border border-border bg-card">
-          <ListState variant="loading" rows={6} />
+          <ListState variant="loading" shape="table" columns={5} rows={6} />
         </div>
       )}
 

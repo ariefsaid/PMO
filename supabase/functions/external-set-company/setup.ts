@@ -2,7 +2,6 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { AppError } from "../../../pmo-portal/src/lib/appError.ts";
 import { fetchAllRowsByKeyset } from "../../../pmo-portal/src/lib/pagedRead.ts";
 import {
-  createDoc,
   type ErpClientDeps,
   ErpError,
   getDoc,
@@ -18,6 +17,11 @@ import {
   ACTIVATION_PROBE_TOTAL_BUDGET_MS,
   assertErpReadPermissions,
 } from "../../../pmo-portal/src/lib/adapterSeam/erpnext/binding.ts";
+import { COMMAND_IN_FLIGHT_FOR_RECORD } from "../../../pmo-portal/src/lib/adapterSeam/dispatch.ts";
+import { erpReason } from "../_shared/erpReason.ts";
+import { sendMasterOnce } from "../../../pmo-portal/src/lib/adapterSeam/connect/sendViaOutbox.ts";
+import { createErpnextConnectAdapter, erpnextSendProbe } from "../../../pmo-portal/src/lib/adapterSeam/erpnext/connectAdapter.ts";
+import { createDbMoneyOutboxDeps } from "../adapter-dispatch/moneyOutboxDeps.ts";
 import { sweepKindsForOrg } from "../../../pmo-portal/src/lib/adapterSeam/erpnext/feedKinds.ts";
 
 /** #1326: split out of Special expenses; required in setup only when budgeted (pmo-portal erpSetupIncompleteness). */
@@ -485,6 +489,7 @@ async function saveProjectMap(
 
 async function ensureErpProject(body: ErpSetupBody, ctx: ErpSetupContext) {
   const project = await ownProject(body, ctx);
+  const master = { id: project.id, name: project.name, code: project.code };
   const mapped = (ctx.config.project_map as Record<string, unknown> | undefined)
     ?.[project.id];
   if (typeof mapped === "string" && mapped) {
@@ -534,15 +539,49 @@ async function ensureErpProject(body: ErpSetupBody, ctx: ErpSetupContext) {
       "config-rejected",
     );
   }
-  // ERPNext requires unique project_name. A retry looks up the landed master before any new POST.
-  const target = matches[0] ??
-    await createDoc(ctx.client, "Project", {
-      project_name: project.name,
-      company: ctx.company,
-    }) as Record<string, unknown>;
-  assertErpProject(target, ctx.company);
-  await saveProjectMap(ctx, project.id, target.name as string);
-  return { ok: true, erpProject: target.name };
+  // ERPNext requires unique project_name. A retry looks up the landed master before any new POST; a project the ERP lacks is
+  // sent through the money outbox under seed:project:<id> (ECA3-T10, PD-ECA-7), so one PMO project makes at most one ERP project.
+  if (matches[0]) assertErpProject(matches[0], ctx.company);
+  const erpProject = matches[0]?.name as string ?? (await sendProject(ctx, project, master)).externalRecordId;
+  await saveProjectMap(ctx, project.id, erpProject);
+  return { ok: true, erpProject };
+}
+
+/** I4: what the outbox can answer, in the words a Project Manager reads, with a status the handler maps (409 / 409 / 422), never a 500. */
+async function sendProject(ctx: ErpSetupContext, project: { id: string; name: string }, master: { id: string; name: string; code: string | null }) {
+  try {
+    return await sendMasterOnce(
+    {
+      money: createDbMoneyOutboxDeps({
+        serviceClient: ctx.serviceClient as never,
+        orgId: ctx.orgId,
+        externalTier: "erpnext",
+        operation: "create",
+        probeByRemarksKey: () => erpnextSendProbe(ctx.client, ctx.company, "project", master),
+        reissueOnInconclusiveAbsence: true,
+        actorUserId: ctx.actorId,
+      }),
+    },
+    createErpnextConnectAdapter(ctx.client, ctx.company),
+    "project",
+    master,
+    );
+  } catch (err) {
+    const code = (err as { code?: string }).code;
+    if (code === COMMAND_IN_FLIGHT_FOR_RECORD) {
+      throw new AppError("This project is already being created in the ERP. Try again in a minute.", "send-in-flight");
+    }
+    if (code === "command-held") {
+      // the Admin's decision row, with its way out (send it again), in the setup checklist
+      await ctx.serviceClient.rpc("record_connect_record_held", { p_org_id: ctx.orgId, p_tier: "erpnext", p_kind: "project", p_pmo: project.id, p_name: project.name });
+      throw new AppError("We could not confirm whether the ERP created this project. An Admin can check it in the ERP and send it again from the setup checklist.", "send-held");
+    }
+    if (code === "commit-rejected") {
+      const reason = erpReason(err);
+      throw new AppError(`The ERP refused this project${reason ? `: ${reason}` : ". Check it in the ERP, then try again."}`, "send-refused");
+    }
+    throw err;
+  }
 }
 
 async function verifyErpProjectLinks(ctx: ErpSetupContext) {

@@ -1,24 +1,28 @@
 /**
- * AC-ENT-005 — FeatureRoute must NOT redirect while the org-features query is LOADING.
+ * AC-PLN-008 [Vitest] — what a gated route renders.
  *
- * Bug: FeatureRoute called useFeature(feature) which, while useOrgFeatures() is loading
- * (data === undefined), returns FEATURE_ENV_DEFAULT[key] (for 'incidents' that is false).
- * This caused an entitled user to be redirected to '/' on fresh login + navigation
- * before the org_features query resolved — a flash redirect race.
- *
- * Fix: FeatureRoute must call useOrgFeatures() directly to observe isLoading, and
- * render null (stay put, no redirect, no element) while loading for non-core features.
- * Core features (projects/dashboard/approvals/administration) always render immediately.
+ * Four states, and the differences between them are the whole point:
+ *   - core        → the page renders immediately;
+ *   - loading     → HOLD (null), so a deep-link never flash-denies a module the org has;
+ *   - read failed → the unavailable-with-retry state, never the words "not on your plan";
+ *   - resolved off→ the not-available state (the page is NOT rendered, and there is no redirect
+ *                   racing the shell — the old behaviour redirected to `/`; AC-PLN-008 asks the
+ *                   route to say why);
+ *   - resolved on → the page.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router';
 import React from 'react';
 
-// Mutable state the mocked useOrgFeatures returns; each test sets its scenario.
 const { useOrgFeaturesState } = vi.hoisted(() => ({
   useOrgFeaturesState: {
-    value: { isLoading: false, data: { incidents: false } as Record<string, boolean> | undefined },
+    value: {
+      isLoading: false,
+      isError: false,
+      data: { incidents: false } as Record<string, boolean> | undefined,
+      refetch: vi.fn(),
+    },
   },
 }));
 
@@ -31,78 +35,71 @@ import { FeatureRoute } from '../FeatureRoute';
 const Home = () => <div data-testid="home">Home</div>;
 const Guarded = () => <div data-testid="guarded">INCIDENTS</div>;
 
-const renderAt = (path: string, redirectTo?: string) =>
+const renderAt = (path: string, feature: 'incidents' | 'projects' = 'incidents') =>
   render(
     <MemoryRouter initialEntries={[path]}>
       <Routes>
         <Route path="/" element={<Home />} />
         <Route
           path="/guarded"
-          element={<FeatureRoute feature="incidents" element={<Guarded />} redirectTo={redirectTo} />}
+          element={<FeatureRoute feature={feature} element={feature === 'incidents' ? <Guarded /> : <div data-testid="guarded-projects">PROJECTS</div>} />}
         />
       </Routes>
     </MemoryRouter>,
   );
 
 beforeEach(() => {
-  useOrgFeaturesState.value = { isLoading: false, data: { incidents: false } };
+  useOrgFeaturesState.value = {
+    isLoading: false,
+    isError: false,
+    data: { incidents: false },
+    refetch: vi.fn(),
+  };
 });
 
-describe('AC-ENT-005 — FeatureRoute does not redirect while org-features query loads', () => {
-  it('case (a): query LOADING (isLoading:true, data:undefined) -> renders null (no element, no redirect)', () => {
-    useOrgFeaturesState.value = { isLoading: true, data: undefined };
+describe('AC-PLN-008 — FeatureRoute states', () => {
+  it('AC-PLN-008: resolved OFF renders the not-available state, not the page and not a redirect', () => {
     renderAt('/guarded');
-    // Should render NOTHING (null) — neither the guarded element NOR the home redirect target
+    expect(screen.getByTestId('feature-unavailable')).toBeInTheDocument();
     expect(screen.queryByTestId('guarded')).toBeNull();
+    // The old behaviour redirected to `/`; the route now stays put and explains itself.
     expect(screen.queryByTestId('home')).toBeNull();
   });
 
-  it('case (b): resolved ENABLED (isLoading:false, data:{incidents:true}) -> element visible', () => {
-    useOrgFeaturesState.value = { isLoading: false, data: { incidents: true } };
+  it('AC-PLN-008: resolved ON renders the page', () => {
+    useOrgFeaturesState.value = { ...useOrgFeaturesState.value, data: { incidents: true } };
     renderAt('/guarded');
     expect(screen.getByTestId('guarded')).toBeInTheDocument();
-    expect(screen.queryByTestId('home')).toBeNull();
+    expect(screen.queryByTestId('feature-unavailable')).toBeNull();
   });
 
-  it('case (c): resolved DISABLED (isLoading:false, data:{incidents:false}) -> redirected to "/"', () => {
-    useOrgFeaturesState.value = { isLoading: false, data: { incidents: false } };
+  it('AC-PLN-008: while the read is in flight the route HOLDS (no page, no denial)', () => {
+    useOrgFeaturesState.value = { ...useOrgFeaturesState.value, isLoading: true, data: undefined };
     renderAt('/guarded');
-    expect(screen.getByTestId('home')).toBeInTheDocument();
     expect(screen.queryByTestId('guarded')).toBeNull();
+    expect(screen.queryByTestId('feature-unavailable')).toBeNull();
+    expect(screen.queryByTestId('feature-unavailable-error')).toBeNull();
   });
 
-  it('case (c2): resolved DISABLED honours a custom redirectTo (preserved coverage)', () => {
-    useOrgFeaturesState.value = { isLoading: false, data: { incidents: false } };
-    render(
-      <MemoryRouter initialEntries={['/guarded']}>
-        <Routes>
-          <Route path="/custom" element={<div data-testid="custom">CUSTOM</div>} />
-          <Route
-            path="/guarded"
-            element={<FeatureRoute feature="incidents" element={<Guarded />} redirectTo="/custom" />}
-          />
-        </Routes>
-      </MemoryRouter>,
-    );
-    expect(screen.getByTestId('custom')).toBeInTheDocument();
+  it('AC-PLN-008: a failed read holds with a retry and never claims the plan is missing the module', () => {
+    const refetch = vi.fn();
+    useOrgFeaturesState.value = {
+      isLoading: false,
+      isError: true,
+      data: undefined,
+      refetch,
+    };
+    renderAt('/guarded');
+    expect(screen.getByTestId('feature-unavailable-error')).toBeInTheDocument();
+    expect(screen.queryByTestId('feature-unavailable')).toBeNull();
     expect(screen.queryByTestId('guarded')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /try again/i }));
+    expect(refetch).toHaveBeenCalled();
   });
 
-  it('core features (e.g., projects) render immediately even while loading', () => {
-    // Core features should render immediately (isCoreFeature returns true)
-    useOrgFeaturesState.value = { isLoading: true, data: undefined };
-    const GuardedProjects = () => <div data-testid="guarded-projects">PROJECTS</div>;
-    render(
-      <MemoryRouter initialEntries={['/guarded-projects']}>
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route
-            path="/guarded-projects"
-            element={<FeatureRoute feature="projects" element={<GuardedProjects />} />}
-          />
-        </Routes>
-      </MemoryRouter>,
-    );
+  it('AC-PLN-008: core keys render immediately even while the read is loading', () => {
+    useOrgFeaturesState.value = { ...useOrgFeaturesState.value, isLoading: true, data: undefined };
+    renderAt('/guarded', 'projects');
     expect(screen.getByTestId('guarded-projects')).toBeInTheDocument();
   });
 });

@@ -17,7 +17,6 @@ import { HELP_URL } from '@/src/lib/legalConfig';
  * index.css:46) — NOT text-primary (the action fill, sub-AA on dark per DESIGN.md).
  */
 export interface LegalPageLayoutProps {
-  eyebrow?: string;
   title: string;
   /** Drives the sibling cross-link: terms→Privacy, privacy→Terms. */
   variant: 'terms' | 'privacy';
@@ -25,7 +24,6 @@ export interface LegalPageLayoutProps {
 }
 
 export const LegalPageLayout: React.FC<LegalPageLayoutProps> = ({
-  eyebrow = 'Legal',
   title,
   variant,
   children,
@@ -56,7 +54,7 @@ export const LegalPageLayout: React.FC<LegalPageLayoutProps> = ({
         className="mx-auto max-w-3xl px-5 pb-16 pt-10 outline-none max-[921px]:px-4 max-[921px]:pt-6"
       >
         <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-          {eyebrow}
+          Legal
         </p>
 
         {/* Page title — page-title token (24/700/-0.02em); the single h1 (AC-LEG-004/027). */}

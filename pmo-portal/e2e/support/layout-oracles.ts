@@ -1,5 +1,5 @@
 import { expect, type Page, type Locator } from '@playwright/test';
-import { signIn, waitForFonts } from '../helpers';
+import { pinEnglishLocale, signIn, waitForFonts } from '../helpers';
 
 export async function findBleeders(page: Page, vw: number) {
   return page.evaluate((vw) => {
@@ -57,6 +57,12 @@ export async function findOversizedIcons(page: Page, maxSize: number): Promise<O
     document.querySelectorAll<SVGSVGElement>('svg[viewBox="0 0 24 24"]').forEach((svg) => {
       // Skip display:none elements.
       if (getComputedStyle(svg).display === 'none') return;
+      // The page-loading status is not a shared icon; its aria-hidden spinner grows as it rotates.
+      if (
+        svg.getAttribute('aria-hidden') === 'true' &&
+        svg.classList.contains('animate-spin') &&
+        svg.closest('[role="status"][aria-label="Loading page"]')
+      ) return;
 
       const rect = svg.getBoundingClientRect();
       // Skip zero-size (hidden / not laid out / off-screen).
@@ -961,17 +967,9 @@ export async function setDarkTheme(page: Page, dark: boolean) {
  *  mobile where the hamburger opens a drawer copy of the rail. Installs the English-profile read
  *  rewrite BEFORE sign-in so the DOM landmark labels never depend on a persisted seed locale. */
 export async function assertResponsiveRailAndDrawer(page: Page, email = 'exec@acme.test') {
-  // The DOM landmark labels below are English; avoid dependence on a persisted seed locale.
-  await page.route('**/rest/v1/profiles?*', async (route) => {
-    const url = route.request().url();
-    if (route.request().method() !== 'GET' || !/[?&]id=eq\./.test(url)) return route.fallback();
-    const response = await route.fetch({ maxRetries: 2 });
-    const body: unknown = await response.json();
-    if (body && !Array.isArray(body) && typeof body === 'object' && 'locale' in body) {
-      return route.fulfill({ response, json: { ...body, locale: 'en', number_locale: 'en-US' } });
-    }
-    return route.fulfill({ response, json: body });
-  });
+  // The DOM landmark labels below are English; avoid dependence on a persisted seed locale
+  // (shared helper — #994 lifted the repeated inline route pin into e2e/helpers.ts).
+  await pinEnglishLocale(page);
   await page.setViewportSize({ width: 1280, height: 800 });
   await signIn(page, email);
   await page.goto('/');

@@ -446,6 +446,8 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
       title={embedded
         ? t('finance:area.reportTitle', 'Revenue by project and month')
         : t('finance:area.reports', 'Reports')}
+      count={pack ? filteredRows.length : undefined}
+      total={pack ? pack.rows.length : undefined}
       headingLevel={embedded ? 2 : 1}
       description={embedded ? undefined : t('managementPack.description', 'Planned, recognised and invoiced revenue per project and month. All figures exclude tax.')}
       primaryAction={!embedded ? <BoardPackAction /> : undefined}
@@ -509,7 +511,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
           icon="table"
           title={t('managementPack.emptyTitle', 'No projects to report')}
           sub={t('managementPack.emptySub', 'Won and ongoing projects, and any project invoiced in this period, appear here.')}
-          action={may('create', 'salesInvoice') ? { label: t('financeHub:hub.newInvoice', 'New invoice'), onClick: () => navigate('/sales-invoices?create=1') } : undefined}
+          action={may('create', 'salesInvoice') ? { label: t('financeHub:hub.newInvoice', 'New invoice'), onClick: () => navigate('/finance/receivables?create=1') } : undefined}
         />
       )}
 

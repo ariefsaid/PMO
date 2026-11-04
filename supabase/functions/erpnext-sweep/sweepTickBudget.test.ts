@@ -76,7 +76,7 @@ function frappeModified(secondsFromBase: number): string {
   return `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}:${p(d.getUTCSeconds())}`;
 }
 
-interface ListRequest { doctype: string; limitStart: number; pageLength: number; tieProbe: boolean }
+interface ListRequest { doctype: string; limitStart: number; pageLength: number; tieProbe: boolean; filters: Array<[string, string, unknown]> }
 
 /** A Frappe-shaped fake ERP: evaluates the keyset filters over each doctype's master list and serves
  *  `limit_page_length` rows in `modified asc, name asc` order — paging works ONLY if the caller pages honestly.
@@ -101,7 +101,7 @@ function stubErpPages(
     const limitStart = Number(params.get('limit_start') ?? 0); // the keyset walk never sends one
     const rows = frappeListPage(docsByDoctype[doctype] ?? [], params);
     const filters = JSON.parse(params.get('filters') ?? '[]') as Array<[string, string, string]>;
-    requests.push({ doctype, limitStart, pageLength, tieProbe: filters.some(([f, op]) => f === 'name' && op === '>') });
+    requests.push({ doctype, limitStart, pageLength, tieProbe: filters.some(([f, op]) => f === 'name' && op === '>'), filters });
     onPage?.(doctype);
     return Promise.resolve(
       new Response(JSON.stringify({ data: rows }), {
@@ -238,6 +238,84 @@ const deskBudgetDoc = (name: string, modified: string) => ({
   modified,
   docstatus: 1,
   amended_from: null,
+});
+
+Deno.test('FR-PLN-006: erp_sync off leaves the inbound watermark untouched and the same employee applies after re-enable', async () => {
+  const db = statefulFakeDb();
+  const previousCursor = '2024-12-31 23:59:59';
+  db.watermarks.set('timesheets::Employee', previousCursor);
+  const env = stubEnv();
+  const erp = stubErpPages({ Employee: [employeeDoc(0)] });
+  const org = { ...orgBinding(['timesheets']), disabledFeatureKeys: ['erp_sync'] };
+  try {
+    const held = await sweepOrgDoctypesLive(db.client, org);
+    assert(held.error === 'feature-off:erp_sync', `the global switch should hold the inbound pass, got ${held.error}`);
+    assert(erp.requests.length === 0, 'a globally held inbound pass must not poll the ERP');
+    assert(db.watermarks.get('timesheets::Employee') === previousCursor, 'the off pass must leave the persisted cursor untouched');
+    assert(db.watermarkUpserts.length === 0, 'the off pass must not stamp an inbound watermark attempt');
+
+    org.disabledFeatureKeys = [];
+    const resumed = await sweepOrgDoctypesLive(db.client, org);
+    assert(resumed.error === undefined, `the re-enabled inbound pass should finish, got ${resumed.error}`);
+    assert(resumed.applied === 1, `the same employee change should apply after re-enable, got ${resumed.applied}`);
+    assert(erp.of('Employee').length > 0, 'the resumed pass must poll the same source change');
+    assert(db.watermarks.get('timesheets::Employee') === frappeCursor(employeeDoc(0).modified, employeeDoc(0).name), 'the resumed pass advances the original doctype watermark');
+  } finally {
+    erp.restore();
+    env.restore();
+  }
+});
+
+Deno.test('FR-PLN-006: timesheets off holds Employee polling, then the same source row applies after re-enable', async () => {
+  const db = statefulFakeDb();
+  const previousCursor = '2024-12-31 23:59:59';
+  db.watermarks.set('timesheets::Employee', previousCursor);
+  const env = stubEnv();
+  const erp = stubErpPages({ Employee: [employeeDoc(0)] });
+  const org = { ...orgBinding(['timesheets']), disabledFeatureKeys: ['timesheets'] };
+  try {
+    const held = await sweepOrgDoctypesLive(db.client, org);
+    assert(held.error === undefined, `a domain hold is normal sweep operation, got ${held.error}`);
+    assert(!erp.requests.some((request) => request.doctype === 'Employee'), 'a timesheets-off org must not poll Employee');
+    assert(db.watermarks.get('timesheets::Employee') === previousCursor, 'the off domain must leave its cursor untouched');
+
+    org.disabledFeatureKeys = [];
+    const resumed = await sweepOrgDoctypesLive(db.client, org);
+    assert(resumed.error === undefined && resumed.applied === 1, `the same Employee row must apply after re-enable, got ${JSON.stringify(resumed)}`);
+    assert(db.watermarks.get('timesheets::Employee') === frappeCursor(employeeDoc(0).modified, employeeDoc(0).name), 'the resumed domain advances its own watermark');
+  } finally {
+    erp.restore();
+    env.restore();
+  }
+});
+
+Deno.test('FR-PLN-006: imprest off skips only its Journal Entry feed until the same row resumes', async () => {
+  const db = statefulFakeDb();
+  const transfer = {
+    name: 'ACC-JV-IMPT-1', company: OURS, user_remark: 'impt:15150000-0000-0000-0000-0000000000e3:1791367200123',
+    modified: frappeModified(1), docstatus: 1, amended_from: null,
+  };
+  const env = stubEnv();
+  const erp = stubErpPages({ 'Journal Entry': [transfer] });
+  const org = { ...orgBinding(['expenses']), disabledFeatureKeys: ['imprest'] };
+  try {
+    await sweepOrgDoctypesLive(db.client, org);
+    assert(!erp.requests.some((request) => request.filters.some((filter) => filter[2] === 'impt:%')),
+      'an imprest-off org must not poll the imprest transfer feed');
+    assert(!db.watermarkUpserts.some((row) => row.domain === 'expenses::Journal Entry::imprest-transfer'),
+      'the held imprest feed leaves its own cursor untouched');
+
+    org.disabledFeatureKeys = [];
+    const resumed = await sweepOrgDoctypesLive(db.client, org);
+    assert(erp.requests.some((request) => request.filters.some((filter) => filter[2] === 'impt:%')),
+      'the re-enabled tick polls the same source Journal Entry');
+    assert(db.watermarks.get('expenses::Journal Entry::imprest-transfer') === frappeCursor(transfer.modified, transfer.name),
+      'the resumed imprest feed advances its kind-specific cursor');
+    assert(resumed.error === undefined, `the disabled outbox event is acknowledged as a normal sweep result, got ${resumed.error}`);
+  } finally {
+    erp.restore();
+    env.restore();
+  }
 });
 
 // ── A never-swept doctype gets its first attempt stamp and walk ─────────────────────────────────────

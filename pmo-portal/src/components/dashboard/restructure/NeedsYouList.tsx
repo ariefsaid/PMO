@@ -21,7 +21,7 @@ export const NeedsYouList: React.FC<NeedsYouListProps> = ({
   className = '',
 }) => {
   const { t } = useTranslation('dashboard');
-  if (isPending) return <ListState variant="loading" rows={Math.max(items.length, 3)} testId="needs-you-loading" className={className} />;
+  if (isPending) return <ListState variant="loading" shape="cards" rows={Math.max(items.length, 3)} testId="needs-you-loading" className={className} />;
   if (isError) return (
     <ListState
       variant="error"

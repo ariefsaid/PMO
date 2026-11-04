@@ -392,7 +392,26 @@ jobs:
       # Applies every migration in order and re-seeds from supabase/seed.sql so tests
       # always start from a clean, known state.
       - name: Reset DB (migrations + seed)
+        id: reset_db
         run: supabase db reset --yes
+
+      # #1196: a reset that cannot restart the stack reports only "Error status 502" after
+      # "Restarting containers...", which does not say WHICH service was unavailable. This
+      # failure-only step records bounded container health/status/exit fields plus status-code-only
+      # probes through Kong; it never prints env, credentials, rows, response bodies or container
+      # logs. The failed reset step above still decides the job outcome — this step cannot change it.
+      - name: Diagnose reset failure (bounded, redacted)
+        if: failure() && steps.reset_db.outcome == 'failure'
+        continue-on-error: true
+        run: node scripts/ci-reset-diagnostics.mjs --out /tmp/ci-reset-diagnostics.md
+      - name: Upload reset diagnostics
+        if: failure() && steps.reset_db.outcome == 'failure'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ci-reset-diagnostics-pgtap
+          path: /tmp/ci-reset-diagnostics.md
+          retention-days: 7
+          if-no-files-found: ignore
 
       - name: Project short-name migration round trip
         run: scripts/with-db-lock.sh node scripts/check-project-short-name-reversal.mjs
@@ -408,6 +427,24 @@ jobs:
       # pgTAP gate (0001..0060) — RLS, tenancy, SoD proofs.
       - name: pgTAP integration tests
         run: supabase test db
+
+      # AC-CQ-003 (issue #1281): contract-quantities upgrade/reversal round trip. The harness
+      # inlines migration 0337 and its rollback into a generated pgTAP file (deleted on exit)
+      # and runs it against the DB reset above — the suite is transactional, so migrations are
+      # still at HEAD here.
+      - name: Contract quantities rollback harness
+        run: scripts/test-contract-quantities-rollback.sh
+
+      # AC-PLN-005 (issue #1720 S2): the feature-enforcement rollback must actually strip the
+      # entitlement conjunct it appended to live policies, and re-applying must restore it. The
+      # harness inlines migration 0534 and its rollback into a generated pgTAP file (deleted on exit).
+      - name: Plans feature-enforcement rollback harness
+        run: scripts/test-plans-feature-enforcement-rollback.sh
+
+      # AC-PLN-012: reversing the allowance ledger removes only credits linked by the ledger, then
+      # reapplying the migration restores the scheduled-grant objects.
+      - name: Plans limit rollback harness
+        run: scripts/test-plan-limits-rollback.sh
 
       # A push to `dev` is the full suite that backstops every PR's narrowed run; when it fails, say
       # which merge it ran on (a squash merge's subject ends in the PR number).
@@ -452,7 +489,22 @@ jobs:
       - name: Start local Supabase stack
         run: supabase start -x studio,realtime,vector
       - name: Reset DB (migrations + seed)
+        id: reset_db
         run: supabase db reset --yes
+      # #1196: failure-only, bounded, redacted — see the pgtap job's comment for the rationale. A
+      # reset failure here used to leave NO browser artifacts and no service-level evidence at all.
+      - name: Diagnose reset failure (bounded, redacted)
+        if: failure() && steps.reset_db.outcome == 'failure'
+        continue-on-error: true
+        run: node scripts/ci-reset-diagnostics.mjs --out /tmp/ci-reset-diagnostics.md
+      - name: Upload reset diagnostics
+        if: failure() && steps.reset_db.outcome == 'failure'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ci-reset-diagnostics-browser-chromium-${{ matrix.shard }}
+          path: /tmp/ci-reset-diagnostics.md
+          retention-days: 7
+          if-no-files-found: ignore
       - name: Write .env.local for Vite / Playwright
         run: |
           eval "$(supabase status -o env)"
@@ -625,7 +677,24 @@ jobs:
       # Applies every migration in order and re-seeds from supabase/seed.sql so tests
       # always start from a clean, known state.
       - name: Reset DB (migrations + seed)
+        id: reset_db
         run: supabase db reset --yes
+
+      # #1196 (the run that filed the issue): failure-only, bounded, redacted — see the pgtap job's
+      # comment for the rationale. Ordered immediately after the reset so it runs before every later
+      # step is skipped by the failure.
+      - name: Diagnose reset failure (bounded, redacted)
+        if: failure() && steps.reset_db.outcome == 'failure'
+        continue-on-error: true
+        run: node scripts/ci-reset-diagnostics.mjs --out /tmp/ci-reset-diagnostics.md
+      - name: Upload reset diagnostics
+        if: failure() && steps.reset_db.outcome == 'failure'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ci-reset-diagnostics-integration
+          path: /tmp/ci-reset-diagnostics.md
+          retention-days: 7
+          if-no-files-found: ignore
 
       # pgTAP gate (0001..0060) — RLS, tenancy, SoD proofs. Skipped on a dispatch: the PR's
       # `pgtap` job already ran it (ci-e2e.sh sets run_pgtap when there is no PR).
@@ -712,6 +781,17 @@ jobs:
         continue-on-error: true
         working-directory: pmo-portal
         run: PLAYWRIGHT_JSON_OUTPUT_NAME=/tmp/pw-serial.json npx playwright test --project=serial --workers=1 --reporter=list,json
+
+      # Playwright clears the shared outputDir at the start of each invocation. Preserve serial
+      # traces here, before the consent project starts and clears /tmp/pmo-portal-test-results.
+      - name: Upload serial Playwright diagnostics
+        if: ${{ always() && !cancelled() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: playwright-serial-test-results
+          path: /tmp/pmo-portal-test-results/
+          retention-days: 7
+          if-no-files-found: ignore
 
       - name: E2E tests (Playwright / consent)
         id: consent_e2e

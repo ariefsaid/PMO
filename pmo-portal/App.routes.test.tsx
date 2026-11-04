@@ -38,6 +38,21 @@ describe('Application route table', () => {
     expect(React.isValidElement(route?.element)).toBe(true);
   });
 
+  it('AC-PR-UX-001: procurement route suspends inside its feature gate', () => {
+    const route = matchRoutes(appRouteConfig, '/procurement')?.at(-1)?.route;
+    const routeContent = (route?.element as React.ReactElement<{ element: React.ReactNode }>).props.element as React.ReactElement;
+
+    expect(routeContent.type).toBe(React.Suspense);
+  });
+
+  it('AC-EQU-017: the three equipment routes resolve to their own pages', () => {
+    for (const [url, path] of [['/equipment', '/equipment'], ['/equipment/assets', '/equipment/assets'], ['/equipment/assets/a1', '/equipment/assets/:assetId']]) {
+      const route = matchRoutes(appRouteConfig, url)?.at(-1)?.route;
+      expect(route?.path, url).toBe(path);
+      expect(React.isValidElement(route?.element), url).toBe(true);
+    }
+  });
+
   it('AC-1405-ROUTE-002: legacy Finance list URLs redirect to their canonical area', () => {
     const redirects = [
       ['/sales-invoices', '/finance/receivables'],

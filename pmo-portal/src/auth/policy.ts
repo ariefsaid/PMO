@@ -36,6 +36,7 @@ export type Action =
   | 'download_pdf'
   | 'record_efaktur'
   | 'assign_project'
+  | 'pair_invoices'
   | 'manage_external_bindings'
   | 'view_financial_directory'
   | 'manage'
@@ -44,7 +45,13 @@ export type Action =
   | 'upload'
   | 'withdraw'
   | 'post'
-  | 'confirm';
+  | 'confirm'
+  | 'resolve'
+  | 'prepare'
+  | 'request'
+  | 'decide'
+  | 'revise'
+  | 'link';
 
 export type Entity =
   | 'project'
@@ -94,6 +101,7 @@ export type Entity =
   | 'orgProjectClassification'
   | 'employeeLink'
   | 'pushHold'
+  | 'odooHeldCommand'
   | 'managementPack'
   | 'projectProgress'
   | 'fxRate'
@@ -105,7 +113,16 @@ export type Entity =
   | 'warehouse'
   | 'stockDocument'
   | 'materialAllowance'
-  | 'reorderLevel';
+  | 'reorderLevel'
+  | 'subcontractLines'
+  | 'subcontractAcceptance'
+  | 'poVariation'
+  | 'equipmentAsset'
+  | 'equipmentUsage'
+  | 'equipmentCosting'
+  | 'tmRate'
+  | 'tmClaim'
+  | 'tmSignoff';
 
 export interface PolicyContext {
   /** The REAL JWT role (not the impersonated effectiveRole). */
@@ -121,7 +138,7 @@ export interface PolicyContext {
     /** Project task write ownership and saved-view owner for record-scoped checks. */
     externallyOwned?: boolean;
     user_id?: string | null;
-    /** Author id — for the document-edit author rule (A-7). */
+    /** Author id — for equipment usage visibility and the document-edit author rule (A-7). */
     author_id?: string | null;
     /** Task creator — DD-TASK-8. Trigger-stamped server-side (`0204`), never client-set, so it is
      *  safe to read as an edit right here. Distinct from `assignee_id`: a task you created and
@@ -139,6 +156,8 @@ export interface PolicyContext {
     /** The sheet's approver (`timesheets.approved_by`) — the P3b `push_timesheet` oracle
      *  (FR-TSP-011): the sheet's OWN approver may always push it, regardless of role. */
     approved_by?: string | null;
+    /** The project's manager (`projects.project_manager_id`) — #1519 equipment approval / allowance write scope. */
+    project_manager_id?: string | null;
     [k: string]: unknown;
   };
 }
@@ -173,6 +192,15 @@ const TAX_SETUP: Role[] = ['Admin', 'Finance'];
 const IMPREST_SETUP: Role[] = ['Admin', 'Finance'];
 /** #1271: who may save / end / preview cost attribution rules — mirrors the 0376 RPC gate. */
 const COST_ATTRIBUTION_WRITE: Role[] = ['Admin', 'Finance'];
+/** #1519: who may approve equipment usage — mirrors equipment_can_approve (PM only on projects they manage). */
+const EQUIPMENT_APPROVE: Role[] = ['Admin', 'Executive', 'Finance', 'Project Manager'];
+/** #1519: who may set what an hour is worth — mirrors save/end/preview_equipment_costing (Admin, Finance). */
+const EQUIPMENT_COSTING_WRITE: Role[] = ['Admin', 'Finance'];
+/** #1514: who may set the CLIENT contract rate and assign people to it — mirrors save/end_contract_rate_line
+ *  and set/end_contract_rate_assignee (0515: Admin, Finance). Cost and revenue are separate settings, never shared. */
+const TM_RATE_WRITE: Role[] = ['Admin', 'Finance'];
+/** #1514: who may confirm a client sign-off — mirrors confirm_tm_signoff (0517: Admin, Finance, never the preparer). */
+const TM_CONFIRM: Role[] = ['Admin', 'Finance'];
 
 const has = (set: Role[], role: Role | null): boolean => role != null && set.includes(role);
 
@@ -593,6 +621,8 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     record_efaktur: allow(REVENUE_WRITE),
     // PMO project attribution remains separate from the ERP invoice body and is role-gated server-side.
     assign_project: allow(REVENUE_WRITE),
+    // ECA-5: accept PMO↔ERP invoice pairs (accept_invoice_pairs re-asserts Admin/Finance; this is UX only).
+    pair_invoices: allow(REVENUE_WRITE),
     // Approve/submit an invoice = the revenue write set (Admin + Finance). Migration 0114 gates the
     // `submit_sales_invoice` RPC on exactly these roles, so offering Exec/PM the affordance would
     // render a button that 403s.
@@ -673,6 +703,69 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   // #1271: cost attribution rules — mirrors save/end/preview_cost_attribution (0376: active Admin or Finance).
   // UX ONLY — the RPCs are the authority (ADR-0016).
   costAttribution: { manage: allow(COST_ATTRIBUTION_WRITE) },
+  /**
+   * Equipment usage and allocation (#1519, migrations 0447/0460/0471). UX ONLY — transition_equipment_usage,
+   * save_equipment_costing and the reads are the authority (ADR-0016); the FE may be stricter, never looser.
+   *   equipmentAsset  ← equipment_assets RLS: every active member reads (the grid's picker); Admin/PM keep it by hand.
+   *   equipmentUsage  ← create = any active member (`save_equipment_usage`); transition = the author NEVER (the SoD mirror;
+   *                     `author_id` is NOT NULL server-side) and a PM only on a project they manage — the mirror of
+   *                     `equipment_can_approve`.
+   *   equipmentCosting← Admin/Finance write; approval rank reads.
+   */
+  equipmentAsset: {
+    view: allow(ALL),
+    create: allowUnlessViewOnly(['Admin', 'Project Manager']),
+    edit: allowUnlessViewOnly(['Admin', 'Project Manager']),
+    delete: allowUnlessViewOnly(ADMIN),
+  },
+  equipmentUsage: {
+    create: allowUnlessViewOnly(ALL),
+    transition: (role, ctx) =>
+      ctx.record?.viewOnly !== true &&
+      has(EQUIPMENT_APPROVE, role) &&
+      !!ctx.currentUserId &&
+      ctx.record?.author_id !== ctx.currentUserId &&
+      (role !== 'Project Manager' || ctx.record?.project_manager_id === ctx.currentUserId),
+    view: (role, ctx) => has(EQUIPMENT_APPROVE, role) || (
+      role === 'Engineer' && !!ctx.currentUserId && ctx.record?.author_id === ctx.currentUserId
+    ), // Engineers may read their own entries; the audience above may read amounts and others' entries.
+  },
+  equipmentCosting: { manage: allowUnlessViewOnly(EQUIPMENT_COSTING_WRITE), view: allow(EQUIPMENT_APPROVE) },
+  /**
+   * Time-and-materials claims (#1514, migrations 0515-0517). UX ONLY — the RPCs are the authority (ADR-0016); the FE
+   * may be stricter, never looser.
+   *   tmRate     ← `manage` = save/end a rate line and assign a person: Admin or Finance (0515). A PM reads the rates
+   *                of a project they manage but never writes them; an Executive never writes them either.
+   *   tmClaim    ← `prepare` (assemble, deselect, prepare the sign-off) mirrors `may_record_project_progress` (0245):
+   *                Finance rank and above on any project, or the project's own PM (`record.project_manager_id`).
+   *   tmSignoff  ← `confirm` mirrors ALL of 0517 `confirm_tm_signoff`, both halves of its separation-of-duties rule:
+   *                Admin or Finance (never a view-as session) AND neither SoD identity — the RPC refuses when the actor
+   *                is `prepared_by` (the assembler) OR `signoff_prepared_by` (who prepared the sign-off), so the mirror
+   *                reads both keys. Its ONE exception is mirrored too: an organisation with a single active member may
+   *                confirm their own sign-off (basis `sole_operator`, the 0298 predicate), which the record opens with
+   *                `soleActiveMember`/`sole_active_member` (T8 supplies it from the org's member list — exactly one
+   *                active profile). Without the flag the refusal stands, so the mirror is the plan's stricter reading;
+   *                a record carrying neither identity offers the affordance and lets the RPC's `42501` speak.
+   */
+  tmRate: { manage: allowUnlessViewOnly(TM_RATE_WRITE) },
+  tmClaim: {
+    prepare: (role, ctx) =>
+      ctx.record?.viewOnly !== true &&
+      (has(MONEY_AUTHORITY, role) ||
+        (role === 'Project Manager' && !!ctx.currentUserId && ctx.record?.project_manager_id === ctx.currentUserId)),
+  },
+  tmSignoff: {
+    confirm: (role, ctx) => {
+      if (ctx.record?.viewOnly === true || !has(TM_CONFIRM, role) || !ctx.currentUserId) return false;
+      const uid = ctx.currentUserId;
+      const assembler = ctx.record?.preparedBy ?? ctx.record?.prepared_by;
+      const signoffPreparer = ctx.record?.signoffPreparedBy ?? ctx.record?.signoff_prepared_by;
+      if (uid !== assembler && uid !== signoffPreparer) return true;
+      // The 0298 sole-active-member exception: the same person holds both identities and the RPC accepts with basis
+      // `sole_operator`. Hiding it would leave a one-person organisation unable to confirm (and invoice) a claim.
+      return ctx.record?.soleActiveMember === true || ctx.record?.sole_active_member === true;
+    },
+  },
   // #876 slice 2: a vendor's default VAT / PPh treatment. UX ONLY — set_vendor_tax_defaults is the authority.
   vendorTaxDefault: { manage: allow(TAX_SETUP) },
   orgProjectNumbering: {
@@ -692,6 +785,11 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   pushHold: {
     manage: allow(ADMIN),
   },
+  // #1505 P8 (FR-OPP-063/094): resolving a held Odoo payment is Admin or Finance, and never while viewing as another role.
+  // UX ONLY: `resolve_held_outbox_command` re-checks role, org, standing and that the resolver is not the dispatcher.
+  odooHeldCommand: {
+    resolve: (role, ctx) => has(TAX_SETUP, role) && ctx.record?.viewOnly !== true,
+  },
   // #765 (DD-MMP-4): the management pack mirrors the revenue READ set (salesInvoice.view). RLS on
   // sales_invoices admits every active member; the FE is stricter, exactly as for the invoice lists.
   managementPack: {
@@ -706,6 +804,28 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
       (role === 'Project Manager' &&
         !!ctx.currentUserId &&
         ctx.record?.project_manager_id === ctx.currentUserId),
+  },
+  // #1513 S6: subcontract lines, acceptances, and variations. UX ONLY — RPCs and RLS are the authority.
+  subcontractLines: {
+    edit: allowUnlessViewOnly(['Admin', 'Finance', 'Project Manager']),
+  },
+  subcontractAcceptance: {
+    prepare: (role, ctx) =>
+      ctx.record?.viewOnly !== true &&
+      (has(MONEY_AUTHORITY, role) ||
+        (role === 'Project Manager' &&
+          !!ctx.currentUserId &&
+          ctx.record?.project_manager_id === ctx.currentUserId)),
+    confirm: allowUnlessViewOnly(['Admin', 'Finance']),
+  },
+  poVariation: {
+    request: (role, ctx) =>
+      ctx.record?.viewOnly !== true &&
+      (has(MASTER_DATA, role) ||
+        (has(ALL, role) && !!ctx.currentUserId && ctx.record?.requested_by_id === ctx.currentUserId)),
+    decide: allowUnlessViewOnly(['Admin', 'Finance', 'Executive', 'Project Manager']),
+    revise: allowUnlessViewOnly(['Admin', 'Finance', 'Project Manager']),
+    link: allowUnlessViewOnly(['Admin', 'Finance', 'Project Manager']),
   },
 };
 

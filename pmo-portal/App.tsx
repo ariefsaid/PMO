@@ -1,5 +1,16 @@
 import React, { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate, useParams, useRoutes, type RouteObject } from 'react-router';
+import {
+  createBrowserRouter,
+  Navigate,
+  Outlet,
+  useLocation,
+  useNavigate,
+  useParams,
+  useRoutes,
+  type RouteObject,
+  type DataRouter,
+} from 'react-router';
+import { RouterProvider } from 'react-router/dom';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { queryClient } from '@/src/lib/queryClient';
@@ -45,8 +56,8 @@ import { EnvBadge } from '@/src/components/EnvBadge';
 import { ErrorBoundary } from '@/src/components/ErrorBoundary';
 import { DocumentViewerProvider } from '@/src/components/documents';
 import { FeatureRoute } from '@/src/components/FeatureRoute';
-import { isFeatureEnabled } from '@/src/lib/features';
-import { FEATURE_ENV_DEFAULT } from '@/src/lib/features';
+import { useFeature } from '@/src/auth/useFeature';
+import { FEATURE_ENV_DEFAULT, type EntitleableKey } from '@/src/lib/features';
 import { useOrgFeatures } from '@/src/hooks/useOrgFeatures';
 import { buildViewsPaletteItems } from '@/src/lib/viewspec/paletteItems';
 import { contextualListReturnNavigation } from '@/src/lib/listReturnContext';
@@ -76,6 +87,9 @@ const ProcurementCreate = React.lazy(() => import('./pages/ProcurementCreate'));
 const TimesheetsPage = React.lazy(() => import('./pages/Timesheets'));
 const ImprestFloatsPage = React.lazy(() => import('./pages/ImprestFloats'));
 const ImprestFloatDetailPage = React.lazy(() => import('./pages/ImprestFloatDetail'));
+const EquipmentUsagePage = React.lazy(() => import('./pages/equipment/EquipmentUsage'));
+const EquipmentAssetsPage = React.lazy(() => import('./pages/equipment/EquipmentAssets'));
+const EquipmentAssetDetailPage = React.lazy(() => import('./pages/equipment/EquipmentAssetDetail'));
 const ApprovalsPage = React.lazy(() => import('./pages/Approvals'));
 const CompaniesPage = React.lazy(() => import('./pages/Companies'));
 const MasterDataPage = React.lazy(() => import('./pages/MasterData'));
@@ -167,6 +181,14 @@ export const FinanceLegacyRedirect: React.FC<{ to: string; paymentsView?: boolea
  * redirect to `/admin/integrations`, which does not exist, so every completed connect landed on
  * Not Found (m365-operator-client-separation spec §1.3).
  */
+/**
+ * Gate one route on a resolved switch (AC-PLN-008). A one-line wrapper so every gated route reads
+ * the same way and nobody hand-rolls a second resolution path; `<FeatureRoute>` owns the states.
+ */
+const gated = (feature: EntitleableKey, element: React.ReactNode): React.ReactNode => (
+  <FeatureRoute feature={feature} element={element} />
+);
+
 // eslint-disable-next-line react-refresh/only-export-components -- route data is shared with route-table tests
 export const appRouteConfig: RouteObject[] = [
   { path: '/', element: <ExecutiveDashboard /> },
@@ -178,25 +200,32 @@ export const appRouteConfig: RouteObject[] = [
   { path: '/projects/new', element: <ProjectNew /> },
   { path: '/projects/:projectId/:tab', element: <ProjectDetail /> },
   { path: '/projects/:projectId', element: <ProjectDetail /> },
-  { path: '/sales', element: <SalesPipeline /> },
+  { path: '/sales', element: gated('sales_pipeline', <SalesPipeline />) },
   // Model B: the canonical detail route is /projects/:id; /sales/:id redirects there.
-  { path: '/sales/:opportunityId', element: <SalesDetailRedirect /> },
-  { path: '/procurement', element: <ProcurementPage /> },
-  { path: '/procurement/new', element: <ProcurementCreate /> },
+  { path: '/sales/:opportunityId', element: gated('sales_pipeline', <SalesDetailRedirect />) },
+  {
+    path: '/procurement',
+    element: gated('procurement', (
+      <Suspense fallback={<LoadingFallback />}>
+        <ProcurementPage />
+      </Suspense>
+    )),
+  },
+  { path: '/procurement/new', element: gated('procurement', <ProcurementCreate />) },
   // Tabbed record shell (mirrors /projects/:id/:tab). The bare /procurement/:id keeps working
   //   (defaults to the Overview tab); :tab deep-links a panel.
-  { path: '/procurement/:procurementId', element: <ProcurementDetails /> },
-  { path: '/procurement/:procurementId/:tab', element: <ProcurementDetails /> },
-  { path: '/timesheets', element: <TimesheetsPage /> },
+  { path: '/procurement/:procurementId', element: gated('procurement', <ProcurementDetails />) },
+  { path: '/procurement/:procurementId/:tab', element: gated('procurement', <ProcurementDetails />) },
+  { path: '/timesheets', element: gated('timesheets', <TimesheetsPage />) },
   { path: '/approvals', element: <ApprovalsPage /> },
-  { path: '/companies', element: <CompaniesPage /> },
+  { path: '/companies', element: gated('crm', <CompaniesPage />) },
   // #1504 S5 (FR-ODC-111): the Odoo directories, read from PMO's mirror. Reached from the Odoo card.
   { path: '/master-data/:kind', element: <MasterDataPage /> },
   // CW-4b: /companies/:id — the routable Company record page (retires the drawer-as-record).
-  { path: '/companies/:companyId', element: <CompanyDetailPage /> },
-  { path: '/contacts', element: <ContactsPage /> },
+  { path: '/companies/:companyId', element: gated('crm', <CompanyDetailPage />) },
+  { path: '/contacts', element: gated('crm', <ContactsPage />) },
   // CW-4b: /contacts/:id — the routable Contact record page (retires the drawer-as-record).
-  { path: '/contacts/:contactId', element: <ContactDetailPage /> },
+  { path: '/contacts/:contactId', element: gated('crm', <ContactDetailPage />) },
   // Incidents is hidden behind the interim `incidents` UI feature flag (UI-hide-first):
   //   FeatureRoute renders the page when enabled, else redirects deep-links to home instead of
   //   404. CW-4a: /incidents/:id is the routable detail page when the module is on.
@@ -214,8 +243,12 @@ export const appRouteConfig: RouteObject[] = [
   { path: '/expenses', element: <ExpenseClaimsPage /> },
   { path: '/expenses/new', element: <ExpenseClaimNewPage /> },
   { path: '/expenses/:claimId', element: <ExpenseClaimDetailPage /> },
-  { path: '/imprest', element: <ImprestFloatsPage /> },
-  { path: '/imprest/:floatId', element: <ImprestFloatDetailPage /> },
+  { path: '/imprest', element: gated('imprest', <ImprestFloatsPage />) },
+  { path: '/imprest/:floatId', element: gated('imprest', <ImprestFloatDetailPage />) },
+  // #1519: equipment usage grid, asset reference and per-asset costing.
+  { path: '/equipment', element: <EquipmentUsagePage /> },
+  { path: '/equipment/assets', element: <EquipmentAssetsPage /> },
+  { path: '/equipment/assets/:assetId', element: <EquipmentAssetDetailPage /> },
   { path: '/reports', element: <FinanceLegacyRedirect to="/finance/reports" /> },
   { path: '/administration', element: <AdministrationEntryRedirect /> },
   { path: '/administration/users', element: <AdministrationPage /> },
@@ -223,7 +256,7 @@ export const appRouteConfig: RouteObject[] = [
   { path: '/administration/accounting', element: <AdministrationPage /> },
   { path: '/administration/projects', element: <AdministrationPage /> },
   { path: '/administration/credits', element: <AdministrationPage /> },
-  { path: '/administration/exchange-rates', element: <AdministrationPage /> },
+  { path: '/administration/exchange-rates', element: gated('multi_currency', <AdministrationPage />) },
   { path: '/administration/cost-attribution', element: <AdministrationPage /> },
   { path: '/administration/usage', element: <AdministrationPage /> },
   { path: '/administration/features', element: <AdministrationPage /> },
@@ -234,14 +267,14 @@ export const appRouteConfig: RouteObject[] = [
   { path: '/finance', element: <FinanceAccessRoute><FinanceHubPage /></FinanceAccessRoute> },
   { path: '/finance/receivables', element: <FinanceAccessRoute><FeatureRoute feature="revenue" element={<ReceivablesPage />} /></FinanceAccessRoute> },
   { path: '/finance/payables', element: <FinanceAccessRoute><FeatureRoute feature="procurement" element={<PayablesPage />} /></FinanceAccessRoute> },
-  { path: '/finance/reports', element: <FinanceAccessRoute><FeatureRoute feature="revenue" element={<ManagementPackPage />} /></FinanceAccessRoute> },
-  { path: '/finance/statements', element: <FinanceAccessRoute><FinancialStatementsPage /></FinanceAccessRoute> },
+  { path: '/finance/reports', element: <FinanceAccessRoute><FeatureRoute feature="management_pack" element={<ManagementPackPage />} /></FinanceAccessRoute> },
+  { path: '/finance/statements', element: <FinanceAccessRoute>{gated('financial_statements', <FinancialStatementsPage />)}</FinanceAccessRoute> },
   { path: '/sales-invoices', element: <FinanceLegacyRedirect to="/finance/receivables" /> },
-  { path: '/sales-invoices/:invoiceId', element: <SalesInvoicesPage /> },
+  { path: '/sales-invoices/:invoiceId', element: gated('sales_invoices', <SalesInvoicesPage />) },
   { path: '/incoming-payments', element: <FinanceLegacyRedirect to="/finance/receivables" paymentsView /> },
   { path: '/incoming-payments/:receiptId', element: <IncomingPaymentsPage /> },
   { path: '/revenue-by-project', element: <FinanceLegacyRedirect to="/finance/reports" /> },
-  { path: '/erp-purchases', element: <ErpPurchasesPage /> },
+  { path: '/erp-purchases', element: gated('erp_purchases', <ErpPurchasesPage />) },
   { path: '/financial-statements', element: <FinanceLegacyRedirect to="/finance/statements" /> },
   // M365 connection-model (D2): the personal-connect surface any active member of an entitled
   //   org can reach. This is the route the token-custody callback redirects to (Phase A) —
@@ -260,14 +293,14 @@ export const appRouteConfig: RouteObject[] = [
   //   override. Declared before the `*` catch-all so it resolves to a real route.
   { path: '/settings/profile', element: <ProfileSettingsPage /> },
   // Stock (#1512). Every segment is static or under /documents, so none can shadow another.
-  { path: '/stock', element: <StockOnHandPage /> },
-  { path: '/stock/setup', element: <StockSetupPage /> },
-  { path: '/stock/documents', element: <StockDocumentsPage /> },
-  { path: '/stock/documents/:documentId', element: <StockDocumentDetailPage /> },
-  { path: '/stock/documents/:documentId/edit', element: <StockCountPage /> },
-  { path: '/stock/ledger', element: <StockLedgerPage /> },
-  { path: '/stock/reorder', element: <StockReorderPage /> },
-  { path: '/stock/new/:kind', element: <StockMovementFormPage /> },
+  { path: '/stock', element: gated('stock', <StockOnHandPage />) },
+  { path: '/stock/setup', element: gated('stock', <StockSetupPage />) },
+  { path: '/stock/documents', element: gated('stock', <StockDocumentsPage />) },
+  { path: '/stock/documents/:documentId', element: gated('stock', <StockDocumentDetailPage />) },
+  { path: '/stock/documents/:documentId/edit', element: gated('stock', <StockCountPage />) },
+  { path: '/stock/ledger', element: gated('stock', <StockLedgerPage />) },
+  { path: '/stock/reorder', element: gated('stock', <StockReorderPage />) },
+  { path: '/stock/new/:kind', element: gated('stock', <StockMovementFormPage />) },
   { path: '*', element: <NotFoundPage /> },
 ];
 
@@ -288,10 +321,15 @@ export const ShellChrome: React.FC = () => {
   // A2: Read panel open-state controls from AgentRuntimeProvider context.
   // These are stable callbacks (never change identity), safe to use here.
   const { togglePanel, openPanel, open: assistantOpen } = useAgentRuntimeContext();
+  // The two deployment-gated keys: entitlement AND the env kill switch, in ONE place (useFeature).
+  // An operator cannot grant what the deployment turned off, and the env flag still hides the
+  // surface for every org (S3 constraint; `aiComposer` stays an env-only sub-flag).
+  const assistantEntitled = useFeature('agent_assistant');
+  const userViewsEntitled = useFeature('user_views');
 
   // A2: Register ⌘J / Ctrl+J global hotkey — flag-gated (FR-AP-004).
   useAssistantHotkey({
-    enabled: isFeatureEnabled('agentAssistant'),
+    enabled: assistantEntitled,
     onToggle: togglePanel,
   });
 
@@ -480,7 +518,8 @@ export const ShellChrome: React.FC = () => {
     () => [
       ...recordSearch.records,
       ...(realRole ? modulesForRoleWithOperator(realRole as UserRole, isOperator) : [])
-        .filter((module) => !module.feature || Boolean(orgFeatures?.[module.feature] ?? FEATURE_ENV_DEFAULT[module.feature]))
+        .filter((module) => !module.feature || (orgFeatures?.[module.feature] ?? FEATURE_ENV_DEFAULT[module.feature]) === true)
+        .filter((module) => !module.unlessFeature || (orgFeatures?.[module.unlessFeature] ?? FEATURE_ENV_DEFAULT[module.unlessFeature]) !== true)
         .map((m) => ({
         id: `nav-${m.module}`,
         group: 'Navigate',
@@ -501,11 +540,11 @@ export const ShellChrome: React.FC = () => {
         run: () => navigate('/administration/users'),
       }] : []),
       // "Views" group — appended after "Navigate" when the feature is on (FR-VR-070..071)
-      ...(isFeatureEnabled('userViews')
+      ...(userViewsEntitled
         ? buildViewsPaletteItems(userViewsList, navigate)
         : []),
     ],
-    [navigate, recordSearch.records, realRole, isOperator, needsOperatorRecovery, orgFeatures, t, userViewsList]
+    [navigate, recordSearch.records, realRole, isOperator, needsOperatorRecovery, orgFeatures, t, userViewsList, userViewsEntitled]
   );
 
   return (
@@ -517,9 +556,9 @@ export const ShellChrome: React.FC = () => {
             railActiveOverride={railActiveOverride}
             operatorAccessError={needsOperatorRecovery}
             // A2: pass openPanel so the Rail "Assistant" button opens the panel (FR-AP-005).
-            onOpenAssistant={isFeatureEnabled('agentAssistant') ? openPanel : undefined}
+            onOpenAssistant={assistantEntitled ? openPanel : undefined}
             // A2: thread open state so aria-pressed reflects the actual panel state (WCAG 4.1.2).
-            assistantPanelOpen={isFeatureEnabled('agentAssistant') ? assistantOpen : undefined}
+            assistantPanelOpen={assistantEntitled ? assistantOpen : undefined}
           />
         }
         header={
@@ -533,9 +572,9 @@ export const ShellChrome: React.FC = () => {
         banner={<ImpersonationBanner />}
         railOpen={railOpen}
         onCloseRail={() => setRailOpen(false)}
-        assistantOpen={isFeatureEnabled('agentAssistant') ? assistantOpen : false}
+        assistantOpen={assistantEntitled ? assistantOpen : false}
         // A2: mount the panel as a sibling of <main> when flag is on (FR-AP-002, D-A2-6).
-        assistant={isFeatureEnabled('agentAssistant') ? <AssistantPanel /> : undefined}
+        assistant={assistantEntitled ? <AssistantPanel /> : undefined}
       >
         <AppRoutes />
       </AppShell>
@@ -549,7 +588,7 @@ export const ShellChrome: React.FC = () => {
         error={recordSearch.isError}
         onRetry={recordSearch.refetch}
         onAskAi={
-          isFeatureEnabled('agentAssistant')
+          assistantEntitled
             ? (query) => {
                 setPaletteOpen(false);
                 openPanel(query);
@@ -580,7 +619,7 @@ const Shell: React.FC = () => {
             Flag-off: provides runtime=null, open=false — zero overhead.
             ADR-0045 §3: AgentContextProvider nests inside — it reads the router
             location (useLocation, available here since Shell renders inside
-            BrowserRouter) and is the source useAssistantPanel reads via
+            the data router) and is the source useAssistantPanel reads via
             useAgentContext() when threading context on createRun/followUp. */}
         <AgentRuntimeProvider>
           <AgentContextProvider>
@@ -602,39 +641,74 @@ const Shell: React.FC = () => {
   );
 };
 
+// ── Router (data router — enables router-level Back/Forward blocking) ──────
+/**
+ * The application's router, as DATA (#1525). `createBrowserRouter` replaces the plain
+ * `<BrowserRouter><Routes>` tree so the shared unsaved-changes guard can hold a browser
+ * Back/Forward change (`useBlocker` needs a data router): the router reverts the history entry
+ * and keeps the form mounted until the user confirms.
+ *
+ * Every path, layout, redirect, lazy chunk and the `/` + `/*` history envelope is unchanged:
+ * the five public pages stay outside the gates, `<RequireAuth>` then `<RequireInviteAccepted>`
+ * still wrap `/oauth/consent` and the whole authenticated shell, and the authenticated shell
+ * still resolves its own `appRouteConfig` table via `AppRoutes`, exactly as before.
+ * `<AnalyticsProvider>` keeps the position it had between the router and the routes (it reads
+ * `useLocation`), now as the root layout route.
+ */
+// eslint-disable-next-line react-refresh/only-export-components -- the entry point creates the one router instance
+export const createAppRouter = (): DataRouter => createBrowserRouter([
+  {
+    element: <AnalyticsProvider><Outlet /></AnalyticsProvider>,
+    children: [
+      { path: '/login', element: <LoginPage /> },
+      { path: '/terms', element: <TermsPage /> },
+      { path: '/privacy', element: <PrivacyPage /> },
+      { path: '/reset-password', element: <ResetPasswordPage /> },
+      { path: '/update-password', element: <UpdatePasswordPage /> },
+      {
+        element: <RequireAuth />,
+        children: [
+          {
+            element: <RequireInviteAccepted />,
+            children: [
+              // #728: Supabase's OAuth server sends the browser here to approve an outside
+              // client (the PMO CLI). Signed-in only, but outside the app shell.
+              { path: '/oauth/consent', element: <OAuthConsentPage /> },
+              { path: '/*', element: <Shell /> },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+]);
+
 // ── Root (eager — auth layer is never lazy-split) ─────────────────────────
-const App: React.FC = () => (
-  <>
-    {/* Non-prod backend ribbon (renders null in prod) — see VITE_APP_ENV in docs/environments.md. */}
-    <EnvBadge />
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        {/* Locale resolution + i18next. Below AuthProvider because it needs the profile; above
-            BrowserRouter because every string-rendering subtree sits under it (FR-L10N-003). */}
-        <I18nProvider>
-          <BrowserRouter>
-            <AnalyticsProvider>
-              <Routes>
-                <Route path="/login" element={<LoginPage />} />
-                <Route path="/terms" element={<TermsPage />} />
-                <Route path="/privacy" element={<PrivacyPage />} />
-                <Route path="/reset-password" element={<ResetPasswordPage />} />
-                <Route path="/update-password" element={<UpdatePasswordPage />} />
-                <Route element={<RequireAuth />}>
-                  <Route element={<RequireInviteAccepted />}>
-                    {/* #728: Supabase's OAuth server sends the browser here to approve an outside
-                        client (the PMO CLI). Signed-in only, but outside the app shell. */}
-                    <Route path="/oauth/consent" element={<OAuthConsentPage />} />
-                    <Route path="/*" element={<Shell />} />
-                  </Route>
-                </Route>
-              </Routes>
-            </AnalyticsProvider>
-          </BrowserRouter>
-        </I18nProvider>
-      </AuthProvider>
-    </QueryClientProvider>
-  </>
-);
+export interface AppProps {
+  /**
+   * The router instance, created once by the entry point outside React. Tests that mount the root
+   * omit it and get a router per mount, so each mount starts from the URL it set up.
+   */
+  router?: DataRouter;
+}
+
+const App: React.FC<AppProps> = ({ router: injectedRouter }) => {
+  const [router] = useState<DataRouter>(() => injectedRouter ?? createAppRouter());
+  return (
+    <>
+      {/* Non-prod backend ribbon (renders null in prod) — see VITE_APP_ENV in docs/environments.md. */}
+      <EnvBadge />
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          {/* Locale resolution + i18next. Below AuthProvider because it needs the profile; above
+              the router because every string-rendering subtree sits under it (FR-L10N-003). */}
+          <I18nProvider>
+            <RouterProvider router={router} />
+          </I18nProvider>
+        </AuthProvider>
+      </QueryClientProvider>
+    </>
+  );
+};
 
 export default App;

@@ -130,8 +130,9 @@ export interface DispatchMoneyOutboxDeps {
   markOutboxFailed: (id: string, lastError: string, claimGeneration: number) => Promise<number>;
   /** Recovery probe: does ERP already hold a doc stamped with this idempotency key (the `remarks`
    *  anchor, ADR-0058 §3)? Used by the claim winner to adopt an orphaned prior commit instead of
-   *  blindly re-POSTing. */
-  probeByRemarksKey: (domain: string, idempotencyKey: string) => Promise<{ externalRecordId: string; canonical?: PmoRecord } | null>;
+   *  blindly re-POSTing. `recovery` is false only on a row's FIRST claim (claim_generation 1): nothing can have been
+   *  created yet, so a probe that looks for an un-anchored look-alike (Odoo's composite) has no business running. */
+  probeByRemarksKey: (domain: string, idempotencyKey: string, probe?: { recovery: boolean }) => Promise<{ externalRecordId: string; canonical?: PmoRecord } | null>;
   /** A short backoff before re-reading a fresh (non-reclaimable) `committing` row owned by another
    *  live caller. Injected so tests run instantly; production wires a small real delay. */
   backoff: () => Promise<void>;
@@ -340,7 +341,7 @@ async function claimAndCommit(
   // HELD for an operator (the C-1 outcome, with its audited `release_outbox_hold` route out).
   let probed: { externalRecordId: string; canonical?: PmoRecord } | null;
   try {
-    probed = await money.probeByRemarksKey(command.domain, command.idempotencyKey!);
+    probed = await money.probeByRemarksKey(command.domain, command.idempotencyKey!, { recovery: token > 1 });
   } catch (error) {
     if (isRetryableTransport(error)) throw toDispatchError(error);
     const heldCount = await money.markOutboxHeld(claimed.id, `recovery-probe-failed: ${redactErrorForOutbox(error)}`, token);
@@ -666,14 +667,19 @@ export async function dispatchMoneyWrite(deps: DispatchMoneyWriteDeps): Promise<
  * table (and the mirror tables), and the name alone would match any message that merely mentions it.
  */
 const OUTBOX_IN_FLIGHT_INDEX = 'external_command_outbox_one_inflight_per_record';
+/** 0508: at most one in-flight Odoo payment command per bill, whatever the intent (two payers can each pass the residual check). */
+const OUTBOX_PAYMENT_PER_BILL_INDEX = 'external_command_outbox_one_inflight_odoo_payment_per_bill';
+/** 0512: at most one in-flight Odoo receipt command per invoice, including held/recovery rows. */
+const OUTBOX_RECEIPT_PER_INVOICE_INDEX = 'external_command_outbox_one_inflight_odoo_receipt_per_invoice';
 export const COMMAND_IN_FLIGHT_FOR_RECORD = 'command-in-flight-for-record';
 
-function isOutboxInFlightConflict(error: unknown): boolean {
+function violatesIndex(error: unknown, index: string): boolean {
   const e = error as { code?: unknown; message?: unknown; details?: unknown } | null | undefined;
   if (e?.code !== '23505') return false;
   const text = `${typeof e.message === 'string' ? e.message : ''} ${typeof e.details === 'string' ? e.details : ''}`;
-  return text.includes(OUTBOX_IN_FLIGHT_INDEX);
+  return text.includes(index);
 }
+const isOutboxInFlightConflict = (error: unknown): boolean => violatesIndex(error, OUTBOX_IN_FLIGHT_INDEX);
 
 /** A structurally-present string `code`, or undefined. Mirrors `appError.ts`'s private `readCode`. */
 function readThrownCode(error: unknown): string | undefined {
@@ -686,6 +692,12 @@ function readThrownCode(error: unknown): string | undefined {
  *  there dropped the `.code` of a plain-`Error` subclass (`BudgetCategoryUnmappedError`, thrown from
  *  `resolveBudgetRefs`'s pre-flight) and turned a precise 422 into a bare, code-less 400. */
 export function toDispatchError(error: unknown): AppError {
+  if (violatesIndex(error, OUTBOX_PAYMENT_PER_BILL_INDEX)) {
+    return new AppError('payment already in progress for this bill', COMMAND_IN_FLIGHT_FOR_RECORD);
+  }
+  if (violatesIndex(error, OUTBOX_RECEIPT_PER_INVOICE_INDEX)) {
+    return new AppError('receipt already in progress for this invoice', COMMAND_IN_FLIGHT_FOR_RECORD);
+  }
   if (isOutboxInFlightConflict(error)) {
     return new AppError(
       'another command for this record is already in flight — wait for it to settle (or resolve it) before dispatching again',
@@ -717,15 +729,18 @@ export function toDispatchError(error: unknown): AppError {
   return new AppError('An unexpected error occurred');
 }
 
+/** The tiers whose writes move money: each registers a money-outbox resolver in adapter-dispatch (`MONEY_OUTBOX_RESOLVERS`). */
+const MONEY_TIERS: ReadonlySet<string> = new Set(['erpnext', 'odoo']);
+
 export async function dispatchExternallyOwnedWrite(
   deps: DispatchExternallyOwnedWriteDeps,
 ): Promise<CommandResult> {
-  // ADR-0058: an `erpnext`-tier non-read-only command always takes the money-idempotency path
-  // (which itself enforces the required idempotencyKey). Every other tier — P0 `reference`, P1
+  // ADR-0058: a money-tier (`erpnext`, `odoo`) non-read-only command always takes the money-idempotency
+  // path (which itself enforces the required idempotencyKey). Every other tier — P0 `reference`, P1
   // `clickup`, and any future non-money tier — is completely unaffected (byte-for-byte).
-  if (deps.adapter.tier === 'erpnext' && (deps.command.operation as string) !== 'read') {
+  if (MONEY_TIERS.has(deps.adapter.tier) && (deps.command.operation as string) !== 'read') {
     if (!deps.money) {
-      throw toDispatchError(new Error('erpnext money command dispatched without outbox deps'));
+      throw toDispatchError(new Error(`${deps.adapter.tier} money command dispatched without outbox deps`));
     }
     return dispatchMoneyWrite(deps as DispatchMoneyWriteDeps);
   }

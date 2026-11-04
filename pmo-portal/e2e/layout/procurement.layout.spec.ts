@@ -21,7 +21,12 @@ import {
 // SP2401-001 "PV Modules — Meridian 4.2 MW" — richest seeded procurement case (stable seed id).
 const PROC_SHOWCASE = '61000000-0000-0000-0000-000000000001';
 
-registerLayoutSweep({ path: '/procurement', label: 'procurement-list', icons: true });
+registerLayoutSweep({
+  path: '/procurement',
+  label: 'procurement-list',
+  icons: true,
+  ready: (page) => page.getByRole('heading', { name: 'Procurement', exact: true }),
+});
 for (const tab of ['timeline', 'items', 'quotes', 'files', 'details'] as const) {
   registerLayoutSweep({ path: `/procurement/${PROC_SHOWCASE}/${tab}`, label: `procurement-detail-${tab}`, icons: false });
 }

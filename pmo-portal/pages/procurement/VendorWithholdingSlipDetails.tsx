@@ -3,6 +3,8 @@ import { useTranslation } from 'react-i18next';
 import { Button, Card, CardHead, CardPad, ConfirmDialog, EntityFormModal, StatusPill, TextField } from '@/src/components/ui';
 import { RecordHistory } from '@/src/components/history/RecordHistory';
 import { useVendorWithholdingBillContexts, useVendorWithholdingSlip, useVendorWithholdingSlipMutations } from '@/src/hooks/useVendorWithholdingSlips';
+import { useOrgToday } from '@/src/hooks/useOrgToday';
+import { useOrgBusinessTimezone } from '@/src/hooks/useResolvedLocale';
 import { VendorInvoiceIdentity } from '@/src/components/procurement/VendorInvoiceIdentity';
 import { vendorInvoiceIdentityAccessibleLabel } from '@/src/components/procurement/vendorInvoiceIdentityLabels';
 import { bupotRefusal, type CorrectSlipInput, type VoidSlipInput } from '@/src/lib/vendorWithholdingSlip';
@@ -25,8 +27,11 @@ export function VendorWithholdingSlipDetails({ slipId, canWrite, onClose, onOpen
   const [period, setPeriod] = useState('');
   const [reason, setReason] = useState('');
   const [correctionDatesTouched, setCorrectionDatesTouched] = useState(false);
-  const isCorrectionDateValid = Boolean(date && date <= new Date().toISOString().slice(0, 10));
-  const isCorrectionPeriodValid = Boolean(/^\d{4}-\d{2}-01$/.test(period) && period <= `${new Date().toISOString().slice(0, 7)}-01`);
+  const orgTimezone = useOrgBusinessTimezone();
+  const today = useOrgToday(orgTimezone);
+  const currentMonth = `${today.slice(0, 7)}-01`;
+  const isCorrectionDateValid = Boolean(date && date <= today);
+  const isCorrectionPeriodValid = Boolean(/^\d{4}-\d{2}-01$/.test(period) && period <= currentMonth);
   const [error, setError] = useState<string | null>(null);
   const [correctionError, setCorrectionError] = useState<{ headline: string; detail?: string; action?: React.ReactNode } | null>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
@@ -35,7 +40,7 @@ export function VendorWithholdingSlipDetails({ slipId, canWrite, onClose, onOpen
     if (!suppressArrivalFocus && query.data && titleRef.current) { titleRef.current.focus(); titleRef.current.scrollIntoView({ block: 'nearest' }); }
   }, [query.data, suppressArrivalFocus]);
   const close = () => { onClose(); requestAnimationFrame(() => returnFocus.current?.focus()); };
-  if (query.isLoading) return <Card className="mt-3"><CardHead level={2} aria-label={t('bupot.detailTitle', 'Bukti potong details')} tabIndex={-1} ref={titleRef} actions={<Button variant="outline" onClick={close}>{t('bupot.close', 'Close')}</Button>}>{t('bupot.detailTitle', 'Bukti potong details')}</CardHead><CardPad><div role="status" className="space-y-3"><div className="h-4 w-2/3 animate-pulse rounded bg-muted" /><div className="h-4 w-1/2 animate-pulse rounded bg-muted" />{t('bupot.loading', 'Loading bukti potong…')}</div></CardPad></Card>;
+  if (query.isLoading) return <Card className="mt-3"><CardHead level={2} aria-label={t('bupot.detailTitle', 'Bukti potong details')} tabIndex={-1} ref={titleRef} actions={<Button variant="outline" onClick={close}>{t('bupot.close', 'Close')}</Button>}>{t('bupot.detailTitle', 'Bukti potong details')}</CardHead><CardPad><div role="status" aria-live="polite" className="space-y-3"><div className="skel h-4 w-2/3" /><div className="skel h-4 w-1/2" />{t('bupot.loading', 'Loading bukti potong…')}</div></CardPad></Card>;
   if (query.isError || !query.data) return <Card className="mt-3"><CardHead level={2} aria-label={t('bupot.detailTitle', 'Bukti potong details')} tabIndex={-1} ref={titleRef} actions={<Button variant="outline" onClick={close}>{t('bupot.close', 'Close')}</Button>}>{t('bupot.detailTitle', 'Bukti potong details')}</CardHead><CardPad><p role="alert">{t('bupot.loadError', 'Bukti potong unavailable')}</p><Button onClick={() => void query.refetch()}>{t('bupot.reload', 'Reload')}</Button></CardPad></Card>;
   const header = query.data.header as unknown as Header;
   const correct = async (event: React.FormEvent) => {
@@ -100,8 +105,8 @@ export function VendorWithholdingSlipDetails({ slipId, canWrite, onClose, onOpen
     </CardPad>
     <EntityFormModal open={showCorrection} title={t('bupot.correct', 'Correct metadata')} submitLabel={t('bupot.save', 'Save changes')} onSubmit={correct} onClose={() => setShowCorrection(false)} loading={mutations.correct.isPending} dirty submitDisabled={correctionDatesTouched && (!isCorrectionDateValid || !isCorrectionPeriodValid)} submitError={correctionError}>
       <TextField label={t('bupot.slipNumber', 'Issued slip number')} value={number} onChange={setNumber} required />
-      <TextField label={t('bupot.slipDate', 'Slip date')} type="date" max={new Date().toISOString().slice(0, 10)} value={date} onChange={setDate} onBlur={() => setCorrectionDatesTouched(true)} error={correctionDatesTouched && !isCorrectionDateValid ? t('bupot.invalidSlipDate', 'Choose a slip date no later than today.') : undefined} required />
-      <TextField label={t('bupot.taxPeriodMonth', 'Tax period (month)')} type="month" value={period.slice(0, 7)} onChange={(value) => setPeriod(`${value}-01`)} onBlur={() => setCorrectionDatesTouched(true)} error={correctionDatesTouched && !isCorrectionPeriodValid ? t('bupot.invalidTaxPeriod', 'Choose a tax month no later than the current month.') : undefined} required />
+      <TextField label={t('bupot.slipDate', 'Slip date')} type="date" max={today} value={date} onChange={setDate} onBlur={() => setCorrectionDatesTouched(true)} error={correctionDatesTouched && !isCorrectionDateValid ? t('bupot.invalidSlipDate', 'Choose a slip date no later than today.') : undefined} required />
+      <TextField label={t('bupot.taxPeriodMonth', 'Tax period (month)')} type="month" max={today.slice(0, 7)} value={period.slice(0, 7)} onChange={(value) => setPeriod(`${value}-01`)} onBlur={() => setCorrectionDatesTouched(true)} error={correctionDatesTouched && !isCorrectionPeriodValid ? t('bupot.invalidTaxPeriod', 'Choose a tax month no later than the current month.') : undefined} required />
       <TextField label={t('bupot.correctionReason', 'Correction reason')} value={reason} onChange={setReason} required />
     </EntityFormModal>
     <ConfirmDialog open={showVoid} title={t('bupot.confirmVoid', 'Void this PMO entry?')} description={<div className="space-y-3"><p>{t('bupot.voidWarning', 'This only removes PMO coverage. It does not cancel a DJP document.')}</p>{error && <p role="alert" className="text-destructive">{error}<Button variant="outline" onClick={() => { void query.refetch(); setShowVoid(false); }}>{t('bupot.reload', 'Reload')}</Button></p>}<TextField label={t('bupot.reason', 'Reason')} value={reason} onChange={setReason} required /></div>} confirmLabel={t('bupot.void', 'Void PMO entry')}  tone="destructive" loading={mutations.void.isPending} confirmDisabled={!reason.trim()} onConfirm={() => voidEntry()} onCancel={() => setShowVoid(false)} />

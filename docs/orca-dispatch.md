@@ -26,19 +26,20 @@ orca orchestration worker-start --spec "<brief or path>" --agent <harness> \
 
 ## Model routing (defaults; right-size per task)
 
-**Intelligence ranking (owner, 2026-10-29):** Sol > Terra > Gemini 3.8 Flash > GLM-5.3-flash > Luna. GLM runs at most
-**2 parallel tasks**. Match the model to
+**Intelligence ranking (owner, 2026-10-29; DeepSeek added 2026-11-02):** Sol > Terra > DeepSeek V4.1 Flash > Gemini 3.8 Flash > GLM-5.3-flash > Luna. GLM runs at most
+**2 parallel tasks**; DeepSeek free at most **3** (no published cap; raise once sustained load holds). Heavy local runs (DB, e2e) stay capped at 2 across all workers. Match the model to
 the task's difficulty (e.g. money, auth and data-loss fixes → Terra; bounded UI fixes and refactors →
 Flash; mechanical deletions and renames → Luna; orchestration and final review → Sol).
 
 **Cheapest first (owner, 2026-10-28):** spend quota in this order and stop at the first model that can do
-the job well: Gemini Flash → GLM-5.3-flash → GPT (Luna, then Terra, then Sol) → Claude (Sonnet, then Opus). Claude
+the job well: DeepSeek V4.1 Flash free → Gemini Flash → GLM-5.3-flash → GPT (Luna, then Terra, then Sol) → Claude (Sonnet, then Opus). Claude
 tokens are preserved for the Opus orchestrator: no Opus while Sol has quota; no Opus or Sol where Sonnet
 or Luna will do; no Luna where GLM will do. Only a used-up quota moves work up a rung, not habit. Routing applies before `worker-start`: never stop a running worker to re-route it; stop only on the owner's explicit "stop".
 
 | Work | Model · harness · effort |
 |---|---|
 | Quick, cheap, mechanical (formatting, lookups, summaries, transcript harvests) | Gemini Flash (latest) · antigravity |
+| Bounded build with a precise brief (owner's opencode Go plan; not money/auth until proven on a real PMO slice) | DeepSeek V4.1 Flash · opencode Go (not V4 Pro: owner finds Flash better, 2026-11-03) — see DeepSeek launch below |
 | Bounded build with a precise brief; code or security review of a build; read-only audits | GLM-5.3-flash · pi (Z.AI provider) · max — see GLM launch below |
 | Build a slice GLM can't (judgement, UI craft) | GPT-6 Luna · codex · xhigh |
 | Spec, plan, review (spec, code, design/rendered, money or security judgement), hard fix round | GPT-6.1 Terra · codex · medium |
@@ -49,6 +50,8 @@ or Luna will do; no Luna where GLM will do. Only a used-up quota moves work up a
 **GLM launch** (full recipes and gotchas: `docs/orca-model-launch.md`). `--agent pi` ignores `--model` and runs pi's own default provider, which is not GLM, and
 `zcode` does not start under Orca. Start GLM by opening a terminal in the worker's worktree that runs
 `pi --provider zai --model glm-5.3-flash:max`, then `orca orchestration worker-start --terminal <handle>`.
+
+**DeepSeek launch:** `--agent opencode --model opencode-go/deepseek-v4.1-flash` (not V4 Pro) on an existing worktree (create it first with `orca worktree create`). The terminal can look like a bare shell while it runs: don't start a second `opencode run` in the same worktree. These run on the owner's opencode Go plan (2026-11-03), whose workspace must be set to the Global region. The free `opencode/deepseek-v4.1-flash-free` id hits its limit after about 40–60 minutes, so don't use it. A 2026-11-02 trial passed the same held-out tests as GLM about six times faster.
 
 Money-path, SoD and auth/token-custody work stays **Director-dispatched per issue** (one worker per
 step, adversarial review, mutation checks) — now through Orca workers instead of pi.

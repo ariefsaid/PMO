@@ -30,7 +30,7 @@ export const ErrorBanner: React.FC<{ message: string }> = ({ message }) => (
     className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/[0.07] px-3 py-2.5 text-[13px]"
   >
     <Icon name="alert" className="mt-px size-4 shrink-0 text-destructive" aria-hidden="true" />
-    <span style={{ color: 'hsl(0 72% 42%)' }}>{message}</span>
+    <span className="text-destructive-text">{message}</span>
   </div>
 );
 
@@ -82,7 +82,6 @@ export const AuthInput: React.FC<{
         <button
           type="button"
           onClick={() => setRevealed((r) => !r)}
-          tabIndex={-1}
           // "value" not "password" on purpose: an accessible name containing the field's own label
           // makes getByLabelText(/password/i) ambiguous (the toggle and the input both match), which
           // is a real usability smell as well as a test one. Matches the shared TextField toggle.

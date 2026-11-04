@@ -3,8 +3,34 @@ import { DRAFT_INVOICE_DISPATCH_TIMEOUT_MS, draftInvoiceAction, runDraftInvoice 
 import { PREPARED } from './testing/draftInvoiceFixtures';
 import { fakeSupabase, type Invoker } from './testing/fakeSupabase';
 
-const ctx = (invoke: Invoker) => ({ jwt: '', userId: 'u-fin', orgId: 'org-1', role: 'Finance', supabase: fakeSupabase(() => ({ data: null, error: null }), invoke).client as never });
+const ctx = (invoke: Invoker, featureSwitches: Record<string, boolean> | null = { sales_invoices: true, revenue: true }) =>
+  ({ jwt: '', userId: 'u-fin', orgId: 'org-1', role: 'Finance', supabase: fakeSupabase(() => ({ data: null, error: null }), invoke).client as never, featureSwitches });
 afterEach(() => vi.useRealTimers());
+
+describe('runDraftInvoice — S4 write gate (FR-PLN-006)', () => {
+  // The approval can arrive after the resolver read failed, so the write checks its own key here and
+  // never fails open: an unknown entitlement is refused before anything leaves the database.
+  it('AC-PLN-006 the ERP route refuses when the billing module resolved off', async () => {
+    const invoke = vi.fn<Invoker>();
+    const out = await runDraftInvoice(PREPARED, ctx(invoke, { sales_invoices: false }) as never);
+    expect(out).toMatchObject({ code: 'FEATURE_OFF' });
+    expect(invoke).not.toHaveBeenCalled();
+  });
+  it('AC-PLN-006 the ERP route refuses when the plan could not be resolved', async () => {
+    const invoke = vi.fn<Invoker>();
+    const out = await runDraftInvoice(PREPARED, ctx(invoke, null) as never);
+    expect(out).toMatchObject({ code: 'PLAN_UNVERIFIED' });
+    expect(invoke).not.toHaveBeenCalled();
+  });
+  it('AC-PLN-006 the native route refuses the same way, without calling its RPC', async () => {
+    const NATIVE = { ...PREPARED, path: 'native' as const, items: [{ ...PREPARED.items[0], item_code: '' }] };
+    const rpc = vi.fn(async () => ({ data: null, error: null }));
+    const supabase = { ...fakeSupabase(() => ({ data: [], error: null })).client, rpc };
+    const out = await runDraftInvoice(NATIVE, { jwt: '', userId: 'u-fin', orgId: 'org-1', role: 'Finance', supabase: supabase as never, featureSwitches: null } as never);
+    expect(out).toMatchObject({ code: 'PLAN_UNVERIFIED' });
+    expect(rpc).not.toHaveBeenCalled();
+  });
+});
 
 describe('runDraftInvoice (#787)', () => {
   it('NFR-AIN-SEC-003 sends exactly one revenue CREATE with the proposal identity — never a transition', async () => {
@@ -16,7 +42,7 @@ describe('runDraftInvoice (#787)', () => {
       record: { customerId: PREPARED.customerId, projectId: PREPARED.projectId, items: PREPARED.items, reference_number: 'PO-778', erp_doc_kind: 'sales-invoice', id: PREPARED.commandId },
     } });
     expect(JSON.stringify(invoke.mock.calls[0][1])).not.toMatch(/submit|transition|verb/);
-    expect(out).toMatchObject({ ok: true, status: 'Draft', siNumber: 'ACC-SINV-2026-00099', link: '/sales-invoices?q=ACC-SINV-2026-00099' });
+    expect(out).toMatchObject({ ok: true, status: 'Draft', siNumber: 'ACC-SINV-2026-00099', link: '/finance/receivables?q=ACC-SINV-2026-00099' });
   });
   it('AC-BWO-005 the approved draft dispatches the work order with the create', async () => {
     const invoke = vi.fn<Invoker>(async () => ({ data: { canonical: { id: PREPARED.commandId, si_number: 'ACC-SINV-2026-00100' } }, error: null }));
@@ -46,7 +72,7 @@ describe('runDraftInvoice (#787)', () => {
     // `existing` = the native Drafts already on the project/customer (the retry-duplicate check reads them).
     const nativeCtx = (rpc: ReturnType<typeof vi.fn<Rpc>>, invoke = vi.fn<Invoker>(), existing: unknown[] = []) => {
       const { client, calls } = fakeSupabase(() => ({ data: existing, error: null }));
-      return { jwt: '', userId: 'u-fin', orgId: 'org-1', role: 'Finance', calls, supabase: { from: client.from, rpc, functions: { invoke } } as never };
+      return { jwt: '', userId: 'u-fin', orgId: 'org-1', role: 'Finance', calls, supabase: { from: client.from, rpc, functions: { invoke } } as never, featureSwitches: { sales_invoices: true, revenue: true } };
     };
     it('AC-AIN-NAT-001 calls the native create RPC once as the caller, and nothing else', async () => {
       const rpc = vi.fn<Rpc>(async () => ({ data: NEW_ID, error: null }));

@@ -14,7 +14,7 @@ const { repo, listProcurementsByProject, listBudgetVersions, procDetail, authSta
     repo: {
       recordHistory: { list: vi.fn(), lookupNames: vi.fn() },
       profile: { listOrgProfiles: vi.fn() },
-      company: { list: vi.fn(), get: vi.fn() },
+      company: { list: vi.fn(), getMany: vi.fn() },
       task: { list: vi.fn() },
       milestone: { list: vi.fn() },
       workOrder: { list: vi.fn() },
@@ -69,7 +69,7 @@ beforeEach(() => {
     { id: 'u1', full_name: 'Dana PM' }, { id: 'u2', full_name: 'Sam Lead' },
   ]);
   repo.company.list.mockResolvedValue([{ id: 'c1', name: 'Acme Corp' }, { id: 'c2', name: 'Globex' }]);
-  repo.company.get.mockResolvedValue(null);
+  repo.company.getMany.mockResolvedValue([]);
   repo.task.list.mockResolvedValue([
     { id: 't1', name: 'Install pump' }, { id: 't2', name: 'Commission pump' },
   ]);
@@ -582,16 +582,27 @@ describe('RecordHistory — child records and references on the project History 
   });
 
   it('a company archived since the change still resolves by id (only the ids missing from the active list are fetched)', async () => {
-    repo.company.get.mockImplementation(async (id: string) =>
-      id === 'c9' ? { id: 'c9', name: 'Former Client Ltd', archived_at: '2026-10-01T00:00:00Z' } : null,
+    repo.company.getMany.mockImplementation(async (ids: string[]) =>
+      ids.includes('c9') ? [{ id: 'c9', name: 'Former Client Ltd', archived_at: '2026-10-01T00:00:00Z' }] : [],
     );
     repo.recordHistory.list.mockResolvedValue({
       events: [ev(1, { changes: { client_id: { old: 'c9', new: 'c1' } } })], nextCursor: null,
     });
     renderIt();
     expect(await screen.findByText('Former Client Ltd → Acme Corp')).toBeInTheDocument();
-    expect(repo.company.get).toHaveBeenCalledWith('c9');
-    expect(repo.company.get).not.toHaveBeenCalledWith('c1');
+    expect(repo.company.getMany).toHaveBeenCalledTimes(1);
+    expect(repo.company.getMany).toHaveBeenCalledWith(['c9']);
+  });
+
+  it('several archived companies resolve in ONE batched read, not one request each', async () => {
+    repo.company.getMany.mockImplementation(async (ids: string[]) => ids.map((id) => ({ id, name: `Former ${id}` })));
+    repo.recordHistory.list.mockResolvedValue({
+      events: [ev(1, { changes: { client_id: { old: 'c8', new: 'c9' } } })], nextCursor: null,
+    });
+    renderIt();
+    expect(await screen.findByText('Former c8 → Former c9')).toBeInTheDocument();
+    expect(repo.company.getMany).toHaveBeenCalledTimes(1);
+    expect(repo.company.getMany.mock.calls[0]![0]).toEqual(expect.arrayContaining(['c8', 'c9']));
   });
 
   it('a company reads by the display name the pickers show (short name when set)', async () => {

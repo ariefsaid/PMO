@@ -5,7 +5,7 @@ import { Badge, Icon, StatusPill, TaxBasisLabel, Tooltip, type Column } from '@/
 import { EfakturCell } from '@/src/components/EfakturCell';
 import { withCurrencyColumn } from '@/src/components/export';
 import FxEquivalent from '@/src/components/fx/FxEquivalent';
-import { formatCurrency, formatCurrencyAuto, formatCurrencyCents, formatDateOnly, formatInstantDate } from '@/src/lib/format';
+import { formatCurrency, formatCurrencyCents, formatDateOnly, formatInstantDate } from '@/src/lib/format';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 import type { TaxTreatment } from '@/src/lib/db/procurementLifecycle';
 import { deriveArDueDate } from '@/src/lib/repositories/revenueDisplay';
@@ -24,7 +24,12 @@ interface Props {
   projectOptionsById: Map<string, { contractualName?: string | null }>;
   projectsById: Map<string, { pm?: { full_name: string | null } | null }>;
   profilesById: Map<string, { full_name: string | null }>;
-  invoiceStatus: (invoice: SalesInvoiceRow) => { label: string; variant: ReturnType<typeof salesInvoiceStatusVariant>; partlySettled: boolean };
+  invoiceStatus: (invoice: SalesInvoiceRow) => {
+    label: string;
+    variant: ReturnType<typeof salesInvoiceStatusVariant>;
+    partlySettled: boolean;
+    receiptAwaitingOdoo?: boolean;
+  };
 }
 export function salesInvoiceColumns({ t, all, embedded, native, location, orgCurrency, sharedTaxBasis, projectOptionsById, projectsById, profilesById, invoiceStatus }: Props) {
   // FIN-S1 / T4 (AC-RD-TBL-INV-001): one primary cell (number over customer), then at most six more
@@ -32,7 +37,7 @@ export function salesInvoiceColumns({ t, all, embedded, native, location, orgCur
   const projectLabelOf = (inv: SalesInvoiceRow) => projectOptionsById.get(inv.project_id ?? '')?.contractualName;
   const showEfaktur = all.some((inv) => inv.efaktur_number || inv.efaktur_date);
   // Lists show whole units (G1); exact cents stay on the record page.
-  const listMoney = embedded ? formatCurrency : formatCurrencyAuto;
+  const listMoney = formatCurrency;
   const invoiceColumn: Column<SalesInvoiceRow> = {
     key: 'si_number',
     header: embedded ? t('finance:receivables.invoiceColumn', 'Invoice') : t('financeCopy.invoice', "Invoice #"),
@@ -103,10 +108,11 @@ export function salesInvoiceColumns({ t, all, embedded, native, location, orgCur
     size: embedded ? 180 : undefined,
     cell: (inv) => {
       const status = invoiceStatus(inv);
+      const receiptAwaitingOdoo = status.receiptAwaitingOdoo === true;
       const legacyLabel = status.partlySettled
         ? t('financeCopy.statusPartlyPaid', 'Partly paid')
         : salesInvoiceStatusLabel(inv.status, t);
-      return <StatusPill className={embedded ? 'max-w-full whitespace-normal!' : undefined} variant={embedded ? status.variant : status.partlySettled ? salesInvoiceStatusVariant('Unpaid') : salesInvoiceStatusVariant(inv.status)}>{embedded ? status.label : legacyLabel}</StatusPill>;
+      return <StatusPill className={embedded ? 'max-w-full whitespace-normal!' : undefined} variant={embedded || receiptAwaitingOdoo ? status.variant : status.partlySettled ? salesInvoiceStatusVariant('Unpaid') : salesInvoiceStatusVariant(inv.status)}>{embedded || receiptAwaitingOdoo ? status.label : legacyLabel}</StatusPill>;
     },
     exportValue: (inv) => inv.status,
   };
@@ -248,11 +254,11 @@ export function salesInvoiceColumns({ t, all, embedded, native, location, orgCur
     statusColumn,
     amountColumn,
     outstandingColumn,
-    { key: 'invoice_date', header: t('financeCopy.date', "Date"), cell: (inv) => inv.invoice_date, exportValue: (inv) => inv.invoice_date ?? '' },
-    { key: 'received_date', header: t('financeCopy.receivedDate', "Received"), cell: (inv) => inv.received_date, exportValue: (inv) => inv.received_date ?? '' },
+    { key: 'invoice_date', header: t('financeCopy.date', "Date"), kind: 'date', cell: (inv) => inv.invoice_date, exportValue: (inv) => inv.invoice_date ?? '' },
+    { key: 'received_date', header: t('financeCopy.receivedDate', "Received"), kind: 'date', cell: (inv) => inv.received_date, exportValue: (inv) => inv.received_date ?? '' },
     dueColumn,
     { key: 'efaktur_number', header: t('efaktur.number', 'e-Faktur number'), cell: (inv) => inv.efaktur_number, exportValue: (inv) => inv.efaktur_number ?? '' },
-    { key: 'efaktur_date', header: t('efaktur.date', 'e-Faktur date'), cell: (inv) => inv.efaktur_date, exportValue: (inv) => inv.efaktur_date ?? '' },
+    { key: 'efaktur_date', header: t('efaktur.date', 'e-Faktur date'), kind: 'date', cell: (inv) => inv.efaktur_date, exportValue: (inv) => inv.efaktur_date ?? '' },
   ], 'amount', (r) => r.currency);
 
   const mobileCardDetails = (inv: SalesInvoiceRow) => {

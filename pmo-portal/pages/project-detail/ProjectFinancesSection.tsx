@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, DataTable, TaxBasisLabel, type Column } from '@/src/components/ui';
+import { Button, DataTable, ListState, TaxBasisLabel, type Column } from '@/src/components/ui';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { useProjectFinances } from '@/src/hooks/useProjectFinances';
 import { useProjectsMoneyCollection } from '@/src/hooks/useProjectsMoneyCollection';
@@ -16,6 +16,7 @@ import { formatExactMoney, formatInstantDate } from '@/src/lib/format';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import FxEquivalent from '@/src/components/fx/FxEquivalent';
+import { ProjectEquipmentPanel } from './ProjectEquipmentPanel';
 
 export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }) {
   const { t } = useTranslation('project');
@@ -40,7 +41,8 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
 
   if (query.isPending) return (
     <section data-testid="project-finances" aria-label={t('projectFinances.title', 'Project finances')}>
-      {title}<p role="status">{t('projectFinances.loading', 'Loading project finances…')}</p>
+      {title}
+      <ListState variant="loading" shape="detail" rows={4} loadingLabel={t('projectFinances.loading', 'Loading project finances…')} loadingRole="status" />
     </section>
   );
   if (query.isError || !query.data) return (
@@ -285,6 +287,8 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
           </div>
         </details>}
       </div>}
+      {/* #1519 S6: equipment usage per asset, and for approval rank the allocated amount (FR-EQU-071). Renders nothing without usage. */}
+      <ProjectEquipmentPanel projectId={project.id} currency={project.currency} equipmentChargeTotal={actuals.equipment_charge_total} />
       {needsCategorySetup && canInspectAccounting && (
         <p className="text-sm text-muted-foreground" data-testid="spending-setup-prompt">
           {canManageAccounting

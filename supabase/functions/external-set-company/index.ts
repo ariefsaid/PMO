@@ -47,6 +47,7 @@ import {
 } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/binding.ts';
 import { applyErpSetup, type ErpSetupBody } from './setup.ts';
 import { routeOdoo } from './odoo/router.ts';
+import { erpSyncFeatureDecision } from './featureGate.ts';
 import { CONNECT_ACTIONS, handleConnectAction } from './connect.ts';
 import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
 import { guardedErpFetch, isPermittedErpSiteUrl, isPrivateOrReservedHost } from '../_shared/erpHostGuard.ts';
@@ -84,6 +85,19 @@ export const testSupabaseOptions = {
     detectSessionInUrl: false,
   },
 };
+
+const ERPNEXT_READ_ACTIONS = new Set(['readiness', 'list-projects', 'verify-links']);
+
+function shouldGateErpNextWrite(body: SetCompanyBody): boolean {
+  return !body.setupAction || !ERPNEXT_READ_ACTIONS.has(body.setupAction);
+}
+
+async function erpSyncRefusal(serviceClient: SupabaseClient, orgId: string): Promise<Response | null> {
+  const decision = await erpSyncFeatureDecision(serviceClient, orgId);
+  if (decision === 'on') return null;
+  if (decision === 'off') return errorResponse('ERP integration is not enabled for this organization', 'feature_off', 409);
+  return errorResponse('Could not resolve the plan switch', 'INTERNAL', 500);
+}
 
 function bearerTokenFromHeader(authHeader: string | null): string | null {
   if (!authHeader) return null;
@@ -249,7 +263,7 @@ export async function handleSetCompanyRequest(req: Request): Promise<Response> {
       return json(await handleConnectAction({ serviceClient, callerClient, orgId: profile.org_id, userId, role: profile.role, body: body as unknown as Record<string, unknown> }));
     } catch (err) {
       const code = (err as { code?: string }).code ?? 'INTERNAL';
-      const status: Record<string, number> = { FORBIDDEN: 403, NOT_FOUND: 404, BAD_REQUEST: 400, 'config-rejected': 422, 'external-unreachable': 502 };
+      const status: Record<string, number> = { FORBIDDEN: 403, NOT_FOUND: 404, BAD_REQUEST: 400, 'config-rejected': 422, 'external-unreachable': 502, feature_off: 409 };
       return errorResponse(err instanceof AppError ? err.message : 'The request could not be completed', code, status[code] ?? 500);
     }
   }
@@ -280,6 +294,11 @@ export async function handleSetCompanyRequest(req: Request): Promise<Response> {
   const { tier, companyId } = body;
   if (tier !== 'erpnext') {
     return errorResponse('Only erpnext tier is supported for company selection', 'BAD_REQUEST', 400);
+  }
+
+  if (shouldGateErpNextWrite(body)) {
+    const refused = await erpSyncRefusal(serviceClient, profile.org_id);
+    if (refused) return refused;
   }
 
   if (!body.setupAction && (!companyId || typeof companyId !== 'string')) {
@@ -337,7 +356,7 @@ export async function handleSetCompanyRequest(req: Request): Promise<Response> {
     } catch (err) {
       const code = (err as { code?: string }).code ?? 'INTERNAL';
       return errorResponse(err instanceof Error ? err.message : 'ERP setup failed', code,
-        code === 'NOT_FOUND' ? 404 : code === 'BAD_REQUEST' ? 400 : code === 'config-rejected' ? 422 : code === 'external-unreachable' ? 502 : 500);
+        code === 'NOT_FOUND' ? 404 : code === 'BAD_REQUEST' ? 400 : code === 'config-rejected' || code === 'send-refused' ? 422 : code === 'send-in-flight' || code === 'send-held' ? 409 : code === 'external-unreachable' ? 502 : 500);
     }
   }
 

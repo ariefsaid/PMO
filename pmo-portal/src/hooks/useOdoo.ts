@@ -1,6 +1,6 @@
 import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
-import type { DirectoryKind, ListMasterInput } from '@/src/lib/repositories/odoo';
+import type { MirrorKind, ListMasterInput } from '@/src/lib/repositories/types';
 import type { ConnectCredential } from '@/src/lib/repositories/types';
 import { useAuth } from '@/src/auth/useAuth';
 
@@ -76,11 +76,26 @@ export function useOdooDisconnect() {
   });
 }
 
-export function useMasterSummary(kind: DirectoryKind, enabled = true) {
+export function useMasterSummary(kind: MirrorKind, enabled = true) {
   const orgId = useAuth().currentUser?.org_id;
   return useQuery({
     queryKey: ['odoo', 'master-summary', orgId, kind],
     queryFn: () => repositories.odoo.masterSummary(kind),
+    enabled: Boolean(orgId) && enabled,
+  });
+}
+
+export interface JournalCandidate { id: string; code: string; name: string }
+export interface JournalProposal {
+  journal: { state: 'set' | 'proposed' | 'choose' | 'none'; current: JournalCandidate | null; proposed?: JournalCandidate; candidates: JournalCandidate[] };
+}
+
+/** The setup page's payment-journal proposal (one bank journal, a choice, or none), read from the mirror by `propose-config`. */
+export function useOdooJournalProposal(enabled = true) {
+  const orgId = useAuth().currentUser?.org_id;
+  return useQuery({
+    queryKey: ['odoo', 'journal-proposal', orgId],
+    queryFn: () => repositories.odoo.setup<JournalProposal>('propose-config'),
     enabled: Boolean(orgId) && enabled,
   });
 }

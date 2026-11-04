@@ -18,6 +18,7 @@ const STATEMENT_NON_VIEW_ACTIONS: Exclude<Action, 'view'>[] = [
   'download_pdf',
   'record_efaktur',
   'assign_project',
+  'pair_invoices',
   'manage_external_bindings',
   'view_financial_directory',
   'manage',
@@ -356,6 +357,11 @@ describe('can() — CRM RBAC (W3-CRM)', () => {
 });
 
 describe('can() — revenue (P3a) reachability + SoD (owner ruling 2026-07-20)', () => {
+  it('AC-ECA-030 pair_invoices on salesInvoice is Admin and Finance only (the RPC re-asserts it)', () => {
+    expect(allowedRoles('pair_invoices', 'salesInvoice')).toEqual(['Admin', 'Finance']);
+    expect(can('pair_invoices', 'salesInvoice', { realRole: 'Project Manager' })).toBe(false);
+    expect(can('pair_invoices', 'salesInvoice', { realRole: null })).toBe(false);
+  });
   it('AC-PFIN-009 assign_project on salesInvoice is Admin and Finance only under the real role', () => {
     expect(allowedRoles('assign_project', 'salesInvoice')).toEqual(['Admin', 'Finance']);
     expect(can('assign_project', 'salesInvoice', { realRole: 'Admin', record: { viewOnly: true } })).toBe(true);
@@ -586,6 +592,23 @@ describe('can() — manage a held ERP push (MED-2; UX only — release_outbox_ho
   });
 });
 
+describe('can() — resolve a held Odoo payment (AC-OPP-082; UX only — resolve_held_outbox_command (0508) is the authority)', () => {
+  it('AC-OPP-082 Admin and Finance may resolve, on their real role', () => {
+    expect(can('resolve', 'odooHeldCommand', { realRole: 'Admin' })).toBe(true);
+    expect(can('resolve', 'odooHeldCommand', { realRole: 'Finance' })).toBe(true);
+  });
+
+  it('AC-OPP-082 every other role and a null role is denied', () => {
+    for (const realRole of ['Executive', 'Project Manager', 'Engineer', null] as Array<Role | null>) {
+      expect(can('resolve', 'odooHeldCommand', { realRole })).toBe(false);
+    }
+  });
+
+  it('AC-OPP-082 an impersonating Admin is view-only', () => {
+    expect(can('resolve', 'odooHeldCommand', { realRole: 'Admin', record: { viewOnly: true } })).toBe(false);
+  });
+});
+
 describe('can() — confirm_employee_link (P3b OQ-TSP-10(C); UX only — confirm_erp_employee_link (0111/0141) is the enforcement authority)', () => {
   it('AC-TSP-092(ux): Admin may confirm a proposed Employee link', () => {
     expect(can('confirm_employee_link', 'employeeLink', { realRole: 'Admin' })).toBe(true);
@@ -708,5 +731,294 @@ describe('can() — ERPNext document links (FR-PFE-020/031; link_erp_purchase_do
   });
   it('FR-PFE-031: only Admin and Finance may unlink', () => {
     expect(allowedRoles('delete', 'erpPurchaseLink')).toEqual(['Admin', 'Finance']);
+  });
+});
+
+describe('can() — subcontract acceptance, caps and variations (#1513; server RPCs/RLS are the authority)', () => {
+  it('FR-SCA-001 subcontractLines edit is allowed for Admin, Finance and Project Manager only', () => {
+    expect(allowedRoles('edit', 'subcontractLines')).toEqual(['Admin', 'Project Manager', 'Finance']);
+    expect(can('edit', 'subcontractLines', { realRole: 'Executive' })).toBe(false);
+    expect(can('edit', 'subcontractLines', { realRole: 'Engineer' })).toBe(false);
+    expect(can('edit', 'subcontractLines', { realRole: 'Admin', record: { viewOnly: true } })).toBe(false);
+  });
+
+  it('FR-SCA-010 subcontractAcceptance prepare mirrors may_record_project_progress (Admin/Executive/Finance or project PM)', () => {
+    expect(can('prepare', 'subcontractAcceptance', { realRole: 'Admin' })).toBe(true);
+    expect(can('prepare', 'subcontractAcceptance', { realRole: 'Executive' })).toBe(true);
+    expect(can('prepare', 'subcontractAcceptance', { realRole: 'Finance' })).toBe(true);
+
+    // Project Manager only on projects they manage
+    expect(
+      can('prepare', 'subcontractAcceptance', {
+        realRole: 'Project Manager',
+        currentUserId: 'pm-1',
+        record: { project_manager_id: 'pm-1' },
+      }),
+    ).toBe(true);
+    expect(
+      can('prepare', 'subcontractAcceptance', {
+        realRole: 'Project Manager',
+        currentUserId: 'pm-2',
+        record: { project_manager_id: 'pm-1' },
+      }),
+    ).toBe(false);
+    expect(
+      can('prepare', 'subcontractAcceptance', {
+        realRole: 'Project Manager',
+        currentUserId: 'pm-1',
+        record: {},
+      }),
+    ).toBe(false);
+    expect(can('prepare', 'subcontractAcceptance', { realRole: 'Project Manager' })).toBe(false);
+
+    // Engineer is always excluded
+    expect(
+      can('prepare', 'subcontractAcceptance', {
+        realRole: 'Engineer',
+        currentUserId: 'eng-1',
+        record: { project_manager_id: 'eng-1' },
+      }),
+    ).toBe(false);
+
+    // viewOnly refuses
+    expect(can('prepare', 'subcontractAcceptance', { realRole: 'Admin', record: { viewOnly: true } })).toBe(false);
+    expect(
+      can('prepare', 'subcontractAcceptance', {
+        realRole: 'Project Manager',
+        currentUserId: 'pm-1',
+        record: { project_manager_id: 'pm-1', viewOnly: true },
+      }),
+    ).toBe(false);
+  });
+
+  it('FR-SCA-011 subcontractAcceptance confirm is allowed for Admin and Finance only', () => {
+    expect(allowedRoles('confirm', 'subcontractAcceptance')).toEqual(['Admin', 'Finance']);
+    expect(can('confirm', 'subcontractAcceptance', { realRole: 'Executive' })).toBe(false);
+    expect(can('confirm', 'subcontractAcceptance', { realRole: 'Project Manager' })).toBe(false);
+    expect(can('confirm', 'subcontractAcceptance', { realRole: 'Engineer' })).toBe(false);
+    expect(can('confirm', 'subcontractAcceptance', { realRole: 'Admin', record: { viewOnly: true } })).toBe(false);
+  });
+
+  it('FR-SCA-030 poVariation request admits Master Data roles or the purchase requester', () => {
+    // Master data roles (Admin, Executive, Project Manager, Finance) are allowed
+    expect(allowedRoles('request', 'poVariation')).toEqual(['Admin', 'Executive', 'Project Manager', 'Finance']);
+
+    // Excluded role Engineer -> false without requester match
+    expect(can('request', 'poVariation', { realRole: 'Engineer' })).toBe(false);
+    expect(
+      can('request', 'poVariation', {
+        realRole: 'Engineer',
+        currentUserId: 'eng-2',
+        record: { requested_by_id: 'eng-1' },
+      }),
+    ).toBe(false);
+
+    // Requester match admits any active role
+    expect(
+      can('request', 'poVariation', {
+        realRole: 'Engineer',
+        currentUserId: 'eng-1',
+        record: { requested_by_id: 'eng-1' },
+      }),
+    ).toBe(true);
+
+    // viewOnly refuses
+    expect(can('request', 'poVariation', { realRole: 'Admin', record: { viewOnly: true } })).toBe(false);
+    expect(
+      can('request', 'poVariation', {
+        realRole: 'Engineer',
+        currentUserId: 'eng-1',
+        record: { requested_by_id: 'eng-1', viewOnly: true },
+      }),
+    ).toBe(false);
+  });
+
+  it('FR-SCA-031 poVariation decide is allowed for Admin, Executive, Project Manager and Finance', () => {
+    expect(allowedRoles('decide', 'poVariation')).toEqual(['Admin', 'Executive', 'Project Manager', 'Finance']);
+    expect(can('decide', 'poVariation', { realRole: 'Engineer' })).toBe(false);
+    expect(can('decide', 'poVariation', { realRole: 'Admin', record: { viewOnly: true } })).toBe(false);
+  });
+
+  it('FR-SCA-032 poVariation revise is allowed for Admin, Finance and Project Manager only', () => {
+    expect(allowedRoles('revise', 'poVariation')).toEqual(['Admin', 'Project Manager', 'Finance']);
+    expect(can('revise', 'poVariation', { realRole: 'Executive' })).toBe(false);
+    expect(can('revise', 'poVariation', { realRole: 'Engineer' })).toBe(false);
+    expect(can('revise', 'poVariation', { realRole: 'Admin', record: { viewOnly: true } })).toBe(false);
+  });
+
+  it('FR-SCA-040 poVariation link is allowed for Admin, Finance and Project Manager only', () => {
+    expect(allowedRoles('link', 'poVariation')).toEqual(['Admin', 'Project Manager', 'Finance']);
+    expect(can('link', 'poVariation', { realRole: 'Executive' })).toBe(false);
+    expect(can('link', 'poVariation', { realRole: 'Engineer' })).toBe(false);
+    expect(can('link', 'poVariation', { realRole: 'Admin', record: { viewOnly: true } })).toBe(false);
+  });
+
+  it('refuses every new subcontract write action when viewOnly is true', () => {
+    const cases: [Parameters<typeof can>[0], Parameters<typeof can>[1], Record<string, unknown>][] = [
+      ['edit', 'subcontractLines', {}],
+      ['prepare', 'subcontractAcceptance', { currentUserId: 'adm-1' }],
+      ['confirm', 'subcontractAcceptance', {}],
+      ['request', 'poVariation', {}],
+      ['decide', 'poVariation', {}],
+      ['revise', 'poVariation', {}],
+      ['link', 'poVariation', {}],
+    ];
+    for (const [action, entity, extra] of cases) {
+      expect(can(action, entity, { realRole: 'Admin', ...extra, record: { viewOnly: true } })).toBe(false);
+      expect(can(action, entity, { realRole: 'Admin', ...extra })).toBe(true);
+    }
+  });
+});
+
+describe('can() — equipment usage and costing (#1519; transition_equipment_usage / save_equipment_costing are the authority)', () => {
+  it('AC-EQU-017 the author never transitions their own entry, even as Admin', () => {
+    for (const realRole of ALL_ROLES) {
+      expect(can('transition', 'equipmentUsage', {
+        realRole, currentUserId: 'u1', record: { author_id: 'u1', project_manager_id: 'u2' },
+      })).toBe(false);
+    }
+  });
+
+  it('AC-EQU-017 a Project Manager transitions only on a project they manage; other approvers do not need one', () => {
+    const ctx = (project_manager_id: string | null) => ({ currentUserId: 'u1', record: { author_id: 'u2', project_manager_id } });
+    expect(can('transition', 'equipmentUsage', { realRole: 'Project Manager', ...ctx('u1') })).toBe(true);
+    expect(can('transition', 'equipmentUsage', { realRole: 'Project Manager', ...ctx('u9') })).toBe(false);
+    expect(can('transition', 'equipmentUsage', { realRole: 'Project Manager', ...ctx(null) })).toBe(false);
+    for (const realRole of ['Admin', 'Executive', 'Finance'] as const) {
+      expect(can('transition', 'equipmentUsage', { realRole, ...ctx('u9') })).toBe(true);
+    }
+  });
+
+  it('AC-EQU-017 an Engineer cannot approve, and reads no other member\'s usage or any amount', () => {
+    expect(can('transition', 'equipmentUsage', { realRole: 'Engineer', currentUserId: 'u1', record: { author_id: 'u2' } })).toBe(false);
+    expect(allowedRoles('view', 'equipmentUsage')).toEqual(['Admin', 'Executive', 'Project Manager', 'Finance']);
+    expect(allowedRoles('view', 'equipmentCosting')).toEqual(['Admin', 'Executive', 'Project Manager', 'Finance']);
+  });
+
+  it('AC-EQU-017 an Engineer reads only their own usage entry', () => {
+    expect(can('view', 'equipmentUsage', {
+      realRole: 'Engineer', currentUserId: 'u1', record: { author_id: 'u1' },
+    })).toBe(true);
+    expect(can('view', 'equipmentUsage', {
+      realRole: 'Engineer', currentUserId: 'u1', record: { author_id: 'u2' },
+    })).toBe(false);
+    expect(can('view', 'equipmentUsage', { realRole: 'Engineer', currentUserId: 'u1' })).toBe(false);
+  });
+
+  it('AC-EQU-017 view-as context hides every equipment write affordance', () => {
+    for (const action of ['create', 'edit', 'delete'] as const) {
+      expect(can(action, 'equipmentAsset', { realRole: 'Admin', record: { viewOnly: true } })).toBe(false);
+    }
+    expect(can('create', 'equipmentUsage', { realRole: 'Engineer', record: { viewOnly: true } })).toBe(false);
+    expect(can('transition', 'equipmentUsage', {
+      realRole: 'Admin', currentUserId: 'u1', record: { author_id: 'u2', viewOnly: true },
+    })).toBe(false);
+    expect(can('manage', 'equipmentCosting', { realRole: 'Finance', record: { viewOnly: true } })).toBe(false);
+  });
+
+  it('AC-EQU-017 everyone logs usage; only Admin and PM keep the asset reference', () => {
+    expect(allowedRoles('create', 'equipmentUsage')).toEqual(ALL_ROLES);
+    expect(allowedRoles('view', 'equipmentAsset')).toEqual(ALL_ROLES);
+    expect(allowedRoles('create', 'equipmentAsset')).toEqual(['Admin', 'Project Manager']);
+    expect(allowedRoles('edit', 'equipmentAsset')).toEqual(['Admin', 'Project Manager']);
+    expect(allowedRoles('delete', 'equipmentAsset')).toEqual(['Admin']);
+  });
+
+  it('AC-EQU-017 only Admin and Finance set what an hour is worth — never a PM or an Executive', () => {
+    expect(allowedRoles('manage', 'equipmentCosting')).toEqual(['Admin', 'Finance']);
+    expect(can('manage', 'equipmentCosting', { realRole: 'Project Manager' })).toBe(false);
+    expect(can('manage', 'equipmentCosting', { realRole: 'Executive' })).toBe(false);
+    for (const entity of ['equipmentAsset', 'equipmentUsage', 'equipmentCosting'] as const) {
+      expect(can('view', entity, { realRole: null })).toBe(false);
+      expect(can('manage', entity, { realRole: null })).toBe(false);
+    }
+  });
+});
+
+describe('can() — time-and-materials rate card and sign-off (#1514 T7; the 0515-0517 RPCs are the authority)', () => {
+  it('T7.2 setting a rate is Admin or Finance — never an Executive or a PM, mirroring save/end_contract_rate_line', () => {
+    expect(allowedRoles('manage', 'tmRate')).toEqual(['Admin', 'Finance']);
+    expect(can('manage', 'tmRate', { realRole: 'Project Manager', currentUserId: 'u1', record: { project_manager_id: 'u1' } })).toBe(false);
+    expect(can('manage', 'tmRate', { realRole: 'Executive' })).toBe(false);
+    expect(can('manage', 'tmRate', { realRole: null })).toBe(false);
+    expect(can('manage', 'tmRate')).toBe(false);
+  });
+
+  it('T7.2 view-as hides the rate-card write affordance', () => {
+    expect(can('manage', 'tmRate', { realRole: 'Finance', record: { viewOnly: true } })).toBe(false);
+  });
+
+  it('T7.2 preparing a claim follows may_record_project_progress: Finance rank and above, or the project\'s own PM', () => {
+    // Without a project context a PM cannot be shown the affordance (deny-by-default), the same as projectProgress.edit.
+    expect(allowedRoles('prepare', 'tmClaim')).toEqual(['Admin', 'Executive', 'Finance']);
+    const pm = (project_manager_id: string) => ({ currentUserId: 'u1', record: { project_manager_id } });
+    expect(can('prepare', 'tmClaim', { realRole: 'Project Manager', ...pm('u1') })).toBe(true);
+    expect(can('prepare', 'tmClaim', { realRole: 'Project Manager', ...pm('u9') })).toBe(false);
+    // an Engineer records hours; they never prepare a claim
+    expect(can('prepare', 'tmClaim', { realRole: 'Engineer', currentUserId: 'u1', record: { project_manager_id: 'u1' } })).toBe(false);
+    expect(can('prepare', 'tmClaim', { realRole: null })).toBe(false);
+  });
+
+  it('T7.2 view-as hides assembling, deselecting and preparing', () => {
+    expect(can('prepare', 'tmClaim', { realRole: 'Finance', record: { viewOnly: true } })).toBe(false);
+  });
+
+  it('T7.2 confirming a sign-off is Admin or Finance and refused for the preparer (FR-TM-022)', () => {
+    expect(allowedRoles('confirm', 'tmSignoff', { currentUserId: 'confirmer' })).toEqual(['Admin', 'Finance']);
+    for (const realRole of ['Admin', 'Finance'] as const) {
+      expect(can('confirm', 'tmSignoff', { realRole, currentUserId: 'u1', record: { preparedBy: 'u1' } })).toBe(false);
+      expect(can('confirm', 'tmSignoff', { realRole, currentUserId: 'u1', record: { prepared_by: 'u1' } })).toBe(false);
+      expect(can('confirm', 'tmSignoff', { realRole, currentUserId: 'u2', record: { preparedBy: 'u1' } })).toBe(true);
+    }
+    // a PM assembles and prepares; they never confirm — the 0517 RPC refuses them outright
+    expect(can('confirm', 'tmSignoff', { realRole: 'Project Manager', currentUserId: 'u2', record: { preparedBy: 'u1' } })).toBe(false);
+    expect(can('confirm', 'tmSignoff', { realRole: 'Engineer', currentUserId: 'u2', record: { preparedBy: 'u1' } })).toBe(false);
+    expect(can('confirm', 'tmSignoff', { realRole: 'Executive', currentUserId: 'u2', record: { preparedBy: 'u1' } })).toBe(false);
+    expect(can('confirm', 'tmSignoff', { realRole: null })).toBe(false);
+  });
+
+  it('T7.2 the SECOND SoD identity is mirrored too: the sign-off preparer never confirms their own sign-off', () => {
+    // 0517 `confirm_tm_signoff` refuses when the actor is `prepared_by` OR `signoff_prepared_by`. Finance F1 prepares
+    // the sign-off on a claim the PM assembled: F1 is not the assembler, but IS the sign-off preparer.
+    for (const realRole of ['Admin', 'Finance'] as const) {
+      expect(can('confirm', 'tmSignoff', {
+        realRole, currentUserId: 'F1', record: { prepared_by: 'pm1', signoff_prepared_by: 'F1' },
+      })).toBe(false);
+      expect(can('confirm', 'tmSignoff', {
+        realRole, currentUserId: 'F1', record: { preparedBy: 'pm1', signoffPreparedBy: 'F1' },
+      })).toBe(false);
+      // a third person confirms it, exactly as the RPC allows
+      expect(can('confirm', 'tmSignoff', {
+        realRole, currentUserId: 'F2', record: { prepared_by: 'pm1', signoff_prepared_by: 'F1' },
+      })).toBe(true);
+    }
+  });
+
+  it('T7.2 the sole_operator path is reachable: an organisation\'s one active member confirms their own sign-off', () => {
+    // 0517:243-250 — the SoD refusal has exactly one exception (the 0298 sole-active-member predicate), and the RPC
+    // accepts it with basis 'sole_operator'. Hiding the affordance would dead-end that org's revenue.
+    for (const realRole of ['Admin', 'Finance'] as const) {
+      expect(can('confirm', 'tmSignoff', {
+        realRole, currentUserId: 'u1', record: { prepared_by: 'u1', sole_active_member: true },
+      })).toBe(true);
+      expect(can('confirm', 'tmSignoff', {
+        realRole, currentUserId: 'u1', record: { signoff_prepared_by: 'u1', soleActiveMember: true },
+      })).toBe(true);
+      // the flag does not widen the ROLE gate, and a view-as session still hides it
+      expect(can('confirm', 'tmSignoff', {
+        realRole: 'Project Manager', currentUserId: 'u1', record: { prepared_by: 'u1', sole_active_member: true },
+      })).toBe(false);
+      expect(can('confirm', 'tmSignoff', {
+        realRole, currentUserId: 'u1', record: { prepared_by: 'u1', sole_active_member: true, viewOnly: true },
+      })).toBe(false);
+      // and it is the exception, not the rule: the same person WITHOUT the flag stays refused
+      expect(can('confirm', 'tmSignoff', { realRole, currentUserId: 'u1', record: { prepared_by: 'u1' } })).toBe(false);
+    }
+  });
+
+  it('T7.2 an unknown preparer on the record never blocks the confirmer, and a missing user id denies', () => {
+    expect(can('confirm', 'tmSignoff', { realRole: 'Finance', currentUserId: 'u2', record: {} })).toBe(true);
+    expect(can('confirm', 'tmSignoff', { realRole: 'Finance', record: { preparedBy: 'u1' } })).toBe(false);
+    expect(can('confirm', 'tmSignoff', { realRole: 'Finance', currentUserId: 'u1', record: { preparedBy: 'u1', viewOnly: true } })).toBe(false);
   });
 });

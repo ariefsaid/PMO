@@ -8,7 +8,7 @@
  * has NO bar because `listTasks` filters it (AC-CUA-002/C5). This test pins that invariant: an edge to
  * a tombstoned endpoint is counted hidden, never drawn; an edge between two live tasks draws normally.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import React from 'react';
 import type { TaskWithRefs } from '@/src/lib/db/tasks';
@@ -63,7 +63,7 @@ describe('AC-CUA-072 Gantt hides dependency edges whose endpoint is tombstoned',
   it('a live predecessor->successor edge is drawn (control)', () => {
     const a = makeTask({ id: 'task-a', name: 'A', start_date: '2026-01-05', end_date: '2026-01-12', dependencies: [{ depends_on_id: 'task-b' }] });
     const b = makeTask({ id: 'task-b', name: 'B', start_date: '2026-01-01', end_date: '2026-01-10' });
-    render(<ProjectGantt tasks={[a, b]} milestones={[makeMilestone({ id: 'm1', name: 'M1' })]} />);
+    render(<ProjectGantt tasks={[a, b]} milestones={[makeMilestone({ id: 'm1', name: 'M1' })]} onSwitchView={vi.fn()} />);
     const summary = ganttSummary();
     expect(summary).toMatch(/1 dependency connector drawn/);
     expect(summary).not.toMatch(/hidden/); // no hidden edges when both endpoints are live
@@ -74,7 +74,7 @@ describe('AC-CUA-072 Gantt hides dependency edges whose endpoint is tombstoned',
     // receives only A. The task_dependencies row survives (AC-CUA-070), so A still carries the edge,
     // but B has no bar -> buildGanttModel counts the edge hidden.
     const a = makeTask({ id: 'task-a', name: 'A', start_date: '2026-01-05', end_date: '2026-01-12', dependencies: [{ depends_on_id: 'task-b' }] });
-    render(<ProjectGantt tasks={[a]} milestones={[makeMilestone({ id: 'm1', name: 'M1' })]} />);
+    render(<ProjectGantt tasks={[a]} milestones={[makeMilestone({ id: 'm1', name: 'M1' })]} onSwitchView={vi.fn()} />);
     const summary = ganttSummary();
     expect(summary).toMatch(/0 dependency connectors drawn/); // the tombstoned-endpoint edge is NOT drawn
     // Singular now — i18next selects the form via Intl.PluralRules (#575), replacing the welded
@@ -86,7 +86,7 @@ describe('AC-CUA-072 Gantt hides dependency edges whose endpoint is tombstoned',
     // Only B (the predecessor) is live; A (the successor that carried the dependency) is tombstoned.
     // The edge cannot render without A's bar either.
     const b = makeTask({ id: 'task-b', name: 'B', start_date: '2026-01-01', end_date: '2026-01-10' });
-    render(<ProjectGantt tasks={[b]} milestones={[makeMilestone({ id: 'm1', name: 'M1' })]} />);
+    render(<ProjectGantt tasks={[b]} milestones={[makeMilestone({ id: 'm1', name: 'M1' })]} onSwitchView={vi.fn()} />);
     const summary = ganttSummary();
     expect(summary).toMatch(/0 dependency connectors drawn/);
   });
@@ -102,7 +102,7 @@ describe('AC-CUA-072 Gantt hides dependency edges whose endpoint is tombstoned',
 describe('the Gantt screen-reader summary states every clause (#575)', () => {
   it('AC-L10N-070: composes head, connectors and scale into one sentence, singular forms', () => {
     const b = makeTask({ id: 'task-b', name: 'B', start_date: '2026-01-01', end_date: '2026-01-10' });
-    render(<ProjectGantt tasks={[b]} milestones={[makeMilestone({ id: 'm1', name: 'M1' })]} />);
+    render(<ProjectGantt tasks={[b]} milestones={[makeMilestone({ id: 'm1', name: 'M1' })]} onSwitchView={vi.fn()} />);
     // The WHOLE label, not a substring: a clause silently dropped from the join is exactly the
     // failure mode, and a per-clause `toMatch` cannot see a missing neighbour.
     expect(ganttSummary()).toBe(
@@ -116,6 +116,7 @@ describe('the Gantt screen-reader summary states every clause (#575)', () => {
     const b = makeTask({ id: 'task-b', name: 'B', start_date: '2026-01-01', end_date: '2026-01-10' });
     render(
       <ProjectGantt
+        onSwitchView={vi.fn()}
         tasks={[a, b]}
         milestones={[makeMilestone({ id: 'm1', name: 'M1' }), makeMilestone({ id: 'm2', name: 'M2' })]}
       />,
@@ -128,7 +129,7 @@ describe('the Gantt screen-reader summary states every clause (#575)', () => {
 
   it('AC-L10N-072: the scale clause names the TRANSLATED label, never the raw GanttScale enum', () => {
     const b = makeTask({ id: 'task-b', name: 'B', start_date: '2026-01-01', end_date: '2026-01-10' });
-    render(<ProjectGantt tasks={[b]} milestones={[makeMilestone({ id: 'm1', name: 'M1' })]} />);
+    render(<ProjectGantt tasks={[b]} milestones={[makeMilestone({ id: 'm1', name: 'M1' })]} onSwitchView={vi.fn()} />);
     // "scale: month" was what shipped — the raw enum, English, inside what will be an Indonesian
     // sentence, while the visible toggle beside it already read its translated label.
     expect(ganttSummary()).toMatch(/scale: Month\.$/);

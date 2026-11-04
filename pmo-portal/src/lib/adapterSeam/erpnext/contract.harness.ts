@@ -5,7 +5,7 @@
 import { AppError } from '../../appError.ts';
 import type {
   ConnectHarness,
-  BudgetPushResult, BudgetPushScenario, ErpHarness, ErpPartyInput, PartyMatchResult, PmoPartyCandidate,
+  BudgetPushResult, BudgetPushScenario, ErpHarness, ErpPartyInput, InboundInvoiceDoc, PartyMatchResult, PmoPartyCandidate,
   ProjectLinkResult, PushBeforeConnectionResult, TransferHarness,
 } from '../contractSuite/harness.ts';
 import type { ImprestTransfer } from '../imprestTransfer.ts';
@@ -14,9 +14,11 @@ import { assertNotPreCutover } from '../cutoverGate.ts';
 import { imprestTransferToBody } from './bodies/imprestTransfer.ts';
 import { probeErpByAnchorKey } from './recoveryProbe.ts';
 import { expenseJournalFromDoc } from './bodies/expenseJournal.ts';
+import { siFromDoc } from './bodies/salesInvoice.ts';
 import { budgetAccountIdentity } from './budgetAccountIdentity.ts';
 import { DOCTYPE_BODIES } from './doctypeBodies.ts';
 import { resolveErpDispatchAdapter, type DispatchServiceClient } from './dispatchFactory.ts';
+import type { MasterKind, NormalisedMaster } from '../connect/types.ts';
 import { createErpnextConnectAdapter, ERP_CONNECT_PAGE } from './connectAdapter.ts';
 import { fakeErp } from './fakeErp.ts';
 import { onboardParties } from './onboarding.ts';
@@ -25,6 +27,7 @@ import { invertProjectMap } from './projectMap.ts';
 import { createPushAndReadHarness } from './contract.pushAndRead.harness.ts';
 
 const ORG = 'org';
+const ACCOUNTING = new Set(['Account', 'Tax Category', 'Item Tax Template', 'Sales Taxes and Charges Template', 'Purchase Taxes and Charges Template', 'Fiscal Year']);
 const VERSION_ID = '44444444-4444-4444-8444-444444444444';
 const ACTIVATED_BINDING = {
   site_url: 'https://erp.test', version_major: 16, activated_at: '2026-01-01T00:00:00Z',
@@ -42,18 +45,25 @@ function erpTransport(grain: Array<Record<string, unknown>> = [], budget?: { acc
     if (String(url).includes('filters=')) return new Response(JSON.stringify({ data: grain }), { status: 200 });
     return new Response(JSON.stringify({ data: {
       name: 'BUD-1', docstatus: 1, modified: '2026-01-01', from_fiscal_year: budget?.fiscalYear, to_fiscal_year: budget?.fiscalYear,
-      account: budget?.account, company: 'Test Co', project: 'ERP-PROJ', budget_amount: '50000.00',
+      account: budget?.account, company: 'Test Co', project: 'ERP-PROJ', budget_amount: '40000.00',
     } }), { status: 200 });
   }) as typeof fetch;
   return { stats, fetchImpl };
 }
 
 /** A fake service client answering only what dispatch resolution reads. */
-function serviceClient(binding: unknown, categoryAccount = 'Salary'): DispatchServiceClient {
+function serviceClient(binding: unknown, categoryAccount = 'Salary', consentRow: Record<string, string> | null = null): DispatchServiceClient {
   return { from(table: string) { return { select() {
+    const filters: Record<string, string | boolean | number> = {};
     const chain = {
-      eq() { return chain; }, order() { return chain; }, limit() { return chain; }, gt() { return chain; },
-      maybeSingle: async () => ({ data: table === 'external_org_bindings' ? binding : table === 'projects' || table === 'procurements' ? { org_id: ORG } : null, error: null }),
+      eq(column: string, value: string | boolean | number) { filters[column] = value; return chain; },
+      is() { return chain; }, gte() { return chain; }, order() { return chain; }, limit() { return chain; }, gt() { return chain; },
+      // A consent is found only when every equality filter the code sent matches the recorded row.
+      maybeSingle: async () => ({
+        data: table === 'external_org_bindings' ? binding : table === 'projects' || table === 'procurements' ? { org_id: ORG }
+          : table === 'budget_occupant_consents' && consentRow && Object.entries(filters).every(([k, v]) => consentRow[k] === v) ? { id: 'consent-1' } : null,
+        error: null,
+      }),
       then(resolve: (value: unknown) => unknown) {
         resolve({ data: table === 'budget_category_account_map' ? [{ category: 'Labor', erp_account: categoryAccount }] : [], error: null });
       },
@@ -141,6 +151,14 @@ export function createErpnextHarness(): ErpHarness {
     connect: createConnectHarness,
     ...createPushAndReadHarness(),
 
+    // invoice.pair-existing: a Sales Invoice as ERPNext lists it, through the shipped inbound mapper.
+    async mapInboundInvoice(doc: InboundInvoiceDoc) {
+      return siFromDoc({
+        name: doc.number, customer: doc.client, po_no: doc.poRef, posting_date: doc.date, currency: doc.currency,
+        grand_total: Number(doc.total), total_taxes_and_charges: Number(doc.taxAmount), outstanding_amount: Number(doc.total), docstatus: 1,
+      });
+    },
+
     async matchParty(party: ErpPartyInput, existing: readonly PmoPartyCandidate[]): Promise<PartyMatchResult> {
       try {
         const adopted = await adoptParty(
@@ -195,7 +213,7 @@ export function createErpnextHarness(): ErpHarness {
       return pmoProjectId === null || pmoProjectId === undefined ? { status: 'ambiguous' } : { status: 'linked', pmoProjectId };
     },
 
-    async pushBudget({ account, fiscalYear, occupant }: BudgetPushScenario): Promise<BudgetPushResult> {
+    async pushBudget({ account, fiscalYear, occupant, consent }: BudgetPushScenario): Promise<BudgetPushResult> {
       const { stats, fetchImpl } = erpTransport(GRAINS[occupant], { account, fiscalYear });
       const record = {
         id: VERSION_ID, erp_doc_kind: 'budget', projectId: 'project', fiscal_year: fiscalYear,
@@ -203,9 +221,12 @@ export function createErpnextHarness(): ErpHarness {
         erp_account: account, budget_intent: 'ensure', budget_predecessor: null, outbox_identity: budgetAccountIdentity(VERSION_ID, fiscalYear, account),
       };
       const command = { domain: 'budget', operation: 'create', record, idempotencyKey: 'bud16:contract' } as never;
+      const consentRow = consent === 'matching' || consent === 'other'
+        ? { org_id: ORG, project_id: 'project', fiscal_year: fiscalYear, erp_account: account, erp_budget_name: consent === 'matching' ? 'DESK-BUDGET' : 'OTHER-BUDGET' }
+        : null;
       try {
         const adapter = await resolveErpDispatchAdapter({
-          serviceClient: serviceClient(ACTIVATED_BINDING, account), orgId: ORG, command,
+          serviceClient: serviceClient(ACTIVATED_BINDING, account, consentRow), orgId: ORG, command,
           fetchImpl, apiKey: 'key', apiSecret: 'secret', doctypeBodies: DOCTYPE_BODIES,
         });
         await adapter.commit(command);
@@ -250,17 +271,32 @@ export function createErpnextHarness(): ErpHarness {
   };
 }
 
-/** A fake ERPNext behind the connect adapter, loaded in PMO terms. Reads only until ECA-3 teaches it to send. */
+/** A fake ERPNext behind the connect adapter, loaded in PMO terms. */
 function createConnectHarness(): ConnectHarness {
   const tables: Record<string, Array<Record<string, unknown>>> = {};
-  const { client, seen } = fakeErp(tables);
+  const { client, seen, arm } = fakeErp(tables);
   const put = (doctype: string, row: Record<string, unknown>) => { (tables[doctype] ??= []).push({ company: 'Test Co', ...row }); };
-  const notYet = () => { throw new Error('erpnext sends arrive with ECA-3'); };
+  // What the fake now holds, read straight from its tables: independent of the adapter's own listing.
+  const documents = (kind: MasterKind): NormalisedMaster[] => {
+    const rows = (doctype: string) => tables[doctype] ?? [];
+    if (kind === 'party') {
+      return [
+        ...rows('Supplier').map((r) => ({ kind, externalId: `Supplier:${r.name}`, role: 'vendor' as const, taxId: (r.tax_id as string) ?? null, name: String(r.supplier_name), active: r.disabled !== 1 })),
+        ...rows('Customer').map((r) => ({ kind, externalId: `Customer:${r.name}`, role: 'client' as const, taxId: (r.tax_id as string) ?? null, name: String(r.customer_name), active: r.disabled !== 1 })),
+      ];
+    }
+    if (kind === 'project') return rows('Project').map((r) => ({ kind, externalId: String(r.name), code: null, name: String(r.project_name), active: true }));
+    if (kind === 'item') return rows('Item').map((r) => ({ kind, externalId: String(r.name), code: String(r.item_code), name: String(r.item_name), active: r.disabled !== 1 }));
+    return [];
+  };
   return {
     adapter: createErpnextConnectAdapter(client, 'Test Co'),
     pageSize: ERP_CONNECT_PAGE,
-    documents: notYet,
-    failNextWrite: notYet,
+    documents,
+    failNextWrite: arm,
+    rejectNextWrite: () => arm('reject'),
+    ownKeys: ['project'],   // the ERP names a project itself; the PMO code is not on the document
+    touchedAccounting: () => seen.some((r) => ACCOUNTING.has(decodeURIComponent(r.path.split('?')[0].split('/').pop()!))),
     calls: () => ({ reads: seen.filter((r) => r.method === 'GET').length, writes: seen.filter((r) => r.method !== 'GET').length }),
     load(kind, rows) {
       for (const r of rows) {

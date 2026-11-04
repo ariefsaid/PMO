@@ -14,7 +14,7 @@ import { UNASSIGNED_PROJECT_MANAGER } from './projects/projectManagerLabel';
 export type ListName = 'projects' | 'sales' | 'procurement' | 'companies' | 'contacts' | 'meetings';
 
 export type ProjectFilter = 'All' | 'My Projects' | 'Ongoing' | 'Completed' | 'at-risk';
-export type SalesScope = 'Open' | 'Won' | 'Lost' | 'Needs attention';
+export type SalesScope = 'All' | 'Open' | 'Won' | 'Lost' | 'Needs attention';
 export type SalesStage = '' | OpenFunnelStage;
 export type ProcurementFilterStatus =
   | 'All'
@@ -70,6 +70,7 @@ export interface ContactsWorkingSet {
 export interface MeetingsWorkingSet {
   project: string;
   q: string;
+  archived: boolean;
 }
 
 export interface ListWorkingSetByName {
@@ -95,7 +96,7 @@ const PROJECT_FILTERS = [
   'Completed',
   'at-risk',
 ] as const satisfies readonly ProjectFilter[];
-const SALES_SCOPES = ['Open', 'Won', 'Lost', 'Needs attention'] as const satisfies readonly SalesScope[];
+const SALES_SCOPES = ['All', 'Open', 'Won', 'Lost', 'Needs attention'] as const satisfies readonly SalesScope[];
 const SALES_STAGES = ['', ...OPEN_FUNNEL_STAGES] as readonly SalesStage[];
 
 const PROCUREMENT_FILTER_STATUSES = [
@@ -360,11 +361,11 @@ const LIST_WORKING_SET_SCHEMAS: Schemas = {
     parse: (params, options) => {
       const status = enumValue(params.get('status'), SALES_STAGES, '');
       const view = viewValue<PipelineView>(params, 'sales', options.sessionView);
-      const requestedScope = enumValue(params.get('scope'), SALES_SCOPES, 'Open');
+      const requestedScope = enumValue(params.get('scope'), SALES_SCOPES, 'All');
       return {
         // Scope is meaningful ONLY for the table view — the board is the open pipeline by stage
         // and has no scope of its own, so a board URL (including a copied/direct
-        // `?view=kanban&scope=Lost`) always parses to Open, regardless of any scope token.
+        // `?view=kanban&scope=Lost`) always parses to the All default, regardless of any scope token.
         // Within the table, only a Lost scope conflicts with an open funnel stage. "Needs
         // attention" and an open stage are a valid combination (SalesPipeline intersects them),
         // so that contradiction forces Open only when Lost was requested together with an open
@@ -373,7 +374,7 @@ const LIST_WORKING_SET_SCHEMAS: Schemas = {
         // `serialize` below, never re-derived on the page.
         ...classificationValues(params),
         scope: view !== 'table'
-          ? 'Open'
+          ? 'All'
           : status && (requestedScope === 'Won' || requestedScope === 'Lost')
             ? 'Open'
             : requestedScope,
@@ -385,17 +386,17 @@ const LIST_WORKING_SET_SCHEMAS: Schemas = {
     serialize: (params, value, options) => {
       // Mirror of parse: the board carries no scope, so switching to it (or serializing a working
       // set whose view is already board) never writes an inert `scope` — the key is omitted
-      // entirely rather than pinned to a value the view ignores. Terminal scopes cannot coexist
-      // with an open stage in the table, so they are forced to Open only in that contradiction;
-      // Needs attention + stage round-trips as-is.
+      // entirely rather than pinned to a value the view ignores. All is the table default and is
+      // omitted for a clean URL. Terminal scopes cannot coexist with an open stage in the table,
+      // so they are forced to Open only in that contradiction; Needs attention + stage round-trips.
       putClassification(params, value);
       const scope =
         value.view !== 'table'
-          ? 'Open'
+          ? 'All'
           : (value.scope === 'Lost' || value.scope === 'Won') && value.status
             ? 'Open'
             : value.scope;
-      putParam(params, 'scope', scope, 'Open');
+      putParam(params, 'scope', scope, 'All');
       putParam(params, 'status', value.status);
       putParam(params, 'q', value.q);
       putView(params, 'sales', value.view, options.sessionView);
@@ -455,10 +456,12 @@ const LIST_WORKING_SET_SCHEMAS: Schemas = {
     parse: (params) => ({
       project: referenceValue(params.get('project')),
       q: searchValue(params),
+      archived: params.get('archived') === '1',
     }),
     serialize: (params, value) => {
       putParam(params, 'project', value.project, 'All');
       putParam(params, 'q', value.q);
+      putParam(params, 'archived', value.archived ? '1' : '');
       return params;
     },
   },

@@ -377,6 +377,50 @@ Deno.test('the strategy mint honors a project_id on the canonical record (the pe
   assert(threw instanceof AppError, 'a mint with no project anywhere must refuse');
 });
 
+// ── ADP-003 / ADP-004 — omitted fields stay omitted; the lookups the inbound routine needs. ─────────
+
+Deno.test('mirror update leaves an OMITTED field untouched and clears a field that is explicitly null', async () => {
+  const db = fakeMirrorDb({
+    tasks: [{ ...mirrorTaskRow('pmo-1', 1000), parent_task_id: 'pmo-parent', description: 'kept', priority: 'High' }],
+  });
+  const callbacks = createClickUpMirrorCallbacks({ serviceClient: db, orgId: ORG, projectId: PROJECT });
+
+  await callbacks.updateMirror('pmo-1', taskRecord('Renamed') as never, 2000);
+  assert(db.__state.tasks[0].parent_task_id === 'pmo-parent', 'an omitted parent_task_id must not flatten a linked subtask');
+  assert(db.__state.tasks[0].description === 'kept', 'an omitted description must be preserved');
+  assert(db.__state.tasks[0].priority === 'High', 'an omitted priority must be preserved');
+  assert(db.__state.tasks[0].name === 'Renamed', 'present fields still apply');
+
+  await callbacks.updateMirror('pmo-1', { ...taskRecord('Renamed'), parent_task_id: null, description: null } as never, 3000);
+  assert(db.__state.tasks[0].parent_task_id === null, 'an explicit null parent unlinks');
+  assert(db.__state.tasks[0].description === null, 'an explicit null description clears');
+});
+
+Deno.test('the shared bag reads the mirror status and project, org-scoped', async () => {
+  const db = fakeMirrorDb({ tasks: [{ ...mirrorTaskRow('pmo-1', 1000), status: 'Blocked' }] });
+  const callbacks = createClickUpMirrorCallbacks({ serviceClient: db, orgId: ORG, projectId: PROJECT });
+  assert((await callbacks.readMirrorStatus('pmo-1')) === 'Blocked', 'the stored status is read');
+  assert((await callbacks.readMirrorStatus('pmo-missing')) === null, 'a missing mirror reads null');
+  assert((await callbacks.readMirrorProjectId('pmo-1')) === PROJECT, 'the stored project is read');
+
+  const otherOrg = createClickUpMirrorCallbacks({ serviceClient: db, orgId: 'other-org' });
+  assert((await otherOrg.readMirrorStatus('pmo-1')) === null, 'another org cannot read this org\'s mirror');
+});
+
+Deno.test('resolveParentPmoId maps a mirrored ClickUp parent through external_refs, null when unmirrored', async () => {
+  const db = fakeMirrorDb({ refs: [mappedRef('cu-parent', 'pmo-parent')] });
+  const callbacks = createClickUpMirrorCallbacks({ serviceClient: db, orgId: ORG, projectId: PROJECT });
+  assert((await callbacks.resolveParentPmoId('cu-parent')) === 'pmo-parent', 'a mirrored parent resolves');
+  assert((await callbacks.resolveParentPmoId('cu-unknown')) === null, 'an unmirrored parent is null');
+});
+
+Deno.test('the plain mint honors the canonical project and persists the resolved parent', async () => {
+  const db = fakeMirrorDb();
+  const callbacks = createClickUpMirrorCallbacks({ serviceClient: db, orgId: ORG });
+  await callbacks.mintMirror({ ...taskRecord('Sweep subtask'), project_id: 'proj-per-task', parent_task_id: 'pmo-parent' } as never, 4000);
+  assert(db.__state.tasks[0].project_id === 'proj-per-task', 'the per-task project wins');
+  assert(db.__state.tasks[0].parent_task_id === 'pmo-parent', 'the resolved parent is persisted');
+});
 
 // ── T-07 B3 · a lookup ERROR is not an ABSENT row ─────────────────────────────────────────────────
 // Every lookup callback throws on a query error and returns null ONLY for a confirmed absent row, so a

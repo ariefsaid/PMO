@@ -163,7 +163,16 @@ serveWithErrorReporting('admin-invite-user', async (req: Request): Promise<Respo
     full_name: '',
   });
   if (profileError) {
-    logStructuredError({ fn: 'admin-invite-user', errorCode: 'PROFILE_CREATE_FAILED' });
+    // The plan's seat cap (migration 0535) refuses the profile write with PL001 / 'seat_limit_reached'
+    // when another invite landed between authorizeInvite's pre-check and this insert. It is the same
+    // refusal the pre-check raises, so it gets the same typed code (the FE localises it) rather than
+    // the generic PROFILE_CREATE_FAILED.
+    const seatRefused =
+      profileError.code === 'PL001' || /seat_limit_reached/.test(profileError.message ?? '');
+    logStructuredError({
+      fn: 'admin-invite-user',
+      errorCode: seatRefused ? 'SEAT_LIMIT_REACHED' : 'PROFILE_CREATE_FAILED',
+    });
     // Compensate (saga rollback): the invite above already created an auth.users row. Without a
     // matching profiles row it is orphaned — the email is now "taken" (a retry fails at invite
     // issuance) and the account can partially authenticate with no org/role. Delete the just-created
@@ -174,6 +183,7 @@ serveWithErrorReporting('admin-invite-user', async (req: Request): Promise<Respo
       // visible/alertable, not silently swallowed.
       logStructuredError({ fn: 'admin-invite-user', errorCode: 'PROFILE_CREATE_CLEANUP_FAILED' });
     }
+    if (seatRefused) return json({ error: 'SEAT_LIMIT_REACHED' }, 409, corsHeaders);
     return json({ error: 'PROFILE_CREATE_FAILED' }, 502, corsHeaders);
   }
 

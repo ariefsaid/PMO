@@ -107,7 +107,7 @@ describe('THEME-BACK-06 timesheet push queue', () => {
 
 describe('THEME-BACK-06 budget archive queue', () => {
   const job = (id: string): BudgetArchiveCancelIntent => ({
-    id, org_id: 'org-1', project_id: 'p', budget_version_id: id, source_mirror_id: 'm', actor_user_id: 'u', fiscal_year: '2026',
+    id, org_id: 'org-1', request_id: `request-${id}`, project_id: 'p', budget_version_id: id, source_mirror_id: 'm', actor_user_id: 'u', fiscal_year: '2026',
     erp_account: 'Labor', erp_budget_name: 'BUD', activated_at_witness: '2026-01-01T00:00:00Z',
     pushed_project_start_date: null, pushed_project_end_date: null,
   });

@@ -70,6 +70,7 @@ type CandidateProfile = { id: string; full_name: string; email: string; status: 
 const profileOptionsState: CandidateProfile[] = [];
 const profileListAvailability = { unavailable: false };
 const confirmMutation: MutationState = { mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false };
+const procurementTransition = vi.hoisted(() => ({ mutateAsync: vi.fn() }));
 
 vi.mock('@/pages/approvals/SalesInvoiceApprovalSection', () => ({ SalesInvoiceApprovalSection: () => null }));
 // #784 C-1: the customer invoices awaiting the viewer count toward "all caught up" and the All tab.
@@ -101,6 +102,13 @@ vi.mock('@/src/hooks/useTimesheetApproval', () => ({
 const procState = { data: [] as unknown[], isPending: false, isError: false };
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => ({ ...procState, refetch: vi.fn() }),
+}));
+vi.mock('@/src/hooks/useProcurementDetail', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/src/hooks/useProcurementDetail')>();
+  return { ...actual, useProcurementBulkTransition: () => procurementTransition };
+});
+vi.mock('./approvals/ProcurementApprovalRow', () => ({
+  ProcurementApprovalPreview: ({ row }: { row: { title: string } }) => <h2>{row.title}</h2>,
 }));
 
 // Mutable so a P3b test can flip the signed-in role to Admin/Engineer without a per-test module mock.
@@ -197,6 +205,7 @@ beforeEach(() => {
   procState.data = [];
   procState.isPending = false;
   procState.isError = false;
+  procurementTransition.mutateAsync = vi.fn(() => Promise.resolve());
   attentionState.data = [];
   attentionState.isPending = false;
   attentionState.isError = false;
@@ -400,6 +409,95 @@ describe('Approvals desktop bulk actions (AC-912)', () => {
       expect(screen.getByRole('checkbox', { name: /Dave Engineer.*Week of Jun 1/i })).toBeInTheDocument();
       expect(screen.queryByRole('checkbox', { name: /Erin Analyst/i })).not.toBeInTheDocument();
     });
+  });
+});
+
+describe('Approvals procurement bulk approval (AC-1578)', () => {
+  it('AC-1578: selecting all from a mixed selection selects every purchase', async () => {
+    authState.role = 'Project Manager';
+    procState.data = [
+      { id: 'pr-1', title: 'Roof package', status: 'Requested', requested_by_id: 'u-requester-1', total_value: 100, currency: 'USD', created_at: '2026-06-01T00:00:00Z' },
+      { id: 'pr-2', title: 'HVAC package', status: 'Requested', requested_by_id: 'u-requester-2', total_value: 200, currency: 'USD', created_at: '2026-06-02T00:00:00Z' },
+    ];
+    renderPage('procurement');
+
+    await userEvent.click(screen.getByRole('button', { name: /select purchases/i }));
+    const roof = screen.getByRole('checkbox', { name: /select roof package/i });
+    const hvac = screen.getByRole('checkbox', { name: /select hvac package/i });
+    const selectAll = screen.getByRole('checkbox', { name: /select all purchase requests/i });
+    await userEvent.click(roof);
+    expect(roof).toBeChecked();
+    expect(hvac).not.toBeChecked();
+
+    await userEvent.click(selectAll);
+    expect(roof).toBeChecked();
+    expect(hvac).toBeChecked();
+
+    await userEvent.click(selectAll);
+    expect(roof).not.toBeChecked();
+    expect(hvac).not.toBeChecked();
+    expect(screen.getByRole('button', { name: /approve 0/i })).toBeDisabled();
+  });
+
+  it('AC-1578: approves every selected purchase and reports the all-success result', async () => {
+    authState.role = 'Project Manager';
+    procState.data = [
+      { id: 'pr-1', title: 'Roof package', status: 'Requested', requested_by_id: 'u-requester-1', total_value: 100, currency: 'USD', created_at: '2026-06-01T00:00:00Z' },
+    ];
+    renderPage('procurement');
+
+    await userEvent.click(screen.getByRole('button', { name: /select purchases/i }));
+    await userEvent.click(screen.getByRole('checkbox', { name: /select all purchase requests/i }));
+    await userEvent.click(screen.getByRole('button', { name: /approve 1/i }));
+    const dialog = screen.getByRole('dialog');
+    await userEvent.click(within(dialog).getByRole('button', { name: /approve 1/i }));
+
+    await waitFor(() => expect(procurementTransition.mutateAsync).toHaveBeenCalledExactlyOnceWith({ id: 'pr-1', to: 'Approved' }));
+    expect(await findToastAnnouncement('status', /purchases approved/i)).toBeInTheDocument();
+  });
+
+  it('AC-1578: selects purchase rows and reports per-row failures without cancelling successful approvals', async () => {
+    authState.role = 'Project Manager';
+    procState.data = [
+      { id: 'pr-1', title: 'Roof package', status: 'Requested', requested_by_id: 'u-requester-1', total_value: 100, currency: 'USD', created_at: '2026-06-01T00:00:00Z' },
+      { id: 'pr-2', title: 'HVAC package', status: 'Requested', requested_by_id: 'u-requester-2', total_value: 200, currency: 'USD', created_at: '2026-06-02T00:00:00Z' },
+    ];
+    procurementTransition.mutateAsync = vi.fn(({ id }: { id: string }) => (
+      id === 'pr-2' ? Promise.reject(new Error('not authorized for this approval route')) : Promise.resolve()
+    ));
+    renderPage('procurement');
+
+    await userEvent.click(screen.getByRole('button', { name: /select purchases/i }));
+    await userEvent.click(screen.getByRole('checkbox', { name: /select all purchase requests/i }));
+    await userEvent.click(screen.getByRole('button', { name: /approve 2/i }));
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toHaveTextContent('Roof package');
+    expect(dialog).toHaveTextContent('HVAC package');
+    await userEvent.click(within(dialog).getByRole('button', { name: /approve 2/i }));
+
+    await waitFor(() => expect(procurementTransition.mutateAsync).toHaveBeenCalledTimes(2));
+    expect(procurementTransition.mutateAsync).toHaveBeenNthCalledWith(1, { id: 'pr-1', to: 'Approved' });
+    expect(procurementTransition.mutateAsync).toHaveBeenNthCalledWith(2, { id: 'pr-2', to: 'Approved' });
+    const toast = await findToastAnnouncement('alert', /1 approved, 1 failed/i);
+    expect(toast).toHaveTextContent('HVAC package');
+  });
+
+  it('AC-1578: reports the purchase when every selected approval is refused', async () => {
+    authState.role = 'Project Manager';
+    procState.data = [
+      { id: 'pr-1', title: 'Roof package', status: 'Requested', requested_by_id: 'u-requester-1', total_value: 100, currency: 'USD', created_at: '2026-06-01T00:00:00Z' },
+    ];
+    procurementTransition.mutateAsync = vi.fn(() => Promise.reject(new Error('not authorized for this approval route')));
+    renderPage('procurement');
+
+    await userEvent.click(screen.getByRole('button', { name: /select purchases/i }));
+    await userEvent.click(screen.getByRole('checkbox', { name: /select all purchase requests/i }));
+    await userEvent.click(screen.getByRole('button', { name: /approve 1/i }));
+    const dialog = screen.getByRole('dialog');
+    await userEvent.click(within(dialog).getByRole('button', { name: /approve 1/i }));
+
+    const toast = await findToastAnnouncement('alert', /1 failed/i);
+    expect(toast).toHaveTextContent('Roof package');
   });
 });
 

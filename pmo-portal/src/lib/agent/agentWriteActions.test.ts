@@ -29,6 +29,7 @@ import {
 } from '../../../../supabase/functions/agent-chat/handler';
 import type { HandlerDeps } from '../../../../supabase/functions/agent-chat/handler';
 import type { AgentEvent } from './runtime/port';
+import { FEATURES_ALL_ON } from './testing/fakeSupabase';
 import type { AgentChatRequest } from './runtime/transport';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -122,7 +123,9 @@ function mockSupabase(opts: {
     // audit_agent_denial RPC (migration 0079) — resolves by default so the fail-open audit
     // write on the refusal path succeeds. A per-test can reassign `.rpc` to throw/reject to
     // prove fail-open (AC-AGENTDENY-WIRING-002). Real client shape: { data, error }.
-    rpc: vi.fn().mockResolvedValue({ data: null, error: null }),
+    // S4: the caller's own switch snapshot (all on) — the handler reads it once per request.
+    rpc: vi.fn().mockImplementation(async (fn: string) =>
+      fn === 'resolved_org_features' ? { data: FEATURES_ALL_ON, error: null } : { data: null, error: null }),
   } as unknown as HandlerDeps['supabase'];
 }
 
@@ -572,8 +575,10 @@ it('AC-AGENTDENY-WIRING-001 can() denies → audit_agent_denial RPC invoked with
   // The durable audit RPC was invoked exactly once with the refusal reason + annotation
   // (attempted tool/action/entity + run/thread/pending ids). Org/actor are NOT passed — the
   // 0079 RPC stamps them server-side from the JWT (proven non-forgeable by pgTAP 0136).
-  expect(supabaseMock.rpc).toHaveBeenCalledTimes(1);
-  expect(supabaseMock.rpc).toHaveBeenCalledWith('audit_agent_denial', {
+  const rpcMock = supabaseMock.rpc as unknown as ReturnType<typeof vi.fn>;
+  const auditCalls = () => rpcMock.mock.calls.filter((call) => call[0] === 'audit_agent_denial');
+  expect(auditCalls()).toHaveLength(1);
+  expect(rpcMock).toHaveBeenCalledWith('audit_agent_denial', {
     p_reason: 'permission_denied',
     p_detail: {
       tool: 'create_activity',
@@ -613,7 +618,10 @@ it('AC-AGENTDENY-WIRING-002 a throwing audit_agent_denial RPC is FAIL-OPEN — r
   // Simulate the audit RPC failing (e.g. transient DB/edge error). Must be swallowed.
   (supabaseMock as unknown as { rpc: ReturnType<typeof vi.fn> }).rpc = vi
     .fn()
-    .mockRejectedValue(new Error('audit rpc down'));
+    .mockImplementation(async (fn: string) => {
+      if (fn === 'resolved_org_features') return { data: FEATURES_ALL_ON, error: null };
+      throw new Error('audit rpc down');
+    });
 
   // collect() must NOT throw — the failed audit write must not break the user's turn.
   const events = await collect(
@@ -632,7 +640,8 @@ it('AC-AGENTDENY-WIRING-002 a throwing audit_agent_denial RPC is FAIL-OPEN — r
   );
 
   // The RPC was attempted, and the refusal signal is identical to the happy-audit path.
-  expect(supabaseMock.rpc).toHaveBeenCalledTimes(1);
+  const rpcMock = supabaseMock.rpc as unknown as ReturnType<typeof vi.fn>;
+  expect(rpcMock.mock.calls.filter((call) => call[0] === 'audit_agent_denial')).toHaveLength(1);
   expect(events.find(
     (e) => e.type === 'status' && (e.payload as { error?: string })?.error === 'PERMISSION_DENIED',
   )).toBeDefined();

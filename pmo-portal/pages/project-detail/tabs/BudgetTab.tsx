@@ -4,7 +4,7 @@ import { ListState } from '@/src/components/ui';
 import { useProject } from '@/src/hooks/useProjects';
 import ProjectBudget from '../../ProjectBudget';
 
-export interface BudgetTabProps {
+interface BudgetTabProps {
   projectId: string;
 }
 
@@ -13,7 +13,7 @@ const BudgetTab: React.FC<BudgetTabProps> = ({ projectId }) => {
   const projectQuery = useProject(projectId);
 
   if (projectQuery.isPending) {
-    return <div data-testid="budget-loading"><ListState variant="loading" rows={4} /></div>;
+    return <div data-testid="budget-loading"><ListState variant="loading" shape="detail" rows={4} /></div>;
   }
   if (projectQuery.isError || !projectQuery.data) {
     return (

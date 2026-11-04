@@ -12,8 +12,8 @@
  * creates those two Vault secrets, so the job fires as a no-op until then.
  *
  * Thin wiring ONLY — the sweep engine (apply via the shared source-mod-guarded applyInboundChange,
- * monotonic watermark advance, unreachable ⇒ no advance) is unit-tested under sweep.test.ts. This
- * file is INTEGRATION-ONLY — verified by `deno check` + the boot-smoke.
+ * monotonic watermark advance, unreachable ⇒ no advance) is unit-tested under multiListSweep.test.ts. This
+ * file's wiring (`buildSweepDepsLive`) is pinned by liveWiring.test.ts, plus `deno check` + the boot-smoke.
  *
  * Phase 1b (task 1.6): Per-org Vault credential resolution behind EXTERNAL_CONNECT_ENABLED flag.
  * When flag is ON: iterate external_org_bindings for ClickUp tier, resolve each org's token via Vault.
@@ -26,6 +26,7 @@ import { constantTimeBearerEquals } from '../_shared/constantTimeBearerEquals.ts
 import {
   runMultiListSweep,
   type MultiListSweepBinding,
+  type MultiListSweepDeps,
   type MultiListSweepPerListResult,
 } from '../../../pmo-portal/src/lib/adapterSeam/clickup/multiListSweep.ts';
 import { ClickUpRateLimiter } from '../../../pmo-portal/src/lib/adapterSeam/clickup/rateLimit.ts';
@@ -40,6 +41,12 @@ import {
 } from '../_shared/clickupMirrorDeps.ts';
 import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
 import { withJobRun, type JobSummary } from '../_shared/jobRun.ts';
+
+/** Wall-clock the invocation may spend READING ClickUp, shared by every org. The edge function is killed at
+ *  150 s (see `_shared/jobRun.ts`); the serial applies, archives and watermark writes need the remainder,
+ *  so reads stop at 60 s and the List resumes from its keyset cursor next tick. */
+export const CLICKUP_SWEEP_READ_BUDGET_MS = 60_000;
+export const testSupabaseOptions = { auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false } };
 
 // Shared across invocations of this isolate (NFR-CUA-PERF-003). Bulk lane: the sweep yields to any
 // in-flight interactive write.
@@ -79,20 +86,6 @@ async function advanceListWatermark(serviceClient: SupabaseClient, orgId: string
     { onConflict: 'org_id,external_tier,domain' },
   );
   if (error) throw new AppError(error.message, error.code);
-}
-
-/**
- * SEC-HIGH-2: resolve the project an EXISTING mirror actually belongs to — the deterministic-resolution
- * source of truth (never guessed off whichever List tagged the task this cycle).
- */
-async function readMirrorProjectId(serviceClient: SupabaseClient, orgId: string, pmoRecordId: string): Promise<string | null> {
-  const { data } = await serviceClient
-    .from('tasks')
-    .select('project_id')
-    .eq('org_id', orgId)
-    .eq('id', pmoRecordId)
-    .maybeSingle();
-  return (data as { project_id: string | null } | null)?.project_id ?? null;
 }
 
 /**
@@ -144,12 +137,52 @@ async function markBindingUnhealthy(serviceClient: SupabaseClient, orgId: string
   }
 }
 
+/**
+ * The live `runMultiListSweep` dep bag for one org. Exported so the wiring itself is pinned by a test
+ * (the pure engine's tests cannot see what this file forgot to pass).
+ *
+ * The mirror callbacks come from the shared factory (review fix #3) — including the claim-first adopt
+ * strategy (an unmapped task's external_refs claim precedes its mirror mint, so a concurrent
+ * webhook/sweep adoption leaves exactly ONE mirror row) and the lookups the shared inbound routine
+ * needs (current status, mirror project, parent resolution). The multi-List sweep resolves the project
+ * PER task (SEC-HIGH-2), so the plain mint is pointed at that project through the canonical record.
+ */
+export function buildSweepDepsLive(
+  serviceClient: SupabaseClient,
+  orgId: string,
+  token: string,
+  bindings: MultiListSweepBinding[],
+  readDeadlineAtMs?: number,
+): MultiListSweepDeps {
+  const mirrorCallbacks = createClickUpMirrorCallbacks({ serviceClient, orgId });
+  return {
+    bindings,
+    readDeadlineAtMs,
+    clientDeps: { fetchImpl: fetch, token, rateLimiter },
+    readListWatermark: (listId) => readListWatermark(serviceClient, orgId, listId),
+    advanceListWatermark: (listId, cursor) => advanceListWatermark(serviceClient, orgId, listId, cursor),
+    markListUnhealthy: (listId) => markBindingUnhealthy(serviceClient, orgId, listId),
+    resolvePmoRecordId: mirrorCallbacks.resolvePmoRecordId,
+    readMirrorSourceMod: mirrorCallbacks.readMirrorSourceMod,
+    readMirrorProjectId: mirrorCallbacks.readMirrorProjectId,
+    readMirrorStatus: mirrorCallbacks.readMirrorStatus,
+    resolveParentPmoId: mirrorCallbacks.resolveParentPmoId,
+    updateMirror: mirrorCallbacks.updateMirror,
+    mintMirror: (canonical, sourceModMs, projectId) =>
+      mirrorCallbacks.mintMirror({ ...canonical, project_id: projectId }, sourceModMs),
+    recordExternalRef: mirrorCallbacks.recordExternalRef,
+    adoptAtomically: mirrorCallbacks.adoptAtomically,
+    archiveMirror: (pmoRecordId) => archiveMirror(serviceClient, orgId, pmoRecordId),
+  };
+}
+
 /** Sweep one org: enumerate changes across all its bound Lists (each on its OWN cursor), apply,
  *  archive, advance each List's watermark independently. */
 async function sweepOrg(
   serviceClient: SupabaseClient,
   orgId: string,
   token: string,
+  readDeadlineAtMs: number,
 ): Promise<{ applied: number; archived: number; skippedAmbiguous: number; perList: MultiListSweepPerListResult[]; error?: string }> {
   // Load the org's ClickUp bindings (one List per bound project).
   const { data: bindingRows, error: bindingError } = await serviceClient
@@ -167,49 +200,8 @@ async function sweepOrg(
     return { listId: r.external_container_id, projectId: r.project_id, statusMap, memberMap };
   });
 
-  // Shared mirror-callback bag (review fix #3): resolvePmoRecordId / readMirrorSourceMod /
-  // updateMirror / recordExternalRef come from the shared factory. `mintMirror` is overridden below —
-  // the multi-List sweep resolves the project PER task (SEC-HIGH-2), not from a single fixed projectId.
-  const mirrorCallbacks = createClickUpMirrorCallbacks({ serviceClient, orgId });
-
   try {
-    return await runMultiListSweep({
-      bindings,
-      clientDeps: { fetchImpl: fetch, token, rateLimiter },
-      readListWatermark: (listId) => readListWatermark(serviceClient, orgId, listId),
-      advanceListWatermark: (listId, cursor) => advanceListWatermark(serviceClient, orgId, listId, cursor),
-      markListUnhealthy: (listId) => markBindingUnhealthy(serviceClient, orgId, listId),
-      resolvePmoRecordId: mirrorCallbacks.resolvePmoRecordId,
-      readMirrorSourceMod: mirrorCallbacks.readMirrorSourceMod,
-      readMirrorProjectId: (pmoRecordId) => readMirrorProjectId(serviceClient, orgId, pmoRecordId),
-      updateMirror: mirrorCallbacks.updateMirror,
-      // Claim-first adopt: an unmapped task's external_refs claim precedes its mirror mint, so a
-      // concurrent webhook/sweep adoption of one task leaves exactly ONE mirror row (the losing
-      // claim refuses before any row exists; the aborted cycle's cursor never advances).
-      mintMirror: async (canonical, sourceModMs, projectId) => {
-        const pmoRecordId = crypto.randomUUID();
-        const { error } = await serviceClient.from('tasks').insert({
-          id: pmoRecordId,
-          org_id: orgId,
-          project_id: projectId,
-          name: canonical.name,
-          status: canonical.status,
-          assignee_id: canonical.assignee_id ?? null,
-          start_date: canonical.start_date ?? null,
-          end_date: canonical.end_date ?? null,
-          completed_at: (canonical.completed_at as string | null | undefined) ?? null,
-          // OD-INT-9: description + priority are ClickUp-owned native fields — mirror them inbound.
-          description: (canonical.description as string | null | undefined) ?? null,
-          priority: (canonical.priority as string | null | undefined) ?? null,
-          source_updated_at: new Date(sourceModMs).toISOString(),
-        });
-        if (error) throw new AppError(error.message, error.code);
-        return pmoRecordId;
-      },
-      recordExternalRef: mirrorCallbacks.recordExternalRef,
-      adoptAtomically: mirrorCallbacks.adoptAtomically,
-      archiveMirror: (pmoRecordId) => archiveMirror(serviceClient, orgId, pmoRecordId),
-    });
+    return await runMultiListSweep(buildSweepDepsLive(serviceClient, orgId, token, bindings, readDeadlineAtMs));
   } catch (err) {
     // AC-CUA-044: an unreachable adapter (or any apply failure) leaves every List's watermark + the
     // read-model untouched (runMultiListSweep throws before advancing). Surface the per-org failure;
@@ -281,7 +273,7 @@ serveWithErrorReporting('clickup-sweep', withJobRun('clickup-sweep', async (req:
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
   if (!supabaseUrl || !serviceRoleKey) return json({ error: 'MISCONFIGURED', message: 'missing Supabase configuration' }, 500);
 
-  const serviceClient = createClient(supabaseUrl, serviceRoleKey);
+  const serviceClient = createClient(supabaseUrl, serviceRoleKey, testSupabaseOptions);
 
   // ── 2. Iterate employing orgs via external_domain_ownership (ClickUp tasks tier) → sweep each with its token.
   // FIX-3: Restore legacy discovery (byte-for-byte the origin/dev query) so flag-off/prod works.
@@ -293,16 +285,31 @@ serveWithErrorReporting('clickup-sweep', withJobRun('clickup-sweep', async (req:
   if (ownershipError) return json({ error: ownershipError.code ?? 'OWNERSHIP_READ_FAILED', message: ownershipError.message }, 500);
   const orgIds = Array.from(new Set(((ownership as Array<{ org_id: string }> | null) ?? []).map((r) => r.org_id)));
 
+  const readDeadlineAtMs = Date.now() + CLICKUP_SWEEP_READ_BUDGET_MS;
   const perOrg = [];
   const failures = [];
   let totalApplied = 0;
   for (const orgId of orgIds) {
+    const { data: clickupSyncOn, error: featureError } = await serviceClient.rpc('service_feature_enabled', {
+      p_org_id: orgId,
+      p_key: 'clickup_sync',
+    });
+    if (featureError) {
+      failures.push({ orgId, error: 'FEATURE_SWITCH_UNREADABLE' });
+      continue;
+    }
+    if (clickupSyncOn !== true) {
+      // Leave the org's task watermarks untouched; the next tick resumes from the same cursor.
+      perOrg.push({ orgId, skipped: 'feature-off:clickup_sync' });
+      continue;
+    }
+
     // Per-org isolation: a fail-closed token error (bound org whose Vault secret is missing) or a
     // sweep error for ONE org must not abort reconciliation for the OTHERS (no cross-org DoS). Record
     // the failure and continue; the org's watermark simply does not advance and retries next schedule.
     try {
       const token = await resolveOrgClickUpToken(serviceClient, orgId);
-      const result = await sweepOrg(serviceClient, orgId, token);
+      const result = await sweepOrg(serviceClient, orgId, token, readDeadlineAtMs);
       totalApplied += result.applied;
       perOrg.push({ orgId, ...result });
     } catch (err) {

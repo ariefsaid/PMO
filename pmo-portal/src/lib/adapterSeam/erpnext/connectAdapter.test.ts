@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createErpnextConnectAdapter, ERP_CONNECT_PAGE } from './connectAdapter.ts';
+import { createErpnextConnectAdapter, ERP_CONNECT_PAGE, erpnextSendProbe } from './connectAdapter.ts';
 import { fakeErp } from './fakeErp.ts';
 
 describe('ECA2-T7 erpnext ConnectAdapter reads', () => {
@@ -71,11 +71,93 @@ describe('ECA2-T7 erpnext ConnectAdapter reads', () => {
     expect(seen.every((r) => r.method === 'GET')).toBe(true);
   });
 
-  it('an unknown kind is rejected and sending is unavailable until ECA-3', async () => {
+  it('an unknown kind is rejected and a kind that is not sent is refused', async () => {
     const { client } = fakeErp({});
     const a = createErpnextConnectAdapter(client, 'Test Co');
     await expect(a.listMasters('contact', null)).rejects.toThrow(/unavailable/);
     await expect(a.listMasters('party', 'Bogus:x')).rejects.toThrow(/cursor/);
-    await expect(a.sendMaster('party', { id: 'p', name: 'n' }, 'k')).rejects.toThrow(/unavailable/);
+    for (const kind of ['employee', 'account', 'contact'] as const) {
+      await expect(a.sendMaster(kind, { id: 'p', name: 'n' }, 'k')).rejects.toMatchObject({ code: 'commit-rejected', message: expect.stringMatching(/unavailable/) });
+    }
+  });
+});
+
+describe('ECA3-T3 erpnext ConnectAdapter sends (lookup-then-create, FR-ECA-020/021)', () => {
+  const posts = (seen: Array<{ method: string; path: string }>) => seen.filter((r) => r.method === 'POST');
+
+  it('a vendor becomes a Supplier and a client a Customer; the tax id travels', async () => {
+    const tables: Record<string, Array<Record<string, unknown>>> = {};
+    const { client } = fakeErp(tables);
+    const a = createErpnextConnectAdapter(client, 'Test Co');
+    expect(await a.sendMaster('party', { id: 'c1', name: 'PT Baja', role: 'vendor', taxId: '01.234' }, 'seed:party:c1')).toEqual({ externalId: 'Supplier:SUP-1' });
+    expect(await a.sendMaster('party', { id: 'c2', name: 'PT Klien', role: 'client' }, 'seed:party:c2')).toEqual({ externalId: 'Customer:CUS-1' });
+    expect(tables.Supplier[0]).toMatchObject({ supplier_name: 'PT Baja', tax_id: '01.234', supplier_group: 'All Supplier Groups' });
+    expect(tables.Customer[0]).toMatchObject({ customer_name: 'PT Klien', customer_group: 'All Customer Groups' });
+  });
+
+  it('looks the master up before any create: a name already in the ERP is linked, not created again', async () => {
+    const { client, seen } = fakeErp({ Supplier: [{ name: 'SUP-9', supplier_name: 'PT Baja', tax_id: '01.234' }] });
+    const a = createErpnextConnectAdapter(client, 'Test Co');
+    expect(await a.sendMaster('party', { id: 'c1', name: 'PT Baja', role: 'vendor', taxId: '01.234' }, 'seed:party:c1')).toEqual({ externalId: 'Supplier:SUP-9' });
+    expect(posts(seen)).toHaveLength(0);
+  });
+
+  it('a project is created in the connected company, an item under its code with the purchase flags', async () => {
+    const tables: Record<string, Array<Record<string, unknown>>> = {};
+    const { client } = fakeErp(tables);
+    const a = createErpnextConnectAdapter(client, 'Test Co');
+    expect(await a.sendMaster('project', { id: 'p1', name: 'Jembatan', code: 'PRJ-1' }, 'seed:project:p1')).toEqual({ externalId: 'PROJ-1' });
+    expect(tables.Project[0]).toMatchObject({ project_name: 'Jembatan', company: 'Test Co' });
+    expect(await a.sendMaster('item', { id: 'Semen 50 kg', name: 'Semen 50 kg', code: 'Semen 50 kg' }, 'seed:item:Semen 50 kg')).toEqual({ externalId: 'Semen 50 kg' });
+    expect(tables.Item[0]).toMatchObject({ item_code: 'Semen 50 kg', item_name: 'Semen 50 kg', is_purchase_item: 1, is_stock_item: 0 });
+  });
+
+  it('a project of another company with the same name is not ours: the lookup is company-scoped', async () => {
+    const { client, seen } = fakeErp({ Project: [{ name: 'PROJ-7', project_name: 'Jembatan', company: 'Other Co' }] });
+    const a = createErpnextConnectAdapter(client, 'Test Co');
+    const sent = await a.sendMaster('project', { id: 'p1', name: 'Jembatan' }, 'k');
+    expect(sent.externalId).not.toBe('PROJ-7');
+    expect(posts(seen)).toHaveLength(1);
+  });
+
+  it('an item keyed differently in the ERP is found by its name instead of duplicated (FR-ECA-016)', async () => {
+    const { client, seen } = fakeErp({ Item: [{ name: 'ITM-0001', item_code: 'ITM-0001', item_name: 'Kabel 10 mm' }] });
+    const a = createErpnextConnectAdapter(client, 'Test Co');
+    expect(await a.sendMaster('item', { id: 'Kabel 10 mm', name: 'Kabel 10 mm', code: 'Kabel 10 mm' }, 'k')).toEqual({ externalId: 'ITM-0001' });
+    expect(posts(seen)).toHaveLength(0);
+  });
+
+  it('a create past the outbox claim\'s deadline is refused before it reaches the ERP (nothing is created, the lookup still ran)', async () => {
+    const { client, seen } = fakeErp({});
+    const a = createErpnextConnectAdapter(client, 'Test Co');
+    await expect(a.sendMaster('party', { id: 'c1', name: 'PT Baja', role: 'vendor' }, 'k', { commitDeadlineAtMs: Date.now() - 1 })).rejects.toMatchObject({ code: 'external-unreachable' });
+    expect(posts(seen)).toHaveLength(0);
+    expect(seen.filter((r) => r.method === 'GET')).toHaveLength(1);
+  });
+
+  it('two ERP records that match one send are refused as ambiguous, nothing is created', async () => {
+    const { client, seen } = fakeErp({ Project: [
+      { name: 'PROJ-1', project_name: 'Jembatan', company: 'Test Co' }, { name: 'PROJ-2', project_name: 'Jembatan', company: 'Test Co' },
+    ] });
+    const a = createErpnextConnectAdapter(client, 'Test Co');
+    await expect(a.sendMaster('project', { id: 'p1', name: 'Jembatan' }, 'k')).rejects.toMatchObject({ code: 'commit-rejected', message: 'Two ERP records match this record' });
+    expect(posts(seen)).toHaveLength(0);
+  });
+
+  it('the recovery probe runs the same lookup: an id when the ERP holds it, null when not, ambiguous when two do', async () => {
+    const { client } = fakeErp({ Item: [{ name: 'SMN', item_code: 'SMN', item_name: 'Semen' }], Project: [
+      { name: 'PROJ-1', project_name: 'Dup', company: 'Test Co' }, { name: 'PROJ-2', project_name: 'Dup', company: 'Test Co' },
+    ] });
+    expect(await erpnextSendProbe(client, 'Test Co', 'item', { id: 'Semen', name: 'Semen', code: 'SMN' })).toEqual({ externalRecordId: 'SMN' });
+    expect(await erpnextSendProbe(client, 'Test Co', 'item', { id: 'Beton', name: 'Beton', code: 'BTN' })).toBeNull();
+    await expect(erpnextSendProbe(client, 'Test Co', 'project', { id: 'p', name: 'Dup' })).rejects.toMatchObject({ code: 'commit-rejected' });
+  });
+
+  it('I3 the lookup before a create is one bounded attempt: a failing ERP is not retried into the claim budget', async () => {
+    let gets = 0;
+    const client = { fetchImpl: (async () => { gets += 1; return new Response('down', { status: 503 }); }) as typeof fetch, baseUrl: 'https://erp.example.test',
+      apiKey: 'k', apiSecret: 's', maxRetries: 3, sleep: async () => {} };
+    await expect(createErpnextConnectAdapter(client, 'Test Co').sendMaster('project', { id: 'p', name: 'Jembatan' }, 'k')).rejects.toMatchObject({ code: 'external-unreachable' });
+    expect(gets).toBe(1);
   });
 });

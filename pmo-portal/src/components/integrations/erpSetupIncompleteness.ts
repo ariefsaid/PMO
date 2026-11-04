@@ -21,6 +21,11 @@ export function requiredBudgetCategories(setup: ErpSetupReadiness): string[] {
   );
 }
 
+/** FR-ECA-020: PMO never creates accounts, so a required category with no linked account is the accountant's task. */
+export function missingAccountCategories(setup: ErpSetupReadiness): string[] {
+  return requiredBudgetCategories(setup).filter((category) => !setup.budgetMappedCategories.includes(category));
+}
+
 export function getErpSetupIncompleteness(setup: ErpSetupReadiness) {
   return {
     domains: setup.domains.length === 0,
