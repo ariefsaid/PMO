@@ -30,24 +30,60 @@ const forecastKeyFamilies = [
 // ---------------------------------------------------------------------------
 
 /**
- * THE one invalidation for every budget write (line-item create/update/delete, paste/import,
- * version save/clone/delete, distribution save — and #1473's successful/uncertain refresh).
- * Preserves the established `budget`, `budget-versions`, `budget-activation-precheck` and
- * `project-finances` keys and adds the whole project's `budget-distribution` prefix, so every
- * version's saved plan re-evaluates against the changed source lines (a refetch re-reads the
- * rows and basis; it never deletes or silently re-saves a plan). The four C2 forecast families
- * invalidate under the same org+project scope so budget lifecycle changes reach comparison,
- * projection, phasing and fiscal-year reads without a duplicate waterfall.
+ * Shared awaited refresh for budget writes (#1473 accepted helper, keys reconciled to the
+ * integrated tree: the distribution prefix is literal because the factory is version- exact,
+ * and the forecast families are the integrated const). Existing matching budget, readiness,
+ * finance, distribution, comparison, projection, phasing and fiscal-year queries are marked
+ * stale; each active query is then refetched individually so every read is awaited. Inactive
+ * queries stay stale until requested. `budget-project-calendar` is deliberately not a prefix:
+ * it derives from project dates/ERP, so a budget write never needs to refresh it (C2 contract).
  */
+export function refreshBudgetQueries(
+  queryClient: QueryClient,
+  orgId: string | undefined,
+  projectId: string,
+): Promise<void> {
+  const prefixes: readonly (readonly unknown[])[] = [
+    budgetKey(orgId, projectId),
+    budgetVersionsKey(orgId, projectId),
+    ['budget-activation-precheck'],
+    ['project-finances', orgId, projectId],
+    ['budget-distribution', orgId, projectId],
+    ...forecastKeyFamilies.flatMap((family) => [
+      [family, projectId],
+      [family, orgId, projectId],
+    ]),
+  ] as const;
+  const matchedQueries = new Map(
+    prefixes.flatMap((queryKey) => queryClient.getQueryCache()
+      .findAll({ queryKey })
+      .map((query) => [query.queryHash, query] as const)),
+  );
+  const matchedHashes = new Set(matchedQueries.keys());
+
+  // Mark only the queries captured above stale. refetchType:none prevents TanStack's grouped
+  // prefix refetch from starting reads this function cannot individually await.
+  return queryClient.invalidateQueries(
+    {
+      predicate: (query) => matchedHashes.has(query.queryHash),
+      refetchType: 'none',
+    },
+  ).then(async () => {
+    const activeQueries = [...matchedQueries.values()].filter((query) => query.isActive());
+    const settlements = await Promise.allSettled(activeQueries.map((query) =>
+      queryClient.refetchQueries(
+        { queryKey: query.queryKey, exact: true, type: 'active' },
+        { throwOnError: true },
+      ),
+    ));
+    const failedRead = settlements.find((settlement) => settlement.status === 'rejected');
+    if (failedRead?.status === 'rejected') throw failedRead.reason;
+  });
+}
+
+/** Existing mutation flows keep their fire-and-forget completion behavior. */
 export function invalidateBudgetQueries(queryClient: QueryClient, orgId: string | undefined, projectId: string): void {
-  queryClient.invalidateQueries({ queryKey: budgetKey(orgId, projectId) });
-  queryClient.invalidateQueries({ queryKey: budgetVersionsKey(orgId, projectId) });
-  queryClient.invalidateQueries({ queryKey: ['budget-activation-precheck'] });
-  queryClient.invalidateQueries({ queryKey: ['project-finances', orgId, projectId] });
-  queryClient.invalidateQueries({ queryKey: ['budget-distribution', orgId, projectId] });
-  for (const family of forecastKeyFamilies) {
-    queryClient.invalidateQueries({ queryKey: [family, orgId, projectId] });
-  }
+  void refreshBudgetQueries(queryClient, orgId, projectId).catch(() => undefined);
 }
 
 // ---------------------------------------------------------------------------
@@ -201,12 +237,12 @@ export function useBudgetMutations(projectId: string) {
     onSuccess: invalidateBoth,
   });
 
-  /** #1472 S6A: persists the confirmed snapshot; on success the shared invalidation re-reads the
-   *  plan, the version list, the precheck and project finances. No optimistic save — a rejection
-   *  leaves the prior cached plan untouched for re-review. */
+  /** #1472 S6A: persists the confirmed snapshot. The awaiting authoring path owns the shared
+   *  awaited refresh (refreshBudgetQueries) and source-verifies before signalling success —
+   *  no competing fire-and-forget invalidation on the same write. No optimistic save: a
+   *  rejection leaves the prior cached plan untouched for re-review. */
   const saveDistribution = useMutation<void, Error, { versionId: string; plan: BudgetDistributionPlan }>({
     mutationFn: ({ versionId, plan }) => repositories.budget.saveDistribution(versionId, plan),
-    onSuccess: invalidateBoth,
   });
 
   const switchDraftMode = useMutation<void, Error, {
@@ -217,7 +253,6 @@ export function useBudgetMutations(projectId: string) {
   }>({
     mutationFn: ({ versionId, targetMode, expectedLines, assignments }) =>
       repositories.budget.switchDraftMode(versionId, targetMode, expectedLines, assignments),
-    onSuccess: invalidateBoth,
   });
 
   return {

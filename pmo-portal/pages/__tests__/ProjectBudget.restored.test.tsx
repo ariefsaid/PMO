@@ -28,6 +28,7 @@ const state = vi.hoisted(() => ({
 }));
 
 vi.mock('@/src/hooks/useBudget', () => ({
+  refreshBudgetQueries: vi.fn().mockResolvedValue(undefined),
   useBudgetDistribution: () => ({ data: null, isSuccess: true, isPending: false, isError: false, refetch: vi.fn() }),
   useProjectBudget: () => ({ data: 0, isPending: false, isError: false, refetch: vi.fn() }),
   useBudgetVersions: () => state.versions,
@@ -48,6 +49,8 @@ vi.mock('@/src/hooks/useBudget', () => ({
     createLineItem: { mutateAsync: vi.fn(), isPending: false },
     updateLineItem: { mutateAsync: vi.fn(), isPending: false },
     deleteLineItem: { mutateAsync: vi.fn(), isPending: false },
+    switchDraftMode: { mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false },
+    saveDistribution: { mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false },
   }),
 }));
 vi.mock('@/src/hooks/useProcurements', () => ({ useProjectProcurements: () => ({ data: [], isPending: false, isError: false }) }));

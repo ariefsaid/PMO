@@ -8,6 +8,7 @@ import {
   useBudgetMutations,
   useBudgetArchiveTargets,
   useBudgetDistribution,
+  refreshBudgetQueries,
 } from '@/src/hooks/useBudget';
 import { usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
@@ -278,6 +279,16 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
     draftVersion?.line_items.map((line) => [line.id, line.category, String(line.budgeted_amount), line.fiscal_year]),
   ]);
   const refreshAuthoringSnapshot = async (versionId: string, expected?: AuthoringSnapshotExpectation): Promise<AuthoringRefreshResult> => {
+    // ONE awaited shared refresh first (#1473 helper, integrated keys): every active budget-family
+    // read — including the C2 forecast families and project finances — is refetched exactly once
+    // and awaited; inactive reads stay stale; a rejected read fails honestly. The witness reads
+    // below are the S6B verification pass: they re-read the exact sources and compare against the
+    // frozen reviewed expectation (a later read may still observe source drift).
+    try {
+      await refreshBudgetQueries(queryClient, currentUser?.org_id, projectId);
+    } catch {
+      return { status: 'failed' };
+    }
     const results = await Promise.allSettled([
       budgetQuery.refetch(),
       versionsQuery.refetch(),

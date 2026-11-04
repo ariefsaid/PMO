@@ -80,6 +80,7 @@ const mockSwitchBudgetDraftMode = vi.fn().mockResolvedValue(undefined);
 const mockSaveBudgetDistribution = vi.fn().mockResolvedValue(undefined);
 
 vi.mock('@/src/hooks/useBudget', () => ({
+  refreshBudgetQueries: vi.fn().mockResolvedValue(undefined),
   useProjectBudget: () => budgetState,
   useBudgetVersions: () => versionsState,
   useBudgetDistribution: () => budgetDistributionState,

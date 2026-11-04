@@ -19,7 +19,7 @@ const budget = vi.hoisted(() => ({
 }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { budget } }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'user', org_id: 'org', role: 'Finance' } }) }));
-import { useProjectBudget, useBudgetActivationMode, useBudgetActivationPrecheck, useBudgetArchiveTargets, useBudgetVersions, useBudgetMutations, useBudgetDistribution, invalidateBudgetQueries } from './useBudget';
+import { useProjectBudget, useBudgetActivationMode, useBudgetActivationPrecheck, useBudgetArchiveTargets, useBudgetVersions, useBudgetMutations, useBudgetDistribution, invalidateBudgetQueries, refreshBudgetQueries } from './useBudget';
 
 const savedPlan: BudgetDistributionPlan = {
   method: 'amount_by_year',
@@ -92,7 +92,7 @@ describe('budget repository boundary', () => {
       expect(budget.getDistribution).not.toHaveBeenCalled();
     });
 
-    it('a save success invalidates the distribution, version list, precheck and project finances — an active distribution query refetches', async () => {
+    it('an authoring save does not self-invalidate — the awaiting authoring path owns the shared awaited refresh', async () => {
       budget.getDistribution.mockResolvedValue(savedPlan);
       const client = newClient();
       const { result } = renderHook(() => ({
@@ -103,6 +103,12 @@ describe('budget repository boundary', () => {
       await waitFor(() => expect(result.current.distribution.data).toEqual(savedPlan));
       expect(budget.getDistribution).toHaveBeenCalledTimes(1);
       await act(async () => { await result.current.mutations.saveDistribution.mutateAsync({ versionId: 'v', plan: savedPlan }); });
+      // #1472 integration: a confirmed authoring write must NOT race its own fire-and-forget
+      // invalidation against the page's awaited witness refresh — the page awaits the shared
+      // helper once and source-verifies before signalling success.
+      expect(budget.getDistribution).toHaveBeenCalledTimes(1);
+      expect(budget.listVersions).toHaveBeenCalledTimes(1);
+      await act(async () => { await refreshBudgetQueries(client, 'org', 'p'); });
       await waitFor(() => expect(budget.getDistribution).toHaveBeenCalledTimes(2));
       await waitFor(() => expect(budget.listVersions).toHaveBeenCalledTimes(2));
     });

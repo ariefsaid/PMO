@@ -5,7 +5,7 @@ vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from } }));
 import { listBudgetArchiveLiveTargets, listBudgetDocumentLinks } from './budgets';
 
 const target = (i: number) => ({
-  id: String(i).padStart(4, '0'), budget_version_id: 'v1', fiscal_year: '2026',
+  id: String(i).padStart(4, '0'), budget_version_id: 'v1', fiscal_year: '2026', to_fiscal_year: null,
   erp_account: '5100', erp_budget_name: 'BUD', erp_docstatus: 1,
   erp_cancelled_at: null, push_state: 'pushed', budget_intent: 'ensure',
   activated_at_witness: '2026-01-01',
