@@ -277,27 +277,24 @@ function canonicalProgressLines(
   return canonical;
 }
 
-function configuredClaimItem(config: Record<string, unknown>, label: string): string {
-  const itemMap = config.item_map;
-  if (itemMap && typeof itemMap === 'object' && !Array.isArray(itemMap) && Object.hasOwn(itemMap, label)) {
-    const mapped = (itemMap as Record<string, unknown>)[label];
-    if (typeof mapped === 'string' && mapped !== '') return mapped;
-  }
-  return label;
-}
-
 function canonicalTimeMaterialsLines(
   lines: readonly TimeMaterialsClaimLine[],
-  config: Record<string, unknown>,
+  salesItemByLineKey: ReadonlyMap<string, string | null>,
 ): CanonicalClaimLine[] {
-  return lines.map((line) => ({
-    label: line.label,
-    unit: line.unit,
-    quantity: Number(line.units),
-    rate: line.rate,
-    amount: line.amount,
-    item: configuredClaimItem(config, line.label),
-  }));
+  return lines.map((line) => {
+    const item = salesItemByLineKey.get(line.line_key);
+    if (!item) {
+      throw new AppError(`Rate line "${line.label}" has no sales item — map it on the rate card`, 'commit-rejected');
+    }
+    return {
+      label: line.label,
+      unit: line.unit,
+      quantity: Number(line.units),
+      rate: line.rate,
+      amount: line.amount,
+      item,
+    };
+  });
 }
 
 function invoiceItemsFromCanonical(lines: readonly CanonicalClaimLine[]): Array<Record<string, unknown>> {
@@ -613,7 +610,17 @@ export async function resolveProgressClaimInvoice(deps: ErpDispatchFactoryDeps, 
     if (tmLines.length > MAX_CLAIM_LINES) {
       throw new AppError(`A time-and-materials claim may have at most ${MAX_CLAIM_LINES} lines`, 'commit-rejected');
     }
-    timeMaterialsLines = canonicalTimeMaterialsLines(tmLines, binding.config);
+    const lineKeys = [...new Set(tmLines.map((line) => line.line_key))];
+    const { data: rateRows, error: rateError } = await deps.serviceClient.from('contract_rate_lines')
+      .select('line_key,sales_item_code')
+      .eq('org_id', deps.orgId).eq('project_id', claim.project_id).eq('is_current', true)
+      .in('line_key', lineKeys);
+    if (rateError) throw new AppError(rateError.message, rateError.code);
+    const salesItemByLineKey = new Map<string, string | null>(
+      ((rateRows ?? []) as Array<{ line_key: string; sales_item_code: string | null }>)
+        .map((rateLine) => [rateLine.line_key, rateLine.sales_item_code]),
+    );
+    timeMaterialsLines = canonicalTimeMaterialsLines(tmLines, salesItemByLineKey);
     assertTimeMaterialsHeader(timeMaterialsLines, claim.gross_amount, tmClaim.gross_amount);
   }
   if (claim.work_order_id) {

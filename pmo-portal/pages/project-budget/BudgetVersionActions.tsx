@@ -3,7 +3,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Button, Checkbox, ConfirmDialog, Toolbar, useToast } from '@/src/components/ui';
 import { useBudgetArchiveTargets, useBudgetMutations, useBudgetActivationPrecheck } from '@/src/hooks/useBudget';
-import type { BudgetVersionWithItems } from '@/src/lib/db/budgets';
+import { repositories } from '@/src/lib/repositories';
+import type { BudgetArchiveTarget, BudgetVersionWithItems } from '@/src/lib/db/budgets';
 
 /** A staged, not-yet-committed budget mutation awaiting the ConfirmDialog
  *  (owner rule: nothing writes on a single click). B1-B5 + delete-line-item. */
@@ -11,7 +12,9 @@ type PendingBudgetConfirm =
   | { kind: 'create'; name: string }
   | { kind: 'activate'; id: string; label: string }
   | { kind: 'clone'; id: string; label: string }
-  | { kind: 'archive'; id: string; label: string; cancelCount: number; cancelErp: boolean }
+  /** #1462 — `targets` is the SERVER's inventory for this version; `cancellable` is true only when it
+   *  says EVERY named target is eligible. The surface never re-derives either. */
+  | { kind: 'archive'; id: string; label: string; targets: BudgetArchiveTarget[]; cancellable: boolean; cancelErp: boolean }
   | { kind: 'deleteDraft'; id: string; label: string }
   | { kind: 'deleteLineItem'; id: string; label: string };
 
@@ -33,7 +36,34 @@ interface VersionActionsOptions {
   setBudgetView: (view: 'actual' | 'forecast') => void;
 }
 
-export function useBudgetVersionActions({ projectId, versions, draftVersion, canActivate, canConfirmActivation, hasOpenLineBuffers, soleOperator, activateBlockedReason, readinessMessages, archiveTargetsQuery, activationPrecheckQuery, mutations, setSelectedVersionId, setDraftEditorOpen, setBudgetView }: VersionActionsOptions) {
+type ArchiveConfirm = Extract<PendingBudgetConfirm, { kind: 'archive' }>;
+
+/**
+ * #1462 — the ONE place the archive decision is derived from the server's inventory.
+ *
+ * Cancellation is offered ONLY when the server says every named target is eligible: the RPC rejects the
+ * whole cancel request atomically, so a partial offer would be a promise the server cannot keep. Legacy
+ * rows carry a year and a document name and NOTHING else — no account is invented for them, and a
+ * null/stale-witness or unavailable-binding row still appears in the list (it is a reason to warn, never
+ * a reason to hide a possibly-live ERP control).
+ */
+export function budgetArchiveConfirmFromTargets(
+  id: string,
+  label: string,
+  targets: readonly BudgetArchiveTarget[],
+): ArchiveConfirm {
+  const cancellable = targets.length > 0 && targets.every((target) => target.eligible);
+  return {
+    kind: 'archive',
+    id,
+    label,
+    targets: [...targets],
+    cancellable,
+    cancelErp: cancellable,
+  };
+}
+
+export function useBudgetVersionActions({ projectId, versions, draftVersion, canActivate, canConfirmActivation, hasOpenLineBuffers, soleOperator, activateBlockedReason, readinessMessages, activationPrecheckQuery, mutations, setSelectedVersionId, setDraftEditorOpen, setBudgetView }: VersionActionsOptions) {
   const { t } = useTranslation('finance');
   const { toast, dismiss: dismissToast } = useToast();
   const queryClient = useQueryClient();
@@ -66,15 +96,10 @@ export function useBudgetVersionActions({ projectId, versions, draftVersion, can
   const requestArchive = async (id: string) => {
     dismissActivationNotice();
     try {
-      const refreshed = await archiveTargetsQuery.refetch();
-      if (refreshed.error) throw refreshed.error;
-      const targets = (refreshed.data ?? []).filter((target) =>
-        target.archive_cancellation_available && target.budget_version_id === id && target.budget_intent === 'ensure' &&
-        versions.some((version) => version.id === id && version.activated_at === target.activated_at_witness),
-      );
-      setPendingConfirm({
-        kind: 'archive', id, label: versionLabel(id), cancelCount: targets.length, cancelErp: targets.length > 0,
-      });
+      // #1462 — the server owns the inventory AND the eligibility verdict. A failed read aborts the
+      // dialog: "could not read" must never render as "nothing is live".
+      const targets = await repositories.budget.listArchiveTargets(id);
+      setPendingConfirm(budgetArchiveConfirmFromTargets(id, versionLabel(id), targets));
     } catch (error) {
       toast(t('financeCopy.actionFailed', 'Action failed'), error instanceof Error ? error.message : undefined, 'warning');
     }
@@ -138,12 +163,27 @@ export function useBudgetVersionActions({ projectId, versions, draftVersion, can
         case 'archive': {
           const result = await mutations.archive.mutateAsync({ versionId: confirm.id, cancelErp: confirm.cancelErp });
           void queryClient.invalidateQueries({ queryKey: ['budget-push-status', projectId] });
+          void queryClient.invalidateQueries({ queryKey: ['budget-archive-live-targets'] });
           setPendingConfirm(null);
-          if (result.cancelErp && result.queuedCount > 0) {
+          if (confirm.cancelErp && result.queuedCount > 0) {
             toast(
               t('budgetArchive.versionArchivedCancellationQueued'),
               t('budgetArchive.cancellationQueuedDetail', { count: result.queuedCount }),
               'success',
+            );
+          } else if (confirm.cancelErp) {
+            // The operator asked to cancel, but the server queued nothing. Say so instead of claiming
+            // success — a cancellation that was not queued has not removed any ERP control.
+            toast(
+              t('budgetArchive.cancellationNotQueued', 'Version archived, but no ERPNext cancellation was queued'),
+              t('budgetArchive.archivedStillLiveWarning', { count: result.liveTargetCount }),
+              'warning',
+            );
+          } else if (result.liveTargetCount > 0) {
+            toast(
+              t('financeCopy.versionArchived', 'Version archived'),
+              t('budgetArchive.archivedStillLiveWarning', { count: result.liveTargetCount }),
+              'warning',
             );
           } else {
             toast(t('financeCopy.versionArchived', 'Version archived'), confirm.label, 'success');
@@ -162,7 +202,9 @@ export function useBudgetVersionActions({ projectId, versions, draftVersion, can
           break;
       }
     } catch (error) {
-      setPendingConfirm(null);
+      // #1462 — a refused cancellation keeps the dialog OPEN with the actionable message, so the
+      // operator can switch to "archive without cancellation" instead of losing the decision context.
+      if (confirm.kind !== 'archive') setPendingConfirm(null);
       toast(t('financeCopy.actionFailed', 'Action failed'), error instanceof Error ? error.message : undefined, 'warning');
     }
   };
@@ -191,10 +233,31 @@ export function useBudgetVersionActions({ projectId, versions, draftVersion, can
       case 'archive': return (
       <div className="flex flex-col gap-3">
         <p>{t('financeCopy.confirmArchiveDescription', 'This removes {{version}} as the active budget. You can clone it later to revise.', { version: confirm.label })}</p>
-        {confirm.cancelCount > 0 && (
+        {confirm.targets.length > 0 && (
+          <div className="flex flex-col gap-1.5">
+            <p className="text-sm font-medium text-foreground">
+              {t('budgetArchive.stillLiveList', 'ERPNext Budget documents that may still be live:')}
+            </p>
+            <ul className="flex list-disc flex-col gap-1 pl-5 text-sm text-muted-foreground" aria-label={t('budgetArchive.stillLiveListAria', 'ERPNext Budget documents that may still be live')}>
+              {confirm.targets.map((target, index) => (
+                <li key={`${target.source_kind}:${target.fiscal_year}:${target.erp_budget_name}:${index}`}>
+                  {target.source_kind === 'legacy'
+                    ? t('budgetArchive.legacyTargetLine', '{{year}} — {{name}} (older push)', { year: target.fiscal_year, name: target.erp_budget_name })
+                    : t('budgetArchive.targetLine', '{{year}} — {{name}}', { year: target.fiscal_year, name: target.erp_budget_name })}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {confirm.targets.length > 0 && !confirm.cancellable && (
+          <p role="alert" className="text-sm text-foreground">
+            {t('budgetArchive.cancellationUnavailableWarning', 'PMO cannot cancel these automatically because their ownership or status could not be proven. Archiving will not remove them — cancel them in ERPNext, or retry once the other change has settled.')}
+          </p>
+        )}
+        {confirm.cancellable && (
           <div className="flex items-start gap-2">
             <Checkbox
-              label={t('budgetArchive.alsoCancelErpBudgets', { count: confirm.cancelCount })}
+              label={t('budgetArchive.alsoCancelErpBudgets', { count: confirm.targets.length })}
               labelledBy="budget-archive-cancel-label"
               checked={confirm.cancelErp}
               onChange={(checked) => setPendingConfirm((current) => current?.kind === 'archive' ? { ...current, cancelErp: checked } : current)}
@@ -204,7 +267,7 @@ export function useBudgetVersionActions({ projectId, versions, draftVersion, can
               className="cursor-pointer text-sm text-foreground"
               onClick={() => setPendingConfirm((current) => current?.kind === 'archive' ? { ...current, cancelErp: !current.cancelErp } : current)}
             >
-              {t('budgetArchive.alsoCancelErpBudgets', { count: confirm.cancelCount })}
+              {t('budgetArchive.alsoCancelErpBudgets', { count: confirm.targets.length })}
             </span>
           </div>
         )}

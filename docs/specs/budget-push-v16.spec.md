@@ -97,3 +97,31 @@ revision changes only the accounts that changed.
 - v16's native "Revise Budget" (`revise_budget`, `revision_of`) — cancel + amend is enough and matches v15.
 - Custom monthly distribution (equal monthly is today's v15 behaviour).
 - Moving the local dev bed to v16 (a chore; the rehearsal site is the v16 proof for now).
+
+## Findings — archive cancellation does not cover a v15 push (#1462, 2026-11-03)
+
+*Open. Recorded, not fixed here: the fix is its own money-path lane.*
+
+The archive transaction (`supabase/migrations/0387_budget_archive_cancel_intents.sql:126-150, 158-195`) is
+written against the v16 account-grained mirror only. It reads `budget_version_account_erp_mirror`, and it
+refuses `p_cancel_erp` outright unless `external_org_bindings.version_major = 16`. A v15 push records its
+state in the legacy `budget_version_erp_mirror` instead
+(`supabase/functions/adapter-dispatch/budgetDispatch.ts:316-337` builds those units). So:
+
+- **On a v15 binding**, archiving with "cancel ERP budget" is refused; archiving *without* it records
+  `live_target_count = 0`, so even the "ERPNext is still enforcing this budget" notice
+  (`0387…:183-195`) never fires.
+- **On a v16 org that still holds a legacy mirror row from before the upgrade** (no migration writes to
+  `budget_version_erp_mirror` at all — a grep of `supabase/migrations/` for an insert/update into it returns
+  no file; the ten migrations that name it define, read, or view it), that row is invisible to the archive
+  transaction and to the app's live-target list (`pmo-portal/src/lib/db/budgets.ts:210`, which filters
+  `erp_account <> ''`).
+
+The sweep could not cancel such a target even if an intent existed:
+`budgetArchiveTargetStillLiveAndOwnedLive` (`supabase/functions/erpnext-sweep/index.ts:2335-2377`) returns
+false for any non-v16 binding and resolves each target through `budget_account_identity`, which has no
+account-less form.
+
+Net effect: the ERP Budget keeps enforcing a budget PMO has archived, and no operator notice says so. A
+fix has to decide the v15 cancellation body (cancel + amend of the one project-year Budget) and whether the
+legacy mirror is upgraded to account rows on a binding upgrade; neither belongs in a test-only change.

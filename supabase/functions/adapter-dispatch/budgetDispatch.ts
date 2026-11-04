@@ -246,7 +246,32 @@ export async function buildBudgetDispatchPlan(args: {
       // Retry no longer matched the digest its own activation saved under the same key: an account
       // already confirmed in ERPNext was refused as a key-reuse mismatch, recorded `failed`, and then
       // parked `held` by the sweep with nothing left to re-send it. Activation and Retry build the same unit.
-      const { target_fiscal_year: _targetFiscalYear, ...unitRecordBase } = command.record as AdapterCommand['record'] & { target_fiscal_year?: unknown };
+      const {
+        target_fiscal_year: _targetFiscalYear,
+        budget_intent: _callerBudgetIntent,
+        source_kind: _callerSourceKind,
+        budget_predecessor: _callerBudgetPredecessor,
+        budget_archive_cancel_job_id: _callerArchiveJobId,
+        budget_archive_source_mirror_id: _callerArchiveMirrorId,
+        outbox_identity: _callerOutboxIdentity,
+        project_start_date: _callerProjectStartDate,
+        project_end_date: _callerProjectEndDate,
+        activated_at: _callerActivatedAt,
+        erp_account: _callerErpAccount,
+        ...unitRecordBase
+      } = command.record as AdapterCommand['record'] & {
+        target_fiscal_year?: unknown;
+        budget_intent?: unknown;
+        source_kind?: unknown;
+        budget_predecessor?: unknown;
+        budget_archive_cancel_job_id?: unknown;
+        budget_archive_source_mirror_id?: unknown;
+        outbox_identity?: unknown;
+        project_start_date?: unknown;
+        project_end_date?: unknown;
+        activated_at?: unknown;
+        erp_account?: unknown;
+      };
       const planEntries = targetFiscalYear === null
         ? gate.plan
         : gate.plan.filter((entry) => entry.fiscal_year === targetFiscalYear);
