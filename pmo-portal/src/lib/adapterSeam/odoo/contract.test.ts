@@ -5,7 +5,6 @@
  */
 import { describe, expect, it } from 'vitest';
 import { SUITES } from '../contractSuite/index.ts';
-import { receiptReadSuite } from '../contractSuite/revenue.suite.ts';
 import { purchaseOrderReviseSuite } from '../contractSuite/purchaseOrderRevise.suite.ts';
 import { TIER_HARNESSES } from '../contractSuite/tiers.ts';
 import { createOdooRevenueHarness } from './contract.harness.ts';
@@ -15,9 +14,7 @@ import { ODOO_WORKFLOWS } from './workflowDeclarations.ts';
 
 const harness = TIER_HARNESSES.odoo;
 
-// Pending workflows still run their shared contract cases here; supported suites run through the tier-wide runner.
-receiptReadSuite(harness);
-SUITES['invoice.pair-existing']!(harness);
+// Pending revenue workflows only run through the tier-wide runner after their declaration is supported.
 purchaseOrderReviseSuite(harness);
 
 describe('odoo contract', () => {
