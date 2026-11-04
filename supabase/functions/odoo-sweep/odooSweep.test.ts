@@ -144,6 +144,9 @@ const purchaseDomainReads = (calls: FetchCall[]) => {
 };
 const purchaseReads = (calls: FetchCall[]) => Object.values(purchaseDomainReads(calls)).flat();
 const appliedPurchasePages = (calls: FetchCall[]) => rpcCall(calls, 'apply_odoo_purchase_page').map((c) => c.bodyJson as { p_org_id: string; p_domain: string; p_rows: Array<{ external_id: string }> });
+/** The committed purchase cursors, sorted by key, so a snapshot can be compared across a tick rather than to itself. */
+const cursorSnapshot = (cursors: Map<string, string>) =>
+  [...cursors.entries()].filter(([k]) => k.startsWith('purchase:')).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
 
 describe('odooSweep — AC-ODC-025 single flight and refusals', () => {
   it('AC-ODC-025 a held lock → lock-held, no Odoo call and no release of someone else\'s lock', async () => {
@@ -470,6 +473,9 @@ describe('odooSweep — #1783 item 4 the procurement switch holds the purchase f
     assertEquals(rpcCall(r.calls, 'release_erp_sweep_lock').length, 1);
   });
 
+  /** An open setup run of this connection plus an Odoo party, so the after-sweep step has real work to advance. */
+  const withSetupRun = (f: FakeOdoo) => { seedEverything(f); f.seed('res.partner', [partnerRow(5)]); };
+
   for (const [label, answer] of [
     ['an RPC error', 'error'],
     ['a rejected fetch', 'reject'],
@@ -477,7 +483,7 @@ describe('odooSweep — #1783 item 4 the procurement switch holds the purchase f
     ['a non-boolean answer', 'malformed'],
   ] as const) {
     it(`AC-1783-04B a procurement switch that cannot be read (${label}) holds purchase only, never the whole org`, async () => {
-      const r = await sweep(everything({ procurement: answer, purchaseCursors: { 'purchase:bill': CURSOR } }));
+      const r = await sweep(everything({ procurement: answer, purchaseCursors: { 'purchase:bill': CURSOR }, run: RUN, prepare: withSetupRun }));
       assertEquals('ok' in r.result && r.result.purchase_hold, 'feature-switch-unreadable:procurement', label);
       // the hold is real, not just a return code: no purchase-derived call and the cursor is untouched
       assertEquals(purchaseReads(r.calls).length, 0, label);
@@ -491,6 +497,13 @@ describe('odooSweep — #1783 item 4 the procurement switch holds the purchase f
       assertEquals(stored(r.calls)?.connection.state, 'healthy', `${label}: probe`);
       assertEquals(rpcCall(r.calls, 'release_erp_sweep_lock').length, 1, label);
       assertEquals('ok' in r.result && r.result.failed, undefined, label);
+      // the real after-sweep step advances the open run, not merely a comment: this tick pages the Odoo party into the run's
+      // staging table, and the run then reaches its next step (proposing the party kind). A regression that skipped the setup
+      // step on an unreadable entitlement would stall the run here and go red.
+      const staged = rpcCall(r.calls, 'stage_connect_master_page').map((c) => c.bodyJson as { p_org_id: string; p_run_id: string; p_kind: string; p_rows: Array<{ externalId: string }> });
+      assertEquals(staged.filter((b) => b.p_kind === 'party').map((b) => [b.p_org_id, b.p_run_id, b.p_rows.map((x) => x.externalId)]), [[ORG, 'run-1', ['Vendor:5']]], `${label}: setup staging step`);
+      const proposed = rpcCall(r.calls, 'replace_connect_proposals').map((c) => c.bodyJson as { p_org_id: string; p_run_id: string; p_kind: string });
+      assertEquals(proposed.map((b) => [b.p_org_id, b.p_run_id, b.p_kind]), [[ORG, 'run-1', 'party']], `${label}: setup propose step`);
     });
   }
 
@@ -550,25 +563,55 @@ describe('odooSweep — #1783 item 4 the procurement switch holds the purchase f
     }
   });
 
-  it('AC-1783-04E a switch that turns off after pass start finishes the admitted pass, and the next tick holds', async () => {
-    let reads = 0;
-    const h = harness(everything({ procurement: () => (++reads === 1 ? true : false) }));
+  it('AC-1783-04E a switch that turns off during an admitted purchase page lets that page and census finish, and the next tick holds', async () => {
+    // The switch reads true at pass start, then flips to false WHILE the first tick is serving its first admitted purchase
+    // page read: a live mid-pass change, not merely a different answer to the next tick's lookup.
+    let switchOn = true;
+    let lookups = 0;
+    const flip = { model: '', method: '', at: -1, lookupsAt: -1 };
+    const h = harness(everything({ procurement: () => { lookups += 1; return switchOn; } }));
+    const served = h.fake.fetch;
+    let recorded: FetchCall[] = [];
+    h.fake.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+      const [, model = '', method = ''] = /^\/json\/2\/([^/]+)\/([^/]+)$/.exec(new URL(String(url)).pathname) ?? [];
+      const domain = (JSON.parse(String(init?.body ?? '{}')) as { domain?: unknown[] }).domain ?? [];
+      const purchaseRead = method === 'search_read' && (
+        model.startsWith('purchase.order') || model === 'stock.picking' ||
+        (model === 'account.move' && hasLeaf(domain, ['move_type', '=', 'in_invoice'])) ||
+        (model === 'account.payment' && hasLeaf(domain, ['payment_type', '=', 'outbound'])));
+      if (switchOn && purchaseRead) {
+        switchOn = false;
+        // `recorded` already holds this in-flight call, so its index is `at - 1`
+        Object.assign(flip, { model, method, at: recorded.length, lookupsAt: lookups });
+      }
+      return await served(url, init);
+    }) as typeof fetch;
     const r = await withFetchMock(h.routes, async ({ calls }) => {
+      recorded = calls;
       const first = await sweepOdooOrg(client(), ORG);
+      // Snapshot the committed purchase cursors between the two ticks: taken after the second tick it would compare a map
+      // to itself, so a held tick that moved a cursor could never fail the assertion.
+      const firstSnapshot = cursorSnapshot(h.cursors);
       const firstCalls = calls.length;
       const second = await sweepOdooOrg(client(), ORG);
-      return { first, second, firstCalls, firstTick: calls.slice(0, firstCalls), secondTick: calls.slice(firstCalls) };
+      return { first, second, firstCalls, firstTick: calls.slice(0, firstCalls), secondTick: calls.slice(firstCalls), firstSnapshot, secondSnapshot: cursorSnapshot(h.cursors), flip: { ...flip } };
     });
-    // the switch was read exactly once, at pass start, and every domain it admitted ran to completion
+    // the flip landed on an in-flight purchase page read, inside the first tick and after the one pass-start lookup
+    assert(r.flip.at > 0, 'the switch never flipped during an admitted purchase page read');
+    assert(r.flip.at - 1 < r.firstCalls, `${r.flip.model}.${r.flip.method} flipped outside the first tick`);
+    assertEquals(purchaseReads([r.firstTick[r.flip.at - 1]]).length, 1, 'the switch flipped while an admitted purchase page read was in flight');
+    assertEquals(r.flip.lookupsAt, 1, 'the flip came after the pass-start lookup');
     assertEquals(rpcCall(r.firstTick, 'service_feature_enabled').length, 1);
-    assertEquals(appliedPurchasePages(r.firstTick).map((p) => p.p_domain).sort(), ['bill', 'payment', 'purchase-order', 'receipt']);
-    assertEquals(rpcCall(r.firstTick, 'finish_odoo_purchase_census').map((c) => (c.bodyJson as { p_domain: string }).p_domain).sort(), ['bill', 'payment', 'purchase-order', 'receipt']);
+    // every domain the pass-start lookup admitted finishes after the flip: no mid-pass refusal, no half-applied page
+    const afterFlip = r.firstTick.slice(r.flip.at);
+    assertEquals(appliedPurchasePages(afterFlip).map((p) => p.p_domain).sort(), ['bill', 'payment', 'purchase-order', 'receipt']);
+    assertEquals(rpcCall(afterFlip, 'finish_odoo_purchase_census').map((c) => (c.bodyJson as { p_domain: string }).p_domain).sort(), ['bill', 'payment', 'purchase-order', 'receipt']);
     assertEquals('ok' in r.first && r.first.purchase_hold, undefined);
-    // the switch now answers off: the next tick holds purchase and leaves the cursors where the pass left them
-    const committed = [...h.cursors.entries()].filter(([k]) => k.startsWith('purchase:'));
+    // the switch now answers off: the next tick holds purchase and leaves the cursors exactly where the admitted pass left them
+    assertEquals(r.secondSnapshot.map(([k]) => k).sort(), ['purchase:bill', 'purchase:payment', 'purchase:purchase-order', 'purchase:receipt']);
     assertEquals('ok' in r.second && r.second.purchase_hold, 'feature-off:procurement');
     assertEquals(purchaseReads(r.secondTick).length, 0);
     assertEquals(rpcCall(r.secondTick, 'apply_odoo_purchase_page').length, 0);
-    assertEquals([...h.cursors.entries()].filter(([k]) => k.startsWith('purchase:')), committed);
+    assertEquals(r.secondSnapshot, r.firstSnapshot);
   });
 });
