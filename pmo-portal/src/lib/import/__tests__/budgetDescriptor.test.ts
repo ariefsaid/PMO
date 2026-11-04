@@ -85,6 +85,9 @@ describe('makeBudgetImportDescriptor', () => {
     expect(name).toBe('Imported');
     expect(provenance).toEqual({ importBatchId: 'batch-1', importedAt: expect.any(String) });
     expect(provenance).not.toHaveProperty('status');
+    // #1472 FR-014: an import is a historic ANNUAL record — it names per_year explicitly, so a
+    // UI default change can never silently reinterpret an imported version's mode.
+    expect(budget.createVersion.mock.calls[0][3]).toBe('per_year');
     expect(JSON.stringify(budget.importLine.mock.calls[0])).not.toMatch(/status/i);
   });
 

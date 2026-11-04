@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import { formatCurrency, formatCurrencyCents, formatMoneyInputValue, parseMoneyInputAtScale } from '@/src/lib/format';
 import { Button, DataTable, NumberField, type Column } from '@/src/components/ui';
-import type { BudgetLineItemRow, NewLineItem } from '@/src/lib/db/budgets';
+import type { BudgetLineItemRow, NewLineItem, BudgetVersionMode } from '@/src/lib/db/budgets';
 import { Constants, type Enums } from '@/src/lib/supabase/database.types';
 
 const BUDGET_CATEGORIES = Constants.public.Enums.budget_category;
@@ -29,6 +29,9 @@ interface LineItemEditorProps {
   /** B-0.6: called when a line-item write fails so the page-level toast fires. */
   onSaveError?: (err: unknown) => void;
   fiscalYearNames?: string[] | null;
+  /** #1472 FR-001/FR-002: a whole-project Draft's source lines carry NO fiscal year — the yearly
+   *  timing is one distribution decision, not a per-line phase. Defaults to the historic per_year. */
+  budgetMode?: BudgetVersionMode;
 }
 
 /** One DataTable row of the editor: an existing line, or the single in-progress new line. */
@@ -50,8 +53,10 @@ const BudgetLineItemEditor: React.FC<LineItemEditorProps> = ({
   updateIsPending = false,
   onSaveError,
   fiscalYearNames = null,
+  budgetMode = 'per_year',
 }) => {
   const { t } = useTranslation('finance');
+  const wholeProject = budgetMode === 'whole_project';
   const [adding, setAdding] = useState(false);
   const [newCategory, setNewCategory] = useState<Enums<'budget_category'>>('Labor');
   const [newDesc, setNewDesc] = useState('');
@@ -139,7 +144,9 @@ const BudgetLineItemEditor: React.FC<LineItemEditorProps> = ({
         description: editDesc || null,
         budgeted_amount: parsed,
         // An emptied field UN-phases the line (NULL), which is a real, deliberate state — never ''.
-        fiscal_year: editFiscalYear.trim() || null,
+        // ⚠ #1472: a whole-project line has no year at all — the patch omits the column entirely
+        // (the 0576 trigger refuses a non-null year on a whole_project version).
+        ...(wholeProject ? {} : { fiscal_year: editFiscalYear.trim() || null }),
       });
       closeEdit();
       onSaveSuccess();
@@ -160,7 +167,9 @@ const BudgetLineItemEditor: React.FC<LineItemEditorProps> = ({
         category: newCategory,
         description: newDesc || null,
         budgeted_amount: amount,
-        fiscal_year: newFiscalYear.trim() || null,
+        // #1472: a whole-project line is created with fiscal_year null (matching #1473's DAL
+        // default); a per-year line keeps the entered year, blank = un-phased.
+        fiscal_year: wholeProject ? null : (newFiscalYear.trim() || null),
       });
       setAdding(false);
       setNewDesc('');
@@ -211,7 +220,7 @@ const BudgetLineItemEditor: React.FC<LineItemEditorProps> = ({
     </select>
   );
 
-  const columns: Column<EditorRow>[] = [
+  const allColumns: Column<EditorRow>[] = [
     {
       key: 'category',
       header: t('financeCopy.category', "Category"),
@@ -473,8 +482,19 @@ const BudgetLineItemEditor: React.FC<LineItemEditorProps> = ({
     },
   ];
 
+  // #1472 FR-001: a whole-project source editor has NO fiscal-year control — the column, its
+  // input and its per-line validation belong to the per-year mode only.
+  const columns: Column<EditorRow>[] = wholeProject
+    ? allColumns.filter((column) => column.key !== 'fiscal_year')
+    : allColumns;
+
   return (
     <div className="relative mt-4">
+      {wholeProject && (
+        <p data-testid="budget-whole-project-editor-hint" className="mb-2 text-xs text-muted-foreground">
+          {t('financeCopy.wholeProjectEditorHint', 'Whole-project budget: enter each category total once — no fiscal year per line.')}
+        </p>
+      )}
       <DataTable
         rows={rows}
         columns={columns}

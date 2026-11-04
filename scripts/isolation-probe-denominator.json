@@ -532,6 +532,7 @@
     "subcontract_bill_cap_violation(uuid,jsonb,uuid)",
     "subcontract_billed(uuid,uuid)",
     "submit_sales_invoice(uuid)",
+    "switch_budget_draft_mode(uuid,text,jsonb,jsonb)",
     "telegram_notify_tick()",
     "transition_budget_archive_cancel_intent(uuid,uuid,text,text)",
     "transition_document_status(uuid,doc_status)",
@@ -677,6 +678,8 @@
     {"class":"write","expect_denial":[{"http":500,"sqlstate":"P0002"},{"http":403,"sqlstate":"42501"}],"name":"set_vendor_tax_defaults","source":["supabase/migrations/0273_vendor_tax_defaults.sql:98","supabase/migrations/0273_vendor_tax_defaults.sql:94"]},
     {"class":"write","expect_denial":[{"http":500,"sqlstate":"P0002"},{"http":403,"sqlstate":"42501"}],"name":"void_vendor_withholding_slip","source":["supabase/migrations/0281_vendor_withholding_slips.sql:198","supabase/migrations/0281_vendor_withholding_slips.sql:195"]},
     {"class":"write","expect_denial":[{"http":500,"sqlstate":"P0002"}],"name":"decide_imprest_float_change","source":["supabase/migrations/0422_imprest_floats_plans.sql:251","supabase/migrations/0422_imprest_floats_plans.sql:259"]},
-    {"class":"write","expect_denial":[{"http":500,"sqlstate":"P0002"}],"name":"transition_imprest_plan","source":["supabase/migrations/0422_imprest_floats_plans.sql:418","supabase/migrations/0422_imprest_floats_plans.sql:439"]}
+    {"class":"write","expect_denial":[{"http":500,"sqlstate":"P0002"}],"name":"transition_imprest_plan","source":["supabase/migrations/0422_imprest_floats_plans.sql:418","supabase/migrations/0422_imprest_floats_plans.sql:439"]},
+    {"name":"get_budget_distribution_snapshot","class":"read","expect_denial":[],"shape":"null","source":["supabase/migrations/0582_budget_distribution_snapshot.sql:5"]},
+    {"name":"switch_budget_draft_mode","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0581_budget_draft_mode_switch.sql:61"]}
   ]
 }
