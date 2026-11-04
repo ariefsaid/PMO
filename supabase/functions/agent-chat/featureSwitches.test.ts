@@ -158,3 +158,25 @@ Deno.test('S4 writes — a read may fail open, a write may not', () => {
     assertEquals(typeof keyForTool(tool), 'string', `${tool} has no switch key to check`);
   }
 });
+
+// ── #1783 item 1 (D17 / AC-PLN-006/007): receipts are a BASIC read; Full is line-level + match ──
+
+Deno.test('#1783 D17 — procurement_receipts reads sit on procurement (Basic), never on procurement_full', () => {
+  assertEquals(keyForEntity('procurement_receipts'), 'procurement');
+});
+
+Deno.test('#1783 D17 — a Basic org (procurement on, full off) is offered and can read its receipts', () => {
+  const switches = { procurement: true, procurement_full: false };
+  const offered = offerableEntities(switches);
+  assertEquals(offered.includes('procurement_receipts'), true, 'existing receipt reads stay Basic');
+  // Execution-time gate agrees with the offering filter (the read path, never a write).
+  assertEquals(isEntityAllowed('procurement_receipts', switches), true);
+  // An explicit procurement off hides them again.
+  assertEquals(isEntityAllowed('procurement_receipts', { procurement: false }), false);
+});
+
+Deno.test('#1783 D17 — the Full label names the match/line-level capability, not plain goods receipts', () => {
+  const label = FEATURE_LABELS['procurement_full'].toLowerCase();
+  assertEquals(label.includes('goods receipts'), false, 'a Basic org must not be told its receipts are unlicensed');
+  assertEquals(/\bmatch\b/.test(label), true, 'the match is the Full capability the label names');
+});

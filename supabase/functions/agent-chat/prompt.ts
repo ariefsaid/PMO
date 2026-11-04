@@ -198,8 +198,8 @@ Offer \`create_automation\` when the user phrases a recurring or triggered job �
   const canRead = (entity: string): boolean =>
     opts.offeredEntities === undefined || opts.offeredEntities.has(entity);
   // The procure-to-pay map line names only the documents this request may actually read: each one has its
-  // own key (receipts sit on `procurement_full`, the rest on `procurement`), so a line advertising an
-  // un-offered entity would send the model at a FEATURE_OFF refusal.
+  // own key (receipts sit on `procurement` at Basic — D17 #1783 item 1; the rest on `procurement` too), so a
+  // line advertising an un-offered entity would send the model at a FEATURE_OFF refusal.
   const ptpDocumentLines: string[] = [
     canRead('purchase_requests') ? 'purchase requisitions/PRs → `purchase_requests`' : '',
     canRead('rfqs') ? 'RFQs/tenders-out → `rfqs`' : '',

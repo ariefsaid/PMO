@@ -674,7 +674,10 @@
       "title": "Jumlah diterima",
       "hint": "Kosongkan untuk menerima semua yang masih terbuka. Odoo menolak jumlah di atas yang masih terbuka.",
       "line": "{{name}} (dipesan {{qty}})",
-      "invalid": "Masukkan jumlah di atas nol dan tidak lebih dari yang dipesan untuk {{name}}."
+      "invalid": "Masukkan jumlah di atas nol dan tidak lebih dari yang dipesan untuk {{name}}.",
+      "fullUnavailable": "Jumlah per baris disimpan, tetapi tidak dapat dikirim selama penerimaan tingkat baris tidak tersedia. Kosongkan untuk menerima semua yang masih terbuka.",
+      "retry": "Coba lagi",
+      "clearAll": "Kosongkan jumlah dan terima semua yang masih terbuka"
     }
   }
 }
