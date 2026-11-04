@@ -10,6 +10,8 @@
 
 ### ⚑⚑⚑ CURRENT STATE (2026-10-19) — v0.22.0 is LIVE; run the four commands below before quoting any number
 
+**2026-11-04 — #1506 C9 evidence (branch only):** invoice-push and receipt-read parity is covered by the shared adapter suites; `invoice.pair-existing` and `cutover.activation` are also declared supported at their current shared-suite versions. Revenue cutover remains pending #1602 because its shared suite is not available. C7 tax-document work remains on owner hold; `tax-document.read` stays pending on #1506 and the Odoo-held tax-document finding is not resolved or claimed here. C9's live bed composite is recorded with the branch evidence; the browser journey still requires the disposable Odoo bed and served-functions lane. This branch does not claim readiness for a release to `main`.
+
 **Current drive boundary (owner, 2026-10-17): `dev` only. Do not promote to `main` or production.**
 **Dev gate:** regression #1182 is fixed in PR #1183 (`90fba37e`). The full dev browser run
 39188480565 passed 385 cases and 12 served-function checks, with zero timing warnings or failures.

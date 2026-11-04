@@ -5,7 +5,6 @@
  */
 import { describe, expect, it } from 'vitest';
 import { SUITES } from '../contractSuite/index.ts';
-import { invoicePushSuite, receiptReadSuite } from '../contractSuite/revenue.suite.ts';
 import { TIER_HARNESSES } from '../contractSuite/tiers.ts';
 import { createOdooRevenueHarness } from './contract.harness.ts';
 import { checkCostAccount, moneyHeader } from './revenue/moneyHeader.ts';
@@ -13,12 +12,6 @@ import { invoiceStatus } from './revenue/status.ts';
 import { ODOO_WORKFLOWS } from './workflowDeclarations.ts';
 
 const harness = TIER_HARNESSES.odoo;
-
-// #1506 C1: the declarations stay `pending` until C9 flips them (SD-2), so the shared runner skips these suites. They run
-// here by an explicit local list, so the contract is proved red-then-green before anything ships.
-invoicePushSuite(harness);
-receiptReadSuite(harness);
-SUITES['invoice.pair-existing']!(harness);
 
 describe('odoo contract', () => {
   it('declares itself as the odoo tier', () => {
@@ -39,7 +32,7 @@ describe('odoo contract', () => {
     await expect(harness.readActuals({ ledger: [], projectLinks: {} })).rejects.toThrow(/pending/);
   });
   it('keeps purchase declarations pending while the harness exercises the P1 seam', async () => {
-    for (const id of ['purchase.push', 'bill.push', 'vendor-payment.push', 'purchase.link-existing', 'cutover.purchase', 'cutover.activation', 'purchase-order.revise'] as const) {
+    for (const id of ['purchase.push', 'bill.push', 'vendor-payment.push', 'purchase.link-existing', 'cutover.purchase', 'purchase-order.revise'] as const) {
       expect(ODOO_WORKFLOWS[id].status).toBe('pending');
     }
     expect(await harness.pushPurchase('activated')).toMatchObject({ outcome: 'pushed' });
@@ -47,8 +40,11 @@ describe('odoo contract', () => {
     expect(await harness.mirrorPurchases([{ kind: 'bill', reference: 'B1', supplier: 'Vendor', total: 10, modifiedAt: '2026-01-01' }])).toEqual([{ kind: 'bill', reference: 'B1', total: '10' }]);
   });
 
-  it('keeps the revenue declarations pending while the harness runs the shared revenue suites (SD-2)', () => {
-    for (const id of ['invoice.push', 'receipt.read', 'invoice.pair-existing', 'cutover.revenue'] as const) expect(ODOO_WORKFLOWS[id].status).toBe('pending');
+  it('AC-OCI-094 leaves revenue cutover pending while the passing shared workflows are supported', () => {
+    for (const id of ['invoice.push', 'receipt.read', 'invoice.pair-existing', 'cutover.activation'] as const) {
+      expect(ODOO_WORKFLOWS[id].status, id).toBe('supported');
+    }
+    expect(ODOO_WORKFLOWS['cutover.revenue']).toEqual({ status: 'pending', version: 1, issue: 1602 });
   });
 
   it('SD-5 the Odoo harness exposes the claim and receipt builders over the fake: build, create, post, read back, receive', async () => {

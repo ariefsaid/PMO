@@ -3634,6 +3634,9 @@ say so. Proven in `supabase/tests/equipment_actual_cost.test.sql` (one row per h
 ## OD-SIGN-20261102 — three EPC-route specs signed with their defaults (owner 2026-11-02)
 The owner signed `docs/specs/odoo-purchase-to-payment.spec.md` (#1505), `docs/specs/odoo-client-invoices.spec.md` (#1506) and `docs/specs/time-and-materials-claims.spec.md` (#1514), accepting every owner-decision default as written. This includes #1506's default that retention (holding part of a claim and releasing it later) stays out of scope; it remains tracked separately (#1572). Builds follow each spec's plan; money slices ship alone.
 
+## OD-OCI-C9-20261104 — honest #1506 workflow claims (implementation evidence)
+The Odoo adapter declares `invoice.push`, `receipt.read`, `invoice.pair-existing`, and `cutover.activation` supported only at the versions exercised by the shared contract suites. `cutover.revenue` stays pending on #1602 until its shared suite exists. C7 tax-document review remains on owner hold: `tax-document.read` stays pending on #1506; do not claim that Odoo-held tax-document facts are available until that review closes. The recorded receipt journal must be a bank or cash journal with an inbound payment method. Client-withheld tax requires a company-currency current-asset or prepayment account configured in the Odoo setup checklist. Odoo money writes use the revenue outbox; this evidence does not make a release-readiness claim.
+
 ### OD-1530-COMMIT — PMO open commitment is the order total minus what is already paid (Director ruling, 2026-11-03)
 For an org without an active ERP binding (#1530), budget actuals are PMO paid purchases, so a purchase's open
 commitment is `total_value − pre-tax paid amount` (floor 0), the PMO analogue of ADR-0093 §2 (total minus what is

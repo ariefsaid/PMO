@@ -79,6 +79,7 @@ Deno.test('FR-ODC-100 a resolved client carries the company and a host-guarded f
   const { result } = await resolve(ACTIVE, 'K1');
   if (!('client' in result)) return fail(`refused: ${result.refusal}`);
   assertEquals(result.companyId, 1);
+  assertEquals(result.client.companyId, 1);
   let refused = false;
   try { await result.client.fetchImpl('https://elsewhere.example.test/json/2/x/y'); } catch { refused = true; }
   assert(refused, 'the client fetch must refuse any other origin');

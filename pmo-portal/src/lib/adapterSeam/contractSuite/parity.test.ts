@@ -23,6 +23,35 @@ describe('AC-ECA-042 registered tiers are in parity with the registry', () => {
   });
 });
 
+describe('AC-OCI-094 Odoo revenue declarations match the shared suite versions', () => {
+  it('declares invoice.push and receipt.read supported only at their current shared contract versions', () => {
+    for (const id of ['invoice.push', 'receipt.read'] as const) {
+      expect(ODOO_WORKFLOWS[id], id).toEqual({ status: 'supported', version: WORKFLOWS[id].version });
+    }
+  });
+
+  it('supports existing invoice-pair and activation suites when they pass for Odoo', () => {
+    for (const id of ['invoice.pair-existing', 'cutover.activation'] as const) {
+      expect(SUITES[id], id).toBeDefined();
+      expect(ODOO_WORKFLOWS[id], id).toEqual({ status: 'supported', version: WORKFLOWS[id].version });
+    }
+  });
+
+  it('keeps revenue cutover pending on its owning issue until a shared suite exists', () => {
+    expect(SUITES['cutover.revenue']).toBeUndefined();
+    expect(ODOO_WORKFLOWS['cutover.revenue']).toEqual({ status: 'pending', version: WORKFLOWS['cutover.revenue'].version, issue: 1602 });
+  });
+
+  it('AC-OCI-094 keeps the owner-held tax-document workflow pending without a shared suite', () => {
+    expect((WORKFLOWS as unknown as Record<string, unknown>)['tax-document.read']).toEqual({
+      version: 1, summary: 'read tax-document facts from the ERP',
+    });
+    expect(SUITES['tax-document.read']).toBeUndefined();
+    expect((ODOO_WORKFLOWS as unknown as Record<string, unknown>)['tax-document.read']).toEqual({ status: 'pending', version: 1, issue: 1506 });
+    expect((ERPNEXT_WORKFLOWS as unknown as Record<string, unknown>)['tax-document.read']).toEqual({ status: 'pending', version: 1, issue: 1506 });
+  });
+});
+
 const SEAM = new URL('../', import.meta.url).pathname;
 const tiersOnDisk = readdirSync(SEAM, { withFileTypes: true })
   .filter((e) => e.isDirectory() && existsSync(`${SEAM}${e.name}/workflowDeclarations.ts`))
