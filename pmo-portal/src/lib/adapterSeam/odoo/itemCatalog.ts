@@ -17,6 +17,7 @@ interface ProductRow {
 }
 
 const PAGE_SIZE = 200;
+const MAX_CATALOGUE_ITEMS = 2000;
 const BASE_FIELDS = ['default_code', 'name', 'active'];
 
 function belongsToCompany(value: unknown, companyId: number): boolean {
@@ -36,7 +37,7 @@ export async function listOdooItems(
 
   const eligibleField = purpose === 'sales' ? 'sale_ok' : 'purchase_ok';
   const rows: ProductRow[] = [];
-  for (let offset = 0; ; offset += PAGE_SIZE) {
+  const readPage = async (offset: number, limit: number) => {
     const page = await call<unknown>('product.product', 'search_read', {
       domain: [
         ['active', '=', true],
@@ -45,12 +46,21 @@ export async function listOdooItems(
       ],
       fields: [...BASE_FIELDS, eligibleField, 'company_id'],
       offset,
-      limit: PAGE_SIZE,
+      limit,
       order: 'default_code asc',
     });
     if (!Array.isArray(page)) throw new Error('Odoo product catalogue is unavailable');
+    return page as ProductRow[];
+  };
+  for (let offset = 0; ; offset += PAGE_SIZE) {
+    const limit = Math.min(PAGE_SIZE, MAX_CATALOGUE_ITEMS - offset);
+    const page = await readPage(offset, limit);
     rows.push(...page as ProductRow[]);
-    if (page.length < PAGE_SIZE) break;
+    if (page.length < limit) break;
+    if (rows.length === MAX_CATALOGUE_ITEMS) {
+      if ((await readPage(offset + limit, 1)).length > 0) throw new Error('Odoo product catalogue exceeds supported size');
+      break;
+    }
   }
 
   const candidates = rows.flatMap((row) => {

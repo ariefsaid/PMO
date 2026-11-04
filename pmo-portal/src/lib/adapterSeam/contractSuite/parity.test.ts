@@ -24,17 +24,22 @@ describe('AC-ECA-042 registered tiers are in parity with the registry', () => {
 });
 
 describe('AC-OCI-094 Odoo revenue declarations match the shared suite versions', () => {
-  it('declares invoice.push and receipt.read supported only at their current shared contract versions', () => {
-    for (const id of ['invoice.push', 'receipt.read'] as const) {
-      expect(ODOO_WORKFLOWS[id], id).toEqual({ status: 'supported', version: WORKFLOWS[id].version });
-    }
+  it('supports invoice.push only after the production gate suite passes', () => {
+    expect(ODOO_WORKFLOWS['invoice.push']).toEqual({ status: 'supported', version: WORKFLOWS['invoice.push'].version });
   });
 
-  it('supports existing invoice-pair and activation suites when they pass for Odoo', () => {
-    for (const id of ['invoice.pair-existing', 'cutover.activation'] as const) {
-      expect(SUITES[id], id).toBeDefined();
-      expect(ODOO_WORKFLOWS[id], id).toEqual({ status: 'supported', version: WORKFLOWS[id].version });
-    }
+  it('leaves receipt.read pending while the production feed does not classify vendor payments', () => {
+    expect(ODOO_WORKFLOWS['receipt.read']).toEqual({ status: 'pending', version: WORKFLOWS['receipt.read'].version, issue: 1506 });
+  });
+
+  it('leaves invoice pairing pending until its shared contract uses the production page mapping', () => {
+    expect(SUITES['invoice.pair-existing']).toBeDefined();
+    expect(ODOO_WORKFLOWS['invoice.pair-existing']).toEqual({ status: 'pending', version: WORKFLOWS['invoice.pair-existing'].version, issue: 1506 });
+  });
+
+  it('leaves activation to the procurement slice', () => {
+    expect(SUITES['cutover.activation']).toBeDefined();
+    expect(ODOO_WORKFLOWS['cutover.activation']).toEqual({ status: 'pending', version: WORKFLOWS['cutover.activation'].version, issue: 1505 });
   });
 
   it('keeps revenue cutover pending on its owning issue until a shared suite exists', () => {

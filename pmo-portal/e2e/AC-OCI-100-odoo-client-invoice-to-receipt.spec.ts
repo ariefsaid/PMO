@@ -15,9 +15,12 @@ const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
 const BED_URL = process.env.ODOO_BED_URL ?? '';
 const BED_DB = process.env.ODOO_BED_DB ?? '';
 const BED_KEY = process.env.ODOO_BED_KEY ?? '';
-const READY = Boolean(FUNCTIONS_URL && AUTH_URL && ANON_KEY && SERVICE_KEY && BED_URL && BED_DB && BED_KEY);
+const ODOO_DEPENDENCIES = [BED_URL, BED_DB, BED_KEY];
+const ODOO_PARTIAL = ODOO_DEPENDENCIES.some(Boolean) && !ODOO_DEPENDENCIES.every(Boolean);
+const SERVED_READY = Boolean(FUNCTIONS_URL && AUTH_URL && ANON_KEY && SERVICE_KEY);
+const READY = SERVED_READY && ODOO_DEPENDENCIES.every(Boolean);
 
-if (FUNCTIONS_URL && !READY) {
+if (ODOO_PARTIAL) {
   throw new Error('AC-OCI-100 requires the Odoo bed and the served Supabase lane with its local test credentials.');
 }
 test.skip(!READY, 'AC-OCI-100 requires the Odoo bed and the served Supabase lane.');
@@ -324,24 +327,31 @@ test('AC-OCI-100: one user raises project invoices, another approves them, and r
 
     const { data: finalInvoices } = await admin.from('sales_invoices').select('id,si_number,project_id,amount,status,erp_docstatus,erp_outstanding_amount,efaktur_number,efaktur_date').eq('org_id', fixture.orgId).order('created_at');
     expect(finalInvoices).toHaveLength(2);
-    expect(finalInvoices?.[0]).toMatchObject({ id: invoices[0].id, project_id: fixture.projectId, amount: 100000, status: 'Unpaid', erp_docstatus: 1, erp_outstanding_amount: 100000 });
+    expect(finalInvoices?.[0]).toMatchObject({ id: invoices[0].id, project_id: fixture.projectId, amount: 100000, erp_docstatus: 1 });
+    expect(['Unpaid', 'Paid']).toContain(finalInvoices?.[0]?.status);
+    expect(finalInvoices?.[0]?.erp_outstanding_amount).toBe(finalInvoices?.[0]?.status === 'Paid' ? 0 : 100000);
     expect(finalInvoices?.[0]?.efaktur_number).toMatch(/^010\.000-26\./);
     expect(finalInvoices?.[0]?.efaktur_date).toBe(new Date().toISOString().slice(0, 10));
-    expect(finalInvoices?.[1]).toMatchObject({ id: invoices[1].id, project_id: fixture.projectId, amount: 100000, status: 'Unpaid', erp_docstatus: 1, erp_outstanding_amount: 100000 });
+    expect(finalInvoices?.[1]).toMatchObject({ id: invoices[1].id, project_id: fixture.projectId, amount: 100000, erp_docstatus: 1 });
+    expect(['Unpaid', 'Paid']).toContain(finalInvoices?.[1]?.status);
+    expect(finalInvoices?.[1]?.erp_outstanding_amount).toBe(finalInvoices?.[1]?.status === 'Paid' ? 0 : 100000);
+
+    for (const invoice of finalInvoices ?? []) {
+      await approverPage.goto(`/sales-invoices/${invoice.id}`);
+      const collection = approverPage.getByRole('region', { name: 'Invoice collection details' });
+      await expect(collection).toContainText(invoice.status === 'Paid' ? 'Paid' : 'Receipt sent, awaiting Odoo');
+      if (invoice.status !== 'Paid') await expect(collection).toContainText(/100[,.]000/);
+    }
+
     const { data: receipts } = await admin.from('incoming_payments').select('id,amount,received_amount,withheld_amount,withholding_slip_number,status,sales_invoice_id').eq('org_id', fixture.orgId).order('created_at');
     expect(receipts).toHaveLength(2);
     expect(receipts?.[0]).toMatchObject({ amount: 100000, received_amount: 100000, withheld_amount: 0, status: 'Paid', sales_invoice_id: invoices[0].id });
     expect(receipts?.[1]).toMatchObject({ amount: 100000, received_amount: 98000, withheld_amount: 2000, withholding_slip_number: `${stamp}-SLIP`, status: 'Paid', sales_invoice_id: invoices[1].id });
 
-    await approverPage.goto(`/sales-invoices/${invoices[0].id}`);
-    const awaitingInvoice = approverPage.getByRole('region', { name: 'Invoice collection details' });
-    await expect(awaitingInvoice).toContainText('Receipt sent, awaiting Odoo');
-    await expect(awaitingInvoice).toContainText(/100[,.]000/);
-    await approverPage.goto(`/sales-invoices/${invoices[1].id}`);
-    const secondAwaitingInvoice = approverPage.getByRole('region', { name: 'Invoice collection details' });
-    await expect(secondAwaitingInvoice).toContainText('Receipt sent, awaiting Odoo');
-    await expect(secondAwaitingInvoice).toContainText(/100[,.]000/);
     await approverPage.goto('/incoming-payments');
+    const plainReceiptRow = approverPage.getByRole('row').filter({ hasText: invoices[0].si_number ?? '' }).first();
+    await expect(plainReceiptRow).toContainText('Paid');
+    await expect(plainReceiptRow).toContainText(/100[,.]000/);
     const withheldReceiptRow = approverPage.getByRole('row').filter({ hasText: invoices[1].si_number ?? '' }).first();
     await expect(withheldReceiptRow).toContainText('Paid');
     await expect(withheldReceiptRow).toContainText(/100[,.]000/);
@@ -355,21 +365,37 @@ test('AC-OCI-100: one user raises project invoices, another approves them, and r
     const invoiceRefs = await must(admin.from('external_refs').select('pmo_record_id,external_record_id').eq('org_id', fixture.orgId)
       .eq('domain', 'revenue').in('pmo_record_id', invoices.map(({ id }) => id)));
     expect(invoiceRefs).toHaveLength(2);
+    const invoiceMoveIds = new Map<string, number>();
     for (const ref of invoiceRefs as Array<{ pmo_record_id: string; external_record_id: string }>) {
       const moveId = parseOdooExternalRef('account.move', ref.external_record_id);
       expect(moveId).toBeTruthy();
+      if (moveId !== null) invoiceMoveIds.set(ref.pmo_record_id, moveId);
       const key = externalIdentifier(`si:${ref.pmo_record_id}`);
       const anchors = await fixture.raw<Array<{ res_id: number }>>('ir.model.data', 'search_read', {
         domain: [['module', '=', key.module], ['name', '=', key.name], ['model', '=', 'account.move']], fields: ['res_id'],
       });
       expect(anchors.map(({ res_id }) => res_id)).toEqual([moveId]);
     }
-    for (const receipt of receipts as Array<{ id: string }>) {
+    const receiptRefs = await must(admin.from('external_refs').select('pmo_record_id,external_record_id').eq('org_id', fixture.orgId)
+      .eq('domain', 'revenue').in('pmo_record_id', (receipts as Array<{ id: string }>).map(({ id }) => id)));
+    expect(receiptRefs).toHaveLength(2);
+    const receiptRefById = new Map((receiptRefs as Array<{ pmo_record_id: string; external_record_id: string }>).map((ref) => [ref.pmo_record_id, ref.external_record_id]));
+    for (const receipt of receipts as Array<{ id: string; sales_invoice_id: string }>) {
+      const paymentId = parseOdooExternalRef('account.payment', receiptRefById.get(receipt.id) ?? '');
+      expect(paymentId).toBeTruthy();
+      if (paymentId === null) throw new Error('AC-OCI-100 receipt reference is not an Odoo payment.');
       const key = externalIdentifier(`ip:${receipt.id}`);
       const anchors = await fixture.raw<Array<{ res_id: number }>>('ir.model.data', 'search_read', {
         domain: [['module', '=', key.module], ['name', '=', key.name], ['model', '=', 'account.payment']], fields: ['res_id'],
       });
-      expect(anchors).toHaveLength(1);
+      expect(anchors.map(({ res_id }) => res_id)).toEqual([paymentId]);
+      const [payment] = await fixture.raw<Array<{ state: string; reconciled_invoice_ids: number[] }>>('account.payment', 'read', {
+        ids: [paymentId], fields: ['state', 'reconciled_invoice_ids'],
+      });
+      expect(payment.state).toBe('paid');
+      const linkedInvoiceId = invoiceMoveIds.get(receipt.sales_invoice_id);
+      expect(linkedInvoiceId).toBeDefined();
+      expect(payment.reconciled_invoice_ids).toContain(linkedInvoiceId);
     }
   } finally {
     await approverContext?.close();

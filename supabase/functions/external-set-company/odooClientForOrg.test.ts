@@ -85,6 +85,13 @@ Deno.test('FR-ODC-100 a resolved client carries the company and a host-guarded f
   assert(refused, 'the client fetch must refuse any other origin');
 });
 
+Deno.test('FR-ODC-005 activation can list a different company on a rebind without inheriting the prior company scope', async () => {
+  const { result } = await resolve(ACTIVE, 'K1', { scopeToCompany: false } as Parameters<typeof odooClientForOrg>[2]);
+  if (!('client' in result)) return fail(`refused: ${result.refusal}`);
+  assertEquals(result.companyId, 1);
+  assertEquals(result.client.companyId, null);
+});
+
 Deno.test('FR-ODC-046 a resolved client is paced', async () => {
   const { result } = await resolve(ACTIVE, 'K1');
   if (!('client' in result)) return fail(`refused: ${result.refusal}`);

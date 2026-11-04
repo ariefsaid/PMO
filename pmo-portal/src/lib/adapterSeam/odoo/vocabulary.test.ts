@@ -10,9 +10,7 @@ const ODOO_VOCABULARY = [
   'account.account', 'account.tax', 'account.analytic.account', 'account.analytic.plan', 'purchase.order', 'account.move',
   'account.move.line', 'account.payment', 'account.payment.register', 'account.journal', 'l10n_id_efaktur_coretax.document',
   'move_type', 'invoice_line_ids', 'invoice_date_due', 'payment_state', 'reversed_entry_id',
-  'amount_untaxed', 'amount_tax', 'amount_total', 'amount_residual', 'analytic_distribution', 'tax_ids', 'product_id',
-  'price_unit', 'journal_id', 'partner_type', 'destination_account_id',
-  'payment_method_line_id', 'inbound_payment_method_line_id', 'l10n_id_kode_transaksi', 'l10n_id_coretax_efaktur_available',
+  'analytic_distribution', 'payment_method_line_id', 'inbound_payment_method_line_id', 'l10n_id_kode_transaksi', 'l10n_id_coretax_efaktur_available',
   'l10n_id_coretax_document', 'l10n_id_add_info_07', 'l10n_id_add_info_08', 'l10n_id_facility_info_07',
   'l10n_id_facility_info_08', 'l10n_id_custom_doc', 'l10n_id_custom_doc_month_year',
 ];
@@ -41,16 +39,20 @@ describe('AC-ODC-083 Odoo model names stay below the adapter contract', () => {
   });
 
   it('AC-OCI-093 catches model, revenue-field and tax-document vocabulary outside the adapter', () => {
-    const probeDir = mkdtempSync(`${PORTAL}/src/odoo-vocabulary-probe-`);
+    const probeDir = mkdtempSync(`${PORTAL}/.odoo-vocabulary-probe-`);
     const probeFile = `${probeDir}/probe.ts`;
     writeFileSync(probeFile, [
       "export const model = 'account.move';",
-      "export const revenueField = 'amount_total';",
+      "export const revenueField = 'move_type';",
       "export const taxField = 'l10n_id_coretax_document';",
     ].join('\n'));
     try {
+      expect(relative(PORTAL, probeFile)).not.toMatch(/^src\//);
       const result = outsideTheOdooAdapter(ODOO_VOCABULARY, [relative(PORTAL, probeFile)]);
       expect(result).toHaveLength(3);
+      const ordinaryPmoField = `${probeDir}/ordinary-pmo-field.ts`;
+      writeFileSync(ordinaryPmoField, "export const total = 'amount_total';");
+      expect(outsideTheOdooAdapter(ODOO_VOCABULARY, [relative(PORTAL, ordinaryPmoField)])).toEqual([]);
     } finally {
       rmSync(probeDir, { recursive: true, force: true });
     }

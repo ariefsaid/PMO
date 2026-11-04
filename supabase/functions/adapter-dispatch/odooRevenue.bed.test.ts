@@ -58,7 +58,7 @@ Deno.test({
 });
 
 Deno.test({
-  name: 'AC-OCI-100 bed composite: a project-attributed claim and both receipt shapes recover after a lost response without duplicate ledger documents',
+  name: 'AC-OCI-100 direct recovery bed composite: a project-attributed claim and both receipt shapes survive lost responses without duplicate ledger documents',
   ignore: !(BED && DB && KEY),
   sanitizeResources: false,
   sanitizeOps: false,
@@ -247,5 +247,14 @@ Deno.test({
     assertEquals([plainReceipt.residual, withheldReceipt.residual], [0, 0]);
     assertEquals([plainReceipt.result.canonical.amount, plainReceipt.result.canonical.received_amount, plainReceipt.result.canonical.withheld_amount], [111000, 111000, 0]);
     assertEquals([withheldReceipt.result.canonical.amount, withheldReceipt.result.canonical.received_amount, withheldReceipt.result.canonical.withheld_amount], [111000, 109000, 2000]);
+
+    const postedInvoices = await call<Array<{ id: number }>>('account.move', 'search_read', {
+      domain: [['move_type', '=', 'out_invoice'], ['partner_id', '=', partnerId]], fields: ['id'], limit: 10,
+    });
+    const inboundPayments = await call<Array<{ id: number }>>('account.payment', 'search_read', {
+      domain: [['payment_type', '=', 'inbound'], ['partner_id', '=', partnerId]], fields: ['id'], limit: 10,
+    });
+    assertEquals(postedInvoices.length, 2, 'the isolated customer has exactly two customer invoices, including unanchored documents');
+    assertEquals(inboundPayments.length, 2, 'the isolated customer has exactly two inbound payments, including unanchored documents');
   },
 });

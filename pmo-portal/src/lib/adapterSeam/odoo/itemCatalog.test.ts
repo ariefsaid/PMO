@@ -67,4 +67,17 @@ describe('odoo/itemCatalog — client invoice item picker', () => {
     expect(calls[0].body).toMatchObject({ domain: [['active', '=', true], ['purchase_ok', '=', true], ['company_id', 'in', [45, false]]], offset: 0 });
     expect(calls[1].body).toMatchObject({ offset: 200 });
   });
+
+  it('stops with a clear refusal when a catalogue exceeds the per-request item cap', async () => {
+    const calls: Array<{ offset: number; limit: number }> = [];
+    const call: OdooCall = async <T>(_model: string, _method: string, body: Record<string, unknown> = {}) => {
+      const offset = Number(body.offset ?? 0), limit = Number(body.limit ?? 0);
+      calls.push({ offset, limit });
+      const row = { id: offset + 1, default_code: `ITEM-${offset + 1}`, name: 'Service', active: true, sale_ok: true, company_id: [45, 'Company'] };
+      return (offset < 2000 ? Array.from({ length: limit }, (_, index) => ({ ...row, id: offset + index + 1, default_code: `ITEM-${offset + index + 1}` })) : [row]) as T;
+    };
+
+    await expect(listOdooItems(call, 45, 'sales')).rejects.toThrow(/supported size/);
+    expect(calls.length).toBeLessThanOrEqual(12);
+  });
 });

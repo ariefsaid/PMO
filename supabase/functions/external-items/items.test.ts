@@ -55,6 +55,7 @@ const ownership = (domain: 'revenue' | 'procurement', tier: 'erpnext' | 'odoo') 
   supabaseSelect('external_domain_ownership', (call) => {
     assertEquals(call.url.searchParams.get('org_id'), 'eq.org-test');
     assertEquals(call.url.searchParams.get('domain'), `eq.${domain}`);
+    assertEquals(call.url.searchParams.get('external_tier'), 'in.(erpnext,odoo)');
     return jsonResponse({ external_tier: tier }, { headers: objectHeaders });
   });
 async function request(body: unknown = { purpose: 'sales' }) {

@@ -40,11 +40,30 @@ describe('odoo contract', () => {
     expect(await harness.mirrorPurchases([{ kind: 'bill', reference: 'B1', supplier: 'Vendor', total: 10, modifiedAt: '2026-01-01' }])).toEqual([{ kind: 'bill', reference: 'B1', total: '10' }]);
   });
 
-  it('AC-OCI-094 leaves revenue cutover pending while the passing shared workflows are supported', () => {
-    for (const id of ['invoice.push', 'receipt.read', 'invoice.pair-existing', 'cutover.activation'] as const) {
-      expect(ODOO_WORKFLOWS[id].status, id).toBe('supported');
-    }
+  it('AC-OCI-094 keeps declarations honest about which shared suites exercise production code', () => {
+    expect(ODOO_WORKFLOWS['invoice.push'].status).toBe('supported');
+    expect(ODOO_WORKFLOWS['receipt.read']).toEqual({ status: 'pending', version: 1, issue: 1506 });
+    expect(ODOO_WORKFLOWS['invoice.pair-existing']).toEqual({ status: 'pending', version: 1, issue: 1506 });
+    expect(ODOO_WORKFLOWS['cutover.activation']).toEqual({ status: 'pending', version: 1, issue: 1505 });
     expect(ODOO_WORKFLOWS['cutover.revenue']).toEqual({ status: 'pending', version: 1, issue: 1602 });
+  });
+
+  it('AC-OCI-030 parses pair candidates through the production Odoo revenue feed', async () => {
+    const row = await harness.mapInboundInvoice?.({
+      client: 'Client A', number: 'INV/2026/00051', poRef: 'PO-51', total: '1110.00', taxAmount: '110.00', date: '2026-11-01', currency: 'IDR',
+    });
+    expect(row).toMatchObject({
+      external_id: '1', name: 'INV/2026/00051',
+      attrs: {
+        partner_name: 'Client A', reference_number: 'PO-51', amount_total: '1110.00', amount_tax: '110.00', currency: 'IDR', date: '2026-11-01',
+      },
+    });
+    expect(row).not.toHaveProperty('customer');
+  });
+
+  it('AC-OCI-071 classifies only inbound customer payments accepted by the production feed parser', () => {
+    expect(harness.classifyPayment('received')).toEqual({ kind: 'receipt', domain: 'revenue', table: 'incoming_payments' });
+    expect(harness.classifyPayment('paid')).toEqual({ kind: 'skipped' });
   });
 
   it('SD-5 the Odoo harness exposes the claim and receipt builders over the fake: build, create, post, read back, receive', async () => {

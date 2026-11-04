@@ -25,7 +25,7 @@ const paceRps = (siteUrl: string) => {
 export async function odooClientForOrg(
   sc: SupabaseClient,
   orgId: string,
-  options: { requireActivated?: boolean; requireCompany?: boolean } = {},
+  options: { requireActivated?: boolean; requireCompany?: boolean; scopeToCompany?: boolean } = {},
 ): Promise<OdooClientForOrgResult> {
   if (!externalConnectEnabled()) return { refusal: 'kill-switch' };
   const { data: b, error } = await sc.from('external_org_bindings').select('id,site_url,secret_ref,status,activated_at,config')
@@ -40,7 +40,7 @@ export async function odooClientForOrg(
   // An Odoo key is one token; a `a:b` value is some other tier's pair under this reference — refuse it.
   if (keyError || typeof key !== 'string' || key === '' || key.includes(':')) return { refusal: 'credentials' };
   return {
-    client: { baseUrl: b.site_url, apiKey: key, database: String(config.database ?? ''), companyId, fetchImpl: guardedErpFetch(b.site_url), pace: createPacer(paceRps(b.site_url)) },
+    client: { baseUrl: b.site_url, apiKey: key, database: String(config.database ?? ''), companyId: options.scopeToCompany === false ? null : companyId, fetchImpl: guardedErpFetch(b.site_url), pace: createPacer(paceRps(b.site_url)) },
     config,
     companyId,
     bindingId: typeof b.id === 'string' ? b.id : null,

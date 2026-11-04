@@ -3,7 +3,6 @@
  * deleted. An unknown state mirrors nothing and cancels nothing. The residual is Odoo's own; a missing one is not zero,
  * so an invoice is never called Paid on a guess (as the ERPNext derivation).
  */
-import type { PaymentClassification } from '../../contractSuite/harness.ts';
 import { centsOf } from './moneyHeader.ts';
 
 export type RevenueStatus = { mirrored: boolean; status: string | null; cancelled: boolean };
@@ -60,11 +59,4 @@ export function invoiceReceiptAwaitingOdoo(input: {
   if (!input.invoiceErpModified) return true;
   const invoiceReadAt = parseUtcTimestamp(input.invoiceErpModified);
   return !Number.isFinite(invoiceReadAt) || invoiceReadAt <= commandAt;
-}
-
-/** Inbound from a customer is a receipt, outbound to a supplier a vendor payment; any other pair, blank or absent is skipped. */
-export function classifyPaymentDirection(paymentType: string | undefined, partnerType: string | undefined): PaymentClassification {
-  if (paymentType === 'inbound' && partnerType === 'customer') return { kind: 'receipt', domain: 'revenue', table: 'incoming_payments' };
-  if (paymentType === 'outbound' && partnerType === 'supplier') return { kind: 'vendor-payment', domain: 'procurement', table: 'payments' };
-  return { kind: 'skipped' };
 }
