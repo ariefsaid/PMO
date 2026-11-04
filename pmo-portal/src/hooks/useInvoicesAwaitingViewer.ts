@@ -5,6 +5,7 @@ import { useRevenueMode } from './useRevenueMode';
 import { useNativeDraftInvoices } from './useRevenue';
 import { useDraftInvoices } from './useRevenue';
 import { useExternalDomainOwnership } from './useExternalDomainOwnership';
+import { odooOwnsRevenueTier } from '@/src/lib/adapterSeam/odoo/ownership';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 
 export interface InvoicesAwaitingViewer {
@@ -31,7 +32,7 @@ export function useInvoicesAwaitingViewer(): InvoicesAwaitingViewer {
   const revenueTier = ownership.data?.find((row) => row.domain === 'revenue')?.externalTier;
   const canApprove = may('transition', 'salesInvoice');
   const nativeActive = canApprove && mode === 'native';
-  const odooActive = canApprove && revenueTier === 'odoo';
+  const odooActive = canApprove && odooOwnsRevenueTier(revenueTier);
   const native = useNativeDraftInvoices(nativeActive);
   const odoo = useDraftInvoices(odooActive);
   const active = nativeActive || odooActive;

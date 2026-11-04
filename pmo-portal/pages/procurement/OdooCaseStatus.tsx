@@ -14,7 +14,7 @@ import { formatRelativeTime } from '@/src/lib/format';
 import { odooOutcome } from '@/src/lib/procurement/odooOutcome';
 import { useOdooPurchaseCommands, useOdooUnreachable, useResolveHeldPayment } from '@/src/hooks/useOdooPurchase';
 import { useOdooRevenueCommands, useResolveHeldRevenueCommand } from '@/src/hooks/useOdooRevenue';
-import { odooOwnsProcurement } from '@/src/lib/adapterSeam/odoo/ownership';
+import { odooOwnsProcurement, odooOwnsRevenueTier } from '@/src/lib/adapterSeam/odoo/ownership';
 import { domainTier } from '@/src/lib/adapterSeam/ownershipCache';
 import type { PurchaseCommand, RevenueCommand } from '@/src/lib/repositories/contracts/odoo';
 
@@ -25,7 +25,7 @@ type Decision = { command: CaseCommand; resolution: 'adopt' | 'absent' };
 
 /** The ownership cache is the gate, so a PMO-owned domain reads and subscribes to nothing here. */
 export const OdooCaseStatus: React.FC<{ procurementId?: string; invoiceId?: string }> = ({ procurementId, invoiceId }) =>
-  (procurementId && odooOwnsProcurement()) || (invoiceId && domainTier('revenue') === 'odoo')
+  (procurementId && odooOwnsProcurement()) || (invoiceId && odooOwnsRevenueTier(domainTier('revenue') ?? undefined))
     ? <OdooCaseStatusBody procurementId={procurementId} invoiceId={invoiceId} /> : null;
 
 const OdooCaseStatusBody: React.FC<{ procurementId?: string; invoiceId?: string }> = ({ procurementId, invoiceId }) => {
