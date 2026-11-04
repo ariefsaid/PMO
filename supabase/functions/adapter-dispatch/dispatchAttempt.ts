@@ -67,14 +67,19 @@ export async function runDispatchAttempt(args: {
         rawReceiptDigest = await canonicalCommandDigest({ domain: command.domain, operation: command.operation, record });
       }
       const { data, error } = await serviceClient.from('external_command_outbox')
-        .select('payload,payload_digest,procurement_input_digest')
+        .select('payload,payload_digest,procurement_input_digest,operation')
         .eq('org_id', orgId).eq('domain', command.domain).eq('pmo_record_id', command.record.id)
         .eq('idempotency_key', command.idempotencyKey!).maybeSingle();
       if (error) throw new AppError(error.message, error.code);
       existingRow = Boolean(data);
       if (isReceiptCreate && data) {
         context.replay = true;
-        const stored = data as { payload: Record<string, unknown> | null; payload_digest: string | null; procurement_input_digest: string | null };
+        const stored = data as {
+          payload: Record<string, unknown> | null;
+          payload_digest: string | null;
+          procurement_input_digest: string | null;
+          operation: string | null;
+        };
         if (stored.procurement_input_digest != null) {
           const snapshot = stored.payload?.pmo_gr_snapshot as { raw_digest?: unknown; supplier?: unknown; po?: unknown } | undefined;
           const { created_after: _createdAfter, ...material } = stored.payload ?? {};
@@ -83,6 +88,43 @@ export async function runDispatchAttempt(args: {
               || (snapshot.supplier !== null && typeof snapshot.supplier !== 'string')
               || (snapshot.po !== null && typeof snapshot.po !== 'string')
               || stored.payload_digest !== storedDigest || rawReceiptDigest !== stored.procurement_input_digest) {
+            throw new AppError('idempotency-key-payload-mismatch', 'commit-rejected');
+          }
+          command.record = stored.payload as PmoRecord;
+          context.trustedReceiptSnapshot = true;
+        } else if (
+          receiptLineIntent &&
+          stored.procurement_input_digest == null &&
+          stored.payload_digest != null &&
+          stored.payload &&
+          typeof stored.payload === 'object' &&
+          !Array.isArray(stored.payload) &&
+          Object.hasOwn(stored.payload, 'pmo_gr_snapshot')
+        ) {
+          const snapshot = stored.payload.pmo_gr_snapshot as { raw_digest?: unknown; supplier?: unknown; po?: unknown } | null | undefined;
+          const { created_after: _createdAfter, ...storedMaterial } = stored.payload;
+          const { pmo_gr_snapshot: _snap, ...callerMaterial } = storedMaterial;
+          const storedDigest = stored.operation
+            ? await canonicalCommandDigest({ domain: command.domain, operation: stored.operation, record: storedMaterial })
+            : undefined;
+          const callerDigest = stored.operation
+            ? await canonicalCommandDigest({ domain: command.domain, operation: stored.operation, record: callerMaterial })
+            : undefined;
+          if (
+            stored.operation !== 'create' ||
+            !snapshot ||
+            typeof snapshot !== 'object' ||
+            Array.isArray(snapshot) ||
+            (snapshot.supplier !== null && typeof snapshot.supplier !== 'string') ||
+            (snapshot.po !== null && typeof snapshot.po !== 'string') ||
+            !/^[0-9a-f]{64}$/.test(stored.payload_digest) ||
+            stored.payload_digest !== storedDigest ||
+            callerDigest !== rawReceiptDigest ||
+            (snapshot.raw_digest !== undefined &&
+              (typeof snapshot.raw_digest !== 'string' ||
+                !/^[0-9a-f]{64}$/.test(snapshot.raw_digest) ||
+                snapshot.raw_digest !== rawReceiptDigest))
+          ) {
             throw new AppError('idempotency-key-payload-mismatch', 'commit-rejected');
           }
           command.record = stored.payload as PmoRecord;

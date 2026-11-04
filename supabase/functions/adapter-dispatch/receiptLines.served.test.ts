@@ -12,6 +12,8 @@ import {
   type FetchCall,
 } from '../_shared/testing/edgeTestKit.ts';
 import { canonicalCommandDigest } from './moneyOutboxDeps.ts';
+import { requiresReceiptLineEntitlement } from './receiptLineGuard.ts';
+import type { AdapterCommand } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
 import { receiptDigest } from '../../../pmo-portal/src/lib/adapterSeam/odoo/purchase/receiptBody.ts';
 
 const env = installEdgeEnv();
@@ -239,7 +241,7 @@ async function servedDispatch(opts: DispatchOptions) {
       if (call.method === 'GET' && (name === 'Purchase Receipt' || path.includes('filters'))) return jsonResponse({ data: [] });
       if (call.method === 'GET') return jsonResponse({ data: { name: GR_NAME, docstatus: erpDocstatus } });
       if (call.method === 'POST') return jsonResponse({ data: { name: 'GR-REPLACED-2', docstatus: 0 } });
-      if (call.method === 'PUT') return jsonResponse({ data: { name, docstatus: erpDocstatus } });
+      if (call.method === 'PUT') return jsonResponse({ data: { name, docstatus: (call.bodyJson as { docstatus?: number })?.docstatus ?? erpDocstatus } });
       unexpected.push(call);
       throw new Error(`unexpected ERP call ${call.method} ${path}`);
     }
@@ -445,39 +447,89 @@ describe('FR-PLN-006/007 every ERPNext body-building operation is gated before c
     assertEquals(JSON.parse(off.body).message, REFUSAL);
     assertEquals(vaultReads(off).length, 0);
     assertEquals(off.calls.filter((c) => c.url.host === ERP).length, 0);
+    assertEquals(outboxInserts(off).length + insertRpc(off).length, 0);
 
     const on = await servedDispatch({ tier: 'erpnext', command: erpNextUpdate({ items: [{ item_code: 'Cable', qty: 6 }] }), feature: true, erpDocstatus: 1, mappedRecord: true, fullCommit: true });
     assertEquals(on.status, 200, on.body);
-    const post = on.calls.find((c) => c.url.host === ERP && c.method === 'POST');
-    assert(post, 'the replacement document was posted');
-    const body = (post!.bodyJson as { items?: { item_code: string; qty: number }[] }).items;
-    assertEquals(body, [{ item_code: 'Cable', qty: 6 }]);
+    const erpCalls = on.calls.filter((c) => c.url.host === ERP && c.method !== 'GET');
+    const cancelPut = erpCalls.find((c) => c.method === 'PUT');
+    assert(cancelPut, 'cancel PUT happened');
+    assertEquals((cancelPut.bodyJson as { docstatus?: number }).docstatus, 2);
+    const replacementPosts = erpCalls.filter((c) => c.method === 'POST');
+    assertEquals(replacementPosts.length, 1, 'exactly one replacement POST');
+    assertEquals((replacementPosts[0].bodyJson as { items?: { item_code: string; qty: number }[] }).items, [{ item_code: 'Cable', qty: 6 }]);
+    assert(on.calls.indexOf(cancelPut) < on.calls.indexOf(replacementPosts[0]), 'cancel precedes replacement POST');
   });
 
   it('a transition amend is gated the same way; Full on cancels then posts the replacement', async () => {
     const off = await servedDispatch({ tier: 'erpnext', command: erpNextTransition({ verb: 'amend', items: [{ item_code: 'Cable', qty: 6 }] }), feature: false, erpDocstatus: 1, mappedRecord: true });
     assertEquals(off.status, 422, off.body);
     assertEquals(JSON.parse(off.body).message, REFUSAL);
+    assertEquals(vaultReads(off).length, 0);
     assertEquals(off.calls.filter((c) => c.url.host === ERP).length, 0);
+    assertEquals(outboxInserts(off).length + insertRpc(off).length, 0);
 
     const on = await servedDispatch({ tier: 'erpnext', command: erpNextTransition({ verb: 'amend', items: [{ item_code: 'Cable', qty: 6 }] }), feature: true, erpDocstatus: 1, mappedRecord: true, fullCommit: true });
     assertEquals(on.status, 200, on.body);
-    assert(on.calls.some((c) => c.url.host === ERP && c.method === 'POST'), 'amend posts the replacement');
+    const erpCalls = on.calls.filter((c) => c.url.host === ERP && c.method !== 'GET');
+    const cancelPut = erpCalls.find((c) => c.method === 'PUT');
+    assert(cancelPut, 'cancel PUT happened');
+    assertEquals((cancelPut.bodyJson as { docstatus?: number }).docstatus, 2);
+    const replacementPosts = erpCalls.filter((c) => c.method === 'POST');
+    assertEquals(replacementPosts.length, 1, 'exactly one replacement POST');
+    assertEquals((replacementPosts[0].bodyJson as { items?: { item_code: string; qty: number }[] }).items, [{ item_code: 'Cable', qty: 6 }]);
+    assert(on.calls.indexOf(cancelPut) < on.calls.indexOf(replacementPosts[0]), 'cancel precedes replacement POST');
   });
 
   it('submit and cancel build no body: never gated, never read (shipped behavior unchanged)', async () => {
-    for (const verb of ['submit', 'cancel']) {
-      const r = await servedDispatch({ tier: 'erpnext', command: erpNextTransition({ verb, items: [{ item_code: 'Cable', qty: 6 }] }), feature: false, mappedRecord: true, erpDocstatus: 1 });
-      assertEquals(featureReads(r).length, 0, `${verb} never consults Full`);
-      assert(JSON.parse(r.body).message !== REFUSAL, `${verb} is not refused by this guard`);
-    }
+    const submit = await servedDispatch({
+      tier: 'erpnext',
+      command: erpNextTransition({ verb: 'submit', items: [{ item_code: 'Cable', qty: 6 }] }),
+      feature: false,
+      mappedRecord: true,
+      erpDocstatus: 0,
+      fullCommit: true,
+    });
+    assertEquals(submit.status, 200, submit.body);
+    assertEquals(featureReads(submit).length, 0, 'submit never consults Full');
+    const submitPut = submit.calls.find((c) => c.url.host === ERP && c.method === 'PUT');
+    assert(submitPut, 'submit called ERP PUT');
+    assertEquals((submitPut.bodyJson as { docstatus?: number }).docstatus, 1);
+
+    const cancel = await servedDispatch({
+      tier: 'erpnext',
+      command: erpNextTransition({ verb: 'cancel', items: [{ item_code: 'Cable', qty: 6 }] }),
+      feature: false,
+      mappedRecord: true,
+      erpDocstatus: 1,
+      fullCommit: true,
+    });
+    assertEquals(cancel.status, 200, cancel.body);
+    assertEquals(featureReads(cancel).length, 0, 'cancel never consults Full');
+    const cancelPut = cancel.calls.find((c) => c.url.host === ERP && c.method === 'PUT');
+    assert(cancelPut, 'cancel called ERP PUT');
+    assertEquals((cancelPut.bodyJson as { docstatus?: number }).docstatus, 2);
   });
 
   it('an Odoo receipt update keeps its shipped adapter refusal without a Full read', async () => {
-    const r = await servedDispatch({ tier: 'odoo', command: { ...odooCreate({ receiptLines: [{ itemRef: 'Cable', quantity: 6 }] }), operation: 'update' }, feature: false });
-    assert(r.status >= 400, r.body);
-    assertEquals(JSON.parse(r.body).message !== REFUSAL, true, 'the refusal is the adapter operation refusal');
+    const createWithLines = odooCreate({ receiptLines: [{ itemRef: 'Cable', quantity: 6 }] });
+    assertEquals(requiresReceiptLineEntitlement('odoo', createWithLines as unknown as AdapterCommand), true);
+    assertEquals(requiresReceiptLineEntitlement('odoo', { ...createWithLines, operation: 'update' } as unknown as AdapterCommand), false);
+    assertEquals(requiresReceiptLineEntitlement('odoo', { ...createWithLines, operation: 'transition' } as unknown as AdapterCommand), false);
+
+    const r = await servedDispatch({
+      tier: 'odoo',
+      command: { ...createWithLines, operation: 'update' },
+      feature: false,
+      mappedRecord: true,
+    });
+    assertEquals(r.status, 422, r.body);
+    const parsed = JSON.parse(r.body);
+    assertEquals(parsed.error, 'config-rejected');
+    assertEquals(parsed.message, 'Purchasing through Odoo is not available yet');
     assertEquals(featureReads(r).length, 0);
+    assertEquals(outboxInserts(r).length + insertRpc(r).length, 0);
+    assertEquals(nonReadOdooCalls(r).length, 0);
   });
 });
 
@@ -522,13 +574,104 @@ describe('FR-PLN-006/007 accepted work resumes while Full is off; changed materi
   });
 
   it('an ERPNext create row WITHOUT procurement_input_digest (plain M-3 digest only) resumes while Full is off', async () => {
-    const command = erpNextCreate({ items: [{ item_code: 'Cable', qty: 6 }] });
-    const accepted = await firstAccepted({ tier: 'erpnext', command });
-    const payload = { ...accepted.payload };
-    const row = outboxRowOf({ state: 'pending', payload, payload_digest: accepted.payloadDigest, procurement_input_digest: null });
-    const retry = await servedDispatch({ tier: 'erpnext', command, feature: false, storedRow: row });
-    assertEquals(retry.status !== 422 || JSON.parse(retry.body).message !== REFUSAL, true, 'an accepted create is not re-gated');
-    assertEquals(featureReads(retry).length, 0);
+    const origCommand = erpNextCreate({ items: [{ item_code: 'Cable', qty: 6 }] });
+    const accepted = await firstAccepted({ tier: 'erpnext', command: origCommand });
+    const { raw_digest: _rd, ...cleanSnapshot } = (accepted.payload.pmo_gr_snapshot ?? {}) as Record<string, unknown>;
+    const storedPayload = { ...accepted.payload, pmo_gr_snapshot: cleanSnapshot };
+    const storedDigest = await canonicalCommandDigest({
+      domain: origCommand.domain,
+      operation: origCommand.operation,
+      record: storedPayload,
+    });
+    const storedRow = outboxRowOf({
+      state: 'confirmed',
+      operation: 'create',
+      external_record_id: GR_NAME,
+      payload: storedPayload,
+      payload_digest: storedDigest,
+      procurement_input_digest: null,
+    });
+
+    // 1. Exact match retry resumes with 200, no Full reads, no ERP writes, no inserts, no claim
+    const resume = await servedDispatch({
+      tier: 'erpnext',
+      command: erpNextCreate({ items: [{ item_code: 'Cable', qty: 6 }] }),
+      feature: false,
+      storedRow,
+    });
+    assertEquals(resume.status, 200, resume.body);
+    assertEquals(featureReads(resume).length, 0);
+    assertEquals(erpWrites(resume).length, 0);
+    assertEquals(outboxInserts(resume).length + insertRpc(resume).length, 0);
+    assert(!resume.calls.some((c) => c.url.pathname.endsWith('/rpc/claim_outbox_for_commit')), 'no claim on confirmed row');
+
+    // 2. Changed quantity (qty 7) -> 422 idempotency-key-payload-mismatch
+    const changedQty = await servedDispatch({
+      tier: 'erpnext',
+      command: erpNextCreate({ items: [{ item_code: 'Cable', qty: 7 }] }),
+      feature: false,
+      storedRow,
+    });
+    assertEquals(changedQty.status, 422, changedQty.body);
+    assertEquals(JSON.parse(changedQty.body).message, 'idempotency-key-payload-mismatch');
+    assertEquals(erpWrites(changedQty).length, 0);
+    assertEquals(outboxInserts(changedQty).length + insertRpc(changedQty).length, 0);
+    assert(!changedQty.calls.some((c) => c.url.pathname.endsWith('/rpc/claim_outbox_for_commit')));
+
+    // 3. Mapped update using the same key and row -> 422 idempotency-key-payload-mismatch
+    const mappedUpdate = await servedDispatch({
+      tier: 'erpnext',
+      command: { ...erpNextUpdate({ items: [{ item_code: 'Cable', qty: 6 }] }), idempotencyKey: origCommand.idempotencyKey },
+      feature: false,
+      mappedRecord: true,
+      storedRow,
+    });
+    assertEquals(mappedUpdate.status, 422, mappedUpdate.body);
+    assertEquals(JSON.parse(mappedUpdate.body).message, 'idempotency-key-payload-mismatch');
+    assertEquals(erpWrites(mappedUpdate).length, 0);
+
+    // 4. Corrupted stored payload with unchanged M-3 digest -> 422 before claim/write
+    const corruptedPayloadRow = outboxRowOf({
+      state: 'confirmed',
+      operation: 'create',
+      external_record_id: GR_NAME,
+      payload: { ...storedPayload, supplier: 'CorruptedSupplier' },
+      payload_digest: storedDigest,
+      procurement_input_digest: null,
+    });
+    const corrupted = await servedDispatch({
+      tier: 'erpnext',
+      command: erpNextCreate({ items: [{ item_code: 'Cable', qty: 6 }] }),
+      feature: false,
+      storedRow: corruptedPayloadRow,
+    });
+    assertEquals(corrupted.status, 422, corrupted.body);
+    assertEquals(JSON.parse(corrupted.body).message, 'idempotency-key-payload-mismatch');
+    assertEquals(erpWrites(corrupted).length, 0);
+    assert(!corrupted.calls.some((c) => c.url.pathname.endsWith('/rpc/claim_outbox_for_commit')));
+
+    // 5. Malformed snapshot (e.g. invalid supplier type) -> 422 before claim/write
+    const malformedSnapshotRow = outboxRowOf({
+      state: 'confirmed',
+      operation: 'create',
+      external_record_id: GR_NAME,
+      payload: {
+        ...storedPayload,
+        pmo_gr_snapshot: { supplier: 12345 },
+      },
+      payload_digest: storedDigest,
+      procurement_input_digest: null,
+    });
+    const malformed = await servedDispatch({
+      tier: 'erpnext',
+      command: erpNextCreate({ items: [{ item_code: 'Cable', qty: 6 }] }),
+      feature: false,
+      storedRow: malformedSnapshotRow,
+    });
+    assertEquals(malformed.status, 422, malformed.body);
+    assertEquals(JSON.parse(malformed.body).message, 'idempotency-key-payload-mismatch');
+    assertEquals(erpWrites(malformed).length, 0);
+    assert(!malformed.calls.some((c) => c.url.pathname.endsWith('/rpc/claim_outbox_for_commit')));
   });
 
   it('an ERPNext accepted UPDATE resumes while Full is off; a fresh key refuses; changed quantity is a key-payload mismatch', async () => {
@@ -558,13 +701,18 @@ describe('FR-PLN-006/007 accepted work resumes while Full is off; changed materi
     const first = await servedDispatch({ tier: 'erpnext', command, feature: true, erpDocstatus: 0, mappedRecord: true, fullCommit: true, storedRow: null });
     assertEquals(first.status, 200, first.body);
     const body = outboxInserts(first)[0].bodyJson as Record<string, unknown>;
-    const row = outboxRowOf({ state: 'failed', operation: 'transition', payload: body.payload, payload_digest: body.payload_digest });
+    const row = outboxRowOf({ state: 'failed', operation: 'transition', payload: body.payload, payload_digest: null });
     const resume = await servedDispatch({ tier: 'erpnext', command, feature: false, storedRow: row, mappedRecord: true, erpDocstatus: 0, fullCommit: true });
     assertEquals(resume.status, 200, resume.body);
     assertEquals(featureReads(resume).length, 0);
+
+    const changed = await servedDispatch({ tier: 'erpnext', command: erpNextTransition({ verb: 'amend', items: [{ item_code: 'Cable', qty: 7 }] }), feature: false, storedRow: row, mappedRecord: true, erpDocstatus: 0 });
+    assertEquals(changed.status, 422, changed.body);
+    assertEquals(JSON.parse(changed.body).message, 'idempotency-key-payload-mismatch');
+    assertEquals(erpWrites(changed).length, 0);
   });
 
-  it('changed caller material on an accepted Odoo create is a key-payload mismatch; changed OPERATION too', async () => {
+  it('changed caller material on an accepted Odoo create is a key-payload mismatch', async () => {
     const command = odooCreate({ receiptLines: [{ itemRef: 'Cable', quantity: 6 }] });
     const accepted = await firstAccepted({ tier: 'odoo', command });
     const row = outboxRowOf({ state: 'failed', payload: accepted.payload, payload_digest: accepted.payloadDigest });
@@ -572,10 +720,6 @@ describe('FR-PLN-006/007 accepted work resumes while Full is off; changed materi
     assertEquals(changed.status, 422, changed.body);
     assertEquals(JSON.parse(changed.body).message, 'idempotency-key-payload-mismatch');
     assertEquals(nonReadOdooCalls(changed).length, 0, 'no write follows a mismatch');
-
-    const otherOp = await servedDispatch({ tier: 'erpnext', command: { ...erpNextCreate({ items: [{ item_code: 'Cable', qty: 6 }] }), operation: 'update', record: { ...erpNextCreate({ items: [{ item_code: 'Cable', qty: 6 }] }).record, externalRecordId: GR_NAME } }, feature: false, storedRow: row, mappedRecord: true });
-    assertEquals(otherOp.status, 422, otherOp.body);
-    assertEquals(JSON.parse(otherOp.body).message, 'idempotency-key-payload-mismatch', 'a create row does not authorize a different operation');
   });
 
   it('the same key and material in another org is NOT the accepted identity', async () => {

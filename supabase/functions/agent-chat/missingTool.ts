@@ -51,11 +51,11 @@ const MODULE_GUESSES: readonly { module: string; re: RegExp }[] = Object.freeze(
   { module: 'financial_statements', re: /\b(financial statements?|profit (?:and|&) loss|p&l|balance sheet|trial balance)\b/i },
   { module: 'management_pack', re: /\b(management pack)\b/i },
   { module: 'multi_currency', re: /\b(multi[ -]?currency|exchange rates?|fx rates?|currency rates?)\b/i },
+  // #1783 D17: three-way match and goods receipts/GRNs take precedence over generic invoices and receipts.
+  { module: 'procurement_full', re: /\b(three[ -]way match|match (?:purchase )?invoices? (?:and|with|to) (?:goods )?receipts?)\b/i },
+  { module: 'procurement', re: /\b(?:goods?[ -]receipts?|grns?)\b/i },
   { module: 'sales_invoices', re: /\b(invoices?|invoicing|billing|progress claims?)\b/i },
   { module: 'revenue', re: /\b(incoming payments?|receipts?|ageing|aging|receivables?)\b/i },
-  // D17 (#1783 item 1): receipts/GRNs are Basic reads — an ordinary receipt ask is never a Full ask.
-  // Only the match is Full-only vocabulary; the offered `procurement_receipts` entity covers receipts.
-  { module: 'procurement_full', re: /\bthree[ -]way match\b/i },
   { module: 'procurement', re: /\b(procurement|purchase orders?|purchase requisitions?|rfqs?|quotations?|suppliers?|vendors?|payables?)\b/i },
   { module: 'timesheets', re: /\b(time ?sheets?|hours logged|timesheet entries)\b/i },
   { module: 'crm', re: /\b(crm|compan(?:y|ies)|contacts?|deals?|opportunit(?:y|ies))\b/i },

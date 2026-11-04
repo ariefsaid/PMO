@@ -35,7 +35,7 @@ const isGoodsReceiptCommand = (command: AdapterCommand): boolean =>
  *   transport lines are stamped AFTER this guard and never select it.
  */
 const RECEIPT_LINE_TIERS: Readonly<Record<string, (command: AdapterCommand, record: Record<string, unknown>) => boolean>> = {
-  odoo: (_command, record) => hasNonEmptyArray(record.receiptLines),
+  odoo: (command, record) => command.operation === 'create' && hasNonEmptyArray(record.receiptLines),
   erpnext: (command, record) => {
     const operation = command.operation;
     const amend = operation === 'transition' && record.verb === 'amend';
