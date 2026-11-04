@@ -12,6 +12,11 @@ alter table public.projects
 -- existing projects_write RLS policy still limits writes to the caller's org and write roles.
 grant update (go_probability, get_probability) on public.projects to authenticated;
 
+-- Capture the independently editable estimates in the project audit history (AC-CHG-011).
+update public.record_history_config
+set captured = captured || '{"go_probability":"number","get_probability":"number"}'::jsonb
+where entity_type = 'project';
+
 update public.projects p
 set go_probability = case
       when p.status in ('Won, Pending KoM', 'Loss Tender', 'Declined') then 1.000

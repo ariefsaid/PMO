@@ -124,6 +124,9 @@ $$;
 drop trigger projects_set_probabilities_for_status on public.projects;
 drop function public.set_project_probabilities_for_status();
 alter table public.projects drop constraint projects_terminal_get_probability_check;
+update public.record_history_config
+set captured = captured - 'go_probability' - 'get_probability'
+where entity_type = 'project';
 revoke update (go_probability, get_probability) on public.projects from authenticated;
 alter table public.projects drop column go_probability;
 alter table public.projects drop column get_probability;
