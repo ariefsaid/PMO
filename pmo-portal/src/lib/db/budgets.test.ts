@@ -777,7 +777,7 @@ describe('archiveVersion', () => {
 
 describe('listBudgetArchiveLiveTargets', () => {
   function configureArchiveTargets(binding: { version_major: number; activated_at: string | null }, rows: unknown[]) {
-    const targetBuilder = makeFromBuilder({ data: rows, error: null });
+    const targetBuilder = makeFromBuilder({ data: rows.map((row) => ({ to_fiscal_year: null, ...(row as object) })), error: null });
     const bindingBuilder = {
       select: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
@@ -799,7 +799,7 @@ describe('listBudgetArchiveLiveTargets', () => {
     expect(targets.every((row) => row.archive_cancellation_available)).toBe(true);
     expect(mockFrom).toHaveBeenCalledWith('budget_push_mirror_rows');
     expect(mockFrom).toHaveBeenCalledWith('external_org_bindings');
-    expect(mockSelect).toHaveBeenCalledWith('id,budget_version_id,fiscal_year,erp_account,erp_budget_name,erp_docstatus,erp_cancelled_at,push_state,budget_intent,activated_at_witness');
+    expect(mockSelect).toHaveBeenCalledWith('id,budget_version_id,fiscal_year,to_fiscal_year,erp_account,erp_budget_name,erp_docstatus,erp_cancelled_at,push_state,budget_intent,activated_at_witness');
     expect(mockIn).toHaveBeenCalledWith('budget_version_id', ['v1', 'v2']);
     expect(mockIs).toHaveBeenCalledWith('erp_cancelled_at', null);
     expect(mockNeq).toHaveBeenCalledWith('erp_account', '');
@@ -1081,16 +1081,18 @@ describe('#1462 listLegacyBudgetArchiveLiveTargets', () => {
 describe('#1462 listBudgetArchiveTargets', () => {
   it('maps the server eligibility verdict for both mirror kinds', async () => {
     makeRpcBuilder({ data: [
-      { source_kind: 'legacy', fiscal_year: '2026', erp_budget_name: 'BUD-OLD', eligible: true, reason: 'eligible', push_state: 'pushed', erp_docstatus: 1 },
-      { source_kind: 'account', fiscal_year: '2026', erp_budget_name: 'BUD-NEW', eligible: false, reason: 'command-unsettled', push_state: 'pending', erp_docstatus: 1 },
+      { source_kind: 'legacy', fiscal_year: '2026', to_fiscal_year: null, erp_budget_name: 'BUD-OLD', eligible: true, reason: 'eligible', push_state: 'pushed', erp_docstatus: 1 },
+      { source_kind: 'account', fiscal_year: '2026', to_fiscal_year: null, erp_budget_name: 'BUD-NEW', eligible: false, reason: 'command-unsettled', push_state: 'pending', erp_docstatus: 1 },
+      { source_kind: 'account', fiscal_year: 'FY/Alpha', to_fiscal_year: 'FY:Beta', erp_budget_name: 'BUD-RANGE', eligible: true, reason: 'eligible', push_state: 'pushed', erp_docstatus: 1 },
     ], error: null });
 
     const targets = await listBudgetArchiveTargets('v1');
 
     expect(mockRpc).toHaveBeenCalledWith('get_budget_archive_targets', { p_version_id: 'v1' });
     expect(targets).toEqual([
-      { source_kind: 'legacy', fiscal_year: '2026', erp_budget_name: 'BUD-OLD', eligible: true, reason: 'eligible', push_state: 'pushed', erp_docstatus: 1 },
-      { source_kind: 'account', fiscal_year: '2026', erp_budget_name: 'BUD-NEW', eligible: false, reason: 'command-unsettled', push_state: 'pending', erp_docstatus: 1 },
+      { source_kind: 'legacy', fiscal_year: '2026', to_fiscal_year: null, erp_budget_name: 'BUD-OLD', eligible: true, reason: 'eligible', push_state: 'pushed', erp_docstatus: 1 },
+      { source_kind: 'account', fiscal_year: '2026', to_fiscal_year: null, erp_budget_name: 'BUD-NEW', eligible: false, reason: 'command-unsettled', push_state: 'pending', erp_docstatus: 1 },
+      { source_kind: 'account', fiscal_year: 'FY/Alpha', to_fiscal_year: 'FY:Beta', erp_budget_name: 'BUD-RANGE', eligible: true, reason: 'eligible', push_state: 'pushed', erp_docstatus: 1 },
     ]);
   });
 
@@ -1098,6 +1100,7 @@ describe('#1462 listBudgetArchiveTargets', () => {
     const rows = Array.from({ length: 1001 }, (_, index) => ({
       source_kind: 'legacy',
       fiscal_year: String(2000 + index),
+      to_fiscal_year: null,
       erp_budget_name: `BUD-${index}`,
       eligible: index !== 1000,
       reason: index === 1000 ? 'command-unsettled' : 'eligible',

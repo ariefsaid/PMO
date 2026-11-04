@@ -93,7 +93,7 @@ describe('budget activation precheck served contract (issue #1421)', () => {
       return { response, body: await response.json(), calls };
     });
     assertEquals(result.response.status, 200, JSON.stringify(result.body));
-    assertEquals(result.body, { status: 'ready', erpCheck: 'not-required', fiscalYearNames: null, issues: [] });
+    assertEquals(result.body, { status: 'ready', erpCheck: 'not-required', fiscalYearNames: null, fiscalYears: null, issues: [] });
     assertEquals(restCall(result.calls, 'budget_category_account_map', 'GET').length, 0);
     assertEquals(restCall(result.calls, 'external_command_outbox', 'POST').length, 0);
   });
@@ -108,6 +108,10 @@ describe('budget activation precheck served contract (issue #1421)', () => {
     assertEquals(result.response.status, 200, JSON.stringify(result.body));
     assertEquals(result.body.status, 'ready');
     assertEquals(result.body.fiscalYearNames, ['2026', '2027']);
+    assertEquals(result.body.fiscalYears, [
+      { name: '2026', start: '2026-01-01', end: '2026-12-31' },
+      { name: '2027', start: '2027-01-01', end: '2027-12-31' },
+    ]);
     assertEquals(restCall(result.calls, 'external_command_outbox', 'POST').length, 0);
     assertEquals(result.erpBudgets.length, 0);
   });
@@ -127,6 +131,7 @@ describe('budget activation precheck served contract (issue #1421)', () => {
     assertEquals(result.body.status, 'erp-unavailable');
     assertEquals(result.body.erpCheck, 'unavailable');
     assertEquals(result.body.fiscalYearNames, null);
+    assertEquals(result.body.fiscalYears, null);
     assertEquals(restCall(result.calls, 'external_command_outbox', 'POST').length, 0);
     assertEquals(result.erpBudgets.length, 0);
   });

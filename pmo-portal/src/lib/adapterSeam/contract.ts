@@ -82,6 +82,18 @@ export interface AdapterCommand {
    * (`erpnext/client.ts`'s `erpnextRequest`) enforce it — a future doctype or verb cannot forget it.
    */
   commitDeadlineAtMs?: number;
+  /**
+   * Server-only claim identity for a staged range Budget write. Added by the money outbox after its
+   * generation-fenced claim; never accepted from the FE and never included in the persisted command
+   * digest. Range Budget has no ERP search anchor, so each create/cancel/submit is fenced by this
+   * exact outbox row + generation instead of the generic anchor probe.
+   */
+  outboxCommit?: {
+    id: string;
+    generation: number;
+    payloadDigest: string | null;
+    identity: string;
+  };
 }
 
 /** A page of changes since a watermark cursor — the `list-changes-since-watermark` read result (FR-EAS-021). */
