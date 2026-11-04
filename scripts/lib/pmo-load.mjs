@@ -296,9 +296,8 @@ export async function resolveLoad(doc, api) {
     let problem = null;
     if (hit === 'ambiguous') problem = `company "${c.name}": more than one company has this legal name — resolve it in the app`;
     else if (hit?.archived_at) problem = `company "${c.name}" is archived — restore it in the app first`;
-    else if (!hit && erpOwnsCompanies) {
-      problem = `company "${c.name}" does not exist, and ERPNext owns companies for this organisation: create it in the app (Companies → New) or as a Customer in ERPNext, wait for it to appear in PMO, then run the load again`;
-    }
+    // ADR-0055 §5: companies are ERP party master when ERPNext owns them. A loader can create
+    // the missing Customer through the same synchronous adapter-dispatch command as the app.
     if (problem) {
       problems.push(problem);
       unresolved.add(c.name);
@@ -306,7 +305,7 @@ export async function resolveLoad(doc, api) {
     }
     const current = hit?.short_name?.trim() || null;
     const wanted = c.short_name ?? null;
-    let action = 'create';
+    let action = !hit && erpOwnsCompanies ? 'create_external' : 'create';
     if (hit) action = !wanted || wanted === current ? 'skip' : current === null ? 'set_short_name' : 'short_name_differs';
     const entry = { name: c.name, id: hit?.id ?? null, action, short_name: wanted, current_short_name: current };
     companies.push(entry);
@@ -459,6 +458,20 @@ export async function applyLoad(plan, api, { dryRun, batchId = crypto.randomUUID
       await write({ kind: 'company.create', name: c.name }, async () => {
         const [row] = await api.post('companies', { name: c.name, type: 'Client', ...(c.short_name ? { short_name: c.short_name } : {}) });
         c.id = row.id;
+        return { id: row.id };
+      });
+    } else if (c.action === 'create_external') {
+      await write({ kind: 'company.create', name: c.name }, async () => {
+        if (typeof api.createExternalCompany !== 'function') {
+          throw new Error('The API client cannot create an ERP-owned company');
+        }
+        const row = await api.createExternalCompany({ name: c.name, type: 'Client' });
+        if (!row?.id) throw new Error('The ERP company create command returned no canonical company id');
+        c.id = row.id;
+        if (c.short_name) {
+          const rows = await api.patch('companies', params({ id: eq(c.id) }), { short_name: c.short_name });
+          if (!rows?.length) throw Object.assign(new Error(`The short name of "${c.name}" was not changed — the database did not allow it`), { code: 'no_rows' });
+        }
         return { id: row.id };
       });
     } else if (c.action === 'set_short_name') {
