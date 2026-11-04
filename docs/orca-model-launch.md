@@ -19,7 +19,7 @@ slice one rung up the intelligence ranking after two failed attempts.
 | GPT Luna / Terra / Sol | `orca orchestration worker-start --agent codex --model gpt-6-luna` (or `gpt-6.1-terra`, `gpt-6.1-sol`) `--effort …` | Luna xhigh · Terra medium · Sol medium |
 | Claude | `--agent claude --model claude-sonnet-5-5` (or `claude-opus-5-5`) `--effort …` | Sonnet medium/high · Opus medium |
 | Gemini (Flash, Argon) | `--agent antigravity` — takes its model from its own config | Argon high; Argon quota is small |
-| GLM-5.3-flash | **not** `--agent pi` and **not** `--agent zcode` — see below | max |
+| GLM-5.3-flash | `--agent pi` (pi's global default is Z.AI `glm-5.3-flash` since 2026-11-04, so nested lane orchestrators can start it); **not** `--agent zcode` | high |
 
 **GLM through pi on the Z.AI coding plan** (the working path):
 
@@ -35,7 +35,7 @@ Pi reports `worker_done` to Orca by itself when it finishes (verified 2026-10-28
 
 ## Gotchas
 
-- **`--agent pi` ignores `--model`.** Orca passes a model only to claude, codex, cursor, antigravity
+- **`--agent pi` ignores `--model`** (it runs pi's global default, `~/.pi/agent/settings.json`, now set to Z.AI GLM; if it ever changes, GLM via Orca breaks). Orca passes a model only to claude, codex, cursor, antigravity
   and muse; pi then runs its own default provider (`~/.pi/agent/settings.json`), which is not GLM
   here and fails auth. Always launch pi yourself with `--provider zai --model glm-5.3-flash:max`.
 - **Nested orchestrators can't attach a terminal.** A worker that starts its own helpers gets `invalid_argument` on
