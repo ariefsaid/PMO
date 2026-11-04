@@ -18,22 +18,57 @@ const budgetDistributionKey = (orgId: string | undefined, projectId: string) =>
   ['budget-distribution', orgId, projectId] as const;
 
 /**
- * Shared awaited refresh for budget writes. Active query reads for matching keys are coalesced by
- * QueryClient, and the returned promise settles after their refetches finish. Distribution plans
- * are invalidated by project prefix so each version re-reads its basis after source lines change.
+ * Shared awaited refresh for budget writes. Existing matching budget, readiness, finance,
+ * distribution, comparison, and projection queries are marked stale; each active query is then
+ * refetched individually so every read is awaited. Inactive queries stay stale until requested.
  */
 export function refreshBudgetQueries(
   queryClient: QueryClient,
   orgId: string | undefined,
   projectId: string,
 ): Promise<void> {
-  return Promise.all([
-    queryClient.invalidateQueries({ queryKey: budgetKey(orgId, projectId) }, { throwOnError: true }),
-    queryClient.invalidateQueries({ queryKey: budgetVersionsKey(orgId, projectId) }, { throwOnError: true }),
-    queryClient.invalidateQueries({ queryKey: ['budget-activation-precheck'] }, { throwOnError: true }),
-    queryClient.invalidateQueries({ queryKey: ['project-finances', orgId, projectId] }, { throwOnError: true }),
-    queryClient.invalidateQueries({ queryKey: budgetDistributionKey(orgId, projectId) }, { throwOnError: true }),
-  ]).then(() => undefined);
+  const forecastFamilies = [
+    'budget-comparison',
+    'budget-projection',
+    'active-budget-category-phasing',
+    'budget-fiscal-years',
+  ] as const;
+  const prefixes: readonly (readonly unknown[])[] = [
+    budgetKey(orgId, projectId),
+    budgetVersionsKey(orgId, projectId),
+    ['budget-activation-precheck'],
+    ['project-finances', orgId, projectId],
+    budgetDistributionKey(orgId, projectId),
+    ...forecastFamilies.flatMap((family) => [
+      [family, projectId],
+      [family, orgId, projectId],
+    ]),
+  ] as const;
+  const matchedQueries = new Map(
+    prefixes.flatMap((queryKey) => queryClient.getQueryCache()
+      .findAll({ queryKey })
+      .map((query) => [query.queryHash, query] as const)),
+  );
+  const matchedHashes = new Set(matchedQueries.keys());
+
+  // Mark only the queries captured above stale. refetchType:none prevents TanStack's grouped
+  // prefix refetch from starting reads this function cannot individually await.
+  return queryClient.invalidateQueries(
+    {
+      predicate: (query) => matchedHashes.has(query.queryHash),
+      refetchType: 'none',
+    },
+  ).then(async () => {
+    const activeQueries = [...matchedQueries.values()].filter((query) => query.isActive());
+    const settlements = await Promise.allSettled(activeQueries.map((query) =>
+      queryClient.refetchQueries(
+        { queryKey: query.queryKey, exact: true, type: 'active' },
+        { throwOnError: true },
+      ),
+    ));
+    const failedRead = settlements.find((settlement) => settlement.status === 'rejected');
+    if (failedRead?.status === 'rejected') throw failedRead.reason;
+  });
 }
 
 /** Existing mutation flows keep their fire-and-forget completion behavior. */

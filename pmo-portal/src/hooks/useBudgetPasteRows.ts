@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
@@ -29,6 +29,14 @@ export type BudgetPasteRowResult = BudgetPasteRowInput & Readonly<{
   status: BudgetPasteRowStatus;
   retryable: boolean;
   error?: SafeMutationError;
+}>;
+
+export type BudgetPasteBatchReceipt = Readonly<{
+  projectId: string;
+  targetId: string;
+  results: readonly BudgetPasteRowResult[];
+  /** A cache-read issue is separate from every row's write outcome. */
+  refreshError: string | null;
 }>;
 
 type BudgetPasteRowsOptions = Readonly<{
@@ -157,6 +165,19 @@ function makePendingResult(row: SnapshotRow, capture: BatchCapture): BudgetPaste
   });
 }
 
+function makeReceipt(
+  capture: BatchCapture,
+  results: readonly BudgetPasteRowResult[],
+  refreshError: string | null,
+): BudgetPasteBatchReceipt {
+  return Object.freeze({
+    projectId: capture.projectId,
+    targetId: capture.targetId,
+    results: freezeResults(results),
+    refreshError,
+  });
+}
+
 /**
  * Sequential ordinary line inserts for an immutable, reviewed preview snapshot. The caller owns
  * the real-role permission booleans; they are checked from the latest render before every row.
@@ -172,45 +193,66 @@ export function useBudgetPasteRows(options: BudgetPasteRowsOptions) {
   const latestContextRef = useRef(liveContext);
   latestContextRef.current = liveContext;
 
+  const mountedRef = useRef(false);
+  useLayoutEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
+
   const batchCaptureRef = useRef<BatchCapture | null>(null);
   const savingRef = useRef(false);
   const [results, setResults] = useState<readonly BudgetPasteRowResult[]>([]);
+  const resultsRef = useRef<readonly BudgetPasteRowResult[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [progress, setProgress] = useState<Progress>({ completed: 0, total: 0 });
   const [validationError, setValidationError] = useState<string | null>(null);
   const [refreshError, setRefreshError] = useState<string | null>(null);
+  const refreshErrorRef = useRef<string | null>(null);
+
+  function publishResults(next: readonly BudgetPasteRowResult[]) {
+    const frozen = freezeResults(next);
+    resultsRef.current = frozen;
+    if (mountedRef.current) setResults(frozen);
+  }
+
+  function publishRefreshError(next: string | null) {
+    refreshErrorRef.current = next;
+    if (mountedRef.current) setRefreshError(next);
+  }
 
   function updateRow(rowNumber: number, update: Partial<BudgetPasteRowResult>) {
-    setResults((current) => freezeResults(current.map((result) => result.rowNumber === rowNumber
+    publishResults(resultsRef.current.map((result) => result.rowNumber === rowNumber
       ? { ...result, ...update }
-      : result)));
+      : result));
   }
 
   function markUnsubmitted(rows: readonly SnapshotRow[]) {
     const sourceRows = new Set(rows.map((row) => row.rowNumber));
-    setResults((current) => freezeResults(current.map((result) =>
+    publishResults(resultsRef.current.map((result) =>
       sourceRows.has(result.rowNumber) && result.status === 'pending'
         ? { ...result, status: 'unsubmitted', retryable: false }
-        : result)));
+        : result));
   }
 
   async function runRows(
     rows: readonly SnapshotRow[],
     capture: BatchCapture,
     replaceResults: boolean,
-  ): Promise<boolean> {
-    if (savingRef.current) return false;
+  ): Promise<BudgetPasteBatchReceipt | null> {
+    if (savingRef.current || !mountedRef.current) return null;
     savingRef.current = true;
-    setIsSaving(true);
-    setValidationError(null);
-    setRefreshError(null);
-    setProgress({ completed: 0, total: rows.length });
-    if (replaceResults) setResults(freezeResults(rows.map((row) => makePendingResult(row, capture))));
+    if (mountedRef.current) {
+      setIsSaving(true);
+      setValidationError(null);
+      setProgress({ completed: 0, total: rows.length });
+    }
+    publishRefreshError(null);
+    if (replaceResults) publishResults(rows.map((row) => makePendingResult(row, capture)));
     else {
       const retryRows = new Set(rows.map((row) => row.rowNumber));
-      setResults((current) => freezeResults(current.map((result) => retryRows.has(result.rowNumber)
+      publishResults(resultsRef.current.map((result) => retryRows.has(result.rowNumber)
         ? { ...result, status: 'pending', retryable: false, error: undefined }
-        : result)));
+        : result));
     }
 
     let completed = 0;
@@ -219,7 +261,7 @@ export function useBudgetPasteRows(options: BudgetPasteRowsOptions) {
     try {
       for (let index = 0; index < rows.length; index += 1) {
         const row = rows[index];
-        if (!isWritableTarget(latestContextRef.current, capture)) {
+        if (!mountedRef.current || !isWritableTarget(latestContextRef.current, capture)) {
           markUnsubmitted(rows.slice(index));
           needsRefresh ||= attemptedRows > 0;
           break;
@@ -236,7 +278,7 @@ export function useBudgetPasteRows(options: BudgetPasteRowsOptions) {
             const error = classifySafeError(new Error('Repository response did not confirm a saved row.'));
             updateRow(row.rowNumber, { status: 'uncertain', retryable: false, error });
             completed += 1;
-            setProgress({ completed, total: rows.length });
+            if (mountedRef.current) setProgress({ completed, total: rows.length });
             needsRefresh = true;
             markUnsubmitted(rows.slice(index + 1));
             break;
@@ -244,13 +286,13 @@ export function useBudgetPasteRows(options: BudgetPasteRowsOptions) {
 
           updateRow(row.rowNumber, { status: 'created', retryable: false, error: undefined });
           completed += 1;
-          setProgress({ completed, total: rows.length });
+          if (mountedRef.current) setProgress({ completed, total: rows.length });
           needsRefresh = true;
         } catch (error) {
           const code = readErrorCode(error);
           const displayError = classifySafeError(error);
           completed += 1;
-          setProgress({ completed, total: rows.length });
+          if (mountedRef.current) setProgress({ completed, total: rows.length });
           if (code === '22003') {
             updateRow(row.rowNumber, { status: 'failed', retryable: true, error: displayError });
             continue;
@@ -272,22 +314,27 @@ export function useBudgetPasteRows(options: BudgetPasteRowsOptions) {
           await refreshBudgetQueries(queryClient, capture.orgId, capture.projectId);
         } catch {
           // A cache read failure cannot undo a server-confirmed write or turn it into a retry.
-          setRefreshError('The budget refresh did not finish. Reload the budget before relying on totals.');
+          publishRefreshError('The budget refresh did not finish. Reload the budget before relying on totals.');
         }
       }
-      return true;
+      return makeReceipt(capture, resultsRef.current, refreshErrorRef.current);
     } finally {
       savingRef.current = false;
-      setIsSaving(false);
+      if (mountedRef.current) setIsSaving(false);
     }
   }
 
-  async function save(rows: readonly BudgetPasteRowInput[]): Promise<boolean> {
-    if (savingRef.current) return false;
+  async function save(rows: readonly BudgetPasteRowInput[]): Promise<BudgetPasteBatchReceipt | null> {
+    if (savingRef.current || !mountedRef.current) return null;
+    if (resultsRef.current.some((result) => result.status !== 'created') || refreshErrorRef.current !== null) {
+      setValidationError('Reconcile the current results or start a new paste session before saving again.');
+      return null;
+    }
+
     const snapshot = snapshotRows(rows);
     if (!snapshot.rows) {
       setValidationError(snapshot.error);
-      return false;
+      return null;
     }
 
     const current = latestContextRef.current;
@@ -298,7 +345,7 @@ export function useBudgetPasteRows(options: BudgetPasteRowsOptions) {
       orgId: current.orgId,
     })) {
       setValidationError('The selected budget is not an editable Draft. Review it before saving.');
-      return false;
+      return null;
     }
     const capture = Object.freeze({
       projectId: current.projectId,
@@ -310,15 +357,15 @@ export function useBudgetPasteRows(options: BudgetPasteRowsOptions) {
     return runRows(snapshot.rows, capture, true);
   }
 
-  async function retryFailed(): Promise<boolean> {
-    if (savingRef.current) return false;
+  async function retryFailed(): Promise<BudgetPasteBatchReceipt | null> {
+    if (savingRef.current || !mountedRef.current) return null;
     const capture = batchCaptureRef.current;
-    if (!capture) return false;
+    if (!capture) return null;
     if (!isWritableTarget(latestContextRef.current, capture)) {
       setValidationError('The original budget Draft is no longer selected or writable. Review it before retrying.');
-      return false;
+      return null;
     }
-    const retryRows = results
+    const retryRows = resultsRef.current
       .filter((result) => result.status === 'failed' && result.retryable)
       .map((result) => Object.freeze({
         rowNumber: result.rowNumber,
@@ -327,13 +374,28 @@ export function useBudgetPasteRows(options: BudgetPasteRowsOptions) {
         amount: result.amount,
         budgetedAmount: Number(result.amount),
       }));
-    if (retryRows.length === 0) return false;
+    if (retryRows.length === 0) return null;
     return runRows(Object.freeze(retryRows), capture, false);
+  }
+
+  function acknowledgeAndStartNewSession(): BudgetPasteBatchReceipt | null {
+    if (savingRef.current || !mountedRef.current) return null;
+    const capture = batchCaptureRef.current;
+    if (!capture || resultsRef.current.length === 0) return null;
+
+    const previousReceipt = makeReceipt(capture, resultsRef.current, refreshErrorRef.current);
+    batchCaptureRef.current = null;
+    publishResults([]);
+    publishRefreshError(null);
+    setProgress({ completed: 0, total: 0 });
+    setValidationError(null);
+    return previousReceipt;
   }
 
   return {
     save,
     retryFailed,
+    acknowledgeAndStartNewSession,
     results,
     isSaving,
     progress,
