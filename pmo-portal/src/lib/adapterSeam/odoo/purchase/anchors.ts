@@ -26,6 +26,9 @@ export function odooExternalRef(model: string, id: number | string): string {
 }
 /** The reference a person's "Odoo payment number" stands for (held-payment resolution); the model name stays in this directory. */
 export const odooPaymentRef = (id: number | string): string => odooExternalRef('account.payment', id);
+/** The reference a person's "Odoo document number" stands for when a held customer invoice or receipt is resolved. */
+export const odooRevenueDocumentRef = (kind: 'sales-invoice' | 'incoming-payment', id: number | string): string =>
+  odooExternalRef(kind === 'sales-invoice' ? 'account.move' : 'account.payment', id);
 /** The Odoo id inside a ref of that model, or null for any other model, a bare id or a malformed ref. */
 export function parseOdooExternalRef(model: string, ref: unknown): number | null {
   if (typeof ref !== 'string' || !ref.startsWith(`${model}:`)) return null;

@@ -22,6 +22,7 @@ vi.mock('@/src/lib/adapterSeam/ownershipCache', () => ({
   clearOwnershipCache: vi.fn(),
   setTaskOwnership: vi.fn(),
   routeDomainWrite: vi.fn(),
+  domainTier: vi.fn(() => 'erpnext'),
 }));
 vi.mock('@/src/lib/db/revenue', () => ({
   submitSalesInvoiceSod: vi.fn(),
@@ -32,7 +33,7 @@ vi.mock('@/src/lib/db/revenue', () => ({
 
 import * as dispatchClient from '@/src/lib/adapterSeam/dispatchClient';
 import * as revenueDb from '@/src/lib/db/revenue';
-import { clearOwnershipCache, setTaskOwnership, routeDomainWrite } from '@/src/lib/adapterSeam/ownershipCache';
+import { clearOwnershipCache, setTaskOwnership, routeDomainWrite, domainTier } from '@/src/lib/adapterSeam/ownershipCache';
 import { repositories } from '@/src/lib/repositories';
 
 // The single spy target for every "must never dispatch externally" assertion below.
@@ -46,6 +47,7 @@ beforeEach(() => {
   dispatchSpy = vi.spyOn(dispatchClient, 'dispatchDomainCommand');
   // Default routeDomainWrite to 'pmo' (cold map) unless a test overrides it
   vi.mocked(routeDomainWrite).mockReturnValue('pmo');
+  vi.mocked(domainTier).mockReturnValue('erpnext');
 });
 
 // DD-EFK-1 (#893): the e-Faktur setter stays PMO-direct on every route — including externally owned revenue.
@@ -209,6 +211,26 @@ describe('task 2.2 — flipped ownership map — revenue record creates route to
       expect.objectContaining({ id: 'si-1', erp_doc_kind: 'sales-invoice' }),
       expect.objectContaining({ idempotencyKey: expect.any(String) }),
     );
+  });
+
+  it('AC-OCI-090 submits an Odoo draft by PMO id before Odoo assigns its number', async () => {
+    vi.mocked(domainTier).mockReturnValue('odoo');
+    vi.mocked(revenueDb.getSalesInvoice).mockResolvedValue({ si_number: null, pmo_native: false } as unknown as Awaited<ReturnType<typeof revenueDb.getSalesInvoice>>);
+    dispatchSpy.mockResolvedValue({ canonical: { id: 'si-odoo-1' } });
+
+    await repositories.revenue.submitInvoice('si-odoo-1');
+
+    expect(dispatchSpy).toHaveBeenCalledWith('revenue', 'transition', expect.objectContaining({
+      id: 'si-odoo-1', erp_doc_kind: 'sales-invoice', verb: 'submit',
+    }), expect.objectContaining({ idempotencyKey: expect.any(String) }));
+    expect(dispatchSpy.mock.calls[0][2]).not.toHaveProperty('externalRecordId');
+  });
+
+  it('keeps the external invoice number requirement for ERPNext', async () => {
+    vi.mocked(domainTier).mockReturnValue('erpnext');
+    vi.mocked(revenueDb.getSalesInvoice).mockResolvedValue({ si_number: null, pmo_native: false } as unknown as Awaited<ReturnType<typeof revenueDb.getSalesInvoice>>);
+    await expect(repositories.revenue.submitInvoice('si-legacy')).rejects.toMatchObject({ code: 'not-found' });
+    expect(dispatchSpy).not.toHaveBeenCalled();
   });
 
   it('cancelInvoice dispatches externally with erp_doc_kind=sales-invoice (transition)', async () => {

@@ -1697,6 +1697,10 @@ vi.mock('@/src/hooks/useOdooPurchase', () => ({
   useOdooUnreachable: () => ({ unreachable: false, lastOkAt: null }),
   useResolveHeldPayment: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
+vi.mock('@/src/hooks/useOdooRevenue', () => ({
+  useOdooRevenueCommands: () => ({ data: [], isError: false }),
+  useResolveHeldRevenueCommand: () => ({ mutateAsync: vi.fn(), isPending: false }),
+}));
 vi.mock('@/src/hooks/useProcurementGates', () => import('@/pages/__tests__/helpers/procurementGatesMock'));
 vi.mock('@/src/hooks/useErpPurchases', () => ({ useErpOrphans: () => ({ data: [], isError: false, isPending: false }) }));
 vi.mock('@/src/hooks/useProcurementMicrosoftReferences', () => ({ useProcurementMicrosoftReferences: () => ({ query: { data: [] } }) }));

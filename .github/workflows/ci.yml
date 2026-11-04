@@ -782,6 +782,17 @@ jobs:
         working-directory: pmo-portal
         run: PLAYWRIGHT_JSON_OUTPUT_NAME=/tmp/pw-serial.json npx playwright test --project=serial --workers=1 --reporter=list,json
 
+      # Playwright clears the shared outputDir at the start of each invocation. Preserve serial
+      # traces here, before the consent project starts and clears /tmp/pmo-portal-test-results.
+      - name: Upload serial Playwright diagnostics
+        if: ${{ always() && !cancelled() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: playwright-serial-test-results
+          path: /tmp/pmo-portal-test-results/
+          retention-days: 7
+          if-no-files-found: ignore
+
       - name: E2E tests (Playwright / consent)
         id: consent_e2e
         if: ${{ always() && !cancelled() }}

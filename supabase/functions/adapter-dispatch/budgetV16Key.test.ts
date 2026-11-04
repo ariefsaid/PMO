@@ -1,4 +1,4 @@
-import { budgetAccountIdentity, budgetAccountPushKey } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/budgetAccountIdentity.ts';
+import { budgetAccountIdentity, budgetAccountPushKey, budgetRangeIdentity } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/budgetAccountIdentity.ts';
 import { encodeFiscalYear } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/fiscalYearEncoding.ts';
 import { isOpaqueIdempotencyKey } from './transitionTargetGuard.ts';
 
@@ -18,4 +18,12 @@ Deno.test('v16 account keys are admitted only when their framed identity and epo
   ];
   const failed = checks.find(([passed]) => !passed);
   if (failed) throw new Error(failed[1]);
+});
+
+Deno.test('AC-010 a 140-character account in a range identity remains valid under the served key guard', () => {
+  const version = '3f1b0c9e-1a2b-4c3d-8e4f-5a6b7c8d9e0f';
+  const identity = budgetRangeIdentity(version, 'FY/2026:', 'FY2028', 'A'.repeat(140));
+  const key = budgetAccountPushKey(identity, '2026-10-15T10:00:00Z');
+
+  if (!isOpaqueIdempotencyKey(key)) throw new Error('a 140-character ERP account range key must pass the shipped guard');
 });

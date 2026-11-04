@@ -2,6 +2,8 @@
 
 This page is the public-safe inventory of rare, platform-level operator powers and the RIS provisioning sequence. It describes shipped behavior and current audit facts; it is not an audit design. Never put secrets, credential coordinates, environment-variable names, hosts, organization identifiers, or personal data here. For credential-shaped prerequisites, use the sanctioned `scripts/op-get.sh` procedure without recording what it retrieves.
 
+For client data seeding and day-to-day agent operations through the PMO CLI, follow the [PMO agent operator runbook](runbooks/pmo-cli.md).
+
 > **Operator = cross-org, platform-level, rare → guarded RPC + runbook.**  
 > **Org-admin = within-org, routine → UI.**
 

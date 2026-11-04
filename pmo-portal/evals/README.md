@@ -27,11 +27,32 @@ OPENROUTER_API_KEY=… EVAL_TEST_USER_EMAIL=… EVAL_TEST_USER_PASSWORD=… scri
 OPENROUTER_API_KEY=… EVAL_TEST_USER_EMAIL=… EVAL_TEST_USER_PASSWORD=… N=3 scripts/agent-eval-local.sh
 ```
 
+To route a run through a different OpenAI-compatible provider instead (so it makes **no**
+production-provider call), supply the all-or-nothing override triple and no `OPENROUTER_API_KEY`.
+You provide the key value yourself; nothing here fetches secrets:
+
+```bash
+AGENT_MODEL_BASE_URL=… AGENT_MODEL_API_KEY=… AGENT_MODEL_ID=… \
+EVAL_TEST_USER_EMAIL=… EVAL_TEST_USER_PASSWORD=… scripts/agent-eval-local.sh
+```
+
+An OpenAI-compatible provider that requires extra request headers (for example a routing/session
+id) takes `AGENT_MODEL_EXTRA_HEADERS='name=value;name2=value2'` alongside the triple; those headers
+are sent only while the override is active.
+
+The override also covers the `llmJudge` scorer, so such a run never calls the production provider.
+Setting both the triple and `OPENROUTER_API_KEY`, or only part of the triple, fails fast.
+
 Each invocation resets the local database, provisions the fixtures listed below, serves local `agent-chat`, and runs
 the complete eval suite under one database lock. `N=3` runs the suite three times serially (default `N=1`). The runner
 reads the local Auth issuer from OpenID metadata and passes it to `functions serve`; it keeps ES256/JWKS verification
-unchanged. Pass the OpenRouter key in the process environment; the runner writes the function env file with mode 600 and
+unchanged. Pass the model key in the process environment; the runner writes the function env file with mode 600 and
 removes temporary files and the serve process when finished. Eval output is reduced to scores and redacted HTTP error metadata.
+
+Optional selectors: `EVAL_CASE_FILES` limits a run to the named case files (space-separated, relative to
+`pmo-portal`), and `EVAL_STOCK_OFF=1` disables the `stock` feature for the run (the plans-switch-off
+fixture) and removes that override before the lock is released. Local eval runs also raise the
+agent's per-minute throttle through the temporary env file; the function's production default is untouched.
 
 Check prerequisites without resetting or writing to the database:
 
@@ -40,8 +61,9 @@ OPENROUTER_API_KEY=… EVAL_TEST_USER_EMAIL=… EVAL_TEST_USER_PASSWORD=… scri
 ```
 
 The dry run checks the local stack, signing key, eval dependencies, database container, process credentials, and that
-the process environment includes the function key. It does not run fixture SQL, serve the function, or run evals.
-The script and eval harness read credentials from the process environment; neither reads `.env` files.
+the process environment includes the model key (or the override triple). It does not run fixture SQL, serve the
+function, or run evals. The script and eval harness read credentials from the process environment; neither reads
+`.env` files.
 
 ### Hosted target
 

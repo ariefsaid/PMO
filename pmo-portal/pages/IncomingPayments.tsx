@@ -31,12 +31,16 @@ import {
 import type { IncomingPaymentRow } from '@/src/lib/db/revenue';
 import { incomingPaymentStatusVariant, salesInvoiceStatusVariant } from '@/src/lib/status/statusVariants';
 import { useRevenueMode } from '@/src/hooks/useRevenueMode';
+import { useExternalDomainOwnership } from '@/src/hooks/useExternalDomainOwnership';
+import { useOdooUnreachable } from '@/src/hooks/useOdooPurchase';
+import { odooOwnsRevenueTier } from '@/src/lib/adapterSeam/odoo/ownership';
 import { invoiceNumber, receiptNumber } from '@/src/lib/revenue/nativeInvoice';
 import { useRecordContext } from '@/src/hooks/useRecordContext';
 import { nativeRevenueHeadlines } from '@/src/lib/revenue/nativeRevenueErrors';
 import { useCommandIntentMap } from '@/src/hooks/useCommandIntent';
 import { displayAllocations, knownUnappliedCash } from '@/src/lib/revenue/receiptAllocation';
 import { receiptColumns, displayStatus, matchesStatus, incomingPaymentStatusLabel, ERP_STATUS_FILTERS, NATIVE_STATUS_FILTERS, type StatusFilter } from './incoming-payments/receiptColumns';
+import { OdooReceiptStatus } from './incoming-payments/OdooReceiptStatus';
 import { IncomingPaymentFormModal } from './incoming-payments/IncomingPaymentFormModal';
 import { ReceiptRecord } from './incoming-payments/ReceiptRecord';
 import { BulkBar } from '@/src/components/finance/receivables/BulkBar';
@@ -61,6 +65,9 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
   const { createPayment, cancelPayment, pendingPush } = useRevenueMutations();
   // #784: undefined while ownership loads — the page waits rather than flash the wrong mode's copy and actions.
   const mode = useRevenueMode();
+  const revenueOwnership = useExternalDomainOwnership().data ?? [];
+  const odoo = revenueOwnership.some((row) => row.domain === 'revenue' && odooOwnsRevenueTier(row.externalTier));
+  const odooOffline = useOdooUnreachable(odoo).unreachable;
   const native = mode === 'native';
   const statusFilters = native ? NATIVE_STATUS_FILTERS : data?.some((p) => displayStatus(p) === 'Cancelled') ? [...ERP_STATUS_FILTERS, 'Cancelled' as const] : ERP_STATUS_FILTERS;
   // I-5: the invoice each receipt settles, by its number (the list read already holds them).
@@ -112,7 +119,7 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
     : undefined;
 
   useEffect(() => {
-    if (searchParams.get('create') !== '1' || !canCreate || mode === undefined || invoiceListPending) return;
+    if (searchParams.get('create') !== '1' || !canCreate || odooOffline || mode === undefined || invoiceListPending) return;
     setInitialInvoiceId(searchParams.get('invoice') ?? undefined);
     setFormOpen(true);
     setSearchParams((current) => {
@@ -121,7 +128,7 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
       next.delete('invoice');
       return next;
     }, { replace: true });
-  }, [canCreate, invoiceListPending, mode, searchParams, setSearchParams]);
+  }, [canCreate, invoiceListPending, mode, odooOffline, searchParams, setSearchParams]);
 
   // BLOCK 2 (ADR-0058): the cancel confirm dialog is ALWAYS mounted, so its command identity is per
   // (record, verb) — a retry on payment B must never carry payment A's key. Released only after a
@@ -199,26 +206,26 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
         </main>
       );
     }
-    return <ReceiptRecord receipt={record} allocations={displayAllocations(record, invoiceNumberOf)} onBack={recordContext.closeRecord} />;
+    return <ReceiptRecord receipt={record} allocations={displayAllocations(record, invoiceNumberOf)} onBack={recordContext.closeRecord} odoo={odoo} />;
   }
 
   const notReported = t('uxs06.notReported', 'Not reported');
-  const { columns, exportColumns } = receiptColumns({ t, embedded, location, invoiceNumberById });
+  const { columns, exportColumns } = receiptColumns({ t, embedded, location, invoiceNumberById, odoo });
 
   const rowMenu = (p: IncomingPaymentRow): RowMenuItem[] => {
     const items: RowMenuItem[] = embedded
       ? [{ label: t('finance:receivables.viewPayment', 'View payment'), onClick: () => recordContext.openRecord(p.id) }]
       : [];
-    if (canCancel && !p.pmo_native && p.status !== 'Paid')
+    if (!odooOffline && canCancel && !p.pmo_native && p.status !== 'Paid')
       items.push({ label: t('financeCopy.cancel', "Cancel"), onClick: () => setCancelTarget(p), danger: true });
     // #784 AC-NAR-006: a PMO receipt is cancelled in PMO while PMO owns revenue (the RPC re-checks all of it).
-    if (canCancel && p.pmo_native && !p.cancelled_at && native)
+    if (!odooOffline && canCancel && p.pmo_native && !p.cancelled_at && native)
       items.push({ label: t('financeCopy.cancel', "Cancel"), onClick: () => setCancelTarget(p), danger: true });
     return items;
   };
 
   const onCancelConfirm = async () => {
-    if (!cancelTarget) return;
+    if (!cancelTarget || odooOffline) return;
     const key = `cancel:${cancelTarget.id}`;
     try {
       await cancelPayment.mutateAsync({ ipId: cancelTarget.id, intent: verbIntents.intentFor(key) });
@@ -241,12 +248,16 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
       count={data ? filtered.length : undefined}
       total={data ? all.length : undefined}
       headingLevel={embedded ? 2 : 1}
-      description={embedded ? undefined : mode === undefined
+      description={embedded ? undefined : odooOffline
+        ? t('finance:odooOutcome.offlineAction', 'Odoo is unavailable. You can still view the last data PMO read; no new changes were sent from this screen.')
+        : mode === undefined
         ? undefined
         : native
           ? t('financeCopy.nativeIncomingPaymentsDescription', 'Customer receipts recorded in PMO against approved invoices.')
-          : t('financeCopy.paymentsReceivedFromClientsMirroredFromERPNextLinkedToSalesInvoicesWhenApplicable', "Payments received from clients, mirrored from ERPNext. Linked to sales invoices when applicable.")}
-      primaryAction={!embedded && mode !== undefined && canCreate ? (
+          : odoo
+            ? t('finance:financeCopy.paymentsReceivedFromClientsMirroredFromOdoo', 'Payments received from clients, mirrored from Odoo.')
+            : t('financeCopy.paymentsReceivedFromClientsMirroredFromERPNextLinkedToSalesInvoicesWhenApplicable', "Payments received from clients, mirrored from ERPNext. Linked to sales invoices when applicable.")}
+      primaryAction={!embedded && mode !== undefined && canCreate && !odooOffline ? (
         <Button variant="primary" onClick={() => { setInitialInvoiceId(undefined); setFormOpen(true); }}>
           <Icon name="plus" />
           {t('financeCopy.receivePayment', "Receive Payment")}</Button>
@@ -339,12 +350,13 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
           mobileCardDetails={embedded ? (payment) => {
             const cancelled = displayStatus(payment) === 'Cancelled';
             const statusLabel = incomingPaymentStatusLabel(displayStatus(payment), t);
+            const fallbackStatus = <StatusPill variant={cancelled ? salesInvoiceStatusVariant('Cancelled') : incomingPaymentStatusVariant(payment.status)}>{statusLabel}</StatusPill>;
             const receivedAmount = payment.received_amount ?? payment.amount;
             const total = payment.amount;
             // ponytail: wrap instead of overlap, same as the invoice cards.
             return <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-1">
               <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-                <StatusPill variant={cancelled ? salesInvoiceStatusVariant('Cancelled') : incomingPaymentStatusVariant(payment.status)}>{statusLabel}</StatusPill>
+                {odoo ? <OdooReceiptStatus receipt={payment} fallback={fallbackStatus} /> : fallbackStatus}
                 <span className="shrink-0 text-xs text-muted-foreground">{payment.date ? formatDateOnly(payment.date) : '—'}</span>
               </div>
               <span className="shrink-0 text-right text-xs tabular">
@@ -370,6 +382,8 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
           initialInvoiceId={initialInvoiceId}
           pendingPush={pendingPush}
           native={native}
+          odoo={odoo}
+          unreachable={odooOffline}
           onClose={() => setFormOpen(false)}
           onCreate={async (input, intent) => {
             await createPayment.mutateAsync({ ...input, intent });
@@ -384,11 +398,14 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
         open={!!cancelTarget}
         tone="destructive"
         title={cancelTarget ? t('financeCopy.cancelPaymentNamed', 'Cancel {{payment}}?', { payment: receiptNumber(cancelTarget) ?? cancelTarget.id }) : t('financeCopy.cancelPaymentQuestion', 'Cancel payment?')}
-        description={cancelTarget?.pmo_native
+        description={odooOffline
+          ? t('finance:odooOutcome.offlineAction', 'Odoo is unavailable. You can still view the last data PMO read; no new changes were sent from this screen.')
+          : cancelTarget?.pmo_native
           ? t('financeCopy.nativeCancelReceiptBody', "This cancels the receipt in PMO and puts its amount back on the invoice's balance.")
           : t('financeCopy.cancelPaymentDescription', "This cancels the payment in ERPNext (docstatus 1→2). The payment will be marked Cancelled and the linked invoice's outstanding amount will be restored.")}
         confirmLabel={t('financeCopy.cancelPayment', "Cancel payment")}
         loading={cancelPayment.isPending}
+        confirmDisabled={odooOffline}
         onConfirm={onCancelConfirm}
         onCancel={() => setCancelTarget(null)}
       />
@@ -405,9 +422,10 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
           {panelInvoice?.project_id && projectOptions.find((project) => project.value === panelInvoice.project_id)?.contractualName && <span className="text-xs">{projectOptions.find((project) => project.value === panelInvoice.project_id)?.contractualName}</span>}
         </span> : undefined}
         icon={<Icon name="dollar" />}
-        status={panelPayment ? <StatusPill variant={displayStatus(panelPayment) === 'Cancelled' ? salesInvoiceStatusVariant('Cancelled') : incomingPaymentStatusVariant(panelPayment.status)}>
-          {incomingPaymentStatusLabel(displayStatus(panelPayment), t)}
-        </StatusPill> : undefined}
+        status={panelPayment ? odoo
+          ? <OdooReceiptStatus receipt={panelPayment} fallback={<StatusPill variant={displayStatus(panelPayment) === 'Cancelled' ? salesInvoiceStatusVariant('Cancelled') : incomingPaymentStatusVariant(panelPayment.status)}>{incomingPaymentStatusLabel(displayStatus(panelPayment), t)}</StatusPill>} />
+          : <StatusPill variant={displayStatus(panelPayment) === 'Cancelled' ? salesInvoiceStatusVariant('Cancelled') : incomingPaymentStatusVariant(panelPayment.status)}>{incomingPaymentStatusLabel(displayStatus(panelPayment), t)}</StatusPill>
+          : undefined}
         headerActions={panelPayment ? <>
           <Button type="button" variant="outline" size="sm" onClick={openFullPayment}>{t('finance:receivables.openFullRecord', 'Open full page')}</Button>
           <MenuButton items={rowMenu(panelPayment)} ariaLabel={t('finance:receivables.paymentActions', 'Payment actions')} />

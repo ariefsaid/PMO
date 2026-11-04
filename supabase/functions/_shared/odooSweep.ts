@@ -1,7 +1,8 @@
 /**
  * One org's Odoo sweep tick (FR-ODC-042..047, plan §2.7): single-flight on `erp_sweep_lock`, the client from the one
- * resolver, every directory kind and (when procurement is employed) every purchase domain within one call/time budget,
- * the daily census and re-discovery, then the connection state. Cursors move only inside apply_odoo_master_page / finish_odoo_census, so any failure leaves them in place.
+ * resolver, every directory kind and (when procurement is employed and its switch is on) every purchase domain within one
+ * call/time budget, the daily census and re-discovery, then the connection state. Cursors move only inside
+ * apply_odoo_master_page / finish_odoo_census, so any failure leaves them in place.
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { bindCall, OdooError, type OdooCall } from '../../../pmo-portal/src/lib/adapterSeam/odoo/client.ts';
@@ -43,7 +44,26 @@ export const AFTER_SWEEP: Array<(sc: SupabaseClient, orgId: string, r: Resolved,
 
 export type OdooSweepResult =
   | { skipped: 'lock-held' | OdooClientRefusal }
-  | { ok: true; calls: number; skipped_rows: number; outbox_reconciled: number; outbox_errors: Array<{ id: string; error: string }>; failed?: string };
+  | { ok: true; calls: number; skipped_rows: number; outbox_reconciled: number; outbox_errors: Array<{ id: string; error: string }>; failed?: string; purchase_hold?: PurchaseHold };
+
+/** Why this tick mirrors no purchase document (FR-PLN-006 at pass start, #1783 item 4). Reported, never logged with data. */
+export type PurchaseHold = 'feature-off:procurement' | 'feature-switch-unreadable:procurement';
+
+/** The org's `procurement` entitlement, read ONCE per tick at pass start (0534's service-only twin). Only a literal `true`
+ *  admits the purchase feed; false is the switch off, and an error, a rejected read, a null or a non-boolean body is an
+ *  unreadable switch. Both hold purchase for this tick and leave the cursor where it was — never the directory, revenue,
+ *  setup or probe paths. The read is deliberately not repeated inside a pass: work admitted here always finishes, so a
+ *  switch flip can never interrupt a half-applied page. */
+async function procurementHold(sc: SupabaseClient, orgId: string): Promise<PurchaseHold | null> {
+  try {
+    const { data, error } = await sc.rpc('service_feature_enabled', { p_org_id: orgId, p_key: 'procurement' });
+    if (error) return 'feature-switch-unreadable:procurement';
+    if (data === true) return null;
+    return data === false ? 'feature-off:procurement' : 'feature-switch-unreadable:procurement';
+  } catch {
+    return 'feature-switch-unreadable:procurement';
+  }
+}
 
 async function rpc(sc: SupabaseClient, fn: string, args: Record<string, unknown>): Promise<unknown> {
   const { data, error } = await sc.rpc(fn, args);
@@ -105,11 +125,14 @@ export async function sweepOdooOrg(
     };
     let outboxReconciled = 0;
     let outboxErrors: Array<{ id: string; error: string }> = [];
+    let hold: PurchaseHold | null = null;
     try {
       const kinds = ODOO_KIND_ORDER.filter((kind) => readable(capabilities, KIND_SPECS[kind].model));
       // Document feeds run after the directory (they map through it) and reserve a share of the tick, so the initial directory
-      // scan cannot starve purchase or revenue reconciliation.
-      const purchase = (await purchaseFeedEmployed(sc, orgId)) ? purchaseDomainsReadable(capabilities) : [];
+      // scan cannot starve purchase or revenue reconciliation. The procurement switch is read here, once, before the purchase
+      // domains are chosen: a held feed is simply absent from this tick's list, so it reserves no calls and its cursors stay put.
+      hold = await procurementHold(sc, orgId);
+      const purchase = hold || !(await purchaseFeedEmployed(sc, orgId)) ? [] : purchaseDomainsReadable(capabilities);
       const revenue = (await revenueFeedEmployed(sc, orgId)) ? revenueDomainsReadable(capabilities) : [];
       // Outbound recovery runs before the bounded inbound walk, so one long backfill cannot leave a
       // posted invoice unconfirmed. Only the invoice command is owned here; incoming-payment recovery
@@ -170,12 +193,12 @@ export async function sweepOdooOrg(
         snapshot = await discoverCapabilities(call, { versionMajor, now: new Date(), deadlineAt: Date.now() + Math.min(DISCOVERY_BUDGET_MS, timeBudget - (Date.now() - started)) });
       }
       await recordOdooProbe(sc, orgId, r.config, { ok: true, missing: (snapshot ?? capabilities)?.missing ?? [] }, snapshot);
-      return { ok: true, calls, skipped_rows: skippedRows, outbox_reconciled: outboxReconciled, outbox_errors: outboxErrors };
+      return { ok: true, calls, skipped_rows: skippedRows, outbox_reconciled: outboxReconciled, outbox_errors: outboxErrors, ...(hold ? { purchase_hold: hold } : {}) };
     } catch (err) {
       if (!(err instanceof OdooError)) throw err;
       await runAfterSweep();
       await recordOdooProbe(sc, orgId, r.config, { ok: false, errorClass: err.errorClass });
-      return { ok: true, calls, skipped_rows: skippedRows, outbox_reconciled: outboxReconciled, outbox_errors: outboxErrors, failed: err.errorClass };
+      return { ok: true, calls, skipped_rows: skippedRows, outbox_reconciled: outboxReconciled, outbox_errors: outboxErrors, failed: err.errorClass, ...(hold ? { purchase_hold: hold } : {}) };
     }
   } finally {
     const { error } = await sc.rpc('release_erp_sweep_lock', { p_org_id: orgId, p_holder: holder });

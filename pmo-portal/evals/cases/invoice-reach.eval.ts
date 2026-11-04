@@ -20,7 +20,7 @@ export default runEvalSuite(
         expect: [
           usesTool('whats_overdue'),
           contains(/\]\(\/projects\/[0-9a-f-]{36}\/tasks\)/i),
-          contains(/\]\(\/sales-invoices\?q=[^)]+\)/),
+          contains(/\]\(\/finance\/receivables\?q=[^)]+\)/),
         ],
       },
       {

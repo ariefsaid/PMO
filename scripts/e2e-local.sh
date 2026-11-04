@@ -9,7 +9,8 @@
 #   2. write pmo-portal/.env.local exactly as ci.yml does (supabase local url/anon + the VITE_FEATURES_*
 #      flags the view/agent/crm journeys need) — NOTE this OVERWRITES .env.local (regenerated each run)
 #   3. export SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY / VITE_SUPABASE_ANON_KEY for the service-role specs
-#   4. run chromium (--workers=2) then the serial lane (--workers=1); or your pass-through args at 2 workers
+#   4. run chromium (--workers=2) then the serial lane (--workers=1); or your pass-through args at
+#      E2E_WORKERS workers (default 2)
 #
 # Load-lean by default (shared Mac): no DB reset, 2 workers, and ONE dev server — the analytics
 # :3100 server + `consent` project start only when your args name a consent spec (E2E_CONSENT_LANE).
@@ -118,8 +119,12 @@ case " $* " in
   *) export E2E_CONSENT_LANE=0 ;;
 esac
 if [ "$#" -gt 0 ]; then
-  echo "[e2e-local] playwright --workers=2 $* (consent lane: $E2E_CONSENT_LANE)"
-  exec npx playwright test --workers=2 "$@"
+  # Pass-through workers honour E2E_WORKERS (default 2) so a caller — e.g. affected-e2e.mjs --run's
+  # serial phase — can pick the worker count per invocation without stacking a second --workers
+  # flag (playwright's last-flag-wins would bury which value actually ran).
+  workers="${E2E_WORKERS:-2}"
+  echo "[e2e-local] playwright --workers=$workers $* (consent lane: $E2E_CONSENT_LANE)"
+  exec npx playwright test "--workers=$workers" "$@"
 fi
 
 echo "[e2e-local] phase 1: chromium (--workers=2)"

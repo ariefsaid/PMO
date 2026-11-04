@@ -152,6 +152,8 @@ Dev remains the ceiling. This supersedes older per-slice browser and single-disp
 merge a PR to dev once its `verify`, `unit` and (when run) `pgtap` checks are green. CI's `integration` job runs the browser suite on the release PR
 to `main`; a red run there is fixed on `dev`. `scripts/ci-e2e.sh` on a dev branch only to diagnose.
 
+**Hotfixes to main (owner, 2026-11-04):** a hotfix with no frontend change (no `pmo-portal/**` app code) merges on `verify` + affected `unit` + `pgtap` (as a dev PR); admin-merge without waiting for `integration`. Frontend hotfixes keep the full run. The next release runs the full suite.
+
 **Don't waste CI minutes (owner, 2026-11-02; v0.30.0 spent 3 release runs on one test):** a red release test is fixed only
 after its root cause is stated from the run's trace and video (`gh run download <run>`). A workaround that doesn't explain
 the failure is rejected, and a local green is not proof. Same test red twice: stop and re-diagnose; don't patch again.
@@ -169,7 +171,7 @@ No scheduled CI runs: agent evals run manually and locally (the `agent-evals` wo
   `npm run typecheck`, `npx eslint --max-warnings=0 <touched files>`, the **directly touched test files** (never
   `vitest --changed` or the full suite locally — CI owns the full run on the push-to-`dev` backstop and the
   release PR; a local near-full run queues every parallel build behind one lock for hours), the touched e2e journeys (`scripts/e2e-local.sh
-  <fragment>`), rendered captures for UI (`scripts/ux-proof.sh`), and for DB changes only the touched pgTAP
+  <fragment>`); UI changes also run `node scripts/affected-e2e.mjs` (use `--run` to execute selected chromium + serial specs), rendered captures for UI (`scripts/ux-proof.sh`), and for DB changes only the touched pgTAP
   files (`supabase test db <files>`; CI's `pgtap` job is the full proof) — DB work under `scripts/with-db-lock.sh`;
   `scripts/with-test-lock.sh` only for the rare deliberate full run (`npm run verify:locked`). `db reset` (and `e2e-local.sh --reset`)
   only when your branch adds/changes a migration or seed. Reviewers and release-engineer read the builder's
@@ -227,6 +229,7 @@ matching one ONLY when your task touches that surface — that is the whole poin
 |---|---|
 | About to start ANY build — or to decide who runs it | [`docs/orca-dispatch.md`](docs/orca-dispatch.md) — Orca workers on any harness/model; routing table there |
 | Any money flow (budget activate · invoice/payment submit · procurement transition · timesheet push) | [`docs/money-path-primer.md`](docs/money-path-primer.md) — a map of the outbox/sweep/SoD architecture so you don't re-derive it from source |
+| Client seeding or day-to-day PMO agent operations through the CLI | [`docs/runbooks/pmo-cli.md`](docs/runbooks/pmo-cli.md) — shipped commands, data ownership, timing, safety and app-only paths |
 | The agent / LLM surface (prompts, tools, evals, the assistant panel) | [`docs/adr/0050-layered-agent-prompt-charter-and-skills.md`](docs/adr/0050-layered-agent-prompt-charter-and-skills.md) + [`docs/adr/0052-agent-eval-harness.md`](docs/adr/0052-agent-eval-harness.md) — the deployed model (`deepseek/deepseek-v4.1-flash-1017`) chose the right tool on every completed turn in the 10-run local eval (86/90, 2026-11-02, #1596). Run the eval harness locally (not CI) after prompt or tool changes; it is the real gate. |
 | Authoring or editing any e2e spec | [`docs/e2e-parallel-conventions.md`](docs/e2e-parallel-conventions.md) — isolation classes, the `@e2e-isolation` tag, and the guard-polarity rule |
 | Local/prod Supabase, secrets, or a deploy | [`docs/environments.md`](docs/environments.md) |
