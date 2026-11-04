@@ -299,7 +299,8 @@ test('AC-OCI-100: one user raises project invoices, another approves them, and r
     await approverPage.getByRole('button', { name: 'Save', exact: true }).click();
     await expect(approverPage.getByText('e-Faktur details saved', { exact: true })).toBeVisible();
     await approverPage.goto(`/sales-invoices/${invoices[0].id}`);
-    await expect(approverPage.getByText(efakturNumber, { exact: true })).toBeVisible();
+    const efakturDefinition = approverPage.getByText('e-Faktur', { exact: true }).locator('xpath=following-sibling::dd[1]');
+    await expect(efakturDefinition).toContainText(efakturNumber);
 
     await approverPage.goto('/incoming-payments');
     for (let index = 0; index < 2; index++) {
