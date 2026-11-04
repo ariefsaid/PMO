@@ -1,4 +1,4 @@
--- Rollback of 0542_tm_claim_source_detail.sql (#1514 D1). Drop the new read and restore the 0518 API-client tier.
+-- Rollback of 0588_tm_claim_source_detail.sql (#1514 D1). Drop the new read and restore the latest dev API-client guard definition from 0585.
 drop function public.list_tm_claim_source_details(uuid);
 
 create or replace function public.api_client_request_guard()
@@ -15,6 +15,9 @@ declare
   -- ACTIVE-ADMIN TIER (`pmo load`, #796) — keep in step with scripts/pmo.mjs LOAD_TABLES / LOAD_RPCS.
   admin_write_tables constant text[] := array['budget_versions', 'budget_line_items', 'boq_items'];
   admin_rpcs constant text[] := array['set_project_contract_value', 'transition_project', 'import_budget_line_v2'];
+  -- #1835 stage-date correction tier: exact RPC + read endpoint, active Admin only.
+  stage_admin_rpcs constant text[] := array['redate_stage_entry'];
+  stage_admin_tables constant text[] := array['project_stage_entries'];
   -- PROCUREMENT-WRITER TIER (`pmo purchases`, #1319) — keep in step with scripts/lib/pmo-purchases.mjs.
   purchase_rpcs constant text[] := array['link_erp_purchase_documents', 'link_procurement_sharepoint_item'];
   purchase_read_views constant text[] := array['erp_purchase_orphans', 'erp_purchase_orphans_all'];  -- 0364
@@ -76,6 +79,11 @@ begin
       return;
     end if;
     if method = 'POST' and target = any (admin_rpcs) then
+      if coalesce(public.auth_role() = 'Admin'::public.user_role and public.is_active_member(), false) then
+        return;
+      end if;
+    end if;
+    if method = 'POST' and target = any (stage_admin_rpcs) then  -- 0585
       if coalesce(public.auth_role() = 'Admin'::public.user_role and public.is_active_member(), false) then
         return;
       end if;
@@ -163,6 +171,11 @@ begin
         return;  -- 0370
       end if;  -- 0370
     end if;  -- 0370
+    if method = 'GET' and target = any (stage_admin_tables) then  -- 0585
+      if coalesce(public.auth_role() = 'Admin'::public.user_role and public.is_active_member(), false) then
+        return;
+      end if;
+    end if;
     if method = 'GET' and target = any (operator_read_tables) then  -- 0367
       if coalesce(public.auth_role()::text in ('Admin', 'Executive', 'Project Manager', 'Finance') and public.is_active_member(), false) then  -- 0367
         return;  -- 0367

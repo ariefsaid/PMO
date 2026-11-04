@@ -475,7 +475,7 @@ function parseTmClaimSourceDetail(raw: unknown): ParsedTmClaimSourceDetail {
   };
 }
 
-/** The dated sources behind a claim's lines, through the same amounts-reader gate as the claim list (0542). */
+/** The dated sources behind a claim's lines, through the same amounts-reader gate as the claim list (0588). */
 export async function listTmClaimSources(claimId: string): Promise<TmClaimSourcesRead> {
   const { data, error } = await supabase.rpc('list_tm_claim_source_details', { p_claim: claimId })
     .limit(LIST_LIMIT + 1);

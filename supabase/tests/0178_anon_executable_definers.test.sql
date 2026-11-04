@@ -110,7 +110,7 @@
 -- membership, the caller's org, project access and the archive role gate, and it exposes no internal
 -- reference. Graceful pairing: supabase/tests/budget_archive_cancel_intents.test.sql (AC-BUD-122).
 -- ⚑ AMENDED BY #1813 (S3): `budget_distribution_gaps` and `save_budget_distribution` join the retained set (+2).
--- ⚑ AMENDED BY 0542 (#1514 D1): `list_tm_claim_source_details` joins the retained set (+1). This SECURITY DEFINER read
+-- ⚑ AMENDED BY 0588 (#1514 D1): `list_tm_claim_source_details` joins the retained set (+1). This SECURITY DEFINER read
 -- gates to the same amounts audience as `list_tm_claims` and scopes the claim to the JWT org; its role, cross-org and
 -- API-client tier contract is proved in `tm_reads.test.sql`.
 -- Current retained set: 153 names after #1505, #1813 and #1514 D1, including #1462's archive inventory read.
@@ -332,7 +332,7 @@ insert into client_callable_rpc_names (proname) values
   ('admin_change_domain_ownership'),
   ('admin_set_feedback_surveys'),
   ('list_budget_fiscal_years'),
-  ('list_tm_claim_source_details'),  -- ⚑ AMENDED BY 0542 (#1514 D1)
+  ('list_tm_claim_source_details'),  -- ⚑ AMENDED BY 0588 (#1514 D1)
   ('operator_agent_run_stats'),
   ('operator_create_org'),
   ('operator_grant_credits'),

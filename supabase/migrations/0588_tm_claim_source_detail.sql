@@ -1,7 +1,7 @@
--- 0542_tm_claim_source_detail.sql — #1514 D1: the claim drawer's bounded, org-scoped source detail read.
+-- 0588_tm_claim_source_detail.sql — #1514 D1: the claim drawer's bounded, org-scoped source detail read.
 -- Same amounts-reader gate as 0518 list_tm_claims/preview_tm_claim; no direct table access is widened. The read returns
 -- every source row retained on the claim, including released rows after withdrawal, with dates/person labels and exact
--- selected subtotals. Rollback restores api_client_request_guard verbatim from 0518.
+-- selected subtotals. Rollback restores the latest dev api_client_request_guard definition from 0585.
 
 create function public.list_tm_claim_source_details(p_claim uuid)
 returns table(id uuid, entry_id uuid, entry_date date, person_id uuid, person_name text, units numeric, unit text,
@@ -55,6 +55,9 @@ declare
   -- ACTIVE-ADMIN TIER (`pmo load`, #796) — keep in step with scripts/pmo.mjs LOAD_TABLES / LOAD_RPCS.
   admin_write_tables constant text[] := array['budget_versions', 'budget_line_items', 'boq_items'];
   admin_rpcs constant text[] := array['set_project_contract_value', 'transition_project', 'import_budget_line_v2'];
+  -- #1835 stage-date correction tier: exact RPC + read endpoint, active Admin only.
+  stage_admin_rpcs constant text[] := array['redate_stage_entry'];
+  stage_admin_tables constant text[] := array['project_stage_entries'];
   -- PROCUREMENT-WRITER TIER (`pmo purchases`, #1319) — keep in step with scripts/lib/pmo-purchases.mjs.
   purchase_rpcs constant text[] := array['link_erp_purchase_documents', 'link_procurement_sharepoint_item'];
   purchase_read_views constant text[] := array['erp_purchase_orphans', 'erp_purchase_orphans_all'];  -- 0364
@@ -82,10 +85,11 @@ declare
   equipment_write_rpcs constant text[] := array['preview_equipment_costing', 'save_equipment_costing', 'end_equipment_costing'];  -- 0497
   equipment_read_rpcs constant text[] := array['list_equipment_costing', 'list_equipment_allocations'];  -- 0497
   equipment_usage_rpcs constant text[] := array['list_equipment_usage_totals'];  -- 0497
-  -- TIME-AND-MATERIALS TIER (`pmo tm`, #1514): the rate and sign-off writers for active Admin/Finance; claim reads for the
-  -- amounts audience. RLS remains the tenancy rule.  -- 0518
+  -- TIME-AND-MATERIALS TIER (`pmo tm`, #1514): the rate and sign-off writers for active Admin/Finance; the claim list and
+  -- preview for the amounts audience. Same role sets as the RPCs' own checks. The rate card itself is a table read, so
+  -- `contract_rate_lines` and `contract_rate_assignees` join the operator read tier below; RLS stays the tenancy rule.  -- 0518
   tm_write_rpcs constant text[] := array['save_contract_rate_line', 'end_contract_rate_line', 'set_contract_rate_assignee', 'end_contract_rate_assignee', 'assemble_tm_claim', 'deselect_tm_source', 'prepare_tm_signoff', 'withdraw_tm_signoff', 'confirm_tm_signoff'];  -- 0518
-  tm_read_rpcs constant text[] := array['list_tm_claims', 'preview_tm_claim', 'list_tm_claim_source_details'];  -- 0542
+  tm_read_rpcs constant text[] := array['list_tm_claims', 'preview_tm_claim', 'list_tm_claim_source_details'];  -- 0588
   claims jsonb := nullif(current_setting('request.jwt.claims', true), '')::jsonb;
   headers jsonb := coalesce(nullif(current_setting('request.headers', true), '')::jsonb, '{}'::jsonb);
   method text := current_setting('request.method', true);
@@ -115,6 +119,11 @@ begin
       return;
     end if;
     if method = 'POST' and target = any (admin_rpcs) then
+      if coalesce(public.auth_role() = 'Admin'::public.user_role and public.is_active_member(), false) then
+        return;
+      end if;
+    end if;
+    if method = 'POST' and target = any (stage_admin_rpcs) then  -- 0585
       if coalesce(public.auth_role() = 'Admin'::public.user_role and public.is_active_member(), false) then
         return;
       end if;
@@ -202,6 +211,11 @@ begin
         return;  -- 0370
       end if;  -- 0370
     end if;  -- 0370
+    if method = 'GET' and target = any (stage_admin_tables) then  -- 0585
+      if coalesce(public.auth_role() = 'Admin'::public.user_role and public.is_active_member(), false) then
+        return;
+      end if;
+    end if;
     if method = 'GET' and target = any (operator_read_tables) then  -- 0367
       if coalesce(public.auth_role()::text in ('Admin', 'Executive', 'Project Manager', 'Finance') and public.is_active_member(), false) then  -- 0367
         return;  -- 0367
@@ -231,8 +245,8 @@ begin
    where p.pronamespace = 'public'::regnamespace
      and p.proname = 'list_tm_claim_source_details'
      and a.privilege_type = 'EXECUTE' and (a.grantee = 0 or r.rolname = 'anon');
-  if v_bad is not null then raise exception '0542: claim-source read is executable by anon or PUBLIC: %', v_bad; end if;
+  if v_bad is not null then raise exception '0588: claim-source read is executable by anon or PUBLIC: %', v_bad; end if;
   if not has_function_privilege('authenticated', 'public.list_tm_claim_source_details(uuid)', 'execute') then
-    raise exception '0542: claim-source read lost its authenticated grant';
+    raise exception '0588: claim-source read lost its authenticated grant';
   end if;
 end $$;
