@@ -44,6 +44,23 @@ describe('odoo/client — JSON-2 request shape (bed §1)', () => {
     expect(headers).toMatchObject({ Authorization: 'bearer k1', 'X-Odoo-Database': 'db1' });
   });
 
+  it('uses the configured company for every request and retains unrelated caller context', async () => {
+    let requestBody: Record<string, unknown> | undefined;
+    const call = bindCall({
+      baseUrl: 'https://odoo.example.test', apiKey: 'k1', database: 'db1', companyId: 7,
+      fetchImpl: (async (_url: string | URL | Request, init: RequestInit) => {
+        requestBody = JSON.parse(String(init.body)) as Record<string, unknown>;
+        return Response.json(true);
+      }) as unknown as typeof fetch,
+    } as Parameters<typeof bindCall>[0]);
+
+    await call('account.move', 'action_post', { ids: [3], context: { active_test: false, allowed_company_ids: [4], company_id: 4 } });
+
+    expect(requestBody).toEqual({
+      ids: [3], context: { active_test: false, allowed_company_ids: [7], company_id: 7 },
+    });
+  });
+
   it('waits on the pacer before every call', async () => {
     const order: string[] = [];
     await odooCall({ ...deps(async () => { order.push('fetch'); return Response.json(true); }), pace: async () => { order.push('pace'); } }, 'm', 'x');

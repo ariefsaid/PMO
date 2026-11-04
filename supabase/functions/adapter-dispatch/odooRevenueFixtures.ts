@@ -70,6 +70,8 @@ export interface World {
   customerAdvanceAccountType?: string;
   /** The fake Odoo behind the Odoo host (an approval talks to it over fetch). */
   odoo?: { fetch: (url: string, init?: RequestInit) => Promise<Response> };
+  /** Context passed to Odoo, captured by the served-handler route for company-dependent fields. */
+  odooContexts?: Array<{ model: string; method: string; context: Record<string, unknown> }>;
   /** The org's default sale tax is mirrored as a PPN output tax (default true) / absent. */
   saleTax?: 'ppn' | 'collector' | 'absent';
   /** Out: every write to the draft tables, in order. */
@@ -259,7 +261,9 @@ export function revenueRoutes(unexpected: FetchCall[], caller: string, world: Wo
     // the fake Odoo behind the Odoo host: the shipped adapter talks to it over fetch
     ...(world.odoo ? [{ label: 'odoo', host: ODOO_HOST, response: async (call: FetchCall) => {
       const [model, method] = call.url.pathname.split('/').slice(-2);
-      return world.odoo!.fetch(`https://${ODOO_HOST}/json/2/${model}/${method}`, { method: 'POST', headers: { Authorization: String(call.headers.get('authorization')) }, body: JSON.stringify(call.bodyJson ?? {}) });
+      const body = (call.bodyJson ?? {}) as Record<string, unknown>;
+      world.odooContexts?.push({ model, method, context: (body.context ?? {}) as Record<string, unknown> });
+      return world.odoo!.fetch(`https://${ODOO_HOST}/json/2/${model}/${method}`, { method: 'POST', headers: { Authorization: String(call.headers.get('authorization')) }, body: JSON.stringify(body) });
     } } as MockRoute] : []),
     { label: 'unexpected', response: (call) => { unexpected.push(call); return jsonResponse({ message: 'unmocked' }, { status: 404 }); } },
   ];

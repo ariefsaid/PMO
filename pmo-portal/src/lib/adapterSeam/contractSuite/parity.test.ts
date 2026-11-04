@@ -23,6 +23,40 @@ describe('AC-ECA-042 registered tiers are in parity with the registry', () => {
   });
 });
 
+describe('AC-OCI-094 Odoo revenue declarations match the shared suite versions', () => {
+  it('supports invoice.push only after the production gate suite passes', () => {
+    expect(ODOO_WORKFLOWS['invoice.push']).toEqual({ status: 'supported', version: WORKFLOWS['invoice.push'].version });
+  });
+
+  it('leaves receipt.read pending while the production feed does not classify vendor payments', () => {
+    expect(ODOO_WORKFLOWS['receipt.read']).toEqual({ status: 'pending', version: WORKFLOWS['receipt.read'].version, issue: 1506 });
+  });
+
+  it('leaves invoice pairing pending until its shared contract uses the production page mapping', () => {
+    expect(SUITES['invoice.pair-existing']).toBeDefined();
+    expect(ODOO_WORKFLOWS['invoice.pair-existing']).toEqual({ status: 'pending', version: WORKFLOWS['invoice.pair-existing'].version, issue: 1506 });
+  });
+
+  it('leaves activation to the procurement slice', () => {
+    expect(SUITES['cutover.activation']).toBeDefined();
+    expect(ODOO_WORKFLOWS['cutover.activation']).toEqual({ status: 'pending', version: WORKFLOWS['cutover.activation'].version, issue: 1505 });
+  });
+
+  it('keeps revenue cutover pending on its owning issue until a shared suite exists', () => {
+    expect(SUITES['cutover.revenue']).toBeUndefined();
+    expect(ODOO_WORKFLOWS['cutover.revenue']).toEqual({ status: 'pending', version: WORKFLOWS['cutover.revenue'].version, issue: 1602 });
+  });
+
+  it('AC-OCI-094 keeps the owner-held tax-document workflow pending without a shared suite', () => {
+    expect((WORKFLOWS as unknown as Record<string, unknown>)['tax-document.read']).toEqual({
+      version: 1, summary: 'read tax-document facts from the ERP',
+    });
+    expect(SUITES['tax-document.read']).toBeUndefined();
+    expect((ODOO_WORKFLOWS as unknown as Record<string, unknown>)['tax-document.read']).toEqual({ status: 'pending', version: 1, issue: 1506 });
+    expect((ERPNEXT_WORKFLOWS as unknown as Record<string, unknown>)['tax-document.read']).toEqual({ status: 'pending', version: 1, issue: 1506 });
+  });
+});
+
 const SEAM = new URL('../', import.meta.url).pathname;
 const tiersOnDisk = readdirSync(SEAM, { withFileTypes: true })
   .filter((e) => e.isDirectory() && existsSync(`${SEAM}${e.name}/workflowDeclarations.ts`))

@@ -87,6 +87,18 @@ describe('external-set-company — Odoo list-companies', () => {
     assertEquals([read.url.searchParams.get('org_id'), read.url.searchParams.get('external_tier')], ['eq.org-1', 'eq.odoo']);
   });
 
+  it('FR-ODC-005 activation company discovery is not pinned to a previously selected company', async () => {
+    const r = await call({ setupAction: 'list-companies' }, {
+      binding: {
+        site_url: `https://${ODOO}`, secret_ref: 'odoo_ref', status: 'active', activated_at: '2026-11-01T00:00:00Z',
+        config: { database: 'db1', odoo_company_id: 1 },
+      },
+    });
+    assertEquals(r.res.status, 200);
+    const companiesRead = odooCalls(r.calls).find((entry) => entry.url.pathname === '/json/2/res.company/search_read');
+    assertEquals((companiesRead?.bodyJson as Record<string, unknown> | undefined)?.context, undefined);
+  });
+
   it('FR-ODC-005 a refused resolver → 422 with its classified reason, no Odoo call', async () => {
     const r = await call({ setupAction: 'list-companies' }, { binding: { site_url: `https://${ODOO}`, secret_ref: 'r', status: 'disconnected', activated_at: null, config: {} } });
     assertEquals([r.res.status, r.json.error], [422, 'inactive']);

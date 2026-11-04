@@ -12,10 +12,11 @@ const SETUP_CENSUS_AND_PROPOSALS = 1605;
 // Odoo route items (map #1481).
 const ODOO_CONNECT = 1504; // O1 slice S7: project links over cost accounts
 const ODOO_PROCUREMENT = 1505;
-const ODOO_REVENUE = 1506;
 const ODOO_ACTUALS_AND_BUDGET = 1507;
 const ODOO_LABOUR = 1510;
 const ODOO_SITE_CASH = 1509; // site imprest postings (#1515 §9)
+const ODOO_REVENUE_CUTOVER = 1602;
+const ODOO_REVENUE = 1506;
 
 export const ODOO_WORKFLOWS: TierWorkflows = {
   'census': { status: 'supported', version: 1 },
@@ -35,12 +36,12 @@ export const ODOO_WORKFLOWS: TierWorkflows = {
   'purchase.link-existing': { status: 'pending', version: 1, issue: ODOO_PROCUREMENT },
   'cutover.purchase': { status: 'pending', version: 1, issue: ODOO_PROCUREMENT },
   'cutover.timesheet': { status: 'pending', version: 1, issue: ODOO_LABOUR },
-  // The shared suite drives a purchase push; Odoo has none until O2.
   'cutover.activation': { status: 'pending', version: 1, issue: ODOO_PROCUREMENT },
-  'invoice.push': { status: 'pending', version: 1, issue: ODOO_REVENUE },
+  'invoice.push': { status: 'supported', version: 1 },
   'receipt.read': { status: 'pending', version: 1, issue: ODOO_REVENUE },
   'invoice.pair-existing': { status: 'pending', version: 1, issue: ODOO_REVENUE },
-  'cutover.revenue': { status: 'pending', version: 1, issue: ODOO_REVENUE },
+  'cutover.revenue': { status: 'pending', version: 1, issue: ODOO_REVENUE_CUTOVER },
+  'tax-document.read': { status: 'pending', version: 1, issue: ODOO_REVENUE },
   'actuals.read': { status: 'pending', version: 1, issue: ODOO_ACTUALS_AND_BUDGET },
   'budget.push': { status: 'pending', version: 1, issue: ODOO_ACTUALS_AND_BUDGET },
   // O4 decides: Odoo Community has no budget object (DD-ODC-5), so this likely becomes unavailable.
