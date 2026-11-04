@@ -244,6 +244,98 @@ async function verifyRangePredecessor(
   return predecessor;
 }
 
+/** A range archive is authorized by its exact durable cancellation intent, not by the mirror's
+ *  historical pushed state. The source mirror is deliberately pending while the separate archive
+ *  intent owns the cancel; revisions continue through `verifyRangePredecessor` and require pushed. */
+async function verifyRangeArchiveCancellation(
+  deps: ErpDispatchFactoryDeps,
+  record: {
+    id?: unknown;
+    projectId?: unknown;
+    fiscal_year?: unknown;
+    to_fiscal_year?: unknown;
+    erp_account?: unknown;
+    budget_intent?: unknown;
+    budget_predecessor?: unknown;
+    budget_predecessor_modified?: unknown;
+    outbox_identity?: unknown;
+    activated_at?: unknown;
+    project_start_date?: unknown;
+    project_end_date?: unknown;
+    budget_archive_cancel_job_id?: unknown;
+    budget_archive_source_mirror_id?: unknown;
+  },
+  fromYear: string,
+  toYear: string,
+  account: string,
+): Promise<string> {
+  const jobId = record.budget_archive_cancel_job_id;
+  const sourceMirrorId = record.budget_archive_source_mirror_id;
+  const predecessor = record.budget_predecessor;
+  if (typeof jobId !== 'string' || !/^[0-9a-f-]{36}$/i.test(jobId)
+      || typeof sourceMirrorId !== 'string' || !/^[0-9a-f-]{36}$/i.test(sourceMirrorId)
+      || typeof predecessor !== 'string' || predecessor === ''
+      || typeof record.id !== 'string' || typeof record.projectId !== 'string'
+      || typeof record.budget_predecessor_modified !== 'string' || record.budget_predecessor_modified === '') {
+    throw new AppError('whole-project budget archive cancellation lacks its exact durable witnesses', 'commit-rejected');
+  }
+  const { data: jobData, error: jobError } = await deps.serviceClient.from('budget_archive_cancel_intents')
+    .select('id,org_id,request_id,project_id,budget_version_id,source_mirror_id,source_kind,actor_user_id,state,fiscal_year,to_fiscal_year,erp_account,erp_budget_name,erp_modified,activated_at_witness,pushed_project_start_date,pushed_project_end_date')
+    .eq('id', jobId).eq('org_id', deps.orgId).maybeSingle();
+  if (jobError) throw new AppError('whole-project budget archive intent could not be read', 'external-unreachable');
+  const job = jobData as Record<string, unknown> | null;
+  if (!job || job.id !== jobId || job.org_id !== deps.orgId || job.source_kind !== 'account' || job.state !== 'pending'
+      || job.source_mirror_id !== sourceMirrorId || job.project_id !== record.projectId
+      || job.budget_version_id !== record.id || job.fiscal_year !== fromYear || job.to_fiscal_year !== toYear
+      || job.erp_account !== account || job.erp_budget_name !== predecessor
+      || job.erp_modified !== record.budget_predecessor_modified
+      || job.activated_at_witness !== record.activated_at
+      || job.pushed_project_start_date !== record.project_start_date
+      || job.pushed_project_end_date !== (record.project_end_date ?? null)
+      || typeof job.actor_user_id !== 'string' || !job.actor_user_id
+      || deps.actorUserId !== job.actor_user_id || typeof job.request_id !== 'string' || !job.request_id) {
+    throw new AppError('whole-project budget archive command does not match its current pending intent', 'commit-rejected');
+  }
+  const { data: requestData, error: requestError } = await deps.serviceClient.from('budget_archive_requests')
+    .select('id,org_id,project_id,budget_version_id,requested_by,cancel_erp')
+    .eq('id', job.request_id).eq('org_id', deps.orgId).maybeSingle();
+  if (requestError) throw new AppError('whole-project budget archive request could not be read', 'external-unreachable');
+  const request = requestData as Record<string, unknown> | null;
+  if (!request || request.id !== job.request_id || request.org_id !== deps.orgId
+      || request.project_id !== job.project_id || request.budget_version_id !== job.budget_version_id
+      || request.requested_by !== job.actor_user_id || request.cancel_erp !== true) {
+    throw new AppError('whole-project budget archive request or actor witness changed', 'commit-rejected');
+  }
+  const { data: mirrorData, error: mirrorError } = await deps.serviceClient.from('budget_version_account_erp_mirror')
+    .select('id,org_id,budget_version_id,fiscal_year,to_fiscal_year,erp_account,budget_intent,push_state,erp_budget_name,erp_docstatus,erp_cancelled_at,erp_modified,activated_at_witness,pushed_project_start_date,pushed_project_end_date,budget_versions!inner(project_id,status,activated_at)')
+    .eq('id', sourceMirrorId).eq('org_id', deps.orgId).eq('budget_version_id', record.id as string)
+    .eq('fiscal_year', fromYear).eq('to_fiscal_year', toYear).eq('erp_account', account)
+    .eq('budget_versions.project_id', record.projectId as string).maybeSingle();
+  if (mirrorError) throw new AppError('whole-project budget archive source mirror could not be read', 'external-unreachable');
+  const mirror = mirrorData as Record<string, unknown> | null;
+  const sourceVersion = mirror?.budget_versions as Record<string, unknown> | undefined;
+  if (!mirror || !sourceVersion || mirror.id !== sourceMirrorId || mirror.org_id !== deps.orgId
+      || mirror.budget_version_id !== record.id || mirror.fiscal_year !== fromYear || mirror.to_fiscal_year !== toYear
+      || mirror.erp_account !== account || mirror.budget_intent !== 'remove' || mirror.push_state !== 'pending'
+      || mirror.erp_budget_name !== predecessor || mirror.erp_docstatus !== 1 || mirror.erp_cancelled_at !== null
+      || mirror.erp_modified !== record.budget_predecessor_modified
+      || mirror.activated_at_witness !== record.activated_at
+      || mirror.pushed_project_start_date !== record.project_start_date
+      || mirror.pushed_project_end_date !== (record.project_end_date ?? null)
+      || sourceVersion.project_id !== record.projectId || sourceVersion.status !== 'Archived'
+      || sourceVersion.activated_at !== record.activated_at) {
+    throw new AppError('whole-project budget archive source mirror is no longer the exact pending source', 'commit-rejected');
+  }
+  const { data: refData, error: refError } = await deps.serviceClient.from('external_refs')
+    .select('external_record_id').eq('org_id', deps.orgId).eq('domain', 'budget').eq('external_tier', 'erpnext')
+    .eq('pmo_record_id', record.outbox_identity as string).eq('external_record_id', predecessor).maybeSingle();
+  if (refError) throw new AppError('whole-project budget archive reference could not be read', 'external-unreachable');
+  if (!refData || (refData as Record<string, unknown>).external_record_id !== predecessor) {
+    throw new AppError('whole-project budget archive has no exact external reference', 'commit-rejected');
+  }
+  return predecessor;
+}
+
 type BudgetRangeRecoveryState = {
   stage?: unknown;
   identity?: unknown;
@@ -469,7 +561,7 @@ export async function resolveBudgetRefs(
       if (typeof fiscalYear !== 'string' || typeof record.to_fiscal_year !== 'string') {
         throw new AppError('whole-project budget removal has unresolved range dimensions', 'budget-distribution-stale');
       }
-      refs.self = await verifyRangePredecessor(deps, record, fiscalYear, record.to_fiscal_year, selectedAccount);
+      refs.self = await verifyRangeArchiveCancellation(deps, record, fiscalYear, record.to_fiscal_year, selectedAccount);
       return { refs };
     }
     if (record.budget_intent === 'remove') {

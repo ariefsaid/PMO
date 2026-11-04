@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { budgetRangeIdentity } from './budgetAccountIdentity';
 import { createErpAdapter } from './adapter';
 import { DOCTYPE_BODIES } from './doctypeBodies';
+import { dispatchMoneyWrite, type DispatchMoneyOutboxDeps, type OutboxRow } from '../dispatch';
 
 const VERSION = '44444444-4444-4444-8444-444444444444';
 const OUTBOX = '55555555-5555-4555-8555-555555555555';
@@ -27,6 +28,9 @@ function harness(options: {
   putDistributionOverride?: Array<Record<string, unknown>>;
   submitOutcome?: 'success' | 'accept-then-timeout' | 'timeout-before-accept' | 'cancelled';
   cancelOutcome?: 'success' | 'accept-then-timeout' | 'timeout-before-accept';
+  timeoutMs?: number;
+  fetchThroughGlobal?: boolean;
+  pauseDistributionPut?: boolean;
   predecessor?: { name: string; modified: string; company?: string; project?: string; account?: string };
 } = {}) {
   const calls: Array<{ method: string; path: string; body?: Record<string, unknown> }> = [];
@@ -37,6 +41,11 @@ function harness(options: {
   let putOutcome = options.putOutcome ?? 'success';
   let submitOutcome = options.submitOutcome ?? 'success';
   let cancelOutcome = options.cancelOutcome ?? 'success';
+  let completeRemoteDistributionPut: (() => void) | null = null;
+  let remoteDistributionPutPending = false;
+  let distributionPutCallerAborted = false;
+  let distributionPutCount = 0;
+  let durableGeneration = 0;
   if (options.predecessor) {
     docs.set(options.predecessor.name, {
       name: options.predecessor.name,
@@ -78,6 +87,26 @@ function harness(options: {
     }
     if (method === 'PUT' && url.pathname.startsWith('/api/resource/Budget/')) {
       const name = decodeURIComponent(url.pathname.split('/').pop() ?? '');
+      if (body?.budget_distribution) distributionPutCount += 1;
+      if (options.pauseDistributionPut && body?.budget_distribution && distributionPutCount === 1) {
+        remoteDistributionPutPending = true;
+        return await new Promise<Response>((resolve, reject) => {
+          let callerSettled = false;
+          const signal = init?.signal;
+          const onAbort = () => {
+            callerSettled = true;
+            distributionPutCallerAborted = true;
+            reject(new DOMException('request aborted by client deadline', 'AbortError'));
+          };
+          signal?.addEventListener('abort', onAbort, { once: true });
+          completeRemoteDistributionPut = () => {
+            doc = { ...doc!, budget_distribution: body.budget_distribution, modified: '2026-11-04 10:01:00' };
+            docs.set(String(doc.name), doc);
+            remoteDistributionPutPending = false;
+            if (!callerSettled) resolve(Response.json({ data: doc }));
+          };
+        });
+      }
       if (body?.docstatus === 2) {
         const prior = docs.get(name)!;
         if (cancelOutcome !== 'timeout-before-accept') {
@@ -132,7 +161,12 @@ function harness(options: {
   });
 
   const adapter = createErpAdapter({
-    client: { fetchImpl: fetchImpl as typeof fetch, apiKey: 'key', apiSecret: 'secret', baseUrl: 'https://erp.test' },
+    client: {
+      fetchImpl: options.fetchThroughGlobal
+        ? ((input, init) => globalThis.fetch(input, init)) as typeof fetch
+        : fetchImpl as typeof fetch,
+      apiKey: 'key', apiSecret: 'secret', baseUrl: 'https://erp.test', timeoutMs: options.timeoutMs,
+    },
     doctypeBodies: DOCTYPE_BODIES,
     ctx: {
       refs: { project: PROJECT, self: options.predecessor?.name ?? null },
@@ -141,9 +175,12 @@ function harness(options: {
       budgetAccount: { intent: 'ensure', predecessor: options.predecessor?.name ?? null },
     },
     budgetRangeOutbox: {
-      read: vi.fn(async () => durableState),
-      advance: vi.fn(async (_attempt: unknown, expected: string | null, next: Record<string, unknown>) => {
-        if ((durableState?.stage ?? null) !== expected) return false;
+      read: vi.fn(async (attempt: { generation: number }) => {
+        durableGeneration = Math.max(durableGeneration, attempt.generation);
+        return durableState;
+      }),
+      advance: vi.fn(async (attempt: { generation: number }, expected: string | null, next: Record<string, unknown>) => {
+        if (attempt.generation !== durableGeneration || (durableState?.stage ?? null) !== expected) return false;
         stageCalls.push({ expected, next });
         if (options.failAdvanceStage === next.stage) return false;
         durableState = next;
@@ -182,7 +219,82 @@ function harness(options: {
     },
   };
 
-  return { adapter, command, calls, stageCalls, fetchImpl, get durableState() { return durableState; }, get doc() { return doc; } };
+  return {
+    adapter, command, calls, stageCalls, fetchImpl,
+    get durableState() { return durableState; }, get doc() { return doc; },
+    get remoteDistributionPutPending() { return remoteDistributionPutPending; },
+    get distributionPutCallerAborted() { return distributionPutCallerAborted; },
+    completeRemoteDistributionPut: () => completeRemoteDistributionPut?.(),
+  };
+}
+
+function rangeDispatchOutbox() {
+  const row: { value: OutboxRow | null; updatedAt: number; reconcileAfter: number | null } = {
+    value: null, updatedAt: Date.now(), reconcileAfter: null,
+  };
+  const copy = () => row.value ? { ...row.value } : null;
+  const deps: DispatchMoneyOutboxDeps = {
+    async readOutbox() { return copy(); },
+    async insertOutboxPending(domain, pmoRecordId, idempotencyKey) {
+      row.value = {
+        id: OUTBOX, domain, pmoRecordId, idempotencyKey, state: 'pending',
+        externalRecordId: null, canonical: null, claimGeneration: 0, payloadDigest: 'a'.repeat(64),
+      };
+      row.updatedAt = Date.now();
+      return copy()!;
+    },
+    async claimOutboxForCommit() {
+      const eligible = row.value?.state === 'pending' || row.value?.state === 'failed' ||
+        (row.value?.state === 'quarantined' && row.reconcileAfter !== null && Date.now() >= row.reconcileAfter);
+      if (!row.value || !eligible) return null;
+      row.value.state = 'committing';
+      row.value.claimGeneration += 1;
+      row.updatedAt = Date.now();
+      return copy();
+    },
+    async quarantineCommitting() {
+      if (!row.value || row.value.state !== 'committing' || Date.now() - row.updatedAt <= 60_000) return null;
+      row.value.state = 'quarantined';
+      row.value.claimGeneration += 1;
+      row.reconcileAfter = Date.now() + 5 * 60_000;
+      row.updatedAt = Date.now();
+      return copy();
+    },
+    async markOutboxCommitted(id, externalRecordId, canonical, generation) {
+      if (!row.value || row.value.id !== id || row.value.claimGeneration !== generation) return 0;
+      row.value.state = 'committed';
+      row.value.externalRecordId = externalRecordId;
+      row.value.canonical = canonical;
+      return 1;
+    },
+    async recordOutboxRef(id, generation) {
+      return row.value?.id === id && row.value.claimGeneration === generation && row.value.state === 'committed' ? 1 : 0;
+    },
+    async confirmOutbox(id, generation) {
+      if (!row.value || row.value.id !== id || row.value.claimGeneration !== generation || row.value.state !== 'committed') return 0;
+      row.value.state = 'confirmed';
+      return 1;
+    },
+    async markOutboxHeld(id, _reason, generation) {
+      if (!row.value || row.value.id !== id || row.value.claimGeneration !== generation || row.value.state !== 'committing') return 0;
+      row.value.state = 'held';
+      return 1;
+    },
+    reissueOnInconclusiveAbsence: false,
+    async markOutboxFailed(id, _error, generation) {
+      if (!row.value || row.value.id !== id || row.value.claimGeneration !== generation) return 0;
+      row.value.state = 'failed';
+      return 1;
+    },
+    async probeByRemarksKey() { return null; },
+    async backoff() { await new Promise((resolve) => setTimeout(resolve, 1)); },
+  };
+  return {
+    deps,
+    get value() { return row.value; },
+    expireClaim() { row.updatedAt = Date.now() - 60_001; },
+    elapseWindow() { row.reconcileAfter = Date.now() - 1; },
+  };
 }
 
 describe('whole-project range Budget durability', () => {
@@ -275,6 +387,18 @@ describe('whole-project range Budget durability', () => {
     expect(h.calls.filter((call) => call.method === 'POST' && call.path === '/api/resource/Budget')).toHaveLength(1);
   });
 
+  it('holds an unresolved predecessor cancellation across reclaim when ERP still shows the pre-write state', async () => {
+    const h = harness({
+      predecessor: { name: 'BUD-RANGE-OLD', modified: '2026-11-03 10:00:00' },
+      cancelOutcome: 'timeout-before-accept',
+    });
+    await expect(h.adapter.commit(h.command as never)).rejects.toMatchObject({ code: 'external-unreachable' });
+    h.command.outboxCommit.generation = 2;
+    await expect(h.adapter.commit(h.command as never)).rejects.toMatchObject({ code: 'command-held' });
+
+    expect(h.calls.filter((call) => call.method === 'PUT' && call.body?.docstatus === 2)).toHaveLength(1);
+  });
+
   it('refuses a predecessor whose modified witness or project does not match before cancellation', async () => {
     const cases = [
       { predecessor: { name: 'BUD-RANGE-OLD', modified: '2026-11-03 10:00:00' }, commandModified: '2026-11-02 10:00:00' },
@@ -365,17 +489,17 @@ describe('whole-project range Budget durability', () => {
     expect(result.canonical).toMatchObject({ erp_budget_name: 'BUD-RANGE-1', erp_docstatus: 1 });
   });
 
-  it('holds an unaccepted distribution PUT until a later generation, then retries the witnessed draft', async () => {
+  it('holds an unaccepted distribution PUT across reclaim while ERP still shows the pre-write state', async () => {
     const h = harness({ putOutcome: 'timeout-before-accept' });
 
     await expect(h.adapter.commit(h.command as never)).rejects.toMatchObject({ code: 'external-unreachable' });
     await expect(h.adapter.commit(h.command as never)).rejects.toMatchObject({ code: 'command-held' });
     expect(h.calls.filter((call) => call.method === 'PUT')).toHaveLength(1);
     h.command.outboxCommit.generation = 2;
-    await h.adapter.commit(h.command as never);
+    await expect(h.adapter.commit(h.command as never)).rejects.toMatchObject({ code: 'command-held' });
 
     expect(h.calls.filter((call) => call.method === 'POST' && call.path === '/api/resource/Budget')).toHaveLength(1);
-    expect(h.calls.filter((call) => call.method === 'PUT')).toHaveLength(2);
+    expect(h.calls.filter((call) => call.method === 'PUT')).toHaveLength(1);
   });
 
   it('holds instead of retrying a distribution PUT after the witnessed document changed', async () => {
@@ -403,18 +527,59 @@ describe('whole-project range Budget durability', () => {
     expect(result.canonical).toMatchObject({ erp_budget_name: 'BUD-RANGE-1', erp_docstatus: 1 });
   });
 
-  it('holds an unaccepted submit at the first generation and retries only the exact draft later', async () => {
+  it('holds an unaccepted submit across reclaim while ERP still shows the exact draft', async () => {
     const h = harness({ submitOutcome: 'timeout-before-accept' });
 
     await expect(h.adapter.commit(h.command as never)).rejects.toMatchObject({ code: 'external-unreachable' });
     await expect(h.adapter.commit(h.command as never)).rejects.toMatchObject({ code: 'command-held' });
     expect(h.calls.filter((call) => call.path === '/api/method/frappe.client.submit')).toHaveLength(1);
     h.command.outboxCommit.generation = 2;
-    const result = await h.adapter.commit(h.command as never);
+    await expect(h.adapter.commit(h.command as never)).rejects.toMatchObject({ code: 'command-held' });
 
     expect(h.calls.filter((call) => call.method === 'POST' && call.path === '/api/resource/Budget')).toHaveLength(1);
-    expect(h.calls.filter((call) => call.path === '/api/method/frappe.client.submit')).toHaveLength(2);
-    expect(result.canonical).toMatchObject({ erp_budget_name: 'BUD-RANGE-1', erp_docstatus: 1 });
+    expect(h.calls.filter((call) => call.path === '/api/method/frappe.client.submit')).toHaveLength(1);
+  });
+
+  it('AC-010 holds a concurrent reclaimed range write until remote completion is established', async () => {
+    const h = harness({ timeoutMs: 2_000, fetchThroughGlobal: true, pauseDistributionPut: true });
+    const originalFetch = globalThis.fetch;
+    const outbox = rangeDispatchOutbox();
+    vi.stubGlobal('fetch', h.fetchImpl);
+    try {
+      const dispatch = () => dispatchMoneyWrite({
+        adapter: h.adapter,
+        command: h.command as never,
+        writeReadModel: vi.fn(),
+        recordExternalRef: vi.fn(),
+        money: outbox.deps,
+        outboxRecordId: IDENTITY,
+      });
+      const first = dispatch();
+      const firstOutcome = first.then(() => null, (error: unknown) => error);
+      await vi.waitFor(() => expect(h.remoteDistributionPutPending).toBe(true));
+      expect(outbox.value?.state).toBe('committing');
+      outbox.expireClaim();
+      await expect(dispatch()).rejects.toMatchObject({ code: 'external-unreachable' });
+      expect(outbox.value?.state).toBe('quarantined');
+      outbox.elapseWindow();
+      expect(h.remoteDistributionPutPending).toBe(true);
+      // The first dispatch is still awaiting its remote write while the reclaimer claims it.
+      await expect(dispatch()).rejects.toMatchObject({ code: 'command-held' });
+      expect(outbox.value?.state).toBe('held');
+      expect(h.calls.filter((call) => call.method === 'PUT' && call.body?.budget_distribution)).toHaveLength(1);
+      expect(h.remoteDistributionPutPending).toBe(true);
+      await vi.waitFor(() => expect(h.distributionPutCallerAborted).toBe(true), { timeout: 2_500 });
+      await expect(firstOutcome).resolves.toMatchObject({ code: 'external-unreachable' });
+
+      h.completeRemoteDistributionPut();
+      expect(h.remoteDistributionPutPending).toBe(false);
+      await expect(dispatch()).rejects.toMatchObject({ code: 'command-held' });
+      expect(outbox.value?.state).toBe('held');
+      expect(h.calls.filter((call) => call.method === 'PUT' && call.body?.budget_distribution)).toHaveLength(1);
+      expect(h.calls.filter((call) => call.path === '/api/method/frappe.client.submit')).toHaveLength(0);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 
   it('does not repeat submit if the witnessed draft was cancelled during an uncertain submit', async () => {

@@ -227,7 +227,32 @@ describe('resolveBudgetRefs whole-project range occupancy', () => {
     expect(result.refs).toEqual({ project: 'ERP-PROJ', self: predecessor });
   });
 
-  it('routes a range account removal only through the exact same-range PMO mirror witness', async () => {
+  it('does not admit a pending archive mirror as a same-range revision predecessor', async () => {
+    const predecessor = 'ERP-RANGE-1';
+    const predecessorIdentity = budgetRangeIdentity(PREVIOUS_VERSION, 'FY26', 'FY26', 'Salary');
+    const mirror = {
+      budget_version_id: PREVIOUS_VERSION,
+      fiscal_year: 'FY26',
+      to_fiscal_year: 'FY26',
+      erp_account: 'Salary',
+      erp_budget_name: predecessor,
+      erp_docstatus: 1,
+      erp_cancelled_at: null,
+      erp_modified: MODIFIED,
+      push_state: 'pending',
+      activated_at_witness: '2026-01-02T00:00:00Z',
+      budget_versions: { project_id: 'pmo-project', status: 'Archived', activated_at: '2026-01-02T00:00:00Z' },
+    };
+    const record = rangeRecord({ budget_predecessor: predecessor, budget_predecessor_modified: MODIFIED });
+    await expect(resolveBudgetRefs(
+      deps(record, erp([candidate(predecessor, 'FY26', 'FY26', 1, MODIFIED)]),
+        serviceClient({ sourceIdentity: predecessorIdentity, mirror })),
+      BINDING,
+      CONFIG,
+    )).rejects.toMatchObject({ code: 'commit-rejected' });
+  });
+
+  it('refuses a range account removal without the exact durable archive intent', async () => {
     const predecessor = 'ERP-RANGE-1';
     const predecessorIdentity = budgetRangeIdentity(PREVIOUS_VERSION, 'FY26', 'FY26', 'Salary');
     const mirror = {
@@ -249,11 +274,9 @@ describe('resolveBudgetRefs whole-project range occupancy', () => {
       budget_predecessor: predecessor,
       budget_predecessor_modified: MODIFIED,
     });
-    const result = await resolveBudgetRefs(
+    await expect(resolveBudgetRefs(
       deps(record, fetchImpl, serviceClient({ sourceIdentity: predecessorIdentity, mirror })), BINDING, CONFIG,
-    );
-
-    expect(result.refs).toEqual({ project: 'ERP-PROJ', self: predecessor });
+    )).rejects.toMatchObject({ code: 'commit-rejected' });
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 

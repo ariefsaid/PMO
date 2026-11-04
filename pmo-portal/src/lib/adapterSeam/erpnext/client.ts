@@ -80,25 +80,9 @@ export interface ErpClientDeps {
 export const ERP_QUARANTINE_WINDOW_MS = 5 * 60_000;
 
 /**
- * The default per-attempt ERP request deadline (Luna BLOCK 5 — the double-pay window).
- *
- * WHY 2 minutes, and why it MUST relate to `ERP_QUARANTINE_WINDOW_MS`: an unbounded `POST` can hang
- * past the outbox's quarantine reclaim (`claimed_at + 5 min`, migration 0096). Recovery would then
- * probe, miss the not-yet-visible document and — for a reissue-capable (immutable-anchor) kind,
- * ADR-0058 C-1 — re-`POST` under the same key while the ORIGINAL request is still alive and can still
- * commit ⇒ TWO ERP money documents, the exact defect the outbox exists to prevent.
- *
- * Bounding every attempt at 2 minutes makes that impossible by construction: the request is aborted
- * at `claim + ~120 s`, leaving ≥180 s of settle time before the EARLIEST possible reissue at
- * `claim + 300 s` — ample for a document the server nonetheless committed to land and become
- * anchor-probe-visible, so the post-window probe adopts it instead of duplicating it. (An abort is a
- * client-side signal — it does NOT guarantee ERP rolls back — which is precisely why the margin, not
- * the abort, is what carries the safety guarantee.) ADR-0058 C-1's mutable-anchor kinds (Payment
- * Entry) remain held-never-reissued regardless; this constant closes the window for the kinds that
- * ARE reissue-capable.
- *
- * It is also comfortably above any realistic ERPNext money-document commit (the R9 live bench measured
- * sub-second submits), so a legitimate slow save is never cut short.
+ * The default per-attempt ERP request deadline. This bounds how long the client waits; the abort signal
+ * does not establish that remote processing ended. The durable outbox and each operation's recovery
+ * path determine whether an exact readback can settle the result or whether the command remains held.
  */
 export const ERP_REQUEST_TIMEOUT_MS = 120_000;
 
@@ -503,10 +487,10 @@ export async function erpnextRequest(deps: ErpClientDeps, opts: ErpRequestOption
     // request so a write cannot start after its outbox ownership window has elapsed.
     assertWriteWithinDeadline();
     let res: Response;
-    // Luna BLOCK 5: bound EVERY attempt with a deadline strictly shorter than the outbox quarantine
-    // reclaim window, so a hung-but-alive request can never still be able to commit while recovery
-    // has already started a second POST (see ERP_REQUEST_TIMEOUT_MS). The controller/timer is
-    // per-attempt and always cleared, so a settled request leaves no dangling timer or handle.
+    // Bound the caller's wait for every attempt. A client abort does not establish that remote
+    // processing ended, so recovery uses the durable operation witness rather than interpreting this
+    // deadline as permission to repeat an external write. The controller/timer is per-attempt and
+    // always cleared, so a settled request leaves no dangling timer or handle.
     // #918: the deadline now stays armed until the BODY is fully read too — a host that sends
     // headers and then stalls is hung exactly as much as one that never answers at all (the same
     // model invoicePdf.ts ships for the PDF fetch, #912).

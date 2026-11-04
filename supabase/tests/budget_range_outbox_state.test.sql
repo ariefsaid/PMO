@@ -95,6 +95,12 @@ select throws_ok($$select public.advance_budget_range_outbox_stage('14794444-000
     'payloadDigest',repeat('a',64),'draftName','BUD-RANGE','draftOwner','api-user','initialModified','m1',
     'initialFingerprint',repeat('c',64),'expectedDistributionFingerprint',repeat('b',64)))$$,
   '22023','range budget saved distribution witness is incomplete','AC-010 final readback witness is mandatory before submit');
+select ok(not public.advance_budget_range_outbox_stage('14794444-0000-0000-0000-000000000001',1,repeat('a',64),
+  'incorrect-identity','distribution_put_started',
+  jsonb_build_object('stage','distribution_saved','identity','incorrect-identity','payloadDigest',repeat('a',64),
+    'draftName','BUD-RANGE','draftOwner','api-user','initialModified','m1','initialFingerprint',repeat('c',64),
+    'expectedDistributionFingerprint',repeat('b',64),'savedModified','m2','savedFingerprint',repeat('e',64))),
+  'AC-010 the range stage CAS rejects a different immutable command identity');
 reset role;
 
 -- The same durable range identity also carries an exact, witnessed account removal from a prior range owner.

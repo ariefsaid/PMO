@@ -395,6 +395,7 @@ async function commitV16WholeProjectBudgetInternal(
     throw new AdapterError('commit-rejected', 'whole-project budget revision target does not match its witnessed predecessor');
   }
   const target: string | null = intent === 'remove' ? predecessor as string : resolvedTarget;
+  let cancellationStartedInThisCommit = false;
 
   const owner = await readAuthenticatedErpUser(deps.client);
   const body = intent === 'ensure' ? bodyFns.toBody(command.record, deps.ctx) as Record<string, unknown> : null;
@@ -468,6 +469,7 @@ async function commitV16WholeProjectBudgetInternal(
     };
     activeState = buildRangeStage(attempt, 'cancel_started', stateFields);
     await advanceRangeState(outbox, attempt, null, activeState);
+    cancellationStartedInThisCommit = true;
   }
 
   if (activeState?.stage === 'cancel_started') {
@@ -495,7 +497,7 @@ async function commitV16WholeProjectBudgetInternal(
         cancelledModified: current.modified,
       });
       await advanceRangeState(outbox, attempt, 'cancel_started', activeState);
-    } else if (status === 1 && current.modified === activeState.predecessorModified) {
+    } else if (status === 1 && current.modified === activeState.predecessorModified && cancellationStartedInThisCommit) {
       await assertContentFingerprint(current, activeState.predecessorFingerprint);
       await cancelDoc(deps.client, entry.doctype, targetName);
       await deps.afterCancelHook?.();
@@ -511,7 +513,7 @@ async function commitV16WholeProjectBudgetInternal(
       });
       await advanceRangeState(outbox, attempt, 'cancel_started', activeState);
     } else {
-      throw heldRangeError('the witnessed predecessor changed while cancellation was pending');
+      throw heldRangeError('the predecessor cancellation has no confirmed terminal witness');
     }
   }
 
@@ -629,23 +631,7 @@ async function commitV16WholeProjectBudgetInternal(
       });
       await advanceRangeState(outbox, attempt, 'distribution_put_started', activeState);
     } else {
-      assertModified(current, activeState.initialModified);
-      await assertContentFingerprint(current, activeState.initialFingerprint);
-      if (attempt.generation < 2) throw heldRangeError('an in-flight distribution PUT is not yet safe to retry');
-      activeState = buildRangeStage(attempt, 'distribution_put_started', { ...activeState, mode: activeState.mode });
-      await advanceRangeState(outbox, attempt, 'distribution_put_started', activeState);
-      await updateDoc(deps.client, entry.doctype, name, { budget_distribution: body!.budget_distribution });
-      const saved = await getDoc(deps.client, entry.doctype, name) as BudgetRangeDoc;
-      assertRangeParent(saved, activeState.amendedFrom ? { ...body!, amended_from: activeState.amendedFrom } : body!, name, owner);
-      if (getDocstatus(saved) !== 0) throw heldRangeError('the distribution PUT changed the Budget lifecycle unexpectedly');
-      assertRangeDistribution(saved, expectedRows!);
-      activeState = buildRangeStage(attempt, 'distribution_saved', {
-        ...activeState,
-        mode: activeState.mode,
-        savedModified: saved.modified,
-        savedFingerprint: await fingerprint(saved, true),
-      });
-      await advanceRangeState(outbox, attempt, 'distribution_put_started', activeState);
+      throw heldRangeError('the distribution PUT has no confirmed saved witness');
     }
   }
 
@@ -687,31 +673,13 @@ async function commitV16WholeProjectBudgetInternal(
     assertRangeParent(current, activeState.amendedFrom ? { ...body!, amended_from: activeState.amendedFrom } : body!, name, owner);
     const status = getDocstatus(current);
     if (status === 1) {
+      await assertContentFingerprint(current, activeState.savedFingerprint);
       assertRangeDistribution(current, expectedRows!);
       activeState = buildRangeStage(attempt, 'submitted', { ...activeState, mode: activeState.mode });
       await advanceRangeState(outbox, attempt, 'submit_started', activeState);
       return { externalRecordId: name, canonical: canonical(current, 'ensure') };
     }
-    if (status !== 0 || attempt.generation < 2 || current.modified !== activeState.savedModified) {
-      throw heldRangeError('the unresolved submit target changed or has an unsafe status');
-    }
-    await assertContentFingerprint(current, activeState.savedFingerprint);
-    assertRangeDistribution(current, expectedRows!);
-    activeState = buildRangeStage(attempt, 'submit_started', { ...activeState, mode: activeState.mode });
-    await advanceRangeState(outbox, attempt, 'submit_started', activeState);
-    try {
-      await submitFetchedDoc(deps.client, current);
-    } catch (error) {
-      if (error instanceof AppError && error.code === 'external-unreachable') throw error;
-      throw new AppError('whole-project Budget submit outcome is uncertain; recovery will inspect the witnessed document', 'external-unreachable');
-    }
-    const submitted = await getDoc(deps.client, entry.doctype, name) as BudgetRangeDoc;
-    assertRangeParent(submitted, activeState.amendedFrom ? { ...body!, amended_from: activeState.amendedFrom } : body!, name, owner);
-    if (getDocstatus(submitted) !== 1) throw new AppError('whole-project Budget submit readback is unresolved', 'external-unreachable');
-    assertRangeDistribution(submitted, expectedRows!);
-    activeState = buildRangeStage(attempt, 'submitted', { ...activeState, mode: activeState.mode });
-    await advanceRangeState(outbox, attempt, 'submit_started', activeState);
-    return { externalRecordId: name, canonical: canonical(submitted, 'ensure') };
+    throw heldRangeError('the submit has no confirmed terminal witness');
   }
 
   if (activeState?.stage === 'submitted') {

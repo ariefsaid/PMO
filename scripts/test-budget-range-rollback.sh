@@ -299,7 +299,7 @@ expect_refusal "0578 range reference" "$down0578" "0578 rollback refused: range 
 RANGE_OUTBOX="
 insert into public.external_command_outbox
   (org_id,domain,pmo_record_id,idempotency_key,external_tier,operation,state,actor_user_id,payload,budget_range_operation)
-values ('1478aa00-0000-0000-0000-000000000001','budget','1478aa00-0000-0000-0000-000000000004:r:FY27:FY28:Labor','range-rollback-command','erpnext','update','pending','1478aa00-0000-0000-0000-000000000002','{}','{\"stage\":\"post_started\"}');"
+values ('1478aa00-0000-0000-0000-000000000001','budget','1478aa00-0000-0000-0000-000000000004:r:FY27:FY28:Labor','range-rollback-command','erpnext','update','pending','1478aa00-0000-0000-0000-000000000002','{}',jsonb_build_object('stage','post_started'));"
 expect_refusal "0578 durable command" "$down0578" "0578 rollback refused: range budget history would be stranded" "$RANGE_OUTBOX"
 
 RANGE_INTENT="

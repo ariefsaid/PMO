@@ -125,6 +125,7 @@ export async function resolveErpAdapter(ctx: AdapterSelectContext): Promise<Adap
   return resolveErpDispatchAdapter({
     serviceClient: ctx.serviceClient as never,
     orgId: ctx.orgId,
+    actorUserId: ctx.userId,
     command: ctx.command,
     fetchImpl: guardedErpFetch(binding.site_url),
     apiKey,

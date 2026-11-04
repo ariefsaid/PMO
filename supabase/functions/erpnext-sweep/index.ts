@@ -3923,6 +3923,7 @@ export async function buildMoneyWriteDepsLive(
   const adapter = await resolveErpDispatchAdapter({
     serviceClient: serviceClient as never,
     orgId: org.orgId,
+    actorUserId: args.actorUserId ?? undefined,
     command,
     fetchImpl: guardedErpFetch(org.siteUrl),
     apiKey,

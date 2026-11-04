@@ -54,6 +54,8 @@ export interface ProcurementSourceLine {
 export interface ErpDispatchFactoryDeps {
   serviceClient: DispatchServiceClient;
   orgId: string;
+  /** Verified command actor used to match a durable budget archive cancellation intent. */
+  actorUserId?: string;
   command: AdapterCommand;
   fetchImpl: typeof fetch;
   /** Resolved from `secret_ref` at the edge-fn boundary (vault `AS`/fn secrets) — never read here. */
