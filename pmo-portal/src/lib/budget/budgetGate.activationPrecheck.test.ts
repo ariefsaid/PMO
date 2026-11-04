@@ -108,7 +108,40 @@ describe('runBudgetActivationPrecheck (issue #1421)', () => {
     expect(result.status).toBe('ready');
     expect(result.erpCheck).toBe('available');
     expect(result.fiscalYearNames).toEqual(['2026', '2027']);
+    expect(result.fiscalYears).toEqual([
+      { name: '2026', start: '2026-01-01', end: '2026-12-31' },
+      { name: '2027', start: '2027-01-01', end: '2027-12-31' },
+    ]);
     expect(result.issues).toEqual([]);
+  });
+
+  it('returns the complete live calendar in chronological order while preserving ERP fiscal-year names', async () => {
+    const unorderedYears: FiscalYearRow[] = [
+      { name: 'FY28', year_start_date: '2027-07-01', year_end_date: '2028-06-30' },
+      { name: 'FY27', year_start_date: '2026-07-01', year_end_date: '2027-06-30' },
+    ];
+    const result = await runBudgetActivationPrecheck(makeDeps({
+      readProject: vi.fn(async () => ({ ...PROJECT, start_date: '2026-07-01', end_date: '2028-06-30' })),
+      readLineItems: vi.fn(async () => []),
+      readCategoryMap: vi.fn(async () => []),
+      readFiscalYears: vi.fn(async () => unorderedYears),
+    }));
+
+    expect(result.fiscalYearNames).toEqual(['FY28', 'FY27']);
+    expect(result.fiscalYears).toEqual([
+      { name: 'FY27', start: '2026-07-01', end: '2027-06-30' },
+      { name: 'FY28', start: '2027-07-01', end: '2028-06-30' },
+    ]);
+  });
+
+  it('returns null calendar spans when ERP is not configured or is unavailable', async () => {
+    const notRequired = await runBudgetActivationPrecheck(makeDeps(), false);
+    expect(notRequired.fiscalYears).toBeNull();
+
+    const unavailable = await runBudgetActivationPrecheck(makeDeps({
+      readFiscalYears: vi.fn(async () => { throw new Error('external-unreachable'); }),
+    }));
+    expect(unavailable.fiscalYears).toBeNull();
   });
 
   it('rejects a version that is no longer a Draft', async () => {

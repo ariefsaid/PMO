@@ -1,5 +1,6 @@
 import '../_shared/testing/publicErpDns.ts';
-import { budgetAccountIdentity, budgetLegacyArchiveKey, budgetLegacyIdentity } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/budgetAccountIdentity.ts';
+import { budgetAccountIdentity, budgetLegacyArchiveKey, budgetLegacyIdentity, budgetRangeIdentity } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/budgetAccountIdentity.ts';
+import { hasUnsettledBudgetArchiveCancellation } from '../adapter-dispatch/budgetDispatch.ts';
 
 type ShippedHandler = (request: Request) => Response | Promise<Response>;
 let shippedHandler: ShippedHandler | undefined;
@@ -26,8 +27,10 @@ type Job = {
   source_kind?: 'account' | 'legacy';
   actor_user_id: string;
   fiscal_year: string;
+  to_fiscal_year?: string;
   erp_account: string | null;
   erp_budget_name: string;
+  erp_modified?: string;
   activated_at_witness: string;
   pushed_project_start_date: string;
   pushed_project_end_date: string;
@@ -37,6 +40,7 @@ type ErpBudget = {
   name: string;
   company: string;
   project: string;
+  budget_against: string;
   account: string;
   from_fiscal_year: string;
   to_fiscal_year: string;
@@ -91,6 +95,7 @@ function intent(
     project_id: PROJECT,
     budget_version_id: VERSION,
     source_mirror_id: 'b0000000-0000-4000-8000-' + hex,
+    source_kind: 'account',
     actor_user_id: ACTOR,
     fiscal_year: fiscalYear,
     erp_account: account,
@@ -125,12 +130,13 @@ function budgetFor(
     name,
     company: 'Synthetic Company',
     project: 'ERP-PROJECT-1',
+    budget_against: 'Project',
     account: job.erp_account ?? '',
     from_fiscal_year: job.fiscal_year,
-    to_fiscal_year: job.fiscal_year,
+    to_fiscal_year: job.to_fiscal_year ?? job.fiscal_year,
     docstatus,
     budget_amount: 500,
-    modified: '2026-10-15 10:00:00.000000',
+    modified: job.erp_modified ?? '2026-10-15 10:00:00.000000',
   };
 }
 
@@ -169,6 +175,31 @@ function parseBody(text: string): unknown {
   } catch {
     return text;
   }
+}
+
+function archiveFenceClient(intents: Row[]) {
+  return {
+    from(table: string) {
+      const filters: Array<[string, 'eq' | 'neq', unknown]> = [];
+      const query = {
+        select() { return query; },
+        eq(column: string, value: unknown) { filters.push([column, 'eq', value]); return query; },
+        neq(column: string, value: unknown) { filters.push([column, 'neq', value]); return query; },
+        order() { return query; },
+        limit() { return query; },
+        gt() { return query; },
+        then(resolve: (result: { data: Row[]; error: null }) => unknown,
+          reject?: (reason: unknown) => unknown) {
+          const rows = table === 'budget_archive_cancel_intents' ? intents : [];
+          const data = rows.filter((row) => filters.every(([column, op, value]) =>
+            op === 'eq' ? row[column] === value : row[column] !== value
+          ));
+          return Promise.resolve({ data, error: null }).then(resolve, reject);
+        },
+      };
+      return query;
+    },
+  } as never;
 }
 
 function makeFixture(args: {
@@ -232,16 +263,19 @@ function makeFixture(args: {
       org_id: ORG,
       budget_version_id: job.budget_version_id,
       fiscal_year: job.fiscal_year,
+      to_fiscal_year: job.to_fiscal_year ?? null,
       erp_account: job.erp_account,
       budget_intent: 'remove',
-      push_state: 'pushed',
+      push_state: 'pending',
       erp_budget_name: job.erp_budget_name,
       erp_docstatus: 1,
       erp_cancelled_at: null,
+      erp_modified: job.erp_modified ?? '2026-10-15 10:00:00.000000',
       activated_at_witness: job.activated_at_witness,
       pushed_project_start_date: job.pushed_project_start_date,
       pushed_project_end_date: job.pushed_project_end_date,
       created_at: nowIso,
+      budget_versions: { project_id: PROJECT, status: 'Archived', activated_at: job.activated_at_witness },
     })),
     budget_archive_cancel_intents: jobs,
     budget_archive_requests: jobs.map((job) => ({
@@ -267,7 +301,9 @@ function makeFixture(args: {
       external_tier: 'erpnext',
       pmo_record_id: isLegacy(job)
         ? budgetLegacyIdentity(job.budget_version_id, job.fiscal_year)
-        : budgetAccountIdentity(
+        : job.to_fiscal_year
+          ? budgetRangeIdentity(job.budget_version_id, job.fiscal_year, job.to_fiscal_year, job.erp_account!)
+          : budgetAccountIdentity(
           job.budget_version_id,
           job.fiscal_year,
           job.erp_account!,
@@ -399,6 +435,21 @@ function makeFixture(args: {
           row.claim_generation = Number(row.claim_generation ?? 0) + 1;
           return jsonResponse(outboxWireRow(row));
         }
+        if (rpc === 'read_budget_range_outbox_state') {
+          const row = tableRows('external_command_outbox').find((candidate) => candidate.id === params.p_id);
+          if (!row || row.state !== 'committing' || row.claim_generation !== params.p_generation
+              || row.payload_digest !== params.p_payload_digest || row.pmo_record_id !== params.p_identity) return jsonResponse(null);
+          return jsonResponse(row.budget_range_operation ?? null);
+        }
+        if (rpc === 'advance_budget_range_outbox_stage') {
+          const row = tableRows('external_command_outbox').find((candidate) => candidate.id === params.p_id);
+          const rangeOperation = row?.budget_range_operation as Row | undefined;
+          if (!row || row.state !== 'committing' || row.claim_generation !== params.p_generation
+              || row.payload_digest !== params.p_payload_digest || row.pmo_record_id !== params.p_identity
+              || (rangeOperation?.stage ?? null) !== params.p_expected_stage) return jsonResponse(false);
+          row.budget_range_operation = params.p_next;
+          return jsonResponse(true);
+        }
         if (rpc === 'quarantine_committing') return jsonResponse(null);
         if (rpc === 'record_outbox_ref') {
           if (failOutboxRef) {
@@ -505,6 +556,9 @@ function makeFixture(args: {
     }
 
     if (url.hostname === 'erp.synthetic.test') {
+      if (url.pathname === '/api/method/frappe.auth.get_logged_user') {
+        return jsonResponse({ message: 'api-user' });
+      }
       if (url.pathname === '/api/resource/Budget') {
         let filters: unknown[] = [];
         try {
@@ -629,6 +683,35 @@ Deno.test('AC-BUD-122 the registered sweep dispatches every archived account × 
     'money-only',
     'the handler invocation must run the normal money pass that owns archive intents',
   );
+});
+
+Deno.test('AC-BUD-122 the shipped sweep cancels an archived pending range source and completes its durable intent', async () => {
+  const job = intent(24, 'FY27', 'Labor', 'BUD-RANGE-ARCHIVE', {
+    to_fiscal_year: 'FY28',
+    erp_modified: '2026-10-15 10:00:00.000000',
+  });
+  const fixture = makeFixture({ jobs: [job], budgets: [budgetFor(job)] });
+
+  const response = await fixture.invoke();
+  assertEquals(response.status, 200);
+  assertEquals(fixture.erpWrites.map((write) => [write.name, write.body]), [
+    ['BUD-RANGE-ARCHIVE', { docstatus: 2 }],
+  ], 'the pending range archive routes through one exact ERP cancel write');
+  const sourceMirror = (fixture.tables.budget_version_account_erp_mirror as Row[])[0]!;
+  assertEquals(sourceMirror.erp_budget_name, 'BUD-RANGE-ARCHIVE');
+  assertEquals(sourceMirror.erp_docstatus, 2, 'the read model records the independently read-back cancellation');
+  assert(sourceMirror.erp_cancelled_at, 'the exact cancelled range source receives its durable tombstone');
+  assertEquals((fixture.tables.budget_archive_cancel_intents as Row[])[0]!.state, 'complete',
+    'the settled archive intent releases successor processing on the following sweep pass');
+  assertEquals(await hasUnsettledBudgetArchiveCancellation(
+    archiveFenceClient(fixture.tables.budget_archive_cancel_intents as Row[]),
+    ORG,
+    PROJECT,
+  ), false, 'the completed intent produced by the shipped sweep releases the real successor fence');
+  const outbox = (fixture.tables.external_command_outbox as Row[])[0]!;
+  assertEquals(outbox.state, 'confirmed', 'the range cancellation outbox finalizes only after its readback');
+  assertEquals((outbox.budget_range_operation as Row).stage, 'cancelled',
+    'the range stage records the exact cancellation completion before finalization');
 });
 
 Deno.test('AC-BUD-122 a crash after ERP cancellation but before outbox finalization retries to convergence without a second ERP write', async () => {

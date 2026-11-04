@@ -64,6 +64,9 @@ export interface ErpClientDeps {
    * forget the check. Absent ⇒ unbounded (every read path, P0/P1, and any non-claimed commit).
    */
   commitDeadlineAtMs?: number;
+  /** Range Budget's staged workflow also fences cancellation, distribution PUT and RPC submit at the
+   *  write site. Other ERP commands retain the historical POST-only deadline. */
+  rangeWriteDeadlineAtMs?: number;
   /** Injectable clock (ms) for the commit-deadline check. Defaults to `Date.now`; tests drive it. */
   now?: () => number;
 }
@@ -77,25 +80,9 @@ export interface ErpClientDeps {
 export const ERP_QUARANTINE_WINDOW_MS = 5 * 60_000;
 
 /**
- * The default per-attempt ERP request deadline (Luna BLOCK 5 — the double-pay window).
- *
- * WHY 2 minutes, and why it MUST relate to `ERP_QUARANTINE_WINDOW_MS`: an unbounded `POST` can hang
- * past the outbox's quarantine reclaim (`claimed_at + 5 min`, migration 0096). Recovery would then
- * probe, miss the not-yet-visible document and — for a reissue-capable (immutable-anchor) kind,
- * ADR-0058 C-1 — re-`POST` under the same key while the ORIGINAL request is still alive and can still
- * commit ⇒ TWO ERP money documents, the exact defect the outbox exists to prevent.
- *
- * Bounding every attempt at 2 minutes makes that impossible by construction: the request is aborted
- * at `claim + ~120 s`, leaving ≥180 s of settle time before the EARLIEST possible reissue at
- * `claim + 300 s` — ample for a document the server nonetheless committed to land and become
- * anchor-probe-visible, so the post-window probe adopts it instead of duplicating it. (An abort is a
- * client-side signal — it does NOT guarantee ERP rolls back — which is precisely why the margin, not
- * the abort, is what carries the safety guarantee.) ADR-0058 C-1's mutable-anchor kinds (Payment
- * Entry) remain held-never-reissued regardless; this constant closes the window for the kinds that
- * ARE reissue-capable.
- *
- * It is also comfortably above any realistic ERPNext money-document commit (the R9 live bench measured
- * sub-second submits), so a legitimate slow save is never cut short.
+ * The default per-attempt ERP request deadline. This bounds how long the client waits; the abort signal
+ * does not establish that remote processing ended. The durable outbox and each operation's recovery
+ * path determine whether an exact readback can settle the result or whether the command remains held.
  */
 export const ERP_REQUEST_TIMEOUT_MS = 120_000;
 
@@ -194,6 +181,13 @@ export function withProbeBudget(deps: ErpClientDeps): ErpClientDeps {
  */
 export function withCommitDeadline(deps: ErpClientDeps, deadlineAtMs: number): ErpClientDeps {
   return { ...deps, commitDeadlineAtMs: deadlineAtMs };
+}
+
+export function withRangeWriteDeadline(deps: ErpClientDeps, deadlineAtMs: number): ErpClientDeps {
+  // Whole-project Budget writes have a durable operation stage and a recovery readback. A timed-out
+  // PUT/cancel must return to that state machine before another write is attempted; replaying an
+  // idempotent request here could overwrite a concurrent ERP edit before its modified-stamp CAS runs.
+  return { ...deps, rangeWriteDeadlineAtMs: deadlineAtMs, maxRetries: 0 };
 }
 
 /**
@@ -455,6 +449,19 @@ export async function erpnextRequest(deps: ErpClientDeps, opts: ErpRequestOption
   // #918: the response-body cap, per call (the unpaged endpoints raise it) or the default.
   const maxBodyBytes = opts.maxResponseBytes ?? ERP_RESPONSE_MAX_BYTES;
 
+  const assertWriteWithinDeadline = (): void => {
+    const now = deps.now?.() ?? Date.now();
+    if ((opts.method === 'POST' && deps.commitDeadlineAtMs !== undefined && now >= deps.commitDeadlineAtMs) ||
+        (opts.method !== 'GET' && deps.rangeWriteDeadlineAtMs !== undefined && now >= deps.rangeWriteDeadlineAtMs)) {
+      throw new ErpError(
+        0,
+        'external-unreachable',
+        'commit-claim-budget-exhausted: refusing an ERP write past this claim\'s deadline',
+        true,
+      );
+    }
+  };
+
   let attempt = 0;
   for (;;) {
     // Luna round-5 BLOCK 10 — the CLAIM BUDGET, enforced HERE, at the one place every non-idempotent
@@ -466,18 +473,7 @@ export async function erpnextRequest(deps: ErpClientDeps, opts: ErpRequestOption
     // marks NOTHING, the outbox row stays `committing` and the reconciler owns it (ADR-0058 §4).
     // Idempotent methods are deliberately unaffected — a submit/cancel/GET stays safely re-issuable,
     // and refusing them would strand a committed document.
-    if (
-      opts.method === 'POST' &&
-      deps.commitDeadlineAtMs !== undefined &&
-      (deps.now?.() ?? Date.now()) >= deps.commitDeadlineAtMs
-    ) {
-      throw new ErpError(
-        0,
-        'external-unreachable',
-        'commit-claim-budget-exhausted: refusing a non-idempotent POST past this claim\'s deadline',
-        true,
-      );
-    }
+    assertWriteWithinDeadline();
     try {
       if (deps.rateLimiter) await deps.rateLimiter.acquire();
     } catch (err) {
@@ -487,11 +483,14 @@ export async function erpnextRequest(deps: ErpClientDeps, opts: ErpRequestOption
       }
       throw err;
     }
+    // The limiter may wait until this claim has expired. Recheck immediately before constructing the
+    // request so a write cannot start after its outbox ownership window has elapsed.
+    assertWriteWithinDeadline();
     let res: Response;
-    // Luna BLOCK 5: bound EVERY attempt with a deadline strictly shorter than the outbox quarantine
-    // reclaim window, so a hung-but-alive request can never still be able to commit while recovery
-    // has already started a second POST (see ERP_REQUEST_TIMEOUT_MS). The controller/timer is
-    // per-attempt and always cleared, so a settled request leaves no dangling timer or handle.
+    // Bound the caller's wait for every attempt. A client abort does not establish that remote
+    // processing ended, so recovery uses the durable operation witness rather than interpreting this
+    // deadline as permission to repeat an external write. The controller/timer is per-attempt and
+    // always cleared, so a settled request leaves no dangling timer or handle.
     // #918: the deadline now stays armed until the BODY is fully read too — a host that sends
     // headers and then stalls is hung exactly as much as one that never answers at all (the same
     // model invoicePdf.ts ships for the PDF fetch, #912).
@@ -650,6 +649,11 @@ export async function submitDoc(deps: ErpClientDeps, doctype: string, name: stri
   return unwrapFrappeDoc(await erpnextRequest(deps, { method: 'PUT', path: doctypePath(doctype, name), body: { docstatus: 1 } }));
 }
 
+/** ERPNext v16 Budget's range lifecycle submits the exact full document just read back from ERP. */
+export function submitFetchedDoc(deps: ErpClientDeps, doc: Record<string, unknown>): Promise<unknown> {
+  return erpnextRequest(deps, { method: 'POST', path: '/api/method/frappe.client.submit', body: { doc } });
+}
+
 /** `PUT /api/resource/<DocType>/<name>` `{docstatus:2}` — cancel (OQ-8: stock REST enforces
  *  cancel-only, never delete, on a once-submitted doc). */
 export async function cancelDoc(deps: ErpClientDeps, doctype: string, name: string): Promise<unknown> {
@@ -748,4 +752,43 @@ export async function listDocsByFilters(
   const path = `${doctypePath(doctype)}?filters=${encoded}&fields=${encodedFields}&limit_page_length=${limit}${orderBy ? `&order_by=${encodeURIComponent(orderBy)}` : ''}`;
   const res = await erpnextRequest(deps, { method: 'GET', path });
   return requireListData<Record<string, unknown>>(res);
+}
+
+/**
+ * Keyset-paged ERP candidate scan for safety decisions that require a complete result. Offset paging can
+ * skip or duplicate a Budget when a Desk user inserts one between requests; `name > lastName` keeps the
+ * scan monotonic. A full page budget without a short terminal page is ambiguous and fails closed.
+ */
+export async function listDocsByFiltersPaged(
+  deps: ErpClientDeps,
+  doctype: string,
+  filters: ErpFilter[],
+  fields: string[],
+  options: { pageSize?: number; maxPages?: number } = {},
+): Promise<Array<Record<string, unknown>>> {
+  const pageSize = options.pageSize ?? 100;
+  const maxPages = options.maxPages ?? 100;
+  if (!Number.isInteger(pageSize) || pageSize < 1 || !Number.isInteger(maxPages) || maxPages < 1) {
+    throw new ErpError(0, 'external-unreachable', 'Invalid ERP pagination limits', true);
+  }
+  const result: Array<Record<string, unknown>> = [];
+  const seen = new Set<string>();
+  let lastName: string | null = null;
+  for (let page = 0; page < maxPages; page += 1) {
+    const pageFilters = lastName === null ? filters : [...filters, ['name', '>', lastName] as ErpFilter];
+    const rows = await listDocsByFilters(deps, doctype, pageFilters, fields, pageSize, 'name asc');
+    if (rows.length > pageSize) {
+      throw new ErpError(0, 'external-unreachable', 'ERP pagination returned an oversized page', true);
+    }
+    for (const row of rows) {
+      if (typeof row.name !== 'string' || row.name === '' || (lastName !== null && row.name <= lastName) || seen.has(row.name)) {
+        throw new ErpError(0, 'external-unreachable', 'ERP pagination returned an ambiguous document identity', true);
+      }
+      seen.add(row.name);
+      lastName = row.name;
+      result.push(row);
+    }
+    if (rows.length < pageSize) return result;
+  }
+  throw new ErpError(0, 'external-unreachable', 'ERP pagination exceeded its complete-page budget', true);
 }

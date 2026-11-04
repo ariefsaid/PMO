@@ -23,6 +23,8 @@ import type { PmoRecord } from '../../contract.ts';
 import type { ErpCtx } from '../doctypeRegistry.ts';
 import { resolveBudgetAccounts, type BudgetLineItem, type CategoryAccountMapRow } from '../../../budget/categoryAccountMap.ts';
 import { resolveV16BudgetAccounts } from '../budgetAccountPlan.ts';
+import { allocate, yearsInSpan, type FiscalYearSpan, type YearAmount } from '../../../budget/budgetDistribution.ts';
+import { parseExactCents } from '../../../exactDecimal.ts';
 
 /** The `Select` domain of every `action_if_*` field (spike §1, verbatim from the doctype meta). */
 const OVERSPEND_ACTIONS = ['Stop', 'Warn', 'Ignore'] as const;
@@ -95,9 +97,17 @@ function resolveApplicableOn(config: Record<string, unknown>): Record<string, 0 
  * the fan-out can never mint an empty Budget. Pinned by the `BFY T5` cases in this file.
  */
 export function budgetToBody(rec: PmoRecord, ctx: ErpCtx): unknown {
+  const budgetMode = (rec as Record<string, unknown>).budget_mode;
+  if (budgetMode === 'whole_project' && ctx.versionMajor !== 16) {
+    throw new AdapterError('commit-rejected', 'budget push: whole-project budgets are unsupported on ERPNext v15');
+  }
   if (ctx.versionMajor === 16) {
     const intent = (rec as Record<string, unknown>).budget_intent;
     if (intent === 'remove') throw new AdapterError('commit-rejected', 'budget push: remove intent has no ERP body');
+    if (budgetMode === 'whole_project') return v16RangeBody(rec, ctx);
+    if (budgetMode !== undefined && budgetMode !== 'per_year') {
+      throw new AdapterError('commit-rejected', `budget push: unsupported budget mode ${String(budgetMode)}`);
+    }
     const account = (rec as Record<string, unknown>).erp_account;
     const body = v16Bodies(rec, ctx).find((candidate) => candidate.account === account);
     if (!body) throw new AdapterError('commit-rejected', `budget push: selected account ${String(account)} is unresolved`);
@@ -127,6 +137,98 @@ export function budgetToBody(rec: PmoRecord, ctx: ErpCtx): unknown {
     budget_against: 'Project', // FR-BUD-115 — the project dimension; `cost_center` is never sent
     project,
     accounts,
+    ...resolveApplicableOn(ctx.config),
+  };
+  for (const field of ACTION_FIELDS) body[field] = action;
+  return body;
+}
+
+interface BudgetRangeYearAmount extends YearAmount {}
+
+function v16RangeBody(rec: PmoRecord, ctx: ErpCtx): Record<string, unknown> {
+  const record = rec as Record<string, unknown>;
+  const project = requireString(ctx.refs.project, 'the ERP project reference');
+  const company = requireString(ctx.config.company, 'the binding company');
+  const fromFiscalYear = requireString(record.fiscal_year, 'the start fiscal year');
+  const toFiscalYear = requireString(record.to_fiscal_year, 'the end fiscal year');
+  const start = requireString(record.project_start_date, 'the project start date');
+  const endValue = record.project_end_date;
+  if (endValue !== null && typeof endValue !== 'string') {
+    throw new AdapterError('commit-rejected', 'budget push: the project end date is invalid');
+  }
+  if (!Array.isArray(record.fiscal_years) || !Array.isArray(record.year_amounts)) {
+    throw new AdapterError('commit-rejected', 'budget push: the approved range distribution is unresolved');
+  }
+
+  let years: FiscalYearSpan[];
+  try {
+    years = yearsInSpan(start, endValue as string | null, record.fiscal_years as FiscalYearSpan[]);
+  } catch {
+    throw new AdapterError('commit-rejected', 'budget push: the approved fiscal-year span is invalid or unresolved');
+  }
+  const yearAmounts = record.year_amounts as BudgetRangeYearAmount[];
+  if (years.length === 0 || yearAmounts.length !== years.length
+    || years[0]?.name !== fromFiscalYear || years.at(-1)?.name !== toFiscalYear
+    || yearAmounts.some((row, index) => !row || row.year !== years[index]?.name)) {
+    throw new AdapterError('commit-rejected', 'budget push: the approved yearly amounts do not match the fiscal-year span');
+  }
+
+  const lineItems = record.line_items;
+  if (!Array.isArray(lineItems) || lineItems.length === 0
+    || lineItems.some((line) => (line as BudgetLineItem).fiscal_year)) {
+    throw new AdapterError('commit-rejected', 'budget push: whole-project lines must be unphased');
+  }
+  const categoryMap = (ctx.config.category_account_map as CategoryAccountMapRow[] | undefined) ?? [];
+  const accounts = resolveV16BudgetAccounts(lineItems as BudgetLineItem[], categoryMap);
+  const accountName = requireString(record.erp_account, 'the ERP account');
+  const account = accounts.find((row) => row.account === accountName);
+  if (!account) {
+    throw new AdapterError('commit-rejected', `budget push: selected account ${accountName} is unresolved`);
+  }
+
+  const rowCents = yearAmounts.map((row) => {
+    if (!row || typeof row.amount !== 'string') {
+      throw new AdapterError('commit-rejected', 'budget push: an approved yearly amount is malformed');
+    }
+    const cents = parseExactCents(row.amount);
+    if (cents === null || cents < 0n) {
+      throw new AdapterError('commit-rejected', `budget push: invalid amount for fiscal year ${row.year}`);
+    }
+    return cents;
+  });
+  const totalCents = rowCents.reduce((sum, cents) => sum + cents, 0n);
+  const sourceCents = parseExactCents(account.budget_amount);
+  if (totalCents <= 0n || sourceCents === null || totalCents !== sourceCents || !Number.isSafeInteger(Number(totalCents))) {
+    throw new AdapterError('commit-rejected', 'budget push: yearly amounts do not exactly reconcile to the approved account total');
+  }
+
+  const percentageUnits = allocate(1_000_000n, rowCents);
+  if (percentageUnits.reduce((sum, units) => sum + units, 0n) !== 1_000_000n
+    || percentageUnits.some((units, index) => rowCents[index] > 0n && units === 0n)) {
+    throw new AdapterError('commit-rejected', 'budget push: an approved amount cannot be represented by a finite yearly percent');
+  }
+  const distribution = years.map((year, index) => ({
+    start_date: year.start,
+    end_date: year.end,
+    amount: Number(rowCents[index]) / 100,
+    percent: Number(percentageUnits[index]) / 10_000,
+  }));
+  if (distribution.some((row) => !Number.isFinite(row.amount) || !Number.isFinite(row.percent))) {
+    throw new AdapterError('commit-rejected', 'budget push: the approved yearly distribution is not representable');
+  }
+
+  const action = resolveOverspendAction(ctx.config);
+  const body: Record<string, unknown> = {
+    company,
+    budget_against: 'Project',
+    project,
+    account: accountName,
+    budget_amount: Number(totalCents) / 100,
+    from_fiscal_year: fromFiscalYear,
+    to_fiscal_year: toFiscalYear,
+    distribution_frequency: 'Yearly',
+    distribute_equally: 0,
+    budget_distribution: distribution,
     ...resolveApplicableOn(ctx.config),
   };
   for (const field of ACTION_FIELDS) body[field] = action;

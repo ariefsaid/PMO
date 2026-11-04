@@ -165,6 +165,19 @@ const baseCommand: AdapterCommand = {
   idempotencyKey: 'key-1',
 };
 
+const rangeIdentity = 'budget-version:range:2026-2027';
+const rangeCommand: AdapterCommand = {
+  domain: 'budget',
+  operation: 'create',
+  record: {
+    id: 'budget-version',
+    erp_doc_kind: 'budget',
+    budget_mode: 'whole_project',
+    outbox_identity: rangeIdentity,
+  },
+  idempotencyKey: 'range-key',
+};
+
 describe('AC-ENA-012 server-side idempotency-key enforcement (FR-ENA-040)', () => {
   it('a non-read-only erpnext command with no idempotencyKey is rejected before any outbox/ERP call', async () => {
     const fake = createFakeOutbox();
@@ -1495,6 +1508,105 @@ describe('BFY T3 (FR-BFY-036): dispatchMoneyWrite keys the outbox on outboxRecor
     expect(readOutbox).toHaveBeenCalled();
     for (const call of readOutbox.mock.calls) expect(call[1]).toBe('vid-x:enc-fy');
     for (const call of insertOutboxPending.mock.calls) expect(call[1]).toBe('vid-x:enc-fy');
+  });
+});
+
+describe('whole-project range Budget outbox dispatch', () => {
+  it('skips the anchor probe and passes the exact fenced claim to the adapter', async () => {
+    const fake = createFakeOutbox();
+    const digest = 'a'.repeat(64);
+    const inserted = await fake.deps.insertOutboxPending('budget', rangeIdentity, rangeCommand.idempotencyKey!);
+    fake.rows.get(inserted.id)!.payloadDigest = digest;
+    const probe = vi.spyOn(fake.deps, 'probeByRemarksKey');
+    const commit = vi.fn(async () => ({ externalRecordId: 'BUD-RANGE-1', canonical: { id: 'budget-version' } }));
+
+    await dispatchMoneyWrite({
+      adapter: erpnextAdapter(commit),
+      command: rangeCommand,
+      writeReadModel: vi.fn(), recordExternalRef: vi.fn(),
+      money: fake.deps,
+      outboxRecordId: rangeIdentity,
+    });
+
+    expect(probe).not.toHaveBeenCalled();
+    expect(commit).toHaveBeenCalledWith(expect.objectContaining({
+      outboxCommit: { id: inserted.id, generation: 1, payloadDigest: digest, identity: rangeIdentity },
+    }));
+    expect(fake.refs[0]?.pmoRecordId).toBe(rangeIdentity);
+    expect([...fake.rows.values()][0]?.state).toBe('confirmed');
+  });
+
+  it('reissues an expired range claim without probing an ERP anchor', async () => {
+    const fake = createFakeOutbox({ reissueOnInconclusiveAbsence: false });
+    const inserted = await fake.deps.insertOutboxPending('budget', rangeIdentity, rangeCommand.idempotencyKey!);
+    const row = fake.rows.get(inserted.id)!;
+    row.state = 'quarantined';
+    row.claimGeneration = 1;
+    fake.elapseWindow(inserted.id);
+    const probe = vi.spyOn(fake.deps, 'probeByRemarksKey');
+    const commit = vi.fn(async () => ({ externalRecordId: 'BUD-RANGE-2', canonical: { id: 'budget-version' } }));
+
+    const result = await dispatchMoneyWrite({
+      adapter: erpnextAdapter(commit),
+      command: rangeCommand,
+      writeReadModel: vi.fn(), recordExternalRef: vi.fn(),
+      money: fake.deps,
+      outboxRecordId: rangeIdentity,
+    });
+
+    expect(probe).not.toHaveBeenCalled();
+    expect(commit).toHaveBeenCalledWith(expect.objectContaining({
+      outboxCommit: { id: inserted.id, generation: 2, payloadDigest: null, identity: rangeIdentity },
+    }));
+    expect(result.externalRecordId).toBe('BUD-RANGE-2');
+    expect(fake.rows.get(inserted.id)?.state).toBe('confirmed');
+  });
+
+  it('fences a range command-held error to its claim and reconciles when that fence was lost', async () => {
+    const fake = createFakeOutbox();
+    const inserted = await fake.deps.insertOutboxPending('budget', rangeIdentity, rangeCommand.idempotencyKey!);
+    const digest = 'b'.repeat(64);
+    fake.rows.get(inserted.id)!.payloadDigest = digest;
+    const commit = vi.fn(async () => { throw new AppError('range witness changed', 'command-held'); });
+    const writeReadModel = vi.fn();
+
+    await expect(dispatchMoneyWrite({
+      adapter: erpnextAdapter(commit),
+      command: rangeCommand,
+      writeReadModel, recordExternalRef: vi.fn(),
+      money: fake.deps,
+      outboxRecordId: rangeIdentity,
+    })).rejects.toMatchObject({
+      code: 'command-held', heldOutboxId: inserted.id, heldClaimGeneration: 1,
+    });
+    expect(fake.rows.get(inserted.id)?.state).toBe('held');
+
+    const second = createFakeOutbox();
+    const secondInserted = await second.deps.insertOutboxPending('budget', rangeIdentity, rangeCommand.idempotencyKey!);
+    const secondCommit = vi.fn(async () => {
+      throw new AppError('stale range witness', 'command-held');
+    });
+    const money: DispatchMoneyOutboxDeps = {
+      ...second.deps,
+      async markOutboxHeld() {
+        const current = second.rows.get(secondInserted.id)!;
+        current.state = 'confirmed';
+        current.externalRecordId = 'BUD-RANGE-WON';
+        current.canonical = { id: 'budget-version', budget_mode: 'whole_project' };
+        current.claimGeneration += 1;
+        return 0;
+      },
+    };
+    const reconciled = await dispatchMoneyWrite({
+      adapter: erpnextAdapter(secondCommit),
+      command: rangeCommand,
+      writeReadModel: vi.fn(), recordExternalRef: vi.fn(),
+      money,
+      outboxRecordId: rangeIdentity,
+    });
+
+    expect(reconciled.externalRecordId).toBe('BUD-RANGE-WON');
+    expect(secondCommit).toHaveBeenCalledTimes(1);
   });
 });
 
