@@ -68,6 +68,21 @@ describe('bill form on an Odoo-owned org', () => {
   });
 });
 
+describe('RecordCaptureForm staging is limited to goods receipts and supplier invoices', () => {
+  it('creates a purchase order even if the parent also supplies a staging callback', async () => {
+    odoo();
+    const onCreate = vi.fn().mockResolvedValue({ id: 'po-new' });
+    const onStage = vi.fn();
+    render(<ToastProvider><RecordCaptureForm kind="purchase_order" onCreate={onCreate} onClose={vi.fn()} onStage={onStage} /></ToastProvider>);
+    await userEvent.type(screen.getByTestId('purchase_order-ref-input'), 'PO-090');
+    await userEvent.type(screen.getByTestId('purchase_order-amount-input'), '1000');
+    await userEvent.click(screen.getByTestId('purchase_order-save-btn'));
+
+    expect(onCreate).toHaveBeenCalledWith(expect.objectContaining({ referenceNumber: 'PO-090', amount: 1000 }));
+    expect(onStage).not.toHaveBeenCalled();
+  });
+});
+
 describe('payment form on an Odoo-owned org', () => {
   const bills = [
     { id: 'inv-1', reference_number: 'INV-1', vi_number: 'VI-1', invoice_date: '2026-01-02', erp_outstanding_amount: 500, erp_attention: null },

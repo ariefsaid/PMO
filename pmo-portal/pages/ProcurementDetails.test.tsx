@@ -52,6 +52,7 @@ const mockTransition = vi.fn().mockResolvedValue(undefined);
 const mockCreateQuotation = vi.fn().mockResolvedValue({ id: 'q-new' });
 const mockCreateReceipt = vi.fn().mockResolvedValue({ id: 'r-new' });
 const mockCreateInvoice = vi.fn().mockResolvedValue({ id: 'i-new' });
+const mockCreatePurchaseOrder = vi.fn().mockResolvedValue({ id: 'po-new' });
 const mockCaptureVendorInvoice = vi.fn().mockResolvedValue({ id: 'vi-new' });
 const mockCaptureSubcontractVendorInvoice = vi.fn().mockResolvedValue({ id: 'vi-sub-new' });
 const subcontractPosition = vi.hoisted(() => ({
@@ -73,7 +74,7 @@ vi.mock('@/src/hooks/useProcurementRecords', () => ({
   useProcurementRecordMutations: () => ({
     createPurchaseRequest: { mutateAsync: vi.fn(), isPending: false },
     createRfq: { mutateAsync: vi.fn(), isPending: false },
-    createPurchaseOrder: { mutateAsync: vi.fn(), isPending: false },
+    createPurchaseOrder: { mutateAsync: mockCreatePurchaseOrder, isPending: false },
     createPayment: { mutateAsync: vi.fn(), isPending: false },
     pendingPush: recordPush,
   }),
@@ -1021,6 +1022,24 @@ describe('Action bar covers mid-flow transitions', () => {
     await userEvent.click(screen.getByTestId('btn-save-vi'));
     await confirmInDialog(/save supplier invoice/i);
     await waitFor(() => expect(mockCreateInvoice).toHaveBeenCalledWith(expect.objectContaining({ taxIds: ['7'] })));
+  });
+
+  it('AC-OPP-090 saving a purchase order from the procurement capture form creates it', async () => {
+    setTaskOwnership([{ domain: 'procurement', externalTier: 'odoo' }]);
+    detailState.data = { ...baseProcurement, status: 'Draft', requested_by_id: 'u-other' };
+    mockCreatePurchaseOrder.mockClear().mockResolvedValue({ id: 'po-new' });
+    renderPage('proc-001', 'files');
+    await chooseRecordKind('Purchase order');
+    await userEvent.type(screen.getByTestId('purchase_order-ref-input'), 'PO-090');
+    await userEvent.type(screen.getByTestId('purchase_order-amount-input'), '1000');
+    await userEvent.click(screen.getByTestId('purchase_order-save-btn'));
+
+    await waitFor(() => expect(mockCreatePurchaseOrder).toHaveBeenCalledWith(expect.objectContaining({
+      referenceNumber: 'PO-090',
+      status: 'Draft',
+      amount: 1000,
+    })));
+    expect(screen.queryByTestId('form-capture-purchase_order')).not.toBeInTheDocument();
   });
 
   it('AC-OPP-080 what Odoo has not settled shows on the case\'s first screen, not only under the documents tab', async () => {
