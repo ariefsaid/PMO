@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import type { ReactNode } from 'react';
@@ -264,7 +264,39 @@ export interface NeedsYouResult {
   engineerTimesheetsRefetch: () => void;
 }
 
-export function useNeedsYou(role: Role | null): NeedsYouResult {
+export interface UseNeedsYouOptions {
+  enabled?: boolean;
+  deferred?: boolean;
+}
+
+export function useNeedsYou(role: Role | null, options?: UseNeedsYouOptions): NeedsYouResult {
+  const enabled = options?.enabled ?? true;
+  const deferred = options?.deferred ?? false;
+  const [active, setActive] = useState(!deferred);
+
+  useEffect(() => {
+    if (!enabled) {
+      setActive(false);
+      return;
+    }
+    if (!deferred) {
+      setActive(true);
+      return;
+    }
+    const idleId = typeof window !== 'undefined' && 'requestIdleCallback' in window
+      ? window.requestIdleCallback(() => setActive(true))
+      : setTimeout(() => setActive(true), 200);
+
+    return () => {
+      if (typeof window !== 'undefined' && 'cancelIdleCallback' in window && typeof idleId === 'number') {
+        window.cancelIdleCallback(idleId);
+      } else {
+        clearTimeout(idleId as unknown as number);
+      }
+    };
+  }, [enabled, deferred]);
+
+  const effectiveEnabled = enabled && active;
   const { t } = useTranslation('dashboard');
   const { currentUser } = useAuth();
   const { realRole } = useEffectiveRole();
@@ -274,48 +306,48 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
   const approvalRole = can('transition', 'approval', { realRole });
   const procurementApprovalRole = can('transition', 'procurement', { realRole });
   const needsProcurements = procurementApprovalRole && role !== 'Engineer';
-  const organizationDay = useFxOrgDay(true);
+  const organizationDay = useFxOrgDay(effectiveEnabled);
 
   const dashboardQuery = useQuery({
     queryKey: ['dashboard', orgId],
     queryFn: getExecutiveDashboard,
-    enabled: Boolean(orgId && companyRole),
+    enabled: Boolean(effectiveEnabled && orgId && companyRole),
   });
   const salesInvoiceQuery = useQuery({
     queryKey: ['salesInvoices', orgId, 'all'],
     queryFn: () => repositories.revenue.listInvoices(),
-    enabled: Boolean(orgId && companyRole),
+    enabled: Boolean(effectiveEnabled && orgId && companyRole),
   });
-  const procurementsQuery = useProcurements({ withSharedDetails: true, enabled: Boolean(orgId && (companyRole || role === 'Project Manager')) });
-  const workOrdersQuery = useUnbilledWorkOrders(Boolean(orgId && companyRole));
+  const procurementsQuery = useProcurements({ withSharedDetails: true, enabled: Boolean(effectiveEnabled && orgId && (companyRole || role === 'Project Manager')) });
+  const workOrdersQuery = useUnbilledWorkOrders(Boolean(effectiveEnabled && orgId && companyRole));
   const budgetReviewQuery = useQuery({
     queryKey: ['finance-budget-review', orgId],
     queryFn: getFinanceBudgetReview,
-    enabled: Boolean(orgId && companyRole),
+    enabled: Boolean(effectiveEnabled && orgId && companyRole),
   });
   const pmProjectsQuery = useQuery({
     queryKey: ['pm-dashboard-projects', orgId, userId],
     queryFn: getPMDashboardProjects,
-    enabled: Boolean(orgId && userId && role === 'Project Manager'),
+    enabled: Boolean(effectiveEnabled && orgId && userId && role === 'Project Manager'),
   });
   const pmProjectIds = (pmProjectsQuery.data ?? []).map((project) => project.id);
   // One batched read for every project's tasks (was one list per project).
   const projectTasks = useQuery({
     queryKey: ['pm-overdue-tasks', orgId, pmProjectIds],
     queryFn: () => repositories.task.listDueRows(pmProjectIds),
-    enabled: Boolean(orgId && role === 'Project Manager' && pmProjectsQuery.data),
+    enabled: Boolean(effectiveEnabled && orgId && role === 'Project Manager' && pmProjectsQuery.data),
   });
   const timesheetsQuery = useTimesheets();
   const myTasksQuery = useMyTasks();
   const expenseClaimsQuery = useQuery({
     queryKey: ['expense-claims', orgId, { status: 'Rejected' }],
     queryFn: () => repositories.expenseClaim.list({ status: 'Rejected' }),
-    enabled: Boolean(orgId && userId && role === 'Engineer'),
+    enabled: Boolean(effectiveEnabled && orgId && userId && role === 'Engineer'),
   });
   const timesheetsAwaitingQuery = useQuery({
     queryKey: awaitingApprovalKey(orgId, userId, realRole),
     queryFn: () => listTimesheetsAwaitingApproval(userId!, realRole!),
-    enabled: Boolean(orgId && userId && approvalRole),
+    enabled: Boolean(effectiveEnabled && orgId && userId && approvalRole),
   });
   const expenseApprovalsQuery = useQuery({
     queryKey: expenseClaimsAwaitingKey(orgId),
@@ -325,7 +357,7 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
       const byId = new Map(routes.map((route) => [route.claimId, route]));
       return rows.map((claim) => ({ claim, route: byId.get(claim.id) ?? null }));
     },
-    enabled: Boolean(orgId && procurementApprovalRole),
+    enabled: Boolean(effectiveEnabled && orgId && procurementApprovalRole),
   });
   const invoiceApprovals = useInvoicesAwaitingViewer();
 
@@ -406,13 +438,13 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
     returnedExpenses: role === 'Engineer' && !expenseClaimsQuery.isPending && !expenseClaimsQuery.isError ? currentReturnedExpenses.length : undefined,
   };
 
-  const needsPending = companyRole
+  const needsPending = !active || (companyRole
     ? dashboardQuery.isPending || salesInvoiceQuery.isPending || (procurementApprovalRole && procurementsQuery.isPending) || workOrdersQuery.isPending || organizationDay.isPending || budgetReviewQuery.isPending || approvalSourcesPending || !invoiceNeeds && !salesInvoiceQuery.isError && !organizationDay.isError
     : role === 'Project Manager'
       ? pmProjectsQuery.isPending || projectTasks.isPending || organizationDay.isPending || approvalSourcesPending
       : role === 'Engineer'
         ? timesheetsQuery.isPending || myTasksQuery.isPending || expenseClaimsQuery.isPending || organizationDay.isPending
-        : false;
+        : false);
   const needsError = companyRole
     ? dashboardQuery.isError || salesInvoiceQuery.isError || (procurementApprovalRole && procurementsQuery.isError) || workOrdersQuery.isError || organizationDay.isError || budgetReviewQuery.isError || approvalSourcesError
     : role === 'Project Manager'

@@ -1,5 +1,6 @@
-import React, { useContext } from 'react';
+import React, { useContext, useState } from 'react';
 import { Link, NavLink, useLocation } from 'react-router';
+import { QueryClientContext } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useIsOperator } from '@/src/auth/useIsOperator';
@@ -115,18 +116,34 @@ const NAV_LINK_BASE =
 /** The two items that get stage-aware active-state overrides on `/projects/:id`. */
 const STAGE_AWARE_PATHS = new Set(['/projects', '/sales']);
 
-const FinanceOverdueCount: React.FC = () => {
+export interface FinanceOverdueCountProps {
+  requested?: boolean;
+}
+
+const FinanceOverdueCount: React.FC<FinanceOverdueCountProps> = ({ requested = false }) => {
   // Rail unit harnesses can render without an AuthProvider; in the application the provider is
   // always present. Keep the data query behind that boundary so such shell-only renders stay pure.
   const auth = useContext(AuthContext);
   if (!auth) return null;
-  return <FinanceOverdueCountValue />;
+  return <FinanceOverdueCountValue requested={requested} />;
 };
 
-const FinanceOverdueCountValue: React.FC = () => {
+const FinanceOverdueCountValue: React.FC<FinanceOverdueCountProps> = ({ requested = false }) => {
   const { t } = useTranslation();
-  const { position, isPending, isError } = useFinancePosition();
-  if (isPending || isError) return null;
+  const location = useLocation();
+  const queryClient = useContext(QueryClientContext);
+  const auth = useContext(AuthContext);
+  const orgId = auth?.currentUser?.org_id;
+
+  const isFinanceRoute = location.pathname.startsWith('/finance');
+  const invoicesState = (orgId && queryClient) ? queryClient.getQueryState(['salesInvoices', orgId, 'all']) : undefined;
+  const paymentsState = (orgId && queryClient) ? queryClient.getQueryState(['incomingPayments', orgId, 'all', 'all-invoices']) : undefined;
+  const isCached = invoicesState?.status === 'success' && paymentsState?.status === 'success';
+
+  const shouldLoad = isFinanceRoute || requested || isCached;
+  const { position, isPending, isError, hasLoadedData } = useFinancePosition({ enabled: shouldLoad });
+
+  if (!shouldLoad || isPending || isError || (!hasLoadedData && !isCached)) return null;
   const count = position.overdue.length;
   return <Badge aria-label={t('financeHub:hub.overdueCount', '{{count}} overdue invoices', { count })}>{count}</Badge>;
 };
@@ -173,6 +190,7 @@ const RailWithTimesheetEligibility: React.FC<RailProps> = (props) => {
 const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = ({ onNavigate, railActiveOverride, onOpenAssistant, assistantPanelOpen, operatorAccessError = false, hasEligibleTimesheets = false }) => {
   const { t } = useTranslation();
   const location = useLocation();
+  const [financeRequested, setFinanceRequested] = useState(false);
   const { effectiveRole, realRole } = useEffectiveRole();
   const role = toUserRole(effectiveRole);
   const realRoleValue = toUserRole(realRole);
@@ -282,7 +300,7 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
         </>
       );
     }
-    if (item.to === '/finance') return <><span>{label}</span><FinanceOverdueCount /></>;
+    if (item.to === '/finance') return <><span>{label}</span><FinanceOverdueCount requested={financeRequested} /></>;
     return <span>{label}</span>;
   };
 
@@ -291,6 +309,7 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
     // the override instead of NavLink's built-in URL-prefix matching.
     const isStageAware = railActiveOverride != null && STAGE_AWARE_PATHS.has(item.to);
     const isCompanyDirectoryLink = item.to === '/companies';
+    const onFinanceIntent = item.to === '/finance' ? () => setFinanceRequested(true) : undefined;
 
     if (isCompanyDirectoryLink) {
       const active = location.pathname === '/companies';
@@ -342,6 +361,8 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
           key={item.to}
           to={item.to}
           onClick={onNavigate}
+          onMouseEnter={onFinanceIntent}
+          onFocus={onFinanceIntent}
           aria-current="page"
           className={cn(NAV_LINK_BASE, 'bg-nav-selected-surface font-semibold text-nav-active-text')}
         >
@@ -357,6 +378,8 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
         to={item.to}
         end={item.to === '/' || item.to.includes('?') || item.to.startsWith('/finance')}
         onClick={onNavigate}
+        onMouseEnter={onFinanceIntent}
+        onFocus={onFinanceIntent}
         className={({ isActive }: { isActive: boolean }) => {
           // A child page outside the module's URL (e.g. /erp-purchases under Procurement) lights its parent.
           const active = isActive || railParentForPath(location.pathname) === item.to;

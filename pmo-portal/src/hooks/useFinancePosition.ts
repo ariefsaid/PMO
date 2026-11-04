@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/src/auth/useAuth';
 import { usePermission } from '@/src/auth/usePermission';
 import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
@@ -6,14 +6,61 @@ import { useProcurements } from '@/src/hooks/useProcurements';
 import { useIncomingPayments, useSalesInvoices } from '@/src/hooks/useRevenue';
 import { buildFinancePosition } from '@/src/lib/finance/financePosition';
 
-export function useFinancePosition(enabled = true) {
+export interface UseFinancePositionOptions {
+  enabled?: boolean;
+  deferred?: boolean;
+}
+
+export function useFinancePosition(
+  enabledOrOptions: boolean | UseFinancePositionOptions = true,
+) {
+  const options = typeof enabledOrOptions === 'object' ? enabledOrOptions : { enabled: enabledOrOptions };
+  const enabled = options.enabled ?? true;
+  const deferred = options.deferred ?? false;
+
+  const [active, setActive] = useState(!deferred);
+
+  useEffect(() => {
+    if (!enabled) {
+      setActive(false);
+      return;
+    }
+    if (!deferred) {
+      setActive(true);
+      return;
+    }
+    const idleId = typeof window !== 'undefined' && 'requestIdleCallback' in window
+      ? window.requestIdleCallback(() => setActive(true))
+      : setTimeout(() => setActive(true), 200);
+
+    return () => {
+      if (typeof window !== 'undefined' && 'cancelIdleCallback' in window && typeof idleId === 'number') {
+        window.cancelIdleCallback(idleId);
+      } else {
+        clearTimeout(idleId as unknown as number);
+      }
+    };
+  }, [enabled, deferred]);
+
+  const effectiveEnabled = enabled && active;
   const { currentUser } = useAuth();
   const may = usePermission();
-  const invoices = useSalesInvoices(undefined, { enabled });
-  const payments = useIncomingPayments(undefined, enabled);
+  const invoices = useSalesInvoices(undefined, { enabled: effectiveEnabled });
+  const payments = useIncomingPayments(undefined, effectiveEnabled);
   // Shared-details select: the supplier invoice and payment rows behind the unpaid balance.
-  const procurements = useProcurements({ withSharedDetails: true, enabled });
-  const orgDay = useFxOrgDay(enabled);
+  const procurements = useProcurements({ withSharedDetails: true, enabled: effectiveEnabled });
+  const orgDay = useFxOrgDay(effectiveEnabled);
+
+  const hasLoadedData = Boolean(
+    effectiveEnabled &&
+    invoices.status === 'success' &&
+    payments.status === 'success' &&
+    procurements.status === 'success' &&
+    orgDay.day,
+  );
+
+  const isPending = !active || invoices.isPending || payments.isPending || procurements.isPending || orgDay.isPending;
+  const isError = invoices.isError || payments.isError || procurements.isError || orgDay.isError;
 
   const position = useMemo(() => buildFinancePosition({
     invoices: invoices.data ?? [],
@@ -30,8 +77,9 @@ export function useFinancePosition(enabled = true) {
   return {
     position,
     today: orgDay.day,
-    isPending: invoices.isPending || payments.isPending || procurements.isPending || orgDay.isPending,
-    isError: invoices.isError || payments.isError || procurements.isError || orgDay.isError,
+    isPending,
+    isError,
+    hasLoadedData,
     retry: () => {
       void invoices.refetch();
       void payments.refetch();
