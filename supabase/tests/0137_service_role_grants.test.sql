@@ -10,7 +10,7 @@
 -- security-definer lock-order RPCs (0105/0106) are the only mutation path (closing the child→parent
 -- deadlock seam). The catalog backstop below excludes it; the exception is asserted explicitly.
 begin;
-select plan(42);
+select plan(44);
 
 -- profiles: the exact table the promote e2e failed on (admin-invite-user inserts here).
 select ok(has_table_privilege('service_role', 'public.profiles', 'INSERT'),
@@ -84,6 +84,7 @@ select is(
         'erp_financial_statement_dirty_date',
         'erp_financial_statement_published_context',
         'erp_statement_change_state',
+        'erp_statement_nightly_obligation',
         'procurement_import_runs',
         'stock_documents',
         'stock_document_lines',
@@ -205,6 +206,20 @@ select ok(not exists (
   cross join unnest(array['SELECT','INSERT','UPDATE','DELETE','TRUNCATE']) as privileges(privilege_name)
   where has_table_privilege(role_name,'public.erp_statement_change_state',privilege_name)),
   'AC-NS-001 statement change state denies ordinary role access');
+
+-- 0644 nightly obligations are the same deliberate exception: the two service RPCs are the only write
+-- path, so service_role keeps SELECT for recovery reads and no direct write of any kind.
+select ok(has_table_privilege('service_role','public.erp_statement_nightly_obligation','SELECT')
+  and not has_table_privilege('service_role','public.erp_statement_nightly_obligation','INSERT')
+  and not has_table_privilege('service_role','public.erp_statement_nightly_obligation','UPDATE')
+  and not has_table_privilege('service_role','public.erp_statement_nightly_obligation','DELETE')
+  and not has_table_privilege('service_role','public.erp_statement_nightly_obligation','TRUNCATE'),
+  'AC-NS-004 nightly obligations are service-readable and RPC-written');
+select ok(not exists (
+  select 1 from unnest(array['anon','authenticated']) as roles(role_name)
+  cross join unnest(array['SELECT','INSERT','UPDATE','DELETE','TRUNCATE']) as privileges(privilege_name)
+  where has_table_privilege(role_name,'public.erp_statement_nightly_obligation',privilege_name)),
+  'AC-NS-004 nightly obligations deny ordinary role access');
 
 select * from finish();
 rollback;

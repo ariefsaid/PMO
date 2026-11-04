@@ -23,6 +23,7 @@ test('every scripts/*.test.mjs file is assigned to a CI test step', () => {
   const databaseTests = [
     'financial-statements-publication-race.test.mjs',
     'financial-statements-rollback.test.mjs',
+    'financial-statements-nightly-intent-race.test.mjs',
   ];
   const nonDatabase = workflow.match(/find scripts[^\n]+/);
   assert.ok(nonDatabase, 'CI must discover non-database script tests by glob');
@@ -39,6 +40,14 @@ test('every scripts/*.test.mjs file is assigned to a CI test step', () => {
   provesCoverage(workflow);
   assert.throws(() => provesCoverage(workflow.replace(/scripts\/financial-statements-rollback\.test\.mjs/g, '')),
     /financial-statements-rollback\.test\.mjs is missing from CI/);
+  // The release path must run the two-session interleaving proof too, not only the PR-to-dev job:
+  // a harness that only runs before a dev merge would never gate a promote to main.
+  const integrationJob = workflow.slice(workflow.indexOf('\n  integration:'));
+  const integrationReset = integrationJob.indexOf('supabase db reset');
+  const integrationRace = integrationJob.indexOf('scripts/financial-statements-nightly-intent-race.test.mjs');
+  assert.ok(integrationRace !== -1, 'integration (PR-to-main release gate) must run the owning nightly-intent race proof');
+  assert.ok(integrationReset !== -1 && integrationRace > integrationReset,
+    'the race proof needs the released schema: it must run after the reset');
   const verifyJob = workflow.slice(workflow.indexOf('  verify:'), workflow.indexOf('  pgtap:'));
   assert.doesNotMatch(verifyJob, /node --test[^\n]*scripts\/[^ \n]+\.test\.mjs/,
     'script tests must run only through the repository-test glob, not hand-picked duplicates');

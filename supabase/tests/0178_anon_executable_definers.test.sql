@@ -235,7 +235,7 @@
 
 begin;
 create extension if not exists pgtap;
-select plan(6);
+select plan(7);
 
 -- This is duplicated from 0185 as a visible proof contract. A future client RPC must retain its
 -- authenticated grant explicitly after the default-privilege guard; otherwise the count below fails.
@@ -483,6 +483,16 @@ select is(
 
 revoke execute on function public.anon_definer_write_probe() from anon, authenticated;
 drop function public.anon_definer_write_probe();
+
+-- 0644 adds no client-callable surface: the nightly and manual entry points are service-only, and the
+-- scheduling helper is owner-only. Pinned explicitly so a future accidental grant is named here.
+select ok(not has_function_privilege('anon','public.record_erp_statement_nightly_due(uuid,uuid,uuid,timestamptz)','EXECUTE')
+  and not has_function_privilege('authenticated','public.record_erp_statement_nightly_due(uuid,uuid,uuid,timestamptz)','EXECUTE')
+  and not has_function_privilege('anon','public.request_erp_statement_manual_intent(uuid,uuid,uuid,timestamptz)','EXECUTE')
+  and not has_function_privilege('authenticated','public.request_erp_statement_manual_intent(uuid,uuid,uuid,timestamptz)','EXECUTE')
+  and not has_function_privilege('anon','public._erp_statement_nightly_due_at(date,text)','EXECUTE')
+  and not has_function_privilege('authenticated','public._erp_statement_nightly_due_at(date,text)','EXECUTE'),
+  'AC-NS-004 nightly surfaces add no anonymous or authenticated execute');
 
 select * from finish();
 rollback;
