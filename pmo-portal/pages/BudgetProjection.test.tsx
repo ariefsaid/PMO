@@ -14,26 +14,35 @@ import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '@/src/components/ui';
 import type { BudgetProjectionCellRow } from '@/src/lib/repositories/budgetProjection';
+import type { BudgetProjectFiscalCalendar } from '@/src/lib/budget/budgetProjectFiscalCalendar';
+import { buildBudgetProjectionCsv } from '@/src/lib/budget/budgetProjectionExport';
 import enProjectTabs from '../public/locales/en/projectTabs.json';
 import idProjectTabs from '../public/locales/id/projectTabs.json';
 
-const { fetchMock, upsertEtcMock, yearsMock, phasingMock, summaryMock } = vi.hoisted(() => ({
+const { fetchMock, comparisonMock, upsertEtcMock, yearsMock, calendarMock, phasingMock, summaryMock, distributionMock } = vi.hoisted(() => ({
   fetchMock: vi.fn(),
+  comparisonMock: vi.fn(),
   upsertEtcMock: vi.fn(),
   yearsMock: vi.fn(),
+  calendarMock: vi.fn(),
   phasingMock: vi.fn(),
   summaryMock: vi.fn(),
+  distributionMock: vi.fn(),
 }));
 
 vi.mock('@/src/lib/repositories/budgetProjection', () => ({
   fetchBudgetProjection: fetchMock,
+  fetchBudgetComparison: comparisonMock,
   upsertBudgetProjectionEtc: upsertEtcMock,
   listBudgetFiscalYears: yearsMock,
+  fetchProjectFiscalCalendar: calendarMock,
   fetchActiveBudgetCategoryPhasing: phasingMock,
   fetchFirstSpendingYear: summaryMock,
 }));
+vi.mock('@/src/hooks/useBudget', () => ({ useBudgetDistribution: distributionMock }));
 
 import BudgetProjection from './BudgetProjection';
+import type { BudgetProjectionExport } from '@/src/lib/budget/budgetProjectionExport';
 import { useForecastEditor } from './budget-projection/useForecastEditor';
 import { FinanceI18nTestProvider } from './__tests__/financeI18nTestProvider';
 import { financeTestI18n } from './__tests__/financeI18nTestInstance';
@@ -60,42 +69,101 @@ const ROW: BudgetProjectionCellRow = {
 };
 
 const phasing = (years: Record<string, string[]>, unphased: Record<string, true> = {}) => ({ years, unphased });
+const TWO_YEAR_PROJECT = { projectStartDate: '2025-07-01', projectEndDate: '2027-02-28' };
+const setTwoYearCurrentCalendar = (names: [string, string] = ['FY-A', 'FY-B']) => {
+  calendarMock.mockResolvedValue({
+    status: 'resolved', project: { start: TWO_YEAR_PROJECT.projectStartDate, end: TWO_YEAR_PROJECT.projectEndDate },
+    years: [
+      { name: names[0], start: '2025-04-01', end: '2026-03-31' },
+      { name: names[1], start: '2026-04-01', end: '2027-03-31' },
+    ],
+  });
+};
 
-const renderForecast = ({ canEdit = true, budgetCurrency = 'USD', onExport = vi.fn() } = {}) => render(
+type ForecastRenderOptions = { canEdit?: boolean; budgetCurrency?: string; onExport?: (payload: BudgetProjectionExport) => void; orgId?: string; projectId?: string; budgetVersionId?: string; budgetMode?: string; approvedBudgetYears?: string[]; projectStartDate?: string; projectEndDate?: string | null };
+const forecastTree = (options: Required<ForecastRenderOptions>, queryClient: QueryClient) => (
   <FinanceI18nTestProvider>
     <MemoryRouter>
-      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}>
+      <QueryClientProvider client={queryClient}>
         <ToastProvider>
           <BudgetProjection
-            projectId="proj-1"
+            projectId={options.projectId}
+            budgetVersionId={options.budgetVersionId}
+            orgId={options.orgId}
+            projectStartDate={options.projectStartDate}
+            projectEndDate={options.projectEndDate}
+            budgetMode={options.budgetMode}
+            approvedBudgetYears={options.approvedBudgetYears}
             currency="USD"
-            budgetCurrency={budgetCurrency}
-            canEdit={canEdit}
+            budgetCurrency={options.budgetCurrency}
+            canEdit={options.canEdit}
             committedByCategory={{}}
             canReadCommitments
             onAdjustInDraft={vi.fn()}
-            onExport={onExport}
+            onExport={options.onExport}
           />
         </ToastProvider>
       </QueryClientProvider>
     </MemoryRouter>
-  </FinanceI18nTestProvider>,
+  </FinanceI18nTestProvider>
 );
+const renderForecast = (input: ForecastRenderOptions = {}) => {
+  const options: Required<ForecastRenderOptions> = {
+    canEdit: input.canEdit ?? true,
+    budgetCurrency: input.budgetCurrency ?? 'USD',
+    onExport: input.onExport ?? vi.fn<(payload: BudgetProjectionExport) => void>(),
+    orgId: input.orgId ?? 'org-1',
+    projectId: input.projectId ?? 'proj-1',
+    budgetVersionId: input.budgetVersionId ?? 'version-1',
+    budgetMode: input.budgetMode ?? 'per_year',
+    approvedBudgetYears: input.approvedBudgetYears ?? [],
+    projectStartDate: input.projectStartDate ?? '2025-04-01',
+    projectEndDate: input.projectEndDate === undefined ? '2026-03-31' : input.projectEndDate,
+  };
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  const view = render(forecastTree(options, queryClient));
+  return {
+    ...view,
+    queryClient,
+    rerenderForecast: (next: ForecastRenderOptions) => view.rerender(forecastTree({ ...options, ...next }, queryClient)),
+  };
+};
 
 const rowFor = async (category: string) => (await screen.findByRole('row', { name: new RegExp(category) }));
 
 beforeEach(async () => {
   fetchMock.mockReset();
+  comparisonMock.mockReset();
   upsertEtcMock.mockReset();
   yearsMock.mockReset();
+  calendarMock.mockReset();
   phasingMock.mockReset();
   summaryMock.mockReset();
   summaryMock.mockResolvedValue(ERP_FISCAL_YEAR);
+  distributionMock.mockReset();
+  distributionMock.mockReturnValue({ data: null, isSuccess: true, isPending: false, isError: false, refetch: vi.fn() });
   yearsMock.mockResolvedValue([
-    { fiscalYear: ERP_FISCAL_YEAR, isActivePush: true },
-    { fiscalYear: PRIOR_ERP_FISCAL_YEAR, isActivePush: false },
+    { fiscalYear: ERP_FISCAL_YEAR, hasActiveBudget: true },
   ]);
+  calendarMock.mockResolvedValue({
+    status: 'resolved', project: { start: '2025-04-01', end: '2026-03-31' },
+    years: [{ name: ERP_FISCAL_YEAR, start: '2025-04-01', end: '2026-03-31' }],
+  });
   fetchMock.mockResolvedValue([ROW]);
+  comparisonMock.mockImplementation(async (projectId: string, fiscalYear: string | null) => {
+    const readProjection = fetchMock.getMockImplementation();
+    const projections = readProjection ? await readProjection(projectId, fiscalYear ?? '') : [ROW];
+    return (projections as BudgetProjectionCellRow[]).map((row) => ({
+      category: row.category,
+      budgetTotal: row.pmoBudgetAmount,
+      recorded: row.actualsToDate,
+      recordedAsOf: row.actualsAsOf,
+      mapped: row.actualsToDate !== null,
+      hasLedger: row.actualsAsOf !== null,
+      remaining: row.pmoBudgetAmount === null || row.actualsToDate === null ? null : row.pmoBudgetAmount - row.actualsToDate,
+      percentUsed: row.pmoBudgetAmount === null || row.pmoBudgetAmount === 0 || row.actualsToDate === null ? null : row.actualsToDate / row.pmoBudgetAmount,
+    }));
+  });
   phasingMock.mockResolvedValue(phasing({ Labor: [ERP_FISCAL_YEAR] }));
   upsertEtcMock.mockResolvedValue(undefined);
   setActiveLocale(EN_LOCALE);
@@ -116,7 +184,7 @@ describe('BudgetProjection — the forward view (AC-BUD-050/051)', () => {
   });
 
   it('keeps forecast inputs available and refuses comparisons across currency bases', async () => {
-    const onExport = vi.fn();
+    const onExport = vi.fn<(payload: BudgetProjectionExport) => void>();
     renderForecast({ budgetCurrency: 'GBP', onExport });
     const row = within(await rowFor('Labor'));
     expect(row.getByText('£100,000')).toBeInTheDocument();
@@ -126,7 +194,10 @@ describe('BudgetProjection — the forward view (AC-BUD-050/051)', () => {
     expect(row.getByText('Unavailable')).toBeInTheDocument();
     expect(row.queryByRole('progressbar')).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Export' }));
-    expect(onExport).toHaveBeenCalledWith([expect.objectContaining({ projectedVariance: null, projectedUtilization: null })]);
+    expect(onExport).toHaveBeenCalledWith({
+      scope: { kind: 'year', year: ERP_FISCAL_YEAR },
+      rows: [expect.objectContaining({ projectedVariance: null, projectedUtilization: null })],
+    });
     await userEvent.click(screen.getByRole('row', { name: /Labor/ }));
     const drawer = screen.getByRole('dialog', { name: 'Labor' });
     expect(within(drawer).getByText('£100,000')).toBeInTheDocument();
@@ -140,66 +211,503 @@ describe('BudgetProjection — the forward view (AC-BUD-050/051)', () => {
     await waitFor(() => expect(upsertEtcMock).toHaveBeenCalledWith('proj-1', ERP_FISCAL_YEAR, 'Labor', 45000));
   });
 
+  it('exports the same currency-safe all-years CSV from the table and category drawer', async () => {
+    const user = userEvent.setup();
+    setTwoYearCurrentCalendar();
+    yearsMock.mockResolvedValue([
+      { fiscalYear: 'FY-A', hasActiveBudget: true },
+      { fiscalYear: 'FY-B', hasActiveBudget: false },
+    ]);
+    comparisonMock.mockResolvedValue([{
+      category: 'Labor', budgetTotal: 100, recorded: 40, recordedAsOf: READ_AT,
+      mapped: true, hasLedger: true, remaining: 60, percentUsed: 0.4,
+    }]);
+    const csv: string[] = [];
+    const onExport = vi.fn((payload: BudgetProjectionExport) => {
+      csv.push(buildBudgetProjectionCsv(payload, {
+        budgetCurrency: 'GBP', projectCurrency: 'USD', categoryLabel: (category) => category,
+      }));
+    });
+
+    renderForecast({ ...TWO_YEAR_PROJECT, budgetCurrency: 'GBP', onExport });
+    await rowFor('Labor');
+    await user.click(screen.getByRole('button', { name: 'Export' }));
+    expect(csv[0]).toContain('"Approved total (GBP)","Budget source","Recorded to date (USD)"');
+    expect(csv[0]).toContain('"Remaining (Unavailable across currencies)","% recorded (Unavailable across currencies)"');
+    expect(csv[0]).toContain('"All years (project to date)","","Labor","100","Active budget version","40","ERP ledger","2026-03-04T09:00:00.000Z","",""');
+    expect(csv[0]).not.toContain('"60"');
+
+    await user.click(screen.getByRole('button', { name: 'Open Labor budget comparison' }));
+    const drawer = screen.getByRole('dialog', { name: 'Labor' });
+    await user.click(within(drawer).getByRole('button', { name: 'Export' }));
+    expect(csv).toHaveLength(2);
+    expect(csv[1]).toContain('"All years (project to date)","","Labor","100","Active budget version","40","ERP ledger","2026-03-04T09:00:00.000Z","",""');
+    expect(csv[1]).not.toContain('"60"');
+  });
+
+  it('does not export cached comparison rows hidden by a failed refetch', async () => {
+    const user = userEvent.setup();
+    setTwoYearCurrentCalendar();
+    yearsMock.mockResolvedValue([
+      { fiscalYear: 'FY-A', hasActiveBudget: true },
+      { fiscalYear: 'FY-B', hasActiveBudget: false },
+    ]);
+    const priorRows = [{
+      category: 'Labor' as const, budgetTotal: 100, recorded: 40, recordedAsOf: READ_AT,
+      mapped: true, hasLedger: true, remaining: 60, percentUsed: 0.4,
+    }];
+    comparisonMock.mockResolvedValue(priorRows);
+    const onExport = vi.fn<(payload: BudgetProjectionExport) => void>();
+    const view = renderForecast({ ...TWO_YEAR_PROJECT, onExport });
+    await rowFor('Labor');
+    await user.click(screen.getByRole('button', { name: 'Open Labor budget comparison' }));
+    expect(screen.getByRole('dialog', { name: 'Labor' })).toBeInTheDocument();
+
+    const key = view.queryClient.getQueryCache().getAll().find((query) =>
+      query.queryKey[0] === 'budget-comparison' && query.queryKey.includes(JSON.stringify({ kind: 'all' })))!.queryKey;
+    comparisonMock.mockRejectedValueOnce(new Error('offline'));
+    await act(async () => { await view.queryClient.invalidateQueries({ queryKey: key, exact: true }); });
+
+    expect(await screen.findByText('Forecast could not be loaded')).toBeInTheDocument();
+    expect(view.queryClient.getQueryData(key)).toEqual(priorRows);
+    expect(screen.queryByRole('dialog', { name: 'Labor' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Export' })).not.toBeInTheDocument();
+    expect(onExport).not.toHaveBeenCalled();
+  });
+
+  it('AC-015 reloads comparison money when the active version or organisation changes', async () => {
+    setTwoYearCurrentCalendar();
+    yearsMock.mockResolvedValue([
+      { fiscalYear: 'FY-A', hasActiveBudget: true },
+      { fiscalYear: 'FY-B', hasActiveBudget: false },
+    ]);
+    comparisonMock
+      .mockResolvedValueOnce([{ category: 'Labor', budgetTotal: 100, recorded: 10, recordedAsOf: READ_AT, mapped: true, hasLedger: true, remaining: 90, percentUsed: 0.1 }])
+      .mockResolvedValueOnce([{ category: 'Labor', budgetTotal: 200, recorded: 10, recordedAsOf: READ_AT, mapped: true, hasLedger: true, remaining: 190, percentUsed: 0.05 }])
+      .mockResolvedValueOnce([{ category: 'Labor', budgetTotal: 300, recorded: 10, recordedAsOf: READ_AT, mapped: true, hasLedger: true, remaining: 290, percentUsed: 0.03 }]);
+    const view = renderForecast({ ...TWO_YEAR_PROJECT, budgetVersionId: 'active-one' });
+    expect(await rowFor('Labor')).toHaveTextContent('$100');
+
+    view.rerenderForecast({ budgetVersionId: 'active-two' });
+    await waitFor(() => expect(screen.getByRole('row', { name: /Labor/ })).toHaveTextContent('$200'));
+
+    view.rerenderForecast({ orgId: 'org-two' });
+    await waitFor(() => expect(screen.getByRole('row', { name: /Labor/ })).toHaveTextContent('$300'));
+    expect(comparisonMock).toHaveBeenCalledTimes(3);
+    expect(comparisonMock).toHaveBeenCalledTimes(3);
+  });
+
   it('H-4 uses the client-listed fiscal year instead of the calendar year', async () => {
     renderForecast();
     await rowFor('Labor');
     expect(fetchMock).toHaveBeenCalledWith('proj-1', ERP_FISCAL_YEAR);
     expect(fetchMock).not.toHaveBeenCalledWith('proj-1', String(new Date().getFullYear()));
-    expect(screen.getByRole('combobox', { name: 'Fiscal year' })).toHaveValue(ERP_FISCAL_YEAR);
+    expect(screen.getByRole('combobox', { name: 'Fiscal year' })).toHaveValue(JSON.stringify({ kind: 'year', year: ERP_FISCAL_YEAR }));
   });
 
-  it('AC-1424 defaults to the first listed year with recorded spending before a later active-push year', async () => {
-    const firstWithSpending = 'FY-2026';
-    const laterActivePush = 'FY-2028';
+  it('AC-013 defaults a multi-year project to All years and loads comparison without a successful push', async () => {
+    setTwoYearCurrentCalendar(['FY-2027', 'FY-2028']);
     yearsMock.mockResolvedValue([
-      { fiscalYear: firstWithSpending, isActivePush: false },
-      { fiscalYear: laterActivePush, isActivePush: true },
-      { fiscalYear: 'FY-2024', isActivePush: false },
+      { fiscalYear: 'FY-2028', hasActiveBudget: false },
+      { fiscalYear: 'FY-2027', hasActiveBudget: true },
     ]);
-    summaryMock.mockResolvedValue(firstWithSpending);
-    fetchMock.mockImplementation(async (_projectId: string, year: string) => {
-      if (year === firstWithSpending) return [{ ...ROW, actualsToDate: 12_000 }];
-      if (year === laterActivePush) return [{ ...ROW, actualsToDate: 95_000 }];
-      return [{ ...ROW, actualsToDate: 0 }];
+    comparisonMock.mockResolvedValue([{
+      category: 'Labor', budgetTotal: 125000, recorded: 40000, recordedAsOf: READ_AT,
+      mapped: true, hasLedger: true, remaining: 85000, percentUsed: 0.32,
+    }]);
+    renderForecast(TWO_YEAR_PROJECT);
+    expect(await rowFor('Labor')).toHaveTextContent('$125,000');
+    expect(screen.getByRole('combobox', { name: 'Fiscal year' })).toHaveValue(JSON.stringify({ kind: 'all' }));
+    expect(screen.getByRole('columnheader', { name: /Recorded spending as a share/ })).toBeInTheDocument();
+    expect(screen.getByText('% recorded', { selector: 'dt' }).parentElement).toHaveTextContent('32%');
+    expect(screen.queryByRole('columnheader', { name: 'Cost to finish' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: 'Forecast final' })).not.toBeInTheDocument();
+    expect(comparisonMock).toHaveBeenCalledWith('proj-1', null);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('AC-013 defaults from two resolved current years even when the second year has no observed ledger or push row', async () => {
+    yearsMock.mockResolvedValue([]);
+    calendarMock.mockResolvedValue({
+      status: 'resolved', project: { start: '2025-07-01', end: '2027-02-28' },
+      years: [
+        { name: 'FY-client-one', start: '2025-04-01', end: '2026-03-31' },
+        { name: 'FY-client-two', start: '2026-04-01', end: '2027-03-31' },
+      ],
+    });
+    comparisonMock.mockResolvedValue([{ category: 'Labor', budgetTotal: 100, recorded: 20, recordedAsOf: READ_AT, mapped: true, hasLedger: true, remaining: 80, percentUsed: 0.2 }]);
+    renderForecast({ projectStartDate: '2025-07-01', projectEndDate: '2027-02-28' });
+    await rowFor('Labor');
+    const select = screen.getByRole('combobox', { name: 'Fiscal year' });
+    expect(select).toHaveValue(JSON.stringify({ kind: 'all' }));
+    expect(screen.getByRole('option', { name: 'FY-client-one · current' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'FY-client-two · current' })).toBeInTheDocument();
+    expect(calendarMock).toHaveBeenCalledWith('proj-1');
+  });
+
+  it('AC-013 retains old approved years as historical when project dates move and defaults to the new current year', async () => {
+    yearsMock.mockResolvedValue([{ fiscalYear: 'FY-approved-old', hasActiveBudget: true }]);
+    calendarMock
+      .mockResolvedValueOnce({ status: 'resolved', project: { start: '2025-04-01', end: '2026-03-31' }, years: [{ name: 'FY-current-old', start: '2025-04-01', end: '2026-03-31' }] })
+      .mockResolvedValueOnce({ status: 'resolved', project: { start: '2026-04-01', end: '2027-03-31' }, years: [{ name: 'FY-current-new', start: '2026-04-01', end: '2027-03-31' }] });
+    comparisonMock.mockResolvedValue([{ category: 'Labor', budgetTotal: 100, recorded: 20, recordedAsOf: READ_AT, mapped: true, hasLedger: true, remaining: 80, percentUsed: 0.2 }]);
+    const view = renderForecast();
+    await rowFor('Labor');
+    const select = screen.getByRole('combobox', { name: 'Fiscal year' });
+    expect(select).toHaveValue(JSON.stringify({ kind: 'year', year: 'FY-current-old' }));
+    expect(screen.getByRole('option', { name: 'FY-approved-old · approved / historical' })).toBeInTheDocument();
+
+    view.rerenderForecast({ projectStartDate: '2026-04-01', projectEndDate: '2027-03-31' });
+    await waitFor(() => expect(select).toHaveValue(JSON.stringify({ kind: 'year', year: 'FY-current-new' })));
+    expect(screen.getByRole('option', { name: 'FY-approved-old · approved / historical' })).toBeInTheDocument();
+    expect(calendarMock).toHaveBeenCalledTimes(2);
+    expect(calendarMock).toHaveBeenNthCalledWith(2, 'proj-1');
+  });
+
+  it('does not keep a cached current-year default while its calendar read is refreshing', async () => {
+    setTwoYearCurrentCalendar();
+    yearsMock.mockResolvedValue([]);
+    comparisonMock.mockResolvedValue([{ category: 'Labor', budgetTotal: 100, recorded: 20, recordedAsOf: READ_AT, mapped: true, hasLedger: true, remaining: 80, percentUsed: 0.2 }]);
+    const view = renderForecast(TWO_YEAR_PROJECT);
+    await rowFor('Labor');
+    const select = screen.getByRole('combobox', { name: 'Fiscal year' });
+    expect(select).toHaveValue(JSON.stringify({ kind: 'all' }));
+
+    let finishCalendarRead!: (value: BudgetProjectFiscalCalendar) => void;
+    calendarMock.mockImplementationOnce(() => new Promise((resolve) => { finishCalendarRead = resolve; }));
+    const calendarKey = view.queryClient.getQueryCache().getAll().find((query) => query.queryKey[0] === 'budget-project-calendar')!.queryKey;
+    void view.queryClient.invalidateQueries({ queryKey: calendarKey, exact: true });
+    await waitFor(() => expect(calendarMock).toHaveBeenCalledTimes(2));
+
+    expect(select).toHaveValue('unresolved');
+    expect(screen.queryByRole('row', { name: /Labor/ })).not.toBeInTheDocument();
+    await act(async () => finishCalendarRead({
+      status: 'resolved', project: { start: TWO_YEAR_PROJECT.projectStartDate, end: TWO_YEAR_PROJECT.projectEndDate },
+      years: [
+        { name: 'FY-A', start: '2025-04-01', end: '2026-03-31' },
+        { name: 'FY-B', start: '2026-04-01', end: '2027-03-31' },
+      ],
+    }));
+    expect(await rowFor('Labor')).toBeInTheDocument();
+  });
+
+  it('leaves a mismatched server date basis unresolved and refetches before defaulting the scope', async () => {
+    yearsMock.mockResolvedValue([]);
+    calendarMock
+      .mockResolvedValueOnce({ status: 'resolved', project: { start: '2024-04-01', end: '2025-03-31' }, years: [{ name: 'FY-stale', start: '2024-04-01', end: '2025-03-31' }] })
+      .mockResolvedValueOnce({ status: 'resolved', project: { start: '2025-04-01', end: '2026-03-31' }, years: [{ name: 'FY-current', start: '2025-04-01', end: '2026-03-31' }] });
+    comparisonMock.mockResolvedValue([{ category: 'Labor', budgetTotal: 100, recorded: 20, recordedAsOf: READ_AT, mapped: true, hasLedger: true, remaining: 80, percentUsed: 0.2 }]);
+    renderForecast();
+    await rowFor('Labor');
+    expect(calendarMock).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole('combobox', { name: 'Fiscal year' })).toHaveValue(JSON.stringify({ kind: 'year', year: 'FY-current' }));
+    expect(screen.queryByRole('option', { name: 'FY-stale · current' })).not.toBeInTheDocument();
+  });
+
+  it('keeps an unresolved calendar separate from explicit All and does not query a guessed year', async () => {
+    yearsMock.mockResolvedValue([{ fiscalYear: 'FY-saved-only', hasActiveBudget: true }]);
+    calendarMock.mockResolvedValue({ status: 'unresolved', project: { start: '2025-04-01', end: '2026-03-31' } });
+    comparisonMock.mockResolvedValue([{ category: 'Labor', budgetTotal: 100, recorded: 20, recordedAsOf: READ_AT, mapped: true, hasLedger: true, remaining: 80, percentUsed: 0.2 }]);
+    renderForecast();
+    const select = await screen.findByRole('combobox', { name: 'Fiscal year' });
+    expect(select).toHaveValue('unresolved');
+    expect(await screen.findByText('Current fiscal calendar could not be resolved.')).toBeInTheDocument();
+    expect(comparisonMock).not.toHaveBeenCalled();
+
+    await userEvent.selectOptions(select, JSON.stringify({ kind: 'all' }));
+    await rowFor('Labor');
+    expect(comparisonMock).toHaveBeenCalledWith('proj-1', null);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('labels Active-version and saved line years as approved while leaving ledger-only years unmarked', async () => {
+    setTwoYearCurrentCalendar(['FY-on-record', 'FY-current-two']);
+    yearsMock.mockResolvedValue([
+      { fiscalYear: 'FY-on-record', hasActiveBudget: true },
+      { fiscalYear: 'FY-ledger-only', hasActiveBudget: false },
+    ]);
+    renderForecast({ ...TWO_YEAR_PROJECT, approvedBudgetYears: ['FY-line-unpushed'] });
+    const select = await screen.findByRole('combobox', { name: 'Fiscal year' });
+    await screen.findByRole('option', { name: 'FY-on-record · current · approved budget' });
+    expect(screen.getByRole('option', { name: 'FY-line-unpushed · approved / historical' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'FY-ledger-only · observed / historical' })).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: 'FY-ledger-only · current · approved budget' })).not.toBeInTheDocument();
+    expect(select).toHaveValue(JSON.stringify({ kind: 'all' }));
+  });
+
+  it('keeps unresolved fiscal years distinct from the explicit All years scope', async () => {
+    let resolveYears!: (years: { fiscalYear: string; hasActiveBudget: boolean }[]) => void;
+    yearsMock.mockReturnValue(new Promise((resolve) => { resolveYears = resolve; }));
+    comparisonMock.mockResolvedValue([{ category: 'Labor', budgetTotal: 100, recorded: 40, recordedAsOf: READ_AT, mapped: true, hasLedger: true, remaining: 60, percentUsed: 0.4 }]);
+    renderForecast();
+    const select = screen.getByRole('combobox', { name: 'Fiscal year' });
+    expect(select).toHaveValue('unresolved');
+    expect(screen.getByRole('option', { name: 'Loading fiscal years' })).toBeDisabled();
+    expect(comparisonMock).not.toHaveBeenCalled();
+
+    await act(async () => resolveYears([{ fiscalYear: ERP_FISCAL_YEAR, hasActiveBudget: true }]));
+    await rowFor('Labor');
+    expect(select).toHaveValue(JSON.stringify({ kind: 'year', year: ERP_FISCAL_YEAR }));
+    expect(comparisonMock).toHaveBeenCalledWith('proj-1', ERP_FISCAL_YEAR);
+  });
+
+  it('merges current calendar, approved distribution, and observed years without dropping an approved zero year', async () => {
+    distributionMock.mockReturnValue({
+      data: {
+        basis: { years: [
+          { name: 'FY-calendar-a', start: '2028-01-01', end: '2028-12-31' },
+          { name: 'FY-calendar-b', start: '2029-01-01', end: '2029-12-31' },
+        ] },
+        rows: [{ fiscal_year: 'FY-approved-zero', ordinal: 0, category: 'Labor', amount: '0.00', method: 'by_days', is_override: false }],
+      },
+      isSuccess: true, isPending: false, isError: false, refetch: vi.fn(),
+    });
+    yearsMock.mockResolvedValue([{ fiscalYear: 'FY-observed', hasActiveBudget: false }]);
+    comparisonMock.mockResolvedValue([]);
+    renderForecast({ budgetMode: 'whole_project' });
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Fiscal year' }), JSON.stringify({ kind: 'all' }));
+    await screen.findByText('No approved budget or recorded spending is available yet');
+    const values = Array.from((screen.getByRole('combobox', { name: 'Fiscal year' }) as HTMLSelectElement).options).map((option) => option.textContent);
+    expect(values).toEqual([
+      'All years (project to date)',
+      '2025-2026 · current',
+      'FY-approved-zero · approved / historical',
+      'FY-observed · observed / historical',
+    ]);
+    expect(distributionMock).toHaveBeenCalledWith('proj-1', 'version-1');
+  });
+
+  it('preserves an explicit year when the observed year list refetches', async () => {
+    yearsMock.mockResolvedValue([
+      { fiscalYear: 'FY-A', hasActiveBudget: true },
+      { fiscalYear: 'FY-B', hasActiveBudget: false },
+    ]);
+    comparisonMock.mockResolvedValue([{ category: 'Labor', budgetTotal: 10, recorded: 2, recordedAsOf: READ_AT, mapped: true, hasLedger: true, remaining: 8, percentUsed: 0.2 }]);
+    const view = renderForecast();
+    await rowFor('Labor');
+    const select = screen.getByRole('combobox', { name: 'Fiscal year' });
+    await userEvent.selectOptions(select, JSON.stringify({ kind: 'year', year: 'FY-A' }));
+    view.queryClient.setQueryData(['budget-fiscal-years', 'org-1', 'proj-1', 'version-1'], [
+      { fiscalYear: 'FY-C', hasActiveBudget: false },
+      { fiscalYear: 'FY-A', hasActiveBudget: true },
+      { fiscalYear: 'FY-B', hasActiveBudget: false },
+    ]);
+    await waitFor(() => expect(select).toHaveValue(JSON.stringify({ kind: 'year', year: 'FY-A' })));
+  });
+
+  it('uses the saved distribution to explain a whole-project category budgeted in another year', async () => {
+    yearsMock.mockResolvedValue([
+      { fiscalYear: 'FY-A', hasActiveBudget: true },
+      { fiscalYear: 'FY-B', hasActiveBudget: true },
+    ]);
+    distributionMock.mockReturnValue({
+      data: {
+        method: 'by_days', inputs: {}, categoryOverrides: {},
+        basis: { projectStart: '2026-01-01', projectEnd: '2027-12-31', years: [
+          { name: 'FY-A', start: '2026-01-01', end: '2026-12-31' },
+          { name: 'FY-B', start: '2027-01-01', end: '2027-12-31' },
+        ] },
+        rows: [
+          { category: 'Labor', fiscal_year: 'FY-A', ordinal: 0, amount: '50.00', method: 'by_days', is_override: false },
+          { category: 'Labor', fiscal_year: 'FY-B', ordinal: 1, amount: '50.00', method: 'by_days', is_override: false },
+        ],
+      }, isSuccess: true, isPending: false, isError: false, refetch: vi.fn(),
+    });
+    comparisonMock.mockImplementation(async (_projectId: string, fiscalYear: string | null) => fiscalYear === 'FY-A'
+      ? [{ category: 'Labor', budgetTotal: null, recorded: 10, recordedAsOf: READ_AT, mapped: true, hasLedger: true, remaining: null, percentUsed: null }]
+      : [{ category: 'Labor', budgetTotal: 100, recorded: 10, recordedAsOf: READ_AT, mapped: true, hasLedger: true, remaining: 90, percentUsed: 0.1 }]);
+    renderForecast({ budgetMode: 'whole_project' });
+    await rowFor('Labor');
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Fiscal year' }), JSON.stringify({ kind: 'year', year: 'FY-A' }));
+    expect(await screen.findByText('Labor: Budgeted in another fiscal year: FY-B')).toBeInTheDocument();
+  });
+
+  it('AC-015 keeps annual unknown attributions null in rows, totals, and CSV while retaining a proven no-line overrun', async () => {
+    const user = userEvent.setup();
+    yearsMock.mockResolvedValue([
+      { fiscalYear: 'FY-A', hasActiveBudget: true },
+      { fiscalYear: 'FY-B', hasActiveBudget: true },
+      { fiscalYear: 'FY-C', hasActiveBudget: false },
+    ]);
+    const annualRows: BudgetProjectionCellRow[] = [
+      { ...ROW, category: 'Labor', pmoBudgetAmount: null, actualsToDate: 12000, actualsAsOf: READ_AT, pmoEtc: 0, projectedFinalCost: 12000, projectedVariance: null, projectedUtilization: null },
+      { ...ROW, category: 'Equipment', pmoBudgetAmount: null, actualsToDate: 7000, actualsAsOf: READ_AT, pmoEtc: 0, projectedFinalCost: 7000, projectedVariance: null, projectedUtilization: null },
+      { ...ROW, category: 'Travel & accommodation', pmoBudgetAmount: null, actualsToDate: 9000, actualsAsOf: READ_AT, pmoEtc: 0, projectedFinalCost: 9000, projectedVariance: null, projectedUtilization: null, attributionKnown: false },
+      { ...ROW, category: 'Materials', pmoBudgetAmount: 10000, actualsToDate: 0, actualsAsOf: READ_AT, pmoEtc: 0, projectedFinalCost: 0, projectedVariance: 10000, projectedUtilization: 0 },
+    ];
+    fetchMock.mockResolvedValue(annualRows);
+    comparisonMock.mockImplementation(async (_projectId: string, _fiscalYear: string | null) => [
+      { category: 'Labor', budgetTotal: null, recorded: 12000, recordedAsOf: READ_AT, mapped: true, hasLedger: true, remaining: null, percentUsed: null },
+      { category: 'Equipment', budgetTotal: null, recorded: 7000, recordedAsOf: READ_AT, mapped: true, hasLedger: true, remaining: null, percentUsed: null },
+      { category: 'Travel & accommodation', budgetTotal: null, recorded: 9000, recordedAsOf: READ_AT, mapped: true, hasLedger: true, remaining: null, percentUsed: null },
+      { category: 'Materials', budgetTotal: 10000, recorded: 0, recordedAsOf: READ_AT, mapped: true, hasLedger: true, remaining: 10000, percentUsed: 0 },
+    ]);
+    phasingMock.mockResolvedValue(phasing({ Labor: ['FY-B'], Materials: ['FY-A'] }));
+    const csv: string[] = [];
+    const onExport = vi.fn((payload: BudgetProjectionExport) => {
+      csv.push(buildBudgetProjectionCsv(payload, {
+        budgetCurrency: 'USD', projectCurrency: 'USD', categoryLabel: (category) => category,
+      }));
     });
 
-    renderForecast();
+    renderForecast({ onExport });
+    await rowFor('Labor');
+    const scope = screen.getByRole('combobox', { name: 'Fiscal year' });
+    await user.selectOptions(scope, JSON.stringify({ kind: 'year', year: 'FY-A' }));
+    const labor = within(await rowFor('Labor'));
+    expect(labor.getAllByText('—').length).toBeGreaterThan(0);
+    expect(labor.queryByText('-$12,000')).not.toBeInTheDocument();
+    expect(within(await rowFor('Equipment')).getByText('-$7,000')).toBeInTheDocument();
+    expect(within(await rowFor('Travel & accommodation')).queryByText('-$9,000')).not.toBeInTheDocument();
+    const totalRow = screen.getAllByRole('row').find((row) => /Total/.test(row.textContent ?? ''))!;
+    expect(totalRow).toHaveTextContent('—');
+    await user.click(screen.getByRole('button', { name: 'Export' }));
+    expect(csv[0]).toContain('"Fiscal year","FY-A","Labor","","Active budget version","12000","ERP ledger","2026-03-04T09:00:00.000Z","0","12000",""');
+    expect(csv[0]).toContain('"Fiscal year","FY-A","Equipment","","Active budget version","7000","ERP ledger","2026-03-04T09:00:00.000Z","0","7000","-7000"');
+    expect(csv[0]).toContain('"Fiscal year","FY-A","Travel & accommodation","","Active budget version","9000","ERP ledger","2026-03-04T09:00:00.000Z","0","9000",""');
 
-    expect(await rowFor('Labor')).toHaveTextContent('$12,000');
-    expect(screen.getByRole('combobox', { name: 'Fiscal year' })).toHaveValue(firstWithSpending);
-    expect(fetchMock).toHaveBeenCalledWith('proj-1', firstWithSpending);
-    expect(fetchMock).not.toHaveBeenCalledWith('proj-1', laterActivePush);
+    await user.selectOptions(scope, JSON.stringify({ kind: 'year', year: 'FY-C' }));
+    expect(await screen.findByText('Equipment: No budget is recorded for this fiscal year.')).toBeInTheDocument();
+    expect(within(await rowFor('Equipment')).getAllByText('—').length).toBeGreaterThan(0);
+    const noBudgetYearTotal = screen.getAllByRole('row').find((row) => /Total/.test(row.textContent ?? ''))!;
+    expect(noBudgetYearTotal).toHaveTextContent('—');
+    await user.click(screen.getByRole('button', { name: 'Export' }));
+    expect(csv[1]).toContain('"Fiscal year","FY-C","Equipment","","Active budget version","7000","ERP ledger","2026-03-04T09:00:00.000Z","0","7000",""');
+    expect(csv[1]).not.toContain('"-7000"');
   });
 
-  it('selects from one spending summary and loads only the chosen projection across many empty years', async () => {
-    const years = Array.from({ length: 40 }, (_, i) => ({ fiscalYear: `opaque-${i}`, isActivePush: i === 0 }));
+  it('resets the scope to the new project default after project identity changes', async () => {
+    calendarMock.mockImplementation(async (projectId: string) => projectId === 'proj-a'
+      ? { status: 'resolved', project: { start: '2025-04-01', end: '2026-03-31' }, years: [{ name: 'FY-A', start: '2025-04-01', end: '2026-03-31' }] }
+      : { status: 'resolved', project: { start: '2025-04-01', end: '2026-03-31' }, years: [{ name: 'FY-C', start: '2025-04-01', end: '2026-03-31' }] });
+    yearsMock.mockImplementation(async (projectId: string) => projectId === 'proj-a'
+      ? [{ fiscalYear: 'FY-A', hasActiveBudget: true }, { fiscalYear: 'FY-B', hasActiveBudget: false }]
+      : [{ fiscalYear: 'FY-C', hasActiveBudget: true }]);
+    comparisonMock.mockResolvedValue([{ category: 'Labor', budgetTotal: 10, recorded: 2, recordedAsOf: READ_AT, mapped: true, hasLedger: true, remaining: 8, percentUsed: 0.2 }]);
+    const view = renderForecast({ projectId: 'proj-a' });
+    await rowFor('Labor');
+    const select = screen.getByRole('combobox', { name: 'Fiscal year' });
+    await userEvent.selectOptions(select, JSON.stringify({ kind: 'year', year: 'FY-A' }));
+    expect(select).toHaveValue(JSON.stringify({ kind: 'year', year: 'FY-A' }));
+    view.rerenderForecast({ projectId: 'proj-b' });
+    await waitFor(() => expect(select).toHaveValue(JSON.stringify({ kind: 'year', year: 'FY-C' })));
+  });
+
+  it('AC-013 keeps explicit zero, unmapped spending, and an unread ledger distinct with provenance', async () => {
+    setTwoYearCurrentCalendar();
+    yearsMock.mockResolvedValue([
+      { fiscalYear: 'FY-A', hasActiveBudget: true },
+      { fiscalYear: 'FY-B', hasActiveBudget: false },
+    ]);
+    comparisonMock.mockResolvedValue([
+      { category: 'Labor', budgetTotal: 0, recorded: 0, recordedAsOf: READ_AT, mapped: true, hasLedger: true, remaining: 0, percentUsed: null },
+      { category: 'Equipment', budgetTotal: 20000, recorded: null, recordedAsOf: null, mapped: false, hasLedger: false, remaining: null, percentUsed: null },
+      { category: 'Travel', budgetTotal: 50000, recorded: null, recordedAsOf: null, mapped: true, hasLedger: false, remaining: null, percentUsed: null },
+    ]);
+    const onExport = vi.fn<(payload: BudgetProjectionExport) => void>();
+    renderForecast({ ...TWO_YEAR_PROJECT, onExport });
+    const labor = within(await rowFor('Labor'));
+    expect(labor.getAllByText('$0').length).toBeGreaterThan(0);
+    expect(labor.getByText('As of Mar 4, 2026')).toBeInTheDocument();
+    expect(labor.getByText('Unavailable')).toBeInTheDocument();
+    expect(within(await rowFor('Equipment')).getByText('No ledger account is mapped')).toBeInTheDocument();
+    expect(within(await rowFor('Travel')).getByText('No ledger reading is available')).toBeInTheDocument();
+    expect(screen.getByTestId('whole-project-unknown')).toHaveTextContent('Equipment');
+    expect(screen.getByTestId('whole-project-unknown')).toHaveTextContent('Travel');
+    expect(screen.getByText('% recorded', { selector: 'dt' }).parentElement).toHaveTextContent('Unavailable');
+    expect(screen.queryByText('0%')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Export' }));
+    expect(onExport).toHaveBeenCalledWith({ scope: { kind: 'all' }, rows: expect.arrayContaining([
+      expect.objectContaining({ category: 'Labor', budgetTotal: 0, recorded: 0 }),
+      expect.objectContaining({ category: 'Equipment', budgetTotal: 20000, recorded: null }),
+    ]) });
+    const exportedRows = onExport.mock.calls[0][0].rows;
+    expect(exportedRows[0]).not.toHaveProperty('pmoEtc');
+    await userEvent.click(screen.getByRole('button', { name: 'Open Labor budget comparison' }));
+    const drawer = screen.getByRole('dialog', { name: 'Labor' });
+    expect(within(drawer).getAllByText('$0').length).toBeGreaterThan(0);
+    expect(within(drawer).queryByText(/Cost to finish|Forecast final/)).not.toBeInTheDocument();
+    await userEvent.click(within(drawer).getByRole('button', { name: 'Export' }));
+    expect(onExport).toHaveBeenLastCalledWith({ scope: { kind: 'all' }, rows: [expect.objectContaining({ category: 'Labor', budgetTotal: 0, recorded: 0 })] });
+  });
+
+  it('AC-013 suppresses all-year remaining and percent when budget and project currencies differ', async () => {
+    setTwoYearCurrentCalendar();
+    yearsMock.mockResolvedValue([
+      { fiscalYear: 'FY-A', hasActiveBudget: true },
+      { fiscalYear: 'FY-B', hasActiveBudget: false },
+    ]);
+    comparisonMock.mockResolvedValue([{ category: 'Labor', budgetTotal: 100000, recorded: 40000, recordedAsOf: READ_AT, mapped: true, hasLedger: true, remaining: 60000, percentUsed: 0.4 }]);
+    renderForecast({ ...TWO_YEAR_PROJECT, budgetCurrency: 'GBP' });
+    const row = within(await rowFor('Labor'));
+    expect(row.getByText('£100,000')).toBeInTheDocument();
+    expect(row.getByText('$40,000')).toBeInTheDocument();
+    expect(row.getByText('Unavailable')).toBeInTheDocument();
+    expect(row.queryByText('$60,000')).not.toBeInTheDocument();
+    expect(row.queryByRole('progressbar')).not.toBeInTheDocument();
+  });
+
+  it('keeps annual screen and drawer CSVs on separate currencies with blank cross-currency remaining', async () => {
+    yearsMock.mockResolvedValue([{ fiscalYear: ERP_FISCAL_YEAR, hasActiveBudget: true }]);
+    fetchMock.mockResolvedValue([{ ...ROW, pmoBudgetAmount: 100, actualsToDate: 40, pmoEtc: 5, projectedFinalCost: 45, projectedVariance: 55, projectedUtilization: 0.45 }]);
+    comparisonMock.mockResolvedValue([{ category: 'Labor', budgetTotal: 100, recorded: 40, recordedAsOf: READ_AT, mapped: true, hasLedger: true, remaining: 60, percentUsed: 0.4 }]);
+    const csv: string[] = [];
+    const onExport = vi.fn((payload: BudgetProjectionExport) => {
+      csv.push(buildBudgetProjectionCsv(payload, { budgetCurrency: 'GBP', projectCurrency: 'USD', categoryLabel: (category) => category }));
+    });
+    renderForecast({ budgetCurrency: 'GBP', onExport });
+    const laborRow = within(await rowFor('Labor'));
+    expect(laborRow.getAllByText('£100').length).toBeGreaterThan(0);
+    expect(laborRow.getAllByText('$40').length).toBeGreaterThan(0);
+    expect(laborRow.getByText('Unavailable')).toBeInTheDocument();
+    expect(laborRow.queryByText('$55')).not.toBeInTheDocument();
+    expect(laborRow.queryByRole('progressbar')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Export' }));
+    expect(csv[0]).toContain('"Budget (GBP)"');
+    expect(csv[0]).toContain('"Spent (USD)"');
+    expect(csv[0]).toContain('"Forecast remaining (Unavailable across currencies)"');
+    expect(csv[0]).toContain('"Fiscal year","2025-2026","Labor","100","Active budget version","40","ERP ledger"');
+    expect(csv[0]).not.toContain('"55"');
+
+    await userEvent.click(screen.getByRole('row', { name: /Labor/ }));
+    const drawer = screen.getByRole('dialog', { name: 'Labor' });
+    expect(within(drawer).getByText('£100')).toBeInTheDocument();
+    expect(within(drawer).getByText('$40')).toBeInTheDocument();
+    expect(within(drawer).getByText('—')).toBeInTheDocument();
+    expect(within(drawer).queryByText('$55')).not.toBeInTheDocument();
+    await userEvent.click(within(drawer).getByRole('button', { name: 'Export' }));
+    expect(csv).toHaveLength(2);
+    expect(csv[1]).toContain('"Fiscal year","2025-2026","Labor","100","Active budget version","40","ERP ledger"');
+    expect(csv[1]).not.toContain('"55"');
+  });
+
+  it('loads only the selected yearly forecast after opening a multi-year project in All years', async () => {
+    setTwoYearCurrentCalendar();
+    const years = Array.from({ length: 40 }, (_, i) => ({ fiscalYear: `opaque-${i}`, hasActiveBudget: i === 0 }));
     yearsMock.mockResolvedValue(years);
-    summaryMock.mockResolvedValue('opaque-35');
     fetchMock.mockResolvedValue([ROW]);
-    renderForecast();
+    renderForecast(TWO_YEAR_PROJECT);
     await rowFor('Labor');
-    expect(screen.getByRole('combobox', { name: 'Fiscal year' })).toHaveValue('opaque-35');
-    expect(summaryMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock).toHaveBeenCalledWith('proj-1', 'opaque-35');
-    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Fiscal year' }), 'opaque-2');
+    const select = screen.getByRole('combobox', { name: 'Fiscal year' });
+    expect(select).toHaveValue(JSON.stringify({ kind: 'all' }));
+    expect(fetchMock).not.toHaveBeenCalled();
+    await userEvent.selectOptions(select, JSON.stringify({ kind: 'year', year: 'opaque-2' }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('proj-1', 'opaque-2'));
-    expect(summaryMock).toHaveBeenCalledTimes(1);
+    expect(comparisonMock).toHaveBeenCalledWith('proj-1', 'opaque-2');
   });
 
-  it('falls back to the first active year when the summary has no spending', async () => {
-    yearsMock.mockResolvedValue([{ fiscalYear: 'first', isActivePush: false }, { fiscalYear: 'active', isActivePush: true }]);
-    summaryMock.mockResolvedValue(null);
+  it('defaults to the current fiscal year when no active budget record covers it', async () => {
+    yearsMock.mockResolvedValue([{ fiscalYear: 'single-year', hasActiveBudget: false }]);
     renderForecast();
     await rowFor('Labor');
-    expect(screen.getByRole('combobox', { name: 'Fiscal year' })).toHaveValue('active');
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('combobox', { name: 'Fiscal year' })).toHaveValue(JSON.stringify({ kind: 'year', year: ERP_FISCAL_YEAR }));
+    expect(fetchMock).toHaveBeenCalledWith('proj-1', ERP_FISCAL_YEAR);
   });
 
-  it('surfaces a summary error without guessing a year', async () => {
-    summaryMock.mockRejectedValue(new Error('summary failed'));
-    renderForecast();
-    expect(await screen.findByText('Fiscal years could not be loaded')).toBeInTheDocument();
+  it('surfaces a saved distribution read error without guessing a project scope', async () => {
+    distributionMock.mockReturnValue({ data: null, isSuccess: false, isPending: false, isError: true, refetch: vi.fn() });
+    renderForecast({ budgetMode: 'whole_project' });
+    expect(await screen.findByText('Saved fiscal-year choices could not be loaded')).toBeInTheDocument();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -230,25 +738,46 @@ describe('BudgetProjection — the forward view (AC-BUD-050/051)', () => {
     renderForecast();
     await rowFor('Labor');
     const options = Array.from((screen.getByRole('combobox', { name: 'Fiscal year' }) as HTMLSelectElement).options).map((o) => o.value);
-    // '' is the "Whole project" choice, which reads no fiscal year at all.
-    expect(options).toEqual(['', ERP_FISCAL_YEAR, PRIOR_ERP_FISCAL_YEAR]);
+    expect(options).toEqual([JSON.stringify({ kind: 'all' }), JSON.stringify({ kind: 'year', year: ERP_FISCAL_YEAR })]);
   });
 
   it('H-4 selecting another fiscal year reads THAT year', async () => {
     const user = userEvent.setup();
+    yearsMock.mockResolvedValue([
+      { fiscalYear: ERP_FISCAL_YEAR, hasActiveBudget: true },
+      { fiscalYear: PRIOR_ERP_FISCAL_YEAR, hasActiveBudget: false },
+    ]);
     renderForecast();
     await rowFor('Labor');
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Fiscal year' }), PRIOR_ERP_FISCAL_YEAR);
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Fiscal year' }), JSON.stringify({ kind: 'year', year: PRIOR_ERP_FISCAL_YEAR }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('proj-1', PRIOR_ERP_FISCAL_YEAR));
   });
 
-  it('H-4/C-3/MED-3 with no fiscal year on record it says so, shows no money grid, names the real route out and offers no edit', async () => {
-    yearsMock.mockResolvedValue([]);
+  it('uses comparison approved and recorded values for a selected year while retaining ETC forecast math', async () => {
+    fetchMock.mockResolvedValue([{ ...ROW, pmoBudgetAmount: 900000, actualsToDate: 800000, pmoEtc: 35000 }]);
+    comparisonMock.mockResolvedValue([{
+      category: 'Labor', budgetTotal: 100000, recorded: 30000, recordedAsOf: READ_AT,
+      mapped: true, hasLedger: true, remaining: 70000, percentUsed: 0.3,
+    }]);
     renderForecast();
-    expect(await screen.findByText('Choose a fiscal year to view the ERP forecast')).toBeInTheDocument();
-    expect(screen.getByText(/Activate and push a budget version/)).toBeInTheDocument();
+    const row = within(await rowFor('Labor'));
+    expect(row.getByText('$100,000')).toBeInTheDocument();
+    expect(row.getByText('$30,000')).toBeInTheDocument();
+    expect(row.getByText('$65,000')).toBeInTheDocument();
+    expect(row.getAllByText('$35,000').length).toBeGreaterThan(0);
+    expect(row.queryByText('$900,000')).not.toBeInTheDocument();
+    expect(row.queryByText('$800,000')).not.toBeInTheDocument();
+    expect(comparisonMock).toHaveBeenCalledWith('proj-1', ERP_FISCAL_YEAR);
+  });
+
+  it('shows an honest empty all-years state when there are no categories and offers no year editor', async () => {
+    setTwoYearCurrentCalendar();
+    yearsMock.mockResolvedValue([]);
+    comparisonMock.mockResolvedValue([]);
+    renderForecast(TWO_YEAR_PROJECT);
+    expect(await screen.findByText('No approved budget or recorded spending is available yet')).toBeInTheDocument();
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(comparisonMock).toHaveBeenCalledWith('proj-1', null);
     expect(screen.queryByText(/estimate to complete/i)).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /edit cost to finish/i })).not.toBeInTheDocument();
   });
@@ -256,7 +785,7 @@ describe('BudgetProjection — the forward view (AC-BUD-050/051)', () => {
   it('H-4 surfaces a failure to read the fiscal years rather than falling back to a guessed year', async () => {
     yearsMock.mockRejectedValue(new Error('boom'));
     renderForecast();
-    expect(await screen.findByText('Fiscal years could not be loaded')).toBeInTheDocument();
+    expect(await screen.findByText('Saved fiscal-year choices could not be loaded')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
     expect(fetchMock).not.toHaveBeenCalled();
   });
@@ -265,7 +794,8 @@ describe('BudgetProjection — the forward view (AC-BUD-050/051)', () => {
     fetchMock.mockResolvedValue([{ ...ROW, pmoBudgetAmount: null, projectedVariance: null, projectedUtilization: null }]);
     renderForecast();
     const row = within(await rowFor('Labor'));
-    expect(row.getAllByText('—').length).toBeGreaterThanOrEqual(2);
+    expect(row.getByText('—')).toBeInTheDocument();
+    expect(row.getByText('-$75,000')).toBeInTheDocument();
     expect(row.getByText('Unavailable')).toBeInTheDocument();
     expect(row.queryByText('$0')).not.toBeInTheDocument();
     expect(row.queryByText('0%')).not.toBeInTheDocument();
@@ -281,13 +811,18 @@ describe('BudgetProjection — the forward view (AC-BUD-050/051)', () => {
 
   it('shows an error state with retry on a failed fetch', async () => {
     const user = userEvent.setup();
-    renderForecast();
+    setTwoYearCurrentCalendar(['current-a', 'current-b']);
+    yearsMock.mockResolvedValue([
+      { fiscalYear: ERP_FISCAL_YEAR, hasActiveBudget: true },
+      { fiscalYear: PRIOR_ERP_FISCAL_YEAR, hasActiveBudget: false },
+    ]);
+    renderForecast(TWO_YEAR_PROJECT);
     await rowFor('Labor');
 
     // Let fiscal-year discovery and its default-year scan succeed first. Fail the user's
     // subsequent forecast read for a different listed year, so this exercises forecast Retry.
     fetchMock.mockRejectedValueOnce(new Error('boom'));
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Fiscal year' }), PRIOR_ERP_FISCAL_YEAR);
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Fiscal year' }), JSON.stringify({ kind: 'year', year: ERP_FISCAL_YEAR }));
 
     expect(await screen.findByText('Forecast could not be loaded')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
@@ -381,7 +916,7 @@ describe('BudgetProjection — an unobtainable figure is never rendered as money
 
   it('reads the projection fraction as a percent: 0.95 is 95% and At risk, 0.75 is Watch', async () => {
     fetchMock.mockResolvedValue([
-      { ...ROW, pmoBudgetAmount: 100000, projectedFinalCost: 95000, projectedVariance: 5000, projectedUtilization: 0.95 },
+      { ...ROW, pmoBudgetAmount: 100000, actualsToDate: 60000, projectedFinalCost: 95000, projectedVariance: 5000, projectedUtilization: 0.95 },
     ]);
     renderForecast();
     const row = within(await rowFor('Labor'));
@@ -438,12 +973,18 @@ describe('BudgetProjection — a NULL budget, continued (HIGH-1, FU-2)', () => {
   it('HIGH-1 says the budget is not on record for the selected year, and on the recorded year that the category has no line', async () => {
     // A late posting lands in a year the budget never covered; Labor has no line in any year.
     const user = userEvent.setup();
+    yearsMock.mockResolvedValue([
+      { fiscalYear: ERP_FISCAL_YEAR, hasActiveBudget: true },
+      { fiscalYear: PRIOR_ERP_FISCAL_YEAR, hasActiveBudget: false },
+    ]);
     fetchMock.mockResolvedValue([{ ...NO_BUDGET, actualsToDate: 12000, pmoEtc: 0, projectedFinalCost: 12000 }]);
     phasingMock.mockResolvedValue(phasing({ Materials: [ERP_FISCAL_YEAR] }));
     renderForecast();
+    await screen.findByRole('option', { name: new RegExp(ERP_FISCAL_YEAR) });
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Fiscal year' }), JSON.stringify({ kind: 'year', year: ERP_FISCAL_YEAR }));
     // HIGH-1 (second half): on the year the budget IS on record for, it is a missing line.
     expect(await screen.findByText('Labor: No budget line is recorded for this category.')).toBeInTheDocument();
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Fiscal year' }), PRIOR_ERP_FISCAL_YEAR);
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Fiscal year' }), JSON.stringify({ kind: 'year', year: PRIOR_ERP_FISCAL_YEAR }));
     expect(await screen.findByText('Labor: No budget is recorded for this fiscal year.')).toBeInTheDocument();
     expect(within(await rowFor('Labor')).getAllByText('$12,000').length).toBeGreaterThan(0);
   });
@@ -455,6 +996,7 @@ describe('BudgetProjection — a NULL budget, continued (HIGH-1, FU-2)', () => {
     const incomplete = await screen.findByTestId('forecast-incomplete');
     await waitFor(() => expect(phasingMock).toHaveBeenCalled());
     expect(incomplete).not.toHaveTextContent(/cannot be attributed|stale|No budget|another fiscal year/);
+    expect(within(await rowFor('Labor')).getAllByText('—').length).toBeGreaterThanOrEqual(2);
   });
 
   it('makes NO claim while the phasing fact is still in flight — never a transient false reason', async () => {
@@ -478,6 +1020,8 @@ describe('BudgetProjection — cost to finish editing (OD-BUDGET-3, UX-039)', ()
     fetchMock.mockResolvedValue(rows);
     const user = userEvent.setup();
     renderForecast();
+    await screen.findByRole('option', { name: new RegExp(ERP_FISCAL_YEAR) });
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Fiscal year' }), JSON.stringify({ kind: 'year', year: ERP_FISCAL_YEAR }));
     await user.click(await screen.findByRole('button', { name: 'Edit cost to finish' }));
     return user;
   };
@@ -594,15 +1138,15 @@ describe('BudgetProjection — cost to finish editing (OD-BUDGET-3, UX-039)', ()
     const wrapper = ({ children }: { children: React.ReactNode }) => (
       <FinanceI18nTestProvider><QueryClientProvider client={client}>{children}</QueryClientProvider></FinanceI18nTestProvider>
     );
-    const { result, rerender } = renderHook(({ project, year }) => useForecastEditor(project, year, [ROW]), {
-      wrapper, initialProps: { project: 'proj-1', year: ERP_FISCAL_YEAR },
+    const { result, rerender } = renderHook(({ project, year, org, version }) => useForecastEditor(project, year, [ROW], org, version), {
+      wrapper, initialProps: { project: 'proj-1', year: ERP_FISCAL_YEAR, org: 'org-1', version: 'version-1' },
     });
     act(() => result.current.beginEdit());
     act(() => result.current.changeDraft('Labor', '41000'));
     act(() => result.current.saveEdits());
     await waitFor(() => expect(upsertEtcMock).toHaveBeenCalledTimes(1));
     act(() => result.current.cancelEdit());
-    rerender({ project: 'proj-2', year: PRIOR_ERP_FISCAL_YEAR });
+    rerender({ project: 'proj-2', year: PRIOR_ERP_FISCAL_YEAR, org: 'org-1', version: 'version-1' });
     act(() => result.current.beginEdit());
     act(() => result.current.changeDraft('Labor', '43000'));
     act(() => result.current.saveEdits());
@@ -612,12 +1156,16 @@ describe('BudgetProjection — cost to finish editing (OD-BUDGET-3, UX-039)', ()
     expect(result.current.editing).toBe(true);
     expect(result.current.draft.Labor).toBe('43000');
     expect(result.current.errors).toEqual({});
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['budget-projection', 'proj-1', ERP_FISCAL_YEAR] });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['budget-projection', 'org-1', 'proj-1', 'version-1', ERP_FISCAL_YEAR] });
     expect(upsertEtcMock).toHaveBeenCalledWith('proj-1', ERP_FISCAL_YEAR, 'Labor', 41000);
   });
 
   it('retries only the failed entry and then saves a separately selected year', async () => {
     upsertEtcMock.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('offline')).mockResolvedValue(undefined);
+    yearsMock.mockResolvedValue([
+      { fiscalYear: ERP_FISCAL_YEAR, hasActiveBudget: true },
+      { fiscalYear: PRIOR_ERP_FISCAL_YEAR, hasActiveBudget: false },
+    ]);
     const user = await openEditor();
     await type(user, 'Labor', '41000');
     await type(user, 'Materials', '42000');
@@ -630,7 +1178,7 @@ describe('BudgetProjection — cost to finish editing (OD-BUDGET-3, UX-039)', ()
       ['proj-1', ERP_FISCAL_YEAR, 'Materials', 42000],
       ['proj-1', ERP_FISCAL_YEAR, 'Materials', 42000],
     ]);
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Fiscal year' }), PRIOR_ERP_FISCAL_YEAR);
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Fiscal year' }), JSON.stringify({ kind: 'year', year: PRIOR_ERP_FISCAL_YEAR }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('proj-1', PRIOR_ERP_FISCAL_YEAR));
     await user.click(await screen.findByRole('button', { name: 'Edit cost to finish' }));
     await type(user, 'Labor', '44000');
@@ -668,11 +1216,15 @@ describe('BudgetProjection — cost to finish editing (OD-BUDGET-3, UX-039)', ()
   });
 
   it('UX-039 the fiscal year is locked while the editor is open, so a save stays on the year it was opened for', async () => {
+    yearsMock.mockResolvedValue([
+      { fiscalYear: ERP_FISCAL_YEAR, hasActiveBudget: true },
+      { fiscalYear: PRIOR_ERP_FISCAL_YEAR, hasActiveBudget: false },
+    ]);
     const user = await openEditor();
     const year = screen.getByRole('combobox', { name: 'Fiscal year' });
     expect(year).toBeDisabled();
-    await user.selectOptions(year, PRIOR_ERP_FISCAL_YEAR).catch(() => undefined);
-    expect(year).toHaveValue(ERP_FISCAL_YEAR);
+    await user.selectOptions(year, JSON.stringify({ kind: 'year', year: PRIOR_ERP_FISCAL_YEAR })).catch(() => undefined);
+    expect(year).toHaveValue(JSON.stringify({ kind: 'year', year: ERP_FISCAL_YEAR }));
     await type(user, 'Materials', '45000');
     await user.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(upsertEtcMock).toHaveBeenCalledWith('proj-1', ERP_FISCAL_YEAR, 'Materials', 45000));

@@ -19,6 +19,8 @@ import { encodeFiscalYear } from '@/src/lib/adapterSeam/erpnext/fiscalYearEncodi
 import { budgetAccountIdentity } from '@/src/lib/adapterSeam/erpnext/budgetAccountIdentity';
 import type { Database } from '@/src/lib/supabase/database.types';
 import type { BudgetPostingAccount } from '@/src/lib/budget/categoryAccountMap';
+import type { BudgetProjectFiscalCalendar, BudgetProjectFiscalYearSpan } from '@/src/lib/budget/budgetProjectFiscalCalendar';
+import { invokeWithTimeout } from '@/src/lib/supabase/invokeWithTimeout';
 
 export type BudgetCategory = Database['public']['Enums']['budget_category'];
 
@@ -58,6 +60,22 @@ export interface BudgetProjectionCellRow {
    * to `true` on an older RPC shape: claiming a suppression PMO cannot see would be its own false alarm.
    */
   attributionKnown: boolean;
+}
+
+/** One scope's comparison of approved budget to ledger-recorded spending (AC-013/015). */
+export interface BudgetComparisonRow {
+  category: BudgetCategory;
+  /** Explicit zero is known; null means no approved amount can be stated for this category/scope. */
+  budgetTotal: number | null;
+  /** Explicit zero is known; null means unmapped or the ledger has not been read for this scope. */
+  recorded: number | null;
+  recordedAsOf: string | null;
+  mapped: boolean;
+  hasLedger: boolean;
+  /** Only known when both approved budget and recorded spending are known. */
+  remaining: number | null;
+  /** Fraction (0.7 = 70%); null for unknown inputs and a zero budget. */
+  percentUsed: number | null;
 }
 
 /**
@@ -112,8 +130,79 @@ export interface BudgetFiscalYearRow {
   /** The ERPNext `Fiscal Year` NAME as stored — '2026' for a calendar client, '2025-2026' for a Jul–Jun
    *  one. PMO never parses, orders-by-parsing, or synthesizes this: it is the client's own label. */
   fiscalYear: string;
-  /** True for the year the project's ACTIVE budget version was pushed against — a fallback if no listed year has spending. */
-  isActivePush: boolean;
+  /** The SQL RPC's on-record flag: the Active version has an approved budget for this year. */
+  hasActiveBudget: boolean;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function hasOnlyKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
+  return Object.keys(value).length === keys.length && Object.keys(value).every((key) => keys.includes(key));
+}
+
+function isIsoCivilDate(value: unknown): value is string {
+  if (typeof value !== 'string') return false;
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return false;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  if (year < 1 || month < 1 || month > 12 || day < 1 || day > 31) return false;
+  const parsed = new Date(0);
+  parsed.setUTCHours(0, 0, 0, 0);
+  parsed.setUTCFullYear(year, month - 1, day);
+  return parsed.getUTCFullYear() === year && parsed.getUTCMonth() === month - 1 && parsed.getUTCDate() === day;
+}
+
+function isProjectDate(value: unknown): value is string | null {
+  return value === null || isIsoCivilDate(value);
+}
+
+function isNextCivilDay(previous: string, next: string): boolean {
+  return Date.parse(`${next}T00:00:00.000Z`) - Date.parse(`${previous}T00:00:00.000Z`) === 86_400_000;
+}
+
+function isFiscalYearSpan(value: unknown): value is BudgetProjectFiscalYearSpan {
+  return isRecord(value) && hasOnlyKeys(value, ['name', 'start', 'end']) &&
+    typeof value.name === 'string' && value.name.trim() !== '' && value.name.length <= 140 &&
+    isIsoCivilDate(value.start) && isIsoCivilDate(value.end) && value.start <= value.end;
+}
+
+function isBudgetProjectFiscalCalendar(value: unknown): value is BudgetProjectFiscalCalendar {
+  if (!isRecord(value) || typeof value.status !== 'string' || !isRecord(value.project)) return false;
+  if (value.status === 'resolved') {
+    if (!hasOnlyKeys(value, ['status', 'project', 'years']) || !hasOnlyKeys(value.project, ['start', 'end']) ||
+      !isIsoCivilDate(value.project.start) || !isProjectDate(value.project.end) ||
+      (value.project.end !== null && value.project.end < value.project.start) ||
+      !Array.isArray(value.years) || value.years.length === 0 || !value.years.every(isFiscalYearSpan)) return false;
+
+    const years = value.years;
+    const names = new Set<string>();
+    for (const [index, year] of years.entries()) {
+      if (names.has(year.name)) return false;
+      names.add(year.name);
+      if (index > 0 && !isNextCivilDay(years[index - 1].end, year.start)) return false;
+    }
+    return years[0].start <= value.project.start && years[0].end >= value.project.start &&
+      (value.project.end === null
+        ? years.length === 1 && value.project.start <= years[0].end
+        : years[years.length - 1].start <= value.project.end && years[years.length - 1].end >= value.project.end);
+  }
+  return ['bad-project-dates', 'binding-unavailable', 'unavailable', 'unresolved'].includes(value.status) &&
+    hasOnlyKeys(value, ['status', 'project']) && hasOnlyKeys(value.project, ['start', 'end']) &&
+    isProjectDate(value.project.start) && isProjectDate(value.project.end);
+}
+
+/** Resolves the server-authoritative client fiscal calendar for one visible project. */
+export async function fetchProjectFiscalCalendar(projectId: string): Promise<BudgetProjectFiscalCalendar> {
+  const { data, error } = await invokeWithTimeout(supabase.functions.invoke<unknown>('external-items', {
+    body: { purpose: 'budget-project-calendar', projectId },
+  }), 18_000);
+  if (error) throw toAppError(error);
+  if (!isBudgetProjectFiscalCalendar(data)) throw new AppError('The project fiscal calendar response was invalid.');
+  return data;
 }
 
 /** One `budget_category_account_map` row, camelCase. A category may hold several (#768); at most one of them
@@ -178,6 +267,30 @@ export async function fetchBudgetProjection(
     projectedVariance: num(row.projected_variance),
     projectedUtilization: num(row.projected_utilization),
     attributionKnown: row.attribution_known !== false,
+  }));
+}
+
+/** Reads the canonical comparison for all years (null) or one client-defined fiscal year. */
+export async function fetchBudgetComparison(
+  projectId: string,
+  fiscalYear: string | null,
+): Promise<BudgetComparisonRow[]> {
+  const { data, error } = await supabase.rpc('get_budget_comparison', {
+    p_project_id: projectId,
+    p_fiscal_year: fiscalYear,
+  });
+  if (error) throw toAppError(error);
+  const num = (value: number | string | null | undefined): number | null =>
+    value === null || value === undefined ? null : Number(value);
+  return (data ?? []).map((row) => ({
+    category: row.category,
+    budgetTotal: num(row.budget_total),
+    recorded: num(row.recorded),
+    recordedAsOf: row.recorded_as_of ?? null,
+    mapped: row.mapped,
+    hasLedger: row.has_ledger,
+    remaining: num(row.remaining),
+    percentUsed: num(row.percent_used),
   }));
 }
 
@@ -295,7 +408,7 @@ export async function fetchActiveBudgetCategoryPhasing(projectId: string): Promi
 export async function listBudgetFiscalYears(projectId: string): Promise<BudgetFiscalYearRow[]> {
   const { data, error } = await supabase.rpc('list_budget_fiscal_years', { p_project_id: projectId });
   if (error) throw toAppError(error);
-  return (data ?? []).map((row) => ({ fiscalYear: row.fiscal_year, isActivePush: row.is_active_push }));
+  return (data ?? []).map((row) => ({ fiscalYear: row.fiscal_year, hasActiveBudget: row.is_active_push }));
 }
 
 /** Find the first year with spending in the supplied, opaque fiscal-year order. */

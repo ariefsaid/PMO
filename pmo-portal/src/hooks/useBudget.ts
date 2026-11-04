@@ -17,8 +17,16 @@ const budgetVersionsKey = (orgId: string | undefined, projectId: string) =>
 const budgetDistributionKey = (orgId: string | undefined, projectId: string, versionId: string | undefined) =>
   ['budget-distribution', orgId, projectId, versionId] as const;
 
+/** C2 forecast/comparison key families — org+project scoped prefixes cover every version/scope suffix. */
+const forecastKeyFamilies = [
+  'budget-comparison',
+  'budget-projection',
+  'active-budget-category-phasing',
+  'budget-fiscal-years',
+] as const;
+
 // ---------------------------------------------------------------------------
-// Shared budget invalidation (#1472 S6A)
+// Shared budget invalidation (#1472 S6A; forecast families from C2 S7)
 // ---------------------------------------------------------------------------
 
 /**
@@ -27,7 +35,9 @@ const budgetDistributionKey = (orgId: string | undefined, projectId: string, ver
  * Preserves the established `budget`, `budget-versions`, `budget-activation-precheck` and
  * `project-finances` keys and adds the whole project's `budget-distribution` prefix, so every
  * version's saved plan re-evaluates against the changed source lines (a refetch re-reads the
- * rows and basis; it never deletes or silently re-saves a plan).
+ * rows and basis; it never deletes or silently re-saves a plan). The four C2 forecast families
+ * invalidate under the same org+project scope so budget lifecycle changes reach comparison,
+ * projection, phasing and fiscal-year reads without a duplicate waterfall.
  */
 export function invalidateBudgetQueries(queryClient: QueryClient, orgId: string | undefined, projectId: string): void {
   queryClient.invalidateQueries({ queryKey: budgetKey(orgId, projectId) });
@@ -35,6 +45,9 @@ export function invalidateBudgetQueries(queryClient: QueryClient, orgId: string 
   queryClient.invalidateQueries({ queryKey: ['budget-activation-precheck'] });
   queryClient.invalidateQueries({ queryKey: ['project-finances', orgId, projectId] });
   queryClient.invalidateQueries({ queryKey: ['budget-distribution', orgId, projectId] });
+  for (const family of forecastKeyFamilies) {
+    queryClient.invalidateQueries({ queryKey: [family, orgId, projectId] });
+  }
 }
 
 // ---------------------------------------------------------------------------

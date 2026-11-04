@@ -54,6 +54,7 @@ import BudgetVersionsDrawer from './project-detail/budget/BudgetVersionsDrawer';
 import BudgetErpNotice from './project-detail/budget/BudgetErpNotice';
 import { buildBudgetSummaryRows, committedTotal, type BudgetSummaryRow } from './project-detail/budget/budgetModel';
 import BudgetProjection from './BudgetProjection';
+import { buildBudgetProjectionCsv, type BudgetProjectionExport } from '@/src/lib/budget/budgetProjectionExport';
 import { AttributedSpendingNote } from './project-detail/AttributedSpendingNote';
 import BudgetLineItemEditor from './project-budget/BudgetLineItemEditor';
 import DistributionGrid, { type DistributionReadinessStatus, type DistributionSourceWitness } from './project-budget/DistributionGrid';
@@ -192,6 +193,9 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
     [versionsQuery.data],
   );
   const activeVersion = versions.find((version) => version.status === 'Active');
+  const approvedBudgetYears = useMemo(() => activeVersion?.budget_mode === 'per_year'
+    ? [...new Set(activeVersion.line_items.flatMap((line) => line.fiscal_year ? [line.fiscal_year] : []))]
+    : [], [activeVersion]);
   const draftVersion = versions.find((version) => version.status === 'Draft');
   const draftMode = draftVersion?.budget_mode === 'whole_project' ? 'whole_project' : 'per_year';
   const budgetDistributionQuery = useBudgetDistribution(
@@ -862,11 +866,14 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
             {position.actualsError && <p role="status" className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">{t('projectDetail.budget.actualsError', "Couldn't check spending.")}<Button variant="ghost" size="sm" onClick={() => void position.refetchActuals()}>{t('common.retry', 'Retry')}</Button></p>}
             {canSeeActuals && position.unknown > 0 && !position.actualsPending && !position.actualsError && <p className="text-sm text-muted-foreground">{t('projectDetail.cost.spendingUnlinked', "Spending isn't linked yet.")} {canManageAccounting ? <a href="/administration/accounting#budget-account-map" className="font-medium text-primary-text underline underline-offset-2">{t('projectDetail.cost.finishSetup', 'Finish spending setup')}</a> : t('projectDetail.cost.askAdmin', 'An administrator can finish the setup.')}</p>}
           </> : versions.length === 0 ? null : <ListState variant="empty" title={t('projectDetail.budget.noActiveBudget', 'No active budget')} sub={t('financeCopy.createADraftVersionToStartPlanningTheProjectBudget', 'Create a Draft version to start planning the project budget.')} />
-        ) : activeVersion ? <><AttributedSpendingNote projectId={projectId} /><BudgetProjection projectId={projectId} currency={project.currency} budgetCurrency={activeBudgetCurrency} canEdit={canWrite} committedByCategory={Object.fromEntries(summaryRows.map((row) => [row.category, canSeeCommitments ? row.committed : null]))} canReadCommitments={canSeeCommitments} onAdjustInDraft={adjustInDraft} onExport={(rows) => {
-          const headers = ['Category', `Budget (${activeBudgetCurrency})`, `Spent (${project.currency})`, `Cost to finish (${project.currency})`, `Forecast final (${project.currency})`, `Forecast remaining (${project.currency})`];
-          const csv = [headers, ...rows.map((row) => [budgetCategoryLabel(row.category, t), row.pmoBudgetAmount ?? '', row.actualsToDate ?? '', row.pmoEtc, row.projectedFinalCost ?? '', row.projectedVariance ?? ''])].map((line) => line.map((value) => `"${String(value).replaceAll('"', '""')}"`).join(',')).join('\r\n');
+        ) : activeVersion ? <><AttributedSpendingNote projectId={projectId} /><BudgetProjection projectId={projectId} orgId={currentUser?.org_id} budgetVersionId={activeVersion.id} projectStartDate={project.start_date ?? null} projectEndDate={project.end_date ?? null} budgetMode={activeVersion.budget_mode} approvedBudgetYears={approvedBudgetYears} currency={project.currency} budgetCurrency={activeBudgetCurrency} canEdit={canWrite} committedByCategory={Object.fromEntries(summaryRows.map((row) => [row.category, canSeeCommitments ? row.committed : null]))} canReadCommitments={canSeeCommitments} onAdjustInDraft={adjustInDraft} onExport={(payload: BudgetProjectionExport) => {
+          const csv = buildBudgetProjectionCsv(payload, {
+            budgetCurrency: activeBudgetCurrency,
+            projectCurrency: project.currency,
+            categoryLabel: (category) => budgetCategoryLabel(category, t),
+          });
           const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
-          const link = document.createElement('a'); link.href = url; link.download = 'ProjectBudgetForecast.csv'; link.click(); URL.revokeObjectURL(url);
+          const link = document.createElement('a'); link.href = url; link.download = payload.scope.kind === 'all' ? 'ProjectBudgetComparison.csv' : 'ProjectBudgetForecast.csv'; link.click(); URL.revokeObjectURL(url);
         }} /></> : <ListState variant="empty" title={t('projectDetail.budget.forecastNeedsActive', 'Activate a budget to view its forecast')} />}
         </CardPad>
       </Card>
