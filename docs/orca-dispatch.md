@@ -69,6 +69,7 @@ not the symptom (CLAUDE.md, "Don't waste CI minutes").
 4. Scope fences: what not to touch, what is already decided.
 5. A persistence clause (finish every item; stopping early with partial work is the known failure)
    and a final sentinel line (`DONE: <task>`) so a killed or truncated run is obvious.
+   UI-change briefs also require `node scripts/affected-e2e.mjs` and its selected specs locally.
 6. "Check your own work against the input list and report deviations."
 7. Commit with the repo's configured git identity: never set `user.name`/`user.email`, never add a
    `Co-authored-by` or other attribution trailer (`.githooks/commit-msg` rejects them). Squash merges
