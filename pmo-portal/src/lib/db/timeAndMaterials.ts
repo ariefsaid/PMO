@@ -35,7 +35,11 @@ export interface TmClaimSourceDetail {
   /** Full selected subtotal for this person and unit, even when the visible list is capped. */
   person_unit_total: number;
 }
-export interface TmClaimSourcesRead extends Bounded<TmClaimSourceDetail> { totalCount: number }
+export interface TmClaimSourcesRead extends Bounded<TmClaimSourceDetail> {
+  totalCount: number;
+  /** Whether the stored preparation fingerprint still matches this claim's current lines and sources. */
+  signoffCurrent: boolean | null;
+}
 
 export type TmRateUnit = 'hour' | 'day';
 export type TmClaimStatus = 'Draft' | 'SignedOff' | 'Withdrawn';
@@ -446,11 +450,15 @@ export async function previewTmClaim(input: TmClaimPreviewInput): Promise<Bounde
   return bounded(((data ?? []) as unknown[]).map(parsePreviewRow));
 }
 
-interface ParsedTmClaimSourceDetail extends TmClaimSourceDetail { total_count: number }
+interface ParsedTmClaimSourceDetail extends TmClaimSourceDetail {
+  total_count: number;
+  signoff_is_current: boolean;
+}
 
 function parseTmClaimSourceDetail(raw: unknown): ParsedTmClaimSourceDetail {
   const row = (raw ?? {}) as Record<string, unknown>;
   if (typeof row.is_selected !== 'boolean') throw new AppError('the source selection state is malformed', 'tm-malformed');
+  if (typeof row.signoff_is_current !== 'boolean') throw new AppError('the sign-off freshness is malformed', 'tm-malformed');
   return {
     id: str(row.id, 'claim source row id'),
     entry_id: str(row.entry_id, 'source entry id'),
@@ -463,6 +471,7 @@ function parseTmClaimSourceDetail(raw: unknown): ParsedTmClaimSourceDetail {
     is_selected: row.is_selected,
     person_unit_total: finite(row.person_unit_total, 'person source subtotal'),
     total_count: finite(row.total_count, 'source entry count'),
+    signoff_is_current: row.signoff_is_current,
   };
 }
 
@@ -473,7 +482,9 @@ export async function listTmClaimSources(claimId: string): Promise<TmClaimSource
   fail(error);
   const details = ((data ?? []) as unknown[]).map(parseTmClaimSourceDetail);
   const totalCount = details[0]?.total_count ?? 0;
+  const signoffCurrent = details[0]?.signoff_is_current ?? null;
   if (details.some((source) => source.total_count !== totalCount)) throw new AppError('the source-entry count is inconsistent', 'tm-malformed');
-  const rows = details.map(({ total_count: _totalCount, ...detail }) => detail);
-  return { ...bounded(rows), totalCount };
+  if (details.some((source) => source.signoff_is_current !== signoffCurrent)) throw new AppError('the sign-off freshness is inconsistent', 'tm-malformed');
+  const rows = details.map(({ total_count: _totalCount, signoff_is_current: _signoffCurrent, ...detail }) => detail);
+  return { ...bounded(rows), totalCount, signoffCurrent };
 }

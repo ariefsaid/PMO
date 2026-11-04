@@ -284,21 +284,33 @@ describe('#1514 T7.1 claim and preview reads', () => {
     h.result.value = { data: [{
       id: 'source-row-1', entry_id: 'entry-1', entry_date: '2026-11-03', person_id: 'u1', person_name: 'Engineer One',
       units: '8.00', unit: 'hour', line_label: 'Site engineer', is_selected: true, person_unit_total: '8.00', total_count: 1,
+      signoff_is_current: true,
     }], error: null };
     await expect(dal.listTmClaimSources('c1')).resolves.toEqual({
       rows: [{
         id: 'source-row-1', entry_id: 'entry-1', entry_date: '2026-11-03', person_id: 'u1', person_name: 'Engineer One',
         units: 8, unit: 'hour', line_label: 'Site engineer', is_selected: true, person_unit_total: 8,
       }], truncated: false, totalCount: 1,
+      signoffCurrent: true,
     });
     expect(h.calls.rpc).toEqual([['list_tm_claim_source_details', { p_claim: 'c1' }]]);
     expect(h.calls.limit).toContain(LIST_LIMIT + 1);
+  });
+
+  it('reports when a prepared sign-off no longer matches the claim sources', async () => {
+    h.result.value = { data: [{
+      id: 'source-row-1', entry_id: 'entry-1', entry_date: '2026-11-03', person_id: 'u1', person_name: 'Engineer One',
+      units: '8.00', unit: 'hour', line_label: 'Site engineer', is_selected: true, person_unit_total: '8.00', total_count: 1,
+      signoff_is_current: false,
+    }], error: null };
+    await expect(dal.listTmClaimSources('c1')).resolves.toMatchObject({ signoffCurrent: false });
   });
 
   it('T7.1 source details keep the exact total when the visible rows are capped', async () => {
     const sources = Array.from({ length: LIST_LIMIT + 1 }, (_, index) => ({
       id: `source-${index}`, entry_id: `entry-${index}`, entry_date: '2026-11-03', person_id: 'u1', person_name: 'Engineer One',
       units: '1.00', unit: 'hour', line_label: 'Site engineer', is_selected: true, person_unit_total: '237.00', total_count: 237,
+      signoff_is_current: true,
     }));
     h.result.value = { data: sources, error: null };
     const result = await dal.listTmClaimSources('c1');
@@ -311,8 +323,16 @@ describe('#1514 T7.1 claim and preview reads', () => {
 
   it('T7.1 rejects a source read whose exact totals disagree across rows', async () => {
     h.result.value = { data: [
-      { id: 'source-1', entry_id: 'entry-1', entry_date: null, person_id: null, person_name: null, units: '1', unit: 'hour', line_label: 'Site engineer', is_selected: true, person_unit_total: '1', total_count: 2 },
-      { id: 'source-2', entry_id: 'entry-2', entry_date: null, person_id: null, person_name: null, units: '1', unit: 'hour', line_label: 'Site engineer', is_selected: true, person_unit_total: '1', total_count: 3 },
+      { id: 'source-1', entry_id: 'entry-1', entry_date: null, person_id: null, person_name: null, units: '1', unit: 'hour', line_label: 'Site engineer', is_selected: true, person_unit_total: '1', total_count: 2, signoff_is_current: true },
+      { id: 'source-2', entry_id: 'entry-2', entry_date: null, person_id: null, person_name: null, units: '1', unit: 'hour', line_label: 'Site engineer', is_selected: true, person_unit_total: '1', total_count: 3, signoff_is_current: true },
+    ], error: null };
+    await expect(dal.listTmClaimSources('c1')).rejects.toMatchObject({ code: 'tm-malformed' });
+  });
+
+  it('rejects a source read whose prepared sign-off freshness disagrees across rows', async () => {
+    h.result.value = { data: [
+      { id: 'source-1', entry_id: 'entry-1', entry_date: null, person_id: null, person_name: null, units: '1', unit: 'hour', line_label: 'Site engineer', is_selected: true, person_unit_total: '1', total_count: 2, signoff_is_current: true },
+      { id: 'source-2', entry_id: 'entry-2', entry_date: null, person_id: null, person_name: null, units: '1', unit: 'hour', line_label: 'Site engineer', is_selected: true, person_unit_total: '1', total_count: 2, signoff_is_current: false },
     ], error: null };
     await expect(dal.listTmClaimSources('c1')).rejects.toMatchObject({ code: 'tm-malformed' });
   });

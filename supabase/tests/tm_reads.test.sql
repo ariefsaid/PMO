@@ -198,39 +198,39 @@ select is(pg_temp.sc($q$select count(*) from list_tm_claims('15140000-0000-0000-
 -- claim's org before the definer reads timesheets or profiles.
 select pg_temp.as_user('15140000-0000-0000-0000-0000000000b1');
 select is(pg_temp.sc(format($q$select count(*) from list_tm_claim_source_details(%L)$q$, pg_temp.st('claimA'))), '15',
-  'D1 the signed-off claim detail returns all 15 assembled hour entries');
+  'AC-TM-011 D1 the signed-off claim detail returns all 15 assembled hour entries');
 select is(pg_temp.sc(format($q$select entry_date::text || ' ' || person_name || ' ' || line_label || ' ' || units::text || ' ' || unit || ' ' || is_selected::text
   from list_tm_claim_source_details(%L) order by entry_date, entry_id limit 1$q$, pg_temp.st('claimA'))), '2026-10-05 TM Engineer 1 Site engineer 8.00 hour true',
-  'D1 each source carries its entry id, date, person, rate line, units and selection state');
+  'AC-TM-011 D1 each source carries its entry id, date, person, rate line, units and selection state');
 select is(pg_temp.sc(format($q$select sum(s.units)::text || ' ' || max(s.person_unit_total)::text || ' ' || max(l.units)::text
   from list_tm_claim_source_details(%L) s join tm_claim_lines l on l.claim_id = %L where s.person_id = '15140000-0000-0000-0000-0000000000b6' and s.is_selected$q$,
   pg_temp.st('claimA'), pg_temp.st('claimA'))), '120.00 120.00 120.00',
-  'D1 the selected person subtotal equals the claim line hours');
+  'AC-TM-011 D1 the selected person subtotal equals the claim line hours');
 select is(pg_temp.sc(format($q$select count(*)::text || ' ' || sum(units)::text || ' ' || max(person_unit_total)::text || ' ' ||
         (select max(l.units)::text from tm_claim_lines l where l.claim_id = %L)
   from list_tm_claim_source_details(%L) where is_selected$q$, pg_temp.st('claimB'), pg_temp.st('claimB'))), '4 32.00 32.00 32.00',
-  'D1 the Draft claim source units and person subtotal add up to its claim hours');
+  'AC-TM-011 D1 the Draft claim source units and person subtotal add up to its claim hours');
 select pg_temp.as_user('15140000-0000-0000-0000-0000000000b3');
-select is(pg_temp.sc(format($q$select count(*) from list_tm_claim_source_details(%L)$q$, pg_temp.st('claimA'))), '15', 'D1 Admin can read claim source details');
+select is(pg_temp.sc(format($q$select count(*) from list_tm_claim_source_details(%L)$q$, pg_temp.st('claimA'))), '15', 'AC-TM-011 D1 Admin can read claim source details');
 select pg_temp.as_user('15140000-0000-0000-0000-0000000000ba');
-select is(pg_temp.sc(format($q$select count(*) from list_tm_claim_source_details(%L)$q$, pg_temp.st('claimA'))), '15', 'D1 Executive can read claim source details');
+select is(pg_temp.sc(format($q$select count(*) from list_tm_claim_source_details(%L)$q$, pg_temp.st('claimA'))), '15', 'AC-TM-011 D1 Executive can read claim source details');
 select pg_temp.as_user('15140000-0000-0000-0000-0000000000b4');
-select is(pg_temp.sc(format($q$select count(*) from list_tm_claim_source_details(%L)$q$, pg_temp.st('claimA'))), '15', 'D1 the Project Manager can read this project claim');
+select is(pg_temp.sc(format($q$select count(*) from list_tm_claim_source_details(%L)$q$, pg_temp.st('claimA'))), '15', 'AC-TM-011 D1 the Project Manager can read this project claim');
 select pg_temp.as_user('15140000-0000-0000-0000-0000000000b5');
 select throws_ok(format($q$select * from list_tm_claim_source_details(%L)$q$, pg_temp.st('claimA')), '42501', null,
-  'D1 a different project manager cannot read claim source details');
+  'AC-TM-011 D1 a different project manager cannot read claim source details');
 select pg_temp.as_user('15140000-0000-0000-0000-0000000000b6');
 select throws_ok(format($q$select * from list_tm_claim_source_details(%L)$q$, pg_temp.st('claimA')), '42501', null,
-  'D1 an Engineer cannot read claim source details');
+  'AC-TM-011 D1 an Engineer cannot read claim source details');
 select pg_temp.as_user('15140000-0000-0000-0000-0000000000b8');
 select throws_ok(format($q$select * from list_tm_claim_source_details(%L)$q$, pg_temp.st('claimA')), 'P0002', null,
-  'D1 another organisation cannot read claim source details');
+  'AC-TM-011 D1 a foreign Admin receives the missing-claim result for an out-of-org claim');
 select pg_temp.as_user('15140000-0000-0000-0000-0000000000b1');
-select throws_ok('select * from list_tm_claim_source_details(null)', '22023', null, 'D1 a missing claim id is refused');
-select lives_ok(format('select withdraw_tm_signoff(%L::uuid)', pg_temp.st('claimB')), 'D1 withdrawing a Draft releases its selected sources');
+select throws_ok('select * from list_tm_claim_source_details(null)', '22023', null, 'AC-TM-011 D1 a missing claim id is refused');
+select lives_ok(format('select withdraw_tm_signoff(%L::uuid)', pg_temp.st('claimB')), 'AC-TM-011 D1 withdrawing a Draft releases its selected sources');
 select is(pg_temp.sc(format($q$select count(*)::text || ' ' || bool_and(not is_selected)::text || ' ' || max(person_unit_total)::text
   from list_tm_claim_source_details(%L)$q$, pg_temp.st('claimB'))), '4 true 0',
-  'D1 a withdrawn claim reports that its retained sources are no longer selected');
+  'AC-TM-011 D1 a withdrawn claim reports that its retained sources are no longer selected');
 
 -- ── AC-TM-009 (payload): the T&M invoice is in the existing contract-billing payload ────────
 reset role;
@@ -251,11 +251,11 @@ select is(get_project_finances('15140000-0000-0000-0000-0000000000c1') -> 'contr
 select ok(has_function_privilege('authenticated', 'public.list_tm_claims(uuid)', 'EXECUTE')
       and has_function_privilege('authenticated', 'public.preview_tm_claim(uuid, date, date)', 'EXECUTE')
       and has_function_privilege('authenticated', 'public.list_tm_claim_source_details(uuid)', 'EXECUTE'),
-  'AC-TM-011 and D1 signed-in users can call all claim reads');
+  'AC-TM-011 signed-in users can call all claim reads, including D1 source details');
 select ok(not has_function_privilege('anon', 'public.list_tm_claims(uuid)', 'EXECUTE')
       and not has_function_privilege('anon', 'public.preview_tm_claim(uuid, date, date)', 'EXECUTE')
       and not has_function_privilege('anon', 'public.list_tm_claim_source_details(uuid)', 'EXECUTE'),
-  'AC-TM-011 and D1 anon cannot call claim reads');
+  'AC-TM-011 anon cannot call claim reads, including D1 source details');
 
 -- ── AC-TM-011 (API tiers): api_client_request_guard ─────────────────────────────────────────
 -- Finance and Admin clients: the rate and sign-off writers plus the reads. Executive and Project Manager clients: reads only.
@@ -283,7 +283,7 @@ select lives_ok('select public.api_client_request_guard()', 'AC-TM-011 a Finance
 select pg_temp.req('15140000-0000-0000-0000-0000000000b1', '/rpc/preview_tm_claim');
 select lives_ok('select public.api_client_request_guard()', 'AC-TM-011 a Finance API client may preview a claim');
 select pg_temp.req('15140000-0000-0000-0000-0000000000b1', '/rpc/list_tm_claim_source_details');
-select lives_ok('select public.api_client_request_guard()', 'D1 a Finance API client may read claim source details');
+select lives_ok('select public.api_client_request_guard()', 'AC-TM-011 D1 a Finance API client may read claim source details');
 select pg_temp.req('15140000-0000-0000-0000-0000000000b3', '/rpc/confirm_tm_signoff');
 select lives_ok('select public.api_client_request_guard()', 'AC-TM-011 an Admin API client may confirm a sign-off');
 select pg_temp.req('15140000-0000-0000-0000-0000000000b3', '/rpc/save_contract_rate_line');
@@ -291,11 +291,11 @@ select lives_ok('select public.api_client_request_guard()', 'AC-TM-011 an Admin 
 select pg_temp.req('15140000-0000-0000-0000-0000000000ba', '/rpc/list_tm_claims');
 select lives_ok('select public.api_client_request_guard()', 'AC-TM-011 an Executive API client may list claims');
 select pg_temp.req('15140000-0000-0000-0000-0000000000ba', '/rpc/list_tm_claim_source_details');
-select lives_ok('select public.api_client_request_guard()', 'D1 an Executive API client may read claim source details');
+select lives_ok('select public.api_client_request_guard()', 'AC-TM-011 D1 an Executive API client may read claim source details');
 select pg_temp.req('15140000-0000-0000-0000-0000000000b4', '/rpc/preview_tm_claim');
 select lives_ok('select public.api_client_request_guard()', 'AC-TM-011 a Project Manager API client may preview a claim');
 select pg_temp.req('15140000-0000-0000-0000-0000000000b4', '/rpc/list_tm_claim_source_details');
-select lives_ok('select public.api_client_request_guard()', 'D1 a Project Manager API client may read claim source details');
+select lives_ok('select public.api_client_request_guard()', 'AC-TM-011 D1 a Project Manager API client may read claim source details');
 select pg_temp.req('15140000-0000-0000-0000-0000000000ba', '/rpc/confirm_tm_signoff');
 select throws_ok('select public.api_client_request_guard()', '42501', null, 'AC-TM-011 an Executive API client may not confirm a sign-off');
 select pg_temp.req('15140000-0000-0000-0000-0000000000b4', '/rpc/save_contract_rate_line');
@@ -313,7 +313,7 @@ select throws_ok('select public.api_client_request_guard()', '42501', null, 'AC-
 select pg_temp.req('15140000-0000-0000-0000-0000000000b6', '/rpc/preview_tm_claim');
 select throws_ok('select public.api_client_request_guard()', '42501', null, 'AC-TM-011 an Engineer API client may not preview a claim');
 select pg_temp.req('15140000-0000-0000-0000-0000000000b6', '/rpc/list_tm_claim_source_details');
-select throws_ok('select public.api_client_request_guard()', '42501', null, 'D1 an Engineer API client may not read claim source details');
+select throws_ok('select public.api_client_request_guard()', '42501', null, 'AC-TM-011 D1 an Engineer API client may not read claim source details');
 select pg_temp.req('15140000-0000-0000-0000-0000000000b1', '/rpc/list_equipment_costing');
 select lives_ok('select public.api_client_request_guard()', 'AC-TM-011 an earlier tier (equipment reads) is unchanged');
 select pg_temp.req('15140000-0000-0000-0000-0000000000b1', '/tm_claims', 'GET');

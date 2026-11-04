@@ -5,7 +5,7 @@
 
 create function public.list_tm_claim_source_details(p_claim uuid)
 returns table(id uuid, entry_id uuid, entry_date date, person_id uuid, person_name text, units numeric, unit text,
-              line_label text, is_selected boolean, person_unit_total numeric, total_count bigint)
+              line_label text, is_selected boolean, person_unit_total numeric, total_count bigint, signoff_is_current boolean)
 language plpgsql stable security definer set search_path = public, pg_temp as $$
 #variable_conflict use_column
 declare
@@ -23,7 +23,9 @@ begin
   return query
     select s.id, s.source_id, en.entry_date, ts.user_id, p.full_name, s.units, l.unit, l.label, s.is_live,
            coalesce(sum(s.units) filter (where s.is_live) over (partition by ts.user_id, l.unit), 0),
-           count(*) over ()
+           count(*) over (),
+           coalesce(c.signoff_prepared_by is not null and c.prepared_fingerprint is not null
+             and public.tm_claim_fingerprint(c.id) = c.prepared_fingerprint, false)
       from public.tm_claim_sources s
       join public.tm_claims c on c.id = s.claim_id and c.org_id = s.org_id
       join public.tm_claim_lines l on l.id = s.claim_line_id and l.claim_id = s.claim_id and l.org_id = s.org_id

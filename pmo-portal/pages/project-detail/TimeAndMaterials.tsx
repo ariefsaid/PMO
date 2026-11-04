@@ -124,6 +124,8 @@ const TimeAndMaterials: React.FC<TimeAndMaterialsProps> = ({ projectId, projectM
   const preview = useTmClaimPreview({ projectId, from: periodFrom, to: periodTo });
   const claimSources = useTmClaimSources(selectedClaim?.id ?? '');
   const sourceRows = claimSources.data?.rows ?? [];
+  const signoffMatchesClaim = claimSources.data?.signoffCurrent === true;
+  const signoffDoesNotMatchClaim = claimSources.data?.signoffCurrent === false;
 
   const canManageRates = may('manage', 'tmRate', { record: { viewOnly } });
   const canPrepareClaims = may('prepare', 'tmClaim', {
@@ -388,7 +390,6 @@ const TimeAndMaterials: React.FC<TimeAndMaterialsProps> = ({ projectId, projectM
     const prepared = Boolean(claim.signoff_prepared_by);
     return <div className="flex flex-wrap items-center gap-2">
       {canPrepareClaims && <Button variant="outline" size="sm" onClick={() => setPrepareFor(claim)}>{prepared ? t('signoff.prepareAgain', 'Prepare sign-off again') : t('signoff.prepare', 'Prepare sign-off')}</Button>}
-      {prepared && mayConfirm(claim) && <Button variant="primary" size="sm" onClick={() => setConfirmFor(claim)}>{t('signoff.confirm', 'Confirm sign-off')}</Button>}
       {prepared && canPrepareClaims && <Button variant="ghost" size="sm" className="text-destructive-text hover:bg-destructive/10" onClick={() => setWithdrawFor(claim)}>{t('signoff.withdraw', 'Withdraw sign-off')}</Button>}
     </div>;
   };
@@ -511,9 +512,9 @@ const TimeAndMaterials: React.FC<TimeAndMaterialsProps> = ({ projectId, projectM
         toast(t('rateCard.assigned', 'Person assigned to rate'), undefined, 'success');
       }} onError={reportActionError} />}
       {prepareFor && <PrepareSignoffModal claim={prepareFor} documents={eligibleDocuments} documentsPending={documents.isPending} documentsError={documents.isError} onRetry={() => void documents.refetch()} loading={prepare.isPending} onClose={() => setPrepareFor(null)} onPrepare={runPrepare} />}
-      {currentSelectedClaim && <ClaimDetail claim={currentSelectedClaim} sources={sourceRows} sourcesTotal={claimSources.data?.totalCount ?? sourceRows.length} sourcesPending={claimSources.isPending} sourcesError={claimSources.isError} sourcesTruncated={claimSources.data?.truncated === true} statusPill={statusPill(currentSelectedClaim)} unitCount={unitCount} awaitingHint={currentSelectedClaim.status === 'Draft' && Boolean(currentSelectedClaim.signoff_prepared_by) && !mayConfirm(currentSelectedClaim)} onRetry={() => void claimSources.refetch()} onClose={() => setSelectedClaim(null)}
+      {currentSelectedClaim && <ClaimDetail claim={currentSelectedClaim} sources={sourceRows} sourcesTotal={claimSources.data?.totalCount ?? sourceRows.length} sourcesPending={claimSources.isPending} sourcesError={claimSources.isError} sourcesTruncated={claimSources.data?.truncated === true} statusPill={statusPill(currentSelectedClaim)} unitCount={unitCount} awaitingHint={currentSelectedClaim.status === 'Draft' && Boolean(currentSelectedClaim.signoff_prepared_by) && !mayConfirm(currentSelectedClaim)} staleSignoffHint={currentSelectedClaim.status === 'Draft' && Boolean(currentSelectedClaim.signoff_prepared_by) && mayConfirm(currentSelectedClaim) && signoffDoesNotMatchClaim} onRetry={() => void claimSources.refetch()} onClose={() => setSelectedClaim(null)}
         prepareAction={canPrepareClaims && currentSelectedClaim.status === 'Draft' ? () => setPrepareFor(currentSelectedClaim) : undefined}
-        confirmAction={currentSelectedClaim.status === 'Draft' && currentSelectedClaim.signoff_prepared_by && mayConfirm(currentSelectedClaim) ? () => setConfirmFor(currentSelectedClaim) : undefined}
+        confirmAction={currentSelectedClaim.status === 'Draft' && currentSelectedClaim.signoff_prepared_by && mayConfirm(currentSelectedClaim) && signoffMatchesClaim ? () => setConfirmFor(currentSelectedClaim) : undefined}
         withdrawAction={currentSelectedClaim.status === 'Draft' && currentSelectedClaim.signoff_prepared_by && canPrepareClaims ? () => setWithdrawFor(currentSelectedClaim) : undefined}
         invoiceAction={currentSelectedClaim.status === 'SignedOff' && canCreateInvoice?.(currentSelectedClaim.id) ? () => onCreateInvoice(currentSelectedClaim.id) : undefined}
         canDeselect={canPrepareClaims && currentSelectedClaim.status === 'Draft'} deselecting={deselect.isPending} onDeselect={setDeselectFor} />}
@@ -536,7 +537,7 @@ const TimeAndMaterials: React.FC<TimeAndMaterialsProps> = ({ projectId, projectM
           date: deselectFor.entry_date ? formatDateOnly(deselectFor.entry_date) : t('detail.dateUnavailable', 'date unavailable'),
           line: deselectFor.line_label,
         })}${currentSelectedClaim.signoff_prepared_by ? ` ${t('detail.reprepareNote', 'The sign-off must be prepared again to match the updated hours.')}` : ''}`}
-        confirmLabel={t('detail.removeSource', 'Deselect')} loading={deselect.isPending} onConfirm={() => void runDeselect()} onCancel={() => setDeselectFor(null)} />}
+        confirmLabel={t('detail.removeSource', 'Remove')} loading={deselect.isPending} onConfirm={() => void runDeselect()} onCancel={() => setDeselectFor(null)} />}
     </>
   );
 };
@@ -723,6 +724,7 @@ interface ClaimDetailProps {
   sourcesTruncated: boolean;
   statusPill: React.ReactNode;
   awaitingHint: boolean;
+  staleSignoffHint: boolean;
   unitCount: (units: number | string, unit: string | null) => string;
   onRetry: () => void;
   onClose: () => void;
@@ -757,7 +759,7 @@ function groupClaimSources(sources: TmClaimSourceDetail[], personUnavailable: st
   return [...groups.values()];
 }
 
-const ClaimDetail: React.FC<ClaimDetailProps> = ({ claim, sources, sourcesTotal, sourcesPending, sourcesError, sourcesTruncated, statusPill, awaitingHint, unitCount, onRetry, onClose, prepareAction, confirmAction, withdrawAction, invoiceAction, canDeselect, deselecting, onDeselect }) => {
+const ClaimDetail: React.FC<ClaimDetailProps> = ({ claim, sources, sourcesTotal, sourcesPending, sourcesError, sourcesTruncated, statusPill, awaitingHint, staleSignoffHint, unitCount, onRetry, onClose, prepareAction, confirmAction, withdrawAction, invoiceAction, canDeselect, deselecting, onDeselect }) => {
   const { t } = useTranslation('timeAndMaterials');
   const sourceGroups = groupClaimSources(sources, t('preview.personUnavailable', 'Person no longer active'));
   return <Drawer open title={t('claims.detailTitle', 'Time-and-materials claim')} subtitle={`${formatDateOnly(claim.period_from)} – ${formatDateOnly(claim.period_to)}`}
@@ -773,6 +775,7 @@ const ClaimDetail: React.FC<ClaimDetailProps> = ({ claim, sources, sourcesTotal,
       <div><dt className="text-muted-foreground">{t('claims.total', 'Claim total')}</dt><dd className="mt-1 font-semibold tabular">{formatCurrency(Number(claim.gross_amount), claim.currency)}</dd></div>
     </dl>
     {awaitingHint && <p className="px-4 pb-3 text-sm text-muted-foreground">{t('signoff.preparerHint', 'A different user must confirm this sign-off.')}</p>}
+    {staleSignoffHint && <p role="status" className="px-4 pb-3 text-sm text-muted-foreground">{t('signoff.stale', 'This claim changed after the sign-off was prepared. Prepare it again before confirmation.')}</p>}
     <section className="border-t border-border px-4 py-3" aria-labelledby="tm-claim-lines-heading">
       <h2 id="tm-claim-lines-heading" className="text-sm font-semibold">{t('detail.lines', 'Claim lines')}</h2>
       {claim.lines.length === 0 ? <p className="mt-2 text-sm text-muted-foreground">{t('detail.noLines', 'This claim has no billable lines.')}</p> : <ul className="mt-2 divide-y divide-border">
@@ -787,6 +790,7 @@ const ClaimDetail: React.FC<ClaimDetailProps> = ({ claim, sources, sourcesTotal,
     </section>
     <section className="border-t border-border px-4 py-3" aria-labelledby="tm-claim-sources-heading">
       <h2 id="tm-claim-sources-heading" className="text-sm font-semibold">{t('detail.sources', 'Approved source entries')}</h2>
+      {claim.status === 'Withdrawn' && sources.some((source) => !source.is_selected) && <p role="status" className="mt-2 text-sm text-muted-foreground">{t('detail.sourcesReleased', 'Released when the claim was withdrawn')}</p>}
       {sourcesTruncated && <p role="status" className="mt-2 text-sm text-muted-foreground">{t('detail.sourcesTruncated', 'Showing {{shown}} of {{total}} source entries.', { shown: sources.length, total: sourcesTotal })}</p>}
       {sourcesPending ? <ListState variant="loading" rows={2} />
         : sourcesError ? <ListState variant="error" title={t('detail.sourcesError', "Couldn't load source entries")} onRetry={onRetry} />
@@ -795,11 +799,11 @@ const ClaimDetail: React.FC<ClaimDetailProps> = ({ claim, sources, sourcesTotal,
               {sourceGroups.map((group) => <li key={group.key} className="py-3">
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <h3 className="font-medium text-foreground">{group.person}</h3>
-                  <div className="flex flex-wrap gap-x-3 gap-y-1 text-sm text-muted-foreground">
+                  {claim.status !== 'Withdrawn' && <div className="flex flex-wrap gap-x-3 gap-y-1 text-sm text-muted-foreground">
                     {group.subtotals.map((subtotal) => <p key={subtotal.unit} className="tabular">
                       {t('detail.subtotal', 'Subtotal')} · {unitCount(subtotal.units, subtotal.unit)}
                     </p>)}
-                  </div>
+                  </div>}
                 </div>
                 <ul className="mt-2 divide-y divide-border/70 text-sm">
                   {group.sources.map((source) => {
@@ -809,11 +813,11 @@ const ClaimDetail: React.FC<ClaimDetailProps> = ({ claim, sources, sourcesTotal,
                       <div className="min-w-0">
                         <p className="font-medium">{source.line_label}</p>
                         <p className="mt-0.5 text-muted-foreground tabular">{date} · {amount}</p>
-                        {!source.is_selected && <p className="mt-0.5 text-muted-foreground">{t('detail.sourceNotSelected', 'Not selected')}</p>}
+                        {!source.is_selected && claim.status !== 'Withdrawn' && <p className="mt-0.5 text-muted-foreground">{t('detail.sourceNotSelected', 'Not selected')}</p>}
                       </div>
                       {source.is_selected && canDeselect && <Button variant="ghost" size="sm" disabled={deselecting}
                         aria-label={t('detail.removeSourceLabel', 'Remove {{amount}} for {{person}} on {{date}}', { amount, person: group.person, date })}
-                        onClick={() => onDeselect(source)}>{t('detail.removeSource', 'Deselect')}</Button>}
+                        onClick={() => onDeselect(source)}>{t('detail.removeSource', 'Remove')}</Button>}
                     </li>;
                   })}
                 </ul>

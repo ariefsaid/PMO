@@ -13165,6 +13165,7 @@ export type Database = {
           person_id: string | null
           person_name: string | null
           person_unit_total: number
+          signoff_is_current: boolean
           total_count: number
           unit: string
           units: number
