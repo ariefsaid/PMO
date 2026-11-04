@@ -3637,6 +3637,8 @@ The owner signed `docs/specs/odoo-purchase-to-payment.spec.md` (#1505), `docs/sp
 ## OD-OCI-C9-20261104 — honest #1506 workflow claims (implementation evidence)
 The Odoo adapter declares `invoice.push`, `receipt.read`, `invoice.pair-existing`, and `cutover.activation` supported only at the versions exercised by the shared contract suites. `cutover.revenue` stays pending on #1602 until its shared suite exists. C7 tax-document review remains on owner hold: `tax-document.read` stays pending on #1506; do not claim that Odoo-held tax-document facts are available until that review closes. The recorded receipt journal must be a bank or cash journal with an inbound payment method. Client-withheld tax requires a company-currency current-asset or prepayment account configured in the Odoo setup checklist. Odoo money writes use the revenue outbox; this evidence does not make a release-readiness claim.
 
+Verification after the dev merges: adapter-seam and Odoo integration unit suites passed (212 files, 3,031 tests); the C9 bed composite passed 2/2 tests; the served AC-OCI-100 journey passed 1/1 Chromium spec with 10/10 auth setup checks. Changed-line coverage was 50/54 (92.6%), and the post-merge affected-e2e gate found no additional supported UI paths to run.
+
 ### OD-1530-COMMIT — PMO open commitment is the order total minus what is already paid (Director ruling, 2026-11-03)
 For an org without an active ERP binding (#1530), budget actuals are PMO paid purchases, so a purchase's open
 commitment is `total_value − pre-tax paid amount` (floor 0), the PMO analogue of ADR-0093 §2 (total minus what is
