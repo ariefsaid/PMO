@@ -5,9 +5,13 @@ class FakeQuery {
   constructor(private readonly db: FakeDb, private readonly table: string) {}
   private operation: 'select' | 'insert' | 'upsert' | 'delete' = 'select';
   private payload: unknown;
+  private selectedColumns: string[] | null = null;
   private filters: Array<(row: Record<string, unknown>) => boolean> = [];
 
-  select() { return this; }
+  select(columns?: string) {
+    this.selectedColumns = columns && columns !== '*' ? columns.split(',').map((column) => column.trim()) : null;
+    return this;
+  }
   eq(column: string, value: unknown) { this.filters.push((row) => row[column] === value); return this; }
   in(column: string, values: unknown[]) { this.filters.push((row) => values.includes(row[column])); return this; }
   like(column: string, pattern: string) {
@@ -35,7 +39,12 @@ class FakeQuery {
       return { data: null, error: failure };
     }
     const matches = (row: Record<string, unknown>) => this.filters.every((filter) => filter(row));
-    if (this.operation === 'select') return { data: structuredClone(table.filter(matches)), error: null };
+    if (this.operation === 'select') {
+      const rows = table.filter(matches).map((row) => this.selectedColumns
+        ? Object.fromEntries(this.selectedColumns.filter((column) => column in row).map((column) => [column, row[column]]))
+        : row);
+      return { data: structuredClone(rows), error: null };
+    }
     if (this.operation === 'delete') {
       this.db.tables[this.table] = table.filter((row) => !matches(row));
       return { data: null, error: null };
@@ -82,8 +91,8 @@ function priorState() {
       activated_at: '2026-11-01T00:00:00.000Z',
     },
     categoryMap: [
-      { org_id: ORG_ID, category: 'Labor', erp_account: 'Prior Labor - TEST', is_push_target: true },
-      { org_id: ORG_ID, category: 'Materials', erp_account: 'Prior Materials - TEST', is_push_target: false },
+      { id: '70000000-0000-4000-8000-000000000018', org_id: ORG_ID, category: 'Labor', erp_account: 'Prior Labor - TEST', is_push_target: true, updated_by: '71000000-0000-4000-8000-000000000018', updated_at: '2026-10-31T12:13:14.000Z' },
+      { id: '70000000-0000-4000-8000-000000000019', org_id: ORG_ID, category: 'Materials', erp_account: 'Prior Materials - TEST', is_push_target: false, updated_by: '71000000-0000-4000-8000-000000000019', updated_at: '2026-10-30T11:12:13.000Z' },
     ],
   };
 }
@@ -155,7 +164,7 @@ describe('AC-018 budget fixture helper failure paths', () => {
       budget_versions: [{ id: versionId, org_id: ORG_ID, project_id: '00000000-0000-4000-8000-000000000018' }],
       external_refs: [{ id: 'ref-owned', org_id: ORG_ID, domain: 'budget', pmo_record_id: `${versionId}:FY26` }],
       external_org_bindings: [{ ...prior.binding, site_url: 'http://temporary-test.invalid' }],
-      budget_category_account_map: [{ org_id: ORG_ID, category: 'Labor', erp_account: 'Temporary - TEST', is_push_target: true }],
+      budget_category_account_map: [{ id: '72000000-0000-4000-8000-000000000018', org_id: ORG_ID, category: 'Labor', erp_account: 'Temporary - TEST', is_push_target: true, updated_by: '73000000-0000-4000-8000-000000000018', updated_at: '2026-11-02T09:08:07.000Z' }],
     }, [['external_refs:delete', { message: 'owned reference delete failed' }]]);
 
     await expect(cleanupBud(client as never, seedForCleanup(prior) as never)).rejects.toThrow(/external_refs.*owned reference delete failed/i);
@@ -206,7 +215,7 @@ describe('AC-018 budget fixture helper failure paths', () => {
       external_refs: [witness],
       external_command_outbox: [{ id: 'outbox-owned', org_id: ORG_ID, domain: 'budget', pmo_record_id: `${versionId}:FY26` }],
       external_org_bindings: [{ ...prior.binding, site_url: 'http://temporary-test.invalid' }],
-      budget_category_account_map: [{ org_id: ORG_ID, category: 'Labor', erp_account: 'Temporary - TEST', is_push_target: true }],
+      budget_category_account_map: [{ id: '72000000-0000-4000-8000-000000000019', org_id: ORG_ID, category: 'Labor', erp_account: 'Temporary - TEST', is_push_target: true, updated_by: '73000000-0000-4000-8000-000000000019', updated_at: '2026-11-02T09:08:08.000Z' }],
     });
 
     await cleanupBud(client as never, seedForCleanup(prior) as never, { preserveBudgetEvidence: true });

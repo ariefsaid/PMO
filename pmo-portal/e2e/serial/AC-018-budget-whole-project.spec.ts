@@ -494,11 +494,13 @@ test('AC-018: a reviewed whole-project budget replaces annual ERP budgets and ap
         const { data: restoredBinding, error: restoredBindingError } = await admin.from('external_org_bindings').select('*').eq('org_id', ORG_ID).eq('external_tier', 'erpnext').maybeSingle();
         if (restoredBindingError) cleanupErrors.push(`read restored binding failed: ${restoredBindingError.message}`);
         else if (JSON.stringify(restoredBinding) !== JSON.stringify(seeded.prior.binding)) cleanupErrors.push('org-global ERP binding did not restore exactly');
-        const { data: restoredMap, error: restoredMapError } = await admin.from('budget_category_account_map').select('org_id, category, erp_account, is_push_target').eq('org_id', ORG_ID).in('category', ['Labor', 'Materials']);
+        const { data: restoredMap, error: restoredMapError } = await admin.from('budget_category_account_map')
+          .select('id, org_id, category, erp_account, is_push_target, updated_by, updated_at')
+          .eq('org_id', ORG_ID).in('category', ['Labor', 'Materials']);
         if (restoredMapError) cleanupErrors.push(`read restored category map failed: ${restoredMapError.message}`);
         else {
-          const actualMap = (restoredMap ?? []).sort((a, b) => `${a.category}:${a.erp_account}:${a.is_push_target}`.localeCompare(`${b.category}:${b.erp_account}:${b.is_push_target}`));
-          const expectedMap = [...seeded.prior.categoryMap].sort((a, b) => `${a.category}:${a.erp_account}:${a.is_push_target}`.localeCompare(`${b.category}:${b.erp_account}:${b.is_push_target}`));
+          const actualMap = (restoredMap ?? []).sort((a, b) => a.id.localeCompare(b.id));
+          const expectedMap = [...seeded.prior.categoryMap].sort((a, b) => a.id.localeCompare(b.id));
           if (JSON.stringify(actualMap) !== JSON.stringify(expectedMap)) cleanupErrors.push('org-global category map did not restore exactly');
         }
       }

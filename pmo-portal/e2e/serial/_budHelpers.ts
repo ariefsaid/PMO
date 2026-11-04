@@ -181,7 +181,15 @@ export interface BudSeed {
     /** The org's whole erpnext binding row before this run, or `null` if there was none. */
     binding: Record<string, unknown> | null;
     /** The category→account rows this run overwrites, exactly as they were. */
-    categoryMap: Array<{ org_id: string; category: string; erp_account: string; is_push_target: boolean }>;
+    categoryMap: Array<{
+      id: string;
+      org_id: string;
+      category: string;
+      erp_account: string;
+      is_push_target: boolean;
+      updated_by: string | null;
+      updated_at: string;
+    }>;
   };
 }
 
@@ -237,7 +245,7 @@ function canonicalJson(value: unknown): string {
 }
 
 function canonicalCategoryRows(rows: BudSeed['prior']['categoryMap']): string {
-  const sorted = [...rows].sort((left, right) => `${left.category}:${left.erp_account}:${left.is_push_target}`.localeCompare(`${right.category}:${right.erp_account}:${right.is_push_target}`));
+  const sorted = [...rows].sort((left, right) => canonicalJson(left).localeCompare(canonicalJson(right)));
   return canonicalJson(sorted);
 }
 
@@ -258,7 +266,7 @@ async function restoreBudOrgState(
       if (insertError) errors.push(`budget_category_account_map restore insert: ${insertError.message}`);
     }
     const { data: restoredRows, error: verifyError } = await admin.from('budget_category_account_map')
-      .select('org_id, category, erp_account, is_push_target')
+      .select('id, org_id, category, erp_account, is_push_target, updated_by, updated_at')
       .eq('org_id', ORG_ID).in('category', ['Labor', 'Materials']);
     if (verifyError) errors.push(`budget_category_account_map restore readback: ${verifyError.message}`);
     else if (canonicalCategoryRows((restoredRows ?? []) as BudSeed['prior']['categoryMap']) !== canonicalCategoryRows(prior.categoryMap)) {
@@ -327,7 +335,7 @@ export async function seedBud(
   const priorConfig = ((priorBinding?.config as Record<string, unknown> | undefined) ?? {}) as Record<string, unknown>;
   const priorMap = (priorConfig.project_map as Record<string, string> | undefined) ?? {};
   const { data: priorMapRows, error: priorMapErr } = await admin
-    .from('budget_category_account_map').select('org_id, category, erp_account, is_push_target')
+    .from('budget_category_account_map').select('id, org_id, category, erp_account, is_push_target, updated_by, updated_at')
     .eq('org_id', ORG_ID).in('category', ['Labor', 'Materials']);
   if (priorMapErr) throw new Error(`snapshot budget_category_account_map before budget fixture setup failed: ${priorMapErr.message}`);
 
@@ -338,7 +346,7 @@ export async function seedBud(
     versionIds: [],
     prior: {
       binding: priorBinding,
-      categoryMap: (priorMapRows as Array<{ org_id: string; category: string; erp_account: string; is_push_target: boolean }> | null) ?? [],
+      categoryMap: (priorMapRows as BudSeed['prior']['categoryMap'] | null) ?? [],
     },
   };
 
