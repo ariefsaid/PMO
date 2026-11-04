@@ -382,8 +382,7 @@
       "vendorInvoiced": "Untuk merilis pembayaran, penyetuju tidak boleh sekaligus menjadi pembayar (pemisahan tugas). Anda dapat menandai pengadaan ini sebagai lunas di bawah.",
       "default": "Siap melanjutkan. Pilih tindakan di bawah untuk memindahkan pengadaan ini ke tahap berikutnya."
     },
-    "sodPreannounce": "Mengirim ini ke peninjau lain. Anda tidak dapat menyetujui kasus pengadaan Anda sendiri.",
-    "noLifecycleActions": "Tidak ada tombol tahapan yang tersedia saat ini."
+    "sodPreannounce": "Mengirim ini ke peninjau lain. Anda tidak dapat menyetujui kasus pengadaan Anda sendiri."
   },
   "subcontract": {
     "form": {
@@ -665,7 +664,8 @@
     "accounts": {
       "choose": "Pilih akun",
       "emptyReason": "Belum ada akun yang dibaca dari Odoo.",
-      "staleReason": "Daftar akun terakhir dibaca {{age}}; segarkan koneksi Odoo terlebih dahulu."
+      "staleReason": "Daftar akun terakhir dibaca {{age}}; segarkan koneksi Odoo terlebih dahulu.",
+      "saved": "Akun tersimpan {{id}}"
     },
     "booked": "Diterima di Odoo: {{qty}}",
     "entered": "dimasukkan {{qty}}",

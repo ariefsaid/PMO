@@ -13,7 +13,8 @@ import { OdooCaseStatus } from '../procurement/OdooCaseStatus';
 
 export const SalesInvoiceEvidenceSection: React.FC<{ invoice: SalesInvoiceRow; odoo?: boolean }> = ({ invoice, odoo = false }) => {
   const { t } = useTranslation();
-  const canFetchEvidence = !invoice.pmo_native && invoice.erp_docstatus !== null;
+  // The ERP evidence read serves the ERP tier only; an Odoo invoice has no lines to fetch, so it never shows a load error.
+  const canFetchEvidence = !invoice.pmo_native && invoice.erp_docstatus !== null && !odoo;
   const evidence = useSalesInvoiceEvidence(invoice.id, canFetchEvidence);
   const [pendingTimedOut, setPendingTimedOut] = useState(false);
   const payments = useIncomingPayments(undefined, true, invoice.id);
@@ -67,7 +68,10 @@ export const SalesInvoiceEvidenceSection: React.FC<{ invoice: SalesInvoiceRow; o
       {odoo && (
         <div className="mb-4 space-y-3">
           {unreachable && <p role="status" className="text-[12px] text-muted-foreground">{t('finance:odooOutcome.offlineAction', 'Odoo is unavailable. You can still view the last data PMO read; no new changes were sent from this screen.')}</p>}
-          {outcome && <OdooOutcome outcome={outcome} unreachable={unreachable} />}
+          {/* An unsettled command is the Waiting on Odoo card's to show; this block carries what Odoo itself says about the invoice. */}
+          {outcome && !latestInvoiceCommand && (
+            <OdooOutcome outcome={outcome} sentTotal={invoice.odoo_sent_total != null ? { amount: invoice.odoo_sent_total, currency: invoice.currency } : null} />
+          )}
           <OdooCaseStatus invoiceId={invoice.id} />
         </div>
       )}
@@ -78,7 +82,7 @@ export const SalesInvoiceEvidenceSection: React.FC<{ invoice: SalesInvoiceRow; o
           <p className="text-sm text-muted-foreground">{t('finance:receivables.evidenceLoadError', "Couldn't load the invoice lines from the accounting system.")}</p>
           <Button variant="outline" size="sm" onClick={() => void evidence.refetch()}>{t('uxs17.evidenceRetry', 'Retry invoice evidence')}</Button>
         </div>
-      ) : (
+      ) : odoo && !invoice.pmo_native ? null : (
         <div className="grid gap-5 sm:grid-cols-[minmax(0,2fr)_minmax(12rem,1fr)]">
           <div>
             {/* AC-991-001: the record's line list keeps its accessible "Line items" naming for a

@@ -25,8 +25,8 @@ function AccountDefault({ kind, value, canSet }: { kind: 'advance' | 'prepaid'; 
   };
   if (!canSet) return savedId ? <span className="text-muted-foreground">{savedId}</span> : null;
   return (
-    <span className="inline-flex flex-wrap items-end gap-2">
-      <OdooAccountSelect id={`odoo-${kind}-account`} label={label} value={picked || savedId} onChange={setPicked} />
+    <span className="inline-flex flex-wrap items-start gap-2">
+      <OdooAccountSelect id={`odoo-${kind}-account`} label={label} hideLabel value={picked || savedId} onChange={setPicked} />
       <Button size="sm" variant="outline" disabled={!picked || picked === savedId} loading={save.isPending} onClick={() => { void submit(picked); }}>{t('administration:odoo.checklist.journalSave', 'Save')}</Button>
       {failed && <span role="alert" className="text-[12px] text-destructive-text">{t('administration:odoo.checklist.accountFailed', 'The account could not be saved. Try again.')}</span>}
     </span>

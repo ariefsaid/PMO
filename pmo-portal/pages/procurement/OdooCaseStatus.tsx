@@ -45,8 +45,11 @@ const OdooCaseStatusBody: React.FC<{ procurementId?: string; invoiceId?: string 
 
   const commands = invoiceId ? revenueCommands : purchaseCommands;
   const list: CaseCommand[] = (commands.data ?? []) as CaseCommand[];
+  const manyHeld = list.filter((c) => c.state === 'held').length > 1;
   const readFailed = commands.isError && commands.data === undefined;
-  if (!unreachable && !readFailed && list.length === 0 && !done) return null;
+  // A customer invoice's page says once that Odoo is unreachable; only the purchase screens carry the note here.
+  const showUnreachable = unreachable && !invoiceId;
+  if (!showUnreachable && !readFailed && list.length === 0 && !done) return null;
 
   // Real JWT role decides; a view-as session is read-only (ADR-0016).
   const mayResolve = may('resolve', 'odooHeldCommand', { record: { viewOnly: realRole !== effectiveRole } });
@@ -73,7 +76,7 @@ const OdooCaseStatusBody: React.FC<{ procurementId?: string; invoiceId?: string 
 
   return (
     <section data-testid="odoo-case-status" aria-label={t('odoo.waiting.title', 'Waiting on Odoo')} className="mb-3 space-y-2 rounded-lg border border-border bg-card px-4 py-3">
-      {unreachable && (
+      {showUnreachable && (
         <p data-testid="odoo-unreachable" role="status" className="text-[13px] text-foreground">
           {t('odoo.unreachable', 'Odoo cannot be reached. Showing what PMO last read, {{age}}. Try again once Odoo is back.', { age: formatRelativeTime(lastOkAt) })}
         </p>
@@ -94,8 +97,8 @@ const OdooCaseStatusBody: React.FC<{ procurementId?: string; invoiceId?: string 
                   <span className="min-w-0">{outcome && <OdooOutcome outcome={outcome} />}</span>
                   {heldPayment && mayResolve && !mine && (
                     <span className="flex flex-wrap gap-2">
-                      <Button variant="outline" size="sm" onClick={() => setDecision({ command: c, resolution: 'adopt' })}>{t('odoo.held.adopt', 'It exists in Odoo')}</Button>
-                      <Button variant="outline" size="sm" onClick={() => setDecision({ command: c, resolution: 'absent' })}>{t('odoo.held.absent', 'It does not exist in Odoo')}</Button>
+                      <Button variant="outline" size="sm" aria-label={manyHeld ? `${t('odoo.held.adopt', 'It exists in Odoo')}: ${t(`odoo.kind.${c.kind}`, KIND_LABEL[c.kind])}` : undefined} onClick={() => setDecision({ command: c, resolution: 'adopt' })}>{t('odoo.held.adopt', 'It exists in Odoo')}</Button>
+                      <Button variant="outline" size="sm" aria-label={manyHeld ? `${t('odoo.held.absent', 'It does not exist in Odoo')}: ${t(`odoo.kind.${c.kind}`, KIND_LABEL[c.kind])}` : undefined} onClick={() => setDecision({ command: c, resolution: 'absent' })}>{t('odoo.held.absent', 'It does not exist in Odoo')}</Button>
                     </span>
                   )}
                   {heldPayment && mayResolve && mine && <span className="text-[12px] text-muted-foreground">{t(invoiceId ? 'odoo.held.ownRevenueCommand' : 'odoo.held.ownCommand', invoiceId ? 'You sent this document, so someone else must decide.' : 'You sent this payment, so someone else must decide.')}</span>}

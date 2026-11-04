@@ -392,7 +392,7 @@ export const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> =
             localeAware
           />
           {(!odoo || withheldForSummary !== 0) && cashReceivedField}
-          {odoo && <div className="sm:col-span-2"><OdooJournalSelect value={journalField.value} onChange={journalField.onChange} id={journalField.id} /></div>}
+          {odoo && <div className="sm:col-span-2"><OdooJournalSelect value={journalField.value} onChange={journalField.onChange} id={journalField.id} label={t('finance:receipts.journalLabel', 'Received into')} /></div>}
           <div className="sm:col-span-2">
             <Button
               variant="outline"

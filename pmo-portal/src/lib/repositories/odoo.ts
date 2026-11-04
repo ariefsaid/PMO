@@ -2,7 +2,7 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { wrap } from './repositoryErrors';
 import { erpSetupRequest } from './integrations';
-import { odooExternalRef, odooPaymentRef } from '@/src/lib/adapterSeam/odoo/purchase/anchors';
+import { odooPaymentRef, odooRevenueDocumentRef } from '@/src/lib/adapterSeam/odoo/purchase/anchors';
 import { SENDS_FINISHED_KEY, type ConnectionRecord } from '@/src/lib/adapterSeam/odoo/connectionState';
 import type { MirrorKind, ListMasterInput, MasterRecord, OdooConnectionRead, OdooRepository, PurchaseCommand, PurchaseCommandKind, RevenueCommand, RevenueCommandKind, OdooCreditNote } from './contracts/odoo';
 
@@ -33,10 +33,11 @@ type RevenueMirrorCreditNoteQuery = PromiseLike<{
 
 function revenueMirrorCreditNoteQuery() {
   // database.types.ts predates the C6 side mirror, so narrow the missing table at this read seam.
-  const fromRevenueMirror = supabase.from as unknown as (table: 'revenue_erp_mirror') => {
-    select: (columns: string) => RevenueMirrorCreditNoteQuery;
+  // Keep the receiver: a detached `supabase.from` loses `this` and throws before any request.
+  const client = supabase as unknown as {
+    from: (table: 'revenue_erp_mirror') => { select: (columns: string) => RevenueMirrorCreditNoteQuery };
   };
-  return fromRevenueMirror('revenue_erp_mirror')
+  return client.from('revenue_erp_mirror')
     .select('id,erp_name,doc_date,currency,grand_total,erp_status,erp_read_at');
 }
 
@@ -157,10 +158,9 @@ export const odooRepository: OdooRepository = {
   resolveHeldRevenueCommand: ({ outboxId, kind, resolution, documentNumber, reason }) => wrap(async () => {
     const number = documentNumber?.trim();
     if (resolution === 'adopt' && !/^[1-9][0-9]*$/.test(number ?? '')) throw new Error('Enter the Odoo document number');
-    const model = kind === 'sales-invoice' ? 'account.move' : 'account.payment';
     const { error } = await supabase.rpc('resolve_held_outbox_command', {
       p_outbox_id: outboxId, p_resolution: resolution,
-      p_external_record_id: resolution === 'adopt' ? odooExternalRef(model, number!) : undefined,
+      p_external_record_id: resolution === 'adopt' ? odooRevenueDocumentRef(kind, number!) : undefined,
       p_reason: reason,
     });
     if (error) throw error;

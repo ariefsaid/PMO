@@ -382,8 +382,7 @@
       "vendorInvoiced": "Releasing payment: the approver can't also pay (separation of duties). You may mark this as paid below.",
       "default": "Ready to advance. Select an action below to move this procurement to its next stage."
     },
-    "sodPreannounce": "Submitting hands this to another approver. You can't approve your own procurement case.",
-    "noLifecycleActions": "No lifecycle buttons are available at this stage."
+    "sodPreannounce": "Submitting hands this to another approver. You can't approve your own procurement case."
   },
   "subcontract": {
     "form": {
@@ -665,7 +664,8 @@
     "accounts": {
       "choose": "Choose an account",
       "emptyReason": "No accounts have been read from Odoo yet.",
-      "staleReason": "The account list was last read {{age}}; refresh the Odoo connection first."
+      "staleReason": "The account list was last read {{age}}; refresh the Odoo connection first.",
+      "saved": "Saved account {{id}}"
     },
     "booked": "Received in Odoo: {{qty}}",
     "entered": "entered {{qty}}",

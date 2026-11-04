@@ -103,8 +103,8 @@ vi.mock('@/src/lib/adapterSeam/ownershipCache', () => ({ routeDomainWrite: vi.fn
 vi.mock('@/src/hooks/useExternalDomainOwnership', () => ({ useExternalDomainOwnership: () => hoisted.ownershipState }));
 vi.mock('@/src/hooks/useOdooPurchase', () => ({ useOdooUnreachable: () => ({ unreachable: hoisted.odooUnreachable, lastOkAt: null }) }));
 vi.mock('@/src/components/procurement/OdooDirectoryPickers', () => ({
-  OdooJournalSelect: ({ value, onChange, id }: { value: string; onChange: (value: string) => void; id: string }) => (
-    <label htmlFor={id}>Pay from<select id={id} aria-label="Pay from" value={value} onChange={(event) => onChange(event.target.value)}><option value="">Default journal</option><option value="9">Bank BCA</option></select></label>
+  OdooJournalSelect: ({ value, onChange, id, label = 'Pay from' }: { value: string; onChange: (value: string) => void; id: string; label?: string }) => (
+    <label htmlFor={id}>{label}<select id={id} aria-label={label} value={value} onChange={(event) => onChange(event.target.value)}><option value="">Default journal</option><option value="9">Bank BCA</option></select></label>
   ),
 }));
 vi.mock('react-router', async (importOriginal) => {
@@ -180,7 +180,7 @@ describe('IncomingPayments — a Finance user can actually record a receipt (BLO
     await user.clear(amount);
     await user.type(amount, '100');
     expect(screen.queryByLabelText(/^Cash received/)).toBeNull();
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Pay from' }), '9');
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Received into' }), '9');
 
     await user.click(screen.getByRole('button', { name: 'Record payment' }));
     const dialog = screen.getByRole('dialog', { name: 'Record this receipt in Odoo?' });

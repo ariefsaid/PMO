@@ -40,3 +40,29 @@ describe('AC-OCI-090 Odoo invoice outcome', () => {
     expect((await axe(container)).violations).toEqual([]);
   });
 });
+
+describe('AC-OCI-090 review: why an invoice needs a look', () => {
+  it.each([
+    ['total-mismatch', /total in Odoo is not what PMO sent/i],
+    ['cost-account-missing', /no cost account/i],
+    ['money-unreadable', /could not read the amounts/i],
+    ['lines-unreadable', /could not read the invoice lines/i],
+    ['advance-account-mismatch', /different account/i],
+  ])('%s is explained in plain words, never as a code', (reason, words) => {
+    render(<OdooOutcome outcome={{ cls: 'needs-attention', asOf: T, reason }} />);
+    expect(screen.getByTestId('odoo-outcome-reason')).toHaveTextContent(words);
+    expect(screen.queryByText(reason)).toBeNull();
+  });
+
+  it('shows the figure PMO sent beside the mismatch', () => {
+    render(<OdooOutcome outcome={{ cls: 'needs-attention', asOf: T, reason: 'total-mismatch' }} sentTotal={{ amount: 2500000, currency: 'IDR' }} />);
+    expect(screen.getByTestId('odoo-outcome-reason')).toHaveTextContent(/PMO sent/);
+    expect(screen.getByTestId('odoo-outcome-reason')).toHaveTextContent(/2[.,]500[.,]000/);
+  });
+
+  it('a compact row stays one short line even while Odoo is unreachable (the page says it once)', () => {
+    render(<OdooOutcome outcome={{ cls: 'pending', asOf: T, reason: null }} unreachable compact />);
+    expect(screen.queryByTestId('odoo-unreachable')).toBeNull();
+    expect(screen.getByText('Sent, waiting for Odoo')).toBeInTheDocument();
+  });
+});

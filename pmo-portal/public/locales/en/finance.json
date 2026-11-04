@@ -202,7 +202,9 @@
     "confirmOdooTitle": "Record this receipt in Odoo?",
     "confirmOdooBody": "PMO sends this receipt to Odoo. Check the settled amount and any tax withheld before continuing.",
     "statusAwaitingOdoo": "Receipt sent, awaiting Odoo",
-    "statusPaidOdoo": "Paid"
+    "statusPaidOdoo": "Paid",
+    "journalLabel": "Received into",
+    "titleUnnumbered": "Receipt, not numbered yet"
   },
   "statements": {
     "amountsIn": "Amounts in",
@@ -565,7 +567,15 @@
       "held": "PMO cannot tell whether Odoo already made it. An Admin or Finance user checks Odoo and decides.",
       "needs-attention": "Check the invoice in Odoo before you continue.",
       "refused": "Check what you entered, then record it again."
-    }
+    },
+    "reason": {
+      "total-mismatch": "The total in Odoo is not what PMO sent.",
+      "cost-account-missing": "A posted line has no cost account for the project.",
+      "money-unreadable": "PMO could not read the amounts from Odoo.",
+      "lines-unreadable": "PMO could not read the invoice lines from Odoo.",
+      "advance-account-mismatch": "A customer advance was posted to a different account than the one chosen in setup."
+    },
+    "sentTotal": "PMO sent {{amount}}."
   },
   "common": {
     "save": "Save",

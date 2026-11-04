@@ -2,7 +2,7 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { StatusPill, type StatusVariant } from '@/src/components/ui';
-import { formatRelativeTime } from '@/src/lib/format';
+import { formatCurrencyCents, formatRelativeTime } from '@/src/lib/format';
 import type { OdooOutcome as Outcome, OdooOutcomeClass } from '@/src/lib/procurement/odooOutcome';
 
 const VARIANT: Record<OdooOutcomeClass, StatusVariant> = {
@@ -19,19 +19,34 @@ const NEXT: Partial<Record<OdooOutcomeClass, string>> = {
   refused: 'Check what you entered, then record it again.',
 };
 
-export const OdooOutcome: React.FC<{ outcome: Outcome; unreachable?: boolean; compact?: boolean }> = ({ outcome, unreachable = false, compact = false }) => {
+/** Why Odoo's copy needs a look, keyed by the code the read-back records. An unknown code shows no reason rather than the code. */
+const REASON: Record<string, string> = {
+  'total-mismatch': 'The total in Odoo is not what PMO sent.',
+  'cost-account-missing': 'A posted line has no cost account for the project.',
+  'money-unreadable': 'PMO could not read the amounts from Odoo.',
+  'lines-unreadable': 'PMO could not read the invoice lines from Odoo.',
+  'advance-account-mismatch': 'A customer advance was posted to a different account than the one chosen in setup.',
+};
+
+export const OdooOutcome: React.FC<{ outcome: Outcome; unreachable?: boolean; compact?: boolean; sentTotal?: { amount: number; currency: string } | null }> = ({ outcome, unreachable = false, compact = false, sentTotal = null }) => {
   const { t } = useTranslation();
   const sent = outcome.cls === 'pending' || outcome.cls === 'held' || outcome.cls === 'refused';
   const age = outcome.asOf ? formatRelativeTime(outcome.asOf) : null;
   return (
     <div data-testid="odoo-outcome" data-outcome={outcome.cls} className="min-w-0 space-y-1">
-      {unreachable && (
+      {unreachable && !compact && (
         <p data-testid="odoo-unreachable" role="status" className="text-[12px] text-muted-foreground">
           {t('finance:odooOutcome.unreachable', 'Odoo cannot be reached. Showing the last data PMO read{{age}}.', { age: age ? `, ${age}` : '' })}
         </p>
       )}
       <StatusPill variant={VARIANT[outcome.cls]} wrap>{t(`finance:odooOutcome.${outcome.cls}`, LABEL[outcome.cls])}</StatusPill>
       {age && <p className="text-[12px] text-muted-foreground">{t(sent ? 'finance:odooOutcome.sent' : 'finance:odooOutcome.read', sent ? 'Sent {{age}}' : 'Read {{age}}', { age })}</p>}
+      {!compact && outcome.cls === 'needs-attention' && outcome.reason && REASON[outcome.reason] && (
+        <p data-testid="odoo-outcome-reason" className="max-w-[65ch] text-[12px] text-foreground">
+          {t(`finance:odooOutcome.reason.${outcome.reason}`, REASON[outcome.reason])}
+          {outcome.reason === 'total-mismatch' && sentTotal && ` ${t('finance:odooOutcome.sentTotal', 'PMO sent {{amount}}.', { amount: formatCurrencyCents(sentTotal.amount, sentTotal.currency) })}`}
+        </p>
+      )}
       {!compact && NEXT[outcome.cls] && (
         <p data-testid="odoo-outcome-next" className="max-w-[65ch] text-[12px] text-muted-foreground">
           {t(`finance:odooOutcome.next.${outcome.cls}`, NEXT[outcome.cls]!)}

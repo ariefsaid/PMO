@@ -112,12 +112,14 @@ export function salesInvoiceColumns({ t, all, embedded, native, location, orgCur
     size: embedded ? 180 : undefined,
     cell: (inv) => {
       const status = invoiceStatus(inv);
-      if (status.odooOutcome) return <OdooOutcome outcome={status.odooOutcome} unreachable={status.odooOffline} compact />;
       const receiptAwaitingOdoo = status.receiptAwaitingOdoo === true;
       const legacyLabel = status.partlySettled
         ? t('financeCopy.statusPartlyPaid', 'Partly paid')
         : salesInvoiceStatusLabel(inv.status, t);
-      return <StatusPill className={embedded ? 'max-w-full whitespace-normal!' : undefined} variant={embedded || receiptAwaitingOdoo ? status.variant : status.partlySettled ? salesInvoiceStatusVariant('Unpaid') : salesInvoiceStatusVariant(inv.status)}>{embedded || receiptAwaitingOdoo ? status.label : legacyLabel}</StatusPill>;
+      const pill = <StatusPill className={embedded ? 'max-w-full whitespace-normal!' : undefined} variant={embedded || receiptAwaitingOdoo ? status.variant : status.partlySettled ? salesInvoiceStatusVariant('Unpaid') : salesInvoiceStatusVariant(inv.status)}>{embedded || receiptAwaitingOdoo ? status.label : legacyLabel}</StatusPill>;
+      // The invoice keeps its own status; Odoo's word is added only while something is unsettled (a settled invoice is the normal case).
+      if (!status.odooOutcome || status.odooOutcome.cls === 'confirmed') return pill;
+      return <span className="flex min-w-0 flex-col items-start gap-1">{pill}<OdooOutcome outcome={status.odooOutcome} unreachable={status.odooOffline} compact /></span>;
     },
     exportValue: (inv) => inv.status,
   };

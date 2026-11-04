@@ -14,6 +14,9 @@ import type { IncomingPaymentRow, SalesInvoiceRow } from '@/src/lib/db/revenue';
 const hoisted = vi.hoisted(() => ({
   received: vi.fn(async () => {}),
   revenueMode: 'native' as 'native' | 'erp',
+  ownership: [] as unknown[],
+  odooUnreachable: false,
+  odooCommands: [] as unknown[],
   incomingPaymentsArgs: undefined as unknown[] | undefined,
   getInvoice: vi.fn(),
   projectOptions: [{ value: 'project-1', label: 'Northwind Build', contractualName: 'Northwind Build', sub: 'NW-1', clientId: 'cust-1', subjectToVat: false, taxRate: null, archived: false, customerContractRef: 'CLIENT-PO-1' }],
@@ -111,6 +114,9 @@ beforeEach(() => {
   incomingPaymentsState.isError = false;
   incomingPaymentsState.data = structuredClone(SEED_PAYMENTS);
   hoisted.revenueMode = 'native';
+  hoisted.ownership = [];
+  hoisted.odooUnreachable = false;
+  hoisted.odooCommands = [];
   hoisted.incomingPaymentsArgs = undefined;
 });
 
@@ -144,7 +150,9 @@ vi.mock('@/src/lib/repositories', async (importOriginal) => {
 vi.mock('@/src/lib/adapterSeam/ownershipCache', () => ({
   routeDomainWrite: vi.fn(() => 'pmo'),
 }));
-vi.mock('@/src/hooks/useExternalDomainOwnership', () => ({ useExternalDomainOwnership: () => ({ data: [], isError: false }) }));
+vi.mock('@/src/hooks/useExternalDomainOwnership', () => ({ useExternalDomainOwnership: () => ({ data: hoisted.ownership, isError: false }) }));
+vi.mock('@/src/hooks/useOdooPurchase', async (orig) => ({ ...(await orig<Record<string, unknown>>()), useOdooUnreachable: (enabled = true) => ({ unreachable: enabled && hoisted.odooUnreachable, lastOkAt: null }) }));
+vi.mock('@/src/hooks/useOdooRevenue', async (orig) => ({ ...(await orig<Record<string, unknown>>()), useOdooRevenueCommandsForInvoices: () => ({ data: hoisted.odooCommands }) }));
 vi.mock('@/src/hooks/useRevenueMode', () => ({ useRevenueMode: () => hoisted.revenueMode }));
 vi.mock('@/src/hooks/useFxOrgDay', () => ({ useFxOrgDay: () => ({ day: '2026-10-16', isPending: false, isError: false, retry: vi.fn() }) }));
 vi.mock('@/src/hooks/useFkOptions', () => ({
@@ -526,3 +534,27 @@ it('records the selected invoice receipt from detail', async () => {
   expect(hoisted.received).toHaveBeenCalledWith({ siId: 'inv-1', receivedDate: '2026-10-12' });
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
 });
+
+describe('AC-OCI-090 review: the invoice list with Odoo', () => {
+  const odooOrg = () => {
+    hoisted.revenueMode = 'erp';
+    hoisted.ownership = [{ domain: 'revenue', externalTier: 'odoo' }];
+    salesInvoicesState.data = SEED_INVOICES.map((inv) => ({ ...inv, pmo_native: false, odoo_state: 'posted', odoo_read_at: '2026-11-03T10:00:00Z' })) as SalesInvoiceRow[];
+  };
+
+  it('keeps each invoice own status instead of replacing it with "In Odoo"', () => {
+    odooOrg();
+    renderAt('/finance/receivables');
+    expect(screen.getByText('ACC-SINV-2026-00002').closest('tr')).toHaveTextContent('Paid');
+    expect(screen.queryByText('In Odoo')).toBeNull();
+  });
+
+  it('says once, above the list, that Odoo is unreachable', () => {
+    odooOrg();
+    hoisted.odooUnreachable = true;
+    hoisted.odooCommands = [{ id: 'c', recordId: 'inv-1', kind: 'sales-invoice', state: 'pending', lastError: null, updatedAt: '2026-11-03T10:00:00Z', actorUserId: null }];
+    renderAt('/finance/receivables');
+    expect(screen.getAllByText(/Odoo (cannot be reached|is unavailable)/)).toHaveLength(1);
+  });
+});
+

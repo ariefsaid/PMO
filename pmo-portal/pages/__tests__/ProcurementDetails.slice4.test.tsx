@@ -328,7 +328,7 @@ describe('AC-PR-S4-001: per-stage action verbs appear in the action zone', () =>
     expect(screen.getByTestId('procurement-status-badge')).toHaveTextContent('Paid');
   });
 
-  // A terminal purchase carries no lifecycle buttons and the helper copy names only those buttons.
+  // A terminal purchase carries no lifecycle buttons and says nothing about them.
   it('Cancelled: no advance verbs — the status reads Cancelled', () => {
     detailState.data = { ...BASE, status: 'Cancelled' };
     renderPage();
@@ -336,7 +336,7 @@ describe('AC-PR-S4-001: per-stage action verbs appear in the action zone', () =>
     expect(headerActions().queryByRole('button', { name: /approve|submit|record (order|receipt|payment|supplier invoice)|rework|choose quote/i })).toBeNull();
   });
 
-  it('F3: while a goods receipt form is open, the helper copy refers only to lifecycle buttons', async () => {
+  it('F3: while a goods receipt form is open, no lifecycle-buttons line is shown at all', async () => {
     const { default: userEvent } = await import('@testing-library/user-event');
     roleState.realRole = 'Project Manager';
     roleState.effectiveRole = 'Project Manager';
@@ -345,8 +345,7 @@ describe('AC-PR-S4-001: per-stage action verbs appear in the action zone', () =>
     renderPage();
     await userEvent.click(headerActions().getByRole('button', { name: 'Record receipt' }));
     expect(screen.getByTestId('form-create-gr')).toBeInTheDocument();
-    expect(screen.getByText('No lifecycle buttons are available at this stage.')).toBeInTheDocument();
-    expect(screen.queryByText(/No further lifecycle actions are available to you/)).toBeNull();
+    expect(screen.queryByText(/lifecycle (buttons|actions)/i)).toBeNull();
   });
 
   it('Rejected (requester=self): shows Rework (Back to Draft)', () => {

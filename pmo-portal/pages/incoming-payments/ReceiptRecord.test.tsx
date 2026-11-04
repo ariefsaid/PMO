@@ -61,4 +61,16 @@ describe('ReceiptRecord', () => {
     rerender(<MemoryRouter><ReceiptRecord receipt={{ ...receipt, push_command_state: 'failed' }} allocations={[]} onBack={() => {}} odoo /></MemoryRouter>);
     expect(screen.getByText('Needs attention')).toBeInTheDocument();
   });
+
+  it('review: an Odoo receipt without a number yet is titled plainly, never by its internal id', () => {
+    const receipt = {
+      id: 'c5000000-0000-0000-0000-000000000003', org_id: 'org-1', customer_id: null, customer_name: 'Example customer',
+      sales_invoice_id: null, ip_number: null, reference_number: null, date: '2026-10-01', amount: 100, currency: 'USD',
+      status: 'Scheduled', erp_docstatus: null, erp_modified: null, erp_amended_from: null, erp_cancelled_at: null,
+      created_at: '2026-10-01T00:00:00Z', received_amount: 100, withheld_amount: 0, push_command_state: 'pending',
+    } as IncomingPaymentRow;
+    render(<MemoryRouter><ReceiptRecord receipt={receipt} allocations={null} onBack={() => {}} odoo /></MemoryRouter>);
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Receipt, not numbered yet');
+    expect(screen.queryByText(/c5000000/)).toBeNull();
+  });
 });

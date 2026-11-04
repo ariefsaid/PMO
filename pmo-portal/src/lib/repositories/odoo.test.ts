@@ -17,7 +17,18 @@ const h = vi.hoisted(() => {
     invoke: vi.fn(async () => ({ data: { ok: true }, error: null })),
   };
 });
-vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: h.from, rpc: h.rpc, functions: { invoke: h.invoke } } }));
+// Like the real client, `from` needs its receiver: a detached `supabase.from` call throws before any request is made.
+vi.mock('@/src/lib/supabase/client', () => {
+  const client = {
+    from(this: unknown, table: string) {
+      if (this !== client) throw new TypeError("Cannot read properties of undefined (reading 'rest')");
+      return h.from(table);
+    },
+    rpc: h.rpc,
+    functions: { invoke: h.invoke },
+  };
+  return { supabase: client };
+});
 import { odooRepository } from './odoo';
 
 beforeEach(() => { vi.clearAllMocks(); h.calls.length = 0; });

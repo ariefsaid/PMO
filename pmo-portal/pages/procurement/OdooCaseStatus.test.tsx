@@ -173,4 +173,15 @@ describe('AC-OCI-090 held Odoo revenue rows', () => {
     expect(screen.getByText('Needs a decision')).toBeInTheDocument();
     expect(screen.queryByRole('button')).toBeNull();
   });
+
+  it('review: two held rows give their buttons distinct names, so a screen reader hears which document each decides', async () => {
+    setTaskOwnership([{ domain: 'revenue', externalTier: 'odoo' }]);
+    h.revenueCommands = { data: [
+      { id: 'c-si', recordId: 'si-1', kind: 'sales-invoice', state: 'held', lastError: null, updatedAt: '2026-11-03T10:00:00Z', actorUserId: 'u-other' },
+      { id: 'c-ip', recordId: 'ip-1', kind: 'incoming-payment', state: 'held', lastError: null, updatedAt: '2026-11-03T10:00:00Z', actorUserId: 'u-other' },
+    ], isError: false };
+    render(<OdooCaseStatus invoiceId="si-1" />);
+    expect(screen.getByRole('button', { name: 'It exists in Odoo: Customer invoice' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'It does not exist in Odoo: Customer receipt' })).toBeInTheDocument();
+  });
 });

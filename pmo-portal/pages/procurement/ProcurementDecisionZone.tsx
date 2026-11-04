@@ -307,11 +307,7 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
                 );
               })}
             </div>
-          ) : (
-            <p className="text-[13px] text-muted-foreground">
-              {tProcurement('procurementDetail.noLifecycleActions', 'No lifecycle buttons are available at this stage.')}
-            </p>
-          )}
+          ) : null}
 
           {/* D10 (AC-W3-D10): gate message below the action bar when Draft with no items. */}
           {isDraft && p.items.length === 0 && actions.some((a) => a.to === 'Requested') && (

@@ -624,6 +624,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
       total={data ? all.length : undefined}
       headingLevel={embedded ? 2 : 1}
       description={embedded ? undefined : t('finance:invoices.description', 'Client invoices.')}
+      banner={odooOffline ? <p role="status" className="mb-3 text-sm text-muted-foreground">{t('finance:odooOutcome.offlineAction', 'Odoo is unavailable. You can still view the last data PMO read; no new changes were sent from this screen.')}</p> : undefined}
       primaryAction={!embedded && mode !== undefined && !createRequested && canCreate ? (
         <Button variant="primary" onClick={openNewInvoice}>
           <Icon name="plus" />
