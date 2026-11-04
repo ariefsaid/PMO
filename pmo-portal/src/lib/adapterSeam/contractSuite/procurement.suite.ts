@@ -6,8 +6,8 @@
 import { describe, expect, it } from 'vitest';
 import type { ErpHarness } from './harness.ts';
 
-function normaliseMoney(value: string): string {
-  const match = /^(\d+)(?:\.(\d{1,2}))?$/.exec(value);
+function normaliseMoney(value: string | null): string {
+  const match = value === null ? null : /^(\d+)(?:\.(\d{1,2}))?$/.exec(value);
   if (!match) throw new Error(`Expected a fixed-scale monetary string, received ${value}`);
   return `${match[1]}.${(match[2] ?? '').padEnd(2, '0')}`;
 }

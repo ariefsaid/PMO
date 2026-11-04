@@ -3,6 +3,13 @@ import { resolveOdooProcurementAdapter } from '../../../../../supabase/functions
 import { createFakeOdoo } from './fakeOdoo.ts';
 import type { LinkOwner, PreflightResult, ProcurementPushScenario, PushBeforeConnectionResult } from '../contractSuite/harness.ts';
 
+declare global {
+  const Deno: {
+    env: { get(name: string): string | undefined };
+    errors: { NotFound: new (message?: string) => Error };
+  };
+}
+
 const KEY = 'contract-test-key';
 const ORG: Record<'A' | 'B', string> = { A: 'org-a', B: 'org-b' };
 const CASE: Record<'A' | 'B', string> = { A: 'case-a', B: 'case-b' };
@@ -19,7 +26,14 @@ type Connection = 'activated' | 'not-activated' | 'absent';
 
 function belongs(owner: LinkOwner | undefined, caller: 'A' | 'B'): string | undefined {
   if (owner === 'nobody') return undefined;
-  return CASE[owner ?? caller];
+  const tenant = owner === 'A' || owner === 'B' ? owner : caller;
+  return CASE[tenant];
+}
+
+function vendorId(owner: LinkOwner | undefined, fallback: 'A' | 'B'): string {
+  if (owner === 'nobody') return 'missing-vendor';
+  const tenant = owner === 'A' || owner === 'B' ? owner : fallback;
+  return VENDOR[tenant];
 }
 
 function scopedServiceClient(connection: Connection, scenario?: ProcurementPushScenario) {
@@ -45,7 +59,7 @@ function scopedServiceClient(connection: Connection, scenario?: ProcurementPushS
     procurements: (['A', 'B'] as const).map((tenant) => ({
       org_id: ORG[tenant], id: CASE[tenant], code: `PRC-${tenant}`, project_id: null,
       vendor_id: tenant === scenario?.caller && scenario.procurement === tenant && scenario.vendor
-        ? VENDOR[scenario.vendor]
+        ? vendorId(scenario.vendor, tenant)
         : VENDOR[tenant],
       currency: 'IDR',
     })),
@@ -108,7 +122,11 @@ function productionWorld() {
   return fake;
 }
 
-const linkId = (owner: LinkOwner | undefined, caller: 'A' | 'B') => owner === 'nobody' ? 'missing-record' : CASE[owner ?? caller];
+const linkId = (owner: LinkOwner | undefined, caller: 'A' | 'B') => {
+  if (owner === 'nobody') return 'missing-record';
+  const tenant = owner === 'A' || owner === 'B' ? owner : caller;
+  return CASE[tenant];
+};
 
 function commandFor(scenario: ProcurementPushScenario, tenant: 'A' | 'B') {
   const procurementId = belongs(scenario.procurement, tenant);
@@ -150,7 +168,8 @@ async function runProduction(command: ReturnType<typeof commandFor>, caller: 'A'
     try {
       const adapter = await resolveOdooProcurementAdapter({
         orgId: ORG[caller], serviceClient: scopedServiceClient(connection, scenario) as never, userId: `user-${caller}`,
-        faultGate: {}, erpAuth: {}, command: command as never,
+        faultGate: { envFaults: undefined, header: null, requestHost: null, allowedHosts: undefined },
+        erpAuth: new Map(), command: command as never,
       });
       await adapter.commit(command as never);
       return { outcome: 'accepted', erpCalls: fake.calls.length };
