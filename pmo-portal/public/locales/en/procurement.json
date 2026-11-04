@@ -674,7 +674,10 @@
       "title": "Quantity received",
       "hint": "Leave blank to receive everything still open. Odoo refuses more than is open.",
       "line": "{{name}} (ordered {{qty}})",
-      "invalid": "Enter a quantity above zero and no more than was ordered for {{name}}."
+      "invalid": "Enter a quantity above zero and no more than was ordered for {{name}}.",
+      "fullUnavailable": "Line quantities are kept, but they cannot be submitted while line-level receipts are unavailable. Clear them to receive everything still open.",
+      "retry": "Retry",
+      "clearAll": "Clear quantities and receive all open items"
     }
   }
 }

@@ -136,8 +136,9 @@ export const LEGACY_ASSISTANT_PATHS = {
     purchase_requests: 'procurement',
     rfqs: 'procurement',
     purchase_orders: 'procurement',
-    // Procurement full — receipts / the three-way-match boundary
-    procurement_receipts: 'procurement_full',
+    // D17 (#1783 item 1): receipts are a BASIC read; procurement_full is line-level + the match
+    // (no assistant read entity of its own — covered by the ALLOWLIST entry below).
+    procurement_receipts: 'procurement',
     // Stock (#1721 read surfaces)
     stock_items: 'stock',
     stock_warehouses: 'stock',
@@ -197,6 +198,11 @@ export const ALLOWLIST = [
     ids: ['assistant:feedback_surveys'],
     reason: 'Admin-owned switch (0419); S4 deliberately gives it no assistant surface',
     restore: 'Delete only if the owner gives the assistant a feedback-surveys read path.',
+  },
+  {
+    ids: ['assistant:procurement_full'],
+    reason: 'Line-level receipt writes and the order/receipt/invoice match have no assistant read entity; existing receipt reads are Basic (procurement) since D17 #1783 item 1',
+    restore: 'Remove when a Full-only assistant read entity or named read tool ships.',
   },
 ];
 

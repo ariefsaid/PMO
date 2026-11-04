@@ -18,6 +18,15 @@ vi.mock('@/src/hooks/useOrgTaxDefault', async (orig) => {
   const actual = (await orig()) as Record<string, unknown>;
   return { ...actual, useOrgTaxDefault: () => orgDefault.value };
 });
+vi.mock('@/src/hooks/useOrgFeatures', () => ({
+  useOrgFeatures: () => ({
+    data: { procurement: true, procurement_full: true },
+    isLoading: false,
+    isError: false,
+    error: null,
+    refetch: vi.fn(),
+  }),
+}));
 // #876 slice 2: the vendor's tax default read is pinned (null unless a test sets it).
 const vendorDefault = vi.hoisted(() => ({ value: null as null | { vatRate: number | null; pphType: 'pph23' | 'pph4_2' | null; pphRate: number | null } }));
 vi.mock('@/src/hooks/useVendorTaxDefault', () => ({ useVendorTaxDefault: () => vendorDefault.value }));

@@ -494,3 +494,55 @@ Deno.test('AC-PLN-007 — the event allowlist has no text key, so a message can 
     { org_id: 'org-1', route: '/stock', module: 'stock', source: 'plan', $session_id: 's-1', user_id: 'u-1' },
   );
 });
+
+// ── #1783 item 1 (D17 / AC-PLN-006/007): receipts are offered AND executable at Basic; the Full-off
+// label and the missing-tool hint stay truthful. These drive the REAL handler loop end to end. ──
+
+Deno.test('#1783 D17 Basic on + Full off — query_entity offers and EXECUTES procurement_receipts', async () => {
+  const captured: { tools?: { function: { name: string; parameters: unknown } }[]; messages?: { content: string | null }[] }[] = [];
+  const script = toolThenStop('query_entity', { entity: 'procurement_receipts' }, 'You received 6 of 10 cables.');
+  let i = 0;
+  const create = async (payload: never) => {
+    captured.push(payload);
+    return script[Math.min(i++, script.length - 1)] as never;
+  };
+  const receiptReads: string[] = [];
+  const client = {
+    from: (table: string) => {
+      if (table === 'profiles') {
+        return { select: () => ({ eq: () => ({ single: async () => ({ data: { org_id: 'org-1', role: 'Project Manager' }, error: null }) }) }) };
+      }
+      if (table === 'procurement_receipts') {
+        receiptReads.push(table);
+        return { select: () => ({ limit: async () => ({ data: [], error: null }) }) };
+      }
+      return { select: () => ({ limit: async () => ({ data: [], error: null }) }) };
+    },
+    rpc: async (fn: string) => fn === 'resolved_org_features'
+      ? { data: [{ feature_key: 'procurement', enabled: true }, { feature_key: 'procurement_full', enabled: false }].map((row) => ({ ...row, display_enabled: row.enabled, source: 'plan' })), error: null }
+      : { data: [], error: null },
+  };
+  const events: AgentEvent[] = [];
+  for await (
+    const e of agentChatHandler(
+      { messages: [{ role: 'user', content: 'What did we receive against the pump purchase?' }] },
+      { modelClient: { create } as never, model: MODEL, supabase: client as never, userId: 'user-1', verifyAnswer: false },
+    )
+  ) events.push(e);
+
+  const queryEntity = (captured[0].tools ?? []).find((t) => t.function.name === 'query_entity')!;
+  const entityEnum = (queryEntity.function.parameters as { properties: { entity: { enum: string[] } } }).properties.entity.enum;
+  assert(entityEnum.includes('procurement_receipts'), 'the receipts entity is offered at Basic');
+  const result = events.filter((e) => e.type === 'tool').map((e) => e.payload as { name: string; result: { code?: string } })
+    .find((p) => p.name === 'query_entity')!.result;
+  assertEquals(result.code, undefined, 'the receipts read executed — never a FEATURE_OFF refusal');
+  assertEquals(receiptReads.length, 1, 'the read actually reached the receipts table');
+  const system = String((captured[0].messages ?? [])[0]?.content ?? '');
+  assertEquals(system.toLowerCase().includes('goods receipts and three-way match'), false, 'the off- Full label no longer claims goods receipts');
+});
+
+Deno.test('#1783 D17 procurement off — receipts are refused at the action layer, like any procurement read', async () => {
+  const r = await run({ switches: { procurement: false, procurement_full: false }, rounds: toolThenStop('query_entity', { entity: 'procurement_receipts' }) });
+  const result = r.toolEvents.find((p) => p.name === 'query_entity')!.result as { code?: string; error?: string };
+  assertEquals(result.code, 'FEATURE_OFF');
+});

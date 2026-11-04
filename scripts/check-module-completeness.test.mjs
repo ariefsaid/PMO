@@ -700,3 +700,84 @@ test('a prefix allowlist id suppresses its gaps and still goes stale when they c
   const moved = broken.map((route) => (route.path === '/stock' ? { ...route, path: '/warehouse' } : route));
   assert.ok(has(check({ ...base, routes: moved }), 'stale allowlist entry: route:/stock*'), 'no gap left → stale');
 });
+
+// ── #1783 item 1 (D17 / AC-PLN-014): the procurement_full no-read-path exemption ──
+// Receipts read at Basic (procurement), Full is line-level operations + the match with no assistant
+// read entity of its own. The SHIPPED ALLOWLIST carries the single justified exception; these tests
+// prove it suppresses exactly its gap, goes stale when the gap closes, and never suppresses others.
+import { ALLOWLIST } from './check-module-completeness.mjs';
+
+const D17_FEATURES_TS = `
+export const FEATURE_KEYS = [
+  'incidents',
+  'crm',
+  'stock',
+  'revenue',
+  'procurement',
+  'procurement_full',
+] as const;
+export const CORE_FEATURE_KEYS = ['projects', 'dashboard'] as const;
+`;
+
+const D17_CATALOGUE_SQL = `
+alter table public.org_features add constraint org_features_feature_key_check
+  check (feature_key in ('incidents', 'crm', 'stock', 'revenue', 'procurement', 'procurement_full'));
+insert into public.plans (id, name, seat_limit) values
+  ('starter', 'Starter', 10),
+  ('enterprise', 'Enterprise', null);
+with plan_tiers(plan_id, tier) as (
+  values ('starter'::text, 1), ('enterprise'::text, 2)
+), feature_tiers(feature_key, minimum_tier) as (
+  values ('incidents'::text, 1), ('crm', 1), ('stock', 2), ('revenue', 2), ('procurement', 1), ('procurement_full', 2)
+)
+insert into public.plan_features (plan_id, feature_key, enabled)
+select p.plan_id, f.feature_key, p.tier >= f.minimum_tier
+  from plan_tiers p cross join feature_tiers f;
+`;
+
+/** The shipped post-#1783 map: receipts read at Basic; Full has no assistant read path. */
+function d17Input({ receiptsKey = 'procurement' } = {}) {
+  const mapSource = `
+export const ENTITY_FEATURE_KEYS: Readonly<Record<string, string>> = Object.freeze({
+  stock_items: 'stock',
+  incidents: 'incidents',
+  procurements: 'crm',
+  procurement_receipts: '${receiptsKey}',
+});
+export const TOOL_FEATURE_KEYS: Readonly<Record<string, string>> = Object.freeze({
+  query_stock: 'stock',
+  query_entity: 'revenue',
+});
+`;
+  return completeInput({
+    features: parseFeatures(D17_FEATURES_TS),
+    catalogue: parsePlanCatalogue([{ name: '0531_plan_catalogue.sql', sql: D17_CATALOGUE_SQL }]),
+    assistant: {
+      entities: new Set([...assistantInventory().entities, 'procurement_receipts']),
+      tools: assistantInventory().tools,
+    },
+    keyMap: parseKeyMap(new Map([['featureSwitches.ts', mapSource]])),
+    allowlist: ALLOWLIST.filter((entry) => entry.ids.includes('assistant:procurement_full')),
+  });
+}
+
+test('#1783 D17 the shipped assistant:procurement_full exemption suppresses exactly its gap (receipts read at Basic)', () => {
+  const errors = check(d17Input());
+  assert.ok(!has(errors, 'assistant:procurement_full'), errors.join('\n'));
+  assert.deepEqual(errors, [], 'the shipped map + shipped allowlist are complete');
+});
+
+test('#1783 D17 the shipped exemption goes STALE the moment Full gains a read path', () => {
+  const errors = check(d17Input({ receiptsKey: 'procurement_full' }));
+  assert.ok(has(errors, 'stale allowlist entry: assistant:procurement_full'), errors.join('\n'));
+});
+
+test('#1783 D17 an unmapped key without a read path still fails — the exemption is not a blanket allowlist', () => {
+  const input = d17Input();
+  input.features.keys.push('ghost');
+  input.catalogue.coverage.add(`starter${INTERNAL}ghost`);
+  input.catalogue.coverage.add(`enterprise${INTERNAL}ghost`);
+  input.catalogue.keys.add('ghost');
+  const errors = check(input);
+  assert.ok(has(errors, 'switch key ghost: no assistant read path'), errors.join('\n'));
+});
