@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
+import { fileURLToPath } from 'node:url';
 
 const root = process.cwd();
 const app = path.join(root, 'pmo-portal');
@@ -153,6 +154,77 @@ function select(changed, routeData, allSpecs) {
     return paths.some(changedPath => visited.some(visit => routeMatches(changedPath, visit)));
   }).sort();
 }
+// Serial-lane membership is the playwright config's decision, not this script's: read the serial
+// project's testMatch out of pmo-portal/playwright.config.ts so the phase splitter cannot drift
+// from the config (a second hard-coded `e2e/serial/**` rule here WOULD drift — that is the class of
+// bug this avoids).
+export function serialTestMatch(file = path.join(app, 'playwright.config.ts')) {
+  const ast = source(file);
+  let match;
+  walk(ast, n => {
+    if (match || !ts.isObjectLiteralExpression(n)) return;
+    const props = new Map(n.properties.filter(ts.isPropertyAssignment).map(p => [p.name.getText(ast).replaceAll("'", ''), p.initializer]));
+    const name = props.get('name');
+    if (!name || literalText(name) !== 'serial') return;
+    // Drop the `g` flag: `.test()` on a global regex is stateful and would skip every other file.
+    const toRegex = node => {
+      if (!ts.isRegularExpressionLiteral(node)) return null;
+      const end = node.text.lastIndexOf('/');
+      return new RegExp(node.text.slice(1, end), node.text.slice(end + 1).replaceAll('g', ''));
+    };
+    const testMatch = props.get('testMatch');
+    if (!testMatch) return;
+    if (ts.isArrayLiteralExpression(testMatch)) {
+      const regexes = testMatch.elements.map(toRegex);
+      if (regexes.every(Boolean)) match = regexes;
+    } else if (ts.isRegularExpressionLiteral(testMatch)) match = toRegex(testMatch);
+  });
+  if (!match) throw new Error('affected-e2e: cannot read the serial project testMatch (a RegExp or all-RegExp array) from pmo-portal/playwright.config.ts — extend serialTestMatch() rather than guessing membership.');
+  return match;
+}
+// Playwright applies testMatch to the spec's path; this config's entries are written for the
+// `e2e/…` form, so test the app-relative path and the absolute path and accept either. Over-matching
+// only costs a spec a workers=1 run; under-matching would let an org-global serial spec back into
+// the parallel phase — which IS the bug being fixed here.
+export function isSerialSpec(file, match) {
+  const candidates = [file, path.resolve(app, file)];
+  const regexes = Array.isArray(match) ? match : [match];
+  return regexes.some(regex => candidates.some(candidate => regex.test(candidate)));
+}
+// Split the selection the way playwright.config.ts does and run the two projects as separate
+// phases: serial specs share org-global state (AC-CODE-002 temporarily sets an org-wide {CLIENT}
+// number pattern while AC-CQ-020 creates a project), which is why the config runs serial at
+// workers=1 — a single `--project=chromium --project=serial` invocation forces 2 workers on both
+// and lets serial specs overlap. Chromium first at 2 workers, then serial at 1 (via E2E_WORKERS, so
+// e2e-local.sh does not stack a second --workers flag). A phase with no files is skipped; phase 2
+// runs even when phase 1 failed, and the exit stays non-zero.
+export function planPhases(files, match = serialTestMatch()) {
+  return [
+    { project: 'chromium', workers: '2', files: files.filter(file => !isSerialSpec(file, match)) },
+    { project: 'serial', workers: '1', files: files.filter(file => isSerialSpec(file, match)) },
+  ];
+}
+export function describePhase(phase) {
+  return `E2E_WORKERS=${phase.workers} scripts/e2e-local.sh --project=${phase.project} ${phase.files.join(' ')}`;
+}
+export function printPhases(phases) {
+  for (const phase of phases) {
+    console.log(phase.files.length
+      ? `\nRun command (${phase.project}, --workers=${phase.workers}): ${describePhase(phase)}`
+      : `\nRun command (${phase.project}, --workers=${phase.workers}): (no selected specs — phase skipped)`);
+  }
+}
+export function runPhases(phases, spawnE2E = spawnSync) {
+  let failed = false;
+  for (const phase of phases) {
+    if (!phase.files.length) continue;
+    const result = spawnE2E(path.join(root, 'scripts/e2e-local.sh'), ['--project=' + phase.project, ...phase.files], {
+      cwd: root, stdio: 'inherit', env: { ...process.env, E2E_WORKERS: phase.workers },
+    });
+    if ((result.status ?? 1) !== 0) failed = true;
+  }
+  return failed ? 1 : 0;
+}
 function selfTest() {
   const allSpecs = specs(), routeData = appRoutes();
   const companies = select(['pmo-portal/pages/Companies.tsx'], routeData, allSpecs).map(f => path.relative(app, f));
@@ -180,10 +252,24 @@ function selfTest() {
     helperSelection = select([path.relative(root, page)], { routes: [{ path: '/projects', roots: [page] }], shared: [] }, [fixture]).map(f => path.relative(app, f));
     if (helperSelection.length !== 1 || helperSelection[0] !== 'e2e/affected-e2e-fixture-' + process.pid + '/helper-only.spec.ts') throw new Error('affected-e2e helper-route self-test failed');
   } finally { fs.rmSync(fixtureDir, { recursive: true, force: true }); }
+
+  // --run must split the selection into two project phases (assertions only — no playwright run;
+  // the spawn contract is covered by scripts/affected-e2e.test.mjs): chromium at 2 workers first,
+  // then serial at 1. Membership comes from the real playwright.config.ts serial testMatch, so this
+  // also pins the config-derived splitter rather than a copy of its rule.
+  const split = planPhases(['e2e/AC-CO-001-companies-crud.spec.ts', 'e2e/serial/AC-CODE-002-project-number-proposal.spec.ts']);
+  const shape = split.map(phase => `${phase.project}@${phase.workers}:${phase.files.join('|')}`).join(' ');
+  if (shape !== 'chromium@2:e2e/AC-CO-001-companies-crud.spec.ts serial@1:e2e/serial/AC-CODE-002-project-number-proposal.spec.ts')
+    throw new Error(`affected-e2e phase-split self-test failed: expected chromium@2 then serial@1 with the selection partitioned by project, got ${shape}`);
+  const serialOnly = planPhases(['e2e/serial/AC-CODE-002-project-number-proposal.spec.ts']);
+  if (serialOnly[0].files.length !== 0 || serialOnly[1].project !== 'serial' || serialOnly[1].workers !== '1')
+    throw new Error('affected-e2e phase-split self-test failed: a serial-only selection must leave the chromium phase empty and keep serial at 1 worker');
+
   console.log(`Fixture 1 (Companies diff): selected ${companies.length} of ${allSpecs.length} specs`);
   console.log(`Required selections: ${expected.join(', ')}`);
   console.log(`Fixture 2 (helper-only navigation): selected ${helperSelection.length} of 1 fixture spec (${path.relative(app, fixture)})`);
   console.log(`Fixture 3 (shared shell diff): selected ${shell.length} of ${allSpecs.length} specs`);
+  console.log('Fixture 4 (--run phases): chromium @ 2 workers then serial @ 1 worker, split by the config testMatch');
   console.log('affected-e2e self-test passed');
 }
 function gitChanged(base) {
@@ -195,20 +281,22 @@ function gitChanged(base) {
   }
   return [...names];
 }
-const args = process.argv.slice(2);
-if (args.includes('--self-test')) selfTest();
-else {
-  const baseAt = args.indexOf('--base'), base = baseAt >= 0 ? args[baseAt + 1] : 'origin/dev';
-  const changed = gitChanged(base).filter(f => /^(pmo-portal\/(pages|src\/(components|hooks|lib\/repositories))\/|pmo-portal\/public\/locales\/)/.test(f));
-  if (!changed.length) { console.log('No supported UI paths changed.'); process.exit(0); }
-  const selected = select(changed, appRoutes(), specs());
-  const files = selected.map(f => path.relative(app, f));
-  console.log(files.length ? files.join('\n') : '(no matching e2e specs)');
-  console.log(`Selected ${files.length} of ${specs().length} specs.`);
-  const command = `scripts/e2e-local.sh --project=chromium --project=serial ${files.join(' ')}`;
-  console.log(`\nRun command: ${command}`);
-  if (args.includes('--run') && files.length) {
-    const result = spawnSync(path.join(root, 'scripts/e2e-local.sh'), ['--project=chromium', '--project=serial', ...files], { cwd: root, stdio: 'inherit' });
-    process.exit(result.status ?? 1);
+// CLI entry point. Guarded so the phase planner stays importable from
+// scripts/affected-e2e.test.mjs (node --test) without running a selection.
+const invokedDirectly = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+if (invokedDirectly) {
+  const args = process.argv.slice(2);
+  if (args.includes('--self-test')) selfTest();
+  else {
+    const baseAt = args.indexOf('--base'), base = baseAt >= 0 ? args[baseAt + 1] : 'origin/dev';
+    const changed = gitChanged(base).filter(f => /^(pmo-portal\/(pages|src\/(components|hooks|lib\/repositories))\/|pmo-portal\/public\/locales\/)/.test(f));
+    if (!changed.length) { console.log('No supported UI paths changed.'); process.exit(0); }
+    const selected = select(changed, appRoutes(), specs());
+    const files = selected.map(f => path.relative(app, f));
+    console.log(files.length ? files.join('\n') : '(no matching e2e specs)');
+    console.log(`Selected ${files.length} of ${specs().length} specs.`);
+    const phases = files.length ? planPhases(files) : [];
+    printPhases(phases);
+    if (args.includes('--run') && phases.length) process.exit(runPhases(phases));
   }
 }

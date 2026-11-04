@@ -51,6 +51,8 @@ or Luna will do; no Luna where GLM will do. Only a used-up quota moves work up a
 `zcode` does not start under Orca. Start GLM by opening a terminal in the worker's worktree that runs
 `pi --provider zai --model glm-5.3-flash:max`, then `orca orchestration worker-start --terminal <handle>`.
 
+**DeepSeek for audits (2026-11-04 trial):** on the same performance-audit brief, DeepSeek found 15 real issues and 8 wrong ones out of 24 (a third were false); Terra found 3, all real, but stopped early. Use DeepSeek for discovery (wide recall, cheap), always followed by a Terra or Sol pass that checks every finding against the code before anyone acts on it. Never let a DeepSeek finding, or its millisecond estimates, drive a fix unverified.
+
 **DeepSeek launch:** `--agent opencode --model opencode-go/deepseek-v4.1-flash` (not V4 Pro) on an existing worktree (create it first with `orca worktree create`). The terminal can look like a bare shell while it runs: don't start a second `opencode run` in the same worktree. These run on the owner's opencode Go plan (2026-11-03), whose workspace must be set to the Global region. The free `opencode/deepseek-v4.1-flash-free` id hits its limit after about 40–60 minutes, so don't use it. A 2026-11-02 trial passed the same held-out tests as GLM about six times faster.
 
 Money-path, SoD and auth/token-custody work stays **Director-dispatched per issue** (one worker per
