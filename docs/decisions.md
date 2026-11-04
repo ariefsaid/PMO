@@ -3643,6 +3643,11 @@ a lost browser response. AC-OPP-062 sweep recovery remains unmet and blocks any 
 An interrupted entry may await follow-up and delay finance processing. This records implementation evidence;
 the owner decides when the work is ready to release to `main`.
 
+## OD-OCI-C9-20261104 — honest #1506 workflow claims (implementation evidence)
+The Odoo adapter declares `invoice.push` supported at the version exercised by its shared contract suite. `receipt.read` and `invoice.pair-existing` remain pending on #1506; `cutover.revenue` stays pending on #1602 until its shared suite exists. C7 tax-document review remains on owner hold: `tax-document.read` stays pending on #1506; do not claim that Odoo-held tax-document facts are available until that review closes. `cutover.activation` is covered by the P9 production resolver contract. The recorded receipt journal must be a bank or cash journal with an inbound payment method. Client-withheld tax requires a company-currency current-asset or prepayment account configured in the Odoo setup checklist. Odoo money writes use the revenue outbox; this evidence does not make a release-readiness claim.
+
+Verification after the final dev merge (#1872): adapter-seam and Odoo integration unit suites passed (212 files, 3,031 tests); the C9 bed composite passed 2/2 tests; the served AC-OCI-100 journey passed 1/1 Chromium spec with 10/10 auth setup checks. Changed-line coverage was 50/54 (92.6%), and the post-merge affected-e2e gate found no additional supported UI paths to run.
+
 ### OD-1530-COMMIT — PMO open commitment is the order total minus what is already paid (Director ruling, 2026-11-03)
 For an org without an active ERP binding (#1530), budget actuals are PMO paid purchases, so a purchase's open
 commitment is `total_value − pre-tax paid amount` (floor 0), the PMO analogue of ADR-0093 §2 (total minus what is

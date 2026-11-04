@@ -20,11 +20,10 @@ import type { OrderCtx, OrderInput } from './purchase/orderBody.ts';
 import type { ReviseLine } from './purchase/orderRevise.ts';
 import { planReceipt } from './purchase/receiptBody.ts';
 import { buildInvoiceBody } from './revenue/invoiceBody.ts';
-import { revenuePreflight } from './revenue/preflight.ts';
 import { buildReceiptBody } from './revenue/receiptBody.ts';
-import { classifyPaymentDirection } from './revenue/status.ts';
 import { normaliseItem, normaliseParty, normaliseProject } from './normalise.ts';
 import { REVENUE_FEED_SPECS } from './revenue/feed.ts';
+import { assertOdooRevenueCommandScope } from '../../../../../supabase/functions/adapter-dispatch/odooRevenueGate.ts';
 
 const KEY = 'test-key';
 const CTX: OdooConnectCtx = { companyId: 1, analyticPlanId: 7, unitMap: { sak: '11' } };
@@ -146,10 +145,56 @@ function documents(fake: FakeOdoo, kind: MasterKind): NormalisedMaster[] {
   return rows.map(kind === 'project' ? normaliseProject : normaliseItem);
 }
 
-/** The direction Odoo states for a payment, per the shared `receipt.read` scenarios (anything unrecognised is skipped). */
-const PAYMENT_FIELDS: Record<Parameters<ErpHarness['classifyPayment']>[0], [string | undefined, string | undefined]> = {
-  received: ['inbound', 'customer'], paid: ['outbound', 'supplier'], unrecognised: ['transfer', 'customer'], blank: ['', ''], absent: [undefined, undefined],
-};
+type TenantId = 'tenant-A' | 'tenant-B';
+type ServiceRow = Record<string, unknown>;
+
+/** A small service-role read model for the Odoo dispatch gate, with tenant ownership enforced by query predicates. */
+function revenueServiceClient() {
+  const rows: Record<string, ServiceRow[]> = {
+    companies: [
+      { id: 'customer-a', org_id: 'tenant-A' },
+      { id: 'customer-b', org_id: 'tenant-B' },
+    ],
+    projects: [
+      { id: 'project-a', org_id: 'tenant-A' },
+      { id: 'project-b', org_id: 'tenant-B' },
+    ],
+    sales_invoices: [
+      { id: 'invoice-a', org_id: 'tenant-A', customer_id: 'customer-a' },
+      { id: 'invoice-b', org_id: 'tenant-B', customer_id: 'customer-b' },
+    ],
+    work_orders: [],
+    external_project_bindings: [
+      { org_id: 'tenant-A', project_id: 'project-a', external_tier: 'odoo', external_container_id: 'cost-a' },
+      { org_id: 'tenant-B', project_id: 'project-b', external_tier: 'odoo', external_container_id: 'cost-b' },
+    ],
+    external_master_records: [
+      { org_id: 'tenant-A', external_tier: 'odoo', kind: 'analytic_account', external_id: 'cost-a', active: true, tombstoned_at: null },
+      { org_id: 'tenant-B', external_tier: 'odoo', kind: 'analytic_account', external_id: 'cost-b', active: true, tombstoned_at: null },
+    ],
+    external_refs: [
+      { org_id: 'tenant-A', domain: 'revenue', external_tier: 'odoo', pmo_record_id: 'invoice-a', external_record_id: 'account.move:701' },
+      { org_id: 'tenant-B', domain: 'revenue', external_tier: 'odoo', pmo_record_id: 'invoice-b', external_record_id: 'account.move:702' },
+    ],
+  };
+  return {
+    from(table: string) {
+      const filters: Array<[string, unknown]> = [];
+      const query = {
+        select() { return query; },
+        eq(column: string, value: unknown) { filters.push([column, value]); return query; },
+        async maybeSingle() {
+          const data = (rows[table] ?? []).find((row) => filters.every(([column, value]) => row[column] === value)) ?? null;
+          return { data, error: null };
+        },
+      };
+      return query;
+    },
+  };
+}
+
+const ownedId = (table: string, owner: 'A' | 'B' | 'nobody' | undefined) =>
+  owner === undefined ? undefined : owner === 'nobody' ? `missing-${table}` : `${table}-${owner.toLowerCase()}`;
 
 /**
  * The Odoo-side revenue checks that are not in the shared interface (SD-5, no version bump): a fake Odoo, a bound client
@@ -260,31 +305,50 @@ export function createOdooHarness(): ErpHarness {
     pushTimesheet() { return Promise.reject(pending('timesheet.push', 1510)); },
     pushProcurement: productionProcurement,
     async pushRevenue(s) {
-      const result = revenuePreflight(s);
-      return result.outcome === 'accepted' ? { outcome: 'accepted', erpCalls: 0 } : { outcome: 'refused', code: result.code, erpCalls: 0 };
+      const record: Record<string, unknown> = {
+        erp_doc_kind: s.doc === 'receipt' ? 'incoming-payment' : 'sales-invoice',
+      };
+      const customerId = ownedId('customer', s.customer);
+      const projectId = ownedId('project', s.project);
+      const salesInvoiceId = ownedId('invoice', s.salesInvoice);
+      if (customerId) record.customerId = customerId;
+      if (projectId) record.projectId = projectId;
+      if (salesInvoiceId) record.salesInvoiceId = salesInvoiceId;
+      const command = { domain: 'revenue', operation: 'create', idempotencyKey: 'shared-contract', record } as AdapterCommand;
+      try {
+        await assertOdooRevenueCommandScope(revenueServiceClient() as never, `tenant-${s.caller}` as TenantId, command);
+        return { outcome: 'accepted', erpCalls: 0 };
+      } catch (error) {
+        const code = typeof error === 'object' && error !== null && 'code' in error && typeof error.code === 'string'
+          ? error.code
+          : 'commit-rejected';
+        return { outcome: 'refused', code, erpCalls: 0 };
+      }
     },
     async mapInboundInvoice(doc: InboundInvoiceDoc) {
-      const total = Number(doc.total), tax = Number(doc.taxAmount);
       const row = REVENUE_FEED_SPECS['sales-invoice'].parse({
         id: 1, name: doc.number, move_type: 'out_invoice', state: 'posted', partner_id: [41, doc.client],
         invoice_date: doc.date, ref: doc.poRef ?? false, currency_id: [1, doc.currency],
-        amount_total: total, amount_untaxed: total - tax, amount_tax: tax, amount_residual: total,
+        amount_total: Number(doc.total), amount_untaxed: Number(doc.total) - Number(doc.taxAmount), amount_tax: Number(doc.taxAmount), amount_residual: Number(doc.total),
         write_date: `${doc.date} 00:00:00`,
       });
       if (!row) throw new Error('Odoo invoice did not produce a readable pair candidate');
-      return {
-        customer: row.attrs.partner_name,
-        reference_number: row.attrs.reference_number,
-        si_number: row.name,
-        amount: row.attrs.amount_total,
-        tax_amount: row.attrs.amount_tax,
-        currency: row.attrs.currency,
-        invoice_date: row.attrs.date,
-      };
+      return { ...row };
     },
     pushBudgetVersion() { return Promise.reject(pending('budget.push', 1507)); },
     readActuals() { return Promise.reject(pending('actuals.read', 1507)); },
-    classifyPayment(direction) { return classifyPaymentDirection(...PAYMENT_FIELDS[direction]); },
+    classifyPayment(direction) {
+      const fields = {
+        received: ['inbound', 'customer'], paid: ['outbound', 'supplier'], unrecognised: ['transfer', 'customer'],
+        blank: ['', ''], absent: [undefined, undefined],
+      } as const;
+      const [paymentType, partnerType] = fields[direction];
+      const row = REVENUE_FEED_SPECS['incoming-payment'].parse({
+        id: 1, name: 'PAY/1', state: 'paid', partner_id: [41, 'Client'], payment_type: paymentType,
+        partner_type: partnerType, amount: 100, date: '2026-11-01', currency_id: [1, 'IDR'], write_date: '2026-11-02 10:00:00',
+      });
+      return row ? { kind: 'receipt', domain: 'revenue', table: 'incoming_payments' } : { kind: 'skipped' };
+    },
     async mirrorPurchases(docs) {
       const latest = new Map<string, { kind: 'purchase-order' | 'bill'; reference: string; total: string; modifiedAt: string }>();
       docs.forEach((doc, i) => {

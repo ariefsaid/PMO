@@ -128,10 +128,9 @@ async function withAnchors(call: OdooCall, spec: RevenueFeedSpec, rows: Raw[]): 
 /** Reader adapter shared by runKind and runCensus; the activated company always scopes both APIs. */
 export function revenueFeedReaders(call: OdooCall, spec: RevenueFeedSpec, companyId: number): KindReaders {
   const scope = [...spec.filter, ...companyDomain(spec, companyId)];
-  const context = { active_test: false, lang: 'en_US' };
   return {
     read: async (domain, order, limit) => withAnchors(call, spec,
-      await call<Raw[]>(spec.model,'search_read',{ domain: [...domain,...scope], fields: ['id',...spec.fields], order, limit, context })),
-    readIds: (afterId, limit) => call<number[]>(spec.model,'search',{ domain: [['id','>',afterId],...scope], order: 'id asc', limit, context }),
+      await call<Raw[]>(spec.model,'search_read',{ domain: [...domain,...scope], fields: ['id',...spec.fields], order, limit })),
+    readIds: (afterId, limit) => call<number[]>(spec.model,'search',{ domain: [['id','>',afterId],...scope], order: 'id asc', limit }),
   };
 }

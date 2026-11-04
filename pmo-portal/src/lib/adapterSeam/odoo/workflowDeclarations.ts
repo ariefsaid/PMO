@@ -16,6 +16,7 @@ const ODOO_ACTUALS_AND_BUDGET = 1507;
 const ODOO_LABOUR = 1510;
 const ODOO_SITE_CASH = 1509; // site imprest postings (#1515 §9)
 const ODOO_P2P = 1505;
+const ODOO_REVENUE_CUTOVER = 1602;
 
 export const ODOO_WORKFLOWS: TierWorkflows = {
   'census': { status: 'supported', version: 1 },
@@ -38,10 +39,11 @@ export const ODOO_WORKFLOWS: TierWorkflows = {
   'cutover.timesheet': { status: 'pending', version: 1, issue: ODOO_LABOUR },
   // The production resolver rejects a binding until it is active and company-scoped.
   'cutover.activation': { status: 'supported', version: 1 },
-  'invoice.push': { status: 'pending', version: 1, issue: ODOO_REVENUE },
+  'invoice.push': { status: 'supported', version: 1 },
   'receipt.read': { status: 'pending', version: 1, issue: ODOO_REVENUE },
   'invoice.pair-existing': { status: 'pending', version: 1, issue: ODOO_REVENUE },
-  'cutover.revenue': { status: 'pending', version: 1, issue: ODOO_REVENUE },
+  'cutover.revenue': { status: 'pending', version: 1, issue: ODOO_REVENUE_CUTOVER },
+  'tax-document.read': { status: 'pending', version: 1, issue: ODOO_REVENUE },
   'actuals.read': { status: 'pending', version: 1, issue: ODOO_ACTUALS_AND_BUDGET },
   'budget.push': { status: 'pending', version: 1, issue: ODOO_ACTUALS_AND_BUDGET },
   // O4 decides: Odoo Community has no budget object (DD-ODC-5), so this likely becomes unavailable.

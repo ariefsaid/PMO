@@ -40,6 +40,12 @@ export const ALLOWED_SKIPS = [
     verified: '2026-10-30',
   },
   {
+    file: 'AC-OCI-100-odoo-client-invoice-to-receipt.spec.ts',
+    reason: 'The Odoo client-invoice journey requires the disposable Odoo bed and the served-functions lane.',
+    restore: 'Run under scripts/with-odoo-lock.sh and scripts/with-db-lock.sh with the Odoo bed up and scripts/serve-functions.sh active, then scripts/e2e-local.sh AC-OCI-100.',
+    verified: '2026-11-04',
+  },
+  {
     file: 'serial/AC-WHT-002-receipt-withholding.spec.ts',
     reason: 'Receipt withholding settlement proof requires the local served-functions lane and throwaway ERPNext bench.',
     restore: 'Run with scripts/serve-functions.sh against the local ERPNext bench.',

@@ -22,6 +22,8 @@ export interface OdooClientDeps {
   apiKey: string;
   /** Always sent: optional on a single-database host, required on a multi-database one (bed §1, V2 open). */
   database: string;
+  /** The selected company for an activated organization binding; scopes every request independently of the key user's default. */
+  companyId?: number | null;
   fetchImpl: typeof fetch;
   deadlineMs?: number;
   /** Waits for a request slot before each call (`createPacer`). */
@@ -52,13 +54,20 @@ async function httpClass(res: Response): Promise<OdooErrorClass> {
 
 export async function odooCall<T>(deps: OdooClientDeps, model: string, method: string, body: Record<string, unknown> = {}): Promise<T> {
   await deps.pace?.();
+  const companyId = deps.companyId;
+  const context = body.context && typeof body.context === 'object' && !Array.isArray(body.context)
+    ? body.context as Record<string, unknown>
+    : {};
+  const requestBody = typeof companyId === 'number' && Number.isInteger(companyId) && companyId > 0
+    ? { ...body, context: { ...context, allowed_company_ids: [companyId], company_id: companyId } }
+    : body;
   let res: Response;
   try {
     res = await deps.fetchImpl(`${deps.baseUrl.replace(/\/$/, '')}/json/2/${model}/${method}`, {
       method: 'POST',
       redirect: 'manual',
       headers: { Authorization: `bearer ${deps.apiKey}`, 'X-Odoo-Database': deps.database, 'Content-Type': 'application/json; charset=utf-8' },
-      body: JSON.stringify(body),
+      body: JSON.stringify(requestBody),
       signal: AbortSignal.timeout(deps.deadlineMs ?? ODOO_CALL_TIMEOUT_MS),
     });
   } catch (err) {

@@ -5,7 +5,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { SUITES } from '../contractSuite/index.ts';
-import { invoicePushSuite, receiptReadSuite } from '../contractSuite/revenue.suite.ts';
+import { receiptReadSuite } from '../contractSuite/revenue.suite.ts';
 import { purchaseOrderReviseSuite } from '../contractSuite/purchaseOrderRevise.suite.ts';
 import { TIER_HARNESSES } from '../contractSuite/tiers.ts';
 import { createOdooRevenueHarness } from './contract.harness.ts';
@@ -15,9 +15,7 @@ import { ODOO_WORKFLOWS } from './workflowDeclarations.ts';
 
 const harness = TIER_HARNESSES.odoo;
 
-// #1506 C1: the declarations stay `pending` until C9 flips them (SD-2), so the shared runner skips these suites. They run
-// here by an explicit local list, so the contract is proved red-then-green before anything ships.
-invoicePushSuite(harness);
+// Pending workflows still run their shared contract cases here; supported suites run through the tier-wide runner.
 receiptReadSuite(harness);
 SUITES['invoice.pair-existing']!(harness);
 purchaseOrderReviseSuite(harness);
@@ -77,8 +75,31 @@ describe('odoo contract', () => {
     expect(payment).toMatchObject({ outcome: 'refused', code: 'commit-rejected', erpCalls: 1 });
   });
 
-  it('keeps the revenue declarations pending while the harness runs the shared revenue suites (SD-2)', () => {
-    for (const id of ['invoice.push', 'receipt.read', 'invoice.pair-existing', 'cutover.revenue'] as const) expect(ODOO_WORKFLOWS[id].status).toBe('pending');
+  it('AC-OCI-094 keeps declarations honest about which shared suites exercise production code', () => {
+    expect(ODOO_WORKFLOWS['invoice.push'].status).toBe('supported');
+    expect(ODOO_WORKFLOWS['receipt.read']).toEqual({ status: 'pending', version: 1, issue: 1506 });
+    expect(ODOO_WORKFLOWS['invoice.pair-existing']).toEqual({ status: 'pending', version: 1, issue: 1506 });
+    expect(ODOO_WORKFLOWS['cutover.revenue']).toEqual({ status: 'pending', version: 1, issue: 1602 });
+    expect(ODOO_WORKFLOWS['cutover.activation']).toEqual({ status: 'supported', version: 1 });
+    expect(ODOO_WORKFLOWS['tax-document.read']).toEqual({ status: 'pending', version: 1, issue: 1506 });
+  });
+
+  it('AC-OCI-030 parses pair candidates through the production Odoo revenue feed', async () => {
+    const row = await harness.mapInboundInvoice?.({
+      client: 'Client A', number: 'INV/2026/00051', poRef: 'PO-51', total: '1110.00', taxAmount: '110.00', date: '2026-11-01', currency: 'IDR',
+    });
+    expect(row).toMatchObject({
+      external_id: '1', name: 'INV/2026/00051',
+      attrs: {
+        partner_name: 'Client A', reference_number: 'PO-51', amount_total: '1110.00', amount_tax: '110.00', currency: 'IDR', date: '2026-11-01',
+      },
+    });
+    expect(row).not.toHaveProperty('customer');
+  });
+
+  it('AC-OCI-071 classifies only inbound customer payments accepted by the production feed parser', () => {
+    expect(harness.classifyPayment('received')).toEqual({ kind: 'receipt', domain: 'revenue', table: 'incoming_payments' });
+    expect(harness.classifyPayment('paid')).toEqual({ kind: 'skipped' });
   });
 
   it('SD-5 the Odoo harness exposes the claim and receipt builders over the fake: build, create, post, read back, receive', async () => {

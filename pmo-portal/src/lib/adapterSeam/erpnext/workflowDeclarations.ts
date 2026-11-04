@@ -37,6 +37,7 @@ export const ERPNEXT_WORKFLOWS: TierWorkflows = {
   'invoice.pair-existing': { status: 'supported', version: 1 },
   // SQL guard, tier-agnostic, proven by pgTAP (0275 §7); the shared suite or a documented exception is #1676.
   'cutover.revenue': { status: 'pending', version: 1, issue: CUTOVER_PROOFS_OUTSIDE_VITEST },
+  'tax-document.read': { status: 'pending', version: 1, issue: 1506 },
   'actuals.read': { status: 'supported', version: 1 },
   'budget.push': { status: 'supported', version: 1 },
   'budget.unowned-occupant': { status: 'supported', version: 1 },
