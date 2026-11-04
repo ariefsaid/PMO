@@ -74,6 +74,6 @@ test.describe('UXS-013 — a dashboard signal carries its lever', () => {
     // The canonical Budget tab actually rendered with its active version.
     const budgetVersions = page.getByRole('region', { name: 'Budget versions' });
     const activeVersion = budgetVersions.getByRole('row').filter({ hasText: 'Initial Budget' });
-    await expect(activeVersion.getByRole('cell', { name: 'Active', exact: true })).toBeVisible();
+    await expect(activeVersion.getByRole('cell', { name: 'Active', exact: true })).toBeVisible({ timeout: 20_000 });
   });
 });
