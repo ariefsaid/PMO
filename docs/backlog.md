@@ -10,7 +10,20 @@
 
 ### ⚑⚑⚑ CURRENT STATE (2026-10-19) — v0.22.0 is LIVE; run the four commands below before quoting any number
 
-**2026-11-05 — #1506 C9 evidence (branch only):** `invoice.push`, `receipt.read`, `invoice.pair-existing` and `cutover.activation` are declared supported at the versions exercised by their shared adapter suites. Revenue cutover remains pending #1602 because its shared suite is not available. C7 tax-document work remains on owner hold; `tax-document.read` stays pending on #1506 and no tax-document availability is claimed. The live Odoo bed composite passed both tests; the served AC-OCI-100 browser journey passed one Chromium journey plus ten setup checks, with persisted invoice/receipt rows and rendered e-Faktur, project, amounts, withholding and statuses. The post-merge affected-e2e gate selected no additional specs because this slice changes no supported UI paths. This branch does not claim readiness for a release to `main`.
+**2026-11-05 — Odoo P9/C9 evidence (#1505/#1506):** `purchase.link-existing`, `cutover.purchase`, and
+`cutover.activation` are supported; `purchase.push`, `bill.push`, `vendor-payment.push`, and
+`purchase-order.revise` remain pending under #1505. `invoice.push` is supported; `receipt.read`,
+`invoice.pair-existing`, and `tax-document.read` remain pending under #1506, while `cutover.revenue`
+remains pending under #1602. The vocabulary guard covers the purchase and revenue model and field terms.
+The P9 composite Odoo bed run covers order/revision, receipt, VAT/PPh bill, payment recovery and the
+different-Finance-user gate. Receipt interruption is covered by `odooReceipt.bed.test.ts`; bill and payment
+interruption are covered by `odooPayment.bed.test.ts`, through adapter/recovery calls. The P9 browser journey
+proves replay after a lost browser response. AC-OPP-062 sweep recovery remains unmet and blocks any release
+of Odoo procurement; an interrupted entry may await follow-up and delay finance processing. The C9 live
+Odoo bed composite passed both tests; its served AC-OCI-100 browser journey passed one Chromium journey plus
+ten setup checks, with persisted invoice/receipt rows and rendered e-Faktur, project, amounts, withholding
+and statuses. The shared-money-outbox behavior is already on `dev` from P6. This status does not make a
+release-to-`main` recommendation; that remains the owner's decision.
 
 **Current drive boundary (owner, 2026-10-17): `dev` only. Do not promote to `main` or production.**
 **Dev gate:** regression #1182 is fixed in PR #1183 (`90fba37e`). The full dev browser run

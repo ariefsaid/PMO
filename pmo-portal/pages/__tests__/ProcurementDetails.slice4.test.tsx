@@ -52,6 +52,15 @@ vi.mock('@/src/hooks/useOrgTaxDefault', async (orig) => ({
   ...((await orig()) as Record<string, unknown>),
   useOrgTaxDefault: () => undefined,
 }));
+vi.mock('@/src/hooks/useOrgFeatures', () => ({
+  useOrgFeatures: () => ({
+    data: { procurement: true, procurement_full: true },
+    isLoading: false,
+    isError: false,
+    error: null,
+    refetch: vi.fn(),
+  }),
+}));
 vi.mock('@/src/hooks/useProcurementRecords', () => ({
   useProcurementRecordMutations: () => ({
     createPurchaseRequest: { mutateAsync: vi.fn(), isPending: false },

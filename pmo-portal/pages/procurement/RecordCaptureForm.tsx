@@ -36,6 +36,7 @@ import { OdooJournalSelect, OdooTaxPicker } from '@/src/components/procurement/O
 import { OdooReceiptQuantities } from '@/src/components/procurement/OdooReceiptQuantities';
 import { parseReceiptQuantities, type ReceiptItem, type ReceiptLine } from '@/src/lib/procurement/receiptQuantities';
 import { odooOwnsProcurement } from '@/src/lib/adapterSeam/odoo/ownership';
+import { useOrgFeatures } from '@/src/hooks/useOrgFeatures';
 import { odooActionError } from '@/src/lib/procurement/odooActionError';
 import type { ErpVendorTaxAmounts, PphType } from '@/src/lib/vendorWithholding';
 import { useTranslation } from 'react-i18next';
@@ -414,6 +415,10 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
   const intent = useCommandIntent();
 
   const label = localizedRecordKindLabel(kind, t);
+  // AC-PLN-008 (#1783 item 1, D17): the quantity grid is a Full affordance. The org's RESOLVED
+  // entitlement read is the projection (the served receipt-line guard stays the authority); only a
+  // ready literal `true` counts — `useFeature`'s default-true placeholder must never open the grid.
+  const { data: orgFeatureData, isLoading: orgFeaturesLoading, isError: orgFeaturesError, refetch: refetchOrgFeatures } = useOrgFeatures();
   const statusOptions = STATUS_OPTIONS[kind].map((value) => ({ value, label: statusOptionLabel(value, t) }));
   const formId = `record-capture-${kind}`;
   const isVendorInvoice = kind === 'vendor_invoice';
@@ -440,6 +445,17 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
   const odooReceipt = kind === 'goods_receipt' && odooProcurement && items.length > 0;
   const [receiptQty, setReceiptQty] = useState<Record<string, string>>({});
   const [receiptInvalid, setReceiptInvalid] = useState<string | undefined>(undefined);
+  // Full is READY only when the resolved read landed with a literal true (loading/error/off are not on).
+  const receiptFullReady = !orgFeaturesLoading && !orgFeaturesError && orgFeatureData?.procurement_full === true;
+  // A typed partial draft (valid or not) is real user intent — it must never be silently discarded or
+  // silently received in full when the entitlement moves under it (AC-PLN-008).
+  const receiptHasDraft = Object.values(receiptQty).some((v) => v.trim() !== '');
+  // The grid stays visible while a draft exists even when Full is unavailable, so the user can see,
+  // retry or explicitly clear what they typed; without a draft the whole-receipt form shows instead.
+  const showsQtyGrid = odooReceipt && (receiptFullReady || receiptHasDraft);
+  // While blocked, staging and submission are refused BOTH by the disabled save and by an early
+  // return inside handleSubmit — a programmatic submit (Enter key) can never stage the lines.
+  const receiptBlockedByFeature = odooReceipt && receiptHasDraft && !receiptFullReady;
   const choosesErpTaxTemplate = isVendorInvoice && !pmoAuthorsTax && !odooProcurement;
   const [taxTemplate, setTaxTemplate] = useState('');
   const erpTaxTemplates = usePurchaseTaxTemplates(choosesErpTaxTemplate);
@@ -475,6 +491,10 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // AC-PLN-008 (#1783 item 1): a partial draft while the line-receipt entitlement is unavailable can
+    // never stage or submit — the disabled button AND this guard together cover every submit path.
+    if (receiptBlockedByFeature) return;
+
     // #684 (AC-PLC-009): ONE parse of the amount draft, used for both the verdict and the write.
     // A value the numeric(14,2) column would have to round is refused here, before any write.
     const amountParse = showsAmount ? parseRecordAmount(amountStr) : ({ ok: true, amount: null } as const);
@@ -489,7 +509,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
     // When `onStage` is provided we stage the parsed fields for the page's
     // ConfirmDialog INSTEAD of creating directly — no toast, no `onCreate`, no
     // `onClose` (the page closes the form once the staged write commits).
-    if (onStage) {
+    if (onStage && (kind === 'goods_receipt' || kind === 'vendor_invoice')) {
       const refNum = referenceNumber.trim() || null;
       if (kind === 'goods_receipt') {
         const parsedQty = odooReceipt ? parseReceiptQuantities(items, receiptQty) : { lines: [] as ReceiptLine[] };
@@ -663,7 +683,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
         </div>
 
         {/* Status — never rendered for a payment: DD-VPAY-8 (the options are illegal; null is sent). */}
-        {!isPayment && !odooReceipt && (
+        {!isPayment && !showsQtyGrid && (
           <div className="min-w-[140px] flex-1">
             <SelectField
               id={`${formId}-status`}
@@ -681,7 +701,39 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
         )}
       </div>
 
-      {odooReceipt && <OdooReceiptQuantities items={items} value={receiptQty} onChange={(next) => { setReceiptQty(next); setReceiptInvalid(undefined); }} invalid={receiptInvalid} />}
+      {showsQtyGrid && <OdooReceiptQuantities items={items} value={receiptQty} onChange={(next) => { setReceiptQty(next); setReceiptInvalid(undefined); }} invalid={receiptInvalid} />}
+
+      {/* AC-PLN-008 (#1783 item 1): a typed draft while Full is unavailable is kept visible but blocked.
+          The status explains itself; retry re-reads the entitlement; the ONLY way out is the explicit
+          clear, which switches this submission to the whole receipt (existing confirmation retained). */}
+      {receiptBlockedByFeature && (
+        <div role="status" className="flex flex-col gap-1.5 rounded-md border border-border/60 bg-status-warning-surface p-2">
+          <p className="text-[12px] font-medium text-warning-foreground">
+            {t('procurement:odoo.receipt.fullUnavailable', 'Line quantities are kept, but they cannot be submitted while line-level receipts are unavailable. Clear them to receive everything still open.')}
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => refetchOrgFeatures()}
+              disabled={orgFeaturesLoading}
+              data-testid="gr-full-retry"
+            >
+              {t('procurement:odoo.receipt.retry', 'Retry')}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => { setReceiptQty({}); setReceiptInvalid(undefined); }}
+              data-testid="gr-clear-quantities"
+            >
+              {t('procurement:odoo.receipt.clearAll', 'Clear quantities and receive all open items')}
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Amount — hidden for kinds without a money field (e.g. Goods Receipt) */}
       {isSubcontractInvoice && subcontractPoId && (
@@ -876,7 +928,9 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
           size="sm"
           loading={isBusy}
           // #505: a VI cannot be saved until its tax treatment + tax amount are stated.
-          disabled={taxIncomplete || (isSubcontractInvoice && !subcontractBill?.lines.length)}
+          // AC-PLN-008 (#1783 item 1): a partial receipt draft under an unavailable entitlement cannot
+          // be saved either — the submit-time guard inside handleSubmit is the second half of this rule.
+          disabled={taxIncomplete || (isSubcontractInvoice && !subcontractBill?.lines.length) || receiptBlockedByFeature}
           data-testid={cfg.saveTestId}
         >
           {kind === 'payment' ? t('procurementDetail.savePayment', 'Save Payment') : kind === 'vendor_invoice' ? t('procurementDetail.confirm.saveVI', 'Save supplier invoice') : cfg.saveLabel}

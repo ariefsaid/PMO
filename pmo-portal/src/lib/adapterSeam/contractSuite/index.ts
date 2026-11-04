@@ -12,6 +12,7 @@ import { partySuite } from './party.suite.ts';
 import { actualsReadSuite } from './actuals.suite.ts';
 import { budgetPushSuite } from './budgetPush.suite.ts';
 import { billPushSuite, purchaseLinkExistingSuite, purchasePushSuite, vendorPaymentPushSuite } from './procurement.suite.ts';
+import { purchaseOrderReviseSuite } from './purchaseOrderRevise.suite.ts';
 import { invoicePushSuite, receiptReadSuite } from './revenue.suite.ts';
 import { timesheetPushSuite } from './timesheet.suite.ts';
 import { projectSuite } from './project.suite.ts';
@@ -38,6 +39,7 @@ export const SUITES: Readonly<Partial<Record<WorkflowId, Suite>>> = {
   'bill.push': billPushSuite,
   'vendor-payment.push': vendorPaymentPushSuite,
   'purchase.link-existing': purchaseLinkExistingSuite,
+  'purchase-order.revise': purchaseOrderReviseSuite,
   'invoice.push': invoicePushSuite,
   'receipt.read': receiptReadSuite,
   'actuals.read': actualsReadSuite,

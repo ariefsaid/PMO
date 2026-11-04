@@ -119,6 +119,15 @@ export async function resolveErpMoneyOutboxDeps(ctx: AdapterSelectContext, resol
     reissueOnInconclusiveAbsence: reissueOnInconclusiveAbsence(entry),
     payload,
     payloadDigest,
+    // #1783 item 1: a legacy receipt row reached by a caller-line-intent command verifies in memory
+    // against its persisted payload (the resolver's own material rule) + persisted operation before
+    // the M-3 comparison. Receipt-scoped: only a line-intent command sets the context flag.
+    ...(ctx.receiptLineIntent
+      ? { verifyLegacyReceiptDigest: { material: (p: Record<string, unknown>) => {
+        const { created_after: _createdAfter, ...digestPayload } = p;
+        return digestPayload;
+      } } }
+      : {}),
     procurementSnapshot: ctx.procurementSnapshot,
     procurementInputDigest: ctx.procurementInputDigest,
     legacyPayloadDigests,
