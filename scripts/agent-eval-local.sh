@@ -15,12 +15,20 @@ die() {
 
 cleanup_dir=''
 cleanup_serve_pid=''
+cleanup_stock_off_db=''
 cleanup_local_eval() {
   local status_code=$?
   trap - EXIT INT TERM HUP
   if [[ -n "${cleanup_serve_pid:-}" ]]; then
     kill "$cleanup_serve_pid" 2>/dev/null || true
     wait "$cleanup_serve_pid" 2>/dev/null || true
+  fi
+  # The plans-switch-off fixture is a database write, so remove it inside the same lock hold
+  # (a later `db reset` would also clear it, but a failed run must not leave stock off).
+  if [[ -n "${cleanup_stock_off_db:-}" ]]; then
+    docker exec "$cleanup_stock_off_db" psql -v ON_ERROR_STOP=1 -U postgres -d postgres -c \
+      "delete from public.org_features where org_id = '00000000-0000-0000-0000-000000000001' and feature_key = 'stock';" \
+      >/dev/null 2>&1 || printf 'agent-eval-local: warning: could not remove the stock-off override\n' >&2
   fi
   if [[ -n "${cleanup_dir:-}" && -d "$cleanup_dir" ]]; then
     for file in "$cleanup_dir"/agent-chat.env "$cleanup_dir"/serve.log "$cleanup_dir"/eval-*.log; do
@@ -33,6 +41,31 @@ cleanup_local_eval() {
 
 require_command() {
   command -v "$1" >/dev/null 2>&1 || die "required command is unavailable: $1"
+}
+
+# Model transport: today's OpenRouter key, OR an all-or-nothing override (base URL + key + model)
+# for a local eval run. Production never sets the override. The key VALUE is supplied by the
+# caller's environment; this script never fetches a secret.
+MODEL_TRANSPORT=''
+validate_model_transport() {
+  local set_count=0 missing='' var
+  for var in AGENT_MODEL_BASE_URL AGENT_MODEL_API_KEY AGENT_MODEL_ID; do
+    if [[ -n "${!var:-}" ]]; then
+      set_count=$((set_count + 1))
+    else
+      missing+="$var "
+    fi
+  done
+  if [[ "$set_count" != '0' && "$set_count" != '3' ]]; then
+    die "the model override is all-or-nothing; missing: ${missing% }"
+  fi
+  if [[ "$set_count" == '3' ]]; then
+    [[ -z "${OPENROUTER_API_KEY:-}" ]] || die 'set the model override trio OR OPENROUTER_API_KEY, never both'
+    MODEL_TRANSPORT='override'
+  else
+    [[ -n "${OPENROUTER_API_KEY:-}" ]] || die 'set OPENROUTER_API_KEY, or all three of AGENT_MODEL_BASE_URL, AGENT_MODEL_API_KEY and AGENT_MODEL_ID'
+    MODEL_TRANSPORT='openrouter'
+  fi
 }
 
 read_local_env() {
@@ -65,7 +98,7 @@ preflight() {
   [[ -f "$REPO_ROOT/supabase/seed.sql" ]] || die 'the local Supabase seed is unavailable'
   [[ -n "${EVAL_TEST_USER_EMAIL:-}" ]] || die 'set EVAL_TEST_USER_EMAIL to the local Finance test user'
   [[ -n "${EVAL_TEST_USER_PASSWORD:-}" ]] || die 'set EVAL_TEST_USER_PASSWORD to the local Finance test user password'
-  [[ -n "${OPENROUTER_API_KEY:-}" ]] || die 'set OPENROUTER_API_KEY in the process environment before running the evals'
+  validate_model_transport
 
   project_id="$(sed -n 's/^project_id = "\([^"]*\)"/\1/p' "$REPO_ROOT/supabase/config.toml" | head -n 1)"
   [[ -n "$project_id" ]] || die 'could not read project_id from supabase/config.toml'
@@ -92,20 +125,30 @@ for value in (
     os.environ.get("EVAL_TEST_USER_PASSWORD", ""),
     os.environ.get("VITE_SUPABASE_ANON_KEY", ""),
     os.environ.get("OPENROUTER_API_KEY", ""),
+    os.environ.get("AGENT_MODEL_API_KEY", ""),
 ):
     if value:
         text = text.replace(value, "[REDACTED]")
 text = re.sub(r"(?i)Bearer\s+[A-Za-z0-9._~+/-]+=*", "Bearer [REDACTED]", text)
 text = re.sub(r"(?i)sk-or-v1-[A-Za-z0-9_-]+", "[REDACTED_KEY]", text)
 patterns = re.compile(r"(^\s*RUN\s|Test Files|Tests\s|Duration\s|agent-chat HTTP \d{3}:)", re.I)
-lines = [line for line in text.splitlines() if patterns.search(line)]
-print("\n".join(lines[-40:]) if lines else "No matching score or error metadata was emitted.")
+# Per-case result lines (status only, never a scorer's raw answer text): the brief needs
+# per-case counts, and a bare Test Files total cannot supply them.
+status = re.compile(r"^\s*(?:\u2713|\u00d7|\u2193)\s")
+transport = re.compile(r"agent-chat HTTP \d{3}:|judge model call failed|ECONN|EPIPE|timed out")
+out = []
+for line in text.splitlines():
+    if patterns.search(line) or status.match(line):
+        out.append(line)
+    elif "\u2192" in line and transport.search(line):
+        out.append("   " + line.strip()[:200])
+print("\n".join(out[-140:]) if out else "No matching score or error metadata was emitted.")
 PY
 }
 
 run_locked() {
   local run_count="$1"
-  local project_id db_container work_dir env_file serve_log serve_pid="" overall_status=0 run status attempt http_status
+  local project_id db_container work_dir env_file serve_log serve_pid="" overall_status=0 run status attempt http_status eval_args case_files
   [[ "${PMO_DB_LOCK_HELD:-}" == '1' ]] || die 'internal locked mode requires scripts/with-db-lock.sh'
 
   project_id="$(sed -n 's/^project_id = "\([^"]*\)"/\1/p' "$REPO_ROOT/supabase/config.toml" | head -n 1)"
@@ -118,7 +161,20 @@ run_locked() {
   cleanup_dir="$work_dir"
   trap cleanup_local_eval EXIT INT TERM HUP
 
-  printf 'OPENROUTER_API_KEY=%s\nEDGE_JWT_ISSUER=%s\n' "$OPENROUTER_API_KEY" "$LOCAL_AUTH_ISSUER" > "$env_file"
+  validate_model_transport
+  if [[ "$MODEL_TRANSPORT" == 'override' ]]; then
+    printf 'AGENT_MODEL_BASE_URL=%s\nAGENT_MODEL_API_KEY=%s\nAGENT_MODEL_ID=%s\n' \
+      "$AGENT_MODEL_BASE_URL" "$AGENT_MODEL_API_KEY" "$AGENT_MODEL_ID" > "$env_file"
+    # Optional provider-required headers (e.g. a routing/session id), `name=value;…` form.
+    if [[ -n "${AGENT_MODEL_EXTRA_HEADERS:-}" ]]; then
+      printf 'AGENT_MODEL_EXTRA_HEADERS=%s\n' "$AGENT_MODEL_EXTRA_HEADERS" >> "$env_file"
+    fi
+  else
+    printf 'OPENROUTER_API_KEY=%s\n' "$OPENROUTER_API_KEY" > "$env_file"
+  fi
+  # Local eval runs fire far more than a person does (each case is one request, repeated N times), so
+  # the per-user/min agent throttle is raised HERE only. The function's production default (20) is unchanged.
+  printf 'EDGE_JWT_ISSUER=%s\nAGENT_RATE_LIMIT_PER_MIN=%s\n' "$LOCAL_AUTH_ISSUER" '1000' >> "$env_file"
   chmod 600 "$env_file"
 
   printf 'Resetting the local Supabase database and applying the eval fixtures.\n'
@@ -223,6 +279,17 @@ $$;
 commit;
 SQL
 
+  if [[ "${EVAL_STOCK_OFF:-}" == '1' ]]; then
+    printf 'Disabling the stock feature for the plans-switch-off fixture.\n'
+    docker exec -i "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres <<'SQL'
+insert into public.org_features (org_id, feature_key, enabled)
+values ('00000000-0000-0000-0000-000000000001', 'stock', false)
+on conflict (org_id, feature_key) do update set enabled = excluded.enabled, updated_at = now();
+SQL
+    # Removed by cleanup_local_eval, still inside this lock hold.
+    cleanup_stock_off_db="$db_container"
+  fi
+
   export EVAL_AGENT_CHAT_URL="$LOCAL_API_URL/functions/v1/agent-chat"
   export VITE_SUPABASE_URL="$LOCAL_API_URL"
   export VITE_SUPABASE_ANON_KEY="$LOCAL_ANON_KEY"
@@ -244,7 +311,12 @@ SQL
     run_log="$work_dir/eval-$run.log"
     : > "$run_log"
     printf '\nRunning agent eval suite %d/%d.\n' "$run" "$run_count"
-    if (cd "$APP_DIR" && npm run test:evals -- --reporter=verbose) > "$run_log" 2>&1; then
+    eval_args=(--reporter=verbose)
+    if [[ -n "${EVAL_CASE_FILES:-}" ]]; then
+      read -r -a case_files <<< "$EVAL_CASE_FILES"
+      eval_args+=("${case_files[@]}")
+    fi
+    if (cd "$APP_DIR" && npm run test:evals -- "${eval_args[@]}") > "$run_log" 2>&1; then
       status=0
     else
       status=$?
@@ -274,9 +346,20 @@ if [[ "${1:-}" == '--help' || "${1:-}" == '-h' ]]; then
 Usage: N=1 scripts/agent-eval-local.sh [--dry-run]
 
 N is the number of serial eval-suite runs (default: 1). Set
-EVAL_TEST_USER_EMAIL, EVAL_TEST_USER_PASSWORD, and OPENROUTER_API_KEY in the
-process environment. --dry-run checks prerequisites, but does not reset or
-write to the local database.
+EVAL_TEST_USER_EMAIL and EVAL_TEST_USER_PASSWORD in the process environment,
+and supply the model transport EITHER as OPENROUTER_API_KEY (production
+provider) OR as all three of AGENT_MODEL_BASE_URL, AGENT_MODEL_API_KEY and
+AGENT_MODEL_ID (an OpenAI-compatible provider; paste the key yourself).
+Never set both. The override runs make no production-provider call.
+AGENT_MODEL_EXTRA_HEADERS optionally adds provider-required request headers
+in name=value;name2=value2 form.
+
+EVAL_CASE_FILES limits each run to the named eval case files (space-separated,
+relative to pmo-portal, e.g. evals/cases/tool-selection.eval.ts).
+EVAL_STOCK_OFF=1 disables the stock feature for the run (the plans-switch-off
+fixture) and removes that override before the lock is released.
+--dry-run checks prerequisites, but does not reset or write to the local
+database.
 HELP
   exit 0
 fi
@@ -294,7 +377,7 @@ run_count="${N:-1}"
 preflight
 
 if [[ "$dry_run" == 'yes' ]]; then
-  printf 'Dry run passed: local Supabase + ES256 JWKS, eval dependencies, Finance credentials, Docker/psql, and the process OpenRouter key are available. No database reset or write was performed.\n'
+  printf 'Dry run passed: local Supabase + ES256 JWKS, eval dependencies, Finance credentials, Docker/psql, and the process model credentials (%s transport) are available. No database reset or write was performed.\n' "$MODEL_TRANSPORT"
   exit 0
 fi
 
