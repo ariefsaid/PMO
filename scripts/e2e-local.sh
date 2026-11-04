@@ -127,7 +127,15 @@ if [ "$#" -gt 0 ]; then
   exec npx playwright test "--workers=$workers" "$@"
 fi
 
-echo "[e2e-local] phase 1: chromium (--workers=2)"
-npx playwright test --project=chromium --workers=2
-echo "[e2e-local] phase 2: serial (--workers=1)"
-npx playwright test --project=serial --workers=1
+# Playwright CLEARS its outputDir at the start of every invocation, so two phases sharing the config
+# default (`os.tmpdir()/pmo-portal-test-results`, playwright.config.ts) delete each other's evidence:
+# phase 2 used to wipe phase 1's traces/videos/error-context, and a red chromium spec could no longer
+# be root-caused from its trace (#1870). Each phase gets its own subdir under the config root — read
+# from the config by affected-e2e.mjs, so this cannot drift from outputDir. A single invocation (the
+# pass-through branch above) keeps the default.
+results_root="$(node "$REPO/scripts/affected-e2e.mjs" --results-root)"
+echo "[e2e-local] phase 1: chromium (--workers=2) — failure artifacts: $results_root/chromium"
+npx playwright test --project=chromium --workers=2 --output="$results_root/chromium"
+echo "[e2e-local] phase 2: serial (--workers=1) — failure artifacts: $results_root/serial"
+npx playwright test --project=serial --workers=1 --output="$results_root/serial"
+echo "[e2e-local] failure artifacts (trace, video, error-context): chromium → $results_root/chromium | serial → $results_root/serial"
