@@ -9,8 +9,8 @@
 -- Coupling the two meant the batch cadence followed however often the full run happened.
 --
 -- This table is the batch's own marker: `completed_at` = when a pass last PUBLISHED a generation.
--- `defer_erp_statement_pass` writes it backwards (now - 55 minutes + p_due_in_seconds) so ONE rule —
--- `statementPassDue` in the edge function — covers "hourly" (published), "retry in five minutes"
+-- `defer_erp_statement_pass` writes it backwards from the retry instant by 55 minutes so ONE rule —
+-- `statementPassDue` in the edge function — covers "hourly" (published), "retry at the next five-minute boundary"
 -- (failed / unfinished) and "continue on the next eligible tick". Both writers re-check the caller's
 -- live `erp_sweep_lock` lease, exactly like 0358's `mark_erp_full_sweep_done` / 0427's
 -- `defer_erp_full_sweep`, so a tick whose lease lapsed can never stamp or defer.
@@ -50,8 +50,8 @@ $$;
 revoke execute on function public.mark_erp_statement_pass_done(uuid, uuid) from public, anon, authenticated;
 grant execute on function public.mark_erp_statement_pass_done(uuid, uuid) to service_role;
 
--- An unfinished or failed pass is due again in p_due_in_seconds (0 = the next eligible tick), using
--- the same interval arithmetic 0427 established for the full run.
+-- The sweep's 300-second retry selects the next UTC five-minute boundary using the DB clock;
+-- other values remain elapsed-second delays. The 55-minute offset matches statementPassDue in TypeScript.
 create or replace function public.defer_erp_statement_pass(p_org_id uuid, p_holder uuid, p_due_in_seconds int)
 returns boolean
 language plpgsql
@@ -66,7 +66,9 @@ begin
     return false;
   end if;
   insert into public.erp_statement_pass_run (org_id, completed_at)
-  values (p_org_id, now() - interval '55 minutes' + make_interval(secs => greatest(coalesce(p_due_in_seconds, 0), 0)))
+  values (p_org_id, case when p_due_in_seconds = 300
+    then to_timestamp((floor(extract(epoch from now()) / 300) + 1) * 300) - interval '55 minutes'
+    else now() - interval '55 minutes' + make_interval(secs => greatest(coalesce(p_due_in_seconds, 0), 0)) end)
   on conflict (org_id) do update set completed_at = excluded.completed_at;
   return true;
 end;

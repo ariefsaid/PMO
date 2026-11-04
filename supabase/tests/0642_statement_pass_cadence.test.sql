@@ -11,7 +11,7 @@
 -- pre-write row and silently invert the assertion (found by running this file: the zero-deferral case
 -- read the previous five-minute deferral).
 begin;
-select plan(17);
+select plan(20);
 
 insert into organizations (id, name) values
   ('06420000-0000-0000-0000-000000000001','0642 Org A'),
@@ -38,9 +38,9 @@ select ok(not public.mark_erp_statement_pass_done('06420000-0000-0000-0000-00000
 select ok(public.defer_erp_statement_pass('06420000-0000-0000-0000-000000000001', '11111111-1111-4111-8111-111111111111', 300),
   'AC-SPC-012 the lock holder defers an unfinished statement pass');
 select ok(
-  (select completed_at from public.erp_statement_pass_run where org_id = '06420000-0000-0000-0000-000000000001')
-    between now() - interval '55 minutes' + interval '299 seconds' and now() - interval '55 minutes' + interval '301 seconds',
-  'AC-SPC-012 a five-minute deferral makes the pass due again in five minutes, not on the next tick');
+  (select completed_at + interval '55 minutes' from public.erp_statement_pass_run where org_id = '06420000-0000-0000-0000-000000000001') =
+    to_timestamp((floor(extract(epoch from now()) / 300) + 1) * 300),
+  'AC-SPC-012 deferral makes the pass due at the next UTC five-minute boundary');
 select public.defer_erp_statement_pass('06420000-0000-0000-0000-000000000001', '11111111-1111-4111-8111-111111111111', 0);
 select ok(
   (select completed_at from public.erp_statement_pass_run where org_id = '06420000-0000-0000-0000-000000000001') <= now() - interval '55 minutes',
@@ -49,6 +49,27 @@ select public.defer_erp_statement_pass('06420000-0000-0000-0000-000000000001', '
 select ok(
   (select completed_at from public.erp_statement_pass_run where org_id = '06420000-0000-0000-0000-000000000001') <= now() - interval '55 minutes',
   'AC-SPC-012 a negative deferral is clamped to now, never into the future');
+
+-- The database anchors the retry to its own clock so request latency cannot miss a window.
+select public.defer_erp_statement_pass(
+  '06420000-0000-0000-0000-000000000001', '11111111-1111-4111-8111-111111111111',
+  300
+);
+select ok(
+  (select completed_at + interval '55 minutes' from public.erp_statement_pass_run
+    where org_id = '06420000-0000-0000-0000-000000000001') <=
+      to_timestamp((floor(extract(epoch from now()) / 300) + 1) * 300),
+  'AC-SPC-014 persisted marker is due by the next UTC window');
+select ok(
+  (select completed_at + interval '55 minutes' from public.erp_statement_pass_run
+    where org_id = '06420000-0000-0000-0000-000000000001') >
+      to_timestamp((floor(extract(epoch from now()) / 300) + 1) * 300) - interval '1 second',
+  'AC-SPC-014 persisted marker is less than one second before that boundary');
+select ok(
+  (select completed_at + interval '55 minutes' from public.erp_statement_pass_run
+    where org_id = '06420000-0000-0000-0000-000000000001') >
+      to_timestamp(floor(extract(epoch from now()) / 300) * 300),
+  'AC-SPC-014 persisted marker cannot retry in the current window');
 
 -- A lapsed lease (a killed worker) cannot stamp or defer: the org stays due on the last written value.
 update public.erp_sweep_lock set locked_until = now() - interval '1 second' where org_id = '06420000-0000-0000-0000-000000000001';

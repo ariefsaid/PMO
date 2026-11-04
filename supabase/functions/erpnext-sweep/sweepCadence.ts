@@ -30,11 +30,8 @@ export function fullSweepDue(lastFullSweepAt: string | null | undefined, nowMs: 
  * the inbound passes and the wrong shape for a resumable report batch.
  */
 export const STATEMENT_PASS_INTERVAL_MS = SWEEP_FULL_INTERVAL_MS;
-/**
- * An unfinished or failed statement pass is retried on #1212's five-minute backfill cadence — never
- * the next one-minute tick, and never a whole hour (an open batch is resumable and should keep
- * making progress).
- */
+/** Deferred segments become eligible at the next UTC five-minute boundary. They run only on a
+ * qualifying full sweep; already-published bindings retain the ordinary full-run retry policy. */
 export const STATEMENT_PASS_RETRY_DELAY_SECONDS = SWEEP_BACKFILL_EVERY_MINUTES * 60;
 
 /** Whether an org's statement pass is due: never run, unreadable, or completed at least an hour ago. */

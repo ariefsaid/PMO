@@ -730,8 +730,7 @@ export async function runErpSweepCycle(
       statement = result.status ?? 'skipped';
       // Only the lock holder can settle the marker (both RPCs re-check the lease), so a tick whose lease
       // lapsed leaves the org due. Published ⇒ hourly. Anything that ran but did not publish ⇒ the
-      // five-minute retry cadence: never the next one-minute tick, never a whole hour (a bounded,
-      // resumable batch should keep making progress).
+      // next UTC five-minute window; already-published bindings still wait for an eligible full run.
       const settle = result.status === 'published'
         ? deps.markStatementPassDone?.bind(null, org)
         : result.status === undefined
@@ -891,7 +890,7 @@ export async function runErpSweepCycle(
       // Stamp the completed full run (0358) only when every hourly pass finished and none failed; otherwise defer
       // (continue next tick when work was left, retry after a delay when a pass failed). Statement-side errors
       // retry on their own cadence and do not hold the marker back. A tick that dies before here leaves the org due.
-      const failed = errors.slice(hourlyFrom).some((e) => !e.startsWith('native-statement:') && !e.startsWith('statement:'));
+      const failed = errors.slice(hourlyFrom).some((e) => !e.startsWith('native-statement:') && !e.startsWith('statement:') && !e.startsWith('statement-pass-mark:'));
       const unfinished = truncated || walkIncomplete || ledgerBehind;
       // An org whose hourly work never started keeps its marker: a defer would reset how long it has waited
       // and let a slow earlier org go first again on every tick.
@@ -3749,6 +3748,13 @@ serveWithErrorReporting('erpnext-sweep', withJobRun('erpnext-sweep', async (req:
       if (error) throw new Error(`statement lock release failed: ${error.code ?? 'unknown'}`);
     },
     refreshNativeStatements: async (org) => {
+      // Recheck after the org lease: another invocation may have completed since the candidate read.
+      if (!forceFull) {
+        const { data, error } = await serviceClient.from('erp_statement_pass_run')
+          .select('completed_at').eq('org_id', org.orgId).maybeSingle();
+        if (error) throw new Error('statement marker read failed');
+        if (!statementPassDue(data?.completed_at, Date.now())) return {};
+      }
       // 0534: financial statements switched off ⇒ the statement pass does not run. The read RPC stays
       // open (FR-PLN-006 gates writes/jobs; published statements remain readable).
       if (featureDisabled(org, 'financial_statements')) return {};
