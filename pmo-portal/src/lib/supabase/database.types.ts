@@ -7846,6 +7846,8 @@ export type Database = {
           currency: string
           customer_contract_ref: string | null
           decided_at: string | null
+          go_probability: number
+          get_probability: number
           end_client_id: string | null
           end_date: string | null
           id: string
@@ -7889,6 +7891,8 @@ export type Database = {
           currency?: string
           customer_contract_ref?: string | null
           decided_at?: string | null
+          go_probability?: number
+          get_probability?: number
           end_client_id?: string | null
           end_date?: string | null
           id?: string
@@ -7932,6 +7936,8 @@ export type Database = {
           currency?: string
           customer_contract_ref?: string | null
           decided_at?: string | null
+          go_probability?: number
+          get_probability?: number
           end_client_id?: string | null
           end_date?: string | null
           id?: string

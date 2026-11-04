@@ -27,6 +27,10 @@ export interface ProjectRepository {
   create(input: CreateProjectInput): Promise<ProjectRow>;
   /** Update the project's header fields (name/code/client/end customer/PM/dates). */
   updateHeader(id: string, input: ProjectHeaderInput): Promise<void>;
+  /** Update the per-opportunity % Get estimate (0–1 fraction). */
+  updateGetProbability(id: string, probability: number): Promise<void>;
+  /** Update the per-opportunity % Go override (0–1 fraction). */
+  updateGoProbability(id: string, probability: number): Promise<void>;
   /** Soft-archive a project (stamps archived_at). */
   archive(id: string): Promise<void>;
   /** Hard-delete a project (Admin-only in the FE gate); rejects 23503 if referenced. */

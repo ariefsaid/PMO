@@ -20,7 +20,7 @@ insert into profiles (id, org_id, full_name, email, role) values
   ('00270000-0000-0000-0000-0000000000a2','00270000-0000-0000-0000-000000000001','PR PM A','pr-pm-a@example.com','Project Manager'),
   ('00270000-0000-0000-0000-0000000000a4','00270000-0000-0000-0000-000000000001','PR Eng A','pr-eng-a@example.com','Engineer');
 
--- Org-A project (Leads → PQ Submitted is a legal first move).
+-- Org-A project (Leads → Quotation Submitted is a legal first move).
 insert into projects (id, org_id, code, name, status, project_manager_id) values
   ('00270000-0000-0000-0000-000000000010','00270000-0000-0000-0000-000000000001',
    'PA-001','PR Authz Project A','Leads','00270000-0000-0000-0000-0000000000a2');
@@ -43,7 +43,7 @@ select throws_ok(
 set local request.jwt.claims = '{"sub":"00270000-0000-0000-0000-0000000000a4","role":"authenticated"}';
 
 select throws_ok(
-  $$ select transition_project('00270000-0000-0000-0000-000000000010','PQ Submitted') $$,
+  $$ select transition_project('00270000-0000-0000-0000-000000000010','Quotation Submitted') $$,
   '42501', null,
   'AC-1005: Engineer-role blocked by coarse role gate');
 
@@ -51,7 +51,7 @@ select throws_ok(
 set local request.jwt.claims = '{"sub":"00270000-0000-0000-0000-0000000000a2","role":"authenticated"}';
 
 select lives_ok(
-  $$ select transition_project('00270000-0000-0000-0000-000000000010','PQ Submitted') $$,
+  $$ select transition_project('00270000-0000-0000-0000-000000000010','Quotation Submitted') $$,
   'AC-1005: in-org Project Manager may transition');
 
 reset role;

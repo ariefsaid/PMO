@@ -1,7 +1,7 @@
 -- 0031_project_decided_at_preserved.test.sql
 -- AC-1009: decided_at and customer fields untouched on non-decision moves (OD-PR-C).
 -- (i)  Won project moved to Ongoing Project → decided_at unchanged (value preserved).
--- (ii) Leads project moved to PQ Submitted → decided_at stays null.
+-- (ii) Leads project moved to Quotation Submitted → decided_at stays null.
 -- (FR-PR-007)
 begin;
 select plan(2);
@@ -35,8 +35,8 @@ set local request.jwt.claims = '{"sub":"00310000-0000-0000-0000-0000000000a2","r
 -- Transition (i): Won, Pending KoM → Ongoing Project (status-only, decided_at must be preserved).
 do $$ begin perform transition_project('00310000-0000-0000-0000-000000000010','Ongoing Project'); end $$;
 
--- Transition (ii): Leads → PQ Submitted (decided_at was null, must stay null).
-do $$ begin perform transition_project('00310000-0000-0000-0000-000000000011','PQ Submitted'); end $$;
+-- Transition (ii): Leads → Quotation Submitted (decided_at was null, must stay null).
+do $$ begin perform transition_project('00310000-0000-0000-0000-000000000011','Quotation Submitted'); end $$;
 
 reset role;
 

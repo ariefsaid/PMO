@@ -25,6 +25,22 @@ export function visibleToast(page: Page, text: string | RegExp): Locator {
   return page.locator('[data-toast="visible"]').filter({ hasText: text });
 }
 
+/** Keep project-create journeys independent of the seeded ERP host; native project persistence remains real. */
+export async function stubErpProjectSync(page: Page): Promise<void> {
+  await page.route('**/functions/v1/external-set-company', async (route) => {
+    const body = route.request().postDataJSON() as { setupAction?: string } | null;
+    if (body?.setupAction === 'ensure-project') {
+      await route.fulfill({
+        status: 503,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: 'ERP setup is unavailable for this project-create journey.' }),
+      });
+      return;
+    }
+    await route.continue();
+  });
+}
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 

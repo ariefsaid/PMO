@@ -333,10 +333,10 @@ describe('AC-IXD-PROJ-W5-C3 D9-pipeline: PQ → Pre-Qualification label', () => 
     const { dealJourneySteps } = await import('../../../components/salesPipeline');
     const steps = dealJourneySteps('PQ Submitted' as Parameters<typeof dealJourneySteps>[0]);
     const labels = steps.map((s) => s.label);
-    // The second label (index 1) must be the full word
-    expect(labels[1]).toBe('Pre-Qualification');
+    // Pre-Qualification is third after the intentional Leads → Quotation → Pre-Qualification order change.
+    expect(labels[2]).toBe('Pre-Qualification');
     // Must not contain the short acronym "Pre-Qual" as the visible label
-    expect(labels[1]).not.toBe('Pre-Qual');
+    expect(labels[2]).not.toBe('Pre-Qual');
   });
 
   it('AC-IXD-PROJ-W5-C3-20: the deal journey stepper renders "Pre-Qualification" in the DOM', () => {
@@ -358,9 +358,9 @@ describe('AC-IXD-PROJ-W5-C3 D9-pipeline: PQ → Pre-Qualification label', () => 
 describe('SUB-I: opportunity lens figures and notices', () => {
   const tileLabels = () => Array.from(document.querySelectorAll('dl dt')).map((label) => label.textContent);
 
-  it('SUB-I: an open deal shows Value, Win probability, Weighted, Owner — no Decision tile, no "Ready to advance." box', () => {
+  it('SUB-I: an open project shows Value, Go, Get, Weighted, Owner — no Decision tile or "Ready to advance." box', () => {
     renderLens();
-    expect(tileLabels()).toEqual(['Value', 'Win probability', 'Weighted', 'Owner']);
+    expect(tileLabels()).toEqual(['Value', '% Go', '% Get', 'Weighted', 'Owner']);
     expect(screen.queryByText('Ready to advance.')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Advance to/i })).toBeInTheDocument();
   });

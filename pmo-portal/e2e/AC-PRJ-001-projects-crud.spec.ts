@@ -1,6 +1,6 @@
 // @e2e-isolation: self-isolated — creates unique project names (Date.now()), full CRUD journey creates/edits/archives own data; no seed coupling.
 import { test, expect, type Page } from '@playwright/test';
-import { login, pickComboboxOption, openPipelineCard, visibleToast } from './helpers';
+import { login, pickComboboxOption, openPipelineCard, visibleToast, stubErpProjectSync } from './helpers';
 
 /**
  * AC-PRJ-001  Projects CRUD — real user journeys (binding BDD authoring principle).
@@ -33,6 +33,7 @@ test(
     const runId = Date.now();
     const dealName = `E2E-Deal-${runId}`;
     const editedName = `${dealName}-EDITED`;
+    await stubErpProjectSync(page);
 
     // ── Step 1: AC-PRJ-003 — PM creates a new project ─────────────────────────────
     await login(page, 'pm@acme.test');

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -75,7 +75,10 @@ const component = () => (
 );
 const renderComponent = () => render(component());
 const tile = (name: string) => within(screen.getByText(name).parentElement as HTMLElement);
-const recovered = (probability: number) => ({ stages: [], projects: [{ id: 'd1', contract_value: 1200000, win_probability: probability }] });
+const recovered = (go: number, get = 0.25) => ({
+  stages: [],
+  projects: [{ id: 'd1', contract_value: 1200000, go_probability: go, get_probability: get, win_probability: go * get }],
+});
 
 beforeEach(() => {
   role = 'Project Manager';
@@ -86,7 +89,7 @@ beforeEach(() => {
 });
 
 describe('PipelineLens — PGB-017: query status and missing record state', () => {
-  it('shows loading indicator on Win probability and Weighted tiles while query is pending', () => {
+  it('shows loading indicators on both probability inputs and Weighted while query is pending', () => {
     pipelineQueryState.isPending = true;
     renderComponent();
 
@@ -96,12 +99,13 @@ describe('PipelineLens — PGB-017: query status and missing record state', () =
 
     // Should indicate loading
     const loadingElements = screen.getAllByText(/loading/i);
-    expect(loadingElements).toHaveLength(2);
-    expect(tile('Win probability').getByText(/loading/i)).toBeInTheDocument();
+    expect(loadingElements).toHaveLength(3);
+    expect(tile('% Go').getByText(/loading/i)).toBeInTheDocument();
+    expect(tile('% Get').getByText(/loading/i)).toBeInTheDocument();
     expect(tile('Weighted').getByText(/loading/i)).toBeInTheDocument();
   });
 
-  it('shows unavailable state with retry on Win probability and Weighted tiles when query errors', async () => {
+  it('shows unavailable state with retry on both probabilities and Weighted when query errors', async () => {
     pipelineQueryState.isError = true;
     const rendered = renderComponent();
 
@@ -114,13 +118,15 @@ describe('PipelineLens — PGB-017: query status and missing record state', () =
     const retryButtons = screen.getAllByRole('button', { name: /retry/i });
     expect(retryButtons.length).toBeGreaterThan(0);
 
-    expect(tile('Win probability').getByText(/unavailable/i)).toBeInTheDocument();
+    expect(tile('% Go').getByText(/unavailable/i)).toBeInTheDocument();
+    expect(tile('% Get').getByText(/unavailable/i)).toBeInTheDocument();
     expect(tile('Weighted').getByText(/unavailable/i)).toBeInTheDocument();
     mockRefetch.mockImplementation(() => { pipelineQueryState.isError = false; pipelineQueryState.data = recovered(0.5); rendered.rerender(component()); });
     await userEvent.click(retryButtons[0]);
     expect(mockRefetch).toHaveBeenCalled();
-    expect(tile('Win probability').getByText('50%')).toBeInTheDocument();
-    expect(tile('Weighted').getByText('$600,000')).toBeInTheDocument();
+    await waitFor(() => expect(tile('% Go').getByRole('spinbutton')).toHaveValue(50));
+    expect(tile('% Get').getByRole('spinbutton')).toHaveValue(25);
+    expect(tile('Weighted').getByText('$150,000')).toBeInTheDocument();
   });
 
   it('shows unavailable state with retry when project record is missing from successful pipeline query', async () => {
@@ -134,18 +140,21 @@ describe('PipelineLens — PGB-017: query status and missing record state', () =
     expect(screen.queryByText('0%')).not.toBeInTheDocument();
     expect(screen.queryByText('$0')).not.toBeInTheDocument();
 
-    expect(tile('Win probability').getByText(/unavailable/i)).toBeInTheDocument();
+    expect(tile('% Go').getByText(/unavailable/i)).toBeInTheDocument();
+    expect(tile('% Get').getByText(/unavailable/i)).toBeInTheDocument();
     expect(tile('Weighted').getByText(/unavailable/i)).toBeInTheDocument();
     mockRefetch.mockImplementation(() => { pipelineQueryState.data = recovered(0.25); rendered.rerender(component()); });
     await userEvent.click(tile('Weighted').getByRole('button', { name: /retry/i }));
-    expect(tile('Win probability').getByText('25%')).toBeInTheDocument();
-    expect(tile('Weighted').getByText('$300,000')).toBeInTheDocument();
+    await waitFor(() => expect(tile('% Go').getByRole('spinbutton')).toHaveValue(25));
+    expect(tile('% Get').getByRole('spinbutton')).toHaveValue(25);
+    expect(tile('Weighted').getByText('$75,000')).toBeInTheDocument();
   });
 
-  it('shows genuine zero probability and weighted value when the record is present', () => {
+  it('shows genuine zero Go probability and weighted value when the record is present', () => {
     pipelineQueryState.data = recovered(0);
     renderComponent();
-    expect(tile('Win probability').getByText('0%')).toBeInTheDocument();
+    expect(tile('% Go').getByRole('spinbutton')).toHaveValue(0);
+    expect(tile('% Get').getByRole('spinbutton')).toHaveValue(25);
     expect(tile('Weighted').getByText('$0')).toBeInTheDocument();
     expect(screen.queryByText(/unavailable/i)).not.toBeInTheDocument();
   });
@@ -154,7 +163,8 @@ describe('PipelineLens — PGB-017: query status and missing record state', () =
     role = 'Engineer';
     pipelineQueryState.data = recovered(0.5);
     renderComponent();
-    expect(tile('Win probability').getByText('50%')).toBeInTheDocument();
+    expect(tile('% Go').getByText('50%')).toBeInTheDocument();
+    expect(tile('% Get').getByText('25%')).toBeInTheDocument();
     expect(screen.queryByText('Weighted')).not.toBeInTheDocument();
     expect(screen.queryByText('Value')).not.toBeInTheDocument();
     expect(screen.queryByText('$600,000')).not.toBeInTheDocument();

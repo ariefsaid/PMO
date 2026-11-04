@@ -253,7 +253,6 @@ const SalesPipeline: React.FC = () => {
   return (
     <ListPage
       title={t('shell.nav.sales', 'Sales Pipeline')}
-      bodyPanel
       /* B-3 (AC-W2-IXD-005): the natural place to start a project is the Pipeline where
          pre-win projects live — not the Projects list. Opens the one-step
          create page (#806; same page as Projects). Gated on can('create','project')

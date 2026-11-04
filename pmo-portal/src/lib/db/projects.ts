@@ -369,6 +369,34 @@ export async function updateProjectHeader(id: string, input: ProjectHeaderInput)
   assertWriteLanded(data, 'Project not found or you do not have permission to edit it.');
 }
 
+/** Update an open opportunity's independent % Get estimate. */
+export async function updateProjectGetProbability(id: string, probability: number): Promise<void> {
+  if (!Number.isFinite(probability) || probability < 0 || probability > 1) {
+    throw new Error('Get probability must be between 0 and 1.');
+  }
+  const { data, error } = await supabase
+    .from('projects')
+    .update({ get_probability: probability })
+    .eq('id', id)
+    .select('id');
+  if (error) throwWrite(error as PostgrestErrorLike);
+  assertWriteLanded(data, 'Project not found or you do not have permission to edit it.');
+}
+
+/** Update an open opportunity's per-project % Go override. */
+export async function updateProjectGoProbability(id: string, probability: number): Promise<void> {
+  if (!Number.isFinite(probability) || probability < 0 || probability > 1) {
+    throw new Error('Go probability must be between 0 and 1.');
+  }
+  const { data, error } = await supabase
+    .from('projects')
+    .update({ go_probability: probability })
+    .eq('id', id)
+    .select('id');
+  if (error) throwWrite(error as PostgrestErrorLike);
+  assertWriteLanded(data, 'Project not found or you do not have permission to edit it.');
+}
+
 /**
  * Soft-archive a project by stamping `archived_at` (AC-PRJ-005) so it drops out of the
  * default and explicit-status `listProjects` scopes via their `archived_at IS NULL` filter

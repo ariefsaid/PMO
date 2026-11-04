@@ -8,9 +8,9 @@ import { dragCardTo } from './support/boardDrag';
 // AC-DND-014 / AC-DND-016 (#1637): drag-and-drop on the Sales Pipeline board, real browser, real DB.
 //
 // Journey: an Exec opens /sales with a self-created deal in Quotation. Dragging it back to Leads is
-// refused (no write, message shown); dragging it to Tender asks the status menu's confirm and, once
-// confirmed, survives a reload in Tender; dragging it to Won asks for the contract details and, once
-// submitted, survives a reload in Won. axe runs on the idle board, mid-drag and with the confirm open.
+// refused (no write, message shown); the newly ordered Quotation→Pre-Qual→Tender route is confirmed
+// at each step and survives reloads; dragging it from Tender to Won asks for contract details and,
+// once submitted, survives a reload in Won. axe runs on the idle board, mid-drag and with confirms open.
 //
 // ISOLATION: unique deal per run, deleted (history first) in afterEach even on failure.
 
@@ -47,13 +47,15 @@ test.afterEach(async () => {
   await admin.from('projects').delete().eq('id', PROJECT_ID);
 });
 
-test('AC-DND-014 Exec drags a deal: illegal drop refused, Quotation→Tender confirmed, Tender→Won with contract details persist', async ({ page }) => {
+test('AC-DND-014 Exec drags a deal: illegal backstep refused, Quotation→Pre-Qual→Tender confirmed, Tender→Won with contract details persist', async ({ page }) => {
   await signIn(page, 'exec@acme.test');
   await page.goto('/sales');
   const board = page.getByLabel('Sales pipeline board');
   const card = () => board.getByRole('button', { name: new RegExp(DEAL) }).first();
   await expect(card()).toBeVisible({ timeout: 20_000 });
   await expect(page.getByTestId('stage-Quotation Submitted').getByText(DEAL)).toBeVisible();
+  await expect(card().getByLabel('% Go 20%')).toBeVisible();
+  await expect(card().getByLabel('% Get 25%')).toBeVisible();
 
   // AC-DND-016: the idle board passes axe.
   const idle = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
@@ -67,22 +69,28 @@ test('AC-DND-014 Exec drags a deal: illegal drop refused, Quotation→Tender con
   await expect(page.getByTestId('stage-Quotation Submitted').getByText(DEAL)).toBeVisible();
   expect(writes).toHaveLength(0);
 
-  // 2. Legal move: the status menu's confirm, then it persists.
-  await dragCardTo(page, card(), page.getByTestId('stage-Tender Submitted'), async () => {
-    // AC-DND-016: axe passes mid-drag. The card's own column carries no cue; a legal column says so; an illegal one says so.
-    await expect(page.getByTestId('stage-Tender Submitted').getByText('Drop to move here')).toBeVisible();
+  // 2. Legal move through the owner's new stage order: Quotation → Pre-Qual → Tender.
+  await dragCardTo(page, card(), page.getByTestId('stage-PQ Submitted'), async () => {
+    // AC-DND-016: axe passes mid-drag. Legal and illegal destinations keep their goal cues.
+    await expect(page.getByTestId('stage-PQ Submitted').getByText('Drop to move here')).toBeVisible();
     await expect(page.getByTestId('stage-Leads').getByText("Can't move here")).toBeVisible();
-    await expect(page.getByTestId('stage-Quotation Submitted').getByText("Can't move here")).toHaveCount(0);
-    await expect(page.getByTestId('stage-Quotation Submitted').getByText('Drop to move here')).toHaveCount(0);
     const midDrag = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
     expect(midDrag.violations).toEqual([]);
   });
-  await expect(page.getByText('Move project to Tender Submitted?')).toBeVisible();
+  await expect(page.getByText('Move project to PQ Submitted?')).toBeVisible();
   const confirmOpen = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
   expect(confirmOpen.violations).toEqual([]);
   const moved = page.waitForResponse((r) => r.url().includes('/rpc/transition_project'));
-  await page.getByRole('button', { name: 'Move to Tender Submitted' }).click();
+  await page.getByRole('button', { name: 'Move to PQ Submitted' }).click();
   expect((await moved).ok()).toBe(true);
+  await page.reload();
+  await expect(page.getByTestId('stage-PQ Submitted').getByText(DEAL)).toBeVisible({ timeout: 20_000 });
+
+  await dragCardTo(page, card(), page.getByTestId('stage-Tender Submitted'));
+  await expect(page.getByText('Move project to Tender Submitted?')).toBeVisible();
+  const tenderMove = page.waitForResponse((r) => r.url().includes('/rpc/transition_project'));
+  await page.getByRole('button', { name: 'Move to Tender Submitted' }).click();
+  expect((await tenderMove).ok()).toBe(true);
   await page.reload();
   await expect(page.getByTestId('stage-Tender Submitted').getByText(DEAL)).toBeVisible({ timeout: 20_000 });
 
