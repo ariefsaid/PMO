@@ -140,13 +140,33 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const container = document.querySelector<HTMLElement>('[data-toast-container]');
     if (!container) return;
     const sync = () => {
-      const value = String(Boolean(document.querySelector('[aria-modal="true"]')));
+      const overlays = document.querySelectorAll<HTMLElement>('[aria-modal="true"]');
+      const value = String(overlays.length > 0);
       if (container.dataset.dialogOpen !== value) container.dataset.dialogOpen = value;
+      // Side drawers are edge-anchored full-height panels: the generic dialog remedy
+      // (toast above the dialog) would land the toast exactly on the drawer's header —
+      // its title AND action buttons (issue 1816). Measure the live header band into
+      // --toast-top-inset so index.css can tuck the toast just below it, on every
+      // viewport width. Re-measured on resize (a wrapped header is taller on phones).
+      const drawer = Array.from(overlays).find((overlay) => overlay.hasAttribute('data-drawer-panel'));
+      if (drawer) {
+        const header = drawer.querySelector<HTMLElement>(':scope > [data-drawer-header]');
+        const headerBottom = header?.getBoundingClientRect().bottom ?? 0;
+        container.style.setProperty('--toast-top-inset', `${Math.ceil(headerBottom + 12)}px`);
+        if (container.dataset.overlayDrawer !== 'true') container.dataset.overlayDrawer = 'true';
+      } else if (container.dataset.overlayDrawer !== undefined) {
+        delete container.dataset.overlayDrawer;
+        container.style.removeProperty('--toast-top-inset');
+      }
     };
     sync();
     const observer = new MutationObserver(sync);
     observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['aria-modal'] });
-    return () => observer.disconnect();
+    window.addEventListener('resize', sync);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', sync);
+    };
   }, []);
 
   useEffect(() => {

@@ -187,6 +187,11 @@ export const Drawer: React.FC<DrawerProps> = ({
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
+        // Shared-toast placement seam (issue 1816): marks this overlay as an
+        // edge-anchored drawer so ToastProvider tucks toasts below the header
+        // band instead of on top of it (the generic dialog remedy lands exactly
+        // there). Every drawer built on this component inherits the rule.
+        data-drawer-panel
         aria-labelledby={titleId}
         aria-describedby={subtitle ? subId : undefined}
         tabIndex={-1}
@@ -205,7 +210,7 @@ export const Drawer: React.FC<DrawerProps> = ({
         )}
       >
         {/* Header */}
-        <div className="flex items-start gap-2 border-b border-border bg-secondary px-[var(--space-content-inset)] py-3">
+        <div data-drawer-header className="flex items-start gap-2 border-b border-border bg-secondary px-[var(--space-content-inset)] py-3">
           {useRecordHeader ? (
             <div className="min-w-0 flex-1">
               {/* Visually-hidden a11y anchor — RecordHeader's own h1 carries no stable
