@@ -737,21 +737,21 @@ from public.erp_financial_statement_snapshot s where s.org_id='03190000-0000-000
 -- freshly acquired keys carry rewritten payloads. Reported by the local end-to-end check.
 select diag(format('AC-CD-005 diff publish: rows=%s payload_written=%s header_only_touches=%s deleted=%s inserted=%s',
   (select count(*) from native_diff_after),
-  (select count(*) from native_diff_after a join native_diff_before b using(statement,project_id,view_kind,period_kind,current_start) where a.content_md5<>b.content_md5),
-  (select count(*) from native_diff_after a join native_diff_before b using(statement,project_id,view_kind,period_kind,current_start) where a.content_md5=b.content_md5 and a.snapshot_id<>b.snapshot_id),
+  (select count(*) from native_diff_after a join native_diff_before b on a.statement=b.statement and a.project_id is not distinct from b.project_id and a.view_kind=b.view_kind and a.period_kind=b.period_kind and a.current_start=b.current_start where a.content_md5<>b.content_md5),
+  (select count(*) from native_diff_after a join native_diff_before b on a.statement=b.statement and a.project_id is not distinct from b.project_id and a.view_kind=b.view_kind and a.period_kind=b.period_kind and a.current_start=b.current_start where a.content_md5=b.content_md5 and a.snapshot_id<>b.snapshot_id),
   (select count(*) from native_diff_before b where not exists(select 1 from native_diff_after a where (a.statement,a.project_id,a.view_kind,a.period_kind,a.current_start) is not distinct from (b.statement,b.project_id,b.view_kind,b.period_kind,b.current_start))),
   (select count(*) from native_diff_after a where not exists(select 1 from native_diff_before b where (a.statement,a.project_id,a.view_kind,a.period_kind,a.current_start) is not distinct from (b.statement,b.project_id,b.view_kind,b.period_kind,b.current_start)))));
-select is((select count(*)::int from native_diff_after a join native_diff_before b using(statement,project_id,view_kind,period_kind,current_start)
+select is((select count(*)::int from native_diff_after a join native_diff_before b on a.statement=b.statement and a.project_id is not distinct from b.project_id and a.view_kind=b.view_kind and a.period_kind=b.period_kind and a.current_start=b.current_start
     where a.content_md5=b.content_md5 and a.snapshot_id<>b.snapshot_id),
   (select count(*)::int from native_incremental_retained_before),
   'AC-CD-005 retained rows keep their exact content and are only header-touched into the new generation');
-select ok((select count(*)::int from native_diff_after a join native_diff_before b using(statement,project_id,view_kind,period_kind,current_start)
+select ok((select count(*)::int from native_diff_after a join native_diff_before b on a.statement=b.statement and a.project_id is not distinct from b.project_id and a.view_kind=b.view_kind and a.period_kind=b.period_kind and a.current_start=b.current_start
     where a.content_md5<>b.content_md5)>0
-  and not exists(select 1 from native_diff_after a join native_diff_before b using(statement,project_id,view_kind,period_kind,current_start)
+  and not exists(select 1 from native_diff_after a join native_diff_before b on a.statement=b.statement and a.project_id is not distinct from b.project_id and a.view_kind=b.view_kind and a.period_kind=b.period_kind and a.current_start=b.current_start
     where a.content_md5=b.content_md5 and a.snapshot_id=b.snapshot_id),
   'AC-CD-005 only freshly acquired keys carry rewritten payloads and every row joins the new generation');
 select ok(not exists(select 1 from public.erp_financial_statement_published_context
-    where org_id='03190000-0000-0000-0000-000000000001' and snapshot_id=(select min(snapshot_id) from native_diff_before)
+    where org_id='03190000-0000-0000-0000-000000000001' and snapshot_id=(select snapshot_id from native_diff_before limit 1)
       and snapshot_id not in (select snapshot_id from native_diff_after)),
   'AC-CD-005 superseded generation context is removed when no row remains in it');
 create temporary table native_incremental_retained_after(row_json jsonb not null) on commit drop;

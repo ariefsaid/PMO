@@ -31,7 +31,7 @@ insert into public.erp_financial_statement_snapshot
   current_start,current_end,prior_start,prior_end,currency,as_of,capture_started_at,capture_completed_at,
   source_report,report_version,filters,settings,payload,raw_reports,has_activity,display_precision,display_rounding_method)
 values ('06550000-0000-0000-0000-000000000001','Driven A','06550000-0000-0000-0000-000000000201','06550000-0000-0000-0000-000000000202','profit_and_loss','company',null,'account_breakdown','month',
-  '2025-08-01','2025-08-31','2025-07-01','2025-07-31','IDR',clock_timestamp(),clock_timestamp()-interval '1 second',clock_timestamp(),
+  '2025-08-01','2025-08-31','2025-07-01','2025-07-31','IDR',now(),now()-interval '1 second',now(),
   'Profit and Loss Statement','synthetic',null,null,'{"current":{"rows":[]},"prior":{"rows":[]}}','{"current":"{}","prior":"{}"}',false,2,'Commercial Rounding');
 insert into public.erp_financial_statement_published_context(org_id,company,snapshot_id,source_generation,context) values
  ('06550000-0000-0000-0000-000000000001','Driven A','06550000-0000-0000-0000-000000000201','06550000-0000-0000-0000-000000000202',

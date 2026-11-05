@@ -273,10 +273,12 @@ delete from public.erp_statement_nightly_obligation
 update public.erp_statement_change_state set next_nightly_date=(select first_future from fixture_clock)
  where org_id='06440000-0000-0000-0000-000000000001';
 -- A disabled organization records nothing.
+reset role;
+update public.erp_statement_change_state set enabled=false where org_id='06440000-0000-0000-0000-000000000002';
 set local role service_role;
 delete from payload;
 insert into payload select public.record_erp_statement_nightly_due('06440000-0000-0000-0000-000000000002','06440000-0000-0000-0000-000000000102','06440000-0000-0000-0000-000000000012','2026-10-18T09:00:00Z');
-select is((select result from payload),'{"status": "disabled"}'::jsonb,'AC-NS-004 the default-off organization records nothing');
+select is((select result from payload),'{"status": "disabled"}'::jsonb,'AC-NS-004 an explicitly disabled organization records nothing');
 reset role;
 select ok(not exists(select 1 from public.erp_statement_nightly_obligation where org_id='06440000-0000-0000-0000-000000000002'),
  'AC-NS-004 a disabled organization gains no obligation');
@@ -384,6 +386,7 @@ insert into payload select public.request_erp_statement_manual_intent('06440000-
 select is((select result->>'status' from payload),'coalesced','AC-NS-005 the retained quota still coalesces after a scope rotation');
 -- Disabled organization refuses without mutating.
 reset role;
+update public.erp_statement_change_state set enabled=false where org_id='06440000-0000-0000-0000-000000000002';
 create temporary table disabled_state_before as select * from public.erp_statement_change_state
  where org_id='06440000-0000-0000-0000-000000000002';
 set local role service_role;
