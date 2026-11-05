@@ -60,10 +60,9 @@ export function keepsFolderPermission(status: Pick<ConnectionStatus, 'scopes'> |
   return (status?.scopes ?? []).some((scope) => /(^|\/)sites\.selected$/i.test(scope));
 }
 
-/** The edge fn's JSON error body shape ({ error: M365ErrorCode, message: string }). */
+/** The edge fn's JSON error body shape ({ error: M365ErrorCode }; only the code is read). */
 interface M365ErrorBody {
   error?: string;
-  message?: string;
 }
 
 /**
@@ -91,7 +90,7 @@ async function readErrorBody(error: unknown): Promise<M365ErrorBody | undefined>
   const context = (error as { context?: Response } | null | undefined)?.context;
   if (!context || typeof context.clone !== 'function') return undefined;
   try {
-    const body = (await context.clone().json()) as { error?: unknown; message?: unknown } | null;
+    const body = (await context.clone().json()) as { error?: unknown } | null;
     return typeof body?.error === 'string' ? { error: body.error } : undefined;
   } catch {
     return undefined;
