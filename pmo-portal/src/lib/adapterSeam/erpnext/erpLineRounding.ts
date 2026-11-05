@@ -4,17 +4,24 @@
  * recomputed amount differs from the signed one is sent as 1 × the signed amount, the original arithmetic in the
  * description (same shape as the time-and-materials fix, #1801). Decimals are exact (BigInt), never float.
  */
+import { AdapterError } from '../contract.ts';
 import { getDoc, type ErpClientDeps } from './client.ts';
 import { STATEMENT_FORMAT_PRECISION } from './statementMetadata.ts';
 import { formatTimeMaterialsDescription } from './dispatchRevenueFormatting.ts';
 
 export interface ErpPrecision { float: number; currency: number }
 
-/** System Settings precision; null when unreadable (the caller then reshapes unless a line is trivially exact). */
+/**
+ * System Settings precision. System Settings is System-Manager-only, which the API user is not, so null (unknown) is the
+ * normal case and every line is then judged precision-free. No other non-admin source exists: the Currency doctype's
+ * number_format / fraction_units do not feed field precision (get_field_precision reads only System Settings).
+ */
 export async function readErpPrecision(client: ErpClientDeps): Promise<ErpPrecision | null> {
   try {
     const doc = (await getDoc(client, 'System Settings', 'System Settings')) as Record<string, unknown> | null;
-    const digits = (v: unknown) => (v === undefined || v === null || v === '' ? null : Number(v));
+    // Frappe (model/meta.py get_field_precision) reads cint(...) so '0' and blank both mean unset: float falls back to 3,
+    // currency to the System Settings number format's decimals.
+    const digits = (v: unknown) => Number(v) || null;
     const float = digits(doc?.float_precision) ?? 3;
     const currency = digits(doc?.currency_precision)
       ?? STATEMENT_FORMAT_PRECISION[String(doc?.number_format ?? '#,###.##')] ?? 2;
@@ -50,14 +57,19 @@ function roundTo(d: Dec, target: number): bigint[] {
 function booksSignedAmount(quantity: string | number, rate: string | number, amount: string | number, p: ErpPrecision | null): boolean {
   const q = parse(quantity); const r = parse(rate); const a = parse(amount);
   if (!q || !r || !a) return false;
-  if (p === null) { // ponytail: unknown precision — unchanged only if qty and rate are ≤2dp and the product is exactly the signed amount
-    return q.s <= 2 && r.s <= 2 && q.n * r.n * pow10(a.s) === a.n * pow10(q.s + r.s);
+  if (p === null) {
+    // Unknown precision: only a whole rate times a qty of at most 2 decimals (the lowest float precision) that is exactly a
+    // whole signed amount books identically at any site precision.
+    return r.s === 0 && a.s === 0 && q.s <= 2 && q.n * r.n === a.n * pow10(q.s);
+  }
+  if (a.s > p.currency) {
+    throw new AdapterError('commit-rejected', `A progress claim line amount has more decimals than ERPNext holds for this currency (${p.currency}); correct the claim line before raising the invoice`);
   }
   if (r.s > p.currency) return false;
-  const signed = roundTo(a, p.currency);
+  const signed = a.n * pow10(p.currency - a.s);
   return roundTo(q, p.float).every((rq) => {
     const prod: Dec = { n: rq * r.n, s: p.float + r.s };
-    return roundTo(prod, p.currency).every((booked) => signed.length === 1 && booked === signed[0]);
+    return roundTo(prod, p.currency).every((booked) => booked === signed);
   });
 }
 

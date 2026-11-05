@@ -34,9 +34,27 @@ describe('AC-1820 progress-claim lines keep the signed amount', () => {
     expect(items.map((i) => [i.qty, i.rate])).toEqual([[1, 253], [0.333, 1000]]);
   });
 
-  it('reshapes when the site precision is unreadable unless the line is trivially exact', () => {
-    const items = reshapeProgressLines([line('0.333', '1000.00', '333.00'), line('4.00', '50000.00', '200000.00')], null, 'USD');
-    expect(items.map((i) => [i.qty, i.rate])).toEqual([[1, 333], [4, 50000]]);
+  it('with unknown precision keeps only whole-rate, whole-amount lines with qty of at most 2 decimals', () => {
+    const items = reshapeProgressLines([
+      line('4.00', '50000.00', '200000.00'),
+      line('0.333', '1000.00', '333.00'),
+      line('2', '1000.50', '2001.00'),
+      line('0.125', '1', '0.13'),
+    ], null, 'USD');
+    expect(items.map((i) => [i.qty, i.rate])).toEqual([[4, 50000], [1, 333], [1, 2001], [1, 0.13]]);
+  });
+
+  it('a 0-decimal site books 2 x 1,000.50 exactly as 1 x 2,001', () => {
+    expect(reshapeProgressLines([line('2', '1000.50', '2001')], P0, 'IDR').map((i) => [i.qty, i.rate])).toEqual([[1, 2001]]);
+  });
+
+  it('refuses a signed amount with more decimals than the site holds', () => {
+    expect(() => reshapeProgressLines([line('1', '133.30', '133.30')], P0, 'IDR'))
+      .toThrow(expect.objectContaining({ code: 'commit-rejected' }));
+  });
+
+  it('a tie of 0.125 at 2 decimals is reshaped (banker and half-up disagree with the signed 0.13)', () => {
+    expect(reshapeProgressLines([line('0.125', '1', '0.13')], P2, 'USD').map((i) => [i.qty, i.rate])).toEqual([[1, 0.13]]);
   });
 });
 
@@ -47,8 +65,12 @@ describe('readErpPrecision', () => {
   }) as unknown as ErpClientDeps;
 
   it('reads System Settings float and currency precision', async () => {
-    expect(await readErpPrecision(deps({ float_precision: '2', currency_precision: '0', number_format: '#,###.##' })))
-      .toEqual({ float: 2, currency: 0 });
+    expect(await readErpPrecision(deps({ float_precision: '2', currency_precision: '4', number_format: '#,###.##' })))
+      .toEqual({ float: 2, currency: 4 });
+  });
+  it('treats an explicit 0 precision as unset, as Frappe does (cint(...) or fallback)', async () => {
+    expect(await readErpPrecision(deps({ float_precision: '0', currency_precision: '0', number_format: '#,###.##' })))
+      .toEqual({ float: 3, currency: 2 });
   });
   it('defaults float to 3 and derives currency precision from the number format', async () => {
     expect(await readErpPrecision(deps({ float_precision: '', currency_precision: '', number_format: '#.###' })))
