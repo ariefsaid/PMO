@@ -19,12 +19,10 @@ export interface DemoContext {
 export interface AnalyticsConfig extends DemoContext {
   enabled: boolean;
   demoMode: boolean;
-  analyticsEnabled: boolean;
   replayAndAutocapture: boolean;
   posthogKey: string;
   posthogHost: string;
   appEnv: string;
-  isDev: boolean;
   isProd: boolean;
 }
 
@@ -133,12 +131,10 @@ export function getAnalyticsConfig(
   return {
     enabled,
     demoMode,
-    analyticsEnabled,
     replayAndAutocapture: demoMode && !isDev && demo.demoAudience === 'prospect',
     posthogKey: isValidPosthogKey(env.VITE_POSTHOG_KEY) ? env.VITE_POSTHOG_KEY!.trim() : '',
     posthogHost: env.VITE_POSTHOG_HOST || 'https://us.i.posthog.com',
     appEnv: env.VITE_APP_ENV || env.MODE || (isDev ? 'local' : 'prod'),
-    isDev,
     isProd,
     ...demo,
   };

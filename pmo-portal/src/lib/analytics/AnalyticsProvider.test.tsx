@@ -21,12 +21,10 @@ vi.mock('./client', () => ({
 const mockConfig = vi.hoisted(() => ({
   enabled: true,
   demoMode: false,
-  analyticsEnabled: true,
   replayAndAutocapture: false,
   posthogKey: 'ph_test',
   posthogHost: 'https://us.i.posthog.com',
   appEnv: 'test',
-  isDev: false,
   isProd: false,
   demoAudience: 'internal' as 'prospect' | 'internal',
   demoAccount: 'local',

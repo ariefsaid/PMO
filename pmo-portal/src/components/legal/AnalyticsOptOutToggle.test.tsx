@@ -7,12 +7,10 @@ type Analytics = typeof import('@/src/lib/analytics');
 const enabledConfig: ReturnType<Analytics['getAnalyticsConfig']> = {
   enabled: true,
   demoMode: false,
-  analyticsEnabled: false,
   replayAndAutocapture: false,
   posthogKey: '',
   posthogHost: '',
   appEnv: 'test',
-  isDev: false,
   isProd: false,
   demoAudience: 'internal',
   demoAccount: 'local',
