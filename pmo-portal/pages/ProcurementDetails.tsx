@@ -34,7 +34,6 @@ import { useErpOrphans } from '@/src/hooks/useErpPurchases';
 import { useErpItemOptions } from '@/src/hooks/useErpItemOptions';
 import { useProject } from '@/src/hooks/useProjects';
 import { useVendorOptions } from '@/src/hooks/useFkOptions';
-import { useVendorWithholdingRegister, useVendorWithholdingSlipMutations } from '@/src/hooks/useVendorWithholdingSlips';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { usePermission } from '@/src/auth/usePermission';
 import { mayDecideRoutedApproval, approvalRouteNote } from '@/src/lib/procurement/approvalRoute';
@@ -57,7 +56,8 @@ import { recordableFirstKinds } from './procurement/firstDocument';
 import { useLinkedErpDocuments } from '@/src/hooks/useErpPurchaseLinks';
 import { LinkedErpDocuments } from './procurement/LinkedErpDocuments';
 import { ProcurementMicrosoftReferences } from './procurement/ProcurementMicrosoftReferences';
-import { VendorWithholdingSlipModal } from './procurement/VendorWithholdingSlipModal';
+import { useProcurementWithholding } from './procurement/useProcurementWithholding';
+import { VendorWithholdingSlipRecordForm, VendorWithholdingSlipHistory } from './procurement/ProcurementWithholding';
 import { VendorWithholdingSlipDetails } from './procurement/VendorWithholdingSlipDetails';
 import { ProcurementDecisionZone } from './procurement/ProcurementDecisionZone';
 import { buildLedgerRows, type LedgerRow } from '@/src/lib/db/procurementLedger';
@@ -145,9 +145,7 @@ const ProcurementDetails: React.FC = () => {
   const crud = useProcurementCrudMutations(procurementId ?? '');
   const recordMutations = useProcurementRecordMutations(procurementId ?? '');
   const erpItems = useErpItemOptions('purchase');
-  const [recordSlipInvoice, setRecordSlipInvoice] = useState<ProcurementDetail['invoices'][number] | null>(null);
-  const [slipHistoryInvoiceId, setSlipHistoryInvoiceId] = useState<string | null>(null);
-  const historyReturnFocus = React.useRef<HTMLElement | null>(null);
+  const withholding = useProcurementWithholding();
   const setBupotSelection = (slipId: string | null) => {
     const params = new URLSearchParams(location.search);
     if (slipId) {
@@ -870,9 +868,9 @@ const ProcurementDetails: React.FC = () => {
               canWriteWithholdingSlip={canWriteWithholdingSlip}
               vendorMissing={!p.vendor_id}
               onSetVendor={canSetVendor ? () => { setSelectedVendorId(null); setVendorPickerOpen(true); } : undefined}
-              onRecordWithholdingSlip={(invoice) => setRecordSlipInvoice(invoice)}
+              onRecordWithholdingSlip={withholding.openRecord}
               onViewWithholdingSlip={(slipId) => setBupotSelection(slipId)}
-              onWithholdingHistory={(invoiceId) => { historyReturnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; setSlipHistoryInvoiceId(invoiceId); }}
+              onWithholdingHistory={withholding.openHistory}
               isApprover={isApprover}
               firstDocumentKinds={recordableFirstKinds({
                 canSource: canSource(role),
@@ -1082,10 +1080,10 @@ const ProcurementDetails: React.FC = () => {
         onPartiallyLinked={(result) => { setLinkDialogOpen(false); void detailQuery.refetch(); toast(t('procurementRecord:erpLinked', 'Accounting-system document linked'), result.refused.join(' · '), 'warning'); }}
       />}
 
-      {recordSlipInvoice && p.vendor_id && <VendorWithholdingSlipRecordForm
-        invoice={recordSlipInvoice} vendorId={p.vendor_id} vendorName={vendorMap[p.vendor_id]} onClose={() => setRecordSlipInvoice(null)}
+      {withholding.recordInvoice && p.vendor_id && <VendorWithholdingSlipRecordForm
+        invoice={withholding.recordInvoice} vendorId={p.vendor_id} vendorName={vendorMap[p.vendor_id]} onClose={withholding.closeRecord}
       />}
-      {slipHistoryInvoiceId && <VendorWithholdingSlipHistory invoiceId={slipHistoryInvoiceId} onClose={() => { setSlipHistoryInvoiceId(null); requestAnimationFrame(() => historyReturnFocus.current?.focus()); }} onView={(id) => { setSlipHistoryInvoiceId(null); setBupotSelection(id); }} />}
+      {withholding.historyInvoiceId && <VendorWithholdingSlipHistory invoiceId={withholding.historyInvoiceId} onClose={withholding.closeHistory} onView={(id) => { withholding.dismissHistory(); setBupotSelection(id); }} />}
       {bupotId && <VendorWithholdingSlipDetails
         slipId={bupotId}
         canWrite={may('edit', 'vendorWithholdingSlip', { record: { viewOnly: effectiveRole !== realRole } })}
@@ -1160,22 +1158,5 @@ const ProcurementDetails: React.FC = () => {
     </div>
   );
 };
-
-function VendorWithholdingSlipRecordForm({ invoice, vendorId, vendorName, onClose }: { invoice: ProcurementDetail['invoices'][number]; vendorId: string; vendorName?: string; onClose: () => void }) {
-  const mutation = useVendorWithholdingSlipMutations();
-  return <VendorWithholdingSlipModal invoice={invoice} vendorId={vendorId} vendorName={vendorName} open loading={mutation.record.isPending} onClose={onClose} onSave={(input) => mutation.record.mutateAsync(input)} />;
-}
-
-function VendorWithholdingSlipHistory({ invoiceId, onClose, onView }: { invoiceId: string; onClose: () => void; onView: (id: string) => void }) {
-  const { t } = useTranslation();
-  const query = useVendorWithholdingRegister({ invoiceId });
-  const headingRef = React.useRef<HTMLHeadingElement>(null);
-  React.useLayoutEffect(() => { headingRef.current?.focus(); headingRef.current?.scrollIntoView?.({ block: 'nearest' }); }, []);
-  const close = onClose;
-  return <Card className="mt-3"><CardHead level={2} aria-label={t('bupot.history', 'Bukti potong history')} ref={headingRef} tabIndex={-1} actions={<Button variant="outline" onClick={close}>{t('bupot.close', 'Close')}</Button>}>{t('bupot.history', 'Bukti potong history')}</CardHead><CardPad>
-    {query.isLoading ? <ListState variant="loading" rows={2} /> : query.isError ? <ListState variant="error" title={t('bupot.loadError', 'Bukti potong unavailable')} onRetry={() => void query.refetch()} retryLabel={t('bupot.retry', 'Retry')} /> : (query.data?.pages ?? []).flatMap((page) => page.rows).length === 0 ? <ListState variant="empty" title={t('bupot.noBillHistory', 'No withholding slips recorded for this bill.')} /> : <ul>{(query.data?.pages ?? []).flatMap((page) => page.rows).map((slip) => <li key={slip.slip_id} className="flex justify-between gap-2 py-2"><span className="break-all">{slip.slip_number} · {slip.status}</span><Button variant="outline" onClick={() => onView(slip.slip_id)}>{t('bupot.view', 'View bukti potong')}</Button></li>)}</ul>}
-    {query.hasNextPage && <Button variant="outline" onClick={() => void query.fetchNextPage()}>{t('bupot.loadMoreSlips', 'Load more history')}</Button>}
-  </CardPad></Card>;
-}
 
 export default ProcurementDetails;
