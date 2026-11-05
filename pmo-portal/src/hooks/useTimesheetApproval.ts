@@ -117,12 +117,14 @@ export function useTimesheetMutations() {
     onSuccess: invalidateBoth,
   });
 
-  // Refresh the approval-side caches for one approved sheet (shared by single and batch paths).
-  const refreshApproved = (id: string) => Promise.all([
+  // Approval-side caches shared by every approved sheet (invalidated once per batch)...
+  const refreshApprovedShared = () => Promise.all([
     queryClient.invalidateQueries({ queryKey: ['timesheets-reopenable-approved', orgId, userId] }),
     queryClient.invalidateQueries({ queryKey: pushesAttentionKey(orgId) }),
-    queryClient.invalidateQueries({ queryKey: ['timesheet-push-state', id], exact: true }),
   ]);
+  // ...and the per-sheet push state.
+  const refreshPushState = (id: string) =>
+    queryClient.invalidateQueries({ queryKey: ['timesheet-push-state', id], exact: true });
 
   // `batch: true` defers cache refresh to one `settleBatch` call after the whole batch.
   const approve = useMutation<void, Error, { id: string; notes?: string; batch?: boolean }>({
@@ -133,15 +135,15 @@ export function useTimesheetMutations() {
     onSettled: async (_data, error, { id, batch }) => {
       if (batch) return;
       // Refresh history before the pending row disappears, keeping the correction path reachable.
-      await refreshApproved(id);
+      await Promise.all([refreshApprovedShared(), refreshPushState(id)]);
       if (!error) invalidateBoth();
     },
   });
 
   /** Once per batch, also after a partial failure so persisted approvals leave the queue. */
   const settleBatch = async (approvedIds: string[]) => {
-    if (approvedIds.length === 0) return;
-    await Promise.all(approvedIds.map(refreshApproved));
+    await Promise.all([refreshApprovedShared(), ...approvedIds.map(refreshPushState)]);
+    // Also when every row failed: stale rows (e.g. approved elsewhere) must leave the queue.
     invalidateBoth();
   };
 

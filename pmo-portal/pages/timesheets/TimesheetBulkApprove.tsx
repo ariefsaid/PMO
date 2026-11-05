@@ -69,9 +69,14 @@ export function useTimesheetBulkApprove(sheets: TimesheetAwaitingApproval[], eli
     const failedNow = ids.filter((_, i) => results[i].status === 'rejected');
     const ok = okIds.length;
     const failed = failedNow.length;
-    await settleBatch(okIds);
-    setRunning(false);
-    setConfirmOpen(false);
+    try {
+      await settleBatch(okIds);
+    } catch {
+      // Cache refresh is best-effort; the outcome toast below must still show.
+    } finally {
+      setRunning(false);
+      setConfirmOpen(false);
+    }
     if (failed === 0) exitSelection();
     else {
       // Keep only the failed weeks selected so one more Approve retries them, not the successes.
@@ -117,6 +122,7 @@ export function TimesheetBulkToolbar({ controller, sheets }: { controller: BulkC
   if (!controller.selecting) return null;
   const n = controller.effectiveSelected.size;
   const eligible = controller.approvableIds.size;
+  const failedShown = sheets.filter((sheet) => controller.failedIds.includes(sheet.id) && controller.effectiveSelected.has(sheet.id));
   const scope = eligible === controller.total
     ? (eligible === 1
       ? t('uxs18.bulk.scopeOne', 'The 1 timesheet in this queue can be approved.')
@@ -125,11 +131,11 @@ export function TimesheetBulkToolbar({ controller, sheets }: { controller: BulkC
   return (
     <div role="group" aria-label={t('approvals.bulk.groupLabel', 'Bulk approve')} className="mb-3 flex flex-wrap items-center gap-2.5 rounded-lg bg-primary/[0.06] px-3 py-2.5">
       <p className="basis-full text-[13px] text-muted-foreground">{scope}</p>
-      {controller.failedIds.length > 0 && (
-        <div role="alert" aria-label={t('approvals.bulk.failedLabel', 'These weeks could not be approved')} className="basis-full text-[13px] text-destructive">
-          <p>{t('approvals.bulk.failedLead', 'These weeks could not be approved (separation of duties or stale). They stay selected so you can retry.')}</p>
+      {failedShown.length > 0 && (
+        <div role="alert" aria-label={t('timesheets:approvalQueue.bulkFailedLabel', 'These weeks could not be approved')} className="basis-full text-[13px] text-destructive">
+          <p>{t('timesheets:approvalQueue.bulkFailedLead', 'These weeks could not be approved (separation of duties or stale). They stay selected so you can retry.')}</p>
           <ul>
-            {sheets.filter((sheet) => controller.failedIds.includes(sheet.id)).map((sheet) => (
+            {failedShown.map((sheet) => (
               <li key={sheet.id}>{sheet.owner?.full_name ?? t('approvals.unknownOwner', 'Unknown')} · {weekLabel(sheet.week_start_date, t)}</li>
             ))}
           </ul>

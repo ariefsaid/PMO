@@ -225,6 +225,41 @@ describe('AC-IXD-TS-W5-3: N12 evidence-based bulk approve', () => {
     expect(mutateAsyncMock).toHaveBeenCalledWith({ id: 's1', batch: true });
   });
 
+  it('T18 M1: when every week fails, settleBatch still runs (with no ids) so stale rows refresh', async () => {
+    mutateAsyncMock.mockRejectedValue(new Error('stale'));
+    renderAs('Project Manager');
+    await userEvent.click(screen.getByRole('button', { name: /^Select items$/i }));
+    await userEvent.click(screen.getByRole('checkbox', { name: /select all/i }));
+    await userEvent.click(screen.getByRole('button', { name: /Approve 2/i }));
+    await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: /^Approve 2$/i }));
+    await waitFor(() => expect(settleBatchMock).toHaveBeenCalledWith([]));
+  });
+
+  it('T18 M2: a throwing refresh still closes the dialog, clears running and shows the outcome toast', async () => {
+    mutateAsyncMock.mockResolvedValue(undefined);
+    settleBatchMock.mockRejectedValue(new Error('refresh failed'));
+    renderAs('Project Manager');
+    await userEvent.click(screen.getByRole('button', { name: /^Select items$/i }));
+    await userEvent.click(screen.getByRole('checkbox', { name: /select all/i }));
+    await userEvent.click(screen.getByRole('button', { name: /Approve 2/i }));
+    await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: /^Approve 2$/i }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(await findToastAnnouncement('status', /timesheets? approved/i)).toBeInTheDocument();
+  });
+
+  it('T18 M3: deselecting a failed week drops it from the failure alert', async () => {
+    mutateAsyncMock.mockImplementation((arg: { id: string }) =>
+      arg.id === 's1' ? Promise.reject(new Error('stale')) : Promise.resolve(undefined));
+    renderAs('Project Manager');
+    await userEvent.click(screen.getByRole('button', { name: /^Select items$/i }));
+    await userEvent.click(screen.getByRole('checkbox', { name: /select all/i }));
+    await userEvent.click(screen.getByRole('button', { name: /Approve 2/i }));
+    await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: /^Approve 2$/i }));
+    await screen.findByRole('alert', { name: /could not be approved/i });
+    await userEvent.click(screen.getByRole('checkbox', { name: /select Anita Rao's week/i }));
+    expect(screen.queryByRole('alert', { name: /could not be approved/i })).not.toBeInTheDocument();
+  });
+
   it('Clear exits selection mode', async () => {
     renderAs('Project Manager');
     await userEvent.click(screen.getByRole('button', { name: /^Select items$/i }));
