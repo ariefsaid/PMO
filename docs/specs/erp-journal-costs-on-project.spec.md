@@ -90,6 +90,8 @@ from whom, and that nothing is counted twice.
 - **FR-JEC-022** When the ERP cancels a journal or a repost changes its rows, the attached line's held amount shall
   follow the mirror on the next read (a cancelled journal holds nothing; the link stays and shows "cancelled in
   the accounting system").
+- **FR-JEC-042** While an attached line has a later negative journal line on the same project and account, the list
+  shall flag it "possibly reversed" and keep its hold (the mirrored ledger rows carry no link from a reversal to its original).
 - **FR-JEC-023** A journal split across projects shall attach per project line; attaching one project's line
   shall not change another project's actuals, committed spend or list.
 
@@ -145,3 +147,4 @@ from whom, and that nothing is counted twice.
 | AC-JEC-015 | **Given** a project with journal lines and a PMO purchase **When** an operator opens the Procurement tab, attaches a line, then opens the purchase **Then** the attached line is on the purchase and the project's spent figure is the same as before | Playwright e2e `e2e/AC-JEC-015-journal-attach.spec.ts` (one cross-stack journey) |
 | AC-JEC-016 | **Given** an org reading no ERP ledger **When** the Procurement tab renders **Then** no journal section shows | Vitest |
 | AC-JEC-017 | **Given** the CLI with a JSON file of lines **When** `pmo purchases attach-journals <file> --dry-run` runs **Then** it prints each line's outcome and writes nothing | node test (`scripts/pmo-purchases.test.mjs`) |
+| AC-JEC-018 | **Given** an attached line and a later negative journal line on its project and account **When** the project's lines are listed **Then** the attached line is flagged possibly reversed and keeps its hold | pgTAP 0687 |

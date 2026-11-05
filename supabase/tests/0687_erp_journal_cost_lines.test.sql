@@ -1,7 +1,7 @@
 -- 0687 (#1919): ERP journal cost lines on the project: list, attach (link only), detach, count once.
 -- Owns AC-JEC-001..012. Money path: attach/detach move open commitment, never actuals.
 begin;
-select plan(48);
+select plan(56);
 
 -- ids: org A 0687…0a, org B 0687…0b; profiles a1 Finance, a2 PM, a3 Engineer, a4 Admin, b1 Finance (org B)
 insert into organizations (id, name, default_currency) values
@@ -208,6 +208,51 @@ select is(pg_temp.attach('JV-2','06870000-0000-0000-0000-0000000000d1','Project 
 select is(pg_temp.attach('JV-B','06870000-0000-0000-0000-0000000000d3','Project Subcontractors - X','06870000-0000-0000-0000-0000000000e1') ->> 'reason',
   'purchase_not_found', 'AC-JEC-012 org A''s purchase is not found for org B');
 select is((select count(*)::int from erp_journal_line_links), 0, 'AC-JEC-012 org B sees none of org A''s links');
+
+-- I-A1 detach is org-scoped: org B's Finance cannot delete org A's link, and the link survives.
+reset role;
+select set_config('jec.l2', (select id::text from erp_journal_line_links where voucher_no = 'JV-2'), true);
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"06870000-0000-0000-0000-0000000000b1","role":"authenticated"}';
+select throws_ok(format($$select detach_erp_journal_line(%L)$$, current_setting('jec.l2')), 'P0002', null,
+  'AC-JEC-012 org B Finance cannot detach org A''s link');
+reset role;
+select is((select count(*)::int from erp_journal_line_links where id = current_setting('jec.l2')::uuid), 1,
+  'AC-JEC-012 org A''s link survives the cross-org detach');
+
+-- FR-JEC-015 audit: attach and detach each leave an event on the purchase.
+select ok(exists (select 1 from audit_events where action = 'procurement.journal_attach' and entity_id = '06870000-0000-0000-0000-0000000000e1'
+                     and actor_id = '06870000-0000-0000-0000-0000000000a1' and detail ->> 'voucher_no' = 'JV-1'),
+  'FR-JEC-015 attach is audited');
+select ok(exists (select 1 from audit_events where action = 'procurement.journal_detach' and entity_id = '06870000-0000-0000-0000-0000000000e1'
+                     and actor_id = '06870000-0000-0000-0000-0000000000a4' and detail ->> 'voucher_no' = 'JV-2'),
+  'FR-JEC-015 detach is audited');
+
+-- FR-JEC-006 an org without an active ERP ledger lists nothing.
+update external_org_bindings set status = 'disconnected' where org_id = '06870000-0000-0000-0000-00000000000a' and external_tier = 'erpnext';
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"06870000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select is((select count(*)::int from project_erp_journal_lines('06870000-0000-0000-0000-0000000000d1')), 0,
+  'FR-JEC-006 no active ERP ledger: no journal lines');
+reset role;
+update external_org_bindings set status = 'active' where org_id = '06870000-0000-0000-0000-00000000000a' and external_tier = 'erpnext';
+
+-- I-A3 a reversal is a new voucher with no link to the original in the mirror (GL rows carry no reversal reference),
+-- so the original keeps its hold and is flagged possibly_reversed instead.
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"06870000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select pg_temp.attach('JV-1','06870000-0000-0000-0000-0000000000d2','Project Subcontractors - X','06870000-0000-0000-0000-0000000000e5');
+select is((select possibly_reversed from project_erp_journal_lines('06870000-0000-0000-0000-0000000000d2') where voucher_no = 'JV-1'), false,
+  'AC-JEC-018 before a reversal the attached line is not flagged');
+reset role;
+insert into erp_gl_entry_mirror (org_id, erp_name, company, account, project, voucher_type, voucher_no, posting_date, debit, credit, is_cancelled, erp_modified) values
+  ('06870000-0000-0000-0000-00000000000a','grev','Example Co','Project Subcontractors - X','ERP-A2','Journal Entry','JV-REV','2026-03-20',0,120,false,'2026-03-20');
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"06870000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select is((select possibly_reversed from project_erp_journal_lines('06870000-0000-0000-0000-0000000000d2') where voucher_no = 'JV-1'), true,
+  'AC-JEC-018 a later negative journal line on the same project and account flags the attached line');
+select is(public.procurement_ledger_held('06870000-0000-0000-0000-0000000000e5'), 120::numeric,
+  'AC-JEC-018 the hold is kept (no reliable reversal link); the flag is the signal');
 
 -- Table privileges: link rows are written only through the definer RPCs.
 select ok(not has_table_privilege('authenticated', 'public.erp_journal_line_links', 'insert')

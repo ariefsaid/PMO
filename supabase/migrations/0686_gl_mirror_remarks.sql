@@ -52,8 +52,4 @@ end;
 $$;
 revoke execute on function public.replace_erp_gl_voucher_rows(uuid, text, text, text, jsonb, text[]) from public, anon, authenticated;
 grant execute on function public.replace_erp_gl_voucher_rows(uuid, text, text, text, jsonb, text[]) to service_role;
-
--- One full ledger replay per ERPNext org so historical rows gain their remark (the sweep's existing full-replay path,
--- 0294/0312). Statements are not marked delayed: the replay re-writes the same amounts.
-update public.external_org_bindings set statement_full_ledger_replay_needed = true
- where external_tier = 'erpnext' and activated_at is not null;
+-- No replay flag here: the flag is set by the migration that ships the remarks fetch (#1919 B), after the new sweep exists.

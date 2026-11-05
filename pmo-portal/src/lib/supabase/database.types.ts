@@ -11462,6 +11462,7 @@ export type Database = {
           posting_date: string
           procurement_id: string
           procurement_title: string
+          possibly_reversed: boolean
           project_id: string
           remarks: string
           voucher_no: string
