@@ -220,10 +220,21 @@ test('AC-822-002: e2e-local reuses an inherited DB lock without re-acquiring it'
       `e2e-local should complete under its inherited DB hold; exit=${result.status}, stderr=${result.stderr}`);
     assert.equal((result.stderr.match(/ACQUIRED/g) ?? []).length, 1,
       `only the outer wrapper should acquire the DB lock; stderr=${result.stderr}`);
-    assert.deepEqual(fs.readFileSync(log, 'utf8').trim().split('\n'), [
-      'playwright test --project=chromium --workers=2',
-      'playwright test --project=serial --workers=1',
-    ]);
+    // The two lanes run in that order at those worker counts. Each also needs its OWN --output dir:
+    // Playwright clears outputDir per invocation, so a shared one makes phase 2 delete phase 1's
+    // trace/video/error-context (#1870) — and both must stay under ONE root, the dir CI uploads.
+    const lanes = fs.readFileSync(log, 'utf8').trim().split('\n').map((line) => {
+      const flag = (name) => (line.match(new RegExp(`--${name}=(\\S+)`)) ?? [])[1];
+      return { project: flag('project'), workers: flag('workers'), output: flag('output') };
+    });
+    assert.deepEqual(lanes.map(({ project, workers }) => [project, workers]),
+      [['chromium', '2'], ['serial', '1']],
+      `unexpected lanes: ${JSON.stringify(lanes)}`);
+    assert.ok(lanes.every(lane => lane.output),
+      `each lane needs an --output dir, otherwise phase 2 wipes phase 1's evidence: ${JSON.stringify(lanes)}`);
+    assert.deepEqual(lanes.map(lane => path.basename(lane.output)), ['chromium', 'serial']);
+    assert.equal(path.dirname(lanes[0].output), path.dirname(lanes[1].output),
+      'both lanes stay under the single root CI uploads');
   });
 });
 
