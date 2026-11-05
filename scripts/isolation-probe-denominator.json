@@ -723,6 +723,6 @@
     {"class":"write","expect_denial":[{"http":500,"sqlstate":"P0002"}],"name":"decide_imprest_float_change","source":["supabase/migrations/0422_imprest_floats_plans.sql:251","supabase/migrations/0422_imprest_floats_plans.sql:259"]},
     {"class":"write","expect_denial":[{"http":500,"sqlstate":"P0002"}],"name":"transition_imprest_plan","source":["supabase/migrations/0422_imprest_floats_plans.sql:418","supabase/migrations/0422_imprest_floats_plans.sql:439"]},
     {"name":"get_budget_distribution_snapshot","class":"read","expect_denial":[],"shape":"null","source":["supabase/migrations/0694_budget_distribution_snapshot.sql:5"]},
-    {"name":"switch_budget_draft_mode","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0581_budget_draft_mode_switch.sql:61"]}
+    {"name":"switch_budget_draft_mode","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/0693_budget_draft_mode_switch.sql:61"]}
   ]
 }

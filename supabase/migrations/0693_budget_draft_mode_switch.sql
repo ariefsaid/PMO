@@ -1,5 +1,5 @@
--- 0581_budget_draft_mode_switch.sql
--- Atomic mode changes for Draft budgets. Reverse: rollback/0581_budget_draft_mode_switch_down.sql.
+-- 0693_budget_draft_mode_switch.sql
+-- Atomic mode changes for Draft budgets. Reverse: rollback/0693_budget_draft_mode_switch_down.sql.
 
 create or replace function public.switch_budget_draft_mode(
   p_version uuid,
