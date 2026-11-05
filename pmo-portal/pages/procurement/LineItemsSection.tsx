@@ -32,12 +32,6 @@ function parseRate(raw: string): number | null {
   const n = parseMoneyInputAtScale(raw, 2);
   return n !== null && n > 0 ? n : null;
 }
-function validateRate(raw: string): string | undefined {
-  if (!raw.trim()) return 'Unit price is required.';
-  if (parseRate(raw) !== null) return undefined;
-  if (moneyInputErrorKind(raw, 2) === 'format') return describeFormatError('Unit price');
-  return 'Unit price must be greater than 0 with no more than 2 decimal places.';
-}
 interface LineItemErrors { quantity?: string; rate?: string }
 export interface LineItemsSectionProps {
   items: ProcurementItemRow[];
@@ -71,7 +65,7 @@ export const LineItemsSection: React.FC<LineItemsSectionProps> = ({ items, edita
   const submitAdd = async () => {
     if (!draft.name.trim()) return;
     const quantityError = validateLineNum(draft.quantity, 'Quantity');
-    const rateError = validateRate(draft.rate);
+    const rateError = validateLineNum(draft.rate, 'Unit price');
     const rate = parseRate(draft.rate);
     if (quantityError || rateError || rate === null) { setAddErrors({ quantity: quantityError, rate: rateError }); return; }
     setAddErrors({});
@@ -88,7 +82,7 @@ export const LineItemsSection: React.FC<LineItemsSectionProps> = ({ items, edita
   const submitEdit = async (id: string) => {
     if (!editDraft.name.trim()) return;
     const quantityError = valuesEditable ? validateLineNum(editDraft.quantity, 'Quantity') : undefined;
-    const rateError = valuesEditable ? validateRate(editDraft.rate) : undefined;
+    const rateError = valuesEditable ? validateLineNum(editDraft.rate, 'Unit price') : undefined;
     const rate = valuesEditable ? parseRate(editDraft.rate) : null;
     if (quantityError || rateError || (valuesEditable && rate === null)) { setEditErrors({ quantity: quantityError, rate: rateError }); return; }
     setEditErrors({});
