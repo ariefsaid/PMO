@@ -20,11 +20,53 @@ async function waitReady(page: Page) {
   await expect(page.getByTestId('liststate-loading')).toHaveCount(0, { timeout: 20_000 });
 }
 
+// #1887: the seeded Projects fixtures alone cannot scroll — after the search narrows to a
+// single matching row, the filtered content fits the 420px viewport, so the scroll-restore
+// proof would assert on a zero offset and fail before Back is ever exercised. These
+// deterministic, client-shaped Ongoing rows are appended to the Projects LIST read, so the
+// narrowed "Innovate" set keeps a positive scroll extent (several real-height rows).
+const INNOVATE_FIXTURE_ROWS = [
+  'Innovate Logistics Warehouse Automation',
+  'Innovate Data Centre Retrofit Phase 2',
+  'Innovate Retail Flagship Fit-Out Jakarta',
+  'Innovate Campus Network Upgrade',
+  'Innovate Water Treatment Package Lot 4',
+  'Innovate Grid Battery Pilot Programme',
+] as const;
+
+/** Route-mock the active-partition Projects list read (GET with `status=in.`, no `id=eq.`). */
+async function installScrollableListFixture(page: Page) {
+  await page.route('**/rest/v1/projects?*', async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    const status = url.searchParams.get('status') ?? '';
+    if (request.method() !== 'GET' || url.searchParams.has('id') || !status.startsWith('in.')) {
+      return route.fallback();
+    }
+    // Clone the live response's first row so every appended row carries the exact column
+    // shape (embedded client/pm refs included) the app rendered for the seed — stable row
+    // heights across visits, which the ±48px scroll-restore tolerance relies on.
+    const response = await route.fetch();
+    const rows = (await response.json()) as Array<Record<string, unknown>>;
+    const base = rows.find((row) => row.status === 'Ongoing Project') ?? rows[0];
+    if (!base) return route.fallback();
+    const extra = INNOVATE_FIXTURE_ROWS.map((name, i) => ({
+      ...base,
+      id: `6e0f0000-0000-4000-8000-${String(i + 1).padStart(12, '0')}`,
+      name,
+      pmo_project_number: `PMO-2025-88${String(i + 1).padStart(2, '0')}`,
+      code: `PO/SYN/2025/88${i + 1}`,
+    }));
+    return route.fulfill({ response, json: [...rows, ...extra] });
+  });
+}
+
 test(
   'AC-LRC-009: narrowing a list writes no extra history entries; browser Back from an opened record restores the URL and scroll in one step',
   async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 420 });
     await login(page, 'pm@acme.test');
+    await installScrollableListFixture(page);
     await page.goto('/projects');
     await waitReady(page);
 

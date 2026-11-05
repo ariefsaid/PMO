@@ -6,10 +6,12 @@ const h = vi.hoisted(() => {
     rows: { data: null as unknown, error: null as unknown },
     tables: {} as Record<string, { data: unknown; error: unknown }>,
     rpc: { data: null as unknown, error: null as unknown },
+    // when set, work_order_billing answers by .range() window over this full list
+    paged: null as null | unknown[],
   };
   const calls = {
     from: [] as string[], select: [] as string[], eq: [] as unknown[][], in: [] as unknown[][], is: [] as unknown[][],
-    limit: [] as number[], rpc: [] as unknown[][],
+    limit: [] as number[], rpc: [] as unknown[][], range: [] as number[][],
   };
   const from = vi.fn((t: string) => {
     calls.from.push(t);
@@ -21,8 +23,10 @@ const h = vi.hoisted(() => {
     builder.limit = (n: number) => { calls.limit.push(n); return builder; };
     // #1774: the billing-lines diagnostic read pages (order by record_id, then a range window).
     builder.order = () => builder;
-    builder.range = () => builder;
-    builder.then = (resolve: (v: unknown) => unknown) => resolve(state.tables[t] ?? state.rows);
+    let win: [number, number] | null = null;
+    builder.range = (a: number, b: number) => { calls.range.push([a, b]); win = [a, b]; return builder; };
+    builder.then = (resolve: (v: unknown) => unknown) => resolve(
+      t === 'work_order_billing' && state.paged && win ? { data: state.paged.slice(win[0], win[1] + 1), error: null } : (state.tables[t] ?? state.rows));
     return builder;
   });
   const rpc = vi.fn((n: string, a: unknown) => { calls.rpc.push([n, a]); return Promise.resolve(state.rpc); });
@@ -41,6 +45,7 @@ beforeEach(() => {
   h.state.rows = { data: null, error: null };
   h.state.tables = {};
   h.state.rpc = { data: null, error: null };
+  h.state.paged = null;
   for (const k of Object.keys(h.calls) as Array<keyof typeof h.calls>) h.calls[k].length = 0;
 });
 
@@ -137,6 +142,21 @@ describe('work-order billing DAL (OD-BILL-1)', () => {
     expect(doc.rows[0].clientPoNumber).toBe('PO-123');
     expect(h.calls.eq).toContainEqual(['figures_complete', false]);
     expect(h.calls.is).toContainEqual(['projects', 'archived_at', null]);
+  });
+  it('DAL03-004 archived-project rows ahead of the cap do not hide live incomplete work orders', async () => {
+    h.state.rpc = { data: { totals: [], incomplete_count: 3, rows: [] }, error: null };
+    // 120 archived-project rows sort first; the 2 live ones come after the first page.
+    h.state.paged = [
+      ...Array.from({ length: 120 }, (_, i) => ({ work_order_id: `old-${i}`, wo_number: null, title: 'Old', project_id: 'p-archived' })),
+      { work_order_id: 'wo-a', wo_number: 'WO-A', title: 'A', project_id: 'p2' },
+      { work_order_id: 'wo-b', wo_number: 'WO-B', title: 'B', project_id: 'p2' },
+    ];
+    h.state.tables = {
+      projects: { data: [{ id: 'p2', name: 'Annex' }], error: null },
+      work_orders: { data: [], error: null },
+    };
+    const doc = await getUnbilledWorkOrders(2);
+    expect(doc.incomplete.map((r) => r.workOrderId)).toEqual(['wo-a', 'wo-b']);
   });
   it('AC-UNB-005 with everything totalled the dashboard asks for no list', async () => {
     h.state.rpc = { data: { totals: [], incomplete_count: 0, rows: [] }, error: null };

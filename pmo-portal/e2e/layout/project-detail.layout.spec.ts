@@ -324,6 +324,29 @@ test.describe('UX-006: effective phone action targets', () => {
     await page.getByRole('region', { name: 'Phase timeline', exact: true }).getByRole('button', { name: 'Update phases', exact: true }).click();
     const edit = page.getByRole('button', { name: 'Edit progress for Engineering Design', exact: true });
     await expect(edit).toBeVisible();
+    // #1888: CSS visibility alone does not establish an in-viewport pointer target — the edit
+    // button can sit below the phone fold, where elementFromPoint legitimately answers nothing
+    // at its coordinates. Bring the REAL target into the viewport (centred, so the sampled
+    // pixel just above its top edge is inside the viewport too) and wait for the viewport
+    // geometry to stop moving before sampling. The 44px minimum and the actual target-hit
+    // oracle are unchanged.
+    await edit.evaluate((el) => el.scrollIntoView({ block: 'center', behavior: 'instant' }));
+    await edit.evaluate((el) => new Promise<void>((resolve) => {
+      let last = el.getBoundingClientRect();
+      let stableFrames = 0;
+      const tick = () => {
+        const now = el.getBoundingClientRect();
+        const stable = Math.abs(now.top - last.top) < 0.5
+          && Math.abs(now.left - last.left) < 0.5
+          && Math.abs(now.width - last.width) < 0.5
+          && Math.abs(now.height - last.height) < 0.5;
+        stableFrames = stable ? stableFrames + 1 : 0;
+        last = now;
+        if (stableFrames >= 3) resolve();
+        else requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    }));
     const hitArea = await edit.evaluate((el) => {
       const pseudo = getComputedStyle(el, '::before');
       const box = el.getBoundingClientRect();

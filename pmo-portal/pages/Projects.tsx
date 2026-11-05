@@ -16,6 +16,7 @@ import { useTranslation } from 'react-i18next';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { usePermission } from '@/src/auth/usePermission';
 import { useProjectMutations } from '@/src/hooks/useProjects';
+import { usePrefetchProject } from '@/src/hooks/usePrefetchProject';
 import { useAuth } from '@/src/auth/useAuth';
 import { useListReturn } from '@/src/hooks/useListReturn';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
@@ -40,6 +41,7 @@ const Projects: React.FC = () => {
   const may = usePermission();
   const { toast } = useToast();
   const { currentUser } = useAuth();
+  const prefetchProject = usePrefetchProject();
   const model = useProjectListModel(effectiveRole, currentUser, t);
   const { isEngineer, tasksPending, tasksError, refetchTasks, data, isPending, isError, refetch,
     filter, view, calendarCursor, onCalendarCursorChange,
@@ -73,6 +75,7 @@ const Projects: React.FC = () => {
   // (AC-NAV-006, no tab). `source` distinguishes the table/list row path from every
   // card-shaped surface (cards, kanban, calendar) for `project_detail_opened`.
   const onOpen = (p: ProjectWithRefs, source: 'list' | 'card' = 'list') => {
+    prefetchProject(p.id);
     trackProjectDetailOpened('/projects/:projectId', source);
     openRecord(`/projects/${p.id}`);
   };
@@ -108,7 +111,7 @@ const Projects: React.FC = () => {
 
   const { visibleColumns, exportColumns } = projectTableColumns({
     filtered, deliverySummary, deliveryPending, deliveryError, projectMoney, moneyPending,
-    moneyError, canViewMoney, isAtRiskActual, onOpen, projectStatusLabel, t,
+    moneyError, canViewMoney, isAtRiskActual, onOpen, onPrefetch: prefetchProject, projectStatusLabel, t,
   });
 
   // ── States ──────────────────────────────────────────────────────────────
@@ -229,16 +232,28 @@ const Projects: React.FC = () => {
           cursor={calendarCursor}
           onCursorChange={onCalendarCursorChange}
           onOpenProject={(id) => {
+            prefetchProject(id);
             trackProjectDetailOpened('/projects/:projectId', 'card');
             openRecord(`/projects/${id}`);
           }}
         />
       ) : view === 'table' ? (
-        <>
+        <div
+          data-testid="projects-table-container"
+          onPointerOver={(e) => {
+            const tr = (e.target as HTMLElement).closest('tr');
+            if (tr?.id) prefetchProject(tr.id);
+          }}
+          onFocusCapture={(e) => {
+            const tr = (e.target as HTMLElement).closest('tr');
+            if (tr?.id) prefetchProject(tr.id);
+          }}
+        >
           <DataTable<ProjectWithRefs>
             rows={filtered}
             columns={visibleColumns}
             rowKey={(p) => p.id}
+            rowTarget={(p) => p.id}
             tableId="projects-list"
             onActivate={onOpen}
             rowMenu={canRowWrite ? rowMenu : undefined}
@@ -247,7 +262,7 @@ const Projects: React.FC = () => {
             emptySub={emptyState.sub}
             emptyAction={emptyState.action}
           />
-        </>
+        </div>
       ) : filtered.length === 0 ? (
         <ListState
           variant="empty"
@@ -262,16 +277,21 @@ const Projects: React.FC = () => {
           style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))' }}
         >
           {filtered.map((p) => (
-            <ProjectCard
+            <div
               key={p.id}
-              project={p}
-              onOpen={(proj) => onOpen(proj, 'card')}
-              deliverySummary={deliverySummary?.[p.id]}
-              projectMoney={projectMoney?.[p.id]}
-              moneyPending={moneyPending}
-              moneyError={moneyError}
-              onEdit={canEdit ? (proj) => setEditTarget(proj) : undefined}
-            />
+              onPointerEnter={() => prefetchProject(p.id)}
+              onFocusCapture={() => prefetchProject(p.id)}
+            >
+              <ProjectCard
+                project={p}
+                onOpen={(proj) => onOpen(proj, 'card')}
+                deliverySummary={deliverySummary?.[p.id]}
+                projectMoney={projectMoney?.[p.id]}
+                moneyPending={moneyPending}
+                moneyError={moneyError}
+                onEdit={canEdit ? (proj) => setEditTarget(proj) : undefined}
+              />
+            </div>
           ))}
         </div>
       )}
