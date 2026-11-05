@@ -25,7 +25,7 @@ export interface ErpOrphansSectionProps {
 
 /** What a link call made and what it refused — shown above the list (FR-PFE-023, review 1). */
 type Outcome =
-  | { kind: 'result'; verb: 'added' | 'linked'; made: number; targets: string[]; newPurchase: boolean; refused: string[] }
+  | { kind: 'result'; verb: 'added' | 'linked'; made: number; targets: string[]; refused: string[] }
   | { kind: 'error'; headline: string; detail?: string };
 
 /** FR-PFE-041 — ERPNext documents not yet in a purchase: one "Link…" action per row, plus bulk link / new purchase. */
@@ -80,7 +80,7 @@ export const ErpOrphansSection: React.FC<ErpOrphansSectionProps> = ({ rows, proj
         navigate(`/procurement/${targets[0]}`);
         return;
       }
-      setOutcome({ kind: 'result', verb: 'added', made: docs.length - refused.length, targets, newPurchase: true, refused });
+      setOutcome({ kind: 'result', verb: 'added', made: docs.length - refused.length, targets, refused });
     } catch (err) {
       const { headline, detail } = classifyMutationError(err);
       setOutcome({ kind: 'error', headline, detail });
@@ -247,7 +247,7 @@ export const ErpOrphansSection: React.FC<ErpOrphansSectionProps> = ({ rows, proj
           onPartiallyLinked={(p: PartialLink) => {
             setDialogDocs(null);
             setSelected(new Set());
-            setOutcome({ kind: 'result', verb: 'linked', made: p.linked, targets: [p.procurementId], newPurchase: false, refused: p.refused });
+            setOutcome({ kind: 'result', verb: 'linked', made: p.linked, targets: [p.procurementId], refused: p.refused });
           }}
         />
       )}
@@ -266,8 +266,8 @@ const OutcomeNotice: React.FC<{ outcome: Outcome }> = ({ outcome }) => {
       </div>
     );
   }
-  const { verb, made, targets, newPurchase, refused } = outcome;
-  const targetName = (i: number) => (newPurchase
+  const { verb, made, targets, refused } = outcome;
+  const targetName = (i: number) => (verb === 'added'
     ? (targets.length === 1 ? t('erpLinks.aNewPurchase', 'a new purchase') : t('erpLinks.newPurchaseN', 'new purchase {{n}}', { n: i + 1 }))
     : t('erpLinks.thePurchase', 'the purchase'));
   return (
