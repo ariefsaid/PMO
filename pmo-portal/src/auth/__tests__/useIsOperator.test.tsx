@@ -7,6 +7,7 @@ vi.mock('@/src/lib/db/operators', () => ({ isOperator: vi.fn() }));
 
 import { useIsOperator, useOperatorMembership } from '../useIsOperator';
 import { isOperator } from '@/src/lib/db/operators';
+import { SERVER_SESSION_STALE_TIME } from '@/src/lib/queryPolicies';
 
 const makeWrapper = () => {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -95,7 +96,7 @@ describe('useIsOperator (AC-OPR-003 — clarity projection ONLY, ADR-0049)', () 
     expect(isOperator).toHaveBeenCalledTimes(2);
   });
 
-  it('keeps membership session-scoped and clears Operator-only aggregates after invalidation', async () => {
+  it('keeps membership shared across the shell but bounded, and clears Operator-only aggregates after invalidation', async () => {
     vi.mocked(isOperator).mockResolvedValueOnce(true).mockResolvedValueOnce(false);
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false, refetchOnWindowFocus: false } } });
     const Wrapper = ({ children }: { children: React.ReactNode }) => (
@@ -106,11 +107,15 @@ describe('useIsOperator (AC-OPR-003 — clarity projection ONLY, ADR-0049)', () 
 
     const membershipQuery = qc.getQueryCache().find({ queryKey: ['operator', 'isOperator'] });
     const membershipOptions = membershipQuery?.options as { staleTime?: number; refetchOnWindowFocus?: boolean; refetchInterval?: unknown } | undefined;
+    // Review finding 2: membership must not be cached forever — an operator whose platform
+    // membership changes in another session has to lose the affordance within minutes. Sharing one
+    // key still means ONE membership read per window for every shell/route consumer.
     expect(membershipOptions).toMatchObject({
-      staleTime: Infinity,
-      refetchOnWindowFocus: false,
+      staleTime: SERVER_SESSION_STALE_TIME,
+      refetchOnWindowFocus: true,
+      refetchInterval: SERVER_SESSION_STALE_TIME,
     });
-    expect(membershipOptions?.refetchInterval).toBeUndefined();
+    expect(membershipOptions?.staleTime).not.toBe(Infinity);
 
     qc.setQueryData(['usage', 'org-1', true, null], [{ run_count: 1 }]);
     qc.setQueryData(['agent-run-stats', 'org-1', true, null], [{ runs: 1 }]);

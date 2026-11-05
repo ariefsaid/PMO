@@ -13,8 +13,9 @@ const analytics = vi.hoisted(() => ({ group: vi.fn() }));
 vi.mock('@/src/lib/analytics/client', () => ({ analyticsClient: analytics }));
 
 const currentPlan = vi.hoisted(() => vi.fn());
+const getOrgPlan = vi.hoisted(() => vi.fn());
 vi.mock('@/src/lib/repositories', () => ({
-  repositories: { orgFeature: { currentPlan } },
+  repositories: { orgFeature: { currentPlan, getOrgPlan } },
 }));
 
 const authState = vi.hoisted(() => ({ currentUser: null as { id: string; org_id: string } | null }));
@@ -23,6 +24,9 @@ vi.mock('@/src/auth/useAuth', () => ({
 }));
 
 import { useOrgPlanGroup, ORG_GROUP_TYPE } from './useOrgPlanGroup';
+import { useOrgPlan } from './usePlans';
+import { invalidateFeatureState } from './useOrgFeatures';
+import { SERVER_SESSION_STALE_TIME } from '@/src/lib/queryPolicies';
 
 function Probe() {
   useOrgPlanGroup();
@@ -42,6 +46,7 @@ function renderProbe() {
 beforeEach(() => {
   analytics.group.mockReset();
   currentPlan.mockReset();
+  getOrgPlan.mockReset();
   authState.currentUser = { id: 'u1', org_id: 'org-1' };
 });
 
@@ -50,14 +55,17 @@ afterEach(() => {
 });
 
 describe('useOrgPlanGroup — FR-PLN-016', () => {
-  it('keeps the session plan fresh until the operator mutation invalidates it', async () => {
+  it('ages the session plan instead of caching it forever', async () => {
     currentPlan.mockResolvedValue({ plan_id: 'starter', plan_name: 'Starter', seat_limit: 10, project_limit: 25, ai_monthly_messages: 300 });
     const { client } = renderProbe();
     await waitFor(() => expect(analytics.group).toHaveBeenCalledWith(ORG_GROUP_TYPE, 'org-1', { plan: 'starter' }));
-    const query = client.getQueryCache().find({ queryKey: ['orgPlan', 'org-1'] });
-    const options = query?.options as { staleTime?: number; gcTime?: number } | undefined;
-    expect(options?.staleTime).toBe(Infinity);
+    const query = client.getQueryCache().find({ queryKey: ['orgPlanGroup', 'org-1'] });
+    const options = query?.options as
+      | { staleTime?: number; gcTime?: number; refetchOnWindowFocus?: boolean }
+      | undefined;
+    expect(options?.staleTime).toBe(SERVER_SESSION_STALE_TIME);
     expect(options?.gcTime).toBe(Infinity);
+    expect(options?.refetchOnWindowFocus).toBe(true);
   });
 
   it('registers the plan as the organisation group property', async () => {
@@ -87,10 +95,11 @@ describe('useOrgPlanGroup — FR-PLN-016', () => {
     await waitFor(() => expect(analytics.group).toHaveBeenCalledWith(ORG_GROUP_TYPE, 'org-1', { plan: 'starter' }));
     expect(analytics.group).toHaveBeenCalledTimes(1);
 
-    // A plan assignment invalidates the query (the Operator console owns that invalidation); simulate it
-    // on the SAME client so the hook sees a new plan without being remounted.
+    // A plan assignment invalidates the group key through `invalidateFeatureState` (the Operator
+    // console owns that invalidation); simulate it on the SAME client so the hook sees a new plan
+    // without being remounted.
     currentPlan.mockResolvedValue({ plan_id: 'pro', plan_name: 'Pro', seat_limit: 50, project_limit: null, ai_monthly_messages: 5000 });
-    await client.invalidateQueries({ queryKey: ['orgPlan', 'org-1'] });
+    await invalidateFeatureState(client);
     await waitFor(() => expect(analytics.group).toHaveBeenCalledWith(ORG_GROUP_TYPE, 'org-1', { plan: 'pro' }));
     expect(analytics.group).toHaveBeenCalledTimes(2);
 
@@ -103,4 +112,38 @@ describe('useOrgPlanGroup — FR-PLN-016', () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(analytics.group).toHaveBeenCalledTimes(2);
   });
+
+  // Review finding 1: the analytics group reader returns an `OrgPlan` object while the Operator
+  // console's reader returns the assigned plan id STRING. They once shared `['orgPlan', orgId]`, so
+  // whichever mounted first installed a value the other could not read. Both mount orders must work.
+  it.each(['group-first', 'operator-first'] as const)(
+    'keeps the OrgPlan object and the operator plan id on separate keys (%s)',
+    async (order) => {
+      const groupPlan = { plan_id: 'growth', plan_name: 'Growth', seat_limit: 25, project_limit: 100, ai_monthly_messages: 1500 };
+      currentPlan.mockResolvedValue(groupPlan);
+      getOrgPlan.mockResolvedValue('starter');
+
+      const reads: unknown[] = [];
+      function OperatorPlanProbe() {
+        const { data } = useOrgPlan('org-1');
+        React.useEffect(() => {
+          if (data !== undefined) reads.push(data);
+        }, [data]);
+        return null;
+      }
+      const probes =
+        order === 'group-first'
+          ? [<Probe key="group" />, <OperatorPlanProbe key="operator" />]
+          : [<OperatorPlanProbe key="operator" />, <Probe key="group" />];
+
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      render(<QueryClientProvider client={client}>{probes}</QueryClientProvider>);
+
+      await waitFor(() => expect(analytics.group).toHaveBeenCalledWith(ORG_GROUP_TYPE, 'org-1', { plan: 'growth' }));
+      await waitFor(() => expect(reads).toContain('starter'));
+      // The operator reader must see the string the console can match to the catalogue, never the
+      // analytics reader's object (which `plans.find(...)` cannot match).
+      expect(reads.every((value) => typeof value === 'string')).toBe(true);
+    },
+  );
 });

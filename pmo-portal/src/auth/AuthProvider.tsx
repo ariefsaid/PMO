@@ -3,7 +3,6 @@ import type { Session } from '@supabase/supabase-js';
 import { supabase } from '@/src/lib/supabase/client';
 import { trackAuthLogoutSucceeded } from '@/src/lib/analytics';
 import { queryClient } from '@/src/lib/queryClient';
-import { SESSION_QUERY_OPTIONS } from '@/src/lib/queryPolicies';
 import { AuthContext, type Profile } from './AuthContext';
 
 type ProfileErrorKind = 'not_provisioned' | 'load_error';
@@ -25,15 +24,28 @@ function classifyProfileError(error: { code?: string; message?: string | null })
 }
 
 async function loadProfile(userId: string): Promise<ProfileResult> {
-  return queryClient.fetchQuery({
-    queryKey: ['profile', userId],
-    queryFn: async (): Promise<ProfileResult> => {
-      const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).single();
-      if (error) return { profile: null, error: error.message, errorKind: classifyProfileError(error) };
-      return { profile: data, error: null, errorKind: null };
-    },
-    ...SESSION_QUERY_OPTIONS,
-  });
+  // Deliberately NOT a cached query: the profile row IS the identity/organisation signal, and every
+  // caller here (an auth event or a manual refresh) must see the current row — a move to another
+  // org, a role change or a locale edit arrives exactly that way. A cached read here silently
+  // pins the session to the profile that was loaded first.
+  const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).single();
+  if (error) return { profile: null, error: error.message, errorKind: classifyProfileError(error) };
+  return { profile: data, error: null, errorKind: null };
+}
+
+/**
+ * Keep identity-scoped caches honest across an ORG change for the SAME auth user.
+ *
+ * A `profiles` row can be re-read with a different `org_id` (a user is moved between organisations),
+ * and the auth user id never changes on that transition — so the identity-change `queryClient.clear()`
+ * never runs. Everything cached under the old org (own plan, resolved entitlements, org settings) is
+ * wrong in the new context, so treat an org change as an identity change.
+ */
+function syncOrgScope(orgIdRef: { current: string | null }, nextOrgId: string | null): void {
+  const previous = orgIdRef.current;
+  orgIdRef.current = nextOrgId;
+  // Leaving a known org (to another, or to none) makes every org-scoped cached read wrong.
+  if (previous !== null && previous !== nextOrgId) queryClient.clear();
 }
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -53,6 +65,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // the session landed still resolves the correct (latest) user id.
   const sessionRef = useRef<Session | null>(null);
   const identityRef = useRef<string | null>(null);
+  const orgIdRef = useRef<string | null>(null);
   const manualRefreshesRef = useRef(0);
   const mountedRef = useRef(true);
 
@@ -89,11 +102,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setProfileError(result.error);
           setProfileErrorKind(result.errorKind);
         } else {
+          syncOrgScope(orgIdRef, result.profile?.org_id ?? null);
           setCurrentUser(result.profile);
           setProfileError(null);
           setProfileErrorKind(null);
         }
       } else {
+        syncOrgScope(orgIdRef, null);
         setCurrentUser(null);
         setProfileError(null);
         setProfileErrorKind(null);
@@ -193,7 +208,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const gen = ++profileGenRef.current;
     manualRefreshesRef.current += 1;
     try {
-      await queryClient.invalidateQueries({ queryKey: ['profile', userId], exact: true });
       const result = await loadProfile(userId);
       if (!mountedRef.current || gen !== profileGenRef.current) {
         return { error: 'Profile refresh was superseded' };
@@ -202,6 +216,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Preserve the previously usable profile; surface the read error to the caller.
         return { error: result.error };
       }
+      syncOrgScope(orgIdRef, result.profile?.org_id ?? null);
       setCurrentUser(result.profile);
       setProfileError(null);
       setProfileErrorKind(null);
