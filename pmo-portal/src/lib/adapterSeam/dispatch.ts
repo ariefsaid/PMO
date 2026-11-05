@@ -620,7 +620,9 @@ async function reconcileOutbox(row: OutboxRow, deps: DispatchMoneyWriteDeps, com
     case 'pending':
     case 'failed': {
       const claimStartedAtMs = nowMs(money);   // BLOCK 1 — see the quarantined branch above.
-      const claimed = await money.claimOutboxForCommit(row.id);
+      // A failed row re-enters the in-flight set at the claim: while another payment holds the bill the per-bill
+      // constraint refuses it (23505) — the named, localized refusal, not the raw database error.
+      const claimed = await money.claimOutboxForCommit(row.id).catch((error: unknown) => { throw toDispatchError(error); });
       if (claimed) return claimAndCommit(claimed, deps, { claimStartedAtMs });
       // lost the race for this row — another caller claimed it first; re-read and reconcile
       // (never POST).
@@ -691,9 +693,12 @@ export async function dispatchMoneyWrite(deps: DispatchMoneyWriteDeps): Promise<
 const OUTBOX_IN_FLIGHT_INDEX = 'external_command_outbox_one_inflight_per_record';
 /** 0508: at most one in-flight Odoo payment command per bill, whatever the intent (two payers can each pass the residual check). */
 const OUTBOX_PAYMENT_PER_BILL_INDEX = 'external_command_outbox_one_inflight_odoo_payment_per_bill';
+/** 0682: one ERPNext vendor-payment reservation per org and referenced bill. */
+const OUTBOX_ERPNEXT_PAYMENT_PER_BILL_CONSTRAINT = 'external_command_outbox_one_inflight_erpnext_payment_per_bill';
 /** 0512: at most one in-flight Odoo receipt command per invoice, including held/recovery rows. */
 const OUTBOX_RECEIPT_PER_INVOICE_INDEX = 'external_command_outbox_one_inflight_odoo_receipt_per_invoice';
 export const COMMAND_IN_FLIGHT_FOR_RECORD = 'command-in-flight-for-record';
+const PAYMENT_IN_FLIGHT_FOR_BILL = 'payment-in-flight-for-bill';
 
 function violatesIndex(error: unknown, index: string): boolean {
   const e = error as { code?: unknown; message?: unknown; details?: unknown } | null | undefined;
@@ -714,6 +719,12 @@ function readThrownCode(error: unknown): string | undefined {
  *  there dropped the `.code` of a plain-`Error` subclass (`BudgetCategoryUnmappedError`, thrown from
  *  `resolveBudgetRefs`'s pre-flight) and turned a precise 422 into a bare, code-less 400. */
 export function toDispatchError(error: unknown): AppError {
+  if (violatesIndex(error, OUTBOX_ERPNEXT_PAYMENT_PER_BILL_CONSTRAINT)) {
+    return new AppError(
+      'A payment for this bill is already in progress. Wait for it to finish before paying again.',
+      PAYMENT_IN_FLIGHT_FOR_BILL,
+    );
+  }
   if (violatesIndex(error, OUTBOX_PAYMENT_PER_BILL_INDEX)) {
     return new AppError('payment already in progress for this bill', COMMAND_IN_FLIGHT_FOR_RECORD);
   }

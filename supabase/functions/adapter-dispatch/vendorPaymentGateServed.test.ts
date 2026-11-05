@@ -108,10 +108,18 @@ interface World {
   paymentAllowedStatus?: number;
   /** The outbox claim's named refusal (0368/0373): the rules in force when the queued payment is claimed refuse it. */
   claimRefusal?: string;
+  /** Another payment holds the bill when the claim runs: the per-bill constraint (0682) raises 23505. */
+  claimBillInFlight?: boolean;
 }
 
-function routes(unexpected: FetchCall[], caller: string, ceilingOk = true, amountApproverId: string | null = null, world: World = {}): MockRoute[] {
-  const outbox = new Map<string, Record<string, unknown>>();
+interface SharedPaymentWorld {
+  outbox: Map<string, Record<string, unknown>>;
+  loseNextPaymentPostResponse: boolean;
+  paymentPosts: number;
+}
+
+function routes(unexpected: FetchCall[], caller: string, ceilingOk = true, amountApproverId: string | null = null, world: World = {}, shared: SharedPaymentWorld = newSharedWorld()): MockRoute[] {
+  const { outbox } = shared;
   return [
     supabaseSelect('profiles', (call) =>
       call.url.searchParams.has('role') ? jsonResponse([{ id: caller }]) : objectResponse({ org_id: ORG_ID })),
@@ -162,7 +170,25 @@ function routes(unexpected: FetchCall[], caller: string, ceilingOk = true, amoun
       label: 'outbox insert', method: 'POST', pathname: '/rest/v1/external_command_outbox',
       response: (call) => {
         const body = call.bodyJson as Record<string, unknown>;
-        const row = { id: 'outbox-1', domain: body.domain, pmo_record_id: body.pmo_record_id,
+        const payload = body.payload as Record<string, unknown> | null;
+        const piNames = Array.isArray(payload?.pi_names) ? payload.pi_names.filter((name): name is string => typeof name === 'string') : [];
+        const inFlightForOneOfTheBills = [...outbox.values()].some((candidate) => {
+          if (candidate.org_id !== body.org_id || candidate.external_tier !== 'erpnext' || candidate.domain !== 'procurement'
+              || candidate.state === 'confirmed' || candidate.state === 'failed') return false;
+          const candidatePayload = candidate.payload as Record<string, unknown> | null;
+          const candidatePiNames = Array.isArray(candidatePayload?.pi_names) ? candidatePayload.pi_names : [];
+          return candidatePiNames.some((name) => piNames.includes(name));
+        });
+        if (inFlightForOneOfTheBills) {
+          return jsonResponse({
+            code: '23505',
+            message: 'duplicate key value violates unique constraint "external_command_outbox_one_inflight_erpnext_payment_per_bill"',
+            details: 'Key (org_id, bill_name) already exists.',
+            hint: null,
+          }, { status: 409 });
+        }
+        const row = { id: `outbox-${outbox.size + 1}`, domain: body.domain, pmo_record_id: body.pmo_record_id,
+          org_id: body.org_id, external_tier: body.external_tier,
           idempotency_key: body.idempotency_key, state: 'pending', external_record_id: null, canonical: null,
           claim_generation: 0, payload_digest: body.payload_digest ?? null, payload: body.payload ?? null };
         outbox.set(`${String(body.pmo_record_id)}|${String(body.idempotency_key)}`, row);
@@ -171,12 +197,23 @@ function routes(unexpected: FetchCall[], caller: string, ceilingOk = true, amoun
     },
     { label: 'outbox update', method: 'PATCH', pathname: '/rest/v1/external_command_outbox',
       response: () => jsonResponse([{ id: 'outbox-1' }]) },
+    supabaseRpc('fail_refused_payment_claim', () => jsonResponse(null)),
     supabaseRpc('claim_outbox_for_commit', () => {
+      if (world.claimBillInFlight) {
+        return jsonResponse({
+          code: '23505',
+          message: 'duplicate key value violates unique constraint "external_command_outbox_one_inflight_erpnext_payment_per_bill"',
+          details: 'Key (org_id, bill_name) already exists.',
+          hint: null,
+        }, { status: 409 });
+      }
       if (world.claimRefusal) {
         return jsonResponse({ code: 'P0001', message: world.claimRefusal, details: null, hint: null }, { status: 400 });
       }
-      const row = [...outbox.values()][0];
-      return jsonResponse(row ? { ...row, state: 'committing', claim_generation: 1 } : null);
+      const row = [...outbox.values()].find((candidate) => candidate.state === 'pending');
+      if (!row) return jsonResponse(null);
+      Object.assign(row, { state: 'committing', claim_generation: Number(row.claim_generation ?? 0) + 1 });
+      return jsonResponse(row);
     }),
     supabaseRpc('record_outbox_ref', () => jsonResponse(1)),
     supabaseRpc('confirm_outbox', () => jsonResponse(1)),
@@ -185,9 +222,16 @@ function routes(unexpected: FetchCall[], caller: string, ceilingOk = true, amoun
     { label: 'notifications', pathname: '/rest/v1/notifications', response: () => jsonResponse([]) },
     {
       label: 'ERP Payment Entry create', host: ERP_HOST, pathname: '/api/resource/Payment%20Entry',
-      response: (call) => call.method === 'POST'
-        ? jsonResponse({ data: { ...(call.bodyJson as Record<string, unknown>), name: PE_NAME, docstatus: 0 } })
-        : jsonResponse({ data: [] }),
+      response: (call) => {
+        if (call.method !== 'POST') return jsonResponse({ data: [] });
+        shared.paymentPosts += 1;
+        if (shared.loseNextPaymentPostResponse) {
+          shared.loseNextPaymentPostResponse = false;
+          // The remote accepted the POST, then the connection timed out before its response arrived.
+          return Promise.reject(new TypeError('request timed out after Payment Entry POST'));
+        }
+        return jsonResponse({ data: { ...(call.bodyJson as Record<string, unknown>), name: PE_NAME, docstatus: 0 } });
+      },
     },
     {
       label: 'ERP Payment Entry submit / read', host: ERP_HOST, pathname: /^\/api\/resource\/Payment%20Entry\/.+$/,
@@ -197,18 +241,20 @@ function routes(unexpected: FetchCall[], caller: string, ceilingOk = true, amoun
   ];
 }
 
-async function dispatchAs(caller: string, world: World = {}) {
+const newSharedWorld = (): SharedPaymentWorld => ({ outbox: new Map(), loseNextPaymentPostResponse: false, paymentPosts: 0 });
+
+async function dispatchAs(caller: string, world: World = {}, command = paymentCreateCommand(), shared = newSharedWorld()) {
   const unexpected: FetchCall[] = [];
-  const result = await withFetchMock(routes(unexpected, caller, true, null, world), async ({ calls }) => {
+  const result = await withFetchMock(routes(unexpected, caller, true, null, world, shared), async ({ calls }) => {
     const jwt = await auth.mintJwt({ sub: caller });
     const res = await servedHandler!(new Request('http://edge.test/adapter-dispatch', {
       method: 'POST',
       headers: { authorization: `Bearer ${jwt}`, 'content-type': 'application/json' },
-      body: JSON.stringify(paymentCreateCommand()),
+      body: JSON.stringify(command),
     }));
     return { status: res.status, body: await res.text(), calls };
   });
-  return { ...result, unexpected };
+  return { ...result, unexpected, shared };
 }
 
 describe('#910 — the vendor-payment SoD gate through the SERVED adapter-dispatch handler', () => {
@@ -275,6 +321,24 @@ describe('#910 — the vendor-payment SoD gate through the SERVED adapter-dispat
     assertEquals(paymentPayload.paid_amount, 1090000);
     assertEquals(paymentPayload.pi_names, [PI_NAME]);
     assertEquals(paymentPayload.si_names, []);
+  });
+
+  it('a lost ERPNext Payment Entry POST response leaves the outbox in flight and refuses a second intent for the same bill', async () => {
+    const shared = newSharedWorld();
+    shared.loseNextPaymentPostResponse = true;
+    const first = await dispatchAs(PAYER_ID, {}, paymentCreateCommand(), shared);
+    assertEquals(first.status, 502, first.body);
+    assertEquals(shared.paymentPosts, 1, 'the remote POST was issued before its response was lost');
+    assertEquals([...shared.outbox.values()].map((row) => row.state), ['committing'], 'the ambiguous write remains in flight for recovery');
+
+    const secondCommand = paymentCreateCommand();
+    secondCommand.idempotencyKey = 'cccccccc-cccc-4ccc-8ccc-000000000911';
+    (secondCommand.record as Record<string, unknown>).id = 'dddddddd-dddd-4ddd-8ddd-000000000911';
+    const second = await dispatchAs(PAYER_ID, {}, secondCommand, shared);
+    assertEquals(second.status, 409, second.body);
+    assertEquals(JSON.parse(second.body).message, 'A payment for this bill is already in progress. Wait for it to finish before paying again.');
+    assertEquals([...shared.outbox.values()].length, 1, 'the refusing insert leaves no second outbox row');
+    assertEquals(shared.paymentPosts, 1, 'the same bill cannot receive a second payment while the first outcome is unknown');
   });
   // #1319 (owner AC-1 / AC-3): the step no longer gates a payment; the org's purchase gates and SoD still do.
   it('AC-PFE-001 a payment on a purchase that never reached Vendor Invoiced, with no approval recorded, dispatches — and the ceiling is not asked', async () => {
@@ -361,5 +425,36 @@ describe('#910 — the vendor-payment SoD gate through the SERVED adapter-dispat
     assertEquals(JSON.parse(r.body).message, 'procurement-payment-refused: gate_approval_before_order');
     assert(r.calls.some((c) => c.url.pathname === '/rest/v1/rpc/claim_outbox_for_commit'), 'the claim was asked');
     assertEquals(r.calls.filter((c) => c.url.host === ERP_HOST && c.method === 'POST').length, 0, 'no ERP document was created');
+    // C1: the never-claimed row is failed through the service-role function, which also uses up its automatic
+    // attempts (the cap is a database fact, not a TS literal), so the sweep never re-drives a refused payment.
+    const refusalWrites = r.calls.filter((c) => c.url.pathname === '/rest/v1/rpc/fail_refused_payment_claim');
+    assertEquals(refusalWrites.length, 1, 'the refusal is recorded through fail_refused_payment_claim');
+    assertEquals(refusalWrites[0].bodyJson, { p_id: 'outbox-1', p_error: 'procurement-payment-refused: gate_approval_before_order' });
+    assertEquals(r.calls.filter((c) => c.method === 'PATCH' && c.url.pathname === '/rest/v1/external_command_outbox').length, 0,
+      'no direct table write that could leave the automatic attempts unspent');
+  });
+
+  // M6 (per-bill payment review): a person's same-key retry of a payment freed from its bill is refused with the
+  // named in-flight reason while another payment holds the bill, and posts nothing.
+  it('a same-key retry while another payment holds the bill answers 409 payment-in-flight-for-bill and posts nothing', async () => {
+    const shared = newSharedWorld();
+    shared.loseNextPaymentPostResponse = true;
+    const first = await dispatchAs(PAYER_ID, {}, paymentCreateCommand(), shared);
+    assertEquals(first.status, 502, first.body);
+    // The first payment was freed from its bill (failed); a newer payment now holds it.
+    const [freed] = [...shared.outbox.values()];
+    freed.state = 'failed';
+    shared.outbox.set('newer-payment|key-newer', {
+      ...freed, id: 'outbox-newer', pmo_record_id: 'newer-payment', idempotency_key: 'key-newer', state: 'committing',
+    });
+    const postsBefore = shared.paymentPosts;
+
+    const retry = await dispatchAs(PAYER_ID, { claimBillInFlight: true }, paymentCreateCommand(), shared);
+    assertEquals(retry.unexpected.map((c) => `${c.method} ${c.url.pathname}${c.url.search}`), [], 'every read is mocked');
+    assertEquals(retry.status, 409, retry.body);
+    assertEquals(JSON.parse(retry.body).error, 'payment-in-flight-for-bill');
+    assert(retry.calls.some((c) => c.url.pathname === '/rest/v1/rpc/claim_outbox_for_commit'), 'the claim was asked');
+    assertEquals(retry.calls.filter((c) => c.url.host === ERP_HOST && c.method === 'POST').length, 0, 'no ERP document was created');
+    assertEquals(shared.paymentPosts, postsBefore, 'the bill received no second payment');
   });
 });

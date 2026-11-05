@@ -82,6 +82,12 @@
     "supplierInvoice": "Supplier invoice",
     "payment": "Payment"
   },
+  "errors": {
+    "paymentInFlight": {
+      "title": "Payment already in progress",
+      "detail": "A payment for this bill is already in progress. Wait for it to finish before paying again."
+    }
+  },
   "recordAnother": "Record another document",
   "recordMenu": "Record another document",
   "linkAccounting": "Link from accounting system",

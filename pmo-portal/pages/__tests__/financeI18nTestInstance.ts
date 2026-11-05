@@ -9,6 +9,8 @@ import enProcurement from '../../public/locales/en/procurement.json';
 import idProcurement from '../../public/locales/id/procurement.json';
 import enProjects from '../../public/locales/en/projects.json';
 import idProjects from '../../public/locales/id/projects.json';
+import enProcurementRecord from '../../public/locales/en/procurementRecord.json';
+import idProcurementRecord from '../../public/locales/id/procurementRecord.json';
 
 export const financeTestI18n = createInstance();
 export const financeTestI18nReady = financeTestI18n.init({
@@ -16,10 +18,10 @@ export const financeTestI18nReady = financeTestI18n.init({
   fallbackLng: 'en',
   defaultNS: 'common',
   fallbackNS: 'common',
-  ns: ['common', 'finance', 'project', 'procurement', 'projects'],
+  ns: ['common', 'finance', 'project', 'procurement', 'projects', 'procurementRecord'],
   resources: {
-    en: { common: en, finance: enFinance, project: enProject, procurement: enProcurement, projects: enProjects },
-    id: { common: id, finance: idFinance, project: idProject, procurement: idProcurement, projects: idProjects },
+    en: { common: en, finance: enFinance, project: enProject, procurement: enProcurement, projects: enProjects, procurementRecord: enProcurementRecord },
+    id: { common: id, finance: idFinance, project: idProject, procurement: idProcurement, projects: idProjects, procurementRecord: idProcurementRecord },
   },
   interpolation: { escapeValue: false },
   initImmediate: false,

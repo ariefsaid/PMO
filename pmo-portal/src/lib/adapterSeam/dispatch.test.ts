@@ -236,4 +236,15 @@ describe('toDispatchError (LOW-1 — the shared thrown-value classification)', (
     expect(toDispatchError(new Error('boom')).code).toBeUndefined();
     expect(toDispatchError('boom')).toBeInstanceOf(AppError);
   });
+
+  it('maps the ERPNext per-bill outbox conflict to actionable payment copy', () => {
+    const classified = toDispatchError({
+      code: '23505',
+      message: 'duplicate key value violates unique constraint "external_command_outbox_one_inflight_erpnext_payment_per_bill"',
+    });
+    expect(classified).toMatchObject({
+      code: 'payment-in-flight-for-bill',
+      message: 'A payment for this bill is already in progress. Wait for it to finish before paying again.',
+    });
+  });
 });

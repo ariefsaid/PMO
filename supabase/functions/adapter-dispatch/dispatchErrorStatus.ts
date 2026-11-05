@@ -70,6 +70,7 @@ export function isBusinessRejectionCode(code: unknown): code is string {
 export function dispatchErrorStatus(code: unknown, fallback: number): number {
   if (code === 'external-unreachable') return 502;
   if (code === 'command-held' || code === COMMAND_IN_FLIGHT_FOR_RECORD) return 409;
+  if (code === 'payment-in-flight-for-bill') return 409;
   if (isBusinessRejectionCode(code)) return 422;
   return fallback;
 }
