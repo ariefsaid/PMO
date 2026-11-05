@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, ListState, MobileActionBar, Tabs, tabId, tabPanelId, type TabItem } from '@/src/components/ui';
+import { Button, ListState, MobileActionBar, Tabs, tabId, tabPanelId, WhenNearViewport, type TabItem } from '@/src/components/ui';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { usePermission } from '@/src/auth/usePermission';
@@ -95,7 +95,12 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
           {showDeliveryAttention && <ProjectAttention {...attentionProps} className="min-w-0" />}
         </div>
         <DeliveryBlock projectId={project.id}>{curve}</DeliveryBlock>
-        <BillingMilestonesBlock projectId={project.id} />
+        {/* AC-PERF-003 (plan 1c): the work-order billing block sits below the fold — its three reads
+            wait until the block nears the viewport (WhenNearViewport renders children immediately
+            where IntersectionObserver is absent, so unit tests and old browsers are unchanged). */}
+        <WhenNearViewport>
+          <BillingMilestonesBlock projectId={project.id} />
+        </WhenNearViewport>
       </div>
     ) : (
       <div className="flex min-w-0 flex-col gap-[var(--space-panel-gap)]">
@@ -107,7 +112,9 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
           <div className={`min-w-0 ${canSeeMoney ? 'xl:col-start-1 xl:row-start-2' : ''}`}><CostBlock project={project} onOpenBudget={() => onOpen('budget')} /></div>
         </div>
         <DeliveryBlock projectId={project.id}>{curve}</DeliveryBlock>
-        <BillingMilestonesBlock projectId={project.id} />
+        <WhenNearViewport>
+          <BillingMilestonesBlock projectId={project.id} />
+        </WhenNearViewport>
       </div>
     )
   );

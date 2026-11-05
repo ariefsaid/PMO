@@ -17,7 +17,7 @@
  * then removes the read — green), so the file is the running before/after record of the fan-out work.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, render, screen } from '@testing-library/react';
 import React from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -27,6 +27,29 @@ import { ToastProvider } from '@/src/components/ui';
 
 const stub = vi.hoisted(() => {
   type Endpoint = { kind: 'table' | 'write' | 'rpc'; label: string };
+
+  /**
+   * An IntersectionObserver stub that NEVER reports an intersection — the below-the-fold block's
+   * viewport reality in a headless mount (AC-PERF-003: the mount fires none of its reads). A test
+   * that needs the "user scrolled near" moment calls trigger(true) on the instance.
+   */
+  class NeverNearIntersectionObserver {
+    static instances: NeverNearIntersectionObserver[] = [];
+    readonly options: IntersectionObserverInit | undefined;
+    private readonly callback: IntersectionObserverCallback;
+    constructor(callback: IntersectionObserverCallback, options?: IntersectionObserverInit) {
+      this.callback = callback;
+      this.options = options;
+      NeverNearIntersectionObserver.instances.push(this);
+    }
+    observe() { /* placeholder stays invisible to the callback */ }
+    unobserve() { /* single-target wrapper */ }
+    disconnect() { /* no-op in the stub */ }
+    takeRecords(): IntersectionObserverEntry[] { return []; }
+    trigger(isIntersecting: boolean) {
+      this.callback([{ isIntersecting } as IntersectionObserverEntry], this as unknown as IntersectionObserver);
+    }
+  }
 
   /** The on-hand project row the stub resolves for the `projects` single read (`getProject`).
    * The id is a REAL UUID because the money parsers (isProjectFinances) demand one and match it
@@ -212,7 +235,7 @@ const stub = vi.hoisted(() => {
     removeChannel: () => {},
   };
 
-  return { endpoints, client };
+  return { endpoints, client, IO: NeverNearIntersectionObserver };
 });
 
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: stub.client }));
@@ -285,6 +308,9 @@ async function settleRequests(): Promise<void> {
 
 beforeEach(() => {
   stub.endpoints.length = 0;
+  // Fresh observer bookkeeping per test: the static instance array would otherwise hand the
+  // intersect test a STALE (disconnected) observer from the previous render.
+  stub.IO.instances.length = 0;
 });
 
 afterEach(() => {
@@ -294,7 +320,8 @@ afterEach(() => {
 const endpointLabels = (): string[] => stub.endpoints.map((e) => e.label);
 
 describe('ProjectDetail mount request count (AC-PERF-009 harness, plan T0.2)', () => {
-  it('fires exactly the measured endpoint set on Overview mount, total 20 (Steps 1a+1b: no VAT, no stage read)', async () => {
+  it('fires exactly the measured endpoint set on Overview mount, total 17 (Steps 1a+1b+1c)', async () => {
+    vi.stubGlobal('IntersectionObserver', stub.IO);
     renderProjectDetail();
     await settleRequests();
 
@@ -339,10 +366,11 @@ describe('ProjectDetail mount request count (AC-PERF-009 harness, plan T0.2)', (
         'rpc:project_committed_spend',
         'read:external_domain_ownership',
         'rpc:org_reads_erp_ledger',
-        // the below-the-fold work-order billing block (Step 1c defers)
-        'read:work_orders',
-        'read:work_order_billing',
-        'read:work_order_uninvoiced_acceptance',
+        // the below-the-fold work-order billing block — Step 1c DEFERS it to the viewport (the
+        // harness stubs IntersectionObserver as never-intersecting; the second test proves the
+        // reads fire when the block nears the viewport). None may fire on mount.
+        //   read:work_orders · read:work_order_billing · read:work_order_uninvoiced_acceptance
+
         // comments (Activity foot count)
         'read:comments',
         // ERP match-review context: the org binding check
@@ -351,6 +379,23 @@ describe('ProjectDetail mount request count (AC-PERF-009 harness, plan T0.2)', (
         'rpc:resolved_org_features',
       ].sort(),
     );
-    expect(endpointLabels()).toHaveLength(20);
+    expect(endpointLabels()).toHaveLength(17);
+  });
+
+  it('AC-PERF-003: the work-order reads fire exactly once when the block nears the viewport', async () => {
+    vi.stubGlobal('IntersectionObserver', stub.IO);
+    renderProjectDetail();
+    await settleRequests();
+    expect(endpointLabels().filter((label) => label.startsWith('read:work_order') || label === 'read:work_orders')).toEqual([]);
+
+    // The user scrolls: the block enters the 300px approach margin and mounts.
+    act(() => stub.IO.instances[0].trigger(true));
+    await vi.waitFor(() => {
+      const labels = endpointLabels().filter((label) => label.startsWith('read:work_order'));
+      expect(labels.sort()).toEqual(['read:work_order_billing', 'read:work_order_uninvoiced_acceptance', 'read:work_orders']);
+    });
+    // Exactly once — let everything drain, then re-check.
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(endpointLabels().filter((label) => label.startsWith('read:work_order'))).toHaveLength(3);
   });
 });
