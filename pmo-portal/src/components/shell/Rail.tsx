@@ -179,7 +179,6 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
   const canViewStatements = may('view', 'financialStatements');
 
   // Must call hooks unconditionally BEFORE early returns (rules-of-hooks).
-  const { data: userViews } = useUserViews();
   // ops-admin-surface S6: resolve per-org entitlements ONCE. `data` is undefined while loading;
   // each gated item then falls back to its FEATURE_ENV_DEFAULT (the rail resolves gracefully on
   // first paint — an always-on module is never hidden by a loading state).
@@ -190,6 +189,8 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
   // additional AND over the entitlement (S3 constraint): an Operator cannot re-enable a capability
   // the deployment turned off, and flipping the env var still hides the surface for every org.
   const userViewsEnabled = useFeature('user_views');
+  // The saved-views read only runs for an org that has the module (the rail is on every page).
+  const { data: userViews } = useUserViews(userViewsEnabled);
   const agentAssistantEnabled = useFeature('agent_assistant');
 
   // AC-ADMIA-002: a REAL server-confirmed platform Operator (any base role) can reach
