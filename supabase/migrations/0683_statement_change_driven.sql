@@ -1,12 +1,12 @@
--- 0655: change-driven native statement refresh. Builds on the dormant change state (0653) and nightly
--- obligations (0654): the sweep checks the source every 15 minutes (hint only) and refreshes statements
+-- 0683: change-driven native statement refresh. Builds on the dormant change state (0681) and nightly
+-- obligations (0682): the sweep checks the source every 15 minutes (hint only) and refreshes statements
 -- only for a nightly obligation, an internal/user "Refresh now" intent, a confirmed ERP posting, or a first
 -- publication. Publication writes only the diff: payloads of changed/new keys, deletes of absent keys, and a
 -- header-only touch for unchanged rows so readers keep their one-snapshot_id-per-generation contract.
 -- Rollback: rollback/0683_statement_change_driven_down.sql (restores the 0321 delete-all publisher).
 begin;
 
--- ON by default at deploy (0653 default). The sweep falls back to today's hourly full refresh whenever
+-- ON by default at deploy (0681 default). The sweep falls back to today's hourly full refresh whenever
 -- the checker errors.
 create or replace function public.publish_erp_financial_statements(p_org_id uuid,p_holder uuid,p_batch_id uuid)
 returns uuid

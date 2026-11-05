@@ -1,7 +1,7 @@
 // Change-driven native statement refresh (owner-approved 2026-11-04): every 15 minutes a cheap source check
 // records a hint; a statement refresh runs only for a first publication, an unfinished nightly date or an
 // unacknowledged "Refresh now"/confirmed-post intent. A checker error falls back to today's hourly refresh.
-// The DB (0653/0654/0655) owns every decision and fence; this module only drives the RPCs.
+// The DB (0681/0682/0683) owns every decision and fence; this module only drives the RPCs.
 import {
   checkStatementChanges, type StatementChangeResult, type StatementHintObservation,
 } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/statementChangeCheck.ts';
