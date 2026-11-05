@@ -28,6 +28,7 @@ import { projectMoneyRepository } from './projectMoney';
 import { projectOverviewRepository } from './projectOverview';
 import { dashboardRepository } from './dashboard';
 import { agentRunRepository } from './agentRuns';
+import { notificationRepository } from './notifications';
 import { companyRepository, contactRepository } from './companies';
 import {
   documentRepository,
@@ -99,6 +100,7 @@ export const repositories: Repositories = {
   projectOverview: projectOverviewRepository,
   dashboard: dashboardRepository,
   agentRun: agentRunRepository,
+  notification: notificationRepository,
   company: companyRepository,
   document: documentRepository,
   agentAttachment: agentAttachmentRepository,
