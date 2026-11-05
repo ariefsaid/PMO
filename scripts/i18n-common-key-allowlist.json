@@ -201,6 +201,8 @@
   "m365Documents.versions.title",
   "m365Documents.versions.version",
   "procurementDetail.statusOption.submitted",
+  "profileSettings.refreshRetry",
+  "profileSettings.staleRefresh",
   "shell.contextBar.feedback",
   "shell.nav.stock",
   "ui.listPage.showingOf",
