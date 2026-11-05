@@ -8,6 +8,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
+import { BahasaProvider } from '@/test/bahasa';
+import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 import { MemoryRouter } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
@@ -117,12 +119,25 @@ beforeEach(() => {
   detailState.data = detailData;
 });
 
+it('localizes the approve action and confirmation with the request title (Bahasa)', async () => {
+  setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' });
+  try {
+    render(<BahasaProvider><MemoryRouter><ImpersonationProvider realRole="Project Manager"><ToastProvider>
+      <ProcurementApprovalPreview row={ROW as never} surface="inline" />
+    </ToastProvider></ImpersonationProvider></MemoryRouter></BahasaProvider>);
+    await userEvent.click(screen.getByRole('button', { name: 'Setujui' }));
+    expect(screen.getByRole('dialog')).toHaveTextContent('Setujui Inverter Units?');
+  } finally {
+    resetActiveLocale();
+  }
+});
+
 // ── AC-IFW-PROC-01: Inline preview — expanded state ──────────────────────────
 
 describe('AC-IFW-PROC-01: expanded state — budget impact + line items + adjacent actions', () => {
   it('budget-impact panel renders after expand', async () => {
     renderAs();
-        // Our mocked DecisionSupportPanel renders "Budget impact · Solar Alpha"
+    // Our mocked DecisionSupportPanel renders "Budget impact · Solar Alpha"
     expect(screen.getByTestId('decision-support')).toBeInTheDocument();
   });
 
@@ -141,19 +156,19 @@ describe('AC-IFW-PROC-01: expanded state — budget impact + line items + adjace
 
   it('line item name renders in expanded panel', async () => {
     renderAs();
-        expect(screen.getByText('Inverter 5kW')).toBeInTheDocument();
+    expect(screen.getByText('Inverter 5kW')).toBeInTheDocument();
   });
 
   it('Approve button appears in expanded panel (adjacent — no navigation)', async () => {
     renderAs();
-        expect(screen.getByRole('button', { name: /^Approve$/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Approve$/i })).toBeInTheDocument();
     // Lens-D regression invariant: useNavigate was NEVER called
     expect(navigateMock).not.toHaveBeenCalled();
   });
 
   it('Reject button appears in expanded panel (adjacent — no navigation)', async () => {
     renderAs();
-        expect(screen.getByRole('button', { name: /^Reject$/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Reject$/i })).toBeInTheDocument();
     expect(navigateMock).not.toHaveBeenCalled();
   });
 });
@@ -165,7 +180,7 @@ describe('AC-IFW-PROC-01: expanded panel — loading + error states', () => {
     detailState.isPending = true;
     detailState.data = undefined as never;
     renderAs();
-        // ListState variant="loading" renders a div with aria-busy="true"
+    // ListState variant="loading" renders a div with aria-busy="true"
     expect(screen.getByTestId('liststate-loading')).toBeInTheDocument();
   });
 
@@ -174,7 +189,7 @@ describe('AC-IFW-PROC-01: expanded panel — loading + error states', () => {
     detailState.isError = true;
     detailState.data = undefined as never;
     renderAs();
-        expect(screen.getByText(/couldn't load/i)).toBeInTheDocument();
+    expect(screen.getByText(/couldn't load/i)).toBeInTheDocument();
   });
 });
 
@@ -184,7 +199,7 @@ describe('AC-IFW-PROC-02: Approve fires transition with to:Approved', () => {
   it('Approve → ConfirmDialog → confirm fires transition.mutate with {to:"Approved"}', async () => {
     transitionMutate.mockImplementation((_arg: unknown, opts: { onSuccess?: () => void }) => opts?.onSuccess?.());
     renderAs();
-        await userEvent.click(screen.getByRole('button', { name: /^Approve$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^Approve$/i }));
     // ConfirmDialog should open
     const dialog = await screen.findByRole('dialog');
     await userEvent.click(within(dialog).getByRole('button', { name: /^Approve$/i }));
@@ -203,7 +218,7 @@ describe('AC-IFW-PROC-02: Reject fires transition with to:Rejected', () => {
   it('AC-1578: rejection requires a non-empty comment and sends it with the transition', async () => {
     transitionMutate.mockImplementation((_arg: unknown, opts: { onSuccess?: () => void }) => opts?.onSuccess?.());
     renderAs();
-        await userEvent.click(screen.getByRole('button', { name: /^Reject$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^Reject$/i }));
     // tone="destructive" → role="alertdialog" (ConfirmDialog a11y contract)
     const dialog = await screen.findByRole('alertdialog');
     const confirm = within(dialog).getByRole('button', { name: /Reject procurement/i });
@@ -228,7 +243,7 @@ describe('AC-IFW-PROC-02: Reject fires transition with to:Rejected', () => {
 describe('AC-IFW-PROC-02: can() gate — no Approve/Reject for Engineer role', () => {
   it('Engineer (no transition permission) sees NO Approve or Reject buttons even when expanded', async () => {
     renderAs('Engineer');
-        expect(screen.queryByRole('button', { name: /^Approve$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Approve$/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^Reject$/i })).not.toBeInTheDocument();
   });
 });
@@ -238,7 +253,7 @@ describe('AC-IFW-PROC-02: can() gate — no Approve/Reject for Engineer role', (
 describe('AC-JR-W2-02: "Open procurement" link in expanded panel footer (T07)', () => {
   it('AC-JR-W2-02: expanded panel footer contains an "Open procurement" link to /procurement/:id', async () => {
     renderAs();
-        const link = screen.getByRole('link', { name: /open procurement/i });
+    const link = screen.getByRole('link', { name: /open procurement/i });
     expect(link).toBeInTheDocument();
     expect(link.getAttribute('href')).toBe('/procurement/pr-001');
     expect(screen.getByText('Procurement details')).toBeInTheDocument();
@@ -246,7 +261,7 @@ describe('AC-JR-W2-02: "Open procurement" link in expanded panel footer (T07)', 
 
   it('AC-JR-W2-02: "Open procurement" link is in the same footer region as Approve/Reject', async () => {
     renderAs();
-        const openLink = screen.getByRole('link', { name: /open procurement/i });
+    const openLink = screen.getByRole('link', { name: /open procurement/i });
     const approveBtn = screen.getByRole('button', { name: /^Approve$/i });
     // Both are in the DOM simultaneously — same footer
     expect(openLink).toBeInTheDocument();
@@ -255,7 +270,7 @@ describe('AC-JR-W2-02: "Open procurement" link in expanded panel footer (T07)', 
 
   it('AC-JR-W2-02: "Open procurement" visible even when user lacks transition permission', async () => {
     renderAs('Engineer');
-        // Engineers can't approve but should still be able to open the full procurement record.
+    // Engineers can't approve but should still be able to open the full procurement record.
     const link = screen.getByRole('link', { name: /open procurement/i });
     expect(link).toBeInTheDocument();
     expect(link.getAttribute('href')).toBe('/procurement/pr-001');
@@ -263,7 +278,7 @@ describe('AC-JR-W2-02: "Open procurement" link in expanded panel footer (T07)', 
 
   it('AC-JR-W2-02: navigateMock is never called — link is declarative, not imperative', async () => {
     renderAs();
-        // Link renders without ever calling useNavigate()
+    // Link renders without ever calling useNavigate()
     expect(navigateMock).not.toHaveBeenCalled();
   });
 });
