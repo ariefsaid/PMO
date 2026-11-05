@@ -212,53 +212,41 @@ function useRetirement(
   }, [accessRetiredKey, key, setAccessRetiredKey]);
 }
 
-/**
- * Read the published catalogue for an already-authorized host scope. Project hosts mount this
- * hook only after their real ProjectDetail read succeeds; the supplied id is never itself a
- * visibility grant and server-side catalogue/read authorization remains authoritative.
- */
-export function useFinancialStatementCatalogue(
-  scope: FinancialStatementCatalogueScope,
-  enabled = true,
-): GuardedQueryResult<FinancialStatementCatalogue> {
+function useGuardedStatementQuery<TRequest, TResponse>(args: {
+  auth: ReturnType<typeof useLiveAuth>;
+  queryKey: readonly unknown[];
+  eligible: boolean; // auth plus caller's normalized policy/scope; independent of enabled
+  enabled: boolean; // caller's original flag, not requestEnabled
+  request: TRequest | null;
+  fetch: (request: TRequest) => Promise<TResponse>;
+}): GuardedQueryResult<TResponse> {
+  const { auth, queryKey, eligible, enabled, request, fetch } = args;
   const queryClient = useQueryClient();
-  const auth = useLiveAuth();
-  const policyAllowed = scope.kind === 'company'
-    ? auth.may('view', 'financialStatements')
-    : auth.may('view', 'projectProfitLoss');
-  const eligible = auth.authEligible && policyAllowed;
-  const projectId = scope.kind === 'project' ? scope.projectId : null;
-  const key = useMemo(
-    () => [FEATURE_KEY[0], ...auth.identityParts, 'catalogue', scope.kind, projectId] as const,
-    [auth.identityParts, projectId, scope.kind],
-  );
-  const keyId = keyToken(key);
+  const keyId = keyToken(queryKey);
   const identityPrefix = useMemo(() => [FEATURE_KEY[0], ...auth.identityParts] as const, [auth.identityParts]);
   const guardRef = useRequestGuard(keyId, auth.identity, auth.liveAuthRef.current.epoch, eligible, enabled);
   const [accessRetiredKey, setAccessRetiredKey] = useState<string | null>(null);
   const retiredRef = useRef<RetiredRequest | null>(null);
-  const requestEnabled = eligible && enabled && accessRetiredKey !== keyId;
+  const requestEnabled = eligible && enabled && request !== null && accessRetiredKey !== keyId;
 
-  const query = useQuery<FinancialStatementCatalogue, Error>({
-    queryKey: key,
+  const query = useQuery<TResponse, Error>({
+    queryKey,
     enabled: requestEnabled,
     retry: false,
     queryFn: async ({ signal }) => {
       const guard = guardRef.current;
-      const state = queryClient.getQueryState<FinancialStatementCatalogue, Error>(key);
+      const state = queryClient.getQueryState<TResponse, Error>(queryKey);
       const accessDenied = (retiredRef.current?.key === keyId &&
         retiredRef.current.generation === guard.generation) || isAccessLoss(state?.error);
       if (accessDenied) setAccessRetiredKey(keyId);
-      if (!guard.authEligible || !guard.enabled || guard.key !== keyId || accessDenied) {
+      if (!guard.authEligible || !guard.enabled || guard.key !== keyId || request === null || accessDenied) {
         throw new QueryAdmissionDenied();
       }
       const requestGuard = guard;
       const requestAuth = auth.liveAuthRef.current;
       if (!requestAuth.eligible) throw new QueryAdmissionDenied();
       try {
-        const result = await repositories.financialStatements.catalogue(
-          scope.kind === 'project' ? { projectId: scope.projectId } : {},
-        );
+        const result = await fetch(request);
         const currentAuth = auth.liveAuthRef.current;
         if (signal.aborted || !currentAuth.eligible || currentAuth.identity !== requestAuth.identity ||
             currentAuth.epoch !== requestAuth.epoch) {
@@ -275,7 +263,7 @@ export function useFinancialStatementCatalogue(
         if (isAccessLoss(error) && requestIsCurrent) {
           retiredRef.current = { key: keyId, generation: requestGuard.generation };
           setAccessRetiredKey(keyId);
-          retireQueries(queryClient, identityPrefix, key, true);
+          retireQueries(queryClient, identityPrefix, queryKey, true);
         }
         throw error;
       }
@@ -283,7 +271,7 @@ export function useFinancialStatementCatalogue(
   });
   const accessLost = isAccessLoss(query.error);
   useRetirement(
-    key,
+    queryKey,
     identityPrefix,
     auth.identity,
     auth.authEligible,
@@ -300,6 +288,37 @@ export function useFinancialStatementCatalogue(
     eligible: eligible && !accessLost && accessRetiredKey !== keyId,
     ready: allowedToExpose && query.isSuccess,
   };
+}
+
+/**
+ * Read the published catalogue for an already-authorized host scope. Project hosts mount this
+ * hook only after their real ProjectDetail read succeeds; the supplied id is never itself a
+ * visibility grant and server-side catalogue/read authorization remains authoritative.
+ */
+export function useFinancialStatementCatalogue(
+  scope: FinancialStatementCatalogueScope,
+  enabled = true,
+): GuardedQueryResult<FinancialStatementCatalogue> {
+  const auth = useLiveAuth();
+  const policyAllowed = scope.kind === 'company'
+    ? auth.may('view', 'financialStatements')
+    : auth.may('view', 'projectProfitLoss');
+  const eligible = auth.authEligible && policyAllowed;
+  const projectId = scope.kind === 'project' ? scope.projectId : null;
+  const key = useMemo(
+    () => [FEATURE_KEY[0], ...auth.identityParts, 'catalogue', scope.kind, projectId] as const,
+    [auth.identityParts, projectId, scope.kind],
+  );
+  const request = scope.kind === 'project' ? { projectId: scope.projectId } : {};
+
+  return useGuardedStatementQuery({
+    auth,
+    queryKey: key,
+    eligible,
+    enabled,
+    request,
+    fetch: repositories.financialStatements.catalogue,
+  });
 }
 
 function normalizeSelection(selection: GetFinancialStatementInput | null): {
@@ -335,7 +354,6 @@ export function useFinancialStatement(
   selection: GetFinancialStatementInput | null,
   enabled = true,
 ): GuardedQueryResult<FinancialStatementRead> {
-  const queryClient = useQueryClient();
   const auth = useLiveAuth();
   const normalized = normalizeSelection(selection);
   const policyAllowed = normalized.policy === 'financialStatements'
@@ -366,70 +384,13 @@ export function useFinancialStatement(
     ] as const,
     [auth.identityParts, isProject, normalized.selectedStatement, periodKind, periodStart, projectId, requestStatement, viewKind],
   );
-  const keyId = keyToken(key);
-  const identityPrefix = useMemo(() => [FEATURE_KEY[0], ...auth.identityParts] as const, [auth.identityParts]);
-  const guardRef = useRequestGuard(keyId, auth.identity, auth.liveAuthRef.current.epoch, eligible, enabled);
-  const [accessRetiredKey, setAccessRetiredKey] = useState<string | null>(null);
-  const retiredRef = useRef<RetiredRequest | null>(null);
-  const requestEnabled = eligible && enabled && request !== null && accessRetiredKey !== keyId;
 
-  const query = useQuery<FinancialStatementRead, Error>({
+  return useGuardedStatementQuery({
+    auth,
     queryKey: key,
-    enabled: requestEnabled,
-    retry: false,
-    queryFn: async ({ signal }) => {
-      const guard = guardRef.current;
-      const state = queryClient.getQueryState<FinancialStatementRead, Error>(key);
-      const accessDenied = (retiredRef.current?.key === keyId &&
-        retiredRef.current.generation === guard.generation) || isAccessLoss(state?.error);
-      if (accessDenied) setAccessRetiredKey(keyId);
-      if (!guard.authEligible || !guard.enabled || guard.key !== keyId || request === null || accessDenied) {
-        throw new QueryAdmissionDenied();
-      }
-      const requestGuard = guard;
-      const requestAuth = auth.liveAuthRef.current;
-      if (!requestAuth.eligible) throw new QueryAdmissionDenied();
-      try {
-        const result = await repositories.financialStatements.get(request);
-        const currentAuth = auth.liveAuthRef.current;
-        if (signal.aborted || !currentAuth.eligible || currentAuth.identity !== requestAuth.identity ||
-            currentAuth.epoch !== requestAuth.epoch) {
-          throw new Error('Statement request was cancelled.');
-        }
-        return result;
-      } catch (error) {
-        const currentAuth = auth.liveAuthRef.current;
-        const currentGuard = guardRef.current;
-        const requestIsCurrent = !signal.aborted && currentGuard.key === keyId &&
-          currentGuard.generation === requestGuard.generation && currentGuard.authEligible &&
-          currentGuard.enabled && currentAuth.eligible && currentAuth.identity === requestAuth.identity &&
-          currentAuth.epoch === requestAuth.epoch;
-        if (isAccessLoss(error) && requestIsCurrent) {
-          retiredRef.current = { key: keyId, generation: requestGuard.generation };
-          setAccessRetiredKey(keyId);
-          retireQueries(queryClient, identityPrefix, key, true);
-        }
-        throw error;
-      }
-    },
+    eligible,
+    enabled,
+    request,
+    fetch: repositories.financialStatements.get,
   });
-  const accessLost = isAccessLoss(query.error);
-  useRetirement(
-    key,
-    identityPrefix,
-    auth.identity,
-    auth.authEligible,
-    requestEnabled,
-    queryClient,
-    accessRetiredKey,
-    setAccessRetiredKey,
-    accessLost,
-  );
-  const allowedToExpose = eligible && enabled && !accessLost && accessRetiredKey !== keyId;
-  return {
-    ...query,
-    data: allowedToExpose ? query.data : undefined,
-    eligible: eligible && !accessLost && accessRetiredKey !== keyId,
-    ready: allowedToExpose && query.isSuccess,
-  };
 }
