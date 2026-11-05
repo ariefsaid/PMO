@@ -2,7 +2,7 @@
 
 - **Spec:** `docs/specs/erp-journal-costs-on-project.spec.md` (FR-JEC / AC-JEC)
 - **Author:** eng-planner, 2026-11-05
-- **Migrations:** `0683`, `0684`, `0685` — the next free numbers on `origin/dev` at 306564b8e (head file `0682`).
+- **Migrations:** `0686`, `0687`, `0688` — the next free numbers after the statement-sync branch (0681, 0684, 0685) and dev (0682); recheck with ls supabase/migrations before building.
   If another branch lands one of these first, run `scripts/renumber-migration.sh <old> <new>`; never hand-rename.
 - **No ADR.** This reuses ADR-0093's link-only model and the 0361 count-once rule (ledger-held lowers open
   commitment; actuals come only from the ledger). Nothing here is irreversible or cross-cutting.
@@ -25,11 +25,11 @@
 
 | # | Slice | Migration | Money path? | Ships |
 |---|---|---|---|---|
-| S1 | Ledger mirror carries the GL remark | 0683 | No (read-model column) | Batch with S3–S5 |
-| S2 | Journal lines read, attach/detach, count once | 0684 | **Yes** — changes open commitment | **Alone** |
+| S1 | Ledger mirror carries the GL remark | 0686 | No (read-model column) | Batch with S3–S5 |
+| S2 | Journal lines read, attach/detach, count once | 0687 | **Yes** — changes open commitment | **Alone** |
 | S3 | Project page: journal list + attach | — | No | Batch |
 | S4 | Purchase detail: attached lines + detach | — | No | Batch |
-| S5 | CLI `purchases journals` / `attach-journals` + API-client tier | 0685 | No (calls S2's RPCs) | Batch |
+| S5 | CLI `purchases journals` / `attach-journals` + API-client tier | 0688 | No (calls S2's RPCs) | Batch |
 | S6 | e2e journey + runbook | — | No | Batch |
 
 Order: S1 → S2 (ship alone, merge to dev) → S3, S4, S5, S6 on top of dev, one batch PR.
@@ -42,25 +42,25 @@ Every builder's local gate (CLAUDE.md): `npm run check:guards`, `npm run typeche
 
 ## S1 — the ledger mirror carries the GL remark (FR-JEC-002, AC-JEC-013)
 
-**Files:** `supabase/migrations/0683_gl_mirror_remarks.sql`, `supabase/migrations/rollback/0683_gl_mirror_remarks_down.sql`,
-`supabase/tests/0683_gl_mirror_remarks.test.sql`, `pmo-portal/src/lib/adapterSeam/erpnext/ledgerFetch.ts`,
+**Files:** `supabase/migrations/0686_gl_mirror_remarks.sql`, `supabase/migrations/rollback/0686_gl_mirror_remarks_down.sql`,
+`supabase/tests/0686_gl_mirror_remarks.test.sql`, `pmo-portal/src/lib/adapterSeam/erpnext/ledgerFetch.ts`,
 `pmo-portal/src/lib/adapterSeam/erpnext/ledgerMirrorFeed.ts`, `pmo-portal/src/lib/adapterSeam/erpnext/ledgerFetch.test.ts`,
 the existing feed test beside `ledgerMirrorFeed.ts`, `pmo-portal/src/lib/supabase/database.types.ts`.
 
-**T1.1 (red, pgTAP).** Create `supabase/tests/0683_gl_mirror_remarks.test.sql`: copy the org/binding fixture of
+**T1.1 (red, pgTAP).** Create `supabase/tests/0686_gl_mirror_remarks.test.sql`: copy the org/binding fixture of
 `supabase/tests/0382_ledger_voucher_replace.test.sql`, call `replace_erp_gl_voucher_rows` as `service_role` with one row
 carrying `"remarks":"Vendor X inv 12"`, and assert
 `select remarks from erp_gl_entry_mirror where erp_name = …` is `'Vendor X inv 12'`. Second assertion: a second call
 with the same `erp_modified` and `"remarks":"changed"` updates it (the guard is `<=`). Run it; it fails (no column).
 
-**T1.2 (green).** `0683_gl_mirror_remarks.sql`:
+**T1.2 (green).** `0686_gl_mirror_remarks.sql`:
 
 ```sql
--- 0683 the ledger mirror carries the GL Entry remark (#1919 FR-JEC-002): the vendor / invoice reference of a journal.
--- Rollback: supabase/migrations/rollback/0683_gl_mirror_remarks_down.sql
+-- 0686 the ledger mirror carries the GL Entry remark (#1919 FR-JEC-002): the vendor / invoice reference of a journal.
+-- Rollback: supabase/migrations/rollback/0686_gl_mirror_remarks_down.sql
 alter table public.erp_gl_entry_mirror add column remarks text;
 
--- 0382 body; the lines marked 0683 are new.
+-- 0382 body; the lines marked 0686 are new.
 create or replace function public.replace_erp_gl_voucher_rows(
   p_org_id uuid, p_company text, p_voucher_type text, p_voucher_no text, p_rows jsonb, p_current_names text[]
 ) returns jsonb
@@ -73,11 +73,11 @@ begin
   insert into public.erp_gl_entry_mirror as m (
     org_id, erp_name, company, is_opening, finance_book, account, cost_center, fiscal_year, project,
     party_type, party, voucher_type, voucher_no, posting_date, debit, credit, is_cancelled, erp_docstatus, erp_modified,
-    remarks)                                                                                             -- 0683
+    remarks)                                                                                             -- 0686
   select p_org_id, r.erp_name, p_company, r.is_opening, r.finance_book, r.account, r.cost_center, r.fiscal_year, r.project,
          r.party_type, r.party, r.voucher_type, r.voucher_no, r.posting_date, r.debit, r.credit,
          coalesce(r.is_cancelled, false), r.erp_docstatus, r.erp_modified,
-         r.remarks                                                                                       -- 0683
+         r.remarks                                                                                       -- 0686
     from jsonb_populate_recordset(null::public.erp_gl_entry_mirror, p_rows) r
   on conflict (org_id, erp_name) do update set
     company = excluded.company, is_opening = excluded.is_opening, finance_book = excluded.finance_book,
@@ -86,7 +86,7 @@ begin
     voucher_type = excluded.voucher_type, voucher_no = excluded.voucher_no, posting_date = excluded.posting_date,
     debit = excluded.debit, credit = excluded.credit, is_cancelled = excluded.is_cancelled,
     erp_docstatus = excluded.erp_docstatus, erp_modified = excluded.erp_modified,
-    remarks = excluded.remarks                                                                           -- 0683
+    remarks = excluded.remarks                                                                           -- 0686
   where m.erp_modified <= excluded.erp_modified;
   get diagnostics upserted_count = row_count;
   -- copy lines 89–100 of 0382 (the delete-absent and the return) verbatim here.
@@ -123,14 +123,14 @@ exact GL field list.
 
 ## S2 — journal lines, attach/detach, count once (MONEY PATH — ships alone)
 
-**Files:** `supabase/migrations/0684_erp_journal_cost_lines.sql`,
-`supabase/migrations/rollback/0684_erp_journal_cost_lines_down.sql`, `supabase/tests/0684_erp_journal_cost_lines.test.sql`,
+**Files:** `supabase/migrations/0687_erp_journal_cost_lines.sql`,
+`supabase/migrations/rollback/0687_erp_journal_cost_lines_down.sql`, `supabase/tests/0687_erp_journal_cost_lines.test.sql`,
 `pmo-portal/src/lib/supabase/database.types.ts`.
 
-**Fixture (T2.1).** Start `0684_erp_journal_cost_lines.test.sql` from the header of
+**Fixture (T2.1).** Start `0687_erp_journal_cost_lines.test.sql` from the header of
 `supabase/tests/procurement_erp_links.test.sql` (orgs A and B, Finance/PM/Engineer/Admin profiles, an ERPNext
 binding with `site_url` and `project_map` `{A1:"ERP-A1", A2:"ERP-A2"}`, `activated_at` set). Use the id prefix
-`06840000-…`. Add:
+`06870000-…`. Add:
 - `budget_category_account_map` rows: `Project Subcontractors - X` → one category, `Cost of Goods - X` → another.
 - GL rows (`erp_gl_entry_mirror`, inserted as superuser before `set local role`):
   - `JV-1` split: debit 60 on `Project Subcontractors - X` project `ERP-A1`; debit 120 same account project
@@ -171,13 +171,13 @@ binding with `site_url` and `project_map` `{A1:"ERP-A1", A2:"ERP-A2"}`, `activat
 - RLS: `erp_journal_line_links` has no insert/update/delete grant for `authenticated`
   (`table_privs_are` / `has_table_privilege` false); policy predicate checked via `policies_are`.
 
-Run: `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0684_erp_journal_cost_lines.test.sql'` → red.
+Run: `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0687_erp_journal_cost_lines.test.sql'` → red.
 
-**T2.3 (green — lines).** `0684_erp_journal_cost_lines.sql` §1:
+**T2.3 (green — lines).** `0687_erp_journal_cost_lines.sql` §1:
 
 ```sql
--- 0684 ERP journal cost lines on the project: list, attach to a purchase (link only), count once (#1919).
--- Spec docs/specs/erp-journal-costs-on-project.spec.md. Rollback: supabase/migrations/rollback/0684_erp_journal_cost_lines_down.sql
+-- 0687 ERP journal cost lines on the project: list, attach to a purchase (link only), count once (#1919).
+-- Spec docs/specs/erp-journal-costs-on-project.spec.md. Rollback: supabase/migrations/rollback/0687_erp_journal_cost_lines_down.sql
 -- Read-side only towards the ERP: nothing here writes to ERPNext or to the ledger mirror.
 
 create index if not exists erp_gl_entry_mirror_org_project_voucher_type_idx
@@ -412,7 +412,7 @@ grant execute on function public.detach_erp_journal_line(uuid) to authenticated;
 added after the PMO-invoice term:
 
 ```sql
-       + coalesce((select sum(l.amount)                                                     -- 0684 FR-JEC-021
+       + coalesce((select sum(l.amount)                                                     -- 0687 FR-JEC-021
                      from public.erp_journal_line_links k
                      cross join lateral public.erp_journal_cost_lines(k.org_id, k.project_id, k.voucher_no) l
                     where k.procurement_id = p.id
@@ -429,11 +429,11 @@ Run T2.2 → green. Then the neighbours this change could move:
 supabase/tests/project_committed_spend_currency.test.sql supabase/tests/0682_erpnext_payment_inflight_per_bill.test.sql`
 (one lock hold with the reset).
 
-**T2.8 (mutation check — required, money path).** Temporarily replace the new term with `+ 0`, rerun 0684's
+**T2.8 (mutation check — required, money path).** Temporarily replace the new term with `+ 0`, rerun 0687's
 test: AC-JEC-004/005/008 must go red. Temporarily drop `and map.project_id = p_project_id` from
 `erp_journal_cost_lines`: AC-JEC-002/007 must go red. Revert both; record both red runs in the PR body.
 
-**T2.9 (rollback).** `rollback/0684_erp_journal_cost_lines_down.sql`: restore `procurement_ledger_held` (0372 body)
+**T2.9 (rollback).** `rollback/0687_erp_journal_cost_lines_down.sql`: restore `procurement_ledger_held` (0372 body)
 and `procurement_ledger_held_many` (0651 body) verbatim, then drop `detach_erp_journal_line`,
 `attach_erp_journal_lines`, `project_erp_journal_lines`, the trigger and its function, `erp_journal_line_links`,
 `erp_journal_cost_lines`, the index. Run `npm run check:migrations` (rollback pairing). Regenerate
@@ -496,12 +496,12 @@ en/id strings; `npm run check:i18n`.
 
 ## S5 — CLI and API-client tier (AC-JEC-017)
 
-**Files:** `supabase/migrations/0685_api_client_journal_rpcs.sql` + rollback, `scripts/lib/pmo-purchases.mjs`,
+**Files:** `supabase/migrations/0688_api_client_journal_rpcs.sql` + rollback, `scripts/lib/pmo-purchases.mjs`,
 `scripts/pmo.mjs`, `scripts/pmo-purchases.test.mjs`, `docs/runbooks/pmo-cli.md`.
 
-**T5.1.** 0685: rebuild `api_client_request_guard()` from its head body
+**T5.1.** 0688: rebuild `api_client_request_guard()` from its head body
 (`pg_get_functiondef`; 0588 at 306564b8e), adding `'attach_erp_journal_lines'` to `purchase_rpcs` and
-`'project_erp_journal_lines'` to the same tier's allowed RPCs (mark the lines `-- 0685`). Rollback = the head body
+`'project_erp_journal_lines'` to the same tier's allowed RPCs (mark the lines `-- 0688`). Rollback = the head body
 verbatim. `detach_erp_journal_line` is not exposed to the CLI (no CLI command deletes records, runbook line 325).
 
 **T5.2 (red → green).** `scripts/pmo-purchases.test.mjs`: `validateJournalRows` rejects a row without
@@ -530,8 +530,8 @@ the project and purchase routes.
 
 | AC | Owning test |
 |---|---|
-| AC-JEC-001…012 | `supabase/tests/0684_erp_journal_cost_lines.test.sql` |
-| AC-JEC-013 | `supabase/tests/0683_gl_mirror_remarks.test.sql` + `ledgerFetch.test.ts` |
+| AC-JEC-001…012 | `supabase/tests/0687_erp_journal_cost_lines.test.sql` |
+| AC-JEC-013 | `supabase/tests/0686_gl_mirror_remarks.test.sql` + `ledgerFetch.test.ts` |
 | AC-JEC-014 | `ErpJournalLinesSection.test.tsx`, `AttachedJournalLines.test.tsx` |
 | AC-JEC-015 | `e2e/AC-JEC-015-journal-attach.spec.ts` |
 | AC-JEC-016 | `ErpJournalLinesSection.test.tsx` |
