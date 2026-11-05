@@ -40,6 +40,8 @@ export interface GlEntryRow {
   is_cancelled: boolean;
   is_opening?: 'Yes' | 'No' | null;
   finance_book?: string | null;
+  /** ERPNext GL Entry `remarks` — the vendor / invoice reference of a journal (#1919). */
+  remarks?: string | null;
   docstatus: number | null;
   /** Frappe `modified` — the per-row source-mod cursor (the slice-8 feed's `>=` guard). */
   modified: string;
@@ -100,7 +102,7 @@ export { formatKeysetCursor as formatLedgerCursor } from './keysetScan.ts';
 
 const GL_FIELDS = [
   'name', 'company', 'account', 'cost_center', 'fiscal_year', 'project', 'party_type', 'party',
-  'voucher_type', 'voucher_no', 'posting_date', 'debit', 'credit', 'is_cancelled', 'is_opening', 'finance_book', 'docstatus', 'modified',
+  'voucher_type', 'voucher_no', 'posting_date', 'debit', 'credit', 'is_cancelled', 'is_opening', 'finance_book', 'docstatus', 'modified', 'remarks',
 ] as const;
 
 const PLE_FIELDS = [
@@ -248,6 +250,7 @@ export async function fetchGlEntries(client: ErpClientDeps, opts: LedgerFetchOpt
         is_cancelled: Boolean(r.is_cancelled) || docstatus === 2,
         is_opening: r.is_opening === 'Yes' || r.is_opening === 'No' ? r.is_opening : null,
         finance_book: str(r.finance_book),
+        remarks: str(r.remarks),
         docstatus,
         modified: String(r.modified),
       };
