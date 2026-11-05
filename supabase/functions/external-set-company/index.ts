@@ -439,7 +439,7 @@ export async function handleSetCompanyRequest(req: Request): Promise<Response> {
 
   // 11. FR-EAC-106/107 — ONE statement: version + company + Company account defaults + the set-once
   // stamp. Replaces the direct PATCH so activation cannot land partially.
-  const { data: activatedAt, error: activateError } = await serviceClient.rpc('activate_external_binding', {
+  const { data: activatedAt, error: activateError } = await serviceClient.rpc('activate_external_binding_audited', {
     p_org_id: profile.org_id,
     p_external_tier: 'erpnext',
     p_version_major: versionMajor,
@@ -452,21 +452,7 @@ export async function handleSetCompanyRequest(req: Request): Promise<Response> {
     return errorResponse('Failed to activate the ERPNext connection', 'INTERNAL', 500);
   }
 
-  // 12. Audit log
-  const { error: auditError } = await serviceClient.rpc('log_audit', {
-    p_action: 'integration.set_company',
-    p_org_id: profile.org_id,
-    p_actor_id: userId,
-    p_entity_id: null,
-    p_detail: {
-      tier: 'erpnext',
-      company_id: companyId,
-      actor: userId,
-      version_major: versionMajor,
-      activated_at: activatedAt,
-    },
-  });
-  if (auditError) console.error('log_audit failed', auditError);
+  // 12. The audit event is written by the RPC in the same transaction as the activation.
 
   // 13. Return success
   const responseBody: SetCompanyResponse = { ok: true, companyId, versionMajor, activatedAt: activatedAt ?? null };
