@@ -18,6 +18,7 @@ import { AdapterError } from '../../../pmo-portal/src/lib/adapterSeam/contract.t
 import { readOutboxCompositePayload } from './erpMoneyOutbox.ts';
 import { canonicalCommandDigest, createDbMoneyOutboxDeps } from './moneyOutboxDeps.ts';
 import { checkQueuedProcurementCreate } from './procurementGateGuard.ts';
+import { checkPoRevise } from './poReviseGuard.ts';
 import type { AdapterSelectContext } from './dispatchAdapters.ts';
 import { resolveOdooRevenueMoneyOutboxDeps } from './odooRevenueOutbox.ts';
 import { withOdooCallBudget } from '../_shared/odooCallBudget.ts';
@@ -77,7 +78,11 @@ const ORDER_WINDOW_MS = 10 * 60_000;
 async function orderCompositePayload(ctx: AdapterSelectContext): Promise<Record<string, unknown>> {
   if (ctx.replay) return persistedPayload(ctx);
   const facts = await orderCompositeFacts(ctx.serviceClient as SupabaseClient, ctx.orgId, ctx.command.record as { id?: unknown; procurementId?: unknown });
-  return { odoo_partner_id: facts.partnerId, odoo_amount: facts.amount, odoo_line_count: facts.lineCount, created_after: odooDatetime(Date.now() - ORDER_WINDOW_MS) };
+  const now = Date.now();
+  return {
+    odoo_partner_id: facts.partnerId, odoo_amount: facts.amount, odoo_line_count: facts.lineCount,
+    created_after: odooDatetime(now - ORDER_WINDOW_MS), created_before: odooDatetime(now + CLAIM_BUDGET_MS + SETTLE_MARGIN_MS),
+  };
 }
 
 /**
@@ -210,15 +215,23 @@ export async function resolveOdooMoneyOutboxDeps(ctx: AdapterSelectContext): Pro
     payloadDigest,
     ...(ctx.command.domain === 'procurement' && operation === 'create'
       ? { reauthorizeRecoveryReissue: () => checkQueuedProcurementCreate(ctx.serviceClient as never, ctx.orgId, ctx.command as never, ctx.userId) }
-      : {}),
+      : ctx.command.domain === 'procurement' && operation === 'revise'
+        ? { reauthorizeRecoveryReissue: async () => {
+          const result = await checkPoRevise(ctx.serviceClient as never, ctx.orgId, {
+            poId: record.poId, revision: record.revision,
+          }, { reviseCancels: false });
+          return { ok: result.ok, message: result.message };
+        } }
+        : {}),
     probeByRemarksKey: async (domain, idempotencyKey, probe) => {
       // An order and a revision are not adopted as a bare reference: the probe also anchors a found order and completes its
       // confirm, and returns it read back (a draft adopted as it stands would be mirrored as issued).
-      if (operation === 'revise') return recoverRevise(call, ctx.command.record);
+      if (operation === 'revise') return recoverRevise(call, ctx.command.record, ctx.odooAnchorOwnedElsewhere);
       if (isReceiptCreate) return recoverReceipt(call, ctx.command.record);
       if (isOrderCreate) {
         const persisted = await readOutboxCompositePayload(ctx.serviceClient, ctx.orgId, domain, ctx.command.record.id, idempotencyKey);
-        return recoverOrder(call, ctx.command.record, orderCompositeOf(persisted) ?? orderCompositeOf(payload));
+        const composite = probe?.recovery === false ? undefined : orderCompositeOf(persisted) ?? orderCompositeOf(payload);
+        return recoverOrder(call, ctx.command.record, composite, ctx.odooAnchorOwnedElsewhere);
       }
       if (isBillCreate) {
         const persisted = await readOutboxCompositePayload(ctx.serviceClient, ctx.orgId, domain, ctx.command.record.id, idempotencyKey);
@@ -227,7 +240,7 @@ export async function resolveOdooMoneyOutboxDeps(ctx: AdapterSelectContext): Pro
         // The composite looks for a bill a lost response may have left without its identifier, so it runs only in a RECOVERY. A bill's
         // first attempt has made nothing yet: the vendor's other, unanchored Odoo bills are not its business (I1). No signal = recovery.
         const composite = probe?.recovery === false ? undefined : orderCompositeOf(persisted) ?? orderCompositeOf(payload);
-        return recoverBill(call, ctx.command.record, composite, expect);
+        return recoverBill(call, ctx.command.record, composite, expect, ctx.odooAnchorOwnedElsewhere);
       }
       // A payment's anchor is a memo anyone can edit, so a recovery may also look for it by vendor, amount, window and bill; a first attempt
       // has made nothing yet and looks by memo alone. Doubt throws (the row is held); nothing found is null, which the outbox holds too
@@ -235,7 +248,7 @@ export async function resolveOdooMoneyOutboxDeps(ctx: AdapterSelectContext): Pro
       const persisted = await readOutboxCompositePayload(ctx.serviceClient, ctx.orgId, domain, ctx.command.record.id, idempotencyKey);
       const billRef = [persisted, payload].map((p) => p?.odoo_bill_ref).find((r): r is string => typeof r === 'string');
       if (!billRef) throw new AppError('payment-bill-missing', 'commit-rejected');   // cannot say which bill this pays: hold it
-      return recoverPayment(call, ctx.command.record, probe?.recovery === false ? undefined : paymentCompositeOf(persisted) ?? paymentCompositeOf(payload), billRef, paymentResolutionOf(persisted));
+      return recoverPayment(call, ctx.command.record, probe?.recovery === false ? undefined : paymentCompositeOf(persisted) ?? paymentCompositeOf(payload), billRef, paymentResolutionOf(persisted), ctx.odooAnchorOwnedElsewhere);
     },
   });
 }

@@ -54,7 +54,9 @@ export interface AdapterSelectContext {
   procurementSnapshot?: { caseId: string; lines: ProcurementSourceLine[] };
   procurementInputDigest?: string;
   /** Sweep-only per-tick budget for every Odoo request made by revenue outbox recovery. */
-  odooCallBudget?: { left: () => boolean; spend: () => boolean };
+  odooCallBudget?: { left: () => boolean; spend: (calls?: number) => boolean };
+  /** Recovery-only owner check; procurement probes call it before anchoring or settling a hit. */
+  odooAnchorOwnedElsewhere?: (externalRecordId: string) => Promise<boolean>;
 }
 
 export type AdapterFactory = (ctx: AdapterSelectContext) => Adapter | Promise<Adapter>;

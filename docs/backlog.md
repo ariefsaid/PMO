@@ -18,12 +18,14 @@ remains pending under #1602. The vocabulary guard covers the purchase and revenu
 The P9 composite Odoo bed run covers order/revision, receipt, VAT/PPh bill, payment recovery and the
 different-Finance-user gate. Receipt interruption is covered by `odooReceipt.bed.test.ts`; bill and payment
 interruption are covered by `odooPayment.bed.test.ts`, through adapter/recovery calls. The P9 browser journey
-proves replay after a lost browser response. AC-OPP-062 sweep recovery is now proven by the Odoo bed: a
-lost bill-post response is linked and confirmed by one sweep tick with exactly one Odoo bill for that
-command, while an edited anchor remains held. Its Deno coverage also proves recorded-actor authorization refusal, exhausted-budget
-handling and foreign-anchor skipping; a near-match with the right amount and window but wrong line count
-is held. This closes the background-recovery evidence gap without changing workflow declarations or
-making a release-to-`main` recommendation. The C9 live
+proves replay after a lost browser response. AC-OPP-062's sweep bed proves a lost bill-post response is
+linked and confirmed by one sweep tick with exactly one Odoo bill for that command, while an edited anchor
+remains held; the recovery round adds the same outbox proof for a payment create response lost after Odoo
+accepted it, including refusal of a second in-flight intent for that bill. Order, receipt and revision
+recovery remain covered by adapter and recovery unit tests, not by this sweep bed. Deno coverage also proves
+recorded-actor reauthorization, candidate reservation before dispatch, PO-family ownership handling and
+bounded order-composite adoption; amount-only adoption is refused. This is scoped implementation evidence,
+not a release-readiness decision. The C9 live
 Odoo bed composite passed both tests; its served AC-OCI-100 browser journey passed one Chromium journey plus
 ten setup checks, with persisted invoice/receipt rows and rendered e-Faktur, project, amounts, withholding
 and statuses. The shared-money-outbox behavior is already on `dev` from P6. This status does not make a

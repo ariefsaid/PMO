@@ -30,7 +30,7 @@ const binding = (over: Record<string, unknown> = {}) => ({
 /** What the org's `procurement` switch answers: a literal boolean, or a response that cannot be read (an RPC error, a rejected
  *  fetch, a null or a non-boolean body). A function answers per call, so one harness can model a switch that changes between ticks. */
 type FeatureAnswer = boolean | null | 'error' | 'reject' | 'malformed';
-interface Opts { pmoProjects?: Array<Record<string, unknown>>; pmoCompanies?: Array<Record<string, unknown>>; run?: Record<string, unknown> | null; accepted?: boolean; runError?: boolean; binding?: Record<string, unknown>; lock?: { held: boolean }; applyError?: boolean; employed?: boolean; revenueEmployed?: boolean; failPurchaseDomain?: string; failRevenueDomain?: string; purchaseModels?: string[]; revenueModels?: string[]; rejectAfter?: number; version?: number | null; procurement?: FeatureAnswer | (() => FeatureAnswer); purchaseCursors?: Record<string, string>; prepare?: (f: FakeOdoo) => void }
+interface Opts { pmoProjects?: Array<Record<string, unknown>>; pmoCompanies?: Array<Record<string, unknown>>; run?: Record<string, unknown> | null; accepted?: boolean; runError?: boolean; binding?: Record<string, unknown>; lock?: { held: boolean }; applyError?: boolean; employed?: boolean; revenueEmployed?: boolean; failPurchaseDomain?: string; failRevenueDomain?: string; purchaseModels?: string[]; revenueModels?: string[]; rejectAfter?: number; version?: number | null; procurement?: FeatureAnswer | (() => FeatureAnswer); purchaseCursors?: Record<string, string>; recoveryCandidate?: Record<string, unknown>; prepare?: (f: FakeOdoo) => void }
 
 function harness(o: Opts = {}) {
   const fake = createFakeOdoo({ key: KEY });
@@ -57,7 +57,7 @@ function harness(o: Opts = {}) {
       return jsonResponse(answer);
     }),
     supabaseSelect('external_org_bindings', () => jsonResponse([o.binding ?? binding()])),
-    supabaseRpc('outbox_reconcile_candidates', () => jsonResponse([])),
+    supabaseRpc('outbox_reconcile_candidates', () => jsonResponse(o.recoveryCandidate ? [o.recoveryCandidate] : [])),
     supabaseRpc('read_vault_secret', () => jsonResponse(KEY)),
     supabaseSelect('external_sync_watermarks', (c) => {
       const v = cursors.get(c.url.searchParams.get('domain')!.replace(/^eq\./, ''));
@@ -90,6 +90,7 @@ function harness(o: Opts = {}) {
     supabaseSelect('erp_connect_census', () => (o.accepted ? one({ accepted_at: '2026-11-01T00:00:00Z' }) : none())),
     supabaseSelect('external_master_records', () => jsonResponse([])),
     supabaseSelect('external_refs', () => jsonResponse([])),
+    supabaseSelect('external_command_outbox', () => o.recoveryCandidate ? one(o.recoveryCandidate) : none()),
     supabaseSelect('companies', (c) => jsonResponse(c.url.searchParams.has('erp_tax_id') || c.url.searchParams.has('name') ? [] : (o.pmoCompanies ?? []))),
     supabaseSelect('projects', () => jsonResponse(o.pmoProjects ?? [])),
     ...['profiles', 'procurement_items'].map((t) => supabaseSelect(t, () => jsonResponse([]))),
@@ -430,19 +431,27 @@ describe('odooSweep — #1506 C6 revenue passes', () => {
     assert('ok' in r.result && r.result.calls > 0, 'the tick reports real work rather than a stale zero');
   });
 
-  it('AC-OPP-062 procurement recovery reports its own results in the sweep tick', async () => {
-    const r = await sweep({ employed: true, purchaseModels: ['purchase.order'] });
+  it('AC-OPP-062 procurement recovery reports a dispatched candidate in the sweep tick and shares one candidate read with revenue', async () => {
+    const recoveryCandidate = {
+      id: 'recovery-1', org_id: ORG, domain: 'procurement', pmo_record_id: '123e4567-e89b-12d3-a456-426614174000',
+      idempotency_key: 'recovery-key', external_tier: 'odoo', operation: 'create', state: 'failed',
+      external_record_id: null, canonical: null, claim_generation: 0, payload_digest: null,
+      payload: { erp_doc_kind: 'purchase-order', procurementId: 'purchase-1' }, actor_user_id: null, updated_at: FRESH,
+    };
+    const r = await sweep({
+      employed: true, purchaseModels: ['purchase.order'], revenueEmployed: true, revenueModels: ['account.move'], recoveryCandidate,
+    });
     const candidateReads = rpcCall(r.calls, 'outbox_reconcile_candidates');
     const directory = r.calls.findIndex((call) => call.url.pathname === '/rest/v1/rpc/apply_odoo_master_page');
     const recovery = r.calls.findIndex((call) => call.url.pathname === '/rest/v1/rpc/outbox_reconcile_candidates');
 
-    assert(candidateReads.length > 0, 'procurement outbox candidates are selected during the sweep tick');
+    assertEquals(candidateReads.length, 1, 'revenue and procurement share one candidate query per tick');
     assert(recovery >= 0 && recovery < directory, 'outbox recovery runs before the bounded inbound walk');
     assert('ok' in r.result);
     assertEquals(r.result.outbox_procurement_reconciled, 0);
     assertEquals(r.result.outbox_procurement_skipped, 0);
     assertEquals(r.result.outbox_procurement_budget_exhausted, false);
-    assertEquals(r.result.outbox_procurement_errors, []);
+    assertEquals(r.result.outbox_procurement_errors, [{ id: 'recovery-1', error: 'commit-rejected' }]);
   });
 });
 
@@ -463,6 +472,19 @@ describe('odooSweep — #1783 item 4 the procurement switch holds the purchase f
     f.seed('account.payment', [payment]);
   };
   const everything = (over: Opts = {}) => ({ employed: true, purchaseModels: ALL_PURCHASE_MODELS, revenueEmployed: true, revenueModels: ALL_REVENUE_MODELS, prepare: seedEverything, ...over });
+
+  it('AC-OPP-062 reports when procurement recovery is unavailable because the org does not employ its feed', async () => {
+    const r = await sweep({ employed: false, purchaseModels: ['purchase.order'] });
+    assertEquals('ok' in r.result && r.result.outbox_procurement_errors, [
+      { id: 'procurement', error: 'procurement-feed-not-employed' },
+    ]);
+  });
+
+  it('AC-OPP-062 reports when procurement is not employed so recovery is not silently omitted', async () => {
+    const r = await sweep(everything({ employed: false }));
+    assert('ok' in r.result);
+    assertEquals(r.result.outbox_procurement_errors, [{ id: 'procurement', error: 'procurement-feed-not-employed' }]);
+  });
 
   it('AC-1783-04A procurement off holds every purchase domain while the directory and revenue feeds still run', async () => {
     const r = await sweep(everything({ procurement: false, purchaseCursors: { 'purchase:bill': CURSOR } }));

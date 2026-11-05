@@ -16,6 +16,7 @@
  * creates when nothing exists. Odoo's own approval wait ("to approve") is reported, never approved around (OQ-OPP-5).
  */
 import { AdapterError, type Adapter, type AdapterCommand, type CommandResult, type PmoRecord } from '../contract.ts';
+import { AppError } from '../../appError.ts';
 import { mirrorMoney } from '../erpnext/moneyShape.ts';
 import type { OdooCall } from './client.ts';
 import { ODOO_TIER, toAdapterError } from './connectAdapter.ts';
@@ -36,6 +37,8 @@ const PICKING_MODEL = 'stock.picking';
 
 export interface OdooProcurementDeps {
   call: OdooCall;
+  /** Check the PMO owner of an Odoo document before a recovery probe anchors or settles it. */
+  isExternalAnchorOwnedElsewhere?: (externalRecordId: string) => Promise<boolean>;
   /** The command's PMO-side facts (vendor, lines, project's cost account), resolved before any write. */
   resolveOrder(command: AdapterCommand): Promise<{ input: OrderInput; ctx: OrderCtx }>;
   /** A revision's target: the Odoo order the PMO order maps to and the revision's effective line set. */
@@ -105,11 +108,14 @@ const anchorOrder = (call: OdooCall, key: string, id: number) => anchorDocument(
  * The recovery probe for an order (FR-OPP-072): the order this command already created, anchored if need be and brought to its
  * settled state, or null when nothing was created. Throws (the row is held) when the composite finds doubt.
  */
-export async function recoverOrder(rawCall: OdooCall, record: PmoRecord, composite?: OrderComposite): Promise<CommandResult | null> {
+export async function recoverOrder(rawCall: OdooCall, record: PmoRecord, composite?: OrderComposite, isExternalAnchorOwnedElsewhere?: OdooProcurementDeps['isExternalAnchorOwnedElsewhere']): Promise<CommandResult | null> {
   const call = guarded(rawCall);
   const key = orderKey(record);
   const hit = await probeOdooByAnchor(call, 'order', key, composite);
   if (!hit) return null;
+  if (isExternalAnchorOwnedElsewhere && await isExternalAnchorOwnedElsewhere(hit.externalRecordId)) {
+    throw new AppError('Odoo document is already anchored to another PMO row', 'command-held');
+  }
   const id = parseOdooExternalRef(ORDER_MODEL, hit.externalRecordId) ?? refuse('ambiguous-anchor');
   await anchorOrder(call, key, id);
   return settleOrder(call, id, record);
@@ -140,7 +146,7 @@ async function highestAppliedRevision(call: OdooCall, poId: string): Promise<{ r
  * not applied but a NEWER revision of the same order is, repeating it would roll the lines back: the shipped seam's decision
  * (found another key -> held, AC-SCA-011) refuses it. Otherwise null.
  */
-export async function recoverRevise(rawCall: OdooCall, record: PmoRecord): Promise<CommandResult | null> {
+export async function recoverRevise(rawCall: OdooCall, record: PmoRecord, isExternalAnchorOwnedElsewhere?: OdooProcurementDeps['isExternalAnchorOwnedElsewhere']): Promise<CommandResult | null> {
   const call = guarded(rawCall);
   const key = reviseKey(record);
   const hit = await probeOdooByAnchor(call, 'order', key);
@@ -149,6 +155,9 @@ export async function recoverRevise(rawCall: OdooCall, record: PmoRecord): Promi
     if (newer.revision > Number(record.revision) && poReviseRecoveryDecision({ probe: 'found', key: newer.key, expectedKey: key }) !== 'adopt') refuse('revision-superseded');
     return null;
   }
+  if (isExternalAnchorOwnedElsewhere && await isExternalAnchorOwnedElsewhere(hit.externalRecordId)) {
+    throw new AppError('Odoo document is already anchored to another PMO row', 'command-held');
+  }
   return { externalRecordId: hit.externalRecordId, canonical: orderCanonical(await readOrder(call, parseOdooExternalRef(ORDER_MODEL, hit.externalRecordId) ?? refuse('ambiguous-anchor')), record, String(record.poId)) };
 }
 
@@ -156,8 +165,11 @@ async function reviseOrder(deps: OdooProcurementDeps, command: AdapterCommand): 
   const call = guarded(deps.call);
   const key = reviseKey(command.record);
   const { orderId, lines, ctx } = await deps.resolveRevise(command);
-  const applied = await recoverRevise(call, command.record);
+  const applied = await recoverRevise(call, command.record, deps.isExternalAnchorOwnedElsewhere);
   if (applied) return applied.externalRecordId === odooExternalRef(ORDER_MODEL, orderId) ? applied : refuse('ambiguous-anchor');
+  if (deps.isExternalAnchorOwnedElsewhere && await deps.isExternalAnchorOwnedElsewhere(odooExternalRef(ORDER_MODEL, orderId))) {
+    throw new AppError('Odoo document is already anchored to another PMO row', 'command-held');
+  }
   const order = await readOrder(call, orderId);
   const current = await call<CurrentLine[]>('purchase.order.line', 'search_read', {
     domain: [['order_id', '=', orderId]], fields: ['product_id', 'product_qty', 'price_unit', 'qty_received', 'qty_invoiced'],
@@ -173,7 +185,7 @@ async function pushOrder(deps: OdooProcurementDeps, command: AdapterCommand): Pr
   const call = guarded(deps.call);
   const { input, ctx } = await deps.resolveOrder(command);
   const body = buildOrderBody(input, ctx);   // refuses before the first Odoo call
-  const found = await recoverOrder(call, command.record);
+  const found = await recoverOrder(call, command.record, undefined, deps.isExternalAnchorOwnedElsewhere);
   if (found) return found;
   if (nextStep('order', { absent: true, probe: 'conclusive' }) !== 'create') return refuse('order-held');
   const [id] = await call<number[]>('purchase.order', 'create', { vals_list: [body] });
@@ -363,11 +375,14 @@ async function settleBill(call: OdooCall, id: number, record: PmoRecord, expect:
  * posted if still a draft, or null when nothing was created. Throws (the row is held) when the composite finds doubt. A bill is
  * never reissued on doubt: the outbox holds it (`odooReissueOnInconclusiveAbsence`).
  */
-export async function recoverBill(rawCall: OdooCall, record: PmoRecord, composite: BillComposite | undefined, expect: BillExpect): Promise<CommandResult | null> {
+export async function recoverBill(rawCall: OdooCall, record: PmoRecord, composite: BillComposite | undefined, expect: BillExpect, isExternalAnchorOwnedElsewhere?: OdooProcurementDeps['isExternalAnchorOwnedElsewhere']): Promise<CommandResult | null> {
   const call = guarded(rawCall);
   const key = billKey(record);
   const hit = await probeOdooByAnchor(call, 'bill', key, composite);
   if (!hit) return null;
+  if (isExternalAnchorOwnedElsewhere && await isExternalAnchorOwnedElsewhere(hit.externalRecordId)) {
+    throw new AppError('Odoo document is already anchored to another PMO row', 'command-held');
+  }
   const id = parseOdooExternalRef(ANCHORED_MODEL.bill, hit.externalRecordId) ?? refuse('ambiguous-anchor');
   await anchorDocument(call, 'bill', key, id);
   return settleBill(call, id, record, expect);
@@ -378,7 +393,7 @@ async function pushBill(deps: OdooProcurementDeps, command: AdapterCommand): Pro
   const { input, ctx } = await deps.resolveBill(command);
   const body = buildBillBody(input, ctx);   // refuses before the first Odoo call
   const expect: BillExpect = { total: expectedBillTotal(input, ctx.taxes), costAccountId: ctx.costAccountId };
-  const found = await recoverBill(call, command.record, undefined, expect);
+  const found = await recoverBill(call, command.record, undefined, expect, deps.isExternalAnchorOwnedElsewhere);
   if (found) return found;
   if (nextStep('bill', { absent: true, probe: 'conclusive' }) !== 'create') return refuse('bill-held');
   const [id] = await call<number[]>('account.move', 'create', { vals_list: [body] });
@@ -489,11 +504,15 @@ export interface PaymentResolution { adoptedRef?: string; absentConfirmed?: bool
  */
 export async function recoverPayment(
   rawCall: OdooCall, record: PmoRecord, composite: PaymentComposite | undefined, billRef: string, resolution?: PaymentResolution,
+  isExternalAnchorOwnedElsewhere?: OdooProcurementDeps['isExternalAnchorOwnedElsewhere'],
 ): Promise<CommandResult | null> {
   const call = guarded(rawCall);
   if (resolution?.adoptedRef) {
     // A person named the payment (resolve_held_outbox_command): trusted no further than "Odoo shows it reconciled to this bill".
     const id = parseOdooExternalRef(PAYMENT_MODEL, resolution.adoptedRef) ?? refuse('ambiguous-anchor');
+    if (isExternalAnchorOwnedElsewhere && await isExternalAnchorOwnedElsewhere(resolution.adoptedRef)) {
+      throw new AppError('Odoo document is already anchored to another PMO row', 'command-held');
+    }
     const billId = parseOdooExternalRef(ANCHORED_MODEL.bill, billRef) ?? refuse('payment-bill-required');
     if (!reconciledBills(await readPayment(call, id)).includes(billId)) refuse('adopted-payment-not-reconciled');
     return settlePayment(call, id, record, billRef);
@@ -501,6 +520,9 @@ export async function recoverPayment(
   // A person confirmed nothing exists in Odoo: look for our exact memo only, never a look-alike.
   const hit = await probeOdooByAnchor(call, 'payment', paymentKey(record), resolution?.absentConfirmed ? undefined : composite);
   if (!hit) return null;
+  if (isExternalAnchorOwnedElsewhere && await isExternalAnchorOwnedElsewhere(hit.externalRecordId)) {
+    throw new AppError('Odoo document is already anchored to another PMO row', 'command-held');
+  }
   const id = parseOdooExternalRef(PAYMENT_MODEL, hit.externalRecordId) ?? refuse('ambiguous-anchor');
   return settlePayment(call, id, record, billRef);
 }
@@ -512,7 +534,7 @@ export async function recoverPayment(
 async function pushPayment(deps: OdooProcurementDeps, command: AdapterCommand): Promise<CommandResult> {
   const call = guarded(deps.call);
   const facts = await (deps.resolvePayment ?? (() => refuse('odoo payment is not available')))(command);
-  const found = await recoverPayment(call, command.record, undefined, facts.billRef ?? '');   // before the residual check: a retry's own payment has already reduced it
+  const found = await recoverPayment(call, command.record, undefined, facts.billRef ?? '', undefined, deps.isExternalAnchorOwnedElsewhere);   // before the residual check: a retry's own payment has already reduced it
   if (found) return found;
   const body = buildPaymentBody({ billRef: facts.billRef, amount: facts.amount, date: facts.date, vendorPartnerId: facts.vendorPartnerId }, await readPaymentCtx(call, facts), paymentKey(command.record));   // refuses before the first write
   const [id] = await call<number[]>(PAYMENT_MODEL, 'create', { vals_list: [body] });

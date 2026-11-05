@@ -115,6 +115,9 @@ describe('AC-OPP-053 the Odoo probe closure: zero, one and many matches', () => 
       const window = composite.find(([f, op]) => f === 'create_date' && op === '>=');
       assert(window !== undefined);
       assert(Date.now() - Date.parse(`${String(window[2]).replace(' ', 'T')}Z`) >= 10 * 60_000 - 5_000, 'the window reaches back at least ten minutes');
+      const windowEnd = composite.find(([f, op]) => f === 'create_date' && op === '<=');
+      assert(windowEnd !== undefined, 'an order created after the first attempt budget is outside the adoption window');
+      assert(Date.parse(`${String(windowEnd[2]).replace(' ', 'T')}Z`) > Date.now());
     });
 
     it('AC-OPP-062 replay probes with the composite facts frozen on the outbox row', async () => {
@@ -131,6 +134,32 @@ describe('AC-OPP-053 the Odoo probe closure: zero, one and many matches', () => 
 
       assertEquals(calls.some((c) => c.url.pathname === '/rest/v1/procurements' || c.url.pathname === '/rest/v1/procurement_items'), false);
       assertEquals(queries(t, 'purchase.order')[0].domain.some(([field, op, value]) => field === 'partner_id' && op === '=' && value === 88), true);
+    });
+
+    it('AC-OPP-062 does not adopt an order created after the persisted recovery window', async () => {
+      const stored = {
+        id: REC, erp_doc_kind: 'purchase-order', procurementId: 'removed-case', odoo_partner_id: 88,
+        odoo_amount: '987.00', odoo_line_count: 2, created_after: '2026-11-04 11:00:00', created_before: '2026-11-04 11:30:00',
+      };
+      const t = setup('purchase-order', { amount: '50.00' }, {
+        replay: true, outbox: stored,
+        odoo: {
+          'ir.model.data': [],
+          'purchase.order': (query) => {
+            const upper = query.domain.find(([field, op]) => field === 'create_date' && op === '<=')?.[2];
+            const created = '2026-11-04 11:45:00';
+            return typeof upper === 'string' && created > upper ? [] : [{
+              id: 41, name: 'P00041', state: 'purchase', amount_untaxed: 987, amount_total: 987, order_line: [1, 2], create_date: created,
+            }];
+          },
+        },
+      });
+      await withFetchMock(t.routes, async () => {
+        const deps = await resolveOdooMoneyOutboxDeps(t.ctx);
+        assertEquals(await deps.probeByRemarksKey('procurement', KEY, { recovery: true }), null);
+      });
+      const composite = queries(t, 'purchase.order')[0].domain;
+      assert(composite.some(([field, op, value]) => field === 'create_date' && op === '<=' && value === stored.created_before));
     });
 
     it('AC-OPP-062 recovery holds an order that matches amount and window but not the frozen line count', async () => {

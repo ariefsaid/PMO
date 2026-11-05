@@ -17,7 +17,6 @@ import { resolveOdooInvoiceInputs, resolveOdooReceiptInputs } from '../_shared/o
 import { createOdooRevenueAdapter, isInvoicePush } from '../../../pmo-portal/src/lib/adapterSeam/odoo/revenueAdapter.ts';
 import { buildInvoiceBody } from '../../../pmo-portal/src/lib/adapterSeam/odoo/revenue/invoiceBody.ts';
 import { buildReceiptBody } from '../../../pmo-portal/src/lib/adapterSeam/odoo/revenue/receiptBody.ts';
-import { withOdooCallBudget } from '../_shared/odooCallBudget.ts';
 
 /** What the Odoo procurement adapter pushes so far: the purchase order and its revision (P3), the goods receipt (P4), the vendor bill (P5) and the vendor payment (P6). */
 const isReceipt = (ctx: AdapterSelectContext): boolean => ctx.command.record.erp_doc_kind === 'goods-receipt' && ctx.command.operation === 'create';
@@ -50,11 +49,13 @@ export async function resolveOdooProcurementAdapter(ctx: AdapterSelectContext): 
   if (gap) throw new AppError(`Odoo purchasing needs ${gap}, which this Odoo connection does not show. Run the connection check again.`, 'config-rejected');
   if (!pushable(ctx)) throw new AppError('Purchasing through Odoo is not available yet', 'config-rejected');
   const sc = ctx.serviceClient as SupabaseClient;
-  const call = withOdooCallBudget(bindCall({ ...resolved.client, deadlineMs: REQUEST_DEADLINE_MS }), ctx.odooCallBudget);
+  // Call reservations are charged when recovery admits a candidate. Do not stop a commit midway:
+  // after Odoo accepts create, every failure must leave the outbox retryable rather than failed.
+  const call = bindCall({ ...resolved.client, deadlineMs: REQUEST_DEADLINE_MS });
   if (isReceipt(ctx)) {
     // A receipt books onto the transfer Odoo opened with the order: no order inputs, no currency; its plan comes with the outbox deps.
     const notAnOrder = () => Promise.reject(new AppError('not a purchase-order step', 'commit-rejected'));
-    return createOdooProcurementAdapter({ call, resolveOrder: notAnOrder, resolveRevise: notAnOrder, resolveBill: notAnOrder });
+    return createOdooProcurementAdapter({ call, resolveOrder: notAnOrder, resolveRevise: notAnOrder, resolveBill: notAnOrder, isExternalAnchorOwnedElsewhere: ctx.odooAnchorOwnedElsewhere });
   }
   // OQ-OPP-9: company currency only; a mismatch is refused here, before any outbox row, and Odoo is only read.
   const currencyId = await resolveOdooOrderCurrency(sc, ctx.orgId, ctx.command, call, resolved.companyId);
@@ -80,6 +81,7 @@ export async function resolveOdooProcurementAdapter(ctx: AdapterSelectContext): 
     resolveBill: (command) => resolveOdooBillInputs(sc, ctx.orgId, command, resolved, currencyId, call),
     resolveOrder: (command) => resolveOdooOrderInputs(sc, ctx.orgId, command, resolved, currencyId),
     resolveRevise: (command) => resolveOdooReviseInputs(sc, ctx.orgId, command, resolved, currencyId),
+    isExternalAnchorOwnedElsewhere: ctx.odooAnchorOwnedElsewhere,
   });
 }
 
@@ -101,7 +103,9 @@ export async function resolveOdooRevenueAdapter(ctx: AdapterSelectContext): Prom
   const isReceiptCreate = ctx.command.record.erp_doc_kind === 'incoming-payment' && ctx.command.operation === 'create';
   if (!isInvoicePush(ctx.command) && !isReceiptCreate) throw new AppError('This Odoo revenue command is not available yet', 'config-rejected');
   const sc = ctx.serviceClient as SupabaseClient;
-  const call = withOdooCallBudget(bindCall({ ...resolved.client, deadlineMs: REQUEST_DEADLINE_MS }), ctx.odooCallBudget);
+  // The tick reserves calls before admitting recovery candidates; let an admitted commit finish
+  // so a mid-commit budget cut cannot release a payment's in-flight slot.
+  const call = bindCall({ ...resolved.client, deadlineMs: REQUEST_DEADLINE_MS });
   const replay = await revenueOutboxRowExists(ctx);
   if (isInvoicePush(ctx.command) && !replay) {
     const { input, maps } = await resolveOdooInvoiceInputs(sc, ctx.orgId, ctx.command, resolved, call);

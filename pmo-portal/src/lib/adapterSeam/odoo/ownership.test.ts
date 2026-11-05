@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ODOO_TIER } from './connectAdapter.ts';
-import { odooOwnsRevenueTier, odooOwnsTier } from './ownership.ts';
+import { odooOwnsProcurementTier, odooOwnsRevenueTier } from './ownership.ts';
 
 describe('Odoo tier ownership seam', () => {
   it('identifies only the tier that owns Odoo revenue', () => {
@@ -10,8 +10,8 @@ describe('Odoo tier ownership seam', () => {
   });
 
   it('keeps the generic Odoo tier check inside the tier seam for out-of-seam recovery code', () => {
-    expect(odooOwnsTier(ODOO_TIER)).toBe(true);
-    expect(odooOwnsTier('erpnext')).toBe(false);
-    expect(odooOwnsTier(undefined)).toBe(false);
+    expect(odooOwnsProcurementTier(ODOO_TIER)).toBe(true);
+    expect(odooOwnsProcurementTier('erpnext')).toBe(false);
+    expect(odooOwnsProcurementTier(undefined)).toBe(false);
   });
 });

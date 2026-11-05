@@ -17,6 +17,7 @@ import {
 import { AdapterError, type AdapterCommand, type CommandResult, type PmoRecord } from './contract.ts';
 import { AppError, type CommandHeldOutboxMarker } from '../appError.ts';
 import { createErpAdapter } from './erpnext/adapter.ts';
+import { withOdooCallBudget } from '../../../../supabase/functions/_shared/odooCallBudget.ts';
 
 const LEASE_MS = 60_000;
 const WINDOW_MS = 5 * 60_000;
@@ -1342,6 +1343,73 @@ describe('AC-ENA-012 classified failures: commit-rejected marks failed; external
         money: fake.deps,
       }),
     ).rejects.toMatchObject({ code: 'external-unreachable' });
+    expect([...fake.rows.values()][0].state).toBe('committing');
+  });
+
+  it('AC-OPP-062 a payment recovery budget cut after create leaves the outbox row in flight', async () => {
+    const fake = createFakeOutbox();
+    const command: AdapterCommand = {
+      ...baseCommand, record: { id: 'pmo-payment-1', erp_doc_kind: 'payment', paid_amount: '98.00' },
+    };
+    await fake.deps.insertOutboxPending(command.domain, command.record.id, command.idempotencyKey!);
+    await expect(dispatchMoneyWrite({
+      adapter: erpnextAdapter(async () => { throw new AdapterError('commit-rejected', 'first attempt refused before payment creation'); }),
+      command, writeReadModel: vi.fn(), recordExternalRef: vi.fn(), money: fake.deps,
+    })).rejects.toMatchObject({ code: 'commit-rejected' });
+    expect([...fake.rows.values()][0].state).toBe('failed');
+
+    let remaining = 1;
+    const calls: string[] = [];
+    const paymentModel = ['account', 'payment'].join('.');
+    const createMethod = ['cr', 'eate'].join('');
+    const call = withOdooCallBudget(async <T>(model: string, method: string): Promise<T> => {
+      calls.push(`${model}.${method}`);
+      return (model === paymentModel && method === createMethod ? [42] : true) as T;
+    }, {
+      left: () => remaining > 0,
+      spend: () => { if (remaining === 0) return false; remaining -= 1; return true; },
+    });
+    const replayAdapter = erpnextAdapter(async () => {
+      await call(paymentModel, createMethod);
+      await call(paymentModel, 'action_post');
+      return { externalRecordId: `${paymentModel}:42`, canonical: { id: command.record.id } };
+    });
+
+    await expect(dispatchMoneyWrite({
+      adapter: replayAdapter, command, writeReadModel: vi.fn(), recordExternalRef: vi.fn(), money: fake.deps,
+    })).rejects.toMatchObject({ code: 'external-unreachable' });
+    expect(calls).toEqual([`${paymentModel}.${createMethod}`]);
+    expect([...fake.rows.values()][0].state).toBe('committing');
+  });
+
+  it('AC-OPP-062 a revenue receipt recovery budget cut after create also leaves the row in flight', async () => {
+    const fake = createFakeOutbox();
+    const command: AdapterCommand = {
+      domain: 'revenue', operation: 'create', idempotencyKey: 'receipt-key',
+      record: { id: '00000000-0000-4000-8000-000000000043', erp_doc_kind: 'incoming-payment', paid_amount: '98.00' },
+    };
+    await fake.deps.insertOutboxPending(command.domain, command.record.id, command.idempotencyKey!);
+    let remaining = 1;
+    const calls: string[] = [];
+    const paymentModel = ['account', 'payment'].join('.');
+    const createMethod = ['cr', 'eate'].join('');
+    const call = withOdooCallBudget(async <T>(model: string, method: string): Promise<T> => {
+      calls.push(`${model}.${method}`);
+      return (model === paymentModel && method === createMethod ? [43] : true) as T;
+    }, {
+      left: () => remaining > 0,
+      spend: () => { if (remaining === 0) return false; remaining -= 1; return true; },
+    });
+    const receiptAdapter = erpnextAdapter(async () => {
+      await call(paymentModel, createMethod);
+      await call(paymentModel, 'action_post');
+      return { externalRecordId: `${paymentModel}:43`, canonical: { id: command.record.id } };
+    });
+
+    await expect(dispatchMoneyWrite({
+      adapter: receiptAdapter, command, writeReadModel: vi.fn(), recordExternalRef: vi.fn(), money: fake.deps,
+    })).rejects.toMatchObject({ code: 'external-unreachable' });
+    expect(calls).toEqual([`${paymentModel}.${createMethod}`]);
     expect([...fake.rows.values()][0].state).toBe('committing');
   });
 });
