@@ -1,7 +1,7 @@
 import React from 'react';
 import { DataTable, ListState, type Column } from '@/src/components/ui';
 import type { UsageSummaryRow, OperatorUsageSummaryRow } from '@/src/lib/db/usage';
-import { PLATFORM_CURRENCY, formatCurrencyFine, formatNumber } from '@/src/lib/format';
+import { PLATFORM_CURRENCY, formatCurrencyFine, formatNumber, formatNumberExact } from '@/src/lib/format';
 
 /**
  * Administration › Usage section (ops-admin-surface S5, FR-USE-002/003/004/006). Sourced ONLY
@@ -93,7 +93,7 @@ export const AdministrationUsage: React.FC<AdministrationUsageProps> = ({
           } as Column<UsageRow>,
         ]
       : []),
-    { key: 'cost', header: 'Credits spent', cell: (r) => formatCurrencyFine(r.cost, PLATFORM_CURRENCY) },
+    { key: 'cost', header: 'Credits spent (credits)', cell: (r) => formatNumberExact(r.cost) },
     ...(hasMargin
       ? [{ key: 'margin', header: 'Margin', cell: (r: UsageRow) => (r.margin_usd === null ? '—' : formatCurrencyFine(r.margin_usd, PLATFORM_CURRENCY)) } as Column<UsageRow>]
       : []),

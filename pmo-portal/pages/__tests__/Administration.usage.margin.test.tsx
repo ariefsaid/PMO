@@ -23,6 +23,15 @@ const baseRow: UsageSummaryRow = {
   margin_usd: null,
 };
 
+describe('AdministrationUsage — credits spent unit', () => {
+  it('shows credits spent as a labelled credit number, not a dollar amount', () => {
+    render(<AdministrationUsage rows={[{ ...baseRow, cost: 737.123456 }]} isPending={false} isError={false} onRetry={vi.fn()} />);
+    expect(screen.getByRole('columnheader', { name: /credits spent \(credits\)/i })).toBeInTheDocument();
+    expect(screen.getByText('737.123456')).toBeInTheDocument();
+    expect(screen.queryByText(/\$737/)).not.toBeInTheDocument();
+  });
+});
+
 describe('AdministrationUsage — margin column (AC-USE-003)', () => {
   it('hides the margin column and shows a "pricing not yet configured" note when every row has margin_usd = null', () => {
     render(<AdministrationUsage rows={[baseRow, { ...baseRow, action: 'compose' }]} isPending={false} isError={false} onRetry={vi.fn()} />);
