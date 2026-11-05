@@ -16,6 +16,7 @@
  *   pmo stages <project> | stage-date <project> <stage> <YYYY-MM-DD> (active Admin — #1835)
  *   pmo purchases orphans [--include-set-aside] | link <file> [--dry-run] | link-file <json>   (Admin, Executive, PM, Finance — #1319)
  *   pmo purchases set-aside <file> [--undo] [--dry-run]   (Admin, Finance — #1319 AC-13)
+ *   pmo purchases journals --project <id> | attach-journals <file.json|-> [--dry-run]   (Admin, Executive, PM, Finance — #1919)
  *   pmo erp readiness | list-projects | verify-links
  *   pmo documents list --project <id> | link <json|csv|-> [--dry-run]
  *   pmo m365 status
@@ -52,7 +53,7 @@ import { applyMapSet, MAP_COLUMNS, MAP_TABLE, MapSetError, planMapSet } from './
 import { ACTIVATION_ENABLED, activateBudget, ActivationRefused, linkBudgetSource, validateSource } from './lib/pmo-budgets.mjs';
 import { ATTRIBUTION_READ_RPCS, ATTRIBUTION_WRITE_RPCS, AttributionFileError, explainError, formatPreview, previewRules, readRules, setRules, validateEnd } from './lib/pmo-attribution.mjs';
 import { EQUIPMENT_READ_RPCS, EQUIPMENT_USAGE_RPCS, EQUIPMENT_WRITE_RPCS, EquipmentFileError, EquipmentUsageError, explainError as explainEquipmentError, formatAllocations, previewSettings, readSettings, setSettings, validateUsageList } from './lib/pmo-equipment.mjs';
-import { LinkFileError, MAX_BATCH, PURCHASE_READ_VIEWS, parseCsv, rowsFromCsv, runLink, runSetAside, setAsideRowsFromCsv, validateLinkRows, validateSetAsideRows } from './lib/pmo-purchases.mjs';
+import { LinkFileError, MAX_BATCH, PURCHASE_READ_VIEWS, parseCsv, rowsFromCsv, runAttachJournals, runLink, runSetAside, setAsideRowsFromCsv, validateJournalRows, validateLinkRows, validateSetAsideRows } from './lib/pmo-purchases.mjs';
 import { TM_READ_RPCS, TmQueryError, explainError as explainTmError, formatClaims, formatPreview as formatTmPreview, formatRateCard, listClaims, previewClaim, readRateCard } from './lib/pmo-tm.mjs';
 
 // ── the public surface (DD-API-1 / DD-API-3) ─────────────────────────────────────────────────────
@@ -791,6 +792,9 @@ const USAGE = `usage:
                                                    erp_doctype, erp_name, note; hides overhead documents from orphans)
   pmo purchases link <file.json | file.csv | -> [--csv] [--dry-run]   (Admin, Executive, Project Manager, Finance;
                                                                    link sends ${MAX_BATCH} rows per call)
+  pmo purchases journals --project <id>   (the project's accounting-system journal cost lines)
+  pmo purchases attach-journals <file.json | -> [--dry-run]   (Admin, Executive, Project Manager, Finance; rows of
+                                                   voucher_no, account, project_id, procurement_id; link only)
   pmo purchases link-file <json | @file | ->
   pmo erp readiness | list-projects | verify-links
   pmo documents list --project <id> | link <json|csv|-> [--dry-run]
@@ -1165,6 +1169,22 @@ async function purchases(ctx, positionals, flags) {
     const failed = report.error !== undefined || (!dryRun && report.counts.refused > 0);
     return failed ? new Reported(report, 1) : report;
   }
+  if (sub === 'journals') {
+    // #1919: the project's accounting-system journal cost lines (the same read as the Procurement tab).
+    if (flags.project === undefined || !UUID.test(String(flags.project))) throw usage('purchases journals needs --project <id (uuid)>: pmo purchases journals --project <id>');
+    return authed(ctx, 'POST', '/rest/v1/rpc/project_erp_journal_lines', { body: { p_project_id: flags.project } });
+  }
+  if (sub === 'attach-journals') {
+    if (!arg) throw usage('purchases attach-journals needs a file: pmo purchases attach-journals <file.json|-> [--dry-run]');
+    const rows = await readPayload(ctx, arg === '-' ? '-' : `@${arg.replace(/^@/, '')}`);
+    const problems = validateJournalRows(rows);
+    if (problems.length > 0) throw new CliError(`The journal file has ${problems.length} problem(s); nothing was sent.`, { exit: 2, code: 'invalid_journal_file', details: problems });
+    const dryRun = Boolean(flags['dry-run']);
+    const api = { rpc: (name, body) => authed(ctx, 'POST', `/rest/v1/rpc/${name}`, { body }) };
+    const report = await runAttachJournals(api, rows, { dryRun });
+    const failed = report.error !== undefined || (!dryRun && report.counts.refused > 0);
+    return failed ? new Reported(report, 1) : report;
+  }
   if (sub === 'link-file') {
     const body = await readPayload(ctx, arg);
     if (!body || typeof body !== 'object' || Array.isArray(body) || !body.procurement_id || !body.item) {
@@ -1174,7 +1194,7 @@ async function purchases(ctx, positionals, flags) {
       body: { p_procurement_id: body.procurement_id, p_record_kind: body.record_kind ?? null, p_record_id: body.record_id ?? null, p_item: body.item },
     });
   }
-  throw usage(`Unknown purchases command '${sub ?? ''}'. Use orphans, link, set-aside or link-file.`);
+  throw usage(`Unknown purchases command '${sub ?? ''}'. Use orphans, link, set-aside, journals, attach-journals or link-file.`);
 }
 
 /**

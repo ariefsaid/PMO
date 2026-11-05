@@ -5,7 +5,8 @@
  */
 
 /** The PROCUREMENT-WRITER tier of the API-client guard (migration 0363) — keep in step with it. */
-export const PURCHASE_RPCS = Object.freeze(['link_erp_purchase_documents', 'link_procurement_sharepoint_item']);
+export const PURCHASE_RPCS = Object.freeze(['link_erp_purchase_documents', 'link_procurement_sharepoint_item',
+  'attach_erp_journal_lines', 'project_erp_journal_lines']);  // 0688 (#1919)
 export const PURCHASE_READ_VIEWS = Object.freeze({
   erp_purchase_orphans: Object.freeze(['id', 'erp_doctype', 'erp_name', 'supplier', 'supplier_name', 'doc_date', 'currency',
     'grand_total', 'net_total', 'erp_status', 'project_ids', 'note']),
@@ -237,6 +238,51 @@ export async function runSetAside(api, rows, { undo, dryRun }) {
     }
     for (const r of res?.results ?? []) out.results.push({ ...r, row: at + Number(r.row) });
     for (const k of Object.keys(out.counts)) out.counts[k] += Number(res?.counts?.[k] ?? 0);
+  }
+  return out;
+}
+
+/** `pmo purchases attach-journals` (#1919, FR-JEC-013): one row per ERP journal line to attach to a PMO purchase (link only). */
+const JOURNAL_FIELDS = ['erp_doctype', 'voucher_no', 'project_id', 'account', 'procurement_id'];
+const JOURNAL_REQUIRED = ['voucher_no', 'account', 'project_id', 'procurement_id'];
+
+/** CLI-side checks only (the database decides everything else). */
+export function validateJournalRows(rows) {
+  const problems = [];
+  if (!Array.isArray(rows) || rows.length === 0) return ['the file has no rows'];
+  const seen = new Map(); // voucher|account|project → first row
+  rows.forEach((r, i) => {
+    const n = i + 1;
+    if (!r || typeof r !== 'object' || Array.isArray(r)) { problems.push(`row ${n}: must be an object`); return; }
+    for (const k of Object.keys(r)) if (!JOURNAL_FIELDS.includes(k)) problems.push(`row ${n}: unknown field '${k}'`);
+    for (const k of JOURNAL_REQUIRED) if (typeof r[k] !== 'string' || r[k].trim() === '') problems.push(`row ${n}: ${k} is required`);
+    if (JOURNAL_REQUIRED.every((k) => typeof r[k] === 'string' && r[k].trim() !== '')) {
+      const key = `${r.voucher_no}|${r.account}|${r.project_id.toLowerCase()}`;
+      if (seen.has(key)) problems.push(`row ${n}: ${r.voucher_no} / ${r.account} is already listed on row ${seen.get(key)}`);
+      else seen.set(key, n);
+    }
+  });
+  return problems;
+}
+
+/** Send journal rows in calls of ≤ MAX_BATCH; same report shape and partial-failure fields as runSetAside. */
+export async function runAttachJournals(api, rows, { dryRun }) {
+  const out = { dry_run: Boolean(dryRun), counts: { attach: 0, skip: 0, refused: 0 }, results: [] };
+  for (let at = 0; at < rows.length; at += MAX_BATCH) {
+    const chunk = rows.slice(at, at + MAX_BATCH);
+    let res;
+    try {
+      res = await api.rpc('attach_erp_journal_lines', { p_rows: chunk, p_dry_run: Boolean(dryRun) });
+    } catch (e) {
+      out.failed_at_row = at + 1;
+      out.not_saved_rows = Array.from({ length: rows.length - at }, (_, k) => at + k + 1);
+      out.error = Object.fromEntries(['message', 'code', 'status'].filter((k) => e?.[k] !== undefined && e?.[k] !== null).map((k) => [k, e[k]]));
+      break;
+    }
+    for (const r of res?.results ?? []) {
+      out.results.push({ ...r, row: at + Number(r.row) });
+      if (r.outcome in out.counts) out.counts[r.outcome] += 1;
+    }
   }
   return out;
 }
