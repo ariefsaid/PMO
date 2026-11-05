@@ -5,7 +5,7 @@
  * A3: status{needs-approval} → <ApprovalChip>; system{write_resolved} → inline notice.
  */
 import React from 'react';
-import type { AgentEvent, NeedsApprovalPayload, WriteResolvedPayload, QuestionPayload } from '@/src/lib/agent/runtime/port';
+import type { NeedsApprovalPayload, WriteResolvedPayload, QuestionPayload } from '@/src/lib/agent/runtime/port';
 import type { DownvoteReason } from '@/src/lib/db/agentEvents';
 import { ChatBubble } from './ChatBubble';
 import { Markdown } from './Markdown';
@@ -195,5 +195,3 @@ export const TranscriptItem: React.FC<TranscriptItemProps> = ({
       return null;
   }
 };
-
-export type { AgentEvent };

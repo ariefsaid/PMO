@@ -424,22 +424,17 @@ const administrationBreadcrumbForPath = (
  * a link. `recordResolved` defaults to false (still loading) so callers that
  * don't pass it keep the prior cold-deep-link "Loading…" behavior.
  *
- * Model B (ADR-0020, AC-IXD-PROJ-005): `/projects/:id` is the ONE canonical detail route for
- * every project/opportunity, so its breadcrumb ancestry follows the record's STAGE rather than
- * the URL prefix — a `pipeline | lost` record reads `Sales Pipeline > <name>` (and links back
- * to `/sales`), an `onHand | internal` record reads `Projects > <name>`. The caller resolves
- * the record's status group from the cached lists (`recordStatusForPath`) and threads it in via
- * `recordStatusGroup`; when omitted it defaults to the module's own ancestry (back-compat).
+ * Model B (ADR-0020, AC-IXD-PROJ-005, FIX-2): `/projects/:id` is the ONE canonical detail route for
+ * every project/opportunity, so its breadcrumb ancestry is ALWAYS the module's own "Projects"
+ * ancestry — a pipeline/lost record reads `Projects > <name>` exactly like an onHand/internal
+ * one. The stage group is deliberately NOT an input: the rail's stage-aware highlight is
+ * derived separately (`recordStatusGroupForPath` + `deriveRailActiveOverride` in App.tsx).
  */
 export function breadcrumbForPath(
   pathname: string,
   recordLabel?: string,
   navigate?: (target: string | ListReturnNavigation) => void,
   recordResolved = false,
-  // FIX-2: the stage group is no longer used to change the breadcrumb ancestry for
-  // /projects/:id — that ancestry is always "Projects" so breadcrumb + rail agree.
-  // The param is kept in the signature so App.tsx callers don't need updating.
-  _recordStatusGroup?: ProjectStatusGroup,
   /** Same-owner return descriptor, minted only by `contextualListReturnNavigation`. */
   contextualParent?: ListReturnNavigation,
   routeSearch = '',
