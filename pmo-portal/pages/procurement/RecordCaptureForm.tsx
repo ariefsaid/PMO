@@ -1,4 +1,5 @@
 import { useVendorInvoiceCapture } from './useVendorInvoiceCapture';
+import { PaymentCaptureFields } from './PaymentCaptureFields';
 import { VendorInvoiceCaptureFields } from './VendorInvoiceCaptureFields';
 /**
  * RecordCaptureForm — inline per-phase capture form for the four new ERP-canonical
@@ -31,8 +32,7 @@ import { useTranslation } from 'react-i18next';
 import { groupRefIsPmoAuthored } from './groupRef';
 import { formatMoneyInputValue } from '@/src/lib/format';
 import type { CommandIntent } from '@/src/lib/repositories/types';
-import { vendorInvoiceIdentityAccessibleLabel, type VendorInvoiceContext } from '@/src/components/procurement/vendorInvoiceIdentityLabels';
-import { VendorInvoiceIdentity } from '@/src/components/procurement/VendorInvoiceIdentity';
+import type { VendorInvoiceContext } from '@/src/components/procurement/vendorInvoiceIdentityLabels';
 import { SubcontractBillLines } from './SubcontractBillLines';
 import type { SubcontractBillLineInput } from '@/src/lib/db/subcontracts';
 
@@ -560,59 +560,17 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
 
       {/* [PD-5]: predecessor FK for payment — required on a flipped org (DD-VPAY-3), optional otherwise */}
       {cfg.showInvoiceFk && (
-        <div className="flex flex-col gap-1">
-          <SelectField
-            id={`${formId}-invoice`}
-            label={<>{t('procurementDetail.paymentLinksToInvoice', 'Links to invoice')} {!paymentBillRequired && <span className="font-normal">({t('procurementDetail.vendorInvoice.optional', 'optional')})</span>}</>}
-            value={invoiceId}
-            onChange={(next) => {
-              setInvoiceId(next);
-              setBillError(undefined);
-              // DD-VPAY-10: the bill's mirrored ERP outstanding is the default amount — what we
-              // actually owe, net of withholding (AC-VWH-005's figures: gross 1,110,000 → 1,090,000).
-              // The user may pay less (partial); the server gate (DD-VPAY-7) remains the authority.
-              if (paymentBillRequired) {
-                const selected = invoices.find((inv) => inv.id === next);
-                const raw = selected?.erp_outstanding_amount;
-                const outstanding = typeof raw === 'string' ? Number(raw) : raw;
-                if (typeof outstanding === 'number' && Number.isFinite(outstanding)) {
-                  setAmountStr(formatMoneyInputValue(outstanding));
-                  setAmountError(undefined);
-                }
-              }
-            }}
-            data-testid="payment-invoice-select"
-            placeholder={t('procurementDetail.noInvoiceSelected', '— none —')}
-            options={invoices.map((inv) => {
-              const label = vendorInvoiceIdentityAccessibleLabel({
-                t,
-                referenceNumber: inv.reference_number,
-                viNumber: inv.vi_number,
-                invoiceDate: inv.invoice_date,
-                context: invoiceIdentityContext ?? { state: 'unavailable' },
-              });
-              // FR-OPP-044: a bill whose total Odoo computed differently is not payable until a person has checked it in Odoo.
-              const needsAttention = odooProcurement && Boolean((inv as { erp_attention?: string | null }).erp_attention);
-              return needsAttention
-                ? { value: inv.id, label: `${label} — ${t('procurement:odoo.billCheckFirst', 'check in Odoo first')}`, disabled: true }
-                : { value: inv.id, label };
-            })}
-          />
-          {invoiceId && (() => {
-            const selected = invoices.find((inv) => inv.id === invoiceId);
-            return selected ? (
-              <div data-testid="payment-selected-invoice-identity" className="mt-1 min-w-0 rounded-md border border-border/60 bg-muted/30 p-2">
-                <VendorInvoiceIdentity
-                  referenceNumber={selected.reference_number}
-                  viNumber={selected.vi_number}
-                  invoiceDate={selected.invoice_date}
-                  context={invoiceIdentityContext ?? { state: 'unavailable' }}
-                />
-              </div>
-            ) : null;
-          })()}
-          <FieldError id={`${formId}-invoice-error`}>{billError}</FieldError>
-        </div>
+        <PaymentCaptureFields
+          formId={formId}
+          invoices={invoices}
+          invoiceIdentityContext={invoiceIdentityContext}
+          paymentBillRequired={paymentBillRequired}
+          odooProcurement={odooProcurement}
+          invoiceId={invoiceId}
+          billError={billError}
+          onSelect={(next) => { setInvoiceId(next); setBillError(undefined); }}
+          onOutstandingAmount={(formatted) => { setAmountStr(formatted); setAmountError(undefined); }}
+        />
       )}
 
       {isPayment && odooProcurement && <OdooJournalSelect value={odooJournalId} onChange={setOdooJournalId} id={`${formId}-journal`} />}
