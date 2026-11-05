@@ -245,10 +245,33 @@ function PushAttentionSection() {
   const { currentUser } = useAuth();
   const may = usePermission();
   const { toast } = useToast();
-  const { data, isPending, isError, retry: retryMutation } = usePushesNeedingAttention();
+  const { data, isPending, isError, refetch, retry: retryMutation } = usePushesNeedingAttention();
   const [retryingId, setRetryingId] = useState<string | null>(null);
 
-  if (isPending || isError || !data || data.length === 0) return null;
+  if (isError) {
+    return (
+      <section
+        className="mb-4"
+        aria-label={t('approvals.pushAttention.title', 'ERP pushes needing attention')}
+      >
+        <h2 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+          {t('approvals.pushAttention.title', 'ERP pushes needing attention')}
+        </h2>
+        <ListState
+          variant="error"
+          title={t('approvals.queue.loadError', "Couldn't load {{queue}}", {
+            queue: t('approvals.pushAttention.title', 'ERP pushes needing attention').toLowerCase(),
+          })}
+          sub={t('approvals.queue.loadErrorSub', 'Try again to refresh this queue.')}
+          onRetry={() => {
+            void refetch();
+          }}
+        />
+      </section>
+    );
+  }
+
+  if (isPending || !data || data.length === 0) return null;
 
   return (
     <section
@@ -345,7 +368,30 @@ function EmployeeLinkConfirmSection() {
     [profiles],
   );
 
-  if (links.isPending || links.isError || !links.data || links.data.length === 0) return null;
+  if (links.isError) {
+    return (
+      <section
+        className="mb-4"
+        aria-label={t('approvals.employeeLinks.title', 'Employee links awaiting confirmation')}
+      >
+        <h2 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+          {t('approvals.employeeLinks.title', 'Employee links awaiting confirmation')}
+        </h2>
+        <ListState
+          variant="error"
+          title={t('approvals.queue.loadError', "Couldn't load {{queue}}", {
+            queue: t('approvals.employeeLinks.title', 'Employee links awaiting confirmation').toLowerCase(),
+          })}
+          sub={t('approvals.queue.loadErrorSub', 'Try again to refresh this queue.')}
+          onRetry={() => {
+            void links.refetch();
+          }}
+        />
+      </section>
+    );
+  }
+
+  if (links.isPending || !links.data || links.data.length === 0) return null;
 
   return (
     <section
