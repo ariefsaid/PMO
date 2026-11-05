@@ -489,6 +489,14 @@ scripts/with-db-lock.sh scripts/with-erpnext-lock.sh scripts/serve-functions.sh 
   npx playwright test e2e/AC-ENA-053-*
 ```
 
+**ERPNext vendor payments: one in flight per bill.** A bill can have one ERPNext payment in flight at a time; a second
+attempt is refused with "A payment for this bill is already in progress". A payment that never reached ERPNext frees its
+bill by itself: one the purchase rules refused is marked failed at once, and a queued one never claimed within 15 minutes is
+marked failed when the next payment for that bill arrives. A payment whose outcome is unknown (claimed, then committing,
+committed or quarantined) is settled by the sweep, which adopts the ERPNext document or holds the row. The one route that
+needs a person is a **held** payment: resolve it through the Admin-only `release_outbox_hold` action (held to failed) after
+checking ERPNext for the payment, then pay again. Do not edit outbox rows by hand.
+
 ## Odoo 20 Community dev bed (#1504 prerequisite)
 
 A stock `odoo:20.0` + `postgres:17-alpine` Docker Compose project (`pmo-odoo`), separate from the Supabase and

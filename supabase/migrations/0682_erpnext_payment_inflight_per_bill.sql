@@ -6,6 +6,13 @@
 -- (org, bill) and let its unique constraint arbitrate each bill. This is ERPNext procurement payment
 -- only; Odoo and other ERPNext outbox commands do not enter this table.
 --
+-- A bill is never kept reserved by a payment that cannot reach ERPNext. A `pending` payment that was never
+-- claimed (claim_generation 0) has not written anything: the ERPNext write follows the claim. When a NEW payment
+-- hits a bill held by such a row older than 15 minutes (the claim itself is a 60 s lease; a never-claimed row
+-- past 15 minutes belongs to an invocation that died or whose claim was refused), the trigger marks that row
+-- `failed` and the new payment takes the bill. committing / committed / quarantined / held rows and any row that
+-- was ever claimed have an unknown outcome and are never released this way.
+--
 -- Backfill chooses one deterministic reservation per org/bill. DISTINCT ON makes this safe when
 -- existing in-flight rows already overlap; when the chosen row settles, the trigger hands the
 -- reservation to another still-in-flight row before releasing the bill.
@@ -36,16 +43,16 @@ declare
   v_old_inflight       boolean := false;
   v_new_inflight       boolean := false;
   v_old_org_id         uuid;
-  v_new_org_id         uuid := new.org_id;
+  v_new_org_id         uuid;
   v_old_outbox_id      uuid;
-  v_new_outbox_id      uuid := new.id;
+  v_new_outbox_id      uuid;
   v_old_bill_names     text[] := array[]::text[];
   v_new_bill_names     text[] := array[]::text[];
   v_bill_name          text;
   v_lock_id            bigint;
   v_replacement_id     uuid;
 begin
-  if tg_op = 'UPDATE' then
+  if tg_op in ('UPDATE', 'DELETE') then
     v_old_org_id := old.org_id;
     v_old_outbox_id := old.id;
     v_old_inflight := old.external_tier = 'erpnext'
@@ -62,17 +69,33 @@ begin
     end if;
   end if;
 
-  v_new_inflight := new.external_tier = 'erpnext'
-    and new.domain = 'procurement'
-    and new.payload->>'erp_doc_kind' = 'payment'
-    and new.state in ('pending','committing','committed','quarantined','held');
-  if v_new_inflight then
-    select coalesce(array_agg(distinct bills.bill_name order by bills.bill_name), array[]::text[])
-      into v_new_bill_names
-      from jsonb_array_elements_text(
-        case when jsonb_typeof(new.payload->'pi_names') = 'array' then new.payload->'pi_names' else '[]'::jsonb end
-      ) as bills(bill_name)
-     where bills.bill_name is not null and bills.bill_name <> '';
+  if tg_op <> 'DELETE' then
+    v_new_org_id := new.org_id;
+    v_new_outbox_id := new.id;
+    v_new_inflight := new.external_tier = 'erpnext'
+      and new.domain = 'procurement'
+      and new.payload->>'erp_doc_kind' = 'payment'
+      and new.state in ('pending','committing','committed','quarantined','held');
+    if v_new_inflight then
+      select coalesce(array_agg(distinct bills.bill_name order by bills.bill_name), array[]::text[])
+        into v_new_bill_names
+        from jsonb_array_elements_text(
+          case when jsonb_typeof(new.payload->'pi_names') = 'array' then new.payload->'pi_names' else '[]'::jsonb end
+        ) as bills(bill_name)
+       where bills.bill_name is not null and bills.bill_name <> '';
+    end if;
+  else
+    v_new_outbox_id := old.id;
+  end if;
+
+  -- Not a payment in flight before or after (every budget, timesheet, invoice and Odoo write): nothing to do.
+  if not v_old_inflight and not v_new_inflight then
+    return case when tg_op = 'DELETE' then old else new end;
+  end if;
+  -- Same org, same bills, in flight before and after (state progressing): the reservation is unchanged.
+  if tg_op = 'UPDATE' and v_old_inflight and v_new_inflight
+     and v_old_org_id = v_new_org_id and v_old_bill_names = v_new_bill_names then
+    return new;
   end if;
 
   -- Stable lock order lets a command that names multiple bills reserve or release them atomically.
@@ -91,7 +114,8 @@ begin
   end loop;
 
   -- The current reservation owner may be one of several rows that pre-date this migration. Pass the
-  -- unique reservation to another live row for the same bill before releasing it.
+  -- unique reservation to another live row for the same bill before releasing it. (The upsert covers a
+  -- DELETE, where the foreign key has already removed the owner's reservation.)
   if v_old_inflight then
     foreach v_bill_name in array v_old_bill_names loop
       if not (v_new_inflight and v_new_org_id = v_old_org_id and v_bill_name = any(v_new_bill_names)) then
@@ -115,9 +139,10 @@ begin
           delete from public.erpnext_payment_inflight_bills
            where org_id = v_old_org_id and bill_name = v_bill_name and outbox_id = v_old_outbox_id;
         else
-          update public.erpnext_payment_inflight_bills
-             set outbox_id = v_replacement_id
-           where org_id = v_old_org_id and bill_name = v_bill_name and outbox_id = v_old_outbox_id;
+          insert into public.erpnext_payment_inflight_bills (org_id, bill_name, outbox_id)
+          values (v_old_org_id, v_bill_name, v_replacement_id)
+          on conflict (org_id, bill_name) do update set outbox_id = excluded.outbox_id
+          where public.erpnext_payment_inflight_bills.outbox_id = v_old_outbox_id;
         end if;
       end if;
     end loop;
@@ -128,13 +153,28 @@ begin
   if v_new_inflight then
     foreach v_bill_name in array v_new_bill_names loop
       if not (v_old_inflight and v_new_org_id = v_old_org_id and v_bill_name = any(v_old_bill_names)) then
-        insert into public.erpnext_payment_inflight_bills (org_id, bill_name, outbox_id)
-        values (v_new_org_id, v_bill_name, v_new_outbox_id);
+        -- Release a holder that can no longer reach ERPNext: pending, never claimed, older than 15 minutes.
+        -- Its own trigger run then drops its reservations (the advisory locks are already held).
+        update public.external_command_outbox o
+           set state = 'failed',
+               last_error = 'payment-intent-expired-before-claim',
+               updated_at = now()
+          from public.erpnext_payment_inflight_bills r
+         where r.org_id = v_new_org_id and r.bill_name = v_bill_name
+           and r.outbox_id = o.id and o.id <> v_new_outbox_id
+           and o.state = 'pending' and o.claim_generation = 0
+           and o.created_at < now() - interval '15 minutes';
+        -- The release above can hand the bill straight to this row (it is already visible as in flight).
+        if not exists (select 1 from public.erpnext_payment_inflight_bills r
+                        where r.org_id = v_new_org_id and r.bill_name = v_bill_name and r.outbox_id = v_new_outbox_id) then
+          insert into public.erpnext_payment_inflight_bills (org_id, bill_name, outbox_id)
+          values (v_new_org_id, v_bill_name, v_new_outbox_id);
+        end if;
       end if;
     end loop;
   end if;
 
-  return new;
+  return case when tg_op = 'DELETE' then old else new end;
 end;
 $$;
 
@@ -142,7 +182,7 @@ revoke all on function public.sync_erpnext_payment_inflight_bills() from public,
 grant execute on function public.sync_erpnext_payment_inflight_bills() to service_role;
 
 create trigger external_command_outbox_zz_erpnext_payment_inflight_guard
-  after insert or update on public.external_command_outbox
+  after insert or update or delete on public.external_command_outbox
   for each row execute function public.sync_erpnext_payment_inflight_bills();
 
 insert into public.erpnext_payment_inflight_bills (org_id, bill_name, outbox_id)

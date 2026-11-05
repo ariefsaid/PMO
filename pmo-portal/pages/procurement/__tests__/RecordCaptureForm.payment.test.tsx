@@ -9,6 +9,13 @@
  */
 import { describe, it, expect, vi, afterEach } from 'vitest';
 
+// The real dispatch client runs; only the transport is stubbed (the edge function's 409 body).
+const h = vi.hoisted(() => ({ invoke: vi.fn() }));
+vi.mock('@/src/lib/supabase/client', async (orig) => {
+  const actual = (await orig()) as { supabase: { functions: unknown } };
+  return { ...actual, supabase: { ...actual.supabase, functions: { invoke: h.invoke } } };
+});
+
 // The org-tax read is unrelated to this kind; stub it like the groupRef/taxTemplate specs do.
 vi.mock('@/src/hooks/useOrgTaxDefault', async (orig) => {
   const actual = (await orig()) as Record<string, unknown>;
@@ -34,6 +41,7 @@ import { clearOwnershipCache, setTaskOwnership } from '@/src/lib/adapterSeam/own
 import { FinanceI18nTestProvider } from '@/pages/__tests__/financeI18nTestProvider';
 import { financeTestI18n, financeTestI18nReady } from '@/pages/__tests__/financeI18nTestInstance';
 import { formatMoneyInputValue } from '@/src/lib/format';
+import { dispatchDomainCommand } from '@/src/lib/adapterSeam/dispatchClient';
 
 afterEach(() => clearOwnershipCache());
 
@@ -116,7 +124,14 @@ describe('RecordCaptureForm — payment capture on a FLIPPED org (#910)', () => 
   ] as const)('explains a per-bill payment conflict in %s', async (locale, message) => {
     await financeTestI18n.changeLanguage(locale);
     const onCreate = renderPayment();
-    onCreate.mockRejectedValueOnce(Object.assign(new Error('backend conflict'), { code: 'payment-in-flight-for-bill' }));
+    h.invoke.mockResolvedValueOnce({
+      data: null,
+      error: {
+        message: 'Edge Function returned a non-2xx status code',
+        context: { clone: () => ({ json: async () => ({ error: 'payment-in-flight-for-bill', message: 'A payment for this bill is already in progress. Wait for it to finish' }) }) },
+      },
+    });
+    onCreate.mockImplementationOnce(() => dispatchDomainCommand('procurement', 'create', { id: 'pay-1' }, { idempotencyKey: 'k1' }));
     await userEvent.selectOptions(screen.getByTestId('payment-invoice-select'), 'inv-1');
     await userEvent.click(screen.getByTestId('payment-save-btn'));
     expect(await screen.findByText(locale === 'en' ? 'Payment already in progress' : 'Pembayaran sedang berlangsung')).toBeInTheDocument();

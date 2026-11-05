@@ -526,7 +526,11 @@ export async function reconcileOrgOutbox(
     } catch (err) {
       // A retryable reconcile (e.g. a quarantined row still in its window → "reconciling") is expected
       // mid-recovery; record + continue so one candidate does not abort the pass.
-      errors.push({ id: candidate.id, error: err instanceof Error ? err.message : String(err) });
+      const message = err instanceof Error ? err.message : String(err);
+      // A failed payment whose bill a newer payment now holds retries on the next tick once that one settles
+      // (0682); it is a deferral, not a fault to report on every tick.
+      if (message.includes('external_command_outbox_one_inflight_erpnext_payment_per_bill')) continue;
+      errors.push({ id: candidate.id, error: message });
     }
   }
   return { reconciled, errors };

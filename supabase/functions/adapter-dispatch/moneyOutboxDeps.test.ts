@@ -453,6 +453,30 @@ Deno.test('claimOutboxForCommit: claims a pending row (bumps claim_generation), 
   assertEquals(second, null, 'a second claim on an already-committing row must return null');
 });
 
+Deno.test('a claim refused by the purchase rules marks the never-claimed pending row failed (frees its bill); a failed row is left as it is', async () => {
+  const base = {
+    org_id: 'org-1', domain: 'procurement', pmo_record_id: 'pmo-1', external_tier: 'erpnext', operation: 'create',
+    external_record_id: null, canonical: null, last_error: null,
+  };
+  const { client, rows } = makeFakeClient([
+    { ...base, id: 'outbox-1', idempotency_key: 'key-1', state: 'pending', claim_generation: 0 },
+    { ...base, id: 'outbox-2', idempotency_key: 'key-2', state: 'failed', claim_generation: 1, last_error: 'earlier' },
+  ]);
+  const refusing: OutboxServiceClient = {
+    ...client,
+    rpc: async () => ({ data: null, error: { message: 'procurement-payment-refused: exceeds_approved_amount', code: 'P0001' } }),
+  } as OutboxServiceClient;
+  const deps = createDbMoneyOutboxDeps({ serviceClient: refusing, orgId: 'org-1', externalTier: 'erpnext', operation: 'create', probeByRemarksKey: async () => null });
+  for (const id of ['outbox-1', 'outbox-2']) {
+    let err: unknown;
+    try { await deps.claimOutboxForCommit(id); } catch (e) { err = e; }
+    assertEquals((err as { code?: string }).code, 'commit-rejected', 'the refusal still surfaces to the caller');
+  }
+  assertEquals(rows.get('outbox-1')?.state, 'failed');
+  assertEquals(rows.get('outbox-1')?.last_error, 'procurement-payment-refused: exceeds_approved_amount');
+  assertEquals(rows.get('outbox-2')?.last_error, 'earlier', 'an already-failed row is not rewritten');
+});
+
 Deno.test('quarantineCommitting: transitions a committing row -> quarantined, bumps the fencing token', async () => {
   const { client, rows } = makeFakeClient([
     {
