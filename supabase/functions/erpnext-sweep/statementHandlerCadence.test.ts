@@ -394,6 +394,7 @@ const MONEY_ONLY_RPCS = [
   '/rest/v1/rpc/claim_erp_sweep_lock',
   '/rest/v1/rpc/release_erp_sweep_lock',
   '/rest/v1/rpc/sync_erp_statement_change_scope', // 0655: change-driven statements decide per tick in the DB; no ERP or batch work unless it admits a run
+  '/rest/v1/rpc/record_erp_statement_nightly_due',
   '/rest/v1/rpc/plan_erp_statement_pass',
   '/rest/v1/rpc/outbox_reconcile_candidates',
   '/rest/v1/rpc/outbox_retry_pending',

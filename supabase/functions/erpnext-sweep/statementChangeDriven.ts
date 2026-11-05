@@ -83,6 +83,10 @@ export async function planChangeDrivenStatements(
       if (result.status === 'unknown' && CHECKER_FAILED.has(result.reason)) return { kind: 'legacy' };
     }
 
+    // Materialize the organization-local 02:00 obligations that have come due (idempotent, lease-fenced).
+    const due = await service.rpc('record_erp_statement_nightly_due', scope);
+    if (due.error) return { kind: 'legacy' };
+
     const plan = await service.rpc('plan_erp_statement_pass', { ...scope, p_scope_epoch: epoch });
     const planned = plan.data as { mode?: string; reason?: string; dirty_cut?: string; intent_cut?: string; nightly_cut?: string | null } | null;
     if (plan.error || !planned) return { kind: 'legacy' };
