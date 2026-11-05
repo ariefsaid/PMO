@@ -479,20 +479,22 @@ export async function handleConnectRequest(req: Request): Promise<Response> {
     }
 
     // Persist both identities atomically after the ownership/binding commit. They contain no secret.
-    const configPatch: Record<string, unknown> = {};
+    const configPatch: Record<string, unknown> = { identity_incomplete: false };
     if (clickUpUserId !== null) configPatch.clickup_actor_id = clickUpUserId;
     if (clickUpTeamId !== null) configPatch.clickup_team_id = clickUpTeamId;
-    if (Object.keys(configPatch).length > 0) {
-      const { error: configError } = await serviceClient.rpc('merge_external_org_binding_config', {
-        p_org_id: profile.org_id, p_external_tier: 'clickup', p_patch: configPatch,
+    const { error: configError } = await serviceClient.rpc('merge_external_org_binding_config', {
+      p_org_id: profile.org_id, p_external_tier: 'clickup', p_patch: configPatch,
+    });
+    if (configError) {
+      // Retryable: Connect again rotates the binding and rewrites the identity (same recovery as the site-url write).
+      console.error('external_org_bindings clickup identity persist failed', configError);
+      // Best effort: mark the committed connection incomplete (cleared by the next successful connect below).
+      await serviceClient.rpc('merge_external_org_binding_config', {
+        p_org_id: profile.org_id, p_external_tier: 'clickup', p_patch: { identity_incomplete: true },
       });
-      if (configError) {
-        // Retryable: Connect again rotates the binding and rewrites the identity (same recovery as the site-url write).
-        console.error('external_org_bindings clickup identity persist failed', configError);
-        return errorResponse(
-          'ClickUp connected but its workspace could not be saved. Please try connecting again.',
-          'CONNECT_IDENTITY_NOT_SAVED', 500);
-      }
+      return errorResponse(
+        'ClickUp connected but its workspace could not be saved. Please try connecting again.',
+        'CONNECT_IDENTITY_NOT_SAVED', 500);
     }
   }
 
