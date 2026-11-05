@@ -601,6 +601,17 @@
   bottom: auto;
   transform: none !important;
 }
+/* Side drawers are edge-anchored full-height panels: the dialog remedy above would land
+   the toast exactly on the drawer's header — its title AND action buttons (issue 1816).
+   ToastProvider measures the live header band into --toast-top-inset (viewport px, with
+   the 12px breathing gap already included) and re-measures on resize, so the toast tucks
+   just below the header and clear of the footer actions at every viewport width. The
+   fallback only covers a drawer whose header has not rendered (never the shipped one). */
+[data-toast-container][data-overlay-drawer="true"] {
+  top: var(--toast-top-inset, 64px);
+  bottom: auto;
+  transform: none !important;
+}
 @keyframes toastIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
 @keyframes toastOut { to { opacity: 0; transform: translateX(20px); } }
 
