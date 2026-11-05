@@ -62,7 +62,7 @@ export function validateGraphProxyInput(
   }
   // The browser surface is GET-only and body-less (FR-M365DOC-070): held write scopes never make a
   // browser-supplied mutation permissible. The single folder write is server-built (graphFolderWrite.ts).
-  const browserMethodAllowed = normalizeGraphMethod(req.method) === "GET"; // mutation-witness:browser-get-only
+  const browserMethodAllowed = isGetMethod(req.method); // mutation-witness:browser-get-only
   if (
     !browserMethodAllowed || req.body !== undefined ||
     !normalizeGraphRequestPath(req.path)
@@ -846,14 +846,9 @@ async function sendFolderRequest(
   if (method === "POST" ? graphRes.status !== 201 : graphRes.status !== 200) {
     return { kind: "unavailable" };
   }
-  try {
-    const item = data;
-    return item && typeof item === "object" && !Array.isArray(item)
-      ? { kind: "ok", item: item as Record<string, unknown> }
-      : { kind: "unavailable" };
-  } catch {
-    return { kind: "unavailable" };
-  }
+  return data && typeof data === "object" && !Array.isArray(data)
+    ? { kind: "ok", item: data as Record<string, unknown> }
+    : { kind: "unavailable" };
 }
 
 async function sendGraphRequest(
@@ -1013,15 +1008,11 @@ async function loadFreshAccessToken(
   return decryptToken(envelope.ciphertext, envelope.iv, kek);
 }
 
-const GRAPH_METHODS = new Set(["GET", "POST", "PATCH", "PUT", "DELETE"]);
 const ENCODED_UNSAFE_PATH = /%2e|%2f|%5c/i;
 
-function normalizeGraphMethod(
-  method: unknown,
-): GraphProxyRequest["method"] | null {
-  if (typeof method !== "string") return null;
-  const upper = method.toUpperCase();
-  return GRAPH_METHODS.has(upper) ? upper as GraphProxyRequest["method"] : null;
+/** Case-insensitive GET check; every other method (and any non-string) is rejected. */
+function isGetMethod(method: unknown): boolean {
+  return typeof method === "string" && method.toUpperCase() === "GET";
 }
 
 /** True when any `/`-separated segment is exactly `.` or `..` (the only real traversal forms). */
@@ -1088,9 +1079,8 @@ export function scopeCoversPath(
 ): boolean {
   const normalizedPath = normalizePathForScope(path, dotSegmentsOnly);
   if (!normalizedPath || !isOneDrivePath(normalizedPath)) return false;
-  const normalizedMethod = normalizeGraphMethod(method);
   // Reads only: held write scopes never make a mutation permissible here (FR-M365DOC-070).
-  if (normalizedMethod !== "GET") return false; // mutation-witness:scope-get-only
+  if (!isGetMethod(method)) return false; // mutation-witness:scope-get-only
   return scopes.some((scope) =>
     ["Files.Read", "Files.ReadWrite", "Files.Read.All", "Files.ReadWrite.All"]
       .includes(scope)

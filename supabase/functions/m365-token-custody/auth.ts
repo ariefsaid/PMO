@@ -19,23 +19,17 @@ export function corsHeaders(allowedOrigin: string): Record<string, string> {
 
 /**
  * DATA-ACCESS gate (FR-M365SEP-001/002) — authorizes the caller as an ACTIVE MEMBER of an ENTITLED
- * org, and consults ONLY the caller-JWT client. It takes NO serviceClient parameter: that absence is
- * itself the structural guarantee it cannot reach `platform_operators` (FR-M365SEP-001). Three
+ * org. Membership is read through the service-side `m365_membership_state` RPC and the entitlement
+ * through the caller-JWT client; neither reaches `platform_operators` (FR-M365SEP-001). Three
  * independently-failing assertions, each with its own typed error (FR-M365SEP-002):
- *   - profile missing/unreadable → BAD_REQUEST (org not resolvable; AC-M365SEP-011)
+ *   - membership missing/unreadable → BAD_REQUEST (org not resolvable; AC-M365SEP-011)
  *   - caller not an active member → DISABLED_MEMBER (AC-M365SEP-003; NFR-M365SEP-002)
  *   - org lacks the entitlement → NOT_ENTITLED (AC-M365SEP-005)
  * Returns { orgId, role } on success.
  *
- * NFR-M365SEP-002 (active membership is enforced EXPLICITLY). The `status !== 'active'` check below
- * is read from `profiles` directly. It is NOT inherited from `org_features`' RLS policy:
- * `profiles_select` (0002_rls.sql:32) carries NO status predicate, so a disabled caller reads their
- * own row fine; today's protection would be an accident of `org_features_select`'s policy
- * (`0070_org_features.sql:32` includes `is_active_member()`), and moving that read to the service
- * client — as was done for `platform_operators` — would silently un-protect disabled users. The
- * explicit check makes the disabled-user criterion fail on its own, regardless of the entitlement
- * read. `banned_until` is the DB half of the membership rule and is covered at the DB layer
- * (AC-M365SEP-004, pgTAP 0178) — `is_active_member()` conjoins it into the org_features read.
+ * NFR-M365SEP-002 (active membership is enforced EXPLICITLY). Disabled and banned members are
+ * classified from the service-side membership state, so the rejection never depends on a side effect
+ * of `org_features`' RLS read. The explicit check makes the disabled-user criterion fail on its own.
  *
  * Per FR-M365SEP-011, an active member of an entitled org is authorized irrespective of PMO role or
  * Operator status. The Operator-only activation question (may this actor toggle m365_integration?)
@@ -77,53 +71,28 @@ export async function readM365MembershipState(
 
 export async function authorizeMemberEntitled(deps: {
   callerClient: M365SupabaseLike;
-  serviceClient?: M365SupabaseLike;
+  serviceClient: M365SupabaseLike;
   userId: string;
-  requiredEntitlement?: string;
 }): Promise<{ orgId: string; role: string }> {
-  const entitlement = deps.requiredEntitlement ?? 'm365_integration';
-  const { callerClient, userId } = deps;
+  const { callerClient, serviceClient, userId } = deps;
 
-  // Production always supplies serviceClient. The caller-only fallback preserves the pure helper's
-  // legacy unit seam; resolveOrgOrResult below never takes this branch.
-  let orgId: string;
-  let role: string;
-  if (deps.serviceClient) {
-    const membership = await readM365MembershipState(deps.serviceClient, userId);
-    if (membership.state === 'missing' || !membership.orgId || !membership.role) {
-      throw new M365HandlerError('BAD_REQUEST', 'org not resolvable for caller');
-    }
-    if (membership.state === 'disabled') {
-      throw new M365HandlerError('DISABLED_MEMBER', 'account access has been disabled');
-    }
-    if (membership.state === 'banned') {
-      throw new M365HandlerError('BANNED_MEMBER', 'account access is suspended');
-    }
-    orgId = membership.orgId;
-    role = membership.role;
-  } else {
-    const { data: profile, error: profileError } = await callerClient
-      .from('profiles')
-      .select('org_id, role, status')
-      .eq('id', userId)
-      .single();
-
-    if (profileError || !profile) {
-      throw new M365HandlerError('BAD_REQUEST', 'org not resolvable for caller');
-    }
-    const profileRow = profile as { org_id: string; role: string; status: string };
-    if (profileRow.status !== 'active') {
-      throw new M365HandlerError('DISABLED_MEMBER', 'account access has been disabled');
-    }
-    orgId = profileRow.org_id;
-    role = profileRow.role;
+  const membership = await readM365MembershipState(serviceClient, userId);
+  if (membership.state === 'missing' || !membership.orgId || !membership.role) {
+    throw new M365HandlerError('BAD_REQUEST', 'org not resolvable for caller');
   }
+  if (membership.state === 'disabled') {
+    throw new M365HandlerError('DISABLED_MEMBER', 'account access has been disabled');
+  }
+  if (membership.state === 'banned') {
+    throw new M365HandlerError('BANNED_MEMBER', 'account access is suspended');
+  }
+  const { orgId, role } = membership;
 
   const { data: feature, error: featureError } = await callerClient
     .from('org_features')
     .select('enabled')
     .eq('org_id', orgId)
-    .eq('feature_key', entitlement)
+    .eq('feature_key', 'm365_integration')
     .single();
 
   if (featureError || (feature as { enabled?: boolean } | null)?.enabled !== true) {

@@ -107,6 +107,15 @@ export function validateFolderItem(
   };
 }
 
+/** The drive root's id when the item is a folder of the expected drive; null means refuse (root identity is mandatory). */
+export function validatedRootId(item: Record<string, unknown>, driveId: string): string | null {
+  const parent = isRecord(item.parentReference) ? item.parentReference : null;
+  return safeGraphId(item.id) && item.folder != null &&
+      !(parent !== null && parent.driveId !== undefined && parent.driveId !== driveId)
+    ? item.id
+    : null;
+}
+
 function failureOf(outcome: FolderOutcome): ParentFailure {
   if (outcome.kind === "forbidden") return { kind: "forbidden" };
   return outcome.kind === "unavailable"
@@ -175,12 +184,8 @@ export async function ensureConventionParents(
 ): Promise<{ ok: true; parentId: string } | { ok: false; failure: ParentFailure }> {
   const root = await access.readFolder({ kind: "root" });
   if (root.kind !== "ok") return { ok: false, failure: failureOf(root) };
-  const rootParent = isRecord(root.item.parentReference) ? root.item.parentReference : null;
-  if (
-    !safeGraphId(root.item.id) || root.item.folder == null ||
-    (rootParent !== null && rootParent.driveId !== undefined && rootParent.driveId !== driveId)
-  ) return { ok: false, failure: { kind: "refused" } };
-  let parentId = root.item.id;
+  let parentId = validatedRootId(root.item, driveId);
+  if (parentId === null) return { ok: false, failure: { kind: "refused" } };
   for (const segment of segments) {
     const resolved = await resolveOrCreateFolder(access, driveId, parentId, segment, true, onCreated);
     if (!resolved.ok) return resolved;
