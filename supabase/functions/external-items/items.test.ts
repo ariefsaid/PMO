@@ -280,6 +280,27 @@ describe('external-items shipped handler', () => {
     );
   });
 
+  it('pages the account mirror past the 1000-row response cap and fails the whole read when a later page fails', async () => {
+    const row = (i: number) => ({
+      erp_name: `A${i}`, account_name: `A${i}`, account_number: String(i), parent_account: null,
+      root_type: 'Expense', is_group: false, disabled: false,
+    });
+    const mirror = (failSecond: boolean) =>
+      supabaseSelect('erp_account_mirror', (call) => {
+        const offset = Number(call.url.searchParams.get('offset') ?? 0);
+        if (offset === 0) return jsonResponse(Array.from({ length: 1000 }, (_, i) => row(i)));
+        return failSecond ? jsonResponse({ message: 'boom' }, { status: 500 }) : jsonResponse([row(1000), row(1001)]);
+      });
+    await withFetchMock([profile(), actor('Admin'), binding(), mirror(false)], async () => {
+      const response = await handleItemsRequest(await request({ purpose: 'budget-accounts' }));
+      assertEquals(response.status, 200);
+      assertEquals((await response.json()).accounts.length, 1002);
+    });
+    await withFetchMock([profile(), actor('Admin'), binding(), mirror(true)], async () => {
+      const response = await handleItemsRequest(await request({ purpose: 'budget-accounts' }));
+      assertEquals(response.status, 502);
+    });
+  });
   it('AC-UX-076 falls back to the live company chart only when the account mirror is empty', async () => {
     await withFetchMock(
       [

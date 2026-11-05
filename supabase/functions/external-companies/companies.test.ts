@@ -117,6 +117,34 @@ describe('external-companies — ERPNext branch', () => {
     );
   });
 
+  it('pages past 200 companies and fails the list when a later page fails', async () => {
+    const setup = (secondPage: () => Response) => [
+      supabaseSelect('profiles', () =>
+        jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, {
+          headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+        })),
+      supabaseSelect('platform_operators', () => jsonResponse(null)),
+      supabaseSelect('external_org_bindings', () =>
+        jsonResponse({ secret_ref: 'vault-ref', status: 'active', site_url: 'https://erp.example.com' }, {
+          headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+        })),
+      supabaseRpc('read_vault_secret', () => jsonResponse('test-key:test-secret')),
+      erp('erp.example.com', '/api/resource/Company', (call) =>
+        call.url.searchParams.get('limit_start') === '200'
+          ? secondPage()
+          : jsonResponse({ data: Array.from({ length: 200 }, (_, i) => ({ name: `C${i}` })) })),
+    ];
+    await withFetchMock(setup(() => jsonResponse({ data: [{ name: 'C200' }] })), async () => {
+      const res = await handleCompaniesRequest(await authed({ tier: 'erpnext' }));
+      assertEquals(res.status, 200);
+      assertEquals((await res.json()).companies.length, 201);
+    });
+    await withFetchMock(setup(() => new Response('{}', { status: 500 })), async () => {
+      const res = await handleCompaniesRequest(await authed({ tier: 'erpnext' }));
+      assertEquals(res.status, 502);
+    });
+  });
+
   it('Operator OK', async () => {
     await withFetchMock(
       [
