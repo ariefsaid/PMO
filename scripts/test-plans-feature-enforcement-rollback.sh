@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# AC-PLN-005 reversal round trip for 0534 (feature enforcement): reverses the later 0538 policy overlay
-# first, asserts the 0534 entitlement conjunct is gone (and 0081's families kept theirs), then reapplies
-# 0534 and 0538 in order. Transactional — the database is left at HEAD.
+# AC-PLN-005 reversal round trip for 0534 (feature enforcement): reverses every later migration that
+# rewrote the same policy text (0646's initplan wrapping, then 0538's procurement overlay) first,
+# asserts the 0534 entitlement conjunct is gone (and 0081's families kept theirs), then reapplies
+# 0534, 0538 and 0646 in order. Transactional — the database is left at HEAD.
 # Run under scripts/with-db-lock.sh: scripts/with-db-lock.sh scripts/test-plans-feature-enforcement-rollback.sh
 set -euo pipefail
 root="$(cd "$(dirname "$0")/.." && pwd)"
@@ -11,18 +12,29 @@ cleanup() { rm -f "$test_file"; }
 trap cleanup EXIT
 python3 - "$test_file" <<'PY'
 from pathlib import Path
+import re
 import sys
 out = Path(sys.argv[1])
 text = Path('scripts/plans-feature-enforcement-rollback.test.sql').read_text()
+
+# One transaction owns the whole round trip: the file's own begin;/rollback; is what makes a failure
+# leave the database at HEAD (and keeps a red assertion from poisoning the rest of the pgTAP job).
+# 0646 and its down are wrapped in begin;/commit; like the rest of that generation, so — same rule as
+# scripts/fx-rates-rollback.test.sh — strip bare transaction-boundary statements when inlining.
+txn_boundary = re.compile(r'(?im)^\s*(?:begin|commit)\s*;\s*$')
+
 for marker, source in [
+    ('-- @0646_DOWN@', 'supabase/migrations/rollback/0646_rls_caller_initplans_down.sql'),
     ('-- @0538_DOWN@', 'supabase/migrations/rollback/0538_procurement_write_policy_enforcement_down.sql'),
     ('-- @0534_DOWN@', 'supabase/migrations/rollback/0534_feature_enforcement_down.sql'),
     ('-- @0534_UP@', 'supabase/migrations/0534_feature_enforcement.sql'),
     ('-- @0538_UP@', 'supabase/migrations/0538_procurement_write_policy_enforcement.sql'),
+    ('-- @0646_UP@', 'supabase/migrations/0646_rls_caller_initplans.sql'),
 ]:
-    source_text = Path(source).read_text()
     if marker not in text:
         raise SystemExit(f'marker missing from harness: {marker}')
+    source_text = txn_boundary.sub('-- (transaction boundary stripped: the harness owns the transaction)',
+                                   Path(source).read_text())
     text = text.replace(marker, source_text)
 out.write_text(text)
 PY

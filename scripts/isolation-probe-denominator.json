@@ -440,6 +440,7 @@
     "procurement_gate_violation(uuid,procurement_status)",
     "procurement_item_values_editable(uuid)",
     "procurement_ledger_held(uuid)",
+    "procurement_ledger_held_many(uuid[])",
     "procurement_payment_allowed(uuid)",
     "procurement_payment_within_ceiling(uuid)",
     "project_win_eligibility(uuid)",
