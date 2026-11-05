@@ -34,6 +34,7 @@ describe('Rail saved-views read', () => {
   it('is enabled for an org with the module', () => {
     orgFeaturesState.value = { user_views: true };
     renderRail();
+    expect(useUserViews).toHaveBeenCalled();
     expect(useUserViews.mock.calls.every(([enabled]) => enabled === true)).toBe(true);
   });
 });

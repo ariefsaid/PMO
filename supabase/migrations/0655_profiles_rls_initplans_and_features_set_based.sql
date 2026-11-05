@@ -21,13 +21,13 @@ create function public.auth_manager_id() returns uuid
   language sql stable security definer set search_path to 'public'
   as $$ select manager_id from profiles where id = auth.uid() $$;
 
--- Own-org only: asking about a profile in another org (or none) answers false, never a cross-tenant equality oracle.
+-- Own-org, active members only: asking about a profile in another org (or none) answers false, never a cross-tenant equality oracle.
 create function public.profile_prefs_unchanged(p_id uuid, p_locale text, p_number_locale text, p_timezone text) returns boolean
   language sql stable security definer set search_path to 'public'
   as $$
     select exists (
       select 1 from profiles p
-       where p.id = p_id and p.org_id = (select auth_org_id())
+       where p.id = p_id and p.org_id = (select auth_org_id()) and (select is_active_member())
          and not (p.locale is distinct from p_locale)
          and not (p.number_locale is distinct from p_number_locale)
          and not (p.timezone is distinct from p_timezone))

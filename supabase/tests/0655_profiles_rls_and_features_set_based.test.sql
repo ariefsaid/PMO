@@ -6,7 +6,7 @@
 -- AC-PERF-004 the two new definer helpers are not reachable by anon and cannot be used as a cross-tenant oracle.
 -- pgTAP runs as the superuser (bypasses RLS), so authz assertions run under `set local role authenticated` + jwt claims.
 begin;
-select plan(23);
+select plan(26);
 
 insert into organizations (id, name) values
   ('06550000-0000-0000-0000-00000000000a', 'PERF Org A'),
@@ -74,6 +74,11 @@ select is((select display_enabled from f_new where feature_key = 'revenue'), fal
 select set_config('request.jwt.claims', '{"sub":"06550000-0000-0000-0000-0000000000a3","role":"authenticated"}', true);
 select throws_ok($$select * from public.resolved_org_features()$$, '42501', 'inactive', 'AC-PERF-001 a disabled member is refused (unchanged guard)');
 
+-- rows an UPDATE touches for the current caller (RLS hides, not errors, rows a USING clause rejects)
+create function pg_temp.rows_updated(p_id uuid) returns integer language plpgsql as $$
+declare n integer;
+begin update profiles set title = 'x' where id = p_id; get diagnostics n = row_count; return n; end $$;
+
 -- ═══ AC-PERF-002 — profiles reads: tenant and active-member scope ═══
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"06550000-0000-0000-0000-0000000000a2","role":"authenticated"}';
@@ -96,6 +101,14 @@ select lives_ok($$update profiles set title = 'Lead' where id = '06550000-0000-0
 -- ═══ AC-PERF-004 — the new helpers ═══
 select is(public.profile_prefs_unchanged('06550000-0000-0000-0000-0000000000a2', 'en', null, null), true, 'AC-PERF-004 own-org profile: stored prefs equal -> true');
 select is(public.profile_prefs_unchanged('06550000-0000-0000-0000-0000000000b1', 'en', null, null), false, 'AC-PERF-004 other-org profile: false, never an equality oracle');
+set local request.jwt.claims = '{"sub":"06550000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+select is(pg_temp.rows_updated('06550000-0000-0000-0000-0000000000a1'), 0,
+  'AC-PERF-003 an Engineer may not update a peer''s profile');
+set local request.jwt.claims = '{"sub":"06550000-0000-0000-0000-0000000000a3","role":"authenticated"}';
+select is(pg_temp.rows_updated('06550000-0000-0000-0000-0000000000a3'), 0,
+  'AC-PERF-003 a disabled member''s UPDATE of their own profile is refused');
+select is(public.profile_prefs_unchanged('06550000-0000-0000-0000-0000000000a2', 'en', null, null), false,
+  'AC-PERF-004 a disabled member gets false from the helper (not an equality oracle)');
 reset role;
 select ok(not has_function_privilege('anon', 'public.auth_manager_id()', 'execute')
       and not has_function_privilege('anon', 'public.profile_prefs_unchanged(uuid,text,text,text)', 'execute'),
