@@ -33,14 +33,6 @@ export interface M365SupabaseLike {
     delete(): {
       eq(column: string, value: string): DeleteEqBuilder;
     };
-    update(
-      patch: object,
-    ): { eq(column: string, value: string): UpdateEqBuilder };
-    upsert(row: object, opts?: { onConflict?: string }): {
-      select(
-        columns: string,
-      ): { single(): PromiseLike<{ data: unknown; error: unknown }> };
-    };
   };
   rpc(
     fn: string,
@@ -60,21 +52,6 @@ export interface DeleteEqBuilder
   ): { maybeSingle(): PromiseLike<{ data: unknown; error: unknown }> };
 }
 
-/**
- * Builder returned by `.update(patch).eq(...)`. Thenable (await → `{ data, error }`) AND chainable
- * into `.select(columns).maybeSingle()` so callers can read the affected row (refresh.ts / revoke.ts
- * inspect it after a write — the H6 / Luna-Med pattern: only treat a write as authoritative when a
- * row was actually returned; a zero-row update or a 42501 guard rejection is surfaced as failure).
- * Mirrors the real supabase-js fluent query builder shape (PostgREST returns the updated row on
- * `.update().select()`).
- */
-export interface UpdateEqBuilder
-  extends PromiseLike<{ data: unknown; error: unknown }> {
-  select(
-    columns: string,
-  ): { maybeSingle(): PromiseLike<{ data: unknown; error: unknown }> };
-}
-
 // ── Request/response shapes (the wire contract, ADR-0060 §9) ───────────────────
 
 export interface InitiateConnectRequest {
@@ -88,10 +65,6 @@ export interface InitiateConnectResponse {
 
 export interface InitiateOrgApprovalRequest {
   action: "initiate_org_approval";
-}
-
-export interface InitiateOrgApprovalResponse {
-  adminConsentUrl: string;
 }
 
 export interface GraphProxyRequest {
@@ -243,12 +216,10 @@ export const M365_IDENTITY_MISMATCH = "M365_IDENTITY_MISMATCH" as const;
  */
 export class M365HandlerError extends Error {
   readonly code: M365ErrorCode;
-  readonly contextId?: string;
-  constructor(code: M365ErrorCode, message?: string, contextId?: string) {
+  constructor(code: M365ErrorCode, message?: string) {
     super(message ?? code);
     this.name = "M365HandlerError";
     this.code = code;
-    this.contextId = contextId;
   }
 }
 

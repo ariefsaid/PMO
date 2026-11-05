@@ -7,8 +7,8 @@
 --   Tender Submitted: P-TS1 (1,200,000) + P-TS2 (950,000) + P-TS3 (1,000,000) = count=3, total=3,150,000
 --   PQ Submitted:    P-PQ1 (800,000)                                            = count=1, total=800,000
 --   win_prob from isolated pipeline_stage_config seeded below:
---     Tender Submitted = 0.500 → weighted = 1,575,000
---     PQ Submitted     = 0.250 → weighted =   200,000
+--     Tender Submitted = 0.500 → weighted = 393,750
+--     PQ Submitted     = 0.250 → weighted =    50,000
 begin;
 select plan(6);
 
@@ -65,26 +65,26 @@ values
 set local role authenticated;
 set local request.jwt.claims to '{"sub":"00440000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 
--- AC-1110: Tender Submitted stage — count=3, total=3,150,000, win_prob=0.500, weighted=1,575,000
+-- AC-1110: Tender Submitted stage — count=3, total=3,150,000, Go=0.500, weighted=393,750
 select ok(
   (select (elem->>'count')::int = 3
      and  abs((elem->>'total_value')::numeric - 3150000) < 1
      and  abs((elem->>'win_probability')::numeric - 0.5) < 1e-6
-     and  abs((elem->>'weighted_value')::numeric - 1575000) < 1
+     and  abs((elem->>'weighted_value')::numeric - 393750) < 1
    from json_array_elements((get_sales_pipeline()->'stages')) elem
    where elem->>'status' = 'Tender Submitted'),
-  'AC-1110: Tender Submitted stage count=3, total=3150000, win_prob=0.500, weighted=1575000 (FR-SPD-010)'
+  'AC-1110: Tender Submitted stage count=3, total=3150000, Go=0.500, Get=0.250, weighted=393750 (FR-SPD-010)'
 );
 
--- AC-1110: PQ Submitted stage — count=1, total=800,000, win_prob=0.250, weighted=200,000
+-- AC-1110: PQ Submitted stage — count=1, total=800,000, Go=0.250, weighted=50,000
 select ok(
   (select (elem->>'count')::int = 1
      and  abs((elem->>'total_value')::numeric - 800000) < 1
      and  abs((elem->>'win_probability')::numeric - 0.25) < 1e-6
-     and  abs((elem->>'weighted_value')::numeric - 200000) < 1
+     and  abs((elem->>'weighted_value')::numeric - 50000) < 1
    from json_array_elements((get_sales_pipeline()->'stages')) elem
    where elem->>'status' = 'PQ Submitted'),
-  'AC-1110: PQ Submitted stage count=1, total=800000, win_prob=0.250, weighted=200000 (FR-SPD-010)'
+  'AC-1110: PQ Submitted stage count=1, total=800000, Go=0.250, Get=0.250, weighted=50000 (FR-SPD-010)'
 );
 
 -- AC-1110: No Ongoing Project stage in pipeline output

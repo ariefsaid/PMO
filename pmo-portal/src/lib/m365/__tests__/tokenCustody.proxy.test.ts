@@ -4,7 +4,7 @@
  */
 import { describe, it, expect, vi } from 'vitest';
 import { handleGraphProxy } from '../../../../../supabase/functions/m365-token-custody/proxy';
-import { scopeCoversPath } from '../../../../../supabase/functions/m365-token-custody/proxy';
+import { scopeCoversPath } from '../../../../../supabase/functions/m365-token-custody/graphRead';
 import { fromByteaValue, toByteaParam } from '../../../../../supabase/functions/m365-token-custody/crypto';
 import { mockClient, deps, encryptForTest } from './m365MockDeps';
 import type { ConnectionRow, GraphProxyRequest } from '../../../../../supabase/functions/m365-token-custody/types';

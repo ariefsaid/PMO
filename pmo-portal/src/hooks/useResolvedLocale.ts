@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { repositories, type OrgLocaleDefaultsRow } from '@/src/lib/repositories';
 import { useAuth } from '@/src/auth/useAuth';
 import { resolveLocale, resolveOrgBusinessTimezone, type ResolvedLocale } from '@/src/lib/locale/resolveLocale';
+import { SESSION_QUERY_OPTIONS } from '@/src/lib/queryPolicies';
 
 const NO_ORG_DEFAULTS: OrgLocaleDefaultsRow = {
   defaultLocale: null,
@@ -22,7 +23,7 @@ export function useOrgLocaleDefaults(): OrgLocaleDefaultsRow {
     queryKey: ['org-locale-defaults', currentUser?.org_id],
     queryFn: () => repositories.orgSettings.getLocaleDefaults(),
     enabled: Boolean(currentUser),
-    staleTime: Infinity,
+    ...SESSION_QUERY_OPTIONS,
     placeholderData: NO_ORG_DEFAULTS,
   });
   return data ?? NO_ORG_DEFAULTS;

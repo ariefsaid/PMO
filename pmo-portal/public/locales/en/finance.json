@@ -164,6 +164,7 @@
     "statusOverdueDay": "Overdue · {{count}} day",
     "statusOverdueDays": "Overdue · {{count}} days",
     "statusPaid": "Paid",
+    "statusReceiptAwaitingOdoo": "Receipt sent, awaiting Odoo",
     "statusCancelled": "Cancelled",
     "paymentDrawerTitle": "{{client}} · {{amount}}",
     "cash": "Cash received",
@@ -197,7 +198,13 @@
     "clearProject": "Clear project filter"
   },
   "receipts": {
-    "someUnreported": "Some figures weren't reported."
+    "someUnreported": "Some figures weren't reported.",
+    "confirmOdooTitle": "Record this receipt in Odoo?",
+    "confirmOdooBody": "PMO sends this receipt to Odoo. Check the settled amount and any tax withheld before continuing.",
+    "statusAwaitingOdoo": "Receipt sent, awaiting Odoo",
+    "statusPaidOdoo": "Paid",
+    "journalLabel": "Received into",
+    "titleUnnumbered": "Receipt, not numbered yet"
   },
   "statements": {
     "amountsIn": "Amounts in",
@@ -609,7 +616,39 @@
     "budget": "Budget",
     "activateEditorBlocked": "You drafted or edited this version, so someone else must activate it.",
     "activateNeedsAdminOrFinance": "No drafter is recorded for this version. Ask an Admin or Finance user to activate it.",
-    "wholeProjectEditorHint": "Whole-project budget: enter each category total once — no fiscal year per line."
+    "wholeProjectEditorHint": "Whole-project budget: enter each category total once — no fiscal year per line.",
+    "invoiceNumber": "Invoice number",
+    "odooDraftNumber": "Draft — Odoo assigns the number on approval",
+    "erpLineItemsStoredExternally": "Line items are kept in the accounting system for this invoice.",
+    "paymentsReceivedFromClientsMirroredFromOdoo": "Payments received from clients, mirrored from Odoo."
+  },
+  "odooOutcome": {
+    "confirmed": "In Odoo",
+    "pending": "Sent, waiting for Odoo",
+    "held": "Needs a decision",
+    "needs-attention": "Check in Odoo",
+    "refused": "Odoo did not accept it",
+    "read": "Read {{age}}",
+    "sent": "Sent {{age}}",
+    "unreachable": "Odoo cannot be reached. Showing the last data PMO read{{age}}.",
+    "offlineAction": "Odoo is unavailable. You can still view the last data PMO read; no new changes were sent from this screen.",
+    "creditNotes": "Credit notes",
+    "amountUnavailable": "Amount not available",
+    "creditNotesUnavailable": "Credit notes could not be read right now.",
+    "next": {
+      "pending": "Odoo has not confirmed it yet. PMO checks again by itself; there is nothing to do.",
+      "held": "PMO cannot tell whether Odoo already made it. An Admin or Finance user checks Odoo and decides.",
+      "needs-attention": "Check the invoice in Odoo before you continue.",
+      "refused": "Check what you entered, then record it again."
+    },
+    "reason": {
+      "total-mismatch": "The total in Odoo is not what PMO sent.",
+      "cost-account-missing": "A posted line has no cost account for the project.",
+      "money-unreadable": "PMO could not read the amounts from Odoo.",
+      "lines-unreadable": "PMO could not read the invoice lines from Odoo.",
+      "advance-account-mismatch": "A customer advance was posted to a different account than the one chosen in setup."
+    },
+    "sentTotal": "PMO sent {{amount}}."
   },
   "common": {
     "save": "Save",
@@ -630,5 +669,51 @@
     "otherHelp": "Licences, reimbursables and work outside the contract: counts toward revenue and margin, never reduces Remaining to invoice.",
     "change": "Change billing kind",
     "save": "Save billing kind"
+  },
+  "erpJournal": {
+    "title": "Journal entries from the accounting system",
+    "alreadyInSpending": "Already in spending",
+    "qualifier": "These costs are already counted in project spending. Attaching connects a journal to a purchase and does not add spend.",
+    "noPurchaseNote": "Paid directly and recorded in the accounting system as a journal, so no purchase was raised in PMO.",
+    "notInPurchase": "Not in a purchase",
+    "cancelled": "Cancelled in the accounting system",
+    "possiblyReversed": "Possibly reversed",
+    "attach": "Attach to purchase",
+    "attachOne": "Attach {{name}} to a purchase",
+    "attachConfirm": "Attach",
+    "loadError": "Couldn't load the journal entries",
+    "column": {
+      "journal": "Journal",
+      "date": "Date",
+      "account": "Account",
+      "amount": "Amount",
+      "purchase": "Purchase"
+    },
+    "dialogTitle": "Attach {{name}} to a purchase",
+    "dialogSub": "The purchase’s open commitment drops by this line, and project spending does not change. Nothing is sent to the accounting system.",
+    "willAttach": "Ready to attach. Nothing is sent to the accounting system.",
+    "notAttached": "Nothing was attached.",
+    "cannotAttach": "This line cannot be attached to that purchase.",
+    "purchaseNoun": "purchase of this project",
+    "attachedTitle": "Journal entries from the accounting system",
+    "attachedError": "Couldn't load the attached journal entries",
+    "detach": "Detach",
+    "detachOne": "Detach {{name}}",
+    "detachTitle": "Detach {{name}}?",
+    "detachBody": "{{name}} is no longer part of this purchase and its open commitment goes back up by that amount. Project spending does not change, and nothing changes in the accounting system.",
+    "reason": {
+      "unknown": "This journal line could not be attached.",
+      "keyMissing": "The journal line is incomplete.",
+      "invalidId": "The purchase or project could not be read. Refresh and try again.",
+      "pmoPosted": "PMO posted this journal itself; it already has its own record.",
+      "notFound": "This journal line is not in PMO yet. Wait for the next sync.",
+      "notPositive": "Only a journal line that adds cost can be attached.",
+      "purchaseNotFound": "Purchase not found.",
+      "purchaseClosed": "This purchase is cancelled or rejected.",
+      "project": "This purchase belongs to another project.",
+      "currency": "The purchase currency differs from the accounting currency.",
+      "attachedElsewhere": "This journal line already belongs to another purchase.",
+      "alreadyAttached": "This journal line is already attached to this purchase."
+    }
   }
 }

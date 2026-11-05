@@ -102,7 +102,9 @@ export function scopeMirrorQuery<T>(query: T, kind: ErpDocKind, lookupColumn: st
   const fiscalYear = mirrorFiscalYear(kind, pmoRecordId);
   if (fiscalYear !== null) scoped = scoped.eq('fiscal_year', fiscalYear);
   if (kind === 'budget' && mirrorTable(kind, pmoRecordId) === 'budget_version_account_erp_mirror') {
-    scoped = scoped.eq('erp_account', parseBudgetIdentity(pmoRecordId).erpAccount);
+    const identity = parseBudgetIdentity(pmoRecordId);
+    scoped = scoped.eq('erp_account', identity.erpAccount);
+    if (identity.kind === 'range') scoped = scoped.eq('to_fiscal_year', identity.toFiscalYear);
   }
   return scoped as unknown as T;
 }

@@ -121,6 +121,18 @@ describe('AC-OPP-011 an interrupted command ends with one confirmed order and no
     expect(r.count('purchase.order', 'button_confirm')).toBe(2);
   });
 
+  it('AC-OPP-062 a foreign owner holds an unanchored order before the recovery probe writes its identifier or confirms it', async () => {
+    const r = rig();
+    r.arm('purchase.order', 'create', 'lost-response');
+    await expect(r.attempt()).rejects.toMatchObject({ code: 'external-unreachable' });
+    const before = [r.count('ir.model.data', 'create'), r.count('purchase.order', 'button_confirm')];
+
+    await expect(Reflect.apply(recoverOrder, null, [r.call, create().record, COMPOSITE, async () => true]))
+      .rejects.toMatchObject({ code: 'command-held' });
+
+    expect([r.count('ir.model.data', 'create'), r.count('purchase.order', 'button_confirm')]).toEqual(before);
+  });
+
   it('a lost response on the confirm: the retry adopts the confirmed order and confirms nothing again', async () => {
     const r = rig();
     r.arm('purchase.order', 'button_confirm', 'lost-response');
@@ -255,6 +267,17 @@ describe('AC-OPP-016 / AC-OPP-017 revising a pushed order edits it in place, onc
     await r.adapter.commit(revise(2));
     expect(await recoverRevise(r.call, revise(2).record)).toMatchObject({ canonical: { id: PO_ID, amount: '65.00' } });
     expect(await recoverRevise(r.call, revise(3).record)).toBeNull();
+  });
+
+  it('AC-OPP-062 a revision owned by another PMO order is held before the recovery adapter can adopt it', async () => {
+    const r = await pushed();
+    r.state.lines = target('6.000', '1.000');
+    await r.adapter.commit(revise(2));
+    const before = r.count('purchase.order', 'write') + r.count('ir.model.data', 'create');
+
+    await expect(recoverRevise(r.call, revise(2).record, async () => true)).rejects.toMatchObject({ code: 'command-held' });
+
+    expect(r.count('purchase.order', 'write') + r.count('ir.model.data', 'create')).toBe(before);
   });
 
   it('a failure after the write and before the identifier: the retry writes nothing again and anchors', async () => {
@@ -481,6 +504,18 @@ describe('AC-OPP-044 / AC-OPP-020 what Odoo computed is flagged, never overwritt
 });
 
 describe('Odoo ids are per model: a bill and an order can be the same number', () => {
+  it('AC-OPP-062 a foreign owner holds a draft bill before the recovery probe posts it', async () => {
+    const r = rig();
+    r.arm('account.move', 'action_post', 'transport');
+    await expect(r.attemptBill()).rejects.toMatchObject({ code: 'external-unreachable' });
+    const posts = r.count('account.move', 'action_post');
+
+    await expect(Reflect.apply(recoverBill, null, [r.call, billCommand().record, BILL_COMPOSITE, billExpect(), async () => true]))
+      .rejects.toMatchObject({ code: 'command-held' });
+
+    expect(r.count('account.move', 'action_post')).toBe(posts);
+  });
+
   it('the bill\'s external reference is qualified by its model, so it never equals the order\'s even when the Odoo ids are equal', async () => {
     const r = rig();
     const order = await r.attempt();

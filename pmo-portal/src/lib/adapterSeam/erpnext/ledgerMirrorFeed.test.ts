@@ -126,6 +126,15 @@ function pleRow(name: string, over: Partial<ledgerFetch.PaymentLedgerEntryRow> =
 }
 
 describe('erpnext/ledgerMirrorFeed — feedLedgerMirrors (AC-ENA-150/162 basis)', () => {
+  it('AC-JEC-013: a fetched GL remark reaches the mirror row (full replay path)', async () => {
+    const base = fakeServiceClient();
+    const sc = Object.assign(base, { rpc: vi.fn().mockResolvedValue({ data: { deleted: 0 }, error: null }) });
+    vi.spyOn(ledgerFetch, 'fetchGlEntries').mockResolvedValue({ rows: [glRow('GL-REM', { company: 'Synthetic Co', remarks: 'Vendor X inv 12' })], caughtUp: true });
+    vi.spyOn(ledgerFetch, 'fetchPaymentLedgerEntries').mockResolvedValue({ rows: [], caughtUp: true });
+    await feedLedgerMirrors(sc as never, { client: { fetchImpl: fetch, apiKey: 'k', apiSecret: 's', baseUrl: 'https://erp.example.test' }, orgId: 'org-1', company: 'Synthetic Co', fullReplay: true });
+    expect(h(base).gl.get('GL-REM')).toMatchObject({ remarks: 'Vendor X inv 12' });
+  });
+
   it('AC-005: a complete full replay marks fetched rows and finishes atomically before watermark promotion', async () => {
     const base = fakeServiceClient();
     const rpc = vi.fn().mockResolvedValue({ data: { deleted: 2 }, error: null });
@@ -679,6 +688,17 @@ describe('erpnext/ledgerMirrorFeed — a reposted voucher is replaced, never dou
     expect(voucherRead?.since).toBeUndefined(); // the full current set, never the modified cursor
     expect(res.glCursor).toBe('2026-10-25 08:32:12.251858');
     expect(res.glCaughtUp).toBe(true);
+  });
+
+  it('AC-JEC-013: a replaced voucher\'s rows carry the GL remark too (voucher-replace path)', async () => {
+    const sc = fakeServiceClient(mirrorAfterFirstRepost());
+    h(sc).setWatermark('erpnext', LEDGER_GL_WM_DOMAIN, '2026-10-25 07:37:57.013202');
+    const withRemark = erpCurrent.map((r) => ({ ...r, remarks: 'Vendor Lab inv 7' }));
+    mockGl(async () => ({ rows: withRemark, caughtUp: true }));
+    vi.spyOn(ledgerFetch, 'fetchPaymentLedgerEntries').mockResolvedValue({ rows: [], caughtUp: true });
+    await feedLedgerMirrors(sc, { client, orgId: 'org-1', company: 'Synthetic Co' });
+    expect(h(sc).gl.get('ACC-GLE-2026-01438')).toMatchObject({ remarks: 'Vendor Lab inv 7' });
+    expect(h(sc).gl.get('ACC-GLE-2026-00231')).toMatchObject({ remarks: 'Vendor Lab inv 7' });
   });
 
   it('a voucher too big to read in full removes nothing, is reported as skipped, and does not block the feed', async () => {

@@ -117,7 +117,40 @@ function redactExceptionProperties(
       else if (Array.isArray(v)) properties[key] = v.map((x) => (typeof x === 'string' ? redactExceptionText(x) : x));
     }
   }
+  sanitizeNestedEventValue(properties);
   return captureResult;
+}
+
+function sanitizeNestedEventValue(value: unknown): unknown {
+  if (typeof value === 'string') {
+    try {
+      const parsed = new URL(value);
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return value;
+      const queryStart = value.indexOf('?');
+      const hashStart = value.indexOf('#');
+      const suffixStart = [queryStart, hashStart].filter((index) => index >= 0).sort((a, b) => a - b)[0];
+      return suffixStart === undefined ? value : value.slice(0, suffixStart);
+    } catch {
+      return value;
+    }
+  }
+  if (Array.isArray(value)) {
+    for (let index = 0; index < value.length; index += 1) {
+      value[index] = sanitizeNestedEventValue(value[index]);
+    }
+    return value;
+  }
+  if (value && typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    for (const key of Object.keys(record)) {
+      if (POSTHOG_PROPERTY_DENYLIST.includes(key) || key === 'navigationURL') {
+        delete record[key];
+      } else {
+        record[key] = sanitizeNestedEventValue(record[key]);
+      }
+    }
+  }
+  return value;
 }
 
 export interface CaptureExceptionInput {
@@ -180,7 +213,7 @@ function isDoNotTrack(): boolean {
 
 /**
  * FR-CON-002/003/AC-CON-011 (ADR-0067 addendum, 2026-07-28): the consent surface on `/privacy` is
- * THREE-STATE, not boolean — `hasAnalyticsOptedOut()` alone answers only "did the user explicitly
+ * THREE-STATE, not boolean — `analyticsClient.hasOptedOut()` alone answers only "did the user explicitly
  * check the box", which is a different question from "is this browser's usage actually being sent".
  * `getConsentState` answers the second question, in the SAME priority order `doInit`'s own guard
  * checks (config.enabled, then DNT, then the stored opt-out) — so the UI can never show a state the

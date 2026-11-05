@@ -1130,6 +1130,21 @@ describe('ProjectBudget Active version actions', () => {
     expect(mockArchive).toHaveBeenCalledWith({ versionId: 'v-active', cancelErp: false });
   });
 
+  it('discloses both fiscal-year endpoints for an eligible range target before offering cancellation', async () => {
+    budgetState.data = 4700000;
+    versionsState.data = [activeVersion];
+    mockListArchiveTargets.mockResolvedValue([
+      { source_kind: 'account', fiscal_year: 'FY/Alpha', to_fiscal_year: 'FY:Beta', erp_budget_name: 'BUD-RANGE', eligible: true, reason: 'eligible', push_state: 'pushed', erp_docstatus: 1 },
+    ]);
+    renderPage();
+
+    await userEvent.click(screen.getByRole('button', { name: /^(Manage versions|Kelola versi)$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^Archive$/i }));
+    const dialog = screen.getByRole('alertdialog');
+    expect(within(dialog).getByText('FY/Alpha–FY:Beta — BUD-RANGE')).toBeInTheDocument();
+    expect(within(dialog).getByRole('checkbox', { name: /Also cancel 1 Budget document in ERPNext/ })).toBeInTheDocument();
+  });
+
   it('never opens the archive dialog out of a failed inventory read', async () => {
     budgetState.data = 4700000;
     versionsState.data = [activeVersion];
@@ -1195,6 +1210,20 @@ describe('ProjectBudget Active version actions', () => {
     expect(within(list).queryByText(/Labor/)).not.toBeInTheDocument();
     expect(screen.getByText('ERPNext is still enforcing an archived budget for this project. Cancel the ERPNext Budget documents or activate a new PMO budget.'))
       .toHaveAttribute('role', 'alert');
+  });
+
+  it('shows both fiscal-year endpoints for a live archived range Budget', () => {
+    budgetState.data = 0;
+    versionsState.data = [archivedVersion];
+    archiveTargetsState.data = [{
+      id: 'range-mirror-arch', budget_version_id: 'v-arch', fiscal_year: 'FY/Alpha', to_fiscal_year: 'FY:Beta', erp_account: 'Labor',
+      erp_budget_name: 'BUD-RANGE-OLD', erp_docstatus: 1, erp_cancelled_at: null, push_state: 'pushed', budget_intent: 'ensure',
+      activated_at_witness: archivedVersion.activated_at,
+    }];
+    renderPage();
+
+    const list = screen.getByRole('list', { name: 'ERPNext Budget documents that may still be live' });
+    expect(within(list).getByText('FY/Alpha–FY:Beta — BUD-RANGE-OLD')).toBeInTheDocument();
   });
 
   it('keeps a live archived ERP Budget visible when its activation witness is older', () => {

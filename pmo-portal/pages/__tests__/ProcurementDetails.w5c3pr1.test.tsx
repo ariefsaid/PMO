@@ -35,6 +35,15 @@ vi.mock('@/src/hooks/useOrgTaxDefault', async (orig) => {
   const actual = (await orig()) as Record<string, unknown>;
   return { ...actual, useOrgTaxDefault: () => 'exclusive' };
 });
+vi.mock('@/src/hooks/useOrgFeatures', () => ({
+  useOrgFeatures: () => ({
+    data: { procurement: true, procurement_full: true },
+    isLoading: false,
+    isError: false,
+    error: null,
+    refetch: vi.fn(),
+  }),
+}));
 
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -507,6 +516,7 @@ describe('AC-IXD-PROC-W5-C3 non-regression: existing action-area behaviors uncha
 
 // Case-reference register (#1020) has its own tests; isolate it from the details-page harness.
 vi.mock('@/src/hooks/useErpPurchaseLinks', () => import('@/pages/__tests__/helpers/erpPurchaseLinksMock'));
+vi.mock('@/src/hooks/useErpJournalLines', () => import('@/pages/__tests__/helpers/erpJournalLinesMock'));
 vi.mock('@/src/hooks/useProcurementGates', () => import('@/pages/__tests__/helpers/procurementGatesMock'));
 vi.mock('@/src/hooks/useProcurementMicrosoftReferences', () => ({ useProcurementMicrosoftReferences: () => ({ query: { data: [] } }) }));
 vi.mock('@/pages/procurement/ProcurementMicrosoftReferences', () => ({ ProcurementMicrosoftReferences: () => null }));

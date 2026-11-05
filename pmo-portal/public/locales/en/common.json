@@ -144,13 +144,9 @@
     "employeeMissing": "People who record time still needing an ERP employee link: {{count}}",
     "projectLabel": "Project connections",
     "setupComplete": "Setup is complete. Confirmed connections are retained; this review will return when something needs attention.",
-    "partiesAction": "Review company connections",
     "defaultsDialog": "Work and billing settings",
     "domainDialog": "Information to keep updated",
     "domainSubmit": "Save information choices",
-    "onboardDialog": "Review company connections?",
-    "onboardDescription": "Review company connections from the connected business system. Existing confirmed links are kept.",
-    "onboardSubmit": "Review connections",
     "activityField": "Work category",
     "activityHelp": "Choose the enabled work category used when time is recorded.",
     "receivableField": "Customer billing account",
@@ -2580,8 +2576,7 @@
         "decision": "Decision",
         "owner": "Owner",
         "value": "Value",
-        "weighted": "Weighted",
-        "winProbability": "Win probability"
+        "weighted": "Weighted"
       },
       "terminalNotice": "This project has reached a terminal stage. No further pipeline actions.",
       "toast": {
@@ -3101,6 +3096,11 @@
     }
   },
   "financialStatements": {
+    "refreshNow": "Refresh now",
+    "refreshNowQueued": "Refresh requested. New figures appear shortly.",
+    "refreshNowCoalesced": "A refresh was requested recently.",
+    "refreshNowUnavailable": "Refresh is not available yet.",
+    "refreshNowError": "Could not request a refresh. Try again.",
     "amounts": "Amounts",
     "asAt": "As at",
     "accessDenied": "You don't have access to financial statements",
@@ -3153,7 +3153,6 @@
       "stage": "Stage",
       "value": "Value",
       "weighted": "Weighted",
-      "winPct": "Win %",
       "endCustomer": "End customer"
     },
     "empty": {
@@ -3219,7 +3218,6 @@
     },
     "viewToggleLabel": "Pipeline view",
     "weightedForecast": "Weighted pipeline forecast",
-    "winProbability": "Win probability",
     "board": {
       "ariaLabel": "Sales pipeline board"
     },
@@ -3627,8 +3625,6 @@
     "erpSetup": {
       "defaultsFailed": "Could not save ERP defaults. Check the values and try again.",
       "domainFailed": "Could not employ this domain. Check ERP read permissions and try again.",
-      "onboarded": "ERP parties are onboarded. Review the Companies list.",
-      "onboardFailed": "Party onboarding did not complete. Try again.",
       "unavailable": "ERP setup unavailable",
       "configured": "{{count}} of {{total}} configured",
       "activityMissing": "Activity type not set",
@@ -3647,9 +3643,9 @@
     }
   },
   "profileSettings": {
-    "loading": "Loading profile…",
-    "title": "Profile & preferences",
     "description": "Choose your language, number format, and timezone for this portal.",
+    "error": "Could not save your preferences. Please try again.",
+    "invalidTimezone": "Choose a valid timezone before saving.",
     "language": {
       "label": "Interface language",
       "help": "Saved to your profile and applied across devices.",
@@ -3661,6 +3657,7 @@
         "en": "English"
       }
     },
+    "loading": "Loading profile…",
     "number": {
       "label": "Number format",
       "help": "Preview: {{value}}",
@@ -3672,6 +3669,11 @@
         "en": "English (1,234,567.89)"
       }
     },
+    "refreshRetry": "Retry refresh",
+    "save": "Save",
+    "saved": "Preferences saved",
+    "saving": "Saving your preference…",
+    "staleRefresh": "Refreshing this session failed — your choices are stored and will apply on your next sign-in.",
     "timezone": {
       "label": "Timezone",
       "placeholder": "Select a timezone",
@@ -3683,11 +3685,7 @@
         "inheritWithEffective": "Organization default: {{timezone}}"
       }
     },
-    "save": "Save",
-    "saving": "Saving your preference…",
-    "saved": "Preferences saved",
-    "error": "Could not save your preferences. Please try again.",
-    "invalidTimezone": "Choose a valid timezone before saving."
+    "title": "Profile & preferences"
   },
   "oauthConsent": {
     "allow": "Allow",
@@ -3958,7 +3956,6 @@
     "editBudgetLineItemNamed": "Edit line item {{category}}",
     "invoiceDetails": "Invoice details",
     "lineItemsSection": "Line items",
-    "erpLineItemsStoredInErpNext": "Line items are kept in ERPNext for this invoice.",
     "paymentDetails": "Payment details",
     "invoiceCount_one": "{{count}} invoice",
     "invoiceCount_other": "{{count}} invoices",

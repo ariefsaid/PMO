@@ -42,7 +42,6 @@ describe('computeBudgetSignal — otherReserved excludes this case (AC-RB-005)',
       totalValue: 50,
       status: 'Approved',
     });
-    expect(s.caseInReserved).toBe(true);
     expect(s.otherReserved).toBe(150);
   });
 
@@ -54,7 +53,6 @@ describe('computeBudgetSignal — otherReserved excludes this case (AC-RB-005)',
       totalValue: 50,
       status: 'Requested',
     });
-    expect(s.caseInReserved).toBe(false);
     expect(s.otherReserved).toBe(200);
   });
 });
@@ -71,7 +69,6 @@ describe('computeBudgetSignal — the double-count boundary (AC-RB-006 / AC-RB-0
       status: 'Requested',
     });
     expect(s.available).toBe(500);
-    expect(s.caseInReserved).toBe(false);
     expect(s.afterRequest).toBe(380);
   });
 
@@ -84,7 +81,6 @@ describe('computeBudgetSignal — the double-count boundary (AC-RB-006 / AC-RB-0
       status: 'Approved',
     });
     expect(s.available).toBe(500);
-    expect(s.caseInReserved).toBe(true);
     expect(s.afterRequest).toBe(500);
   });
 });

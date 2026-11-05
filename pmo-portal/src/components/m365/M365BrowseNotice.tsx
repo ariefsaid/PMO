@@ -39,8 +39,6 @@ export interface M365BrowseNoticeProps {
   /** A stable M365 error code. Unknown/absent codes render the reviewed generic sentence, never the raw body. */
   code?: string;
   onRetry?: () => void;
-  /** Overrides the default reconnect (existing `initiateM365Connect` + redirect to its returned authorize URL only). */
-  onReconnect?: () => void;
   /** The caller's connection, when known: a reconnect keeps a folder permission it already holds (RF-8). */
   connection?: Pick<ConnectionStatus, 'scopes'>;
   /** Select copy for an already-linked folder, where reconnect restores its file list. */
@@ -52,7 +50,7 @@ export interface M365BrowseNoticeProps {
  * Maps stable codes only; raw bodies, identifiers and scope strings never reach the DOM.
  * Reconnect is offered only where a connection is the remedy, never as a licence/access fix.
  */
-export function M365BrowseNotice({ code, onRetry, onReconnect, connection, linkedFolder = false }: M365BrowseNoticeProps) {
+export function M365BrowseNotice({ code, onRetry, connection, linkedFolder = false }: M365BrowseNoticeProps) {
   const { t } = useTranslation();
   const { t: tf } = useTranslation('recordFolders');
   const [reconnecting, setReconnecting] = useState(false);
@@ -61,7 +59,6 @@ export function M365BrowseNotice({ code, onRetry, onReconnect, connection, linke
   const canRetry = !!onRetry && code !== 'NOT_CONNECTED' && !(code && RECONNECT_CODES.has(code)) && !(code && TAXONOMY_CODES.has(code));
 
   async function reconnect() {
-    if (onReconnect) { onReconnect(); return; }
     setReconnecting(true); setReconnectFailed(false);
     try {
       const { authorizeUrl } = await initiateM365Connect(keepsFolderPermission(connection) ? { folders: true } : {});

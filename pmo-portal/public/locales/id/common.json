@@ -144,13 +144,9 @@
     "employeeMissing": "Orang yang mencatat waktu dan masih memerlukan tautan karyawan ERP: {{count}}",
     "projectLabel": "Koneksi proyek",
     "setupComplete": "Penyiapan selesai. Koneksi terkonfirmasi tetap tersimpan; tinjauan ini akan muncul kembali saat ada hal yang perlu ditangani.",
-    "partiesAction": "Tinjau koneksi perusahaan",
     "defaultsDialog": "Pengaturan pekerjaan dan tagihan",
     "domainDialog": "Informasi yang perlu diperbarui",
     "domainSubmit": "Simpan pilihan informasi",
-    "onboardDialog": "Tinjau koneksi perusahaan?",
-    "onboardDescription": "Tinjau koneksi perusahaan dari sistem bisnis yang terhubung. Tautan terkonfirmasi yang sudah ada akan dipertahankan.",
-    "onboardSubmit": "Tinjau koneksi",
     "activityField": "Kategori pekerjaan",
     "activityHelp": "Pilih kategori pekerjaan aktif yang digunakan saat waktu dicatat.",
     "receivableField": "Akun tagihan pelanggan",
@@ -2580,8 +2576,7 @@
         "decision": "Keputusan",
         "owner": "Pemilik",
         "value": "Nilai",
-        "weighted": "Tertimbang",
-        "winProbability": "Peluang menang"
+        "weighted": "Tertimbang"
       },
       "terminalNotice": "Proyek ini sudah mencapai tahap akhir. Tidak ada tindakan pipeline lagi.",
       "toast": {
@@ -3101,6 +3096,11 @@
     }
   },
   "financialStatements": {
+    "refreshNow": "Segarkan sekarang",
+    "refreshNowQueued": "Permintaan penyegaran dikirim. Angka terbaru akan muncul sebentar lagi.",
+    "refreshNowCoalesced": "Penyegaran sudah diminta baru-baru ini.",
+    "refreshNowUnavailable": "Penyegaran belum tersedia.",
+    "refreshNowError": "Permintaan penyegaran gagal. Coba lagi.",
     "amounts": "Jumlah",
     "asAt": "Per tanggal",
     "accessDenied": "Anda tidak memiliki akses ke laporan keuangan",
@@ -3153,7 +3153,6 @@
       "stage": "Tahap",
       "value": "Nilai",
       "weighted": "Tertimbang",
-      "winPct": "% menang",
       "endCustomer": "Pelanggan akhir"
     },
     "empty": {
@@ -3219,7 +3218,6 @@
     },
     "viewToggleLabel": "Tampilan pipeline",
     "weightedForecast": "Proyeksi pipeline tertimbang",
-    "winProbability": "Peluang menang",
     "board": {
       "ariaLabel": "Papan pipeline penjualan"
     },
@@ -3627,8 +3625,6 @@
     "erpSetup": {
       "defaultsFailed": "Gagal menyimpan nilai bawaan ERP. Periksa nilainya lalu coba lagi.",
       "domainFailed": "Gagal menggunakan domain ini. Periksa izin baca ERP lalu coba lagi.",
-      "onboarded": "Pihak ERP telah dihubungkan. Tinjau daftar Perusahaan.",
-      "onboardFailed": "Penghubungan pihak ERP belum selesai. Coba lagi.",
       "unavailable": "Pengaturan ERP tidak tersedia",
       "configured": "{{count}} dari {{total}} dikonfigurasi",
       "activityMissing": "Jenis aktivitas belum diatur",
@@ -3647,9 +3643,9 @@
     }
   },
   "profileSettings": {
-    "loading": "Memuat profil…",
-    "title": "Profil & preferensi",
     "description": "Pilih bahasa, format angka, dan zona waktu untuk portal ini.",
+    "error": "Tidak dapat menyimpan preferensi Anda. Silakan coba lagi.",
+    "invalidTimezone": "Pilih zona waktu yang valid sebelum menyimpan.",
     "language": {
       "label": "Bahasa antarmuka",
       "help": "Disimpan ke profil Anda dan diterapkan di semua perangkat.",
@@ -3661,6 +3657,7 @@
         "en": "English"
       }
     },
+    "loading": "Memuat profil…",
     "number": {
       "label": "Format angka",
       "help": "Pratinjau: {{value}}",
@@ -3672,6 +3669,11 @@
         "en": "Inggris (1,234,567.89)"
       }
     },
+    "refreshRetry": "Coba segarkan lagi",
+    "save": "Simpan",
+    "saved": "Preferensi disimpan",
+    "saving": "Menyimpan preferensi Anda…",
+    "staleRefresh": "Menyegarkan sesi ini gagal — pilihan Anda sudah tersimpan dan akan berlaku saat masuk berikutnya.",
     "timezone": {
       "label": "Zona waktu",
       "placeholder": "Pilih zona waktu",
@@ -3683,11 +3685,7 @@
         "inheritWithEffective": "Default organisasi: {{timezone}}"
       }
     },
-    "save": "Simpan",
-    "saving": "Menyimpan preferensi Anda…",
-    "saved": "Preferensi disimpan",
-    "error": "Tidak dapat menyimpan preferensi Anda. Silakan coba lagi.",
-    "invalidTimezone": "Pilih zona waktu yang valid sebelum menyimpan."
+    "title": "Profil & preferensi"
   },
   "oauthConsent": {
     "allow": "Izinkan",
@@ -3958,7 +3956,6 @@
     "editBudgetLineItemNamed": "Edit item anggaran {{category}}",
     "invoiceDetails": "Detail faktur",
     "lineItemsSection": "Item faktur",
-    "erpLineItemsStoredInErpNext": "Rincian item untuk faktur ini disimpan di ERPNext.",
     "paymentDetails": "Detail pembayaran",
     "invoiceCount_one": "{{count}} faktur",
     "invoiceCount_other": "{{count}} faktur",

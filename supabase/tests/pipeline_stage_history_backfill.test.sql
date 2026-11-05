@@ -82,24 +82,24 @@ insert into projects (id, org_id, code, name, status, project_manager_id) values
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"16380000-0000-0000-0000-0000000000d2","role":"authenticated"}';
 select import_project_stage_history('16380000-0000-0000-0000-000000000041',
-  '[{"stage":"PQ Submitted","entered_on":"2026-07-01","note":"x"},{"stage":"Quotation Submitted","entered_on":"2026-07-15"}]');
+  '[{"stage":"Quotation Submitted","entered_on":"2026-07-01","note":"x"},{"stage":"PQ Submitted","entered_on":"2026-07-15"}]');
 select results_eq($$ select stage::text, source from project_stage_entries
    where project_id = '16380000-0000-0000-0000-000000000041' order by position $$,
-  $$ values ('Leads','origination'),('PQ Submitted','import'),('Quotation Submitted','import') $$,
+  $$ values ('Leads','origination'),('Quotation Submitted','import'),('PQ Submitted','import') $$,
   'AC-PSH-010: import records one entry per dated stage');
 select is((select entered_on from project_stage_entries
    where project_id = '16380000-0000-0000-0000-000000000041' and stage = 'Leads'), date '2026-07-01',
   'AC-PSH-010: with no Lead date, the lead takes the first imported date so the past dates can land');
 select is((select status::text from projects where id = '16380000-0000-0000-0000-000000000041'),
-  'Quotation Submitted', 'AC-PSH-010: the project lands at the latest dated stage');
+  'PQ Submitted', 'AC-PSH-010: the project lands at the latest dated stage');
 select throws_ok($$ select import_project_stage_history('16380000-0000-0000-0000-000000000041',
-  '[{"stage":"PQ Submitted","entered_on":"2026-07-01"}]') $$, 'P0001', null,
+  '[{"stage":"Quotation Submitted","entered_on":"2026-07-01"}]') $$, 'P0001', null,
   'AC-PSH-010: a second import call is refused');
 select import_project_stage_history('16380000-0000-0000-0000-000000000044', '[{"stage":"Leads","entered_on":"2026-07-01"}]');
 reset role;
 select is((select detail -> 'entries' from audit_events
    where action = 'project.transition' and entity_id = '16380000-0000-0000-0000-000000000041'),
-  '[{"stage":"PQ Submitted","entered_on":"2026-07-01"},{"stage":"Quotation Submitted","entered_on":"2026-07-15"}]'::jsonb,
+  '[{"stage":"Quotation Submitted","entered_on":"2026-07-01"},{"stage":"PQ Submitted","entered_on":"2026-07-15"}]'::jsonb,
   'AC-PSH-010: the audit trail keeps the normalized stages and dates, not the caller''s raw payload');
 select is((select entered_on from project_stage_entries where project_id = '16380000-0000-0000-0000-000000000044'),
   date '2026-07-01', 'AC-PSH-010: a lead-only import dates the lead');

@@ -15,7 +15,7 @@ import {
 } from '@/src/components/ui';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { parseMoneyInputAtScale } from '@/src/lib/format';
-import { parseTaxFacts } from '@/src/lib/taxTreatment';
+import { validateWorkOrderAmount } from './workOrderAmountValidation';
 import { useTaxTreatmentOptions } from '@/src/hooks/useTaxTreatmentOptions';
 import type { WorkOrderRow, SetWorkOrderValueInput } from '@/src/lib/db/workOrders';
 
@@ -49,27 +49,26 @@ interface FormValues {
 
 const validate = (v: FormValues, t: TFunction): Partial<Record<keyof FormValues, string>> => {
   const errors: Partial<Record<keyof FormValues, string>> = {};
-  const value = parseMoneyInputAtScale(v.value, 2);
-  if (value === null || value < 0) {
+  const issues = validateWorkOrderAmount(v.value, v.taxTreatment, v.taxAmount);
+  if (issues.value) {
     errors.value = t(
       'projectDetail.workOrderValue.errors.value',
       'Enter the order value as a non-negative amount with no more than 2 decimal places',
     );
   }
-  if (!v.taxTreatment.trim()) {
+  if (issues.taxTreatment) {
     errors.taxTreatment = t(
       'projectDetail.workOrderValue.errors.treatmentRequired',
       'Choose whether this value already includes tax',
     );
   }
-  const tax = parseTaxFacts(v.taxTreatment, v.taxAmount);
-  if (tax === null && v.taxTreatment.trim()) {
+  if (issues.taxAmount === 'taxAmount') {
     errors.taxAmount = t(
       'projectDetail.workOrderValue.errors.taxAmount',
       'Enter the tax amount (0 if there is no tax)',
     );
   }
-  if (tax !== null && value !== null && tax.taxTreatment === 'inclusive' && tax.taxAmount > value) {
+  if (issues.taxAmount === 'inclusiveTaxTooLarge') {
     errors.taxAmount = t(
       'projectDetail.workOrderValue.errors.inclusiveTaxTooLarge',
       'An inclusive value already contains its tax, so the tax cannot be larger than the value itself',

@@ -4,22 +4,99 @@
  */
 import { pickPartyCandidate, proposeMatches } from '../connect/match.ts';
 import type { MasterKind, NormalisedMaster } from '../connect/types.ts';
-import type { ConnectHarness, ErpHarness, ErpPartyInput, PartyMatchResult, PmoPartyCandidate } from '../contractSuite/harness.ts';
+import type { ConnectHarness, ErpHarness, ErpPartyInput, InboundInvoiceDoc, PartyMatchResult, PmoPartyCandidate } from '../contractSuite/harness.ts';
+import type { AdapterCommand, CommandResult } from '../contract.ts';
+import { assertNotPreCutover } from '../cutoverGate.ts';
+import type { PurchaseOrderRevise } from '../purchaseOrderRevise.ts';
 import { bindCall } from './client.ts';
 import { createOdooSetupAdapter, LIST_PAGE, type OdooConnectCtx } from './connectAdapter.ts';
 import { createFakeOdoo, type FakeOdoo } from './fakeOdoo.ts';
-import { procurementPreflight } from './purchase/preflight.ts';
+import { createOdooProcurementAdapter, readOrderLines, type PaymentFacts } from './procurementAdapter.ts';
+import { productionProcurement, productionPurchase } from './contract.production.harness.ts';
+import type { BillCtx, BillInput } from './purchase/billBody.ts';
+import { parseOdooExternalRef } from './purchase/anchors.ts';
+import { PURCHASE_SPECS } from './purchase/feed.ts';
+import type { OrderCtx, OrderInput } from './purchase/orderBody.ts';
+import type { ReviseLine } from './purchase/orderRevise.ts';
+import { planReceipt } from './purchase/receiptBody.ts';
 import { buildInvoiceBody } from './revenue/invoiceBody.ts';
-import { revenuePreflight } from './revenue/preflight.ts';
 import { buildReceiptBody } from './revenue/receiptBody.ts';
-import { classifyPaymentDirection } from './revenue/status.ts';
 import { normaliseItem, normaliseParty, normaliseProject } from './normalise.ts';
+import { REVENUE_FEED_SPECS } from './revenue/feed.ts';
+import { assertOdooRevenueCommandScope } from '../../../../../supabase/functions/adapter-dispatch/odooRevenueGate.ts';
 
 const KEY = 'test-key';
 const CTX: OdooConnectCtx = { companyId: 1, analyticPlanId: 7, unitMap: { sak: '11' } };
 const MODEL: Partial<Record<MasterKind, string>> = { party: 'res.partner', project: 'account.analytic.account', item: 'product.product' };
 const WRITES = new Set(['create', 'write']);
 const ACCOUNTING = new Set(['account.account', 'account.tax', 'account.fiscal.position']);
+const PURCHASE_ORDER_ID = '123e4567-e89b-42d3-a456-426614174000';
+const PURCHASE_BILL_ID = '55555555-5555-4555-8555-555555555555';
+const PURCHASE_PAYMENT_ID = 'dddddddd-dddd-4ddd-8ddd-000000001505';
+const PURCHASE_CTX: OrderCtx = { companyId: 1, currencyId: 12, itemMap: { 'Cable tray': '55' }, unitMap: {}, costAccountId: '101', taxIds: [] };
+const PURCHASE_ORDER: OrderInput = {
+  vendor: 'Vendor:9', caseNumber: 'PRC-001', vendorReference: 'PO-77', expectedDate: '2026-12-01', projectIds: ['project-1'],
+  lines: [{ name: 'Cable tray', quantity: 1, rate: 50 }],
+};
+const PURCHASE_BILL: BillInput = {
+  vendor: 'Vendor:9', reference: 'INV-77', invoiceDate: '2026-12-05', projectIds: [],
+  lines: [{ name: 'Cable tray', quantity: 1, rate: 50 }],
+};
+const PURCHASE_BILL_CTX: BillCtx = { companyId: 1, currencyId: 12, itemMap: PURCHASE_CTX.itemMap, unitMap: {}, costAccountId: null, taxes: [] };
+
+/** An isolated Odoo fake wired to the shipped procurement adapter; each contract case starts with empty ERP state. */
+function purchaseConnection() {
+  const fake = createFakeOdoo({ key: KEY });
+  fake.seed('product.product', [{ id: 55, name: 'Cable tray', supplier_taxes_id: [] }]);
+  fake.seed('account.journal', [{ id: 7, name: 'Bank', type: 'bank', active: true, outbound_payment_method_line_ids: [31], company_id: 1 }]);
+  const call = bindCall({ baseUrl: 'https://odoo.example.test', apiKey: KEY, database: 'db1', fetchImpl: fake.fetch });
+  let paymentBillRef: string | null = null;
+  let reviseOrderId: number | null = null;
+  let reviseLines: readonly ReviseLine[] = [];
+  const adapter = createOdooProcurementAdapter({
+    call,
+    resolveOrder: async () => ({ input: PURCHASE_ORDER, ctx: PURCHASE_CTX }),
+    resolveRevise: async () => {
+      if (reviseOrderId === null) throw new Error('revision order is not initialized');
+      return { orderId: reviseOrderId, lines: reviseLines, ctx: PURCHASE_CTX };
+    },
+    resolveBill: async () => ({ input: PURCHASE_BILL, ctx: PURCHASE_BILL_CTX }),
+    resolvePayment: async (): Promise<PaymentFacts> => ({
+      billRef: paymentBillRef, amount: '50.00', date: '2026-12-10', vendorPartnerId: 9, journalId: 7, companyCurrencyId: 12,
+    }),
+  });
+
+  const orderCommand = (id = PURCHASE_ORDER_ID): AdapterCommand => ({
+    domain: 'procurement', operation: 'create', idempotencyKey: `p9-order:${id}`,
+    record: { id, erp_doc_kind: 'purchase-order', procurementId: 'case-1', amount: '50.00', date: '2026-12-01' },
+  });
+  const billCommand = (id = PURCHASE_BILL_ID): AdapterCommand => ({
+    domain: 'procurement', operation: 'create', idempotencyKey: `p9-bill:${id}`,
+    record: { id, erp_doc_kind: 'purchase-invoice', procurementId: 'case-1', amount: '50.00' },
+  });
+  const paymentCommand = (id = PURCHASE_PAYMENT_ID): AdapterCommand => ({
+    domain: 'procurement', operation: 'create', idempotencyKey: `p9-payment:${id}`,
+    record: { id, erp_doc_kind: 'payment', procurementId: 'case-1', invoiceId: 'invoice-1', paid_amount: '50.00', date: '2026-12-10' },
+  });
+  const pushOrder = (id = PURCHASE_ORDER_ID) => adapter.commit(orderCommand(id));
+  const pushBill = async (id = PURCHASE_BILL_ID): Promise<CommandResult> => adapter.commit(billCommand(id));
+  const pushPayment = async (billRef: string, id = PURCHASE_PAYMENT_ID) => {
+    paymentBillRef = billRef;
+    return adapter.commit(paymentCommand(id));
+  };
+  const callCount = () => fake.calls.length;
+
+  return {
+    fake, call, adapter, orderCommand, billCommand, paymentCommand, pushOrder, pushBill, pushPayment, callCount,
+    setRevision: (orderId: number, lines: readonly ReviseLine[]) => { reviseOrderId = orderId; reviseLines = lines; },
+    setPaymentBill: (billRef: string) => { paymentBillRef = billRef; },
+  };
+}
+
+function commandFailure(error: unknown): { code: string; message: string } {
+  const e = error as { code?: unknown; message?: unknown };
+  return { code: typeof e.code === 'string' ? e.code : 'commit-rejected', message: typeof e.message === 'string' ? e.message : 'purchase command failed' };
+}
 
 /** A fresh fake Odoo; `armWrite` makes its next create/write fail with the given fault. */
 function fakeConnection() {
@@ -68,10 +145,56 @@ function documents(fake: FakeOdoo, kind: MasterKind): NormalisedMaster[] {
   return rows.map(kind === 'project' ? normaliseProject : normaliseItem);
 }
 
-/** The direction Odoo states for a payment, per the shared `receipt.read` scenarios (anything unrecognised is skipped). */
-const PAYMENT_FIELDS: Record<Parameters<ErpHarness['classifyPayment']>[0], [string | undefined, string | undefined]> = {
-  received: ['inbound', 'customer'], paid: ['outbound', 'supplier'], unrecognised: ['transfer', 'customer'], blank: ['', ''], absent: [undefined, undefined],
-};
+type TenantId = 'tenant-A' | 'tenant-B';
+type ServiceRow = Record<string, unknown>;
+
+/** A small service-role read model for the Odoo dispatch gate, with tenant ownership enforced by query predicates. */
+function revenueServiceClient() {
+  const rows: Record<string, ServiceRow[]> = {
+    companies: [
+      { id: 'customer-a', org_id: 'tenant-A' },
+      { id: 'customer-b', org_id: 'tenant-B' },
+    ],
+    projects: [
+      { id: 'project-a', org_id: 'tenant-A' },
+      { id: 'project-b', org_id: 'tenant-B' },
+    ],
+    sales_invoices: [
+      { id: 'invoice-a', org_id: 'tenant-A', customer_id: 'customer-a' },
+      { id: 'invoice-b', org_id: 'tenant-B', customer_id: 'customer-b' },
+    ],
+    work_orders: [],
+    external_project_bindings: [
+      { org_id: 'tenant-A', project_id: 'project-a', external_tier: 'odoo', external_container_id: 'cost-a' },
+      { org_id: 'tenant-B', project_id: 'project-b', external_tier: 'odoo', external_container_id: 'cost-b' },
+    ],
+    external_master_records: [
+      { org_id: 'tenant-A', external_tier: 'odoo', kind: 'analytic_account', external_id: 'cost-a', active: true, tombstoned_at: null },
+      { org_id: 'tenant-B', external_tier: 'odoo', kind: 'analytic_account', external_id: 'cost-b', active: true, tombstoned_at: null },
+    ],
+    external_refs: [
+      { org_id: 'tenant-A', domain: 'revenue', external_tier: 'odoo', pmo_record_id: 'invoice-a', external_record_id: 'account.move:701' },
+      { org_id: 'tenant-B', domain: 'revenue', external_tier: 'odoo', pmo_record_id: 'invoice-b', external_record_id: 'account.move:702' },
+    ],
+  };
+  return {
+    from(table: string) {
+      const filters: Array<[string, unknown]> = [];
+      const query = {
+        select() { return query; },
+        eq(column: string, value: unknown) { filters.push([column, value]); return query; },
+        async maybeSingle() {
+          const data = (rows[table] ?? []).find((row) => filters.every(([column, value]) => row[column] === value)) ?? null;
+          return { data, error: null };
+        },
+      };
+      return query;
+    },
+  };
+}
+
+const ownedId = (table: string, owner: 'A' | 'B' | 'nobody' | undefined) =>
+  owner === undefined ? undefined : owner === 'nobody' ? `missing-${table}` : `${table}-${owner.toLowerCase()}`;
 
 /**
  * The Odoo-side revenue checks that are not in the shared interface (SD-5, no version bump): a fake Odoo, a bound client
@@ -147,49 +270,134 @@ export function createOdooHarness(): ErpHarness {
 
     resolveProjectLink() { throw pending('project.match', 1504); },
     pushBudget() { return Promise.reject(pending('budget.unowned-occupant', 1507)); },
-    async pushPurchase(connection) {
-      const result = procurementPreflight({ caller: 'A', activated: connection === 'activated' });
-      return result.outcome === 'accepted' ? { outcome: 'pushed', erpCalls: 0 } : { outcome: 'refused', code: result.code, erpCalls: 0 };
-    },
-    async pushPurchaseStep(_step, beforeCutover) {
-      const result = procurementPreflight({ caller: 'A', beforeCutover });
-      return result.outcome === 'accepted' ? { outcome: 'pushed', erpCalls: 0 } : { outcome: 'refused', code: result.code, erpCalls: 0 };
+    pushPurchase: productionPurchase,
+    async pushPurchaseStep(step, beforeCutover) {
+      const purchase = purchaseConnection();
+      const record = {
+        id: '223e4567-e89b-42d3-a456-426614174000',
+        erp_doc_kind: step,
+        procurementId: 'case-1',
+        ...(step === 'payment' ? { invoiceId: 'invoice-1' } : {}),
+      };
+      try {
+        await assertNotPreCutover({
+          rpc: async () => ({ data: beforeCutover === 'unknown' ? null : beforeCutover, error: null }),
+        }, { domain: 'procurement', record });
+        if (step === 'goods-receipt') {
+          const order = await purchase.pushOrder();
+          const orderId = parseOdooExternalRef('purchase.order', order.externalRecordId);
+          if (orderId === null) throw new Error('Odoo order reference was unreadable');
+          const plan = await planReceipt(orderId, await readOrderLines(purchase.call, orderId), undefined, PURCHASE_CTX.itemMap);
+          await purchase.adapter.commit({
+            domain: 'procurement', operation: 'create', idempotencyKey: 'p9-receipt',
+            record: { ...record, erp_doc_kind: 'goods-receipt', odooReceipt: plan, receiptDigest: plan.digest },
+          });
+        } else {
+          const bill = await purchase.pushBill();
+          if (step === 'payment') await purchase.pushPayment(bill.externalRecordId);
+        }
+        return { outcome: 'pushed', erpCalls: purchase.callCount() };
+      } catch (error) {
+        const failure = commandFailure(error);
+        return { outcome: 'refused', ...failure, erpCalls: purchase.callCount() };
+      }
     },
     pushTimesheet() { return Promise.reject(pending('timesheet.push', 1510)); },
-    async pushProcurement(scenario) { return procurementPreflight(scenario); },
+    pushProcurement: productionProcurement,
     async pushRevenue(s) {
-      const result = revenuePreflight(s);
-      return result.outcome === 'accepted' ? { outcome: 'accepted', erpCalls: 0 } : { outcome: 'refused', code: result.code, erpCalls: 0 };
+      const record: Record<string, unknown> = {
+        erp_doc_kind: s.doc === 'receipt' ? 'incoming-payment' : 'sales-invoice',
+      };
+      const customerId = ownedId('customer', s.customer);
+      const projectId = ownedId('project', s.project);
+      const salesInvoiceId = ownedId('invoice', s.salesInvoice);
+      if (customerId) record.customerId = customerId;
+      if (projectId) record.projectId = projectId;
+      if (salesInvoiceId) record.salesInvoiceId = salesInvoiceId;
+      const command = { domain: 'revenue', operation: 'create', idempotencyKey: 'shared-contract', record } as AdapterCommand;
+      try {
+        await assertOdooRevenueCommandScope(revenueServiceClient() as never, `tenant-${s.caller}` as TenantId, command);
+        return { outcome: 'accepted', erpCalls: 0 };
+      } catch (error) {
+        const code = typeof error === 'object' && error !== null && 'code' in error && typeof error.code === 'string'
+          ? error.code
+          : 'commit-rejected';
+        return { outcome: 'refused', code, erpCalls: 0 };
+      }
+    },
+    async mapInboundInvoice(doc: InboundInvoiceDoc) {
+      const row = REVENUE_FEED_SPECS['sales-invoice'].parse({
+        id: 1, name: doc.number, move_type: 'out_invoice', state: 'posted', partner_id: [41, doc.client],
+        invoice_date: doc.date, ref: doc.poRef ?? false, currency_id: [1, doc.currency],
+        amount_total: Number(doc.total), amount_untaxed: Number(doc.total) - Number(doc.taxAmount), amount_tax: Number(doc.taxAmount), amount_residual: Number(doc.total),
+        write_date: `${doc.date} 00:00:00`,
+      });
+      if (!row) throw new Error('Odoo invoice did not produce a readable pair candidate');
+      return { ...row };
     },
     pushBudgetVersion() { return Promise.reject(pending('budget.push', 1507)); },
     readActuals() { return Promise.reject(pending('actuals.read', 1507)); },
-    classifyPayment(direction) { return classifyPaymentDirection(...PAYMENT_FIELDS[direction]); },
+    classifyPayment(direction) {
+      const fields = {
+        received: ['inbound', 'customer'], paid: ['outbound', 'supplier'], unrecognised: ['transfer', 'customer'],
+        blank: ['', ''], absent: [undefined, undefined],
+      } as const;
+      const [paymentType, partnerType] = fields[direction];
+      const row = REVENUE_FEED_SPECS['incoming-payment'].parse({
+        id: 1, name: 'PAY/1', state: 'paid', partner_id: [41, 'Client'], payment_type: paymentType,
+        partner_type: partnerType, amount: 100, date: '2026-11-01', currency_id: [1, 'IDR'], write_date: '2026-11-02 10:00:00',
+      });
+      return row ? { kind: 'receipt', domain: 'revenue', table: 'incoming_payments' } : { kind: 'skipped' };
+    },
     async mirrorPurchases(docs) {
-      const { fake } = fakeConnection();
-      docs.forEach((doc, i) => fake.seed(doc.kind === 'bill' ? 'account.move' : 'purchase.order', [{ id: i + 1, name: doc.reference, amount_total: doc.total, write_date: doc.modifiedAt }]));
       const latest = new Map<string, { kind: 'purchase-order' | 'bill'; reference: string; total: string; modifiedAt: string }>();
-      for (const kind of ['purchase-order', 'bill'] as const) {
-        for (const row of fake.rows(kind === 'bill' ? 'account.move' : 'purchase.order')) {
-          const doc = { kind, reference: String(row.name), total: String(row.amount_total), modifiedAt: String(row.write_date) };
-          const key = `${kind}:${doc.reference}`;
-          if (!latest.has(key) || latest.get(key)!.modifiedAt < doc.modifiedAt) latest.set(key, doc);
-        }
-      }
+      docs.forEach((doc, i) => {
+        const modifiedAt = doc.modifiedAt.length === 10 ? `${doc.modifiedAt} 00:00:00` : doc.modifiedAt;
+        const row = doc.kind === 'bill'
+          ? PURCHASE_SPECS.bill.parse({
+              id: i + 1, name: doc.reference, state: 'posted', move_type: 'in_invoice', partner_id: [9, doc.supplier],
+              invoice_date: modifiedAt.slice(0, 10), invoice_date_due: modifiedAt.slice(0, 10), ref: doc.reference,
+              currency_id: [12, 'IDR'], amount_total: Number(doc.total), amount_untaxed: Number(doc.total), amount_residual: Number(doc.total),
+              invoice_origin: false, write_date: modifiedAt, _taxLines: [], _analytic: [],
+            })
+          : PURCHASE_SPECS['purchase-order'].parse({
+              id: i + 1, name: doc.reference, state: 'purchase', partner_id: [9, doc.supplier], date_order: modifiedAt,
+              currency_id: [12, 'IDR'], amount_total: Number(doc.total), amount_untaxed: Number(doc.total), write_date: modifiedAt, _analytic: [],
+            });
+        if (!row || typeof row.attrs.amount_total !== 'string') return;
+        const parsed = { kind: doc.kind, reference: row.name, total: row.attrs.amount_total, modifiedAt: row.source_write_date };
+        const key = `${parsed.kind}:${parsed.reference}`;
+        if (!latest.has(key) || latest.get(key)!.modifiedAt < parsed.modifiedAt) latest.set(key, parsed);
+      });
       return [...latest.values()].map(({ kind, reference, total }) => ({ kind, reference, total }));
     },
 
     revise() {
-      const { fake } = fakeConnection();
+      const purchase = purchaseConnection();
+      let orderId: number | null = null;
       return {
-        async post(revision) {
-          const found = fake.rows('purchase.order').find((row) => row.revision_key === revision.key);
-          if (found) return { externalId: String(found.id) };
-          const call = bindCall({ baseUrl: 'https://odoo.example.test', apiKey: KEY, database: 'db1', fetchImpl: fake.fetch });
-          const ids = await call<number[]>('purchase.order', 'create', { vals_list: [{ revision_key: revision.key, lines: revision.lines }] });
-          return { externalId: String(ids[0]) };
+        async post(revision: PurchaseOrderRevise) {
+          if (orderId === null) {
+            const order = await purchase.pushOrder(revision.poId);
+            orderId = parseOdooExternalRef('purchase.order', order.externalRecordId);
+            if (orderId === null) throw new Error('Odoo order reference was unreadable');
+          }
+          purchase.setRevision(orderId, revision.lines);
+          const result = await purchase.adapter.commit({
+            domain: 'procurement', operation: 'revise' as never, idempotencyKey: revision.key,
+            record: { id: revision.key, erp_doc_kind: 'purchase-order', poId: revision.poId, revision: revision.revision },
+          });
+          return { externalId: result.externalRecordId };
         },
-        documents() { return fake.rows('purchase.order').map((row) => ({ externalId: String(row.id), key: String(row.revision_key) })); },
-        failNextWrite: (fault) => fake.failNext(fault),
+        documents() {
+          return purchase.fake.rows('ir.model.data').flatMap((row) => {
+            const match = /^porev_([0-9a-f_]{36})_([1-9][0-9]{0,5})$/.exec(String(row.name));
+            if (!match || typeof row.res_id !== 'number') return [];
+            const poId = match[1].replaceAll('_', '-');
+            return [{ externalId: `purchase.order:${row.res_id}`, key: `porev:${poId}:${match[2]}` }];
+          });
+        },
+        failNextWrite: (fault) => purchase.fake.failNext(fault),
       };
     },
 

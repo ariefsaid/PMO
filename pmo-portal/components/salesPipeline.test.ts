@@ -24,18 +24,20 @@ const project = (over: Partial<PipelineProject> = {}): PipelineProject => ({
   tax_treatment: 'exclusive',
   contract_value: 1_200_000,
   currency: 'USD',
+  go_probability: 0.8,
+  get_probability: 0.25,
   win_probability: 0.5,
   ...over,
 });
 
 describe('salesPipeline presentation helpers (AC-SP-204)', () => {
-  it('the open board columns are OPEN_FUNNEL_STAGES in order, with their stable stage test ids', () => {
+  it('AC-1793: open board columns follow Leads, Quotation, Pre-Qual, Tender, Negotiation', () => {
     const open = SALES_COLUMNS.filter((c) => !c.terminal);
     expect(open.map((c) => c.statuses)).toEqual(OPEN_FUNNEL_STAGES.map((stage) => [stage]));
     expect(open.map((c) => c.testId)).toEqual([
       'stage-Leads',
-      'stage-PQ Submitted',
       'stage-Quotation Submitted',
+      'stage-PQ Submitted',
       'stage-Tender Submitted',
       'stage-Negotiation',
     ]);
@@ -46,8 +48,8 @@ describe('salesPipeline presentation helpers (AC-SP-204)', () => {
   it('AC-IXD-PROJ-007: SALES_COLUMNS are the five open stages + separate terminal Won and Lost columns', () => {
     expect(SALES_COLUMNS.map((c) => c.title)).toEqual([
       'Leads',
-      'Pre-Qual',
       'Quotation',
+      'Pre-Qual',
       'Tender',
       'Negotiation',
       'Won',
@@ -66,6 +68,17 @@ describe('salesPipeline presentation helpers (AC-SP-204)', () => {
     expect(SALES_COLUMNS.filter((c) => c.terminal)).toHaveLength(2);
     // open columns map to exactly one pipeline status each
     expect(SALES_COLUMNS[3].statuses).toEqual(['Tender Submitted']);
+  });
+
+  it('AC-1793: the stage journey uses the same new order as the board', () => {
+    expect(dealJourneySteps('Quotation Submitted').map((step) => [step.label, step.state])).toEqual([
+      ['Leads', 'done'],
+      ['Quotation', 'current'],
+      ['Pre-Qualification', 'upcoming'],
+      ['Tender', 'upcoming'],
+      ['Negotiation', 'upcoming'],
+      ['Won', 'upcoming'],
+    ]);
   });
 
   it('C2: every dotColor is a DESIGN.md token (no off-palette cyan/orange literals)', () => {
@@ -93,10 +106,9 @@ describe('salesPipeline presentation helpers (AC-SP-204)', () => {
     expect(openPrimary).toHaveLength(0);
   });
 
-  it('AC-SP-204: weightedValue multiplies contract_value by win_probability (computed client-side)', () => {
-    expect(weightedValue(project())).toBe(600_000);
-    expect(weightedValue(project({ contract_value: 800_000, win_probability: 0.25 }))).toBe(200_000);
-    expect(weightedValue(project({ win_probability: 0 }))).toBe(0);
+  it('AC-1796: weightedValue multiplies contract value by independent Go and Get probabilities', () => {
+    expect(weightedValue(project({ contract_value: 800_000, go_probability: 0.8, get_probability: 0.25 }))).toBe(160_000);
+    expect(weightedValue(project({ go_probability: 0.8, get_probability: 0 }))).toBe(0);
   });
 
   // Freed-Blue Status Rule (CW-2) + ADR-0029: `pillVariantForStatus` now delegates
@@ -121,8 +133,8 @@ describe('salesPipeline presentation helpers (AC-SP-204)', () => {
   });
 
   it('AC-SP-208: dealJourneySteps marks done/current/upcoming from the pipeline index', () => {
-    const steps = dealJourneySteps('Quotation Submitted');
-    // Leads, PQ done; Quotation current; Tender, Negotiation upcoming
+    const steps = dealJourneySteps('PQ Submitted');
+    // Leads and Quotation done; Pre-Qual current; Tender and Negotiation upcoming
     expect(steps.map((s) => s.state)).toEqual([
       'done',
       'done',

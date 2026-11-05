@@ -2,6 +2,7 @@ import { useQuery, type QueryClient } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
 import { useAuth } from '@/src/auth/useAuth';
 import type { EntitleableKey, FeatureResolution, ResolvedFeatureSet } from '@/src/lib/features';
+import { SERVER_SESSION_QUERY_OPTIONS } from '@/src/lib/queryPolicies';
 
 /**
  * useOrgFeatures — the caller's own-org RESOLVED entitlement set (FR-PLN-005).
@@ -44,13 +45,28 @@ export function orgOverridesQueryKey(orgId: string) {
 /** Operator console catalogue (plans, limits, matrix, all-orgs flags). */
 export const PLAN_CATALOGUE_QUERY_KEY = ['planCatalogue'] as const;
 
-/** One org's assigned plan (Operator console). */
+/** One org's assigned plan (Operator console). Carries the plan id STRING only. */
 export function orgPlanQueryKey(orgId: string) {
   return ['orgPlan', orgId] as const;
 }
 
-/** The Admin's own plan + limits (Your plan). */
-export const OWN_PLAN_QUERY_KEY = ['ownPlan'] as const;
+/**
+ * The caller's own plan as an `OrgPlan` OBJECT, for the analytics group property (FR-PLN-016).
+ * A DIFFERENT result contract from `orgPlanQueryKey` (id string), so it needs its own key: sharing
+ * one key let whichever reader mounted first install a value the other could not read — the
+ * Operator console then failed to match the plan to its catalogue and edited the wrong defaults.
+ */
+export function orgPlanGroupQueryKey(orgId: string | null | undefined) {
+  return ['orgPlanGroup', orgId ?? 'anonymous'] as const;
+}
+
+/**
+ * The Admin's own plan + limits (Your plan). Scoped by org: a profile refresh can move the SAME
+ * user to another org, and the previous org's plan and limits must never be read in the new context.
+ */
+export function ownPlanQueryKey(orgId: string | null | undefined) {
+  return ['ownPlan', orgId ?? 'anonymous'] as const;
+}
 
 /** The Operator org directory (console picker). */
 export const OPERATOR_ORGS_QUERY_KEY = ['operator', 'orgs'] as const;
@@ -65,6 +81,7 @@ export function invalidateFeatureState(qc: QueryClient): Promise<void> {
     qc.invalidateQueries({ queryKey: ['orgFeatures'] }),
     qc.invalidateQueries({ queryKey: ['planCatalogue'] }),
     qc.invalidateQueries({ queryKey: ['orgPlan'] }),
+    qc.invalidateQueries({ queryKey: ['orgPlanGroup'] }),
     qc.invalidateQueries({ queryKey: ['ownPlan'] }),
   ]).then(() => undefined);
 }
@@ -89,6 +106,7 @@ export function useOrgFeatures(): OrgFeaturesState {
     queryKey: orgFeatureQueryKey(currentUser?.org_id),
     queryFn: () => repositories.orgFeature.listOwn(),
     enabled: Boolean(currentUser),
+    ...SERVER_SESSION_QUERY_OPTIONS,
   });
   return {
     data: query.data?.display,

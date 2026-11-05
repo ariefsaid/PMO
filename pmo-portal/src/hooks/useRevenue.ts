@@ -19,6 +19,7 @@ import type { AssignInvoiceProjectInput } from '@/src/lib/projectFinances';
 import type { BillingKind } from '@/src/lib/billingKind';
 import { efakturRefusal } from '@/src/lib/efaktur';
 import { nativeDraftInvoicesKey } from './approvalsQueryKeys';
+import { MONEY_QUERY_OPTIONS } from '@/src/lib/queryPolicies';
 
 export { nativeDraftInvoicesKey } from './approvalsQueryKeys';
 
@@ -35,6 +36,7 @@ export function useSalesInvoices(projectId?: string, { enabled = true }: { enabl
     queryKey: ['salesInvoices', orgId, projectId ?? 'all'],
     queryFn: () => repositories.revenue.listInvoices(projectId ? { projectId } : undefined),
     enabled: enabled && Boolean(orgId),
+    ...MONEY_QUERY_OPTIONS,
   });
 }
 
@@ -65,6 +67,17 @@ export function useNativeDraftInvoices(enabled: boolean) {
   });
 }
 
+/** Drafts raised in Odoo's PMO approval flow. The enabled flag keeps other revenue owners out of this read. */
+export function useDraftInvoices(enabled: boolean) {
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
+  return useQuery<SalesInvoiceRow[]>({
+    queryKey: ['salesInvoices', orgId, 'odoo-drafts'],
+    queryFn: () => repositories.revenue.listInvoices({ status: 'Draft' }),
+    enabled: Boolean(orgId) && enabled,
+  });
+}
+
 /**
  * Org-scoped incoming payments list over the repository seam (ADR-0017).
  * Optional `customerId` narrows to one customer.
@@ -79,6 +92,7 @@ export function useIncomingPayments(customerId?: string, enabled = true, salesIn
       ...(salesInvoiceId ? { salesInvoiceId } : {}),
     }),
     enabled: Boolean(orgId && enabled),
+    ...MONEY_QUERY_OPTIONS,
   });
 }
 
@@ -124,6 +138,10 @@ export function useRevenueMutations() {
     qc.invalidateQueries({ queryKey: ['incomingPayments'] });
     qc.invalidateQueries({ queryKey: ['incomingPayment'] });
     qc.invalidateQueries({ queryKey: ['revenueByProject'] });
+    // The rail's overdue badge is a separate count query. `staleTime` schedules nothing and the
+    // cabinet's focus refetch is off, so an invoice/payment write must invalidate it explicitly or a
+    // mounted rail keeps the old badge for the rest of the session.
+    qc.invalidateQueries({ queryKey: ['overdue-invoice-count', orgId] });
     // OD-BILL-1: an invoice moves its work order's billing and the dashboard's still-to-invoice.
     qc.invalidateQueries({ queryKey: ['work-order-billing'] });
     qc.invalidateQueries({ queryKey: ['unbilled-work-orders'] });
@@ -199,7 +217,7 @@ export function useRevenueMutations() {
 
 
   const createPayment = useMutation({
-    mutationFn: ({ intent, ...input }: { customerId: string; salesInvoiceId?: string | null; paidAmount: number; receivedAmount: number; withheldAmount?: number; withholdingSlipNumber?: string | null; date: string; intent?: CommandIntent }) =>
+    mutationFn: ({ intent, ...input }: { customerId: string; salesInvoiceId?: string | null; paidAmount: number; receivedAmount: number; withheldAmount?: number; withholdingSlipNumber?: string | null; journalId?: string; date: string; intent?: CommandIntent }) =>
       repositories.revenue.createPayment(input, intent),
     onMutate: () => {
       if (isExternal) setPendingPush(beginPush(IDLE_PENDING_PUSH));
@@ -249,6 +267,7 @@ export function useAssignInvoiceProject() {
       const keys: readonly (readonly unknown[])[] = [
         ['salesInvoices', orgId], ['salesInvoice', orgId, siId], ['incomingPayments', orgId],
         ['incomingPayment', orgId], ['revenueByProject', orgId], ['project-vat-editability'],
+        ['overdue-invoice-count', orgId],
         ['record-history', orgId, 'sales_invoice', siId],
         ...projectIds.flatMap((id) => [
           ['project-finances', orgId, id], ['record-history', orgId, 'project', id],

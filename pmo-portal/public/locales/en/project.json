@@ -336,10 +336,17 @@
     "pipeline": {
       "currentStage": "Current stage",
       "readOnlyShort": "Project manager manages this pipeline.",
-      "moreAboutDeal": "More about this deal",
+      "moreAboutDeal": "More project details",
       "statLoading": "Loading…",
       "statUnavailable": "Unavailable",
-      "retry": "Retry"
+      "retry": "Retry",
+      "goProbability": "% Go",
+      "getProbability": "% Get",
+      "goInputLabel": "Chance the project proceeds (%)",
+      "getInputLabel": "Chance we win if the client proceeds (%)",
+      "saveProbability": "Save",
+      "getProbabilitySaved": "Opportunity estimate updated",
+      "probabilityFailed": "Couldn't save this probability. Check your access and retry."
     },
     "activity": {
       "title": "Activity",

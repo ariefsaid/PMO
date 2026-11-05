@@ -4,7 +4,7 @@ const h = vi.hoisted(() => {
   const calls: Array<[string, ...unknown[]]> = [];
   let result: { data: unknown; error: unknown; count?: number } = { data: [], error: null, count: 0 };
   const chain: Record<string, unknown> = {};
-  for (const m of ['select', 'eq', 'in', 'or', 'is', 'not', 'order', 'range', 'limit']) {
+  for (const m of ['select', 'eq', 'in', 'or', 'is', 'not', 'neq', 'order', 'range', 'limit']) {
     chain[m] = (...a: unknown[]) => { calls.push([m, ...a]); return chain; };
   }
   chain.maybeSingle = async () => result;
@@ -13,10 +13,22 @@ const h = vi.hoisted(() => {
     calls,
     setResult: (r: typeof result) => { result = r; },
     from: vi.fn((t: string) => { calls.push(['from', t]); return chain; }),
+    rpc: vi.fn(async (name: string, args: unknown) => { calls.push(['rpc', name, args]); return { error: null }; }),
     invoke: vi.fn(async () => ({ data: { ok: true }, error: null })),
   };
 });
-vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: h.from, functions: { invoke: h.invoke } } }));
+// Like the real client, `from` needs its receiver: a detached `supabase.from` call throws before any request is made.
+vi.mock('@/src/lib/supabase/client', () => {
+  const client = {
+    from(this: unknown, table: string) {
+      if (this !== client) throw new TypeError("Cannot read properties of undefined (reading 'rest')");
+      return h.from(table);
+    },
+    rpc: h.rpc,
+    functions: { invoke: h.invoke },
+  };
+  return { supabase: client };
+});
 import { odooRepository } from './odoo';
 
 beforeEach(() => { vi.clearAllMocks(); h.calls.length = 0; });
@@ -93,4 +105,37 @@ it('AC-ODC-081 masterSummary counts inactive and tombstoned rows and reads the n
   expect(h.calls).toContainEqual(['order', 'as_of', { ascending: false }]);
   expect(h.calls.filter((c) => c[0] === 'eq' && c[1] === 'kind' && c[2] === 'product')).toHaveLength(3);
   expect(out).toEqual({ inactive: 4, tombstoned: 4, asOf: '2026-11-01T08:00:00Z' });
+});
+
+it('AC-OCI-090 lists unsettled invoice and receipt commands attached to the PMO invoice', async () => {
+  h.setResult({ data: [
+    { id: 'c1', pmo_record_id: 'si-1', state: 'held', last_error: 'ambiguous', updated_at: '2026-11-03T10:00:00Z', actor_user_id: 'u-1', payload: { erp_doc_kind: 'sales-invoice' } },
+    { id: 'c2', pmo_record_id: 'ip-1', state: 'pending', last_error: null, updated_at: '2026-11-03T11:00:00Z', actor_user_id: 'u-2', payload: { erp_doc_kind: 'incoming-payment', salesInvoiceId: 'si-1' } },
+  ], error: null });
+  const rows = await odooRepository.listRevenueCommands('si-1');
+  expect(rows).toEqual([
+    { id: 'c2', recordId: 'ip-1', kind: 'incoming-payment', state: 'pending', lastError: null, updatedAt: '2026-11-03T11:00:00Z', actorUserId: 'u-2' },
+    { id: 'c1', recordId: 'si-1', kind: 'sales-invoice', state: 'held', lastError: 'ambiguous', updatedAt: '2026-11-03T10:00:00Z', actorUserId: 'u-1' },
+  ]);
+  expect(h.calls).toContainEqual(['eq', 'domain', 'revenue']);
+  expect(h.calls).toContainEqual(['eq', 'external_tier', 'odoo']);
+  expect(h.calls).toContainEqual(['eq', 'payload->>salesInvoiceId', 'si-1']);
+});
+
+it('AC-OCI-091 reads only credit notes tied to the requested invoice', async () => {
+  h.setResult({ data: [{ id: 'cn-1', erp_name: 'CN/2026/2', doc_date: '2026-11-02', currency: 'IDR', grand_total: '-100.00', erp_status: 'Posted', erp_read_at: '2026-11-03T10:00:00Z' }], error: null });
+  await expect(odooRepository.listRevenueCreditNotes('si-1')).resolves.toEqual([
+    { id: 'cn-1', number: 'CN/2026/2', date: '2026-11-02', currency: 'IDR', amount: -100, status: 'Posted', readAt: '2026-11-03T10:00:00Z' },
+  ]);
+  expect(h.calls).toContainEqual(['from', 'revenue_erp_mirror']);
+  expect(h.calls).toContainEqual(['eq', 'sales_invoice_id', 'si-1']);
+  expect(h.calls).toContainEqual(['eq', 'erp_doctype', 'Credit Note']);
+});
+
+it('AC-OCI-090 adopts a held invoice using its account.move document number', async () => {
+  h.setResult({ data: null, error: null });
+  await odooRepository.resolveHeldRevenueCommand({ outboxId: 'c1', kind: 'sales-invoice', resolution: 'adopt', documentNumber: '42' });
+  expect(h.calls).toContainEqual(['rpc', 'resolve_held_outbox_command', expect.objectContaining({
+    p_outbox_id: 'c1', p_resolution: 'adopt', p_external_record_id: 'account.move:42',
+  })]);
 });

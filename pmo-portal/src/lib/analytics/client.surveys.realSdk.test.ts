@@ -6,9 +6,9 @@ import { buildPosthogInitOptions } from './client';
 import type { AnalyticsConfig } from './config';
 
 const config: AnalyticsConfig = {
-  enabled: true, demoMode: false, analyticsEnabled: true, replayAndAutocapture: false,
+  enabled: true, demoMode: false, replayAndAutocapture: false,
   posthogKey: 'phc_' + 'a'.repeat(24), posthogHost: 'https://ph-e2e.invalid', appEnv: 'test',
-  isDev: false, isProd: false, demoAudience: 'internal', demoAccount: 'local',
+  isProd: false, demoAudience: 'internal', demoAccount: 'local',
 };
 
 describe('AC-PHO-103 real SDK keeps survey display in the app\'s hands', () => {

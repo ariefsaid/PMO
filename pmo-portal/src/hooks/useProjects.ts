@@ -24,6 +24,20 @@ export function useProjectIdentity() {
   });
 }
 
+/** One narrow read for project numbers shown on a bounded dashboard card set. */
+export function useProjectNumbers(ids: string[]) {
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
+  const stableIds = [...new Set(ids)].sort();
+  return useQuery({
+    queryKey: ['project-numbers', orgId, stableIds],
+    queryFn: async () => Object.fromEntries(
+      (await repositories.project.listNumbers(stableIds)).map((row) => [row.id, row.pmo_project_number]),
+    ) as Record<string, string | null>,
+    enabled: Boolean(orgId) && stableIds.length > 0,
+  });
+}
+
 export function useProjects(opts?: { enabled?: boolean }) {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
@@ -39,11 +53,13 @@ export function useProject(id: string | undefined) {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
   return useQuery<ProjectWithRefs | null>({
-    queryKey: ['project', orgId, id],
+    queryKey: projectKeys.detail(orgId, id),
     queryFn: () => repositories.project.getWithRefs(id!),
     enabled: Boolean(orgId && id),
   });
 }
+
+export { usePrefetchProject } from './usePrefetchProject';
 
 /**
  * Dated milestones for a set of visible projects — the read-only Project Calendar view.
@@ -135,8 +151,11 @@ export function useProjectMutations() {
       // failures caught inside): a folder problem can neither delay nor fail the saved project.
       // No usable identifier (code and project number both empty) = nothing to name the folder by: skip silently.
       if (row.code?.trim() || row.pmo_project_number?.trim()) startRecordFolder({ kind: 'project', id: row.id });
-      const erpSetup = await synchronizeErpProject(row.id, currentUser?.org_id);
-      return { ...row, erpSetup };
+      // PMO owns project creation. ERP setup is a background consequence; its network call must
+      // never hold the create mutation (and therefore the create page) open. The project detail
+      // exposes its existing match-review surface once the project is eligible for ERP linking.
+      void synchronizeErpProject(row.id, currentUser?.org_id).catch(() => undefined);
+      return { ...row, erpSetup: 'syncing' as 'syncing' | 'pending' | 'linked' | 'not-connected' };
     },
     onSuccess: invalidate,
   });

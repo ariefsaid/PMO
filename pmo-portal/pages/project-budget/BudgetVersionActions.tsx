@@ -241,13 +241,16 @@ export function useBudgetVersionActions({ projectId, versions, draftVersion, can
               {t('budgetArchive.stillLiveList', 'ERPNext Budget documents that may still be live:')}
             </p>
             <ul className="flex list-disc flex-col gap-1 pl-5 text-sm text-muted-foreground" aria-label={t('budgetArchive.stillLiveListAria', 'ERPNext Budget documents that may still be live')}>
-              {confirm.targets.map((target, index) => (
-                <li key={`${target.source_kind}:${target.fiscal_year}:${target.erp_budget_name}:${index}`}>
-                  {target.source_kind === 'legacy'
-                    ? t('budgetArchive.legacyTargetLine', '{{year}} — {{name}} (older push)', { year: target.fiscal_year, name: target.erp_budget_name })
-                    : t('budgetArchive.targetLine', '{{year}} — {{name}}', { year: target.fiscal_year, name: target.erp_budget_name })}
-                </li>
-              ))}
+              {confirm.targets.map((target, index) => {
+                const year = target.to_fiscal_year ? `${target.fiscal_year}–${target.to_fiscal_year}` : target.fiscal_year;
+                return (
+                  <li key={`${target.source_kind}:${target.fiscal_year}:${target.erp_budget_name}:${index}`}>
+                    {target.source_kind === 'legacy'
+                      ? t('budgetArchive.legacyTargetLine', '{{year}} — {{name}} (older push)', { year, name: target.erp_budget_name })
+                      : t('budgetArchive.targetLine', '{{year}} — {{name}}', { year, name: target.erp_budget_name })}
+                  </li>
+                );
+              })}
             </ul>
           </div>
         )}

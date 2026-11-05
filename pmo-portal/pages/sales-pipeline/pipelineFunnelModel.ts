@@ -74,7 +74,7 @@ export function projectFunnelModel(
       mixedStage,
       totalValue: s?.total_value ?? 0,
       weightedValue: weighted,
-      winProbability: s?.win_probability,
+      winProbability: s?.go_probability ?? s?.win_probability,
       barPct: mixedPipeline ? undefined : maxWeighted > 0 ? (weighted / maxWeighted) * 100 : 0,
     };
   });

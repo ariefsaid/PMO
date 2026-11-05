@@ -14,6 +14,7 @@ vi.mock('@/src/auth/useAuth', () => ({
 }));
 
 import { useDemoEligibility } from '../useDemoEligibility';
+import { SERVER_SESSION_STALE_TIME } from '@/src/lib/queryPolicies';
 
 function wrap(client: QueryClient) {
   return function Wrapper({ children }: { children: React.ReactNode }) {
@@ -133,5 +134,27 @@ describe('useDemoEligibility — demo-org gate for the Admin view-as control (FR
     const { result } = renderHook(() => useDemoEligibility(), { wrapper: wrap(freshClient()) });
     expect(result.current).toBe('pending');
     expect(h.getOrgLifecycleState).not.toHaveBeenCalled();
+  });
+
+  // Review finding 2: an org that flips out of (or into) demo state from another session must reach
+  // an already signed-in Admin within minutes; infinite freshness would strand the view-as control.
+  it('never caches eligibility forever — it revalidates on focus, on an interval, and on every mount', async () => {
+    h.getOrgLifecycleState.mockResolvedValue('demo');
+    const client = freshClient();
+    const { result } = renderHook(() => useDemoEligibility(), { wrapper: wrap(client) });
+    await waitFor(() => expect(result.current).toBe('eligible'));
+
+    const query = client.getQueryCache().find({ queryKey: ['org-lifecycle-state', 'org-1'] });
+    const options = query?.options as
+      | { staleTime?: number; refetchOnMount?: unknown; refetchOnWindowFocus?: unknown; refetchInterval?: unknown }
+      | undefined;
+    // A gate may not trust a cached answer: it re-verifies on every mount/context change, and is
+    // still bounded (never Infinity) with focus + interval revalidation for remote changes.
+    expect(options?.staleTime).toBe(0);
+    expect(options?.staleTime).not.toBe(Infinity);
+    expect(options?.refetchOnWindowFocus).toBe(true);
+    expect(options?.refetchInterval).toBe(SERVER_SESSION_STALE_TIME);
+    // The gate withholds cached data until a mount recheck settles (AC-AUTH-015).
+    expect(options?.refetchOnMount).toBe('always');
   });
 });

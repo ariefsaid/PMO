@@ -99,7 +99,7 @@ import { applyLoad, resolveLoad } from './lib/pmo-load.mjs';
  * recorded in `calls`. `fail(kind, target, body)` may return an error code to throw, as the CLI's
  * apiError would. The RPCs update the project row the way the database does, so a re-run sees them.
  */
-function fakeApi({ tables = {}, fail } = {}) {
+function fakeApi({ tables = {}, fail, createExternalCompany } = {}) {
   const calls = [];
   const rows = (t) => (tables[t] ??= []);
   let seq = 0;
@@ -119,6 +119,13 @@ function fakeApi({ tables = {}, fail } = {}) {
   return {
     calls,
     tables,
+    async createExternalCompany(input) {
+      calls.push({ kind: 'dispatch', target: 'companies.create', body: input });
+      maybeFail('dispatch', 'companies.create', input);
+      const row = createExternalCompany ? await createExternalCompany(input) : { id: 'erp-company-1', ...input };
+      rows('companies').push(row);
+      return row;
+    },
     async get(t, q) {
       calls.push({ kind: 'get', target: t, query: q.toString() });
       return rows(t).filter((r) => matches(r, q));
@@ -192,13 +199,34 @@ const EXISTING = (over = {}) => ({
   contract_value: 1000000, pmo_project_number: 'PRJ-26-0001', ...over,
 });
 
-test('AC-CSD-005: while ERPNext owns companies, each missing company is one problem and nothing is written', async () => {
+test('AC-CSD-005: while ERPNext owns companies, missing parties are planned for synchronous create', async () => {
   const api = fakeApi({ tables: { external_domain_ownership: [{ domain: 'companies', external_tier: 'erpnext' }] } });
-  const { problems } = await resolveLoad(DOC(), api);
-  assert.equal(problems.length, 2, problems.join('\n'));
-  assert.match(problems[0], /"Client Legal A" does not exist, and ERPNext owns companies/);
-  assert.match(problems[0], /Companies → New/);
-  assert.deepEqual(writes(api), []);
+  const { problems, plan } = await resolveLoad({
+    companies: [{ name: 'Client Legal A' }],
+    projects: [{ code: 'ERP-001', name: 'Project', client: 'Client Legal A', stage: 'Leads' }],
+  }, api);
+  assert.deepEqual(problems, []);
+  assert.equal(plan.companies[0].action, 'create_external');
+  assert.equal(plan.projects[0].client.id, null);
+  const actions = await applyLoad(plan, api, { batchId: 'batch-1', importedAt: '2026-10-06T00:00:00.000Z' });
+  assert.deepEqual(writes(api).map((c) => `${c.kind} ${c.target}`), ['dispatch companies.create', 'post projects']);
+  assert.deepEqual(writes(api)[0].body, { name: 'Client Legal A', type: 'Client' });
+  assert.equal(writes(api)[1].body.client_id, 'erp-company-1');
+  assert.deepEqual(actions.filter((a) => a.kind.startsWith('company.')).map((a) => a.kind), ['company.create']);
+});
+
+test('AC-CSD-005: an ERP party push failure stops before creating any project', async () => {
+  const api = fakeApi({
+    tables: { external_domain_ownership: [{ domain: 'companies', external_tier: 'erpnext' }] },
+    fail: (kind, target) => kind === 'dispatch' && target === 'companies.create' ? 'commit-rejected' : null,
+  });
+  const { plan } = await resolveLoad({
+    companies: [{ name: 'Client Legal A' }],
+    projects: [{ code: 'ERP-001', name: 'Project', client: 'Client Legal A', stage: 'Leads' }],
+  }, api);
+  await assert.rejects(applyLoad(plan, api, { batchId: 'batch-1', importedAt: '2026-10-06T00:00:00.000Z' }), /refused: dispatch companies.create/);
+  assert.deepEqual(writes(api).map((c) => `${c.kind} ${c.target}`), ['dispatch companies.create']);
+  assert.deepEqual(api.tables.projects ?? [], []);
 });
 
 test('AC-CSD-010: the budget target is a new Draft, the highest Draft minus loaded keys, or nothing once a budget is active', async () => {

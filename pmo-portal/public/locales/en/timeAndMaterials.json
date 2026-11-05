@@ -19,6 +19,18 @@
     "assignmentsTruncated": "More than {{limit}} rate assignments exist; not all are shown.",
     "peopleError": "Couldn't load people. Retry before assigning a rate.",
     "saved": "Rate saved",
+    "salesItem": "ERP sales item",
+    "salesItemFor": "Sales item for {{label}}",
+    "salesItemNoun": "sales item",
+    "notMapped": "Not mapped",
+    "chooseSalesItem": "Choose a sales item",
+    "searchSalesItems": "Search sales items",
+    "acceptProposed": "Accept proposed ({{count}})",
+    "proposalsLoading": "Checking ERP sales items for possible matches…",
+    "proposalsError": "Couldn't load ERP sales items. Retry to check for matches.",
+    "retrySalesItems": "Retry",
+    "proposalsReady": "Some unmapped rate lines have a clear sales item match.",
+    "salesItemsSaved": "Sales item mapping saved",
     "assigned": "Person assigned to rate",
     "addTitle": "Add labour rate",
     "editTitle": "Edit labour rate",
@@ -51,7 +63,10 @@
     "end": "End rate",
     "endTitle": "End this rate?",
     "endDescription": "No new hours after today will be priced with {{line}}. Claims already assembled keep their rate.",
-    "ended": "Rate ended"
+    "ended": "Rate ended",
+    "equipmentKind": "Equipment",
+    "standbyRate": "Standby",
+    "assetUnavailable": "Machine no longer listed"
   },
   "assembly": {
     "title": "Assemble a claim",
@@ -76,7 +91,8 @@
     "error": "Couldn't preview approved hours",
     "empty": "No approved hours in this period.",
     "sourceCount_one": "{{count}} approved entry",
-    "sourceCount_other": "{{count}} approved entries"
+    "sourceCount_other": "{{count}} approved entries",
+    "noStandbyRate": "No standby rate is set for this machine"
   },
   "claims": {
     "statusSignedOff": "Signed off",
@@ -107,8 +123,12 @@
     "confirmDescription": "Confirming marks this claim as signed off by the client and lets Finance raise its invoice.",
     "withdrawTitle": "Withdraw client sign-off?",
     "withdrawDescription": "This claim can no longer be invoiced. Its approved hours go back to unclaimed and can be assembled into a later claim.",
+    "stale": "This claim changed after the sign-off was prepared. Prepare it again before confirmation.",
     "prepareTitle": "Prepare client sign-off",
     "prepareDescription": "Choose an issued or approved project document with a file. A different user must confirm this sign-off.",
+    "prepareAgain": "Prepare sign-off again",
+    "prepareAgainTitle": "Update client sign-off",
+    "prepareAgainDescription": "Review the updated hours against the project document, then prepare sign-off again.",
     "revision": "rev {{revision}}",
     "documentsError": "Couldn't load evidence documents",
     "noDocuments": "No issued or approved document with a file is available on this project.",
@@ -124,6 +144,16 @@
     "sourcesError": "Couldn't load source entries",
     "sourcesTruncated": "Showing {{shown}} of {{total}} source entries.",
     "noSources": "No source entries are available for this claim.",
+    "subtotal": "Subtotal",
+    "dateUnavailable": "date unavailable",
+    "sourceNotSelected": "Not selected",
+    "sourcesReleased": "Released when the claim was withdrawn",
+    "removeSource": "Remove",
+    "removeSourceLabel": "Remove {{amount}} for {{person}} on {{date}}",
+    "removeSourceTitle": "Remove approved hours?",
+    "removeSourceDescription": "Remove {{amount}} for {{person}} on {{date}} ({{line}}) from this draft claim?",
+    "reprepareNote": "The sign-off must be prepared again to match the updated hours.",
+    "sourceRemoved": "Source removed from the claim",
     "timeEntry": "Approved time entry",
     "equipmentEntry": "Approved usage entry"
   },
@@ -132,5 +162,8 @@
     "hour_other": "{{amount}} hours",
     "day_one": "{{amount}} day",
     "day_other": "{{amount}} days"
+  },
+  "basis": {
+    "standby": "standby"
   }
 }

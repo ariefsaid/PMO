@@ -4,7 +4,7 @@
 -- (ii)  org-B user SELECTs → 0 rows (cross-org isolated).
 -- (iii) org-A Engineer INSERT → 42501 (coarse write gate blocks Engineer).
 -- (iv)  org-A PM INSERT → 42501; org-A Admin INSERT → lives_ok (OD-SP-2 Admin-configured, 0268).
--- (v)   default-org seed has 5 OD-SP-2 rows; Negotiation win_prob = 0.75 (two is() calls).
+-- (v)   default-org seed has 5 OD-SP-2 rows; Negotiation win_prob = 0.90 (two is() calls).
 -- (vi)  anon cannot execute transition_project (anon execute revoked).
 -- (FR-PR-008/009/010, OD-SP-2, OD-PR-A)
 -- Note: plan(8) — items (iv) and (v) each use two assertions.
@@ -89,8 +89,8 @@ select is(
 select is(
   (select win_probability from pipeline_stage_config
    where org_id = '00000000-0000-0000-0000-000000000001' and status = 'Negotiation'),
-  0.750,
-  'AC-1010: Negotiation win prob = 0.75');
+  0.900,
+  'AC-1010: Negotiation Go prob = 0.90');
 
 -- ── Test (vi): anon cannot execute transition_project ────────────────────────
 -- transition_project has: revoke execute on function ... from anon.

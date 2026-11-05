@@ -287,7 +287,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
   const needs = useNeedsYou(role);
   const projects = useProjects();
   // Shared-details select: the supplier invoice and payment rows behind each unpaid balance (same cache as the figures).
-  const procurements = useProcurements({ withSharedDetails: true });
+  const procurements = useProcurements({ lean: true });
   const pipeline = useSalesPipeline();
   const budgetReview = useFinanceBudgetReview();
   const orgCurrency = useOrgCurrency();

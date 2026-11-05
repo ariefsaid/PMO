@@ -9,7 +9,8 @@
 #   2. write pmo-portal/.env.local exactly as ci.yml does (supabase local url/anon + the VITE_FEATURES_*
 #      flags the view/agent/crm journeys need) — NOTE this OVERWRITES .env.local (regenerated each run)
 #   3. export SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY / VITE_SUPABASE_ANON_KEY for the service-role specs
-#   4. run chromium (--workers=2) then the serial lane (--workers=1); or your pass-through args at 2 workers
+#   4. run chromium (--workers=2) then the serial lane (--workers=1); or your pass-through args at
+#      E2E_WORKERS workers (default 2)
 #
 # Load-lean by default (shared Mac): no DB reset, 2 workers, and ONE dev server — the analytics
 # :3100 server + `consent` project start only when your args name a consent spec (E2E_CONSENT_LANE).
@@ -118,11 +119,36 @@ case " $* " in
   *) export E2E_CONSENT_LANE=0 ;;
 esac
 if [ "$#" -gt 0 ]; then
-  echo "[e2e-local] playwright --workers=2 $* (consent lane: $E2E_CONSENT_LANE)"
-  exec npx playwright test --workers=2 "$@"
+  # Pass-through workers honour E2E_WORKERS (default 2) so a caller — e.g. affected-e2e.mjs --run's
+  # serial phase — can pick the worker count per invocation without stacking a second --workers
+  # flag (playwright's last-flag-wins would bury which value actually ran).
+  workers="${E2E_WORKERS:-2}"
+  echo "[e2e-local] playwright --workers=$workers $* (consent lane: $E2E_CONSENT_LANE)"
+  exec npx playwright test "--workers=$workers" "$@"
 fi
 
-echo "[e2e-local] phase 1: chromium (--workers=2)"
-npx playwright test --project=chromium --workers=2
-echo "[e2e-local] phase 2: serial (--workers=1)"
-npx playwright test --project=serial --workers=1
+# Playwright CLEARS its outputDir at the start of every invocation, so two phases sharing the config
+# default (`os.tmpdir()/pmo-portal-test-results`, playwright.config.ts) delete each other's evidence:
+# phase 2 used to wipe phase 1's traces/videos/error-context, and a red chromium spec could no longer
+# be root-caused from its trace (#1870). Each phase gets its own subdir under the config root — read
+# from the config by affected-e2e.mjs, so this cannot drift from outputDir. A single invocation (the
+# pass-through branch above) keeps the default.
+#
+# The helper is read when present, never assumed: this script is also exercised from a temp dir that
+# copies only the lock scripts (scripts/parallel-infra.test.mjs proves lock re-use there), where the
+# relative path does not exist. In that case FALL BACK to the config's documented default — `os.tmpdir()`
+# IS `$TMPDIR` — and say so loudly: dying on MODULE_NOT_FOUND would break the run, and silently
+# sharing one dir would bring back #1870. A helper that is present but throws (config reshaped) still
+# fails the run: under `set -e` the assignment inherits its non-zero status, so drift stays loud.
+results_root="${TMPDIR:-/tmp}"
+results_root="${results_root%/}/pmo-portal-test-results"
+if [ -f "$REPO/scripts/affected-e2e.mjs" ]; then
+  results_root="$(node "$REPO/scripts/affected-e2e.mjs" --results-root)"
+else
+  echo "[e2e-local] WARNING: $REPO/scripts/affected-e2e.mjs is absent — using the playwright.config.ts default artifact root ($results_root). If the config moves outputDir, this fallback will not follow it." >&2
+fi
+echo "[e2e-local] phase 1: chromium (--workers=2) — failure artifacts: $results_root/chromium"
+npx playwright test --project=chromium --workers=2 --output="$results_root/chromium"
+echo "[e2e-local] phase 2: serial (--workers=1) — failure artifacts: $results_root/serial"
+npx playwright test --project=serial --workers=1 --output="$results_root/serial"
+echo "[e2e-local] failure artifacts (trace, video, error-context): chromium → $results_root/chromium | serial → $results_root/serial"

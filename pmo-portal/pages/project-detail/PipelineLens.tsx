@@ -45,9 +45,9 @@ import { synchronizeErpProject } from '@/src/lib/repositories/projectErpSetup';
 // `dealJourneySteps` in components/salesPipeline. Translating them here alone would put
 // two languages on one screen. Belongs with the cross-cutting status-vocabulary decision.
 const NEXT_PIPELINE_LABEL: Record<string, string> = {
-  Leads: 'Pre-Qual',
-  'PQ Submitted': 'Quotation',
-  'Quotation Submitted': 'Tender',
+  Leads: 'Quotation',
+  'Quotation Submitted': 'Pre-Qualification',
+  'PQ Submitted': 'Tender',
   'Tender Submitted': 'Negotiation',
 };
 
@@ -97,7 +97,8 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState }) =
   } = useSalesPipeline();
 
   const liveStatus = project.status as string;
-  // The pipeline projection carries win_probability; the project row carries the value.
+  const canEditProbability = canTransition && PIPELINE_STATUSES.includes(liveStatus);
+  // The pipeline projection carries both editable probability inputs and the weighted value.
   const cached = pipeline?.projects.find((p) => p.id === project.id);
 
   // N10 (OD-W5-C3-B): focus management after a transition — refs for the heading
@@ -111,6 +112,11 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState }) =
 
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [savingProbability, setSavingProbability] = useState<'go' | 'get' | null>(null);
+  const [goProbabilityInput, setGoProbabilityInput] = useState('10');
+  const [getProbabilityInput, setGetProbabilityInput] = useState('25');
+  const [goProbabilityError, setGoProbabilityError] = useState<string | null>(null);
+  const [getProbabilityError, setGetProbabilityError] = useState<string | null>(null);
   // Write policy (OD-UX-1): a routine reversible forward Advance is SINGLE-CLICK + a toast
   // (no modal) — aligned to procurement + Tasks. Only the terminal/destructive `Mark lost`
   // opens a destructive confirm; `Mark won` keeps its inline SoD capture (that consequential
@@ -170,15 +176,83 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState }) =
     </span>
   );
 
-  const winProbNode: React.ReactNode = isPipelinePending ? (
+  useEffect(() => {
+    if (cached?.go_probability !== undefined) {
+      setGoProbabilityInput(String(Math.round(cached.go_probability * 100)));
+    }
+    if (cached?.get_probability !== undefined) {
+      setGetProbabilityInput(String(Math.round(cached.get_probability * 100)));
+    }
+  }, [cached?.go_probability, cached?.get_probability, project.id]);
+
+  const saveProbability = async (event: React.FormEvent<HTMLFormElement>, kind: 'go' | 'get') => {
+    event.preventDefault();
+    const percent = Number(kind === 'go' ? goProbabilityInput : getProbabilityInput);
+    const setError = kind === 'go' ? setGoProbabilityError : setGetProbabilityError;
+    const error = t('projectDetail.pipeline.probabilityFailed', "Couldn't save this probability. Check your access and retry.");
+    if (!Number.isFinite(percent) || percent < 0 || percent > 100) {
+      setError(error);
+      return;
+    }
+    setError(null);
+    setSavingProbability(kind);
+    try {
+      if (kind === 'go') await repositories.project.updateGoProbability(project.id, percent / 100);
+      else await repositories.project.updateGetProbability(project.id, percent / 100);
+      await queryClient.invalidateQueries({ queryKey: ['sales-pipeline', currentUser?.org_id] });
+      await refetchPipeline();
+      toast(
+        t('projectDetail.pipeline.getProbabilitySaved', 'Opportunity estimate updated'),
+        `${t(`projectDetail.pipeline.${kind}Probability`, kind === 'go' ? '% Go' : '% Get')}: ${percent}%`,
+        'success',
+      );
+    } catch {
+      setError(error);
+    } finally {
+      setSavingProbability(null);
+    }
+  };
+
+  const probabilityNode = (kind: 'go' | 'get'): React.ReactNode => isPipelinePending ? (
     <span className="text-sm font-normal text-muted-foreground">
       {t('projectDetail.pipeline.statLoading', 'Loading…')}
     </span>
   ) : isPipelineError || !cached ? (
     renderTileUnavailable()
-  ) : (
-    formatPercent(cached.win_probability)
-  );
+  ) : canEditProbability ? (() => {
+    const input = kind === 'go' ? goProbabilityInput : getProbabilityInput;
+    const onChange = kind === 'go' ? setGoProbabilityInput : setGetProbabilityInput;
+    const error = kind === 'go' ? goProbabilityError : getProbabilityError;
+    const label = kind === 'go'
+      ? t('projectDetail.pipeline.goInputLabel', 'Chance the project proceeds (%)')
+      : t('projectDetail.pipeline.getInputLabel', 'Chance we win if the client proceeds (%)');
+    const busy = savingProbability === kind;
+    return (
+      <form onSubmit={(event) => void saveProbability(event, kind)} className="flex flex-wrap items-center gap-2">
+      <label className="sr-only" htmlFor={`${kind}-probability-${project.id}`}>
+        {label}
+      </label>
+      <input
+        id={`${kind}-probability-${project.id}`}
+        type="number"
+        min={0}
+        max={100}
+        step={1}
+        value={input}
+        onChange={(event) => onChange(event.target.value)}
+        disabled={savingProbability !== null}
+        className="h-9 w-20 rounded-[var(--radius-control)] border border-input bg-background px-2 text-sm tabular focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50"
+      />
+      <Button type="submit" variant="outline" size="sm" disabled={savingProbability !== null}>
+        {busy ? t('projectDetail.pipeline.statLoading', 'Loading…') : t('projectDetail.pipeline.saveProbability', 'Save')}
+      </Button>
+      {error && <span role="alert" className="w-full text-xs text-destructive-text">{error}</span>}
+      </form>
+    );
+  })() : formatPercent(kind === 'go' ? (cached.go_probability ?? cached.win_probability) : (cached.get_probability ?? 0.25));
+
+  const goProbabilityNode = probabilityNode('go');
+  const getProbabilityNode = probabilityNode('get');
 
   const weightedValueNode: React.ReactNode = isPipelinePending ? (
     <span className="text-sm font-normal text-muted-foreground">
@@ -308,7 +382,8 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState }) =
       ]
     : [
         ...(canSeeMoney ? [valueTile] : []),
-        { label: t('projectDetail.pipeline.stat.winProbability', 'Win probability'), value: winProbNode },
+        { label: t('projectDetail.pipeline.goProbability', '% Go'), value: goProbabilityNode },
+        { label: t('projectDetail.pipeline.getProbability', '% Get'), value: getProbabilityNode },
         ...(canSeeMoney ? [{ label: t('projectDetail.pipeline.stat.weighted', 'Weighted'), value: weightedValueNode }] : []),
         ownerTile,
       ];
@@ -355,7 +430,7 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState }) =
 
       <details ref={detailsRef} open={isDesktop || detailsOpen} onToggle={(event) => setDetailsOpen(event.currentTarget.open)} className="min-w-0">
         <summary className="mb-4 cursor-pointer text-sm font-semibold text-foreground md:hidden">
-          {t('projectDetail.pipeline.moreAboutDeal', 'More about this deal')}
+          {t('projectDetail.pipeline.moreAboutDeal', 'More project details')}
         </summary>
         {showDetails && <>
           {stats.length > 0 && (

@@ -133,7 +133,8 @@ describe('SalesPipeline — live Export (AC-EXP-008)', () => {
       'Value',
       'Currency',
       'Weighted',
-      'Win %',
+      '% Go',
+      '% Get',
       'Owner',
       'Last touch',
     ]);

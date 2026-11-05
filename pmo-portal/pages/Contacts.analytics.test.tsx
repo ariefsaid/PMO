@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 import type { Role } from '@/src/auth/AuthContext';
@@ -70,9 +70,12 @@ beforeEach(() => {
 });
 
 describe('Contacts: empty_state_seen fires when there are zero contacts (FIX 1)', () => {
-  it('AC: renders the empty ListState and fires empty_state_seen with state_id/role/module', () => {
+  it('AC: renders the empty ListState and fires empty_state_seen with state_id/role/module', async () => {
     renderPage('Finance');
     expect(screen.getByText('No contacts yet')).toBeInTheDocument();
-    expect(analytics.trackEmptyStateSeen).toHaveBeenCalledWith('contacts-empty', 'Finance', 'contacts');
+    // The facade is loaded lazily (ListState defers the analytics chunk off the first paint).
+    await waitFor(() => {
+      expect(analytics.trackEmptyStateSeen).toHaveBeenCalledWith('contacts-empty', 'Finance', 'contacts');
+    });
   });
 });

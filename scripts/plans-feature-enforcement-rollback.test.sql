@@ -1,14 +1,24 @@
 -- AC-PLN-005 reversal harness — the 0534 rollback must actually REMOVE the entitlement conjunct it
 -- appended to live policies, and re-applying the migration must put it back. The runner
--- (scripts/test-plans-feature-enforcement-rollback.sh) reverses the later 0538 overlay first, expands
--- the migration markers in order, then runs the file transactionally so the database is left at HEAD.
+-- (scripts/test-plans-feature-enforcement-rollback.sh) reverses every later migration that rewrote
+-- the same policies first, expands the migration markers in order, then runs the file transactionally
+-- so the database is left at HEAD.
+--
+-- Reversal order is NEWEST-FIRST, and 0646 is in this bracket for a structural reason: it rewrites
+-- the same predicate text by wrapping caller-context helper calls as (select fn()), so 0534's down —
+-- which strips its appended conjunct from the live deparse with a text pattern anchored on
+-- `auth_org_id()` — no longer matches `(select public.auth_org_id())` and silently leaves the
+-- conjunct in place. 0646's down restores the pre-0646 expressions (the form 0534's pattern targets);
+-- 0646's up re-wraps them last, so the round trip ends at HEAD.
 \set ON_ERROR_STOP on
 begin;
 create extension if not exists pgtap;
 select plan(7);
 
--- 0538 changes procurement write policies after 0534. Reverse every later overlapping migration first,
--- then restore in forward order so this round trip models a real rollback to 0534 and back to HEAD.
+-- 0538 and 0646 change procurement/write policies after 0534. Reverse every later overlapping
+-- migration first (newest first), then restore in forward order so this round trip models a real
+-- rollback to 0534 and back to HEAD.
+-- @0646_DOWN@
 -- @0538_DOWN@
 -- @0534_DOWN@
 
@@ -52,6 +62,7 @@ select is((select count(*)::int from pg_policies
 
 -- @0534_UP@
 -- @0538_UP@
+-- @0646_UP@
 
 select is((select count(*)::int from pg_policies
             where schemaname = 'public' and tablename = 'incoming_payments'

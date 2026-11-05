@@ -69,7 +69,12 @@ describe('UXS-006 localized shell vocabulary', () => {
       expect(breadcrumb.querySelector('[aria-current="page"]')).toHaveTextContent(crumb);
     };
     await choose('perusahaan', /^Perusahaan$/, '/companies', 'Perusahaan');
-    await choose('pemasok', /^Pemasok$/, '/companies?type=Vendor', 'Pemasok');
+    // With CRM on the rail hides the Suppliers alias — and the palette Navigate group must hide
+    // it too (registry parity: the vendors entry is unlessFeature-gated like its Rail twin).
+    await user.keyboard('{Control>}k{/Control}');
+    await user.type(screen.getByRole('combobox'), 'pemasok');
+    expect(screen.queryByRole('option', { name: /^Pemasok$/ })).not.toBeInTheDocument();
+    await user.keyboard('{Escape}');
     await choose('my tasks', /^Tugas Saya/, '/my-tasks', 'Tugas Saya');
   });
 });

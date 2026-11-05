@@ -108,7 +108,7 @@ select is(array(
    where p.pronamespace = 'public'::regnamespace and p.prosecdef
      and has_function_privilege('authenticated', p.oid, 'execute')
      and p.proname = any (array['procurement_gate','get_procurement_gates','set_procurement_gates','procurement_gate_violation',
-       'procurement_ledger_held','procurement_payment_within_ceiling','link_erp_purchase_documents','unlink_erp_purchase_document',
+       'procurement_ledger_held','procurement_ledger_held_many','procurement_payment_within_ceiling','link_erp_purchase_documents','unlink_erp_purchase_document',
        'link_procurement_sharepoint_item','transition_procurement','mark_erp_purchase_documents','recategorise_budget_lines',
        'activate_budget_version','link_m365_documents_batch'])
      and regexp_replace(p.prosrc, '--[^\n]*', '', 'g') !~ 'is_active_member'

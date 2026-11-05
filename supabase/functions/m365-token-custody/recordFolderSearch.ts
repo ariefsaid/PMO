@@ -10,8 +10,7 @@
 
 import type { HandlerResult } from "./types.ts";
 import type { RecordFolderReadAccess } from "./graphRead.ts";
-import { safeGraphId } from "./graphFolderWrite.ts";
-import { validateFolderItem } from "./recordFolderParents.ts";
+import { validatedRootId, validateFolderItem } from "./recordFolderParents.ts";
 import {
   folderChildrenRequest,
   folderNameMatchesCode,
@@ -86,12 +85,8 @@ export function createFolderDiscovery(
   async function resolveParent(segments: string[]): Promise<string | "absent" | Failure> {
     const root = await read.readFolder({ kind: "root" });
     if (root.kind !== "ok") return readFailure(root);
-    const rootParent = isRecord(root.item.parentReference) ? root.item.parentReference : null;
-    if (
-      !safeGraphId(root.item.id) || root.item.folder == null ||
-      (rootParent !== null && rootParent.driveId !== undefined && rootParent.driveId !== driveId)
-    ) return incomplete("invalid");
-    let parentId = root.item.id;
+    let parentId = validatedRootId(root.item, driveId);
+    if (parentId === null) return incomplete("invalid");
     for (const name of segments) {
       const step = await read.readFolder({ kind: "child", parentId, name });
       if (step.kind === "not_found") return "absent";

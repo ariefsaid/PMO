@@ -164,6 +164,7 @@
     "statusOverdueDay": "Terlambat · {{count}} hari",
     "statusOverdueDays": "Terlambat · {{count}} hari",
     "statusPaid": "Lunas",
+    "statusReceiptAwaitingOdoo": "Penerimaan terkirim, menunggu Odoo",
     "statusCancelled": "Dibatalkan",
     "paymentDrawerTitle": "{{client}} · {{amount}}",
     "cash": "Kas diterima",
@@ -197,7 +198,13 @@
     "clearProject": "Hapus filter proyek"
   },
   "receipts": {
-    "someUnreported": "Beberapa angka tidak dilaporkan."
+    "someUnreported": "Beberapa angka tidak dilaporkan.",
+    "confirmOdooTitle": "Catat kuitansi ini di Odoo?",
+    "confirmOdooBody": "PMO akan mengirim kuitansi ini ke Odoo. Periksa jumlah yang dilunasi dan pajak yang dipotong sebelum melanjutkan.",
+    "statusAwaitingOdoo": "Kuitansi terkirim, menunggu Odoo",
+    "statusPaidOdoo": "Lunas",
+    "journalLabel": "Diterima di",
+    "titleUnnumbered": "Kuitansi, belum bernomor"
   },
   "statements": {
     "amountsIn": "Jumlah dalam",
@@ -609,7 +616,39 @@
     "budget": "Anggaran",
     "activateEditorBlocked": "Anda menyusun atau mengedit versi ini, jadi orang lain harus mengaktifkannya.",
     "activateNeedsAdminOrFinance": "Penyusun versi ini tidak tercatat. Minta Admin atau Finance untuk mengaktifkannya.",
-    "wholeProjectEditorHint": "Anggaran seluruh proyek: masukkan total setiap kategori sekali — tanpa tahun fiskal per baris."
+    "wholeProjectEditorHint": "Anggaran seluruh proyek: masukkan total setiap kategori sekali — tanpa tahun fiskal per baris.",
+    "invoiceNumber": "Nomor faktur",
+    "odooDraftNumber": "Draf — Odoo memberi nomor setelah disetujui",
+    "erpLineItemsStoredExternally": "Baris faktur disimpan di sistem akuntansi untuk faktur ini.",
+    "paymentsReceivedFromClientsMirroredFromOdoo": "Pembayaran dari klien yang disalin dari Odoo."
+  },
+  "odooOutcome": {
+    "confirmed": "Ada di Odoo",
+    "pending": "Terkirim, menunggu Odoo",
+    "held": "Perlu keputusan",
+    "needs-attention": "Periksa di Odoo",
+    "refused": "Odoo tidak menerima dokumen ini",
+    "read": "Dibaca {{age}}",
+    "sent": "Terkirim {{age}}",
+    "unreachable": "Odoo tidak dapat dihubungi. Menampilkan data terakhir yang dibaca PMO{{age}}.",
+    "offlineAction": "Odoo tidak tersedia. Anda masih dapat melihat data terakhir yang dibaca PMO; tidak ada perubahan baru yang dikirim dari layar ini.",
+    "creditNotes": "Nota kredit",
+    "amountUnavailable": "Jumlah tidak tersedia",
+    "creditNotesUnavailable": "Nota kredit tidak dapat dibaca saat ini.",
+    "next": {
+      "pending": "Odoo belum mengonfirmasinya. PMO akan memeriksa kembali otomatis; tidak ada tindakan yang perlu dilakukan.",
+      "held": "PMO tidak dapat memastikan apakah Odoo sudah membuatnya. Admin atau Finance perlu memeriksa Odoo dan menentukan langkah berikutnya.",
+      "needs-attention": "Periksa faktur di Odoo sebelum melanjutkan.",
+      "refused": "Periksa data yang dimasukkan, lalu catat kembali."
+    },
+    "reason": {
+      "total-mismatch": "Total di Odoo tidak sama dengan yang dikirim PMO.",
+      "cost-account-missing": "Satu baris yang sudah diposting tidak memiliki akun biaya untuk proyek.",
+      "money-unreadable": "PMO tidak dapat membaca jumlah dari Odoo.",
+      "lines-unreadable": "PMO tidak dapat membaca baris faktur dari Odoo.",
+      "advance-account-mismatch": "Uang muka pelanggan diposting ke akun yang berbeda dari yang dipilih di pengaturan."
+    },
+    "sentTotal": "PMO mengirim {{amount}}."
   },
   "common": {
     "save": "Simpan",
@@ -630,5 +669,51 @@
     "otherHelp": "Lisensi, penggantian biaya, dan pekerjaan di luar kontrak: dihitung dalam pendapatan dan margin, tidak pernah mengurangi Sisa untuk ditagihkan.",
     "change": "Ubah jenis penagihan",
     "save": "Simpan jenis penagihan"
+  },
+  "erpJournal": {
+    "title": "Jurnal dari sistem akuntansi",
+    "alreadyInSpending": "Sudah termasuk dalam pengeluaran",
+    "qualifier": "Biaya ini sudah dihitung dalam pengeluaran proyek. Melampirkan menghubungkan jurnal ke pembelian dan tidak menambah pengeluaran.",
+    "noPurchaseNote": "Dibayar langsung dan dicatat di sistem akuntansi sebagai jurnal, sehingga tidak ada pembelian yang dibuat di PMO.",
+    "notInPurchase": "Belum ada pembelian",
+    "cancelled": "Dibatalkan di sistem akuntansi",
+    "possiblyReversed": "Mungkin dibalik",
+    "attach": "Lampirkan ke pembelian",
+    "attachOne": "Lampirkan {{name}} ke pembelian",
+    "attachConfirm": "Lampirkan",
+    "loadError": "Jurnal tidak dapat dimuat",
+    "column": {
+      "journal": "Jurnal",
+      "date": "Tanggal",
+      "account": "Akun",
+      "amount": "Jumlah",
+      "purchase": "Pembelian"
+    },
+    "dialogTitle": "Lampirkan {{name}} ke pembelian",
+    "dialogSub": "Komitmen terbuka pembelian turun sebesar baris ini, dan pengeluaran proyek tidak berubah. Tidak ada yang dikirim ke sistem akuntansi.",
+    "willAttach": "Siap dilampirkan. Tidak ada yang dikirim ke sistem akuntansi.",
+    "notAttached": "Tidak ada yang dilampirkan.",
+    "cannotAttach": "Baris ini tidak dapat dilampirkan ke pembelian tersebut.",
+    "purchaseNoun": "pembelian proyek ini",
+    "attachedTitle": "Jurnal dari sistem akuntansi",
+    "attachedError": "Jurnal terlampir tidak dapat dimuat",
+    "detach": "Lepaskan",
+    "detachOne": "Lepaskan {{name}}",
+    "detachTitle": "Lepaskan {{name}}?",
+    "detachBody": "{{name}} tidak lagi menjadi bagian dari pembelian ini dan komitmen terbukanya naik kembali sebesar jumlah itu. Pengeluaran proyek tidak berubah, dan tidak ada yang berubah di sistem akuntansi.",
+    "reason": {
+      "unknown": "Baris jurnal ini tidak dapat dilampirkan.",
+      "keyMissing": "Baris jurnal tidak lengkap.",
+      "invalidId": "Pembelian atau proyek tidak dapat dibaca. Segarkan dan coba lagi.",
+      "pmoPosted": "PMO sendiri yang memposting jurnal ini; jurnal ini sudah punya catatannya sendiri.",
+      "notFound": "Baris jurnal ini belum ada di PMO. Tunggu sinkronisasi berikutnya.",
+      "notPositive": "Hanya baris jurnal yang menambah biaya yang dapat dilampirkan.",
+      "purchaseNotFound": "Pembelian tidak ditemukan.",
+      "purchaseClosed": "Pembelian ini dibatalkan atau ditolak.",
+      "project": "Pembelian ini milik proyek lain.",
+      "currency": "Mata uang pembelian berbeda dari mata uang akuntansi.",
+      "attachedElsewhere": "Baris jurnal ini sudah menjadi bagian dari pembelian lain.",
+      "alreadyAttached": "Baris jurnal ini sudah dilampirkan ke pembelian ini."
+    }
   }
 }

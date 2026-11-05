@@ -18,6 +18,7 @@ interface Call {
   or: string[];
   neq: Array<[string, unknown]>;
   is: Array<[string, unknown]>;
+  in: Array<[string, unknown[]]>;
 }
 
 const h = vi.hoisted(() => {
@@ -28,13 +29,14 @@ const h = vi.hoisted(() => {
   };
 
   function builder(table: string) {
-    const call: Call = { table, columns: '', orders: [], range: null, eq: [], or: [], neq: [], is: [] };
+    const call: Call = { table, columns: '', orders: [], range: null, eq: [], or: [], neq: [], is: [], in: [] };
     const b = {
       select(columns: string) { call.columns = columns; return b; },
       eq(column: string, value: unknown) { call.eq.push([column, value]); return b; },
       or(filters: string) { call.or.push(filters); return b; },
       neq(column: string, value: unknown) { call.neq.push([column, value]); return b; },
       is(column: string, value: unknown) { call.is.push([column, value]); return b; },
+      in(column: string, values: unknown[]) { call.in.push([column, values]); return b; },
       order(column: string, opts?: { ascending?: boolean }) {
         call.orders.push({ column, ascending: opts?.ascending });
         return b;
@@ -223,6 +225,26 @@ describe('db/revenue listIncomingPayments — same cap, same fix', () => {
     h.state.pages.incoming_payments = [[{ id: 'ip-2', ip_number: 'ACC-PAY-2', customer: null }]];
     const rows = await listIncomingPayments();
     expect(rows[0].customer_name).toBeNull();
+  });
+
+  it('AC-OCI-054 selects the Odoo receipt command timestamp needed to show an invoice awaiting its next ERP read', async () => {
+    h.state.pages.incoming_payments = [[{
+      id: 'ip-1', status: 'Paid', sales_invoice_id: 'si-1', customer: { name: 'Acme Co' },
+    }]];
+    h.state.pages.external_command_outbox = [[{
+      pmo_record_id: 'ip-1', state: 'confirmed', created_at: '2026-11-02T09:00:00.000Z', updated_at: '2026-11-02T09:01:00.000Z',
+    }]];
+
+    const rows = await listIncomingPayments();
+
+    expect(rows[0].push_command_state).toBe('confirmed');
+    expect(rows[0].push_command_created_at).toBe('2026-11-02T09:00:00.000Z');
+    expect(rows[0].push_command_updated_at).toBe('2026-11-02T09:01:00.000Z');
+    const commandRead = h.state.calls.find((call) => call.table === 'external_command_outbox');
+    expect(commandRead?.columns).toBe('pmo_record_id, state, created_at, updated_at');
+    expect(commandRead?.eq).toEqual([['domain', 'revenue'], ['external_tier', 'odoo']]);
+    expect(commandRead?.in).toContainEqual(['pmo_record_id', ['ip-1']]);
+    expect(commandRead?.in[1][0]).toBe('state');
   });
 
   it('AC-ECA-030 the invoice list leaves out a PMO copy paired to an ERP invoice, unless a caller asks for paired rows', async () => {

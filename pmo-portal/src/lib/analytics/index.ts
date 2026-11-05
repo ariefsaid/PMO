@@ -29,26 +29,6 @@ import { isFeatureEnabled } from '@/src/lib/features';
 import type { AuthMethod, AuthFailureReason, DemoPersonaLabel } from './events';
 import type { DownvoteReason } from '@/src/lib/db/agentEvents';
 import { SAFE_TAB_ID } from './route';
-import {
-  buildAgentPanelOpenedEvent,
-  buildAgentRunStartedEvent,
-  buildAgentRunCompletedEvent,
-  buildAgentRunErroredEvent,
-  buildAgentApprovalShownEvent,
-  buildAgentApprovalDecidedEvent,
-  buildAgentThreadResumedEvent,
-  buildAgentFeedbackRatedEvent,
-  buildAgentComposeViewSavedEvent,
-  // The 3 builders below already existed (pure, TrackedEvent-returning) but had no
-  // capturing wrapper — renamed on import so this file can define the ACTUAL
-  // `trackFormValidationFailed`/`trackSaveFailed`/`trackEmptyStateSeen` facade
-  // helpers below (mirroring the trackAgent* / buildAgent* pattern) without a name
-  // collision. Components must import the wrapper (this file), never the builder.
-  trackFormValidationFailed as buildFormValidationFailedEvent,
-  trackSaveFailed as buildSaveFailedEvent,
-  trackBulkImportFailed as buildBulkImportFailedEvent,
-  trackEmptyStateSeen as buildEmptyStateSeenEvent,
-} from './events';
 
 /** Track when a demo persona button is selected on the login page. */
 export function trackDemoPersonaSelected(role: DemoPersonaLabel): void {
@@ -77,10 +57,9 @@ export function trackAuthLogoutSucceeded(): void {
 }
 
 // ── Wave-1/2 engagement + friction events (2026-07-13 wiring plan) ───────
-// `form_validation_failed` / `save_failed` / `empty_state_seen` reuse the pure
-// builders already defined + tested in events.ts (imported above under a
-// `build*Event` alias) — this is the one place each is turned into an actual
-// `analyticsClient.capture` call, mirroring `trackAgentPanelOpened` et al.
+// Each event's name + property shape lives directly in its capture call below —
+// the one place it is assembled. Property sets stay exhaustive per spec
+// (NFR-APH-PRIV-001 precedent): never add a key without a spec amendment.
 
 export function trackFormValidationFailed(
   formId: string,
@@ -88,28 +67,52 @@ export function trackFormValidationFailed(
   reasonCode: string,
   module: string,
 ): void {
-  const built = buildFormValidationFailedEvent(formId, fieldCount, reasonCode, module);
-  analyticsClient.capture(built.event, built.properties);
+  analyticsClient.capture('form_validation_failed', {
+    form_id: formId,
+    field_count: fieldCount,
+    reason_code: reasonCode,
+    module,
+  });
 }
 
 export function trackSaveFailed(
+  /** The friction classification slug (`permission_denied`, `in_use`, …) — renamed from
+   *  `entity_type` (2026-07-27 code-quality review #4): the property never carried an
+   *  entity type, and the series had zero history (the event was inert until this same slice), so the
+   *  rename was free today and unpayable once real data exists under the old name. */
   failureClass: string,
   operation: string,
   reasonCode: string,
   module: string,
 ): void {
-  const built = buildSaveFailedEvent(failureClass, operation, reasonCode, module);
-  analyticsClient.capture(built.event, built.properties);
+  analyticsClient.capture('save_failed', {
+    failure_class: failureClass,
+    operation,
+    reason_code: reasonCode,
+    module,
+  });
 }
 
+/**
+ * A bulk-import commit run's failures, aggregated PER CLASSIFICATION (2026-07-27 code-quality
+ * review #2 fix). A DISTINCT event from `save_failed` — not the same event with a `failed_count`
+ * bolted on — because `save_failed` counts EVENTS, so a lump aggregate under one event would make
+ * a 5,000-row import failure contribute exactly 1 to whichever `reason_code`/`failure_class`
+ * bucket it landed in, indistinguishable from a single real failure, and would discard the
+ * per-row reason distribution entirely (RLS vs duplicates becomes unanswerable). One
+ * `bulk_import_failed` event per non-zero classification bucket per run (at most 7 —
+ * FrictionClass has 7 members) keeps both quota-safety and the reason distribution.
+ */
 export function trackBulkImportFailed(module: string, failureClass: string, failedCount: number): void {
-  const built = buildBulkImportFailedEvent(module, failureClass, failedCount);
-  analyticsClient.capture(built.event, built.properties);
+  analyticsClient.capture('bulk_import_failed', {
+    module,
+    failure_class: failureClass,
+    failed_count: failedCount,
+  });
 }
 
 export function trackEmptyStateSeen(stateId: string, role: string, module: string): void {
-  const built = buildEmptyStateSeenEvent(stateId, role, module);
-  analyticsClient.capture(built.event, built.properties);
+  analyticsClient.capture('empty_state_seen', { state_id: stateId, role, module });
 }
 
 /** `search_used` (AC-PH-DISC-005-ish): fired once per search intent by `SearchMini`
@@ -155,18 +158,17 @@ export function trackFilterApplied(filterId: string, optionCount: number, module
 // FR-APH-013) — the isFeatureEnabled check here is a defensive early-return,
 // never a second suppression mechanism the facade has to grow. Fire-and-forget:
 // every function below is synchronous and void; call sites never await them
-// (FR-APH-014, NFR-APH-REL-001).
+// (FR-APH-014, NFR-APH-REL-001). Each capture call below owns its event's
+// exhaustive property shape (see the AC-APH-016 tests in index.agent.test.ts).
 
 export function trackAgentPanelOpened(hasScope: boolean): void {
   if (!isFeatureEnabled('agentAssistant')) return;
-  const built = buildAgentPanelOpenedEvent(hasScope);
-  analyticsClient.capture(built.event, built.properties);
+  analyticsClient.capture('agent_panel_opened', { has_scope: hasScope });
 }
 
 export function trackAgentRunStarted(runId: string, isRetry: boolean): void {
   if (!isFeatureEnabled('agentAssistant')) return;
-  const built = buildAgentRunStartedEvent(runId, isRetry);
-  analyticsClient.capture(built.event, built.properties);
+  analyticsClient.capture('agent_run_started', { run_id: runId, is_retry: isRetry });
 }
 
 export function trackAgentRunCompleted(
@@ -175,8 +177,11 @@ export function trackAgentRunCompleted(
   toolRoundCount: number,
 ): void {
   if (!isFeatureEnabled('agentAssistant')) return;
-  const built = buildAgentRunCompletedEvent(runId, durationMs, toolRoundCount);
-  analyticsClient.capture(built.event, built.properties);
+  analyticsClient.capture('agent_run_completed', {
+    run_id: runId,
+    duration_ms: durationMs,
+    tool_round_count: toolRoundCount,
+  });
 }
 
 export function trackAgentRunErrored(
@@ -186,20 +191,22 @@ export function trackAgentRunErrored(
   errorCode: string,
 ): void {
   if (!isFeatureEnabled('agentAssistant')) return;
-  const built = buildAgentRunErroredEvent(runId, durationMs, toolRoundCount, errorCode);
-  analyticsClient.capture(built.event, built.properties);
+  analyticsClient.capture('agent_run_errored', {
+    run_id: runId,
+    duration_ms: durationMs,
+    tool_round_count: toolRoundCount,
+    error_code: errorCode,
+  });
 }
 
 export function trackAgentApprovalShown(runId: string): void {
   if (!isFeatureEnabled('agentAssistant')) return;
-  const built = buildAgentApprovalShownEvent(runId);
-  analyticsClient.capture(built.event, built.properties);
+  analyticsClient.capture('agent_approval_shown', { run_id: runId });
 }
 
 export function trackAgentApprovalDecided(runId: string, decision: 'approved' | 'denied'): void {
   if (!isFeatureEnabled('agentAssistant')) return;
-  const built = buildAgentApprovalDecidedEvent(runId, decision);
-  analyticsClient.capture(built.event, built.properties);
+  analyticsClient.capture('agent_approval_decided', { run_id: runId, decision });
 }
 
 export function trackAgentThreadResumed(
@@ -208,27 +215,34 @@ export function trackAgentThreadResumed(
   eventCount: number,
 ): void {
   if (!isFeatureEnabled('agentAssistant')) return;
-  const built = buildAgentThreadResumedEvent(threadId, runId, eventCount);
-  analyticsClient.capture(built.event, built.properties);
+  analyticsClient.capture('agent_thread_resumed', {
+    thread_id: threadId,
+    run_id: runId,
+    event_count: eventCount,
+  });
 }
 
 export function trackAgentFeedbackRated(rating: 'up' | 'down', downvoteReason: DownvoteReason | undefined, runId: string): void {
   if (!isFeatureEnabled('agentAssistant')) return;
-  const built = buildAgentFeedbackRatedEvent(rating, downvoteReason, runId);
-  analyticsClient.capture(built.event, built.properties);
+  // run_id (FR-PHO-005) joins the rating to its AI trace; `$ai_trace_id` is the same uuid under
+  // PostHog's own LLM-analytics key so insights can filter ratings and generations on one property.
+  analyticsClient.capture('agent_feedback_rated', {
+    rating,
+    downvote_reason: downvoteReason,
+    run_id: runId,
+    $ai_trace_id: runId,
+  });
 }
 
 export function trackAgentComposeViewSaved(runId: string): void {
   if (!isFeatureEnabled('agentAssistant')) return;
-  const built = buildAgentComposeViewSavedEvent(runId);
-  analyticsClient.capture(built.event, built.properties);
+  analyticsClient.capture('agent_compose_view_saved', { run_id: runId });
 }
 
 // ── Consent (FR-CON-002/003, ADR-0067) ───────────────────────────────────
 /** FR-CON-002/003 — the in-app analytics opt-out (see /privacy). */
 export function analyticsOptOut(): void { analyticsClient.optOut(); }
 export function analyticsOptIn(): void { analyticsClient.optIn(); }
-export function hasAnalyticsOptedOut(): boolean { return analyticsClient.hasOptedOut(); }
 /** AC-CON-011 — the three-state (+active) consent surface; see `client.ts`'s `getConsentState` doc. */
 export { getConsentState } from './client';
 export type { ConsentState } from './client';

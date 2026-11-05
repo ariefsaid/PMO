@@ -20,6 +20,15 @@ vi.mock('@/src/hooks/useOrgTaxDefault', async (orig) => {
   const actual = (await orig()) as Record<string, unknown>;
   return { ...actual, useOrgTaxDefault: () => orgDefault.value };
 });
+vi.mock('@/src/hooks/useOrgFeatures', () => ({
+  useOrgFeatures: () => ({
+    data: { procurement: true, procurement_full: true },
+    isLoading: false,
+    isError: false,
+    error: null,
+    refetch: vi.fn(),
+  }),
+}));
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
@@ -601,6 +610,7 @@ describe('AC-W3-O3: mark supplier invoiced opens inline capture and performs tra
 
 // Case-reference register (#1020) has its own tests; isolate it from the details-page harness.
 vi.mock('@/src/hooks/useErpPurchaseLinks', () => import('@/pages/__tests__/helpers/erpPurchaseLinksMock'));
+vi.mock('@/src/hooks/useErpJournalLines', () => import('@/pages/__tests__/helpers/erpJournalLinesMock'));
 vi.mock('@/src/hooks/useProcurementGates', () => import('@/pages/__tests__/helpers/procurementGatesMock'));
 vi.mock('@/src/hooks/useProcurementMicrosoftReferences', () => ({ useProcurementMicrosoftReferences: () => ({ query: { data: [] } }) }));
 vi.mock('@/pages/procurement/ProcurementMicrosoftReferences', () => ({ ProcurementMicrosoftReferences: () => null }));

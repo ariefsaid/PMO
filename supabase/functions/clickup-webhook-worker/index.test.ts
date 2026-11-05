@@ -8,7 +8,10 @@
 //   - a re-GET 404 (task no longer exists) collapses to the same tombstone-if-mapped path;
 //   - runWorkerBatch marks a row done on success, failed (with the detail) on a thrown error, and a
 //     23505 concurrent-adopt is treated as recoverable (done, not failed) — one row's failure never
-//     blocks the rest of the batch.
+//     blocks the rest of the batch;
+//   - an archive event persists `tasks.archived_at` through the SHIPPED `buildApplyDepsLive` wiring
+//     and a later plain sync neither clears nor resurrects it (OD-INT-9, #1883) — exercised against
+//     an in-memory supabase-js-shaped client, never a copied deps bag.
 //
 // Deno-native test (plain assertions). `globalThis.fetch` is never touched here — `getTask` is an
 // injected mock (matches the codebase's existing `fetchImpl`-injection convention for the ClickUp
@@ -543,20 +546,204 @@ Deno.test('runWorkerBatch: an empty claim is a no-op batch (claimed:0, no proces
   assert(calls === 0, 'processRow must not be called when nothing is claimed');
 });
 
-// ── The archived_at dependency (2026-07-20): coded against tasks.archived_at, which ships on migration
-// 0123 (origin/feat/task-model-fields, OD-INT-9) — NOT yet on this branch's `dev` base. The pure apply
-// logic + this worker's archiveMirror wiring are exercised above/in webhookApply.test.ts with a MOCKED
-// archiveMirror (proves the callback is invoked with the right pmoRecordId/archivedAtIso). This ONE
-// test would assert the REAL DB write persists archived_at against a live `tasks` row — it needs the
-// migration merged (or the column cherry-picked) first; unskip once that lands on this branch. ──────
-Deno.test({
-  name: 'SKIPPED (deps on migration 0123 task_model_fields / tasks.archived_at, origin/feat/task-model-fields, not on dev): archiveMirror persists archived_at to a real tasks row',
-  ignore: true,
-  fn: async () => {
-    // Intentionally left unimplemented — see the docstring above. Unskip + implement against a live
-    // `supabase test db` / seeded org+project+task fixture once 0123 (tasks.archived_at) is on this
-    // branch's base.
-  },
+// ── OD-INT-9 archive write, the REAL test (issue #1883 — replaces the skipped placeholder that stood
+// here while `tasks.archived_at` was still migration-pending). The column shipped on migration 0140
+// (task_model_fields), so the SHIPPED `buildApplyDepsLive().archiveMirror` write is exercised
+// end-to-end: two `taskUpdated` inbox rows run through `processInboxRow` with `buildApplyDeps` wired
+// to the shipped factory, whose service client is an in-memory supabase-js-shaped fake (exactly the
+// PostgREST surface the shipped callbacks issue: select/eq/is/in/or → update/insert/upsert →
+// maybeSingle / select-after-update). The pure apply + a MOCKED archiveMirror stay covered in
+// webhookApply.test.ts; THIS test owns the real write. Mutation oracle: gutting the archive write —
+// a no-op archiveMirror in buildApplyDepsLive, or teaching updateMirror's patch to carry
+// `archived_at: null` — must turn this test RED. ─────────────────────────────────────────────────
+type Row = Record<string, unknown>;
+
+/** Minimal supabase-js-shaped in-memory service client: only the chains the shipped mirror callbacks
+ *  and archive/tombstone mirrors issue; anything else THROWS, so a shipped-code drift fails the test
+ *  loudly instead of silently passing against an unintended query shape. Every executed `update` is
+ *  recorded in `patches` so the test can prove no later-sync write carries `archived_at`. */
+function fakeServiceClient(store: Record<string, Row[]>) {
+  const patches: Array<{ table: string; patch: Row }> = [];
+  /** Parse the one `or()` form the shipped CAS predicate uses:
+   *  `source_updated_at.is.null,source_updated_at.lte.<iso>` — PostgREST or-semantics (ANY clause). */
+  const clause = (r: Row, c: string): boolean => {
+    const m = /^([a-z_]+?)\.(is|lte)\.(.+)$/.exec(c);
+    if (!m) throw new Error(`fake client: unsupported or() clause "${c}"`);
+    const col = m[1];
+    const op = m[2];
+    const val = m[3];
+    if (op === 'is') return r[col] === (val === 'null' ? null : val);
+    return r[col] !== null && r[col] !== undefined && String(r[col]) <= val; // ISO strings order lexically
+  };
+  function from(table: string) {
+    const rows = store[table];
+    if (!rows) throw new Error(`fake client: no in-memory table "${table}"`);
+    let filters: Array<{ col: string; op: 'eq' | 'is' | 'in'; val: unknown }> = [];
+    let orExprs: string[] = [];
+    let selected: string | null = null;
+    let patch: Row | null = null;
+    let updating = false;
+    const matched = () =>
+      rows.filter((r) =>
+        filters.every((f) => (f.op === 'in' ? (f.val as unknown[]).includes(r[f.col]) : r[f.col] === f.val))
+        && orExprs.every((expr) => expr.split(',').some((c) => clause(r, c))));
+    const projectRow = (r: Row): Row =>
+      selected === null ? r : Object.fromEntries(selected.split(',').map((c) => [c.trim(), r[c.trim()]]));
+    const exec = (): { data: Row[] | null; error: null } => {
+      if (updating && patch) {
+        const hits = matched();
+        for (const r of hits) Object.assign(r, patch);
+        patches.push({ table, patch: { ...patch } });
+        return { data: hits.map(projectRow), error: null };
+      }
+      return { data: matched().map(projectRow), error: null };
+    };
+    const build = {
+      select(cols?: string) {
+        selected = cols ?? '*';
+        return build;
+      },
+      update(p: Row) {
+        updating = true;
+        patch = p;
+        return build;
+      },
+      insert(v: Row) {
+        rows.push({ ...v });
+        return { data: null, error: null };
+      },
+      upsert(v: Row, opts?: { onConflict?: string }) {
+        const conflictCols = (opts?.onConflict ?? '').split(',').map((c) => c.trim()).filter((c) => c !== '');
+        const existing = conflictCols.length > 0 ? rows.find((r) => conflictCols.every((c) => r[c] === v[c])) : undefined;
+        if (existing) Object.assign(existing, v);
+        else rows.push({ ...v });
+        return { data: null, error: null };
+      },
+      eq(col: string, val: unknown) {
+        filters.push({ col, op: 'eq', val });
+        return build;
+      },
+      is(col: string, val: unknown) {
+        filters.push({ col, op: 'is', val });
+        return build;
+      },
+      in(col: string, val: unknown[]) {
+        filters.push({ col, op: 'in', val });
+        return build;
+      },
+      or(expr: string) {
+        orExprs.push(expr);
+        return build;
+      },
+      order() {
+        return build;
+      },
+      limit() {
+        return build;
+      },
+      then<T1 = { data: Row[] | null; error: null }, T2 = never>(
+        onfulfilled?: ((value: { data: Row[] | null; error: null }) => T1 | PromiseLike<T1>) | null,
+        onrejected?: ((reason: unknown) => T2 | PromiseLike<T2>) | null,
+      ): PromiseLike<T1 | T2> {
+        return Promise.resolve(exec()).then(onfulfilled, onrejected);
+      },
+      maybeSingle: async (): Promise<{ data: Row | null; error: null }> => {
+        const hits = matched();
+        if (hits.length > 1) throw new Error(`fake client: maybeSingle matched ${hits.length} rows in "${table}"`);
+        return { data: hits[0] ? { ...hits[0] } : null, error: null };
+      },
+    };
+    return build;
+  }
+  return { from, patches };
+}
+
+Deno.test('OD-INT-9: archiving a synced task writes archived_at via the shipped archiveMirror, and a later sync neither clears nor resurrects it', async () => {
+  const T0 = 1_700_000_000_000; // the mirror's seeded source_updated_at (the state the sync finds)
+  const T_ARCHIVE = 1_700_003_600_000; // the archive history entry's own timestamp
+  const T_LATER = 1_700_010_000_000; // a later plain sync's timestamp
+  const isoArchive = new Date(T_ARCHIVE).toISOString();
+
+  const store: Record<string, Row[]> = {
+    tasks: [{
+      id: 'pmo-1',
+      org_id: 'org-1',
+      project_id: 'proj-1',
+      name: 'Synced task',
+      status: 'To Do',
+      assignee_id: null,
+      start_date: null,
+      end_date: null,
+      completed_at: null,
+      description: null,
+      priority: null,
+      parent_task_id: null,
+      tombstoned_at: null,
+      archived_at: null,
+      source_updated_at: new Date(T0).toISOString(),
+    }],
+    external_refs: [{ org_id: 'org-1', domain: 'tasks', external_tier: 'clickup', external_record_id: 'cu-1', pmo_record_id: 'pmo-1' }],
+    external_sync_watermarks: [],
+  };
+  const client = fakeServiceClient(store);
+  const binding: ResolvedBinding = { orgId: 'org-1', projectId: 'proj-1', statusMap, memberMap };
+  // The worker's real deps shape: only ClickUp HTTP (getTask) and the org/binding SQL (resolveOrg /
+  // resolveBinding — both covered by the shipped-wiring tests above) are stubbed; buildApplyDeps is
+  // the SHIPPED factory under test, pointed at the in-memory client.
+  const depsFor = (reGet: ClickUpTask): ProcessRowDeps => ({
+    resolveOrg: async () => ({ orgId: 'org-1', token: 'per-org-token' }),
+    getTask: async () => reGet,
+    resolveBinding: async () => binding,
+    buildApplyDeps: (b) => buildApplyDepsLive(client as never, b),
+  });
+
+  // 1. The archive sync: a taskUpdated whose history records `archived: true`. The re-GET cursor is
+  //    deliberately LATER than the history item's timestamp, so archived_at must come from the
+  //    history item (not the source-mod fallback) to pass.
+  const archiveOutcome = await processInboxRow(
+    row({ id: 'r1', history_items: [{ field: 'archived', after: 'true', date: String(T_ARCHIVE) }] }),
+    depsFor(task({ id: 'cu-1', name: 'Synced task', date_updated: String(T_ARCHIVE + 60_000) })),
+  );
+  assert(
+    archiveOutcome.kind === 'upserted' && archiveOutcome.pmoRecordId === 'pmo-1',
+    `the archive event must apply to the mapped mirror, got ${JSON.stringify(archiveOutcome)}`,
+  );
+  const archivedRow = store.tasks[0] as { archived_at: string | null; source_updated_at: string };
+  assert(
+    archivedRow.archived_at === isoArchive,
+    `archiving a synced task must persist archived_at=${isoArchive} (the history item's timestamp, NOT the re-GET cursor), got ${archivedRow.archived_at}`,
+  );
+  assert(
+    archivedRow.source_updated_at === new Date(T_ARCHIVE + 60_000).toISOString(),
+    `the apply itself must have gone through the guarded update path, got source_updated_at=${archivedRow.source_updated_at}`,
+  );
+  assert(
+    client.patches.some((p) => p.table === 'tasks' && p.patch.archived_at === isoArchive),
+    `the shipped archiveMirror must issue the tasks.archived_at write itself, patches=${JSON.stringify(client.patches)}`,
+  );
+
+  // 2. The later plain sync (a status change, NO archived history entry): must apply its own change
+  //    and leave archived_at exactly as written — never cleared to null, never resurrected.
+  const patchesBefore = client.patches.length;
+  const laterOutcome = await processInboxRow(
+    row({ id: 'r2', history_items: [{ field: 'status', after: 'complete', date: String(T_LATER) }] }),
+    depsFor(task({ id: 'cu-1', status: { status: 'complete' }, date_updated: String(T_LATER) })),
+  );
+  assert(
+    laterOutcome.kind === 'upserted' && laterOutcome.pmoRecordId === 'pmo-1',
+    `the later sync must apply (not stall as a stale no-op), got ${JSON.stringify(laterOutcome)}`,
+  );
+  const laterRow = store.tasks[0] as { archived_at: string | null; status: string };
+  assert(laterRow.status === 'Done', `the later sync must apply its own change (status → Done via the map), got ${laterRow.status}`);
+  assert(
+    laterRow.archived_at === isoArchive,
+    `a later sync must NOT clear or resurrect archived_at — expected ${isoArchive}, got ${laterRow.archived_at}`,
+  );
+  const laterPatches = client.patches.slice(patchesBefore);
+  assert(
+    laterPatches.length > 0 && laterPatches.every((p) => !('archived_at' in p.patch)),
+    `no later-sync write may carry archived_at (updateMirror's field set omits the column), got ${JSON.stringify(laterPatches)}`,
+  );
 });
 
 

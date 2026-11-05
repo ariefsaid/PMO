@@ -3,11 +3,10 @@
  *
  * Project-level link to external system:
  * - ClickUp: links a PMO project to a ClickUp List with direction (push-seed | pull-adopt)
- * - ERPNext: updates the org's ERPNext binding with a Company doc name
+ * - ERPNext: refused here; the Company is chosen only through external-set-company's validated activation
  *
  * Auth: runs under CALLER JWT (verifyCallerJwt, ADR-0057), re-enforces tier-specific role gate on verified `sub`.
  * - ClickUp: Admin OR Operator OR (Project Manager of the project AND PM profile active)
- * - ERPNext: Admin OR Operator (org-level, not project-scoped)
  *
  * ClickUp direction rules (OD-CUA-3, mirrored from clickup-onboard):
  * - push-seed: List must be empty (ClickUp task count = 0)
@@ -38,6 +37,7 @@
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import {
+  bearerToken,
   verifyCallerJwt,
   JwtVerifyError,
   jwksFromUrl,
@@ -55,16 +55,13 @@ import {
 } from '../../../pmo-portal/src/lib/adapterSeam/clickup/memberMap.ts';
 import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
 import { fetchBounded, FetchDeadlineError } from '../_shared/fetchWithDeadline.ts';
-import { guardedErpFetch, isPrivateOrReservedHost } from '../_shared/erpHostGuard.ts';
 
 interface LinkBody {
-  tier: 'clickup' | 'erpnext';
+  tier: string;
   // ClickUp fields
   projectId?: string;
   listId?: string;
   direction?: 'push-seed' | 'pull-adopt';
-  // ERPNext fields
-  companyId?: string;
 }
 
 // Memoized JWKS resolver
@@ -88,16 +85,10 @@ export const testSupabaseOptions = {
   },
 };
 
-function bearerTokenFromHeader(authHeader: string | null): string | null {
-  if (!authHeader) return null;
-  const m = /^Bearer\s+(.+)$/i.exec(authHeader);
-  return m ? m[1] : null;
-}
-
-function json(body: unknown, status = 200, headers: Record<string, string> = {}): Response {
+function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type', ...headers }, // #641: every answer is CORS-readable
+    headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type' }, // #641: every answer is CORS-readable
   });
 }
 
@@ -109,10 +100,11 @@ function errorResponse(message: string, code: string, status: number): Response 
 // ClickUp validation helpers (injected fetch for testability)
 // ============================================================================
 
+const CLICKUP_BASE_URL = 'https://api.clickup.com/api/v2';
+
 interface ClickUpDeps {
   fetchImpl: typeof fetch;
   token: string;
-  baseUrl?: string;
 }
 
 /**
@@ -124,7 +116,6 @@ interface ClickUpDeps {
  * sweep reads use (`reads.ts`'s `buildListQuery`) so emptiness here means the same thing it means there.
  */
 async function getListTaskCount(deps: ClickUpDeps, listId: string): Promise<number> {
-  const baseUrl = deps.baseUrl ?? 'https://api.clickup.com/api/v2';
   const query = new URLSearchParams({
     page: '0',
     include_closed: 'true',
@@ -132,7 +123,7 @@ async function getListTaskCount(deps: ClickUpDeps, listId: string): Promise<numb
     archived: 'true',
     include_timl: 'true',
   });
-  const res = await fetchBounded(deps.fetchImpl, `${baseUrl}/list/${listId}/task?${query.toString()}`, {
+  const res = await fetchBounded(deps.fetchImpl, `${CLICKUP_BASE_URL}/list/${listId}/task?${query.toString()}`, {
     headers: { Authorization: `Bearer ${deps.token}` },
   });
   if (!res.ok) {
@@ -143,29 +134,22 @@ async function getListTaskCount(deps: ClickUpDeps, listId: string): Promise<numb
   return data.tasks?.length ?? 0;
 }
 
-interface ClickUpListDetails {
-  name: string;
-  statuses: ClickUpListStatus[];
-}
-
-/** Verify List exists and get its name + configured statuses (statuses feed the status-map builder). */
-async function getListDetails(deps: ClickUpDeps, listId: string): Promise<ClickUpListDetails | null> {
-  const baseUrl = deps.baseUrl ?? 'https://api.clickup.com/api/v2';
-  const res = await fetchBounded(deps.fetchImpl, `${baseUrl}/list/${listId}`, {
+/** Verify List exists and get its configured statuses (they feed the status-map builder). */
+async function getListDetails(deps: ClickUpDeps, listId: string): Promise<ClickUpListStatus[] | null> {
+  const res = await fetchBounded(deps.fetchImpl, `${CLICKUP_BASE_URL}/list/${listId}`, {
     headers: { Authorization: `Bearer ${deps.token}` },
   });
   if (!res.ok) {
     if (res.status === 404) return null;
     throw new AppError('Failed to verify ClickUp list', 'external-unreachable');
   }
-  const data = (await res.json()) as { name: string; statuses?: ClickUpListStatus[] };
-  return { name: data.name, statuses: data.statuses ?? [] };
+  const data = (await res.json()) as { statuses?: ClickUpListStatus[] };
+  return data.statuses ?? [];
 }
 
 /** Get the List's members (best-effort input to the member-map join — OD-INT-10 §4). */
 async function getListMembers(deps: ClickUpDeps, listId: string): Promise<Array<{ id: number; email?: string }>> {
-  const baseUrl = deps.baseUrl ?? 'https://api.clickup.com/api/v2';
-  const res = await fetchBounded(deps.fetchImpl, `${baseUrl}/list/${listId}/member`, {
+  const res = await fetchBounded(deps.fetchImpl, `${CLICKUP_BASE_URL}/list/${listId}/member`, {
     headers: { Authorization: `Bearer ${deps.token}` },
   });
   if (!res.ok) {
@@ -235,8 +219,8 @@ async function validateClickUpLinkDirection(
   direction: 'push-seed' | 'pull-adopt',
 ): Promise<{ statuses: ClickUpListStatus[] }> {
   // Verify List exists
-  const list = await getListDetails(deps, listId);
-  if (!list) {
+  const listStatuses = await getListDetails(deps, listId);
+  if (!listStatuses) {
     throw new AppError('ClickUp List not found', 'NOT_FOUND');
   }
 
@@ -270,48 +254,7 @@ async function validateClickUpLinkDirection(
     }
   }
 
-  return { statuses: list.statuses };
-}
-
-// ============================================================================
-// ERPNext validation helpers
-// ============================================================================
-
-interface ErpNextDeps {
-  fetchImpl: typeof fetch;
-  siteUrl: string;
-  apiKey: string;
-  apiSecret: string;
-}
-
-/** Validate ERPNext Company exists. SSRF-guarded like external-connect. */
-async function validateErpNextCompany(deps: ErpNextDeps, companyId: string): Promise<void> {
-  let parsedUrl: URL;
-  try {
-    parsedUrl = new URL(deps.siteUrl);
-  } catch {
-    throw new AppError('Invalid ERPNext site URL', 'config-rejected');
-  }
-  if (parsedUrl.protocol !== 'https:') {
-    throw new AppError('Only HTTPS URLs are allowed', 'config-rejected');
-  }
-  const hostname = parsedUrl.hostname;
-  if (await isPrivateOrReservedHost(hostname)) {
-    throw new AppError('Private or reserved addresses are not allowed', 'config-rejected');
-  }
-
-  const url = `${deps.siteUrl.replace(/\/$/, '')}/api/resource/Company/${encodeURIComponent(companyId)}`;
-  const res = await deps.fetchImpl(url, {
-    headers: { Authorization: `token ${deps.apiKey}:${deps.apiSecret}` },
-    redirect: 'manual',
-    signal: AbortSignal.timeout(5000),
-  });
-  if (!res.ok) {
-    if (res.status === 404) {
-      throw new AppError('Company not found in ERPNext', 'NOT_FOUND');
-    }
-    throw new AppError('Failed to validate ERPNext company', 'external-unreachable');
-  }
+  return { statuses: listStatuses };
 }
 
 // ============================================================================
@@ -330,7 +273,7 @@ export async function handleLinkRequest(req: Request): Promise<Response> {
   }
 
   // 1. Extract and verify caller JWT (ADR-0057)
-  const jwt = bearerTokenFromHeader(req.headers.get('Authorization'));
+  const jwt = bearerToken(req.headers.get('Authorization'));
   if (!jwt) {
     return errorResponse('Missing Authorization header', 'UNAUTHORIZED', 401);
   }
@@ -395,11 +338,12 @@ export async function handleLinkRequest(req: Request): Promise<Response> {
   }
 
   const { tier } = body;
-  if (tier !== 'clickup' && tier !== 'erpnext') {
-    return errorResponse('Unknown tier (must be clickup or erpnext)', 'BAD_REQUEST', 400);
+  if (tier !== 'clickup') {
+    // The ERPNext company is chosen only through external-set-company's validated activation (version, read checks, defaults).
+    return errorResponse('Unknown tier (must be clickup)', 'BAD_REQUEST', 400);
   }
 
-  const featureKey = tier === 'clickup' ? 'clickup_sync' : 'erp_sync';
+  const featureKey = 'clickup_sync';
   const { data: featureEnabled, error: featureError } = await serviceClient.rpc('service_feature_enabled', {
     p_org_id: profile.org_id,
     p_key: featureKey,
@@ -538,7 +482,7 @@ export async function handleLinkRequest(req: Request): Promise<Response> {
       );
     }
 
-    const { data: bindingId, error: insertError } = await serviceClient.rpc('link_external_project', {
+    const { data: bindingId, error: insertError } = await serviceClient.rpc('link_external_project_audited', {
       p_org_id: profile.org_id,
       p_actor_id: userId,
       p_project_id: projectId,
@@ -556,110 +500,19 @@ export async function handleLinkRequest(req: Request): Promise<Response> {
       return errorResponse('Failed to create project binding', 'INTERNAL', 500);
     }
 
-    // Audit log
-    const { error: auditError } = await serviceClient.rpc('log_audit', {
-      p_action: 'integration.link',
-      p_org_id: profile.org_id,
-      p_actor_id: userId,
-      p_entity_id: bindingId,
-      p_detail: {
-        tier: 'clickup',
-        project_id: projectId,
-        list_id: listId,
-        direction,
-        actor: userId,
-      },
-    });
-    if (auditError) console.error('log_audit failed', auditError);
-
+    // The audit event is written by the RPC in the same transaction as the binding.
     return json({
       ok: true,
       binding: { id: bindingId, direction, listId },
     });
   }
 
-  // =========================================================================
-  // ERPNext branch
-  // =========================================================================
-  if (tier === 'erpnext') {
-    // ERPNext is org-level, not project-scoped. Admin/Operator only (PM not allowed).
-    if (!isAdmin && !isPlatformOperator) {
-      return errorResponse('Admin or Operator role required for ERPNext link', 'FORBIDDEN', 403);
-    }
-
-    const { companyId } = body;
-    if (!companyId) {
-      return errorResponse('companyId is required for ERPNext', 'BAD_REQUEST', 400);
-    }
-
-    // Resolve ERPNext credentials from Vault
-    const { data: vaultSecret, error: vaultError } = await serviceClient.rpc('read_vault_secret', {
-      p_secret_ref: binding.secret_ref,
-    });
-
-    if (vaultError || !vaultSecret) {
-      return errorResponse('ERPNext credentials not found in Vault', 'CONFIG_REJECTED', 422);
-    }
-
-    const stored = (vaultSecret as string).split(':');
-    if (stored.length !== 2) {
-      return errorResponse('Invalid ERPNext credential format in Vault', 'CONFIG_REJECTED', 422);
-    }
-    const [apiKey, apiSecret] = stored;
-
-    // Validate Company exists in ERPNext
-    const erpNextDeps: ErpNextDeps = {
-      fetchImpl: guardedErpFetch(binding.site_url),
-      siteUrl: binding.site_url,
-      apiKey,
-      apiSecret,
-    };
-
-    try {
-      await validateErpNextCompany(erpNextDeps, companyId);
-    } catch (err) {
-      if (err instanceof AppError) {
-        return errorResponse(err.message, err.code ?? 'CONFIG_REJECTED', err.code === 'NOT_FOUND' ? 404 : 422);
-      }
-      return errorResponse('Company validation failed', 'CONFIG_REJECTED', 422);
-    }
-
-    const { data: updated, error: updateError } = await serviceClient.rpc('link_external_company', {
-      p_org_id: profile.org_id,
-      p_actor_id: userId,
-      p_company: companyId,
-      p_site_url: binding.site_url,
-    });
-
-    if (updateError?.code === '42501') return errorResponse('Current authority required', 'FORBIDDEN', 403);
-    if (updateError || !updated) {
-      console.error('external_org_bindings config update failed', updateError);
-      return errorResponse('Failed to update ERPNext binding', 'INTERNAL', 500);
-    }
-
-    // Audit log
-    const { error: auditError } = await serviceClient.rpc('log_audit', {
-      p_action: 'integration.link',
-      p_org_id: profile.org_id,
-      p_actor_id: userId,
-      p_entity_id: null,
-      p_detail: {
-        tier: 'erpnext',
-        company_id: companyId,
-        actor: userId,
-      },
-    });
-    if (auditError) console.error('log_audit failed', auditError);
-
-    return json({ ok: true, companyId });
-  }
-
   return errorResponse('Unknown tier', 'BAD_REQUEST', 400);
 }
 
 // Export validation functions for testing
-export { validateClickUpLinkDirection, validateErpNextCompany, getPmoTaskCount };
-export type { ClickUpDeps, ErpNextDeps };
+export { validateClickUpLinkDirection, getPmoTaskCount };
+export type { ClickUpDeps };
 
 // Deno.serve entry point (only runs when module is main)
 if (import.meta.main) {

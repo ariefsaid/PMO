@@ -12,12 +12,13 @@ import type { MirrorKind, MasterRecord } from '@/src/lib/repositories/types';
 
 const STALE_AFTER_MS = 24 * 3_600_000;
 
-function useDirectory(kind: MirrorKind, purpose?: 'purchase') {
-  const records = useMasterRecords({ kind, purpose, page: 1, pageSize: 100 });
+function useDirectory(kind: MirrorKind, purpose?: 'purchase', pageSize = 100) {
+  const records = useMasterRecords({ kind, purpose, page: 1, pageSize });
   const summary = useMasterSummary(kind);
   const rows: MasterRecord[] = (records.data?.rows ?? []) as MasterRecord[];
   const asOf = summary.data?.asOf ?? null;
-  const stale = asOf !== null && Date.now() - Date.parse(asOf) > STALE_AFTER_MS;
+  const age = asOf === null ? Number.NaN : Date.parse(asOf);
+  const stale = !Number.isFinite(age) || Date.now() - age > STALE_AFTER_MS;
   const state: 'loading' | 'empty' | 'stale' | 'ready' = records.data === undefined && !records.isError ? 'loading' : rows.length === 0 ? 'empty' : stale ? 'stale' : 'ready';
   return { rows, asOf, state };
 }
@@ -51,7 +52,7 @@ export const OdooTaxPicker: React.FC<{ value: string[]; onChange: (ids: string[]
   );
 };
 
-export const OdooJournalSelect: React.FC<{ value: string; onChange: (id: string) => void; id?: string }> = ({ value, onChange, id = 'odoo-payment-journal' }) => {
+export const OdooJournalSelect: React.FC<{ value: string; onChange: (id: string) => void; id?: string; label?: string }> = ({ value, onChange, id = 'odoo-payment-journal', label }) => {
   const { t } = useTranslation('procurement');
   const { rows, asOf, state } = useDirectory('journal');
   // Only a bank or cash journal can pay a bill; the database re-checks (set_odoo_payment_journal_default / the payment body).
@@ -62,12 +63,39 @@ export const OdooJournalSelect: React.FC<{ value: string; onChange: (id: string)
   return (
     <SelectField
       id={id}
-      label={t('odoo.journal.label', 'Pay from')}
+      label={label ?? t('odoo.journal.label', 'Pay from')}
       value={value}
       onChange={onChange}
       disabled={disabled}
       helper={reason}
       options={[{ value: '', label: t('odoo.journal.default', 'Default journal') }, ...payable.map((r) => ({ value: r.external_id, label: r.name }))]}
+    />
+  );
+};
+
+/** Selects an Odoo account from the mirrored directory; unavailable or old data cannot be chosen. */
+// ponytail: one page of 500 accounts covers a normal chart of accounts; a searchable picker replaces this when a company's chart is larger.
+export const OdooAccountSelect: React.FC<{ value: string; onChange: (id: string) => void; id: string; label: string; hideLabel?: boolean }> = ({ value, onChange, id, label, hideLabel }) => {
+  const { t } = useTranslation('procurement');
+  const { rows, asOf, state } = useDirectory('account', undefined, 500);
+  const disabled = state !== 'ready';
+  const reason = state === 'empty' ? t('odoo.accounts.emptyReason', 'No accounts have been read from Odoo yet.')
+    : state === 'stale' ? t('odoo.accounts.staleReason', 'The account list was last read {{age}}; refresh the Odoo connection first.', { age: formatRelativeTime(asOf) }) : undefined;
+  return (
+    <SelectField
+      id={id}
+      label={label}
+      hideLabel={hideLabel}
+      value={value}
+      onChange={onChange}
+      disabled={disabled}
+      helper={reason}
+      options={[
+        { value: '', label: t('odoo.accounts.choose', 'Choose an account') },
+        // A saved account the list does not hold (old or empty list) must not read as "not set".
+        ...(value && !rows.some((row) => row.external_id === value) ? [{ value, label: t('odoo.accounts.saved', 'Saved account {{id}}', { id: value }) }] : []),
+        ...rows.map((row) => ({ value: row.external_id, label: [row.code, row.name].filter(Boolean).join(' · ') })),
+      ]}
     />
   );
 };

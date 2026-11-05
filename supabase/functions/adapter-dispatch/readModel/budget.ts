@@ -3,6 +3,16 @@ import type { ExternalRefsLookupClient } from '../../../../pmo-portal/src/lib/ad
 import { parseBudgetIdentity } from '../../../../pmo-portal/src/lib/adapterSeam/erpnext/budgetAccountIdentity.ts';
 import type { ReadModelWriter } from './types.ts';
 
+interface BudgetMirrorFilterBuilder {
+  eq(column: string, value: string): BudgetMirrorFilterBuilder;
+  is(column: string, value: null): BudgetMirrorFilterBuilder;
+  maybeSingle(): PromiseLike<{ data: unknown; error: { message: string; code?: string } | null }>;
+}
+
+interface BudgetMirrorLookupClient {
+  from(table: string): { select(columns: string): BudgetMirrorFilterBuilder };
+}
+
 /**
  * P3c ERPNext `budget` writer (ADR-0059 §6 side mirror).
  *
@@ -27,7 +37,9 @@ export const budgetWriter: ReadModelWriter = {
     const record = command.record as {
       outbox_identity?: unknown;
       fiscal_year?: unknown;
+      to_fiscal_year?: unknown;
       erp_account?: unknown;
+      budget_mode?: unknown;
       budget_intent?: unknown;
       budget_archive_cancel_job_id?: unknown;
       budget_archive_source_mirror_id?: unknown;
@@ -40,6 +52,13 @@ export const budgetWriter: ReadModelWriter = {
       : identity?.erpAccount !== null && identity?.erpAccount !== undefined
         ? identity.fiscalYear
         : undefined;
+    // Annual v16 ERP documents also carry `to_fiscal_year = fiscal_year`, but the PMO mirror uses
+    // NULL for that dimension. Only the range-framed identity may populate this range key.
+    const toFiscalYear = identity?.kind === 'range' ? identity.toFiscalYear : null;
+    if ((record.budget_mode === 'whole_project') !== (identity?.kind === 'range')
+        || (identity?.kind === 'range' && (identity.fiscalYear !== fiscalYear || identity.toFiscalYear !== record.to_fiscal_year))) {
+      throw new AppError('budget mirror: range identity does not match the command dimensions', 'commit-rejected');
+    }
     // The mirror's grain is (budget_version_id x fiscal_year) — a row written without the fiscal year
     // would be a wrong-grain row that the next push could not find, so this fails loudly instead.
     if (typeof fiscalYear !== 'string' || fiscalYear === '') {
@@ -164,15 +183,20 @@ export const budgetWriter: ReadModelWriter = {
         throw new AppError('budget mirror: account intent is invalid', 'commit-rejected');
       }
       if (ctx.isReplay) {
-        const { data: existing, error: readError } = await (ctx.serviceClient as unknown as ExternalRefsLookupClient)
+        let existingQuery = (ctx.serviceClient as unknown as BudgetMirrorLookupClient)
           .from('budget_version_account_erp_mirror').select('erp_cancelled_at')
           .eq('org_id', ctx.orgId).eq('budget_version_id', String(canonical.id))
-          .eq('fiscal_year', fiscalYear).eq('erp_account', account).maybeSingle();
+          .eq('fiscal_year', fiscalYear).eq('erp_account', account);
+        existingQuery = toFiscalYear === null
+          ? existingQuery.is('to_fiscal_year', null)
+          : existingQuery.eq('to_fiscal_year', toFiscalYear);
+        const { data: existing, error: readError } = await existingQuery.maybeSingle();
         if (readError) throw new AppError(readError.message, readError.code);
         if ((existing as { erp_cancelled_at?: string | null } | null)?.erp_cancelled_at != null) return;
       }
       const { error } = await ctx.serviceClient.from('budget_version_account_erp_mirror').upsert({
         org_id: ctx.orgId, budget_version_id: canonical.id, fiscal_year: fiscalYear,
+        to_fiscal_year: toFiscalYear,
         erp_account: account, budget_intent: record.budget_intent,
         push_state: 'pushed', push_error: null,
         pushed_project_start_date: witnessStart,
@@ -183,7 +207,7 @@ export const budgetWriter: ReadModelWriter = {
         erp_modified: (canonical.erp_modified as string | null | undefined) ?? null,
         erp_cancelled_at: record.budget_intent === 'remove' ? new Date().toISOString() : null,
         pushed_at: new Date().toISOString(),
-      }, { onConflict: 'org_id,budget_version_id,fiscal_year,erp_account' });
+      }, { onConflict: 'org_id,budget_version_id,fiscal_year,to_fiscal_year,erp_account' });
       if (error) throw new AppError(error.message, error.code);
       return;
     }

@@ -239,9 +239,8 @@ export const ProcurementMoneySummary: React.FC<ProcurementMoneySummaryProps> = (
 
   return (
     <Card data-testid="procurement-money-summary">
-      <CardHead className="flex flex-wrap items-center gap-x-4 gap-y-1">
+      <CardHead className="flex flex-wrap items-center gap-x-4 gap-y-1" subline={budgetSignal}>
         <span>{t('money.title', { defaultValue: 'Money · {{currency}}, before tax', currency: procurement.currency })}</span>
-        {budgetSignal}
       </CardHead>
       <CardPad>
         <div className="grid grid-cols-2 gap-x-5 gap-y-4 sm:grid-cols-5">
@@ -386,14 +385,8 @@ export const ProcurementTimeline: React.FC<ProcurementTimelineProps> = ({ procur
     <Card data-testid="procurement-timeline">
       <CardHead
         className="flex-wrap"
-        actions={(
-          <>
-            <span className="flex min-w-0 flex-col items-start gap-0.5 max-sm:max-w-[13rem] sm:flex-row sm:items-baseline sm:gap-3">
-              <span className="text-[12px] font-normal text-muted-foreground">{t('timeline.inDateOrder', 'in date order · missing steps aren’t required by your company')}</span>
-              <button type="button" onClick={onFullHistory} className="shrink-0 text-[12.5px] font-medium text-primary-text underline underline-offset-2">{t('timeline.fullHistory', 'Full history')}</button>
-            </span>
-          </>
-        )}
+        subline={t('timeline.inDateOrder', 'in date order · missing steps aren’t required by your company')}
+        actions={<button type="button" onClick={onFullHistory} className="shrink-0 text-[12.5px] font-medium text-primary-text underline underline-offset-2">{t('timeline.fullHistory', 'Full history')}</button>}
       >
         {t('timeline.title', 'Timeline')}
       </CardHead>

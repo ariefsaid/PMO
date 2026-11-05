@@ -54,7 +54,18 @@ create function pg_temp.explain_json(query text) returns json language plpgsql a
 declare result json;
 begin execute 'explain (format json) ' || query into result; return result; end;
 $$;
-select is((pg_temp.explain_json('select id from public.budget_version_account_erp_mirror where org_id=''0b170000-0000-0000-0000-000000000001'' and budget_version_id=''0b172222-0000-0000-0000-000000000002'' and fiscal_year=''2026'' and erp_account=''Plan-2999''')->0->'Plan'->>'Index Name'), 'budget_version_account_erp_mi_org_id_budget_version_id_fisc_key', 'account/year lookup uses the new unique index');
+select ok(exists (
+  select 1
+    from jsonb_path_query(
+      pg_temp.explain_json('select id from public.budget_version_account_erp_mirror where org_id=''0b170000-0000-0000-0000-000000000001'' and budget_version_id=''0b172222-0000-0000-0000-000000000002'' and fiscal_year=''2026'' and erp_account=''Plan-2999''')::jsonb,
+      '$.** ? (@."Index Name" == "budget_version_account_erp_mirror_scope_unique")'
+    ) as matching_index_nodes(node)
+   where node->>'Index Cond' like '%org_id%'
+     and node->>'Index Cond' like '%budget_version_id%'
+     and node->>'Index Cond' like '%fiscal_year%'
+     and node->>'Index Cond' like '%erp_account%'
+     and node->>'Index Cond' like '%Plan-2999%'
+), 'annual account/year lookup uses the scoped unique-index prefix for its exact four-column predicate');
 select is((jsonb_path_query_first(pg_temp.explain_json('select id from public.budget_version_account_erp_mirror where org_id=''0b170000-0000-0000-0000-000000000001'' and push_state=''pending'' order by created_at,id limit 200')::jsonb, '$.**."Index Name"') #>> '{}'), 'budget_version_account_erp_mirror_queue_idx', 'bounded org/state queue uses the queue index');
 select * from finish();
 rollback;
