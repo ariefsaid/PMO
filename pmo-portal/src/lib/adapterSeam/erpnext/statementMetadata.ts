@@ -38,7 +38,7 @@ const STATEMENT_MAX_PAGES = 20;
 const STATEMENT_NUMBER_FORMATS = new Set([
   '#,###.##', '#.###,##', '# ###.##', '# ###,##', "#'###.##", '#, ###.##', '#,##,###.##', '#,###.###', '#.###', '#,###',
 ]);
-const STATEMENT_FORMAT_PRECISION: Readonly<Record<string, number>> = {
+export const STATEMENT_FORMAT_PRECISION: Readonly<Record<string, number>> = {
   '#,###.##': 2, '#.###,##': 2, '# ###.##': 2, '# ###,##': 2, "#'###.##": 2,
   '#, ###.##': 2, '#,##,###.##': 2, '#,###.###': 3, '#.###': 0, '#,###': 0,
 };

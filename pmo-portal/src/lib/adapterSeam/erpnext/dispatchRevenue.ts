@@ -13,6 +13,7 @@ import { progressClaimItems, type ProgressClaimLineRecord, type ProgressClaimRec
 import type { ErpDispatchFactoryDeps, ExternalOrgBindingRow } from './dispatchTypes.ts';
 import { buildsSalesInvoiceBody } from './dispatchTypes.ts';
 import { resolveErpProjectName } from './dispatchRefs.ts';
+import { readErpPrecision, reshapeProgressLines } from './erpLineRounding.ts';
 import { formatTimeMaterialsDescription, formatTimeMaterialsLabel } from './dispatchRevenueFormatting.ts';
 
 // ============================================================================
@@ -303,15 +304,6 @@ function canonicalTimeMaterialsLines(
   });
 }
 
-function invoiceItemsFromCanonical(lines: readonly CanonicalClaimLine[]): Array<Record<string, unknown>> {
-  return lines.map((line) => ({
-    item_code: line.item,
-    qty: Number(line.quantity),
-    rate: Number(line.rate),
-    ...(line.label ? { description: `${line.label} (${line.unit})` } : {}),
-  }));
-}
-
 /** Mirror Frappe v16's Banker's Rounding item amount calculation. */
 function erpNextBankersLineAmount(quantity: number, rate: number): number {
   const product = quantity * rate;
@@ -582,6 +574,7 @@ export async function resolveProgressClaimInvoice(deps: ErpDispatchFactoryDeps, 
   }
   let lines: ProgressClaimLineRecord[] = [];
   let timeMaterialsLines: CanonicalClaimLine[] | null = null;
+  let progressLines: CanonicalClaimLine[] | null = null;
   if (claim.kind === 'progress') {
     const { data, error: linesError } = await deps.serviceClient.from('progress_claim_lines')
       .select('item_code,description,unit,quantity,rate,amount')
@@ -636,7 +629,7 @@ export async function resolveProgressClaimInvoice(deps: ErpDispatchFactoryDeps, 
     if (workOrder) fraction = taxBaseFraction(workOrder);
   }
   if (claim.kind === 'progress') {
-    record.items = invoiceItemsFromCanonical(canonicalProgressLines(claim, lines));
+    progressLines = canonicalProgressLines(claim, lines);
   } else if (claim.kind === 'time_materials') {
     record.items = timeMaterialsInvoiceItems(timeMaterialsLines ?? [], claim.currency);
   } else {
@@ -655,6 +648,10 @@ export async function resolveProgressClaimInvoice(deps: ErpDispatchFactoryDeps, 
   // #858: the claim is stated in its own currency, but ERPNext bills in the customer's (else the company's). Refuse a mismatch
   // before a draft exists rather than book the amounts in the wrong currency.
   await assertClaimCurrencyMatchesErp(deps, binding, client, claim.currency, record.customerId);
+  // #1820: ERPNext recomputes each line amount at the site's precision; a line that would book away from its signed amount is sent as 1 × that amount.
+  if (progressLines) {
+    record.items = reshapeProgressLines(progressLines, await readErpPrecision(client), claim.currency);
+  }
   // DD-PBL-12a: a recovery line is a negative rate, which ERPNext refuses at submit unless the site allows it.
   // Fail fast (before a draft exists) with the action to take; onboarding enables it, this catches a site that never
   // ran onboarding or had it switched back off.
