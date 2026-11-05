@@ -831,7 +831,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
               // SUB-C: invoiced / paid / unpaid appear once something has been invoiced.
               const hasInvoiced = (settlement?.invoiced ?? 0) > 0;
               const canPrepare = canPrepareForOrder(row);
-              const canConfirm = Boolean(pendingBast) && may('confirm', 'workOrderAcceptance', {
+              const canConfirm = Boolean(pendingBast) && row.status === 'Issued' && may('confirm', 'workOrderAcceptance', {
                 currentUserId: currentUser?.id,
                 record: { status: pendingBast?.status, prepared_by: pendingBast?.prepared_by },
               });

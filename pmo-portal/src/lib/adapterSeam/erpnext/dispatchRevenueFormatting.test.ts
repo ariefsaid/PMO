@@ -21,4 +21,11 @@ describe('time-materials invoice description formatting', () => {
     expect(idUiDescriptions.usd).toBe('Site engineer (hour): 0.25 x 1,000.02, rounded to $250.01');
   });
 
+  it('labels standby equipment lines in the invoice currency locale', () => {
+    expect(formatTimeMaterialsDescription('Excavator', 'hour', 2, 200000, '400000.00', 'IDR', 'standby'))
+      .toBe('Excavator (siaga) (hour): 2 x 200.000, rounded to Rp\u00a0400.000,00');
+    expect(formatTimeMaterialsDescription('Excavator', 'hour', 2, 200000, '400000.00', 'USD', 'standby'))
+      .toBe('Excavator (standby) (hour): 2 x 200,000, rounded to $400,000.00');
+  });
+
 });

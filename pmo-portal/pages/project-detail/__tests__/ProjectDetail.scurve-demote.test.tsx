@@ -7,7 +7,7 @@
  * S-curve); now that the S-curve is moved INSIDE the Overview tabpanel the ordering test
  * is superseded — the scope test (Overview-only) is the correct oracle.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -202,6 +202,17 @@ const renderAt = async (path: string) => {
 
 // ── tests ─────────────────────────────────────────────────────────────────────
 describe('AC-IFW-RECORD-02: S-curve is Overview-tab-only for delivery projects', () => {
+  // #1905: ProjectSCurve is React.lazy-loaded by ProjectSections, so on a cold module graph the
+  // chunk's first on-demand transform/import takes seconds (machine-speed-dependent — red on a
+  // loaded local Mac, green on CI) and races findByText's fixed 1s window. Priming the module
+  // import here resolves the lazy chunk BEFORE the first render, so every assertion below
+  // observes settled output. The goal-oracles are untouched, and no clock/TZ pin is needed:
+  // the heading is gated on data only (dated, weighted phases) — never on today's date or the
+  // org timezone — so it cannot turn red on a later date.
+  beforeAll(async () => {
+    await import('../ProjectSCurve');
+  });
+
   beforeEach(() => {
     projectsState.data = [deliveryRow];
     projectsState.isPending = false;

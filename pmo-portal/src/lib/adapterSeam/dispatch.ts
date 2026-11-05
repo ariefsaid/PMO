@@ -478,7 +478,7 @@ async function claimAndCommit(
       });
     } catch (error) {
       if (error instanceof AppError && error.code === 'command-held') {
-        const heldCount = await money.markOutboxHeld(claimed.id, `range-budget-held: ${redactErrorForOutbox(error)}`, token);
+        const heldCount = await money.markOutboxHeld(claimed.id, `adapter-held: ${redactErrorForOutbox(error)}`, token);
         if (heldCount === 0) {
           const fresh = await money.readOutbox(command.domain, outboxRecordId, command.idempotencyKey!);
           return reconcileOutbox(fresh!, deps);

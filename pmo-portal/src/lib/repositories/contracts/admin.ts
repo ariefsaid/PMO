@@ -3,7 +3,7 @@ import type { OrgVendorTaxAccounts, ProjectClassificationOptions, OrgLifecycleSt
 import type { SpendApproverRow } from '@/src/lib/db/spendApprovers';
 import type { ProcurementGates } from '@/src/lib/db/orgs';
 import type { ProfileRow } from '@/src/lib/db/profiles';
-import type { UserRow, UserRole, InviteUserInput, SetUserStatusInput } from '@/src/lib/db/adminUsers';
+import type { UserRow, UserRole, InviteUserInput, SetUserStatusInput, UserDirectoryPage, UserFocusLocation, UserManagerChoice } from '@/src/lib/db/adminUsers';
 import type { TaxTreatment } from '@/src/lib/db/procurementLifecycle';
 import type { UserViewRow, UserViewInput } from '@/src/lib/db/userViews';
 import type {
@@ -24,6 +24,22 @@ export interface ProfileRepository {
   listOrgProfiles(): Promise<ProfileRow[]>;
   /** All profiles in the caller's org — the Administration › Users directory + manager FK picker. */
   listUsers(): Promise<UserRow[]>;
+  /**
+   * ONE server page of the Administration › Users directory (explicit directory projection,
+   * exact whole-org total, server name/email search, total order). The full `listUsers()` above
+   * stays the picker source: a picker must never see only the visible page.
+   */
+  listUsersPage(input: { page: number; pageSize: number; search?: string }): Promise<UserDirectoryPage>;
+  /**
+   * The change-manager picker's COMPLETE choice set (id, full name, role only) across all pages —
+   * read lazily when the dialog opens, never on a directory visit. The whole `listUsers()` above
+   * stays the picker source for other screens.
+   */
+  listManagerChoices(): Promise<UserManagerChoice[]>;
+  /** Active Admins per org (HEAD counts) — the sole-Admin lockout predicate. `null` = unresolved. */
+  countActiveAdminsByOrg(orgIds: readonly string[]): Promise<Record<string, number | null>>;
+  /** The bounded page of ONE person in the directory order (manager jump), or null if unreadable. */
+  findUserPage(input: { userId: string; pageSize: number }): Promise<UserFocusLocation | null>;
   /** Change a user's role (Admin-only via profiles_admin_write RLS). */
   updateUserRole(id: string, role: UserRole): Promise<void>;
   /** Assign (or clear, with null) a user's line manager (Admin-only via profiles_admin_write RLS). */

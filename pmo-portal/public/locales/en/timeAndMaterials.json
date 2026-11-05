@@ -63,7 +63,10 @@
     "end": "End rate",
     "endTitle": "End this rate?",
     "endDescription": "No new hours after today will be priced with {{line}}. Claims already assembled keep their rate.",
-    "ended": "Rate ended"
+    "ended": "Rate ended",
+    "equipmentKind": "Equipment",
+    "standbyRate": "Standby",
+    "assetUnavailable": "Machine no longer listed"
   },
   "assembly": {
     "title": "Assemble a claim",
@@ -88,7 +91,8 @@
     "error": "Couldn't preview approved hours",
     "empty": "No approved hours in this period.",
     "sourceCount_one": "{{count}} approved entry",
-    "sourceCount_other": "{{count}} approved entries"
+    "sourceCount_other": "{{count}} approved entries",
+    "noStandbyRate": "No standby rate is set for this machine"
   },
   "claims": {
     "statusSignedOff": "Signed off",
@@ -158,5 +162,8 @@
     "hour_other": "{{amount}} hours",
     "day_one": "{{amount}} day",
     "day_other": "{{amount}} days"
+  },
+  "basis": {
+    "standby": "standby"
   }
 }

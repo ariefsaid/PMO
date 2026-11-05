@@ -33,7 +33,7 @@ describe('readOdooProgressClaim', () => {
       progress_claim_evidence: [{ id: 'evidence-1' }],
       tm_claims: { status: 'SignedOff', confirmed_by: 'approver-1', gross_amount: '6000000.00' },
       tm_claim_lines: [{
-        line_key: 'line-1', rate_version: 1, kind: 'labour', label: 'Field labour', unit: 'hour',
+        line_key: 'line-1', rate_version: 1, kind: 'labour', basis: 'work', label: 'Field labour', unit: 'hour',
         units: '120.00', rate: '50000.00', amount: '6000000.00',
       }],
     }), 'org-1', 'claim-1');
@@ -65,9 +65,26 @@ describe('readOdooProgressClaim', () => {
       progress_claim_evidence: [{ id: 'evidence-1' }],
       tm_claims: { status: 'SignedOff', confirmed_by: 'approver-1', gross_amount: '6000000.00' },
       tm_claim_lines: [{
-        line_key: 'line-1', rate_version: 1, kind: 'labour', label: 'Field labour', unit: 'hour',
+        line_key: 'line-1', rate_version: 1, kind: 'labour', basis: 'work', label: 'Field labour', unit: 'hour',
         units: '120.00', rate: '50000.00', amount: '5999999.99',
       }],
     }), 'org-1', 'claim-1')).rejects.toThrow('The signed time-and-materials claim header does not match its line amounts');
+  });
+
+  it('AC-TM-014 keeps equipment standby basis in the Odoo invoice line description', async () => {
+    const result = await readOdooProgressClaim(serviceClient({
+      progress_claims: { ...sharedClaim, kind: 'time_materials', gross_amount: '1200000.00' },
+      projects: { client_id: 'client-1' },
+      progress_claim_evidence: [{ id: 'evidence-1' }],
+      tm_claims: { status: 'SignedOff', confirmed_by: 'approver-1', gross_amount: '1200000.00' },
+      tm_claim_lines: [{
+        line_key: 'equipment-1', rate_version: 1, kind: 'equipment', basis: 'standby', label: 'Excavator', unit: 'hour',
+        units: '6.00', rate: '200000.00', amount: '1200000.00',
+      }],
+    }), 'org-1', 'claim-1');
+
+    expect(result).toMatchObject({
+      items: [{ item_code: 'Excavator', description: 'Excavator (siaga) (hour)', qty: 6, rate: 200000, amount: 1200000, unit: 'hour' }],
+    });
   });
 });

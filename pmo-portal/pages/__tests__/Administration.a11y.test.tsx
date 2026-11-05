@@ -46,10 +46,37 @@ const { listState, mutations, isOperatorState, fxState, roleState } = vi.hoisted
   isOperatorState: { value: false, pending: false },
 }));
 
-vi.mock('@/src/hooks/useUsers', () => ({
-  useUsers: () => listState,
-  useUserMutations: () => mutations,
-}));
+vi.mock('@/src/hooks/useUsers', () => {
+  type MockUser = { full_name: string; email: string; org_id: string; role: string; status: string };
+  type MockState = { data?: readonly unknown[] | null; isPending?: boolean; isError?: boolean; refetch?: () => unknown };
+  const directoryPage = (state: MockState, input: { pageSize?: number; page?: number; search?: string } = {}) => {
+    const size = input.pageSize || 50;
+    const pageNo = input.page || 1;
+    const term = String(input.search || '').trim().toLowerCase();
+    const all = (state.data || []) as MockUser[];
+    const matched = term ? all.filter((u) => u.full_name.toLowerCase().includes(term) || u.email.toLowerCase().includes(term)) : all;
+    return {
+      data: { rows: matched.slice((pageNo - 1) * size, pageNo * size), total: matched.length },
+      isPending: state.isPending, isError: state.isError, isFetching: false, refetch: state.refetch,
+    };
+  };
+  const adminCounts = (state: MockState) => {
+    const out: Record<string, number> = {};
+    for (const u of (state.data || []) as MockUser[]) {
+      if (out[u.org_id] === undefined) out[u.org_id] = 0;
+      if (u.role === 'Admin' && u.status === 'active') out[u.org_id] += 1;
+    }
+    return { data: out, isPending: false, isError: false };
+  };
+  return {
+    useUsers: () => listState,
+    useUsersPage: (input: { page?: number; pageSize?: number; search?: string }) => directoryPage(listState, input),
+    useActiveAdminCounts: () => adminCounts(listState),
+    useUserFocusPage: () => ({ data: null, isPending: false, isError: false }),
+    useManagerChoices: () => listState,
+    useUserMutations: () => mutations,
+  };
+});
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'self-admin', org_id: 'org-1', role: roleState.value }, role: roleState.value }),
 }));

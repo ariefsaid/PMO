@@ -260,6 +260,20 @@ export function runPhases(phases, spawnE2E = spawnSync) {
   }
   return failed ? 1 : 0;
 }
+// ponytail: a local --run holds the shared DB lock for the whole run (~140 specs = 60-90 min, blocking
+// every worker); past this many specs CI owns the run. Raise it only if the Mac's lock queue allows.
+export const MAX_LOCAL_SPECS = 40;
+export function runCapped(phases, allowBroad = false, spawnE2E = spawnSync) {
+  const count = phases.reduce((n, phase) => n + phase.files.length, 0);
+  if (count > MAX_LOCAL_SPECS && !allowBroad) {
+    console.error(`\naffected-e2e: refusing --run, ${count} specs selected (local cap ${MAX_LOCAL_SPECS}); it would hold the shared DB lock for an hour or more.\n` +
+      'Run only the specs that visit the changed screens: scripts/e2e-local.sh <fragment>.\n' +
+      'Or let CI run the broad set: scripts/ci-e2e.sh <branch>, or the release PR.\n' +
+      'Override: --allow-broad.');
+    return 1;
+  }
+  return runPhases(phases, spawnE2E);
+}
 function selfTest() {
   const allSpecs = specs(), routeData = appRoutes();
   const companies = select(['pmo-portal/pages/Companies.tsx'], routeData, allSpecs).map(f => path.relative(app, f));
@@ -342,6 +356,6 @@ if (invokedDirectly) {
     console.log(`Selected ${files.length} of ${specs().length} specs.`);
     const phases = files.length ? planPhases(files) : [];
     printPhases(phases);
-    if (args.includes('--run') && phases.length) process.exit(runPhases(phases));
+    if (args.includes('--run') && phases.length) process.exit(runCapped(phases, args.includes('--allow-broad')));
   }
 }
