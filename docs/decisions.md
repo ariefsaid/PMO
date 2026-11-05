@@ -3634,6 +3634,23 @@ say so. Proven in `supabase/tests/equipment_actual_cost.test.sql` (one row per h
 ## OD-SIGN-20261102 — three EPC-route specs signed with their defaults (owner 2026-11-02)
 The owner signed `docs/specs/odoo-purchase-to-payment.spec.md` (#1505), `docs/specs/odoo-client-invoices.spec.md` (#1506) and `docs/specs/time-and-materials-claims.spec.md` (#1514), accepting every owner-decision default as written. This includes #1506's default that retention (holding part of a claim and releasing it later) stays out of scope; it remains tracked separately (#1572). Builds follow each spec's plan; money slices ship alone.
 
+### DD-OPP-P9-OUTBOX — Odoo procurement money writes use the shared outbox (Director, 2026-11-04)
+The shipped `adapter-dispatch` selects `resolveOdooMoneyOutboxDeps` for Odoo, and P6 is on `dev` (#1781).
+The Odoo runbook describes the shared outbox, same-intent retries and bounded sweep recovery. Interruption
+evidence is covered by the receipt bed (`odooReceipt.bed.test.ts`), the bill/payment bed
+(`odooPayment.bed.test.ts`) and the AC-OPP-062 sweep case in `odooPurchase.bed.test.ts`: the sweep recovers
+a lost bill-post response and a payment-create response lost after Odoo accepts it, and a second in-flight
+payment intent for the same bill is refused. An edited bill anchor remains held. This sweep-bed evidence
+covers bills and payments; order, receipt and revision recovery are covered by adapter and recovery unit
+tests. Deno tests cover recorded-actor reauthorization, candidate reservation, PO-family ownership handling
+and rejection of amount-only adoption. The browser journey proves replay after a lost browser response.
+This records scoped implementation evidence only; release readiness remains the owner's decision.
+
+## OD-OCI-C9-20261104 — honest #1506 workflow claims (implementation evidence)
+The Odoo adapter declares `invoice.push` supported at the version exercised by its shared contract suite. `receipt.read` and `invoice.pair-existing` remain pending on #1506; `cutover.revenue` stays pending on #1602 until its shared suite exists. C7 tax-document review remains on owner hold: `tax-document.read` stays pending on #1506; do not claim that Odoo-held tax-document facts are available until that review closes. `cutover.activation` is covered by the P9 production resolver contract. The recorded receipt journal must be a bank or cash journal with an inbound payment method. Client-withheld tax requires a company-currency current-asset or prepayment account configured in the Odoo setup checklist. Odoo money writes use the revenue outbox; this evidence does not make a release-readiness claim.
+
+Verification after the final dev merge (#1872): adapter-seam and Odoo integration unit suites passed (212 files, 3,031 tests); the C9 bed composite passed 2/2 tests; the served AC-OCI-100 journey passed 1/1 Chromium spec with 10/10 auth setup checks. Changed-line coverage was 50/54 (92.6%), and the post-merge affected-e2e gate found no additional supported UI paths to run.
+
 ### OD-1530-COMMIT — PMO open commitment is the order total minus what is already paid (Director ruling, 2026-11-03)
 For an org without an active ERP binding (#1530), budget actuals are PMO paid purchases, so a purchase's open
 commitment is `total_value − pre-tax paid amount` (floor 0), the PMO analogue of ADR-0093 §2 (total minus what is

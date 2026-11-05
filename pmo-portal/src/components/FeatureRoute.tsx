@@ -15,7 +15,10 @@ import type { EntitleableKey } from '@/src/lib/features';
  *   loading         → null: HOLD. No redirect and no element, so a deep-link never flash-denies a
  *                     module the org actually has (AC-ENT-005, kept);
  *   read failed     → the unavailable state WITH a retry, and never the words "not on your plan"
- *                     (an unknown answer must not be reported as a plan decision);
+ *                     (an unknown answer must not be reported as a plan decision). Only when there
+ *                     is NO resolved answer at all: a BACKGROUND refetch that fails leaves the
+ *                     earlier answer in `data`, and unmounting the page then would throw away a
+ *                     half-typed form (the stale answer is still the org's answer);
  *   resolved OFF    → the not-available state (AC-PLN-008). This replaces the old redirect to `/`:
  *                     the spec asks the route to say why, and data is kept either way (FR-PLN-007);
  *   resolved ON     → the element.
@@ -36,7 +39,10 @@ export const FeatureRoute: React.FC<{
   // query, e.g. before the session is known) — never decide from a missing answer.
   if (isLoading || (!data && !isError)) return null;
 
-  if (isError) return <FeatureUnavailable variant="error" onRetry={refetch} />;
+  // Error WITH an answer means a background refetch failed: `data` is the last good resolution, so
+  // keep deciding from it. Unmounting the route there would discard an in-progress form for a
+  // transient network blip. Only an error with NO answer is genuinely unknown → offer the retry.
+  if (isError && !data) return <FeatureUnavailable variant="error" onRetry={refetch} />;
 
   return enabled ? <>{element}</> : <FeatureUnavailable variant="off" feature={feature} />;
 };

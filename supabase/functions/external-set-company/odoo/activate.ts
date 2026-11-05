@@ -12,7 +12,7 @@ import { odooError, type OdooCtx } from './router.ts';
 type Companies = { companies: OdooCompany[]; client: OdooClientDeps; config: Record<string, unknown> } | { response: Response };
 
 async function readCompanies(c: OdooCtx): Promise<Companies> {
-  const r = await odooClientForOrg(c.sc, c.orgId, { requireActivated: false, requireCompany: false });
+  const r = await odooClientForOrg(c.sc, c.orgId, { requireActivated: false, requireCompany: false, scopeToCompany: false });
   if ('refusal' in r) return { response: odooError(c, 'The Odoo connection is not usable', r.refusal, 422) };
   try {
     const rows = await odooCall<OdooCompany[]>(r.client, 'res.company', 'search_read', { domain: [], fields: ['id', 'name'] });

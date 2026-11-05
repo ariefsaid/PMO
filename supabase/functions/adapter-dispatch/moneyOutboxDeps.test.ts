@@ -70,6 +70,7 @@ interface FakeRow {
   claim_generation: number;
   last_error: string | null;
   payload_digest?: string | null;
+  payload?: unknown;
   updated_at?: string;
 }
 
@@ -218,7 +219,7 @@ Deno.test('readOutbox: null when no row for the 4-tuple; maps a found row to cam
     {
       id: 'outbox-1', org_id: 'org-1', domain: 'procurement', pmo_record_id: 'pmo-1', idempotency_key: 'key-1',
       external_tier: 'erpnext', operation: 'create', state: 'pending', external_record_id: null, canonical: null,
-      claim_generation: 0, last_error: null, payload_digest: null,
+      claim_generation: 0, last_error: null, payload_digest: null, payload: null,
     },
   ]);
   const deps = createDbMoneyOutboxDeps({ serviceClient: client, orgId: 'org-1', externalTier: 'erpnext', operation: 'create', probeByRemarksKey: async () => null });

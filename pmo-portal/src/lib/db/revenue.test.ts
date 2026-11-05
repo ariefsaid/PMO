@@ -106,7 +106,7 @@ import { getRevenueByProject, getSalesInvoice, getIncomingPayment, setSalesInvoi
 /** `n` invoices for one project, each `amount` billed with `outstanding` still open. Ids are unique
  *  and sort in insertion order — the keyset scan reads its cursor from the last row of each page. */
 let nextInvoiceId = 0;
-function invoices(n: number, projectId: string | null, amount: number, outstanding: number) {
+function invoices(n: number, projectId: string | null, amount: number, outstanding: number | null = 0) {
   return Array.from({ length: n }, () => ({
     id: `si-${String(nextInvoiceId++).padStart(6, '0')}`,
     project_id: projectId,
@@ -185,7 +185,7 @@ describe('db/revenue getRevenueByProject — net of tax, per currency, paged', (
     const rows = await getRevenueByProject();
 
     expect(rows).toEqual([
-      { project_id: 'proj-1', project_name: 'Alpha', currency: 'USD', total_amount: 200, open_ar: 80, invoice_count: 2 },
+      { project_id: 'proj-1', project_name: 'Alpha', currency: 'USD', total_amount: 200, open_ar: 80, open_ar_unknown_count: 0, invoice_count: 2 },
     ]);
     expect(h.state.scanned).toEqual(['sales_invoice_work_billed', 'sales_invoices']);
     // Down-payment invoices are advances, not work — filtered server-side, as the management pack does.
@@ -224,7 +224,7 @@ describe('db/revenue getRevenueByProject — net of tax, per currency, paged', (
     const rows = await getRevenueByProject();
 
     expect(rows).toEqual([
-      { project_id: 'proj-1', project_name: 'Alpha', currency: 'USD', total_amount: 15_000, open_ar: 6_000, invoice_count: 1500 },
+      { project_id: 'proj-1', project_name: 'Alpha', currency: 'USD', total_amount: 15_000, open_ar: 6_000, open_ar_unknown_count: 0, invoice_count: 1500 },
     ]);
     // Both scans kept paging until a SHORT page proved the end — bounded, cursor-advanced pages.
     expect(h.state.limits).toEqual([1000, 1000, 1000, 1000]);
@@ -261,7 +261,7 @@ describe('db/revenue getRevenueByProject — net of tax, per currency, paged', (
     const rows = await getRevenueByProject();
 
     expect(rows).toEqual([
-      { project_id: 'proj-1', project_name: 'Alpha', currency: 'USD', total_amount: 300, open_ar: 75, invoice_count: 3 },
+      { project_id: 'proj-1', project_name: 'Alpha', currency: 'USD', total_amount: 300, open_ar: 75, open_ar_unknown_count: 0, invoice_count: 3 },
     ]);
     expect(h.state.invoiceQueries).toBe(2);
   });
@@ -318,7 +318,7 @@ describe('db/revenue getRevenueByProject — net of tax, per currency, paged', (
     const rows = await getRevenueByProject();
 
     expect(rows).toEqual([
-      { project_id: 'proj-1', project_name: 'Alpha', currency: 'USD', total_amount: 0, open_ar: 50_000, invoice_count: 1 },
+      { project_id: 'proj-1', project_name: 'Alpha', currency: 'USD', total_amount: 0, open_ar: 50_000, open_ar_unknown_count: 0, invoice_count: 1 },
     ]);
   });
 
@@ -342,8 +342,90 @@ describe('db/revenue getRevenueByProject — count once (ECA-5, PD-ECA-11)', () 
     const rows = await getRevenueByProject();
 
     expect(rows).toEqual([
-      { project_id: 'proj-1', project_name: 'Alpha', currency: 'USD', total_amount: 100, open_ar: 40, invoice_count: 1 },
+      { project_id: 'proj-1', project_name: 'Alpha', currency: 'USD', total_amount: 100, open_ar: 40, open_ar_unknown_count: 0, invoice_count: 1 },
     ]);
+  });
+});
+
+describe('db/revenue getRevenueByProject — unknown outstanding balance (issue #1475)', () => {
+  it('sums only known outstanding amounts and explicitly counts unknown balances when mixed', async () => {
+    h.state.projects = [{ id: 'proj-1', name: 'Alpha' }];
+    h.state.workPages = [work(2, 'proj-1', 100)];
+    // 1 invoice with known outstanding 40, 1 invoice with unknown (null) outstanding
+    h.state.invoicePages = [[
+      ...invoices(1, 'proj-1', 111, 40),
+      ...invoices(1, 'proj-1', 111, null),
+    ]];
+
+    const rows = await getRevenueByProject();
+
+    expect(rows).toEqual([
+      { project_id: 'proj-1', project_name: 'Alpha', currency: 'USD', total_amount: 200, open_ar: 40, open_ar_unknown_count: 1, invoice_count: 2 },
+    ]);
+  });
+
+  it('reports open_ar: 0 with all-null outstanding balances and counts every unknown balance', async () => {
+    h.state.projects = [{ id: 'proj-1', name: 'Alpha' }];
+    h.state.workPages = [work(2, 'proj-1', 100)];
+    h.state.invoicePages = [invoices(2, 'proj-1', 111, null)];
+
+    const rows = await getRevenueByProject();
+
+    expect(rows).toEqual([
+      { project_id: 'proj-1', project_name: 'Alpha', currency: 'USD', total_amount: 200, open_ar: 0, open_ar_unknown_count: 2, invoice_count: 2 },
+    ]);
+  });
+
+  it('handles zero known outstanding amounts honestly (distinguishing zero balance from unknown)', async () => {
+    h.state.projects = [{ id: 'proj-1', name: 'Alpha' }];
+    h.state.workPages = [work(2, 'proj-1', 100)];
+    // 1 invoice fully paid (outstanding: 0), 1 invoice with unknown outstanding (null)
+    h.state.invoicePages = [[
+      ...invoices(1, 'proj-1', 111, 0),
+      ...invoices(1, 'proj-1', 111, null),
+    ]];
+
+    const rows = await getRevenueByProject();
+
+    expect(rows).toEqual([
+      { project_id: 'proj-1', project_name: 'Alpha', currency: 'USD', total_amount: 200, open_ar: 0, open_ar_unknown_count: 1, invoice_count: 2 },
+    ]);
+  });
+
+  it('multi-project: aggregates open AR and unknown count independently per project and currency', async () => {
+    h.state.projects = [
+      { id: 'proj-1', name: 'Alpha' },
+      { id: 'proj-2', name: 'Beta' },
+    ];
+    h.state.workPages = [
+      [
+        ...work(2, 'proj-1', 100, 'USD'),
+        ...work(1, 'proj-2', 50, 'USD'),
+        ...work(1, 'proj-2', 500_000, 'IDR'),
+      ],
+    ];
+    h.state.invoicePages = [
+      [
+        // proj-1 USD: 1 known 40, 1 null
+        ...invoices(1, 'proj-1', 111, 40),
+        ...invoices(1, 'proj-1', 111, null),
+        // proj-2 USD: 1 known 25, 0 null
+        ...invoices(1, 'proj-2', 55, 25),
+        // proj-2 IDR: 1 null
+        { id: `si-${String(nextInvoiceId++).padStart(6, '0')}`, project_id: 'proj-2', currency: 'IDR', amount: 555_000, erp_outstanding_amount: null },
+      ],
+    ];
+
+    const rows = await getRevenueByProject();
+
+    expect(rows).toHaveLength(3);
+    expect(rows).toEqual(
+      expect.arrayContaining([
+        { project_id: 'proj-1', project_name: 'Alpha', currency: 'USD', total_amount: 200, open_ar: 40, open_ar_unknown_count: 1, invoice_count: 2 },
+        { project_id: 'proj-2', project_name: 'Beta', currency: 'USD', total_amount: 50, open_ar: 25, open_ar_unknown_count: 0, invoice_count: 1 },
+        { project_id: 'proj-2', project_name: 'Beta', currency: 'IDR', total_amount: 500_000, open_ar: 0, open_ar_unknown_count: 1, invoice_count: 1 },
+      ]),
+    );
   });
 });
 

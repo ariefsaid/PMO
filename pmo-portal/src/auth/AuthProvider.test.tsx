@@ -72,6 +72,7 @@ vi.mock('@/src/lib/supabase/client', () => {
 
 import { useAuth } from './useAuth';
 import { AuthProvider } from './AuthProvider';
+import { queryClient } from '@/src/lib/queryClient';
 
 beforeEach(() => {
   state.session = null;
@@ -478,6 +479,66 @@ describe('AuthProvider refreshCurrentUser (profile language settings slice)', ()
     p1.resolve({ data: profileFor('u-refresh-3', 'en'), error: null });
     await new Promise((r) => setTimeout(r, 0));
     expect(screen.getByTestId('refresh-locale')).toHaveTextContent('id');
+  });
+});
+
+// Review finding 3: `refreshCurrentUser` can install a profile with a DIFFERENT org_id for the SAME
+// auth user. Every identity-scoped cached read (own plan, entitlements, …) must not survive that.
+describe('AuthProvider organisation identity (same-user org transition)', () => {
+  function OrgProbe() {
+    const { currentUser, refreshCurrentUser } = useAuth();
+    return (
+      <div>
+        <span data-testid="org">{currentUser?.org_id ?? 'none'}</span>
+        <span data-testid="org-locale">{currentUser?.locale ?? 'none'}</span>
+        <button data-testid="refresh-org" onClick={() => void refreshCurrentUser()} />
+      </div>
+    );
+  }
+
+  it('clears identity-scoped query data when a same-user refresh moves the user to another org', async () => {
+    queryClient.clear();
+    state.session = { user: { id: 'u-org-move' } };
+    state.profile = profileFor('u-org-move', 'en');
+    render(<AuthProvider><OrgProbe /></AuthProvider>);
+    await waitFor(() =>
+      expect(screen.getByTestId('org')).toHaveTextContent('00000000-0000-0000-0000-000000000001')
+    );
+
+    // Data another session loaded while the user was in the previous org.
+    queryClient.setQueryData(['ownPlan'], { planId: 'starter' });
+    queryClient.setQueryData(['ownPlan', '00000000-0000-0000-0000-000000000001'], { planId: 'starter' });
+    queryClient.setQueryData(
+      ['orgFeatures', 'own', '00000000-0000-0000-0000-000000000001'],
+      { display: { revenue: true } },
+    );
+
+    state.profile = { ...profileFor('u-org-move', 'en'), org_id: '00000000-0000-0000-0000-000000000002' };
+    fireEvent.click(screen.getByTestId('refresh-org'));
+
+    await waitFor(() =>
+      expect(screen.getByTestId('org')).toHaveTextContent('00000000-0000-0000-0000-000000000002')
+    );
+    expect(queryClient.getQueryCache().findAll({ queryKey: ['ownPlan'] })).toHaveLength(0);
+    expect(queryClient.getQueryCache().findAll({ queryKey: ['orgFeatures'] })).toHaveLength(0);
+  });
+
+  it('keeps the cache when a same-user refresh stays in the same org', async () => {
+    queryClient.clear();
+    state.session = { user: { id: 'u-org-stay' } };
+    state.profile = profileFor('u-org-stay', 'en');
+    render(<AuthProvider><OrgProbe /></AuthProvider>);
+    await waitFor(() =>
+      expect(screen.getByTestId('org')).toHaveTextContent('00000000-0000-0000-0000-000000000001')
+    );
+
+    queryClient.setQueryData(['ownPlan', '00000000-0000-0000-0000-000000000001'], { planId: 'starter' });
+    state.profile = { ...profileFor('u-org-stay', 'id'), org_id: '00000000-0000-0000-0000-000000000001' };
+    fireEvent.click(screen.getByTestId('refresh-org'));
+
+    await waitFor(() => expect(screen.getByTestId('org-locale')).toHaveTextContent('id'));
+    expect(queryClient.getQueryData(['ownPlan', '00000000-0000-0000-0000-000000000001']))
+      .toEqual({ planId: 'starter' });
   });
 });
 

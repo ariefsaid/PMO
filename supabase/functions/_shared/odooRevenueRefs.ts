@@ -119,10 +119,14 @@ async function productUnitRounding(call: OdooCall, timeMaterials: boolean): Prom
 }
 
 /** The Odoo products the lines name and the income account each posts to (`false` = none set: the line is refused, never guessed). */
-async function readProducts(call: OdooCall, ids: number[]): Promise<Map<number, number | null>> {
+async function readProducts(call: OdooCall, ids: number[], companyId: number): Promise<Map<number, number | null>> {
   if (ids.length === 0) return new Map();
   let rows: Array<{ id: number; property_account_income_id?: unknown }>;
-  try { rows = await call('product.product', 'read', { ids, fields: ['property_account_income_id'] }); } catch { throw rejected('config-rejected: the invoice items could not be checked against Odoo'); }
+  try {
+    rows = await call('product.product', 'read', {
+      ids, fields: ['property_account_income_id'], context: { allowed_company_ids: [companyId], company_id: companyId },
+    });
+  } catch { throw rejected('config-rejected: the invoice items could not be checked against Odoo'); }
   return new Map(rows.map((r) => [r.id, Array.isArray(r.property_account_income_id) ? Number(r.property_account_income_id[0]) : null]));
 }
 
@@ -247,6 +251,7 @@ export function resolveOdooInvoiceInputs(sc: SupabaseClient, orgId: string, comm
     if (project?.error) throw new AppError('The project could not be read', 'gate-check-failed');
     const vat = (project?.data as { subject_to_vat?: unknown } | null | undefined)?.subject_to_vat;
     if (draft.projectId && typeof vat !== 'boolean') throw rejected('config-rejected: the project VAT context could not be verified');
+    record.vat_flag_at_resolution = draft.projectId ? vat === true : true;
     const workOrder = draft.workOrderId
       ? await sc.from('work_orders').select('client_po_number').eq('org_id', orgId).eq('id', draft.workOrderId).maybeSingle()
       : null;
@@ -279,7 +284,7 @@ export function resolveOdooInvoiceInputs(sc: SupabaseClient, orgId: string, comm
       advanceAccount = validated;
     }
     const productIds = [...new Set(draft.lines.flatMap((l) => (/^[1-9][0-9]*$/.test(itemMap[l.item_code] ?? '') ? [Number(itemMap[l.item_code])] : [])))];
-    const incomeOf = await readProducts(call, productIds);
+    const incomeOf = await readProducts(call, productIds, resolved.companyId);
     const items: Record<string, { productId: number; incomeAccountId: number | null }> = {};
     for (const l of draft.lines) {
       const productId = Number(itemMap[l.item_code]);

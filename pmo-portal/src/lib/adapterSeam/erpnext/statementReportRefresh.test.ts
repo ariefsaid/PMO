@@ -755,4 +755,173 @@ describe('refreshStatementReportBatch', () => {
     expect(lateResponseResolved).toBe(true);
     expect(h.counts().stageCount).toBe(0);
   });
+
+  it('AC-005 / #1495: accepts canonical and seed-style org, project, and binding UUIDs for statement report refresh', async () => {
+    const SEED_ORG = '00000000-0000-0000-0000-000000000001';
+    const SEED_HOLDER = '00000000-0000-0000-0000-000000000002';
+    const SEED_BINDING = '00000000-0000-0000-0000-000000000003';
+    const SEED_PROJECT = '00000000-0000-0000-0000-000000000004';
+    const SEED_BATCH = '00000000-0000-0000-0000-000000000005';
+    const SEED_SNAPSHOT = '00000000-0000-0000-0000-000000000006';
+
+    const seedProjectRequest: RequestKey = {
+      statement: 'profit_and_loss',
+      projectId: SEED_PROJECT,
+      periodKind: 'fiscal_year',
+      currentStart: '2024-01-01',
+      currentEnd: '2024-12-31',
+      priorStart: '2023-01-01',
+      priorEnd: '2023-12-31',
+      side: 'current',
+    };
+
+    const h = fixture({
+      opens: [
+        { batchId: SEED_BATCH, startedAt: '2026-10-18T10:00:00.000Z', nextRequest: seedProjectRequest, complete: false },
+        { batchId: SEED_BATCH, startedAt: '2026-10-18T10:00:00.000Z', nextRequest: null, complete: true },
+      ],
+      reportFetch: () => response({
+        message: {
+          columns: [
+            { fieldname: 'account', label: 'Account', fieldtype: 'Link' },
+            { fieldname: 'dec_2024', label: 'Dec 2024', fieldtype: 'Currency' },
+            { fieldname: 'total', label: 'Total', fieldtype: 'Currency' },
+          ],
+          result: [
+            { account: 'Synthetic Income', dec_2024: '100.00', total: '100.00' },
+          ],
+          report_summary: [
+            { value: '100.00', datatype: 'Currency', currency: 'IDR' },
+            { value: '40.00', datatype: 'Currency', currency: 'IDR' },
+            { value: '60.00', datatype: 'Currency', currency: 'IDR' },
+          ],
+        },
+      }),
+    });
+
+    h.input.orgId = SEED_ORG;
+    h.input.holder = SEED_HOLDER;
+    h.input.binding.id = SEED_BINDING;
+    h.input.binding.projectMap = { [SEED_PROJECT]: 'Seeded Project' };
+
+    const originalRpc = h.input.service.rpc.bind(h.input.service);
+    h.input.service.rpc = async (name: string, args: Record<string, unknown>) => {
+      if (name === 'publish_erp_financial_statements') {
+        const res = await originalRpc(name, args);
+        return { data: SEED_SNAPSHOT, error: res.error };
+      }
+      return originalRpc(name, args);
+    };
+
+    const result = await refreshStatementReportBatch(h.input);
+
+    expect(result).toMatchObject({
+      status: 'published',
+      batchId: SEED_BATCH,
+      staged: 1,
+      complete: true,
+      snapshotId: SEED_SNAPSHOT,
+    });
+    expect(h.staged).toHaveLength(1);
+    expect(h.staged[0]?.selection).toEqual(seedProjectRequest);
+    expect(h.rpcCalls[0]?.args.p_org_id).toBe(SEED_ORG);
+    expect(h.rpcCalls[0]?.args.p_holder).toBe(SEED_HOLDER);
+  });
+
+  it('AC-005 / #1495: preserves strict rejection of malformed UUID shapes across org, holder, binding, project, and batch identifiers', async () => {
+    const malformedOrgs = [
+      'not-a-uuid',
+      '00000000-0000-0000-0000-00000000001',
+      '00000000-0000-0000-0000-0000000000001',
+      '00000000-0000-0000-0000-00000000000g',
+      '00000000000000000000000000000001',
+      ' 00000000-0000-0000-0000-000000000001',
+      '00000000-0000-0000-0000-000000000001 ',
+    ];
+    for (const badOrg of malformedOrgs) {
+      const h = fixture();
+      h.input.orgId = badOrg;
+      const res = await refreshStatementReportBatch(h.input);
+      expect(res.status).toBe('failed');
+      expect(res.errorCode).toBe('native-context-unavailable');
+    }
+
+    {
+      const h = fixture();
+      h.input.holder = 'invalid-holder-uuid';
+      const res = await refreshStatementReportBatch(h.input);
+      expect(res.status).toBe('failed');
+      expect(res.errorCode).toBe('native-context-unavailable');
+    }
+
+    {
+      const h = fixture();
+      h.input.binding.id = 'bad-binding-uuid';
+      const res = await refreshStatementReportBatch(h.input);
+      expect(res.status).toBe('failed');
+      expect(res.errorCode).toBe('native-context-unavailable');
+    }
+
+    {
+      const malformedProjectRequest: RequestKey = {
+        statement: 'profit_and_loss',
+        projectId: 'bad-project-uuid',
+        periodKind: 'fiscal_year',
+        currentStart: '2024-01-01',
+        currentEnd: '2024-12-31',
+        priorStart: '2023-01-01',
+        priorEnd: '2023-12-31',
+        side: 'current',
+      };
+      const h = fixture({
+        opens: [{ batchId: BATCH, startedAt: '2026-10-18T10:00:00.000Z', nextRequest: malformedProjectRequest, complete: false }],
+      });
+      const res = await refreshStatementReportBatch(h.input);
+      expect(res.status).toBe('failed');
+      expect(res.errorCode).toBe('native-batch-invalid-response');
+    }
+
+    {
+      const h = fixture({
+        opens: [{ batchId: '00000000-0000-0000-0000-00000000000z', startedAt: '2026-10-18T10:00:00.000Z', nextRequest: null, complete: true }],
+      });
+      const res = await refreshStatementReportBatch(h.input);
+      expect(res.status).toBe('failed');
+      expect(res.errorCode).toBe('native-batch-invalid-response');
+    }
+  });
+
+  it('AC-005 / #1495: accepts uppercase and mixed-case canonical UUIDs', async () => {
+    const UPPER_ORG = 'AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE';
+    const UPPER_HOLDER = '11111111-2222-3333-4444-55555555555A';
+    const UPPER_BINDING = '99999999-8888-7777-6666-55555555555B';
+    const UPPER_BATCH = 'FFFFFFFF-EEEE-DDDD-CCCC-BBBBBBBBBBBA';
+    const UPPER_SNAPSHOT = '01234567-89AB-CDEF-0123-456789ABCDEF';
+
+    const h = fixture({
+      opens: [
+        { batchId: UPPER_BATCH, startedAt: '2026-10-18T10:00:00.000Z', nextRequest: null, complete: true },
+      ],
+    });
+    h.input.orgId = UPPER_ORG;
+    h.input.holder = UPPER_HOLDER;
+    h.input.binding.id = UPPER_BINDING;
+
+    const originalRpc = h.input.service.rpc.bind(h.input.service);
+    h.input.service.rpc = async (name: string, args: Record<string, unknown>) => {
+      if (name === 'publish_erp_financial_statements') {
+        const res = await originalRpc(name, args);
+        return { data: UPPER_SNAPSHOT, error: res.error };
+      }
+      return originalRpc(name, args);
+    };
+
+    const res = await refreshStatementReportBatch(h.input);
+    expect(res).toMatchObject({
+      status: 'published',
+      complete: true,
+      batchId: UPPER_BATCH,
+      snapshotId: UPPER_SNAPSHOT,
+    });
+  });
 });

@@ -1,7 +1,7 @@
 // @e2e-isolation: serial — transitions seed project P012 to Won, Pending KoM (org-wide on-hand aggregate mutation); restores P012 in afterEach.
 import { test, expect } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { login, openPipelineCard, requireServiceRoleKey, visibleToast } from '../helpers';
+import { login, openPipelineCard, requireServiceRoleKey, stubErpProjectSync, visibleToast } from '../helpers';
 
 // AC-1011 — Win a deal end-to-end (single curated journey).
 //
@@ -55,6 +55,7 @@ test.afterEach(async () => {
 
 test('AC-1011: a PM wins a deal — open it from the Pipeline, Mark won, enter customer contract ref + date, confirm; the deal becomes Won and shows in the active Projects list with the entered ref', async ({ page }) => {
   await login(page, 'pm@acme.test');
+  await stubErpProjectSync(page);
 
   // The Tender-stage deal lives in the Sales Pipeline (not the active Projects list).
   await page.goto('/sales');

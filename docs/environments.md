@@ -519,6 +519,34 @@ lot creation, revision, bill and payment posting, and reconciliation. Removing e
 blocked an exercised operation. This is the smallest set tested on this bed, not a proof for every possible
 customized installation; see the O2 findings below.
 
+**Purchase-to-payment setup:** double validation must be off (`po_double_validation = one_step`) so an
+order confirmation completes within the tested flow. Select the organisation's default payment journal from
+the mirrored bank or cash journals that have an outbound payment method; Finance can choose another journal
+for an individual payment. Odoo procurement money writes use the shared money outbox, including same-intent
+recovery after a lost response.
+
+**Background recovery (AC-OPP-062):** each eligible Odoo sweep tick runs bounded procurement recovery beside
+revenue recovery and shares the tick's Odoo-call and time budgets. It reads the candidate set once, reserves
+capacity before dispatch, rebuilds the recorded command and uses persisted composite facts where a recovery
+probe needs them. The recorded actor is rechecked before any recovery reissue that could create a new Odoo
+document. A uniquely proved document is confirmed and linked; ambiguous or conflicting probe evidence stays
+held. Do not adopt a document by amount, vendor or date alone. The AC-OPP-062 sweep bed proves a lost
+bill-post response is linked with exactly one Odoo bill for that command, an edited bill anchor remains held,
+and a payment-create response lost after Odoo accepts it is recovered without allowing a second payment
+intent for the same bill. Order, receipt and revision recovery are covered by unit tests, not this sweep bed.
+
+**Held bill or order procedure:** an Admin reviews the held outbox command, its original PMO record and the
+matching Odoo document, including the supplier, totals, order relationship and creation window. When the
+intended Odoo document is clear, restore or correct its stock external identifier so the original command can
+find it, then use the audited `release_outbox_hold` route and retry the original command. Keep the row held
+when more than one document or owner could match; do not start a new intent to work around the hold.
+
+**Held payment procedure:** only an Admin or Finance user other than the dispatching user may resolve a held
+payment. Compare the candidate in Odoo with the bill, vendor, amount and bounded creation window; adopt only
+after confirming the named payment is reconciled to that bill. Mark the payment absent only after searching
+those same facts and repeating the search; then retry the original command. Leave the row held when the
+evidence is inconclusive. These are scoped dev-bed results; release readiness remains the owner's call.
+
 For the exercised customer-invoice and receipt calls (#1506 findings, research doc §10), an internal user with the
 Billing group (`account.group_account_invoice`) completed invoice create and post, the register-payment wizard, line
 reconcile, the credit-note wizard and the Coretax export. The stock external identifier (`ir.model.data`) read and

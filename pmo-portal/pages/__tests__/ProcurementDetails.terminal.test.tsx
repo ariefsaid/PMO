@@ -29,6 +29,15 @@ vi.mock('@/src/hooks/useDomainOwnershipMode', async () => await import('@/test/d
 vi.mock('@/src/hooks/useProcurementItemEligibility', () => ({ useProcurementItemEligibility: () => ({ data: true, isPending: false, isError: false, isFetching: false, refetch: vi.fn() }) }));
 
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
+vi.mock('@/src/hooks/useOrgFeatures', () => ({
+  useOrgFeatures: () => ({
+    data: { procurement: true, procurement_full: true },
+    isLoading: false,
+    isError: false,
+    error: null,
+    refetch: vi.fn(),
+  }),
+}));
 vi.mock('@/src/hooks/useProcurementRecords', () => ({
   useProcurementRecordMutations: () => ({
     createPurchaseRequest: { mutateAsync: vi.fn(), isPending: false },

@@ -7,6 +7,8 @@ import { createClient } from '@supabase/supabase-js';
 import { installEdgeEnv, jsonResponse, supabaseRpc, supabaseSelect, withFetchMock } from '../_shared/testing/edgeTestKit.ts';
 import { resolveOdooProcurementAdapter, resolveOdooRevenueAdapter, ODOO_ADAPTER_REGISTRY } from './odooAdapters.ts';
 import type { AdapterSelectContext } from './dispatchAdapters.ts';
+import { reservedOdooCallBudget } from '../_shared/odooCallBudget.ts';
+import { procurementRecoveryCallReservation, type OdooProcurementCandidate } from './odooProcurementRecovery.ts';
 
 const env = installEdgeEnv();
 globalThis.addEventListener('unload', () => env.restore());
@@ -24,6 +26,16 @@ function ctxFor(kind: string, operation = 'create') {
   const sc = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
   return { orgId: '0d000000-0000-4000-8000-000000000008', serviceClient: sc, userId: 'u-1', faultGate: {}, erpAuth: {},
     command: { domain: 'procurement', operation, record: { id: '123e4567-e89b-12d3-a456-426614174000', erp_doc_kind: kind, procurementId: 'c0000000-0000-4000-8000-000000000001', poId: '123e4567-e89b-12d3-a456-426614174000', revision: 2 } } } as unknown as AdapterSelectContext;
+}
+function attachRecoveryBudget(ctx: AdapterSelectContext, kind: string, operation = 'create', receiptLines = 0) {
+  const outboxOperation = operation === 'revise' ? 'update' : operation;
+  const reservation = procurementRecoveryCallReservation({
+    row: { id: 'budgeted', domain: 'procurement', pmoRecordId: 'record', idempotencyKey: 'key', state: 'quarantined', externalRecordId: null, canonical: null, claimGeneration: 1, payloadDigest: null },
+    externalTier: 'odoo', operation: outboxOperation, payload: { erp_doc_kind: kind, odooReceipt: { lines: Array.from({ length: receiptLines }, () => ({})) } }, updatedAt: new Date().toISOString(),
+  } as OdooProcurementCandidate);
+  const budget = reservedOdooCallBudget(reservation);
+  (ctx as unknown as { odooCallBudget: typeof budget }).odooCallBudget = budget;
+  return { budget, reservation };
 }
 const object = (body: unknown) => jsonResponse(body, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } });
 /** `odooCurrency`: what `res.company.currency_id` reads as; `caseCurrency`: the PMO case's. `odooCalls` records the Odoo methods called. */
@@ -47,10 +59,25 @@ describe('P3 the Odoo adapter factory', () => {
 
   for (const [kind, operation] of [['purchase-order', 'create'], ['purchase-order', 'revise']] as const) {
     it(`returns the Odoo procurement adapter for a ${kind} ${operation}`, async () => {
-      const adapter = await withFetchMock(world(), () => resolveOdooProcurementAdapter(ctxFor(kind, operation)));
+      const ctx = ctxFor(kind, operation);
+      const { budget, reservation } = attachRecoveryBudget(ctx, kind, operation);
+      const adapter = await withFetchMock(world(), () => resolveOdooProcurementAdapter(ctx));
       assertEquals([adapter.tier, [...adapter.capabilityMap]], ['odoo', ['procurement']]);
+      assertEquals(budget.used() <= reservation, true, 'shipped resolver traffic fits the per-command recovery reservation');
     });
   }
+
+  it('AC-OPP-062 shipped adapter calls are counted without being cut by the reservation guard', async () => {
+    const ctx = ctxFor('purchase-order');
+    const { budget } = attachRecoveryBudget(ctx, 'purchase-order');
+    const odooCalls: string[] = [];
+
+    const adapter = await withFetchMock(world(undefined, { odooCalls }), () => resolveOdooProcurementAdapter(ctx));
+
+    assertEquals(adapter.tier, 'odoo', 'a depleted reservation never throws through a non-throwing adapter meter');
+    assertEquals(budget.used(), odooCalls.length);
+    assertEquals(budget.used() > 0, true);
+  });
 
   for (const kind of ['rfq']) {
     it(`refuses a ${kind} create: not available yet, config-rejected, before any outbox row`, async () => {
@@ -61,10 +88,13 @@ describe('P3 the Odoo adapter factory', () => {
   }
 
   it('P4 returns the Odoo procurement adapter for a goods-receipt create, reading nothing from Odoo (no currency, no order inputs)', async () => {
+    const ctx = ctxFor('goods-receipt');
+    const { budget, reservation } = attachRecoveryBudget(ctx, 'goods-receipt', 'create', 2);
     const odooCalls: string[] = [];
-    const adapter = await withFetchMock(world(undefined, { odooCalls }), () => resolveOdooProcurementAdapter(ctxFor('goods-receipt')));
+    const adapter = await withFetchMock(world(undefined, { odooCalls }), () => resolveOdooProcurementAdapter(ctx));
     assertEquals([adapter.tier, [...adapter.capabilityMap]], ['odoo', ['procurement']]);
     assertEquals(odooCalls, []);
+    assertEquals(budget.used() <= reservation, true);
   });
 
   it('a goods-receipt update or transition (no such Odoo step) is refused before any outbox row', async () => {
@@ -132,9 +162,13 @@ describe('P5 the Odoo adapter factory for a vendor bill', () => {
 
   it('AC-OPP-040 returns the Odoo procurement adapter for a valid bill, its taxes validated and nothing written to Odoo', async () => {
     const odooCalls: string[] = [];
-    const adapter = await withFetchMock(billWorld(undefined, { odooCalls }), () => resolveOdooProcurementAdapter(bill()));
+    const ctx = bill();
+    const { budget, reservation } = attachRecoveryBudget(ctx, 'purchase-invoice');
+    const adapter = await withFetchMock(billWorld(undefined, { odooCalls }), () => resolveOdooProcurementAdapter(ctx));
     assertEquals([adapter.tier, [...adapter.capabilityMap]], ['odoo', ['procurement']]);
     assertEquals(odooCalls.every((c) => /\/(read|search_read)$/.test(c)), true, odooCalls.join());
+    assertEquals(budget.used(), odooCalls.length);
+    assertEquals(budget.used() <= reservation, true);
   });
 
   it('AC-OPP-042 a withholding tax with no liability account is config-rejected naming the tax, before any outbox row', async () => {
@@ -196,10 +230,14 @@ describe('P6 the Odoo adapter factory for a vendor payment', () => {
 
   it('returns the Odoo procurement adapter for a payment create, after reading (never writing) the bill and the journal', async () => {
     const odooCalls: string[] = [];
-    const adapter = await withFetchMock(payWorld(undefined, { odooCalls }), () => resolveOdooProcurementAdapter(payment()));
+    const ctx = payment();
+    const { budget, reservation } = attachRecoveryBudget(ctx, 'payment');
+    const adapter = await withFetchMock(payWorld(undefined, { odooCalls }), () => resolveOdooProcurementAdapter(ctx));
     assertEquals(adapter.tier, 'odoo');
     assertEquals(odooCalls.every((c) => /\/(read|search_read)$/.test(c)), true, odooCalls.join());
     assertEquals(odooCalls.includes('account.move/read'), true);
+    assertEquals(budget.used(), odooCalls.length);
+    assertEquals(budget.used() <= reservation, true);
   });
 
   it('AC-OPP-050 an amount above the bill\'s residual is refused at selection (Odoo would accept it): no outbox row, nothing written', async () => {

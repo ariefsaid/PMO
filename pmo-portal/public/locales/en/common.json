@@ -144,13 +144,9 @@
     "employeeMissing": "People who record time still needing an ERP employee link: {{count}}",
     "projectLabel": "Project connections",
     "setupComplete": "Setup is complete. Confirmed connections are retained; this review will return when something needs attention.",
-    "partiesAction": "Review company connections",
     "defaultsDialog": "Work and billing settings",
     "domainDialog": "Information to keep updated",
     "domainSubmit": "Save information choices",
-    "onboardDialog": "Review company connections?",
-    "onboardDescription": "Review company connections from the connected business system. Existing confirmed links are kept.",
-    "onboardSubmit": "Review connections",
     "activityField": "Work category",
     "activityHelp": "Choose the enabled work category used when time is recorded.",
     "receivableField": "Customer billing account",
@@ -2580,8 +2576,7 @@
         "decision": "Decision",
         "owner": "Owner",
         "value": "Value",
-        "weighted": "Weighted",
-        "winProbability": "Win probability"
+        "weighted": "Weighted"
       },
       "terminalNotice": "This project has reached a terminal stage. No further pipeline actions.",
       "toast": {
@@ -3153,7 +3148,6 @@
       "stage": "Stage",
       "value": "Value",
       "weighted": "Weighted",
-      "winPct": "Win %",
       "endCustomer": "End customer"
     },
     "empty": {
@@ -3219,7 +3213,6 @@
     },
     "viewToggleLabel": "Pipeline view",
     "weightedForecast": "Weighted pipeline forecast",
-    "winProbability": "Win probability",
     "board": {
       "ariaLabel": "Sales pipeline board"
     },
@@ -3627,8 +3620,6 @@
     "erpSetup": {
       "defaultsFailed": "Could not save ERP defaults. Check the values and try again.",
       "domainFailed": "Could not employ this domain. Check ERP read permissions and try again.",
-      "onboarded": "ERP parties are onboarded. Review the Companies list.",
-      "onboardFailed": "Party onboarding did not complete. Try again.",
       "unavailable": "ERP setup unavailable",
       "configured": "{{count}} of {{total}} configured",
       "activityMissing": "Activity type not set",
@@ -3958,7 +3949,6 @@
     "editBudgetLineItemNamed": "Edit line item {{category}}",
     "invoiceDetails": "Invoice details",
     "lineItemsSection": "Line items",
-    "erpLineItemsStoredInErpNext": "Line items are kept in ERPNext for this invoice.",
     "paymentDetails": "Payment details",
     "invoiceCount_one": "{{count}} invoice",
     "invoiceCount_other": "{{count}} invoices",

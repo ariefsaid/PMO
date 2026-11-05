@@ -1502,6 +1502,82 @@ test('AC-CSD-003: pmo load --dry-run sends only reads and prints the planned act
   }
 });
 
+test('AC-CSD-005: ERP-owned missing company is synchronously created before its project', async () => {
+  const handler = (ctx) => {
+    if (ctx.url.pathname === '/rest/v1/profiles') return ctx.send(200, [{ full_name: 'Owner', role: 'Admin', status: 'active' }]), true;
+    if (ctx.url.pathname === '/rest/v1/external_domain_ownership') return ctx.send(200, [{ domain: 'companies', external_tier: 'erpnext' }]), true;
+    if (ctx.url.pathname === '/rest/v1/companies' || ctx.url.pathname === '/rest/v1/projects') {
+      if (ctx.req.method === 'GET') return ctx.send(200, []), true;
+      if (ctx.url.pathname === '/rest/v1/projects' && ctx.req.method === 'POST') return ctx.send(201, [{ id: 'project-1', ...JSON.parse(ctx.body) }]), true;
+    }
+    if (ctx.url.pathname === '/functions/v1/adapter-dispatch') {
+      const command = JSON.parse(ctx.body);
+      assert.equal(command.domain, 'companies');
+      assert.equal(command.operation, 'create');
+      assert.deepEqual({ name: command.record.name, type: command.record.type, erp_doc_kind: command.record.erp_doc_kind }, {
+        name: 'Client Legal A', type: 'Client', erp_doc_kind: 'customer',
+      });
+      assert.match(command.record.id, /^[0-9a-f-]{36}$/i);
+      assert.match(command.idempotencyKey, /^[0-9a-f-]{36}$/i);
+      return ctx.send(200, { externalRecordId: 'CUST-1', canonical: { id: 'company-1', name: 'Client Legal A', type: 'Client' } }), true;
+    }
+    return false;
+  };
+  const fake = await fakeSupabase({ handler });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const doc = {
+      companies: [{ name: 'Client Legal A' }],
+      projects: [{ code: 'ERP-001', name: 'Project', client: 'Client Legal A', stage: 'Leads' }],
+    };
+    const r = await runCli(['load', writeLoadFile(configDir, doc), '--url', fake.url], { configDir });
+    assert.equal(r.code, 0, r.err);
+    assert.deepEqual(r.json.actions.map((a) => a.kind), ['company.create', 'project.create']);
+    const command = fake.requests.find((q) => q.path === '/functions/v1/adapter-dispatch');
+    const project = fake.requests.find((q) => q.path === '/rest/v1/projects' && q.method === 'POST');
+    assert.ok(command && project);
+    assert.ok(fake.requests.indexOf(command) < fake.requests.indexOf(project));
+    assert.equal(JSON.parse(project.body).client_id, 'company-1');
+    assert.equal(fake.requests.some((q) => q.path === '/rest/v1/companies' && q.method === 'POST'), false);
+  } finally {
+    await fake.close();
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
+});
+
+test('AC-CSD-005: failed ERP party push reports the command error and creates no project', async () => {
+  const handler = (ctx) => {
+    if (ctx.url.pathname === '/rest/v1/profiles') return ctx.send(200, [{ full_name: 'Owner', role: 'Admin', status: 'active' }]), true;
+    if (ctx.url.pathname === '/rest/v1/external_domain_ownership') return ctx.send(200, [{ domain: 'companies', external_tier: 'erpnext' }]), true;
+    if (ctx.url.pathname === '/rest/v1/companies' || ctx.url.pathname === '/rest/v1/projects') {
+      if (ctx.req.method === 'GET') return ctx.send(200, []), true;
+    }
+    if (ctx.url.pathname === '/functions/v1/adapter-dispatch') {
+      return ctx.send(502, { error: 'external-unreachable', message: 'The external system could not be reached' }), true;
+    }
+    return false;
+  };
+  const fake = await fakeSupabase({ handler });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const doc = {
+      companies: [{ name: 'Client Legal A' }],
+      projects: [{ code: 'ERP-001', name: 'Project', client: 'Client Legal A', stage: 'Leads' }],
+    };
+    const r = await runCli(['load', writeLoadFile(configDir, doc), '--url', fake.url], { configDir });
+    assert.equal(r.code, 1);
+    assert.equal(r.errJson.error.message, 'The external system could not be reached');
+    assert.equal(r.errJson.error.details.failed.kind, 'company.create');
+    assert.deepEqual(fake.requests.filter((q) => q.method === 'POST' && q.path === '/rest/v1/projects'), []);
+    assert.deepEqual(fake.requests.filter((q) => q.method === 'POST' && q.path === '/rest/v1/companies'), []);
+  } finally {
+    await fake.close();
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
+});
+
 test('AC-CSD-012: a refused write ends pmo load with exit 1 and the done / failed report', async () => {
   const handler = (ctx) => {
     if (ctx.url.pathname === '/rest/v1/rpc/transition_project') {

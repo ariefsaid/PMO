@@ -17,8 +17,17 @@ vi.mock('@/src/hooks/useOrgTaxDefault', async (orig) => {
   const actual = (await orig()) as Record<string, unknown>;
   return { ...actual, useOrgTaxDefault: () => orgDefault.value };
 });
+vi.mock('@/src/hooks/useOrgFeatures', () => ({
+  useOrgFeatures: () => ({
+    data: { procurement: true, procurement_full: true },
+    isLoading: false,
+    isError: false,
+    error: null,
+    refetch: vi.fn(),
+  }),
+}));
 
-import { render, screen, fireEvent, waitFor, within, cleanup } from '@testing-library/react';
+import { act, render, screen, fireEvent, waitFor, within, cleanup } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router';
@@ -52,6 +61,7 @@ const mockTransition = vi.fn().mockResolvedValue(undefined);
 const mockCreateQuotation = vi.fn().mockResolvedValue({ id: 'q-new' });
 const mockCreateReceipt = vi.fn().mockResolvedValue({ id: 'r-new' });
 const mockCreateInvoice = vi.fn().mockResolvedValue({ id: 'i-new' });
+const mockCreatePurchaseOrder = vi.fn().mockResolvedValue({ id: 'po-new' });
 const mockCaptureVendorInvoice = vi.fn().mockResolvedValue({ id: 'vi-new' });
 const mockCaptureSubcontractVendorInvoice = vi.fn().mockResolvedValue({ id: 'vi-sub-new' });
 const subcontractPosition = vi.hoisted(() => ({
@@ -73,7 +83,7 @@ vi.mock('@/src/hooks/useProcurementRecords', () => ({
   useProcurementRecordMutations: () => ({
     createPurchaseRequest: { mutateAsync: vi.fn(), isPending: false },
     createRfq: { mutateAsync: vi.fn(), isPending: false },
-    createPurchaseOrder: { mutateAsync: vi.fn(), isPending: false },
+    createPurchaseOrder: { mutateAsync: mockCreatePurchaseOrder, isPending: false },
     createPayment: { mutateAsync: vi.fn(), isPending: false },
     pendingPush: recordPush,
   }),
@@ -1023,6 +1033,24 @@ describe('Action bar covers mid-flow transitions', () => {
     await waitFor(() => expect(mockCreateInvoice).toHaveBeenCalledWith(expect.objectContaining({ taxIds: ['7'] })));
   });
 
+  it('AC-OPP-090 saving a purchase order from the procurement capture form creates it', async () => {
+    setTaskOwnership([{ domain: 'procurement', externalTier: 'odoo' }]);
+    detailState.data = { ...baseProcurement, status: 'Draft', requested_by_id: 'u-other' };
+    mockCreatePurchaseOrder.mockClear().mockResolvedValue({ id: 'po-new' });
+    renderPage('proc-001', 'files');
+    await chooseRecordKind('Purchase order');
+    await userEvent.type(screen.getByTestId('purchase_order-ref-input'), 'PO-090');
+    await userEvent.type(screen.getByTestId('purchase_order-amount-input'), '1000');
+    await userEvent.click(screen.getByTestId('purchase_order-save-btn'));
+
+    await waitFor(() => expect(mockCreatePurchaseOrder).toHaveBeenCalledWith(expect.objectContaining({
+      referenceNumber: 'PO-090',
+      status: 'Draft',
+      amount: 1000,
+    })));
+    expect(screen.queryByTestId('form-capture-purchase_order')).not.toBeInTheDocument();
+  });
+
   it('AC-OPP-080 what Odoo has not settled shows on the case\'s first screen, not only under the documents tab', async () => {
     setTaskOwnership([{ domain: 'procurement', externalTier: 'odoo' }]);
     detailState.data = { ...baseProcurement, status: 'Draft', requested_by_id: 'u-other' };
@@ -1265,6 +1293,32 @@ describe('GR creation panel (D3, AC-816 UI support)', () => {
     detailState.data = { ...baseProcurement, status: 'Received', requested_by_id: 'u-other', receipts: [], invoices: [] };
     renderPage();
     expect(screen.getByTestId('procurement-no-access')).toBeInTheDocument();
+  });
+
+  it('AC-OPP-090 mints a new command intent after a confirmed receipt before a bill is captured', async () => {
+    mockEffectiveRole = 'Admin';
+    setTaskOwnership([{ domain: 'procurement', externalTier: 'odoo' }]);
+    detailState.data = { ...baseProcurement, status: 'Ordered', requested_by_id: 'u-other', receipts: [], invoices: [] };
+    mockCreateReceipt.mockClear();
+    mockCreateInvoice.mockClear();
+    renderPage('proc-001', 'files');
+
+    await chooseRecordKind('Receipt');
+    await userEvent.click(screen.getByTestId('btn-save-gr'));
+    await confirmInDialog(/save gr/i);
+    await waitFor(() => expect(mockCreateReceipt).toHaveBeenCalledTimes(1));
+    const receiptIntent = mockCreateReceipt.mock.calls[0][0].intent;
+    act(() => { detailState.data = { ...detailState.data, status: 'Received' }; });
+
+    await chooseRecordKind('Supplier invoice');
+    await userEvent.click(screen.getByTestId('btn-save-vi'));
+    await confirmInDialog(/save supplier invoice/i);
+    await waitFor(() => expect(mockCreateInvoice).toHaveBeenCalledTimes(1));
+    const invoiceIntent = mockCreateInvoice.mock.calls[0][0].intent;
+
+    expect(receiptIntent?.idempotencyKey).toEqual(expect.any(String));
+    expect(invoiceIntent?.idempotencyKey).toEqual(expect.any(String));
+    expect(invoiceIntent?.idempotencyKey).not.toBe(receiptIntent?.idempotencyKey);
   });
 
   // AC-AUTHZ: GR form mirrors the Ordered→Received authority — requester OR PM, not Finance.
@@ -1696,6 +1750,10 @@ vi.mock('@/src/hooks/useOdooPurchase', () => ({
   useOdooPurchaseCommands: () => ({ data: odooPurchase.commands, isError: false }),
   useOdooUnreachable: () => ({ unreachable: false, lastOkAt: null }),
   useResolveHeldPayment: () => ({ mutateAsync: vi.fn(), isPending: false }),
+}));
+vi.mock('@/src/hooks/useOdooRevenue', () => ({
+  useOdooRevenueCommands: () => ({ data: [], isError: false }),
+  useResolveHeldRevenueCommand: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 vi.mock('@/src/hooks/useProcurementGates', () => import('@/pages/__tests__/helpers/procurementGatesMock'));
 vi.mock('@/src/hooks/useErpPurchases', () => ({ useErpOrphans: () => ({ data: [], isError: false, isPending: false }) }));

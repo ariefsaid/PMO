@@ -14,6 +14,8 @@ export interface BudgetArchiveCancelIntent {
   source_kind?: 'account' | 'legacy';
   actor_user_id: string;
   fiscal_year: string;
+  to_fiscal_year?: string | null;
+  erp_modified?: string | null;
   erp_account: string | null;
   erp_budget_name: string;
   activated_at_witness: string;

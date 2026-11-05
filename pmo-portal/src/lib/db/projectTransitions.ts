@@ -11,7 +11,8 @@ export type ProjectStatusGroup = 'pipeline' | 'onHand' | 'lost' | 'internal';
 
 export interface PipelineStageConfig {
   status: ProjectStatus;
-  win_probability: number;
+  /** Stage default for the chance the opportunity proceeds (% Go). */
+  go_probability: number;
 }
 
 export async function getProjectWinEligibility(id: string): Promise<string | null> {
@@ -40,10 +41,10 @@ export interface TransitionProjectOpts {
 // ---------------------------------------------------------------------------
 
 export const LEGAL_PROJECT_TRANSITIONS: Record<string, string[]> = {
-  'Leads':               ['PQ Submitted', 'Loss Tender', 'Internal Project', 'Declined'],
-  'PQ Submitted':        ['Quotation Submitted', 'Leads', 'Loss Tender', 'Declined'],
-  'Quotation Submitted': ['Tender Submitted', 'PQ Submitted', 'Won, Pending KoM', 'Loss Tender', 'Declined'],
-  'Tender Submitted':    ['Negotiation', 'Quotation Submitted', 'Won, Pending KoM', 'Loss Tender', 'Declined'],
+  'Leads':               ['Quotation Submitted', 'Loss Tender', 'Internal Project', 'Declined'],
+  'Quotation Submitted': ['PQ Submitted', 'Loss Tender', 'Declined'],
+  'PQ Submitted':        ['Tender Submitted', 'Quotation Submitted', 'Leads', 'Won, Pending KoM', 'Loss Tender', 'Declined'],
+  'Tender Submitted':    ['Negotiation', 'PQ Submitted', 'Won, Pending KoM', 'Loss Tender', 'Declined'],
   'Negotiation':         ['Won, Pending KoM', 'Tender Submitted', 'Loss Tender', 'Declined'],
   'Won, Pending KoM':    ['Ongoing Project', 'On Hold', 'Close Out'],
   'Ongoing Project':     ['On Hold', 'Close Out'],
@@ -61,8 +62,8 @@ export const LEGAL_PROJECT_TRANSITIONS: Record<string, string[]> = {
 
 export const PIPELINE_STATUSES: readonly string[] = [
   'Leads',
-  'PQ Submitted',
   'Quotation Submitted',
+  'PQ Submitted',
   'Tender Submitted',
   'Negotiation',
 ];
@@ -126,8 +127,8 @@ export async function transitionProject(
 // ---------------------------------------------------------------------------
 
 /**
- * Returns the org's (status, win_probability) rows from pipeline_stage_config.
- * win_probability is normalised to Number (Postgres returns numeric as string).
+ * Returns the org's stage defaults from pipeline_stage_config.
+ * The legacy database column is exposed as go_probability and normalized to Number.
  * org_id is NEVER sent — RLS scopes rows (FR-PR-013).
  */
 export async function listPipelineStageConfig(): Promise<PipelineStageConfig[]> {
@@ -137,6 +138,6 @@ export async function listPipelineStageConfig(): Promise<PipelineStageConfig[]> 
   if (error) throw new Error(error.message);
   return ((data ?? []) as Array<{ status: string; win_probability: string | number }>).map(r => ({
     status: r.status as ProjectStatus,
-    win_probability: Number(r.win_probability),
+    go_probability: Number(r.win_probability),
   }));
 }

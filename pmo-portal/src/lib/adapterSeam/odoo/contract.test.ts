@@ -5,7 +5,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { SUITES } from '../contractSuite/index.ts';
-import { invoicePushSuite, receiptReadSuite } from '../contractSuite/revenue.suite.ts';
+import { purchaseOrderReviseSuite } from '../contractSuite/purchaseOrderRevise.suite.ts';
 import { TIER_HARNESSES } from '../contractSuite/tiers.ts';
 import { createOdooRevenueHarness } from './contract.harness.ts';
 import { checkCostAccount, moneyHeader } from './revenue/moneyHeader.ts';
@@ -14,11 +14,8 @@ import { ODOO_WORKFLOWS } from './workflowDeclarations.ts';
 
 const harness = TIER_HARNESSES.odoo;
 
-// #1506 C1: the declarations stay `pending` until C9 flips them (SD-2), so the shared runner skips these suites. They run
-// here by an explicit local list, so the contract is proved red-then-green before anything ships.
-invoicePushSuite(harness);
-receiptReadSuite(harness);
-SUITES['invoice.pair-existing']!(harness);
+// Pending revenue workflows only run through the tier-wide runner after their declaration is supported.
+purchaseOrderReviseSuite(harness);
 
 describe('odoo contract', () => {
   it('declares itself as the odoo tier', () => {
@@ -38,17 +35,68 @@ describe('odoo contract', () => {
     await expect(harness.pushBudgetVersion({ categories: [], mappedCategories: [], project: 'own' })).rejects.toThrow(/pending/);
     await expect(harness.readActuals({ ledger: [], projectLinks: {} })).rejects.toThrow(/pending/);
   });
-  it('keeps purchase declarations pending while the harness exercises the P1 seam', async () => {
-    for (const id of ['purchase.push', 'bill.push', 'vendor-payment.push', 'purchase.link-existing', 'cutover.purchase', 'cutover.activation', 'purchase-order.revise'] as const) {
-      expect(ODOO_WORKFLOWS[id].status).toBe('pending');
+  it('AC-OPP-084 declares every proven P9 workflow at its shared suite version', async () => {
+    for (const id of ['purchase.link-existing', 'cutover.purchase', 'cutover.activation'] as const) {
+      expect(ODOO_WORKFLOWS[id]).toEqual({ status: 'supported', version: 1 });
+      expect(SUITES, id).toHaveProperty([id]);
+    }
+    for (const id of ['purchase.push', 'bill.push', 'vendor-payment.push', 'purchase-order.revise'] as const) {
+      expect(ODOO_WORKFLOWS[id]).toEqual({ status: 'pending', version: 1, issue: 1505 });
     }
     expect(await harness.pushPurchase('activated')).toMatchObject({ outcome: 'pushed' });
     expect(await harness.pushProcurement({ doc: 'bill', caller: 'A', procurement: 'B' })).toMatchObject({ outcome: 'refused', erpCalls: 0 });
-    expect(await harness.mirrorPurchases([{ kind: 'bill', reference: 'B1', supplier: 'Vendor', total: 10, modifiedAt: '2026-01-01' }])).toEqual([{ kind: 'bill', reference: 'B1', total: '10' }]);
+    expect(await harness.mirrorPurchases([{ kind: 'bill', reference: 'B1', supplier: 'Vendor', total: 10, modifiedAt: '2026-01-01' }])).toEqual([{ kind: 'bill', reference: 'B1', total: '10.00' }]);
   });
 
-  it('keeps the revenue declarations pending while the harness runs the shared revenue suites (SD-2)', () => {
-    for (const id of ['invoice.push', 'receipt.read', 'invoice.pair-existing', 'cutover.revenue'] as const) expect(ODOO_WORKFLOWS[id].status).toBe('pending');
+  it('AC-OPP-084 sends owned Odoo purchases through the shipped production adapter', async () => {
+    for (const scenario of [
+      { doc: 'purchase-order', caller: 'A', procurement: 'A' },
+      { doc: 'bill', caller: 'B', procurement: 'B' },
+      { doc: 'vendor-payment', caller: 'A', procurement: 'A', invoice: 'A' },
+    ] as const) {
+      const result = await harness.pushProcurement(scenario);
+      expect(result.outcome, JSON.stringify(result)).toBe('accepted');
+      expect(result.erpCalls).toBeGreaterThan(0);
+    }
+  });
+
+  it('AC-OPP-084 exposes the production refusal contract for foreign procurement links', async () => {
+    const purchase = await harness.pushProcurement({ doc: 'purchase-order', caller: 'A', procurement: 'B' });
+    const bill = await harness.pushProcurement({ doc: 'bill', caller: 'A', procurement: 'B' });
+    const vendor = await harness.pushProcurement({ doc: 'purchase-order', caller: 'A', procurement: 'A', vendor: 'B' });
+    const payment = await harness.pushProcurement({ doc: 'vendor-payment', caller: 'A', procurement: 'A', invoice: 'B' });
+
+    expect(purchase).toMatchObject({ outcome: 'refused', code: 'commit-rejected', erpCalls: 0 });
+    expect(bill).toMatchObject({ outcome: 'refused', code: 'commit-rejected', erpCalls: 0 });
+    expect(vendor).toMatchObject({ outcome: 'refused', code: 'commit-rejected', erpCalls: 1 });
+    expect(payment).toMatchObject({ outcome: 'refused', code: 'commit-rejected', erpCalls: 1 });
+  });
+
+  it('AC-OCI-094 keeps declarations honest about which shared suites exercise production code', () => {
+    expect(ODOO_WORKFLOWS['invoice.push'].status).toBe('supported');
+    expect(ODOO_WORKFLOWS['receipt.read']).toEqual({ status: 'pending', version: 1, issue: 1506 });
+    expect(ODOO_WORKFLOWS['invoice.pair-existing']).toEqual({ status: 'pending', version: 1, issue: 1506 });
+    expect(ODOO_WORKFLOWS['cutover.revenue']).toEqual({ status: 'pending', version: 1, issue: 1602 });
+    expect(ODOO_WORKFLOWS['cutover.activation']).toEqual({ status: 'supported', version: 1 });
+    expect(ODOO_WORKFLOWS['tax-document.read']).toEqual({ status: 'pending', version: 1, issue: 1506 });
+  });
+
+  it('AC-OCI-030 parses pair candidates through the production Odoo revenue feed', async () => {
+    const row = await harness.mapInboundInvoice?.({
+      client: 'Client A', number: 'INV/2026/00051', poRef: 'PO-51', total: '1110.00', taxAmount: '110.00', date: '2026-11-01', currency: 'IDR',
+    });
+    expect(row).toMatchObject({
+      external_id: '1', name: 'INV/2026/00051',
+      attrs: {
+        partner_name: 'Client A', reference_number: 'PO-51', amount_total: '1110.00', amount_tax: '110.00', currency: 'IDR', date: '2026-11-01',
+      },
+    });
+    expect(row).not.toHaveProperty('customer');
+  });
+
+  it('AC-OCI-071 classifies only inbound customer payments accepted by the production feed parser', () => {
+    expect(harness.classifyPayment('received')).toEqual({ kind: 'receipt', domain: 'revenue', table: 'incoming_payments' });
+    expect(harness.classifyPayment('paid')).toEqual({ kind: 'skipped' });
   });
 
   it('SD-5 the Odoo harness exposes the claim and receipt builders over the fake: build, create, post, read back, receive', async () => {

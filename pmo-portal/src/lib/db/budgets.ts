@@ -1,6 +1,6 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { fetchAllPages } from '@/src/lib/pagedRead';
-import type { Tables } from '@/src/lib/supabase/database.types';
+import type { Database, Tables } from '@/src/lib/supabase/database.types';
 import { AppError, assertWriteLanded, toAppError } from '@/src/lib/appError';
 import { activateAndPush } from '@/src/lib/budget/budgetPushConsequence';
 import { dispatchDomainCommand } from '@/src/lib/adapterSeam/dispatchClient';
@@ -53,6 +53,7 @@ export type BudgetArchiveLiveTarget = {
   id: string;
   budget_version_id: string;
   fiscal_year: string;
+  to_fiscal_year: string | null;
   /** '' for a LEGACY (year-grained) document — never invented from a category map. */
   erp_account: string;
   erp_budget_name: string | null;
@@ -74,15 +75,10 @@ type BudgetArchiveMirrorTarget = Omit<BudgetArchiveLiveTarget, 'archive_cancella
  * `eligible` is the server's answer (the same locked predicates the archive transaction re-checks), and
  * `reason` is a safe code the surface may explain generically. The browser never re-derives eligibility.
  */
-export interface BudgetArchiveTarget {
+type BudgetArchiveTargetRpcRow = Database['public']['Functions']['get_budget_archive_targets']['Returns'][number];
+export type BudgetArchiveTarget = Omit<BudgetArchiveTargetRpcRow, 'page_key' | 'source_kind'> & {
   source_kind: 'account' | 'legacy';
-  fiscal_year: string;
-  erp_budget_name: string;
-  eligible: boolean;
-  reason: string;
-  push_state: string;
-  erp_docstatus: number | null;
-}
+};
 
 export interface NewLineItem {
   category: BudgetLineItemRow['category'];
@@ -178,8 +174,109 @@ export async function deriveProjectBudget(projectId: string): Promise<number> {
   return Number(data);
 }
 
-/** Read all visible versions and their related rows independently, with bounded ordered pages. */
-export async function listBudgetVersions(projectId: string): Promise<BudgetVersionWithItems[]> {
+/**
+ * Read all visible versions and their related rows.
+ *
+ * ⚑ ONE bounded invoker RPC (`budget_version_read`, migration 0650) replaces the four-request graph
+ * (versions, then lines ∥ editors ∥ totals) that this function used to issue. The function returns a
+ * page of versions with their complete children and the 0400 total; it is security-invoker, so RLS
+ * still decides every row and `org_id` is never sent.
+ *
+ * ⚑ Bounded by contract: the page (`p_offset`/`p_limit`) is materialised inside the function BEFORE any
+ * child aggregation. When a page's children exceed the function's documented budget it returns a single
+ * `overflow: true` marker and aggregates nothing — this client then discards that page and runs the
+ * legacy four paged reads below for the COMPLETE project. Nothing is ever truncated, and a partial page
+ * is never returned as if it were the whole budget.
+ *
+ * ⚑ Consistency: one call is ONE statement snapshot; a multi-page read is several. Offset paging shares
+ * the legacy limitation — a version inserted or deleted before an earlier page shifts the window, so a
+ * concurrent write can duplicate or skip a row. This is not a snapshot protocol.
+ */
+const BUDGET_READ_PAGE_SIZE = 1000;
+
+function isOverflowMarker(row: Record<string, unknown>): boolean {
+  return row.overflow === true;
+}
+
+/** Fail-closed mapping of one aggregate row. Any malformed page rejects; it never becomes empty data. */
+function mapAggregateRow(raw: unknown): BudgetVersionWithItems {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    throw new AppError('Budget version read returned an unexpected row');
+  }
+  const row = raw as Record<string, unknown>;
+  const versionRow = row.version_row;
+  if (!versionRow || typeof versionRow !== 'object' || Array.isArray(versionRow)) {
+    throw new AppError('Budget version read returned an unexpected version');
+  }
+  const version = versionRow as Record<string, unknown>;
+  if (typeof version.id !== 'string' || !version.id || typeof version.project_id !== 'string') {
+    throw new AppError('Budget version read returned an unexpected version');
+  }
+  if (typeof row.version_no !== 'number' || !Number.isInteger(row.version_no) ||
+      typeof version.version !== 'number' || !Number.isInteger(version.version) ||
+      row.version_id !== version.id || row.version_no !== version.version) {
+    throw new AppError('Budget version read returned an inconsistent version row');
+  }
+  // Children are explicitly `[]`/`{}` on the wire. A missing/null child array is malformed, never "none".
+  const lines = row.line_items;
+  if (!Array.isArray(lines)) throw new AppError('Budget version read returned unexpected line items');
+  for (const line of lines) {
+    if (!line || typeof line !== 'object' || Array.isArray(line)) {
+      throw new AppError('Budget version read returned an unexpected line item');
+    }
+    const item = line as Record<string, unknown>;
+    if (typeof item.id !== 'string' || !item.id || item.budget_version_id !== version.id) {
+      throw new AppError('Budget version read returned a line item from another version');
+    }
+  }
+  const editors = row.editor_ids;
+  if (!Array.isArray(editors) || editors.some((id) => typeof id !== 'string' || !id)) {
+    throw new AppError('Budget version read returned unexpected editors');
+  }
+  const rawTotal = row.total;
+  // ⚑ `Number(null)` is 0 and `Number('')` is 0: an absent total must never become money.
+  if (rawTotal === null || rawTotal === undefined ||
+      (typeof rawTotal !== 'number' && typeof rawTotal !== 'string') ||
+      (typeof rawTotal === 'string' && rawTotal.trim() === '')) {
+    throw new Error('Missing or invalid budget version total');
+  }
+  const total = Number(rawTotal);
+  if (!Number.isFinite(total)) throw new Error('Missing or invalid budget version total');
+  return {
+    ...(version as unknown as BudgetVersionRow),
+    line_items: lines as unknown as BudgetLineItemRow[],
+    total,
+    editor_ids: editors as string[],
+  };
+}
+
+/** Returns `null` when the server says this page is too large to aggregate safely (caller falls back). */
+async function readBudgetAggregate(projectId: string): Promise<BudgetVersionWithItems[] | null> {
+  const out: BudgetVersionWithItems[] = [];
+  for (let offset = 0; ; offset += BUDGET_READ_PAGE_SIZE) {
+    const { data, error } = await supabase.rpc('budget_version_read', {
+      p_project_id: projectId,
+      p_offset: offset,
+      p_limit: BUDGET_READ_PAGE_SIZE,
+    });
+    if (error) throw toAppError(error);
+    // ⚑ NOT `data ?? []`: a null/non-array body is a broken read, not the end of the set.
+    if (!Array.isArray(data)) throw new AppError('Budget version read returned an unexpected response');
+    if (data.some((row) => row && typeof row === 'object' && !Array.isArray(row) && isOverflowMarker(row as Record<string, unknown>))) {
+      return null;
+    }
+    for (const row of data) out.push(mapAggregateRow(row));
+    if (data.length < BUDGET_READ_PAGE_SIZE) break;
+  }
+  return out;
+}
+
+/**
+ * Legacy four-read path — the COMPLETE, independently paged read used for oversized pages and as the
+ * rollback path. Kept byte-compatible with the pre-0650 client contract (versions ordered `version,id`,
+ * lines ordered `id`, editors ordered `budget_version_id,user_id`, the 0400 totals RPC).
+ */
+async function listBudgetVersionsPaged(projectId: string): Promise<BudgetVersionWithItems[]> {
   const versions = await fetchAllPages((from, to) => supabase.from('budget_versions')
     .select('*').eq('project_id', projectId)
     .order('version', { ascending: true }).order('id', { ascending: true }).range(from, to));
@@ -214,6 +311,13 @@ export async function listBudgetVersions(projectId: string): Promise<BudgetVersi
   });
 }
 
+/** Read all visible versions and their related rows, aggregating a normal page into one request. */
+export async function listBudgetVersions(projectId: string): Promise<BudgetVersionWithItems[]> {
+  const aggregated = await readBudgetAggregate(projectId);
+  if (aggregated !== null) return aggregated;
+  return listBudgetVersionsPaged(projectId);
+}
+
 /**
  * Reads live ERPNext v16 account budgets for a project's versions. These rows drive
  * the archive prompt and the FR-BUD-122 project banner; the archive RPC re-checks
@@ -232,7 +336,7 @@ export async function listBudgetArchiveLiveTargets(versionIds: readonly string[]
   const data = await fetchAllPages(async (from, to) => {
     const result = await supabase
       .from('budget_push_mirror_rows')
-      .select('id,budget_version_id,fiscal_year,erp_account,erp_budget_name,erp_docstatus,erp_cancelled_at,push_state,budget_intent,activated_at_witness')
+      .select('id,budget_version_id,fiscal_year,to_fiscal_year,erp_account,erp_budget_name,erp_docstatus,erp_cancelled_at,push_state,budget_intent,activated_at_witness')
       .in('budget_version_id', [...versionIds])
       .neq('erp_account', '')
       .is('erp_cancelled_at', null)
@@ -246,6 +350,7 @@ export async function listBudgetArchiveLiveTargets(versionIds: readonly string[]
       typeof row.id === 'string' &&
       typeof row.budget_version_id === 'string' &&
       typeof row.fiscal_year === 'string' &&
+      (typeof row.to_fiscal_year === 'string' || row.to_fiscal_year === null) &&
       (typeof row.activated_at_witness === 'string' || row.activated_at_witness === null) &&
       typeof row.erp_account === 'string' && row.erp_account !== '' &&
       typeof row.erp_budget_name === 'string' && row.erp_budget_name !== '' &&
@@ -285,7 +390,7 @@ export async function listLegacyBudgetArchiveLiveTargets(versionIds: readonly st
     if (result.error) throw toAppError(result.error);
     return result;
   });
-  return ((data ?? []) as unknown as Array<Partial<BudgetArchiveMirrorTarget>>)
+  return ((data ?? []).map((row) => ({ ...row, to_fiscal_year: null })) as unknown as Array<Partial<BudgetArchiveMirrorTarget>>)
     .filter((row): row is BudgetArchiveMirrorTarget =>
       typeof row.id === 'string' &&
       typeof row.budget_version_id === 'string' &&
@@ -297,6 +402,7 @@ export async function listLegacyBudgetArchiveLiveTargets(versionIds: readonly st
     .map((row) => ({
       ...row,
       erp_account: '',
+      to_fiscal_year: null,
       budget_intent: 'ensure' as const,
       source_kind: 'legacy' as const,
       archive_cancellation_available: cancellationAvailable,
@@ -323,12 +429,15 @@ export async function listBudgetArchiveTargets(versionId: string): Promise<Budge
   return (data as unknown as Array<Record<string, unknown>>).map((row) => {
     if ((row.source_kind !== 'account' && row.source_kind !== 'legacy') ||
         typeof row.fiscal_year !== 'string' || typeof row.erp_budget_name !== 'string' ||
+        !(typeof row.to_fiscal_year === 'string' || row.to_fiscal_year === null) ||
+        (row.source_kind === 'legacy' && row.to_fiscal_year !== null) ||
         typeof row.eligible !== 'boolean' || typeof row.reason !== 'string') {
       throw new AppError('Budget archive target read returned an invalid row');
     }
     return {
       source_kind: row.source_kind,
       fiscal_year: row.fiscal_year,
+      to_fiscal_year: row.to_fiscal_year,
       erp_budget_name: row.erp_budget_name,
       eligible: row.eligible,
       reason: row.reason,

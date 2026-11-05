@@ -57,7 +57,7 @@ vi.mock('@/src/hooks/useTimesheetApproval', () => ({
   useReopenableApprovedTimesheets: () => ({ data: eligibility.corrections, isError: eligibility.correctionError }),
 }));
 vi.mock('./ApprovalsNavCount', () => ({ ApprovalsNavCount: () => null }));
-vi.mock('@/src/hooks/useFinancePosition', () => ({ useFinancePosition: () => ({ isPending: true }) }));
+vi.mock('@/src/hooks/useOverdueInvoiceCount', () => ({ useOverdueInvoiceCount: () => ({ isPending: true }) }));
 
 vi.mock('@/src/auth/useIsOperator', () => ({ useIsOperator: () => false }));
 

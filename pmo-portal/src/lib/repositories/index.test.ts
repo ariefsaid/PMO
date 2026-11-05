@@ -22,9 +22,12 @@ vi.mock('@/src/lib/db/projects', () => ({
   getProject: vi.fn(),
   createProject: vi.fn(),
   updateProjectHeader: vi.fn(),
+  updateProjectGetProbability: vi.fn(),
+  updateProjectGoProbability: vi.fn(),
   archiveProject: vi.fn(),
   deleteProject: vi.fn(),
   setProjectContractValue: vi.fn(),
+  listProjectNumbers: vi.fn(),
 }));
 vi.mock('@/src/lib/db/opportunity', () => ({ getOpportunity: vi.fn(), getOpportunitiesByIds: vi.fn() }));
 vi.mock('@/src/lib/db/projectTransitions', () => ({ transitionProject: vi.fn(), getProjectWinEligibility: vi.fn(), listPipelineStageConfig: vi.fn() }));
@@ -273,8 +276,10 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
   it('each repository exposes its expected methods', () => {
     expect(Object.keys(repositories.project).sort()).toEqual(
       // 'getWithRefs'/'listByClient'/'listPipelineStageConfig' added with 2d97e91d5 (project &
-      // task projection refresh). Exhaustive API-seam contract — extend only deliberately.
-      ['archive', 'create', 'delete', 'get', 'getMany', 'getVatEditability', 'getWithRefs', 'list', 'listByClient', 'listIdentity', 'listPipelineStageConfig', 'proposeNumber', 'setContractValue', 'transition', 'updateHeader', 'winEligibility'].sort(),
+      // task projection refresh). 'listNumbers' added deliberately with the PM dashboard batched
+      // project-number read (#1890): one narrow request for the visible cards instead of one
+      // full project read per card. Exhaustive API-seam contract — extend only deliberately.
+      ['archive', 'create', 'delete', 'get', 'getMany', 'getVatEditability', 'getWithRefs', 'list', 'listByClient', 'listIdentity', 'listNumbers', 'listPipelineStageConfig', 'proposeNumber', 'setContractValue', 'transition', 'updateGetProbability', 'updateGoProbability', 'updateHeader', 'winEligibility'].sort(),
     );
     expect(Object.keys(repositories.company).sort()).toEqual(
       ['archive', 'create', 'delete', 'get', 'getMany', 'list', 'listClients', 'setProjectNumberSegment', 'setTaxDefaults', 'update'].sort(),
@@ -420,6 +425,13 @@ describe('delegation — methods pass args through and return the DAL result', (
     expect(tasksDal.listMyTasks).toHaveBeenCalledWith('user-1');
   });
 
+  it('#1890: project.listNumbers delegates the dashboard card ids and returns their numbers', async () => {
+    const rows = [{ id: 'p1', pmo_project_number: 'PRJ-26-0001' }];
+    vi.mocked(projectsDal.listProjectNumbers).mockResolvedValue(rows);
+    await expect(repositories.project.listNumbers(['p1', 'p2'])).resolves.toBe(rows);
+    expect(projectsDal.listProjectNumbers).toHaveBeenCalledWith(['p1', 'p2']);
+  });
+
   it('project.winEligibility reads the decision for the selected project', async () => {
     vi.mocked(projectTransitionsDal.getProjectWinEligibility).mockResolvedValue('allowed');
     await expect(repositories.project.winEligibility('p1')).resolves.toBe('allowed');
@@ -446,6 +458,18 @@ describe('delegation — methods pass args through and return the DAL result', (
     vi.mocked(projectsDal.updateProjectHeader).mockResolvedValue(undefined);
     await repositories.project.updateHeader('p1', input);
     expect(projectsDal.updateProjectHeader).toHaveBeenCalledWith('p1', input);
+  });
+
+  it('AC-1796: project.updateGetProbability delegates the per-opportunity Get estimate', async () => {
+    vi.mocked(projectsDal.updateProjectGetProbability).mockResolvedValue(undefined);
+    await repositories.project.updateGetProbability('p1', 0.45);
+    expect(projectsDal.updateProjectGetProbability).toHaveBeenCalledWith('p1', 0.45);
+  });
+
+  it('AC-1796: project.updateGoProbability delegates the per-opportunity Go override', async () => {
+    vi.mocked(projectsDal.updateProjectGoProbability).mockResolvedValue(undefined);
+    await repositories.project.updateGoProbability('p1', 0.35);
+    expect(projectsDal.updateProjectGoProbability).toHaveBeenCalledWith('p1', 0.35);
   });
 
   it('project.archive delegates to archiveProject', async () => {

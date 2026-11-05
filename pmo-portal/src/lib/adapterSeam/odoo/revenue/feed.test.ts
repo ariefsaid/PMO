@@ -67,6 +67,7 @@ describe('Odoo revenue feed parsing', () => {
       model: 'account.move', method: 'search_read',
       body: { domain: [['move_type','=','out_invoice'],['company_id','in',[8,false]]], fields: expect.arrayContaining(['reversed_entry_id','amount_residual']) },
     });
+    expect(calls[0].body).not.toHaveProperty('context');
     expect(calls[1]).toMatchObject({ model: 'ir.model.data', method: 'search_read' });
   });
 

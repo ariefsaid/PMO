@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
+import { SERVER_SESSION_QUERY_OPTIONS } from '@/src/lib/queryPolicies';
 
 /**
  * useIsOperator — AC-OPR-003 (ops-admin-surface S4, ADR-0049). A CLARITY PROJECTION ONLY: it
@@ -33,10 +34,10 @@ export function useOperatorMembership(): OperatorMembershipState {
   const { data, isPending, isError, refetch } = useQuery({
     queryKey: ['operator', 'isOperator'],
     queryFn: () => repositories.operator.isOperator(),
-    // This projection controls platform-only UI across the shell. Recheck when the tab regains
-    // focus and periodically while visible so a long-lived session does not keep an old view.
-    refetchOnWindowFocus: true,
-    refetchInterval: 60_000,
+    // One shared membership read for the shell and route gates — but bounded (5 min + focus +
+    // interval), because a membership change made in another session must reach this tab without a
+    // reload. Server RPCs remain the authority; explicit retries and invalidation stay immediate.
+    ...SERVER_SESSION_QUERY_OPTIONS,
   });
   useEffect(() => {
     if (isPending || (!isError && data !== false)) return;

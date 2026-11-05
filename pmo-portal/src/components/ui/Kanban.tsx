@@ -19,6 +19,8 @@ export interface KanbanColumnProps {
   emptyMessage?: string;
   /** Marks the column as the one a surrounding control (e.g. a funnel stage) has selected. */
   selected?: boolean;
+  /** Flat separators for boards whose cards sit inside a shared panel surface. */
+  presentation?: 'cards' | 'flat';
   /** Drag feedback while a card is being dragged (DND, #1637): where it may or may not land. */
   dropState?: DropState;
 }
@@ -34,6 +36,7 @@ export const KanbanColumn: React.FC<KanbanColumnProps> = ({
   children,
   emptyMessage = 'No items',
   selected = false,
+  presentation = 'cards',
   dropState,
 }) => {
   const { t } = useTranslation('boardDrag');
@@ -44,9 +47,14 @@ export const KanbanColumn: React.FC<KanbanColumnProps> = ({
       aria-current={selected ? 'true' : undefined}
       data-drop-state={dropState}
       className={cn(
-        'flex min-w-0 flex-col rounded-lg border',
+        'flex min-w-0 flex-col',
+        presentation === 'flat'
+          ? ''
+          : 'rounded-lg border border-transparent bg-secondary/50',
         // ring = the non-colour cue (matches the selected card treatment)
-        selected ? 'border-primary ring-2 ring-primary/40 bg-primary/[0.04]' : 'border-transparent bg-secondary/50',
+        selected && (presentation === 'flat'
+          ? 'border-b-2 border-primary bg-primary/[0.04]'
+          : 'border-primary ring-2 ring-primary/40 bg-primary/[0.04]'),
         dropState === 'allowed' && 'border-primary/60 ring-1 ring-primary/30',
         dropState === 'target' && 'border-primary bg-primary/[0.08] ring-2 ring-primary/60',
         // dashed edge, not opacity: dimming text drops it under AA contrast (axe, mid-drag)

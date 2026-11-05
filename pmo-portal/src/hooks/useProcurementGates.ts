@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
 import { repositories } from '@/src/lib/repositories';
+import { SESSION_QUERY_OPTIONS } from '@/src/lib/queryPolicies';
 
 /** Query key shared with the Administration screen, so a rule change there refreshes every reader. */
 export const PROCUREMENT_GATES_KEY = 'org-procurement-gates';
@@ -16,5 +17,6 @@ export function useProcurementGates() {
     queryKey: [PROCUREMENT_GATES_KEY, orgId],
     queryFn: () => repositories.orgSettings.getProcurementGates(),
     enabled: Boolean(orgId),
+    ...SESSION_QUERY_OPTIONS,
   });
 }

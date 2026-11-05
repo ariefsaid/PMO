@@ -28,6 +28,8 @@ export interface RevenueRepository {
     receivedAmount?: number;
     withheldAmount?: number;
     withholdingSlipNumber?: string | null;
+    /** Odoo mirrored journal selected for this receipt, when set. */
+    journalId?: string;
     date: string;
   }, intent?: CommandIntent): Promise<{ id: string; ip_number: string | null }>;
   /** #767: record/clear the date the client received the invoice (Admin/Finance, RPC-enforced). */
@@ -45,6 +47,8 @@ export interface RevenueRepository {
   cancelPayment(ipId: string, intent?: CommandIntent): Promise<void>;
   /** List sales invoices in the caller's org (RLS scopes org). */
   listInvoices(params?: { projectId?: string; status?: SalesInvoiceRow['status']; nativeOnly?: boolean }): Promise<SalesInvoiceRow[]>;
+  /** Count overdue open client invoices from a narrow projection for the navigation rail. */
+  countOverdueInvoices(today: string): Promise<number>;
   /** Get a single sales invoice by id. */
   getInvoice(id: string): Promise<SalesInvoiceRow | null>;
   /** List incoming payments in the caller's org (RLS scopes org). */

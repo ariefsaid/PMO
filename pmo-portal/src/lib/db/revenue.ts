@@ -3,6 +3,7 @@ import { supabase } from '@/src/lib/supabase/client';
 import { AppError } from '@/src/lib/appError';
 import { isProjectFinances, parseContractExcess, parseProjectReceiptCash, type ProjectFinances } from '@/src/lib/projectFinances';
 import { revenueRefusalCode } from '@/src/lib/db/revenueNative';
+import { deriveArDueDate, overdueAgeDays } from '@/src/lib/repositories/revenueDisplay';
 import type { BillingKind } from '@/src/lib/billingKind';
 import { REVENUE_STATUSES } from '@/src/lib/projectInvoicing';
 import type { ReceiptAllocation } from '@/src/lib/revenue/receiptAllocation';
@@ -74,6 +75,11 @@ export interface SalesInvoiceRow {
   /** #784 (DD-NAR-16): the balance carried into the ERP's opening entry when the ERP took revenue over, and when. */
   erp_opening_amount?: number | null;
   erp_opening_at?: string | null;
+  /** C8: latest facts read from Odoo's revenue mirror. */
+  odoo_state?: string | null;
+  odoo_attention?: string | null;
+  odoo_sent_total?: number | null;
+  odoo_read_at?: string | null;
   /** DD-EFK-1: PMO-owned tax-invoice reference (never mirrored to ERP). */
   efaktur_number: string | null;
   /** DD-EFK-1: PMO-owned tax-invoice date (never mirrored to ERP). */
@@ -202,6 +208,25 @@ export async function listSalesInvoices(
     build(from, to) as unknown as PromiseLike<PageResult<Record<string, unknown>>>,
   );
   return data.map(toSalesInvoiceRow);
+}
+
+/** Count overdue open invoices from a narrow projection; avoids loading finance tables in the rail. */
+export async function getOverdueInvoiceCount(today: string): Promise<number> {
+  const rows = await fetchAllPages<Record<string, unknown>>((from, to) =>
+    supabase
+      .from('sales_invoices')
+      .select('id,invoice_date,erp_due_date,received_date,companies!sales_invoices_customer_id_fkey(erp_payment_terms_days)')
+      .in('status', ['Unpaid', 'Submitted'])
+      .is('paired_erp_invoice_id', null)
+      .order('id', { ascending: true })
+      .range(from, to) as unknown as PromiseLike<PageResult<Record<string, unknown>>>,
+  );
+  return rows.filter((raw) => {
+    const row = raw as { invoice_date: string | null; erp_due_date: string | null; received_date: string | null; companies: { erp_payment_terms_days: number | null } | null };
+    const dueDate = deriveArDueDate(row.invoice_date, row.companies?.erp_payment_terms_days, row.erp_due_date, row.received_date);
+    const overdueDays = overdueAgeDays(dueDate, today);
+    return overdueDays !== null && overdueDays > 0;
+  }).length;
 }
 
 /**
@@ -442,10 +467,12 @@ export interface RevenueByProjectRow {
   /** NET of tax, from the shared `sales_invoice_work_billed` view (the management pack's definition). */
   total_amount: number;
   open_ar: number;
+  /** Count of submitted invoices whose ERP outstanding balance is unknown (#1475). */
+  open_ar_unknown_count: number;
   invoice_count: number;
 }
 
-type RevenueAgg = { currency: string; total_amount: number; open_ar: number; invoice_count: number };
+type RevenueAgg = { currency: string; total_amount: number; open_ar: number; open_ar_unknown_count: number; invoice_count: number };
 
 /**
  * #831: Total Revenue is billed WORK, net of tax, read from the one shared definition the management
@@ -461,7 +488,7 @@ export async function getRevenueByProject(): Promise<RevenueByProjectRow[]> {
     const key = `${projectId ?? '__unassigned__'}|${currency}`;
     let entry = agg.get(key);
     if (!entry) {
-      entry = { project_id: projectId, currency, total_amount: 0, open_ar: 0, invoice_count: 0 };
+      entry = { project_id: projectId, currency, total_amount: 0, open_ar: 0, open_ar_unknown_count: 0, invoice_count: 0 };
       agg.set(key, entry);
     }
     return entry;
@@ -500,7 +527,12 @@ export async function getRevenueByProject(): Promise<RevenueByProjectRow[]> {
   for (const row of ar) {
     // Every submitted invoice counts (down payments and all) so the count matches the Sales Invoices list.
     const entry = bucket(row.project_id, row.currency ?? '');
-    entry.open_ar += Number(row.erp_outstanding_amount ?? 0);
+    const outstanding = row.erp_outstanding_amount;
+    if (outstanding != null && Number.isFinite(Number(outstanding))) {
+      entry.open_ar += Number(outstanding);
+    } else {
+      entry.open_ar_unknown_count += 1;
+    }
     entry.invoice_count += 1;
   }
 
@@ -526,6 +558,7 @@ export async function getRevenueByProject(): Promise<RevenueByProjectRow[]> {
     currency: v.currency,
     total_amount: v.total_amount,
     open_ar: v.open_ar,
+    open_ar_unknown_count: v.open_ar_unknown_count,
     invoice_count: v.invoice_count,
   }));
 }

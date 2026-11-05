@@ -1,12 +1,14 @@
 /** Revenue repository implementation: native vs externally-owned routing, SoD-ordered transitions, ERP invoice PDF. */
 import { salesInvoiceCreateFields } from '@/src/lib/adapterSeam/erpnext/salesInvoiceCommand';
+import { odooOwnsRevenueTier } from '@/src/lib/adapterSeam/odoo/ownership';
 import { AppError } from '@/src/lib/appError';
 import { supabase } from '@/src/lib/supabase/client';
 import { invokeWithTimeout } from '@/src/lib/supabase/invokeWithTimeout';
-import { routeDomainWrite } from '@/src/lib/adapterSeam/ownershipCache';
+import { domainTier, routeDomainWrite } from '@/src/lib/adapterSeam/ownershipCache';
 import { dispatchDomainCommand } from '@/src/lib/adapterSeam/dispatchClient';
 import {
   listSalesInvoices,
+  getOverdueInvoiceCount,
   getSalesInvoice,
   listIncomingPayments,
   getIncomingPayment,
@@ -42,6 +44,7 @@ const INVOICE_PDF_INVOKE_TIMEOUT_MS = 45_000;
 export const revenueRepository: RevenueRepository = {
   // Read methods (ADR-0017)
   listInvoices: (params) => wrap(() => listSalesInvoices(params)),
+  countOverdueInvoices: (today) => wrap(() => getOverdueInvoiceCount(today)),
   getInvoice: (id) => wrap(() => getSalesInvoice(id)),
   listPayments: (params) => wrap(() => listIncomingPayments(params)),
   getPayment: (id) => wrap(() => getIncomingPayment(id)),
@@ -78,6 +81,7 @@ export const revenueRepository: RevenueRepository = {
             received_amount: input.receivedAmount ?? input.paidAmount,
             ...(input.withheldAmount !== undefined ? { withheld_amount: input.withheldAmount } : {}),
             ...(input.withholdingSlipNumber !== undefined ? { withholding_slip_number: input.withholdingSlipNumber } : {}),
+            ...(input.journalId ? { journalId: input.journalId } : {}),
             date: input.date,
           },
           intent,
@@ -91,13 +95,14 @@ export const revenueRepository: RevenueRepository = {
       ? wrap(async () => {
           // #784 AC-NAR-004: a PMO invoice is history once the ERP owns revenue — refused before the SoD check runs.
           const si = await getSalesInvoice(siId);
+          if (!si) throw new AppError('sales invoice not found', 'not-found');
           if (si?.pmo_native) throw nativeReadOnly();
+          if (!si.si_number && !odooOwnsRevenueTier(domainTier('revenue') ?? undefined)) throw new AppError('sales invoice not found or missing si_number', 'not-found');
           await submitSalesInvoiceSod(siId);   // SoD: server-enforced approver≠author (42501 on self-approval) BEFORE any ERP submit
-          if (!si || !si.si_number) throw new AppError('sales invoice not found or missing si_number', 'not-found');
           await dispatchDomainCommand(
             'revenue',
             'transition',
-            { id: siId, erp_doc_kind: 'sales-invoice', verb: 'submit', externalRecordId: si.si_number },
+            { id: siId, erp_doc_kind: 'sales-invoice', verb: 'submit', ...(si.si_number ? { externalRecordId: si.si_number } : {}) },
             keyFor(intent),
           );
         })

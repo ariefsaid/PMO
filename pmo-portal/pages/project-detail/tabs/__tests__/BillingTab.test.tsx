@@ -57,6 +57,7 @@ vi.mock('@/src/hooks/useTimeAndMaterials', () => ({
   useTmClaims: () => h.tmClaims,
   useTmClaimPreview: () => ({ data: { rows: [], truncated: false }, isPending: false, isError: false, refetch: vi.fn() }),
   useTmClaimSources: () => ({ data: { rows: [], truncated: false, totalCount: 0 }, isPending: false, isError: false, refetch: vi.fn() }),
+  useDeselectTmSource: () => ({ mutateAsync: h.tmMutation, isPending: false }),
   useSaveTmRateLine: () => ({ mutateAsync: h.tmMutation, isPending: false }),
   useSetTmRateAssignee: () => ({ mutateAsync: h.tmMutation, isPending: false }),
   useEndTmRateAssignee: () => ({ mutateAsync: h.tmMutation, isPending: false }),

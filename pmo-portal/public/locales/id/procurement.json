@@ -620,7 +620,9 @@
       "purchase-order": "Pesanan",
       "goods-receipt": "Penerimaan barang",
       "purchase-invoice": "Faktur pemasok",
-      "payment": "Pembayaran"
+      "payment": "Pembayaran",
+      "sales-invoice": "Faktur pelanggan",
+      "incoming-payment": "Kuitansi pelanggan"
     },
     "waiting": {
       "title": "Menunggu Odoo"
@@ -629,16 +631,23 @@
       "adopt": "Sudah ada di Odoo",
       "absent": "Tidak ada di Odoo",
       "adoptTitle": "Tautkan pembayaran ini ke Odoo?",
+      "adoptRevenueTitle": "Tautkan dokumen ini ke Odoo?",
+      "adoptRevenueBody": "Masukkan nomor dokumen Odoo. PMO memeriksa bahwa dokumen tersebut milik catatan ini sebelum menautkannya.",
+      "absentRevenueTitle": "Konfirmasi dokumen ini tidak ada di Odoo?",
+      "absentRevenueBody": "PMO akan mencarinya sekali lagi dan, jika tidak menemukan apa pun, dapat mengirim dokumen lagi. Konfirmasi hanya setelah memeriksa Odoo.",
       "adoptBody": "Masukkan nomor pembayaran Odoo yang akan ditautkan. PMO memeriksa bahwa pembayaran itu milik tagihan ini sebelum menganggapnya sebagai pembayaran.",
       "adoptField": "Nomor pembayaran Odoo",
       "adoptHint": "Nomor yang ditampilkan Odoo untuk pembayaran itu, misalnya 123.",
+      "documentField": "Nomor dokumen Odoo",
+      "documentHint": "Nomor yang ditampilkan Odoo untuk dokumen ini, misalnya 123.",
       "absentTitle": "Konfirmasi tidak ada pembayaran di Odoo?",
       "absentBody": "PMO akan mencarinya sekali lagi dan, jika tidak menemukan apa pun, dapat mengirim pembayaran lagi. Konfirmasi hanya setelah memeriksa Odoo.",
       "confirm": "Konfirmasi",
       "cancel": "Batal",
       "done": "Keputusan dicatat.",
       "failed": "Keputusan tidak dapat dicatat.",
-      "ownCommand": "Anda yang mengirim pembayaran ini, jadi orang lain harus memutuskan."
+      "ownCommand": "Anda yang mengirim pembayaran ini, jadi orang lain harus memutuskan.",
+      "ownRevenueCommand": "Anda yang mengirim dokumen ini, jadi orang lain harus memutuskan."
     },
     "taxes": {
       "label": "Pajak",
@@ -652,6 +661,12 @@
       "emptyReason": "Belum ada jurnal pembayaran yang dibaca dari Odoo.",
       "staleReason": "Daftar jurnal terakhir dibaca {{age}}; segarkan koneksi Odoo terlebih dahulu."
     },
+    "accounts": {
+      "choose": "Pilih akun",
+      "emptyReason": "Belum ada akun yang dibaca dari Odoo.",
+      "staleReason": "Daftar akun terakhir dibaca {{age}}; segarkan koneksi Odoo terlebih dahulu.",
+      "saved": "Akun tersimpan {{id}}"
+    },
     "booked": "Diterima di Odoo: {{qty}}",
     "entered": "dimasukkan {{qty}}",
     "paymentAwaiting": "Pembayaran terkirim, menunggu Odoo",
@@ -659,7 +674,10 @@
       "title": "Jumlah diterima",
       "hint": "Kosongkan untuk menerima semua yang masih terbuka. Odoo menolak jumlah di atas yang masih terbuka.",
       "line": "{{name}} (dipesan {{qty}})",
-      "invalid": "Masukkan jumlah di atas nol dan tidak lebih dari yang dipesan untuk {{name}}."
+      "invalid": "Masukkan jumlah di atas nol dan tidak lebih dari yang dipesan untuk {{name}}.",
+      "fullUnavailable": "Jumlah per baris disimpan, tetapi tidak dapat dikirim selama penerimaan tingkat baris tidak tersedia. Kosongkan untuk menerima semua yang masih terbuka.",
+      "retry": "Coba lagi",
+      "clearAll": "Kosongkan jumlah dan terima semua yang masih terbuka"
     }
   }
 }

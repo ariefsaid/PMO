@@ -17,11 +17,25 @@ cleanup_dir=''
 cleanup_serve_pid=''
 cleanup_stock_off_db=''
 cleanup_local_eval() {
-  local status_code=$?
+  local status_code=$? serve_child serve_children
   trap - EXIT INT TERM HUP
   if [[ -n "${cleanup_serve_pid:-}" ]]; then
+    # Children are recorded before the parent is killed: once the CLI exits, its edge-runtime
+    # (supabase-go) child is re-parented and can no longer be found via its parent PID (#1832).
+    serve_children="$(pgrep -P "$cleanup_serve_pid" 2>/dev/null || true)"
+    # The serve job was spawned under `set -m`, so it leads its own process group: one group
+    # signal ends the CLI and its edge-runtime child together. The exact-PID kill and the
+    # child sweep below are the fallback if the group signal misses any member.
+    kill -- -"$cleanup_serve_pid" 2>/dev/null || true
     kill "$cleanup_serve_pid" 2>/dev/null || true
     wait "$cleanup_serve_pid" 2>/dev/null || true
+    for serve_child in $serve_children; do
+      if kill -0 "$serve_child" 2>/dev/null; then
+        sleep 1
+        kill "$serve_child" 2>/dev/null || true
+        kill -9 "$serve_child" 2>/dev/null || true
+      fi
+    done
   fi
   # The plans-switch-off fixture is a database write, so remove it inside the same lock hold
   # (a later `db reset` would also clear it, but a failed run must not leave stock off).
@@ -295,8 +309,14 @@ SQL
   export VITE_SUPABASE_ANON_KEY="$LOCAL_ANON_KEY"
 
   : > "$serve_log"
+  # #1832: `functions serve` spawns the edge runtime (supabase-go) as a child that survives a
+  # parent-only kill and keeps holding the shared edge runtime after the script exits. Spawn
+  # the job with job control on so it leads its OWN process group; cleanup_local_eval then
+  # ends the whole tree with one group signal instead of just the CLI parent.
+  set -m
   supabase functions serve agent-chat --env-file "$env_file" --no-verify-jwt > "$serve_log" 2>&1 &
   serve_pid=$!
+  set +m
   cleanup_serve_pid="$serve_pid"
   printf 'Waiting for the local agent-chat function.\n'
   for attempt in $(seq 1 60); do
@@ -334,6 +354,67 @@ SQL
   return "$overall_status"
 }
 
+# Self-test for the #1832 cleanup: proves, without Supabase, Docker or model credit, that a
+# stubbed serve tree — a long-lived CLI parent holding a long-lived supabase-go-like child —
+# spawned exactly the way run_locked spawns it is fully gone once the script's real EXIT trap
+# runs. Run: scripts/agent-eval-local.sh --self-test
+self_test() {
+  local stub_dir stub_pid stub_child_pid
+  stub_dir="$(mktemp -d "${TMPDIR:-/tmp}/agent-eval-local-selftest.XXXXXX")" || {
+    echo 'self-test FAIL: could not create a temporary directory' >&2
+    return 1
+  }
+  cat > "$stub_dir/supabase" <<'STUB'
+#!/usr/bin/env bash
+if [[ "${1:-}" != 'functions' || "${2:-}" != 'serve' ]]; then
+  echo "self-test stub: unexpected invocation: $*" >&2
+  exit 64
+fi
+sleep 300 &
+printf '%s\n' "$!" > "${AGENT_EVAL_STUB_CHILD_PID_FILE:?}"
+wait "$!"
+STUB
+  chmod 700 "$stub_dir/supabase"
+  export AGENT_EVAL_STUB_CHILD_PID_FILE="$stub_dir/child.pid"
+
+  # A subshell mirrors run_locked's wiring: spawn under `set -m`, hand the serve PID to the
+  # real cleanup_local_eval, and exit — the EXIT trap must end the whole stub tree.
+  if ! (
+    PATH="$stub_dir:$PATH"
+    set -m
+    supabase functions serve agent-chat --no-verify-jwt >/dev/null 2>&1 &
+    printf '%s\n' "$!" > "$stub_dir/parent.pid"
+    trap cleanup_local_eval EXIT INT TERM HUP
+    cleanup_serve_pid="$(<"$stub_dir/parent.pid")"
+    for _ in $(seq 1 50); do [[ -s "$stub_dir/child.pid" ]] && break; sleep 0.1; done
+    exit 0
+  ); then
+    echo 'self-test FAIL: the trapped cleanup path exited non-zero' >&2
+    rm -rf "$stub_dir"
+    return 1
+  fi
+  if [[ ! -s "$stub_dir/parent.pid" || ! -s "$stub_dir/child.pid" ]]; then
+    echo 'self-test FAIL: the stub did not record its parent/child PIDs' >&2
+    rm -rf "$stub_dir"
+    return 1
+  fi
+  stub_pid="$(<"$stub_dir/parent.pid")"
+  stub_child_pid="$(<"$stub_dir/child.pid")"
+  # Allow a moment for re-parenting/reaping of the child before judging.
+  for _ in $(seq 1 20); do
+    if ! kill -0 "$stub_pid" 2>/dev/null && ! kill -0 "$stub_child_pid" 2>/dev/null; then break; fi
+    sleep 0.1
+  done
+  if kill -0 "$stub_pid" 2>/dev/null || kill -0 "$stub_child_pid" 2>/dev/null; then
+    echo "self-test FAIL: stub serve parent ($stub_pid) or child ($stub_child_pid) survived the cleanup trap" >&2
+    rm -rf "$stub_dir"
+    return 1
+  fi
+  echo "self-test OK: stub serve parent ($stub_pid) and child ($stub_child_pid) were cleaned up by the EXIT trap; nothing the script started is still running."
+  rm -rf "$stub_dir"
+  return 0
+}
+
 if [[ "${1:-}" == '--locked' ]]; then
   [[ "$#" == '2' ]] || die 'invalid internal invocation'
   [[ "${PMO_DB_LOCK_HELD:-}" == '1' ]] || die 'internal locked mode requires scripts/with-db-lock.sh'
@@ -341,9 +422,15 @@ if [[ "${1:-}" == '--locked' ]]; then
   exit $?
 fi
 
+if [[ "${1:-}" == '--self-test' ]]; then
+  [[ "$#" == '1' ]] || die '--self-test does not accept other arguments'
+  self_test
+  exit $?
+fi
+
 if [[ "${1:-}" == '--help' || "${1:-}" == '-h' ]]; then
   cat <<'HELP'
-Usage: N=1 scripts/agent-eval-local.sh [--dry-run]
+Usage: N=1 scripts/agent-eval-local.sh [--dry-run|--self-test]
 
 N is the number of serial eval-suite runs (default: 1). Set
 EVAL_TEST_USER_EMAIL and EVAL_TEST_USER_PASSWORD in the process environment,
@@ -360,6 +447,9 @@ EVAL_STOCK_OFF=1 disables the stock feature for the run (the plans-switch-off
 fixture) and removes that override before the lock is released.
 --dry-run checks prerequisites, but does not reset or write to the local
 database.
+--self-test proves the serve cleanup (#1832): a stubbed serve process holding
+a child is fully terminated by the script's EXIT trap. It uses no database,
+Docker, or model credit.
 HELP
   exit 0
 fi

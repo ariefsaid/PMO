@@ -6,7 +6,7 @@ import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
 import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
-import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
+import type { IncomingPaymentRow, SalesInvoiceRow } from '@/src/lib/db/revenue';
 
 /**
  * IncomingPayments — the record-a-receipt journey (read-model audit BLOCK 1).
@@ -47,11 +47,20 @@ const invoice = (over: Partial<SalesInvoiceRow>): SalesInvoiceRow =>
     ...over,
   }) as SalesInvoiceRow;
 
+const receipt = (over: Partial<IncomingPaymentRow> = {}): IncomingPaymentRow => ({
+  id: 'ip-odoo', org_id: 'org-1', customer_id: 'cust-1', customer_name: 'Acme Energy', sales_invoice_id: null,
+  ip_number: 'ODOO-PAY-001', pmo_number: null, pmo_native: false, cancelled_at: null, reference_number: null,
+  date: '2026-11-01', amount: 100, received_amount: 100, withheld_amount: 0, withholding_slip_number: null,
+  currency: 'USD', status: 'Scheduled', erp_docstatus: 1, erp_modified: null, erp_amended_from: null,
+  erp_cancelled_at: null, created_at: '2026-11-01T00:00:00Z', ...over,
+}) as IncomingPaymentRow;
+
 const hoisted = vi.hoisted(() => ({
   createPaymentMutate: vi.fn(async (_input: Record<string, unknown>) => ({ id: 'ip-new' })),
   paymentsState: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
   invoicesState: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
   ownershipState: { data: [] as unknown[], isError: false },
+  odooUnreachable: false,
   orgTimezone: 'UTC',
   navigateMock: vi.fn(),
   clientOptions: [
@@ -92,6 +101,12 @@ vi.mock('@/src/lib/adapterSeam/ownershipCache', () => ({ routeDomainWrite: vi.fn
 // These journeys are the ERP-path receipt (optional invoice, on-account, withholding against an ERP invoice); the PMO
 // receipt path is IncomingPayments.native.test.tsx.
 vi.mock('@/src/hooks/useExternalDomainOwnership', () => ({ useExternalDomainOwnership: () => hoisted.ownershipState }));
+vi.mock('@/src/hooks/useOdooPurchase', () => ({ useOdooUnreachable: () => ({ unreachable: hoisted.odooUnreachable, lastOkAt: null }) }));
+vi.mock('@/src/components/procurement/OdooDirectoryPickers', () => ({
+  OdooJournalSelect: ({ value, onChange, id, label = 'Pay from' }: { value: string; onChange: (value: string) => void; id: string; label?: string }) => (
+    <label htmlFor={id}>{label}<select id={id} aria-label={label} value={value} onChange={(event) => onChange(event.target.value)}><option value="">Default journal</option><option value="9">Bank BCA</option></select></label>
+  ),
+}));
 vi.mock('react-router', async (importOriginal) => {
   const actual = await importOriginal<typeof import('react-router')>();
   return { ...actual, useNavigate: () => hoisted.navigateMock };
@@ -133,6 +148,7 @@ beforeEach(async () => {
   hoisted.paymentsState.data = [];
   hoisted.invoicesState.data = [];
   hoisted.ownershipState.data = [{ id: 'o-1', orgId: 'org-1', externalTier: 'erpnext', domain: 'revenue' }];
+  hoisted.odooUnreachable = false;
   setActiveLocale(EN_LOCALE);
   await financeTestI18n.changeLanguage('en');
 });
@@ -143,6 +159,39 @@ afterEach(() => {
 });
 
 describe('IncomingPayments — a Finance user can actually record a receipt (BLOCK 1)', () => {
+  it('AC-OCI-090: while Odoo is unavailable, it blocks receipt and cancellation actions', async () => {
+    hoisted.ownershipState.data = [{ id: 'o-1', orgId: 'org-1', externalTier: 'odoo', domain: 'revenue' }];
+    hoisted.odooUnreachable = true;
+    hoisted.paymentsState.data = [receipt()];
+    renderPage();
+    expect(screen.queryByRole('button', { name: 'Receive Payment' })).toBeNull();
+    const row = screen.getByText('ODOO-PAY-001').closest('tr');
+    expect(row).not.toBeNull();
+    expect(within(row!).queryByRole('button', { name: 'Row actions' })).toBeNull();
+  });
+
+  it('AC-OCI-091 chooses a mirrored journal and confirms before sending an Odoo receipt', async () => {
+    hoisted.ownershipState.data = [{ id: 'o-1', orgId: 'org-1', externalTier: 'odoo', domain: 'revenue' }];
+    const user = userEvent.setup();
+    renderPage();
+    await openForm(user);
+    await pick(user, 'Customer', 'Acme Energy');
+    const amount = screen.getByLabelText(/^Amount settled/);
+    await user.clear(amount);
+    await user.type(amount, '100');
+    expect(screen.queryByLabelText(/^Cash received/)).toBeNull();
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Received into' }), '9');
+
+    await user.click(screen.getByRole('button', { name: 'Record payment' }));
+    const dialog = screen.getByRole('dialog', { name: 'Record this receipt in Odoo?' });
+    expect(dialog).toHaveTextContent('Record this receipt in Odoo?');
+    expect(hoisted.createPaymentMutate).not.toHaveBeenCalled();
+    await user.click(within(dialog).getByRole('button', { name: 'Record payment' }));
+    expect(hoisted.createPaymentMutate).toHaveBeenCalledWith(expect.objectContaining({
+      customerId: 'cust-1', paidAmount: 100, receivedAmount: 100, journalId: '9',
+    }));
+  });
+
   it('AC-S27-001: labels settlement and cash plainly, and keeps native no-withholding prefill in the existing payload', async () => {
     hoisted.ownershipState.data = [];
     hoisted.invoicesState.data = [invoice({

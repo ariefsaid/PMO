@@ -330,6 +330,7 @@ async function claimAndCommit(
   const isRecoveryReissue = opts.isRecoveryReissue ?? false;
   const token = claimed.claimGeneration;
   const outboxRecordId = deps.outboxRecordId ?? command.record.id;
+  const isRangeBudget = command.record.erp_doc_kind === 'budget' && command.record.budget_mode === 'whole_project';
 
   // ⚑ Luna round-3 SHOULD-FIX 3 — A DETERMINISTIC RECOVERY FAILURE IS NOT AN UNKNOWN.
   // The probe re-fetches the ERP doc and maps it through the kind's `fromDoc`, which can fail the same
@@ -339,29 +340,31 @@ async function claimAndCommit(
   // never reach a confirmed mirror or an operator's attention. A RETRYABLE transport failure is a real
   // transient unknown and still leaves the row in-flight (untouched, as shipped); a NON-retryable one is
   // HELD for an operator (the C-1 outcome, with its audited `release_outbox_hold` route out).
-  let probed: { externalRecordId: string; canonical?: PmoRecord } | null;
-  try {
-    probed = await money.probeByRemarksKey(command.domain, command.idempotencyKey!, { recovery: token > 1 });
-  } catch (error) {
-    if (isRetryableTransport(error)) throw toDispatchError(error);
-    const heldCount = await money.markOutboxHeld(claimed.id, `recovery-probe-failed: ${redactErrorForOutbox(error)}`, token);
-    if (heldCount === 0) {
-      // Fencing loss: a reclaimer superseded this token — the row's CURRENT state is the truth.
-      const fresh = await money.readOutbox(command.domain, outboxRecordId, command.idempotencyKey!);
-      return reconcileOutbox(fresh!, deps);
+  let probed: { externalRecordId: string; canonical?: PmoRecord } | null = null;
+  if (!isRangeBudget) {
+    try {
+      probed = await money.probeByRemarksKey(command.domain, command.idempotencyKey!, { recovery: token > 1 });
+    } catch (error) {
+      if (isRetryableTransport(error)) throw toDispatchError(error);
+      const heldCount = await money.markOutboxHeld(claimed.id, `recovery-probe-failed: ${redactErrorForOutbox(error)}`, token);
+      if (heldCount === 0) {
+        // Fencing loss: a reclaimer superseded this token — the row's CURRENT state is the truth.
+        const fresh = await money.readOutbox(command.domain, outboxRecordId, command.idempotencyKey!);
+        return reconcileOutbox(fresh!, deps);
+      }
+      console.error(
+        `[money-outbox] HELD ${command.domain}/${command.record.id} (idempotencyKey=${command.idempotencyKey}) — ` +
+          `the recovery probe failed deterministically and would fail identically on every retry ` +
+          `(${redactErrorForOutbox(error)}); awaiting operator resolution (Admin: release_outbox_hold)`,
+      );
+      // The hold is on THIS exact row at THIS token — carry both so the served mirror writer can record
+      // the outcome against the precise row+generation (a generation-exact CAS, round-6 BLOCK 1/2).
+      throw markCommandHeldOutbox(
+        new AppError('money command held for operator resolution — the recovery probe failed deterministically', 'command-held'),
+        claimed.id,
+        token,
+      );
     }
-    console.error(
-      `[money-outbox] HELD ${command.domain}/${command.record.id} (idempotencyKey=${command.idempotencyKey}) — ` +
-        `the recovery probe failed deterministically and would fail identically on every retry ` +
-        `(${redactErrorForOutbox(error)}); awaiting operator resolution (Admin: release_outbox_hold)`,
-    );
-    // The hold is on THIS exact row at THIS token — carry both so the served mirror writer can record
-    // the outcome against the precise row+generation (a generation-exact CAS, round-6 BLOCK 1/2).
-    throw markCommandHeldOutbox(
-      new AppError('money command held for operator resolution — the recovery probe failed deterministically', 'command-held'),
-      claimed.id,
-      token,
-    );
   }
   let externalRecordId: string;
   let canonical: PmoRecord;
@@ -370,7 +373,7 @@ async function claimAndCommit(
     // Adopting an orphaned/in-flight doc found only by its remarks key: the probe carries the ERP
     // record when it can, else we fall back to the id stub (a later sweep/read-back reconciles fields).
     canonical = probed.canonical ?? { id: command.record.id };
-  } else if (isRecoveryReissue && !money.reissueOnInconclusiveAbsence) {
+  } else if (isRecoveryReissue && !isRangeBudget && !money.reissueOnInconclusiveAbsence) {
     // C-1 DIRECTOR RULING: a post-window recovery for a MUTABLE-anchor money doc (Payment Entry) found
     // NO doc — but the mutable anchor means absence is NOT conclusive (the original POST may have
     // committed and had its `reference_no` edited ERP-side). Reissuing would risk a double-pay. HOLD the
@@ -461,8 +464,27 @@ async function claimAndCommit(
       // command with the absolute deadline this claim was admitted for and let the adapter's transport
       // refuse the non-idempotent write at the POST site. Per-attempt metadata only — the command's
       // identity (domain/operation/record/idempotencyKey, and therefore its payload digest) is unchanged.
-      result = await adapter.commit({ ...command, commitDeadlineAtMs: opts.claimStartedAtMs + MONEY_COMMIT_CLAIM_BUDGET_MS });
+      result = await adapter.commit({
+        ...command,
+        commitDeadlineAtMs: opts.claimStartedAtMs + MONEY_COMMIT_CLAIM_BUDGET_MS,
+        ...(isRangeBudget ? {
+          outboxCommit: {
+            id: claimed.id,
+            generation: token,
+            payloadDigest: claimed.payloadDigest,
+            identity: outboxRecordId,
+          },
+        } : {}),
+      });
     } catch (error) {
+      if (error instanceof AppError && error.code === 'command-held') {
+        const heldCount = await money.markOutboxHeld(claimed.id, `adapter-held: ${redactErrorForOutbox(error)}`, token);
+        if (heldCount === 0) {
+          const fresh = await money.readOutbox(command.domain, outboxRecordId, command.idempotencyKey!);
+          return reconcileOutbox(fresh!, deps);
+        }
+        throw markCommandHeldOutbox(error, claimed.id, token);
+      }
       if (!isRetryableTransport(error)) {
         // a non-retryable (commit-rejected) failure — mark failed under the current fencing token.
         // M-4: the persisted last_error is REDACTED (bounded + token-scrubbed), never the raw ERP body.

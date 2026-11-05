@@ -47,8 +47,10 @@ export const ENTITY_FEATURE_KEYS: Readonly<Record<string, string>> = Object.free
   purchase_requests: 'procurement',
   rfqs: 'procurement',
   purchase_orders: 'procurement',
-  // Procurement full — receipts and the three-way match boundary (decision #2; S2 re-boundary)
-  procurement_receipts: 'procurement_full',
+  // D17 (#1783 item 1): receipts are a BASIC read — whole-purchase receipts and receipt reads stay on
+  // `procurement`; `procurement_full` is line-level receipt writes and the order/receipt/invoice match,
+  // which have no assistant read entity of their own (justified by the completeness ALLOWLIST entry).
+  procurement_receipts: 'procurement',
   // Warehouse / stock (#1721 read surfaces)
   stock_items: 'stock',
   stock_warehouses: 'stock',
@@ -76,7 +78,7 @@ export const FEATURE_LABELS: Readonly<Record<string, string>> = Object.freeze({
   crm: 'the CRM (companies, contacts and activity history)',
   sales_pipeline: 'the sales pipeline',
   procurement: 'procurement',
-  procurement_full: 'goods receipts and three-way match',
+  procurement_full: 'the order/receipt/invoice match and line-level receipt quantities',
   sales_invoices: 'sales invoices and billing',
   revenue: 'incoming payments',
   budget_projection: 'budget projection',

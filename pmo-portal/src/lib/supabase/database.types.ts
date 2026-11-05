@@ -1095,7 +1095,9 @@ export type Database = {
           created_at: string
           erp_account: string
           erp_budget_name: string
+          erp_modified: string | null
           fiscal_year: string
+          to_fiscal_year: string | null
           id: string
           last_attempt_at: string | null
           last_error: string | null
@@ -1115,7 +1117,9 @@ export type Database = {
           created_at?: string
           erp_account: string
           erp_budget_name: string
+          erp_modified?: string | null
           fiscal_year: string
+          to_fiscal_year?: string | null
           id?: string
           last_attempt_at?: string | null
           last_error?: string | null
@@ -1135,7 +1139,9 @@ export type Database = {
           created_at?: string
           erp_account?: string
           erp_budget_name?: string
+          erp_modified?: string | null
           fiscal_year?: string
+          to_fiscal_year?: string | null
           id?: string
           last_attempt_at?: string | null
           last_error?: string | null
@@ -1160,6 +1166,7 @@ export type Database = {
           org_id: string
           project_id: string
           requested_by: string
+          queued_by_activation: boolean
         }
         Insert: {
           budget_version_id: string
@@ -1170,6 +1177,7 @@ export type Database = {
           org_id: string
           project_id: string
           requested_by: string
+          queued_by_activation?: boolean
         }
         Update: {
           budget_version_id?: string
@@ -1180,6 +1188,7 @@ export type Database = {
           org_id?: string
           project_id?: string
           requested_by?: string
+          queued_by_activation?: boolean
         }
         Relationships: []
       }
@@ -1195,6 +1204,7 @@ export type Database = {
           erp_docstatus: number | null
           erp_modified: string | null
           fiscal_year: string
+          to_fiscal_year: string | null
           id: string
           last_attempt_at: string | null
           org_id: string
@@ -1216,6 +1226,7 @@ export type Database = {
           erp_docstatus?: number | null
           erp_modified?: string | null
           fiscal_year: string
+          to_fiscal_year?: string | null
           id?: string
           last_attempt_at?: string | null
           org_id?: string
@@ -1237,6 +1248,7 @@ export type Database = {
           erp_docstatus?: number | null
           erp_modified?: string | null
           fiscal_year?: string
+          to_fiscal_year?: string | null
           id?: string
           last_attempt_at?: string | null
           org_id?: string
@@ -3744,6 +3756,7 @@ export type Database = {
           payload_digest: string | null
           pmo_record_id: string
           procurement_input_digest: string | null
+          budget_range_operation: Json | null
           reconcile_after: string | null
           state: string
           updated_at: string
@@ -3767,6 +3780,7 @@ export type Database = {
           payload_digest?: string | null
           pmo_record_id: string
           procurement_input_digest?: string | null
+          budget_range_operation?: Json | null
           reconcile_after?: string | null
           state: string
           updated_at?: string
@@ -3790,6 +3804,7 @@ export type Database = {
           payload_digest?: string | null
           pmo_record_id?: string
           procurement_input_digest?: string | null
+          budget_range_operation?: Json | null
           reconcile_after?: string | null
           state?: string
           updated_at?: string
@@ -7831,6 +7846,8 @@ export type Database = {
           currency: string
           customer_contract_ref: string | null
           decided_at: string | null
+          go_probability: number
+          get_probability: number
           end_client_id: string | null
           end_date: string | null
           id: string
@@ -7874,6 +7891,8 @@ export type Database = {
           currency?: string
           customer_contract_ref?: string | null
           decided_at?: string | null
+          go_probability?: number
+          get_probability?: number
           end_client_id?: string | null
           end_date?: string | null
           id?: string
@@ -7917,6 +7936,8 @@ export type Database = {
           currency?: string
           customer_contract_ref?: string | null
           decided_at?: string | null
+          go_probability?: number
+          get_probability?: number
           end_client_id?: string | null
           end_date?: string | null
           id?: string
@@ -11029,6 +11050,7 @@ export type Database = {
           erp_docstatus: number | null
           erp_modified: string | null
           fiscal_year: string | null
+          to_fiscal_year: string | null
           id: string | null
           org_id: string | null
           push_error: string | null
@@ -11437,6 +11459,7 @@ export type Database = {
           amount: number
           as_of: string
           fiscal_year: string
+          to_fiscal_year: string | null
           gl_id: string
           party_type: string
           posting_date: string
@@ -11833,6 +11856,22 @@ export type Database = {
       tm_claim_fingerprint: { Args: { p_claim: string }; Returns: string }
       update_procurement_header: { Args: { p_id: string; p_patch: Json }; Returns: boolean }
       procurement_item_values_editable: { Args: { p_case: string }; Returns: boolean }
+      budget_version_read: {
+        Args: {
+          p_project_id: string
+          p_offset?: number
+          p_limit?: number
+        }
+        Returns: {
+          version_no: number
+          version_id: string
+          version_row: Json
+          line_items: Json
+          editor_ids: string[]
+          total: number
+          overflow: boolean
+        }[]
+      }
       budget_version_read_totals: {
         Args: { p_project_id: string }
         Returns: { version_id: string; total: number }[]
@@ -11852,6 +11891,10 @@ export type Database = {
       }
       archive_budget_version_with_cancel_intent: {
         Args: { p_archive_request_id?: string; p_cancel_erp?: boolean; p_version_id: string }
+        Returns: Json
+      }
+      queue_budget_archive_cancel: {
+        Args: { p_actor: string; p_request: string; p_version: string }
         Returns: Json
       }
       activate_external_binding: {
@@ -11972,9 +12015,27 @@ export type Database = {
       bfy_migration_0154_rekey: { Args: never; Returns: undefined }
       bfy_migration_0154_revert: { Args: never; Returns: undefined }
       budget_account_identity: {
-        Args: { p_account: string; p_fy: string; p_version: string }
+        Args:
+          | { p_account: string; p_fy: string; p_version: string }
+          | { p_account: string; p_fy: string; p_to_fy: string; p_version: string }
         Returns: string
       }
+      read_budget_range_outbox_state: {
+        Args: { p_generation: number; p_id: string; p_identity: string; p_payload_digest: string }
+        Returns: Json
+      }
+      advance_budget_range_outbox_stage: {
+        Args: {
+          p_expected_stage: string | null
+          p_generation: number
+          p_id: string
+          p_identity: string
+          p_next: Json
+          p_payload_digest: string
+        }
+        Returns: boolean
+      }
+      budget_distribution_gaps: { Args: { p_version: string }; Returns: string[] }
       get_budget_archive_targets: {
         Args: { p_version_id: string }
         Returns: {
@@ -11982,13 +12043,13 @@ export type Database = {
           erp_budget_name: string
           erp_docstatus: number | null
           fiscal_year: string
+          to_fiscal_year: string | null
           page_key: string
           push_state: string
           reason: string
           source_kind: string
         }[]
       }
-      budget_distribution_gaps: { Args: { p_version: string }; Returns: string[] }
       budget_activation_mode: { Args: { version_id: string }; Returns: string }
       project_win_eligibility: { Args: { p_id: string }; Returns: string }
       withdraw_subcontract_acceptance: {
@@ -13152,6 +13213,23 @@ export type Database = {
           parent_type: string
           seq: number
           source: string
+        }[]
+      }
+      list_tm_claim_source_details: {
+        Args: { p_claim: string }
+        Returns: {
+          entry_date: string | null
+          entry_id: string
+          id: string
+          is_selected: boolean
+          line_label: string
+          person_id: string | null
+          person_name: string | null
+          person_unit_total: number
+          signoff_is_current: boolean
+          total_count: number
+          unit: string
+          units: number
         }[]
       }
       list_tm_claims: {

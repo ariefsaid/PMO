@@ -6,15 +6,21 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const h = vi.hoisted(() => ({
   commands: { data: [] as unknown[] | undefined, isError: false },
+  revenueCommands: { data: [] as unknown[] | undefined, isError: false },
   conn: { unreachable: false, lastOkAt: null as string | null },
   roles: { realRole: 'Finance' as string | null, effectiveRole: 'Finance' as string | null },
   me: 'u-me' as string | null,
   resolve: vi.fn(),
+  resolveRevenue: vi.fn(),
 }));
 vi.mock('@/src/hooks/useOdooPurchase', () => ({
   useOdooPurchaseCommands: () => h.commands,
   useOdooUnreachable: () => h.conn,
   useResolveHeldPayment: () => ({ mutateAsync: h.resolve, isPending: false }),
+}));
+vi.mock('@/src/hooks/useOdooRevenue', () => ({
+  useOdooRevenueCommands: () => h.revenueCommands,
+  useResolveHeldRevenueCommand: () => ({ mutateAsync: h.resolveRevenue, isPending: false }),
 }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => h.roles }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: h.me ? { id: h.me } : null }) }));
@@ -28,7 +34,8 @@ const renderIt = () => render(<OdooCaseStatus procurementId="p1" />);
 
 beforeEach(() => {
   setTaskOwnership([{ domain: 'procurement', externalTier: 'odoo' }]); h.commands = { data: [], isError: false }; h.conn = { unreachable: false, lastOkAt: null };
-  h.roles = { realRole: 'Finance', effectiveRole: 'Finance' }; h.me = 'u-me'; h.resolve.mockReset();
+  h.revenueCommands = { data: [], isError: false };
+  h.roles = { realRole: 'Finance', effectiveRole: 'Finance' }; h.me = 'u-me'; h.resolve.mockReset(); h.resolveRevenue.mockReset();
 });
 afterEach(() => { cleanup(); clearOwnershipCache(); });
 
@@ -140,5 +147,41 @@ describe('AC-OPP-082 held payment resolution (FR-OPP-063/094)', () => {
     await userEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Confirm' }));
     expect(await screen.findByText('The decision could not be recorded.')).toBeInTheDocument();
     expect(screen.getByRole('alertdialog')).toBeInTheDocument();
+  });
+});
+
+describe('AC-OCI-090 held Odoo revenue rows', () => {
+  it('shows a held invoice row to Finance and resolves it against an Odoo invoice number', async () => {
+    setTaskOwnership([{ domain: 'revenue', externalTier: 'odoo' }]);
+    h.revenueCommands = { data: [{ id: 'c-si', recordId: 'si-1', kind: 'sales-invoice', state: 'held', lastError: null, updatedAt: '2026-11-03T10:00:00Z', actorUserId: 'u-other' }], isError: false };
+    h.resolveRevenue.mockResolvedValue(undefined);
+    render(<OdooCaseStatus invoiceId="si-1" />);
+    expect(screen.getByText('Customer invoice')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'It exists in Odoo' }));
+    const dialog = screen.getByRole('dialog');
+    await userEvent.type(within(dialog).getByLabelText('Odoo document number'), '42');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Confirm' }));
+    expect(h.resolveRevenue).toHaveBeenCalledWith({ outboxId: 'c-si', kind: 'sales-invoice', resolution: 'adopt', documentNumber: '42' });
+  });
+
+  it('lists held customer receipts against their invoice and keeps an impersonating Admin view-only', () => {
+    setTaskOwnership([{ domain: 'revenue', externalTier: 'odoo' }]);
+    h.revenueCommands = { data: [{ id: 'c-ip', recordId: 'ip-1', kind: 'incoming-payment', state: 'held', lastError: null, updatedAt: '2026-11-03T10:00:00Z', actorUserId: 'u-other' }], isError: false };
+    h.roles = { realRole: 'Admin', effectiveRole: 'Engineer' };
+    render(<OdooCaseStatus invoiceId="si-1" />);
+    expect(screen.getByText('Customer receipt')).toBeInTheDocument();
+    expect(screen.getByText('Needs a decision')).toBeInTheDocument();
+    expect(screen.queryByRole('button')).toBeNull();
+  });
+
+  it('review: two held rows give their buttons distinct names, so a screen reader hears which document each decides', async () => {
+    setTaskOwnership([{ domain: 'revenue', externalTier: 'odoo' }]);
+    h.revenueCommands = { data: [
+      { id: 'c-si', recordId: 'si-1', kind: 'sales-invoice', state: 'held', lastError: null, updatedAt: '2026-11-03T10:00:00Z', actorUserId: 'u-other' },
+      { id: 'c-ip', recordId: 'ip-1', kind: 'incoming-payment', state: 'held', lastError: null, updatedAt: '2026-11-03T10:00:00Z', actorUserId: 'u-other' },
+    ], isError: false };
+    render(<OdooCaseStatus invoiceId="si-1" />);
+    expect(screen.getByRole('button', { name: 'It exists in Odoo: Customer invoice' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'It does not exist in Odoo: Customer receipt' })).toBeInTheDocument();
   });
 });

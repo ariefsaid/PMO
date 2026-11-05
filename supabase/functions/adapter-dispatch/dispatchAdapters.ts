@@ -23,6 +23,7 @@ import { ODOO_TIER } from '../../../pmo-portal/src/lib/adapterSeam/odoo/connectA
 import { ODOO_ADAPTER_REGISTRY } from './odooAdapters.ts';
 import { maybeFault, type FaultGate } from './faultSeams.ts';
 import { isBudgetPushCommand } from './budgetDispatch.ts';
+import type { ReservedOdooCallBudget } from '../_shared/odooCallBudget.ts';
 
 /** The adapter-select context: the caller's org, the parsed command, and the service-role client for
  * per-request config lookups (project binding, external_refs resolution). Never used for adapter.commit(). */
@@ -42,13 +43,21 @@ export interface AdapterSelectContext {
   erpAuth: ErpAuthPairCache;
   replay?: boolean;
   trustedReceiptSnapshot?: boolean;
+  /** #1783 item 1: the ORIGINAL inbound command carried caller-directed receipt lines (tier-keyed
+   *  guard). Receipt-scoped by construction: the money-outbox resolvers use it to verify a LEGACY
+   *  accepted row (no stored digest) in memory from its persisted payload + persisted operation
+   *  before the M-3 comparison. Whole-purchase Basic receipts and every other document kind leave it
+   *  unset, so their shipped skip-digest behavior is byte-for-byte unchanged. */
+  receiptLineIntent?: boolean;
   captureProcurementSourceLines?: (lines: ProcurementSourceLine[]) => void;
   /** ECA-6: told the recorded consent a budget push used to amend an ERP budget PMO did not create. */
   captureOccupantConsent?: (consentId: string) => void;
   procurementSnapshot?: { caseId: string; lines: ProcurementSourceLine[] };
   procurementInputDigest?: string;
   /** Sweep-only per-tick budget for every Odoo request made by revenue outbox recovery. */
-  odooCallBudget?: { left: () => boolean; spend: () => boolean };
+  odooCallBudget?: ReservedOdooCallBudget;
+  /** Recovery-only owner check; procurement probes call it before anchoring or settling a hit. */
+  odooAnchorOwnedElsewhere?: (externalRecordId: string) => Promise<boolean>;
 }
 
 export type AdapterFactory = (ctx: AdapterSelectContext) => Adapter | Promise<Adapter>;
@@ -127,6 +136,7 @@ export async function resolveErpAdapter(ctx: AdapterSelectContext): Promise<Adap
   return resolveErpDispatchAdapter({
     serviceClient: ctx.serviceClient as never,
     orgId: ctx.orgId,
+    actorUserId: ctx.userId,
     command: ctx.command,
     fetchImpl: guardedErpFetch(binding.site_url),
     apiKey,

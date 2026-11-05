@@ -36,8 +36,8 @@ function moneyCellError(raw: string, label: string): string | null {
 /** #1638 FR-PSH-020: one optional date column per pre-award stage, in canonical order. */
 const STAGE_DATE_COLUMNS = [
   { key: 'lead_on', label: 'Lead date', stage: 'Leads' },
-  { key: 'pq_submitted_on', label: 'PQ submitted date', stage: 'PQ Submitted' },
   { key: 'quoted_on', label: 'Quoted date', stage: 'Quotation Submitted' },
+  { key: 'pq_submitted_on', label: 'PQ submitted date', stage: 'PQ Submitted' },
   { key: 'tender_sent_on', label: 'Tender sent date', stage: 'Tender Submitted' },
   { key: 'negotiation_on', label: 'Negotiation date', stage: 'Negotiation' },
 ] as const satisfies readonly { key: string; label: string; stage: ProjectStatus }[];

@@ -79,6 +79,7 @@ import {
   recordBudgetPushFailure,
 } from './budgetDispatch.ts';
 import { resolveErpMoneyOutboxDeps as resolveErpMoneyOutboxDepsModule } from './erpMoneyOutbox.ts';
+import { commandForBudgetUnit } from './commandUnit.ts';
 import { resolveOdooMoneyOutboxDeps } from './odooMoneyOutbox.ts';
 import { odooRevenueAnchorKey } from './odooRevenueOutbox.ts';
 import { checkOdooDraftTarget, isOdooInvoiceDraftWrite, writeOdooInvoiceDraft } from './odooInvoiceDraft.ts';
@@ -239,7 +240,12 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
     budgetActivationPrecheckVersionId = versionId;
   }
 
-  let command = body as AdapterCommand;
+  // `const` since #1714: the request command is bound ONCE, after parsing; its remaining mutations
+  // below are PROPERTY mutations on trusted server truth (the derived keys, canonical timesheet
+  // truth, the stripped caller fields) and stay exactly where they are. Each budget fan-out unit is
+  // attempted under its own freshly minted command (`commandForBudgetUnit`) — never a rebinding of
+  // this binding.
+  const command = body as AdapterCommand;
   if (!budgetActivationPrecheckVersionId && (!command?.domain || !command?.operation || !command?.record?.id)) {
     return new Response(
       JSON.stringify({ error: 'BAD_REQUEST', message: 'domain, operation, and record.id are required' }),
@@ -759,9 +765,16 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
     );
   }
 
-  const runOneDispatch = (outboxRecordId?: string): Promise<{ ok: true; result: unknown } | { ok: false; response: Response }> =>
+  // #1714 — the command is an explicit per-attempt argument: `runDispatchAttempt` acts on the
+  // command its caller names (the request command for a single dispatch, one unit's own command per
+  // budget fan-out iteration), so no shared binding is ever re-assigned mid-loop.
+  const runOneDispatch = (dispatchCommand: AdapterCommand, outboxRecordId?: string): Promise<{ ok: true; result: unknown } | { ok: false; response: Response }> =>
     runDispatchAttempt({
-      command,
+      command: dispatchCommand,
+      // The receipt-line guard's registry key: the tier `checkCommandAuthorization` already employed
+      // for this org/domain (never re-derived from the payload). Every dispatch that reaches here
+      // passed the adapter-select gate on exactly this tier.
+      tier: employedTier!,
       serviceClient,
       orgId,
       adapterFactory,
@@ -779,7 +792,7 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
   try {
     // ── 4/5/6, ONCE for every domain — or ONCE PER PHASED FISCAL YEAR for a budget fan-out. ──
     if (!budgetUnits) {
-      const attempt = await runOneDispatch();
+      const attempt = await runOneDispatch(command);
       return attempt.ok
         ? new Response(JSON.stringify(attempt.result), { status: 200, headers })
         : attempt.response;
@@ -802,17 +815,18 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
     let firstFailure: Response | null = null;
     const yearOutcomes: Array<{ fiscal_year: string; pushed: boolean }> = [];
     for (const unit of budgetUnits) {
-      // The per-year command. `record.id` is untouched (the bare version UUID); everything that makes
-      // this year distinct rides on `record` + the server-derived key. `command` is re-bound rather
-      // than copied so the failure writers above (which close over it) name THIS year.
-      command = { ...command, record: unit.record, idempotencyKey: unit.idempotencyKey };
+      // #1714 — the per-unit command. Each year is attempted under its OWN `AdapterCommand` (the
+      // unit's gate-resolved record + server-derived key); `record.id` stays the bare version UUID,
+      // everything that makes this year distinct rides on `record` + the key, and the request
+      // command is never re-bound. The unit's `identity` remains the separate outbox argument.
+      const unitCommand = commandForBudgetUnit(command, unit);
 
       // BLOCK #4, per year, on the year-qualified identity: a create for a (version, year) ERPNext
       // already holds must not mint a second Budget for it.
-      const createTarget = await checkCreateTargetUnmapped(serviceClient as never, orgId, command, unit.idempotencyKey);
+      const createTarget = await checkCreateTargetUnmapped(serviceClient as never, orgId, unitCommand, unit.idempotencyKey);
       if (!createTarget.ok) {
         const rejected = new AppError(createTarget.message, 'commit-rejected');
-        await recordBudgetPushFailure({ serviceClient, orgId, command, budgetVersionMajor, failure: rejected });
+        await recordBudgetPushFailure({ serviceClient, orgId, command: unitCommand, budgetVersionMajor, failure: rejected });
         yearOutcomes.push({ fiscal_year: unit.fiscalYear, pushed: false });
         firstFailure ??= new Response(
           JSON.stringify({ error: 'commit-rejected', message: createTarget.message }),
@@ -821,7 +835,7 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
         continue;
       }
 
-      const attempt = await runOneDispatch(unit.identity);
+      const attempt = await runOneDispatch(unitCommand, unit.identity);
       yearOutcomes.push({ fiscal_year: unit.fiscalYear, pushed: attempt.ok });
       if (attempt.ok) lastResult = attempt.result;
       else firstFailure ??= attempt.response;

@@ -3,7 +3,7 @@ import { parseErpActivationRefusal, withErpActivationRefusal } from './erpActiva
 import { supabase } from '@/src/lib/supabase/client';
 import { invokeWithTimeout } from '@/src/lib/supabase/invokeWithTimeout';
 import { wrap, throwInvokeError } from './repositoryErrors';
-import type { ClickUpListItem, ConnectAcceptResult, ConnectCounts, ConnectCredential, ConnectResponse, DisconnectResponse, ErpProjectLink, ErpProjectOption, ErpSetupReadiness, ExternalTier, IntegrationBinding, IntegrationHealth, IntegrationsRepository, LinkInput, LinkResponse, ProjectBinding, UnlinkInput, UnlinkResponse } from './contracts/integrations';
+import type { ClickUpListItem, ConnectAcceptResult, ConnectCounts, ConnectCredential, ConnectResponse, ConnectStagedRecord, DisconnectResponse, ErpProjectLink, ErpProjectOption, ErpSetupReadiness, ExternalTier, IntegrationBinding, IntegrationHealth, IntegrationsRepository, LinkInput, LinkResponse, ProjectBinding, UnlinkInput, UnlinkResponse } from './contracts/integrations';
 
 export async function erpSetupRequest<T>(setupAction: string, input: Record<string, unknown> = {}, tier: 'erpnext' | 'odoo' = 'erpnext'): Promise<T> {
   return wrap(async () => {
@@ -38,10 +38,16 @@ export const integrationsRepository: IntegrationsRepository = {
   getConnectStatus: (tier) => erpSetupRequest('connect-status', {}, tier),
   listConnectProposals: (tier, kind, outcome, afterId, state) =>
     erpSetupRequest('list-proposals', { kind, outcome, afterId, ...(state ? { state } : {}) }, tier),
-  acceptConnectProposals: async (tier, kind, ids) => {
+  searchConnectStaged: async (tier, kind, query) => {
+    const r = await erpSetupRequest<{ records: ConnectStagedRecord[] }>('search-connect-staged', { kind, query }, tier);
+    return r.records ?? [];
+  },
+  acceptConnectProposals: async (tier, kind, ids, excludeIds) => {
     const total: ConnectAcceptResult = { counts: {}, remaining: 0 };
     for (let i = 0; i < ACCEPT_REQUESTS_MAX; i += 1) {
-      const r = await erpSetupRequest<ConnectAcceptResult>('accept-proposals', { kind, ids }, tier);
+      const r = await erpSetupRequest<ConnectAcceptResult>('accept-proposals', {
+        kind, ids, ...(excludeIds?.length ? { excludeIds } : {}),
+      }, tier);
       addCounts(total.counts, r.counts);
       total.remaining = r.remaining;
       if (r.remaining === 0 || Object.keys(r.counts).length === 0) break;

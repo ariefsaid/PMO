@@ -1,16 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
-import { repositories } from '@/src/lib/repositories';
 import { useAuth } from '@/src/auth/useAuth';
 import { formatCalendarDayInTimeZone } from '@/src/lib/format';
+import { useOrgFxContext } from './useOrgFxContext';
 
 export function useFxOrgDay(enabled: boolean) {
+  const context = useOrgFxContext();
   const org = useAuth().currentUser?.org_id;
-  const context = useQuery({
-    queryKey: ['fx-context', org ?? ''],
-    queryFn: () => repositories.fxRates.context(),
-    enabled: Boolean(org),
-    staleTime: Infinity,
-  });
   const timezone = context.data?.timezone;
   const day = useQuery({
     queryKey: ['fx-org-day', org ?? '', timezone ?? null],

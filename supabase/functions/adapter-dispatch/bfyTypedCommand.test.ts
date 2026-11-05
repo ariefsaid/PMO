@@ -22,22 +22,30 @@ import {
   createJwtAuthority,
   createTestJwksResolver,
   installEdgeEnv,
+  jsonResponse,
   restCall,
+  supabaseSelect,
   withFetchMock,
   type FetchCall,
 } from '../_shared/testing/edgeTestKit.ts';
 import { encodeFiscalYear } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/fiscalYearEncoding.ts';
 import {
   ACTIVATED_AT_EPOCH_MS,
+  ERP_HOST,
+  ERP_SITE_URL,
   installErpCredentials,
   ORG_ID,
   PROJECT_ID,
+  SECRET_REF,
   servedRoutes,
   twoYearPhasedSeed,
   USER_ID,
   VERSION_ID,
   type ServedSeed,
 } from './bfyServedFixture.ts';
+import type { AdapterCommand } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
+import type { BudgetDispatchUnit } from './budgetDispatch.ts';
+import { commandForBudgetUnit } from './commandUnit.ts';
 
 const env = installEdgeEnv();
 Deno.env.set('SUPABASE_ANON_KEY', 'test-anon-key');
@@ -119,6 +127,78 @@ async function runServedTargeted(seed: ServedSeed, fiscalYear: string) {
     return { res, body: await res.json(), calls, erpBudgets };
   });
 }
+
+describe('AC-1714 — commandForBudgetUnit mints a fresh per-unit command, never a rebinding', () => {
+  const baseCommand: AdapterCommand = {
+    domain: 'budget',
+    operation: 'create',
+    record: { id: VERSION_ID, erp_doc_kind: 'budget' },
+    idempotencyKey: 'base-request-key',
+  };
+
+  it('AC-1714: each unit gets its own command object; the base command and its record are never mutated', () => {
+    const recordA: AdapterCommand['record'] = { id: VERSION_ID, erp_doc_kind: 'budget', fiscal_year: '2026' };
+    const recordB: AdapterCommand['record'] = { id: VERSION_ID, erp_doc_kind: 'budget', fiscal_year: '2027' };
+    const unitA: BudgetDispatchUnit = {
+      fiscalYear: '2026',
+      erpAccount: null,
+      identity: `${VERSION_ID}:${encodeFiscalYear('2026')}`,
+      idempotencyKey: 'bud:key-for-2026',
+      record: recordA,
+    };
+    const unitB: BudgetDispatchUnit = {
+      fiscalYear: '2027',
+      erpAccount: null,
+      identity: `${VERSION_ID}:${encodeFiscalYear('2027')}`,
+      idempotencyKey: 'bud:key-for-2027',
+      record: recordB,
+    };
+
+    const a = commandForBudgetUnit(baseCommand, unitA);
+    const b = commandForBudgetUnit(baseCommand, unitB);
+
+    assert(a !== b, 'two budget units must not share one command object');
+    assert(a !== baseCommand, 'unit A must not BE the request command');
+    assert(b !== baseCommand, 'unit B must not BE the request command');
+    assert(a.record === unitA.record, 'unit A command carries unit A record by reference');
+    assert(b.record === unitB.record, 'unit B command carries unit B record by reference');
+    assertEquals(a.domain, 'budget');
+    assertEquals(a.operation, 'create');
+    assertEquals(b.domain, 'budget');
+    assertEquals(b.operation, 'create');
+    assertEquals(a.idempotencyKey, 'bud:key-for-2026', 'unit A carries its own server-derived key');
+    assertEquals(b.idempotencyKey, 'bud:key-for-2027', 'unit B carries its own server-derived key');
+    // The unit identity stays the SEPARATE outbox argument — the helper never inserts it into the
+    // command or its record (`record.id` must remain the bare version UUID).
+    assertEquals('identity' in a, false);
+    assertEquals('identity' in (a.record as Record<string, unknown>), false);
+
+    // The base command is unchanged after constructing both per-unit commands.
+    assertEquals(baseCommand.record, { id: VERSION_ID, erp_doc_kind: 'budget' });
+    assertEquals(baseCommand.idempotencyKey, 'base-request-key');
+  });
+
+  it('AC-1714: two calls from the SAME base do not bleed a record property or key between units', () => {
+    const a = commandForBudgetUnit(baseCommand, {
+      fiscalYear: '2026',
+      erpAccount: null,
+      identity: 'identity-a',
+      idempotencyKey: 'key-a',
+      record: { id: VERSION_ID, erp_doc_kind: 'budget', fiscal_year: '2026', a_only: 'present-on-A' },
+    });
+    const b = commandForBudgetUnit(baseCommand, {
+      fiscalYear: '2027',
+      erpAccount: null,
+      identity: 'identity-b',
+      idempotencyKey: 'key-b',
+      record: { id: VERSION_ID, erp_doc_kind: 'budget', fiscal_year: '2027' },
+    });
+    assertEquals('a_only' in (b.record as Record<string, unknown>), false, 'a record property present only on A must not appear on B');
+    assertEquals((a.record as Record<string, unknown>).a_only, 'present-on-A');
+    assertEquals(a.idempotencyKey, 'key-a');
+    assertEquals(b.idempotencyKey, 'key-b');
+  });
+});
 
 describe('HIGH 5 (FR-BFY-056) — a per-year retry dispatches ONLY that plan year', () => {
   it('HIGH 5: a FY2027 retry attempts ONLY FY2027 — FY2026 is never invoked', async () => {
@@ -265,6 +345,37 @@ describe('AC-BFY-009 — served budget fan-out: year-qualified identity + per-ye
     const failed = mirrors.filter((m) => m.fiscal_year === '2027' && m.push_state === 'failed');
     assertEquals(failed.length, 1, 'the failure writer stamps the SPECIFIC failing year, never the start FY');
   });
+
+  it('AC-1714: a mid-plan unowned live occupant fails ONLY its year — the later year still pushes under its own command', async () => {
+    // Year 2026's grain holds an accountant-authored live Budget PMO does not own; 2027 is free.
+    const seed = twoYearPhasedSeed({
+      grainByFiscalYear: {
+        '2026': [{ name: 'DESK-BUDGET-1', docstatus: 1, amended_from: null, owner: 'accountant@client.test' }],
+      },
+    });
+    const { res, body, calls, erpBudgets } = await runServed(seed);
+    assertEquals(res.status, 422);
+    assertEquals(body.error, 'budget-unowned-live-occupant');
+    // Continuation: the fan-out still attempted EVERY year, each under ITS OWN command — 2027 reached
+    // ERP and pushed even though 2026 was refused first.
+    assertEquals(erpBudgets.map((b) => b.body.fiscal_year), ['2027']);
+    const mirrors = mirrorUpserts(calls);
+    assertEquals(
+      mirrors.filter((m) => m.fiscal_year === '2026' && m.push_state === 'failed').length,
+      1,
+      'the failure writer stamps the failing year 2026, not the later year',
+    );
+    assertEquals(
+      mirrors.filter((m) => m.fiscal_year === '2027' && m.push_state === 'pushed').length,
+      1,
+      'year 2027 is recorded pushed',
+    );
+    const identities = outboxInserts(calls).map((i) => i.pmo_record_id);
+    assert(
+      identities.includes(`${VERSION_ID}:${encodeFiscalYear('2027')}`),
+      `the outbox includes 2027's year-qualified identity; saw: ${JSON.stringify(identities)}`,
+    );
+  });
 });
 
 describe('AC-BFY-009 — cross-org / identity guards still hold', () => {
@@ -298,5 +409,68 @@ describe('AC-BFY-009 — org scoping', () => {
       assertEquals(calls.filter((call) => call.url.hostname === '127.0.0.1').length, 0,
         `no outbound request reaches the stored private destination: ${calls.map((call) => call.url.toString()).join(', ')}`);
     });
+  });
+});
+
+describe('AC-1714 — the shipped ERP binding resolver guard fails closed', () => {
+  /** Drive the SHIPPED handler with the binding resolver's 5-column read answered by `resolverResponse`
+   *  (a PostgREST error, or a 200-null empty read). The route is PREPENDED (first matching route wins)
+   *  and keyed on URL search parameters — never a fragile read count: the `select=activated_at`
+   *  employment read still gets the fixture's valid active row, so only the resolver read fails. */
+  async function runWithBindingResolverAnswering(resolverResponse: () => Response) {
+    const { routes, erpBudgets } = servedRoutes(twoYearPhasedSeed());
+    const resolverCalls: FetchCall[] = [];
+    const bindingRoute = supabaseSelect('external_org_bindings', (call) => {
+      const select = (call.url.searchParams.get('select') ?? '').replace(/\s+/g, '');
+      if (select === 'activated_at') {
+        return jsonResponse({
+          site_url: ERP_SITE_URL,
+          secret_ref: SECRET_REF,
+          activated_at: '2026-01-01T00:00:00+00:00',
+          version_major: 15,
+          config: {},
+        });
+      }
+      resolverCalls.push(call);
+      return resolverResponse();
+    });
+    return await withFetchMock([bindingRoute, ...routes], async ({ calls }) => {
+      const res = await dispatchBudget();
+      return { res, body: await res.json(), calls, erpBudgets, resolverCalls };
+    });
+  }
+
+  /** Both failure shapes must reach the SAME guard: the resolver query actually ran, scoped to this
+   *  org and tier, and the dispatch refuses before any outbox row or ERP call. */
+  function assertGuardReached(
+    outcome: Awaited<ReturnType<typeof runWithBindingResolverAnswering>>,
+  ): void {
+    const { res, body, calls, resolverCalls, erpBudgets } = outcome;
+    assertEquals(resolverCalls.length, 1, 'the resolver query actually occurred');
+    assertEquals(resolverCalls[0].url.searchParams.get('org_id'), `eq.${ORG_ID}`);
+    assertEquals(resolverCalls[0].url.searchParams.get('external_tier'), 'eq.erpnext');
+    assertEquals(
+      (resolverCalls[0].url.searchParams.get('select') ?? '').replace(/\s+/g, ''),
+      'site_url,secret_ref,version_major,config,activated_at',
+      'the failing read is the binding resolver\'s 5-column read',
+    );
+
+    assertEquals(res.status, 422);
+    assertEquals(body, { error: 'commit-rejected', message: 'no erpnext binding configured for this org' });
+    assertEquals(outboxInserts(calls).length, 0, 'no outbox POST');
+    assertEquals(
+      calls.filter((c) => c.url.host === ERP_HOST).length,
+      0,
+      'no calls to the ERP host',
+    );
+    assertEquals(erpBudgets.length, 0);
+  }
+
+  it('AC-1714: a PostgREST error on the binding resolver read fails closed — no outbox row, no ERP call', async () => {
+    assertGuardReached(await runWithBindingResolverAnswering(() => jsonResponse({ code: 'XX000', message: 'test failure' }, { status: 500 })));
+  });
+
+  it('AC-1714: an empty binding read (HTTP 200 null) fails closed with the same gate message', async () => {
+    assertGuardReached(await runWithBindingResolverAnswering(() => new Response('null', { status: 200, headers: { 'content-type': 'application/json' } })));
   });
 });
