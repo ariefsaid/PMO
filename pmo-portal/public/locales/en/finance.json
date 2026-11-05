@@ -596,5 +596,51 @@
     "otherHelp": "Licences, reimbursables and work outside the contract: counts toward revenue and margin, never reduces Remaining to invoice.",
     "change": "Change billing kind",
     "save": "Save billing kind"
+  },
+  "erpJournal": {
+    "title": "Journal entries from the accounting system",
+    "alreadyInSpending": "Already in spending",
+    "qualifier": "These costs are already counted in project spending. Attaching connects a journal to a purchase and does not add spend.",
+    "noPurchaseNote": "Paid directly and recorded in the accounting system as a journal, so no purchase was raised in PMO.",
+    "notInPurchase": "Not in a purchase",
+    "cancelled": "Cancelled in the accounting system",
+    "attach": "Attach to purchase",
+    "attachOne": "Attach {{name}} to a purchase",
+    "attachConfirm": "Attach",
+    "loadError": "Couldn't load the journal entries",
+    "column": {
+      "journal": "Journal",
+      "date": "Date",
+      "account": "Account",
+      "remark": "Remark",
+      "amount": "Amount",
+      "purchase": "Purchase"
+    },
+    "dialogTitle": "Attach {{name}} to a purchase",
+    "dialogSub": "The purchase’s open commitment drops by this line, and project spending does not change. Nothing is sent to the accounting system.",
+    "willAttach": "Ready to attach. Nothing is sent to the accounting system.",
+    "notAttached": "Nothing was attached.",
+    "cannotAttach": "This line cannot be attached to that purchase.",
+    "purchaseNoun": "purchase of this project",
+    "attachedTitle": "Journal entries from the accounting system",
+    "attachedError": "Couldn't load the attached journal entries",
+    "detach": "Detach",
+    "detachOne": "Detach {{name}}",
+    "detachTitle": "Detach {{name}}?",
+    "detachBody": "{{name}} is no longer part of this purchase and its open commitment goes back up by that amount. Project spending does not change, and nothing changes in the accounting system.",
+    "reason": {
+      "unknown": "This journal line could not be attached.",
+      "keyMissing": "The journal line is incomplete.",
+      "invalidId": "The purchase or project could not be read. Refresh and try again.",
+      "pmoPosted": "PMO posted this journal itself; it already has its own record.",
+      "notFound": "This journal line is not in PMO yet. Wait for the next sync.",
+      "notPositive": "Only a journal line that adds cost can be attached.",
+      "purchaseNotFound": "Purchase not found.",
+      "purchaseClosed": "This purchase is cancelled or rejected.",
+      "project": "This purchase belongs to another project.",
+      "currency": "The purchase currency differs from the accounting currency.",
+      "attachedElsewhere": "This journal line already belongs to another purchase.",
+      "alreadyAttached": "This journal line is already attached to this purchase."
+    }
   }
 }

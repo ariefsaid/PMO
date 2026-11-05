@@ -610,6 +610,7 @@ describe('AC-W3-O3: mark supplier invoiced opens inline capture and performs tra
 
 // Case-reference register (#1020) has its own tests; isolate it from the details-page harness.
 vi.mock('@/src/hooks/useErpPurchaseLinks', () => import('@/pages/__tests__/helpers/erpPurchaseLinksMock'));
+vi.mock('@/src/hooks/useErpJournalLines', () => import('@/pages/__tests__/helpers/erpJournalLinesMock'));
 vi.mock('@/src/hooks/useProcurementGates', () => import('@/pages/__tests__/helpers/procurementGatesMock'));
 vi.mock('@/src/hooks/useProcurementMicrosoftReferences', () => ({ useProcurementMicrosoftReferences: () => ({ query: { data: [] } }) }));
 vi.mock('@/pages/procurement/ProcurementMicrosoftReferences', () => ({ ProcurementMicrosoftReferences: () => null }));

@@ -23,6 +23,7 @@ import { fxRatesRepository } from './fxRates';
 import { financialStatementsRepository } from './financialStatements';
 import { expensePostingsRepository } from './expensePostings';
 import { erpPurchasesRepository } from './erpPurchases';
+import { erpJournalLinesRepository } from './erpJournalLines';
 import { projectRepository } from './projects';
 import { projectMoneyRepository } from './projectMoney';
 import { dashboardRepository } from './dashboard';
@@ -122,6 +123,7 @@ export const repositories: Repositories = {
   expenseReceipts: expenseReceiptsRepository,
   expensePostings: expensePostingsRepository,
   erpPurchases: erpPurchasesRepository,
+  erpJournalLines: erpJournalLinesRepository,
   contact: contactRepository,
   meeting: meetingRepository,
   userView: userViewRepository,

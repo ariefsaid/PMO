@@ -5,6 +5,7 @@ import { Tooltip } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useErpPurchases } from '@/src/hooks/useErpPurchases';
 import { ErpPurchasesSection } from '../ErpPurchasesSection';
+import { ErpJournalLinesSection } from '../ErpJournalLinesSection';
 
 interface ProcurementTabProps {
   projectId: string;
@@ -40,6 +41,7 @@ const ProcurementTab: React.FC<ProcurementTabProps> = ({ projectId, onCountChang
           />
         </div>
       )}
+      {canSeeMoney && <ErpJournalLinesSection projectId={projectId} />}
     </div>
   );
 };
