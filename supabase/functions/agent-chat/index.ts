@@ -255,11 +255,9 @@ export async function handleAgentChatRequest(req: Request): Promise<Response> {
   // existing deployment with no seeded credits grants is not instantly locked out. An operator
   // flips this on once grant seed-data exists for their users.
   const creditsEnforced = Deno.env.get('AGENT_CREDITS_ENFORCED') === 'true';
-  // orgId is resolved by the handler's own gate-2 profiles lookup; ownerId (== userId) is all
-  // this entry point can supply up front. index.ts does not duplicate the profiles read —
-  // persistence writes rely on RLS column DEFAULTs (owner_id default auth.uid(), org_id default
-  // seed-org) rather than an explicit orgId here, so an empty string is a safe placeholder
-  // (never sent to Postgres; RLS/DEFAULT stamps the real value).
+  // The caller JWT and RLS column defaults establish every persistence write's identity —
+  // this entry point supplies no owner/org fields (and does not duplicate the profiles read;
+  // the handler's own gate-2 lookup is unrelated to persistence identity).
   const journaledWrites = persistenceEnabled && body.runId
     ? await loadJournaledWrites(
         {
@@ -270,8 +268,6 @@ export async function handleAgentChatRequest(req: Request): Promise<Response> {
           // `supabase: callerClient` site in this file checks fine). Same bridging-cast convention
           // as `handler: agentChatHandler as never` elsewhere in this codebase.
           supabase: callerClient as never,
-          ownerId: userId,
-          orgId: '',
           now: () => new Date(),
         },
         body.runId,
@@ -290,8 +286,6 @@ export async function handleAgentChatRequest(req: Request): Promise<Response> {
           // Cast: see the identical loadJournaledWrites cast above (TS2589 structural-recursion
           // limit, not a real mismatch).
           supabase: callerClient as never,
-          ownerId: userId,
-          orgId: '',
           now: () => new Date(),
         },
         body.runId,
@@ -347,8 +341,6 @@ export async function handleAgentChatRequest(req: Request): Promise<Response> {
         persistence: persistenceEnabled
           ? {
               supabase: callerClient as never,
-              ownerId: userId,
-              orgId: '',
               now: () => new Date(),
               journaledWrites,
               startSeq,

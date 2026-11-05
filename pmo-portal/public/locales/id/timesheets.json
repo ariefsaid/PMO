@@ -16,6 +16,8 @@
     "loadError": "Antrean persetujuan gagal dimuat",
     "loadErrorSub": "Lembar waktu yang menunggu persetujuan gagal dimuat.",
     "heading": "Antrean persetujuan tim",
+    "bulkFailedLabel": "Minggu ini tidak dapat disetujui",
+    "bulkFailedLead": "Minggu ini tidak dapat disetujui (pemisahan tugas atau data usang). Tetap dipilih agar Anda dapat mencoba lagi.",
     "awaiting": "{{total}} menunggu Anda",
     "empty": "Tidak ada yang menunggu Anda",
     "emptySub": "Lembar waktu yang diajukan anggota tim akan muncul di sini untuk ditinjau.",

@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Button, DataTable, Icon, ListPage, ListState, SelectField, StatusPill, useToast, type Column } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
-import { useProjects } from '@/src/hooks/useProjects';
+import { useProjectChoices } from './expenses/useProjectChoices';
 import { useExpenseClaims, useExpenseClaimMutations } from '@/src/hooks/useExpenseClaims';
 import { Constants } from '@/src/lib/supabase/database.types';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
@@ -40,13 +40,12 @@ const ExpenseClaims: React.FC = () => {
     [status, kind, category],
   );
   const { data, isPending, isError, refetch } = useExpenseClaims(filters);
-  const { data: projects } = useProjects();
+  const projectChoices = useProjectChoices();
   const { create } = useExpenseClaimMutations();
   const ownAdvances = useOwnAdvanceOptions();
   const [formKind, setFormKind] = useState<ExpenseKind | null>(null);
   const canCreate = may('create', 'expenseClaim');
   const rows = data?.rows;
-  const projectOptions = useMemo(() => (projects ?? []).map((p) => ({ value: p.id, label: projectDisplayName(p) })), [projects]);
 
   const statusOptions = [
     { value: '', label: t('expenses.filters.allStatuses', 'All statuses') },
@@ -139,7 +138,8 @@ const ExpenseClaims: React.FC = () => {
       {formKind && (
         <ExpenseClaimFormModal
           kind={formKind}
-          projectOptions={projectOptions}
+          projectOptions={projectChoices.options}
+          projectLoad={projectChoices}
           advanceOptions={ownAdvances.options}
           advanceLoad={ownAdvances}
           onClose={() => setFormKind(null)}

@@ -153,6 +153,58 @@ describe('external-set-company — ERPNext branch', () => {
     );
   });
 
+  it('a vault secret whose secret half contains a colon authenticates as the whole pair', async () => {
+    let companyAuth: string | null = null;
+    await withFeatureEnabled(
+      [
+        supabaseSelect('profiles', () =>
+          jsonResponse({ org_id: 'org-1', role: 'Admin' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+
+        activeMemberRoute(),
+        supabaseSelect('platform_operators', () => new Response('null', {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })),
+
+        supabaseSelect('external_org_bindings', () =>
+          jsonResponse({ secret_ref: 'vault-ref', status: 'active', config: {}, site_url: 'https://erp.example.com' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+
+        supabaseRpc('read_vault_secret', () => jsonResponse('key1:sec:ret')),
+
+        erp('erp.example.com', '/api/resource/Company/ACME%20Corp', (call) => {
+          companyAuth = call.headers.get('authorization');
+          return jsonResponse({ data: { name: 'ACME Corp' } });
+        }),
+
+        erp('erp.example.com', '/api/method/frappe.utils.change_log.get_versions',
+          () => jsonResponse({ erpnext: { version: '15.94.3' } })),
+        // #656: the read-permission probe runs between the handshake and the activation RPC.
+        ...activationProbeRoutes(),
+
+        // FR-EAC-106 (#650): the write moved into the activation RPC so company/version/stamp cannot
+        // land partially. Goal oracle unchanged — the selected Company is persisted for this org.
+        supabaseRpc('activate_external_binding_audited', (call) => {
+          const body = call.bodyJson as Record<string, unknown>;
+          assertEquals(body.p_company, 'ACME Corp');
+          return jsonResponse('2026-09-14T00:00:00+00:00');
+        }),
+      ],
+      async ({ calls }) => {
+        const res = await handleSetCompanyRequest(await authed({ tier: 'erpnext', companyId: 'ACME Corp' }));
+        assertEquals(res.status, 200);
+        assertEquals(await res.json(), {
+          ok: true, companyId: 'ACME Corp', versionMajor: 15, activatedAt: '2026-09-14T00:00:00+00:00',
+        });
+        assertEquals(companyAuth, 'token key1:sec:ret');
+        assertEquals(rpcCall(calls, 'activate_external_binding_audited').length, 1);
+      },
+    );
+  });
+
   it('Operator OK', async () => {
     await withFeatureEnabled(
       [

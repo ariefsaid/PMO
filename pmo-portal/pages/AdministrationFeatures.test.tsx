@@ -269,6 +269,13 @@ describe('AC-PLN-012 — Operator console', () => {
     expect(screen.queryByRole('switch')).toBeNull();
   });
 
+  it('AC-PLN-012: a failed override read holds the console — no switch is offered without knowing which overrides exist', async () => {
+    api.listOverrides.mockRejectedValue(Object.assign(new Error('boom'), { code: 'PGRST301' }));
+    renderConsole();
+    expect(await screen.findByText(/plan registry could not be loaded/i)).toBeInTheDocument();
+    expect(screen.queryByRole('switch')).toBeNull();
+  });
+
   it('AC-PLN-012: a non-Operator gets the read-only own-org list and no controls', async () => {
     render(
       <QueryClientProvider client={makeQc()}>

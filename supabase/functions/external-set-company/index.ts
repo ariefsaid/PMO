@@ -29,6 +29,7 @@
  * - 500: internal/upstream error
  */
 
+import { splitAuthPair } from '../_shared/erpAuthPair.ts';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import {
   bearerToken,
@@ -334,11 +335,13 @@ export async function handleSetCompanyRequest(req: Request): Promise<Response> {
     return errorResponse('ERPNext credentials not found in Vault', 'CONFIG_REJECTED', 422);
   }
 
-  const stored = (vaultSecret as string).split(':');
-  if (stored.length !== 2) {
+  let apiKey: string;
+  let apiSecret: string;
+  try {
+    ({ apiKey, apiSecret } = splitAuthPair(vaultSecret as string));
+  } catch {
     return errorResponse('Invalid ERPNext credential format in Vault', 'CONFIG_REJECTED', 422);
   }
-  const [apiKey, apiSecret] = stored;
 
   if (body.setupAction) {
     if (!isAdmin && !mayEnsureProject) return errorResponse('Admin role required', 'FORBIDDEN', 403);

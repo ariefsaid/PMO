@@ -13,7 +13,7 @@ import {
   type PanelPrefsChangedDetail,
 } from '@/src/lib/panel/panelPrefs';
 
-export interface AppShellProps {
+interface AppShellProps {
   rail: React.ReactNode;
   header: React.ReactNode;
   children: React.ReactNode;
