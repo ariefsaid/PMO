@@ -380,7 +380,7 @@ const MONEY_ONLY_READS = [
   '/rest/v1/external_sync_watermarks',
   '/rest/v1/erp_sweep_full_run',
   '/rest/v1/erp_statement_pass_run',
-  '/rest/v1/erp_statement_change_state', // 0683: the change-driven plan reads its own state row (DB only)
+  '/rest/v1/erp_statement_change_state', // 0685: the change-driven plan reads its own state row (DB only)
   '/rest/v1/budget_version_erp_mirror',
   '/rest/v1/budget_version_account_erp_mirror',
   '/rest/v1/timesheet_erp_mirror',
@@ -393,7 +393,7 @@ const MONEY_ONLY_READS = [
 const MONEY_ONLY_RPCS = [
   '/rest/v1/rpc/claim_erp_sweep_lock',
   '/rest/v1/rpc/release_erp_sweep_lock',
-  '/rest/v1/rpc/sync_erp_statement_change_scope', // 0683: change-driven statements decide per tick in the DB; no ERP or batch work unless it admits a run
+  '/rest/v1/rpc/sync_erp_statement_change_scope', // 0685: change-driven statements decide per tick in the DB; no ERP or batch work unless it admits a run
   '/rest/v1/rpc/record_erp_statement_nightly_due',
   '/rest/v1/rpc/plan_erp_statement_pass',
   '/rest/v1/rpc/outbox_reconcile_candidates',

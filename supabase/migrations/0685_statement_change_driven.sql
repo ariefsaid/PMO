@@ -1,5 +1,5 @@
--- 0683: change-driven native statement refresh. Builds on the dormant change state (0681) and nightly
--- obligations (0682): the sweep checks the source every 15 minutes (hint only) and refreshes statements
+-- 0685: change-driven native statement refresh. Builds on the dormant change state (0681) and nightly
+-- obligations (0684): the sweep checks the source every 15 minutes (hint only) and refreshes statements
 -- only for a nightly obligation, an internal/user "Refresh now" intent, a confirmed ERP posting, or a first
 -- publication. Publication writes only the diff: payloads of changed/new keys, deletes of absent keys, and a
 -- header-only touch for unchanged rows so readers keep their one-snapshot_id-per-generation contract.

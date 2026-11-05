@@ -1,6 +1,6 @@
 // AC-CD-001/003/004: the shipped sweep cycle + driver. An unchanged ledger opens no statement batch and writes
 // nothing; a nightly/intent/first-publication run refreshes once and settles through the captured cuts; a
-// checker error falls back to today's hourly refresh. The DB owns every decision (0681/0682/0683).
+// checker error falls back to today's hourly refresh. The DB owns every decision (0681/0684/0685).
 (Deno as unknown as { serve: (...a: unknown[]) => unknown }).serve = () => ({ finished: Promise.resolve() });
 const { runErpSweepCycle } = await import('./index.ts');
 const { planChangeDrivenStatements, settleChangeDrivenRun } = await import('./statementChangeDriven.ts');
