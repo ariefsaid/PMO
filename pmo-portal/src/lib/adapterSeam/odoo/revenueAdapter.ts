@@ -16,6 +16,7 @@ import { odooExternalRef, parseOdooExternalRef } from './purchase/anchors.ts';
 import { externalIdentifier, ODOO_REVENUE_ANCHORS } from './revenue/anchors.ts';
 import { buildInvoiceBody, type InvoiceMaps, type PmoInvoice } from './revenue/invoiceBody.ts';
 import { readBackInvoice, type InvoiceExpect } from './revenue/invoiceReadBack.ts';
+import { moneyHeader } from './revenue/moneyHeader.ts';
 import { nextStep, type Observed } from './revenue/nextStep.ts';
 import { probeInvoiceByAnchor, type InvoiceComposite } from './revenue/recoveryProbe.ts';
 import { probeReceiptByAnchor, type ReceiptComposite } from './revenue/receiptRecoveryProbe.ts';
@@ -197,6 +198,12 @@ async function settleReceipt(call: OdooCall, id: number, record: PmoRecord, fact
   const settled = Number(facts.input.settled);
   const cash = Number(facts.input.cash ?? facts.input.settled);
   const withheld = Number(facts.input.withheld ?? 0);
+  // #1825: adopt is reached only with the payment read back as reconciled against THIS invoice, and the
+  // invoice read above is Odoo's own post-receipt answer. Recording the receipt's reference together with
+  // that read-back lets the awaiting-Odoo flag clear on one system's evidence instead of two clocks; the
+  // mirror writer applies the read-back to the invoice row. An incomplete money header keeps only the
+  // non-money facts out whole (the readBackInvoice discipline).
+  const header = moneyHeader(move);
   return {
     externalRecordId: odooExternalRef('account.payment', id),
     canonical: {
@@ -205,6 +212,12 @@ async function settleReceipt(call: OdooCall, id: number, record: PmoRecord, fact
       date: facts.input.date, amount: settled, received_amount: cash, withheld_amount: withheld,
       withholding_slip_number: facts.input.slipNumber ?? null, erp_docstatus: 1,
       erp_modified: payment.write_date ?? move.write_date, erp_amended_from: null, erp_cancelled_at: null,
+      odoo_matched_payment_refs: [odooExternalRef('account.payment', id)],
+      odoo_invoice_read_back: {
+        erp_modified: move.write_date,
+        ...(header ? { erp_outstanding_amount: header.outstanding } : {}),
+        odoo_read_at: new Date().toISOString(),
+      },
       ...(facts.expected.recordedBy ? { recorded_by_id: facts.expected.recordedBy } : {}),
     },
   };

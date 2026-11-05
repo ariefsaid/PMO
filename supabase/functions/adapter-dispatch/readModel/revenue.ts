@@ -194,6 +194,36 @@ async function upsertSalesInvoiceMirror(ctx: ReadModelWriterCtx, canonical: PmoR
   await recordOutboundLineage(ctx, canonical, 'revenue', canonical.si_number as string | undefined);
 }
 
+/** #1825 — a receipt finalize records its Odoo read-back on the invoice mirror. The settle (`settleReceipt`)
+ *  read the invoice back from Odoo AFTER reconciling the receipt against it, so the receipt's own reference
+ *  merged into `odoo_matched_payment_refs` — together with the money Odoo then showed — is the
+ *  single-system evidence the invoice's awaiting-Odoo flag clears on: the reference appears in the invoice's
+ *  read-back, and no wall-clock comparison decides anything. Canonicals without the block (ERPNext receipts,
+ *  rows finalized before the evidence existed) write nothing; an unreadable header keeps the money keys out
+ *  whole (the mirror never erases what the ledger said). */
+async function recordReceiptReadBackOnInvoice(ctx: ReadModelWriterCtx, canonical: PmoRecord, salesInvoiceId: string | null): Promise<void> {
+  const refs = canonical.odoo_matched_payment_refs;
+  const readBack = canonical.odoo_invoice_read_back;
+  if (!Array.isArray(refs) || refs.length === 0 || typeof readBack !== 'object' || readBack === null) return;
+  if (salesInvoiceId === null) return;
+  const read = await (ctx.serviceClient.from('sales_invoices').select('odoo_matched_payment_refs')
+    .eq('org_id', ctx.orgId).eq('id', salesInvoiceId).maybeSingle() as unknown as PromiseLike<{ data: { odoo_matched_payment_refs?: unknown } | null; error: { message: string; code?: string } | null }>);
+  if (read.error) throw new AppError(read.error.message, read.error.code);
+  const merged = Array.isArray(read.data?.odoo_matched_payment_refs) ? [...read.data.odoo_matched_payment_refs as string[]] : [];
+  for (const ref of refs) if (typeof ref === 'string' && !merged.includes(ref)) merged.push(ref);
+  const facts = readBack as { erp_modified?: unknown; erp_outstanding_amount?: unknown; odoo_read_at?: unknown };
+  const outstanding = typeof facts.erp_outstanding_amount === 'string' ? facts.erp_outstanding_amount : null;
+  const { error } = await (
+    ctx.serviceClient.from('sales_invoices').update({
+      odoo_matched_payment_refs: merged,
+      erp_modified: typeof facts.erp_modified === 'string' ? facts.erp_modified : null,
+      ...(outstanding !== null ? { erp_outstanding_amount: outstanding, status: deriveSiStatus(outstanding, 1) } : {}),
+      odoo_read_at: typeof facts.odoo_read_at === 'string' ? facts.odoo_read_at : null,
+    }).eq('org_id', ctx.orgId).eq('id', salesInvoiceId) as unknown as PromiseLike<{ error: { message: string; code?: string } | null }>
+  );
+  if (error) throw new AppError(error.message, error.code);
+}
+
 /** `incoming_payments` — the PE-receive read-model (spec §4.2).
  *  Mirrors ERP-derived canonical; `sales_invoice_id` resolved from the command's
  *  `record.salesInvoiceId`; `status` derives from docstatus (1 = Paid, else Scheduled);
@@ -242,6 +272,7 @@ async function upsertIncomingPaymentMirror(ctx: ReadModelWriterCtx, canonical: P
       ...patch,
     });
     if (error) throw new AppError(error.message, error.code);
+    await recordReceiptReadBackOnInvoice(ctx, canonical, salesInvoiceId);
     return;
   }
   const { error } = await (

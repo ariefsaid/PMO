@@ -1506,3 +1506,78 @@ Deno.test('invoice cancellation reports a failed receipt reconciliation', async 
   } catch (error) { failed = error instanceof Error && error.message.includes('update failed'); }
   assert(failed, 'update failure must reach the caller');
 });
+
+// ============================================================================
+// #1825 — a receipt finalize records its Odoo read-back on the invoice mirror. The settle read the
+// invoice back from Odoo AFTER reconciling the receipt against it, so those facts (the receipt's own
+// reference, merged into the invoice's matched references, and the money header Odoo then showed) are
+// the single-system evidence the awaiting-Odoo flag clears on — no wall-clock comparison.
+// ============================================================================
+
+const RECEIPT_READ_BACK_CANONICAL = {
+  id: 'pmo-ip-1825',
+  ip_number: 'ACC-PAY-2026-00001',
+  amount: 111000,
+  erp_docstatus: 1,
+  erp_modified: '2026-11-05 09:59:00',
+  odoo_matched_payment_refs: ['account.payment:42'],
+  odoo_invoice_read_back: { erp_modified: '2026-11-05 10:00:00', erp_outstanding_amount: '0.00', odoo_read_at: '2026-11-05T10:00:01.000Z' },
+};
+
+Deno.test({
+  name: "#1825 — READ_MODEL_WRITERS['revenue'].upsert (kind incoming-payment) records the read-back on the invoice mirror: merged references plus the money the read showed",
+  fn: async () => {
+    const { client, calls } = makeFakeClient({ sales_invoices: { org_id: 'org-1', odoo_matched_payment_refs: ['account.payment:7'] } });
+    await getReadModelWriter('revenue').upsert(
+      { serviceClient: client as never, orgId: 'org-1' },
+      RECEIPT_READ_BACK_CANONICAL,
+      { domain: 'revenue', operation: 'create', record: { id: 'pmo-ip-1825', erp_doc_kind: 'incoming-payment', salesInvoiceId: 'si-1' } },
+    );
+    const updates = calls.filter((c) => c.table === 'sales_invoices' && c.method === 'update');
+    assertEquals(updates.length, 1, 'the invoice mirror must receive the read-back');
+    assertEquals(updates[0].args[0], {
+      odoo_matched_payment_refs: ['account.payment:7', 'account.payment:42'],
+      erp_modified: '2026-11-05 10:00:00',
+      erp_outstanding_amount: '0.00',
+      status: 'Paid',
+      odoo_read_at: '2026-11-05T10:00:01.000Z',
+    });
+    const filters = calls.filter((c) => c.table === 'sales_invoices' && c.method === 'update.eq').map((c) => c.args);
+    assertEquals(filters, [['org_id', 'org-1'], ['id', 'si-1']], 'the patch is org-scoped to the invoice');
+  },
+});
+
+Deno.test({
+  name: "#1825 — a receipt finalize whose read-back money is unreadable records the reference and the read facts, and no money keys",
+  fn: async () => {
+    const { client, calls } = makeFakeClient({ sales_invoices: { org_id: 'org-1' } });
+    await getReadModelWriter('revenue').upsert(
+      { serviceClient: client as never, orgId: 'org-1' },
+      {
+        ...RECEIPT_READ_BACK_CANONICAL,
+        odoo_invoice_read_back: { erp_modified: '2026-11-05 10:00:00', odoo_read_at: '2026-11-05T10:00:01.000Z' },
+      },
+      { domain: 'revenue', operation: 'create', record: { id: 'pmo-ip-1825', erp_doc_kind: 'incoming-payment', salesInvoiceId: 'si-1' } },
+    );
+    const updates = calls.filter((c) => c.table === 'sales_invoices' && c.method === 'update');
+    assertEquals(updates.length, 1);
+    assertEquals(updates[0].args[0], {
+      odoo_matched_payment_refs: ['account.payment:42'],
+      erp_modified: '2026-11-05 10:00:00',
+      odoo_read_at: '2026-11-05T10:00:01.000Z',
+    }, 'an unreadable header leaves the money keys out whole (the mirror never erases what the ledger said)');
+  },
+});
+
+Deno.test({
+  name: "#1825 — a canonical without the read-back block writes nothing to the invoice mirror (ERPNext receipts, rows finalized before the evidence existed)",
+  fn: async () => {
+    const { client, calls } = makeFakeClient({ sales_invoices: { org_id: 'org-1' } });
+    await getReadModelWriter('revenue').upsert(
+      { serviceClient: client as never, orgId: 'org-1' },
+      { id: 'pmo-ip-plain', ip_number: 'ACC-PAY-2026-00002', amount: 111000, erp_docstatus: 1, erp_modified: '2026-07-12 12:00:00.000000' },
+      { domain: 'revenue', operation: 'create', record: { id: 'pmo-ip-plain', erp_doc_kind: 'incoming-payment', salesInvoiceId: 'si-1' } },
+    );
+    assertEquals(calls.filter((c) => c.table === 'sales_invoices' && c.method === 'update').length, 0, 'no invoice-mirror write without the read-back block');
+  },
+});
