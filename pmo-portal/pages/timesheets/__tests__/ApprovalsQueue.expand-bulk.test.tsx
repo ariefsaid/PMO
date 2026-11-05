@@ -15,8 +15,9 @@ import type { Role } from '@/src/auth/AuthContext';
  * `timesheetActions(...).approve` is true. Bulk fires the existing per-sheet approve
  * RPC N times, resilient to partial failure, aggregated into ONE toast.
  */
-const { queue, approveMock, mutateAsyncMock } = vi.hoisted(() => ({
+const { queue, approveMock, mutateAsyncMock, settleBatchMock } = vi.hoisted(() => ({
   approveMock: vi.fn(),
+  settleBatchMock: vi.fn(),
   mutateAsyncMock: vi.fn(),
   queue: {
     data: [
@@ -52,6 +53,7 @@ vi.mock('@/src/hooks/useTimesheetApproval', () => ({
   useTimesheetMutations: () => ({
     approve: { mutate: approveMock, mutateAsync: mutateAsyncMock, isPending: false },
     reject: { mutate: vi.fn(), isPending: false },
+    settleBatch: settleBatchMock,
   }),
 }));
 
@@ -71,6 +73,7 @@ const renderAs = (realRole: Role) =>
 beforeEach(() => {
   approveMock.mockReset();
   mutateAsyncMock.mockReset();
+  settleBatchMock.mockReset();
   queue.isPending = false;
   queue.isError = false;
 });
@@ -137,8 +140,8 @@ describe('AC-IXD-TS-W5-3: N12 evidence-based bulk approve', () => {
     const dialog = await screen.findByRole('dialog');
     await userEvent.click(within(dialog).getByRole('button', { name: /^Approve 2$/i }));
     await waitFor(() => expect(mutateAsyncMock).toHaveBeenCalledTimes(2));
-    expect(mutateAsyncMock.mock.calls[0][0]).toEqual({ id: 's1' });
-    expect(mutateAsyncMock.mock.calls[1][0]).toEqual({ id: 's2' });
+    expect(mutateAsyncMock.mock.calls[0][0]).toEqual({ id: 's1', batch: true });
+    expect(mutateAsyncMock.mock.calls[1][0]).toEqual({ id: 's2', batch: true });
   });
 
   it('AC-IXD-TS-W5-3-bulk-fix: bulk-approving ≥2 rows closes the dialog and fires the aggregate toast (RQ v5 fix)', async () => {
@@ -187,6 +190,39 @@ describe('AC-IXD-TS-W5-3: N12 evidence-based bulk approve', () => {
     // aggregate toast reports the split, not two separate toasts
     expect(await findToastAnnouncement('alert', /1 approved/i)).toBeInTheDocument();
     expect(await findToastAnnouncement('alert', /1 failed/i)).toBeInTheDocument();
+  });
+
+  it('coalesces refresh: one settleBatch after the whole batch, not one per sheet (partial success still refreshes)', async () => {
+    mutateAsyncMock.mockImplementation((arg: { id: string }) =>
+      arg.id === 's1' ? Promise.reject(new Error('stale')) : Promise.resolve(undefined));
+    renderAs('Project Manager');
+    await userEvent.click(screen.getByRole('button', { name: /^Select items$/i }));
+    await userEvent.click(screen.getByRole('checkbox', { name: /select all/i }));
+    await userEvent.click(screen.getByRole('button', { name: /Approve 2/i }));
+    await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: /^Approve 2$/i }));
+    await waitFor(() => expect(settleBatchMock).toHaveBeenCalledTimes(1));
+    expect(settleBatchMock).toHaveBeenCalledWith(['s2']);
+  });
+
+  it('keeps the failed week selected and named so it can be retried without resubmitting successes', async () => {
+    mutateAsyncMock.mockImplementation((arg: { id: string }) =>
+      arg.id === 's1' ? Promise.reject(new Error('stale')) : Promise.resolve(undefined));
+    renderAs('Project Manager');
+    await userEvent.click(screen.getByRole('button', { name: /^Select items$/i }));
+    await userEvent.click(screen.getByRole('checkbox', { name: /select all/i }));
+    await userEvent.click(screen.getByRole('button', { name: /Approve 2/i }));
+    await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: /^Approve 2$/i }));
+    const failures = await screen.findByRole('alert', { name: /could not be approved/i });
+    expect(within(failures).getByText(/Anita Rao/)).toBeInTheDocument();
+    expect(within(failures).queryByText(/Dev Shah/)).not.toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: /select Anita Rao's week/i })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: /select Dev Shah's week/i })).not.toBeChecked();
+    mutateAsyncMock.mockReset();
+    mutateAsyncMock.mockResolvedValue(undefined);
+    await userEvent.click(screen.getByRole('button', { name: /Approve 1/i }));
+    await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: /^Approve 1$/i }));
+    await waitFor(() => expect(mutateAsyncMock).toHaveBeenCalledTimes(1));
+    expect(mutateAsyncMock).toHaveBeenCalledWith({ id: 's1', batch: true });
   });
 
   it('Clear exits selection mode', async () => {

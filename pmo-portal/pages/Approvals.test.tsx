@@ -97,6 +97,7 @@ vi.mock('@/src/hooks/useTimesheetApproval', () => ({
   useTimesheetsAwaitingApproval: () => queryState,
   useTimesheetMutations: () => ({
     approve: approveMutation,
+    settleBatch: vi.fn(),
     reject: rejectMutation,
     submit: { mutate: vi.fn(), isPending: false },
   }),
@@ -374,8 +375,8 @@ describe('Approvals desktop bulk actions (AC-912)', () => {
     await userEvent.click(screen.getByRole('button', { name: /Approve 2/i }));
     await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /Approve 2/i }));
     await waitFor(() => expect(approveMutation.mutateAsync).toHaveBeenCalledTimes(2));
-    expect(approveMutation.mutateAsync).toHaveBeenNthCalledWith(1, { id: 'ts-1' });
-    expect(approveMutation.mutateAsync).toHaveBeenNthCalledWith(2, { id: 'ts-2' });
+    expect(approveMutation.mutateAsync).toHaveBeenNthCalledWith(1, { id: 'ts-1', batch: true });
+    expect(approveMutation.mutateAsync).toHaveBeenNthCalledWith(2, { id: 'ts-2', batch: true });
     expect(await findToastAnnouncement('status', /2 approved/i)).toBeInTheDocument();
   });
 
