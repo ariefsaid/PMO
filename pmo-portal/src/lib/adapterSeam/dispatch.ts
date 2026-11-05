@@ -620,7 +620,9 @@ async function reconcileOutbox(row: OutboxRow, deps: DispatchMoneyWriteDeps, com
     case 'pending':
     case 'failed': {
       const claimStartedAtMs = nowMs(money);   // BLOCK 1 — see the quarantined branch above.
-      const claimed = await money.claimOutboxForCommit(row.id);
+      // A failed row re-enters the in-flight set at the claim: while another payment holds the bill the per-bill
+      // constraint refuses it (23505) — the named, localized refusal, not the raw database error.
+      const claimed = await money.claimOutboxForCommit(row.id).catch((error: unknown) => { throw toDispatchError(error); });
       if (claimed) return claimAndCommit(claimed, deps, { claimStartedAtMs });
       // lost the race for this row — another caller claimed it first; re-read and reconcile
       // (never POST).

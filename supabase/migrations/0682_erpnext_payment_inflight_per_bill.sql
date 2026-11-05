@@ -8,10 +8,15 @@
 --
 -- A bill is never kept reserved by a payment that cannot reach ERPNext. A `pending` payment that was never
 -- claimed (claim_generation 0) has not written anything: the ERPNext write follows the claim. When a NEW payment
--- hits a bill held by such a row older than 15 minutes (the claim itself is a 60 s lease; a never-claimed row
--- past 15 minutes belongs to an invocation that died or whose claim was refused), the trigger marks that row
--- `failed` and the new payment takes the bill. committing / committed / quarantined / held rows and any row that
--- was ever claimed have an unknown outcome and are never released this way.
+-- hits a bill held by such a row older than 15 minutes (the claim itself is a 60 s lease; the sweep normally claims
+-- a pending row within a tick, so an older one was not being driven), the trigger marks that row `failed` and the new
+-- payment takes the bill. committing / committed / quarantined / held rows and any row that was ever claimed have an
+-- unknown outcome and are never released this way.
+--
+-- A payment freed from its bill is not retried automatically: the release (and fail_refused_payment_claim, for a
+-- claim the purchase rules refuse) sets attempt_count to the automatic budget, so neither the sweep's candidate
+-- list nor the pending-retry list holds it. Otherwise it would post later, after the newer payment settles. A
+-- person's same-key retry still works: it is a decision, gated by this bill lock and the remarks-key probe.
 --
 -- Backfill chooses one deterministic reservation per org/bill. DISTINCT ON makes this safe when
 -- existing in-flight rows already overlap; when the chosen row settles, the trigger hands the
@@ -158,6 +163,7 @@ begin
         update public.external_command_outbox o
            set state = 'failed',
                last_error = 'payment-intent-expired-before-claim',
+               attempt_count = greatest(o.attempt_count, public.outbox_max_auto_attempts()),
                updated_at = now()
           from public.erpnext_payment_inflight_bills r
          where r.org_id = v_new_org_id and r.bill_name = v_bill_name
@@ -180,6 +186,26 @@ $$;
 
 revoke all on function public.sync_erpnext_payment_inflight_bills() from public, anon, authenticated;
 grant execute on function public.sync_erpnext_payment_inflight_bills() to service_role;
+
+-- The dispatcher's write for a claim the purchase rules refused: the never-claimed pending payment becomes failed,
+-- frees its bill and is left to a person (see the header). Fenced to pending / never claimed, so a payment that was
+-- ever claimed is untouched.
+create or replace function public.fail_refused_payment_claim(p_id uuid, p_error text)
+returns void
+language sql
+security invoker
+set search_path = public, pg_temp
+as $$
+  update public.external_command_outbox
+     set state = 'failed',
+         last_error = p_error,
+         attempt_count = greatest(attempt_count, public.outbox_max_auto_attempts()),
+         updated_at = now()
+   where id = p_id and state = 'pending' and claim_generation = 0;
+$$;
+
+revoke all on function public.fail_refused_payment_claim(uuid, text) from public, anon, authenticated;
+grant execute on function public.fail_refused_payment_claim(uuid, text) to service_role;
 
 create trigger external_command_outbox_zz_erpnext_payment_inflight_guard
   after insert or update or delete on public.external_command_outbox

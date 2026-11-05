@@ -108,6 +108,8 @@ interface World {
   paymentAllowedStatus?: number;
   /** The outbox claim's named refusal (0368/0373): the rules in force when the queued payment is claimed refuse it. */
   claimRefusal?: string;
+  /** Another payment holds the bill when the claim runs: the per-bill constraint (0682) raises 23505. */
+  claimBillInFlight?: boolean;
 }
 
 interface SharedPaymentWorld {
@@ -195,7 +197,16 @@ function routes(unexpected: FetchCall[], caller: string, ceilingOk = true, amoun
     },
     { label: 'outbox update', method: 'PATCH', pathname: '/rest/v1/external_command_outbox',
       response: () => jsonResponse([{ id: 'outbox-1' }]) },
+    supabaseRpc('fail_refused_payment_claim', () => jsonResponse(null)),
     supabaseRpc('claim_outbox_for_commit', () => {
+      if (world.claimBillInFlight) {
+        return jsonResponse({
+          code: '23505',
+          message: 'duplicate key value violates unique constraint "external_command_outbox_one_inflight_erpnext_payment_per_bill"',
+          details: 'Key (org_id, bill_name) already exists.',
+          hint: null,
+        }, { status: 409 });
+      }
       if (world.claimRefusal) {
         return jsonResponse({ code: 'P0001', message: world.claimRefusal, details: null, hint: null }, { status: 400 });
       }
@@ -414,5 +425,36 @@ describe('#910 — the vendor-payment SoD gate through the SERVED adapter-dispat
     assertEquals(JSON.parse(r.body).message, 'procurement-payment-refused: gate_approval_before_order');
     assert(r.calls.some((c) => c.url.pathname === '/rest/v1/rpc/claim_outbox_for_commit'), 'the claim was asked');
     assertEquals(r.calls.filter((c) => c.url.host === ERP_HOST && c.method === 'POST').length, 0, 'no ERP document was created');
+    // C1: the never-claimed row is failed through the service-role function, which also uses up its automatic
+    // attempts (the cap is a database fact, not a TS literal), so the sweep never re-drives a refused payment.
+    const refusalWrites = r.calls.filter((c) => c.url.pathname === '/rest/v1/rpc/fail_refused_payment_claim');
+    assertEquals(refusalWrites.length, 1, 'the refusal is recorded through fail_refused_payment_claim');
+    assertEquals(refusalWrites[0].bodyJson, { p_id: 'outbox-1', p_error: 'procurement-payment-refused: gate_approval_before_order' });
+    assertEquals(r.calls.filter((c) => c.method === 'PATCH' && c.url.pathname === '/rest/v1/external_command_outbox').length, 0,
+      'no direct table write that could leave the automatic attempts unspent');
+  });
+
+  // M6 (per-bill payment review): a person's same-key retry of a payment freed from its bill is refused with the
+  // named in-flight reason while another payment holds the bill, and posts nothing.
+  it('a same-key retry while another payment holds the bill answers 409 payment-in-flight-for-bill and posts nothing', async () => {
+    const shared = newSharedWorld();
+    shared.loseNextPaymentPostResponse = true;
+    const first = await dispatchAs(PAYER_ID, {}, paymentCreateCommand(), shared);
+    assertEquals(first.status, 502, first.body);
+    // The first payment was freed from its bill (failed); a newer payment now holds it.
+    const [freed] = [...shared.outbox.values()];
+    freed.state = 'failed';
+    shared.outbox.set('newer-payment|key-newer', {
+      ...freed, id: 'outbox-newer', pmo_record_id: 'newer-payment', idempotency_key: 'key-newer', state: 'committing',
+    });
+    const postsBefore = shared.paymentPosts;
+
+    const retry = await dispatchAs(PAYER_ID, { claimBillInFlight: true }, paymentCreateCommand(), shared);
+    assertEquals(retry.unexpected.map((c) => `${c.method} ${c.url.pathname}${c.url.search}`), [], 'every read is mocked');
+    assertEquals(retry.status, 409, retry.body);
+    assertEquals(JSON.parse(retry.body).error, 'payment-in-flight-for-bill');
+    assert(retry.calls.some((c) => c.url.pathname === '/rest/v1/rpc/claim_outbox_for_commit'), 'the claim was asked');
+    assertEquals(retry.calls.filter((c) => c.url.host === ERP_HOST && c.method === 'POST').length, 0, 'no ERP document was created');
+    assertEquals(shared.paymentPosts, postsBefore, 'the bill received no second payment');
   });
 });

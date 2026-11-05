@@ -1,5 +1,5 @@
 begin;
-select plan(35);
+select plan(45);
 
 create function pg_temp.reservation_owner(p_org uuid, p_bill text) returns text language plpgsql as $$
 declare
@@ -180,6 +180,16 @@ select is(pg_temp.reservation_owner('06820000-0000-0000-0000-000000000001', 'ERP
           '06820000-0000-0000-0000-000000000202', 'the new payment owns the released bill');
 select is(pg_temp.reservation_owner('06820000-0000-0000-0000-000000000001', 'ERP-PINV-0682-I'), null,
   'the stale holder''s other bill is released too');
+-- C1: a payment freed from its bill is terminal for the AUTOMATIC path. Otherwise the sweep would claim it after the
+-- newer payment settles and post the bill a second time. A person's same-key retry is a click, gated by the bill lock.
+select cmp_ok((select attempt_count from external_command_outbox where id = '06820000-0000-0000-0000-000000000201'),
+  '>=', public.outbox_max_auto_attempts(), 'the released stale holder has used up its automatic attempts');
+select ok(not exists (select 1 from public.outbox_reconcile_candidates('06820000-0000-0000-0000-000000000001')
+                       where id = '06820000-0000-0000-0000-000000000201'),
+  'the released stale holder is not a sweep candidate');
+select ok(not exists (select 1 from public.outbox_retry_pending('06820000-0000-0000-0000-000000000001') as p(id)
+                       where p.id = '06820000-0000-0000-0000-000000000201'),
+  'the released stale holder is not waiting for an automatic retry either');
 
 insert into external_command_outbox (id, org_id, domain, pmo_record_id, idempotency_key, external_tier, operation, state, payload) values
   ('06820000-0000-0000-0000-000000000203', '06820000-0000-0000-0000-000000000001', 'procurement', 'payment-fresh', 'key-fresh', 'erpnext', 'create', 'pending',
@@ -226,8 +236,24 @@ select throws_ok(
 insert into external_command_outbox (id, org_id, domain, pmo_record_id, idempotency_key, external_tier, operation, state, payload) values
   ('06820000-0000-0000-0000-000000000208', '06820000-0000-0000-0000-000000000001', 'procurement', 'payment-refused', 'key-refused', 'erpnext', 'create', 'pending',
    '{"erp_doc_kind":"payment","pi_names":["ERP-PINV-0682-O"]}');
-update external_command_outbox set state = 'failed', last_error = 'procurement-payment-refused: x'
- where id = '06820000-0000-0000-0000-000000000208' and state = 'pending' and claim_generation = 0;
+select public.fail_refused_payment_claim('06820000-0000-0000-0000-000000000208', 'procurement-payment-refused: x');
+select is((select state from external_command_outbox where id = '06820000-0000-0000-0000-000000000208'), 'failed',
+  'a refused claim marks the never-claimed payment failed');
+select cmp_ok((select attempt_count from external_command_outbox where id = '06820000-0000-0000-0000-000000000208'),
+  '>=', public.outbox_max_auto_attempts(), 'a refused claim uses up the automatic attempts');
+select ok(not exists (select 1 from public.outbox_reconcile_candidates('06820000-0000-0000-0000-000000000001')
+                       where id = '06820000-0000-0000-0000-000000000208'),
+  'a refused claim is not a sweep candidate');
+select ok(not exists (select 1 from public.outbox_retry_pending('06820000-0000-0000-0000-000000000001') as p(id)
+                       where p.id = '06820000-0000-0000-0000-000000000208'),
+  'a refused claim is not waiting for an automatic retry either');
+select public.fail_refused_payment_claim('06820000-0000-0000-0000-000000000207', 'procurement-payment-refused: x');
+select is((select state from external_command_outbox where id = '06820000-0000-0000-0000-000000000207'), 'pending',
+  'the refusal write leaves a payment that was ever claimed alone');
+select ok(not has_function_privilege('authenticated', 'public.fail_refused_payment_claim(uuid,text)', 'execute'),
+  'authenticated cannot execute the refused-claim write');
+select ok(has_function_privilege('service_role', 'public.fail_refused_payment_claim(uuid,text)', 'execute'),
+  'service_role can execute the refused-claim write');
 select lives_ok(
   $$ insert into external_command_outbox (org_id, domain, pmo_record_id, idempotency_key, external_tier, operation, state, payload)
      values ('06820000-0000-0000-0000-000000000001', 'procurement', 'after-refused', 'key-after-refused', 'erpnext', 'create', 'pending',
