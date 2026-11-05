@@ -259,10 +259,19 @@ describe('#1514 T7.1 claim and preview reads', () => {
     expect(h.calls.rpc).toEqual([['preview_tm_claim', { p_project: 'p1', p_from: '2026-09-01', p_to: '2026-09-30' }]]);
     expect(page.rows[1]).toEqual({
       line_key: null, rate_version: null, kind: null, basis: 'work', label: null, unit: null, rate: null,
-      user_id: 'u4', units: 4, amount: null, source_count: 1, unrated_reason: 'no_assignee',
+      user_id: 'u4', asset_id: null, asset_name: null, units: 4, amount: null, source_count: 1, unrated_reason: 'no_assignee',
     });
     // the priced group beside it is unaffected
     expect(page.rows[0].amount).toBe(6000000);
+  });
+
+  it('T5 review: an unrated equipment group carries its machine, not a person', async () => {
+    h.result.value = {
+      data: [{ line_key: null, rate_version: null, kind: 'equipment', basis: 'standby', label: null, unit: null, rate: null, user_id: null, asset_id: 'a1', asset_name: 'Excavator', units: 6, amount: null, source_count: 2, unrated_reason: 'no_rate' }],
+      error: null,
+    };
+    const page = await dal.previewTmClaim({ projectId: 'p1', from: '2026-09-01', to: '2026-09-30' });
+    expect(page.rows[0]).toMatchObject({ kind: 'equipment', basis: 'standby', user_id: null, asset_id: 'a1', asset_name: 'Excavator' });
   });
 
   it('T7.1 a preview row without units is still an error — a missing quantity is never a zero', async () => {
@@ -293,13 +302,23 @@ describe('#1514 T7.1 claim and preview reads', () => {
     }], error: null };
     await expect(dal.listTmClaimSources('c1')).resolves.toEqual({
       rows: [{
-        id: 'source-row-1', entry_id: 'entry-1', entry_date: '2026-11-03', person_id: 'u1', person_name: 'Engineer One', basis: 'work',
+        id: 'source-row-1', entry_id: 'entry-1', entry_date: '2026-11-03', person_id: 'u1', person_name: 'Engineer One', asset_id: null, asset_name: null, basis: 'work',
         units: 8, unit: 'hour', line_label: 'Site engineer', is_selected: true, person_unit_total: 8,
       }], truncated: false, totalCount: 1,
       signoffCurrent: true,
     });
     expect(h.calls.rpc).toEqual([['list_tm_claim_source_details', { p_claim: 'c1' }]]);
     expect(h.calls.limit).toContain(LIST_LIMIT + 1);
+  });
+
+  it('T5 review: an equipment claim source names its machine and has no person', async () => {
+    h.result.value = { data: [{
+      id: 'source-row-2', entry_id: 'usage-1', entry_date: '2026-11-03', person_id: null, person_name: null, asset_id: 'a1', asset_name: 'Excavator', basis: 'standby',
+      units: '6.00', unit: 'hour', line_label: 'Excavator', is_selected: true, person_unit_total: '6.00', total_count: 1,
+      signoff_is_current: true,
+    }], error: null };
+    const read = await dal.listTmClaimSources('c1');
+    expect(read.rows[0]).toMatchObject({ person_id: null, person_name: null, asset_id: 'a1', asset_name: 'Excavator', basis: 'standby' });
   });
 
   it('reports when a prepared sign-off no longer matches the claim sources', async () => {

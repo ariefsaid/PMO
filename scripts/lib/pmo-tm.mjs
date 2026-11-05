@@ -163,7 +163,7 @@ export function formatPreview({ lines = [], unrated = [], total: sum = '0.00' } 
     if (out.length > 0) out.push('');
     out.push('Unrated (listed, not billed):');
     for (const row of unrated) {
-      const person = row.user_id ? names?.get?.(row.user_id) ?? row.user_id : null;
+      const person = row.user_id ? names?.get?.(row.user_id) ?? row.user_id : row.asset_name ?? null;
       out.push(`  ${formatBasisLabel(row.label ?? '(no label)', row.basis)}  ${money(row.units)} ${row.unit ?? ''}${person ? `  ${person}` : ''}  ${row.unrated_reason}`);
     }
   }

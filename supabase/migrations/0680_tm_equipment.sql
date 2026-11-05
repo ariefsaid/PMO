@@ -16,6 +16,7 @@ create unique index contract_rate_lines_equipment_asset_current
 alter table public.tm_claim_lines drop constraint tm_claim_lines_kind_check;
 alter table public.tm_claim_lines add constraint tm_claim_lines_kind_check check (kind in ('labour', 'equipment'));
 alter table public.tm_claim_lines add column basis text not null default 'work' check (basis in ('work', 'standby'));
+alter table public.tm_claim_lines add constraint tm_claim_lines_standby_equipment_only check (basis = 'work' or kind = 'equipment');
 alter table public.tm_claim_lines drop constraint tm_claim_lines_claim_id_line_key_rate_version_key;
 alter table public.tm_claim_lines add constraint tm_claim_lines_claim_line_basis_key unique (claim_id, line_key, rate_version, basis);
 
@@ -65,7 +66,7 @@ begin
     raise exception 'asset_id and standby_rate are only supported for equipment' using errcode = '22023';
   end if;
   if v_kind = 'equipment' and v_asset is null then raise exception 'asset_id is required for equipment' using errcode = '22023'; end if;
-  if v_kind = 'equipment' and not exists (select 1 from public.equipment_assets a where a.id = v_asset and a.org_id = p_org and a.archived_at is null) then
+  if v_kind = 'equipment' and not exists (select 1 from public.equipment_assets a where a.id = v_asset and a.org_id = p_org) then
     raise exception 'asset not found' using errcode = 'P0002';
   end if;
   if char_length(v_label) not between 1 and 120 then raise exception 'label is required (at most 120 characters)' using errcode = '22023'; end if;
@@ -128,6 +129,11 @@ begin
     if v_expected is null or v_expected <> v_cur.version then
       raise exception 'rate line changed since it was loaded (current version %)', v_cur.version using errcode = '40001';
     end if;
+    -- A line keeps its kind and asset for its whole history: a new version cannot turn equipment into labour or re-price
+    -- another machine under this line. To switch, end the line and add a new one.
+    if v_norm->>'kind' is distinct from v_cur.kind or nullif(v_norm->>'asset_id', '')::uuid is distinct from v_cur.asset_id then
+      raise exception 'a rate line keeps its kind and asset: end this line and add a new one to change them' using errcode = '22023';
+    end if;
     v_before := public.contract_rate_line_content(v_cur.id);
     if v_before = v_content then
       return jsonb_build_object('id', v_cur.id, 'line_key', v_key, 'version', v_cur.version, 'changed', false);
@@ -148,6 +154,12 @@ begin
     raise exception 'rate line not found' using errcode = 'P0002';
   elsif p_action = 'end' then
     raise exception 'rate line not found' using errcode = 'P0002';
+  end if;
+  -- Only an asset new to the line must be live: an archived machine's line can still be repriced, mapped or ended.
+  if v_cur.id is null and v_norm->>'kind' = 'equipment'
+     and not exists (select 1 from public.equipment_assets a
+                      where a.id = (v_norm->>'asset_id')::uuid and a.org_id = v_org and a.archived_at is null) then
+    raise exception 'asset not found' using errcode = 'P0002';
   end if;
 
   insert into public.contract_rate_lines (
@@ -242,7 +254,7 @@ drop function public.list_tm_claim_source_details(uuid);
 
 create function public.tm_assignable_sources(p_project uuid, p_from date, p_to date)
 returns table (
-  source_kind text, source_id uuid, user_id uuid, entry_date date, units numeric,
+  source_kind text, source_id uuid, user_id uuid, asset_id uuid, entry_date date, units numeric,
   line_key uuid, rate_version integer, kind text, basis text, label text, unit text, rate numeric, unrated_reason text)
 language sql stable set search_path = public, pg_temp as $$
   with e as (
@@ -268,7 +280,7 @@ language sql stable set search_path = public, pg_temp as $$
        and not exists (select 1 from public.tm_claim_sources s
                         where s.source_kind = 'equipment_usage' and s.source_id = ue.id and s.is_live)
   )
-  select 'timesheet_entry'::text, a.id, a.user_id, a.entry_date, a.hours::numeric,
+  select 'timesheet_entry'::text, a.id, a.user_id, null::uuid, a.entry_date, a.hours::numeric,
          a.assigned_line, r.version, r.kind, 'work'::text, r.label, r.unit, r.rate,
          case when a.assigned_line is null then 'no_assignee'
               when r.id is null then 'no_rate'
@@ -281,7 +293,7 @@ language sql stable set search_path = public, pg_temp as $$
          and a.entry_date <= least(coalesce(l.effective_to, 'infinity'::date), coalesce(l.applies_to, 'infinity'::date))
        order by l.version desc limit 1) r on true
   union all
-  select 'equipment_usage'::text, e.id, null::uuid, e.work_date, e.quantity::numeric,
+  select 'equipment_usage'::text, e.id, null::uuid, e.asset_id, e.work_date, e.quantity::numeric,
          r.line_key, r.version, 'equipment'::text, e.usage_kind::text, r.label, r.unit,
          case when e.usage_kind = 'standby' then r.standby_rate else r.rate end,
          case when r.id is null then 'no_rate'
@@ -294,7 +306,7 @@ language sql stable set search_path = public, pg_temp as $$
          and l.effective_from <= e.work_date
          and e.work_date <= least(coalesce(l.effective_to, 'infinity'::date), coalesce(l.applies_to, 'infinity'::date))
        order by l.version desc limit 1) r on true
-  order by 4, 2
+  order by 5, 2
 $$;
 
 create or replace function public.assemble_tm_claim(
@@ -524,7 +536,7 @@ end $$;
 
 create function public.preview_tm_claim(p_project uuid, p_from date, p_to date)
 returns table(line_key uuid, rate_version integer, kind text, basis text, label text, unit text, rate numeric, user_id uuid,
-              units numeric, amount numeric, source_count bigint, unrated_reason text)
+              asset_id uuid, asset_name text, units numeric, amount numeric, source_count bigint, unrated_reason text)
 language plpgsql stable security definer set search_path = public, pg_temp as $$
 #variable_conflict use_column
 begin
@@ -536,31 +548,38 @@ begin
   return query
     select s.line_key, s.rate_version, s.kind, s.basis, s.label, s.unit, s.rate,
            case when s.unrated_reason is not null then s.user_id end,
+           case when s.unrated_reason is not null then s.asset_id end, case when s.unrated_reason is not null then a.name end,
            sum(s.units), case when s.unrated_reason is null then round(sum(s.units) * s.rate, 2) end,
            count(*), s.unrated_reason
       from public.tm_assignable_sources(p_project, p_from, p_to) s
+      left join public.equipment_assets a on a.id = s.asset_id and a.org_id = public.auth_org_id()
      group by s.line_key, s.rate_version, s.kind, s.basis, s.label, s.unit, s.rate, s.unrated_reason,
-              case when s.unrated_reason is not null then s.user_id end
-     order by s.unrated_reason nulls first, s.label, s.basis, 8;
+              case when s.unrated_reason is not null then s.user_id end,
+              case when s.unrated_reason is not null then s.asset_id end, case when s.unrated_reason is not null then a.name end
+     order by s.unrated_reason nulls first, s.label, s.basis, 8, 10;
 end $$;
 
 create function public.list_tm_claim_source_details(p_claim uuid)
-returns table(id uuid, entry_id uuid, entry_date date, person_id uuid, person_name text, basis text, units numeric, unit text,
-              line_label text, is_selected boolean, person_unit_total numeric, total_count bigint, signoff_is_current boolean)
+returns table(id uuid, entry_id uuid, entry_date date, person_id uuid, person_name text, asset_id uuid, asset_name text,
+              basis text, units numeric, unit text, line_label text, is_selected boolean, person_unit_total numeric,
+              total_count bigint, signoff_is_current boolean)
 language plpgsql stable security definer set search_path = public, pg_temp as $$
 #variable_conflict use_column
 declare
   v_project uuid;
 begin
   if p_claim is null then raise exception 'a claim is required' using errcode = '22023'; end if;
+  -- Resolve through the caller's org before passing the project to the shared amounts-reader gate. A foreign claim is
+  -- indistinguishable from a missing one to this SECURITY DEFINER function.
   select c.project_id into v_project from public.tm_claims c
    where c.id = p_claim and c.org_id = public.auth_org_id();
   if not found then raise exception 'claim not found' using errcode = 'P0002'; end if;
   perform public.tm_assert_amounts_reader(v_project);
   return query
-    select s.id, s.source_id, coalesce(en.entry_date, ue.work_date), coalesce(ts.user_id, ue.author_id), p.full_name,
+    -- Labour sources are grouped by the person who worked; equipment sources by the machine, never by the clerk who logged them.
+    select s.id, s.source_id, coalesce(en.entry_date, ue.work_date), ts.user_id, p.full_name, ue.asset_id, ea.name,
            l.basis, s.units, l.unit, l.label, s.is_live,
-           coalesce(sum(s.units) filter (where s.is_live) over (partition by coalesce(ts.user_id, ue.author_id), l.unit, l.basis), 0),
+           coalesce(sum(s.units) filter (where s.is_live) over (partition by coalesce(ts.user_id, ue.asset_id), l.unit, l.basis), 0),
            count(*) over (),
            coalesce(c.signoff_prepared_by is not null and c.prepared_fingerprint is not null
              and public.tm_claim_fingerprint(c.id) = c.prepared_fingerprint, false)
@@ -570,9 +589,10 @@ begin
       left join public.timesheet_entries en on s.source_kind = 'timesheet_entry' and en.id = s.source_id and en.org_id = s.org_id
       left join public.timesheets ts on ts.id = en.timesheet_id and ts.org_id = en.org_id
       left join public.equipment_usage_entries ue on s.source_kind = 'equipment_usage' and ue.id = s.source_id and ue.org_id = s.org_id
-      left join public.profiles p on p.id = coalesce(ts.user_id, ue.author_id) and p.org_id = s.org_id
+      left join public.profiles p on p.id = ts.user_id and p.org_id = s.org_id
+      left join public.equipment_assets ea on ea.id = ue.asset_id and ea.org_id = s.org_id
      where s.claim_id = p_claim and s.org_id = public.auth_org_id() and c.org_id = public.auth_org_id()
-     order by coalesce(en.entry_date, ue.work_date) nulls last, p.full_name nulls last, l.label, l.basis, s.id;
+     order by coalesce(en.entry_date, ue.work_date) nulls last, p.full_name nulls last, ea.name nulls last, l.label, l.basis, s.id;
 end $$;
 
 create or replace function public.archive_equipment_usage(p_id uuid) returns void
@@ -582,14 +602,15 @@ begin
   perform public.assert_is_active_member();
   select * into v_e from public.equipment_usage_entries e where e.id = p_id for update;
   if not found or v_e.org_id is distinct from public.auth_org_id() then raise exception 'entry not found' using errcode = 'P0002'; end if;
+  -- Authorize before naming a live claim: the claim id is only for a caller who may archive this usage.
+  if not (v_e.author_id is not distinct from auth.uid() and v_e.status in ('Draft','Rejected')) and public.auth_role() is distinct from 'Admin' then
+    raise exception 'not authorized' using errcode = '42501';
+  end if;
   if public.tm_source_is_live('equipment_usage', p_id) then
     select s.claim_id into v_claim from public.tm_claim_sources s where s.source_kind = 'equipment_usage' and s.source_id = p_id and s.is_live limit 1;
     raise exception 'equipment usage belongs to live claim %', v_claim using errcode = '55000';
   end if;
   if v_e.status = 'Approved' then raise exception 'reopen approved usage before archiving it' using errcode = '22023'; end if;
-  if not (v_e.author_id is not distinct from auth.uid() and v_e.status in ('Draft','Rejected')) and public.auth_role() is distinct from 'Admin' then
-    raise exception 'not authorized' using errcode = '42501';
-  end if;
   update public.equipment_usage_entries set archived_at = now(), updated_at = now() where id = p_id and archived_at is null;
   perform public.log_audit('equipment_usage.archive', v_e.org_id, auth.uid(), p_id, jsonb_build_object('status', v_e.status));
 end $$;

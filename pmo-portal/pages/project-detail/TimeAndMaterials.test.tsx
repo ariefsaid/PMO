@@ -19,6 +19,7 @@ const h = vi.hoisted(() => ({
   claims: { data: { rows: [] as unknown[], truncated: false }, isPending: false, isError: false, refetch: vi.fn() },
   preview: { data: { rows: [] as unknown[], truncated: false }, isPending: false, isError: false, refetch: vi.fn() },
   sources: { data: { rows: [] as unknown[], truncated: false, totalCount: 0, signoffCurrent: null as boolean | null }, isPending: false, isError: false, refetch: vi.fn() },
+  assets: [{ id: 'asset-1', name: 'Excavator 01' }] as unknown[],
   profiles: [] as unknown[],
   documents: [] as unknown[],
   erpConnected: true,
@@ -46,6 +47,7 @@ vi.mock('@/src/hooks/useTimeAndMaterials', () => ({
   useWithdrawTmSignoff: () => ({ mutateAsync: h.mutations.withdraw, isPending: false }),
   useConfirmTmSignoff: () => ({ mutateAsync: h.mutations.confirm, isPending: false }),
 }));
+vi.mock('@/src/hooks/useEquipment', () => ({ useEquipmentAssets: () => ({ data: { rows: h.assets, truncated: false }, isPending: false, isError: false }) }));
 vi.mock('@/src/hooks/useTasks', () => ({ useAssignableProfiles: () => ({ data: h.profiles, isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => ({ data: h.documents, isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useErpItemOptions', () => ({ useErpItemOptions: () => ({ connected: h.erpConnected, loadOptions: h.loadItems }) }));
@@ -55,6 +57,11 @@ import TimeAndMaterials from './TimeAndMaterials';
 const rate = {
   id: 'rate-row-1', project_id: 'p1', line_key: 'labour-1', kind: 'labour', label: 'Site engineer', unit: 'hour',
   rate: 50000, currency: 'IDR', effective_from: '2026-11-01', effective_to: null, is_current: true, version: 1,
+};
+const equipmentRate = {
+  id: 'rate-row-eq', project_id: 'p1', line_key: 'equip-1', kind: 'equipment', asset_id: 'asset-1', label: 'Excavator hire', unit: 'hour',
+  rate: 800000, standby_rate: 200000, currency: 'IDR', effective_from: '2026-11-01', effective_to: null, is_current: true, version: 2,
+  sales_item_code: null,
 };
 const assignment = {
   id: 'assignment-1', project_id: 'p1', line_key: 'labour-1', user_id: 'u-engineer',
@@ -606,6 +613,86 @@ describe('TimeAndMaterials', () => {
     expect(h.mutations.endRate).not.toHaveBeenCalled();
     await user.click(within(dialog).getByRole('button', { name: /End rate/ }));
     await waitFor(() => expect(h.mutations.endRate).toHaveBeenCalledWith({ projectId: 'p1', lineKey: 'labour-1', expectedVersion: 1, effectiveTo: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/) }));
+  });
+
+  it('T5 review: shows an equipment rate line read-only with its machine, rate and standby rate', async () => {
+    h.rates = { ...h.rates, data: { rows: [rate, equipmentRate], truncated: false } };
+    renderPanel();
+    const row = (await screen.findByText('Excavator hire')).closest('li') as HTMLElement;
+    expect(within(row).getByText('Equipment')).toBeInTheDocument();
+    expect(within(row).getByText('Excavator 01')).toBeInTheDocument();
+    expect(row).toHaveTextContent('800,000');
+    expect(row).toHaveTextContent('Standby');
+    expect(row).toHaveTextContent('200,000');
+    expect(within(row).queryByRole('button', { name: /Edit rate/ })).not.toBeInTheDocument();
+    expect(within(row).queryByText('Not assigned yet')).not.toBeInTheDocument();
+    expect(within(row).getByRole('button', { name: /End rate/ })).toBeInTheDocument();
+  });
+
+  it('T5 review: mapping an equipment row sends its own kind, machine and standby rate, never labour', async () => {
+    h.rates = { ...h.rates, data: { rows: [equipmentRate], truncated: false } };
+    h.loadItems = vi.fn(async () => [{ value: 'ITEM-EXC', label: 'ITEM-EXC', sub: 'Excavator hire' }]);
+    const { user } = renderPanel();
+    await user.click(await screen.findByRole('button', { name: 'Accept proposed (1)' }));
+    await waitFor(() => expect(h.mutations.saveRate).toHaveBeenCalledTimes(1));
+    expect(h.mutations.saveRate).toHaveBeenCalledWith([expect.objectContaining({
+      line_key: 'equip-1', expected_version: 2, kind: 'equipment', asset_id: 'asset-1', standby_rate: 200000,
+      rate: 800000, unit: 'hour', sales_item_code: 'ITEM-EXC',
+    })]);
+  });
+
+  it('T5 review: mapping all proposed items keeps each line its own kind, so one equipment line cannot fail the batch', async () => {
+    h.rates = { ...h.rates, data: { rows: [rate, equipmentRate], truncated: false } };
+    h.loadItems = vi.fn(async () => [
+      { value: 'ITEM-LAB', label: 'ITEM-LAB', sub: 'Site engineer' },
+      { value: 'ITEM-EXC', label: 'ITEM-EXC', sub: 'Excavator hire' },
+    ]);
+    const { user } = renderPanel();
+    await user.click(await screen.findByRole('button', { name: 'Accept proposed (2)' }));
+    await waitFor(() => expect(h.mutations.saveRate).toHaveBeenCalledTimes(1));
+    const sent = h.mutations.saveRate.mock.calls[0]?.[0] as Array<Record<string, unknown>>;
+    expect(sent.map((line) => [line.line_key, line.kind, line.asset_id ?? null])).toEqual([
+      ['labour-1', 'labour', null], ['equip-1', 'equipment', 'asset-1'],
+    ]);
+    expect(sent[0]).not.toHaveProperty('standby_rate');
+  });
+
+  it('T5 review: a clearing of an equipment sales item keeps the machine too', async () => {
+    h.rates = { ...h.rates, data: { rows: [{ ...equipmentRate, sales_item_code: 'ITEM-EXC' }], truncated: false } };
+    const { user } = renderPanel();
+    await user.click(await screen.findByRole('button', { name: /Clear/ }));
+    await waitFor(() => expect(h.mutations.saveRate).toHaveBeenCalledWith([expect.objectContaining({
+      kind: 'equipment', asset_id: 'asset-1', standby_rate: 200000, sales_item_code: null,
+    })]));
+  });
+
+  it('T5 review: the assign form offers labour rates only', async () => {
+    h.rates = { ...h.rates, data: { rows: [rate, equipmentRate], truncated: false } };
+    const { user } = renderPanel();
+    await user.click(await screen.findByRole('button', { name: /Assign person/ }));
+    const dialog = screen.getByRole('dialog', { name: /Assign a person to a rate/ });
+    const options = within(within(dialog).getByLabelText(/Rate line/)).getAllByRole('option').map((option) => option.textContent);
+    expect(options.join('|')).toContain('Site engineer');
+    expect(options.join('|')).not.toContain('Excavator hire');
+  });
+
+  it('T5 review: unrated equipment names its machine and a standby claim line says standby', async () => {
+    h.preview = { ...h.preview, data: { rows: [
+      { ...unrated, kind: 'equipment', basis: 'standby', user_id: null, asset_id: 'asset-1', asset_name: 'Excavator 01', unrated_reason: 'no_standby_rate', units: 6 },
+    ], truncated: false } };
+    h.claims = { ...h.claims, data: { rows: [{ ...claim, lines: [{ lineKey: 'equip-1', rateVersion: 1, kind: 'equipment', basis: 'standby', label: 'Excavator hire', unit: 'hour', units: 6, rate: 200000, amount: 1200000 }] }], truncated: false } };
+    h.sources = { ...h.sources, data: { rows: [
+      { id: 'source-eq-1', entry_id: 'usage-1', entry_date: '2026-11-03', person_id: null, person_name: null, asset_id: 'asset-1', asset_name: 'Excavator 01', basis: 'standby', units: 6, unit: 'hour', line_label: 'Excavator hire', is_selected: true, person_unit_total: 6 },
+    ], truncated: false, totalCount: 1, signoffCurrent: true } };
+    const { user } = renderPanel();
+    const unratedList = (await screen.findByRole('heading', { name: /Unrated/ })).parentElement as HTMLElement;
+    expect(unratedList).toHaveTextContent('Excavator 01');
+    expect(unratedList).toHaveTextContent('No standby rate');
+    expect(unratedList).not.toHaveTextContent('Person not identified');
+    await user.click(await screen.findByRole('button', { name: /Open claim/ }));
+    const drawer = await screen.findByRole('dialog', { name: /Time-and-materials claim/ });
+    expect(within(drawer).getByRole('heading', { name: 'Excavator 01' })).toBeInTheDocument();
+    expect(drawer).toHaveTextContent('Excavator hire (standby)');
   });
 
   it('marks an ended rate and hides its edit and end actions', async () => {

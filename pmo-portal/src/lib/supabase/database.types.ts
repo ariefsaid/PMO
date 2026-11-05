@@ -11852,6 +11852,7 @@ export type Database = {
           units: number
           unrated_reason: string
           user_id: string | null
+          asset_id: string | null
         }[]
       }
       tm_source_is_live: {
@@ -13237,6 +13238,8 @@ export type Database = {
           line_label: string
           person_id: string | null
           person_name: string | null
+          asset_id: string | null
+          asset_name: string | null
           person_unit_total: number
           signoff_is_current: boolean
           total_count: number
@@ -13856,6 +13859,8 @@ export type Database = {
           units: number
           unrated_reason: string
           user_id: string | null
+          asset_id: string | null
+          asset_name: string | null
         }[]
       }
       procurement_evidenced_step: {

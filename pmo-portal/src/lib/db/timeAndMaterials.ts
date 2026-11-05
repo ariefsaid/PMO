@@ -28,12 +28,15 @@ export interface TmClaimSourceDetail {
   entry_date: string | null;
   person_id: string | null;
   person_name: string | null;
+  /** Equipment sources name the machine; labour sources leave these null and name the person. */
+  asset_id: string | null;
+  asset_name: string | null;
   basis: TmClaimBasis;
   units: number;
   unit: TmRateUnit;
   line_label: string;
   is_selected: boolean;
-  /** Full selected subtotal for this person and unit, even when the visible list is capped. */
+  /** Full selected subtotal for this person (or machine) and unit, even when the visible list is capped. */
   person_unit_total: number;
 }
 export interface TmClaimSourcesRead extends Bounded<TmClaimSourceDetail> {
@@ -177,6 +180,9 @@ export interface TmClaimPreviewRow {
   unit: string | null;
   rate: number | null;
   user_id: string | null;
+  /** An unrated equipment group names its machine; priced rows and labour rows leave these null. */
+  asset_id: string | null;
+  asset_name: string | null;
   units: number;
   amount: number | null;
   source_count: number;
@@ -438,6 +444,8 @@ function parsePreviewRow(raw: unknown): TmClaimPreviewRow {
     unit: strOrNull(row.unit),
     rate: finiteOrNull(row.rate, 'preview rate'),
     user_id: strOrNull(row.user_id),
+    asset_id: strOrNull(row.asset_id),
+    asset_name: strOrNull(row.asset_name),
     units: finite(row.units, 'preview units'),
     // An unrated group has NO amount: it must never read as 0.00 in the review list.
     amount: finiteOrNull(row.amount, 'preview amount'),
@@ -472,6 +480,8 @@ function parseTmClaimSourceDetail(raw: unknown): ParsedTmClaimSourceDetail {
     entry_date: strOrNull(row.entry_date),
     person_id: strOrNull(row.person_id),
     person_name: strOrNull(row.person_name),
+    asset_id: strOrNull(row.asset_id),
+    asset_name: strOrNull(row.asset_name),
     basis: oneOf(row.basis, CLAIM_BASES, 'source basis'),
     units: finite(row.units, 'source units'),
     unit: oneOf(row.unit, ['hour', 'day'] as const, 'source unit'),

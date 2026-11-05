@@ -124,6 +124,8 @@ test('AC-TM-017 standby basis is visible in preview and frozen claim output', ()
   assert.match(formatClaims([{ ...CLAIMS[0], lines: [standby] }]), /Excavator \(standby\)/);
   const unbilled = formatPreview({ lines: [], unrated: [{ ...standby, rate: null, amount: null, user_id: null, unrated_reason: 'no_standby_rate' }] });
   assert.match(unbilled, /Excavator \(standby\).*no_standby_rate/);
+  const crane = formatPreview({ lines: [], unrated: [{ ...standby, label: null, basis: 'work', unit: null, rate: null, amount: null, user_id: null, asset_name: 'Crane A', unrated_reason: 'no_rate' }] });
+  assert.match(crane, /Crane A.*no_rate/, 'an unrated equipment source names its machine');
   assert.doesNotMatch(unbilled, /no person/);
 });
 

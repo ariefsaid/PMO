@@ -584,6 +584,7 @@ alter function public.list_tm_claim_source_details(uuid) owner to postgres;
 revoke all on function public.list_tm_claim_source_details(uuid) from public, anon, authenticated;
 grant execute on function public.list_tm_claim_source_details(uuid) to authenticated;
 
+alter table public.tm_claim_lines drop constraint tm_claim_lines_standby_equipment_only;
 alter table public.tm_claim_lines drop constraint tm_claim_lines_claim_line_basis_key;
 alter table public.tm_claim_lines add constraint tm_claim_lines_claim_id_line_key_rate_version_key unique (claim_id, line_key, rate_version);
 alter table public.tm_claim_lines drop constraint tm_claim_lines_basis_check;
