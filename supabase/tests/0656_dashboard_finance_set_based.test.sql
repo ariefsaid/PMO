@@ -3,7 +3,7 @@
 -- row-per-project bodies returned, for every role, on an ERP-ledger org and on a PMO-basis org.
 -- The oracle functions below are the 0322 / 0396+0591 bodies verbatim, renamed; they live only in this transaction.
 begin;
-select plan(22);
+select plan(23);
 
 create or replace function public._old_exec_dashboard()
  RETURNS json
@@ -339,6 +339,29 @@ update budget_versions set status = 'Active' where id in
 insert into procurements (id, org_id, title, status, total_value, project_id, requested_by_id) values
   ('06560000-0000-0000-0000-000000000e01','00000000-0000-0000-0000-000000000001','Q12 PO','Ordered',2400,'06560000-0000-0000-0000-000000000004','00000000-0000-0000-0000-0000000000a3');
 
+-- I-1: the two shapes the first seed could not tell apart. (a) a budgeted project whose ledger is PARTLY read: Labor read,
+-- Subcontractors row is NaN (unobtainable), so "every budgeted category read" is false while "some category read" is true.
+-- (b) an UNBUDGETED project whose every category is mapped and read (the categories the seed leaves unmapped are
+-- mapped here), so the no-budget branch reaches the spend-authority gate.
+insert into budget_category_account_map (org_id, category, erp_account, is_push_target) values
+  ('00000000-0000-0000-0000-000000000001','Overheads','Q12 Overheads', false),
+  ('00000000-0000-0000-0000-000000000001','Special expenses','Q12 Special', false),
+  ('00000000-0000-0000-0000-000000000001','Travel & accommodation','Q12 Travel', false),
+  ('00000000-0000-0000-0000-000000000001','Vehicle','Q12 Vehicle', false);
+insert into projects (id, org_id, name, status, currency, contract_value, tax_treatment, tax_amount, client_id) values
+  ('06560000-0000-0000-0000-000000000006','00000000-0000-0000-0000-000000000001','Q12 partly read','Ongoing Project','USD',6000,'exclusive',0,'c0000000-0000-0000-0000-000000000002'),
+  ('06560000-0000-0000-0000-000000000007','00000000-0000-0000-0000-000000000001','Q12 unbudgeted fully read','Ongoing Project','USD',7000,'exclusive',0,'c0000000-0000-0000-0000-000000000002');
+insert into budget_versions (id, org_id, project_id, version, name, status, currency) values
+  ('06560000-0000-0000-0000-0000000000c6','00000000-0000-0000-0000-000000000001','06560000-0000-0000-0000-000000000006',1,'partly','Draft','USD');
+insert into budget_line_items (org_id, budget_version_id, category, description, budgeted_amount) values
+  ('00000000-0000-0000-0000-000000000001','06560000-0000-0000-0000-0000000000c6','Labor','partly',800),
+  ('00000000-0000-0000-0000-000000000001','06560000-0000-0000-0000-0000000000c6','Subcontractors','partly',700);
+update budget_versions set status = 'Active' where id = '06560000-0000-0000-0000-0000000000c6';
+insert into erp_actuals_snapshot (org_id, project_id, account, fiscal_year, debit, credit, net, as_of, snapshot_id) values
+  ('00000000-0000-0000-0000-000000000001','06560000-0000-0000-0000-000000000006','Salary - PSC','2026',300,0,300, now() - interval '1 day','5a000000-0000-0000-0000-000000000001'),
+  ('00000000-0000-0000-0000-000000000001','06560000-0000-0000-0000-000000000006','Subcontractor Costs - PSC','2026',0,0,'NaN', now() - interval '1 day','5a000000-0000-0000-0000-000000000001'),
+  ('00000000-0000-0000-0000-000000000001','06560000-0000-0000-0000-000000000007','Salary - PSC','2026',200,0,200, now() - interval '1 day','5a000000-0000-0000-0000-000000000001');
+
 set local role authenticated;
 set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select is(public.get_executive_dashboard()::text, public._old_exec_dashboard()::text, 'AC-PERF-Q12-001 dashboard identical: Executive, ERP-ledger org');
@@ -363,6 +386,13 @@ set local role authenticated;
 set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000000a5","role":"authenticated"}';
 select is(public.get_executive_dashboard()::text, public._old_exec_dashboard()::text, 'AC-PERF-Q12-001 dashboard identical: Admin, ERP-ledger org');
 select is(public.get_finance_budget_review()::text, public._old_finance_review()::text, 'AC-PERF-Q12-001 finance review identical: Admin, ERP-ledger org');
+reset role;
+
+-- Non-vacuity of the new shapes (ledger basis): the partly-read project is listed with incomplete actuals.
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000000a3","role":"authenticated"}';
+select ok((select bool_or(not (e->>'actual_complete')::boolean) from json_array_elements(public.get_finance_budget_review()) e
+  where e->>'id' = '06560000-0000-0000-0000-000000000006'), 'AC-PERF-Q12-001 partly-read project reports incomplete actuals');
 reset role;
 
 -- PMO-basis org: the same org with its ERP binding disconnected.
