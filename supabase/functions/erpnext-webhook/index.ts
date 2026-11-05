@@ -355,18 +355,19 @@ async function resolveEmployingOrgsLive(serviceClient: SupabaseClient): Promise<
             .eq('org_id', orgId)
             .eq('external_tier', tier)
             .maybeSingle();
-          if (error) return null;
+          if (error) throw new AppError(error.message, error.code); // a failed read is retryable, not a missing secret
           return data as { webhook_secret_ref?: string | null } | null;
         },
         readVaultSecret: async (ref) => {
           const { data, error } = await serviceClient.rpc('read_vault_secret', { p_secret_ref: ref });
           if (error) {
             console.error('read_vault_secret failed', error);
-            return null;
+            throw new AppError(error.message, error.code);
           }
           return (data as string | null) ?? null;
         },
       });
+      if (result.kind === 'read-failed') throw new AppError('webhook secret lookup failed', 'external-unreachable'); // → retryable 500
       if (result.kind === 'resolved') webhookSecret = result.secret;
       // no-binding / binding-vault-miss → webhookSecret stays empty → skipped (fail closed)
     }
