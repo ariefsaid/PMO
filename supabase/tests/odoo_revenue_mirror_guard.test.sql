@@ -1,5 +1,5 @@
 -- #1506 O3 C3 (migration 0511): the Odoo facts on sales_invoices are written only by the service-role mirror writer.
--- #1825 (migration 0693): odoo_matched_payment_refs joins them — the receipt references the invoice read-back shows matched.
+-- #1825 (migration 0695): odoo_matched_payment_refs joins them — the receipt references the invoice read-back shows matched.
 -- AC-OCI-070 (partial; C6 extends): a user JWT cannot write odoo_state / odoo_attention / odoo_sent_total / odoo_read_at, the service role
 -- can, and the org scope holds. Two layers are proved apart so neither hides behind the other: the column grants (no client UPDATE/INSERT
 -- on the new columns) and the trigger pin (the table OWNER, which grants do not stop, still cannot write them under a user's JWT claims).

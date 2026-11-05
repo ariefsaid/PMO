@@ -7,7 +7,7 @@
 -- flag clears because the reference appears in the invoice's own read-back — never because one wall
 -- clock passed another. Written only by the service-role mirror writer: pinned by
 -- sales_invoices_native_mirror_guard against every non-service caller, like the 0511 facts.
--- Reversal: rollback/0693_sales_invoices_odoo_matched_payment_refs_down.sql.
+-- Reversal: rollback/0695_sales_invoices_odoo_matched_payment_refs_down.sql.
 
 alter table public.sales_invoices
   add column odoo_matched_payment_refs text[];
@@ -21,7 +21,7 @@ begin
   if coalesce(auth.jwt() ->> 'role', '') = 'service_role' then return new; end if;
   -- 0511 (#1506 C3): the Odoo facts are written only by the service-role mirror writer. Pinned before the externally-owned early
   -- return, so a person never sets them directly, whoever owns revenue (the client UPDATE grant is already revoked, 0176; this is the trigger layer).
-  -- 0693 (#1825): the matched receipt references join them — the flag's single-system evidence.
+  -- 0695 (#1825): the matched receipt references join them — the flag's single-system evidence.
   if new.odoo_state is distinct from old.odoo_state
      or new.odoo_attention is distinct from old.odoo_attention
      or new.odoo_sent_total is distinct from old.odoo_sent_total

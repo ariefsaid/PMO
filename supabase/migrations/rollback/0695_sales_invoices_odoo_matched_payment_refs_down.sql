@@ -1,4 +1,4 @@
--- Reversal of 0693_sales_invoices_odoo_matched_payment_refs.sql (#1825).
+-- Reversal of 0695_sales_invoices_odoo_matched_payment_refs.sql (#1825).
 -- Restore the 0511 guard (without the odoo_matched_payment_refs pin) and drop the column.
 
 create or replace function public.sales_invoices_native_mirror_guard() returns trigger
