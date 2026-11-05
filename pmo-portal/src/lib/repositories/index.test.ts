@@ -228,12 +228,12 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
     );
   });
 
-  it('financialStatements exposes catalogue and get through the public API seam', async () => {
+  it('financialStatements exposes catalogue, get and refreshNow through the public API seam', async () => {
     const catalogue = { state: 'unavailable', companyLabel: null, generation: null, periods: [], scopes: [] };
     vi.mocked(financialStatementsDal.getFinancialStatementCatalogue).mockResolvedValue(catalogue as never);
     await expect(repositories.financialStatements.catalogue()).resolves.toBe(catalogue);
     expect(financialStatementsDal.getFinancialStatementCatalogue).toHaveBeenCalledWith({});
-    expect(Object.keys(repositories.financialStatements).sort()).toEqual(['catalogue', 'get']);
+    expect(Object.keys(repositories.financialStatements).sort()).toEqual(['catalogue', 'get', 'refreshNow']);
   });
 
   it('companyCollections exposes both canonical-reference batch reads', () => {
