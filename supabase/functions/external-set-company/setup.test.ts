@@ -1147,6 +1147,34 @@ Deno.test("project ensure searches the PMO code before creating a new ERP Projec
     assertEquals((await response.json()).erpProject, "SYNTH-2");
   });
 });
+Deno.test("project ensure refuses to overwrite a mapping another admin saved for the same project after a lost write race", async () => {
+  let bindingReads = 0;
+  await withFetchMock([
+    supabaseSelect("external_org_bindings", () => {
+      bindingReads++;
+      const project_map = bindingReads === 1 ? binding.config.project_map : { ...binding.config.project_map, "project-2": "REVIEWED-OTHER" };
+      return jsonResponse({ ...binding, config: { ...binding.config, project_map } });
+    }),
+
+    ...base(),
+    supabaseSelect("projects", () => jsonResponse({ id: "project-2", name: "Delivery", code: "SYNTH-2" })),
+    erp("erp.example.test", "/api/resource/Project", (call) => {
+      const filters = JSON.parse(call.url.searchParams.get("filters")!);
+      return jsonResponse({
+        data: filters[1][0] === "name"
+          ? [{ name: "SYNTH-2", project_name: "Delivery", company: "Example Company", is_active: "Yes" }]
+          : [],
+      });
+    }),
+    { label: "lost-cas", method: "PATCH", pathname: "/rest/v1/external_org_bindings", response: () => jsonResponse([]) },
+  ], async ({ calls }) => {
+    const response = await handleSetCompanyRequest(
+      await request({ tier: "erpnext", setupAction: "ensure-project", projectId: "project-2" }),
+    );
+    assertEquals(response.status, 422);
+    assertEquals(calls.filter((call) => call.method === "PATCH").length, 1);
+  });
+});
 Deno.test("an existing project mapping is checked against the active connected ERP Company before reuse", async () => {
   await withFetchMock([
     ...base(),
@@ -1537,6 +1565,49 @@ Deno.test("pmo erp verify-links still flags a mapped ERP project whose name, com
   assertEquals(missing.mismatches.map((m) => m.reason), ["missing_or_invalid_erp_project"]);
   const renamed = await verifyLinks(project, erpProjectDoc({ name: "ERP-PROJECT-9" }));
   assertEquals(renamed.mismatches.map((m) => [m.reason, m.erp_project]), [["identity_changed", "ERP-PROJECT-9"]]);
+});
+
+Deno.test("pmo erp verify-links reports an ERP outage or refusal as a retryable failure, not as broken project links", async () => {
+  for (const status of [500, 401, 403]) {
+    const result = await withFetchMock([
+      ...base(),
+      supabaseSelect("projects", () => jsonResponse([{ id: "project-1", name: "PMO Project", code: "C-1" }])),
+      erp("erp.example.test", "/api/resource/Project/ERP-PROJECT-1", () => jsonResponse({ message: "boom" }, { status })),
+    ], async () => {
+      const response = await handleSetCompanyRequest(await request({ tier: "erpnext", setupAction: "verify-links" }));
+      return { status: response.status, body: await response.json() };
+    });
+    assertEquals(result.status >= 400, true, `status ${status}`);
+    assertEquals(result.body.mismatches, undefined, `status ${status}`);
+  }
+});
+
+Deno.test("pmo erp verify-links checks mapped projects with bounded concurrency", async () => {
+  const ids = Array.from({ length: 25 }, (_, i) => `project-${i}`);
+  const map = Object.fromEntries(ids.map((id, i) => [id, `ERP-${i}`]));
+  let inFlight = 0;
+  let peak = 0;
+  const result = await withFetchMock([
+    supabaseSelect("external_org_bindings", () => jsonResponse({ ...binding, config: { ...binding.config, project_map: map } })),
+
+    ...base(),
+    supabaseSelect("projects", () => jsonResponse(ids.map((id) => ({ id, name: `P ${id}`, code: null })))),
+    { label: "erp-projects", host: "erp.example.test", pathname: /^\/api\/resource\/Project\/ERP-\d+$/, response: async (call) => {
+      inFlight++;
+      peak = Math.max(peak, inFlight);
+      await new Promise((r) => setTimeout(r, 5));
+      inFlight--;
+      const name = decodeURIComponent(call.url.pathname.split("/").pop()!);
+      const id = ids[Number(name.slice(4))];
+      return jsonResponse({ data: { name, project_name: `P ${id}`, company: "Example Company", is_active: "Yes" } });
+    } },
+  ], async () => {
+    const response = await handleSetCompanyRequest(await request({ tier: "erpnext", setupAction: "verify-links" }));
+    return { status: response.status, body: await response.json() };
+  });
+  assertEquals(result.status, 200);
+  assertEquals(result.body, { checked: 25, mismatches: [] });
+  assertEquals(peak > 1 && peak <= 5, true, `peak ${peak}`);
 });
 
 // ── #775 phase B — the `expenses` employ switch (FR-EXP-118, DD-EXP-22). It opens only with #901 (the release guard
