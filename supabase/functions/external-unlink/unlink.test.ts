@@ -47,7 +47,7 @@ async function authed(body: unknown, sub = 'user-1') {
 }
 
 async function withFetchMock(routes: Parameters<typeof withEdgeFetchMock>[0], run: Parameters<typeof withEdgeFetchMock>[1]) {
-  return withEdgeFetchMock([...routes, supabaseRpc('unlink_external_integration', () => jsonResponse(1)), supabaseRpc('actor_authorization_state', () => jsonResponse({ active: true }))], run);
+  return withEdgeFetchMock([...routes, supabaseRpc('unlink_external_integration_audited', () => jsonResponse(1)), supabaseRpc('actor_authorization_state', () => jsonResponse({ active: true }))], run);
 }
 
 describe('external-unlink — ClickUp branch', () => {
@@ -77,27 +77,20 @@ describe('external-unlink — ClickUp branch', () => {
             headers: { 'content-type': 'application/vnd.pgrst.object+json' },
           })),
 
-        supabaseRpc('unlink_external_integration', (call) => {
+        supabaseRpc('unlink_external_integration_audited', (call) => {
           const body = call.bodyJson as Record<string, unknown>;
           assertEquals(body.p_external_tier, 'clickup');
           assertEquals(body.p_project_id, 'proj-1');
           return jsonResponse(1);
         }),
 
-        supabaseRpc('log_audit', (call) => {
-          const body = call.bodyJson as Record<string, unknown>;
-          assertEquals(body.p_action, 'integration.unlink');
-          assertEquals((body.p_detail as Record<string, unknown>).tier, 'clickup');
-          assertEquals((body.p_detail as Record<string, unknown>).project_id, 'proj-1');
-          return jsonResponse(null);
-        }),
       ],
       async ({ calls }) => {
         const res = await handleUnlinkRequest(await authed({ tier: 'clickup', projectId: 'proj-1' }));
         assertEquals(res.status, 200);
         assertEquals(await res.json(), { ok: true });
-        assertEquals(rpcCall(calls, 'unlink_external_integration').length, 1);
-        assertEquals(rpcCall(calls, 'log_audit').length, 1);
+        assertEquals(rpcCall(calls, 'unlink_external_integration_audited').length, 1);
+        assertEquals(rpcCall(calls, 'log_audit').length, 0); // written inside the RPC
       },
     );
   });
@@ -125,14 +118,13 @@ describe('external-unlink — ClickUp branch', () => {
             headers: { 'content-type': 'application/vnd.pgrst.object+json' },
           })),
 
-        supabaseRpc('unlink_external_integration', () => jsonResponse(1)),
+        supabaseRpc('unlink_external_integration_audited', () => jsonResponse(1)),
 
-        supabaseRpc('log_audit', () => jsonResponse(null)),
       ],
       async ({ calls }) => {
         const res = await handleUnlinkRequest(await authed({ tier: 'clickup', projectId: 'proj-1' }));
         assertEquals(res.status, 200);
-        assertEquals(rpcCall(calls, 'unlink_external_integration').length, 1);
+        assertEquals(rpcCall(calls, 'unlink_external_integration_audited').length, 1);
       },
     );
   });
@@ -151,7 +143,7 @@ describe('external-unlink — ClickUp branch', () => {
       async ({ calls }) => {
         const res = await handleUnlinkRequest(await authed({ tier: 'clickup', projectId: 'proj-1' }));
         assertEquals(res.status, 403);
-        assertEquals(rpcCall(calls, 'unlink_external_integration').length, 0);
+        assertEquals(rpcCall(calls, 'unlink_external_integration_audited').length, 0);
       },
     );
   });
@@ -322,19 +314,13 @@ describe('external-unlink — ERPNext branch', () => {
           },
         },
 
-        supabaseRpc('log_audit', (call) => {
-          const body = call.bodyJson as Record<string, unknown>;
-          assertEquals(body.p_action, 'integration.unlink');
-          assertEquals((body.p_detail as Record<string, unknown>).tier, 'erpnext');
-          return jsonResponse(null);
-        }),
       ],
       async ({ calls }) => {
         const res = await handleUnlinkRequest(await authed({ tier: 'erpnext' }));
         assertEquals(res.status, 200);
         assertEquals(await res.json(), { ok: true });
-        assertEquals(rpcCall(calls, 'unlink_external_integration').length, 1);
-        assertEquals(rpcCall(calls, 'log_audit').length, 1);
+        assertEquals(rpcCall(calls, 'unlink_external_integration_audited').length, 1);
+        assertEquals(rpcCall(calls, 'log_audit').length, 0); // written inside the RPC
       },
     );
   });
@@ -369,12 +355,11 @@ describe('external-unlink — ERPNext branch', () => {
           },
         },
 
-        supabaseRpc('log_audit', () => jsonResponse(null)),
       ],
       async ({ calls }) => {
         const res = await handleUnlinkRequest(await authed({ tier: 'erpnext' }));
         assertEquals(res.status, 200);
-        assertEquals(rpcCall(calls, 'unlink_external_integration').length, 1);
+        assertEquals(rpcCall(calls, 'unlink_external_integration_audited').length, 1);
       },
     );
   });
@@ -452,8 +437,7 @@ describe('external-unlink — ERPNext branch', () => {
     );
   });
 
-  it('audit event logged for ERPNext unlink', async () => {
-    let auditCalled = false;
+  it('ERPNext unlink is audited by the RPC, not by a separate call', async () => {
     await withFetchMock(
       [
         supabaseSelect('profiles', () =>
@@ -483,18 +467,12 @@ describe('external-unlink — ERPNext branch', () => {
           },
         },
 
-        supabaseRpc('log_audit', (call) => {
-          const body = call.bodyJson as Record<string, unknown>;
-          assertEquals(body.p_action, 'integration.unlink');
-          assertEquals((body.p_detail as Record<string, unknown>).tier, 'erpnext');
-          auditCalled = true;
-          return jsonResponse(null);
-        }),
       ],
-      async () => {
+      async ({ calls }) => {
         const res = await handleUnlinkRequest(await authed({ tier: 'erpnext' }));
         assertEquals(res.status, 200);
-        assertEquals(auditCalled, true);
+        assertEquals(rpcCall(calls, 'unlink_external_integration_audited').length, 1);
+        assertEquals(rpcCall(calls, 'log_audit').length, 0);
       },
     );
   });
@@ -507,7 +485,7 @@ describe('external-unlink — current standing', () => {
     await withFetchMock(routes, async ({ calls }) => {
       const res = await handleUnlinkRequest(await authed({ tier: 'clickup', projectId: 'proj-1' }));
       assertEquals(res.status, 403);
-      assertEquals(rpcCall(calls, 'unlink_external_integration').length, 0);
+      assertEquals(rpcCall(calls, 'unlink_external_integration_audited').length, 0);
       assertEquals(rpcCall(calls, 'log_audit').length, 0);
     });
   });

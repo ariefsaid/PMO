@@ -538,7 +538,7 @@ export async function handleLinkRequest(req: Request): Promise<Response> {
       );
     }
 
-    const { data: bindingId, error: insertError } = await serviceClient.rpc('link_external_project', {
+    const { data: bindingId, error: insertError } = await serviceClient.rpc('link_external_project_audited', {
       p_org_id: profile.org_id,
       p_actor_id: userId,
       p_project_id: projectId,
@@ -556,22 +556,7 @@ export async function handleLinkRequest(req: Request): Promise<Response> {
       return errorResponse('Failed to create project binding', 'INTERNAL', 500);
     }
 
-    // Audit log
-    const { error: auditError } = await serviceClient.rpc('log_audit', {
-      p_action: 'integration.link',
-      p_org_id: profile.org_id,
-      p_actor_id: userId,
-      p_entity_id: bindingId,
-      p_detail: {
-        tier: 'clickup',
-        project_id: projectId,
-        list_id: listId,
-        direction,
-        actor: userId,
-      },
-    });
-    if (auditError) console.error('log_audit failed', auditError);
-
+    // The audit event is written by the RPC in the same transaction as the binding.
     return json({
       ok: true,
       binding: { id: bindingId, direction, listId },

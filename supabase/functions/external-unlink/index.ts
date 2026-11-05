@@ -219,7 +219,7 @@ export async function handleUnlinkRequest(req: Request): Promise<Response> {
       return errorResponse('No active ClickUp binding found for this project', 'NOT_FOUND', 404);
     }
 
-    const { data: touched, error: updateError } = await serviceClient.rpc('unlink_external_integration', {
+    const { data: touched, error: updateError } = await serviceClient.rpc('unlink_external_integration_audited', {
       p_org_id: profile.org_id,
       p_external_tier: 'clickup',
       p_project_id: projectId,
@@ -232,20 +232,7 @@ export async function handleUnlinkRequest(req: Request): Promise<Response> {
     }
     if (touched === 0) return errorResponse('No active ClickUp binding found for this project', 'NOT_FOUND', 404);
 
-    // Audit log
-    const { error: auditError } = await serviceClient.rpc('log_audit', {
-      p_action: 'integration.unlink',
-      p_org_id: profile.org_id,
-      p_actor_id: userId,
-      p_entity_id: binding.id,
-      p_detail: {
-        tier: 'clickup',
-        project_id: projectId,
-        list_id: binding.external_container_id,
-        actor: userId,
-      },
-    });
-    if (auditError) console.error('log_audit failed', auditError);
+    // The audit event is written by the RPC in the same transaction as the unlink.
 
     return json({ ok: true });
   }
@@ -276,7 +263,7 @@ export async function handleUnlinkRequest(req: Request): Promise<Response> {
       return errorResponse('No ERPNext company linked', 'NOT_FOUND', 404);
     }
 
-    const { data: touched, error: updateError } = await serviceClient.rpc('unlink_external_integration', {
+    const { data: touched, error: updateError } = await serviceClient.rpc('unlink_external_integration_audited', {
       p_org_id: profile.org_id,
       p_external_tier: 'erpnext',
       p_project_id: null,
@@ -289,19 +276,7 @@ export async function handleUnlinkRequest(req: Request): Promise<Response> {
     }
     if (touched === 0) return errorResponse('No ERPNext company linked', 'NOT_FOUND', 404);
 
-    // Audit log
-    const { error: auditError } = await serviceClient.rpc('log_audit', {
-      p_action: 'integration.unlink',
-      p_org_id: profile.org_id,
-      p_actor_id: userId,
-      p_entity_id: null,
-      p_detail: {
-        tier: 'erpnext',
-        company_id: currentConfig.company,
-        actor: userId,
-      },
-    });
-    if (auditError) console.error('log_audit failed', auditError);
+    // The audit event is written by the RPC in the same transaction as the unlink.
 
     return json({ ok: true });
   }

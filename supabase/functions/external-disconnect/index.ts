@@ -174,7 +174,7 @@ export async function handleDisconnectRequest(req: Request): Promise<Response> {
   }
 
   // 6. The definer transaction re-checks actor standing and role before touching either credential or binding.
-  const { data: touched, error: disconnectError } = await serviceClient.rpc('disconnect_external_integration', {
+  const { data: touched, error: disconnectError } = await serviceClient.rpc('disconnect_external_integration_audited', {
     p_org_id: profile.org_id,
     p_external_tier: tier,
     p_actor_id: userId,
@@ -186,20 +186,7 @@ export async function handleDisconnectRequest(req: Request): Promise<Response> {
   }
   if (touched === 0) return errorResponse('No binding found for this tier', 'NOT_FOUND', 404);
 
-  // 7. Emit audit event for the disconnect
-  const { error: auditError } = await serviceClient.rpc('log_audit', {
-    p_action: 'integration.disconnect',
-    p_org_id: profile.org_id,
-    // ⚑ log_audit is (p_action, p_org_id, p_actor_id, p_entity_id, p_detail) — mig 0076. The previous
-    // call passed `p_entity_type` (no such parameter) and omitted `p_actor_id`, so no overload matched
-    // and this audit event was never written.
-    p_actor_id: userId,
-    p_entity_id: null,
-    p_detail: { tier, actor: userId },
-  });
-  if (auditError) {
-    console.error('log_audit failed', auditError);
-  }
+  // 7. The disconnect audit event is written by the RPC in the same transaction.
 
   // 11. Return success
   return json({ ok: true });
