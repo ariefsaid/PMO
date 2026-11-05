@@ -162,7 +162,7 @@ describe('external-link — ClickUp branch', () => {
         {
           label: 'insert binding',
           method: 'POST',
-          pathname: '/rest/v1/rpc/link_external_project',
+          pathname: '/rest/v1/rpc/link_external_project_audited',
           response: (call) => {
             const body = call.bodyJson as {
               p_actor_id: string; p_org_id: string; p_project_id: string;
@@ -183,13 +183,6 @@ describe('external-link — ClickUp branch', () => {
           },
         },
 
-        supabaseRpc('log_audit', (call) => {
-          const body = call.bodyJson as Record<string, unknown>;
-          assertEquals(body.p_action, 'integration.link');
-          assertEquals((body.p_detail as Record<string, unknown>).tier, 'clickup');
-          assertEquals((body.p_detail as Record<string, unknown>).direction, 'push-seed');
-          return jsonResponse(null);
-        }),
       ],
       async ({ calls }) => {
         const res = await handleLinkRequest(await authed({
@@ -203,8 +196,8 @@ describe('external-link — ClickUp branch', () => {
         assertEquals(restCall(calls, 'profiles', 'GET')[0].url.searchParams.get('id'), 'eq.user-1');
         assertEquals(restCall(calls, 'projects', 'GET')[0].url.searchParams.get('id'), 'eq.proj-1');
         assertEquals(restCall(calls, 'projects', 'GET')[0].url.searchParams.get('org_id'), 'eq.org-1');
-        assertEquals(rpcCall(calls, 'link_external_project').length, 1);
-        assertEquals(rpcCall(calls, 'log_audit').length, 1);
+        assertEquals(rpcCall(calls, 'link_external_project_audited').length, 1);
+        assertEquals(rpcCall(calls, 'log_audit').length, 0); // written inside the RPC
       },
     );
   });
@@ -245,8 +238,7 @@ describe('external-link — ClickUp branch', () => {
 
         { label: 'pmo-task-count', method: 'HEAD', pathname: '/rest/v1/tasks', response: () => countResponse(0) },
 
-        { label: 'insert binding', method: 'POST', pathname: '/rest/v1/rpc/link_external_project', response: () => jsonResponse('binding-1') },
-        supabaseRpc('log_audit', () => jsonResponse(null)),
+        { label: 'insert binding', method: 'POST', pathname: '/rest/v1/rpc/link_external_project_audited', response: () => jsonResponse('binding-1') },
       ],
       async ({ calls }) => {
         const res = await handleLinkRequest(await authed({
@@ -256,7 +248,7 @@ describe('external-link — ClickUp branch', () => {
           direction: 'push-seed',
         }));
         assertEquals(res.status, 200);
-        assertEquals(rpcCall(calls, 'link_external_project').length, 1);
+        assertEquals(rpcCall(calls, 'link_external_project_audited').length, 1);
       },
     );
   });
@@ -479,7 +471,6 @@ describe('external-link — ClickUp branch', () => {
             headers: { 'content-type': 'application/vnd.pgrst.object+json' },
           })),
 
-        supabaseRpc('log_audit', () => jsonResponse(null)), // count query
 
         // PMO task count via HEAD+count
         { label: 'pmo-task-count', method: 'HEAD', pathname: '/rest/v1/tasks', response: () => countResponse(3) },
@@ -721,7 +712,7 @@ describe('external-link — ClickUp branch', () => {
 
         { label: 'pmo-task-count', method: 'HEAD', pathname: '/rest/v1/tasks', response: () => countResponse(0) },
 
-        { label: 'insert binding 23505', method: 'POST', pathname: '/rest/v1/rpc/link_external_project', response: () => new Response(JSON.stringify({ code: '23505', message: 'duplicate key value violates unique constraint', details: null, hint: null }), { status: 409, headers: { 'content-type': 'application/json' } }) },
+        { label: 'insert binding 23505', method: 'POST', pathname: '/rest/v1/rpc/link_external_project_audited', response: () => new Response(JSON.stringify({ code: '23505', message: 'duplicate key value violates unique constraint', details: null, hint: null }), { status: 409, headers: { 'content-type': 'application/json' } }) },
       ],
       async () => {
         const res = await handleLinkRequest(await authed({
@@ -787,7 +778,7 @@ describe('external-link — ClickUp branch', () => {
           true,
         );
         // Never persisted a half-broken binding, and never audited a link that didn't happen.
-        assertEquals(rpcCall(calls, 'link_external_project').length, 0);
+        assertEquals(rpcCall(calls, 'link_external_project_audited').length, 0);
         assertEquals(rpcCall(calls, 'log_audit').length, 0);
       },
     );
@@ -837,7 +828,7 @@ describe('external-link — ClickUp branch', () => {
         {
           label: 'insert binding',
           method: 'POST',
-          pathname: '/rest/v1/rpc/link_external_project',
+          pathname: '/rest/v1/rpc/link_external_project_audited',
           response: (call) => {
             const body = call.bodyJson as {
               p_config: { statusMap: { pmoToClickUp: Record<string, string>; pmoOnlyStatuses?: string[] } };
@@ -851,7 +842,6 @@ describe('external-link — ClickUp branch', () => {
           },
         },
 
-        supabaseRpc('log_audit', () => jsonResponse(null)),
       ],
       async ({ calls }) => {
         const res = await handleLinkRequest(await authed({
@@ -861,8 +851,8 @@ describe('external-link — ClickUp branch', () => {
           direction: 'push-seed',
         }));
         assertEquals(res.status, 200);
-        assertEquals(rpcCall(calls, 'link_external_project').length, 1);
-        assertEquals(rpcCall(calls, 'log_audit').length, 1);
+        assertEquals(rpcCall(calls, 'link_external_project_audited').length, 1);
+        assertEquals(rpcCall(calls, 'log_audit').length, 0); // written inside the RPC
       },
     );
   });
@@ -921,7 +911,7 @@ describe('external-link — ClickUp branch', () => {
         {
           label: 'insert binding',
           method: 'POST',
-          pathname: '/rest/v1/rpc/link_external_project',
+          pathname: '/rest/v1/rpc/link_external_project_audited',
           response: (call) => {
             const body = call.bodyJson as { p_config: { memberMap: { pmoToClickUp: Record<string, number>; clickUpToPmo: Record<string, string> } } };
             assertEquals(body.p_config.memberMap.pmoToClickUp, { 'user-1': 111 });
@@ -930,7 +920,6 @@ describe('external-link — ClickUp branch', () => {
           },
         },
 
-        supabaseRpc('log_audit', () => jsonResponse(null)),
       ],
       async ({ calls }) => {
         const res = await handleLinkRequest(await authed({
@@ -940,7 +929,7 @@ describe('external-link — ClickUp branch', () => {
           direction: 'push-seed',
         }));
         assertEquals(res.status, 200);
-        assertEquals(rpcCall(calls, 'link_external_project').length, 1);
+        assertEquals(rpcCall(calls, 'link_external_project_audited').length, 1);
       },
     );
   });
@@ -1027,12 +1016,11 @@ describe('external-link — operator project link', () => {
       clickup('/api/v2/list/list-1/task', () => jsonResponse({ tasks: [] })),
       clickup('/api/v2/list/list-1/member', () => jsonResponse(NO_MEMBERS)),
       { label: 'task count', method: 'HEAD', pathname: '/rest/v1/tasks', response: () => countResponse(0) },
-      supabaseRpc('link_external_project', () => jsonResponse('binding-1')),
-      supabaseRpc('log_audit', () => jsonResponse(null)),
+      supabaseRpc('link_external_project_audited', () => jsonResponse('binding-1')),
     ], async ({ calls }) => {
       const res = await handleLinkRequest(await authed({ tier: 'clickup', projectId: 'proj-1', listId: 'list-1', direction: 'push-seed' }));
       assertEquals(res.status, 200);
-      assertEquals(rpcCall(calls, 'link_external_project').length, 1);
+      assertEquals(rpcCall(calls, 'link_external_project_audited').length, 1);
     });
   });
 });
