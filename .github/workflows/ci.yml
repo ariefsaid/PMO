@@ -214,7 +214,7 @@ jobs:
       - name: Repository script tests (non-DB)
         working-directory: .
         run: |
-          mapfile -t tests < <(find scripts -maxdepth 1 -name '*.test.mjs' ! -name 'financial-statements-publication-race.test.mjs' ! -name 'financial-statements-rollback.test.mjs' -print | sort)
+          mapfile -t tests < <(find scripts -maxdepth 1 -name '*.test.mjs' ! -name 'financial-statements-publication-race.test.mjs' ! -name 'financial-statements-rollback.test.mjs' ! -name 'financial-statements-nightly-intent-race.test.mjs' -print | sort)
           node --test "${tests[@]}"
       - name: CI integration-order test
         working-directory: .
@@ -386,8 +386,10 @@ jobs:
       - name: Financial statement script tests (local Supabase required)
         env:
           SUPABASE_DB_CONTAINER: supabase_db_pmo-portal
-        # Both files mutate the one local database (fixture org + migration down/up): run them serially.
-        run: node --test --test-concurrency=1 scripts/financial-statements-publication-race.test.mjs scripts/financial-statements-rollback.test.mjs
+        # Every file here mutates the one local database (owned fixture org + migration down/up or
+        # two-session interleaving): run them serially. The nightly-intent race owns AC-NS-004/005's
+        # concurrent evidence, so it must gate this DB-owning path rather than a local-only run.
+        run: node --test --test-concurrency=1 scripts/financial-statements-publication-race.test.mjs scripts/financial-statements-rollback.test.mjs scripts/financial-statements-nightly-intent-race.test.mjs
 
       # Applies every migration in order and re-seeds from supabase/seed.sql so tests
       # always start from a clean, known state.
@@ -701,6 +703,17 @@ jobs:
       - name: pgTAP integration tests
         if: github.event_name != 'workflow_dispatch' || inputs.run_pgtap
         run: supabase test db
+
+      # AC-NS-004/005: the two-session SQL interleaving proof must gate the RELEASE path too, not only
+      # the PR-to-dev `pgtap` job; a local-only harness would never gate a merge. It runs here against
+      # the same reset database the pgTAP gate used, creates only its own synthetic org, and proves
+      # that fixture is gone afterwards. Kept in the same skip condition as pgTAP so a re-dispatch
+      # (whose PR already proved it) does not rerun it.
+      - name: Financial statement nightly-intent race (local Supabase required)
+        if: github.event_name != 'workflow_dispatch' || inputs.run_pgtap
+        env:
+          SUPABASE_DB_CONTAINER: supabase_db_pmo-portal
+        run: node --test --test-concurrency=1 scripts/financial-statements-nightly-intent-race.test.mjs
 
       # Extract the anon key + API URL from the local stack and write them into the file
       # pmo-portal/src/lib/supabase/client.ts reads at build/dev time.

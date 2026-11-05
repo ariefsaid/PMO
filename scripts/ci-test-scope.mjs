@@ -190,6 +190,7 @@ async function selfTest() {
   });
   for (const p of ['supabase/migrations/0400_x.sql', 'supabase/tests/x.sql', 'supabase/functions/a/index.ts', 'scripts/with-db-lock.sh',
     'scripts/check-isolation-denominator.mjs', 'scripts/isolation-probe-denominator.json', 'scripts/financial-statements-rollback.test.mjs',
+    'scripts/financial-statements-nightly-intent-race.test.mjs',
     'scripts/test-contract-quantities-rollback.sh', 'scripts/contract-quantities-rollback.test.sql',
     'scripts/test-plan-limits-rollback.sh', 'scripts/plan-limits-rollback.test.sql', '.github/workflows/ci.yml']) {
     test(`pgtap: ${p}`, () => assert.equal(s([p]).pgtap, true));

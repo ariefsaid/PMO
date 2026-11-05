@@ -3096,6 +3096,11 @@
     }
   },
   "financialStatements": {
+    "refreshNow": "Segarkan sekarang",
+    "refreshNowQueued": "Permintaan penyegaran dikirim. Angka terbaru akan muncul sebentar lagi.",
+    "refreshNowCoalesced": "Penyegaran sudah diminta baru-baru ini.",
+    "refreshNowUnavailable": "Penyegaran belum tersedia.",
+    "refreshNowError": "Permintaan penyegaran gagal. Coba lagi.",
     "amounts": "Jumlah",
     "asAt": "Per tanggal",
     "accessDenied": "Anda tidak memiliki akses ke laporan keuangan",

@@ -11790,6 +11790,7 @@ export type Database = {
         }
         Returns: string
       }
+      request_financial_statement_refresh: { Args: never; Returns: Json }
       request_po_variation: {
         Args: {
           p_lines: Json
