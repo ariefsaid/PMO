@@ -47,7 +47,6 @@ export const ErpJournalLinesSection: React.FC<{ projectId: string; className?: s
         </span>
       ),
     },
-    { key: 'remark', header: t('erpJournal.column.remark', 'Remark'), cell: (l) => l.remarks ?? '—' },
     {
       key: 'amount', header: t('erpJournal.column.amount', 'Amount'), kind: 'money', align: 'num',
       cell: (l) => (l.isCancelled || !l.currency ? '—' : formatCurrency(l.amount, l.currency)),
@@ -63,7 +62,7 @@ export const ErpJournalLinesSection: React.FC<{ projectId: string; className?: s
       },
     },
     ...(canAttach ? [{
-      key: 'actions', header: <span className="sr-only">{t('erpLinks.actions', 'Actions')}</span>, kind: 'actions' as const, size: 150,
+      key: 'actions', header: <span className="sr-only">{t('erpLinks.actions', 'Actions')}</span>, kind: 'actions' as const, size: 190,
       cell: (l: ErpJournalLine) => (!l.linkId && !l.isCancelled && l.amount > 0 ? (
         <Button size="sm" variant="outline" aria-label={t('erpJournal.attachOne', 'Attach {{name}} to a purchase', { name: l.voucherNo })}
           onClick={() => setAttaching(l)}>

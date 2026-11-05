@@ -612,7 +612,6 @@
       "journal": "Journal",
       "date": "Date",
       "account": "Account",
-      "remark": "Remark",
       "amount": "Amount",
       "purchase": "Purchase"
     },
