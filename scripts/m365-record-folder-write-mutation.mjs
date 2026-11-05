@@ -47,7 +47,7 @@ export const MUTATIONS = [
     apply: (line) => line.replace('return false;', 'void 0;'),
     killedBy: 'every other request shape is refused' },
   { id: 'browser-get-only', file: READ_FILE, tag: 'mutation-witness:browser-get-only',
-    apply: (line) => line.replace('normalizeGraphMethod(req.method) === "GET"', 'true'),
+    apply: (line) => line.replace('isGetMethod(req.method)', 'true'),
     killedBy: 'the browser proxy surface is GET-only and body-less' },
   { id: 'scope-get-only', file: READ_FILE, tag: 'mutation-witness:scope-get-only',
     apply: (line) => line.replace('return false;', 'void 0;'),

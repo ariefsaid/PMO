@@ -2,12 +2,12 @@
  * AC-M365-130 — verifyCallerJwt (local ES256 verification).
  * AC-M365SEP-001/003/005/006/007/011/012 — the DATA-ACCESS gate `authorizeMemberEntitled`: an
  *   active member of an entitled org is authorized, irrespective of PMO role or Operator status
- *   (FR-M365SEP-001/002/011). The gate does NOT consult `platform_operators` (FR-M365SEP-001) —
- *   its absence from the signature is the structural guarantee. Active membership is asserted
- *   EXPLICITLY from `profiles.status` (NFR-M365SEP-002), not inherited from `org_features`' RLS.
+ *   (FR-M365SEP-001/002/011). The gate does NOT consult `platform_operators` (FR-M365SEP-001).
+ *   Active membership comes from the service-side `m365_membership_state` read (NFR-M365SEP-002),
+ *   not inherited from `org_features`' RLS.
  * AC-M365SEP-003/015 — DISABLED_MEMBER / ORG_APPROVAL_REQUIRED are their own wire codes.
  *
- * The authz core is the pure `authorizeMemberEntitled` helper (injected caller client) — no Deno.env.
+ * The authz core is `authorizeMemberEntitled` (injected caller + service clients) — no Deno.env.
  */
 import { describe, it, expect } from 'vitest';
 import { verifyCallerJwt, JwtVerifyError } from '../../auth/verifyCallerJwt';
@@ -81,6 +81,9 @@ describe('AC-M365SEP-001/003/005/006/007/011 — authorizeMemberEntitled (active
       platform_operators: [{ data: null, error: null }],
     });
     expect(await gate(caller, active('Project Manager'))).toEqual({ orgId: 'org-1', role: 'Project Manager' });
+    expect(caller.selects).toContainEqual(expect.objectContaining({
+      table: 'org_features', eqs: expect.arrayContaining([['feature_key', 'm365_integration']]),
+    }));
   });
 
   it('AC-M365SEP-007: an active entitled Operator (Admin role) still passes — the de-gate excludes no one', async () => {
