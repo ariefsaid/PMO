@@ -720,9 +720,34 @@ from native_retained_mutation_backup b
 where p.org_id=b.org_id and p.batch_id=b.batch_id and p.statement=b.statement
   and p.project_id is not distinct from b.project_id and p.period_kind=b.period_kind
   and p.current_start=b.current_start and p.side=b.side;
+reset role;
+create temporary table native_diff_before on commit drop as
+select s.statement,s.project_id,s.view_kind,s.period_kind,s.current_start,s.snapshot_id,
+  md5(s.payload::text||coalesce(s.raw_reports::text,'')) content_md5
+from public.erp_financial_statement_snapshot s where s.org_id='03190000-0000-0000-0000-000000000001';
+set local role service_role;
 insert into native_published select public.publish_erp_financial_statements('03190000-0000-0000-0000-000000000001',
   '03190000-0000-0000-0000-000000000101',(select (result->>'batchId')::uuid from native_incremental));
 reset role;
+create temporary table native_diff_after on commit drop as
+select s.statement,s.project_id,s.view_kind,s.period_kind,s.current_start,s.snapshot_id,
+  md5(s.payload::text||coalesce(s.raw_reports::text,'')) content_md5
+from public.erp_financial_statement_snapshot s where s.org_id='03190000-0000-0000-0000-000000000001';
+-- Diff publication: unchanged rows are header-only touched (same content, new generation); only the
+-- freshly acquired keys carry rewritten payloads. Reported by the local end-to-end check.
+select is((select count(*)::int from native_diff_after a join native_diff_before b using(statement,project_id,view_kind,period_kind,current_start)
+    where a.content_md5=b.content_md5 and a.snapshot_id<>b.snapshot_id),
+  (select count(*)::int from native_incremental_retained_before),
+  'AC-CD-005 retained rows keep their exact content and are only header-touched into the new generation');
+select ok((select count(*)::int from native_diff_after a join native_diff_before b using(statement,project_id,view_kind,period_kind,current_start)
+    where a.content_md5<>b.content_md5)>0
+  and not exists(select 1 from native_diff_after a join native_diff_before b using(statement,project_id,view_kind,period_kind,current_start)
+    where a.content_md5=b.content_md5 and a.snapshot_id=b.snapshot_id),
+  'AC-CD-005 only freshly acquired keys carry rewritten payloads and every row joins the new generation');
+select ok(not exists(select 1 from public.erp_financial_statement_published_context
+    where org_id='03190000-0000-0000-0000-000000000001' and snapshot_id=(select min(snapshot_id) from native_diff_before)
+      and snapshot_id not in (select snapshot_id from native_diff_after)),
+  'AC-CD-005 superseded generation context is removed when no row remains in it');
 create temporary table native_incremental_retained_after(row_json jsonb not null) on commit drop;
 insert into native_incremental_retained_after
 select jsonb_build_object('statement',s.statement,'scopeKind',s.scope_kind,'projectId',s.project_id,

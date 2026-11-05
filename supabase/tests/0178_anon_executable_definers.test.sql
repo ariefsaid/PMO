@@ -113,7 +113,7 @@
 -- ⚑ AMENDED BY 0588 (#1514 D1): `list_tm_claim_source_details` joins the retained set (+1). This SECURITY DEFINER read
 -- gates to the same amounts audience as `list_tm_claims` and scopes the claim to the JWT org; its role, cross-org and
 -- API-client tier contract is proved in `tm_reads.test.sql`.
--- Current retained set: 153 names after #1505, #1813 and #1514 D1, including #1462's archive inventory read.
+-- Current retained set: 154 names after #1505, #1813 and #1514 D1, including #1462's archive inventory read. 0655 adds request_financial_statement_refresh (Refresh now).
 --
 -- ⚑ AMENDED BY #1422: `archive_budget_version_with_cancel_intent` joins the retained set (+1, count 84).
 -- It preserves the four-role archive gate while atomically recording the ERP cancellation decision;
@@ -360,6 +360,7 @@ insert into client_callable_rpc_names (proname) values
   ('redate_stage_entry'),
   ('release_credits'),
   ('release_outbox_hold'),
+  ('request_financial_statement_refresh'),  -- 0655: Refresh now (Admin/Finance/Executive, org from the session)
   ('request_imprest_replenishment'),
   ('resolve_held_outbox_command'),  -- ⚑ AMENDED BY 0508, 0512, 0513 (#1505 P6, #1506 C5/C6)
   ('request_po_variation'),
@@ -421,8 +422,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  153,
-  'AC-ACL-002 all 153 retained client-callable RPC names still have a public function');
+  154,
+  'AC-ACL-002 all 154 retained client-callable RPC names still have a public function');
 
 select is(
   (select count(*)::int
@@ -431,8 +432,8 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  153,
-  'AC-ACL-003 all 153 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  154,
+  'AC-ACL-003 all 154 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
 -- granted to both roles from being named twice. Retained names exempt authenticated grants only;

@@ -1,7 +1,7 @@
 begin;
 create table public.erp_statement_change_state (
  org_id uuid primary key references public.organizations(id) on delete cascade,
- enabled boolean not null default false,
+ enabled boolean not null default true,
  binding_id uuid not null references public.external_org_bindings(id),
  activated_at timestamptz not null,
  company text not null check (btrim(company) <> ''),

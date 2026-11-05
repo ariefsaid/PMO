@@ -16,7 +16,7 @@ select is(public.sync_erp_statement_change_scope('06430000-0000-0000-0000-000000
 set local timezone='Asia/Jakarta';
 select is(public.sync_erp_statement_change_scope('06430000-0000-0000-0000-000000000001','06430000-0000-0000-0000-000000000101','06430000-0000-0000-0000-000000000011','2026-10-18T09:00:00Z')->>'status','current','AC-NS-008 session timezone does not rotate scope');
 set local timezone='UTC';
-select is(public.observe_erp_statement_change('06430000-0000-0000-0000-000000000001','06430000-0000-0000-0000-000000000101','06430000-0000-0000-0000-000000000011','2026-10-18T09:00:00Z',(select scope_epoch from public.erp_statement_change_state where org_id='06430000-0000-0000-0000-000000000001'),'{"status":"unknown","reason":"request_failed"}')->>'status','disabled','AC-NS-001 default off');
+select is(public.observe_erp_statement_change('06430000-0000-0000-0000-000000000001','06430000-0000-0000-0000-000000000101','06430000-0000-0000-0000-000000000011','2026-10-18T09:00:00Z',(select scope_epoch from public.erp_statement_change_state where org_id='06430000-0000-0000-0000-000000000001'),'{"status":"unknown","reason":"request_failed"}')->>'status','recorded','AC-NS-001 default on: a due check is recorded');
 select throws_ok($q$update public.erp_statement_change_state set enabled=true$q$,'42501',null,'AC-NS-001 service cannot directly enable');
 reset role;
 select ok((select relrowsecurity and relforcerowsecurity from pg_class where oid='public.erp_statement_change_state'::regclass),'AC-NS-001 forced RLS');
