@@ -187,17 +187,10 @@ describe('external-set-company — ERPNext branch', () => {
 
         // FR-EAC-106 (#650): the write moved into the activation RPC so company/version/stamp cannot
         // land partially. Goal oracle unchanged — the selected Company is persisted for this org.
-        supabaseRpc('activate_external_binding', (call) => {
+        supabaseRpc('activate_external_binding_audited', (call) => {
           const body = call.bodyJson as Record<string, unknown>;
           assertEquals(body.p_company, 'ACME Corp');
           return jsonResponse('2026-09-14T00:00:00+00:00');
-        }),
-
-        supabaseRpc('log_audit', (call) => {
-          const body = call.bodyJson as Record<string, unknown>;
-          assertEquals(body.p_action, 'integration.set_company');
-          assertEquals((body.p_detail as Record<string, unknown>).company_id, 'ACME Corp');
-          return jsonResponse(null);
         }),
       ],
       async ({ calls }) => {
@@ -207,7 +200,7 @@ describe('external-set-company — ERPNext branch', () => {
           ok: true, companyId: 'ACME Corp', versionMajor: 15, activatedAt: '2026-09-14T00:00:00+00:00',
         });
         assertEquals(companyAuth, 'token key1:sec:ret');
-        assertEquals(rpcCall(calls, 'activate_external_binding').length, 1);
+        assertEquals(rpcCall(calls, 'activate_external_binding_audited').length, 1);
       },
     );
   });
