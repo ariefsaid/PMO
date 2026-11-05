@@ -571,7 +571,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
             <div
               role="status"
               aria-label={invoiceCountsUnavailableLabel}
-              className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-md border border-destructive/20 bg-destructive/5 p-3 text-sm text-destructive"
+              className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-md border border-destructive/20 bg-destructive/5 p-3 text-sm text-destructive-text"
             >
               <span>{invoiceCountsUnavailableLabel}</span>
               <Button
