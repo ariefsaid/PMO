@@ -42,7 +42,7 @@ describe('external-disconnect', () => {
         assertEquals(rpc[0].bodyJson, { p_org_id: 'org-1', p_external_tier: 'odoo', p_actor_id: 'user-1' });
         assertEquals(restCall(calls, 'external_org_bindings', 'PATCH').length, 0);
         assertEquals(rpcCall(calls, 'admin_change_domain_ownership').length, 0);
-        assertEquals(rpcCall(calls, 'log_audit').length, 0); // audited inside the RPC (pgTAP 0689)
+        assertEquals(rpcCall(calls, 'log_audit').length, 0); // audited inside the RPC (pgTAP 0691)
       },
     );
   });

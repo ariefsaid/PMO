@@ -1,6 +1,6 @@
 -- Link, unlink, disconnect and company activation write their audit event in the SAME transaction as the change.
 -- Each wrapper calls the existing definer RPC (unchanged) and then log_audit; if either raises, both roll back.
--- Rollback: supabase/migrations/rollback/0689_integration_changes_audited_atomically_down.sql
+-- Rollback: supabase/migrations/rollback/0691_integration_changes_audited_atomically_down.sql
 
 create function public.link_external_project_audited(
   p_org_id uuid, p_actor_id uuid, p_project_id uuid, p_container_id text, p_config jsonb
