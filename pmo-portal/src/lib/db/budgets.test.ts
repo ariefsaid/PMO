@@ -1278,19 +1278,12 @@ describe('createBudgetVersion budget_mode (#1472 S6A, FR-001)', () => {
 
   it('historic reads preserve the version actual persisted mode and clone writes never touch it', async () => {
     const versionRow = { id: 'v-old', project_id: 'p1', version: 1, name: 'Old', status: 'Active', budget_mode: 'per_year', org_id: 'org-1' };
-    const versionsBuilder = makeStandaloneBuilder({ data: [versionRow], error: null });
-    const linesBuilder = makeStandaloneBuilder({ data: [], error: null });
-    const editorsBuilder = makeStandaloneBuilder({ data: [], error: null });
-    const totalsBuilder = makeStandaloneBuilder({ data: [{ version_id: 'v-old', total: 100 }], error: null });
     mockFrom.mockReset();
     mockRpc.mockReset();
-    mockFrom.mockImplementation((table: string) => {
-      if (table === 'budget_versions') return versionsBuilder;
-      if (table === 'budget_line_items') return linesBuilder;
-      if (table === 'budget_version_editors') return editorsBuilder;
-      return totalsBuilder;
-    });
-    mockRpc.mockImplementation(() => makeStandaloneBuilder({ data: [{ version_id: 'v-old', total: 100 }], error: null }));
+    mockRpc.mockImplementation(() => makeStandaloneBuilder({
+      data: [{ version_id: 'v-old', version_no: 1, version_row: versionRow, line_items: [], editor_ids: [], total: 100 }],
+      error: null,
+    }));
     const versions = await listBudgetVersions('p1');
     expect(versions[0]?.budget_mode).toBe('per_year');
     makeRpcBuilder({ data: 'v-clone', error: null });
