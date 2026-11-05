@@ -1015,6 +1015,9 @@ describe('financial statement query/auth/cache guards (AC-009)', () => {
         expect(hook.result.current.ready).toBe(true);
         expect(spy).toHaveBeenCalledTimes(1);
 
+        const originalQuery = env.client.getQueryCache().findAll({ queryKey: ['financial-statements'] })
+          .find((q) => q.state.data === fixture);
+        expect(originalQuery).toBeDefined();
         let refetchPromise: Promise<unknown>;
         act(() => {
           refetchPromise = hook.result.current.refetch();
@@ -1040,6 +1043,7 @@ describe('financial statement query/auth/cache guards (AC-009)', () => {
 
         const cached = env.client.getQueryCache().findAll({ queryKey: ['financial-statements'] });
         expect(cached.some((q) => q.state.data === fixture)).toBe(false);
+        expect(env.client.getQueryCache().getAll()).not.toContain(originalQuery);
 
         await act(async () => {
           await hook.result.current.refetch();
@@ -1085,6 +1089,9 @@ describe('financial statement query/auth/cache guards (AC-009)', () => {
         expect(hook.result.current.ready).toBe(true);
         expect(spy).toHaveBeenCalledTimes(1);
 
+        const originalQuery = env.client.getQueryCache().findAll({ queryKey: ['financial-statements'] })
+          .find((q) => q.state.data === fixture);
+        expect(originalQuery).toBeDefined();
         let refetchPromise: Promise<unknown>;
         act(() => {
           refetchPromise = hook.result.current.refetch();
@@ -1110,6 +1117,7 @@ describe('financial statement query/auth/cache guards (AC-009)', () => {
 
         const cached = env.client.getQueryCache().findAll({ queryKey: ['financial-statements'] });
         expect(cached.some((q) => q.state.data === fixture)).toBe(false);
+        expect(env.client.getQueryCache().getAll()).not.toContain(originalQuery);
 
         await act(async () => {
           await hook.result.current.refetch();
