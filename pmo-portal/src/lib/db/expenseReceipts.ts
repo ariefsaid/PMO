@@ -40,12 +40,25 @@ function compareText(a: string, b: string): number {
 }
 
 /**
- * Newest first by the ACTUAL instant of `created_at` (PostgREST timestamps carry an offset, so a textual
- * compare is not chronological), with `id` ascending as the deterministic tie-break.
+ * The instant of a PostgREST `timestamptz` in MICROSECONDS since the epoch. `Date.parse` keeps only
+ * milliseconds while PostgreSQL stores microseconds (migration 0247 does not narrow precision), so
+ * `…:00.000001Z` and `…:00.000999Z` would compare equal and fall through to the id tie-break, reversing
+ * real chronology. The UTC offset is normalised, so `…T03:00:00.000400Z` and
+ * `…T10:00:00.000400+07:00` are the same instant.
+ */
+function instantMicros(value: string): number {
+  const m = /^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2}:\d{2})(?:\.(\d{1,9}))?(Z|[+-]\d{2}:\d{2})$/.exec(value);
+  if (!m) return Date.parse(value) * 1000;
+  return Date.parse(`${m[1]}T${m[2]}${m[4]}`) * 1000 + Number((m[3] ?? '').padEnd(6, '0').slice(0, 6));
+}
+
+/**
+ * Newest first by the ACTUAL instant of `created_at` (never a textual timestamp compare — offsets and
+ * microseconds both matter), with `id` ascending as the deterministic tie-break.
  */
 function compareReceiptsNewestFirst(a: ExpenseReceiptRow, b: ExpenseReceiptRow): number {
-  const aAt = Date.parse(a.created_at);
-  const bAt = Date.parse(b.created_at);
+  const aAt = instantMicros(a.created_at);
+  const bAt = instantMicros(b.created_at);
   if (aAt !== bAt) return aAt < bAt ? 1 : -1;
   return compareText(a.id, b.id);
 }

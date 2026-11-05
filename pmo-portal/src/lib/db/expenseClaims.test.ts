@@ -292,8 +292,22 @@ describe('AC-DATA28 complete claim detail lines', () => {
     expect(out[0]).toEqual(fixtures[3]);
   });
 
-  it('AC-DATA28 a claim with no lines returns an empty array', async () => {
+  it('AC-DATA28 keeps microsecond chronology when the millisecond is identical', async () => {
+    // PostgreSQL `timestamptz` stores microseconds. The earlier instant deliberately carries the HIGHER
+    // id, so a millisecond-only compare would fall through to the id tie-break and reverse chronology.
+    const fixtures = [
+      line(10, { created_at: '2026-03-01T03:00:00.000999+00:00' }), // later instant, lower id
+      line(20, { created_at: '2026-03-01T03:00:00.000001+00:00' }), // earlier instant, higher id
+      line(30, { created_at: '2026-03-01T10:00:00.000400+07:00' }), // = 03:00:00.000400Z
+      line(25, { created_at: '2026-03-01T03:00:00.000400Z' }),     // same instant as id 30 — tie by id
+    ];
     h.query.table = 'expense_claim_lines';
+    h.query.rows = fixtures;
+    const out = await listExpenseClaimLines(CLAIM);
+    expect(out.map((r) => r.id)).toEqual([uid(20), uid(25), uid(30), uid(10)]);
+  });
+
+  it('AC-DATA28 a claim with no lines returns an empty array', async () => {    h.query.table = 'expense_claim_lines';
     h.query.rows = [line(1, { claim_id: 'claim-b' })];
     await expect(listExpenseClaimLines(CLAIM)).resolves.toEqual([]);
   });

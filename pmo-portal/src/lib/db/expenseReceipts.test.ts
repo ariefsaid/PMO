@@ -175,6 +175,21 @@ describe('AC-DATA28 complete claim receipt reads', () => {
     expect(out[0]).toEqual(fixtures[2]);
   });
 
+  it('AC-DATA28 keeps microsecond chronology when the millisecond is identical, newest first', async () => {
+    // Descending: the later instant deliberately carries the HIGHER id, so a millisecond-only compare
+    // would tie and fall through to id ascending — the reverse of the required newest-first order.
+    const fixtures = [
+      receipt(60, { created_at: '2026-05-01T01:00:00.000999Z' }), // later instant, higher id
+      receipt(7, { created_at: '2026-05-01T01:00:00.000001Z' }),  // earlier instant, lower id
+      receipt(30, { created_at: '2026-05-01T08:00:00.000400+07:00' }), // = 01:00:00.000400Z
+      receipt(25, { created_at: '2026-05-01T01:00:00.000400Z' }),      // same instant as id 30 — tie by id
+    ];
+    h.query.table = 'expense_claim_files';
+    h.query.rows = fixtures;
+    const out = await listExpenseReceipts(CLAIM);
+    expect(out.map((r) => r.id)).toEqual([uid(60), uid(25), uid(30), uid(7)]);
+  });
+
   it('AC-DATA28 a claim with no live receipts returns an empty array', async () => {
     h.query.table = 'expense_claim_files';
     h.query.rows = [receipt(1, { archived_at: '2026-06-01T00:00:00+00:00' })];
