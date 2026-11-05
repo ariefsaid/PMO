@@ -101,9 +101,16 @@ beforeEach(() => {
 
 describe('reads', () => {
   it('lists a project’s work orders newest first, sending no org_id', async () => {
-    h.result.value = { data: [{ id: 'wo-1' }], error: null };
+    // served in keyset (id) order, i.e. NOT display order
+    h.result.value = {
+      data: [
+        { id: 'wo-1', created_at: '2026-01-01T00:00:00Z' },
+        { id: 'wo-2', created_at: '2026-03-01T00:00:00Z' },
+      ],
+      error: null,
+    };
     const rows = await listProjectWorkOrders('proj-1');
-    expect(rows).toEqual([{ id: 'wo-1' }]);
+    expect(rows.map((r) => r.id)).toEqual(['wo-2', 'wo-1']);
     expect(h.calls.from).toEqual(['work_orders']);
     expect(h.calls.selectArgs).toEqual(['*, value_author:profiles!work_orders_order_value_set_by_fkey(role,manager_id,status)']);
     expect(h.calls.eq).toEqual([['project_id', 'proj-1']]);
@@ -113,16 +120,16 @@ describe('reads', () => {
   });
 
   it('attaches the server issue decision for each visible work order', async () => {
-    h.result.value = { data: [{ id: 'wo-1', status: 'Draft' }], error: null };
+    h.result.value = { data: [{ id: 'wo-1', status: 'Draft', created_at: '2026-01-01T00:00:00Z' }], error: null };
     h.rpcResult.value = { data: [{ work_order_id: 'wo-1', reason: 'inactive_reviewer' }], error: null };
-    await expect(listProjectWorkOrders('proj-1')).resolves.toEqual([{ id: 'wo-1', status: 'Draft', issue_eligibility: 'inactive_reviewer' }]);
+    await expect(listProjectWorkOrders('proj-1')).resolves.toEqual([{ id: 'wo-1', status: 'Draft', created_at: '2026-01-01T00:00:00Z', issue_eligibility: 'inactive_reviewer' }]);
     expect(h.calls.rpc).toContainEqual(['work_order_issue_eligibility', { p_ids: ['wo-1'] }]);
   });
 
   it('keeps a draft readable but blocks issue when the decision cannot be read', async () => {
-    h.result.value = { data: [{ id: 'wo-1', status: 'Draft' }], error: null };
+    h.result.value = { data: [{ id: 'wo-1', status: 'Draft', created_at: '2026-01-01T00:00:00Z' }], error: null };
     h.rpcResult.value = { data: null, error: { message: 'unavailable' } };
-    await expect(listProjectWorkOrders('proj-1')).resolves.toEqual([{ id: 'wo-1', status: 'Draft', issue_eligibility: null }]);
+    await expect(listProjectWorkOrders('proj-1')).resolves.toEqual([{ id: 'wo-1', status: 'Draft', created_at: '2026-01-01T00:00:00Z', issue_eligibility: null }]);
   });
 
   it('attaches a decision when reading one draft', async () => {

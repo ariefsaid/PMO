@@ -179,6 +179,12 @@ describe('listPushesNeedingAttention — the Approvals operator surface (FR-TSP-
     h.state.mirrorAttentionError = { message: 'denied', code: '42501' };
     await expect(listPushesNeedingAttention()).rejects.toMatchObject({ message: 'denied', code: '42501' });
   });
+
+  it('a failing sheets-chunk read rejects instead of returning rows with blank owners', async () => {
+    h.state.mirrorAttentionRows = [{ id: 'm1', timesheet_id: 'ts-1', push_state: 'failed', push_error: 'x', ts_number: null }];
+    h.state.sheetsError = { message: 'denied', code: '42501' };
+    await expect(listPushesNeedingAttention()).rejects.toMatchObject({ message: 'denied', code: '42501' });
+  });
 });
 
 describe('listProposedEmployeeLinks — OQ-TSP-10(C): NEVER auto-confirmed, only "proposed" surfaces', () => {

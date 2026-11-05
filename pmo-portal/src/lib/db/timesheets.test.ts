@@ -103,6 +103,19 @@ describe('listTimesheets', () => {
     expect(result[0].entries[0].entry_date).toBe('2026-06-01');
   });
 
+  it('returns weeks newest first even though the scan serves them in id order (AC-608)', async () => {
+    builderResolving({
+      data: [
+        { id: 'a', week_start_date: '2026-05-04', entries: [] },
+        { id: 'b', week_start_date: '2026-06-01', entries: [] },
+        { id: 'c', week_start_date: '2026-05-18', entries: [] },
+      ],
+      error: null,
+    });
+    const result = await listTimesheets('u1');
+    expect(result.map(r => r.id)).toEqual(['b', 'c', 'a']);
+  });
+
   it('sends no org_id (RLS scopes it) (FR-DAL-TS-001)', async () => {
     builderResolving({ data: [], error: null });
     await listTimesheets('u1');

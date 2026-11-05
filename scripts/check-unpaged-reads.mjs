@@ -112,7 +112,7 @@ const ALLOWLIST = {
   'pmo-portal/src/lib/db/subcontracts.ts :: purchase_order_revisions #1': 'bounded: revisions/lines/variations of one PO',
   'pmo-portal/src/lib/db/subcontracts.ts :: purchase_order_lines #1': 'bounded: revisions/lines/variations of one PO',
   'pmo-portal/src/lib/db/subcontracts.ts :: po_variations #1': 'bounded: revisions/lines/variations of one PO',
-  'pmo-portal/src/lib/db/timesheetPush.ts :: timesheets #1': 'bounded: .in(id) over the attention set above',
+  'pmo-portal/src/lib/db/timesheetPush.ts :: timesheets #1': 'bounded: chunked <=100 ids per request',
   'pmo-portal/src/lib/db/timesheetPush.ts :: erp_employees #1': 'bounded: employees with a proposed link, one-off setup queue',
   'pmo-portal/src/lib/db/timesheetTransition.ts :: external_command_outbox #1': 'bounded: non-terminal push commands for the sheets above',
   'pmo-portal/src/lib/db/vendorWithholdingSlips.ts :: procurements #1': 'bounded: .in(id) over one slip batch',

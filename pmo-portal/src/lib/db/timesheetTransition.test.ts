@@ -233,6 +233,16 @@ describe('listTimesheetsAwaitingApproval', () => {
     { id: 'missing-owner', user_id: 'worker-4', status: 'Submitted', week_start_date: '2026-05-30', owner: null, entries: [] },
   ];
 
+  it('AC-903: the queue lists the newest week first even though the scan serves rows in id order', async () => {
+    const mk = (id: string, week: string) => ({
+      id, user_id: `w-${id}`, status: 'Submitted', week_start_date: week,
+      owner: { full_name: id, manager_id: 'manager-1' }, entries: [],
+    });
+    makeFromBuilder({ data: [mk('a', '2026-05-04'), mk('b', '2026-06-01'), mk('c', '2026-05-18')], error: null });
+    const result = await listTimesheetsAwaitingApproval('manager-1', 'Admin');
+    expect(result.map(sheet => sheet.id)).toEqual(['b', 'c', 'a']);
+  });
+
   it('AC-903: a manager receives only sheets assigned to that manager', async () => {
     makeFromBuilder({ data: approvalRows, error: null });
     const result = await listTimesheetsAwaitingApproval('manager-1', 'Project Manager');

@@ -13,6 +13,7 @@ const h = vi.hoisted(() => {
     status: 'Submitted', push_state: 'failed', week_start_date: '2026-01-01', updated_at: '2026-01-01',
     created_at: '2026-01-01', approved_by: null, entries: [], project: null, profile: null,
     owner: { full_name: `Owner ${i}`, manager_id: SELF }, _t: name,
+    ...(name === 'work_orders' ? { status: 'Draft' } : {}),
   }));
   function query(name: string) {
     let rows = table(name);
@@ -29,9 +30,13 @@ const h = vi.hoisted(() => {
     };
     return q;
   }
-  return { from: vi.fn(query), SELF, N };
+  // Like PostgREST: a set-returning rpc is capped at 1000 rows without any signal.
+  const rpc = vi.fn(async (_n: string, args: { p_ids: string[] }) => ({
+    data: args.p_ids.map((id) => ({ work_order_id: id, reason: 'allowed' })).slice(0, 1000), error: null,
+  }));
+  return { from: vi.fn(query), rpc, SELF, N };
 });
-vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: h.from, rpc: vi.fn() } }));
+vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: h.from, rpc: h.rpc } }));
 
 import { listSpendApprovers } from './spendApprovers';
 import { listPushesNeedingAttention } from './timesheetPush';
@@ -52,5 +57,17 @@ describe('DATA-31 queues return the whole set across the server cap', () => {
     const rows = await read();
     expect(rows).toHaveLength(h.N);
     expect(new Set(rows.map((r: { id?: string; timesheet_id?: string }) => r.id ?? r.timesheet_id)).size).toBe(h.N);
+  });
+});
+
+describe('DATA-31 work-order eligibility join', () => {
+  it('chunks past the server cap: every draft keeps its decision, no call carries over 100 ids', async () => {
+    h.rpc.mockClear();
+    const rows = await listProjectWorkOrders('p');
+    expect(rows).toHaveLength(h.N);
+    expect(rows.every((r) => r.issue_eligibility === 'allowed')).toBe(true);
+    const sizes = h.rpc.mock.calls.map(([, a]) => a.p_ids.length);
+    expect(Math.max(...sizes)).toBeLessThanOrEqual(100);
+    expect(sizes.reduce((a, b) => a + b, 0)).toBe(h.N);
   });
 });
