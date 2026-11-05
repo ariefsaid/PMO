@@ -41,6 +41,8 @@ export type ProcurementListRow = Omit<ProcurementWithRefs, 'project' | 'pr_refs'
 export interface ProcurementListOptions {
   withRefs?: boolean;
   withSharedDetails?: boolean;
+  /** Dashboards: the shared list's money/stage inputs without `open_commitment` and the record-reference embeds. */
+  lean?: boolean;
 }
 
 export interface ProcurementRepository {

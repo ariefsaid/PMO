@@ -11,14 +11,14 @@ export type { MyTask } from '@/src/lib/db/tasks';
  * Org-scoped by RLS (no org_id needed client-side); assignee-scoped by the
  * server-side eq('assignee_id', userId) filter. Disabled until userId is known.
  */
-export function useMyTasks() {
+export function useMyTasks(enabled = true) {
   const { currentUser } = useAuth();
   const userId = currentUser?.id;
   const orgId = currentUser?.org_id;
   return useQuery<MyTask[]>({
     queryKey: ['my-tasks', orgId, userId],
     queryFn: () => repositories.task.listByAssignee(userId!),
-    enabled: Boolean(userId) && Boolean(orgId),
+    enabled: enabled && Boolean(userId) && Boolean(orgId),
   });
 }
 
