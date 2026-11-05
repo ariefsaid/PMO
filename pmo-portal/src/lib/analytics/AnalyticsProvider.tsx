@@ -7,6 +7,7 @@ import { analyticsClient } from './client';
 import { safeTrack } from './safeTrack';
 import { routeAnalyticsForPath } from './route';
 import { rejectionMessage } from './rejectionMessage';
+import { useRouteFirstData } from './useRouteFirstData';
 
 const baseSuperProperties = (cfg: {
   appEnv: string;
@@ -26,6 +27,7 @@ export const AnalyticsProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   // Plans S4 (FR-PLN-016): the org's plan as a PostHog group property (consent-gated inside the client).
   useOrgPlanGroup();
+  useRouteFirstData();
 
   // Memoize config to provide stable reference for useEffect deps
   const config = useMemo(() => getAnalyticsConfig(), []);

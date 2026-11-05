@@ -61,6 +61,7 @@ already defined with one (`empty_state_seen`).
 |---|---|---|---|
 | `demo_persona_selected` | Demo persona interest | `LoginPage` | `persona_role`, `demo_audience`, `demo_account` |
 | `app_route_viewed` | Navigation interest | `AnalyticsProvider` (every route change) | `route`, `module`, `role` |
+| `route_first_data` | Real-user page speed | `AnalyticsProvider` (`useRouteFirstData`, once per navigation) | `route` (pattern), `duration_ms`, `temperature` (`cold` first load / `warm`) |
 | `auth_login_succeeded` | Activation / session start | `AuthProvider` / `LoginPage` / `UpdatePasswordPage` | `method` |
 | `auth_login_failed` | Demo / auth friction | same as above | `method`, `reason_code` |
 | `auth_logout_succeeded` | Session end | `AuthProvider.signOut` | *(none — role rides the super-property)* |
