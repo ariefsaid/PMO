@@ -109,7 +109,7 @@ const ProjectDetail: React.FC = () => {
   const area = areaFromParam(tabParam);
   // AC-PERF-007/008: the Overview's summaries arrive in one request, in parallel with the project; leaf hooks mount
   // only after it settles (success or error), so they find seeded data or fall back to their own reads.
-  const overview = useProjectOverviewRead(projectId, area === 'overview');
+  const overview = useProjectOverviewRead(projectId, true);
   const { updateHeader } = useProjectMutations();
   const pipelineGroup = project ? projectStatusGroup(project.status as never) : null;
   const isPipelineRecord = pipelineGroup === 'pipeline' || pipelineGroup === 'lost';
@@ -166,7 +166,8 @@ const ProjectDetail: React.FC = () => {
       <ListState variant="loading" shape="detail" loadingLabel={t('projectDetail.loadingTitle', 'Loading project')} rows={6} />
     </>
   );
-  if (project && overview.isLoading) return loadingView;
+  // Only the Overview waits: swapping the page for a skeleton on a tab change would unmount the tablist and drop focus.
+  if (project && area === 'overview' && overview.isLoading) return loadingView;
 
   if (!project) {
     if (isPending) return loadingView;
