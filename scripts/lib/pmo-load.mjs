@@ -76,6 +76,8 @@ export function classifyBudgetLineCategory(category, description) {
 
 /** The name the app's budget import gives a version it creates (budgetDescriptor.ts). */
 export const IMPORT_VERSION_NAME = 'Imported';
+/** #1472: loaded lines carry fiscal years, so a CLI-created version is per-year, like the app's import. Whole-project Drafts are refused. */
+export const LOAD_BUDGET_MODE = 'per_year';
 
 // Classification (#770): passed through as-is; the database checks each value against the org's own option lists.
 const CLASSIFICATION_FIELDS = Object.freeze(['service_line', 'sector', 'location', 'award_type', 'bidding_entity']);
@@ -377,11 +379,15 @@ async function resolveBudget(api, entry) {
     return { ...l, category, rawCategory: l.category, import_key: lineKey(entry.key, l), decision, row };
   });
   if (!entry.existing) return { state: 'new', versionId: null, lines };
-  const versions = await api.get('budget_versions', params({ select: 'id,status,version', project_id: eq(entry.id), order: 'version.desc' }));
+  const versions = await api.get('budget_versions', params({ select: 'id,status,version,budget_mode', project_id: eq(entry.id), order: 'version.desc' }));
   if (versions.some((v) => v.status !== 'Draft')) {
     return { state: 'skip', versionId: null, lines: [], reason: 'the project already has an active or archived budget — add lines with the budget import in the app' };
   }
   if (versions.length === 0) return { state: 'new', versionId: null, lines };
+  // #1472: loaded lines carry fiscal years; a whole-project Draft takes category totals, so it is edited in the app.
+  if (versions[0].budget_mode === 'whole_project') {
+    return { state: 'skip', versionId: null, lines: [], reason: 'the Draft budget is in whole-project mode — the CLI loads per-year lines only; edit it in the app' };
+  }
   return { state: 'attach', versionId: versions[0].id, lines };
 }
 
@@ -583,7 +589,7 @@ async function applyBudget(e, api, write, note, { batchId, importedAt }) {
     // `status` is omitted on purpose: the column default is Draft and the 0176 trigger refuses anything else.
     await write({ kind: 'budget.version', key: e.key, name: IMPORT_VERSION_NAME }, async () => {
       const [v] = await api.post('budget_versions', {
-        project_id: e.id, version: 1, name: IMPORT_VERSION_NAME, import_batch_id: batchId, imported_at: importedAt,
+        project_id: e.id, version: 1, name: IMPORT_VERSION_NAME, budget_mode: LOAD_BUDGET_MODE, import_batch_id: batchId, imported_at: importedAt,
       });
       versionId = v.id;
       return { version_id: v.id };

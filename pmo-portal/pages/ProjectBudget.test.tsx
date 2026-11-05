@@ -82,7 +82,8 @@ const mockSaveBudgetDistribution = vi.fn().mockResolvedValue(undefined);
 vi.mock('@/src/hooks/useBudget', () => ({
   useProjectBudget: () => budgetState,
   useBudgetVersions: () => versionsState,
-  useBudgetDistribution: () => budgetDistributionState,
+  // Like the real hook: disabled (no data) without a version id.
+  useBudgetDistribution: (_projectId: string, versionId?: string) => (versionId ? budgetDistributionState : { ...budgetDistributionState, data: undefined }),
   useBudgetActivationMode: () => activationModeState,
   useBudgetActivationPrecheck: () => activationPrecheckState,
   useBudgetArchiveTargets: () => archiveTargetsState,
@@ -2118,5 +2119,56 @@ describe('budget draft mode switching (#1472 B2/B3)', () => {
         { id: 'li-travel', fiscal_year: '2027' },
       ],
     }));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// budget-whole-project AC-018 / FR-022 — stale Active distribution banner (plan 6.5)
+// ---------------------------------------------------------------------------
+describe('budget-whole-project FR-022 stale Active distribution banner', () => {
+  const wholeActive = { ...activeVersion, budget_mode: 'whole_project' };
+  const savedPlan = (projectEnd: string | null) => ({
+    method: 'by_days', inputs: {}, categoryOverrides: {}, rows: [],
+    basis: {
+      projectStart: '2026-01-01',
+      projectEnd,
+      years: [
+        { name: '2026', start: '2026-01-01', end: '2026-12-31' },
+        ...(projectEnd === '2027-12-31' ? [{ name: '2027', start: '2027-01-01', end: '2027-12-31' }] : []),
+      ],
+    },
+  });
+
+  it('names the new end date and covered years, mutates nothing on read, and Prepare new draft clones after confirmation', async () => {
+    budgetState.data = 4700000;
+    versionsState.data = [wholeActive];
+    budgetDistributionState.data = savedPlan('2026-12-31');
+    renderPage();
+    const banner = screen.getByTestId('budget-stale-distribution');
+    expect(banner).toHaveTextContent('2027-12-31');
+    expect(banner).toHaveTextContent('2026');
+    expect(mockClone).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole('button', { name: 'Prepare new draft' }));
+    expect(mockClone).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole('button', { name: /Clone version/i }));
+    expect(mockClone).toHaveBeenCalledWith('v-active');
+  });
+
+  it('is absent when the saved basis still matches, for per-year budgets, and for read-only roles it offers no action', async () => {
+    budgetState.data = 4700000;
+    versionsState.data = [wholeActive];
+    budgetDistributionState.data = savedPlan('2027-12-31');
+    const { unmount } = renderPage();
+    expect(screen.queryByTestId('budget-stale-distribution')).not.toBeInTheDocument();
+    unmount();
+    versionsState.data = [activeVersion];
+    budgetDistributionState.data = savedPlan('2026-12-31');
+    const second = renderPage();
+    expect(screen.queryByTestId('budget-stale-distribution')).not.toBeInTheDocument();
+    second.unmount();
+    versionsState.data = [wholeActive];
+    roleState.realRole = 'Engineer';
+    renderPage();
+    expect(screen.queryByRole('button', { name: 'Prepare new draft' })).not.toBeInTheDocument();
   });
 });

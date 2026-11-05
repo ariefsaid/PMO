@@ -25,6 +25,7 @@ import {
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatExactCents, parseExactCents } from '@/src/lib/exactDecimal';
 import { yearsInSpan } from '@/src/lib/budget/budgetDistribution';
+import { staleDistributionBasis } from '@/src/lib/budget/distributionStaleness';
 import { budgetVersionVariant } from '@/src/lib/status/statusVariants';
 import {
   Button,
@@ -198,6 +199,11 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
     projectId,
     draftVersion?.budget_mode === 'whole_project' ? draftVersion.id : undefined,
   );
+  // FR-022: read-only look at the Active whole-project plan; nothing here writes or pushes.
+  const activeDistributionQuery = useBudgetDistribution(
+    projectId,
+    activeVersion?.budget_mode === 'whole_project' ? activeVersion.id : undefined,
+  );
   const archiveTargetsQuery = useBudgetArchiveTargets(
     versions.map((version) => version.id),
     versions.some((version) => version.status === 'Archived'),
@@ -261,6 +267,9 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
       return [];
     }
   })();
+  const staleActivePlan = activeVersion && activeDistributionQuery.data
+    ? staleDistributionBasis(activeDistributionQuery.data.basis, project.start_date ?? null, project.end_date ?? null, fiscalYears)
+    : null;
   const modeSwitchContextKey = JSON.stringify([
     modeSwitchStaleNonce,
     draftVersion?.id,
@@ -756,6 +765,19 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
       </header>
 
       {authoringRecoveryNotice}
+
+      {activeVersion && staleActivePlan && (
+        <section aria-label={t('projectDetail.budget.staleDistributionTitle', 'Budget no longer covers the project')} className="panel-card flex min-w-0 flex-wrap items-center justify-between gap-3 p-[var(--panel-inset)]" data-testid="budget-stale-distribution">
+          <p role="status" className="min-w-0 text-sm text-foreground">
+            {staleActivePlan.projectEnd
+              ? t('projectDetail.budget.staleDistribution', 'The project now runs to {{date}}; this budget covers {{years}}.', { date: staleActivePlan.projectEnd, years: staleActivePlan.coveredYears.join(', ') })
+              : t('projectDetail.budget.staleDistributionOpenEnd', 'The project no longer has an end date; this budget covers {{years}}.', { years: staleActivePlan.coveredYears.join(', ') })}
+          </p>
+          {canWrite && !draftVersion && !authoringRefreshNeeded && (
+            <Button variant="outline" size="sm" onClick={() => requestClone(activeVersion.id)}>{t('projectDetail.budget.prepareNewDraft', 'Prepare new draft')}</Button>
+          )}
+        </section>
+      )}
 
       {draftVersion && (
         <section aria-label={t('projectDetail.budget.draftWaiting', 'Draft waiting for approval')} className="panel-card flex min-w-0 flex-wrap items-center justify-between gap-3 p-[var(--panel-inset)]" data-testid="budget-draft-banner">
