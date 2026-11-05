@@ -25,6 +25,8 @@ export interface ErpJournalLine {
   linkId: string | null;
   procurementId: string | null;
   procurementTitle: string | null;
+  /** Attached, and a later negative journal line sits on the same project and account: the hold is kept, the user is told. */
+  possiblyReversed: boolean;
 }
 
 /** One line to attach: the line key plus the purchase. */
@@ -52,6 +54,7 @@ type Raw = {
   erp_doctype: string; voucher_no: string; project_id: string; account: string; category: string;
   posting_date: string | null; amount: number | string; currency: string | null; remarks: string | null; party: string | null;
   is_cancelled: boolean | null; erp_url: string | null; link_id: string | null; procurement_id: string | null; procurement_title: string | null;
+  possibly_reversed: boolean | null;
 };
 
 const toLine = (r: Raw): ErpJournalLine => ({
@@ -70,6 +73,7 @@ const toLine = (r: Raw): ErpJournalLine => ({
   linkId: r.link_id,
   procurementId: r.procurement_id,
   procurementTitle: r.procurement_title,
+  possiblyReversed: r.possibly_reversed === true,
 });
 
 /** NFR-JEC-002: paged by range past PostgREST's `max_rows` (an unpaged read would silently truncate). The RPC's order

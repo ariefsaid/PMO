@@ -9,7 +9,7 @@ import { attachErpJournalLines, detachErpJournalLine, erpJournalLinesRepository,
 const raw = (over: Record<string, unknown> = {}) => ({
   erp_doctype: 'Journal Entry', voucher_no: 'JV-1', project_id: 'p1', account: 'Sub - X', category: 'Subcontractors',
   posting_date: '2026-03-01', amount: '60.00', currency: 'IDR', remarks: 'Vendor Lab inv 7', party: null, is_cancelled: false,
-  erp_url: 'https://erp.example.test/app/journal-entry/JV-1', link_id: null, procurement_id: null, procurement_title: null, ...over,
+  erp_url: 'https://erp.example.test/app/journal-entry/JV-1', link_id: null, procurement_id: null, procurement_title: null, possibly_reversed: false, ...over,
 });
 
 beforeEach(() => {
@@ -23,8 +23,13 @@ describe('erpJournalLines repository', () => {
   it('FR-JEC-001: maps a line to camelCase with a numeric amount', async () => {
     h.range.mockResolvedValueOnce({ data: [raw()], error: null });
     const [line] = await listProjectJournalLines('p1');
-    expect(line).toMatchObject({ voucherNo: 'JV-1', amount: 60, category: 'Subcontractors', remarks: 'Vendor Lab inv 7', isCancelled: false, linkId: null });
+    expect(line).toMatchObject({ voucherNo: 'JV-1', amount: 60, category: 'Subcontractors', remarks: 'Vendor Lab inv 7', isCancelled: false, linkId: null, possiblyReversed: false });
     expect(h.range).toHaveBeenCalledWith({ p_project_id: 'p1' }, 0, 999);
+  });
+
+  it('FR-JEC-042: carries the possibly-reversed flag', async () => {
+    h.range.mockResolvedValueOnce({ data: [raw({ possibly_reversed: true })], error: null });
+    expect((await listProjectJournalLines('p1'))[0].possiblyReversed).toBe(true);
   });
 
   it('NFR-JEC-002: reads every page, not just the first 1000 rows', async () => {

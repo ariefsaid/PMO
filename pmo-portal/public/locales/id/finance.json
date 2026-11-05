@@ -604,6 +604,7 @@
     "noPurchaseNote": "Dibayar langsung dan dicatat di sistem akuntansi sebagai jurnal, sehingga tidak ada pembelian yang dibuat di PMO.",
     "notInPurchase": "Belum ada pembelian",
     "cancelled": "Dibatalkan di sistem akuntansi",
+    "possiblyReversed": "Mungkin dibalik",
     "attach": "Lampirkan ke pembelian",
     "attachOne": "Lampirkan {{name}} ke pembelian",
     "attachConfirm": "Lampirkan",

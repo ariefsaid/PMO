@@ -604,6 +604,7 @@
     "noPurchaseNote": "Paid directly and recorded in the accounting system as a journal, so no purchase was raised in PMO.",
     "notInPurchase": "Not in a purchase",
     "cancelled": "Cancelled in the accounting system",
+    "possiblyReversed": "Possibly reversed",
     "attach": "Attach to purchase",
     "attachOne": "Attach {{name}} to a purchase",
     "attachConfirm": "Attach",

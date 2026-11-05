@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Combobox, EntityFormModal, type ComboboxOption, type SubmitError } from '@/src/components/ui';
-import { useProcurements } from '@/src/hooks/useProcurements';
+import { useProjectProcurements } from '@/src/hooks/useProcurements';
 import { useAttachJournalLines } from '@/src/hooks/useErpJournalLines';
 import { useProcurementStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
@@ -15,7 +15,7 @@ const CLOSED = new Set(['Cancelled', 'Rejected']);
 /** FR-JEC-010/013 — pick one of the project's purchases; a dry run shows the outcome before Confirm writes the link. */
 export const AttachJournalLineDialog: React.FC<{ line: ErpJournalLine; onClose: () => void }> = ({ line, onClose }) => {
   const { t } = useTranslation('finance');
-  const { data: purchases, isPending, isError, refetch } = useProcurements();
+  const { data: purchases, isPending, isError, refetch } = useProjectProcurements(line.projectId);
   const attach = useAttachJournalLines();
   const [target, setTarget] = useState<string | null>(null);
   const [verdict, setVerdict] = useState<{ ok: boolean; text: string } | null>(null);
@@ -23,9 +23,9 @@ export const AttachJournalLineDialog: React.FC<{ line: ErpJournalLine; onClose: 
   const stageLabel = useProcurementStatusLabel();
 
   const options = useMemo<ComboboxOption[]>(() => (purchases ?? [])
-    .filter((p) => p.project_id === line.projectId && !CLOSED.has(String(p.status)))
+    .filter((p) => !CLOSED.has(String(p.status)))
     .map((p) => ({ value: p.id, label: p.title, sub: [p.vendor?.name, stageLabel(String(p.status))].filter(Boolean).join(' · ') })),
-  [purchases, line.projectId, stageLabel]);
+  [purchases, stageLabel]);
 
   const row = (procurementId: string): ErpJournalAttachRow => ({
     erp_doctype: line.erpDoctype, voucher_no: line.voucherNo, project_id: line.projectId, account: line.account, procurement_id: procurementId,

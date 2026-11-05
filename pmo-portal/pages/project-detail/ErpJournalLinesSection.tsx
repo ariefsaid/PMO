@@ -54,10 +54,16 @@ export const ErpJournalLinesSection: React.FC<{ projectId: string; className?: s
     {
       key: 'purchase', header: t('erpJournal.column.purchase', 'Purchase'),
       cell: (l) => {
-        if (l.isCancelled) return <StatusPill variant="neutral">{t('erpJournal.cancelled', 'Cancelled in the accounting system')}</StatusPill>;
         if (l.procurementId) {
-          return <Link to={`/procurement/${l.procurementId}`} className="text-primary-text hover:underline">{l.procurementTitle ?? l.procurementId}</Link>;
+          return (
+            <span className="flex flex-wrap items-center gap-1.5">
+              <Link to={`/procurement/${l.procurementId}`} className="text-primary-text hover:underline">{l.procurementTitle ?? l.procurementId}</Link>
+              {l.isCancelled && <StatusPill variant="neutral">{t('erpJournal.cancelled', 'Cancelled in the accounting system')}</StatusPill>}
+              {l.possiblyReversed && <StatusPill variant="warn">{t('erpJournal.possiblyReversed', 'Possibly reversed')}</StatusPill>}
+            </span>
+          );
         }
+        if (l.isCancelled) return <StatusPill variant="neutral">{t('erpJournal.cancelled', 'Cancelled in the accounting system')}</StatusPill>;
         return <span className="text-muted-foreground">{t('erpJournal.notInPurchase', 'Not in a purchase')}</span>;
       },
     },

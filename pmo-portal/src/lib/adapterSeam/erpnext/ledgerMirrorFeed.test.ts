@@ -690,6 +690,17 @@ describe('erpnext/ledgerMirrorFeed — a reposted voucher is replaced, never dou
     expect(res.glCaughtUp).toBe(true);
   });
 
+  it('AC-JEC-013: a replaced voucher\'s rows carry the GL remark too (voucher-replace path)', async () => {
+    const sc = fakeServiceClient(mirrorAfterFirstRepost());
+    h(sc).setWatermark('erpnext', LEDGER_GL_WM_DOMAIN, '2026-10-25 07:37:57.013202');
+    const withRemark = erpCurrent.map((r) => ({ ...r, remarks: 'Vendor Lab inv 7' }));
+    mockGl(async () => ({ rows: withRemark, caughtUp: true }));
+    vi.spyOn(ledgerFetch, 'fetchPaymentLedgerEntries').mockResolvedValue({ rows: [], caughtUp: true });
+    await feedLedgerMirrors(sc, { client, orgId: 'org-1', company: 'Synthetic Co' });
+    expect(h(sc).gl.get('ACC-GLE-2026-01438')).toMatchObject({ remarks: 'Vendor Lab inv 7' });
+    expect(h(sc).gl.get('ACC-GLE-2026-00231')).toMatchObject({ remarks: 'Vendor Lab inv 7' });
+  });
+
   it('a voucher too big to read in full removes nothing, is reported as skipped, and does not block the feed', async () => {
     const sc = fakeServiceClient(mirrorAfterFirstRepost());
     h(sc).setWatermark('erpnext', LEDGER_GL_WM_DOMAIN, '2026-10-25 07:37:57.013202');

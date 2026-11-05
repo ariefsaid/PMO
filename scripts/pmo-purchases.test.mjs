@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { parseCsv, rowsFromCsv, validateLinkRows, runLink, PURCHASE_RPCS, PURCHASE_READ_VIEWS, MAX_BATCH,
-  SET_ASIDE_RPCS, setAsideRowsFromCsv, validateSetAsideRows, runSetAside, LinkFileError, validateJournalRows, runAttachJournals } from './lib/pmo-purchases.mjs';
+  SET_ASIDE_RPCS, setAsideRowsFromCsv, validateSetAsideRows, runSetAside, LinkFileError, validateJournalRows, runAttachJournals, readJournalPages, JOURNAL_PAGE } from './lib/pmo-purchases.mjs';
 
 const CSV = 'erp_doctype,erp_name,procurement_id,project_id,group,title,budget_category,sp_drive_id,sp_item_id,sp_web_url,sp_name,sp_kind\n'
   + 'Purchase Invoice,PINV-1,,11111111-1111-1111-1111-111111111111,G,"Steel, batch 1",,,,,,\n'
@@ -258,4 +258,12 @@ test('AC-JEC-017: more than 500 rows go in several calls and a failed call repor
   assert.equal(report.failed_at_row, MAX_BATCH + 1);
   assert.deepEqual(report.not_saved_rows, [MAX_BATCH + 1, MAX_BATCH + 2, MAX_BATCH + 3]);
   assert.equal(report.error.message, 'boom');
+});
+
+test('NFR-JEC-002: the journals read pages past one page and stops at a short page', async () => {
+  const calls = [];
+  const rows = await readJournalPages(async (from, to) => { calls.push([from, to]);
+    return Array.from({ length: from === 0 ? JOURNAL_PAGE : 7 }, (_, i) => ({ n: from + i })); });
+  assert.equal(rows.length, JOURNAL_PAGE + 7);
+  assert.deepEqual(calls, [[0, JOURNAL_PAGE - 1], [JOURNAL_PAGE, 2 * JOURNAL_PAGE - 1]]);
 });

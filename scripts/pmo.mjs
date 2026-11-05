@@ -53,7 +53,7 @@ import { applyMapSet, MAP_COLUMNS, MAP_TABLE, MapSetError, planMapSet } from './
 import { ACTIVATION_ENABLED, activateBudget, ActivationRefused, linkBudgetSource, validateSource } from './lib/pmo-budgets.mjs';
 import { ATTRIBUTION_READ_RPCS, ATTRIBUTION_WRITE_RPCS, AttributionFileError, explainError, formatPreview, previewRules, readRules, setRules, validateEnd } from './lib/pmo-attribution.mjs';
 import { EQUIPMENT_READ_RPCS, EQUIPMENT_USAGE_RPCS, EQUIPMENT_WRITE_RPCS, EquipmentFileError, EquipmentUsageError, explainError as explainEquipmentError, formatAllocations, previewSettings, readSettings, setSettings, validateUsageList } from './lib/pmo-equipment.mjs';
-import { LinkFileError, MAX_BATCH, PURCHASE_READ_VIEWS, parseCsv, rowsFromCsv, runAttachJournals, runLink, runSetAside, setAsideRowsFromCsv, validateJournalRows, validateLinkRows, validateSetAsideRows } from './lib/pmo-purchases.mjs';
+import { LinkFileError, MAX_BATCH, PURCHASE_READ_VIEWS, parseCsv, rowsFromCsv, runAttachJournals, readJournalPages, runLink, runSetAside, setAsideRowsFromCsv, validateJournalRows, validateLinkRows, validateSetAsideRows } from './lib/pmo-purchases.mjs';
 import { TM_READ_RPCS, TmQueryError, explainError as explainTmError, formatClaims, formatPreview as formatTmPreview, formatRateCard, listClaims, previewClaim, readRateCard } from './lib/pmo-tm.mjs';
 
 // ── the public surface (DD-API-1 / DD-API-3) ─────────────────────────────────────────────────────
@@ -1172,7 +1172,8 @@ async function purchases(ctx, positionals, flags) {
   if (sub === 'journals') {
     // #1919: the project's accounting-system journal cost lines (the same read as the Procurement tab).
     if (flags.project === undefined || !UUID.test(String(flags.project))) throw usage('purchases journals needs --project <id (uuid)>: pmo purchases journals --project <id>');
-    return authed(ctx, 'POST', '/rest/v1/rpc/project_erp_journal_lines', { body: { p_project_id: flags.project } });
+    return readJournalPages((from, to) => authed(ctx, 'POST', '/rest/v1/rpc/project_erp_journal_lines',
+      { body: { p_project_id: flags.project }, headers: { 'range-unit': 'items', range: `${from}-${to}` } }));
   }
   if (sub === 'attach-journals') {
     if (!arg) throw usage('purchases attach-journals needs a file: pmo purchases attach-journals <file.json|-> [--dry-run]');

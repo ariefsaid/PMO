@@ -286,3 +286,14 @@ export async function runAttachJournals(api, rows, { dryRun }) {
   }
   return out;
 }
+
+/** `pmo purchases journals` read: pages by range past PostgREST's max rows so a long list is never silently cut (NFR-JEC-002). */
+export const JOURNAL_PAGE = 1000;
+export async function readJournalPages(getPage) {
+  const out = [];
+  for (let from = 0; ; from += JOURNAL_PAGE) {
+    const page = await getPage(from, from + JOURNAL_PAGE - 1);
+    out.push(...page);
+    if (page.length < JOURNAL_PAGE) return out;
+  }
+}

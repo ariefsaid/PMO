@@ -5,23 +5,23 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const h = vi.hoisted(() => ({ mutate: vi.fn() }));
 vi.mock('@/src/hooks/useErpJournalLines', () => ({ useAttachJournalLines: () => ({ mutateAsync: h.mutate, isPending: false }) }));
-vi.mock('@/src/hooks/useProcurements', () => ({
-  useProcurements: () => ({
-    isPending: false, isError: false, refetch: vi.fn(),
-    data: [
-      { id: 'pr1', title: 'Lab works', status: 'Ordered', project_id: 'p1', vendor: { name: 'Vendor Lab' } },
-      { id: 'pr2', title: 'Other project', status: 'Ordered', project_id: 'p2', vendor: null },
-      { id: 'pr3', title: 'Dropped', status: 'Cancelled', project_id: 'p1', vendor: null },
-    ],
-  }),
+const ALL = [
+  { id: 'pr1', title: 'Lab works', status: 'Ordered', project_id: 'p1', vendor: { name: 'Vendor Lab' } },
+  { id: 'pr2', title: 'Other project', status: 'Ordered', project_id: 'p2', vendor: null },
+  { id: 'pr3', title: 'Dropped', status: 'Cancelled', project_id: 'p1', vendor: null },
+];
+// The server filters by project: the dialog asks for the line's project only, not the org's whole list.
+const byProject = vi.fn((projectId: string) => ({
+  isPending: false, isError: false, refetch: vi.fn(), data: ALL.filter((p) => p.project_id === projectId),
 }));
+vi.mock('@/src/hooks/useProcurements', () => ({ useProjectProcurements: (id: string) => byProject(id) }));
 vi.mock('@/src/hooks/useProjectStatusLabel', () => ({ useProcurementStatusLabel: () => (s: string) => s }));
 
 import { AttachJournalLineDialog } from './AttachJournalLineDialog';
 
 const line = {
   erpDoctype: 'Journal Entry', voucherNo: 'ACC-JV-0001', projectId: 'p1', account: 'Sub - X', category: 'Subcontractors', postingDate: '2026-03-01',
-  amount: 60000, currency: 'IDR', remarks: 'Vendor Lab inv 7', party: null, isCancelled: false, erpUrl: null, linkId: null, procurementId: null, procurementTitle: null,
+  amount: 60000, currency: 'IDR', remarks: 'Vendor Lab inv 7', party: null, isCancelled: false, erpUrl: null, linkId: null, procurementId: null, procurementTitle: null, possiblyReversed: false,
 };
 const rowFor = (id: string) => ({ erp_doctype: 'Journal Entry', voucher_no: 'ACC-JV-0001', project_id: 'p1', account: 'Sub - X', procurement_id: id });
 
@@ -38,6 +38,7 @@ describe('AttachJournalLineDialog', () => {
     render(<AttachJournalLineDialog line={line} onClose={vi.fn()} />);
     await userEvent.click(screen.getByRole('combobox', { name: /Purchase/ }));
     expect(await screen.findByRole('option', { name: /Lab works/ })).toBeVisible();
+    expect(byProject).toHaveBeenCalledWith('p1');
     expect(screen.queryByRole('option', { name: /Other project/ })).toBeNull();
     expect(screen.queryByRole('option', { name: /Dropped/ })).toBeNull();
   });

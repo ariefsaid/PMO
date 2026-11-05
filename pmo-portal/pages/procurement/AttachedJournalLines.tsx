@@ -1,6 +1,6 @@
 import React, { useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, ConfirmDialog, DataTable, ListState, type Column } from '@/src/components/ui';
+import { Button, ConfirmDialog, DataTable, ListState, StatusPill, type Column } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { formatCurrency, formatDate } from '@/src/lib/format';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
@@ -50,7 +50,12 @@ export const AttachedJournalLines: React.FC<{ procurementId: string; projectId: 
     { key: 'account', header: t('erpJournal.column.account', 'Account'), cell: (l) => l.account },
     {
       key: 'amount', header: t('erpJournal.column.amount', 'Amount'), kind: 'money', align: 'num',
-      cell: (l) => (l.isCancelled ? t('erpJournal.cancelled', 'Cancelled in the accounting system') : l.currency ? formatCurrency(l.amount, l.currency) : '—'),
+      cell: (l) => (l.isCancelled ? t('erpJournal.cancelled', 'Cancelled in the accounting system') : l.currency ? (
+        <span className="inline-flex flex-wrap items-center justify-end gap-1.5">
+          {l.possiblyReversed && <StatusPill variant="warn">{t('erpJournal.possiblyReversed', 'Possibly reversed')}</StatusPill>}
+          {formatCurrency(l.amount, l.currency)}
+        </span>
+      ) : '—'),
     },
     ...(canDetach ? [{
       key: 'actions', header: <span className="sr-only">{t('erpLinks.actions', 'Actions')}</span>, kind: 'actions' as const, size: 120,

@@ -19,7 +19,7 @@ import { AttachedJournalLines } from './AttachedJournalLines';
 
 const line = {
   erpDoctype: 'Journal Entry', voucherNo: 'ACC-JV-0001', projectId: 'p1', account: 'Sub - X', category: 'Subcontractors', postingDate: '2026-03-01',
-  amount: 60000, currency: 'IDR', remarks: 'Vendor Lab inv 7', party: null, isCancelled: false, erpUrl: null, linkId: 'l1', procurementId: 'pr1', procurementTitle: 'Lab works',
+  amount: 60000, currency: 'IDR', remarks: 'Vendor Lab inv 7', party: null, isCancelled: false, erpUrl: null, linkId: 'l1', procurementId: 'pr1', procurementTitle: 'Lab works', possiblyReversed: false,
 };
 const renderIt = () => render(<MemoryRouter><AttachedJournalLines procurementId="pr1" projectId="p1" /></MemoryRouter>);
 
@@ -30,6 +30,12 @@ beforeEach(() => {
 });
 
 describe('AttachedJournalLines', () => {
+  it('FR-JEC-042: a possibly reversed line is flagged on the purchase', () => {
+    h.query = { ...h.query, data: [{ ...line, possiblyReversed: true }] };
+    renderIt();
+    expect(screen.getByRole('row', { name: /ACC-JV-0001/ })).toHaveTextContent('Possibly reversed');
+  });
+
   it('FR-JEC-016: lists number, date, account and amount', () => {
     renderIt();
     const row = screen.getByRole('row', { name: /ACC-JV-0001/ });

@@ -4,20 +4,22 @@
  *
  * Journey: Finance opens the project's Procurement tab, sees the journal line ("Not in a purchase"), attaches it to the
  * project's purchase from the row, then opens the purchase and finds the line listed there. The cost is counted once:
- * the ledger rows behind the project's spending are untouched, and only the purchase's ledger-held amount rises.
+ * the project's spent figure is the same before and after, and the project's open commitment falls by the line amount.
  *
  * ISOLATION: unique project, purchase, journal rows and voucher per run; the binding config is snapshotted and restored;
  * every row is deleted in finally, even on failure.
  */
 import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
-import { signIn, requireServiceRoleKey } from '../helpers';
+import type { Database } from '../../src/lib/supabase/database.types';
+import { signIn, requireServiceRoleKey, SEED_PASSWORD } from '../helpers';
 
 test.setTimeout(120_000);
 
 const ORG_ID = process.env.E2E_ORG_ID ?? '00000000-0000-0000-0000-000000000001';
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL ?? 'http://127.0.0.1:54321';
 const COST_ACCOUNT = 'Subcontractor Costs - PSC'; // mapped to Subcontractors by the seed
+const ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY ?? process.env.SUPABASE_ANON_KEY ?? '';
 const svcKey = requireServiceRoleKey();
 if (!svcKey) throw new Error('AC-JEC-015: SUPABASE_SERVICE_ROLE_KEY is required for this owning journey - it must not silently skip.');
 const admin = createClient(SUPABASE_URL, svcKey, { auth: { persistSession: false } });
@@ -51,6 +53,23 @@ test('AC-JEC-015: Finance attaches a journal line to a purchase and finds it on 
       voucher_no: voucher, posting_date: '2026-03-01', debit: 1200, credit: 0, is_cancelled: false, remarks: `Vendor e2e ${suffix}`, erp_modified: '2026-03-01 10:00:00',
     })).error);
 
+    // The project's money as Finance reads it (the figures the project screens show), before and after the attach.
+    if (!ANON_KEY) throw new Error('AC-JEC-015: VITE_SUPABASE_ANON_KEY (or SUPABASE_ANON_KEY) is required');
+    const finance = createClient<Database>(SUPABASE_URL, ANON_KEY, { auth: { persistSession: false } });
+    const { error: authErr } = await finance.auth.signInWithPassword({ email: 'finance@acme.test', password: SEED_PASSWORD });
+    if (authErr) throw authErr;
+    const projectMoney = async () => {
+      const spent = await finance.rpc('project_mapped_actuals', { p_project_id: projectId });
+      const committed = await finance.rpc('project_committed_spend', { p_project_id: projectId });
+      if (spent.error || committed.error) throw new Error(`AC-JEC-015 read money failed: ${spent.error?.message ?? committed.error?.message}`);
+      return {
+        spent: (spent.data ?? []).reduce((n, r) => n + Number(r.actuals_to_date), 0),
+        committed: (committed.data ?? []).filter((r) => r.is_project_currency).reduce((n, r) => n + Number(r.amount), 0),
+      };
+    };
+    const before = await projectMoney();
+    expect(before.committed).toBe(5000);
+
     await signIn(page, 'finance@acme.test');
     await page.goto(`/projects/${projectId}/procurement`);
 
@@ -76,9 +95,10 @@ test('AC-JEC-015: Finance attaches a journal line to a purchase and finds it on 
     const attached = page.getByRole('region', { name: 'Journal entries from the accounting system' });
     await expect(attached.locator('tr', { hasText: voucher })).toContainText(COST_ACCOUNT);
 
-    // Counted once: the ledger rows behind the project's spending are untouched; the purchase now holds the journal amount.
-    const { data: gl } = await admin.from('erp_gl_entry_mirror').select('debit, credit, is_cancelled').eq('org_id', ORG_ID).eq('project', erpProject);
-    expect(gl).toEqual([{ debit: 1200, credit: 0, is_cancelled: false }]);
+    // Counted once: the project's spent figure is the same, the purchase's open commitment fell by the line amount.
+    const after = await projectMoney();
+    expect(after.spent).toBe(before.spent);
+    expect(after.committed).toBe(before.committed - 1200);
     const { data: held } = await admin.rpc('procurement_ledger_held', { p_procurement_id: procurementId });
     expect(Number(held)).toBe(1200);
   } finally {

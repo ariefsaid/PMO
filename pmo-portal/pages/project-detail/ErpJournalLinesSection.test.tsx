@@ -21,7 +21,7 @@ import { ErpJournalLinesSection } from './ErpJournalLinesSection';
 const line = (over: Record<string, unknown> = {}) => ({
   erpDoctype: 'Journal Entry', voucherNo: 'ACC-JV-0001', projectId: 'p1', account: 'Project Subcontractors - X', category: 'Subcontractors',
   postingDate: '2026-03-01', amount: 60000, currency: 'IDR', remarks: 'Vendor Lab inv 7', party: null, isCancelled: false,
-  erpUrl: 'https://erp.example.test/app/journal-entry/ACC-JV-0001', linkId: null, procurementId: null, procurementTitle: null, ...over,
+  erpUrl: 'https://erp.example.test/app/journal-entry/ACC-JV-0001', linkId: null, procurementId: null, procurementTitle: null, possiblyReversed: false, ...over,
 });
 const renderIt = () => render(<MemoryRouter><ErpJournalLinesSection projectId="p1" /></MemoryRouter>);
 
@@ -77,6 +77,20 @@ describe('ErpJournalLinesSection', () => {
     renderIt();
     expect(screen.getByRole('row', { name: /ACC-JV-0001/ })).toBeVisible();
     expect(screen.queryByRole('button', { name: /Attach/ })).toBeNull();
+  });
+
+  it('FR-JEC-022: a cancelled line that is still attached keeps its purchase link next to the cancelled note', () => {
+    h.query = { ...h.query, data: [line({ isCancelled: true, amount: 0, linkId: 'l1', procurementId: 'pr1', procurementTitle: 'Lab works' })] };
+    renderIt();
+    const row = screen.getByRole('row', { name: /ACC-JV-0001/ });
+    expect(within(row).getByRole('link', { name: 'Lab works' })).toHaveAttribute('href', '/procurement/pr1');
+    expect(row).toHaveTextContent('Cancelled in the accounting system');
+  });
+
+  it('FR-JEC-042: an attached line that may have been reversed says so', () => {
+    h.query = { ...h.query, data: [line({ linkId: 'l1', procurementId: 'pr1', procurementTitle: 'Lab works', possiblyReversed: true })] };
+    renderIt();
+    expect(screen.getByRole('row', { name: /ACC-JV-0001/ })).toHaveTextContent('Possibly reversed');
   });
 
   it('FR-JEC-022: a line the accounting system cancelled says so and cannot be attached', () => {
