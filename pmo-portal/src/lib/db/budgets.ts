@@ -199,7 +199,7 @@ function isOverflowMarker(row: Record<string, unknown>): boolean {
 }
 
 /** Fail-closed mapping of one aggregate row. Any malformed page rejects; it never becomes empty data. */
-function mapAggregateRow(raw: unknown): BudgetVersionWithItems {
+export function mapAggregateRow(raw: unknown): BudgetVersionWithItems {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
     throw new AppError('Budget version read returned an unexpected row');
   }

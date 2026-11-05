@@ -65,18 +65,24 @@ export async function listMilestones(projectId: string): Promise<MilestoneWithPr
   const data = await fetchAllPages((from, to) => supabase.rpc('get_project_milestones', {
     p_project_id: projectId,
   }).order('sort_order', { ascending: true }).order('id', { ascending: true }).range(from, to));
-  const rows = (data ?? []) as Array<{
-    id: string;
-    project_id: string;
-    name: string;
-    sort_order: number;
-    target_date: string | null;
-    weight: number;
-    input_pct: number | null;
-    task_count: number;
-    calculated_pct: number | null;
-    effective_pct: number;
-  }>;
+  return mapMilestoneRows((data ?? []) as MilestoneRpcRow[]);
+}
+
+export type MilestoneRpcRow = {
+  id: string;
+  project_id: string;
+  name: string;
+  sort_order: number;
+  target_date: string | null;
+  weight: number;
+  input_pct: number | null;
+  task_count: number;
+  calculated_pct: number | null;
+  effective_pct: number;
+};
+
+/** Maps `get_project_milestones` rows; shared by the per-endpoint read and the Overview read-model. */
+export function mapMilestoneRows(rows: MilestoneRpcRow[]): MilestoneWithProgress[] {
   return rows.map((r) => ({
     id: r.id,
     project_id: r.project_id,

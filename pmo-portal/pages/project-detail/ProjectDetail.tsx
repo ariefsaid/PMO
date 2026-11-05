@@ -14,6 +14,7 @@ import { useAgentContext } from '@/src/lib/agent/context/useAgentContext';
 import { useListReturn } from '@/src/hooks/useListReturn';
 import { trackProjectTabViewed } from '@/src/lib/analytics';
 import { useMilestones } from '@/src/hooks/useMilestones';
+import { useProjectOverviewRead } from '@/src/hooks/useProjectOverviewRead';
 import { completionPct, formatDateOnly, formatInstantDate, formatRelativeTime } from '@/src/lib/format';
 import ProjectDetailHeader from './ProjectDetailHeader';
 import PipelineLens from './PipelineLens';
@@ -115,11 +116,14 @@ const ProjectDetail: React.FC = () => {
     isError: projectError,
     refetch: refetchProject,
   } = useProject(projectId);
+  const area = areaFromParam(tabParam);
+  // AC-PERF-007/008: the Overview's summaries arrive in one request, in parallel with the project; leaf hooks mount
+  // only after it settles (success or error), so they find seeded data or fall back to their own reads.
+  const overview = useProjectOverviewRead(projectId, true);
   const { updateHeader } = useProjectMutations();
   const pipelineGroup = project ? projectStatusGroup(project.status as never) : null;
   const isPipelineRecord = pipelineGroup === 'pipeline' || pipelineGroup === 'lost';
   const isDesktop = useIsDesktop();
-  const area = areaFromParam(tabParam);
   const primaryActionAllowed = area === 'overview' || area === 'contract';
   const chaseOnly = area === 'contract';
   const { toast } = useToast();
@@ -164,17 +168,19 @@ const ProjectDetail: React.FC = () => {
     toast(headline, detail, 'warning');
   };
 
+  const loadingView = (
+    <>
+      <BackBar label={t('projectDetail.backToProjects', 'Projects')} phoneOnly onBack={goBack} />
+      {/* O18: the page keeps a level-one heading while the project loads. */}
+      <h1 className="sr-only">{t('projectDetail.loadingTitle', 'Loading project')}</h1>
+      <ListState variant="loading" shape="detail" loadingLabel={t('projectDetail.loadingTitle', 'Loading project')} rows={6} />
+    </>
+  );
+  // Only the Overview waits: swapping the page for a skeleton on a tab change would unmount the tablist and drop focus.
+  if (project && area === 'overview' && overview.isLoading) return loadingView;
+
   if (!project) {
-    if (isPending) {
-      return (
-        <>
-          <BackBar label={t('projectDetail.backToProjects', 'Projects')} phoneOnly onBack={goBack} />
-          {/* O18: the page keeps a level-one heading while the project loads. */}
-          <h1 className="sr-only">{t('projectDetail.loadingTitle', 'Loading project')}</h1>
-          <ListState variant="loading" shape="detail" loadingLabel={t('projectDetail.loadingTitle', 'Loading project')} rows={6} />
-        </>
-      );
-    }
+    if (isPending) return loadingView;
     // #695: absence cannot be claimed from a FAILED read. A by-id fetch that errored says nothing
     // about whether the record exists, so it is a load error with Retry - never "not found".
     if (projectError) {
