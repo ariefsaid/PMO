@@ -720,6 +720,114 @@ from native_retained_mutation_backup b
 where p.org_id=b.org_id and p.batch_id=b.batch_id and p.statement=b.statement
   and p.project_id is not distinct from b.project_id and p.period_kind=b.period_kind
   and p.current_start=b.current_start and p.side=b.side;
+-- AC-CD-009 equivalence oracle. The publisher leaves its validated full catalogue in pg_temp.pmo_native_output;
+-- whatever the table looked like before (insert / update / delete / reorder / calendar-period change / ERP
+-- precision change), the published rows must equal that catalogue row for row, both ways, on every content
+-- column. Row sets are compared (EXCEPT), never counts. Each scenario rolls back to the same starting state.
+reset role;
+create function pg_temp.diff_vs_full(p_unused integer,p_unused2 text) returns text language sql as $f$
+  with pub as (
+    select statement,project_id,view_kind,period_kind,current_start,current_end,prior_start,prior_end,
+      payload,raw_reports,has_activity,source_report,report_version,filters,settings,currency,
+      display_precision,display_rounding_method
+    from public.erp_financial_statement_snapshot where org_id='03190000-0000-0000-0000-000000000001' and company='Native Test Co'),
+  full_ as (
+    select statement,project_id,view_kind,period_kind,current_start,current_end,prior_start,prior_end,
+      payload,raw_reports,has_activity,source_report,report_version,filters,settings,'IDR'::text currency,
+      (c.context->'presentation'->'metadata'->>'currencyPrecision')::integer display_precision,
+      c.context->'presentation'->'metadata'->>'roundingMethod' display_rounding_method
+    from pg_temp.pmo_native_output cross join pg_temp.native_incremental_context c)
+  select format('published-not-full=%s full-not-published=%s',
+    (select count(*) from (select * from pub except select * from full_) a),
+    (select count(*) from (select * from full_ except select * from pub) b))
+$f$;
+create function pg_temp.xact_tuples() returns bigint[] language sql as $f$
+  select array[pg_stat_get_xact_tuples_inserted('public.erp_financial_statement_snapshot'::regclass),
+                pg_stat_get_xact_tuples_deleted('public.erp_financial_statement_snapshot'::regclass)]
+$f$;
+create temporary table eq_marks(inserted bigint,deleted bigint);
+grant select,insert,update,delete on eq_marks to service_role;
+grant execute on function pg_temp.xact_tuples() to service_role;
+
+-- baseline: nothing changed in the key set, so the diff path must not delete or insert a single row
+savepoint eq_baseline;
+insert into eq_marks select (pg_temp.xact_tuples())[1],(pg_temp.xact_tuples())[2];
+set local role service_role;
+select public.publish_erp_financial_statements('03190000-0000-0000-0000-000000000001','03190000-0000-0000-0000-000000000101',(select (result->>'batchId')::uuid from native_incremental));
+reset role;
+select is(pg_temp.diff_vs_full(0,'x'),'published-not-full=0 full-not-published=0','AC-CD-009 unchanged key set: published rows equal a full refresh, row for row (precision changed 2 to 3)');
+select is((pg_temp.xact_tuples())[2]-(select deleted from eq_marks),0::bigint,'AC-CD-009 unchanged key set: no row is deleted (a delete-all-and-reinsert publisher fails here)');
+select is((pg_temp.xact_tuples())[1]-(select inserted from eq_marks),0::bigint,'AC-CD-009 unchanged key set: no row is re-inserted');
+rollback to savepoint eq_baseline;
+
+-- update: retained detail rows are validated against their source generation, so only columns the publisher
+-- does not validate are made stale: project-total payloads, flags, versions and precision/rounding.
+savepoint eq_update;
+update public.erp_financial_statement_snapshot set payload=jsonb_build_object('current',payload->'prior','prior',payload->'current'),
+  display_precision=9,display_rounding_method='Banker''s Rounding'
+ where org_id='03190000-0000-0000-0000-000000000001' and view_kind='project_totals';
+update public.erp_financial_statement_snapshot set has_activity=not has_activity,report_version='stale'
+ where org_id='03190000-0000-0000-0000-000000000001' and view_kind='account_breakdown' and ctid in (select ctid from public.erp_financial_statement_snapshot where org_id='03190000-0000-0000-0000-000000000001' and view_kind='account_breakdown' order by statement,project_id nulls first,period_kind,current_start limit 5);
+set local role service_role;
+select public.publish_erp_financial_statements('03190000-0000-0000-0000-000000000001','03190000-0000-0000-0000-000000000101',(select (result->>'batchId')::uuid from native_incremental));
+reset role;
+select is(pg_temp.diff_vs_full(3,'x'),'published-not-full=0 full-not-published=0','AC-CD-009 update: stale payloads, flags, versions, precision and rounding converge to a full refresh');
+rollback to savepoint eq_update;
+
+-- insert: missing rows come back (project-total rows; retained detail rows are the immutable source)
+savepoint eq_insert;
+delete from public.erp_financial_statement_snapshot where org_id='03190000-0000-0000-0000-000000000001' and ctid in (select ctid from public.erp_financial_statement_snapshot where org_id='03190000-0000-0000-0000-000000000001' and view_kind='project_totals' order by statement,project_id,period_kind,current_start limit 6);
+insert into eq_marks select (pg_temp.xact_tuples())[1],(pg_temp.xact_tuples())[2];
+set local role service_role;
+select public.publish_erp_financial_statements('03190000-0000-0000-0000-000000000001','03190000-0000-0000-0000-000000000101',(select (result->>'batchId')::uuid from native_incremental));
+reset role;
+select is(pg_temp.diff_vs_full(3,'x'),'published-not-full=0 full-not-published=0','AC-CD-009 insert: missing keys are inserted and the table equals a full refresh');
+select is((pg_temp.xact_tuples())[1]-(select max(inserted) from eq_marks),6::bigint,'AC-CD-009 insert: exactly the missing keys are inserted');
+rollback to savepoint eq_insert;
+
+-- delete: keys no longer in the catalogue (project unmapped, period dropped) disappear
+savepoint eq_delete;
+insert into public.erp_financial_statement_snapshot(org_id,company,snapshot_id,source_generation,statement,scope_kind,project_id,view_kind,period_kind,
+  current_start,current_end,prior_start,prior_end,currency,as_of,capture_started_at,capture_completed_at,published_at,source_report,report_version,filters,settings,payload,raw_reports,has_activity,display_precision,display_rounding_method)
+select org_id,company,snapshot_id,source_generation,statement,scope_kind,project_id,view_kind,period_kind,
+  current_start-4000,current_end-4000,prior_start-4000,prior_end-4000,currency,as_of,capture_started_at,capture_completed_at,published_at,source_report,report_version,filters,settings,payload,raw_reports,has_activity,display_precision,display_rounding_method
+from public.erp_financial_statement_snapshot where org_id='03190000-0000-0000-0000-000000000001' order by statement,project_id nulls first,view_kind,period_kind,current_start limit 5;
+insert into eq_marks select (pg_temp.xact_tuples())[1],(pg_temp.xact_tuples())[2];
+set local role service_role;
+select public.publish_erp_financial_statements('03190000-0000-0000-0000-000000000001','03190000-0000-0000-0000-000000000101',(select (result->>'batchId')::uuid from native_incremental));
+reset role;
+select is(pg_temp.diff_vs_full(0,'x'),'published-not-full=0 full-not-published=0','AC-CD-009 delete: keys absent from the catalogue are removed');
+select is((pg_temp.xact_tuples())[2]-(select max(deleted) from eq_marks),5::bigint,'AC-CD-009 delete: exactly the absent keys are deleted');
+rollback to savepoint eq_delete;
+
+-- reorder: payloads sit on each other's keys (rotated), as after a project remap
+savepoint eq_reorder;
+with k as (
+  select statement,project_id,view_kind,period_kind,current_start,
+    lead(payload) over w next_payload, first_value(payload) over w first_payload,
+    row_number() over w rn, count(*) over () n
+  from public.erp_financial_statement_snapshot where org_id='03190000-0000-0000-0000-000000000001' and view_kind='project_totals'
+  window w as (order by statement,project_id,period_kind,current_start))
+update public.erp_financial_statement_snapshot s set payload=coalesce(k.next_payload,k.first_payload)
+from k where s.org_id='03190000-0000-0000-0000-000000000001' and s.statement=k.statement and s.project_id=k.project_id and s.view_kind=k.view_kind
+  and s.period_kind=k.period_kind and s.current_start=k.current_start and k.rn<=6;
+set local role service_role;
+select public.publish_erp_financial_statements('03190000-0000-0000-0000-000000000001','03190000-0000-0000-0000-000000000101',(select (result->>'batchId')::uuid from native_incremental));
+reset role;
+select is(pg_temp.diff_vs_full(0,'x'),'published-not-full=0 full-not-published=0','AC-CD-009 reorder: rotated payloads are corrected to a full refresh');
+rollback to savepoint eq_reorder;
+
+-- calendar/period change: every period key shifted, so all old keys leave and all catalogue keys arrive
+savepoint eq_calendar;
+update public.erp_financial_statement_snapshot set current_start=current_start-4000,current_end=current_end-4000,
+  prior_start=prior_start-4000,prior_end=prior_end-4000 where org_id='03190000-0000-0000-0000-000000000001' and view_kind='project_totals';
+set local role service_role;
+select public.publish_erp_financial_statements('03190000-0000-0000-0000-000000000001','03190000-0000-0000-0000-000000000101',(select (result->>'batchId')::uuid from native_incremental));
+reset role;
+select is(pg_temp.diff_vs_full(0,'x'),'published-not-full=0 full-not-published=0','AC-CD-009 calendar/period change: shifted keys are replaced by the catalogue');
+rollback to savepoint eq_calendar;
+release savepoint eq_baseline;
+
 reset role;
 create temporary table native_diff_before on commit drop as
 select s.statement,s.project_id,s.view_kind,s.period_kind,s.current_start,s.snapshot_id,

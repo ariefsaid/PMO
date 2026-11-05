@@ -6,8 +6,8 @@
 -- Rollback: rollback/0685_statement_change_driven_down.sql (restores the 0321 delete-all publisher).
 begin;
 
--- ON by default at deploy (0681 default). The sweep falls back to today's hourly full refresh whenever
--- the checker errors.
+-- OFF by default (0681): switched on per organization after a live proof on the pinned v16 ERP. The sweep falls
+-- back to today's hourly full refresh whenever the checker errors or keeps failing.
 create or replace function public.publish_erp_financial_statements(p_org_id uuid,p_holder uuid,p_batch_id uuid)
 returns uuid
 language plpgsql
@@ -253,7 +253,10 @@ begin
      and o.payload is not distinct from s.payload and o.raw_reports is not distinct from s.raw_reports
      and o.has_activity is not distinct from s.has_activity
      and o.source_report is not distinct from s.source_report and o.report_version is not distinct from s.report_version
-     and o.filters is not distinct from s.filters and o.settings is not distinct from s.settings;
+     and o.filters is not distinct from s.filters and o.settings is not distinct from s.settings
+     and s.currency='IDR'
+     and s.display_precision is not distinct from (v_context->'presentation'->'metadata'->>'currencyPrecision')::integer
+     and s.display_rounding_method is not distinct from v_context->'presentation'->'metadata'->>'roundingMethod';
   get diagnostics v_touched = row_count;
   insert into public.erp_financial_statement_snapshot(
     org_id,company,snapshot_id,source_generation,statement,scope_kind,project_id,view_kind,period_kind,
@@ -321,7 +324,15 @@ begin
  elsif v_night is not null then v_reason:='nightly';
  elsif state.intent_revision>state.intent_acked then v_reason:='intent';
  end if;
+ -- A pass (one batch, possibly several ticks) keeps the cuts frozen when it was admitted: later ticks resume with
+ -- them, so a post confirmed or a date that fell due mid-pass is never acknowledged by data captured before it.
+ if state.pass_cut is not null then
+  return jsonb_build_object('mode','run','reason',state.pass_cut->>'reason','dirty_cut',state.pass_cut->>'dirty_cut',
+   'intent_cut',state.pass_cut->>'intent_cut','nightly_cut',state.pass_cut->'nightly_cut');
+ end if;
  if v_reason is null then return jsonb_build_object('mode','skip'); end if;
+ update public.erp_statement_change_state set pass_cut=jsonb_build_object('reason',v_reason,'dirty_cut',dirty_revision::text,
+   'intent_cut',intent_revision::text,'nightly_cut',v_night) where org_id=p_org_id returning pass_cut into state.pass_cut;
  return jsonb_build_object('mode','run','reason',v_reason,'dirty_cut',state.dirty_revision::text,
   'intent_cut',state.intent_revision::text,'nightly_cut',v_night);
 end $$;
@@ -354,7 +365,7 @@ begin
  -- A nightly publication also clears the hint dirtiness captured at admission; an intent-only run does not.
  update public.erp_statement_change_state set
    dirty_acked=case when p_nightly_cut is not null then greatest(dirty_acked,least(p_dirty_cut,dirty_revision)) else dirty_acked end,
-   intent_acked=greatest(intent_acked,least(p_intent_cut,intent_revision)),
+   intent_acked=greatest(intent_acked,least(p_intent_cut,intent_revision)),pass_cut=null,
    retry_failures=0,retry_at=clock_timestamp()
   where org_id=p_org_id;
  perform public._erp_statement_change_lease_check(p_org_id,p_holder);

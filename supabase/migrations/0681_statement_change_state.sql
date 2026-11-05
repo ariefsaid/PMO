@@ -1,7 +1,7 @@
 begin;
 create table public.erp_statement_change_state (
  org_id uuid primary key references public.organizations(id) on delete cascade,
- enabled boolean not null default true,
+ enabled boolean not null default false,
  binding_id uuid not null references public.external_org_bindings(id),
  activated_at timestamptz not null,
  company text not null check (btrim(company) <> ''),
@@ -11,6 +11,7 @@ create table public.erp_statement_change_state (
  dirty_acked bigint not null default 0 check (dirty_acked>=0 and dirty_acked<=dirty_revision),
  intent_revision bigint not null default 0 check (intent_revision>=0),
  intent_acked bigint not null default 0 check (intent_acked>=0 and intent_acked<=intent_revision),
+ pass_cut jsonb check (pass_cut is null or jsonb_typeof(pass_cut)='object'),
  intent_scope_floor bigint not null default 0 check (intent_scope_floor>=0 and intent_scope_floor<=intent_revision),
  last_manual_at timestamptz,
  next_check_at timestamptz not null default clock_timestamp(),
@@ -165,7 +166,7 @@ begin
  elsif state.binding_id is distinct from p_binding_id or state.activated_at is distinct from p_activated_at
        or state.company is distinct from ctx->>'company' or state.binding_context is distinct from ctx then
    update public.erp_statement_change_state set binding_id=p_binding_id,activated_at=p_activated_at,
-     company=ctx->>'company',binding_context=ctx,scope_epoch=gen_random_uuid(),dirty_revision=dirty_revision+1,
+     company=ctx->>'company',binding_context=ctx,scope_epoch=gen_random_uuid(),pass_cut=null,dirty_revision=dirty_revision+1,
      intent_scope_floor=intent_revision,diagnostic_result=null,next_check_at=clock_timestamp()
     where org_id=p_org_id returning * into state;
    result_status:='scope_changed';

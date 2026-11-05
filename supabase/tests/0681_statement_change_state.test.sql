@@ -16,7 +16,8 @@ select is(public.sync_erp_statement_change_scope('06430000-0000-0000-0000-000000
 set local timezone='Asia/Jakarta';
 select is(public.sync_erp_statement_change_scope('06430000-0000-0000-0000-000000000001','06430000-0000-0000-0000-000000000101','06430000-0000-0000-0000-000000000011','2026-10-18T09:00:00Z')->>'status','current','AC-NS-008 session timezone does not rotate scope');
 set local timezone='UTC';
-select is(public.observe_erp_statement_change('06430000-0000-0000-0000-000000000001','06430000-0000-0000-0000-000000000101','06430000-0000-0000-0000-000000000011','2026-10-18T09:00:00Z',(select scope_epoch from public.erp_statement_change_state where org_id='06430000-0000-0000-0000-000000000001'),'{"status":"unknown","reason":"request_failed"}')->>'status','recorded','AC-NS-001 default on: a due check is recorded');
+select is((select enabled from public.erp_statement_change_state where org_id='06430000-0000-0000-0000-000000000001'),false,'AC-NS-001 a new state is off by default (switched on per organization after a live proof)');
+select is(public.observe_erp_statement_change('06430000-0000-0000-0000-000000000001','06430000-0000-0000-0000-000000000101','06430000-0000-0000-0000-000000000011','2026-10-18T09:00:00Z',(select scope_epoch from public.erp_statement_change_state where org_id='06430000-0000-0000-0000-000000000001'),'{"status":"unknown","reason":"request_failed"}')->>'status','disabled','AC-NS-001 a disabled state records nothing');
 select throws_ok($q$update public.erp_statement_change_state set enabled=true$q$,'42501',null,'AC-NS-001 service cannot directly enable');
 reset role;
 select ok((select relrowsecurity and relforcerowsecurity from pg_class where oid='public.erp_statement_change_state'::regclass),'AC-NS-001 forced RLS');
@@ -37,7 +38,7 @@ create temporary table old_scope as select * from public.erp_statement_change_st
 grant select on old_scope to service_role;
 set local role service_role;
 select is(public.observe_erp_statement_change('06430000-0000-0000-0000-000000000001','06430000-0000-0000-0000-000000000101','06430000-0000-0000-0000-000000000011','2026-10-18T09:00:00Z',(select scope_epoch from old_scope),'{"status":"unknown","reason":"request_failed"}')->>'status','recorded','AC-NS-003 unknown is recorded');
-select is((select dirty_revision from public.erp_statement_change_state where org_id='06430000-0000-0000-0000-000000000001'),3::bigint,'AC-NS-003 unknown increments dirty');
+select is((select dirty_revision from public.erp_statement_change_state where org_id='06430000-0000-0000-0000-000000000001'),2::bigint,'AC-NS-003 unknown increments dirty');
 select is(public.observe_erp_statement_change('06430000-0000-0000-0000-000000000001','06430000-0000-0000-0000-000000000101','06430000-0000-0000-0000-000000000011','2026-10-18T09:00:00Z',(select scope_epoch from old_scope),'{"status":"unknown","reason":"request_failed"}')->>'status','not_due','AC-NS-003 duplicate coalesces');
 select throws_ok($q$do $probe$ begin perform public.sync_erp_statement_change_scope('06430000-0000-0000-0000-000000000001','06430000-0000-0000-0000-000000000102','06430000-0000-0000-0000-000000000011','2026-10-18T09:00:00Z'); raise exception 'unexpected success' using errcode='P0001'; end; $probe$$q$,'55000',null,'AC-NS-002 wrong holder alone rejected');
 select throws_ok($q$do $probe$ begin perform public.sync_erp_statement_change_scope('06430000-0000-0000-0000-000000000002','06430000-0000-0000-0000-000000000101','06430000-0000-0000-0000-000000000011','2026-10-18T09:00:00Z'); raise exception 'unexpected success' using errcode='P0001'; end; $probe$$q$,'55000',null,'AC-NS-002 wrong org rejected');
@@ -107,12 +108,12 @@ update public.external_org_bindings set config='{"company":"Fixture A changed","
 set local role service_role;
 select throws_ok($q$do $probe$ begin perform public.observe_erp_statement_change('06430000-0000-0000-0000-000000000001','06430000-0000-0000-0000-000000000101','06430000-0000-0000-0000-000000000011','2026-10-18T09:00:00Z',(select scope_epoch from old_scope),'{"status":"unknown","reason":"request_failed"}'); raise exception 'unexpected success' using errcode='P0001'; end; $probe$$q$,'55000',null,'AC-NS-002 stale local context requires sync');
 select is(public.sync_erp_statement_change_scope('06430000-0000-0000-0000-000000000001','06430000-0000-0000-0000-000000000101','06430000-0000-0000-0000-000000000011','2026-10-18T09:00:00Z')->>'status','scope_changed','AC-NS-008 metadata change rotates scope');
-select ok((select scope_epoch<>(select scope_epoch from old_scope) and dirty_revision=7 and intent_revision=8 and intent_acked=3 and intent_scope_floor=8 and last_manual_at='2026-01-01' and retry_failures=5 and retry_at='2099-01-01' and diagnostic_result is null from public.erp_statement_change_state where org_id='06430000-0000-0000-0000-000000000001'),'AC-NS-008 scope rotation retains counters quota and retry without false ack');
+select ok((select scope_epoch<>(select scope_epoch from old_scope) and dirty_revision=6 and pass_cut is null and intent_revision=8 and intent_acked=3 and intent_scope_floor=8 and last_manual_at='2026-01-01' and retry_failures=5 and retry_at='2099-01-01' and diagnostic_result is null from public.erp_statement_change_state where org_id='06430000-0000-0000-0000-000000000001'),'AC-NS-008 scope rotation retains counters quota and retry without false ack');
 reset role;
 update public.external_org_bindings set activated_at='2026-10-19T09:00:00Z' where id='06430000-0000-0000-0000-000000000011';
 set local role service_role;
 select is(public.sync_erp_statement_change_scope('06430000-0000-0000-0000-000000000001','06430000-0000-0000-0000-000000000101','06430000-0000-0000-0000-000000000011','2026-10-19T09:00:00Z')->>'status','scope_changed','AC-NS-008 activation replacement rotates scope');
-select ok((select dirty_revision=8 and dirty_acked=0 and intent_revision=8 and intent_acked=3 and intent_scope_floor=8 and retry_failures=5 and retry_at='2099-01-01' from public.erp_statement_change_state where org_id='06430000-0000-0000-0000-000000000001'),'AC-NS-008 activation rotation preserves backoff and never advances acknowledgement');
+select ok((select dirty_revision=7 and dirty_acked=0 and intent_revision=8 and intent_acked=3 and intent_scope_floor=8 and retry_failures=5 and retry_at='2099-01-01' from public.erp_statement_change_state where org_id='06430000-0000-0000-0000-000000000001'),'AC-NS-008 activation rotation preserves backoff and never advances acknowledgement');
 reset role;
 select * from finish();
 rollback;

@@ -81,6 +81,11 @@ export async function planChangeDrivenStatements(
       const observed = await service.rpc('observe_erp_statement_change', { ...scope, p_scope_epoch: epoch, p_result: result });
       if (observed.error) return { kind: 'legacy' };
       if (result.status === 'unknown' && CHECKER_FAILED.has(result.reason)) return { kind: 'legacy' };
+    } else {
+      // The DB pushes the next check 15 minutes out even after a failed one, so a failing checker is only visible on
+      // the check tick itself; its persisted failure keeps the hourly fallback on every tick until a check succeeds.
+      const last = state.diagnostic_result as { status?: string; reason?: string } | null | undefined;
+      if (last?.status === 'unknown' && CHECKER_FAILED.has(last.reason ?? '')) return { kind: 'legacy' };
     }
 
     // Materialize the organization-local 02:00 obligations that have come due (idempotent, lease-fenced).

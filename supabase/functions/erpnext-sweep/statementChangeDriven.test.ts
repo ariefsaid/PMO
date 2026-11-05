@@ -25,7 +25,7 @@ const noOpDeps = {
 };
 
 type Call = { name: string; args: Record<string, unknown> };
-function fakeService(opts: { mode?: string; nextCheckAt?: string; plan?: Record<string, unknown>; rpcError?: string }) {
+function fakeService(opts: { mode?: string; nextCheckAt?: string; plan?: Record<string, unknown>; rpcError?: string; diagnostic?: Record<string, unknown> | null }) {
   const calls: Call[] = [];
   const service = {
     rpc(name: string, args: Record<string, unknown>) {
@@ -38,7 +38,7 @@ function fakeService(opts: { mode?: string; nextCheckAt?: string; plan?: Record<
     },
     from() {
       return { select: () => ({ eq: () => ({ maybeSingle: () => Promise.resolve({
-        data: { next_check_at: opts.nextCheckAt ?? '2099-01-01T00:00:00Z', diagnostic_result: null, binding_context: { a: 1 } }, error: null,
+        data: { next_check_at: opts.nextCheckAt ?? '2099-01-01T00:00:00Z', diagnostic_result: opts.diagnostic ?? null, binding_context: { a: 1 } }, error: null,
       }) }) }) };
     },
   };
@@ -131,4 +131,37 @@ Deno.test('AC-CD-004: an explicit full-mode request still runs the hourly pass',
     refreshNativeStatements: () => { runs += 1; return Promise.resolve({ status: 'published' as const }); },
   }, undefined, 'full');
   assert(planned === 0 && runs === 1, 'the operator full run bypasses the change-driven plan');
+});
+
+Deno.test('AC-CD-004: a checker that keeps failing keeps the hourly fallback on every following tick', async () => {
+  // The DB pushes next_check_at 15 minutes out after a failed result, so the next ticks do not re-check;
+  // the persisted failure must still select the legacy hourly refresh until a check succeeds again.
+  for (const reason of ['request_failed', 'context_mismatch', 'invalid_response', 'cancelled', 'ambiguous_hint']) {
+    const { service, calls } = fakeService({ mode: 'skip', diagnostic: { status: 'unknown', reason } });
+    for (let tick = 1; tick <= 3; tick += 1) {
+      const d = await planChangeDrivenStatements(service, orgWithHolder, () => Promise.reject(new Error('check not due')), Date.now());
+      assert(d.kind === 'legacy', `${reason}, tick ${tick}: expected legacy, got ${d.kind}`);
+    }
+    assert(!calls.some((c) => c.name === 'plan_erp_statement_pass'), `${reason}: no skip is planned while the checker is failing`);
+  }
+});
+
+Deno.test('AC-CD-004: a recorded successful hint (not a failure) keeps change-driven skipping', async () => {
+  const { service } = fakeService({ mode: 'skip', diagnostic: { status: 'unknown', reason: 'first_observation', observation: {} } });
+  const d = await planChangeDrivenStatements(service, orgWithHolder, () => Promise.reject(new Error('unused')), Date.now());
+  assert(d.kind === 'skip', `expected skip, got ${d.kind}`);
+});
+
+Deno.test('AC-CD-004: two consecutive failing ticks run the legacy hourly statement pass each time it is due', async () => {
+  const { service } = fakeService({ mode: 'skip', diagnostic: { status: 'unknown', reason: 'request_failed' } });
+  let legacyRuns = 0;
+  for (let tick = 0; tick < 2; tick += 1) {
+    await runErpSweepCycle({
+      ...noOpDeps,
+      listEmployingOrgs: () => Promise.resolve([{ ...org }]),
+      planChangeDrivenStatements: (o) => planChangeDrivenStatements(service, { ...o, statementLockHolder: orgWithHolder.statementLockHolder }, () => Promise.reject(new Error('check not due')), Date.now()),
+      refreshNativeStatements: () => { legacyRuns += 1; return Promise.resolve({ status: 'published' as const }); },
+    });
+  }
+  assert(legacyRuns === 2, `legacy pass must run on both ticks, ran ${legacyRuns}`);
 });

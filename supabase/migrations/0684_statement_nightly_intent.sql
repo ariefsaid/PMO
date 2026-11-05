@@ -1,10 +1,9 @@
 -- 0644: dormant per-organization native statement nightly obligations and the service-only manual
 -- intent bookkeeping, stacked on the reviewed 0643 change-state lease/binding/context prefix.
 --
--- Nothing here schedules, admits, publishes or enables anything: state stays disabled (0643 default),
--- there is no caller, no user endpoint, no actor identity, no acknowledgement and no completion
--- writer. `published_generation`/`completed_at` are reserved for a later atomic publisher and are
--- never written by this migration's functions.
+-- Nothing here schedules, admits or publishes anything. The state is created disabled (0681 default) and
+-- stays so until an operator switches the organization on after a live proof. `published_generation` and
+-- `completed_at` are written only by the completion function of 0685.
 begin;
 create table public.erp_statement_nightly_obligation (
  org_id uuid not null references public.erp_statement_change_state(org_id) on delete cascade,

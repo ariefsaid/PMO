@@ -17,8 +17,9 @@ insert into public.external_org_bindings(id,org_id,external_tier,site_url,secret
  ('06550000-0000-0000-0000-000000000011','06550000-0000-0000-0000-000000000001','erpnext','https://example.invalid','fixture',16,'{"company":"Driven A","project_map":{}}','2026-10-18T09:00:00Z');
 insert into public.erp_sweep_lock(org_id,holder,locked_until) values
  ('06550000-0000-0000-0000-000000000001','06550000-0000-0000-0000-000000000101',clock_timestamp()+interval '60 minutes');
-select is(public.sync_erp_statement_change_scope('06550000-0000-0000-0000-000000000001','06550000-0000-0000-0000-000000000101','06550000-0000-0000-0000-000000000011','2026-10-18T09:00:00Z')->>'enabled','true','AC-CD-001 state is on by default at deploy');
+select is(public.sync_erp_statement_change_scope('06550000-0000-0000-0000-000000000001','06550000-0000-0000-0000-000000000101','06550000-0000-0000-0000-000000000011','2026-10-18T09:00:00Z')->>'enabled','false','AC-CD-001 state is off by default at deploy: it is switched on per organization after a live proof');
 reset role;
+update public.erp_statement_change_state set enabled=true where org_id='06550000-0000-0000-0000-000000000001';
 create temporary table fx as select scope_epoch epoch from public.erp_statement_change_state where org_id='06550000-0000-0000-0000-000000000001';
 grant select on fx to service_role;
 
@@ -37,6 +38,8 @@ insert into public.erp_financial_statement_published_context(org_id,company,snap
  ('06550000-0000-0000-0000-000000000001','Driven A','06550000-0000-0000-0000-000000000201','06550000-0000-0000-0000-000000000202',
   '{"binding":{"id":"06550000-0000-0000-0000-000000000011","activatedAt":"2026-10-18T09:00:00Z","versionMajor":16}}')
 on conflict do nothing;
+-- the first publication pass is done (generation inserted above): its frozen cut is settled
+update public.erp_statement_change_state set pass_cut=null where org_id='06550000-0000-0000-0000-000000000001';
 set local role service_role;
 select is(public.plan_erp_statement_pass('06550000-0000-0000-0000-000000000001','06550000-0000-0000-0000-000000000101','06550000-0000-0000-0000-000000000011','2026-10-18T09:00:00Z',(select epoch from fx))->>'mode','skip','AC-CD-001 an unchanged published catalogue with nothing due runs no refresh');
 -- a changed hint only marks dirty: still no run before the nightly date
@@ -57,7 +60,15 @@ select is((select intent_revision from public.erp_statement_change_state where o
 update public.external_command_outbox set state='confirmed',updated_at=now() where idempotency_key='k1';
 select is((select intent_revision from public.erp_statement_change_state where org_id='06550000-0000-0000-0000-000000000001'),2::bigint,'AC-CD-005 an already-confirmed row does not re-raise it');
 set local role service_role;
-select is(public.complete_erp_statement_pass('06550000-0000-0000-0000-000000000001','06550000-0000-0000-0000-000000000101','06550000-0000-0000-0000-000000000011','2026-10-18T09:00:00Z',(select epoch from fx),(select (p->>'dirty_cut')::bigint from cut),(select (p->>'intent_cut')::bigint from cut),null,'06550000-0000-0000-0000-000000000201')->>'status','completed','AC-CD-004 completion settles the run');
+-- AC-CD-007: a batch spans ticks and each tick re-plans; the cuts were frozen when the pass was admitted, so the
+-- post confirmed since admission is not part of this pass and cannot be acknowledged by it.
+create temporary table cut2 as select public.plan_erp_statement_pass('06550000-0000-0000-0000-000000000001','06550000-0000-0000-0000-000000000101','06550000-0000-0000-0000-000000000011','2026-10-18T09:00:00Z',(select epoch from fx)) p;
+reset role;
+grant select on cut2 to service_role;
+select is((select p->>'intent_cut' from cut2),(select p->>'intent_cut' from cut),'AC-CD-007 a later tick of the same pass keeps the intent cut frozen at admission');
+select is((select p->>'dirty_cut' from cut2),(select p->>'dirty_cut' from cut),'AC-CD-007 a later tick keeps the dirty cut frozen');
+set local role service_role;
+select is(public.complete_erp_statement_pass('06550000-0000-0000-0000-000000000001','06550000-0000-0000-0000-000000000101','06550000-0000-0000-0000-000000000011','2026-10-18T09:00:00Z',(select epoch from fx),(select (p->>'dirty_cut')::bigint from cut2),(select (p->>'intent_cut')::bigint from cut2),null,'06550000-0000-0000-0000-000000000201')->>'status','completed','AC-CD-004 completion settles the run');
 reset role;
 select is((select intent_acked from public.erp_statement_change_state where org_id='06550000-0000-0000-0000-000000000001'),1::bigint,'AC-CD-004 only the captured intent is acknowledged; the later post survives');
 select ok((select dirty_acked<dirty_revision from public.erp_statement_change_state where org_id='06550000-0000-0000-0000-000000000001'),'AC-CD-004 an intent-only run leaves hint dirtiness pending for the nightly');
@@ -66,16 +77,22 @@ select is(public.plan_erp_statement_pass('06550000-0000-0000-0000-000000000001',
 
 -- nightly: an overdue local date runs and its completion clears the captured dirty revision
 reset role;
-update public.erp_statement_change_state set next_nightly_date=((clock_timestamp() at time zone 'UTC')::date-2),intent_acked=intent_revision where org_id='06550000-0000-0000-0000-000000000001';
+update public.erp_statement_change_state set pass_cut=null,next_nightly_date=((clock_timestamp() at time zone 'UTC')::date-2),intent_acked=intent_revision where org_id='06550000-0000-0000-0000-000000000001';
 set local role service_role;
 select is(public.record_erp_statement_nightly_due('06550000-0000-0000-0000-000000000001','06550000-0000-0000-0000-000000000101','06550000-0000-0000-0000-000000000011','2026-10-18T09:00:00Z')->>'status','recorded','AC-CD-003 overdue nightly dates are recorded');
 create temporary table ncut as select public.plan_erp_statement_pass('06550000-0000-0000-0000-000000000001','06550000-0000-0000-0000-000000000101','06550000-0000-0000-0000-000000000011','2026-10-18T09:00:00Z',(select epoch from fx)) p;
 reset role;
 grant select on ncut to service_role;
 select is((select p->>'reason' from ncut),'nightly','AC-CD-003 an unfinished nightly date runs a refresh even when no hint changed');
+-- a later local date falls due while the pass is still open: the frozen nightly cut must not move to it
+insert into public.erp_statement_nightly_obligation(org_id,local_date,timezone,due_at)
+ values ('06550000-0000-0000-0000-000000000001',current_date+10,'UTC',clock_timestamp()-interval '1 minute');
 set local role service_role;
+select is(public.plan_erp_statement_pass('06550000-0000-0000-0000-000000000001','06550000-0000-0000-0000-000000000101','06550000-0000-0000-0000-000000000011','2026-10-18T09:00:00Z',(select epoch from fx))->>'nightly_cut',(select p->>'nightly_cut' from ncut),'AC-CD-007 a date that falls due mid-pass is not added to the frozen nightly cut');
 select public.complete_erp_statement_pass('06550000-0000-0000-0000-000000000001','06550000-0000-0000-0000-000000000101','06550000-0000-0000-0000-000000000011','2026-10-18T09:00:00Z',(select epoch from fx),(select (p->>'dirty_cut')::bigint from ncut),(select (p->>'intent_cut')::bigint from ncut),(select (p->>'nightly_cut')::date from ncut),'06550000-0000-0000-0000-000000000201');
 reset role;
+select is((select count(*)::int from public.erp_statement_nightly_obligation where org_id='06550000-0000-0000-0000-000000000001' and completed_at is null and due_at<=clock_timestamp()),1,'AC-CD-007 the date that fell due mid-pass stays unfinished for the next pass');
+delete from public.erp_statement_nightly_obligation where org_id='06550000-0000-0000-0000-000000000001' and local_date=current_date+10;
 select is((select count(*)::int from public.erp_statement_nightly_obligation where org_id='06550000-0000-0000-0000-000000000001' and completed_at is null and due_at<=clock_timestamp()),0,'AC-CD-003 completion finishes the due nightly dates');
 select ok((select dirty_acked=dirty_revision from public.erp_statement_change_state where org_id='06550000-0000-0000-0000-000000000001'),'AC-CD-003 a nightly publication clears the captured hint dirtiness');
 set local role service_role;
@@ -118,5 +135,28 @@ select ok(not has_function_privilege('anon','public.request_financial_statement_
   and has_function_privilege('service_role','public.plan_erp_statement_pass(uuid,uuid,uuid,timestamptz,uuid)','EXECUTE')
   and not has_function_privilege('service_role','public.request_erp_statement_refresh_after_post()','EXECUTE'),
   'AC-CD-006 only the user request is client-callable; the run-settling RPCs are service-only');
+
+-- AC-CD-008: organization B can neither read, trigger nor settle organization A's sync state.
+insert into auth.users(id,email) values ('06550000-0000-0000-0000-0000000000b1','driven-b-admin@example.test');
+insert into public.profiles(id,org_id,full_name,email,role,status) values
+ ('06550000-0000-0000-0000-0000000000b1','06550000-0000-0000-0000-000000000002','Driven B Admin','driven-b-admin@example.test','Admin','active');
+create temporary table a_before as select intent_revision,dirty_revision,intent_acked from public.erp_statement_change_state where org_id='06550000-0000-0000-0000-000000000001';
+grant select on a_before to authenticated,service_role;
+set local role authenticated;
+set local request.jwt.claims='{"sub":"06550000-0000-0000-0000-0000000000b1","role":"authenticated"}';
+select is(public.request_financial_statement_refresh()->>'status','unavailable','AC-CD-008 organization B Refresh now reaches only its own (absent) state');
+select throws_ok($q$select * from public.erp_statement_change_state$q$,'42501',null,'AC-CD-008 organization B cannot read the sync state table');
+select throws_ok($q$select * from public.erp_statement_nightly_obligation$q$,'42501',null,'AC-CD-008 organization B cannot read nightly obligations');
+reset role;
+insert into public.external_command_outbox(org_id,domain,pmo_record_id,idempotency_key,external_tier,operation,state)
+ values ('06550000-0000-0000-0000-000000000002','invoice','rb','kb','erpnext','create','committed');
+update public.external_command_outbox set state='confirmed' where idempotency_key='kb';
+select ok((select a.intent_revision=b.intent_revision and a.dirty_revision=b.dirty_revision from public.erp_statement_change_state a,a_before b where a.org_id='06550000-0000-0000-0000-000000000001'),
+  'AC-CD-008 organization B Refresh now and a confirmed organization B post leave organization A untouched');
+set local role service_role;
+select throws_ok($q$select public.plan_erp_statement_pass('06550000-0000-0000-0000-000000000001','06550000-0000-0000-0000-0000000009b2','06550000-0000-0000-0000-000000000011','2026-10-18T09:00:00Z',(select epoch from fx))$q$,'55000',null,'AC-CD-008 a holder of another organization cannot plan organization A');
+select throws_ok($q$select public.complete_erp_statement_pass('06550000-0000-0000-0000-000000000001','06550000-0000-0000-0000-0000000009b2','06550000-0000-0000-0000-000000000011','2026-10-18T09:00:00Z',(select epoch from fx),1,1,null,'06550000-0000-0000-0000-000000000201')$q$,'55000',null,'AC-CD-008 a holder of another organization cannot settle organization A');
+reset role;
+select ok((select a.intent_acked=b.intent_acked from public.erp_statement_change_state a,a_before b where a.org_id='06550000-0000-0000-0000-000000000001'),'AC-CD-008 organization A acknowledgements are unchanged');
 select * from finish();
 rollback;
