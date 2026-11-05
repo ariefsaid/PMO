@@ -187,9 +187,14 @@ $$;
 revoke all on function public.sync_erpnext_payment_inflight_bills() from public, anon, authenticated;
 grant execute on function public.sync_erpnext_payment_inflight_bills() to service_role;
 
--- The dispatcher's write for a claim the purchase rules refused: the never-claimed pending payment becomes failed,
--- frees its bill and is left to a person (see the header). Fenced to pending / never claimed, so a payment that was
--- ever claimed is untouched.
+-- SCOPE of fail_refused_payment_claim — who calls it, what it changes. The ONLY caller is the dispatcher's claim
+-- wrapper (`claimOutboxForCommit` in supabase/functions/adapter-dispatch/moneyOutboxDeps.ts): when the org's purchase
+-- rules refuse a procurement payment's claim (a `commit-rejected` refusal — nothing was claimed, nothing reached
+-- ERPNext), it records that refusal through this function instead of leaving the row pending. It changes that ONE row:
+-- the never-claimed pending payment becomes failed with the refusal text in last_error and its automatic attempt
+-- budget spent, so neither the sweep's candidate list nor the pending-retry list re-drives it — it is left to a person
+-- (see the header) — and the outbox trigger then frees its bill. Fenced to pending / never claimed, so a payment that
+-- was ever claimed (unknown outcome) is untouched.
 create or replace function public.fail_refused_payment_claim(p_id uuid, p_error text)
 returns void
 language sql
