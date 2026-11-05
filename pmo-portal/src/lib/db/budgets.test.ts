@@ -244,93 +244,71 @@ describe('deriveProjectBudget', () => {
 });
 
 describe('listBudgetVersions', () => {
-  it('lists versions with nested line_items and a numeric total (FR-BV-010 read side)', async () => {
-    const versions = [
-      {
-        id: 'v1',
-        org_id: 'org-1',
-        project_id: 'p1',
-        version: 1,
-        name: 'V1',
-        status: 'Active' as const,
-        created_at: '2026-01-01T00:00:00Z',
-        line_items: [
-          { id: 'li1', budget_version_id: 'v1', org_id: 'org-1', category: 'Labor' as const, description: null, budgeted_amount: 3000000, actual_amount: 0 },
-          { id: 'li2', budget_version_id: 'v1', org_id: 'org-1', category: 'Materials' as const, description: 'steel', budgeted_amount: 1700000, actual_amount: 0 },
-        ],
-      },
-      {
-        id: 'v2',
-        org_id: 'org-1',
-        project_id: 'p1',
-        version: 2,
-        name: 'V2',
-        status: 'Draft' as const,
-        created_at: '2026-02-01T00:00:00Z',
-        line_items: [],
-      },
-    ];
+  // The read contract is ONE aggregate invoker RPC. These tests keep every behavioural oracle of the
+  // previous four-request path (complete set, ordering, editor grouping, numeric coercion, error
+  // propagation, no client-supplied org scope) while pinning the new single-request call shape.
+  const aggregate = (over: Record<string, unknown>) => ({
+    version_no: 1, version_id: 'v1', version_row: {}, line_items: [], editor_ids: [], total: 0, ...over,
+  });
 
-    const rows = { budget_versions: versions, budget_line_items: versions.flatMap(v => v.line_items), budget_version_editors: [] };
-    const makeRead = (data: unknown) => {
-      const b = { select: mockSelect, eq: mockEq, order: mockOrder, range: vi.fn(), then: (resolve: (v: unknown) => void) => Promise.resolve({ data, error: null }).then(resolve) };
-      for (const method of [mockSelect, mockEq, mockOrder, b.range]) method.mockReturnValue(b);
-      return b;
+  it('lists versions with nested line_items and a numeric total (FR-BV-010 read side)', async () => {
+    const v1 = {
+      id: 'v1', org_id: 'org-1', project_id: 'p1', version: 1, name: 'V1',
+      status: 'Active' as const, created_at: '2026-01-01T00:00:00Z', currency: 'USD',
     };
-    mockFrom.mockImplementation((table: keyof typeof rows) => makeRead(rows[table]));
-    mockRpc.mockImplementation(() => makeRead([{ version_id: 'v1', total: 4700000 }, { version_id: 'v2', total: 0 }]));
+    const v2 = {
+      id: 'v2', org_id: 'org-1', project_id: 'p1', version: 2, name: 'V2',
+      status: 'Draft' as const, created_at: '2026-02-01T00:00:00Z', currency: 'USD',
+    };
+    makeRpcBuilder({
+      data: [
+        aggregate({
+          version_no: 1, version_id: 'v1', version_row: v1, total: 4700000,
+          line_items: [
+            { id: 'li1', budget_version_id: 'v1', org_id: 'org-1', category: 'Labor' as const, description: null, budgeted_amount: 3000000, actual_amount: 0 },
+            { id: 'li2', budget_version_id: 'v1', org_id: 'org-1', category: 'Materials' as const, description: 'steel', budgeted_amount: 1700000, actual_amount: 0 },
+          ],
+        }),
+        aggregate({ version_no: 2, version_id: 'v2', version_row: v2, total: 0 }),
+      ],
+      error: null,
+    });
 
     const result = await listBudgetVersions('p1');
 
-    expect(mockFrom).toHaveBeenCalledWith('budget_versions');
-    expect(mockSelect).toHaveBeenCalledWith('*, budget_versions!inner(project_id)');
-    expect(mockEq).toHaveBeenCalledWith('project_id', 'p1');
-    expect(mockOrder).toHaveBeenCalledWith('version', { ascending: true });
-
+    expect(mockRpc).toHaveBeenCalledWith('budget_version_read', { p_project_id: 'p1', p_offset: 0, p_limit: 1000 });
+    expect(mockFrom).not.toHaveBeenCalled();
     expect(result).toHaveLength(2);
     expect(result[0].total).toBe(4700000);
     expect(result[1].total).toBe(0);
+    expect(result[0].line_items.map((li) => li.id)).toEqual(['li1', 'li2']);
     expect(result.map((version) => version.editor_ids)).toEqual([[], []]);
     // numerics are JS numbers
     expect(typeof result[0].total).toBe('number');
-    // no org_id sent in the query args
-    expect(JSON.stringify(mockEq.mock.calls)).not.toContain('org_id');
+    // no org_id sent in the read args
+    expect(JSON.stringify(mockRpc.mock.calls)).not.toContain('org_id');
   });
 
-  it('coerces string numerics from PostgREST into a number total (guards Number() on budgets.ts:62)', async () => {
-    // Postgres numeric arrives over PostgREST as a STRING; the DAL must Number()-coerce it.
-    const versions = [
-      {
-        id: 'v1',
-        org_id: 'org-1',
-        project_id: 'p1',
-        version: 1,
-        name: 'V1',
-        status: 'Active' as const,
-        created_at: '2026-01-01T00:00:00Z',
-        line_items: [
-          { id: 'li1', budget_version_id: 'v1', org_id: 'org-1', category: 'Labor' as const, description: null, budgeted_amount: '3000000', actual_amount: '0' },
-        ],
-      },
-    ];
-    const rows = { budget_versions: versions, budget_line_items: versions.flatMap(v => v.line_items), budget_version_editors: [] };
-    const makeRead = (data: unknown) => {
-      const b = { select: mockSelect, eq: mockEq, order: mockOrder, range: vi.fn(), then: (resolve: (v: unknown) => void) => Promise.resolve({ data, error: null }).then(resolve) };
-      for (const method of [mockSelect, mockEq, mockOrder, b.range]) method.mockReturnValue(b);
-      return b;
-    };
-    mockFrom.mockImplementation((table: keyof typeof rows) => makeRead(rows[table]));
-    mockRpc.mockImplementation(() => makeRead([{ version_id: 'v1', total: '3000000' }]));
+  it('coerces string numerics from PostgREST into a number total (guards the Number() conversion)', async () => {
+    // Postgres numeric may arrive over PostgREST as a STRING; the DAL must Number()-coerce it.
+    makeRpcBuilder({
+      data: [aggregate({
+        version_row: { id: 'v1', org_id: 'org-1', project_id: 'p1', version: 1, name: 'V1', status: 'Active', created_at: '2026-01-01T00:00:00Z' },
+        line_items: [{ id: 'li1', budget_version_id: 'v1', org_id: 'org-1', category: 'Labor', description: null, budgeted_amount: '3000000', actual_amount: '0' }],
+        total: '3000000',
+      })],
+      error: null,
+    });
 
     const result = await listBudgetVersions('p1');
 
-    // Numeric (not string concatenation: '03000000' or '03000000') and typed as number.
+    // Numeric (not string concatenation) and typed as number.
     expect(result[0].total).toBe(3000000);
     expect(typeof result[0].total).toBe('number');
   });
 
   it('throws on PostgREST error', async () => {
-    makeFromBuilder({ data: null, error: { message: 'list error' } });
+    makeRpcBuilder({ data: null, error: { message: 'list error' } });
     await expect(listBudgetVersions('p1')).rejects.toThrow('list error');
   });
 });
@@ -882,7 +860,7 @@ describe('AC-W3-F6: budget DAL throws AppError preserving the Postgres error cod
   });
 
   it('listBudgetVersions rejects with AppError carrying the original code', async () => {
-    makeFromBuilder({ data: null, error: { message: 'illegal state', code: 'P0001' } });
+    makeRpcBuilder({ data: null, error: { message: 'illegal state', code: 'P0001' } });
     const err = await listBudgetVersions('p1').catch((e: unknown) => e);
     expect(err).toBeInstanceOf(AppError);
     expect((err as AppError).code).toBe('P0001');
