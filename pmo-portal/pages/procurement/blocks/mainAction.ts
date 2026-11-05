@@ -1,6 +1,6 @@
 import type { TFunction } from 'i18next';
 import { can } from '@/src/auth/policy';
-import { isLegalTransition, canCancel, type ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
+import { isLegalTransition, canCancel, type ProcurementStatus, type ProcurementDetail } from '@/src/lib/db/procurementLifecycle';
 
 
 // ---------------------------------------------------------------------------
@@ -183,4 +183,17 @@ export function stateMainAction(
               : status === 'Vendor Invoiced' ? t('procurementRecord:action.recordPayment', 'Record payment')
                 : transition.label;
   return { transition, label };
+}
+
+/** Whether the effective role/identity may not yet advance — drives the SoD gate copy. */
+export function sodGateMessage(p: ProcurementDetail, role: string, isRequester: boolean): string | null {
+  // Approval gate: a Requested PR awaiting a non-requester approver.
+  if (p.status === 'Requested' && isRequester) {
+    return `This procurement was raised by ${p.requested_by?.full_name ?? 'you'}. A different user holding the Project-Manager, Finance, or Executive role must review it — the requester cannot self-approve their own procurement.`;
+  }
+  // Receipt gate: an Ordered PR where the viewer cannot confirm receipt.
+  if (p.status === 'Ordered' && !(isRequester || RECEIPT_ROLES.has(role))) {
+    return 'To advance from Purchase Order to Goods Receipt, the requester or a Project-Manager must confirm receipt of the goods.';
+  }
+  return null;
 }
