@@ -53,6 +53,9 @@ export function startSession({ spawn = nodeSpawn, dockerArgs, sql, applicationNa
     child.on('error', reject);
     child.on('close', (status, signal) => resolve({ status, signal, stdout, stderr, output }));
   });
+  // A child that exits before we write (docker missing/failing) raises EPIPE on stdin; the exit status
+  // and stderr still arrive via `done`, so swallow the stream error instead of crashing the process.
+  child.stdin.on?.('error', () => {});
   child.stdin.write(sessionPrelude(applicationName) + sql);
   if (!keepOpen) child.stdin.end();
   return {

@@ -493,7 +493,6 @@
     "replace_erp_ple_voucher_rows(uuid,text,text,text,jsonb,text[])",
     "replace_erp_snapshot(text,uuid,jsonb)",
     "request_erp_statement_manual_intent(uuid,uuid,uuid,timestamp with time zone)",
-    "request_erp_statement_refresh_after_post()",
     "request_financial_statement_refresh()",
     "request_imprest_replenishment(uuid,text)",
     "request_po_variation(uuid,text,jsonb,text)",
