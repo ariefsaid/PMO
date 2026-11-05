@@ -422,6 +422,7 @@ async function saveProjectMap(
   erpProject: string,
 ) {
   let prior = ctx.config;
+  const original = (prior.project_map as Record<string, unknown> | undefined)?.[projectId];
   for (let attempt = 0; attempt < 4; attempt++) {
     const map = prior.project_map ?? {};
     if (typeof map !== "object" || map === null || Array.isArray(map)) {
@@ -458,6 +459,13 @@ async function saveProjectMap(
     ) {
       throw new AppError(
         "The ERP connection changed; reload and try again",
+        "config-rejected",
+      );
+    }
+    const now = (current.config.project_map as Record<string, unknown> | undefined)?.[projectId];
+    if (now !== original && now !== erpProject) {
+      throw new AppError(
+        "The project match changed; reload and review the current ERP Project",
         "config-rejected",
       );
     }
@@ -566,6 +574,7 @@ async function sendProject(ctx: ErpSetupContext, project: { id: string; name: st
   }
 }
 
+const VERIFY_CONCURRENCY = 5;
 async function verifyErpProjectLinks(ctx: ErpSetupContext) {
   const projectMap = (ctx.config.project_map ?? {}) as Record<string, unknown>;
   const projects = await fetchAllRowsByKeyset<{ id: string; name: string; code: string | null }>(
@@ -576,12 +585,11 @@ async function verifyErpProjectLinks(ctx: ErpSetupContext) {
       return query as never;
     },
   );
-  const mismatches: Array<Record<string, unknown>> = [];
-  for (const project of projects) {
+  type Mismatch = Record<string, unknown>;
+  const check = async (project: { id: string; name: string; code: string | null }): Promise<Mismatch | null> => {
     const erpName = typeof projectMap[project.id] === "string" ? String(projectMap[project.id]).trim() : "";
     if (!erpName) {
-      mismatches.push({ project_id: project.id, code: project.code, name: project.name, reason: "unmapped" });
-      continue;
+      return { project_id: project.id, code: project.code, name: project.name, reason: "unmapped" };
     }
     // The link is the stored ERP key (ERPNext may auto-name it), so the PMO business code is not compared: verify the
     // mapped identity, its company and active state, and the contractual project name.
@@ -589,13 +597,27 @@ async function verifyErpProjectLinks(ctx: ErpSetupContext) {
       const erp = await getDoc(ctx.client, "Project", erpName) as Record<string, unknown>;
       assertErpProject(erp, ctx.company);
       const reason = erp.name !== erpName ? "identity_changed" : erp.project_name !== project.name ? "name_mismatch" : null;
-      if (reason) {
-        mismatches.push({ project_id: project.id, code: project.code, name: project.name, erp_project: erp.name, erp_project_name: erp.project_name, reason });
+      return reason
+        ? { project_id: project.id, code: project.code, name: project.name, erp_project: erp.name, erp_project_name: erp.project_name, reason }
+        : null;
+    } catch (err) {
+      // Only a confirmed absence (404) or a refused project is a broken link; an outage or auth refusal is a failed check.
+      if (err instanceof AppError || (err instanceof ErpError && err.status === 404)) {
+        return { project_id: project.id, code: project.code, name: project.name, erp_project: erpName, reason: "missing_or_invalid_erp_project" };
       }
-    } catch {
-      mismatches.push({ project_id: project.id, code: project.code, name: project.name, erp_project: erpName, reason: "missing_or_invalid_erp_project" });
+      throw new AppError("The ERP could not be reached to verify project links; try again", "external-unreachable");
     }
-  }
+  };
+  // Bounded concurrency: a fixed pool of workers drains a shared cursor; results keep the project order.
+  const results: Array<Mismatch | null> = new Array(projects.length);
+  let cursor = 0;
+  await Promise.all(Array.from({ length: Math.min(VERIFY_CONCURRENCY, projects.length) }, async () => {
+    while (cursor < projects.length) {
+      const i = cursor++;
+      results[i] = await check(projects[i]);
+    }
+  }));
+  const mismatches = results.filter((row): row is Mismatch => row !== null);
   return { checked: projects.length, mismatches };
 }
 

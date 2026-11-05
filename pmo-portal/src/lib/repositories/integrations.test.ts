@@ -3,15 +3,27 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const h = vi.hoisted(() => {
   const calls: Array<[string, unknown[]]> = [];
-  const results: Record<string, { data: unknown; error: unknown }> = {};
+  type Res = { data?: unknown; count?: number; error: unknown };
+  // A result may be a function of the query's recorded eq/range arguments, for per-state or per-page answers.
+  const results: Record<string, Res | ((q: { eq: Record<string, unknown>; range: number[] | null }) => Res)> = {};
   const make = (table: string) => {
     const chain: Record<string, unknown> = {};
-    for (const m of ['select', 'eq', 'is', 'in', 'order', 'limit']) {
-      chain[m] = (...args: unknown[]) => { calls.push([`${table}.${m}`, args]); return chain; };
+    const q = { eq: {} as Record<string, unknown>, range: null as number[] | null };
+    for (const m of ['select', 'eq', 'is', 'in', 'order', 'limit', 'range']) {
+      chain[m] = (...args: unknown[]) => {
+        calls.push([`${table}.${m}`, args]);
+        if (m === 'eq') q.eq[args[0] as string] = args[1];
+        if (m === 'range') q.range = args as number[];
+        return chain;
+      };
     }
-    chain.maybeSingle = () => Promise.resolve(results[table] ?? { data: null, error: null });
+    const settle = (fallback: Res) => {
+      const r = results[table];
+      return typeof r === 'function' ? r(q) : r ?? fallback;
+    };
+    chain.maybeSingle = () => Promise.resolve(settle({ data: null, error: null }));
     chain.then = (res: (v: unknown) => unknown, rej: (e: unknown) => unknown) =>
-      Promise.resolve(results[table] ?? { data: [], error: null }).then(res, rej);
+      Promise.resolve(settle({ data: [], error: null })).then(res, rej);
     return chain;
   };
   return { calls, results, from: vi.fn(make), invoke: vi.fn() };
@@ -116,15 +128,16 @@ describe('bindings and health', () => {
     await expect(repo.listBindings('o1')).resolves.toEqual([]);
   });
 
-  it('getIntegrationHealth combines binding, last sync and outbox state counts', async () => {
+  it('getIntegrationHealth combines binding, last sync and exact per-state outbox counts', async () => {
     h.results.external_org_bindings = { data: binding, error: null };
     h.results.external_sync_watermarks = { data: { updated_at: 'sync-t' }, error: null };
-    h.results.external_command_outbox = { data: [{ state: 'pending' }, { state: 'pending' }, { state: 'failed' }, { state: 'held' }, { state: 'other' }], error: null };
+    // counts above the 1000-row response cap: only the head counts matter, never the rows
+    const counts: Record<string, number> = { pending: 2500, failed: 1, quarantined: 0, held: 1 };
+    h.results.external_command_outbox = (q) => ({ count: counts[q.eq.state as string], error: null });
     await expect(repo.getIntegrationHealth('o1', 'erpnext')).resolves.toEqual({
       tier: 'erpnext', status: 'connected', connected_by: 'u1', connected_at: 't1', last_sync: 'sync-t',
-      state_counts: { pending: 2, failed: 1, quarantined: 0, held: 1 },
+      state_counts: { pending: 2500, failed: 1, quarantined: 0, held: 1 },
     });
-    expect(h.calls).toContainEqual(['external_command_outbox.in', ['state', ['pending', 'failed', 'quarantined', 'held']]]);
   });
 
   it('getIntegrationHealth for a never-connected tier reports disconnected with no sync', async () => {
@@ -138,7 +151,7 @@ describe('bindings and health', () => {
     h.results.external_sync_watermarks = { data: null, error: { message: 'w', code: '42501' } };
     await expect(repo.getIntegrationHealth('o1', 'erpnext')).rejects.toMatchObject({ code: '42501' });
     delete h.results.external_sync_watermarks;
-    h.results.external_command_outbox = { data: null, error: { message: 'o', code: '42P01' } };
+    h.results.external_command_outbox = { count: undefined, error: { message: 'o', code: '42P01' } };
     await expect(repo.getIntegrationHealth('o1', 'erpnext')).rejects.toMatchObject({ code: '42P01' });
   });
 
@@ -148,6 +161,15 @@ describe('bindings and health', () => {
     expect(h.calls).toContainEqual(['external_project_bindings.is', ['disconnected_at', null]]);
     h.results.external_project_bindings = { data: null, error: null };
     await expect(repo.listProjectBindings('o1')).resolves.toEqual([]);
+  });
+
+  it('listProjectBindings reads past the response cap in stable id order and fails whole when a later page fails', async () => {
+    const rows = (from: number, n: number) => Array.from({ length: n }, (_, i) => ({ id: `b${from + i}` }));
+    h.results.external_project_bindings = (q) => q.range![0] === 0 ? { data: rows(0, 1000), error: null } : { data: rows(1000, 3), error: null };
+    await expect(repo.listProjectBindings('o1')).resolves.toHaveLength(1003);
+    expect(h.calls).toContainEqual(['external_project_bindings.order', ['id', { ascending: true }]]);
+    h.results.external_project_bindings = (q) => q.range![0] === 0 ? { data: rows(0, 1000), error: null } : { data: null, error: { message: 'x', code: '57014' } };
+    await expect(repo.listProjectBindings('o1')).rejects.toMatchObject({ code: '57014' });
   });
 });
 

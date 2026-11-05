@@ -16,6 +16,7 @@ const projectRows = [
   },
 ] as unknown as ProjectWithRefs[];
 
+vi.mock('@/src/hooks/useProjectOverviewRead', () => ({ useProjectOverviewRead: () => ({ isLoading: false }) }));
 vi.mock('@/src/hooks/useProjects', () => ({
   useProject: (id: string) => ({
     isPending: false,
