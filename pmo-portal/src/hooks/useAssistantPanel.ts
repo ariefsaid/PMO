@@ -4,13 +4,12 @@
  * NFR-AP-SEC-003: imports only from port.ts and AgentRuntimeContext (no PmoNativeRuntime).
  * FR-AP-009/021/022/023.
  */
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import type { AgentEvent, RunStatusPayload, QuestionPayload } from '../lib/agent/runtime/port';
 import { useAgentRuntimeContext } from '../lib/agent/runtime/AgentRuntimeContext';
 import { useAgentContext } from '../lib/agent/context/useAgentContext';
 import { isFeatureEnabled } from '../lib/features';
 import { repositories, type AgentEventRow } from '../lib/repositories';
-import { STUCK_RUN_STALE_MS } from '../components/panel/stuckRun.constants';
 import {
   trackAgentRunStarted,
   trackAgentRunCompleted,
@@ -20,13 +19,13 @@ import {
   trackAgentThreadResumed,
 } from '../lib/analytics';
 import { safeTrack } from '../lib/analytics/safeTrack';
+import { makeKey, mergeAssistantEvent, appendAssistantEvent, type TranscriptEntry } from './assistantPanel/assistantPanelEvents';
+import { buildThreadHistory } from './assistantPanel/assistantPanelHistory';
+import { useRunHeartbeat } from './assistantPanel/useRunHeartbeat';
 
-/**
- * FR-AGP-022 poll cadence — the EXISTING 5s tick that previously lived in AssistantPanel.tsx
- * as a pure force-rerender interval; moved here so the SAME tick both re-evaluates staleness
- * AND polls the server heartbeat (no second timer, per the review round item-2 fix).
- */
-const HEARTBEAT_POLL_MS = 5_000;
+// Compatibility re-export: panel components import TranscriptEntry from this module —
+// the events seam stays internal to the hook.
+export type { TranscriptEntry };
 
 /**
  * 'out-of-credits' (FR-AUC-016): a distinct terminal phase from 'error' — set when a
@@ -35,11 +34,6 @@ const HEARTBEAT_POLL_MS = 5_000;
  * composer-disabled UX instead of the generic ErrorCard.
  */
 export type RunPhase = 'idle' | 'running' | 'needs-approval' | 'error' | 'out-of-credits';
-
-export interface TranscriptEntry {
-  key: string;
-  event: AgentEvent;
-}
 
 /**
  * One row of the persistent activity trail (useAssistantPanel.activityTrail). `label` is the
@@ -156,10 +150,6 @@ export interface UseAssistantPanel {
   hasPendingQuestion: boolean;
 }
 
-function makeKey(): string {
-  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-}
-
 /**
  * PostHog agent_run_completed/errored duration_ms source (FR-APH-006/007, NFR-APH-REL-002).
  * Module-scope (not useRef): the hook is re-instantiated per AssistantPanel mount but a
@@ -177,28 +167,6 @@ const runStartedAt = new Map<string, number>();
  */
 export function __testOnlyRunStartedAtSize(): number {
   return runStartedAt.size;
-}
-
-/**
- * Append or concatenate an assistant event into the transcript.
- * NFR-AP-PERF-002: successive assistant events in the same turn are concatenated
- * into one stable-key entry (the key stays fixed; only .event.text grows).
- */
-function mergeAssistantEvent(
-  prev: TranscriptEntry[],
-  ev: AgentEvent,
-): TranscriptEntry[] {
-  // Find the last entry: if it's an assistant event with the same runId, concatenate.
-  const last = prev[prev.length - 1];
-  if (last && last.event.type === 'assistant' && last.event.runId === ev.runId) {
-    // Mutate the text in-place (same key keeps stable reference for perf).
-    const merged: TranscriptEntry = {
-      key: last.key,
-      event: { ...last.event, text: (last.event.text ?? '') + (ev.text ?? '') },
-    };
-    return [...prev.slice(0, -1), merged];
-  }
-  return [...prev, { key: makeKey(), event: ev }];
 }
 
 export function useAssistantPanel(): UseAssistantPanel {
@@ -228,10 +196,6 @@ export function useAssistantPanel(): UseAssistantPanel {
   // spinner row). Accumulated from the SAME step/tool events that drive `currentStep`, so a
   // slow or thrashing run shows what the agent has done and is doing, not a frozen mystery.
   const [activityTrail, setActivityTrail] = useState<TrailStep[]>([]);
-  // FR-AGP-022: last observed progress signal for the active run — a coarse client-side
-  // proxy (updated on every drained event) for the server's heartbeat, used to derive
-  // isStuck. Null when no run has ever progressed.
-  const [lastProgressAt, setLastProgressAt] = useState<string | null>(null);
   // A3: chip state keyed by pendingId (not a single global) to support sequential proposals.
   // docs/decisions.md: "A3 chip state is keyed by pendingId."
   const [chipStateMap, setChipStateMap] = useState<ChipStateMap>({});
@@ -244,6 +208,35 @@ export function useAssistantPanel(): UseAssistantPanel {
   // Ref so the drain loop can read the latest runId without stale closure
   const runIdRef = useRef<string | null>(null);
   runIdRef.current = runId;
+
+  // ── hasPendingQuestion (correctness-remediation finding 3) ───────────────────
+  // Derived from the transcript, not `phase` — a pending question does NOT transition
+  // `phase` away from 'running' (the drain loop appends a `question` status frame as-is;
+  // the SSE stream simply ends there). Centralizes the computation AssistantPanel.tsx
+  // previously duplicated locally (review-remediation item 6) so the heartbeat seam's
+  // isStuck derivation can also consume it.
+  const hasPendingQuestion = (() => {
+    for (let i = transcript.length - 1; i >= 0; i--) {
+      const ev = transcript[i].event;
+      if (ev.type !== 'status') continue;
+      const payload = ev.payload as { kind?: string } | undefined;
+      if (payload?.kind !== 'question') continue;
+      const q = ev.payload as QuestionPayload;
+      return answeredMap[q.questionId] === undefined;
+    }
+    return false;
+  })();
+
+  // ── Polling/staleness seam (FR-AGP-022) — useRunHeartbeat owns the last-progress
+  // stamp, the 5s server-heartbeat poll, the staleness render tick and isStuck; this
+  // hook feeds it the run phase (the poll restarts on the running→needs-approval
+  // transition, as the pre-extraction effect did) + the pending-question exclusion,
+  // and advances the stamp from the drain loop via noteProgress().
+  const { lastProgressAt, isStuck, noteProgress, setLastProgressAt } = useRunHeartbeat({
+    phase,
+    runId,
+    hasPendingQuestion,
+  });
 
   // ── drain: consume an AsyncIterable<AgentEvent> and update transcript ───────
   const drain = useCallback(
@@ -264,7 +257,7 @@ export function useAssistantPanel(): UseAssistantPanel {
 
           // FR-AGP-022: any observed event is a progress signal — advance the
           // client-side staleness clock (a coarse proxy for the server heartbeat).
-          setLastProgressAt(new Date().toISOString());
+          noteProgress();
 
           if (ev.type === 'assistant') {
             // Live step trail: the model has resumed narrating/answering, so the previous step's
@@ -431,28 +424,15 @@ export function useAssistantPanel(): UseAssistantPanel {
           }
 
           // All other event types (tool, system, artifact, user echo) append directly —
-          // EXCEPT a 'user' echo that duplicates send()'s optimistic append. send() appends
-          // the user's message locally immediately; the stream then re-delivers the SAME
-          // message as a server-echoed type:'user' event, which would otherwise render a
-          // second, identical bubble (mirrors mergeAssistantEvent's de-dupe spirit). Skip the
-          // echo only when the most recent existing user entry already has identical text
-          // (that entry IS the optimistic add this echo mirrors); otherwise append it,
-          // preserving any user event not already shown — a repeated identical message is
-          // still exactly one optimistic entry ahead of its own echo, so this rule never
-          // suppresses a genuinely new turn.
-          setTranscript((prev) => {
-            if (ev.type === 'user') {
-              const lastUser = [...prev].reverse().find((e) => e.event.type === 'user');
-              if (lastUser && lastUser.event.text === ev.text) return prev;
-            }
-            return [...prev, { key: makeKey(), event: ev }];
-          });
+          // EXCEPT a 'user' echo that duplicates send()'s optimistic append (the
+          // appendAssistantEvent rule: see assistantPanelEvents.ts).
+          setTranscript((prev) => appendAssistantEvent(prev, ev));
         }
       } catch {
         // Stream aborted (e.g. via stop()) — handled by stop().
       }
     },
-    [],
+    [noteProgress],
   );
 
   // ── send ────────────────────────────────────────────────────────────────────
@@ -674,124 +654,28 @@ export function useAssistantPanel(): UseAssistantPanel {
     async (targetRunId: string, threadId?: string) => {
       if (!runtime) return;
       const rows: AgentEventRow[] = await repositories.agentRun.listEvents(targetRunId);
-      const ordered = [...rows].sort((a, b) => a.seq - b.seq);
-      const events: AgentEvent[] = ordered.map((row) => ({
-        id: row.id,
-        runId: row.run_id,
-        type: row.type as AgentEvent['type'],
-        text: row.text ?? undefined,
-        payload: row.payload ?? undefined,
-        createdAt: row.created_at,
-      }));
-
-      let nextTranscript: TranscriptEntry[] = [];
-      for (const ev of events) {
-        nextTranscript = ev.type === 'assistant' ? mergeAssistantEvent(nextTranscript, ev) : [...nextTranscript, { key: makeKey(), event: ev }];
-      }
+      const history = buildThreadHistory(rows);
+      const { transcript: nextTranscript, priorMessages } = history;
 
       // Adopt the loaded run into the runtime so a FOLLOW-UP continues THIS conversation
       // rather than hanging (openThread otherwise sets runId but leaves the adapter with no
       // per-run state → the next message early-returns with zero model calls). Seed the
       // accumulated transcript (user + assistant turns, in seq order) so the next turn
       // replays full context (D8/R5).
-      const priorMessages = events
-        .filter((e): e is AgentEvent & { text: string } => (e.type === 'user' || e.type === 'assistant') && !!e.text)
-        .map((e) => ({ role: e.type as 'user' | 'assistant', content: e.text }));
       runtime.adoptRun?.(targetRunId, priorMessages, threadId ? { threadId } : undefined);
 
       runIdRef.current = targetRunId;
       setRunId(targetRunId);
       setTranscript(nextTranscript);
       setPhase('idle');
-      setLastProgressAt(events.length > 0 ? events[events.length - 1].createdAt : null);
-      safeTrack(() => trackAgentThreadResumed(threadId ?? null, targetRunId, events.length));
+      setLastProgressAt(history.lastEventAt);
+      safeTrack(() => trackAgentThreadResumed(threadId ?? null, targetRunId, rows.length));
     },
-    [runtime],
+    [runtime, setLastProgressAt],
   );
 
-  // ── Server-heartbeat poll (FR-AGP-022, review round item 2) ──────────────────
-  // The SPEC's staleness authority is `agent_runs.last_progress_at` (the server heartbeat),
-  // NOT client-observed SSE liveness — a live SSE can be silently wedged server-side, and a
-  // dropped SSE can be genuinely still progressing. `lastProgressAt` above is only a coarse,
-  // OPPORTUNISTIC client-side proxy (updated on every drained event, for a snappy UI between
-  // polls); this effect polls the real DB value on the SAME 5s cadence AssistantPanel.tsx used
-  // to force a bare re-render (no second timer) and, whenever the poll returns a value, treats
-  // it as authoritative — overwriting the SSE-derived stamp so the server value always wins
-  // when it is fresher. Runs only while a run is genuinely active.
-  useEffect(() => {
-    if (phase !== 'running' && phase !== 'needs-approval') return;
-    const activeRunId = runIdRef.current;
-    if (!activeRunId) return;
-
-    let cancelled = false;
-    const poll = async () => {
-      try {
-        const heartbeat = await repositories.agentRun.getHeartbeat(activeRunId);
-        if (cancelled) return;
-        if (heartbeat?.last_progress_at) {
-          setLastProgressAt(heartbeat.last_progress_at);
-        }
-      } catch {
-        // Transient read failure — the next poll retries; the opportunistic SSE-derived
-        // stamp (if any) remains in effect until then (fail-open, mirrors server-side
-        // heartbeat/journal error handling — NFR-AGP-SEC-005 style).
-      }
-    };
-
-    void poll();
-    const id = window.setInterval(() => void poll(), HEARTBEAT_POLL_MS);
-    return () => {
-      cancelled = true;
-      window.clearInterval(id);
-    };
-  }, [phase, runId]);
-
-  // ── hasPendingQuestion (correctness-remediation finding 3) ───────────────────
-  // Derived from the transcript, not `phase` — a pending question does NOT transition
-  // `phase` away from 'running' (the drain loop appends a `question` status frame as-is;
-  // the SSE stream simply ends there). Centralizes the computation AssistantPanel.tsx
-  // previously duplicated locally (review-remediation item 6) so the hook's own isStuck
-  // derivation can also consume it.
-  const hasPendingQuestion = (() => {
-    for (let i = transcript.length - 1; i >= 0; i--) {
-      const ev = transcript[i].event;
-      if (ev.type !== 'status') continue;
-      const payload = ev.payload as { kind?: string } | undefined;
-      if (payload?.kind !== 'question') continue;
-      const q = ev.payload as QuestionPayload;
-      return answeredMap[q.questionId] === undefined;
-    }
-    return false;
-  })();
-
-  // ── isStuck — heartbeat-staleness derivation (FR-AGP-022) ────────────────────
-  // Active only while a run is genuinely in flight ('running'/'needs-approval' are both
-  // "the run has not reached a terminal state" per AgentRunStatus); keyed on elapsed
-  // wall-clock time since the last observed progress signal (the SERVER heartbeat, once the
-  // poll above has landed at least once — an SSE-derived stamp may still be the value between
-  // polls, but the server value overwrites it whenever a fresher poll resolves).
-  // Correctness-remediation finding 3: a pending ask_user question is EXCLUDED — the run
-  // is legitimately paused waiting on the human, not wedged, even past
-  // STUCK_RUN_STALE_MS with no fresh heartbeat (the server has no more work to do until
-  // the user answers, so its heartbeat genuinely stops advancing — that is expected, not
-  // a symptom of being stuck).
-  // A wedged run's heartbeat stops changing, so no state update re-renders the hook: schedule one
-  // render for the moment the stale window is crossed.
-  const [, setStaleTick] = useState(0);
-  const runActive = phase === 'running' || phase === 'needs-approval';
-  useEffect(() => {
-    if (!runActive || lastProgressAt === null) return;
-    const remaining = STUCK_RUN_STALE_MS - (Date.now() - new Date(lastProgressAt).getTime());
-    if (remaining <= 0) return;
-    const id = window.setTimeout(() => setStaleTick((n) => n + 1), remaining + 1);
-    return () => window.clearTimeout(id);
-  }, [runActive, lastProgressAt]);
-
-  const isStuck =
-    !hasPendingQuestion &&
-    (phase === 'running' || phase === 'needs-approval') &&
-    lastProgressAt !== null &&
-    Date.now() - new Date(lastProgressAt).getTime() > STUCK_RUN_STALE_MS;
+  // (Polling/staleness ownership — the poll effect, staleness tick and isStuck
+  // derivation — lives in the useRunHeartbeat seam, instantiated above.)
 
   return {
     open,

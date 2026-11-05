@@ -184,6 +184,23 @@ Deno.test('an oversized body (>256 KiB Content-Length) ⇒ 413 BEFORE any read/p
   assert(d.enqueued.length === 0, 'enqueue must NOT be called on an oversized body');
 });
 
+Deno.test('a chunked body past the cap with no Content-Length ⇒ 413 BEFORE any parse/enqueue', async () => {
+  const chunk = new TextEncoder().encode('x'.repeat(65536));
+  let sent = 0;
+  const stream = new ReadableStream<Uint8Array>({
+    pull(c) { if (sent++ < 8) c.enqueue(chunk); else c.close(); }, // 512 KiB, undeclared
+  });
+  const bigReq = new Request('https://clickup-webhook.test', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: stream,
+    // @ts-expect-error duplex is required for stream bodies
+    duplex: 'half',
+  });
+  const d = deps();
+  const res = await handleClickUpWebhook(bigReq, d);
+  assert(res.status === 413, `expected 413, got ${res.status}`);
+  assert(d.enqueued.length === 0, 'enqueue must NOT be called on an oversized body');
+});
+
 Deno.test('an enqueue failure ⇒ 500 GENERIC (never leaks the raw error detail)', async () => {
   const payload = loadFixturePayload('00-taskCreated.json');
   const body = JSON.stringify(payload);

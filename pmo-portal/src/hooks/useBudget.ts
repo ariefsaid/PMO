@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
 import { useOptionalRealRole } from '@/src/auth/impersonation';
 import { safeTrack, trackBudgetActivated } from '@/src/lib/analytics';
@@ -13,6 +13,68 @@ const budgetKey = (orgId: string | undefined, projectId: string) =>
 
 const budgetVersionsKey = (orgId: string | undefined, projectId: string) =>
   ['budget-versions', orgId, projectId] as const;
+
+const budgetDistributionKey = (orgId: string | undefined, projectId: string) =>
+  ['budget-distribution', orgId, projectId] as const;
+
+/**
+ * Shared awaited refresh for budget writes. Existing matching budget, readiness, finance,
+ * distribution, comparison, and projection queries are marked stale; each active query is then
+ * refetched individually so every read is awaited. Inactive queries stay stale until requested.
+ */
+export function refreshBudgetQueries(
+  queryClient: QueryClient,
+  orgId: string | undefined,
+  projectId: string,
+): Promise<void> {
+  const forecastFamilies = [
+    'budget-comparison',
+    'budget-projection',
+    'active-budget-category-phasing',
+    'budget-fiscal-years',
+  ] as const;
+  const prefixes: readonly (readonly unknown[])[] = [
+    budgetKey(orgId, projectId),
+    budgetVersionsKey(orgId, projectId),
+    ['budget-activation-precheck'],
+    ['project-finances', orgId, projectId],
+    budgetDistributionKey(orgId, projectId),
+    ...forecastFamilies.flatMap((family) => [
+      [family, projectId],
+      [family, orgId, projectId],
+    ]),
+  ] as const;
+  const matchedQueries = new Map(
+    prefixes.flatMap((queryKey) => queryClient.getQueryCache()
+      .findAll({ queryKey })
+      .map((query) => [query.queryHash, query] as const)),
+  );
+  const matchedHashes = new Set(matchedQueries.keys());
+
+  // Mark only the queries captured above stale. refetchType:none prevents TanStack's grouped
+  // prefix refetch from starting reads this function cannot individually await.
+  return queryClient.invalidateQueries(
+    {
+      predicate: (query) => matchedHashes.has(query.queryHash),
+      refetchType: 'none',
+    },
+  ).then(async () => {
+    const activeQueries = [...matchedQueries.values()].filter((query) => query.isActive());
+    const settlements = await Promise.allSettled(activeQueries.map((query) =>
+      queryClient.refetchQueries(
+        { queryKey: query.queryKey, exact: true, type: 'active' },
+        { throwOnError: true },
+      ),
+    ));
+    const failedRead = settlements.find((settlement) => settlement.status === 'rejected');
+    if (failedRead?.status === 'rejected') throw failedRead.reason;
+  });
+}
+
+/** Existing mutation flows keep their fire-and-forget completion behavior. */
+export function invalidateBudgetQueries(queryClient: QueryClient, orgId: string | undefined, projectId: string): void {
+  void refreshBudgetQueries(queryClient, orgId, projectId).catch(() => undefined);
+}
 
 // ---------------------------------------------------------------------------
 // Read hooks (T12)
@@ -90,12 +152,7 @@ export function useBudgetMutations(projectId: string) {
   const orgId = currentUser?.org_id;
   const realRole = useOptionalRealRole();
 
-  const invalidateBoth = () => {
-    queryClient.invalidateQueries({ queryKey: budgetKey(orgId, projectId) });
-    queryClient.invalidateQueries({ queryKey: budgetVersionsKey(orgId, projectId) });
-    queryClient.invalidateQueries({ queryKey: ['budget-activation-precheck'] });
-    queryClient.invalidateQueries({ queryKey: ['project-finances', orgId, projectId] });
-  };
+  const invalidateBoth = () => invalidateBudgetQueries(queryClient, orgId, projectId);
 
   const invalidateMoneyCollections = () => {
     queryClient.invalidateQueries({ queryKey: ['projects-money', orgId] });

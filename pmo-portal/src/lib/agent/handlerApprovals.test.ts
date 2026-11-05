@@ -1,14 +1,16 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
-  AGENT_APPROVAL_MONEY_THRESHOLD,
-} from '../../../../supabase/functions/agent-chat/actions';
-import {
   agentChatHandler,
   resolveNeedsApproval,
   type HandlerDeps,
 } from '../../../../supabase/functions/agent-chat/handler';
 import type { AgentAction, AgentEvent } from './runtime/port';
 import type { AgentChatRequest } from './runtime/transport';
+
+// Local fixture for the synthetic money-threshold action below. Production does not
+// consult a money threshold — needsApproval predicates are per-action (ADR-0051) — so
+// this boundary value belongs to the test, not to the shipped action module.
+const SYNTHETIC_APPROVAL_MONEY_THRESHOLD = 10_000;
 
 async function collect(it: AsyncIterable<AgentEvent>): Promise<AgentEvent[]> {
   const out: AgentEvent[] = [];
@@ -94,7 +96,7 @@ describe('conditional approval predicates', () => {
       inputSchema: {},
       confirm: true,
       needsApproval: (input) =>
-        (input as { amount: number }).amount >= AGENT_APPROVAL_MONEY_THRESHOLD,
+        (input as { amount: number }).amount >= SYNTHETIC_APPROVAL_MONEY_THRESHOLD,
       run: vi.fn(),
     };
     const ctx = { jwt: '', userId: 'u1', orgId: 'org-1', supabase: {} } as Parameters<typeof resolveNeedsApproval>[2];

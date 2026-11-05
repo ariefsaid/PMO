@@ -32,7 +32,7 @@ const patchFloat = (onWrite: () => void): MockRoute => ({
 });
 
 /** Everything up to the account read: profile, active member, own live float, activated binding, vault secret. */
-function through(role = 'Finance', tier = 'erpnext', active = true): MockRoute[] {
+function through(role = 'Finance', tier = 'erpnext', active = true, secret = 'test-key:test-secret'): MockRoute[] {
   return [
     supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role }, single)),
     supabaseRpc('actor_authorization_state', () => jsonResponse({ role, active })),
@@ -40,7 +40,7 @@ function through(role = 'Finance', tier = 'erpnext', active = true): MockRoute[]
     supabaseSelect('imprest_floats', () => jsonResponse([{ id: FLOAT }])),
     supabaseSelect('external_org_bindings', () => jsonResponse([
       { external_tier: tier, secret_ref: 'vault-ref', site_url: 'https://erp.example.com', config: { company: 'ACME' } }])),
-    supabaseRpc('read_vault_secret', () => jsonResponse('test-key:test-secret')),
+    supabaseRpc('read_vault_secret', () => jsonResponse(secret)),
   ];
 }
 const account = (doc: Record<string, unknown> | null) =>
@@ -66,6 +66,18 @@ describe('imprest-cash-account', () => {
       assertEquals(restCall(calls, 'imprest_floats', 'PATCH')[0].url.searchParams.get('org_id'), 'eq.org-1');
       assertEquals(JSON.parse(restCall(calls, 'imprest_floats', 'PATCH')[0].bodyText ?? '{}'), { erp_cash_account_ref: ACCOUNT });
       assertEquals((audits[0] as Record<string, unknown>).p_action, 'imprest_float.cash_account');
+    });
+  });
+
+  it('AC-IMP-071 a vault secret whose secret half contains a colon still reads the account', async () => {
+    let auth: string | null = null;
+    await withFetchMock([...through('Finance', 'erpnext', true, 'key1:sec:ret'),
+      erp('erp.example.com', `/api/resource/Account/${encodeURIComponent(ACCOUNT)}`, (call) => {
+        auth = call.headers.get('authorization');
+        return jsonResponse({ data: { account_type: 'Cash', company: 'ACME', is_group: 0, disabled: 0 } });
+      }), patchFloat(() => {}), audit([])], async () => {
+      assertEquals((await post({ floatId: FLOAT, account: ACCOUNT })).status, 200);
+      assertEquals(auth, 'token key1:sec:ret');
     });
   });
 

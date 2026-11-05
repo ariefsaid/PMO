@@ -318,7 +318,7 @@ const ApprovalsPage: React.FC = () => {
 
             {(activeScope === 'all' || activeScope === 'timesheets') && canApproveTimesheets && (
               <>
-                <TimesheetBulkToolbar controller={timesheetBulk} />
+                <TimesheetBulkToolbar controller={timesheetBulk} sheets={timesheetRows} />
                 <TimesheetBulkConfirm controller={timesheetBulk} sheets={timesheetRows} />
               </>
             )}

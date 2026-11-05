@@ -23,6 +23,14 @@ const baseRow: UsageSummaryRow = {
   margin_usd: null,
 };
 
+describe('AdministrationUsage — cost unit (FR-L10N-023)', () => {
+  it('labels the cost column USD and renders it as a dollar amount', () => {
+    render(<AdministrationUsage rows={[{ ...baseRow, cost: 737.123456 }]} isPending={false} isError={false} onRetry={vi.fn()} />);
+    expect(screen.getByRole('columnheader', { name: /cost \(usd\)/i })).toBeInTheDocument();
+    expect(screen.getByText('$737.1235')).toBeInTheDocument();
+  });
+});
+
 describe('AdministrationUsage — margin column (AC-USE-003)', () => {
   it('hides the margin column and shows a "pricing not yet configured" note when every row has margin_usd = null', () => {
     render(<AdministrationUsage rows={[baseRow, { ...baseRow, action: 'compose' }]} isPending={false} isError={false} onRetry={vi.fn()} />);

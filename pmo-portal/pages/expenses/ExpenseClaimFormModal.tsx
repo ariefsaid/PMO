@@ -14,6 +14,8 @@ import { floatChoiceOptions } from '@/src/lib/imprest/floatDisplay';
 import { useImprestFloatChoices } from '@/src/hooks/useImprest';
 import { expenseTypeLabel } from './expenseLabels';
 import { AdvanceLoadNotice } from './AdvanceLoadNotice';
+import { ProjectLoadNotice } from './ProjectLoadNotice';
+import type { ProjectLoad } from './useProjectChoices';
 import type { OwnAdvanceOptions } from './useOwnAdvanceOptions';
 
 /** S-12 (RF-060): before a NEW draft exists, say plainly when it will not reach accounting. PMO-only capture
@@ -81,6 +83,8 @@ export interface ExpenseClaimFormModalProps {
   advanceOptions: { value: string; label: string }[];
   /** Load state of `advanceOptions`: a NEW claim is not saved while it is pending or failed (unknown is not "no advance"). */
   advanceLoad: Pick<OwnAdvanceOptions, 'isPending' | 'isError' | 'refetch'>;
+  /** Load state of `projectOptions`; while unresolved the project choice cannot be saved. */
+  projectLoad: ProjectLoad;
   categoryPrecedents?: ExpenseCategoryPrecedent[];
   captureRecovery?: ExpenseCaptureRecoveryView | null;
   initial?: ExpenseClaimFormInitial;
@@ -90,7 +94,7 @@ export interface ExpenseClaimFormModalProps {
 }
 
 export const ExpenseClaimFormModal: React.FC<ExpenseClaimFormModalProps> = ({
-  kind, projectOptions, advanceOptions, advanceLoad, categoryPrecedents = [], captureRecovery = null, initial, onClose, onOpenSavedDraft, onSubmit,
+  kind, projectOptions, projectLoad, advanceOptions, advanceLoad, categoryPrecedents = [], captureRecovery = null, initial, onClose, onOpenSavedDraft, onSubmit,
 }) => {
   const { t } = useTranslation();
   const validate = useMemo(
@@ -187,10 +191,11 @@ export const ExpenseClaimFormModal: React.FC<ExpenseClaimFormModalProps> = ({
   const recoveryPending = Boolean(captureRecovery?.draftSaved && captureRecovery.phase !== 'complete');
 
   const advancesNotReady = kind === 'claim' && !initial && (advanceLoad.isPending || advanceLoad.isError);
+  const projectsNotReady = projectLoad.isPending || projectLoad.isError;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (advancesNotReady) return;
+    if (advancesNotReady || projectsNotReady) return;
     void form.handleSubmit(async (values) => {
       const input: ExpenseClaimInput = {
         kind,
@@ -249,7 +254,7 @@ export const ExpenseClaimFormModal: React.FC<ExpenseClaimFormModalProps> = ({
       onClose={() => { if (!recoveryPending) onClose(); }}
       loading={form.isSubmitting}
       dirty={form.isDirty || receiptFile !== null}
-      submitDisabled={!form.isComplete || advancesNotReady}
+      submitDisabled={!form.isComplete || advancesNotReady || projectsNotReady}
       errorSummary={errorSummary}
       submitError={saveError}
     >
@@ -347,6 +352,7 @@ export const ExpenseClaimFormModal: React.FC<ExpenseClaimFormModalProps> = ({
               }
             }} onBlur={projectField.onBlur}
             options={[{ value: '', label: t('expenses.form.project.none', 'Overhead (no project)') }, ...projectOptions]} />
+          <ProjectLoadNotice projects={projectLoad} />
           <SelectField id={categoryField.id} label={t('expenses.form.category.label', 'Budget category')} value={categoryField.value}
             disabled={recoveryPending}
             onChange={(v) => { setCategoryManuallyEdited(true); categoryField.onChange(v); form.setValue('imprestFloatId', ''); }} onBlur={categoryField.onBlur} options={categoryOptions}

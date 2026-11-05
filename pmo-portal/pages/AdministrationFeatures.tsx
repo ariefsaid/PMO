@@ -248,7 +248,7 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
     />
   );
 
-  if (orgs.isError || catalogue.isError || resolved.isError || orgPlan.isError) {
+  if (orgs.isError || catalogue.isError || resolved.isError || orgPlan.isError || orgOverrides.isError) {
     return (
       <ListState
         variant="error"
@@ -259,12 +259,13 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
           void catalogue.refetch();
           void resolved.refetch();
           void orgPlan.refetch();
+          void orgOverrides.refetch();
         }}
       />
     );
   }
 
-  if (orgs.isPending || catalogue.isPending || resolved.isPending || orgPlan.isPending) {
+  if (orgs.isPending || catalogue.isPending || resolved.isPending || orgPlan.isPending || orgOverrides.isPending) {
     return <ListState variant="loading" rows={8} testId="operator-console-loading" />;
   }
 

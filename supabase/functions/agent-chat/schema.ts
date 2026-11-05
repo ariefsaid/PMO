@@ -8,15 +8,13 @@
  *
  * FR-AR-009: the schema constrains the model's tool inputs; the action validates them.
  * FR-CV-001 / Task 5 NOTE: the compose_view TOOL input schema is { prompt: string }
- * (what the model fills in when it calls the tool). COMPOSITION_SPEC_SCHEMA is the
- * schema the model uses INSIDE composeSpec when tool-forcing the inner compose call.
+ * (what the model fills in when it calls the tool). COMPOSITION_SPEC_SCHEMA — defined in
+ * compose-view/schema.ts — is the schema the model uses INSIDE composeSpec when tool-forcing
+ * the inner compose call; import it from its defining module.
  * Both reuse the same compileCompositionSpec compiler — the boundary is unchanged (D-A4-1).
  */
 
 import { AGENT_READ_ENTITIES, AGENT_READ_ROW_CAP, AGENT_AGGREGATE_ROW_CAP } from './readEntities.ts';
-
-// Re-export COMPOSITION_SPEC_SCHEMA so agent-chat code can reach it without a second import path.
-export { COMPOSITION_SPEC_SCHEMA } from '../compose-view/schema.ts';
 
 // ── Write action schemas (A3) ─────────────────────────────────────────────────
 

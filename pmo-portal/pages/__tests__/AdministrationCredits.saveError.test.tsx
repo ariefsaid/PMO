@@ -80,6 +80,22 @@ describe('AC-ERR-001: AdministrationCredits keeps a rejected save on screen', ()
     });
   }, 15000);
 
+  it('a rejected save does not leak into the next time the dialog opens', async () => {
+    const user = userEvent.setup();
+    renderSection();
+    await user.click(await screen.findByRole('button', { name: /Grant credits/i }));
+    let dialog = await screen.findByRole('dialog');
+    await user.type(within(dialog).getByLabelText(/amount/i), '10');
+    await user.click(within(dialog).getByRole('button', { name: /^Grant credits$/i }));
+    expect(await screen.findByTestId('entity-modal-save-error')).toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: 'Close' }));
+    await user.click(await screen.findByRole('button', { name: /^discard/i }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    await user.click(screen.getByRole('button', { name: /Grant credits/i }));
+    dialog = await screen.findByRole('dialog');
+    expect(within(dialog).queryByTestId('entity-modal-save-error')).not.toBeInTheDocument();
+  });
+
   it('AC-PLC-009: preserves unrestricted en-US credit precision when granting', async () => {
     grant.mockResolvedValue(undefined);
     const user = userEvent.setup();

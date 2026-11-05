@@ -21,8 +21,6 @@ const ACTIVE_STATUSES: readonly AgentRunStatus[] = ['running', 'paused', 'needs-
 interface StuckRunBannerProps {
   status: AgentRunStatus;
   lastProgressAt: string | null;
-  /** Injectable clock (ms epoch) for deterministic tests; defaults to Date.now(). */
-  now?: number;
   /** How many activity-trail steps have completed so far (optional, from the panel). */
   doneCount?: number;
   /** Friendly label of the most recently completed step (optional, from the panel). */
@@ -34,7 +32,6 @@ interface StuckRunBannerProps {
 export const StuckRunBanner: React.FC<StuckRunBannerProps> = ({
   status,
   lastProgressAt,
-  now,
   doneCount,
   lastActivity,
   onRetry,
@@ -43,8 +40,7 @@ export const StuckRunBanner: React.FC<StuckRunBannerProps> = ({
   if (!ACTIVE_STATUSES.includes(status)) return null;
   if (lastProgressAt === null) return null;
 
-  const nowMs = now ?? Date.now();
-  const elapsed = nowMs - new Date(lastProgressAt).getTime();
+  const elapsed = Date.now() - new Date(lastProgressAt).getTime();
   if (elapsed <= STUCK_RUN_STALE_MS) return null;
 
   const completedSteps = doneCount ?? 0;

@@ -8,7 +8,7 @@
  * not alarm. With doneCount>0 it frames the wait as "a bigger question, N steps done so
  * far" and offers Stop (primary) + Retry (secondary).
  */
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
@@ -16,6 +16,16 @@ import { StuckRunBanner } from './StuckRunBanner';
 import { STUCK_RUN_STALE_MS } from './stuckRun.constants';
 
 const NOW = new Date('2026-07-03T12:00:00.000Z').getTime();
+
+// The banner reads Date.now() directly (no injectable clock prop); pin the clock per
+// test so staleness math stays deterministic, restoring the real clock after each test.
+let nowSpy: ReturnType<typeof vi.spyOn>;
+beforeEach(() => {
+  nowSpy = vi.spyOn(Date, 'now').mockReturnValue(NOW);
+});
+afterEach(() => {
+  nowSpy.mockRestore();
+});
 
 describe('StuckRunBanner', () => {
   it('AC-AGP-020 stuck-run banner on heartbeat staleness', () => {
@@ -25,7 +35,6 @@ describe('StuckRunBanner', () => {
       <StuckRunBanner
         status="running"
         lastProgressAt={stale}
-        now={NOW}
         onRetry={vi.fn()}
         onCancel={vi.fn()}
       />,
@@ -45,7 +54,6 @@ describe('StuckRunBanner', () => {
       <StuckRunBanner
         status="running"
         lastProgressAt={stale}
-        now={NOW}
         doneCount={3}
         lastActivity="Checking your projects"
         onRetry={vi.fn()}
@@ -64,7 +72,6 @@ describe('StuckRunBanner', () => {
       <StuckRunBanner
         status="running"
         lastProgressAt={stale}
-        now={NOW}
         doneCount={1}
         onRetry={vi.fn()}
         onCancel={vi.fn()}
@@ -82,7 +89,6 @@ describe('StuckRunBanner', () => {
       <StuckRunBanner
         status="running"
         lastProgressAt={stale}
-        now={NOW}
         onRetry={vi.fn()}
         onCancel={vi.fn()}
       />,
@@ -98,7 +104,6 @@ describe('StuckRunBanner', () => {
       <StuckRunBanner
         status="running"
         lastProgressAt={fresh}
-        now={NOW}
         onRetry={vi.fn()}
         onCancel={vi.fn()}
       />,
@@ -111,7 +116,6 @@ describe('StuckRunBanner', () => {
       <StuckRunBanner
         status="running"
         lastProgressAt={null}
-        now={NOW}
         onRetry={vi.fn()}
         onCancel={vi.fn()}
       />,
@@ -125,7 +129,6 @@ describe('StuckRunBanner', () => {
       <StuckRunBanner
         status="completed"
         lastProgressAt={stale}
-        now={NOW}
         onRetry={vi.fn()}
         onCancel={vi.fn()}
       />,
@@ -141,7 +144,6 @@ describe('StuckRunBanner', () => {
       <StuckRunBanner
         status="running"
         lastProgressAt={stale}
-        now={NOW}
         onRetry={vi.fn()}
         onCancel={onCancel}
       />,
@@ -159,7 +161,6 @@ describe('StuckRunBanner', () => {
       <StuckRunBanner
         status="running"
         lastProgressAt={stale}
-        now={NOW}
         onRetry={onRetry}
         onCancel={vi.fn()}
       />,
