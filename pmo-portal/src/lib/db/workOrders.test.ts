@@ -38,6 +38,8 @@ const h = vi.hoisted(() => {
   builder.select = chain('select');
   builder.eq = chain('eq');
   builder.order = chain('order');
+  builder.gt = () => builder;
+  builder.limit = () => builder;
   builder.insert = chain('insert');
   builder.update = chain('update');
   builder.single = chain('single');
@@ -105,7 +107,8 @@ describe('reads', () => {
     expect(h.calls.from).toEqual(['work_orders']);
     expect(h.calls.selectArgs).toEqual(['*, value_author:profiles!work_orders_order_value_set_by_fkey(role,manager_id,status)']);
     expect(h.calls.eq).toEqual([['project_id', 'proj-1']]);
-    expect(h.calls.order).toEqual([['created_at', { ascending: false }]]);
+    // keyset scan on id; newest-first order is restored in memory
+    expect(h.calls.order).toEqual([['id', { ascending: true }]]);
     expect(JSON.stringify(h.calls)).not.toContain('org_id');
   });
 

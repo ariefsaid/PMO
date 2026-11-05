@@ -1,5 +1,8 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError } from '@/src/lib/appError';
+import { fetchAllRowsByKeyset, mapBounded } from '@/src/lib/pagedRead';
+
+const SHEET_CHUNK = 100;
 
 /**
  * The Approved-only gate read (P3b, FR-TSP-010/011) — a typed wrapper over
@@ -80,22 +83,32 @@ export interface PushNeedingAttention {
 }
 
 export async function listPushesNeedingAttention(): Promise<PushNeedingAttention[]> {
-  const { data: mirrors, error: mirrorError } = await supabase
-    .from('timesheet_erp_mirror')
-    .select('timesheet_id, push_state, push_error, ts_number')
-    .in('push_state', ['failed', 'held']);
-  if (mirrorError) throw new AppError(mirrorError.message, mirrorError.code);
-  const mirrorRows = mirrors ?? [];
+  // Complete keyset scan (db-max-rows would otherwise hide failed pushes past the cap).
+  const mirrorRows = await fetchAllRowsByKeyset(async (afterId, limit) => {
+    let q = supabase
+      .from('timesheet_erp_mirror')
+      .select('id, timesheet_id, push_state, push_error, ts_number')
+      .in('push_state', ['failed', 'held'])
+      .order('id', { ascending: true });
+    if (afterId !== null) q = q.gt('id', afterId);
+    return q.limit(limit);
+  });
   if (mirrorRows.length === 0) return [];
 
+  // Chunked so neither the `in` list nor the response can pass a request/row cap.
   const timesheetIds = mirrorRows.map((m) => m.timesheet_id);
-  const { data: sheets, error: sheetsError } = await supabase
-    .from('timesheets')
-    .select('id, week_start_date, approved_by, owner:profiles!timesheets_user_id_fkey(full_name)')
-    .in('id', timesheetIds);
-  if (sheetsError) throw new AppError(sheetsError.message, sheetsError.code);
+  const chunks: string[][] = [];
+  for (let i = 0; i < timesheetIds.length; i += SHEET_CHUNK) chunks.push(timesheetIds.slice(i, i + SHEET_CHUNK));
+  const pages = await mapBounded(chunks, 4, async (ids) => {
+    const { data, error } = await supabase
+      .from('timesheets')
+      .select('id, week_start_date, approved_by, owner:profiles!timesheets_user_id_fkey(full_name)')
+      .in('id', ids);
+    if (error) throw new AppError(error.message, error.code);
+    return data ?? [];
+  });
 
-  const byId = new Map((sheets ?? []).map((s) => [s.id, s]));
+  const byId = new Map(pages.flat().map((s) => [s.id, s]));
   return mirrorRows.map((m) => {
     const sheet = byId.get(m.timesheet_id);
     const owner = sheet?.owner as { full_name?: string } | null | undefined;

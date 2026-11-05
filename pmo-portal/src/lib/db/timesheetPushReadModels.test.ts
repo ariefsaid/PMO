@@ -61,6 +61,8 @@ const h = vi.hoisted(() => {
       calls.order.push(args);
       return builder;
     };
+    builder.gt = () => builder;
+    builder.limit = () => builder;
     builder.maybeSingle = () => {
       calls.maybeSingle++;
       return Promise.resolve({ data: state.mirrorRow, error: state.mirrorError });

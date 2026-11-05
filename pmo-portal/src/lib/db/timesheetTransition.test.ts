@@ -49,6 +49,8 @@ function makeFromBuilder(resolved: { data: unknown; error: unknown }) {
   builder.neq = mockNeq.mockReturnValue(builder);
   builder.order = mockOrder.mockReturnValue(builder);
   builder.or = mockOr.mockReturnValue(builder);
+  builder.gt = () => builder;
+  builder.limit = () => builder;
   builder.then = (resolve: (v: typeof resolved) => void, reject?: (e: unknown) => void) =>
     Promise.resolve(resolved).then(resolve, reject);
   mockFrom.mockReturnValue(builder);
@@ -185,7 +187,7 @@ describe('submitTimesheet / approveTimesheet / rejectTimesheet', () => {
 // ---------------------------------------------------------------------------
 
 describe('listTimesheetsAwaitingApproval', () => {
-  it("AC-903: listTimesheetsAwaitingApproval selects Submitted sheets, neq user_id (SoD), joins owner + entries, orders by week_start_date, sends no org_id (FR-TS-011)", async () => {
+  it("AC-903: listTimesheetsAwaitingApproval selects Submitted sheets, neq user_id (SoD), joins owner + entries, keyset-scans by id, sends no org_id (FR-TS-011)", async () => {
     const rows = [
       {
         id: 'ts-1',
@@ -213,7 +215,7 @@ describe('listTimesheetsAwaitingApproval', () => {
     );
     expect(mockEq).toHaveBeenCalledWith('status', 'Submitted');
     expect(mockNeq).toHaveBeenCalledWith('user_id', 'self-id');
-    expect(mockOrder).toHaveBeenCalledWith('week_start_date', { ascending: false });
+    expect(mockOrder).toHaveBeenCalledWith('id', { ascending: true });
 
     // No org_id sent
     expect(JSON.stringify(mockEq.mock.calls)).not.toContain('org_id');

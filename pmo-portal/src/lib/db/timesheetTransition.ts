@@ -1,5 +1,6 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { toAppError } from '@/src/lib/appError';
+import { fetchAllRowsByKeyset } from '@/src/lib/pagedRead';
 import type { Tables } from '@/src/lib/supabase/database.types';
 import type { TimesheetRow, TimesheetWithEntries } from './timesheets';
 
@@ -149,19 +150,25 @@ export async function listTimesheetsAwaitingApproval(
   selfId: string,
   viewerRole: TimesheetApprovalViewerRole | null,
 ): Promise<TimesheetAwaitingApproval[]> {
-  let query = supabase
-    .from('timesheets')
-    .select(AWAITING_SELECT)
-    .eq('status', 'Submitted')
-    .neq('user_id', selfId)
-    .order('week_start_date', { ascending: false });
-  if (viewerRole === 'Executive') query = query.or(`manager_id.eq.${selfId},manager_id.is.null`, { referencedTable: 'owner' });
-  else if (viewerRole !== 'Admin') query = query.eq('owner.manager_id', selfId);
-  const { data, error } = await query;
-  if (error) throw new Error(error.message);
+  // Complete keyset scan: the manager/role filter is applied server-side (inner owner embed), and the
+  // scan is unbounded by db-max-rows so no eligible sheet is hidden behind a capped first response.
+  const data = await fetchAllRowsByKeyset<TimesheetAwaitingApproval>(async (afterId, limit) => {
+    let query = supabase
+      .from('timesheets')
+      .select(AWAITING_SELECT)
+      .eq('status', 'Submitted')
+      .neq('user_id', selfId)
+      .order('id', { ascending: true });
+    if (afterId !== null) query = query.gt('id', afterId);
+    if (viewerRole === 'Executive') query = query.or(`manager_id.eq.${selfId},manager_id.is.null`, { referencedTable: 'owner' });
+    else if (viewerRole !== 'Admin') query = query.eq('owner.manager_id', selfId);
+    const res = await query.limit(limit);
+    return { data: res.data as unknown as TimesheetAwaitingApproval[] | null, error: res.error };
+  });
+  data.sort((a, b) => b.week_start_date.localeCompare(a.week_start_date) || a.id.localeCompare(b.id));
   // Mirror the RPC's approve authority locally so the queue never advertises an action the server
   // will reject. A missing owner join fails closed rather than being treated as a null manager.
-  const approvable = ((data ?? []) as unknown as TimesheetAwaitingApproval[]).filter(sheet =>
+  const approvable = data.filter(sheet =>
     canDecideTimesheet(sheet, selfId, viewerRole)
   );
   // Normalise entry hours to number at the data boundary (mirrors listTimesheets).

@@ -1,5 +1,6 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError, assertWriteLanded } from '@/src/lib/appError';
+import { fetchAllRowsByKeyset } from '@/src/lib/pagedRead';
 import type { Tables } from '@/src/lib/supabase/database.types';
 
 export type UserViewRow = Tables<'user_views'>;
@@ -42,13 +43,13 @@ function throwWrite(error: PostgrestErrorLike): never {
  * shared_org-in-org) scopes the rows. Throws an `AppError` (code preserved) on failure.
  */
 export async function listUserViews(): Promise<UserViewListRow[]> {
-  const { data, error } = await supabase
-    .from('user_views')
-    .select(LIST_COLUMNS)
-    .is('archived_at', null)
-    .order('updated_at', { ascending: false });
-  if (error) throwWrite(error);
-  return data ?? [];
+  // Complete keyset scan, then newest write first in memory.
+  const rows = await fetchAllRowsByKeyset<UserViewListRow>(async (afterId, limit) => {
+    let q = supabase.from('user_views').select(LIST_COLUMNS).is('archived_at', null).order('id', { ascending: true });
+    if (afterId !== null) q = q.gt('id', afterId);
+    return q.limit(limit);
+  });
+  return rows.sort((a, b) => b.updated_at.localeCompare(a.updated_at) || a.id.localeCompare(b.id));
 }
 
 /**

@@ -1,5 +1,6 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError, assertWriteLanded } from '@/src/lib/appError';
+import { fetchAllRowsByKeyset } from '@/src/lib/pagedRead';
 import type { Tables } from '@/src/lib/supabase/database.types';
 import type { EntryUpsert } from '@/src/lib/timesheet-edit';
 
@@ -26,14 +27,16 @@ const SELECT = '*, entries:timesheet_entries(*, project:projects(name,short_name
 export async function listTimesheets(
   userId: string,
 ): Promise<TimesheetWithEntries[]> {
-  const { data, error } = await supabase
-    .from('timesheets')
-    .select(SELECT)
-    .eq('user_id', userId)
-    .order('week_start_date', { ascending: false });
-  if (error) throw new Error(error.message);
+  // Complete keyset scan (a capped single response would drop the oldest weeks silently).
+  const data = await fetchAllRowsByKeyset<TimesheetWithEntries>(async (afterId, limit) => {
+    let q = supabase.from('timesheets').select(SELECT).eq('user_id', userId).order('id', { ascending: true });
+    if (afterId !== null) q = q.gt('id', afterId);
+    const res = await q.limit(limit);
+    return { data: res.data as unknown as TimesheetWithEntries[] | null, error: res.error };
+  });
+  data.sort((a, b) => b.week_start_date.localeCompare(a.week_start_date) || a.id.localeCompare(b.id));
   // Normalise hours to number at the data boundary so callers never need Number() casts.
-  return ((data ?? []) as unknown as TimesheetWithEntries[]).map(sheet => ({
+  return data.map(sheet => ({
     ...sheet,
     entries: sheet.entries.map(e => ({ ...e, hours: Number(e.hours) })),
   }));
