@@ -204,6 +204,17 @@ export const ALLOWLIST = [
     reason: 'Line-level receipt writes and the order/receipt/invoice match have no assistant read entity; existing receipt reads are Basic (procurement) since D17 #1783 item 1',
     restore: 'Remove when a Full-only assistant read entity or named read tool ships.',
   },
+  {
+    ids: [
+      'enforcement:0646_rls_caller_initplans.sql:stock_items_select',
+      'enforcement:0646_rls_caller_initplans.sql:stock_units_select',
+      'enforcement:0646_rls_caller_initplans.sql:stock_warehouses_select',
+    ],
+    reason:
+      'ALTER POLICY cannot change a policy command, so these are still the SELECT policies 0412 created (dynamically, via execute format, so the scanner has no prior state for them); the ALTER only adds a scalar-subselect wrapper to the expression copied from the catalog, and a SELECT policy never carries the stock write gate (0534 gates writes only).',
+    restore:
+      'Delete when the enforcement scanner derives an ALTER policy command from the prior state (or from the dynamic creation) instead of defaulting a command-less ALTER to ALL.',
+  },
 ];
 
 // ── source scanning helpers (pure) ──────────────────────────────────────────────────────────────
