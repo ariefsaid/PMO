@@ -14,6 +14,10 @@ async function readS21Spec() {
   return readFile(new URL('../AC-S21-005-task-list-review.spec.ts', import.meta.url), 'utf8');
 }
 
+async function readS21Harness() {
+  return readFile(new URL('./AC-S21-005-harness.mjs', import.meta.url), 'utf8');
+}
+
 function caseSource(source, title) {
   const marker = `  test('${title}'`;
   const start = source.indexOf(marker);
@@ -44,7 +48,14 @@ test('S21 reload continuation keeps both normal logins timed and reloads the sup
   assert.equal(source.match(/await installBrowserRouteGuardForPage\(page\)/g)?.length, 2);
   assert.equal(source.match(/adminLoginAndOpenTaskRoute\(page\)/g)?.length, 2);
   assert.doesNotMatch(source, /test\.beforeEach/);
-  assert.match(source, /aggregateS21BrowserGuardSnapshots\(browserRouteGuards\.map\(/);
+
+  // Every page guard must still be aggregated during cleanup verification; the journey
+  // spec delegates that aggregation to the harness alongside the owned handler teardown.
+  const harnessSource = await readS21Harness();
+  assert.match(harnessSource, /aggregateS21BrowserGuardSnapshots\(/);
+  assert.match(harnessSource, /browserRouteGuards\.map\(/);
+  assert.match(harnessSource, /runS21FixtureCleanup/);
+  assert.match(source, /await harness\.dispose\(\)/);
 
   assert.match(canonical, /test\.setTimeout\(S21_FIXTURE_PHASE_TIMEOUT_MS\)/);
   assert.match(canonical, /const page = continuationPage/);
@@ -55,7 +66,7 @@ test('S21 reload continuation keeps both normal logins timed and reloads the sup
   const hooks = source.slice(source.indexOf('test.beforeAll'), source.indexOf('async function adminLoginAndOpenTaskRoute'));
   assert.doesNotMatch(hooks, /adminLoginAndOpenTaskRoute|page\.goto\(|page\.reload\(/);
   const cleanup = source.slice(source.indexOf('test.afterAll'));
-  const fixtureCleanupIndex = cleanup.indexOf('await runS21FixtureCleanup(');
+  const fixtureCleanupIndex = cleanup.indexOf('await harness.dispose()');
   const ownedContextCloseIndex = cleanup.indexOf('await ownedContext?.close()');
   assert.ok(fixtureCleanupIndex >= 0 && ownedContextCloseIndex > fixtureCleanupIndex);
   assert.doesNotMatch(cleanup, /adminLoginAndOpenTaskRoute|page\.goto\(|page\.reload\(/);
