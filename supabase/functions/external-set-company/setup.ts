@@ -201,23 +201,19 @@ const REVIEWABLE_PROJECT_STATUSES = new Set([
   "Internal Project",
 ]);
 async function readErpSetup(ctx: ErpSetupContext) {
-  const read = (table: string, columns: string, active = false) =>
+  const read = (table: string, columns: string) =>
     fetchAllRowsByKeyset<{ id: string; [key: string]: unknown }>(
       (after, limit) => {
         let query = ctx.serviceClient.from(table).select(columns).eq(
           "org_id",
           ctx.orgId,
         ).order("id").limit(limit);
-        if (active) query = query.eq("status", "active");
         if (table === "projects") query = query.is("archived_at", null);
-        if (table === "timesheet_entries") {
-          query = query.gt("hours", 0).eq("timesheets.org_id", ctx.orgId);
-        }
         if (after) query = query.gt("id", after);
         return query as never;
       },
     );
-  const [ownership, projects, accounts, members, employees, timeEntries] = await Promise.all(
+  const [ownership, projects, accounts, unlinked] = await Promise.all(
     [
       ctx.serviceClient.from("external_domain_ownership").select("domain").eq(
         "org_id",
@@ -225,14 +221,13 @@ async function readErpSetup(ctx: ErpSetupContext) {
       ).eq("external_tier", "erpnext"),
       read("projects", "id,name,code,status"),
       read("budget_category_account_map", "id,category,erp_account,is_push_target"),
-      read("profiles", "id", true),
-      read("erp_employees", "id,profile_id,link_state"),
-      read("timesheet_entries", "id,timesheets!inner(user_id)"),
+      ctx.serviceClient.rpc("erp_setup_unlinked_participant_count", { p_org_id: ctx.orgId }),
     ],
   );
   if (ownership.error) {
     throw new AppError(ownership.error.message, ownership.error.code);
   }
+  if (unlinked.error) throw new AppError(unlinked.error.message, unlinked.error.code);
   // #1326: Travel & accommodation and Vehicle need a mapping only once the org budgets in them.
   const optionalUse = await Promise.all(
     OPTIONAL_BUDGET_CATEGORIES.map((category) =>
@@ -243,17 +238,6 @@ async function readErpSetup(ctx: ErpSetupContext) {
   for (const result of optionalUse) {
     if (result.error) throw new AppError(result.error.message, result.error.code);
   }
-  const linkedProfiles = new Set(
-    employees.filter((row) => row.link_state === "confirmed").map((row) =>
-      row.profile_id
-    ),
-  );
-  const timeEntryParticipants = new Set(
-    timeEntries.flatMap((row) => {
-      const timesheet = row.timesheets as { user_id?: unknown } | null;
-      return typeof timesheet?.user_id === "string" ? [timesheet.user_id] : [];
-    }),
-  );
   const projectMap = (ctx.config.project_map ?? {}) as Record<string, unknown>;
   return {
     defaults: Object.fromEntries(
@@ -287,9 +271,7 @@ async function readErpSetup(ctx: ErpSetupContext) {
     ),
     // Only people with recorded time-entry participation need an ERP employee link.
     // Role membership alone is not evidence that a person uses time entry.
-    unlinkedEmployeeCount: members.filter((row) =>
-      timeEntryParticipants.has(row.id) && !linkedProfiles.has(row.id)
-    ).length,
+    unlinkedEmployeeCount: unlinked.data as number,
   };
 }
 

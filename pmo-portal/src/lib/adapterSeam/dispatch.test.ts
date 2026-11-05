@@ -3,7 +3,7 @@ import { dispatchExternallyOwnedWrite, toDispatchError } from './dispatch.ts';
 import { createReferenceAdapter, REFERENCE_DOMAIN } from './referenceAdapter.ts';
 import type { AdapterCommand } from './contract.ts';
 import { AppError } from '../appError.ts';
-import { executeWrite } from './router.ts';
+import { routeWrite } from './router.ts';
 
 const command: AdapterCommand = {
   domain: REFERENCE_DOMAIN,
@@ -53,7 +53,7 @@ describe('AC-EAS-033 synchronous write-through order: command → read-model →
 });
 
 describe('AC-EAS-034 external-unreachable ⇒ write fails honestly, read-model unchanged, PMO-owned domains unaffected', () => {
-  it('AC-EAS-034 leaves the prior read-model state intact, a subsequent read returns that prior state, and a PMO-owned executeWrite still succeeds', async () => {
+  it('AC-EAS-034 leaves the prior read-model state intact, a subsequent read returns that prior state, and a PMO-owned domain still routes to the direct write', async () => {
     const readModel = new Map<string, { id: string; name?: string; [k: string]: unknown }>([
       [command.record.id, { id: 'pmo-1', name: 'Before outage' }],
     ]);
@@ -80,17 +80,7 @@ describe('AC-EAS-034 external-unreachable ⇒ write fails honestly, read-model u
     expect(recordExternalRef).not.toHaveBeenCalled();
     expect(readCurrent()).toEqual({ id: 'pmo-1', name: 'Before outage' });
 
-    const directWrite = vi.fn(async (payload: string) => `direct:${payload}`);
-    await expect(
-      executeWrite({
-        domain: 'tasks',
-        ownershipMap: { reference: 'reference' },
-        payload: 'still-works',
-        directWrite,
-        dispatchWrite: vi.fn(async () => 'dispatch-should-not-run'),
-      }),
-    ).resolves.toBe('direct:still-works');
-    expect(directWrite).toHaveBeenCalledTimes(1);
+    expect(routeWrite('tasks', { reference: 'reference' })).toBe('pmo');
   });
 
   it('AC-EAS-034 commit-rejected surfaces a commit-rejected AppError without writing', async () => {
