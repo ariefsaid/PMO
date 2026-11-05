@@ -52,7 +52,7 @@ function setup(auto: AutomationRow, events: Array<typeof EVENT> = [EVENT], opts:
         return { select: () => ({ eq: () => ({ maybeSingle: () => Promise.resolve({ data: null, error: null }) }) }), upsert: () => Promise.resolve({ error: null }) };
       }
       if (table === 'agent_automation_fires') {
-        return { insert: () => ({ select: () => Promise.resolve({ data: [{ automation_id: auto.id }], error: null }) }) };
+        return { update: () => ({ eq: () => ({ eq: () => Promise.resolve({ error: null }), }), }), insert: () => ({ select: () => Promise.resolve({ data: [{ automation_id: auto.id }], error: null }) }) };
       }
       if (table === 'profiles') {
         return { select: () => ({ eq: () => ({ single: () => Promise.resolve({ data: { org_id: 'org-A' }, error: null }) }) }) };

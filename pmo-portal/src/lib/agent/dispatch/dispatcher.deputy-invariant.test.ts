@@ -248,7 +248,7 @@ describe('runDispatchTick — AC-AAN-019 minted-JWT cross-tenant denial identica
       // table like watermarks — the claim insert().select() must SUCCEED (return a claimed row) so the
       // trigger proceeds to the mint/condition path this test exercises.
       if (table === 'agent_automation_fires') {
-        return { insert: vi.fn().mockReturnValue({ select: vi.fn().mockResolvedValue({ data: [{ automation_id: 'trig-1' }], error: null }) }) };
+        return { update: () => ({ eq: () => ({ eq: () => Promise.resolve({ error: null }), }), }), insert: vi.fn().mockReturnValue({ select: vi.fn().mockResolvedValue({ data: [{ automation_id: 'trig-1' }], error: null }) }) };
       }
       // The trusted-usage path's identity verification (recordTrustedUsage) is the only sanctioned
       // service_role read of these tables, and each read is pinned to its exact projection + key: a

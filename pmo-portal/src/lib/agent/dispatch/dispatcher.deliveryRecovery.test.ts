@@ -28,7 +28,7 @@ function makeSvc(automations: AutomationRow[], events: unknown[], claims: Record
   }));
   const from = vi.fn((t: string) => {
     if (t === 'agent_dispatch_watermarks') return { select: () => ({ eq: () => ({ maybeSingle: () => Promise.resolve({ data: null, error: null }) }) }), upsert };
-    if (t === 'agent_automation_fires') return { insert };
+    if (t === 'agent_automation_fires') return { insert, update: (p: Record<string, unknown>) => ({ eq: () => ({ eq: () => (p.settled_at ? Promise.resolve({ error: null }) : ({ is: () => ({ lt: () => ({ select: () => Promise.resolve({ data: [], error: null }) }) }) })) }) }), select: () => ({ eq: () => ({ eq: () => ({ maybeSingle: () => Promise.resolve({ data: { settled_at: 'x' }, error: null }) }) }) }), };
     return { select, update };
   });
   const rpc = makeDispatcherTestRpc((name) => (name === 'select_trigger_events' ? { data: events, error: null } : { data: null, error: null }));

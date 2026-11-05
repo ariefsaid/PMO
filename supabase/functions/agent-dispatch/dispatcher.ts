@@ -144,6 +144,20 @@ export interface TriggerMatch {
  * silently cross-match. The gate is now redundant WITH a correct RPC, but cheap and load-bearing if
  * the RPC ever changed — so it stays.
  */
+/**
+ * Events judged per source per tick. A burst costs a condition model call, a mint and a credit hold per
+ * event, serially; the cap keeps one tick inside its wall clock. The rest is picked up by the next tick:
+ * the watermark only advances to the last event attempted.
+ */
+export const MAX_TRIGGER_EVENTS_PER_TICK = 20;
+
+/**
+ * How long a claim may stay unsettled before another tick may take it over. A tick killed between the claim
+ * and the fire leaves the event claimed; once the lease has passed, one tick re-claims it. Covers the
+ * pre-fire stages only (mint, audit, credit hold, condition call): the claim is settled when the fire starts.
+ */
+export const TRIGGER_CLAIM_LEASE_MS = 5 * 60_000;
+
 export async function selectTriggerMatches(
   sb: ServiceClientLike,
   _now: Date,
@@ -197,7 +211,8 @@ export async function selectTriggerMatches(
       continue;
     }
     if (!data) continue;
-    const events = data as StatusEventRow[];
+    // ponytail: relies on the RPC's (created_at,id) order; slice keeps the earliest events.
+    const events = (data as StatusEventRow[]).slice(0, MAX_TRIGGER_EVENTS_PER_TICK);
 
     for (const event of events) {
       for (const automation of automations) {
@@ -494,6 +509,8 @@ export async function runDispatchTick(deps: RunDispatchTickDeps): Promise<void> 
     // finally below releases the hold whichever way the unit ends.
     let session: { minted: MintedSession; runId: string; threadId: string } | undefined;
     let holdId: string | undefined;
+    // Set once this unit holds the (automation,event) claim; settled when the fire starts or the unit ends.
+    let claimedFire: { automationId: string; eventId: string } | undefined;
 
     try {
       // ── AUDIT-M2 (2026-07-04 audit): schedule fires are CLAIMED atomically before any other
@@ -516,13 +533,16 @@ export async function runDispatchTick(deps: RunDispatchTickDeps): Promise<void> 
       // still counts as claimed (it won't re-fire for that event), matching the schedule posture.
       if (automation.kind === 'trigger' && event) {
         const source = automation.trigger_on!.source;
-        const claim = await claimTriggerFire(deps.serviceClient, automation.id, event.id);
-        if (claim === 'error') {
+        const claim = await claimTriggerFire(deps.serviceClient, automation.id, event.id, now);
+        // 'busy' = another tick holds an unsettled claim inside its lease: not ours to fire, and not yet
+        // settled, so the cursor must stop before it (it may need re-claiming once the lease passes).
+        if (claim === 'error' || claim === 'busy') {
           markUnclaimed(source, event);
-          logStructuredError({ fn: 'agent-dispatch', errorCode: 'AUTOMATION_CLAIM_FAILED', contextId: automation.id });
+          if (claim === 'error') logStructuredError({ fn: 'agent-dispatch', errorCode: 'AUTOMATION_CLAIM_FAILED', contextId: automation.id });
           continue;
         }
         markAttempted(source, event);
+        if (claim === 'claimed') claimedFire = { automationId: automation.id, eventId: event.id };
         if (claim === 'duplicate') continue;
       }
       if (creditBlocked.has(automation.id)) continue;
@@ -671,6 +691,14 @@ export async function runDispatchTick(deps: RunDispatchTickDeps): Promise<void> 
       // Item 3 (reliability): timeout_s → an AbortController per automation. A coarse wall-clock
       // deadline on top of MAX_TOOL_ROUNDS — each automation gets its OWN controller so one fire's
       // timeout can never abort a sibling's in-flight run.
+      // From here the event must never fire again: settle the claim BEFORE the fire. If that write fails the
+      // fire does not start (fail-closed), and the lease lets a later tick retry the whole unit.
+      if (claimedFire) {
+        if (!(await settleTriggerFire(deps.serviceClient, claimedFire.automationId, claimedFire.eventId, now))) {
+          throw new Error('claim settle failed');
+        }
+        claimedFire = undefined;
+      }
       const timeoutMs = (automation.timeout_s ?? 120) * 1000;
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -726,6 +754,9 @@ export async function runDispatchTick(deps: RunDispatchTickDeps): Promise<void> 
         orgId: automation.org_id,
       });
     } finally {
+      // A unit that ended without firing (condition false, credit refused, a throw) is decided: settle it so
+      // it is not re-claimed. Best-effort; a lost write only means one re-evaluation after the lease.
+      if (claimedFire) await settleTriggerFire(deps.serviceClient, claimedFire.automationId, claimedFire.eventId, now);
       if (holdId !== undefined && session) {
         try {
           await rateGuard.release?.(session.minted.client, holdId);
@@ -823,17 +854,21 @@ export async function claimScheduleFire(sb: ServiceClientLike, automationId: str
  * CRITICAL fix (2026-07-07): atomically claim a trigger automation's fire for a specific event.
  * The agent_automation_fires table (migration 0078) enforces at-most-once via its UNIQUE
  * (automation_id, event_id) primary key — the INSERT itself is the mutual exclusion: of N
- * overlapping ticks exactly one INSERT succeeds and fires; the losers hit a 23505 unique-violation
- * (surfaced as `error`) and skip. Fail-closed on ANY error (conflict OR a real query failure):
- * neither fires; 'duplicate' = unique-violation (already claimed), 'error' = outage (caller keeps the event retryable) — a duplicate must never fire, and an unreachable bookkeeping table
- * must never produce an unclaimed fire. (service_role, agent_automation_fires metadata — within
- * quarantine.)
+ * overlapping ticks exactly one INSERT succeeds and fires; the losers hit a 23505 unique-violation.
+ * Results: 'claimed' (fire it) · 'duplicate' (settled: already decided, skip) · 'busy' (someone's unsettled
+ * claim is still inside its lease) · 'error' (outage; caller keeps the event retryable).
+ *
+ * Lease (migration 0683): a 23505 whose row is still unsettled after TRIGGER_CLAIM_LEASE_MS belongs to a tick
+ * that died before firing. One conditional UPDATE (unsettled AND stale) takes it over and renews the lease, so
+ * of N racing ticks exactly one wins; a settled claim (fire started, or unit decided) never matches.
+ * (service_role, agent_automation_fires metadata — within quarantine.)
  */
 export async function claimTriggerFire(
   sb: ServiceClientLike,
   automationId: string,
   eventId: string,
-): Promise<'claimed' | 'duplicate' | 'error'> {
+  now: Date,
+): Promise<'claimed' | 'duplicate' | 'busy' | 'error'> {
   const builder = sb.from('agent_automation_fires') as {
     insert: (row: Record<string, unknown>) => {
       select: (cols: string) => Promise<{ data: unknown[] | null; error: unknown }>;
@@ -844,9 +879,48 @@ export async function claimTriggerFire(
       .insert({ automation_id: automationId, event_id: eventId })
       .select('automation_id');
     // Only a unique-violation means "already claimed"; anything else is an outage and must stay retryable.
-    if (error) return (error as { code?: string }).code === '23505' ? 'duplicate' : 'error';
-    return (data ?? []).length > 0 ? 'claimed' : 'duplicate';
+    if (!error) return (data ?? []).length > 0 ? 'claimed' : 'duplicate';
+    if ((error as { code?: string }).code !== '23505') return 'error';
+
+    const table = sb.from('agent_automation_fires') as {
+      update: (patch: Record<string, unknown>) => {
+        eq: (c: string, v: string) => { eq: (c: string, v: string) => { is: (c: string, v: null) => { lt: (c: string, v: string) => {
+          select: (cols: string) => Promise<{ data: unknown[] | null; error: unknown }>;
+        } } } };
+      };
+      select: (cols: string) => {
+        eq: (c: string, v: string) => { eq: (c: string, v: string) => {
+          maybeSingle: () => Promise<{ data: { settled_at: string | null } | null; error: unknown }>;
+        } };
+      };
+    };
+    const cutoff = new Date(now.getTime() - TRIGGER_CLAIM_LEASE_MS).toISOString();
+    const won = await table
+      .update({ fired_at: now.toISOString() })
+      .eq('automation_id', automationId).eq('event_id', eventId)
+      .is('settled_at', null).lt('fired_at', cutoff)
+      .select('automation_id');
+    if (won.error) return 'error';
+    if ((won.data ?? []).length > 0) return 'claimed';
+    const row = await table.select('settled_at').eq('automation_id', automationId).eq('event_id', eventId).maybeSingle();
+    if (row.error) return 'error';
+    return row.data && row.data.settled_at === null ? 'busy' : 'duplicate';
   } catch {
     return 'error';
+  }
+}
+
+/** Mark a claim decided (fire starting, or unit ended without firing); a settled claim is never re-claimed. */
+export async function settleTriggerFire(sb: ServiceClientLike, automationId: string, eventId: string, now: Date): Promise<boolean> {
+  try {
+    const table = sb.from('agent_automation_fires') as {
+      update: (patch: Record<string, unknown>) => {
+        eq: (c: string, v: string) => { eq: (c: string, v: string) => PromiseLike<{ error: unknown }> };
+      };
+    };
+    const { error } = await table.update({ settled_at: now.toISOString() }).eq('automation_id', automationId).eq('event_id', eventId);
+    return !error;
+  } catch {
+    return false;
   }
 }
