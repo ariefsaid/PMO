@@ -57,6 +57,7 @@ const oppRecord = vi.hoisted(() => ({
   }));
 
 // ── module mocks ─────────────────────────────────────────────────────────────
+vi.mock('@/src/hooks/useProjectOverviewRead', () => ({ useProjectOverviewRead: () => ({ isLoading: false }) }));
 vi.mock('../BillingMilestonesBlock', () => ({ BillingMilestonesBlock: () => null }));
 vi.mock('@/src/hooks/useProjects', () => ({
   useProjects: () => projectsState,
@@ -151,7 +152,7 @@ vi.mock('@/src/lib/db/projectTransitions', async (orig) => {
 
 vi.mock('@tanstack/react-query', async (orig) => {
   const actual = await (orig() as Promise<Record<string, unknown>>);
-  return { ...actual, useQueryClient: () => ({ invalidateQueries: vi.fn() }) };
+  return { ...actual, useQueryClient: () => ({ invalidateQueries: vi.fn(), getQueryData: vi.fn() }) };
 });
 
 const navigate = vi.fn();
