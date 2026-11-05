@@ -92,6 +92,17 @@ describe('erpnext/ledgerFetch — fetchGlEntries', () => {
     expect(rows.map((r) => [r.name, r.is_cancelled])).toEqual([['GLE-ORIG', true], ['GLE-REV', true], ['GLE-LIVE', false]]);
   });
 
+  it('AC-JEC-013: the GL request asks for remarks and a fetched row keeps it', async () => {
+    let fields: string[] = [];
+    const fetchImpl = async (url: string | URL | Request) => {
+      fields = JSON.parse(new URL(String(url)).searchParams.get('fields') ?? '') as string[];
+      return jsonResponse({ data: [{ name: 'GLE-R', account: 'A', debit: '1', credit: '0', modified: '2026-10-07', remarks: 'Vendor X inv 12', docstatus: 1 }] });
+    };
+    const { rows } = await fetchGlEntries(client(fetchImpl), { company: 'PMO Smoke Co' });
+    expect(fields).toContain('remarks');
+    expect(rows[0].remarks).toBe('Vendor X inv 12');
+  });
+
   it('#901 a GL row in docstatus 2 crosses as cancelled (the old fetch excluded it; it must never read as live)', async () => {
     const fetchImpl = async () => jsonResponse({ data: [
       { name: 'GLE-D2', account: 'A', debit: '1', credit: '0', modified: '2026-10-07', is_cancelled: 0, docstatus: 2 },

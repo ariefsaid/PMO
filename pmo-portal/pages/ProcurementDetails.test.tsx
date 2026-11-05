@@ -1741,6 +1741,7 @@ vi.mock('@/src/hooks/useErpPurchaseLinks', () => ({
   useUnlinkErpDocument: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useLinkErpDocuments: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
+vi.mock('@/src/hooks/useErpJournalLines', () => import('@/pages/__tests__/helpers/erpJournalLinesMock'));
 vi.mock('@/src/hooks/useOdoo', () => ({
   useMasterRecords: () => ({ data: { rows: [{ external_id: '7', name: 'PPN 11%', code: null, attrs: {} }], total: 1 }, isError: false }),
   useMasterSummary: () => ({ data: { asOf: new Date().toISOString() } }),
