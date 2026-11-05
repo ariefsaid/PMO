@@ -87,6 +87,18 @@ describe('listProcurements', () => {
     expect(sel).toContain('status_events:procurement_status_events(to_status,created_at)');
   });
 
+  it('PERF-DASH-1: the lean list keeps the money/stage inputs but drops the SQL open commitment and the record-reference embeds', async () => {
+    makeBuilder({ data: [], error: null });
+    await listProcurements({ lean: true });
+    const sel = mockSelect.mock.calls.at(-1)![0] as string;
+    expect(sel).toContain('project:projects(name,short_name,code,project_manager_id)');
+    expect(sel).toContain('procurement_invoices(amount,invoice_date,created_at,erp_outstanding_amount,external_ref)');
+    expect(sel).toContain('payments(amount,date,created_at,status)');
+    expect(sel).toContain('status_events:procurement_status_events(to_status,created_at)');
+    expect(sel).not.toContain('open_commitment');
+    expect(sel).not.toMatch(/pr_refs|po_refs|vi_refs/);
+  });
+
   it('sends no org_id (RLS scopes it) (FR-DAL-PROC-001)', async () => {
     makeBuilder({ data: [], error: null });
     await listProcurements();

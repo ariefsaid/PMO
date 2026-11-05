@@ -3021,6 +3021,7 @@ export type Database = {
           party: string | null
           party_type: string | null
           posting_date: string | null
+          remarks: string | null
           project: string | null
           replay_seen_id: string | null
           voucher_no: string | null
@@ -3045,6 +3046,7 @@ export type Database = {
           party?: string | null
           party_type?: string | null
           posting_date?: string | null
+          remarks?: string | null
           project?: string | null
           replay_seen_id?: string | null
           voucher_no?: string | null
@@ -3069,6 +3071,7 @@ export type Database = {
           party?: string | null
           party_type?: string | null
           posting_date?: string | null
+          remarks?: string | null
           project?: string | null
           replay_seen_id?: string | null
           voucher_no?: string | null
@@ -3080,6 +3083,71 @@ export type Database = {
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      erp_journal_line_links: {
+        Row: {
+          account: string
+          erp_doctype: string
+          id: string
+          linked_at: string
+          linked_by: string | null
+          org_id: string
+          procurement_id: string
+          project_id: string
+          voucher_no: string
+        }
+        Insert: {
+          account: string
+          erp_doctype: string
+          id?: string
+          linked_at?: string
+          linked_by?: string | null
+          org_id: string
+          procurement_id: string
+          project_id: string
+          voucher_no: string
+        }
+        Update: {
+          account?: string
+          erp_doctype?: string
+          id?: string
+          linked_at?: string
+          linked_by?: string | null
+          org_id?: string
+          procurement_id?: string
+          project_id?: string
+          voucher_no?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_journal_line_links_linked_by_fkey"
+            columns: ["linked_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_journal_line_links_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_journal_line_links_procurement_id_fkey"
+            columns: ["procurement_id"]
+            isOneToOne: false
+            referencedRelation: "procurements"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_journal_line_links_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
             referencedColumns: ["id"]
           },
         ]
@@ -11371,6 +11439,35 @@ export type Database = {
     }
     Functions: {
       accept_invoice_pairs: { Args: { p_pairs: Json }; Returns: number }
+      attach_erp_journal_lines: {
+        Args: { p_dry_run?: boolean; p_rows: Json }
+        Returns: Json
+      }
+      detach_erp_journal_line: {
+        Args: { p_link_id: string }
+        Returns: undefined
+      }
+      project_erp_journal_lines: {
+        Args: { p_project_id: string }
+        Returns: {
+          account: string
+          amount: number
+          category: Database["public"]["Enums"]["budget_category"]
+          currency: string
+          erp_doctype: string
+          erp_url: string
+          is_cancelled: boolean
+          link_id: string
+          party: string
+          posting_date: string
+          procurement_id: string
+          procurement_title: string
+          possibly_reversed: boolean
+          project_id: string
+          remarks: string
+          voucher_no: string
+        }[]
+      }
       unpair_invoice: { Args: { p_pmo_id: string }; Returns: undefined }
       assemble_tm_claim: {
         Args: {
