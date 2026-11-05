@@ -1,27 +1,20 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
 import { usePermission } from '@/src/auth/usePermission';
 import { useErpnextBinding } from '@/src/hooks/useErpnextBinding';
+import { useRemoteStringDraft } from '@/src/hooks/useRemoteStringDraft';
 import { repositories } from '@/src/lib/repositories';
 import { SESSION_QUERY_OPTIONS } from '@/src/lib/queryPolicies';
 import { listBudgetPostingAccountCatalogue } from '@/src/lib/repositories/budgetProjection';
+import { accountOption } from '@/src/lib/accounting/accountOption';
 import { taxSetupChoices } from '@/src/lib/accounting/taxSetupChoices';
-import type { BudgetPostingAccount } from '@/src/lib/budget/categoryAccountMap';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { Button, Combobox, FieldError, ListState, useToast } from '@/src/components/ui';
 import type { ComboboxOption } from '@/src/components/ui';
 import { useTranslation } from 'react-i18next';
 
 const ACCOUNT_QUERY_KEY = 'org-withholding-account';
-
-function accountOption(account: BudgetPostingAccount, context?: string): ComboboxOption {
-  return {
-    value: account.account,
-    label: account.account,
-    sub: [account.accountNumber, account.parentAccount].filter(Boolean).join(' · ') || context,
-  };
-}
 
 export default function OrgWithholdingAccount() {
   const { t } = useTranslation();
@@ -31,14 +24,12 @@ export default function OrgWithholdingAccount() {
   const binding = useErpnextBinding();
   const qc = useQueryClient();
   const { toast } = useToast();
-  const [draft, setDraft] = useState('');
   const [error, setError] = useState<string>();
-  const [remoteChanged, setRemoteChanged] = useState(false);
-  const savedBaseline = useRef<string | null | undefined>(undefined);
   const orgId = currentUser?.org_id;
   const queryKey = [ACCOUNT_QUERY_KEY, orgId];
   const query = useQuery({ queryKey, queryFn: () => repositories.orgSettings.getWithholdingAccount(), enabled: !!currentUser, ...SESSION_QUERY_OPTIONS });
   const hasActiveBinding = binding.data?.status === 'active' && !binding.isError;
+  const { draft, setDraft, dirty, remoteChanged, acceptSaved, reload } = useRemoteStringDraft({ remote: query.data, isSuccess: query.isSuccess });
   const catalogue = useQuery({
     queryKey: ['uxs11', 'account-catalogue', orgId],
     queryFn: listBudgetPostingAccountCatalogue,
@@ -46,8 +37,8 @@ export default function OrgWithholdingAccount() {
   });
   const candidates = catalogue.data ? taxSetupChoices(catalogue.data.accounts, 'receipt-withholding') : [];
   const candidate = candidates.find((account) => account.account === draft);
-  const isStaleSavedChoice = Boolean(draft && !candidate && savedBaseline.current === draft && catalogue.isSuccess);
-  const isUnavailableDraftChoice = Boolean(draft && !candidate && savedBaseline.current !== draft && catalogue.isSuccess);
+  const isStaleSavedChoice = Boolean(draft && !candidate && !dirty && catalogue.isSuccess);
+  const isUnavailableDraftChoice = Boolean(draft && !candidate && dirty && catalogue.isSuccess);
   const loadOptions = useCallback(async () =>
     taxSetupChoices(catalogue.data?.accounts ?? [], 'receipt-withholding').map((account) => accountOption(account)),
   [catalogue.data]);
@@ -63,30 +54,10 @@ export default function OrgWithholdingAccount() {
             : undefined,
         };
 
-  useEffect(() => {
-    if (!query.isSuccess) return;
-    const remote = query.data ?? null;
-    if (savedBaseline.current === undefined) {
-      savedBaseline.current = remote;
-      setDraft(remote ?? '');
-      return;
-    }
-    if (remote === savedBaseline.current) return;
-    const local = draft || null;
-    if (local !== savedBaseline.current) {
-      setRemoteChanged(true);
-      return;
-    }
-    savedBaseline.current = remote;
-    setDraft(remote ?? '');
-    setRemoteChanged(false);
-  }, [draft, query.data, query.isSuccess]);
-
   const mutation = useMutation({
     mutationFn: (value: string | null) => repositories.orgSettings.setWithholdingAccount(value),
     onSuccess: (_result, value) => {
-      savedBaseline.current = value;
-      setRemoteChanged(false);
+      acceptSaved(value);
       void qc.invalidateQueries({ queryKey });
       toast(t('uxs11.withholdingSaved', 'Receipt withholding account saved'), undefined, 'success');
     },
@@ -96,7 +67,6 @@ export default function OrgWithholdingAccount() {
     },
   });
 
-  const dirty = draft !== (savedBaseline.current ?? '');
   const canSaveDraft = draft === '' || Boolean(candidate);
   const canBrowse = canManage && hasActiveBinding && catalogue.isSuccess;
   const readOnlyValue = query.data ?? t('uxs11.notConfigured', 'Not configured');
@@ -119,10 +89,7 @@ export default function OrgWithholdingAccount() {
             <div role="status" className="rounded-md bg-secondary px-3 py-2 text-[13px] text-secondary-foreground">
               <p>{t('uxs11.withholdingRemoteChanged', 'The saved account changed. Your edit is kept; reload the saved value to discard it.')}</p>
               <Button type="button" variant="outline" size="sm" className="mt-2" onClick={() => {
-                const remote = query.data ?? null;
-                savedBaseline.current = remote;
-                setDraft(remote ?? '');
-                setRemoteChanged(false);
+                reload();
                 setError(undefined);
               }}>{t('uxs11.reloadSaved', 'Reload saved value')}</Button>
             </div>

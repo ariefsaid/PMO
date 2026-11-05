@@ -3643,9 +3643,9 @@
     }
   },
   "profileSettings": {
-    "loading": "Loading profile…",
-    "title": "Profile & preferences",
     "description": "Choose your language, number format, and timezone for this portal.",
+    "error": "Could not save your preferences. Please try again.",
+    "invalidTimezone": "Choose a valid timezone before saving.",
     "language": {
       "label": "Interface language",
       "help": "Saved to your profile and applied across devices.",
@@ -3657,6 +3657,7 @@
         "en": "English"
       }
     },
+    "loading": "Loading profile…",
     "number": {
       "label": "Number format",
       "help": "Preview: {{value}}",
@@ -3668,6 +3669,11 @@
         "en": "English (1,234,567.89)"
       }
     },
+    "refreshRetry": "Retry refresh",
+    "save": "Save",
+    "saved": "Preferences saved",
+    "saving": "Saving your preference…",
+    "staleRefresh": "Refreshing this session failed — your choices are stored and will apply on your next sign-in.",
     "timezone": {
       "label": "Timezone",
       "placeholder": "Select a timezone",
@@ -3679,11 +3685,7 @@
         "inheritWithEffective": "Organization default: {{timezone}}"
       }
     },
-    "save": "Save",
-    "saving": "Saving your preference…",
-    "saved": "Preferences saved",
-    "error": "Could not save your preferences. Please try again.",
-    "invalidTimezone": "Choose a valid timezone before saving."
+    "title": "Profile & preferences"
   },
   "oauthConsent": {
     "allow": "Allow",

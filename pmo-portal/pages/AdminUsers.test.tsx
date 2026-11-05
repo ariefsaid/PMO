@@ -366,3 +366,58 @@ describe('Admin Users — invite affordance (FR-INV-004/005/006)', () => {
     expect(toast).not.toHaveTextContent(/seat_limit_reached/);
   });
 });
+
+describe('Admin Users — dialog error scoping (role confirm retry, no stale submit errors)', () => {
+  it('a failed role confirm stays open so the staged change can be retried or cancelled', async () => {
+    mutations.updateRole.mutateAsync.mockRejectedValue(new AppError('row violates RLS', '42501'));
+    renderPage('Admin');
+    await userEvent.click(
+      within(screen.getByText('Desmond Achebe').closest('tr')!).getByRole('button', { name: /Row actions/i }),
+    );
+    await userEvent.click(screen.getByRole('menuitem', { name: /Edit role/i }));
+    const dialog = screen.getByRole('dialog');
+    await userEvent.selectOptions(within(dialog).getByLabelText(/Role/i), 'Executive');
+    await userEvent.click(within(dialog).getByRole('button', { name: /Save role/i }));
+    await userEvent.click(screen.getByRole('button', { name: /Change role/i }));
+    await findToastAnnouncement('alert', /don't have permission/i);
+    // The confirmation itself survives the failure — the staged change is still on screen.
+    expect(screen.getByText(/Change Desmond Achebe's role to Executive\?/i)).toBeInTheDocument();
+  });
+
+  it('a failed role confirm never leaks its error into a later role dialog for another user', async () => {
+    mutations.updateRole.mutateAsync.mockRejectedValueOnce(new AppError('row violates RLS', '42501'));
+    renderPage('Admin');
+    await userEvent.click(
+      within(screen.getByText('Desmond Achebe').closest('tr')!).getByRole('button', { name: /Row actions/i }),
+    );
+    await userEvent.click(screen.getByRole('menuitem', { name: /Edit role/i }));
+    const dialog = screen.getByRole('dialog');
+    await userEvent.selectOptions(within(dialog).getByLabelText(/Role/i), 'Executive');
+    await userEvent.click(within(dialog).getByRole('button', { name: /Save role/i }));
+    await userEvent.click(screen.getByRole('button', { name: /Change role/i }));
+    await findToastAnnouncement('alert', /don't have permission/i);
+    await userEvent.click(screen.getByRole('button', { name: /Cancel/i }));
+    // A NEW edit for a different user opens clean — no stale failure from Desmond's change.
+    await userEvent.click(
+      within(screen.getByText('Priya Venkatesh').closest('tr')!).getByRole('button', { name: /Row actions/i }),
+    );
+    await userEvent.click(screen.getByRole('menuitem', { name: /Edit role/i }));
+    const nextDialog = screen.getByRole('dialog');
+    expect(within(nextDialog).queryByText(/don't have permission/i)).not.toBeInTheDocument();
+  });
+
+  it('a failed invite never leaks its error into a fresh invite dialog', async () => {
+    mutations.invite.mutateAsync.mockRejectedValueOnce(new AppError('duplicate', 'DUPLICATE_EMAIL'));
+    renderPage('Admin');
+    await userEvent.click(screen.getByRole('button', { name: /Invite user/i }));
+    await userEvent.type(screen.getByLabelText(/Email/i), 'renata@meridian.example');
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /Invite user/i }));
+    await findToastAnnouncement('alert', /already in your workspace/i);
+    // The dirty form's Cancel routes through the discard confirm.
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /Cancel/i }));
+    await userEvent.click(screen.getByRole('button', { name: /Discard/i }));
+    await userEvent.click(screen.getByRole('button', { name: /Invite user/i }));
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).queryByText(/already in your workspace/i)).not.toBeInTheDocument();
+  });
+});

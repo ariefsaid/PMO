@@ -98,6 +98,8 @@ interface ErpCompanyDeps {
   apiSecret: string;
 }
 
+const COMPANY_PAGE_SIZE = 200;
+const MAX_COMPANY_PAGES = 25; // ponytail: 5000 companies; beyond that the list fails loudly instead of truncating
 async function fetchErpNextCompanies(deps: ErpCompanyDeps): Promise<string[]> {
   let parsedUrl: URL;
   try {
@@ -116,20 +118,27 @@ async function fetchErpNextCompanies(deps: ErpCompanyDeps): Promise<string[]> {
   }
 
   try {
-    const url = `${deps.siteUrl.replace(/\/$/, '')}/api/resource/Company?fields=["name"]&limit_page_length=200`;
-    const res = await deps.fetchImpl(url, {
-      headers: { Authorization: `token ${deps.apiKey}:${deps.apiSecret}` },
-      redirect: 'manual',
-      signal: AbortSignal.timeout(5000),
-    });
-    if (!res.ok) {
-      if (res.status === 404) {
-        throw new AppError('ERPNext site not found', 'NOT_FOUND');
+    // Paged by name until a short page; a failed page fails the whole list rather than returning a partial one.
+    const names: string[] = [];
+    for (let page = 0; page < MAX_COMPANY_PAGES; page++) {
+      const url = `${deps.siteUrl.replace(/\/$/, '')}/api/resource/Company?fields=["name"]&limit_page_length=${COMPANY_PAGE_SIZE}&limit_start=${page * COMPANY_PAGE_SIZE}&order_by=name%20asc`;
+      const res = await deps.fetchImpl(url, {
+        headers: { Authorization: `token ${deps.apiKey}:${deps.apiSecret}` },
+        redirect: 'manual',
+        signal: AbortSignal.timeout(5000),
+      });
+      if (!res.ok) {
+        if (res.status === 404) {
+          throw new AppError('ERPNext site not found', 'NOT_FOUND');
+        }
+        throw new AppError('Failed to fetch ERPNext companies', 'external-unreachable');
       }
-      throw new AppError('Failed to fetch ERPNext companies', 'external-unreachable');
+      const data = (await res.json()) as { data?: Array<{ name: string }> };
+      const rows = data.data ?? [];
+      names.push(...rows.map((c) => c.name));
+      if (rows.length < COMPANY_PAGE_SIZE) return names;
     }
-    const data = (await res.json()) as { data?: Array<{ name: string }> };
-    return (data.data ?? []).map((c) => c.name);
+    throw new AppError('Failed to fetch ERPNext companies', 'external-unreachable');
   } catch (err) {
     if (err instanceof AppError) throw err;
     throw new AppError('Failed to fetch ERPNext companies', 'external-unreachable');

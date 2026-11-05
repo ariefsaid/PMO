@@ -9,6 +9,7 @@ import ProjectDetail from '../ProjectDetail';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { formatCurrency } from '@/src/lib/format';
 
+vi.mock('@/src/hooks/useProjectOverviewRead', () => ({ useProjectOverviewRead: () => ({ isLoading: false }) }));
 vi.mock('../BillingMilestonesBlock', () => ({ BillingMilestonesBlock: () => null }));
 vi.mock('@/src/hooks/useProjectFinances', () => ({ useProjectFinances: () => ({ data: { project_id: 'p1', contract_invoiced: null, remaining_to_invoice: null, invoices: [], budget: null, actuals: { currency: null, as_of: null, total: null, excludes_restricted_rows: false, categories: [] } }, isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useProjectVatEditability', () => ({ useProjectVatEditability: () => ({ data: { eligible: true, reason: null, hasInvoices: false }, isPending: false, isFetching: false, isError: false, refetch: vi.fn() }) }));
@@ -82,7 +83,7 @@ vi.mock('@/src/hooks/useDashboard', () => ({ useSalesPipeline: () => pipelineSta
 // PipelineLens calls useQueryClient to invalidate after a transition.
 vi.mock('@tanstack/react-query', async (orig) => {
   const actual = await (orig() as Promise<Record<string, unknown>>);
-  return { ...actual, useQueryClient: () => ({ invalidateQueries: vi.fn() }) };
+  return { ...actual, useQueryClient: () => ({ invalidateQueries: vi.fn(), getQueryData: vi.fn() }) };
 });
 vi.mock('@/src/lib/db/opportunity', () => ({
   useOpportunity: () => ({ data: undefined, isPending: false }),

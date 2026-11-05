@@ -413,10 +413,12 @@ describe('financial statement query/auth/cache guards (AC-009)', () => {
     });
     await waitFor(() => expect(hook.result.current.isSuccess).toBe(true));
     expect(hook.result.current.data).toBe(UNAVAILABLE_CATALOGUE);
+    expect(hook.result.current.ready).toBe(true);
 
     hook.rerender({ enabled: false });
     expect(hook.result.current.eligible).toBe(true);
     expect(hook.result.current.data).toBeUndefined();
+    expect(hook.result.current.ready).toBe(false);
     await act(async () => {
       await hook.result.current.refetch();
     });
@@ -663,11 +665,14 @@ describe('financial statement query/auth/cache guards (AC-009)', () => {
       periodKind: 'month', periodStart: '2026-01-01', statement: 'profit_and_loss',
     }), { wrapper: env.wrapper });
     await waitFor(() => expect(hook.result.current.data).toBe(COMPLETE_READ));
+    expect(hook.result.current.ready).toBe(true);
     await act(async () => {
       await hook.result.current.refetch();
     });
     expect(hook.result.current.data).toBe(COMPLETE_READ);
     await waitFor(() => expect(hook.result.current.error).toBeInstanceOf(Error));
+    expect(hook.result.current.ready).toBe(false);
+    expect(hook.result.current.eligible).toBe(true);
     expect(repositories.financialStatements.get).toHaveBeenCalledTimes(2);
   });
 
@@ -680,11 +685,13 @@ describe('financial statement query/auth/cache guards (AC-009)', () => {
       periodKind: 'month', periodStart: '2026-01-01', statement: 'profit_and_loss',
     }), { wrapper: env.wrapper });
     await waitFor(() => expect(hook.result.current.data).toBe(COMPLETE_READ));
+    expect(hook.result.current.ready).toBe(true);
     await act(async () => {
       await hook.result.current.refetch();
     });
     await waitFor(() => expect(hook.result.current.data).toBeUndefined());
     expect(hook.result.current.eligible).toBe(false);
+    expect(hook.result.current.ready).toBe(false);
     await act(async () => {
       await Promise.resolve();
       await Promise.resolve();
@@ -861,4 +868,397 @@ describe('financial statement query/auth/cache guards (AC-009)', () => {
     });
     expect(repositories.financialStatements.catalogue).toHaveBeenCalledTimes(2);
   });
+
+  it.each([
+    [
+      'catalogue',
+      async () => {
+        const pendingA = deferred<FinancialStatementCatalogue>();
+        const pendingB = deferred<FinancialStatementCatalogue>();
+        const spy = vi.mocked(repositories.financialStatements.catalogue);
+        spy
+          .mockImplementationOnce(() => pendingA.promise)
+          .mockImplementationOnce(() => pendingB.promise);
+
+        const env = environment(
+          authContext({
+            role: 'Admin',
+            sessionUserId: USER_ID,
+            currentUser: profile('Admin', { id: USER_ID, org_id: ORG_ID }),
+          }),
+          'Admin',
+        );
+        const hook = renderHook(() => useFinancialStatementCatalogue({ kind: 'company' }), { wrapper: env.wrapper });
+
+        await waitFor(() => expect(spy).toHaveBeenCalledTimes(1));
+
+        env.setAuth(
+          authContext({
+            role: 'Admin',
+            sessionUserId: OTHER_USER_ID,
+            currentUser: profile('Admin', { id: OTHER_USER_ID, org_id: ORG_ID }),
+          }),
+          'Admin',
+        );
+        hook.rerender();
+
+        expect(hook.result.current.data).toBeUndefined();
+        await waitFor(() => expect(spy).toHaveBeenCalledTimes(2));
+
+        const fixtureB = { ...UNAVAILABLE_CATALOGUE, companyLabel: 'User B Company' };
+        await act(async () => {
+          pendingB.resolve(fixtureB);
+          await Promise.resolve();
+          await Promise.resolve();
+        });
+        await waitFor(() => expect(hook.result.current.data).toBe(fixtureB));
+
+        await act(async () => {
+          pendingA.resolve(UNAVAILABLE_CATALOGUE);
+          await Promise.resolve();
+          await Promise.resolve();
+        });
+
+        expect(hook.result.current.data).toBe(fixtureB);
+        expect(env.client.getQueryCache().getAll().some((query) => query.state.data === UNAVAILABLE_CATALOGUE)).toBe(false);
+      },
+    ],
+    [
+      'read',
+      async () => {
+        const pendingA = deferred<FinancialStatementRead>();
+        const pendingB = deferred<FinancialStatementRead>();
+        const spy = vi.mocked(repositories.financialStatements.get);
+        spy
+          .mockImplementationOnce(() => pendingA.promise)
+          .mockImplementationOnce(() => pendingB.promise);
+
+        const env = environment(
+          authContext({
+            role: 'Admin',
+            sessionUserId: USER_ID,
+            currentUser: profile('Admin', { id: USER_ID, org_id: ORG_ID }),
+          }),
+          'Admin',
+        );
+        const hook = renderHook(
+          () =>
+            useFinancialStatement({
+              periodKind: 'month',
+              periodStart: '2026-01-01',
+              statement: 'profit_and_loss',
+            }),
+          { wrapper: env.wrapper },
+        );
+
+        await waitFor(() => expect(spy).toHaveBeenCalledTimes(1));
+
+        env.setAuth(
+          authContext({
+            role: 'Admin',
+            sessionUserId: OTHER_USER_ID,
+            currentUser: profile('Admin', { id: OTHER_USER_ID, org_id: ORG_ID }),
+          }),
+          'Admin',
+        );
+        hook.rerender();
+
+        expect(hook.result.current.data).toBeUndefined();
+        await waitFor(() => expect(spy).toHaveBeenCalledTimes(2));
+
+        const fixtureB = { ...COMPLETE_READ, companyLabel: 'User B Read' };
+        await act(async () => {
+          pendingB.resolve(fixtureB);
+          await Promise.resolve();
+          await Promise.resolve();
+        });
+        await waitFor(() => expect(hook.result.current.data).toBe(fixtureB));
+
+        await act(async () => {
+          pendingA.resolve(COMPLETE_READ);
+          await Promise.resolve();
+          await Promise.resolve();
+        });
+
+        expect(hook.result.current.data).toBe(fixtureB);
+        expect(env.client.getQueryCache().getAll().some((query) => query.state.data === COMPLETE_READ)).toBe(false);
+      },
+    ],
+  ] as const)(
+    'AC-GQ-002: same-org user A->B transition fences user A pending result and cache for %s',
+    async (_kind, run) => {
+      await run();
+    },
+  );
+
+  it.each([
+    [
+      'catalogue',
+      async () => {
+        const refreshDeferred = deferred<FinancialStatementCatalogue>();
+        const spy = vi.mocked(repositories.financialStatements.catalogue);
+        const fixture = UNAVAILABLE_CATALOGUE;
+        spy
+          .mockResolvedValueOnce(fixture)
+          .mockImplementationOnce(() => refreshDeferred.promise)
+          .mockResolvedValueOnce(fixture)
+          .mockResolvedValueOnce(fixture);
+
+        const env = environment();
+        const hook = renderHook(
+          ({ projectId }: { projectId: string }) => useFinancialStatementCatalogue({ kind: 'project', projectId }),
+          { wrapper: env.wrapper, initialProps: { projectId: PROJECT_ID } },
+        );
+
+        await waitFor(() => expect(hook.result.current.data).toBe(fixture));
+        expect(hook.result.current.eligible).toBe(true);
+        expect(hook.result.current.ready).toBe(true);
+        expect(spy).toHaveBeenCalledTimes(1);
+
+        const originalQuery = env.client.getQueryCache().findAll({ queryKey: ['financial-statements'] })
+          .find((q) => q.state.data === fixture);
+        expect(originalQuery).toBeDefined();
+        let refetchPromise: Promise<unknown>;
+        act(() => {
+          refetchPromise = hook.result.current.refetch();
+        });
+
+        expect(hook.result.current.data).toBe(fixture);
+        await waitFor(() => expect(spy).toHaveBeenCalledTimes(2));
+
+        await act(async () => {
+          refreshDeferred.reject(new AppError('opaque', '42501'));
+          try {
+            await refetchPromise;
+          } catch {
+            // Expected 42501 rejection from refresh
+          }
+          await Promise.resolve();
+          await Promise.resolve();
+        });
+
+        await waitFor(() => expect(hook.result.current.data).toBeUndefined());
+        expect(hook.result.current.eligible).toBe(false);
+        expect(hook.result.current.ready).toBe(false);
+
+        const cached = env.client.getQueryCache().findAll({ queryKey: ['financial-statements'] });
+        expect(cached.some((q) => q.state.data === fixture)).toBe(false);
+        expect(env.client.getQueryCache().getAll()).not.toContain(originalQuery);
+
+        await act(async () => {
+          await hook.result.current.refetch();
+        });
+        expect(spy).toHaveBeenCalledTimes(2);
+
+        hook.rerender({ projectId: OTHER_PROJECT_ID });
+        expect(hook.result.current.data).toBeUndefined();
+        await waitFor(() => expect(hook.result.current.data).toBe(fixture));
+        expect(spy).toHaveBeenCalledTimes(3);
+
+        hook.rerender({ projectId: PROJECT_ID });
+        expect(hook.result.current.data).toBeUndefined();
+        await waitFor(() => expect(hook.result.current.data).toBe(fixture));
+        expect(spy).toHaveBeenCalledTimes(4);
+      },
+    ],
+    [
+      'read',
+      async () => {
+        const refreshDeferred = deferred<FinancialStatementRead>();
+        const spy = vi.mocked(repositories.financialStatements.get);
+        const fixture = COMPLETE_READ;
+        spy
+          .mockResolvedValueOnce(fixture)
+          .mockImplementationOnce(() => refreshDeferred.promise)
+          .mockResolvedValueOnce(fixture)
+          .mockResolvedValueOnce(fixture);
+
+        const env = environment();
+        const hook = renderHook(
+          ({ periodStart }: { periodStart: string }) =>
+            useFinancialStatement({
+              periodKind: 'month',
+              periodStart,
+              statement: 'profit_and_loss',
+            }),
+          { wrapper: env.wrapper, initialProps: { periodStart: '2026-01-01' } },
+        );
+
+        await waitFor(() => expect(hook.result.current.data).toBe(fixture));
+        expect(hook.result.current.eligible).toBe(true);
+        expect(hook.result.current.ready).toBe(true);
+        expect(spy).toHaveBeenCalledTimes(1);
+
+        const originalQuery = env.client.getQueryCache().findAll({ queryKey: ['financial-statements'] })
+          .find((q) => q.state.data === fixture);
+        expect(originalQuery).toBeDefined();
+        let refetchPromise: Promise<unknown>;
+        act(() => {
+          refetchPromise = hook.result.current.refetch();
+        });
+
+        expect(hook.result.current.data).toBe(fixture);
+        await waitFor(() => expect(spy).toHaveBeenCalledTimes(2));
+
+        await act(async () => {
+          refreshDeferred.reject(new AppError('opaque', '42501'));
+          try {
+            await refetchPromise;
+          } catch {
+            // Expected 42501 rejection from refresh
+          }
+          await Promise.resolve();
+          await Promise.resolve();
+        });
+
+        await waitFor(() => expect(hook.result.current.data).toBeUndefined());
+        expect(hook.result.current.eligible).toBe(false);
+        expect(hook.result.current.ready).toBe(false);
+
+        const cached = env.client.getQueryCache().findAll({ queryKey: ['financial-statements'] });
+        expect(cached.some((q) => q.state.data === fixture)).toBe(false);
+        expect(env.client.getQueryCache().getAll()).not.toContain(originalQuery);
+
+        await act(async () => {
+          await hook.result.current.refetch();
+        });
+        expect(spy).toHaveBeenCalledTimes(2);
+
+        hook.rerender({ periodStart: '2026-02-01' });
+        expect(hook.result.current.data).toBeUndefined();
+        await waitFor(() => expect(hook.result.current.data).toBe(fixture));
+        expect(spy).toHaveBeenCalledTimes(3);
+
+        hook.rerender({ periodStart: '2026-01-01' });
+        expect(hook.result.current.data).toBeUndefined();
+        await waitFor(() => expect(hook.result.current.data).toBe(fixture));
+        expect(spy).toHaveBeenCalledTimes(4);
+      },
+    ],
+  ] as const)(
+    'AC-GQ-003: cached success followed by deferred 42501 refresh removes exact cache entry and disables manual refetch for %s',
+    async (_kind, run) => {
+      await run();
+    },
+  );
+
+  it.each([
+    [
+      'catalogue',
+      async () => {
+        const deferredA = deferred<FinancialStatementCatalogue>();
+        const deferredB = deferred<FinancialStatementCatalogue>();
+        const spy = vi.mocked(repositories.financialStatements.catalogue);
+        const fixtureA = { ...UNAVAILABLE_CATALOGUE, companyLabel: 'Project A Catalogue' };
+        const fixtureB = { ...UNAVAILABLE_CATALOGUE, companyLabel: 'Project B Catalogue' };
+        spy
+          .mockImplementationOnce(() => deferredA.promise)
+          .mockImplementationOnce(() => deferredB.promise);
+
+        const env = environment();
+        const first = renderHook(
+          ({ projectId }: { projectId: string }) => useFinancialStatementCatalogue({ kind: 'project', projectId }),
+          { wrapper: env.wrapper, initialProps: { projectId: PROJECT_ID } },
+        );
+        const second = renderHook(
+          () => useFinancialStatementCatalogue({ kind: 'project', projectId: PROJECT_ID }),
+          { wrapper: env.wrapper },
+        );
+
+        await waitFor(() => expect(spy).toHaveBeenCalledTimes(1));
+
+        first.rerender({ projectId: OTHER_PROJECT_ID });
+        await waitFor(() => expect(spy).toHaveBeenCalledTimes(2));
+
+        await act(async () => {
+          await Promise.resolve();
+          await Promise.resolve();
+        });
+
+        await act(async () => {
+          deferredA.resolve(fixtureA);
+          await Promise.resolve();
+          await Promise.resolve();
+        });
+
+        await waitFor(() => expect(second.result.current.data).toBe(fixtureA));
+        expect(first.result.current.data).toBeUndefined();
+
+        await act(async () => {
+          deferredB.resolve(fixtureB);
+          await Promise.resolve();
+          await Promise.resolve();
+        });
+
+        await waitFor(() => expect(first.result.current.data).toBe(fixtureB));
+        expect(second.result.current.data).toBe(fixtureA);
+      },
+    ],
+    [
+      'read',
+      async () => {
+        const deferredA = deferred<FinancialStatementRead>();
+        const deferredB = deferred<FinancialStatementRead>();
+        const spy = vi.mocked(repositories.financialStatements.get);
+        const fixtureA = { ...COMPLETE_READ, companyLabel: 'Period A Read' };
+        const fixtureB = { ...COMPLETE_READ, companyLabel: 'Period B Read' };
+        spy
+          .mockImplementationOnce(() => deferredA.promise)
+          .mockImplementationOnce(() => deferredB.promise);
+
+        const env = environment();
+        const first = renderHook(
+          ({ periodStart }: { periodStart: string }) =>
+            useFinancialStatement({
+              periodKind: 'month',
+              periodStart,
+              statement: 'profit_and_loss',
+            }),
+          { wrapper: env.wrapper, initialProps: { periodStart: '2026-01-01' } },
+        );
+        const second = renderHook(
+          () =>
+            useFinancialStatement({
+              periodKind: 'month',
+              periodStart: '2026-01-01',
+              statement: 'profit_and_loss',
+            }),
+          { wrapper: env.wrapper },
+        );
+
+        await waitFor(() => expect(spy).toHaveBeenCalledTimes(1));
+
+        first.rerender({ periodStart: '2026-02-01' });
+        await waitFor(() => expect(spy).toHaveBeenCalledTimes(2));
+
+        await act(async () => {
+          await Promise.resolve();
+          await Promise.resolve();
+        });
+
+        await act(async () => {
+          deferredA.resolve(fixtureA);
+          await Promise.resolve();
+          await Promise.resolve();
+        });
+
+        await waitFor(() => expect(second.result.current.data).toBe(fixtureA));
+        expect(first.result.current.data).toBeUndefined();
+
+        await act(async () => {
+          deferredB.resolve(fixtureB);
+          await Promise.resolve();
+          await Promise.resolve();
+        });
+
+        await waitFor(() => expect(first.result.current.data).toBe(fixtureB));
+        expect(second.result.current.data).toBe(fixtureA);
+      },
+    ],
+  ] as const)(
+    'AC-GQ-004: two observers sharing pending key, one changes scope while other remains for %s',
+    async (_kind, run) => {
+      await run();
+    },
+  );
 });

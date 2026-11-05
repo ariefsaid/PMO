@@ -168,11 +168,6 @@ export const ALLOWLIST = [
     restore: 'Delete when S3 gates it on `revenue` or rules it core.',
   },
   {
-    ids: ['palette:/companies?type=Vendor'],
-    reason: 'The palette follows the CRM-gated Companies route; the Rail keeps a separate Suppliers alias.',
-    restore: 'Remove when the vendor view has a dedicated destination and shared navigation gate.',
-  },
-  {
     ids: [
       'assistant:sales_pipeline',
       'assistant:revenue',

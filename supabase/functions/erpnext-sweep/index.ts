@@ -532,7 +532,11 @@ export async function reconcileOrgOutbox(
       // mid-recovery; record + continue so one candidate does not abort the pass.
       const message = err instanceof Error ? err.message : String(err);
       // A failed payment whose bill a newer payment now holds retries on the next tick once that one settles
-      // (0682); it is a deferral, not a fault to report on every tick.
+      // (0682); it is a deferral, not a fault to report on every tick. The retry path CLASSIFIES the raw 23505
+      // before this catch sees it (dispatch.ts `toDispatchError` → the named `payment-in-flight-for-bill`
+      // refusal, #1912), so match that code first; the constraint-name match below stays for a bypassed
+      // classification (e.g. an op raised straight off a PostgREST error object).
+      if ((err as { code?: unknown } | null)?.code === 'payment-in-flight-for-bill') continue;
       if (message.includes('external_command_outbox_one_inflight_erpnext_payment_per_bill')) continue;
       errors.push({ id: candidate.id, error: message });
     }

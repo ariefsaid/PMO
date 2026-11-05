@@ -496,8 +496,11 @@ marked failed when the next payment for that bill arrives. Those two automatic r
 person's retry of the same payment still works while no other payment holds the bill. A payment whose outcome is unknown
 (claimed, then committing, committed or quarantined) is settled by the sweep, which adopts the ERPNext document or holds
 the row. The one route that needs a person is a **held** payment: resolve it through the Admin-only `release_outbox_hold`
-action (held to failed). The same payment then retries by itself and adopts the ERPNext payment if one exists; do not pay
-again unless it is still failed after 24 hours. Do not edit outbox rows by hand.
+action (held to failed). The same payment then retries by itself and adopts the ERPNext payment if one exists — but the
+automatic retry only happens within 24 hours of the command (`outbox_max_auto_age`, the sweep's automatic age limit), so
+a failed payment older than that is never re-driven on its own and only a person's retry moves it. Before any manual
+retry, check ERPNext for the payment first: if it already exists, the retry adopts it instead of paying twice. Do not
+edit outbox rows by hand.
 
 ## Odoo 20 Community dev bed (#1504 prerequisite)
 

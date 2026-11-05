@@ -75,9 +75,13 @@ describe('AC-UV-007 listUserViews', () => {
     expect(h.calls.is).toContainEqual(['archived_at', null]);
     // newest write first
     expect(h.calls.order).toContainEqual(['updated_at', { ascending: false }]);
-    // neither org_id nor user_id is ever sent (RLS stamps/scopes them)
-    expect(JSON.stringify(h.calls)).not.toContain('org_id');
-    expect(JSON.stringify(h.calls)).not.toContain('user_id');
+    // neither org_id nor user_id is ever sent as a filter (RLS stamps/scopes them)
+    expect(JSON.stringify([h.calls.eq, h.calls.is, h.calls.order])).not.toMatch(/org_id|user_id/);
+    // the shell reads this on every page: the opaque `spec` (multi-KB) and org_id are not selected
+    const cols = String(h.calls.select[0]).split(',');
+    expect(cols).not.toContain('spec');
+    expect(cols).not.toContain('org_id');
+    expect(cols).not.toContain('*');
     expect(rows[0].name).toBe('My View');
   });
 

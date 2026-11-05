@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router';
 import { useAuth } from './useAuth';
 import { Button } from '../components/ui/Button';
@@ -43,6 +43,9 @@ const authReasonCode = (message: string): 'invalid_credentials' | 'auth_error' =
 const isEmailNotConfirmed = (message: string) => /email not confirmed/i.test(message);
 const isRateLimited = (message: string) => /for security purposes|rate limit|once every/i.test(message);
 
+/** The resend retry interval the rate-limit copy names ("once every 60 seconds"). */
+const RATE_LIMIT_RETRY_MS = 60_000;
+
 /**
  * The Microsoft logo mark — the four brand-colour squares. Inline so it ships with the bundle
  * (no network fetch, CSP-safe) and scales with the button text. The colours are Microsoft's fixed
@@ -78,6 +81,29 @@ const LoginPage: React.FC = () => {
   const [confirmRequired, setConfirmRequired] = useState(false);
   const [resendBusy, setResendBusy] = useState(false);
   const [rateLimited, setRateLimited] = useState(false);
+  // A rate-limited resend cools down for the server's retry interval, then the action re-enables.
+  // The timer is cleared on unmount and whenever the state it drives is left, so no stale
+  // callback flips `rateLimited` for a state nobody is looking at.
+  const rateLimitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (rateLimitTimer.current) clearTimeout(rateLimitTimer.current);
+  }, []);
+  const beginRateLimitCooldown = () => {
+    setRateLimited(true);
+    if (rateLimitTimer.current) clearTimeout(rateLimitTimer.current);
+    rateLimitTimer.current = setTimeout(() => {
+      rateLimitTimer.current = null;
+      setRateLimited(false);
+    }, RATE_LIMIT_RETRY_MS);
+  };
+  const onBackToSignIn = () => {
+    if (rateLimitTimer.current) {
+      clearTimeout(rateLimitTimer.current);
+      rateLimitTimer.current = null;
+    }
+    setRateLimited(false);
+    setConfirmRequired(false);
+  };
 
   const onSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -108,7 +134,7 @@ const LoginPage: React.FC = () => {
     setResendBusy(false);
     if (error) {
       if (isRateLimited(error)) {
-        setRateLimited(true); // FR-AUTHF-042 — disable until retry
+        beginRateLimitCooldown(); // FR-AUTHF-042 — disable until the retry interval elapses
         return;
       }
       setError(error);
@@ -204,6 +230,9 @@ const LoginPage: React.FC = () => {
                   onClick={onResend}
                 >
                   Resend confirmation
+                </Button>
+                <Button type="button" variant="ghost" className="w-full" onClick={onBackToSignIn}>
+                  Back to sign in
                 </Button>
               </div>
             ) : (

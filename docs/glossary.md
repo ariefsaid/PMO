@@ -303,6 +303,14 @@ _Avoid_: "live connection" unqualified — always name the leg.
 
 **Project progress entry** — a dated monthly record of a project's percent complete and an optional note.
 
+**Work order** — a client's purchase order against a project, with an order value, tax basis and a Draft, Issued, Closed or Cancelled status; it is the commitment that billing and acceptance run against.
+
+**Work order line** — an allocation of a positive quantity of one project contract line (bill-of-quantities item) to a work order, so one contract line can be ordered across several work orders.
+
+**Work order acceptance** — a BAST (acceptance record) for a work order, in Draft, Confirmed or Withdrawn status; a stage acceptance is cumulative evidence, and a confirmed final acceptance closes the work order at its accepted value.
+
+**Work order acceptance line** — the quantity accepted for one contract line on a work order acceptance; the latest confirmed quantity, not a sum, is what has been accepted to date.
+
 **Progress assessment quantity** — the quantity completed to date for a bill-of-quantities item in a project progress entry.
 
 **Progress claim** — a project billing claim, optionally associated with a work order, for progress or a down payment, recording gross value and any down-payment recovery.

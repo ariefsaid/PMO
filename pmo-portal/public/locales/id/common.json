@@ -3643,9 +3643,9 @@
     }
   },
   "profileSettings": {
-    "loading": "Memuat profil…",
-    "title": "Profil & preferensi",
     "description": "Pilih bahasa, format angka, dan zona waktu untuk portal ini.",
+    "error": "Tidak dapat menyimpan preferensi Anda. Silakan coba lagi.",
+    "invalidTimezone": "Pilih zona waktu yang valid sebelum menyimpan.",
     "language": {
       "label": "Bahasa antarmuka",
       "help": "Disimpan ke profil Anda dan diterapkan di semua perangkat.",
@@ -3657,6 +3657,7 @@
         "en": "English"
       }
     },
+    "loading": "Memuat profil…",
     "number": {
       "label": "Format angka",
       "help": "Pratinjau: {{value}}",
@@ -3668,6 +3669,11 @@
         "en": "Inggris (1,234,567.89)"
       }
     },
+    "refreshRetry": "Coba segarkan lagi",
+    "save": "Simpan",
+    "saved": "Preferensi disimpan",
+    "saving": "Menyimpan preferensi Anda…",
+    "staleRefresh": "Menyegarkan sesi ini gagal — pilihan Anda sudah tersimpan dan akan berlaku saat masuk berikutnya.",
     "timezone": {
       "label": "Zona waktu",
       "placeholder": "Pilih zona waktu",
@@ -3679,11 +3685,7 @@
         "inheritWithEffective": "Default organisasi: {{timezone}}"
       }
     },
-    "save": "Simpan",
-    "saving": "Menyimpan preferensi Anda…",
-    "saved": "Preferensi disimpan",
-    "error": "Tidak dapat menyimpan preferensi Anda. Silakan coba lagi.",
-    "invalidTimezone": "Pilih zona waktu yang valid sebelum menyimpan."
+    "title": "Profil & preferensi"
   },
   "oauthConsent": {
     "allow": "Izinkan",

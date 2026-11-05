@@ -63,6 +63,11 @@ export async function fxContext(): Promise<{ currency: string; timezone: string 
     .select('default_currency,default_timezone')
     .single();
   if (error) throw error;
-  if (!data.default_currency) throw new Error('Organization currency could not be resolved.');
-  return { currency: data.default_currency, timezone: data.default_timezone ?? 'UTC' };
+  return toFxContext(data.default_currency, data.default_timezone);
+}
+
+/** Shared by the per-endpoint read and the Overview read-model. */
+export function toFxContext(currency: string | null, timezone: string | null): { currency: string; timezone: string } {
+  if (!currency) throw new Error('Organization currency could not be resolved.');
+  return { currency, timezone: timezone ?? 'UTC' };
 }

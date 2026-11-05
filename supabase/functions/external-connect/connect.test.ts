@@ -181,6 +181,59 @@ describe('external-connect — ClickUp branch', () => {
     );
   });
 
+  it('ClickUp identity write failure after finalize is a retryable error, not a success', async () => {
+    await withFetchMock(
+      [
+        supabaseSelect('profiles', () =>
+          jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+        supabaseSelect('platform_operators', () => jsonResponse(null)),
+        supabaseRpc('stage_vault_secret_for_org', () => jsonResponse('vault-ref-123')),
+        supabaseSelect('external_org_bindings', () => jsonResponse({ secret_ref: 'vault-ref-123', status: 'active' }, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
+        supabaseRpc('read_vault_secret', () => jsonResponse('valid-token')),
+        supabaseRpc('finalize_external_connect', () => jsonResponse('active')),
+        clickup('/api/v2/user', () => jsonResponse({ user: { id: 123 } })),
+        clickup('/api/v2/team', () => jsonResponse({ teams: [{ id: 'team-123' }] })),
+        supabaseRpc('merge_external_org_binding_config', () => jsonResponse({ message: 'boom' }, { status: 500 })),
+      ],
+      async () => {
+        const res = await handleConnectRequest(await authed({ tier: 'clickup', credential: { token: 'valid-token' } }));
+        assertEquals(res.status, 500);
+        assertEquals((await res.json()).error, 'CONNECT_IDENTITY_NOT_SAVED');
+      },
+    );
+  });
+
+  it('an upstream outage while validating credentials is a retryable 502, not invalid credentials', async () => {
+    const prelude = [
+      supabaseSelect('profiles', () =>
+        jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, {
+          headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+        })),
+      supabaseSelect('platform_operators', () => jsonResponse(null)),
+      supabaseRpc('log_audit', () => jsonResponse(null)),
+    ];
+    for (const status of [503, 429]) {
+      await withFetchMock([...prelude, clickup('/api/v2/user', () => new Response('{}', { status }))], async () => {
+        const res = await handleConnectRequest(await authed({ tier: 'clickup', credential: { token: 't' } }));
+        assertEquals(res.status, 502, `clickup ${status}`);
+        assertEquals((await res.json()).error, 'external-unreachable');
+      });
+      await withFetchMock(
+        [...prelude, erp('erp.example.com', '/api/method/frappe.auth.get_logged_user', () => new Response('{}', { status }))],
+        async () => {
+          const res = await handleConnectRequest(await authed({
+            tier: 'erpnext',
+            credential: { siteUrl: 'https://erp.example.com', apiKey: 'k', apiSecret: 's' },
+          }));
+          assertEquals(res.status, 502, `erp ${status}`);
+          assertEquals((await res.json()).error, 'external-unreachable');
+        },
+      );
+    }
+  });
+
   it('Operator + valid ClickUp token → 200', async () => {
     await withFetchMock(
       [

@@ -358,15 +358,9 @@ const Administration: React.FC = () => {
     return <Navigate to="/administration/projects#org-project-number-pattern" replace />;
   }
 
-  if (pathname === '/administration') {
-    const target = hash === '#budget-account-map'
-      ? '/administration/accounting#budget-account-map'
-      : isFinance
-        ? '/administration/exchange-rates'
-        : '/administration/users';
-    return <Navigate to={target} replace />;
-  }
-
+  // The bare `/administration` entry redirect lives ONLY in the route table (App's
+  // AdministrationEntryRedirect) — a section-less render here is otherwise unreachable, so it
+  // falls through to the same destination logic below without a competing redirect copy.
   if (!section) {
     return <Navigate to={isFinance ? '/administration/exchange-rates' : '/administration/users'} replace />;
   }
