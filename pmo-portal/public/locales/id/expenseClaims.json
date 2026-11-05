@@ -17,6 +17,11 @@
     "loading": "Memuat uang muka Anda…",
     "retry": "Coba lagi"
   },
+  "projects": {
+    "loadError": "Proyek tidak dapat dimuat. Penyimpanan dijeda agar klaim ini tidak diajukan pada proyek yang salah.",
+    "loading": "Memuat proyek…",
+    "retry": "Coba lagi proyek"
+  },
   "accountMap": {
     "projectDirectCost": "Biaya langsung proyek"
   }
