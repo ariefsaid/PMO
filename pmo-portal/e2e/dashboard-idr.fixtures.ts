@@ -109,16 +109,35 @@ function toIdr(node: unknown, key?: string): unknown {
 
 const json = (body: unknown) => (route: Route) => route.fulfill({ json: body });
 
+/**
+ * #1889: a dashboard page can keep issuing reads while the test's browser context is torn
+ * down (the assertions have already settled); a rewrite handler that then calls
+ * route.fulfill holds an API response the teardown disposed, and the handler's rejection
+ * gets attributed to an otherwise-green test. Terminal lifecycle errors are NOT test
+ * faults — nobody is left to answer that request — so settle them quietly. Everything else
+ * (network failures, non-OK responses, rewrite faults) still surfaces, keeping active-page
+ * failures visible. All figure/overflow oracles are untouched.
+ */
+function isTerminalLifecycleError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /target (page|context|browser) has been closed|target closed|has been disposed/i.test(message);
+}
+
 async function rewriteRead(route: Route, rewrite: (body: unknown) => unknown) {
-  const response = await route.fetch({ maxRetries: 2 });
-  if (!response.ok()) return route.fulfill({ response });
-  let body: unknown;
   try {
-    body = await response.json();
-  } catch {
-    return route.fulfill({ response });
+    const response = await route.fetch({ maxRetries: 2 });
+    if (!response.ok()) return await route.fulfill({ response });
+    let body: unknown;
+    try {
+      body = await response.json();
+    } catch {
+      return await route.fulfill({ response });
+    }
+    return await route.fulfill({ response, json: rewrite(body) });
+  } catch (error) {
+    if (isTerminalLifecycleError(error)) return;
+    throw error;
   }
-  return route.fulfill({ response, json: rewrite(body) });
 }
 
 
