@@ -84,7 +84,7 @@ export interface ExpenseClaimFormModalProps {
   /** Load state of `advanceOptions`: a NEW claim is not saved while it is pending or failed (unknown is not "no advance"). */
   advanceLoad: Pick<OwnAdvanceOptions, 'isPending' | 'isError' | 'refetch'>;
   /** Load state of `projectOptions`; while unresolved the project choice cannot be saved. */
-  projectLoad?: ProjectLoad;
+  projectLoad: ProjectLoad;
   categoryPrecedents?: ExpenseCategoryPrecedent[];
   captureRecovery?: ExpenseCaptureRecoveryView | null;
   initial?: ExpenseClaimFormInitial;
@@ -191,7 +191,7 @@ export const ExpenseClaimFormModal: React.FC<ExpenseClaimFormModalProps> = ({
   const recoveryPending = Boolean(captureRecovery?.draftSaved && captureRecovery.phase !== 'complete');
 
   const advancesNotReady = kind === 'claim' && !initial && (advanceLoad.isPending || advanceLoad.isError);
-  const projectsNotReady = Boolean(projectLoad && (projectLoad.isPending || projectLoad.isError));
+  const projectsNotReady = projectLoad.isPending || projectLoad.isError;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -352,7 +352,7 @@ export const ExpenseClaimFormModal: React.FC<ExpenseClaimFormModalProps> = ({
               }
             }} onBlur={projectField.onBlur}
             options={[{ value: '', label: t('expenses.form.project.none', 'Overhead (no project)') }, ...projectOptions]} />
-          {projectLoad && <ProjectLoadNotice projects={projectLoad} />}
+          <ProjectLoadNotice projects={projectLoad} />
           <SelectField id={categoryField.id} label={t('expenses.form.category.label', 'Budget category')} value={categoryField.value}
             disabled={recoveryPending}
             onChange={(v) => { setCategoryManuallyEdited(true); categoryField.onChange(v); form.setValue('imprestFloatId', ''); }} onBlur={categoryField.onBlur} options={categoryOptions}
