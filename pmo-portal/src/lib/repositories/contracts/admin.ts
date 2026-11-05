@@ -5,7 +5,7 @@ import type { ProcurementGates } from '@/src/lib/db/orgs';
 import type { ProfileRow } from '@/src/lib/db/profiles';
 import type { UserRow, UserRole, InviteUserInput, SetUserStatusInput, UserDirectoryPage, UserFocusLocation, UserManagerChoice } from '@/src/lib/db/adminUsers';
 import type { TaxTreatment } from '@/src/lib/db/procurementLifecycle';
-import type { UserViewRow, UserViewInput } from '@/src/lib/db/userViews';
+import type { UserViewRow, UserViewListRow, UserViewInput } from '@/src/lib/db/userViews';
 import type {
   UsageSummaryRow,
   OperatorUsageSummaryRow,
@@ -70,7 +70,7 @@ export interface UsageRepository {
 
 export interface UserViewRepository {
   /** The caller's non-archived visible views (owner + shared_org in-org), newest write first. */
-  list(): Promise<UserViewRow[]>;
+  list(): Promise<UserViewListRow[]>;
   /** A single view by id, or null when not found / not readable (RLS-scoped out). */
   get(id: string): Promise<UserViewRow | null>;
   /** Create a view (org_id + user_id stamped by RLS, never sent; spec is opaque). */

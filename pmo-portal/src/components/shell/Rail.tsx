@@ -58,7 +58,11 @@ interface NavItem {
 }
 
 // Role arrays preserved VERBATIM from Sidebar.tsx getNavItems (AC-AUTH-003/009/010/011).
-const ALL_ITEMS: NavItem[] = [
+// Exported for the navigation-registry parity guard (⌘K Navigate reads MODULES; this is the
+// rail's own registry — the guard keeps the two from drifting apart). The `ALL_ITEMS` name is
+// load-bearing: scripts/check-module-completeness.mjs parses this block by it.
+// eslint-disable-next-line react-refresh/only-export-components -- registry constant co-located with its rail; HMR-only lint concern
+export const ALL_ITEMS: NavItem[] = [
   { to: '/', text: 'Dashboard', icon: 'dashboard', group: 'Overview', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   // FIN-S9: the personal "My integrations" doorway (/integrations) moved into the account menu.
   { to: '/projects', text: 'Projects', icon: 'projects', group: 'Delivery', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
@@ -179,7 +183,6 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
   const canViewStatements = may('view', 'financialStatements');
 
   // Must call hooks unconditionally BEFORE early returns (rules-of-hooks).
-  const { data: userViews } = useUserViews();
   // ops-admin-surface S6: resolve per-org entitlements ONCE. `data` is undefined while loading;
   // each gated item then falls back to its FEATURE_ENV_DEFAULT (the rail resolves gracefully on
   // first paint — an always-on module is never hidden by a loading state).
@@ -190,6 +193,8 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
   // additional AND over the entitlement (S3 constraint): an Operator cannot re-enable a capability
   // the deployment turned off, and flipping the env var still hides the surface for every org.
   const userViewsEnabled = useFeature('user_views');
+  // The saved-views read only runs for an org that has the module (the rail is on every page).
+  const { data: userViews } = useUserViews(userViewsEnabled);
   const agentAssistantEnabled = useFeature('agent_assistant');
 
   // AC-ADMIA-002: a REAL server-confirmed platform Operator (any base role) can reach

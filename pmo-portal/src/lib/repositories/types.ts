@@ -23,8 +23,10 @@ import type { RecordHistoryRepository } from './contracts/recordHistory';
 import type { ProjectStageRepository } from './contracts/projectStages';
 import type { SubcontractRepository } from './contracts/subcontracts';
 import type { ProjectMoneyRepository } from './contracts/projectMoney';
+import type { ProjectOverviewRepository } from './contracts/projectOverview';
 import type { DashboardRepository } from './contracts/dashboard';
 import type { AgentRunRepository } from './contracts/agentRuns';
+import type { NotificationRepository } from './contracts/notifications';
 import type {
   CreditsRepository,
   ExternalDomainOwnershipRepository,
@@ -158,8 +160,10 @@ export interface Repositories {
   odoo: OdooRepository;
   reports: ReportsRepository;
   projectMoney: ProjectMoneyRepository;
+  projectOverview: ProjectOverviewRepository;
   dashboard: DashboardRepository;
   agentRun: AgentRunRepository;
+  notification: NotificationRepository;
 }
 
 export type { CommandIntent } from './contracts/commandIntent';
@@ -174,8 +178,10 @@ export type { MeetingRepository } from './contracts/meetings';
 export type { AgentAttachmentRepository, DocumentRepository, M365DocumentSettingsRepository, M365RecordFoldersRepository } from './contracts/documents';
 export type { ProcurementFileRepository, ProcurementListOptions, ProcurementListRow, ProcurementRepository } from './contracts/procurement';
 export type { ProjectMoneyRepository } from './contracts/projectMoney';
+export type { ProjectOverviewRepository } from './contracts/projectOverview';
 export type { DashboardRepository } from './contracts/dashboard';
 export type { AgentRunRepository } from './contracts/agentRuns';
+export type { NotificationRepository } from './contracts/notifications';
 export type { RevenueRepository } from './contracts/revenue';
 export type { TimesheetRepository } from './contracts/timesheets';
 export type { BudgetRepository } from './contracts/budget';
@@ -192,4 +198,4 @@ export type { ErpJournalLineRepository } from './contracts/erpJournalLines';
 export type { VendorWithholdingSlipsRepository } from './contracts/vendorWithholdingSlips';
 export type { CreditsRepository, ExternalDomainOwnershipRepository, OperatorRepository, OrgFeatureRepository, OrgSettingsRepository, ProfileRepository, UsageRepository, UserViewRepository } from './contracts/admin';
 export type { ErpSnapshotsRepository, FinancialStatementsRepository, FxCommitCounts, FxRateInput, FxRateMatch, FxRatePage, FxRateRow, FxRatesRepository, ReportsRepository } from './contracts/reporting';
-export type { ClickUpListItem, ConnectCredential, ConnectCensusRow, ConnectCounts, ConnectDomain, ConnectKind, ConnectProposal, ConnectReviewChoice, ConnectStatus, ConnectStagedRecord, ConnectTier, ConnectAcceptResult, ConnectResponse, DisconnectResponse, ErpProjectLink, ErpProjectOption, ErpSetupReadiness, ExternalTier, IntegrationBinding, IntegrationHealth, IntegrationStatus, IntegrationsRepository, LinkClickUpProjectInput, LinkDirection, LinkErpNextOrgInput, LinkInput, LinkResponse, ProjectBinding, UnlinkInput, UnlinkResponse } from './contracts/integrations';
+export type { ClickUpListItem, ConnectCredential, ConnectCensusRow, ConnectCounts, ConnectDomain, ConnectKind, ConnectProposal, ConnectReviewChoice, ConnectStatus, ConnectStagedRecord, ConnectTier, ConnectAcceptResult, ConnectResponse, DisconnectResponse, ErpProjectLink, ErpProjectOption, ErpSetupReadiness, ExternalTier, IntegrationBinding, IntegrationHealth, IntegrationStatus, IntegrationsRepository, LinkClickUpProjectInput, LinkDirection, LinkInput, LinkResponse, ProjectBinding, UnlinkInput, UnlinkResponse } from './contracts/integrations';

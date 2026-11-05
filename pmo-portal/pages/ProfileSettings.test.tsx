@@ -188,7 +188,7 @@ describe('ProfileSettings (profile language settings slice)', () => {
     expect(languageSelect()).toHaveValue('en');
   });
 
-  it('shows an assertive error and no success when the profile refresh fails after a successful write', async () => {
+  it('reports a successful save separately when the profile refresh fails after a successful write', async () => {
     currentUserState = { ...currentUserState, locale: 'en' };
     setLocalePreferences.mockResolvedValue(undefined);
     refreshMock.mockResolvedValue({ error: 'profile refresh failed' });
@@ -196,10 +196,15 @@ describe('ProfileSettings (profile language settings slice)', () => {
     renderPage();
     fireEvent.click(screen.getByRole('button', { name: /^save$/i }));
 
-    await waitFor(() =>
-      expect(screen.getByRole('alert')).toHaveTextContent(/could not save your preference/i)
-    );
-    expect(screen.queryByText(/preferences saved/i)).not.toBeInTheDocument();
+    // The write LANDED: the save is reported as saved (role=status), never as a failed save —
+    // the preferences persist and will apply on a future session even while this one is stale.
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/preferences saved/i));
+    expect(screen.queryByText(/could not save your preference/i)).not.toBeInTheDocument();
+    // A scoped retry lets the user re-attempt the session refresh.
+    const retry = screen.getByRole('button', { name: /retry refresh/i });
+    refreshMock.mockResolvedValue({ error: null });
+    fireEvent.click(retry);
+    await waitFor(() => expect(refreshMock).toHaveBeenCalledTimes(2));
   });
 
   it('is axe-clean (WCAG AA) including the labelled control and live feedback', async () => {
@@ -345,9 +350,10 @@ describe('ProfileSettings personal locale preferences', () => {
     setLocalePreferences.mockResolvedValueOnce(undefined);
     refreshMock.mockResolvedValueOnce({ error: 'refresh failed' });
     fireEvent.click(screen.getByRole('button', { name: /^save$/i }));
-    expect(await screen.findByRole('alert')).toBeInTheDocument();
+    // The write landed: reported as saved with a stale-session notice — not a failed save.
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/preferences saved/i));
     expect(languageSelect()).toHaveValue('id');
-    expect(screen.queryByText(/preferences saved/i)).not.toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent(/refreshing this session failed/i);
   });
 
   it('AC-PLC-003: a failed write keeps the choices, then a retry succeeds with exactly one success and one refresh', async () => {

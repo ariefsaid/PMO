@@ -118,6 +118,13 @@ interface ValidatorDeps {
  * validated fine (`res.ok`), so an unexpected wire shape must not block the connect; it only means the
  * echo-loop guard can't be armed for this org until a later reconnect gets a well-formed response.
  */
+/** 429 and 5xx are the upstream being unavailable (retry); any other refusal is the credential or request being rejected. */
+function upstreamRefusal(status: number, rejected: string, label: string): AppError {
+  return status === 429 || status >= 500
+    ? new AppError(`${label} is unavailable; try again`, 'external-unreachable')
+    : new AppError(rejected, 'config-rejected');
+}
+
 async function validateClickUpToken(
   token: string,
   deps: ValidatorDeps,
@@ -130,10 +137,10 @@ async function validateClickUpToken(
   } catch (err) {
     if (err instanceof AppError) throw err;
     if (err instanceof FetchDeadlineError) throw new AppError('ClickUp did not respond in time', 'external-unreachable');
-    throw new AppError('Invalid ClickUp token', 'config-rejected');
+    throw new AppError('ClickUp could not be reached; try again', 'external-unreachable');
   }
   if (!res.ok) {
-    throw new AppError('Invalid ClickUp token', 'config-rejected');
+    throw upstreamRefusal(res.status, 'Invalid ClickUp token', 'ClickUp');
   }
   try {
     const body = (await res.json()) as { user?: { id?: number | string } };
@@ -154,7 +161,7 @@ async function validateClickUpTeam(token: string, deps: ValidatorDeps): Promise<
     if (err instanceof FetchDeadlineError) throw new AppError('ClickUp did not respond in time', 'external-unreachable');
     throw err;
   }
-  if (!res.ok) throw new AppError('Unable to resolve ClickUp workspace', 'config-rejected');
+  if (!res.ok) throw upstreamRefusal(res.status, 'Unable to resolve ClickUp workspace', 'ClickUp');
   try {
     const body = (await res.json()) as { teams?: Array<{ id?: number | string }> };
     const id = body.teams?.[0]?.id;
@@ -200,7 +207,7 @@ async function validateErpNextCredentials(
     // for a valid credential, or `Guest` for the anonymous identity. Treat the credential as valid
     // ONLY on a 2xx whose body carries a non-empty, non-`Guest` `message`.
     if (!res.ok) {
-      throw new AppError('Invalid ERPNext credentials', 'config-rejected');
+      throw upstreamRefusal(res.status, 'Invalid ERPNext credentials', 'ERPNext');
     }
     let body: { message?: unknown };
     try {
@@ -217,7 +224,7 @@ async function validateErpNextCredentials(
     }
   } catch (err) {
     if (err instanceof AppError) throw err;
-    throw new AppError('Invalid ERPNext credentials', 'config-rejected');
+    throw new AppError('ERPNext could not be reached; try again', 'external-unreachable');
   }
 }
 
@@ -479,7 +486,13 @@ export async function handleConnectRequest(req: Request): Promise<Response> {
       const { error: configError } = await serviceClient.rpc('merge_external_org_binding_config', {
         p_org_id: profile.org_id, p_external_tier: 'clickup', p_patch: configPatch,
       });
-      if (configError) console.error('external_org_bindings clickup identity persist failed', configError);
+      if (configError) {
+        // Retryable: Connect again rotates the binding and rewrites the identity (same recovery as the site-url write).
+        console.error('external_org_bindings clickup identity persist failed', configError);
+        return errorResponse(
+          'ClickUp connected but its workspace could not be saved. Please try connecting again.',
+          'CONNECT_IDENTITY_NOT_SAVED', 500);
+      }
     }
   }
 

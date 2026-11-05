@@ -194,6 +194,9 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
       setEditTarget(null);
       return;
     }
+    // Each staged attempt starts with a clean slate — an earlier failure must not resurface in
+    // the confirm step or in a dialog opened for a different user (scoped per attempt).
+    setRoleError(null);
     // Stage the change; the confirm step commits it (high-impact, named in the confirm copy).
     setPendingRole({ user, role });
     setEditTarget(null);
@@ -215,10 +218,11 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
       );
       setPendingRole(null);
     } catch (err) {
+      // The confirmation stays open on failure: the staged change is kept so the admin can retry
+      // immediately or cancel deliberately, instead of losing the selected edit to a closed dialog.
       const { headline, detail } = classifyMutationError(err);
       setRoleError({ headline, detail });
       toast(headline, detail, 'warning');
-      setPendingRole(null);
     }
   };
 
@@ -288,6 +292,8 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
 
   // ── Invite (FR-INV-004/005): admin-invite-user edge fn — Admin-in-org OR Operator. ──
   const submitInvite = async (email: string, role: UserRole, pOrgId: string | null) => {
+    // A fresh attempt starts clean — an earlier failure never resurfaces in a new dialog.
+    setInviteError(null);
     try {
       await invite.mutateAsync({ email, role, pOrgId });
       toast(
@@ -325,7 +331,7 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
 
   return (
     <div>
-      <PageHead canInvite={canInvite} onInvite={() => setInviteOpen(true)} embedded={embedded} />
+      <PageHead canInvite={canInvite} onInvite={() => { setInviteError(null); setInviteOpen(true); }} embedded={embedded} />
 
       {isExecReadOnly && (
         <GateNotice variant="blocked" className="mb-3.5">
@@ -363,7 +369,7 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
             : null
         }
         onJumpToUser={onJumpToUser}
-        onEditRole={(u) => setEditTarget({ mode: 'role', user: u })}
+        onEditRole={(u) => { setRoleError(null); setEditTarget({ mode: 'role', user: u }); }}
         onChangeManager={(u) => setEditTarget({ mode: 'manager', user: u })}
         onSetStatus={(u, status) => {
           if (status === 'active') void confirmSetStatus(u, 'active');

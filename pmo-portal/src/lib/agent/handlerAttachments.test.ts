@@ -152,7 +152,7 @@ describe('agent-chat attachment boundary', () => {
     expect(messages[0].content).not.toContain('A'.repeat(AGENT_ATTACHMENT_TEXT_CHAR_CAP + 1));
   });
 
-  it('AC-AT2-004 resolver reads rows and downloads bytes through the caller-scoped deputy client', async () => {
+  it('AC-AT2-004 resolver reads rows through the caller-scoped deputy client and preserves ready extracted text', async () => {
     const calls: string[] = [];
     const supabase = {
       from: vi.fn((table: string) => {
@@ -167,8 +167,8 @@ describe('agent-chat attachment boundary', () => {
                     original_filename: 'quote.pdf',
                     mime_type: 'application/pdf',
                     storage_path: 'org/org-1/agent-attachments/att-1',
-                    extracted_text_status: 'pending',
-                    extracted_text: null,
+                    extracted_text_status: 'ready',
+                    extracted_text: 'Known quoted amount is 42.',
                     archived_at: null,
                   },
                 ],
@@ -176,22 +176,10 @@ describe('agent-chat attachment boundary', () => {
               }),
             })),
           })),
-          update: vi.fn(() => ({
-            eq: vi.fn().mockResolvedValue({ data: null, error: null }),
-          })),
         };
       }),
-      storage: {
-        from: vi.fn(() => ({
-          download: vi.fn().mockResolvedValue({
-            data: new Blob(['pdf bytes'], { type: 'application/pdf' }),
-            error: null,
-          }),
-        })),
-      },
     };
-    const extractPdfText = vi.fn().mockResolvedValue({ text: 'Known quoted amount is 42.', status: 'ready' as const });
-    const resolver = createAttachmentResolver({ extractPdfText });
+    const resolver = createAttachmentResolver();
 
     const messages = await resolver.resolveAttachmentMessages(['att-1'], {
       jwt: 'jwt',
@@ -201,8 +189,7 @@ describe('agent-chat attachment boundary', () => {
     });
 
     expect(calls).toContain('from:agent_attachments');
-    expect(supabase.storage.from).toHaveBeenCalledWith('agent-attachments');
-    expect(extractPdfText).toHaveBeenCalledWith(expect.any(Uint8Array));
+    // Already-extracted text is served straight from the row — no storage work needed.
     expect(messages[0].content).toContain('Known quoted amount is 42.');
   });
 
@@ -235,6 +222,29 @@ describe('agent-chat attachment boundary', () => {
     expect(content).toMatch(/could not be loaded|could not read|cannot read/i);
     expect(content).toMatch(/do not fabricate|do not invent|do not guess/i);
     expect(content).not.toMatch(/\.pdf|\.png|\.txt|filename/i);
+  });
+
+  it('an archived attachment row is announced as unavailable, never read', async () => {
+    const supabase = {
+      from: vi.fn(() => ({
+        select: vi.fn(() => ({
+          in: vi.fn(() => ({
+            limit: vi.fn().mockResolvedValue({
+              data: [{ id: 'arch-att', original_filename: 'old.txt', mime_type: 'text/plain', storage_path: 'p', extracted_text_status: 'ready', extracted_text: 'SECRET BODY', archived_at: '2026-01-01T00:00:00Z' }],
+              error: null,
+            }),
+          })),
+        })),
+      })),
+    };
+    const messages = await createAttachmentResolver().resolveAttachmentMessages(['arch-att'], {
+      jwt: 'jwt', userId: 'user-1', orgId: 'org-1', supabase: supabase as never,
+    });
+    expect(messages).toHaveLength(1);
+    const content = messages[0].content as string;
+    expect(content).toContain('arch-att');
+    expect(content).toMatch(/could not be loaded/i);
+    expect(content).not.toContain('SECRET BODY');
   });
 
   it('a partially unresolvable request still carries the readable files and names the missing one', async () => {
@@ -484,7 +494,9 @@ describe('agent-chat attachment boundary', () => {
     expect(messages[0].content).toMatch(/do not fabricate|do not invent|do not guess/i);
   });
 
-  it('IMPORTANT-6 a skipped/unreadable file is announced honestly and not fabricated', async () => {
+  it('IMPORTANT-6 an unsupported PDF is skipped directly — honest announcement, no download, no cache write', async () => {
+    const download = vi.fn().mockResolvedValue({ data: new Blob(['pdf bytes']), error: null });
+    const update = vi.fn(() => ({ eq: vi.fn().mockResolvedValue({ data: null, error: null }) }));
     const supabase = {
       from: vi.fn(() => ({
         select: vi.fn(() => ({
@@ -505,17 +517,13 @@ describe('agent-chat attachment boundary', () => {
             }),
           })),
         })),
-        update: vi.fn(() => ({ eq: vi.fn().mockResolvedValue({ data: null, error: null }) })),
+        update,
       })),
       storage: {
-        from: vi.fn(() => ({
-          download: vi.fn().mockResolvedValue({ data: new Blob(['pdf bytes']), error: null }),
-        })),
+        from: vi.fn(() => ({ download })),
       },
     };
-    const resolver = createAttachmentResolver({
-      extractPdfText: async () => ({ text: null, status: 'skipped' }),
-    });
+    const resolver = createAttachmentResolver();
 
     const messages = await resolver.resolveAttachmentMessages(['att-skip'], {
       jwt: 'jwt',
@@ -524,7 +532,13 @@ describe('agent-chat attachment boundary', () => {
       supabase: supabase as never,
     });
 
-    // ADR-0039: always a bounded role:'user' block, never a system instruction.
+    // Unsupported input is detected early: a file type the resolver cannot extract
+    // costs neither a Storage download nor an extraction cache write.
+    expect(download).not.toHaveBeenCalled();
+    expect(update).not.toHaveBeenCalled();
+
+    // The skipped contract is unchanged — ADR-0039: always a bounded role:'user' block,
+    // never a system instruction; the file is named honestly and fabrication is forbidden.
     expect(messages).toHaveLength(1);
     expect(messages[0].role).toBe('user');
     const content = messages[0].content as string;

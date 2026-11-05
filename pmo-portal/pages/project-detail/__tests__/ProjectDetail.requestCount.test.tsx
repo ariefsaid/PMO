@@ -123,6 +123,29 @@ const stub = vi.hoisted(() => {
     get_project_billing: null,
     org_reads_erp_ledger: false,
     budget_version_read_totals: [{ version_id: 'bv-1', total: 1000 }],
+    // Step 3: the one read that carries every Overview summary (AC-PERF-009). Same empty-but-valid
+    // values the per-endpoint stubs above return, in the RPC's own row shape.
+    get_project_overview_read: [{
+      project_id: PROJECT_ID,
+      finances: {
+        project_id: PROJECT_ID,
+        contract_invoiced: '0.00',
+        remaining_to_invoice: '1000000.00',
+        invoices: [],
+        budget: null,
+        actuals: { currency: null, as_of: null, total: '0.00', excludes_restricted_rows: true, categories: [] },
+      },
+      billing: null,
+      boq_items: [],
+      budget_versions: [],
+      committed_spend: [],
+      external_domain_ownership: [],
+      reads_erp_ledger: false,
+      milestones: [],
+      comment_count: 0,
+      org_default_currency: 'USD',
+      org_default_timezone: 'Asia/Jakarta',
+    }],
   };
 
   const endpoints: Endpoint[] = [];
@@ -320,7 +343,7 @@ afterEach(() => {
 const endpointLabels = (): string[] => stub.endpoints.map((e) => e.label);
 
 describe('ProjectDetail mount request count (AC-PERF-009 harness, plan T0.2)', () => {
-  it('fires exactly the measured endpoint set on Overview mount, total 17 (Steps 1a+1b+1c)', async () => {
+  it('fires exactly the measured endpoint set on Overview mount, total 8 (Steps 1 and 3)', async () => {
     vi.stubGlobal('IntersectionObserver', stub.IO);
     renderProjectDetail();
     await settleRequests();
@@ -334,52 +357,21 @@ describe('ProjectDetail mount request count (AC-PERF-009 harness, plan T0.2)', (
     //     ProjectErpLink in the header/rail) re-reads the project row under its own key and reads
     //     the org's ERP binding; the Overview foot's survey eligibility resolves org features.
     // Step-1 deltas (1a/1b/1c) each remove exactly the deferred reads; totals shift down from here.
+    // Step 3 (AC-PERF-009): the finance-lens mount is the plan's five route reads (project, overview read,
+    // invoices, tasks, procurements) plus three in-tree consumers the plan did not itemize.
     expect(endpointLabels().sort()).toEqual(
       [
-        // the record itself (+refs embedded — one request), read twice: useProject AND the ERP
-        // match-review context (its own query key, so no dedupe)
-        'read:projects',
-        'read:projects',
-        // VAT editability — Step 1a DEFERS it to the contract-value editor opening (its own
-        // suite asserts the on-demand read); it must NOT fire on mount.
-        // milestones (header facts, attention, delivery, S-curve — one shared key)
-        'rpc:get_project_milestones',
-        // stage entries — Step 1b DEFERS them to the sales-history disclosure opening (its journey
-        // suite asserts the read + render after open); none may fire on mount.
-        // sales invoices (primary action + money block — one shared key)
+        'read:projects', // useProject
+        'read:projects', // the ERP match-review context re-reads the record under its own key
+        'rpc:get_project_overview_read', // finances, billing, BoQ, budget, committed spend, ownership, ledger, milestones, comment count, fx
         'read:sales_invoices',
-        // org fx context (currency + timezone)
-        'read:organizations',
-        // money summaries
-        'rpc:get_project_finances',
-        'rpc:get_project_billing',
-        // tasks (attention + delivery + S-curve — one shared key)
         'read:tasks',
-        // the budget read — ONE request on dev since #1891 (rpc budget_version_read: the Active
-        // version's lines + editors + totals in one call; the plan's Step 2, already landed)
-        'rpc:budget_version_read',
-        // procurements (cost block + attention approvers)
         'read:procurements',
-        // BoQ lines (money block)
-        'read:boq_items',
-        // committed spend + its two org-constant inputs
-        'rpc:project_committed_spend',
-        'read:external_domain_ownership',
-        'rpc:org_reads_erp_ledger',
-        // the below-the-fold work-order billing block — Step 1c DEFERS it to the viewport (the
-        // harness stubs IntersectionObserver as never-intersecting; the second test proves the
-        // reads fire when the block nears the viewport). None may fire on mount.
-        //   read:work_orders · read:work_order_billing · read:work_order_uninvoiced_acceptance
-
-        // comments (Activity foot count)
-        'read:comments',
-        // ERP match-review context: the org binding check
-        'read:external_org_bindings',
-        // org feature resolution (Overview-foot survey eligibility)
-        'rpc:resolved_org_features',
+        'read:external_org_bindings', // ERP match-review context: the org binding check
+        'rpc:resolved_org_features', // Overview-foot survey eligibility
       ].sort(),
     );
-    expect(endpointLabels()).toHaveLength(17);
+    expect(endpointLabels()).toHaveLength(8);
   });
 
   it('AC-PERF-003: the work-order reads fire exactly once when the block nears the viewport', async () => {

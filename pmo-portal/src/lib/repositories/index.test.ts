@@ -224,16 +224,15 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
       // 'subcontracts' from subcontract acceptance, caps and variations (#1513 S6).
       // 'projectStage' from stage history (#1638).
       // 'timeAndMaterials' from time-and-materials claims (#1514 T7): rate card, assembly, sign-off and the reads.
-      ['agentAttachment', 'agentRun', 'budget', 'comment', 'company', 'companyCollections', 'contact', 'credits', 'dashboard', 'document', 'equipment', 'erpJournalLines', 'erpPurchases', 'erpSnapshots', 'expenseClaim', 'expensePostings', 'expenseReceipts', 'externalDomainOwnership', 'financialStatements', 'fxRates', 'imprest', 'incident', 'integrations', 'm365DocumentSettings', 'm365RecordFolders', 'meeting', 'milestone', 'odoo', 'operator', 'orgFeature', 'orgSettings', 'procurement', 'procurementFiles', 'profile', 'progressBilling', 'project', 'projectMoney', 'projectStage', 'recordHistory', 'reports', 'revenue', 'stock', 'subcontracts', 'task', 'timeAndMaterials', 'timesheet', 'usage', 'userView', 'vendorWithholdingSlips', 'workOrder', 'workOrderAcceptance'].sort(),
-    );
+      ['agentAttachment', 'agentRun', 'budget', 'comment', 'company', 'companyCollections', 'contact', 'credits', 'dashboard', 'document', 'equipment', 'erpJournalLines', 'erpPurchases', 'erpSnapshots', 'expenseClaim', 'expensePostings', 'expenseReceipts', 'externalDomainOwnership', 'financialStatements', 'fxRates', 'imprest', 'incident', 'integrations', 'm365DocumentSettings', 'm365RecordFolders', 'meeting', 'milestone', 'notification', 'odoo', 'operator', 'orgFeature', 'orgSettings', 'procurement', 'procurementFiles', 'profile', 'progressBilling', 'project', 'projectMoney', 'projectOverview', 'projectStage', 'recordHistory', 'reports', 'revenue', 'stock', 'subcontracts', 'task', 'timeAndMaterials', 'timesheet', 'usage', 'userView', 'vendorWithholdingSlips', 'workOrder', 'workOrderAcceptance'].sort(),
   });
 
-  it('financialStatements exposes catalogue and get through the public API seam', async () => {
+  it('financialStatements exposes catalogue, get and refreshNow through the public API seam', async () => {
     const catalogue = { state: 'unavailable', companyLabel: null, generation: null, periods: [], scopes: [] };
     vi.mocked(financialStatementsDal.getFinancialStatementCatalogue).mockResolvedValue(catalogue as never);
     await expect(repositories.financialStatements.catalogue()).resolves.toBe(catalogue);
     expect(financialStatementsDal.getFinancialStatementCatalogue).toHaveBeenCalledWith({});
-    expect(Object.keys(repositories.financialStatements).sort()).toEqual(['catalogue', 'get']);
+    expect(Object.keys(repositories.financialStatements).sort()).toEqual(['catalogue', 'get', 'refreshNow']);
   });
 
   it('companyCollections exposes both canonical-reference batch reads', () => {

@@ -11887,6 +11887,7 @@ export type Database = {
         }
         Returns: string
       }
+      request_financial_statement_refresh: { Args: never; Returns: Json }
       request_po_variation: {
         Args: {
           p_lines: Json
@@ -13062,6 +13063,28 @@ export type Database = {
           target_date: string
           task_count: number
           weight: number
+        }[]
+      }
+      get_project_overview_read: {
+        Args: {
+          p_include_budget?: boolean
+          p_include_commitments?: boolean
+          p_include_money?: boolean
+          p_project_id: string
+        }
+        Returns: {
+          billing: Json
+          boq_items: Json
+          budget_versions: Json
+          comment_count: number
+          committed_spend: Json
+          external_domain_ownership: Json
+          finances: Json
+          milestones: Json
+          org_default_currency: string
+          org_default_timezone: string
+          project_id: string
+          reads_erp_ledger: boolean
         }[]
       }
       get_project_vat_editability: { Args: { p_id: string }; Returns: Json }

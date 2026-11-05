@@ -20,12 +20,10 @@ import { analyticsClient, buildPosthogInitOptions } from './client';
 const config: AnalyticsConfig = {
   enabled: true,
   demoMode: false,
-  analyticsEnabled: true,
   replayAndAutocapture: false,
   posthogKey: 'phc_' + 'a'.repeat(24),
   posthogHost: 'https://us.i.posthog.com',
   appEnv: 'test',
-  isDev: false,
   isProd: false,
   demoAudience: 'internal',
   demoAccount: 'local',
