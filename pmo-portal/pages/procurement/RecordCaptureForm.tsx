@@ -590,7 +590,16 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
       toast(isPayment ? t('procurementDetail.paymentRecorded', 'Payment recorded') : t('procurementDetail.captureRecorded', '{{label}} recorded', { label }), refNum ?? undefined, 'success');
       onClose();
     } catch (err) {
-      const { headline, detail } = odooActionError(err, odooProcurement, t) ?? classifyMutationError(err);
+      const paymentConflict = (err as { code?: unknown } | null)?.code === 'payment-in-flight-for-bill'
+        ? {
+            headline: t('procurementRecord:errors.paymentInFlight.title', 'Payment already in progress'),
+            detail: t(
+              'procurementRecord:errors.paymentInFlight.detail',
+              'A payment for this bill is already in progress. Wait for it to finish before paying again.',
+            ),
+          }
+        : null;
+      const { headline, detail } = odooActionError(err, odooProcurement, t) ?? paymentConflict ?? classifyMutationError(err);
       toast(headline, detail, 'warning');
     } finally {
       setSubmitting(false);

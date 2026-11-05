@@ -110,6 +110,19 @@ describe('RecordCaptureForm — payment capture on a FLIPPED org (#910)', () => 
     expect(input).toMatchObject({ invoiceId: 'inv-1', amount: 1090000, status: null });
   });
 
+  it.each([
+    ['en', 'A payment for this bill is already in progress. Wait for it to finish before paying again.'],
+    ['id', 'Pembayaran untuk tagihan ini sedang berlangsung. Tunggu hingga selesai sebelum membayar lagi.'],
+  ] as const)('explains a per-bill payment conflict in %s', async (locale, message) => {
+    await financeTestI18n.changeLanguage(locale);
+    const onCreate = renderPayment();
+    onCreate.mockRejectedValueOnce(Object.assign(new Error('backend conflict'), { code: 'payment-in-flight-for-bill' }));
+    await userEvent.selectOptions(screen.getByTestId('payment-invoice-select'), 'inv-1');
+    await userEvent.click(screen.getByTestId('payment-save-btn'));
+    expect(await screen.findByText(locale === 'en' ? 'Payment already in progress' : 'Pembayaran sedang berlangsung')).toBeInTheDocument();
+    expect(await screen.findByText(message)).toBeInTheDocument();
+  });
+
   it('the optional PMO-side reference still rides along (OQ-VPAY-4: PMO-side only, the dispatch drops it)', async () => {
     const onCreate = renderPayment();
     await userEvent.selectOptions(screen.getByTestId('payment-invoice-select'), 'inv-1');
