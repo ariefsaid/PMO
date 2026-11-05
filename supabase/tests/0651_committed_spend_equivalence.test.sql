@@ -1,7 +1,7 @@
 -- 0651_committed_spend_equivalence.test.sql — the set-based project_committed_spend returns exactly what the 0373
 -- row-by-row body returns, for every basis and caller. The old body lives here as a test-only function.
 begin;
-select plan(12);
+select plan(19);
 
 create function pg_temp.old_project_committed_spend(p_project_id uuid)
 returns table (currency text, amount numeric, is_project_currency boolean)
@@ -65,9 +65,17 @@ insert into procurements (id, org_id, title, requested_by_id, project_id, curren
   -- Engineer-requested
   ('06510000-0000-0000-0000-0000000001f9','06510000-0000-0000-0000-0000000000a0','eng ordered','06510000-0000-0000-0000-0000000000a2','06510000-0000-0000-0000-0000000000d1','IDR',300,'Ordered',null),
   ('06510000-0000-0000-0000-0000000001fa','06510000-0000-0000-0000-0000000000a0','eng paid','06510000-0000-0000-0000-0000000000a2','06510000-0000-0000-0000-0000000000d1','IDR',400,'Paid',null),
-  -- not committed: cancelled, rejected, draft never count
+  -- not committed: cancelled, rejected never count (they keep their status through the filter and are zeroed)
   ('06510000-0000-0000-0000-0000000001fb','06510000-0000-0000-0000-0000000000a0','cancelled','06510000-0000-0000-0000-0000000000a1','06510000-0000-0000-0000-0000000000d1','IDR',777,'Cancelled',null),
-  ('06510000-0000-0000-0000-0000000001fc','06510000-0000-0000-0000-0000000000a0','rejected','06510000-0000-0000-0000-0000000000a1','06510000-0000-0000-0000-0000000000d1','EUR',555,'Rejected',null);
+  ('06510000-0000-0000-0000-0000000001fc','06510000-0000-0000-0000-0000000000a0','rejected','06510000-0000-0000-0000-0000000000a1','06510000-0000-0000-0000-0000000000d1','EUR',555,'Rejected',null),
+  -- one row for EVERY status committed_procurement_statuses() leaves out: dropping the status filter in the body
+  -- makes each of these fall through to the "no payments yet" branch and count its whole total, so the equivalence
+  -- and pinned-figure tests below go RED. Distinct amounts (and both currencies) make that visible in the diff.
+  ('06510000-0000-0000-0000-000000000201','06510000-0000-0000-0000-0000000000a0','draft','06510000-0000-0000-0000-0000000000a1','06510000-0000-0000-0000-0000000000d1','IDR',111.11,'Draft',null),
+  ('06510000-0000-0000-0000-000000000202','06510000-0000-0000-0000-0000000000a0','requested','06510000-0000-0000-0000-0000000000a2','06510000-0000-0000-0000-0000000000d1','IDR',222.22,'Requested',null),
+  ('06510000-0000-0000-0000-000000000203','06510000-0000-0000-0000-0000000000a0','approved','06510000-0000-0000-0000-0000000000a1','06510000-0000-0000-0000-0000000000d1','USD',33.33,'Approved',null),
+  ('06510000-0000-0000-0000-000000000204','06510000-0000-0000-0000-0000000000a0','vendor quoted','06510000-0000-0000-0000-0000000000a1','06510000-0000-0000-0000-0000000000d1','IDR',444.44,'Vendor Quoted',null),
+  ('06510000-0000-0000-0000-000000000205','06510000-0000-0000-0000-0000000000a0','quote selected','06510000-0000-0000-0000-0000000000a2','06510000-0000-0000-0000-0000000000d1','USD',55.55,'Quote Selected',null);
 insert into procurement_invoices (org_id, procurement_id, status, amount, currency, tax_treatment, tax_amount, withheld_amount) values
   ('06510000-0000-0000-0000-0000000000a0','06510000-0000-0000-0000-0000000001f2','Paid',1000,'IDR','inclusive',0,0),
   ('06510000-0000-0000-0000-0000000000a0','06510000-0000-0000-0000-0000000001f3','Paid',1000,'IDR','exclusive',110,20),
@@ -128,15 +136,45 @@ select pg_temp.same('06510000-0000-0000-0000-0000000000a1','06510000-0000-0000-0
 select results_eq($$ select currency, amount, is_project_currency from project_committed_spend('06510000-0000-0000-0000-0000000000d1') $$,
   $$ values ('IDR'::text, 6458.15::numeric, true), ('USD'::text, 110::numeric, false) $$,
   'PMO basis: pinned figures (paid-pre-tax scaling, null on bad currency, children not multiplied, linked origin whole)');
+-- procurement_ledger_held_many is client-callable: it answers one held row per purchase the caller can see, and the
+-- answer must be exactly what 0372's per-id helper gives — never more, whatever ids are passed.
+select is((select count(*) from public.procurement_ledger_held_many(array[
+          '06510000-0000-0000-0000-0000000001f1','06510000-0000-0000-0000-0000000001f2',
+          '06510000-0000-0000-0000-0000000001f3','06510000-0000-0000-0000-0000000001f4',
+          '06510000-0000-0000-0000-0000000001f5','06510000-0000-0000-0000-0000000001f6']::uuid[])), 6::bigint,
+  'held_many: a Finance member gets one held row per purchase they can see');
 
 set local request.jwt.claims = '{"sub":"06510000-0000-0000-0000-0000000000a2","role":"authenticated"}';
 select pg_temp.same('06510000-0000-0000-0000-0000000000a2','06510000-0000-0000-0000-0000000000d1');
+select is((select count(*) from public.procurement_ledger_held_many(array[
+          '06510000-0000-0000-0000-0000000001f1','06510000-0000-0000-0000-0000000001f2',
+          '06510000-0000-0000-0000-0000000001f3','06510000-0000-0000-0000-0000000001f5',
+          '06510000-0000-0000-0000-0000000001f6','06510000-0000-0000-0000-0000000001f7']::uuid[])), 0::bigint,
+  'held_many: an Engineer gets no held row for purchases they cannot see');
+select is((select coalesce(sum(held), 0) from public.procurement_ledger_held_many(array[
+          '06510000-0000-0000-0000-0000000001f1','06510000-0000-0000-0000-0000000001f2']::uuid[])),
+          (select coalesce(sum(public.procurement_ledger_held(t.id)), 0)
+             from unnest(array['06510000-0000-0000-0000-0000000001f1','06510000-0000-0000-0000-0000000001f2']::uuid[]) t(id)),
+  'held_many: an Engineer gets exactly 0372''s per-id answer (nothing) for hidden purchases');
+select is((select count(*) from public.procurement_ledger_held_many(array[
+          '06510000-0000-0000-0000-0000000001f9','06510000-0000-0000-0000-0000000001fa']::uuid[])), 0::bigint,
+  'held_many: an Engineer gets no held row even for their own purchases (invoice money is for the money roles)');
 
 set local request.jwt.claims = '{"sub":"06510000-0000-0000-0000-0000000000e1","role":"authenticated"}';
 select pg_temp.same('06510000-0000-0000-0000-0000000000e1','06510000-0000-0000-0000-0000000000d3');
 select results_eq($$ select currency, amount, is_project_currency from project_committed_spend('06510000-0000-0000-0000-0000000000d3') $$,
   $$ values ('IDR'::text, 3650::numeric, true) $$,
   'ERP basis: pinned figures (ledger-held subtracted, floored at 0)');
+select results_eq(
+  $$ select procurement_id, held from public.procurement_ledger_held_many(array[
+       '06510000-0000-0000-0000-0000000002f1','06510000-0000-0000-0000-0000000002f2',
+       '06510000-0000-0000-0000-0000000002f3','06510000-0000-0000-0000-0000000002f4',
+       '06510000-0000-0000-0000-0000000002f5','06510000-0000-0000-0000-0000000002f6']::uuid[]) order by 1 $$,
+  $$ select t.id, public.procurement_ledger_held(t.id) from unnest(array[
+       '06510000-0000-0000-0000-0000000002f1','06510000-0000-0000-0000-0000000002f2',
+       '06510000-0000-0000-0000-0000000002f3','06510000-0000-0000-0000-0000000002f4',
+       '06510000-0000-0000-0000-0000000002f5','06510000-0000-0000-0000-0000000002f6']::uuid[]) t(id) order by 1 $$,
+  'held_many: a Finance member''s set answer is exactly 0372''s per-id answer, purchase by purchase');
 
 set local request.jwt.claims = '{"sub":"06510000-0000-0000-0000-0000000000e2","role":"authenticated"}';
 select pg_temp.same('06510000-0000-0000-0000-0000000000e2','06510000-0000-0000-0000-0000000000d3');
@@ -146,6 +184,16 @@ select pg_temp.same('06510000-0000-0000-0000-0000000000b1','06510000-0000-0000-0
 select is((select count(*) from project_committed_spend('06510000-0000-0000-0000-0000000000d1')), 0::bigint,
   'another org reads no positions');
 select pg_temp.same('06510000-0000-0000-0000-0000000000b1','06510000-0000-0000-0000-0000000000d3');
+select is((select count(*) from public.procurement_ledger_held_many(array[
+          '06510000-0000-0000-0000-0000000001f1','06510000-0000-0000-0000-0000000001f2',
+          '06510000-0000-0000-0000-0000000001f6','06510000-0000-0000-0000-0000000002f2',
+          '06510000-0000-0000-0000-0000000002f3']::uuid[])), 0::bigint,
+  'held_many: another org''s Finance member gets no held row (the role passes, the org guard refuses)');
+select is((select coalesce(sum(held), 0) from public.procurement_ledger_held_many(array[
+          '06510000-0000-0000-0000-0000000001f2','06510000-0000-0000-0000-0000000002f3']::uuid[])),
+          (select coalesce(sum(public.procurement_ledger_held(t.id)), 0)
+             from unnest(array['06510000-0000-0000-0000-0000000001f2','06510000-0000-0000-0000-0000000002f3']::uuid[]) t(id)),
+  'held_many: another org gets exactly 0372''s per-id answer (nothing) for another org''s purchases');
 
 reset role;
 select ok(not has_function_privilege('anon','public.project_committed_spend(uuid)','execute')
