@@ -204,9 +204,8 @@ function parseContractLine(line: Record<string, unknown>): ContractLineFacts {
   };
 }
 
-export async function getProjectBilling(projectId: string): Promise<ProjectBillingFacts | null> {
-  const { data, error } = await supabase.rpc('get_project_billing', { p_project_id: projectId });
-  if (error) fail(error);
+/** Validates a `get_project_billing` payload; shared by the per-endpoint read and the Overview read-model. */
+export function parseProjectBilling(data: unknown): ProjectBillingFacts | null {
   if (data === null || data === undefined) return null;
   const raw = data as Record<string, unknown>;
   const num = (key: string): number => finite(raw[key], key);
@@ -236,4 +235,10 @@ export async function getProjectBilling(projectId: string): Promise<ProjectBilli
     earnedValue: num('earned_value'),
     contractLines: boq.map(parseContractLine),
   };
+}
+
+export async function getProjectBilling(projectId: string): Promise<ProjectBillingFacts | null> {
+  const { data, error } = await supabase.rpc('get_project_billing', { p_project_id: projectId });
+  if (error) fail(error);
+  return parseProjectBilling(data);
 }

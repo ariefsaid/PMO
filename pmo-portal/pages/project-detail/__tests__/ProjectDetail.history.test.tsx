@@ -12,6 +12,7 @@ const project = {
   client_id: null, project_manager_id: null, client: null, pm: null, code: 'P-1',
 } as never;
 
+vi.mock('@/src/hooks/useProjectOverviewRead', () => ({ useProjectOverviewRead: () => ({ isLoading: false }) }));
 vi.mock('@/src/hooks/useProjects', () => ({
   useProject: (id: string) => ({ data: id === 'p1' ? project : null, isPending: false, isError: false, refetch: vi.fn() }),
   useProjectMutations: () => ({

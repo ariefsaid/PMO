@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Card, CardHead, CardPad, Drawer, ListState, StatusPill, Tooltip, ViewToggle } from '@/src/components/ui';
@@ -99,8 +100,12 @@ export const MyOpenTasks: React.FC<{ projectId: string }> = ({ projectId }) => {
 export const ActivityFooter: React.FC<{ projectId: string; initialOpen?: boolean }> = ({ projectId, initialOpen = false }) => {
   const { t } = useTranslation('project');
   const [open, setOpen] = useState(initialOpen);
-  const comments = useComments('project', projectId);
-  const list = comments.data ?? [];
+  const qc = useQueryClient();
+  const orgId = useAuth().currentUser?.org_id;
+  // The Overview read (AC-PERF-007) seeds the count; the list itself loads when the drawer opens, or here when no count was seeded.
+  const [seededCount] = useState(() => qc.getQueryData<number>(['project-comment-count', orgId, projectId]));
+  const comments = useComments('project', projectId, { enabled: open || seededCount === undefined });
+  const count = comments.data?.length ?? seededCount ?? 0;
   const label = t('projectDetail.activity.title', 'Activity');
   return (
     <>
@@ -108,7 +113,7 @@ export const ActivityFooter: React.FC<{ projectId: string; initialOpen?: boolean
         <Tooltip content={t('projectDetail.activity.countTooltip', 'Count of project comments. Open Activity to read comments and recorded changes.')}>
           <button type="button" onClick={() => setOpen(true)} aria-haspopup="dialog"
             className="touch-target inline-flex items-center rounded-sm text-xs text-muted-foreground hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-            {label} · {t('projectDetail.activity.count', '{{count}} comments', { count: list.length })}
+            {label} · {t('projectDetail.activity.count', '{{count}} comments', { count })}
           </button>
         </Tooltip>
       </div>
