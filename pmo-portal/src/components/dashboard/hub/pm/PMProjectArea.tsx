@@ -1,7 +1,6 @@
 import React, { useMemo } from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { useProject } from '@/src/hooks/useProjects';
 import { useProjectStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 import { DeliveryPctChip } from '@/components/DeliveryPctChip';
 import { pillVariantForProjectStatus } from '@/components/projects';
@@ -19,6 +18,7 @@ import { projectAtRisk, projectMoneyFigure, projectRiskBasisKnown, projectSpendO
 
 interface PMProjectAreaProps {
   project: PMDashboardProject;
+  projectNumber: string | null;
   deliveryPct?: number;
   overdueTaskCount: number;
   procurements: ProcurementWithRefs[];
@@ -64,6 +64,7 @@ const statusVariant = (status: string) => {
 
 export const PMProjectArea: React.FC<PMProjectAreaProps> = ({
   project,
+  projectNumber,
   deliveryPct,
   overdueTaskCount,
   procurements,
@@ -71,9 +72,7 @@ export const PMProjectArea: React.FC<PMProjectAreaProps> = ({
 }) => {
   const { t } = useTranslation('dashboard');
   const statusLabel = useProjectStatusLabel();
-  const projectQuery = useProject(project.id);
   const displayName = projectDisplayName(project);
-  const projectNumber = projectQuery.data?.pmo_project_number;
   const projectCurrency = project.currency;
   const currencyCodeNeeded = projectCurrency !== orgCurrency;
   const contract = moneyFigure(

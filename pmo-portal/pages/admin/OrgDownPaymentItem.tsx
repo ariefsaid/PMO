@@ -5,6 +5,7 @@ import { usePermission } from '@/src/auth/usePermission';
 import { useErpnextBinding } from '@/src/hooks/useErpnextBinding';
 import { useErpItemOptions } from '@/src/hooks/useErpItemOptions';
 import { repositories } from '@/src/lib/repositories';
+import { SESSION_QUERY_OPTIONS } from '@/src/lib/queryPolicies';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { Button, Combobox, FieldError, ListState, useToast } from '@/src/components/ui';
 import type { ComboboxOption } from '@/src/components/ui';
@@ -30,7 +31,7 @@ export default function OrgDownPaymentItem() {
   const savedBaseline = useRef<string | null | undefined>(undefined);
   const orgId = currentUser?.org_id;
   const queryKey = [ITEM_QUERY_KEY, orgId];
-  const query = useQuery({ queryKey, queryFn: () => repositories.orgSettings.getDownPaymentItem(), enabled: !!currentUser });
+  const query = useQuery({ queryKey, queryFn: () => repositories.orgSettings.getDownPaymentItem(), enabled: !!currentUser, ...SESSION_QUERY_OPTIONS });
   const hasActiveBinding = binding.data?.status === 'active' && !binding.isError;
   const canBrowse = Boolean(canManage && orgId && hasActiveBinding);
 

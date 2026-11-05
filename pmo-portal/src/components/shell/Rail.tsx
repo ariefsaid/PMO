@@ -8,7 +8,7 @@ import { cn } from '@/src/components/ui/cn';
 import { Icon, type IconName } from '@/src/components/ui/icons';
 import { Badge } from '@/src/components/ui/StatusPill';
 import { usePermission } from '@/src/auth/usePermission';
-import { useFinancePosition } from '@/src/hooks/useFinancePosition';
+import { useOverdueInvoiceCount } from '@/src/hooks/useOverdueInvoiceCount';
 import { useTimesheetsAwaitingApproval, useReopenableApprovedTimesheets } from '@/src/hooks/useTimesheetApproval';
 import { AuthContext } from '@/src/auth/AuthContext';
 import { useFeature } from '@/src/auth/useFeature';
@@ -125,9 +125,8 @@ const FinanceOverdueCount: React.FC = () => {
 
 const FinanceOverdueCountValue: React.FC = () => {
   const { t } = useTranslation();
-  const { position, isPending, isError } = useFinancePosition();
-  if (isPending || isError) return null;
-  const count = position.overdue.length;
+  const { data: count, isPending, isError } = useOverdueInvoiceCount();
+  if (isPending || isError || count === undefined) return null;
   return <Badge aria-label={t('financeHub:hub.overdueCount', '{{count}} overdue invoices', { count })}>{count}</Badge>;
 };
 

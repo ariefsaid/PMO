@@ -10,11 +10,12 @@ vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Project Manager' }),
 }));
 
-const { milestoneDatesForProjects, repoCreate, repoUpdateHeader, repoList, listClientCompanies, listProjectManagers } = vi.hoisted(() => ({
+const { milestoneDatesForProjects, repoCreate, repoUpdateHeader, repoList, repoListNumbers, listClientCompanies, listProjectManagers } = vi.hoisted(() => ({
   listClientCompanies: vi.fn().mockResolvedValue([{ id: 'c1', name: 'Acme', type: 'Client' }]),
   listProjectManagers: vi.fn().mockResolvedValue([{ id: 'u1', full_name: 'Alice Manager', role: 'Project Manager' }]),
   milestoneDatesForProjects: vi.fn().mockResolvedValue([]),
   repoList: vi.fn().mockResolvedValue([{ id: 'p1', name: 'X', client: null, pm: null }]),
+  repoListNumbers: vi.fn().mockResolvedValue([{ id: 'p1', pmo_project_number: 'PMO-1' }]),
   repoCreate: vi.fn().mockResolvedValue({ id: 'new' }),
   repoUpdateHeader: vi.fn().mockResolvedValue(undefined),
 }));
@@ -25,6 +26,7 @@ vi.mock('@/src/lib/repositories', () => ({
     profile: { listProjectManagers },
     project: {
       list: repoList,
+      listNumbers: repoListNumbers,
       create: repoCreate,
       updateHeader: repoUpdateHeader,
       archive: vi.fn(),
@@ -38,6 +40,7 @@ import {
   useProjects,
   useClientCompanies,
   useProjectManagers,
+  useProjectNumbers,
   useProjectsMilestoneDates,
   useProjectMutations,
 } from './useProjects';
@@ -57,6 +60,16 @@ describe('useProjects', () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data?.[0].name).toBe('X');
     expect(repoList).toHaveBeenCalled();
+  });
+});
+
+describe('useProjectNumbers', () => {
+  it('makes one narrow batched lookup for the stable unique card ids', async () => {
+    const { result } = renderHook(() => useProjectNumbers(['p2', 'p1', 'p2']), { wrapper: makeWrapper() });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(repoListNumbers).toHaveBeenCalledTimes(1);
+    expect(repoListNumbers).toHaveBeenCalledWith(['p1', 'p2']);
+    expect(result.current.data).toEqual({ p1: 'PMO-1' });
   });
 });
 

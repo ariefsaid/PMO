@@ -27,6 +27,7 @@ vi.mock('@/src/lib/db/projects', () => ({
   archiveProject: vi.fn(),
   deleteProject: vi.fn(),
   setProjectContractValue: vi.fn(),
+  listProjectNumbers: vi.fn(),
 }));
 vi.mock('@/src/lib/db/opportunity', () => ({ getOpportunity: vi.fn(), getOpportunitiesByIds: vi.fn() }));
 vi.mock('@/src/lib/db/projectTransitions', () => ({ transitionProject: vi.fn(), getProjectWinEligibility: vi.fn(), listPipelineStageConfig: vi.fn() }));
@@ -275,8 +276,10 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
   it('each repository exposes its expected methods', () => {
     expect(Object.keys(repositories.project).sort()).toEqual(
       // 'getWithRefs'/'listByClient'/'listPipelineStageConfig' added with 2d97e91d5 (project &
-      // task projection refresh). Exhaustive API-seam contract — extend only deliberately.
-      ['archive', 'create', 'delete', 'get', 'getMany', 'getVatEditability', 'getWithRefs', 'list', 'listByClient', 'listIdentity', 'listPipelineStageConfig', 'proposeNumber', 'setContractValue', 'transition', 'updateGetProbability', 'updateGoProbability', 'updateHeader', 'winEligibility'].sort(),
+      // task projection refresh). 'listNumbers' added deliberately with the PM dashboard batched
+      // project-number read (#1890): one narrow request for the visible cards instead of one
+      // full project read per card. Exhaustive API-seam contract — extend only deliberately.
+      ['archive', 'create', 'delete', 'get', 'getMany', 'getVatEditability', 'getWithRefs', 'list', 'listByClient', 'listIdentity', 'listNumbers', 'listPipelineStageConfig', 'proposeNumber', 'setContractValue', 'transition', 'updateGetProbability', 'updateGoProbability', 'updateHeader', 'winEligibility'].sort(),
     );
     expect(Object.keys(repositories.company).sort()).toEqual(
       ['archive', 'create', 'delete', 'get', 'getMany', 'list', 'listClients', 'setProjectNumberSegment', 'setTaxDefaults', 'update'].sort(),
@@ -420,6 +423,13 @@ describe('delegation — methods pass args through and return the DAL result', (
     expect(projectsDal.getProject).toHaveBeenCalledWith('project-1');
     expect(projectTransitionsDal.listPipelineStageConfig).toHaveBeenCalledOnce();
     expect(tasksDal.listMyTasks).toHaveBeenCalledWith('user-1');
+  });
+
+  it('#1890: project.listNumbers delegates the dashboard card ids and returns their numbers', async () => {
+    const rows = [{ id: 'p1', pmo_project_number: 'PRJ-26-0001' }];
+    vi.mocked(projectsDal.listProjectNumbers).mockResolvedValue(rows);
+    await expect(repositories.project.listNumbers(['p1', 'p2'])).resolves.toBe(rows);
+    expect(projectsDal.listProjectNumbers).toHaveBeenCalledWith(['p1', 'p2']);
   });
 
   it('project.winEligibility reads the decision for the selected project', async () => {

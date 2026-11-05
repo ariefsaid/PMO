@@ -12,6 +12,7 @@ import {
   setProjectContractValue,
   getProjectVatEditability,
   listProjectIdentity,
+  listProjectNumbers,
   proposeProjectNumber,
 } from '@/src/lib/db/projects';
 import { getOpportunity, getOpportunitiesByIds } from '@/src/lib/db/opportunity';
@@ -25,6 +26,7 @@ export const projectRepository: ProjectRepository = {
   getWithRefs: (id) => wrap(() => getProject(id)),
   listPipelineStageConfig: () => wrap(() => listPipelineStageConfig()),
   listIdentity: () => wrap(() => listProjectIdentity()),
+  listNumbers: (ids) => wrap(() => listProjectNumbers(ids)),
   get: (id) => wrap(() => getOpportunity(id)),
   getMany: (ids) => wrap(() => getOpportunitiesByIds(ids)),
   transition: (id, to, opts) => wrap(() => transitionProject(id, to, opts)),

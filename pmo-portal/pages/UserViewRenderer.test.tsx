@@ -8,7 +8,9 @@
  * AC-VR-021 (ready state renders correctly after two-tick delay).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
+// Panels run through usePanelQueries (react-query), so every render needs a client.
+import { renderWithQueryClient as render } from '@/test/renderWithQueryClient';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import React from 'react';
 

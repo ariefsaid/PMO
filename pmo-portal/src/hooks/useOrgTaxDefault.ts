@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
 import { useAuth } from '@/src/auth/useAuth';
 import type { TaxTreatment } from '@/src/lib/db/procurementLifecycle';
+import { SESSION_QUERY_OPTIONS } from '@/src/lib/queryPolicies';
 
 /**
  * The org's tax-treatment PRE-SELECTION (`OD-TAX-1`, migration 0207) — `'exclusive'` on a seeded
@@ -33,7 +34,7 @@ export function useOrgTaxDefaultQuery() {
     queryKey: [ORG_TAX_DEFAULT_KEY, currentUser?.org_id],
     queryFn: () => repositories.orgSettings.getTaxDefault(),
     enabled: Boolean(currentUser),
-    staleTime: Infinity,
+    ...SESSION_QUERY_OPTIONS,
   });
 }
 

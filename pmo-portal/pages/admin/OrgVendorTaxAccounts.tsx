@@ -13,6 +13,7 @@ import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { Button, Combobox, FieldError, ListState, useToast } from '@/src/components/ui';
 import type { ComboboxOption } from '@/src/components/ui';
 import type { OrgVendorTaxAccounts as Accounts } from '@/src/lib/db/orgs';
+import { SESSION_QUERY_OPTIONS } from '@/src/lib/queryPolicies';
 
 const QUERY_KEY = 'org-vendor-tax-accounts';
 const NO_ACCOUNTS: BudgetPostingAccount[] = [];
@@ -56,7 +57,7 @@ export default function OrgVendorTaxAccounts() {
   const draft = useCallback((): Accounts => ({ inputVatAccount: inputVat || null, pph23PayableAccount: pph23 || null, pph42PayableAccount: pph42 || null }), [inputVat, pph23, pph42]);
   const orgId = currentUser?.org_id;
   const queryKey = [QUERY_KEY, orgId];
-  const query = useQuery({ queryKey, queryFn: () => repositories.orgSettings.getVendorTaxAccounts(), enabled: !!currentUser });
+  const query = useQuery({ queryKey, queryFn: () => repositories.orgSettings.getVendorTaxAccounts(), enabled: !!currentUser, ...SESSION_QUERY_OPTIONS });
   const hasActiveBinding = binding.data?.status === 'active' && !binding.isError;
   const catalogue = useQuery({
     queryKey: ['uxs11', 'account-catalogue', orgId],

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 import type { Role } from '@/src/auth/AuthContext';
@@ -77,7 +77,7 @@ beforeEach(() => {
   analytics.trackEmptyStateSeen.mockClear();
   analytics.trackSearchUsed.mockClear();
   realRole = 'Admin';
-  vi.useFakeTimers();
+  vi.useFakeTimers({ shouldAdvanceTime: true });
 });
 
 afterEach(() => {
@@ -93,11 +93,14 @@ describe('Companies: filter_applied fires when the type filter changes', () => {
 });
 
 describe('Companies: empty_state_seen fires when the directory has no companies', () => {
-  it('AC: renders the empty ListState and fires empty_state_seen with state_id/role/module', () => {
+  it('AC: renders the empty ListState and fires empty_state_seen with state_id/role/module', async () => {
     listState.data = [];
     renderPage('Admin');
     expect(screen.getByText('No companies yet')).toBeInTheDocument();
-    expect(analytics.trackEmptyStateSeen).toHaveBeenCalledWith('companies-empty', 'Admin', 'companies');
+    // The facade is loaded lazily (ListState defers the analytics chunk off the first paint).
+    await waitFor(() => {
+      expect(analytics.trackEmptyStateSeen).toHaveBeenCalledWith('companies-empty', 'Admin', 'companies');
+    });
   });
 });
 
