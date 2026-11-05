@@ -1,5 +1,6 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError, assertWriteLanded } from '@/src/lib/appError';
+import { fetchAllRowsByKeyset } from '@/src/lib/pagedRead';
 import type { Database, Tables } from '@/src/lib/supabase/database.types';
 import type { ApprovalRoute } from '@/src/lib/procurement/approvalRoute';
 
@@ -114,15 +115,42 @@ export async function getExpenseClaim(id: string): Promise<ExpenseClaimWithRefs 
   return (data ?? null) as unknown as ExpenseClaimWithRefs | null;
 }
 
+/** Byte-wise string compare — `localeCompare` would order ids and dates by locale, not by the value. */
+function compareText(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
+/**
+ * The claim line order the detail view reads in: EXPENSE DATE ascending (an ISO `date`, so the string
+ * compares as the date), then the actual instant of `created_at` ascending (PostgREST timestamps carry an
+ * offset, so a textual compare is not a chronological one), then `id` ascending so equal rows are stable.
+ */
+function compareClaimLines(a: ExpenseClaimLineRow, b: ExpenseClaimLineRow): number {
+  const byDate = compareText(a.expense_date, b.expense_date);
+  if (byDate !== 0) return byDate;
+  const aAt = Date.parse(a.created_at);
+  const bAt = Date.parse(b.created_at);
+  if (aAt !== bAt) return aAt < bAt ? -1 : 1;
+  return compareText(a.id, b.id);
+}
+
+/**
+ * EVERY line of one claim. A one-shot read is capped by PostgREST (`db-max-rows`) with no error, so a claim
+ * with more lines than one response would show a silently short money detail; the scan is keyed on the
+ * unique `id` (see `pagedRead`), then the visible order is restored in memory.
+ */
 export async function listExpenseClaimLines(claimId: string): Promise<ExpenseClaimLineRow[]> {
-  const { data, error } = await supabase
-    .from('expense_claim_lines')
-    .select('*')
-    .eq('claim_id', claimId)
-    .order('expense_date', { ascending: true })
-    .order('created_at', { ascending: true });
-  if (error) throwWrite(error);
-  return data ?? [];
+  const rows = await fetchAllRowsByKeyset<ExpenseClaimLineRow>(async (afterId, limit) => {
+    let query = supabase
+      .from('expense_claim_lines')
+      .select('*')
+      .eq('claim_id', claimId)
+      .order('id', { ascending: true });
+    if (afterId !== null) query = query.gt('id', afterId);
+    const { data, error } = await query.limit(limit);
+    return { data, error };
+  });
+  return rows.sort(compareClaimLines);
 }
 
 export async function createExpenseClaim(input: ExpenseClaimInput): Promise<ExpenseClaimWithRefs> {

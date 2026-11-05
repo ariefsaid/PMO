@@ -1,6 +1,7 @@
 import { toStorageAppError } from '@/src/lib/storageError';
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError, assertWriteLanded } from '@/src/lib/appError';
+import { fetchAllRowsByKeyset } from '@/src/lib/pagedRead';
 import { sanitizeFilename } from '@/src/lib/storageKey';
 import { SIGNED_URL_EXPIRY_SECONDS } from '@/src/lib/fileConstants';
 import type { Tables } from '@/src/lib/supabase/database.types';
@@ -33,15 +34,40 @@ export function buildExpenseReceiptPath(orgId: string, claimId: string, fileId: 
   return `${orgId}/${claimId}/${fileId}/${sanitizeFilename(fileName)}`;
 }
 
+/** Byte-wise string compare — `localeCompare` would order ids by locale, not by the value. */
+function compareText(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
+/**
+ * Newest first by the ACTUAL instant of `created_at` (PostgREST timestamps carry an offset, so a textual
+ * compare is not chronological), with `id` ascending as the deterministic tie-break.
+ */
+function compareReceiptsNewestFirst(a: ExpenseReceiptRow, b: ExpenseReceiptRow): number {
+  const aAt = Date.parse(a.created_at);
+  const bAt = Date.parse(b.created_at);
+  if (aAt !== bAt) return aAt < bAt ? 1 : -1;
+  return compareText(a.id, b.id);
+}
+
+/**
+ * EVERY live (unarchived) receipt of one claim. A one-shot read is capped by PostgREST (`db-max-rows`) with
+ * no error, so a claim with more files than one response would silently hide receipts; the scan is keyed on
+ * the unique `id` (see `pagedRead`), then the newest-first order is restored in memory.
+ */
 export async function listExpenseReceipts(claimId: string): Promise<ExpenseReceiptRow[]> {
-  const { data, error } = await supabase
-    .from('expense_claim_files')
-    .select('*')
-    .eq('claim_id', claimId)
-    .is('archived_at', null)
-    .order('created_at', { ascending: false });
-  if (error) throwWrite(error);
-  return data ?? [];
+  const rows = await fetchAllRowsByKeyset<ExpenseReceiptRow>(async (afterId, limit) => {
+    let query = supabase
+      .from('expense_claim_files')
+      .select('*')
+      .eq('claim_id', claimId)
+      .is('archived_at', null)
+      .order('id', { ascending: true });
+    if (afterId !== null) query = query.gt('id', afterId);
+    const { data, error } = await query.limit(limit);
+    return { data, error };
+  });
+  return rows.sort(compareReceiptsNewestFirst);
 }
 
 export async function prepareReceiptUploadWithId(
