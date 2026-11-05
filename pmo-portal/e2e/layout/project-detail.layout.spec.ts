@@ -683,7 +683,7 @@ test('@layout AC-PFIN-015 support: the project finance section fits a 390px phon
   await page.route('**/rest/v1/rpc/get_project_overview_read', async (route) => {
     const res = await route.fetch();
     const rows = await res.json();
-    await route.fulfill({ response: res, json: rows.map((r: object) => ({ ...r, finances: PFIN_FINANCES })) });
+    await route.fulfill({ response: res, json: Array.isArray(rows) ? rows.map((r: object) => ({ ...r, finances: PFIN_FINANCES })) : { ...rows, finances: PFIN_FINANCES } });
   });
   // One unassigned, ERP-adopted invoice so the sales-invoices search renders an assignable row.
   await page.route('**/rest/v1/sales_invoices?**', async (route) => {

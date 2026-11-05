@@ -75,8 +75,10 @@ begin
        from public.get_project_milestones(p_project_id) m),
     (select count(*)::integer from public.comments c
       where c.entity_type = 'project' and c.entity_id = p_project_id and c.archived_at is null),
-    (select o.default_currency from public.organizations o),
-    (select o.default_timezone from public.organizations o);
+    o.default_currency,
+    o.default_timezone
+  from (select 1) one
+  left join public.organizations o on o.id = public.auth_org_id();
 end
 $fn$;
 

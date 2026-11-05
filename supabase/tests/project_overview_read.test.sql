@@ -1,7 +1,7 @@
 -- project_overview_read.test.sql — AC-PERF-005/006: get_project_overview_read returns exactly what the individual
 -- reads return, for every role, refuses the way they refuse, and shows another org nothing.
 begin;
-select plan(22);
+select plan(27);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('06520000-0000-0000-0000-0000000000a0','POR A','IDR','Asia/Jakarta'), ('06520000-0000-0000-0000-0000000000b0','POR B','USD','UTC');
@@ -32,6 +32,17 @@ update budget_versions set status = 'Active' where id = '06520000-0000-0000-0000
 insert into procurements (id, org_id, title, requested_by_id, project_id, currency, total_value, status) values
   ('06520000-0000-0000-0000-000000000101','06520000-0000-0000-0000-0000000000a0','ordered','06520000-0000-0000-0000-0000000000a3','06520000-0000-0000-0000-0000000000d1','IDR',1000,'Ordered'),
   ('06520000-0000-0000-0000-000000000102','06520000-0000-0000-0000-0000000000a0','usd','06520000-0000-0000-0000-0000000000a3','06520000-0000-0000-0000-0000000000d1','USD',50,'Ordered');
+insert into comments (org_id, entity_type, entity_id, author_id, body, archived_at) values
+  ('06520000-0000-0000-0000-0000000000a0','project','06520000-0000-0000-0000-0000000000d1','06520000-0000-0000-0000-0000000000a4','one',null),
+  ('06520000-0000-0000-0000-0000000000a0','project','06520000-0000-0000-0000-0000000000d1','06520000-0000-0000-0000-0000000000a4','two',null),
+  ('06520000-0000-0000-0000-0000000000a0','project','06520000-0000-0000-0000-0000000000d1','06520000-0000-0000-0000-0000000000a4','gone',now());
+-- A project whose budget is too big to aggregate: budget_version_read returns its overflow marker.
+insert into projects (id, org_id, name, status, currency, contract_value, tax_treatment, tax_amount) values
+  ('06520000-0000-0000-0000-0000000000d2','06520000-0000-0000-0000-0000000000a0','POR big budget','Ongoing Project','IDR',1,'exclusive',0);
+insert into budget_versions (id, org_id, project_id, version, name, status) values
+  ('06520000-0000-0000-0000-0000000000f2','06520000-0000-0000-0000-0000000000a0','06520000-0000-0000-0000-0000000000d2',1,'big','Draft');
+insert into budget_line_items (org_id, budget_version_id, category, budgeted_amount)
+  select '06520000-0000-0000-0000-0000000000a0','06520000-0000-0000-0000-0000000000f2','Labor',1 from generate_series(1,4001);
 insert into external_domain_ownership (org_id, external_tier, domain) values
   ('06520000-0000-0000-0000-0000000000a0','clickup','tasks'), ('06520000-0000-0000-0000-0000000000a0','erpnext','procurement');
 
@@ -57,6 +68,7 @@ begin
   if r.committed_spend is distinct from (case when c then (select coalesce(jsonb_agg(to_jsonb(x) order by x.is_project_currency desc, x.currency), '[]') from public.project_committed_spend(p) x) end) then mism := mism || ' committed'; end if;
   if r.external_domain_ownership is distinct from (case when c then (select coalesce(jsonb_agg(jsonb_build_object('id', e.id, 'org_id', e.org_id, 'external_tier', e.external_tier, 'domain', e.domain) order by e.external_tier, e.id), '[]') from public.external_domain_ownership e) end) then mism := mism || ' ownership'; end if;
   if r.reads_erp_ledger is distinct from (case when c then public.org_reads_erp_ledger() end) then mism := mism || ' ledger'; end if;
+  if r.comment_count is distinct from (select count(*)::int from public.comments x where x.entity_type = 'project' and x.entity_id = p and x.archived_at is null) then mism := mism || ' comments'; end if;
   if r.milestones is distinct from (select coalesce(jsonb_agg(to_jsonb(x) order by x.sort_order, x.id), '[]') from public.get_project_milestones(p) x) then mism := mism || ' milestones'; end if;
   return mism;
 end $$;
@@ -103,6 +115,11 @@ select is((select org_default_currency || ':' || org_default_timezone from get_p
 select is((select jsonb_array_length(external_domain_ownership) from get_project_overview_read('06520000-0000-0000-0000-0000000000d1', true, true, true)), 2,
           'AC-PERF-005 domain ownership rows arrive');
 
+select is((select comment_count from get_project_overview_read('06520000-0000-0000-0000-0000000000d1', false, false, false)), 2,
+          'AC-PERF-005 comment count excludes archived comments');
+select ok((select budget_versions is null from get_project_overview_read('06520000-0000-0000-0000-0000000000d2', false, false, true)),
+          'AC-PERF-005 an overflowing budget returns null so the client reads it itself');
+
 -- Flags off: the gated sections are null and unread.
 select is((select (finances is null and billing is null and boq_items is null and budget_versions is null and committed_spend is null
                    and external_domain_ownership is null and reads_erp_ledger is null)
@@ -112,9 +129,15 @@ select is((select (finances is null and billing is null and boq_items is null an
 -- AC-PERF-006: another org's caller gets nothing of this project.
 set local request.jwt.claims = '{"sub":"06520000-0000-0000-0000-0000000000b1","role":"authenticated"}';
 select is(pg_temp.parity('06520000-0000-0000-0000-0000000000d1', true, true, true), '', 'AC-PERF-006 another org: parity (same refusal or same empty answer)');
-select is((select coalesce((select jsonb_array_length(boq_items) + jsonb_array_length(milestones) + comment_count
-                            from get_project_overview_read('06520000-0000-0000-0000-0000000000d1', false, false, false)), 0)), 0,
-          'AC-PERF-006 another org sees no BoQ, milestones or comments of the project');
+select ok((select r.milestones = '[]'::jsonb and r.comment_count = 0 and r.finances is null and r.billing is null and r.boq_items is null
+                  and r.budget_versions is null and r.committed_spend is null and r.reads_erp_ledger is null
+             from get_project_overview_read('06520000-0000-0000-0000-0000000000d1', false, false, false) r),
+          'AC-PERF-006 another org, flags off: no milestones or comments of the project');
+select is(pg_temp.parity('06520000-0000-0000-0000-0000000000d1', false, false, false), '', 'AC-PERF-006 another org, flags off: parity incl. comment count');
+select is(pg_temp.parity('06520000-0000-0000-0000-0000000000d1', false, true, true), '', 'AC-PERF-006 another org, commitments and budget: parity');
+select ok((select r.budget_versions = '[]'::jsonb and r.committed_spend = '[]'::jsonb and r.milestones = '[]'::jsonb and r.comment_count = 0
+             from get_project_overview_read('06520000-0000-0000-0000-0000000000d1', false, true, true) r),
+          'AC-PERF-006 another org, commitments and budget: every section empty');
 select throws_ok($q$select * from get_project_overview_read('06520000-0000-0000-0000-0000000000d1', true, true, true)$q$,
                  'P0002', 'project not found', 'AC-PERF-006 another org asking for the money sections is refused like get_project_finances');
 
