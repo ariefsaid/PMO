@@ -126,6 +126,15 @@ describe('useBudgetPasteRows', () => {
     expect(result.current.validationError).toMatch(/original budget Draft/i);
   });
 
+  it('rejects a non-canonical amount before any write', async () => {
+    const { result } = setup();
+
+    await act(async () => { await result.current.save([{ ...rows[0], amount: '1,234.50' }]); });
+
+    expect(budget.createLineItem).not.toHaveBeenCalled();
+    expect(result.current.validationError).toMatch(/non-canonical amount/i);
+  });
+
   it('locks duplicate submissions synchronously before the hook rerenders', async () => {
     const pending = deferred<ReturnType<typeof confirmedLine>>();
     budget.createLineItem.mockReturnValueOnce(pending.promise);
@@ -287,13 +296,7 @@ describe('useBudgetPasteRows', () => {
     expect(result.current.validationError).toMatch(/new paste session|reconciliation/i);
     expect(firstReceipt).toMatchObject({ results: [{ rowNumber: 2, status: 'uncertain' }] });
 
-    let acknowledgedReceipt: unknown;
-    await act(async () => {
-      acknowledgedReceipt = result.current.acknowledgeAndStartNewSession();
-    });
-    expect(acknowledgedReceipt).toMatchObject({
-      results: [{ rowNumber: 2, targetId: 'draft-1', status: 'uncertain' }],
-    });
+    await act(async () => { result.current.acknowledgeAndStartNewSession(); });
     expect(result.current.results).toEqual([]);
 
     budget.createLineItem.mockResolvedValueOnce(confirmedLine('line-2'));
@@ -305,7 +308,6 @@ describe('useBudgetPasteRows', () => {
       'draft-1', { category: 'Labor', description: 'Same line', budgeted_amount: 12.3 },
     );
     expect(newReceipt).toMatchObject({ results: [{ rowNumber: 2, status: 'created' }] });
-    expect((acknowledgedReceipt as { results: readonly { status: string }[] }).results[0].status).toBe('uncertain');
   });
 
   it('retries only confirmed failures and excludes uncertain and unsubmitted rows', async () => {

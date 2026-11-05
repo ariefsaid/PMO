@@ -378,18 +378,15 @@ export function useBudgetPasteRows(options: BudgetPasteRowsOptions) {
     return runRows(Object.freeze(retryRows), capture, false);
   }
 
-  function acknowledgeAndStartNewSession(): BudgetPasteBatchReceipt | null {
-    if (savingRef.current || !mountedRef.current) return null;
-    const capture = batchCaptureRef.current;
-    if (!capture || resultsRef.current.length === 0) return null;
+  function acknowledgeAndStartNewSession(): void {
+    if (savingRef.current || !mountedRef.current) return;
+    if (!batchCaptureRef.current || resultsRef.current.length === 0) return;
 
-    const previousReceipt = makeReceipt(capture, resultsRef.current, refreshErrorRef.current);
     batchCaptureRef.current = null;
     publishResults([]);
     publishRefreshError(null);
     setProgress({ completed: 0, total: 0 });
     setValidationError(null);
-    return previousReceipt;
   }
 
   return {
