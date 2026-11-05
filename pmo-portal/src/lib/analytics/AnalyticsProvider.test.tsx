@@ -45,6 +45,9 @@ vi.mock('./config', () => ({
 // this suite asserts.
 vi.mock('@/src/hooks/useOrgPlanGroup', () => ({ useOrgPlanGroup: () => {} }));
 
+// Same reason: no QueryClientProvider here; useRouteFirstData has its own suite.
+vi.mock('./useRouteFirstData', () => ({ useRouteFirstData: () => {} }));
+
 // ── Mock useAuth ─────────────────────────────────────────────────────────
 import { AuthContext } from '@/src/auth/AuthContext';
 import type { AuthContextValue } from '@/src/auth/AuthContext';

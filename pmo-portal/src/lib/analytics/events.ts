@@ -12,6 +12,7 @@ import type { DownvoteReason } from '../db/agentEvents';
 export type AnalyticsEventName =
   | 'demo_persona_selected'
   | 'app_route_viewed'
+  | 'route_first_data'
   | 'auth_login_succeeded'
   | 'auth_login_failed'
   | 'auth_logout_succeeded'
