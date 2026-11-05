@@ -85,6 +85,39 @@ describe('parseDemoContext', () => {
     // parseDemoContext may call getItem for reads but must NOT call setItem
     expect(setItem).not.toHaveBeenCalled();
   });
+
+  // A browser that blocks storage access (private mode, embedded webview) throws
+  // SecurityError from the storage READ itself. Demo-context resolution must degrade
+  // to the URL/in-memory defaults instead of propagating the throw.
+  it('falls back to the in-memory defaults when storage reads throw', () => {
+    const blockedStorage = {
+      getItem: () => {
+        throw new DOMException('Access is denied for this document', 'SecurityError');
+      },
+      setItem: () => {
+        throw new DOMException('Access is denied for this document', 'SecurityError');
+      },
+    };
+
+    expect(() => parseDemoContext({
+      search: '',
+      isDev: false,
+      demoMode: true,
+      storage: blockedStorage,
+    })).not.toThrow();
+    expect(parseDemoContext({
+      search: '',
+      isDev: false,
+      demoMode: true,
+      storage: blockedStorage,
+    })).toEqual({ demoAudience: 'prospect', demoAccount: 'default' });
+    expect(parseDemoContext({
+      search: '',
+      isDev: true,
+      demoMode: true,
+      storage: blockedStorage,
+    })).toEqual({ demoAudience: 'internal', demoAccount: 'local' });
+  });
 });
 
 describe('persistDemoContext', () => {
@@ -96,6 +129,26 @@ describe('persistDemoContext', () => {
 
     expect(setItem).toHaveBeenCalledWith('pmo.demoAudience', 'prospect');
     expect(setItem).toHaveBeenCalledWith('pmo.demoAccount', 'comp1');
+  });
+
+  // Persisting is best-effort: a blocked/quota-exceeded storage must not turn the
+  // provider's persistence effect into a crash — the context still applies in memory.
+  it('does not throw when storage writes throw', () => {
+    const blockedStorage = {
+      setItem: () => {
+        throw new DOMException('Access is denied for this document', 'SecurityError');
+      },
+    };
+
+    expect(() =>
+      persistDemoContext({ demoAudience: 'prospect', demoAccount: 'comp1' }, blockedStorage),
+    ).not.toThrow();
+  });
+
+  it('is a no-op without a storage (blocked access returns undefined)', () => {
+    expect(() =>
+      persistDemoContext({ demoAudience: 'prospect', demoAccount: 'comp1' }, undefined),
+    ).not.toThrow();
   });
 });
 
@@ -146,5 +199,27 @@ describe('getAnalyticsConfig', () => {
     getAnalyticsConfig({ ...baseEnv, VITE_DEMO_MODE: 'true' }, '?da=comp1', storage);
 
     expect(setItem).not.toHaveBeenCalled();
+  });
+
+  // Merely touching `window.sessionStorage` throws in browsers that deny storage access.
+  // The no-storage-argument path (what the provider runs) must survive that and fall back
+  // to the in-memory demo defaults.
+  it('falls back to in-memory demo defaults when the sessionStorage global itself is blocked', () => {
+    const original = Object.getOwnPropertyDescriptor(window, 'sessionStorage');
+    Object.defineProperty(window, 'sessionStorage', {
+      configurable: true,
+      get() {
+        throw new DOMException('Access is denied for this document', 'SecurityError');
+      },
+    });
+    try {
+      const cfg = getAnalyticsConfig({ ...baseEnv, VITE_DEMO_MODE: 'true' }, '?da=internal');
+      expect(cfg.enabled).toBe(true);
+      expect(cfg.demoAudience).toBe('internal');
+      expect(cfg.demoAccount).toBe('default');
+    } finally {
+      if (original) Object.defineProperty(window, 'sessionStorage', original);
+      else delete (window as { sessionStorage?: unknown }).sessionStorage;
+    }
   });
 });

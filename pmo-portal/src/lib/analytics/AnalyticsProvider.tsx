@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef } from 'react';
 import { useLocation } from 'react-router';
 import { useAuth } from '@/src/auth/useAuth';
 import { useOrgPlanGroup } from '@/src/hooks/useOrgPlanGroup';
-import { getAnalyticsConfig, persistDemoContext } from './config';
+import { getAnalyticsConfig, persistDemoContext, safeSessionStorage } from './config';
 import { analyticsClient } from './client';
 import { safeTrack } from './safeTrack';
 import { routeAnalyticsForPath } from './route';
@@ -40,7 +40,7 @@ export const AnalyticsProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     analyticsClient.init(config);
     analyticsClient.register(superProperties);
     if (config.demoMode) {
-      persistDemoContext(config, window.sessionStorage);
+      persistDemoContext(config, safeSessionStorage());
     }
   }, [config, superProperties]);
 
