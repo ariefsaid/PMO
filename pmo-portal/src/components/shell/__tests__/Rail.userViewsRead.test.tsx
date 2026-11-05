@@ -11,7 +11,7 @@ vi.mock('@/src/auth/impersonation', () => ({
   useEffectiveRole: () => ({ effectiveRole: 'Executive', realRole: 'Executive', canImpersonate: false, viewAs: vi.fn() }),
 }));
 const { useUserViews, orgFeaturesState } = vi.hoisted(() => ({
-  useUserViews: vi.fn(() => ({ data: [], isPending: false, isError: false })),
+  useUserViews: vi.fn((_enabled?: boolean) => ({ data: [], isPending: false, isError: false })),
   orgFeaturesState: { value: undefined as Record<string, boolean | undefined> | undefined },
 }));
 vi.mock('@/src/hooks/useUserViews', () => ({ useUserViews }));
