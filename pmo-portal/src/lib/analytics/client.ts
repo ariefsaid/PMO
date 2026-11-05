@@ -213,7 +213,7 @@ function isDoNotTrack(): boolean {
 
 /**
  * FR-CON-002/003/AC-CON-011 (ADR-0067 addendum, 2026-07-28): the consent surface on `/privacy` is
- * THREE-STATE, not boolean — `hasAnalyticsOptedOut()` alone answers only "did the user explicitly
+ * THREE-STATE, not boolean — `analyticsClient.hasOptedOut()` alone answers only "did the user explicitly
  * check the box", which is a different question from "is this browser's usage actually being sent".
  * `getConsentState` answers the second question, in the SAME priority order `doInit`'s own guard
  * checks (config.enabled, then DNT, then the stored opt-out) — so the UI can never show a state the

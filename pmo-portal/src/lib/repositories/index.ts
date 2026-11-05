@@ -25,8 +25,10 @@ import { expensePostingsRepository } from './expensePostings';
 import { erpPurchasesRepository } from './erpPurchases';
 import { projectRepository } from './projects';
 import { projectMoneyRepository } from './projectMoney';
+import { projectOverviewRepository } from './projectOverview';
 import { dashboardRepository } from './dashboard';
 import { agentRunRepository } from './agentRuns';
+import { notificationRepository } from './notifications';
 import { companyRepository, contactRepository } from './companies';
 import {
   documentRepository,
@@ -95,8 +97,10 @@ export const repositories: Repositories = {
   project: projectRepository,
   projectStage: projectStageRepository,
   projectMoney: projectMoneyRepository,
+  projectOverview: projectOverviewRepository,
   dashboard: dashboardRepository,
   agentRun: agentRunRepository,
+  notification: notificationRepository,
   company: companyRepository,
   document: documentRepository,
   agentAttachment: agentAttachmentRepository,

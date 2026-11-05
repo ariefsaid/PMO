@@ -4,6 +4,9 @@ import type { Tables } from '@/src/lib/supabase/database.types';
 
 export type UserViewRow = Tables<'user_views'>;
 export type UserViewScope = UserViewRow['scope'];
+/** A list row: everything but `spec` (the opaque, possibly multi-KB composition) and `org_id` — the rail and My Views read neither. */
+export type UserViewListRow = Omit<UserViewRow, 'spec' | 'org_id'>;
+const LIST_COLUMNS = 'id,user_id,name,description,scope,created_at,updated_at,archived_at';
 
 /**
  * The fields a create/edit form supplies for a saved view (Issue I1, ADR-0036 §6).
@@ -38,10 +41,10 @@ function throwWrite(error: PostgrestErrorLike): never {
  * (AC-UV-007, FR-UV-009). org_id/user_id are NEVER sent — RLS (user_views_select: owner OR
  * shared_org-in-org) scopes the rows. Throws an `AppError` (code preserved) on failure.
  */
-export async function listUserViews(): Promise<UserViewRow[]> {
+export async function listUserViews(): Promise<UserViewListRow[]> {
   const { data, error } = await supabase
     .from('user_views')
-    .select('*')
+    .select(LIST_COLUMNS)
     .is('archived_at', null)
     .order('updated_at', { ascending: false });
   if (error) throwWrite(error);

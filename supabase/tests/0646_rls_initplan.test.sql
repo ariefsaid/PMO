@@ -23,17 +23,14 @@
 -- =================================================================================================
 
 begin;
-select plan(41);
+select plan(40);
 
 -- ⚑ SCOPE BOUNDARY: the approved caller-context set is public.auth_org_id(), public.auth_role(),
 -- public.is_active_member() and public.is_operator(). auth.uid()/auth.jwt() are OUT of scope, and the
--- public.profiles is left byte-identical as a RELATION (all six policies): it is the only relation with
--- policies that reference their own table in a subquery, and the isolation matrix (diag attempt
--- 20261104T185507Z) showed that wrapping profiles_select ALONE reproduces 42P17 on the three real
--- profiles UPDATEs, while profiles_hierarchy_update alone, profiles_admin_insert alone and
--- profiles_admin_delete alone are green. Rather than generalise a per-command rule from that, the whole
--- relation stays untouched — the remaining INSERT/DELETE wrappers had no demonstrated material gain. §2's
--- control 5 pins that boundary: auth.uid() is not counted as bare OR wrapped, so a future change that
+-- public.profiles was exempt from 0646 (wrapping profiles_select alone raised 42P17 on profiles UPDATEs, because two
+-- UPDATE policies read profiles in sub-selects). 0655 removed those self-references (auth_manager_id(),
+-- profile_prefs_unchanged()) and wrapped all six policies, so profiles is gated like every other relation.
+-- §2's control 5 pins that boundary: auth.uid() is not counted as bare OR wrapped, so a future change that
 -- starts wrapping it has to update this file deliberately rather than slip through.
 --
 -- ── The detector, defined ONCE and used by both §1 and §2 ────────────────────────────────────────
@@ -87,9 +84,8 @@ language sql immutable as $$
   select greatest(pg_temp.q12_total_calls(expr) - pg_temp.q12_wrapped_calls(expr), 0)
 $$;
 
--- Relations with self-referential policies are exempt as a whole: all six profiles policies
--- remain unchanged. Adding a sublink to this relation's policy set caused recursion in the
--- observed profile update path. §4 pins the relation-wide exemption.
+-- Relations with self-referential policies are exempt as a whole (adding a sub-link to such a relation's policy
+-- set recurses: 42P17). 0655 left none; §4 pins that the exemption list stays empty.
 create temporary view q12_selfref_relations as
 select distinct schemaname, tablename
   from pg_policies
@@ -370,15 +366,8 @@ reset role;
 
 -- ── §4 — GUARD COVERAGE: the self-referential exemption is exactly one relation ──
 select is_empty(
-  $$select schemaname || '.' || tablename from q12_selfref_relations
-     where schemaname || '.' || tablename not in ('public.profiles')$$,
-  'AC-IP-GUARD-013 the only exemption from the gate is the pinned self-referential relation (a new one must be reviewed, not silently exempted)');
-
-select is_empty(
-  $$select v from (values ('public.profiles')) t(v)
-     where not exists (select 1 from q12_selfref_relations r
-                        where r.schemaname || '.' || r.tablename = t.v)$$,
-  'AC-IP-GUARD-014 the pinned exempt relation still exists and still owns a self-referential policy (the exemption cannot rot)');
+  $$select schemaname || '.' || tablename from q12_selfref_relations$$,
+  'AC-IP-GUARD-013 no relation is exempt from the gate (profiles lost its self-references in 0655; a new self-referential relation must be reviewed, not silently exempted)');
 
 select * from finish();
 rollback;

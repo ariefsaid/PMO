@@ -401,9 +401,8 @@ export async function getOrgReadsErpLedger(): Promise<boolean> {
   return data;
 }
 
-export async function getProjectFinances(projectId: string): Promise<ProjectFinances> {
-  const { data, error } = await supabase.rpc('get_project_finances', { p_project_id: projectId });
-  if (error) throwWrite(error);
+/** Validates a `get_project_finances` payload; shared by the per-endpoint read and the Overview read-model. */
+export function parseProjectFinances(data: unknown, projectId: string): ProjectFinances {
   if (!isProjectFinances(data) || data.project_id !== projectId) {
     throw new AppError('Project finance reading unavailable', 'invalid-project-finances');
   }
@@ -414,6 +413,12 @@ export async function getProjectFinances(projectId: string): Promise<ProjectFina
     cash_received: parseProjectReceiptCash(payload.cash_received),
     contract_excess: parseContractExcess(payload.contract_excess, payload.remaining_to_invoice),
   };
+}
+
+export async function getProjectFinances(projectId: string): Promise<ProjectFinances> {
+  const { data, error } = await supabase.rpc('get_project_finances', { p_project_id: projectId });
+  if (error) throwWrite(error);
+  return parseProjectFinances(data, projectId);
 }
 
 export async function setSalesInvoiceReceivedDate(siId: string, receivedDate: string | null): Promise<void> {

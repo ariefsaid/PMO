@@ -18,12 +18,10 @@ import type { AnalyticsConfig } from './config';
 const config: AnalyticsConfig = {
   enabled: true,
   demoMode: false,
-  analyticsEnabled: true,
   replayAndAutocapture: false,
   posthogKey: 'phc_' + 'a'.repeat(24),
   posthogHost: 'https://ph-e2e.invalid',
   appEnv: 'test',
-  isDev: false,
   isProd: false,
   demoAudience: 'internal',
   demoAccount: 'local',

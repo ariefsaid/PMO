@@ -5,7 +5,7 @@ import type { RecordLists } from '@/src/components/shell/routeMatch';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import type { SalesPipeline, PipelineProject } from '@/src/lib/db/dashboard';
-import type { UserViewRow } from '@/src/lib/db/userViews';
+import type { UserViewListRow } from '@/src/lib/db/userViews';
 
 /**
  * Reads a query's CACHED data and status PASSIVELY — no observer is ever attached to the page's
@@ -86,7 +86,7 @@ export function useCachedRecordLists(pathname: string): CachedRecordLists {
   const companies = useCached<{ id: string; name: string }[]>(['companies', orgId, 'all'], has);
   const contacts = useCached<{ id: string; full_name: string }[]>(['contacts', orgId], has);
   const meetings = useCached<{ id: string; title: string }[]>(['meetings', orgId, 'all', ''], has);
-  const userViews = useCached<UserViewRow[]>(['user_views', orgId], has);
+  const userViews = useCached<UserViewListRow[]>(['user_views', orgId], has);
   const equipmentAssets = useCached<{ rows: { id: string; name: string }[] }>(['equipment-assets', orgId], has);
   const imprestFloats = useCached<{ rows: { id: string; project: { name: string } | null }[] }>(['imprest-floats', orgId], has);
 

@@ -134,6 +134,19 @@ describe('useIntegrations', () => {
     expect(invalidate).not.toHaveBeenCalledWith({ queryKey: ['integrations', 'health', 'org-1', 'clickup'] });
   });
 
+  it('connect, disconnect and setCompany also refresh the single-tier binding cache (useErpnextBinding)', async () => {
+    const client = freshClient();
+    const invalidate = vi.spyOn(client, 'invalidateQueries');
+    const { result } = renderHook(() => useIntegrations(), { wrapper: wrap(client) });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    await act(async () => { await result.current.connect.mutateAsync({ tier: 'clickup', credential: { token: 't' } }); });
+    await act(async () => { await result.current.disconnect.mutateAsync('clickup'); });
+    await act(async () => { await result.current.setCompany.mutateAsync('Acme Corp'); });
+
+    expect(invalidate.mock.calls.filter(([f]) => JSON.stringify(f) === JSON.stringify({ queryKey: ['integrations', 'binding', 'org-1'] }))).toHaveLength(3);
+  });
+
   it('getBinding returns binding for a specific tier from cached list', async () => {
     const client = freshClient();
     const { result } = renderHook(() => useIntegrations(), { wrapper: wrap(client) });

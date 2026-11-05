@@ -476,3 +476,38 @@ describe('AC-008 FinancialStatementsSection axe checks', () => {
     expect(await axe(container)).toHaveNoViolations();
   });
 });
+
+describe('AC-CD-006 FinancialStatementsSection Refresh now', () => {
+  beforeEach(() => {
+    setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' });
+  });
+
+  it('AC-CD-006 a complete read offers Refresh now once per click and shows the page-supplied result', async () => {
+    const user = userEvent.setup();
+    const onClick = vi.fn();
+    const { rerender } = renderInLocale(
+      <FinancialStatementsSection {...propsFor('en', completeState, { refreshNow: { label: 'Refresh now', pending: false, onClick } })} />,
+    );
+    expect(onClick).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('button', { name: 'Refresh now' }));
+    expect(onClick).toHaveBeenCalledTimes(1);
+    rerender(
+      <FinancialStatementsSection {...propsFor('en', completeState, { refreshNow: { label: 'Refresh now', pending: false, note: 'A refresh was requested recently.', onClick } })} />,
+    );
+    expect(screen.getByText('A refresh was requested recently.')).toBeInTheDocument();
+  });
+
+  it('AC-CD-006 no Refresh now affordance without the prop, and none while loading', () => {
+    renderInLocale(<FinancialStatementsSection {...propsFor('en', completeState)} />);
+    expect(screen.queryByRole('button', { name: 'Refresh now' })).not.toBeInTheDocument();
+  });
+
+  it('AC-CD-006 both locales carry the Refresh now strings', () => {
+    for (const locale of ['en', 'id'] as const) {
+      const fs = (localeResources[locale].common as { financialStatements: Record<string, string> }).financialStatements;
+      for (const key of ['refreshNow', 'refreshNowQueued', 'refreshNowCoalesced', 'refreshNowUnavailable', 'refreshNowError']) {
+        expect(fs[key], `${locale}.${key}`).toBeTruthy();
+      }
+    }
+  });
+});

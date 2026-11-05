@@ -1,21 +1,21 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
-import type { UserViewRow, UserViewInput } from '@/src/lib/db/userViews';
+import type { UserViewRow, UserViewListRow, UserViewInput } from '@/src/lib/db/userViews';
 import { useAuth } from '@/src/auth/useAuth';
 import { withTimeout } from '@/src/lib/withTimeout';
 
 /**
  * Org-scoped saved-views list over the repository seam (ADR-0017, ADR-0036 §6). queryKey
  * includes org_id so the cache is tenant-scoped (FR-UV-013, no cross-tenant cache bleed);
- * disabled until an org resolves. The DAL hides archived rows and applies owner-private RLS.
+ * disabled until an org resolves (and while `enabled` is false: the shell passes the user_views entitlement so an org without the module never pays the read). The list omits each view's `spec`. The DAL hides archived rows and applies owner-private RLS.
  */
-export function useUserViews() {
+export function useUserViews(enabled = true) {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
-  return useQuery<UserViewRow[]>({
+  return useQuery<UserViewListRow[]>({
     queryKey: ['user_views', orgId],
     queryFn: () => repositories.userView.list(),
-    enabled: Boolean(orgId),
+    enabled: Boolean(orgId) && enabled,
   });
 }
 

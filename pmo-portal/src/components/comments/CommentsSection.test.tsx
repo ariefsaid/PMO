@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { render, screen, waitFor, within, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { CommentsSection } from './CommentsSection';
@@ -18,6 +18,10 @@ vi.mock('@/src/hooks/useTasks', () => ({
     data: [
       { id: 'me', full_name: 'Me Myself', status: 'active' },
       { id: 'p2', full_name: 'Peer Person', status: 'active' },
+      { id: 'ann', full_name: 'Ann', status: 'active' },
+      { id: 'anna', full_name: 'Anna', status: 'active' },
+      { id: 'ann1', full_name: 'Ann Smith', status: 'active' },
+      { id: 'ann2', full_name: 'Ann Smith', status: 'active' },
       ...Array.from({ length: 21 }, (_, i) => ({
         id: `z${i + 1}`,
         full_name: `Zed${String(i + 1).padStart(2, '0')}`,
@@ -76,6 +80,65 @@ describe('CommentsSection', () => {
     await user.click(screen.getByRole('button', { name: 'Post comment' }));
     await waitFor(() =>
       expect(create).toHaveBeenCalledWith(expect.objectContaining({ body: 'hi @Peer Person ', mentions: ['p2'] })),
+    );
+  });
+
+  it('AC-CMT-002 stops mentioning a colleague once their mention text is deleted, even with a longer name still present', async () => {
+    const user = userEvent.setup();
+    renderIt();
+    await screen.findAllByTestId('comment-item');
+    const box = screen.getByRole('textbox') as HTMLTextAreaElement;
+    await user.type(box, 'hi @Ann');
+    await user.click(await screen.findByRole('button', { name: 'Ann' }));
+    await user.type(box, ' and @Anna');
+    await user.click(await screen.findByRole('button', { name: 'Anna' }));
+    // Draft is now "hi @Ann  and @Anna "; remove Ann's mention plus its space. Her name is a
+    // prefix of Anna's, so substring matching would keep her wrongly mentioned via "@Anna".
+    box.focus();
+    box.setSelectionRange(3, 8);
+    await user.keyboard('{Delete}');
+    await user.click(screen.getByRole('button', { name: 'Post comment' }));
+    await waitFor(() =>
+      expect(create).toHaveBeenCalledWith(expect.objectContaining({ mentions: ['anna'] })),
+    );
+  });
+
+  it('AC-CMT-002 distinguishes colleagues with identical names: only the picked one is mentioned', async () => {
+    const user = userEvent.setup();
+    renderIt();
+    await screen.findAllByTestId('comment-item');
+    const box = screen.getByRole('textbox') as HTMLTextAreaElement;
+    await user.type(box, '@Ann');
+    const smiths = await screen.findAllByRole('button', { name: 'Ann Smith' });
+    await user.click(smiths[0]);
+    // Remove the first colleague's mention entirely, then mention the second one.
+    box.focus();
+    box.setSelectionRange(0, 11);
+    await user.keyboard('{Delete}');
+    await user.type(box, 'ping @Ann');
+    await user.click((await screen.findAllByRole('button', { name: 'Ann Smith' }))[1]);
+    await user.click(screen.getByRole('button', { name: 'Post comment' }));
+    await waitFor(() =>
+      expect(create).toHaveBeenCalledWith(
+        expect.objectContaining({ body: 'ping @Ann Smith ', mentions: ['ann2'] }),
+      ),
+    );
+  });
+
+  it('AC-CMT-002 keeps a mention when the author edits text before it', async () => {
+    const user = userEvent.setup();
+    renderIt();
+    await screen.findAllByTestId('comment-item');
+    const box = screen.getByRole('textbox') as HTMLTextAreaElement;
+    await user.type(box, '@Pee');
+    await user.click(await screen.findByRole('button', { name: 'Peer Person' }));
+    // Edit before the mention (as a paste would): the mention's span shifts but must survive.
+    fireEvent.change(box, { target: { value: 'Meeting notes: @Peer Person ' } });
+    await user.click(screen.getByRole('button', { name: 'Post comment' }));
+    await waitFor(() =>
+      expect(create).toHaveBeenCalledWith(
+        expect.objectContaining({ body: 'Meeting notes: @Peer Person ', mentions: ['p2'] }),
+      ),
     );
   });
 

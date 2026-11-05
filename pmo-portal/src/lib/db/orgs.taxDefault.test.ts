@@ -84,7 +84,7 @@ describe('getOrgTaxDefault — the pre-selection, read from the org row (OD-TAX-
 describe('setOrgTaxDefault — Admin-only write, targeted at the row RLS returned', () => {
   it('updates ONLY default_tax_treatment, on the id the database handed back', async () => {
     h.queue.push({ data: [{ id: 'org-1' }], error: null });
-    h.queue.push({ data: null, error: null });
+    h.queue.push({ data: [{ id: 'org-1' }], error: null });
     await setOrgTaxDefault('inclusive');
     expect(h.calls.from).toEqual(['organizations', 'organizations']);
     expect(h.calls.update).toEqual([{ default_tax_treatment: 'inclusive' }]);
@@ -93,7 +93,7 @@ describe('setOrgTaxDefault — Admin-only write, targeted at the row RLS returne
 
   it('writes the value it was given — both directions of the domain', async () => {
     h.queue.push({ data: [{ id: 'org-1' }], error: null });
-    h.queue.push({ data: null, error: null });
+    h.queue.push({ data: [{ id: 'org-1' }], error: null });
     await setOrgTaxDefault('exclusive');
     expect(h.calls.update).toEqual([{ default_tax_treatment: 'exclusive' }]);
   });
@@ -126,9 +126,25 @@ describe('setOrgTaxDefault refuses an ambiguous target (security review, Low)', 
 
   it('still writes normally when exactly one org is visible', async () => {
     h.queue.push({ data: [{ id: 'org-a' }], error: null });
-    h.queue.push({ data: null, error: null });
+    h.queue.push({ data: [{ id: 'org-a' }], error: null });
     await setOrgTaxDefault('inclusive');
     expect(h.calls.update).toEqual([{ default_tax_treatment: 'inclusive' }]);
     expect(h.calls.eq).toEqual([['id', 'org-a']]);
+  });
+});
+
+describe('setOrgTaxDefault verifies the write landed (settings-write landing proof)', () => {
+  it('the UPDATE asks for the changed row back (select id) so a filtered write is detectable', async () => {
+    h.queue.push({ data: [{ id: 'org-1' }], error: null });
+    h.queue.push({ data: [{ id: 'org-1' }], error: null });
+    await setOrgTaxDefault('inclusive');
+    // select('id') on the pre-read AND on the UPDATE chain (the write's landing proof).
+    expect(h.calls.select).toEqual(['id', 'id']);
+  });
+
+  it('a policy-filtered UPDATE (no changed row) refuses instead of reporting success', async () => {
+    h.queue.push({ data: [{ id: 'org-1' }], error: null }); // pre-read: the org is visible
+    h.queue.push({ data: [], error: null }); // UPDATE matched no rows, PostgREST reports no error
+    await expect(setOrgTaxDefault('inclusive')).rejects.toThrow(/permission/i);
   });
 });

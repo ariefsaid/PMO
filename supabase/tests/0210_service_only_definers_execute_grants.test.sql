@@ -1,7 +1,7 @@
 -- 0210: service-only SECURITY DEFINER functions are executable by service_role and NOT by
 -- anon/authenticated; client RPCs keep their authenticated grant (no over-revoke).
 begin;
-select plan(20);
+select plan(29);
 
 select ok(not has_function_privilege('anon', 'public.read_vault_secret(text)', 'EXECUTE'), 'AC-GRANT-0210-1 anon cannot execute read_vault_secret');
 select ok(not has_function_privilege('authenticated', 'public.read_vault_secret(text)', 'EXECUTE'), 'AC-GRANT-0210-2 authenticated cannot execute read_vault_secret');
@@ -27,6 +27,17 @@ select ok(has_function_privilege('authenticated', 'public.operator_grant_credits
 select ok(has_function_privilege('authenticated', 'public.org_credit_balance(uuid)', 'EXECUTE'), 'AC-GRANT-0210-18 authenticated keeps org_credit_balance (client RPC)');
 select ok(has_function_privilege('authenticated', 'public.transition_timesheet(uuid, timesheet_status, text)', 'EXECUTE'), 'AC-GRANT-0210-19 authenticated keeps transition_timesheet (client RPC)');
 select ok(has_function_privilege('authenticated', 'public.org_feature_enabled(uuid, text)', 'EXECUTE') or to_regprocedure('public.org_feature_enabled(uuid, text)') is null, 'AC-GRANT-0210-20 RLS helper org_feature_enabled untouched');
+
+-- 0644 dormant nightly surfaces: service-only entry points, owner-only scheduling helper.
+select ok(not has_function_privilege('anon', 'public.record_erp_statement_nightly_due(uuid, uuid, uuid, timestamptz)', 'EXECUTE'), 'AC-GRANT-0210-21 anon cannot execute record_erp_statement_nightly_due');
+select ok(not has_function_privilege('authenticated', 'public.record_erp_statement_nightly_due(uuid, uuid, uuid, timestamptz)', 'EXECUTE'), 'AC-GRANT-0210-22 authenticated cannot execute record_erp_statement_nightly_due');
+select ok(has_function_privilege('service_role', 'public.record_erp_statement_nightly_due(uuid, uuid, uuid, timestamptz)', 'EXECUTE'), 'AC-GRANT-0210-23 service_role can execute record_erp_statement_nightly_due');
+select ok(not has_function_privilege('anon', 'public.request_erp_statement_manual_intent(uuid, uuid, uuid, timestamptz)', 'EXECUTE'), 'AC-GRANT-0210-24 anon cannot execute request_erp_statement_manual_intent');
+select ok(not has_function_privilege('authenticated', 'public.request_erp_statement_manual_intent(uuid, uuid, uuid, timestamptz)', 'EXECUTE'), 'AC-GRANT-0210-25 authenticated cannot execute request_erp_statement_manual_intent');
+select ok(has_function_privilege('service_role', 'public.request_erp_statement_manual_intent(uuid, uuid, uuid, timestamptz)', 'EXECUTE'), 'AC-GRANT-0210-26 service_role can execute request_erp_statement_manual_intent');
+select ok(not has_function_privilege('anon', 'public._erp_statement_nightly_due_at(date, text)', 'EXECUTE'), 'AC-GRANT-0210-27 anon cannot execute the nightly scheduling helper');
+select ok(not has_function_privilege('authenticated', 'public._erp_statement_nightly_due_at(date, text)', 'EXECUTE'), 'AC-GRANT-0210-28 authenticated cannot execute the nightly scheduling helper');
+select ok(not has_function_privilege('service_role', 'public._erp_statement_nightly_due_at(date, text)', 'EXECUTE'), 'AC-GRANT-0210-29 the nightly scheduling helper stays owner-only');
 
 select * from finish();
 rollback;

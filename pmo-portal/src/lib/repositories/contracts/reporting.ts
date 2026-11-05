@@ -35,6 +35,8 @@ export interface ReportsRepository {
 export interface FinancialStatementsRepository {
   catalogue(options?: FinancialStatementCatalogueOptions): Promise<FinancialStatementCatalogue>;
   get(input: GetFinancialStatementInput): Promise<FinancialStatementRead>;
+  /** "Refresh now": the server derives org and role from the session. */
+  refreshNow(): Promise<'accepted' | 'coalesced' | 'unavailable'>;
 }
 
 /** Read-only accounting snapshot surface (Slice 7, ADR-0048). RLS-scoped; no write path. */
