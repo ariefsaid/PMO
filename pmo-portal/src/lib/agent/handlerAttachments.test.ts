@@ -224,6 +224,29 @@ describe('agent-chat attachment boundary', () => {
     expect(content).not.toMatch(/\.pdf|\.png|\.txt|filename/i);
   });
 
+  it('an archived attachment row is announced as unavailable, never read', async () => {
+    const supabase = {
+      from: vi.fn(() => ({
+        select: vi.fn(() => ({
+          in: vi.fn(() => ({
+            limit: vi.fn().mockResolvedValue({
+              data: [{ id: 'arch-att', original_filename: 'old.txt', mime_type: 'text/plain', storage_path: 'p', extracted_text_status: 'ready', extracted_text: 'SECRET BODY', archived_at: '2026-01-01T00:00:00Z' }],
+              error: null,
+            }),
+          })),
+        })),
+      })),
+    };
+    const messages = await createAttachmentResolver().resolveAttachmentMessages(['arch-att'], {
+      jwt: 'jwt', userId: 'user-1', orgId: 'org-1', supabase: supabase as never,
+    });
+    expect(messages).toHaveLength(1);
+    const content = messages[0].content as string;
+    expect(content).toContain('arch-att');
+    expect(content).toMatch(/could not be loaded/i);
+    expect(content).not.toContain('SECRET BODY');
+  });
+
   it('a partially unresolvable request still carries the readable files and names the missing one', async () => {
     const supabase = {
       from: vi.fn(() => ({
