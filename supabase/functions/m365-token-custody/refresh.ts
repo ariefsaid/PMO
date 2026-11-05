@@ -20,6 +20,12 @@ import { grantedScopes, validTokenPair } from './callback.ts';
 
 const TOKEN_ENDPOINT = 'https://login.microsoftonline.com';
 
+/** A retryable fault: flag it for the caller and report the refresh as failed. */
+function markTransient(outcome?: { transient?: boolean }): false {
+  if (outcome) outcome.transient = true;
+  return false;
+}
+
 /**
  * Refresh the access token for `connection`. On success: encrypts + persists BOTH the new access
  * token and the ROTATED refresh token, updates expires_at/last_refresh_at/status, audits
@@ -28,12 +34,15 @@ const TOKEN_ENDPOINT = 'https://login.microsoftonline.com';
  *     `m365.token.refresh_failed`, error_event REFRESH_FAILED (AC-M365-112).
  *   - reuse indicator → status=revoked, audit `m365.token.reuse_detected`, error_event
  *     SECURITY_EVENT_REUSE (AC-M365-113).
- * Returns true on success, false on any failure (caller surfaces CONNECTION_STALE).
+ * Returns true on success, false on any failure (caller surfaces CONNECTION_STALE). A provider/DB fault worth
+ * retrying (network, 5xx, malformed response, persist failure) also sets `outcome.transient`, so the caller
+ * can answer 502 instead.
  */
 export async function refreshAccessToken(
   connection: ConnectionRow,
   deps: HandlerDeps,
   timeoutMs?: number,
+  outcome?: { transient?: boolean },
 ): Promise<boolean> {
   const { env, serviceClient } = deps;
   const fetchImpl = deps.fetch ?? fetch;
@@ -98,6 +107,7 @@ export async function refreshAccessToken(
       contextId: connection.id,
       orgId: connection.org_id,
     });
+    if (outcome) outcome.transient = true;
     return false;
   }
 
@@ -105,13 +115,14 @@ export async function refreshAccessToken(
     const errorCode = typeof tokenData.error === 'string' ? tokenData.error : 'UNKNOWN';
     // Thread the injected clock so failure-path `updated_at` is deterministic (quality #3).
     await classifyRefreshFailure(serviceClient, connection, errorCode, tokenData, nowFn);
+    if (outcome && tokenRes.status >= 500) outcome.transient = true;
     return false;
   }
 
   // 3. Success: encrypt + persist the rotated pair (AC-M365-111).
   // A refresh response may keep the existing refresh token (RFC 6749 §6).
   const rotated: Record<string, unknown> = { ...tokenData, refresh_token: tokenData.refresh_token === undefined ? refreshToken : tokenData.refresh_token };
-  if (!validTokenPair(rotated)) return false; // mutation-witness:refresh-token-pair
+  if (!validTokenPair(rotated)) return markTransient(outcome); // mutation-witness:refresh-token-pair
   const newAccessToken = rotated.access_token as string;
   const newRefreshToken = rotated.refresh_token as string;
   const scopes = tokenData.scope === undefined ? connection.scopes : grantedScopes(tokenData.scope, connection.scopes);
@@ -148,6 +159,7 @@ export async function refreshAccessToken(
       contextId: connection.id,
       orgId: connection.org_id,
     });
+    if (outcome) outcome.transient = true;
     return false;
   }
 
