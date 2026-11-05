@@ -294,7 +294,7 @@ afterEach(() => {
 const endpointLabels = (): string[] => stub.endpoints.map((e) => e.label);
 
 describe('ProjectDetail mount request count (AC-PERF-009 harness, plan T0.2)', () => {
-  it('fires exactly the measured baseline endpoint set on Overview mount, total 22', async () => {
+  it('fires exactly the measured endpoint set on Overview mount, total 21 (Step 1a: no VAT read)', async () => {
     renderProjectDetail();
     await settleRequests();
 
@@ -313,8 +313,8 @@ describe('ProjectDetail mount request count (AC-PERF-009 harness, plan T0.2)', (
         // match-review context (its own query key, so no dedupe)
         'read:projects',
         'read:projects',
-        // VAT editability — only the contract-value editor needs it (Step 1a defers)
-        'rpc:get_project_vat_editability',
+        // VAT editability — Step 1a DEFERS it to the contract-value editor opening (its own
+        // suite asserts the on-demand read); it must NOT fire on mount.
         // milestones (header facts, attention, delivery, S-curve — one shared key)
         'rpc:get_project_milestones',
         // stage entries — SalesHistoryDisclosure mounts it closed (Step 1b defers)
@@ -351,6 +351,6 @@ describe('ProjectDetail mount request count (AC-PERF-009 harness, plan T0.2)', (
         'rpc:resolved_org_features',
       ].sort(),
     );
-    expect(endpointLabels()).toHaveLength(22);
+    expect(endpointLabels()).toHaveLength(21);
   });
 });
