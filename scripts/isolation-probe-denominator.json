@@ -298,6 +298,7 @@
     "equipment_charge_org_actuals(text)",
     "equipment_charge_project_actuals(uuid,text)",
     "erp_ledger_voucher_replace_check(uuid,text,text,text,jsonb,text[])",
+    "erp_setup_unlinked_participant_count(uuid)",
     "erp_supplier_company(uuid,text,text)",
     "erpnext_sweep_tick()",
     "establish_imprest_float(uuid,uuid,numeric)",

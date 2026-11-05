@@ -1,6 +1,6 @@
 -- ERP setup readiness counts, in the database, the active members with recorded time who have no confirmed ERP employee link.
 -- Replaces reading every positive time entry into the edge function to build the distinct set.
--- Rollback: supabase/migrations/rollback/0690_erp_setup_unlinked_participant_count_down.sql
+-- Rollback: supabase/migrations/rollback/0692_erp_setup_unlinked_participant_count_down.sql
 create function public.erp_setup_unlinked_participant_count(p_org_id uuid)
 returns integer
 language plpgsql stable security definer set search_path = public, pg_temp as $$
