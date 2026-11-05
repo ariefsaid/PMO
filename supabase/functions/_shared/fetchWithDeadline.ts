@@ -66,7 +66,7 @@ export async function fetchWithDeadline(
   const reader = res.body.getReader();
   const body = new ReadableStream<Uint8Array>({
     async pull(c) {
-      let guard: number | undefined;
+      let guard: ReturnType<typeof setTimeout> | undefined;
       try {
         const left = new Promise<never>((_, reject) => {
           guard = setTimeout(() => {
