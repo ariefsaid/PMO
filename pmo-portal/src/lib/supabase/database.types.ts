@@ -12022,6 +12022,10 @@ export type Database = {
         Args: { p_project_id: string }
         Returns: { version_id: string; total: number }[]
       }
+      get_budget_distribution_snapshot: {
+        Args: { p_version_id: string }
+        Returns: Json
+      }
       _m365_disconnect_cascade_core: {
         Args: {
           p_actor_id: string
@@ -14051,6 +14055,15 @@ export type Database = {
           p_inputs: Json
           p_method: string
           p_rows: Json
+          p_version: string
+        }
+        Returns: undefined
+      }
+      switch_budget_draft_mode: {
+        Args: {
+          p_assignments: Json
+          p_expected_lines: Json
+          p_target_mode: string
           p_version: string
         }
         Returns: undefined

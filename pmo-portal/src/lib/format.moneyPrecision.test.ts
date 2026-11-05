@@ -3,6 +3,7 @@ import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocal
 import {
   formatMoneyInputValue,
   moneyInputErrorKind,
+  normalizeLocalizedDecimal,
   parseMoneyInputAtScale,
   parseNeutralMoneyInputAtScale,
 } from './format';
@@ -13,6 +14,21 @@ const ID = { locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' };
 afterEach(() => resetActiveLocale());
 
 describe('money target precision', () => {
+  it('normalizes localized decimals to exact plain strings without a Number round-trip', () => {
+    setActiveLocale(ID);
+    expect(normalizeLocalizedDecimal('1.234,50', 2)).toBe('1234.5');
+    expect(normalizeLocalizedDecimal('0,29', 2)).toBe('0.29');
+    expect(normalizeLocalizedDecimal('12,3456', 4)).toBe('12.3456');
+    expect(normalizeLocalizedDecimal('1.234', 2)).toBe('1234');
+    expect(normalizeLocalizedDecimal('1,234', 2)).toBeNull();
+
+    setActiveLocale(EN);
+    expect(normalizeLocalizedDecimal('1,234.50', 2)).toBe('1234.5');
+    expect(normalizeLocalizedDecimal('1e-4', 4)).toBe('0.0001');
+    expect(normalizeLocalizedDecimal('1e-3', 2)).toBeNull();
+    expect(normalizeLocalizedDecimal('0x10', 2)).toBeNull();
+  });
+
   it('AC-PLC-009: applies the target scale after locale parsing without rounding', () => {
     setActiveLocale(ID);
     expect(parseMoneyInputAtScale('1.234', 2)).toBe(1234);

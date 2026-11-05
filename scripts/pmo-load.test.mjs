@@ -246,6 +246,22 @@ test('AC-CSD-010: the budget target is a new Draft, the highest Draft minus load
   }
 });
 
+test('1472 6.7: a Draft in whole-project mode is refused, not loaded into with per-year lines', async () => {
+  const doc = { projects: [DOC().projects[0]] };
+  const api = fakeApi({ tables: { companies: COMPANIES(), projects: [EXISTING()],
+    budget_versions: [{ id: 'v-1', project_id: 'p-1', status: 'Draft', version: 1, budget_mode: 'whole_project' }] } });
+  const b = (await resolveLoad(doc, api)).plan.projects[0].budget;
+  assert.equal(b.state, 'skip');
+  assert.match(b.reason, /whole-project/);
+});
+
+test('1472 6.7: a new CLI-loaded version names per_year explicitly (its lines carry fiscal years)', async () => {
+  const api = fakeApi();
+  await load(api);
+  const v = writes(api).find((c) => c.kind === 'post' && c.target === 'budget_versions');
+  assert.equal(v.body.budget_mode, 'per_year');
+});
+
 const load = async (api, doc = DOC(), dryRun = false) => {
   const { problems, plan } = await resolveLoad(doc, api);
   assert.deepEqual(problems, []);
@@ -287,7 +303,7 @@ test('AC-CSD-010: a budget becomes one Draft "Imported" version; lines carry the
   await load(api);
   const [version] = writes(api).filter((c) => c.target === 'budget_versions');
   assert.deepEqual(version.body, {
-    project_id: 'projects-3', version: 1, name: 'Imported', import_batch_id: 'batch-1', imported_at: '2026-10-06T00:00:00.000Z',
+    project_id: 'projects-3', version: 1, name: 'Imported', budget_mode: 'per_year', import_batch_id: 'batch-1', imported_at: '2026-10-06T00:00:00.000Z',
   });
   const lines = writes(api).filter((c) => c.target === 'import_budget_line_v2').map((c) => c.body);
   assert.deepEqual(lines.map((l) => [l.p_version_id, l.p_category, l.p_description, l.p_budgeted_amount, l.p_fiscal_year, l.p_legacy_key]), [

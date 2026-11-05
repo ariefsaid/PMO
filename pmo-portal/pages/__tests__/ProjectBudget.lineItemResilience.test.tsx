@@ -33,6 +33,8 @@ const { mutations, archiveState, versionState, activationState } = vi.hoisted(()
       mutateAsync: vi.fn().mockResolvedValue(undefined),
       isPending: false,
     },
+    switchDraftMode: { mutateAsync: vi.fn(), isPending: false },
+    saveDistribution: { mutateAsync: vi.fn(), isPending: false },
     createVersion: { mutateAsync: vi.fn().mockResolvedValue({ id: 'v-new' }), isPending: false },
     cloneVersion: { mutateAsync: vi.fn(), isPending: false },
     activate: { mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false },
@@ -68,6 +70,7 @@ const draftVersion: BudgetVersionWithItems = {
 vi.mock('@/src/hooks/useBudget', () => ({
   useProjectBudget: () => ({ data: 100_000, isPending: false, isError: false, refetch: vi.fn() }),
   useBudgetVersions: () => ({ data: versionState.includeArchived ? [draftVersion, { ...draftVersion, id: 'bv2', status: 'Archived', version: 2 }] : [draftVersion], isPending: false, isError: false, refetch: vi.fn() }),
+  useBudgetDistribution: () => ({ data: null, isPending: false, isFetching: false, isError: false, refetch: vi.fn() }),
   useBudgetActivationMode: () => ({ data: activationState.enabled ? 'sole_operator' : undefined, isPending: false, isError: false }),
   useBudgetActivationPrecheck: () => ({ data: activationState.enabled ? { status: 'ready', erpCheck: 'available', issues: [] } : undefined, isPending: false, isFetching: false, isError: false, refetch: vi.fn() }),
   useBudgetArchiveTargets: () => archiveState,

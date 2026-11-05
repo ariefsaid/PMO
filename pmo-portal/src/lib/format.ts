@@ -232,6 +232,45 @@ function fitsMoneyScale(normalized: string, scale: number): boolean {
   return effectiveScale <= BigInt(scale);
 }
 
+/**
+ * Parse a localized screen value into a plain exact decimal string. Unlike the number-returning
+ * form parsers, this keeps every accepted digit as text for bigint-based financial calculations.
+ * Exponent notation is expanded exactly and values that exceed the requested scale are rejected.
+ */
+export function normalizeLocalizedDecimal(
+  raw: string,
+  scale: number,
+  locale = getNumberLocale(),
+): string | null {
+  if (/^\s*[+-]?0[xob]/i.test(raw)) return null;
+  const parsed = parseMoneyDraft(raw, locale);
+  if (!parsed || !fitsMoneyScale(parsed.normalized, scale)) return null;
+  const match = parsed.normalized.match(/^([+-]?)(\d+)(?:\.(\d*))?(?:[eE]([+-]?\d+))?$/);
+  if (!match) return null;
+
+  const exponent = BigInt(match[4] ?? '0');
+  if (exponent < -64n || exponent > 64n) return null;
+  const sign = match[1] === '-' ? '-' : '';
+  const digits = `${match[2]}${match[3] ?? ''}`;
+  const decimalPosition = BigInt(match[2].length) + exponent;
+  if (decimalPosition < -64n || decimalPosition > 128n) return null;
+  const position = Number(decimalPosition);
+  const integerPart = position <= 0
+    ? '0'
+    : position >= digits.length
+      ? `${digits}${'0'.repeat(position - digits.length)}`
+      : digits.slice(0, position);
+  const fractionPart = position <= 0
+    ? `${'0'.repeat(-position)}${digits}`
+    : position >= digits.length
+      ? ''
+      : digits.slice(position);
+  const integer = integerPart.replace(/^0+(?=\d)/, '');
+  const fraction = fractionPart.replace(/0+$/, '');
+  if (fraction.length > scale) return null;
+  return `${sign}${integer}${fraction ? `.${fraction}` : ''}`;
+}
+
 /** Parse screen input using its viewer convention and reject values that require target rounding. */
 export function parseMoneyInputAtScale(
   raw: string,

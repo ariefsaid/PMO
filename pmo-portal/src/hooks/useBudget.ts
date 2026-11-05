@@ -3,7 +3,7 @@ import { useAuth } from '@/src/auth/useAuth';
 import { useOptionalRealRole } from '@/src/auth/impersonation';
 import { safeTrack, trackBudgetActivated } from '@/src/lib/analytics';
 import { repositories } from '@/src/lib/repositories';
-import type { BudgetVersionWithItems, BudgetVersionRow, BudgetLineItemRow, NewLineItem, ActivateVersionResult, ArchiveVersionResult, BudgetArchiveLiveTarget, BudgetActivationMode } from '@/src/lib/db/budgets';
+import type { BudgetVersionWithItems, BudgetVersionRow, BudgetLineItemRow, NewLineItem, ActivateVersionResult, ArchiveVersionResult, BudgetArchiveLiveTarget, BudgetActivationMode, BudgetDistributionPlan, BudgetVersionMode } from '@/src/lib/db/budgets';
 
 // ---------------------------------------------------------------------------
 // Query key factories — org-scoped (AC-726, FR-QRY-PROC-001 mirror)
@@ -14,8 +14,11 @@ const budgetKey = (orgId: string | undefined, projectId: string) =>
 const budgetVersionsKey = (orgId: string | undefined, projectId: string) =>
   ['budget-versions', orgId, projectId] as const;
 
-const budgetDistributionKey = (orgId: string | undefined, projectId: string) =>
-  ['budget-distribution', orgId, projectId] as const;
+/** `versionId` omitted = the whole project's prefix (invalidation); given = one version's saved plan. */
+const budgetDistributionKey = (orgId: string | undefined, projectId: string, versionId?: string) =>
+  (versionId === undefined
+    ? ['budget-distribution', orgId, projectId]
+    : ['budget-distribution', orgId, projectId, versionId]) as readonly unknown[];
 
 /**
  * Shared awaited refresh for budget writes. Existing matching budget, readiness, finance,
@@ -121,6 +124,18 @@ export function useBudgetVersions(projectId: string) {
   });
 }
 
+/** One version's saved whole-project distribution plan (`null` before the first save).
+ *  Enabled only with org identity + version; a save invalidates it (see useBudgetMutations). */
+export function useBudgetDistribution(projectId: string, versionId: string | undefined) {
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
+  return useQuery<BudgetDistributionPlan | null>({
+    queryKey: budgetDistributionKey(orgId, projectId, versionId),
+    queryFn: () => repositories.budget.getDistribution(versionId!),
+    enabled: Boolean(orgId && projectId && versionId),
+  });
+}
+
 export function useBudgetArchiveTargets(versionIds: readonly string[], pollWhileLive = false) {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
@@ -159,8 +174,8 @@ export function useBudgetMutations(projectId: string) {
     queryClient.invalidateQueries({ queryKey: ['finance-budget-review', orgId] });
   };
 
-  const createVersion = useMutation<BudgetVersionRow, Error, { projectId: string; name: string }>({
-    mutationFn: ({ projectId: pid, name }) => repositories.budget.createVersion(pid, name),
+  const createVersion = useMutation<BudgetVersionRow, Error, { projectId: string; name: string; budgetMode?: BudgetVersionMode }>({
+    mutationFn: ({ projectId: pid, name, budgetMode }) => repositories.budget.createVersion(pid, name, undefined, budgetMode),
     onSuccess: invalidateBoth,
   });
 
@@ -215,6 +230,25 @@ export function useBudgetMutations(projectId: string) {
     onSuccess: invalidateBoth,
   });
 
+  /** #1472 S6A: persists the confirmed snapshot; on success the shared invalidation re-reads the
+   *  plan, the version list, the precheck and project finances. No optimistic save — a rejection
+   *  leaves the prior cached plan untouched for re-review. */
+  const saveDistribution = useMutation<void, Error, { versionId: string; plan: BudgetDistributionPlan }>({
+    mutationFn: ({ versionId, plan }) => repositories.budget.saveDistribution(versionId, plan),
+    onSuccess: invalidateBoth,
+  });
+
+  const switchDraftMode = useMutation<void, Error, {
+    versionId: string;
+    targetMode: BudgetVersionMode;
+    expectedLines: Parameters<typeof repositories.budget.switchDraftMode>[2];
+    assignments: Parameters<typeof repositories.budget.switchDraftMode>[3];
+  }>({
+    mutationFn: ({ versionId, targetMode, expectedLines, assignments }) =>
+      repositories.budget.switchDraftMode(versionId, targetMode, expectedLines, assignments),
+    onSuccess: invalidateBoth,
+  });
+
   return {
     createVersion,
     cloneVersion,
@@ -224,5 +258,7 @@ export function useBudgetMutations(projectId: string) {
     createLineItem: createLineItemMutation,
     updateLineItem: updateLineItemMutation,
     deleteLineItem: deleteLineItemMutation,
+    saveDistribution,
+    switchDraftMode,
   };
 }
