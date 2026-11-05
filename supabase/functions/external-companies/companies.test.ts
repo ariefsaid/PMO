@@ -276,6 +276,36 @@ describe('external-companies — ERPNext branch', () => {
     );
   });
 
+  it('a Vault secret whose secret half contains a colon is sent whole (first colon splits)', async () => {
+    let auth: string | null = null;
+    await withFetchMock(
+      [
+        supabaseSelect('profiles', () =>
+          jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+        supabaseSelect('platform_operators', () => new Response('null', {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })),
+        supabaseSelect('external_org_bindings', () =>
+          jsonResponse({ secret_ref: 'vault-ref', status: 'active', site_url: 'https://erp.example.com' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+        supabaseRpc('read_vault_secret', () => jsonResponse('key1:sec:ret')),
+        erp('erp.example.com', '/api/resource/Company', (call) => {
+          auth = call.headers.get('authorization');
+          return jsonResponse({ data: [{ name: 'Acme' }] });
+        }),
+      ],
+      async () => {
+        const res = await handleCompaniesRequest(await authed({ tier: 'erpnext' }));
+        assertEquals(res.status, 200);
+        assertEquals(auth, 'token key1:sec:ret');
+      },
+    );
+  });
+
   it('ERP 404 → edge fn 404', async () => {
     await withFetchMock(
       [

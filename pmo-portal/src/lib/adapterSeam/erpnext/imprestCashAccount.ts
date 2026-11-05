@@ -4,6 +4,7 @@
  * tier-keyed validator registry.
  */
 import { AppError } from '../../appError.ts';
+import { splitAuthPair } from './credentials.ts';
 import { ErpError, getDoc, type ErpClientDeps } from './client.ts';
 import { imprestCashAccountFits, type ErpAccountFacts } from './expenseAccountRules.ts';
 
@@ -18,9 +19,14 @@ export interface CashAccountCheck {
 }
 
 export async function validateErpnextCashAccount(check: CashAccountCheck): Promise<boolean> {
-  const parts = check.secret.split(':');
-  if (parts.length !== 2 || !check.company) throw new AppError('The ERPNext connection is not fully set up', 'config-rejected');
-  const client: ErpClientDeps = { fetchImpl: check.fetchImpl, apiKey: parts[0], apiSecret: parts[1], baseUrl: check.siteUrl };
+  let pair: { apiKey: string; apiSecret: string };
+  try {
+    pair = splitAuthPair(check.secret);
+  } catch {
+    throw new AppError('The ERPNext connection is not fully set up', 'config-rejected');
+  }
+  if (!check.company) throw new AppError('The ERPNext connection is not fully set up', 'config-rejected');
+  const client: ErpClientDeps = { fetchImpl: check.fetchImpl, ...pair, baseUrl: check.siteUrl };
   try {
     const doc = await getDoc(client, 'Account', check.account);
     return imprestCashAccountFits({ ...(doc as Record<string, unknown>), name: check.account } as ErpAccountFacts, check.company);

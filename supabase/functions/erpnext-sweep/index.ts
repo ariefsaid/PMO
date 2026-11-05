@@ -110,7 +110,7 @@ import { dispatchMoneyWrite as dispatchMoneyWriteCore, type DispatchMoneyWriteDe
 import type { AdapterCommand, PmoRecord } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
 import { erpnextRequest, ErpError, getDoc, withProbeBudget, ERP_PROBE_TIMEOUT_MS, type ErpClientDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/client.ts';
 import { AdapterError } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
-import { fetchWithDeadline, FetchDeadlineError } from '../_shared/fetchWithDeadline.ts';
+import { readJsonBounded, fetchWithDeadline, FetchDeadlineError } from '../_shared/fetchWithDeadline.ts';
 import { recordErrorEvent, type ErrorEventSupabaseLike } from '../_shared/errorEvent.ts';
 import {
   lookupConfirmedErpEmployee,
@@ -4442,7 +4442,7 @@ async function assertBudgetSweepGate(
 }
 
 /** The client's OWN fiscal calendar, read live (the same doctype read the foreground gate makes). */
-async function readErpFiscalYearsLive(
+export async function readErpFiscalYearsLive(
   serviceClient: SupabaseClient,
   org: OrgBinding,
   cache?: ErpAuthPairCache,
@@ -4468,7 +4468,7 @@ async function readErpFiscalYearsLive(
     throw new AppError('could not read the ERPNext fiscal calendar (unreachable)', 'external-unreachable');
   }
   if (!res.ok) throw new AppError(`could not read the ERPNext fiscal calendar (HTTP ${res.status})`, 'external-unreachable');
-  const body = (await res.json()) as { data?: unknown };
+  const body = await readJsonBounded<{ data?: unknown }>(res, 'could not read the ERPNext fiscal calendar (unreachable)');
   const rows = Array.isArray(body.data) ? body.data : [];
   return rows.filter(
     (r): r is FiscalYearRow =>
