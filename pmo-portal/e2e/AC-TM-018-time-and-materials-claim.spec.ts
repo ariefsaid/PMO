@@ -263,6 +263,13 @@ test('AC-TM-018 Finance rates a week, its manager assembles it, and a second use
       body: JSON.stringify([{ id: randomUUID(), org_id: orgId, external_tier: 'erpnext', domain: 'revenue' }]),
     });
   });
+  // The Overview reads ownership through the one overview read; swap only that section for the same row.
+  await page.route('**/rest/v1/rpc/get_project_overview_read', async (route) => {
+    const res = await route.fetch();
+    const rows = await res.json();
+    const ownership = [{ id: randomUUID(), org_id: orgId, external_tier: 'erpnext', domain: 'revenue' }];
+    await route.fulfill({ response: res, json: rows.map((r: object) => ({ ...r, external_domain_ownership: ownership })) });
+  });
   await page.route('**/functions/v1/external-items', async (route) => {
     const request = route.request().postDataJSON() as { purpose?: string } | null;
     await route.fulfill({

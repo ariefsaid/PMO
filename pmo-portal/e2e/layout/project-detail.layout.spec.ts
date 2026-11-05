@@ -679,6 +679,12 @@ const PFIN_FINANCES = {
 test('@layout AC-PFIN-015 support: the project finance section fits a 390px phone and the assign dialog stays keyboard-operable', async ({ page }) => {
   await page.route('**/rest/v1/rpc/get_project_finances', (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(PFIN_FINANCES) }));
+  // The Overview reads finances through the one overview read; swap only that section for the fixture.
+  await page.route('**/rest/v1/rpc/get_project_overview_read', async (route) => {
+    const res = await route.fetch();
+    const rows = await res.json();
+    await route.fulfill({ response: res, json: rows.map((r: object) => ({ ...r, finances: PFIN_FINANCES })) });
+  });
   // One unassigned, ERP-adopted invoice so the sales-invoices search renders an assignable row.
   await page.route('**/rest/v1/sales_invoices?**', async (route) => {
     if (route.request().method() !== 'GET') return route.fallback();
