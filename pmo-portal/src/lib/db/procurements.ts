@@ -95,7 +95,11 @@ export interface ProjectCommittedSpend {
 export async function getProjectCommittedSpend(projectId: string): Promise<ProjectCommittedSpend> {
   const { data, error } = await supabase.rpc('project_committed_spend', { p_project_id: projectId });
   if (error) throw new Error(error.message);
-  const rows = data ?? [];
+  return parseCommittedSpend(data ?? []);
+}
+
+/** Maps `project_committed_spend` rows; shared by the per-endpoint read and the Overview read-model. */
+export function parseCommittedSpend(rows: Array<{ currency: string; amount: number | string; is_project_currency: boolean }>): ProjectCommittedSpend {
   const own = rows.find((row) => row.is_project_currency);
   return {
     amount: Number(own?.amount ?? 0),

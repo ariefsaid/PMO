@@ -210,6 +210,48 @@ Deno.test('FR-PLN-006: the served webhook holds and resumes Employee events on t
   }
 });
 
+Deno.test('a vault or binding read failure while resolving the webhook secret is a retryable 500, not a 401', async () => {
+  const previousEnv = Object.fromEntries(['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'EXTERNAL_CONNECT_ENABLED']
+    .map((key) => [key, Deno.env.get(key)]));
+  Deno.env.set('SUPABASE_URL', 'https://edge-test.supabase.test');
+  Deno.env.set('SUPABASE_SERVICE_ROLE_KEY', 'synthetic-service-role-key');
+  Deno.env.set('EXTERNAL_CONNECT_ENABLED', 'true');
+  const event = JSON.stringify({
+    doctype: 'Employee', name: 'EMP-UNIT-1', docstatus: 0, modified: '2026-07-12 12:00:00.000000',
+    doc: { name: 'EMP-UNIT-1', docstatus: 0, modified: '2026-07-12 12:00:00.000000', company: COMPANY, status: 'Active' },
+  });
+  const signature = await sign(event);
+  const originalFetch = globalThis.fetch;
+  let vault: 'error' | 'missing' = 'error';
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const request = input instanceof Request ? input : new Request(input, init);
+    const url = new URL(request.url);
+    const method = init?.method ?? request.method;
+    if (url.pathname === '/rest/v1/external_org_bindings' && method === 'GET') {
+      if (url.searchParams.get('select') === 'webhook_secret_ref') return Response.json({ webhook_secret_ref: 'synthetic-vault-ref' });
+      return Response.json([{ org_id: ORG_ID, webhook_secret_ref: 'synthetic-vault-ref', activated_at: '2026-01-01T00:00:00Z', config: { company: COMPANY } }]);
+    }
+    if (url.pathname === '/rest/v1/rpc/read_vault_secret') {
+      return vault === 'error' ? Response.json({ message: 'vault down' }, { status: 500 }) : Response.json(null);
+    }
+    throw new Error(`unexpected request: ${method} ${url.href}`);
+  }) as typeof fetch;
+  try {
+    if (servedHandler === null) throw new Error('the shipped serve wrapper was not captured');
+    const failed = await servedHandler(req(event, signature));
+    assert(failed.status === 500, `a vault outage must be retryable 500, got ${failed.status}`);
+    vault = 'missing';
+    const absent = await servedHandler(req(event, signature));
+    assert(absent.status === 401, `a genuinely missing secret stays fail-closed 401, got ${absent.status}`);
+  } finally {
+    globalThis.fetch = originalFetch;
+    for (const [key, value] of Object.entries(previousEnv)) {
+      if (value === undefined) Deno.env.delete(key);
+      else Deno.env.set(key, value as string);
+    }
+  }
+});
+
 Deno.test('AC-ENA-070: no employing org ⇒ 401 (no secret to match, no side effect)', async () => {
   const emptyDeps: ErpWebhookHandlerDeps = {
     resolveEmployingOrgs: async () => [],

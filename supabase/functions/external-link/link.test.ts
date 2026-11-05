@@ -6,8 +6,8 @@
  * - ClickUp: push-seed requires empty List, pull-adopt requires empty PMO project
  * - ClickUp: mixed case (both non-empty) returns 409 action-required
  * - ClickUp: valid link inserts external_project_bindings with linked_by/linked_at
- * - ERPNext: validates Company exists, updates external_org_bindings.config.company
- * - Role gates: Admin/PM/Operator for ClickUp, Admin/Operator for ERPNext
+ * - ERPNext: refused (the Company is chosen through external-set-company)
+ * - Role gates: Admin/PM/Operator for ClickUp
  * - Audit events logged for integration.link
  * - getPmoTaskCount uses HEAD+count via Content-Range (catches count-path bug)
  */
@@ -935,241 +935,21 @@ describe('external-link — ClickUp branch', () => {
   });
 });
 
-describe('external-link — ERPNext branch', () => {
-  it('FR-PLN-006 refuses an ERPNext company link before binding reads when erp_sync is off', async () => {
-    await withFetchMock(
-      [
-        supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, {
-          headers: { 'content-type': 'application/vnd.pgrst.object+json' },
-        })),
-        supabaseSelect('platform_operators', () => new Response('null', {
-          status: 200,
-          headers: { 'content-type': 'application/json' },
-        })),
-        supabaseRpc('actor_authorization_state', () => jsonResponse({ active: true, role: 'Admin' })),
-        supabaseRpc('service_feature_enabled', (call) => {
-          assertEquals((call.bodyJson as { p_key: string }).p_key, 'erp_sync');
-          return jsonResponse(false);
-        }),
-      ],
-      async ({ calls }) => {
-        const response = await handleLinkRequest(await authed({ tier: 'erpnext', companyId: 'Example Co' }));
-        assertEquals(response.status, 409);
-        assertEquals((await response.json()).error, 'feature_off');
-        assertEquals(restCall(calls, 'external_org_bindings', 'GET').length, 0);
-        assertEquals(calls.some((call) => call.url.host === 'erp.example.com'), false);
-      },
-    );
-  });
-
-  it('Admin/Operator OK — company set', async () => {
-    await withFetchMock(
-      [
-        supabaseSelect('profiles', () =>
-          jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, {
-            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
-          })),
-
-        supabaseSelect('platform_operators', () => new Response('null', {
-          status: 200,
-          headers: { 'content-type': 'application/json' },
-        })),
-
-        supabaseSelect('external_org_bindings', () =>
-          jsonResponse({ secret_ref: 'vault-ref', status: 'active', config: {}, site_url: 'https://erp.example.com' }, {
-            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
-          })),
-
-        supabaseRpc('read_vault_secret', () => jsonResponse('test-key:test-secret')),
-
-        erp('erp.example.com', '/api/resource/Company/ACME', () => jsonResponse({ data: { name: 'ACME' } })),
-
-        { label: 'update company config', method: 'POST', pathname: '/rest/v1/rpc/link_external_company', response: (call) => {
-          const body = call.bodyJson as Record<string, unknown>;
-          assertEquals([body.p_actor_id, body.p_org_id, body.p_site_url], ['user-1', 'org-1', 'https://erp.example.com']);
-          assertEquals(body.p_company, 'ACME');
-          return jsonResponse(true);
-        } },
-
-        supabaseRpc('log_audit', (call) => {
-          const body = call.bodyJson as Record<string, unknown>;
-          assertEquals(body.p_action, 'integration.link');
-          assertEquals((body.p_detail as Record<string, unknown>).tier, 'erpnext');
-          assertEquals((body.p_detail as Record<string, unknown>).company_id, 'ACME');
-          return jsonResponse(null);
-        }),
-      ],
-      async ({ calls }) => {
-        const res = await handleLinkRequest(await authed({
-          tier: 'erpnext',
-          companyId: 'ACME',
-          actorId: 'spoofed-actor', orgId: 'spoofed-org', p_actor_id: 'spoofed-actor', p_org_id: 'spoofed-org', p_site_url: 'https://spoofed.example.test',
-        }));
-        assertEquals(res.status, 200);
-        assertEquals(await res.json(), { ok: true, companyId: 'ACME' });
-        assertEquals(restCall(calls, 'profiles', 'GET')[0].url.searchParams.get('id'), 'eq.user-1');
-        assertEquals(restCall(calls, 'external_org_bindings', 'GET')[0].url.searchParams.get('org_id'), 'eq.org-1');
-        assertEquals(rpcCall(calls, 'link_external_company').length, 1);
-        assertEquals(rpcCall(calls, 'log_audit').length, 1);
-      },
-    );
-  });
-
-  it('PM forbidden → 403', async () => {
-    await withFetchMock(
-      [
-        supabaseSelect('profiles', () =>
-          jsonResponse({ org_id: 'org-1', role: 'Project Manager', status: 'active' }, {
-            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
-          })),
-
-        supabaseSelect('platform_operators', () => new Response('null', {
-          status: 200,
-          headers: { 'content-type': 'application/json' },
-        })),
-
-        supabaseSelect('external_org_bindings', () =>
-          jsonResponse({ secret_ref: 'vault-ref', status: 'active', config: {}, site_url: 'https://erp.example.com' }, {
-            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
-          })),
-
-        supabaseRpc('read_vault_secret', () => jsonResponse('test-key:test-secret')),
-      ],
-      async ({ calls }) => {
-        const res = await handleLinkRequest(await authed({
-          tier: 'erpnext',
-          companyId: 'ACME',
-        }));
-        assertEquals(res.status, 403);
-        assertEquals(rpcCall(calls, 'log_audit').length, 0);
-      },
-    );
-  });
-
-  it('invalid company → 404', async () => {
-    await withFetchMock(
-      [
-        supabaseSelect('profiles', () =>
-          jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, {
-            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
-          })),
-
-        supabaseSelect('platform_operators', () => new Response('null', {
-          status: 200,
-          headers: { 'content-type': 'application/json' },
-        })),
-
-        supabaseSelect('external_org_bindings', () =>
-          jsonResponse({ secret_ref: 'vault-ref', status: 'active', config: {}, site_url: 'https://erp.example.com' }, {
-            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
-          })),
-
-        supabaseRpc('read_vault_secret', () => jsonResponse('test-key:test-secret')),
-
-        erp('erp.example.com', '/api/resource/Company/UNKNOWN', () => new Response(JSON.stringify({ error: 'not found' }), { status: 404 })),
-      ],
-      async ({ calls }) => {
-        const res = await handleLinkRequest(await authed({
-          tier: 'erpnext',
-          companyId: 'UNKNOWN',
-        }));
-        assertEquals(res.status, 404);
-        assertEquals(rpcCall(calls, 'log_audit').length, 0);
-      },
-    );
-  });
-});
-// ── #751: the binding's host is judged by the ADDRESS it resolves to, not just its text ──
-
-/** Swap the module DNS mock for one guard scenario; restore the module mock afterwards. */
-async function withDns(
-  records: { A?: string[]; AAAA?: string[] } | 'failure',
-  run: () => Promise<void>,
-): Promise<void> {
-  const moduleMock = Deno.resolveDns;
-  Deno.resolveDns = ((hostname: string, recordType: string) => {
-    if (records === 'failure') return Promise.reject(new Error('dns unavailable'));
-    const answer = records[recordType as 'A' | 'AAAA'];
-    if (!answer) return Promise.reject(new Deno.errors.NotFound('no record'));
-    return Promise.resolve(answer);
-  }) as typeof Deno.resolveDns;
-  try {
-    await run();
-  } finally {
-    Deno.resolveDns = moduleMock;
-  }
-}
-
-describe('external-link — ERPNext host guard (#751)', () => {
-  const HOST = 'rebind.erp.test';
-  const routes = () => [
-    supabaseSelect('profiles', () =>
-      jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, {
-        headers: { 'content-type': 'application/vnd.pgrst.object+json' },
-      })),
-    supabaseSelect('platform_operators', () => new Response('null', {
-      status: 200,
-      headers: { 'content-type': 'application/json' },
-    })),
-    supabaseSelect('external_org_bindings', () =>
-      jsonResponse({ secret_ref: 'vault-ref', status: 'active', config: {}, site_url: `https://${HOST}` }, {
-        headers: { 'content-type': 'application/vnd.pgrst.object+json' },
-      })),
-    supabaseRpc('read_vault_secret', () => jsonResponse('test-key:test-secret')),
-  ];
-
-  const resolvingPrivate: Array<[string, { A?: string[]; AAAA?: string[] }]> = [
-    ['the loopback (127.0.0.1)', { A: ['127.0.0.1'] }],
-    ['a private 10/8 address (10.x)', { A: ['10.1.2.3'] }],
-    ['a link-local address (169.254.x)', { A: ['169.254.169.254'] }],
-    ['an IPv4-mapped loopback (::ffff:127.0.0.1)', { A: ['203.0.113.9'], AAAA: ['::ffff:127.0.0.1'] }],
-  ];
-  for (const [where, records] of resolvingPrivate) {
-    it(`#751 refuses a binding whose site name resolves to ${where} — no PATCH, no audit, no ERP call`, async () => {
-      await withFetchMock(routes(), async ({ calls }) =>
-        withDns(records, async () => {
-          const res = await handleLinkRequest(await authed({ tier: 'erpnext', companyId: 'ACME' }));
-          assertEquals(res.status, 422);
-          assertEquals(await res.json(), {
-            error: 'config-rejected',
-            message: 'Private or reserved addresses are not allowed',
-          });
-          assertEquals(rpcCall(calls, 'link_external_company').length, 0);
-          assertEquals(rpcCall(calls, 'log_audit').length, 0);
-          assertEquals(calls.filter((c) => c.url.host === HOST).length, 0);
-        }));
+describe('external-link — ERPNext company changes', () => {
+  it('refuses to change the ERPNext company here: no feature check, binding read, ERP call or config write', async () => {
+    await withFetchMock([
+      supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
+      supabaseSelect('platform_operators', () => jsonResponse(null)),
+      supabaseSelect('external_org_bindings', () => jsonResponse({ secret_ref: 'vault-ref', status: 'active', config: {}, site_url: 'https://erp.example.com' }, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
+      supabaseRpc('read_vault_secret', () => jsonResponse('test-key:test-secret')),
+      erp('erp.example.com', '/api/resource/Company/ACME', () => jsonResponse({ data: { name: 'ACME' } })),
+      supabaseRpc('link_external_company', () => jsonResponse(true)),
+    ], async ({ calls }) => {
+      const res = await handleLinkRequest(await authed({ tier: 'erpnext', companyId: 'ACME' }));
+      assertEquals(res.status, 400);
+      assertEquals(rpcCall(calls, 'link_external_company').length, 0);
+      assertEquals(calls.filter((c) => c.url.host === 'erp.example.com').length, 0);
     });
-  }
-
-  it('#751 accepts a binding whose site name resolves PUBLIC (sslip.io-style real ERP) and links', async () => {
-    await withFetchMock(
-      [
-        ...routes(),
-        erp(HOST, '/api/resource/Company/ACME', () => jsonResponse({ data: { name: 'ACME' } })),
-        { label: 'update company config', method: 'POST', pathname: '/rest/v1/rpc/link_external_company', response: () => jsonResponse(true) },
-      ],
-      async ({ calls }) => {
-        const res = await handleLinkRequest(await authed({ tier: 'erpnext', companyId: 'ACME' }));
-        assertEquals(res.status, 200);
-        assertEquals(await res.json(), { ok: true, companyId: 'ACME' });
-        assertEquals(rpcCall(calls, 'link_external_company').length, 1);
-      },
-    );
-  });
-
-  it('#751 fails closed when the resolver errors — no PATCH, no audit, no ERP call', async () => {
-    await withFetchMock(routes(), async ({ calls }) =>
-      withDns('failure', async () => {
-        const res = await handleLinkRequest(await authed({ tier: 'erpnext', companyId: 'ACME' }));
-        assertEquals(res.status, 422);
-        assertEquals(await res.json(), {
-          error: 'config-rejected',
-          message: 'Private or reserved addresses are not allowed',
-        });
-        assertEquals(rpcCall(calls, 'link_external_company').length, 0);
-        assertEquals(rpcCall(calls, 'log_audit').length, 0);
-        assertEquals(calls.filter((c) => c.url.host === HOST).length, 0);
-      }));
   });
 });
 
@@ -1223,27 +1003,6 @@ describe('external-link — assignment and standing checks', () => {
   });
 });
 
-describe('external-link — transactional company authorization', () => {
-  for (const rejected of [false, true]) {
-    it(rejected ? 'reports changed authority at the write' : 'allows a current operator', async () => {
-      await withFetchMock([
-        supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Finance', status: 'active' }, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
-        supabaseSelect('platform_operators', () => jsonResponse({ user_id: 'user-1' })),
-        supabaseSelect('external_org_bindings', () => jsonResponse({ secret_ref: 'vault-ref', status: 'active', config: {}, site_url: 'https://erp.example.com' }, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
-        supabaseRpc('read_vault_secret', () => jsonResponse('test-key:test-secret')),
-        erp('erp.example.com', '/api/resource/Company/ACME', () => jsonResponse({ data: { name: 'ACME' } })),
-        supabaseRpc('link_external_company', () => rejected
-          ? new Response(JSON.stringify({ code: '42501', message: 'Current authority required' }), { status: 403, headers: { 'content-type': 'application/json' } })
-          : jsonResponse(true)),
-      ], async ({ calls }) => {
-        const res = await handleLinkRequest(await authed({ tier: 'erpnext', companyId: 'ACME' }));
-        assertEquals(res.status, rejected ? 403 : 200);
-        assertEquals(rpcCall(calls, 'log_audit').length, rejected ? 0 : 1);
-      });
-    });
-  }
-});
-
 describe('external-link — operator project link', () => {
   it('allows an active operator to link a project', async () => {
     await withFetchMock([
@@ -1273,8 +1032,9 @@ describe('external-link — current role', () => {
       supabaseRpc('actor_authorization_state', () => jsonResponse({ role: 'Finance', active: true })),
       supabaseSelect('platform_operators', () => jsonResponse(null)),
       supabaseSelect('external_org_bindings', () => jsonResponse({ secret_ref: 'vault-ref', status: 'active', config: {}, site_url: 'https://erp.example.com' }, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
+      supabaseSelect('projects', () => jsonResponse({ id: 'proj-1', project_manager_id: 'someone-else', org_id: 'org-1' }, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
     ], async ({ calls }) => {
-      const res = await handleLinkRequest(await authed({ tier: 'erpnext', companyId: 'ACME' }));
+      const res = await handleLinkRequest(await authed({ tier: 'clickup', projectId: 'proj-1', listId: 'list-1', direction: 'push-seed' }));
       assertEquals(res.status, 403);
       assertEquals(rpcCall(calls, 'read_vault_secret').length, 0);
     });

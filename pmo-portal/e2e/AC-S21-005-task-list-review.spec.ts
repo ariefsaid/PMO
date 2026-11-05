@@ -1,65 +1,20 @@
 // @e2e-isolation: self-isolated — this journey owns one fresh test organization and exact run-scoped rows.
 import { expect, test, type BrowserContext, type Locator, type Page } from '@playwright/test';
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
-import { createServer } from 'node:net';
-import { chmod, mkdir, mkdtemp, rename, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import {
-  assertFinalFixtureState,
-  assertInitialAbsence,
-  copySql,
-  loopbackHost,
-  queryFixtureSnapshot,
-  readLocalStatus,
-  removeVaultAndOrgBinding,
-  runPsql,
-} from './support/AC-S21-005-database.mjs';
-import {
+import type { SupabaseClient } from '@supabase/supabase-js';
+import type { ChildProcessWithoutNullStreams } from 'node:child_process';
+import type {
   captureS21FailureDiagnostic,
   createS21FixtureIdentity,
   createS21WriteAheadLedger,
-  recordS21PrimaryFailure,
 } from './support/AC-S21-005-fixture.mjs';
-import {
-  classifyS21DiagnosticEndpoint,
-  createS21ReloadDiagnostic,
-} from './support/AC-S21-005-diagnostics.mjs';
-import {
-  aggregateS21BrowserGuardSnapshots,
-  createS21BrowserRequestGuard,
-  S21_MAX_CLICKUP_GETS,
-  S21_MAX_HANDLER_POSTS,
-  validateS21TransportSummary,
-} from './support/AC-S21-005-transport.mjs';
-import {
-  runS21FixtureCleanup,
-  S21_FIXTURE_PHASE_TIMEOUT_MS,
-} from './support/AC-S21-005-lifecycle.mjs';
+import { S21_MAX_HANDLER_POSTS } from './support/AC-S21-005-transport.mjs';
+import { S21_FIXTURE_PHASE_TIMEOUT_MS } from './support/AC-S21-005-lifecycle.mjs';
+import { createS21JourneyHarness } from './support/AC-S21-005-harness.mjs';
 import { ownedContextOptions } from './helpers';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const APP_ROOT = path.resolve(__dirname, '..');
-const REPO_ROOT = path.resolve(APP_ROOT, '..');
-const HANDLER_SOURCE = path.join(APP_ROOT, 'e2e/support/AC-S21-005-handler-server.mjs');
-const HANDLER_CONFIG = path.join(REPO_ROOT, 'supabase/functions/external-link/deno.json');
-
-type LocalStatus = {
-  API_URL?: string;
-  DB_URL?: string;
-  ANON_KEY?: string;
-  SERVICE_ROLE_KEY?: string;
-};
 
 type Fixture = ReturnType<typeof createS21FixtureIdentity>;
 type FixtureLedger = ReturnType<typeof createS21WriteAheadLedger>;
 type BrowserGuardSnapshot = { handlerPosts: number; clickupOnboardRequests: number };
-type BrowserRouteGuard = {
-  snapshot: () => BrowserGuardSnapshot;
-  blocked: Record<string, number>;
-};
 type Ledger = Omit<FixtureLedger, 'ownedIds' | 'steps'> & {
   ownedIds: Omit<FixtureLedger['ownedIds'], 'projectBindingId' | 'auditEventIds' | 'historyEventIds'> & {
     projectBindingId: string | null;
@@ -74,127 +29,38 @@ type Ledger = Omit<FixtureLedger, 'ownedIds' | 'steps'> & {
   journeyStage: string | null;
   failedJourneyStage: string | null;
   primaryFailureDiagnostic: ReturnType<typeof captureS21FailureDiagnostic> | null;
-  reloadDiagnostic: ReturnType<ReturnType<typeof createS21ReloadDiagnostic>['snapshot']> | null;
+  reloadDiagnostic: {
+    dom: Record<string, boolean>;
+    endpoints: { category: string; status: number | null; failed: boolean }[];
+  } | null;
   failureScreenshot: string | null;
   primaryFailure: string | null;
   cleanupFailureSteps: string[];
 };
 
-type FixtureSnapshot = {
-  organizationCount: number;
-  organizationNameCount: number;
-  organizationTestCount: number;
-  authUserIdCount: number;
-  authEmailCount: number;
-  profileCount: number;
-  projectCount: number;
-  projectCodeCount: number;
-  projectNameCount: number;
-  orgBindingCount: number;
-  activeClickUpBindingCount: number;
-  projectBindingCount: number;
-  projectBindings: { id: string; external_container_id: string; direction: string | null; linked_by: string | null }[];
-  stageEntries: { id: string; stage: string; source: string; recorded_by: string | null }[];
-  projectTaskCount: number;
-  domainOwnershipCount: number;
-  externalRefsCount: number;
-  outboxCount: number;
-  vaultSecretCount: number;
-  vaultReaderPresent: boolean;
-  auditEvents: { id: string; action: string; entity_type: string | null; entity_id: string | null; actor_id: string | null }[];
-  historyEvents: { id: string; entity_type: string; entity_id: string; op: string; actor_id: string | null }[];
-  projectHistoryVisible: boolean;
-  organization: { name: string; lifecycle_state: string } | null;
-};
-
-let status: LocalStatus;
-let serviceUrl: string;
-let serviceKey: string;
-let anonKey: string;
-let apiOrigin: string;
-let appOrigin: string;
+let harness: ReturnType<typeof createS21JourneyHarness>;
 let fixture: Fixture;
 let ledger: Ledger;
-let journeyStage: string;
-let evidence: Awaited<ReturnType<typeof makeEvidencePath>>;
 let ledgerPath: string;
 let initialAdmin: SupabaseClient;
-let actorClient: SupabaseClient;
-let actorAuthenticated = false;
 let pageRouteSnapshot: (() => BrowserGuardSnapshot) | null = null;
 let browserBlocked: Record<string, number> = {};
-let browserRouteGuards: BrowserRouteGuard[] = [];
 let handlerServer: HandlerServer | null = null;
-let reloadDiagnostic: ReturnType<typeof createS21ReloadDiagnostic> | null = null;
-let primaryFailure: unknown = null;
-let cleanupFailed = false;
-let cleanupFailureErrors: Error[] = [];
-let projectCreated = false;
-let stageEntryId: string | null = null;
-let bindingCreated = false;
-let projectDeleted = false;
-let fixturePreflightPassed = false;
-let browserAdminLoginConfirmed = false;
 let continuationContext: BrowserContext | null = null;
 let continuationPage: Page | null = null;
 let continuationBindingId: string | null = null;
 let ephemeralPassword: string | null = null;
-let vaultSecretSentinel: string | null = null;
-let actorAccessToken: string | null = null;
-let actorRefreshToken: string | null = null;
-
-function markCleanupFailure(step: string): void {
-  cleanupFailed = true;
-  ledger.cleanupFailureSteps.push(step);
-  const code = `S21_CLEANUP_${step.replace(/[^A-Za-z0-9]+/g, '_').toUpperCase()}`;
-  cleanupFailureErrors.push(safeFailure(code));
-}
 
 function setJourneyStage(stage: string): void {
-  journeyStage = stage;
-  ledger.journeyStage = stage;
+  harness.setJourneyStage(stage);
 }
 
 function safeFailure(code: string): Error {
   return new Error(code);
 }
 
-function createAdminClient(url: string, key: string): SupabaseClient {
-  return createClient(url, key, {
-    auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
-  });
-}
-
-async function saveLedger(pathname: string, ledger: Ledger): Promise<void> {
-  const nextPath = `${pathname}.next`;
-  await writeFile(nextPath, `${JSON.stringify(ledger, null, 2)}\n`, { mode: 0o600 });
-  await chmod(nextPath, 0o600);
-  await rename(nextPath, pathname);
-  await chmod(pathname, 0o600);
-}
-
-async function makeEvidencePath(): Promise<{ directory: string; ledgerPath: string; failureScreenshotPath: string }> {
-  const base = process.env.S21_EVIDENCE_DIR || tmpdir();
-  await mkdir(base, { recursive: true, mode: 0o700 });
-  const directory = await mkdtemp(path.join(base, 's21-ac005-'));
-  await chmod(directory, 0o700);
-  return {
-    directory,
-    ledgerPath: path.join(directory, 'write-ahead-ledger.json'),
-    failureScreenshotPath: path.join(directory, 'first-failure.png'),
-  };
-}
-
-async function findPort(): Promise<number> {
-  const server = createServer();
-  await new Promise<void>((resolve, reject) => {
-    server.once('error', reject);
-    server.listen(0, '127.0.0.1', () => resolve());
-  });
-  const address = server.address();
-  if (!address || typeof address === 'string') throw safeFailure('S21_LISTENER_PORT_UNAVAILABLE');
-  await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
-  return address.port;
+async function saveLedger(pathname: string, book: Ledger): Promise<void> {
+  await harness.persistLedger(pathname, book);
 }
 
 type HandlerServer = {
@@ -204,502 +70,30 @@ type HandlerServer = {
   summary: () => unknown;
 };
 
-async function startHandlerServer(status: LocalStatus, fixture: Fixture, sentinel: string): Promise<HandlerServer> {
-  if (!status.API_URL || !status.SERVICE_ROLE_KEY) throw safeFailure('S21_LOCAL_FUNCTION_CONFIG_UNAVAILABLE');
-  const supabaseUrl = new URL(status.API_URL);
-  if (!loopbackHost(supabaseUrl.hostname)) throw safeFailure('S21_DATABASE_TARGET_NOT_LOCAL');
-  const port = await findPort();
-  const origin = `http://127.0.0.1:${port}`;
-  const childEnv: NodeJS.ProcessEnv = {
-    PATH: process.env.PATH ?? '',
-    HOME: process.env.HOME ?? tmpdir(),
-    TMPDIR: process.env.TMPDIR ?? tmpdir(),
-  };
-
-  const readablePaths = [
-    path.join(REPO_ROOT, 'supabase/functions/external-lists'),
-    path.join(REPO_ROOT, 'supabase/functions/external-link'),
-    path.join(REPO_ROOT, 'supabase/functions/_shared'),
-    path.join(REPO_ROOT, 'pmo-portal/src'),
-    path.join(APP_ROOT, 'e2e/support'),
-    HANDLER_CONFIG,
-  ];
-  const localNet = `${supabaseUrl.hostname}:${supabaseUrl.port || 80}`;
-  const args = [
-    'run',
-    '--no-remote',
-    '--config', path.relative(REPO_ROOT, HANDLER_CONFIG),
-    `--allow-net=${localNet},127.0.0.1:${port}`,
-    '--allow-env=SUPABASE_URL,SUPABASE_SERVICE_ROLE_KEY,EDGE_JWT_ISSUER',
-    `--allow-read=${readablePaths.join(',')}`,
-    path.relative(REPO_ROOT, HANDLER_SOURCE),
-  ];
-  const child = spawn('deno', args, { cwd: REPO_ROOT, env: childEnv, stdio: ['pipe', 'pipe', 'pipe'] });
-  const stdoutLines: string[] = [];
-  let carry = '';
-  let readyResolve!: () => void;
-  let readyReject!: (error: Error) => void;
-  const waitUntilReady = new Promise<void>((resolve, reject) => {
-    const timer = setTimeout(() => readyReject(safeFailure('S21_HANDLER_SERVER_START_TIMEOUT')), 10_000);
-    readyResolve = () => {
-      clearTimeout(timer);
-      resolve();
-    };
-    readyReject = (error) => {
-      clearTimeout(timer);
-      reject(error);
-    };
-  });
-  let summary: unknown = null;
-  child.stdout.on('data', (chunk: Buffer) => {
-    carry += chunk.toString('utf8');
-    const lines = carry.split('\n');
-    carry = lines.pop() ?? '';
-    for (const line of lines) {
-      try {
-        const event = JSON.parse(line) as { event?: string; [key: string]: unknown };
-        if (event.event === 'ready') readyResolve();
-        if (event.event === 'summary') summary = event;
-        if (event.event === 'ready' || event.event === 'summary') stdoutLines.push(line);
-      } catch {
-        // Deno diagnostics stay in memory only; never print raw function/server output.
-      }
-    }
-  });
-  child.stderr.resume();
-  child.once('error', () => readyReject(safeFailure('S21_HANDLER_SERVER_START_FAILED')));
-  child.once('exit', () => readyReject(safeFailure('S21_HANDLER_SERVER_EXITED_EARLY')));
-  child.stdin.end(JSON.stringify({
-    supabaseUrl: status.API_URL,
-    serviceRoleKey: status.SERVICE_ROLE_KEY,
-    issuer: `${status.API_URL.replace(/\/$/, '')}/auth/v1`,
-    host: '127.0.0.1',
-    port,
-    teamId: fixture.teamId,
-    teamName: fixture.teamName,
-    spaceId: fixture.spaceId,
-    spaceName: fixture.spaceName,
-    listId: fixture.listId,
-    listName: fixture.listName,
-    sentinel,
-  }));
-  try {
-    await waitUntilReady;
-  } catch (error) {
-    if (!await terminateHandlerProcess(child)) throw safeFailure('S21_HANDLER_SERVER_TEARDOWN_FAILED');
-    throw error;
-  }
-  return { child, origin, waitUntilReady, summary: () => summary ?? stdoutLines };
-}
-
-function waitForHandlerExit(child: ChildProcessWithoutNullStreams, timeoutMs: number): Promise<boolean> {
-  if (child.exitCode !== null || child.signalCode !== null || !child.pid) return Promise.resolve(true);
-  return new Promise((resolve) => {
-    const onExit = () => {
-      clearTimeout(timer);
-      resolve(true);
-    };
-    const timer = setTimeout(() => {
-      child.off('exit', onExit);
-      resolve(false);
-    }, timeoutMs);
-    child.once('exit', onExit);
-  });
-}
-
-async function terminateHandlerProcess(child: ChildProcessWithoutNullStreams): Promise<boolean> {
-  if (child.exitCode !== null || child.signalCode !== null || !child.pid) return true;
-  child.kill('SIGTERM');
-  if (await waitForHandlerExit(child, 3_000)) return true;
-  child.kill('SIGKILL');
-  return waitForHandlerExit(child, 2_000);
-}
-
-async function stopHandlerServer(server: HandlerServer | null): Promise<unknown> {
-  if (!server) return null;
-  if (!await terminateHandlerProcess(server.child)) throw safeFailure('S21_HANDLER_SERVER_TEARDOWN_FAILED');
-  return server.summary();
-}
-
-function wantedHeaders(headers: Record<string, string>): Record<string, string> {
-  const allowed = new Set([
-    'authorization', 'apikey', 'content-type', 'x-client-info', 'prefer',
-    'accept', 'accept-language', 'x-supabase-api-version',
-  ]);
-  return Object.fromEntries(Object.entries(headers).filter(([name]) => allowed.has(name.toLowerCase())));
-}
-
 async function projectBindingReadback(db: SupabaseClient, fixture: Fixture) {
-  const { data, error } = await db
-    .from('external_project_bindings')
-    .select('id, org_id, project_id, external_tier, external_container_id, config, linked_by')
-    .eq('org_id', fixture.orgId)
-    .eq('project_id', fixture.projectId)
-    .eq('external_tier', 'clickup');
-  if (error || !data) throw safeFailure('S21_PROJECT_BINDING_READBACK_FAILED');
-  if (data.length > 1) throw safeFailure('S21_PROJECT_BINDING_MULTIPLE');
-  return data[0] ?? null;
-}
-
-async function assertSingleRow<T>(
-  query: PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
-  failureCode: string,
-): Promise<T | null> {
-  const { data, error } = await query;
-  if (error || !data) throw safeFailure(failureCode);
-  if (data.length > 1) throw safeFailure(`${failureCode}_MULTIPLE`);
-  return data[0] ?? null;
-}
-
-async function installBrowserRouteGuard(
-  page: Page,
-  apiOrigin: string,
-  appOrigin: string,
-  server: HandlerServer,
-  ledger: Ledger,
-  ledgerPath: string,
-): Promise<{ snapshot: () => { handlerPosts: number; clickupOnboardRequests: number }; blocked: Record<string, number> }> {
-  const guard = createS21BrowserRequestGuard(apiOrigin, appOrigin);
-  const blocked: Record<string, number> = {};
-  await page.route('**/*', async (route) => {
-    const request = route.request();
-    const decision = guard.classify(request.url(), request.method());
-    if (decision.kind === 'local') {
-      await route.continue();
-      return;
-    }
-    if (decision.kind === 'blocked') {
-      const reason = decision.reason ?? 'unclassified';
-      blocked[reason] = (blocked[reason] ?? 0) + 1;
-      await route.abort();
-      return;
-    }
-
-    if (decision.path === '/external-link' && request.method() === 'POST') {
-      ledger.steps.projectBinding = 'in-flight';
-      await saveLedger(ledgerPath, ledger);
-    }
-    const functionName = decision.path.slice(1);
-    try {
-      const body = request.postDataBuffer();
-      const response = await fetch(`${server.origin}${decision.path}`, {
-        method: request.method(),
-        headers: wantedHeaders(await request.allHeaders()),
-        ...(body && request.method() !== 'OPTIONS' ? { body } : {}),
-        redirect: 'manual',
-      });
-      const status = String(response.status);
-      ledger.handlerResponseStatusCounts[status] = (ledger.handlerResponseStatusCounts[status] ?? 0) + 1;
-      const responseBody = await response.text();
-      if (decision.path === '/external-link' && request.method() === 'POST' && response.ok) {
-        try {
-          const parsed = JSON.parse(responseBody) as { binding?: { id?: string } };
-          if (parsed.binding?.id) {
-            ledger.ownedIds.projectBindingId = parsed.binding.id;
-            ledger.steps.projectBinding = 'handler-response-received';
-            await saveLedger(ledgerPath, ledger);
-          }
-        } catch {
-          // The persisted row is reconciled from Postgres after the browser journey.
-        }
-      }
-      const responseHeaders: Record<string, string> = {};
-      for (const name of ['content-type', 'access-control-allow-origin', 'access-control-allow-headers', 'access-control-allow-methods']) {
-        const value = response.headers.get(name);
-        if (value) responseHeaders[name] = value;
-      }
-      await route.fulfill({ status: response.status, headers: responseHeaders, body: responseBody });
-    } catch {
-      blocked[`forward-failed:${functionName}`] = (blocked[`forward-failed:${functionName}`] ?? 0) + 1;
-      await route.abort();
-    }
-  });
-  return { snapshot: () => guard.snapshot(), blocked };
-}
-
-async function visibleAny(locator: Locator): Promise<boolean> {
-  const count = await locator.count();
-  for (let index = 0; index < count; index += 1) {
-    if (await locator.nth(index).isVisible()) return true;
-  }
-  return false;
-}
-
-async function captureS21ReloadDom(page: Page, fixture: Fixture): Promise<Record<string, boolean>> {
-  const compactCard = page.getByTestId('project-integrations-compact');
-  const clickupCard = compactCard.locator('[data-tier="clickup"]');
-  return {
-    tasksHeadingVisible: await visibleAny(page.getByText('Tasks', { exact: true })),
-    emptyTaskStateVisible: await visibleAny(page.getByText('No tasks yet', { exact: true })),
-    bindingLoadingVisible: await visibleAny(page.getByTestId('project-integrations-loading')),
-    compactCardPresent: (await compactCard.count()) > 0,
-    compactCardUnique: (await compactCard.count()) === 1,
-    clickupTierCardPresent: (await clickupCard.count()) > 0,
-    bindingErrorVisible: await visibleAny(clickupCard.getByText(/Failed to load|Project link details could not be refreshed/)),
-    listErrorVisible: await visibleAny(clickupCard.getByText(/Failed to load lists|List details could not be refreshed/)),
-    listDetailsLoadingVisible: await visibleAny(clickupCard.getByText(/Loading list details; saved list ID:/)),
-    // SUB-F: the linked project is one line, "Linked to ClickUp list <name> · Unlink".
-    savedListIdentityVisible: await visibleAny(clickupCard.getByText(`Linked to ClickUp list ${fixture.listName}`)),
-  };
+  return harness.readback(db, fixture);
 }
 
 test.beforeAll(async ({ playwright: _playwright }, testInfo) => {
   test.setTimeout(S21_FIXTURE_PHASE_TIMEOUT_MS);
-  status = readLocalStatus();
-  serviceUrl = status.API_URL ?? '';
-  serviceKey = status.SERVICE_ROLE_KEY ?? '';
-  anonKey = status.ANON_KEY ?? '';
-  if (!serviceUrl || !serviceKey || !anonKey || !status.DB_URL) throw safeFailure('S21_LOCAL_CONFIG_UNAVAILABLE');
-  apiOrigin = new URL(serviceUrl).origin;
-  if (!loopbackHost(new URL(serviceUrl).hostname)) throw safeFailure('S21_API_TARGET_NOT_LOCAL');
-
-  fixture = createS21FixtureIdentity();
-  ledger = createS21WriteAheadLedger(fixture) as unknown as Ledger;
-  journeyStage = 'fixture-preflight';
-  ledger.journeyStage = journeyStage;
-  ledger.failedJourneyStage = null;
-  ledger.primaryFailureDiagnostic = null;
-  ledger.reloadDiagnostic = null;
-  ledger.failureScreenshot = null;
-  ledger.requestCaps = { clickupGets: S21_MAX_CLICKUP_GETS, handlerPosts: S21_MAX_HANDLER_POSTS };
-  ledger.handlerResponseStatusCounts = {};
-  ledger.browserBlockedByReason = {};
-  ledger.transportSummary = null;
-  ledger.primaryFailure = null;
-  ledger.cleanupFailureSteps = [];
-  evidence = await makeEvidencePath();
-  ledgerPath = evidence.ledgerPath;
-  initialAdmin = createAdminClient(serviceUrl, serviceKey);
-  actorClient = createAdminClient(serviceUrl, anonKey);
-  actorAuthenticated = false;
-  pageRouteSnapshot = null;
-  browserBlocked = {};
-  browserRouteGuards = [];
-  handlerServer = null;
-  reloadDiagnostic = null;
-  primaryFailure = null;
-  cleanupFailed = false;
-  cleanupFailureErrors = [];
-  projectCreated = false;
-  stageEntryId = null;
-  bindingCreated = false;
-  projectDeleted = false;
-  fixturePreflightPassed = false;
-  browserAdminLoginConfirmed = false;
-  continuationContext = null;
-  continuationPage = null;
-  continuationBindingId = null;
-  ephemeralPassword = null;
-  vaultSecretSentinel = null;
-  actorAccessToken = null;
-  actorRefreshToken = null;
-
-  await saveLedger(ledgerPath, ledger);
-  try {
-    assertInitialAbsence(await queryFixtureSnapshot(status, fixture));
-    fixturePreflightPassed = true;
-
-    setJourneyStage('organization');
-    ledger.steps.organization = 'in-flight';
-    await saveLedger(ledgerPath, ledger);
-    const orgWrite = await initialAdmin.from('organizations').insert({
-      id: fixture.orgId,
-      name: fixture.orgName,
-      default_currency: 'IDR',
-      default_locale: 'en',
-      default_number_locale: 'en-US',
-      default_timezone: 'Asia/Jakarta',
-      lifecycle_state: 'test',
-    });
-    const { data: orgRead, error: orgReadError } = await initialAdmin
-      .from('organizations')
-      .select('id, name, lifecycle_state, default_currency, default_locale, default_number_locale, default_timezone')
-      .eq('id', fixture.orgId)
-      .maybeSingle();
-    if (
-      orgReadError || !orgRead || orgRead.name !== fixture.orgName || orgRead.lifecycle_state !== 'test' ||
-      orgRead.default_currency !== 'IDR' || orgRead.default_locale !== 'en' ||
-      orgRead.default_number_locale !== 'en-US' || orgRead.default_timezone !== 'Asia/Jakarta'
-    ) throw safeFailure('S21_ORGANIZATION_WRITE_NOT_RECONCILED');
-    void orgWrite;
-    ledger.steps.organization = 'verified';
-    await saveLedger(ledgerPath, ledger);
-
-    setJourneyStage('auth-user');
-    ledger.steps.authUser = 'in-flight';
-    await saveLedger(ledgerPath, ledger);
-    ephemeralPassword = `${crypto.randomUUID()}-Aa1!`;
-    const userWrite = await initialAdmin.auth.admin.createUser({
-      id: fixture.userId,
-      email: fixture.email,
-      password: ephemeralPassword,
-      email_confirm: true,
-    });
-    const { data: authRead } = await initialAdmin.auth.admin.getUserById(fixture.userId);
-    if (userWrite.error && !authRead.user) throw safeFailure('S21_AUTH_USER_WRITE_NOT_RECONCILED');
-    if (!authRead.user || authRead.user.id !== fixture.userId || authRead.user.email !== fixture.email) {
-      throw safeFailure('S21_AUTH_USER_IDENTITY_MISMATCH');
-    }
-    ledger.steps.authUser = 'verified';
-    await saveLedger(ledgerPath, ledger);
-
-    setJourneyStage('profile');
-    ledger.steps.profile = 'in-flight';
-    await saveLedger(ledgerPath, ledger);
-    const profileWrite = await initialAdmin.from('profiles').insert({
-      id: fixture.userId,
-      org_id: fixture.orgId,
-      email: fixture.email,
-      full_name: fixture.displayName,
-      role: 'Admin',
-      status: 'active',
-    });
-    const { data: profileRead, error: profileReadError } = await initialAdmin
-      .from('profiles')
-      .select('id, org_id, email, full_name, role, status')
-      .eq('id', fixture.userId)
-      .maybeSingle();
-    if (
-      profileReadError || !profileRead || profileRead.org_id !== fixture.orgId ||
-      profileRead.email !== fixture.email || profileRead.full_name !== fixture.displayName ||
-      profileRead.role !== 'Admin' || profileRead.status !== 'active'
-    ) throw safeFailure('S21_PROFILE_WRITE_NOT_RECONCILED');
-    void profileWrite;
-    ledger.steps.profile = 'verified';
-    await saveLedger(ledgerPath, ledger);
-
-    setJourneyStage('fixture-admin-login');
-    const login = await actorClient.auth.signInWithPassword({ email: fixture.email, password: ephemeralPassword });
-    if (login.error || !login.data.session || login.data.user.id !== fixture.userId) {
-      throw safeFailure('S21_FIXTURE_ACTOR_AUTHENTICATION_FAILED');
-    }
-    actorAuthenticated = true;
-    actorAccessToken = login.data.session.access_token;
-    actorRefreshToken = login.data.session.refresh_token;
-
-    setJourneyStage('project-create-and-audit');
-    ledger.steps.project = 'in-flight';
-    await saveLedger(ledgerPath, ledger);
-    const projectWrite = await actorClient.from('projects').insert({
-      id: fixture.projectId,
-      org_id: fixture.orgId,
-      code: fixture.projectCode,
-      name: fixture.projectName,
-      status: 'Internal Project',
-      project_manager_id: null,
-    }).select('id').single();
-    const { data: projectRead, error: projectReadError } = await initialAdmin
-      .from('projects')
-      .select('id, org_id, code, name, status, project_manager_id')
-      .eq('id', fixture.projectId)
-      .maybeSingle();
-    if (
-      projectReadError || !projectRead || projectRead.org_id !== fixture.orgId ||
-      projectRead.code !== fixture.projectCode || projectRead.name !== fixture.projectName ||
-      projectRead.status !== 'Internal Project' || projectRead.project_manager_id !== null
-    ) throw safeFailure('S21_PROJECT_WRITE_NOT_RECONCILED');
-    projectCreated = true;
-    // The exact authenticated row readback is authoritative after an unknown insert response.
-    void projectWrite;
-    const projectStart: FixtureSnapshot = await queryFixtureSnapshot(status, fixture);
-    const stageEntry = projectStart.stageEntries[0];
-    stageEntryId = stageEntry?.id ?? null;
-    if (
-      projectStart.auditEvents.filter((event) => event.action === 'project.create').length !== 1 ||
-      projectStart.stageEntries.length !== 1 || stageEntry?.stage !== 'Internal Project' ||
-      stageEntry.source !== 'origination' || stageEntry.recorded_by !== fixture.userId ||
-      projectStart.historyEvents.length !== 2 ||
-      !projectStart.historyEvents.some((event) => event.entity_type === 'project' &&
-        event.entity_id === fixture.projectId && event.op === 'insert' && event.actor_id === fixture.userId) ||
-      !projectStart.historyEvents.some((event) => event.entity_type === 'project_stage_entry' &&
-        event.entity_id === stageEntryId && event.op === 'insert' && event.actor_id === fixture.userId)
-    ) throw safeFailure('S21_PROJECT_CREATE_AUDIT_OR_HISTORY_MISMATCH');
-    ledger.steps.project = 'verified';
-    await saveLedger(ledgerPath, ledger);
-
-    setJourneyStage('vault-and-org-binding');
-    vaultSecretSentinel = `S21_SYNTHETIC_${crypto.randomUUID().replaceAll('-', '')}`;
-    ledger.steps.vaultAndOrgBinding = 'in-flight';
-    await saveLedger(ledgerPath, ledger);
-    // The sentinel is a COPY parameter received over stdin and consumed only inside Vault.
-    const boundSecretSql = copySql([
-      fixture.orgId,
-      fixture.userId,
-      fixture.projectId,
-      fixture.orgBindingId,
-      '',
-      fixture.email,
-      fixture.orgName,
-      fixture.projectCode,
-      fixture.projectName,
-      fixture.secretRef,
-      fixture.listId,
-      vaultSecretSentinel,
-    ], `
-      DO $$
-      DECLARE p record;
-      BEGIN
-        SELECT * INTO p FROM s21_values;
-        PERFORM vault.create_secret(p.secret_value, p.secret_ref);
-      END $$;
-      INSERT INTO public.external_org_bindings
-        (id, org_id, external_tier, site_url, secret_ref, status, connected_by, connected_at, config)
-      SELECT p.org_binding_id, p.org_id, 'clickup', '', p.secret_ref, 'active', p.user_id, now(), '{}'::jsonb
-        FROM s21_values p;
-      COMMIT;
-    `);
-    try {
-      await runPsql(status, `BEGIN;\n${boundSecretSql}`);
-    } catch {
-      const reconcile = await queryFixtureSnapshot(status, fixture);
-      if (
-        reconcile.orgBindingCount !== 1 || reconcile.vaultSecretCount !== 1 ||
-        !reconcile.vaultReaderPresent
-      ) throw safeFailure('S21_VAULT_BINDING_WRITE_NOT_RECONCILED');
-    }
-    const orgBindingRead = await queryFixtureSnapshot(status, fixture);
-    if (orgBindingRead.orgBindingCount !== 1 || orgBindingRead.activeClickUpBindingCount !== 1 ||
-      orgBindingRead.vaultSecretCount !== 1 || !orgBindingRead.vaultReaderPresent) {
-      throw safeFailure('S21_VAULT_BINDING_STATE_MISMATCH');
-    }
-    ledger.steps.vaultAndOrgBinding = 'verified';
-    await saveLedger(ledgerPath, ledger);
-
-    setJourneyStage('handler-and-browser-setup');
-    const clickupSentinel = vaultSecretSentinel;
-    handlerServer = await startHandlerServer(status, fixture, clickupSentinel);
-    const appBaseUrl = testInfo.project.use.baseURL;
-    if (!appBaseUrl) throw safeFailure('S21_APP_BASE_URL_UNAVAILABLE');
-    appOrigin = new URL(appBaseUrl).origin;
-    await saveLedger(ledgerPath, ledger);
-  } catch (error) {
-    primaryFailure = error;
-    recordS21PrimaryFailure(ledger, error, {
-      stage: journeyStage,
-      secretValues: [status.DB_URL, serviceKey, anonKey, ephemeralPassword, vaultSecretSentinel]
-        .filter((value): value is string => typeof value === 'string' && value.length > 0),
-      includeDetails: false,
-    });
-    try {
-      await saveLedger(ledgerPath, ledger);
-    } catch {
-      // Preserve the fixture/setup failure when private evidence storage is unavailable.
-    }
-    throw error;
-  }
+  harness = createS21JourneyHarness();
+  await harness.setup({ appBaseUrl: testInfo.project.use.baseURL });
+  fixture = harness.fixture!;
+  ledger = harness.ledger as unknown as Ledger;
+  ledgerPath = harness.ledgerPath!;
+  initialAdmin = harness.initialAdmin!;
+  handlerServer = harness.handlerServer as HandlerServer;
+  ephemeralPassword = harness.ephemeralPassword;
 });
 
 async function installBrowserRouteGuardForPage(page: Page): Promise<void> {
-  setJourneyStage('browser-route-guard');
-  if (!handlerServer) throw safeFailure('S21_HANDLER_SERVER_UNAVAILABLE');
-  const routeGuard = await installBrowserRouteGuard(page, apiOrigin, appOrigin, handlerServer, ledger, ledgerPath);
+  const routeGuard = await harness.installPageGuard(page);
   pageRouteSnapshot = routeGuard.snapshot;
   browserBlocked = routeGuard.blocked;
-  browserRouteGuards.push(routeGuard);
 }
 
 async function adminLoginAndOpenTaskRoute(page: Page): Promise<Locator> {
-  browserAdminLoginConfirmed = false;
+  harness.markBrowserLoginConfirmed(false);
   setJourneyStage('admin-login-page-load');
   await page.goto('/login');
   setJourneyStage('admin-login-email-entry');
@@ -711,7 +105,7 @@ async function adminLoginAndOpenTaskRoute(page: Page): Promise<Locator> {
   await page.getByRole('button', { name: /sign in/i }).click();
   setJourneyStage('admin-home-after-login');
   await expect(page).toHaveURL(/\/$/);
-  browserAdminLoginConfirmed = true;
+  harness.markBrowserLoginConfirmed(true);
 
   setJourneyStage('open-project-task-route');
   await page.goto(`/projects/${fixture.projectId}/tasks`);
@@ -723,44 +117,7 @@ async function adminLoginAndOpenTaskRoute(page: Page): Promise<Locator> {
 }
 
 async function recordS21BrowserFailure(page: Page | null, error: unknown): Promise<void> {
-  const secretValues = [
-    status.DB_URL,
-    serviceKey,
-    anonKey,
-    ephemeralPassword,
-    vaultSecretSentinel,
-    actorAccessToken,
-    actorRefreshToken,
-  ].filter((value): value is string => typeof value === 'string' && value.length > 0);
-  recordS21PrimaryFailure(ledger, error, {
-    stage: journeyStage,
-    secretValues,
-    includeDetails: browserAdminLoginConfirmed,
-  });
-  primaryFailure = error;
-  if (browserAdminLoginConfirmed && page) {
-    try {
-      const reloadFailure = journeyStage === 'reload-linked-task-route' || journeyStage.startsWith('reloaded-');
-      if (reloadFailure && reloadDiagnostic) {
-        try {
-          ledger.reloadDiagnostic = reloadDiagnostic.snapshot(await captureS21ReloadDom(page, fixture));
-        } catch {
-          ledger.reloadDiagnostic = reloadDiagnostic.snapshot();
-        }
-      }
-      await page.screenshot({ path: evidence.failureScreenshotPath, animations: 'disabled', fullPage: reloadFailure });
-      await chmod(evidence.failureScreenshotPath, 0o600);
-      ledger.failureScreenshot = path.basename(evidence.failureScreenshotPath);
-    } catch {
-      ledger.failureScreenshot = 'unavailable';
-    }
-  }
-  ledger.journeyStage = 'cleanup';
-  try {
-    await saveLedger(ledgerPath, ledger);
-  } catch {
-    // The original journey failure remains authoritative if diagnostics cannot be saved.
-  }
+  await harness.recordJourneyFailure(page, error);
 }
 
 test.describe.serial('S21 complete ordered task-link journey', () => {
@@ -811,7 +168,7 @@ test.describe.serial('S21 complete ordered task-link journey', () => {
         throw safeFailure('S21_PROJECT_BINDING_PERSISTENCE_MISMATCH');
       }
       ledger.ownedIds.projectBindingId = firstBinding.id;
-      bindingCreated = true;
+      harness.markBindingCreated();
       ledger.steps.projectBinding = 'verified';
       const browserSnapshot = pageRouteSnapshot?.();
       if (!browserSnapshot || browserSnapshot.clickupOnboardRequests !== 0 || browserSnapshot.handlerPosts > S21_MAX_HANDLER_POSTS) {
@@ -829,7 +186,7 @@ test.describe.serial('S21 complete ordered task-link journey', () => {
 
   test('Supporting proof: Admin opens the linked task route for the reload continuation', async ({ browser }, testInfo) => {
     test.setTimeout(S21_FIXTURE_PHASE_TIMEOUT_MS);
-    browserAdminLoginConfirmed = false;
+    harness.markBrowserLoginConfirmed(false);
     let page: Page | null = null;
     try {
       const activeHandlerServer = handlerServer;
@@ -864,15 +221,7 @@ test.describe.serial('S21 complete ordered task-link journey', () => {
       if (!firstBindingId) throw safeFailure('S21_PROJECT_BINDING_PERSISTENCE_MISMATCH');
 
       setJourneyStage('reload-linked-task-route');
-      reloadDiagnostic = createS21ReloadDiagnostic();
-      page.on('response', (response) => {
-        const category = classifyS21DiagnosticEndpoint(response.url(), apiOrigin);
-        if (category) reloadDiagnostic?.recordResponse(category, response.status());
-      });
-      page.on('requestfailed', (request) => {
-        const category = classifyS21DiagnosticEndpoint(request.url(), apiOrigin);
-        if (category) reloadDiagnostic?.recordFailure(category);
-      });
+      harness.beginReloadDiagnostic(page);
       await page.reload();
       setJourneyStage('reloaded-list-name-visible');
       // SUB-F: the one-line link names the list; the initial source (push-seed) is proven by the DB readback below.
@@ -919,172 +268,13 @@ test.describe.serial('S21 complete ordered task-link journey', () => {
   });
 });
 
-
-async function stopAndVerifyOwnedHandler(server: HandlerServer): Promise<void> {
-  const failureStart = cleanupFailureErrors.length;
-  try {
-    ledger.transportSummary = await stopHandlerServer(server);
-  } catch {
-    markCleanupFailure('handler-stop');
-  }
-  let browserGuardSummary: ReturnType<typeof aggregateS21BrowserGuardSnapshots> | null = null;
-  {
-    try {
-      const measured = validateS21TransportSummary(ledger.transportSummary, { requireLink: primaryFailure === null });
-      browserGuardSummary = browserRouteGuards.length > 0
-        ? aggregateS21BrowserGuardSnapshots(browserRouteGuards.map((guard) => ({
-          snapshot: guard.snapshot(),
-          blocked: guard.blocked,
-        })))
-        : null;
-      const browserStatusTotal = Object.values(ledger.handlerResponseStatusCounts).reduce((sum, count) => sum + count, 0);
-      const browserStatusesSuccessful = Object.keys(ledger.handlerResponseStatusCounts).every((status) => /^2\d\d$/.test(status));
-      if (!browserGuardSummary || browserGuardSummary.handlerPosts !== measured.handlerPosts ||
-          browserStatusTotal !== measured.handlerPosts || !browserStatusesSuccessful) {
-        throw safeFailure('S21_HANDLER_COUNT_MISMATCH');
-      }
-    } catch {
-      markCleanupFailure('transport-summary');
-    }
-  }
-  if (browserGuardSummary) {
-    ledger.browserBlockedByReason = { ...browserGuardSummary.blocked };
-    if (browserGuardSummary.clickupOnboardRequests !== 0) markCleanupFailure('operator-initializer');
-    if (Object.keys(browserGuardSummary.blocked).length > 0) markCleanupFailure('browser-outbound');
-  }
-  try {
-    await saveLedger(ledgerPath, ledger);
-  } catch {
-    markCleanupFailure('write-ahead-ledger');
-  }
-
-
-  if (cleanupFailureErrors.length > failureStart) {
-    throw new AggregateError(cleanupFailureErrors.slice(failureStart), 'S21 owned handler cleanup failed');
-  }
-}
-
-async function cleanupOwnedFixtureRows(): Promise<void> {
-  const failureStart = cleanupFailureErrors.length;
-  try {
-      if (!fixturePreflightPassed) throw safeFailure('S21_COLLISION_PRESERVED');
-      const binding = await projectBindingReadback(initialAdmin, fixture);
-      if (binding) {
-        if (binding.external_container_id !== fixture.listId || binding.linked_by !== fixture.userId) {
-          throw safeFailure('S21_PROJECT_BINDING_UNOWNED');
-        }
-        ledger.ownedIds.projectBindingId = binding.id;
-        bindingCreated = true;
-        ledger.steps.cleanup = 'project-binding-delete-in-flight';
-        await saveLedger(ledgerPath, ledger);
-        const { error } = await initialAdmin.from('external_project_bindings').delete()
-          .eq('id', binding.id).eq('org_id', fixture.orgId).eq('project_id', fixture.projectId)
-          .eq('external_tier', 'clickup');
-        const after = await projectBindingReadback(initialAdmin, fixture);
-        if (after) throw safeFailure(error ? 'S21_PROJECT_BINDING_DELETE_UNRESOLVED' : 'S21_PROJECT_BINDING_DELETE_FAILED');
-        ledger.steps.projectBinding = 'removed';
-        await saveLedger(ledgerPath, ledger);
-      }
-  } catch {
-    markCleanupFailure('project-binding');
-  }
-
-  try {
-      if (!fixturePreflightPassed) throw safeFailure('S21_COLLISION_PRESERVED');
-      const project = await assertSingleRow(
-        initialAdmin.from('projects').select('id, org_id, code, name').eq('id', fixture.projectId).eq('org_id', fixture.orgId),
-        'S21_PROJECT_CLEANUP_READ_FAILED',
-      );
-      if (project) {
-        if (project.code !== fixture.projectCode || project.name !== fixture.projectName) throw safeFailure('S21_PROJECT_UNOWNED');
-        ledger.steps.cleanup = 'project-delete-in-flight';
-        await saveLedger(ledgerPath, ledger);
-        if (!actorAuthenticated) throw safeFailure('S21_PROJECT_DELETE_ACTOR_UNAVAILABLE');
-        await actorClient.from('projects').delete().eq('id', fixture.projectId).eq('org_id', fixture.orgId);
-        const after = await assertSingleRow(
-          initialAdmin.from('projects').select('id').eq('id', fixture.projectId).eq('org_id', fixture.orgId),
-          'S21_PROJECT_CLEANUP_RECONCILE_FAILED',
-        );
-        if (after) throw safeFailure('S21_PROJECT_DELETE_UNRESOLVED');
-        projectDeleted = true;
-        ledger.steps.project = 'removed';
-        await saveLedger(ledgerPath, ledger);
-      }
-  } catch {
-    markCleanupFailure('project');
-  }
-
-  try {
-      if (!fixturePreflightPassed) throw safeFailure('S21_COLLISION_PRESERVED');
-      const { data: authRead, error: authReadError } = await initialAdmin.auth.admin.getUserById(fixture.userId);
-      if (authReadError && authReadError.status !== 404) throw safeFailure('S21_AUTH_CLEANUP_READ_FAILED');
-      if (authRead.user) {
-        if (authRead.user.email !== fixture.email) throw safeFailure('S21_AUTH_USER_UNOWNED');
-        ledger.steps.cleanup = 'auth-user-delete-in-flight';
-        await saveLedger(ledgerPath, ledger);
-        await initialAdmin.auth.admin.deleteUser(fixture.userId);
-        const { data: after } = await initialAdmin.auth.admin.getUserById(fixture.userId);
-        if (after.user) throw safeFailure('S21_AUTH_USER_DELETE_UNRESOLVED');
-      }
-      const profile = await assertSingleRow(
-        initialAdmin.from('profiles').select('id').eq('id', fixture.userId).eq('org_id', fixture.orgId),
-        'S21_PROFILE_CLEANUP_READ_FAILED',
-      );
-      if (profile) throw safeFailure('S21_PROFILE_CASCADE_NOT_VERIFIED');
-      ledger.steps.authUser = 'removed';
-      ledger.steps.profile = 'removed';
-      await saveLedger(ledgerPath, ledger);
-  } catch {
-    markCleanupFailure('auth-profile');
-  }
-
-  try {
-      if (!fixturePreflightPassed) throw safeFailure('S21_COLLISION_PRESERVED');
-      const snapshot = await queryFixtureSnapshot(status, fixture);
-      if (snapshot.orgBindingCount === 1 && snapshot.vaultSecretCount === 1 && snapshot.vaultReaderPresent) {
-        ledger.steps.cleanup = 'vault-binding-delete-in-flight';
-        await saveLedger(ledgerPath, ledger);
-        await removeVaultAndOrgBinding(status, fixture);
-      } else if (snapshot.orgBindingCount !== 0 || snapshot.vaultSecretCount !== 0 || snapshot.vaultReaderPresent) {
-        throw safeFailure('S21_VAULT_BINDING_PARTIAL_STATE');
-      }
-      const after = await queryFixtureSnapshot(status, fixture);
-      if (after.orgBindingCount !== 0 || after.vaultSecretCount !== 0 || after.vaultReaderPresent) {
-        throw safeFailure('S21_VAULT_BINDING_DELETE_UNRESOLVED');
-      }
-      ledger.steps.vaultAndOrgBinding = 'removed';
-      await saveLedger(ledgerPath, ledger);
-  } catch {
-    markCleanupFailure('vault-org-binding');
-  }
-
-  if (!cleanupFailed && fixturePreflightPassed) {
-    try {
-      await assertFinalFixtureState(status, fixture, ledger, projectCreated, bindingCreated, projectDeleted, stageEntryId);
-      await saveLedger(ledgerPath, ledger);
-    } catch {
-      markCleanupFailure('final-retention-proof');
-    }
-  }
-  await actorClient.auth.signOut({ scope: 'local' }).catch(() => undefined);
-  if (cleanupFailureErrors.length > failureStart) {
-    throw new AggregateError(cleanupFailureErrors.slice(failureStart), 'S21 owned fixture row cleanup failed');
-  }
-}
-
 test.afterAll(async () => {
   test.setTimeout(S21_FIXTURE_PHASE_TIMEOUT_MS);
   const ownedContext = continuationContext;
   let cleanupError: unknown = null;
   try {
     if (ledger) {
-      await runS21FixtureCleanup({
-        preflightPassed: fixturePreflightPassed,
-        ownedServer: handlerServer,
-        primaryFailure,
-        stopOwnedServer: (server) => stopAndVerifyOwnedHandler(server as HandlerServer),
-        cleanupOwnedRows: cleanupOwnedFixtureRows,
-      });
+      await harness.dispose();
     }
   } catch (error) {
     cleanupError = error;

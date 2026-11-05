@@ -3,11 +3,10 @@
  *
  * Project-level link to external system:
  * - ClickUp: links a PMO project to a ClickUp List with direction (push-seed | pull-adopt)
- * - ERPNext: updates the org's ERPNext binding with a Company doc name
+ * - ERPNext: refused here; the Company is chosen only through external-set-company's validated activation
  *
  * Auth: runs under CALLER JWT (verifyCallerJwt, ADR-0057), re-enforces tier-specific role gate on verified `sub`.
  * - ClickUp: Admin OR Operator OR (Project Manager of the project AND PM profile active)
- * - ERPNext: Admin OR Operator (org-level, not project-scoped)
  *
  * ClickUp direction rules (OD-CUA-3, mirrored from clickup-onboard):
  * - push-seed: List must be empty (ClickUp task count = 0)
@@ -55,16 +54,13 @@ import {
 } from '../../../pmo-portal/src/lib/adapterSeam/clickup/memberMap.ts';
 import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
 import { fetchBounded, FetchDeadlineError } from '../_shared/fetchWithDeadline.ts';
-import { guardedErpFetch, isPrivateOrReservedHost } from '../_shared/erpHostGuard.ts';
 
 interface LinkBody {
-  tier: 'clickup' | 'erpnext';
+  tier: string;
   // ClickUp fields
   projectId?: string;
   listId?: string;
   direction?: 'push-seed' | 'pull-adopt';
-  // ERPNext fields
-  companyId?: string;
 }
 
 // Memoized JWKS resolver
@@ -274,47 +270,6 @@ async function validateClickUpLinkDirection(
 }
 
 // ============================================================================
-// ERPNext validation helpers
-// ============================================================================
-
-interface ErpNextDeps {
-  fetchImpl: typeof fetch;
-  siteUrl: string;
-  apiKey: string;
-  apiSecret: string;
-}
-
-/** Validate ERPNext Company exists. SSRF-guarded like external-connect. */
-async function validateErpNextCompany(deps: ErpNextDeps, companyId: string): Promise<void> {
-  let parsedUrl: URL;
-  try {
-    parsedUrl = new URL(deps.siteUrl);
-  } catch {
-    throw new AppError('Invalid ERPNext site URL', 'config-rejected');
-  }
-  if (parsedUrl.protocol !== 'https:') {
-    throw new AppError('Only HTTPS URLs are allowed', 'config-rejected');
-  }
-  const hostname = parsedUrl.hostname;
-  if (await isPrivateOrReservedHost(hostname)) {
-    throw new AppError('Private or reserved addresses are not allowed', 'config-rejected');
-  }
-
-  const url = `${deps.siteUrl.replace(/\/$/, '')}/api/resource/Company/${encodeURIComponent(companyId)}`;
-  const res = await deps.fetchImpl(url, {
-    headers: { Authorization: `token ${deps.apiKey}:${deps.apiSecret}` },
-    redirect: 'manual',
-    signal: AbortSignal.timeout(5000),
-  });
-  if (!res.ok) {
-    if (res.status === 404) {
-      throw new AppError('Company not found in ERPNext', 'NOT_FOUND');
-    }
-    throw new AppError('Failed to validate ERPNext company', 'external-unreachable');
-  }
-}
-
-// ============================================================================
 // Main handler (exported for testability)
 // ============================================================================
 
@@ -395,11 +350,12 @@ export async function handleLinkRequest(req: Request): Promise<Response> {
   }
 
   const { tier } = body;
-  if (tier !== 'clickup' && tier !== 'erpnext') {
-    return errorResponse('Unknown tier (must be clickup or erpnext)', 'BAD_REQUEST', 400);
+  if (tier !== 'clickup') {
+    // The ERPNext company is chosen only through external-set-company's validated activation (version, read checks, defaults).
+    return errorResponse('Unknown tier (must be clickup)', 'BAD_REQUEST', 400);
   }
 
-  const featureKey = tier === 'clickup' ? 'clickup_sync' : 'erp_sync';
+  const featureKey = 'clickup_sync';
   const { data: featureEnabled, error: featureError } = await serviceClient.rpc('service_feature_enabled', {
     p_org_id: profile.org_id,
     p_key: featureKey,
@@ -563,88 +519,12 @@ export async function handleLinkRequest(req: Request): Promise<Response> {
     });
   }
 
-  // =========================================================================
-  // ERPNext branch
-  // =========================================================================
-  if (tier === 'erpnext') {
-    // ERPNext is org-level, not project-scoped. Admin/Operator only (PM not allowed).
-    if (!isAdmin && !isPlatformOperator) {
-      return errorResponse('Admin or Operator role required for ERPNext link', 'FORBIDDEN', 403);
-    }
-
-    const { companyId } = body;
-    if (!companyId) {
-      return errorResponse('companyId is required for ERPNext', 'BAD_REQUEST', 400);
-    }
-
-    // Resolve ERPNext credentials from Vault
-    const { data: vaultSecret, error: vaultError } = await serviceClient.rpc('read_vault_secret', {
-      p_secret_ref: binding.secret_ref,
-    });
-
-    if (vaultError || !vaultSecret) {
-      return errorResponse('ERPNext credentials not found in Vault', 'CONFIG_REJECTED', 422);
-    }
-
-    const stored = (vaultSecret as string).split(':');
-    if (stored.length !== 2) {
-      return errorResponse('Invalid ERPNext credential format in Vault', 'CONFIG_REJECTED', 422);
-    }
-    const [apiKey, apiSecret] = stored;
-
-    // Validate Company exists in ERPNext
-    const erpNextDeps: ErpNextDeps = {
-      fetchImpl: guardedErpFetch(binding.site_url),
-      siteUrl: binding.site_url,
-      apiKey,
-      apiSecret,
-    };
-
-    try {
-      await validateErpNextCompany(erpNextDeps, companyId);
-    } catch (err) {
-      if (err instanceof AppError) {
-        return errorResponse(err.message, err.code ?? 'CONFIG_REJECTED', err.code === 'NOT_FOUND' ? 404 : 422);
-      }
-      return errorResponse('Company validation failed', 'CONFIG_REJECTED', 422);
-    }
-
-    const { data: updated, error: updateError } = await serviceClient.rpc('link_external_company', {
-      p_org_id: profile.org_id,
-      p_actor_id: userId,
-      p_company: companyId,
-      p_site_url: binding.site_url,
-    });
-
-    if (updateError?.code === '42501') return errorResponse('Current authority required', 'FORBIDDEN', 403);
-    if (updateError || !updated) {
-      console.error('external_org_bindings config update failed', updateError);
-      return errorResponse('Failed to update ERPNext binding', 'INTERNAL', 500);
-    }
-
-    // Audit log
-    const { error: auditError } = await serviceClient.rpc('log_audit', {
-      p_action: 'integration.link',
-      p_org_id: profile.org_id,
-      p_actor_id: userId,
-      p_entity_id: null,
-      p_detail: {
-        tier: 'erpnext',
-        company_id: companyId,
-        actor: userId,
-      },
-    });
-    if (auditError) console.error('log_audit failed', auditError);
-
-    return json({ ok: true, companyId });
-  }
-
   return errorResponse('Unknown tier', 'BAD_REQUEST', 400);
 }
 
 // Export validation functions for testing
-export { validateClickUpLinkDirection, validateErpNextCompany, getPmoTaskCount };
-export type { ClickUpDeps, ErpNextDeps };
+export { validateClickUpLinkDirection, getPmoTaskCount };
+export type { ClickUpDeps };
 
 // Deno.serve entry point (only runs when module is main)
 if (import.meta.main) {

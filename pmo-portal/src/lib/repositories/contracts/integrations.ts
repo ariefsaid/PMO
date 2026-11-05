@@ -86,14 +86,8 @@ export interface LinkClickUpProjectInput {
   direction: LinkDirection;
 }
 
-/** Request payload for linking ERPNext org to a Company. */
-export interface LinkErpNextOrgInput {
-  tier: 'erpnext';
-  companyId: string;
-}
-
-/** Union of link inputs. */
-export type LinkInput = LinkClickUpProjectInput | LinkErpNextOrgInput;
+/** Link inputs: only ClickUp project links go through external-link (the ERPNext Company is chosen in activation). */
+export type LinkInput = LinkClickUpProjectInput;
 
 /** Response from link edge function. */
 export interface LinkResponse {
