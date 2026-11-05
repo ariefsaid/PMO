@@ -2,6 +2,7 @@ import { useQuery, type QueryClient } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
 import { useAuth } from '@/src/auth/useAuth';
 import type { EntitleableKey, FeatureResolution, ResolvedFeatureSet } from '@/src/lib/features';
+import { SESSION_QUERY_OPTIONS } from '@/src/lib/queryPolicies';
 
 /**
  * useOrgFeatures — the caller's own-org RESOLVED entitlement set (FR-PLN-005).
@@ -89,6 +90,7 @@ export function useOrgFeatures(): OrgFeaturesState {
     queryKey: orgFeatureQueryKey(currentUser?.org_id),
     queryFn: () => repositories.orgFeature.listOwn(),
     enabled: Boolean(currentUser),
+    ...SESSION_QUERY_OPTIONS,
   });
   return {
     data: query.data?.display,

@@ -19,6 +19,7 @@ import type { AssignInvoiceProjectInput } from '@/src/lib/projectFinances';
 import type { BillingKind } from '@/src/lib/billingKind';
 import { efakturRefusal } from '@/src/lib/efaktur';
 import { nativeDraftInvoicesKey } from './approvalsQueryKeys';
+import { MONEY_QUERY_OPTIONS } from '@/src/lib/queryPolicies';
 
 export { nativeDraftInvoicesKey } from './approvalsQueryKeys';
 
@@ -35,6 +36,7 @@ export function useSalesInvoices(projectId?: string, { enabled = true }: { enabl
     queryKey: ['salesInvoices', orgId, projectId ?? 'all'],
     queryFn: () => repositories.revenue.listInvoices(projectId ? { projectId } : undefined),
     enabled: enabled && Boolean(orgId),
+    ...MONEY_QUERY_OPTIONS,
   });
 }
 
@@ -90,6 +92,7 @@ export function useIncomingPayments(customerId?: string, enabled = true, salesIn
       ...(salesInvoiceId ? { salesInvoiceId } : {}),
     }),
     enabled: Boolean(orgId && enabled),
+    ...MONEY_QUERY_OPTIONS,
   });
 }
 

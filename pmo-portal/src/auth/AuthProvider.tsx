@@ -3,6 +3,7 @@ import type { Session } from '@supabase/supabase-js';
 import { supabase } from '@/src/lib/supabase/client';
 import { trackAuthLogoutSucceeded } from '@/src/lib/analytics';
 import { queryClient } from '@/src/lib/queryClient';
+import { SESSION_QUERY_OPTIONS } from '@/src/lib/queryPolicies';
 import { AuthContext, type Profile } from './AuthContext';
 
 type ProfileErrorKind = 'not_provisioned' | 'load_error';
@@ -24,9 +25,15 @@ function classifyProfileError(error: { code?: string; message?: string | null })
 }
 
 async function loadProfile(userId: string): Promise<ProfileResult> {
-  const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).single();
-  if (error) return { profile: null, error: error.message, errorKind: classifyProfileError(error) };
-  return { profile: data, error: null, errorKind: null };
+  return queryClient.fetchQuery({
+    queryKey: ['profile', userId],
+    queryFn: async (): Promise<ProfileResult> => {
+      const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).single();
+      if (error) return { profile: null, error: error.message, errorKind: classifyProfileError(error) };
+      return { profile: data, error: null, errorKind: null };
+    },
+    ...SESSION_QUERY_OPTIONS,
+  });
 }
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -186,6 +193,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const gen = ++profileGenRef.current;
     manualRefreshesRef.current += 1;
     try {
+      await queryClient.invalidateQueries({ queryKey: ['profile', userId], exact: true });
       const result = await loadProfile(userId);
       if (!mountedRef.current || gen !== profileGenRef.current) {
         return { error: 'Profile refresh was superseded' };

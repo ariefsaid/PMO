@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
 import { useAuth } from '@/src/auth/useAuth';
 import { analyticsClient } from '@/src/lib/analytics/client';
+import { SESSION_QUERY_OPTIONS } from '@/src/lib/queryPolicies';
 import type { OrgPlan } from '@/src/lib/db/orgPlan';
 
 /** PostHog group type for the organisation — one group per org, shared by every member. */
@@ -28,8 +29,8 @@ export function useOrgPlanGroup(): void {
     queryKey: ['orgPlan', orgId],
     queryFn: () => repositories.orgFeature.currentPlan(),
     enabled: Boolean(orgId),
-    // The plan changes when an Operator assigns one; a short stale window keeps navigation cheap.
-    staleTime: 5 * 60 * 1000,
+    // Plan changes invalidate this key through invalidateFeatureState; otherwise it is session-stable.
+    ...SESSION_QUERY_OPTIONS,
   });
   const planId = query.data?.plan_id ?? null;
 

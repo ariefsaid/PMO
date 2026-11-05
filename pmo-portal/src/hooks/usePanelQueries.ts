@@ -1,10 +1,11 @@
 /**
  * usePanelQueries — runs each compiled panel's query independently and exposes results keyed by
  * panel id. A panel settles as soon as its own query does (a slow panel never holds the others
- * in skeleton), and every completion, including retries, is dropped if the panel set was
- * replaced meanwhile (view change / recompose), so old data never lands in a newer view.
+ * in skeleton). Query identity includes the org and compiled query, so identical panels share one
+ * request and a result from a replaced view cannot be shown under its new query.
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useQueries } from '@tanstack/react-query';
+import { useAuth } from '@/src/auth/useAuth';
 import { executeCompiledQuery } from '@/src/lib/viewspec/executor';
 import type { CompiledPanel } from '@/src/lib/viewspec/types';
 
@@ -17,39 +18,25 @@ export interface PanelQueryState {
 export const PANEL_LOADING: PanelQueryState = { loading: true, data: null, error: null };
 
 export function usePanelQueries(panels: CompiledPanel[] | null) {
-  const [states, setStates] = useState<Record<string, PanelQueryState>>({});
-  const gen = useRef(0);
-
-  const run = useCallback((panel: CompiledPanel, myGen: number) => {
-    const settle = (s: PanelQueryState) => {
-      if (gen.current === myGen) setStates((prev) => ({ ...prev, [panel.id]: s }));
-    };
-    executeCompiledQuery(panel.compiledQuery).then(
-      (rows) => settle({ loading: false, data: rows as unknown[], error: null }),
-      (err: Error) => settle({ loading: false, data: null, error: err }),
-    );
-  }, []);
-
-  useEffect(() => {
-    const myGen = ++gen.current;
-    if (!panels) {
-      setStates({});
-      return;
-    }
-    setStates(Object.fromEntries(panels.map((p) => [p.id, PANEL_LOADING])));
-    panels.forEach((p) => run(p, myGen));
-    return () => {
-      gen.current = myGen + 1;
-    };
-  }, [panels, run]);
-
-  const retry = useCallback(
-    (panel: CompiledPanel) => {
-      setStates((prev) => ({ ...prev, [panel.id]: PANEL_LOADING }));
-      run(panel, gen.current);
-    },
-    [run],
-  );
-
+  const orgId = useAuth().currentUser?.org_id;
+  const uniqueQueries = [...new Map((panels ?? []).map((panel) => [JSON.stringify(panel.compiledQuery), panel])).values()];
+  const queryResults = useQueries({
+    queries: uniqueQueries.map((panel) => ({
+      queryKey: ['view-panel-query', orgId, panel.compiledQuery] as const,
+      queryFn: () => executeCompiledQuery(panel.compiledQuery),
+      enabled: Boolean(orgId),
+    })),
+  });
+  const queryIndexByKey = new Map(uniqueQueries.map((panel, index) => [JSON.stringify(panel.compiledQuery), index]));
+  const states = Object.fromEntries((panels ?? []).map((panel) => {
+    const query = queryResults[queryIndexByKey.get(JSON.stringify(panel.compiledQuery)) ?? -1];
+    return [panel.id, query
+      ? { loading: query.isPending || query.isFetching, data: query.isPending || query.isFetching ? null : query.data ?? null, error: query.error instanceof Error ? query.error : query.error ? new Error(String(query.error)) : null }
+      : PANEL_LOADING];
+  }));
+  const retry = (panel: CompiledPanel) => {
+    const index = queryIndexByKey.get(JSON.stringify(panel.compiledQuery)) ?? -1;
+    if (index >= 0) void queryResults[index]?.refetch();
+  };
   return { states, retry };
 }

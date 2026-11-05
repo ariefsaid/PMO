@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
 import { useAuth } from '@/src/auth/useAuth';
 import type { DemoEligibility } from '@/src/auth/impersonation';
+import { SESSION_QUERY_OPTIONS } from '@/src/lib/queryPolicies';
 
 /**
  * useDemoEligibility — is the signed-in org a DEMO org? The gate behind the Admin
@@ -15,8 +16,7 @@ import type { DemoEligibility } from '@/src/auth/impersonation';
  * this returns `'pending'` — never `'eligible'`. Only an org row that explicitly says
  * `'demo'` unlocks the control; NULL/unknown states map to `'ineligible'` in the DAL.
  *
- * The value is rechecked on remount, focus, and at a short interval while an Admin is
- * signed in. Cached demo data is withheld on initial mount and role/org transitions;
+ * The value is checked once per signed-in session. Cached demo data is withheld on initial mount and role/org transitions;
  * background checks keep the already verified selection until their result settles. The provider clears
  * any stale view-as selection when eligibility disappears (AC-AUTH-015).
  */
@@ -32,10 +32,8 @@ export function useDemoEligibility(): DemoEligibility {
     queryKey: ['org-lifecycle-state', orgId],
     queryFn: () => repositories.orgSettings.getLifecycleState(),
     enabled,
-    staleTime: 0,
-    refetchOnMount: 'always',
-    refetchOnWindowFocus: 'always',
-    refetchInterval: enabled ? 30_000 : false,
+    ...SESSION_QUERY_OPTIONS,
+    refetchOnWindowFocus: false,
   });
   if (enabled && !isPending && !isError && !isFetching) settled.current.hasVerified = true;
   // Loading, errored, and signed-out all collapse to the same deny: unknown ≠ demo.

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
@@ -17,6 +17,7 @@ const makeWrapper = () => {
 };
 
 describe('useIsOperator (AC-OPR-003 — clarity projection ONLY, ADR-0049)', () => {
+  beforeEach(() => { vi.mocked(isOperator).mockReset(); });
   it('returns true when the RPC reports the caller is an Operator', async () => {
     vi.mocked(isOperator).mockResolvedValue(true);
     const { result } = renderHook(() => useIsOperator(), { wrapper: makeWrapper() });
@@ -94,7 +95,7 @@ describe('useIsOperator (AC-OPR-003 — clarity projection ONLY, ADR-0049)', () 
     expect(isOperator).toHaveBeenCalledTimes(2);
   });
 
-  it('rechecks membership on focus or within a minute and clears Operator-only aggregates after a negative result', async () => {
+  it('keeps membership session-scoped and clears Operator-only aggregates after invalidation', async () => {
     vi.mocked(isOperator).mockResolvedValueOnce(true).mockResolvedValueOnce(false);
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false, refetchOnWindowFocus: false } } });
     const Wrapper = ({ children }: { children: React.ReactNode }) => (
@@ -104,10 +105,12 @@ describe('useIsOperator (AC-OPR-003 — clarity projection ONLY, ADR-0049)', () 
     await waitFor(() => expect(result.current.isOperator).toBe(true));
 
     const membershipQuery = qc.getQueryCache().find({ queryKey: ['operator', 'isOperator'] });
-    expect(membershipQuery?.options).toMatchObject({
-      refetchOnWindowFocus: true,
-      refetchInterval: 60_000,
+    const membershipOptions = membershipQuery?.options as { staleTime?: number; refetchOnWindowFocus?: boolean; refetchInterval?: unknown } | undefined;
+    expect(membershipOptions).toMatchObject({
+      staleTime: Infinity,
+      refetchOnWindowFocus: false,
     });
+    expect(membershipOptions?.refetchInterval).toBeUndefined();
 
     qc.setQueryData(['usage', 'org-1', true, null], [{ run_count: 1 }]);
     qc.setQueryData(['agent-run-stats', 'org-1', true, null], [{ runs: 1 }]);

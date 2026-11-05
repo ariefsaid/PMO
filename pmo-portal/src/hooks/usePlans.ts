@@ -12,6 +12,7 @@ import {
   orgPlanQueryKey,
 } from '@/src/hooks/useOrgFeatures';
 import type { OperatorOrgRow } from '@/src/lib/db/usage';
+import { SESSION_QUERY_OPTIONS } from '@/src/lib/queryPolicies';
 
 /**
  * Plan-surface reads (S3).
@@ -30,6 +31,7 @@ export function useOwnPlan() {
   return useQuery<PlanRow | null>({
     queryKey: OWN_PLAN_QUERY_KEY,
     queryFn: () => repositories.orgFeature.getOwnPlan(),
+    ...SESSION_QUERY_OPTIONS,
   });
 }
 
@@ -37,6 +39,7 @@ export function usePlanCatalogue() {
   return useQuery<PlanCatalogue>({
     queryKey: PLAN_CATALOGUE_QUERY_KEY,
     queryFn: () => repositories.orgFeature.getPlanCatalogue(),
+    ...SESSION_QUERY_OPTIONS,
   });
 }
 
@@ -45,6 +48,7 @@ export function useOrgPlan(orgId: string | null | undefined) {
     queryKey: orgPlanQueryKey(orgId ?? 'none'),
     queryFn: () => repositories.orgFeature.getOrgPlan(orgId as string),
     enabled: Boolean(orgId),
+    ...SESSION_QUERY_OPTIONS,
   });
 }
 
@@ -60,6 +64,7 @@ export function useOperatorResolvedFeatures(orgId: string | null | undefined) {
     queryKey: operatorFeatureQueryKey(orgId ?? 'none'),
     queryFn: () => repositories.orgFeature.listForOrg(orgId as string),
     enabled: Boolean(orgId),
+    ...SESSION_QUERY_OPTIONS,
   });
 }
 
@@ -73,5 +78,6 @@ export function useOperatorOrgOverrides(orgId: string | null | undefined) {
     queryKey: orgOverridesQueryKey(orgId ?? 'none'),
     queryFn: () => repositories.orgFeature.listOverrides(orgId as string),
     enabled: Boolean(orgId),
+    ...SESSION_QUERY_OPTIONS,
   });
 }

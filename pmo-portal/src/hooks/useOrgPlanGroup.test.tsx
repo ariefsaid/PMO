@@ -50,6 +50,16 @@ afterEach(() => {
 });
 
 describe('useOrgPlanGroup — FR-PLN-016', () => {
+  it('keeps the session plan fresh until the operator mutation invalidates it', async () => {
+    currentPlan.mockResolvedValue({ plan_id: 'starter', plan_name: 'Starter', seat_limit: 10, project_limit: 25, ai_monthly_messages: 300 });
+    const { client } = renderProbe();
+    await waitFor(() => expect(analytics.group).toHaveBeenCalledWith(ORG_GROUP_TYPE, 'org-1', { plan: 'starter' }));
+    const query = client.getQueryCache().find({ queryKey: ['orgPlan', 'org-1'] });
+    const options = query?.options as { staleTime?: number; gcTime?: number } | undefined;
+    expect(options?.staleTime).toBe(Infinity);
+    expect(options?.gcTime).toBe(Infinity);
+  });
+
   it('registers the plan as the organisation group property', async () => {
     currentPlan.mockResolvedValue({ plan_id: 'growth', plan_name: 'Growth', seat_limit: 25, project_limit: 100, ai_monthly_messages: 1500 });
     renderProbe();
