@@ -25,6 +25,7 @@ import type { SubcontractRepository } from './contracts/subcontracts';
 import type { ProjectMoneyRepository } from './contracts/projectMoney';
 import type { DashboardRepository } from './contracts/dashboard';
 import type { AgentRunRepository } from './contracts/agentRuns';
+import type { NotificationRepository } from './contracts/notifications';
 import type {
   CreditsRepository,
   ExternalDomainOwnershipRepository,
@@ -158,6 +159,7 @@ export interface Repositories {
   projectMoney: ProjectMoneyRepository;
   dashboard: DashboardRepository;
   agentRun: AgentRunRepository;
+  notification: NotificationRepository;
 }
 
 export type { CommandIntent } from './contracts/commandIntent';
@@ -174,6 +176,7 @@ export type { ProcurementFileRepository, ProcurementListOptions, ProcurementList
 export type { ProjectMoneyRepository } from './contracts/projectMoney';
 export type { DashboardRepository } from './contracts/dashboard';
 export type { AgentRunRepository } from './contracts/agentRuns';
+export type { NotificationRepository } from './contracts/notifications';
 export type { RevenueRepository } from './contracts/revenue';
 export type { TimesheetRepository } from './contracts/timesheets';
 export type { BudgetRepository } from './contracts/budget';
