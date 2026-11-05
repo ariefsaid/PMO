@@ -52,14 +52,44 @@ export async function reconcileOdooRevenueCandidates(
   let reconciled = 0;
   for (const candidate of eligible.slice(0, options.maxCandidates ?? 100)) {
     if (options.deadlineAt !== undefined && Date.now() >= options.deadlineAt) break;
-    if (options.callBudget && !options.callBudget.spend(ODOO_REVENUE_RECOVERY_CALL_RESERVATION)) break;
+    if (options.callBudget && !(options.callBudget.canSpend?.(ODOO_REVENUE_RECOVERY_CALL_RESERVATION) ?? options.callBudget.left())) break;
     const candidateBudget = options.callBudget ? reservedOdooCallBudget(ODOO_REVENUE_RECOVERY_CALL_RESERVATION) : undefined;
+    let built: DispatchMoneyWriteDeps;
     try {
-      await dispatch(await buildDeps(candidate, candidateBudget));
+      built = await buildDeps(candidate, candidateBudget);
+      if (candidateBudget?.exhausted()) {
+        const used = candidateBudget.used();
+        if (used > 0) options.callBudget?.spend(used);
+        errors.push({ id: candidate.row.id, error: 'external-unreachable' });
+        break;
+      }
+      if (options.callBudget && !options.callBudget.spend(ODOO_REVENUE_RECOVERY_CALL_RESERVATION)) {
+        const used = candidateBudget?.used() ?? 0;
+        if (used > 0) options.callBudget.spend(used);
+        break;
+      }
+    } catch (error) {
+      const used = candidateBudget?.used() ?? 0;
+      if (used > 0) options.callBudget?.spend(used);
+      errors.push({ id: candidate.row.id, error: error instanceof Error ? error.message : String(error) });
+      if (candidateBudget?.exhausted() || (options.callBudget && !options.callBudget.left())) break;
+      continue;
+    }
+    let stopAfterDispatch = false;
+    try {
+      await dispatch(built);
       reconciled += 1;
     } catch (error) {
       errors.push({ id: candidate.row.id, error: error instanceof Error ? error.message : String(error) });
+    } finally {
+      if (options.callBudget && candidateBudget) {
+        const used = candidateBudget.used();
+        if (used < ODOO_REVENUE_RECOVERY_CALL_RESERVATION) options.callBudget.refund?.(ODOO_REVENUE_RECOVERY_CALL_RESERVATION - used);
+        else if (used > ODOO_REVENUE_RECOVERY_CALL_RESERVATION) options.callBudget.spend(used - ODOO_REVENUE_RECOVERY_CALL_RESERVATION);
+        stopAfterDispatch = candidateBudget.exhausted() || !options.callBudget.left();
+      }
     }
+    if (stopAfterDispatch) break;
   }
   return { reconciled, errors };
 }

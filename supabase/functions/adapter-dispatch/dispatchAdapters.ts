@@ -23,6 +23,7 @@ import { ODOO_TIER } from '../../../pmo-portal/src/lib/adapterSeam/odoo/connectA
 import { ODOO_ADAPTER_REGISTRY } from './odooAdapters.ts';
 import { maybeFault, type FaultGate } from './faultSeams.ts';
 import { isBudgetPushCommand } from './budgetDispatch.ts';
+import type { ReservedOdooCallBudget } from '../_shared/odooCallBudget.ts';
 
 /** The adapter-select context: the caller's org, the parsed command, and the service-role client for
  * per-request config lookups (project binding, external_refs resolution). Never used for adapter.commit(). */
@@ -54,7 +55,7 @@ export interface AdapterSelectContext {
   procurementSnapshot?: { caseId: string; lines: ProcurementSourceLine[] };
   procurementInputDigest?: string;
   /** Sweep-only per-tick budget for every Odoo request made by revenue outbox recovery. */
-  odooCallBudget?: { left: () => boolean; spend: (calls?: number) => boolean };
+  odooCallBudget?: ReservedOdooCallBudget;
   /** Recovery-only owner check; procurement probes call it before anchoring or settling a hit. */
   odooAnchorOwnedElsewhere?: (externalRecordId: string) => Promise<boolean>;
 }

@@ -17,6 +17,7 @@ import { resolveOdooInvoiceInputs, resolveOdooReceiptInputs } from '../_shared/o
 import { createOdooRevenueAdapter, isInvoicePush } from '../../../pmo-portal/src/lib/adapterSeam/odoo/revenueAdapter.ts';
 import { buildInvoiceBody } from '../../../pmo-portal/src/lib/adapterSeam/odoo/revenue/invoiceBody.ts';
 import { buildReceiptBody } from '../../../pmo-portal/src/lib/adapterSeam/odoo/revenue/receiptBody.ts';
+import { countOdooCalls } from '../_shared/odooCallBudget.ts';
 
 /** What the Odoo procurement adapter pushes so far: the purchase order and its revision (P3), the goods receipt (P4), the vendor bill (P5) and the vendor payment (P6). */
 const isReceipt = (ctx: AdapterSelectContext): boolean => ctx.command.record.erp_doc_kind === 'goods-receipt' && ctx.command.operation === 'create';
@@ -49,9 +50,9 @@ export async function resolveOdooProcurementAdapter(ctx: AdapterSelectContext): 
   if (gap) throw new AppError(`Odoo purchasing needs ${gap}, which this Odoo connection does not show. Run the connection check again.`, 'config-rejected');
   if (!pushable(ctx)) throw new AppError('Purchasing through Odoo is not available yet', 'config-rejected');
   const sc = ctx.serviceClient as SupabaseClient;
-  // Call reservations are charged when recovery admits a candidate. Do not stop a commit midway:
-  // after Odoo accepts create, every failure must leave the outbox retryable rather than failed.
-  const call = bindCall({ ...resolved.client, deadlineMs: REQUEST_DEADLINE_MS });
+  // Recovery charges the reservation after dependencies are built. Count adapter traffic, but do not
+  // stop a commit midway: after Odoo accepts create, every failure must leave the outbox retryable.
+  const call = countOdooCalls(bindCall({ ...resolved.client, deadlineMs: REQUEST_DEADLINE_MS }), ctx.odooCallBudget);
   if (isReceipt(ctx)) {
     // A receipt books onto the transfer Odoo opened with the order: no order inputs, no currency; its plan comes with the outbox deps.
     const notAnOrder = () => Promise.reject(new AppError('not a purchase-order step', 'commit-rejected'));
@@ -103,9 +104,9 @@ export async function resolveOdooRevenueAdapter(ctx: AdapterSelectContext): Prom
   const isReceiptCreate = ctx.command.record.erp_doc_kind === 'incoming-payment' && ctx.command.operation === 'create';
   if (!isInvoicePush(ctx.command) && !isReceiptCreate) throw new AppError('This Odoo revenue command is not available yet', 'config-rejected');
   const sc = ctx.serviceClient as SupabaseClient;
-  // The tick reserves calls before admitting recovery candidates; let an admitted commit finish
-  // so a mid-commit budget cut cannot release a payment's in-flight slot.
-  const call = bindCall({ ...resolved.client, deadlineMs: REQUEST_DEADLINE_MS });
+  // Recovery charges the reservation after dependencies are built. Let an admitted commit finish so
+  // a mid-commit budget cut cannot release a payment's in-flight slot.
+  const call = countOdooCalls(bindCall({ ...resolved.client, deadlineMs: REQUEST_DEADLINE_MS }), ctx.odooCallBudget);
   const replay = await revenueOutboxRowExists(ctx);
   if (isInvoicePush(ctx.command) && !replay) {
     const { input, maps } = await resolveOdooInvoiceInputs(sc, ctx.orgId, ctx.command, resolved, call);

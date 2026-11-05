@@ -55,6 +55,11 @@ export function procurementRecoveryCallReservation(candidate: OdooProcurementCan
   }
 }
 
+export function procurementRecoveryStartIndex(atMs: number, eligibleCount: number): number {
+  if (!Number.isInteger(eligibleCount) || eligibleCount <= 0) return 0;
+  return Math.floor(atMs / (5 * 60_000)) % eligibleCount;
+}
+
 function isProcurementCandidate(candidate: OdooProcurementCandidate): boolean {
   const kind = candidate.payload?.erp_doc_kind;
   return odooOwnsProcurementTier(candidate.externalTier) && candidate.row.domain === 'procurement' &&
@@ -118,9 +123,15 @@ export async function reconcileOdooProcurementCandidates(
     return result;
   }
 
-  const startIndex = eligible.length === 0 ? 0 : (options.candidateStartIndex ?? Math.floor(Date.now() / 60_000)) % eligible.length;
-  const rotated = eligible.slice(startIndex).concat(eligible.slice(0, startIndex));
-  for (const candidate of rotated.slice(0, options.maxCandidates ?? 100)) {
+  const startIndex = options.candidateStartIndex ?? procurementRecoveryStartIndex(Date.now(), eligible.length);
+  const normalizedStart = eligible.length === 0 ? 0 : ((startIndex % eligible.length) + eligible.length) % eligible.length;
+  const rotated = eligible.slice(normalizedStart).concat(eligible.slice(0, normalizedStart));
+  const paymentIndex = rotated.findIndex((item) => item.payload?.erp_doc_kind === 'payment');
+  const candidatesInOrder = paymentIndex < 0 ? rotated : [
+    rotated[paymentIndex],
+    ...rotated.filter((_, index) => index !== paymentIndex),
+  ];
+  for (const candidate of candidatesInOrder.slice(0, options.maxCandidates ?? 100)) {
     if (options.deadlineAt !== undefined && Date.now() >= options.deadlineAt) {
       result.budgetExhausted = true;
       break;
@@ -131,18 +142,49 @@ export async function reconcileOdooProcurementCandidates(
       continue;
     }
     const reservation = procurementRecoveryCallReservation(candidate);
-    if (options.callBudget && !options.callBudget.spend(reservation)) {
+    if (options.callBudget && !(options.callBudget.canSpend?.(reservation) ?? options.callBudget.left())) {
       result.budgetExhausted = true;
       break;
     }
     const candidateBudget = options.callBudget ? reservedOdooCallBudget(reservation) : undefined;
+    let built: DispatchMoneyWriteDeps;
     try {
-      await dispatch(await buildDeps(candidate, candidateBudget));
+      built = await buildDeps(candidate, candidateBudget);
+      if (candidateBudget?.exhausted()) {
+        const used = candidateBudget.used();
+        if (used > 0 && options.callBudget && !options.callBudget.spend(used)) result.budgetExhausted = true;
+        result.errors.push({ id: candidate.row.id, error: 'external-unreachable' });
+        result.budgetExhausted = true;
+        break;
+      }
+      if (options.callBudget && !options.callBudget.spend(reservation)) {
+        const used = candidateBudget?.used() ?? 0;
+        if (used > 0) options.callBudget.spend(used);
+        result.budgetExhausted = true;
+        break;
+      }
+    } catch (error) {
+      const used = candidateBudget?.used() ?? 0;
+      if (used > 0 && options.callBudget && !options.callBudget.spend(used)) result.budgetExhausted = true;
+      result.errors.push({ id: candidate.row.id, error: recoveryErrorCode(error) });
+      if (candidateBudget?.exhausted() || (options.callBudget && !options.callBudget.left())) result.budgetExhausted = true;
+      if (result.budgetExhausted) break;
+      continue;
+    }
+    try {
+      await dispatch(built);
       result.reconciled += 1;
     } catch (error) {
       result.errors.push({ id: candidate.row.id, error: recoveryErrorCode(error) });
-      if (candidateBudget?.exhausted() || (options.callBudget && !options.callBudget.left())) result.budgetExhausted = true;
+    } finally {
+      if (options.callBudget && candidateBudget) {
+        const used = candidateBudget.used();
+        if (used < reservation) options.callBudget.refund?.(reservation - used);
+        else if (used > reservation) options.callBudget.spend(used - reservation);
+        if (candidateBudget.exhausted() || !options.callBudget.left()) result.budgetExhausted = true;
+      }
     }
+    if (result.budgetExhausted) break;
   }
   return result;
 }
@@ -158,7 +200,7 @@ export async function buildOdooProcurementRecoveryDeps(
   sc: SupabaseClient,
   orgId: string,
   candidate: OdooProcurementCandidate,
-  callBudget?: OdooCallBudget,
+  callBudget?: ReservedOdooCallBudget,
   authorizeReplay: ReplayAuthorizer = checkOutboxReplayAuthorization,
   resolvers: RecoveryResolvers = {},
 ): Promise<DispatchMoneyWriteDeps> {

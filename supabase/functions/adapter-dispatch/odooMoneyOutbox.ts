@@ -42,6 +42,10 @@ export function odooAnchorKey(kind: PurchaseKind, record: Record<string, unknown
 
 /** Odoo stores naive UTC `YYYY-MM-DD HH:MM:SS`. */
 const odooDatetime = (ms: number) => new Date(ms).toISOString().slice(0, 19).replace('T', ' ');
+const legacyOrderWindowEnd = (createdAfter: string): string | undefined => {
+  const timestamp = Date.parse(createdAfter.includes('T') ? createdAfter : `${createdAfter.replace(' ', 'T')}Z`);
+  return Number.isFinite(timestamp) ? odooDatetime(timestamp + CLAIM_BUDGET_MS + SETTLE_MARGIN_MS) : undefined;
+};
 
 async function readPersistedPayload(ctx: AdapterSelectContext): Promise<Record<string, unknown> | null> {
   return await readOutboxCompositePayload(
@@ -118,10 +122,14 @@ const billExpectOf = (p: Record<string, unknown> | null | undefined): BillExpect
     ? { total: p.odoo_expected_total, costAccountId: p.odoo_cost_account }
     : undefined;
 
-const orderCompositeOf = (p: Record<string, unknown> | null | undefined): OrderComposite | undefined =>
-  p && typeof p.odoo_partner_id === 'number' && typeof p.odoo_amount === 'string' && Number.isInteger(p.odoo_line_count) && typeof p.created_after === 'string'
-    ? { partnerId: p.odoo_partner_id, amount: p.odoo_amount, lineCount: p.odoo_line_count as number, createdAfter: p.created_after, ...(typeof p.created_before === 'string' ? { createdBefore: p.created_before } : {}) }
+const orderCompositeOf = (p: Record<string, unknown> | null | undefined): OrderComposite | undefined => {
+  if (!p || typeof p.odoo_partner_id !== 'number' || typeof p.odoo_amount !== 'string' ||
+      !Number.isInteger(p.odoo_line_count) || typeof p.created_after !== 'string') return undefined;
+  const createdBefore = typeof p.created_before === 'string' ? p.created_before : legacyOrderWindowEnd(p.created_after);
+  return createdBefore
+    ? { partnerId: p.odoo_partner_id, amount: p.odoo_amount, lineCount: p.odoo_line_count as number, createdAfter: p.created_after, createdBefore }
     : undefined;
+};
 
 /** A held payment's resolution (0508 `resolve_held_outbox_command`): the operator's word, stored in the row's payload. */
 const paymentResolutionOf = (p: Record<string, unknown> | null | undefined): PaymentResolution | undefined =>
@@ -174,9 +182,6 @@ export async function resolveOdooMoneyOutboxDeps(ctx: AdapterSelectContext): Pro
   const raw = withOdooCallBudget(bindCall({ ...resolved.client, deadlineMs: REQUEST_DEADLINE_MS }), ctx.odooCallBudget);
   const call: OdooCall = async <T>(model: string, method: string, body?: Record<string, unknown>) => {
     try { return await raw<T>(model, method, body); } catch (err) {
-      if (err instanceof Error && err.message === 'Odoo recovery call budget exhausted') {
-        throw new AdapterError('external-unreachable', 'recovery-call-budget-exhausted');
-      }
       return toAdapterError(err);
     }
   };

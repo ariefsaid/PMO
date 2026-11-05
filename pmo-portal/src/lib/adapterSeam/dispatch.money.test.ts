@@ -31,6 +31,7 @@ function createFakeOutbox(opts: { reissueOnInconclusiveAbsence?: boolean } = {})
   const byTuple = new Map<string, string>();
   const probes = new Map<string, { externalRecordId: string }>();
   const refs: Array<{ pmoRecordId: string; externalTier: string; externalRecordId: string; domain: string }> = [];
+  const heldReasons: string[] = [];
   let seq = 0;
   const tupleKey = (domain: string, pmoRecordId: string, idempotencyKey: string) =>
     `${domain}::${pmoRecordId}::${idempotencyKey}`;
@@ -117,7 +118,7 @@ function createFakeOutbox(opts: { reissueOnInconclusiveAbsence?: boolean } = {})
       if (!row || row.claimGeneration !== claimGeneration || row.state !== 'committing') return 0;
       row.state = 'held';
       row.updatedAt = Date.now();
-      void reason;
+      heldReasons.push(reason);
       return 1;
     },
     reissueOnInconclusiveAbsence: opts.reissueOnInconclusiveAbsence ?? true,
@@ -141,6 +142,7 @@ function createFakeOutbox(opts: { reissueOnInconclusiveAbsence?: boolean } = {})
     deps,
     rows,
     refs,
+    heldReasons,
     setProbe: (domain: string, idempotencyKey: string, result: { externalRecordId: string }) =>
       probes.set(`${domain}::${idempotencyKey}`, result),
     backdate: (id: string, ms: number) => {
@@ -1648,6 +1650,7 @@ describe('whole-project range Budget outbox dispatch', () => {
       code: 'command-held', heldOutboxId: inserted.id, heldClaimGeneration: 1,
     });
     expect(fake.rows.get(inserted.id)?.state).toBe('held');
+    expect(fake.heldReasons).toEqual(['adapter-held: range witness changed']);
 
     const second = createFakeOutbox();
     const secondInserted = await second.deps.insertOutboxPending('budget', rangeIdentity, rangeCommand.idempotencyKey!);

@@ -5,9 +5,11 @@ import type { AdapterSelectContext } from './dispatchAdapters.ts';
 import {
   buildOdooProcurementRecoveryDeps,
   odooProcurementAnchoredElsewhere,
+  procurementRecoveryStartIndex,
   reconcileOdooProcurementCandidates,
   type OdooProcurementCandidate,
 } from './odooProcurementRecovery.ts';
+import { reconcileOdooRevenueCandidates, type OdooRevenueCandidate } from './odooRevenueRecovery.ts';
 
 const row = (id: string, state: OutboxRow['state'] = 'quarantined', domain = 'procurement'): OutboxRow => ({
   id, domain, pmoRecordId: `record-${id}`, idempotencyKey: `key-${id}`, state,
@@ -26,6 +28,20 @@ const candidate = (
 
 const deps = {} as DispatchMoneyWriteDeps;
 const procurement = (id: string) => candidate(id, { erp_doc_kind: 'purchase-order' });
+const sharedBudget = (capacity: number) => {
+  let remaining = capacity;
+  return {
+    left: () => remaining > 0,
+    canSpend: (calls = 1) => Number.isInteger(calls) && calls >= 0 && calls <= remaining,
+    spend: (calls = 1) => {
+      if (!Number.isInteger(calls) || calls < 0 || calls > remaining) return false;
+      remaining -= calls;
+      return true;
+    },
+    refund: (calls = 1) => { remaining += calls; },
+    remaining: () => remaining,
+  };
+};
 
 Deno.test('AC-OPP-062 procurement recovery dispatches only Odoo procurement document commands in oldest-first order', async () => {
   const seen: string[] = [];
@@ -55,6 +71,29 @@ Deno.test('AC-OPP-062 a recovery cursor rotates past repeatedly failing oldest r
   );
 
   assertEquals(seen, ['3', '4']);
+});
+
+Deno.test('AC-OPP-062 the procurement recovery cursor advances once per five-minute tick', () => {
+  const fiveMinutes = 5 * 60_000;
+  const firstTick = Date.UTC(2026, 10, 5, 0, 0, 0);
+  const starts = Array.from({ length: 5 }, (_, tick) => procurementRecoveryStartIndex(firstTick + tick * fiveMinutes, 5));
+  assertEquals(starts.slice(1).map((start, index) => (start - starts[index] + 5) % 5), [1, 1, 1, 1]);
+  assertEquals(new Set(starts).size, 5);
+});
+
+Deno.test('AC-OPP-062 a payment candidate gets the first procurement recovery slot', async () => {
+  const seen: string[] = [];
+  await reconcileOdooProcurementCandidates([
+    procurement('0'),
+    candidate('1', { erp_doc_kind: 'payment' }),
+  ], { orgId: 'org-a', ownsProcurement: true, candidateStartIndex: 0 }, async (item) => {
+    return { row: item } as unknown as DispatchMoneyWriteDeps;
+  }, async () => false, async (written) => {
+    seen.push((written as unknown as { row: OdooProcurementCandidate }).row.row.id);
+    return {};
+  });
+
+  assertEquals(seen[0], '1');
 });
 
 Deno.test('AC-OPP-062 procurement recovery reports a held command and continues to the next candidate', async () => {
@@ -103,26 +142,108 @@ Deno.test('AC-OPP-062 procurement recovery leaves candidates untouched when the 
   assertEquals(result, { reconciled: 0, skipped: 0, budgetExhausted: true, errors: [] });
 });
 
-Deno.test('AC-OPP-062 procurement recovery reserves a payment probe, commit and read-back before claiming the candidate', async () => {
+Deno.test('AC-OPP-062 procurement recovery does not build a candidate when its full reservation is unavailable', async () => {
   let remaining = 1;
-  const seen: string[] = [];
+  let builds = 0;
   const budget = {
     left: () => remaining > 0,
+    canSpend: (units = 1) => units <= remaining,
     spend: (units = 1) => {
       if (units > remaining) return false;
       remaining -= units;
       return true;
     },
+    refund: (units = 1) => { remaining += units; },
   };
   const result = await reconcileOdooProcurementCandidates([
     candidate('1', { erp_doc_kind: 'payment' }),
-  ], { orgId: 'org-a', ownsProcurement: true, callBudget: budget }, async (item) => {
-    seen.push(item.row.id);
+  ], { orgId: 'org-a', ownsProcurement: true, callBudget: budget }, async () => {
+    builds += 1;
     return deps;
   }, async () => false, async () => ({}));
 
-  assertEquals([seen, remaining], [[], 1], 'an unaffordable candidate does not enter the recovery path or consume partial budget');
+  assertEquals([builds, remaining], [0, 1], 'an unaffordable candidate does not enter the recovery path or consume partial budget');
   assertEquals(result.budgetExhausted, true);
+});
+
+Deno.test('AC-OPP-062 a pre-claim refusal costs zero and does not block the next candidate', async () => {
+  const budget = sharedBudget(24);
+  const seen: string[] = [];
+  const result = await reconcileOdooProcurementCandidates([procurement('1'), procurement('2')], {
+    orgId: 'org-a', ownsProcurement: true, candidateStartIndex: 0, callBudget: budget,
+  }, async (item, candidateBudget) => {
+    if (item.row.id === '1') throw new AppError('recovery authorization refused', 'commit-rejected');
+    assertEquals(candidateBudget?.spend(2), true);
+    return { row: item, budget: candidateBudget } as unknown as DispatchMoneyWriteDeps;
+  }, async () => false, async (written) => {
+    const built = written as unknown as { row: OdooProcurementCandidate; budget?: { spend: (calls?: number) => boolean } };
+    assertEquals(built.budget?.spend(), true);
+    seen.push(built.row.row.id);
+    return {};
+  });
+
+  assertEquals(seen, ['2']);
+  assertEquals(budget.remaining(), 21, 'the refused candidate spent no shared Odoo-call capacity');
+  assertEquals(result.errors, [{ id: '1', error: 'commit-rejected' }]);
+});
+
+Deno.test('AC-OPP-062 refunds unused reservations so several cheap probes fit in one tick', async () => {
+  const budget = sharedBudget(24);
+  const seen: string[] = [];
+  const result = await reconcileOdooProcurementCandidates([procurement('1'), procurement('2'), procurement('3')], {
+    orgId: 'org-a', ownsProcurement: true, candidateStartIndex: 0, callBudget: budget,
+  }, async (item, candidateBudget) => {
+    assertEquals(candidateBudget?.spend(2), true);
+    return { row: item, budget: candidateBudget } as unknown as DispatchMoneyWriteDeps;
+  }, async () => false, async (written) => {
+    const built = written as unknown as { row: OdooProcurementCandidate; budget?: { spend: (calls?: number) => boolean } };
+    assertEquals(built.budget?.spend(), true);
+    seen.push(built.row.row.id);
+    return {};
+  });
+
+  assertEquals(seen, ['1', '2', '3']);
+  assertEquals(budget.remaining(), 15, 'three candidates used three Odoo calls each');
+  assertEquals(result.reconciled, 3);
+});
+
+Deno.test('AC-OPP-062 a revenue candidate cannot consume the payment recovery share for the tick', async () => {
+  const budget = sharedBudget(24);
+  const paid: string[] = [];
+  const invoiced: string[] = [];
+  const payment = candidate('1', { erp_doc_kind: 'payment' });
+  const proc = await reconcileOdooProcurementCandidates([payment], {
+    orgId: 'org-a', ownsProcurement: true, callBudget: budget,
+  }, async (item, candidateBudget) => {
+    assertEquals(candidateBudget?.spend(2), true);
+    return { row: item, budget: candidateBudget } as unknown as DispatchMoneyWriteDeps;
+  }, async () => false, async (item) => {
+    const built = item as unknown as { row: OdooProcurementCandidate; budget?: { spend: (calls?: number) => boolean } };
+    assertEquals(built.budget?.spend(), true);
+    paid.push(built.row.row.id);
+    return {};
+  });
+  const revenues: OdooRevenueCandidate[] = ['2', '3'].map((id) => ({
+    row: { ...row(id), domain: 'revenue' }, externalTier: 'odoo', operation: 'create',
+    payload: { erp_doc_kind: 'sales-invoice', verb: 'submit' },
+    updatedAt: new Date(Date.UTC(2026, 10, Number(id))).toISOString(),
+  }));
+  const revenue = await reconcileOdooRevenueCandidates(revenues, {
+    orgId: 'org-a', ownsRevenue: true, callBudget: budget,
+  }, async (item, candidateBudget) => {
+    assertEquals(candidateBudget?.spend(2), true);
+    return { row: item, budget: candidateBudget } as unknown as DispatchMoneyWriteDeps;
+  }, async (item) => {
+    const built = item as unknown as { row: OdooRevenueCandidate; budget?: { spend: (calls?: number) => boolean } };
+    assertEquals(built.budget?.spend(), true);
+    invoiced.push(built.row.row.id);
+    return {};
+  });
+
+  assertEquals(paid, ['1'], 'procurement recovery runs first and dispatches the payment candidate');
+  assertEquals(invoiced.length, 2, 'unused candidate reservations return capacity to revenue recovery');
+  assertEquals(proc.reconciled, 1);
+  assertEquals(revenue.reconciled, 2);
 });
 
 Deno.test('AC-OPP-062 procurement recovery reports when a candidate exhausts the shared call budget mid-probe', async () => {
@@ -289,11 +410,12 @@ Deno.test('AC-OPP-062 the default committed-row owner check uses org-scoped rows
   const owners = [{ pmo_record_id: 'po-1' }, { pmo_record_id: 'porev:po-1:3' }];
   let table = '';
   let limit = 0;
+  const filters: Array<[string, unknown]> = [];
   const sc = { from: (name: string) => {
     table = name;
     return { select: () => {
       const chain = {
-        eq: () => chain,
+        eq: (column: string, value: unknown) => { filters.push([column, value]); return chain; },
         limit: async (value: number) => { limit = value; return { data: owners, error: null }; },
       };
       return chain;
@@ -306,6 +428,115 @@ Deno.test('AC-OPP-062 the default committed-row owner check uses org-scoped rows
 
   assertEquals(await check(po), false);
   assertEquals([table, limit], ['external_refs', 101]);
+  assertEquals(filters, [['org_id', 'org-a'], ['domain', 'procurement'], ['external_tier', 'odoo'], ['external_record_id', 'purchase.order:77']]);
   owners.push({ pmo_record_id: 'other-po' });
   assertEquals(await check(po), true);
+});
+
+type Metered = { spend: (calls?: number) => boolean; record: () => void; used: () => number } | undefined;
+const revenueCandidate = (id: string): OdooRevenueCandidate => ({
+  row: { ...row(id), domain: 'revenue' }, externalTier: 'odoo', operation: 'create',
+  payload: { erp_doc_kind: 'sales-invoice', verb: 'submit' }, updatedAt: new Date(Date.UTC(2026, 10, Number(id))).toISOString(),
+});
+
+Deno.test('AC-OPP-062 a candidate that drains its reservation while building is charged what it used and stops the pass', async () => {
+  const budget = sharedBudget(100);
+  let dispatched = 0;
+  const result = await reconcileOdooProcurementCandidates([procurement('1'), procurement('2')], {
+    orgId: 'org-a', ownsProcurement: true, candidateStartIndex: 0, callBudget: budget,
+  }, async (_item, candidateBudget) => {
+    for (let i = 0; i < 14; i += 1) assertEquals(candidateBudget?.spend(1), true);
+    assertEquals(candidateBudget?.spend(1), false);
+    return deps;
+  }, async () => false, async () => { dispatched += 1; return {}; });
+
+  assertEquals([dispatched, budget.remaining(), result.budgetExhausted], [0, 86, true]);
+  assertEquals(result.errors, [{ id: '1', error: 'external-unreachable' }]);
+});
+
+Deno.test('AC-OPP-062 a build that fails after some Odoo calls is charged for them and the next candidate still runs', async () => {
+  const budget = sharedBudget(100);
+  const seen: string[] = [];
+  const result = await reconcileOdooProcurementCandidates([procurement('1'), procurement('2')], {
+    orgId: 'org-a', ownsProcurement: true, candidateStartIndex: 0, callBudget: budget,
+  }, async (item, candidateBudget) => {
+    if (item.row.id === '1') {
+      assertEquals(candidateBudget?.spend(3), true);
+      throw new AppError('probe failed', 'commit-rejected');
+    }
+    return deps;
+  }, async () => false, async () => { seen.push('dispatched'); return {}; });
+
+  assertEquals([seen.length, budget.remaining(), result.budgetExhausted], [1, 97, false]);
+  assertEquals(result.errors, [{ id: '1', error: 'commit-rejected' }]);
+});
+
+Deno.test('AC-OPP-062 adapter traffic beyond the reservation is charged to the tick and ends the pass', async () => {
+  const budget = sharedBudget(100);
+  let dispatched = 0;
+  const result = await reconcileOdooProcurementCandidates([procurement('1'), procurement('2')], {
+    orgId: 'org-a', ownsProcurement: true, candidateStartIndex: 0, callBudget: budget,
+  }, async (_item, candidateBudget) => ({ budget: candidateBudget }) as unknown as DispatchMoneyWriteDeps,
+  async () => false, async (written) => {
+    dispatched += 1;
+    const metered = (written as unknown as { budget: Metered }).budget!;
+    for (let i = 0; i < 15; i += 1) metered.record();
+    return {};
+  });
+
+  assertEquals([dispatched, budget.remaining(), result.budgetExhausted], [1, 85, true]);
+});
+
+Deno.test('AC-OPP-062 revenue recovery charges a failed or exhausted build and refunds a cheap dispatch', async () => {
+  const budget = sharedBudget(40);
+  const seen: string[] = [];
+  const result = await reconcileOdooRevenueCandidates([revenueCandidate('1'), revenueCandidate('2'), revenueCandidate('3')], {
+    orgId: 'org-a', ownsRevenue: true, callBudget: budget,
+  }, async (item, candidateBudget) => {
+    if (item.row.id === '1') {
+      assertEquals(candidateBudget?.spend(2), true);
+      throw new Error('revenue probe failed');
+    }
+    if (item.row.id === '3') {
+      for (let i = 0; i < 17; i += 1) candidateBudget?.spend(1);
+      return deps;
+    }
+    return { budget: candidateBudget } as unknown as DispatchMoneyWriteDeps;
+  }, async (written) => {
+    seen.push('dispatched');
+    (written as unknown as { budget: Metered }).budget!.record();
+    return {};
+  });
+
+  assertEquals(seen.length, 1);
+  assertEquals(budget.remaining(), 40 - 2 - 1 - 16, 'failed build 2 + cheap dispatch 1 + exhausted build 16');
+  assertEquals(result.errors.map((e) => e.id), ['1', '3']);
+});
+
+Deno.test('AC-OPP-062 revenue recovery charges adapter traffic beyond the reservation and stops', async () => {
+  const budget = sharedBudget(100);
+  let dispatched = 0;
+  await reconcileOdooRevenueCandidates([revenueCandidate('1'), revenueCandidate('2')], {
+    orgId: 'org-a', ownsRevenue: true, callBudget: budget,
+  }, async (_item, candidateBudget) => ({ budget: candidateBudget }) as unknown as DispatchMoneyWriteDeps, async (written) => {
+    dispatched += 1;
+    const metered = (written as unknown as { budget: Metered }).budget!;
+    for (let i = 0; i < 17; i += 1) metered.record();
+    return {};
+  });
+
+  assertEquals([dispatched, budget.remaining()], [1, 83]);
+});
+
+Deno.test('AC-OPP-062 a tick that runs out of time while a candidate builds is charged the build calls and does not dispatch', async () => {
+  const budget = { ...sharedBudget(100), spend: (calls = 1) => calls <= 3 };
+  let dispatched = 0;
+  const result = await reconcileOdooProcurementCandidates([procurement('1')], {
+    orgId: 'org-a', ownsProcurement: true, callBudget: budget,
+  }, async (_item, candidateBudget) => {
+    assertEquals(candidateBudget?.spend(2), true);
+    return deps;
+  }, async () => false, async () => { dispatched += 1; return {}; });
+
+  assertEquals([dispatched, result.budgetExhausted], [0, true]);
 });

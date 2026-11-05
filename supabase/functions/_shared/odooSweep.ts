@@ -29,7 +29,7 @@ const RESERVE_PER_KIND = 2;
 const DAY_MS = 86_400_000;
 
 type Resolved = Extract<Awaited<ReturnType<typeof odooClientForOrg>>, { client: unknown }>;
-type Budget = { spend: (calls?: number) => boolean; left: () => boolean };
+type Budget = { spend: (calls?: number) => boolean; left: () => boolean; canSpend?: (calls?: number) => boolean; refund?: (calls?: number) => void };
 /** Extension seams: S6 matches new partners after `partner` pages; S7/S8 add the link reconcile and accepted sends. */
 export const AFTER_APPLY: Partial<Record<DirectoryKind, (sc: SupabaseClient, orgId: string, rows: DirectoryRow[], deadlineAt: number) => Promise<void>>> = {
   partner: matchNewPartners,
@@ -121,11 +121,13 @@ export async function sweepOdooOrg(
     const left = () => calls < maxCalls && Date.now() - started < timeBudget;
     const budget: Budget = {
       left,
+      canSpend: (units = 1) => Number.isInteger(units) && units >= 0 && calls + units <= maxCalls && Date.now() - started < timeBudget,
       spend: (units = 1) => {
         if (!Number.isInteger(units) || units < 0 || calls + units > maxCalls || Date.now() - started >= timeBudget) return false;
         calls += units;
         return true;
       },
+      refund: (units = 1) => { if (Number.isInteger(units) && units > 0) calls = Math.max(0, calls - units); },
     };
     const call = bindCall(r.client);
     const capabilities = r.config.capabilities as CapabilitySnapshot | undefined;
@@ -155,12 +157,14 @@ export async function sweepOdooOrg(
       const purchase = hold || !procurementEmployed ? [] : purchaseDomainsReadable(capabilities);
       const revenue = (await revenueFeedEmployed(sc, orgId)) ? revenueDomainsReadable(capabilities) : [];
       // Outbound recovery runs before the bounded inbound walk, so a long backfill cannot leave a
-      // committed money document unconfirmed. Revenue keeps its existing share first; procurement
-      // consumes the same remaining recovery budget, so neither pass can exceed the org-tick cap.
+      // committed money document unconfirmed. Procurement runs first to guarantee room for a
+      // payment candidate's 20-call reservation; unused calls are refunded for revenue to use.
       const recoveryCap = maxCalls - RESERVE_PER_KIND * (kinds.length + purchase.length + revenue.length);
       const recoveryBudget: Budget = {
         left: () => calls < recoveryCap && left(),
+        canSpend: (units = 1) => Number.isInteger(units) && units >= 0 && calls + units <= recoveryCap && left(),
         spend: (units = 1) => calls + units <= recoveryCap && budget.spend(units),
+        refund: (units = 1) => budget.refund?.(units),
       };
       const recoveryDeadlineAt = Date.now() + Math.max(0, Math.min(
         ODOO_SWEEP_RECOVERY_TIME_BUDGET_MS,
@@ -177,19 +181,6 @@ export async function sweepOdooOrg(
         } catch {
           if (recoverRevenue) outboxErrors = [{ id: 'revenue', error: 'recovery-unavailable' }];
           if (recoverProcurement) procurementOutboxErrors = [{ id: 'procurement', error: 'recovery-unavailable' }];
-        }
-      }
-      if (recoverRevenue && recoveryCandidates) {
-        try {
-          const recovery = await reconcileOdooRevenueOutbox(sc, orgId, {
-            timeBudgetMs: Math.max(0, recoveryDeadlineAt - Date.now()),
-            callBudget: recoveryBudget,
-            candidates: recoveryCandidates,
-          });
-          outboxReconciled = recovery.reconciled;
-          outboxErrors = recovery.errors;
-        } catch {
-          outboxErrors = [{ id: 'revenue', error: 'recovery-unavailable' }];
         }
       }
       if (recoverProcurement && recoveryCandidates) {
@@ -214,6 +205,19 @@ export async function sweepOdooOrg(
         procurementOutboxErrors = [{ id: 'procurement', error: 'procurement-feed-unreadable' }];
       } else {
         procurementOutboxErrors = [{ id: 'procurement', error: 'procurement-feed-not-employed' }];
+      }
+      if (recoverRevenue && recoveryCandidates) {
+        try {
+          const recovery = await reconcileOdooRevenueOutbox(sc, orgId, {
+            timeBudgetMs: Math.max(0, recoveryDeadlineAt - Date.now()),
+            callBudget: recoveryBudget,
+            candidates: recoveryCandidates,
+          });
+          outboxReconciled = recovery.reconciled;
+          outboxErrors = recovery.errors;
+        } catch {
+          outboxErrors = [{ id: 'revenue', error: 'recovery-unavailable' }];
+        }
       }
       for (const [i, kind] of kinds.entries()) {
         const cap = maxCalls - RESERVE_PER_KIND * (kinds.length - 1 - i + purchase.length + revenue.length);

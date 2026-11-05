@@ -30,7 +30,7 @@ const binding = (over: Record<string, unknown> = {}) => ({
 /** What the org's `procurement` switch answers: a literal boolean, or a response that cannot be read (an RPC error, a rejected
  *  fetch, a null or a non-boolean body). A function answers per call, so one harness can model a switch that changes between ticks. */
 type FeatureAnswer = boolean | null | 'error' | 'reject' | 'malformed';
-interface Opts { pmoProjects?: Array<Record<string, unknown>>; pmoCompanies?: Array<Record<string, unknown>>; run?: Record<string, unknown> | null; accepted?: boolean; runError?: boolean; binding?: Record<string, unknown>; lock?: { held: boolean }; applyError?: boolean; employed?: boolean; revenueEmployed?: boolean; failPurchaseDomain?: string; failRevenueDomain?: string; purchaseModels?: string[]; revenueModels?: string[]; rejectAfter?: number; version?: number | null; procurement?: FeatureAnswer | (() => FeatureAnswer); purchaseCursors?: Record<string, string>; recoveryCandidate?: Record<string, unknown>; prepare?: (f: FakeOdoo) => void }
+interface Opts { pmoProjects?: Array<Record<string, unknown>>; pmoCompanies?: Array<Record<string, unknown>>; run?: Record<string, unknown> | null; accepted?: boolean; runError?: boolean; binding?: Record<string, unknown>; lock?: { held: boolean }; applyError?: boolean; employed?: boolean; revenueEmployed?: boolean; failPurchaseDomain?: string; failRevenueDomain?: string; purchaseModels?: string[]; revenueModels?: string[]; rejectAfter?: number; version?: number | null; procurement?: FeatureAnswer | (() => FeatureAnswer); purchaseCursors?: Record<string, string>; recoveryCandidate?: Record<string, unknown>; recoveryCandidates?: Array<Record<string, unknown>>; prepare?: (f: FakeOdoo) => void }
 
 function harness(o: Opts = {}) {
   const fake = createFakeOdoo({ key: KEY });
@@ -57,7 +57,7 @@ function harness(o: Opts = {}) {
       return jsonResponse(answer);
     }),
     supabaseSelect('external_org_bindings', () => jsonResponse([o.binding ?? binding()])),
-    supabaseRpc('outbox_reconcile_candidates', () => jsonResponse(o.recoveryCandidate ? [o.recoveryCandidate] : [])),
+    supabaseRpc('outbox_reconcile_candidates', () => jsonResponse(o.recoveryCandidates ?? (o.recoveryCandidate ? [o.recoveryCandidate] : []))),
     supabaseRpc('read_vault_secret', () => jsonResponse(KEY)),
     supabaseSelect('external_sync_watermarks', (c) => {
       const v = cursors.get(c.url.searchParams.get('domain')!.replace(/^eq\./, ''));
@@ -90,7 +90,12 @@ function harness(o: Opts = {}) {
     supabaseSelect('erp_connect_census', () => (o.accepted ? one({ accepted_at: '2026-11-01T00:00:00Z' }) : none())),
     supabaseSelect('external_master_records', () => jsonResponse([])),
     supabaseSelect('external_refs', () => jsonResponse([])),
-    supabaseSelect('external_command_outbox', () => o.recoveryCandidate ? one(o.recoveryCandidate) : none()),
+    supabaseSelect('external_command_outbox', (c) => {
+      const id = c.url.searchParams.get('id')?.replace(/^eq\./, '');
+      const candidates = o.recoveryCandidates ?? (o.recoveryCandidate ? [o.recoveryCandidate] : []);
+      const match = candidates.find((candidate) => candidate.id === id);
+      return match ? one(match) : none();
+    }),
     supabaseSelect('companies', (c) => jsonResponse(c.url.searchParams.has('erp_tax_id') || c.url.searchParams.has('name') ? [] : (o.pmoCompanies ?? []))),
     supabaseSelect('projects', () => jsonResponse(o.pmoProjects ?? [])),
     ...['profiles', 'procurement_items'].map((t) => supabaseSelect(t, () => jsonResponse([]))),
@@ -452,6 +457,29 @@ describe('odooSweep — #1506 C6 revenue passes', () => {
     assertEquals(r.result.outbox_procurement_skipped, 0);
     assertEquals(r.result.outbox_procurement_budget_exhausted, false);
     assertEquals(r.result.outbox_procurement_errors, [{ id: 'recovery-1', error: 'commit-rejected' }]);
+  });
+
+  it('AC-OPP-062 gives procurement payment recovery its reserved slot before revenue recovery', async () => {
+    const paymentId = '123e4567-e89b-12d3-a456-426614174001';
+    const revenueId = '123e4567-e89b-12d3-a456-426614174002';
+    const recoveryCandidates = [
+      {
+        id: revenueId, org_id: ORG, domain: 'revenue', pmo_record_id: 'invoice-1', idempotency_key: 'invoice-key',
+        external_tier: 'odoo', operation: 'create', state: 'failed', external_record_id: null, canonical: null,
+        claim_generation: 0, payload_digest: null, payload: { erp_doc_kind: 'sales-invoice', verb: 'submit' },
+        actor_user_id: null, updated_at: FRESH,
+      },
+      {
+        id: paymentId, org_id: ORG, domain: 'procurement', pmo_record_id: 'payment-1', idempotency_key: 'payment-key',
+        external_tier: 'odoo', operation: 'create', state: 'failed', external_record_id: null, canonical: null,
+        claim_generation: 0, payload_digest: null, payload: { erp_doc_kind: 'payment' }, actor_user_id: null, updated_at: FRESH,
+      },
+    ];
+    const r = await sweep({ employed: true, purchaseModels: ['purchase.order'], revenueEmployed: true, revenueModels: ['account.move'], recoveryCandidates });
+    const recoveryReads = r.calls.filter((call) => call.url.pathname === '/rest/v1/external_command_outbox' && call.url.searchParams.has('id'))
+      .map((call) => call.url.searchParams.get('id')?.replace(/^eq\./, ''));
+
+    assertEquals(recoveryReads.slice(0, 2), [paymentId, revenueId]);
   });
 });
 

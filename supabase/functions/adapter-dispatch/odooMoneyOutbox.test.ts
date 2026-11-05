@@ -4,9 +4,10 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals, assertRejects } from '@std/assert';
 import { createClient } from '@supabase/supabase-js';
-import { installEdgeEnv, jsonResponse, supabaseRpc, supabaseSelect, withFetchMock, type FetchCall, type MockRoute } from '../_shared/testing/edgeTestKit.ts';
+import { installEdgeEnv, jsonResponse, rpcCall, supabaseRpc, supabaseSelect, withFetchMock, type FetchCall, type MockRoute } from '../_shared/testing/edgeTestKit.ts';
 import { odooAnchorKey, odooReissueOnInconclusiveAbsence, resolveOdooMoneyOutboxDeps } from './odooMoneyOutbox.ts';
 import type { AdapterSelectContext } from './dispatchAdapters.ts';
+import { CLAIM_BUDGET_MS, SETTLE_MARGIN_MS } from '../../../pmo-portal/src/lib/adapterSeam/odoo/purchase/constants.ts';
 
 const env = installEdgeEnv();
 globalThis.addEventListener('unload', () => env.restore());
@@ -36,6 +37,7 @@ function setup(docKind: string, extra: Record<string, unknown> = {}, over: { bin
     supabaseSelect('purchase_order_lines', () => jsonResponse([])),   // the PO has no lines of its own: the case's lines are the order
     supabaseSelect('procurement_items', () => jsonResponse([{ name: 'A', quantity: 4, rate: 10, description: null }, { name: 'B', quantity: 2, rate: 5, description: null }])),
     supabaseSelect('external_command_outbox', () => over.outbox ? objectResponse({ payload: over.outbox }) : new Response('null', { status: 200, headers: { 'content-type': 'application/json' } })),
+    supabaseRpc('po_revision_push_refusal', () => jsonResponse(null)),
     { label: 'odoo', host: ODOO, response: (call) => {
       odooCalls.push(call);
       const model = call.url.pathname.split('/')[3];
@@ -134,6 +136,38 @@ describe('AC-OPP-053 the Odoo probe closure: zero, one and many matches', () => 
 
       assertEquals(calls.some((c) => c.url.pathname === '/rest/v1/procurements' || c.url.pathname === '/rest/v1/procurement_items'), false);
       assertEquals(queries(t, 'purchase.order')[0].domain.some(([field, op, value]) => field === 'partner_id' && op === '=' && value === 88), true);
+    });
+
+    it('AC-OPP-062 a revise reissue re-runs the Odoo no-cancel revision gate', async () => {
+      const payload = { id: OTHER, poId: REC, revision: 2, erp_doc_kind: 'purchase-order' };
+      const t = setup('purchase-order', payload, { replay: true, outbox: payload });
+      (t.ctx.command as unknown as { operation: string }).operation = 'revise';
+      const calls = await withFetchMock(t.routes, async ({ calls }) => {
+        const deps = await resolveOdooMoneyOutboxDeps(t.ctx);
+        assertEquals(await deps.reauthorizeRecoveryReissue?.(), { ok: true, message: '' });
+        return calls;
+      });
+
+      const gate = rpcCall(calls, 'po_revision_push_refusal').at(-1)?.bodyJson as Record<string, unknown> | undefined;
+      assertEquals(gate, { p_org: ORG, p_po_id: REC, p_revision: 2, p_revise_cancels: false });
+    });
+
+    it('AC-OPP-062 bounds a legacy order row from its persisted lower-window timestamp', async () => {
+      const createdAfter = '2026-11-04 11:00:00';
+      const stored = {
+        id: REC, erp_doc_kind: 'purchase-order', procurementId: 'removed-case', odoo_partner_id: 88,
+        odoo_amount: '987.00', odoo_line_count: 6, created_after: createdAfter,
+      };
+      const t = setup('purchase-order', { amount: '50.00' }, { replay: true, outbox: stored });
+      await withFetchMock(t.routes, async () => {
+        const deps = await resolveOdooMoneyOutboxDeps(t.ctx);
+        await deps.probeByRemarksKey('procurement', KEY, { recovery: true });
+      });
+
+      const expectedUpperBound = new Date(Date.parse(`${createdAfter.replace(' ', 'T')}Z`) + CLAIM_BUDGET_MS + SETTLE_MARGIN_MS)
+        .toISOString().slice(0, 19).replace('T', ' ');
+      const upperWindow = queries(t, 'purchase.order')[0].domain.find(([field, op]) => field === 'create_date' && op === '<=');
+      assertEquals(upperWindow?.[2], expectedUpperBound);
     });
 
     it('AC-OPP-062 does not adopt an order created after the persisted recovery window', async () => {
