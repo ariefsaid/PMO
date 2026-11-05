@@ -338,7 +338,15 @@ async function openOwnConnection(
     .eq("user_id", userId)
     .single();
 
-  if (connError || !conn) {
+  // Only a confirmed absence (no row) means not connected; a failed read is a retryable outage.
+  if (connError && (connError as { code?: string }).code !== "PGRST116") {
+    return {
+      status: 502,
+      body: { error: "GRAPH_ERROR", message: "Graph API request failed" },
+      headers: GRAPH_HEADERS,
+    };
+  }
+  if (!conn) {
     return {
       status: 404,
       body: {
@@ -389,24 +397,33 @@ async function openOwnConnection(
           headers: GRAPH_HEADERS,
         };
       }
-      const { data: fresh } = await serviceClient
+      const { data: fresh, error: freshError } = await serviceClient
         .from("ms_graph_connections")
         .select("status")
         .eq("id", connection.id)
         .single();
-      if ((fresh as { status?: string } | null)?.status === "revoked") {
+      const status = (fresh as { status?: string } | null)?.status;
+      if (!freshError && status === "revoked") {
         return {
           status: 410,
           body: { error: "CONNECTION_REVOKED", message: "connection revoked" },
           headers: GRAPH_HEADERS,
         };
       }
+      // Reconnect guidance only when the refresh classified the connection stale; a transient failure leaves it active.
+      if (!freshError && status === "stale") {
+        return {
+          status: 409,
+          body: {
+            error: "CONNECTION_STALE",
+            message: "token refresh failed, please reconnect",
+          },
+          headers: GRAPH_HEADERS,
+        };
+      }
       return {
-        status: 409,
-        body: {
-          error: "CONNECTION_STALE",
-          message: "token refresh failed, please reconnect",
-        },
+        status: 502,
+        body: { error: "GRAPH_ERROR", message: "Graph API request failed" },
         headers: GRAPH_HEADERS,
       };
     }
