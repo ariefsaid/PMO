@@ -52,6 +52,7 @@ import {
   upsertBudgetProjectionEtc,
 } from './budgetProjection';
 import { AppError } from '@/src/lib/appError';
+import { Constants } from '@/src/lib/supabase/database.types';
 
 describe('first spending year summary', () => {
   it('passes opaque years in their existing order and returns the server selection', async () => {
@@ -589,18 +590,148 @@ describe('listBudgetPostingAccountCatalogue (AC-UX-076)', () => {
   });
 });
 
+/**
+ * ⚑ AC-D32-01 (DATA32) — A POSTGREST-FAITHFUL TABLE FAKE FOR THE CATEGORY MAP.
+ *
+ * `makeFromBuilder` above resolves whatever it is handed, which cannot prove a COMPLETE read: the real
+ * server caps a response at `max_rows` (1,000 here) and signals nothing when it truncates. This fake
+ * therefore holds the rows as a table and applies `.select(columns)`, `.order('id')`, the keyset cursor
+ * `.gt('id', after)` and `.limit(n)` BEFORE resolving — the same contract `fetchAllRowsByKeyset` expects.
+ * A one-shot read gets exactly one capped page; only a genuinely paged read walks the whole set.
+ *
+ * The map read has no `.eq` filter (RLS scopes the org), so nothing here narrows rows.
+ */
+const MAP_TABLE = 'budget_category_account_map';
+const MAP_MAX_ROWS = 1000; // supabase/config.toml `max_rows` — pinned by src/lib/pagedRead.config.test.ts
+type MapDbRow = { id: string; category: string; erp_account: string; is_push_target: boolean };
+
+const compareId = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
+
+function makeMapTableFake(
+  allRows: MapDbRow[],
+  opts: { failAtCursor?: string; error?: { message: string; code?: string } } = {},
+) {
+  /** One entry per request actually issued: what proves the loop ran and where it resumed. */
+  const requests: Array<{ table: string; columns: string | null; afterId: string | null; limit: number | null }> = [];
+  mockFrom.mockImplementation((table: string) => {
+    let columns: string | null = null;
+    let afterId: string | null = null;
+    let requested: number | null = null; // an unpaged read asks for "everything" and is capped
+    const builder: Record<string, unknown> = {};
+    builder.select = mockSelect.mockImplementation((cols: string) => { columns = cols; return builder; });
+    builder.eq = mockEq.mockReturnValue(builder);
+    builder.order = mockOrder.mockReturnValue(builder);
+    builder.gt = mockGt.mockImplementation((_column: string, value: string) => { afterId = value; return builder; });
+    builder.limit = mockLimit.mockImplementation((n: number) => { requested = n; return builder; });
+    builder.then = (resolve: (v: { data: unknown; error: unknown }) => void, reject?: (e: unknown) => void) => {
+      requests.push({ table, columns, afterId, limit: requested });
+      if (opts.error && afterId !== null && afterId === opts.failAtCursor) {
+        return Promise.resolve({ data: null, error: opts.error }).then(resolve, reject);
+      }
+      // `.order('id', { ascending: true })` — the server's own ordering, applied before the cap.
+      const ordered = [...allRows].sort((a, b) => compareId(a.id, b.id));
+      const start = afterId === null ? 0 : ordered.findIndex((r) => r.id === afterId) + 1;
+      const size = Math.min(requested ?? MAP_MAX_ROWS, MAP_MAX_ROWS);
+      return Promise.resolve({ data: ordered.slice(start, start + size), error: null }).then(resolve, reject);
+    };
+    return builder;
+  });
+  return requests;
+}
+
+const mapUuid = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
+
+/**
+ * 1001 rows typed by the map's own key (`erp_account`), built in the EXPECTED presentation order:
+ * generated enum order → account ascending → id ascending (one deliberate same-account pair, so the id
+ * tie-break is exercised). Ids are then handed out in the OPPOSITE group order, so a read that merely
+ * echoes key order cannot pass by accident — and the tie pair keeps its ascending ids either way.
+ */
+function mapFixture(extraTieRow: boolean) {
+  const categories = Constants.public.Enums.budget_category;
+  const groups: MapDbRow[][] = [];
+  for (const [c, category] of categories.entries()) {
+    for (let a = 0; a < 100; a++) {
+      groups.push([{
+        id: '',
+        category,
+        erp_account: `${5000 + c * 100 + a} - Acct ${String(a).padStart(3, '0')}`,
+        is_push_target: (c * 100 + a) % 11 === 0,
+      }]);
+    }
+  }
+  if (extraTieRow) {
+    groups[0]!.push({ id: '', category: categories[0]!, erp_account: groups[0]![0]!.erp_account, is_push_target: false });
+  }
+  const orderedRows: MapDbRow[] = [];
+  let next = 0;
+  for (let g = groups.length - 1; g >= 0; g--) {
+    orderedRows.unshift(...groups[g]!.map((row) => ({ ...row, id: mapUuid(next++) })));
+  }
+  return orderedRows;
+}
+
+const mapExpected = (rows: MapDbRow[]) =>
+  rows.map((r) => ({ id: r.id, category: r.category, erpAccount: r.erp_account, isPushTarget: r.is_push_target }));
+
 describe('listBudgetCategoryAccountMap (AC-BUD-011/012 admin surface, #768)', () => {
-  it('lists every account row with its id and push flag, ordered by category then account', async () => {
-    makeFromBuilder({
-      data: [{ id: 'm1', category: 'Labor', erp_account: '5100 - Direct Costs', is_push_target: true }],
-      error: null,
-    });
+  it('maps one account row with its id and push flag, selecting exactly the map columns', async () => {
+    makeMapTableFake([{ id: 'm1', category: 'Labor', erp_account: '5100 - Direct Costs', is_push_target: true }]);
     const rows = await listBudgetCategoryAccountMap();
-    expect(mockFrom).toHaveBeenCalledWith('budget_category_account_map');
-    expect(mockSelect).toHaveBeenCalledWith('id, category, erp_account, is_push_target');
-    expect(mockOrder).toHaveBeenCalledWith('category');
-    expect(mockOrder).toHaveBeenCalledWith('erp_account');
+    expect(mockFrom).toHaveBeenCalledWith(MAP_TABLE);
     expect(rows).toEqual([{ id: 'm1', category: 'Labor', erpAccount: '5100 - Direct Costs', isPushTarget: true }]);
+    expect(mockSelect).toHaveBeenCalledWith('id, category, erp_account, is_push_target');
+  });
+
+  it('resolves [] when the org has no mapped account — an empty map, not an error', async () => {
+    makeMapTableFake([]);
+    await expect(listBudgetCategoryAccountMap()).resolves.toEqual([]);
+  });
+
+  /**
+   * ⚑ DATA32: the old one-shot `.order('category').order('erp_account')` read is silently capped at
+   * `max_rows`, so at 1,001 visible rows the administrator's map was missing an account with no error
+   * shown. The oracle is the SET and the ORDER, not the loop: every row arrives once, grouped in the
+   * budget enum's own order, then readable account order, then id.
+   */
+  it('AC-D32-01 reads every visible row exactly once past the 1,000-row cap, in category-enum → account → id order', async () => {
+    const rows = mapFixture(true);
+    const requests = makeMapTableFake(rows);
+    expect(rows).toHaveLength(1001);
+
+    const result = await listBudgetCategoryAccountMap();
+
+    expect(result).toEqual(mapExpected(rows));
+    expect(new Set(result.map((r) => r.id)).size).toBe(1001);
+    // Keyset, not offset: exactly two pages, the second resuming AFTER the last row of the first.
+    expect(requests).toHaveLength(2);
+    expect(requests[0]).toMatchObject({ table: MAP_TABLE, columns: 'id, category, erp_account, is_push_target', afterId: null, limit: 1000 });
+    expect(requests[1]).toMatchObject({ table: MAP_TABLE, afterId: [...rows].sort((a, b) => compareId(a.id, b.id))[999]!.id, limit: 1000 });
+    expect(mockOrder).toHaveBeenCalledWith('id', { ascending: true });
+  });
+
+  it('AC-D32-01: exactly 1,000 rows is read in full, then confirmed complete by one extra empty page', async () => {
+    const rows = mapFixture(false);
+    const requests = makeMapTableFake(rows);
+    expect(rows).toHaveLength(1000);
+
+    const result = await listBudgetCategoryAccountMap();
+
+    expect(result).toEqual(mapExpected(rows));
+    expect(requests).toHaveLength(2);
+    expect(requests[1]!.afterId).toBe([...rows].sort((a, b) => compareId(a.id, b.id))[999]!.id);
+  });
+
+  it('AC-D32-01: a later page failing rejects with the server code — never a partial map', async () => {
+    const rows = mapFixture(true);
+    const cursorAfterFirstPage = [...rows].sort((a, b) => compareId(a.id, b.id))[999]!.id;
+    makeMapTableFake(rows, { failAtCursor: cursorAfterFirstPage, error: { message: 'canceling statement due to statement timeout', code: '57014' } });
+
+    await expect(listBudgetCategoryAccountMap()).rejects.toMatchObject({
+      message: 'canceling statement due to statement timeout',
+      code: '57014',
+    });
+    await expect(listBudgetCategoryAccountMap()).rejects.toBeInstanceOf(AppError);
   });
 });
 
