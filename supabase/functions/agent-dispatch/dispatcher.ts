@@ -192,7 +192,11 @@ export async function selectTriggerMatches(
       p_last_seen_id: lastSeenId,
       p_filters: filters,
     });
-    if (error || !data) continue;
+    if (error) {
+      logStructuredError({ fn: 'agent-dispatch', errorCode: 'SELECT_TRIGGER_EVENTS_FAILED', contextId: source });
+      continue;
+    }
+    if (!data) continue;
     const events = data as StatusEventRow[];
 
     for (const event of events) {
@@ -406,12 +410,21 @@ export async function runDispatchTick(deps: RunDispatchTickDeps): Promise<void> 
   // "attempted", not "matched-and-succeeded" — a unit that throws mid-fire was still attempted
   // against its event, so the watermark must still advance past it, or the same event re-matches
   // and double-fires next tick. Tracked as attempts are made, in the fire loop below.
-  const maxAttemptedBySource = new Map<string, { id: string; at: string }>();
+  // An event whose claim failed operationally (not a duplicate) was NOT attempted: the watermark must stop
+  // before the earliest such event so a recovered database re-selects it (existing claims keep it at-most-once).
+  const attemptedBySource = new Map<string, Array<{ id: string; at: string }>>();
+  const earliestUnclaimedBySource = new Map<string, { id: string; at: string }>();
+  const isAfter = (a: { id: string; at: string }, b: { id: string; at: string }) =>
+    a.at > b.at || (a.at === b.at && a.id > b.id);
   function markAttempted(source: string, event: StatusEventRow): void {
-    const prev = maxAttemptedBySource.get(source);
-    if (!prev || event.created_at > prev.at || (event.created_at === prev.at && event.id > prev.id)) {
-      maxAttemptedBySource.set(source, { id: event.id, at: event.created_at });
-    }
+    const list = attemptedBySource.get(source) ?? [];
+    list.push({ id: event.id, at: event.created_at });
+    attemptedBySource.set(source, list);
+  }
+  function markUnclaimed(source: string, event: StatusEventRow): void {
+    const prev = earliestUnclaimedBySource.get(source);
+    const cur = { id: event.id, at: event.created_at };
+    if (!prev || isAfter(prev, cur)) earliestUnclaimedBySource.set(source, cur);
   }
 
   // ── Fire each due automation through the minted-owner deputy path ──
@@ -442,6 +455,26 @@ export async function runDispatchTick(deps: RunDispatchTickDeps): Promise<void> 
     }
   };
 
+  // A minted audit run that will never start (credit refused, condition unevaluable, audit write failed)
+  // is closed 'errored' so the owner never sees a run stuck 'running'. Best-effort: a failed close is reported.
+  const failRun = async (client: unknown, runId: string, automation: AutomationRow): Promise<void> => {
+    type Writer = { from(t: string): { update(p: object): { eq(c: string, v: string): PromiseLike<{ error: unknown }> } } };
+    let failed: boolean;
+    try {
+      failed = Boolean((await (client as Writer).from('agent_runs').update({ status: 'errored' }).eq('id', runId)).error);
+    } catch {
+      failed = true;
+    }
+    if (failed) {
+      void recordErrorEvent(deps.serviceClient as never, {
+        fn: 'agent-dispatch',
+        errorCode: 'AUTOMATION_AUDIT_CLOSE_FAILED',
+        contextId: automation.id,
+        orgId: automation.org_id,
+      });
+    }
+  };
+
   // Automations whose credit hold was refused this tick: the owner is told ONCE, and the rest of that
   // automation's events are skipped before they mint a session or take a hold.
   const creditBlocked = new Set<string>();
@@ -451,9 +484,6 @@ export async function runDispatchTick(deps: RunDispatchTickDeps): Promise<void> 
   // for events already attempted (markAttempted runs unconditionally once selection has committed
   // to attempting a trigger unit, BEFORE any step that can throw).
   for (const { automation, event } of [...scheduleUnits, ...triggerUnits]) {
-    if (automation.kind === 'trigger' && event) {
-      markAttempted(automation.trigger_on!.source, event);
-    }
 
     // Tracks which phase of the unit is in flight so the catch below can log a DISTINCT
     // errorCode per failure phase (claim vs mint vs audit vs fire) without changing any
@@ -485,8 +515,15 @@ export async function runDispatchTick(deps: RunDispatchTickDeps): Promise<void> 
       // key. Claim-then-fire = at-most-once per (automation, event). A fire that then throws
       // still counts as claimed (it won't re-fire for that event), matching the schedule posture.
       if (automation.kind === 'trigger' && event) {
-        const claimed = await claimTriggerFire(deps.serviceClient, automation.id, event.id);
-        if (!claimed) continue;
+        const source = automation.trigger_on!.source;
+        const claim = await claimTriggerFire(deps.serviceClient, automation.id, event.id);
+        if (claim === 'error') {
+          markUnclaimed(source, event);
+          logStructuredError({ fn: 'agent-dispatch', errorCode: 'AUTOMATION_CLAIM_FAILED', contextId: automation.id });
+          continue;
+        }
+        markAttempted(source, event);
+        if (claim === 'duplicate') continue;
       }
       if (creditBlocked.has(automation.id)) continue;
       // Mint ONCE per candidate — shared by audit, notify, credit reservation, and fire (one mint per
@@ -504,7 +541,13 @@ export async function runDispatchTick(deps: RunDispatchTickDeps): Promise<void> 
         // be written never notifies, credits, or fires. ──
         const runId = newRunId();
         stage = 'audit';
-        const threadId = await auditMint(minted.client, automation, runId, newMintedAt());
+        let threadId: string;
+        try {
+          threadId = await auditMint(minted.client, automation, runId, newMintedAt());
+        } catch (err) {
+          await failRun(minted.client, runId, automation); // no-op when the run row was never written
+          throw err;
+        }
         session = { minted, runId, threadId };
         return session;
       };
@@ -521,6 +564,7 @@ export async function runDispatchTick(deps: RunDispatchTickDeps): Promise<void> 
           return true;
         }
         creditBlocked.add(automation.id);
+        if (session) await failRun(mintedClient, session.runId, automation);
         const meterDown = credit.reason === 'meter_error';
         const notified = await notifyOwner(
           mintedClient,
@@ -549,7 +593,7 @@ export async function runDispatchTick(deps: RunDispatchTickDeps): Promise<void> 
       // recorded as trusted usage afterwards, whatever the verdict. ──
       let conditionWarning: string | null = null;
       if (automation.kind === 'trigger' && automation.condition && event) {
-        let verdict = peekConditionVerdict(memo, now.getTime(), automation);
+        let verdict = peekConditionVerdict(memo, now.getTime(), automation, event);
         if (!verdict) {
           const audited = await ensureMinted();
           stage = 'condition';
@@ -604,6 +648,7 @@ export async function runDispatchTick(deps: RunDispatchTickDeps): Promise<void> 
             orgId: automation.org_id,
           });
         }
+        await failRun(minted.client, runId, automation);
         continue;
       }
 
@@ -693,8 +738,11 @@ export async function runDispatchTick(deps: RunDispatchTickDeps): Promise<void> 
   // watermark advances over events whose automations were ALL attempted this tick, regardless of
   // whether the fire ultimately succeeded, threw, or was skipped (condition/credit) — an
   // attempted-but-failed event must never be re-selected and re-attempted next tick. ──
-  for (const [source, seen] of maxAttemptedBySource) {
-    await advanceWatermark(deps.serviceClient, source, seen);
+  for (const [source, attempted] of attemptedBySource) {
+    const stop = earliestUnclaimedBySource.get(source);
+    const safe = stop ? attempted.filter((a) => isAfter(stop, a)) : attempted;
+    if (safe.length === 0) continue;
+    await advanceWatermark(deps.serviceClient, source, safe.reduce((m, a) => (isAfter(a, m) ? a : m)));
   }
 }
 
@@ -764,7 +812,10 @@ export async function claimScheduleFire(sb: ServiceClientLike, automationId: str
     .eq('id', automationId)
     .or(`last_fired_at.is.null,last_fired_at.lt."${minuteFloor}"`)
     .select('id');
-  if (error) return false;
+  if (error) {
+    logStructuredError({ fn: 'agent-dispatch', errorCode: 'SCHEDULE_CLAIM_FAILED', contextId: automationId });
+    return false;
+  }
   return (data ?? []).length > 0;
 }
 
@@ -774,19 +825,28 @@ export async function claimScheduleFire(sb: ServiceClientLike, automationId: str
  * (automation_id, event_id) primary key — the INSERT itself is the mutual exclusion: of N
  * overlapping ticks exactly one INSERT succeeds and fires; the losers hit a 23505 unique-violation
  * (surfaced as `error`) and skip. Fail-closed on ANY error (conflict OR a real query failure):
- * return false = do not fire — a duplicate must never fire, and an unreachable bookkeeping table
+ * neither fires; 'duplicate' = unique-violation (already claimed), 'error' = outage (caller keeps the event retryable) — a duplicate must never fire, and an unreachable bookkeeping table
  * must never produce an unclaimed fire. (service_role, agent_automation_fires metadata — within
  * quarantine.)
  */
-export async function claimTriggerFire(sb: ServiceClientLike, automationId: string, eventId: string): Promise<boolean> {
+export async function claimTriggerFire(
+  sb: ServiceClientLike,
+  automationId: string,
+  eventId: string,
+): Promise<'claimed' | 'duplicate' | 'error'> {
   const builder = sb.from('agent_automation_fires') as {
     insert: (row: Record<string, unknown>) => {
       select: (cols: string) => Promise<{ data: unknown[] | null; error: unknown }>;
     };
   };
-  const { data, error } = await builder
-    .insert({ automation_id: automationId, event_id: eventId })
-    .select('automation_id');
-  if (error) return false;
-  return (data ?? []).length > 0;
+  try {
+    const { data, error } = await builder
+      .insert({ automation_id: automationId, event_id: eventId })
+      .select('automation_id');
+    // Only a unique-violation means "already claimed"; anything else is an outage and must stay retryable.
+    if (error) return (error as { code?: string }).code === '23505' ? 'duplicate' : 'error';
+    return (data ?? []).length > 0 ? 'claimed' : 'duplicate';
+  } catch {
+    return 'error';
+  }
 }

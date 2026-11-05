@@ -93,7 +93,7 @@ function makeMintedClient() {
   }));
   const from = vi.fn((table: string) => {
     tablesTouched.push(table);
-    return { insert };
+    return { insert, update: () => ({ eq: () => Promise.resolve({ error: null }) }) };
   });
   return { client: { from, __identity: 'minted-A' }, tablesTouched, insert };
 }

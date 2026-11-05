@@ -200,6 +200,9 @@ describe('runDispatchTick — item 2: per-automation error isolation (fire loop)
         };
       }
       if (table === 'agent_dispatch_watermarks') return { select: wmSelect, upsert: upsertMock };
+      if (table === 'agent_automation_fires') {
+        return { insert: () => ({ select: () => Promise.resolve({ data: [{ automation_id: 'trig-1' }], error: null }) }) };
+      }
       throw new Error(`service_role must never .from() business data; got: ${table}`);
     });
     const svcClient = { from, rpc };

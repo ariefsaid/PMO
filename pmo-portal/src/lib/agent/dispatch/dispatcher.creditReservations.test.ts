@@ -227,24 +227,24 @@ describe('dispatcher — conditional triggers leave no visible trace when the co
     expect(t.errorEvents.map((e) => e.error_code)).toContain('AUTOMATION_AUDIT_CLOSE_FAILED');
   });
 
-  it('a burst of events with a false condition mints once: later events hit the memo before any mint', async () => {
+  it('a burst of events with a false condition judges each event on its own (one mint, hold and archive per event)', async () => {
     const t = setup(trigger(), burst(3));
     const cond = t.conditionModel('false');
     const g = t.guard();
     await t.run(g, cond);
-    expect(cond.create).toHaveBeenCalledTimes(1);
-    expect(t.mint.verifyOtp).toHaveBeenCalledTimes(1);
-    expect(g.check).toHaveBeenCalledTimes(1);
-    expect(t.threadUpdates).toHaveLength(1);
+    expect(cond.create).toHaveBeenCalledTimes(3);
+    expect(t.mint.verifyOtp).toHaveBeenCalledTimes(3);
+    expect(g.check).toHaveBeenCalledTimes(3);
+    expect(t.threadUpdates).toHaveLength(3);
     expect(t.handler).not.toHaveBeenCalled();
   });
 
-  it('a burst with a true condition fires every claimed event (one evaluation, one hold per fire)', async () => {
+  it('a burst with a true condition fires every claimed event (one evaluation and one hold per event)', async () => {
     const t = setup(trigger(), burst(3));
     const cond = t.conditionModel('true');
     const g = t.guard();
     await t.run(g, cond);
-    expect(cond.create).toHaveBeenCalledTimes(1);
+    expect(cond.create).toHaveBeenCalledTimes(3);
     expect(t.handler).toHaveBeenCalledTimes(3);
     expect(g.check).toHaveBeenCalledTimes(3);
     expect(g.release).toHaveBeenCalledTimes(3);

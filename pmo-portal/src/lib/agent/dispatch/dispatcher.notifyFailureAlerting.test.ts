@@ -74,7 +74,7 @@ function makeMintedClientWithFailingNotify() {
   const from = vi.fn((table: string) => {
     tablesTouched.push(table);
     if (table === 'notifications') return { insert: notifInsert };
-    return { insert: auditInsert };
+    return { insert: auditInsert, update: () => ({ eq: () => Promise.resolve({ error: null }) }) };
   });
   return { client: { from }, notifInsert };
 }
