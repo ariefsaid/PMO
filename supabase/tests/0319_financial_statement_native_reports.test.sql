@@ -735,6 +735,12 @@ select s.statement,s.project_id,s.view_kind,s.period_kind,s.current_start,s.snap
 from public.erp_financial_statement_snapshot s where s.org_id='03190000-0000-0000-0000-000000000001';
 -- Diff publication: unchanged rows are header-only touched (same content, new generation); only the
 -- freshly acquired keys carry rewritten payloads. Reported by the local end-to-end check.
+select diag(format('AC-CD-005 diff publish: rows=%s payload_written=%s header_only_touches=%s deleted=%s inserted=%s',
+  (select count(*) from native_diff_after),
+  (select count(*) from native_diff_after a join native_diff_before b using(statement,project_id,view_kind,period_kind,current_start) where a.content_md5<>b.content_md5),
+  (select count(*) from native_diff_after a join native_diff_before b using(statement,project_id,view_kind,period_kind,current_start) where a.content_md5=b.content_md5 and a.snapshot_id<>b.snapshot_id),
+  (select count(*) from native_diff_before b where not exists(select 1 from native_diff_after a where (a.statement,a.project_id,a.view_kind,a.period_kind,a.current_start) is not distinct from (b.statement,b.project_id,b.view_kind,b.period_kind,b.current_start))),
+  (select count(*) from native_diff_after a where not exists(select 1 from native_diff_before b where (a.statement,a.project_id,a.view_kind,a.period_kind,a.current_start) is not distinct from (b.statement,b.project_id,b.view_kind,b.period_kind,b.current_start)))));
 select is((select count(*)::int from native_diff_after a join native_diff_before b using(statement,project_id,view_kind,period_kind,current_start)
     where a.content_md5=b.content_md5 and a.snapshot_id<>b.snapshot_id),
   (select count(*)::int from native_incremental_retained_before),
