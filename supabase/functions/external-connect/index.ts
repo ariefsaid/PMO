@@ -46,7 +46,7 @@ import {
   isAdminOrOperator,
   type AdminOrOperatorClient,
 } from '../_shared/adminOrOperator.ts';
-import { fetchBounded, FetchDeadlineError } from '../_shared/fetchWithDeadline.ts';
+import { fetchBounded, FetchDeadlineError, readJsonBounded } from '../_shared/fetchWithDeadline.ts';
 import { isPrivateOrReservedHost } from '../_shared/erpHostGuard.ts';
 import { connectOdoo, type OdooCredential } from './odoo.ts';
 
@@ -143,10 +143,11 @@ async function validateClickUpToken(
     throw upstreamRefusal(res.status, 'Invalid ClickUp token', 'ClickUp');
   }
   try {
-    const body = (await res.json()) as { user?: { id?: number | string } };
+    const body = await readJsonBounded<{ user?: { id?: number | string } }>(res, 'ClickUp did not respond in time');
     const id = body.user?.id;
     return id !== undefined && id !== null ? String(id) : null;
-  } catch {
+  } catch (err) {
+    if (err instanceof AppError) throw err;
     return null;
   }
 }
@@ -163,11 +164,12 @@ async function validateClickUpTeam(token: string, deps: ValidatorDeps): Promise<
   }
   if (!res.ok) throw upstreamRefusal(res.status, 'Unable to resolve ClickUp workspace', 'ClickUp');
   try {
-    const body = (await res.json()) as { teams?: Array<{ id?: number | string }> };
+    const body = await readJsonBounded<{ teams?: Array<{ id?: number | string }> }>(res, 'ClickUp did not respond in time');
     const id = body.teams?.[0]?.id;
     if (id === undefined || id === null || String(id) === '') throw new Error('missing team id');
     return String(id);
-  } catch {
+  } catch (err) {
+    if (err instanceof AppError) throw err;
     throw new AppError('Unable to resolve ClickUp workspace', 'config-rejected');
   }
 }
@@ -512,5 +514,5 @@ if (import.meta.main) {
 }
 
 // Export validators and SSRF helper for testability
-export { validateClickUpToken, validateErpNextCredentials };
+export { validateClickUpToken, validateClickUpTeam, validateErpNextCredentials };
 export type { ValidatorDeps };

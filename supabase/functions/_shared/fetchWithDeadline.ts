@@ -17,6 +17,8 @@
  * reason). A settled request leaves no dangling timer (always cleared in `finally`).
  */
 
+import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
+
 /** Thrown when `fetchWithDeadline` aborts a request because it exceeded `timeoutMs`. Distinct from an
  *  ordinary network rejection so a caller can tell "we gave up" from "the host refused". */
 export class FetchDeadlineError extends Error {
@@ -100,4 +102,16 @@ export function fetchBounded(
   timeoutMs: number = OUTBOUND_FETCH_TIMEOUT_MS,
 ): Promise<Response> {
   return fetchWithDeadline(fetchImpl ?? ((...a) => globalThis.fetch(...a)), input, init, timeoutMs);
+}
+
+/** `res.json()` for a body read under `fetchWithDeadline`: a body that stalls past the deadline surfaces as
+ *  the SAME `external-unreachable` the connect phase classifies, never a raw `FetchDeadlineError`. Any other
+ *  failure (malformed JSON) propagates unchanged for the caller's own handling. */
+export async function readJsonBounded<T>(res: Response, message: string): Promise<T> {
+  try {
+    return (await res.json()) as T;
+  } catch (err) {
+    if (err instanceof FetchDeadlineError) throw new AppError(message, 'external-unreachable');
+    throw err;
+  }
 }
