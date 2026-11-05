@@ -260,6 +260,19 @@ describe('AC-CQ-015 Work orders tab: allocations and BAST list', () => {
     expect(within(disclosure()).queryByText(/You prepared this/)).toBeNull();
   });
 
+  it.each(['Closed', 'Cancelled'])('AC-CQ-015 a Draft BAST on a %s order offers no Confirm in the list or the row menu; withdraw stays', async (status) => {
+    h.workOrders = [wo({ status })];
+    h.woBilling = [woBilling({ status })];
+    h.acceptances = [bast('a2')];
+    h.role = 'Finance'; h.userId = 'u-fin';
+    const user = renderWorkOrders();
+    await openDisclosure(user);
+    expect(within(disclosure()).queryByRole('button', { name: 'Confirm BAST' })).toBeNull();
+    expect(within(disclosure()).getByRole('button', { name: /^Withdraw draft BAST/ })).toBeInTheDocument();
+    await user.click(within(disclosure()).getByRole('button', { name: 'Actions for WO-001' }));
+    expect(screen.queryByRole('menuitem', { name: 'Confirm draft BAST' })).toBeNull();
+  });
+
   it('AC-CQ-015 a PM who prepared it sees no Confirm; a Finance preparer sees Confirm with the SoD hint', async () => {
     h.acceptances = [bast('a2', { prepared_by: 'u-pm' })];
     const user = renderWorkOrders();
