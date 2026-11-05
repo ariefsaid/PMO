@@ -1,5 +1,6 @@
-import { TaxRateFields } from '@/src/components/ui/TaxRateFields';
-import { useStandaloneTaxFields } from '@/src/hooks/useStandaloneTaxFields';
+import { useVendorInvoiceCapture } from './useVendorInvoiceCapture';
+import { PaymentCaptureFields } from './PaymentCaptureFields';
+import { VendorInvoiceCaptureFields } from './VendorInvoiceCaptureFields';
 /**
  * RecordCaptureForm — inline per-phase capture form for the four new ERP-canonical
  * record types (PR / RFQ / PO / Payment).
@@ -17,22 +18,10 @@ import type { TFunction } from 'i18next';
 import { Button, FieldError, Icon, SelectField, useMoneyInputMask, useToast } from '@/src/components/ui';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import type { ProcurementInvoiceRow, TaxTreatment } from '@/src/lib/db/procurementLifecycle';
-import { useOrgTaxDefault, useTaxTreatmentPreselect } from '@/src/hooks/useOrgTaxDefault';
-import { VI_FIELD_TEST_IDS } from './vendorInvoiceTestIds';
 import { RECORD_AMOUNT_ERROR, parseRecordAmount } from './recordAmount';
-import {
-  TAX_TREATMENT_OPTIONS,
-  VI_TAX_REQUIRED_HINT,
-  taxIsPmoAuthored,
-  ERP_AUTHORED_TAX,
-} from './vendorInvoiceTax';
 import { useCommandIntent } from '@/src/hooks/useCommandIntent';
 import { useOrgToday } from '@/src/hooks/useOrgToday';
-import { usePurchaseTaxTemplates } from '@/src/hooks/usePurchaseTaxTemplates';
-import { useVendorTaxDefault } from '@/src/hooks/useVendorTaxDefault';
-import { useErpVendorTax, useNativeVendorTax } from '@/src/hooks/useVendorBillTax';
-import { ErpTaxAmountFields, NativeWithholdingField, TaxSuggestedFrom } from './VendorBillTaxFields';
-import { OdooJournalSelect, OdooTaxPicker } from '@/src/components/procurement/OdooDirectoryPickers';
+import { OdooJournalSelect } from '@/src/components/procurement/OdooDirectoryPickers';
 import { OdooReceiptQuantities } from '@/src/components/procurement/OdooReceiptQuantities';
 import { parseReceiptQuantities, type ReceiptItem, type ReceiptLine } from '@/src/lib/procurement/receiptQuantities';
 import { odooOwnsProcurement } from '@/src/lib/adapterSeam/odoo/ownership';
@@ -43,8 +32,7 @@ import { useTranslation } from 'react-i18next';
 import { groupRefIsPmoAuthored } from './groupRef';
 import { formatMoneyInputValue } from '@/src/lib/format';
 import type { CommandIntent } from '@/src/lib/repositories/types';
-import { vendorInvoiceIdentityAccessibleLabel, type VendorInvoiceContext } from '@/src/components/procurement/vendorInvoiceIdentityLabels';
-import { VendorInvoiceIdentity } from '@/src/components/procurement/VendorInvoiceIdentity';
+import type { VendorInvoiceContext } from '@/src/components/procurement/vendorInvoiceIdentityLabels';
 import { SubcontractBillLines } from './SubcontractBillLines';
 import type { SubcontractBillLineInput } from '@/src/lib/db/subcontracts';
 
@@ -230,12 +218,6 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
   const [amountStr, setAmountStr] = useState('');
   const [amountError, setAmountError] = useState<string | undefined>(undefined);
   const [subcontractBill, setSubcontractBill] = useState<{ lines: SubcontractBillLineInput[]; amount: number } | null>(null);
-  // #505: vendor-invoice tax facts. '' is "not answered yet", never a value (see vendorInvoiceTax.ts).
-  // OD-TAX-1 (#548) then gave the org a PRE-SELECTION for this control — see the hook call below.
-  // Unused by every other kind.
-  const [taxTreatmentStr, setTaxTreatmentStr] = useState('');
-  const [taxAmountStr, setTaxAmountStr] = useState('');
-  const taxFields = useStandaloneTaxFields(amountStr, taxTreatmentStr, taxAmountStr, setTaxAmountStr);
   // #684: both money drafts group in the viewer's number convention as the user types.
   const amountMask = useMoneyInputMask(amountStr, (next) => {
     setAmountStr(next);
@@ -259,23 +241,9 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
   const formId = `record-capture-${kind}`;
   const isVendorInvoice = kind === 'vendor_invoice';
   const isSubcontractInvoice = isVendorInvoice && Boolean(subcontractPoId);
-  // #505: the ONE predicate — null ⇒ incomplete tax facts ⇒ Save VI disabled AND submit refuses.
-  // Non-VI kinds have no tax fields, so they are never gated by it.
-  // ⛔ On a FLIPPED org the ERP computes the tax and owns the answer, so PMO does not ask — see
-  // `taxIsPmoAuthored`. Asking and discarding is worse than not asking, and that is what an earlier
-  // round of #505 did on this exact path.
-  const pmoAuthorsTax = isVendorInvoice && taxIsPmoAuthored();
-  const parsedTax = !isVendorInvoice
-    ? null
-    : pmoAuthorsTax
-      ? taxFields.facts
-      : ERP_AUTHORED_TAX;
-  // #520: on a flipped org the user chooses WHICH ERPNext template applies — or (#876 slice 2, DD-VWH-15) enters the
-  // tax AMOUNTS, which is '' in the template select and the default. "ERPNext default" is no longer offered.
-  // #1505 P8: on an Odoo-owned org the user picks taxes from Odoo's directory instead of an ERPNext template or amounts.
   const odooProcurement = odooOwnsProcurement();
-  const odooBill = isVendorInvoice && !pmoAuthorsTax && odooProcurement;
-  const [odooTaxIds, setOdooTaxIds] = useState<string[]>([]);
+  const vi = useVendorInvoiceCapture({ isVendorInvoice, odooProcurement, vendorId, itemsNet, amountStr });
+  const { pmoAuthorsTax, odooBill, choosesErpTaxTemplate, taxIncomplete, vendorTax } = vi;
   const [odooJournalId, setOdooJournalId] = useState('');
   // A receipt on an Odoo-owned org: the quantity per line replaces the typed Partial/Complete (Odoo derives the status, FR-OPP-034).
   const odooReceipt = kind === 'goods_receipt' && odooProcurement && items.length > 0;
@@ -292,37 +260,8 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
   // While blocked, staging and submission are refused BOTH by the disabled save and by an early
   // return inside handleSubmit — a programmatic submit (Enter key) can never stage the lines.
   const receiptBlockedByFeature = odooReceipt && receiptHasDraft && !receiptFullReady;
-  const choosesErpTaxTemplate = isVendorInvoice && !pmoAuthorsTax && !odooProcurement;
-  const [taxTemplate, setTaxTemplate] = useState('');
-  const erpTaxTemplates = usePurchaseTaxTemplates(choosesErpTaxTemplate);
   // OQ-VWH-8: the bill amount is never sent on the ERP path (ERPNext totals the items), so it is not asked there.
   const showsAmount = cfg.showAmount && !choosesErpTaxTemplate && !odooBill;
-
-  // #876 slice 2 (OD-VWH-1, DD-VWH-17): the vendor's default pre-fills the AMOUNTS; every amount stays editable and
-  // the bill records exactly what is submitted (DD-VWH-13/19).
-  const vendorTax = useVendorTaxDefault(isVendorInvoice ? vendorId : null);
-  const nativeTax = useNativeVendorTax({
-    vendor: vendorTax, enabled: pmoAuthorsTax, amountRaw: amountStr, treatmentRaw: taxTreatmentStr,
-    vatRaw: taxAmountStr, setVatRaw: setTaxAmountStr, vatIsCalculated: taxFields.hasRate,
-  });
-  const taxAmountMask = useMoneyInputMask(taxAmountStr, (next) => {
-    nativeTax.markVatTouched();
-    setTaxAmountStr(next);
-  });
-  const entersErpAmounts = choosesErpTaxTemplate && taxTemplate === '';
-  const erpTax = useErpVendorTax({ vendor: vendorTax, enabled: entersErpAmounts, itemsNet });
-  const taxIncomplete = isVendorInvoice && (
-    parsedTax === null
-    || (pmoAuthorsTax && nativeTax.value === null)
-    // The server refuses a withheld above the items total (DD-VWH-22); the form says so before the send.
-    || (entersErpAmounts && (erpTax.amounts === null || erpTax.withheldAboveItems)));
-
-  // OD-TAX-1 (#548): pre-select the org's `default_tax_treatment` — this form composes a NEW
-  // invoice row, which is the only thing that setting is for. Enabled ONLY where PMO authors the
-  // tax: on a flipped org the ERP computes it and these controls are not rendered at all, so
-  // seeding a value there would stage an answer the outbound command drops on the floor.
-  const orgTaxDefault = useOrgTaxDefault();
-  useTaxTreatmentPreselect(orgTaxDefault, taxTreatmentStr, setTaxTreatmentStr, pmoAuthorsTax);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -361,7 +300,8 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
       } else {
         // #505: refuse to stage without the tax facts. Unreachable through the UI (Save VI is
         // disabled), but staging an incomplete VI would surface P0001 AFTER the user confirmed.
-        if (!parsedTax || taxIncomplete) return;
+        const taxFacts = vi.stagedTaxFacts();
+        if (!taxFacts) return;
         // N1: status excludes Paid — the select never offers it.
         onStage({
           kind: 'createVI',
@@ -372,14 +312,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
           ...(hasGroupRef && groupRef.trim() ? { externalRef: groupRef.trim() } : {}),
           amount: isSubcontractInvoice && subcontractBill ? subcontractBill.amount : parsedAmount,
           ...(isSubcontractInvoice && subcontractBill ? { lines: subcontractBill.lines } : {}),
-          taxTreatment: parsedTax.taxTreatment,
-          taxAmount: parsedTax.taxAmount,
-          ...(pmoAuthorsTax && taxFields.facts ? { taxRate: taxFields.facts.taxRate, taxBaseNumerator: taxFields.facts.taxBaseNumerator, taxBaseDenominator: taxFields.facts.taxBaseDenominator } : {}),
-          ...(choosesErpTaxTemplate && taxTemplate ? { taxTemplate } : {}),
-          ...(pmoAuthorsTax && nativeTax.value?.pphType
-            ? { withheldAmount: nativeTax.value.withheldAmount, withheldPphType: nativeTax.value.pphType } : {}),
-          ...(entersErpAmounts && erpTax.amounts ? { erpTaxAmounts: erpTax.amounts } : {}),
-          ...(odooBill && odooTaxIds.length ? { taxIds: odooTaxIds } : {}),
+          ...taxFacts,
         });
       }
       return;
@@ -623,138 +556,21 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
         </div>
       )}
 
-      {/* #505: vendor-invoice tax facts — BOTH required, and the treatment has no pre-selected
-          option. `amount` above is ambiguous without a treatment marker and no later inference
-          recovers it (migration 0196). Hidden entirely on a flipped org, where the ERP owns the
-          answer (`taxIsPmoAuthored`). The copy + testids are single-sourced in vendorInvoiceTax.ts /
-          vendorInvoiceTestIds.ts, so the two entry points cannot drift. */}
-      {/* #520: flipped org — which ERPNext purchase tax template applies (validated and expanded server-side). */}
-      {choosesErpTaxTemplate && (
-        <SelectField
-          id={`${formId}-tax-template`}
-          label={t('procurementDetail.erpTaxTemplate.label', 'ERPNext tax template')}
-          value={taxTemplate}
-          onChange={setTaxTemplate}
-          disabled={!erpTaxTemplates.data}
-          helper={erpTaxTemplates.isError
-            ? t('procurementDetail.erpTaxTemplate.loadError', 'Could not load the ERPNext tax templates. Enter the tax amounts instead.')
-            : undefined}
-          options={[
-            { value: '', label: t('procurementDetail.erpTaxTemplate.enterAmounts', 'Enter the tax amounts') },
-            ...(erpTaxTemplates.data ?? []).map((tpl) => ({ value: tpl.name, label: tpl.name })),
-          ]}
-          data-testid="vi-tax-template-select"
-        />
-      )}
-      {odooBill && <OdooTaxPicker value={odooTaxIds} onChange={setOdooTaxIds} />}
-      {entersErpAmounts && <ErpTaxAmountFields formId={formId} tax={erpTax} />}
-      {pmoAuthorsTax && <TaxRateFields fields={taxFields} />}
-      {pmoAuthorsTax && (
-        <div className="flex flex-wrap gap-3">
-          <div className="min-w-[180px] flex-1">
-            <SelectField
-              id={`${formId}-tax-treatment`}
-              label={t('procurementDetail.vendorInvoice.taxTreatment', 'Tax treatment')}
-              value={taxTreatmentStr}
-              onChange={setTaxTreatmentStr}
-              placeholder={t('procurementDetail.vendorInvoice.taxTreatmentPlaceholder', 'Select tax treatment')}
-              helper={t('procurementDetail.vendorInvoice.taxTreatmentHelper', 'Inclusive: VAT is already in the bill amount. Exclusive: VAT is added to it.')}
-              options={TAX_TREATMENT_OPTIONS.map((option) => ({
-                ...option,
-                label: option.value === 'inclusive'
-                  ? t('procurementDetail.vendorInvoice.taxInclusive', 'Inclusive: VAT included')
-                  : t('procurementDetail.vendorInvoice.taxExclusive', 'Exclusive: VAT added'),
-              }))}
-              data-testid={VI_FIELD_TEST_IDS.taxTreatment}
-            />
-          </div>
-          <div className="flex min-w-[140px] flex-1 flex-col gap-1">
-            <label
-              htmlFor={`${formId}-tax-amount`}
-              className="text-[12px] font-semibold text-muted-foreground"
-            >
-              {t('procurementDetail.vendorInvoice.taxAmount', 'Tax amount')}
-            </label>
-            <input
-              id={`${formId}-tax-amount`}
-              type="text"
-              inputMode="decimal"
-              ref={taxAmountMask.ref}
-              value={taxAmountStr}
-              readOnly={taxFields.hasRate}
-              onChange={taxAmountMask.onChange}
-              placeholder="0.00"
-              data-testid={VI_FIELD_TEST_IDS.taxAmount}
-              aria-describedby={nativeTax.vatSuggestion ? `${formId}-tax-amount-basis` : undefined}
-              className="h-8 w-full rounded-md border border-input bg-background px-2.5 text-[13.5px] tabular-nums outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-            />
-            <TaxSuggestedFrom id={`${formId}-tax-amount-basis`} suggestion={nativeTax.vatSuggestion} />
-          </div>
-        </div>
-      )}
-      {pmoAuthorsTax && <NativeWithholdingField formId={formId} tax={nativeTax} />}
-
-      {isVendorInvoice && parsedTax === null && (
-        <p data-testid={VI_FIELD_TEST_IDS.taxRequiredHint} className="text-[12px] text-muted-foreground">
-          {VI_TAX_REQUIRED_HINT}
-        </p>
-      )}
+      <VendorInvoiceCaptureFields formId={formId} capture={vi} isVendorInvoice={isVendorInvoice} />
 
       {/* [PD-5]: predecessor FK for payment — required on a flipped org (DD-VPAY-3), optional otherwise */}
       {cfg.showInvoiceFk && (
-        <div className="flex flex-col gap-1">
-          <SelectField
-            id={`${formId}-invoice`}
-            label={<>{t('procurementDetail.paymentLinksToInvoice', 'Links to invoice')} {!paymentBillRequired && <span className="font-normal">({t('procurementDetail.vendorInvoice.optional', 'optional')})</span>}</>}
-            value={invoiceId}
-            onChange={(next) => {
-              setInvoiceId(next);
-              setBillError(undefined);
-              // DD-VPAY-10: the bill's mirrored ERP outstanding is the default amount — what we
-              // actually owe, net of withholding (AC-VWH-005's figures: gross 1,110,000 → 1,090,000).
-              // The user may pay less (partial); the server gate (DD-VPAY-7) remains the authority.
-              if (paymentBillRequired) {
-                const selected = invoices.find((inv) => inv.id === next);
-                const raw = selected?.erp_outstanding_amount;
-                const outstanding = typeof raw === 'string' ? Number(raw) : raw;
-                if (typeof outstanding === 'number' && Number.isFinite(outstanding)) {
-                  setAmountStr(formatMoneyInputValue(outstanding));
-                  setAmountError(undefined);
-                }
-              }
-            }}
-            data-testid="payment-invoice-select"
-            placeholder={t('procurementDetail.noInvoiceSelected', '— none —')}
-            options={invoices.map((inv) => {
-              const label = vendorInvoiceIdentityAccessibleLabel({
-                t,
-                referenceNumber: inv.reference_number,
-                viNumber: inv.vi_number,
-                invoiceDate: inv.invoice_date,
-                context: invoiceIdentityContext ?? { state: 'unavailable' },
-              });
-              // FR-OPP-044: a bill whose total Odoo computed differently is not payable until a person has checked it in Odoo.
-              const needsAttention = odooProcurement && Boolean((inv as { erp_attention?: string | null }).erp_attention);
-              return needsAttention
-                ? { value: inv.id, label: `${label} — ${t('procurement:odoo.billCheckFirst', 'check in Odoo first')}`, disabled: true }
-                : { value: inv.id, label };
-            })}
-          />
-          {invoiceId && (() => {
-            const selected = invoices.find((inv) => inv.id === invoiceId);
-            return selected ? (
-              <div data-testid="payment-selected-invoice-identity" className="mt-1 min-w-0 rounded-md border border-border/60 bg-muted/30 p-2">
-                <VendorInvoiceIdentity
-                  referenceNumber={selected.reference_number}
-                  viNumber={selected.vi_number}
-                  invoiceDate={selected.invoice_date}
-                  context={invoiceIdentityContext ?? { state: 'unavailable' }}
-                />
-              </div>
-            ) : null;
-          })()}
-          <FieldError id={`${formId}-invoice-error`}>{billError}</FieldError>
-        </div>
+        <PaymentCaptureFields
+          formId={formId}
+          invoices={invoices}
+          invoiceIdentityContext={invoiceIdentityContext}
+          paymentBillRequired={paymentBillRequired}
+          odooProcurement={odooProcurement}
+          invoiceId={invoiceId}
+          billError={billError}
+          onSelect={(next) => { setInvoiceId(next); setBillError(undefined); }}
+          onOutstandingAmount={(formatted) => { setAmountStr(formatted); setAmountError(undefined); }}
+        />
       )}
 
       {isPayment && odooProcurement && <OdooJournalSelect value={odooJournalId} onChange={setOdooJournalId} id={`${formId}-journal`} />}
