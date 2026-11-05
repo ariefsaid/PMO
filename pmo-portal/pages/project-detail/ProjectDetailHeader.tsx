@@ -301,7 +301,10 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   const [taxAmountDraft, setTaxAmountDraft] = useState('');
   // VAT eligibility is advisory UX only; the setter and database trigger remain authoritative.
   const [vatDraft, setVatDraft] = useState(true);
-  const vatCheck = useProjectVatEditability(project.id);
+  // AC-PERF-001 (plan Step 1a): only the editor reads VAT editability, so the query is enabled by
+  // `valueEditing`, not by mount. `beginValueEdit`'s refetch() still forces the fresh check (it
+  // ignores `enabled`), and the stale-save path below is unchanged.
+  const vatCheck = useProjectVatEditability(project.id, valueEditing);
   const vatLocked = vatCheck.isPending || vatCheck.isFetching || vatCheck.isError || vatCheck.data?.eligible !== true;
   const taxFields = useStandaloneTaxFields(valueDraft, taxTreatmentDraft, taxAmountDraft, setTaxAmountDraft, project.tax_rate == null ? '' : formatMoneyInputValue(project.tax_rate), `${project.tax_base_numerator ?? 1}/${project.tax_base_denominator ?? 1}`);
   // The audit-confirm holds the pending new value + its basis until the user confirms the SoD action.
