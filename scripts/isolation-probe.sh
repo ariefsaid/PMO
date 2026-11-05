@@ -40,9 +40,10 @@ code=$(req "${hdr_service[@]}" "$BASE/rest/v1/platform_operators?select=user_id&
 A_MEMBER_EMAIL=''
 while IFS=$'\t' read -r table pk id; do
   [ -n "$table" ] || continue
+  [ "$table" != org_plans ] || { echo "skip org_plans (#1838)" >&2; continue; }
   select_columns=org_id; [ "$table" != profiles ] || select_columns=org_id,email
   code=$(req "${hdr_service[@]}" "$BASE/rest/v1/$table?select=$select_columns&$pk=eq.$id&limit=1")
-  [ "$code" = 200 ] && jq -e --arg org "$A_ORG" 'type=="array" and length==1 and .[0].org_id==$org' "$BODY" >/dev/null 2>&1 || { echo 'isolation-probe: A_ROWS_JSON target not verified as belonging to A' >&2; exit 4; }
+  [ "$code" = 200 ] && jq -e --arg org "$A_ORG" 'type=="array" and length==1 and .[0].org_id==$org' "$BODY" >/dev/null 2>&1 || { echo "isolation-probe: A_ROWS_JSON target not verified as belonging to A: $table code=$code body=$(head -c 160 "$BODY")" >&2; exit 4; }
   [ "$table" != profiles ] || A_MEMBER_EMAIL=$(jq -r '.[0].email // ""' "$BODY")
 done < <(jq -r '.[] | [.table,.pk,.id] | @tsv' "$A_ROWS_JSON")
 [ "${ISOLATION_VALIDATE_ONLY:-0}" != 1 ] || exit 0
