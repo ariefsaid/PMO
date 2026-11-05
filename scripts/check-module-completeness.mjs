@@ -206,9 +206,9 @@ export const ALLOWLIST = [
   },
   {
     ids: [
-      'enforcement:0640_rls_caller_initplans.sql:stock_items_select',
-      'enforcement:0640_rls_caller_initplans.sql:stock_units_select',
-      'enforcement:0640_rls_caller_initplans.sql:stock_warehouses_select',
+      'enforcement:0646_rls_caller_initplans.sql:stock_items_select',
+      'enforcement:0646_rls_caller_initplans.sql:stock_units_select',
+      'enforcement:0646_rls_caller_initplans.sql:stock_warehouses_select',
     ],
     reason:
       'ALTER POLICY cannot change a policy command, so these are still the SELECT policies 0412 created (dynamically, via execute format, so the scanner has no prior state for them); the ALTER only adds a scalar-subselect wrapper to the expression copied from the catalog, and a SELECT policy never carries the stock write gate (0534 gates writes only).',

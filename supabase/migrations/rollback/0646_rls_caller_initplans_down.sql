@@ -1,8 +1,8 @@
--- 0640_rls_caller_initplans_down.sql — reverse 0640 exactly.
--- Restores each policy's pre-0640 expression text, captured from pg_policy before the change,
+-- 0646_rls_caller_initplans_down.sql — reverse 0646 exactly.
+-- Restores each policy's pre-0646 expression text, captured from pg_policy before the change,
 -- by ALTER POLICY. Policy OIDs, names, roles, commands, permissive modes, comments and grants are
--- untouched by 0640, so restoring the two expressions restores the baseline catalog exactly.
--- This is NOT "unwrap every matching helper": calls wrapped before 0640 (0333's statement-snapshot
+-- untouched by 0646, so restoring the two expressions restores the baseline catalog exactly.
+-- This is NOT "unwrap every matching helper": calls wrapped before 0646 (0333's statement-snapshot
 -- policy) had the wrapper in the baseline text and are restored to that same wrapped form.
 begin;
 

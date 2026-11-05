@@ -1,5 +1,5 @@
--- 0640_rls_initplan.test.sql — #1254.
--- Migration under test: supabase/migrations/0640_rls_caller_initplans.sql (+ rollback/0640_..._down.sql).
+-- 0646_rls_initplan.test.sql — #1254.
+-- Migration under test: supabase/migrations/0646_rls_caller_initplans.sql (+ rollback/0646_..._down.sql).
 --
 -- ── WHAT THIS FILE IS ─────────────────────────────────────────────────────────────────────────────
 --   §1  The STANDING GUARD: no policy in public/storage may call a caller-context helper directly.
@@ -10,7 +10,7 @@
 --       exactly like a passing detector. Temporary policies are created with a bare call, a wrapped
 --       call, a mixed one, a nested one, and argument-taking/other-schema expressions, and the
 --       detector is run on PostgreSQL's own deparse output (pg_policies), not on hand-written text.
---   §3  The behaviour proof: the same access matrix the pre-0640 predicates enforced, exercised
+--   §3  The behaviour proof: the same access matrix the pre-0646 predicates enforced, exercised
 --       under real authenticated JWTs — own/foreign org, writer/engineer roles, active/disabled/
 --       future-banned/expired-ban/no-profile callers, USING and WITH CHECK independently, a
 --       restrictive⊕permissive composition, cross-statement claim switches, and the one restrictive
@@ -87,14 +87,9 @@ language sql immutable as $$
   select greatest(pg_temp.q12_total_calls(expr) - pg_temp.q12_wrapped_calls(expr), 0)
 $$;
 
--- A policy whose expression contains a subquery over its OWN table is the shape PostgreSQL cannot
--- re-expand once a sublink is added to the same command's policy set: 42P17 "infinite recursion
--- detected in policy for relation ...". The scope is the COMMAND, not merely the relation — a policy
--- only takes part in plans for its own command, so on public.profiles (whose self-referential policies
--- are UPDATE policies) the exemption covers only UPDATE/ALL policies; its SELECT/INSERT/DELETE policies
--- are never consulted when an UPDATE is planned, and rewriting them was measured safe (profiles SELECTs
--- stayed green while profiles UPDATEs failed in attempt 20261104T175301Z). §4 pins the exact
--- (relation, command) exemption so it cannot silently widen.
+-- Relations with self-referential policies are exempt as a whole: all six profiles policies
+-- remain unchanged. Adding a sublink to this relation's policy set caused recursion in the
+-- observed profile update path. §4 pins the relation-wide exemption.
 create temporary view q12_selfref_relations as
 select distinct schemaname, tablename
   from pg_policies
@@ -131,7 +126,7 @@ select ok(
      from pg_policies where schemaname in ('public', 'storage')) >= 200,
   'AC-IP-GUARD-003 at least 200 scalar-selected caller-context calls exist (the guard has real input)');
 
--- 0333 shipped the first statement-snapshot policy. 0640 must ADD wrappers, never unwrap what a
+-- 0333 shipped the first statement-snapshot policy. 0646 must ADD wrappers, never unwrap what a
 -- previous migration already wrapped: that policy keeps its five scalar selects and gains none of
 -- the per-row form back.
 select is(
@@ -208,34 +203,34 @@ select is(
 -- Fixtures: two orgs, one project trio in org A and a pair in org B, and the caller states that the
 -- caller-context helpers distinguish (active / disabled / banned / expired ban / no profile).
 insert into organizations (id, name) values
-  ('06400000-0000-0000-0000-0000000000a1', 'IP Org A'),
-  ('06400000-0000-0000-0000-0000000000b1', 'IP Org B');
+  ('06460000-0000-0000-0000-0000000000a1', 'IP Org A'),
+  ('06460000-0000-0000-0000-0000000000b1', 'IP Org B');
 
 insert into auth.users (id, email, banned_until) values
-  ('06400000-0000-0000-0000-000000000001', 'ip-admin-a@example.com',   null),
-  ('06400000-0000-0000-0000-000000000002', 'ip-pm-a@example.com',      null),
-  ('06400000-0000-0000-0000-000000000003', 'ip-eng-a@example.com',     null),
-  ('06400000-0000-0000-0000-000000000004', 'ip-disabled-a@example.com', null),
-  ('06400000-0000-0000-0000-000000000005', 'ip-banned-a@example.com',  now() + interval '1 year'),
-  ('06400000-0000-0000-0000-000000000006', 'ip-expired-a@example.com', now() - interval '1 day'),
-  ('06400000-0000-0000-0000-000000000007', 'ip-noprofile@example.com', null),
-  ('06400000-0000-0000-0000-000000000008', 'ip-admin-b@example.com',   null);
+  ('06460000-0000-0000-0000-000000000001', 'ip-admin-a@example.com',   null),
+  ('06460000-0000-0000-0000-000000000002', 'ip-pm-a@example.com',      null),
+  ('06460000-0000-0000-0000-000000000003', 'ip-eng-a@example.com',     null),
+  ('06460000-0000-0000-0000-000000000004', 'ip-disabled-a@example.com', null),
+  ('06460000-0000-0000-0000-000000000005', 'ip-banned-a@example.com',  now() + interval '1 year'),
+  ('06460000-0000-0000-0000-000000000006', 'ip-expired-a@example.com', now() - interval '1 day'),
+  ('06460000-0000-0000-0000-000000000007', 'ip-noprofile@example.com', null),
+  ('06460000-0000-0000-0000-000000000008', 'ip-admin-b@example.com',   null);
 
 insert into profiles (id, org_id, full_name, email, role, status) values
-  ('06400000-0000-0000-0000-000000000001', '06400000-0000-0000-0000-0000000000a1', 'IP Admin A',    'ip-admin-a@example.com',   'Admin',             'active'),
-  ('06400000-0000-0000-0000-000000000002', '06400000-0000-0000-0000-0000000000a1', 'IP PM A',       'ip-pm-a@example.com',      'Project Manager',   'active'),
-  ('06400000-0000-0000-0000-000000000003', '06400000-0000-0000-0000-0000000000a1', 'IP Engineer A', 'ip-eng-a@example.com',     'Engineer',          'active'),
-  ('06400000-0000-0000-0000-000000000004', '06400000-0000-0000-0000-0000000000a1', 'IP Disabled A', 'ip-disabled-a@example.com','Admin',             'disabled'),
-  ('06400000-0000-0000-0000-000000000005', '06400000-0000-0000-0000-0000000000a1', 'IP Banned A',   'ip-banned-a@example.com',  'Admin',             'active'),
-  ('06400000-0000-0000-0000-000000000006', '06400000-0000-0000-0000-0000000000a1', 'IP Expired A',  'ip-expired-a@example.com', 'Project Manager',   'active'),
-  ('06400000-0000-0000-0000-000000000008', '06400000-0000-0000-0000-0000000000b1', 'IP Admin B',    'ip-admin-b@example.com',   'Admin',             'active');
+  ('06460000-0000-0000-0000-000000000001', '06460000-0000-0000-0000-0000000000a1', 'IP Admin A',    'ip-admin-a@example.com',   'Admin',             'active'),
+  ('06460000-0000-0000-0000-000000000002', '06460000-0000-0000-0000-0000000000a1', 'IP PM A',       'ip-pm-a@example.com',      'Project Manager',   'active'),
+  ('06460000-0000-0000-0000-000000000003', '06460000-0000-0000-0000-0000000000a1', 'IP Engineer A', 'ip-eng-a@example.com',     'Engineer',          'active'),
+  ('06460000-0000-0000-0000-000000000004', '06460000-0000-0000-0000-0000000000a1', 'IP Disabled A', 'ip-disabled-a@example.com','Admin',             'disabled'),
+  ('06460000-0000-0000-0000-000000000005', '06460000-0000-0000-0000-0000000000a1', 'IP Banned A',   'ip-banned-a@example.com',  'Admin',             'active'),
+  ('06460000-0000-0000-0000-000000000006', '06460000-0000-0000-0000-0000000000a1', 'IP Expired A',  'ip-expired-a@example.com', 'Project Manager',   'active'),
+  ('06460000-0000-0000-0000-000000000008', '06460000-0000-0000-0000-0000000000b1', 'IP Admin B',    'ip-admin-b@example.com',   'Admin',             'active');
 
 insert into projects (id, org_id, name, status, project_manager_id) values
-  ('06400000-0000-0000-0000-0000000c0001', '06400000-0000-0000-0000-0000000000a1', 'IP A1', 'Ongoing Project', '06400000-0000-0000-0000-000000000002'),
-  ('06400000-0000-0000-0000-0000000c0002', '06400000-0000-0000-0000-0000000000a1', 'IP A2', 'Ongoing Project', '06400000-0000-0000-0000-000000000002'),
-  ('06400000-0000-0000-0000-0000000c0003', '06400000-0000-0000-0000-0000000000a1', 'IP A3', 'Ongoing Project', '06400000-0000-0000-0000-000000000002'),
-  ('06400000-0000-0000-0000-0000000d0001', '06400000-0000-0000-0000-0000000000b1', 'IP B1', 'Ongoing Project', '06400000-0000-0000-0000-000000000008'),
-  ('06400000-0000-0000-0000-0000000d0002', '06400000-0000-0000-0000-0000000000b1', 'IP B2', 'Ongoing Project', '06400000-0000-0000-0000-000000000008');
+  ('06460000-0000-0000-0000-0000000c0001', '06460000-0000-0000-0000-0000000000a1', 'IP A1', 'Ongoing Project', '06460000-0000-0000-0000-000000000002'),
+  ('06460000-0000-0000-0000-0000000c0002', '06460000-0000-0000-0000-0000000000a1', 'IP A2', 'Ongoing Project', '06460000-0000-0000-0000-000000000002'),
+  ('06460000-0000-0000-0000-0000000c0003', '06460000-0000-0000-0000-0000000000a1', 'IP A3', 'Ongoing Project', '06460000-0000-0000-0000-000000000002'),
+  ('06460000-0000-0000-0000-0000000d0001', '06460000-0000-0000-0000-0000000000b1', 'IP B1', 'Ongoing Project', '06460000-0000-0000-0000-000000000008'),
+  ('06460000-0000-0000-0000-0000000d0002', '06460000-0000-0000-0000-0000000000b1', 'IP B2', 'Ongoing Project', '06460000-0000-0000-0000-000000000008');
 
 -- external_refs carries exactly ONE permissive policy for SELECT — of the form
 -- (org_id = auth_org_id() AND is_active_member()) — so it isolates each conjunct without another
@@ -243,8 +238,8 @@ insert into projects (id, org_id, name, status, project_manager_id) values
 -- predicate to true must break MUTATION-001/002, and dropping its membership conjunct must break
 -- MUTATION-003, while every other assertion stays green.
 insert into external_refs (id, org_id, domain, pmo_record_id, external_tier, external_record_id) values
-  ('06400000-0000-0000-0000-0000000f0001', '06400000-0000-0000-0000-0000000000a1', 'clickup', 'IP-A', 'pmo', 'ext-a'),
-  ('06400000-0000-0000-0000-0000000f0002', '06400000-0000-0000-0000-0000000000b1', 'clickup', 'IP-B', 'pmo', 'ext-b');
+  ('06460000-0000-0000-0000-0000000f0001', '06460000-0000-0000-0000-0000000000a1', 'clickup', 'IP-A', 'pmo', 'ext-a'),
+  ('06460000-0000-0000-0000-0000000f0002', '06460000-0000-0000-0000-0000000000b1', 'clickup', 'IP-B', 'pmo', 'ext-b');
 
 -- The denials below must be RLS denials, not unreachable tables: the authenticated role holds the
 -- grants on both tables this section exercises (role_table_grants, not policy presence, decides that).
@@ -257,123 +252,123 @@ select ok(has_table_privilege('authenticated', 'storage.objects', 'SELECT,INSERT
 -- New rows are created as 'Leads': 0173's origination trigger (P0001) rejects any other status at
 -- create time for a user JWT, and these assertions must be decided by RLS alone, not by that trigger.
 set local role authenticated;
-set local request.jwt.claims = '{"sub":"06400000-0000-0000-0000-000000000001","role":"authenticated"}';
+set local request.jwt.claims = '{"sub":"06460000-0000-0000-0000-000000000001","role":"authenticated"}';
 
 select is((select count(*)::int from projects), 3,
   'AC-IP-TENANT-001 active Admin A reads all three org-A projects in one statement (per-row evaluation still works)');
-select is((select count(*)::int from projects where org_id = '06400000-0000-0000-0000-0000000000b1'), 0,
+select is((select count(*)::int from projects where org_id = '06460000-0000-0000-0000-0000000000b1'), 0,
   'AC-IP-TENANT-002 active Admin A reads zero org-B projects');
 select lives_ok(
-  $$insert into projects (org_id, name, status) values ('06400000-0000-0000-0000-0000000000a1','IP A4','Leads')$$,
+  $$insert into projects (org_id, name, status) values ('06460000-0000-0000-0000-0000000000a1','IP A4','Leads')$$,
   'AC-IP-TENANT-003 active Admin A may insert an own-org project (WITH CHECK admits the caller''s org)');
 select throws_ok(
-  $$insert into projects (org_id, name, status) values ('06400000-0000-0000-0000-0000000000b1','IP spoofed','Leads')$$,
+  $$insert into projects (org_id, name, status) values ('06460000-0000-0000-0000-0000000000b1','IP spoofed','Leads')$$,
   '42501', null,
   'AC-IP-TENANT-004 active Admin A may not insert a foreign-org project (WITH CHECK denies)');
-with changed as (update projects set name = 'IP B1 hacked' where id = '06400000-0000-0000-0000-0000000d0001' returning 1)
+with changed as (update projects set name = 'IP B1 hacked' where id = '06460000-0000-0000-0000-0000000d0001' returning 1)
 select is((select count(*)::int from changed), 0,
   'AC-IP-TENANT-005 a foreign-org UPDATE matches zero rows (USING denies)');
-with changed as (delete from projects where id = '06400000-0000-0000-0000-0000000d0001' returning 1)
+with changed as (delete from projects where id = '06460000-0000-0000-0000-0000000d0001' returning 1)
 select is((select count(*)::int from changed), 0,
   'AC-IP-TENANT-006 a foreign-org DELETE matches zero rows (USING denies)');
 select throws_ok(
-  $$update projects set org_id = '06400000-0000-0000-0000-0000000000b1' where id = '06400000-0000-0000-0000-0000000c0001'$$,
+  $$update projects set org_id = '06460000-0000-0000-0000-0000000000b1' where id = '06460000-0000-0000-0000-0000000c0001'$$,
   '42501', null,
   'AC-IP-TENANT-007 moving an own-org row to a foreign org is denied by WITH CHECK (independent of USING)');
 
 -- ── active Engineer of org A: reads in-org, may not write ──
-set local request.jwt.claims = '{"sub":"06400000-0000-0000-0000-000000000003","role":"authenticated"}';
+set local request.jwt.claims = '{"sub":"06460000-0000-0000-0000-000000000003","role":"authenticated"}';
 select is((select count(*)::int from projects), 4,
   'AC-IP-TENANT-008 active Engineer A still reads every org-A project (read gate is org+membership, not role)');
-with changed as (update projects set name = 'IP A1 eng' where id = '06400000-0000-0000-0000-0000000c0001' returning 1)
+with changed as (update projects set name = 'IP A1 eng' where id = '06460000-0000-0000-0000-0000000c0001' returning 1)
 select is((select count(*)::int from changed), 0,
   'AC-IP-ROLE-001 an Engineer UPDATE in its own org matches zero rows (writer-role gate in USING)');
 select throws_ok(
-  $$insert into projects (org_id, name, status) values ('06400000-0000-0000-0000-0000000000a1','IP eng insert','Leads')$$,
+  $$insert into projects (org_id, name, status) values ('06460000-0000-0000-0000-0000000000a1','IP eng insert','Leads')$$,
   '42501', null,
   'AC-IP-ROLE-002 an Engineer INSERT in its own org is denied (writer-role gate in WITH CHECK)');
 
 -- ── caller states that the membership helper distinguishes ──
-set local request.jwt.claims = '{"sub":"06400000-0000-0000-0000-000000000004","role":"authenticated"}';
+set local request.jwt.claims = '{"sub":"06460000-0000-0000-0000-000000000004","role":"authenticated"}';
 select is((select count(*)::int from projects), 0,
   'AC-IP-STATUS-001 a disabled member reads zero rows (is_active_member conjunct)');
 select throws_ok(
-  $$insert into projects (org_id, name, status) values ('06400000-0000-0000-0000-0000000000a1','IP disabled','Leads')$$,
+  $$insert into projects (org_id, name, status) values ('06460000-0000-0000-0000-0000000000a1','IP disabled','Leads')$$,
   '42501', null,
   'AC-IP-STATUS-002 a disabled member may not insert (membership conjunct in WITH CHECK)');
 
-set local request.jwt.claims = '{"sub":"06400000-0000-0000-0000-000000000005","role":"authenticated"}';
+set local request.jwt.claims = '{"sub":"06460000-0000-0000-0000-000000000005","role":"authenticated"}';
 select is((select count(*)::int from projects), 0,
   'AC-IP-STATUS-003 a member whose ban is still in force reads zero rows (active profile, future banned_until)');
 
-set local request.jwt.claims = '{"sub":"06400000-0000-0000-0000-000000000006","role":"authenticated"}';
+set local request.jwt.claims = '{"sub":"06460000-0000-0000-0000-000000000006","role":"authenticated"}';
 select is((select count(*)::int from projects), 4,
   'AC-IP-STATUS-004 a member whose ban has expired reads every org-A project (no lock-out regression)');
 
-set local request.jwt.claims = '{"sub":"06400000-0000-0000-0000-000000000007","role":"authenticated"}';
+set local request.jwt.claims = '{"sub":"06460000-0000-0000-0000-000000000007","role":"authenticated"}';
 select is((select count(*)::int from projects), 0,
   'AC-IP-STATUS-005 a caller with no profile row reads zero rows (NULL org from auth_org_id, not an error)');
 
 -- ── the security-mutation target: single-policy table, org AND membership conjuncts ──
-set local request.jwt.claims = '{"sub":"06400000-0000-0000-0000-000000000001","role":"authenticated"}';
+set local request.jwt.claims = '{"sub":"06460000-0000-0000-0000-000000000001","role":"authenticated"}';
 select is((select count(*)::int from external_refs), 1,
   'AC-IP-MUTATION-001 active Admin A reads exactly one external ref: its own org''s (mutation: org predicate -> true)');
-select is((select count(*)::int from external_refs where org_id = '06400000-0000-0000-0000-0000000000b1'), 0,
+select is((select count(*)::int from external_refs where org_id = '06460000-0000-0000-0000-0000000000b1'), 0,
   'AC-IP-MUTATION-002 the other org''s external ref stays invisible (mutation: org predicate -> true)');
 
-set local request.jwt.claims = '{"sub":"06400000-0000-0000-0000-000000000004","role":"authenticated"}';
+set local request.jwt.claims = '{"sub":"06460000-0000-0000-0000-000000000004","role":"authenticated"}';
 select is((select count(*)::int from external_refs), 0,
   'AC-IP-MUTATION-003 a disabled caller reads zero external refs (mutation: membership conjunct removed)');
 
 -- ── claim context changes between statements: nothing may be cached across statements ──
-set local request.jwt.claims = '{"sub":"06400000-0000-0000-0000-000000000008","role":"authenticated"}';
+set local request.jwt.claims = '{"sub":"06460000-0000-0000-0000-000000000008","role":"authenticated"}';
 select is((select count(*)::int from projects), 2,
   'AC-IP-CACHE-001 switching the JWT to org B between statements reads exactly org B''s two projects');
-set local request.jwt.claims = '{"sub":"06400000-0000-0000-0000-000000000001","role":"authenticated"}';
+set local request.jwt.claims = '{"sub":"06460000-0000-0000-0000-000000000001","role":"authenticated"}';
 select is((select count(*)::int from projects), 4,
   'AC-IP-CACHE-002 switching back to org A re-resolves the caller (no cross-statement caching)');
 
 -- ── restrictive ⊕ permissive composition: projects_delete_admin_only stays ANDed in ──
-set local request.jwt.claims = '{"sub":"06400000-0000-0000-0000-000000000002","role":"authenticated"}';
-with changed as (delete from projects where id = '06400000-0000-0000-0000-0000000c0003' returning 1)
+set local request.jwt.claims = '{"sub":"06460000-0000-0000-0000-000000000002","role":"authenticated"}';
+with changed as (delete from projects where id = '06460000-0000-0000-0000-0000000c0003' returning 1)
 select is((select count(*)::int from changed), 0,
   'AC-IP-RESTRICTIVE-001 a Project Manager (permissive writer) deletes zero rows: the restrictive Admin-only policy still applies');
 
-set local request.jwt.claims = '{"sub":"06400000-0000-0000-0000-000000000001","role":"authenticated"}';
-with changed as (delete from projects where id = '06400000-0000-0000-0000-0000000c0003' returning 1)
+set local request.jwt.claims = '{"sub":"06460000-0000-0000-0000-000000000001","role":"authenticated"}';
+with changed as (delete from projects where id = '06460000-0000-0000-0000-0000000c0003' returning 1)
 select is((select count(*)::int from changed), 1,
   'AC-IP-RESTRICTIVE-002 an Admin deletes the same own-org row (control: the restrictive policy is not a blanket deny)');
 
 -- ── the storage policy that references the same helpers (restrictive, on storage.objects) ──
 reset role;
 insert into project_documents (id, org_id, project_id, category, title, status, author_id) values
-  ('06400000-0000-0000-0000-0000000e0001', '06400000-0000-0000-0000-0000000000a1',
-   '06400000-0000-0000-0000-0000000c0001', 'Drawing', 'IP Doc', 'Draft', '06400000-0000-0000-0000-000000000002');
+  ('06460000-0000-0000-0000-0000000e0001', '06460000-0000-0000-0000-0000000000a1',
+   '06460000-0000-0000-0000-0000000c0001', 'Drawing', 'IP Doc', 'Draft', '06460000-0000-0000-0000-000000000002');
 set local role authenticated;
 
-set local request.jwt.claims = '{"sub":"06400000-0000-0000-0000-000000000002","role":"authenticated"}';
+set local request.jwt.claims = '{"sub":"06460000-0000-0000-0000-000000000002","role":"authenticated"}';
 select lives_ok(
   $$insert into storage.objects (bucket_id, name) values ('project-documents',
-      '06400000-0000-0000-0000-0000000000a1/06400000-0000-0000-0000-0000000c0001/06400000-0000-0000-0000-0000000e0001/author.pdf')$$,
+      '06460000-0000-0000-0000-0000000000a1/06460000-0000-0000-0000-0000000c0001/06460000-0000-0000-0000-0000000e0001/author.pdf')$$,
   'AC-IP-STORAGE-001 the document author may add an object at that document''s canonical path (restrictive policy admits)');
 
-set local request.jwt.claims = '{"sub":"06400000-0000-0000-0000-000000000008","role":"authenticated"}';
+set local request.jwt.claims = '{"sub":"06460000-0000-0000-0000-000000000008","role":"authenticated"}';
 select throws_ok(
   $$insert into storage.objects (bucket_id, name) values ('project-documents',
-      '06400000-0000-0000-0000-0000000000a1/06400000-0000-0000-0000-0000000c0001/06400000-0000-0000-0000-0000000e0001/foreign.pdf')$$,
+      '06460000-0000-0000-0000-0000000000a1/06460000-0000-0000-0000-0000000c0001/06460000-0000-0000-0000-0000000e0001/foreign.pdf')$$,
   '42501', null,
   'AC-IP-STORAGE-002 a foreign-org Admin may not add an object to an org-A document path (restrictive policy still denies)');
 
-set local request.jwt.claims = '{"sub":"06400000-0000-0000-0000-000000000004","role":"authenticated"}';
+set local request.jwt.claims = '{"sub":"06460000-0000-0000-0000-000000000004","role":"authenticated"}';
 select throws_ok(
   $$insert into storage.objects (bucket_id, name) values ('project-documents',
-      '06400000-0000-0000-0000-0000000000a1/06400000-0000-0000-0000-0000000c0001/06400000-0000-0000-0000-0000000e0001/disabled.pdf')$$,
+      '06460000-0000-0000-0000-0000000000a1/06460000-0000-0000-0000-0000000c0001/06460000-0000-0000-0000-0000000e0001/disabled.pdf')$$,
   '42501', null,
   'AC-IP-STORAGE-003 a disabled caller may not add an object (membership conjunct in the restrictive policy)');
 
 reset role;
 
--- ── §4 — GUARD COVERAGE: the self-referential exemption is exactly one (relation, command) pair ──
+-- ── §4 — GUARD COVERAGE: the self-referential exemption is exactly one relation ──
 select is_empty(
   $$select schemaname || '.' || tablename from q12_selfref_relations
      where schemaname || '.' || tablename not in ('public.profiles')$$,
