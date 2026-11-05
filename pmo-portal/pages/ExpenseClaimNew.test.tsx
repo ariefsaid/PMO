@@ -3,11 +3,11 @@ import { MemoryRouter, Route, Routes } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ToastProvider } from '@/src/components/ui';
 import { formatCurrency } from '@/src/lib/format';
-const h = vi.hoisted(() => ({ create: vi.fn(), addLine: vi.fn(), capture: vi.fn(), cleanup: vi.fn(), may: vi.fn(() => true), navigate: vi.fn(), claims: [] as unknown[], readiness: 'ready' as string, choices: [] as unknown[], choicesArgs: [] as unknown[][], limit: null as number | null, setFloat: vi.fn(), adv: { pending: false, error: false, refetch: vi.fn() } }));
+const h = vi.hoisted(() => ({ create: vi.fn(), addLine: vi.fn(), capture: vi.fn(), cleanup: vi.fn(), may: vi.fn(() => true), navigate: vi.fn(), claims: [] as unknown[], readiness: 'ready' as string, choices: [] as unknown[], choicesArgs: [] as unknown[][], limit: null as number | null, setFloat: vi.fn(), adv: { pending: false, error: false, refetch: vi.fn() }, proj: { pending: false, error: false, refetch: vi.fn() } }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => h.may }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'user-1' } }) }));
 vi.mock('./expenses/useOwnAdvanceOptions', () => ({ useOwnAdvanceOptions: () => ({ options: [{ value: 'adv-1', label: 'EXP-1 · Rp 1' }], isPending: h.adv.pending, isError: h.adv.error, refetch: h.adv.refetch }) }));
-vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => ({ data: [{ id: 'p1', name: 'Contractual Project one', short_name: 'North Terminal' }, { id: 'p2', name: 'Project two', short_name: null }] }) }));
+vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => ({ data: h.proj.error || h.proj.pending ? undefined : [{ id: 'p1', name: 'Contractual Project one', short_name: 'North Terminal' }, { id: 'p2', name: 'Project two', short_name: null }], isPending: h.proj.pending, isError: h.proj.error, refetch: h.proj.refetch }) }));
 vi.mock('@/src/hooks/useExpenseClaims', () => ({ useExpenseClaims: () => ({ data: { rows: h.claims } }), useExpenseClaimMutations: () => ({ create: { mutateAsync: h.create }, addLine: { mutateAsync: h.addLine } }) }));
 vi.mock('@/src/hooks/useImprest', () => ({
   useImprestFloatChoices: (...a: unknown[]) => { h.choicesArgs.push(a); return { data: h.choices }; },
@@ -21,7 +21,7 @@ vi.mock('react-router', async (importOriginal) => { const actual = await importO
 import ExpenseClaimNew from './ExpenseClaimNew';
 const renderPage = () => render(<MemoryRouter initialEntries={['/expenses/new']}><ToastProvider><Routes><Route path="/expenses/new" element={<ExpenseClaimNew />} /></Routes></ToastProvider></MemoryRouter>);
 describe('Expense claim one-page capture (AC-EXP1-001..005)', () => {
- beforeEach(() => { vi.clearAllMocks(); h.cleanup.mockResolvedValue(undefined); h.may.mockReturnValue(true); h.claims = []; h.readiness = 'ready'; h.choices = []; h.choicesArgs = []; h.limit = null; h.adv.pending = false; h.adv.error = false; h.setFloat.mockResolvedValue(undefined); h.create.mockResolvedValue({ id: 'claim-1' }); h.addLine.mockResolvedValue({}); h.capture.mockResolvedValue('claim-1'); });
+ beforeEach(() => { vi.clearAllMocks(); h.cleanup.mockResolvedValue(undefined); h.may.mockReturnValue(true); h.claims = []; h.readiness = 'ready'; h.choices = []; h.choicesArgs = []; h.limit = null; h.adv.pending = false; h.adv.error = false; h.proj.pending = false; h.proj.error = false; h.setFloat.mockResolvedValue(undefined); h.create.mockResolvedValue({ id: 'claim-1' }); h.addLine.mockResolvedValue({}); h.capture.mockResolvedValue('claim-1'); });
  it('AC-002 #1325: new expense project options show the short name only', () => { renderPage(); expect(screen.getByRole('option', { name: 'North Terminal' })).toHaveValue('p1'); });
  it('AC-EXP1-001 renders editable header, lines and receipts without a separate claim amount', () => { renderPage(); expect(screen.getByLabelText(/Title/)).toBeInTheDocument(); expect(screen.getByLabelText('Project')).toBeInTheDocument(); expect(screen.getByLabelText('Budget category')).toBeInTheDocument(); expect(screen.getByLabelText('Purpose')).toBeInTheDocument(); expect(screen.getByText('Lines')).toBeInTheDocument(); expect(screen.getByLabelText('Receipt (optional)')).toBeInTheDocument(); expect(screen.getAllByLabelText(/^Amount/)).toHaveLength(1); });
  it('allows saving the claim header as a Draft before adding an expense line or receipt', async () => { renderPage(); fireEvent.change(screen.getByLabelText(/Title/), { target: { value: 'Late receipt' } }); fireEvent.click(screen.getByRole('button', { name: 'Save' })); await waitFor(() => expect(h.capture).toHaveBeenCalled()); expect(h.capture.mock.calls[0][0]).toMatchObject({ header: { title: 'Late receipt' }, firstLine: null, additionalLines: [], receiptFile: null }); expect(h.navigate).toHaveBeenCalledWith('/expenses/claim-1', { replace: true }); });
@@ -36,6 +36,23 @@ describe('Expense claim one-page capture (AC-EXP1-001..005)', () => {
   expect(h.capture).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
   expect(h.adv.refetch).toHaveBeenCalledTimes(1);
+ });
+ it('a failed project read pauses Save and offers Retry, so the claim is not silently filed as overhead', () => {
+  h.proj.error = true; renderPage();
+  fireEvent.change(screen.getByLabelText(/Title/), { target: { value: 'Site trip' } });
+  expect(screen.getByText(/Couldn't load projects/).closest('[role="alert"]')).not.toBeNull();
+  const save = screen.getByRole('button', { name: 'Save' });
+  expect(save).toBeDisabled();
+  fireEvent.submit(save.closest('form')!);
+  expect(h.capture).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('button', { name: 'Retry projects' }));
+  expect(h.proj.refetch).toHaveBeenCalledTimes(1);
+ });
+ it('Save waits while projects are still loading', () => {
+  h.proj.pending = true; renderPage();
+  fireEvent.change(screen.getByLabelText(/Title/), { target: { value: 'Site trip' } });
+  expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+  expect(screen.getByText('Loading projects…')).toBeInTheDocument();
  });
  it('AC-EXP-062 Save waits while the advances are still loading, then works', async () => {
   h.adv.pending = true; const { unmount } = renderPage();
