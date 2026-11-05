@@ -41,7 +41,6 @@ const ALLOWED: Record<string, number> = {
   // +3 / +1 / +1: the Odoo connect, disconnect and setup routing and the one-ERP-tier check (#1504 S2, PQ-12).
   // +1 (#1614): ERPNext connect refusal audit (FR-ODC-011 parity with Odoo).
   'supabase/functions/external-connect/index.ts': 6,
-  'supabase/functions/external-link/index.ts': 2,
   'supabase/functions/external-companies/index.ts': 1,
   'supabase/functions/external-invoice-pdf/index.ts': 1,
   'supabase/functions/external-disconnect/index.ts': 2,
