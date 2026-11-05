@@ -68,11 +68,20 @@ const WorkOrderLinesModal: React.FC<WorkOrderLinesModalProps> = ({
     return (milli(balance) + milli(mine)) / 1000;
   };
 
+  /** Latest confirmed BAST quantity on this order's allocation; null = none confirmed (or no fact yet: the server still guards). */
+  const acceptedOn = (item: BoqItemRow): number | null =>
+    facts.get(item.id)?.allocations.find((a) => a.workOrderId === workOrder.id)?.acceptedQuantity ?? null;
+
   const save = async (item: BoqItemRow) => {
     if (!sourcesReady) return;
     const quantity = parseMoneyInputAtScale((values[item.id] ?? '').trim(), 3);
     if (quantity === null || quantity <= 0) {
       setError(item.id, t('projectTabs:contractQuantities.workOrders.contractLines.errors.quantity', 'Enter a quantity above 0 with at most 3 decimal places'));
+      return;
+    }
+    const accepted = acceptedOn(item);
+    if (accepted !== null && milli(quantity) < milli(accepted)) {
+      setError(item.id, t('projectTabs:contractQuantities.workOrders.contractLines.errors.belowAccepted', 'A confirmed BAST already accepted {{qty}} {{unit}}. The allocation cannot go below it.', { qty: formatNumberExact(accepted), unit: item.unit }));
       return;
     }
     setError(item.id, null);
@@ -161,7 +170,7 @@ const WorkOrderLinesModal: React.FC<WorkOrderLinesModalProps> = ({
                         {t('projectTabs:contractQuantities.workOrders.contractLines.save', 'Save')}
                       </Button>
                       {row && (
-                        <Button type="button" variant="ghost" size="sm" disabled={busy !== null || !sourcesReady}
+                        <Button type="button" variant="ghost" size="sm" disabled={busy !== null || !sourcesReady || acceptedOn(item) !== null}
                           className="text-destructive-text hover:bg-destructive/10 hover:text-destructive-text"
                           aria-label={t('projectTabs:contractQuantities.workOrders.contractLines.removeRow', 'Remove {{item}}', { item: item.item_code })}
                           onClick={() => setRemoveFor({ item, row })}>
