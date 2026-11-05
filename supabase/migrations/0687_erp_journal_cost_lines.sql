@@ -76,17 +76,23 @@ create trigger erp_journal_line_links_guard before insert or update on public.er
   for each row execute function public.guard_erp_journal_line_link();
 
 -- FR-JEC-001/030: the project's journal lines with their attachment. ERP-purchase audience; others get no rows.
+-- possibly_reversed: an attached line while a later journal line on the same project and account is negative. The
+-- mirror's GL rows carry no link from a reversal to its original, so the hold is kept and the user is told instead.
 create function public.project_erp_journal_lines(p_project_id uuid)
 returns table (erp_doctype text, voucher_no text, project_id uuid, account text, category public.budget_category,
                posting_date date, amount numeric, currency text, remarks text, party text, is_cancelled boolean,
-               erp_url text, link_id uuid, procurement_id uuid, procurement_title text)
+               erp_url text, link_id uuid, procurement_id uuid, procurement_title text, possibly_reversed boolean)
 language sql stable security definer set search_path = public, pg_catalog as $$
+  with ln as (select * from public.erp_journal_cost_lines(public.auth_org_id(), p_project_id))
   select l.erp_doctype, l.voucher_no, l.project_id, l.account, l.category, l.posting_date, l.amount,
          o.default_currency, l.remarks, l.party, l.is_cancelled,
          case when b.site_url is not null
               then rtrim(b.site_url, '/') || '/app/journal-entry/' || l.voucher_no end,
-         k.id, k.procurement_id, pr.title
-    from public.erp_journal_cost_lines(public.auth_org_id(), p_project_id) l
+         k.id, k.procurement_id, pr.title,
+         k.id is not null and not l.is_cancelled and exists (
+           select 1 from ln r where r.account = l.account and r.voucher_no <> l.voucher_no
+              and r.amount < 0 and not r.is_cancelled and r.posting_date >= l.posting_date)
+    from ln l
     join public.organizations o on o.id = public.auth_org_id()
     left join public.external_org_bindings b
       on b.org_id = o.id and b.external_tier = 'erpnext' and b.activated_at is not null
