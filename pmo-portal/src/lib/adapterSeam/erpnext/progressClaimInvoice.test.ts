@@ -32,7 +32,7 @@ const EVIDENCE: Row[] = [{ id: 'ev-1', org_id: ORG, claim_id: 'claim-1' }];
 
 /** PostgREST boundary fake: enforces filters and selected columns (a missing column throws). */
 function serviceClient(claim: Row | null, evidence: Row[] = EVIDENCE, workOrderTax: Row = {}, projectTax: Row = {},
-  timeMaterials: { claims?: Row[]; lines?: Row[]; rateLines?: Row[] } = {}): DispatchServiceClient {
+  timeMaterials: { claims?: Row[]; lines?: Row[]; rateLines?: Row[]; progressLines?: Row[] } = {}): DispatchServiceClient {
   const rateLines = timeMaterials.rateLines ?? (timeMaterials.lines ?? TM_LINES).map((line) => ({
     org_id: line.org_id, project_id: 'proj-1', line_key: line.line_key, is_current: true,
     version: line.rate_version, sales_item_code: 'SERVICE-LABOUR',
@@ -53,7 +53,7 @@ function serviceClient(claim: Row | null, evidence: Row[] = EVIDENCE, workOrderT
     work_orders: [{ id: 'wo-1', org_id: ORG, client_po_number: 'WO-PO-001', order_date: '2026-09-01', tax_base_numerator: 1, tax_base_denominator: 1, ...workOrderTax }],
     sales_invoices: [],
     progress_claims: claim ? [claim] : [],
-    progress_claim_lines: LINES,
+    progress_claim_lines: timeMaterials.progressLines ?? LINES,
     progress_claim_evidence: evidence,
     tm_claims: timeMaterials.claims ?? [],
     tm_claim_lines: timeMaterials.lines ?? [],
@@ -110,8 +110,8 @@ function command(record: Row, operation: AdapterCommand['operation'] = 'create',
 
 const TAX_TEMPLATE = { name: 'Synthetic Sales Tax', taxes: [{ charge_type: 'On Net Total', account_head: 'VAT - SC', rate: 10, description: 'VAT' }] };
 
-function erpFetch(opts: { negativeRates?: boolean; template?: unknown; settingsDenied?: boolean; customerCurrency?: string | null; companyCurrency?: string } = {}) {
-  const { negativeRates = true, template = TAX_TEMPLATE, settingsDenied = false, customerCurrency = 'IDR', companyCurrency = 'IDR' } = opts;
+function erpFetch(opts: { negativeRates?: boolean; template?: unknown; settingsDenied?: boolean; systemSettings?: Row | 'denied'; customerCurrency?: string | null; companyCurrency?: string } = {}) {
+  const { systemSettings, negativeRates = true, template = TAX_TEMPLATE, settingsDenied = false, customerCurrency = 'IDR', companyCurrency = 'IDR' } = opts;
   const sent: { body: Row; bodyText: string } = { body: {}, bodyText: '' };
   const fetchImpl = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
     const path = decodeURIComponent(new URL(String(url)).pathname);
@@ -120,6 +120,7 @@ function erpFetch(opts: { negativeRates?: boolean; template?: unknown; settingsD
     }
     if (path === '/api/resource/Customer/Synthetic Customer') return Response.json({ data: { name: 'Synthetic Customer', default_currency: customerCurrency } });
     if (path === '/api/resource/Company/Synthetic Co') return Response.json({ data: { name: 'Synthetic Co', default_currency: companyCurrency } });
+    if (path === '/api/resource/System Settings/System Settings') return systemSettings === 'denied' ? Response.json({ exc_type: 'PermissionError' }, { status: 403 }) : Response.json({ data: systemSettings ?? { float_precision: '3', currency_precision: '2', number_format: '#,###.##' } });
     if (path === '/api/resource/Selling Settings/Selling Settings' && settingsDenied) return Response.json({ exc_type: 'PermissionError' }, { status: 403 });
     if (path === '/api/resource/Selling Settings/Selling Settings') return Response.json({ data: { allow_negative_rates_for_items: negativeRates ? 1 : 0 } });
     if (path === '/api/resource/Sales Taxes and Charges Template') return Response.json({ data: template ? [{ name: 'Synthetic Sales Tax' }] : [] });
@@ -132,7 +133,7 @@ function erpFetch(opts: { negativeRates?: boolean; template?: unknown; settingsD
 }
 
 async function push(record: Row, claim: Row | null = CLAIM, erp: Parameters<typeof erpFetch>[0] = {}, workOrderTax: Row = {},
-  projectTax: Row = {}, timeMaterials: { claims?: Row[]; lines?: Row[]; rateLines?: Row[] } = {}, idempotencyKey = 'pb-test-key') {
+  projectTax: Row = {}, timeMaterials: { claims?: Row[]; lines?: Row[]; rateLines?: Row[]; progressLines?: Row[] } = {}, idempotencyKey = 'pb-test-key') {
   const cmd = command(record, 'create', idempotencyKey);
   const { sent, fetchImpl } = erpFetch(erp);
   const adapter = await resolveErpDispatchAdapter({
@@ -146,7 +147,7 @@ async function push(record: Row, claim: Row | null = CLAIM, erp: Parameters<type
 
 /** Synchronous on purpose: the caller attaches `.rejects` in the same tick, so no rejection goes unhandled. */
 function refused(cmd: AdapterCommand, claim: Row | null = CLAIM, evidence: Row[] = EVIDENCE, erp: Parameters<typeof erpFetch>[0] = {},
-  projectTax: Row = {}, timeMaterials: { claims?: Row[]; lines?: Row[]; rateLines?: Row[] } = {}) {
+  projectTax: Row = {}, timeMaterials: { claims?: Row[]; lines?: Row[]; rateLines?: Row[]; progressLines?: Row[] } = {}) {
   const { fetchImpl } = erpFetch(erp);
   const attempt = resolveErpDispatchAdapter({
     serviceClient: serviceClient(claim, evidence, {}, projectTax, timeMaterials), orgId: ORG, command: cmd,
@@ -169,6 +170,22 @@ describe('billing claim invoice (AC-PB-006)', () => {
       { item_code: 'DP-ITEM', qty: 1, rate: -40000 },
     ]);
     expect(bodyText).toBe('{"customer":"Synthetic Customer","items":[{"item_code":"SURVEY","qty":4,"rate":50000,"description":"Route survey (km)"},{"item_code":"STATION","qty":1,"rate":100000,"description":"Station build (unit)"},{"item_code":"DP-ITEM","qty":1,"rate":-40000}],"project":"ERP-PROJ-001","currency":"IDR","taxes":[{"charge_type":"On Net Total","account_head":"VAT - SC","description":"VAT","rate":10}],"remarks":"pb-test-key"}');
+  });
+
+  it('AC-1820 a progress line ERPNext would round away from its signed amount is sent as 1 x the signed amount', async () => {
+    const odd = { org_id: ORG, claim_id: 'claim-1', boq_item_id: 'boq-c', item_code: 'SURVEY', description: 'Odd quantity', unit: 'km', quantity: '0.333', rate: '1000.01', amount: '333.00' };
+    const progressLines = [LINES[1], odd];
+    const claim = { ...CLAIM, currency: 'USD', gross_amount: '200333.00', dp_recovery_amount: '0.00' };
+    const run = (systemSettings: Row | 'denied') => push({}, claim, { systemSettings, customerCurrency: 'USD', companyCurrency: 'USD' }, {}, {}, { progressLines });
+    const floatTwo = await run({ float_precision: '2', currency_precision: '2' });
+    expect(floatTwo.body.items).toEqual([
+      { item_code: 'SURVEY', qty: 4, rate: 50000, description: 'Route survey (km)' },
+      { item_code: 'SURVEY', qty: 1, rate: 333, description: 'Odd quantity (km): 0.333 x 1,000.01, rounded to $333.00' },
+    ]);
+    const floatThree = await run({ float_precision: '3', currency_precision: '2' });
+    expect((floatThree.body.items as Row[])[1]).toMatchObject({ qty: 0.333, rate: 1000.01 });
+    const unreadable = await run('denied');
+    expect((unreadable.body.items as Row[]).map((i) => [i.qty, i.rate])).toEqual([[4, 50000], [1, 333]]);
   });
 
   it('AC-TM-014 carries signed T&M claim lines and their frozen amounts into the canonical invoice lines', async () => {
