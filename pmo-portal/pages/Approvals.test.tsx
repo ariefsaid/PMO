@@ -883,7 +883,7 @@ describe('Approvals page — T18 supplementary read errors and scoped retry (AC-
     expect(within(linkRegion).getByText('Jane Doe')).toBeInTheDocument();
 
     // Normal inbox / preview region remain usable
-    expect(screen.getByRole('region', { name: /Approvals queue/i })).toBeInTheDocument();
+    expect(within(screen.getByRole('region', { name: /Approvals queue/i })).getByText(/Dave Engineer/)).toBeInTheDocument();
 
     // User retries the labelled push error
     const retryBtn = within(pushRegion).getByRole('button', { name: /retry/i });
@@ -892,6 +892,7 @@ describe('Approvals page — T18 supplementary read errors and scoped retry (AC-
     // Only push refetch fires — zero write mutations and zero employee refetch
     expect(attentionState.refetch).toHaveBeenCalledTimes(1);
     expect(linksState.refetch).not.toHaveBeenCalled();
+    expect(queryState.refetch).not.toHaveBeenCalled();
     expect(retryMutation.mutate).not.toHaveBeenCalled();
     expect(confirmMutation.mutate).not.toHaveBeenCalled();
     expect(confirmMutation.mutateAsync).not.toHaveBeenCalled();
@@ -935,7 +936,7 @@ describe('Approvals page — T18 supplementary read errors and scoped retry (AC-
     expect(within(pushRegion).getByText('Dave Engineer')).toBeInTheDocument();
 
     // Normal inbox remains usable
-    expect(screen.getByRole('region', { name: /Approvals queue/i })).toBeInTheDocument();
+    expect(within(screen.getByRole('region', { name: /Approvals queue/i })).getByText(/Dave Engineer/)).toBeInTheDocument();
 
     // User retries the labelled employee link error
     const retryBtn = within(linkRegion).getByRole('button', { name: /retry/i });
@@ -946,6 +947,7 @@ describe('Approvals page — T18 supplementary read errors and scoped retry (AC-
     expect(attentionState.refetch).not.toHaveBeenCalled();
     expect(confirmMutation.mutate).not.toHaveBeenCalled();
     expect(confirmMutation.mutateAsync).not.toHaveBeenCalled();
+    expect(queryState.refetch).not.toHaveBeenCalled();
     expect(retryMutation.mutate).not.toHaveBeenCalled();
 
     // Model rerender to successful nonempty list after refetch
