@@ -121,7 +121,10 @@ function useApprovalDecision() {
 
   const commitLoading = pending ? (pending.kind === 'approve' ? approve.isPending : reject.isPending) : false;
 
-  return { pending, request, cancel, commit, commitLoading };
+  // The SAME mutation instances `commit` drives, exported so the queue rows and preview buttons
+  // show the in-flight state (two `useTimesheetMutations()` calls would create two instances and
+  // the buttons would never spin).
+  return { pending, request, cancel, commit, commitLoading, approve, reject };
 }
 
 /** OE08R01-001 — the shared approve/return confirmation, rendered by both placements. */
@@ -167,7 +170,7 @@ export const TimesheetApprovalPreview: React.FC<TimesheetApprovalPreviewProps> =
 }) => {
   const { t } = useTranslation(['common', 'timesheets']);
   const decision = useApprovalDecision();
-  const { approve, reject } = useTimesheetMutations();
+  const { approve, reject } = decision;
   const may = usePermission();
   const isApprover = eligibleFromQueue || may('transition', 'approval');
   const actions = timesheetActions(sheet.status as TimesheetStatus, false, isApprover);
@@ -264,7 +267,7 @@ export const ApprovalsQueue: React.FC = () => {
   const { t } = useTranslation(['common', 'timesheets']);
   const { data: queue, isPending, isError, refetch } = useTimesheetsAwaitingApproval();
   const decision = useApprovalDecision();
-  const { approve, reject } = useTimesheetMutations();
+  const { approve, reject } = decision;
   const may = usePermission();
   const isApprover = may('transition', 'approval');
 

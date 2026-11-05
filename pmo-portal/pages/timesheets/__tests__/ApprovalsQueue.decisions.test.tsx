@@ -52,10 +52,10 @@ import { ApprovalsQueue, TimesheetApprovalPreview } from '../ApprovalsQueue';
 
 const sheet = queue.data[0] as unknown as Parameters<typeof TimesheetApprovalPreview>[0]['sheet'];
 
-const renderQueue = () =>
+const renderQueue = (role: Parameters<typeof ImpersonationProvider>[0]['realRole'] = 'Project Manager') =>
   render(
     <MemoryRouter>
-      <ImpersonationProvider realRole="Project Manager">
+      <ImpersonationProvider realRole={role}>
         <ToastProvider>
           <ApprovalsQueue />
         </ToastProvider>
@@ -63,10 +63,13 @@ const renderQueue = () =>
     </MemoryRouter>,
   );
 
-const renderPreview = (surface: 'panel' | 'inline') =>
+const renderPreview = (
+  surface: 'panel' | 'inline',
+  role: Parameters<typeof ImpersonationProvider>[0]['realRole'] = 'Project Manager',
+) =>
   render(
     <MemoryRouter>
-      <ImpersonationProvider realRole="Project Manager">
+      <ImpersonationProvider realRole={role}>
         <ToastProvider>
           <TimesheetApprovalPreview sheet={sheet} surface={surface} />
         </ToastProvider>
@@ -198,5 +201,35 @@ describe('OE-04 — approve/return from the TimesheetApprovalPreview', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Approve' }));
     await waitFor(() => expect(approveMutate).toHaveBeenCalledWith({ id: 's1' }, expect.anything()));
     expect(await findToastAnnouncement('status', /timesheet approved/i)).toBeInTheDocument();
+  });
+
+  it('a non-approver sees the queue and preview without approve/return buttons', () => {
+    const queueView = renderQueue('Finance');
+    expect(screen.getByText('Dana Report')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /approve/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /return/i })).not.toBeInTheDocument();
+    queueView.unmount();
+
+    // The panel preview infers the approver gate from the real role (no eligibleFromQueue).
+    renderPreview('panel', 'Finance');
+    expect(screen.queryByRole('button', { name: /approve/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /return/i })).not.toBeInTheDocument();
+  });
+
+  it('an approve refusal closes the dialog and toasts the classified error, not the raw message', async () => {
+    const user = userEvent.setup();
+    const pgPermissionError = Object.assign(new Error('permission denied for table timesheets'), {
+      code: '42501',
+    });
+    approveMutate.mockImplementation((_v, opts) => opts?.onError?.(pgPermissionError));
+    renderQueue();
+
+    await user.click(screen.getByRole('button', { name: /approve/i }));
+    const dialog = await screen.findByRole('dialog');
+    await user.click(within(dialog).getByRole('button', { name: 'Approve' }));
+
+    expect(await findToastAnnouncement('alert', /you don't have permission to do that/i)).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: /permission denied for table timesheets/i })).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
   });
 });
