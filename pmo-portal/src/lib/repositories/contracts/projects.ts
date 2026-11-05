@@ -18,6 +18,7 @@ export interface ProjectRepository {
   getWithRefs(id: string): Promise<ProjectWithRefs | null>;
   listPipelineStageConfig(): Promise<PipelineStageConfig[]>;
   listIdentity(): Promise<Array<Pick<ProjectRow, 'id' | 'name'>>>;
+  listNumbers(ids: readonly string[]): Promise<Array<Pick<ProjectRow, 'id' | 'pmo_project_number'>>>;
   get(id: string): Promise<OpportunityRow | null>;
   /** The readable subset of `ids` in batched reads; ids the caller cannot read are absent. */
   getMany(ids: readonly string[]): Promise<OpportunityRow[]>;

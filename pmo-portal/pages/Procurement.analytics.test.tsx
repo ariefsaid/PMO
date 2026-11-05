@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -92,7 +92,7 @@ beforeEach(() => {
   analytics.trackSearchUsed.mockClear();
   analytics.trackProcurementDetailOpened.mockClear();
   analytics.trackEmptyStateSeen.mockClear();
-  vi.useFakeTimers();
+  vi.useFakeTimers({ shouldAdvanceTime: true });
 });
 
 afterEach(() => {
@@ -118,14 +118,15 @@ describe('Procurement: search_used fires (debounced) at the grouped-view search 
 });
 
 describe('Procurement: empty_state_seen fires when there are zero requests (FIX 1)', () => {
-  it('AC: renders the empty ListState and fires empty_state_seen with state_id/role/module', () => {
+  it('AC: renders the empty ListState and fires empty_state_seen with state_id/role/module', async () => {
     procState.data = [];
     renderPage();
     expect(screen.getByText('No procurements yet')).toBeInTheDocument();
-    expect(analytics.trackEmptyStateSeen).toHaveBeenCalledWith(
+    // The facade is loaded lazily (ListState defers the analytics chunk off the first paint).
+    await waitFor(() => expect(analytics.trackEmptyStateSeen).toHaveBeenCalledWith(
       'procurement-empty',
       'Project Manager',
       'procurement',
-    );
+    ));
   });
 });

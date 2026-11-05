@@ -1,17 +1,19 @@
 import { useQuery } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
+import { useAuth } from '@/src/auth/useAuth';
 import type { PlanCatalogue, PlanRow } from '@/src/lib/db/orgFeatures';
 import type { ResolvedFeatureSet } from '@/src/lib/features';
 import type { OrgFeatureKey } from '@/src/lib/features';
 import {
   OPERATOR_ORGS_QUERY_KEY,
-  OWN_PLAN_QUERY_KEY,
+  ownPlanQueryKey,
   PLAN_CATALOGUE_QUERY_KEY,
   operatorFeatureQueryKey,
   orgOverridesQueryKey,
   orgPlanQueryKey,
 } from '@/src/hooks/useOrgFeatures';
 import type { OperatorOrgRow } from '@/src/lib/db/usage';
+import { SERVER_SESSION_QUERY_OPTIONS } from '@/src/lib/queryPolicies';
 
 /**
  * Plan-surface reads (S3).
@@ -23,13 +25,18 @@ import type { OperatorOrgRow } from '@/src/lib/db/usage';
  *   • `useOperatorOrgOverrides` — which override ROWS exist, even ones an all-orgs off outranks.
  *
  * Every key comes from `useOrgFeatures` so ONE `invalidateFeatureState` after any change refreshes
- * them all; none of these is cross-org shared.
+ * them all; none of these is cross-org shared. Freshness is bounded (`SERVER_SESSION_QUERY_OPTIONS`):
+ * these are server-arbitrated facts an operator can change from another session, so they revalidate
+ * on a 5-minute window, on focus and on an interval rather than being cached for the session.
  */
 
 export function useOwnPlan() {
+  const orgId = useAuth().currentUser?.org_id;
   return useQuery<PlanRow | null>({
-    queryKey: OWN_PLAN_QUERY_KEY,
+    // Scoped by org: a same-user profile refresh can move the caller to another org (see AuthProvider).
+    queryKey: ownPlanQueryKey(orgId),
     queryFn: () => repositories.orgFeature.getOwnPlan(),
+    ...SERVER_SESSION_QUERY_OPTIONS,
   });
 }
 
@@ -37,6 +44,7 @@ export function usePlanCatalogue() {
   return useQuery<PlanCatalogue>({
     queryKey: PLAN_CATALOGUE_QUERY_KEY,
     queryFn: () => repositories.orgFeature.getPlanCatalogue(),
+    ...SERVER_SESSION_QUERY_OPTIONS,
   });
 }
 
@@ -45,6 +53,7 @@ export function useOrgPlan(orgId: string | null | undefined) {
     queryKey: orgPlanQueryKey(orgId ?? 'none'),
     queryFn: () => repositories.orgFeature.getOrgPlan(orgId as string),
     enabled: Boolean(orgId),
+    ...SERVER_SESSION_QUERY_OPTIONS,
   });
 }
 
@@ -60,6 +69,7 @@ export function useOperatorResolvedFeatures(orgId: string | null | undefined) {
     queryKey: operatorFeatureQueryKey(orgId ?? 'none'),
     queryFn: () => repositories.orgFeature.listForOrg(orgId as string),
     enabled: Boolean(orgId),
+    ...SERVER_SESSION_QUERY_OPTIONS,
   });
 }
 
@@ -73,5 +83,6 @@ export function useOperatorOrgOverrides(orgId: string | null | undefined) {
     queryKey: orgOverridesQueryKey(orgId ?? 'none'),
     queryFn: () => repositories.orgFeature.listOverrides(orgId as string),
     enabled: Boolean(orgId),
+    ...SERVER_SESSION_QUERY_OPTIONS,
   });
 }

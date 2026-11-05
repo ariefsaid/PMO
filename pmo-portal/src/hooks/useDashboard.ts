@@ -7,6 +7,7 @@ import {
 } from '@/src/lib/repositories';
 import { useAuth } from '@/src/auth/useAuth';
 import { ON_HAND_STATUSES } from '@/src/lib/db/projectTransitions';
+import { MONEY_QUERY_OPTIONS } from '@/src/lib/queryPolicies';
 
 /** Org-scoped executive dashboard aggregates. queryKey includes org_id so cache is tenant-scoped
  * (FR-QRY-DASH-001). Aggregates are computed in SQL (RPC) and RLS-scoped to the caller's org. */
@@ -17,6 +18,7 @@ export function usePMDashboardProjects() {
     queryKey: ['pm-dashboard-projects', orgId, currentUser?.id],
     queryFn: () => repositories.dashboard.pmProjects(),
     enabled: Boolean(orgId && currentUser?.id),
+    ...MONEY_QUERY_OPTIONS,
   });
 }
 
@@ -27,6 +29,7 @@ export function useDashboard() {
     queryKey: ['dashboard', orgId],
     queryFn: () => repositories.dashboard.executive(),
     enabled: Boolean(orgId),
+    ...MONEY_QUERY_OPTIONS,
   });
 }
 
@@ -53,6 +56,7 @@ export function useWinRate(range: WinRateRange) {
     queryKey: ['win-rate', orgId, range.key],
     queryFn: () => repositories.dashboard.winRate(range.from, range.to),
     enabled: Boolean(orgId),
+    ...MONEY_QUERY_OPTIONS,
   });
 }
 
@@ -64,6 +68,7 @@ export function useLossBreakdown(range: WinRateRange) {
     queryKey: ['loss-breakdown', orgId, range.key],
     queryFn: () => repositories.dashboard.lossBreakdown(range.from, range.to),
     enabled: Boolean(orgId),
+    ...MONEY_QUERY_OPTIONS,
   });
 }
 
@@ -78,6 +83,7 @@ export function useSalesPipeline(opts?: { enabled?: boolean }) {
     queryKey: ['sales-pipeline', orgId],
     queryFn: () => repositories.dashboard.salesPipeline(),
     enabled: Boolean(orgId) && opts?.enabled !== false,
+    ...MONEY_QUERY_OPTIONS,
   });
 }
 
@@ -136,6 +142,7 @@ export function useFinanceBudgetReview() {
     queryKey: ['finance-budget-review', orgId],
     queryFn: () => repositories.dashboard.financeBudgetReview(),
     enabled: Boolean(orgId),
+    ...MONEY_QUERY_OPTIONS,
   });
 }
 
@@ -158,6 +165,7 @@ export function useLostDeals() {
       return rows.map((row) => toPipelineProject(row, 0));
     },
     enabled: Boolean(orgId),
+    ...MONEY_QUERY_OPTIONS,
   });
 }
 
@@ -181,5 +189,6 @@ export function useWonDeals() {
       return rows.map((row) => toPipelineProject(row, 1));
     },
     enabled: Boolean(orgId),
+    ...MONEY_QUERY_OPTIONS,
   });
 }

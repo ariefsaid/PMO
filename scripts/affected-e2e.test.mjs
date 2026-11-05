@@ -1,10 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { isSerialSpec, planPhases, printPhases, runPhases, serialTestMatch } from './affected-e2e.mjs';
+import { isSerialSpec, planPhases, printPhases, resultsRoot, runPhases, serialTestMatch } from './affected-e2e.mjs';
 
 const scriptsDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptsDir, '..');
@@ -15,6 +16,9 @@ const CHROMIUM_SPEC = 'e2e/AC-CO-001-companies-crud.spec.ts';
 // AC-CODE-002 temporarily rewrites the org-wide {CLIENT} project-number pattern, so it MUST NOT
 // overlap another spec — the real failure that exposed `--run` running serial at 2 workers.
 const SERIAL_SPEC = 'e2e/serial/AC-CODE-002-project-number-proposal.spec.ts';
+
+// Where a phase's traces/videos/error-context land once two phases run: under the config's root.
+const resultsDir = (project) => path.join(resultsRoot(), project);
 
 function serialSpecsOnDisk() {
   return fs.readdirSync(path.join(e2eDir, 'serial'))
@@ -56,8 +60,8 @@ test('affected-e2e --run splits the selection into a chromium phase at 2 workers
   });
 
   assert.equal(calls.length, 2, `expected one spawn per non-empty phase, got ${JSON.stringify(calls.map(call => call.phaseArgs))}`);
-  assert.deepEqual(calls[0].phaseArgs, ['--project=chromium', CHROMIUM_SPEC]);
-  assert.deepEqual(calls[1].phaseArgs, ['--project=serial', SERIAL_SPEC]);
+  assert.deepEqual(calls[0].phaseArgs, ['--project=chromium', `--output=${resultsDir('chromium')}`, CHROMIUM_SPEC]);
+  assert.deepEqual(calls[1].phaseArgs, ['--project=serial', `--output=${resultsDir('serial')}`, SERIAL_SPEC]);
   assert.ok(calls.every(call => call.script === e2eLocal), 'both phases must go through scripts/e2e-local.sh');
   assert.ok(calls.every(call => call.cwd === repoRoot));
   assert.deepEqual(calls.map(call => call.workers), ['2', '1'], 'workers travel through E2E_WORKERS (no stacked --workers flag)');
@@ -112,4 +116,66 @@ test('e2e-local.sh pass-through honours E2E_WORKERS (default 2) so a single phas
 
   const syntax = spawnSync('bash', ['-n', e2eLocal], { encoding: 'utf8' });
   assert.equal(syntax.status, 0, `bash -n scripts/e2e-local.sh failed: ${syntax.stderr}`);
+});
+
+// #1870: Playwright CLEARS its outputDir at the start of every invocation. While both `--run` phases
+// shared the config default, the serial phase deleted the chromium phase's trace/video/error-context
+// before anyone could read it — so a chromium red could not be root-caused from the trace, which is
+// the repo's rule for release e2e fixes. Each phase must own a directory under the same root CI
+// uploads (`/tmp/pmo-portal-test-results/`), so the artifact upload stays valid.
+test('each --run phase gets its own --output dir under the config outputDir', () => {
+  assert.equal(resultsRoot(), path.join(os.tmpdir(), 'pmo-portal-test-results'),
+    'resultsRoot() must mirror playwright.config.ts outputDir');
+  assert.deepEqual([resultsDir('chromium'), resultsDir('serial')],
+    [path.join(os.tmpdir(), 'pmo-portal-test-results', 'chromium'), path.join(os.tmpdir(), 'pmo-portal-test-results', 'serial')]);
+
+  const phases = planPhases([CHROMIUM_SPEC, SERIAL_SPEC]);
+  const outputs = phases.map(phase => phase.outputDir);
+  assert.deepEqual(outputs, [resultsDir('chromium'), resultsDir('serial')], 'the two phases must not share one output dir');
+  assert.equal(new Set(outputs).size, 2, 'a shared output dir is the bug: phase 2 wipes phase 1 artifacts');
+  assert.ok(outputs.every(dir => path.dirname(dir) === resultsRoot()), 'phase dirs stay under the uploaded root');
+
+  // The spawn argv is what actually reaches Playwright, and the printed plan is what an operator
+  // copies by hand — both must carry the split, and both paths must be printed for root-causing.
+  const { calls, spawnE2E } = recordingSpawn();
+  const printed = captureLog(() => {
+    printPhases(phases);
+    assert.equal(runPhases(phases, spawnE2E), 0);
+  });
+  const spawned = calls.map(call => call.phaseArgs.find(arg => arg.startsWith('--output=')));
+  assert.deepEqual(spawned, [`--output=${resultsDir('chromium')}`, `--output=${resultsDir('serial')}`]);
+  for (const dir of outputs) {
+    assert.ok(printed.some(line => line.includes(dir)), `printed plan must name the artifact dir ${dir}: ${printed.join(' / ')}`);
+  }
+});
+
+test('a single-phase --run keeps playwright.config.ts\u2019s default output dir (no --output override)', () => {
+  const phases = planPhases([SERIAL_SPEC]);
+  assert.deepEqual(phases.map(phase => phase.outputDir), [undefined, undefined], 'one invocation needs no split: the default dir is correct');
+
+  const { calls, spawnE2E } = recordingSpawn();
+  assert.equal(runPhases(phases, spawnE2E), 0);
+  assert.equal(calls.length, 1);
+  assert.ok(calls[0].phaseArgs.every(arg => !arg.startsWith('--output=')), `single-phase runs must not override outputDir: ${calls[0].phaseArgs.join(' ')}`);
+});
+
+test('e2e-local.sh no-arg phases 1 and 2 also write to distinct output dirs', () => {
+  const script = fs.readFileSync(e2eLocal, 'utf8');
+  const block = script.slice(script.indexOf('echo "[e2e-local] phase 1:'));
+  assert.ok(block.length > 0, 'phase 1 of the no-arg path not found in scripts/e2e-local.sh');
+  const invocations = block.split('\n').filter(line => line.trimStart().startsWith('npx playwright test'));
+  assert.equal(invocations.length, 2, `expected phase 1 + phase 2 invocations, got: ${invocations.join(' | ')}`);
+  const outputs = invocations.map(line => (line.match(/--output="?\$(?:\{results_root\}|results_root)\/([^"\s]+)"?/) ?? [])[1]);
+  assert.deepEqual(outputs, ['chromium', 'serial'], `the two no-arg phases must not share an outputDir: ${invocations.join(' | ')}`);
+  // …and the root must come from playwright.config.ts, not a second hard-coded copy of the path.
+  assert.match(script, /results_root="\$\(node "\$REPO\/scripts\/affected-e2e\.mjs" --results-root\)"/,
+    'the phase dirs must be rooted in the config via affected-e2e.mjs --results-root');
+});
+
+test('the npm e2e script gives every lane its own output dir too', () => {
+  const { scripts } = JSON.parse(fs.readFileSync(path.join(repoRoot, 'pmo-portal', 'package.json'), 'utf8'));
+  const lanes = [...scripts.e2e.matchAll(/--output="?\$R\/([\w-]+)"?/g)].map(match => match[1]);
+  assert.deepEqual(lanes, ['chromium', 'serial', 'consent'], 'npm run e2e runs three invocations into one outputDir unless each lane is split');
+  assert.match(scripts.e2e, /^R=\$\(node \.\.\/scripts\/affected-e2e\.mjs --results-root\) && /,
+    'the npm lanes must use the config-derived root, not a hard-coded artifacts path');
 });

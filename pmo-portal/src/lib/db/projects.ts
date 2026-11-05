@@ -248,6 +248,19 @@ export async function listProjectIdentity(): Promise<Array<Pick<ProjectRow, 'id'
   );
 }
 
+/** Read only project numbers for an explicit dashboard card set in one request. */
+export async function listProjectNumbers(ids: readonly string[]): Promise<Array<Pick<ProjectRow, 'id' | 'pmo_project_number'>>> {
+  const uniqueIds = [...new Set(ids)];
+  if (uniqueIds.length === 0) return [];
+  const { data, error } = await supabase
+    .from('projects')
+    .select('id,pmo_project_number')
+    .in('id', uniqueIds)
+    .limit(uniqueIds.length);
+  if (error) throw new Error(error.message);
+  return (data ?? []) as Array<Pick<ProjectRow, 'id' | 'pmo_project_number'>>;
+}
+
 export async function getProject(id: string): Promise<ProjectWithRefs | null> {
   const { data, error } = await supabase.from('projects').select(SELECT).eq('id', id).maybeSingle();
   if (error) throw new Error(error.message);

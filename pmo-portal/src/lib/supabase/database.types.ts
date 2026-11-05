@@ -11867,6 +11867,22 @@ export type Database = {
       tm_claim_fingerprint: { Args: { p_claim: string }; Returns: string }
       update_procurement_header: { Args: { p_id: string; p_patch: Json }; Returns: boolean }
       procurement_item_values_editable: { Args: { p_case: string }; Returns: boolean }
+      budget_version_read: {
+        Args: {
+          p_project_id: string
+          p_offset?: number
+          p_limit?: number
+        }
+        Returns: {
+          version_no: number
+          version_id: string
+          version_row: Json
+          line_items: Json
+          editor_ids: string[]
+          total: number
+          overflow: boolean
+        }[]
+      }
       budget_version_read_totals: {
         Args: { p_project_id: string }
         Returns: { version_id: string; total: number }[]

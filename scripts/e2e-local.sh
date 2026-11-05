@@ -127,7 +127,28 @@ if [ "$#" -gt 0 ]; then
   exec npx playwright test "--workers=$workers" "$@"
 fi
 
-echo "[e2e-local] phase 1: chromium (--workers=2)"
-npx playwright test --project=chromium --workers=2
-echo "[e2e-local] phase 2: serial (--workers=1)"
-npx playwright test --project=serial --workers=1
+# Playwright CLEARS its outputDir at the start of every invocation, so two phases sharing the config
+# default (`os.tmpdir()/pmo-portal-test-results`, playwright.config.ts) delete each other's evidence:
+# phase 2 used to wipe phase 1's traces/videos/error-context, and a red chromium spec could no longer
+# be root-caused from its trace (#1870). Each phase gets its own subdir under the config root — read
+# from the config by affected-e2e.mjs, so this cannot drift from outputDir. A single invocation (the
+# pass-through branch above) keeps the default.
+#
+# The helper is read when present, never assumed: this script is also exercised from a temp dir that
+# copies only the lock scripts (scripts/parallel-infra.test.mjs proves lock re-use there), where the
+# relative path does not exist. In that case FALL BACK to the config's documented default — `os.tmpdir()`
+# IS `$TMPDIR` — and say so loudly: dying on MODULE_NOT_FOUND would break the run, and silently
+# sharing one dir would bring back #1870. A helper that is present but throws (config reshaped) still
+# fails the run: under `set -e` the assignment inherits its non-zero status, so drift stays loud.
+results_root="${TMPDIR:-/tmp}"
+results_root="${results_root%/}/pmo-portal-test-results"
+if [ -f "$REPO/scripts/affected-e2e.mjs" ]; then
+  results_root="$(node "$REPO/scripts/affected-e2e.mjs" --results-root)"
+else
+  echo "[e2e-local] WARNING: $REPO/scripts/affected-e2e.mjs is absent — using the playwright.config.ts default artifact root ($results_root). If the config moves outputDir, this fallback will not follow it." >&2
+fi
+echo "[e2e-local] phase 1: chromium (--workers=2) — failure artifacts: $results_root/chromium"
+npx playwright test --project=chromium --workers=2 --output="$results_root/chromium"
+echo "[e2e-local] phase 2: serial (--workers=1) — failure artifacts: $results_root/serial"
+npx playwright test --project=serial --workers=1 --output="$results_root/serial"
+echo "[e2e-local] failure artifacts (trace, video, error-context): chromium → $results_root/chromium | serial → $results_root/serial"

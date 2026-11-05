@@ -4,6 +4,7 @@ import { useAuth } from '@/src/auth/useAuth';
 import { usePermission } from '@/src/auth/usePermission';
 import { useErpnextBinding } from '@/src/hooks/useErpnextBinding';
 import { repositories } from '@/src/lib/repositories';
+import { SESSION_QUERY_OPTIONS } from '@/src/lib/queryPolicies';
 import { listBudgetPostingAccountCatalogue } from '@/src/lib/repositories/budgetProjection';
 import { taxSetupChoices } from '@/src/lib/accounting/taxSetupChoices';
 import type { BudgetPostingAccount } from '@/src/lib/budget/categoryAccountMap';
@@ -36,7 +37,7 @@ export default function OrgWithholdingAccount() {
   const savedBaseline = useRef<string | null | undefined>(undefined);
   const orgId = currentUser?.org_id;
   const queryKey = [ACCOUNT_QUERY_KEY, orgId];
-  const query = useQuery({ queryKey, queryFn: () => repositories.orgSettings.getWithholdingAccount(), enabled: !!currentUser });
+  const query = useQuery({ queryKey, queryFn: () => repositories.orgSettings.getWithholdingAccount(), enabled: !!currentUser, ...SESSION_QUERY_OPTIONS });
   const hasActiveBinding = binding.data?.status === 'active' && !binding.isError;
   const catalogue = useQuery({
     queryKey: ['uxs11', 'account-catalogue', orgId],

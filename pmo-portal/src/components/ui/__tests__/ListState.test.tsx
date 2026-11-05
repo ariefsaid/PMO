@@ -1,16 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { createInstance } from 'i18next';
 import { I18nextProvider } from 'react-i18next';
 
-type Analytics = typeof import('@/src/lib/analytics');
-const analytics = vi.hoisted(() => ({ trackEmptyStateSeen: vi.fn<Analytics['trackEmptyStateSeen']>() }));
-vi.mock('@/src/lib/analytics', async importOriginal => ({
-  ...await importOriginal<Analytics>(),
-  trackEmptyStateSeen: analytics.trackEmptyStateSeen,
-} satisfies Analytics));
+const analytics = vi.hoisted(() => ({ trackEmptyStateSeen: vi.fn() }));
+vi.mock('@/src/lib/analytics', () => ({ trackEmptyStateSeen: analytics.trackEmptyStateSeen }));
 
 import { ListState } from '../ListState';
 
@@ -146,7 +142,7 @@ describe('ListState: empty_state_seen analytics (2026-07-13 wiring plan)', () =>
     analytics.trackEmptyStateSeen.mockClear();
   });
 
-  it('fires empty_state_seen via the facade on mount when stateId+role+module are all given', () => {
+  it('fires empty_state_seen via the lazy facade on mount when stateId+role+module are all given', async () => {
     render(
       <ListState
         variant="empty"
@@ -156,8 +152,10 @@ describe('ListState: empty_state_seen analytics (2026-07-13 wiring plan)', () =>
         module="companies"
       />
     );
-    expect(analytics.trackEmptyStateSeen).toHaveBeenCalledWith('companies-empty', 'Admin', 'companies');
-    expect(analytics.trackEmptyStateSeen).toHaveBeenCalledTimes(1);
+    await waitFor(() => {
+      expect(analytics.trackEmptyStateSeen).toHaveBeenCalledWith('companies-empty', 'Admin', 'companies');
+      expect(analytics.trackEmptyStateSeen).toHaveBeenCalledTimes(1);
+    });
   });
 
   it('does NOT fire empty_state_seen when stateId/role/module are omitted (opt-in tracking)', () => {
