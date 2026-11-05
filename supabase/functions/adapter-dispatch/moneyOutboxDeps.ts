@@ -326,8 +326,20 @@ export function createDbMoneyOutboxDeps(opts: DbMoneyOutboxDepsOpts): DispatchMo
       return mapRow(data as OutboxDbRow);
     },
 
-    claimOutboxForCommit: (id) => callRowRpc(serviceClient, 'claim_outbox_for_commit', id, (raw) =>
-      meta.set(raw.id, { domain: raw.domain, attempt: raw.attempt_count, claimedAtMs: Date.now() })),
+    async claimOutboxForCommit(id) {
+      try {
+        return await callRowRpc(serviceClient, 'claim_outbox_for_commit', id, (raw) =>
+          meta.set(raw.id, { domain: raw.domain, attempt: raw.attempt_count, claimedAtMs: Date.now() }));
+      } catch (err) {
+        // A refused claim never wrote to ERP. Fail the never-claimed pending row (and spend its automatic attempts) so
+        // it stops holding its bill and is never re-driven (0682); a row that was ever claimed is left alone. A failed
+        // write here is ignored: the original refusal is what the caller needs, and 0682 releases a stale holder on demand.
+        if (err instanceof AppError && err.code === 'commit-rejected' && isQueuedProcurementRefusal(err.message)) {
+          await serviceClient.rpc('fail_refused_payment_claim', { p_id: id, p_error: err.message });
+        }
+        throw err;
+      }
+    },
     async quarantineCommitting(id) {
       let raw: OutboxDbRow | undefined;
       const row = await callRowRpc(serviceClient, 'quarantine_committing', id, (r) => { raw = r; });

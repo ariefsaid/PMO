@@ -3743,6 +3743,42 @@ export type Database = {
           },
         ]
       }
+      erpnext_payment_inflight_bills: {
+        Row: {
+          bill_name: string
+          id: string
+          org_id: string
+          outbox_id: string
+        }
+        Insert: {
+          bill_name: string
+          id?: string
+          org_id: string
+          outbox_id: string
+        }
+        Update: {
+          bill_name?: string
+          id?: string
+          org_id?: string
+          outbox_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erpnext_payment_inflight_bills_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erpnext_payment_inflight_bills_outbox_id_fkey"
+            columns: ["outbox_id"]
+            isOneToOne: false
+            referencedRelation: "external_command_outbox"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       external_command_outbox: {
         Row: {
           actor_user_id: string | null

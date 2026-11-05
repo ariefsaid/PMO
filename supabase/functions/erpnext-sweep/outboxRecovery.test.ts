@@ -253,3 +253,18 @@ Deno.test('Luna SoD/ownership — an org that owns NOTHING reconciles nothing (f
   assert(dispatched === 0, 'no recorded ownership ⇒ no money is driven (fail-closed, same posture as sweepKindsForOrg)');
   assert(result.errors.length === 1, 'still reported, not dropped');
 });
+
+Deno.test('a failed payment whose bill another payment holds is deferred quietly, not reported as an error; any other failure still is', async () => {
+  const candidate = row('failed');
+  const { deps } = mockedDeps(candidate);
+  const attempt = async (message: string) => reconcileOrgOutbox(
+    async () => [candidate],
+    RECONCILE_ORG,
+    () => deps,
+    async () => { throw new Error(message); },
+  );
+  const blocked = await attempt('duplicate key value violates unique constraint "external_command_outbox_one_inflight_erpnext_payment_per_bill"');
+  assert(blocked.reconciled === 0 && blocked.errors.length === 0, `a blocked retry is a deferral, got ${JSON.stringify(blocked.errors)}`);
+  const other = await attempt('connection reset');
+  assert(other.errors.length === 1 && other.errors[0].error === 'connection reset', 'every other failure is still reported');
+});

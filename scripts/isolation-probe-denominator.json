@@ -62,6 +62,7 @@
     {"table":"erp_statement_pass_run","has_org":true,"pk":"org_id","columns":"*","b_read":"none","by_id":"applicable"},
     {"table":"erp_sweep_full_run","has_org":true,"pk":"org_id","columns":"*","b_read":"none","by_id":"applicable"},
     {"table":"erp_sweep_lock","has_org":true,"pk":"org_id","columns":"*","b_read":"none","by_id":"applicable"},
+    {"table":"erpnext_payment_inflight_bills","has_org":true,"pk":"id","columns":"id,org_id,bill_name,outbox_id","b_read":"none","by_id":"applicable"},
     {"table":"error_events","has_org":true,"pk":"id","columns":"*","b_read":"none","by_id":"applicable"},
     {"table":"expense_account_map","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
     {"table":"expense_advance_returns","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
