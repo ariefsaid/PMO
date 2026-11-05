@@ -5,11 +5,11 @@
  * options rather than silently unified branches. Dispatches through confirmedAction's
  * shared seams; presentation through turnPresentation; the catalog through actionCatalog.
  */
-import type { AgentEvent, AgentRunStatus, AgentAction, DeputyContext } from '../../../pmo-portal/src/lib/agent/runtime/port.ts';
+import type { AgentEvent, AgentRunStatus, AgentAction } from '../../../pmo-portal/src/lib/agent/runtime/port.ts';
 import type { ModelClient, ModelMessage } from '../_shared/modelClient.ts';
 import { recordUsage } from '../_shared/usage.ts';
 import { compactTranscript, DEFAULT_COMPACTION } from '../_shared/transcriptCompaction.ts';
-import { keyForTool, isToolAllowed, isKeyEnabled, notOnPlanError, writeRefusalFor, type FeatureSwitches } from './featureSwitches.ts';
+import { keyForTool, isToolAllowed, isKeyEnabled, notOnPlanError, type FeatureSwitches } from './featureSwitches.ts';
 import { runComposeView } from './actions.ts';
 import { heartbeat } from './persistence.ts';
 import { recordErrorEvent } from '../_shared/errorEvent.ts';
@@ -533,25 +533,15 @@ export async function* runToolLoop(opts: RunToolLoopOptions): AsyncGenerator<Age
         // only through the forced confirmed-write path under the caller JWT.
         const permCheck = getPermissionCheck(toolName);
         if (permCheck) {
-          let reAuthRole: string | null = null;
-          let reAuthOrg: string | null = null;
-          try {
-            const { data, error } = await deps.supabase
-              .from('profiles')
-              .select('org_id, role')
-              .eq('id', deps.userId)
-              .single();
-
-            if (error || !data) {
-              yield statusEvent('errored', { error: 'AUTH_EXPIRED' });
-              return;
-            }
-            reAuthRole = data.role ?? null;
-            reAuthOrg = data.org_id ?? null;
-          } catch {
+          // Shared deputy re-auth (AC-AW-004) — the same profiles lookup the approval
+          // path runs; on failure this pass emits its own AUTH_EXPIRED terminal event.
+          const reAuth = await rederiveDeputyAuth(deps);
+          if (!reAuth) {
             yield statusEvent('errored', { error: 'AUTH_EXPIRED' });
             return;
           }
+          const reAuthRole = reAuth.role;
+          const reAuthOrg = reAuth.orgId;
 
           const canFn = deps.can ?? (() => false);
           const allowed = canFn(permCheck.action, permCheck.entity, { realRole: reAuthRole });

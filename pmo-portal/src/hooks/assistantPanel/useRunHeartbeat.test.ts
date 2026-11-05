@@ -36,7 +36,7 @@ describe('useRunHeartbeat — FR-AGP-022 polling + staleness', () => {
   });
 
   it('polls the server heartbeat immediately and on the 5s cadence while active', async () => {
-    renderHook(() => useRunHeartbeat({ active: true, runId: 'run-1', hasPendingQuestion: false }));
+    renderHook(() => useRunHeartbeat({ phase: 'running', runId: 'run-1', hasPendingQuestion: false }));
 
     await act(async () => { await vi.advanceTimersByTimeAsync(0); });
     expect(getHeartbeat).toHaveBeenCalledWith('run-1');
@@ -49,11 +49,11 @@ describe('useRunHeartbeat — FR-AGP-022 polling + staleness', () => {
   });
 
   it('does not poll when inactive or runId is null', async () => {
-    renderHook(() => useRunHeartbeat({ active: false, runId: 'run-1', hasPendingQuestion: false }));
+    renderHook(() => useRunHeartbeat({ phase: 'idle', runId: 'run-1', hasPendingQuestion: false }));
     await act(async () => { await vi.advanceTimersByTimeAsync(20_000); });
     expect(getHeartbeat).not.toHaveBeenCalled();
 
-    renderHook(() => useRunHeartbeat({ active: true, runId: null, hasPendingQuestion: false }));
+    renderHook(() => useRunHeartbeat({ phase: 'running', runId: null, hasPendingQuestion: false }));
     await act(async () => { await vi.advanceTimersByTimeAsync(20_000); });
     expect(getHeartbeat).not.toHaveBeenCalled();
   });
@@ -63,7 +63,7 @@ describe('useRunHeartbeat — FR-AGP-022 polling + staleness', () => {
     getHeartbeat.mockResolvedValue({ status: 'running', last_progress_at: serverStamp });
 
     const { result } = renderHook(() =>
-      useRunHeartbeat({ active: true, runId: 'run-1', hasPendingQuestion: false }),
+      useRunHeartbeat({ phase: 'running', runId: 'run-1', hasPendingQuestion: false }),
     );
 
     act(() => { result.current.noteProgress(); });
@@ -79,7 +79,7 @@ describe('useRunHeartbeat — FR-AGP-022 polling + staleness', () => {
     getHeartbeat.mockRejectedValueOnce(new Error('db read failed'));
 
     const { result } = renderHook(() =>
-      useRunHeartbeat({ active: true, runId: 'run-1', hasPendingQuestion: false }),
+      useRunHeartbeat({ phase: 'running', runId: 'run-1', hasPendingQuestion: false }),
     );
     act(() => { result.current.noteProgress(); });
     const clientStamp = result.current.lastProgressAt;
@@ -94,7 +94,7 @@ describe('useRunHeartbeat — FR-AGP-022 polling + staleness', () => {
 
   it('isStuck flips true once the stale window is crossed and stays keyed on activity', async () => {
     const { result } = renderHook(() =>
-      useRunHeartbeat({ active: true, runId: 'run-1', hasPendingQuestion: false }),
+      useRunHeartbeat({ phase: 'running', runId: 'run-1', hasPendingQuestion: false }),
     );
     act(() => { result.current.noteProgress(); });
     expect(result.current.isStuck).toBe(false);
@@ -106,21 +106,37 @@ describe('useRunHeartbeat — FR-AGP-022 polling + staleness', () => {
 
   it('a pending ask_user question excludes stuck even past the stale window', async () => {
     const { result, rerender } = renderHook(
-      ({ hasPendingQuestion }) =>
-        useRunHeartbeat({ active: true, runId: 'run-1', hasPendingQuestion }),
-      { initialProps: { hasPendingQuestion: false } },
+      ({ phase, hasPendingQuestion }: { phase: 'running' | 'needs-approval'; hasPendingQuestion: boolean }) =>
+        useRunHeartbeat({ phase, runId: 'run-1', hasPendingQuestion }),
+      { initialProps: { phase: 'running', hasPendingQuestion: false } },
     );
     act(() => { result.current.noteProgress(); });
     await act(async () => { await vi.advanceTimersByTimeAsync(STUCK_RUN_STALE_MS + 1_000); });
     expect(result.current.isStuck).toBe(true);
 
-    rerender({ hasPendingQuestion: true });
+    rerender({ phase: 'needs-approval', hasPendingQuestion: true });
     expect(result.current.isStuck).toBe(false);
+  });
+
+  it('restarts the poll on the running → needs-approval transition (deps keyed on phase)', async () => {
+    const { rerender } = renderHook(
+      ({ phase }: { phase: 'running' | 'needs-approval' }) =>
+        useRunHeartbeat({ phase, runId: 'run-1', hasPendingQuestion: false }),
+      { initialProps: { phase: 'running' } },
+    );
+    await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+    expect(getHeartbeat).toHaveBeenCalledTimes(1);
+
+    // Approve/deny flips the hook phase to needs-approval: the effect tears down and
+    // re-runs, polling immediately again (the pre-extraction [phase, runId] behavior).
+    rerender({ phase: 'needs-approval' });
+    await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+    expect(getHeartbeat).toHaveBeenCalledTimes(2);
   });
 
   it('setting the stamp to null (thread adoption) resets staleness', () => {
     const { result } = renderHook(() =>
-      useRunHeartbeat({ active: false, runId: 'run-1', hasPendingQuestion: false }),
+      useRunHeartbeat({ phase: 'idle', runId: 'run-1', hasPendingQuestion: false }),
     );
     act(() => { result.current.noteProgress(); });
     expect(result.current.lastProgressAt).toBeTruthy();

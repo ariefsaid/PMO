@@ -36,7 +36,7 @@ import {
   REMINDERS_ENABLED,
 } from './actionCatalog.ts';
 import { AGENT_READ_ROW_CAP } from './actions.ts';
-import { runToolLoop, MAX_TOOL_ROUNDS, DEFAULT_AGENT_TEMPERATURE, ANSWER_CHECK_TIMEOUT_MS, MAX_PARALLEL_READS } from './toolLoop.ts';
+import { runToolLoop } from './toolLoop.ts';
 import { handleAnswer, handleDecision, isCreditExhausted } from './turnContinuations.ts';
 import { loadOrgFeatureSwitches } from './featureResolution.ts';
 import { isAssistantEnabled } from './featureSwitches.ts';

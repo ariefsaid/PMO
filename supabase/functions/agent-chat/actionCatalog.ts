@@ -13,7 +13,6 @@ import {
   createAutomationAction,
   askUserAction,
   AGENT_READ_ENTITIES,
-  AGENT_READ_ROW_CAP,
 } from './actions.ts';
 import { makeWhatsOverdueAction } from './overdue.ts';
 import { draftInvoiceAction } from './draftInvoice.ts';
@@ -21,17 +20,14 @@ import { remindOverdueAction } from './remindOverdue.ts';
 import { queryStockAction } from './stockRead.ts';
 import { buildAgentSystemPrompt } from './prompt.ts';
 import {
-  keyForTool,
   isToolAllowed,
-  isKeyEnabled,
-  notOnPlanError,
   offerableEntities,
   offerableTools,
   unavailableFeatureLabels,
   type FeatureSwitches,
 } from './featureSwitches.ts';
-import type { AgentEvent, AgentRunStatus, AgentAction, DeputyContext } from '../../../pmo-portal/src/lib/agent/runtime/port.ts';
-import type { ModelTool, ModelMessage } from '../_shared/modelClient.ts';
+import type { AgentAction, DeputyContext } from '../../../pmo-portal/src/lib/agent/runtime/port.ts';
+import type { ModelTool } from '../_shared/modelClient.ts';
 
 // ── Action registry (A3) ──────────────────────────────────────────────────────
 

@@ -229,11 +229,11 @@ export function useAssistantPanel(): UseAssistantPanel {
 
   // ── Polling/staleness seam (FR-AGP-022) — useRunHeartbeat owns the last-progress
   // stamp, the 5s server-heartbeat poll, the staleness render tick and isStuck; this
-  // hook feeds it activity + the pending-question exclusion and advances the stamp
-  // from the drain loop via noteProgress().
-  const runActive = phase === 'running' || phase === 'needs-approval';
+  // hook feeds it the run phase (the poll restarts on the running→needs-approval
+  // transition, as the pre-extraction effect did) + the pending-question exclusion,
+  // and advances the stamp from the drain loop via noteProgress().
   const { lastProgressAt, isStuck, noteProgress, setLastProgressAt } = useRunHeartbeat({
-    active: runActive,
+    phase,
     runId,
     hasPendingQuestion,
   });

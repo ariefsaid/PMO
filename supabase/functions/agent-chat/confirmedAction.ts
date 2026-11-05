@@ -19,7 +19,7 @@ import type { HandlerDeps, HandlerSupabaseLike, PersistenceRuntime, JournaledWri
  * Guard: if the action has confirm:true, this throws (unreachable in production —
  * the handler routes confirm:true through the approval branch).
  */
-export async function dispatchAction(
+export function dispatchAction(
   action: AgentAction,
   toolInput: unknown,
   ctx: import('../../../pmo-portal/src/lib/agent/runtime/port.ts').DeputyContext,
@@ -34,7 +34,7 @@ export async function dispatchAction(
  * Execute an approved confirm:true action (bypasses the confirm guard because
  * the approval gate has already fired). Called ONLY after deputy re-auth passes.
  */
-export async function dispatchActionForced(
+export function dispatchActionForced(
   action: AgentAction,
   validatedInput: unknown,
   ctx: DeputyContext,

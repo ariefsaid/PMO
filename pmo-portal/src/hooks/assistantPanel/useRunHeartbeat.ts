@@ -20,8 +20,13 @@ import { STUCK_RUN_STALE_MS } from '../../components/panel/stuckRun.constants';
 const HEARTBEAT_POLL_MS = 5_000;
 
 export interface UseRunHeartbeatOptions {
-  /** True only while a run is genuinely in flight ('running' | 'needs-approval'). */
-  active: boolean;
+  /**
+   * The hook-level run phase. The poll runs only while the run is genuinely in flight
+   * ('running' | 'needs-approval') — and, keyed on phase like the pre-extraction effect
+   * (deps [phase, runId]), it RESTARTS on the running→needs-approval transition, so a
+   * re-POST continuations's approval lands a fresh server stamp immediately.
+   */
+  phase: 'idle' | 'running' | 'needs-approval' | 'error' | 'out-of-credits';
   /** The active run id, or null between runs. */
   runId: string | null;
   /** True while a pending ask_user question awaits the user's answer. */
@@ -37,14 +42,16 @@ export interface UseRunHeartbeatResult {
   setLastProgressAt(value: string | null): void;
 }
 
-export function useRunHeartbeat({ active, runId, hasPendingQuestion }: UseRunHeartbeatOptions): UseRunHeartbeatResult {
+export function useRunHeartbeat({ phase, runId, hasPendingQuestion }: UseRunHeartbeatOptions): UseRunHeartbeatResult {
   const [lastProgressAt, setLastProgressAt] = useState<string | null>(null);
 
   // ── Server-heartbeat poll (FR-AGP-022) ────────────────────────────────────────
   // Runs only while a run is genuinely active; the server value overwrites the
-  // SSE-derived stamp whenever a poll lands (see module doc).
+  // SSE-derived stamp whenever a poll lands (see module doc). Keyed on PHASE (not a
+  // boolean activity flag) so the running→needs-approval transition restarts the poll.
   useEffect(() => {
-    if (!active || !runId) return;
+    if (phase !== 'running' && phase !== 'needs-approval') return;
+    if (!runId) return;
 
     let cancelled = false;
     const poll = async () => {
@@ -67,7 +74,7 @@ export function useRunHeartbeat({ active, runId, hasPendingQuestion }: UseRunHea
       cancelled = true;
       window.clearInterval(id);
     };
-  }, [active, runId]);
+  }, [phase, runId]);
 
   const noteProgress = useCallback(() => {
     setLastProgressAt(new Date().toISOString());
@@ -85,17 +92,18 @@ export function useRunHeartbeat({ active, runId, hasPendingQuestion }: UseRunHea
   // A wedged run's heartbeat stops changing, so no state update re-renders the hook: schedule one
   // render for the moment the stale window is crossed.
   const [, setStaleTick] = useState(0);
+  const runActive = phase === 'running' || phase === 'needs-approval';
   useEffect(() => {
-    if (!active || lastProgressAt === null) return;
+    if (!runActive || lastProgressAt === null) return;
     const remaining = STUCK_RUN_STALE_MS - (Date.now() - new Date(lastProgressAt).getTime());
     if (remaining <= 0) return;
     const id = window.setTimeout(() => setStaleTick((n) => n + 1), remaining + 1);
     return () => window.clearTimeout(id);
-  }, [active, lastProgressAt]);
+  }, [runActive, lastProgressAt]);
 
   const isStuck =
     !hasPendingQuestion &&
-    active &&
+    runActive &&
     lastProgressAt !== null &&
     Date.now() - new Date(lastProgressAt).getTime() > STUCK_RUN_STALE_MS;
 

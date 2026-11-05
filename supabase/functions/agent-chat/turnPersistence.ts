@@ -6,7 +6,7 @@
  */
 import type { AgentEvent, AgentRunStatus } from '../../../pmo-portal/src/lib/agent/runtime/port.ts';
 import { hashToolArgs, insertEvent, setRunStatus } from './persistence.ts';
-import type { HandlerDeps, PersistenceRuntime, PersistenceDeps, JournaledWrite, ToolJournal } from './handlerTypes.ts';
+import type { HandlerDeps, PersistenceRuntime, JournaledWrite, ToolJournal } from './handlerTypes.ts';
 
 export function makePersistenceRuntime(deps: HandlerDeps): PersistenceRuntime | undefined {
   if (!deps.persistence) return undefined;

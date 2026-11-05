@@ -18,13 +18,13 @@ import { STUCK_RUN_STALE_MS } from './stuckRun.constants';
 const NOW = new Date('2026-07-03T12:00:00.000Z').getTime();
 
 // The banner reads Date.now() directly (no injectable clock prop); pin the clock per
-// test so staleness math stays deterministic (restored after each test).
-const nowSpy = vi.spyOn(Date, 'now');
+// test so staleness math stays deterministic, restoring the real clock after each test.
+let nowSpy: ReturnType<typeof vi.spyOn>;
 beforeEach(() => {
-  nowSpy.mockReturnValue(NOW);
+  nowSpy = vi.spyOn(Date, 'now').mockReturnValue(NOW);
 });
 afterEach(() => {
-  nowSpy.mockReturnValue(NOW);
+  nowSpy.mockRestore();
 });
 
 describe('StuckRunBanner', () => {

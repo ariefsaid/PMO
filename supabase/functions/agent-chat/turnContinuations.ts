@@ -14,7 +14,7 @@ import { getPermissionCheck, auditAgentDenial, rederiveDeputyAuth, dispatchActio
 import { runToolLoop } from './toolLoop.ts';
 import { AGENT_READ_ROW_CAP } from './actions.ts';
 import { recordErrorEvent } from '../_shared/errorEvent.ts';
-import type { AgentEvent, AgentRunStatus, AgentAction, DeputyContext } from '../../../pmo-portal/src/lib/agent/runtime/port.ts';
+import type { AgentEvent, AgentRunStatus, AgentAction } from '../../../pmo-portal/src/lib/agent/runtime/port.ts';
 import type { HandlerDeps, PersistenceRuntime, CanFn } from './handlerTypes.ts';
 
 // ── ADR-0045 §2: Answer handler (resolve a pending ask_user question) ─────────
@@ -227,26 +227,16 @@ export async function* handleDecision(
     return;
   }
 
-  // Step 2: Deputy re-auth — re-derive org + role (AC-AW-004)
-  let reAuthRole: string | null = null;
-  let reAuthOrg: string | null = null;
-  try {
-    const { data, error } = await deps.supabase
-      .from('profiles')
-      .select('org_id, role')
-      .eq('id', deps.userId)
-      .single();
-
-    if (error || !data) {
-      yield statusEvent('errored', { error: 'AUTH_EXPIRED' });
-      return;
-    }
-    reAuthRole = data.role ?? null;
-    reAuthOrg = data.org_id ?? null;
-  } catch {
+  // Step 2: Deputy re-auth — re-derive org + role (AC-AW-004). The SAME shared lookup the
+  // auto-approval path runs (confirmedAction.rederiveDeputyAuth); on failure this path emits
+  // its own AUTH_EXPIRED terminal event.
+  const reAuth = await rederiveDeputyAuth(deps);
+  if (!reAuth) {
     yield statusEvent('errored', { error: 'AUTH_EXPIRED' });
     return;
   }
+  const reAuthRole = reAuth.role;
+  const reAuthOrg = reAuth.orgId;
 
   // Step 3: can() preflight (AC-AW-008, FR-AW-010)
   const permCheck = getPermissionCheck(toolName);
