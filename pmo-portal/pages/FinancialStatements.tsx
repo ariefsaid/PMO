@@ -1,6 +1,6 @@
 import { projectCodedPickerLabel } from '@/src/lib/projectDisplayName';
 import { useEffect, useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
 import { useAuth } from '@/src/auth/useAuth';
@@ -143,6 +143,17 @@ const FinancialStatements: React.FC = () => {
     { value: COMPANY_SCOPE, label: t('financialStatements.companyScope', 'Company') },
     ...namedProjectOptions,
   ];
+
+  const refreshNowMutation = useMutation({ mutationFn: () => repositories.financialStatements.refreshNow() });
+  const refreshNote = refreshNowMutation.isError
+    ? t('financialStatements.refreshNowError', 'Could not request a refresh. Try again.')
+    : refreshNowMutation.data === 'accepted'
+      ? t('financialStatements.refreshNowQueued', 'Refresh requested. New figures appear shortly.')
+      : refreshNowMutation.data === 'coalesced'
+        ? t('financialStatements.refreshNowCoalesced', 'A refresh was requested recently.')
+        : refreshNowMutation.data === 'unavailable'
+          ? t('financialStatements.refreshNowUnavailable', 'Refresh is not available yet.')
+          : undefined;
 
   let sectionState: FinancialStatementsSectionState;
   let sectionRetry = () => undefined;
@@ -291,6 +302,12 @@ const FinancialStatements: React.FC = () => {
         state={sectionState}
         labels={sectionLabels}
         onRetry={sectionRetry}
+        refreshNow={{
+          label: t('financialStatements.refreshNow', 'Refresh now'),
+          pending: refreshNowMutation.isPending,
+          note: refreshNote,
+          onClick: () => refreshNowMutation.mutate(),
+        }}
       >
         {isValidRead && detailRead && detailRead.result.viewKind === 'account_breakdown' && (
           <NativeStatementPair

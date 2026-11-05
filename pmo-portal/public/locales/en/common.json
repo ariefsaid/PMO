@@ -3096,6 +3096,11 @@
     }
   },
   "financialStatements": {
+    "refreshNow": "Refresh now",
+    "refreshNowQueued": "Refresh requested. New figures appear shortly.",
+    "refreshNowCoalesced": "A refresh was requested recently.",
+    "refreshNowUnavailable": "Refresh is not available yet.",
+    "refreshNowError": "Could not request a refresh. Try again.",
     "amounts": "Amounts",
     "asAt": "As at",
     "accessDenied": "You don't have access to financial statements",
