@@ -294,7 +294,7 @@ afterEach(() => {
 const endpointLabels = (): string[] => stub.endpoints.map((e) => e.label);
 
 describe('ProjectDetail mount request count (AC-PERF-009 harness, plan T0.2)', () => {
-  it('fires exactly the measured endpoint set on Overview mount, total 21 (Step 1a: no VAT read)', async () => {
+  it('fires exactly the measured endpoint set on Overview mount, total 20 (Steps 1a+1b: no VAT, no stage read)', async () => {
     renderProjectDetail();
     await settleRequests();
 
@@ -317,8 +317,8 @@ describe('ProjectDetail mount request count (AC-PERF-009 harness, plan T0.2)', (
         // suite asserts the on-demand read); it must NOT fire on mount.
         // milestones (header facts, attention, delivery, S-curve — one shared key)
         'rpc:get_project_milestones',
-        // stage entries — SalesHistoryDisclosure mounts it closed (Step 1b defers)
-        'read:project_stage_entries',
+        // stage entries — Step 1b DEFERS them to the sales-history disclosure opening (its journey
+        // suite asserts the read + render after open); none may fire on mount.
         // sales invoices (primary action + money block — one shared key)
         'read:sales_invoices',
         // org fx context (currency + timezone)
@@ -351,6 +351,6 @@ describe('ProjectDetail mount request count (AC-PERF-009 harness, plan T0.2)', (
         'rpc:resolved_org_features',
       ].sort(),
     );
-    expect(endpointLabels()).toHaveLength(21);
+    expect(endpointLabels()).toHaveLength(20);
   });
 });
