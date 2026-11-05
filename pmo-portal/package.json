@@ -35,7 +35,7 @@
     "check:guards": "npm run check:shadow-types && npm run check:migrations && npm run check:adrs && npm run check:e2e-isolation && npm run check:e2e-fonts && npm run check:nul-bytes && npm run check:edge-test-binding && npm run check:redirect-targets && npm run check:edge-error-reporting && npm run check:dashboard-tiles && npm run check:i18n && npm run check:unpaged-reads && npm run check:retention && npm run check:module-completeness",
     "verify": "npm run check:guards && npm run typecheck && npm run typecheck:edge && npm run lint:ci && npm run test && npm run build",
     "verify:locked": "../scripts/with-test-lock.sh npm run verify",
-    "e2e": "playwright test --project=chromium && playwright test --project=serial --workers=1 && playwright test --project=consent",
+    "e2e": "R=$(node ../scripts/affected-e2e.mjs --results-root) && playwright test --project=chromium --output=\"$R/chromium\" && playwright test --project=serial --workers=1 --output=\"$R/serial\" && playwright test --project=consent --output=\"$R/consent\"",
     "e2e:parallel": "playwright test --project=chromium",
     "e2e:serial": "playwright test --project=serial --workers=1",
     "e2e:consent": "playwright test --project=consent"

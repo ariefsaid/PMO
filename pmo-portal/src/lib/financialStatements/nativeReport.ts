@@ -201,8 +201,3 @@ export function isTotalsPayload(value: unknown): boolean {
   return true;
 }
 
-export function isNativeRawReports(value: unknown): boolean {
-  if (!isPlainRecord(value) || !hasExactKeys(value, ['current', 'prior'])) return false;
-  return ['current', 'prior'].every((side) => typeof value[side] === 'string' &&
-    new TextEncoder().encode(value[side] as string).byteLength <= 5 * 1024 * 1024);
-}

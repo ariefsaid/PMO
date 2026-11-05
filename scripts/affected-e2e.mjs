@@ -1,11 +1,14 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 
-const root = process.cwd();
+// Repo root from THIS file, not the caller's cwd: the selection, the git diff and the artifacts path
+// are all repo-relative, and pmo-portal/package.json's `e2e` script calls in from the app directory.
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const app = path.join(root, 'pmo-portal');
 const require = createRequire(path.join(app, 'package.json'));
 const ts = require('typescript');
@@ -191,6 +194,23 @@ export function isSerialSpec(file, match) {
   const regexes = Array.isArray(match) ? match : [match];
   return regexes.some(regex => candidates.some(candidate => regex.test(candidate)));
 }
+// Playwright CLEARS its outputDir at the start of EVERY invocation. Two phases sharing one dir
+// therefore delete each other's diagnostics: the serial phase used to wipe the chromium phase's
+// traces, videos and error-context, so a chromium red was no longer root-causable after the run
+// (#1870). The root is read from playwright.config.ts rather than copied — the config owns it (it
+// lives outside the worktree so the edge-runtime file watcher does not restart mid-run).
+export function resultsRoot(file = path.join(app, 'playwright.config.ts')) {
+  const ast = source(file);
+  let initializer = '';
+  walk(ast, n => {
+    if (initializer || !ts.isPropertyAssignment(n)) return;
+    if (n.name.getText(ast).replaceAll("'", '').replaceAll('"', '') !== 'outputDir') return;
+    initializer = n.initializer.getText(ast);
+  });
+  const match = initializer.match(/path\.join\(\s*os\.tmpdir\(\)\s*,\s*'([^']+)'\s*\)/);
+  if (!match) throw new Error("affected-e2e: cannot read outputDir from pmo-portal/playwright.config.ts (expected `path.join(os.tmpdir(), '<name>')`) — extend resultsRoot() rather than hard-coding the artifacts path.");
+  return path.join(os.tmpdir(), match[1]);
+}
 // Split the selection the way playwright.config.ts does and run the two projects as separate
 // phases: serial specs share org-global state (AC-CODE-002 temporarily sets an org-wide {CLIENT}
 // number pattern while AC-CQ-020 creates a project), which is why the config runs serial at
@@ -199,13 +219,21 @@ export function isSerialSpec(file, match) {
 // e2e-local.sh does not stack a second --workers flag). A phase with no files is skipped; phase 2
 // runs even when phase 1 failed, and the exit stays non-zero.
 export function planPhases(files, match = serialTestMatch()) {
-  return [
+  const phases = [
     { project: 'chromium', workers: '2', files: files.filter(file => !isSerialSpec(file, match)) },
     { project: 'serial', workers: '1', files: files.filter(file => isSerialSpec(file, match)) },
   ];
+  // Only a multi-phase run needs the split: with one phase (or a single ad-hoc invocation) the
+  // config default is correct and CI's `pmo-portal-test-results/` upload keeps finding artifacts.
+  const running = phases.filter(phase => phase.files.length);
+  if (running.length > 1) for (const phase of running) phase.outputDir = path.join(resultsRoot(), phase.project);
+  return phases;
+}
+function outputFlag(phase) {
+  return phase.outputDir ? ` --output=${phase.outputDir}` : '';
 }
 export function describePhase(phase) {
-  return `E2E_WORKERS=${phase.workers} scripts/e2e-local.sh --project=${phase.project} ${phase.files.join(' ')}`;
+  return `E2E_WORKERS=${phase.workers} scripts/e2e-local.sh --project=${phase.project}${outputFlag(phase)} ${phase.files.join(' ')}`;
 }
 export function printPhases(phases) {
   for (const phase of phases) {
@@ -213,12 +241,19 @@ export function printPhases(phases) {
       ? `\nRun command (${phase.project}, --workers=${phase.workers}): ${describePhase(phase)}`
       : `\nRun command (${phase.project}, --workers=${phase.workers}): (no selected specs — phase skipped)`);
   }
+  const running = phases.filter(phase => phase.files.length);
+  if (!running.length) return;
+  // Both paths up front: a failure in either phase must be root-caused from its own trace, and by
+  // the time the operator reads the log the two dirs are the only place that evidence lives.
+  console.log('\nFailure artifacts (trace, video, error-context) per phase:');
+  for (const phase of running) console.log(`  ${phase.project}: ${phase.outputDir ?? resultsRoot()}${phase.outputDir ? '' : ' (config default)'}`);
 }
 export function runPhases(phases, spawnE2E = spawnSync) {
   let failed = false;
   for (const phase of phases) {
     if (!phase.files.length) continue;
-    const result = spawnE2E(path.join(root, 'scripts/e2e-local.sh'), ['--project=' + phase.project, ...phase.files], {
+    const args = ['--project=' + phase.project, ...(phase.outputDir ? ['--output=' + phase.outputDir] : []), ...phase.files];
+    const result = spawnE2E(path.join(root, 'scripts/e2e-local.sh'), args, {
       cwd: root, stdio: 'inherit', env: { ...process.env, E2E_WORKERS: phase.workers },
     });
     if ((result.status ?? 1) !== 0) failed = true;
@@ -264,12 +299,21 @@ function selfTest() {
   const serialOnly = planPhases(['e2e/serial/AC-CODE-002-project-number-proposal.spec.ts']);
   if (serialOnly[0].files.length !== 0 || serialOnly[1].project !== 'serial' || serialOnly[1].workers !== '1')
     throw new Error('affected-e2e phase-split self-test failed: a serial-only selection must leave the chromium phase empty and keep serial at 1 worker');
+  // #1870: Playwright clears outputDir per invocation, so a two-phase run must not share one dir.
+  const phaseOutputs = split.map(phase => phase.outputDir);
+  if (phaseOutputs.some(dir => !dir) || new Set(phaseOutputs).size !== 2)
+    throw new Error(`affected-e2e output-dir self-test failed: each phase needs its own --output dir, got ${JSON.stringify(phaseOutputs)}`);
+  if (phaseOutputs.some(dir => path.dirname(dir) !== resultsRoot()))
+    throw new Error(`affected-e2e output-dir self-test failed: phase dirs must sit under the config outputDir (${resultsRoot()}), got ${phaseOutputs.join(', ')}`);
+  if (serialOnly.some(phase => phase.outputDir))
+    throw new Error('affected-e2e output-dir self-test failed: a single-phase run must keep the config default outputDir (no --output)');
 
   console.log(`Fixture 1 (Companies diff): selected ${companies.length} of ${allSpecs.length} specs`);
   console.log(`Required selections: ${expected.join(', ')}`);
   console.log(`Fixture 2 (helper-only navigation): selected ${helperSelection.length} of 1 fixture spec (${path.relative(app, fixture)})`);
   console.log(`Fixture 3 (shared shell diff): selected ${shell.length} of ${allSpecs.length} specs`);
   console.log('Fixture 4 (--run phases): chromium @ 2 workers then serial @ 1 worker, split by the config testMatch');
+  console.log(`  phase artifacts: ${phaseOutputs.join(' | ')}`);
   console.log('affected-e2e self-test passed');
 }
 function gitChanged(base) {
@@ -287,6 +331,7 @@ const invokedDirectly = process.argv[1] && path.resolve(process.argv[1]) === fil
 if (invokedDirectly) {
   const args = process.argv.slice(2);
   if (args.includes('--self-test')) selfTest();
+  else if (args.includes('--results-root')) console.log(resultsRoot());
   else {
     const baseAt = args.indexOf('--base'), base = baseAt >= 0 ? args[baseAt + 1] : 'origin/dev';
     const changed = gitChanged(base).filter(f => /^(pmo-portal\/(pages|src\/(components|hooks|lib\/repositories))\/|pmo-portal\/public\/locales\/)/.test(f));
