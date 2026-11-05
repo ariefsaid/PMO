@@ -23,6 +23,7 @@ import type { RecordHistoryRepository } from './contracts/recordHistory';
 import type { ProjectStageRepository } from './contracts/projectStages';
 import type { SubcontractRepository } from './contracts/subcontracts';
 import type { ProjectMoneyRepository } from './contracts/projectMoney';
+import type { ProjectOverviewRepository } from './contracts/projectOverview';
 import type { DashboardRepository } from './contracts/dashboard';
 import type { AgentRunRepository } from './contracts/agentRuns';
 import type {
@@ -156,6 +157,7 @@ export interface Repositories {
   odoo: OdooRepository;
   reports: ReportsRepository;
   projectMoney: ProjectMoneyRepository;
+  projectOverview: ProjectOverviewRepository;
   dashboard: DashboardRepository;
   agentRun: AgentRunRepository;
 }
@@ -172,6 +174,7 @@ export type { MeetingRepository } from './contracts/meetings';
 export type { AgentAttachmentRepository, DocumentRepository, M365DocumentSettingsRepository, M365RecordFoldersRepository } from './contracts/documents';
 export type { ProcurementFileRepository, ProcurementListOptions, ProcurementListRow, ProcurementRepository } from './contracts/procurement';
 export type { ProjectMoneyRepository } from './contracts/projectMoney';
+export type { ProjectOverviewRepository } from './contracts/projectOverview';
 export type { DashboardRepository } from './contracts/dashboard';
 export type { AgentRunRepository } from './contracts/agentRuns';
 export type { RevenueRepository } from './contracts/revenue';
