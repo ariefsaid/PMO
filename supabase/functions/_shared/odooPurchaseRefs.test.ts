@@ -271,6 +271,11 @@ describe('AC-OPP-040 / 042 / 046 the bill inputs', () => {
     assertEquals([r.ctx.costAccountId, r.ctx.companyId, r.ctx.currencyId], ['101', 1, CURRENCY_ID]);
   });
 
+  it('AC-OPP-042 accepts the decimal-string tax IDs sent by the purchase tax picker', async () => {
+    const r = await run({}, { taxIds: ['11', '12'] });
+    assertEquals(r.ctx.taxes.map((tax) => tax.id), [11, 12]);
+  });
+
   it('a bill with no order is free-standing: no line is linked and no Odoo order line is read', async () => {
     const calls: string[] = [];
     const r = await run({ po: false }, { taxIds: [11] }, CHOICE, calls);

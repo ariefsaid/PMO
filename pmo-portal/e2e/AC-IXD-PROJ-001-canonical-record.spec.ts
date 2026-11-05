@@ -1,6 +1,6 @@
 // @e2e-isolation: self-isolated — unique deal name (Date.now()), PM creates Leads deal → appears in Pipeline (absent from Projects); opens from Pipeline → canonical /projects/:id with pipeline lens; opens on-hand P003 from Projects → delivery lens; no seed mutation.
 import { test, expect, type Page } from '@playwright/test';
-import { login, pickComboboxOption, openPipelineCard } from './helpers';
+import { login, pickComboboxOption, openPipelineCard, stubErpProjectSync } from './helpers';
 
 /**
  * Model B — ONE canonical project/opportunity record (ADR-0020).
@@ -44,6 +44,7 @@ test(
   async ({ page }) => {
     const runId = Date.now();
     const dealName = `E2E-Canonical-${runId}`;
+    await stubErpProjectSync(page);
 
     // ── A PM creates a new project (origination status = Leads) ──────────────────
     await login(page, 'pm@acme.test');
@@ -80,6 +81,10 @@ test(
     // CW-1 r2fix-enforce: aria-label "Deal stage journey" → "Project stage journey"
     await expect(page.getByLabel('Project stage journey')).toBeVisible();
     await expect(page.getByRole('button', { name: /Advance to/i })).toBeVisible();
+    // AC-1796: a new Leads opportunity starts with owner-ruled Go/Get estimates and exposes both
+    // independent values on the canonical project detail for its editor.
+    await expect(page.getByLabel('Chance the project proceeds (%)')).toHaveValue('10');
+    await expect(page.getByLabel('Chance we win if the client proceeds (%)')).toHaveValue('25');
     // ADR-0021 (owner override of ADR-0020 §1): the delivery tabs ARE shown pre-win — a PM must be
     // able to plan budget/tasks/procurement while pursuing the deal. The banner sits ABOVE them.
     await expect(page.getByRole('tablist', { name: /project sections/i })).toBeVisible();

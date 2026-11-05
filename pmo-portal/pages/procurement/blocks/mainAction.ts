@@ -1,6 +1,6 @@
 import type { TFunction } from 'i18next';
 import { can } from '@/src/auth/policy';
-import { isLegalTransition, canCancel, type ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
+import { isLegalTransition, canCancel, type ProcurementStatus, type ProcurementDetail } from '@/src/lib/db/procurementLifecycle';
 
 
 // ---------------------------------------------------------------------------
@@ -38,11 +38,11 @@ export function allowedActions(
   // `t(action.labelKey)` would be invisible to the en-side completeness gate (FR-L10N-042a).
   t: TFunction,
   /** #803: false when the request is routed to named approvers who do not include the viewer. */
-  routeAllows: boolean = true,
+  routeAllows: boolean,
   /** FR-PFE-005: a payment was recorded at an earlier step (payment-first). */
-  hasPaymentRecord: boolean = false,
+  hasPaymentRecord: boolean,
   /** D2 review C3: Mark as Paid needs something to pay — a line item or a recorded amount. */
-  hasValue: boolean = true,
+  hasValue: boolean,
 ): ProcurementAction[] {
   const actions: ProcurementAction[] = [];
 
@@ -183,4 +183,17 @@ export function stateMainAction(
               : status === 'Vendor Invoiced' ? t('procurementRecord:action.recordPayment', 'Record payment')
                 : transition.label;
   return { transition, label };
+}
+
+/** Whether the effective role/identity may not yet advance — drives the SoD gate copy. */
+export function sodGateMessage(p: ProcurementDetail, role: string, isRequester: boolean): string | null {
+  // Approval gate: a Requested PR awaiting a non-requester approver.
+  if (p.status === 'Requested' && isRequester) {
+    return `This procurement was raised by ${p.requested_by?.full_name ?? 'you'}. A different user holding the Project-Manager, Finance, or Executive role must review it — the requester cannot self-approve their own procurement.`;
+  }
+  // Receipt gate: an Ordered PR where the viewer cannot confirm receipt.
+  if (p.status === 'Ordered' && !(isRequester || RECEIPT_ROLES.has(role))) {
+    return 'To advance from Purchase Order to Goods Receipt, the requester or a Project-Manager must confirm receipt of the goods.';
+  }
+  return null;
 }

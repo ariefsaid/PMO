@@ -284,12 +284,10 @@ export async function resolveBindingLive(
  *  (resolvePmoRecordId/updateMirror/mintMirror/watermark/recordExternalRef + the CLAIM-first adopt
  *  strategy) + tombstoneMirror + archiveMirror. Exported for the shipped-wiring unit test (the
  *  binding guard requires tests to import the shipped module, not a copy). `archiveMirror` writes
- *  `tasks.archived_at` — that column ships on migration 0123 (`origin/feat/task-model-fields`), NOT on
- *  `dev` yet (see docs/plans/2026-07-20-clickup-integration-completion.md's OD-INT-9 note). This write
- *  path is coded AGAINST that column now (the correct shipped behavior once merged); it will 42703
- *  (undefined column) if actually exercised against a `dev` DB before that migration lands. Nothing
- *  exercises this path today (the flag is off, no live archive events occur) — see the ONE skipped
- *  integration-style test in index.test.ts naming this dependency. */
+ *  `tasks.archived_at` — the column ships on migration 0140 (`task_model_fields`). The write is
+ *  exercised end-to-end in index.test.ts's OD-INT-9 archive test (#1883) against an in-memory
+ *  supabase-js-shaped client; the pure apply + a MOCKED archiveMirror stay covered in
+ *  webhookApply.test.ts. */
 export function buildApplyDepsLive(serviceClient: SupabaseClient, binding: ResolvedBinding): WebhookApplyDeps {
   const mirrorCallbacks = createClickUpMirrorCallbacks({
     serviceClient,

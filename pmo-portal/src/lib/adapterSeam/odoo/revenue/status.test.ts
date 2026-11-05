@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { classifyPaymentDirection, creditNoteStatus, invoiceStatus, paymentStatus } from './status.ts';
+import { creditNoteStatus, invoiceReceiptAwaitingOdoo, invoiceStatus, paymentStatus } from './status.ts';
 
 describe('AC-OCI-071 invoice status is read from Odoo, never set by PMO', () => {
   it.each([
@@ -34,27 +34,70 @@ describe('AC-OCI-071 credit notes mirror as negative documents; cancelled is mar
 
 describe('AC-OCI-071 receipt status', () => {
   it.each([
-    ['draft', { mirrored: false, status: null, cancelled: false }],
-    ['paid', { mirrored: true, status: 'Posted', cancelled: false }],
-    ['in_process', { mirrored: true, status: 'Posted', cancelled: false }],
-    ['posted', { mirrored: true, status: 'Posted', cancelled: false }],
+    ['draft', { mirrored: true, status: 'Scheduled', cancelled: false }],
+    ['paid', { mirrored: true, status: 'Paid', cancelled: false }],
+    ['reconciled', { mirrored: true, status: 'Paid', cancelled: false }],
     ['canceled', { mirrored: true, status: 'Cancelled', cancelled: true }],
-    ['cancel', { mirrored: true, status: 'Cancelled', cancelled: true }],
     ['rejected', { mirrored: true, status: 'Cancelled', cancelled: true }],
+    ['in_process', { mirrored: false, status: null, cancelled: false }],
+    ['posted', { mirrored: false, status: null, cancelled: false }],
+    ['cancel', { mirrored: false, status: null, cancelled: false }],
     ['weird', { mirrored: false, status: null, cancelled: false }],
   ] as const)('%s → %o', (state, expected) => expect(paymentStatus(state)).toEqual(expected));
 });
 
-describe('AC-OCI-071 payment direction follows what Odoo states, as the shared receipt.read expectations', () => {
-  const receipt = { kind: 'receipt', domain: 'revenue', table: 'incoming_payments' };
-  const vendor = { kind: 'vendor-payment', domain: 'procurement', table: 'payments' };
-  it('inbound from a customer is a receipt; outbound to a supplier is a vendor payment', () => {
-    expect(classifyPaymentDirection('inbound', 'customer')).toEqual(receipt);
-    expect(classifyPaymentDirection('outbound', 'supplier')).toEqual(vendor);
+describe('AC-OCI-054 a receipt does not mark its invoice Paid before a fresh Odoo invoice read', () => {
+  it('shows awaiting Odoo while the latest receipt command is newer than the invoice mirror', () => {
+    expect(invoiceReceiptAwaitingOdoo({
+      invoiceStatus: 'Unpaid',
+      invoiceErpModified: '2026-11-02T09:00:00.000Z',
+      receiptCommandState: 'confirmed',
+      receiptCommandCreatedAt: '2026-11-02T09:00:30.000Z',
+    })).toBe(true);
   });
-  it('anything else, blank or absent is skipped, never guessed (a customer refund and a supplier refund included)', () => {
-    for (const [type, partner] of [['inbound', 'supplier'], ['outbound', 'customer'], ['transfer', 'customer'], ['', ''], [undefined, undefined], ['inbound', undefined], [undefined, 'customer'], ['INBOUND', 'customer'], [false, false]] as const) {
-      expect(classifyPaymentDirection(type as never, partner as never), `${type}/${partner}`).toEqual({ kind: 'skipped' });
-    }
+
+  it('clears awaiting Odoo after the invoice mirror advances past the receipt command', () => {
+    expect(invoiceReceiptAwaitingOdoo({
+      invoiceStatus: 'Unpaid',
+      invoiceErpModified: '2026-11-02T09:02:00.000Z',
+      receiptCommandState: 'confirmed',
+      receiptCommandCreatedAt: '2026-11-02T09:00:30.000Z',
+    })).toBe(false);
+  });
+
+  it('keeps awaiting Odoo when second-resolution timestamps are equal because read order is ambiguous', () => {
+    expect(invoiceReceiptAwaitingOdoo({
+      invoiceStatus: 'Unpaid',
+      invoiceErpModified: '2026-11-02T09:00:30.000Z',
+      receiptCommandState: 'confirmed',
+      receiptCommandCreatedAt: '2026-11-02T09:00:30.000Z',
+    })).toBe(true);
+  });
+
+  it('stays awaiting while the receipt is still committing even if a read falls after outbox creation', () => {
+    expect(invoiceReceiptAwaitingOdoo({
+      invoiceStatus: 'Unpaid',
+      invoiceErpModified: '2026-11-02T09:00:30.000Z',
+      receiptCommandState: 'committing',
+      receiptCommandCreatedAt: '2026-11-02T09:00:00.000Z',
+    })).toBe(true);
+  });
+
+  it.each(['Paid', 'Cancelled'])('%s remains authoritative even if a receipt command is newer', (invoiceStatus) => {
+    expect(invoiceReceiptAwaitingOdoo({
+      invoiceStatus,
+      invoiceErpModified: null,
+      receiptCommandState: 'committed',
+      receiptCommandCreatedAt: '2026-11-02T09:00:00.000Z',
+    })).toBe(false);
+  });
+
+  it('does not call a failed receipt a sent receipt', () => {
+    expect(invoiceReceiptAwaitingOdoo({
+      invoiceStatus: 'Unpaid',
+      invoiceErpModified: null,
+      receiptCommandState: 'failed',
+      receiptCommandCreatedAt: '2026-11-02T09:00:00.000Z',
+    })).toBe(false);
   });
 });

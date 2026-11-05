@@ -16,6 +16,7 @@ import {
   getM365ConnectionStatus,
   describeM365Error,
   classifyM365InvokeError,
+  throwClassifiedM365Error,
   keepsFolderPermission,
 } from '../connectClient';
 import { AppError } from '../../appError';
@@ -369,5 +370,22 @@ describe('RF-8 keepsFolderPermission', () => {
     expect(keepsFolderPermission(status([]))).toBe(false);
     expect(keepsFolderPermission(undefined)).toBe(false);
     expect(keepsFolderPermission(null)).toBe(false);
+  });
+});
+
+describe('throwClassifiedM365Error (shared by the connect, Graph and record-folder clients)', () => {
+  it('maps a known stable code to its reviewed copy', async () => {
+    const e = await captureThrow(() => throwClassifiedM365Error(httpError({ error: 'FORBIDDEN', message: 'raw' })));
+    expect(e.code).toBe('FORBIDDEN');
+    expect(e.message).toBe(describeM365Error('FORBIDDEN'));
+  });
+  it('ignores a non-string code and never echoes the raw body', async () => {
+    const e = await captureThrow(() => throwClassifiedM365Error(httpError({ error: { x: 1 }, message: 'raw secret' })));
+    expect(e.message).toBe(describeM365Error(undefined));
+    expect(e.message).not.toContain('secret');
+  });
+  it('classifies a network failure as external-unreachable', async () => {
+    const e = await captureThrow(() => throwClassifiedM365Error(networkError('name resolution failed')));
+    expect(e.code).toBe('external-unreachable');
   });
 });

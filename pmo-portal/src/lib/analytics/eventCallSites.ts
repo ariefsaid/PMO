@@ -21,6 +21,7 @@ import type { AnalyticsEventName } from './events';
 export const EVENT_PRODUCERS: Record<AnalyticsEventName, { producer: string; kind: 'facade' | 'provider' }> = {
   demo_persona_selected:     { producer: 'trackDemoPersonaSelected',    kind: 'facade' },
   app_route_viewed:          { producer: 'AnalyticsProvider',           kind: 'provider' },
+  route_first_data:          { producer: 'AnalyticsProvider',           kind: 'provider' },
   auth_login_succeeded:      { producer: 'trackAuthLoginSucceeded',     kind: 'facade' },
   auth_login_failed:         { producer: 'trackAuthLoginFailed',        kind: 'facade' },
   auth_logout_succeeded:     { producer: 'trackAuthLogoutSucceeded',    kind: 'facade' },

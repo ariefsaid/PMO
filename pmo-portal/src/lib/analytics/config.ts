@@ -19,12 +19,10 @@ export interface DemoContext {
 export interface AnalyticsConfig extends DemoContext {
   enabled: boolean;
   demoMode: boolean;
-  analyticsEnabled: boolean;
   replayAndAutocapture: boolean;
   posthogKey: string;
   posthogHost: string;
   appEnv: string;
-  isDev: boolean;
   isProd: boolean;
 }
 
@@ -52,8 +50,18 @@ export function parseDemoContext(args: {
   const params = new URLSearchParams(args.search.startsWith('?') ? args.search.slice(1) : args.search);
   const da = cleanSlug(params.get('da'));
   const explicitAccount = cleanSlug(params.get('demo_account'));
-  const storedAudience = args.storage?.getItem(SESSION_AUDIENCE) as DemoAudience | null;
-  const storedAccount = cleanSlug(args.storage?.getItem(SESSION_ACCOUNT) ?? null);
+  // Storage reads are best-effort: browsers that block storage access throw from the
+  // read itself (private mode, embedded webviews). Degrade to the URL/in-memory
+  // defaults instead of letting analytics setup interrupt the app — the same contract
+  // the consent client applies to its localStorage opt-out flag.
+  let storedAudience: DemoAudience | null = null;
+  let storedAccount: string | null = null;
+  try {
+    storedAudience = (args.storage?.getItem(SESSION_AUDIENCE) as DemoAudience | null) ?? null;
+    storedAccount = cleanSlug(args.storage?.getItem(SESSION_ACCOUNT) ?? null);
+  } catch {
+    /* storage blocked — fall through to the in-memory defaults */
+  }
 
   let ctx = fallback;
   if (da === 'internal') ctx = { demoAudience: 'internal', demoAccount: explicitAccount ?? 'default' };
@@ -70,10 +78,30 @@ export function parseDemoContext(args: {
 
 export function persistDemoContext(
   ctx: DemoContext,
-  storage: Pick<Storage, 'setItem'>,
+  storage?: Pick<Storage, 'setItem'>,
 ): void {
-  storage.setItem(SESSION_AUDIENCE, ctx.demoAudience);
-  storage.setItem(SESSION_ACCOUNT, ctx.demoAccount);
+  // Best-effort write: blocked or quota-exceeded storage must not crash the provider's
+  // persistence effect — the context still applies for this session in memory.
+  try {
+    storage?.setItem(SESSION_AUDIENCE, ctx.demoAudience);
+    storage?.setItem(SESSION_ACCOUNT, ctx.demoAccount);
+  } catch {
+    /* storage unavailable — nothing to persist, carry on */
+  }
+}
+
+/**
+ * Obtain `sessionStorage` without letting a BLOCKED browser throw: merely touching
+ * `window.sessionStorage` raises SecurityError in browsers that deny storage access
+ * (private mode, embedded webviews). Returns undefined there and callers fall back to
+ * the in-memory demo defaults — the same contract `readOptOut` applies to localStorage.
+ */
+export function safeSessionStorage(): Pick<Storage, 'getItem' | 'setItem'> | undefined {
+  try {
+    return typeof window === 'undefined' ? undefined : window.sessionStorage;
+  } catch {
+    return undefined; // storage access blocked entirely
+  }
 }
 
 /**
@@ -89,7 +117,7 @@ export const isValidPosthogKey = (key: string | undefined): boolean =>
 export function getAnalyticsConfig(
   env: EnvLike = import.meta.env,
   search = typeof window === 'undefined' ? '' : window.location.search,
-  storage: Pick<Storage, 'getItem' | 'setItem'> | undefined = typeof window === 'undefined' ? undefined : window.sessionStorage
+  storage: Pick<Storage, 'getItem' | 'setItem'> | undefined = safeSessionStorage()
 ): AnalyticsConfig {
   const demoMode = env.VITE_DEMO_MODE === 'true';
   const analyticsEnabled = env.VITE_ANALYTICS_ENABLED === 'true';
@@ -103,12 +131,10 @@ export function getAnalyticsConfig(
   return {
     enabled,
     demoMode,
-    analyticsEnabled,
     replayAndAutocapture: demoMode && !isDev && demo.demoAudience === 'prospect',
     posthogKey: isValidPosthogKey(env.VITE_POSTHOG_KEY) ? env.VITE_POSTHOG_KEY!.trim() : '',
     posthogHost: env.VITE_POSTHOG_HOST || 'https://us.i.posthog.com',
     appEnv: env.VITE_APP_ENV || env.MODE || (isDev ? 'local' : 'prod'),
-    isDev,
     isProd,
     ...demo,
   };

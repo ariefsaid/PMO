@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 import type { Role } from '@/src/auth/AuthContext';
@@ -67,7 +67,7 @@ beforeEach(() => {
   analytics.trackSearchUsed.mockClear();
   analytics.trackEmptyStateSeen.mockClear();
   realRole = 'Admin';
-  vi.useFakeTimers();
+  vi.useFakeTimers({ shouldAdvanceTime: true });
 });
 
 afterEach(() => {
@@ -93,14 +93,15 @@ describe('Incidents: search_used fires (debounced) at the search box', () => {
 });
 
 describe('Incidents: empty_state_seen fires when there are zero incidents (FIX 1)', () => {
-  it('AC: renders the empty ListState and fires empty_state_seen with state_id/role/module', () => {
+  it('AC: renders the empty ListState and fires empty_state_seen with state_id/role/module', async () => {
     listState.data = [];
     renderPage('Project Manager');
     expect(screen.getByText('No incidents reported')).toBeInTheDocument();
-    expect(analytics.trackEmptyStateSeen).toHaveBeenCalledWith(
+    // The facade is loaded lazily (ListState defers the analytics chunk off the first paint).
+    await waitFor(() => expect(analytics.trackEmptyStateSeen).toHaveBeenCalledWith(
       'incidents-empty',
       'Project Manager',
       'incidents',
-    );
+    ));
   });
 });

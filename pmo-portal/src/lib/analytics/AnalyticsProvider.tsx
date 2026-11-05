@@ -2,11 +2,12 @@ import React, { useEffect, useMemo, useRef } from 'react';
 import { useLocation } from 'react-router';
 import { useAuth } from '@/src/auth/useAuth';
 import { useOrgPlanGroup } from '@/src/hooks/useOrgPlanGroup';
-import { getAnalyticsConfig, persistDemoContext } from './config';
+import { getAnalyticsConfig, persistDemoContext, safeSessionStorage } from './config';
 import { analyticsClient } from './client';
 import { safeTrack } from './safeTrack';
 import { routeAnalyticsForPath } from './route';
 import { rejectionMessage } from './rejectionMessage';
+import { useRouteFirstData } from './useRouteFirstData';
 
 const baseSuperProperties = (cfg: {
   appEnv: string;
@@ -26,6 +27,7 @@ export const AnalyticsProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   // Plans S4 (FR-PLN-016): the org's plan as a PostHog group property (consent-gated inside the client).
   useOrgPlanGroup();
+  useRouteFirstData();
 
   // Memoize config to provide stable reference for useEffect deps
   const config = useMemo(() => getAnalyticsConfig(), []);
@@ -38,7 +40,7 @@ export const AnalyticsProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     analyticsClient.init(config);
     analyticsClient.register(superProperties);
     if (config.demoMode) {
-      persistDemoContext(config, window.sessionStorage);
+      persistDemoContext(config, safeSessionStorage());
     }
   }, [config, superProperties]);
 

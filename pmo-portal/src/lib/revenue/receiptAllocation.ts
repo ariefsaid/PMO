@@ -35,7 +35,7 @@ export function knownUnappliedCash(row: IncomingPaymentRow): number | null {
 }
 
 /**
- * The allocations to show for a row. A receipt PMO itself recorded settles exactly its one named invoice (PMO is the
+ * The allocations to show for a row. A receipt PMO itself recorded (native, or sent to Odoo) settles exactly its one named invoice (PMO is the
  * authority, so nothing is "unreported"); an ERP-mirrored receipt shows only what the ERP reported (`null` = unknown).
  */
 export function displayAllocations(
@@ -43,7 +43,8 @@ export function displayAllocations(
   invoiceNumberOf: (invoiceId: string) => string | null,
 ): ReceiptAllocation[] | null {
   const mirrored = receiptAllocations(row);
-  if (mirrored !== null || !row.pmo_native) return mirrored;
+  // A receipt PMO sent to Odoo (it has a send command) is PMO's own record too: it names the one invoice it settles.
+  if (mirrored !== null || !(row.pmo_native || row.push_command_state != null)) return mirrored;
   const number = row.sales_invoice_id ? invoiceNumberOf(row.sales_invoice_id) : null;
   if (!row.sales_invoice_id || number === null || row.amount == null) return null;
   return [{ invoice_id: row.sales_invoice_id, invoice_number: number, amount: row.amount.toFixed(2), currency: row.currency }];

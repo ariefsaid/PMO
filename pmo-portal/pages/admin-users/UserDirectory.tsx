@@ -1,16 +1,19 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Toolbar,
   SearchMini,
   ListState,
   DataTable,
   StatusPill,
+  Button,
+  Icon,
   type Column,
   type RowMenuItem,
 } from '@/src/components/ui';
 import { useTranslation } from 'react-i18next';
 import { roleVariant } from '@/src/lib/status/statusVariants';
-import type { UserRow } from '@/src/lib/db/adminUsers';
+import { formatNumberWhole } from '@/src/lib/format';
+import type { UserDirectoryRow } from '@/src/lib/db/adminUsers';
 import { Avatar } from './userPresentation';
 import { useRoleLabels } from './roleLabels';
 
@@ -23,26 +26,63 @@ import { useRoleLabels } from './roleLabels';
  * affordances a resolved permission set exposes.
  */
 export interface UserDirectoryProps {
-  rows: UserRow[];
+  /** The visible server page (never the whole org). */
+  rows: UserDirectoryRow[];
+  /** Exact count of people matching the current search, over the WHOLE org. */
+  total: number;
+  page: number;
+  pageSize: number;
+  /** The committed (debounced) search term the current page was read with. */
+  search: string;
+  onSearchChange: (search: string) => void;
+  onPageChange: (page: number) => void;
   state: 'loading' | 'empty' | 'error' | undefined;
   onRetry: () => void;
+  /** True while a page/search change is in flight; the previous page stays visible. */
+  busy?: boolean;
   canManage: boolean;
   canDisable: boolean;
   currentUserId: string | undefined;
-  isSoleAdmin: (u: UserRow) => boolean;
-  onEditRole: (u: UserRow) => void;
-  onChangeManager: (u: UserRow) => void;
-  onSetStatus: (u: UserRow, status: 'active' | 'disabled') => void;
+  isSoleAdmin: (u: UserDirectoryRow) => boolean;
+  /** True when the sole-Admin count could not be resolved — never treated as "not sole". */
+  isAdminStateUnknown: (u: UserDirectoryRow) => boolean;
+  /**
+   * The manager jump target. `userId` is the identity that is highlighted (never a name match);
+   * `state` distinguishes a lookup still running / succeeded / failed / person-not-readable so
+   * every case can be shown and recovered from.
+   */
+  focus: {
+    userId: string;
+    name: string;
+    state: 'locating' | 'located' | 'error' | 'unavailable';
+    onReturn: () => void;
+    onRetry: () => void;
+  } | null;
+  /** Move the directory to the page holding this person (bounded exact-person lookup). */
+  onJumpToUser: (userId: string, name: string) => void;
+  onEditRole: (u: UserDirectoryRow) => void;
+  onChangeManager: (u: UserDirectoryRow) => void;
+  onSetStatus: (u: UserDirectoryRow, status: 'active' | 'disabled') => void;
 }
 
 export const UserDirectory: React.FC<UserDirectoryProps> = ({
   rows,
+  total,
+  page,
+  pageSize,
+  search,
+  onSearchChange,
+  onPageChange,
   state,
   onRetry,
+  busy = false,
   canManage,
   canDisable,
   currentUserId,
   isSoleAdmin,
+  isAdminStateUnknown,
+  focus,
+  onJumpToUser,
   onEditRole,
   onChangeManager,
   onSetStatus,
@@ -50,53 +90,51 @@ export const UserDirectory: React.FC<UserDirectoryProps> = ({
   const { t } = useTranslation();
   const roleNames = useRoleLabels();
   const tableRef = useRef<HTMLDivElement>(null);
-  const [search, setSearch] = useState('');
+  // The input stays local and responsive; the SERVER query is only issued after the person stops
+  // typing (300 ms), so one keystroke never becomes one whole-org read.
+  const [typed, setTyped] = useState(search);
+  useEffect(() => { setTyped(search); }, [search]);
+  useEffect(() => {
+    const next = typed.trim();
+    if (next === search) return;
+    const timer = setTimeout(() => onSearchChange(next), 300);
+    return () => clearTimeout(timer);
+  }, [typed, search, onSearchChange]);
 
   const byId = useMemo(() => {
-    const m = new Map<string, UserRow>();
+    const m = new Map<string, UserDirectoryRow>();
     rows.forEach((u) => m.set(u.id, u));
     return m;
   }, [rows]);
 
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return rows;
-    return rows.filter(
-      (u) => u.full_name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q),
-    );
-  }, [rows, search]);
-
   /**
-   * AD-1 (AC-JR-W3B-E1): scroll the table to the manager's row and highlight it
-   * transiently (same-screen lever; no user-detail route exists yet).
+   * AD-1 (AC-JR-W3B-E1): a manager click resolves the manager's actual PAGE (bounded exact-person
+   * lookup) and highlights that row. Both the same-page and the other-page case go through the
+   * person's ID: a name is not an identity in a directory (two people can share one, and an earlier
+   * row's manager cell can contain the same name).
    */
-  const scrollToManager = (managerId: string) => {
-    const manager = byId.get(managerId);
-    if (!manager || !tableRef.current) return;
-    // Find the <tr> or card element whose text contains the manager's name.
-    // DataTable renders both a table branch (md+) and a card branch (<md).
-    const container = tableRef.current;
-    const allRows = [
-      ...Array.from(container.querySelectorAll<HTMLElement>('tr[class]')),
-      ...Array.from(container.querySelectorAll<HTMLElement>('[data-testid="dt-card-branch"] > div')),
-    ];
-    const target = allRows.find((el) => el.textContent?.includes(manager.full_name));
-    if (target) {
-      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      // Transient highlight ring so the user sees which row was navigated to.
-      target.style.outline = '2px solid hsl(var(--primary))';
-      target.style.outlineOffset = '-2px';
-      target.style.borderRadius = '4px';
-      const timer = setTimeout(() => {
-        target.style.outline = '';
-        target.style.outlineOffset = '';
-        target.style.borderRadius = '';
-      }, 1600);
-      return () => clearTimeout(timer);
-    }
-  };
+  const rowDomId = (userId: string) => `admin-user-row-${userId}`;
 
-  const columns: Column<UserRow>[] = [
+  // Manager jump landed: bring the TARGET ROW into view and ring it once, by id.
+  useEffect(() => {
+    if (focus?.state !== 'located') return;
+    const container = tableRef.current;
+    if (!container) return;
+    const target = container.querySelector<HTMLElement>(`[id="${rowDomId(focus.userId)}"]`);
+    if (!target) return;
+    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    target.style.outline = '2px solid hsl(var(--primary))';
+    target.style.outlineOffset = '-2px';
+    target.style.borderRadius = '4px';
+    const timer = setTimeout(() => {
+      target.style.outline = '';
+      target.style.outlineOffset = '';
+      target.style.borderRadius = '';
+    }, 1600);
+    return () => clearTimeout(timer);
+  }, [focus?.state, focus?.userId, rows]);
+
+  const columns: Column<UserDirectoryRow>[] = [
     {
       key: 'user',
       header: t('admin.users.columns.user', 'User'),
@@ -136,26 +174,28 @@ export const UserDirectory: React.FC<UserDirectoryProps> = ({
       key: 'manager',
       header: t('admin.users.columns.manager', 'Manager'),
       colClassName: 'hidden md:table-cell',
-      // AD-1 (AC-JR-W3B-E1): clicking the manager name scrolls to that manager's
-      // row in the same table (no user-detail route exists; keep small).
+      // AD-1 (AC-JR-W3B-E1): clicking the manager name shows that person: their page (bounded
+      // exact-person lookup), their row highlighted, and a way back. The manager's NAME comes from
+      // the row's server-side embed, so it is correct even when the manager sits on another page;
+      // the TARGET is always the real id.
       cell: (u) => {
         const manager = u.manager_id ? byId.get(u.manager_id) : undefined;
-        return manager ? (
+        const name = manager?.full_name ?? u.manager?.full_name ?? null;
+        if (!name || !u.manager_id) return <span className="text-muted-foreground">{t('admin.users.noManager', 'No manager')}</span>;
+        return (
           <button
             type="button"
-            onClick={() => scrollToManager(manager.id)}
+            onClick={() => onJumpToUser(u.manager_id as string, name)}
             className="truncate text-left text-[13px] underline-offset-2 hover:text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
           >
-            {manager.full_name}
+            {name}
           </button>
-        ) : (
-          <span className="text-muted-foreground">{t('admin.users.noManager', 'No manager')}</span>
         );
       },
     },
   ];
 
-  const rowMenu = (u: UserRow): RowMenuItem[] => {
+  const rowMenu = (u: UserDirectoryRow): RowMenuItem[] => {
     const items: RowMenuItem[] = [];
     // 0179 (profiles_hierarchy_write): the write RLS denies an Admin editing their OWN
     // role or manager_id. Gate the two self-edit affordances off on the caller's own row
@@ -172,7 +212,7 @@ export const UserDirectory: React.FC<UserDirectoryProps> = ({
     if (canDisable) {
       if (u.status === 'disabled') {
         items.push({ label: t('admin.users.menu.reEnable', 'Re-enable'), onClick: () => onSetStatus(u, 'active') });
-      } else if (!isSelf && !isSoleAdmin(u)) {
+      } else if (!isSelf && !isSoleAdmin(u) && !isAdminStateUnknown(u)) {
         items.push({ label: t('admin.users.menu.disable', 'Disable'), danger: true, onClick: () => onSetStatus(u, 'disabled') });
       }
     }
@@ -186,13 +226,13 @@ export const UserDirectory: React.FC<UserDirectoryProps> = ({
         <Toolbar standalone>
           <span className="text-[13px] font-semibold">{t('admin.users.allUsers', 'All users')}</span>
           {state === undefined && (
-            <span className="text-[12.5px] text-muted-foreground tabular">{rows.length}</span>
+            <span className="text-[12.5px] text-muted-foreground tabular" data-testid="admin-users-total">{formatNumberWhole(total)}</span>
           )}
           <SearchMini
             placeholder={t('admin.users.search.placeholder', 'Search by name or email…')}
             aria-label={t('admin.users.search.label', 'Search users')}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            value={typed}
+            onChange={(e) => setTyped(e.target.value)}
             containerClassName="max-sm:basis-full max-sm:w-full max-sm:min-w-0 sm:ml-auto"
           />
         </Toolbar>
@@ -225,17 +265,54 @@ export const UserDirectory: React.FC<UserDirectoryProps> = ({
       )}
 
       {state === undefined && (
-        <div ref={tableRef}>
-          <DataTable<UserRow>
-            rows={filtered}
-            columns={columns}
-            rowKey={(u) => u.id}
-            rowMenu={canManage || canDisable ? rowMenu : undefined}
-            state={filtered.length === 0 ? 'empty' : undefined}
-            emptyTitle={t('admin.users.noMatch.title', 'No users match your search')}
-            emptySub={t('admin.users.noMatch.sub', 'Try a different name or email.')}
-          tableId="adminusers-table" />
-        </div>
+        <>
+          {focus && (
+            <div role="status" data-testid="admin-users-focus" className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-card px-3 py-2 text-[13px]">
+              <span>
+                {focus.state === 'locating'
+                  ? t('administration:admin.users.focus.locating', 'Finding {{name}}…', { name: focus.name })
+                  : focus.state === 'error'
+                    ? t('administration:admin.users.focus.error', "Couldn't find where {{name}} is in the directory.", { name: focus.name })
+                    : focus.state === 'unavailable'
+                      ? t('administration:admin.users.focus.unavailable', '{{name}} is no longer in your directory.', { name: focus.name })
+                      : t('administration:admin.users.focus.showing', 'Showing {{name}} — the person you followed from your page.', { name: focus.name })}
+              </span>
+              <span className="flex gap-2">
+                {focus.state === 'error' && (
+                  <Button variant="ghost" size="sm" onClick={focus.onRetry}>{t('administration:admin.users.focus.retry', 'Retry')}</Button>
+                )}
+                <Button variant="ghost" size="sm" onClick={focus.onReturn}>{t('administration:admin.users.focus.return', 'Back to your page')}</Button>
+              </span>
+            </div>
+          )}
+          <div ref={tableRef} aria-busy={busy || undefined}>
+            <DataTable<UserDirectoryRow>
+              rows={rows}
+              columns={columns}
+              rowKey={(u) => u.id}
+              rowTarget={(u) => rowDomId(u.id)}
+              rowMenu={canManage || canDisable ? rowMenu : undefined}
+              state={rows.length === 0 ? 'empty' : undefined}
+              emptyTitle={t('admin.users.noMatch.title', 'No users match your search')}
+              emptySub={t('admin.users.noMatch.sub', 'Try a different name or email.')}
+            tableId="adminusers-table" />
+          </div>
+          {total > 0 && (
+            <nav aria-label={t('administration:admin.users.pager.label', 'Pages')} className="mt-3 flex items-center justify-between gap-3 text-[13px] tabular-nums">
+              <span data-testid="admin-users-range" aria-live="polite" aria-atomic="true">
+                {t('administration:admin.users.pager.range', '{{from}}–{{to}} of {{total}}', {
+                  from: formatNumberWhole((page - 1) * pageSize + 1),
+                  to: formatNumberWhole(Math.min(page * pageSize, total)),
+                  total: formatNumberWhole(total),
+                })}
+              </span>
+              <span className="flex gap-2">
+                <Button variant="outline" size="sm" disabled={page <= 1 || busy} onClick={() => onPageChange(page - 1)} aria-label={t('administration:admin.users.pager.prev', 'Previous page')}><Icon name="back" aria-hidden="true" /></Button>
+                <Button variant="outline" size="sm" disabled={page * pageSize >= total || busy} onClick={() => onPageChange(page + 1)} aria-label={t('administration:admin.users.pager.next', 'Next page')}><Icon name="chev" aria-hidden="true" /></Button>
+              </span>
+            </nav>
+          )}
+        </>
       )}
     </>
   );

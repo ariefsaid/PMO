@@ -34,6 +34,20 @@
 | ECA-6 existing ERP budget | #1603 | Refusal shipped (`erpnext/dispatchBudget.ts:333-341`, code `budget-unowned-live-occupant`). | Whole slice. |
 | ECA-8 scenario e2e | #1607 | Nothing. | Whole slice. |
 
+**Status at `bc72f83be` (2026-11-06), ECA-3 and ECA-6 only.** Both slices are built and merged on `dev`; the tasks in §9 and
+§12 are the as-built record, not open work. Migrations are final: `0494_erp_connect_sends`, `0499_erp_new_item_sends`,
+`0495_budget_occupant_resolution` (no new number needed; next free on `dev` is 0693).
+- **ECA-3 (#1606, open):** PR #1697 (T1–T11) and PR #1735 (T12). ERPNext declares `party.send`, `project.send`, `item.send`
+  supported and `employee.send` unavailable (the ERP requires birth date and gender). Accepting "create in the ERP" rows on the
+  setup screen shipped with ECA-2 (#1851, `ConnectProposalReview.tsx`); send progress shows in `ErpSendStates.tsx` inside
+  `ErpSetupChecklist.tsx`. AC-ECA-010/012 owned by `sendAll.suite.ts` (+ `erp_connect_sends.test.sql`,
+  `erpnext-sweep/connectSends.test.ts`); AC-ECA-011 by `send.suite.ts` and `sendViaOutbox.test.ts`. Left: ECA3-T13.
+- **ECA-6 (#1603, open):** PR #1708. ERPNext declares `budget.resolve-occupant` supported; the actions render in
+  `pages/project-detail/budget/BudgetErpNotice.tsx`. AC-ECA-031 owned by `adapter-dispatch/budgetOccupant.served.test.ts`
+  (+ `budget.suite.ts`, `BudgetOccupantActions.test.tsx`, `erpnext-sweep/budgetOccupantReplace.test.ts`). Left: ECA6-T7.
+- **Odoo parity:** sends supported (`odoo/workflowDeclarations.ts:25-29`); `employee.send` pending O7, `budget.resolve-occupant`
+  pending O4 (#1507). No new follow-up needed: both already sit on filed Odoo issues.
+
 ## 1. Design decisions taken in this plan (`PD-ECA-#`)
 
 - **PD-ECA-1 — Proposal and census storage is one migration in ECA-2, tier-keyed.** Odoo's plan defers to it ("Proposal and
@@ -1319,6 +1333,16 @@ Verify: `PGT supabase/tests/erp_connect_sends.test.sql`; `DENO erpnext-sweep con
 - *Review fix round (2026-11-02):* the outbox no longer writes any link: `sendMasterOnce` makes `recordOutboxRef` a no-op for every kind and `record_connect_send_result` (through `apply_connect_link`) is the one link writer, so an existing link is never re-pointed and a clash ends as a plain-words decision. The drain asks `connect_send_existing_link` before any ERP call and treats a linked record as done. A held send has a way out: `retry_connect_send` (Admin, audited) releases the outbox hold and queues the proposal again; a project sent from its own page leaves the same decision row (`record_connect_record_held`). Unclassified trouble ends the send on the fifth tick (`send_failures`). The drain stops at a dead ERP or after `CONNECT_SENDS_BUDGET_MS`, and the lookup before a create is one bounded attempt. The disconnect trigger in 0494 removes waiting sends and the seed outbox rows that never reached an ERP and holds the rest. `ensure-project` answers in-flight, held and refused sends as 409/409/422 in plain words. The real-ERPNext proof of the create bodies is `sendBodies.bed.test.ts`, gated on the bed (not yet run).
 - *New items after setup (T12, 2026-11-02):* `enqueue_new_item_sends(org, tier)` is in 0499 (service role only, 100 names a tick). It queues one `sending` proposal with `decided_by` null and `snapshot {auto:true}` per distinct open-purchase item name that has no `item_map` key and no item proposal of any state, and only after the item census row's `accepted_at` is set. `drainConnectSends` calls it once per tick before the claim; a failure there is reported (`enqueue:`) and the claim still runs. A proposal the sweep queued skips the accepting-Admin check (it has no accepter); a null decider without `auto` still fails it. The item lookup already tried `item_name` after `item_code` (two hits end as a review row), so no adapter change was needed.
 
+### ECA3-T13 — closeout: real-ERPNext proof of the create bodies (added 2026-11-06)
+Who breaks without it: every send test runs against a fake ERPNext; if the real ERP rejects a create body (a mandatory field
+the fake does not enforce), the first org that connects an empty ERP gets refused sends on day one.
+Run both bed tests under the ERPNext lock, with the bench key pair in the environment (never printed):
+`scripts/with-erpnext-lock.sh bash -c 'cd supabase/functions/external-set-company && deno test sendBodies.bed.test.ts employeeFields.bed.test.ts --config deno.json --allow-env --allow-net --allow-read'`.
+Pass = the output body shows both files `ok` with zero `ignored` (an ignored test means the environment was missing, not a pass).
+A red is the failing test for a fix in `erpnext/connectAdapter.ts` `sendMaster` (TDD: the bed test is the red; add the missing
+field to the fake in `erpnext/contract.harness.ts` so the unit suite catches it next time). Then post the output on #1606 and
+close it; the end-to-end S-C journey stays with ECA-8 (#1607).
+
 ---
 
 ## 10. ECA-4 — cut-over for records in flight (#1601) — **ships alone**
@@ -1706,6 +1730,12 @@ Verify: `V src/components/budget/BudgetOccupantActions.test.tsx src/lib/adapterS
 `erpWrites: 0`. ERPNext harness `serviceClient` answers `budget_occupant_consents` from the scenario. Register
 `'budget.resolve-occupant': budgetResolveSuite`; ERPNext → `supported`.
 Verify: `V src/lib/adapterSeam/contractSuite/tiers.contract.test.ts src/lib/adapterSeam/contractSuite/parity.test.ts`.
+
+### ECA6-T7 — closeout (added 2026-11-06)
+Confirm the AC-ECA-031 owners above ran green in the latest full push-to-`dev` CI run (read the job log bodies for
+`budgetOccupant.served.test.ts`, `budget_occupant_resolution.test.sql` and `BudgetOccupantActions.test.tsx`; not the check
+status). Then close #1603. No bed run: "replace" reuses the shipped cancel-and-amend push that `e2e/serial/AC-BUD-031-reactivation-upsert.spec.ts`
+proves against a real ERPNext on every release PR; the consent only lifts the ownership refusal, which the served test proves both ways.
 
 ---
 

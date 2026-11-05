@@ -11,7 +11,7 @@ import type { HandlerDeps, HandlerResult } from './types.ts';
 import { M365HandlerError, errorResult } from './types.ts';
 import { isAdminOrOperator } from '../_shared/adminOrOperator.ts';
 import { newOpaqueStateToken } from '../_shared/opaqueStateToken.ts';
-import { buildAdminConsentUrl } from './pkce.ts';
+import { buildAdminConsentUrl } from '../../../pmo-portal/src/lib/m365/graphPkce.ts';
 
 /**
  * ACTIVATION gate (FR-M365SEP-004) — Admin-of-org OR platform Operator. This is a DIFFERENT

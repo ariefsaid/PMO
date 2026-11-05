@@ -1,10 +1,12 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
 import { usePermission } from '@/src/auth/usePermission';
 import { useErpnextBinding } from '@/src/hooks/useErpnextBinding';
 import { useErpItemOptions } from '@/src/hooks/useErpItemOptions';
+import { useRemoteStringDraft } from '@/src/hooks/useRemoteStringDraft';
 import { repositories } from '@/src/lib/repositories';
+import { SESSION_QUERY_OPTIONS } from '@/src/lib/queryPolicies';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { Button, Combobox, FieldError, ListState, useToast } from '@/src/components/ui';
 import type { ComboboxOption } from '@/src/components/ui';
@@ -22,17 +24,15 @@ export default function OrgDownPaymentItem() {
   const { loadOptions: loadErpItems } = useErpItemOptions('sales');
   const qc = useQueryClient();
   const { toast } = useToast();
-  const [draft, setDraft] = useState('');
   const [error, setError] = useState<string>();
-  const [remoteChanged, setRemoteChanged] = useState(false);
   const [loadedItems, setLoadedItems] = useState<ComboboxOption[] | null>(null);
   const [itemLoadError, setItemLoadError] = useState(false);
-  const savedBaseline = useRef<string | null | undefined>(undefined);
   const orgId = currentUser?.org_id;
   const queryKey = [ITEM_QUERY_KEY, orgId];
-  const query = useQuery({ queryKey, queryFn: () => repositories.orgSettings.getDownPaymentItem(), enabled: !!currentUser });
+  const query = useQuery({ queryKey, queryFn: () => repositories.orgSettings.getDownPaymentItem(), enabled: !!currentUser, ...SESSION_QUERY_OPTIONS });
   const hasActiveBinding = binding.data?.status === 'active' && !binding.isError;
   const canBrowse = Boolean(canManage && orgId && hasActiveBinding);
+  const { draft, setDraft, dirty, remoteChanged, acceptSaved, reload } = useRemoteStringDraft({ remote: query.data, isSuccess: query.isSuccess });
 
   const loadOptions = useCallback(async () => {
     setItemLoadError(false);
@@ -46,30 +46,10 @@ export default function OrgDownPaymentItem() {
     }
   }, [loadErpItems]);
 
-  useEffect(() => {
-    if (!query.isSuccess) return;
-    const remote = query.data ?? null;
-    if (savedBaseline.current === undefined) {
-      savedBaseline.current = remote;
-      setDraft(remote ?? '');
-      return;
-    }
-    if (remote === savedBaseline.current) return;
-    const local = draft || null;
-    if (local !== savedBaseline.current) {
-      setRemoteChanged(true);
-      return;
-    }
-    savedBaseline.current = remote;
-    setDraft(remote ?? '');
-    setRemoteChanged(false);
-  }, [draft, query.data, query.isSuccess]);
-
   const mutation = useMutation({
     mutationFn: (value: string | null) => repositories.orgSettings.setDownPaymentItem(value),
     onSuccess: (_result, value) => {
-      savedBaseline.current = value;
-      setRemoteChanged(false);
+      acceptSaved(value);
       void qc.invalidateQueries({ queryKey });
       toast(t('uxs11.downPaymentSaved', 'Down payment item saved'), undefined, 'success');
     },
@@ -88,8 +68,7 @@ export default function OrgDownPaymentItem() {
           ? t('uxs11.downPaymentItemUnavailable', 'Saved item is not in the current item list; it remains saved until replaced.')
           : loadedItems?.find((item) => item.value === draft)?.sub,
       };
-  const dirty = draft !== (savedBaseline.current ?? '');
-  const canSaveDraft = !draft || draft === (savedBaseline.current ?? '') || Boolean(loadedItems?.some((item) => item.value === draft));
+  const canSaveDraft = !draft || !dirty || Boolean(loadedItems?.some((item) => item.value === draft));
   const savedValue = query.data ?? t('uxs11.notConfigured', 'Not configured');
 
   return (
@@ -108,10 +87,7 @@ export default function OrgDownPaymentItem() {
               <div role="status" className="rounded-md bg-secondary px-3 py-2 text-[13px] text-secondary-foreground">
                 <p>{t('uxs11.downPaymentRemoteChanged', 'The saved item changed. Your edit is kept; reload the saved value to discard it.')}</p>
                 <Button type="button" variant="outline" size="sm" className="mt-2" onClick={() => {
-                  const remote = query.data ?? null;
-                  savedBaseline.current = remote;
-                  setDraft(remote ?? '');
-                  setRemoteChanged(false);
+                  reload();
                   setError(undefined);
                 }}>{t('uxs11.reloadSaved', 'Reload saved values')}</Button>
               </div>

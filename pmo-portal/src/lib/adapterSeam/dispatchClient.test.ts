@@ -141,6 +141,17 @@ describe('classifyDispatchError — pure network/structured-code classification 
       .toEqual({ code: 'external-unreachable', message: 'down' });
   });
 
+  it('a per-bill payment conflict (409 body) keeps its code through dispatchDomainCommand', async () => {
+    h.invoke.mockResolvedValue({
+      data: null,
+      error: httpError({ error: 'payment-in-flight-for-bill', message: 'A payment for this bill is already in progress.' }),
+    });
+    await expect(dispatchDomainCommand('procurement', 'create', { id: 'pay-1' }, { idempotencyKey: 'k1' })).rejects.toMatchObject({
+      name: 'AppError',
+      code: 'payment-in-flight-for-bill',
+    });
+  });
+
   it('a no-code network failure (no HTTP response) → external-unreachable + generic message, never the raw string', () => {
     const out = classifyDispatchError(networkError, undefined);
     expect(out.code).toBe('external-unreachable');

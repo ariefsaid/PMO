@@ -82,7 +82,7 @@ function useTmMutation<A, R>(fn: (arg: A) => Promise<R>, extraRoots: readonly st
   });
 }
 
-export const useSaveTmRateLine = () => useTmMutation((input: ContractRateLineInput) => repositories.timeAndMaterials.saveContractRateLine(input));
+export const useSaveTmRateLine = () => useTmMutation((input: ContractRateLineInput | ContractRateLineInput[]) => repositories.timeAndMaterials.saveContractRateLine(input));
 export const useEndTmRateLine = () => useTmMutation((input: EndRateLineInput) => repositories.timeAndMaterials.endContractRateLine(input));
 export const useSetTmRateAssignee = () => useTmMutation((input: RateAssigneeInput) => repositories.timeAndMaterials.setContractRateAssignee(input));
 export const useEndTmRateAssignee = () => useTmMutation((input: EndRateAssigneeInput) => repositories.timeAndMaterials.endContractRateAssignee(input));

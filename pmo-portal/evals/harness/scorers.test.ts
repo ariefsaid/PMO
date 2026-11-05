@@ -10,6 +10,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   contains,
+  judgeModelFromEnv,
   llmJudge,
   noProposal,
   notUsesTool,
@@ -134,6 +135,13 @@ describe('AC-AT2-015 usesTool/contains/llmJudge scorers pass/fail with reasons',
     expect(verdict.pass).toBe(false);
     expect(verdict.reason).toContain('judge model call failed');
     expect(verdict.reason).toContain('503');
+  });
+
+  it('judgeModelFromEnv prefers the eval transport override, so an override run judges on the same provider', () => {
+    expect(judgeModelFromEnv({ AGENT_MODEL_ID: 'deepseek-v4.1-flash', EVAL_JUDGE_MODEL: 'x/y' }))
+      .toBe('deepseek-v4.1-flash');
+    expect(judgeModelFromEnv({ EVAL_JUDGE_MODEL: 'x/y' })).toBe('x/y');
+    expect(judgeModelFromEnv({})).toBe('deepseek/deepseek-v4-flash');
   });
 
   // ── composition ─────────────────────────────────────────────────────────────

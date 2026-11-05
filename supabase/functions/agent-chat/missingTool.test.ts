@@ -79,6 +79,14 @@ Deno.test('detectMissingTool — the source separates "not built" from "not on y
   );
 });
 
+Deno.test('guessModule — procurement receipt and match requests take precedence over generic invoices and receipts', () => {
+  assertEquals(guessModule('show goods receipts', ''), 'procurement');
+  assertEquals(guessModule('show GRN', ''), 'procurement');
+  assertEquals(guessModule('three-way match purchase invoice and receipt', ''), 'procurement_full');
+  assertEquals(guessModule('match purchase invoice and receipt', ''), 'procurement_full');
+  assertEquals(guessModule('incoming payment receipts', ''), 'revenue');
+});
+
 Deno.test('routeTemplate — ids and query strings never leave the app', () => {
   assertEquals(routeTemplate('/projects/0b9a1c2d-3e4f-4a5b-8c9d-0e1f2a3b4c5d/stock?tab=levels'), '/projects/:id/stock');
   assertEquals(routeTemplate('/procurement/42'), '/procurement/:id');

@@ -191,31 +191,43 @@ export async function getUnbilledWorkOrders(limit: number): Promise<UnbilledWork
  * the count still shows.
  */
 async function listIncompleteWorkOrders(limit: number): Promise<UnbilledIncompleteWorkOrder[]> {
-  const wos = await supabase
-    .from('work_order_billing')
-    .select('work_order_id, wo_number, title, project_id')
-    .eq('figures_complete', false)
-    .in('status', ['Issued', 'Closed'])
-    .limit(limit);
-  if (wos.error) return [];
-  const rows = (wos.data ?? []) as ReadonlyArray<Record<string, unknown>>;
-  if (rows.length === 0) return [];
-  const projects = await supabase
-    .from('projects')
-    .select('id, name')
-    .in('id', [...new Set(rows.map((r) => String(r.project_id)))])
-    .is('archived_at', null);
-  if (projects.error) return [];
-  const names = new Map(((projects.data ?? []) as ReadonlyArray<Record<string, unknown>>).map((p) => [String(p.id), String(p.name ?? '')] as const));
-  return rows
-    .filter((r) => names.has(String(r.project_id)))
-    .map((r) => ({
-      workOrderId: String(r.work_order_id),
-      woNumber: typeof r.wo_number === 'string' ? r.wo_number : null,
-      title: String(r.title ?? ''),
-      projectId: String(r.project_id),
-      projectName: names.get(String(r.project_id)) ?? '',
-    }));
+  // Archived-project rows must not use up the cap: read stable-ordered pages and keep the live ones until `limit` are found.
+  // ponytail: page cap bounds the scan; a tenant with more than PAGE * MAX_PAGES incomplete rows ahead of the live ones shows fewer.
+  const PAGE = 100;
+  const MAX_PAGES = 20;
+  const out: UnbilledIncompleteWorkOrder[] = [];
+  for (let page = 0; page < MAX_PAGES && out.length < limit; page++) {
+    const wos = await supabase
+      .from('work_order_billing')
+      .select('work_order_id, wo_number, title, project_id')
+      .eq('figures_complete', false)
+      .in('status', ['Issued', 'Closed'])
+      .order('work_order_id')
+      .range(page * PAGE, page * PAGE + PAGE - 1);
+    if (wos.error) return out;
+    const rows = (wos.data ?? []) as ReadonlyArray<Record<string, unknown>>;
+    if (rows.length === 0) break;
+    const projects = await supabase
+      .from('projects')
+      .select('id, name')
+      .in('id', [...new Set(rows.map((r) => String(r.project_id)))])
+      .is('archived_at', null);
+    if (projects.error) return out;
+    const names = new Map(((projects.data ?? []) as ReadonlyArray<Record<string, unknown>>).map((p) => [String(p.id), String(p.name ?? '')] as const));
+    for (const r of rows) {
+      if (out.length >= limit) break;
+      if (!names.has(String(r.project_id))) continue;
+      out.push({
+        workOrderId: String(r.work_order_id),
+        woNumber: typeof r.wo_number === 'string' ? r.wo_number : null,
+        title: String(r.title ?? ''),
+        projectId: String(r.project_id),
+        projectName: names.get(String(r.project_id)) ?? '',
+      });
+    }
+    if (rows.length < PAGE) break;
+  }
+  return out;
 }
 
 async function readClientPos(ids: string[]): Promise<Map<string, string>> {

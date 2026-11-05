@@ -16,14 +16,14 @@
  * from a deliberate one — the user must choose, so the select starts empty and submit stays blocked.
  */
 import type { TaxTreatment } from '@/src/lib/db/procurementLifecycle';
-import { parseTaxFacts, type ParsedTaxFacts } from '@/src/lib/taxTreatment';
+import type { ParsedTaxFacts } from '@/src/lib/taxTreatment';
 import { routeDomainWrite } from '@/src/lib/adapterSeam/ownershipCache';
 
 export { TAX_TREATMENT_OPTIONS, TAX_TREATMENT_PLACEHOLDER } from '@/src/lib/taxTreatment';
 
 /**
  * #505 code-quality follow-up: the "why is submit blocked" hint, shown by both entry points when
- * `parseVendorInvoiceTax(...) === null`. Was a duplicated string literal (kept aligned only by a
+ * `parseTaxFacts(...) === null`. Was a duplicated string literal (kept aligned only by a
  * "⚠ KEEP IN SYNC" code comment) in `VIInlineCapture` (ProcurementDecisionZone.tsx) and
  * `RecordCaptureForm kind="vendor_invoice"` — single-sourced here for the same reason as
  * TAX_TREATMENT_OPTIONS/PLACEHOLDER, and the `vi-*` testids in vendorInvoiceTestIds.ts.
@@ -31,17 +31,6 @@ export { TAX_TREATMENT_OPTIONS, TAX_TREATMENT_PLACEHOLDER } from '@/src/lib/taxT
 export const VI_TAX_REQUIRED_HINT =
   'State the tax treatment and the tax amount to record this invoice — enter 0 if there is no ' +
   'tax. Whether the amount already includes tax cannot be worked out afterwards.';
-
-/** The parsed, RPC-ready tax facts. */
-export type ParsedVendorInvoiceTax = ParsedTaxFacts;
-
-/**
- * Parses the two raw vendor-invoice form values, returning null when the form is NOT yet
- * submittable. The rule itself lives in `parseTaxFacts` (see it for why `0` is valid and why the
- * amount goes through `parseMoneyInput` rather than a local `Number()` parse); this alias keeps
- * the vendor-invoice call sites reading in their own domain's words.
- */
-export const parseVendorInvoiceTax = parseTaxFacts;
 
 /**
  * Is the tax treatment PMO's to ask for on this org?
@@ -77,7 +66,7 @@ export function taxIsPmoAuthored(): boolean {
  * this one. `procurement.external.test.ts` asserts the outbound command carries none of these keys —
  * that test is what keeps this from quietly becoming a real value.
  */
-export const ERP_AUTHORED_TAX: ParsedVendorInvoiceTax = {
+export const ERP_AUTHORED_TAX: ParsedTaxFacts = {
   taxTreatment: 'inclusive',
   taxAmount: 0,
 };

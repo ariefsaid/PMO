@@ -632,7 +632,7 @@ Deno.test("AC-M365DOC-056 served graph_proxy keeps its caller-scoped connection 
         })),
       supabaseSelect(
         "ms_graph_connections",
-        () => jsonResponse({ message: "not found" }, { status: 406 }),
+        () => jsonResponse({ code: "PGRST116", message: "not found" }, { status: 406 }),
       ),
     ], async ({ calls }) => {
       const response = await handler(

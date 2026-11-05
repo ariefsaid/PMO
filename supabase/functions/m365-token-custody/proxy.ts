@@ -7,7 +7,6 @@ import {
   openCallerGraphRead,
   validateGraphProxyInput,
 } from "./graphRead.ts";
-export { scopeCoversPath } from "./graphRead.ts";
 
 export async function handleGraphProxy(
   req: GraphProxyRequest,

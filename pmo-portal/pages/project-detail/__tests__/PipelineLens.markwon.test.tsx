@@ -15,9 +15,11 @@ import type { ProjectWithRefs } from '@/src/lib/db/projects';
  * date inputs, so the user confirms against the actual figure before committing the win.
  */
 
-const { transitionProject, repositoryTransition, invalidateQueries } = vi.hoisted(() => ({
+const { transitionProject, repositoryTransition, repositoryUpdateGetProbability, repositoryUpdateGoProbability, invalidateQueries } = vi.hoisted(() => ({
   transitionProject: vi.fn().mockResolvedValue(undefined),
   repositoryTransition: vi.fn().mockResolvedValue(undefined),
+  repositoryUpdateGetProbability: vi.fn().mockResolvedValue(undefined),
+  repositoryUpdateGoProbability: vi.fn().mockResolvedValue(undefined),
   invalidateQueries: vi.fn().mockResolvedValue(undefined),
 }));
 // FR-L10N-020: this component reads useOrgCurrency for its ACROSS-record aggregates. Pinned here
@@ -38,7 +40,12 @@ vi.mock('@/src/hooks/useProjectTransitions', () => ({ useProjectWinEligibility: 
 
 vi.mock('@/src/lib/repositories', async (orig) => {
   const actual = await orig() as typeof import('@/src/lib/repositories');
-  return { ...actual, repositories: { ...actual.repositories, project: { ...actual.repositories.project, transition: repositoryTransition } } };
+  return { ...actual, repositories: { ...actual.repositories, project: {
+    ...actual.repositories.project,
+    transition: repositoryTransition,
+    updateGetProbability: repositoryUpdateGetProbability,
+    updateGoProbability: repositoryUpdateGoProbability,
+  } } };
 });
 
 const CONTRACT_VALUE = 1200000;
@@ -52,6 +59,8 @@ const pipelineState = {
         name: 'Acme Tender Bid',
         status: 'Tender Submitted',
         contract_value: CONTRACT_VALUE, currency: 'USD',
+        go_probability: 0.8,
+        get_probability: 0.25,
         win_probability: 0.5,
       },
     ] as Array<Record<string, unknown>>,
@@ -87,12 +96,12 @@ const dealRow = {
   pm: { full_name: 'Alice Manager' },
 } as unknown as ProjectWithRefs;
 
-const renderLens = () =>
+const renderLens = (project: ProjectWithRefs = dealRow) =>
   render(
     <MemoryRouter>
       <ImpersonationProvider realRole="Project Manager">
         <ToastProvider>
-          <PipelineLens project={dealRow} />
+          <PipelineLens project={project} />
         </ToastProvider>
       </ImpersonationProvider>
     </MemoryRouter>,
@@ -104,10 +113,52 @@ beforeEach(() => {
   winEligibility.isError = false;
   transitionProject.mockClear();
   repositoryTransition.mockClear();
+  repositoryUpdateGetProbability.mockClear();
+  repositoryUpdateGoProbability.mockClear();
   invalidateQueries.mockReset().mockResolvedValue(undefined);
+  pipelineState.data = {
+    stages: [],
+    projects: [{
+      id: 'd1', name: 'Acme Tender Bid', status: 'Tender Submitted',
+      contract_value: CONTRACT_VALUE, currency: 'USD', go_probability: 0.8,
+      get_probability: 0.25, win_probability: 0.5,
+    }],
+  };
 });
 
 describe('PipelineLens — mark-won shows the booked value (AC-IXD-DASH-005)', () => {
+  it('AC-1796: edits the independent % Get estimate for this opportunity', async () => {
+    const user = userEvent.setup();
+    renderLens();
+    const input = screen.getByLabelText('Chance we win if the client proceeds (%)');
+    await user.clear(input);
+    await user.type(input, '40');
+    await user.click(input.closest('form')!.querySelector('button')!);
+    await vi.waitFor(() => expect(repositoryUpdateGetProbability).toHaveBeenCalledWith('d1', 0.4));
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['sales-pipeline', 'org-1'] });
+  });
+
+  it('AC-1796: edits the per-project % Go override separately from % Get', async () => {
+    const user = userEvent.setup();
+    renderLens();
+    const input = screen.getByLabelText('Chance the project proceeds (%)');
+    await user.clear(input);
+    await user.type(input, '65');
+    await user.click(input.closest('form')!.querySelector('button')!);
+    await vi.waitFor(() => expect(repositoryUpdateGoProbability).toHaveBeenCalledWith('d1', 0.65));
+  });
+
+  it('AC-1796: terminal opportunities do not expose editable probability controls', () => {
+    pipelineState.data.projects = [{
+      id: 'd1', name: 'Acme Tender Bid', status: 'Won, Pending KoM',
+      contract_value: CONTRACT_VALUE, currency: 'USD', go_probability: 1,
+      get_probability: 1, win_probability: 1,
+    }];
+    renderLens({ ...dealRow, status: 'Won, Pending KoM' } as ProjectWithRefs);
+    expect(screen.queryByLabelText('Chance the project proceeds (%)')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Chance we win if the client proceeds (%)')).not.toBeInTheDocument();
+  });
+
   it('withdraws the open win action until the current decision allows it', async () => {
     const user = userEvent.setup();
     const view = renderLens();

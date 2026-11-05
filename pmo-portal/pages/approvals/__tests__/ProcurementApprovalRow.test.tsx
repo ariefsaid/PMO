@@ -2,7 +2,7 @@
  * AC-IFW-PROC-01 — Inline preview + adjacent approve, no navigation
  * AC-IFW-PROC-02 — Approve → {to:'Approved'} / Reject → {to:'Rejected'}; can()-gated
  *
- * Red first: ProcurementApprovalRow does not exist yet.
+ * Exercises the live ProcurementApprovalPreview.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
@@ -76,7 +76,7 @@ vi.mock('react-router', async (importOriginal) => {
   return { ...actual, useNavigate: () => navigateMock };
 });
 
-import { ProcurementApprovalPreview, ProcurementApprovalRow } from '../ProcurementApprovalRow';
+import { ProcurementApprovalPreview } from '../ProcurementApprovalRow';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -105,7 +105,7 @@ const renderAs = (realRole: Role = 'Project Manager') =>
     <MemoryRouter>
       <ImpersonationProvider realRole={realRole}>
         <ToastProvider>
-          <ProcurementApprovalRow row={ROW as never} />
+          <ProcurementApprovalPreview row={ROW as never} surface="inline" />
         </ToastProvider>
       </ImpersonationProvider>
     </MemoryRouter>,
@@ -119,15 +119,12 @@ beforeEach(() => {
   detailState.data = detailData;
 });
 
-it('localizes the disclosure, relative age, actions and confirmation with the request title', async () => {
+it('localizes the approve action and confirmation with the request title (Bahasa)', async () => {
   setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' });
   try {
     render(<BahasaProvider><MemoryRouter><ImpersonationProvider realRole="Project Manager"><ToastProvider>
-      <ProcurementApprovalRow row={ROW as never} />
+      <ProcurementApprovalPreview row={ROW as never} surface="inline" />
     </ToastProvider></ImpersonationProvider></MemoryRouter></BahasaProvider>);
-    const disclosure = screen.getByRole('button', { name: 'Tampilkan dampak anggaran untuk Inverter Units' });
-    expect(screen.getByText(/2 hari yang lalu/)).toBeInTheDocument();
-    await userEvent.click(disclosure);
     await userEvent.click(screen.getByRole('button', { name: 'Setujui' }));
     expect(screen.getByRole('dialog')).toHaveTextContent('Setujui Inverter Units?');
   } finally {
@@ -135,52 +132,11 @@ it('localizes the disclosure, relative age, actions and confirmation with the re
   }
 });
 
-// ── AC-IFW-PROC-01: Inline preview — collapsed state ─────────────────────────
-
-describe('AC-IFW-PROC-01: collapsed state', () => {
-  it('UIP-008: request identity wraps before status, with project/ref on a separate metadata row', () => {
-    renderAs();
-    const name = screen.getByText(ROW.title);
-    expect(name.className).toContain('line-clamp-2');
-    expect(name.className).not.toContain('truncate');
-    expect(name.parentElement).toContainElement(screen.getByText('Requested'));
-    const project = screen.getByRole('link', { name: /Solar Alpha/ });
-    expect(project.parentElement).toContainElement(screen.getByText(ROW.code));
-    expect(project.parentElement?.className).toContain('block');
-    expect(project.className).toContain('whitespace-normal');
-    expect(screen.getByText(ROW.code).className).toContain('whitespace-nowrap');
-    expect(screen.getByRole('button', { name: `Show budget impact for ${ROW.title}` })).toHaveAccessibleName(`Show budget impact for ${ROW.title}`);
-  });
-  it('renders a disclosure button with aria-expanded=false by default', () => {
-    renderAs();
-    const btn = screen.getByRole('button', { name: /show budget impact/i });
-    expect(btn).toHaveAttribute('aria-expanded', 'false');
-  });
-
-  it('Approve button is NOT in the DOM while collapsed', () => {
-    renderAs();
-    expect(screen.queryByRole('button', { name: /^Approve$/i })).not.toBeInTheDocument();
-  });
-
-  it('Reject button is NOT in the DOM while collapsed', () => {
-    renderAs();
-    expect(screen.queryByRole('button', { name: /^Reject$/i })).not.toBeInTheDocument();
-  });
-});
-
 // ── AC-IFW-PROC-01: Inline preview — expanded state ──────────────────────────
 
 describe('AC-IFW-PROC-01: expanded state — budget impact + line items + adjacent actions', () => {
-  it('clicking disclosure sets aria-expanded=true', async () => {
-    renderAs();
-    const btn = screen.getByRole('button', { name: /show budget impact/i });
-    await userEvent.click(btn);
-    expect(btn).toHaveAttribute('aria-expanded', 'true');
-  });
-
   it('budget-impact panel renders after expand', async () => {
     renderAs();
-    await userEvent.click(screen.getByRole('button', { name: /show budget impact/i }));
     // Our mocked DecisionSupportPanel renders "Budget impact · Solar Alpha"
     expect(screen.getByTestId('decision-support')).toBeInTheDocument();
   });
@@ -200,13 +156,11 @@ describe('AC-IFW-PROC-01: expanded state — budget impact + line items + adjace
 
   it('line item name renders in expanded panel', async () => {
     renderAs();
-    await userEvent.click(screen.getByRole('button', { name: /show budget impact/i }));
     expect(screen.getByText('Inverter 5kW')).toBeInTheDocument();
   });
 
   it('Approve button appears in expanded panel (adjacent — no navigation)', async () => {
     renderAs();
-    await userEvent.click(screen.getByRole('button', { name: /show budget impact/i }));
     expect(screen.getByRole('button', { name: /^Approve$/i })).toBeInTheDocument();
     // Lens-D regression invariant: useNavigate was NEVER called
     expect(navigateMock).not.toHaveBeenCalled();
@@ -214,7 +168,6 @@ describe('AC-IFW-PROC-01: expanded state — budget impact + line items + adjace
 
   it('Reject button appears in expanded panel (adjacent — no navigation)', async () => {
     renderAs();
-    await userEvent.click(screen.getByRole('button', { name: /show budget impact/i }));
     expect(screen.getByRole('button', { name: /^Reject$/i })).toBeInTheDocument();
     expect(navigateMock).not.toHaveBeenCalled();
   });
@@ -227,7 +180,6 @@ describe('AC-IFW-PROC-01: expanded panel — loading + error states', () => {
     detailState.isPending = true;
     detailState.data = undefined as never;
     renderAs();
-    await userEvent.click(screen.getByRole('button', { name: /show budget impact/i }));
     // ListState variant="loading" renders a div with aria-busy="true"
     expect(screen.getByTestId('liststate-loading')).toBeInTheDocument();
   });
@@ -237,7 +189,6 @@ describe('AC-IFW-PROC-01: expanded panel — loading + error states', () => {
     detailState.isError = true;
     detailState.data = undefined as never;
     renderAs();
-    await userEvent.click(screen.getByRole('button', { name: /show budget impact/i }));
     expect(screen.getByText(/couldn't load/i)).toBeInTheDocument();
   });
 });
@@ -248,7 +199,6 @@ describe('AC-IFW-PROC-02: Approve fires transition with to:Approved', () => {
   it('Approve → ConfirmDialog → confirm fires transition.mutate with {to:"Approved"}', async () => {
     transitionMutate.mockImplementation((_arg: unknown, opts: { onSuccess?: () => void }) => opts?.onSuccess?.());
     renderAs();
-    await userEvent.click(screen.getByRole('button', { name: /show budget impact/i }));
     await userEvent.click(screen.getByRole('button', { name: /^Approve$/i }));
     // ConfirmDialog should open
     const dialog = await screen.findByRole('dialog');
@@ -268,7 +218,6 @@ describe('AC-IFW-PROC-02: Reject fires transition with to:Rejected', () => {
   it('AC-1578: rejection requires a non-empty comment and sends it with the transition', async () => {
     transitionMutate.mockImplementation((_arg: unknown, opts: { onSuccess?: () => void }) => opts?.onSuccess?.());
     renderAs();
-    await userEvent.click(screen.getByRole('button', { name: /show budget impact/i }));
     await userEvent.click(screen.getByRole('button', { name: /^Reject$/i }));
     // tone="destructive" → role="alertdialog" (ConfirmDialog a11y contract)
     const dialog = await screen.findByRole('alertdialog');
@@ -294,52 +243,8 @@ describe('AC-IFW-PROC-02: Reject fires transition with to:Rejected', () => {
 describe('AC-IFW-PROC-02: can() gate — no Approve/Reject for Engineer role', () => {
   it('Engineer (no transition permission) sees NO Approve or Reject buttons even when expanded', async () => {
     renderAs('Engineer');
-    await userEvent.click(screen.getByRole('button', { name: /show budget impact/i }));
     expect(screen.queryByRole('button', { name: /^Approve$/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^Reject$/i })).not.toBeInTheDocument();
-  });
-});
-
-// ── AC-JR-W2-01: ProjectNameLink — project name links to /projects/:id ───────
-
-describe('AC-JR-W2-01: project name is wrapped in ProjectNameLink (T07 census E)', () => {
-  it('AC-JR-W2-01: project name renders as a link to /projects/:id', () => {
-    renderAs();
-    // ProjectNameLink renders a link with aria-label="Open <name>"
-    const link = screen.getByRole('link', { name: /Open Solar Alpha/i });
-    expect(link).toBeInTheDocument();
-    expect(link.getAttribute('href')).toBe('/projects/proj-001');
-  });
-
-  it('AC-JR-W2-01: no project id — project name renders as inert text (no navigation)', () => {
-    const rowNoProject = { ...ROW, project_id: undefined as unknown as string, project: { name: 'Orphan', code: null } };
-    render(
-      <MemoryRouter>
-        <ImpersonationProvider realRole="Project Manager">
-          <ToastProvider>
-            <ProcurementApprovalRow row={rowNoProject as never} />
-          </ToastProvider>
-        </ImpersonationProvider>
-      </MemoryRouter>,
-    );
-    // Inert text span — no link
-    expect(screen.queryByRole('link', { name: /Open Orphan/i })).not.toBeInTheDocument();
-    expect(screen.getByText('Orphan')).toBeInTheDocument();
-  });
-
-  it('AC-JR-W2-01: no project at all — renders em-dash (defensive fallback)', () => {
-    const rowNoName = { ...ROW, project_id: 'proj-001', project: null };
-    render(
-      <MemoryRouter>
-        <ImpersonationProvider realRole="Project Manager">
-          <ToastProvider>
-            <ProcurementApprovalRow row={rowNoName as never} />
-          </ToastProvider>
-        </ImpersonationProvider>
-      </MemoryRouter>,
-    );
-    // ProjectNameLink renders em-dash when name is null
-    expect(screen.getByText('—')).toBeInTheDocument();
   });
 });
 
@@ -348,7 +253,6 @@ describe('AC-JR-W2-01: project name is wrapped in ProjectNameLink (T07 census E)
 describe('AC-JR-W2-02: "Open procurement" link in expanded panel footer (T07)', () => {
   it('AC-JR-W2-02: expanded panel footer contains an "Open procurement" link to /procurement/:id', async () => {
     renderAs();
-    await userEvent.click(screen.getByRole('button', { name: /show budget impact/i }));
     const link = screen.getByRole('link', { name: /open procurement/i });
     expect(link).toBeInTheDocument();
     expect(link.getAttribute('href')).toBe('/procurement/pr-001');
@@ -357,7 +261,6 @@ describe('AC-JR-W2-02: "Open procurement" link in expanded panel footer (T07)', 
 
   it('AC-JR-W2-02: "Open procurement" link is in the same footer region as Approve/Reject', async () => {
     renderAs();
-    await userEvent.click(screen.getByRole('button', { name: /show budget impact/i }));
     const openLink = screen.getByRole('link', { name: /open procurement/i });
     const approveBtn = screen.getByRole('button', { name: /^Approve$/i });
     // Both are in the DOM simultaneously — same footer
@@ -367,7 +270,6 @@ describe('AC-JR-W2-02: "Open procurement" link in expanded panel footer (T07)', 
 
   it('AC-JR-W2-02: "Open procurement" visible even when user lacks transition permission', async () => {
     renderAs('Engineer');
-    await userEvent.click(screen.getByRole('button', { name: /show budget impact/i }));
     // Engineers can't approve but should still be able to open the full procurement record.
     const link = screen.getByRole('link', { name: /open procurement/i });
     expect(link).toBeInTheDocument();
@@ -376,28 +278,7 @@ describe('AC-JR-W2-02: "Open procurement" link in expanded panel footer (T07)', 
 
   it('AC-JR-W2-02: navigateMock is never called — link is declarative, not imperative', async () => {
     renderAs();
-    await userEvent.click(screen.getByRole('button', { name: /show budget impact/i }));
     // Link renders without ever calling useNavigate()
     expect(navigateMock).not.toHaveBeenCalled();
-  });
-});
-
-// ── AC-JR-W3-02: disclosure pattern consistency — solid border on wrapper ─────
-
-describe('AC-JR-W3-02: ProcurementApprovalRow uses solid (not dashed) border (T20 consistency)', () => {
-  it('AC-JR-W3-02: the row wrapper has border-border (solid) not border-dashed', () => {
-    const { container } = renderAs();
-    // The outermost div wrapping the row
-    const row = container.firstChild as HTMLElement;
-    expect(row.className).not.toContain('border-dashed');
-    expect(row.className).toContain('border-border');
-  });
-
-  it('AC-JR-W3-02: the disclosure chevron button is the first interactive element in the row header', () => {
-    renderAs();
-    const disclosureBtn = screen.getByRole('button', { name: /show budget impact/i });
-    // The disclosure button exists at the leading edge (first button in the row header)
-    expect(disclosureBtn).toBeInTheDocument();
-    expect(disclosureBtn).toHaveAttribute('aria-expanded', 'false');
   });
 });

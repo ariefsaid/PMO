@@ -78,6 +78,8 @@ import {
   retryBudgetPush,
   archiveVersion,
   listBudgetArchiveLiveTargets,
+  listLegacyBudgetArchiveLiveTargets,
+  listBudgetArchiveTargets,
   deleteDraftVersion,
   listBudgetDocumentLinks,
   addBudgetDocumentLink,
@@ -92,6 +94,8 @@ import { AppError } from '@/src/lib/appError';
 /** Creates a chainable builder that resolves to `resolved` at .then() time. */
 function makeRpcBuilder(resolved: { data: unknown; error: unknown }) {
   const builder = {
+    order: vi.fn().mockReturnThis(),
+    range: vi.fn().mockReturnThis(),
     then: (resolve: (v: typeof resolved) => void, reject?: (e: unknown) => void) =>
       Promise.resolve(resolved).then(resolve, reject),
   };
@@ -240,93 +244,71 @@ describe('deriveProjectBudget', () => {
 });
 
 describe('listBudgetVersions', () => {
-  it('lists versions with nested line_items and a numeric total (FR-BV-010 read side)', async () => {
-    const versions = [
-      {
-        id: 'v1',
-        org_id: 'org-1',
-        project_id: 'p1',
-        version: 1,
-        name: 'V1',
-        status: 'Active' as const,
-        created_at: '2026-01-01T00:00:00Z',
-        line_items: [
-          { id: 'li1', budget_version_id: 'v1', org_id: 'org-1', category: 'Labor' as const, description: null, budgeted_amount: 3000000, actual_amount: 0 },
-          { id: 'li2', budget_version_id: 'v1', org_id: 'org-1', category: 'Materials' as const, description: 'steel', budgeted_amount: 1700000, actual_amount: 0 },
-        ],
-      },
-      {
-        id: 'v2',
-        org_id: 'org-1',
-        project_id: 'p1',
-        version: 2,
-        name: 'V2',
-        status: 'Draft' as const,
-        created_at: '2026-02-01T00:00:00Z',
-        line_items: [],
-      },
-    ];
+  // The read contract is ONE aggregate invoker RPC. These tests keep every behavioural oracle of the
+  // previous four-request path (complete set, ordering, editor grouping, numeric coercion, error
+  // propagation, no client-supplied org scope) while pinning the new single-request call shape.
+  const aggregate = (over: Record<string, unknown>) => ({
+    version_no: 1, version_id: 'v1', version_row: {}, line_items: [], editor_ids: [], total: 0, ...over,
+  });
 
-    const rows = { budget_versions: versions, budget_line_items: versions.flatMap(v => v.line_items), budget_version_editors: [] };
-    const makeRead = (data: unknown) => {
-      const b = { select: mockSelect, eq: mockEq, order: mockOrder, range: vi.fn(), then: (resolve: (v: unknown) => void) => Promise.resolve({ data, error: null }).then(resolve) };
-      for (const method of [mockSelect, mockEq, mockOrder, b.range]) method.mockReturnValue(b);
-      return b;
+  it('lists versions with nested line_items and a numeric total (FR-BV-010 read side)', async () => {
+    const v1 = {
+      id: 'v1', org_id: 'org-1', project_id: 'p1', version: 1, name: 'V1',
+      status: 'Active' as const, created_at: '2026-01-01T00:00:00Z', currency: 'USD',
     };
-    mockFrom.mockImplementation((table: keyof typeof rows) => makeRead(rows[table]));
-    mockRpc.mockImplementation(() => makeRead([{ version_id: 'v1', total: 4700000 }, { version_id: 'v2', total: 0 }]));
+    const v2 = {
+      id: 'v2', org_id: 'org-1', project_id: 'p1', version: 2, name: 'V2',
+      status: 'Draft' as const, created_at: '2026-02-01T00:00:00Z', currency: 'USD',
+    };
+    makeRpcBuilder({
+      data: [
+        aggregate({
+          version_no: 1, version_id: 'v1', version_row: v1, total: 4700000,
+          line_items: [
+            { id: 'li1', budget_version_id: 'v1', org_id: 'org-1', category: 'Labor' as const, description: null, budgeted_amount: 3000000, actual_amount: 0 },
+            { id: 'li2', budget_version_id: 'v1', org_id: 'org-1', category: 'Materials' as const, description: 'steel', budgeted_amount: 1700000, actual_amount: 0 },
+          ],
+        }),
+        aggregate({ version_no: 2, version_id: 'v2', version_row: v2, total: 0 }),
+      ],
+      error: null,
+    });
 
     const result = await listBudgetVersions('p1');
 
-    expect(mockFrom).toHaveBeenCalledWith('budget_versions');
-    expect(mockSelect).toHaveBeenCalledWith('*, budget_versions!inner(project_id)');
-    expect(mockEq).toHaveBeenCalledWith('project_id', 'p1');
-    expect(mockOrder).toHaveBeenCalledWith('version', { ascending: true });
-
+    expect(mockRpc).toHaveBeenCalledWith('budget_version_read', { p_project_id: 'p1', p_offset: 0, p_limit: 1000 });
+    expect(mockFrom).not.toHaveBeenCalled();
     expect(result).toHaveLength(2);
     expect(result[0].total).toBe(4700000);
     expect(result[1].total).toBe(0);
+    expect(result[0].line_items.map((li) => li.id)).toEqual(['li1', 'li2']);
     expect(result.map((version) => version.editor_ids)).toEqual([[], []]);
     // numerics are JS numbers
     expect(typeof result[0].total).toBe('number');
-    // no org_id sent in the query args
-    expect(JSON.stringify(mockEq.mock.calls)).not.toContain('org_id');
+    // no org_id sent in the read args
+    expect(JSON.stringify(mockRpc.mock.calls)).not.toContain('org_id');
   });
 
-  it('coerces string numerics from PostgREST into a number total (guards Number() on budgets.ts:62)', async () => {
-    // Postgres numeric arrives over PostgREST as a STRING; the DAL must Number()-coerce it.
-    const versions = [
-      {
-        id: 'v1',
-        org_id: 'org-1',
-        project_id: 'p1',
-        version: 1,
-        name: 'V1',
-        status: 'Active' as const,
-        created_at: '2026-01-01T00:00:00Z',
-        line_items: [
-          { id: 'li1', budget_version_id: 'v1', org_id: 'org-1', category: 'Labor' as const, description: null, budgeted_amount: '3000000', actual_amount: '0' },
-        ],
-      },
-    ];
-    const rows = { budget_versions: versions, budget_line_items: versions.flatMap(v => v.line_items), budget_version_editors: [] };
-    const makeRead = (data: unknown) => {
-      const b = { select: mockSelect, eq: mockEq, order: mockOrder, range: vi.fn(), then: (resolve: (v: unknown) => void) => Promise.resolve({ data, error: null }).then(resolve) };
-      for (const method of [mockSelect, mockEq, mockOrder, b.range]) method.mockReturnValue(b);
-      return b;
-    };
-    mockFrom.mockImplementation((table: keyof typeof rows) => makeRead(rows[table]));
-    mockRpc.mockImplementation(() => makeRead([{ version_id: 'v1', total: '3000000' }]));
+  it('coerces string numerics from PostgREST into a number total (guards the Number() conversion)', async () => {
+    // Postgres numeric may arrive over PostgREST as a STRING; the DAL must Number()-coerce it.
+    makeRpcBuilder({
+      data: [aggregate({
+        version_row: { id: 'v1', org_id: 'org-1', project_id: 'p1', version: 1, name: 'V1', status: 'Active', created_at: '2026-01-01T00:00:00Z' },
+        line_items: [{ id: 'li1', budget_version_id: 'v1', org_id: 'org-1', category: 'Labor', description: null, budgeted_amount: '3000000', actual_amount: '0' }],
+        total: '3000000',
+      })],
+      error: null,
+    });
 
     const result = await listBudgetVersions('p1');
 
-    // Numeric (not string concatenation: '03000000' or '03000000') and typed as number.
+    // Numeric (not string concatenation) and typed as number.
     expect(result[0].total).toBe(3000000);
     expect(typeof result[0].total).toBe('number');
   });
 
   it('throws on PostgREST error', async () => {
-    makeFromBuilder({ data: null, error: { message: 'list error' } });
+    makeRpcBuilder({ data: null, error: { message: 'list error' } });
     await expect(listBudgetVersions('p1')).rejects.toThrow('list error');
   });
 });
@@ -773,7 +755,7 @@ describe('archiveVersion', () => {
 
 describe('listBudgetArchiveLiveTargets', () => {
   function configureArchiveTargets(binding: { version_major: number; activated_at: string | null }, rows: unknown[]) {
-    const targetBuilder = makeFromBuilder({ data: rows, error: null });
+    const targetBuilder = makeFromBuilder({ data: rows.map((row) => ({ to_fiscal_year: null, ...(row as object) })), error: null });
     const bindingBuilder = {
       select: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
@@ -795,7 +777,7 @@ describe('listBudgetArchiveLiveTargets', () => {
     expect(targets.every((row) => row.archive_cancellation_available)).toBe(true);
     expect(mockFrom).toHaveBeenCalledWith('budget_push_mirror_rows');
     expect(mockFrom).toHaveBeenCalledWith('external_org_bindings');
-    expect(mockSelect).toHaveBeenCalledWith('id,budget_version_id,fiscal_year,erp_account,erp_budget_name,erp_docstatus,erp_cancelled_at,push_state,budget_intent,activated_at_witness');
+    expect(mockSelect).toHaveBeenCalledWith('id,budget_version_id,fiscal_year,to_fiscal_year,erp_account,erp_budget_name,erp_docstatus,erp_cancelled_at,push_state,budget_intent,activated_at_witness');
     expect(mockIn).toHaveBeenCalledWith('budget_version_id', ['v1', 'v2']);
     expect(mockIs).toHaveBeenCalledWith('erp_cancelled_at', null);
     expect(mockNeq).toHaveBeenCalledWith('erp_account', '');
@@ -810,6 +792,21 @@ describe('listBudgetArchiveLiveTargets', () => {
 
     expect(targets).toHaveLength(1);
     expect(targets[0].archive_cancellation_available).toBe(false);
+  });
+
+  it('keeps a named account target visible when its activation witness is missing', async () => {
+    configureArchiveTargets({ version_major: 16, activated_at: '2026-01-01T00:00:00Z' }, [
+      { id: 'm-unwitnessed', budget_version_id: 'v1', fiscal_year: '2026', erp_account: '5100', erp_budget_name: 'BUD-UNWITNESSED', erp_docstatus: 1, erp_cancelled_at: null, push_state: 'failed', budget_intent: 'ensure', activated_at_witness: null },
+    ]);
+
+    const targets = await listBudgetArchiveLiveTargets(['v1']);
+
+    expect(targets).toHaveLength(1);
+    expect(targets[0]).toMatchObject({
+      id: 'm-unwitnessed',
+      erp_budget_name: 'BUD-UNWITNESSED',
+      activated_at_witness: null,
+    });
   });
 
   it('enables archive cancellation only for an active ERPNext v16 binding', async () => {
@@ -863,7 +860,7 @@ describe('AC-W3-F6: budget DAL throws AppError preserving the Postgres error cod
   });
 
   it('listBudgetVersions rejects with AppError carrying the original code', async () => {
-    makeFromBuilder({ data: null, error: { message: 'illegal state', code: 'P0001' } });
+    makeRpcBuilder({ data: null, error: { message: 'illegal state', code: 'P0001' } });
     const err = await listBudgetVersions('p1').catch((e: unknown) => e);
     expect(err).toBeInstanceOf(AppError);
     expect((err as AppError).code).toBe('P0001');
@@ -1001,5 +998,121 @@ describe('budget import authority adapter', () => {
     await expect(importBudgetLine(request)).rejects.toThrow(/Unexpected/);
     mockRpc.mockResolvedValueOnce({ data: [{ outcome: 'created', line_id: null }], error: null });
     await expect(importBudgetLine(request)).rejects.toThrow(/Unexpected/);
+  });
+});
+
+describe('#1462 listLegacyBudgetArchiveLiveTargets', () => {
+  function configureLegacy(binding: { version_major: number; activated_at: string | null } | null, rows: unknown[]) {
+    const targetBuilder = makeFromBuilder({ data: rows, error: null });
+    const bindingBuilder = {
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      maybeSingle: vi.fn().mockResolvedValue({ data: binding, error: null }),
+    };
+    mockFrom.mockImplementation((table: string) => table === 'external_org_bindings' ? bindingBuilder : targetBuilder);
+  }
+
+  it('keeps legacy documents visible but unavailable under an unproven v16 binding', async () => {
+    configureLegacy({ version_major: 16, activated_at: '2026-01-01T00:00:00Z' }, [
+      { id: 'lm1', budget_version_id: 'v1', fiscal_year: '2026', erp_budget_name: 'BUD-OLD', erp_docstatus: 1, erp_cancelled_at: null, push_state: 'pushed', activated_at_witness: null },
+      { id: 'lm2', budget_version_id: 'v1', fiscal_year: '2027', erp_budget_name: null, erp_docstatus: null, erp_cancelled_at: null, push_state: 'failed', activated_at_witness: '2026-01-01T00:00:00Z' },
+      { id: 'lm3', budget_version_id: 'v1', fiscal_year: '2028', erp_budget_name: 'BUD-CANCELLED', erp_docstatus: 2, erp_cancelled_at: null, push_state: 'pushed', activated_at_witness: '2026-01-01T00:00:00Z' },
+    ]);
+
+    const targets = await listLegacyBudgetArchiveLiveTargets(['v1']);
+
+    expect(targets.map((row) => row.id)).toEqual(['lm1']);
+    expect(targets[0]).toMatchObject({ source_kind: 'legacy', erp_account: '', budget_intent: 'ensure', archive_cancellation_available: false });
+    expect(targets[0].activated_at_witness).toBeNull();
+    expect(mockFrom).toHaveBeenCalledWith('budget_version_erp_mirror');
+    expect(mockIs).toHaveBeenCalledWith('erp_cancelled_at', null);
+  });
+
+  it('reports a proven active v15 binding as compatible with legacy cancellation', async () => {
+    configureLegacy({ version_major: 15, activated_at: '2026-01-01T00:00:00Z' }, [
+      { id: 'lm1', budget_version_id: 'v1', fiscal_year: '2026', erp_budget_name: 'BUD-OLD', erp_docstatus: 1, erp_cancelled_at: null, push_state: 'pushed', activated_at_witness: '2026-01-01T00:00:00Z' },
+    ]);
+
+    const targets = await listLegacyBudgetArchiveLiveTargets(['v1']);
+
+    expect(targets).toHaveLength(1);
+    expect(targets[0]).toMatchObject({ source_kind: 'legacy', erp_account: '', archive_cancellation_available: true });
+  });
+
+  it('keeps legacy targets visible while cancellation is unavailable', async () => {
+    configureLegacy(null, [
+      { id: 'lm1', budget_version_id: 'v1', fiscal_year: '2026', erp_budget_name: 'BUD-OLD', erp_docstatus: 1, erp_cancelled_at: null, push_state: 'pushed', activated_at_witness: '2026-01-01T00:00:00Z' },
+    ]);
+
+    const targets = await listLegacyBudgetArchiveLiveTargets(['v1']);
+
+    expect(targets).toHaveLength(1);
+    expect(targets[0].archive_cancellation_available).toBe(false);
+  });
+
+  it('does not query when there are no versions', async () => {
+    await expect(listLegacyBudgetArchiveLiveTargets([])).resolves.toEqual([]);
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
+});
+
+describe('#1462 listBudgetArchiveTargets', () => {
+  it('maps the server eligibility verdict for both mirror kinds', async () => {
+    makeRpcBuilder({ data: [
+      { source_kind: 'legacy', fiscal_year: '2026', to_fiscal_year: null, erp_budget_name: 'BUD-OLD', eligible: true, reason: 'eligible', push_state: 'pushed', erp_docstatus: 1 },
+      { source_kind: 'account', fiscal_year: '2026', to_fiscal_year: null, erp_budget_name: 'BUD-NEW', eligible: false, reason: 'command-unsettled', push_state: 'pending', erp_docstatus: 1 },
+      { source_kind: 'account', fiscal_year: 'FY/Alpha', to_fiscal_year: 'FY:Beta', erp_budget_name: 'BUD-RANGE', eligible: true, reason: 'eligible', push_state: 'pushed', erp_docstatus: 1 },
+    ], error: null });
+
+    const targets = await listBudgetArchiveTargets('v1');
+
+    expect(mockRpc).toHaveBeenCalledWith('get_budget_archive_targets', { p_version_id: 'v1' });
+    expect(targets).toEqual([
+      { source_kind: 'legacy', fiscal_year: '2026', to_fiscal_year: null, erp_budget_name: 'BUD-OLD', eligible: true, reason: 'eligible', push_state: 'pushed', erp_docstatus: 1 },
+      { source_kind: 'account', fiscal_year: '2026', to_fiscal_year: null, erp_budget_name: 'BUD-NEW', eligible: false, reason: 'command-unsettled', push_state: 'pending', erp_docstatus: 1 },
+      { source_kind: 'account', fiscal_year: 'FY/Alpha', to_fiscal_year: 'FY:Beta', erp_budget_name: 'BUD-RANGE', eligible: true, reason: 'eligible', push_state: 'pushed', erp_docstatus: 1 },
+    ]);
+  });
+
+  it('reads every server target when the archive inventory exceeds PostgREST max_rows', async () => {
+    const rows = Array.from({ length: 1001 }, (_, index) => ({
+      source_kind: 'legacy',
+      fiscal_year: String(2000 + index),
+      to_fiscal_year: null,
+      erp_budget_name: `BUD-${index}`,
+      eligible: index !== 1000,
+      reason: index === 1000 ? 'command-unsettled' : 'eligible',
+      push_state: 'pushed',
+      erp_docstatus: 1,
+    }));
+    const ranges: Array<[number, number]> = [];
+    mockRpc.mockImplementation(() => {
+      const builder = {
+        order: vi.fn().mockReturnThis(),
+        range: vi.fn((from: number, to: number) => {
+        ranges.push([from, to]);
+        return Promise.resolve({ data: rows.slice(from, to + 1), error: null });
+        }),
+      };
+      return builder as never;
+    });
+
+    const targets = await listBudgetArchiveTargets('v1');
+
+    expect(targets).toHaveLength(1001);
+    expect(targets[1000]).toMatchObject({ eligible: false, reason: 'command-unsettled' });
+    expect(ranges).toEqual([[0, 999], [1000, 1999]]);
+  });
+
+  it('fails closed on a read error instead of reporting an empty inventory', async () => {
+    makeRpcBuilder({ data: null, error: { message: 'read failed', code: 'P0001' } });
+    await expect(listBudgetArchiveTargets('v1')).rejects.toThrow();
+  });
+
+  it('rejects an unexpected payload rather than rendering it as truth', async () => {
+    makeRpcBuilder({ data: null, error: null });
+    await expect(listBudgetArchiveTargets('v1')).rejects.toThrow('unexpected response');
+    makeRpcBuilder({ data: [{ source_kind: 'mystery', fiscal_year: '2026', erp_budget_name: 'X', eligible: true, reason: 'eligible' }], error: null });
+    await expect(listBudgetArchiveTargets('v1')).rejects.toThrow('invalid row');
   });
 });

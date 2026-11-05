@@ -7,12 +7,14 @@ import { usePermission } from '@/src/auth/usePermission';
 import { useErpnextBinding } from '@/src/hooks/useErpnextBinding';
 import { repositories } from '@/src/lib/repositories';
 import { listBudgetPostingAccountCatalogue } from '@/src/lib/repositories/budgetProjection';
+import { accountOption } from '@/src/lib/accounting/accountOption';
 import { taxSetupChoices, type TaxSetupPurpose } from '@/src/lib/accounting/taxSetupChoices';
 import type { BudgetPostingAccount } from '@/src/lib/budget/categoryAccountMap';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { Button, Combobox, FieldError, ListState, useToast } from '@/src/components/ui';
 import type { ComboboxOption } from '@/src/components/ui';
 import type { OrgVendorTaxAccounts as Accounts } from '@/src/lib/db/orgs';
+import { SESSION_QUERY_OPTIONS } from '@/src/lib/queryPolicies';
 
 const QUERY_KEY = 'org-vendor-tax-accounts';
 const NO_ACCOUNTS: BudgetPostingAccount[] = [];
@@ -24,14 +26,6 @@ const fields: { key: AccountField; purpose: VendorTaxPurpose; labelKey: string; 
   { key: 'pph23PayableAccount', purpose: 'pph23', labelKey: 'uxs11.pph23Label', label: 'PPh 23 payable account', emptyKey: 'uxs11.noLiabilityAccounts', empty: 'No enabled Liability accounts are available. Ask your accounting administrator to add a suitable account to the ERP chart.' },
   { key: 'pph42PayableAccount', purpose: 'pph42', labelKey: 'uxs11.pph42Label', label: 'PPh 4(2) payable account', emptyKey: 'uxs11.noLiabilityAccounts', empty: 'No enabled Liability accounts are available. Ask your accounting administrator to add a suitable account to the ERP chart.' },
 ];
-
-function accountOption(account: BudgetPostingAccount, staleLabel?: string): ComboboxOption {
-  return {
-    value: account.account,
-    label: account.account,
-    sub: [account.accountNumber, account.parentAccount].filter(Boolean).join(' · ') || staleLabel,
-  };
-}
 
 function valueOption(value: string, choices: BudgetPostingAccount[], staleLabel?: string): ComboboxOption {
   const account = choices.find((candidate) => candidate.account === value);
@@ -56,7 +50,7 @@ export default function OrgVendorTaxAccounts() {
   const draft = useCallback((): Accounts => ({ inputVatAccount: inputVat || null, pph23PayableAccount: pph23 || null, pph42PayableAccount: pph42 || null }), [inputVat, pph23, pph42]);
   const orgId = currentUser?.org_id;
   const queryKey = [QUERY_KEY, orgId];
-  const query = useQuery({ queryKey, queryFn: () => repositories.orgSettings.getVendorTaxAccounts(), enabled: !!currentUser });
+  const query = useQuery({ queryKey, queryFn: () => repositories.orgSettings.getVendorTaxAccounts(), enabled: !!currentUser, ...SESSION_QUERY_OPTIONS });
   const hasActiveBinding = binding.data?.status === 'active' && !binding.isError;
   const catalogue = useQuery({
     queryKey: ['uxs11', 'account-catalogue', orgId],

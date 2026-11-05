@@ -110,8 +110,8 @@ select is(
   'AC-ORG-014 the new org has its five pipeline win-probability rows (seed_org_defaults)');
 select is(
   (select win_probability::numeric from pipeline_stage_config c join organizations o on o.id = c.org_id
-    where o.name = 'AC-ORG New Org' and c.status = 'Negotiation'), 0.750,
-  'AC-ORG-014 …with the 0008 A3 values, not zeros');
+    where o.name = 'AC-ORG New Org' and c.status = 'Negotiation'), 0.900,
+  'AC-ORG-014 …with the 0591 stage Go default, not zeros');
 select is((select email from profiles where id = '04840000-0000-0000-0000-0000000000b1'),
   'ac-org-new-admin@example.com',
   'AC-ORG-006 the Admin profile email is read from auth.users, not supplied by the caller');

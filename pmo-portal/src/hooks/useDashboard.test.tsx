@@ -233,6 +233,7 @@ describe('useWonDeals (#1441)', () => {
       id: 'won-1', name: 'Won Deal Zeta', short_name: 'Zeta Fit-Out', status: 'Close Out',
       pmo_project_number: 'PMO-2601', code: 'ZETA', contract_value: 900000, currency: 'USD',
       tax_treatment: 'exclusive', tax_rate: 0, tax_base_numerator: null, tax_base_denominator: null,
+      go_probability: 0.1, get_probability: 0.25,
       service_line: 'Construction', sector: 'Commercial', location: 'Jakarta', award_type: 'Direct',
       bidding_entity: null, client: { name: 'Zeta Co' }, end_client_id: null, end_client: null,
       last_update: '2026-09-01T00:00:00Z', pm: { full_name: 'PM Zeta' },
@@ -247,7 +248,7 @@ describe('useWonDeals (#1441)', () => {
     expect(result.current.data?.[0]).toMatchObject({
       id: 'won-1', name: 'Won Deal Zeta', short_name: 'Zeta Fit-Out',
       pmo_project_number: 'PMO-2601', code: 'ZETA', status: 'Close Out',
-      client_name: 'Zeta Co', end_client_id: null, win_probability: 1,
+      client_name: 'Zeta Co', end_client_id: null, go_probability: 1, get_probability: 1, win_probability: 1,
       service_line: 'Construction', sector: 'Commercial', location: 'Jakarta',
       award_type: 'Direct', last_update: '2026-09-01T00:00:00Z', pm_name: 'PM Zeta',
     });

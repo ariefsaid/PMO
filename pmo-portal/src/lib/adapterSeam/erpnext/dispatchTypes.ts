@@ -21,9 +21,14 @@ export interface DispatchServiceClient {
   from(table: string): {
     select(columns: string): DispatchFilterBuilder;
   };
+  rpc(functionName: string, args?: Record<string, unknown>): Promise<{
+    data: unknown;
+    error: { message: string; code?: string } | null;
+  }>;
 }
 export interface DispatchFilterBuilder extends PromiseLike<{ data: unknown; error: { message: string; code?: string } | null }> {
   eq(column: string, value: string | boolean): DispatchFilterBuilder;
+  in(column: string, values: readonly string[]): DispatchFilterBuilder;
   is(column: string, value: null): DispatchFilterBuilder;
   gte(column: string, value: string): DispatchFilterBuilder;
   order(column: string, opts?: { ascending?: boolean }): DispatchFilterBuilder;
@@ -50,6 +55,8 @@ export interface ProcurementSourceLine {
 export interface ErpDispatchFactoryDeps {
   serviceClient: DispatchServiceClient;
   orgId: string;
+  /** Verified command actor used to match a durable budget archive cancellation intent. */
+  actorUserId?: string;
   command: AdapterCommand;
   fetchImpl: typeof fetch;
   /** Resolved from `secret_ref` at the edge-fn boundary (vault `AS`/fn secrets) — never read here. */

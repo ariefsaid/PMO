@@ -127,7 +127,15 @@ export function useBudgetArchiveTargets(versionIds: readonly string[], pollWhile
   const stableIds = [...versionIds].sort();
   return useQuery<BudgetArchiveLiveTarget[]>({
     queryKey: ['budget-archive-live-targets', orgId, stableIds],
-    queryFn: () => repositories.budget.listArchiveLiveTargets(stableIds),
+    // #1462 — BOTH mirror kinds in ONE read that fails closed: an error in either query rejects and the
+    // surface says it could not check, rather than rendering a partial list as the whole truth.
+    queryFn: async () => {
+      const [account, legacy] = await Promise.all([
+        repositories.budget.listArchiveLiveTargets(stableIds),
+        repositories.budget.listLegacyArchiveLiveTargets(stableIds),
+      ]);
+      return [...account, ...legacy];
+    },
     enabled: Boolean(orgId && stableIds.length > 0),
     refetchInterval: (query) => pollWhileLive && (query.state.data?.length ?? 0) > 0 ? 30_000 : false,
   });

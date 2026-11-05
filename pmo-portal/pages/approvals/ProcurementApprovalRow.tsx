@@ -16,7 +16,6 @@ import { Link } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import {
-  ApprovalRow,
   Button,
   ConfirmDialog,
   Icon,
@@ -39,10 +38,6 @@ import { useAuth } from '@/src/auth/useAuth';
 import { workflowVariant } from '@/src/lib/status/statusVariants';
 
 type PendingAction = 'Approved' | 'Rejected';
-
-export interface ProcurementApprovalRowProps {
-  row: ProcurementWithRefs;
-}
 
 export interface ProcurementApprovalPreviewProps {
   row: ProcurementWithRefs;
@@ -308,63 +303,3 @@ export const ProcurementApprovalPreview: React.FC<ProcurementApprovalPreviewProp
   );
 };
 
-export const ProcurementApprovalRow: React.FC<ProcurementApprovalRowProps> = ({ row }) => {
-  const { t } = useTranslation('procurement');
-  const panelId = `proc-approval-panel-${useId()}`;
-  const [expanded, setExpanded] = useState(false);
-
-  const subtitle = (
-    <span className="block">
-      <span className="block break-words">
-        <span className="block whitespace-nowrap font-mono">{row.code ?? row.id.slice(0, 8)}</span>
-        <ProjectNameLink
-          projectId={row.project_id}
-          name={row.project ? projectDisplayName(row.project) : null}
-          legalName={row.project?.name}
-          className="block whitespace-normal break-words text-xs"
-        />
-      </span>
-      <span className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
-        {row.requested_by?.full_name && <span>{row.requested_by.full_name}</span>}
-        <span className="tabular font-medium text-foreground">{formatCurrency(row.total_value, row.currency)}</span>
-        <span>{formatRelativeTime(row.created_at)}</span>
-      </span>
-    </span>
-  );
-
-  return (
-    <div className="border-b border-border last:border-b-0">
-      <ApprovalRow
-        name={row.title}
-        identityLayout="request"
-        subtitle={subtitle}
-        status={<StatusPill variant={workflowVariant(row.status)}>{row.status}</StatusPill>}
-        onActivate={() => setExpanded((v) => !v)}
-        disclosure={
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-expanded={expanded}
-            aria-controls={panelId}
-            aria-label={t('approvalRow.showBudget', 'Show budget impact for {{title}}', { title: row.title })}
-            onClick={() => setExpanded((v) => !v)}
-            className={
-              expanded
-                ? '[&_svg]:rotate-90 [&_svg]:transition-transform'
-                : '[&_svg]:transition-transform'
-            }
-          >
-            <Icon name="chev" />
-          </Button>
-        }
-        className="border-b-0 px-4"
-      />
-
-      {expanded && (
-        <div id={panelId} className="mx-3.5 mb-3 rounded-lg border border-border bg-secondary/20 p-3">
-          <ProcurementApprovalPreview row={row} surface="inline" />
-        </div>
-      )}
-    </div>
-  );
-};

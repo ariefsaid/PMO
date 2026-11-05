@@ -235,6 +235,10 @@ async function upsertIncomingPaymentMirror(ctx: ReadModelWriterCtx, canonical: P
       customer_id: customerId,
       sales_invoice_id: salesInvoiceId,
       date: record.date ?? null,
+      // A same-key recovery may be retried under a different Finance JWT after Odoo committed. The
+      // canonical was stamped from the original actor persisted on the money outbox; prefer that
+      // verified witness over the replay caller.
+      recorded_by_id: typeof canonical.recorded_by_id === 'string' ? canonical.recorded_by_id : ctx.callerUserId ?? null,
       ...patch,
     });
     if (error) throw new AppError(error.message, error.code);

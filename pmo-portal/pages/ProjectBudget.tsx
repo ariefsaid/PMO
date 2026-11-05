@@ -145,6 +145,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   );
   const archivedLiveTargets = archiveTargets.filter((target) =>
     versions.some((version) => version.id === target.budget_version_id && version.status === 'Archived') &&
+    typeof target.erp_budget_name === 'string' && target.erp_budget_name.trim() !== '' &&
     target.erp_cancelled_at === null && target.erp_docstatus !== 2 &&
     !pushedActiveGrains.has(JSON.stringify([target.erp_account, target.fiscal_year])),
   );
@@ -566,6 +567,28 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
       {!archiveTargetsLoading && !archiveTargetsQuery.isError && archivedLiveTargets.length > 0 && (
         <div role="alert" className="rounded-lg border border-warning/30 bg-warning/[0.07] px-3.5 py-3 text-sm text-foreground">
           {t('budgetArchive.archivedBudgetStillLiveInErp')}
+          <ul className="mt-2 list-disc space-y-1 pl-5 text-muted-foreground" aria-label={t('budgetArchive.stillLiveListAria', 'ERPNext Budget documents that may still be live')}>
+            {archivedLiveTargets.map((target, index) => {
+              const yearLabel = target.to_fiscal_year
+                ? `${target.fiscal_year}–${target.to_fiscal_year}`
+                : target.fiscal_year;
+              const status = target.push_state === 'pending'
+                ? { label: t('projectDetail.budget.pushQueued', 'Queued'), variant: 'progress' as const }
+                : target.push_state === 'held'
+                  ? { label: t('projectDetail.budget.pushHeld', 'On hold'), variant: 'warn' as const }
+                  : target.push_state === 'failed'
+                    ? { label: t('projectDetail.budget.pushFailed', 'Not sent'), variant: 'lost' as const }
+                    : null;
+              return (
+                <li key={`${target.source_kind}:${target.fiscal_year}:${target.erp_budget_name}:${index}`} className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <span>{target.source_kind === 'legacy'
+                    ? t('budgetArchive.legacyTargetLine', '{{year}} — {{name}} (older push)', { year: yearLabel, name: target.erp_budget_name })
+                    : t('budgetArchive.targetLine', '{{year}} — {{name}}', { year: yearLabel, name: target.erp_budget_name })}</span>
+                  {status && <StatusPill variant={status.variant}>{status.label}</StatusPill>}
+                </li>
+              );
+            })}
+          </ul>
         </div>
       )}
 

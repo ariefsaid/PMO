@@ -4,11 +4,11 @@ const { invoke } = vi.hoisted(() => ({ invoke: vi.fn() }));
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { functions: { invoke } } }));
 
 import {
-  browseOneDrive, listSites, listDrives, getPersonalDrive, listChildren, browseSites, browseDrives,
+  browseOneDrive, browseSites, browseDrives, getPersonalDrive, listChildren,
   parseNextLink, searchDrive, listVersions, getItem, issueMicrosoftDocument,
   checkMicrosoftDocuments, refreshMicrosoftReferences,
 } from '../graphClient';
-import { scopeCoversPath } from '../../../../../supabase/functions/m365-token-custody/proxy';
+import { scopeCoversPath } from '../../../../../supabase/functions/m365-token-custody/graphRead';
 
 describe('Graph metadata browse transport', () => {
   beforeEach(() => invoke.mockReset());
@@ -42,8 +42,8 @@ describe('Graph metadata browse transport', () => {
         ? { data: { id: 'personal-drive', name: 'OneDrive', webUrl: 'https://example.invalid/drive' }, error: null }
         : { data: { value: [] }, error: null },
     ));
-    await listSites();
-    await listDrives('site-id');
+    await browseSites();
+    await browseDrives('site-id');
     await listChildren('drive-id');
     await listChildren('drive-id', 'folder-id');
     await getPersonalDrive();
@@ -61,7 +61,7 @@ describe('Graph metadata browse transport', () => {
       expect(request.path).not.toMatch(/mail|content/i);
     }
     expect(scopeCoversPath(['Files.Read', 'Files.Read.All', 'Sites.Read.All'], 'GET', '/me/messages')).toBe(false);
-    expect(() => listDrives('../mail')).toThrow();
+    expect(() => browseDrives('../mail')).toThrow();
     expect(() => listChildren('drive%2Fmail')).toThrow();
   });
 

@@ -362,9 +362,9 @@ export const M365ConnectionCard: React.FC<M365ConnectionCardProps> = ({ showUnav
       <Card className="mb-3.5 p-4" data-testid="m365-connection-card">
         <div className="flex items-center gap-2">
           <Icon name="plug" />
-          <h3 className="text-[15px] font-semibold text-foreground">
+          <h2 className="text-[15px] font-semibold text-foreground">
             {t('integrations.personalM365.heading', 'Microsoft 365')}
-          </h3>
+          </h2>
         </div>
         <p className="mt-2 text-sm text-muted-foreground" data-testid="m365-unavailable-msg">
           {t(
@@ -388,9 +388,9 @@ export const M365ConnectionCard: React.FC<M365ConnectionCardProps> = ({ showUnav
     <Card className="mb-3.5 p-4" data-testid="m365-connection-card">
       <div className="flex items-center gap-2">
         <Icon name="plug" />
-        <h3 className="text-[15px] text-foreground font-semibold">
+        <h2 className="text-[15px] text-foreground font-semibold">
           {t('integrations.personalM365.heading', 'Microsoft 365')}
-        </h3>
+        </h2>
       </div>
 
       {isConnected ? (

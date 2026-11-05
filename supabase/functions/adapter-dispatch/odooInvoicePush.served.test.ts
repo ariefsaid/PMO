@@ -142,11 +142,16 @@ describe('AC-OCI-010 / FR-OCI-060 the approval: the author is refused before any
     const odoo = odooWorld();
     const grants: string[] = [];
     const writes: NonNullable<World['writes']> = [];
-    const r = await dispatchAs(APPROVER_ID, claiming(), { odoo, grants, writes });
+    const odooContexts: NonNullable<World['odooContexts']> = [];
+    const command = claiming();
+    (command.record as Record<string, unknown>).vat_flag_at_resolution = false;
+    const r = await dispatchAs(APPROVER_ID, command, { odoo, grants, writes, odooContexts, projectSubjectToVat: true });
     assertEquals(r.unexpected.map((c) => `${c.method} ${c.url.pathname}${c.url.search}`), [], 'every read is mocked');
     assertEquals(r.status, 200, r.body);
     assertEquals(grants, [APPROVER_ID], 'the approver is the JWT subject, never the payload\'s');
     const [invoice] = moves(odoo);
+    const productRead = odooContexts.find((request) => request.model === 'product.product' && request.method === 'read');
+    assertEquals(productRead?.context, { allowed_company_ids: [1], company_id: 1 }, 'company-dependent product properties are read for the configured Odoo company');
     assertEquals(moves(odoo).length, 1);
     assertEquals([invoice.move_type, invoice.state, invoice.partner_id, invoice.ref, invoice.amount_untaxed, invoice.amount_tax, invoice.amount_total], ['out_invoice', 'posted', 41, 'WO-PO-9', 2000, 220, 2220]);
     const lines = odoo.rows('account.move.line').filter((l) => l.move_id === invoice.id && l.display_type === 'product');
@@ -158,6 +163,7 @@ describe('AC-OCI-010 / FR-OCI-060 the approval: the author is refused before any
     assertEquals([body.payload.customerId, body.payload.projectId, body.payload.workOrderId], ['44444444-4444-4444-8444-444444444444', '55555555-5555-4555-8555-555555555555', '66666666-6666-4666-8666-666666666666']);
     assertEquals((body.payload.items as unknown[]).length, 2, 'the draft\'s lines, not the payload\'s');
     assertEquals([body.payload.odoo_partner_id, body.payload.odoo_expected_total, body.payload.odoo_cost_account], [41, '2220.00', 101]);
+    assertEquals(body.payload.vat_flag_at_resolution, true, 'the server snapshots the PMO project VAT flag, ignoring the caller claim');
     assert(typeof body.payload.created_after === 'string' && typeof body.payload.created_before === 'string', 'the recovery window is bounded on both sides');
     const mirror = writes.find((w) => w.table === 'sales_invoices' && w.method === 'PATCH')!.body as Record<string, unknown>;
     assertEquals([mirror.si_number, mirror.amount, mirror.tax_amount, mirror.erp_outstanding_amount, mirror.status, mirror.erp_docstatus, mirror.odoo_state, mirror.odoo_attention], [invoice.name, '2220.00', '220.00', '2220.00', 'Unpaid', 1, 'posted', null]);
@@ -215,6 +221,25 @@ describe('AC-OCI-010 / FR-OCI-060 the approval: the author is refused before any
     assertEquals(again.status, 200, again.body);
     assertEquals([moves(odoo).length, creates(odoo), odoo.calls.filter((c) => c.method === 'action_post').length], [1, 1, 1]);
     assertEquals(outboxInserts(again).length, 0, 'the retry reuses the first attempt\'s row');
+  });
+
+  it('FR-OCI-063 a user retry after an adopted resolution confirms its invoice without a second create', async () => {
+    const odoo = odooWorld();
+    const outbox = new Map<string, Record<string, unknown>>();
+    const first = await dispatchAs(APPROVER_ID, approveCommand(), { odoo, outbox });
+    assertEquals(first.status, 200, first.body);
+    const invoice = moves(odoo)[0];
+    const createdCount = creates(odoo);
+    assertEquals(createdCount, 1);
+
+    for (const anchor of odoo.rows('ir.model.data').filter((row) => row.res_id === invoice.id && row.module === 'pmo')) anchor.module = 'edited';
+    const row = [...outbox.values()][0];
+    row.state = 'failed';
+    row.payload = { ...(row.payload as Record<string, unknown>), odoo_adopted_ref: `account.move:${invoice.id}` };
+
+    const retry = await dispatchAs(APPROVER_ID, approveCommand(), { odoo, outbox });
+    assertEquals(retry.status, 200, retry.body);
+    assertEquals([moves(odoo).length, creates(odoo) - createdCount], [1, 0], 'the resolved reference confirms the existing invoice; the retry makes zero create calls');
   });
 
   it('FR-OCI-070 a new approval after a rejected anchor write uses the same server-derived key and never creates a second invoice', async () => {
@@ -324,7 +349,7 @@ describe('AC-OCI-020 / AC-OCI-021 / AC-OCI-022 / AC-OCI-023 Odoo billing claims'
     down_payment_amount: null, dp_recovery_amount: '0.00', dp_item_code: null, withdrawn_at: null,
   };
   const signedTimeMaterialsClaim = { id: CLAIM_ID, status: 'SignedOff', confirmed_by: APPROVER_ID, gross_amount: '6000000.00' };
-  const timeMaterialsLines = [{ line_key: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', rate_version: 1, kind: 'labour', label: 'Field labour', unit: 'hour', units: '120.00', rate: '50000.00', amount: '6000000.00' }];
+  const timeMaterialsLines = [{ line_key: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', rate_version: 1, kind: 'labour', basis: 'work', label: 'Field labour', unit: 'hour', units: '120.00', rate: '50000.00', amount: '6000000.00' }];
   const nativeTimeMaterialsLines = [{ item_code: 'Field labour', description: 'Field labour (hour)', qty: 120, rate: 50000, amount: 6000000, unit: 'hour' }];
   const timeMaterialsDraft = () => draftRow({ id: CLAIM_ID, customer_id: CUSTOMER_ID, project_id: PROJECT_ID, work_order_id: null, native_lines: nativeTimeMaterialsLines });
 

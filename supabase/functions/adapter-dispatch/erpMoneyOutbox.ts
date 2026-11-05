@@ -119,6 +119,15 @@ export async function resolveErpMoneyOutboxDeps(ctx: AdapterSelectContext, resol
     reissueOnInconclusiveAbsence: reissueOnInconclusiveAbsence(entry),
     payload,
     payloadDigest,
+    // #1783 item 1: a legacy receipt row reached by a caller-line-intent command verifies in memory
+    // against its persisted payload (the resolver's own material rule) + persisted operation before
+    // the M-3 comparison. Receipt-scoped: only a line-intent command sets the context flag.
+    ...(ctx.receiptLineIntent
+      ? { verifyLegacyReceiptDigest: { material: (p: Record<string, unknown>) => {
+        const { created_after: _createdAfter, ...digestPayload } = p;
+        return digestPayload;
+      } } }
+      : {}),
     procurementSnapshot: ctx.procurementSnapshot,
     procurementInputDigest: ctx.procurementInputDigest,
     legacyPayloadDigests,
@@ -199,8 +208,34 @@ export async function buildPaymentCompositePayload(ctx: AdapterSelectContext): P
   };
 }
 
-/** Read the persisted composite-probe payload for one command's outbox row (the ruling's "read from our
- *  own outbox row payload"). Returns null when no row/payload exists yet (first attempt). */
+/** Read the persisted composite-probe payload and verified actor for one command's outbox row. */
+export async function readOutboxCompositeWitness(
+  serviceClient: SupabaseClient,
+  orgId: string,
+  domain: string,
+  pmoRecordId: string,
+  idempotencyKey: string,
+): Promise<{ payload: Record<string, unknown> | null; actorUserId: string | null } | null> {
+  const { data, error } = await serviceClient
+    .from('external_command_outbox')
+    .select('payload,actor_user_id')
+    .eq('org_id', orgId)
+    .eq('domain', domain)
+    .eq('pmo_record_id', pmoRecordId)
+    .eq('idempotency_key', idempotencyKey)
+    .maybeSingle();
+  if (error) {
+    throw new AppError('The earlier outbox command could not be checked', 'external-unreachable');
+  }
+  const row = data as { payload?: Record<string, unknown> | null; actor_user_id?: unknown } | null;
+  if (!row) return null;
+  return {
+    payload: row.payload ?? null,
+    actorUserId: typeof row.actor_user_id === 'string' ? row.actor_user_id : null,
+  };
+}
+
+/** Read only the persisted composite-probe payload for a command. */
 export async function readOutboxCompositePayload(
   serviceClient: SupabaseClient,
   orgId: string,
@@ -208,13 +243,5 @@ export async function readOutboxCompositePayload(
   pmoRecordId: string,
   idempotencyKey: string,
 ): Promise<Record<string, unknown> | null> {
-  const { data } = await serviceClient
-    .from('external_command_outbox')
-    .select('payload')
-    .eq('org_id', orgId)
-    .eq('domain', domain)
-    .eq('pmo_record_id', pmoRecordId)
-    .eq('idempotency_key', idempotencyKey)
-    .maybeSingle();
-  return (data as { payload?: Record<string, unknown> | null } | null)?.payload ?? null;
+  return (await readOutboxCompositeWitness(serviceClient, orgId, domain, pmoRecordId, idempotencyKey))?.payload ?? null;
 }

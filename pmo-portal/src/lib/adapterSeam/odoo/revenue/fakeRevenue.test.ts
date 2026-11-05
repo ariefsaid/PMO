@@ -108,7 +108,7 @@ describe('fakeOdoo register-payment wizard and inbound payments (C0 V-OCI7, V-OC
     const action = await pay(s, id);
     expect(action).toMatchObject({ type: 'ir.actions.act_window', res_model: 'account.payment' });
     expect(await s.read(id)).toMatchObject({ amount_residual: 0, payment_state: 'paid' });
-    expect(s.fake.rows('account.payment')).toEqual([expect.objectContaining({ id: action.res_id, payment_type: 'inbound', partner_type: 'customer', partner_id: 41, amount: 1110, state: 'paid' })]);
+    expect(s.fake.rows('account.payment')).toEqual([expect.objectContaining({ id: action.res_id, payment_type: 'inbound', partner_type: 'customer', partner_id: 41, amount: 1110, state: 'reconciled' })]);
   });
 
   it('a partial receipt leaves the rest outstanding; two receipts settle it', async () => {
@@ -156,7 +156,7 @@ describe('fakeOdoo register-payment wizard and inbound payments (C0 V-OCI7, V-OC
     expect((await s.read(id)).amount_residual).toBe(1110);
     await s.call('account.move.line', 'reconcile', { ids: receivable.map((l) => l.id) });
     expect(await s.read(id)).toMatchObject({ amount_residual: 0, payment_state: 'paid' });
-    expect(s.fake.rows('account.payment')[0]).toMatchObject({ state: 'paid', is_reconciled: true });
+    expect(s.fake.rows('account.payment')[0]).toMatchObject({ state: 'reconciled', is_reconciled: true });
   });
 });
 

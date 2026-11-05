@@ -7,6 +7,7 @@ import {
 } from '@/src/lib/repositories';
 import { useAuth } from '@/src/auth/useAuth';
 import { ON_HAND_STATUSES } from '@/src/lib/db/projectTransitions';
+import { MONEY_QUERY_OPTIONS } from '@/src/lib/queryPolicies';
 
 /** Org-scoped executive dashboard aggregates. queryKey includes org_id so cache is tenant-scoped
  * (FR-QRY-DASH-001). Aggregates are computed in SQL (RPC) and RLS-scoped to the caller's org. */
@@ -17,6 +18,7 @@ export function usePMDashboardProjects() {
     queryKey: ['pm-dashboard-projects', orgId, currentUser?.id],
     queryFn: () => repositories.dashboard.pmProjects(),
     enabled: Boolean(orgId && currentUser?.id),
+    ...MONEY_QUERY_OPTIONS,
   });
 }
 
@@ -27,6 +29,7 @@ export function useDashboard() {
     queryKey: ['dashboard', orgId],
     queryFn: () => repositories.dashboard.executive(),
     enabled: Boolean(orgId),
+    ...MONEY_QUERY_OPTIONS,
   });
 }
 
@@ -53,6 +56,7 @@ export function useWinRate(range: WinRateRange) {
     queryKey: ['win-rate', orgId, range.key],
     queryFn: () => repositories.dashboard.winRate(range.from, range.to),
     enabled: Boolean(orgId),
+    ...MONEY_QUERY_OPTIONS,
   });
 }
 
@@ -64,6 +68,7 @@ export function useLossBreakdown(range: WinRateRange) {
     queryKey: ['loss-breakdown', orgId, range.key],
     queryFn: () => repositories.dashboard.lossBreakdown(range.from, range.to),
     enabled: Boolean(orgId),
+    ...MONEY_QUERY_OPTIONS,
   });
 }
 
@@ -78,11 +83,18 @@ export function useSalesPipeline(opts?: { enabled?: boolean }) {
     queryKey: ['sales-pipeline', orgId],
     queryFn: () => repositories.dashboard.salesPipeline(),
     enabled: Boolean(orgId) && opts?.enabled !== false,
+    ...MONEY_QUERY_OPTIONS,
   });
 }
 
 /** Keep terminal rows aligned with the pipeline RPC projection when they come from the project DAL. */
 function toPipelineProject(row: ProjectWithRefs, winProbability: number): PipelineProject {
+  // Once a won opportunity enters delivery, its stage is still an on-hand won outcome.
+  // Its legacy stage default is irrelevant; keep the pipeline projection at 100% Go/Get.
+  const isWon = ON_HAND_STATUSES.includes(row.status);
+  const isLost = row.status === 'Loss Tender' || row.status === 'Declined';
+  const goProbability = isWon || isLost ? 1 : winProbability;
+  const getProbability = isWon ? 1 : row.get_probability ?? (isLost ? 0 : 0.25);
   return {
     service_line: row.service_line,
     sector: row.sector,
@@ -103,7 +115,9 @@ function toPipelineProject(row: ProjectWithRefs, winProbability: number): Pipeli
     tax_rate: row.tax_rate,
     tax_base_numerator: row.tax_base_numerator,
     tax_base_denominator: row.tax_base_denominator,
-    win_probability: winProbability,
+    go_probability: goProbability,
+    get_probability: getProbability,
+    win_probability: goProbability * getProbability,
     end_client_id: row.end_client_id,
     end_client_name: row.end_client ? companyDisplayName(row.end_client) : null,
     end_client_legal_name: row.end_client?.name ?? null,
@@ -128,6 +142,7 @@ export function useFinanceBudgetReview() {
     queryKey: ['finance-budget-review', orgId],
     queryFn: () => repositories.dashboard.financeBudgetReview(),
     enabled: Boolean(orgId),
+    ...MONEY_QUERY_OPTIONS,
   });
 }
 
@@ -150,6 +165,7 @@ export function useLostDeals() {
       return rows.map((row) => toPipelineProject(row, 0));
     },
     enabled: Boolean(orgId),
+    ...MONEY_QUERY_OPTIONS,
   });
 }
 
@@ -173,5 +189,6 @@ export function useWonDeals() {
       return rows.map((row) => toPipelineProject(row, 1));
     },
     enabled: Boolean(orgId),
+    ...MONEY_QUERY_OPTIONS,
   });
 }

@@ -1,6 +1,6 @@
 import { assertEquals } from '@std/assert';
 import { getReadModelWriter } from './readModelWriters.ts';
-import { budgetAccountIdentity } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/budgetAccountIdentity.ts';
+import { budgetAccountIdentity, budgetRangeIdentity } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/budgetAccountIdentity.ts';
 
 const VERSION = '44444444-4444-4444-8444-444444444444';
 const account = 'COGS';
@@ -11,12 +11,16 @@ function fixture(existing: unknown = null) {
   const client = {
     from(table: string) {
       return {
-        upsert: async (...args: unknown[]) => { calls.push({ table, method: 'upsert', args }); return { error: null }; },
+        upsert: (...args: unknown[]) => {
+          calls.push({ table, method: 'upsert', args });
+          return Promise.resolve({ error: null });
+        },
         select: (columns: string) => {
           calls.push({ table, method: 'select', args: [columns] });
           const chain = {
             eq(column: string, value: string) { calls.push({ table, method: 'eq', args: [column, value] }); return chain; },
-            maybeSingle: async () => ({ data: existing, error: null }),
+            is(column: string, value: null) { calls.push({ table, method: 'is', args: [column, value] }); return chain; },
+            maybeSingle: () => Promise.resolve({ data: existing, error: null }),
           };
           return chain;
         },
@@ -39,13 +43,14 @@ Deno.test('v16 budget writer scopes successful account rows and preserves replay
   const writer = getReadModelWriter('budget');
   const fresh = fixture();
   await writer.upsert({ serviceClient: fresh.client as never, orgId: 'org-1' }, {
-    id: VERSION, fiscal_year: '2026', erp_account: account, erp_budget_name: 'ERP-BUDGET', erp_docstatus: 1,
+    id: VERSION, fiscal_year: '2026', to_fiscal_year: '2026', erp_account: account, erp_budget_name: 'ERP-BUDGET', erp_docstatus: 1,
   }, command());
   const upsert = fresh.calls.find((call) => call.method === 'upsert')!;
   assertEquals(upsert.table, 'budget_version_account_erp_mirror');
   assertEquals((upsert.args[0] as Record<string, unknown>).erp_account, account);
   assertEquals((upsert.args[0] as Record<string, unknown>).budget_intent, 'ensure');
-  assertEquals((upsert.args[1] as { onConflict: string }).onConflict, 'org_id,budget_version_id,fiscal_year,erp_account');
+  assertEquals((upsert.args[0] as Record<string, unknown>).to_fiscal_year, null);
+  assertEquals((upsert.args[1] as { onConflict: string }).onConflict, 'org_id,budget_version_id,fiscal_year,to_fiscal_year,erp_account');
 
   const replay = fixture({ erp_cancelled_at: '2026-02-01T00:00:00Z' });
   await writer.upsert({ serviceClient: replay.client as never, orgId: 'org-1', isReplay: true }, {
@@ -71,4 +76,24 @@ Deno.test('v16 budget writer records a successful removal as a pushed account to
   assertEquals(row.erp_docstatus, 2);
   assertEquals(row.budget_intent, 'remove');
   assertEquals(typeof row.erp_cancelled_at, 'string');
+});
+
+Deno.test('whole-project writer stores the range end and keys the mirror by its complete identity', async () => {
+  const rangeIdentity = budgetRangeIdentity(VERSION, 'FY26', 'FY27', account);
+  const record = {
+    ...command().record,
+    budget_mode: 'whole_project',
+    fiscal_year: 'FY26',
+    to_fiscal_year: 'FY27',
+    outbox_identity: rangeIdentity,
+  };
+  const { client, calls } = fixture();
+  await getReadModelWriter('budget').upsert({ serviceClient: client as never, orgId: 'org-1' }, {
+    id: VERSION, fiscal_year: 'FY26', to_fiscal_year: 'FY27', erp_account: account,
+    erp_budget_name: 'ERP-RANGE', erp_docstatus: 1,
+  }, { domain: 'budget', operation: 'create', record });
+  const upsert = calls.find((call) => call.method === 'upsert')!;
+  assertEquals((upsert.args[0] as Record<string, unknown>).to_fiscal_year, 'FY27');
+  assertEquals((upsert.args[1] as { onConflict: string }).onConflict,
+    'org_id,budget_version_id,fiscal_year,to_fiscal_year,erp_account');
 });

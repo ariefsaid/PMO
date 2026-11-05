@@ -32,6 +32,8 @@ import {
   guardWritePayload,
   LOAD_RPCS,
   LOAD_TABLES,
+  STAGE_ADMIN_RPCS,
+  STAGE_ADMIN_TABLES,
   loopbackRedirectUris,
   readCredentials,
   run,
@@ -1011,7 +1013,7 @@ test('AC-CLI-014: profiles cannot be created or updated from the CLI', async () 
 // ── AC-CLI-007: no delete ────────────────────────────────────────────────────────────────────────
 
 test('AC-CLI-007: the CLI offers no delete — no verb, no DELETE request, a clear refusal', async () => {
-  assert.deepEqual([...COMMANDS].sort(), ['accounts', 'attribution', 'budgets', 'create', 'documents', 'equipment', 'erp', 'get', 'load', 'login', 'logout', 'm365', 'purchases', 'rpc', 'tm', 'update', 'whoami']);
+  assert.deepEqual([...COMMANDS].sort(), ['accounts', 'attribution', 'budgets', 'create', 'documents', 'equipment', 'erp', 'get', 'load', 'login', 'logout', 'm365', 'purchases', 'rpc', 'stage-date', 'stages', 'tm', 'update', 'whoami']);
   const fake = await fakeSupabase();
   const configDir = tmpDir();
   try {
@@ -1123,6 +1125,8 @@ test('AC-CLI-015: the CLI allow-lists match the database guard (latest migration
   assert.deepEqual(guardList('operator_read_tables'), [...OPERATOR_READ_TABLES].sort());
   assert.deepEqual(guardList('operator_read_rpcs'), [...OPERATOR_READ_RPCS].sort());
   assert.deepEqual(guardList('rpcs'), [...ALLOWED_RPCS].sort());
+  assert.deepEqual(guardList('stage_admin_tables'), [...STAGE_ADMIN_TABLES].sort());
+  assert.deepEqual(guardList('stage_admin_rpcs'), [...STAGE_ADMIN_RPCS].sort());
 });
 
 test('AC-TVC-007: the CLI active-Admin rpc tier matches the guard tier', () => {
@@ -1498,6 +1502,82 @@ test('AC-CSD-003: pmo load --dry-run sends only reads and prints the planned act
   }
 });
 
+test('AC-CSD-005: ERP-owned missing company is synchronously created before its project', async () => {
+  const handler = (ctx) => {
+    if (ctx.url.pathname === '/rest/v1/profiles') return ctx.send(200, [{ full_name: 'Owner', role: 'Admin', status: 'active' }]), true;
+    if (ctx.url.pathname === '/rest/v1/external_domain_ownership') return ctx.send(200, [{ domain: 'companies', external_tier: 'erpnext' }]), true;
+    if (ctx.url.pathname === '/rest/v1/companies' || ctx.url.pathname === '/rest/v1/projects') {
+      if (ctx.req.method === 'GET') return ctx.send(200, []), true;
+      if (ctx.url.pathname === '/rest/v1/projects' && ctx.req.method === 'POST') return ctx.send(201, [{ id: 'project-1', ...JSON.parse(ctx.body) }]), true;
+    }
+    if (ctx.url.pathname === '/functions/v1/adapter-dispatch') {
+      const command = JSON.parse(ctx.body);
+      assert.equal(command.domain, 'companies');
+      assert.equal(command.operation, 'create');
+      assert.deepEqual({ name: command.record.name, type: command.record.type, erp_doc_kind: command.record.erp_doc_kind }, {
+        name: 'Client Legal A', type: 'Client', erp_doc_kind: 'customer',
+      });
+      assert.match(command.record.id, /^[0-9a-f-]{36}$/i);
+      assert.match(command.idempotencyKey, /^[0-9a-f-]{36}$/i);
+      return ctx.send(200, { externalRecordId: 'CUST-1', canonical: { id: 'company-1', name: 'Client Legal A', type: 'Client' } }), true;
+    }
+    return false;
+  };
+  const fake = await fakeSupabase({ handler });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const doc = {
+      companies: [{ name: 'Client Legal A' }],
+      projects: [{ code: 'ERP-001', name: 'Project', client: 'Client Legal A', stage: 'Leads' }],
+    };
+    const r = await runCli(['load', writeLoadFile(configDir, doc), '--url', fake.url], { configDir });
+    assert.equal(r.code, 0, r.err);
+    assert.deepEqual(r.json.actions.map((a) => a.kind), ['company.create', 'project.create']);
+    const command = fake.requests.find((q) => q.path === '/functions/v1/adapter-dispatch');
+    const project = fake.requests.find((q) => q.path === '/rest/v1/projects' && q.method === 'POST');
+    assert.ok(command && project);
+    assert.ok(fake.requests.indexOf(command) < fake.requests.indexOf(project));
+    assert.equal(JSON.parse(project.body).client_id, 'company-1');
+    assert.equal(fake.requests.some((q) => q.path === '/rest/v1/companies' && q.method === 'POST'), false);
+  } finally {
+    await fake.close();
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
+});
+
+test('AC-CSD-005: failed ERP party push reports the command error and creates no project', async () => {
+  const handler = (ctx) => {
+    if (ctx.url.pathname === '/rest/v1/profiles') return ctx.send(200, [{ full_name: 'Owner', role: 'Admin', status: 'active' }]), true;
+    if (ctx.url.pathname === '/rest/v1/external_domain_ownership') return ctx.send(200, [{ domain: 'companies', external_tier: 'erpnext' }]), true;
+    if (ctx.url.pathname === '/rest/v1/companies' || ctx.url.pathname === '/rest/v1/projects') {
+      if (ctx.req.method === 'GET') return ctx.send(200, []), true;
+    }
+    if (ctx.url.pathname === '/functions/v1/adapter-dispatch') {
+      return ctx.send(502, { error: 'external-unreachable', message: 'The external system could not be reached' }), true;
+    }
+    return false;
+  };
+  const fake = await fakeSupabase({ handler });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const doc = {
+      companies: [{ name: 'Client Legal A' }],
+      projects: [{ code: 'ERP-001', name: 'Project', client: 'Client Legal A', stage: 'Leads' }],
+    };
+    const r = await runCli(['load', writeLoadFile(configDir, doc), '--url', fake.url], { configDir });
+    assert.equal(r.code, 1);
+    assert.equal(r.errJson.error.message, 'The external system could not be reached');
+    assert.equal(r.errJson.error.details.failed.kind, 'company.create');
+    assert.deepEqual(fake.requests.filter((q) => q.method === 'POST' && q.path === '/rest/v1/projects'), []);
+    assert.deepEqual(fake.requests.filter((q) => q.method === 'POST' && q.path === '/rest/v1/companies'), []);
+  } finally {
+    await fake.close();
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
+});
+
 test('AC-CSD-012: a refused write ends pmo load with exit 1 and the done / failed report', async () => {
   const handler = (ctx) => {
     if (ctx.url.pathname === '/rest/v1/rpc/transition_project') {
@@ -1515,6 +1595,110 @@ test('AC-CSD-012: a refused write ends pmo load with exit 1 and the done / faile
     assert.equal(r.errJson.error.code, '42501');
     assert.equal(r.errJson.error.details.failed.kind, 'project.transition');
     assert.deepEqual(r.errJson.error.details.done.map((a) => a.kind), ['company.create', 'project.create', 'project.contract_value']);
+  } finally {
+    await fake.close();
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
+});
+
+// ── #1835 project stage history ─────────────────────────────────────────────────────────────────
+
+const STAGE_PROJECT_ID = '18350000-0000-0000-0000-000000000001';
+const STAGE_ENTRIES = [
+  { id: '18350000-0000-0000-0000-000000000011', stage: 'Leads', entered_on: '2025-01-01', position: 1 },
+  { id: '18350000-0000-0000-0000-000000000012', stage: 'Quotation Submitted', entered_on: '2025-02-01', position: 2 },
+  { id: '18350000-0000-0000-0000-000000000013', stage: 'Quotation Submitted', entered_on: '2025-03-01', position: 3 },
+];
+
+test('AC-1835-CLI-001: pmo stages reads ordered stage entries as an active Admin using the user token', async () => {
+  const handler = (ctx) => {
+    if (ctx.url.pathname === '/rest/v1/project_stage_entries') {
+      ctx.send(200, STAGE_ENTRIES);
+      return true;
+    }
+    return false;
+  };
+  const fake = await fakeSupabase({ handler });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const result = await runCli(['stages', STAGE_PROJECT_ID, '--url', fake.url], { configDir });
+    assert.equal(result.code, 0, result.err);
+    assert.deepEqual(result.json, STAGE_ENTRIES);
+    const request = fake.requests.find((q) => q.path === '/rest/v1/project_stage_entries');
+    assert.equal(request.method, 'GET');
+    assert.equal(request.headers.authorization, 'Bearer access-1');
+    const query = new URLSearchParams(request.search);
+    assert.equal(query.get('project_id'), `eq.${STAGE_PROJECT_ID}`);
+    assert.equal(query.get('order'), 'position.asc');
+  } finally {
+    await fake.close();
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
+});
+
+test('AC-1835-CLI-002: pmo stage-date backdates the latest occurrence through the guarded RPC', async () => {
+  const handler = (ctx) => {
+    if (ctx.url.pathname === '/rest/v1/project_stage_entries') {
+      ctx.send(200, STAGE_ENTRIES);
+      return true;
+    }
+    return false;
+  };
+  const fake = await fakeSupabase({ handler });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const result = await runCli(['stage-date', STAGE_PROJECT_ID, 'Quotation Submitted', '2025-04-12', '--url', fake.url], { configDir });
+    assert.equal(result.code, 0, result.err);
+    assert.deepEqual(result.json, { project_id: STAGE_PROJECT_ID, entry_id: STAGE_ENTRIES[2].id, stage: 'Quotation Submitted', entered_on: '2025-04-12' });
+    const rpc = fake.requests.find((q) => q.path === '/rest/v1/rpc/redate_stage_entry');
+    assert.equal(rpc.method, 'POST');
+    assert.equal(rpc.headers.authorization, 'Bearer access-1');
+    assert.deepEqual(JSON.parse(rpc.body), { p_entry_id: STAGE_ENTRIES[2].id, p_entered_on: '2025-04-12' });
+  } finally {
+    await fake.close();
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
+});
+
+test('AC-1835-CLI-003: the stage commands require an active Admin before reading or writing', async () => {
+  const fake = await fakeSupabase({ handler: emptyDbAs('Project Manager') });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    for (const args of [['stages', STAGE_PROJECT_ID], ['stage-date', STAGE_PROJECT_ID, 'Leads', '2025-01-01']]) {
+      const result = await runCli([...args, '--url', fake.url], { configDir });
+      assert.equal(result.code, 2);
+      assert.match(result.errJson.error.message, /active Admin/);
+    }
+    assert.deepEqual(fake.requests.filter((q) => q.path === '/rest/v1/project_stage_entries' || q.path.includes('rpc/redate_stage_entry')), []);
+  } finally {
+    await fake.close();
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
+});
+
+test('AC-1835-CLI-004: pmo stage-date validates the date and requires a matching stage entry', async () => {
+  const fake = await fakeSupabase({ handler: (ctx) => {
+    if (ctx.url.pathname === '/rest/v1/project_stage_entries') {
+      ctx.send(200, STAGE_ENTRIES.slice(0, 1));
+      return true;
+    }
+    return false;
+  } });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    for (const date of ['2025-02-30', '2025-2-03']) {
+      const invalid = await runCli(['stage-date', STAGE_PROJECT_ID, 'Leads', date, '--url', fake.url], { configDir });
+      assert.equal(invalid.code, 2);
+      assert.match(invalid.errJson.error.message, /YYYY-MM-DD/);
+    }
+    const missing = await runCli(['stage-date', STAGE_PROJECT_ID, 'Quotation Submitted', '2025-02-03', '--url', fake.url], { configDir });
+    assert.equal(missing.code, 2);
+    assert.match(missing.errJson.error.message, /No 'Quotation Submitted'/);
+    assert.equal(fake.requests.some((q) => q.path === '/rest/v1/rpc/redate_stage_entry'), false);
   } finally {
     await fake.close();
     fs.rmSync(configDir, { recursive: true, force: true });
@@ -1989,6 +2173,43 @@ test('pmo load sends budget lines through the transactional RPC with the resolve
     assert.equal(body.p_legacy_key, 'fp:P|Labor|Crew||1234.5');
     assert.equal(body.p_version_id, 'version-1');
     assert.equal(fake.requests.some((r) => r.path === '/rest/v1/budget_line_items' && r.method === 'POST'), false);
+  } finally {
+    await fake.close();
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
+});
+
+// ── AC-CLI-018: no budget archive path from the CLI (#1462) ──────────────────────────────────────
+
+/**
+ * Archiving a budget version is `archive_budget_version_with_cancel_intent` (0387) — the ONE transaction
+ * that also records the ERPNext cancellation intent the sweep later drives. If the CLI could archive a
+ * version by any route, it would archive WITHOUT that intent and leave the ERP Budget enforcing a
+ * budget PMO calls archived. So the CLI must have no archive route at all: not the RPC, not a bare
+ * `budget_versions.status` write, and not a `pmo budgets` subcommand. Archiving stays in the app
+ * (DD-API-3), which is why the CLI needs no archive-cancellation behaviour of its own to stay in step.
+ */
+test('AC-CLI-018: a budget version cannot be archived from the CLI, so the app archive RPC stays the only route', async () => {
+  const fake = await fakeSupabase();
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const refusals = [
+      ['rpc', 'archive_budget_version_with_cancel_intent', '{"p_version_id":"11111111-1111-1111-1111-111111111111","p_cancel_erp":true}'],
+      ['update', 'budget_versions', '{"status":"Archived"}', '--filter', 'id=eq.11111111-1111-1111-1111-111111111111'],
+      ['budgets', 'archive', '11111111-1111-1111-1111-111111111111'],
+    ];
+    for (const argv of refusals) {
+      const r = await runCli([...argv, '--url', fake.url], { configDir });
+      assert.equal(r.code, 2, argv.join(' '));
+    }
+    assert.deepEqual(fake.requests, [], 'every refusal happens before a request is sent');
+    // The lists themselves are the contract: the archive RPC is in NO RPC tier, and the CLI has no archive verb.
+    assert.equal(ALLOWED_RPCS.includes('archive_budget_version_with_cancel_intent'), false);
+    assert.equal(ADMIN_RPCS.includes('archive_budget_version_with_cancel_intent'), false);
+    assert.equal(OPERATOR_READ_RPCS.includes('archive_budget_version_with_cancel_intent'), false);
+    assert.equal(LOAD_RPCS.includes('archive_budget_version_with_cancel_intent'), false);
+    assert.equal(COMMANDS.includes('archive'), false);
   } finally {
     await fake.close();
     fs.rmSync(configDir, { recursive: true, force: true });

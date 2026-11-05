@@ -60,10 +60,9 @@ export function keepsFolderPermission(status: Pick<ConnectionStatus, 'scopes'> |
   return (status?.scopes ?? []).some((scope) => /(^|\/)sites\.selected$/i.test(scope));
 }
 
-/** The edge fn's JSON error body shape ({ error: M365ErrorCode, message: string }). */
+/** The edge fn's JSON error body shape ({ error: M365ErrorCode }; only the code is read). */
 interface M365ErrorBody {
   error?: string;
-  message?: string;
 }
 
 /**
@@ -91,7 +90,8 @@ async function readErrorBody(error: unknown): Promise<M365ErrorBody | undefined>
   const context = (error as { context?: Response } | null | undefined)?.context;
   if (!context || typeof context.clone !== 'function') return undefined;
   try {
-    return (await context.clone().json()) as M365ErrorBody;
+    const body = (await context.clone().json()) as { error?: unknown } | null;
+    return typeof body?.error === 'string' ? { error: body.error } : undefined;
   } catch {
     return undefined;
   }
@@ -122,7 +122,8 @@ export function classifyM365InvokeError(
   return { code, message: describeM365Error(code) };
 }
 
-async function throwClassified(error: unknown): Promise<never> {
+/** Classify an invoke error and throw it as an `AppError` (shared by every M365 transport client). */
+export async function throwClassifiedM365Error(error: unknown): Promise<never> {
   const body = await readErrorBody(error);
   const { code, message } = classifyM365InvokeError(error, body);
   throw new AppError(message, code);
@@ -143,7 +144,7 @@ export async function initiateM365Connect(options: { folders?: boolean } = {}): 
       body: options.folders === true ? { action: 'initiate_connect', folders: true } : { action: 'initiate_connect' },
     }),
   );
-  if (error) await throwClassified(error);
+  if (error) await throwClassifiedM365Error(error);
   if (!data || typeof data.authorizeUrl !== 'string' || !data.authorizeUrl) {
     // No partial redirect: a malformed 2xx is a generic failure, never a blank navigation.
     throw new AppError(describeM365Error('INTERNAL_ERROR'), 'INTERNAL_ERROR');
@@ -166,7 +167,7 @@ export async function initiateM365OrgApproval(): Promise<InitiateOrgApprovalResu
       body: { action: 'initiate_org_approval' },
     }),
   );
-  if (error) await throwClassified(error);
+  if (error) await throwClassifiedM365Error(error);
   if (!data || typeof data.adminConsentUrl !== 'string' || !data.adminConsentUrl) {
     // No partial redirect: a malformed 2xx is a generic failure, never a blank navigation.
     throw new AppError(describeM365Error('INTERNAL_ERROR'), 'INTERNAL_ERROR');
@@ -185,7 +186,7 @@ export async function disconnectM365(): Promise<void> {
       body: { action: 'disconnect' },
     }),
   );
-  if (error) await throwClassified(error);
+  if (error) await throwClassifiedM365Error(error);
 }
 
 /**
@@ -204,7 +205,7 @@ export async function getM365ConnectionStatus(): Promise<ConnectionStatus> {
       body: { action: 'connection_status' },
     }),
   );
-  if (error) await throwClassified(error);
+  if (error) await throwClassifiedM365Error(error);
   if (!data || typeof data.connected !== 'boolean') {
     throw new AppError(describeM365Error('INTERNAL_ERROR'), 'INTERNAL_ERROR');
   }

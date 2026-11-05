@@ -21,6 +21,8 @@ const state = vi.hoisted(() => ({
     refetch: vi.fn(),
   },
   projectDetails: {} as Record<string, unknown>,
+  /** The batched project-number read the project areas share (#1890). */
+  projectNumbers: { data: {} as Record<string, string | null>, isPending: false, isError: false },
   /** Per-project finances the project Overview reads (its margin gate); a project absent here has none loaded. */
   finances: {} as Record<string, unknown>,
 }));
@@ -42,6 +44,14 @@ vi.mock('@/src/components/dashboard/restructure/useNeedsYou', () => ({
 }));
 vi.mock('@/src/hooks/useProjects', () => ({
   useProject: (id: string) => state.projectDetails[id] ?? { data: null, isPending: false, isError: false, refetch: vi.fn() },
+  // #1890: the project area reads numbers for the visible card set in ONE request. The mock
+  // narrows to the ids asked for, so a wrong request set would leave a card without its number.
+  useProjectNumbers: (ids: string[]) => ({
+    ...state.projectNumbers,
+    data: Object.fromEntries(
+      Object.entries(state.projectNumbers.data).filter(([id]) => ids.includes(id)),
+    ),
+  }),
 }));
 vi.mock('@/src/hooks/useProjectFinances', () => ({
   useProjectFinances: (id: string) => ({ data: state.finances[id], isPending: false, isError: false }),
@@ -155,6 +165,11 @@ beforeEach(() => {
     isError: false,
     refetch: vi.fn(),
   }]));
+  state.projectNumbers = {
+    data: Object.fromEntries(projects.map((project, index) => [project.id, `PRJ-26-${String(index + 1).padStart(4, '0')}`])),
+    isPending: false,
+    isError: false,
+  };
   state.finances = loadFinances(projects);
   for (const query of [state.projects, state.delivery, state.timesheets, state.procurements, state.needs]) {
     query.refetch.mockReset();
@@ -575,7 +590,8 @@ describe('PMDashboard — rulings re-check', () => {
     });
     state.projects.data = [unknown];
     state.finances = { u: financesFor(unknown) };
-    state.projectDetails = { u: { data: { pmo_project_number: null }, isPending: false, isError: false, refetch: vi.fn() } };
+    // The batched read returns no row for 'u' (its number is unknown), so the card has no number.
+    state.projectNumbers = { data: {}, isPending: false, isError: false };
     renderDashboard();
     const card = areaFor('Unknown Spend');
     expect(within(card).queryByText('—')).not.toBeInTheDocument();

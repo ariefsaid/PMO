@@ -197,3 +197,14 @@ export async function getFinancialStatement(value: GetFinancialStatementInput): 
   }
   throw new AppError(SNAPSHOT_CHANGED, 'statement-snapshot-changed');
 }
+
+export type FinancialStatementRefreshRequest = 'accepted' | 'coalesced' | 'unavailable';
+
+/** "Refresh now": the server derives org, role and company from the session; one accepted request per 5 minutes. */
+export async function requestFinancialStatementRefresh(): Promise<FinancialStatementRefreshRequest> {
+  const { data, error } = await supabase.rpc('request_financial_statement_refresh');
+  if (error) throw responseError(error);
+  const status = (data as { status?: unknown } | null)?.status;
+  if (status === 'accepted' || status === 'coalesced' || status === 'unavailable') return status;
+  throw new AppError(INVALID_RESPONSE, 'statement-invalid-response');
+}

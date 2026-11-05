@@ -130,6 +130,20 @@ async function invokeHandler(
     authorization?: string | null;
     /** 0358 marker for every binding's org: undefined = completed 10 minutes before `at` (not due); null = never. */
     lastFullSweepAt?: string | null;
+    /** Statement-pass marker for every binding's org: undefined = completed 10 minutes before `at` (not due); null = never. */
+    lastStatementPassAt?: string | null;
+    /** Another tick already holds every org's sweep lock (a concurrent duplicate). */
+    statementLockHeld?: boolean;
+    /** The native batch open RPC fails (a failed statement pass). */
+    statementOpenError?: boolean;
+    /** The native batch opens with a resumable, unmappable next request (an unfinished pass). */
+    statementBatchIncomplete?: boolean;
+    /** The statement-pass marker RPCs report a lapsed lease (another tick took the org lock). */
+    statementStampRejected?: boolean;
+    statementStampError?: boolean;
+    fullStampRejected?: boolean;
+    markerState?: { value: string | null; completedMs?: number };
+    beforeClaim?: () => Promise<void>;
   } = {},
 ): Promise<{ status: number; body: Record<string, unknown>; requests: RecordedRequest[]; errors: string[] }> {
   const handler = capturedHandler;
@@ -170,17 +184,47 @@ async function invokeHandler(
       if (url.pathname.startsWith('/rest/v1/rpc/')) {
         const rpcName = decodeURIComponent(url.pathname.slice('/rest/v1/rpc/'.length));
         if (rpcName === 'read_vault_secret') return jsonResponse('synthetic-api-key:synthetic-api-secret');
-        if (rpcName === 'claim_erp_sweep_lock' || rpcName === 'release_erp_sweep_lock') return jsonResponse(true);
+        if (rpcName === 'claim_erp_sweep_lock' || rpcName === 'release_erp_sweep_lock') {
+          if (rpcName === 'claim_erp_sweep_lock') await options.beforeClaim?.();
+          return jsonResponse(!(options.statementLockHeld === true && rpcName === 'claim_erp_sweep_lock'));
+        }
         if (rpcName === 'outbox_reconcile_candidates') return jsonResponse([]);
         if (rpcName === 'outbox_retry_pending') return jsonResponse([]);
-        if (rpcName === 'mark_erp_full_sweep_done') return jsonResponse(true);
+        if (rpcName === 'mark_erp_full_sweep_done') return jsonResponse(!options.fullStampRejected);
+        if (rpcName === 'mark_erp_statement_pass_done') {
+          if (options.statementStampError) return jsonResponse({ code: 'synthetic-error' }, 503);
+          if (options.markerState && !options.statementStampRejected) options.markerState.value = new Date(Date.now()).toISOString();
+          return jsonResponse(options.statementStampRejected !== true);
+        }
+        if (rpcName === 'defer_erp_statement_pass') {
+          if (options.statementStampError) return jsonResponse({ code: 'synthetic-error' }, 503);
+          if (options.markerState && !options.statementStampRejected) options.markerState.value = new Date(Math.floor(Date.now() / 300_000) * 300_000 + 300_000 - 55 * 60_000).toISOString();
+          return jsonResponse(options.statementStampRejected !== true);
+        }
+        if (rpcName === 'mark_erp_statement_report_attempt' && options.statementBatchIncomplete) return jsonResponse({ code: 'synthetic-retry' }, 503);
         if (rpcName === 'mark_erp_statement_report_refresh_attempt') return jsonResponse(null);
-        if (rpcName === 'open_erp_statement_report_batch') return jsonResponse({
-          batchId: '66666666-6666-4666-8666-666666666666',
-          startedAt: at,
-          nextRequest: null,
-          complete: true,
-        });
+        if (rpcName === 'open_erp_statement_report_batch') {
+          if (options.markerState?.completedMs) Date.now = () => options.markerState!.completedMs!;
+          if (options.statementOpenError) return jsonResponse({ code: '55000', message: 'synthetic statement batch failure' }, 500);
+          if (options.statementBatchIncomplete) {
+            return jsonResponse({
+              batchId: '66666666-6666-4666-8666-666666666666',
+              startedAt: at,
+              nextRequest: {
+                statement: 'trial_balance', projectId: null, periodKind: 'month',
+                currentStart: '2026-01-01', currentEnd: '2026-01-31',
+                priorStart: '2025-01-01', priorEnd: '2025-01-31', side: 'current',
+              },
+              complete: false,
+            });
+          }
+          return jsonResponse({
+            batchId: '66666666-6666-4666-8666-666666666666',
+            startedAt: at,
+            nextRequest: null,
+            complete: true,
+          });
+        }
         if (rpcName === 'publish_erp_financial_statements') {
           const args = body as Record<string, unknown> | null;
           const orgId = typeof args?.p_org_id === 'string' ? args.p_org_id : '';
@@ -252,6 +296,13 @@ async function invokeHandler(
           ? new Date(Date.parse(at) - 10 * 60_000).toISOString()
           : options.lastFullSweepAt;
         return jsonResponse(completedAt === null ? [] : bindings.map((row) => ({ org_id: row.org_id, completed_at: completedAt })));
+      }
+      if (table === 'erp_statement_pass_run') {
+        const completedAt = options.markerState ? options.markerState.value : options.lastStatementPassAt === undefined
+          ? new Date(Date.parse(at) - 10 * 60_000).toISOString()
+          : options.lastStatementPassAt;
+        const rows = completedAt === null ? [] : bindings.map((row) => ({ org_id: row.org_id, completed_at: completedAt }));
+        return jsonResponse(request.headers.get('Accept')?.includes('vnd.pgrst.object') ? rows[0] ?? null : rows);
       }
       if (table === 'external_domain_ownership') {
         return jsonResponse(bindings.flatMap((row) => (options.ownedDomains ?? []).map((domain) => ({ org_id: row.org_id, domain }))));
@@ -328,6 +379,8 @@ const MONEY_ONLY_READS = [
   '/rest/v1/external_domain_ownership',
   '/rest/v1/external_sync_watermarks',
   '/rest/v1/erp_sweep_full_run',
+  '/rest/v1/erp_statement_pass_run',
+  '/rest/v1/erp_statement_change_state', // 0685: the change-driven plan reads its own state row (DB only)
   '/rest/v1/budget_version_erp_mirror',
   '/rest/v1/budget_version_account_erp_mirror',
   '/rest/v1/timesheet_erp_mirror',
@@ -340,6 +393,9 @@ const MONEY_ONLY_READS = [
 const MONEY_ONLY_RPCS = [
   '/rest/v1/rpc/claim_erp_sweep_lock',
   '/rest/v1/rpc/release_erp_sweep_lock',
+  '/rest/v1/rpc/sync_erp_statement_change_scope', // 0685: change-driven statements decide per tick in the DB; no ERP or batch work unless it admits a run
+  '/rest/v1/rpc/record_erp_statement_nightly_due',
+  '/rest/v1/rpc/plan_erp_statement_pass',
   '/rest/v1/rpc/outbox_reconcile_candidates',
   '/rest/v1/rpc/outbox_retry_pending',
   '/rest/v1/rpc/expense_posting_queue',
@@ -402,7 +458,7 @@ Deno.test('AC-CAD: the real handler gates all work by first native publication a
 
   await t.step('AC-CAD-002: a due full run runs the cycle and the next ticks are money-only after publication exists', async () => {
     const publicationState: PublishedContext[] = [];
-    const atMinuteZero = await invokeHandler('2026-10-19T07:00:00.000Z', [first], publicationState, { lastFullSweepAt: null });
+    const atMinuteZero = await invokeHandler('2026-10-19T07:00:00.000Z', [first], publicationState, { lastFullSweepAt: null, lastStatementPassAt: null });
     assert(atMinuteZero.status === 200 && atMinuteZero.body.ok === true && atMinuteZero.body.cadence === 'full',
       `minute 0 did not run the whole cycle: ${atMinuteZero.status} ${JSON.stringify(atMinuteZero.body)}`);
     assert(atMinuteZero.requests.some(({ path }) => path.startsWith('/rest/v1/rpc/claim_erp_sweep_lock')),
@@ -431,6 +487,7 @@ Deno.test('AC-CAD: the real handler gates all work by first native publication a
     const publicationState = [publicationFor(first)];
     const result = await invokeHandler('2026-10-19T07:35:00.000Z', [first, second], publicationState, {
       statementBatches: [statementBatchFor(second, '2026-10-19T07:10:00.000Z')],
+      lastStatementPassAt: null,
     });
     assert(result.status === 200 && result.body.ok === true && result.body.cadence === 'full',
       `an unpublished active binding failed to activate the cycle: ${result.status} ${JSON.stringify(result.body)}`);
@@ -490,6 +547,7 @@ Deno.test('AC-CAD: the real handler gates all work by first native publication a
 
     const hourly = await invokeHandler('2026-10-19T08:00:00.000Z', [unsupported], publicationState, {
       lastFullSweepAt: null,
+      lastStatementPassAt: null,
       statementErpVersion: '16.32.0',
     });
     assert(hourly.status === 200 && hourly.body.cadence === 'full' &&
@@ -581,6 +639,7 @@ Deno.test('AC-CAD: the real handler gates all work by first native publication a
 
     const hourlyWindow = await invokeHandler('2026-10-19T08:00:00.000Z', [oldBinding], [], {
       lastFullSweepAt: null,
+      lastStatementPassAt: null,
       statementErpVersion: '16.32.0',
     });
     assert(hourlyWindow.status === 200 && hourlyWindow.body.ok === true && hourlyWindow.body.cadence === 'full',
@@ -629,6 +688,7 @@ Deno.test('AC-CAD: the real handler gates all work by first native publication a
   await t.step('AC-ENA-CAD-002: the hourly tick runs the money passes alongside the hourly work', async () => {
     const result = await invokeHandler('2026-10-19T08:00:00.000Z', [first], [publicationFor(first)], {
       lastFullSweepAt: null,
+      lastStatementPassAt: null,
       ownedDomains: ['revenue', 'timesheets', 'expenses'],
     });
     assert(result.status === 200 && result.body.cadence === 'full', `hourly tick was not full: ${JSON.stringify(result.body)}`);
@@ -693,6 +753,231 @@ Deno.test('AC-CAD: the real handler gates all work by first native publication a
     const fresh = await invokeHandler('2026-10-19T07:04:00.000Z', [first], [publicationFor(first)], { lastFullSweepAt: '2026-10-19T07:03:00.000Z' });
     assert(fresh.body.cadence === 'money-only', `a freshly stamped org ran the full sweep again: ${JSON.stringify(fresh.body)}`);
     assertMoneyOnlyWork(fresh.requests, 'freshly stamped org');
+  });
+
+  // ── The statement report batch keeps its own freshness marker (migration 0642) ──────────────────
+  // 0358 leaves a deferred full run due again on the next tick (a bounded doctype walk, a ledger feed
+  // still catching up, a binding still building its first publication). The report batch is resumable
+  // and expensive, so it gates on `erp_statement_pass_run` instead of on how often the full run happens.
+
+  const STATEMENT_SEGMENT_PATHS = [
+    '/rest/v1/rpc/open_erp_statement_report_batch',
+    '/rest/v1/rpc/publish_erp_financial_statements',
+    '/rest/v1/rpc/mark_erp_statement_pass_done',
+  ] as const;
+  const statementSegmentRan = (requests: RecordedRequest[]): boolean =>
+    requests.some(({ path, origin }) => STATEMENT_SEGMENT_PATHS.some((prefix) => path.startsWith(prefix)) ||
+      (origin.startsWith('https://erp-') && path.includes('/api/method/frappe.utils.change_log.get_versions')));
+  const requestBody = (request: RecordedRequest | undefined): Record<string, unknown> =>
+    (request?.body ?? {}) as Record<string, unknown>;
+
+  await t.step('AC-SPC-014: first publication continues at the next UTC window after a segment ends', async () => {
+    for (const failed of [false, true]) {
+      const row = binding(ORG_A, BINDING_A, 'Synthetic Company A');
+      const state: { value: string | null; completedMs?: number } = { value: null, completedMs: Date.parse('2026-11-04T09:00:20Z') };
+      const batches = [statementBatchFor(row, '2026-11-04T08:59:00Z')];
+      const publications: PublishedContext[] = [];
+      const first = await invokeHandler('2026-11-04T09:00:00Z', [row], publications, {
+        markerState: state, statementBatches: batches, lastFullSweepAt: null,
+        statementOpenError: failed, statementBatchIncomplete: !failed,
+      });
+      assert(first.requests.some(({ path }) => path.includes('/rpc/open_erp_statement_report_batch')), 'first segment did not start');
+      assert(publications.length === 0, 'incomplete or failed segment published');
+      const firstOrg = (first.body as { perOrg: Array<{ statement: string }> }).perOrg[0];
+      assert(firstOrg.statement === (failed ? 'failed' : 'progress'), `unexpected segment status: ${firstOrg.statement}`);
+      delete state.completedMs;
+      for (const minute of ['01', '02', '03', '04']) {
+        const tick = await invokeHandler(`2026-11-04T09:${minute}:00Z`, [row], publications, { markerState: state, statementBatches: batches });
+        assert(!statementSegmentRan(tick.requests), `minute ${minute} opened a statement batch`);
+      }
+      const next = await invokeHandler('2026-11-04T09:05:00Z', [row], publications, { markerState: state, statementBatches: batches });
+      assert(next.requests.some(({ path }) => path.includes('/rpc/open_erp_statement_report_batch')), 'next window did not resume the batch');
+      assert(Number(publications.length) === 1, 'successful continuation did not publish');
+      const later = await invokeHandler('2026-11-04T09:10:00Z', [row], publications, { markerState: state, statementBatches: batches });
+      assert(!statementSegmentRan(later.requests), 'published batch ran again in the following window');
+    }
+  });
+
+  await t.step('AC-SPC-016: a waiting tick rechecks the marker after another tick publishes', async () => {
+    const row = binding(ORG_A, BINDING_A, 'Synthetic Company A');
+    const state = { value: null as string | null };
+    const publications: PublishedContext[] = [];
+    let firstRequests: RecordedRequest[] = [];
+    const waiting = await invokeHandler('2026-11-04T09:00:00Z', [row], publications, {
+      markerState: state, lastFullSweepAt: null,
+      beforeClaim: async () => {
+        const first = await invokeHandler('2026-11-04T09:00:00Z', [row], publications, { markerState: state, lastFullSweepAt: null });
+        firstRequests = first.requests;
+      },
+    });
+    assert(firstRequests.some(({ path }) => path.includes('/rpc/publish_erp_financial_statements')), 'first tick did not publish');
+    assert(firstRequests.some(({ path }) => path.includes('/rpc/release_erp_sweep_lock')), 'first tick did not release');
+    assert(waiting.requests.some(({ path }) => path.includes('/rpc/claim_erp_sweep_lock')), 'waiting tick did not claim');
+    assert(!statementSegmentRan(waiting.requests), 'waiting tick opened a redundant batch');
+  });
+
+  await t.step('AC-SPC-015: statement settlement failures leave independent work and marker retry-safe', async () => {
+    const row = binding(ORG_A, BINDING_A, 'Synthetic Company A');
+    for (const incomplete of [false, true]) {
+      for (const expired of [false, true]) {
+        const marker = { value: null as string | null };
+        const result = await invokeHandler('2026-11-04T09:03:00Z', [row], [], {
+          lastFullSweepAt: null, markerState: marker, statementStampRejected: expired,
+          statementStampError: !expired, fullStampRejected: expired, statementBatchIncomplete: incomplete,
+        });
+        const errors = (result.body as { perOrg?: Array<{ errors?: string[] }> }).perOrg?.[0]?.errors ?? [];
+        assert(errors.some((message) => message.startsWith('statement-pass-mark:')), 'settlement failure was not reported');
+        assert(marker.value === null, 'failed settlement changed the marker');
+        assert(result.requests.some(({ path }) => path.includes('/rpc/mark_erp_full_sweep_done')), 'independent hourly work was not marked done');
+        assert(!result.requests.some(({ path }) => path.includes('/rpc/defer_erp_full_sweep')), 'statement settlement deferred hourly work');
+        assert(expired === errors.some((message) => message.startsWith('full-run-mark:')), 'full marker lease rejection was not surfaced');
+      }
+    }
+  });
+
+  await t.step('AC-SPC-005: a due hourly run skips the statement pass that completed minutes ago', async () => {
+    const steady = binding(ORG_A, BINDING_A, 'Synthetic Company A', '2026-10-01T00:00:00+00:00');
+    const result = await invokeHandler('2026-11-04T09:03:00.000Z', [steady], [publicationFor(steady)], {
+      // The full run is due because its previous run deferred — the pathology the statement gate fixes.
+      lastFullSweepAt: '2026-11-04T08:00:00.000Z',
+      lastStatementPassAt: '2026-11-04T08:53:00.000Z',
+    });
+    assert(result.status === 200 && result.body.ok === true && result.body.cadence === 'full',
+      `a stale full-run marker did not run the hourly work: ${result.status} ${JSON.stringify(result.body)}`);
+    // Operational sync is untouched: the money passes and the hourly inbound work both still ran.
+    assertMoneyPassesRan(result.requests, 'due hourly run with a fresh statement marker');
+    assert(result.requests.some(({ path }) => path.startsWith('/rest/v1/external_sync_watermarks')),
+      'the hourly doctype walk did not run');
+    assert(result.requests.some(({ path }) => path.startsWith('/rest/v1/rpc/mark_erp_full_sweep_done')),
+      'the completed hourly run was not stamped');
+    // ...and the statement batch did not run inside its hourly interval.
+    assert(!statementSegmentRan(result.requests),
+      `the statement batch ran on an hourly tick inside its interval: ${JSON.stringify(result.requests.filter(({ path }) => path.includes('statement')).map(({ path }) => path))}`);
+  });
+
+  await t.step('AC-SPC-006: a statement pass that never completed runs and is stamped complete', async () => {
+    const steady = binding(ORG_A, BINDING_A, 'Synthetic Company A', '2026-10-01T00:00:00+00:00');
+    const result = await invokeHandler('2026-11-04T09:03:00.000Z', [steady], [], {
+      lastFullSweepAt: '2026-11-04T08:00:00.000Z',
+      lastStatementPassAt: null,
+    });
+    assert(result.status === 200 && result.body.ok === true, `the tick failed: ${result.status} ${JSON.stringify(result.body)}`);
+    assert(result.requests.some(({ path }) => path.startsWith('/rest/v1/rpc/open_erp_statement_report_batch')),
+      'a never-completed statement pass did not open a batch');
+    assert(result.requests.some(({ path }) => path.startsWith('/rest/v1/rpc/publish_erp_financial_statements')),
+      'a never-completed statement pass did not publish');
+    const stamp = result.requests.find(({ path }) => path.startsWith('/rest/v1/rpc/mark_erp_statement_pass_done'));
+    assert(stamp !== undefined, 'a published statement pass was not stamped complete');
+    assert(requestBody(stamp).p_org_id === ORG_A, 'the statement-pass stamp named the wrong org');
+    assert(!result.requests.some(({ path }) => path.startsWith('/rest/v1/rpc/defer_erp_statement_pass')),
+      'a published statement pass was also deferred');
+  });
+
+  await t.step('AC-SPC-007: an explicit full-mode refresh bypasses the statement interval', async () => {
+    const steady = binding(ORG_A, BINDING_A, 'Synthetic Company A', '2026-10-01T00:00:00+00:00');
+    const result = await invokeHandler('2026-11-04T09:07:00.000Z', [steady], [], {
+      body: JSON.stringify({ mode: 'full' }),
+      lastStatementPassAt: '2026-11-04T09:00:00.000Z',
+    });
+    assert(result.status === 200 && result.body.ok === true && result.body.cadence === 'full',
+      `an explicit full-mode refresh did not run the full tick: ${result.status} ${JSON.stringify(result.body)}`);
+    assert(result.requests.some(({ path }) => path.startsWith('/rest/v1/rpc/open_erp_statement_report_batch')),
+      'an explicit refresh did not run the statement pass inside its interval');
+  });
+
+  await t.step('AC-SPC-008: a concurrent tick holding the org lock cannot start a duplicate statement pass', async () => {
+    const steady = binding(ORG_A, BINDING_A, 'Synthetic Company A', '2026-10-01T00:00:00+00:00');
+    const result = await invokeHandler('2026-11-04T09:03:00.000Z', [steady], [], {
+      lastFullSweepAt: '2026-11-04T08:00:00.000Z',
+      lastStatementPassAt: null,
+      statementLockHeld: true,
+    });
+    const errors = (result.body as { perOrg?: Array<{ errors?: string[] }> }).perOrg?.[0]?.errors ?? [];
+    assert(errors.includes('statement-lock-held'), `the lock-holding tick was not reported: ${JSON.stringify(errors)}`);
+    assert(!statementSegmentRan(result.requests), 'a tick without the org lock started statement work');
+    assert(!result.requests.some(({ origin }) => origin.startsWith('https://erp-')),
+      'a tick without the org lock reached the ERP');
+  });
+
+  await t.step('AC-SPC-009: a failed statement pass is deferred to the five-minute cadence, never stamped complete', async () => {
+    const steady = binding(ORG_A, BINDING_A, 'Synthetic Company A', '2026-10-01T00:00:00+00:00');
+    const result = await invokeHandler('2026-11-04T09:03:00.000Z', [steady], [], {
+      lastFullSweepAt: '2026-11-04T08:00:00.000Z',
+      lastStatementPassAt: null,
+      statementOpenError: true,
+    });
+    const defer = result.requests.find(({ path }) => path.startsWith('/rest/v1/rpc/defer_erp_statement_pass'));
+    assert(defer !== undefined, 'a failed statement pass was not deferred');
+    assert(requestBody(defer).p_due_in_seconds === 300,
+      `a failed statement pass must retry at the next UTC window, got ${String(requestBody(defer).p_due_in_seconds)}`);
+    assert(requestBody(defer).p_org_id === ORG_A, 'the statement-pass deferral named the wrong org');
+    assert(!result.requests.some(({ path }) => path.startsWith('/rest/v1/rpc/mark_erp_statement_pass_done')),
+      'a failed statement pass was stamped complete');
+    const orgErrors = (result.body as { perOrg?: Array<{ errors?: string[] }> }).perOrg?.[0]?.errors ?? [];
+    assert(orgErrors.some((message) => message.includes('native-statement')),
+      `the failed statement pass was not recorded: ${JSON.stringify(orgErrors)}`);
+  });
+
+  await t.step('AC-SPC-010: an unfinished statement batch is not published and retries on the five-minute cadence', async () => {
+    const steady = binding(ORG_A, BINDING_A, 'Synthetic Company A', '2026-10-01T00:00:00+00:00');
+    const result = await invokeHandler('2026-11-04T09:03:00.000Z', [steady], [], {
+      lastFullSweepAt: '2026-11-04T08:00:00.000Z',
+      lastStatementPassAt: null,
+      statementBatchIncomplete: true,
+    });
+    assert(result.requests.some(({ path }) => path.startsWith('/rest/v1/rpc/open_erp_statement_report_batch')),
+      'the unfinished batch was never opened');
+    assert(!result.requests.some(({ path }) => path.startsWith('/rest/v1/rpc/publish_erp_financial_statements')),
+      'an unfinished statement batch was published');
+    const defer = result.requests.find(({ path }) => path.startsWith('/rest/v1/rpc/defer_erp_statement_pass'));
+    assert(defer !== undefined, 'an unfinished statement batch was not deferred');
+    assert(requestBody(defer).p_due_in_seconds === 300,
+      `an unfinished statement batch must retry at the next UTC window, got ${String(requestBody(defer).p_due_in_seconds)}`);
+    assert(!result.requests.some(({ path }) => path.startsWith('/rest/v1/rpc/mark_erp_statement_pass_done')),
+      'an unfinished statement batch was stamped complete');
+  });
+
+  await t.step('AC-SPC-012: a money-only tick keeps its money-only contract even when the pass is due', async () => {
+    const steady = binding(ORG_A, BINDING_A, 'Synthetic Company A', '2026-10-01T00:00:00+00:00');
+    const result = await invokeHandler('2026-11-04T09:37:00.000Z', [steady], [], {
+      // The full run completed 7 minutes ago (not due), so this tick is money-only. The statement pass
+      // was deferred at 09:32 for 300 s, which writes its marker as 09:32 − 55 min = 08:37 — due now.
+      lastFullSweepAt: '2026-11-04T09:30:00.000Z',
+      lastStatementPassAt: '2026-11-04T08:37:00.000Z',
+      ownedDomains: ['revenue', 'timesheets', 'expenses'],
+    });
+    assert(result.status === 200 && result.body.ok === true && result.body.cadence === 'money-only',
+      `the tick was not money-only: ${result.status} ${JSON.stringify(result.body)}`);
+    for (const pass of ['/rest/v1/rpc/outbox_reconcile_candidates', '/rest/v1/budget_version_erp_mirror',
+      '/rest/v1/timesheet_erp_mirror', '/rest/v1/rpc/expense_posting_queue']) {
+      assert(result.requests.some(({ path }) => path.startsWith(pass)),
+        `the every-minute operational sync did not run ${pass}`);
+    }
+    // AC-ENA-CAD-002 keeps a money-only tick to the money passes; the pass keeps its due marker and runs
+    // on the next hourly window instead (the deferral is what bounds how soon that can be).
+    assert(!statementSegmentRan(result.requests),
+      'a money-only tick ran the statement batch, breaking the money-only contract');
+    const mine = (result.body as { perOrg?: Array<{ statement?: string; sweep?: unknown; ledger?: unknown }> }).perOrg?.[0];
+    assert(mine?.statement === 'skipped', `the due-but-unrun statement pass was not reported: ${JSON.stringify(mine)}`);
+    assert(mine?.sweep === undefined && mine?.ledger === undefined,
+      `a money-only tick ran the hourly inbound work: ${JSON.stringify(mine)}`);
+  });
+
+  await t.step('AC-SPC-011: a lapsed lease cannot stamp or defer the statement pass, so the org stays due', async () => {
+    const steady = binding(ORG_A, BINDING_A, 'Synthetic Company A', '2026-10-01T00:00:00+00:00');
+    const result = await invokeHandler('2026-11-04T09:03:00.000Z', [steady], [], {
+      lastFullSweepAt: '2026-11-04T08:00:00.000Z',
+      lastStatementPassAt: null,
+      statementStampRejected: true,
+    });
+    assert(result.requests.some(({ path }) => path.startsWith('/rest/v1/rpc/publish_erp_financial_statements')),
+      'the pass did not publish, so the lease fence was not exercised');
+    const orgErrors = (result.body as { perOrg?: Array<{ errors?: string[] }> }).perOrg?.[0]?.errors ?? [];
+    assert(orgErrors.some((message) => message.startsWith('statement-pass-mark:')),
+      `a refused statement-pass stamp was not surfaced: ${JSON.stringify(orgErrors)}`);
+    // The refused stamp is the DB's answer that this tick no longer holds the lease: the org must stay
+    // due rather than be recorded as freshly completed by a tick that lost the lock.
+    assert(result.status === 200 && result.body.ok === true, `the tick failed: ${result.status} ${JSON.stringify(result.body)}`);
   });
 
   await t.step('AC-CAD-002: explicit maintenance requests remain outside the cadence decision', async () => {

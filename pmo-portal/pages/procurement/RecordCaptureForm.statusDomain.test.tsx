@@ -4,6 +4,15 @@ vi.mock('@/src/hooks/useOrgTaxDefault', async (orig) => {
   const actual = (await orig()) as Record<string, unknown>;
   return { ...actual, useOrgTaxDefault: () => 'exclusive' };
 });
+vi.mock('@/src/hooks/useOrgFeatures', () => ({
+  useOrgFeatures: () => ({
+    data: { procurement: true, procurement_full: true },
+    isLoading: false,
+    isError: false,
+    error: null,
+    refetch: vi.fn(),
+  }),
+}));
 
 import { render, screen } from '@testing-library/react';
 import { ToastProvider } from '@/src/components/ui';

@@ -3,7 +3,7 @@
 -- user: /action task from a meeting, a sub-task, an incident report. (3) Mutation, last: renaming one
 -- check back in front of the stamp turns the guard red and the insert dies.
 begin;
-select plan(7);
+select plan(9);
 
 create temp view org_checks_before_stamp as
   with st as (
@@ -18,6 +18,17 @@ create temp view org_checks_before_stamp as
 
 select is((select coalesce(string_agg(trg, ', ' order by trg), '') from org_checks_before_stamp), '',
   'AC-ORGSTAMP-020: no org check fires before the org stamp on any table');
+select is((select count(*)::int
+  from pg_trigger t join pg_proc f on f.oid=t.tgfoid
+  where t.tgrelid='public.external_command_outbox'::regclass
+    and f.proname='enforce_budget_archive_outbox_state' and not t.tgisinternal),1,
+  'AC-BUD-122: exactly one budget archive outbox guard is active');
+select is((select coalesce(string_agg(t.tgname, ', ' order by t.tgname),'')
+  from pg_trigger t join pg_proc f on f.oid=t.tgfoid
+  where t.tgrelid='public.external_command_outbox'::regclass
+    and f.proname='enforce_budget_archive_outbox_state' and not t.tgisinternal),
+  'external_command_outbox_zz_enforce_budget_archive_outbox_state',
+  'AC-BUD-122: the budget archive guard fires after the outbox org stamp');
 
 insert into organizations (id, name) values ('cccccccc-0000-0000-0000-00000000000c','Org C (non-seed)');
 insert into auth.users (id, email) values ('c0000000-0000-0000-0000-0000000000c1','c@example.com');

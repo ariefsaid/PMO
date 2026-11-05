@@ -122,6 +122,19 @@ describe('ProjectNew — one-step create page (#806)', () => {
     expect(toast).toHaveTextContent(/Harborside Annex/);
   });
 
+  it('a project saved while ERP sync runs shows the background state and navigates immediately', async () => {
+    createMutation.mockResolvedValue({ id: 'project-new', erpSetup: 'syncing' });
+    renderPage();
+    await fillValid('Background Sync Project');
+    await userEvent.click(screen.getByRole('button', { name: /^Create project$/i }));
+
+    expect(await findToastAnnouncement('status', /ERP linking is running in the background/i)).toHaveTextContent('Background Sync Project');
+    await waitFor(() => expect(navigate).toHaveBeenCalledWith('/projects/project-new', {
+      replace: true,
+      state: { pmoListReturn: { list: 'projects' } },
+    }));
+  });
+
   it('a failed Save stays on the page with the entries and a classified warning', async () => {
     createMutation.mockRejectedValue(new AppError('denied', '42501'));
     renderPage();

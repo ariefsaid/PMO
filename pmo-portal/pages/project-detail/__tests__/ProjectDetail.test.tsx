@@ -46,6 +46,7 @@ const { roleBox, desktopBox, projectMutations, projectTransition, budgetVersions
     isPending: false,
   },
 }));
+vi.mock('@/src/hooks/useProjectOverviewRead', () => ({ useProjectOverviewRead: () => ({ isLoading: false }) }));
 vi.mock('@/src/hooks/useProjects', () => ({
   useProjects: () => projectsState,
   // #840: the detail route reads ONE project by id (any stage), never the whole list. `oppState`

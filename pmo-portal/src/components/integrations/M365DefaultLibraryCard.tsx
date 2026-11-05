@@ -5,14 +5,9 @@ import { useQuery } from '@tanstack/react-query';
 import { Button, Card, ConfirmDialog, EntityFormModal, FormGrid, Icon, ListState, SelectField, useEntityForm, type SubmitError } from '@/src/components/ui';
 import { useAuth } from '@/src/auth/useAuth';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { listDrives, listSites } from '@/src/lib/m365/graphClient';
+import { browseDrives, browseSites } from '@/src/lib/m365/graphClient';
 import { useDocumentLinkPermissions } from '@/src/components/m365/DocumentLinkPermissions';
 import { useMicrosoftDocuments, useSetDefaultLibrary } from '@/src/hooks/useMicrosoftDocuments';
-
-export interface M365DefaultLibraryCardProps {
-  /** Stable mount slot beside the Admin actions, e.g. a "Link existing folders" button. */
-  children?: React.ReactNode;
-}
 
 /**
  * Org default document library (AC-M365DOC-055/056/060). A singleton, Admin-managed starting point for
@@ -21,7 +16,7 @@ export interface M365DefaultLibraryCardProps {
  * plain database write and needs no connection at all. A failed read is shown as unavailable, never as
  * "None", and the setting is never changed by a member's Microsoft denial. Impersonation is view-only.
  */
-export const M365DefaultLibraryCard: React.FC<M365DefaultLibraryCardProps> = ({ children }) => {
+export const M365DefaultLibraryCard: React.FC = () => {
   const { t } = useTranslation();
   const permissions = useDocumentLinkPermissions();
   const { connection, defaultLibrary, isPending, defaultError, refetch } = useMicrosoftDocuments();
@@ -96,7 +91,6 @@ export const M365DefaultLibraryCard: React.FC<M365DefaultLibraryCardProps> = ({ 
             </Button>
           )}
           <LinkExistingRecordFolders defaultAvailable={Boolean(defaultLibrary) && !readFailed} />
-          {children}
         </div>
       )}
       {canManage && !connected && !isPending && (
@@ -142,13 +136,13 @@ function ChooseLibraryModal({ onClose }: { onClose: () => void }) {
 
   const sites = useQuery({
     queryKey: ['m365-default-sites', orgId, userId],
-    queryFn: async () => (await listSites()).value,
+    queryFn: async () => (await browseSites()).value,
     retry: false,
   });
   const siteId = form.values.site;
   const drives = useQuery({
     queryKey: ['m365-default-drives', orgId, userId, siteId],
-    queryFn: async () => (await listDrives(siteId)).value,
+    queryFn: async () => (await browseDrives(siteId)).value,
     enabled: siteId !== '',
     retry: false,
   });

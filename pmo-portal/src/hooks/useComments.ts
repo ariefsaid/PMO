@@ -8,13 +8,13 @@ import type {
 } from '@/src/lib/db/comments';
 
 /** Org-scoped comments list for one project/task. */
-export function useComments(entityType: CommentEntityType, entityId: string) {
+export function useComments(entityType: CommentEntityType, entityId: string, options?: { enabled?: boolean }) {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
   return useQuery<CommentWithAuthor[]>({
     queryKey: ['comments', orgId, entityType, entityId],
     queryFn: () => repositories.comment.list(entityType, entityId),
-    enabled: Boolean(orgId) && Boolean(entityId),
+    enabled: Boolean(orgId) && Boolean(entityId) && options?.enabled !== false,
   });
 }
 

@@ -26,7 +26,8 @@ Deno.test("AC-M365DOC-070 served refresh requires a usable access token and pins
     assertEquals(call.redirect, "error");
     return jsonResponse({ access_token: null, refresh_token: "synthetic-new-refresh", expires_in: 3600 });
   } }), async ({ call, calls }) => {
-    assertEquals((await call(ensure)).status, 409);
+    // A malformed token response is an upstream fault, not a refused refresh token: retryable, connection left active.
+    assertEquals((await call(ensure)).status, 502);
     assertEquals(rpcBodies(calls, "m365_finish_refresh").length, 0);
     assertEquals(graphCalls(calls).length, 0);
   });
@@ -34,7 +35,7 @@ Deno.test("AC-M365DOC-070 served refresh requires a usable access token and pins
 
 Deno.test("AC-M365DOC-070 served refresh reuse revocation carries the original generation", async () => {
   await run(newWorld({ accessExpired: true, refresh: () => jsonResponse({ error: "invalid_grant", error_description: "refresh token reuse detected" }, { status: 400 }) }), async ({ call, calls, world }) => {
-    assertEquals((await call(ensure)).status, 409);
+    assertEquals((await call(ensure)).status, 410); // the reuse revoked the connection: reconnect guidance, not a retry
     const completed = rpcBodies(calls, "m365_finish_refresh");
     assertEquals(completed.length, 1);
     assertEquals(completed[0]!.p_status, "revoked");

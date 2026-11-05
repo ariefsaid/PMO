@@ -248,6 +248,19 @@ export async function listProjectIdentity(): Promise<Array<Pick<ProjectRow, 'id'
   );
 }
 
+/** Read only project numbers for an explicit dashboard card set in one request. */
+export async function listProjectNumbers(ids: readonly string[]): Promise<Array<Pick<ProjectRow, 'id' | 'pmo_project_number'>>> {
+  const uniqueIds = [...new Set(ids)];
+  if (uniqueIds.length === 0) return [];
+  const { data, error } = await supabase
+    .from('projects')
+    .select('id,pmo_project_number')
+    .in('id', uniqueIds)
+    .limit(uniqueIds.length);
+  if (error) throw new Error(error.message);
+  return (data ?? []) as Array<Pick<ProjectRow, 'id' | 'pmo_project_number'>>;
+}
+
 export async function getProject(id: string): Promise<ProjectWithRefs | null> {
   const { data, error } = await supabase.from('projects').select(SELECT).eq('id', id).maybeSingle();
   if (error) throw new Error(error.message);
@@ -366,6 +379,34 @@ export async function updateProjectHeader(id: string, input: ProjectHeaderInput)
     .eq('id', id)
     .select('id');
   if (error) throwWrite(error);
+  assertWriteLanded(data, 'Project not found or you do not have permission to edit it.');
+}
+
+/** Update an open opportunity's independent % Get estimate. */
+export async function updateProjectGetProbability(id: string, probability: number): Promise<void> {
+  if (!Number.isFinite(probability) || probability < 0 || probability > 1) {
+    throw new Error('Get probability must be between 0 and 1.');
+  }
+  const { data, error } = await supabase
+    .from('projects')
+    .update({ get_probability: probability })
+    .eq('id', id)
+    .select('id');
+  if (error) throwWrite(error as PostgrestErrorLike);
+  assertWriteLanded(data, 'Project not found or you do not have permission to edit it.');
+}
+
+/** Update an open opportunity's per-project % Go override. */
+export async function updateProjectGoProbability(id: string, probability: number): Promise<void> {
+  if (!Number.isFinite(probability) || probability < 0 || probability > 1) {
+    throw new Error('Go probability must be between 0 and 1.');
+  }
+  const { data, error } = await supabase
+    .from('projects')
+    .update({ go_probability: probability })
+    .eq('id', id)
+    .select('id');
+  if (error) throwWrite(error as PostgrestErrorLike);
   assertWriteLanded(data, 'Project not found or you do not have permission to edit it.');
 }
 

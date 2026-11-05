@@ -6,9 +6,10 @@
 import { AppError } from '../../appError.ts';
 import { fetchAllRowsByKeyset } from '../../pagedRead.ts';
 import { resolveBudgetAccounts, type BudgetLineItem, type CategoryAccountMapRow } from '../../budget/categoryAccountMap.ts';
-import { parseBudgetIdentity } from './budgetAccountIdentity.ts';
+import { yearsInSpan } from '../../budget/budgetDistribution.ts';
+import { parseBudgetIdentity, budgetLegacyIdentity } from './budgetAccountIdentity.ts';
 import { resolveV16BudgetAccounts } from './budgetAccountPlan.ts';
-import { listDocsByFilters, type ErpClientDeps, type ErpFilter } from './client.ts';
+import { listDocsByFilters, listDocsByFiltersPaged, type ErpClientDeps, type ErpFilter } from './client.ts';
 import { findPmoRecordId, type ExternalRefsLookupClient } from '../refs.ts';
 import type { AdapterCommand } from '../contract.ts';
 import type { DispatchServiceClient, ErpDispatchFactoryDeps, ExternalOrgBindingRow } from './dispatchTypes.ts';
@@ -18,6 +19,20 @@ import { resolveErpProjectName } from './dispatchRefs.ts';
  *  so every other domain stays byte-for-byte: no extra DB round trip, no mutated `ctx.config`.) */
 export function isBudgetCommand(command: AdapterCommand): boolean {
   return (command.record as { erp_doc_kind?: string }).erp_doc_kind === 'budget';
+}
+
+/**
+ * #1462 — is this command the archive cancellation of a LEGACY (year-grained, pre-v16) ERP Budget?
+ *
+ * ⚑ It is classified by the SERVER-derived `source_kind` the durable archive intent carries, never by
+ * "the identity has no account" (an empty/malformed identity would then read as legacy) and never by
+ * the current binding (a v16 org can still hold an old year-grained document). The two kinds travel
+ * through one dispatch path but must never be coerced into each other: a legacy job has no account
+ * plan to re-derive, and an account job is never cancelled by an account-less identity.
+ */
+export function isLegacyBudgetArchiveCommand(command: AdapterCommand): boolean {
+  const record = command.record as { erp_doc_kind?: unknown; source_kind?: unknown };
+  return record.erp_doc_kind === 'budget' && record.source_kind === 'legacy';
 }
 
 /**
@@ -99,15 +114,54 @@ export function assertBudgetBindingIdentity(deps: ErpDispatchFactoryDeps, bindin
   const major = binding.version_major;
   if (major !== 15 && major !== 16) throw new AppError('budget push requires a supported ERP binding version', 'config-rejected');
   const identity = deps.command.record.outbox_identity;
+  // #1462: legacy documents retain year-grained identity after a 15→16 re-bind. Until the upgraded
+  // document representation is verified against the test installation, legacy cancellation stays
+  // v15-only and fails closed on v16.
+  if (isLegacyBudgetArchiveCommand(deps.command)) {
+    const record = deps.command.record as {
+      id?: unknown;
+      budget_intent?: unknown;
+      erp_account?: unknown;
+      fiscal_year?: unknown;
+      budget_archive_cancel_job_id?: unknown;
+    };
+    if (major !== 15) {
+      throw new AppError('legacy budget archive cancellation is not enabled for this ERP binding version', 'config-rejected');
+    }
+    if (record.budget_intent !== 'remove' || record.erp_account != null ||
+        typeof record.budget_archive_cancel_job_id !== 'string' ||
+        !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(record.budget_archive_cancel_job_id)) {
+      throw new AppError('legacy budget archive command carries account or non-removal dimensions', 'config-rejected');
+    }
+    let parsed: ReturnType<typeof parseBudgetIdentity>;
+    try {
+      if (typeof identity !== 'string') throw new Error();
+      parsed = parseBudgetIdentity(identity);
+    } catch {
+      throw new AppError('legacy budget archive command has an invalid year-qualified identity', 'config-rejected');
+    }
+    if (parsed.erpAccount !== null || parsed.fiscalYear === null || parsed.versionId !== record.id ||
+        parsed.fiscalYear !== record.fiscal_year ||
+        budgetLegacyIdentity(parsed.versionId, parsed.fiscalYear) !== identity) {
+      throw new AppError('legacy budget archive identity does not match the command dimensions', 'config-rejected');
+    }
+    return;
+  }
   const account = deps.command.record.erp_account;
-  if ((typeof identity === 'string' && identity.includes(':a:')) !== (major === 16) ||
-      (major === 16 && (typeof identity !== 'string' || typeof account !== 'string'))) {
+  const isWholeProjectRange = deps.command.record.budget_mode === 'whole_project';
+  if ((major === 16 && (typeof identity !== 'string' || typeof account !== 'string')) ||
+      (major === 15 && isWholeProjectRange) ||
+      (major === 16 && typeof identity === 'string' &&
+        ((isWholeProjectRange && !identity.includes(':r:')) || (!isWholeProjectRange && !identity.includes(':a:'))))) {
     throw new AppError('budget account identity does not match the active ERP binding', 'config-rejected');
   }
   if (major === 16) {
     try {
       const parsed = parseBudgetIdentity(identity as string);
-      if (parsed.erpAccount !== account || parsed.fiscalYear !== deps.command.record.fiscal_year) throw new Error();
+      if (parsed.erpAccount !== account || parsed.fiscalYear !== deps.command.record.fiscal_year ||
+          parsed.kind !== (isWholeProjectRange ? 'range' : 'annual') ||
+          (isWholeProjectRange && parsed.toFiscalYear !== deps.command.record.to_fiscal_year) ||
+          (!isWholeProjectRange && parsed.toFiscalYear !== null)) throw new Error();
     } catch {
       throw new AppError('budget account identity does not match the command dimensions', 'config-rejected');
     }
@@ -142,6 +196,186 @@ export async function readBudgetGrain(
 /** How long a recorded replace consent stays usable. The consent also names one ERP document, so it dies with
  *  that document; this bounds the case where nobody retries. */
 export const OCCUPANT_CONSENT_TTL_MS = 24 * 3_600_000;
+
+/** Prove a range account target from its reverse reference and current mirror before allowing either
+ *  a replacement or a removal to reach the adapter. A matching ERP name or a same-grain row by
+ *  itself does not establish PMO ownership. */
+async function verifyRangePredecessor(
+  deps: ErpDispatchFactoryDeps,
+  record: { projectId?: string | null; budget_predecessor?: unknown; budget_predecessor_modified?: unknown },
+  fromYear: string,
+  toYear: string,
+  account: string,
+): Promise<string> {
+  const predecessor = record.budget_predecessor;
+  if (typeof predecessor !== 'string' || predecessor === ''
+      || typeof record.budget_predecessor_modified !== 'string' || record.budget_predecessor_modified === '') {
+    throw new AppError('whole-project budget predecessor witness is incomplete', 'commit-rejected');
+  }
+  const sourceIdentity = await findPmoRecordId(
+    deps.serviceClient as unknown as ExternalRefsLookupClient,
+    deps.orgId,
+    'budget',
+    predecessor,
+  );
+  let parsedSource: ReturnType<typeof parseBudgetIdentity>;
+  try { parsedSource = sourceIdentity ? parseBudgetIdentity(sourceIdentity) : (() => { throw new Error(); })(); }
+  catch { throw new AppError('whole-project predecessor has no exact PMO range identity witness', 'commit-rejected'); }
+  if (parsedSource.kind !== 'range' || parsedSource.fiscalYear !== fromYear
+      || parsedSource.toFiscalYear !== toYear || parsedSource.erpAccount !== account) {
+    throw new AppError('whole-project predecessor identity does not match the complete range and account', 'commit-rejected');
+  }
+  const { data: mirrorData, error: mirrorError } = await deps.serviceClient.from('budget_version_account_erp_mirror')
+    .select('budget_version_id,fiscal_year,to_fiscal_year,erp_account,erp_budget_name,erp_docstatus,erp_cancelled_at,erp_modified,push_state,activated_at_witness,budget_versions!inner(project_id,status,activated_at)')
+    .eq('org_id', deps.orgId).eq('budget_version_id', parsedSource.versionId)
+    .eq('fiscal_year', fromYear).eq('to_fiscal_year', toYear).eq('erp_account', account)
+    .eq('erp_budget_name', predecessor).eq('budget_versions.project_id', String(record.projectId)).maybeSingle();
+  if (mirrorError) throw new AppError('whole-project predecessor mirror witness could not be read', 'external-unreachable');
+  const mirror = mirrorData as Record<string, unknown> | null;
+  const sourceVersion = mirror?.budget_versions as Record<string, unknown> | undefined;
+  if (!mirror || !sourceVersion || mirror.budget_version_id !== parsedSource.versionId
+      || mirror.fiscal_year !== fromYear || mirror.to_fiscal_year !== toYear || mirror.erp_account !== account
+      || mirror.erp_budget_name !== predecessor || !['Active', 'Archived'].includes(String(sourceVersion.status))
+      || sourceVersion.activated_at !== mirror.activated_at_witness
+      || mirror.erp_cancelled_at !== null || mirror.erp_docstatus !== 1 || mirror.push_state !== 'pushed'
+      || mirror.erp_modified !== record.budget_predecessor_modified) {
+    throw new AppError('whole-project predecessor mirror is no longer a reconciled live witness', 'commit-rejected');
+  }
+  return predecessor;
+}
+
+/** A range archive is authorized by its exact durable cancellation intent, not by the mirror's
+ *  historical pushed state. The source mirror is deliberately pending while the separate archive
+ *  intent owns the cancel; revisions continue through `verifyRangePredecessor` and require pushed. */
+async function verifyRangeArchiveCancellation(
+  deps: ErpDispatchFactoryDeps,
+  record: {
+    id?: unknown;
+    projectId?: unknown;
+    fiscal_year?: unknown;
+    to_fiscal_year?: unknown;
+    erp_account?: unknown;
+    budget_intent?: unknown;
+    budget_predecessor?: unknown;
+    budget_predecessor_modified?: unknown;
+    outbox_identity?: unknown;
+    activated_at?: unknown;
+    project_start_date?: unknown;
+    project_end_date?: unknown;
+    budget_archive_cancel_job_id?: unknown;
+    budget_archive_source_mirror_id?: unknown;
+  },
+  fromYear: string,
+  toYear: string,
+  account: string,
+): Promise<string> {
+  const jobId = record.budget_archive_cancel_job_id;
+  const sourceMirrorId = record.budget_archive_source_mirror_id;
+  const predecessor = record.budget_predecessor;
+  if (typeof jobId !== 'string' || !/^[0-9a-f-]{36}$/i.test(jobId)
+      || typeof sourceMirrorId !== 'string' || !/^[0-9a-f-]{36}$/i.test(sourceMirrorId)
+      || typeof predecessor !== 'string' || predecessor === ''
+      || typeof record.id !== 'string' || typeof record.projectId !== 'string'
+      || typeof record.budget_predecessor_modified !== 'string' || record.budget_predecessor_modified === '') {
+    throw new AppError('whole-project budget archive cancellation lacks its exact durable witnesses', 'commit-rejected');
+  }
+  const { data: jobData, error: jobError } = await deps.serviceClient.from('budget_archive_cancel_intents')
+    .select('id,org_id,request_id,project_id,budget_version_id,source_mirror_id,source_kind,actor_user_id,state,fiscal_year,to_fiscal_year,erp_account,erp_budget_name,erp_modified,activated_at_witness,pushed_project_start_date,pushed_project_end_date')
+    .eq('id', jobId).eq('org_id', deps.orgId).maybeSingle();
+  if (jobError) throw new AppError('whole-project budget archive intent could not be read', 'external-unreachable');
+  const job = jobData as Record<string, unknown> | null;
+  if (!job || job.id !== jobId || job.org_id !== deps.orgId || job.source_kind !== 'account' || job.state !== 'pending'
+      || job.source_mirror_id !== sourceMirrorId || job.project_id !== record.projectId
+      || job.budget_version_id !== record.id || job.fiscal_year !== fromYear || job.to_fiscal_year !== toYear
+      || job.erp_account !== account || job.erp_budget_name !== predecessor
+      || job.erp_modified !== record.budget_predecessor_modified
+      || job.activated_at_witness !== record.activated_at
+      || job.pushed_project_start_date !== record.project_start_date
+      || job.pushed_project_end_date !== (record.project_end_date ?? null)
+      || typeof job.actor_user_id !== 'string' || !job.actor_user_id
+      || deps.actorUserId !== job.actor_user_id || typeof job.request_id !== 'string' || !job.request_id) {
+    throw new AppError('whole-project budget archive command does not match its current pending intent', 'commit-rejected');
+  }
+  const { data: requestData, error: requestError } = await deps.serviceClient.from('budget_archive_requests')
+    .select('id,org_id,project_id,budget_version_id,requested_by,cancel_erp')
+    .eq('id', job.request_id).eq('org_id', deps.orgId).maybeSingle();
+  if (requestError) throw new AppError('whole-project budget archive request could not be read', 'external-unreachable');
+  const request = requestData as Record<string, unknown> | null;
+  if (!request || request.id !== job.request_id || request.org_id !== deps.orgId
+      || request.project_id !== job.project_id || request.budget_version_id !== job.budget_version_id
+      || request.requested_by !== job.actor_user_id || request.cancel_erp !== true) {
+    throw new AppError('whole-project budget archive request or actor witness changed', 'commit-rejected');
+  }
+  const { data: mirrorData, error: mirrorError } = await deps.serviceClient.from('budget_version_account_erp_mirror')
+    .select('id,org_id,budget_version_id,fiscal_year,to_fiscal_year,erp_account,budget_intent,push_state,erp_budget_name,erp_docstatus,erp_cancelled_at,erp_modified,activated_at_witness,pushed_project_start_date,pushed_project_end_date,budget_versions!inner(project_id,status,activated_at)')
+    .eq('id', sourceMirrorId).eq('org_id', deps.orgId).eq('budget_version_id', record.id as string)
+    .eq('fiscal_year', fromYear).eq('to_fiscal_year', toYear).eq('erp_account', account)
+    .eq('budget_versions.project_id', record.projectId as string).maybeSingle();
+  if (mirrorError) throw new AppError('whole-project budget archive source mirror could not be read', 'external-unreachable');
+  const mirror = mirrorData as Record<string, unknown> | null;
+  const sourceVersion = mirror?.budget_versions as Record<string, unknown> | undefined;
+  if (!mirror || !sourceVersion || mirror.id !== sourceMirrorId || mirror.org_id !== deps.orgId
+      || mirror.budget_version_id !== record.id || mirror.fiscal_year !== fromYear || mirror.to_fiscal_year !== toYear
+      || mirror.erp_account !== account || mirror.budget_intent !== 'remove' || mirror.push_state !== 'pending'
+      || mirror.erp_budget_name !== predecessor || mirror.erp_docstatus !== 1 || mirror.erp_cancelled_at !== null
+      || mirror.erp_modified !== record.budget_predecessor_modified
+      || mirror.activated_at_witness !== record.activated_at
+      || mirror.pushed_project_start_date !== record.project_start_date
+      || mirror.pushed_project_end_date !== (record.project_end_date ?? null)
+      || sourceVersion.project_id !== record.projectId || sourceVersion.status !== 'Archived'
+      || sourceVersion.activated_at !== record.activated_at) {
+    throw new AppError('whole-project budget archive source mirror is no longer the exact pending source', 'commit-rejected');
+  }
+  const { data: refData, error: refError } = await deps.serviceClient.from('external_refs')
+    .select('external_record_id').eq('org_id', deps.orgId).eq('domain', 'budget').eq('external_tier', 'erpnext')
+    .eq('pmo_record_id', record.outbox_identity as string).eq('external_record_id', predecessor).maybeSingle();
+  if (refError) throw new AppError('whole-project budget archive reference could not be read', 'external-unreachable');
+  if (!refData || (refData as Record<string, unknown>).external_record_id !== predecessor) {
+    throw new AppError('whole-project budget archive has no exact external reference', 'commit-rejected');
+  }
+  return predecessor;
+}
+
+type BudgetRangeRecoveryState = {
+  stage?: unknown;
+  identity?: unknown;
+  payloadDigest?: unknown;
+  mode?: unknown;
+  draftName?: unknown;
+};
+
+/**
+ * The resolver runs before the outbox claim, but it must still distinguish a desk-authored overlap
+ * from the exact draft a prior, fenced range attempt already witnessed. The adapter re-reads this
+ * state after the new claim and verifies owner, modified stamp, and full content before any write;
+ * this preflight only uses the durable name to avoid rejecting that same candidate as a rival.
+ */
+async function readBudgetRangeRecoveryState(
+  deps: ErpDispatchFactoryDeps,
+  identity: string,
+): Promise<BudgetRangeRecoveryState | null> {
+  const idempotencyKey = deps.command.idempotencyKey;
+  if (typeof idempotencyKey !== 'string' || idempotencyKey === '') return null;
+  const { data, error } = await deps.serviceClient.from('external_command_outbox')
+    .select('org_id,domain,pmo_record_id,idempotency_key,payload_digest,budget_range_operation')
+    .eq('org_id', deps.orgId).eq('domain', 'budget').eq('pmo_record_id', identity)
+    .eq('idempotency_key', idempotencyKey).maybeSingle();
+  if (error) throw new AppError('whole-project budget recovery state could not be read', 'external-unreachable');
+  const row = data as Record<string, unknown> | null;
+  if (!row) return null;
+  if (row.org_id !== deps.orgId || row.domain !== 'budget' || row.pmo_record_id !== identity
+      || row.idempotency_key !== idempotencyKey) {
+    throw new AppError('whole-project budget recovery row does not match its exact command identity', 'command-held');
+  }
+  if (row.budget_range_operation == null) return null;
+  const state = row.budget_range_operation as BudgetRangeRecoveryState;
+  if (typeof state !== 'object' || state === null || state.identity !== identity
+      || typeof row.payload_digest !== 'string' || row.payload_digest === ''
+      || state.payloadDigest !== row.payload_digest) {
+    throw new AppError('whole-project budget recovery state does not match its immutable outbox payload', 'command-held');
+  }
+  return state;
+}
 
 /**
  * ECA-6 / PD-ECA-12 — the id of a live, unconsumed consent naming exactly this ERP document for this org, project,
@@ -203,18 +437,85 @@ export async function resolveBudgetRefs(
     id?: unknown;
     projectId?: string | null;
     fiscal_year?: unknown;
+    to_fiscal_year?: unknown;
+    fiscal_years?: unknown;
     line_items?: unknown;
     /** FR-BFY-032: the year-qualified outbox/external_refs identity, derived at the served boundary. */
     outbox_identity?: unknown;
     erp_account?: unknown;
     budget_intent?: unknown;
     budget_predecessor?: unknown;
+    budget_predecessor_modified?: unknown;
+    budget_mode?: unknown;
+    budget_archive_cancel_job_id?: unknown;
+    budget_archive_source_mirror_id?: unknown;
+    activated_at?: unknown;
+    project_start_date?: unknown;
+    project_end_date?: unknown;
   };
   const project = resolveErpProjectName(binding.config, record.projectId);
   const refs: Record<string, string | null> = { project };
+  const fiscalYear = record.fiscal_year;
+
+  // #1462 — a LEGACY archive cancellation names ONE exact ERP document by witnessed name. It does not
+  // read the account plan (there is no account), it does not resolve an upsert target (a cancellation is
+  // not a revision), and it never consults current grain occupancy: occupancy says nothing about which
+  // old document this activation created, and picking one from the grain would be a guess.
+  if (isLegacyBudgetArchiveCommand(deps.command)) {
+    if (record.budget_intent !== 'remove' || typeof record.budget_predecessor !== 'string' || !record.budget_predecessor) {
+      throw new AppError('legacy budget archive: cancellation has no witnessed predecessor', 'commit-rejected');
+    }
+    const jobId = record.budget_archive_cancel_job_id;
+    const sourceMirrorId = record.budget_archive_source_mirror_id;
+    if (typeof jobId !== 'string' || typeof sourceMirrorId !== 'string') {
+      throw new AppError('legacy budget archive: durable source witness is missing', 'commit-rejected');
+    }
+    const { data: jobData, error: jobError } = await deps.serviceClient.from('budget_archive_cancel_intents')
+      .select('id,org_id,request_id,project_id,budget_version_id,source_mirror_id,source_kind,actor_user_id,state,fiscal_year,erp_account,erp_budget_name,activated_at_witness,pushed_project_start_date,pushed_project_end_date')
+      .eq('id', jobId).eq('org_id', deps.orgId).maybeSingle();
+    if (jobError) throw new AppError(`legacy budget archive: cancellation intent could not be read: ${jobError.message}`, 'commit-rejected');
+    const job = jobData as Record<string, unknown> | null;
+    if (!job || job.source_kind !== 'legacy' || job.state !== 'pending' || job.source_mirror_id !== sourceMirrorId ||
+        job.project_id !== record.projectId || job.budget_version_id !== record.id || job.fiscal_year !== fiscalYear ||
+        job.erp_account !== null || job.erp_budget_name !== record.budget_predecessor ||
+        job.activated_at_witness !== record.activated_at ||
+        job.pushed_project_start_date !== record.project_start_date ||
+        job.pushed_project_end_date !== (record.project_end_date ?? null) ||
+        typeof job.actor_user_id !== 'string' || typeof job.request_id !== 'string') {
+      throw new AppError('legacy budget archive: command does not match its pending durable intent', 'commit-rejected');
+    }
+    const { data: requestData, error: requestError } = await deps.serviceClient.from('budget_archive_requests')
+      .select('id,org_id,project_id,budget_version_id,requested_by,cancel_erp')
+      .eq('id', job.request_id).eq('org_id', deps.orgId).maybeSingle();
+    if (requestError) throw new AppError(`legacy budget archive: original request could not be read: ${requestError.message}`, 'commit-rejected');
+    const request = requestData as Record<string, unknown> | null;
+    if (!request || request.project_id !== job.project_id || request.budget_version_id !== job.budget_version_id ||
+        request.requested_by !== job.actor_user_id || request.cancel_erp !== true) {
+      throw new AppError('legacy budget archive: original request or actor no longer matches', 'commit-rejected');
+    }
+    const { data: mirrorData, error: mirrorError } = await deps.serviceClient.from('budget_version_erp_mirror')
+      .select('id,org_id,budget_version_id,fiscal_year,push_state,erp_budget_name,erp_docstatus,erp_cancelled_at,activated_at_witness,pushed_project_start_date,pushed_project_end_date')
+      .eq('id', sourceMirrorId).eq('org_id', deps.orgId).eq('budget_version_id', String(record.id))
+      .eq('fiscal_year', String(fiscalYear)).maybeSingle();
+    if (mirrorError) throw new AppError(`legacy budget archive: mirror witness could not be read: ${mirrorError.message}`, 'commit-rejected');
+    const mirror = mirrorData as Record<string, unknown> | null;
+    if (!mirror || mirror.erp_budget_name !== record.budget_predecessor || mirror.erp_docstatus === 2 ||
+        mirror.erp_cancelled_at != null || !['pending', 'failed'].includes(String(mirror.push_state)) ||
+        mirror.activated_at_witness !== record.activated_at ||
+        mirror.pushed_project_start_date !== record.project_start_date ||
+        mirror.pushed_project_end_date !== (record.project_end_date ?? null)) {
+      throw new AppError('legacy budget archive: mirror witness changed before dispatch', 'commit-rejected');
+    }
+    const { data: refData, error: refError } = await deps.serviceClient.from('external_refs')
+      .select('external_record_id').eq('org_id', deps.orgId).eq('domain', 'budget').eq('external_tier', 'erpnext')
+      .eq('pmo_record_id', record.outbox_identity as string).eq('external_record_id', String(record.budget_predecessor)).maybeSingle();
+    if (refError) throw new AppError(`legacy budget archive: exact external reference could not be read: ${refError.message}`, 'commit-rejected');
+    if (!refData) throw new AppError('legacy budget archive: exact external reference is unavailable', 'commit-rejected');
+    refs.self = record.budget_predecessor;
+    return { refs };
+  }
 
   const company = binding.config?.company;
-  const fiscalYear = record.fiscal_year;
   // Any of these unresolved ⇒ `budgetToBody` refuses the push anyway (fail-closed, zero ERP calls);
   // probing the grain with a missing coordinate would ask a question with no meaning.
   if (!project || typeof company !== 'string' || !company || typeof fiscalYear !== 'string' || !fiscalYear) {
@@ -239,7 +540,11 @@ export async function resolveBudgetRefs(
     } catch {
       throw new AppError('v16 budget command has an invalid account identity', 'config-rejected');
     }
+    const isWholeProjectRange = record.budget_mode === 'whole_project';
     if (identity.erpAccount !== record.erp_account || identity.fiscalYear !== fiscalYear ||
+        (isWholeProjectRange
+          ? identity.kind !== 'range' || identity.toFiscalYear !== record.to_fiscal_year
+          : identity.kind !== 'annual') ||
         (record.budget_intent !== 'ensure' && record.budget_intent !== 'remove')) {
       throw new AppError('v16 budget command dimensions do not match its identity', 'config-rejected');
     }
@@ -252,10 +557,128 @@ export async function resolveBudgetRefs(
     } else if (typeof record.budget_predecessor !== 'string' || !record.budget_predecessor) {
       throw new AppError(`budget push: removal for account ${selectedAccount} has no witnessed predecessor`, 'commit-rejected');
     }
+    if (record.budget_intent === 'remove' && isWholeProjectRange) {
+      if (typeof fiscalYear !== 'string' || typeof record.to_fiscal_year !== 'string') {
+        throw new AppError('whole-project budget removal has unresolved range dimensions', 'budget-distribution-stale');
+      }
+      refs.self = await verifyRangeArchiveCancellation(deps, record, fiscalYear, record.to_fiscal_year, selectedAccount);
+      return { refs };
+    }
     if (record.budget_intent === 'remove') {
-      // A removal names a durable predecessor; current grain occupancy is irrelevant.
-      // The adapter reads that exact document and validates its dimensions and status.
+      // An annual account removal is also an exact source cancellation, never an upsert lookup. Its
+      // durable archive intent was validated by the sweep before the immutable outbox command was made.
       refs.self = record.budget_predecessor as string;
+      return { refs };
+    }
+    if (isWholeProjectRange) {
+      const fromYear = record.fiscal_year;
+      const toYear = record.to_fiscal_year;
+      const years = record.fiscal_years;
+      if (typeof fromYear !== 'string' || typeof toYear !== 'string' || !Array.isArray(years) || years.length === 0) {
+        throw new AppError('whole-project budget range calendar is unresolved', 'budget-distribution-stale');
+      }
+      const calendar = years as Array<{ name?: unknown; start?: unknown; end?: unknown }>;
+      const names = new Set<string>();
+      for (let index = 0; index < calendar.length; index += 1) {
+        const year = calendar[index]!;
+        if (typeof year.name !== 'string' || year.name === '' || names.has(year.name)
+            || typeof year.start !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(year.start)
+            || typeof year.end !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(year.end)
+            || year.start > year.end
+            || (index > 0 && (calendar[index - 1]!.start as string) >= year.start)) {
+          throw new AppError('whole-project budget range calendar is ambiguous', 'budget-distribution-stale');
+        }
+        names.add(year.name);
+      }
+      try {
+        const checked = yearsInSpan(calendar[0]!.start as string, calendar.at(-1)!.end as string,
+          calendar as Array<{ name: string; start: string; end: string }>);
+        if (checked.length !== calendar.length || checked.some((year, index) =>
+          year.name !== calendar[index]?.name || year.start !== calendar[index]?.start || year.end !== calendar[index]?.end)) throw new Error();
+      } catch {
+        throw new AppError('whole-project budget range calendar has a gap, overlap, or invalid date', 'budget-distribution-stale');
+      }
+      const firstIndex = calendar.findIndex((year) => year.name === fromYear);
+      const lastIndex = calendar.findIndex((year) => year.name === toYear);
+      if (firstIndex < 0 || lastIndex < firstIndex) {
+        throw new AppError('whole-project budget range boundaries are not in the trusted calendar', 'budget-distribution-stale');
+      }
+      const desiredStart = calendar[firstIndex]!.start as string;
+      const desiredEnd = calendar[lastIndex]!.end as string;
+      const predecessor = record.budget_predecessor;
+      if (predecessor !== null) {
+        refs.self = await verifyRangePredecessor(deps, record, fromYear, toYear, selectedAccount);
+      }
+
+      const clientDeps: ErpClientDeps = {
+        fetchImpl: deps.fetchImpl, apiKey: deps.apiKey, apiSecret: deps.apiSecret,
+        baseUrl: binding.site_url, rateLimiter: deps.rateLimiter,
+      };
+      const candidates = await listDocsByFiltersPaged(clientDeps, 'Budget', [
+        ['company', '=', company], ['project', '=', project], ['account', '=', selectedAccount!], ['docstatus', '<', 2],
+      ], ['name', 'docstatus', 'company', 'project', 'account', 'from_fiscal_year', 'to_fiscal_year', 'modified'], {
+        pageSize: 100, maxPages: 100,
+      });
+      const overlaps: Array<{ name: string; docstatus: number; from: string; to: string }> = [];
+      for (const candidate of candidates) {
+        if (typeof candidate.name !== 'string' || candidate.name === ''
+            || candidate.company !== company || candidate.project !== project || candidate.account !== selectedAccount) {
+          throw new AppError('whole-project ERP candidate scan returned an ambiguous document', 'external-unreachable');
+        }
+        const status = Number(candidate.docstatus);
+        if (!Number.isInteger(status) || status < 0 || status > 1) {
+          throw new AppError('whole-project ERP candidate status is ambiguous', 'external-unreachable');
+        }
+        const from = candidate.from_fiscal_year;
+        const to = candidate.to_fiscal_year;
+        if (typeof from !== 'string' || typeof to !== 'string') {
+          throw new AppError('whole-project ERP candidate has unresolved fiscal-year bounds', 'budget-range-ambiguous');
+        }
+        const candidateFrom = calendar.findIndex((year) => year.name === from);
+        const candidateTo = calendar.findIndex((year) => year.name === to);
+        if (candidateFrom < 0 || candidateTo < candidateFrom) {
+          throw new AppError('whole-project ERP candidate fiscal-year bounds are outside the trusted calendar', 'budget-range-ambiguous');
+        }
+        const candidateStart = calendar[candidateFrom]!.start as string;
+        const candidateEnd = calendar[candidateTo]!.end as string;
+        if (candidateStart <= desiredEnd && desiredStart <= candidateEnd) {
+          overlaps.push({ name: candidate.name, docstatus: status, from, to });
+        }
+      }
+      const recoveryState = await readBudgetRangeRecoveryState(deps, record.outbox_identity as string);
+      const recoveryStage = recoveryState?.stage;
+      const draftStages = new Set(['draft_witnessed', 'distribution_put_started', 'distribution_saved', 'submit_started', 'submitted']);
+      const witnessedDraft = draftStages.has(String(recoveryStage)) ? recoveryState?.draftName : null;
+      let recoveredOccupancyIsValid = false;
+      if (typeof witnessedDraft === 'string' && witnessedDraft !== '') {
+        const exactDraft = overlaps.length === 1 ? overlaps[0]! : null;
+        const stageStatusValid = recoveryStage === 'submitted'
+          ? exactDraft?.docstatus === 1
+          : recoveryStage === 'submit_started'
+            ? exactDraft?.docstatus === 0 || exactDraft?.docstatus === 1
+            : exactDraft?.docstatus === 0;
+        recoveredOccupancyIsValid = recoveryState?.mode !== 'remove'
+          && exactDraft?.name === witnessedDraft && exactDraft.from === fromYear && exactDraft.to === toYear
+          && stageStatusValid;
+      } else if (recoveryStage === 'post_started') {
+        // An anchorless POST may have landed without a durable name. Nothing on this grain is safe to adopt;
+        // with no visible overlap the adapter will hold the uncertain operation before issuing any write.
+        recoveredOccupancyIsValid = overlaps.length === 0;
+      } else if (recoveryStage === 'cancel_started' && recoveryState?.mode === 'replace') {
+        recoveredOccupancyIsValid = overlaps.length === 0 || (overlaps.length === 1
+          && overlaps[0]!.name === predecessor && overlaps[0]!.docstatus === 1
+          && overlaps[0]!.from === fromYear && overlaps[0]!.to === toYear);
+      } else if (recoveryStage === 'cancelled' && recoveryState?.mode === 'replace') {
+        recoveredOccupancyIsValid = overlaps.length === 0;
+      }
+      const hasRecognizedRecoveryStage = recoveryStage === 'post_started' || recoveryStage === 'cancel_started'
+        || recoveryStage === 'cancelled' || draftStages.has(String(recoveryStage));
+      if (hasRecognizedRecoveryStage ? !recoveredOccupancyIsValid
+        : overlaps.length > 1 || (overlaps.length === 1 && overlaps[0]!.name !== predecessor)
+          || (predecessor !== null && (overlaps.length !== 1 || overlaps[0]!.docstatus !== 1
+            || overlaps[0]!.from !== fromYear || overlaps[0]!.to !== toYear))) {
+        throw new AppError('whole-project budget range overlaps another live or draft ERP Budget; operator review is required', 'budget-range-occupied');
+      }
       return { refs };
     }
   } else {

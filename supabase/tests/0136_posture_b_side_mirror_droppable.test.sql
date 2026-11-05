@@ -7,7 +7,7 @@ begin;
 -- `create temporary table xing_before` step is setup, not a test. The plan's own draft declared
 -- plan(8) — pg_prove caught the miscount ("planned 8 tests but ran 7", 0 of the 7 failing) — fixed
 -- here to match the assertions actually written, never inflated to hit an arbitrary count.
-select plan(11);
+select plan(12);
 
 -- 1. The Posture-B mirror inventory now includes the account-grained Budget companion. The invoker
 --    union view is an explicit read-compatibility dependency, so remove that view before proving the
@@ -15,8 +15,8 @@ select plan(11);
 select set_eq(
   $$ select table_name::text from information_schema.tables
       where table_schema = 'public' and table_name like '%\_erp\_mirror' $$,
-  $$ values ('timesheet_erp_mirror'), ('budget_version_erp_mirror'), ('budget_version_account_erp_mirror'), ('expense_posting_erp_mirror'), ('imprest_posting_erp_mirror') $$,
-  'AC-XING-004 Posture-B side-mirror inventory includes the v16 Budget companion'
+      $$ values ('timesheet_erp_mirror'), ('budget_version_erp_mirror'), ('budget_version_account_erp_mirror'), ('expense_posting_erp_mirror'), ('imprest_posting_erp_mirror'), ('revenue_erp_mirror') $$,
+  'AC-XING-004 Posture-B side-mirror inventory includes the revenue document mirror'
 );
 
 -- 2. Record the PMO SoT row counts BEFORE the drop.
@@ -54,6 +54,10 @@ select lives_ok(
 select lives_ok(
   'drop table public.imprest_posting_erp_mirror restrict',
   'AC-XING-004 imprest_posting_erp_mirror drops with RESTRICT — nothing PMO owns depends on it'
+);
+select lives_ok(
+  'drop table public.revenue_erp_mirror restrict',
+  'AC-XING-004 revenue_erp_mirror drops with RESTRICT — PMO revenue rows remain the source of truth'
 );
 
 -- 4. Every PMO SoT table still exists and still holds every row.

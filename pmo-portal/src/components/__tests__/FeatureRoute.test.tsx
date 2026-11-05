@@ -4,7 +4,10 @@
  * Four states, and the differences between them are the whole point:
  *   - core        → the page renders immediately;
  *   - loading     → HOLD (null), so a deep-link never flash-denies a module the org has;
- *   - read failed → the unavailable-with-retry state, never the words "not on your plan";
+ *   - read failed → the unavailable-with-retry state, never the words "not on your plan" — but
+ *                   ONLY when there is no resolved answer at all: a failed background refetch
+ *                   leaves the earlier answer in `data`, and the page must stay mounted (a
+ *                   half-typed form must not be thrown away for one transient read);
  *   - resolved off→ the not-available state (the page is NOT rendered, and there is no redirect
  *                   racing the shell — the old behaviour redirected to `/`; AC-PLN-008 asks the
  *                   route to say why);
@@ -35,6 +38,32 @@ import { FeatureRoute } from '../FeatureRoute';
 const Home = () => <div data-testid="home">Home</div>;
 const Guarded = () => <div data-testid="guarded">INCIDENTS</div>;
 
+/** The page a user is typing into: its own state is what a mid-edit unmount would destroy. */
+const GuardedForm = () => {
+  const [qty, setQty] = React.useState('');
+  return (
+    <div data-testid="guarded">
+      <input
+        aria-label="goods receipt quantity"
+        value={qty}
+        onChange={(event) => setQty(event.target.value)}
+      />
+    </div>
+  );
+};
+
+const atGuarded = (
+  element: React.ReactNode = <Guarded />,
+  feature: 'incidents' | 'projects' = 'incidents',
+) => (
+  <MemoryRouter initialEntries={['/guarded']}>
+    <Routes>
+      <Route path="/" element={<Home />} />
+      <Route path="/guarded" element={<FeatureRoute feature={feature} element={element} />} />
+    </Routes>
+  </MemoryRouter>
+);
+
 const renderAt = (path: string, feature: 'incidents' | 'projects' = 'incidents') =>
   render(
     <MemoryRouter initialEntries={[path]}>
@@ -42,7 +71,18 @@ const renderAt = (path: string, feature: 'incidents' | 'projects' = 'incidents')
         <Route path="/" element={<Home />} />
         <Route
           path="/guarded"
-          element={<FeatureRoute feature={feature} element={feature === 'incidents' ? <Guarded /> : <div data-testid="guarded-projects">PROJECTS</div>} />}
+          element={
+            <FeatureRoute
+              feature={feature}
+              element={
+                feature === 'incidents' ? (
+                  <Guarded />
+                ) : (
+                  <div data-testid="guarded-projects">PROJECTS</div>
+                )
+              }
+            />
+          }
         />
       </Routes>
     </MemoryRouter>,
@@ -95,6 +135,42 @@ describe('AC-PLN-008 — FeatureRoute states', () => {
     expect(screen.queryByTestId('guarded')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: /try again/i }));
     expect(refetch).toHaveBeenCalled();
+  });
+
+  it('AC-PLN-008: a failed BACKGROUND refetch keeps the resolved page mounted and preserves the draft', () => {
+    const refetch = vi.fn();
+    useOrgFeaturesState.value = {
+      isLoading: false,
+      isError: false,
+      data: { incidents: true },
+      refetch,
+    };
+    const { rerender } = render(atGuarded(<GuardedForm />));
+
+    const input = screen.getByLabelText('goods receipt quantity');
+    fireEvent.change(input, { target: { value: '42' } });
+    expect(input).toHaveValue('42');
+
+    // React Query keeps the earlier answer in `data` while reporting the failed background read.
+    useOrgFeaturesState.value = { ...useOrgFeaturesState.value, isError: true };
+    rerender(atGuarded(<GuardedForm />));
+
+    expect(screen.getByTestId('guarded')).toBeInTheDocument();
+    expect(screen.queryByTestId('feature-unavailable-error')).toBeNull();
+    expect(screen.getByLabelText('goods receipt quantity')).toHaveValue('42');
+    expect(refetch).not.toHaveBeenCalled();
+  });
+
+  it('AC-PLN-008: a failed background refetch with the resolved answer OFF keeps saying OFF', () => {
+    useOrgFeaturesState.value = { ...useOrgFeaturesState.value, data: { incidents: false } };
+    const { rerender } = render(atGuarded(<Guarded />));
+
+    useOrgFeaturesState.value = { ...useOrgFeaturesState.value, isError: true };
+    rerender(atGuarded(<Guarded />));
+
+    expect(screen.getByTestId('feature-unavailable')).toBeInTheDocument();
+    expect(screen.queryByTestId('feature-unavailable-error')).toBeNull();
+    expect(screen.queryByTestId('guarded')).toBeNull();
   });
 
   it('AC-PLN-008: core keys render immediately even while the read is loading', () => {

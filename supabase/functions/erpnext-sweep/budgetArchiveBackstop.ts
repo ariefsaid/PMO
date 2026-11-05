@@ -1,13 +1,22 @@
-/** Durable, operator-attributed cancellation intent for an archived v16 Budget. */
+/** Durable, operator-attributed cancellation intent for an archived Budget. */
 export interface BudgetArchiveCancelIntent {
   id: string;
   org_id: string;
+  request_id: string;
   project_id: string;
   budget_version_id: string;
   source_mirror_id: string;
+  /**
+   * #1462 — WHICH mirror the intent names: `account` (v16 account-grained) or `legacy` (pre-v16,
+   * year-grained). The two have different identities, grains and mirror tables, so every read and write
+   * below is selected by this fact rather than by guessing from an empty account.
+   */
+  source_kind?: 'account' | 'legacy';
   actor_user_id: string;
   fiscal_year: string;
-  erp_account: string;
+  to_fiscal_year?: string | null;
+  erp_modified?: string | null;
+  erp_account: string | null;
   erp_budget_name: string;
   activated_at_witness: string;
   pushed_project_start_date: string | null;
@@ -18,6 +27,7 @@ export interface BudgetArchiveLifecycle {
   status: string;
   activatedAt: string | null;
   activeSuccessorUsesTarget: boolean;
+  cancellationState?: string | null;
 }
 
 export interface BudgetArchiveBackstopDeps {
@@ -71,9 +81,19 @@ export async function reconcileOrgBudgetArchiveCancellations(
         continue;
       }
       if (lifecycle.activeSuccessorUsesTarget) {
-        await deps.markSuperseded(job);
-        superseded += 1;
-        continue;
+        if (lifecycle.cancellationState === 'committed' || lifecycle.cancellationState === 'confirmed') {
+          // The cancellation already succeeded; allow its finalizer to record the exact tombstone.
+        } else if (lifecycle.cancellationState) {
+          // The write may have reached ERPNext. Preserve the lifecycle fence and stop automatic retry;
+          // marking it superseded would release a new writer against an uncertain document.
+          await deps.markHeld(job, 'successor-after-cancellation-issued');
+          held += 1;
+          continue;
+        } else {
+          await deps.markSuperseded(job);
+          superseded += 1;
+          continue;
+        }
       }
       if (!(await deps.targetIsStillLiveAndOwned(job))) {
         await deps.markHeld(job, 'erp-target-witness-changed');

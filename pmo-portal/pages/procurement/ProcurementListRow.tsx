@@ -72,10 +72,10 @@ export interface ProcurementListRowProps {
 const ExpandedPanel: React.FC<{
   row: ProcurementWithRefs;
   panelId: string;
-  /** list-working-set-return (#682, AC-LRC-005): the shared opener for the "View full request"
-   * footer link, so it carries the same validated Procurement return context as the row/title. */
-  onOpen: (path: string) => boolean;
-}> = ({ row, panelId, onOpen }) => {
+  /** list-working-set-return (#682, AC-LRC-005): the row's shared link click handler, so the "View full
+   * request" footer link carries the same validated Procurement return context as the row/title. */
+  onLinkClick: React.MouseEventHandler<HTMLAnchorElement>;
+}> = ({ row, panelId, onLinkClick }) => {
   const { t } = useTranslation();
   const detail = useProcurementDetail(row.id);
 
@@ -139,16 +139,7 @@ const ExpandedPanel: React.FC<{
           <div className="mt-2 flex justify-end">
             <Link
               to={`/procurement/${row.id}`}
-              onClick={(e) => {
-                // Native modified/new-tab clicks keep the plain href (no return context to
-                // carry into a separate browsing context) — only a plain left-click is
-                // intercepted to route through the shared opener (AC-LRC-005).
-                if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) {
-                  return;
-                }
-                e.preventDefault();
-                onOpen(`/procurement/${row.id}`);
-              }}
+              onClick={onLinkClick}
               className="inline-flex h-8 items-center gap-1.5 rounded-md border border-input bg-background px-2.5 text-[13px] font-medium text-foreground transition-colors hover:bg-accent"
             >
               {t('procurement.preview.viewFullRequest', 'View procurement case')}
@@ -172,6 +163,16 @@ export const ProcurementListRow: React.FC<ProcurementListRowProps> = ({ row }) =
   // list-working-set-return (#682, AC-LRC-005): captures the current Procurement list URL +
   // scroll as validated return context before navigating to the canonical detail route.
   const { openRecord } = useListReturn({ list: 'procurement' });
+  // Native modified/new-tab clicks keep the plain href (no return context to carry into a separate
+  // browsing context) — only a plain left-click is intercepted to route through the shared opener
+  // (AC-LRC-005), matching the row-click behaviour.
+  const onLinkClick: React.MouseEventHandler<HTMLAnchorElement> = (e) => {
+    if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) {
+      return;
+    }
+    e.preventDefault();
+    openRecord(`/procurement/${row.id}`);
+  };
 
   return (
     <div className="border-b border-border last:border-b-0">
@@ -219,16 +220,7 @@ export const ProcurementListRow: React.FC<ProcurementListRowProps> = ({ row }) =
           <Link
             to={`/procurement/${row.id}`}
             data-list-return-focus={`procurement:${row.id}`}
-            onClick={(e) => {
-              // Native modified/new-tab clicks keep the plain href (no return context to carry
-              // into a separate browsing context) — only a plain left-click is intercepted to
-              // route through the shared opener (AC-LRC-005), matching the row-click behaviour.
-              if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) {
-                return;
-              }
-              e.preventDefault();
-              openRecord(`/procurement/${row.id}`);
-            }}
+            onClick={onLinkClick}
             className="block line-clamp-2 break-words font-semibold text-sm text-foreground hover:underline rounded"
             title={row.title}
           >
@@ -275,7 +267,7 @@ export const ProcurementListRow: React.FC<ProcurementListRowProps> = ({ row }) =
 
       {/* Expanded preview panel (AC-FIX5-PREVIEW-02): ExpandedPanel mounts only when
           expanded so useProcurementDetail is not called on the collapsed row. */}
-      {expanded && <ExpandedPanel row={row} panelId={panelId} onOpen={openRecord} />}
+      {expanded && <ExpandedPanel row={row} panelId={panelId} onLinkClick={onLinkClick} />}
     </div>
   );
 };

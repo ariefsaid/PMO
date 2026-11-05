@@ -74,7 +74,7 @@ function makeMintedClientWithFailingNotify() {
   const from = vi.fn((table: string) => {
     tablesTouched.push(table);
     if (table === 'notifications') return { insert: notifInsert };
-    return { insert: auditInsert };
+    return { insert: auditInsert, update: () => ({ eq: () => Promise.resolve({ error: null }) }) };
   });
   return { client: { from }, notifInsert };
 }
@@ -166,7 +166,7 @@ describe('I5 — a failed owner notification is recorded to error_events (reache
         return { select: () => ({ eq: () => ({ eq: () => ({ is: isMock }) }) }) };
       }
       if (table === 'agent_dispatch_watermarks') return { select: wmSelect, upsert: wmUpsert };
-      if (table === 'agent_automation_fires') return { insert: firesInsert };
+      if (table === 'agent_automation_fires') return { update: () => ({ eq: () => ({ eq: () => Promise.resolve({ error: null }), }), }), insert: firesInsert };
       if (table === 'error_events') return { insert: errorEventsInsert };
       throw new Error(`service_role must never .from() business data; got: ${table}`);
     });

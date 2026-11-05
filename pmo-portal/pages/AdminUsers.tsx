@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ConfirmDialog,
   type SubmitError,
@@ -10,9 +10,10 @@ import {
 } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useIsOperator } from '@/src/auth/useIsOperator';
-import { useUsers, useUserMutations } from '@/src/hooks/useUsers';
+import { useUsersPage, useActiveAdminCounts, useUserFocusPage, useManagerChoices, useUserMutations } from '@/src/hooks/useUsers';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import type { UserRow, UserRole } from '@/src/lib/db/adminUsers';
+import { USER_DIRECTORY_PAGE_SIZE } from '@/src/lib/db/adminUsers';
+import type { UserDirectoryRow, UserRole } from '@/src/lib/db/adminUsers';
 import { useAuth } from '@/src/auth/useAuth';
 import { useTranslation } from 'react-i18next';
 import { UserDirectory } from './admin-users/UserDirectory';
@@ -48,14 +49,28 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
   const may = usePermission();
   const isOperator = useIsOperator();
   const { toast } = useToast();
-  const { data, isPending, isError, refetch } = useUsers();
+  // The directory reads ONE server page (exact total, server search). The whole list is only
+  // read lazily when the manager picker opens — a picker must offer everyone, not one page.
+  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState('');
+  const directory = useUsersPage({ page, pageSize: USER_DIRECTORY_PAGE_SIZE, search });
   const { updateRole, assignManager, invite, setStatus } = useUserMutations();
   const { currentUser } = useAuth();
+  // AC-JR-W3B-E1 manager jump: { userId, name, fromPage, fromSearch } while we are showing someone
+  // else's page for a manager click; `null` when the directory is where the user left it. The
+  // name is only a label for the in-flight/failed lookup — the TARGET is always the actual id.
+  // `seq` identifies THIS explicit click: a repeated click on the same person is a new jump.
+  const [focus, setFocus] = useState<{ userId: string; name: string; fromPage: number; fromSearch: string; seq: number } | null>(null);
+  const focusLocation = useUserFocusPage(focus?.userId ?? null, USER_DIRECTORY_PAGE_SIZE);
+  // Each jump's location is applied exactly once. Browsing or searching afterwards is the user's
+  // own move and must not be undone by a jump that already happened.
+  const jumpSeqRef = useRef(0);
+  const appliedJumpRef = useRef<number | null>(null);
 
   // Active modal: { mode:'role', user } | { mode:'manager', user } | null.
-  const [editTarget, setEditTarget] = useState<{ mode: 'role' | 'manager'; user: UserRow } | null>(null);
+  const [editTarget, setEditTarget] = useState<{ mode: 'role' | 'manager'; user: UserDirectoryRow } | null>(null);
   // Pending high-impact role change awaiting the confirm step.
-  const [pendingRole, setPendingRole] = useState<{ user: UserRow; role: UserRole } | null>(null);
+  const [pendingRole, setPendingRole] = useState<{ user: UserDirectoryRow; role: UserRole } | null>(null);
   // Invite modal open/closed.
   const [inviteOpen, setInviteOpen] = useState(false);
   // #559 / AC-ERR-001: this page's forms fire-and-forget — the PAGE owns the mutation and its
@@ -66,7 +81,7 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
 
   // Pending disable/re-enable awaiting the confirm step (disable only — re-enable is immediate,
   // non-destructive).
-  const [pendingStatus, setPendingStatus] = useState<{ user: UserRow; status: 'disabled' } | null>(null);
+  const [pendingStatus, setPendingStatus] = useState<{ user: UserDirectoryRow; status: 'disabled' } | null>(null);
 
   const canManage = may('edit', 'user'); // Admin only (policy.ts user.edit)
   const canView = canManage || may('view', 'user') || isOperator; // Exec read-only; Operators may manage users without an Admin role.
@@ -75,19 +90,85 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
   const canInvite = may('create', 'user') || isOperator;
   const canDisable = canManage || isOperator;
 
-  const all = useMemo(() => (data ?? []) as UserRow[], [data]);
+  const rows = useMemo(() => directory.data?.rows ?? [], [directory.data]);
+  const total = directory.data?.total ?? 0;
 
-  // The API caps the directory at 1,000 rows; only infer completeness below that cap.
-  const isSoleAdmin = (u: UserRow) =>
-    !isPending && !isError && !!data && data.length < 1000 &&
-    u.role === 'Admin' && u.status === 'active' &&
-    all.filter((candidate) => candidate.org_id === u.org_id && candidate.role === 'Admin' && candidate.status === 'active').length === 1;
+  // Everyone, for the manager picker only: a COMPLETE but minimal choice set (id, name, role),
+  // read lazily while that dialog is open. A picker must not be limited to the visible page, and
+  // the directory visit must not pay for the whole people list.
+  const managerChoices = useManagerChoices({ enabled: editTarget?.mode === 'manager' });
 
-  const state: 'loading' | 'empty' | 'error' | undefined = isPending
-    ? 'loading'
-    : isError || !data
+  // Sole active Admin is counted server-side over each row's WHOLE org — independent of the
+  // current page and search. `unknown` (query pending, a failed read/refetch, or an unresolved
+  // count) is deliberately a third state: it must never be read as "not the sole admin", and a
+  // cached count must not outrank a failed refresh. A zero count on a row that IS an active Admin
+  // is an inconsistency, so it is unknown too — never "there are several admins".
+  const orgIds = useMemo(() => [...new Set(rows.map((row) => row.org_id))], [rows]);
+  const adminCounts = useActiveAdminCounts(orgIds);
+  const adminCountsUnresolved = adminCounts.isPending || adminCounts.isError;
+  const adminStateFor = (u: UserDirectoryRow): 'sole' | 'multiple' | 'unknown' | 'not-admin' => {
+    if (u.role !== 'Admin' || u.status !== 'active') return 'not-admin';
+    if (adminCountsUnresolved) return 'unknown';
+    const count = adminCounts.data?.[u.org_id];
+    if (count === undefined || count === null || count < 1) return 'unknown';
+    return count === 1 ? 'sole' : 'multiple';
+  };
+  const isSoleAdmin = (u: UserDirectoryRow) => adminStateFor(u) === 'sole';
+  const isAdminStateUnknown = (u: UserDirectoryRow) => adminStateFor(u) === 'unknown';
+
+  // Where the focus target sits: pending / located / failed / not-readable. All four are rendered,
+  // so a click is never a dead end — only `located` moves the page.
+  const focusState: 'locating' | 'located' | 'error' | 'unavailable' | null = !focus
+    ? null
+    : focusLocation.isError
       ? 'error'
-      : all.length === 0
+      : focusLocation.data === null
+        ? 'unavailable'
+        : focusLocation.data
+          ? 'located'
+          : 'locating';
+
+  // Manager jump: once THIS jump's location resolves, drop the search (the manager may not match
+  // the typed term) and move there. It is applied ONCE per explicit jump — re-applying it whenever
+  // `page`/`search` changed used to pull the reader back to the manager's page and wipe whatever
+  // they typed. The return control still restores the page AND search the user left. A failed or
+  // unreadable lookup does NOT move anything and keeps its own recoverable notice.
+  useEffect(() => {
+    if (!focus || focusState !== 'located' || !focusLocation.data) return;
+    if (appliedJumpRef.current === focus.seq) return;
+    appliedJumpRef.current = focus.seq;
+    if (search !== '') setSearch('');
+    if (page !== focusLocation.data.page) setPage(focusLocation.data.page);
+  }, [focus, focusState, focusLocation.data, page, search]);
+  const onJumpToUser = (userId: string, name: string) => {
+    jumpSeqRef.current += 1;
+    setFocus({ userId, name, fromPage: page, fromSearch: search, seq: jumpSeqRef.current });
+  };
+  const onReturnFromFocus = () => {
+    if (!focus) return;
+    setPage(focus.fromPage);
+    setSearch(focus.fromSearch);
+    setFocus(null);
+  };
+
+  // Out-of-range correction: a deep link or a shrinking result set can point past the last page.
+  useEffect(() => {
+    if (directory.isFetching || !directory.data) return;
+    if (directory.data.rows.length > 0 || directory.data.total === 0 || page <= 1) return;
+    setPage(Math.max(1, Math.ceil(directory.data.total / USER_DIRECTORY_PAGE_SIZE)));
+  }, [directory.data, directory.isFetching, page]);
+
+  // A search change always returns to page 1 (page 7 of the old result set is meaningless).
+  const onSearchChange = (next: string) => {
+    setSearch(next);
+    setPage(1);
+  };
+
+  const state: 'loading' | 'empty' | 'error' | undefined = directory.isPending
+    ? 'loading'
+    : directory.isError || !directory.data
+      ? 'error'
+      : total === 0 && search.trim() === ''
         ? 'empty'
         : undefined;
 
@@ -108,11 +189,14 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
   }
 
   // ── Role change: a high-impact change is staged then confirmed. ──
-  const submitRole = (user: UserRow, role: UserRole) => {
+  const submitRole = (user: UserDirectoryRow, role: UserRole) => {
     if (role === user.role) {
       setEditTarget(null);
       return;
     }
+    // Each staged attempt starts with a clean slate — an earlier failure must not resurface in
+    // the confirm step or in a dialog opened for a different user (scoped per attempt).
+    setRoleError(null);
     // Stage the change; the confirm step commits it (high-impact, named in the confirm copy).
     setPendingRole({ user, role });
     setEditTarget(null);
@@ -134,14 +218,15 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
       );
       setPendingRole(null);
     } catch (err) {
+      // The confirmation stays open on failure: the staged change is kept so the admin can retry
+      // immediately or cancel deliberately, instead of losing the selected edit to a closed dialog.
       const { headline, detail } = classifyMutationError(err);
       setRoleError({ headline, detail });
       toast(headline, detail, 'warning');
-      setPendingRole(null);
     }
   };
 
-  const submitManager = async (user: UserRow, managerId: string | null) => {
+  const submitManager = async (user: UserDirectoryRow, managerId: string | null) => {
     try {
       await assignManager.mutateAsync({ id: user.id, managerId });
       toast(
@@ -161,7 +246,7 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
 
   // ── Disable/Re-enable (AC-INV-003/004): admin_set_user_status RPC re-asserts authority +
   // the caller-agnostic sole-/self-Admin lockout guard (P0001) server-side. ──
-  const confirmSetStatus = async (user: UserRow, status: 'active' | 'disabled') => {
+  const confirmSetStatus = async (user: UserDirectoryRow, status: 'active' | 'disabled') => {
     try {
       await setStatus.mutateAsync({ id: user.id, status, orgId: user.org_id });
       toast(
@@ -201,12 +286,14 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
   };
 
   const confirmDisable = () => {
-    if (!pendingStatus || pendingStatus.user.id === currentUser?.id || isSoleAdmin(pendingStatus.user)) return;
+    if (!pendingStatus || pendingStatus.user.id === currentUser?.id || isSoleAdmin(pendingStatus.user) || isAdminStateUnknown(pendingStatus.user)) return;
     void confirmSetStatus(pendingStatus.user, pendingStatus.status);
   };
 
   // ── Invite (FR-INV-004/005): admin-invite-user edge fn — Admin-in-org OR Operator. ──
   const submitInvite = async (email: string, role: UserRole, pOrgId: string | null) => {
+    // A fresh attempt starts clean — an earlier failure never resurfaces in a new dialog.
+    setInviteError(null);
     try {
       await invite.mutateAsync({ email, role, pOrgId });
       toast(
@@ -244,7 +331,7 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
 
   return (
     <div>
-      <PageHead canInvite={canInvite} onInvite={() => setInviteOpen(true)} embedded={embedded} />
+      <PageHead canInvite={canInvite} onInvite={() => { setInviteError(null); setInviteOpen(true); }} embedded={embedded} />
 
       {isExecReadOnly && (
         <GateNotice variant="blocked" className="mb-3.5">
@@ -255,14 +342,34 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
       {/* Directory body (CROSS-65): toolbar, states, columns, row menu and manager navigation
           live in admin-users/UserDirectory; this page keeps the gates, mutations and confirms. */}
       <UserDirectory
-        rows={all}
+        rows={rows}
+        total={total}
+        page={page}
+        pageSize={USER_DIRECTORY_PAGE_SIZE}
+        search={search}
+        onSearchChange={onSearchChange}
+        onPageChange={setPage}
         state={state}
-        onRetry={() => refetch()}
+        onRetry={() => void directory.refetch()}
+        busy={directory.isFetching}
         canManage={canManage}
         canDisable={canDisable}
         currentUserId={currentUser?.id}
         isSoleAdmin={isSoleAdmin}
-        onEditRole={(u) => setEditTarget({ mode: 'role', user: u })}
+        isAdminStateUnknown={isAdminStateUnknown}
+        focus={
+          focus && focusState
+            ? {
+                userId: focus.userId,
+                name: focusLocation.data?.full_name ?? focus.name,
+                state: focusState,
+                onReturn: onReturnFromFocus,
+                onRetry: () => void focusLocation.refetch(),
+              }
+            : null
+        }
+        onJumpToUser={onJumpToUser}
+        onEditRole={(u) => { setRoleError(null); setEditTarget({ mode: 'role', user: u }); }}
         onChangeManager={(u) => setEditTarget({ mode: 'manager', user: u })}
         onSetStatus={(u, status) => {
           if (status === 'active') void confirmSetStatus(u, 'active');
@@ -280,11 +387,14 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
         />
       )}
 
-      {/* Change-manager modal */}
+      {/* Change-manager modal — the people list is complete but minimal and read only while this
+          dialog is open; its loading/failure state is the form's, never an empty picker. */}
       {editTarget?.mode === 'manager' && (
         <ManagerFormModal
           user={editTarget.user}
-          candidates={all}
+          choices={managerChoices.data ?? []}
+          choicesState={managerChoices.isPending ? 'loading' : managerChoices.isError ? 'error' : 'ready'}
+          onRetryChoices={() => void managerChoices.refetch()}
           loading={assignManager.isPending}
           onClose={() => setEditTarget(null)}
           onSubmit={submitManager}

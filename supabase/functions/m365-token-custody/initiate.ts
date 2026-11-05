@@ -11,7 +11,7 @@ import {
   buildAuthorizeUrl,
   M365_PHASE1_DATA_SCOPES,
   M365_FOLDER_SCOPES,
-} from './pkce.ts';
+} from '../../../pmo-portal/src/lib/m365/graphPkce.ts';
 import { checkRequestRate } from '../_shared/requestRateGuard.ts';
 import { newOpaqueStateToken } from '../_shared/opaqueStateToken.ts';
 

@@ -18,6 +18,7 @@ export interface ProjectRepository {
   getWithRefs(id: string): Promise<ProjectWithRefs | null>;
   listPipelineStageConfig(): Promise<PipelineStageConfig[]>;
   listIdentity(): Promise<Array<Pick<ProjectRow, 'id' | 'name'>>>;
+  listNumbers(ids: readonly string[]): Promise<Array<Pick<ProjectRow, 'id' | 'pmo_project_number'>>>;
   get(id: string): Promise<OpportunityRow | null>;
   /** The readable subset of `ids` in batched reads; ids the caller cannot read are absent. */
   getMany(ids: readonly string[]): Promise<OpportunityRow[]>;
@@ -27,6 +28,10 @@ export interface ProjectRepository {
   create(input: CreateProjectInput): Promise<ProjectRow>;
   /** Update the project's header fields (name/code/client/end customer/PM/dates). */
   updateHeader(id: string, input: ProjectHeaderInput): Promise<void>;
+  /** Update the per-opportunity % Get estimate (0–1 fraction). */
+  updateGetProbability(id: string, probability: number): Promise<void>;
+  /** Update the per-opportunity % Go override (0–1 fraction). */
+  updateGoProbability(id: string, probability: number): Promise<void>;
   /** Soft-archive a project (stamps archived_at). */
   archive(id: string): Promise<void>;
   /** Hard-delete a project (Admin-only in the FE gate); rejects 23503 if referenced. */

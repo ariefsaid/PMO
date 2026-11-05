@@ -7,7 +7,7 @@ import { assert, assertEquals } from '@std/assert';
 import { createJwtAuthority, createTestJwksResolver, installEdgeEnv, withFetchMock } from '../_shared/testing/edgeTestKit.ts';
 import type { FetchCall } from '../_shared/testing/edgeTestKit.ts';
 import {
-  APPROVER_ID, AUTHOR_ID, CUSTOMER_ID, NEW_INVOICE_ID, FOREIGN_ORG_ID, INVOICE_ID, ODOO_HOST, PROJECT_ID, REVENUE_SNAPSHOT, WORK_ORDER_ID, approveCommand, draftCommand, invoiceCommand, receiptCommand, revenueRoutes, submitCommand,
+  APPROVER_ID, AUTHOR_ID, CUSTOMER_ID, NEW_INVOICE_ID, FOREIGN_ORG_ID, INVOICE_ID, ODOO_HOST, PROJECT_ID, REVENUE_SNAPSHOT, WORK_ORDER_ID, approveCommand, draftCommand, invoiceCommand, receiptCommand, receiptOdooWorld, revenueRoutes, submitCommand,
   type Tier, type World,
 } from './odooRevenueFixtures.ts';
 
@@ -124,7 +124,9 @@ describe('AC-OCI-001 / FR-OCI-002 the Odoo connection and capability snapshot ar
   });
 
   it('a ready connection is refused for a step Odoo does not push yet: fail closed, nothing sent', async () => {
-    await refused({ projectLink: '101' }, (m) => m.includes('not available yet'), receiptCommand());
+    const receiptUpdate = await dispatch({ ...receiptCommand(), operation: 'update' }, APPROVER_ID, { owns: ['odoo'], projectLink: '101' });
+    untouched(receiptUpdate, 'unsupported receipt update');
+    assertEquals([receiptUpdate.status, JSON.parse(receiptUpdate.body).error], [422, 'commit-rejected']);
     await refused({ projectLink: '101' }, (m) => m.includes('not available yet'), submitCommand({ verb: 'cancel' }));   // a posted invoice's cancel is not offered (OQ-OCI-7)
   });
 });
@@ -182,9 +184,12 @@ describe('FR-OCI-050 / FR-OCI-055 a receipt settles one invoice, in the same rev
     await refused({ invoiceCustomer: '12121212-1212-4121-8121-121212121212' }, receiptCommand(), 'receipt-customer-mismatch');
   });
   it('a receipt in the invoice\'s own scope passes on to the adapter step', async () => {
-    const r = await dispatch(receiptCommand(), AUTHOR_ID, { owns: ['odoo'], projectLink: '101' });
-    untouched(r, 'scope');
-    assert(JSON.parse(r.body).message.includes('not available yet'), r.body);
+    const fake = receiptOdooWorld();
+    const world: World = { owns: ['odoo'], projectLink: '101', odoo: fake, writes: [] };
+    const r = await dispatch(receiptCommand({ date: '2026-11-03', paid_amount: 111000, received_amount: 111000 }), AUTHOR_ID, world);
+    assertEquals(r.status, 200, r.body);
+    assertEquals(fake.rows('account.payment').length, 1, 'the scoped receipt reached the supported Odoo adapter step');
+    assertEquals(r.calls.filter((call) => call.method === 'POST' && call.url.pathname === '/rest/v1/external_command_outbox').length, 1);
   });
 });
 

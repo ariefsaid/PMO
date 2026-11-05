@@ -1,7 +1,7 @@
 import { AppError } from '@/src/lib/appError';
 import { supabase } from '@/src/lib/supabase/client';
 import { invokeWithTimeout } from '@/src/lib/supabase/invokeWithTimeout';
-import { classifyM365InvokeError } from './connectClient';
+import { throwClassifiedM365Error } from './connectClient';
 import { folderSearchRequest, parseFolderSearchNext, type GraphReadRequest as SharedGraphReadRequest } from '../../../../supabase/functions/_shared/microsoftFolderConvention';
 import {
   validMicrosoftBrowserUrl,
@@ -28,20 +28,6 @@ const SAFE_BROWSE_ERROR = 'Microsoft could not load these items. Please try agai
 type GraphPageEnvelope = { value?: unknown; '@odata.nextLink'?: unknown };
 type Decode<T> = (value: unknown) => T | null;
 
-function parseErrorCode(error: unknown): Promise<string | undefined> | string | undefined {
-  const context = (error as { context?: Response } | null)?.context;
-  if (!context || typeof context.clone !== 'function') return undefined;
-  return context.clone().json().then((body: { error?: unknown }) =>
-    typeof body?.error === 'string' ? body.error : undefined,
-  ).catch(() => undefined);
-}
-
-async function throwBrowseError(error: unknown): Promise<never> {
-  const code = await parseErrorCode(error);
-  const classified = classifyM365InvokeError(error, code ? { error: code } : undefined);
-  throw new AppError(classified.message, classified.code);
-}
-
 async function readGraphPage<T>(request: GraphReadRequest, decode: Decode<T>): Promise<GraphPage<T>> {
   const { data, error } = await invokeWithTimeout(
     supabase.functions.invoke<GraphPageEnvelope>(FUNCTION_NAME, {
@@ -53,7 +39,7 @@ async function readGraphPage<T>(request: GraphReadRequest, decode: Decode<T>): P
       },
     }),
   );
-  if (error) await throwBrowseError(error);
+  if (error) await throwClassifiedM365Error(error);
   if (!data || !Array.isArray(data.value) || data.value.length > 100) {
     throw new AppError(SAFE_BROWSE_ERROR, 'BAD_REQUEST');
   }
@@ -155,7 +141,7 @@ async function readGraphObject<T>(request: GraphReadRequest, decode: (value: unk
       },
     }),
   );
-  if (error) await throwBrowseError(error);
+  if (error) await throwClassifiedM365Error(error);
   const value = data ? decode(data) : null;
   if (!value) throw new AppError(SAFE_BROWSE_ERROR, 'BAD_REQUEST');
   return value;
@@ -167,12 +153,10 @@ const decodeDrive = (value: unknown): GraphDrive | null => decodeLocation(value)
 export function browseSites(search?: string, next?: GraphReadRequest): Promise<GraphPage<GraphSite>> {
   return readGraphPage(next ?? { path: '/sites', query: { search: search || '*', '$top': '100' } }, decodeSite);
 }
-export function listSites(search?: string): Promise<GraphPage<GraphSite>> { return browseSites(search); }
 
 export function browseDrives(siteId: string, next?: GraphReadRequest): Promise<GraphPage<GraphDrive>> {
   return readGraphPage(next ?? { path: `/sites/${segment(siteId)}/drives`, query: { '$top': '100' } }, decodeDrive);
 }
-export function listDrives(siteId: string): Promise<GraphPage<GraphDrive>> { return browseDrives(siteId); }
 
 export function getPersonalDrive(): Promise<GraphDrive> {
   return readGraphObject({ path: '/me/drive' }, (value) => decodeLocation(value) as GraphDrive | null);
@@ -229,7 +213,7 @@ async function invokeDocumentAction(action: Record<string, unknown>): Promise<un
   const { data, error } = await invokeWithTimeout(
     supabase.functions.invoke<unknown>(FUNCTION_NAME, { body: action }),
   );
-  if (error) await throwBrowseError(error);
+  if (error) await throwClassifiedM365Error(error);
   return data;
 }
 

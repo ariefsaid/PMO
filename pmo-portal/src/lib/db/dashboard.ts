@@ -122,6 +122,9 @@ export interface PipelineStage {
   status: ProjectStatus;
   count: number;
   total_value: number;
+  /** Stage's chance the opportunity proceeds, independent of the chance we win it. */
+  go_probability?: number;
+  /** Legacy alias for go_probability while older payload fixtures roll forward. */
   win_probability: number;
   weighted_value: number;
 }
@@ -165,6 +168,9 @@ export interface PipelineProject extends ProjectClassification {
   tax_rate?: number | null;
   tax_base_numerator?: number;
   tax_base_denominator?: number;
+  go_probability?: number;
+  get_probability?: number;
+  /** Legacy combined win chance for older projections and saved exports. */
   win_probability: number;
   /**
    * ISO timestamp of the last update to this project row (projects.last_update).

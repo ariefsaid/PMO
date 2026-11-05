@@ -16,8 +16,15 @@ export async function setOrgWithholdingAccount(account: string | null): Promise<
   const { data, error } = await supabase.from('organizations').select('id');
   if (error) throw new Error(error.message);
   if (data?.length !== 1) throw new Error('Exactly one organization must be readable before changing its tax-prepaid account.');
-  const { error: updateError } = await supabase.from('organizations').update({ tax_prepaid_account: value }).eq('id', data[0].id);
-  if (updateError) throw new Error(updateError.message);
+  // The UPDATE selects the changed row and verifies it landed: PostgREST reports no error when an
+  // UPDATE policy filters the target out, so a silent no-op must be surfaced as a refusal.
+  const { data: changed, error: updateError } = await supabase
+    .from('organizations')
+    .update({ tax_prepaid_account: value })
+    .eq('id', data[0].id)
+    .select('id');
+  if (updateError) throw new AppError(updateError.message, updateError.code);
+  assertWriteLanded(changed, 'You do not have permission to change the tax-prepaid account.');
 }
 
 /**
@@ -197,11 +204,15 @@ export async function setOrgTaxDefault(value: TaxTreatment): Promise<void> {
   }
   const orgId = data?.[0]?.id;
   if (!orgId) throw new Error('No organization is readable for the current user');
-  const { error: updateError } = await supabase
+  // The UPDATE selects the changed row and verifies it landed: PostgREST reports no error when an
+  // UPDATE policy filters the target out, so a silent no-op must be surfaced as a refusal.
+  const { data: changed, error: updateError } = await supabase
     .from('organizations')
     .update({ default_tax_treatment: value })
-    .eq('id', orgId);
-  if (updateError) throw new Error(updateError.message);
+    .eq('id', orgId)
+    .select('id');
+  if (updateError) throw new AppError(updateError.message, updateError.code);
+  assertWriteLanded(changed, 'You do not have permission to change the default tax treatment.');
 }
 
 export interface ProjectClassificationOptions { serviceLines: string[]; sectors: string[] }

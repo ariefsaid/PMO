@@ -1,9 +1,10 @@
 /** Integrations repository implementation: ERP setup edge actions, bindings, connect/disconnect, health, ClickUp/ERPNext project links and item reads. */
 import { parseErpActivationRefusal, withErpActivationRefusal } from './erpActivationRefusal';
 import { supabase } from '@/src/lib/supabase/client';
+import { fetchAllPages } from '@/src/lib/pagedRead';
 import { invokeWithTimeout } from '@/src/lib/supabase/invokeWithTimeout';
 import { wrap, throwInvokeError } from './repositoryErrors';
-import type { ClickUpListItem, ConnectAcceptResult, ConnectCounts, ConnectCredential, ConnectResponse, DisconnectResponse, ErpProjectLink, ErpProjectOption, ErpSetupReadiness, ExternalTier, IntegrationBinding, IntegrationHealth, IntegrationsRepository, LinkInput, LinkResponse, ProjectBinding, UnlinkInput, UnlinkResponse } from './contracts/integrations';
+import type { ClickUpListItem, ConnectAcceptResult, ConnectCounts, ConnectCredential, ConnectResponse, ConnectStagedRecord, DisconnectResponse, ErpProjectLink, ErpProjectOption, ErpSetupReadiness, ExternalTier, IntegrationBinding, IntegrationHealth, IntegrationsRepository, LinkInput, LinkResponse, ProjectBinding, UnlinkInput, UnlinkResponse } from './contracts/integrations';
 
 export async function erpSetupRequest<T>(setupAction: string, input: Record<string, unknown> = {}, tier: 'erpnext' | 'odoo' = 'erpnext'): Promise<T> {
   return wrap(async () => {
@@ -38,10 +39,16 @@ export const integrationsRepository: IntegrationsRepository = {
   getConnectStatus: (tier) => erpSetupRequest('connect-status', {}, tier),
   listConnectProposals: (tier, kind, outcome, afterId, state) =>
     erpSetupRequest('list-proposals', { kind, outcome, afterId, ...(state ? { state } : {}) }, tier),
-  acceptConnectProposals: async (tier, kind, ids) => {
+  searchConnectStaged: async (tier, kind, query) => {
+    const r = await erpSetupRequest<{ records: ConnectStagedRecord[] }>('search-connect-staged', { kind, query }, tier);
+    return r.records ?? [];
+  },
+  acceptConnectProposals: async (tier, kind, ids, excludeIds) => {
     const total: ConnectAcceptResult = { counts: {}, remaining: 0 };
     for (let i = 0; i < ACCEPT_REQUESTS_MAX; i += 1) {
-      const r = await erpSetupRequest<ConnectAcceptResult>('accept-proposals', { kind, ids }, tier);
+      const r = await erpSetupRequest<ConnectAcceptResult>('accept-proposals', {
+        kind, ids, ...(excludeIds?.length ? { excludeIds } : {}),
+      }, tier);
       addCounts(total.counts, r.counts);
       total.remaining = r.remaining;
       if (r.remaining === 0 || Object.keys(r.counts).length === 0) break;
@@ -98,34 +105,36 @@ export const integrationsRepository: IntegrationsRepository = {
   },
   getIntegrationHealth: async (orgId: string, tier: ExternalTier): Promise<IntegrationHealth> => {
     return wrap(async () => {
-      const binding = await integrationsRepository.getBinding(orgId, tier);
-
-      const { data: watermark, error: watermarkError } = await supabase
-        .from('external_sync_watermarks')
-        .select('updated_at')
-        .eq('org_id', orgId)
-        .eq('external_tier', tier)
-        .order('updated_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
+      // Independent reads start together; any failure rejects the whole call.
+      const states = ['pending', 'failed', 'quarantined', 'held'] as const;
+      const [binding, watermarkResult, ...countResults] = await Promise.all([
+        integrationsRepository.getBinding(orgId, tier),
+        supabase
+          .from('external_sync_watermarks')
+          .select('updated_at')
+          .eq('org_id', orgId)
+          .eq('external_tier', tier)
+          .order('updated_at', { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+        // `state` is explicitly granted by migration 0134. Head counts (RLS-scoped, no rows, no payloads) stay exact past
+        // the response cap, so a long backlog cannot read as a small one.
+        ...states.map((state) =>
+          supabase
+            .from('external_command_outbox')
+            .select('state', { count: 'exact', head: true })
+            .eq('org_id', orgId)
+            .eq('external_tier', tier)
+            .eq('state', state),
+        ),
+      ]);
+      const { data: watermark, error: watermarkError } = watermarkResult;
       if (watermarkError) throw watermarkError;
-
-      const { data: outboxRows, error: outboxError } = await supabase
-        .from('external_command_outbox')
-        // `state` is explicitly granted by migration 0134. Select only it: the single RLS-scoped
-        // read lets us distinguish normal pending work from states that need attention, without
-        // reading payloads or widening the table grant.
-        .select('state')
-        .eq('org_id', orgId)
-        .eq('external_tier', tier)
-        .in('state', ['pending', 'failed', 'quarantined', 'held']);
-
-      if (outboxError) throw outboxError;
       const state_counts = { pending: 0, failed: 0, quarantined: 0, held: 0 };
-      for (const row of outboxRows ?? []) {
-        if (row.state in state_counts) state_counts[row.state as keyof typeof state_counts] += 1;
-      }
+      countResults.forEach(({ count, error }, i) => {
+        if (error) throw error;
+        state_counts[states[i]] = count ?? 0;
+      });
 
       return {
         tier,
@@ -172,13 +181,17 @@ export const integrationsRepository: IntegrationsRepository = {
   },
   listProjectBindings: async (orgId: string): Promise<ProjectBinding[]> => {
     return wrap(async () => {
-      const { data, error } = await supabase
-        .from('external_project_bindings')
-        .select('id, org_id, project_id, external_tier, external_container_id, config, linked_by, linked_at, disconnected_at')
-        .eq('org_id', orgId)
-        .is('disconnected_at', null);
-      if (error) throw error;
-      return (data ?? []) as unknown as ProjectBinding[];
+      // Read to completion: the ownership cache treats this list as the full set, so a capped read would mis-route projects.
+      const rows = await fetchAllPages((from, to) =>
+        supabase
+          .from('external_project_bindings')
+          .select('id, org_id, project_id, external_tier, external_container_id, config, linked_by, linked_at, disconnected_at')
+          .eq('org_id', orgId)
+          .is('disconnected_at', null)
+          .order('id', { ascending: true })
+          .range(from, to),
+      );
+      return rows as unknown as ProjectBinding[];
     });
   },
   listCompanies: async (orgId: string, tier: ExternalTier): Promise<{ name: string }[]> => {

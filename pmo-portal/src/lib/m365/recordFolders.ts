@@ -1,7 +1,7 @@
 import { AppError } from '@/src/lib/appError';
 import { supabase } from '@/src/lib/supabase/client';
 import { invokeWithTimeout } from '@/src/lib/supabase/invokeWithTimeout';
-import { classifyM365InvokeError } from './connectClient';
+import { throwClassifiedM365Error } from './connectClient';
 import type {
   RecordFolderBackfillPage,
   RecordFolderCursor,
@@ -39,23 +39,6 @@ function malformed(): AppError {
   return new AppError(SAFE_ERROR, 'BAD_REQUEST');
 }
 
-async function errorCode(error: unknown): Promise<string | undefined> {
-  const context = (error as { context?: Response } | null)?.context;
-  if (!context || typeof context.clone !== 'function') return undefined;
-  try {
-    const body = (await context.clone().json()) as { error?: unknown };
-    return typeof body?.error === 'string' ? body.error : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-async function throwClassified(error: unknown): Promise<never> {
-  const code = await errorCode(error);
-  const classified = classifyM365InvokeError(error, code ? { error: code } : undefined);
-  throw new AppError(classified.message, classified.code);
-}
-
 export function validRecordFolderTarget(target: RecordFolderTarget): boolean {
   return isRecord(target) && KINDS.has(target.kind) && typeof target.id === 'string' && UUID.test(target.id);
 }
@@ -86,7 +69,7 @@ export async function ensureRecordFolder(target: RecordFolderTarget): Promise<Re
       body: { action: 'ensure_record_folder', kind: target.kind, id: target.id },
     }),
   );
-  if (error) await throwClassified(error);
+  if (error) await throwClassifiedM365Error(error);
   return decodeOutcome(data);
 }
 
@@ -146,6 +129,6 @@ export async function linkExistingRecordFolders(cursor?: RecordFolderCursor): Pr
       body: { action: 'link_existing_record_folders', ...(cursor ? { cursor } : {}) },
     }),
   );
-  if (error) await throwClassified(error);
+  if (error) await throwClassifiedM365Error(error);
   return decodePage(data, cursor);
 }

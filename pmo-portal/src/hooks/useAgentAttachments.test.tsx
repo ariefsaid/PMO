@@ -187,6 +187,22 @@ describe('useAgentAttachments thread races (T-10)', () => {
     expect(result.current.isUploading).toBe(false);
   });
 
+  it('a thread creation still in flight when the conversation is reset does not become the next conversation\'s thread', async () => {
+    let resolveOld!: (v: { id: string }) => void;
+    vi.mocked(repositories.agentAttachment.createThread)
+      .mockReturnValueOnce(new Promise((r) => { resolveOld = r; }) as never)
+      .mockResolvedValueOnce({ id: 't-new' } as never);
+    const { result } = renderHook(() => useAgentAttachments(null), { wrapper: wrapper() });
+    const file = new File(['a'], 'a.pdf', { type: 'application/pdf' });
+    let first: Promise<unknown> = Promise.resolve();
+    await act(async () => { first = result.current.uploadAttachment(file).catch(() => {}); });
+    act(() => result.current.resetThread());
+    await act(async () => { resolveOld({ id: 't-old' }); await first; });
+    await act(async () => { await result.current.uploadAttachment(file); });
+    expect(repositories.agentAttachment.createThread).toHaveBeenCalledTimes(2);
+    expect(result.current.threadId).toBe('t-new');
+  });
+
   it('a fresh upload after reset creates a new thread, not the retired one', async () => {
     vi.mocked(repositories.agentAttachment.createThread)
       .mockResolvedValueOnce({ id: 't-old' } as never)

@@ -32,7 +32,10 @@ vi.mock('@/src/lib/db/dashboard', async (orig) => ({
   getSalesPipeline: dal.getSalesPipeline,
 }));
 vi.mock('@/src/lib/repositories', () => ({
-  repositories: { company: dal, contact: dal, incident: dal, meeting: dal, project: dal },
+  repositories: {
+    company: dal, contact: dal, incident: dal, meeting: dal, project: dal,
+    notification: { unreadCount: async () => 0, listPage: async () => ({ rows: [], nextCursor: null }), markRead: async () => {} },
+  },
 }));
 
 import { ShellChrome } from '@/App';

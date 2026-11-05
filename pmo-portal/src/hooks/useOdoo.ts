@@ -4,12 +4,12 @@ import type { MirrorKind, ListMasterInput } from '@/src/lib/repositories/types';
 import type { ConnectCredential } from '@/src/lib/repositories/types';
 import { useAuth } from '@/src/auth/useAuth';
 
-export function useOdooConnection() {
+export function useOdooConnection(enabled = true) {
   const orgId = useAuth().currentUser?.org_id;
   return useQuery({
     queryKey: ['odoo', 'connection', orgId],
     queryFn: () => repositories.odoo.getConnection(),
-    enabled: Boolean(orgId),
+    enabled: Boolean(orgId) && enabled,
     refetchInterval: 60_000,
   });
 }

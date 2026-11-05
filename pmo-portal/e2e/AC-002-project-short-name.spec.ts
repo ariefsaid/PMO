@@ -1,7 +1,7 @@
 // @e2e-isolation: self-isolated — creates a uniquely named Lead project and deletes only its exact contractual-name prefix in the seed org.
 import { createClient } from '@supabase/supabase-js';
 import { test, expect } from '@playwright/test';
-import { login, pickComboboxOption, requireServiceRoleKey } from './helpers';
+import { login, pickComboboxOption, requireServiceRoleKey, stubErpProjectSync } from './helpers';
 
 const SEED_ORG = '00000000-0000-0000-0000-000000000001';
 const NAME_PREFIX = 'E2E short-name ';
@@ -34,6 +34,7 @@ test('AC-002 #1325: create, find, edit, reload and clear a project alias without
   const contractualName = `${NAME_PREFIX}Contract ${runId}`;
   const initialAlias = `North Terminal ${runId}`;
   const editedAlias = `West Terminal ${runId}`;
+  await stubErpProjectSync(page);
   await page.setViewportSize({ width: 1280, height: 800 });
 
   try {

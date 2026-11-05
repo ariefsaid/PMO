@@ -64,6 +64,9 @@ export interface ErpClientDeps {
    * forget the check. Absent ⇒ unbounded (every read path, P0/P1, and any non-claimed commit).
    */
   commitDeadlineAtMs?: number;
+  /** Range Budget's staged workflow also fences cancellation, distribution PUT and RPC submit at the
+   *  write site. Other ERP commands retain the historical POST-only deadline. */
+  rangeWriteDeadlineAtMs?: number;
   /** Injectable clock (ms) for the commit-deadline check. Defaults to `Date.now`; tests drive it. */
   now?: () => number;
 }
@@ -77,25 +80,9 @@ export interface ErpClientDeps {
 export const ERP_QUARANTINE_WINDOW_MS = 5 * 60_000;
 
 /**
- * The default per-attempt ERP request deadline (Luna BLOCK 5 — the double-pay window).
- *
- * WHY 2 minutes, and why it MUST relate to `ERP_QUARANTINE_WINDOW_MS`: an unbounded `POST` can hang
- * past the outbox's quarantine reclaim (`claimed_at + 5 min`, migration 0096). Recovery would then
- * probe, miss the not-yet-visible document and — for a reissue-capable (immutable-anchor) kind,
- * ADR-0058 C-1 — re-`POST` under the same key while the ORIGINAL request is still alive and can still
- * commit ⇒ TWO ERP money documents, the exact defect the outbox exists to prevent.
- *
- * Bounding every attempt at 2 minutes makes that impossible by construction: the request is aborted
- * at `claim + ~120 s`, leaving ≥180 s of settle time before the EARLIEST possible reissue at
- * `claim + 300 s` — ample for a document the server nonetheless committed to land and become
- * anchor-probe-visible, so the post-window probe adopts it instead of duplicating it. (An abort is a
- * client-side signal — it does NOT guarantee ERP rolls back — which is precisely why the margin, not
- * the abort, is what carries the safety guarantee.) ADR-0058 C-1's mutable-anchor kinds (Payment
- * Entry) remain held-never-reissued regardless; this constant closes the window for the kinds that
- * ARE reissue-capable.
- *
- * It is also comfortably above any realistic ERPNext money-document commit (the R9 live bench measured
- * sub-second submits), so a legitimate slow save is never cut short.
+ * The default per-attempt ERP request deadline. This bounds how long the client waits; the abort signal
+ * does not establish that remote processing ended. The durable outbox and each operation's recovery
+ * path determine whether an exact readback can settle the result or whether the command remains held.
  */
 export const ERP_REQUEST_TIMEOUT_MS = 120_000;
 
@@ -196,6 +183,13 @@ export function withCommitDeadline(deps: ErpClientDeps, deadlineAtMs: number): E
   return { ...deps, commitDeadlineAtMs: deadlineAtMs };
 }
 
+export function withRangeWriteDeadline(deps: ErpClientDeps, deadlineAtMs: number): ErpClientDeps {
+  // Whole-project Budget writes have a durable operation stage and a recovery readback. A timed-out
+  // PUT/cancel must return to that state machine before another write is attempted; replaying an
+  // idempotent request here could overwrite a concurrent ERP edit before its modified-stamp CAS runs.
+  return { ...deps, rangeWriteDeadlineAtMs: deadlineAtMs, maxRetries: 0 };
+}
+
 /**
  * Escapes the SQL `LIKE` metacharacters (`%`, `_`) and the escape character itself (`\`) so a value
  * interpolated into a `LIKE` pattern can only ever match ITSELF, literally (Luna BLOCK 1).
@@ -224,6 +218,10 @@ export interface ErpRequestOptions {
   maxResponseBytes?: number;
   /** Preserve raw numeric lexemes for GL debit/credit, avoiding JSON Number precision loss. */
   responseNumbers?: 'ledger_decimal_text' | 'financial_decimal_text';
+  /** Static errors and cancellation fencing for bounded internal diagnostic reads. */
+  safeDiagnostic?: boolean;
+  signal?: AbortSignal;
+  deadlineAtMs?: number;
 }
 
 /** Lossless financial response: parsed lexical values plus the exact capped UTF-8 response text. */
@@ -433,19 +431,38 @@ export async function erpnextRequest(deps: ErpClientDeps, opts: ErpRequestOption
     if (!supportsJsonNumberSource()) throw new ErpError(0, 'external-unreachable', 'Statement report request failed', false);
   }
   const financialMode = opts.responseNumbers === 'financial_decimal_text';
+  const safeMode = financialMode || opts.safeDiagnostic === true;
+  const diagnosticSignal = opts.safeDiagnostic ? opts.signal : undefined;
   const safeFailure = (): ErpError => new ErpError(0, 'external-unreachable', 'Statement report request failed', true);
+  const waitForDiagnostic = async <T>(work: Promise<T>): Promise<T> => {
+    if (!diagnosticSignal) return work;
+    if (diagnosticSignal.aborted) {
+      void work.catch(() => {});
+      throw safeFailure();
+    }
+    return new Promise<T>((resolve, reject) => {
+      const onAbort = () => { cleanup(); reject(safeFailure()); };
+      const cleanup = () => diagnosticSignal.removeEventListener('abort', onAbort);
+      diagnosticSignal.addEventListener('abort', onAbort, { once: true });
+      if (diagnosticSignal.aborted) onAbort();
+      work.then(value => { cleanup(); resolve(value); }, error => { cleanup(); reject(error); });
+    });
+  };
+  const assertDiagnosticActive = () => {
+    if (opts.safeDiagnostic && (diagnosticSignal?.aborted || (opts.deadlineAtMs !== undefined && (deps.now?.() ?? Date.now()) >= opts.deadlineAtMs))) throw safeFailure();
+  };
   const sleep = deps.sleep ?? defaultSleep;
   const pause = async (ms: number): Promise<void> => {
     try { await sleep(ms); }
     catch (err) {
-      if (financialMode) {
-        if (err instanceof AppError) throw err;
+      if (safeMode) {
+        if (financialMode && err instanceof AppError) throw err;
         throw safeFailure();
       }
       throw err;
     }
   };
-  const maxRetries = opts.method === 'POST' ? 0 : (deps.maxRetries ?? ERP_DEFAULT_MAX_RETRIES);
+  const maxRetries = opts.method === 'POST' || opts.safeDiagnostic ? 0 : (deps.maxRetries ?? ERP_DEFAULT_MAX_RETRIES);
   const headers = {
     Authorization: `token ${deps.apiKey}:${deps.apiSecret}`,
     'Content-Type': 'application/json',
@@ -454,6 +471,19 @@ export async function erpnextRequest(deps: ErpClientDeps, opts: ErpRequestOption
   const timeoutMs = deps.timeoutMs ?? ERP_REQUEST_TIMEOUT_MS;
   // #918: the response-body cap, per call (the unpaged endpoints raise it) or the default.
   const maxBodyBytes = opts.maxResponseBytes ?? ERP_RESPONSE_MAX_BYTES;
+
+  const assertWriteWithinDeadline = (): void => {
+    const now = deps.now?.() ?? Date.now();
+    if ((opts.method === 'POST' && deps.commitDeadlineAtMs !== undefined && now >= deps.commitDeadlineAtMs) ||
+        (opts.method !== 'GET' && deps.rangeWriteDeadlineAtMs !== undefined && now >= deps.rangeWriteDeadlineAtMs)) {
+      throw new ErpError(
+        0,
+        'external-unreachable',
+        'commit-claim-budget-exhausted: refusing an ERP write past this claim\'s deadline',
+        true,
+      );
+    }
+  };
 
   let attempt = 0;
   for (;;) {
@@ -466,32 +496,26 @@ export async function erpnextRequest(deps: ErpClientDeps, opts: ErpRequestOption
     // marks NOTHING, the outbox row stays `committing` and the reconciler owns it (ADR-0058 §4).
     // Idempotent methods are deliberately unaffected — a submit/cancel/GET stays safely re-issuable,
     // and refusing them would strand a committed document.
-    if (
-      opts.method === 'POST' &&
-      deps.commitDeadlineAtMs !== undefined &&
-      (deps.now?.() ?? Date.now()) >= deps.commitDeadlineAtMs
-    ) {
-      throw new ErpError(
-        0,
-        'external-unreachable',
-        'commit-claim-budget-exhausted: refusing a non-idempotent POST past this claim\'s deadline',
-        true,
-      );
-    }
+    assertWriteWithinDeadline();
     try {
-      if (deps.rateLimiter) await deps.rateLimiter.acquire();
+      assertDiagnosticActive();
+      if (deps.rateLimiter) await waitForDiagnostic(deps.rateLimiter.acquire());
+      assertDiagnosticActive();
     } catch (err) {
-      if (financialMode) {
-        if (err instanceof AppError) throw err;
+      if (safeMode) {
+        if (financialMode && err instanceof AppError) throw err;
         throw safeFailure();
       }
       throw err;
     }
+    // The limiter may wait until this claim has expired. Recheck immediately before constructing the
+    // request so a write cannot start after its outbox ownership window has elapsed.
+    assertWriteWithinDeadline();
     let res: Response;
-    // Luna BLOCK 5: bound EVERY attempt with a deadline strictly shorter than the outbox quarantine
-    // reclaim window, so a hung-but-alive request can never still be able to commit while recovery
-    // has already started a second POST (see ERP_REQUEST_TIMEOUT_MS). The controller/timer is
-    // per-attempt and always cleared, so a settled request leaves no dangling timer or handle.
+    // Bound the caller's wait for every attempt. A client abort does not establish that remote
+    // processing ended, so recovery uses the durable operation witness rather than interpreting this
+    // deadline as permission to repeat an external write. The controller/timer is per-attempt and
+    // always cleared, so a settled request leaves no dangling timer or handle.
     // #918: the deadline now stays armed until the BODY is fully read too — a host that sends
     // headers and then stalls is hung exactly as much as one that never answers at all (the same
     // model invoicePdf.ts ships for the PDF fetch, #912).
@@ -501,23 +525,24 @@ export async function erpnextRequest(deps: ErpClientDeps, opts: ErpRequestOption
       timeoutMs,
     );
     try {
-      res = await deps.fetchImpl(`${deps.baseUrl}${opts.path}`, {
+      assertDiagnosticActive();
+      res = await waitForDiagnostic(deps.fetchImpl(`${deps.baseUrl}${opts.path}`, {
         method: opts.method,
         headers,
         body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
-        signal: controller.signal,
+        signal: diagnosticSignal ? AbortSignal.any([controller.signal, diagnosticSignal]) : controller.signal,
         // #655: the base URL is admin-nominated — never follow a redirect (the Authorization header
         // would travel with it). Same policy as the connect-time probes in external-connect /
         // external-set-company; a 3xx is refused below.
         redirect: 'manual',
-      });
+      }));
     } catch (err) {
       clearTimeout(deadline);
       if (err instanceof Error && err.message === 'ERPNext destination is not permitted') {
         throw new ErpError(0, 'destination_not_permitted', 'ERPNext destination is not permitted', false);
       }
-      if (financialMode) {
-        if (err instanceof AppError && err.code !== 'external-unreachable') throw err;
+      if (safeMode) {
+        if (financialMode && err instanceof AppError && err.code !== 'external-unreachable') throw err;
         if (attempt < maxRetries) {
           attempt += 1;
           await pause(500 * attempt);
@@ -543,35 +568,35 @@ export async function erpnextRequest(deps: ErpClientDeps, opts: ErpRequestOption
       // is classified `external-unreachable` — the outbox reconciler, not this client, decides what landed.
       // `opaqueredirect` is the fetch-spec form of a manual redirect (status 0); Deno/undici return the 3xx.
       if (res.type === 'opaqueredirect' || (res.status >= 300 && res.status < 400)) {
-        if (!financialMode) console.error(`[erpnext-client] refused redirect ${res.status} ${opts.method} ${opts.path}`);
+        if (!safeMode) console.error(`[erpnext-client] refused redirect ${res.status} ${opts.method} ${opts.path}`);
         throw new ErpError(
           res.status,
           'external-unreachable',
-          financialMode ? 'Statement report request failed' : `ERPNext answered with a redirect (HTTP ${res.status}); redirects are not followed — check the site URL`,
+          safeMode ? 'Statement report request failed' : `ERPNext answered with a redirect (HTTP ${res.status}); redirects are not followed — check the site URL`,
           false,
         );
       }
 
       if (res.status === 429 || res.status >= 500) {
-        const body = await safeParseBody(res, maxBodyBytes, opts.responseNumbers);
+        const body = await waitForDiagnostic(safeParseBody(res, maxBodyBytes, opts.responseNumbers));
         const parsed = parseFrappeErrorBody(body);
         // The 500-TypeError bucket is non-retryable regardless of method or remaining budget.
         if (res.status === 500 && isTypeErrorBucket(parsed)) {
-          throw new ErpError(500, 'commit-rejected', financialMode ? 'Statement report request failed' : parsed.message ?? 'ERPNext server error (TypeError)', false);
+          throw new ErpError(500, 'commit-rejected', safeMode ? 'Statement report request failed' : parsed.message ?? 'ERPNext server error (TypeError)', false);
         }
         if (attempt < maxRetries) {
           attempt += 1;
-          await (financialMode ? pause : sleep)(retryDelayMs(res.headers.get('Retry-After'), attempt));
+          await (safeMode ? pause : sleep)(retryDelayMs(res.headers.get('Retry-After'), attempt));
           continue;
         }
-        if (!financialMode) console.error(`[erpnext-client] upstream status=${res.status} code=external-unreachable type=${parsed.excType ?? 'unknown'}`);
-        throw new ErpError(res.status, 'external-unreachable', financialMode ? 'Statement report request failed' : parsed.message ?? `ERPNext request failed with status ${res.status}`, true);
+        if (!safeMode) console.error(`[erpnext-client] upstream status=${res.status} code=external-unreachable type=${parsed.excType ?? 'unknown'}`);
+        throw new ErpError(res.status, 'external-unreachable', safeMode ? 'Statement report request failed' : parsed.message ?? `ERPNext request failed with status ${res.status}`, true);
       }
 
-      const body = await safeParseBody(res, maxBodyBytes, opts.responseNumbers);
+      const body = await waitForDiagnostic(safeParseBody(res, maxBodyBytes, opts.responseNumbers));
       if (res.status >= 400) {
         const parsed = parseFrappeErrorBody(body);
-        throw new ErpError(res.status, 'commit-rejected', financialMode ? 'Statement report request failed' : parsed.message ?? `ERPNext request failed with status ${res.status}`, true);
+        throw new ErpError(res.status, 'commit-rejected', safeMode ? 'Statement report request failed' : parsed.message ?? `ERPNext request failed with status ${res.status}`, true);
       }
       return body;
     } catch (err) {
@@ -579,11 +604,11 @@ export async function erpnextRequest(deps: ErpClientDeps, opts: ErpRequestOption
       if (err instanceof BodyTooLargeError) {
         // #918: an over-cap body is a deterministic answer this client refuses to consume — the same
         // policy as a redirect (re-asking cannot shrink it), so it is NOT retried.
-        if (!financialMode) console.error(`[erpnext-client] response body over the ${maxBodyBytes}-byte cap ${res.status} ${opts.method} ${opts.path}`);
+        if (!safeMode) console.error(`[erpnext-client] response body over the ${maxBodyBytes}-byte cap ${res.status} ${opts.method} ${opts.path}`);
         throw new ErpError(
           res.status,
           'external-unreachable',
-          financialMode ? 'Statement report request failed' : `ERPNext response body exceeded the ${maxBodyBytes}-byte response cap`,
+          safeMode ? 'Statement report request failed' : `ERPNext response body exceeded the ${maxBodyBytes}-byte response cap`,
           false,
         );
       }
@@ -591,10 +616,10 @@ export async function erpnextRequest(deps: ErpClientDeps, opts: ErpRequestOption
       // same failure while waiting for headers — same budget, same `external-unreachable` (#918).
       if (attempt < maxRetries) {
         attempt += 1;
-        await (financialMode ? pause : sleep)(500 * attempt);
+        await (safeMode ? pause : sleep)(500 * attempt);
         continue;
       }
-      if (financialMode) throw safeFailure();
+      if (safeMode) throw safeFailure();
       console.error(`[erpnext-client] body read failed ${opts.method} ${opts.path}:`, err instanceof Error ? err.message : String(err));
       throw new ErpError(0, 'external-unreachable', err instanceof Error ? err.message : 'ERPNext response body failed', true);
     } finally {
@@ -648,6 +673,11 @@ export async function getDoc(deps: ErpClientDeps, doctype: string, name: string)
 /** `PUT /api/resource/<DocType>/<name>` `{docstatus:1}` — submit (FR-ENA-044). */
 export async function submitDoc(deps: ErpClientDeps, doctype: string, name: string): Promise<unknown> {
   return unwrapFrappeDoc(await erpnextRequest(deps, { method: 'PUT', path: doctypePath(doctype, name), body: { docstatus: 1 } }));
+}
+
+/** ERPNext v16 Budget's range lifecycle submits the exact full document just read back from ERP. */
+export function submitFetchedDoc(deps: ErpClientDeps, doc: Record<string, unknown>): Promise<unknown> {
+  return erpnextRequest(deps, { method: 'POST', path: '/api/method/frappe.client.submit', body: { doc } });
 }
 
 /** `PUT /api/resource/<DocType>/<name>` `{docstatus:2}` — cancel (OQ-8: stock REST enforces
@@ -748,4 +778,43 @@ export async function listDocsByFilters(
   const path = `${doctypePath(doctype)}?filters=${encoded}&fields=${encodedFields}&limit_page_length=${limit}${orderBy ? `&order_by=${encodeURIComponent(orderBy)}` : ''}`;
   const res = await erpnextRequest(deps, { method: 'GET', path });
   return requireListData<Record<string, unknown>>(res);
+}
+
+/**
+ * Keyset-paged ERP candidate scan for safety decisions that require a complete result. Offset paging can
+ * skip or duplicate a Budget when a Desk user inserts one between requests; `name > lastName` keeps the
+ * scan monotonic. A full page budget without a short terminal page is ambiguous and fails closed.
+ */
+export async function listDocsByFiltersPaged(
+  deps: ErpClientDeps,
+  doctype: string,
+  filters: ErpFilter[],
+  fields: string[],
+  options: { pageSize?: number; maxPages?: number } = {},
+): Promise<Array<Record<string, unknown>>> {
+  const pageSize = options.pageSize ?? 100;
+  const maxPages = options.maxPages ?? 100;
+  if (!Number.isInteger(pageSize) || pageSize < 1 || !Number.isInteger(maxPages) || maxPages < 1) {
+    throw new ErpError(0, 'external-unreachable', 'Invalid ERP pagination limits', true);
+  }
+  const result: Array<Record<string, unknown>> = [];
+  const seen = new Set<string>();
+  let lastName: string | null = null;
+  for (let page = 0; page < maxPages; page += 1) {
+    const pageFilters = lastName === null ? filters : [...filters, ['name', '>', lastName] as ErpFilter];
+    const rows = await listDocsByFilters(deps, doctype, pageFilters, fields, pageSize, 'name asc');
+    if (rows.length > pageSize) {
+      throw new ErpError(0, 'external-unreachable', 'ERP pagination returned an oversized page', true);
+    }
+    for (const row of rows) {
+      if (typeof row.name !== 'string' || row.name === '' || (lastName !== null && row.name <= lastName) || seen.has(row.name)) {
+        throw new ErpError(0, 'external-unreachable', 'ERP pagination returned an ambiguous document identity', true);
+      }
+      seen.add(row.name);
+      lastName = row.name;
+      result.push(row);
+    }
+    if (rows.length < pageSize) return result;
+  }
+  throw new ErpError(0, 'external-unreachable', 'ERP pagination exceeded its complete-page budget', true);
 }

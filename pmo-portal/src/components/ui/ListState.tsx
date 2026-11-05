@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next';
 import { cn } from './cn';
 import { Icon, type IconName } from './icons';
 import { Button } from './Button';
-import { trackEmptyStateSeen } from '@/src/lib/analytics';
 
 interface ActionSpec {
   label: string;
@@ -191,7 +190,9 @@ export const ListState: React.FC<ListStateProps> = ({
   // run unconditionally (Rules of Hooks) ahead of the loading/error early returns below.
   useEffect(() => {
     if (variant === 'empty' && stateId && role && module) {
-      trackEmptyStateSeen(stateId, role, module);
+      void import('@/src/lib/analytics').then(({ trackEmptyStateSeen }) => {
+        trackEmptyStateSeen(stateId, role, module);
+      }).catch(() => undefined);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

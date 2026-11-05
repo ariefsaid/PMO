@@ -10,6 +10,27 @@
 
 ### ⚑⚑⚑ CURRENT STATE (2026-10-19) — v0.22.0 is LIVE; run the four commands below before quoting any number
 
+**2026-11-05 — Odoo P9/C9 evidence (#1505/#1506):** `purchase.link-existing`, `cutover.purchase`, and
+`cutover.activation` are supported; `purchase.push`, `bill.push`, `vendor-payment.push`, and
+`purchase-order.revise` remain pending under #1505. `invoice.push` is supported; `receipt.read`,
+`invoice.pair-existing`, and `tax-document.read` remain pending under #1506, while `cutover.revenue`
+remains pending under #1602. The vocabulary guard covers the purchase and revenue model and field terms.
+The P9 composite Odoo bed run covers order/revision, receipt, VAT/PPh bill, payment recovery and the
+different-Finance-user gate. Receipt interruption is covered by `odooReceipt.bed.test.ts`; bill and payment
+interruption are covered by `odooPayment.bed.test.ts`, through adapter/recovery calls. The P9 browser journey
+proves replay after a lost browser response. AC-OPP-062's sweep bed proves a lost bill-post response is
+linked and confirmed by one sweep tick with exactly one Odoo bill for that command, while an edited anchor
+remains held; the recovery round adds the same outbox proof for a payment create response lost after Odoo
+accepted it, including refusal of a second in-flight intent for that bill. Order, receipt and revision
+recovery remain covered by adapter and recovery unit tests, not by this sweep bed. Deno coverage also proves
+recorded-actor reauthorization, candidate reservation before dispatch, PO-family ownership handling and
+bounded order-composite adoption; amount-only adoption is refused. This is scoped implementation evidence,
+not a release-readiness decision. The C9 live
+Odoo bed composite passed both tests; its served AC-OCI-100 browser journey passed one Chromium journey plus
+ten setup checks, with persisted invoice/receipt rows and rendered e-Faktur, project, amounts, withholding
+and statuses. The shared-money-outbox behavior is already on `dev` from P6. This status does not make a
+release-to-`main` recommendation; that remains the owner's decision.
+
 **Current drive boundary (owner, 2026-10-17): `dev` only. Do not promote to `main` or production.**
 **Dev gate:** regression #1182 is fixed in PR #1183 (`90fba37e`). The full dev browser run
 39188480565 passed 385 cases and 12 served-function checks, with zero timing warnings or failures.

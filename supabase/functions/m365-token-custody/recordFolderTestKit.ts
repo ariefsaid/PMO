@@ -57,6 +57,8 @@ export interface World {
   scopes: string[];
   connectionStatus: "active" | "stale" | "revoked";
   connectionMissing: boolean;
+  /** The connection read itself fails (a database outage), as opposed to the row being absent. */
+  connectionReadError?: boolean;
   graph: GraphRoute[];
   link: (call: FetchCall) => Response;
   created: (call: FetchCall) => Response;
@@ -164,8 +166,10 @@ function routesFor(world: World, connection: Record<string, unknown>): MockRoute
     }),
     { label: "save-sweep-summary", pathname: "/rest/v1/rpc/m365_record_folder_sweep_save", response: (call) => world.sweepSave ? world.sweepSave(call) : jsonResponse("accepted") },
     table("ms_graph_connections", () =>
-      world.connectionMissing
-        ? jsonResponse({ message: "none" }, { status: 406 })
+      world.connectionReadError
+        ? jsonResponse({ code: "XX000", message: "database unavailable" }, { status: 500 })
+        : world.connectionMissing
+        ? jsonResponse({ code: "PGRST116", message: "none" }, { status: 406 })
         : jsonResponse(connection, OBJECT_HEADERS)),
     { label: "link", pathname: "/rest/v1/rpc/m365_link_record_folder", response: (call) => world.link(call) },
     { label: "delete-connection", pathname: "/rest/v1/rpc/m365_delete_connection", response: () => jsonResponse("synthetic-connection") },
@@ -176,6 +180,7 @@ function routesFor(world: World, connection: Record<string, unknown>): MockRoute
     { label: "token", host: "login.microsoftonline.com", response: (call) => world.refresh(call) },
     { label: "finish-refresh", pathname: "/rest/v1/rpc/m365_finish_refresh", response: (call) => {
       const args = call.bodyJson as Record<string, unknown>;
+      if (args.p_status === "stale" || args.p_status === "revoked") connection.status = args.p_status;
       if (args.p_status === "active") Object.assign(connection, {
         scopes: args.p_scopes, access_token_ciphertext: args.p_access_token_ciphertext,
         refresh_token_ciphertext: args.p_refresh_token_ciphertext,

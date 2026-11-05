@@ -40,7 +40,12 @@ const asMap = (value: unknown): Record<string, string> =>
   value && typeof value === 'object' && !Array.isArray(value)
     ? Object.fromEntries(Object.entries(value).filter(([, v]) => typeof v === 'string' && v !== '')) as Record<string, string>
     : {};
-const asIds = (value: unknown): number[] => (Array.isArray(value) ? value.filter((v): v is number => Number.isInteger(v) && v > 0) : []);
+const asIds = (value: unknown): number[] => (Array.isArray(value) ? value.flatMap((v) => {
+  const id = typeof v === 'number' && Number.isSafeInteger(v)
+    ? v
+    : typeof v === 'string' && /^[1-9]\d*$/.test(v) ? Number(v) : Number.NaN;
+  return Number.isSafeInteger(id) && id > 0 ? [id] : [];
+}) : []);
 
 interface Resolved { companyId: number | null; config: Record<string, unknown> }
 type CaseRow = { code: string | null; project_id: string | null; vendor_id: string | null; currency: string | null };

@@ -14,6 +14,7 @@ import { useAgentContext } from '@/src/lib/agent/context/useAgentContext';
 import { useListReturn } from '@/src/hooks/useListReturn';
 import { trackProjectTabViewed } from '@/src/lib/analytics';
 import { useMilestones } from '@/src/hooks/useMilestones';
+import { useProjectOverviewRead } from '@/src/hooks/useProjectOverviewRead';
 import { completionPct, formatDateOnly, formatInstantDate, formatRelativeTime } from '@/src/lib/format';
 import ProjectDetailHeader from './ProjectDetailHeader';
 import PipelineLens from './PipelineLens';
@@ -77,13 +78,23 @@ const ProjectHeaderFacts: React.FC<{ project: ProjectWithRefs }> = ({ project })
  * history. One definition, two placements — the header above the tabs on desktop (mb-8 = section
  * 32px), the record's foot on phone (mt-4 = panel-gap phone 16px) so it never pushes tab work below
  * the fold (UIP-005 AC-TH-007, #1701).
+ *
+ * AC-PERF-002 (plan Step 1b): the stage-entries read is the disclosure's, not the page's — StageHistory
+ * mounts on the FIRST open (react-query caches it for later opens). Closed, it costs zero reads; the
+ * first open trades a moment of loading for that, acceptable inside a closed disclosure.
  */
 const SalesHistoryDisclosure: React.FC<{ projectId: string; className: string }> = ({ projectId, className }) => {
   const { t } = useTranslation('project');
+  const [opened, setOpened] = useState(false);
   return (
-    <details className={className}>
+    <details
+      className={className}
+      onToggle={(event) => {
+        if ((event.target as HTMLDetailsElement).open) setOpened(true);
+      }}
+    >
       <summary className="cursor-pointer text-sm font-semibold">{t('projectDetail.stageHistory.salesHistory', 'Sales history')}</summary>
-      <div className="pt-2"><StageHistory projectId={projectId} hideHeading /></div>
+      <div className="pt-2">{opened && <StageHistory projectId={projectId} hideHeading />}</div>
     </details>
   );
 };
@@ -105,11 +116,14 @@ const ProjectDetail: React.FC = () => {
     isError: projectError,
     refetch: refetchProject,
   } = useProject(projectId);
+  const area = areaFromParam(tabParam);
+  // AC-PERF-007/008: the Overview's summaries arrive in one request, in parallel with the project; leaf hooks mount
+  // only after it settles (success or error), so they find seeded data or fall back to their own reads.
+  const overview = useProjectOverviewRead(projectId, true);
   const { updateHeader } = useProjectMutations();
   const pipelineGroup = project ? projectStatusGroup(project.status as never) : null;
   const isPipelineRecord = pipelineGroup === 'pipeline' || pipelineGroup === 'lost';
   const isDesktop = useIsDesktop();
-  const area = areaFromParam(tabParam);
   const primaryActionAllowed = area === 'overview' || area === 'contract';
   const chaseOnly = area === 'contract';
   const { toast } = useToast();
@@ -154,17 +168,19 @@ const ProjectDetail: React.FC = () => {
     toast(headline, detail, 'warning');
   };
 
+  const loadingView = (
+    <>
+      <BackBar label={t('projectDetail.backToProjects', 'Projects')} phoneOnly onBack={goBack} />
+      {/* O18: the page keeps a level-one heading while the project loads. */}
+      <h1 className="sr-only">{t('projectDetail.loadingTitle', 'Loading project')}</h1>
+      <ListState variant="loading" shape="detail" loadingLabel={t('projectDetail.loadingTitle', 'Loading project')} rows={6} />
+    </>
+  );
+  // Only the Overview waits: swapping the page for a skeleton on a tab change would unmount the tablist and drop focus.
+  if (project && area === 'overview' && overview.isLoading) return loadingView;
+
   if (!project) {
-    if (isPending) {
-      return (
-        <>
-          <BackBar label={t('projectDetail.backToProjects', 'Projects')} phoneOnly onBack={goBack} />
-          {/* O18: the page keeps a level-one heading while the project loads. */}
-          <h1 className="sr-only">{t('projectDetail.loadingTitle', 'Loading project')}</h1>
-          <ListState variant="loading" shape="detail" loadingLabel={t('projectDetail.loadingTitle', 'Loading project')} rows={6} />
-        </>
-      );
-    }
+    if (isPending) return loadingView;
     // #695: absence cannot be claimed from a FAILED read. A by-id fetch that errored says nothing
     // about whether the record exists, so it is a load error with Retry - never "not found".
     if (projectError) {

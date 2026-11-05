@@ -3,7 +3,7 @@
  * Real handler from ./index.ts; Supabase and Odoo mocked over fetch (Odoo by the in-memory fake).
  */
 import { afterAll, describe, it } from '@std/testing/bdd';
-import { assertEquals } from '@std/assert';
+import { assertEquals, assert } from '@std/assert';
 import { handleSetCompanyRequest, setTestJwks } from './index.ts';
 import {
   createAuthedRequest, createJwtAuthority, createTestJwksResolver, installEdgeEnv, jsonResponse, rpcCall,
@@ -85,6 +85,18 @@ describe('external-set-company — Odoo list-companies', () => {
     assertEquals(r.text.includes(KEY), false);
     const read = r.calls.find((c) => c.url.pathname === '/rest/v1/external_org_bindings')!;
     assertEquals([read.url.searchParams.get('org_id'), read.url.searchParams.get('external_tier')], ['eq.org-1', 'eq.odoo']);
+  });
+
+  it('FR-ODC-005 activation company discovery is not pinned to a previously selected company', async () => {
+    const r = await call({ setupAction: 'list-companies' }, {
+      binding: {
+        site_url: `https://${ODOO}`, secret_ref: 'odoo_ref', status: 'active', activated_at: '2026-11-01T00:00:00Z',
+        config: { database: 'db1', odoo_company_id: 1 },
+      },
+    });
+    assertEquals(r.res.status, 200);
+    const companiesRead = odooCalls(r.calls).find((entry) => entry.url.pathname === '/json/2/res.company/search_read');
+    assertEquals((companiesRead?.bodyJson as Record<string, unknown> | undefined)?.context, undefined);
   });
 
   it('FR-ODC-005 a refused resolver → 422 with its classified reason, no Odoo call', async () => {
@@ -366,6 +378,36 @@ describe('external-set-company — Odoo refresh and reset-kind (FR-ODC-047, FR-O
   it('FR-ODC-047 an Admin may refresh', async () => {
     const r = await run([{ setupAction: 'refresh' }], { role: 'Admin' });
     assertEquals(r.out[0].status, 200);
+  });
+
+  it('AC-1783-04F a refresh with procurement off holds the purchase feed and still sweeps the directory', async () => {
+    const bill = { id: 1, name: 'BILL/2026/1', state: 'posted', move_type: 'in_invoice', partner_id: [41, 'V'], company_id: [1, 'Main'], invoice_date: '2026-10-30', invoice_date_due: false, ref: 'INV-1', amount_total: 98, amount_untaxed: 100, amount_residual: 98, write_date: '2026-11-01 10:00:00' };
+    const binding = { ...ACTIVATED, config: { database: 'db1', odoo_company_id: 1, capabilities: { observed_at: new Date().toISOString(), missing: [], models: {}, later: { 'account.move': true } } } };
+    // The switch is answered per key: erp_sync on, procurement off — the same common boundary the scheduled tick reaches.
+    const extra: MockRoute[] = [
+      window(),
+      supabaseRpc('service_feature_enabled', (c) => jsonResponse((c.bodyJson as { p_key: string }).p_key === 'procurement' ? false : true)),
+      supabaseRpc('claim_erp_sweep_lock', () => jsonResponse(true)),
+      supabaseRpc('release_erp_sweep_lock', () => jsonResponse(true)),
+      supabaseSelect('external_domain_ownership', (c) => jsonResponse([{ id: `own-${c.url.searchParams.get('domain')}` }])),
+      supabaseSelect('external_sync_watermarks', () => jsonResponse([])),
+      supabaseRpc('apply_odoo_master_page', () => jsonResponse(0)),
+      supabaseRpc('mark_odoo_census_seen', () => jsonResponse(null)),
+      supabaseRpc('finish_odoo_census', () => jsonResponse(0)),
+      supabaseRpc('apply_odoo_purchase_page', () => jsonResponse(0)),
+      supabaseRpc('mark_odoo_purchase_census_seen', () => jsonResponse(null)),
+      supabaseRpc('finish_odoo_purchase_census', () => jsonResponse(0)),
+      supabaseRpc('apply_odoo_revenue_page', () => jsonResponse(0)),
+      supabaseRpc('mark_odoo_revenue_census_seen', () => jsonResponse(null)),
+      supabaseRpc('finish_odoo_revenue_census', () => jsonResponse(0)),
+    ];
+    const r = await run([{ setupAction: 'refresh' }], { role: 'Finance', binding, prepare: (f) => f.seed('account.move', [bill]), extra });
+    assertEquals(r.out[0].status, 200);
+    assertEquals(r.out[0].json.purchase_hold, 'feature-off:procurement');
+    assertEquals(rpcCall(r.calls, 'apply_odoo_purchase_page').length, 0, 'the refresh mirrors no purchase document while held');
+    assert(rpcCall(r.calls, 'apply_odoo_master_page').length > 0, 'the refresh still sweeps the directory');
+    assertEquals(rpcCall(r.calls, 'service_feature_enabled').map((c) => c.bodyJson).filter((b) => (b as { p_key: string }).p_key === 'procurement'),
+      [{ p_org_id: 'org-1', p_key: 'procurement' }]);
   });
 
   for (const role of ['Engineer', 'Project Manager', 'Executive']) {

@@ -19,6 +19,8 @@ export interface FunnelProps {
   selectedIndex?: number;
   onSelect?: (index: number) => void;
   className?: string;
+  /** Flat stage separators for use inside an existing panel surface. */
+  presentation?: 'cards' | 'flat';
 }
 
 /** Connected stage-summary band (macro analog of the stepper).
@@ -36,7 +38,7 @@ export interface FunnelProps {
  *  distributes its leftover width evenly across stages, keeping them equal-looking when every
  *  amount already fits — `max-content` on both ends would leave stages bunched left with dead
  *  space on the right instead. */
-export const Funnel: React.FC<FunnelProps> = ({ stages, selectedIndex, onSelect, className }) => {
+export const Funnel: React.FC<FunnelProps> = ({ stages, selectedIndex, onSelect, className, presentation = 'cards' }) => {
   const { t } = useTranslation();
   const interactive = !!onSelect;
   // A non-interactive Funnel (e.g. a dashboard panel with no onSelect) has NO focusable stage —
@@ -90,7 +92,10 @@ export const Funnel: React.FC<FunnelProps> = ({ stages, selectedIndex, onSelect,
                 if (interactive) e.currentTarget.scrollIntoView({ inline: 'nearest', block: 'nearest' });
               }}
               className={cn(
-                'relative flex flex-col border border-r-0 border-border px-3 pb-3 pt-3 first:rounded-l-lg last:rounded-r-lg last:border-r',
+                'relative flex flex-col px-3 pb-3 pt-3',
+                presentation === 'flat'
+                  ? 'border-r border-border last:border-r-0'
+                  : 'rounded-l-lg border border-r-0 border-border first:rounded-l-lg last:rounded-r-lg last:border-r',
                 interactive && 'cursor-pointer',
                 // Discover fix I-1 (2026-09-28): the global `*:focus-visible` ring draws OUTWARD
                 // (2px width, 2px offset) from the stage, but the scroll viewport's own

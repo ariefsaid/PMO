@@ -27,6 +27,8 @@ import {
   getProject,
   createProject,
   updateProjectHeader,
+  updateProjectGetProbability,
+  updateProjectGoProbability,
   archiveProject,
   deleteProject,
   setProjectContractValue,
@@ -496,6 +498,26 @@ describe('AC-PRJ-004 updateProjectHeader (edit name/client/PM/code/dates)', () =
     await expect(updateProjectHeader('p1', patch)).rejects.toBeInstanceOf(AppError);
     await expect(updateProjectHeader('p1', patch)).rejects.toMatchObject({ code: '42501' });
     expect(calls.update.length).toBeGreaterThan(0);
+  });
+});
+
+describe('AC-1796 updateProjectGetProbability', () => {
+  it('writes only the project Get estimate and never accepts a value outside 0–1', async () => {
+    const calls = makeWriteBuilder({ data: [{ id: 'p1' }], error: null });
+    await updateProjectGetProbability('p1', 0.65);
+    expect(calls.update[0]).toEqual({ get_probability: 0.65 });
+    expect(calls.eq).toContainEqual(['id', 'p1']);
+    expect(JSON.stringify(calls.update)).not.toContain('org_id');
+    await expect(updateProjectGetProbability('p1', 1.01)).rejects.toThrow('between 0 and 1');
+  });
+});
+
+describe('AC-1796 updateProjectGoProbability', () => {
+  it('writes the project-level Go override within the permitted range', async () => {
+    const calls = makeWriteBuilder({ data: [{ id: 'p1' }], error: null });
+    await updateProjectGoProbability('p1', 0.55);
+    expect(calls.update[0]).toEqual({ go_probability: 0.55 });
+    await expect(updateProjectGoProbability('p1', -0.01)).rejects.toThrow('between 0 and 1');
   });
 });
 

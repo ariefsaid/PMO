@@ -21,16 +21,36 @@ export type TmClaimSourceRow = Tables<'tm_claim_sources'>;
 
 export const LIST_LIMIT = 200;
 export interface Bounded<T> { rows: T[]; truncated: boolean }
-export interface TmClaimSourcesRead extends Bounded<TmClaimSourceRow> { totalCount: number }
+export interface TmClaimSourceDetail {
+  /** Row id passed to `deselect_tm_source`; `entry_id` is the underlying timesheet entry id. */
+  id: string;
+  entry_id: string;
+  entry_date: string | null;
+  person_id: string | null;
+  person_name: string | null;
+  /** Equipment sources name the machine; labour sources leave these null and name the person. */
+  asset_id: string | null;
+  asset_name: string | null;
+  basis: TmClaimBasis;
+  units: number;
+  unit: TmRateUnit;
+  line_label: string;
+  is_selected: boolean;
+  /** Full selected subtotal for this person (or machine) and unit, even when the visible list is capped. */
+  person_unit_total: number;
+}
+export interface TmClaimSourcesRead extends Bounded<TmClaimSourceDetail> {
+  totalCount: number;
+  /** Whether the stored preparation fingerprint still matches this claim's current lines and sources. */
+  signoffCurrent: boolean | null;
+}
 
 export type TmRateUnit = 'hour' | 'day';
 export type TmClaimStatus = 'Draft' | 'SignedOff' | 'Withdrawn';
 export type TmConfirmBasis = 'standard' | 'sole_operator';
-/**
- * A claim line's kind — 0516 `tm_claim_lines.kind check (kind in ('labour'))`. T5 (equipment usage) widens the server
- * check and this union together; until then the column has exactly one member, so the screen can switch on it.
- */
-export type TmClaimLineKind = 'labour';
+/** A frozen claim line's source category and billing basis. */
+export type TmClaimLineKind = 'labour' | 'equipment';
+export type TmClaimBasis = 'work' | 'standby';
 
 /** The line the save sends: what a person decides. The server stamps org, version, `is_current` and the author. */
 export interface ContractRateLineInput {
@@ -38,13 +58,16 @@ export interface ContractRateLineInput {
   /** Omitted on a create; present to add a version to an existing line. */
   line_key?: string | null;
   /**
-   * REQUIRED by 0515 `contract_rate_line_normalize` (`:114`: anything but `labour` is 22023) — the save always sends it,
-   * because a form cannot know to and the RPC has no default.
+   * The save always sends kind because the RPC has no default. Equipment lines also send an asset and optional standby rate.
    */
   kind: TmClaimLineKind;
+  /** Required by the server for equipment lines; absent on labour lines. */
+  asset_id?: string | null;
   label: string;
   unit: TmRateUnit;
   rate: number;
+  /** Optional second customer rate for equipment standby usage; absent on labour lines. */
+  standby_rate?: number | null;
   /**
    * REQUIRED by the same function (`:126`): a three-letter code, refused with 23514 unless it equals `projects.currency`
    * (`:129`). Derived from the project, never typed by hand — this is the server's own currency source for the line.
@@ -54,6 +77,10 @@ export interface ContractRateLineInput {
   effective_to?: string | null;
   /** The version the editor loaded — a mismatch is refused with 40001, never overwritten. */
   expected_version?: number | null;
+  /** ERPNext Item.name for this rate line; null clears the mapping. */
+  sales_item_code?: string | null;
+  /** Prevents a concurrent mapping edit from overwriting the selection shown on screen. */
+  expected_sales_item_code?: string | null;
 }
 
 export interface RateLineSaveResult {
@@ -111,6 +138,7 @@ export interface TmClaimLine {
   lineKey: string;
   rateVersion: number;
   kind: TmClaimLineKind;
+  basis: TmClaimBasis;
   label: string;
   unit: string;
   units: number;
@@ -139,18 +167,22 @@ export interface TmClaimSummary {
 
 /**
  * One `preview_tm_claim` row: a priced line, or an UNRATED group (no amount, and a reason — never a guessed rate).
- * The line fields (`kind`/`label`/`unit`) belong to the LINE, so they are NULL on an unrated group: 0516's lateral join
- * finds no rate row for `no_assignee`/`no_rate`, and only `unit_not_supported` carries a line. `units`, `source_count`
+ * The line fields belong to the matched client rate. They are NULL when no applicable line exists; an equipment
+ * source still carries kind and basis so an unrated standby source remains distinguishable. `units`, `source_count`
  * and `unrated_reason` always come back.
  */
 export interface TmClaimPreviewRow {
   line_key: string | null;
   rate_version: number | null;
   kind: TmClaimLineKind | null;
+  basis: TmClaimBasis;
   label: string | null;
   unit: string | null;
   rate: number | null;
   user_id: string | null;
+  /** An unrated equipment group names its machine; priced rows and labour rows leave these null. */
+  asset_id: string | null;
+  asset_name: string | null;
   units: number;
   amount: number | null;
   source_count: number;
@@ -194,7 +226,8 @@ function strOrNull(value: unknown): string | null {
 
 const CLAIM_STATUSES: readonly TmClaimStatus[] = ['Draft', 'SignedOff', 'Withdrawn'];
 const CONFIRM_BASES: readonly TmConfirmBasis[] = ['standard', 'sole_operator'];
-const CLAIM_LINE_KINDS: readonly TmClaimLineKind[] = ['labour'];
+const CLAIM_LINE_KINDS: readonly TmClaimLineKind[] = ['labour', 'equipment'];
+const CLAIM_BASES: readonly TmClaimBasis[] = ['work', 'standby'];
 
 /** A closed server enum, or an error: an unmapped status must never fall through a screen's switch as "no status". */
 function oneOf<T extends string>(value: unknown, allowed: readonly T[], what: string): T {
@@ -231,7 +264,7 @@ export async function listRateAssignees(projectId: string): Promise<Bounded<Cont
   return bounded(data);
 }
 
-function parseRateLineResult(raw: unknown): RateLineSaveResult {
+function parseOneRateLineResult(raw: unknown): RateLineSaveResult {
   const row = (raw ?? {}) as Record<string, unknown>;
   return {
     id: str(row.id, 'rate line id'),
@@ -241,8 +274,15 @@ function parseRateLineResult(raw: unknown): RateLineSaveResult {
   };
 }
 
-/** Creates a line, or adds a version to it; an unchanged body returns `changed: false` with no new version. */
-export async function saveContractRateLine(input: ContractRateLineInput): Promise<RateLineSaveResult> {
+function parseRateLineResult(raw: unknown): RateLineSaveResult | RateLineSaveResult[] {
+  return Array.isArray(raw) ? raw.map(parseOneRateLineResult) : parseOneRateLineResult(raw);
+}
+
+/** Saves one rate line or an atomic batch through the existing rate-card RPC. */
+export function saveContractRateLine(input: ContractRateLineInput): Promise<RateLineSaveResult>;
+export function saveContractRateLine(input: ContractRateLineInput[]): Promise<RateLineSaveResult[]>;
+export function saveContractRateLine(input: ContractRateLineInput | ContractRateLineInput[]): Promise<RateLineSaveResult | RateLineSaveResult[]>;
+export async function saveContractRateLine(input: ContractRateLineInput | ContractRateLineInput[]): Promise<RateLineSaveResult | RateLineSaveResult[]> {
   const { data, error } = await supabase.rpc('save_contract_rate_line', { p_line: input as unknown as Json });
   fail(error);
   return parseRateLineResult(data);
@@ -256,7 +296,7 @@ export async function endContractRateLine(input: EndRateLineInput): Promise<Rate
     p_expected_version: input.expectedVersion,
   });
   fail(error);
-  return parseRateLineResult(data);
+  return parseOneRateLineResult(data);
 }
 
 /** Assigns a person to a labour line for a window; refuses an overlap for that person with 23505. */
@@ -350,6 +390,7 @@ function parseTmClaimLine(raw: unknown): TmClaimLine {
     lineKey: str(line.line_key, 'claim line key'),
     rateVersion: finite(line.rate_version, 'claim line rate version'),
     kind: oneOf(line.kind, CLAIM_LINE_KINDS, 'claim line kind'),
+    basis: oneOf(line.basis, CLAIM_BASES, 'claim line basis'),
     label: str(line.label, 'claim line label'),
     unit: str(line.unit, 'claim line unit'),
     units: finite(line.units, 'claim line units'),
@@ -398,10 +439,13 @@ function parsePreviewRow(raw: unknown): TmClaimPreviewRow {
     // The line's own fields: NULL by construction on an unrated group (0516's lateral join found no rate row), so a
     // row without them is the RPC's normal shape, not a malformed response.
     kind: row.kind === null || row.kind === undefined ? null : oneOf(row.kind, CLAIM_LINE_KINDS, 'preview kind'),
+    basis: oneOf(row.basis, CLAIM_BASES, 'preview basis'),
     label: strOrNull(row.label),
     unit: strOrNull(row.unit),
     rate: finiteOrNull(row.rate, 'preview rate'),
     user_id: strOrNull(row.user_id),
+    asset_id: strOrNull(row.asset_id),
+    asset_name: strOrNull(row.asset_name),
     units: finite(row.units, 'preview units'),
     // An unrated group has NO amount: it must never read as 0.00 in the review list.
     amount: finiteOrNull(row.amount, 'preview amount'),
@@ -421,14 +465,44 @@ export async function previewTmClaim(input: TmClaimPreviewInput): Promise<Bounde
   return bounded(((data ?? []) as unknown[]).map(parsePreviewRow));
 }
 
-/** The sources behind a claim's lines — the detail drill-down (RLS-visible exactly when the claim is). */
+interface ParsedTmClaimSourceDetail extends TmClaimSourceDetail {
+  total_count: number;
+  signoff_is_current: boolean;
+}
+
+function parseTmClaimSourceDetail(raw: unknown): ParsedTmClaimSourceDetail {
+  const row = (raw ?? {}) as Record<string, unknown>;
+  if (typeof row.is_selected !== 'boolean') throw new AppError('the source selection state is malformed', 'tm-malformed');
+  if (typeof row.signoff_is_current !== 'boolean') throw new AppError('the sign-off freshness is malformed', 'tm-malformed');
+  return {
+    id: str(row.id, 'claim source row id'),
+    entry_id: str(row.entry_id, 'source entry id'),
+    entry_date: strOrNull(row.entry_date),
+    person_id: strOrNull(row.person_id),
+    person_name: strOrNull(row.person_name),
+    asset_id: strOrNull(row.asset_id),
+    asset_name: strOrNull(row.asset_name),
+    basis: oneOf(row.basis, CLAIM_BASES, 'source basis'),
+    units: finite(row.units, 'source units'),
+    unit: oneOf(row.unit, ['hour', 'day'] as const, 'source unit'),
+    line_label: str(row.line_label, 'source rate line'),
+    is_selected: row.is_selected,
+    person_unit_total: finite(row.person_unit_total, 'person source subtotal'),
+    total_count: finite(row.total_count, 'source entry count'),
+    signoff_is_current: row.signoff_is_current,
+  };
+}
+
+/** The dated sources behind a claim's lines, through the same amounts-reader gate as the claim list (0588). */
 export async function listTmClaimSources(claimId: string): Promise<TmClaimSourcesRead> {
-  const { data, error, count } = await supabase.from('tm_claim_sources').select('*', { count: 'exact' })
-    .eq('claim_id', claimId)
-    .order('created_at', { ascending: true })
-    .order('id', { ascending: true })
+  const { data, error } = await supabase.rpc('list_tm_claim_source_details', { p_claim: claimId })
     .limit(LIST_LIMIT + 1);
   fail(error);
-  if (count === null) throw new AppError('the source-entry count was not returned', 'tm-malformed');
-  return { ...bounded(data), totalCount: count };
+  const details = ((data ?? []) as unknown[]).map(parseTmClaimSourceDetail);
+  const totalCount = details[0]?.total_count ?? 0;
+  const signoffCurrent = details[0]?.signoff_is_current ?? null;
+  if (details.some((source) => source.total_count !== totalCount)) throw new AppError('the source-entry count is inconsistent', 'tm-malformed');
+  if (details.some((source) => source.signoff_is_current !== signoffCurrent)) throw new AppError('the sign-off freshness is inconsistent', 'tm-malformed');
+  const rows = details.map(({ total_count: _totalCount, signoff_is_current: _signoffCurrent, ...detail }) => detail);
+  return { ...bounded(rows), totalCount, signoffCurrent };
 }

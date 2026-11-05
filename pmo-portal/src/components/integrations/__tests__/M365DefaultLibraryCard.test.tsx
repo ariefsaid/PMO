@@ -12,8 +12,8 @@ const mock = vi.hoisted(() => ({
   setter: true,
   docs: {} as Record<string, unknown>,
   setDefault: vi.fn(),
-  listSites: vi.fn(),
-  listDrives: vi.fn(),
+  browseSites: vi.fn(),
+  browseDrives: vi.fn(),
   refetch: vi.fn(),
 }));
 // The card mounts LinkExistingRecordFolders (own coverage: LinkExistingRecordFolders.test).
@@ -25,8 +25,8 @@ vi.mock('@/src/hooks/useMicrosoftDocuments', () => ({
   useSetDefaultLibrary: () => (mock.setter ? { mutateAsync: mock.setDefault, isPending: false } : null),
 }));
 vi.mock('@/src/lib/m365/graphClient', () => ({
-  listSites: (...a: unknown[]) => mock.listSites(...a),
-  listDrives: (...a: unknown[]) => mock.listDrives(...a),
+  browseSites: (...a: unknown[]) => mock.browseSites(...a),
+  browseDrives: (...a: unknown[]) => mock.browseDrives(...a),
 }));
 
 const library = { site_id: 's1', site_name: 'Synthetic site', drive_id: 'd1', drive_name: 'Synthetic library' };
@@ -34,9 +34,9 @@ const active = { connected: true, status: 'active' };
 const docs = (over: Record<string, unknown> = {}) => ({
   connection: active, defaultLibrary: null, isPending: false, defaultError: null, refetch: mock.refetch, ...over,
 });
-const view = (children?: React.ReactNode) => render(
+const view = () => render(
   <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-    <M365DefaultLibraryCard>{children}</M365DefaultLibraryCard>
+    <M365DefaultLibraryCard />
   </QueryClientProvider>,
 );
 
@@ -44,8 +44,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   mock.manage = true; mock.setter = true; mock.docs = docs();
   mock.setDefault.mockResolvedValue(undefined);
-  mock.listSites.mockResolvedValue({ value: [{ id: 's1', name: 'Synthetic site', web_url: 'https://x.invalid' }], next: null });
-  mock.listDrives.mockResolvedValue({ value: [{ id: 'd1', name: 'Synthetic library', web_url: 'https://x.invalid' }], next: null });
+  mock.browseSites.mockResolvedValue({ value: [{ id: 's1', name: 'Synthetic site', web_url: 'https://x.invalid' }], next: null });
+  mock.browseDrives.mockResolvedValue({ value: [{ id: 'd1', name: 'Synthetic library', web_url: 'https://x.invalid' }], next: null });
 });
 
 async function chooseLibrary() {
@@ -77,9 +77,9 @@ describe('M365DefaultLibraryCard choose', () => {
     expect(mock.setDefault).not.toHaveBeenCalled();
   });
 
-  it('AC-M365DOC-060 a member sees the labels only: no choose, clear or footer slot', () => {
+  it('AC-M365DOC-060 a member sees the labels only: no choose or clear', () => {
     mock.manage = false; mock.docs = docs({ defaultLibrary: library });
-    view(<button>Link existing folders</button>);
+    view();
     expect(screen.getByTestId('m365-default-library-current')).toHaveTextContent('Synthetic site / Synthetic library');
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
   });
@@ -102,17 +102,12 @@ describe('M365DefaultLibraryCard choose', () => {
     expect(screen.queryByText(/org_m365_document_settings/)).not.toBeInTheDocument();
   });
 
-  it('AC-M365DOC-056 the footer slot renders beside the Admin actions for another lane to fill', () => {
-    view(<button>Link existing folders</button>);
-    expect(screen.getByRole('button', { name: 'Link existing folders' })).toBeInTheDocument();
-  });
-
   it('AC-M365DOC-056 a disconnected Admin cannot browse (choose disabled with a hint)', () => {
     mock.docs = docs({ connection: { connected: false, status: null } });
     view();
     expect(screen.getByRole('button', { name: 'Choose default library' })).toBeDisabled();
     expect(screen.getByText(/Connect your Microsoft 365 account/)).toBeInTheDocument();
-    expect(mock.listSites).not.toHaveBeenCalled();
+    expect(mock.browseSites).not.toHaveBeenCalled();
   });
 });
 
@@ -124,8 +119,8 @@ describe('M365DefaultLibraryCard clear and failed reads', () => {
     expect(mock.setDefault).not.toHaveBeenCalled();
     await userEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Clear default' }));
     await waitFor(() => expect(mock.setDefault).toHaveBeenCalledWith(null));
-    expect(mock.listSites).not.toHaveBeenCalled();
-    expect(mock.listDrives).not.toHaveBeenCalled();
+    expect(mock.browseSites).not.toHaveBeenCalled();
+    expect(mock.browseDrives).not.toHaveBeenCalled();
   });
 
   it('AC-M365DOC-055 cancelling the clear confirmation writes nothing', async () => {

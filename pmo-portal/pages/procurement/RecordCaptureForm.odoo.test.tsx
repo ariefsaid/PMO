@@ -4,9 +4,24 @@
  * and will not offer a bill that needs attention.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
+
+// AC-PLN-008 (#1783 item 1, D17): the quantity grid is a Full affordance. This suite owns the
+// org-feature read with a controllable fixture so each test can move the entitlement between
+// ready / loading / error / off and prove the partial-intent state machine on the REAL form.
+const orgFeatures = vi.hoisted(() => ({
+  state: {
+    data: { procurement_full: true } as Partial<Record<string, unknown>> | undefined,
+    isLoading: false,
+    isError: false,
+    refetch: vi.fn(),
+  },
+}));
+vi.mock('@/src/hooks/useOrgFeatures', () => ({
+  useOrgFeatures: () => orgFeatures.state,
+}));
 
 const templates = vi.hoisted(() => ({ list: vi.fn(async () => []) }));
 vi.mock('@/src/lib/repositories', async (orig) => {
@@ -29,7 +44,11 @@ import { queryClient } from '@/src/lib/queryClient';
 import { clearOwnershipCache, setTaskOwnership } from '@/src/lib/adapterSeam/ownershipCache';
 
 const odoo = () => setTaskOwnership([{ domain: 'procurement', externalTier: 'odoo' }]);
-beforeEach(() => { queryClient.clear(); templates.list.mockClear(); });
+const featuresReady = () => { orgFeatures.state = { data: { procurement_full: true }, isLoading: false, isError: false, refetch: vi.fn() }; };
+const featuresOff = () => { orgFeatures.state = { data: { procurement_full: false }, isLoading: false, isError: false, refetch: vi.fn() }; };
+const featuresLoading = () => { orgFeatures.state = { data: undefined, isLoading: true, isError: false, refetch: vi.fn() }; };
+const featuresError = () => { orgFeatures.state = { data: undefined, isLoading: false, isError: true, refetch: vi.fn() }; };
+beforeEach(() => { queryClient.clear(); templates.list.mockClear(); featuresReady(); });
 afterEach(() => clearOwnershipCache());
 
 describe('bill form on an Odoo-owned org', () => {
@@ -65,6 +84,21 @@ describe('bill form on an Odoo-owned org', () => {
     render(<ToastProvider><RecordCaptureForm kind="vendor_invoice" onCreate={vi.fn()} onClose={vi.fn()} onStage={vi.fn()} /></ToastProvider>);
     expect(screen.queryByRole('group', { name: 'Taxes' })).toBeNull();
     expect(screen.getByTestId('vi-tax-template-select')).toBeInTheDocument();
+  });
+});
+
+describe('RecordCaptureForm staging is limited to goods receipts and supplier invoices', () => {
+  it('creates a purchase order even if the parent also supplies a staging callback', async () => {
+    odoo();
+    const onCreate = vi.fn().mockResolvedValue({ id: 'po-new' });
+    const onStage = vi.fn();
+    render(<ToastProvider><RecordCaptureForm kind="purchase_order" onCreate={onCreate} onClose={vi.fn()} onStage={onStage} /></ToastProvider>);
+    await userEvent.type(screen.getByTestId('purchase_order-ref-input'), 'PO-090');
+    await userEvent.type(screen.getByTestId('purchase_order-amount-input'), '1000');
+    await userEvent.click(screen.getByTestId('purchase_order-save-btn'));
+
+    expect(onCreate).toHaveBeenCalledWith(expect.objectContaining({ referenceNumber: 'PO-090', amount: 1000 }));
+    expect(onStage).not.toHaveBeenCalled();
   });
 });
 
@@ -157,5 +191,113 @@ describe('AC-OPP-030/031 goods receipt form on an Odoo-owned org', () => {
     setTaskOwnership([{ domain: 'procurement', externalTier: 'erpnext' }]);
     form();
     expect(screen.queryByRole('spinbutton', { name: /Pump/ })).toBeNull();
+  });
+});
+
+describe('AC-PLN-008 (#1783 item 1) partial receipt intent survives feature transitions safely', () => {
+  const items = [{ name: 'Pump', quantity: 10 }, { name: 'Valve', quantity: 4 }];
+  const form = (onStage = vi.fn(), onCreate = vi.fn(async () => undefined)) =>
+    render(<ToastProvider><RecordCaptureForm kind="goods_receipt" items={items} onCreate={onCreate} onClose={vi.fn()} onStage={onStage} /></ToastProvider>);
+
+  it('with no draft, Full unavailable keeps the whole-receipt form: status select, no grid, stages no lines', async () => {
+    odoo();
+    featuresOff();
+    const onStage = vi.fn();
+    form(onStage);
+    expect(screen.queryByRole('spinbutton', { name: /Pump/ })).toBeNull();
+    expect(screen.getByTestId('gr-status-select')).toBeInTheDocument();
+    await userEvent.click(screen.getByTestId('btn-save-gr'));
+    expect(onStage.mock.calls[0][0]).not.toHaveProperty('receiptLines');
+  });
+
+  it('a typed quantity survives the feature turning off: kept visible, staging blocked, nothing silently received', async () => {
+    odoo();
+    const onStage = vi.fn();
+    const onCreate = vi.fn(async () => undefined);
+    const view = form(onStage, onCreate);
+    const input = screen.getByRole('spinbutton', { name: /Pump/ }) as HTMLInputElement;
+    await userEvent.type(input, '6');
+    featuresOff();
+    view.rerender(<ToastProvider><RecordCaptureForm kind="goods_receipt" items={items} onCreate={onCreate} onClose={vi.fn()} onStage={onStage} /></ToastProvider>);
+    expect((screen.getByRole('spinbutton', { name: /Pump/ }) as HTMLInputElement).value).toBe('6');
+    expect(screen.getByTestId('btn-save-gr')).toBeDisabled();
+    // The submit-time guard, not just the disabled button: a programmatic submit (Enter key) stages nothing.
+    fireEvent.submit(screen.getByTestId('form-create-gr'));
+    expect(onStage).not.toHaveBeenCalled();
+    expect(onCreate).not.toHaveBeenCalled();
+  });
+
+  it('the blocked state explains itself and offers retry and an explicit clear; clearing resumes the whole receipt', async () => {
+    odoo();
+    const onStage = vi.fn();
+    const view = form(onStage);
+    await userEvent.type(screen.getByRole('spinbutton', { name: /Pump/ }), '6');
+    featuresOff();
+    view.rerender(<ToastProvider><RecordCaptureForm kind="goods_receipt" items={items} onCreate={vi.fn()} onClose={vi.fn()} onStage={onStage} /></ToastProvider>);
+    // The ToastProvider keeps an sr-only status live region, so the query is scoped to the form.
+    const statusRegion = within(screen.getByTestId('form-create-gr')).getByRole('status');
+    expect(statusRegion).toHaveTextContent(/cannot be submitted/i);
+    expect(statusRegion).toHaveTextContent(/receive all open items|Clear quantities/i);
+
+    await userEvent.click(screen.getByTestId('gr-full-retry'));
+    expect(orgFeatures.state.refetch).toHaveBeenCalled();
+
+    // An explicit clear is the intent to switch to the whole receipt — only then can it stage.
+    await userEvent.click(screen.getByTestId('gr-clear-quantities'));
+    expect(screen.queryByRole('spinbutton', { name: /Pump/ })).toBeNull();
+    expect(screen.getByTestId('gr-status-select')).toBeInTheDocument();
+    await userEvent.click(screen.getByTestId('btn-save-gr'));
+    expect(onStage.mock.calls[0][0]).not.toHaveProperty('receiptLines');
+  });
+
+  it('loading and error with a draft keep the grid and block staging too; Full restored stages the kept quantity', async () => {
+    odoo();
+    const onStage = vi.fn();
+    const first = form(onStage);
+    await userEvent.type(screen.getByRole('spinbutton', { name: /Pump/ }), '6');
+    featuresLoading();
+    first.rerender(<ToastProvider><RecordCaptureForm kind="goods_receipt" items={items} onCreate={vi.fn()} onClose={vi.fn()} onStage={onStage} /></ToastProvider>);
+    expect(screen.getByRole('spinbutton', { name: /Pump/ })).toBeInTheDocument();
+    expect(screen.getByTestId('btn-save-gr')).toBeDisabled();
+    featuresError();
+    first.rerender(<ToastProvider><RecordCaptureForm kind="goods_receipt" items={items} onCreate={vi.fn()} onClose={vi.fn()} onStage={onStage} /></ToastProvider>);
+    expect(screen.getByTestId('gr-full-retry')).toBeInTheDocument();
+    expect(screen.getByTestId('btn-save-gr')).toBeDisabled();
+    featuresReady();
+    first.rerender(<ToastProvider><RecordCaptureForm kind="goods_receipt" items={items} onCreate={vi.fn()} onClose={vi.fn()} onStage={onStage} /></ToastProvider>);
+    expect(screen.queryByTestId('gr-full-retry')).toBeNull();
+    await userEvent.click(screen.getByTestId('btn-save-gr'));
+    expect(onStage).toHaveBeenCalledWith(expect.objectContaining({ receiptLines: [{ itemRef: 'Pump', quantity: 6 }] }));
+  });
+
+  it('an invalid non-blank draft blocks the same way; whitespace-only input is not a draft', async () => {
+    odoo();
+    const onStage = vi.fn();
+    const first = form(onStage);
+    await userEvent.type(screen.getByRole('spinbutton', { name: /Valve/ }), '99');
+    featuresOff();
+    first.rerender(<ToastProvider><RecordCaptureForm kind="goods_receipt" items={items} onCreate={vi.fn()} onClose={vi.fn()} onStage={onStage} /></ToastProvider>);
+    expect(screen.getByTestId('btn-save-gr')).toBeDisabled();
+    fireEvent.submit(screen.getByTestId('form-create-gr'));
+    expect(onStage).not.toHaveBeenCalled();
+  });
+
+  it('a blank entry is not a draft: Full off keeps the whole-receipt form and the whole receipt can stage', async () => {
+    odoo();
+    featuresReady();
+    const onStage = vi.fn();
+    const view = form(onStage);
+    await userEvent.type(screen.getByRole('spinbutton', { name: /Valve/ }), '2');
+    // A number input cannot carry whitespace, so the blank-draft journey is: type, then empty the line.
+    // The state keeps the blank value; `.trim() !== ''` decides it is not a draft (same guard for
+    // whitespace/pasted blanks, which the DOM coerces to '').
+    await userEvent.clear(screen.getByRole('spinbutton', { name: /Valve/ }));
+    featuresOff();
+    view.rerender(<ToastProvider><RecordCaptureForm kind="goods_receipt" items={items} onCreate={vi.fn()} onClose={vi.fn()} onStage={onStage} /></ToastProvider>);
+    expect(screen.queryByRole('spinbutton', { name: /Pump/ })).toBeNull();
+    expect(screen.getByTestId('gr-status-select')).toBeInTheDocument();
+    expect(screen.getByTestId('btn-save-gr')).toBeEnabled();
+    await userEvent.click(screen.getByTestId('btn-save-gr'));
+    expect(onStage.mock.calls[0][0]).not.toHaveProperty('receiptLines');
   });
 });
