@@ -8,7 +8,7 @@ import {
   parseNextLink, searchDrive, listVersions, getItem, issueMicrosoftDocument,
   checkMicrosoftDocuments, refreshMicrosoftReferences,
 } from '../graphClient';
-import { scopeCoversPath } from '../../../../../supabase/functions/m365-token-custody/proxy';
+import { scopeCoversPath } from '../../../../../supabase/functions/m365-token-custody/graphRead';
 
 describe('Graph metadata browse transport', () => {
   beforeEach(() => invoke.mockReset());
