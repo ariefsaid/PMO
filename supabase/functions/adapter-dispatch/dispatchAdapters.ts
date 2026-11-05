@@ -5,11 +5,7 @@ import { CLICKUP_TASKS_DOMAIN } from '../../../pmo-portal/src/lib/adapterSeam/cl
 import { resolveClickUpDispatchAdapter } from '../../../pmo-portal/src/lib/adapterSeam/clickup/dispatchFactory.ts';
 import { ClickUpRateLimiter } from '../../../pmo-portal/src/lib/adapterSeam/clickup/rateLimit.ts';
 import {
-  ERPNEXT_BUDGET_DOMAIN,
-  ERPNEXT_COMPANIES_DOMAIN,
-  ERPNEXT_PROCUREMENT_DOMAIN,
-  ERPNEXT_REVENUE_DOMAIN,
-  ERPNEXT_TIMESHEETS_DOMAIN,
+  ERPNEXT_DISPATCH_DOMAINS,
   ERPNEXT_TIER,
 } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
 import { resolveErpDispatchAdapter, type ProcurementSourceLine } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/dispatchFactory.ts';
@@ -172,9 +168,5 @@ export function selectAdapterFactory(tier: string | undefined, domain: string): 
 export const ADAPTER_REGISTRY: Record<string, AdapterFactory> = {
   [REFERENCE_DOMAIN]: () => createReferenceAdapter('commit-success'),
   [CLICKUP_TASKS_DOMAIN]: resolveClickUpAdapter,
-  [ERPNEXT_COMPANIES_DOMAIN]: resolveErpAdapter,
-  [ERPNEXT_PROCUREMENT_DOMAIN]: resolveErpAdapter,
-  [ERPNEXT_REVENUE_DOMAIN]: resolveErpAdapter,
-  [ERPNEXT_BUDGET_DOMAIN]: resolveErpAdapter,
-  [ERPNEXT_TIMESHEETS_DOMAIN]: resolveErpAdapter,
+  ...Object.fromEntries(ERPNEXT_DISPATCH_DOMAINS.map((domain) => [domain, resolveErpAdapter])),
 };
