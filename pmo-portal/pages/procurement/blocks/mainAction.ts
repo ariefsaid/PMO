@@ -38,11 +38,11 @@ export function allowedActions(
   // `t(action.labelKey)` would be invisible to the en-side completeness gate (FR-L10N-042a).
   t: TFunction,
   /** #803: false when the request is routed to named approvers who do not include the viewer. */
-  routeAllows: boolean = true,
+  routeAllows: boolean,
   /** FR-PFE-005: a payment was recorded at an earlier step (payment-first). */
-  hasPaymentRecord: boolean = false,
+  hasPaymentRecord: boolean,
   /** D2 review C3: Mark as Paid needs something to pay — a line item or a recorded amount. */
-  hasValue: boolean = true,
+  hasValue: boolean,
 ): ProcurementAction[] {
   const actions: ProcurementAction[] = [];
 
