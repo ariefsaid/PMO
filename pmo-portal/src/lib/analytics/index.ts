@@ -243,7 +243,6 @@ export function trackAgentComposeViewSaved(runId: string): void {
 /** FR-CON-002/003 — the in-app analytics opt-out (see /privacy). */
 export function analyticsOptOut(): void { analyticsClient.optOut(); }
 export function analyticsOptIn(): void { analyticsClient.optIn(); }
-export function hasAnalyticsOptedOut(): boolean { return analyticsClient.hasOptedOut(); }
 /** AC-CON-011 — the three-state (+active) consent surface; see `client.ts`'s `getConsentState` doc. */
 export { getConsentState } from './client';
 export type { ConsentState } from './client';
