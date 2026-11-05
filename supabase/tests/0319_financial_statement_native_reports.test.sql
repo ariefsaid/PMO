@@ -741,10 +741,11 @@ select diag(format('AC-CD-005 diff publish: rows=%s payload_written=%s header_on
   (select count(*) from native_diff_after a join native_diff_before b on a.statement=b.statement and a.project_id is not distinct from b.project_id and a.view_kind=b.view_kind and a.period_kind=b.period_kind and a.current_start=b.current_start where a.content_md5=b.content_md5 and a.snapshot_id<>b.snapshot_id),
   (select count(*) from native_diff_before b where not exists(select 1 from native_diff_after a where (a.statement,a.project_id,a.view_kind,a.period_kind,a.current_start) is not distinct from (b.statement,b.project_id,b.view_kind,b.period_kind,b.current_start))),
   (select count(*) from native_diff_after a where not exists(select 1 from native_diff_before b where (a.statement,a.project_id,a.view_kind,a.period_kind,a.current_start) is not distinct from (b.statement,b.project_id,b.view_kind,b.period_kind,b.current_start)))));
-select is((select count(*)::int from native_diff_after a join native_diff_before b on a.statement=b.statement and a.project_id is not distinct from b.project_id and a.view_kind=b.view_kind and a.period_kind=b.period_kind and a.current_start=b.current_start
+select cmp_ok((select count(*)::int from native_diff_after a join native_diff_before b on a.statement=b.statement and a.project_id is not distinct from b.project_id and a.view_kind=b.view_kind and a.period_kind=b.period_kind and a.current_start=b.current_start
     where a.content_md5=b.content_md5 and a.snapshot_id<>b.snapshot_id),
+  '>=',
   (select count(*)::int from native_incremental_retained_before),
-  'AC-CD-005 retained rows keep their exact content and are only header-touched into the new generation');
+  'AC-CD-005 every retained row keeps its exact content and is header-touched (re-fetched keys that came back identical are retained too)');
 select ok((select count(*)::int from native_diff_after a join native_diff_before b on a.statement=b.statement and a.project_id is not distinct from b.project_id and a.view_kind=b.view_kind and a.period_kind=b.period_kind and a.current_start=b.current_start
     where a.content_md5<>b.content_md5)>0
   and not exists(select 1 from native_diff_after a join native_diff_before b on a.statement=b.statement and a.project_id is not distinct from b.project_id and a.view_kind=b.view_kind and a.period_kind=b.period_kind and a.current_start=b.current_start
