@@ -31,7 +31,7 @@ export class FetchDeadlineError extends Error {
 /**
  * Issue `fetchImpl(input, init)` with an `AbortController` bounded at `timeoutMs`.
  *
- * - Resolves with the `Response` when the request settles before the deadline (unchanged behavior).
+ * - Resolves with the `Response` when headers arrive before the deadline; the body stays under the same deadline.
  * - On deadline: aborts the in-flight request and throws `FetchDeadlineError` (deterministic — keyed off
  *   our own `timedOut` flag, independent of how the runtime surfaces the abort reason).
  * - A non-timeout rejection (DNS/connection refused) propagates unchanged.
@@ -48,14 +48,42 @@ export async function fetchWithDeadline(
     timedOut = true;
     controller.abort();
   }, timeoutMs);
+  let res: Response;
   try {
-    return await fetchImpl(input, { ...init, signal: controller.signal });
+    res = await fetchImpl(input, { ...init, signal: controller.signal });
   } catch (err) {
     if (timedOut) throw new FetchDeadlineError(timeoutMs);
     throw err;
   } finally {
     clearTimeout(timer);
   }
+  if (!res.body) return res;
+  // The deadline also bounds the body: each read races the time left, so a stall surfaces as
+  // `FetchDeadlineError`. No timer exists while nobody reads, so an unread body leaks nothing.
+  const deadline = Date.now() + timeoutMs;
+  const reader = res.body.getReader();
+  const body = new ReadableStream<Uint8Array>({
+    async pull(c) {
+      let guard: number | undefined;
+      try {
+        const left = new Promise<never>((_, reject) => {
+          guard = setTimeout(() => {
+            timedOut = true;
+            controller.abort();
+            reject(new FetchDeadlineError(timeoutMs));
+          }, Math.max(0, deadline - Date.now()));
+        });
+        const { done, value } = await Promise.race([reader.read(), left]);
+        if (done) c.close(); else c.enqueue(value);
+      } catch (err) {
+        c.error(timedOut ? new FetchDeadlineError(timeoutMs) : err);
+      } finally {
+        clearTimeout(guard);
+      }
+    },
+    cancel: (reason) => reader.cancel(reason),
+  });
+  return new Response(body, { status: res.status, statusText: res.statusText, headers: res.headers });
 }
 
 /** Default deadline for an outbound third-party call (ClickUp, Graph, Telegram, PostHog). Same 20s budget
