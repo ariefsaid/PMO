@@ -165,7 +165,7 @@ describe('external-connect — ClickUp branch', () => {
           const body = call.bodyJson as Record<string, unknown>;
           assertEquals(body.p_org_id, 'org-1');
           assertEquals(body.p_external_tier, 'clickup');
-          assertEquals(body.p_patch, { clickup_actor_id: '123', clickup_team_id: 'team-123' });
+          assertEquals(body.p_patch, { clickup_actor_id: '123', clickup_team_id: 'team-123', identity_incomplete: false });
           return jsonResponse(null);
         }),
       ],
@@ -197,10 +197,13 @@ describe('external-connect — ClickUp branch', () => {
         clickup('/api/v2/team', () => jsonResponse({ teams: [{ id: 'team-123' }] })),
         supabaseRpc('merge_external_org_binding_config', () => jsonResponse({ message: 'boom' }, { status: 500 })),
       ],
-      async () => {
+      async ({ calls }) => {
         const res = await handleConnectRequest(await authed({ tier: 'clickup', credential: { token: 'valid-token' } }));
         assertEquals(res.status, 500);
         assertEquals((await res.json()).error, 'CONNECT_IDENTITY_NOT_SAVED');
+        // The connection is marked incomplete (a second, identity-free patch), not left looking healthy.
+        const patches = rpcCall(calls, 'merge_external_org_binding_config').map((c) => (c.bodyJson as { p_patch: Record<string, unknown> }).p_patch);
+        assertEquals(patches[patches.length - 1], { identity_incomplete: true });
       },
     );
   });

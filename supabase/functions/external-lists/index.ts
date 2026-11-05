@@ -25,6 +25,7 @@
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import {
+  bearerToken,
   verifyCallerJwt,
   JwtVerifyError,
   jwksFromUrl,
@@ -44,10 +45,6 @@ interface ListItem {
   name: string;
   space_name: string;
   folder_name: string | null;
-}
-
-interface ListsResponse {
-  lists: ListItem[];
 }
 
 // Memoized JWKS resolver (same pattern as agent-chat, adapter-dispatch, external-connect)
@@ -71,16 +68,10 @@ export const testSupabaseOptions = {
   },
 };
 
-function bearerTokenFromHeader(authHeader: string | null): string | null {
-  if (!authHeader) return null;
-  const m = /^Bearer\s+(.+)$/i.exec(authHeader);
-  return m ? m[1] : null;
-}
-
-function json(body: unknown, status = 200, headers: Record<string, string> = {}): Response {
+function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type', ...headers }, // #641: every answer is CORS-readable
+    headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type' }, // #641: every answer is CORS-readable
   });
 }
 
@@ -91,6 +82,8 @@ function errorResponse(message: string, code: string, status: number): Response 
 // ============================================================================
 // ClickUp hierarchy fetching (injected fetch for testability)
 // ============================================================================
+
+const CLICKUP_BASE_URL = 'https://api.clickup.com/api/v2';
 
 interface ClickUpTeam {
   id: string;
@@ -105,25 +98,20 @@ interface ClickUpSpace {
 interface ClickUpFolder {
   id: string;
   name: string;
-  space_id: string;
 }
 
 interface ClickUpList {
   id: string;
   name: string;
-  folder_id: string | null;
-  space_id: string;
 }
 
 interface ClickUpHierarchyDeps {
   fetchImpl: typeof fetch;
   token: string;
-  baseUrl?: string;
 }
 
 async function fetchTeams(deps: ClickUpHierarchyDeps): Promise<ClickUpTeam[]> {
-  const baseUrl = deps.baseUrl ?? 'https://api.clickup.com/api/v2';
-  const res = await fetchBounded(deps.fetchImpl, `${baseUrl}/team`, {
+  const res = await fetchBounded(deps.fetchImpl, `${CLICKUP_BASE_URL}/team`, {
     headers: { Authorization: `Bearer ${deps.token}` },
   });
   if (!res.ok) {
@@ -134,8 +122,7 @@ async function fetchTeams(deps: ClickUpHierarchyDeps): Promise<ClickUpTeam[]> {
 }
 
 async function fetchSpaces(deps: ClickUpHierarchyDeps, teamId: string): Promise<ClickUpSpace[]> {
-  const baseUrl = deps.baseUrl ?? 'https://api.clickup.com/api/v2';
-  const res = await fetchBounded(deps.fetchImpl, `${baseUrl}/team/${teamId}/space`, {
+  const res = await fetchBounded(deps.fetchImpl, `${CLICKUP_BASE_URL}/team/${teamId}/space`, {
     headers: { Authorization: `Bearer ${deps.token}` },
   });
   if (!res.ok) throw new AppError('Failed to fetch ClickUp spaces', 'external-unreachable');
@@ -144,8 +131,7 @@ async function fetchSpaces(deps: ClickUpHierarchyDeps, teamId: string): Promise<
 }
 
 async function fetchFolders(deps: ClickUpHierarchyDeps, spaceId: string): Promise<ClickUpFolder[]> {
-  const baseUrl = deps.baseUrl ?? 'https://api.clickup.com/api/v2';
-  const res = await fetchBounded(deps.fetchImpl, `${baseUrl}/space/${spaceId}/folder`, {
+  const res = await fetchBounded(deps.fetchImpl, `${CLICKUP_BASE_URL}/space/${spaceId}/folder`, {
     headers: { Authorization: `Bearer ${deps.token}` },
   });
   if (!res.ok) throw new AppError('Failed to fetch ClickUp folders', 'external-unreachable');
@@ -158,9 +144,8 @@ async function fetchLists(
   spaceId: string,
   folderId: string | null,
 ): Promise<ClickUpList[]> {
-  const baseUrl = deps.baseUrl ?? 'https://api.clickup.com/api/v2';
   const path = folderId ? `/folder/${folderId}/list` : `/space/${spaceId}/list`;
-  const res = await fetchBounded(deps.fetchImpl, `${baseUrl}${path}`, {
+  const res = await fetchBounded(deps.fetchImpl, `${CLICKUP_BASE_URL}${path}`, {
     headers: { Authorization: `Bearer ${deps.token}` },
   });
   if (!res.ok) throw new AppError('Failed to fetch ClickUp lists', 'external-unreachable');
@@ -244,7 +229,7 @@ export async function handleListsRequest(req: Request): Promise<Response> {
   }
 
   // 1. Extract and verify caller JWT (ADR-0057)
-  const jwt = bearerTokenFromHeader(req.headers.get('Authorization'));
+  const jwt = bearerToken(req.headers.get('Authorization'));
   if (!jwt) {
     return errorResponse('Missing Authorization header', 'UNAUTHORIZED', 401);
   }

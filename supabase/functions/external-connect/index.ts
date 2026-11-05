@@ -36,6 +36,7 @@ import {
   JwtVerifyError,
   jwksFromUrl,
   type JwksResolver,
+  bearerToken,
 } from '../../../pmo-portal/src/lib/auth/verifyCallerJwt.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 import { externalConnectEnabled } from '../_shared/externalConnectEnabled.ts';
@@ -83,16 +84,10 @@ export const testSupabaseOptions = {
 };
 
 /** Strip a case-insensitive `Bearer ` prefix; return null if absent or malformed. */
-function bearerTokenFromHeader(authHeader: string | null): string | null {
-  if (!authHeader) return null;
-  const m = /^Bearer\s+(.+)$/i.exec(authHeader);
-  return m ? m[1] : null;
-}
-
-function json(body: unknown, status = 200, headers: Record<string, string> = {}): Response {
+function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type', ...headers }, // #641: every answer is CORS-readable
+    headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type' }, // #641: every answer is CORS-readable
   });
 }
 
@@ -244,7 +239,7 @@ export async function handleConnectRequest(req: Request): Promise<Response> {
   }
 
   // 1. Extract and verify caller JWT (ADR-0057)
-  const jwt = bearerTokenFromHeader(req.headers.get('Authorization'));
+  const jwt = bearerToken(req.headers.get('Authorization'));
   if (!jwt) {
     return errorResponse('Missing Authorization header', 'UNAUTHORIZED', 401);
   }
@@ -479,20 +474,22 @@ export async function handleConnectRequest(req: Request): Promise<Response> {
     }
 
     // Persist both identities atomically after the ownership/binding commit. They contain no secret.
-    const configPatch: Record<string, unknown> = {};
+    const configPatch: Record<string, unknown> = { identity_incomplete: false };
     if (clickUpUserId !== null) configPatch.clickup_actor_id = clickUpUserId;
     if (clickUpTeamId !== null) configPatch.clickup_team_id = clickUpTeamId;
-    if (Object.keys(configPatch).length > 0) {
-      const { error: configError } = await serviceClient.rpc('merge_external_org_binding_config', {
-        p_org_id: profile.org_id, p_external_tier: 'clickup', p_patch: configPatch,
+    const { error: configError } = await serviceClient.rpc('merge_external_org_binding_config', {
+      p_org_id: profile.org_id, p_external_tier: 'clickup', p_patch: configPatch,
+    });
+    if (configError) {
+      // Retryable: Connect again rotates the binding and rewrites the identity (same recovery as the site-url write).
+      console.error('external_org_bindings clickup identity persist failed', configError);
+      // Best effort: mark the committed connection incomplete (cleared by the next successful connect below).
+      await serviceClient.rpc('merge_external_org_binding_config', {
+        p_org_id: profile.org_id, p_external_tier: 'clickup', p_patch: { identity_incomplete: true },
       });
-      if (configError) {
-        // Retryable: Connect again rotates the binding and rewrites the identity (same recovery as the site-url write).
-        console.error('external_org_bindings clickup identity persist failed', configError);
-        return errorResponse(
-          'ClickUp connected but its workspace could not be saved. Please try connecting again.',
-          'CONNECT_IDENTITY_NOT_SAVED', 500);
-      }
+      return errorResponse(
+        'ClickUp connected but its workspace could not be saved. Please try connecting again.',
+        'CONNECT_IDENTITY_NOT_SAVED', 500);
     }
   }
 
@@ -512,5 +509,4 @@ if (import.meta.main) {
 }
 
 // Export validators and SSRF helper for testability
-export { validateClickUpToken, validateErpNextCredentials };
-export type { ValidatorDeps };
+export { validateClickUpToken };

@@ -623,16 +623,25 @@ async function verifyErpProjectLinks(ctx: ErpSetupContext) {
       if (err instanceof AppError || (err instanceof ErpError && err.status === 404)) {
         return { project_id: project.id, code: project.code, name: project.name, erp_project: erpName, reason: "missing_or_invalid_erp_project" };
       }
+      if (err instanceof ErpError && err.status === 403) {
+        throw new AppError("The ERP refused access to a project; check the integration user's permissions", "FORBIDDEN");
+      }
       throw new AppError("The ERP could not be reached to verify project links; try again", "external-unreachable");
     }
   };
   // Bounded concurrency: a fixed pool of workers drains a shared cursor; results keep the project order.
   const results: Array<Mismatch | null> = new Array(projects.length);
   let cursor = 0;
+  let failed = false;
   await Promise.all(Array.from({ length: Math.min(VERIFY_CONCURRENCY, projects.length) }, async () => {
-    while (cursor < projects.length) {
+    while (!failed && cursor < projects.length) {
       const i = cursor++;
-      results[i] = await check(projects[i]);
+      try {
+        results[i] = await check(projects[i]);
+      } catch (err) {
+        failed = true; // one failed check fails the run: the other workers stop calling the ERP
+        throw err;
+      }
     }
   }));
   const mismatches = results.filter((row): row is Mismatch => row !== null);
