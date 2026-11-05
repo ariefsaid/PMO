@@ -1,3 +1,5 @@
+import { spawn as nodeSpawn } from 'node:child_process';
+
 // Shared, side-effect-free session helpers for the 0644 two-session race proof.
 //
 // Extracted so the session lifecycle can be tested offline WITHOUT docker or a database: the harness
@@ -38,16 +40,18 @@ export function ownedWaitersSql(namespace, needle) {
  * back, which would release the very lock the contenders are supposed to queue on. A keep-open session
  * is closed only by `release(...)`.
  */
-export function startSession({ spawn, dockerArgs, sql, applicationName, keepOpen = false, spawnImpl = spawn }) {
+export function startSession({ spawn = nodeSpawn, dockerArgs, sql, applicationName, keepOpen = false, spawnImpl = spawn }) {
   const child = spawnImpl('docker', dockerArgs, { stdio: ['pipe', 'pipe', 'pipe'] });
   let output = '';
+  let stdout = '';
+  let stderr = '';
   child.stdout?.setEncoding?.('utf8');
-  child.stdout?.on?.('data', (chunk) => { output += chunk; });
+  child.stdout?.on?.('data', (chunk) => { stdout += chunk; output += chunk; });
   child.stderr?.setEncoding?.('utf8');
-  child.stderr?.on?.('data', (chunk) => { output += chunk; });
+  child.stderr?.on?.('data', (chunk) => { stderr += chunk; output += chunk; });
   const done = new Promise((resolve, reject) => {
     child.on('error', reject);
-    child.on('close', (status, signal) => resolve({ status, signal, output }));
+    child.on('close', (status, signal) => resolve({ status, signal, stdout, stderr, output }));
   });
   child.stdin.write(sessionPrelude(applicationName) + sql);
   if (!keepOpen) child.stdin.end();
@@ -93,4 +97,45 @@ export function raceTapProblems(tap, expectedTests = 2) {
   if (tap.todo !== 0) problems.push(`expected 0 todo, saw ${tap.todo}`);
   if (tap.notOk.length) problems.push(`not ok: ${tap.notOk.join('; ')}`);
   return problems;
+}
+
+/** Cleanup runs in this order: stop our sessions, drain our daemon backends, delete only exact owned
+ *  ids, then prove owned rows are gone and no foreign row digest moved. */
+export const CLEANUP_ORDER = [
+  'stop-sessions',
+  'drain-owned-backends',
+  'delete-exact-owned-ids',
+  'assert-owned-zero-and-foreign-digests',
+];
+
+const RESOLVED_PHASES = new Set(['cleaned', 'absent', 'reconciled']);
+const PENDING_PHASES = new Set(['creating', 'created']);
+
+/**
+ * Decide what an ownership record allows cleanup to delete.
+ *
+ * `creating` is written BEFORE the setup transaction runs, because psql's COMMIT can succeed while the
+ * client still fails. Such a record must be reconciled exactly like `created` — otherwise committed
+ * fixture rows leak while the schema DOWN destroys their parent tables. Anything malformed must fail
+ * restoration instead of silently doing nothing.
+ */
+export function ownershipPlan(record, expectedOrgs) {
+  if (!record || typeof record !== 'object' || Array.isArray(record)) {
+    throw new Error('race ownership record is missing or malformed');
+  }
+  const { phase, orgs, pre_owned: preOwned } = record;
+  if (RESOLVED_PHASES.has(phase)) return { deleteOrgs: [], phase };
+  if (!PENDING_PHASES.has(phase)) {
+    throw new Error(`race ownership phase ${JSON.stringify(phase)} cannot be reconciled`);
+  }
+  if (preOwned !== 0) {
+    throw new Error('race ownership record does not prove the namespace was empty before creation');
+  }
+  if (!Array.isArray(orgs) || orgs.length !== expectedOrgs.length) {
+    throw new Error('race ownership record does not name the declared fixture ids');
+  }
+  if (!orgs.every((org, index) => org === expectedOrgs[index])) {
+    throw new Error('race ownership record names an id outside the declared fixture namespace');
+  }
+  return { deleteOrgs: orgs.slice(), phase };
 }

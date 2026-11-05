@@ -1,11 +1,13 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import test from 'node:test';
 
 import {
+  CLEANUP_ORDER,
   ownedBackendSql,
   ownedWaitersSql,
+  ownershipPlan,
   parseRaceTap,
   raceTapProblems,
   sessionPrelude,
@@ -157,6 +159,11 @@ function inventory(suffix) {
 let baselineDigests = null;
 let fixtureCreated = false;
 
+function deleteExactOwnedIds(suffix) {
+  const result = psqlSync(cleanupSql(), suffix);
+  assert.equal(result.status, 0, `owned fixture delete failed: ${result.output}`);
+}
+
 function cleanupSql() {
   return `begin;
     delete from public.erp_statement_nightly_obligation where org_id in (${uuidList(ownedOrgs)});
@@ -188,7 +195,7 @@ function setupSql() {
     commit;`;
 }
 
-async function setupFixture() {
+async function setupFixture(journal) {
   const inspected = spawnSync('docker', ['inspect', '--format', '{{.Name}}', container], { encoding: 'utf8', timeout: 30_000 });
   assert.equal(inspected.status, 0, inspected.stderr);
   assert.equal(inspected.stdout.trim(), `/${container}`, 'race proof must use the exact local Supabase database container');
@@ -202,31 +209,37 @@ async function setupFixture() {
 
   // Record ownership BEFORE creating anything, so an interrupted outer run knows exactly which fixture
   // rows it may delete and nothing else.
-  if (OWNERSHIP_FILE) {
-    writeFileSync(OWNERSHIP_FILE, JSON.stringify({
-      namespace: NAMESPACE,
-      orgs: ownedOrgs,
-      tables: ['erp_statement_nightly_obligation', 'erp_statement_change_state', 'erp_sweep_lock', 'external_org_bindings', 'organizations'],
-      phase: 'creating',
-    }) + '\n', { flag: 'wx' });
-  }
+  const ownership = {
+    namespace: NAMESPACE,
+    orgs: ownedOrgs,
+    bindings: [binding, otherBinding],
+    holders: [holder, otherHolder],
+    pre_owned: pre.owned,
+    tables: ['erp_statement_nightly_obligation', 'erp_statement_change_state', 'erp_sweep_lock', 'external_org_bindings', 'organizations'],
+  };
+  if (journal) writeFileSync(journal, JSON.stringify({ ...ownership, phase: 'creating' }) + '\n', { flag: 'wx' });
 
   // One transaction: either the whole fixture exists or nothing does.
   const setup = psqlSync(setupSql(), 'fixture-setup');
   if (setup.status !== 0) {
+    // The COMMIT may have landed before the client failed, so reconcile by exact owned ids instead of
+    // assuming nothing was written; the phase stays `creating` until that reconciliation proves absence.
     const after = inventory('setup-failed');
-    assert.equal(after.owned, 0, 'a failed setup must leave no owned row behind');
+    if (after.owned !== 0) {
+      deleteExactOwnedIds('setup-failed-reconcile');
+      const reconciled = inventory('setup-failed-reconciled');
+      assert.equal(reconciled.owned, 0, 'a setup whose COMMIT landed must be removed by exact owned ids');
+      for (const key of Object.keys(baselineDigests ?? {})) {
+        assert.equal(reconciled.digests[key], baselineDigests[key], `setup reconciliation changed foreign rows (${key})`);
+      }
+      if (journal) writeFileSync(journal, JSON.stringify({ ...ownership, phase: 'reconciled' }) + '\n');
+    } else if (journal) {
+      writeFileSync(journal, JSON.stringify({ ...ownership, phase: 'absent' }) + '\n');
+    }
     throw new Error(`fixture setup failed: ${setup.output}`);
   }
   fixtureCreated = true;
-  if (OWNERSHIP_FILE) {
-    writeFileSync(OWNERSHIP_FILE, JSON.stringify({
-      namespace: NAMESPACE,
-      orgs: ownedOrgs,
-      tables: ['erp_statement_nightly_obligation', 'erp_statement_change_state', 'erp_sweep_lock', 'external_org_bindings', 'organizations'],
-      phase: 'created',
-    }) + '\n');
-  }
+  if (journal) writeFileSync(journal, JSON.stringify({ ...ownership, phase: 'created' }) + '\n');
 }
 
 async function stopOwnedSessions(sessions) {
@@ -257,58 +270,35 @@ async function reapOwnedBackends() {
   });
 }
 
-async function cleanupFixture() {
+async function cleanupFixture(journal) {
+  // CLEANUP_ORDER: our sessions are already stopped by the caller; then drain our own backends, delete
+  // ONLY the exact owned ids, and finally prove owned == 0 and that no foreign row digest moved.
   await reapOwnedBackends();
-  if (!fixtureCreated) {
-    // Nothing of ours was created: prove it instead of deleting anything.
-    assert.equal(inventory('post-cleanup-none').owned, 0, 'no owned row may exist when setup did not complete');
-    return;
+  if (journal && existsSync(journal)) {
+    // A malformed/unreconcilable record must fail restoration instead of silently deleting nothing.
+    ownershipPlan(JSON.parse(readFileSync(journal, 'utf8')), ownedOrgs);
   }
-  const cleanup = psqlSync(cleanupSql(), 'fixture-cleanup');
-  assert.equal(cleanup.status, 0, `owned synthetic fixture cleanup failed: ${cleanup.output}`);
-  fixtureCreated = false;
+  const probe = inventory('post-cleanup-probe');
+  if (probe.owned !== 0) {
+    // Covers the "setup COMMIT landed but the client failed" case, where the in-process flag is false.
+    deleteExactOwnedIds('fixture-cleanup');
+    fixtureCreated = false;
+  }
   const post = inventory('post-cleanup');
   assert.equal(post.owned, 0, 'only the owned synthetic fixture is removed');
   for (const key of Object.keys(baselineDigests ?? {})) {
     assert.equal(post.digests[key], baselineDigests[key], `cleanup changed rows outside the owned namespace (${key})`);
   }
-  if (OWNERSHIP_FILE) writeFileSync(OWNERSHIP_FILE, JSON.stringify({ namespace: NAMESPACE, phase: 'cleaned' }) + '\n');
+  if (journal) writeFileSync(journal, JSON.stringify({ namespace: NAMESPACE, phase: 'cleaned' }) + '\n');
 }
 
-function scenarioReleaseQuietly(session) {
-  try {
-    if (session.stdinOpen) session.release('rollback;\n');
-  } catch {
-    // already closed by the scenario
-  }
-}
-
-// An outer SIGTERM/SIGINT/SIGHUP (the proof driver's deadline) must not strand our daemon backends or
-// committed fixtures: drain our namespace and delete only what this run recorded as its own, then exit.
-let emergencyStarted = false;
-async function emergencyTeardown(signal) {
-  if (emergencyStarted) return;
-  emergencyStarted = true;
-  let code = 1;
-  try {
-    await reapOwnedBackends();
-    await cleanupFixture();
-  } catch {
-    code = 1;
-  }
-  process.exit(signal === 'SIGINT' ? 130 : signal === 'SIGTERM' ? 143 : 129);
-  return code;
-}
-for (const signal of ['SIGTERM', 'SIGINT', 'SIGHUP']) {
-  process.on(signal, () => { void emergencyTeardown(signal); });
-}
-
-async function withFixture(body) {
-  await setupFixture();
+async function withFixture(scenario, body) {
+  const journal = OWNERSHIP_FILE ? `${OWNERSHIP_FILE}.${scenario}` : null;
+  await setupFixture(journal);
   try {
     await body();
   } finally {
-    await cleanupFixture();
+    await cleanupFixture(journal);
   }
 }
 
@@ -371,7 +361,7 @@ test('AC-NS-005 concurrent manual intents serialize on the same org and one othe
   let barrier;
   let first;
   let second;
-  await withFixture(async () => {
+  await withFixture('manual', async () => {
     try {
       const before = stateRow();
       assert.equal(before.intent_revision, '0');
@@ -428,7 +418,7 @@ test('AC-NS-004 concurrent nightly recordings materialize every due date exactly
   let barrier;
   let first;
   let second;
-  await withFixture(async () => {
+  await withFixture('nightly', async () => {
     try {
       const seeded = psqlSync(`begin;
         update public.erp_statement_change_state

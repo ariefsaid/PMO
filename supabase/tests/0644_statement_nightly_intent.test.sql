@@ -195,6 +195,13 @@ reset role;
 select ok((select bool_and(timezone='UTC' and due_at=(local_date::timestamp+interval '2 hours') at time zone 'UTC')
   from public.erp_statement_nightly_obligation where org_id='06440000-0000-0000-0000-000000000001'),
  'AC-NS-004 a timezone change never rewrites existing frozen obligations');
+-- An independently owned FUTURE stop row on the frontier keeps both replays bounded to the materialized
+-- range at every hour of the day: without it, between 19:00Z and 02:00Z the frontier's own Jakarta
+-- instant is already due and a correct RPC would materialize it (inserted = 1), which is not what these
+-- two assertions are about.
+insert into public.erp_statement_nightly_obligation(org_id,local_date,timezone,due_at)
+ values ('06440000-0000-0000-0000-000000000001',(select first_future from fixture_clock),'Asia/Jakarta',
+  clock_timestamp()+interval '3 days');
 update public.erp_statement_change_state set next_nightly_date=(select first_future-40 from fixture_clock)
  where org_id='06440000-0000-0000-0000-000000000001';
 set local role service_role;
@@ -211,6 +218,9 @@ select ok((select bool_and(timezone='UTC' and due_at=(local_date::timestamp+inte
   from public.erp_statement_nightly_obligation where org_id='06440000-0000-0000-0000-000000000001'
    and local_date<=(select first_future-1 from fixture_clock)),
  'AC-NS-004 replaying existing dates never rewrites their frozen provenance');
+-- The stop row exists only for the two replays above; remove it before the next independent oracle.
+delete from public.erp_statement_nightly_obligation
+ where org_id='06440000-0000-0000-0000-000000000001' and local_date>=(select first_future from fixture_clock);
 
 -- An existing date whose FROZEN instant is still in the future must be evaluated on that instant.
 -- The current timezone would call the same date due, so recalculating instead of reusing the frozen

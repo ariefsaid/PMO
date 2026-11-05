@@ -1,9 +1,12 @@
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 import {
+  CLEANUP_ORDER,
   namespacePredicate,
+  ownershipPlan,
   ownedBackendSql,
   ownedWaitersSql,
   parseRaceTap,
@@ -115,4 +118,126 @@ test('the race TAP summary must be exactly two passing tests and no skips or tod
 
   const missing = good.replace(/# tests 2\n# pass 2\n/, '');
   assert.match(raceTapProblems(parseRaceTap(missing)).join('; '), /expected 2 tests, saw null/);
+});
+
+test('ownership reconciliation treats a possibly-committed setup as owned, and malformed records as fatal', () => {
+  const orgs = ['06440000-0000-0000-0000-000000000001', '06440000-0000-0000-0000-000000000002'];
+  const base = { namespace: 'q12_0644_race', orgs, pre_owned: 0 };
+
+  assert.deepEqual(ownershipPlan({ ...base, phase: 'creating' }, orgs).deleteOrgs, orgs,
+    'a setup whose COMMIT may have landed is still owned');
+  assert.deepEqual(ownershipPlan({ ...base, phase: 'created' }, orgs).deleteOrgs, orgs);
+  assert.deepEqual(ownershipPlan({ ...base, phase: 'cleaned' }, orgs).deleteOrgs, []);
+  assert.deepEqual(ownershipPlan({ ...base, phase: 'absent' }, orgs).deleteOrgs, []);
+  assert.deepEqual(ownershipPlan({ ...base, phase: 'reconciled' }, orgs).deleteOrgs, []);
+
+  for (const [label, record] of [
+    ['missing record', null],
+    ['unknown phase', { ...base, phase: 'halfway' }],
+    ['no phase', { ...base }],
+    ['dirty namespace', { ...base, phase: 'creating', pre_owned: 3 }],
+    ['wrong id count', { ...base, phase: 'creating', orgs: [orgs[0]] }],
+    ['foreign id', { ...base, phase: 'creating', orgs: [orgs[0], '06440000-0000-0000-0000-0000000000ff'] }],
+  ]) {
+    assert.throws(() => ownershipPlan(record, orgs), /race ownership/, label);
+  }
+
+  assert.deepEqual(CLEANUP_ORDER, [
+    'stop-sessions',
+    'drain-owned-backends',
+    'delete-exact-owned-ids',
+    'assert-owned-zero-and-foreign-digests',
+  ], 'cleanup order is fixed: sessions, backends, exact ids, then proofs');
+});
+
+test('shipped race caller starts a real child through the default spawn interface', async () => {
+  const { readFileSync, mkdtempSync, writeFileSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const { runInNewContext } = await import('node:vm');
+  const source = readFileSync(new URL('./financial-statements-nightly-intent-race.test.mjs', import.meta.url), 'utf8');
+  const caller = source.match(/function startPsql\(sql, suffix, keepOpen = false\) \{[\s\S]*?\n\}/)?.[0];
+  assert.ok(caller, 'shipped startPsql caller must exist');
+  const directory = mkdtempSync(join(tmpdir(), 'nightly-mock-psql-'));
+  const oldPath = process.env.PATH;
+  try {
+    writeFileSync(join(directory, 'docker'), '#!/bin/sh\ncat\n', { mode: 0o755 });
+    process.env.PATH = `${directory}:${oldPath}`;
+    const startPsql = runInNewContext(`(${caller})`, { startSession, DOCKER_ARGS: [], sessionApp: (suffix) => `test_${suffix}` });
+    const session = startPsql('select 1;\n', 'barrier', true);
+    assert.equal(session.stdinOpen, true);
+    session.release('commit;\n');
+    const result = await session.done;
+    assert.equal(result.status, 0);
+    assert.match(result.stdout, /select 1;\ncommit;/);
+    assert.equal(result.stderr, '');
+  } finally {
+    process.env.PATH = oldPath;
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('shipped fixture caller preserves distinct journals through two sequential scenarios', async () => {
+  const { mkdtempSync, writeFileSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const { runInNewContext } = await import('node:vm');
+  const source = readFileSync(new URL('./financial-statements-nightly-intent-race.test.mjs', import.meta.url), 'utf8');
+  assert.match(source, /withFixture\('manual',/);
+  assert.match(source, /withFixture\('nightly',/);
+  const caller = source.match(/async function withFixture\(scenario, body\) \{[\s\S]*?\n\}/)?.[0];
+  assert.ok(caller);
+  const directory = mkdtempSync(join(tmpdir(), 'nightly-journals-'));
+  const base = join(directory, 'ownership.json');
+  try {
+    const withFixture = runInNewContext(`(${caller})`, {
+      OWNERSHIP_FILE: base,
+      setupFixture: async (path) => writeFileSync(path, 'created', { flag: 'wx' }),
+      cleanupFixture: async (path) => writeFileSync(path, 'cleaned'),
+    });
+    await withFixture('manual', async () => {});
+    await withFixture('nightly', async () => {});
+    assert.equal(readFileSync(`${base}.manual`, 'utf8'), 'cleaned');
+    assert.equal(readFileSync(`${base}.nightly`, 'utf8'), 'cleaned');
+    assert.throws(() => readFileSync(base), { code: 'ENOENT' });
+    await assert.rejects(withFixture('manual', async () => {}), { code: 'EEXIST' });
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('real caller result preserves stderr and refuses nonzero, empty or partial JSON', async () => {
+  const { mkdtempSync, writeFileSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const { runInNewContext } = await import('node:vm');
+  const source = readFileSync(new URL('./financial-statements-nightly-intent-race.test.mjs', import.meta.url), 'utf8');
+  const caller = source.match(/function startPsql\(sql, suffix, keepOpen = false\) \{[\s\S]*?\n\}/)[0];
+  const line = source.match(/function lastLine\(out\) \{[\s\S]*?\n\}/)[0];
+  assert.ok((source.match(/JSON\.parse\(lastLine\(result\.stdout\)\)/g) ?? []).length >= 2);
+  const directory = mkdtempSync(join(tmpdir(), 'nightly-results-'));
+  const oldPath = process.env.PATH;
+  try {
+    process.env.PATH = `${directory}:${oldPath}`;
+    const startPsql = runInNewContext(`(${caller})`, { startSession, DOCKER_ARGS: [], sessionApp: (suffix) => `test_${suffix}` });
+    const lastLine = runInNewContext(`(${line})`);
+    for (const [script, status, stdout, stderr] of [
+      ["printf '{\"status\":\"accepted\"}\\n'; printf 'notice\\n' >&2", 0, '{"status":"accepted"}\n', 'notice\n'],
+      ["printf 'broken\\n' >&2; exit 7", 7, '', 'broken\n'],
+      ['exit 0', 0, '', ''],
+      ["printf '{\"status\":'", 0, '{"status":', ''],
+    ]) {
+      writeFileSync(join(directory, 'docker'), `#!/bin/sh\n${script}\n`, { mode: 0o755 });
+      const result = await startPsql('select 1;\n', 'request').done;
+      assert.equal(result.status, status);
+      assert.equal(result.stdout, stdout);
+      assert.equal(result.stderr, stderr);
+      if (status !== 0) assert.throws(() => assert.equal(result.status, 0, result.output));
+      else if (!stdout || stdout.endsWith(':')) assert.throws(() => JSON.parse(lastLine(result.stdout)));
+      else assert.equal(JSON.parse(lastLine(result.stdout)).status, 'accepted');
+    }
+  } finally {
+    process.env.PATH = oldPath;
+    rmSync(directory, { recursive: true, force: true });
+  }
 });
