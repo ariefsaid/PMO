@@ -146,16 +146,11 @@ Deno.test("AC-SETUP-002 / RF-049 readiness lists actionable configuration and co
     }),
     supabaseSelect("budget_category_account_map", () => jsonResponse([])),
     supabaseSelect("budget_line_items", () => jsonResponse([])),
-    supabaseSelect("timesheet_entries", (call) => {
-      assertEquals(call.url.searchParams.get("org_id"), "eq.org-1");
-      assertEquals(call.url.searchParams.get("timesheets.org_id"), "eq.org-1");
-      assertEquals(call.url.searchParams.get("hours"), "gt.0");
-      return jsonResponse([{ timesheets: { user_id: "member-2" }, hours: 4 }]);
+    // The distinct, active, unlinked participants are counted in the database, scoped to the org.
+    supabaseRpc("erp_setup_unlinked_participant_count", (call) => {
+      assertEquals((call.bodyJson as { p_org_id: string }).p_org_id, "org-1");
+      return jsonResponse(1);
     }),
-    supabaseSelect(
-      "erp_employees",
-      () => jsonResponse([{ profile_id: "admin-1", link_state: "confirmed" }]),
-    ),
   ], async ({ calls }) => {
     const response = await handleSetCompanyRequest(
       await request({ tier: "erpnext", setupAction: "readiness" }),
@@ -262,8 +257,7 @@ Deno.test("AC-S09-001 readiness proposes only own, unlinked reviewable projects"
     }),
     supabaseSelect("budget_category_account_map", () => jsonResponse([])),
     supabaseSelect("budget_line_items", () => jsonResponse([])),
-    supabaseSelect("timesheet_entries", () => jsonResponse([])),
-    supabaseSelect("erp_employees", () => jsonResponse([])),
+    supabaseRpc("erp_setup_unlinked_participant_count", () => jsonResponse(0)),
   ], async ({ calls }) => {
     const response = await handleSetCompanyRequest(
       await request({ tier: "erpnext", setupAction: "readiness" }),
@@ -1318,8 +1312,7 @@ Deno.test("AC-BAM-007 readiness counts each category with a push account exactly
         { id: "m4", category: "Equipment", erp_account: "Equipment - EX", is_push_target: true },
       ])),
     supabaseSelect("budget_line_items", () => jsonResponse([])),
-    supabaseSelect("timesheet_entries", () => jsonResponse([])),
-    supabaseSelect("erp_employees", () => jsonResponse([])),
+    supabaseRpc("erp_setup_unlinked_participant_count", () => jsonResponse(0)),
   ], async () => {
     const response = await handleSetCompanyRequest(
       await request({ tier: "erpnext", setupAction: "readiness" }),
@@ -1342,8 +1335,7 @@ Deno.test("AC-TVC-002 readiness reports which split-out categories the org budge
       assertEquals(call.url.searchParams.get("limit"), "1");
       return jsonResponse(call.url.searchParams.get("category") === "eq.Vehicle" ? [{ category: "Vehicle" }] : []);
     }),
-    supabaseSelect("timesheet_entries", () => jsonResponse([])),
-    supabaseSelect("erp_employees", () => jsonResponse([])),
+    supabaseRpc("erp_setup_unlinked_participant_count", () => jsonResponse(0)),
   ], async ({ calls }) => {
     const response = await handleSetCompanyRequest(
       await request({ tier: "erpnext", setupAction: "readiness" }),
