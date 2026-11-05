@@ -55,16 +55,28 @@ type ProposedLink = {
   profile_name: string | null;
   profile_email: string | null;
 };
-const attentionState: { data: AttentionRow[]; isPending: boolean; isError: boolean } = {
+const attentionState: {
+  data: AttentionRow[] | undefined;
+  isPending: boolean;
+  isError: boolean;
+  refetch: ReturnType<typeof vi.fn>;
+} = {
   data: [],
   isPending: false,
   isError: false,
+  refetch: vi.fn(),
 };
 const retryMutation: MutationState = { mutate: vi.fn(), isPending: false };
-const linksState: { data: ProposedLink[]; isPending: boolean; isError: boolean } = {
+const linksState: {
+  data: ProposedLink[] | undefined;
+  isPending: boolean;
+  isError: boolean;
+  refetch: ReturnType<typeof vi.fn>;
+} = {
   data: [],
   isPending: false,
   isError: false,
+  refetch: vi.fn(),
 };
 type CandidateProfile = { id: string; full_name: string; email: string; status: string };
 const profileOptionsState: CandidateProfile[] = [];
@@ -209,11 +221,13 @@ beforeEach(() => {
   attentionState.data = [];
   attentionState.isPending = false;
   attentionState.isError = false;
+  attentionState.refetch = vi.fn();
   retryMutation.mutate = vi.fn();
   retryMutation.isPending = false;
   linksState.data = [];
   linksState.isPending = false;
   linksState.isError = false;
+  linksState.refetch = vi.fn();
   profileOptionsState.splice(0, profileOptionsState.length);
   profileListAvailability.unavailable = false;
   confirmMutation.mutate = vi.fn();
@@ -819,5 +833,228 @@ describe('Approvals page — P3b ERP push attention + Employee-link confirm (AC-
     linksState.data = [proposedLink];
     renderPage();
     expect(screen.getAllByRole('region', { name: /Employee links awaiting confirmation/i })).toHaveLength(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// T18 — Supplementary read errors and scoped retry (AC-T18-APP-001..003)
+// ---------------------------------------------------------------------------
+describe('Approvals page — T18 supplementary read errors and scoped retry (AC-T18-APP-001..003)', () => {
+  const sampleFailedRow: AttentionRow = {
+    timesheet_id: 'ts-attention-1',
+    push_state: 'failed',
+    push_error: 'external-unreachable',
+    ts_number: null,
+    week_start_date: '2026-01-05',
+    approved_by: 'u-mgr',
+    owner_name: 'Dave Engineer',
+  };
+
+  const sampleProposedLink: ProposedLink = {
+    id: 'emp-link-1',
+    employee_name: 'Jane Doe',
+    employee_number: 'HR-EMP-00087',
+    work_email: 'jane@co.test',
+    link_proposed_reason: 'unique work_email match',
+    profile_id: 'profile-1',
+    profile_name: 'Jane Q. Doe',
+    profile_email: 'jane.doe@pmo.test',
+  };
+
+  it('AC-T18-APP-001: Given the push list fails and employee links remain healthy, when the user sees and retries its labelled error, then only push query refetch fires, not the push mutation or employee read, and normal inbox/other section remain usable; successful nonempty data returns after refetch', async () => {
+    authState.role = 'Admin';
+    queryState.data = submittedSheets;
+    attentionState.isError = true;
+    attentionState.data = [];
+    linksState.isError = false;
+    linksState.data = [sampleProposedLink];
+    profileOptionsState.push({ id: 'profile-1', full_name: 'Jane Q. Doe', email: 'jane.doe@pmo.test', status: 'active' });
+
+    const view = renderPage('all');
+
+    // Push error region is visible and labelled
+    const pushRegion = screen.getByRole('region', { name: /ERP pushes needing attention/i });
+    expect(pushRegion).toBeInTheDocument();
+    expect(within(pushRegion).getByRole('alert')).toBeInTheDocument();
+
+    // Employee link section remains healthy and usable
+    const linkRegion = screen.getByRole('region', { name: /Employee links awaiting confirmation/i });
+    expect(linkRegion).toBeInTheDocument();
+    expect(within(linkRegion).getByText('Jane Doe')).toBeInTheDocument();
+
+    // Normal inbox / preview region remain usable
+    expect(screen.getByRole('region', { name: /Approvals queue/i })).toBeInTheDocument();
+
+    // User retries the labelled push error
+    const retryBtn = within(pushRegion).getByRole('button', { name: /retry/i });
+    await userEvent.click(retryBtn);
+
+    // Only push refetch fires — zero write mutations and zero employee refetch
+    expect(attentionState.refetch).toHaveBeenCalledTimes(1);
+    expect(linksState.refetch).not.toHaveBeenCalled();
+    expect(retryMutation.mutate).not.toHaveBeenCalled();
+    expect(confirmMutation.mutate).not.toHaveBeenCalled();
+    expect(confirmMutation.mutateAsync).not.toHaveBeenCalled();
+
+    // Model rerender to successful nonempty list after refetch
+    attentionState.isError = false;
+    attentionState.data = [sampleFailedRow];
+    view.rerender(
+      <MemoryRouter initialEntries={['/approvals?scope=all']}>
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <ToastProvider>
+            <ApprovalsPage />
+          </ToastProvider>
+        </QueryClientProvider>
+      </MemoryRouter>,
+    );
+
+    expect(within(pushRegion).queryByRole('alert')).not.toBeInTheDocument();
+    expect(within(pushRegion).getByText('Dave Engineer')).toBeInTheDocument();
+  });
+
+  it('AC-T18-APP-002: Given the employee review fails and push remains healthy, when the user retries its labelled error, then only links.refetch fires, not link confirmation or push query, and successful links/profiles return; other inbox remains usable', async () => {
+    authState.role = 'Admin';
+    queryState.data = submittedSheets;
+    attentionState.isError = false;
+    attentionState.data = [sampleFailedRow];
+    linksState.isError = true;
+    linksState.data = [];
+    profileOptionsState.push({ id: 'profile-1', full_name: 'Jane Q. Doe', email: 'jane.doe@pmo.test', status: 'active' });
+
+    const view = renderPage('all');
+
+    // Employee link error region is visible and labelled
+    const linkRegion = screen.getByRole('region', { name: /Employee links awaiting confirmation/i });
+    expect(linkRegion).toBeInTheDocument();
+    expect(within(linkRegion).getByRole('alert')).toBeInTheDocument();
+
+    // Push attention section is healthy and usable
+    const pushRegion = screen.getByRole('region', { name: /ERP pushes needing attention/i });
+    expect(pushRegion).toBeInTheDocument();
+    expect(within(pushRegion).getByText('Dave Engineer')).toBeInTheDocument();
+
+    // Normal inbox remains usable
+    expect(screen.getByRole('region', { name: /Approvals queue/i })).toBeInTheDocument();
+
+    // User retries the labelled employee link error
+    const retryBtn = within(linkRegion).getByRole('button', { name: /retry/i });
+    await userEvent.click(retryBtn);
+
+    // Only links.refetch fires — zero confirm mutations and zero push refetch
+    expect(linksState.refetch).toHaveBeenCalledTimes(1);
+    expect(attentionState.refetch).not.toHaveBeenCalled();
+    expect(confirmMutation.mutate).not.toHaveBeenCalled();
+    expect(confirmMutation.mutateAsync).not.toHaveBeenCalled();
+    expect(retryMutation.mutate).not.toHaveBeenCalled();
+
+    // Model rerender to successful nonempty list after refetch
+    linksState.isError = false;
+    linksState.data = [sampleProposedLink];
+    view.rerender(
+      <MemoryRouter initialEntries={['/approvals?scope=all']}>
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <ToastProvider>
+            <ApprovalsPage />
+          </ToastProvider>
+        </QueryClientProvider>
+      </MemoryRouter>,
+    );
+
+    expect(within(linkRegion).queryByRole('alert')).not.toBeInTheDocument();
+    expect(within(linkRegion).getByText('Jane Doe')).toBeInTheDocument();
+  });
+
+  it('AC-T18-APP-003: Given both fail, two individually named regions and retry controls remain separately operable; pending/success-empty/ineligible remain silent; handles stale data background errors and recovery to empty', async () => {
+    authState.role = 'Admin';
+    queryState.data = submittedSheets;
+    attentionState.isError = true;
+    attentionState.data = [sampleFailedRow]; // stale data retained from previous read
+    linksState.isError = true;
+    linksState.data = [sampleProposedLink]; // stale data retained
+    profileOptionsState.push({ id: 'profile-1', full_name: 'Jane Q. Doe', email: 'jane.doe@pmo.test', status: 'active' });
+
+    const view = renderPage('all');
+
+    // Both named regions render and show honest error even with stale data present
+    const pushRegion = screen.getByRole('region', { name: /ERP pushes needing attention/i });
+    const linkRegion = screen.getByRole('region', { name: /Employee links awaiting confirmation/i });
+    expect(pushRegion).toBeInTheDocument();
+    expect(linkRegion).toBeInTheDocument();
+    expect(within(pushRegion).getByRole('alert')).toBeInTheDocument();
+    expect(within(linkRegion).getByRole('alert')).toBeInTheDocument();
+
+    // Rest of inbox remains usable
+    expect(screen.getByRole('region', { name: /Approvals queue/i })).toBeInTheDocument();
+
+    // Separately operable retry controls: click push retry
+    const pushRetryBtn = within(pushRegion).getByRole('button', { name: /retry/i });
+    await userEvent.click(pushRetryBtn);
+    expect(attentionState.refetch).toHaveBeenCalledTimes(1);
+    expect(linksState.refetch).not.toHaveBeenCalled();
+    expect(retryMutation.mutate).not.toHaveBeenCalled();
+    expect(confirmMutation.mutate).not.toHaveBeenCalled();
+
+    // Click employee link retry
+    const linkRetryBtn = within(linkRegion).getByRole('button', { name: /retry/i });
+    await userEvent.click(linkRetryBtn);
+    expect(linksState.refetch).toHaveBeenCalledTimes(1);
+    expect(attentionState.refetch).toHaveBeenCalledTimes(1);
+    expect(retryMutation.mutate).not.toHaveBeenCalled();
+    expect(confirmMutation.mutate).not.toHaveBeenCalled();
+
+    // Recovery to empty: refetch returns empty queues (not error)
+    attentionState.isError = false;
+    attentionState.data = [];
+    linksState.isError = false;
+    linksState.data = [];
+    view.rerender(
+      <MemoryRouter initialEntries={['/approvals?scope=all']}>
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <ToastProvider>
+            <ApprovalsPage />
+          </ToastProvider>
+        </QueryClientProvider>
+      </MemoryRouter>,
+    );
+
+    // Both sections disappear silently when empty
+    expect(screen.queryByRole('region', { name: /ERP pushes needing attention/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: /Employee links awaiting confirmation/i })).not.toBeInTheDocument();
+
+    // Pending / loading state (including disabled/no-org pending): remains silent
+    attentionState.isPending = true;
+    attentionState.data = undefined;
+    linksState.isPending = true;
+    linksState.data = undefined;
+    view.rerender(
+      <MemoryRouter initialEntries={['/approvals?scope=all']}>
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <ToastProvider>
+            <ApprovalsPage />
+          </ToastProvider>
+        </QueryClientProvider>
+      </MemoryRouter>,
+    );
+    expect(screen.queryByRole('region', { name: /ERP pushes needing attention/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: /Employee links awaiting confirmation/i })).not.toBeInTheDocument();
+
+    // Ineligible role: sections never mount
+    authState.role = 'Finance';
+    attentionState.isPending = false;
+    attentionState.isError = true;
+    linksState.isPending = false;
+    linksState.isError = true;
+    view.rerender(
+      <MemoryRouter initialEntries={['/approvals?scope=all']}>
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <ToastProvider>
+            <ApprovalsPage />
+          </ToastProvider>
+        </QueryClientProvider>
+      </MemoryRouter>,
+    );
+    expect(screen.queryByRole('region', { name: /ERP pushes needing attention/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: /Employee links awaiting confirmation/i })).not.toBeInTheDocument();
   });
 });
